@@ -114,6 +114,7 @@ describe("OpenAPI foundation", () => {
         "/v1/device-authorizations/{id}/deny",
         "/v1/devices",
         "/v1/devices/{device_id}/revoke",
+        "/v1/health-authority",
         "/v1/plans/public",
         "/v1/subscription",
       ].sort(),

@@ -619,7 +619,7 @@ const BootstrapAiJsonObjectV1Schema = z
     (value) => Object.keys(value).length <= 128,
     "too many profile fields",
   );
-const BootstrapDetectedAiV1Schema = z
+export const BootstrapDetectedAiV1Schema = z
   .object({
     family: StableMachineIdentifierV1Schema,
     surface: StableMachineIdentifierV1Schema,
@@ -832,6 +832,121 @@ export const SignedBootstrapEnvelopeSchema = z.union([
 ]);
 export type SignedBootstrapEnvelope = z.infer<
   typeof SignedBootstrapEnvelopeSchema
+>;
+
+/**
+ * B1 is a separate signed read-only transport. It intentionally does not
+ * extend either strict Bootstrap snapshot; old V1/V2 clients therefore keep
+ * receiving and parsing their original byte shapes.
+ */
+export const HealthTransportVersionV1Schema = z.literal("health_transport_v1");
+export const HealthEnvelopeVersionV1Schema = z.literal("health_envelope_v1");
+export const HealthClaimVersionV1Schema = z.literal("health_claim_v1");
+export const HealthTargetV1Schema = z.literal("WORK");
+export const HealthDecisionReasonV1Schema = z.enum([
+  "PRODUCER_UNAVAILABLE",
+  "PRODUCER_DENIED",
+  "PROVENANCE_MISSING",
+  "STALE_OBSERVATION",
+  "INVALID_CONTEXT",
+  "AI_UNAVAILABLE",
+]);
+const HealthAiBindingV1Schema = z
+  .object({
+    family: StableMachineIdentifierV1Schema,
+    surface: StableMachineIdentifierV1Schema,
+    variant: StableMachineIdentifierV1Schema.nullable(),
+    profileKey: StableMachineIdentifierV1Schema,
+    revision: z.number().int().positive().safe(),
+    scopeVariant: StableMachineIdentifierV1Schema.nullable(),
+    contentSha256: z.string().regex(/^[0-9a-f]{64}$/),
+  })
+  .strict();
+export const HealthContextBindingV1Schema = z
+  .object({
+    accountId: z.uuid(),
+    contractVersion: ControlPlaneContractVersionV2Schema,
+    configVersion: z.number().int().positive().safe(),
+    ai: HealthAiBindingV1Schema,
+  })
+  .strict();
+export type HealthContextBindingV1 = z.infer<
+  typeof HealthContextBindingV1Schema
+>;
+const HealthPassClaimV1Schema = z
+  .object({
+    healthClaimVersion: HealthClaimVersionV1Schema,
+    status: z.literal("PASS"),
+    target: HealthTargetV1Schema,
+    context: HealthContextBindingV1Schema,
+    observedAt: IsoTimestampV1Schema,
+    expiresAt: IsoTimestampV1Schema,
+    executionAuthority: z.literal(false),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (Date.parse(value.observedAt) >= Date.parse(value.expiresAt))
+      context.addIssue({
+        code: "custom",
+        path: ["expiresAt"],
+        message: "Health PASS must expire after observation",
+      });
+  });
+const HealthNegativeClaimV1Schema = z.discriminatedUnion("status", [
+  z
+    .object({
+      healthClaimVersion: HealthClaimVersionV1Schema,
+      status: z.literal("DENY"),
+      target: HealthTargetV1Schema,
+      reason: HealthDecisionReasonV1Schema,
+      observedAt: IsoTimestampV1Schema,
+      executionAuthority: z.literal(false),
+    })
+    .strict(),
+  z
+    .object({
+      healthClaimVersion: HealthClaimVersionV1Schema,
+      status: z.literal("UNAVAILABLE"),
+      target: HealthTargetV1Schema,
+      reason: HealthDecisionReasonV1Schema,
+      observedAt: IsoTimestampV1Schema,
+      executionAuthority: z.literal(false),
+    })
+    .strict(),
+]);
+export const HealthClaimV1Schema = z.union([
+  HealthPassClaimV1Schema,
+  HealthNegativeClaimV1Schema,
+]);
+export type HealthClaimV1 = z.infer<typeof HealthClaimV1Schema>;
+export const HealthAuthorityRequestV1Schema = z
+  .object({
+    healthTransportVersion: HealthTransportVersionV1Schema,
+    bootstrap: BootstrapRequestV2Schema,
+  })
+  .strict();
+export type HealthAuthorityRequestV1 = z.infer<
+  typeof HealthAuthorityRequestV1Schema
+>;
+export const SignedHealthEnvelopeV1Schema = z
+  .object({
+    healthEnvelopeVersion: HealthEnvelopeVersionV1Schema,
+    algorithm: z.literal("Ed25519"),
+    keyId: StableMachineIdentifierV1Schema,
+    payload: z
+      .string()
+      .min(1)
+      .max(32_768)
+      .regex(/^[A-Za-z0-9_-]+$/),
+    signature: z
+      .string()
+      .min(1)
+      .max(256)
+      .regex(/^[A-Za-z0-9_-]+$/),
+  })
+  .strict();
+export type SignedHealthEnvelopeV1 = z.infer<
+  typeof SignedHealthEnvelopeV1Schema
 >;
 
 /** P6.2 admin read/support/principal-management contracts. */

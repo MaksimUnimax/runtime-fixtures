@@ -708,7 +708,7 @@ describe("P6.2 admin API boundary", () => {
     expect(response.headers["cache-control"]).toBe("no-store");
   });
 
-  it("publishes the exact 67 method tuples", async () => {
+  it("publishes the exact method tuples", async () => {
     const document = JSON.parse(await generateOpenApiRepresentation()) as {
       paths: Record<string, Record<string, unknown>>;
     };
@@ -717,6 +717,6 @@ describe("P6.2 admin API boundary", () => {
         (count, path) => count + Object.keys(path).length,
         0,
       ),
-    ).toBe(104);
+    ).toBe(105);
   });
 });

@@ -29,6 +29,7 @@
     "packages/control-client/src/crypto.js",
     "packages/control-client/src/packaged-capabilities.js",
     "packages/control-client/src/client.js",
+    "packages/control-client/src/health-metadata.js",
     "packages/control-client/src/signed-metadata.js",
     "packages/control-client/src/capability-intersection.js",
     "packages/control-client/src/online-work-authority.js",
@@ -152,29 +153,18 @@
       ]
     }
   },
-  "worker_postload": [
-    "shared/wb_adapter.js",
-    "shared/application.js"
-  ],
+  "worker_postload": ["shared/wb_adapter.js", "shared/application.js"],
   "application_patches": "apps/extension/application-patches.json",
   "application_files": {
-    "shared/bootstrap_verifier.js": [
-      "packages/control-client/src/crypto.js"
-    ],
+    "shared/bootstrap_verifier.js": ["packages/control-client/src/crypto.js"],
     "shared/application.js": [
       "packages/bridge-core/src/stores/catalog.js",
       "apps/extension/src/application/runtime.js",
       "apps/extension/src/application/delivery.js"
     ],
-    "popup.html": [
-      "apps/extension/src/application/popup.html"
-    ],
-    "popup.js": [
-      "apps/extension/src/application/popup.js"
-    ],
-    "popup.css": [
-      "apps/extension/src/application/popup.css"
-    ]
+    "popup.html": ["apps/extension/src/application/popup.html"],
+    "popup.js": ["apps/extension/src/application/popup.js"],
+    "popup.css": ["apps/extension/src/application/popup.css"]
   },
   "marketplace_hosts": [
     "https://content-api.wildberries.ru/*",
@@ -192,8 +182,5 @@
     "https://feedbacks-api.wildberries.ru/*",
     "https://returns-api.wildberries.ru/*"
   ],
-  "control_hosts": [
-    "http://127.0.0.1:43100/*",
-    "http://127.0.0.1:43101/*"
-  ]
+  "control_hosts": ["http://127.0.0.1:43100/*", "http://127.0.0.1:43101/*"]
 }

@@ -5,6 +5,10 @@ import type {
   BootstrapSnapshotPayloadV2,
   SignedBootstrapEnvelopeV1,
   SignedBootstrapEnvelopeV2,
+  HealthAuthorityRequestV1,
+  HealthClaimV1,
+  HealthContextBindingV1,
+  SignedHealthEnvelopeV1,
 } from "@product/contracts";
 import type { CommercialAccessResolution } from "@product/commercial-access";
 import { getSellerAgentsFreeBetaCapabilityPermissions } from "@product/entitlements/seller-agents-beta-capability-policy";
@@ -20,6 +24,8 @@ import {
 import {
   BootstrapSnapshotPayloadV1Schema,
   BootstrapSnapshotPayloadV2Schema,
+  BootstrapRequestV2Schema,
+  HealthClaimV1Schema,
 } from "@product/contracts";
 import { BootstrapAiResolutionService } from "./ai-resolution.js";
 import type { BetaAccessResolution } from "@product/beta-access";
@@ -41,6 +47,37 @@ export type BootstrapSnapshotSigningService = {
     keyId: string,
     payload: BootstrapSnapshotPayloadV2,
   ): Promise<SignedBootstrapEnvelopeV2>;
+  signHealth?(
+    keyId: string,
+    claim: HealthClaimV1,
+  ): Promise<SignedHealthEnvelopeV1>;
+};
+export type BootstrapHealthDecision =
+  | { status: "PASS" }
+  | {
+      status: "DENY";
+      reason:
+        | "PRODUCER_DENIED"
+        | "PROVENANCE_MISSING"
+        | "STALE_OBSERVATION"
+        | "INVALID_CONTEXT";
+    }
+  | {
+      status: "UNAVAILABLE";
+      reason:
+        | "PRODUCER_UNAVAILABLE"
+        | "PROVENANCE_MISSING"
+        | "AI_UNAVAILABLE"
+        | "INVALID_CONTEXT";
+    };
+export type BootstrapHealthAuthorityResolver = {
+  resolve(input: {
+    accountId: string;
+    deviceId: string;
+    configVersion: number;
+    ai: HealthContextBindingV1["ai"];
+    observedAt: Date;
+  }): Promise<BootstrapHealthDecision>;
 };
 export type BootstrapClock = { now(): Date };
 export type BootstrapCommercialAccessResolver = {
@@ -126,7 +163,145 @@ export class BootstrapService {
     private readonly betaCapabilityPermissions: BootstrapBetaCapabilityPermissionResolver = {
       resolve: getSellerAgentsFreeBetaCapabilityPermissions,
     },
+    private readonly healthResolver?: BootstrapHealthAuthorityResolver,
   ) {}
+
+  async issueHealth(
+    subject: BootstrapSubject,
+    request: HealthAuthorityRequestV1,
+  ): Promise<SignedHealthEnvelopeV1> {
+    if (request.healthTransportVersion !== "health_transport_v1")
+      throw new BootstrapError("UNAVAILABLE");
+    const bootstrapRequest = BootstrapRequestV2Schema.parse(request.bootstrap);
+    if (bootstrapRequest.deviceId !== subject.deviceId)
+      throw new BootstrapError("DEVICE_MISMATCH");
+    if (!this.signer.signHealth) throw new BootstrapError("UNAVAILABLE");
+    const now = new Date(this.clock.now().getTime());
+    const result = await this.policy.resolve({
+      contractVersion: bootstrapRequest.contractVersion,
+      extensionVersion: bootstrapRequest.extensionVersion,
+      browser: bootstrapRequest.browser,
+      accountId: subject.accountId,
+      deviceId: subject.deviceId,
+    });
+    if ("failure" in result) throw new BootstrapError("UNAVAILABLE");
+
+    let eligible = !this.commercialAccess && !this.betaAccess;
+    let commercialDeadline: Date | null = null;
+    if (this.commercialAccess) {
+      const commercial = await this.commercialAccess.resolve(
+        subject.accountId,
+        now,
+      );
+      if (commercial.kind !== "OK") throw new BootstrapError("UNAVAILABLE");
+      eligible = commercial.value.access.kind === "ELIGIBLE";
+      commercialDeadline = commercial.value.accessUntil;
+    }
+    if (this.betaAccess) {
+      const beta = await this.betaAccess.resolve(subject.accountId);
+      eligible = eligible || beta.kind === "BETA";
+    }
+    let ai: BootstrapSnapshotPayloadV2["ai"] = { status: "UNCONFIGURED" };
+    if (eligible && bootstrapRequest.detectedAi && this.aiResolution) {
+      try {
+        ai = await this.aiResolution.resolve({
+          detected: {
+            family: bootstrapRequest.detectedAi.family,
+            surface: bootstrapRequest.detectedAi.surface,
+            variant: bootstrapRequest.detectedAi.variant ?? null,
+          },
+          contractVersion: bootstrapRequest.contractVersion,
+          extensionVersion: bootstrapRequest.extensionVersion,
+          browser: bootstrapRequest.browser,
+          accountId: subject.accountId,
+          deviceId: subject.deviceId,
+        });
+      } catch {
+        ai = {
+          status: "UNAVAILABLE",
+          detected: {
+            family: bootstrapRequest.detectedAi.family,
+            surface: bootstrapRequest.detectedAi.surface,
+            variant: bootstrapRequest.detectedAi.variant ?? null,
+          },
+          reason: "NO_PROFILE",
+        };
+      }
+    }
+    const decision: BootstrapHealthDecision =
+      ai.status !== "RESOLVED"
+        ? { status: "UNAVAILABLE" as const, reason: "AI_UNAVAILABLE" as const }
+        : this.healthResolver
+          ? await this.healthResolver.resolve({
+              accountId: subject.accountId,
+              deviceId: subject.deviceId,
+              configVersion: result.configVersion,
+              ai: {
+                family: ai.detected.family,
+                surface: ai.detected.surface,
+                variant: ai.detected.variant,
+                profileKey: ai.profile.profileKey,
+                revision: ai.profile.revision,
+                scopeVariant: ai.profile.scopeVariant,
+                contentSha256: ai.profile.contentSha256,
+              },
+              observedAt: now,
+            })
+          : {
+              status: "UNAVAILABLE" as const,
+              reason: "PRODUCER_UNAVAILABLE" as const,
+            };
+    let claim: HealthClaimV1;
+    if (decision.status === "PASS") {
+      if (ai.status !== "RESOLVED") throw new BootstrapError("UNAVAILABLE");
+      const observedAt = now.toISOString();
+      const baseExpiry = now.getTime() + 15 * 60_000;
+      const authorityExpiry = commercialDeadline
+        ? Math.min(baseExpiry, commercialDeadline.getTime() - 1)
+        : baseExpiry;
+      if (!(now.getTime() < authorityExpiry))
+        throw new BootstrapError("UNAVAILABLE");
+      claim = HealthClaimV1Schema.parse({
+        healthClaimVersion: "health_claim_v1",
+        status: "PASS",
+        target: "WORK",
+        context: {
+          accountId: subject.accountId,
+          contractVersion: "control_plane_v2",
+          configVersion: result.configVersion,
+          ai: {
+            family: ai.detected.family,
+            surface: ai.detected.surface,
+            variant: ai.detected.variant,
+            profileKey: ai.profile.profileKey,
+            revision: ai.profile.revision,
+            scopeVariant: ai.profile.scopeVariant,
+            contentSha256: ai.profile.contentSha256,
+          },
+        },
+        observedAt,
+        expiresAt: new Date(authorityExpiry).toISOString(),
+        executionAuthority: false,
+      });
+    } else {
+      claim = HealthClaimV1Schema.parse({
+        healthClaimVersion: "health_claim_v1",
+        status: decision.status,
+        target: "WORK",
+        reason: decision.reason,
+        observedAt: now.toISOString(),
+        executionAuthority: false,
+      });
+    }
+    try {
+      const envelope = await this.signer.signHealth(result.signingKeyId, claim);
+      if (envelope.keyId !== result.signingKeyId)
+        throw new Error("signing key mismatch");
+      return envelope;
+    } catch {
+      throw new BootstrapError("UNAVAILABLE");
+    }
+  }
 
   private signedEntitlements(
     input: SignedEntitlementCompositionInput,

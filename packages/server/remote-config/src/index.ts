@@ -24,8 +24,12 @@ import {
   BootstrapSnapshotPayloadV2Schema,
   SignedBootstrapEnvelopeV1Schema,
   SignedBootstrapEnvelopeV2Schema,
+  HealthClaimV1Schema,
+  SignedHealthEnvelopeV1Schema,
   type BootstrapSnapshotPayloadV1,
   type BootstrapSnapshotPayloadV2,
+  type HealthClaimV1,
+  type SignedHealthEnvelopeV1,
   type SignedBootstrapEnvelopeV1,
   type SignedBootstrapEnvelopeV2,
 } from "@product/contracts";
@@ -966,6 +970,11 @@ export const BOOTSTRAP_SIGNATURE_DOMAIN = Buffer.from(
   "product-control-plane/bootstrap-snapshot/v1\0",
   "utf8",
 );
+/** Same config signing ring as Bootstrap, with a distinct protocol domain. */
+export const HEALTH_SIGNATURE_DOMAIN = Buffer.from(
+  "product-control-plane/health-authority/v1\0",
+  "utf8",
+);
 
 export type CanonicalJsonValue =
   | null
@@ -1062,6 +1071,72 @@ export function signBootstrapSnapshotV2(
       privateKey,
     ).toString("base64url"),
   });
+}
+
+export function signHealthClaimV1(
+  claim: HealthClaimV1,
+  keyId: string,
+  privateKey: KeyObject,
+): SignedHealthEnvelopeV1 {
+  const parsed = HealthClaimV1Schema.parse(claim);
+  const payloadBytes = canonicalizeJson(parsed);
+  return SignedHealthEnvelopeV1Schema.parse({
+    healthEnvelopeVersion: "health_envelope_v1",
+    algorithm: "Ed25519",
+    keyId,
+    payload: payloadBytes.toString("base64url"),
+    signature: sign(
+      null,
+      healthSigningBytes(keyId, payloadBytes),
+      privateKey,
+    ).toString("base64url"),
+  });
+}
+
+export type VerifyHealthEnvelopeV1Result =
+  | { ok: true; payload: HealthClaimV1; envelope: SignedHealthEnvelopeV1 }
+  | { ok: false; error: BootstrapVerificationFailure };
+
+export function verifyHealthEnvelopeV1(
+  input: unknown,
+  ring: TrustedConfigSigningKeyRing,
+): VerifyHealthEnvelopeV1Result {
+  const envelope = SignedHealthEnvelopeV1Schema.safeParse(input);
+  if (!envelope.success) return { ok: false, error: "INVALID_ENVELOPE" };
+  const publicKey = ring.get(envelope.data.keyId);
+  if (!publicKey) return { ok: false, error: "UNKNOWN_SIGNING_KEY" };
+  const payloadBytes = decodeBase64Url(envelope.data.payload);
+  const signature = decodeBase64Url(envelope.data.signature);
+  if (!payloadBytes || !signature)
+    return { ok: false, error: "INVALID_PAYLOAD_ENCODING" };
+  try {
+    if (
+      !verify(
+        null,
+        healthSigningBytes(envelope.data.keyId, payloadBytes),
+        publicKey,
+        signature,
+      )
+    )
+      return { ok: false, error: "INVALID_SIGNATURE" };
+  } catch {
+    return { ok: false, error: "INVALID_SIGNATURE" };
+  }
+  let json: unknown;
+  try {
+    json = JSON.parse(payloadBytes.toString("utf8"));
+  } catch {
+    return { ok: false, error: "INVALID_PAYLOAD_JSON" };
+  }
+  const payload = HealthClaimV1Schema.safeParse(json);
+  if (!payload.success) return { ok: false, error: "INVALID_PAYLOAD_SCHEMA" };
+  try {
+    if (!canonicalizeJson(payload.data).equals(payloadBytes))
+      return { ok: false, error: "NON_CANONICAL_PAYLOAD" };
+  } catch {
+    return { ok: false, error: "INVALID_PAYLOAD_SCHEMA" };
+  }
+  return { ok: true, payload: payload.data, envelope: envelope.data };
 }
 
 export function verifyBootstrapEnvelope(
@@ -1170,6 +1245,14 @@ export function verifyBootstrapEnvelopeV2(
 function bootstrapSigningBytes(keyId: string, payload: Buffer): Buffer {
   return Buffer.concat([
     BOOTSTRAP_SIGNATURE_DOMAIN,
+    Buffer.from(keyId, "utf8"),
+    Buffer.from([0]),
+    payload,
+  ]);
+}
+function healthSigningBytes(keyId: string, payload: Buffer): Buffer {
+  return Buffer.concat([
+    HEALTH_SIGNATURE_DOMAIN,
     Buffer.from(keyId, "utf8"),
     Buffer.from([0]),
     payload,

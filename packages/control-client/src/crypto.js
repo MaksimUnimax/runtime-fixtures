@@ -157,6 +157,26 @@
     try { if (new TextEncoder().encode(canonical(json)).byteLength !== payloadBytes.byteLength || !cryptoEqual(new TextEncoder().encode(canonical(json)), payloadBytes)) return fail("NON_CANONICAL_PAYLOAD"); } catch (_) { return fail("INVALID_PAYLOAD_SCHEMA"); }
     return { ok: true, payload: json, envelope: input };
   }
+  const HEALTH_DOMAIN = textEncoder.encode("product-control-plane/health-authority/v1\0");
+  const HEALTH_REASONS = ["PRODUCER_UNAVAILABLE", "PRODUCER_DENIED", "PROVENANCE_MISSING", "STALE_OBSERVATION", "INVALID_CONTEXT", "AI_UNAVAILABLE"];
+  function healthAi(value) { return exact(value, ["family", "surface", "variant", "profileKey", "revision", "scopeVariant", "contentSha256"]) && machine(value.family) && machine(value.surface) && (value.variant === null || machine(value.variant)) && machine(value.profileKey) && Number.isSafeInteger(value.revision) && value.revision > 0 && (value.scopeVariant === null || machine(value.scopeVariant)) && /^[0-9a-f]{64}$/.test(value.contentSha256); }
+  function healthContext(value) { return exact(value, ["accountId", "contractVersion", "configVersion", "ai"]) && UUID.test(value.accountId) && value.contractVersion === "control_plane_v2" && Number.isSafeInteger(value.configVersion) && value.configVersion > 0 && healthAi(value.ai); }
+  function healthClaim(value) {
+    if (!record(value) || value.healthClaimVersion !== "health_claim_v1" || value.target !== "WORK" || value.executionAuthority !== false) return false;
+    if (value.status === "PASS") return exact(value, ["healthClaimVersion", "status", "target", "context", "observedAt", "expiresAt", "executionAuthority"]) && healthContext(value.context) && iso(value.observedAt) && iso(value.expiresAt) && Date.parse(value.observedAt) < Date.parse(value.expiresAt);
+    return (value.status === "DENY" || value.status === "UNAVAILABLE") && exact(value, ["healthClaimVersion", "status", "target", "reason", "observedAt", "executionAuthority"]) && HEALTH_REASONS.includes(value.reason) && iso(value.observedAt);
+  }
+  async function verifyHealthV1(input, bundle) {
+    if (!exact(input, ["healthEnvelopeVersion", "algorithm", "keyId", "payload", "signature"]) || input.healthEnvelopeVersion !== "health_envelope_v1" || input.algorithm !== "Ed25519" || !machine(input.keyId) || typeof input.payload !== "string" || input.payload.length > 32768 || typeof input.signature !== "string" || input.signature.length > 256) return fail("INVALID_ENVELOPE");
+    const keyRing = await makeKeyRing(bundle), key = keyRing.get(input.keyId); if (!key) return fail("UNKNOWN_SIGNING_KEY");
+    const payloadBytes = b64url(input.payload), signature = b64url(input.signature); if (!payloadBytes || !signature) return fail("INVALID_PAYLOAD_ENCODING");
+    let valid = false; try { const data = new Uint8Array(HEALTH_DOMAIN.length + input.keyId.length + 1 + payloadBytes.length); data.set(HEALTH_DOMAIN); data.set(textEncoder.encode(input.keyId), HEALTH_DOMAIN.length); data[HEALTH_DOMAIN.length + input.keyId.length] = 0; data.set(payloadBytes, HEALTH_DOMAIN.length + input.keyId.length + 1); valid = await crypto.subtle.verify("Ed25519", key, signature, data); } catch (_) { return fail("INVALID_SIGNATURE"); }
+    if (!valid) return fail("INVALID_SIGNATURE");
+    let json; try { json = parseStrictJson(new TextDecoder("utf-8", { fatal: true }).decode(payloadBytes)); } catch (_) { return fail("INVALID_PAYLOAD_JSON"); }
+    if (!healthClaim(json)) return fail("INVALID_PAYLOAD_SCHEMA");
+    try { const canonicalBytes = new TextEncoder().encode(canonical(json)); if (canonicalBytes.byteLength !== payloadBytes.byteLength || !cryptoEqual(canonicalBytes, payloadBytes)) return fail("NON_CANONICAL_PAYLOAD"); } catch (_) { return fail("INVALID_PAYLOAD_SCHEMA"); }
+    return { ok: true, payload: json, envelope: input };
+  }
   function cryptoEqual(a, b) { if (a.length !== b.length) return false; let result = 0; for (let i = 0; i < a.length; i++) result |= a[i] ^ b[i]; return result === 0; }
-  globalThis.SellerAgentsBootstrapVerifier = Object.freeze({ verifyV2: verifyBootstrapV2, validateBundle, canonicalJson: value => canonical(value), base64urlEncode: b64urlEncode });
+  globalThis.SellerAgentsBootstrapVerifier = Object.freeze({ verifyV2: verifyBootstrapV2, verifyHealthV1, validateBundle, canonicalJson: value => canonical(value), base64urlEncode: b64urlEncode });
 })();

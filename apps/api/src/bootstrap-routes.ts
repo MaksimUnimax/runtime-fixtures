@@ -9,6 +9,8 @@ import {
   ApiErrorEnvelopeV1Schema,
   BootstrapRequestSchema,
   SignedBootstrapEnvelopeSchema,
+  HealthAuthorityRequestV1Schema,
+  SignedHealthEnvelopeV1Schema,
 } from "@product/contracts";
 import type { BootstrapService } from "@product/bootstrap";
 import type {
@@ -72,6 +74,51 @@ export function registerBootstrapRoutes(
           throw new ControlledError(
             "BOOTSTRAP_UNAVAILABLE",
             "Bootstrap unavailable",
+            503,
+          );
+        throw error;
+      }
+    },
+  );
+  app.post(
+    "/v1/health-authority",
+    {
+      schema: {
+        body: HealthAuthorityRequestV1Schema,
+        response: {
+          200: SignedHealthEnvelopeV1Schema,
+          400: ApiErrorEnvelopeV1Schema,
+          401: ApiErrorEnvelopeV1Schema,
+          403: ApiErrorEnvelopeV1Schema,
+          503: ApiErrorEnvelopeV1Schema,
+        },
+      },
+      preHandler: async (request) => {
+        const result = await authenticateExtensionBearer(
+          request.headers.authorization,
+          auth,
+        );
+        if (!result.ok)
+          throw new ControlledError("UNAUTHORIZED", "Unauthorized", 401);
+        request.extensionPrincipal = result.value;
+      },
+    },
+    async (request) => {
+      const parsed = HealthAuthorityRequestV1Schema.safeParse(request.body);
+      if (!parsed.success)
+        throw new ControlledError("INVALID_REQUEST", "Invalid request", 400);
+      try {
+        return await service.issueHealth(
+          request.extensionPrincipal!,
+          parsed.data,
+        );
+      } catch (error) {
+        if (error instanceof BootstrapError && error.code === "DEVICE_MISMATCH")
+          throw new ControlledError("DEVICE_MISMATCH", "Device mismatch", 403);
+        if (error instanceof BootstrapError)
+          throw new ControlledError(
+            "BOOTSTRAP_UNAVAILABLE",
+            "Health authority unavailable",
             503,
           );
         throw error;
