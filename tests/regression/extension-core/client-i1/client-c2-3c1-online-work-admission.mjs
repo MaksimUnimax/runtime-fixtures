@@ -56,7 +56,7 @@ async function fixture(options = {}) {
   let release;
   const gate = options.gated ? new Promise(resolve => { release = resolve; }) : null;
   const calls = [];
-  const worker = await makeWorker(runtime, { backing, seedAuthority: false, healthFetch: async (url, init) => {
+  const worker = await makeWorker(runtime, { backing, seedAuthority: false, testHooks: options.testHooks, healthFetch: async (url, init) => {
     calls.push({ url: String(url), method: init?.method || "GET" });
     if (gate) await gate;
     if (mode === "network") throw new Error("network unavailable");
@@ -85,7 +85,7 @@ async function start(f, fields = {}) { return f.worker.popup({ type: "SA_WORK_ST
 async function resume(f) { return f.worker.popup({ type: "SA_WORK_RESUME", conversation_key: f.key, tab_id: f.worker.tabId }); }
 function healthCalls(f) { return f.calls.filter(row => row.url.endsWith("/v1/health-authority")); }
 async function rebindFixture(options = {}) {
-  const f = await fixture({ bound: true, state: options.state || "inactive", health: options.health, healthOverrides: options.healthOverrides, gated: options.gated, entitlements: options.entitlements });
+  const f = await fixture({ bound: true, state: options.state || "inactive", health: options.health, healthOverrides: options.healthOverrides, gated: options.gated, entitlements: options.entitlements, testHooks: options.testHooks });
   const response = await f.worker.popup({ type: "SA_STORE_SAVE", store: { marketplace: options.targetMarketplace || "wildberries", name: "Rebind target", credentials: { token: "REBIND-TARGET" } } });
   assert.equal(response.ok, true, JSON.stringify(response));
   return { ...f, target: response.store, sourceBinding: clone(f.backing.local[BINDINGS][f.key]), sourceWork: clone(f.backing.local[SESSIONS][f.key]) };
@@ -211,7 +211,87 @@ await runRB("RB-34", "raw OZ_WORK_START cannot bypass SA_WORK_START", async () =
 await runRB("RB-35", "ordinary commands add zero Health or Bootstrap calls", async () => { const f = await fixture(); try { await activeStart(f); const before = { health: healthCalls(f).length, bootstrap: f.calls.filter(row => row.url.endsWith("/v1/bootstrap")).length }; await f.worker.request({ type: "OZ_GET_MANUAL_STATE", conversation_key: f.key }, { tab: { id: f.worker.tabId } }); assert.equal(healthCalls(f).length, before.health); assert.equal(f.calls.filter(row => row.url.endsWith("/v1/bootstrap")).length, before.bootstrap); } finally { await close(f); } });
 await runRB("RB-36", "old commands do not autorun after confirmed rebind", async () => { const f = await rebindFixture(); try { await rebindStart(f); assert.equal(f.worker.messages.some(m => m.type === "OZ_EXECUTE_COMMAND"), false); assert.equal(f.calls.some(row => row.url.includes("ozon.ru") || row.url.includes("wildberries")), false); } finally { await close(f); } });
 
+const preToken = [];
+const runPR = async (id, description, fn) => {
+  try { await fn(); preToken.push({ id, status: "PASS", description }); }
+  catch (error) { preToken.push({ id, status: "FAIL", description, error: `${error.name}: ${error.message}` }); }
+};
+const preTokenStorage = f => ({
+  binding: clone(f.backing.local[BINDINGS][f.key]),
+  work: clone(f.backing.local[SESSIONS][f.key]),
+  pending: clone(f.backing.local.ozmb_pending_work_starts_v1 || {})
+});
+async function assertPreTokenDenied(f, afterMutation, expected = "WORK_ADMISSION_CONTEXT_CHANGED") {
+  const result = await rebindStart(f);
+  assert.equal(result.ok, false, JSON.stringify(result));
+  if (expected) assert.equal(result.code, expected, JSON.stringify(result));
+  assert.equal(healthCalls(f).length, 0, "stale rebind must not acquire Health");
+  assert.equal(f.worker.messages.filter(m => ["OZ_WORK_FINISH", "OZ_WORK_START", "OZ_WORK_SEND_INITIAL_PROMPT"].includes(m.type)).length, 0, "stale rebind must not mutate or prompt");
+  const current = preTokenStorage(f);
+  assert.deepEqual(current, afterMutation, "stale rebind must not persist after the injected change");
+  assert.equal((await f.worker.call("getPendingWorkStarts"))[f.worker.tabId] || null, null, "stale rebind must not leave target pending Start");
+}
+async function preTokenMutationCase({ id, description, state = "inactive", mutate }) {
+  let f, afterMutation;
+  const hook = {
+    async afterRebindPlanCreated() {
+      await mutate(f);
+      afterMutation = preTokenStorage(f);
+    }
+  };
+  f = await rebindFixture({ state, testHooks: hook });
+  try {
+    const result = await rebindStart(f);
+    assert.equal(result.ok, false, JSON.stringify(result));
+    assert.equal(result.code, "WORK_ADMISSION_CONTEXT_CHANGED", JSON.stringify(result));
+    assert.equal(healthCalls(f).length, 0, "stale rebind must not acquire Health");
+    const current = preTokenStorage(f);
+    assert.deepEqual(current, afterMutation, "stale rebind must not persist after the injected change");
+    assert.equal((await f.worker.call("getPendingWorkStarts"))[f.worker.tabId] || null, null, "stale rebind must not leave target pending Start");
+  }
+  finally { await close(f); }
+}
+
+await runPR("PR-01", "active_visible plan versus active_hidden R+1 rejects before Health", () => preTokenMutationCase({ id: "PR-01", description: "", state: "active_visible", mutate: f => { f.backing.local[SESSIONS][f.key].state = "active_hidden"; f.backing.local[SESSIONS][f.key].revision += 1; } }));
+await runPR("PR-02", "active_hidden plan versus active_visible R+1 rejects before Health", () => preTokenMutationCase({ id: "PR-02", description: "", state: "active_hidden", mutate: f => { f.backing.local[SESSIONS][f.key].state = "active_visible"; f.backing.local[SESSIONS][f.key].revision += 1; } }));
+await runPR("PR-03", "legitimate Finish in the pre-token window rejects stale active plan before Health", async () => {
+  let f, afterMutation;
+  const hook = { async afterRebindPlanCreated() {
+    const finish = await f.worker.popup({ type: "OZ_WORK_FINISH", tab_id: f.worker.tabId, conversation_key: f.key });
+    assert.equal(finish.ok, true, JSON.stringify(finish));
+    afterMutation = preTokenStorage(f);
+  } };
+  f = await rebindFixture({ state: "active_visible", testHooks: hook });
+  try {
+    const result = await rebindStart(f);
+    assert.equal(result.ok, false, JSON.stringify(result));
+    assert.equal(result.code, "WORK_ADMISSION_CONTEXT_CHANGED", JSON.stringify(result));
+    assert.equal(healthCalls(f).length, 0);
+    assert.deepEqual(preTokenStorage(f), afterMutation);
+    assert.equal((await f.worker.call("getPendingWorkStarts"))[f.worker.tabId] || null, null);
+    assert.equal((await f.worker.call("workSessionFor", f.key)).revision, f.sourceWork.revision + 2);
+  } finally { await close(f); }
+});
+await runPR("PR-04", "inactive plan versus ERROR changed revision never makes stale skip-Finish decision", () => preTokenMutationCase({ id: "PR-04", description: "", state: "inactive", mutate: f => { f.backing.local[SESSIONS][f.key].state = "error"; f.backing.local[SESSIONS][f.key].revision += 1; } }));
+await runPR("PR-05", "same Work state with changed revision rejects before Health", () => preTokenMutationCase({ id: "PR-05", description: "", state: "inactive", mutate: f => { f.backing.local[SESSIONS][f.key].revision += 1; } }));
+await runPR("PR-06", "binding revision change rejects before Health", () => preTokenMutationCase({ id: "PR-06", description: "", mutate: f => { f.backing.local[BINDINGS][f.key].revision += 1; } }));
+await runPR("PR-07", "source credential revision change rejects before Health", () => preTokenMutationCase({ id: "PR-07", description: "", mutate: f => { const source = f.backing.local[STORES].accounts[f.store.accountId].stores[f.store.id]; source.credentialRevision = "source-pre-token-revision"; f.backing.local[BINDINGS][f.key].store_context.credentialRevision = source.credentialRevision; } }));
+await runPR("PR-08", "target credential revision change rejects before Health", () => preTokenMutationCase({ id: "PR-08", description: "", mutate: f => { f.backing.local[STORES].accounts[f.target.accountId].stores[f.target.id].credentialRevision = "target-pre-token-revision"; } }));
+await runPR("PR-09", "account generation change rejects before Health", () => preTokenMutationCase({ id: "PR-09", description: "", mutate: f => f.worker.call("SellerAgentsControlClient.localReset") }));
+await runPR("PR-10", "device/session authority change rejects before Health", () => preTokenMutationCase({ id: "PR-10", description: "", mutate: f => f.worker.call("SellerAgentsControlClient.localReset") }));
+await runPR("PR-11", "dialogue identity change rejects before Health", () => preTokenMutationCase({ id: "PR-11", description: "", mutate: f => f.worker.setDialogue("pre-token-dialogue-change") }));
+await runPR("PR-12", "binding identity/store context change rejects before Health", () => preTokenMutationCase({ id: "PR-12", description: "", mutate: f => { f.backing.local[BINDINGS][f.key].binding_id = "binding-pre-token-change"; } }));
+await runPR("PR-13", "AI/profile authority identity change rejects before Health", () => preTokenMutationCase({ id: "PR-13", description: "", mutate: f => f.worker.setIdentity({ origin: "https://alice.yandex.ru", ai_id: "alice", conversation_id: "alice-pre-token-profile" }) }));
+await runPR("PR-14", "matching plan and initial snapshot remains valid", async () => { const f = await rebindFixture(); try { const result = await rebindStart(f); assertStartAccepted(result); assert.equal(healthCalls(f).length, 1); assert.equal((await pendingStartAcknowledged(f)).store_context.storeId, f.target.id); } finally { await close(f); } });
+await runPR("PR-15", "validated active source Finish uses exactly two revision increments", async () => { const f = await rebindFixture({ state: "active_visible" }); try { const result = await rebindStart(f); assertStartAccepted(result); await pendingStartAcknowledged(f); const work = await f.worker.call("workSessionFor", f.key); assert.equal(work.state, "inactive"); assert.equal(work.revision, f.sourceWork.revision + 2); } finally { await close(f); } });
+await runPR("PR-16", "validated inactive source skips Finish", async () => { const f = await rebindFixture({ state: "inactive" }); try { const result = await rebindStart(f); assertStartAccepted(result); assert.equal(f.worker.messages.filter(m => m.type === "OZ_WORK_FINISH").length, 0); } finally { await close(f); } });
+await runPR("PR-17", "stale plan makes no Health request", async () => { await preTokenMutationCase({ id: "PR-17", description: "", mutate: f => { f.backing.local[BINDINGS][f.key].revision += 1; } }); });
+await runPR("PR-18", "stale plan makes no old Work/binding mutation", async () => { await preTokenMutationCase({ id: "PR-18", description: "", mutate: f => { f.backing.local[SESSIONS][f.key].revision += 1; } }); });
+await runPR("PR-19", "stale plan makes no target pending record or prompt", async () => { await preTokenMutationCase({ id: "PR-19", description: "", mutate: f => { f.backing.local[STORES].accounts[f.target.accountId].stores[f.target.id].credentialRevision = "target-pre-token-pending-check"; } }); });
+await runPR("PR-20", "unrelated dialogue remains parallel", async () => { const f = await rebindFixture(); try { const second = f.worker.addTab(88, "unrelated-pre-token-dialogue"); const [one, two] = await Promise.all([rebindStart(f), f.worker.popup({ type: "SA_WORK_START", store_id: f.store.id, tab_id: 88, confirm_change: false, start_intent_id: "pr-unrelated" })]); assert.equal(one.ok, true, JSON.stringify(one)); assert.equal(two.ok, true, JSON.stringify(two)); assert.equal(healthCalls(f).length, 2); } finally { await close(f); } });
+
 const failureBatch = cases.filter(item => item.status === "FAIL");
 const rbFailures = rb.filter(item => item.status === "FAIL");
-console.log(JSON.stringify({ status: failureBatch.length || rbFailures.length ? "FAIL" : "PASS", scope: "C2.3-C1-R1_STORE_REBIND_CANONICAL_ENTRY", cases, failureBatch, rb, rbFailures, executionAuthority: false }, null, 2));
-if (failureBatch.length || rbFailures.length) process.exitCode = 1;
+const preTokenFailures = preToken.filter(item => item.status === "FAIL");
+console.log(JSON.stringify({ status: failureBatch.length || rbFailures.length || preTokenFailures.length ? "FAIL" : "PASS", scope: "C2.3-C1-R2_PRETOKEN_REBIND_PLAN_FENCE", cases, failureBatch, rb, rbFailures, preToken, preTokenFailures, executionAuthority: false }, null, 2));
+if (failureBatch.length || rbFailures.length || preTokenFailures.length) process.exitCode = 1;

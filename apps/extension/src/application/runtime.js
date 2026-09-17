@@ -170,6 +170,8 @@ async function saAdmissionFence({ operation, tabId, identity, key, binding, work
     pageSource: identity?.source || null,
     chatPath: identity?.chat_path || null,
     aiId: identity?.ai_id || null,
+    aiSurface: currentAuthority?.payload?.ai?.detected?.surface || null,
+    aiVariant: currentAuthority?.payload?.ai?.detected?.variant || null,
     aiProfileKey: profile.profileKey || null,
     aiProfileRevision: profile.revision || null,
     aiProfileScopeVariant: profile.scopeVariant ?? null,
@@ -194,7 +196,7 @@ async function saAdmissionFence({ operation, tabId, identity, key, binding, work
   });
 }
 function saSameFence(left, right) {
-  return left && right && ["operation", "admissionEpoch", "accountId", "generation", "deviceId", "sessionId", "authorityIdentity", "bootstrapSnapshotSha256", "tabId", "origin", "pageSource", "chatPath", "aiId", "aiProfileKey", "aiProfileRevision", "aiProfileScopeVariant", "aiProfileContentSha256", "conversationKey", "conversationId", "pendingIdentityState", "bindingId", "bindingIdentity", "bindingStoreId", "bindingStoreMarketplace", "bindingStoreCredentialRevision", "storeId", "selectedStoreId", "marketplace", "credentialRevision", "bindingRevision", "workState", "workRevision", "workIntentId", "intentId"].every(field => left[field] === right[field]);
+  return left && right && ["operation", "admissionEpoch", "accountId", "generation", "deviceId", "sessionId", "authorityIdentity", "bootstrapSnapshotSha256", "tabId", "origin", "pageSource", "chatPath", "aiId", "aiSurface", "aiVariant", "aiProfileKey", "aiProfileRevision", "aiProfileScopeVariant", "aiProfileContentSha256", "conversationKey", "conversationId", "pendingIdentityState", "bindingId", "bindingIdentity", "bindingStoreId", "bindingStoreMarketplace", "bindingStoreCredentialRevision", "storeId", "selectedStoreId", "marketplace", "credentialRevision", "bindingRevision", "workState", "workRevision", "workIntentId", "intentId"].every(field => left[field] === right[field]);
 }
 async function saAdmissionInput({ operation, tabId, identity, key, binding, work, store }) {
   const authority = await SellerAgentsControlClient.getAuthority();
@@ -249,7 +251,15 @@ function saRebindPlan({ tabId, identity, key, binding, work, sourceStore, target
     accountId: sourceStore?.accountId || targetStore.accountId,
     tabId: Number(tabId),
     origin: identity.origin,
+    pageSource: identity.source || null,
+    chatPath: identity.chat_path || null,
     aiId: identity.ai_id,
+    aiSurface: authority?.payload?.ai?.detected?.surface || null,
+    aiVariant: authority?.payload?.ai?.detected?.variant || null,
+    aiProfileKey: authority?.payload?.ai?.profile?.profileKey || null,
+    aiProfileRevision: authority?.payload?.ai?.profile?.revision ?? null,
+    aiProfileScopeVariant: authority?.payload?.ai?.profile?.scopeVariant ?? null,
+    aiProfileContentSha256: authority?.payload?.ai?.profile?.contentSha256 || null,
     conversationKey: key,
     conversationId: identity.conversation_id,
     bindingId: binding.binding_id,
@@ -266,11 +276,51 @@ function saRebindPlan({ tabId, identity, key, binding, work, sourceStore, target
     generation: authority?.generation,
     deviceId: authority?.deviceId,
     sessionId: authority?.sessionId,
-    startIntentId: String(intentId || "")
+    startIntentId: String(intentId || ""),
+    authorityIdentity: saAuthorityIdentity(authority)
   });
 }
 function saRebindProjection(plan) {
   return { binding: null, work: { state: OzonWorkSessionModel.STATES.INACTIVE, revision: 0, start_intent_id: null }, plan };
+}
+function saValidateRebindPlan(plan, initial) {
+  if (!plan) return null;
+  const fence = initial?.fence;
+  const expected = {
+    accountId: fence?.accountId,
+    tabId: fence?.tabId,
+    origin: fence?.origin,
+    pageSource: fence?.pageSource,
+    chatPath: fence?.chatPath,
+    aiId: fence?.aiId,
+    aiSurface: fence?.aiSurface,
+    aiVariant: fence?.aiVariant,
+    aiProfileKey: fence?.aiProfileKey,
+    aiProfileRevision: fence?.aiProfileRevision,
+    aiProfileScopeVariant: fence?.aiProfileScopeVariant,
+    aiProfileContentSha256: fence?.aiProfileContentSha256,
+    authorityIdentity: fence?.authorityIdentity,
+    conversationKey: fence?.conversationKey,
+    conversationId: fence?.conversationId,
+    bindingId: fence?.bindingId,
+    bindingRevision: fence?.bindingRevision,
+    sourceStoreId: fence?.bindingStoreId,
+    sourceMarketplace: fence?.bindingStoreMarketplace,
+    sourceCredentialRevision: fence?.bindingStoreCredentialRevision,
+    sourceWorkState: fence?.workState,
+    sourceWorkRevision: fence?.workRevision,
+    sourceWorkIntentId: fence?.workIntentId,
+    targetStoreId: fence?.selectedStoreId,
+    targetMarketplace: fence?.marketplace,
+    targetCredentialRevision: fence?.credentialRevision,
+    generation: fence?.generation,
+    deviceId: fence?.deviceId,
+    sessionId: fence?.sessionId,
+    startIntentId: fence?.intentId
+  };
+  const fields = Object.keys(expected);
+  if (fields.some(field => plan[field] !== expected[field])) throw saAdmissionError("WORK_ADMISSION_CONTEXT_CHANGED");
+  return Object.freeze({ ...plan, sourceWorkState: fence.workState, sourceWorkRevision: fence.workRevision, sourceWorkIntentId: fence.workIntentId });
 }
 async function saReadAdmissionSnapshot({ operation, tabId, store, intentId, conversationKey = null, admissionEpoch = "" }) {
   const identity = await tabIdentity(normalizeTabId(tabId));
@@ -312,7 +362,7 @@ async function saRebindAfterFinishGuard(token) {
   const current = await saReadAdmissionSnapshot({ operation: "start", tabId: token.tabId, store: token.store, intentId: token.intentId, conversationKey: token.conversationKey, admissionEpoch: token.id });
   const plan = token.rebindPlan;
   const unchanged = ["accountId", "generation", "deviceId", "sessionId", "authorityIdentity", "bootstrapSnapshotSha256", "tabId", "origin", "pageSource", "chatPath", "aiId", "aiProfileKey", "aiProfileRevision", "aiProfileScopeVariant", "aiProfileContentSha256", "conversationKey", "conversationId", "pendingIdentityState", "bindingId", "bindingIdentity", "bindingStoreId", "bindingStoreMarketplace", "bindingStoreCredentialRevision", "storeId", "selectedStoreId", "marketplace", "credentialRevision", "bindingRevision"].every(field => token.fence[field] === current.fence[field]);
-  if (!unchanged || current.fence.workState !== OzonWorkSessionModel.STATES.INACTIVE || current.fence.workIntentId !== null || current.fence.workRevision !== plan.sourceWorkRevision + 2) {
+  if (!unchanged || current.fence.workState !== OzonWorkSessionModel.STATES.INACTIVE || current.fence.workIntentId !== null || current.fence.workRevision !== token.sourceRevisionAtAdmission + 2) {
     token.cancelled = true;
     throw saAdmissionError("WORK_ADMISSION_CONTEXT_CHANGED");
   }
@@ -320,13 +370,19 @@ async function saRebindAfterFinishGuard(token) {
   token.rebindPhase = "source_finished";
   return token;
 }
-async function saAdmitOnline({ operation, tabId, store, intentId, conversationKey = null, projection = null, rebindPlan = null }) {
-  await saAssertWorkAuthority();
-  const initialRead = await saReadAdmissionSnapshot({ operation, tabId, store, intentId, conversationKey });
+async function saAdmitOnline({ operation, tabId, store, intentId, conversationKey = null, rebindPlan = null }) {
+  try { await saAssertWorkAuthority(); }
+  catch (error) { if (rebindPlan) throw saAdmissionError("WORK_ADMISSION_CONTEXT_CHANGED"); throw error; }
+  let initialRead;
+  try { initialRead = await saReadAdmissionSnapshot({ operation, tabId, store, intentId, conversationKey }); }
+  catch (error) { if (rebindPlan) throw saAdmissionError("WORK_ADMISSION_CONTEXT_CHANGED"); throw error; }
+  const validatedPlan = saValidateRebindPlan(rebindPlan, initialRead);
   const admissionKey = saAdmissionKey(tabId, initialRead.key);
   const token = saBeginAdmission(admissionKey, { operation, tabId, conversationKey: initialRead.key, store: initialRead.store, intentId });
-  token.rebindPlan = rebindPlan;
-  const initial = { ...initialRead, fence: await saAdmissionFence({ operation, tabId, identity: initialRead.identity, key: initialRead.key, binding: initialRead.binding, work: initialRead.work, store: initialRead.store, bindingStore: initialRead.bindingStore, intentId, authority: initialRead.authority, admissionEpoch: token.id }) };
+  token.rebindPlan = validatedPlan;
+  token.sourceRevisionAtAdmission = initialRead.fence.workRevision;
+  const initial = { ...initialRead, fence: Object.freeze({ ...initialRead.fence, admissionEpoch: token.id }) };
+  token.fence = initial.fence;
   try {
     const healthContext = { generation: initial.fence.generation, deviceId: initial.fence.deviceId, sessionId: initial.fence.sessionId };
     const detectedAi = { family: initial.identity.ai_id, surface: initial.authority.payload.ai.detected.surface, variant: initial.authority.payload.ai.detected.variant };
@@ -336,6 +392,7 @@ async function saAdmitOnline({ operation, tabId, store, intentId, conversationKe
     if (!saSameFence(initial.fence, afterHealth.fence)) throw saAdmissionError("WORK_ADMISSION_CONTEXT_CHANGED");
     const inputSnapshot = await saReadAdmissionSnapshot({ operation, tabId, store, intentId, conversationKey, admissionEpoch: token.id });
     if (!saSameFence(afterHealth.fence, inputSnapshot.fence)) throw saAdmissionError("WORK_ADMISSION_CONTEXT_CHANGED");
+    const projection = validatedPlan ? saRebindProjection(validatedPlan) : null;
     const input = await saAdmissionInput({ operation, tabId, identity: inputSnapshot.identity, key: inputSnapshot.key, binding: projection ? projection.binding : inputSnapshot.binding, work: projection ? projection.work : inputSnapshot.work, store: inputSnapshot.store });
     const decision = await SellerAgentsVerifiedOnlineWorkAuthority.evaluate(input, acquired.envelope);
     if (!saAdmissionCurrent(token)) throw saAdmissionError("WORK_ADMISSION_CANCELLED");
@@ -482,11 +539,12 @@ async function saWorkStart(message, sender) {
     const plan = changingStore ? saRebindPlan({ tabId: message.tab_id, identity: live, key, binding, work, sourceStore, targetStore: store, intentId, authority }) : null;
     if (key && !changingStore && ![OzonWorkSessionModel.STATES.INACTIVE, OzonWorkSessionModel.STATES.ERROR].includes(work?.state))
       throw saError("WORK_START_ALREADY_IN_PROGRESS");
-    const admission = await saAdmitOnline({ operation: "start", tabId: message.tab_id, store, intentId, projection: plan ? saRebindProjection(plan) : null, rebindPlan: plan });
+    const admission = await saAdmitOnline({ operation: "start", tabId: message.tab_id, store, intentId, rebindPlan: plan });
     saStarts.set(Number(message.tab_id), await saAuthorityStoreContext(store));
     try {
       return await saRunAdmissionMutation(admission.token, async () => {
-        if (plan && [OzonWorkSessionModel.STATES.ACTIVE_VISIBLE, OzonWorkSessionModel.STATES.ACTIVE_HIDDEN, OzonWorkSessionModel.STATES.ERROR].includes(plan.sourceWorkState)) {
+        const sourceWorkState = admission.token.fence.workState;
+        if (plan && [OzonWorkSessionModel.STATES.ACTIVE_VISIBLE, OzonWorkSessionModel.STATES.ACTIVE_HIDDEN, OzonWorkSessionModel.STATES.ERROR].includes(sourceWorkState)) {
           await saAdmissionMutationGuard({ operation: "start", tabId: message.tab_id, conversationKey: admission.snapshot.key, intentId });
           const finished = await saLegacyMessage({ type: "OZ_WORK_FINISH", tab_id: message.tab_id, conversation_key: key }, sender);
           if (!finished?.ok) throw saAdmissionError(finished?.code || "WORK_REBIND_FINISH_FAILED");

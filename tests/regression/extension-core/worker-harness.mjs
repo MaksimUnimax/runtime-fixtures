@@ -280,6 +280,7 @@ export async function makeWorker(directory, options = {}) {
     performance: { now: monotonicClock },
     indexedDB: options.indexedDB,
     __SELLER_AGENTS_PACKAGED_CONFIG__: JSON.stringify(fixtureConfig),
+    __SELLER_AGENTS_TEST_HOOKS__: options.testHooks || Object.freeze({}),
     structuredClone,
     queueMicrotask,
     atob,
@@ -360,12 +361,19 @@ export async function makeWorker(directory, options = {}) {
   }
   context = vm.createContext(sandbox);
   sandbox.importScripts = (...files) => {
-    for (const name of files)
-      vm.runInContext(
-        fs.readFileSync(path.join(directory, name), "utf8"),
-        context,
-        { filename: name },
-      );
+    for (const name of files) {
+      let source = fs.readFileSync(path.join(directory, name), "utf8");
+      // Test-only seam: the R2 race matrix can pause after the runtime has
+      // built its rebind plan and before saAdmitOnline reads its first
+      // admission snapshot. Production packages never receive this option.
+      if (name === "shared/application.js" && options.testHooks?.afterRebindPlanCreated) {
+        const marker = '    const admission = await saAdmitOnline({ operation: "start"';
+        const hook = '    await globalThis.__SELLER_AGENTS_TEST_HOOKS__.afterRebindPlanCreated();\n';
+        if (!source.includes(marker)) throw new Error("R2 test seam marker missing");
+        source = source.replace(marker, hook + marker);
+      }
+      vm.runInContext(source, context, { filename: name });
+    }
   };
   vm.runInContext(
     fs.readFileSync(path.join(directory, "service_worker_entry.js"), "utf8"),
