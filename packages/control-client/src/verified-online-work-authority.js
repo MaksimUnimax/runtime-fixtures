@@ -30,21 +30,26 @@
   function sameHealthContext(value, context) {
     const account = value.account;
     const session = value.session;
+    const compatibility = value.compatibility;
     const bootstrap = value.bootstrap;
     const ai = value.ai;
     const profile = ai?.profile;
     const expected = context?.ai;
     return plainObject(context) &&
-      plainObject(account) && plainObject(session) && plainObject(bootstrap) &&
+      plainObject(account) && plainObject(session) && plainObject(compatibility) && plainObject(bootstrap) &&
       plainObject(ai) && plainObject(profile) && plainObject(expected) &&
       account.accountId === context.accountId &&
+      session.generation === value.currentAuthorityGeneration &&
       session.deviceId === context.deviceId &&
       session.sessionId === context.sessionId &&
+      compatibility.contractVersion === context.contractVersion &&
       bootstrap.accountId === context.accountId &&
+      bootstrap.generation === session.generation &&
       bootstrap.deviceId === context.deviceId &&
       bootstrap.sessionId === context.sessionId &&
       bootstrap.contractVersion === context.contractVersion &&
       bootstrap.configVersion === context.configVersion &&
+      bootstrap.bootstrapSnapshotSha256 === context.bootstrapSnapshotSha256 &&
       ai.provider === expected.family &&
       profile.provider === expected.family &&
       ai.surface === expected.surface &&
@@ -61,7 +66,8 @@
     if (plainObject(healthEnvelope)) {
       try {
         const metadata = await client.readVerifiedHealthMetadata(healthEnvelope);
-        if (trustedHealth(metadata) && sameHealthContext(value, metadata.context)) health = { status: "PASS", current: true, verified: true };
+        const currentAuthorityGeneration = typeof client.generation === "function" ? await client.generation() : null;
+        if (trustedHealth(metadata) && sameHealthContext({ ...value, currentAuthorityGeneration }, metadata.context)) health = { status: "PASS", current: true, verified: true };
       } catch (_) {
         // Verification, context, freshness, and time failures are denials.
       }

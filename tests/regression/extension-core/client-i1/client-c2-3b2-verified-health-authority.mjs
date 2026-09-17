@@ -120,6 +120,7 @@ function workContext({
       deviceId,
       sessionId,
       aiProvider: provider,
+      bootstrapSnapshotSha256: null,
     },
     ai: { provider, surface: "web", variant: null, profile: { verified: true, provider, revision: 1 } },
     // This is deliberately ignored by the authoritative B2 adapter.
@@ -184,7 +185,7 @@ function bindBootstrapContext(input, payload) {
   const context = claimFor(payload).context;
   return {
     ...input,
-    bootstrap: { ...input.bootstrap, accountId: context.accountId, deviceId: context.deviceId, sessionId: context.sessionId, contractVersion: context.contractVersion, configVersion: context.configVersion },
+    bootstrap: { ...input.bootstrap, accountId: context.accountId, generation: input.session.generation, deviceId: context.deviceId, sessionId: context.sessionId, contractVersion: context.contractVersion, configVersion: context.configVersion, bootstrapSnapshotSha256: context.bootstrapSnapshotSha256 },
     ai: { ...input.ai, provider: context.ai.family, surface: context.ai.surface, variant: context.ai.variant, profile: { ...input.ai.profile, provider: context.ai.family, profileKey: context.ai.profileKey, revision: context.ai.revision, scopeVariant: context.ai.scopeVariant, contentSha256: context.ai.contentSha256 } },
   };
 }
@@ -309,6 +310,21 @@ for (const [id, field] of [["B2-14b", "family"], ["B2-14c", "surface"], ["B2-14d
     assert.equal(result.allowed, false);
   });
 }
+await test("B2-14f", "caller generation cannot splice signed Health context", async () => {
+  const input = { ...valid, session: { ...valid.session, generation: 2, expectedGeneration: 2 }, bootstrap: { ...valid.bootstrap, generation: 2 } };
+  const result = await evaluate(fixture.worker, input, fixture.envelope);
+  assert.equal(result.allowed, false);
+});
+await test("B2-14g", "caller Bootstrap snapshot digest cannot splice signed Health context", async () => {
+  const input = { ...valid, bootstrap: { ...valid.bootstrap, bootstrapSnapshotSha256: "f".repeat(64) } };
+  const result = await evaluate(fixture.worker, input, fixture.envelope);
+  assert.equal(result.allowed, false);
+});
+await test("B2-14h", "caller compatibility contract cannot splice signed Health context", async () => {
+  const input = { ...valid, compatibility: { ...valid.compatibility, contractVersion: "control_plane_v1", expectedContractVersion: "control_plane_v1" } };
+  const result = await evaluate(fixture.worker, input, fixture.envelope);
+  assert.equal(result.allowed, false);
+});
 await test("B2-14e", "caller AI surface mismatch is denied", async () => {
   const result = await evaluate(fixture.worker, { ...valid, ai: { ...valid.ai, surface: "mobile" } }, fixture.envelope);
   assert.equal(result.allowed, false);
