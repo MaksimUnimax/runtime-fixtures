@@ -188,7 +188,7 @@ await test('APP-05-conflicting-store-confirmation-cannot-bypass-admission', asyn
     const first = await s.start(a); await s.execute(first, api+'\n'+api); await entered;
     const rejected = await s.popup('SA_WORK_START', { store_id: b.id }); assert.equal(rejected.code, 'STORE_CHANGE_CONFIRMATION_REQUIRED');
     const stillRejected = await s.popup('SA_WORK_START', { store_id: b.id, confirm_change: true });
-    assert.equal(stillRejected.code, 'STORE_CHANGE_CONFIRMATION_REQUIRED');
+    assert.equal(stillRejected.code, 'WORK_START_ALREADY_IN_PROGRESS');
     release(); await new Promise(r=>setTimeout(r,30));
     assert.equal(s.worker.network.length, 2);
     assert.equal((await s.worker.call('bindingForConversationKey', first.key)).store_context.storeId, a.id);

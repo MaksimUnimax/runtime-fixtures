@@ -76,7 +76,7 @@ $("start").onclick = () => { const id = selectedId; const run = confirm_change =
   if (state.context.store_id && state.context.store_id !== id) confirm("В диалоге останутся данные предыдущего магазина. ИИ может смешать их в ответах. Старую работу завершим и отправим новую инструкцию для выбранного магазина.", () => run(true)); else action(() => run(false)); };
 $("confirm").onclick = () => { const fn = confirmAction; confirmAction = null; $("confirmation").hidden = true; if (fn) action(fn); };
 $("reject").onclick = () => { confirmAction = null; $("confirmation").hidden = true; };
-$("work-resume").onclick = () => action(() => request("OZ_WORK_RESUME", { conversation_key: state.conversation_key }));
+$("work-resume").onclick = () => action(() => request("SA_WORK_RESUME", { conversation_key: state.conversation_key }));
 $("visibility").onclick = () => action(() => request(state.context.button_visible ? "OZ_WORK_HIDE" : "OZ_WORK_SHOW", { conversation_key: state.conversation_key }));
 $("finish").onclick = () => action(() => request("OZ_WORK_FINISH", { conversation_key: state.conversation_key }));
 $("resume").onclick = () => action(() => request("SA_RESUME_QUOTA"));

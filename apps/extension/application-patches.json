@@ -1,6 +1,11 @@
 [
   {
     "target": "service_worker.js",
+    "old": "      case \"OZ_WORK_FINISH\": {\n        const tab = normalizeTabId(message.tab_id);\n        const key = normalizeConversationKey(message.conversation_key);\n        const session = await workSessionFor(key);",
+    "new": "      case \"OZ_WORK_FINISH\": {\n        const tab = normalizeTabId(message.tab_id);\n        const key = normalizeConversationKey(message.conversation_key);\n        await saAdmissionMutationGuardIfActive({ operation: \"start\", tabId: tab, conversationKey: key });\n        const session = await workSessionFor(key);"
+  },
+  {
+    "target": "service_worker.js",
     "old": "chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {\n  (async () => {\n    switch (message?.type) {",
     "new": "async function saLegacyMessage(message, sender) {\n    switch (message?.type) {"
   },
