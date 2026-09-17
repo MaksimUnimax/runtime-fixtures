@@ -50,6 +50,7 @@
       bootstrap.contractVersion === context.contractVersion &&
       bootstrap.configVersion === context.configVersion &&
       bootstrap.bootstrapSnapshotSha256 === context.bootstrapSnapshotSha256 &&
+      bootstrap.aiProvider === expected.family &&
       ai.provider === expected.family &&
       profile.provider === expected.family &&
       ai.surface === expected.surface &&
@@ -57,7 +58,8 @@
       profile.profileKey === expected.profileKey &&
       profile.revision === expected.revision &&
       profile.scopeVariant === expected.scopeVariant &&
-      profile.contentSha256 === expected.contentSha256;
+      profile.contentSha256 === expected.contentSha256 &&
+      value.capabilityIntersection?.configVersion === context.configVersion;
   }
 
   async function evaluate(input, healthEnvelope) {

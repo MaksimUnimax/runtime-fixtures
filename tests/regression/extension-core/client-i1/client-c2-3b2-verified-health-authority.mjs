@@ -325,6 +325,11 @@ await test("B2-14h", "caller compatibility contract cannot splice signed Health 
   const result = await evaluate(fixture.worker, input, fixture.envelope);
   assert.equal(result.allowed, false);
 });
+await test("B2-14i", "caller capability config cannot splice signed Health context", async () => {
+  const input = { ...valid, capabilityIntersection: { ...valid.capabilityIntersection, configVersion: 2 } };
+  const result = await evaluate(fixture.worker, input, fixture.envelope);
+  assert.equal(result.allowed, false);
+});
 await test("B2-14e", "caller AI surface mismatch is denied", async () => {
   const result = await evaluate(fixture.worker, { ...valid, ai: { ...valid.ai, surface: "mobile" } }, fixture.envelope);
   assert.equal(result.allowed, false);
