@@ -363,9 +363,11 @@ describe("BootstrapService", () => {
         "source.wildberries": true,
         "ai.chatgpt": false,
         "device.max_active": 0,
-        "provider.analytics": true,
+        "provider.analytics": false,
       };
     }
+    const commercialEntitlementsBefore =
+      commercial.kind === "OK" ? { ...commercial.value.entitlements } : {};
     const f = signedService(commercial, undefined, true);
     const verified = verifyBootstrapEnvelope(
       await f.service.issue(subject, request),
@@ -380,9 +382,12 @@ describe("BootstrapService", () => {
         "ai.chatgpt": true,
         "ai.alice": true,
         "device.max_active": 0,
-        "provider.analytics": true,
+        "provider.analytics": false,
       });
     }
+    expect(
+      commercial.kind === "OK" ? commercial.value.entitlements : {},
+    ).toEqual(commercialEntitlementsBefore);
   });
   it("does not mutate beta or commercial entitlement inputs", async () => {
     const betaPermissions = getSellerAgentsFreeBetaCapabilityPermissions();
