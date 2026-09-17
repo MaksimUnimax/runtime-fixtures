@@ -83,7 +83,7 @@ async function fixture(options = {}) {
     packagedConfig: options.packagedConfig,
     wallClock: () => options.wallClock ?? now,
     seedAuthority: options.seedAuthority,
-    fetch: async (url, init) => {
+    healthFetch: async (url, init) => {
       network.push({ url, init });
       if (options.fetch) return options.fetch(url, init, backing);
       return new Response(JSON.stringify(options.envelope), {

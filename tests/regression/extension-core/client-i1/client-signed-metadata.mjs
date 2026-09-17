@@ -123,7 +123,7 @@ async function makeCachedFixture({ accountOnly = false } = {}) {
     assert.equal(result.ai.status, "RESOLVED");
     assert.equal(fixture.backing.local[AUTH].authority.workAllowed, before, "metadata read does not escalate persisted Work authority");
     assert.equal(await fixture.worker.call("SellerAgentsControlClient.canWork"), false, "stale cache remains non-authorizing for Work");
-    assert.equal(fixture.worker.network.filter(row => row.url.endsWith("/v1/bootstrap")).length, 1);
+    assert.equal(fixture.worker.controlNetwork.filter(row => row.url.endsWith("/v1/bootstrap")).length, 1);
   } finally {
     fixture.worker.close();
   }

@@ -156,13 +156,13 @@ async function deniedFixture(marketplace, phase) {
     }
     assert.equal(worker.messages.filter(message => message.type === "OZ_BATCH_DELIVERY_AVAILABLE").length, sentBefore, "denial must not advertise delivery again");
     assert.equal(providerCalls, 1, "denial must not replay provider calls");
-    assert.equal(worker.network.filter(row => row.url.startsWith("http://127.0.0.1:43100/v1/")).length, 1, "ordinary denied guards add no control requests");
+    assert.equal(worker.controlNetwork.filter(row => row.url.startsWith("http://127.0.0.1:43100/v1/")).length, 2, "ordinary denied guards add no control requests");
     assert.ok(cleanupAttempts.length > 0, "durable cleanup failure was exercised");
     assert.equal((await worker.request({ type: "OZ_AUTO_START", conversation_key: started.key }, popupSender)).code, "LEGACY_ACTION_DISABLED");
     denied = false;
     const finished = await worker.request({ type: "OZ_WORK_FINISH", tab_id: worker.tabId, conversation_key: started.key }, popupSender);
     assert.equal(finished.ok, true, JSON.stringify(finished));
-    return { marketplace, phase, providerCalls, controlRequests: 1, cleanupAttempts: cleanupAttempts.length, attachmentResults };
+    return { marketplace, phase, providerCalls, controlRequests: 2, cleanupAttempts: cleanupAttempts.length, attachmentResults };
   } finally { worker.close(); }
 }
 
@@ -189,4 +189,4 @@ for (const marketplace of ["ozon", "wildberries"]) {
   outcomes.push(await deniedFixture(marketplace, "before-attachment-commit"));
   outcomes.push(await deniedFixture(marketplace, "after-insert-before-send").catch(error => { throw error; }));
 }
-console.log(JSON.stringify({ status: "PASS", r5_2: { denied_fixtures: outcomes.length, marketplaces: ["ozon", "wildberries"], real_delivery_owner: true, explicit_bootstrap403: true, legacy_credentials_seeded: true, attachment_port_positive: true, recovery_payload_denied: true, idb_reads_blocked: true, cleanup_restored_finish: true, control_requests_per_fixture: 1 } }));
+console.log(JSON.stringify({ status: "PASS", r5_2: { denied_fixtures: outcomes.length, marketplaces: ["ozon", "wildberries"], real_delivery_owner: true, explicit_bootstrap403: true, legacy_credentials_seeded: true, attachment_port_positive: true, recovery_payload_denied: true, idb_reads_blocked: true, cleanup_restored_finish: true, control_requests_per_fixture: 2, ordinary_command_added_control_requests: 0 } }));

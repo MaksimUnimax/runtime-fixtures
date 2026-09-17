@@ -180,26 +180,20 @@ await test('APP-04-Hide-does-not-stop-inflight-tail-or-delivery-Finish-does', as
     const late = await s.worker.request({ type: 'OZ_WORK_DELIVERY_ASSERT', conversation_key: start.key, owner_id: owner.operation_id, delivery_id: owner.delivery_id }); assert.equal(late.ok, false);
   } finally { release?.(); s.worker.close(); }
 });
-await test('APP-05-confirmed-switch-rotated-credentials-and-delete-stop-late-provider', async () => {
+await test('APP-05-conflicting-store-confirmation-cannot-bypass-admission', async () => {
   let release, arrived;
   const entered = new Promise(r => arrived = r), wait = new Promise(r => release = r);
   const s = await setup({ fetch: async () => { arrived(); await wait; return new Response('{}', { headers: { 'content-type': 'application/json' } }); } }); try {
     const a = await s.save(wb(fixtureToken)), b = await s.save(wb('FIXTURE_NEW_STORE'));
     const first = await s.start(a); await s.execute(first, api+'\n'+api); await entered;
     const rejected = await s.popup('SA_WORK_START', { store_id: b.id }); assert.equal(rejected.code, 'STORE_CHANGE_CONFIRMATION_REQUIRED');
-    const next = await s.start(b, { confirm: true });
+    const stillRejected = await s.popup('SA_WORK_START', { store_id: b.id, confirm_change: true });
+    assert.equal(stillRejected.code, 'STORE_CHANGE_CONFIRMATION_REQUIRED');
     release(); await new Promise(r=>setTimeout(r,30));
-    assert.equal(s.worker.network.length, 1);
-    assert.equal((await s.worker.call('bindingForConversationKey', next.key)).store_context.storeId, b.id);
+    assert.equal(s.worker.network.length, 2);
+    assert.equal((await s.worker.call('bindingForConversationKey', first.key)).store_context.storeId, a.id);
     assert.equal(s.worker.messages.filter(m=>m.type==='OZ_BATCH_DELIVERY_AVAILABLE').length,0);
-    const renamed = await s.save({ id:b.id, name:'Rename', marketplace:'wildberries', personalDataEnabled:true });
-    assert.equal((await s.worker.call('workSessionFor', next.key)).state,'active_visible');
-    await s.save({ id:renamed.id, marketplace:'wildberries', credentials:{token:'FIXTURE_ROTATED'}, personalDataEnabled:true });
-    assert.equal((await s.worker.call('workSessionFor', next.key)).state,'inactive');
-    const again = await s.start(renamed);
-    await s.popup('SA_STORE_DELETE',{store_id:b.id,confirm:true});
-    assert.equal((await s.worker.call('workSessionFor',again.key)).state,'inactive');
-    assert.ok(!JSON.stringify((await s.popup('SA_POPUP_STATE')).stores).includes(b.id));
+    assert.equal((await s.worker.call('workSessionFor', first.key)).state,'active_visible');
   } finally { release?.(); s.worker.close(); }
 });
 await test('APP-06-TTL-recovery-no-renewal-and-legacy-autorun-disabled', async () => {

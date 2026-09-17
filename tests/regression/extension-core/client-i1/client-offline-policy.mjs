@@ -11,7 +11,7 @@ const caseResults = [], caseFailures = [];
 const negativeControls = [];
 const T0 = 1700000000000;
 const clone = value => value === undefined ? undefined : structuredClone(value);
-const paths = worker => worker.network.map(row => new URL(row.url).pathname);
+const paths = worker => worker.controlNetwork.map(row => new URL(row.url).pathname);
 const fixedPayload = (clock, changes = {}) => base => ({ ...clone(base), issuedAt: new Date(T0 - 100).toISOString(), serverTime: new Date(T0).toISOString(), expiresAt: new Date(T0 + 1000).toISOString(), offlineGraceUntil: new Date(T0 + 3000).toISOString(), ...changes });
 const profileFingerprint = (content, compatibility) => createHash("sha256").update(canonical({ content, compatibility })).digest("hex");
 function withProfile(base, changes = {}) {
@@ -143,7 +143,7 @@ async function assertTransportCase(kind, responseFactory, expectedFreshness = "S
     assert.equal(result.freshness, expectedFreshness, kind);
     assert.equal(canonical(result.payload), canonical(before.payload), `${kind} preserves payload`);
     assert.equal(canonical(fixture.backing.local[AUTH].authority.envelope), canonical(before.envelope), `${kind} preserves signed envelope`);
-    assert.equal(fixture.worker.network.filter(row => row.url.endsWith("/v1/bootstrap")).length, 1, `${kind} observed online failure`);
+    assert.equal(fixture.worker.controlNetwork.filter(row => row.url.endsWith("/v1/bootstrap")).length, 1, `${kind} observed online failure`);
   } finally { fixture.worker.close(); }
 }
 
@@ -180,7 +180,7 @@ for (const [label, responseFactory] of [
   ["malformed 200", () => json({ malformed: true }, 200)],
 ]) {
   const fixture = await prepared({ fetch: async url => { assert.ok(url.endsWith("/v1/bootstrap")); return responseFactory(); } });
-  try { await assert.rejects(policy(fixture.worker, { detectedAi: CHATGPT })); assert.notEqual(fixture.worker.network.length, 0, label); assert.ok(fixture.backing.local[AUTH] === undefined || fixture.backing.local[AUTH]?.authority == null || fixture.backing.local[AUTH]?.authority?.payload); }
+  try { await assert.rejects(policy(fixture.worker, { detectedAi: CHATGPT })); assert.notEqual(fixture.worker.controlNetwork.length, 0, label); assert.ok(fixture.backing.local[AUTH] === undefined || fixture.backing.local[AUTH]?.authority == null || fixture.backing.local[AUTH]?.authority?.payload); }
   finally { fixture.worker.close(); }
 }
 
@@ -356,7 +356,7 @@ for (const [label, changes, userAgent] of [
   });
   try {
     await assert.rejects(policy(fixture.worker, { detectedAi: CHATGPT }), /BOOTSTRAP_UNAVAILABLE|CACHE_CONTEXT_MISMATCH|AUTH_REQUIRED/);
-    assert.ok(fixture.worker.network.filter(row => row.url.endsWith("/v1/bootstrap")).length <= 1, `${label} source`);
+    assert.ok(fixture.worker.controlNetwork.filter(row => row.url.endsWith("/v1/bootstrap")).length <= 1, `${label} source`);
     assert.equal(fixture.backing.local[AUTH]?.authority, null, `${label} restore denial`);
   } finally { fixture.worker.close(); }
 }
@@ -486,9 +486,9 @@ for (const [label, field, value] of [
   try {
     const result = await policy(fixture.worker, { detectedAi: CHATGPT });
     assert.equal(result.source, "ONLINE"); assert.equal(result.freshness, "FRESH");
-    assert.equal(result.payload.configVersion, 3); assert.equal(fixture.worker.network.length, 1);
+    assert.equal(result.payload.configVersion, 3); assert.equal(fixture.worker.controlNetwork.length, 1);
     await fixture.worker.call("SellerAgentsControlClient.canWork"); await fixture.worker.call("SellerAgentsControlClient.status");
-    assert.equal(fixture.worker.network.length, 1, "fresh Work guards do not add network requests");
+    assert.equal(fixture.worker.controlNetwork.length, 1, "fresh Work guards do not add network requests");
   } finally { fixture.worker.close(); }
 }
 
@@ -517,7 +517,7 @@ for (const status of [200, 503]) await namedCase("Q1-B-oversized-" + status, asy
     const failure = await exactFailure(() => policy(fixture.worker, { detectedAi: CHATGPT }), { code: "CONTROL_RESPONSE_TOO_LARGE", status, responseOk: status >= 200 && status < 300 }, "Q1-B-" + status);
     assert.deepEqual(paths(fixture.worker), ["/v1/bootstrap"]);
     assert.equal(failure.body, null);
-    assert.equal(fixture.worker.network.length, 1);
+    assert.equal(fixture.worker.controlNetwork.length, 1);
     assert.equal(fixture.backing.local[AUTH]?.authority == null, status === 200);
   } finally { fixture.worker.close(); }
 });
@@ -631,11 +631,11 @@ await namedCase("Q2-C-resolved-AI-fresh-cache-guards", async () => {
     clock.wall = T0 + 1001; clock.mono = 2001;
     const cached = await policy(fixture.worker, { detectedAi: CHATGPT });
     assert.equal(cached.source, "CACHE"); assert.equal(cached.freshness, "STALE_BUT_OFFLINE_GRACE_ELIGIBLE");
-    const count = fixture.worker.network.length;
+    const count = fixture.worker.controlNetwork.length;
     assert.equal(await fixture.worker.call("SellerAgentsControlClient.canWork"), false);
     assert.equal((await fixture.worker.call("SellerAgentsControlClient.status")).workAllowed, false);
     assert.equal((await fixture.worker.call("SellerAgentsControlClient.getAuthority")).workAllowed, false);
-    assert.equal(fixture.worker.network.length, count);
+    assert.equal(fixture.worker.controlNetwork.length, count);
   } finally { fixture.worker.close(); }
 });
 

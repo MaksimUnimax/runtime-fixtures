@@ -146,7 +146,7 @@ async function signedBootstrap(backing, payload, clock, accountId = "11111111-11
   }
   const positiveClock = { wall: baseWall, mono: 1000 }, positive = await signedOutTemplate(positiveClock);
   const positiveRequests = [], positiveWorker = await makeWorker(runtime, { backing: positive.backing, seedAuthority: false, wallClock: () => positiveClock.wall, monotonicClock: () => positiveClock.mono, fetch: async (url, init) => { positiveRequests.push({ url, key: init.headers?.get?.("Idempotency-Key") || init.headers?.["Idempotency-Key"] || null }); return url.endsWith("/v1/device-authorizations/token") ? new Promise(() => {}) : json(activationResponse(positiveClock), 201); } });
-  try { const output = await positiveWorker.call("SellerAgentsControlClient.startActivation"); assert.ok(output.pending); await until(() => positiveWorker.portalTabs.length === 1, "same-context portal"); assert.equal(positiveWorker.network.length, 2); } finally { positiveWorker.close(); }
+  try { const output = await positiveWorker.call("SellerAgentsControlClient.startActivation"); assert.ok(output.pending); await until(() => positiveWorker.portalTabs.length === 1, "same-context portal"); assert.equal(positiveWorker.controlNetwork.length, 2); } finally { positiveWorker.close(); }
   const normalClock = { wall: baseWall, mono: 1000 }, normal = await signedOutTemplate(normalClock); const normalWorker = await makeWorker(runtime, { backing: normal.backing, seedAuthority: false, wallClock: () => normalClock.wall, monotonicClock: () => normalClock.mono }); try { const status = await normalWorker.call("SellerAgentsControlClient.status"); assert.equal(status.lastError, null); assert.equal(status.pending, null); } finally { normalWorker.close(); }
 }
 

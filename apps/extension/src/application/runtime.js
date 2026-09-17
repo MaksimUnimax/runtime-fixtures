@@ -3,6 +3,8 @@ const SA_PAYLOAD_TTL = 3600000;
 let saCatalogEnabled = false;
 const saStarts = new Map();
 const saStartFlights = new Map();
+const saResumeFlights = new Map();
+const saAdmissionEpochs = new Map();
 const saCatalog = SellerAgentsStoreCatalog.create({
   read: storageGet, write: storageSet,
   currentAccount: () => SellerAgentsControlClient.currentAccount(),
@@ -76,6 +78,173 @@ async function saPendingGuard(pending) {
   if (pending?.store_context) await saAssertStore(pending.store_context);
   else throw SellerAgentsExecutionContext.error();
 }
+function saAdmissionError(code, deniedGates = []) {
+  const error = saError(code);
+  error.deniedGates = [...deniedGates];
+  return error;
+}
+function saAdmissionKey(operation, tabId, conversationKey = null) {
+  return `${operation}:${Number(tabId)}:${conversationKey || "pending"}`;
+}
+function saBeginAdmission(key) {
+  const token = { id: crypto.randomUUID(), key, cancelled: false };
+  saAdmissionEpochs.set(key, token);
+  return token;
+}
+function saCancelAdmission(tabId, conversationKey = null) {
+  const tab = Number(tabId);
+  for (const token of saAdmissionEpochs.values()) {
+    if (token.key.includes(`:${tab}:`) || conversationKey && token.key.endsWith(`:${conversationKey}`)) token.cancelled = true;
+  }
+}
+function saAdmissionCurrent(token) {
+  return token && token.cancelled !== true && saAdmissionEpochs.get(token.key) === token;
+}
+function saAuthorityIdentity(authority) {
+  return JSON.stringify({
+    generation: authority?.generation,
+    deviceId: authority?.deviceId,
+    sessionId: authority?.sessionId,
+    requestedAi: authority?.requestedAi,
+    accountId: authority?.payload?.account?.id || null,
+    envelope: authority?.envelope || null,
+    cacheBinding: authority?.cacheBinding || null
+  });
+}
+function saBase64UrlBytes(value) {
+  if (typeof value !== "string" || !/^[A-Za-z0-9_-]+$/.test(value)) return null;
+  try {
+    const padded = value.replace(/-/g, "+").replace(/_/g, "/") + "=".repeat((4 - value.length % 4) % 4);
+    const bytes = Uint8Array.from(atob(padded), char => char.charCodeAt(0));
+    const encoded = btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    return encoded === value ? bytes : null;
+  } catch (_) { return null; }
+}
+async function saSnapshotDigest(envelope) {
+  const bytes = saBase64UrlBytes(envelope?.payload);
+  if (!bytes) throw saAdmissionError("BOOTSTRAP_SNAPSHOT_INVALID");
+  return [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))].map(value => value.toString(16).padStart(2, "0")).join("");
+}
+function saCapabilityMetadata(authority) {
+  const payload = authority?.payload;
+  return {
+    metadataVersion: "signed_bootstrap_metadata_v1",
+    source: "ONLINE",
+    freshness: "FRESH",
+    executionAuthority: false,
+    configVersion: payload?.configVersion,
+    accessBasis: payload?.accessBasis,
+    signedEntitlements: payload?.entitlements,
+    signedFeatures: payload?.features,
+    ai: payload?.ai
+  };
+}
+async function saAdmissionFence({ tabId, identity, key, binding, work, store, intentId, authority }) {
+  const currentAuthority = authority || await SellerAgentsControlClient.getAuthority();
+  const currentGeneration = await SellerAgentsControlClient.generation();
+  return Object.freeze({
+    accountId: currentAuthority?.payload?.account?.id || null,
+    generation: currentGeneration,
+    deviceId: currentAuthority?.deviceId || null,
+    sessionId: currentAuthority?.sessionId || null,
+    authorityIdentity: saAuthorityIdentity(currentAuthority),
+    tabId: Number(tabId),
+    origin: identity?.origin || null,
+    aiId: identity?.ai_id || null,
+    conversationKey: key || null,
+    conversationId: identity?.conversation_id || null,
+    storeId: store?.id || null,
+    marketplace: store?.marketplace || null,
+    credentialRevision: store?.credentialRevision || null,
+    bindingRevision: Number(binding?.revision || 0),
+    workState: work?.state || "inactive",
+    intentId: String(intentId || "")
+  });
+}
+function saSameFence(left, right) {
+  return left && right && ["accountId", "generation", "deviceId", "sessionId", "authorityIdentity", "tabId", "origin", "aiId", "conversationKey", "conversationId", "storeId", "marketplace", "credentialRevision", "bindingRevision", "workState", "intentId"].every(field => left[field] === right[field]);
+}
+async function saAdmissionInput({ operation, tabId, identity, key, binding, work, store }) {
+  const authority = await SellerAgentsControlClient.getAuthority();
+  const payload = authority?.payload;
+  const generation = await SellerAgentsControlClient.generation();
+  const bootstrapSnapshotSha256 = await saSnapshotDigest(authority?.envelope);
+  const provider = identity.ai_id;
+  const profile = payload?.ai?.profile || {};
+  const identityValue = {
+    key: key || null,
+    origin: identity.origin,
+    conversationId: identity.conversation_id || null,
+    provider,
+    status: identity.conversation_id ? "confirmed" : "unknown"
+  };
+  const bindingValue = binding ? {
+    bound: true,
+    bindingId: binding.binding_id,
+    revision: Number(binding.revision),
+    expectedRevision: Number(binding.revision),
+    conversationKey: key,
+    origin: binding.origin,
+    conversationId: binding.conversation_id,
+    provider: binding.ai_id || provider,
+    accountId: binding.store_context?.accountId || payload?.account?.id,
+    storeId: binding.store_context?.storeId || store.id,
+    marketplace: binding.store_context?.marketplace || store.marketplace,
+    credentialRevision: binding.store_context?.credentialRevision || store.credentialRevision,
+    authGeneration: binding.store_context?.authGeneration ?? null
+  } : null;
+  const capabilities = SellerAgentsCapabilityIntersection.evaluateVerifiedMetadata(saCapabilityMetadata(authority));
+  return {
+    account: { authenticated: true, accountId: payload?.account?.id, expectedAccountId: payload?.account?.id },
+    session: { generation, expectedGeneration: generation, deviceId: authority?.deviceId, expectedDeviceId: authority?.deviceId, sessionId: authority?.sessionId, expectedSessionId: authority?.sessionId, revoked: false, obsolete: false },
+    compatibility: {
+      extension: { version: SellerAgentsControlConfig.extensionVersion, status: payload?.compatibility?.extension?.status, minimumVersion: payload?.compatibility?.extension?.minimumVersion ?? null },
+      browser: { status: payload?.compatibility?.browser?.status },
+      contractVersion: payload?.contractVersion,
+      expectedContractVersion: SellerAgentsControlConfig.contractVersion
+    },
+    bootstrap: { verified: true, source: "ONLINE", freshness: "FRESH", accountId: payload?.account?.id, generation, deviceId: authority?.deviceId, sessionId: authority?.sessionId, contractVersion: payload?.contractVersion, configVersion: payload?.configVersion, bootstrapSnapshotSha256, aiProvider: payload?.ai?.detected?.family },
+    ai: { provider, surface: payload?.ai?.detected?.surface, variant: payload?.ai?.detected?.variant, profile: { verified: true, provider: payload?.ai?.detected?.family, profileKey: profile.profileKey, revision: profile.revision, scopeVariant: profile.scopeVariant, contentSha256: profile.contentSha256 } },
+    dialogue: { key: key || null, trusted: true, tabId: Number(tabId), expectedTabId: Number(tabId), identity: identityValue, binding: bindingValue },
+    store: { accountId: store.accountId, storeId: store.id, marketplace: store.marketplace, credentialRevision: store.credentialRevision, selectedStoreId: store.id, expectedStoreId: store.id, expectedCredentialRevision: store.credentialRevision, authGeneration: generation, accountGeneration: generation },
+    work: { operation, state: work?.state || "inactive", startIntentId: work?.start_intent_id || null, expectedStartIntentId: work?.start_intent_id || null },
+    capabilityIntersection: capabilities
+  };
+}
+async function saReadAdmissionSnapshot({ operation, tabId, store, intentId, conversationKey = null }) {
+  const identity = await tabIdentity(normalizeTabId(tabId));
+  const key = identity.conversation_id ? conversationKeyFromIdentity(identity) : null;
+  if (conversationKey && key !== normalizeConversationKey(conversationKey)) throw saAdmissionError("CONVERSATION_MISMATCH");
+  const binding = key ? await bindingForConversationKey(key) : null;
+  const work = key ? await workSessionFor(key) : { state: OzonWorkSessionModel.STATES.INACTIVE, revision: 0 };
+  const liveStore = store ? await saAssertStore(saStoreContext(store)) : (binding?.store_context ? await saAssertStore(binding.store_context) : null);
+  if (!liveStore) throw saAdmissionError("STORE_NOT_FOUND");
+  const authority = await SellerAgentsControlClient.getAuthority();
+  return { identity, key, binding, work, store: liveStore, authority, fence: await saAdmissionFence({ tabId, identity, key, binding, work, store: liveStore, intentId, authority }) };
+}
+async function saAdmitOnline({ operation, tabId, store, intentId, conversationKey = null }) {
+  await saAssertWorkAuthority();
+  const initial = await saReadAdmissionSnapshot({ operation, tabId, store, intentId, conversationKey });
+  const admissionKey = saAdmissionKey(operation, tabId, initial.key);
+  const token = saBeginAdmission(admissionKey);
+  try {
+    const healthContext = { generation: initial.fence.generation, deviceId: initial.fence.deviceId, sessionId: initial.fence.sessionId };
+    const detectedAi = { family: initial.identity.ai_id, surface: initial.authority.payload.ai.detected.surface, variant: initial.authority.payload.ai.detected.variant };
+    const acquired = await SellerAgentsControlClient.acquireSignedHealthAuthority({ detectedAi, context: healthContext });
+    if (!saAdmissionCurrent(token)) throw saAdmissionError("WORK_ADMISSION_CANCELLED");
+    const afterHealth = await saReadAdmissionSnapshot({ operation, tabId, store, intentId, conversationKey });
+    if (!saSameFence(initial.fence, afterHealth.fence)) throw saAdmissionError("WORK_ADMISSION_CONTEXT_CHANGED");
+    const input = await saAdmissionInput({ operation, tabId, identity: afterHealth.identity, key: afterHealth.key, binding: afterHealth.binding, work: afterHealth.work, store: afterHealth.store });
+    const decision = await SellerAgentsVerifiedOnlineWorkAuthority.evaluate(input, acquired.envelope);
+    if (!saAdmissionCurrent(token)) throw saAdmissionError("WORK_ADMISSION_CANCELLED");
+    const beforeMutation = await saReadAdmissionSnapshot({ operation, tabId, store, intentId, conversationKey });
+    if (!saSameFence(afterHealth.fence, beforeMutation.fence)) throw saAdmissionError("WORK_ADMISSION_CONTEXT_CHANGED");
+    if (decision.executionAuthority !== false || decision.allowed !== true) throw saAdmissionError("WORK_AUTHORITY_DENIED", decision.deniedGates);
+    return { token, snapshot: beforeMutation, decision };
+  } finally {
+    if (saAdmissionEpochs.get(admissionKey) === token) saAdmissionEpochs.delete(admissionKey);
+  }
+}
 async function saReadContext(key, immutable, ownerIdentity) {
   const data = await storageGet([KEYS.CONVERSATION_BINDINGS, KEYS.WORK_SESSIONS]);
   const binding = normalizeBindingRecord(data[KEYS.CONVERSATION_BINDINGS]?.[key], key);
@@ -133,6 +302,7 @@ async function saInvalidateStore(id) {
     await clearPendingWorkStart(Number(tab), start.intent_id, start.revision, "store_changed");
 }
 async function saInvalidateAuthority() {
+  for (const token of saAdmissionEpochs.values()) token.cancelled = true;
   const bindings = await getConversationBindings();
   for (const [key, raw] of Object.entries(bindings)) {
     const work = await workSessionFor(key);
@@ -168,23 +338,44 @@ async function saPopupState(tabId) {
 }
 async function saWorkStart(message, sender) {
   return singleFlight(saStartFlights, String(message.tab_id), async () => {
-    await SellerAgentsControlClient.ensureForIdentity(await tabIdentity(normalizeTabId(message.tab_id)));
+    const identity = await tabIdentity(normalizeTabId(message.tab_id));
+    await SellerAgentsControlClient.ensureForIdentity(identity);
     if (!await SellerAgentsControlClient.canWork()) throw saError("WORK_POLICY_BLOCKED");
     const store = await saCatalog.get(message.store_id);
     const live = await tabIdentity(normalizeTabId(message.tab_id));
     const key = live.conversation_id ? conversationKeyFromIdentity(live) : null;
     const binding = key ? await bindingForConversationKey(key) : null;
     const work = key ? await workSessionFor(key) : null;
+    const pending = (await getPendingWorkStarts())[String(message.tab_id)];
+    if (pending && String(pending.expires_at || "") > new Date().toISOString())
+      return { ok: true, accepted: false, code: "WORK_START_ALREADY_PENDING", pending_start: pending };
     if (binding?.store_context?.storeId === store.id && ["active_visible", "active_hidden"].includes(work?.state))
       return { ok: true, accepted: false, code: "WORK_SESSION_ALREADY_ACTIVE" };
-    if (binding?.store_context && binding.store_context.storeId !== store.id) {
-      if (message.confirm_change !== true) throw saError("STORE_CHANGE_CONFIRMATION_REQUIRED");
-      if (["active_visible", "active_hidden", "error"].includes(work?.state))
-        await saLegacyMessage({ type: "OZ_WORK_FINISH", tab_id: message.tab_id, conversation_key: key }, sender);
-    }
+    if (binding?.store_context && binding.store_context.storeId !== store.id) throw saError("STORE_CHANGE_CONFIRMATION_REQUIRED");
+    if (key && ![OzonWorkSessionModel.STATES.INACTIVE, OzonWorkSessionModel.STATES.ERROR].includes(work?.state))
+      throw saError("WORK_START_ALREADY_IN_PROGRESS");
+    const intentId = String(message.start_intent_id || "").trim() || `work-start-${crypto.randomUUID()}`;
+    await saAdmitOnline({ operation: "start", tabId: message.tab_id, store, intentId });
     saStarts.set(Number(message.tab_id), await saAuthorityStoreContext(store));
-    try { return await saLegacyMessage({ type: "OZ_WORK_START", tab_id: message.tab_id, start_intent_id: message.start_intent_id }, sender); }
+    try { return await saLegacyMessage({ type: "OZ_WORK_START", tab_id: message.tab_id, start_intent_id: intentId }, sender); }
     finally { saStarts.delete(Number(message.tab_id)); }
+  });
+}
+async function saWorkResume(message, sender) {
+  return singleFlight(saResumeFlights, String(message.tab_id), async () => {
+    const tab = normalizeTabId(message.tab_id);
+    const identity = await tabIdentity(tab);
+    await SellerAgentsControlClient.ensureForIdentity(identity);
+    const key = identity.conversation_id ? conversationKeyFromIdentity(identity) : null;
+    if (!key || key !== normalizeConversationKey(message.conversation_key)) throw saAdmissionError("CONVERSATION_MISMATCH");
+    const binding = await bindingForConversationKey(key);
+    if (!binding?.store_context) throw saAdmissionError("CONVERSATION_NOT_BOUND");
+    const store = await saAssertStore(binding.store_context);
+    const work = await workSessionFor(key);
+    if (work.state !== OzonWorkSessionModel.STATES.INACTIVE) throw saError("WORK_SESSION_NOT_INACTIVE");
+    if (await getManualOperation(key).then(manualOperationActive)) throw saError("WORK_RESUME_OPERATION_ACTIVE");
+    await saAdmitOnline({ operation: "resume", tabId: tab, store, intentId: `resume-${crypto.randomUUID()}`, conversationKey: key });
+    return saLegacyMessage({ type: "OZ_WORK_RESUME", tab_id: tab, conversation_key: key }, sender);
   });
 }
 async function saHandleMessage(message, sender) {
@@ -213,6 +404,7 @@ async function saHandleMessage(message, sender) {
         await saInvalidateStore(message.store_id);
         return { ok: true };
       case "SA_WORK_START": return saWorkStart(message, sender);
+      case "SA_WORK_RESUME": return saWorkResume(message, sender);
       case "SA_STORE_CHECK": return saCheckStore(message);
       case "SA_RESUME_QUOTA": {
         await saAssertWorkAuthority();
@@ -230,7 +422,8 @@ async function saHandleMessage(message, sender) {
     const workMessage = message?.type === "OZ_EXECUTE_COMMAND" || message?.type === "OZ_WORK_START" || message?.type?.startsWith("OZ_WORK_START_") || message?.type === "OZ_WORK_PENDING_IDENTITY" || message?.type === "OZ_BATCH_DELIVERY_RESUME";
     if (workMessage) await saAssertWorkAuthority();
     if (/^OZ_(?:GET_SETTINGS_STATE|GET_GLOBAL_SETTINGS_STATE|GET_DIAGNOSTICS)/.test(message.type) && !saPopupSender(sender)) throw saError("POPUP_SENDER_REQUIRED");
-    if (/^OZ_(?:AUTO_|BIND_CONVERSATION|SAVE_.*SETTINGS|TEST_CONNECTION|WORK_RESUME|SET_MANUAL_MODE|SAVE_REPORT_PREFIX|SAVE_.*START_PROMPT|RESET_.*START_PROMPT|REFRESH_SELLER_API_METADATA)/.test(message?.type || "")) throw saError("LEGACY_ACTION_DISABLED");
+    if (message.type === "OZ_WORK_RESUME") return saWorkResume(message, sender);
+    if (/^OZ_(?:AUTO_|BIND_CONVERSATION|SAVE_.*SETTINGS|TEST_CONNECTION|SET_MANUAL_MODE|SAVE_REPORT_PREFIX|SAVE_.*START_PROMPT|RESET_.*START_PROMPT|REFRESH_SELLER_API_METADATA)/.test(message?.type || "")) throw saError("LEGACY_ACTION_DISABLED");
     if (["OZ_WORK_DELIVERY_ASSERT", "OZ_WORK_SEND_COMMIT"].includes(message.type)) {
       const key = normalizeConversationKey(message.conversation_key), id = String(message.owner_id || "");
       await assertTabConversation(sender?.tab?.id, key);
@@ -257,6 +450,7 @@ async function saHandleMessage(message, sender) {
       await saPendingGuard(pending);
     }
     if (message.type === "OZ_WORK_FINISH") {
+      saCancelAdmission(message.tab_id, typeof message.conversation_key === "string" ? message.conversation_key : null);
       const pending = (await getPendingWorkStarts())[String(message.tab_id)];
       if (pending) {
         await clearPendingWorkStart(message.tab_id, pending.intent_id, pending.revision, "operator_finish");

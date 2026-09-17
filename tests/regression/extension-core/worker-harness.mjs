@@ -38,6 +38,7 @@ export async function until(fn, description) {
 }
 export async function makeWorker(directory, options = {}) {
   const network = [],
+    controlNetwork = [],
     messages = [],
     listeners = [],
     connectListeners = [],
@@ -103,7 +104,7 @@ export async function makeWorker(directory, options = {}) {
     const contentSha256 = Buffer.from(await webcrypto.subtle.digest("SHA-256", new TextEncoder().encode(canonical({ content, compatibility })))).toString("hex");
     const payload = { snapshotVersion: "bootstrap_snapshot_v2", contractVersion: "control_plane_v2", configVersion: 1, issuedAt: issued, expiresAt: expires, offlineGraceUntil: grace, serverTime,
       accessBasis: "BETA", account: { id: accountId, status: "ACTIVE" }, subscription: { state: "NONE", planRevision: null }, devicePolicy: { status: "ACTIVE" },
-      compatibility: { extension: { status: "SUPPORTED", minimumVersion: null }, browser: { status: "SUPPORTED" } }, entitlements: {}, features: {},
+      compatibility: { extension: { status: "SUPPORTED", minimumVersion: null }, browser: { status: "SUPPORTED" } }, entitlements: { "source.ozon": true, "source.wildberries": true, "ai.chatgpt": true, "ai.alice": true }, features: {},
       ai: { status: "RESOLVED", detected: { family: "chatgpt", surface: "web", variant: null }, profile: { profileKey: "fixture-profile", revision: 1, scopeVariant: null, schemaVersion: "adapter_profile_v1", contentSha256, content, compatibility } } };
     const payloadBytes = new TextEncoder().encode(canonical(payload));
     const domain = new Uint8Array([...new TextEncoder().encode("product-control-plane/bootstrap-snapshot/v1"), 0, ...new TextEncoder().encode(keyId), 0]);
@@ -284,13 +285,44 @@ export async function makeWorker(directory, options = {}) {
     atob,
     btoa,
     fetch: async (url, init = {}) => {
-      network.push({
+      const record = {
         url: String(url),
         method: init.method || "GET",
         body: init.body,
-      });
-      if (options.fetch)
+      };
+      (record.url.includes("127.0.0.1:43100") || record.url.includes("127.0.0.1:43101") ? controlNetwork : network).push(record);
+      const healthEndpoint = record.url.endsWith("/v1/health-authority");
+      if (healthEndpoint && options.healthFetch)
+        return options.healthFetch(String(url), init, controlNetwork.length);
+      if (!healthEndpoint && options.fetch)
         return options.fetch(String(url), init, network.length);
+      if (healthEndpoint) {
+        const authority = backing.local[AUTH_STORAGE_KEY]?.authority;
+        const payload = authority?.payload;
+        const claim = {
+          healthClaimVersion: "health_claim_v1",
+          status: "PASS",
+          target: "WORK",
+          context: {
+            accountId: payload.account.id,
+            deviceId: authority.deviceId,
+            sessionId: authority.sessionId,
+            contractVersion: payload.contractVersion,
+            configVersion: payload.configVersion,
+            bootstrapSnapshotSha256: Buffer.from(authority.envelope.payload, "base64url").toString("hex").length ? Buffer.from(await webcrypto.subtle.digest("SHA-256", Buffer.from(authority.envelope.payload, "base64url"))).toString("hex") : null,
+            ai: { family: payload.ai.detected.family, surface: payload.ai.detected.surface, variant: payload.ai.detected.variant, profileKey: payload.ai.profile.profileKey, revision: payload.ai.profile.revision, scopeVariant: payload.ai.profile.scopeVariant, contentSha256: payload.ai.profile.contentSha256 },
+          },
+          observedAt: new Date(wallClock() - 1000).toISOString(),
+          expiresAt: new Date(wallClock() + 14 * 60_000).toISOString(),
+          executionAuthority: false,
+        };
+        const bytes = new TextEncoder().encode(canonical(claim));
+        const prefix = new TextEncoder().encode("product-control-plane/health-authority/v1\0fixture-key\0");
+        const signed = new Uint8Array(prefix.length + bytes.length); signed.set(prefix); signed.set(bytes, prefix.length);
+        const signature = await webcrypto.subtle.sign("Ed25519", signing.privateKey, signed);
+        const envelope = { healthEnvelopeVersion: "health_envelope_v1", algorithm: "Ed25519", keyId: "fixture-key", payload: b64url(bytes), signature: b64url(Buffer.from(signature)) };
+        return new Response(JSON.stringify(envelope), { status: 200, headers: { "content-type": "application/json" } });
+      }
       assert.ok(
         String(url).startsWith("https://api-seller.ozon.ru/"),
         "No unexpected network target",
@@ -374,6 +406,7 @@ export async function makeWorker(directory, options = {}) {
   await call("SellerAgentsControlClient.restore");
   return {
     network,
+    controlNetwork,
     messages,
     idb: options.indexedDB,
     backing,
@@ -384,6 +417,12 @@ export async function makeWorker(directory, options = {}) {
     request,
     popup: (message) => request(message, { url: chrome.runtime.getURL("popup.html") }),
     addTab(id, conversationId) { const value = { ...identity, conversation_id: conversationId }; identities.set(id, value); tabs.set(id, { id, url: value.origin + "/c/" + conversationId }); return { identity: value, sender: { tab: tabs.get(id) } }; },
+    setIdentity(value) {
+      const next = { ...identities.get(tabId), ...value };
+      identities.set(tabId, next);
+      tab.url = next.origin + (next.ai_id === "alice" ? "/chat/" : "/c/") + (next.conversation_id || "");
+      return next;
+    },
     setDialogue(id) { identity.conversation_id = id; tab.url = identity.origin + "/c/" + id; },
     portRequest(message) {
       return new Promise(resolve => {

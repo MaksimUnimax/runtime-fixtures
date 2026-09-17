@@ -271,7 +271,9 @@ for (const marketplace of ["ozon", "wildberries"]) {
     assert.ok(operation.last_error); assert.equal(worker.messages.filter(message => message.type === "OZ_BATCH_DELIVERY_AVAILABLE").length, 0);
     assert.equal(providerCalls, 1, `${marketplace} no second provider dispatch: ${JSON.stringify(providerUrls)}`);
     assert.equal(providerUrls.length, 1); assert.match(providerUrls[0], marketplace === "ozon" ? /ozon\.ru/ : /wildberries\.ru/);
-    const control = worker.network.filter(row => row.url.startsWith("http://127.0.0.1:43100/v1/")); assert.equal(control.length, 1, `${marketplace} only explicit bootstrap control request`);
+    const control = worker.controlNetwork.filter(row => row.url.startsWith("http://127.0.0.1:43100/v1/"));
+    assert.equal(control.filter(row => row.url.endsWith("/v1/bootstrap")).length, 1, `${marketplace} one explicit bootstrap control request`);
+    assert.equal(control.filter(row => row.url.endsWith("/v1/health-authority")).length, 1, `${marketplace} one admission Health request`);
     const fields = { owner_kind: "manual", owner_id: operation.operation_id, conversation_key: started.key, delivery_id: operation.delivery_id || "denied-delivery", actor_id: "fixture-denied" };
     assert.notEqual((await worker.request({ type: "OZ_BATCH_DELIVERY_INSERT_COMMIT", ...fields })).insert_allowed, true);
     assert.notEqual((await worker.request({ type: "OZ_WORK_SEND_COMMIT", ...fields })).click_allowed, true);

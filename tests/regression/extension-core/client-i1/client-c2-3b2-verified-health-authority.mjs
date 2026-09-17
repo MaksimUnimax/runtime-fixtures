@@ -462,7 +462,7 @@ await test("B2-39", "capability true does not manufacture Health PASS", async ()
   const result = await evaluate(sideEffectFixture.worker, valid, envelope);
   assert.equal(result.allowed, false);
 });
-await test("B2-40", "no Work/runtime production consumer exists", async () => {
+await test("B2-40", "production Work/runtime consumer uses only the verified adapter", async () => {
   const source = fs.readFileSync(path.resolve("packages/control-client/src/online-work-authority.js"), "utf8");
   const adapter = fs.readFileSync(path.resolve("packages/control-client/src/verified-online-work-authority.js"), "utf8");
   const recipe = JSON.parse(fs.readFileSync(path.resolve("apps/extension/composition.json"), "utf8"));
@@ -471,7 +471,8 @@ await test("B2-40", "no Work/runtime production consumer exists", async () => {
   assert.match(adapter, /readVerifiedHealthMetadata/);
   assert.doesNotMatch(adapter, /acquireSignedHealthAuthority|getVerifiedHealthMetadata/);
   assert.ok(recipe.worker_prelude.indexOf("packages/control-client/src/online-work-authority.js") < recipe.worker_prelude.indexOf("packages/control-client/src/verified-online-work-authority.js"));
-  assert.doesNotMatch(extensionSources, /SellerAgents(?:Verified)?OnlineWorkAuthority/);
+  assert.match(extensionSources, /SellerAgentsVerifiedOnlineWorkAuthority\.evaluate/);
+  assert.doesNotMatch(extensionSources, /SellerAgentsOnlineWorkAuthority\.evaluate/);
 });
 
 for (const item of [fixture, aliceFixture, sideEffectFixture]) item.worker.close();

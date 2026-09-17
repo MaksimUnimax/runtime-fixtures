@@ -44,6 +44,8 @@ function render() {
   $("selection").textContent = connected && selectedId !== connected.id ? "Выбран следующий магазин. Текущее подключение изменится только после подтверждения и нового Start." : "";
   if (state.pending) $("connection").textContent = state.pending.send_outcome === "outcome_unknown_no_retry" ? "Исход отправки инструкции неизвестен. Повторная отправка заблокирована" : "Запускаем: ожидаем подтверждение инструкции и ответа ИИ";
   $("start").disabled = Boolean(state.pending) || !s || !state.identity.ai_id || ["binding", "recovering", "finishing"].includes(state.work?.state);
+  $("work-resume").hidden = !(state.context.store_id && state.work?.state === "inactive" && state.context.work_active !== true);
+  $("work-resume").disabled = Boolean(state.pending) || !state.conversation_key;
   $("visibility").disabled = !active; $("finish").disabled = !active && state.work?.state !== "error" && !state.pending;
   $("visibility").textContent = state.context.button_visible ? "Скрыть кнопку" : "Показать кнопку";
   $("resume").hidden = !state.operation?.quota_wait;
@@ -74,6 +76,7 @@ $("start").onclick = () => { const id = selectedId; const run = confirm_change =
   if (state.context.store_id && state.context.store_id !== id) confirm("В диалоге останутся данные предыдущего магазина. ИИ может смешать их в ответах. Старую работу завершим и отправим новую инструкцию для выбранного магазина.", () => run(true)); else action(() => run(false)); };
 $("confirm").onclick = () => { const fn = confirmAction; confirmAction = null; $("confirmation").hidden = true; if (fn) action(fn); };
 $("reject").onclick = () => { confirmAction = null; $("confirmation").hidden = true; };
+$("work-resume").onclick = () => action(() => request("OZ_WORK_RESUME", { conversation_key: state.conversation_key }));
 $("visibility").onclick = () => action(() => request(state.context.button_visible ? "OZ_WORK_HIDE" : "OZ_WORK_SHOW", { conversation_key: state.conversation_key }));
 $("finish").onclick = () => action(() => request("OZ_WORK_FINISH", { conversation_key: state.conversation_key }));
 $("resume").onclick = () => action(() => request("SA_RESUME_QUOTA"));

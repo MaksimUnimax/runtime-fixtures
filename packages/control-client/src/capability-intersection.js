@@ -137,12 +137,17 @@
     return evaluate(await client.getVerifiedBootstrapMetadata(options));
   }
 
+  function evaluateVerifiedMetadata(metadata) {
+    return evaluate(metadata);
+  }
+
   const api = Object.freeze({
     schemaVersion: manifest.schemaVersion,
     snapshot,
     hasBinding,
     describeBinding,
     getVerified,
+    evaluateVerifiedMetadata,
   });
   Object.defineProperty(globalThis, "SellerAgentsCapabilityIntersection", {
     value: api,
