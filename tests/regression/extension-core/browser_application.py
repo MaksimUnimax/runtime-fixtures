@@ -50,8 +50,8 @@ def seed_authority(worker, private_key):
       const contentSha256 = hex(new Uint8Array(await crypto.subtle.digest('SHA-256', profileBytes)));
       const payload = {
         snapshotVersion: 'bootstrap_snapshot_v2', contractVersion: 'control_plane_v2', configVersion: 1,
-        issuedAt: '2026-09-15T00:00:00Z', expiresAt: '2099-09-16T00:00:00Z', offlineGraceUntil: '2099-09-17T00:00:00Z',
-        serverTime: '2026-09-15T00:00:00Z', account: {id: '11111111-1111-4111-8111-111111111111', status: 'ACTIVE'},
+        issuedAt: new Date(Date.now() - 1000).toISOString(), expiresAt: new Date(Date.now() + 3600000).toISOString(), offlineGraceUntil: new Date(Date.now() + 7200000).toISOString(),
+        serverTime: new Date().toISOString(), account: {id: '11111111-1111-4111-8111-111111111111', status: 'ACTIVE'},
         subscription: {state: 'NONE', planRevision: null}, devicePolicy: {status: 'ACTIVE'},
         compatibility: {extension: {status: 'SUPPORTED', minimumVersion: null}, browser: {status: 'SUPPORTED'}},
         entitlements: {}, features: {},
