@@ -278,7 +278,86 @@ try {
   assert.deepEqual(worker.network, r1_22Before.network, "R1-22 pure composer does not call network");
   assert.deepEqual(worker.messages, r1_22Before.messages, "R1-22 pure composer does not send runtime messages");
 
-  console.log(JSON.stringify({ status: "PASS", c23aCases: 22, r1Cases: 22, validPairs: 4, executionAuthority: false, networkCalls: worker.network.length, runtimeMessages: worker.messages.length }));
+  // Explicit C2.3-A-R2 acceptance matrix. Each case is intentionally
+  // evaluated from a fresh input so a prior eligible result cannot authorize a
+  // later operation or context.
+  const r2 = async (number, label, input, expected, gate = null) => {
+    const result = await evaluate(worker, input);
+    assert.equal(result.allowed, expected, `C23R2-${String(number).padStart(2, "0")} ${label}`);
+    if (gate) assert.equal(result.gates[gate], expected, `C23R2-${String(number).padStart(2, "0")} ${label} gate`);
+    return result;
+  };
+  const r2PendingStart = context({ conversationId: null, bound: false, operation: "start", state: "inactive" });
+  await r2(1, "new pending-identity Start is eligible", r2PendingStart, true, "pageIdentity");
+  await r2(2, "the same pre-bind context cannot Resume", { ...r2PendingStart, work: { operation: "resume", state: "inactive" } }, false, "dialogueBinding");
+  const r2HistoricalUnbound = context({ bound: false, operation: "start", state: "inactive" });
+  await r2(3, "historical stable unbound Start is eligible", r2HistoricalUnbound, true, "dialogueBinding");
+  await r2(4, "historical unbound dialogue cannot Resume", { ...r2HistoricalUnbound, work: { operation: "resume", state: "inactive" } }, false, "dialogueBinding");
+  await r2(5, "matching binding preserves Start and mature inactive Resume", baseline, true, "dialogueBinding");
+  await r2(5, "matching binding permits mature inactive Resume", { ...baseline, work: { operation: "resume", state: "inactive" } }, true, "workState");
+  await r2(5, "active-hidden is not a mature Resume admission state", { ...baseline, work: { operation: "resume", state: "active_hidden" } }, false, "workState");
+  const r2Conflict = context({ marketplace: "wildberries", boundMarketplace: "ozon", bound: true });
+  await r2(6, "conflicting binding denies candidate store", r2Conflict, false, "marketplaceBinding");
+  await r2(7, "confirm_change cannot bypass conflict", { ...r2Conflict, confirm_change: true }, false, "marketplaceBinding");
+  const r2Rebound = context({ marketplace: "wildberries", provider: "chatgpt", bound: true });
+  const r2Old = await r2(8, "old conflicting context remains denied", r2Conflict, false);
+  const r2New = await r2(8, "legitimate rebind is admitted only after recomputation", r2Rebound, true);
+  assert.notStrictEqual(r2Old, r2New, "C23R2-08 stale decision is not reused");
+  await r2(9, "Ozon selects source.ozon exactly", context({ marketplace: "ozon", bound: false, intersectionValue: intersection({ ozon: true, wildberries: false }) }), true, "sourceCapability");
+  await r2(9, "Ozon cannot use source.wildberries", context({ marketplace: "ozon", bound: false, intersectionValue: intersection({ ozon: false, wildberries: true }) }), false, "sourceCapability");
+  await r2(10, "Wildberries selects source.wildberries exactly", context({ marketplace: "wildberries", bound: false, intersectionValue: intersection({ ozon: false, wildberries: true }) }), true, "sourceCapability");
+  await r2(10, "Wildberries cannot use source.ozon", context({ marketplace: "wildberries", bound: false, intersectionValue: intersection({ ozon: true, wildberries: false }) }), false, "sourceCapability");
+  await r2(11, "ChatGPT selects ai.chatgpt exactly", context({ provider: "chatgpt", bound: false, intersectionValue: intersection({ chatgpt: true, alice: false }) }), true, "aiCapability");
+  await r2(11, "ChatGPT cannot use ai.alice", context({ provider: "chatgpt", bound: false, intersectionValue: intersection({ chatgpt: false, alice: true }) }), false, "aiCapability");
+  await r2(12, "Alice selects ai.alice exactly", context({ provider: "alice", bound: false, intersectionValue: intersection({ chatgpt: false, alice: true }) }), true, "aiCapability");
+  await r2(12, "Alice cannot use ai.chatgpt", context({ provider: "alice", bound: false, intersectionValue: intersection({ chatgpt: true, alice: false }) }), false, "aiCapability");
+  await r2(13, "signed feature names cannot substitute for permissions", { ...r2HistoricalUnbound, capabilityIntersection: { ...intersection({ ozon: false }), signedFeatures: { "source.ozon": true } } }, false, "sourceCapability");
+  await r2(14, "stale cached Bootstrap is denied", { ...baseline, bootstrap: { ...baseline.bootstrap, source: "CACHE", freshness: "STALE_BUT_OFFLINE_GRACE_ELIGIBLE" } }, false, "bootstrapFreshness");
+  await r2(15, "revoked or obsolete generation is denied", { ...baseline, session: { ...baseline.session, revoked: true } }, false, "revocation");
+  await r2(15, "obsolete generation is also denied", { ...baseline, session: { ...baseline.session, obsolete: true } }, false, "revocation");
+  await r2(16, "account mismatch is denied", { ...baseline, account: { ...baseline.account, expectedAccountId: "99999999-9999-4999-8999-999999999999" } }, false, "account");
+  await r2(17, "device or session mismatch is denied", { ...baseline, session: { ...baseline.session, expectedDeviceId: "99999999-9999-4999-8999-999999999999" } }, false, "sessionIdentity");
+  await r2(18, "compatibility and minimum-version failure is denied", { ...baseline, compatibility: { ...baseline.compatibility, extension: { ...baseline.compatibility.extension, version: "0.1.9", minimumVersion: "0.2.0" } } }, false, "compatibility");
+  await r2(19, "invalid or mismatched signed AI profile is denied", { ...baseline, ai: { ...baseline.ai, profile: { ...baseline.ai.profile, provider: "alice" } } }, false, "aiProfile");
+  await r2(20, "missing, false, or invalid Health is denied", { ...baseline, health: null }, false, "health");
+  await r2(20, "false Health is denied", { ...baseline, health: { status: "FAIL", current: true, verified: true } }, false, "health");
+  await r2(21, "selected store owned by another account is denied", { ...r2HistoricalUnbound, store: { ...r2HistoricalUnbound.store, accountId: "99999999-9999-4999-8999-999999999999" } }, false, "storeOwnership");
+  await r2(22, "stale credential revision is denied", { ...r2HistoricalUnbound, store: { ...r2HistoricalUnbound.store, credentialRevision: "credential-b", expectedCredentialRevision: "credential-a" } }, false, "storeOwnership");
+  await r2(23, "pending duplicate Start is denied", context({ bound: false, state: "pending_identity", operation: "start" }), false, "workState");
+  await r2(24, "wrong or unsupported page identity is denied", { ...r2PendingStart, dialogue: { ...r2PendingStart.dialogue, identity: { ...r2PendingStart.dialogue.identity, origin: "https://example.invalid" } } }, false, "pageIdentity");
+  await r2(25, "tab identity is isolated", context({ bound: false, tabId: 2, expectedTabId: 1 }), false, "tabIdentity");
+  await r2(26, "store identity is isolated", context({ bound: false, selectedStoreId: "ozon-store-b", expectedStoreId: "ozon-store-a" }), false, "storeOwnership");
+  for (const [marketplace, provider, source, ai] of [
+    ["ozon", "chatgpt", "source.ozon", "ai.chatgpt"], ["ozon", "alice", "source.ozon", "ai.alice"],
+    ["wildberries", "chatgpt", "source.wildberries", "ai.chatgpt"], ["wildberries", "alice", "source.wildberries", "ai.alice"],
+  ]) {
+    const result = await r2(27, `${marketplace}+${provider} selects the orthogonal pair`, context({ marketplace, provider, bound: false }), true);
+    assert.deepEqual(result.requiredPermissions, { source, ai }, `C23R2-27 ${marketplace}+${provider} exact permissions`);
+  }
+  const r2Frozen = await worker.call(`(function () {
+    const value = SellerAgentsOnlineWorkAuthority.evaluate(${JSON.stringify(baseline)});
+    return { value, allowed: value.allowed };
+  })`);
+  assert.equal(r2Frozen.allowed, true, "C23R2-28 eligible output is detached and frozen");
+  const r2FrozenValue = r2Frozen.value;
+  assert.equal(Object.isFrozen(r2FrozenValue), true, "C23R2-28 decision is frozen");
+  assert.equal(Object.isFrozen(r2FrozenValue.gates), true, "C23R2-28 gates are frozen");
+  const r2Before = await r2(29, "context change requires recomputation", baseline, true);
+  const r2After = await r2(29, "recomputed changed context is denied", { ...baseline, store: { ...baseline.store, storeId: "ozon-store-b" } }, false);
+  assert.notStrictEqual(r2Before, r2After, "C23R2-29 old true result is not permanent authority");
+  const r2EffectsBefore = { backing: clone(worker.backing), network: clone(worker.network), messages: clone(worker.messages) };
+  await r2(30, "composer has zero storage/network/runtime side effects", baseline, true);
+  assert.deepEqual(worker.backing, r2EffectsBefore.backing);
+  assert.deepEqual(worker.network, r2EffectsBefore.network);
+  assert.deepEqual(worker.messages, r2EffectsBefore.messages);
+  const d2Input = { ...baseline, capabilityIntersection: { ...baseline.capabilityIntersection, executionAuthority: true } };
+  const d2Result = await r2(31, "D2 execution authority input cannot authorize Work", d2Input, false);
+  assert.equal(d2Result.executionAuthority, false);
+  assert.equal(d2Result.gates.sourceCapability, false);
+  const eligibleResult = await r2(32, "eligible composer result still has no execution authority", baseline, true);
+  assert.equal(eligibleResult.executionAuthority, false);
+
+  console.log(JSON.stringify({ status: "PASS", c23aCases: 22, r1Cases: 22, c23r2Cases: 32, validPairs: 4, executionAuthority: false, networkCalls: worker.network.length, runtimeMessages: worker.messages.length }));
 } finally {
   worker.close();
 }
