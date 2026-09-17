@@ -865,8 +865,11 @@ const HealthAiBindingV1Schema = z
 export const HealthContextBindingV1Schema = z
   .object({
     accountId: z.uuid(),
+    deviceId: z.uuid(),
+    sessionId: z.uuid(),
     contractVersion: ControlPlaneContractVersionV2Schema,
     configVersion: z.number().int().positive().safe(),
+    bootstrapSnapshotSha256: z.string().regex(/^[0-9a-f]{64}$/),
     ai: HealthAiBindingV1Schema,
   })
   .strict();
@@ -923,6 +926,7 @@ export const HealthAuthorityRequestV1Schema = z
   .object({
     healthTransportVersion: HealthTransportVersionV1Schema,
     bootstrap: BootstrapRequestV2Schema,
+    bootstrapEnvelope: SignedBootstrapEnvelopeV2Schema,
   })
   .strict();
 export type HealthAuthorityRequestV1 = z.infer<

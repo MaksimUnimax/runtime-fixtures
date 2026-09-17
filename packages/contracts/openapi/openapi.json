@@ -56811,6 +56811,49 @@
                     ],
                     "type": "object"
                   },
+                  "bootstrapEnvelope": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "algorithm": {
+                        "enum": [
+                          "Ed25519"
+                        ],
+                        "type": "string"
+                      },
+                      "envelopeVersion": {
+                        "enum": [
+                          "bootstrap_envelope_v2"
+                        ],
+                        "type": "string"
+                      },
+                      "keyId": {
+                        "maxLength": 64,
+                        "minLength": 1,
+                        "pattern": "^[a-z0-9][a-z0-9._-]*$",
+                        "type": "string"
+                      },
+                      "payload": {
+                        "maxLength": 32768,
+                        "minLength": 1,
+                        "pattern": "^[A-Za-z0-9_-]+$",
+                        "type": "string"
+                      },
+                      "signature": {
+                        "maxLength": 256,
+                        "minLength": 1,
+                        "pattern": "^[A-Za-z0-9_-]+$",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "envelopeVersion",
+                      "algorithm",
+                      "keyId",
+                      "payload",
+                      "signature"
+                    ],
+                    "type": "object"
+                  },
                   "healthTransportVersion": {
                     "enum": [
                       "health_transport_v1"
@@ -56820,7 +56863,8 @@
                 },
                 "required": [
                   "healthTransportVersion",
-                  "bootstrap"
+                  "bootstrap",
+                  "bootstrapEnvelope"
                 ],
                 "type": "object"
               }

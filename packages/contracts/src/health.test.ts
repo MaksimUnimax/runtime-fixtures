@@ -8,8 +8,11 @@ import {
 
 const context = {
   accountId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+  deviceId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+  sessionId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
   contractVersion: "control_plane_v2" as const,
   configVersion: 7,
+  bootstrapSnapshotSha256: "b".repeat(64),
   ai: {
     family: "chatgpt",
     surface: "web",
@@ -82,6 +85,13 @@ describe("signed Health transport contracts", () => {
         browser: { family: "chrome" as const, version: "120" },
         deviceId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
         lastConfigVersion: null,
+      },
+      bootstrapEnvelope: {
+        envelopeVersion: "bootstrap_envelope_v2" as const,
+        algorithm: "Ed25519" as const,
+        keyId: "config-key",
+        payload: "e30",
+        signature: "AA",
       },
     };
     expect(HealthAuthorityRequestV1Schema.parse(request)).toEqual(request);

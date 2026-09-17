@@ -9,8 +9,11 @@ const claim = HealthClaimV1Schema.parse({
   target: "WORK",
   context: {
     accountId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    deviceId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+    sessionId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
     contractVersion: "control_plane_v2",
     configVersion: 7,
+    bootstrapSnapshotSha256: "b".repeat(64),
     ai: {
       family: "chatgpt",
       surface: "web",

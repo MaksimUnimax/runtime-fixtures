@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { webcrypto } from "node:crypto";
-import { makeWorker } from "../worker-harness.mjs";
+import { makeWorker, signFixtureBootstrap } from "../worker-harness.mjs";
 
 const AUTH = "seller_agents_control_auth_v2";
 const now = Date.now();
@@ -53,8 +54,11 @@ function healthClaim(payload, overrides = {}) {
     target: "WORK",
     context: {
       accountId: payload.account.id,
+      deviceId: "22222222-2222-4222-8222-222222222222",
+      sessionId: "33333333-3333-4333-8333-333333333333",
       contractVersion: "control_plane_v2",
       configVersion: payload.configVersion,
+      bootstrapSnapshotSha256: createHash("sha256").update(Buffer.from(canonical(payload))).digest("hex"),
       ai: {
         family: payload.ai.detected.family,
         surface: payload.ai.detected.surface,
@@ -87,6 +91,7 @@ async function fixture(options = {}) {
         headers: { "content-type": "application/json" },
       });
     },
+    onStorageWrite: options.onStorageWrite,
   });
   return { worker, backing, network };
 }
@@ -98,11 +103,13 @@ async function main() {
   const envelope = await signHealth(seeded.backing, healthClaim(payload));
   seeded.worker.close();
 
+  let readWrites = 0;
   const read = await fixture({
     runtime,
     backing: seeded.backing,
     seedAuthority: false,
     envelope,
+    onStorageWrite: () => { readWrites++; },
   });
   const metadata = await read.worker.call(
     "SellerAgentsControlClient.getVerifiedHealthMetadata",
@@ -115,12 +122,14 @@ async function main() {
   assert.equal(read.network.length, 1);
   assert.equal(new URL(read.network[0].url).pathname, "/v1/health-authority");
   const before = read.network.length;
+  const writesBeforeRead = readWrites;
   const reread = await read.worker.call(
     "SellerAgentsControlClient.readVerifiedHealthMetadata",
     envelope,
   );
   assert.deepEqual(reread, metadata);
   assert.equal(read.network.length, before);
+  assert.equal(readWrites, writesBeforeRead, "metadata read is storage-read-only");
   assert.equal(
     await read.worker.call("SellerAgentsControlClient.canWork"),
     true,
@@ -222,6 +231,8 @@ async function main() {
       },
     ],
     ["HT-18", null],
+    ["HT-31-device", { ...healthClaim(payload).context, deviceId: "44444444-4444-4444-8444-444444444444" }],
+    ["HT-32-session", { ...healthClaim(payload).context, sessionId: "55555555-5555-4555-8555-555555555555" }],
   ]) {
     const base = healthClaim(payload);
     const tampered =
@@ -249,6 +260,23 @@ async function main() {
     bad.worker.close();
     cases[id] = "mismatch/tamper rejected";
   }
+  const payloadB = { ...clone(payload), issuedAt: new Date(now - 500).toISOString() };
+  const envelopeB = await signFixtureBootstrap(seeded.backing, payloadB);
+  const snapshotBBacking = clone(seeded.backing);
+  snapshotBBacking.local[AUTH].authority.payload = payloadB;
+  snapshotBBacking.local[AUTH].authority.envelope = envelopeB;
+  const snapshotB = await fixture({
+    runtime,
+    backing: snapshotBBacking,
+    seedAuthority: false,
+    envelope,
+  });
+  await assert.rejects(
+    () => snapshotB.worker.call("SellerAgentsControlClient.readVerifiedHealthMetadata", envelope),
+    /HEALTH_CONTEXT_MISMATCH/,
+  );
+  snapshotB.worker.close();
+  cases["HT-33"] = "same loose context cannot pair with different exact snapshot";
   const negativeClaim = {
     healthClaimVersion: "health_claim_v1",
     status: "UNAVAILABLE",
