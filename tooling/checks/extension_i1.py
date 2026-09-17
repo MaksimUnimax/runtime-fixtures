@@ -57,6 +57,7 @@ def main():
                 ("i1-signed-metadata", ROOT / "tests/regression/extension-core/client-i1/client-signed-metadata.mjs"),
                 ("i1-packaged-capabilities", ROOT / "tests/regression/extension-core/client-i1/client-packaged-capabilities.mjs"),
                 ("i1-capability-intersection", ROOT / "tests/regression/extension-core/client-i1/client-capability-intersection.mjs"),
+                ("i1-c2-3a-online-work-authority", ROOT / "tests/regression/extension-core/client-i1/client-c2-3a-online-work-authority.mjs"),
             ]
             for test_name, test in tests:
                 runner.run(label + "-" + test_name, [node, test, runtime])

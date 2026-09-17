@@ -31,6 +31,7 @@
     "packages/control-client/src/client.js",
     "packages/control-client/src/signed-metadata.js",
     "packages/control-client/src/capability-intersection.js",
+    "packages/control-client/src/online-work-authority.js",
     "packages/bridge-core/src/execution/local-operations.js",
     "packages/bridge-core/src/execution/context.js",
     "packages/bridge-core/src/execution/batch-queue.js",
