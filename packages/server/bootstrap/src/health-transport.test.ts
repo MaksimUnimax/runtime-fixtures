@@ -125,7 +125,12 @@ function service(
     undefined,
     {
       resolve: async (): Promise<BootstrapHealthDecision> => {
-        if (decision === "PASS") return { status: "PASS" };
+        if (decision === "PASS")
+          return {
+            status: "PASS",
+            observedAt: new Date("2026-09-17T00:00:00.000Z"),
+            expiresAt: new Date("2026-09-17T00:30:00.000Z"),
+          };
         if (decision === "DENY")
           return { status: "DENY", reason: "PRODUCER_DENIED" };
         if (decision === "MALFORMED") return undefined as never;
@@ -161,18 +166,14 @@ describe("Health transport boundary", () => {
   it.each(["UNCONFIGURED", "UNAVAILABLE"] as const)(
     "does not emit PASS for AI %s",
     async (_status) => {
-      const { bootstrap, pair, request } = service();
+      const { bootstrap, request } = service();
       const altered = {
         ...request,
         bootstrap: { ...request.bootstrap, detectedAi: undefined },
       };
-      const envelope = await bootstrap.issueHealth(subject, altered);
-      const result = verifyHealthEnvelopeV1(
-        envelope,
-        new Map([["config-key", pair.publicKey]]),
-      );
-      expect(result.ok).toBe(true);
-      if (result.ok) expect(result.payload.status).not.toBe("PASS");
+      await expect(
+        bootstrap.issueHealth(subject, altered),
+      ).rejects.toMatchObject({ code: "UNAVAILABLE" });
     },
   );
 
@@ -220,6 +221,7 @@ describe("Health transport boundary", () => {
     });
     const envelope = await bootstrap.issueHealth(subject, {
       ...requestBase,
+      bootstrap: { ...requestBase.bootstrap, detectedAi: undefined },
       bootstrapEnvelope: signedBootstrap,
     });
     const result = verifyHealthEnvelopeV1(

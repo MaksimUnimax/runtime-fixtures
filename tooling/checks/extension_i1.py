@@ -59,6 +59,7 @@ def main():
                 ("i1-capability-intersection", ROOT / "tests/regression/extension-core/client-i1/client-capability-intersection.mjs"),
                 ("i1-c2-3a-online-work-authority", ROOT / "tests/regression/extension-core/client-i1/client-c2-3a-online-work-authority.mjs"),
                 ("i1-c2-3b1-health-transport", ROOT / "tests/regression/extension-core/client-i1/client-c2-3b1-health-transport.mjs"),
+                ("i1-c2-3b1-canwork", ROOT / "tests/regression/extension-core/client-i1/client-c2-3b1-canwork.mjs"),
             ]
             for test_name, test in tests:
                 runner.run(label + "-" + test_name, [node, test, runtime])
