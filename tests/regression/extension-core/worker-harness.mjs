@@ -50,22 +50,29 @@ export async function makeWorker(directory, options = {}) {
   const deviceId = options.deviceId || "22222222-2222-4222-8222-222222222222";
   const sessionId = options.sessionId || "33333333-3333-4333-8333-333333333333";
   const fixtureKey = backing.local.__seller_agents_fixture_signing_key;
+  const useFixtureSigningKey = options.fixtureSigningKey !== false;
   let signing;
-  if (fixtureKey) {
+  if (fixtureKey && useFixtureSigningKey) {
     signing = {
       privateKey: await webcrypto.subtle.importKey("pkcs8", Buffer.from(fixtureKey.privateKey, "base64"), { name: "Ed25519" }, false, ["sign"]),
       publicKey: await webcrypto.subtle.importKey("spki", Buffer.from(fixtureKey.publicKey, "base64"), { name: "Ed25519" }, false, ["verify"]),
     };
-  } else {
+  } else if (useFixtureSigningKey) {
     signing = await webcrypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"]);
     backing.local.__seller_agents_fixture_signing_key = {
       privateKey: Buffer.from(await webcrypto.subtle.exportKey("pkcs8", signing.privateKey)).toString("base64"),
       publicKey: Buffer.from(await webcrypto.subtle.exportKey("spki", signing.publicKey)).toString("base64"),
     };
   }
-  const spki = fixtureKey
+  const configuredPublicKey = options.packagedConfig?.trustBundle?.keys?.[0]?.publicKey;
+  const spki = fixtureKey && useFixtureSigningKey
     ? new Uint8Array(Buffer.from(fixtureKey.publicKey, "base64"))
-    : new Uint8Array(await webcrypto.subtle.exportKey("spki", signing.publicKey));
+    : configuredPublicKey
+      ? new Uint8Array(Buffer.from(configuredPublicKey, "base64"))
+      : signing
+        ? new Uint8Array(await webcrypto.subtle.exportKey("spki", signing.publicKey))
+        : null;
+  if (!spki) throw new Error("fixture signing public key unavailable");
   const fingerprint = Buffer.from(await webcrypto.subtle.digest("SHA-256", spki)).toString("hex");
   const keyId = "fixture-key";
   const fixtureConfig = options.packagedConfig || {
@@ -77,6 +84,7 @@ export async function makeWorker(directory, options = {}) {
     trustBundle: { trustBundleVersion: "bootstrap_trust_bundle_v1", algorithm: "Ed25519", publicKeyFormat: "spki_der", publicKeyEncoding: "base64", fingerprintAlgorithm: "sha256", fingerprintEncoding: "lowercase_hex", keys: [{ keyId, publicKey: Buffer.from(spki).toString("base64"), fingerprintSha256: fingerprint, lifecycle: "ACTIVE", trustEligibility: "SIGNING_AND_VERIFICATION" }] },
   };
   if (options.seedAuthority !== false && !backing.local[AUTH_STORAGE_KEY]) {
+    if (!signing) throw new Error("seedAuthority requires fixture signing key");
     const issued = new Date(wallClock() - 1000).toISOString();
     const serverTime = new Date(wallClock()).toISOString();
     const expires = new Date(wallClock() + 3600000).toISOString();
