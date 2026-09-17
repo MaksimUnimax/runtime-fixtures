@@ -36,6 +36,21 @@
   },
   {
     "target": "service_worker.js",
+    "old": "        const pending = await createPendingWorkStart(tab, live, { intent_id: requestedIntentId, revision: nextRevision, observed_conversation_id: live.conversation_id || null, conversation_key: key, expected_session_revision: currentSession?.revision ?? 0, state_before: currentSession?.state || OzonWorkSessionModel.STATES.INACTIVE });",
+    "new": "        await saAdmissionMutationGuard({ operation: \"start\", tabId: tab, conversationKey: key, intentId: requestedIntentId });\n        const pending = await createPendingWorkStart(tab, live, { intent_id: requestedIntentId, revision: nextRevision, observed_conversation_id: live.conversation_id || null, conversation_key: key, expected_session_revision: currentSession?.revision ?? 0, state_before: currentSession?.state || OzonWorkSessionModel.STATES.INACTIVE });"
+  },
+  {
+    "target": "service_worker.js",
+    "old": "  pending[slot] = transaction;\n  await diagnostic(\"WORK_START_PENDING_CREATED\", { intent_id: transaction.intent_id, revision: transaction.revision, tab_id: tab, conversation_id: observedConversationId, state_before: options.state_before || null, state_after: transaction.state, external_request_executed: false });\n  await storageSet({ [KEYS.PENDING_WORK_STARTS]: pending });",
+    "new": "  pending[slot] = transaction;\n  await diagnostic(\"WORK_START_PENDING_CREATED\", { intent_id: transaction.intent_id, revision: transaction.revision, tab_id: tab, conversation_id: observedConversationId, state_before: options.state_before || null, state_after: transaction.state, external_request_executed: false });\n  await saAdmissionMutationGuard({ operation: \"start\", tabId: tab, conversationKey, intentId: transaction.intent_id });\n  await storageSet({ [KEYS.PENDING_WORK_STARTS]: pending });"
+  },
+  {
+    "target": "service_worker.js",
+    "old": "        const bindingSession = await mutateWorkSession(key, session.revision, OzonWorkSessionModel.STATES.BINDING, {",
+    "new": "        await saAdmissionMutationGuard({ operation: \"resume\", tabId: tab, conversationKey: key });\n        const bindingSession = await mutateWorkSession(key, session.revision, OzonWorkSessionModel.STATES.BINDING, {"
+  },
+  {
+    "target": "service_worker.js",
     "old": "async function resumeProviderQuotaWaits() {",
     "new": "async function resumeProviderQuotaWaits() {\n  if (await saEnabled()) return;"
   },
