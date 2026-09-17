@@ -44,6 +44,24 @@ describe("BootstrapService beta policy boundary", () => {
         "ai.alice": false,
       },
     ],
+    [
+      "truthy non-boolean value",
+      {
+        "source.ozon": 1,
+        "source.wildberries": true,
+        "ai.chatgpt": true,
+        "ai.alice": true,
+      },
+    ],
+    [
+      "alias instead of reviewed key",
+      {
+        "source.ozon": true,
+        "source.wb": true,
+        "ai.chatgpt": true,
+        "ai.alice": true,
+      },
+    ],
   ])("fails closed for a policy with %s", async (_label, map) => {
     const pair = generateKeyPairSync("ed25519");
     let signCalls = 0;

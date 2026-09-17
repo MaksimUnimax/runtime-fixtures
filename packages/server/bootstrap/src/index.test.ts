@@ -6,6 +6,7 @@ import {
   verifyBootstrapEnvelope,
   verifyBootstrapEnvelopeV2,
 } from "@product/remote-config";
+import type { BootstrapSnapshotPayloadV1 } from "@product/contracts";
 import { BootstrapError, BootstrapService } from "./index.js";
 import type { CommercialAccessResolution } from "@product/commercial-access";
 import { getSellerAgentsFreeBetaCapabilityPermissions } from "@product/entitlements/seller-agents-beta-capability-policy";
@@ -406,6 +407,31 @@ describe("BootstrapService", () => {
     ).toEqual(before);
     expect(betaPermissions).toEqual(betaBefore);
     expect(Object.isFrozen(betaPermissions)).toBe(true);
+  });
+  it("returns fresh independent permission maps on repeated bootstrap issues", async () => {
+    const pair = generateKeyPairSync("ed25519");
+    const signedPayloads: BootstrapSnapshotPayloadV1[] = [];
+    const service = new BootstrapService(
+      policy,
+      {
+        sign: async (_keyId, payload) => {
+          signedPayloads.push(payload);
+          return signBootstrapSnapshot(payload, "config-key", pair.privateKey);
+        },
+      },
+      { now: () => new Date("2026-01-01T00:00:00.000Z") },
+      { resolve: async () => eligibleCommercial() },
+      undefined,
+      { resolve: async () => ({ kind: "BETA" as const }) },
+    );
+
+    await service.issue(subject, request);
+    signedPayloads[0]!.entitlements["source.ozon"] = false;
+    await service.issue(subject, request);
+
+    expect(signedPayloads).toHaveLength(2);
+    expect(signedPayloads[0]).not.toBe(signedPayloads[1]);
+    expect(signedPayloads[1]!.entitlements["source.ozon"]).toBe(true);
   });
   it("rejects a tampered signed beta entitlement payload", async () => {
     const f = signedService(ineligibleCommercial(), undefined, true);
