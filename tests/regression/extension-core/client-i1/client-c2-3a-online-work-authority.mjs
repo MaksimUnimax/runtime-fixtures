@@ -37,10 +37,9 @@ function intersection({ ozon = true, wildberries = true, chatgpt = true, alice =
   };
 }
 
-function context({ marketplace = "ozon", provider = "chatgpt", intersectionValue = intersection(), state = "inactive", operation = "start" } = {}) {
-  const conversationId = `${provider}-dialogue`;
+function context({ marketplace = "ozon", provider = "chatgpt", intersectionValue = intersection(), state = "inactive", operation = "start", conversationId = `${provider}-dialogue`, bound = true, boundMarketplace = marketplace, boundStoreId = `${boundMarketplace}-store-a`, boundCredentialRevision = `${boundMarketplace}-credential-revision-a`, tabId = null, expectedTabId = null, startIntentId = null, expectedStartIntentId = null, selectedStoreId = null, expectedStoreId = null, expectedCredentialRevision = null, storeAuthGeneration = null, storeValue = null } = {}) {
   const origin = provider === "alice" ? "https://alice.yandex.ru" : "https://chatgpt.com";
-  const conversationKey = `${origin}|${conversationId}`;
+  const conversationKey = conversationId ? `${origin}|${conversationId}` : null;
   const storeId = `${marketplace}-store-a`;
   const credentialRevision = `${marketplace}-credential-revision-a`;
   return {
@@ -78,10 +77,13 @@ function context({ marketplace = "ozon", provider = "chatgpt", intersectionValue
     health: { status: "PASS", current: true, verified: true },
     dialogue: {
       key: conversationKey,
-      identity: { key: conversationKey, origin, conversationId, provider },
-      binding: {
+      trusted: true,
+      tabId,
+      expectedTabId,
+      identity: { key: conversationKey, origin, conversationId, provider, status: conversationId ? "confirmed" : "unknown" },
+      binding: bound ? {
         bound: true,
-        bindingId: `binding-${provider}-${marketplace}`,
+        bindingId: `binding-${provider}-${boundMarketplace}`,
         revision: 2,
         expectedRevision: 2,
         conversationKey,
@@ -89,13 +91,13 @@ function context({ marketplace = "ozon", provider = "chatgpt", intersectionValue
         conversationId,
         provider,
         accountId: ACCOUNT,
-        storeId,
-        marketplace,
-        credentialRevision,
-      },
+        storeId: boundStoreId,
+        marketplace: boundMarketplace,
+        credentialRevision: boundCredentialRevision,
+      } : null,
     },
-    store: { accountId: ACCOUNT, storeId, marketplace, credentialRevision },
-    work: { operation, state },
+    store: storeValue || { accountId: ACCOUNT, storeId, marketplace, credentialRevision, selectedStoreId, expectedStoreId, expectedCredentialRevision, authGeneration: storeAuthGeneration },
+    work: { operation, state, startIntentId, expectedStartIntentId },
     capabilityIntersection: intersectionValue,
   };
 }
@@ -140,7 +142,9 @@ try {
   await deny("C23A-13 health missing", { ...baseline, health: null }, "health");
   await deny("C23A-13 health false", { ...baseline, health: { status: "FAIL", current: true, verified: true } }, "health");
   await deny("C23A-13 health invalid", { ...baseline, health: { status: "PASS", current: false, verified: true } }, "health");
-  await deny("C23A-14 no dialogue binding", { ...baseline, dialogue: { ...baseline.dialogue, binding: null } }, "dialogueBinding");
+  const c23a14Start = await evaluate(worker, { ...baseline, dialogue: { ...baseline.dialogue, binding: null } });
+  assert.equal(c23a14Start.allowed, true, "C23A-14 no dialogue binding is valid for pre-bind Start");
+  assert.equal(c23a14Start.gates.dialogueBinding, true, "C23A-14 Start does not require persisted binding");
   await deny("C23A-15 stale binding revision", { ...baseline, dialogue: { ...baseline.dialogue, binding: { ...baseline.dialogue.binding, expectedRevision: 3 } } }, "dialogueBinding");
   await deny("C23A-15 store binding missing", { ...baseline, store: null }, "storeBinding");
   await deny("C23A-16 marketplace changed", { ...baseline, store: { ...baseline.store, marketplace: "wildberries" } }, "marketplaceBinding");
@@ -195,7 +199,86 @@ try {
   assert.equal(intersectionResult.freshness, "FRESH");
   assert.equal(intersectionResult.executionAuthority, false);
 
-  console.log(JSON.stringify({ status: "PASS", cases: 22, validPairs: 4, executionAuthority: false, networkCalls: worker.network.length, runtimeMessages: worker.messages.length }));
+  // C2.3-A-R1 operation-aware correction matrix.
+  const pendingStart = context({ conversationId: null, bound: false, operation: "start" });
+  const r1_01 = await evaluate(worker, pendingStart);
+  assert.equal(r1_01.allowed, true, "R1-01 new dialogue without conversation ID permits pending-identity Start");
+  assert.equal(r1_01.executionAuthority, false);
+
+  const r1_02 = await evaluate(worker, { ...pendingStart, work: { operation: "resume", state: "inactive" } });
+  assert.equal(r1_02.allowed, false, "R1-02 pre-bind context cannot Resume");
+  assert.equal(r1_02.gates.dialogueBinding, false);
+
+  const historicalUnbound = context({ marketplace: "wildberries", provider: "alice", bound: false });
+  const r1_03 = await evaluate(worker, historicalUnbound);
+  assert.equal(r1_03.allowed, true, "R1-03 historical unbound dialogue permits Start");
+  assert.deepEqual(r1_03.requiredPermissions, { source: "source.wildberries", ai: "ai.alice" });
+
+  const r1_04 = await evaluate(worker, { ...historicalUnbound, work: { operation: "resume", state: "inactive" } });
+  assert.equal(r1_04.allowed, false, "R1-04 unbound historical dialogue cannot Resume");
+
+  for (const state of ["inactive", "error"]) {
+    assert.equal((await evaluate(worker, context({ state, operation: "start" }))).allowed, true, `R1-05 Start allowed from ${state}`);
+  }
+  for (const state of ["pending_identity", "binding", "active_visible", "active_hidden", "recovering", "finishing"]) {
+    assert.equal((await evaluate(worker, context({ state, operation: "start" }))).allowed, false, `R1-05 duplicate/in-progress Start denied from ${state}`);
+  }
+  assert.equal((await evaluate(worker, context({ state: "active_visible", operation: "start" }))).gates.workState, false, "R1-05 active Work cannot be started twice");
+
+  const conflicting = context({ marketplace: "wildberries", boundMarketplace: "ozon", bound: true });
+  const r1_06 = await evaluate(worker, conflicting);
+  assert.equal(r1_06.allowed, false, "R1-06 conflicting store binding fails closed");
+  assert.equal(r1_06.gates.marketplaceBinding, false);
+  const r1_07 = await evaluate(worker, { ...conflicting, confirm_change: true });
+  assert.equal(r1_07.allowed, false, "R1-07 confirm boolean cannot bypass pure authority");
+
+  const legitimateChanged = context({ marketplace: "wildberries", provider: "chatgpt", bound: true });
+  const r1_08old = await evaluate(worker, conflicting);
+  const r1_08new = await evaluate(worker, legitimateChanged);
+  assert.equal(r1_08old.allowed, false, "R1-08 old conflicting decision is denied");
+  assert.equal(r1_08new.allowed, true, "R1-08 recomputed post-change decision may pass");
+  assert.notStrictEqual(r1_08old, r1_08new, "R1-08 post-change authority is recomputed");
+
+  assert.equal((await evaluate(worker, context({ marketplace: "wildberries", bound: false, intersectionValue: intersection({ ozon: true, wildberries: false }) }))).allowed, false, "R1-09 Ozon capability cannot substitute for candidate Wildberries");
+  assert.equal((await evaluate(worker, context({ marketplace: "ozon", bound: false, intersectionValue: intersection({ ozon: false, wildberries: true }) }))).allowed, false, "R1-09 Wildberries capability cannot substitute for candidate Ozon");
+  assert.equal((await evaluate(worker, context({ provider: "chatgpt", bound: false, intersectionValue: intersection({ chatgpt: false, alice: true }) }))).allowed, false, "R1-10 Alice capability cannot substitute for ChatGPT");
+  assert.equal((await evaluate(worker, context({ provider: "alice", bound: false, intersectionValue: intersection({ chatgpt: true, alice: false }) }))).allowed, false, "R1-10 ChatGPT capability cannot substitute for Alice");
+
+  const r1_11mismatch = await evaluate(worker, context({ bound: false, startIntentId: "intent-a", expectedStartIntentId: "intent-b" }));
+  assert.equal(r1_11mismatch.allowed, false, "R1-11 mismatched Start intent fails closed");
+  assert.equal((await evaluate(worker, context({ bound: false, startIntentId: "intent-a", expectedStartIntentId: "intent-a" }))).allowed, true, "R1-11 matching Start intent is accepted");
+  assert.equal((await evaluate(worker, context({ bound: false, storeValue: {} }))).allowed, false, "R1-12 missing selected account store fails closed");
+  assert.equal((await evaluate(worker, context({ bound: false, storeAuthGeneration: 3 }))).allowed, false, "R1-12 stale store auth generation fails closed");
+  const credentialBaseline = context({ bound: false });
+  assert.equal((await evaluate(worker, { ...credentialBaseline, store: { ...credentialBaseline.store, expectedCredentialRevision: credentialBaseline.store.credentialRevision } })).allowed, true, "R1-13 current credential revision permits Start");
+  assert.equal((await evaluate(worker, { ...credentialBaseline, store: { ...credentialBaseline.store, credentialRevision: "ozon-credential-revision-b", expectedCredentialRevision: "ozon-credential-revision-a" } })).allowed, false, "R1-13 changed credential revision invalidates candidate");
+  assert.equal((await evaluate(worker, context({ bound: false, state: "pending_identity" }))).allowed, false, "R1-14 duplicate pending Start denied");
+  assert.equal((await evaluate(worker, { ...pendingStart, dialogue: { ...pendingStart.dialogue, identity: { ...pendingStart.dialogue.identity, origin: "https://example.invalid" } } })).allowed, false, "R1-15 unsupported page identity denied");
+  assert.equal((await evaluate(worker, { ...pendingStart, health: null })).allowed, false, "R1-16 Health remains required for pre-bind Start");
+  assert.equal((await evaluate(worker, { ...pendingStart, bootstrap: { ...pendingStart.bootstrap, source: "CACHE", freshness: "STALE_BUT_OFFLINE_GRACE_ELIGIBLE" } })).allowed, false, "R1-17 stale/offline authority remains denied");
+  assert.equal((await evaluate(worker, context({ bound: false, tabId: 1, expectedTabId: 1 }))).allowed, true, "R1-18 tab A candidate passes in its own context");
+  assert.equal((await evaluate(worker, context({ bound: false, tabId: 2, expectedTabId: 1 }))).allowed, false, "R1-18 tab B cannot reuse tab A candidate");
+  assert.equal((await evaluate(worker, context({ bound: false, selectedStoreId: "ozon-store-a", expectedStoreId: "ozon-store-a" }))).allowed, true, "R1-19 store A candidate passes in its own context");
+  assert.equal((await evaluate(worker, context({ bound: false, selectedStoreId: "ozon-store-b", expectedStoreId: "ozon-store-a" }))).allowed, false, "R1-19 store B cannot reuse store A candidate");
+
+  for (const [marketplace, provider, source, ai] of [
+    ["ozon", "chatgpt", "source.ozon", "ai.chatgpt"], ["ozon", "alice", "source.ozon", "ai.alice"],
+    ["wildberries", "chatgpt", "source.wildberries", "ai.chatgpt"], ["wildberries", "alice", "source.wildberries", "ai.alice"]
+  ]) {
+    const result = await evaluate(worker, context({ marketplace, provider, bound: false }));
+    assert.equal(result.allowed, true, `R1-20 ${marketplace} + ${provider}`);
+    assert.deepEqual(result.requiredPermissions, { source, ai });
+  }
+  const frozen = await worker.call(`(function () { const value = SellerAgentsOnlineWorkAuthority.evaluate(${JSON.stringify(pendingStart)}); return { frozen: Object.isFrozen(value), gatesFrozen: Object.isFrozen(value.gates), permissionsFrozen: Object.isFrozen(value.requiredPermissions) }; })`);
+  assert.deepEqual(clone(frozen), { frozen: true, gatesFrozen: true, permissionsFrozen: true }, "R1-21 decision is frozen");
+  assert.equal((await evaluate(worker, pendingStart)).allowed, true, "R1-21 fresh evaluation remains detached");
+  const r1_22Before = { backing: clone(worker.backing), network: clone(worker.network), messages: clone(worker.messages) };
+  await evaluate(worker, pendingStart);
+  assert.deepEqual(worker.backing, r1_22Before.backing, "R1-22 pure composer does not write storage");
+  assert.deepEqual(worker.network, r1_22Before.network, "R1-22 pure composer does not call network");
+  assert.deepEqual(worker.messages, r1_22Before.messages, "R1-22 pure composer does not send runtime messages");
+
+  console.log(JSON.stringify({ status: "PASS", c23aCases: 22, r1Cases: 22, validPairs: 4, executionAuthority: false, networkCalls: worker.network.length, runtimeMessages: worker.messages.length }));
 } finally {
   worker.close();
 }

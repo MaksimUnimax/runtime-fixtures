@@ -8,8 +8,8 @@
   const AI_PERMISSION = Object.freeze({ chatgpt: "ai.chatgpt", alice: "ai.alice" });
   const AI_PROVIDERS = new Set(Object.keys(AI_PERMISSION));
   const ALLOWED_WORK_STATES = Object.freeze({
-    start: new Set(["inactive"]),
-    resume: new Set(["active_hidden", "recovering"]),
+    start: new Set(["inactive", "error"]),
+    resume: new Set(["inactive"]),
   });
   const CAPABILITY_IDS = Object.freeze({
     "source.ozon": "marketplace.ozon.adapter",
@@ -57,7 +57,19 @@
       text(identity.origin) &&
       text(identity.conversationId) &&
       AI_PROVIDERS.has(identity.provider) &&
-      identity.key === `${identity.origin}|${identity.conversationId}`;
+      identity.key === `${identity.origin}|${identity.conversationId}` &&
+      ((identity.provider === "chatgpt" && ["https://chatgpt.com", "https://chat.openai.com"].includes(identity.origin)) ||
+        (identity.provider === "alice" && identity.origin === "https://alice.yandex.ru"));
+  }
+
+  function pendingIdentity(identity) {
+    return plainObject(identity) &&
+      !text(identity.key) &&
+      !text(identity.conversationId) &&
+      [undefined, null, "unknown"].includes(identity.status) &&
+      AI_PROVIDERS.has(identity.provider) &&
+      ((identity.provider === "chatgpt" && ["https://chatgpt.com", "https://chat.openai.com"].includes(identity.origin)) ||
+        (identity.provider === "alice" && identity.origin === "https://alice.yandex.ru"));
   }
 
   function capability(intersection, permission) {
@@ -83,6 +95,12 @@
     const binding = plainObject(dialogue.binding) ? dialogue.binding : {};
     const store = plainObject(value.store) ? value.store : {};
     const work = plainObject(value.work) ? value.work : {};
+    const operation = typeof work.operation === "string" ? work.operation : null;
+    const isStart = operation === "start";
+    const isResume = operation === "resume";
+    const boundRecord = binding.bound === true;
+    const startIntent = work.startIntentId ?? work.start_intent_id ?? null;
+    const expectedStartIntent = work.expectedStartIntentId ?? work.expected_start_intent_id ?? null;
     const sourcePermission = SOURCE_PERMISSION[store.marketplace] || null;
     const aiPermission = AI_PERMISSION[ai.provider] || null;
     const sourceCapability = capability(value.capabilityIntersection, sourcePermission);
@@ -96,12 +114,16 @@
       bootstrapVerified: bootstrap.verified === true,
       bootstrapFreshness: bootstrap.source === "ONLINE" && bootstrap.freshness === "FRESH",
       bootstrapIdentity: same(bootstrap.accountId, account.accountId) && bootstrap.generation === session.generation && same(bootstrap.deviceId, session.deviceId) && same(bootstrap.sessionId, session.sessionId),
-      aiProfile: AI_PROVIDERS.has(ai.provider) && bootstrap.aiProvider === ai.provider && profile.verified === true && profile.provider === ai.provider && Number.isSafeInteger(profile.revision) && profile.revision > 0,
+      aiProfile: AI_PROVIDERS.has(ai.provider) && identity.provider === ai.provider && bootstrap.aiProvider === ai.provider && profile.verified === true && profile.provider === ai.provider && Number.isSafeInteger(profile.revision) && profile.revision > 0,
       health: health.status === "PASS" && health.current === true && health.verified === true,
-      dialogueBinding: exactIdentity(identity) && dialogue.key === identity.key && binding.bound === true && text(binding.bindingId) && Number.isSafeInteger(binding.revision) && binding.revision > 0 && binding.revision === binding.expectedRevision && binding.conversationKey === identity.key && binding.origin === identity.origin && binding.conversationId === identity.conversationId && binding.provider === identity.provider,
-      marketplaceBinding: Boolean(sourcePermission) && binding.marketplace === store.marketplace && binding.storeId === store.storeId,
-      storeBinding: text(store.accountId) && store.accountId === account.accountId && text(store.storeId) && text(store.credentialRevision) && binding.accountId === store.accountId && binding.storeId === store.storeId && binding.credentialRevision === store.credentialRevision,
-      workState: typeof work.operation === "string" && ALLOWED_WORK_STATES[work.operation]?.has(work.state) === true,
+      pageIdentity: dialogue.trusted !== false && ((exactIdentity(identity) && dialogue.key === identity.key) || (isStart && pendingIdentity(identity) && (dialogue.key === null || dialogue.key === undefined))),
+      dialogueBinding: !isResume && isStart && !boundRecord || exactIdentity(identity) && dialogue.key === identity.key && boundRecord && text(binding.bindingId) && Number.isSafeInteger(binding.revision) && binding.revision > 0 && binding.revision === binding.expectedRevision && binding.conversationKey === identity.key && binding.origin === identity.origin && binding.conversationId === identity.conversationId && binding.provider === identity.provider,
+      marketplaceBinding: !isResume && isStart && !boundRecord || Boolean(sourcePermission) && binding.marketplace === store.marketplace && binding.storeId === store.storeId,
+      storeBinding: !isResume && isStart && !boundRecord || text(store.accountId) && store.accountId === account.accountId && text(store.storeId) && text(store.credentialRevision) && binding.accountId === store.accountId && binding.storeId === store.storeId && binding.credentialRevision === store.credentialRevision && (binding.authGeneration === null || binding.authGeneration === undefined || binding.authGeneration === session.generation) && (binding.auth_generation === null || binding.auth_generation === undefined || binding.auth_generation === session.generation),
+      storeOwnership: text(store.accountId) && store.accountId === account.accountId && text(store.storeId) && (store.selectedStoreId === null || store.selectedStoreId === undefined || store.selectedStoreId === store.storeId) && (store.expectedStoreId === null || store.expectedStoreId === undefined || store.expectedStoreId === store.storeId) && text(store.credentialRevision) && (store.expectedCredentialRevision === null || store.expectedCredentialRevision === undefined || store.expectedCredentialRevision === store.credentialRevision) && (store.authGeneration === null || store.authGeneration === undefined || store.authGeneration === session.generation) && (store.accountGeneration === null || store.accountGeneration === undefined || store.accountGeneration === session.generation),
+      startIntent: startIntent === null && expectedStartIntent === null || text(startIntent) && text(expectedStartIntent) && same(startIntent, expectedStartIntent),
+      tabIdentity: (dialogue.tabId === null || dialogue.tabId === undefined) && (dialogue.tab_id === null || dialogue.tab_id === undefined) || same(String(dialogue.tabId ?? dialogue.tab_id), String(dialogue.expectedTabId ?? dialogue.expected_tab_id)),
+      workState: ALLOWED_WORK_STATES[operation]?.has(work.state) === true,
       sourceCapability: Boolean(sourceCapability),
       aiCapability: Boolean(aiCapability),
     };
@@ -119,7 +141,7 @@
       schemaVersion: "online_work_authority_decision_v1",
       allowed,
       executionAuthority: false,
-      operation: work.operation || null,
+      operation,
       requiredPermissions,
       gates,
       deniedGates: Object.entries(gates).filter(([, passed]) => !passed).map(([name]) => name),
