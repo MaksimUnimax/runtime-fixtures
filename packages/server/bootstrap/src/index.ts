@@ -7,6 +7,12 @@ import type {
   SignedBootstrapEnvelopeV2,
 } from "@product/contracts";
 import type { CommercialAccessResolution } from "@product/commercial-access";
+import { getSellerAgentsFreeBetaCapabilityPermissions } from "@product/entitlements/seller-agents-beta-capability-policy";
+import {
+  isSellerAgentsCapabilityPermissionKey,
+  SELLER_AGENTS_CAPABILITY_PERMISSION_KEYS,
+} from "@product/entitlements/seller-agents-capability-permissions";
+import type { SafeEntitlementMap } from "@product/commercial-access";
 import {
   type ResolveP3BootstrapPolicyInput,
   type ResolveP3BootstrapPolicyResult,
@@ -43,6 +49,67 @@ export type BootstrapCommercialAccessResolver = {
 export type BootstrapBetaAccessResolver = {
   resolve(accountId: string): Promise<BetaAccessResolution>;
 };
+export type BootstrapBetaCapabilityPermissionResolver = {
+  resolve(): unknown;
+};
+
+type SignedEntitlementCompositionInput = {
+  betaEligible: boolean;
+  commercialEligible: boolean;
+  commercialEntitlements: SafeEntitlementMap | undefined;
+};
+
+function materializeBetaCapabilityPermissions(
+  value: unknown,
+): SafeEntitlementMap {
+  if (
+    value === null ||
+    typeof value !== "object" ||
+    Array.isArray(value) ||
+    Object.getPrototypeOf(value) !== Object.prototype
+  )
+    throw new Error("SELLER_AGENTS_BETA_CAPABILITY_POLICY_INVALID");
+
+  const ownKeys = Reflect.ownKeys(value);
+  if (
+    ownKeys.length !== SELLER_AGENTS_CAPABILITY_PERMISSION_KEYS.length ||
+    !ownKeys.every(
+      (key) =>
+        typeof key === "string" && isSellerAgentsCapabilityPermissionKey(key),
+    )
+  )
+    throw new Error("SELLER_AGENTS_BETA_CAPABILITY_POLICY_INVALID");
+
+  const materialized: SafeEntitlementMap = {};
+  for (const entitlementKey of SELLER_AGENTS_CAPABILITY_PERMISSION_KEYS) {
+    const descriptor = Object.getOwnPropertyDescriptor(value, entitlementKey);
+    if (
+      !descriptor ||
+      !descriptor.enumerable ||
+      !("value" in descriptor) ||
+      descriptor.value !== true
+    )
+      throw new Error("SELLER_AGENTS_BETA_CAPABILITY_POLICY_INVALID");
+    materialized[entitlementKey] = true;
+  }
+  return materialized;
+}
+
+function composeSignedEntitlements(
+  input: SignedEntitlementCompositionInput,
+  betaCapabilityPermissions: BootstrapBetaCapabilityPermissionResolver,
+): SafeEntitlementMap {
+  const entitlements: SafeEntitlementMap = input.commercialEligible
+    ? { ...input.commercialEntitlements }
+    : {};
+  if (!input.betaEligible) return entitlements;
+
+  const betaPermissions = materializeBetaCapabilityPermissions(
+    betaCapabilityPermissions.resolve(),
+  );
+  return { ...entitlements, ...betaPermissions };
+}
+
 export class BootstrapError extends Error {
   constructor(public readonly code: "DEVICE_MISMATCH" | "UNAVAILABLE") {
     super(code);
@@ -56,7 +123,21 @@ export class BootstrapService {
     private readonly commercialAccess?: BootstrapCommercialAccessResolver,
     private readonly aiResolution?: BootstrapAiResolutionService,
     private readonly betaAccess?: BootstrapBetaAccessResolver,
+    private readonly betaCapabilityPermissions: BootstrapBetaCapabilityPermissionResolver = {
+      resolve: getSellerAgentsFreeBetaCapabilityPermissions,
+    },
   ) {}
+
+  private signedEntitlements(
+    input: SignedEntitlementCompositionInput,
+  ): SafeEntitlementMap {
+    try {
+      return composeSignedEntitlements(input, this.betaCapabilityPermissions);
+    } catch {
+      throw new BootstrapError("UNAVAILABLE");
+    }
+  }
+
   async issue(
     subject: BootstrapSubject,
     request: BootstrapRequestV1,
@@ -129,6 +210,11 @@ export class BootstrapService {
       if (!(now < expiresAt && expiresAt < offlineGraceUntil))
         throw new BootstrapError("UNAVAILABLE");
     }
+    const entitlements = this.signedEntitlements({
+      betaEligible,
+      commercialEligible,
+      commercialEntitlements: commercial?.value.entitlements,
+    });
     const payload = BootstrapSnapshotPayloadV1Schema.parse({
       snapshotVersion: "bootstrap_snapshot_v1",
       contractVersion: "control_plane_v1",
@@ -147,7 +233,7 @@ export class BootstrapService {
         : { state: "NONE", planRevision: null },
       devicePolicy: { status: "ACTIVE" },
       compatibility: result.compatibility,
-      entitlements: commercialEligible ? commercial!.value.entitlements : {},
+      entitlements,
       features: result.features,
       ai,
     });
@@ -232,6 +318,11 @@ export class BootstrapService {
       if (!(now < expiresAt && expiresAt < offlineGraceUntil))
         throw new BootstrapError("UNAVAILABLE");
     }
+    const entitlements = this.signedEntitlements({
+      betaEligible,
+      commercialEligible,
+      commercialEntitlements: commercial?.value.entitlements,
+    });
     const payload = BootstrapSnapshotPayloadV2Schema.parse({
       snapshotVersion: "bootstrap_snapshot_v2",
       contractVersion: "control_plane_v2",
@@ -250,7 +341,7 @@ export class BootstrapService {
         : { state: "NONE", planRevision: null },
       devicePolicy: { status: "ACTIVE" },
       compatibility: result.compatibility,
-      entitlements: commercialEligible ? commercial!.value.entitlements : {},
+      entitlements,
       features: result.features,
       ai,
     });

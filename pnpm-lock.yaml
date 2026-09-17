@@ -370,6 +370,9 @@ importers:
       '@product/contracts':
         specifier: workspace:*
         version: link:../../contracts
+      '@product/entitlements':
+        specifier: workspace:*
+        version: link:../entitlements
       '@product/remote-config':
         specifier: workspace:*
         version: link:../remote-config

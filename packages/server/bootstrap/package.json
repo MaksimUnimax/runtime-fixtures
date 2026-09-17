@@ -19,6 +19,7 @@
     "@product/compatibility": "workspace:*",
     "@product/commercial-access": "workspace:*",
     "@product/contracts": "workspace:*",
+    "@product/entitlements": "workspace:*",
     "@product/remote-config": "workspace:*"
   }
 }

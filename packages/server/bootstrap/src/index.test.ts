@@ -8,6 +8,7 @@ import {
 } from "@product/remote-config";
 import { BootstrapError, BootstrapService } from "./index.js";
 import type { CommercialAccessResolution } from "@product/commercial-access";
+import { getSellerAgentsFreeBetaCapabilityPermissions } from "@product/entitlements/seller-agents-beta-capability-policy";
 
 const subject = {
   accountId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
@@ -130,6 +131,19 @@ describe("BootstrapService", () => {
         planRevisionId: commercialSubscription.currentPlanRevisionId,
         entitlements: { "source.ozon": true, "device.max_active": 0 },
         accessUntil,
+      },
+    };
+  }
+  function ineligibleCommercial(): CommercialAccessResolution {
+    return {
+      kind: "OK",
+      value: {
+        accountId: subject.accountId,
+        currentSubscription: null,
+        access: { kind: "INELIGIBLE", reason: "NO_CURRENT_SUBSCRIPTION" },
+        planRevisionId: null,
+        entitlements: {},
+        accessUntil: null,
       },
     };
   }
@@ -262,7 +276,160 @@ describe("BootstrapService", () => {
       expect(verified.payload.offlineGraceUntil).toBe(
         "2026-01-02T00:15:00.000Z",
       );
+      expect(verified.payload.entitlements).toEqual({
+        "source.ozon": true,
+        "source.wildberries": true,
+        "ai.chatgpt": true,
+        "ai.alice": true,
+      });
     }
+  });
+  it("emits the exact beta permissions in both signed V1 and V2 snapshots", async () => {
+    const f = signedService(
+      ineligibleCommercial(),
+      "2026-01-01T00:00:00.000Z",
+      true,
+    );
+    const keys = new Map([["config-key", f.pair.publicKey]]);
+    const v1 = verifyBootstrapEnvelope(
+      await f.service.issue(subject, request),
+      keys,
+    );
+    const v2 = verifyBootstrapEnvelopeV2(
+      await f.service.issueV2(subject, {
+        ...request,
+        contractVersion: "control_plane_v2",
+      }),
+      keys,
+    );
+    expect(v1).toMatchObject({ ok: true });
+    expect(v2).toMatchObject({ ok: true });
+    if (v1.ok && v2.ok) {
+      const expected = {
+        "source.ozon": true,
+        "source.wildberries": true,
+        "ai.chatgpt": true,
+        "ai.alice": true,
+      };
+      expect(v1.payload.accessBasis).toBe("BETA");
+      expect(v1.payload.entitlements).toEqual(expected);
+      expect(v2.payload.accessBasis).toBe("BETA");
+      expect(v2.payload.entitlements).toEqual(expected);
+      expect(v1.payload.entitlements).toEqual(v2.payload.entitlements);
+    }
+  });
+  it("keeps NONE snapshots free of beta permissions", async () => {
+    const f = signedService(ineligibleCommercial());
+    const verified = verifyBootstrapEnvelope(
+      await f.service.issue(subject, request),
+      new Map([["config-key", f.pair.publicKey]]),
+    );
+    expect(verified).toMatchObject({ ok: true });
+    if (verified.ok) {
+      expect(verified.payload.accessBasis).toBe("NONE");
+      expect(verified.payload.entitlements).toEqual({});
+    }
+  });
+  it("preserves the complete commercial map for commercial-only access", async () => {
+    const commercial = eligibleCommercial();
+    if (commercial.kind === "OK") {
+      commercial.value.entitlements = {
+        "source.ozon": false,
+        "device.max_active": 0,
+        "provider.analytics": true,
+      };
+    }
+    const f = signedService(commercial);
+    const verified = verifyBootstrapEnvelope(
+      await f.service.issue(subject, request),
+      new Map([["config-key", f.pair.publicKey]]),
+    );
+    expect(verified).toMatchObject({ ok: true });
+    if (verified.ok) {
+      expect(verified.payload.accessBasis).toBe("COMMERCIAL");
+      expect(verified.payload.entitlements).toEqual({
+        "source.ozon": false,
+        "device.max_active": 0,
+        "provider.analytics": true,
+      });
+    }
+  });
+  it("overlays only the four beta permissions over commercial access", async () => {
+    const commercial = eligibleCommercial();
+    if (commercial.kind === "OK") {
+      commercial.value.entitlements = {
+        "source.ozon": false,
+        "source.wildberries": true,
+        "ai.chatgpt": false,
+        "device.max_active": 0,
+        "provider.analytics": true,
+      };
+    }
+    const f = signedService(commercial, undefined, true);
+    const verified = verifyBootstrapEnvelope(
+      await f.service.issue(subject, request),
+      new Map([["config-key", f.pair.publicKey]]),
+    );
+    expect(verified).toMatchObject({ ok: true });
+    if (verified.ok) {
+      expect(verified.payload.accessBasis).toBe("BETA");
+      expect(verified.payload.entitlements).toEqual({
+        "source.ozon": true,
+        "source.wildberries": true,
+        "ai.chatgpt": true,
+        "ai.alice": true,
+        "device.max_active": 0,
+        "provider.analytics": true,
+      });
+    }
+  });
+  it("does not mutate beta or commercial entitlement inputs", async () => {
+    const betaPermissions = getSellerAgentsFreeBetaCapabilityPermissions();
+    const betaBefore = { ...betaPermissions };
+    const commercial = eligibleCommercial();
+    if (commercial.kind === "OK") {
+      commercial.value.entitlements = Object.freeze({
+        "source.ozon": false,
+        "device.max_active": 0,
+      });
+    }
+    const before =
+      commercial.kind === "OK" ? { ...commercial.value.entitlements } : {};
+    const f = signedService(commercial, undefined, true);
+    const verified = verifyBootstrapEnvelope(
+      await f.service.issue(subject, request),
+      new Map([["config-key", f.pair.publicKey]]),
+    );
+    expect(verified).toMatchObject({ ok: true });
+    expect(
+      commercial.kind === "OK" ? commercial.value.entitlements : {},
+    ).toEqual(before);
+    expect(betaPermissions).toEqual(betaBefore);
+    expect(Object.isFrozen(betaPermissions)).toBe(true);
+  });
+  it("rejects a tampered signed beta entitlement payload", async () => {
+    const f = signedService(ineligibleCommercial(), undefined, true);
+    const envelope = await f.service.issue(subject, request);
+    const tampered = {
+      ...envelope,
+      payload: Buffer.from(
+        Buffer.from(envelope.payload, "base64url")
+          .toString("utf8")
+          .replace('"source.ozon":true', '"source.ozon":false'),
+      ).toString("base64url"),
+    };
+    expect(
+      verifyBootstrapEnvelope(
+        envelope,
+        new Map([["config-key", f.pair.publicKey]]),
+      ),
+    ).toMatchObject({ ok: true });
+    expect(
+      verifyBootstrapEnvelope(
+        tampered,
+        new Map([["config-key", f.pair.publicKey]]),
+      ),
+    ).toEqual({ ok: false, error: "INVALID_SIGNATURE" });
   });
   it.each([
     ["one hour", new Date("2026-01-01T01:00:00.000Z")],
@@ -304,6 +471,9 @@ describe("BootstrapService", () => {
         });
         expect(verified.payload.entitlements).toEqual({
           "source.ozon": true,
+          "source.wildberries": true,
+          "ai.chatgpt": true,
+          "ai.alice": true,
           "device.max_active": 0,
         });
         expect(verified.payload.ai).toEqual(
