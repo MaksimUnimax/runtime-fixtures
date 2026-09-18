@@ -51,10 +51,10 @@ def seed_authority(worker, private_key):
       const payload = {
         snapshotVersion: 'bootstrap_snapshot_v2', contractVersion: 'control_plane_v2', configVersion: 1,
         issuedAt: new Date(Date.now() - 1000).toISOString(), expiresAt: new Date(Date.now() + 3600000).toISOString(), offlineGraceUntil: new Date(Date.now() + 7200000).toISOString(),
-        serverTime: new Date().toISOString(), account: {id: '11111111-1111-4111-8111-111111111111', status: 'ACTIVE'},
+        serverTime: new Date().toISOString(), accessBasis: 'BETA', account: {id: '11111111-1111-4222-8111-111111111111', status: 'ACTIVE'},
         subscription: {state: 'NONE', planRevision: null}, devicePolicy: {status: 'ACTIVE'},
         compatibility: {extension: {status: 'SUPPORTED', minimumVersion: null}, browser: {status: 'SUPPORTED'}},
-        entitlements: {}, features: {},
+        entitlements: {'source.ozon': true, 'source.wildberries': true, 'ai.chatgpt': true}, features: {},
         ai: {status: 'RESOLVED', detected: {family: 'chatgpt', surface: 'web', variant: null},
           profile: {profileKey: 'browser-fixture-profile', revision: 1, scopeVariant: null, schemaVersion: 'adapter_profile_v1', contentSha256, content, compatibility}}
       };
@@ -103,7 +103,7 @@ def run(runtime,output,private_key):
             assert restored['authenticated'] is True and restored['workAllowed'] is True
             context.route('https://**/*',lambda route:route.fulfill(body=fixture,content_type='text/html') if route.request.url.startswith('https://chatgpt.com/c/') else route.abort())
             page=context.new_page();page.on('pageerror',lambda e:errors.append(str(e)))
-            page.goto('https://chatgpt.com/c/11111111-1111-4111-8111-111111111111')
+            page.goto('https://chatgpt.com/c/11111111-1111-4222-8111-111111111111')
             tab_id=until(lambda:worker.evaluate("async()=>{const tabs=await chrome.tabs.query({url:'https://chatgpt.com/c/*'});return tabs[0]?.id}"))
             worker.evaluate("""()=>{globalThis.fixtureFetches=[];globalThis.fetch=async(url,init)=>{
               if(!String(url).includes('.wildberries.ru/'))throw new Error('Fixture forbids unmocked provider');

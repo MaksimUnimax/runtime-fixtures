@@ -62,6 +62,8 @@ The next capability-related dependency is now server-side and remains **before**
 
 Health, S1.2/D3, full I1/D2, the Octoport domain migration, beta, deployment and release remain separate open work.
 C3H corrected-autonomy, post-C3H P2 joint offline command/result recovery, and P3 extension-local technical scheduler integration are `IMPLEMENTED_CANDIDATE` items with automated evidence ready for architect review; none is marked accepted. Receipts: [C3H corrected autonomy](development/client-i1/C3H_CORRECTED_AUTONOMY_FULL_ACCEPTANCE_2026-09-18.md), [P2 joint result recovery](development/client-i1/POST_C3H_P2_JOINT_OFFLINE_COMMAND_RESULT_RECOVERY_2026-09-18.md), and [P3 local scheduler](development/client-i1/POST_C3H_P3_LOCAL_SCHEDULER_INTEGRATION_2026-09-18.md). Full Early-I1/D2 pre-handoff remains the next separate dependency; Stream 2 monitoring remains separate and untouched.
+
+`EARLY_I1_D2_AUTOMATED_PREHANDOFF_CANDIDATE_READY` is recorded locally on the bounded acceptance branch, pending architect acceptance. This is not Q1, D3/S2, B1, production deployment, or a cross-browser acceptance.
 Расширенное администрирование мониторинга и платежи не предшествуют первому общему сценарию.
 Минимальный сайт регистрации/установки/обратной связи обязателен до B1; продающие воронки развиваются позже.
 

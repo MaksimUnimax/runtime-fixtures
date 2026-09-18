@@ -513,7 +513,18 @@ async function saReadContext(key, immutable, ownerIdentity) {
   const p = binding?.store_context;
   let store = null;
   try { store = await saAssertStore(p); } catch (_) {}
-  const current = manualContextOwners.get(key), workAllowed = await SellerAgentsControlClient.canWork();
+  // The in-memory mirror is only an optimization for the legacy standalone
+  // carrier. A service-worker restart must validate the durable manual owner
+  // record, otherwise a buffered known result is incorrectly fenced before it
+  // can be materialized locally.
+  let current = manualContextOwners.get(key);
+  if (ownerIdentity && !current) {
+    // Hydrate the payload-free mirror once after a worker restart. Subsequent
+    // guard checkpoints stay on the mirror and do not reread report payloads.
+    current = await getManualOperation(key);
+    if (current) manualContextOwners.set(key, manualContextOwnerSummary(current));
+  }
+  const workAllowed = await SellerAgentsControlClient.canWork();
   const ownerActive = !ownerIdentity || current?.operation_id === ownerIdentity.operation_id && manualOperationActive(current) &&
     SellerAgentsExecutionContext.fields.every(field => current.execution_context?.[field] === ownerIdentity.execution_context[field]);
   return { ...immutable, ...(store ? await saAuthorityStoreContext(store) : p), accountId: store?.accountId || "unavailable",

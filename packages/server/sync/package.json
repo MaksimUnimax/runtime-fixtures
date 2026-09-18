@@ -3,7 +3,19 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "exports": { ".": { "types": "./src/index.ts", "default": "./src/index.ts" } },
-  "scripts": { "typecheck": "tsc --noEmit", "test": "vitest run" },
-  "dependencies": { "@product/contracts": "workspace:*", "@product/extension-auth": "workspace:*", "zod": "4.1.5" }
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@product/contracts": "workspace:*",
+    "@product/extension-auth": "workspace:*",
+    "zod": "4.1.5"
+  }
 }

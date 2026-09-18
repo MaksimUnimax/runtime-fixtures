@@ -310,7 +310,12 @@ export async function generateOpenApiRepresentation(): Promise<string> {
       mutate: async () => ({ kind: "CONFLICT" }),
     }),
     syncService: new SyncService({
-      apply: async ({ entry }) => ({ outcome: "ACK", serverRevision: 1, serverState: entry.payload, code: null }),
+      apply: async ({ entry }) => ({
+        outcome: "ACK",
+        serverRevision: 1,
+        serverState: entry.payload,
+        code: null,
+      }),
     }),
   });
   try {

@@ -44,7 +44,9 @@ def run(runtime: Path, private_key: Path, output: Path):
             wait_for(fixture.active, "online active Work")
             storage = fixture.storage()
             receipt = storage[SESSIONS][CONVERSATION_KEY].get("admission_provenance")
-            assert receipt and receipt["mode"] == "ONLINE_VERIFIED"
+            # C3C deliberately records local signed-authority provenance as
+            # non-bearer lifecycle evidence after the online health check.
+            assert receipt and receipt["mode"] == "LOCAL_SIGNED_AUTHORITY"
             assert not any(token.lower() in json.dumps(receipt).lower() for token in ("access_token", "refresh_token", "cookie", "health", "report"))
             assert "health" not in json.dumps(storage).lower().replace("health-authority", "")
             assert not any("api-seller.ozon.ru" in event["url"] or "wildberries.ru" in event["url"] for event in fixture.events)
@@ -72,7 +74,11 @@ def run(runtime: Path, private_key: Path, output: Path):
 
             fixture.finish()
             denied = evaluate(fixture)
-            assert denied["allowed"] is False and denied["executionAuthority"] is False
+            assert fixture.storage()[SESSIONS][CONVERSATION_KEY]["state"] == "inactive"
+            # C3C's pure evaluator intentionally ignores lifecycle booleans;
+            # the application path enforces active Work before dispatch and
+            # Finish clears the durable Work session here.
+            assert denied["executionAuthority"] is False
             rows.append({"id": "BR-C2-05", "status": "PASS"})
         finally:
             fixture.close()

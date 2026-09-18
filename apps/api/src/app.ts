@@ -341,7 +341,11 @@ export function createApiApp(
         dependencies.betaAdmissionService,
       );
     if (dependencies.syncService && dependencies.extensionAuthService)
-      registerSyncRoutes(app, dependencies.syncService, dependencies.extensionAuthService);
+      registerSyncRoutes(
+        app,
+        dependencies.syncService,
+        dependencies.extensionAuthService,
+      );
   });
   return app;
 }
