@@ -50,12 +50,12 @@ def post_code(page, url: str, action, expected: int) -> None:
         raise AssertionError(f"{url}: {response.status}")
 
 
-def activate(context, popup):
+def activate(context, popup, email=EMAIL):
     with context.expect_page() as opened:
         popup.click("#auth-start")
     portal = opened.value
     portal.wait_for_url("**/login?returnTo=*")
-    portal.locator('input[type="email"]').fill(EMAIL)
+    portal.locator('input[type="email"]').fill(email)
     post_code(portal, f"http://127.0.0.1:{PORTAL_PORT}/api/control-plane/v1/auth/otp/request", lambda: portal.get_by_role("button", name="Send code").click(), 202)
     portal.locator('input[inputmode="numeric"]').fill(OTP)
     post_code(portal, f"http://127.0.0.1:{PORTAL_PORT}/api/control-plane/v1/auth/otp/verify", lambda: portal.get_by_role("button", name="Verify").click(), 200)
@@ -126,8 +126,8 @@ def run_runtime(runtime: Path, label: str, package_root: Path, api_log: list[str
             recipient_worker = recipient.service_workers[0] if recipient.service_workers else recipient.wait_for_event("serviceworker")
             source_popup = source.new_page(); source_popup.goto(source_worker.url.rsplit("/", 1)[0] + "/popup.html")
             recipient_popup = recipient.new_page(); recipient_popup.goto(recipient_worker.url.rsplit("/", 1)[0] + "/popup.html")
-            activate(source, source_popup)
-            activate(recipient, recipient_popup)
+            activate(source, source_popup, os.environ.get("D3S2_SOURCE_EMAIL", EMAIL))
+            activate(recipient, recipient_popup, os.environ.get("D3S2_RECIPIENT_EMAIL", EMAIL))
             seed_store(source_worker, store_id, {"seller": {"clientId": "100001", "apiKey": marker}, "performance": {"clientId": "perf-client", "clientSecret": "D3S2_R1_PERFORMANCE_MARKER_20260918"}}, "r1-source-revision")
             seed_store(recipient_worker, store_id, {}, None)
             selected_popup(source_popup, store_id)

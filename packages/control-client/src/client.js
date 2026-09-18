@@ -19,6 +19,7 @@
   let runtimeClockOwner = null, runtimeAnchor = null, runtimeEffectiveHighWatermark = null, runtimeFloorNeedsPersistence = false, runtimeLastCheckpointAllowed = null;
   let bootstrapAttemptSequence = 0;
   const transferRecipientKeys = new Map();
+  function clearTransferRecipientKeys() { transferRecipientKeys.clear(); }
   const transportProvenance = new WeakMap();
   const httpErrorProvenance = new WeakMap();
   function error(code, detail) { const value = Object.assign(new Error(code), { code }); if (detail !== undefined) value.detail = detail; return value; }
@@ -416,6 +417,7 @@
   async function invalidateKnown(context, failure, terminal = terminalAuthFailure(failure)) {
     return queueMutation(async () => {
       if (!isCurrent(context)) return false;
+      if (terminal) clearTransferRecipientKeys();
       const previous = state.authority;
       const next = { ...state, generation: state.generation + 1, credentials: terminal ? null : state.credentials, pending: null, rotation: null, authority: null, cacheClock: terminal ? null : state.cacheClock, lastError: safeError(failure) };
       /* The denial is authoritative before any storage or cleanup await. */
@@ -685,7 +687,7 @@
     initialized = true; if (pendingLive(state.pending)) void ensurePolling(); return publicStatus(restoredDecision);
   }
   function init() { if (initialized) return Promise.resolve(publicStatus()); if (!initFlight) initFlight = restoreOnce().finally(() => { initFlight = null; }); return initFlight; }
-  async function localReset() { await init(); await queueMutation(async () => { activationFlight = null; pollingFlight = null; refreshFlight = null; resetRuntimeClock(); await commit({ generation: state.generation + 1, credentials: null, pending: null, rotation: null, authority: null, cacheClock: null, lastError: null }, state.authority, "local_reset"); }); return publicStatus(); }
+  async function localReset() { await init(); await queueMutation(async () => { activationFlight = null; pollingFlight = null; refreshFlight = null; clearTransferRecipientKeys(); resetRuntimeClock(); await commit({ generation: state.generation + 1, credentials: null, pending: null, rotation: null, authority: null, cacheClock: null, lastError: null }, state.authority, "local_reset"); }); return publicStatus(); }
   async function cancelActivation() { await init(); await queueMutation(async () => { activationFlight = null; pollingFlight = null; await commit({ ...state, generation: state.generation + 1, pending: null, lastError: null }, state.authority, "activation_cancelled"); }); return publicStatus(); }
   async function synchronizeMetadata(body) {
     await init(); if (!state.credentials) throw error("AUTH_REQUIRED"); await ensureAuthOwnership();
