@@ -127,6 +127,13 @@
       "when": 1789395000000,
       "tag": "0019_s2_l6_durable_health_scheduler",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1789400000000,
+      "tag": "0020_s2_l6_health_incident_lifecycle",
+      "breakpoints": true
     }
   ]
 }

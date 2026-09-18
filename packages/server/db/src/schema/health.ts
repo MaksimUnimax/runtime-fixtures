@@ -414,8 +414,31 @@ export const healthIncidents = pgTable(
         onUpdate: "restrict",
       }),
     rootContourKey: varchar("root_contour_key", { length: 64 }),
+    incidentScopeSha256: varchar("incident_scope_sha256", {
+      length: 64,
+    }).notNull(),
+    incidentKeySha256: varchar("incident_key_sha256", {
+      length: 64,
+    }).notNull(),
     firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull(),
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull(),
+    lastObservedRunId: uuid("last_observed_run_id")
+      .notNull()
+      .references(() => healthRuns.id, {
+        onDelete: "restrict",
+        onUpdate: "restrict",
+      }),
+    lastObservedAt: timestamp("last_observed_at", {
+      withTimezone: true,
+    }).notNull(),
+    resolvedByRunId: uuid("resolved_by_run_id").references(
+      () => healthRuns.id,
+      {
+        onDelete: "restrict",
+        onUpdate: "restrict",
+      },
+    ),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -433,8 +456,24 @@ export const healthIncidents = pgTable(
       sql`${table.rootContourKey} IS NULL OR ${contourKeyCheck(table.rootContourKey)}`,
     ),
     check(
+      "health_incidents_incident_scope_checksum_format",
+      sql`${table.incidentScopeSha256} ~ '^[0-9a-f]{64}$'`,
+    ),
+    check(
+      "health_incidents_key_checksum_format",
+      sql`${table.incidentKeySha256} ~ '^[0-9a-f]{64}$'`,
+    ),
+    check(
       "health_incidents_last_seen_after_first",
       sql`${table.lastSeenAt} >= ${table.firstSeenAt}`,
+    ),
+    check(
+      "health_incidents_observed_after_first",
+      sql`${table.lastObservedAt} >= ${table.firstSeenAt}`,
+    ),
+    check(
+      "health_incidents_resolution_pair",
+      sql`(${table.resolvedByRunId} IS NULL AND ${table.resolvedAt} IS NULL) OR (${table.resolvedByRunId} IS NOT NULL AND ${table.resolvedAt} IS NOT NULL)`,
     ),
     check(
       "health_incidents_updated_after_created",

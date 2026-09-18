@@ -23,6 +23,11 @@ export { createAdapterRegistryCatalogRepository } from "./adapter-registry-repos
 export { createProfileLifecycleRepository } from "./p7-profile-lifecycle-repository.js";
 export { createHealthPersistenceRepository } from "./health-persistence-repository.js";
 export { createHealthSchedulerRepository } from "./health-scheduler-repository.js";
+export { createHealthIncidentRepository } from "./health-incident-repository.js";
+export type {
+  HealthIncident,
+  HealthIncidentProcessingResult,
+} from "./health-incident-repository.js";
 export { createBetaAdmissionRepository } from "./beta-admission-repository.js";
 export { createBootstrapAiResolutionRepository } from "./bootstrap-ai-resolution-repository.js";
 export { createP7AdminAiReadRepository } from "./p7-admin-ai-read-repository.js";

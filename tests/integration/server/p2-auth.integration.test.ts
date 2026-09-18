@@ -672,6 +672,6 @@ describe.sequential("P2.2 real PostgreSQL authentication matrix", () => {
           "SELECT count(*)::text count FROM drizzle.__drizzle_migrations",
         )
       ).rows[0]!.count,
-    ).toBe("18");
+    ).toBe("19");
   });
 });

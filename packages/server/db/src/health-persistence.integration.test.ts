@@ -583,22 +583,26 @@ describe("P8.2 health persistence", () => {
     const run = await repository.persistCompletedHealthRun(input());
     await expect(
       runtime.query(
-        `INSERT INTO health_incidents(scope_sha256,status,first_seen_run_id,latest_seen_run_id,first_seen_at,last_seen_at) VALUES($1,'OPEN',$2,$2,$3,$4)`,
+        `INSERT INTO health_incidents(scope_sha256,incident_scope_sha256,incident_key_sha256,status,first_seen_run_id,latest_seen_run_id,root_contour_key,first_seen_at,last_seen_at,last_observed_run_id,last_observed_at) VALUES($1,$5,$6,'OPEN',$2,$2,NULL,$3,$4,$2,$4)`,
         [
           "2".repeat(64),
           run.id,
           new Date("2026-09-12T10:00:02Z"),
           new Date("2026-09-12T10:00:01Z"),
+          "4".repeat(64),
+          "5".repeat(64),
         ],
       ),
     ).rejects.toThrow();
     await runtime.query(
-      `INSERT INTO health_incidents(scope_sha256,status,first_seen_run_id,latest_seen_run_id,first_seen_at,last_seen_at) VALUES($1,'OPEN',$2,$2,$3,$4)`,
+      `INSERT INTO health_incidents(scope_sha256,incident_scope_sha256,incident_key_sha256,status,first_seen_run_id,latest_seen_run_id,root_contour_key,first_seen_at,last_seen_at,last_observed_run_id,last_observed_at) VALUES($1,$5,$6,'OPEN',$2,$2,NULL,$3,$4,$2,$4)`,
       [
         "3".repeat(64),
         run.id,
         new Date("2026-09-12T10:00:01Z"),
         new Date("2026-09-12T10:00:02Z"),
+        "6".repeat(64),
+        "7".repeat(64),
       ],
     );
   });
