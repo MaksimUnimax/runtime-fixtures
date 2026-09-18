@@ -52,14 +52,14 @@ def wait_for(fn, description: str, timeout: float = 10):
 def seed_authority(worker, private_key: Path, device_id: str = DEVICE, session_id: str = SESSION):
     encoded = base64.b64encode(private_key.read_bytes()).decode("ascii")
     worker.evaluate(
-        """async ({pkcs8, fixtureDeviceId, fixtureSessionId}) => {
+        """async ({pkcs8, fixtureDeviceId, fixtureSessionId, fixtureKeyId}) => {
           const v = SellerAgentsBootstrapVerifier;
           const fromB64 = value => Uint8Array.from(atob(value), c => c.charCodeAt(0));
           const hex = bytes => [...bytes].map(x => x.toString(16).padStart(2, '0')).join('');
           const accountId = '11111111-1111-4222-8111-111111111111';
           const deviceId = fixtureDeviceId || '22222222-2222-4222-8222-222222222222';
           const sessionId = fixtureSessionId || '33333333-3333-4333-8333-333333333333';
-          const keyId = 'browser-fixture-key';
+          const keyId = fixtureKeyId || 'browser-fixture-key';
           const content = {
             schemaVersion:'adapter_profile_v1',
             page:{identityStrategy:'page_identity',conversationStrategy:'conversation_root',composerStrategy:'composer_root'},
@@ -98,7 +98,7 @@ def seed_authority(worker, private_key: Path, device_id: str = DEVICE, session_i
           const credentials = {deviceId,sessionId,tokenType:'Bearer',accessToken:'BROWSER_FIXTURE_ACCESS_TOKEN_20260918_'+deviceId,accessTokenExpiresAt:new Date(now+3600000).toISOString(),refreshToken:'R'.repeat(43),refreshTokenExpiresAt:new Date(now+7200000).toISOString()};
           await chrome.storage.local.set({seller_agents_control_auth_v2:{generation:1,credentials,pending:null,rotation:null,authority:{verified:true,workAllowed:true,requestedAi:'chatgpt',generation:1,payload,envelope,deviceId,sessionId,cacheBinding},cacheClock,lastError:null}});
         }""",
-        {"pkcs8": encoded, "fixtureDeviceId": device_id, "fixtureSessionId": session_id},
+        {"pkcs8": encoded, "fixtureDeviceId": device_id, "fixtureSessionId": session_id, "fixtureKeyId": os.environ.get("SA_TEST_TRUST_KEY_ID", "browser-fixture-key")},
     )
 
 

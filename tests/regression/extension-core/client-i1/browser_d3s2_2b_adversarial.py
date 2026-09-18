@@ -21,7 +21,8 @@ from playwright.sync_api import sync_playwright
 ROOT = Path(__file__).resolve().parents[4]
 NODE = "/root/.nvm/versions/node/v24.20.0/bin/node"
 PNPM = "/root/.nvm/versions/node/v24.20.0/bin/pnpm"
-API_PORT, PORTAL_PORT = 43112, 43113
+API_PORT = int(os.environ.get("SA_Q1A_API_PORT", "43112"))
+PORTAL_PORT = int(os.environ.get("SA_Q1A_PORTAL_PORT", "43113"))
 API = f"http://127.0.0.1:{API_PORT}"
 OTP = "424242"
 EMAILS = {
@@ -435,21 +436,26 @@ def main() -> int:
     try:
         with tempfile.TemporaryDirectory(prefix="d3s2-2b-server-") as temp:
             temp_path = Path(temp); trust = temp_path / "trust.json"; fixture = temp_path / "fixture.json"; key = temp_path / "placeholder"
-            key_path = temp_path / "fixture-keys.json"
+            key_path = Path(os.environ["SA_Q1A_FIXTURE_KEYS_PATH"]) if os.environ.get("SA_Q1A_FIXTURE_KEYS_PATH") else temp_path / "fixture-keys.json"
             env = {**os.environ, "SA_I1_API_PORT": str(API_PORT), "SA_I1_MAX_ACTIVE_DEVICES": "12", "SA_I1_ALLOW_TWO_DEVICES": "1", "SA_I1_SAME_ACCOUNT_TWO_EMAILS": "1", "SA_I1_PUBLIC_TRUST_BUNDLE_PATH": str(trust), "SA_I1_FIXTURE_EVIDENCE_PATH": str(fixture), "SA_I1_FIXTURE_KEYS_PATH": str(key_path), "PRODUCT_CONTROL_PLANE_E2E": "1", "D3S2_DB_CONTAINER": os.environ.get("D3S2_DB_CONTAINER", "d3s2-2b-postgres-final-20260918")}
             command = [PNPM, "--filter", "@product/api", "exec", "tsx", "../../tests/regression/extension-core/client-i1/api-harness.ts"]
             api_process = subprocess.Popen(command, cwd=ROOT, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
             SERVER_PROCESS, SERVER_COMMAND, SERVER_ENV, SERVER_PROCESSES = api_process, command, env, [api_process]
             wait_url(f"{API}/health/ready")
-            config = subprocess.check_output([NODE, str(ROOT / "tests/regression/extension-core/client-i1/make-browser-config.mjs"), str(key), str(trust)], cwd=ROOT, env=env, text=True)
-            config_value = json.loads(config); config_value["controlApiOrigin"] = API; config_value["portalOrigin"] = f"http://127.0.0.1:{PORTAL_PORT}"
-            build = temp_path / "package"; build_env = {**env, "SA_PACKAGED_CONFIG_JSON": json.dumps(config_value, separators=(",", ":"))}
-            subprocess.run(["python3", "tooling/build/extension_composed.py", "--output", str(build)], cwd=ROOT, env=build_env, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            configured_package = os.environ.get("SA_Q1A_FINAL_PACKAGE_ROOT")
+            if configured_package:
+                build = Path(configured_package).resolve()
+            else:
+                config = subprocess.check_output([NODE, str(ROOT / "tests/regression/extension-core/client-i1/make-browser-config.mjs"), str(key), str(trust)], cwd=ROOT, env=env, text=True)
+                config_value = json.loads(config); config_value["controlApiOrigin"] = API; config_value["portalOrigin"] = f"http://127.0.0.1:{PORTAL_PORT}"
+                build = temp_path / "package"; build_env = {**env, "SA_PACKAGED_CONFIG_JSON": json.dumps(config_value, separators=(",", ":"))}
+                subprocess.run(["python3", "tooling/build/extension_composed.py", "--output", str(build)], cwd=ROOT, env=build_env, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
             portal_env = {**env, "CONTROL_PLANE_API_ORIGIN": API}
             portal_process = subprocess.Popen([PNPM, "--filter", "@product/portal", "exec", "next", "dev", "--hostname", "127.0.0.1", "--port", str(PORTAL_PORT)], cwd=ROOT, env=portal_env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
             SERVER_PROCESSES.append(portal_process); wait_url(f"http://127.0.0.1:{PORTAL_PORT}/login")
             results = {}
-            for label, runtime in (("source-generated", build / "runtime"), ("extracted-package", build / "extracted")):
+            runtimes = (("source-generated", build / "runtime"), ("extracted-package", build / "extracted"))
+            for label, runtime in runtimes:
                 results[label] = run_installed(runtime, label)
             receipt = {"status": "PASS", "results": results}
             (output / "result.json").write_text(json.dumps(receipt, indent=2))

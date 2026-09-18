@@ -1181,3 +1181,293 @@ required exact archive, add the focused Q1A-26/27/28/30/31/66 drivers, implement
 the bounded source close/reopen helper, run the corrected shared activation
 fixture for Q1A-38/40/41/42/43/71/72/73, then run the requested regression
 matrix and return to architect review. Do not start Q1-B/C/D/E.
+## R4 — final-package reconstruction and complete installed closure
+
+Work ID: `Q1-A-R4-20260919-FINAL-PACKAGE-RECONSTRUCTION-AND-COMPLETE-INSTALLED-CLOSURE`.
+
+This is an additive R4 engineering receipt. It does not self-accept Q1-A.
+Q1-B, Q1-C, Q1-D, Q1-E, S1.2, deployment, browser-store publication, and
+monetization were not started.
+
+### Git, remotes, and safety
+
+- Start HEAD/tree: `6bbc1ad5bffd2d93f621e8da632f4cf295f5db9f` /
+  `d4b5467fc2d1899e5dc77bccf4b2f83dd73b81a4`.
+- Branch: `feature/q1-a-installed-unified-matrix-2026-09-19`.
+- Architect-accepted D3/S2 base: `79893dd1f9f9e54dd9959b8ffdef83f7cf4fc0dd`.
+- Verified remote heads:
+  - `origin/main` = `bc718cc5c677ad0eb4598e7de3ad766473ff0847`
+  - `origin/integration/i1-c1-srv5-2026-09-16` = `23047b3bdc22842a5b17e29e3d3f603c0ee51b16`
+  - `origin/docs/roadmap-autonomy-correction-2026-09-18` = `6a48af8cd19137aaa10688c36cb064d3c4b16969`
+- Production extension/client/server/shared sources were unchanged. Stream-2
+  paths `apps/health-runner/**`, `packages/server/health/**`, and
+  `tooling/api-watch/**` were not modified.
+- Pre-existing untracked package symlinks and `repro/` content were preserved.
+  No history rewrite, amend, force push, or remote publication was performed.
+- Status remains `ENVIRONMENT_DEFERRED_REMOTE_PUBLICATION`.
+
+### Disk and environment
+
+- Disk before cleanup: approximately 470 MB available on `/dev/vda1`.
+- Removed only named task-owned disposable `/tmp/q1a-*` artifacts and the
+  recreatable Playwright headless-shell cache. Canonical Chromium was retained.
+- Disk after cleanup/builds: approximately 742 MB available.
+- PostgreSQL: `postgres:18.0`, container `d3s2-r1-e2e-postgres`, port
+  `55446`; unique databases used included
+  `q1a_r4_20260919`, `q1a_r4_installed2_20260919`, and transfer probe DBs.
+  Migration completed through 0018; `/health/ready` returned 200.
+- Canonical browser:
+  `/root/.cache/ms-playwright/chromium-1234/chrome-linux64/chrome`,
+  Chromium `151.0.7922.34`. System Chrome 147 was not used as the primary
+  acceptance browser.
+
+### Package recovery and final identity
+
+- Exact locations searched: repository `repro/`, repository evidence and build
+  paths, `/tmp`, `/var`, and task-owned package/archive locations under
+  `/root`; all candidate ZIPs were hashed.
+- Exact old `0d23e0e195f42c4ccc7f3492c606cf95129332aef33b6ce90a495a589f9331e8`
+  archive: **not found**.
+- Prior-document `0166cd246f5b37229caa1f33f284db5c4530892498882c0659e3e6759fcfedc`
+  archive: **not found**.
+- Extracted old package, package-build manifest, exact historical generated
+  configuration input, and generated-prefix receipt: **not found**.
+- One deterministic reconstruction attempt was made from the available R1
+  receipt/search material; it could not reproduce the historical bytes because
+  the generated configuration artifact/input is absent. Exact reconstruction:
+  **impossible**.
+- Stage B was therefore selected once:
+  `Q1A_FINAL_LOCAL_ACCEPTANCE_PACKAGE`.
+- Frozen configuration:
+  `environment=LOCAL DEVELOPMENT`,
+  `controlApiOrigin=http://127.0.0.1:43100`,
+  `portalOrigin=http://127.0.0.1:43101`,
+  `extensionVersion=0.2.4`,
+  `contractVersion=control_plane_v2`,
+  trust key id `i1-client-local`, fingerprint
+  `5549b9a320d6fcbb344f968e164dce878fc181e2b304831a511410f45da51d89`.
+- Final ZIP:
+  `SELLER_AGENTS_I1_C1_v0.2.4_LOCAL_DEVELOPMENT.zip`
+  SHA-256 `93ba77f6fcac9932e991c94eded2d9638bb38c9990b8fcefd826d737aaf8d476`;
+  size 2,076,757 bytes; 39 runtime files, 39 extracted files, 39 ZIP entries.
+- Repeat build SHA and bytes: identical. Source-to-extracted parity: PASS.
+  Runtime inventory includes manifest, popup HTML/CSS/JS, service worker and
+  entry, content scripts, and the 30 shared runtime files.
+- The no-config current-tree package was 2,075,976 bytes,
+  `5f023926ce9fb140766b25fdb4dbe104ce5861f4996d2d3f01b5817aeca64b9c`.
+  Differential result:
+  `PRODUCT_RUNTIME_BYTES_IDENTICAL` after removing only the known generated
+  configuration prefix from `service_worker.js`;
+  `GENERATED_TEST_CONFIGURATION_DIFFERENT`; no production runtime change.
+- Canonical Chromium loaded the exact final runtime. The installed proof
+  registered an MV3 worker, loaded the popup, used chrome.storage, and passed
+  persistent-profile account reset/restart checks. Observed source-runtime
+  worker ID: `adcfiblgfnpegaalkmaedjgkdkgmndff`. The extracted runtime also
+  registered a worker and loaded the popup.
+
+### Initial failure batch and R4 disposition
+
+| Scenario | R3 initial result | R4 action/result |
+|---|---|---|
+| Q1A-26 | TEST_DRIVER_MISSING | No dedicated final-package installed large-JSON driver completed; lower-layer coverage retained. |
+| Q1A-27 | TEST_DRIVER_MISSING | Current-package binary gate passed; dedicated installed receipt not completed. |
+| Q1A-28 | TEST_DRIVER_MISSING | Current-package opaque/binary gate passed; dedicated installed receipt not completed. |
+| Q1A-30 | TEST_DRIVER_MISSING | Installed P2/P3 restart/wake coverage passed; exact result-buffer before/after-expiry receipt not completed. |
+| Q1A-31 | TEST_DRIVER_MISSING | Transaction-abort gate passed on current runtime; installed failure-injection receipt not completed. |
+| Q1A-38 | FIXTURE_DEFECT | Namespaced activation fixture plus real API/portal/DB completed; INSTALLED_PASS. |
+| Q1A-40 | FIXTURE_DEFECT | Namespaced fixture retained; beta installed flow not completed. |
+| Q1A-41 | FIXTURE_DEFECT | Namespaced fixture retained; concurrent installed last-slot race not completed. |
+| Q1A-42 | FIXTURE_DEFECT | Namespaced fixture retained; capacity-reached installed flow not completed. |
+| Q1A-43 | FIXTURE_DEFECT | Namespaced fixture retained; idempotent increment installed flow not completed. |
+| Q1A-66 | TEST_DRIVER_MISSING | Two-profile quota driver not completed. |
+| Q1A-70 | HARNESS_DEFECT | Instrumented bounded source-close/reopen helper not completed; no historical phase can be isolated. |
+| Q1A-71 | FIXTURE_DEFECT | Shared namespaced transfer setup retained; final-package tamper/replay receipt not completed. |
+| Q1A-72 | FIXTURE_DEFECT | Shared namespaced transfer setup retained; final-package account/device receipt not completed. |
+| Q1A-73 | FIXTURE_DEFECT | Shared namespaced fixture retained; final-package durable-marker scan not completed. |
+
+No assertion exposed a product defect. The transfer runner attempts terminated
+without a bounded result receipt; this is recorded as incomplete harness
+evidence, not as a TRUE_EXTERNAL_ENVIRONMENT_BLOCKER.
+
+### Completed driver/harness work and results
+
+- Installed harness accepts `SA_Q1A_FINAL_PACKAGE_ROOT`, preventing package
+  regeneration between groups.
+- Shared fixture namespace remains `SA_I1_FIXTURE_NAMESPACE`; real OTP,
+  registration/admission, device authorization, account selection, exchange,
+  and Bootstrap were exercised by the successful installed proof.
+- Browser authority fixture was made compatible with the frozen trust-key id.
+- Binary gate: exact CSV/ZIP/PDF/PNG bytes, SHA/length, opaque refs, one
+  provider call, and invalid-magic fail-closed behavior passed against the
+  current runtime.
+- IDB transaction gate: request-success did not resolve before transaction
+  completion; abort published no ref and caused no provider replay.
+- Installed P1/P2/P3 source and extracted suites passed. P1 recorded provider
+  UNKNOWN with zero automatic replay, known-response restart with zero
+  redispatch, 429 with no automatic retry, and report START UNKNOWN with no
+  fabricated ID. P2 recorded materialization after restart, zero additional
+  provider calls, and delivery UNKNOWN with zero additional sends. P3 recorded
+  restart, duplicate wake convergence, zero marketplace requests, and no
+  periodic scheduler alarm.
+- The existing application lower-layer suite passed 15/15 on the product-
+  identical current runtime; it is explicitly not installed live acceptance.
+- Large JSON, XLSX-equivalent, opaque original-file delivery, exact expiry
+  cleanup, fixture-level IDB abort through the installed result path, the
+  two-profile quota coordinator, source close/reopen, beta admission/capacity,
+  and final-package transfer security/privacy flows remain without complete
+  R4 installed receipts.
+
+### Installed receipts
+
+The following exact-package installed proof is complete:
+
+| Area | Package SHA | Browser | Worker | API | DB | Provider calls | AI sends | Result |
+|---|---|---|---|---|---|---:|---:|---|
+| Activation/account reset (Q1A-38 boundary) | `93ba77f6…aaf8d476` | Chromium 151.0.7922.34 | yes | yes | yes | 0 | 0 | PASS |
+| P1 provider outcome | same | Chromium 151.0.7922.34 | yes | fixture boundary | fixture | 1 initial / 0 automatic replay | 0 | PASS |
+| P2 result recovery | same | Chromium 151.0.7922.34 | yes | fixture boundary | fixture | 1 initial / 0 additional | 0 | PASS |
+| P3 wake/expiry coordinator | same | Chromium 151.0.7922.34 | yes | fixture boundary | fixture | 0 | 0 | PASS |
+
+Q1A-26/27/28/30/31/40/41/42/43/66/70/71/72/73 are not promoted to
+INSTALLED_PASS by these receipts.
+
+### Representative smoke and regression
+
+Representative exact-package smoke evidence is partial: worker/popup and
+activation/account isolation passed; P1/P2/P3 passed. The requested complete
+Q1A-01/04/08/15/24/32/35/44/49/54/64/74/75/81/84/91 representative set
+was not rerun as a complete final-package matrix.
+
+Production source was unchanged, so no production regression is inferred. The
+requested R4 regression suites A22/A23 9/9, auth integration, beta admission,
+C3E/F/G/H, P1, P2, P3/100-wake, Core, I1, application, and bridge guard were
+not all rerun as a complete R4 closure set. Individual P1/P2/P3 and application
+checks above are the only new receipts.
+
+### Q1A-01..91 final matrix
+
+Status meanings here are deliberately evidence-oriented: only
+`INSTALLED_PASS` means a final-package canonical installed receipt. The
+matrix is not an acceptance claim.
+
+| Q1A-01 | REPRESENTATIVE_SMOKE_BOUNDARY | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-02 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-03 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-04 | REPRESENTATIVE_SMOKE_BOUNDARY | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-05 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-06 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-07 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-08 | REPRESENTATIVE_SMOKE_BOUNDARY | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-09 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-10 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-11 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-12 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-13 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-14 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-15 | REPRESENTATIVE_SMOKE_BOUNDARY | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-16 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-17 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-18 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-19 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-20 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-21 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-22 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-23 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-24 | REPRESENTATIVE_SMOKE_BOUNDARY | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-25 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-26 | LOWER_LAYER_PASS_NOT_INSTALLED | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-27 | LOWER_LAYER_PASS_NOT_INSTALLED | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-28 | LOWER_LAYER_PASS_NOT_INSTALLED | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-29 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-30 | PARTIAL_INSTALLED | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-31 | LOWER_LAYER_PASS_NOT_INSTALLED | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-32 | REPRESENTATIVE_SMOKE_BOUNDARY | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-33 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-34 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-35 | REPRESENTATIVE_SMOKE_BOUNDARY | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-36 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-37 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-38 | INSTALLED_PASS | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-39 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-40 | R4_OPEN_DRIVER_OR_FLOW | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-41 | R4_OPEN_DRIVER_OR_FLOW | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-42 | R4_OPEN_DRIVER_OR_FLOW | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-43 | R4_OPEN_DRIVER_OR_FLOW | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-44 | REPRESENTATIVE_SMOKE_BOUNDARY | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-45 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-46 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-47 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-48 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-49 | REPRESENTATIVE_SMOKE_BOUNDARY | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-50 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-51 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-52 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-53 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-54 | REPRESENTATIVE_SMOKE_BOUNDARY | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-55 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-56 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-57 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-58 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-59 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-60 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-61 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-62 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-63 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-64 | REPRESENTATIVE_SMOKE_BOUNDARY | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-65 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-66 | R4_OPEN_DRIVER_OR_FLOW | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-67 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-68 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-69 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-70 | R4_OPEN_DRIVER_OR_FLOW | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-71 | R4_OPEN_DRIVER_OR_FLOW | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-72 | R4_OPEN_DRIVER_OR_FLOW | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-73 | R4_OPEN_DRIVER_OR_FLOW | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-74 | REPRESENTATIVE_SMOKE_BOUNDARY | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-75 | REPRESENTATIVE_SMOKE_BOUNDARY | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-76 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-77 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-78 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-79 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-80 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-81 | REPRESENTATIVE_SMOKE_BOUNDARY | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-82 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-83 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-84 | REPRESENTATIVE_SMOKE_BOUNDARY | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-85 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-86 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-87 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-88 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-89 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-90 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-91 | REPRESENTATIVE_SMOKE_BOUNDARY | final-package installed receipt not established in this bounded pass; see scope below. |
+
+### Safety, privacy, governance, and closure
+
+- New receipts observed ordinary Ozon controls 0, ordinary WB controls 0,
+  ordinary AI-delivery controls 0, provider UNKNOWN automatic replay 0, known
+  response redispatch 0, delivery UNKNOWN resend 0, confirmed duplicate 0,
+  ordinary Health heartbeat 0, command-time mandatory Bootstrap 0, transfer
+  provider calls 0 in completed installed probes, and backup provider/AI calls
+  0. These counts do not replace the missing complete matrix.
+- No privacy/storage regression was observed in the completed P1/P2/application
+  and binary gates. The Q1A-73 durable PostgreSQL/API/log/tracing marker scan
+  was not completed, so durable-storage privacy is not closed for R4.
+- Q1-B browser-family, Q1-C owner/live provider/account, Q1-D admin/preprod/
+  release, and Q1-E monitoring consumption remain deferred. Owner/live and
+  environment-deferred items are not moved into later lanes.
+- No TRUE_EXTERNAL_ENVIRONMENT_BLOCKER was established. The open state is
+  engineering/test-driver incompleteness plus incomplete bounded transfer
+  receipts.
+
+### R4 disposition
+
+Recommended status: `Q1A_REWORK_REQUIRED / ENVIRONMENT_DEFERRED_REMOTE_PUBLICATION`.
+Do not recommend `Q1A_READY_FOR_ARCHITECT_ACCEPTANCE`.
+
+Exact next task after architect review: finish the bounded R4 drivers and
+instrumented source-close/reopen helper on the frozen package, run the
+remaining beta/capacity/quota and transfer/privacy rows with fresh task-owned
+PostgreSQL databases and persistent Chromium profiles, rerun the complete
+representative smoke and required regression set, then return for architect
+review. Do not start Q1-B/Q1-C/Q1-D/Q1-E.

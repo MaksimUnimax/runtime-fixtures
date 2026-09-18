@@ -21,7 +21,8 @@ from playwright.sync_api import sync_playwright
 ROOT = Path(__file__).resolve().parents[4]
 NODE = "/root/.nvm/versions/node/v24.20.0/bin/node"
 PNPM = "/root/.nvm/versions/node/v24.20.0/bin/pnpm"
-API_PORT, PORTAL_PORT = 43102, 43103
+API_PORT = int(os.environ.get("SA_Q1A_API_PORT", "43102"))
+PORTAL_PORT = int(os.environ.get("SA_Q1A_PORTAL_PORT", "43103"))
 EMAIL = "i1-client-one@example.test"
 OTP = "424242"
 ACCOUNT_STORE = "seller_agents_stores_v1"
@@ -120,7 +121,11 @@ def run_runtime(runtime: Path, label: str, package_root: Path, api_log: list[str
     captures = []
     transfer_responses = []
     with sync_playwright() as pw:
-        options = {"headless": True, "channel": "chromium", "args": ["--no-sandbox", f"--disable-extensions-except={runtime}", f"--load-extension={runtime}"]}
+        options = {"headless": True, "args": ["--no-sandbox", f"--disable-extensions-except={runtime}", f"--load-extension={runtime}"]}
+        if os.environ.get("SA_TEST_CHROMIUM"):
+            options["executable_path"] = os.environ["SA_TEST_CHROMIUM"]
+        else:
+            options["channel"] = "chromium"
         source = pw.chromium.launch_persistent_context(source_profile.name, **options)
         recipient = pw.chromium.launch_persistent_context(recipient_profile.name, **options)
         for context in (source, recipient):
@@ -174,13 +179,18 @@ def main() -> int:
     try:
         with tempfile.TemporaryDirectory(prefix="d3s2-r1-transfer-server-") as temp:
             temp = Path(temp); trust = temp / "trust.json"; fixture = temp / "fixture.json"; key = temp / "placeholder"
-            env = {**os.environ, "SA_I1_API_PORT": str(API_PORT), "SA_I1_PUBLIC_TRUST_BUNDLE_PATH": str(trust), "SA_I1_FIXTURE_EVIDENCE_PATH": str(fixture), "PRODUCT_CONTROL_PLANE_E2E": "1", "SA_I1_ALLOW_TWO_DEVICES": "1"}
+            key_path = os.environ.get("SA_Q1A_FIXTURE_KEYS_PATH") or str(temp / "fixture-keys.json")
+            env = {**os.environ, "SA_I1_API_PORT": str(API_PORT), "SA_I1_PUBLIC_TRUST_BUNDLE_PATH": str(trust), "SA_I1_FIXTURE_EVIDENCE_PATH": str(fixture), "SA_I1_FIXTURE_KEYS_PATH": key_path, "PRODUCT_CONTROL_PLANE_E2E": "1", "SA_I1_ALLOW_TWO_DEVICES": "1"}
             api = subprocess.Popen([PNPM, "--filter", "@product/api", "exec", "tsx", "../../tests/regression/extension-core/client-i1/api-harness.ts"], cwd=ROOT, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
             processes.append(api); wait_url(f"http://127.0.0.1:{API_PORT}/health/ready")
-            config = subprocess.check_output([NODE, str(ROOT / "tests/regression/extension-core/client-i1/make-browser-config.mjs"), str(key), str(trust)], cwd=ROOT, env=env, text=True)
-            config = json.loads(config); config["controlApiOrigin"] = f"http://127.0.0.1:{API_PORT}"; config["portalOrigin"] = f"http://127.0.0.1:{PORTAL_PORT}"
-            build = temp / "package"; build_env = {**env, "SA_PACKAGED_CONFIG_JSON": json.dumps(config, separators=(",", ":"))}
-            subprocess.run(["python3", "tooling/build/extension_composed.py", "--output", str(build)], cwd=ROOT, env=build_env, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            configured_package = os.environ.get("SA_Q1A_FINAL_PACKAGE_ROOT")
+            if configured_package:
+                build = Path(configured_package).resolve()
+            else:
+                config = subprocess.check_output([NODE, str(ROOT / "tests/regression/extension-core/client-i1/make-browser-config.mjs"), str(key), str(trust)], cwd=ROOT, env=env, text=True)
+                config = json.loads(config); config["controlApiOrigin"] = f"http://127.0.0.1:{API_PORT}"; config["portalOrigin"] = f"http://127.0.0.1:{PORTAL_PORT}"
+                build = temp / "package"; build_env = {**env, "SA_PACKAGED_CONFIG_JSON": json.dumps(config, separators=(",", ":"))}
+                subprocess.run(["python3", "tooling/build/extension_composed.py", "--output", str(build)], cwd=ROOT, env=build_env, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
             portal_env = {**env, "CONTROL_PLANE_API_ORIGIN": f"http://127.0.0.1:{API_PORT}"}
             portal = subprocess.Popen([PNPM, "--filter", "@product/portal", "exec", "next", "dev", "--hostname", "127.0.0.1", "--port", str(PORTAL_PORT)], cwd=ROOT, env=portal_env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
             processes.append(portal); wait_url(f"http://127.0.0.1:{PORTAL_PORT}/login")

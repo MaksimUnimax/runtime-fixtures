@@ -87,9 +87,16 @@ def run(runtime, output):
             if not fixture_evidence_path.exists() or json.loads(fixture_evidence_path.read_text())["existing_fixture_accounts"] != 2 or json.loads(fixture_evidence_path.read_text())["beta_unchanged"] is not True:
                 raise RuntimeError("API fixture preparation evidence is incomplete")
             config = subprocess.check_output([NODE, str(ROOT / "tests/regression/extension-core/client-i1/make-browser-config.mjs"), str(private_placeholder), str(trust_path)], cwd=ROOT, env=env, text=True)
-            package_root = temp_path / "package"
-            build_env = {**env, "SA_PACKAGED_CONFIG_JSON": config}
-            subprocess.run(["python", "tooling/build/extension_composed.py", "--output", str(package_root)], cwd=ROOT, env=build_env, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            configured_package = os.environ.get("SA_Q1A_FINAL_PACKAGE_ROOT")
+            if configured_package:
+                package_root = Path(configured_package).resolve()
+                runtime_path = package_root / "runtime"
+                if not (runtime_path / "manifest.json").is_file() or not (runtime_path / "service_worker.js").is_file():
+                    raise RuntimeError("SA_Q1A_FINAL_PACKAGE_ROOT is not a complete packaged runtime")
+            else:
+                package_root = temp_path / "package"
+                build_env = {**env, "SA_PACKAGED_CONFIG_JSON": config}
+                subprocess.run(["python", "tooling/build/extension_composed.py", "--output", str(package_root)], cwd=ROOT, env=build_env, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
             portal_env = {**env, "CONTROL_PLANE_API_ORIGIN": f"http://127.0.0.1:{api_port}"}
             portal = subprocess.Popen([PNPM, "--filter", "@product/portal", "exec", "next", "dev", "--hostname", "127.0.0.1", "--port", portal_port], cwd=ROOT, env=portal_env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
             processes.append(portal)

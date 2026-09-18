@@ -7,7 +7,7 @@ import { webcrypto } from "node:crypto";
 import vm from "node:vm";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const ROOT = resolve(HERE, "../..");
+const ROOT = process.argv[2] ? resolve(process.argv[2], "tooling/llm-api-bridges/ozon-seller") : resolve(HERE, "../..");
 const source = (path) => readFileSync(join(ROOT, "dist-step7-candidate", path), "utf8");
 
 const operationMeta = Object.freeze({
