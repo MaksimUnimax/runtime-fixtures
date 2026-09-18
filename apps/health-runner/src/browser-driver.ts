@@ -22,6 +22,11 @@ import type { BrowserFamily } from "@product/shared";
 import { shouldBlockPrimaryDocumentRequest } from "./navigation-policy.js";
 import { createChatGPTStandardH3Strategy } from "./standard-h3-strategy.js";
 import type { H3SurfaceStrategy } from "./h3-strategy.js";
+import {
+  resolveTrustedDedicatedHealthSessionStorageStatePath,
+  type DedicatedHealthSessionRegistry,
+  type DedicatedHealthSessionTargetKey,
+} from "./dedicated-health-session-internal.js";
 
 export type BrowserDriverErrorCode =
   | "INVALID_DRIVER_LIFECYCLE"
@@ -68,6 +73,8 @@ export type ControlledNavigationResult = Readonly<{
 
 const DEFAULT_LAUNCH_TIMEOUT_MS = 15_000;
 const NAVIGATION_STABILIZATION_MS = 350;
+
+const dedicatedStorageStatePaths = new WeakMap<ChromeBrowserDriver, string>();
 
 type FetchRequestPausedEvent = Readonly<{
   requestId: string;
@@ -127,12 +134,14 @@ export class ChromeBrowserDriver implements BrowserDriver {
     if (this.#state !== "PREPARED")
       throw new BrowserDriverError("INVALID_DRIVER_LIFECYCLE");
     try {
+      const storageStatePath = dedicatedStorageStatePaths.get(this);
       const browser = await chromium.launch({
         headless: true,
         timeout: this.launchTimeoutMs,
       });
       const context = await browser.newContext({
         acceptDownloads: false,
+        ...(storageStatePath ? { storageState: storageStatePath } : {}),
       });
       this.#browser = browser;
       this.#context = context;
@@ -241,6 +250,7 @@ export class ChromeBrowserDriver implements BrowserDriver {
   public async closeOrPersist(): Promise<void> {
     const context = this.#context;
     const browser = this.#browser;
+    dedicatedStorageStatePaths.delete(this);
     await this.#disposeChromeNavigationFirewall();
     this.#page = undefined;
     this.#context = undefined;
@@ -447,4 +457,19 @@ export class ChromeBrowserDriver implements BrowserDriver {
       setTimeout(resolve, NAVIGATION_STABILIZATION_MS);
     });
   }
+}
+
+export function createDedicatedHealthChromeBrowserDriver(
+  targets: ControlledTargetRegistry,
+  registry: DedicatedHealthSessionRegistry,
+  targetKey: DedicatedHealthSessionTargetKey,
+  launchTimeoutMs = DEFAULT_LAUNCH_TIMEOUT_MS,
+): ChromeBrowserDriver {
+  const storageStatePath = resolveTrustedDedicatedHealthSessionStorageStatePath(
+    registry,
+    targetKey,
+  );
+  const driver = new ChromeBrowserDriver(targets, launchTimeoutMs);
+  dedicatedStorageStatePaths.set(driver, storageStatePath);
+  return driver;
 }
