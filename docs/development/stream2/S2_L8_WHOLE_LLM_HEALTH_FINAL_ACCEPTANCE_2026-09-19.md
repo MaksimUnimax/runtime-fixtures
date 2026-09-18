@@ -456,7 +456,10 @@ Only factual unresolved items remain:
 
 `ENVIRONMENT_DEFERRED`
 
-- Stream-2 remote publication/readback credentials are unavailable;
+- Stream-2 remote publication/readback remains `NOT_REMOTE_VERIFIED`: the
+  normal push attempt failed before authentication with GitHub HTTPS error
+  `fatal: could not read Username for 'https://github.com': No such device or
+  address`;
 - no provisioned dedicated technical LLM sessions exist for future
   authenticated live validation;
 - S2-A1 Ozon/Wildberries official public documentation remains blocked by
@@ -476,8 +479,10 @@ new Stream-2 product blocker.
 
 Before this receipt was added, the candidate was clean at
 `90ee56a8c8d56c8eda196e23b5fb57ab127a27b8`. This receipt is the only intended
-S2-L8 source-tree change. There was no force push, rebase, main merge, or PR #9
-mutation.
+S2-L8 source-tree change. A normal push was attempted and failed before
+authentication as recorded in the deferred ledger; there was no force push,
+rebase, main merge, or PR #9 mutation. No remote readback was possible, so the
+lineage remains `NOT_REMOTE_VERIFIED`.
 
 Final acceptance recommendation:
 
