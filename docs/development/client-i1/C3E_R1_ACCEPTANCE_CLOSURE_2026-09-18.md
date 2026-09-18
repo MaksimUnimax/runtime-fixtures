@@ -62,9 +62,11 @@ bootstrap. The C3E native failure is therefore classified as
 item, not as a C3E production regression.
 
 Native persistence/restart cases C3E-01 through C3E-10 could not be exercised
-because the shared baseline startup prerequisite fails. The deterministic
-source/extracted C3E suite passes 6/6, and the C3D lifecycle suite passes 18/18
-for both source and extracted forms.
+because the shared baseline startup prerequisite fails. The supported generated
+runtime and extracted-package C3E suite passes 6/6, and the corresponding C3D
+lifecycle suite passes 18/18. Raw source-tree invocation is not a supported
+fixture for these scripts because composition dependencies are assembled by the
+package checker.
 
 ## Regression and package evidence
 
