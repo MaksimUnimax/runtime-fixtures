@@ -493,8 +493,9 @@ HEAD `b8ce0764d1f887df049fba6b7dc45bc7c9cb51ef`, tree
 `8ed312a14b4d6bbd2673d85acaa82dc47fbf34c0`, with accepted base
 `57f872b84bd121959c368d571d6bf9b80fdb3839` in ancestry. The final code
 candidate is bounded follow-up commit
-`6fc215e6fba1b6dfe2ca0eef84da0ac169d41d83`; the final evidence commit contains
-this section and its final tree is recorded in the terminal report.
+`6fc215ee17fb5220c046969ea407466344529c82`, tree
+`c43e2791d80c06cdcbb207993bfa47372a518b9d`; the final evidence commit contains
+this section and its final HEAD/tree are recorded in the terminal report.
 Existing untracked symlinks and `repro/` were preserved untouched.
 
 ### Complete initial R4 gap batch
