@@ -361,7 +361,7 @@ export function createHealthSchedulerRepository(runtime: DatabaseRuntime) {
         const nextState =
           current.attempt >= scheduleCadence.maxAttempts
             ? "FAILED_TERMINAL"
-            : classifyFailure(failureClass);
+            : classifyFailure(failureClass, failureCode);
         assertScheduledRunTransition(current.state, nextState);
         const nextAttemptAt =
           nextState === "FAILED_RETRYABLE"

@@ -251,11 +251,11 @@ describe.sequential(
     beforeEach(clean);
     afterAll(() => db.close());
 
-    it("DB-01 exposes migrations 0000 through 0016", async () => {
+    it("DB-01 exposes migrations through the accepted integration boundary", async () => {
       const rows = await q<{ count: string }>(
         "SELECT count(*)::text AS count FROM drizzle.__drizzle_migrations",
       );
-      expect(rows.rows[0]?.count).toBe("17");
+      expect(rows.rows[0]?.count).toBe("18");
     });
     it("DB-02 enforces one current non-expired subscription", async () => {
       const f = await fixture();

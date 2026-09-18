@@ -235,7 +235,9 @@ class MemoryScheduler implements DurableHealthSchedulerRepository {
     )
       throw new Error("HEALTH_SCHEDULED_RUN_STALE_OWNER");
     const state =
-      found.attempt >= 3 ? "FAILED_TERMINAL" : classifyFailure(failureClass);
+      found.attempt >= 3
+        ? "FAILED_TERMINAL"
+        : classifyFailure(failureClass, failureCode);
     const finished = {
       ...found,
       state,
@@ -380,6 +382,9 @@ describe("durable Health scheduler contract", () => {
     expect(recovered?.attempt).toBe(2);
     expect(classifyFailure("TERMINAL_CONFIGURATION")).toBe("FAILED_TERMINAL");
     expect(classifyFailure("TRANSIENT_ENVIRONMENT")).toBe("FAILED_RETRYABLE");
+    expect(classifyFailure("TRANSIENT_ENVIRONMENT", "SEND_UNCERTAIN")).toBe(
+      "FAILED_TERMINAL",
+    );
   });
 
   it("keeps execution success separate from BROKEN and MAINTENANCE health", async () => {

@@ -153,7 +153,7 @@ boundary; no notification or incident deduplication behavior is implemented.
 
 ## Migration and Stream-1 boundary
 
-Migration `0017_s2_l6_durable_health_scheduler.sql` is additive. It adds the
+Migration `0019_s2_l6_durable_health_scheduler.sql` is additive. It adds the
 probe/state/failure enums, the two Health scheduler tables, a nullable
 `health_runs.scheduled_run_id` link, uniqueness/indexes, and validation checks.
 Existing immutable Health rows are preserved. No Stream-1 migration was

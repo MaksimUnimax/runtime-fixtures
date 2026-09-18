@@ -191,8 +191,10 @@ export function assertScheduledRunTransition(
 
 export function classifyFailure(
   failureClass: HealthFailureClass,
+  failureCode?: string,
 ): "FAILED_RETRYABLE" | "FAILED_TERMINAL" {
-  return failureClass === "TERMINAL_CONFIGURATION" ||
+  return failureCode === "SEND_UNCERTAIN" ||
+    failureClass === "TERMINAL_CONFIGURATION" ||
     failureClass === "PROVEN_PRODUCT_DRIFT"
     ? "FAILED_TERMINAL"
     : "FAILED_RETRYABLE";
