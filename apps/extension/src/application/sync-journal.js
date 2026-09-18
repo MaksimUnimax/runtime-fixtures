@@ -18,6 +18,11 @@
   const entityKey = value => typeof value === "string" && value.length > 0 && value.length <= 128;
   const integer = (value, fallback = 0) => Number.isSafeInteger(Number(value)) && Number(value) >= 0 ? Number(value) : fallback;
   const clone = value => value === undefined ? undefined : structuredClone(value);
+  const canonicalJson = value => {
+    if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+    if (value && typeof value === "object") return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(",")}}`;
+    return JSON.stringify(value);
+  };
   const bytes = value => new TextEncoder().encode(JSON.stringify(value)).byteLength;
   const digest = async value => [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(String(value))))].map(x => x.toString(16).padStart(2, "0")).join("");
   const stableJitter = (requestId, attempt) => {
@@ -66,7 +71,7 @@
     const normalized = normalize(next);
     await storageSet({ [STORAGE_KEY]: normalized });
     const readback = (await storageGet(STORAGE_KEY))[STORAGE_KEY];
-    if (!readback || JSON.stringify(readback) !== JSON.stringify(normalized)) throw Object.assign(new Error("SYNC_JOURNAL_WRITE_READBACK_FAILED"), { code: "SYNC_JOURNAL_WRITE_READBACK_FAILED" });
+    if (!readback || canonicalJson(readback) !== canonicalJson(normalized)) throw Object.assign(new Error("SYNC_JOURNAL_WRITE_READBACK_FAILED"), { code: "SYNC_JOURNAL_WRITE_READBACK_FAILED" });
     stateFlight = null;
     return normalized;
   }

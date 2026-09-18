@@ -63,7 +63,14 @@ class SyntheticHealthServer:
                     body = json.loads(raw or b"{}")
                 except json.JSONDecodeError:
                     body = {}
-                fixture.requests.append({"path": self.path, "method": "POST", "body": body})
+                fixture.requests.append({
+                    "path": self.path,
+                    "method": "POST",
+                    "body": body,
+                    # Evidence-safe transport facts; never persist bearer bytes.
+                    "authorization_present": bool(self.headers.get("authorization")),
+                    "content_type": self.headers.get("content-type", ""),
+                })
                 if self.path == "/v1/sync":
                     response = fixture._sync(body)
                     encoded = json.dumps(response, ensure_ascii=False, separators=(",", ":")).encode()

@@ -10,6 +10,11 @@ const scheduled = [];
 let online = true;
 let lastRequest = null;
 let appliedRemote = [];
+function chromeStorageReadback(value) {
+  if (Array.isArray(value)) return value.map(chromeStorageReadback);
+  if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).sort(([left], [right]) => left.localeCompare(right)).map(([key, item]) => [key, chromeStorageReadback(item)]));
+  return value;
+}
 const box = {
   crypto: { subtle: crypto.webcrypto.subtle, randomUUID: crypto.randomUUID },
   structuredClone,
@@ -18,7 +23,7 @@ const box = {
   queueMicrotask,
   console,
   Date,
-  storageGet: async key => ({ [key]: structuredClone(storage[key]) }),
+  storageGet: async key => ({ [key]: chromeStorageReadback(storage[key]) }),
   storageSet: async values => Object.assign(storage, structuredClone(values)),
   SellerAgentsControlClient: {
     async getAuthority() { return { payload: { account: { id: "11111111-1111-4111-8111-111111111111" } }, deviceId: "22222222-2222-4222-8222-222222222222" }; },

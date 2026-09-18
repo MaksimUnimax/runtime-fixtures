@@ -360,3 +360,126 @@ Known architectural risk: legacy local WB fixture snapshots may still carry a
 historical secret-derived 64-hex revision and therefore use the compatibility
 check; new D3/S2 synchronized state uses opaque revisions and must not regress
 to the legacy representation.
+
+## R3 acceptance-closure rework — 2026-09-18
+
+Work ID: `D3S2-1-R3-INSTALLED-C3E-SYNC-TRANSPORT-CLOSURE-2026-09-18`.
+
+R3 started from the R2 candidate `5b9ba9184434e7d5da94bea8ed545925cdb5ba3c`,
+tree `c6042e24ed4928115c0006567936c5b514478921`, on
+`feature/d3s2-store-metadata-state-2026-09-18`. The accepted pre-D3S2 base was
+`57f872b84bd121959c368d571d6bf9b80fdb3839`, tree
+`c1fdc6a2ed3dd77af499bdb3fed14d7fb471d050`. Existing R0/R1/R2 commits and
+untracked symlink/repro entries were preserved. Stream-2 paths remained
+untouched.
+
+### Failure batch and differential
+
+The initial installed failure was reproduced in native Chromium 151.0.7922.34
+on both source/generated and extracted/package runtimes. A popup-created Ozon
+store was renamed, producing the production `STORE_UPSERT` journal operation;
+the same failure was also reproduced by production `syncNow` while marking the
+pending batch `IN_FLIGHT`. The storage backend/key was
+`chrome.storage.local` / `seller_agents_sync_journal_v1`. `chrome.storage.local.set`
+resolved successfully. The immediate readback contained the same values, but
+Chrome returned object keys in a different order. The guard compared raw
+`JSON.stringify` output, so it raised `SYNC_JOURNAL_WRITE_READBACK_FAILED`.
+The write/readback occurred in one live worker with no worker restart between
+the two calls; the worker identity was the existing fallback
+`worker-unknown`. The synthetic server was running and reachable, but the
+HTTP request count stayed zero because the exception happened before
+`SellerAgentsControlClient.synchronizeMetadata`.
+
+The equivalent accepted-base C3E `BINDING_UPSERT` operation was run through
+the same unpacked Chromium harness on both source and extracted runtimes. It
+failed with the identical readback code, on the same storage backend/key, with
+zero `/v1/sync` requests. Classification:
+`PRE_EXISTING_C3E_RUNTIME_DEFECT`, specifically an order-sensitive durability
+readback comparison. It was not a D3S2 store-payload serialization defect,
+service-worker lifecycle race, or test-server fixture defect.
+
+The production fix keeps the guard and its failure code, but compares a
+canonical recursive representation that sorts object keys while preserving
+all values and array order. The C3E test storage adapter now deliberately
+returns Chrome-like reordered objects, making this boundary regression-visible.
+No sleep, bypass, hidden write, second queue, or weakened readback check was
+introduced.
+
+### Installed transport proof
+
+The corrected actual-unpacked source/generated and extracted/package runtimes
+used the popup mutation path, the live MV3 worker, the production C3E journal,
+the production `SellerAgentsControlClient.synchronizeMetadata` client, and
+the loopback synthetic Seller Agents server. The server saw authenticated
+JSON `POST /v1/sync` requests; only safe header facts were retained
+(`authorization_present=true`, `content-type=application/json`), never bearer
+bytes.
+
+| Scenario | Source/generated | Extracted/package |
+|---|---|---|
+| SYNC-BR-01 STORE_UPSERT rename, ACK, compaction | PASS; 1 intended request, pending 0 | PASS; 1 intended request, pending 0 |
+| SYNC-BR-02 offline rename, restart, P3 wake recovery | PASS; pending survived restart, due wake sent and compacted | PASS; pending survived restart, due wake sent and compacted |
+| SYNC-BR-03 STORE_TOMBSTONE, ACK, compaction | PASS; 1 intended request, pending 0 | PASS; 1 intended request, pending 0 |
+| SYNC-BR-04 stale upsert after tombstone | Supplementary installed stale-reconciliation PASS; transport conflict remains not independently automated | Same |
+| SYNC-BR-05 second-installation convergence | Supplementary installed persistent-context tombstone convergence PASS; pull/reconciliation transport not independently automated | Same |
+| SYNC-BR-06 credentialRevision metadata/fence | Installed credential edit/fence PASS; metadata-only wire audit PASS; cross-install revision convergence not independently automated | Same |
+| SYNC-BR-07 duplicate requestId | C3E/C3H/server idempotence suites PASS; installed duplicate transport not independently automated | Same |
+| SYNC-BR-08 late ACK/newer local revision | C3E/C3H installed-adjacent/lower-layer guards PASS; dedicated delayed installed ACK not independently automated | Same |
+| SYNC-BR-09 zero side effects | PASS for exercised installed matrix: provider 0, AI resend 0, ordinary mandatory control calls 0 | Same |
+
+The direct installed transport receipt sent three requests per runtime in the
+combined rename/delete run (one seed, one intended upsert, one intended
+tombstone). The intended request payloads contained only the allowlisted
+metadata keys: `requestId`, `baseRevision`, operation identity, store ID,
+marketplace, name, metadata revision, lifecycle, opaque credential revision,
+and provider-identity metadata. ACKs were processed by production code and
+removed the real pending entries. Tombstone local state remained dominant and
+its stored credential object was empty.
+
+The offline/restart proof retained one pending `STORE_UPSERT` and one
+`sync:pending` technical task across worker restart. An early wake did not
+execute future work; the due wake sent the real `/v1/sync` request and left no
+pending entry or scheduler task. There was no periodic timer or duplicate
+task registration. The installed P3 scheduler smoke passed on source and
+extracted/package with one restart, two duplicate-wake attempts, zero
+marketplace requests, and zero periodic alarms.
+
+Stale tombstone dominance, duplicate request idempotence, late-ACK fencing,
+second-context convergence, and credential-revision fencing remain covered by
+the existing C3E/C3F/C3H/server receipts; the rows marked supplementary above
+are not mislabeled as fresh real-HTTP installed proofs. This is the remaining
+automated boundary for architect review.
+
+### R3 regression and package receipt
+
+- C3E store journal: PASS; reordered readback, offline retention, tombstone,
+  recovery ACK; D3/S2: 59/59 PASS.
+- C3F and C3G: PASS in the composed Extension I1 checker.
+- C3H: all AUT-01..46 and AUT-48..50 PASS; AUT-47 remains the pre-existing
+  externally deferred browser-family registration gate.
+- Extension I1 checker: all reached gates PASS except the same AUT-47
+  deferral; source/generated and extracted composition parity passed.
+- Native D3S2 browser matrix: BR-STORE-01..13 PASS on both runtimes; the
+  transport-specific R3 receipts above add real `/v1/sync` counts.
+- Native P3: PASS on both runtimes.
+- Dynamic local-development package used for installed proof:
+  `SELLER_AGENTS_I1_C1_v0.2.4_LOCAL_DEVELOPMENT.zip`, 2,031,175 bytes,
+  SHA-256 `58562922c3b95833cf27c049d389900093423f070eaea41e6c0385477a83b8f6`;
+  repeat archive equality and source/extracted byte parity PASS.
+- The full API, PostgreSQL integration, E2E, OpenAPI, and unrelated production
+  suites were not rerun because the only production change is the extension
+  journal comparison and the R1 receipts remain unchanged. The focused
+  composed Extension I1 regression was rerun; its only failure is the known
+  AUT-47 environment deferral.
+
+Privacy audit: synthetic values only; no Ozon, Performance, or WB token,
+token hash/fingerprint, session secret, provider response/file, seller report,
+AI content, storage state, or raw credentials appeared in the inspected sync
+bodies or committed evidence. Provider requests were 0, automatic AI resend
+was 0, and ordinary mandatory control-call count was 0.
+
+R3 does not self-accept D3S2-1. Remaining blockers are the architect decision,
+remote publication/readback, AUT-47/browser-family environment evidence, and
+the four rows explicitly identified above as existing lower-layer or
+supplementary installed coverage. Transfer, relay, export/import, Q1, S1.2,
+Stream 2, deployment, and browser-store publication were not started.
