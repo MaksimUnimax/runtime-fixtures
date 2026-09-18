@@ -18,7 +18,7 @@ def until(fn, timeout=30):
 
 def seed_authority(worker, private_key):
     encoded = base64.b64encode(private_key.read_bytes()).decode('ascii')
-    worker.evaluate("""async (pkcs8) => {
+    worker.evaluate("""async ({pkcs8, fixtureKeyId}) => {
       const v = SellerAgentsBootstrapVerifier;
       const fromB64 = value => Uint8Array.from(atob(value), char => char.charCodeAt(0));
       const b64 = bytes => btoa(String.fromCharCode(...bytes));
@@ -60,7 +60,7 @@ def seed_authority(worker, private_key):
       };
       const payloadBytes = new TextEncoder().encode(v.canonicalJson(payload));
       const key = await crypto.subtle.importKey('pkcs8', fromB64(pkcs8), {name: 'Ed25519'}, false, ['sign']);
-      const keyId = 'browser-fixture-key';
+      const keyId = fixtureKeyId || 'browser-fixture-key';
       const prefix = new Uint8Array([...new TextEncoder().encode('product-control-plane/bootstrap-snapshot/v1'), 0, ...new TextEncoder().encode(keyId), 0]);
       const signed = new Uint8Array(prefix.length + payloadBytes.length); signed.set(prefix); signed.set(payloadBytes, prefix.length);
       const signature = new Uint8Array(await crypto.subtle.sign('Ed25519', key, signed));
@@ -74,7 +74,7 @@ def seed_authority(worker, private_key):
       const cacheClock = {cacheVersion: 'control_cache_clock_v1', owner: {controlApiOrigin: cfg.controlApiOrigin, portalOrigin: cfg.portalOrigin, contractVersion: cfg.contractVersion, deviceId, sessionId}, trustedServerTimeMs: serverTimeMs, effectiveTimeMs: serverTimeMs};
       const credentials = {deviceId, sessionId, tokenType: 'Bearer', accessToken: 'fixture_access_token', accessTokenExpiresAt: '2099-09-16T00:00:00Z', refreshToken: 'A'.repeat(43), refreshTokenExpiresAt: '2099-09-17T00:00:00Z'};
       await chrome.storage.local.set({seller_agents_control_auth_v2: {generation: 1, credentials, pending: null, rotation: null, authority: {verified: true, workAllowed: true, payload, envelope, deviceId, sessionId, generation: 1, requestedAi: 'chatgpt', cacheBinding}, cacheClock, lastError: null}});
-    }""", encoded)
+    }""", {"pkcs8": encoded, "fixtureKeyId": os.environ.get('SA_TEST_TRUST_KEY_ID', 'browser-fixture-key')})
 
 def run(runtime,output,private_key):
     output.mkdir(parents=True,exist_ok=True)

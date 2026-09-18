@@ -1375,12 +1375,12 @@ matrix is not an acceptance claim.
 | Q1A-23 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
 | Q1A-24 | REPRESENTATIVE_SMOKE_BOUNDARY | final-package installed receipt not established in this bounded pass; see scope below. |
 | Q1A-25 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
-| Q1A-26 | LOWER_LAYER_PASS_NOT_INSTALLED | final-package installed receipt not established in this bounded pass; see scope below. |
-| Q1A-27 | LOWER_LAYER_PASS_NOT_INSTALLED | final-package installed receipt not established in this bounded pass; see scope below. |
-| Q1A-28 | LOWER_LAYER_PASS_NOT_INSTALLED | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-26 | INSTALLED_PASS | R5A exact-package large JSON receipt; 3,200 rows, one provider call, complete result buffer. |
+| Q1A-27 | INSTALLED_PASS | R5A exact-package direct PNG/binary receipt; bytes and SHA preserved, one provider call. |
+| Q1A-28 | INSTALLED_PASS | R5A exact-package opaque PDF receipt; bytes and SHA preserved, one provider call. |
 | Q1A-29 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
-| Q1A-30 | PARTIAL_INSTALLED | final-package installed receipt not established in this bounded pass; see scope below. |
-| Q1A-31 | LOWER_LAYER_PASS_NOT_INSTALLED | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-30 | INSTALLED_PASS | R5A exact-package expiry/restart/wake receipt; exact boundary cleanup and zero replay. |
+| Q1A-31 | INSTALLED_PASS | R5A exact-package artifact-writer failure receipt; no partial artifact/reference and next operation passes. |
 | Q1A-32 | REPRESENTATIVE_SMOKE_BOUNDARY | final-package installed receipt not established in this bounded pass; see scope below. |
 | Q1A-33 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
 | Q1A-34 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
@@ -1471,3 +1471,113 @@ remaining beta/capacity/quota and transfer/privacy rows with fresh task-owned
 PostgreSQL databases and persistent Chromium profiles, rerun the complete
 representative smoke and required regression set, then return for architect
 review. Do not start Q1-B/Q1-C/Q1-D/Q1-E.
+
+## Q1-A-R5A FILE/RESULT INSTALLED CLOSURE
+
+Work ID: `Q1-A-R5A-20260919-FILE-RESULT-INSTALLED-DRIVERS-CLOSURE`
+
+This bounded section closes only Q1A-26, Q1A-27, Q1A-28, Q1A-30, and Q1A-31.
+Q1A-40..43, Q1A-66, Q1A-70..73, Q1-B, Q1-C, Q1-D, Q1-E, S1.2, deployment,
+publication, and monetization were not started.
+
+Git/package identity:
+
+- Start HEAD/tree: `81a445b0ebc362fb969ce247b4a2aba69e865753` /
+  `43f262759772b521dab340930c1c77a02a6c8c5f`.
+- Final HEAD/tree are the bounded evidence commit(s) recorded in the terminal
+  report; no production package files entered the commit.
+- Remote heads verified: `origin/main` `bc718cc5c677ad0eb4598e7de3ad766473ff0847`,
+  `origin/integration/i1-c1-srv5-2026-09-16`
+  `23047b3bdc22842a5b17e29e3d3f603c0ee51b16`, and
+  `origin/docs/roadmap-autonomy-correction-2026-09-18`
+  `6a48af8cd19137aaa10688c36cb064d3c4b16969`.
+- Package: `SELLER_AGENTS_I1_C1_v0.2.4_LOCAL_DEVELOPMENT.zip`, SHA-256
+  `93ba77f6fcac9932e991c94eded2d9638bb38c9990b8fcefd826d737aaf8d476`,
+  2,076,757 bytes, 39 runtime files / 39 extracted files / 39 ZIP entries.
+  Chromium worker registered under Playwright Chromium 151.0.7922.34 and the
+  popup loaded successfully. Frozen API/Portal/trust identity was unchanged.
+
+Initial five-scenario batch, completed before product edits:
+
+| Scenario | Initial state | Missing boundary | Classification |
+|---|---|---|---|
+| Q1A-26 | lower-layer result path only | dedicated installed large-JSON driver | `TEST_DRIVER_MISSING` |
+| Q1A-27 | lower-layer binary path only | dedicated installed binary/materialization driver | `TEST_DRIVER_MISSING` |
+| Q1A-28 | lower-layer opaque-file path only | dedicated installed original-file driver | `TEST_DRIVER_MISSING` |
+| Q1A-30 | P2/P3 primitives only | dedicated installed expiry/restart/wake receipt | `TEST_DRIVER_MISSING` |
+| Q1A-31 | lower-layer abort helper only | dedicated installed persistence-failure injection | `TEST_DRIVER_MISSING` |
+
+Installed harness design:
+
+`tests/regression/extension-core/client-i1/q1a_r5a_installed.py` provides one
+shared driver around the existing real Chromium `BrowserFixture`: exact ZIP
+extraction, worker/popup proof, synthetic provider fetch at the production
+adapter boundary, real worker command routing, chrome.storage/IDB readback,
+attachment delivery, fake-clock advancement, worker restart, and the accepted
+direct-binary `artifactWriter` failure seam. Evidence contains only hashes,
+sizes, safe IDs, phases, and counters. No production files or package
+inventory were changed.
+
+Installed receipts:
+
+- Q1A-26: `INSTALLED_PASS`; 3,200 objects/rows; input 257,501 bytes,
+  SHA-256 `56b4e81529935e026c0434b4994a8e5c189f9186e940654b06e237c83054b569`;
+  output 257,501 bytes, SHA-256
+  `c4a10d559eeee40501e64d5b9ca0f874ba7fb97674d60b18c0706a3092c00cf7`;
+  semantic count preserved, provider calls 1, AI sends 0.
+- Q1A-27: `INSTALLED_PASS`; PNG; input/output 95 bytes; SHA-256
+  `14c8368e1c2e5fe9e0c1c0af9363108d8bd761a63efe0eb4079d6e010e9b8610` on
+  both sides; filename `ozon-return_giveout_get_png-*.png`, MIME
+  `image/png`, provider calls 1, one AI send and no duplicate.
+- Q1A-28: `INSTALLED_PASS`; opaque PDF; input/output 139 bytes; SHA-256
+  `ceeb94ee3431209090201342047916b253db7bd2d3102056be88430f64546ad7` on
+  both sides; filename `ozon-posting_fbs_act_get_pdf-*.pdf`, MIME
+  `application/pdf`, provider calls 1, one AI send and no duplicate.
+- Q1A-30: `INSTALLED_PASS`; phases were
+  `RESULT_CREATED -> RESULT_COMMITTED -> PRE_EXPIRY_READ_PASS ->
+  WORKER_RESTARTED -> PRE_EXPIRY_AFTER_RESTART_PASS ->
+  CLOCK_ADVANCED_TO_BOUNDARY -> EXPIRY_WAKE_TRIGGERED ->
+  POST_EXPIRY_READ_DENIED -> CLEANUP_CONFIRMED`; exact `expiry <= now`
+  boundary, provider delta 0, AI-send delta 0, and no periodic scheduler
+  heartbeat.
+- Q1A-31: `INSTALLED_PASS`; accepted direct-binary artifact-writer seam
+  rejected the real artifact persistence write before commit; no artifact,
+  no valid result reference, no false success, provider replay 0, AI resend 0,
+  and the unrelated next Seller operation passed.
+
+Representative regression:
+
+- P1 provider UNKNOWN/no-replay and known-response fencing: PASS on source and
+  extracted runtimes; no automatic provider replay.
+- P2 known-result recovery: PASS through the focused Q1A-30 restart/read path;
+  the older full P2 helper still has its pre-existing final delivery-phase
+  assertion mismatch and was not treated as a product defect.
+- P3 wake/restart/duplicate wake: PASS on source and extracted; periodic alarms
+  0 and marketplace requests 0.
+- Extension Core/C1 installed acceptance: C1 36/36 PASS on source and
+  extracted. A24 export/import: PASS on both. Application fixture: PASS on
+  Chromium 151 with the frozen trust key. The standalone `extension_core.py`
+  gate remains environment-deferred because its required
+  `dist-step7-candidate/shared/direct_binary_file_delivery_patch.js` artifact
+  is absent; no product failure was inferred. The auxiliary C3H lower-layer
+  harness likewise remains deferred at its obsolete `AUTH_REQUIRED` setup.
+
+Safety/privacy/governance:
+
+- Ordinary Ozon mandatory control calls 0; ordinary WB mandatory control calls
+  0; ordinary AI-delivery mandatory control calls 0; provider UNKNOWN replay 0;
+  known-response redispatch 0; delivery UNKNOWN resend 0; confirmed duplicate
+  delivery 0; ordinary Health heartbeat 0; command-time Bootstrap 0.
+- Q1A-26/27/28 provider calls were exactly 1; Q1A-30 post-expiry provider
+  delta 0; Q1A-31 provider replay 0.
+- Synthetic payloads only. Large JSON, binary bytes, reports, and AI content
+  were not stored in evidence. No new server raw-report persistence was
+  introduced; application/C1 privacy checks remained green.
+- Stream-2 implementation/evidence paths were not modified. Remote publication
+  is `ENVIRONMENT_DEFERRED_REMOTE_PUBLICATION`; no force push, rebase, reset,
+  amend, or destructive cleanup was used.
+
+R5A closure: Q1A-26, Q1A-27, Q1A-28, Q1A-30, and Q1A-31 are completely closed
+as installed passes on SHA `93ba77f6…`. No genuine product defect appeared.
+This does not self-accept Q1-A. Exact next task: `Q1-A-R5B — INSTALLED BETA /
+CAPACITY / SECOND-INSTALLATION QUOTA CLOSURE`, covering Q1A-40/41/42/43/66.
