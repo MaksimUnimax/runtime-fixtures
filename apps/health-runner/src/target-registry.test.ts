@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { createPackagedStandardH3TargetRegistry } from "./target-registry.js";
+import {
+  createPackagedH3TargetRegistry,
+  createPackagedStandardH3TargetRegistry,
+  createPackagedWorkH3TargetRegistry,
+} from "./target-registry.js";
 
 describe("packaged Standard H3 target authority", () => {
   it("contains only the credential-free ChatGPT Standard target", () => {
@@ -11,5 +15,17 @@ describe("packaged Standard H3 target authority", () => {
     expect(() => registry.resolve("chatgpt_work_health")).toThrow(
       "CONTROLLED_TARGET_NOT_REGISTERED",
     );
+  });
+
+  it("packages Work separately and packages both surfaces together", () => {
+    const work = createPackagedWorkH3TargetRegistry().resolve(
+      "chatgpt_work_health",
+    );
+    expect(work.startUrl).toBe("https://chatgpt.com/");
+    expect(work.allowedTopLevelOrigins).toEqual(["https://chatgpt.com"]);
+    expect(work.browserFamily).toBe("chrome");
+    expect(
+      createPackagedH3TargetRegistry().resolve("chatgpt_work_health"),
+    ).toEqual(work);
   });
 });

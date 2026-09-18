@@ -106,11 +106,44 @@ export function createControlledTargetRegistry(
   return new ControlledTargetRegistry(definitions);
 }
 
-/** The only production ChatGPT target currently packaged for H3. */
+/** The credential-free production target for the packaged Standard profile. */
 export function createPackagedStandardH3TargetRegistry(): ControlledTargetRegistry {
   return new ControlledTargetRegistry([
     {
       key: "chatgpt_standard_health",
+      startUrl: "https://chatgpt.com/",
+      allowedTopLevelOrigins: ["https://chatgpt.com"],
+      browserFamily: "chrome",
+      navigationTimeoutMs: 15_000,
+    },
+  ]);
+}
+
+/** The credential-free production target for the packaged Work profile. */
+export function createPackagedWorkH3TargetRegistry(): ControlledTargetRegistry {
+  return new ControlledTargetRegistry([
+    {
+      key: "chatgpt_work_health",
+      startUrl: "https://chatgpt.com/",
+      allowedTopLevelOrigins: ["https://chatgpt.com"],
+      browserFamily: "chrome",
+      navigationTimeoutMs: 15_000,
+    },
+  ]);
+}
+
+/** Both packaged ChatGPT targets; no caller-supplied target is added. */
+export function createPackagedH3TargetRegistry(): ControlledTargetRegistry {
+  return new ControlledTargetRegistry([
+    {
+      key: "chatgpt_standard_health",
+      startUrl: "https://chatgpt.com/",
+      allowedTopLevelOrigins: ["https://chatgpt.com"],
+      browserFamily: "chrome",
+      navigationTimeoutMs: 15_000,
+    },
+    {
+      key: "chatgpt_work_health",
       startUrl: "https://chatgpt.com/",
       allowedTopLevelOrigins: ["https://chatgpt.com"],
       browserFamily: "chrome",

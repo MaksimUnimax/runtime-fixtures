@@ -17,6 +17,7 @@ import {
   type H3SurfaceStrategy,
 } from "./h3-strategy.js";
 import type { H3Clock } from "./h3-engine.js";
+import { markPackagedH3Strategy } from "./h3-strategy-authority-internal.js";
 
 const STANDARD_TARGET = "chatgpt_standard_health";
 const WORK_TARGET = "chatgpt_work_health";
@@ -101,10 +102,12 @@ class FakeH3Strategy implements H3SurfaceStrategy {
   public constructor(
     profileSurface: "CHATGPT_STANDARD" | "CHATGPT_WORK",
     targetSurface: "CHATGPT_STANDARD" | "CHATGPT_WORK" = profileSurface,
+    trusted = true,
   ) {
     this.surfaceProfile = getPackagedH3Profile(profileSurface);
     this.targetKey =
       targetSurface === "CHATGPT_STANDARD" ? STANDARD_TARGET : WORK_TARGET;
+    if (trusted) markPackagedH3Strategy(this);
   }
 
   public identifyApprovedSurface(): Promise<H3StrategyStepResult> {
@@ -377,28 +380,31 @@ describe("B2 common H3 execution engine", () => {
     expect(strategy.calls).toEqual([]);
   });
 
-  it("fails closed for unported Work before prompt insertion or Send", async () => {
+  it("allows only the exact packaged surface pair and rejects mismatches", async () => {
     const work = new FakeH3Strategy("CHATGPT_WORK");
 
-    expect(() => new H3SurfaceStrategyRegistry([work])).toThrow(
-      "STRATEGY_NOT_REGISTERED",
+    const registry = new H3SurfaceStrategyRegistry([work]);
+    const workResult = await runH3BehavioralSmokeFromRegistry(
+      registry,
+      plan("CHATGPT_WORK"),
     );
-    await expect(
-      runH3BehavioralSmoke(work, plan("CHATGPT_WORK")),
-    ).rejects.toMatchObject({ code: "STRATEGY_NOT_REGISTERED" });
-    expect(work.insertedPromptIds).toHaveLength(0);
-    expect(work.calls.filter((call) => call === "sendOnce")).toHaveLength(0);
+    expect(workResult.surfaceProfile.profileId).toBe("CHATGPT_WORK_H3_V1");
+    expect(work.calls).toContain("sendOnce");
 
     const standard = new FakeH3Strategy("CHATGPT_STANDARD");
-    const registry = new H3SurfaceStrategyRegistry([standard]);
+    const standardRegistry = new H3SurfaceStrategyRegistry([standard]);
     const standardResult = await runH3BehavioralSmokeFromRegistry(
-      registry,
+      standardRegistry,
       plan("CHATGPT_STANDARD"),
     );
     expect(standardResult.surfaceProfile.profileId).toBe(
       "CHATGPT_STANDARD_H3_V2",
     );
     expect(standard.calls).toContain("sendOnce");
+
+    await expect(
+      runH3BehavioralSmokeFromRegistry(standardRegistry, plan("CHATGPT_WORK")),
+    ).rejects.toMatchObject({ code: "STRATEGY_NOT_REGISTERED" });
 
     const mismatched = new FakeH3Strategy("CHATGPT_WORK");
     await expect(
@@ -416,6 +422,21 @@ describe("B2 common H3 execution engine", () => {
       runH3BehavioralSmoke(mismatchedProfile, plan("CHATGPT_STANDARD")),
     ).rejects.toMatchObject({ code: "STRATEGY_PROFILE_MISMATCH" });
     expect(mismatchedProfile.calls).toEqual([]);
+
+    const standardOnWork = new FakeH3Strategy("CHATGPT_STANDARD");
+    await expect(
+      runH3BehavioralSmoke(standardOnWork, plan("CHATGPT_WORK")),
+    ).rejects.toMatchObject({ code: "TARGET_SURFACE_MISMATCH" });
+    expect(standardOnWork.calls).toEqual([]);
+
+    const forged = new FakeH3Strategy("CHATGPT_WORK", "CHATGPT_WORK", false);
+    expect(() => new H3SurfaceStrategyRegistry([forged])).toThrow(
+      "STRATEGY_NOT_REGISTERED",
+    );
+    await expect(
+      runH3BehavioralSmoke(forged, plan("CHATGPT_WORK")),
+    ).rejects.toMatchObject({ code: "STRATEGY_NOT_REGISTERED" });
+    expect(forged.calls).toEqual([]);
   });
 
   it("rejects a target that is not packaged for the selected surface", async () => {

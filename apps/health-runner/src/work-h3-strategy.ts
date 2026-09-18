@@ -10,7 +10,6 @@ import {
   H3PromptIdSchema,
   type H3PromptId,
 } from "./h3-contracts.js";
-import { getPackagedH3Target } from "./h3-engine.js";
 import {
   createH3ContourObservation,
   H3StrategyStepResultSchema,
@@ -22,31 +21,29 @@ import type {
   ControlledTarget,
   ControlledTargetKey,
 } from "./target-registry.js";
+import { getPackagedH3Target } from "./h3-engine.js";
 import {
-  CHATGPT_STANDARD_H3_PROFILE,
-  standardAssistantMessages,
-  standardCodeSurfaces,
-  standardComposerRoots,
-  standardCopyControls,
-  standardBusySignals,
-  standardInputIsInsideAssistantEditor,
-  standardPromptInputs,
-  standardSendControls,
-  standardStopControls,
-  standardSurfaceRoot,
-  standardMessageId,
-  resolveChatGPTConversationIdentity,
-  type ChatGPTConversationIdentityResolution,
-} from "./standard-h3-profile.js";
-import { hasPositiveWorkSurfaceMarker } from "./standard-work-isolation.js";
+  CHATGPT_WORK_H3_PROFILE,
+  resolveWorkRoute,
+  workAssistantMessages,
+  workCodeSurfaces,
+  workCopyControls,
+  hasPositiveWorkMarker,
+  workMessageId,
+  workPromptInputs,
+  workSendControls,
+  workStopControls,
+  workSurfaceRoot,
+  type WorkRouteIdentity,
+} from "./work-h3-profile.js";
 import { markPackagedH3Strategy } from "./h3-strategy-authority-internal.js";
 
-const STANDARD_PROFILE: H3SurfaceProfile = Object.freeze({
-  surface: CHATGPT_STANDARD_H3_PROFILE.surface,
-  profileId: CHATGPT_STANDARD_H3_PROFILE.profileId,
-  profileRevision: CHATGPT_STANDARD_H3_PROFILE.profileRevision,
+const WORK_PROFILE: H3SurfaceProfile = Object.freeze({
+  surface: CHATGPT_WORK_H3_PROFILE.surface,
+  profileId: CHATGPT_WORK_H3_PROFILE.profileId,
+  profileRevision: CHATGPT_WORK_H3_PROFILE.profileRevision,
 });
-const STANDARD_TARGET = getPackagedH3Target("CHATGPT_STANDARD");
+const WORK_TARGET = getPackagedH3Target("CHATGPT_WORK");
 const HEALTH_TOKEN = "BRIDGE_HEALTHCHECK_V1";
 const EXPECTED_CHECKS: readonly H3BridgeSurfaceCheck[] = Object.freeze([
   "COMMAND_CODE_BLOCK_SURFACE",
@@ -120,8 +117,6 @@ function observation(
   fallbackStrategyOutcomes: H3ContourObservation["fallbackStrategyOutcomes"] = [],
   fallbackQuality: H3ContourObservation["fallbackQuality"] = "NOT_APPLICABLE",
   evidenceKind: H3ContourObservation["evidenceKind"] = "NONE",
-  environmentStatus: H3ContourObservation["environmentStatus"] = "VALID",
-  uncertaintyReason: H3ContourObservation["uncertaintyReason"] = null,
 ): H3ContourObservation {
   return createH3ContourObservation({
     contourKey,
@@ -132,8 +127,8 @@ function observation(
     structuralOutcome,
     behavioralOutcome,
     fallbackQuality,
-    environmentStatus,
-    uncertaintyReason,
+    environmentStatus: "VALID",
+    uncertaintyReason: null,
     evidenceKind,
   });
 }
@@ -142,15 +137,11 @@ function boundedCount(count: number): number {
   return Math.min(64, Math.max(0, count));
 }
 
-function safeTurnId(value: string | null): string | null {
+function safeMessageId(value: string | null): string | null {
   return value !== null && /^[A-Za-z][A-Za-z0-9_-]{0,127}$/.test(value)
     ? value
     : null;
 }
-
-type ConversationBinding =
-  | Readonly<{ state: "UNBOUND_FRESH" }>
-  | Readonly<{ state: "BOUND"; id: string }>;
 
 function isExpectedChecks(checks: readonly H3BridgeSurfaceCheck[]): boolean {
   return (
@@ -159,22 +150,7 @@ function isExpectedChecks(checks: readonly H3BridgeSurfaceCheck[]): boolean {
   );
 }
 
-function controlToken(locator: Locator): Promise<string> {
-  return Promise.all([
-    locator.getAttribute("data-testid"),
-    locator.getAttribute("aria-label"),
-    locator.getAttribute("title"),
-    locator.getAttribute("name"),
-    locator.getAttribute("type"),
-  ]).then((values) =>
-    values
-      .map((value) => value ?? "")
-      .join(" ")
-      .toLowerCase(),
-  );
-}
-
-async function isDisabled(locator: Locator): Promise<boolean> {
+async function disabled(locator: Locator): Promise<boolean> {
   const [enabled, ariaDisabled] = await Promise.all([
     locator.isEnabled({ timeout: 1_000 }).catch(() => false),
     locator.getAttribute("aria-disabled"),
@@ -182,24 +158,37 @@ async function isDisabled(locator: Locator): Promise<boolean> {
   return !enabled || ariaDisabled === "true";
 }
 
-/** The only Standard H3 strategy, built from the immutable local profile. */
-export function createChatGPTStandardH3Strategy(
+async function visibleCount(locator: Locator): Promise<number> {
+  let count = 0;
+  for (let index = 0; index < (await locator.count()); index += 1) {
+    if (
+      await locator
+        .nth(index)
+        .isVisible({ timeout: 250 })
+        .catch(() => false)
+    )
+      count += 1;
+  }
+  return count;
+}
+
+/** Distinct Work strategy; all irreversible execution remains in the B2 engine. */
+export function createChatGPTWorkH3Strategy(
   page: Page,
   target: ControlledTarget,
   closeSession: () => Promise<void>,
 ): H3SurfaceStrategy {
-  if (target.key !== STANDARD_TARGET) {
-    throw new Error("CHATGPT_STANDARD_TARGET_REQUIRED");
-  }
-  H3SurfaceProfileSchema.parse(STANDARD_PROFILE);
+  if (target.key !== WORK_TARGET)
+    throw new Error("CHATGPT_WORK_TARGET_REQUIRED");
+  H3SurfaceProfileSchema.parse(WORK_PROFILE);
   return markPackagedH3Strategy(
-    new ChatGPTStandardH3Strategy(page, target, closeSession),
+    new ChatGPTWorkH3Strategy(page, target, closeSession),
   );
 }
 
-class ChatGPTStandardH3Strategy implements H3SurfaceStrategy {
-  public readonly surfaceProfile = STANDARD_PROFILE;
-  public readonly targetKey: ControlledTargetKey = STANDARD_TARGET;
+class ChatGPTWorkH3Strategy implements H3SurfaceStrategy {
+  public readonly surfaceProfile = WORK_PROFILE;
+  public readonly targetKey: ControlledTargetKey = WORK_TARGET;
   #page: Page | undefined;
   #target: ControlledTarget | undefined;
   #closeSession: (() => Promise<void>) | undefined;
@@ -208,14 +197,12 @@ class ChatGPTStandardH3Strategy implements H3SurfaceStrategy {
   #input: Locator | undefined;
   #assistantMessages: Locator | undefined;
   #associatedResponse: Locator | undefined;
-  #conversationBinding: ConversationBinding = { state: "UNBOUND_FRESH" };
+  #associatedResponseId: string | null = null;
   #baselineMessageIds = new Set<string>();
   #baselineMessageCount = 0;
+  #routeIdentity: WorkRouteIdentity | undefined;
   #promptInserted = false;
   #sendInvoked = false;
-  #associatedResponseId: string | null = null;
-  #inputStrategyId: "EDITABLE_INPUT" | "ACCESSIBILITY_TEXTBOX" =
-    "EDITABLE_INPUT";
   #sendStrategyId: "SEMANTIC_SEND_CONTROL" | "COMPOSER_ACTION_CONTROL" =
     "SEMANTIC_SEND_CONTROL";
 
@@ -235,48 +222,37 @@ class ChatGPTStandardH3Strategy implements H3SurfaceStrategy {
       if (blocker) return blocker;
       const page = this.#page;
       const target = this.#target;
-      if (!page || !target || !this.#isAllowedOrigin(page, target))
+      if (!page || !target || !this.#hasApprovedOriginPolicy(target))
         return fail();
-      try {
-        new URL(page.url());
-      } catch {
-        return uncertain("NETWORK_FAILURE_BEFORE_PAGE_IDENTITY");
-      }
-      const surface = standardSurfaceRoot(page);
+      if (!this.#isAllowedOrigin(page, target)) return fail();
+      const surface = workSurfaceRoot(page);
       if (
         (await surface.count()) !== 1 ||
         !(await surface.isVisible({ timeout: 1_000 }))
-      ) {
+      )
         return fail(await surface.count());
-      }
-      // B4 isolation correction: a positively identified Work marker is not
-      // allowed to satisfy the Standard strategy on shared ChatGPT DOM.
-      if (await hasPositiveWorkSurfaceMarker(page)) return fail();
-      const identity = await this.#resolveConversationIdentity(page);
-      if (identity.kind === "CONFLICT") return fail();
-      this.#surface = surface;
-      this.#conversationBinding =
-        identity.kind === "BOUND"
-          ? { state: "BOUND", id: identity.id }
-          : { state: "UNBOUND_FRESH" };
-      this.#assistantMessages = standardAssistantMessages(surface);
-      this.#baselineMessageCount = await this.#assistantMessages.count();
-      if (this.#baselineMessageCount > 64)
-        return fail(this.#baselineMessageCount);
-      for (let index = 0; index < this.#baselineMessageCount; index += 1) {
-        const id = safeTurnId(
-          await standardMessageId(this.#assistantMessages.nth(index)),
-        );
-        if (!id) return fail(this.#baselineMessageCount);
+      if (!(await hasPositiveWorkMarker(page))) return fail();
+      const route = await this.#readRoute();
+      if (route.kind !== "BOUND") return fail();
+      const messages = workAssistantMessages(surface);
+      const baselineCount = await messages.count();
+      if (baselineCount > 64) return fail(baselineCount);
+      for (let index = 0; index < baselineCount; index += 1) {
+        const id = safeMessageId(await workMessageId(messages.nth(index)));
+        if (!id) return fail(baselineCount);
         this.#baselineMessageIds.add(id);
       }
+      this.#surface = surface;
+      this.#routeIdentity = route.identity;
+      this.#assistantMessages = messages;
+      this.#baselineMessageCount = baselineCount;
       return pass(2, false, [
         observation(
           "C01_PAGE_IDENTITY",
           "PASS",
           "PASS",
           "PASS",
-          "PAGE_HOST_MARKER",
+          "SURFACE_MARKER",
           [],
           "NOT_APPLICABLE",
           "METADATA",
@@ -297,37 +273,52 @@ class ChatGPTStandardH3Strategy implements H3SurfaceStrategy {
 
   public async identifyApprovedComposer(): Promise<H3StrategyStepResult> {
     return this.#safe(async () => {
+      if (!(await this.#workOwnershipStable())) return fail();
+      const page = this.#page;
       const surface = this.#surface;
-      if (!surface) return fail();
-      const composers = standardComposerRoots(surface);
-      if ((await composers.count()) !== 1) return fail(await composers.count());
-      const composer = composers.first();
-      if (!(await composer.isVisible({ timeout: 1_000 }))) return fail();
-      const input = await this.#resolveEditableInput(composer);
-      if (
-        !input ||
-        !(await input.isVisible({ timeout: 1_000 })) ||
-        !(await input.isEditable({ timeout: 1_000 }))
-      ) {
-        return fail();
+      if (!page || !surface) return fail();
+      const candidates = page.getByRole("textbox", {
+        name: CHATGPT_WORK_H3_PROFILE.composerName,
+        exact: true,
+      });
+      const valid: Locator[] = [];
+      for (let index = 0; index < (await candidates.count()); index += 1) {
+        const candidate = candidates.nth(index);
+        if (!(await candidate.isVisible({ timeout: 1_000 }).catch(() => false)))
+          continue;
+        if (
+          !(await candidate.isEditable({ timeout: 1_000 }).catch(() => false))
+        )
+          continue;
+        if ((await candidate.locator("xpath=ancestor::form").count()) !== 1)
+          continue;
+        if (
+          (await candidate
+            .locator(
+              'xpath=ancestor::*[self::section[@data-turn="assistant"] or @data-message-author-role="assistant"]',
+            )
+            .count()) > 0
+        )
+          continue;
+        const placeholder = await candidate.getAttribute("placeholder");
+        if (placeholder !== CHATGPT_WORK_H3_PROFILE.emptyPlaceholder) continue;
+        if ((await this.#readInput(candidate)).trim() !== "") continue;
+        valid.push(candidate);
       }
+      if (valid.length !== 1) return fail(await candidates.count());
+      const composer = valid[0]!.locator("xpath=ancestor::form");
+      if ((await workPromptInputs(composer).count()) !== 1) return fail();
       this.#composer = composer;
-      this.#input = input;
-      const inputId = await input.getAttribute("id");
-      const testId = await input.getAttribute("data-testid");
-      this.#inputStrategyId =
-        inputId === "prompt-textarea" || testId === "prompt-textarea"
-          ? "EDITABLE_INPUT"
-          : "ACCESSIBILITY_TEXTBOX";
+      this.#input = valid[0]!;
       return pass(1, false, [
         observation(
           "C03_COMPOSER_ROOT",
+          "FAIL",
           "PASS",
           "PASS",
-          "PASS",
-          "COMPOSER_CONTAINER",
-          [],
-          "NOT_APPLICABLE",
+          "ACTIVE_COMPOSER_REGION",
+          [{ strategyId: "ACTIVE_COMPOSER_REGION", outcome: "PASS" }],
+          "APPROVED_EQUIVALENT",
           "METADATA",
         ),
       ]);
@@ -339,60 +330,66 @@ class ChatGPTStandardH3Strategy implements H3SurfaceStrategy {
   ): Promise<H3StrategyStepResult> {
     return this.#safe(async () => {
       const input = this.#input;
-      if (!input || !H3PromptIdSchema.safeParse(promptId).success)
+      if (
+        !input ||
+        !(await this.#workOwnershipStable()) ||
+        !H3PromptIdSchema.safeParse(promptId).success
+      )
         return fail();
       const prompt = getPackagedH3Prompt(promptId);
       await input.fill(prompt);
-      // Ephemeral boolean readback only; prompt content never enters a result.
       const inserted = (await this.#readInput(input)) === prompt;
       this.#promptInserted = inserted;
-      if (!inserted) return fail();
-      return pass(1, true, [
-        observation(
-          "C04_COMPOSER_INPUT",
-          this.#inputStrategyId === "EDITABLE_INPUT" ? "PASS" : "FAIL",
-          "PASS",
-          "PASS",
-          this.#inputStrategyId,
-          this.#inputStrategyId === "EDITABLE_INPUT"
-            ? []
-            : [{ strategyId: "ACCESSIBILITY_TEXTBOX", outcome: "PASS" }],
-          this.#inputStrategyId === "EDITABLE_INPUT"
-            ? "NOT_APPLICABLE"
-            : "APPROVED_EQUIVALENT",
-          "METADATA",
-        ),
-      ]);
+      return inserted
+        ? pass(1, true, [
+            observation(
+              "C04_COMPOSER_INPUT",
+              "FAIL",
+              "PASS",
+              "PASS",
+              "ACCESSIBILITY_TEXTBOX",
+              [{ strategyId: "ACCESSIBILITY_TEXTBOX", outcome: "PASS" }],
+              "APPROVED_EQUIVALENT",
+              "METADATA",
+            ),
+          ])
+        : fail();
     });
   }
 
   public async sendOnce(): Promise<H3StrategyStepResult> {
     return this.#safe(async () => {
       const composer = this.#composer;
-      if (
-        !composer ||
-        !this.#input ||
-        !this.#promptInserted ||
-        this.#sendInvoked
-      ) {
+      const input = this.#input;
+      if (!composer || !input || !this.#promptInserted || this.#sendInvoked)
         return fail();
-      }
-      const exact = standardSendControls(composer);
+      if (!(await this.#workOwnershipStable())) return fail();
+      const prompt = getPackagedH3Prompt("BRIDGE_COMMAND_SMOKE_V1");
+      if ((await this.#readInput(input)) !== prompt) return fail();
+      const exact = workSendControls(composer);
       const exactCount = await exact.count();
       if (exactCount > 1) return fail(exactCount);
-      let send: Locator | null = exactCount === 1 ? exact.first() : null;
-      if (!send) send = await this.#resolveSemanticSend(composer);
-      if (
-        !send ||
-        !(await send.isVisible({ timeout: 1_000 })) ||
-        (await isDisabled(send))
-      ) {
+      const semantic = composer.getByRole("button", {
+        name: CHATGPT_WORK_H3_PROFILE.sendName,
+        exact: true,
+      });
+      if ((await semantic.count()) !== 1) return fail(await semantic.count());
+      const send = semantic.first();
+      if (!(await send.isVisible({ timeout: 1_000 })) || (await disabled(send)))
         return fail();
+      if (exactCount === 1) {
+        const exactElement = exact.first();
+        if (
+          (await exactElement.getAttribute("id")) !==
+            "composer-submit-button" ||
+          (await exactElement.getAttribute("data-testid")) !== "send-button"
+        )
+          return fail();
       }
       this.#sendStrategyId =
         exactCount === 1 ? "SEMANTIC_SEND_CONTROL" : "COMPOSER_ACTION_CONTROL";
       this.#sendInvoked = true;
-      // Sole irreversible activation. No Enter fallback, candidate retry, or resend.
+      // Captured precedence: text-present Send wins over generation state.
       await send.click();
       return pass(1, true, [
         observation(
@@ -415,28 +412,32 @@ class ChatGPTStandardH3Strategy implements H3SurfaceStrategy {
 
   public async observeBusy(): Promise<H3StrategyStepResult> {
     return this.#safe(async () => {
-      if (!this.#sendInvoked || !this.#surface) return fail();
-      const stop = standardStopControls(this.#surface);
+      if (
+        !this.#sendInvoked ||
+        !this.#surface ||
+        !this.#input ||
+        !this.#composer
+      )
+        return fail();
       const deadline = Date.now() + 30_000;
-      const freshBindingDeadline = Date.now() + 2_000;
       while (Date.now() < deadline) {
-        const identity = await this.#resolveConversationIdentity(this.#page);
-        if (!this.#acceptPostSendIdentity(identity)) return fail();
-        const bound = this.#conversationBinding.state === "BOUND";
-        const stopVisible = await stop
-          .first()
-          .isVisible({ timeout: 250 })
-          .catch(() => false);
-        const busyPresent =
-          (await standardBusySignals(this.#surface).count()) > 0;
+        if (!(await this.#workOwnershipStable())) return fail();
+        const composerEmpty =
+          (await this.#readInput(this.#input)).trim() === "";
+        const active = await this.#generationActive();
         const messages = this.#assistantMessages;
+        const newMessage =
+          messages && (await messages.count()) > this.#baselineMessageCount;
         if (
-          bound &&
-          (stopVisible ||
-            busyPresent ||
-            (messages && (await messages.count()) > this.#baselineMessageCount))
+          composerEmpty &&
+          active &&
+          (newMessage || (await this.#stopIsVisible()))
         ) {
-          const primaryBusy = stopVisible || busyPresent;
+          const primaryBusy =
+            (await this.#stopIsVisible()) ||
+            (await this.#surface
+              .locator(CHATGPT_WORK_H3_PROFILE.selectors.busySignal)
+              .count()) > 0;
           return pass(1, true, [
             observation(
               "C06_BUSY_STOP_STATE",
@@ -452,16 +453,6 @@ class ChatGPTStandardH3Strategy implements H3SurfaceStrategy {
             ),
           ]);
         }
-        const responseObserved =
-          messages && (await messages.count()) > this.#baselineMessageCount;
-        if (
-          !bound &&
-          (stopVisible || busyPresent || responseObserved) &&
-          Date.now() >= freshBindingDeadline
-        )
-          return fail();
-        // This is a bounded observation poll, not a sleep used as identity
-        // truth. Route/canonical identity is re-read on every iteration.
         await new Promise((resolve) => setTimeout(resolve, 25));
       }
       return fail();
@@ -471,23 +462,21 @@ class ChatGPTStandardH3Strategy implements H3SurfaceStrategy {
   public async observeResponse(): Promise<H3StrategyStepResult> {
     return this.#safe(async () => {
       const messages = this.#assistantMessages;
-      const conversationId = this.#boundConversationId();
-      if (!this.#sendInvoked || !messages || !conversationId) return fail();
+      if (!this.#sendInvoked || !messages || !(await this.#bound()))
+        return fail();
       try {
-        await messages.nth(this.#baselineMessageCount).waitFor({
-          state: "attached",
-          timeout: 30_000,
-        });
+        await messages
+          .nth(this.#baselineMessageCount)
+          .waitFor({ state: "attached", timeout: 30_000 });
       } catch {
         return fail();
       }
       const count = await messages.count();
       for (let index = this.#baselineMessageCount; index < count; index += 1) {
         const candidate = messages.nth(index);
-        const id = safeTurnId(await standardMessageId(candidate));
+        const id = safeMessageId(await workMessageId(candidate));
         if (!id || this.#baselineMessageIds.has(id)) continue;
-        if (!(await this.#belongsToConversation(candidate, conversationId)))
-          continue;
+        if (!(await this.#belongsToBoundRoute(candidate))) continue;
         this.#associatedResponse = candidate;
         this.#associatedResponseId = id;
         return pass(1, true, [
@@ -520,17 +509,16 @@ class ChatGPTStandardH3Strategy implements H3SurfaceStrategy {
   public async observeCompletion(): Promise<H3StrategyStepResult> {
     return this.#safe(async () => {
       const response = this.#associatedResponse;
-      const surface = this.#surface;
-      if (!response || !surface) return fail();
+      if (!response || !this.#surface) return fail();
       const deadline = Date.now() + 30_000;
       while (Date.now() < deadline) {
-        if (!(await this.#hasStableBoundIdentity())) return fail();
+        if (!(await this.#workOwnershipStable())) return fail();
         if (!(await this.#associatedResponseIsAttached(response)))
           return fail();
-
-        const generationActive = await this.#standardGenerationActive(surface);
-        const responseHasContent = await this.#responseHasContent(response);
-        if (!generationActive && responseHasContent)
+        if (
+          !(await this.#generationActive()) &&
+          (await this.#responseHasContent(response))
+        )
           return pass(1, true, [
             observation(
               "C08_MESSAGE_COMPLETION",
@@ -543,9 +531,6 @@ class ChatGPTStandardH3Strategy implements H3SurfaceStrategy {
               "STATE_TRANSITION_TRACE",
             ),
           ]);
-
-        // This is a bounded observation poll. Completion is established only
-        // by the current response, generation signals, content, and identity.
         await new Promise((resolve) => setTimeout(resolve, 25));
       }
       return fail();
@@ -558,47 +543,34 @@ class ChatGPTStandardH3Strategy implements H3SurfaceStrategy {
     return this.#safe(async () => {
       const response = this.#associatedResponse;
       const composer = this.#composer;
-      const page = this.#page;
-      const target = this.#target;
-      const conversationId = this.#boundConversationId();
+      const input = this.#input;
+      if (!response || !composer || !input || !isExpectedChecks(checks))
+        return fail();
       if (
-        !response ||
-        !composer ||
-        !page ||
-        !target ||
-        !conversationId ||
-        !isExpectedChecks(checks) ||
-        !this.#isAllowedOrigin(page, target)
+        !(await this.#workOwnershipStable()) ||
+        !(await this.#belongsToBoundRoute(response))
       )
         return fail();
       const codeSurface = await this.#findCodeSurface(
-        standardCodeSurfaces(response),
+        workCodeSurfaces(response),
       );
       const commandPass =
         codeSurface !== null &&
         (await codeSurface.getByText(HEALTH_TOKEN, { exact: true }).count()) ===
           1;
-      const copy = codeSurface ? standardCopyControls(codeSurface) : null;
+      const copy = codeSurface ? workCopyControls(codeSurface) : null;
       const copyPresent =
         copy !== null &&
         (await copy.count()) === 1 &&
         (await copy.isVisible({ timeout: 1_000 }).catch(() => false));
-      const copyPass = copyPresent && !(await isDisabled(copy!.first()));
-      const identityPass = await this.#belongsToConversation(
-        response,
-        conversationId,
-      );
-
-      // C12 is the same form-owned insertion path used by the accepted
-      // adapter: the active editor and Send control share one live form.
-      const input = this.#input;
-      const send = standardSendControls(composer);
+      const copyPass = copyPresent && !(await disabled(copy!.first()));
       const deliveryPass =
-        !input ||
-        (await send.count()) !== 1 ||
+        !(await input.isEditable({ timeout: 1_000 })) ||
         !(await composer.isVisible({ timeout: 1_000 }))
           ? false
-          : await input.isEditable({ timeout: 1_000 });
+          : (await workPromptInputs(composer).count()) === 1 &&
+            (await workSendControls(composer).count()) === 1;
+      const identityPass = await this.#belongsToBoundRoute(response);
       const observations = [
         observation(
           "C09_COMMAND_CODE_BLOCK_SURFACE",
@@ -626,9 +598,12 @@ class ChatGPTStandardH3Strategy implements H3SurfaceStrategy {
           identityPass ? "PASS" : "FAIL",
           identityPass ? "PASS" : "FAIL",
           "CONVERSATION_URL_IDENTITY",
-          identityPass
-            ? [{ strategyId: "CONVERSATION_URL_IDENTITY", outcome: "PASS" }]
-            : [{ strategyId: "CONVERSATION_URL_IDENTITY", outcome: "FAIL" }],
+          [
+            {
+              strategyId: "CONVERSATION_URL_IDENTITY",
+              outcome: identityPass ? "PASS" : "FAIL",
+            },
+          ],
           "APPROVED_EQUIVALENT",
           identityPass ? "METADATA" : "NONE",
         ),
@@ -650,7 +625,7 @@ class ChatGPTStandardH3Strategy implements H3SurfaceStrategy {
   }
 
   public async cleanup(): Promise<void> {
-    const closeSession = this.#closeSession;
+    const close = this.#closeSession;
     this.#page = undefined;
     this.#target = undefined;
     this.#closeSession = undefined;
@@ -659,15 +634,14 @@ class ChatGPTStandardH3Strategy implements H3SurfaceStrategy {
     this.#input = undefined;
     this.#assistantMessages = undefined;
     this.#associatedResponse = undefined;
-    this.#conversationBinding = { state: "UNBOUND_FRESH" };
+    this.#associatedResponseId = null;
+    this.#routeIdentity = undefined;
     this.#baselineMessageIds.clear();
     this.#baselineMessageCount = 0;
     this.#promptInserted = false;
     this.#sendInvoked = false;
-    this.#associatedResponseId = null;
-    this.#inputStrategyId = "EDITABLE_INPUT";
     this.#sendStrategyId = "SEMANTIC_SEND_CONTROL";
-    await closeSession?.();
+    await close?.();
   }
 
   async #safe(
@@ -689,20 +663,16 @@ class ChatGPTStandardH3Strategy implements H3SurfaceStrategy {
     } catch {
       return uncertain("NETWORK_FAILURE_BEFORE_PAGE_IDENTITY");
     }
-    // Login route is the only provider-specific precondition established by
-    // the accepted adapter. Accessible checkpoints are fail-closed and never
-    // bypassed or acted on.
     if (/^\/auth\/login(?:\/|$)/.test(pathname))
       return uncertain("LOGIN_EXPIRED");
-    const checkpoint = page.getByRole("dialog");
-    if (
-      (await checkpoint.count()) > 0 &&
-      (await checkpoint.first().isVisible({ timeout: 1_000 }))
-    ) {
+    const dialogs = page.getByRole("dialog");
+    for (let index = 0; index < (await dialogs.count()); index += 1) {
+      const dialog = dialogs.nth(index);
+      if (!(await dialog.isVisible({ timeout: 1_000 }).catch(() => false)))
+        continue;
       const label = (
-        (await checkpoint.first().getAttribute("aria-label")) ?? ""
+        (await dialog.getAttribute("aria-label")) ?? ""
       ).toLowerCase();
-      if (!label) return null;
       if (label.includes("captcha"))
         return uncertain("CAPTCHA_SECURITY_CHECKPOINT");
       if (label.includes("blocked") || label.includes("suspend"))
@@ -712,70 +682,104 @@ class ChatGPTStandardH3Strategy implements H3SurfaceStrategy {
     return null;
   }
 
-  async #resolveConversationIdentity(
-    page: Page | undefined,
-  ): Promise<ChatGPTConversationIdentityResolution> {
-    if (!page) return { kind: "UNBOUND_FRESH" };
+  async #readRoute(): Promise<ReturnType<typeof resolveWorkRoute>> {
+    const page = this.#page;
+    if (!page) return { kind: "MISSING" };
     const canonical = page.locator('link[rel="canonical"]');
-    const canonicalHref =
-      (await canonical.count()) === 1
-        ? await canonical.getAttribute("href")
-        : null;
-    return resolveChatGPTConversationIdentity(page.url(), canonicalHref);
-  }
-
-  #boundConversationId(): string | null {
-    return this.#conversationBinding.state === "BOUND"
-      ? this.#conversationBinding.id
-      : null;
-  }
-
-  #acceptPostSendIdentity(
-    identity: ChatGPTConversationIdentityResolution,
-  ): boolean {
-    if (identity.kind === "CONFLICT") return false;
-    if (this.#conversationBinding.state === "BOUND") {
-      return (
-        identity.kind === "BOUND" &&
-        identity.id === this.#conversationBinding.id
-      );
-    }
-    if (identity.kind === "BOUND") {
-      this.#conversationBinding = { state: "BOUND", id: identity.id };
-      return true;
-    }
-    return true;
-  }
-
-  async #resolveEditableInput(composer: Locator): Promise<Locator | null> {
-    const inputs = standardPromptInputs(composer);
-    const candidates: Locator[] = [];
-    for (let index = 0; index < (await inputs.count()); index += 1) {
-      const input = inputs.nth(index);
-      if (!(await standardInputIsInsideAssistantEditor(input)))
-        candidates.push(input);
-    }
-    return candidates.length === 1 ? (candidates[0] ?? null) : null;
-  }
-
-  async #resolveSemanticSend(composer: Locator): Promise<Locator | null> {
-    const controls = composer.locator(
-      'button, [role="button"], input[type="submit"]',
+    const count = await canonical.count();
+    if (count > 1) return { kind: "CONFLICT" };
+    return resolveWorkRoute(
+      page.url(),
+      count === 1 ? await canonical.getAttribute("href") : null,
     );
-    const candidates: Locator[] = [];
-    for (let index = 0; index < (await controls.count()); index += 1) {
-      const control = controls.nth(index);
-      if (
-        !(await control.isVisible({ timeout: 1_000 }).catch(() => false)) ||
-        (await isDisabled(control))
-      )
-        continue;
-      const token = await controlToken(control);
-      if (/stop|cancel|abort|останов|отмен/.test(token)) continue;
-      if (/\bsend\b|отправ/u.test(token) || /submit/i.test(token))
-        candidates.push(control);
+  }
+
+  async #workOwnershipStable(): Promise<boolean> {
+    const page = this.#page;
+    const target = this.#target;
+    const routeIdentity = this.#routeIdentity;
+    if (
+      !page ||
+      !target ||
+      !routeIdentity ||
+      !this.#hasApprovedOriginPolicy(target)
+    )
+      return false;
+    const allowed = this.#isAllowedOrigin(page, target);
+    const marker = await hasPositiveWorkMarker(page);
+    const route = await this.#readRoute();
+    if (!allowed || !marker) return false;
+    return (
+      route.kind === "BOUND" &&
+      route.identity.projectRouteKey === routeIdentity.projectRouteKey &&
+      route.identity.conversationId === routeIdentity.conversationId
+    );
+  }
+
+  async #bound(): Promise<boolean> {
+    return (
+      this.#routeIdentity !== undefined && (await this.#workOwnershipStable())
+    );
+  }
+
+  async #belongsToBoundRoute(locator: Locator): Promise<boolean> {
+    if (!(await this.#bound())) return false;
+    return (await workMessageId(locator)) !== null;
+  }
+
+  async #stopIsVisible(): Promise<boolean> {
+    return Boolean(
+      this.#composer &&
+        (await visibleCount(workStopControls(this.#composer))) === 1 &&
+        (await this.#composer
+          .getByRole("button", {
+            name: CHATGPT_WORK_H3_PROFILE.stopName,
+            exact: true,
+          })
+          .count()) === 1,
+    );
+  }
+
+  async #generationActive(): Promise<boolean> {
+    const surface = this.#surface;
+    const composer = this.#composer;
+    const page = this.#page;
+    if (!surface || !composer || !page) return false;
+    if (await this.#stopIsVisible()) return true;
+    if (
+      (await surface
+        .locator(CHATGPT_WORK_H3_PROFILE.selectors.busySignal)
+        .count()) > 0
+    )
+      return true;
+    // The captured string is retained in the profile as supporting evidence,
+    // but arbitrary response text must never be standalone busy truth.
+    const input = this.#input;
+    return (
+      input !== undefined &&
+      (await input.getAttribute("placeholder")) ===
+        CHATGPT_WORK_H3_PROFILE.generatingPlaceholder
+    );
+  }
+
+  async #associatedResponseIsAttached(response: Locator): Promise<boolean> {
+    if (!this.#associatedResponseId) return false;
+    try {
+      return (
+        (await response.count()) === 1 &&
+        (await workMessageId(response)) === this.#associatedResponseId
+      );
+    } catch {
+      return false;
     }
-    return candidates.length === 1 ? (candidates[0] ?? null) : null;
+  }
+
+  async #responseHasContent(response: Locator): Promise<boolean> {
+    try {
+      return Boolean((await response.textContent())?.trim());
+    } catch {
+      return false;
+    }
   }
 
   async #findCodeSurface(surfaces: Locator): Promise<Locator | null> {
@@ -801,66 +805,10 @@ class ChatGPTStandardH3Strategy implements H3SurfaceStrategy {
     }
   }
 
-  async #belongsToConversation(
-    locator: Locator,
-    conversationId: string,
-  ): Promise<boolean> {
-    const page = this.#page;
-    if (!page) return false;
-    const identity = await this.#resolveConversationIdentity(page);
-    if (identity.kind !== "BOUND" || identity.id !== conversationId)
-      return false;
-    return (await standardMessageId(locator)) !== null;
-  }
-
-  async #hasStableBoundIdentity(): Promise<boolean> {
-    const page = this.#page;
-    const target = this.#target;
-    const conversationId = this.#boundConversationId();
-    if (
-      !page ||
-      !target ||
-      !conversationId ||
-      !this.#isAllowedOrigin(page, target)
-    )
-      return false;
-    const identity = await this.#resolveConversationIdentity(page);
-    return identity.kind === "BOUND" && identity.id === conversationId;
-  }
-
-  async #associatedResponseIsAttached(response: Locator): Promise<boolean> {
-    if (!this.#associatedResponseId) return false;
-    try {
-      return (
-        (await response.count()) === 1 &&
-        (await standardMessageId(response)) === this.#associatedResponseId
-      );
-    } catch {
-      return false;
-    }
-  }
-
-  async #standardGenerationActive(surface: Locator): Promise<boolean> {
-    const stop = standardStopControls(surface);
-    for (let index = 0; index < (await stop.count()); index += 1) {
-      if (
-        await stop
-          .nth(index)
-          .isVisible({ timeout: 250 })
-          .catch(() => false)
-      )
-        return true;
-    }
-    return (await standardBusySignals(surface).count()) > 0;
-  }
-
-  async #responseHasContent(response: Locator): Promise<boolean> {
-    try {
-      const text = await response.textContent();
-      return Boolean(text?.trim());
-    } catch {
-      return false;
-    }
+  #hasApprovedOriginPolicy(target: ControlledTarget): boolean {
+    return target.allowedTopLevelOrigins.includes(
+      CHATGPT_WORK_H3_PROFILE.approvedOrigin,
+    );
   }
 
   #isAllowedOrigin(page: Page, target: ControlledTarget): boolean {

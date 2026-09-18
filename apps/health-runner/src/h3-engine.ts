@@ -36,6 +36,7 @@ import {
   ControlledTargetKeySchema,
   type ControlledTargetKey,
 } from "./target-registry.js";
+import { isPackagedH3Strategy } from "./h3-strategy-authority-internal.js";
 
 export const H3_PACKAGED_TARGET_BY_SURFACE = Object.freeze({
   CHATGPT_STANDARD: "chatgpt_standard_health",
@@ -348,12 +349,12 @@ function validatePlanAndStrategy(
   profile: H3SurfaceProfile;
 } {
   const plan = parseH3RunPlan(rawPlan);
-  if (plan.surface === "CHATGPT_WORK") {
-    throw new H3EngineInputError("STRATEGY_NOT_REGISTERED");
-  }
   const actions = compileH3PackagedActions(plan);
   const profile = getPackagedH3Profile(plan.surface);
   validateH3SurfaceStrategy(strategy);
+  if (!isPackagedH3Strategy(strategy)) {
+    throw new H3EngineInputError("STRATEGY_NOT_REGISTERED");
+  }
   const expectedTarget = getPackagedH3Target(plan.surface);
   if (
     plan.targetKey !== expectedTarget ||
@@ -378,10 +379,10 @@ export class H3SurfaceStrategyRegistry {
   public constructor(strategies: readonly H3SurfaceStrategy[]) {
     const validated = strategies.map((strategy) => {
       validateH3SurfaceStrategy(strategy);
-      const profile = parseH3SurfaceProfile(strategy.surfaceProfile);
-      if (profile.surface === "CHATGPT_WORK") {
+      if (!isPackagedH3Strategy(strategy)) {
         throw new H3EngineInputError("STRATEGY_NOT_REGISTERED");
       }
+      const profile = parseH3SurfaceProfile(strategy.surfaceProfile);
       const expectedTarget = getPackagedH3Target(profile.surface);
       if (strategy.targetKey !== expectedTarget) {
         throw new H3EngineInputError("TARGET_SURFACE_MISMATCH");

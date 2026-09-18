@@ -10,6 +10,7 @@ import {
   type H3SurfaceStrategy,
 } from "@product/health-runner";
 import { createChatGPTStandardH3Strategy } from "../../../apps/health-runner/src/standard-h3-strategy.js";
+import { markPackagedH3Strategy } from "../../../apps/health-runner/src/h3-strategy-authority-internal.js";
 import {
   startHealthStandardH3Fixture,
   type HealthStandardH3Fixture,
@@ -84,20 +85,22 @@ function withBridgeValidationArm(
   strategy: H3SurfaceStrategy,
   scriptedPage: ReturnType<typeof createScriptedPage>,
 ): H3SurfaceStrategy {
-  return new Proxy(strategy, {
-    get(target, property) {
-      if (property === "validateBridgeSurfaces") {
-        return (
-          ...args: Parameters<H3SurfaceStrategy["validateBridgeSurfaces"]>
-        ) => {
-          scriptedPage.arm();
-          return target.validateBridgeSurfaces(...args);
-        };
-      }
-      const value = Reflect.get(target, property, target);
-      return typeof value === "function" ? value.bind(target) : value;
-    },
-  });
+  return markPackagedH3Strategy(
+    new Proxy(strategy, {
+      get(target, property) {
+        if (property === "validateBridgeSurfaces") {
+          return (
+            ...args: Parameters<H3SurfaceStrategy["validateBridgeSurfaces"]>
+          ) => {
+            scriptedPage.arm();
+            return target.validateBridgeSurfaces(...args);
+          };
+        }
+        const value = Reflect.get(target, property, target);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    }),
+  );
 }
 
 function expectC11BridgeFailure(result: H3ExecutionResult): void {
