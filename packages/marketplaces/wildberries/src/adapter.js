@@ -126,7 +126,7 @@
   }
   function createProvider({ fetchImpl = globalThis.fetch, timeoutMs = 30000, maxBytes = 3000000,
     maxBinaryBytes = 12000000, uuid = () => crypto.randomUUID() } = {}) {
-    async function execute(commandText, { context, executionCommand = null } = {}) {
+    async function execute(commandText, { context, executionCommand = null, onProviderResponse = null } = {}) {
       if (!context?.snapshot || typeof context.credentials !== "function") fail("EXECUTION_CONTEXT_MISSING");
       let attempted = false, httpStatus = 0, command, filename = null;
       try {
@@ -152,6 +152,8 @@
         const binary = request.response_mode === "binary";
         const response = await (binary ? transport.executeBinaryOnce : transport.executeJsonOnce)({
           fetchImpl: guardedFetch, request, timeoutMs, maxBytes: binary ? maxBinaryBytes : maxBytes });
+        if (typeof onProviderResponse === "function")
+          await onProviderResponse({ command, request, response });
         await context.assertCurrent();
         let result;
         if (!response.ok) result = { error: { code: "WB_API_ERROR", http_status: response.httpStatus, automatic_retry: false } };

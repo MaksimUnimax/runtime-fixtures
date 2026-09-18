@@ -38,6 +38,7 @@
     "packages/control-client/src/offline-work-authority.js",
     "packages/bridge-core/src/execution/local-operations.js",
     "packages/bridge-core/src/execution/context.js",
+    "packages/bridge-core/src/execution/provider-outcome.js",
     "packages/bridge-core/src/execution/batch-queue.js",
     "packages/bridge-core/src/execution/guarded-queue.js",
     "packages/bridge-core/src/execution/observed-quota.js",

@@ -170,6 +170,10 @@ async function runComposedBatchQueue(options) {
         ensureBatchCapabilityAndPlanning({ ...o, executionContext: context }),
       prepareQueries: ensureBatchQueryPlanning,
       diagnostic,
+      beforeProviderDispatch: async () => {
+        if (typeof context?.assertDispatchAuthority === "function")
+          await context.assertDispatchAuthority();
+      },
       guidanceResult: localGuidanceResult,
       policyErrorResult: buildPersonalDataPolicyErrorResult,
       planningErrorResult: buildCapabilityPlanningErrorResult,

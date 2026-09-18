@@ -15,8 +15,8 @@
       await check();
       const guardedPorts = { ...ports };
       for (const name of ["preparePolicy", "prepareCapability", "prepareQueries", "diagnostic",
-        "readCache", "prepareQuota", "persistQuotaWait", "execute", "storeCache"])
-        guardedPorts[name] = guarded(ports[name]);
+        "readCache", "prepareQuota", "persistQuotaWait", "beforeProviderDispatch", "execute", "storeCache"])
+        if (typeof ports[name] === "function") guardedPorts[name] = guarded(ports[name]);
       return await globalThis.SellerAgentsBatchQueue.create(guardedPorts).process({
         ...options,
         getOwner: guarded(options.getOwner),

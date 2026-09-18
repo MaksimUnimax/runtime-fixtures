@@ -16,6 +16,29 @@ async function manualRecoveryForContent(operation, candidateTabId) {
       requestWorker &&
       requestWorker !== WORKER_SESSION_ID
     ) {
+      current = await mutateManualOperation(
+        current.conversation_key,
+        (value) => {
+          if (!value || value.operation_id !== current.operation_id || !value.batch)
+            return value;
+          const entries = (value.batch.entries || []).map((entry) => {
+            if (entry?.provider_attempt?.state !== "DISPATCH_INTENT_COMMITTED") return entry;
+            const attempt = SellerAgentsProviderOutcome.markUnknown(
+              entry.provider_attempt,
+              Date.now(),
+              "worker_restart",
+            );
+            return {
+              ...entry,
+              provider_attempt: attempt,
+              provider_attempt_history: (entry.provider_attempt_history || []).map((row) =>
+                row.provider_attempt_id === attempt.provider_attempt_id ? attempt : row,
+              ),
+            };
+          });
+          return { ...value, batch: { ...value.batch, entries } };
+        },
+      );
       current = await failManualBatch(
         current.conversation_key,
         current.operation_id,

@@ -83,6 +83,9 @@
           return { ok: true, source: "EXPLICIT_COMMANDS_ONLY" };
         },
         diagnostic,
+        // WB keeps its accepted last-moment C3G fence inside guardedFetch.
+        // The queue still commits intent before entering this provider boundary.
+        beforeProviderDispatch: async () => {},
         guidanceResult: A.localResult,
         policyErrorResult: () => A.localError({ code: "PERSONAL_DATA_DISABLED" }),
         planningErrorResult: forbiddenPlan, findGroup: forbiddenPlan, projectGroup: forbiddenPlan,
@@ -98,8 +101,8 @@
           await o.mutateOwner((owner) => o.ownerMatches(owner) && o.isCollecting(owner) ?
             { ...owner, batch: { ...owner.batch, request_state: "quota_waiting", quota_wait: o.quota } } : owner);
         },
-        async execute(text, { executionCommand }) {
-          const result = await provider.execute(text, { context, executionCommand });
+        async execute(text, { executionCommand, onProviderResponse }) {
+          const result = await provider.execute(text, { context, executionCommand, onProviderResponse });
           await context.assertCurrent();
           try { await quota.observe(await scope(executionCommand), result.response_meta?.retry_after); }
           catch (error) {

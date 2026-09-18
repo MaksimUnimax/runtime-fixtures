@@ -5,6 +5,7 @@ async function executeOzonCore(
     planning = null,
     quotaPermit = null,
     executionContext = null,
+    onProviderResponse = null,
   } = {},
 ) {
   const settings = await (executionContext
@@ -40,13 +41,16 @@ async function executeOzonCore(
               executionGuard: executionContext,
               planning,
               quota: safeQuotaMetadata(quotaPermit),
-              onProviderResponse: quotaPermit
-                ? async ({ response }) =>
-                    extendAnalyticsQuotaFromRetryAfter(
-                      quotaPermit,
-                      response?.responseMeta?.retry_after,
-                    )
-                : null,
+              onProviderResponse: async (providerResponse) => {
+                if (typeof onProviderResponse === "function")
+                  await onProviderResponse(providerResponse);
+                if (quotaPermit)
+                  return extendAnalyticsQuotaFromRetryAfter(
+                    quotaPermit,
+                    providerResponse?.response?.responseMeta?.retry_after,
+                  );
+                return null;
+              },
             },
           )
         : await OzonProvider.executeCommand(

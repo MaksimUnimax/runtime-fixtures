@@ -31,7 +31,139 @@
       providerId,
       coalescedOperation,
       bridgeErrorCode,
+      beforeProviderDispatch,
     } = ports;
+    const outcome = globalThis.SellerAgentsProviderOutcome;
+    const attemptId = () => `provider-attempt-${crypto.randomUUID()}`;
+    const logicalId = (owner, index) => `${String(owner?.operation_id || owner?.run_id || ownerId)}:${index}`;
+    function attemptInput(owner, entry, index, id, number = 1) {
+      const context = owner?.execution_context || {};
+      return {
+        logical_execution_id: logicalId(owner, index),
+        provider_attempt_id: id,
+        execution_id: owner?.operation_id || owner?.run_id || ownerId,
+        command_index: index,
+        account: context.accountId,
+        conversation: context.conversationKey,
+        work_generation: context.workSessionId,
+        binding: context.bindingId,
+        binding_revision: context.bindingRevision,
+        marketplace: context.marketplace || providerId,
+        store: context.storeId,
+        credential_revision: context.credentialRevision,
+        operation: entry?.operation || entry?.command?.operation || coalescedOperation,
+        attempt_number: number,
+      };
+    }
+    function setAttempt(entry, attempt) {
+      if (!attempt) return entry;
+      const history = Array.isArray(entry?.provider_attempt_history)
+        ? entry.provider_attempt_history
+        : [];
+      return {
+        ...entry,
+        provider_attempt: attempt,
+        provider_attempt_history: outcome.compactHistory(
+          history.map((row) => row.provider_attempt_id === attempt.provider_attempt_id ? attempt : row),
+        ),
+      };
+    }
+    async function commitAttemptIntent({ owner, indexes, entryForIndex, mutateOwner, ownerMatches, isCollecting, providerAttemptId }) {
+      const now = Date.now();
+      const attempts = new Map(indexes.map((index) => [index, outcome.createIntent(attemptInput(owner, entryForIndex(index), index, providerAttemptId), now)]));
+      let stored = false;
+      const next = await mutateOwner((current) => {
+        if (!current || !ownerMatches(current) || !isCollecting(current) || !current.batch) return current;
+        const currentEntries = [...(current.batch.entries || [])];
+        for (const index of indexes) {
+          const entry = currentEntries[index];
+          if (!entry || entry.status !== "requesting") return current;
+          const previous = Array.isArray(entry.provider_attempt_history) ? entry.provider_attempt_history : [];
+          if (entry.provider_attempt?.state === outcome.STATES.DISPATCH_INTENT_COMMITTED) return current;
+          currentEntries[index] = {
+            ...entry,
+            provider_attempt_id: providerAttemptId,
+            provider_attempt: attempts.get(index),
+            provider_attempt_history: outcome.compactHistory([...previous, attempts.get(index)], now),
+          };
+        }
+        stored = true;
+        return { ...current, batch: { ...current.batch, entries: currentEntries } };
+      });
+      return { stored, owner: next, attempts };
+    }
+    async function recordResponse({ indexes, mutateOwner, ownerMatches, isCollecting, providerAttemptId, response }) {
+      let stored = false;
+      const next = await mutateOwner((current) => {
+        if (!current || !ownerMatches(current) || !isCollecting(current) || !current.batch) return current;
+        const currentEntries = [...(current.batch.entries || [])];
+        for (const index of indexes) {
+          const entry = currentEntries[index];
+          if (!entry || entry.provider_attempt_id !== providerAttemptId || !entry.provider_attempt) return current;
+          currentEntries[index] = setAttempt(entry, outcome.markResponseReceived(entry.provider_attempt, response));
+        }
+        stored = true;
+        return { ...current, batch: { ...current.batch, entries: currentEntries } };
+      });
+      if (!stored) throw Object.assign(new Error("Provider response receipt could not be committed"), { code: "PROVIDER_RESPONSE_RECEIPT_STORE_FAILED" });
+      return next;
+    }
+    async function markRequestingUnknown({ indexes, mutateOwner, ownerMatches, isCollecting }) {
+      await mutateOwner((current) => {
+        if (!current || !ownerMatches(current) || !isCollecting(current) || !current.batch) return current;
+        const currentEntries = [...(current.batch.entries || [])];
+        let changed = false;
+        for (const index of indexes) {
+          const entry = currentEntries[index];
+          if (!entry?.provider_attempt || entry.provider_attempt.state !== outcome.STATES.DISPATCH_INTENT_COMMITTED) continue;
+          currentEntries[index] = setAttempt(entry, outcome.markUnknown(entry.provider_attempt));
+          changed = true;
+        }
+        return changed ? { ...current, batch: { ...current.batch, entries: currentEntries } } : current;
+      });
+    }
+    function finalAttempt(entry, result) {
+      const record = entry?.provider_attempt;
+      if (!record) return null;
+      if (record.state === outcome.STATES.RESPONSE_RECEIVED)
+        return outcome.markKnown(record, result?.ok === true);
+      if (record.state === outcome.STATES.DISPATCH_INTENT_COMMITTED && result?.external_request_executed === false)
+        return outcome.markKnown(
+          outcome.markResponseReceived(record, {
+            ok: false,
+            httpStatus: Number(result?.http_status || 0),
+            external_request_executed: false,
+            response_meta: result?.response_meta,
+          }),
+          false,
+        );
+      if (record.state === outcome.STATES.DISPATCH_INTENT_COMMITTED)
+        return outcome.markUnknown(record, Date.now(), "provider_call_or_response_not_durably_receipted");
+      return record;
+    }
+    async function storePreDispatchDenial({ index, owner, entry, error, mutateOwner, ownerMatches, isCollecting }) {
+      const result = executionError(entry.command, entry.command_fingerprint, error, 0, null);
+      let stored = false;
+      await mutateOwner((current) => {
+        if (!current || !ownerMatches(current) || !isCollecting(current) || !current.batch) return current;
+        if (Number(current.batch.next_index || 0) !== index || current.batch.request_state !== "requesting") return current;
+        const entries = [...(current.batch.entries || [])];
+        const currentEntry = entries[index];
+        if (!currentEntry || currentEntry.status !== "requesting") return current;
+        entries[index] = {
+          ...currentEntry,
+          status: "complete",
+          request_id: result.request_id || null,
+          http_status: Number(result.http_status || 0),
+          external_request_executed: false,
+          report_text: String(result.report_text || ""),
+          request_completed_at: new Date().toISOString(),
+        };
+        stored = true;
+        return { ...current, batch: { ...current.batch, entries, next_index: index + 1, request_state: "idle", request_worker_session_id: null, request_quota: null, quota_wait: null } };
+      });
+      return stored;
+    }
     function process({
       conversationKey,
       ownerKind,
@@ -149,6 +281,12 @@
           if (entry.status === "requesting") {
             const worker = String(owner.batch.request_worker_session_id || "");
             if (worker && worker !== workerId) {
+              await markRequestingUnknown({
+                indexes: [nextIndex],
+                mutateOwner,
+                ownerMatches,
+                isCollecting,
+              });
               await failOwner(
                 "REQUEST_OUTCOME_UNKNOWN_NO_RETRY",
                 "Service worker перезапустился во время provider request. Исход запроса неизвестен; автоматический повтор запрещён.",
@@ -643,6 +781,23 @@
             });
             if (!groupGranted) continue;
 
+            if (typeof beforeProviderDispatch === "function") await beforeProviderDispatch();
+            const groupProviderAttemptId = attemptId();
+            const groupIntent = await commitAttemptIntent({
+              owner,
+              indexes: expectedIndexes,
+              entryForIndex: (index) => owner.batch.entries[index],
+              mutateOwner,
+              ownerMatches,
+              isCollecting,
+              providerAttemptId: groupProviderAttemptId,
+            });
+            if (!groupIntent.stored) {
+              await failOwner("PROVIDER_ATTEMPT_INTENT_STORE_RACE", "Provider dispatch intent was not durably committed; provider request suppressed.");
+              return { ok: false, code: "PROVIDER_ATTEMPT_INTENT_STORE_RACE" };
+            }
+            owner = groupIntent.owner;
+
             const liveEntries = owner.batch.entries;
             const liveMembers = expectedIndexes.map(
               (memberIndex) => liveEntries[memberIndex],
@@ -674,6 +829,16 @@
                     group.physical_command_fingerprint,
                   ),
                   quotaPermit: quotaDecision.quota,
+                  providerAttemptId: groupProviderAttemptId,
+                  logicalExecutionId: logicalId(owner, nextIndex),
+                  onProviderResponse: (response) => recordResponse({
+                    indexes: expectedIndexes,
+                    mutateOwner,
+                    ownerMatches,
+                    isCollecting,
+                    providerAttemptId: groupProviderAttemptId,
+                    response: response?.response || response,
+                  }),
                 })),
                 physical_attempt_id: physicalAttemptId,
               };
@@ -768,7 +933,7 @@
                 const currentEntry = currentEntries[memberIndex];
                 const logicalResult = logicalResults[offset];
                 currentEntries[memberIndex] = {
-                  ...currentEntry,
+                  ...setAttempt(currentEntry, finalAttempt(currentEntry, physicalResult)),
                   status: "complete",
                   request_id: logicalResult.request_id || null,
                   physical_request_id:
@@ -1045,6 +1210,33 @@
           });
           if (!requestGranted) continue;
 
+          const pendingEntry = owner.batch.entries[nextIndex];
+          if (typeof beforeProviderDispatch === "function") {
+            try {
+              await beforeProviderDispatch();
+            } catch (error) {
+              if (error?.external_request_executed === false) {
+                if (await storePreDispatchDenial({ index: nextIndex, owner, entry: pendingEntry, error, mutateOwner, ownerMatches, isCollecting })) continue;
+              }
+              throw error;
+            }
+          }
+          const providerAttemptId = attemptId();
+          const intent = await commitAttemptIntent({
+            owner,
+            indexes: [nextIndex],
+            entryForIndex: () => owner.batch.entries[nextIndex],
+            mutateOwner,
+            ownerMatches,
+            isCollecting,
+            providerAttemptId,
+          });
+          if (!intent.stored) {
+            await failOwner("PROVIDER_ATTEMPT_INTENT_STORE_RACE", "Provider dispatch intent was not durably committed; provider request suppressed.");
+            return { ok: false, code: "PROVIDER_ATTEMPT_INTENT_STORE_RACE" };
+          }
+          owner = intent.owner;
+
           const liveEntry = owner.batch.entries[nextIndex];
           await diagnostic("BATCH_REQUEST_STARTED", {
             owner_kind: ownerKind,
@@ -1061,6 +1253,16 @@
               executionCommand: physicalCommandForQuota,
               planning: executionPlanning,
               quotaPermit: quotaDecision.quota,
+              providerAttemptId,
+              logicalExecutionId: logicalId(owner, nextIndex),
+              onProviderResponse: (response) => recordResponse({
+                indexes: [nextIndex],
+                mutateOwner,
+                ownerMatches,
+                isCollecting,
+                providerAttemptId,
+                response: response?.response || response,
+              }),
             });
             if (
               result?.ok === true &&
@@ -1112,7 +1314,7 @@
             if (!currentEntry || currentEntry.status !== "requesting")
               return current;
             currentEntries[nextIndex] = {
-              ...currentEntry,
+              ...setAttempt(currentEntry, finalAttempt(currentEntry, result)),
               status: "complete",
               request_id: result.request_id || null,
               http_status: Number(result.http_status || 0),

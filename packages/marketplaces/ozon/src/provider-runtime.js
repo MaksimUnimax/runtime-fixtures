@@ -372,7 +372,7 @@
       return record;
     }
 
-    async function executeReportFileCommand(command, executionGuard = null) {
+    async function executeReportFileCommand(command, executionGuard = null, onProviderResponse = null) {
       const record = await resolveReportFileRef(command.params.file_ref);
       if (record.inline_base64) {
         const started = Number(now());
@@ -435,6 +435,8 @@
         response_content_types: null,
         external_request_executed: true,
       });
+      if (typeof onProviderResponse === "function")
+        await onProviderResponse({ command, request, response });
       return { request, response, auth_request_performed: false };
     }
 
@@ -561,6 +563,7 @@
       command,
       rawCredentials,
       executionGuard = null,
+      onProviderResponse = null,
     ) {
       const credentials = globalThis.OzonCredentials.normalizeSellerCredentials(
         rawCredentials,
@@ -575,6 +578,8 @@
         request,
         now,
       });
+      if (typeof onProviderResponse === "function")
+        await onProviderResponse({ command, request, response });
       return { request, response, auth_request_performed: false };
     }
 
@@ -667,6 +672,7 @@
       command,
       rawPerformanceCredentials,
       executionGuard = null,
+      onProviderResponse = null,
     ) {
       const token = await getPerformanceToken(rawPerformanceCredentials, {
         executionGuard,
@@ -681,6 +687,8 @@
           request,
           now,
         });
+      if (typeof onProviderResponse === "function")
+        await onProviderResponse({ command, request, response });
       if (response.httpStatus === 401) clearPerformanceToken();
       return {
         request,
@@ -714,20 +722,30 @@
       }
       const preflight = contract.preflightExecution(command);
       const provider = String(preflight.meta.provider || "seller_api");
+      let effectiveQuota = quota;
+      const responseReceiptHook = typeof onProviderResponse === "function"
+        ? async (value) => {
+            const next = await onProviderResponse(value);
+            if (next) effectiveQuota = next;
+            return next;
+          }
+        : null;
       let execution;
       if (provider === "report_file")
-        execution = await executeReportFileCommand(command, executionGuard);
+        execution = await executeReportFileCommand(command, executionGuard, responseReceiptHook);
       else if (provider === "performance_api")
         execution = await executePerformanceCommand(
           command,
           rawPerformanceCredentials,
           executionGuard,
+          responseReceiptHook,
         );
       else if (provider === "seller_api")
         execution = await executeSellerCommand(
           command,
           rawCredentials,
           executionGuard,
+          responseReceiptHook,
         );
       else {
         const error = new Error(
@@ -739,21 +757,9 @@
       }
       if (executionGuard) await executionGuard.assertCurrent();
       const { request, response } = execution;
-      let effectiveQuota = quota;
-      if (typeof onProviderResponse === "function") {
-        try {
-          effectiveQuota =
-            (await onProviderResponse({ command, request, response, quota })) ||
-            quota;
-        } catch (hookError) {
-          hookError.code =
-            hookError.code || "PROVIDER_QUOTA_RESPONSE_HOOK_FAILED";
-          hookError.http_status = Number(response.httpStatus || 0);
-          hookError.external_request_executed = true;
-          hookError.response_meta = response.responseMeta;
-          throw hookError;
-        }
-      }
+      // The response receipt hook runs in the concrete business transport
+      // helper, immediately after its normalized response is available. Token
+      // acquisition is deliberately outside this boundary.
       const requestId = String(uuid());
       const errorPayload = response.ok
         ? null

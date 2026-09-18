@@ -189,6 +189,7 @@ await test("CTX-unrelated-settings-do-not-stop-work-and-no-secret-metadata", asy
     done();
     const op = await collection(worker, key);
     assert.equal(op.status, "delivering");
+    assert.ok(op.batch.entries.filter((entry) => entry.kind === "command").every((entry) => ["COMPLETED_KNOWN", "FAILED_KNOWN", "RETRY_WAIT_KNOWN"].includes(entry.provider_attempt?.state)));
     assert.equal(worker.network.length, 2);
     const text = JSON.stringify(op.execution_context);
     assert.ok(

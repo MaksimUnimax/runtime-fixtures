@@ -73,6 +73,8 @@ try {
     const entries = (await s.state()).batch.entries;
     assert.deepEqual(entries.map((e) => e.kind), ["guidance", "pre_execution_error", "command", "pre_execution_error", "command"]);
     assert.ok(entries.every((e) => e.status === "complete" && e.report_text));
+    assert.ok(entries.filter((e) => e.kind === "command").every((e) => e.provider_attempt?.state === "COMPLETED_KNOWN"));
+    assert.equal(new Set(entries.filter((e) => e.kind === "command").map((e) => e.provider_attempt_id)).size, 2);
     assert.match(entries[1].report_text, /OPERATION_BLOCKED/); assert.match(entries[3].report_text, /MISSING_QUERY_PARAM/);
     assert.equal(s.delivered.length, 1);
   });
@@ -118,6 +120,23 @@ try {
       entries: owner.batch.entries.map((entry) => ({ ...entry, status: "requesting" })) } }));
     assert.equal((await s.queue.process({ context: s.context })).code, "REQUEST_OUTCOME_UNKNOWN_NO_RETRY");
     assert.equal(s.network.length, 0); assert.equal((await s.state()).status, "failed");
+    assert.equal((await s.state()).batch.entries[0].provider_attempt, undefined);
+  });
+  await test("WB-08b-crash-after-intent-persists-unknown-fence", async () => {
+    let release;
+    const held = new Promise((resolve) => { release = resolve; });
+    const s = await setup(basic, { fetch: async () => { await held; return new Response('{"result":42}', { headers: { "content-type": "application/json" } }); } });
+    const running = s.run();
+    while (s.network.length !== 1) await new Promise((resolve) => setTimeout(resolve, 1));
+    const during = await s.state();
+    assert.equal(during.batch.entries[0].provider_attempt.state, "DISPATCH_INTENT_COMMITTED");
+    const restarted = await setup(basic, { backing: s.backing, workerId: "restarted-worker" });
+    await restarted.queue.admit({ source: restarted.source, context: restarted.context });
+    assert.equal((await restarted.queue.process({ context: restarted.context })).code, "REQUEST_OUTCOME_UNKNOWN_NO_RETRY");
+    assert.equal(restarted.network.length, 0);
+    assert.equal((await restarted.state()).batch.entries[0].provider_attempt.state, "OUTCOME_UNKNOWN");
+    release();
+    await running.catch(() => {});
   });
   await test("WB-09-no-context-or-wrong-token-or-block-no-admission", async () => {
     const s = await setup();
