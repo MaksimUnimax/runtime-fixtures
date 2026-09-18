@@ -156,10 +156,10 @@ Status vocabulary:
 | Q1A-37 | PASS-LP / DEFER-MV3 | Confirmed delivery has no duplicate Send (P2/P3). |
 | Q1A-38 | NOT-REACHED / DEFER-MV3 | Synthetic two-account installed isolation stopped before worker registration. |
 | Q1A-39 | NOT-REACHED / DEFER-MV3 | Synthetic local logout fence not reached in current installed run; C3H local reset lower-layer pass. |
-| Q1A-40 | NOT-REACHED / DEFER-MV3 | Synthetic free-beta popup flow not reached; server fixture setup was reachable. |
-| Q1A-41 | NOT-REACHED / DEFER-MV3 | Last-slot installed race not reached; accepted server capacity tests remain separate. |
-| Q1A-42 | NOT-REACHED / DEFER-MV3 | Capacity-reached installed flow not reached. |
-| Q1A-43 | NOT-REACHED / DEFER-MV3 | Synthetic admin-authorized beta increment not run; Q1-D UI/RBAC excluded. |
+| Q1A-40 | INSTALLED_PASS | Exact frozen package; real namespaced admission, device approval, Bootstrap, BETA authority, and no commercial requirement. |
+| Q1A-41 | INSTALLED_PASS | Exact frozen package; one-slot concurrent admission, one winner/one loser, idempotent challenge retries, and winner installed activation. |
+| Q1A-42 | INSTALLED_PASS | Exact frozen package; new admission denied at capacity while an existing admitted account refreshed, activated, and bootstrapped. |
+| Q1A-43 | INSTALLED_PASS | Exact frozen package; stable admin increment applied once, duplicate replayed, and subsequent installed admission/Bootstrap succeeded. |
 | Q1A-44 | PASS-LP / DEFER-MV3 | Same-store dialogue isolation passes C3H AUT-08. |
 | Q1A-45 | PASS-LP / DEFER-MV3 | Different-store isolation passes C3H AUT-07/48 and D3S2 gates. |
 | Q1A-46 | PASS-LP / DEFER-MV3 | Ozon/WB parallel adapter separation passes C3H AUT-10 and WB/core gates. |
