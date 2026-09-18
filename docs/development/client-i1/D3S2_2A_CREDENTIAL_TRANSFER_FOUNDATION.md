@@ -325,3 +325,162 @@ is not claimed. Remaining blockers before architect acceptance are the explicit
 TR-BR-05–26 installed cases marked NOT RUN above, final E2E receipt, and owner
 review of the two provisional decisions. A24, Stream 2, deployment, and store
 publication remain out of scope.
+
+## D3S2-2B installed adversarial completion — 2026-09-18
+
+Work ID: `D3S2-2B-CREDENTIAL-TRANSFER-INSTALLED-ADVERSARIAL-COMPLETION-2026-09-18`
+
+This section appends the bounded 2B completion evidence. It does not rewrite
+the R1 history above and does not self-accept A22 or A23.
+
+### Candidate identity and scope
+
+- Start HEAD/tree: `2763db070b4ac42df63d920514f2f13d6ed602a4` /
+  `3b8d306df5647f81fae7fa101aa5354a75cbbac4`.
+- Implementation candidate HEAD/tree: `b35a408d1d43aa5313eb6cb6c69419a63b168483` /
+  `d146621ed1b01dbeafcfdd11e4b436cec76741cd`.
+- Branch: `feature/d3s2-credential-transfer-foundation-2026-09-18`.
+- Ancestry from `f642b5c` and `2763db0`: verified.
+- No force push, reset, rebase, amend, unrelated cleanup, A24 export/import,
+  Q1, S1.2, deployment, publication, or Stream-2 implementation was started.
+- Stream-2 paths `apps/health-runner/**`, `packages/server/health/**`, and
+  `tooling/api-watch/**`: no tracked modifications.
+- Existing untracked symlink fixtures and `repro/`: untouched.
+
+The only production change is a transfer-key lifetime fence: recipient private
+CryptoKeys are cleared on terminal auth invalidation and local reset. The
+remaining implementation changes are installed-test harness support and this
+matrix runner; accepted transfer contracts, migration 0018, API shape,
+ephemeral relay, and ordinary Work authority were not redesigned.
+
+### Complete installed matrix
+
+Canonical environment: unpacked MV3 extension in Playwright Chromium
+`151.0.7922.34`, real API routes, real PostgreSQL-backed transfer service,
+separate source/recipient/other-device/attacker contexts, synthetic
+credentials only. Every requested case passed in both source/generated and
+extracted/package forms.
+
+| Case | Source/generated | Extracted/package |
+|---|---|---|
+| TR-BR-05 WB | PASS; WB-shaped import, stable storeId/revision, zero provider calls | PASS; same |
+| TR-BR-06 process loss/retry | PASS; packet lost on API restart, retry imported once | PASS; same |
+| TR-BR-07 wrong account | PASS; discovery/read/claim boundary rejected | PASS |
+| TR-BR-08 wrong device | PASS; non-recipient source-seen/fetch/import/ACK rejected | PASS |
+| TR-BR-09 public-key substitution | PASS; original binding immutable | PASS |
+| TR-BR-10 wrong private key | PASS; authentication failure, no write | PASS |
+| TR-BR-11 tamper | PASS; ciphertext, IV, and AAD mutations rejected | PASS |
+| TR-BR-12 wrong request binding | PASS; request-bound AAD rejected mismatch | PASS |
+| TR-BR-13 expiry | PASS; before source, after source-seen, after packet all rejected | PASS |
+| TR-BR-14 logout | PASS; source/recipient local reset fenced and recipient key cleared | PASS |
+| TR-BR-15 revoke | PASS; live source and recipient HTTP actions fenced | PASS |
+| TR-BR-16 replay after ACK | PASS; terminal replay 409, no second import | PASS |
+| TR-BR-17 duplicate submit | PASS; duplicate statuses 200/200, one logical import | PASS |
+| TR-BR-18 multiple sources | PASS; first bound source retained, foreign source rejected | PASS |
+| TR-BR-19 new store | PASS; safe import | PASS |
+| TR-BR-20 same current revision | PASS; deterministic `SAME_CURRENT`, no revision inflation | PASS |
+| TR-BR-21 newer local revision | PASS; `CONFLICT`, no overwrite | PASS |
+| TR-BR-22 tombstone | PASS; `CONFLICT`, no resurrection | PASS |
+| TR-BR-23 providerAccountId mismatch | PASS; `CONFLICT`, identity preserved | PASS |
+| TR-BR-24 marketplace mismatch | PASS; `CONFLICT`, no import | PASS |
+| TR-BR-25 source offline | PASS; truthful `REQUESTED`/pending, no packet | PASS |
+| TR-BR-26 source wake | PASS; later explicit bounded discovery recovered request | PASS |
+
+The multiple-source contract is explicitly first valid same-account source
+binding; it does not introduce a hidden exclusive lease. A source must own the
+selected local store identity, and terminal completion fences late sources.
+
+Installed product coverage remains green for Ozon Seller and Ozon
+Seller+Performance from the R1 receipt in both package forms, and WB is green
+above. The 2B runner used provider-shaped Ozon and WB fixtures without provider
+traffic.
+
+### Lifecycle, privacy, and cryptography
+
+- Source offline → later online: truthful pending state; later source contact
+  recovered while the request remained valid; no permanent polling, WebSocket,
+  or heartbeat.
+- Relay process loss: durable request remained incomplete and readable as
+  metadata; in-memory packet disappeared; no phantom packet/completion; later
+  retry imported once.
+- Request table schema through 0018 contains metadata/public key only; no
+  ciphertext, envelope, plaintext, or secret column. `pg_dump` of the final
+  browser database and generated receipts/log search found none of the unique
+  plaintext or ciphertext markers. Server stdout was pipe-captured and no
+  marker was present in `/tmp`, repository evidence, or generated artifacts.
+- Secret-lifetime audit: private key and plaintext stay in the privileged
+  extension worker/local accepted credential store; no page DOM, content-script
+  raw-secret message, URL/query, telemetry, diagnostics, console, or error
+  serialization path was found. The new logout/reset fence clears transient
+  recipient keys.
+- Crypto sanity: fresh source ephemeral key, fresh 16-byte HKDF salt, fresh
+  12-byte GCM IV, strict envelope/version/public-key parsing, malformed-key
+  rejection, request/account/device AAD binding, 131072-byte envelope limit,
+  and authentication-before-write all pass. Focused crypto suite: 1 file,
+  9 tests passed.
+- Precise confidentiality claim retained: normal protocol/server state lacks
+  the recipient private key and cannot decrypt by following the normal
+  protocol. This is not a claim against a fully malicious server rewriting
+  client code.
+
+Retention remains provisional under
+`PROVISIONAL_OWNER_REVIEW-D3S2-TRANSFER-METADATA-RETENTION-20260918`: expired
+and completed requests are unusable, cleanup is bounded, and ciphertext is
+never retention material. Crypto remains provisional under
+`PROVISIONAL_OWNER_REVIEW-D3S2-TRANSFER-CRYPTO-20260918`. Neither decision is
+owner-finalized.
+
+### Regression and package receipts
+
+- Migration through 0018: PASS; clean database.
+- DB unit: 3 files / 12 tests PASS.
+- API unit: 18 files / 225 tests PASS.
+- PostgreSQL integration: 40 files / 1,533 tests PASS on clean database.
+- Server E2E: 88/88 PASS on separately named disposable E2E database.
+- OpenAPI drift: PASS; typecheck: PASS; lint: PASS; format: PASS; build:
+  PASS; bridge guard: PASS.
+- Transfer domain: 1 file / 9 tests PASS.
+- Extension Core: 111 gate processes PASS.
+- Extension I1: 138 gate processes PASS with the legitimate
+  `C3H_BROWSER_PROOF=REAL_UNPACKED_CHROMIUM_PASS` marker; C3E, C3F, C3G, C3H,
+  P1, P2, P3, application, D3S2-1, and verifier gates remained green.
+- P3 100-wake composition soak: PASS; 100 duplicate/late wakes, zero
+  duplicate side effects, maximum due batch 16. A separate browser P3 helper
+  attempt was not used as acceptance evidence because its fixture lacked the
+  required seeded auth context; the canonical transfer matrix above is the
+  browser acceptance evidence.
+- Deterministic package: 39 runtime files and 39 extracted files, each
+  2,043,118 bytes; source/extracted parity PASS; repeat-build equality PASS;
+  ZIP 2,048,280 bytes; SHA-256
+  `9598f6d3447b35b24317e1625f679d38f7ab78741657a76ee72157e8b25078db`.
+
+### Safety, governance, and candidate disposition
+
+- Transfer-caused marketplace provider requests: 0.
+- Transfer-caused AI sends: 0.
+- Ordinary Ozon mandatory control calls: 0.
+- Ordinary WB mandatory control calls: 0.
+- Ordinary AI-delivery mandatory control calls: 0.
+- Provider `UNKNOWN` automatic replay: 0.
+- AI-delivery `UNKNOWN` automatic resend: 0.
+- C3E: exactly one journal. C3F: exactly one reconciliation model.
+- Remote heads read back: `origin/main` `bc718cc5c677ad0eb4598e7de3ad766473ff0847`,
+  `origin/integration/i1-c1-srv5-2026-09-16`
+  `23047b3bdc22842a5b17e29e3d3f603c0ee51b16`, and
+  `origin/docs/roadmap-autonomy-correction-2026-09-18`
+  `6a48af8cd19137aaa10688c36cb064d3c4b16969`.
+- Remote publication/readback of this candidate: deferred; no legitimate
+  publication credentials were used (`ENVIRONMENT_DEFERRED_REMOTE_PUBLICATION`).
+- A22 candidate: `ACCEPTED_BOUNDED_AUTOMATED` candidate for architect review;
+  not self-accepted.
+- A23 candidate: `ACCEPTED_BOUNDED_AUTOMATED` candidate for architect review;
+  not self-accepted.
+- Owner-deferred: both provisional crypto and metadata-retention decisions.
+- Environment-deferred: known system Chrome 147 MV3 registration/harness
+  failure remains pre-existing; no browser-store or production deployment work.
+- Remaining automated blockers for this bounded D3S2-2B matrix: none. Architect
+  decision, owner-final provisional decisions, and remote publication remain
+  governance/environment actions, not self-acceptance by Codex.
+
+A24 export/import, Q1, S1.2, Stream 2 monitoring, deployment, and store
+publication remain deferred.
