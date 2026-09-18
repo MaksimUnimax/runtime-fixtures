@@ -1,3 +1,5 @@
+import type { BrowserContextOptions } from "playwright";
+
 export type DedicatedHealthSessionTargetKey = "chatgpt_standard_health";
 
 export type DedicatedHealthSessionConfigErrorCode =
@@ -35,24 +37,32 @@ export interface DedicatedHealthSessionRegistry {
   readonly __dedicatedHealthSessionRegistry?: never;
 }
 
-const trustedStorageStatePaths = new WeakMap<object, string>();
+export type DedicatedHealthSessionStorageState = Exclude<
+  NonNullable<BrowserContextOptions["storageState"]>,
+  string
+>;
+
+const trustedStorageStates = new WeakMap<
+  object,
+  DedicatedHealthSessionStorageState
+>();
 
 function fail(code: DedicatedHealthSessionConfigErrorCode): never {
   throw new DedicatedHealthSessionConfigError(code);
 }
 
 export function createTrustedDedicatedHealthSessionRegistry(
-  storageStatePath: string,
+  storageState: DedicatedHealthSessionStorageState,
 ): DedicatedHealthSessionRegistry {
   const registry = Object.freeze({}) as DedicatedHealthSessionRegistry;
-  trustedStorageStatePaths.set(registry, storageStatePath);
+  trustedStorageStates.set(registry, storageState);
   return registry;
 }
 
-export function resolveTrustedDedicatedHealthSessionStorageStatePath(
+export function resolveTrustedDedicatedHealthSessionStorageState(
   registry: DedicatedHealthSessionRegistry,
   targetKey: string,
-): string {
+): DedicatedHealthSessionStorageState {
   if (
     (typeof registry !== "object" && typeof registry !== "function") ||
     registry === null
@@ -60,7 +70,7 @@ export function resolveTrustedDedicatedHealthSessionStorageStatePath(
     fail("UNTRUSTED_SESSION_REGISTRY");
   }
   if (targetKey !== "chatgpt_standard_health") fail("TARGET_NOT_CONFIGURED");
-  const storageStatePath = trustedStorageStatePaths.get(registry);
-  if (storageStatePath === undefined) fail("UNTRUSTED_SESSION_REGISTRY");
-  return storageStatePath;
+  const storageState = trustedStorageStates.get(registry);
+  if (storageState === undefined) fail("UNTRUSTED_SESSION_REGISTRY");
+  return storageState;
 }

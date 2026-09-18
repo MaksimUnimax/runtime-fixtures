@@ -1,8 +1,15 @@
 import { expect, test } from "@playwright/test";
-import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  mkdtemp,
+  readFile,
+  rename,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import {
   ChromeBrowserDriver,
   createControlledTargetRegistry,
@@ -126,6 +133,13 @@ test.describe("Standard dedicated Health session capability", () => {
       await withSyntheticState(async (statePath, configPath) => {
         const stateBefore = await readFile(statePath, "utf8");
         const registry = await loadDedicatedHealthSessionRegistry(configPath);
+        const replacementPath = join(dirname(statePath), "replacement.json");
+        const replacementState = JSON.stringify({ cookies: [], origins: [] });
+        await writeFile(replacementPath, replacementState, { mode: 0o600 });
+        await chmod(replacementPath, 0o600);
+        await rm(statePath);
+        await rename(replacementPath, statePath);
+        const replacementBefore = await readFile(statePath, "utf8");
         const firstDriver = createDedicatedHealthChromeBrowserDriver(
           targets(fixture.origin),
           registry,
@@ -176,7 +190,8 @@ test.describe("Standard dedicated Health session capability", () => {
           },
           { path: "/standard-start", cookie: "" },
         ]);
-        expect(await readFile(statePath, "utf8")).toBe(stateBefore);
+        expect(stateBefore).not.toBe(replacementBefore);
+        expect(await readFile(statePath, "utf8")).toBe(replacementBefore);
       });
     } finally {
       await fixture.close();
@@ -223,6 +238,19 @@ test.describe("Standard dedicated Health session capability", () => {
             createDedicatedHealthChromeBrowserDriver as unknown as DedicatedFactory
           )(targets(fixture.origin), registry, "chatgpt_work_health"),
         ).toThrowError("TARGET_NOT_CONFIGURED");
+        const driver = createDedicatedHealthChromeBrowserDriver(
+          targets(fixture.origin),
+          registry,
+          "chatgpt_standard_health",
+        );
+        try {
+          await driver.start();
+          await expect(
+            driver.open("chatgpt_work_health"),
+          ).rejects.toMatchObject({ code: "CONTROLLED_TARGET_NOT_REGISTERED" });
+        } finally {
+          await driver.closeOrPersist();
+        }
         expect(fixture.requests()).toEqual([]);
       });
     } finally {

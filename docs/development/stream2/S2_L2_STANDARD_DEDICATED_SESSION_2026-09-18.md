@@ -58,15 +58,18 @@ The normal constructor remains `new ChromeBrowserDriver(targets,
 launchTimeoutMs?)`; extra JavaScript arguments confer no authority. No public
 binding object, storage-state path, Work start URL, constructible registry, or
 raw resolver is exported. The loader validates an absolute regular non-symlink
-owner-readable state file, bounded size, and POSIX owner-only permissions, but
-never parses or serializes the state contents.
+owner-readable state file, bounded size, and POSIX owner-only permissions, then
+reads and freezes a bounded in-memory storage-state snapshot. The private
+capability holds that snapshot rather than a reopenable path and never exposes
+or serializes its contents.
 
-The dedicated factory alone attaches the validated path to a private driver
+The dedicated factory alone attaches the validated snapshot to a private driver
 `WeakMap`. Launch still uses `chromium.launch()` and a fresh
-`browser.newContext({ acceptDownloads: false, storageState })`. Persistent
+`browser.newContext({ acceptDownloads: false, storageState })`; Playwright never
+reopens the validated path. Persistent
 contexts, profile directories, context reuse, authentication writeback,
 `storageState({ path })`, login automation, CAPTCHA bypass, and provider calls
-are absent. Closing a driver removes its private state-path capability.
+are absent. Closing a driver removes its private state capability.
 
 ## RED evidence
 
@@ -115,9 +118,10 @@ conversation, completion, or persistence contract was changed.
 Only temporary synthetic state was created during tests. It used a loopback
 fixture and synthetic cookie material; no real credentials, owner/customer
 cookies, provider domains, or reusable repository auth fixture were used.
-The loader does not read state contents. The state path is held only in the
-private provenance map and is not enumerable or serializable. Results and
-sanitized evidence contain only bounded Health-owned fields.
+The loader reads the state only to create the private frozen snapshot. Neither
+the state path nor the snapshot is enumerable or serializable through the
+registry. Results and sanitized evidence contain only bounded Health-owned
+fields.
 
 The final source audit classified `storageState` as the single intended
 dedicated `newContext` input; `userDataDir` and `launchPersistentContext` have

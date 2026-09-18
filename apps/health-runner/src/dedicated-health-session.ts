@@ -1,10 +1,12 @@
-import { lstat, readFile } from "node:fs/promises";
+import { constants } from "node:fs";
+import { lstat, open } from "node:fs/promises";
 import { isAbsolute, resolve } from "node:path";
 import {
   createTrustedDedicatedHealthSessionRegistry,
   DedicatedHealthSessionConfigError,
   type DedicatedHealthSessionConfigErrorCode,
   type DedicatedHealthSessionRegistry,
+  type DedicatedHealthSessionStorageState,
 } from "./dedicated-health-session-internal.js";
 
 const MAX_CONFIG_FILE_BYTES = 64 * 1024;
@@ -46,10 +48,10 @@ function validatePermissions(
   if ((mode & 0o077) !== 0 || (mode & 0o400) === 0) fail(code);
 }
 
-async function inspectFile(
+async function readValidatedFile(
   filePath: string,
   kind: "config" | "storage",
-): Promise<{ size: number }> {
+): Promise<Buffer> {
   const codes =
     kind === "config"
       ? {
@@ -70,18 +72,76 @@ async function inspectFile(
         };
   const maxBytes =
     kind === "config" ? MAX_CONFIG_FILE_BYTES : MAX_STORAGE_STATE_FILE_BYTES;
-  let stats;
+  let linkStats;
   try {
-    stats = await lstat(filePath);
+    linkStats = await lstat(filePath);
   } catch {
     fail(codes.unavailable);
   }
-  if (stats.isSymbolicLink()) fail(codes.symlink);
-  if (!stats.isFile()) fail(codes.notRegular);
-  if (stats.size <= 0) fail(codes.empty);
-  if (stats.size > maxBytes) fail(codes.tooLarge);
-  validatePermissions(stats.mode, codes.permissions);
-  return { size: stats.size };
+  if (linkStats.isSymbolicLink()) fail(codes.symlink);
+  if (!linkStats.isFile()) fail(codes.notRegular);
+  if (linkStats.size <= 0) fail(codes.empty);
+  if (linkStats.size > maxBytes) fail(codes.tooLarge);
+  validatePermissions(linkStats.mode, codes.permissions);
+
+  const flags =
+    constants.O_RDONLY |
+    (process.platform === "win32" ? 0 : (constants.O_NOFOLLOW ?? 0));
+  let file;
+  try {
+    file = await open(filePath, flags);
+  } catch {
+    fail(codes.unavailable);
+  }
+  try {
+    const stats = await file.stat();
+    if (
+      stats.dev !== linkStats.dev ||
+      stats.ino !== linkStats.ino ||
+      stats.size !== linkStats.size ||
+      stats.mtimeMs !== linkStats.mtimeMs
+    ) {
+      fail(
+        kind === "config"
+          ? "CONFIG_FILE_READ_FAILED"
+          : "STORAGE_STATE_UNAVAILABLE",
+      );
+    }
+    if (stats.isSymbolicLink()) fail(codes.symlink);
+    if (!stats.isFile()) fail(codes.notRegular);
+    if (stats.size <= 0) fail(codes.empty);
+    if (stats.size > maxBytes) fail(codes.tooLarge);
+    validatePermissions(stats.mode, codes.permissions);
+    const contents = await file.readFile();
+    const finalStats = await file.stat();
+    if (
+      finalStats.size !== stats.size ||
+      finalStats.mtimeMs !== stats.mtimeMs
+    ) {
+      fail(
+        kind === "config"
+          ? "CONFIG_FILE_READ_FAILED"
+          : "STORAGE_STATE_UNAVAILABLE",
+      );
+    }
+    if (contents.byteLength !== stats.size) {
+      fail(
+        kind === "config"
+          ? "CONFIG_FILE_READ_FAILED"
+          : "STORAGE_STATE_UNAVAILABLE",
+      );
+    }
+    return contents;
+  } catch (error) {
+    if (error instanceof DedicatedHealthSessionConfigError) throw error;
+    fail(
+      kind === "config"
+        ? "CONFIG_FILE_READ_FAILED"
+        : "STORAGE_STATE_UNAVAILABLE",
+    );
+  } finally {
+    await file.close().catch(() => undefined);
+  }
 }
 
 function parseConfig(value: unknown): string {
@@ -104,15 +164,9 @@ export async function loadDedicatedHealthSessionRegistry(
   if (typeof configFilePath !== "string" || !isAbsolute(configFilePath))
     fail("INVALID_CONFIG_FILE_PATH");
   const resolvedConfigFilePath = resolve(configFilePath);
-  const configFile = await inspectFile(resolvedConfigFilePath, "config");
-  let rawConfig: string;
-  try {
-    rawConfig = await readFile(resolvedConfigFilePath, "utf8");
-  } catch {
-    fail("CONFIG_FILE_READ_FAILED");
-  }
-  if (Buffer.byteLength(rawConfig, "utf8") !== configFile.size)
-    fail("CONFIG_FILE_READ_FAILED");
+  const rawConfig = (
+    await readValidatedFile(resolvedConfigFilePath, "config")
+  ).toString("utf8");
   let parsed: unknown;
   try {
     parsed = JSON.parse(rawConfig) as unknown;
@@ -120,6 +174,30 @@ export async function loadDedicatedHealthSessionRegistry(
     fail("CONFIG_JSON_INVALID");
   }
   const storageStatePath = parseConfig(parsed);
-  await inspectFile(storageStatePath, "storage");
-  return createTrustedDedicatedHealthSessionRegistry(storageStatePath);
+  const rawStorageState = await readValidatedFile(storageStatePath, "storage");
+  let storageState: unknown;
+  try {
+    storageState = JSON.parse(rawStorageState.toString("utf8")) as unknown;
+  } catch {
+    fail("CONFIG_JSON_INVALID");
+  }
+  if (
+    typeof storageState !== "object" ||
+    storageState === null ||
+    Array.isArray(storageState)
+  ) {
+    fail("CONFIG_SCHEMA_INVALID");
+  }
+  const trustedStorageState = deepFreeze(
+    storageState as DedicatedHealthSessionStorageState,
+  );
+  return createTrustedDedicatedHealthSessionRegistry(trustedStorageState);
+}
+
+function deepFreeze<T>(value: T): T {
+  if (typeof value !== "object" || value === null) return value;
+  for (const nested of Object.values(value as Record<string, unknown>)) {
+    deepFreeze(nested);
+  }
+  return Object.freeze(value);
 }
