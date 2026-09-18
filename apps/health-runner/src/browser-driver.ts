@@ -25,10 +25,11 @@ import { createChatGPTStandardH3Strategy } from "./standard-h3-strategy.js";
 import { createChatGPTWorkH3Strategy } from "./work-h3-strategy.js";
 import type { H3SurfaceStrategy } from "./h3-strategy.js";
 import {
-  resolveTrustedDedicatedHealthSessionStorageState,
+  DedicatedHealthSessionConfigError,
+  resolveTrustedDedicatedHealthSessionBinding,
   type DedicatedHealthSessionRegistry,
   type DedicatedHealthSessionStorageState,
-  type DedicatedHealthSessionTargetKey,
+  type TrustedDedicatedHealthSessionBinding,
 } from "./dedicated-health-session-internal.js";
 
 export type BrowserDriverErrorCode =
@@ -77,9 +78,16 @@ export type ControlledNavigationResult = Readonly<{
 const DEFAULT_LAUNCH_TIMEOUT_MS = 15_000;
 const NAVIGATION_STABILIZATION_MS = 350;
 
-const dedicatedStorageStates = new WeakMap<
+const dedicatedStandardStorageStates = new WeakMap<
   ChromeBrowserDriver,
   DedicatedHealthSessionStorageState
+>();
+const dedicatedWorkCapabilities = new WeakMap<
+  ChromeBrowserDriver,
+  Extract<
+    TrustedDedicatedHealthSessionBinding,
+    { targetKey: "chatgpt_work_health" }
+  >
 >();
 
 type FetchRequestPausedEvent = Readonly<{
@@ -140,7 +148,9 @@ export class ChromeBrowserDriver implements BrowserDriver {
     if (this.#state !== "PREPARED")
       throw new BrowserDriverError("INVALID_DRIVER_LIFECYCLE");
     try {
-      const storageState = dedicatedStorageStates.get(this);
+      const standardStorageState = dedicatedStandardStorageStates.get(this);
+      const workCapability = dedicatedWorkCapabilities.get(this);
+      const storageState = workCapability?.storageState ?? standardStorageState;
       const browser = await chromium.launch({
         headless: true,
         timeout: this.launchTimeoutMs,
@@ -186,10 +196,11 @@ export class ChromeBrowserDriver implements BrowserDriver {
     }
     if (target.browserFamily !== this.family)
       throw new BrowserDriverError("CONTROLLED_TARGET_NOT_REGISTERED");
+    const startUrl = dedicatedWorkCapabilities.get(this)?.startUrl;
     this.#activeTarget = target;
     this.#primaryNavigationStarted = false;
     try {
-      await this.#page.goto(target.startUrl, {
+      await this.#page.goto(startUrl ?? target.startUrl, {
         timeout: target.navigationTimeoutMs,
         waitUntil: "domcontentloaded",
       });
@@ -265,7 +276,8 @@ export class ChromeBrowserDriver implements BrowserDriver {
   public async closeOrPersist(): Promise<void> {
     const context = this.#context;
     const browser = this.#browser;
-    dedicatedStorageStates.delete(this);
+    dedicatedStandardStorageStates.delete(this);
+    dedicatedWorkCapabilities.delete(this);
     await this.#disposeChromeNavigationFirewall();
     this.#page = undefined;
     this.#context = undefined;
@@ -477,16 +489,53 @@ export class ChromeBrowserDriver implements BrowserDriver {
 export function createDedicatedHealthChromeBrowserDriver(
   targets: ControlledTargetRegistry,
   registry: DedicatedHealthSessionRegistry,
-  targetKey: DedicatedHealthSessionTargetKey,
+  targetKey: "chatgpt_standard_health",
   launchTimeoutMs = DEFAULT_LAUNCH_TIMEOUT_MS,
 ): ChromeBrowserDriver {
-  const storageState = resolveTrustedDedicatedHealthSessionStorageState(
+  if (targetKey !== "chatgpt_standard_health") {
+    throw new DedicatedHealthSessionConfigError("TARGET_NOT_CONFIGURED");
+  }
+  const binding = resolveTrustedDedicatedHealthSessionBinding(
     registry,
-    targetKey,
+    "chatgpt_standard_health",
   );
+  if (binding.targetKey !== "chatgpt_standard_health") {
+    throw new DedicatedHealthSessionConfigError("TARGET_NOT_CONFIGURED");
+  }
   const standardTarget = targets.resolve("chatgpt_standard_health");
   const standardTargets = createControlledTargetRegistry([standardTarget]);
   const driver = new ChromeBrowserDriver(standardTargets, launchTimeoutMs);
-  dedicatedStorageStates.set(driver, storageState);
+  dedicatedStandardStorageStates.set(driver, binding.storageState);
+  return driver;
+}
+
+export function createDedicatedWorkHealthChromeBrowserDriver(
+  targets: ControlledTargetRegistry,
+  registry: DedicatedHealthSessionRegistry,
+  targetKey: "chatgpt_work_health",
+  launchTimeoutMs = DEFAULT_LAUNCH_TIMEOUT_MS,
+): ChromeBrowserDriver {
+  if (targetKey !== "chatgpt_work_health") {
+    throw new DedicatedHealthSessionConfigError("TARGET_NOT_CONFIGURED");
+  }
+  const binding = resolveTrustedDedicatedHealthSessionBinding(
+    registry,
+    "chatgpt_work_health",
+  );
+  if (
+    binding.targetKey !== "chatgpt_work_health" ||
+    typeof binding.startUrl !== "string"
+  ) {
+    throw new DedicatedHealthSessionConfigError("TARGET_NOT_CONFIGURED");
+  }
+  const workTarget = targets.resolve("chatgpt_work_health");
+  const workTargets = createControlledTargetRegistry([
+    {
+      ...workTarget,
+      startUrl: binding.startUrl,
+    },
+  ]);
+  const driver = new ChromeBrowserDriver(workTargets, launchTimeoutMs);
+  dedicatedWorkCapabilities.set(driver, binding);
   return driver;
 }

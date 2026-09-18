@@ -1,12 +1,14 @@
 import { constants } from "node:fs";
 import { lstat, open } from "node:fs/promises";
 import { isAbsolute, resolve } from "node:path";
+import { CHATGPT_WORK_H3_PROFILE, parseWorkRoute } from "./work-h3-profile.js";
 import {
   createTrustedDedicatedHealthSessionRegistry,
   DedicatedHealthSessionConfigError,
   type DedicatedHealthSessionConfigErrorCode,
   type DedicatedHealthSessionRegistry,
   type DedicatedHealthSessionStorageState,
+  type DedicatedHealthSessionTargetKey,
 } from "./dedicated-health-session-internal.js";
 
 const MAX_CONFIG_FILE_BYTES = 64 * 1024;
@@ -51,7 +53,10 @@ function validatePermissions(
 async function readValidatedFile(
   filePath: string,
   kind: "config" | "storage",
-): Promise<Buffer> {
+): Promise<{
+  contents: Buffer;
+  identity: Readonly<{ device: number; inode: number }>;
+}> {
   const codes =
     kind === "config"
       ? {
@@ -131,7 +136,25 @@ async function readValidatedFile(
           : "STORAGE_STATE_UNAVAILABLE",
       );
     }
-    return contents;
+    const pathStats = await lstat(filePath);
+    if (
+      pathStats.isSymbolicLink() ||
+      !pathStats.isFile() ||
+      pathStats.dev !== stats.dev ||
+      pathStats.ino !== stats.ino ||
+      pathStats.size !== stats.size ||
+      pathStats.mtimeMs !== stats.mtimeMs
+    ) {
+      fail(
+        kind === "config"
+          ? "CONFIG_FILE_READ_FAILED"
+          : "STORAGE_STATE_UNAVAILABLE",
+      );
+    }
+    return {
+      contents,
+      identity: { device: stats.dev, inode: stats.ino },
+    };
   } catch (error) {
     if (error instanceof DedicatedHealthSessionConfigError) throw error;
     fail(
@@ -144,18 +167,76 @@ async function readValidatedFile(
   }
 }
 
-function parseConfig(value: unknown): string {
+type ParsedTarget = Readonly<{
+  targetKey: DedicatedHealthSessionTargetKey;
+  storageStatePath: string;
+  startUrl?: string;
+}>;
+
+const STANDARD_TARGET_KEY = "chatgpt_standard_health" as const;
+const WORK_TARGET_KEY = "chatgpt_work_health" as const;
+
+function parseWorkStartUrl(value: unknown): string {
+  if (typeof value !== "string" || value.length === 0 || value.length > 2_048)
+    fail("INVALID_WORK_START_URL");
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    fail("INVALID_WORK_START_URL");
+  }
+  if (
+    parsed.protocol !== "https:" ||
+    parsed.origin !== CHATGPT_WORK_H3_PROFILE.approvedOrigin ||
+    parsed.username !== "" ||
+    parsed.password !== "" ||
+    parsed.search !== "" ||
+    parsed.hash !== "" ||
+    parseWorkRoute(parsed.toString()) === null
+  ) {
+    fail("INVALID_WORK_START_URL");
+  }
+  return parsed.toString();
+}
+
+function parseTarget(
+  targetKey: DedicatedHealthSessionTargetKey,
+  value: unknown,
+): ParsedTarget {
+  if (!isRecord(value)) fail("CONFIG_SCHEMA_INVALID");
+  const expectedKeys =
+    targetKey === STANDARD_TARGET_KEY
+      ? ["storageStatePath"]
+      : ["storageStatePath", "startUrl"];
+  if (
+    !hasOnlyKeys(value, expectedKeys) ||
+    !("storageStatePath" in value) ||
+    (targetKey === WORK_TARGET_KEY && !("startUrl" in value))
+  ) {
+    fail("CONFIG_SCHEMA_INVALID");
+  }
+  const storageStatePath = requireAbsolutePath(value.storageStatePath);
+  if (targetKey === STANDARD_TARGET_KEY) {
+    return { targetKey, storageStatePath };
+  }
+  return {
+    targetKey,
+    storageStatePath,
+    startUrl: parseWorkStartUrl(value.startUrl),
+  };
+}
+
+function parseConfig(value: unknown): ParsedTarget[] {
   if (!isRecord(value) || !hasOnlyKeys(value, ["version", "targets"]))
     fail("CONFIG_SCHEMA_INVALID");
-  if (value.version !== 1 || !isRecord(value.targets))
+  const targets = value.targets;
+  if (value.version !== 1 || !isRecord(targets)) fail("CONFIG_SCHEMA_INVALID");
+  if (Object.keys(targets).length === 0) fail("NO_TARGETS_CONFIGURED");
+  if (!hasOnlyKeys(targets, [STANDARD_TARGET_KEY, WORK_TARGET_KEY]))
     fail("CONFIG_SCHEMA_INVALID");
-  if (Object.keys(value.targets).length === 0) fail("NO_TARGETS_CONFIGURED");
-  if (!hasOnlyKeys(value.targets, ["chatgpt_standard_health"]))
-    fail("CONFIG_SCHEMA_INVALID");
-  const target = value.targets.chatgpt_standard_health;
-  if (!isRecord(target) || !hasOnlyKeys(target, ["storageStatePath"]))
-    fail("CONFIG_SCHEMA_INVALID");
-  return requireAbsolutePath(target.storageStatePath);
+  return ([STANDARD_TARGET_KEY, WORK_TARGET_KEY] as const)
+    .filter((targetKey) => targetKey in targets)
+    .map((targetKey) => parseTarget(targetKey, targets[targetKey]));
 }
 
 export async function loadDedicatedHealthSessionRegistry(
@@ -166,32 +247,71 @@ export async function loadDedicatedHealthSessionRegistry(
   const resolvedConfigFilePath = resolve(configFilePath);
   const rawConfig = (
     await readValidatedFile(resolvedConfigFilePath, "config")
-  ).toString("utf8");
+  ).contents.toString("utf8");
   let parsed: unknown;
   try {
     parsed = JSON.parse(rawConfig) as unknown;
   } catch {
     fail("CONFIG_JSON_INVALID");
   }
-  const storageStatePath = parseConfig(parsed);
-  const rawStorageState = await readValidatedFile(storageStatePath, "storage");
-  let storageState: unknown;
-  try {
-    storageState = JSON.parse(rawStorageState.toString("utf8")) as unknown;
-  } catch {
-    fail("CONFIG_JSON_INVALID");
-  }
-  if (
-    typeof storageState !== "object" ||
-    storageState === null ||
-    Array.isArray(storageState)
-  ) {
-    fail("CONFIG_SCHEMA_INVALID");
-  }
-  const trustedStorageState = deepFreeze(
-    storageState as DedicatedHealthSessionStorageState,
+  const targets = parseConfig(parsed);
+  const loadedTargets = await Promise.all(
+    targets.map(async (target) => {
+      const rawStorageState = await readValidatedFile(
+        target.storageStatePath,
+        "storage",
+      );
+      let storageState: unknown;
+      try {
+        storageState = JSON.parse(
+          rawStorageState.contents.toString("utf8"),
+        ) as unknown;
+      } catch {
+        fail("CONFIG_JSON_INVALID");
+      }
+      if (
+        typeof storageState !== "object" ||
+        storageState === null ||
+        Array.isArray(storageState)
+      ) {
+        fail("CONFIG_SCHEMA_INVALID");
+      }
+      return {
+        target,
+        identity: rawStorageState.identity,
+        storageState: deepFreeze(
+          storageState as DedicatedHealthSessionStorageState,
+        ),
+      };
+    }),
   );
-  return createTrustedDedicatedHealthSessionRegistry(trustedStorageState);
+  for (let left = 0; left < loadedTargets.length; left += 1) {
+    for (let right = left + 1; right < loadedTargets.length; right += 1) {
+      const first = loadedTargets[left];
+      const second = loadedTargets[right];
+      if (
+        first &&
+        second &&
+        first.identity.device === second.identity.device &&
+        first.identity.inode === second.identity.inode
+      ) {
+        fail("DUPLICATE_STORAGE_STATE");
+      }
+    }
+  }
+  return createTrustedDedicatedHealthSessionRegistry(
+    loadedTargets.map(({ target, storageState }) =>
+      Object.freeze(
+        target.targetKey === STANDARD_TARGET_KEY
+          ? { targetKey: target.targetKey, storageState }
+          : {
+              targetKey: target.targetKey,
+              storageState,
+              startUrl: target.startUrl as string,
+            },
+      ),
+    ),
+  );
 }
 
 function deepFreeze<T>(value: T): T {

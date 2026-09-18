@@ -1,6 +1,8 @@
 import type { BrowserContextOptions } from "playwright";
 
-export type DedicatedHealthSessionTargetKey = "chatgpt_standard_health";
+export type DedicatedHealthSessionTargetKey =
+  | "chatgpt_standard_health"
+  | "chatgpt_work_health";
 
 export type DedicatedHealthSessionConfigErrorCode =
   | "INVALID_CONFIG_FILE_PATH"
@@ -21,6 +23,8 @@ export type DedicatedHealthSessionConfigErrorCode =
   | "STORAGE_STATE_EMPTY"
   | "STORAGE_STATE_TOO_LARGE"
   | "STORAGE_STATE_PERMISSIONS"
+  | "DUPLICATE_STORAGE_STATE"
+  | "INVALID_WORK_START_URL"
   | "UNTRUSTED_SESSION_REGISTRY"
   | "TARGET_NOT_CONFIGURED";
 
@@ -42,9 +46,24 @@ export type DedicatedHealthSessionStorageState = Exclude<
   string
 >;
 
-const trustedStorageStates = new WeakMap<
+export type TrustedDedicatedHealthSessionBinding = Readonly<
+  | {
+      targetKey: "chatgpt_standard_health";
+      storageState: DedicatedHealthSessionStorageState;
+    }
+  | {
+      targetKey: "chatgpt_work_health";
+      storageState: DedicatedHealthSessionStorageState;
+      startUrl: string;
+    }
+>;
+
+const registryBindings = new WeakMap<
   object,
-  DedicatedHealthSessionStorageState
+  ReadonlyMap<
+    DedicatedHealthSessionTargetKey,
+    TrustedDedicatedHealthSessionBinding
+  >
 >();
 
 function fail(code: DedicatedHealthSessionConfigErrorCode): never {
@@ -52,25 +71,35 @@ function fail(code: DedicatedHealthSessionConfigErrorCode): never {
 }
 
 export function createTrustedDedicatedHealthSessionRegistry(
-  storageState: DedicatedHealthSessionStorageState,
+  bindings: readonly TrustedDedicatedHealthSessionBinding[],
 ): DedicatedHealthSessionRegistry {
   const registry = Object.freeze({}) as DedicatedHealthSessionRegistry;
-  trustedStorageStates.set(registry, storageState);
+  registryBindings.set(
+    registry,
+    new Map(bindings.map((binding) => [binding.targetKey, binding])),
+  );
   return registry;
 }
 
-export function resolveTrustedDedicatedHealthSessionStorageState(
+export function resolveTrustedDedicatedHealthSessionBinding(
   registry: DedicatedHealthSessionRegistry,
   targetKey: string,
-): DedicatedHealthSessionStorageState {
+): TrustedDedicatedHealthSessionBinding {
   if (
     (typeof registry !== "object" && typeof registry !== "function") ||
     registry === null
   ) {
     fail("UNTRUSTED_SESSION_REGISTRY");
   }
-  if (targetKey !== "chatgpt_standard_health") fail("TARGET_NOT_CONFIGURED");
-  const storageState = trustedStorageStates.get(registry);
-  if (storageState === undefined) fail("UNTRUSTED_SESSION_REGISTRY");
-  return storageState;
+  if (
+    targetKey !== "chatgpt_standard_health" &&
+    targetKey !== "chatgpt_work_health"
+  ) {
+    fail("TARGET_NOT_CONFIGURED");
+  }
+  const bindings = registryBindings.get(registry);
+  if (!bindings) fail("UNTRUSTED_SESSION_REGISTRY");
+  const binding = bindings.get(targetKey);
+  if (!binding) fail("TARGET_NOT_CONFIGURED");
+  return binding;
 }

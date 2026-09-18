@@ -14,6 +14,7 @@ import {
   ChromeBrowserDriver,
   createControlledTargetRegistry,
   createDedicatedHealthChromeBrowserDriver,
+  createDedicatedWorkHealthChromeBrowserDriver,
   loadDedicatedHealthSessionRegistry,
 } from "@product/health-runner";
 
@@ -101,6 +102,54 @@ async function withSyntheticState(
   }
 }
 
+async function withSyntheticWorkState(
+  callback: (statePath: string, configPath: string) => Promise<void>,
+): Promise<void> {
+  const directory = await mkdtemp(join(tmpdir(), "health-dedicated-work-e2e-"));
+  const statePath = join(directory, "dedicated-work-state.json");
+  const configPath = join(directory, "config.json");
+  await writeFile(
+    statePath,
+    JSON.stringify({
+      cookies: [
+        {
+          domain: "127.0.0.1",
+          expires: -1,
+          httpOnly: false,
+          name: COOKIE_NAME,
+          path: "/",
+          sameSite: "Lax",
+          secure: false,
+          value: COOKIE_VALUE,
+        },
+      ],
+      origins: [],
+    }),
+    { mode: 0o600 },
+  );
+  await chmod(statePath, 0o600);
+  await writeFile(
+    configPath,
+    JSON.stringify({
+      version: 1,
+      targets: {
+        chatgpt_work_health: {
+          storageStatePath: statePath,
+          startUrl:
+            "https://chatgpt.com/g/g-p-private-project/c/00000000-0000-4000-8000-000000000001",
+        },
+      },
+    }),
+    { mode: 0o600 },
+  );
+  await chmod(configPath, 0o600);
+  try {
+    await callback(statePath, configPath);
+  } finally {
+    await rm(directory, { force: true, recursive: true });
+  }
+}
+
 function targets(origin: string, startPath = "/standard-start") {
   return createControlledTargetRegistry([
     {
@@ -114,6 +163,18 @@ function targets(origin: string, startPath = "/standard-start") {
       key: "chatgpt_work_health",
       startUrl: `${origin}/work-start`,
       allowedTopLevelOrigins: [origin],
+      browserFamily: "chrome",
+      navigationTimeoutMs: 5_000,
+    },
+  ]);
+}
+
+function dedicatedWorkTargets() {
+  return createControlledTargetRegistry([
+    {
+      key: "chatgpt_work_health",
+      startUrl: "https://chatgpt.com/caller-controlled-route",
+      allowedTopLevelOrigins: ["https://chatgpt.com"],
       browserFamily: "chrome",
       navigationTimeoutMs: 5_000,
     },
@@ -252,6 +313,42 @@ test.describe("Standard dedicated Health session capability", () => {
           await driver.closeOrPersist();
         }
         expect(fixture.requests()).toEqual([]);
+      });
+    } finally {
+      await fixture.close();
+    }
+  });
+});
+
+test.describe("Work dedicated Health controlled boundary", () => {
+  test("WD-C01/02/03/08 uses fresh non-persistent contexts without provider navigation", async () => {
+    const fixture = await startFixture();
+    try {
+      await withSyntheticWorkState(async (statePath, configPath) => {
+        const stateBefore = await readFile(statePath, "utf8");
+        const registry = await loadDedicatedHealthSessionRegistry(configPath);
+        const first = createDedicatedWorkHealthChromeBrowserDriver(
+          dedicatedWorkTargets(),
+          registry,
+          "chatgpt_work_health",
+        );
+        await first.start();
+        const firstMetadata = first.getRuntimeMetadata();
+        await first.closeOrPersist();
+
+        const second = createDedicatedWorkHealthChromeBrowserDriver(
+          dedicatedWorkTargets(),
+          registry,
+          "chatgpt_work_health",
+        );
+        await second.start();
+        const secondMetadata = second.getRuntimeMetadata();
+        await second.closeOrPersist();
+
+        expect(firstMetadata.sessionKind).toBe("EPHEMERAL_CONTROLLED");
+        expect(secondMetadata.sessionKind).toBe("EPHEMERAL_CONTROLLED");
+        expect(fixture.requests()).toEqual([]);
+        expect(await readFile(statePath, "utf8")).toBe(stateBefore);
       });
     } finally {
       await fixture.close();
