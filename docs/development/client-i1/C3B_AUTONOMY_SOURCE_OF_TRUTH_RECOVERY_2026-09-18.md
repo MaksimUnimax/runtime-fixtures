@@ -419,8 +419,8 @@ The current C2/C3A green tests are baseline evidence for the implemented old pol
 | `python3 tooling/checks/extension_i1.py --output /tmp/sa-c3b-i1-check-20260918` | BLOCKED/FAIL before tests: Node `v12.22.9`, syntax error on optional chaining in composed `attachment_delivery_port_content.js`; no product test result claimed |
 | C2 offline focused suite | IDENTIFIED as `tests/regression/extension-core/client-i1/client-offline-policy.mjs`; not executed independently because the same Node v12 syntax gate blocks composition/checker |
 | C3A focused suite | Identified as C3A additions in `tests/regression/extension-core/application.mjs` (`C3A-01`…`C3A-04`); not executed independently because the same Node v12 syntax gate blocks composed runtime |
-| `pnpm docs:check` | Pending until artifact exists; run after this document is created |
-| `git diff --check` | Pending until artifact is created |
+| `node tooling/checks/docs-check.mjs` (repository docs check implementation) | BLOCKED/FAIL before documentation validation: Node `v12.22.9` cannot parse optional chaining at `tooling/checks/docs-check.mjs:54`; `pnpm` is not installed for the package-script wrapper |
+| `git diff --check` | PASS before and after commit; cached commit diff also clean |
 | Marketplace/provider calls | NONE |
 
 ## 18. No-production-code-changed attestation
