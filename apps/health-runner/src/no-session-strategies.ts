@@ -7,6 +7,7 @@ import {
   type NoSessionObservationResult,
   type NoSessionPageSnapshot,
 } from "./no-session-contracts.js";
+import type { NoSessionNavigationResult } from "./no-session-browser-driver.js";
 import {
   type NoSessionTarget,
   NO_SESSION_TARGETS,
@@ -26,6 +27,10 @@ export const NoSessionSelectorProfileSchema = z
     captchaSelectors: z.array(z.string().min(1).max(256)).max(8),
     blockedSelectors: z.array(z.string().min(1).max(256)).max(8),
     maintenanceSelectors: z.array(z.string().min(1).max(256)).max(8),
+    hydrationSelectors: z.array(z.string().min(1).max(256)).max(8),
+    providerTitleTokens: z.array(z.string().min(1).max(64)).max(4),
+    securityTitleTokens: z.array(z.string().min(1).max(64)).max(4),
+    blockedTitleTokens: z.array(z.string().min(1).max(64)).max(4),
   })
   .strict();
 export type NoSessionSelectorProfile = Readonly<
@@ -43,6 +48,7 @@ export interface NoSessionProviderStrategy {
     snapshot: NoSessionPageSnapshot,
     browserRuntime: NoSessionObservationResult["browserRuntime"],
     observedAt: string,
+    navigation?: NoSessionNavigationResult,
   ): NoSessionObservationResult;
 }
 
@@ -50,27 +56,36 @@ const PROFILES: readonly NoSessionSelectorProfile[] = [
   {
     profileId: "chatgpt-standard-public-v1",
     identitySelectors: [
+      '[aria-label="ChatGPT logo"]',
+      'main[aria-label="ChatGPT"]',
       '[data-testid="login-button"]',
       '[data-testid="signup-button"]',
       "#prompt-textarea",
     ],
     surfaceSelectors: ["main", '[data-testid="conversation-turn"]'],
-    composerSelectors: ["#prompt-textarea", '[contenteditable="true"]'],
+    composerSelectors: [
+      'textarea[aria-label="Chat with ChatGPT"]',
+      "#prompt-textarea",
+      '[contenteditable="true"]',
+    ],
     inputSelectors: [
+      'textarea[aria-label="Chat with ChatGPT"]',
       "#prompt-textarea",
       "textarea",
       '[contenteditable="true"]',
     ],
     sendSelectors: [
+      'button[aria-label="Send message"]',
       '[data-testid="send-button"]',
       'button[aria-label*="Send"]',
       'button[aria-label*="send"]',
     ],
-    authSelectors: [
+    authSelectors: [],
+    loginSelectors: [
+      '[aria-label="Log in or sign up"]',
       '[data-testid="login-button"]',
-      '[data-testid="signup-button"]',
+      'a[href*="/auth/login"]',
     ],
-    loginSelectors: ['[data-testid="login-button"]', 'a[href*="/auth/login"]'],
     securitySelectors: [
       '[data-testid="cf-challenge"]',
       '[data-testid="security-check"]',
@@ -84,6 +99,14 @@ const PROFILES: readonly NoSessionSelectorProfile[] = [
       '[data-testid="maintenance"]',
       '[data-testid="status-page"]',
     ],
+    hydrationSelectors: [
+      "main",
+      "#prompt-textarea",
+      '[contenteditable="true"]',
+    ],
+    providerTitleTokens: ["chatgpt", "openai"],
+    securityTitleTokens: ["just a moment", "checking your browser"],
+    blockedTitleTokens: ["access denied", "forbidden"],
   },
   {
     profileId: "chatgpt-work-public-v1",
@@ -108,10 +131,7 @@ const PROFILES: readonly NoSessionSelectorProfile[] = [
       '[data-testid="send-button"]',
       'button[aria-label*="Send"]',
     ],
-    authSelectors: [
-      '[data-testid="login-button"]',
-      '[data-testid="signup-button"]',
-    ],
+    authSelectors: [],
     loginSelectors: ['[data-testid="login-button"]', 'a[href*="/auth/login"]'],
     securitySelectors: [
       '[data-testid="cf-challenge"]',
@@ -126,37 +146,38 @@ const PROFILES: readonly NoSessionSelectorProfile[] = [
       '[data-testid="maintenance"]',
       '[data-testid="status-page"]',
     ],
+    hydrationSelectors: [
+      "main[data-workspace]",
+      '[data-testid="workspace-chat"]',
+    ],
+    providerTitleTokens: ["chatgpt", "openai"],
+    securityTitleTokens: ["just a moment", "checking your browser"],
+    blockedTitleTokens: ["access denied", "forbidden"],
   },
   {
     profileId: "alice-public-v1",
     identitySelectors: [
-      '[data-testid="alice-ai"]',
+      '[aria-label="Алиса AI"]',
       '[data-testid="alice-chat"]',
-      '[aria-label*="Алиса"]',
+      '[data-testid="main-page"]',
     ],
     surfaceSelectors: [
       '[data-testid="alice-chat"]',
       '[data-testid="alice-composer"]',
     ],
     composerSelectors: [
-      '[data-testid="alice-composer"]',
-      '[contenteditable="true"][data-alice]',
+      '[data-testid="standalone-input"]',
+      '[data-testid="standalone-input-field"]',
     ],
-    inputSelectors: [
-      "textarea[data-alice]",
-      '[contenteditable="true"][data-alice]',
-    ],
+    inputSelectors: ['[data-testid="inputbase-textarea"]', "textarea"],
     sendSelectors: [
+      '[data-testid="input-controls-root"]',
       '[data-testid="alice-send"]',
-      'button[aria-label*="Отправить"]',
     ],
-    authSelectors: [
-      '[data-testid="yandex-login"]',
-      'a[href*="passport.yandex"]',
-    ],
+    authSelectors: [],
     loginSelectors: [
-      '[data-testid="yandex-login"]',
-      'a[href*="passport.yandex"]',
+      '[data-testid="chat-list-login-button"]',
+      'button[aria-label="Яндекс ID"]',
     ],
     securitySelectors: ['[data-testid="yandex-checkpoint"]'],
     captchaSelectors: ['iframe[src*="captcha"]', '[data-testid="captcha"]'],
@@ -168,6 +189,14 @@ const PROFILES: readonly NoSessionSelectorProfile[] = [
       '[data-testid="maintenance"]',
       '[data-testid="alice-maintenance"]',
     ],
+    hydrationSelectors: [
+      '[data-testid="alice-chat"]',
+      '[data-testid="main-page"]',
+      '[data-testid="standalone-input"]',
+    ],
+    providerTitleTokens: ["алиса", "alice", "яндекс"],
+    securityTitleTokens: ["проверка"],
+    blockedTitleTokens: ["доступ запрещен", "access denied"],
   },
   {
     profileId: "deepseek-public-v1",
@@ -192,7 +221,7 @@ const PROFILES: readonly NoSessionSelectorProfile[] = [
       '[data-testid="deepseek-send"]',
       'button[aria-label*="Send"]',
     ],
-    authSelectors: ['[data-testid="deepseek-login"]', 'a[href*="/sign_in"]'],
+    authSelectors: [],
     loginSelectors: ['[data-testid="deepseek-login"]', 'a[href*="/sign_in"]'],
     securitySelectors: ['[data-testid="deepseek-security-check"]'],
     captchaSelectors: ['iframe[src*="captcha"]', '[data-testid="captcha"]'],
@@ -204,28 +233,38 @@ const PROFILES: readonly NoSessionSelectorProfile[] = [
       '[data-testid="deepseek-maintenance"]',
       '[data-testid="maintenance"]',
     ],
+    hydrationSelectors: [
+      '[data-testid="deepseek-chat"]',
+      '[data-testid="auth-panel"]',
+    ],
+    providerTitleTokens: ["deepseek"],
+    securityTitleTokens: ["security check", "checking your browser"],
+    blockedTitleTokens: ["error", "access denied", "forbidden"],
   },
   {
     profileId: "grok-public-v1",
     identitySelectors: [
-      '[data-testid="grok-logo"]',
-      '[data-testid="grok-home"]',
-      "[data-grok-surface]",
+      '[aria-label="Home page"]',
+      '[data-testid="drop-container"]',
+      '[data-testid="chat-submit"]',
     ],
     surfaceSelectors: [
-      '[data-testid="grok-home"]',
-      '[data-testid="grok-composer"]',
+      '[data-testid="drop-container"]',
+      '[aria-label="Conversation attachments"]',
     ],
     composerSelectors: [
-      '[data-testid="grok-composer"]',
-      '[contenteditable="true"][data-grok]',
+      'textarea[aria-label="Ask Grok anything"]',
+      '[data-testid="drop-container"] textarea',
     ],
     inputSelectors: [
-      "textarea[data-grok]",
-      '[contenteditable="true"][data-grok]',
+      'textarea[aria-label="Ask Grok anything"]',
+      '[data-testid="drop-container"] textarea',
     ],
-    sendSelectors: ['[data-testid="grok-send"]', 'button[aria-label*="Send"]'],
-    authSelectors: ['[data-testid="grok-login"]', 'a[href*="/login"]'],
+    sendSelectors: [
+      '[data-testid="chat-submit"]',
+      'button[aria-label="Submit"]',
+    ],
+    authSelectors: [],
     loginSelectors: ['[data-testid="grok-login"]', 'a[href*="/login"]'],
     securitySelectors: ['[data-testid="grok-security-check"]'],
     captchaSelectors: ['iframe[src*="captcha"]', '[data-testid="captcha"]'],
@@ -237,18 +276,22 @@ const PROFILES: readonly NoSessionSelectorProfile[] = [
       '[data-testid="grok-maintenance"]',
       '[data-testid="maintenance"]',
     ],
+    hydrationSelectors: [
+      '[data-testid="drop-container"]',
+      'textarea[aria-label="Ask Grok anything"]',
+    ],
+    providerTitleTokens: ["grok", "xai"],
+    securityTitleTokens: ["just a moment", "checking your browser"],
+    blockedTitleTokens: ["access denied", "forbidden"],
   },
   {
     profileId: "claude-public-v1",
     identitySelectors: [
+      'a[href*="claude.ai"]',
+      'a[href*="/login"]',
       '[data-testid="claude-logo"]',
-      '[data-testid="claude-home"]',
-      "[data-claude-surface]",
     ],
-    surfaceSelectors: [
-      '[data-testid="claude-home"]',
-      '[data-testid="auth-panel"]',
-    ],
+    surfaceSelectors: ['a[href*="claude.ai"]', '[data-testid="auth-panel"]'],
     composerSelectors: [
       '[data-testid="claude-composer"]',
       '[contenteditable="true"][data-claude]',
@@ -261,7 +304,7 @@ const PROFILES: readonly NoSessionSelectorProfile[] = [
       '[data-testid="claude-send"]',
       'button[aria-label*="Send"]',
     ],
-    authSelectors: ['[data-testid="claude-login"]', 'a[href*="/login"]'],
+    authSelectors: [],
     loginSelectors: ['[data-testid="claude-login"]', 'a[href*="/login"]'],
     securitySelectors: ['[data-testid="claude-security-check"]'],
     captchaSelectors: ['iframe[src*="captcha"]', '[data-testid="captcha"]'],
@@ -273,34 +316,35 @@ const PROFILES: readonly NoSessionSelectorProfile[] = [
       '[data-testid="claude-maintenance"]',
       '[data-testid="maintenance"]',
     ],
+    hydrationSelectors: ['a[href*="claude.ai"]', '[data-testid="auth-panel"]'],
+    providerTitleTokens: ["claude", "anthropic"],
+    securityTitleTokens: ["just a moment", "checking your browser"],
+    blockedTitleTokens: ["access denied", "forbidden"],
   },
   {
     profileId: "gemini-public-v1",
     identitySelectors: [
-      '[data-testid="gemini-logo"]',
+      '[data-test-id="chat-app"]',
+      '[data-test-id="mavatar-sign-in-button"]',
       '[data-test-id="bard-chat"]',
-      "[data-gemini-surface]",
     ],
     surfaceSelectors: [
-      '[data-testid="bard-chat"]',
-      '[data-testid="gemini-composer"]',
+      '[data-test-id="chat-app"]',
+      '[data-test-id="textarea-inner"]',
     ],
     composerSelectors: [
-      '[data-testid="gemini-composer"]',
-      '[contenteditable="true"][data-gemini]',
+      '[role="textbox"][aria-label="Enter a prompt for Gemini"]',
+      '[data-test-id="textarea-inner"]',
     ],
     inputSelectors: [
-      "textarea[data-gemini]",
-      '[contenteditable="true"][data-gemini]',
+      '[role="textbox"][aria-label="Enter a prompt for Gemini"]',
+      '[data-test-id="textarea-inner"] [contenteditable="true"]',
     ],
     sendSelectors: [
       '[data-testid="gemini-send"]',
       'button[aria-label*="Submit"]',
     ],
-    authSelectors: [
-      '[data-testid="google-sign-in"]',
-      'a[href*="accounts.google.com"]',
-    ],
+    authSelectors: [],
     loginSelectors: [
       '[data-testid="google-sign-in"]',
       'a[href*="accounts.google.com"]',
@@ -315,28 +359,27 @@ const PROFILES: readonly NoSessionSelectorProfile[] = [
       '[data-testid="gemini-maintenance"]',
       '[data-testid="maintenance"]',
     ],
+    hydrationSelectors: [
+      '[data-test-id="chat-app"]',
+      '[data-test-id="textarea-inner"]',
+      '[data-test-id="mavatar-sign-in-button"]',
+    ],
+    providerTitleTokens: ["gemini", "bard", "google"],
+    securityTitleTokens: ["checking your browser"],
+    blockedTitleTokens: ["access denied", "forbidden"],
   },
   {
     profileId: "qwen-public-v1",
     identitySelectors: [
-      '[data-testid="qwen-logo"]',
-      '[data-testid="qwen-studio"]',
-      "[data-qwen-surface]",
+      '[aria-label="New Chat"]',
+      '[aria-label="Select Model"]',
+      "main",
     ],
-    surfaceSelectors: [
-      '[data-testid="qwen-studio"]',
-      '[data-testid="qwen-composer"]',
-    ],
-    composerSelectors: [
-      '[data-testid="qwen-composer"]',
-      '[contenteditable="true"][data-qwen]',
-    ],
-    inputSelectors: [
-      "textarea[data-qwen]",
-      '[contenteditable="true"][data-qwen]',
-    ],
-    sendSelectors: ['[data-testid="qwen-send"]', 'button[aria-label*="Send"]'],
-    authSelectors: ['[data-testid="qwen-login"]', 'a[href*="/auth"]'],
+    surfaceSelectors: ["main", "textarea"],
+    composerSelectors: ["textarea", '[role="textbox"]'],
+    inputSelectors: ["textarea", '[role="textbox"]'],
+    sendSelectors: ['button[aria-label="Send"]', 'svg[aria-label="Send"]'],
+    authSelectors: [],
     loginSelectors: ['[data-testid="qwen-login"]', 'a[href*="/auth"]'],
     securitySelectors: ['[data-testid="qwen-security-check"]'],
     captchaSelectors: ['iframe[src*="captcha"]', '[data-testid="captcha"]'],
@@ -348,28 +391,29 @@ const PROFILES: readonly NoSessionSelectorProfile[] = [
       '[data-testid="qwen-maintenance"]',
       '[data-testid="maintenance"]',
     ],
+    hydrationSelectors: ["main", '[aria-label="New Chat"]', "textarea"],
+    providerTitleTokens: ["qwen", "通义"],
+    securityTitleTokens: ["checking your browser"],
+    blockedTitleTokens: ["access denied", "forbidden"],
   },
   {
     profileId: "kimi-public-v1",
     identitySelectors: [
-      '[data-testid="kimi-logo"]',
-      '[data-testid="kimi-home"]',
-      "[data-kimi-surface]",
+      '[data-testid="sidebar-new-chat"]',
+      '[data-testid="chat-editor"]',
+      '[aria-label="新建会话"]',
     ],
     surfaceSelectors: [
-      '[data-testid="kimi-home"]',
-      '[data-testid="kimi-composer"]',
+      '[data-testid="chat-editor"]',
+      '[data-testid="sidebar-new-chat"]',
     ],
-    composerSelectors: [
-      '[data-testid="kimi-composer"]',
-      '[contenteditable="true"][data-kimi]',
-    ],
+    composerSelectors: ['[data-testid="chat-editor"]', '[role="textbox"]'],
     inputSelectors: [
-      "textarea[data-kimi]",
-      '[contenteditable="true"][data-kimi]',
+      '[role="textbox"]',
+      '[data-testid="chat-editor"] [contenteditable="true"]',
     ],
-    sendSelectors: ['[data-testid="kimi-send"]', 'button[aria-label*="Send"]'],
-    authSelectors: ['[data-testid="kimi-login"]', 'a[href*="/login"]'],
+    sendSelectors: [],
+    authSelectors: [],
     loginSelectors: ['[data-testid="kimi-login"]', 'a[href*="/login"]'],
     securitySelectors: ['[data-testid="kimi-security-check"]'],
     captchaSelectors: ['iframe[src*="captcha"]', '[data-testid="captcha"]'],
@@ -381,6 +425,14 @@ const PROFILES: readonly NoSessionSelectorProfile[] = [
       '[data-testid="kimi-maintenance"]',
       '[data-testid="maintenance"]',
     ],
+    hydrationSelectors: [
+      '[data-testid="chat-editor"]',
+      '[data-testid="sidebar-new-chat"]',
+      '[role="textbox"]',
+    ],
+    providerTitleTokens: ["kimi", "moonshot"],
+    securityTitleTokens: ["just a moment", "checking your browser"],
+    blockedTitleTokens: ["access denied", "forbidden"],
   },
 ].map((profile) =>
   Object.freeze(NoSessionSelectorProfileSchema.parse(profile)),
@@ -405,13 +457,17 @@ function emptyElementMetadata(): NoSessionElementMetadata {
 
 function contourState(
   metadata: NoSessionElementMetadata,
-  expected: boolean,
+  expectation: NoSessionTarget["capabilityExpectation"]["publicComposer"],
   identityProven: boolean,
   authWall: boolean,
 ): NoSessionContourState {
-  if (!expected) return "NOT_EXPECTED";
+  if (expectation === "NOT_EXPECTED") return "NOT_EXPECTED";
+  if (expectation === "NOT_OBSERVABLE_WITHOUT_SESSION") return "NOT_PROVABLE";
   if (!identityProven || authWall) return "NOT_PROVABLE";
-  return metadata.elementCount > 0 && metadata.visible ? "OBSERVED" : "ABSENT";
+  if (metadata.elementCount > 0 && metadata.visible) return "OBSERVED";
+  return expectation === "OPTIONAL_OR_REGION_DEPENDENT"
+    ? "NOT_EXPECTED"
+    : "ABSENT";
 }
 
 function authenticationState(
@@ -431,6 +487,7 @@ function commonEvaluate(
   strategy: NoSessionProviderStrategy,
   browserRuntime: NoSessionObservationResult["browserRuntime"],
   observedAt: string,
+  navigation: NoSessionNavigationResult,
 ): NoSessionObservationResult {
   const expectedOriginValid = target.allowedTopLevelOrigins.includes(
     snapshot.finalOrigin,
@@ -443,7 +500,7 @@ function commonEvaluate(
       ? "PROVEN"
       : "NOT_PROVEN"
     : "MISMATCH";
-  const authWall = snapshot.authWallObserved || snapshot.loginWallObserved;
+  const authWall = snapshot.authWallObserved;
   const authentication = authenticationState(target, snapshot, identityProven);
   const publicSurface = !expectedOriginValid
     ? "NOT_PROVABLE"
@@ -452,19 +509,19 @@ function commonEvaluate(
       : "NOT_PROVABLE";
   const composer = contourState(
     snapshot.composer,
-    target.publicComposerExpected,
+    target.capabilityExpectation.publicComposer,
     identityProven,
     authWall,
   );
   const editableInput = contourState(
     snapshot.editableInput,
-    target.publicComposerExpected,
+    target.capabilityExpectation.editableInput,
     identityProven,
     authWall,
   );
   const sendControl = contourState(
     snapshot.sendControl,
-    target.sendControlExpected,
+    target.capabilityExpectation.sendControl,
     identityProven,
     authWall,
   );
@@ -473,43 +530,112 @@ function commonEvaluate(
   let classification: NoSessionObservationResult["classification"] = "HEALTHY";
   let classificationBasis: NoSessionObservationResult["classificationBasis"] =
     "PUBLIC_SURFACE_PRIMARY";
-  if (!expectedOriginValid) {
+  let surfaceOutcome: NoSessionObservationResult["surfaceOutcome"] =
+    "PUBLIC_INTERACTIVE";
+  if (
+    navigation.mainDocumentHttpStatus !== null &&
+    navigation.mainDocumentHttpStatus >= 500
+  ) {
+    blocker = "NETWORK_FAILURE";
+    classification = "UNKNOWN";
+    classificationBasis = "NETWORK_FAILURE";
+    surfaceOutcome = "NETWORK_FAILURE";
+  } else if (!expectedOriginValid) {
     blocker = "ORIGIN_POLICY_VIOLATION";
     classification = "UNKNOWN";
     classificationBasis = "ORIGIN_POLICY_FAILURE";
+    surfaceOutcome = "IDENTITY_NOT_PROVEN";
   } else if (snapshot.maintenanceObserved) {
     blocker = "MAINTENANCE";
     classification = "MAINTENANCE";
     classificationBasis = "MAINTENANCE_SURFACE";
+    surfaceOutcome = "MAINTENANCE";
   } else if (snapshot.captchaObserved) {
     blocker = "CAPTCHA_SECURITY_CHECKPOINT";
     classification = "UNKNOWN";
     classificationBasis = "SECURITY_CHECKPOINT";
+    surfaceOutcome = "SECURITY_CHECKPOINT";
   } else if (snapshot.securityCheckpointObserved) {
     blocker = "SECURITY_CHECKPOINT";
     classification = "UNKNOWN";
     classificationBasis = "SECURITY_CHECKPOINT";
+    surfaceOutcome = "SECURITY_CHECKPOINT";
+  } else if (snapshot.securityTitleObserved) {
+    blocker = "SECURITY_CHECKPOINT";
+    classification = "UNKNOWN";
+    classificationBasis = "SECURITY_CHECKPOINT";
+    surfaceOutcome = "SECURITY_CHECKPOINT";
   } else if (snapshot.accessBlockedObserved) {
     blocker = "ACCESS_BLOCKED";
     classification = "UNKNOWN";
     classificationBasis = "ACCESS_BLOCKED";
-  } else if (!identityProven) {
-    blocker = "UNEXPECTED_SURFACE";
+    surfaceOutcome = "ACCESS_BLOCKED";
+  } else if (snapshot.blockedTitleObserved) {
+    blocker = "ACCESS_BLOCKED";
     classification = "UNKNOWN";
-    classificationBasis = "IDENTITY_NOT_PROVEN";
+    classificationBasis = "ACCESS_BLOCKED";
+    surfaceOutcome = "ACCESS_BLOCKED";
+  } else if (
+    navigation.mainDocumentHttpStatus !== null &&
+    navigation.mainDocumentHttpStatus >= 400
+  ) {
+    blocker = "ACCESS_BLOCKED";
+    classification = "UNKNOWN";
+    classificationBasis = "ACCESS_BLOCKED";
+    surfaceOutcome = "ACCESS_BLOCKED";
+  } else if (!identityProven) {
+    if (target.surfaceId === "CHATGPT_WORK") {
+      classification = "UNKNOWN";
+      classificationBasis = "NOT_OBSERVABLE_WITHOUT_SESSION";
+      surfaceOutcome = "NOT_OBSERVABLE_WITHOUT_SESSION";
+    } else {
+      blocker = "UNEXPECTED_SURFACE";
+      classification = "UNKNOWN";
+      classificationBasis = "IDENTITY_NOT_PROVEN";
+      surfaceOutcome = "IDENTITY_NOT_PROVEN";
+    }
   } else if (authWall) {
     classification = "UNKNOWN";
     classificationBasis = "AUTH_REQUIRED_BOUNDARY";
+    surfaceOutcome = "AUTH_REQUIRED";
   } else if (
-    (target.publicComposerExpected && composer === "ABSENT") ||
-    (target.publicComposerExpected && editableInput === "ABSENT") ||
-    (target.sendControlExpected && sendControl === "ABSENT")
+    snapshot.loginWallObserved &&
+    composer !== "OBSERVED" &&
+    editableInput !== "OBSERVED"
+  ) {
+    classification = "UNKNOWN";
+    classificationBasis = "AUTH_REQUIRED_BOUNDARY";
+    surfaceOutcome = "AUTH_REQUIRED";
+  } else if (
+    (target.capabilityExpectation.publicComposer === "EXPECTED" &&
+      composer === "ABSENT") ||
+    (target.capabilityExpectation.editableInput === "EXPECTED" &&
+      editableInput === "ABSENT") ||
+    (target.capabilityExpectation.sendControl === "EXPECTED" &&
+      sendControl === "ABSENT")
   ) {
     classification = "DRIFT";
     classificationBasis = "REQUIRED_CONTOUR_MISSING";
+    surfaceOutcome = "DRIFT";
   } else if (publicSurface !== "REACHABLE") {
     classification = "UNKNOWN";
-    classificationBasis = "UNEXPECTED_SURFACE";
+    classificationBasis =
+      target.capabilityExpectation.publicLanding ===
+      "OPTIONAL_OR_REGION_DEPENDENT"
+        ? "REGION_OR_ELIGIBILITY_BOUNDARY"
+        : "UNEXPECTED_SURFACE";
+    surfaceOutcome =
+      classificationBasis === "REGION_OR_ELIGIBILITY_BOUNDARY"
+        ? "REGION_OR_ELIGIBILITY_RESTRICTED"
+        : "IDENTITY_NOT_PROVEN";
+  } else if (
+    composer === "OBSERVED" ||
+    editableInput === "OBSERVED" ||
+    sendControl === "OBSERVED"
+  ) {
+    surfaceOutcome = "PUBLIC_INTERACTIVE";
+  } else {
+    surfaceOutcome = "PUBLIC_LANDING";
   }
 
   return {
@@ -520,6 +646,14 @@ function commonEvaluate(
     strategyRevision: target.strategyRevision,
     browserRuntime,
     navigation: "LOADED",
+    navigationEvidence: {
+      requestedStartUrl: navigation.requestedStartUrl,
+      finalUrl: navigation.finalUrl,
+      finalOrigin: navigation.finalOrigin,
+      mainDocumentHttpStatus: navigation.mainDocumentHttpStatus,
+      redirectCount: navigation.redirectCount,
+      outcome: navigation.outcome,
+    },
     finalOrigin: snapshot.finalOrigin,
     expectedOriginValid,
     identity,
@@ -531,6 +665,8 @@ function commonEvaluate(
     blocker,
     classification,
     classificationBasis,
+    surfaceOutcome,
+    readiness: snapshot.readiness,
     elementMetadata: {
       composer:
         identityProven && !authWall
@@ -559,13 +695,27 @@ function strategyFor(target: NoSessionTarget): NoSessionProviderStrategy {
     strategyId: target.strategyId,
     strategyRevision: target.strategyRevision,
     profile,
-    evaluate: (candidateTarget, snapshot, browserRuntime, observedAt) =>
+    evaluate: (
+      candidateTarget,
+      snapshot,
+      browserRuntime,
+      observedAt,
+      navigation,
+    ) =>
       commonEvaluate(
         candidateTarget,
         NoSessionPageSnapshotSchema.parse(snapshot),
         strategy,
         browserRuntime,
         observedAt,
+        navigation ?? {
+          requestedStartUrl: candidateTarget.startUrl,
+          finalUrl: snapshot.finalOrigin,
+          finalOrigin: snapshot.finalOrigin,
+          mainDocumentHttpStatus: null,
+          redirectCount: 0,
+          outcome: "LOADED",
+        },
       ),
   };
   return Object.freeze(strategy);

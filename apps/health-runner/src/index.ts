@@ -221,6 +221,9 @@ export {
   NoSessionProviderIdSchema,
   NoSessionSurfaceIdSchema,
   NoSessionNavigationStateSchema,
+  NoSessionReadinessStateSchema,
+  NoSessionNavigationOutcomeSchema,
+  NoSessionSurfaceOutcomeSchema,
   NoSessionIdentityStateSchema,
   NoSessionReachabilitySchema,
   NoSessionContourStateSchema,
@@ -237,6 +240,9 @@ export type {
   NoSessionProviderId,
   NoSessionSurfaceId,
   NoSessionNavigationState,
+  NoSessionReadinessState,
+  NoSessionNavigationOutcome,
+  NoSessionSurfaceOutcome,
   NoSessionIdentityState,
   NoSessionReachability,
   NoSessionContourState,
@@ -250,6 +256,7 @@ export type {
 } from "./no-session-contracts.js";
 export {
   NoSessionTargetSchema,
+  NoSessionCapabilityExpectationSchema,
   NO_SESSION_TARGETS,
   NO_SESSION_PROVIDER_IDS,
   NO_SESSION_SURFACE_IDS,
@@ -257,7 +264,10 @@ export {
   getNoSessionTargetForSurface,
   targetsForProvider,
 } from "./no-session-target-authority.js";
-export type { NoSessionTarget } from "./no-session-target-authority.js";
+export type {
+  NoSessionTarget,
+  NoSessionCapabilityExpectation,
+} from "./no-session-target-authority.js";
 export {
   NoSessionSelectorProfileSchema,
   NO_SESSION_STRATEGIES,

@@ -36,6 +36,49 @@ export type NoSessionNavigationState = z.infer<
   typeof NoSessionNavigationStateSchema
 >;
 
+export const NoSessionReadinessStateSchema = z.enum([
+  "NOT_OBSERVED",
+  "STATIC_LANDING",
+  "APP_HYDRATED",
+  "ACCESS_GATE",
+  "SECURITY_GATE",
+  "MAINTENANCE_GATE",
+]);
+export type NoSessionReadinessState = z.infer<
+  typeof NoSessionReadinessStateSchema
+>;
+
+export const NoSessionNavigationOutcomeSchema = z.enum([
+  "NOT_ATTEMPTED",
+  "LOADED",
+  "HTTP_FAILURE",
+  "TIMEOUT",
+  "NETWORK_FAILURE",
+  "ORIGIN_REJECTED",
+]);
+export type NoSessionNavigationOutcome = z.infer<
+  typeof NoSessionNavigationOutcomeSchema
+>;
+
+export const NoSessionSurfaceOutcomeSchema = z.enum([
+  "PUBLIC_INTERACTIVE",
+  "PUBLIC_LANDING",
+  "AUTH_REQUIRED",
+  "NOT_OBSERVABLE_WITHOUT_SESSION",
+  "REGION_OR_ELIGIBILITY_RESTRICTED",
+  "SECURITY_CHECKPOINT",
+  "ACCESS_BLOCKED",
+  "MAINTENANCE",
+  "DRIFT",
+  "BROKEN",
+  "NETWORK_FAILURE",
+  "BROWSER_FAILURE",
+  "IDENTITY_NOT_PROVEN",
+]);
+export type NoSessionSurfaceOutcome = z.infer<
+  typeof NoSessionSurfaceOutcomeSchema
+>;
+
 export const NoSessionIdentityStateSchema = z.enum([
   "PROVEN",
   "NOT_PROVEN",
@@ -83,7 +126,10 @@ export type NoSessionBlocker = z.infer<typeof NoSessionBlockerSchema>;
 
 export const NoSessionClassificationBasisSchema = z.enum([
   "PUBLIC_SURFACE_PRIMARY",
+  "PUBLIC_LANDING_BOUNDARY",
   "AUTH_REQUIRED_BOUNDARY",
+  "NOT_OBSERVABLE_WITHOUT_SESSION",
+  "REGION_OR_ELIGIBILITY_BOUNDARY",
   "IDENTITY_NOT_PROVEN",
   "ORIGIN_POLICY_FAILURE",
   "NETWORK_FAILURE",
@@ -138,6 +184,10 @@ export const NoSessionPageSnapshotSchema = z
     captchaObserved: z.boolean(),
     accessBlockedObserved: z.boolean(),
     maintenanceObserved: z.boolean(),
+    readiness: NoSessionReadinessStateSchema,
+    providerTitleObserved: z.boolean(),
+    securityTitleObserved: z.boolean(),
+    blockedTitleObserved: z.boolean(),
   })
   .strict();
 export type NoSessionPageSnapshot = z.infer<typeof NoSessionPageSnapshotSchema>;
@@ -151,6 +201,16 @@ export const NoSessionObservationResultSchema = z
     strategyRevision: z.number().int().positive(),
     browserRuntime: BrowserRuntimeMetadataSchema,
     navigation: NoSessionNavigationStateSchema,
+    navigationEvidence: z
+      .object({
+        requestedStartUrl: z.string().url().max(256),
+        finalUrl: z.string().url().max(256).nullable(),
+        finalOrigin: z.string().url().max(256).nullable(),
+        mainDocumentHttpStatus: z.number().int().min(100).max(599).nullable(),
+        redirectCount: z.number().int().min(0).max(8),
+        outcome: NoSessionNavigationOutcomeSchema,
+      })
+      .strict(),
     finalOrigin: z.string().url().max(256).nullable(),
     expectedOriginValid: z.boolean(),
     identity: NoSessionIdentityStateSchema,
@@ -162,6 +222,8 @@ export const NoSessionObservationResultSchema = z
     blocker: NoSessionBlockerSchema,
     classification: HealthStateSchema,
     classificationBasis: NoSessionClassificationBasisSchema,
+    surfaceOutcome: NoSessionSurfaceOutcomeSchema,
+    readiness: NoSessionReadinessStateSchema,
     elementMetadata: z
       .object({
         composer: NoSessionElementMetadataSchema,

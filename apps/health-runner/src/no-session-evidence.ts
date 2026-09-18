@@ -27,6 +27,23 @@ const CommonPayloadSchema = z
     finalOrigin: z.string().url().max(256).nullable(),
     expectedOriginValid: z.boolean(),
     navigation: NoSessionNavigationStateSchema,
+    navigationEvidence: z
+      .object({
+        requestedStartUrl: z.string().url().max(256),
+        finalUrl: z.string().url().max(256).nullable(),
+        finalOrigin: z.string().url().max(256).nullable(),
+        mainDocumentHttpStatus: z.number().int().min(100).max(599).nullable(),
+        redirectCount: z.number().int().min(0).max(8),
+        outcome: z.enum([
+          "NOT_ATTEMPTED",
+          "LOADED",
+          "HTTP_FAILURE",
+          "TIMEOUT",
+          "NETWORK_FAILURE",
+          "ORIGIN_REJECTED",
+        ]),
+      })
+      .strict(),
     identity: NoSessionIdentityStateSchema,
     publicSurface: NoSessionReachabilitySchema,
     composer: NoSessionContourStateSchema,
@@ -42,6 +59,29 @@ const CommonPayloadSchema = z
       "MAINTENANCE",
     ]),
     classificationBasis: NoSessionClassificationBasisSchema,
+    surfaceOutcome: z.enum([
+      "PUBLIC_INTERACTIVE",
+      "PUBLIC_LANDING",
+      "AUTH_REQUIRED",
+      "NOT_OBSERVABLE_WITHOUT_SESSION",
+      "REGION_OR_ELIGIBILITY_RESTRICTED",
+      "SECURITY_CHECKPOINT",
+      "ACCESS_BLOCKED",
+      "MAINTENANCE",
+      "DRIFT",
+      "BROKEN",
+      "NETWORK_FAILURE",
+      "BROWSER_FAILURE",
+      "IDENTITY_NOT_PROVEN",
+    ]),
+    readiness: z.enum([
+      "NOT_OBSERVED",
+      "STATIC_LANDING",
+      "APP_HYDRATED",
+      "ACCESS_GATE",
+      "SECURITY_GATE",
+      "MAINTENANCE_GATE",
+    ]),
     noInteraction: z.literal(true),
   })
   .strict();
@@ -137,6 +177,7 @@ function commonPayload(result: NoSessionObservationResult) {
     finalOrigin: result.finalOrigin,
     expectedOriginValid: result.expectedOriginValid,
     navigation: result.navigation,
+    navigationEvidence: result.navigationEvidence,
     identity: result.identity,
     publicSurface: result.publicSurface,
     composer: result.composer,
@@ -145,6 +186,8 @@ function commonPayload(result: NoSessionObservationResult) {
     blocker: result.blocker,
     classification: result.classification,
     classificationBasis: result.classificationBasis,
+    surfaceOutcome: result.surfaceOutcome,
+    readiness: result.readiness,
     noInteraction: true as const,
   };
 }

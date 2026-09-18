@@ -35,7 +35,21 @@ function failureResult(
   observedAt: string,
   navigation: NoSessionObservationResult["navigation"] = "FAILED",
   finalOrigin: string | null = null,
+  navigationEvidence = browser.getNavigationEvidence(),
 ): NoSessionObservationResult {
+  const surfaceOutcome =
+    blocker === "BROWSER_UNAVAILABLE"
+      ? "BROWSER_FAILURE"
+      : blocker === "NETWORK_FAILURE"
+        ? "NETWORK_FAILURE"
+        : blocker === "ACCESS_BLOCKED"
+          ? "ACCESS_BLOCKED"
+          : blocker === "SECURITY_CHECKPOINT" ||
+              blocker === "CAPTCHA_SECURITY_CHECKPOINT"
+            ? "SECURITY_CHECKPOINT"
+            : blocker === "MAINTENANCE"
+              ? "MAINTENANCE"
+              : "IDENTITY_NOT_PROVEN";
   return NoSessionObservationResultSchema.parse({
     providerId: target.providerId,
     surfaceId: target.surfaceId,
@@ -44,6 +58,7 @@ function failureResult(
     strategyRevision: target.strategyRevision,
     browserRuntime: browser.getRuntimeMetadata(),
     navigation,
+    navigationEvidence,
     finalOrigin,
     expectedOriginValid:
       finalOrigin !== null &&
@@ -57,6 +72,8 @@ function failureResult(
     blocker,
     classification: blocker === "MAINTENANCE" ? "MAINTENANCE" : "UNKNOWN",
     classificationBasis: basis,
+    surfaceOutcome,
+    readiness: "NOT_OBSERVED",
     elementMetadata: {
       composer: EMPTY_ELEMENT_METADATA,
       editableInput: EMPTY_ELEMENT_METADATA,
@@ -121,6 +138,7 @@ export async function runNoSessionProbe(
       snapshot,
       browser.getRuntimeMetadata(),
       observedAt,
+      navigation,
     );
     if (navigation.finalOrigin !== result.finalOrigin) {
       result = failureResult(
@@ -131,6 +149,7 @@ export async function runNoSessionProbe(
         observedAt,
         "LOADED",
         navigation.finalOrigin,
+        navigation,
       );
     }
   } catch (error) {
@@ -143,6 +162,7 @@ export async function runNoSessionProbe(
       observedAt,
       "FAILED",
       null,
+      browser.getNavigationEvidence(),
     );
   } finally {
     await browser.stop();
@@ -172,6 +192,14 @@ function unavailableBrowser(): NoSessionBrowserDriver {
       throw new NoSessionBrowserError("CONTROLLED_BROWSER_UNAVAILABLE");
     },
     getRuntimeMetadata: () => UNAVAILABLE_BROWSER_RUNTIME,
+    getNavigationEvidence: () => ({
+      requestedStartUrl: "https://invalid.example/",
+      finalUrl: "https://invalid.example/",
+      finalOrigin: "https://invalid.example",
+      mainDocumentHttpStatus: null,
+      redirectCount: 0,
+      outcome: "HTTP_FAILURE" as const,
+    }),
     getSecurityDiagnostics: () => ({
       secondaryPageCount: 0,
       unsafeTopLevelNavigation: false,

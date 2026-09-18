@@ -6,6 +6,7 @@ import {
 } from "playwright";
 import {
   NoSessionPageSnapshotSchema,
+  NoSessionReadinessStateSchema,
   type NoSessionElementMetadata,
   type NoSessionPageSnapshot,
 } from "./no-session-contracts.js";
@@ -28,7 +29,12 @@ export class NoSessionBrowserError extends Error {
 }
 
 export type NoSessionNavigationResult = Readonly<{
+  requestedStartUrl: string;
+  finalUrl: string;
   finalOrigin: string;
+  mainDocumentHttpStatus: number | null;
+  redirectCount: number;
+  outcome: "LOADED" | "HTTP_FAILURE";
 }>;
 
 export interface NoSessionBrowserDriver {
@@ -41,6 +47,7 @@ export interface NoSessionBrowserDriver {
     timeoutMs: number,
   ): Promise<NoSessionPageSnapshot>;
   getRuntimeMetadata(): BrowserRuntimeMetadata;
+  getNavigationEvidence(): NoSessionNavigationResult;
   getSecurityDiagnostics(): Readonly<{
     secondaryPageCount: number;
     unsafeTopLevelNavigation: boolean;
@@ -50,6 +57,24 @@ export interface NoSessionBrowserDriver {
 
 const DEFAULT_LAUNCH_TIMEOUT_MS = 15_000;
 const MAX_SELECTOR_MATCHES = 64;
+const READINESS_POLL_MS = 100;
+
+function safeUrl(value: string): string {
+  const parsed = new URL(value);
+  parsed.search = "";
+  parsed.hash = "";
+  return `${parsed.origin}${parsed.pathname}`.slice(0, 256);
+}
+
+function redirectCount(response: Awaited<ReturnType<Page["goto"]>>): number {
+  let count = 0;
+  let request = response?.request().redirectedFrom();
+  while (request && count < 8) {
+    count += 1;
+    request = request.redirectedFrom();
+  }
+  return count;
+}
 
 function emptyElementMetadata(): NoSessionElementMetadata {
   return {
@@ -131,8 +156,16 @@ export class ChromeNoSessionBrowserDriver implements NoSessionBrowserDriver {
     family: "chrome",
     browserName: "chromium",
     browserVersion: "unavailable",
-    headless: true,
+    headless: process.env.HEALTH_RUNNER_HEADFUL !== "1",
     sessionKind: "EPHEMERAL_CONTROLLED",
+  };
+  #lastNavigation: NoSessionNavigationResult = {
+    requestedStartUrl: "https://invalid.example/",
+    finalUrl: "https://invalid.example/",
+    finalOrigin: "https://invalid.example",
+    mainDocumentHttpStatus: null,
+    redirectCount: 0,
+    outcome: "HTTP_FAILURE",
   };
 
   public constructor(
@@ -148,7 +181,7 @@ export class ChromeNoSessionBrowserDriver implements NoSessionBrowserDriver {
       throw new NoSessionBrowserError("INVALID_DRIVER_LIFECYCLE");
     try {
       this.#browser = await chromium.launch({
-        headless: true,
+        headless: this.#runtimeMetadata.headless,
         timeout: this.launchTimeoutMs,
         ...(process.env.HEALTH_RUNNER_CHROME_PATH
           ? { executablePath: process.env.HEALTH_RUNNER_CHROME_PATH }
@@ -158,6 +191,7 @@ export class ChromeNoSessionBrowserDriver implements NoSessionBrowserDriver {
       this.#context = await this.#browser.newContext({
         acceptDownloads: false,
         serviceWorkers: "block",
+        viewport: { width: 1440, height: 900 },
       });
       this.#context.on("page", (page) => {
         if (!this.#page) {
@@ -200,20 +234,44 @@ export class ChromeNoSessionBrowserDriver implements NoSessionBrowserDriver {
     }
     this.#activeTarget = target;
     this.#unsafeTopLevelNavigation = false;
+    const requestedStartUrl = safeUrl(target.startUrl);
     try {
-      await this.#page.goto(target.startUrl, {
+      const response = await this.#page.goto(target.startUrl, {
         timeout: target.navigationTimeoutMs,
         waitUntil: "domcontentloaded",
       });
-      const finalOrigin = new URL(this.#page.url()).origin;
+      const finalUrl = safeUrl(this.#page.url());
+      const finalOrigin = new URL(finalUrl).origin;
+      const mainDocumentHttpStatus = response?.status() ?? null;
+      this.#lastNavigation = {
+        requestedStartUrl,
+        finalUrl,
+        finalOrigin,
+        mainDocumentHttpStatus,
+        redirectCount: redirectCount(response),
+        outcome:
+          mainDocumentHttpStatus !== null && mainDocumentHttpStatus >= 400
+            ? "HTTP_FAILURE"
+            : "LOADED",
+      };
       if (
         !target.allowedTopLevelOrigins.includes(finalOrigin) ||
         this.#unsafeTopLevelNavigation
       ) {
         throw new NoSessionBrowserError("UNSAFE_TOP_LEVEL_REDIRECT");
       }
-      return { finalOrigin };
+      return this.#lastNavigation;
     } catch (error) {
+      const finalUrl = safeUrl(this.#page.url());
+      const finalOrigin = new URL(finalUrl).origin;
+      this.#lastNavigation = {
+        requestedStartUrl,
+        finalUrl,
+        finalOrigin,
+        mainDocumentHttpStatus: null,
+        redirectCount: 0,
+        outcome: "HTTP_FAILURE",
+      };
       if (error instanceof NoSessionBrowserError) throw error;
       if (this.#unsafeTopLevelNavigation) {
         throw new NoSessionBrowserError("UNSAFE_TOP_LEVEL_REDIRECT");
@@ -233,6 +291,28 @@ export class ChromeNoSessionBrowserDriver implements NoSessionBrowserDriver {
       throw new NoSessionBrowserError("UNSAFE_TOP_LEVEL_REDIRECT");
     }
     try {
+      await this.#page
+        .waitForLoadState("load", {
+          timeout: Math.min(timeoutMs, 2_000),
+        })
+        .catch(() => undefined);
+      const deadline = Date.now() + Math.min(timeoutMs, 2_500);
+      let lastHydrationCount = -1;
+      let stableReads = 0;
+      while (Date.now() < deadline && stableReads < 2) {
+        const hydrationCount = await countSelectors(
+          this.#page,
+          profile.hydrationSelectors,
+        );
+        if (hydrationCount > 0 && hydrationCount === lastHydrationCount)
+          stableReads += 1;
+        else stableReads = 0;
+        lastHydrationCount = hydrationCount;
+        if (stableReads < 2)
+          await new Promise((resolve) =>
+            setTimeout(resolve, READINESS_POLL_MS),
+          );
+      }
       const [
         identityMarkerCount,
         surfaceMarkerCount,
@@ -245,6 +325,7 @@ export class ChromeNoSessionBrowserDriver implements NoSessionBrowserDriver {
         captchaObserved,
         accessBlockedObserved,
         maintenanceObserved,
+        documentTitle,
       ] = await Promise.all([
         countSelectors(this.#page, profile.identitySelectors),
         countSelectors(this.#page, profile.surfaceSelectors),
@@ -257,7 +338,28 @@ export class ChromeNoSessionBrowserDriver implements NoSessionBrowserDriver {
         selectorPresent(this.#page, profile.captchaSelectors),
         selectorPresent(this.#page, profile.blockedSelectors),
         selectorPresent(this.#page, profile.maintenanceSelectors),
+        this.#page.title().catch(() => ""),
       ]);
+      const title = documentTitle.toLocaleLowerCase();
+      const providerTitleObserved = profile.providerTitleTokens.some((token) =>
+        title.includes(token.toLocaleLowerCase()),
+      );
+      const securityTitleObserved = profile.securityTitleTokens.some((token) =>
+        title.includes(token.toLocaleLowerCase()),
+      );
+      const blockedTitleObserved = profile.blockedTitleTokens.some((token) =>
+        title.includes(token.toLocaleLowerCase()),
+      );
+      const readiness =
+        securityCheckpointObserved || captchaObserved
+          ? "SECURITY_GATE"
+          : accessBlockedObserved || blockedTitleObserved
+            ? "ACCESS_GATE"
+            : maintenanceObserved
+              ? "MAINTENANCE_GATE"
+              : lastHydrationCount > 0
+                ? "APP_HYDRATED"
+                : "STATIC_LANDING";
       const snapshot = {
         profileId: profile.profileId,
         finalOrigin: new URL(this.#page.url()).origin,
@@ -272,6 +374,10 @@ export class ChromeNoSessionBrowserDriver implements NoSessionBrowserDriver {
         captchaObserved,
         accessBlockedObserved,
         maintenanceObserved,
+        readiness: NoSessionReadinessStateSchema.parse(readiness),
+        providerTitleObserved,
+        securityTitleObserved,
+        blockedTitleObserved,
       };
       return NoSessionPageSnapshotSchema.parse(snapshot);
     } catch (error) {
@@ -282,6 +388,10 @@ export class ChromeNoSessionBrowserDriver implements NoSessionBrowserDriver {
 
   public getRuntimeMetadata(): BrowserRuntimeMetadata {
     return { ...this.#runtimeMetadata };
+  }
+
+  public getNavigationEvidence(): NoSessionNavigationResult {
+    return { ...this.#lastNavigation };
   }
 
   public getSecurityDiagnostics() {
@@ -302,6 +412,14 @@ export class ChromeNoSessionBrowserDriver implements NoSessionBrowserDriver {
     this.#runtimeMetadata = {
       ...this.#runtimeMetadata,
       browserVersion: "unavailable",
+    };
+    this.#lastNavigation = {
+      requestedStartUrl: "https://invalid.example/",
+      finalUrl: "https://invalid.example/",
+      finalOrigin: "https://invalid.example",
+      mainDocumentHttpStatus: null,
+      redirectCount: 0,
+      outcome: "HTTP_FAILURE",
     };
     await context?.close().catch(() => undefined);
     await browser?.close().catch(() => undefined);

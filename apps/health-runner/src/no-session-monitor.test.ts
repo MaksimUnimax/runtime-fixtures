@@ -3,6 +3,7 @@ import {
   NO_SESSION_PROVIDER_IDS,
   NO_SESSION_SURFACE_IDS,
   NO_SESSION_TARGETS,
+  NoSessionTargetSchema,
   getNoSessionTargetForSurface,
 } from "./no-session-target-authority.js";
 import {
@@ -60,6 +61,10 @@ function snapshotFor(
     captchaObserved: false,
     accessBlockedObserved: false,
     maintenanceObserved: false,
+    readiness: "APP_HYDRATED",
+    providerTitleObserved: true,
+    securityTitleObserved: false,
+    blockedTitleObserved: false,
   };
 }
 
@@ -68,6 +73,8 @@ class FakeNoSessionBrowser implements NoSessionBrowserDriver {
   public readonly sessionKind = "EPHEMERAL_CONTROLLED" as const;
   public startCount = 0;
   public stopCount = 0;
+  private currentTargetOrigin = "https://fixture.example";
+  private navigationFailed = false;
   public constructor(
     private readonly snapshots: ReadonlyMap<string, NoSessionPageSnapshot>,
     private readonly failure: "NONE" | "NAVIGATION" = "NONE",
@@ -76,9 +83,19 @@ class FakeNoSessionBrowser implements NoSessionBrowserDriver {
     this.startCount += 1;
   }
   public async open(target: (typeof NO_SESSION_TARGETS)[number]) {
-    if (this.failure === "NAVIGATION")
-      throw new Error("fake navigation failure");
-    return { finalOrigin: target.allowedTopLevelOrigins[0]! };
+    this.currentTargetOrigin = target.allowedTopLevelOrigins[0]!;
+    this.navigationFailed = this.failure === "NAVIGATION";
+    if (this.navigationFailed) throw new Error("fake navigation failure");
+    return {
+      requestedStartUrl: target.startUrl,
+      finalUrl: `${target.allowedTopLevelOrigins[0]!}/`,
+      finalOrigin: target.allowedTopLevelOrigins[0]!,
+      mainDocumentHttpStatus: 200,
+      redirectCount: 0,
+      outcome: this.navigationFailed
+        ? ("HTTP_FAILURE" as const)
+        : ("LOADED" as const),
+    };
   }
   public async observe(profile: { profileId: string }) {
     const snapshot = this.snapshots.get(profile.profileId);
@@ -87,6 +104,18 @@ class FakeNoSessionBrowser implements NoSessionBrowserDriver {
   }
   public getRuntimeMetadata() {
     return RUNTIME;
+  }
+  public getNavigationEvidence() {
+    return {
+      requestedStartUrl: `${this.currentTargetOrigin}/`,
+      finalUrl: `${this.currentTargetOrigin}/`,
+      finalOrigin: this.currentTargetOrigin,
+      mainDocumentHttpStatus: 200,
+      redirectCount: 0,
+      outcome: this.navigationFailed
+        ? ("HTTP_FAILURE" as const)
+        : ("LOADED" as const),
+    };
   }
   public getSecurityDiagnostics() {
     return { secondaryPageCount: 0, unsafeTopLevelNavigation: false } as const;
@@ -206,16 +235,16 @@ describe("provider-specific no-session strategies", () => {
     expect(result.authentication).toBe("AUTH_REQUIRED");
     expect(result.classification).toBe("UNKNOWN");
     expect(result.classificationBasis).toBe("AUTH_REQUIRED_BOUNDARY");
-    expect(result.composer).toBe("NOT_EXPECTED");
+    expect(result.composer).toBe("NOT_PROVABLE");
   });
 
   it("reports a proven public page with a missing required contour as drift", () => {
-    const target = getNoSessionTargetForSurface("QWEN");
-    const strategy = getNoSessionStrategy("QWEN");
+    const target = getNoSessionTargetForSurface("CHATGPT_STANDARD");
+    const strategy = getNoSessionStrategy("CHATGPT_STANDARD");
     const result = strategy.evaluate(
       target,
       {
-        ...snapshotFor("QWEN"),
+        ...snapshotFor("CHATGPT_STANDARD"),
         sendControl: {
           elementCount: 0,
           visible: false,
@@ -229,6 +258,182 @@ describe("provider-specific no-session strategies", () => {
     expect(result.identity).toBe("PROVEN");
     expect(result.sendControl).toBe("ABSENT");
     expect(result.classification).toBe("DRIFT");
+  });
+
+  it("does not infer ChatGPT Work from a proven Standard-shaped page", () => {
+    const target = getNoSessionTargetForSurface("CHATGPT_WORK");
+    const strategy = getNoSessionStrategy("CHATGPT_WORK");
+    const result = strategy.evaluate(
+      target,
+      snapshotFor("CHATGPT_STANDARD"),
+      RUNTIME,
+      "2026-09-18T11:00:00.000Z",
+    );
+    expect(result.identity).toBe("NOT_PROVEN");
+    expect(result.surfaceOutcome).toBe("NOT_OBSERVABLE_WITHOUT_SESSION");
+    expect(result.classificationBasis).toBe("NOT_OBSERVABLE_WITHOUT_SESSION");
+  });
+
+  it("treats Alice's missing optional logged-out composer as a public boundary", () => {
+    const target = getNoSessionTargetForSurface("ALICE");
+    const strategy = getNoSessionStrategy("ALICE");
+    const result = strategy.evaluate(
+      target,
+      {
+        ...snapshotFor("ALICE"),
+        composer: {
+          elementCount: 0,
+          visible: false,
+          editable: false,
+          actionable: false,
+        },
+        editableInput: {
+          elementCount: 0,
+          visible: false,
+          editable: false,
+          actionable: false,
+        },
+        sendControl: {
+          elementCount: 0,
+          visible: false,
+          editable: false,
+          actionable: false,
+        },
+      },
+      RUNTIME,
+      "2026-09-18T11:00:00.000Z",
+    );
+    expect(result.classification).toBe("HEALTHY");
+    expect(result.surfaceOutcome).toBe("PUBLIC_LANDING");
+    expect(result.classificationBasis).toBe("PUBLIC_SURFACE_PRIMARY");
+    expect(result.composer).toBe("NOT_EXPECTED");
+  });
+
+  it("recognizes a real Alice required contour regression as drift", () => {
+    const aliceTarget = getNoSessionTargetForSurface("ALICE");
+    const target = NoSessionTargetSchema.parse({
+      ...aliceTarget,
+      publicComposerExpected: true,
+      capabilityExpectation: {
+        ...aliceTarget.capabilityExpectation,
+        publicComposer: "EXPECTED",
+        editableInput: "EXPECTED",
+      },
+    });
+    const strategy = getNoSessionStrategy("ALICE");
+    const result = strategy.evaluate(
+      target,
+      {
+        ...snapshotFor("ALICE"),
+        composer: {
+          elementCount: 0,
+          visible: false,
+          editable: false,
+          actionable: false,
+        },
+      },
+      RUNTIME,
+      "2026-09-18T11:00:00.000Z",
+    );
+    expect(result.classification).toBe("DRIFT");
+    expect(result.surfaceOutcome).toBe("DRIFT");
+  });
+
+  it("types DeepSeek 403 as an access boundary", () => {
+    const target = getNoSessionTargetForSurface("DEEPSEEK");
+    const strategy = getNoSessionStrategy("DEEPSEEK");
+    const result = strategy.evaluate(
+      target,
+      snapshotFor("DEEPSEEK"),
+      RUNTIME,
+      "2026-09-18T11:00:00.000Z",
+      {
+        requestedStartUrl: target.startUrl,
+        finalUrl: target.startUrl,
+        finalOrigin: target.allowedTopLevelOrigins[0]!,
+        mainDocumentHttpStatus: 403,
+        redirectCount: 0,
+        outcome: "HTTP_FAILURE",
+      },
+    );
+    expect(result.blocker).toBe("ACCESS_BLOCKED");
+    expect(result.surfaceOutcome).toBe("ACCESS_BLOCKED");
+    expect(result.classificationBasis).toBe("ACCESS_BLOCKED");
+  });
+
+  it("types a Gemini sign-in-only surface as an auth boundary", () => {
+    const target = getNoSessionTargetForSurface("GEMINI");
+    const strategy = getNoSessionStrategy("GEMINI");
+    const result = strategy.evaluate(
+      target,
+      {
+        ...snapshotFor("GEMINI"),
+        composer: {
+          elementCount: 0,
+          visible: false,
+          editable: false,
+          actionable: false,
+        },
+        editableInput: {
+          elementCount: 0,
+          visible: false,
+          editable: false,
+          actionable: false,
+        },
+        loginWallObserved: true,
+      },
+      RUNTIME,
+      "2026-09-18T11:00:00.000Z",
+    );
+    expect(result.identity).toBe("PROVEN");
+    expect(result.authentication).toBe("LOGIN_REQUIRED");
+    expect(result.surfaceOutcome).toBe("AUTH_REQUIRED");
+    expect(result.classificationBasis).toBe("AUTH_REQUIRED_BOUNDARY");
+  });
+
+  it.each(["GROK", "KIMI"] as const)(
+    "proves the current public application shell for %s",
+    (surfaceId) => {
+      const target = getNoSessionTargetForSurface(surfaceId);
+      const result = getNoSessionStrategy(surfaceId).evaluate(
+        target,
+        snapshotFor(surfaceId),
+        RUNTIME,
+        "2026-09-18T11:00:00.000Z",
+      );
+      expect(result.identity).toBe("PROVEN");
+      expect(result.surfaceOutcome).toBe("PUBLIC_INTERACTIVE");
+    },
+  );
+
+  it("uses Qwen's current root route and fails closed on its unsupported surface", () => {
+    const target = getNoSessionTargetForSurface("QWEN");
+    expect(target.startUrl).toBe("https://chat.qwen.ai/");
+    const result = getNoSessionStrategy("QWEN").evaluate(
+      target,
+      {
+        ...snapshotFor("QWEN"),
+        identityMarkerCount: 0,
+        surfaceMarkerCount: 0,
+        readiness: "STATIC_LANDING",
+      },
+      RUNTIME,
+      "2026-09-18T11:00:00.000Z",
+    );
+    expect(result.identity).toBe("NOT_PROVEN");
+    expect(result.surfaceOutcome).toBe("IDENTITY_NOT_PROVEN");
+  });
+
+  it("does not turn a pre-hydration observation into drift", () => {
+    const target = getNoSessionTargetForSurface("CHATGPT_STANDARD");
+    const result = getNoSessionStrategy("CHATGPT_STANDARD").evaluate(
+      target,
+      { ...snapshotFor("CHATGPT_STANDARD"), readiness: "STATIC_LANDING" },
+      RUNTIME,
+      "2026-09-18T11:00:00.000Z",
+    );
+    expect(result.classification).toBe("HEALTHY");
+    expect(result.readiness).toBe("STATIC_LANDING");
   });
 
   it("fails closed on an untrusted origin", () => {
@@ -267,11 +472,11 @@ describe("provider-specific no-session strategies", () => {
       const strategy = getNoSessionStrategy(target.surfaceId);
       const result = strategy.evaluate(
         target,
-        { ...snapshotFor(target.surfaceId), loginWallObserved: true },
+        { ...snapshotFor(target.surfaceId), authWallObserved: true },
         RUNTIME,
         "2026-09-18T11:00:00.000Z",
       );
-      expect(result.authentication).toBe("LOGIN_REQUIRED");
+      expect(result.authentication).toBe("AUTH_REQUIRED");
       expect(result.classification).toBe("UNKNOWN");
       expect(result.classificationBasis).toBe("AUTH_REQUIRED_BOUNDARY");
     },
@@ -393,6 +598,11 @@ describe("no-session batch isolation", () => {
     );
     expect(results).toHaveLength(9);
     expect(results[0]?.blocker).toBe("NETWORK_FAILURE");
+    expect(results[0]?.navigationEvidence.outcome).toBe("HTTP_FAILURE");
+    expect(results[1]?.navigationEvidence.requestedStartUrl).toMatch(
+      /^https:\/\//,
+    );
+    expect(results[1]?.navigationEvidence.redirectCount).toBe(0);
     expect(results.slice(1).every((result) => result.noInteraction)).toBe(true);
   });
 
