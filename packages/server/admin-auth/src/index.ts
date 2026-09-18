@@ -47,6 +47,7 @@ export const ADMIN_PERMISSIONS = [
   "ai.assignment.manage",
   "beta.admission.read",
   "beta.admission.manage",
+  "health.read",
 ] as const;
 export type AdminPermission = (typeof ADMIN_PERMISSIONS)[number];
 
@@ -73,6 +74,7 @@ const rolePermissions: Record<AdminRole, readonly AdminPermission[]> = {
     "ai.profile.manage",
     "ai.assignment.read",
     "ai.assignment.manage",
+    "health.read",
   ],
   ADMIN_SUPPORT: [
     "account.read",

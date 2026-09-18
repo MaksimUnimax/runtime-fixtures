@@ -30,6 +30,7 @@
     "@product/device-auth": "workspace:*",
     "@product/device-management": "workspace:*",
     "@product/extension-auth": "workspace:*",
+    "@product/health": "workspace:*",
     "@product/observability": "workspace:*",
     "@product/remote-config": "workspace:*",
     "@product/shared": "workspace:*",

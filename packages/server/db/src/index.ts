@@ -25,6 +25,7 @@ export { createHealthPersistenceRepository } from "./health-persistence-reposito
 export { createHealthSchedulerRepository } from "./health-scheduler-repository.js";
 export { createHealthIncidentRepository } from "./health-incident-repository.js";
 export { createHealthEvaluationRepository } from "./health-evaluation-repository.js";
+export { createHealthAdminReadRepository } from "./health-admin-read-repository.js";
 export type {
   PersistedHealthProfileEvaluation,
   UpsertHealthProfileEvaluationResult,

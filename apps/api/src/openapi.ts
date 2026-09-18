@@ -37,6 +37,7 @@ import { AdminAuthService } from "@product/admin-auth";
 import type { AdminCommercialService } from "@product/admin-commercial";
 import type { AdminAiService } from "@product/admin-ai";
 import { BetaAdmissionService } from "@product/beta-access";
+import type { HealthAdminReadRepository } from "@product/health";
 
 type JsonPrimitive = boolean | null | number | string;
 type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
@@ -308,6 +309,15 @@ export async function generateOpenApiRepresentation(): Promise<string> {
       }),
       mutate: async () => ({ kind: "CONFLICT" }),
     }),
+    healthAdminService: {
+      listTargets: async () => ({ items: [], nextCursor: null }),
+      getTarget: async () => null,
+      listIncidents: async () => ({ items: [], nextCursor: null }),
+      getIncident: async () => null,
+      listEvaluations: async () => ({ items: [], nextCursor: null }),
+      getEvaluation: async () => null,
+      listRecommendations: async () => ({ items: [], nextCursor: null }),
+    } satisfies HealthAdminReadRepository,
   });
   try {
     await app.ready();

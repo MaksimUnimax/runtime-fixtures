@@ -25,6 +25,7 @@ import {
   createProfileLifecycleRepository,
   authorizeAdminMutationInTransaction,
   createBetaAdmissionRepository,
+  createHealthAdminReadRepository,
 } from "@product/db";
 import { AuthService, deriveAuthKeys, loadAuthRootSecret } from "@product/auth";
 import { AdminAuthService, deriveAdminAuthKeys } from "@product/admin-auth";
@@ -161,6 +162,7 @@ const app = createApiApp({
     }),
   ),
   betaAdmissionService: betaAdmission,
+  healthAdminService: createHealthAdminReadRepository(database),
 });
 let closing = false;
 async function shutdown(signal: string): Promise<void> {
