@@ -1387,7 +1387,7 @@ matrix is not an acceptance claim.
 | Q1A-35 | REPRESENTATIVE_SMOKE_BOUNDARY | final-package installed receipt not established in this bounded pass; see scope below. |
 | Q1A-36 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
 | Q1A-37 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
-| Q1A-38 | INSTALLED_PASS | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-38 | INSTALLED_PASS | final package SHA `93ba77f6fcac9932e991c94eded2d9638bb38c9990b8fcefd826d737aaf8d476`; Chromium 151 real API/DB activation/account isolation receipt. |
 | Q1A-39 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
 | Q1A-40 | R4_OPEN_DRIVER_OR_FLOW | final-package installed receipt not established in this bounded pass; see scope below. |
 | Q1A-41 | R4_OPEN_DRIVER_OR_FLOW | final-package installed receipt not established in this bounded pass; see scope below. |
