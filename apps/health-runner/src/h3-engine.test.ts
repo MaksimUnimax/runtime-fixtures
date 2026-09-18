@@ -21,6 +21,7 @@ import { markPackagedH3Strategy } from "./h3-strategy-authority-internal.js";
 
 const STANDARD_TARGET = "chatgpt_standard_health";
 const WORK_TARGET = "chatgpt_work_health";
+const ALICE_TARGET = "alice_health";
 
 const pass = (): H3StrategyStepResult =>
   parseH3StrategyStepResult({
@@ -100,13 +101,20 @@ class FakeH3Strategy implements H3SurfaceStrategy {
   public cleanupCalls = 0;
 
   public constructor(
-    profileSurface: "CHATGPT_STANDARD" | "CHATGPT_WORK",
-    targetSurface: "CHATGPT_STANDARD" | "CHATGPT_WORK" = profileSurface,
+    profileSurface: "CHATGPT_STANDARD" | "CHATGPT_WORK" | "ALICE",
+    targetSurface:
+      | "CHATGPT_STANDARD"
+      | "CHATGPT_WORK"
+      | "ALICE" = profileSurface,
     trusted = true,
   ) {
     this.surfaceProfile = getPackagedH3Profile(profileSurface);
     this.targetKey =
-      targetSurface === "CHATGPT_STANDARD" ? STANDARD_TARGET : WORK_TARGET;
+      targetSurface === "CHATGPT_STANDARD"
+        ? STANDARD_TARGET
+        : targetSurface === "CHATGPT_WORK"
+          ? WORK_TARGET
+          : ALICE_TARGET;
     if (trusted) markPackagedH3Strategy(this);
   }
 
@@ -437,6 +445,44 @@ describe("B2 common H3 execution engine", () => {
       runH3BehavioralSmoke(forged, plan("CHATGPT_WORK")),
     ).rejects.toMatchObject({ code: "STRATEGY_NOT_REGISTERED" });
     expect(forged.calls).toEqual([]);
+
+    const alice = new FakeH3Strategy("ALICE");
+    const aliceRegistry = new H3SurfaceStrategyRegistry([alice]);
+    const aliceResult = await runH3BehavioralSmokeFromRegistry(
+      aliceRegistry,
+      createH3RunPlan(ALICE_TARGET, "ALICE"),
+    );
+    expect(aliceResult.surfaceProfile.profileId).toBe("ALICE_H3_V1");
+    expect(alice.calls).toContain("sendOnce");
+    await expect(
+      runH3BehavioralSmoke(
+        alice,
+        createH3RunPlan(STANDARD_TARGET, "CHATGPT_STANDARD"),
+      ),
+    ).rejects.toMatchObject({ code: "TARGET_SURFACE_MISMATCH" });
+    await expect(
+      runH3BehavioralSmoke(alice, createH3RunPlan(WORK_TARGET, "CHATGPT_WORK")),
+    ).rejects.toMatchObject({ code: "TARGET_SURFACE_MISMATCH" });
+    expect(alice.calls).toContain("cleanup");
+
+    const standardForAlice = new FakeH3Strategy("CHATGPT_STANDARD", "ALICE");
+    await expect(
+      runH3BehavioralSmoke(
+        standardForAlice,
+        createH3RunPlan(ALICE_TARGET, "ALICE"),
+      ),
+    ).rejects.toMatchObject({ code: "STRATEGY_PROFILE_MISMATCH" });
+    const workForAlice = new FakeH3Strategy("CHATGPT_WORK", "ALICE");
+    await expect(
+      runH3BehavioralSmoke(
+        workForAlice,
+        createH3RunPlan(ALICE_TARGET, "ALICE"),
+      ),
+    ).rejects.toMatchObject({ code: "STRATEGY_PROFILE_MISMATCH" });
+    const forgedAlice = new FakeH3Strategy("ALICE", "ALICE", false);
+    await expect(
+      runH3BehavioralSmoke(forgedAlice, createH3RunPlan(ALICE_TARGET, "ALICE")),
+    ).rejects.toMatchObject({ code: "STRATEGY_NOT_REGISTERED" });
   });
 
   it("rejects a target that is not packaged for the selected surface", async () => {

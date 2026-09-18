@@ -41,6 +41,7 @@ import { isPackagedH3Strategy } from "./h3-strategy-authority-internal.js";
 export const H3_PACKAGED_TARGET_BY_SURFACE = Object.freeze({
   CHATGPT_STANDARD: "chatgpt_standard_health",
   CHATGPT_WORK: "chatgpt_work_health",
+  ALICE: "alice_health",
 } satisfies Readonly<Record<H3Surface, ControlledTargetKey>>);
 
 export function getPackagedH3Target(surface: H3Surface): ControlledTargetKey {

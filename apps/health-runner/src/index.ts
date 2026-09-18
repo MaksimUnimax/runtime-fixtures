@@ -29,6 +29,7 @@ export {
   createPackagedH3TargetRegistry,
   createPackagedStandardH3TargetRegistry,
   createPackagedWorkH3TargetRegistry,
+  createPackagedAliceH3TargetRegistry,
 } from "./target-registry.js";
 export type { ControlledTarget } from "./target-registry.js";
 export type { ControlledTargetKey } from "./target-registry.js";
@@ -150,6 +151,24 @@ export {
 } from "./standard-h3-profile.js";
 export type { ChatGPTStandardH3Profile } from "./standard-h3-profile.js";
 export { createChatGPTStandardH3Strategy } from "./standard-h3-strategy.js";
+export {
+  ALICE_H3_PROFILE,
+  aliceAssistantMessages,
+  aliceCodeBlocks,
+  aliceCodeContents,
+  aliceComposerRoots,
+  aliceCopyControls,
+  aliceInputCandidates,
+  aliceMessageId,
+  aliceOknyxControls,
+  aliceStopControls,
+  resolveAliceConversationIdentity,
+} from "./alice-h3-profile.js";
+export type {
+  AliceConversationIdentityResolution,
+  AliceH3Profile,
+} from "./alice-h3-profile.js";
+export { createAliceH3Strategy } from "./alice-h3-strategy.js";
 export class NoopBrowserDriver implements BrowserDriver {
   public readonly sessionKind = "EPHEMERAL_CONTROLLED" as const;
   public constructor(public readonly family: BrowserFamily) {}

@@ -1,7 +1,11 @@
 import { z } from "zod";
 import { ControlledTargetKeySchema } from "./target-registry.js";
 
-export const H3SurfaceSchema = z.enum(["CHATGPT_STANDARD", "CHATGPT_WORK"]);
+export const H3SurfaceSchema = z.enum([
+  "CHATGPT_STANDARD",
+  "CHATGPT_WORK",
+  "ALICE",
+]);
 export type H3Surface = z.infer<typeof H3SurfaceSchema>;
 
 export const H3PromptIdSchema = z.literal("BRIDGE_COMMAND_SMOKE_V1");

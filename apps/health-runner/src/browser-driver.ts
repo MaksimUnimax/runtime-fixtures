@@ -23,6 +23,7 @@ import type { BrowserFamily } from "@product/shared";
 import { shouldBlockPrimaryDocumentRequest } from "./navigation-policy.js";
 import { createChatGPTStandardH3Strategy } from "./standard-h3-strategy.js";
 import { createChatGPTWorkH3Strategy } from "./work-h3-strategy.js";
+import { createAliceH3Strategy } from "./alice-h3-strategy.js";
 import { CHATGPT_WORK_H3_PROFILE } from "./work-h3-profile.js";
 import type { H3SurfaceStrategy } from "./h3-strategy.js";
 import {
@@ -248,6 +249,15 @@ export class ChromeBrowserDriver implements BrowserDriver {
       throw new BrowserDriverError("INVALID_DRIVER_LIFECYCLE");
     }
     return createChatGPTWorkH3Strategy(this.#page, this.#activeTarget, () =>
+      this.closeOrPersist(),
+    );
+  }
+
+  public createAliceH3Strategy(): H3SurfaceStrategy {
+    if (this.#state !== "LAUNCHED" || !this.#page || !this.#activeTarget) {
+      throw new BrowserDriverError("INVALID_DRIVER_LIFECYCLE");
+    }
+    return createAliceH3Strategy(this.#page, this.#activeTarget, () =>
       this.closeOrPersist(),
     );
   }

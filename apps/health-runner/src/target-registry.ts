@@ -132,7 +132,20 @@ export function createPackagedWorkH3TargetRegistry(): ControlledTargetRegistry {
   ]);
 }
 
-/** Both packaged ChatGPT targets; no caller-supplied target is added. */
+/** The credential-free, non-authenticated target for Alice H3. */
+export function createPackagedAliceH3TargetRegistry(): ControlledTargetRegistry {
+  return new ControlledTargetRegistry([
+    {
+      key: "alice_health",
+      startUrl: "https://alice.yandex.ru/",
+      allowedTopLevelOrigins: ["https://alice.yandex.ru"],
+      browserFamily: "chrome",
+      navigationTimeoutMs: 15_000,
+    },
+  ]);
+}
+
+/** All packaged non-authenticated H3 targets; no caller-supplied target is added. */
 export function createPackagedH3TargetRegistry(): ControlledTargetRegistry {
   return new ControlledTargetRegistry([
     {
@@ -146,6 +159,13 @@ export function createPackagedH3TargetRegistry(): ControlledTargetRegistry {
       key: "chatgpt_work_health",
       startUrl: "https://chatgpt.com/",
       allowedTopLevelOrigins: ["https://chatgpt.com"],
+      browserFamily: "chrome",
+      navigationTimeoutMs: 15_000,
+    },
+    {
+      key: "alice_health",
+      startUrl: "https://alice.yandex.ru/",
+      allowedTopLevelOrigins: ["https://alice.yandex.ru"],
       browserFamily: "chrome",
       navigationTimeoutMs: 15_000,
     },

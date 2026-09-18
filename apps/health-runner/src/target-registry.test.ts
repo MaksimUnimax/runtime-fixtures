@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   createPackagedH3TargetRegistry,
+  createPackagedAliceH3TargetRegistry,
   createPackagedStandardH3TargetRegistry,
   createPackagedWorkH3TargetRegistry,
 } from "./target-registry.js";
@@ -27,5 +28,17 @@ describe("packaged Standard H3 target authority", () => {
     expect(
       createPackagedH3TargetRegistry().resolve("chatgpt_work_health"),
     ).toEqual(work);
+  });
+
+  it("packages Alice separately and keeps dedicated ChatGPT registries filtered", () => {
+    const alice = createPackagedAliceH3TargetRegistry().resolve("alice_health");
+    expect(alice.startUrl).toBe("https://alice.yandex.ru/");
+    expect(alice.allowedTopLevelOrigins).toEqual(["https://alice.yandex.ru"]);
+    expect(() =>
+      createPackagedStandardH3TargetRegistry().resolve("alice_health"),
+    ).toThrow("CONTROLLED_TARGET_NOT_REGISTERED");
+    expect(() =>
+      createPackagedWorkH3TargetRegistry().resolve("alice_health"),
+    ).toThrow("CONTROLLED_TARGET_NOT_REGISTERED");
   });
 });

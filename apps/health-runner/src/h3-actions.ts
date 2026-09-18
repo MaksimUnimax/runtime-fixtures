@@ -10,7 +10,11 @@ import {
 
 const H3ProfileShape = {
   surface: H3SurfaceSchema,
-  profileId: z.enum(["CHATGPT_STANDARD_H3_V2", "CHATGPT_WORK_H3_V1"]),
+  profileId: z.enum([
+    "CHATGPT_STANDARD_H3_V2",
+    "CHATGPT_WORK_H3_V1",
+    "ALICE_H3_V1",
+  ]),
   profileRevision: z.union([z.literal(1), z.literal(2)]),
 } as const;
 
@@ -22,6 +26,14 @@ export const H3SurfaceProfileSchema = z
         surface: z.literal("CHATGPT_STANDARD"),
         profileId: z.literal("CHATGPT_STANDARD_H3_V2"),
         profileRevision: z.literal(2),
+      })
+      .strict(),
+    z
+      .object({
+        ...H3ProfileShape,
+        surface: z.literal("ALICE"),
+        profileId: z.literal("ALICE_H3_V1"),
+        profileRevision: z.literal(1),
       })
       .strict(),
     z
@@ -145,6 +157,11 @@ const PACKAGED_H3_PROFILES: Readonly<Record<H3Surface, H3SurfaceProfile>> =
     CHATGPT_WORK: Object.freeze({
       surface: "CHATGPT_WORK",
       profileId: "CHATGPT_WORK_H3_V1",
+      profileRevision: 1,
+    }),
+    ALICE: Object.freeze({
+      surface: "ALICE",
+      profileId: "ALICE_H3_V1",
       profileRevision: 1,
     }),
   });
