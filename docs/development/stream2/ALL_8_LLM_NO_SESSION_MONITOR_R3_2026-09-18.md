@@ -143,9 +143,10 @@ storageState, auth headers, or private content was retained.
 
 ## I. Git/publication
 
-R3 is a separate commit based on R2. No force push, merge, history rewrite, or
-PR mutation was performed. Remote publication/readback is attempted after the
-commit; if credentials are unavailable it remains `ENVIRONMENT_DEFERRED`.
+R3 is a bounded pair of follow-up commits based on R2. No force push, merge,
+history rewrite, or PR mutation was performed. Remote publication/readback was
+attempted after the commits; credentials were unavailable, so it remains
+`ENVIRONMENT_DEFERRED`.
 
 ## J. Deferred ledger
 
