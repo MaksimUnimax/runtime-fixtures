@@ -134,11 +134,13 @@ SA_PNPM_BIN=/root/.nvm/versions/node/v24.20.0/bin/pnpm \
 python3 tooling/checks/extension_i1.py --output <fresh-output>
 ```
 
-It completed 130 gates with status `PASS`. The deterministic package was
-`SELLER_AGENTS_I1_C1_v0.2.4_LOCAL_DEVELOPMENT.zip`, 1,954,743 bytes,
+It completed 130 gates with status `PASS` on the implementation-equivalent
+candidate. The final deterministic package was
+`SELLER_AGENTS_I1_C1_v0.2.4_LOCAL_DEVELOPMENT.zip`, 1,955,193 bytes,
 SHA-256
-`0f6b1a469c7df2dd9442e765bb0c766e238c0738f850f6e9ae8f8219115eb14c`,
-39 files, repeat archive equality, and source/extracted byte parity.
+`e45801f83e66dfc3e7cc6fb372f77b6d9a309db498f7fcded1d5c77cecd178ef`,
+39 files, repeat archive equality, and source/extracted byte parity. The
+final C3G source and extracted focused suites also passed.
 
 The Ozon report file lifecycle fixture passed. The WB adapter suite passed
 17 cases, including credential isolation, 429, unknown outcome, report file,
@@ -149,10 +151,13 @@ older popup sender setup and remains outside the generated I1 package gate.
 
 ## Browser, package, and server scope
 
-Generated and extracted package runtime acceptance passed. Native MV3 smoke is
-not called PASS: `ENVIRONMENT_DEFERRED_NATIVE_MV3_REGISTRATION` remains the
-accepted pre-initialization shared registration/service-worker defect from
-C3E/C3F. No production sleep or bypass was added.
+Generated and extracted package runtime acceptance passed. One bounded native
+smoke against the final source/extracted runtimes stopped before acceptance
+because the worker did not become authenticated; this remains environment
+deferred native evidence and is not called PASS. The accepted
+`ENVIRONMENT_DEFERRED_NATIVE_MV3_REGISTRATION` pre-initialization shared
+registration/service-worker defect from C3E/C3F remains open. No production
+sleep or bypass was added.
 
 No server, database, health-runner, API-watcher, scheduler, or monitoring
 files were changed. No server suite was rerun because no server interface was
