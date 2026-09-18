@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { H3BehaviorStepSchema, H3SurfaceSchema } from "./h3-contracts.js";
+import { H3ContourObservationSchema } from "./h3-strategy.js";
 
 export const H3EvidenceOutcomeSchema = z.enum([
   "PASS",
@@ -16,6 +17,7 @@ export const H3SafeEvidenceEventSchema = z
     durationMs: z.number().int().min(0).max(120_000),
     markerCount: z.number().int().min(0).max(64).nullable(),
     transitionObserved: z.boolean().nullable(),
+    observations: z.array(H3ContourObservationSchema).max(13).default([]),
   })
   .strict();
 export type H3SafeEvidenceEvent = Readonly<

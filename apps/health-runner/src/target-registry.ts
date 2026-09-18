@@ -7,6 +7,7 @@ const TARGET_KEY_PATTERN = /^[a-z][a-z0-9_]{0,63}$/;
 export const ControlledTargetKeySchema = z
   .string()
   .regex(TARGET_KEY_PATTERN, "invalid controlled target key");
+export type ControlledTargetKey = z.infer<typeof ControlledTargetKeySchema>;
 
 const ControlledTargetDefinitionSchema = z
   .object({
@@ -103,4 +104,17 @@ export function createControlledTargetRegistry(
   definitions: readonly unknown[],
 ): ControlledTargetRegistry {
   return new ControlledTargetRegistry(definitions);
+}
+
+/** The only production ChatGPT target currently packaged for H3. */
+export function createPackagedStandardH3TargetRegistry(): ControlledTargetRegistry {
+  return new ControlledTargetRegistry([
+    {
+      key: "chatgpt_standard_health",
+      startUrl: "https://chatgpt.com/",
+      allowedTopLevelOrigins: ["https://chatgpt.com"],
+      browserFamily: "chrome",
+      navigationTimeoutMs: 15_000,
+    },
+  ]);
 }

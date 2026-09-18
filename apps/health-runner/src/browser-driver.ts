@@ -20,6 +20,8 @@ import {
 } from "./target-registry.js";
 import type { BrowserFamily } from "@product/shared";
 import { shouldBlockPrimaryDocumentRequest } from "./navigation-policy.js";
+import { createChatGPTStandardH3Strategy } from "./standard-h3-strategy.js";
+import type { H3SurfaceStrategy } from "./h3-strategy.js";
 
 export type BrowserDriverErrorCode =
   | "INVALID_DRIVER_LIFECYCLE"
@@ -201,6 +203,15 @@ export class ChromeBrowserDriver implements BrowserDriver {
       secondaryPageCount: this.#secondaryPageCount,
       unsafeTopLevelNavigation: this.#unsafeTopLevelNavigation,
     };
+  }
+
+  public createChatGPTStandardH3Strategy(): H3SurfaceStrategy {
+    if (this.#state !== "LAUNCHED" || !this.#page || !this.#activeTarget) {
+      throw new BrowserDriverError("INVALID_DRIVER_LIFECYCLE");
+    }
+    return createChatGPTStandardH3Strategy(this.#page, this.#activeTarget, () =>
+      this.closeOrPersist(),
+    );
   }
 
   public async observeStrategy(
