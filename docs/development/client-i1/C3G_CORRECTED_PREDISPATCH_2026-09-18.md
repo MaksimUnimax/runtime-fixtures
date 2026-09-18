@@ -5,9 +5,10 @@ Work ID: `SA-I1-C2-3-C3G-REWIRE-COMMAND-PREDISPATCH-CORRECTED-AUTONOMY-20260918-
 Status: `IMPLEMENTED_CANDIDATE_WITH_ENVIRONMENT_GAP`
 
 Base: C3F `9724a9b8089a933148a27e7cb01f0b33b7e9e142`, tree
-`c17672b9db2e2342731df3647bff89370010b61b`. The final candidate SHA/tree is
-recorded in the terminal report and in the follow-up documentation closure
-commit.
+`c17672b9db2e2342731df3647bff89370010b61b`.
+
+Candidate implementation commit: `5af3497a50e061c1388159a2084e10772fdcc3d9`.
+Candidate tree: `cf1df86d5398aa90c9f5e53dd33cb623edd5eb8f`.
 
 ## Architecture
 
