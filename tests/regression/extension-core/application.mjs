@@ -203,7 +203,7 @@ await test('APP-06-TTL-recovery-no-renewal-and-legacy-autorun-disabled', async (
     const keys = await s.worker.call('(() => OzonRuntime.STORAGE_KEYS)');
     s.worker.backing.local[keys.MANUAL_OPERATIONS][start.key].payload_expires_at_ms = Date.now()-1;
     const expired = await s.worker.call('getManualOperation', start.key);
-    assert.equal(expired.last_error.code,'RESULT_EXPIRED'); assert.equal(expired.outgoing_text,null); assert.equal(expired.batch,null);
+    assert.equal(expired.last_error.code,'RESULT_BUFFER_EXPIRED'); assert.equal(expired.outgoing_text,null); assert.equal(expired.batch,null);
     assert.equal((await s.worker.request({ type:'OZ_WORK_DELIVERY_ASSERT',conversation_key:start.key,owner_id:owner.operation_id,delivery_id:owner.delivery_id })).ok,false);
     assert.equal((await s.popup('OZ_AUTO_START',{conversation_key:start.key})).code,'LEGACY_ACTION_DISABLED');
     assert.equal(s.worker.network.length,1);

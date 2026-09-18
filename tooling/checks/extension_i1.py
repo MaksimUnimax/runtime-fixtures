@@ -46,6 +46,7 @@ def main():
                 ("context", ROOT / "tests/regression/extension-core/batch-context.mjs"),
                 ("wb", ROOT / "tests/regression/extension-core/wb-adapter.mjs"),
                 ("provider-outcome", ROOT / "tests/regression/extension-core/provider-outcome.mjs"),
+                ("i1-p2-result-recovery", ROOT / "tests/regression/extension-core/client-i1/client-p2-result-recovery.mjs"),
                 ("application", ROOT / "tests/regression/extension-core/application.mjs"),
                 ("i1-lifecycle", ROOT / "tests/regression/extension-core/client-i1/client-lifecycle.mjs"),
                 ("i1-races", ROOT / "tests/regression/extension-core/client-i1/client-races.mjs"),

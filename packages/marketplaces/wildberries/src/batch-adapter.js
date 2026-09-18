@@ -101,8 +101,8 @@
           await o.mutateOwner((owner) => o.ownerMatches(owner) && o.isCollecting(owner) ?
             { ...owner, batch: { ...owner.batch, request_state: "quota_waiting", quota_wait: o.quota } } : owner);
         },
-        async execute(text, { executionCommand, onProviderResponse }) {
-          const result = await provider.execute(text, { context, executionCommand, onProviderResponse });
+        async execute(text, { executionCommand, onProviderResponse, onProviderResult }) {
+          const result = await provider.execute(text, { context, executionCommand, onProviderResponse, onProviderResult });
           await context.assertCurrent();
           try { await quota.observe(await scope(executionCommand), result.response_meta?.retry_after); }
           catch (error) {

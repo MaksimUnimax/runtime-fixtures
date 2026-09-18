@@ -20,6 +20,17 @@
     return null;
   }
 
+  function redactSecrets(value, secrets, seen = new WeakSet()) {
+    if (typeof value === "string") {
+      return secrets.reduce((text, secret) => secret ? text.split(secret).join("[REDACTED_CREDENTIAL]") : text, value);
+    }
+    if (!value || typeof value !== "object") return value;
+    if (seen.has(value)) return undefined;
+    seen.add(value);
+    if (Array.isArray(value)) return value.map((item) => redactSecrets(item, secrets, seen));
+    return Object.fromEntries(Object.entries(value).map(([key, child]) => [key, redactSecrets(child, secrets, seen)]));
+  }
+
   function arrayCountForField(value, field) {
     const found = findFirstField(value, field);
     return Array.isArray(found) ? found.length : null;
@@ -706,6 +717,7 @@
         planning = null,
         quota = null,
         onProviderResponse = null,
+        onProviderResult = null,
         executionGuard = null,
       } = {},
     ) {
@@ -792,6 +804,12 @@
           command,
           response.parsed ?? response.rawText,
         );
+        result = redactSecrets(result, [
+          rawCredentials?.apiKey,
+          rawCredentials?.api_key,
+          rawPerformanceCredentials?.clientSecret,
+          rawPerformanceCredentials?.client_secret,
+        ]);
         if (command.operation !== "report_info") {
           const rawReportCode = findFirstField(response.parsed, "code");
           if (typeof rawReportCode === "string")
@@ -906,7 +924,7 @@
         ),
         planning: safePlanning,
       });
-      return Object.freeze({
+      const providerResult = Object.freeze({
         ok: response.ok,
         request_id: requestId,
         operation: logicalCommand.operation,
@@ -924,6 +942,16 @@
         ),
         auth_request_performed: execution.auth_request_performed === true,
       });
+      if (typeof onProviderResult === "function")
+        await onProviderResult({
+          command: logicalCommand,
+          request,
+          response,
+          result,
+          report_text: reportText,
+          provider_result: providerResult,
+        });
+      return providerResult;
     }
 
     async function executeCommand(

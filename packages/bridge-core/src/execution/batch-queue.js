@@ -34,6 +34,7 @@
       beforeProviderDispatch,
     } = ports;
     const outcome = globalThis.SellerAgentsProviderOutcome;
+    const resultRecovery = globalThis.SellerAgentsResultRecovery;
     const attemptId = () => `provider-attempt-${crypto.randomUUID()}`;
     const logicalId = (owner, index) => `${String(owner?.operation_id || owner?.run_id || ownerId)}:${index}`;
     function attemptInput(owner, entry, index, id, number = 1) {
@@ -107,6 +108,159 @@
       });
       if (!stored) throw Object.assign(new Error("Provider response receipt could not be committed"), { code: "PROVIDER_RESPONSE_RECEIPT_STORE_FAILED" });
       return next;
+    }
+    async function recordResultBuffer({ indexes, mutateOwner, ownerMatches, isCollecting, providerAttemptId, providerResult, projectionKind = "single" }) {
+      if (!resultRecovery?.createBuffer || !providerResult) return;
+      let stored = false;
+      await mutateOwner((current) => {
+        if (!current || !ownerMatches(current) || !isCollecting(current) || !current.batch) return current;
+        const entries = [...(current.batch.entries || [])];
+        for (const index of indexes) {
+          const entry = entries[index];
+          if (!entry || entry.provider_attempt_id !== providerAttemptId || !entry.provider_attempt) return current;
+          let attempt = entry.provider_attempt;
+          if (attempt.state === outcome.STATES.DISPATCH_INTENT_COMMITTED) {
+            attempt = outcome.markResponseReceived(attempt, {
+              ok: providerResult.ok === true,
+              httpStatus: Number(providerResult.http_status || 0),
+              external_request_executed: providerResult.external_request_executed !== false,
+              response_meta: providerResult.response_meta,
+            });
+          }
+          if (![outcome.STATES.RESPONSE_RECEIVED, outcome.STATES.COMPLETED_KNOWN, outcome.STATES.FAILED_KNOWN, outcome.STATES.RETRY_WAIT_KNOWN].includes(attempt.state)) return current;
+          const buffer = resultRecovery.createBuffer({
+            ...providerResult,
+            logical_execution_id: attempt.logical_execution_id,
+            provider_attempt_id: attempt.provider_attempt_id,
+            execution_id: attempt.execution_id,
+            command_index: attempt.command_index,
+            context: {
+              accountId: attempt.account,
+              conversationKey: attempt.conversation,
+              marketplace: attempt.marketplace,
+              storeId: attempt.store,
+              bindingId: attempt.binding,
+              bindingRevision: attempt.binding_revision,
+              workGeneration: attempt.work_generation,
+            },
+            expires_at_ms: current.payload_expires_at_ms,
+            projection_kind: projectionKind,
+          });
+          entries[index] = { ...setAttempt(entry, attempt), result_buffer: buffer, result_phase: buffer.phase };
+        }
+        stored = true;
+        return { ...current, batch: { ...current.batch, entries } };
+      });
+      if (!stored) throw Object.assign(new Error("Known provider result buffer could not be committed"), { code: "RESULT_BUFFER_STORE_FAILED" });
+      const barrier = globalThis.__SELLER_AGENTS_TEST_HOOKS?.afterResultBufferCommit;
+      if (typeof barrier === "function") await barrier({ provider_attempt_id: providerAttemptId, indexes: [...indexes] });
+    }
+    function bufferedProviderResult(entry) {
+      const payload = entry?.result_buffer?.payload;
+      if (!payload || typeof payload !== "object") return null;
+      return { ...payload, result: payload.result, report_text: payload.report_text };
+    }
+    async function recoverBufferedSingle({ index, owner, entry, mutateOwner, ownerMatches, isCollecting }) {
+      const buffer = entry?.result_buffer;
+      const decision = resultRecovery?.recoveryDecision
+        ? resultRecovery.recoveryDecision({ providerAttempt: entry.provider_attempt, resultBuffer: buffer, currentContext: owner.execution_context, now: Date.now() })
+        : { type: "resume_local_result" };
+      if (decision.type !== "resume_local_result") return decision;
+      const result = bufferedProviderResult(entry);
+      if (!result) return { type: "blocked", code: "RESULT_RECOVERY_UNAVAILABLE_NO_REPLAY" };
+      let stored = false;
+      await mutateOwner((current) => {
+        if (!current || !ownerMatches(current) || !isCollecting(current) || !current.batch || Number(current.batch.next_index || 0) !== index) return current;
+        const entries = [...(current.batch.entries || [])];
+        const live = entries[index];
+        if (!live || live.status !== "requesting" || live.provider_attempt_id !== entry.provider_attempt_id) return current;
+        entries[index] = {
+          ...live,
+          ...setAttempt(live, outcome.markKnown(live.provider_attempt, result.ok === true)),
+          status: "complete",
+          request_id: result.request_id || live.request_id || null,
+          http_status: Number(result.http_status || 0),
+          external_request_executed: result.external_request_executed !== false,
+          executed_command_fingerprint: result.executed_command_fingerprint || null,
+          report_text: String(result.report_text || ""),
+          request_completed_at: new Date().toISOString(),
+          result_phase: resultRecovery?.RESULT_PHASES?.MATERIALIZED || "MATERIALIZED",
+        };
+        stored = true;
+        return { ...current, batch: { ...current.batch, entries, next_index: index + 1, request_state: "idle", request_worker_session_id: null, quota_wait: null, request_quota: null } };
+      });
+      return stored ? { type: "recovered", code: "KNOWN_RESULT_RECOVERED", provider_calls: 0 } : { type: "blocked", code: "RESULT_RECOVERY_STORE_RACE" };
+    }
+    async function recoverBufferedGroup({ nextIndex, owner, group, mutateOwner, ownerMatches, isCollecting }) {
+      const expectedIndexes = Array.isArray(group?.member_indexes)
+        ? group.member_indexes.map((value) => Number(value))
+        : [];
+      if (!expectedIndexes.length || expectedIndexes[0] !== nextIndex)
+        return { type: "blocked", code: "RESULT_RECOVERY_UNAVAILABLE_NO_REPLAY" };
+      const members = expectedIndexes.map((index) => owner.batch.entries?.[index]);
+      if (members.some((entry) => !entry || entry.status !== "requesting" || entry.result_buffer?.projection_kind !== "physical"))
+        return { type: "blocked", code: "RESULT_RECOVERY_UNAVAILABLE_NO_REPLAY" };
+      const decisions = members.map((entry) => resultRecovery?.recoveryDecision
+        ? resultRecovery.recoveryDecision({
+            providerAttempt: entry.provider_attempt,
+            resultBuffer: entry.result_buffer,
+            currentContext: owner.execution_context,
+            now: Date.now(),
+          })
+        : { type: "resume_local_result" });
+      const blocked = decisions.find((decision) => decision.type !== "resume_local_result");
+      if (blocked) return blocked;
+      const physicalResult = bufferedProviderResult(members[0]);
+      if (!physicalResult) return { type: "blocked", code: "RESULT_RECOVERY_UNAVAILABLE_NO_REPLAY" };
+      let logicalResults;
+      try {
+        logicalResults = members.map((member) => projectGroup(member, group, physicalResult));
+      } catch (error) {
+        logicalResults = members.map((member) => projectGroup(member, group, physicalResult, error));
+      }
+      let stored = false;
+      await mutateOwner((current) => {
+        if (!current || !ownerMatches(current) || !isCollecting(current) || !current.batch) return current;
+        if (Number(current.batch.next_index || 0) !== nextIndex || current.batch.request_state !== "requesting") return current;
+        const entries = [...(current.batch.entries || [])];
+        for (let offset = 0; offset < expectedIndexes.length; offset += 1) {
+          const index = expectedIndexes[offset];
+          const entry = entries[index];
+          if (!entry || entry.status !== "requesting" || String(entry.query_group_id || "") !== String(group.group_id) || !logicalResults[offset]) return current;
+        }
+        const completedAt = new Date().toISOString();
+        for (let offset = 0; offset < expectedIndexes.length; offset += 1) {
+          const index = expectedIndexes[offset];
+          const entry = entries[index];
+          const logicalResult = logicalResults[offset];
+          entries[index] = {
+            ...setAttempt(entry, finalAttempt(entry, physicalResult)),
+            status: "complete",
+            request_id: logicalResult.request_id || null,
+            physical_request_id: logicalResult.physical_request_id || physicalResult.request_id || null,
+            http_status: Number(logicalResult.http_status || 0),
+            external_request_executed: logicalResult.external_request_executed === true,
+            executed_command_fingerprint: logicalResult.executed_command_fingerprint || group.physical_command_fingerprint || null,
+            report_text: String(logicalResult.report_text || ""),
+            request_completed_at: completedAt,
+            result_phase: resultRecovery?.RESULT_PHASES?.MATERIALIZED || "MATERIALIZED",
+          };
+        }
+        stored = true;
+        return {
+          ...current,
+          batch: {
+            ...current.batch,
+            entries,
+            next_index: expectedIndexes[expectedIndexes.length - 1] + 1,
+            request_state: "idle",
+            request_worker_session_id: null,
+            quota_wait: null,
+            request_quota: null,
+          },
+        };
+      });
+      return stored ? { type: "recovered", code: "KNOWN_RESULT_RECOVERED", provider_calls: 0 } : { type: "blocked", code: "RESULT_RECOVERY_STORE_RACE" };
     }
     async function markRequestingUnknown({ indexes, mutateOwner, ownerMatches, isCollecting }) {
       await mutateOwner((current) => {
@@ -277,6 +431,17 @@
               };
             });
             continue;
+          }
+          if (entry.status === "requesting" && entry.result_buffer && !entry.query_group_id) {
+            const recovered = await recoverBufferedSingle({ index: nextIndex, owner, entry, mutateOwner, ownerMatches, isCollecting });
+            if (recovered.type === "recovered") {
+              await diagnostic("KNOWN_RESULT_RECOVERED_NO_PROVIDER_REPLAY", { owner_kind: ownerKind, owner_id: ownerId, queue_index: nextIndex, provider_attempt_id: entry.provider_attempt_id, provider_calls: 0 });
+              continue;
+            }
+            if (recovered.type === "blocked") {
+              await failOwner(recovered.code, "Известный provider result нельзя безопасно восстановить; повторный provider request запрещён.");
+              return { ok: false, code: recovered.code };
+            }
           }
           if (entry.status === "requesting") {
             const worker = String(owner.batch.request_worker_session_id || "");
@@ -537,6 +702,31 @@
                 "Step 2 coalescing допускает только contiguous logical commands; provider request запрещён.",
               );
               return { ok: false, code: "BATCH_QUERY_PLAN_NONCONTIGUOUS" };
+            }
+
+            if (entry.status === "requesting" && entry.result_buffer) {
+              const recovered = await recoverBufferedGroup({
+                nextIndex,
+                owner,
+                group,
+                mutateOwner,
+                ownerMatches,
+                isCollecting,
+              });
+              if (recovered.type === "recovered") {
+                await diagnostic("KNOWN_RESULT_RECOVERED_NO_PROVIDER_REPLAY", {
+                  owner_kind: ownerKind,
+                  owner_id: ownerId,
+                  queue_index: nextIndex,
+                  coalescing_group_id: group.group_id,
+                  provider_calls: 0,
+                });
+                continue;
+              }
+              if (recovered.type === "blocked") {
+                await failOwner(recovered.code, "Известный provider result нельзя безопасно восстановить; повторный provider request запрещён.");
+                return { ok: false, code: recovered.code };
+              }
             }
 
             const groupCacheHit = await readCache(group.physical_command);
@@ -834,6 +1024,17 @@
                   logicalExecutionId: logicalId(owner, nextIndex),
                   onProviderResponse: (response) => {
                     providerResponse = response?.response || response;
+                  },
+                  onProviderResult: async (value) => {
+                    await recordResultBuffer({
+                      indexes: expectedIndexes,
+                      mutateOwner,
+                      ownerMatches,
+                      isCollecting,
+                      providerAttemptId: groupProviderAttemptId,
+                      providerResult: value?.provider_result || value,
+                      projectionKind: "physical",
+                    });
                   },
                 })),
                 physical_attempt_id: physicalAttemptId,
@@ -1263,6 +1464,17 @@
               logicalExecutionId: logicalId(owner, nextIndex),
               onProviderResponse: (response) => {
                 providerResponse = response?.response || response;
+              },
+              onProviderResult: async (value) => {
+                await recordResultBuffer({
+                  indexes: [nextIndex],
+                  mutateOwner,
+                  ownerMatches,
+                  isCollecting,
+                  providerAttemptId,
+                  providerResult: value?.provider_result || value,
+                  projectionKind: "single",
+                });
               },
             });
             if (providerResponse)

@@ -218,5 +218,25 @@
     "target": "content_script.js",
     "old": "    if (!due) return \"\";\n    const remainingMs = Math.max(0, due - Number(now));",
     "new": "    if (!due) return \"\";\n    if (saContentContext) {\n      const provider = saContentContext.marketplace === \"wildberries\" ? \"WB\" : \"Ozon\";\n      return Number(now) >= due\n        ? `Ожидание ${provider} завершено. Продолжите пакет в расширении.`\n        : `Ожидание ${provider} до ${formatLocalClock(due)}. Пакет сохранён. Затем продолжите его в расширении.`;\n    }\n    const remainingMs = Math.max(0, due - Number(now));"
+  },
+  {
+    "target": "shared/direct_binary_file_delivery_patch.js",
+    "old": "      const output = await baseProvider.executeCommandObject(command, sellerCredentials, performanceCredentials, options);",
+    "new": "      const onProviderResult = options.onProviderResult;\n      const output = await baseProvider.executeCommandObject(command, sellerCredentials, performanceCredentials, { ...options, onProviderResult: null });\n      const notifyResult = async (value) => {\n        if (typeof onProviderResult !== \"function\") return;\n        await onProviderResult({ command, result: value?.result, report_text: value?.report_text, provider_result: value });\n      };"
+  },
+  {
+    "target": "shared/direct_binary_file_delivery_patch.js",
+    "old": "      if (!meta || output?.ok !== true || Number(output?.http_status || 0) < 200 || Number(output?.http_status || 0) >= 300) return output;",
+    "new": "      if (!meta || output?.ok !== true || Number(output?.http_status || 0) < 200 || Number(output?.http_status || 0) >= 300) { await notifyResult(output); return output; }"
+  },
+  {
+    "target": "shared/direct_binary_file_delivery_patch.js",
+    "old": "      if (!raw || raw.generated_file_ref || !raw.file_content_base64) return output;",
+    "new": "      if (!raw || raw.generated_file_ref || !raw.file_content_base64) { await notifyResult(output); return output; }"
+  },
+  {
+    "target": "shared/direct_binary_file_delivery_patch.js",
+    "old": "        return Object.freeze({ ...output, result, report_text: safeResultReport(output.report_text, result) });",
+    "new": "        const finalOutput = Object.freeze({ ...output, result, report_text: safeResultReport(output.report_text, result) });\n        await notifyResult(finalOutput);\n        return finalOutput;"
   }
 ]

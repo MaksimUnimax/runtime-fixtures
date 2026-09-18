@@ -16,6 +16,40 @@ async function manualRecoveryForContent(operation, candidateTabId) {
       requestWorker &&
       requestWorker !== WORKER_SESSION_ID
     ) {
+      const requesting = (current.batch?.entries || []).filter((entry) => entry?.status === "requesting");
+      const knownBuffered = requesting.length > 0 && requesting.every((entry) =>
+        entry?.provider_attempt?.state === SellerAgentsProviderOutcome.STATES.RESPONSE_RECEIVED &&
+        entry?.result_buffer?.phase === SellerAgentsResultRecovery.RESULT_PHASES.BUFFERED,
+      );
+      if (knownBuffered) {
+        setTimeout(() => {
+          launchBatchProcessor("manual", current.conversation_key, current.operation_id, "known_result_recovery");
+        }, 0);
+        return {
+          owner: true,
+          rebound: owner.rebound === true,
+          operation: current,
+          recovery: { type: "resume_local_result", code: "KNOWN_RESULT_RECOVERY_SAFE", provider_calls: 0 },
+        };
+      }
+      const knownWithoutBuffer = requesting.some((entry) =>
+        [SellerAgentsProviderOutcome.STATES.RESPONSE_RECEIVED, SellerAgentsProviderOutcome.STATES.COMPLETED_KNOWN, SellerAgentsProviderOutcome.STATES.FAILED_KNOWN].includes(entry?.provider_attempt?.state) &&
+        entry?.result_buffer?.phase !== SellerAgentsResultRecovery.RESULT_PHASES.BUFFERED,
+      );
+      if (knownWithoutBuffer) {
+        current = await failManualBatch(
+          current.conversation_key,
+          current.operation_id,
+          "RESULT_RECOVERY_UNAVAILABLE_NO_REPLAY",
+          "Известный provider result не имеет локального projection buffer; повторный provider request запрещён.",
+        );
+        return {
+          owner: true,
+          rebound: owner.rebound === true,
+          operation: current,
+          recovery: { type: "blocked", code: "RESULT_RECOVERY_UNAVAILABLE_NO_REPLAY" },
+        };
+      }
       current = await mutateManualOperation(
         current.conversation_key,
         (value) => {

@@ -27,7 +27,7 @@ function saCombinedReport(entries, owner) {
 async function saPrepareDelivery(entries, owner) {
   if (!await saEnabled() || owner?.execution_context?.marketplace !== "wildberries") return entries;
   const guard = await saGuard(owner), result = [];
-  for (const entry of entries) {
+  for (const [entryIndex, entry] of entries.entries()) {
     await guard.assertCurrent();
     if (!entry.report_text?.startsWith("WB_RESULT_V1\n") || !(entry.http_status >= 200 && entry.http_status < 300)) { result.push(entry); continue; }
     const envelope = JSON.parse(entry.report_text.slice(entry.report_text.indexOf("\n") + 1));
@@ -35,7 +35,12 @@ async function saPrepareDelivery(entries, owner) {
     if (typeof data?.content_base64 !== "string") { result.push(entry); continue; }
     const bytes = ProviderTransportCore.reportBase64ToBytes(data.content_base64);
     if (bytes.byteLength !== data.byte_length) throw saError("FILE_BYTE_LENGTH_MISMATCH");
-    const ref = `sa_file_${crypto.randomUUID()}`;
+    // The artifact identity is tied to the logical result, not to a worker
+    // invocation. Re-finalizing after a restart therefore reuses the same
+    // bounded artifact key instead of orphaning a second local file.
+    const artifactIdentity = String(entry.provider_attempt?.provider_attempt_id || entry.request_id || `${owner.operation_id}:${entryIndex}`)
+      .replace(/[^A-Za-z0-9_-]/g, "-").slice(0, 180);
+    const ref = `sa_file_${artifactIdentity || `result-${entryIndex}`}`;
     const filename = data.original_filename || `wb-report-${entry.operation || "result"}.${/pdf/i.test(data.content_type) ? "pdf" : /csv/i.test(data.content_type) ? "csv" : /spreadsheetml/i.test(data.content_type) ? "xlsx" : "bin"}`;
     await guard.assertCurrent();
     const descriptor = await OzonFileDeliveryWorker.storeApplicationArtifact({ artifact_key: `provider:${ref}`,

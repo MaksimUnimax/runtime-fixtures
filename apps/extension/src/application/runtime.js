@@ -978,8 +978,34 @@ function saPrunePayload(owner, now = Date.now()) {
   if (!owner) return owner;
   const expires = owner.payload_expires_at_ms || Date.parse(owner.created_at || "") + SA_PAYLOAD_TTL;
   if (Number.isFinite(expires) && expires > now) return { ...owner, payload_expires_at_ms: expires };
+  const entries = Array.isArray(owner.batch?.entries) ? owner.batch.entries : [];
+  const replayFence = {
+    schema_version: SellerAgentsResultRecovery?.SCHEMA_VERSION || 1,
+    kind: "RESULT_BUFFER_EXPIRED",
+    expired_at_ms: now,
+    provider_replay_forbidden: true,
+    delivery_replay_forbidden: true,
+    execution_id: owner.operation_id || null,
+    context: owner.execution_context ? {
+      accountId: owner.execution_context.accountId,
+      conversationKey: owner.execution_context.conversationKey,
+      marketplace: owner.execution_context.marketplace,
+      storeId: owner.execution_context.storeId,
+      bindingId: owner.execution_context.bindingId,
+      bindingRevision: owner.execution_context.bindingRevision,
+      workGeneration: owner.execution_context.workSessionId,
+    } : null,
+    attempts: entries.map((entry) => entry?.provider_attempt).filter(Boolean).map((attempt) => ({
+      logical_execution_id: attempt.logical_execution_id || null,
+      provider_attempt_id: attempt.provider_attempt_id || null,
+      state: attempt.state || null,
+      outcome: attempt.outcome || null,
+    })).slice(-32),
+    delivery_id: owner.delivery?.delivery_id || owner.delivery_id || null,
+  };
   return { ...owner, status: "failed", batch: null, outgoing_text: null, delivery: null,
-    completed_at: owner.completed_at || new Date(now).toISOString(), last_error: { code: "RESULT_EXPIRED" } };
+    completed_at: owner.completed_at || new Date(now).toISOString(), recovery_fence: replayFence,
+    last_error: { code: "RESULT_BUFFER_EXPIRED" } };
 }
 async function saAssertDeliveryOwner(owner) {
   if (!owner?.execution_context) throw SellerAgentsExecutionContext.error("EXECUTION_CONTEXT_MISSING");

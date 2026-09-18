@@ -6,6 +6,7 @@ async function executeOzonCore(
     quotaPermit = null,
     executionContext = null,
     onProviderResponse = null,
+    onProviderResult = null,
   } = {},
 ) {
   const settings = await (executionContext
@@ -51,6 +52,7 @@ async function executeOzonCore(
                   );
                 return null;
               },
+              onProviderResult,
             },
           )
         : await OzonProvider.executeCommand(

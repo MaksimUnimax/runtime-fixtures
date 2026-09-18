@@ -115,6 +115,16 @@
       safeTree(child, depth + 1, budget);
     }
   }
+  function redactSecrets(value, secrets, seen = new WeakSet()) {
+    if (typeof value === "string") {
+      return secrets.reduce((text, secret) => secret ? text.split(secret).join("[REDACTED_CREDENTIAL]") : text, value);
+    }
+    if (!value || typeof value !== "object") return value;
+    if (seen.has(value)) return undefined;
+    seen.add(value);
+    if (Array.isArray(value)) return value.map((item) => redactSecrets(item, secrets, seen));
+    return Object.fromEntries(Object.entries(value).map(([key, child]) => [key, redactSecrets(child, secrets, seen)]));
+  }
   function originalName(response) {
     const header = response?.headers?.get?.("content-disposition") || "";
     const encoded = /filename\*=UTF-8''([^;]+)/i.exec(header);
@@ -126,7 +136,7 @@
   }
   function createProvider({ fetchImpl = globalThis.fetch, timeoutMs = 30000, maxBytes = 3000000,
     maxBinaryBytes = 12000000, uuid = () => crypto.randomUUID() } = {}) {
-    async function execute(commandText, { context, executionCommand = null, onProviderResponse = null } = {}) {
+    async function execute(commandText, { context, executionCommand = null, onProviderResponse = null, onProviderResult = null } = {}) {
       if (!context?.snapshot || typeof context.credentials !== "function") fail("EXECUTION_CONTEXT_MISSING");
       let attempted = false, httpStatus = 0, command, filename = null;
       try {
@@ -166,7 +176,7 @@
             try { result = JSON.parse(response.rawText); } catch { fail("PROVIDER_JSON_INVALID"); }
           } else result = response.parsed ?? response.rawText;
           safeTree(result);
-          result = C.sanitizeResult(command, result);
+          result = redactSecrets(C.sanitizeResult(command, result), [saved.token]);
         }
         const requestId = String(uuid());
         let report = C.formatResultReport({ requestId, command, httpStatus: response.httpStatus,
@@ -174,11 +184,14 @@
           result, elapsedMs: response.elapsedMs, rateLimit: { retry_after: response.responseMeta?.retry_after || null } });
         // Never allow an echoed exact credential into a JSON/text result or diagnostics.
         if (!binary) report = report.split(saved.token).join("[REDACTED_CREDENTIAL]");
-        return { ok: response.ok, request_id: requestId, http_status: response.httpStatus,
+        const providerResult = { ok: response.ok, request_id: requestId, http_status: response.httpStatus,
           external_request_executed: true, report_text: report,
+          result,
           executed_command_fingerprint: C.commandFingerprint(command),
           response_meta: { retry_after: response.responseMeta?.retry_after || null },
           verification: binary ? "BINARY_BYTES_CAPTURED" : "STRUCTURAL_ONLY_WB_SCHEMA_PENDING" };
+        if (typeof onProviderResult === "function") await onProviderResult({ command, result, report_text: report, provider_result: providerResult });
+        return providerResult;
       } catch (error) {
         if (error.execution_context_error) throw error;
         // The frozen transport normalizes fetch exceptions; recheck the guard so
