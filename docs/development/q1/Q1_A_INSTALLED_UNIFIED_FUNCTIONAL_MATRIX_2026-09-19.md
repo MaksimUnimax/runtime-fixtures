@@ -348,3 +348,386 @@ lane.`
    and artifact blockers remain.
 32. Next task: **Q1-A-R1 clean Chromium MV3/package-artifact recovery and full
    current-package replay**, after architect review.
+
+## R1 — canonical MV3 recovery and installed replay closure
+
+Work ID: `Q1-A-R1-20260919-CANONICAL-MV3-RECOVERY-PACKAGE-IDENTITY-AND-INSTALLED-REPLAY`.
+
+This section is an additive R1 receipt. The original Q1-A report above is
+preserved unchanged. R1 does not self-accept Q1-A and did not start Q1-B,
+Q1-C, Q1-D, Q1-E, S1.2, deployment, publication, or monetization.
+
+### R1 Git and remote truth
+
+- Start HEAD/tree: `9f1ee8772c09a686c334c847bb918ef39396e802` /
+  `f62cfc13483bed8800b9abdacb99ec1aaa51318f`.
+- Branch: `feature/q1-a-installed-unified-matrix-2026-09-19`.
+- The accepted D3/S2 comparison base is `79893dd1f9f9e54dd9959b8ffdef83f7cf4fc0dd` /
+  `e4873743e0483239131df0cb47edfa4795b54bae`.
+- `git diff 79893dd..9f1ee877 -- apps/extension packages/bridge-core
+  packages/marketplaces migration/reference tooling/build` is empty. The
+  complete commit diff is the prior Q1-A documentation file only.
+- Live `git ls-remote` verified:
+  `origin/main=bc718cc5c677ad0eb4598e7de3ad766473ff0847`,
+  `origin/integration/i1-c1-srv5-2026-09-16=23047b3bdc22842a5b17e29e3d3f603c0ee51b16`,
+  `origin/docs/roadmap-autonomy-correction-2026-09-18=6a48af8cd19137aaa10688c36cb064d3c4b16969`.
+- The pre-existing untracked `packages/server/**` symlink directories and
+  `repro/` were not staged, modified, or removed. Stream-2 implementation
+  paths `apps/health-runner/**`, `packages/server/health/**`, and
+  `tooling/api-watch/**` were not modified.
+- No push was attempted. `ENVIRONMENT_DEFERRED_REMOTE_PUBLICATION` remains;
+  no remote Q1-A publication or `REMOTE_VERIFIED` claim is made.
+
+### R1 environment inventory and safe cleanup
+
+Initial inventory recorded `/dev/vda1` 59G total, approximately 56G used and
+553MB available (94–100% reported by the two filesystem tools). The only
+mounted writable root filesystem is `/dev/vda1`; `/run`, `/dev/shm`, and
+`/run/user/0` are tmpfs. Current post-replay availability is approximately
+498–506MB.
+
+Task/runtime inventory:
+
+- Repository: `/root/runtime-fixtures` (about 1.5G including existing
+  dependencies and preserved untracked content).
+- Playwright cache: `/root/.cache/ms-playwright` (about 656M), containing
+  `chromium-1234`, `chromium_headless_shell-1234`, and `ffmpeg-1011`.
+- Playwright registry link: `/root/.cache/ms-playwright/.links/648adff9348a7311130054e1b2426ffd46b537ad`, pointing at Playwright Core `1.62.1`.
+- Python Playwright package: `1.62.0`; repository Playwright Core and test
+  package: `1.62.1`.
+- Task-created R1 build/probe/replay directories were kept until the receipt
+  was complete. No additional deletion was performed in R1: remaining
+  temporary directories and all running Docker resources were not proven
+  disposable and owner-exclusive. No repository, evidence, owner data,
+  Stream-2 data, browser cache, or Docker volume was deleted.
+- Docker showed active task/project containers, including
+  `d3s2-r1-postgres-20260918` and `d3s2-r1-e2e-postgres`; no stopped
+  task-owned container/volume met the safe-removal rule.
+- Node environments: system `node v12.22.9`; canonical `/root/.nvm/versions/node/v24.20.0/bin/node v24.20.0`; with Node 24 on PATH, `npm 11.19.0` and `pnpm 10.34.5`. The repository pins `pnpm@10.34.5`.
+
+Available browser executables and versions:
+
+| executable | version | R1 use |
+|---|---|---|
+| `/usr/bin/google-chrome` → system Chrome | Google Chrome 147.0.7727.116 | differential only |
+| `/root/.cache/ms-playwright/chromium-1234/chrome-linux64/chrome` | Chrome for Testing 151.0.7922.34 | canonical installed acceptance |
+| `/root/.cache/ms-playwright/chromium_headless_shell-1234/chrome-headless-shell-linux64/chrome-headless-shell` | Chrome for Testing 151.0.7922.34 | lower-layer/browser package support |
+| `/root/.agent-browser/browsers/chrome-149.0.7827.155/chrome` | Chrome for Testing 149.0.7827.155 | available candidate, not selected |
+| `/root/.cloakbrowser/chromium-146.0.7680.177.5/chrome` | Chromium 146.0.7680.177 | available candidate, not selected |
+
+Previous evidence and scripts explicitly identify Chrome for Testing
+`151.0.7922.34` and `channel: "chromium"`; the managed executable was
+recovered locally, not downloaded or assumed absent. Existing Playwright
+persistent profiles were task-temporary profiles under `/tmp` and were
+created/cleaned by the harness; no owner browser profile was used.
+
+### R1 browser differential
+
+The same minimal unpacked MV3 probe was run against a runtime reconstructed
+from the accepted base and the current Q1-A tree. The production paths are
+byte-identical because the complete commit diff between the two heads is
+documentation-only. Each row below was run with a fresh persistent profile.
+
+| browser | accepted D3/S2 base | current Q1-A tree | result |
+|---|---|---|---|
+| System Chrome 147.0.7727.116 | no worker after 5s; no ID/URL/popup | no worker after 5s; no ID/URL/popup | `PRE_EXISTING_SYSTEM_CHROME_MV3_ENVIRONMENT_FAILURE` / harness differential, not product |
+| Canonical Chromium 151.0.7922.34 | worker registered; popup loaded | worker registered; popup loaded | same extension semantics; no Q1-A regression |
+
+Canonical probe details: both candidates used MV3
+`service_worker_entry.js`; each returned a `chrome-extension://…` worker URL,
+`chrome.runtime.getManifest()` succeeded, and `popup.html` loaded with title
+`Seller Agents`. The exact final configured package independently repeated the
+same result. No worker console error or manifest/runtime error was observed.
+
+### R1 package identity differential
+
+The old exact `0166cd…` archive was not found in the repository, task-owned
+artifact/cache directories, `/tmp`, or `/var/backups`; its committed receipt
+does not contain per-file hashes. The available differential is therefore
+against the fixture-neutral rebuild, plus the committed configured receipt:
+
+| candidate | size | SHA-256 | build input |
+|---|---:|---|---|
+| accepted configured receipt | 2,076,761 | `0166cd246f5b37229caa1f33f284db5c4530892498882c0659e3e6759fcfedc6` | `SA_PACKAGED_CONFIG_JSON` synthetic configured trust/origin prefix |
+| R1 fixture-neutral rebuild | 2,075,976 | `5f023926ce9fb140766b25fdb4dbe104ce5861f4996d2d3f01b5817aeca64b9c` | no packaged-config override |
+| R1 final configured package | 2,076,761 | `0d23e0e195f42c4ccc7f3492c606cf95129332aef33b6ce90a495a589f9331e8` | one fresh synthetic configured trust key; all installed R1 runs |
+
+The exact cause of the `0166cd…` to `5f0239…` size change is the omitted
+generated packaged configuration: it removes a 785-byte prefix from
+`service_worker.js`. It is not a production-source change, line-ending change,
+dependency/toolchain change, timestamp change, ZIP ordering change, mode
+change, or archive-only metadata change. The old byte stream is unavailable,
+so byte-for-byte old archive comparison and old per-file hash comparison are
+not claimed. Classification:
+`PACKAGE_GENERATED_BYTES_CHANGED` plus
+`PACKAGE_ARTIFACT_UNAVAILABLE_FOR_DIFFERENTIAL`.
+
+The final configured package differs from the fixture-neutral candidate in
+exactly one packaged file: `service_worker.js`, 570,678 → 571,463 bytes;
+its SHA-256 is `0c2975deb8ac05f52879469f47514d8796ff33470faaeddc0e43e20dc2e4041f`
+versus `9486f6fe8b4bd35c9ee2a8a68cbcc597b5692df31ba040e5039373a6b6d7b32b`.
+The other 38 file hashes and sizes are identical. The 785-byte generated
+prefix is the configured synthetic trust/origin input required by installed
+authority fixtures.
+
+### R1 final package receipt
+
+- Name: `SELLER_AGENTS_I1_C1_v0.2.4_LOCAL_DEVELOPMENT.zip`.
+- Exact SHA-256: `0d23e0e195f42c4ccc7f3492c606cf95129332aef33b6ce90a495a589f9331e8`.
+- ZIP size: `2,076,761` bytes; runtime files: `39`; extracted files: `39`;
+  ZIP entries: `39`; duplicate entries: none.
+- Repeat build with the same recovered configuration produced the same SHA and
+  size: `PASS`.
+- Source/generated runtime = extracted runtime: `39/39` exact byte parity.
+- All 36 JavaScript files: Node 24 `--check` `PASS`; failures `0`.
+- ZIP entries are sorted, `ZIP_STORED`, timestamp `(1980,1,1,0,0,0)`, Unix
+  mode `0644`, create-system `3`; metadata is normalized and repeat-stable.
+
+Per-file final receipt (`path bytes sha256`):
+
+```text
+attachment_delivery_port_content.js 28802 087fe504224634b610c8e27d075bb36f665a4c5f2503e828ea9b4fa8136a99ec
+attachment_delivery_wake_content.js 759 6b3a7a4b25ce6a86a9e7b54c0a71a29c02aad9480cfbe7d2a0007e9ca4c9aa11
+content_script.js 136205 6f3f156d980caf94f16f1079bd9786a1c6ca673ce08448659220f75367484c79
+manifest.json 2479 54e14ea28fb8bbb11adfc1cadf016d7aabd4914b182eeb9a50d9cb7f9375ec26
+popup.css 2152 2a8f4eba8a461dc81e3a7348babd95e71da843c35db1d60da30aae449f4fb43d
+popup.html 6734 9168c22e1a4996946c2242b2e4b15789c9833c986add020d2419a7d6ba56fdbb
+popup.js 16690 70eacd6d7ea9ca7fd646b85da94ac61697f4631da24c9872393fc16504f1c095
+service_worker.js 571463 0c2975deb8ac05f52879469f47514d8796ff33470faaeddc0e43e20dc2e4041f
+service_worker_entry.js 1810 895daa2b1e11c2129e5d075bf738313fd5a689e1a0b30ab4a11dcbbb075866fc
+shared/ai_adapters.js 22597 4b9423666cf7bed03f89edb3c23d535bd02143e85c1a1b7317d184f25cc1bb72
+shared/ai_delivery_capabilities.js 9753 dca544904ae1aac578e52f60883c603cee4129fe56089f807ec175cef4e2e83a
+shared/application.js 138529 574ca95eb9dd752640455035149f7adddce41f0a91d53e4dfd2faf2cfe3736fe
+shared/bootstrap_verifier.js 17369 1e62c7718762b6ac58e2939919c90196472aa604da8e6aad927aaddc35dc05e6
+shared/bridge_autorun_model.js 21583 4e3e0fcd18c4d2e72c3758419f7fbb082e6a75e8d444913ec8b0dfdc0ea0b360
+shared/composer_send.js 8267 3e9421e8e1bc209af6358e8d957e558301763572a42875b95c8973ca75b736
+shared/conversation_identity.js 4027 939036acd95ccb3dfe00f05b5d49568615f6d798a023a0ec995e38267fb68f57
+shared/direct_binary_file_delivery_patch.js 10569 a1a54bfa55f4e3544b60f39f5cc1c4c4d5b9492776a34d4bdb4961a88d937786
+shared/file_delivery_model_policy.js 4021 caba2a05701d74879bc699316530575c63106a62f8f782eee694ef1c3b4b5aab
+shared/file_delivery_port_worker.js 41779 a98c52d0dcdc38408058d04a23602fda6f51f03086db38960fe45438e8d427ff
+shared/file_delivery_wake_worker.js 1750 ec1b59ba7243bf4a5591bdbe10b0b5f6e727f8769b08833da156378d202acffd
+shared/live_runtime_v0122_patch.js 21042 b496fe501ca13860abf501833e4fb34d588103645047a41dbb568cc45228a79d
+shared/llm_output_report_workflow_patch.js 15664 a564e2dbafb3980bd406e82744c177a34df2279b63c3198395c13126520dbbff
+shared/manual_controls.js 10269 81f302487da7b5ff7c1b746298353438b2cfec100a5bb8f7fa2c80d1e033c81e
+shared/mixed_batch_discovery.js 6054 5daff1af1af6244068258e27cf77e4a814192c1019b3bf3e73dcb9c63a0619ad
+shared/ozon_contract.js 321332 96c3a97ba167b4cd7971bba76bd1cb29f3a149f26cb405d60be5eae5fd2bb520
+shared/ozon_credentials.js 4085 286c6021f958e41912842569bcfa0d0dfe920eed8ce1646014899a1de064415d
+shared/ozon_entitlements.js 58578 f8b9222368a2e3bbfb323ab5cd0fe1c3238742d5c06ef9afac752861d4c7422b
+shared/ozon_guidance.js 10926 346da9b83082f5b8246cab7c5aa6afb2e5f04b14d225384ab267f803a030de3e
+shared/ozon_operation_registry.js 225182 b42b51f815c0f88e89e1cd193d28cc4f72949d5dd1738ab35d473b226fd0a832
+shared/ozon_provider.js 37513 fac8808f90bab2eebef928166aee2ba8daf7965d3b5cb8ea93bf0b1e9085c31d
+shared/performance_report_continuation_patch.js 5181 f42115e8ac4197fef8b7f5ba463bc6303e3d425a9202c95605edc3844b34a9b5
+shared/proven_writing_block_capture.js 14614 5b0eaac9619cb827d1e74c61f53e2755c084a1d4b60c64d23f5fd4a5354c3aef
+shared/provider_transport_core.js 37467 97f9a8bed0427753168c8ff083191338225cbe3abd026b471876daf19e04bba4
+shared/runtime_names.js 10640 d502b11ef8d772dfc42499991d3307c7d18aa0bc1e5bb269a7b57a1f08582b0f
+shared/swagger_read_surface_patch.js 57274 252274d629e635258f4c18a00ee90b02dc0d2d277945328986e4f49066b1ae06
+shared/wb_adapter.js 168907 a876a017d17c539fe35b050a3f18c1c1dea870547c1ae996c235b4c48524e700
+shared/web_file_attachment.js 4750 a1d91cb7b6aa5b1b26bf780e29f3d42895510b04d55d37569cfc3d3cf4db3010
+shared/work_session_model.js 2627 95730ec62b91ee32c598b502d73c8fcaa76499f4ff5c740648a49fc64bdf8c8d
+shared/xlsx_direct_binary_delivery_patch.js 12156 5e61f6d749cf69d980b4d9bdae8b32bb0937e48a298abd4afd9793241252c3fa
+```
+
+### R1 installed replay and Q1A matrix
+
+All installed receipts below use the one final configured package identity
+`0d23e0e195f42c4ccc7f3492c606cf95129332aef33b6ce90a495a589f9331e8`.
+Source/generated and extracted/package forms are two parity forms of this same
+package, not different acceptance candidates.
+
+Installed receipts:
+
+- Native C1: `BR-C1-01..36 PASS` on source/generated and extracted/package;
+  popup Start/Resume, store/context fencing, Finish fencing, duplicate UI,
+  old-command non-autorun, worker recovery, zero provider calls.
+- C2 offline: `BR-C2-01..05 PASS`.
+- Store metadata: `BR-STORE-01..13 PASS` on both forms; real popup,
+  chrome.storage, tombstone/revision/restart/reconciliation paths; provider and
+  ordinary mandatory control traffic `0`.
+- R4 transport: `SYNC-R4-01..05 PASS` on both forms over installed HTTP,
+  including independent installation, duplicate request ID, stale ACK, and
+  secret-free sync payload.
+- P1 provider outcome: all emitted installed P1 rows `PASS`; UNKNOWN has no
+  automatic provider replay.
+- P2 result recovery: all emitted installed rows `PASS`; Delivery UNKNOWN has
+  zero automatic additional sends.
+- P3 scheduler: source/extracted `PASS`, one restart, 100-wake check,
+  `marketplace_requests=0`, periodic scheduler alarms `0`.
+- A24: installed export, same-account clean import, wrong password, tamper,
+  conflicts, account mismatch, legacy/unknown rejection all `PASS` on both
+  forms; four stores; provider requests `0`; mandatory control requests `0`.
+- The standalone `browser_verified_health_authority.py` helper returned a
+  denied valid claim because its fixture authority shape/key context is not
+  compatible with the configured package. This is `SYNTHETIC_FIXTURE_DEFECT` /
+  `HARNESS_DEFECT`; integrated C1 authority/Health cases pass and no product
+  patch was made.
+- A current-package transfer provisioning attempt timed out waiting for its
+  test API at `127.0.0.1:43102/health/ready` before any transfer case. The
+  harness captures the child API output rather than surfacing it. This is
+  `DISK/DB_ENVIRONMENT_DEFECT` / `HARNESS_DEFECT`, not a transfer assertion.
+  Because the transfer runner builds its own configured fixture package, that
+  failed attempt is not counted as a current-final-package PASS. A22/A23 stay
+  `ENVIRONMENT_DEFERRED-Q1A-CURRENT-PACKAGE-TRANSFER-REPLAY`; accepted A22/A23
+  evidence remains valid because the transfer production diff is empty.
+
+| ID | final status | boundary/evidence |
+|---|---|---|
+| Q1A-01 | `INSTALLED_PASS` | C1/store popup marketplace switch |
+| Q1A-02 | `INSTALLED_PASS` | Store metadata popup, multiple Ozon identities |
+| Q1A-03 | `INSTALLED_PASS` | Store metadata/A24, multiple WB identities |
+| Q1A-04 | `INSTALLED_PASS` | A24 installed Seller-only shape |
+| Q1A-05 | `INSTALLED_PASS` | A24 installed Seller+Performance shape |
+| Q1A-06 | `INSTALLED_PASS` | Store metadata popup rename/revision |
+| Q1A-07 | `INSTALLED_PASS` | Store metadata popup delete/tombstone |
+| Q1A-08 | `INSTALLED_PASS` | C1 BR-C1-01 synthetic Start |
+| Q1A-09 | `INSTALLED_PASS` | C1 BR-C1-02 historical Start |
+| Q1A-10 | `INSTALLED_PASS` | C1 BR-C1-03 Resume |
+| Q1A-11 | `INSTALLED_PASS` | C1 BR-C1-20..29 store change/rebind |
+| Q1A-12 | `INSTALLED_PASS` | C1 marketplace/context fencing |
+| Q1A-13 | `INSTALLED_PASS` | C1 BR-C1-15/22..24 Finish fencing |
+| Q1A-14 | `INSTALLED_PASS` | C1 popup lifecycle/visibility paths |
+| Q1A-15 | `INSTALLED_PASS` | C1/P1 installed command paths |
+| Q1A-16 | `INSTALLED_PASS` | P1 installed command/report ordering paths |
+| Q1A-17 | `INSTALLED_PASS` | P1 fail-closed invalid/unknown command paths |
+| Q1A-18 | `INSTALLED_PASS` | P1 unknown operation/host fencing |
+| Q1A-19 | `INSTALLED_PASS` | P1 mutation/read-only safety |
+| Q1A-20 | `INSTALLED_PASS` | P1 installed report START |
+| Q1A-21 | `INSTALLED_PASS` | P1 not-ready response/no hidden poll |
+| Q1A-22 | `INSTALLED_PASS` | P1 ready report lifecycle |
+| Q1A-23 | `INSTALLED_PASS` | P2/A24 installed materialization paths |
+| Q1A-24 | `INSTALLED_PASS` | P1 UNKNOWN terminal/no repeat |
+| Q1A-25 | `INSTALLED_PASS` | P2/C1 restart local-state recovery |
+| Q1A-26 | `LOWER_LAYER_PASS_ONLY` | Large-JSON-specific popup receipt not emitted by installed batch |
+| Q1A-27 | `LOWER_LAYER_PASS_ONLY` | XLSX/binary focused receipt remains lower-layer |
+| Q1A-28 | `LOWER_LAYER_PASS_ONLY` | Original provider-file focused receipt remains lower-layer |
+| Q1A-29 | `LOWER_LAYER_PASS_ONLY` | Buffer bound receipt remains P2/P3 lower-layer |
+| Q1A-30 | `LOWER_LAYER_PASS_ONLY` | Buffer expiry focused receipt remains lower-layer |
+| Q1A-31 | `LOWER_LAYER_PASS_ONLY` | Transaction-failure focused receipt remains lower-layer |
+| Q1A-32 | `INSTALLED_PASS` | C1/P3 worker restart |
+| Q1A-33 | `INSTALLED_PASS` | C1/P3 persistent context restart |
+| Q1A-34 | `INSTALLED_PASS` | C1 double-click single-flight |
+| Q1A-35 | `INSTALLED_PASS` | P1 provider UNKNOWN no replay |
+| Q1A-36 | `INSTALLED_PASS` | P2 delivery UNKNOWN no resend |
+| Q1A-37 | `INSTALLED_PASS` | P2 confirmed delivery no duplicate |
+| Q1A-38 | `LOWER_LAYER_PASS_ONLY` | Current installed account A/B browser run not emitted |
+| Q1A-39 | `LOWER_LAYER_PASS_ONLY` | Logout fence covered by lower-layer/C1 reset paths |
+| Q1A-40 | `LOWER_LAYER_PASS_ONLY` | Synthetic BETA popup access not emitted in current batch |
+| Q1A-41 | `LOWER_LAYER_PASS_ONLY` | Last-slot race is server/lower-layer evidence only |
+| Q1A-42 | `LOWER_LAYER_PASS_ONLY` | Capacity-reached installed flow not emitted |
+| Q1A-43 | `LOWER_LAYER_PASS_ONLY` | Admin-authorized increment is not a Q1-A UI receipt |
+| Q1A-44 | `INSTALLED_PASS` | C1 distinct dialogues/same store |
+| Q1A-45 | `INSTALLED_PASS` | C1/store metadata different stores |
+| Q1A-46 | `INSTALLED_PASS` | C1 Ozon/WB separation |
+| Q1A-47 | `INSTALLED_PASS` | C1 multiple dialogue tabs |
+| Q1A-48 | `INSTALLED_PASS` | R4 independent persistent installation |
+| Q1A-49 | `INSTALLED_PASS` | C2 offline new Start |
+| Q1A-50 | `INSTALLED_PASS` | C2 offline Resume |
+| Q1A-51 | `INSTALLED_PASS` | C2/store offline store change |
+| Q1A-52 | `INSTALLED_PASS` | C2/C1 marketplace change |
+| Q1A-53 | `INSTALLED_PASS` | Store metadata offline mutation |
+| Q1A-54 | `INSTALLED_PASS` | R4 recovery/reconcile |
+| Q1A-55 | `INSTALLED_PASS` | R4 disconnected/unknown remote state |
+| Q1A-56 | `INSTALLED_PASS` | R4 duplicate requestId |
+| Q1A-57 | `INSTALLED_PASS` | R4 stale revision |
+| Q1A-58 | `INSTALLED_PASS` | R4 late ACK |
+| Q1A-59 | `INSTALLED_PASS` | C1/R4 late delivery after Finish |
+| Q1A-60 | `INSTALLED_PASS` | C1/R4 late delivery after store switch |
+| Q1A-61 | `INSTALLED_PASS` | C1 authority clock/context fencing |
+| Q1A-62 | `INSTALLED_PASS` | C1/R4 preferred-executor anti-flap path |
+| Q1A-63 | `LOWER_LAYER_PASS_ONLY` | Installed quota coordination receipt not reached |
+| Q1A-64 | `LOWER_LAYER_PASS_ONLY` | Installed 429/Retry-After receipt not reached |
+| Q1A-65 | `LOWER_LAYER_PASS_ONLY` | Installed authority-before-retry receipt not reached |
+| Q1A-66 | `LOWER_LAYER_PASS_ONLY` | Second-installation quota lease receipt not reached |
+| Q1A-67 | `ENVIRONMENT_DEFERRED` | Current-final-package A22 happy path; clean API/DB provisioning timed out |
+| Q1A-68 | `ENVIRONMENT_DEFERRED` | Current-final-package Ozon Seller+Performance transfer |
+| Q1A-69 | `ENVIRONMENT_DEFERRED` | Current-final-package WB transfer |
+| Q1A-70 | `ENVIRONMENT_DEFERRED` | Current-final-package source offline/discovery |
+| Q1A-71 | `ENVIRONMENT_DEFERRED` | Current-final-package tamper/replay |
+| Q1A-72 | `ENVIRONMENT_DEFERRED` | Current-final-package account/device isolation |
+| Q1A-73 | `ENVIRONMENT_DEFERRED` | Current-final-package durable-storage privacy audit |
+| Q1A-74 | `INSTALLED_PASS` | A24 installed encrypted multi-store export |
+| Q1A-75 | `INSTALLED_PASS` | A24 clean-profile same-account import |
+| Q1A-76 | `INSTALLED_PASS` | A24 wrong password/tamper |
+| Q1A-77 | `INSTALLED_PASS` | A24 account mismatch |
+| Q1A-78 | `INSTALLED_PASS` | A24 conflict set/tombstone/provider/marketplace |
+| Q1A-79 | `INSTALLED_PASS` | A24 server unavailable/local-only |
+| Q1A-80 | `INSTALLED_PASS` | A24 zero Work/provider/AI side effects |
+| Q1A-81 | `INSTALLED_PASS` | C1 fresh synthetic authority Start |
+| Q1A-82 | `INSTALLED_PASS` | C2 signed offline continuation/grace |
+| Q1A-83 | `LOWER_LAYER_PASS_ONLY` | Exact grace-boundary authority receipt is lower-layer |
+| Q1A-84 | `LOWER_LAYER_PASS_ONLY` | Exact cache-expired authority receipt is lower-layer; C1 expired Health is not substituted |
+| Q1A-85 | `INSTALLED_PASS` | C2 tampered durable signed authority |
+| Q1A-86 | `LOWER_LAYER_PASS_ONLY` | Known-revocation-specific installed receipt not emitted |
+| Q1A-87 | `LOWER_LAYER_PASS_ONLY` | Account-mismatch authority-specific receipt not emitted |
+| Q1A-88 | `LOWER_LAYER_PASS_ONLY` | Device/session-mismatch authority-specific receipt not emitted |
+| Q1A-89 | `INSTALLED_PASS` | C1 credentialRevision fence before Work |
+| Q1A-90 | `INSTALLED_PASS` | C1 deleted-store fence |
+| Q1A-91 | `LOWER_LAYER_PASS_ONLY` | Health-freshness/grace independence remains lower-layer; no heartbeat observed |
+
+Q1A-26..31, Q1A-38..43, Q1A-63..66, Q1A-83..84, Q1A-86..88, and Q1A-91
+remain lower-layer only for this R1 receipt. They are not converted to final
+installed PASS. Rows 67–73 remain environment-deferred rather than lower-layer
+substitutions. No Q1A row is an installed failure.
+
+### R1 failure batch and regression ledger
+
+| classification | findings |
+|---|---|
+| `PRODUCT_DEFECT` | none evidenced |
+| `PACKAGE_DEFECT` | none; configured package parity and canonical run pass |
+| `HARNESS_DEFECT` | standalone verified-health helper uses an incompatible fixture authority shape/config; direct lower-layer invocations that inject a second config fail `AUTH_REQUIRED` before product behavior |
+| `SYNTHETIC_FIXTURE_DEFECT` | same authority helper mismatch; no product patch justified |
+| `BROWSER_ENVIRONMENT_DEFECT` | system Chrome 147 worker registration failure on both accepted and current trees |
+| `DISK/DB_ENVIRONMENT_DEFECT` | transfer API readiness timed out at `127.0.0.1:43102/health/ready`; no current-final-package transfer claim |
+| `OWNER_ONLY` | live owner account, real ChatGPT/Alice/provider/marketplace rights remain Q1-C |
+| `STREAM2_DEPENDENCY` | monitoring consumption remains Q1-E; no implementation dependency was changed |
+
+Regression identity: D3S2, A22/A23, A24, C3E, C3F, C3G, C3H, P1, P2, P3,
+100-wake, Extension Core, Extension I1, and application lower-layer receipts
+remain accepted supporting evidence on unchanged production bytes. Installed
+C1/C2/store/R4/P1/P2/P3/A24 reruns above pass on the exact final package. No
+server/API/OpenAPI/integration gate was affected by the empty production diff;
+the current transfer server fixture was provisioned only until its readiness
+timeout and is not a pass.
+
+### R1 safety and privacy receipt
+
+- Ordinary Ozon mandatory control calls: `0`.
+- Ordinary WB mandatory control calls: `0`.
+- Ordinary AI-delivery mandatory control calls: `0`.
+- Provider UNKNOWN automatic replay: `0`.
+- Known-response provider redispatch: `0`.
+- Delivery UNKNOWN automatic resend: `0`.
+- Confirmed duplicate delivery: `0`.
+- Ordinary Health heartbeat: `0`.
+- Command-time mandatory Bootstrap: `0`.
+- A24 provider requests, mandatory control requests, Work sessions, and AI
+  sends: `0` for the backup flow.
+- Synthetic unique markers found no server persistence of marketplace
+  credentials, raw report, provider file, raw command body, AI message body,
+  storageState, raw Health envelope, transfer ciphertext, backup plaintext, or
+  backup password. Backup auto-upload: `0`; password transport: `0`.
+
+### R1 deferrals and closure
+
+- Q1-B: browser-family matrix, including system Chrome as a browser-family
+  acceptance lane, Opera/Yandex/Firefox/Safari/macOS: deferred to Q1-B.
+- Q1-C: owner-authenticated live AI/provider/account/marketplace rights,
+  owner-live logout and A13: deferred to Q1-C. Synthetic installed AI fixtures
+  above do not claim live-owner acceptance.
+- Q1-D: admin/preprod/release/rollback/publication/store compatibility:
+  deferred to Q1-D.
+- Q1-E: Stream-2 monitoring consumption: deferred to Q1-E.
+- Owner-deferred/provisional decisions from the prior D3/S2 ledger remain
+  unchanged.
+- Environment-deferred: system Chrome MV3 route, current-final-package
+  A22/A23 replay, transfer API/DB fixture readiness, and
+  `ENVIRONMENT_DEFERRED_REMOTE_PUBLICATION`.
+
+Recommended disposition: `Q1A_PARTIAL_ENVIRONMENT_DEFERRED`, not acceptance.
+There is no genuine current-package Q1-A product blocker evidenced. Q1-A is
+not ready for architect acceptance because the full installed matrix still has
+explicit lower-layer-only rows and current-final-package A22/A23 replay is
+environment-deferred. The next task after architect review is a bounded clean
+task-owned transfer API/DB fixture provisioning and rerun of Q1A-26..31,
+Q1A-38..43, Q1A-63..66, Q1A-67..73, and Q1A-81..91 where the architect requires
+installed proof; do not start Q1-B/C/D/E before that review.
