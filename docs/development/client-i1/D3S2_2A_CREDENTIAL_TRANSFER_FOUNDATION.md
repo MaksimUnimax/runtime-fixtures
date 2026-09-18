@@ -157,11 +157,21 @@ No other browser family is inferred.
 
 ## Security review and next boundary
 
-Account/device/request/key/source substitution, expiry, replay, tampering,
-wrong recipient, logout/revoke, process restart, page/content-script access,
-and logging/tracing serialization were reviewed. All fail closed in the
-domain tests or contract boundary. Transfer provider count and AI send count
-are zero; Stream-2 implementation overlap is zero.
+| Threat | Control | Result |
+|---|---|---|
+| Account or device substitution | Principal account/device checks plus recipient-device FK | Fail closed |
+| Public-key or request substitution | Idempotent request equality and immutable logical request key | Fail closed |
+| Wrong source or recipient | Bound source device, recipient device, account, and AAD | Fail closed |
+| Expiry, logout, or revoke race | Active-device fence and server-side expiry on every mutation | Fail closed |
+| Packet tampering or wrong private key | AES-GCM authentication with request-bound AAD | Fail closed |
+| Replay after ACK/expiry | Terminal lifecycle and relay deletion | Fail closed |
+| Server restart or relay loss | In-memory-only relay; metadata remains incomplete | Packet lost safely; retry allowed while valid |
+| Page/content-script secret access | Privileged worker-only encryption/import; safe result projections | No raw credential crossing |
+| Log/trace/error leakage | Opaque packet relay and no packet serialization fields | No packet persistence path |
+| Store conflict/tombstone/provider mismatch | Stable storeId, revision, lifecycle, marketplace/provider checks | No silent overwrite |
+
+Transfer provider count and AI send count are zero; Stream-2 implementation
+overlap is zero.
 
 Before architect acceptance, run actual unpacked Chromium recipient/source
 persistent contexts for source/generated and extracted/package extensions with
