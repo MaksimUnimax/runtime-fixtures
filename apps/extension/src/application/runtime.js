@@ -138,20 +138,6 @@ async function saSnapshotDigest(envelope) {
   if (!bytes) throw saAdmissionError("BOOTSTRAP_SNAPSHOT_INVALID");
   return [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))].map(value => value.toString(16).padStart(2, "0")).join("");
 }
-function saCapabilityMetadata(authority) {
-  const payload = authority?.payload;
-  return {
-    metadataVersion: "signed_bootstrap_metadata_v1",
-    source: "ONLINE",
-    freshness: "FRESH",
-    executionAuthority: false,
-    configVersion: payload?.configVersion,
-    accessBasis: payload?.accessBasis,
-    signedEntitlements: payload?.entitlements,
-    signedFeatures: payload?.features,
-    ai: payload?.ai
-  };
-}
 async function saAdmissionFence({ operation, tabId, identity, key, binding, work, store, bindingStore = null, intentId, authority, admissionEpoch = "" }) {
   const currentAuthority = authority || await SellerAgentsControlClient.getAuthority();
   const currentGeneration = await SellerAgentsControlClient.generation();
@@ -229,7 +215,8 @@ async function saAdmissionInput({ operation, tabId, identity, key, binding, work
     credentialRevision: binding.store_context?.credentialRevision || store.credentialRevision,
     authGeneration: binding.store_context?.authGeneration ?? null
   } : null;
-  const capabilities = SellerAgentsCapabilityIntersection.evaluateVerifiedMetadata(saCapabilityMetadata(authority));
+  const expiresAt = Date.parse(payload?.expiresAt || ""), grace = Date.parse(payload?.offlineGraceUntil || "");
+  const freshness = effectiveTimeMs < expiresAt ? "FRESH" : effectiveTimeMs < grace ? "STALE_BUT_OFFLINE_GRACE_ELIGIBLE" : "CACHE_EXPIRED";
   return {
     account: { authenticated: true, accountId: payload?.account?.id, expectedAccountId: payload?.account?.id },
     session: { generation, expectedGeneration: generation, deviceId: authority?.deviceId, expectedDeviceId: authority?.deviceId, sessionId: authority?.sessionId, expectedSessionId: authority?.sessionId, revoked: false, obsolete: false },
@@ -239,16 +226,16 @@ async function saAdmissionInput({ operation, tabId, identity, key, binding, work
       contractVersion: payload?.contractVersion,
       expectedContractVersion: SellerAgentsControlConfig.contractVersion
     },
-    bootstrap: { verified: true, source: "ONLINE", freshness: "FRESH", accountId: payload?.account?.id, generation, deviceId: authority?.deviceId, sessionId: authority?.sessionId, contractVersion: payload?.contractVersion, configVersion: payload?.configVersion, bootstrapSnapshotSha256, aiProvider: payload?.ai?.detected?.family },
+    bootstrap: { verified: true, source: "CACHE", freshness, accountId: payload?.account?.id, generation, deviceId: authority?.deviceId, sessionId: authority?.sessionId, contractVersion: payload?.contractVersion, configVersion: payload?.configVersion, bootstrapSnapshotSha256, aiProvider: payload?.ai?.detected?.family },
     ai: { provider, surface: payload?.ai?.detected?.surface, variant: payload?.ai?.detected?.variant, profile: { verified: true, provider: payload?.ai?.detected?.family, profileKey: profile.profileKey, revision: profile.revision, scopeVariant: profile.scopeVariant, contentSha256: profile.contentSha256 } },
     dialogue: { key: key || null, trusted: true, tabId: Number(tabId), expectedTabId: Number(tabId), identity: identityValue, binding: bindingValue },
     store: { accountId: store.accountId, storeId: store.id, marketplace: store.marketplace, credentialRevision: store.credentialRevision, selectedStoreId: store.id, expectedStoreId: store.id, expectedCredentialRevision: store.credentialRevision, authGeneration: generation, accountGeneration: generation },
     work: { operation, state: work?.state || "inactive", startIntentId: work?.start_intent_id || null, expectedStartIntentId: work?.start_intent_id || null },
-    capabilityIntersection: capabilities,
+    capabilityIntersection: null,
     cachedAuthority: cached.authority || authority,
     cacheClock: cached.cacheClock,
     effectiveTimeMs,
-    source: "ONLINE",
+    source: "CACHE",
     current: {
       accountId: payload?.account?.id,
       expectedAccountId: payload?.account?.id,
@@ -401,7 +388,23 @@ async function saRebindAfterFinishGuard(token) {
   token.rebindPhase = "source_finished";
   return token;
 }
-async function saAdmitOnline({ operation, tabId, store, intentId, conversationKey = null, rebindPlan = null }) {
+function saIsHealthTransportUnavailable(error) {
+  return error?.code === "CONTROL_TRANSPORT_UNAVAILABLE" || error?.status === 503 && error?.code === "PRODUCER_UNAVAILABLE";
+}
+async function saObserveHealth(initial) {
+  try {
+    const health = await SellerAgentsControlClient.acquireSignedHealthAuthority({
+      detectedAi: { family: initial.identity.ai_id, surface: initial.authority.payload.ai.detected.surface, variant: initial.authority.payload.ai.detected.variant },
+      context: { generation: initial.fence.generation, deviceId: initial.fence.deviceId, sessionId: initial.fence.sessionId }
+    });
+    if (health?.payload?.status === "DENY") throw saAdmissionError("WORK_AUTHORITY_DENIED", ["healthObservation"]);
+    return health;
+  } catch (error) {
+    if (saIsHealthTransportUnavailable(error)) return null;
+    throw error;
+  }
+}
+async function saAdmitWork({ operation, tabId, store, intentId, conversationKey = null, rebindPlan = null }) {
   try { await saAssertWorkAuthority(); }
   catch (error) { if (rebindPlan) throw saAdmissionError("WORK_ADMISSION_CONTEXT_CHANGED"); throw error; }
   let initialRead;
@@ -415,9 +418,9 @@ async function saAdmitOnline({ operation, tabId, store, intentId, conversationKe
   const initial = { ...initialRead, fence: Object.freeze({ ...initialRead.fence, admissionEpoch: token.id }) };
   token.fence = initial.fence;
   try {
-    const healthContext = { generation: initial.fence.generation, deviceId: initial.fence.deviceId, sessionId: initial.fence.sessionId };
-    const detectedAi = { family: initial.identity.ai_id, surface: initial.authority.payload.ai.detected.surface, variant: initial.authority.payload.ai.detected.variant };
-    const acquired = await SellerAgentsControlClient.acquireSignedHealthAuthority({ detectedAi, context: healthContext });
+    /* Health is an optional online observation. It can report a verified denial,
+     * but its successful acquisition is never the lifecycle authority. */
+    await saObserveHealth(initial);
     if (!saAdmissionCurrent(token)) throw saAdmissionError("WORK_ADMISSION_CANCELLED");
     const afterHealth = await saReadAdmissionSnapshot({ operation, tabId, store, intentId, conversationKey, admissionEpoch: token.id });
     if (!saSameFence(initial.fence, afterHealth.fence)) throw saAdmissionError("WORK_ADMISSION_CONTEXT_CHANGED");
@@ -425,7 +428,7 @@ async function saAdmitOnline({ operation, tabId, store, intentId, conversationKe
     if (!saSameFence(afterHealth.fence, inputSnapshot.fence)) throw saAdmissionError("WORK_ADMISSION_CONTEXT_CHANGED");
     const projection = validatedPlan ? saRebindProjection(validatedPlan) : null;
     const input = await saAdmissionInput({ operation, tabId, identity: inputSnapshot.identity, key: inputSnapshot.key, binding: projection ? projection.binding : inputSnapshot.binding, work: projection ? projection.work : inputSnapshot.work, store: inputSnapshot.store });
-    const decision = await SellerAgentsVerifiedOnlineWorkAuthority.evaluate(input, acquired.envelope);
+    const decision = await SellerAgentsAutonomousWorkAuthority.evaluate(input);
     if (!saAdmissionCurrent(token)) throw saAdmissionError("WORK_ADMISSION_CANCELLED");
     const beforeMutation = await saReadAdmissionSnapshot({ operation, tabId, store, intentId, conversationKey, admissionEpoch: token.id });
     if (!saSameFence(inputSnapshot.fence, beforeMutation.fence)) throw saAdmissionError("WORK_ADMISSION_CONTEXT_CHANGED");
@@ -443,8 +446,8 @@ function saReleaseAdmission(token) {
 async function saAdmissionProvenanceSeed(admission, operation, intentId) {
   const authority = admission.snapshot.authority, payload = authority?.payload, profile = payload?.ai?.profile || {};
   return SellerAgentsOfflineWorkAuthority.createProvenance({
-    provenanceSchema: "seller_agents_online_admission_provenance_v1",
-    mode: "ONLINE_VERIFIED",
+    provenanceSchema: "seller_agents_local_admission_provenance_v1",
+    mode: "LOCAL_SIGNED_AUTHORITY",
     accountId: payload?.account?.id || null,
     accountGeneration: admission.snapshot.fence.generation,
     deviceId: admission.snapshot.fence.deviceId,
@@ -611,7 +614,7 @@ async function saEvaluateDispatchAuthority(owner) {
   const binding = initial.binding, store = initial.store, work = initial.work;
   const identity = initial.identity, authority = initial.authority;
   const input = {
-    operation: "CONTINUE", work, receipt: work.admission_provenance || null,
+    operation: "CONTINUE", work,
     cachedAuthority: authority, cacheClock: initial.cacheClock, safeTimeMs: initial.safeTimeMs,
     identity: { origin: identity.origin, conversationId: identity.conversation_id },
     binding: { binding_id: binding.binding_id, revision: Number(binding.revision), origin: binding.origin,
@@ -743,7 +746,7 @@ async function saWorkStart(message, sender) {
     const plan = changingStore ? saRebindPlan({ tabId: message.tab_id, identity: live, key, binding, work, sourceStore, targetStore: store, intentId, authority }) : null;
     if (key && !changingStore && ![OzonWorkSessionModel.STATES.INACTIVE, OzonWorkSessionModel.STATES.ERROR].includes(work?.state))
       throw saError("WORK_START_ALREADY_IN_PROGRESS");
-    const admission = await saAdmitOnline({ operation: "start", tabId: message.tab_id, store, intentId, rebindPlan: plan });
+    const admission = await saAdmitWork({ operation: "start", tabId: message.tab_id, store, intentId, rebindPlan: plan });
     const provenance = await saAdmissionProvenanceSeed(admission, "start", intentId);
     saStarts.set(Number(message.tab_id), await saAuthorityStoreContext(store));
     try {
@@ -775,7 +778,7 @@ async function saWorkResume(message, sender) {
     if (work.state !== OzonWorkSessionModel.STATES.INACTIVE) throw saError("WORK_SESSION_NOT_INACTIVE");
     if (await getManualOperation(key).then(manualOperationActive)) throw saError("WORK_RESUME_OPERATION_ACTIVE");
     const intentId = `resume-${crypto.randomUUID()}`;
-    const admission = await saAdmitOnline({ operation: "resume", tabId: tab, store, intentId, conversationKey: key });
+    const admission = await saAdmitWork({ operation: "resume", tabId: tab, store, intentId, conversationKey: key });
     const provenance = await saAdmissionProvenanceSeed(admission, "resume", intentId);
     try {
       await saAdmissionMutationGuard({ operation: "resume", tabId: tab, conversationKey: key });
