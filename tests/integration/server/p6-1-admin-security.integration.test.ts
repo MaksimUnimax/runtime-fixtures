@@ -109,7 +109,7 @@ describe.sequential("P6.1 admin security foundation on real PostgreSQL", () => {
     const rows = await q<{ count: string }>(
       "SELECT count(*)::text AS count FROM drizzle.__drizzle_migrations",
     );
-    expect(rows.rows[0]!.count).toBe("17");
+    expect(rows.rows[0]!.count).toBe("18");
   });
   it("principal user binding is unique", async () => {
     const u = await user();
