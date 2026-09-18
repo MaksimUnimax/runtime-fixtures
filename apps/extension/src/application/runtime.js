@@ -33,7 +33,9 @@ function saPopupSender(sender) {
   return sender?.url === chrome.runtime.getURL("popup.html");
 }
 async function saEnabled() { await saReady; return saCatalogEnabled; }
-async function saAssertWorkAuthority() {
+// Lifecycle admission only. Provider authorization is decided by
+// saEvaluateDispatchAuthority at the provider boundary below.
+async function saAssertLocalAuthorityAdmission() {
   await saReady;
   if (!await SellerAgentsControlClient.currentAccount() || !await SellerAgentsControlClient.canWork()) throw saError("WORK_POLICY_BLOCKED");
   return true;
@@ -79,7 +81,7 @@ async function saStoreForPending(tab, intent) {
   return pending.store_context;
 }
 async function saPendingGuard(pending) {
-  await saAssertWorkAuthority();
+  await saAssertLocalAuthorityAdmission();
   if (pending?.store_context) await saAssertStore(pending.store_context);
   else throw SellerAgentsExecutionContext.error();
 }
@@ -426,7 +428,7 @@ async function saObserveHealth(initial) {
   }
 }
 async function saAdmitWork({ operation, tabId, store, intentId, conversationKey = null, rebindPlan = null }) {
-  try { await saAssertWorkAuthority(); }
+  try { await saAssertLocalAuthorityAdmission(); }
   catch (error) { if (rebindPlan) throw saAdmissionError("WORK_ADMISSION_CONTEXT_CHANGED"); throw error; }
   let initialRead;
   try { initialRead = await saReadAdmissionSnapshot({ operation, tabId, store, intentId, conversationKey }); }
@@ -634,6 +636,7 @@ async function saEvaluateDispatchAuthority(owner) {
   }
   const binding = initial.binding, store = initial.store, work = initial.work;
   const identity = initial.identity, authority = initial.authority;
+  await saAssertReconciliationAction(binding, store, initial.key, work.start_intent_id);
   const input = {
     operation: "CONTINUE", work,
     cachedAuthority: authority, cacheClock: initial.cacheClock, safeTimeMs: initial.safeTimeMs,
@@ -648,10 +651,11 @@ async function saEvaluateDispatchAuthority(owner) {
   try { decision = await SellerAgentsAutonomousWorkAuthority.evaluate(input); }
   catch (_) { throw saDispatchAuthorityError("WORK_AUTHORITY_REFRESH_REQUIRED", ["cachedAuthority"]); }
   if (decision.allowed !== true || decision.executionAuthority !== false)
-    throw saDispatchAuthorityError(decision.deniedGates?.includes("bootstrapFreshness") ? "WORK_AUTHORITY_REFRESH_REQUIRED" : "WORK_AUTHORITY_DENIED", decision.deniedGates);
+    throw saDispatchAuthorityError(decision.deniedGates?.includes("DENY_CACHE_EXPIRED") ? "WORK_AUTHORITY_REFRESH_REQUIRED" : "WORK_AUTHORITY_DENIED", decision.deniedGates);
   let after;
   try { after = await saReadDispatchSnapshot(owner); }
   catch (error) { if (error?.external_request_executed === false) throw error; throw SellerAgentsExecutionContext.error(); }
+  await saAssertReconciliationAction(after.binding, after.store, after.key, after.work.start_intent_id);
   if (!saSameDispatchFence(initial.fence, after.fence))
     throw saDispatchAuthorityError("WORK_AUTHORITY_CONTEXT_CHANGED", ["contextFence"]);
   return decision;
@@ -666,7 +670,10 @@ async function saSettings(pinned) {
 async function saGuard(owner) {
   const p = owner?.execution_context;
   if (!p) throw SellerAgentsExecutionContext.error("EXECUTION_CONTEXT_MISSING");
-  await saAssertWorkAuthority();
+  // This checkpoint only lets the control client persist a local expiry/invalidation.
+  // Its boolean is deliberately ignored; saEvaluateDispatchAuthority is the sole
+  // provider predispatch decision and runs again at the provider fetch boundary.
+  await SellerAgentsControlClient.canWork();
   const readCurrent = () => saReadContext(owner.conversation_key, { commandHash: p.commandHash, requestId: p.requestId }, owner);
   if (owner.payload_expires_at_ms && owner.payload_expires_at_ms <= Date.now()) throw saError("RESULT_EXPIRED");
   const guard = SellerAgentsExecutionContext.createGuard(p, readCurrent);
@@ -839,7 +846,7 @@ async function saHandleMessage(message, sender) {
       case "SA_WORK_RESUME": return saWorkResume(message, sender);
       case "SA_STORE_CHECK": return saCheckStore(message);
       case "SA_RESUME_QUOTA": {
-        await saAssertWorkAuthority();
+        await saAssertLocalAuthorityAdmission();
         const state = await saPopupState(message.tab_id), key = state.conversation_key;
         const owner = await getManualOperation(key);
         if (!owner || owner.batch?.request_state !== "quota_waiting") throw saError("NO_QUOTA_WAIT");
@@ -852,7 +859,7 @@ async function saHandleMessage(message, sender) {
   }
   if (enabled) {
     const workMessage = message?.type === "OZ_EXECUTE_COMMAND" || message?.type === "OZ_WORK_START" || message?.type?.startsWith("OZ_WORK_START_") || message?.type === "OZ_WORK_PENDING_IDENTITY" || message?.type === "OZ_BATCH_DELIVERY_RESUME";
-    if (workMessage) await saAssertWorkAuthority();
+    if (workMessage) await saAssertLocalAuthorityAdmission();
     if (/^OZ_(?:GET_SETTINGS_STATE|GET_GLOBAL_SETTINGS_STATE|GET_DIAGNOSTICS)/.test(message.type) && !saPopupSender(sender)) throw saError("POPUP_SENDER_REQUIRED");
     if (/^OZ_(?:AUTO_|BIND_CONVERSATION|SAVE_.*SETTINGS|TEST_CONNECTION|SET_MANUAL_MODE|SAVE_REPORT_PREFIX|SAVE_.*START_PROMPT|RESET_.*START_PROMPT|REFRESH_SELLER_API_METADATA)/.test(message?.type || "")) throw saError("LEGACY_ACTION_DISABLED");
     if (["OZ_WORK_DELIVERY_ASSERT", "OZ_WORK_SEND_COMMIT"].includes(message.type)) {
@@ -903,7 +910,7 @@ async function saHandleMessage(message, sender) {
       return { ok: true };
     }
     if (message.type === "OZ_EXECUTE_COMMAND") {
-      await saAssertWorkAuthority();
+      await saAssertLocalAuthorityAdmission();
       await assertTabConversation(sender?.tab?.id, message.conversation_key);
       const binding = await bindingForConversationKey(message.conversation_key);
       const store = await saAssertStore(binding?.store_context);
@@ -976,7 +983,7 @@ function saPrunePayload(owner, now = Date.now()) {
 }
 async function saAssertDeliveryOwner(owner) {
   if (!owner?.execution_context) throw SellerAgentsExecutionContext.error("EXECUTION_CONTEXT_MISSING");
-  await saAssertWorkAuthority();
+  await saAssertLocalAuthorityAdmission();
   if (owner.payload_expires_at_ms <= Date.now()) throw saError("RESULT_EXPIRED");
   const guard = await saGuard(owner);
   await guard.assertCurrent();
@@ -998,7 +1005,6 @@ const saFileOwners = SellerAgentsLocalOperations.createRecordStore({ read: keys 
   write: values => chrome.storage.session.set(values), namespace: "seller_agents_file_owners_v1" });
 async function saCheckOzonFileRef(command, context) {
   if (command.operation !== "report_file_get") return;
-  await saAssertWorkAuthority();
   const owner = await saFileOwners.get(command.params.file_ref), pinned = context?.snapshot;
   if (!pinned || !owner || owner.expires_at_ms <= Date.now() ||
     ["accountId", "storeId", "credentialRevision"].some(field => owner[field] !== pinned[field]))
@@ -1007,7 +1013,6 @@ async function saCheckOzonFileRef(command, context) {
 }
 async function saRememberOzonFileRefs(response, context) {
   if (!context) return;
-  await saAssertWorkAuthority();
   let envelope;
   try { envelope = JSON.parse(String(response.report_text).slice(String(response.report_text).indexOf("\n") + 1)); } catch (_) { return; }
   for (const ref of [envelope?.result?.report_file_ref, envelope?.result?.generated_file_ref]) {

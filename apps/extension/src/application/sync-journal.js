@@ -230,6 +230,8 @@
     const current = (await read()).reconciliation[entityId];
     if (!current?.serverState) return { allowed: true, code: null };
     const local = { accountId: auth.accountId, entityId, conversationKeyDigest: keyDigest, bindingId: input.binding?.binding_id || null, bindingRevision: integer(input.binding?.revision) || 0, storeId: input.store?.id || input.binding?.store_context?.storeId || null, marketplace: input.store?.marketplace || input.binding?.store_context?.marketplace || null, workGeneration: input.workGeneration || null, bindingState: "BOUND" };
+    if (["EXPLICIT_BINDING_CONFLICT", "REQUIRES_EXPLICIT_USER_REBIND_RESOLUTION"].includes(current.classification))
+      return { allowed: false, code: "SYNC_EXPLICIT_BINDING_CONFLICT" };
     return SellerAgentsReconciliation.allowsFutureAction({ local, server: current.serverState });
   }
   globalThis.SellerAgentsSyncJournal = Object.freeze({
