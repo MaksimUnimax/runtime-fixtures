@@ -4,6 +4,7 @@ let saCatalogEnabled = false;
 const saStarts = new Map();
 const saWorkFlights = new Map();
 const saAdmissionEpochs = new Map();
+const saTransferRecipientRequests = new Set();
 const saCatalog = SellerAgentsStoreCatalog.create({
   read: storageGet, write: storageSet,
   currentAccount: () => SellerAgentsControlClient.currentAccount(),
@@ -86,7 +87,7 @@ async function saTransferReceive(message) {
   const results = [];
   for (const store of payload.stores) {
     if (!store?.storeId || !["ozon", "wildberries"].includes(store.marketplace) || typeof store.credentialRevision !== "string" || store.lifecycleState !== "ACTIVE") { results.push({ storeId: store?.storeId || null, kind: "CONFLICT", code: "TRANSFER_INVALID" }); continue; }
-    try { results.push({ storeId: store.storeId, ...(await saCatalog.importCredential(store)) }); }
+    try { results.push({ storeId: store.storeId, ...(await saCatalog.importCredential({ ...store, id: store.storeId })) }); }
     catch (error) { results.push({ storeId: store.storeId, kind: "CONFLICT", code: error?.code || "TRANSFER_CONFLICT" }); }
   }
   const safe = results.map(({ storeId, kind, code, store }) => ({ storeId, kind, code, store: store ? { id: store.id, marketplace: store.marketplace, credentialRevision: store.credentialRevision } : null }));
@@ -905,7 +906,11 @@ async function saHandleMessage(message, sender) {
       case "SA_WORK_START": return saWorkStart(message, sender);
       case "SA_WORK_RESUME": return saWorkResume(message, sender);
       case "SA_STORE_CHECK": return saCheckStore(message);
-      case "SA_TRANSFER_CREATE": return { ok: true, request: await SellerAgentsControlClient.createCredentialTransfer({ consent: message.consent === true, sourceDeviceId: message.sourceDeviceId || null, selectedStoreIds: message.selectedStoreIds || [], expiresInSeconds: message.expiresInSeconds || 300 }) };
+      case "SA_TRANSFER_CREATE": {
+        const request = await SellerAgentsControlClient.createCredentialTransfer({ consent: message.consent === true, sourceDeviceId: message.sourceDeviceId || null, selectedStoreIds: message.selectedStoreIds || [], expiresInSeconds: message.expiresInSeconds || 300 });
+        saTransferRecipientRequests.add(request.requestId);
+        return { ok: true, request };
+      }
       case "SA_TRANSFER_SOURCE_DISCOVER": {
         const requests = await SellerAgentsControlClient.listCredentialTransfers();
         const sent = [];
@@ -917,6 +922,23 @@ async function saHandleMessage(message, sender) {
       }
       case "SA_TRANSFER_SOURCE_SEND": return saTransferSourceSend(message);
       case "SA_TRANSFER_RECEIVE": return saTransferReceive(message);
+      case "SA_TRANSFER_RECEIVE_PENDING": {
+        let pending = null;
+        for (const requestId of saTransferRecipientRequests) {
+          try {
+            const request = await SellerAgentsControlClient.readCredentialTransfer(requestId);
+            if (request.state === "PACKET_AVAILABLE_EPHEMERAL" || request.state === "DELIVERED_TO_RECIPIENT") {
+              pending = await saTransferReceive({ request });
+              if (pending.importState !== "CONFLICT") saTransferRecipientRequests.delete(requestId);
+              break;
+            }
+          } catch (error) {
+            if (error?.code === "TRANSFER_EXPIRED" || error?.code === "TRANSFER_REPLAY" || error?.code === "TRANSFER_ACCOUNT_MISMATCH") saTransferRecipientRequests.delete(requestId);
+            else if (error?.code === "SOURCE_OFFLINE") pending = { ok: false, code: error.code, importState: "SOURCE_OFFLINE" };
+          }
+        }
+        return pending || { ok: false, importState: "PENDING" };
+      }
       case "SA_RESUME_QUOTA": {
         await saAssertLocalAuthorityAdmission();
         const state = await saPopupState(message.tab_id), key = state.conversation_key;

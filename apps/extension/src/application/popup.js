@@ -90,6 +90,10 @@ $("transfer-discover").onclick = () => action(async () => {
   const result = await request("SA_TRANSFER_SOURCE_DISCOVER");
   $("transfer-status").textContent = result.requests.length ? `Найдено запросов: ${result.requests.length}. Передача выполняется только после явного действия источника.` : "Активных запросов нет. Если источник спит, он не будет обещанно найден немедленно.";
 });
+$("transfer-receive").onclick = () => action(async () => {
+  const result = await request("SA_TRANSFER_RECEIVE_PENDING");
+  $("transfer-status").textContent = result.importState === "IMPORTED" ? "Передача принята и магазин импортирован." : result.importState === "CONFLICT" ? "Передача получена, но импорт остановлен из-за конфликта магазина." : result.code === "SOURCE_OFFLINE" ? "Источник ещё не доставил передачу." : "Активной передачи для получения нет.";
+});
 $("auth-start").onclick = () => action(() => request("SA_AUTH_START"));
 $("auth-open").onclick = () => action(() => request("SA_AUTH_OPEN_PORTAL"));
 $("auth-cancel").onclick = () => action(() => request("SA_AUTH_CANCEL"));

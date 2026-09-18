@@ -16,7 +16,10 @@ const accessSigning = { privateKey: signing.privateKey, publicKey: signing.publi
 const database = createDatabaseRuntime(process.env.DATABASE_URL!);
 const auth = new AuthService(createAuthRepository(database), deriveAuthKeys(root), undefined, () => "424242");
 const deviceAuth = new DeviceAuthorizationService(createDeviceAuthorizationRepository(database), deriveDeviceAuthKeys(root));
-const deviceManagement = new DeviceManagementService(createDeviceManagementRepository(database), root, accessSigning, new PreEntitlementDeviceLimitResolver());
+const deviceLimitResolver = process.env.SA_I1_ALLOW_TWO_DEVICES === "1"
+  ? { resolve: async () => ({ maxActive: 2, source: "R1_INSTALLED_TRANSFER_FIXTURE" }) }
+  : new PreEntitlementDeviceLimitResolver();
+const deviceManagement = new DeviceManagementService(createDeviceManagementRepository(database), root, accessSigning, deviceLimitResolver);
 const extensionAuth = new ExtensionAuthService(createExtensionAuthRepository(database), deriveExtensionAuthKeys(root), undefined, accessSigning);
 const bootstrap = new BootstrapService({ resolve: async () => ({ configVersion: 1, signingKeyId: "i1-client-local", sourceFingerprintSha256: createHash("sha256").update(signing.publicKey.export({ format: "der", type: "spki" })).digest("hex"), compatibility: { extension: { status: "SUPPORTED", minimumVersion: null }, browser: { status: "SUPPORTED" } }, features: {} }) }, { signV2: async (keyId, payload) => signBootstrapSnapshotV2(payload, keyId, signing.privateKey) });
 const app = createApiApp({ config: { environment: "test", databaseUrl: process.env.DATABASE_URL!, logLevel: "warn", apiPort, workerReadyDelayMs: 0 }, isInfrastructureReady: async () => true, authService: auth, deviceAuthorizationService: deviceAuth, deviceManagementService: deviceManagement, extensionAuthService: extensionAuth, bootstrapService: bootstrap });
