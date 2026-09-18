@@ -60511,6 +60511,13 @@
                               "minimum": -9007199254740991,
                               "type": "integer"
                             },
+                            "bindingState": {
+                              "enum": [
+                                "BOUND",
+                                "FINISHED"
+                              ],
+                              "type": "string"
+                            },
                             "conversationKeyDigest": {
                               "maxLength": 64,
                               "minLength": 64,
@@ -60541,6 +60548,68 @@
                                 }
                               ]
                             },
+                            "deliveryOrder": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "aiOrderId": {
+                                  "anyOf": [
+                                    {
+                                      "maxLength": 240,
+                                      "minLength": 1,
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "clientDeliveredAtMs": {
+                                  "anyOf": [
+                                    {
+                                      "maximum": 9007199254740991,
+                                      "minimum": -9007199254740991,
+                                      "type": "integer"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "clientSequence": {
+                                  "anyOf": [
+                                    {
+                                      "maximum": 9007199254740991,
+                                      "minimum": -9007199254740991,
+                                      "type": "integer"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "orderProvenance": {
+                                  "enum": [
+                                    "AI_ORDERED",
+                                    "CLIENT_APPROXIMATE",
+                                    "SERVER_RECEIVE_FALLBACK"
+                                  ],
+                                  "type": "string"
+                                },
+                                "serverReceiveAtMs": {
+                                  "anyOf": [
+                                    {
+                                      "maximum": 9007199254740991,
+                                      "minimum": -9007199254740991,
+                                      "type": "integer"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                }
+                              },
+                              "type": "object"
+                            },
                             "kind": {
                               "enum": [
                                 "BINDING_UPSERT",
@@ -60563,10 +60632,248 @@
                                 }
                               ]
                             },
+                            "reconciliation": {
+                              "additionalProperties": false,
+                              "properties": {
+                                "classification": {
+                                  "enum": [
+                                    "IN_SYNC",
+                                    "SERVER_AHEAD_COMPATIBLE",
+                                    "LOCAL_PENDING",
+                                    "SAME_BINDING_MERGEABLE",
+                                    "EXPLICIT_BINDING_CONFLICT",
+                                    "LOCAL_FINISH_SUPERSEDED_BY_NEWER_EXPLICIT_BINDING",
+                                    "SERVER_FINISH_WINS_OVER_LATE_DELIVERY",
+                                    "STALE_DELIVERY_OBSOLETE",
+                                    "REQUIRES_EXPLICIT_USER_REBIND_RESOLUTION",
+                                    "UNKNOWN_REMOTE_INSTALLATION_STATE"
+                                  ],
+                                  "type": "string"
+                                },
+                                "markers": {
+                                  "items": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "aiOrderId": {
+                                        "anyOf": [
+                                          {
+                                            "maxLength": 240,
+                                            "minLength": 1,
+                                            "type": "string"
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      },
+                                      "bindingId": {
+                                        "anyOf": [
+                                          {
+                                            "maxLength": 128,
+                                            "minLength": 1,
+                                            "type": "string"
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      },
+                                      "bindingRevision": {
+                                        "maximum": 9007199254740991,
+                                        "minimum": -9007199254740991,
+                                        "type": "integer"
+                                      },
+                                      "clientDeliveredAtMs": {
+                                        "anyOf": [
+                                          {
+                                            "maximum": 9007199254740991,
+                                            "minimum": -9007199254740991,
+                                            "type": "integer"
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      },
+                                      "clientSequence": {
+                                        "anyOf": [
+                                          {
+                                            "maximum": 9007199254740991,
+                                            "minimum": -9007199254740991,
+                                            "type": "integer"
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      },
+                                      "deliveryMarkerId": {
+                                        "maxLength": 128,
+                                        "minLength": 1,
+                                        "type": "string"
+                                      },
+                                      "installationId": {
+                                        "format": "uuid",
+                                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                                        "type": "string"
+                                      },
+                                      "marketplace": {
+                                        "anyOf": [
+                                          {
+                                            "enum": [
+                                              "ozon",
+                                              "wildberries"
+                                            ],
+                                            "type": "string"
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      },
+                                      "orderProvenance": {
+                                        "enum": [
+                                          "AI_ORDERED",
+                                          "CLIENT_APPROXIMATE",
+                                          "SERVER_RECEIVE_FALLBACK"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "revoked": {
+                                        "type": "boolean"
+                                      },
+                                      "serverReceiveAtMs": {
+                                        "maximum": 9007199254740991,
+                                        "minimum": -9007199254740991,
+                                        "type": "integer"
+                                      },
+                                      "storeId": {
+                                        "anyOf": [
+                                          {
+                                            "maxLength": 128,
+                                            "minLength": 1,
+                                            "type": "string"
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      },
+                                      "workGeneration": {
+                                        "anyOf": [
+                                          {
+                                            "maxLength": 160,
+                                            "minLength": 1,
+                                            "type": "string"
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    "required": [
+                                      "installationId",
+                                      "deliveryMarkerId",
+                                      "bindingId",
+                                      "bindingRevision",
+                                      "storeId",
+                                      "marketplace",
+                                      "orderProvenance",
+                                      "serverReceiveAtMs"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "maxItems": 8,
+                                  "type": "array"
+                                },
+                                "observedInstallationIds": {
+                                  "items": {
+                                    "format": "uuid",
+                                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                                    "type": "string"
+                                  },
+                                  "maxItems": 16,
+                                  "type": "array"
+                                },
+                                "preferred": {
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "installationId": {
+                                      "anyOf": [
+                                        {
+                                          "format": "uuid",
+                                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "reason": {
+                                      "anyOf": [
+                                        {
+                                          "pattern": "^[A-Z][A-Z0-9_]{0,63}$",
+                                          "type": "string"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "state": {
+                                      "enum": [
+                                        "UNSET",
+                                        "VALID_CURRENT",
+                                        "REPLACEMENT_REQUIRED"
+                                      ],
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "state",
+                                    "installationId"
+                                  ],
+                                  "type": "object"
+                                },
+                                "serverReceiveAtMs": {
+                                  "anyOf": [
+                                    {
+                                      "maximum": 9007199254740991,
+                                      "minimum": -9007199254740991,
+                                      "type": "integer"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "classification",
+                                "preferred",
+                                "markers",
+                                "observedInstallationIds"
+                              ],
+                              "type": "object"
+                            },
                             "storeId": {
                               "anyOf": [
                                 {
                                   "maxLength": 128,
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "workGeneration": {
+                              "anyOf": [
+                                {
+                                  "maxLength": 160,
                                   "minLength": 1,
                                   "type": "string"
                                 },
@@ -60704,6 +61011,13 @@
                                     "minimum": -9007199254740991,
                                     "type": "integer"
                                   },
+                                  "bindingState": {
+                                    "enum": [
+                                      "BOUND",
+                                      "FINISHED"
+                                    ],
+                                    "type": "string"
+                                  },
                                   "conversationKeyDigest": {
                                     "maxLength": 64,
                                     "minLength": 64,
@@ -60734,6 +61048,68 @@
                                       }
                                     ]
                                   },
+                                  "deliveryOrder": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "aiOrderId": {
+                                        "anyOf": [
+                                          {
+                                            "maxLength": 240,
+                                            "minLength": 1,
+                                            "type": "string"
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      },
+                                      "clientDeliveredAtMs": {
+                                        "anyOf": [
+                                          {
+                                            "maximum": 9007199254740991,
+                                            "minimum": -9007199254740991,
+                                            "type": "integer"
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      },
+                                      "clientSequence": {
+                                        "anyOf": [
+                                          {
+                                            "maximum": 9007199254740991,
+                                            "minimum": -9007199254740991,
+                                            "type": "integer"
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      },
+                                      "orderProvenance": {
+                                        "enum": [
+                                          "AI_ORDERED",
+                                          "CLIENT_APPROXIMATE",
+                                          "SERVER_RECEIVE_FALLBACK"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "serverReceiveAtMs": {
+                                        "anyOf": [
+                                          {
+                                            "maximum": 9007199254740991,
+                                            "minimum": -9007199254740991,
+                                            "type": "integer"
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    "type": "object"
+                                  },
                                   "kind": {
                                     "enum": [
                                       "BINDING_UPSERT",
@@ -60756,10 +61132,248 @@
                                       }
                                     ]
                                   },
+                                  "reconciliation": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                      "classification": {
+                                        "enum": [
+                                          "IN_SYNC",
+                                          "SERVER_AHEAD_COMPATIBLE",
+                                          "LOCAL_PENDING",
+                                          "SAME_BINDING_MERGEABLE",
+                                          "EXPLICIT_BINDING_CONFLICT",
+                                          "LOCAL_FINISH_SUPERSEDED_BY_NEWER_EXPLICIT_BINDING",
+                                          "SERVER_FINISH_WINS_OVER_LATE_DELIVERY",
+                                          "STALE_DELIVERY_OBSOLETE",
+                                          "REQUIRES_EXPLICIT_USER_REBIND_RESOLUTION",
+                                          "UNKNOWN_REMOTE_INSTALLATION_STATE"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "markers": {
+                                        "items": {
+                                          "additionalProperties": false,
+                                          "properties": {
+                                            "aiOrderId": {
+                                              "anyOf": [
+                                                {
+                                                  "maxLength": 240,
+                                                  "minLength": 1,
+                                                  "type": "string"
+                                                },
+                                                {
+                                                  "type": "null"
+                                                }
+                                              ]
+                                            },
+                                            "bindingId": {
+                                              "anyOf": [
+                                                {
+                                                  "maxLength": 128,
+                                                  "minLength": 1,
+                                                  "type": "string"
+                                                },
+                                                {
+                                                  "type": "null"
+                                                }
+                                              ]
+                                            },
+                                            "bindingRevision": {
+                                              "maximum": 9007199254740991,
+                                              "minimum": -9007199254740991,
+                                              "type": "integer"
+                                            },
+                                            "clientDeliveredAtMs": {
+                                              "anyOf": [
+                                                {
+                                                  "maximum": 9007199254740991,
+                                                  "minimum": -9007199254740991,
+                                                  "type": "integer"
+                                                },
+                                                {
+                                                  "type": "null"
+                                                }
+                                              ]
+                                            },
+                                            "clientSequence": {
+                                              "anyOf": [
+                                                {
+                                                  "maximum": 9007199254740991,
+                                                  "minimum": -9007199254740991,
+                                                  "type": "integer"
+                                                },
+                                                {
+                                                  "type": "null"
+                                                }
+                                              ]
+                                            },
+                                            "deliveryMarkerId": {
+                                              "maxLength": 128,
+                                              "minLength": 1,
+                                              "type": "string"
+                                            },
+                                            "installationId": {
+                                              "format": "uuid",
+                                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                                              "type": "string"
+                                            },
+                                            "marketplace": {
+                                              "anyOf": [
+                                                {
+                                                  "enum": [
+                                                    "ozon",
+                                                    "wildberries"
+                                                  ],
+                                                  "type": "string"
+                                                },
+                                                {
+                                                  "type": "null"
+                                                }
+                                              ]
+                                            },
+                                            "orderProvenance": {
+                                              "enum": [
+                                                "AI_ORDERED",
+                                                "CLIENT_APPROXIMATE",
+                                                "SERVER_RECEIVE_FALLBACK"
+                                              ],
+                                              "type": "string"
+                                            },
+                                            "revoked": {
+                                              "type": "boolean"
+                                            },
+                                            "serverReceiveAtMs": {
+                                              "maximum": 9007199254740991,
+                                              "minimum": -9007199254740991,
+                                              "type": "integer"
+                                            },
+                                            "storeId": {
+                                              "anyOf": [
+                                                {
+                                                  "maxLength": 128,
+                                                  "minLength": 1,
+                                                  "type": "string"
+                                                },
+                                                {
+                                                  "type": "null"
+                                                }
+                                              ]
+                                            },
+                                            "workGeneration": {
+                                              "anyOf": [
+                                                {
+                                                  "maxLength": 160,
+                                                  "minLength": 1,
+                                                  "type": "string"
+                                                },
+                                                {
+                                                  "type": "null"
+                                                }
+                                              ]
+                                            }
+                                          },
+                                          "required": [
+                                            "installationId",
+                                            "deliveryMarkerId",
+                                            "bindingId",
+                                            "bindingRevision",
+                                            "storeId",
+                                            "marketplace",
+                                            "orderProvenance",
+                                            "serverReceiveAtMs"
+                                          ],
+                                          "type": "object"
+                                        },
+                                        "maxItems": 8,
+                                        "type": "array"
+                                      },
+                                      "observedInstallationIds": {
+                                        "items": {
+                                          "format": "uuid",
+                                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                                          "type": "string"
+                                        },
+                                        "maxItems": 16,
+                                        "type": "array"
+                                      },
+                                      "preferred": {
+                                        "additionalProperties": false,
+                                        "properties": {
+                                          "installationId": {
+                                            "anyOf": [
+                                              {
+                                                "format": "uuid",
+                                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                                                "type": "string"
+                                              },
+                                              {
+                                                "type": "null"
+                                              }
+                                            ]
+                                          },
+                                          "reason": {
+                                            "anyOf": [
+                                              {
+                                                "pattern": "^[A-Z][A-Z0-9_]{0,63}$",
+                                                "type": "string"
+                                              },
+                                              {
+                                                "type": "null"
+                                              }
+                                            ]
+                                          },
+                                          "state": {
+                                            "enum": [
+                                              "UNSET",
+                                              "VALID_CURRENT",
+                                              "REPLACEMENT_REQUIRED"
+                                            ],
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "state",
+                                          "installationId"
+                                        ],
+                                        "type": "object"
+                                      },
+                                      "serverReceiveAtMs": {
+                                        "anyOf": [
+                                          {
+                                            "maximum": 9007199254740991,
+                                            "minimum": -9007199254740991,
+                                            "type": "integer"
+                                          },
+                                          {
+                                            "type": "null"
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    "required": [
+                                      "classification",
+                                      "preferred",
+                                      "markers",
+                                      "observedInstallationIds"
+                                    ],
+                                    "type": "object"
+                                  },
                                   "storeId": {
                                     "anyOf": [
                                       {
                                         "maxLength": 128,
+                                        "minLength": 1,
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "workGeneration": {
+                                    "anyOf": [
+                                      {
+                                        "maxLength": 160,
                                         "minLength": 1,
                                         "type": "string"
                                       },

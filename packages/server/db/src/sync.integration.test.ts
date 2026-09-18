@@ -230,9 +230,13 @@ describe.sequential("C3E real PostgreSQL sync acceptance", () => {
       "SELECT server_revision,state FROM sync_entities WHERE account_id=$1 AND entity_id=$2",
       [fixture.accountId, initial.entityId],
     );
-    expect(state.rows[0]).toMatchObject({
-      server_revision: 1,
-      state: initial.payload,
+    expect(state.rows[0]?.server_revision).toBe(1);
+    expect(state.rows[0]?.state).toMatchObject({
+      ...initial.payload,
+      bindingState: "BOUND",
+      reconciliation: {
+        preferred: { state: "VALID_CURRENT", installationId: fixture.deviceId },
+      },
     });
   });
 

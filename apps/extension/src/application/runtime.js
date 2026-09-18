@@ -38,6 +38,12 @@ async function saAssertWorkAuthority() {
   if (!await SellerAgentsControlClient.currentAccount() || !await SellerAgentsControlClient.canWork()) throw saError("WORK_POLICY_BLOCKED");
   return true;
 }
+async function saAssertReconciliationAction(binding, store, conversationKey, workGeneration = null) {
+  if (!globalThis.SellerAgentsSyncJournal || !binding) return true;
+  const decision = await SellerAgentsSyncJournal.assertCurrentActionAllowed({ binding, store, conversationKey, workGeneration });
+  if (!decision.allowed) throw saError(decision.code || "SYNC_BINDING_FENCE");
+  return true;
+}
 let saInitializeFlight = null;
 async function saInitialize() {
   await saReady;
@@ -90,9 +96,12 @@ async function saRecordFinishMutation(conversationKey, binding = null, store = n
   if (!globalThis.SellerAgentsSyncJournal) return null;
   return SellerAgentsSyncJournal.recordFinish({ binding, conversationKey, store }).catch(() => null);
 }
-async function saRecordDeliveryMarker(conversationKey, binding = null, store = null, deliveryId = "") {
+async function saRecordDeliveryMarker(conversationKey, binding = null, store = null, deliveryId = "", deliveryOrder = null) {
   if (!globalThis.SellerAgentsSyncJournal) return null;
-  return SellerAgentsSyncJournal.recordDeliveryMarker({ binding, conversationKey, store, deliveryId }).catch(() => null);
+  const workGeneration = deliveryOrder?.workGeneration || null;
+  const order = deliveryOrder && typeof deliveryOrder === "object" ? { ...deliveryOrder } : deliveryOrder;
+  if (order && typeof order === "object") delete order.workGeneration;
+  return SellerAgentsSyncJournal.recordDeliveryMarker({ binding, conversationKey, store, deliveryId, deliveryOrder: order, workGeneration }).catch(() => null);
 }
 function saAdmissionKey(tabId, conversationKey = null) {
   return `${Number(tabId)}:${conversationKey || "pending"}`;
@@ -741,6 +750,7 @@ async function saWorkStart(message, sender) {
     const live = await tabIdentity(normalizeTabId(message.tab_id));
     const key = live.conversation_id ? conversationKeyFromIdentity(live) : null;
     const binding = key ? await bindingForConversationKey(key) : null;
+    await saAssertReconciliationAction(binding, store, key);
     const work = key ? await workSessionFor(key) : null;
     const pending = (await getPendingWorkStarts())[String(message.tab_id)];
     if (pending && String(pending.expires_at || "") > new Date().toISOString())
@@ -786,6 +796,7 @@ async function saWorkResume(message, sender) {
     const binding = await bindingForConversationKey(key);
     if (!binding?.store_context) throw saAdmissionError("CONVERSATION_NOT_BOUND");
     const store = await saAssertStore(binding.store_context);
+    await saAssertReconciliationAction(binding, store, key);
     const work = await workSessionFor(key);
     if (work.state !== OzonWorkSessionModel.STATES.INACTIVE) throw saError("WORK_SESSION_NOT_INACTIVE");
     if (await getManualOperation(key).then(manualOperationActive)) throw saError("WORK_RESUME_OPERATION_ACTIVE");
@@ -895,7 +906,8 @@ async function saHandleMessage(message, sender) {
       await saAssertWorkAuthority();
       await assertTabConversation(sender?.tab?.id, message.conversation_key);
       const binding = await bindingForConversationKey(message.conversation_key);
-      await saAssertStore(binding?.store_context);
+      const store = await saAssertStore(binding?.store_context);
+      await saAssertReconciliationAction(binding, store, message.conversation_key, message.work_session_id);
       const work = await workSessionFor(message.conversation_key);
       if (work.state !== "active_visible") throw saError("WORK_SESSION_NOT_VISIBLE");
       if (message.work_session_id !== work.start_intent_id) throw saError("WORK_SESSION_CHANGED");
@@ -921,7 +933,13 @@ async function saHandleMessage(message, sender) {
   if (enabled && result?.ok && ["OZ_BATCH_DELIVERY_COMPLETE", "OZ_REPORT_DELIVERY_CONFIRMED"].includes(message.type)) {
     const key = normalizeConversationKey(message.conversation_key), binding = await bindingForConversationKey(key);
     const store = binding?.store_context ? await saAssertStore(binding.store_context).catch(() => null) : null;
-    await saRecordDeliveryMarker(key, binding, store, message.delivery_id || message.owner_id || "");
+    await saRecordDeliveryMarker(key, binding, store, message.delivery_id || message.owner_id || "", {
+      aiOrderId: message.ai_order_id || message.message_id || null,
+      clientDeliveredAtMs: message.delivered_at_ms,
+      clientSequence: message.client_sequence,
+      orderProvenance: message.order_provenance,
+      workGeneration: message.work_generation || message.work_session_id || null,
+    });
   }
   if (enabled && ["OZ_CONTENT_READY", "OZ_CONTENT_SYNC", "OZ_GET_MANUAL_STATE"].includes(message.type) && result?.ok) {
     const key = result.conversation_key || message.conversation_key;

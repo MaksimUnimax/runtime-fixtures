@@ -1,6 +1,7 @@
 import type { SyncRepository, SyncRepositoryResult } from "@product/sync";
 import type { SellerAgentsSyncEntryV1 } from "@product/contracts";
 import type { DatabaseQuery, DatabaseRuntime } from "./index.js";
+import { applyReconciliationEntry } from "@product/sync";
 
 type Row = {
   fingerprint: string;
@@ -54,23 +55,34 @@ export function createSyncRepository(runtime: DatabaseRuntime): SyncRepository {
           [principal.accountId, entry.entityId],
         );
         const current = entities.rows[0] || { server_revision: 0, state: null };
-        let outcome: "ACK" | "CONFLICT" = "ACK";
-        let serverRevision = Number(current.server_revision || 0);
-        let serverState = current.state;
-        let code: string | null = null;
-        if (entry.baseRevision !== serverRevision) {
-          outcome = "CONFLICT";
-          code = "SYNC_CONFLICT";
-        } else {
-          serverRevision += 1;
-          serverState = entry.payload;
+        const serverRevision = Number(current.server_revision || 0);
+        const preferredInstallationId =
+          current.state?.reconciliation?.preferred?.installationId || null;
+        const revokedInstallationIds: string[] = [];
+        if (preferredInstallationId) {
+          const device = await tx.query<{ status: string }>(
+            `SELECT status FROM devices WHERE account_id=$1 AND id=$2`,
+            [principal.accountId, preferredInstallationId],
+          );
+          if (device.rows[0] && device.rows[0].status !== "ACTIVE")
+            revokedInstallationIds.push(preferredInstallationId);
+        }
+        const reconciliation = applyReconciliationEntry({
+          current: current.state,
+          serverRevision,
+          entry,
+          principal,
+          receiveAtMs: Date.now(),
+          revokedInstallationIds,
+        });
+        if (reconciliation.outcome === "ACK" && reconciliation.serverState) {
           await tx.query(
             `INSERT INTO sync_entities(account_id,entity_id,server_revision,state,installation_id,updated_at) VALUES($1,$2,$3,$4,$5,now()) ON CONFLICT(account_id,entity_id) DO UPDATE SET server_revision=EXCLUDED.server_revision,state=EXCLUDED.state,installation_id=EXCLUDED.installation_id,updated_at=EXCLUDED.updated_at`,
             [
               principal.accountId,
               entry.entityId,
-              serverRevision,
-              JSON.stringify(serverState),
+              reconciliation.serverRevision,
+              JSON.stringify(reconciliation.serverState),
               principal.deviceId,
             ],
           );
@@ -84,13 +96,15 @@ export function createSyncRepository(runtime: DatabaseRuntime): SyncRepository {
             entry.entityId,
             entry.mutationId,
             fingerprint,
-            outcome,
-            serverRevision,
-            serverState ? JSON.stringify(serverState) : null,
-            code,
+            reconciliation.outcome,
+            reconciliation.serverRevision,
+            reconciliation.serverState
+              ? JSON.stringify(reconciliation.serverState)
+              : null,
+            reconciliation.code,
           ],
         );
-        return { outcome, serverRevision, serverState, code };
+        return reconciliation;
       });
     },
   };
