@@ -254,6 +254,12 @@ describe("P8.2 health persistence", () => {
       "UNKNOWN",
       (() => {
         const result = resultWith("C13_BLOCKING_STATE", {
+          primaryStrategyOutcome: "UNCERTAIN",
+          fallbackStrategyOutcomes: [],
+          selectedStrategyId: null,
+          structuralOutcome: "UNCERTAIN",
+          behavioralOutcome: "UNCERTAIN",
+          fallbackQuality: "NOT_APPLICABLE",
           environmentStatus: "UNCERTAIN",
           uncertaintyReason: "LOGIN_EXPIRED",
         });
@@ -282,6 +288,23 @@ describe("P8.2 health persistence", () => {
       );
     },
   );
+
+  it("rejects incoherent C13 environment uncertainty before persistence", async () => {
+    const result = resultWith("C13_BLOCKING_STATE", {
+      environmentStatus: "UNCERTAIN",
+      uncertaintyReason: "LOGIN_EXPIRED",
+    });
+    await expect(
+      repository.persistCompletedHealthRun(
+        input(suiteWithScope(), [
+          ...passedResults().filter(
+            (item) => item.contourKey !== result.contourKey,
+          ),
+          result,
+        ]),
+      ),
+    ).rejects.toThrow("INCOHERENT_ENVIRONMENT_OBSERVATION");
+  });
 
   it("rejects a caller-provided authoritative state", async () => {
     await expect(

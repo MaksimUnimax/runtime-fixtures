@@ -955,6 +955,7 @@ function mutablePackage(pkg: H3HealthEvidencePackage) {
   return structuredClone(pkg) as unknown as {
     artifacts: Array<{
       evidenceId: string;
+      contourKey: string;
       ruleId: string;
       sha256: string;
       sizeBytes: number;
@@ -1054,6 +1055,10 @@ describe("S2-L5 R1 safe evidence artifact matrix", () => {
   it("E09-E10/E28: identical bounded inputs hash identically and ordering is stable", () => {
     const first = packageFor("CHATGPT_WORK", "work", 1);
     const second = packageFor("CHATGPT_WORK", "work", 1);
+    expect(first.summary.runId).not.toBe(second.summary.runId);
+    expect(first.artifacts.map((item) => item.evidenceId)).not.toEqual(
+      second.artifacts.map((item) => item.evidenceId),
+    );
     expect(first.artifacts.map((item) => item.payload)).toEqual(
       second.artifacts.map((item) => item.payload),
     );
@@ -1063,6 +1068,7 @@ describe("S2-L5 R1 safe evidence artifact matrix", () => {
     expect(first.artifacts.map((item) => item.sizeBytes)).toEqual(
       second.artifacts.map((item) => item.sizeBytes),
     );
+    expect(first.classification).toEqual(second.classification);
     expect(first.artifacts.map((item) => item.contourKey)).toEqual(
       first.persistenceCommand.results
         .filter((item) => item.evidence.length > 0)
@@ -1073,6 +1079,16 @@ describe("S2-L5 R1 safe evidence artifact matrix", () => {
     );
     const changed = packageFor("CHATGPT_WORK", "work", 1, changedEvents);
     expect(changed.artifacts[0]?.sha256).not.toBe(first.artifacts[0]?.sha256);
+  });
+
+  it("E04/E28: canonical JSON sorts keys and measures UTF-8 bytes", () => {
+    const first = canonicalizeJson({ z: { b: 2, a: "é" }, a: [2, 1] });
+    const second = canonicalizeJson({ a: [2, 1], z: { a: "é", b: 2 } });
+    expect(first).toEqual(second);
+    expect(first.toString("utf8")).toBe('{"a":[2,1],"z":{"a":"é","b":2}}');
+    expect(first.byteLength).toBe(
+      Buffer.byteLength(first.toString("utf8"), "utf8"),
+    );
   });
 
   it("E11-E12/E35: artifact payloads are strict and future capture rules fail closed", () => {
@@ -1248,6 +1264,61 @@ describe("S2-L5 R1 safe evidence artifact matrix", () => {
     expect(() => validateH3HealthEvidencePackage(typeMismatch)).toThrow(
       "H3_EVIDENCE_ARTIFACT_TYPE_MISMATCH",
     );
+
+    const ruleMismatch = mutablePackage(pkg);
+    const ruleReference = ruleMismatch.persistenceCommand.results.find(
+      (result) => result.evidence.length > 0,
+    )!.evidence[0]!;
+    ruleReference.ruleId =
+      ruleReference.ruleId === "SAFE_ELEMENT_METADATA"
+        ? "STATE_TRANSITION_TRACE"
+        : "SAFE_ELEMENT_METADATA";
+    expect(() => validateH3HealthEvidencePackage(ruleMismatch)).toThrow(
+      "H3_EVIDENCE_REFERENCE_ARTIFACT_MISMATCH",
+    );
+
+    const classificationMismatch = mutablePackage(pkg);
+    const classificationReference =
+      classificationMismatch.persistenceCommand.results.find(
+        (result) => result.evidence.length > 0,
+      )!.evidence[0]!;
+    classificationReference.classification = "SCREENSHOT";
+    expect(() =>
+      validateH3HealthEvidencePackage(classificationMismatch),
+    ).toThrow("H3_EVIDENCE_REFERENCE_ARTIFACT_MISMATCH");
+
+    const contourMismatch = mutablePackage(pkg);
+    const contourResult = contourMismatch.persistenceCommand.results.find(
+      (result) => result.evidence.length > 0,
+    )!;
+    const contourReference = contourResult.evidence[0]!;
+    const contourArtifact = contourMismatch.artifacts.find(
+      (artifact) => artifact.evidenceId === contourReference.evidenceId,
+    )!;
+    const movedContour =
+      contourArtifact.contourKey === "C02_CONVERSATION_ROOT"
+        ? "C01_PAGE_IDENTITY"
+        : "C02_CONVERSATION_ROOT";
+    contourArtifact.contourKey = movedContour;
+    contourArtifact.payload.contourKey = movedContour;
+    const movedBytes = canonicalizeJson(contourArtifact.payload);
+    contourArtifact.sha256 = createHash("sha256")
+      .update(movedBytes)
+      .digest("hex");
+    contourArtifact.sizeBytes = movedBytes.byteLength;
+    expect(() => validateH3HealthEvidencePackage(contourMismatch)).toThrow(
+      "H3_EVIDENCE_REFERENCE_ARTIFACT_MISMATCH",
+    );
+    expect(contourArtifact.contourKey).not.toBe(contourResult.contourKey);
+
+    const sizeMismatch = mutablePackage(pkg);
+    const sizeReference = sizeMismatch.persistenceCommand.results.find(
+      (result) => result.evidence.length > 0,
+    )!.evidence[0]!;
+    sizeReference.sizeBytes = sizeReference.sizeBytes! + 1;
+    expect(() => validateH3HealthEvidencePackage(sizeMismatch)).toThrow(
+      "H3_EVIDENCE_REFERENCE_ARTIFACT_MISMATCH",
+    );
   });
 
   it("E34: freezes package, artifacts, payloads, and classification", () => {
@@ -1257,6 +1328,10 @@ describe("S2-L5 R1 safe evidence artifact matrix", () => {
     expect(Object.isFrozen(pkg.artifacts[0])).toBe(true);
     expect(Object.isFrozen(pkg.artifacts[0]?.payload)).toBe(true);
     expect(Object.isFrozen(pkg.classification)).toBe(true);
+    expect(Object.isFrozen(pkg.persistenceCommand)).toBe(true);
+    expect(() => {
+      pkg.persistenceCommand.startedAt.setTime(0);
+    }).toThrow(TypeError);
     expect(() => {
       (pkg.artifacts as unknown as Array<unknown>).push({});
     }).toThrow(TypeError);
@@ -1274,6 +1349,22 @@ describe("S2-L5 R1 safe evidence artifact matrix", () => {
     ).toBe(true);
     expect(pkg.classification.findingContourKeys.length).toBeLessThanOrEqual(
       13,
+    );
+  });
+
+  it("E31: has no production durable artifact sink", async () => {
+    const source = await import("node:fs/promises").then((fs) =>
+      fs.readFile(
+        new URL("./h3-health-persistence.ts", import.meta.url),
+        "utf8",
+      ),
+    );
+    expect(source).not.toMatch(/node:(?:fs|fs\/promises|path|os)/);
+    expect(source).not.toMatch(
+      /(?:writeFile|appendFile|createWriteStream|mkdir|mkdtemp|screenshot\s*\()/,
+    );
+    expect(source).not.toMatch(
+      /(?:INSERT|UPDATE|COPY)\s+.*(?:artifact|evidence)/i,
     );
   });
 });

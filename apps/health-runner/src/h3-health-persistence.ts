@@ -94,6 +94,24 @@ export type H3HealthPersistenceCommand = z.infer<
 
 const R1_MAX_ARTIFACT_BYTES = 4_096;
 const R1_MAX_ARTIFACTS = 13;
+const DATE_MUTATORS = [
+  "setDate",
+  "setFullYear",
+  "setHours",
+  "setMilliseconds",
+  "setMinutes",
+  "setMonth",
+  "setSeconds",
+  "setTime",
+  "setUTCDate",
+  "setUTCFullYear",
+  "setUTCHours",
+  "setUTCMilliseconds",
+  "setUTCMinutes",
+  "setUTCMonth",
+  "setUTCSeconds",
+  "setYear",
+] as const;
 const R1EvidenceRuleSchema = z.enum([
   "SAFE_ELEMENT_METADATA",
   "STATE_TRANSITION_TRACE",
@@ -399,6 +417,19 @@ function persistenceCommandFor(
 function deepFreeze<T>(value: T): T {
   if (value === null || typeof value !== "object" || Object.isFrozen(value)) {
     return value;
+  }
+  if (value instanceof Date) {
+    for (const method of DATE_MUTATORS) {
+      Object.defineProperty(value, method, {
+        configurable: false,
+        enumerable: false,
+        value: () => {
+          throw new TypeError("H3_EVIDENCE_IMMUTABLE_DATE");
+        },
+        writable: false,
+      });
+    }
+    return Object.freeze(value);
   }
   for (const nested of Object.values(value as Record<string, unknown>)) {
     deepFreeze(nested);
