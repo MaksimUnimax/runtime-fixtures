@@ -180,6 +180,10 @@ describe.sequential("S2-L6 incident migration safety", () => {
       await seedOldIncident(true);
       await expect(runMigrations({ connectionString })).rejects.toThrow();
     } finally {
+      // A deliberately failed migration leaves the old schema and duplicate
+      // fixture rows in place. Restore the shared sequential integration DB
+      // before the next file retries the canonical migration chain.
+      await reset();
       await rm(oldDirectory, { recursive: true, force: true });
     }
   });
