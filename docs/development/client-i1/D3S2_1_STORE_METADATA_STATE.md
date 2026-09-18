@@ -130,6 +130,9 @@ and `tooling/api-watch/**`.
 - Full server unit suite excluding integration: PASS, 73 files and 1,552
   tests. DB package run had 3 non-integration files pass; 8 PostgreSQL-backed
   suites were environment-deferred because `DATABASE_URL` was not configured.
+- API suite: 17/18 files and 224/225 tests passed. The single failure is the
+  pre-existing tracked OpenAPI artifact drift check; D3S2-1 adds no API route
+  and no OpenAPI artifact was changed.
 - Typecheck: contracts, server sync, server DB, and API all PASS under Node
   24.8.0.
 - Deterministic composition: repeat archive equality and source/extracted byte
