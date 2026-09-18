@@ -40,7 +40,7 @@
     const state = Object.values(STATES).includes(record?.state)
       ? record.state
       : STATES.INACTIVE;
-    return Object.freeze({
+    const normalized = {
       version: 1,
       state,
       revision: Math.max(0, Number(record?.revision || 0)),
@@ -50,10 +50,12 @@
       ai_id: record?.ai_id || null,
       conversation_id: record?.conversation_id || null,
       start_intent_id: record?.start_intent_id || null,
-      admission_provenance: record?.admission_provenance || null,
       updated_at: record?.updated_at || null,
       error: record?.error || null,
-    });
+    };
+    if (Object.prototype.hasOwnProperty.call(record || {}, "admission_provenance"))
+      normalized.admission_provenance = record.admission_provenance || null;
+    return Object.freeze(normalized);
   }
   function transition(record, next, patch = {}) {
     const current = normalize(record, record?.conversation_key || null);
