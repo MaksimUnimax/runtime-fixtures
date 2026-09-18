@@ -79,7 +79,9 @@ Native Chromium execution is environment-deferred in this candidate because this
 
 Source/package parity and deterministic packaging are run as part of the final candidate validation. `git diff --check` is required and passed before commit.
 
-Implementation candidate commit/tree: to be recorded after the production commit; the final terminal report is authoritative for exact SHA/tree.
+Implementation candidate commit: `3ae08e347cede83c659cf575eabbdf93176ec0cf`
+
+Implementation candidate tree: `3164ebc6b34bc0571b08209391119b2ac9e1ce76`
 
 ## Deferred ledger
 
