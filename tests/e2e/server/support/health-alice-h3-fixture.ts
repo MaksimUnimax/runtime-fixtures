@@ -135,11 +135,11 @@ function fixtureHtml(
           document.querySelector('main')?.insertAdjacentHTML('beforeend', ${JSON.stringify(responseMarkup(variant))});
           const response = document.querySelector('main > [data-message-role="alice"]:last-child');
           if (${JSON.stringify(variant === "RESPONSE_REPLACED")}) {
-            setTimeout(() => response.replaceWith(response.cloneNode(true)), 40);
+            setTimeout(() => response.replaceWith(response.cloneNode(true)), 150);
           }
           setTimeout(() => {
             if (control) { control.setAttribute('aria-label', 'Отправить'); control.textContent = 'Send'; }
-          }, 100);
+          }, ${JSON.stringify(variant === "RESPONSE_REPLACED" ? 500 : 100)});
         }, 50);
       });
     </script></body></html>`;
