@@ -68,6 +68,7 @@ def main():
                 ("i1-c3d-autonomous-lifecycle", ROOT / "tests/regression/extension-core/client-i1/client-c3d-autonomous-lifecycle.mjs"),
                 ("i1-c3f-reconciliation", ROOT / "tests/regression/extension-core/client-i1/client-c3f-reconciliation.mjs"),
                 ("i1-c3g-corrected-predispatch", ROOT / "tests/regression/extension-core/client-i1/client-c3g-corrected-predispatch.mjs"),
+                ("i1-c3h-corrected-autonomy-full-acceptance", ROOT / "tests/regression/extension-core/client-i1/client-c3h-corrected-autonomy-full-acceptance.mjs"),
             ]
             for test_name, test in tests:
                 runner.run(label + "-" + test_name, [node, test, runtime])
