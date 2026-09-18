@@ -624,7 +624,7 @@ await namedCase("Q2-B-held-write-crosses-grace", async () => {
   } finally { release?.(); fixture.worker.close(); }
 });
 
-await namedCase("Q2-C-resolved-AI-fresh-cache-guards", async () => {
+await namedCase("Q2-C-resolved-AI-signed-grace-remains-authorized", async () => {
   const clock = { wall: T0, mono: 1000 }, fixture = await prepared({ clock, payload: fixedPayload(clock), fetch: async url => { assert.equal(new URL(url).pathname, "/v1/bootstrap"); return json({ error: { code: "BOOTSTRAP_UNAVAILABLE" } }, 503); } });
   try {
     assert.equal(await fixture.worker.call("SellerAgentsControlClient.canWork"), true);
@@ -632,9 +632,9 @@ await namedCase("Q2-C-resolved-AI-fresh-cache-guards", async () => {
     const cached = await policy(fixture.worker, { detectedAi: CHATGPT });
     assert.equal(cached.source, "CACHE"); assert.equal(cached.freshness, "STALE_BUT_OFFLINE_GRACE_ELIGIBLE");
     const count = fixture.worker.controlNetwork.length;
-    assert.equal(await fixture.worker.call("SellerAgentsControlClient.canWork"), false);
-    assert.equal((await fixture.worker.call("SellerAgentsControlClient.status")).workAllowed, false);
-    assert.equal((await fixture.worker.call("SellerAgentsControlClient.getAuthority")).workAllowed, false);
+    assert.equal(await fixture.worker.call("SellerAgentsControlClient.canWork"), true);
+    assert.equal((await fixture.worker.call("SellerAgentsControlClient.status")).workAllowed, true);
+    assert.equal((await fixture.worker.call("SellerAgentsControlClient.getAuthority")).workAllowed, true);
     assert.equal(fixture.worker.controlNetwork.length, count);
   } finally { fixture.worker.close(); }
 });

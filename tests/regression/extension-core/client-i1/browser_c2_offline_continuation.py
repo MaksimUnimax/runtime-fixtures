@@ -1,4 +1,4 @@
-"""Chromium proof for durable online provenance and passive offline evaluation."""
+"""Chromium proof for durable signed authority and passive offline evaluation."""
 from pathlib import Path
 import argparse
 import json
@@ -11,8 +11,8 @@ from browser_c1_acceptance import (
 from playwright.sync_api import sync_playwright
 
 
-def evaluate(fixture):
-    return fixture.worker.evaluate(r"""async () => {
+def evaluate(fixture, include_provenance=True):
+    return fixture.worker.evaluate(r"""async ({includeProvenance}) => {
       const local = await chrome.storage.local.get(null);
       const auth = local.seller_agents_control_auth_v2;
       const session = local.ozmb_work_sessions_v1["https://chatgpt.com|44444444-4444-4444-8444-444444444444"];
@@ -22,10 +22,11 @@ def evaluate(fixture):
       const current = {accountId:p.account.id,generation:auth.generation,deviceId:auth.authority.deviceId,sessionId:auth.authority.sessionId,
         origin:binding.origin,conversationId:binding.conversation_id,conversationKey:binding.conversation_key,bindingId:binding.binding_id,bindingRevision:binding.revision,
         marketplace:store.marketplace,storeId:store.id,credentialRevision:store.credentialRevision,aiFamily:p.ai.detected.family,aiSurface:p.ai.detected.surface,aiVariant:p.ai.detected.variant,
-        aiProfileKey:profile.profileKey,aiProfileRevision:profile.revision,aiProfileScopeVariant:profile.scopeVariant,aiProfileContentSha256:profile.contentSha256,workStartIntentId:session.start_intent_id};
-      return await SellerAgentsOfflineWorkAuthority.evaluate({operation:'CONTINUE',work:session,receipt:session.admission_provenance,cachedAuthority:auth.authority,cacheClock:auth.cacheClock,safeTimeMs:auth.cacheClock.effectiveTimeMs,
+        aiProfile:{profileKey:profile.profileKey,revision:profile.revision,scopeVariant:profile.scopeVariant,contentSha256:profile.contentSha256},aiProfileKey:profile.profileKey,aiProfileRevision:profile.revision,aiProfileScopeVariant:profile.scopeVariant,aiProfileContentSha256:profile.contentSha256,workStartIntentId:session.start_intent_id};
+      const work = includeProvenance ? session : {...session, admission_provenance:null};
+      return await SellerAgentsOfflineWorkAuthority.evaluate({operation:'CONTINUE',work,receipt:includeProvenance ? session.admission_provenance : null,cachedAuthority:auth.authority,cacheClock:auth.cacheClock,safeTimeMs:auth.cacheClock.effectiveTimeMs,
         identity:{origin:binding.origin,conversationId:binding.conversation_id},binding,store,current});
-    }""")
+    }""", {"includeProvenance": include_provenance})
 
 
 def run(runtime: Path, private_key: Path, output: Path):
@@ -50,24 +51,24 @@ def run(runtime: Path, private_key: Path, output: Path):
             rows.append({"id": "BR-C2-01", "status": "PASS"})
 
             before = len(server.requests)
-            valid = evaluate(fixture)
+            valid = evaluate(fixture, include_provenance=False)
             assert valid["allowed"] is True and valid["executionAuthority"] is False
             assert len(server.requests) == before
             rows.append({"id": "BR-C2-02", "status": "PASS"})
 
             fixture.restart()
-            restarted = evaluate(fixture)
+            restarted = evaluate(fixture, include_provenance=False)
             assert restarted["allowed"] is True and restarted["executionAuthority"] is False
             rows.append({"id": "BR-C2-03", "status": "PASS"})
 
             fixture.worker.evaluate(r"""async () => {
               const x = await chrome.storage.local.get('seller_agents_control_auth_v2');
-              x.seller_agents_control_auth_v2.authority.payload.expiresAt = new Date(x.seller_agents_control_auth_v2.cacheClock.effectiveTimeMs).toISOString();
+              x.seller_agents_control_auth_v2.authority.payload.offlineGraceUntil = new Date(x.seller_agents_control_auth_v2.cacheClock.effectiveTimeMs).toISOString();
               await chrome.storage.local.set(x);
             }""")
             expired = evaluate(fixture)
             assert expired["allowed"] is False and expired["executionAuthority"] is False
-            rows.append({"id": "BR-C2-04", "status": "PASS"})
+            rows.append({"id": "BR-C2-04", "status": "PASS", "assertion": "tampered durable signed authority denies"})
 
             fixture.finish()
             denied = evaluate(fixture)

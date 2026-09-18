@@ -200,6 +200,8 @@ function saSameFence(left, right) {
 }
 async function saAdmissionInput({ operation, tabId, identity, key, binding, work, store }) {
   const authority = await SellerAgentsControlClient.getAuthority();
+  const cached = await SellerAgentsControlClient.getCachedContinuationState();
+  const effectiveTimeMs = await SellerAgentsControlClient.getVerifiedAuthorityTime();
   const payload = authority?.payload;
   const generation = await SellerAgentsControlClient.generation();
   const bootstrapSnapshotSha256 = await saSnapshotDigest(authority?.envelope);
@@ -242,7 +244,36 @@ async function saAdmissionInput({ operation, tabId, identity, key, binding, work
     dialogue: { key: key || null, trusted: true, tabId: Number(tabId), expectedTabId: Number(tabId), identity: identityValue, binding: bindingValue },
     store: { accountId: store.accountId, storeId: store.id, marketplace: store.marketplace, credentialRevision: store.credentialRevision, selectedStoreId: store.id, expectedStoreId: store.id, expectedCredentialRevision: store.credentialRevision, authGeneration: generation, accountGeneration: generation },
     work: { operation, state: work?.state || "inactive", startIntentId: work?.start_intent_id || null, expectedStartIntentId: work?.start_intent_id || null },
-    capabilityIntersection: capabilities
+    capabilityIntersection: capabilities,
+    cachedAuthority: cached.authority || authority,
+    cacheClock: cached.cacheClock,
+    effectiveTimeMs,
+    source: "ONLINE",
+    current: {
+      accountId: payload?.account?.id,
+      expectedAccountId: payload?.account?.id,
+      generation,
+      expectedGeneration: generation,
+      deviceId: authority?.deviceId,
+      expectedDeviceId: authority?.deviceId,
+      sessionId: authority?.sessionId,
+      expectedSessionId: authority?.sessionId,
+      aiFamily: provider,
+      aiSurface: payload?.ai?.detected?.surface,
+      aiVariant: payload?.ai?.detected?.variant,
+      aiProfile: { profileKey: profile.profileKey, revision: profile.revision, scopeVariant: profile.scopeVariant, contentSha256: profile.contentSha256 },
+      origin: identity.origin,
+      conversationId: identity.conversation_id || null,
+      conversationKey: key || null,
+      storeId: store.id,
+      marketplace: store.marketplace,
+      credentialRevision: store.credentialRevision,
+      expectedCredentialRevision: store.credentialRevision,
+      bindingId: binding?.binding_id || null,
+      bindingRevision: binding?.revision ?? null,
+      workStartIntentId: work?.start_intent_id || null,
+      expectedWorkStartIntentId: work?.start_intent_id || null,
+    }
   };
 }
 function saRebindPlan({ tabId, identity, key, binding, work, sourceStore, targetStore, intentId, authority }) {
@@ -564,6 +595,7 @@ async function saReadDispatchSnapshot(owner) {
       conversationId: identity.conversation_id, conversationKey: key, bindingId: binding.binding_id,
       bindingRevision: Number(binding.revision), storeId: store.id, marketplace: store.marketplace,
       credentialRevision: store.credentialRevision, workStartIntentId: work.start_intent_id || null,
+      aiProfile: { profileKey: snapshot.aiProfileKey, revision: snapshot.aiProfileRevision, scopeVariant: snapshot.aiProfileScopeVariant, contentSha256: snapshot.aiProfileContentSha256 },
       revoked: cached.localInvalidation?.revoked === true, loggedOut: cached.localInvalidation?.loggedOut === true,
       authReset: cached.localInvalidation?.authReset === true, obsolete: cached.localInvalidation?.obsolete === true,
       storeDeleted: cached.localInvalidation?.storeDeleted === true },
@@ -589,16 +621,15 @@ async function saEvaluateDispatchAuthority(owner) {
     current: initial.current,
   };
   let decision;
-  try { decision = await SellerAgentsOfflineWorkAuthority.evaluate(input); }
+  try { decision = await SellerAgentsAutonomousWorkAuthority.evaluate(input); }
   catch (_) { throw saDispatchAuthorityError("WORK_AUTHORITY_REFRESH_REQUIRED", ["cachedAuthority"]); }
   if (decision.allowed !== true || decision.executionAuthority !== false)
     throw saDispatchAuthorityError(decision.deniedGates?.includes("bootstrapFreshness") ? "WORK_AUTHORITY_REFRESH_REQUIRED" : "WORK_AUTHORITY_DENIED", decision.deniedGates);
   let after;
   try { after = await saReadDispatchSnapshot(owner); }
   catch (error) { if (error?.external_request_executed === false) throw error; throw SellerAgentsExecutionContext.error(); }
-  const expiresAt = Date.parse(after.authority?.payload?.expiresAt || "");
-  if (!Number.isFinite(expiresAt) || after.safeTimeMs >= expiresAt || !saSameDispatchFence(initial.fence, after.fence))
-    throw saDispatchAuthorityError(after.safeTimeMs >= expiresAt ? "WORK_AUTHORITY_REFRESH_REQUIRED" : "WORK_AUTHORITY_CONTEXT_CHANGED", ["contextFence"]);
+  if (!saSameDispatchFence(initial.fence, after.fence))
+    throw saDispatchAuthorityError("WORK_AUTHORITY_CONTEXT_CHANGED", ["contextFence"]);
   return decision;
 }
 async function saSettings(pinned) {

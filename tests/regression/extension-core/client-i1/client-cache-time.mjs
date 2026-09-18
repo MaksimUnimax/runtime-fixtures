@@ -219,9 +219,9 @@ for (const [label, makeInvalid] of [["invalid-origin", pending => { pending.auth
     const expiry = Date.parse(payload.expiresAt);
     assert.equal((await worker.call("SellerAgentsControlClient.canWork")), true);
     clock.wall = expiry + 1; clock.mono += 10;
-    assert.equal(await worker.call("SellerAgentsControlClient.canWork"), false);
+    assert.equal(await worker.call("SellerAgentsControlClient.canWork"), true, "expiresAt starts signed offline grace");
     clock.wall = baseWall; clock.mono += 10;
-    assert.equal(await worker.call("SellerAgentsControlClient.canWork"), false);
+    assert.equal(await worker.call("SellerAgentsControlClient.canWork"), true, "wall rollback remains grace-eligible");
     assert.equal(backing.local[AUTH].authority.cacheBinding.cacheVersion, "control_cache_binding_v1");
   } finally { worker.close(); }
 }
@@ -242,7 +242,7 @@ for (const [label, makeInvalid] of [["invalid-origin", pending => { pending.auth
     assert.ok(backing.local[AUTH].cacheClock.effectiveTimeMs > floorAfterMonotonic);
     const envelope = before.envelope, payloadBytes = before.envelope.payload, deadline = before.payload.expiresAt;
     clock.wall = expiry; clock.mono += 1;
-    assert.equal(await worker.call("SellerAgentsControlClient.canWork"), false);
+    assert.equal(await worker.call("SellerAgentsControlClient.canWork"), true, "exact expiresAt remains grace-eligible");
     assert.ok(backing.local[AUTH].cacheClock.effectiveTimeMs >= expiry);
     clock.wall = grace; clock.mono += 1;
     assert.equal(await worker.call("SellerAgentsControlClient.canWork"), false);
@@ -497,7 +497,7 @@ for (const [label, makeInvalid] of [["invalid-origin", pending => { pending.auth
 
 // T4/C2.1-R1-A: the rolling anchor rejects a decrease after a larger reading,
 // while equal readings remain legal. The held-write assertion crosses exact
-// expiry before releasing the write, so the same public call must deny.
+// exact offline grace expiry before releasing the write, so the same public call must deny.
 {
   const clock = { wall: baseWall, mono: 1000 };
   const { worker, backing } = await fixture({ clock });
@@ -507,7 +507,7 @@ for (const [label, makeInvalid] of [["invalid-origin", pending => { pending.auth
     clock.mono = 1500; assert.equal(await worker.call("SellerAgentsControlClient.canWork"), false);
     clock.mono = 2000; assert.equal(await worker.call("SellerAgentsControlClient.canWork"), true);
     clock.mono = 2000; assert.equal(await worker.call("SellerAgentsControlClient.canWork"), true);
-    const expiry = Date.parse(backing.local[AUTH].authority.payload.expiresAt);
+    const grace = Date.parse(backing.local[AUTH].authority.payload.offlineGraceUntil);
     const beforeWallJump = backing.local[AUTH].cacheClock.effectiveTimeMs;
     clock.wall += 60000; clock.mono += 100;
     assert.equal(await worker.call("SellerAgentsControlClient.canWork"), true);
@@ -516,7 +516,7 @@ for (const [label, makeInvalid] of [["invalid-origin", pending => { pending.auth
     assert.equal(await worker.call("SellerAgentsControlClient.canWork"), true);
     assert.ok(backing.local[AUTH].cacheClock.effectiveTimeMs >= afterWallJump + 1000);
     assert.ok(afterWallJump >= clock.wall); assert.ok(afterWallJump > beforeWallJump);
-    clock.wall = expiry; clock.mono += 1;
+    clock.wall = grace; clock.mono += 1;
     assert.equal(await worker.call("SellerAgentsControlClient.canWork"), false);
     worker.close();
     const restarted = await makeWorker(runtime, { backing, wallClock: () => baseWall, monotonicClock: () => 1 });
@@ -534,10 +534,10 @@ for (const [label, makeInvalid] of [["invalid-origin", pending => { pending.auth
     const pending = worker.call("SellerAgentsControlClient.canWork").then(value => { settled = true; return value; });
     await until(() => releaseWrite, "checkpoint write latch");
     await new Promise(resolve => setImmediate(resolve)); assert.equal(settled, false);
-    const expiry = Date.parse(backing.local[AUTH].authority.payload.expiresAt);
-    clock.wall = expiry; clock.mono += 1;
-    releaseWrite(); assert.equal(await pending, false, "same-call exact-expiry veto");
-    assert.ok(backing.local[AUTH].cacheClock.effectiveTimeMs >= expiry);
+    const expiry = Date.parse(backing.local[AUTH].authority.payload.expiresAt), grace = Date.parse(backing.local[AUTH].authority.payload.offlineGraceUntil);
+    clock.wall = grace; clock.mono += 1;
+    releaseWrite(); assert.equal(await pending, false, "same-call exact-grace veto");
+    assert.ok(backing.local[AUTH].cacheClock.effectiveTimeMs >= grace);
     hold = false; releaseWrite = undefined;
     assert.equal(await worker.call("SellerAgentsControlClient.status").then(status => status.workAllowed), false, "status denial");
     assert.equal(await worker.call("SellerAgentsControlClient.getAuthority").then(authority => authority.workAllowed), false, "authority denial");
@@ -663,7 +663,7 @@ for (const marketplace of ["ozon", "wildberries"]) {
       const chunk = await worker.portRequest({ type: "OZ_ATTACHMENT_ARTIFACT_CHUNK", ...fields, live_owner: worker.identity, artifact_key: artifactKey, offset: 0, length: bytes.length }); originalBytes = Buffer.from(chunk.chunk_base64, "base64"); assert.deepEqual(originalBytes, Buffer.from(bytes));
     }
     const advertisements = worker.messages.filter(message => message.type === "OZ_BATCH_DELIVERY_AVAILABLE").length, controlsBeforeExpiry = controlRequests;
-    const expiry = Date.parse(worker.backing.local[AUTH].authority.payload.expiresAt); clock.wall = expiry; clock.mono += 1; expired = true;
+    const grace = Date.parse(worker.backing.local[AUTH].authority.payload.offlineGraceUntil); clock.wall = grace; clock.mono += 1; expired = true;
     const deniedInsert = await worker.request({ type: "OZ_BATCH_DELIVERY_INSERT_COMMIT", ...fields }, t7IdentitySender(worker)); assert.notEqual(deniedInsert.insert_allowed, true);
     await until(() => cleanupAttempts.length > 0, "T7 explicit cleanup-attempt latch"); await cleanupAttempt;
     const deniedCommand = await worker.request({ type: "OZ_EXECUTE_COMMAND", conversation_key: started.key, command_text: marketplace === "ozon" ? 'OZON_API_V1 {"operation":"seller_info","params":{}}' : await t7BinaryCommand(worker), manual_request_id: `t7-expired-${marketplace}`, work_session_id: started.session.start_intent_id }, t7IdentitySender(worker));

@@ -4,7 +4,7 @@
   "use strict";
 
   const client = globalThis.SellerAgentsControlClient;
-  const core = globalThis.SellerAgentsOnlineWorkAuthority;
+  const core = globalThis.SellerAgentsAutonomousWorkAuthority;
   if (!client || typeof client.readVerifiedHealthMetadata !== "function" || !core || typeof core.evaluate !== "function")
     throw new Error("VERIFIED_ONLINE_WORK_AUTHORITY_MISSING");
 
@@ -74,7 +74,7 @@
         // Verification, context, freshness, and time failures are denials.
       }
     }
-    return core.evaluate({ ...value, health });
+    return core.evaluate({ ...value, health }, { requireHealth: true });
   }
 
   const api = Object.freeze({ evaluate });

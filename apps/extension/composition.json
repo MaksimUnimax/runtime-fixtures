@@ -32,6 +32,7 @@
     "packages/control-client/src/health-metadata.js",
     "packages/control-client/src/signed-metadata.js",
     "packages/control-client/src/capability-intersection.js",
+    "packages/control-client/src/autonomous-work-authority.js",
     "packages/control-client/src/online-work-authority.js",
     "packages/control-client/src/verified-online-work-authority.js",
     "packages/control-client/src/offline-work-authority.js",

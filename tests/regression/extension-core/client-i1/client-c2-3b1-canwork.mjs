@@ -32,8 +32,8 @@ const seeded = await makeWorker(runtime, {
 assert.equal(await seeded.call("SellerAgentsControlClient.canWork"), true);
 seeded.close();
 
-// CW-01/02: cached checkpoint denial remains authoritative even when both an
-// authority object and credentials are present.
+// CW-01/02: the persisted compatibility bit is not bearer authority. A valid
+// signed cache remains usable without a network call after restart.
 backing.local[AUTH].authority.workAllowed = false;
 const denied = await makeWorker(runtime, {
   backing,
@@ -44,10 +44,10 @@ const denied = await makeWorker(runtime, {
     throw new Error("stale cached authority must not need network access");
   },
 });
-assert.equal(await denied.call("SellerAgentsControlClient.canWork"), false);
+assert.equal(await denied.call("SellerAgentsControlClient.canWork"), true);
 const status = await denied.call("SellerAgentsControlClient.status");
 assert.equal(status.authenticated, true);
-assert.equal(status.workAllowed, false);
+assert.equal(status.workAllowed, true);
 assert.ok(backing.local[AUTH].credentials);
 assert.ok(backing.local[AUTH].authority);
 denied.close();

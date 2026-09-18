@@ -112,8 +112,8 @@ async function makeCachedFixture({ accountOnly = false } = {}) {
   }
 }
 
-// A stale-but-grace-eligible cache may expose verified metadata but cannot be
-// converted by this projection into offline Work authority.
+// A stale-but-grace-eligible cache may expose verified metadata and is directly
+// consumable by the same installation-local Work authority.
 {
   const fixture = await makeCachedFixture();
   try {
@@ -122,7 +122,7 @@ async function makeCachedFixture({ accountOnly = false } = {}) {
     assertProjection(result, "CACHE", "STALE_BUT_OFFLINE_GRACE_ELIGIBLE");
     assert.equal(result.ai.status, "RESOLVED");
     assert.equal(fixture.backing.local[AUTH].authority.workAllowed, before, "metadata read does not escalate persisted Work authority");
-    assert.equal(await fixture.worker.call("SellerAgentsControlClient.canWork"), false, "stale cache remains non-authorizing for Work");
+    assert.equal(await fixture.worker.call("SellerAgentsControlClient.canWork"), true, "signed offline grace remains authorizing for Work");
     assert.equal(fixture.worker.controlNetwork.filter(row => row.url.endsWith("/v1/bootstrap")).length, 1);
   } finally {
     fixture.worker.close();

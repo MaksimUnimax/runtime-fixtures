@@ -289,14 +289,14 @@ await test('C3A-01-valid-Work-command-gates-before-one-provider-request-and-no-c
     assert.equal(s.worker.controlNetwork.length, controlBefore);
   } finally { s.worker.close(); }
 });
-await test('C3A-02-missing-provenance-denies-before-provider', async () => {
+await test('C3A-02-missing-provenance-is-not-a-bearer-authority', async () => {
   const s = await setup(); try {
     const started = await s.start(await s.save(wb(fixtureToken)));
     const keys = await s.worker.call('(() => OzonRuntime.STORAGE_KEYS)');
     s.worker.backing.local[keys.WORK_SESSIONS][started.key].admission_provenance = null;
     await s.execute(started, api, 'c3a-missing-provenance');
     await s.collected(started);
-    assert.equal(s.worker.network.length, 0);
+    assert.equal(s.worker.network.length, 1);
   } finally { s.worker.close(); }
 });
 await test('C3A-03-hidden-Work-denies-before-provider', async () => {

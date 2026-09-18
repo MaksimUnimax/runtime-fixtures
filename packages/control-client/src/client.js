@@ -67,7 +67,7 @@
     const extension = snapshot?.compatibility?.extension;
     return Boolean(snapshot && snapshot.account?.status === "ACTIVE" && snapshot.devicePolicy?.status === "ACTIVE" && ["SUPPORTED", "UPDATE_RECOMMENDED"].includes(extension?.status) && snapshot.compatibility?.browser?.status === "SUPPORTED" && (extension.minimumVersion === null || (parseSemver(extension.minimumVersion) && versionAtLeast(config.extensionVersion, extension.minimumVersion))));
   }
-  function authorityBaseValid(snapshot, effectiveTimeMs) { const expiresAt = parsedMillis(snapshot?.expiresAt); return Boolean(authorityStaticValid(snapshot) && validMillis(effectiveTimeMs) && expiresAt !== null && effectiveTimeMs < expiresAt); }
+  function authorityBaseValid(snapshot, effectiveTimeMs) { const expiresAt = parsedMillis(snapshot?.expiresAt), grace = parsedMillis(snapshot?.offlineGraceUntil); return Boolean(authorityStaticValid(snapshot) && validMillis(effectiveTimeMs) && expiresAt !== null && grace !== null && grace > expiresAt && effectiveTimeMs < grace); }
   function staticCanWork(snapshot) { return Boolean(authorityStaticValid(snapshot) && snapshot.ai?.status === "RESOLVED" && ["chatgpt", "alice"].includes(snapshot.ai.detected?.family)); }
   function canWork(snapshot, effectiveTimeMs) { return Boolean(authorityBaseValid(snapshot, effectiveTimeMs) && snapshot.ai?.status === "RESOLVED" && ["chatgpt", "alice"].includes(snapshot.ai.detected?.family)); }
   function browserFamily() { const ua = typeof navigator === "object" ? String(navigator.userAgent || "").toLowerCase() : ""; return ua.includes("yabrowser") ? "yandex_chromium" : "chrome"; }
@@ -116,7 +116,7 @@
     runtimeEffectiveHighWatermark = Math.max(runtimeEffectiveHighWatermark, result);
     return result;
   }
-  function currentWorkDecision(effectiveTimeMs) { const authority = state.authority; return { allowed: Boolean(authority && authority.workAllowed === true && canWork(authority.payload, effectiveTimeMs)), effectiveTimeMs }; }
+  function currentWorkDecision(effectiveTimeMs) { const authority = state.authority; return { allowed: Boolean(authority && canWork(authority.payload, effectiveTimeMs)), effectiveTimeMs }; }
   async function notifyAuthorityChange(authority, reason, generation) { if (typeof authorityChanged === "function") { try { await authorityChanged(clone(authority), reason, generation); } catch (_) {} } }
   async function cacheAuthorizationCheckpoint() {
     const entryIdentity = authorityDecisionIdentity();
