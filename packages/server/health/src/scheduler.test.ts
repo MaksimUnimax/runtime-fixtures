@@ -534,4 +534,23 @@ describe("durable Health scheduler contract", () => {
       }),
     ).not.toBe("manual-run-id");
   });
+
+  it("turns an executor exception into a bounded retry instead of orphaning RUNNING", async () => {
+    const repo = new MemoryScheduler();
+    const summary = await runDurableHealthSchedulerCycle({
+      repository: repo,
+      clock: { now: () => NOW },
+      ownerId: "worker",
+      leaseMs: 10_000,
+      maxConcurrency: 1,
+      execute: async () => {
+        throw new Error("provider detail is intentionally not persisted");
+      },
+    });
+    expect(summary.retryableFailures).toBe(1);
+    expect([...repo.runs.values()][0]?.state).toBe("FAILED_RETRYABLE");
+    expect([...repo.runs.values()][0]?.failureCode).toBe(
+      "HEALTH_EXECUTOR_ERROR",
+    );
+  });
 });

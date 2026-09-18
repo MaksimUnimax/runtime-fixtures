@@ -314,29 +314,44 @@ export async function runDurableHealthSchedulerCycle(
       timedOut += 1;
       continue;
     }
-    const result = timeoutAt
-      ? await Promise.race([
-          options.execute(started),
-          new Promise<never>((_, reject) => {
-            const delay = Math.max(
-              0,
-              timeoutAt.valueOf() - options.clock.now().valueOf(),
-            );
-            setTimeout(
-              () => reject(new Error("HEALTH_SCHEDULED_RUN_TIMEOUT")),
-              delay,
-            ).unref?.();
-          }),
-        ]).catch((error: unknown) => {
-          if (
-            error instanceof Error &&
-            error.message === "HEALTH_SCHEDULED_RUN_TIMEOUT"
-          ) {
-            return null;
-          }
-          throw error;
-        })
-      : await options.execute(started);
+    let result: ScheduledExecutionResult | null;
+    try {
+      result = timeoutAt
+        ? await Promise.race([
+            options.execute(started),
+            new Promise<never>((_, reject) => {
+              const delay = Math.max(
+                0,
+                timeoutAt.valueOf() - options.clock.now().valueOf(),
+              );
+              setTimeout(
+                () => reject(new Error("HEALTH_SCHEDULED_RUN_TIMEOUT")),
+                delay,
+              ).unref?.();
+            }),
+          ]).catch((error: unknown) => {
+            if (
+              error instanceof Error &&
+              error.message === "HEALTH_SCHEDULED_RUN_TIMEOUT"
+            ) {
+              return null;
+            }
+            throw error;
+          })
+        : await options.execute(started);
+    } catch {
+      const failed = await options.repository.finishFailure({
+        runId: started.id,
+        ownerId: options.ownerId,
+        leaseId: claim.leaseId,
+        now: options.clock.now(),
+        failureClass: "TRANSIENT_ENVIRONMENT",
+        failureCode: "HEALTH_EXECUTOR_ERROR",
+      });
+      if (failed.state === "FAILED_TERMINAL") terminalFailures += 1;
+      else retryableFailures += 1;
+      continue;
+    }
     if (!result) {
       await options.repository.timeoutRun({
         runId: started.id,
