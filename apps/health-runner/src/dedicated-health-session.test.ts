@@ -725,4 +725,98 @@ describe("dedicated Work Health session capability", () => {
       await driver.closeOrPersist();
     });
   });
+
+  it("WD-RED-09 keeps the Work route out of returned-driver reflection", async () => {
+    await withTempDirectory(async (directory) => {
+      const statePath = await createState(
+        directory,
+        "storage-cookie-sentinel-r7.json",
+      );
+      const privateWorkUrl =
+        "https://chatgpt.com/g/g-p-private-project-sentinel-r7/c/77777777-7777-4777-8777-777777777777";
+      const registry = await loadDedicatedHealthSessionRegistry(
+        await createConfig(directory, workConfig(statePath, privateWorkUrl)),
+      );
+      const driver = createDedicatedWorkHealthChromeBrowserDriver(
+        workTargetRegistry(),
+        registry,
+        "chatgpt_work_health",
+      );
+      try {
+        const reflected = [
+          JSON.stringify(driver),
+          ...Object.keys(driver),
+          ...Reflect.ownKeys(driver).map(String),
+          ...Object.getOwnPropertyNames(driver),
+          ...Object.getOwnPropertySymbols(driver).map(String),
+          ...Object.values(Object.getOwnPropertyDescriptors(driver)).map(
+            (descriptor) => JSON.stringify(descriptor),
+          ),
+          JSON.stringify({ ...driver }),
+        ].join("\n");
+        expect(reflected).not.toContain(privateWorkUrl);
+        expect(reflected).not.toContain("private-project-sentinel-r7");
+        expect(reflected).not.toContain("77777777-7777-4777-8777-777777777777");
+        expect(reflected).not.toContain("storage-cookie-sentinel-r7");
+        expect(reflected).not.toContain(statePath);
+
+        const reachableTargets = (driver as unknown as { targets?: unknown })
+          .targets;
+        expect(reachableTargets).toBeUndefined();
+      } finally {
+        await driver.closeOrPersist();
+      }
+    });
+  });
+
+  it("WD-C09 freezes the dedicated Work policy against caller origin expansion", async () => {
+    await withTempDirectory(async (directory) => {
+      const statePath = await createState(directory, "work-policy-state.json");
+      const registry = await loadDedicatedHealthSessionRegistry(
+        await createConfig(directory, workConfig(statePath)),
+      );
+      const callerTargets = createControlledTargetRegistry([
+        {
+          key: "chatgpt_work_health",
+          startUrl: "https://evil.example/alternate",
+          allowedTopLevelOrigins: [
+            "https://evil.example",
+            "https://chatgpt.com",
+          ],
+          browserFamily: "chrome",
+          navigationTimeoutMs: 5_000,
+        },
+      ]);
+      const driver = createDedicatedWorkHealthChromeBrowserDriver(
+        callerTargets,
+        registry,
+        "chatgpt_work_health",
+      );
+      try {
+        const callerDefinitions = (
+          callerTargets as unknown as { targets: Map<string, unknown> }
+        ).targets;
+        callerDefinitions.set("chatgpt_work_health", {
+          key: "chatgpt_work_health",
+          startUrl: "https://evil.example/post-construction",
+          allowedTopLevelOrigins: ["https://evil.example"],
+          browserFamily: "chrome",
+          navigationTimeoutMs: 5_000,
+        });
+        const source = await readFile(
+          new URL("./browser-driver.ts", import.meta.url),
+          "utf8",
+        );
+        expect(source).toContain(
+          "allowedTopLevelOrigins: [CHATGPT_WORK_H3_PROFILE.approvedOrigin]",
+        );
+        expect(source).not.toContain("...workTarget");
+        expect(
+          (driver as unknown as { targets?: unknown }).targets,
+        ).toBeUndefined();
+      } finally {
+        await driver.closeOrPersist();
+      }
+    });
+  });
 });

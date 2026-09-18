@@ -7,6 +7,17 @@ This record does not claim architect acceptance, a live ChatGPT pass, Standard
 live validation, full S2-L2 acceptance, Alice, P8.5, or a product-runtime
 change.
 
+## R7 final security review correction
+
+R7 found one concrete runtime reflection defect: the Work driver retained its
+private filtered `ControlledTargetRegistry` in a TypeScript `private` parameter
+property, which is an enumerable JavaScript property. The correction stores the
+driver target registry in ECMAScript `#targets` state and rebuilds the Work
+target with the validated ChatGPT Work origin as its sole top-level allowlist.
+The new RED coverage is `WD-RED-09` (returned-driver reflection and reachable
+target-registry disclosure) and `WD-C09` (caller origin-policy expansion and
+post-construction caller-registry mutation).
+
 ## Lineage and reviewed authority
 
 | Item | Value |
@@ -70,10 +81,11 @@ start URL. The root package exports no raw resolver or binding object.
 
 `createDedicatedHealthChromeBrowserDriver` resolves Standard only and filters
 its target registry to Standard. `createDedicatedWorkHealthChromeBrowserDriver`
-resolves Work only, filters to Work, and internally replaces only the target's
-start URL with the trusted private Work URL. Caller-controlled route data cannot
-replace it. Both factories use the normal `ChromeBrowserDriver` without adding
-authority to its constructor. Launch remains a fresh ephemeral
+resolves Work only, filters to Work, and internally uses the trusted private
+Work URL with the approved ChatGPT Work origin as the sole top-level allowlist.
+Caller-controlled route data or origin policy cannot replace or widen it. Both
+factories use the normal `ChromeBrowserDriver` without adding authority to its
+constructor. Launch remains a fresh ephemeral
 `chromium.launch()` plus `browser.newContext({ storageState })`; there is no
 persistent profile, writeback, cookie injection, or cross-run context reuse.
 
@@ -100,8 +112,9 @@ by the accepted 42-scenario fixture.
 | WD-C06–C07 | Dedicated Work cannot resolve Standard; dedicated Standard cannot resolve Work. |
 | WD-C08 | Registry, navigation result, and sanitized evidence contain no path, cookie, URL, project key, conversation UUID, or storage state. |
 
-Executed validation counts: dedicated-session unit/Work-focused and complete
-Health-runner unit suite `142 passed`; dedicated Standard/Work controlled
+Executed validation counts before R7 correction were superseded. After the
+correction, dedicated-session unit/Work-focused suite `36 passed`; complete
+Health-runner unit suite `144 passed`; dedicated Standard/Work controlled
 Chromium `4 passed`; dedicated Work boundary `1 passed`; generic Work
 Chromium `42 passed`; Standard Chromium `37 passed`; H2 Chromium `13 passed`.
 Health-runner typecheck, root typecheck, root build, lint, bridge guard,
