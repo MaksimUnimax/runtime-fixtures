@@ -25,7 +25,9 @@ export type AuthFixtureFault =
   | "WRONG_CONVERSATION"
   | "DUPLICATE_SEND"
   | "SEND_UNCERTAIN"
+  | "SEND_EXCEPTION_AFTER_ATTEMPT"
   | "RESPONSE_ASSOCIATION_FAILURE"
+  | "UNRELATED_RESPONSE"
   | "COMPLETION_TIMEOUT"
   | "MISSING_COMPOSER"
   | "MISSING_CODE_SURFACE"
@@ -128,7 +130,9 @@ export function createAuthenticatedFixtureAdapter(
       record("identifyComposer");
       return result(
         fault === "MISSING_COMPOSER" ? "FAIL" : "PASS",
-        fault === "MISSING_COMPOSER" ? "COMPOSER_IDENTIFICATION_FAILED" : undefined,
+        fault === "MISSING_COMPOSER"
+          ? "COMPOSER_IDENTIFICATION_FAILED"
+          : undefined,
       );
     },
     async insertPackagedPrompt(
@@ -144,7 +148,14 @@ export function createAuthenticatedFixtureAdapter(
         return { outcome: "PASS", actionCount: 2, transition: "PROVEN" };
       }
       if (fault === "SEND_UNCERTAIN") {
-        return { outcome: "UNCERTAIN", actionCount: 1, transition: "UNCERTAIN" };
+        return {
+          outcome: "UNCERTAIN",
+          actionCount: 1,
+          transition: "UNCERTAIN",
+        };
+      }
+      if (fault === "SEND_EXCEPTION_AFTER_ATTEMPT") {
+        throw new Error("SYNTHETIC_SEND_EXCEPTION");
       }
       return { outcome: "PASS", actionCount: 1, transition: "PROVEN" };
     },
@@ -153,7 +164,13 @@ export function createAuthenticatedFixtureAdapter(
       return result("PASS");
     },
     async observeAssociatedResponse(): Promise<
-      AuthProbeStepResult & { readonly assistantMessageCountDelta: number }
+      AuthProbeStepResult & {
+        readonly assistantMessageCountDelta: number;
+        readonly preSendAssistantMessageCount: number;
+        readonly association:
+          | "EXACT_HEALTH_SEND"
+          | "UNRELATED_ASSISTANT_MESSAGE";
+      }
     > {
       record("observeAssociatedResponse");
       return {
@@ -165,6 +182,12 @@ export function createAuthenticatedFixtureAdapter(
         ),
         assistantMessageCountDelta:
           fault === "RESPONSE_ASSOCIATION_FAILURE" ? 0 : 1,
+        preSendAssistantMessageCount: 3,
+        association:
+          fault === "RESPONSE_ASSOCIATION_FAILURE" ||
+          fault === "UNRELATED_RESPONSE"
+            ? "UNRELATED_ASSISTANT_MESSAGE"
+            : "EXACT_HEALTH_SEND",
       };
     },
     async observeCompletion(): Promise<AuthProbeStepResult> {

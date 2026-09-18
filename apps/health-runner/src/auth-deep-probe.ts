@@ -8,13 +8,13 @@ import {
   type AuthSessionState,
   type AuthSurfaceAuthority,
 } from "./auth-session-authority.js";
-import { H3PromptIdSchema, getPackagedH3Prompt, type H3PromptId } from "./h3-contracts.js";
+import {
+  H3PromptIdSchema,
+  getPackagedH3Prompt,
+  type H3PromptId,
+} from "./h3-contracts.js";
 
-export const AuthProbeStepOutcomeSchema = z.enum([
-  "PASS",
-  "FAIL",
-  "UNCERTAIN",
-]);
+export const AuthProbeStepOutcomeSchema = z.enum(["PASS", "FAIL", "UNCERTAIN"]);
 export type AuthProbeStepOutcome = z.infer<typeof AuthProbeStepOutcomeSchema>;
 
 export const AuthProbeFailureCodeSchema = z.enum([
@@ -26,6 +26,7 @@ export const AuthProbeFailureCodeSchema = z.enum([
   "ACCOUNT_BLOCKED",
   "SESSION_ENVIRONMENT_UNAVAILABLE",
   "PROVIDER_NOT_LIVE_READY",
+  "PROBE_EXECUTION_FAILED",
   "WRONG_PROVIDER_ACCOUNT",
   "WRONG_SURFACE",
   "SURFACE_IDENTITY_FAILED",
@@ -78,18 +79,24 @@ export const AuthProbeEvidenceSchema = z
     promptId: H3PromptIdSchema,
     promptHash: z.string().regex(/^[a-f0-9]{64}$/),
     promptInserted: z.boolean(),
+    conversationIdentity: z.enum(["NOT_PROVEN", "PROVEN"]),
     sendTransition: z.enum(["NOT_ATTEMPTED", "PROVEN", "UNCERTAIN"]),
     sendActionCount: z.number().int().min(0).max(1),
     responseAssociation: z.enum(["NOT_ATTEMPTED", "PROVEN", "FAILED"]),
+    preSendAssistantMessageCount: z.number().int().min(0).max(100_000),
     completion: z.enum(["NOT_ATTEMPTED", "PROVEN", "FAILED"]),
     codeBlockPresent: z.boolean(),
     nativeCopyPresent: z.boolean(),
     deliveryTarget: z.enum(["NOT_APPLICABLE", "PROVEN", "FAILED"]),
     assistantMessageCountDelta: z.number().int().min(0).max(2),
-    transitionTrace: z.array(z.string().regex(/^[A-Z][A-Z0-9_]{2,63}$/)).max(16),
+    transitionTrace: z
+      .array(z.string().regex(/^[A-Z][A-Z0-9_]{2,63}$/))
+      .max(16),
   })
   .strict();
-export type AuthProbeEvidence = Readonly<z.infer<typeof AuthProbeEvidenceSchema>>;
+export type AuthProbeEvidence = Readonly<
+  z.infer<typeof AuthProbeEvidenceSchema>
+>;
 
 export const AuthProbeResultSchema = z
   .object({
@@ -124,8 +131,16 @@ export type AuthSessionIdentityObservation = Readonly<{
 
 export type AuthConversationObservation = Readonly<{
   outcome: AuthProbeStepOutcome;
-  identity: "FIXED_HEALTH_CONVERSATION" | "ARBITRARY_CONVERSATION" | "NOT_PROVEN";
+  identity:
+    | "FIXED_HEALTH_CONVERSATION"
+    | "ARBITRARY_CONVERSATION"
+    | "NOT_PROVEN";
 }>;
+
+export type AuthResponseAssociation =
+  | "EXACT_HEALTH_SEND"
+  | "UNRELATED_ASSISTANT_MESSAGE"
+  | "NOT_PROVEN";
 
 export type AuthSurfaceObservation = Readonly<{
   outcome: AuthProbeStepOutcome;
@@ -144,23 +159,38 @@ export type AuthSendObservation = Readonly<{
 export interface AuthenticatedDeepProbeAdapter {
   identifySession(
     authority: AuthSurfaceAuthority,
+    source: AuthSessionSource,
   ): Promise<AuthSessionIdentityObservation>;
-  identifySurface(authority: AuthSurfaceAuthority): Promise<AuthProbeStepResult>;
+  identifySurface(
+    authority: AuthSurfaceAuthority,
+  ): Promise<AuthProbeStepResult>;
   identifyHealthConversation(
     authority: AuthSurfaceAuthority,
   ): Promise<AuthConversationObservation>;
-  identifyComposer(authority: AuthSurfaceAuthority): Promise<AuthProbeStepResult>;
+  identifyComposer(
+    authority: AuthSurfaceAuthority,
+  ): Promise<AuthProbeStepResult>;
   insertPackagedPrompt(
     promptId: H3PromptId,
     authority: AuthSurfaceAuthority,
   ): Promise<AuthProbeStepResult>;
   sendOnce(authority: AuthSurfaceAuthority): Promise<AuthSendObservation>;
-  observeGeneration(authority: AuthSurfaceAuthority): Promise<AuthProbeStepResult>;
-  observeAssociatedResponse(
+  observeGeneration(
     authority: AuthSurfaceAuthority,
-  ): Promise<AuthProbeStepResult & { readonly assistantMessageCountDelta: number }>;
-  observeCompletion(authority: AuthSurfaceAuthority): Promise<AuthProbeStepResult>;
-  validateSurfaces(authority: AuthSurfaceAuthority): Promise<AuthSurfaceObservation>;
+  ): Promise<AuthProbeStepResult>;
+  observeAssociatedResponse(authority: AuthSurfaceAuthority): Promise<
+    AuthProbeStepResult & {
+      readonly assistantMessageCountDelta: number;
+      readonly preSendAssistantMessageCount: number;
+      readonly association: AuthResponseAssociation;
+    }
+  >;
+  observeCompletion(
+    authority: AuthSurfaceAuthority,
+  ): Promise<AuthProbeStepResult>;
+  validateSurfaces(
+    authority: AuthSurfaceAuthority,
+  ): Promise<AuthSurfaceObservation>;
   cleanup(): Promise<void>;
 }
 
@@ -186,9 +216,11 @@ const emptyEvidence = (promptId: H3PromptId): AuthProbeEvidence =>
     promptId,
     promptHash: HEALTH_PROMPT_SHA256,
     promptInserted: false,
+    conversationIdentity: "NOT_PROVEN",
     sendTransition: "NOT_ATTEMPTED",
     sendActionCount: 0,
     responseAssociation: "NOT_ATTEMPTED",
+    preSendAssistantMessageCount: 0,
     completion: "NOT_ATTEMPTED",
     codeBlockPresent: false,
     nativeCopyPresent: false,
@@ -238,7 +270,8 @@ function baseResult(
     surfaceId: authority.surfaceId,
     strategyId: authority.strategy.strategyId,
     sessionState,
-    executionOutcome: sessionState === "NO_SESSION_CONFIGURED" ? "BLOCKED" : "UNCERTAIN",
+    executionOutcome:
+      sessionState === "NO_SESSION_CONFIGURED" ? "BLOCKED" : "UNCERTAIN",
     classification: "UNKNOWN",
     classificationBasis:
       failureCode === "PROVIDER_NOT_LIVE_READY"
@@ -352,6 +385,30 @@ export async function runAuthenticatedDeepProbe(
       failureFromSession(parsedSource.state),
     );
   }
+  if (parsedSource.expectedProviderId !== parsedAuthority.providerId) {
+    return resultForFailure(
+      parsedAuthority,
+      parsedSource.state,
+      promptId,
+      observedAt,
+      "WRONG_PROVIDER_ACCOUNT",
+      completedSteps,
+      evidence,
+      "AUTH_PROVIDER_IDENTITY_MISMATCH",
+    );
+  }
+  if (parsedSource.expectedSurfaceId !== parsedAuthority.surfaceId) {
+    return resultForFailure(
+      parsedAuthority,
+      parsedSource.state,
+      promptId,
+      observedAt,
+      "WRONG_SURFACE",
+      completedSteps,
+      evidence,
+      "AUTH_PROVIDER_IDENTITY_MISMATCH",
+    );
+  }
 
   const finish = async (result: AuthProbeResult): Promise<AuthProbeResult> => {
     try {
@@ -369,7 +426,10 @@ export async function runAuthenticatedDeepProbe(
   };
 
   try {
-    const session = await adapter.identifySession(parsedAuthority);
+    const session = await adapter.identifySession(
+      parsedAuthority,
+      parsedSource,
+    );
     if (session.state !== "PREPROVISIONED_DEDICATED") {
       return await finish(
         resultForFailure(
@@ -386,13 +446,49 @@ export async function runAuthenticatedDeepProbe(
     }
     completedSteps.push(STEP.SESSION);
     if (session.providerIdentity === "WRONG_PROVIDER") {
-      return await finish(resultForFailure(parsedAuthority, session.state, promptId, observedAt, "WRONG_PROVIDER_ACCOUNT", completedSteps, evidence, "AUTH_PROVIDER_IDENTITY_MISMATCH"));
+      return await finish(
+        resultForFailure(
+          parsedAuthority,
+          session.state,
+          promptId,
+          observedAt,
+          "WRONG_PROVIDER_ACCOUNT",
+          completedSteps,
+          evidence,
+          "AUTH_PROVIDER_IDENTITY_MISMATCH",
+        ),
+      );
     }
     if (session.surfaceIdentity === "WRONG_SURFACE") {
-      return await finish(resultForFailure(parsedAuthority, session.state, promptId, observedAt, "WRONG_SURFACE", completedSteps, evidence, "AUTH_PROVIDER_IDENTITY_MISMATCH"));
+      return await finish(
+        resultForFailure(
+          parsedAuthority,
+          session.state,
+          promptId,
+          observedAt,
+          "WRONG_SURFACE",
+          completedSteps,
+          evidence,
+          "AUTH_PROVIDER_IDENTITY_MISMATCH",
+        ),
+      );
     }
-    if (session.providerIdentity !== "EXPECTED" || session.surfaceIdentity !== "EXPECTED") {
-      return await finish(resultForFailure(parsedAuthority, session.state, promptId, observedAt, "SESSION_INVALID", completedSteps, evidence, "AUTH_PROVIDER_IDENTITY_MISMATCH"));
+    if (
+      session.providerIdentity !== "EXPECTED" ||
+      session.surfaceIdentity !== "EXPECTED"
+    ) {
+      return await finish(
+        resultForFailure(
+          parsedAuthority,
+          session.state,
+          promptId,
+          observedAt,
+          "SESSION_INVALID",
+          completedSteps,
+          evidence,
+          "AUTH_PROVIDER_IDENTITY_MISMATCH",
+        ),
+      );
     }
     if (
       !parsedAuthority.capability.sendAutomatedSafely ||
@@ -400,100 +496,348 @@ export async function runAuthenticatedDeepProbe(
         parsedAuthority.implementationStatus !==
           "AUTOMATABLE_WITH_PROVISIONED_SESSION")
     ) {
-      return await finish(resultForFailure(parsedAuthority, session.state, promptId, observedAt, "PROVIDER_NOT_LIVE_READY", completedSteps, evidence, "AUTH_PROVIDER_NOT_LIVE_READY"));
+      return await finish(
+        resultForFailure(
+          parsedAuthority,
+          session.state,
+          promptId,
+          observedAt,
+          "PROVIDER_NOT_LIVE_READY",
+          completedSteps,
+          evidence,
+          "AUTH_PROVIDER_NOT_LIVE_READY",
+        ),
+      );
     }
 
     const surface = await adapter.identifySurface(parsedAuthority);
     if (surface.outcome !== "PASS") {
-      return await finish(resultForFailure(parsedAuthority, session.state, promptId, observedAt, surface.failureCode ?? "SURFACE_IDENTITY_FAILED", completedSteps, evidence, "AUTH_REQUIRED_SURFACE_FAILURE"));
+      return await finish(
+        resultForFailure(
+          parsedAuthority,
+          session.state,
+          promptId,
+          observedAt,
+          surface.failureCode ?? "SURFACE_IDENTITY_FAILED",
+          completedSteps,
+          evidence,
+          "AUTH_REQUIRED_SURFACE_FAILURE",
+        ),
+      );
     }
     completedSteps.push(STEP.SURFACE);
 
-    const conversation = await adapter.identifyHealthConversation(parsedAuthority);
-    if (conversation.outcome !== "PASS" || conversation.identity !== "FIXED_HEALTH_CONVERSATION") {
-      return await finish(resultForFailure(parsedAuthority, session.state, promptId, observedAt, conversation.identity === "ARBITRARY_CONVERSATION" ? "WRONG_CONVERSATION" : "CONVERSATION_IDENTITY_FAILED", completedSteps, evidence, "AUTH_CONVERSATION_IDENTITY_MISMATCH"));
+    const conversation =
+      await adapter.identifyHealthConversation(parsedAuthority);
+    if (
+      conversation.outcome !== "PASS" ||
+      conversation.identity !== "FIXED_HEALTH_CONVERSATION"
+    ) {
+      return await finish(
+        resultForFailure(
+          parsedAuthority,
+          session.state,
+          promptId,
+          observedAt,
+          conversation.identity === "ARBITRARY_CONVERSATION"
+            ? "WRONG_CONVERSATION"
+            : "CONVERSATION_IDENTITY_FAILED",
+          completedSteps,
+          evidence,
+          "AUTH_CONVERSATION_IDENTITY_MISMATCH",
+        ),
+      );
     }
     completedSteps.push(STEP.CONVERSATION);
+    evidence = AuthProbeEvidenceSchema.parse({
+      ...evidence,
+      conversationIdentity: "PROVEN",
+      transitionTrace: [...evidence.transitionTrace, "CONVERSATION_PROVEN"],
+    });
 
     const composer = await adapter.identifyComposer(parsedAuthority);
     if (composer.outcome !== "PASS") {
-      return await finish(resultForFailure(parsedAuthority, session.state, promptId, observedAt, composer.failureCode ?? "COMPOSER_IDENTIFICATION_FAILED", completedSteps, evidence, "AUTH_REQUIRED_SURFACE_FAILURE"));
+      return await finish(
+        resultForFailure(
+          parsedAuthority,
+          session.state,
+          promptId,
+          observedAt,
+          composer.failureCode ?? "COMPOSER_IDENTIFICATION_FAILED",
+          completedSteps,
+          evidence,
+          "AUTH_REQUIRED_SURFACE_FAILURE",
+        ),
+      );
     }
     completedSteps.push(STEP.COMPOSER);
 
-    const inserted = await adapter.insertPackagedPrompt(promptId, parsedAuthority);
+    const inserted = await adapter.insertPackagedPrompt(
+      promptId,
+      parsedAuthority,
+    );
     if (inserted.outcome !== "PASS") {
-      return await finish(resultForFailure(parsedAuthority, session.state, promptId, observedAt, inserted.failureCode ?? "PROMPT_INSERTION_FAILED", completedSteps, evidence, "AUTH_REQUIRED_SURFACE_FAILURE"));
+      return await finish(
+        resultForFailure(
+          parsedAuthority,
+          session.state,
+          promptId,
+          observedAt,
+          inserted.failureCode ?? "PROMPT_INSERTION_FAILED",
+          completedSteps,
+          evidence,
+          "AUTH_REQUIRED_SURFACE_FAILURE",
+        ),
+      );
     }
     completedSteps.push(STEP.INSERT);
-    evidence = AuthProbeEvidenceSchema.parse({ ...evidence, promptInserted: true });
+    evidence = AuthProbeEvidenceSchema.parse({
+      ...evidence,
+      promptInserted: true,
+    });
 
-    const sent = await adapter.sendOnce(parsedAuthority);
-    sendActionCount += 1;
+    sendActionCount = 1;
+    evidence = AuthProbeEvidenceSchema.parse({
+      ...evidence,
+      sendTransition: "UNCERTAIN",
+      sendActionCount: 1,
+      transitionTrace: [...evidence.transitionTrace, "SEND_ATTEMPTED"],
+    });
+    let sent: AuthSendObservation;
+    try {
+      sent = await adapter.sendOnce(parsedAuthority);
+    } catch {
+      return await finish(
+        resultForFailure(
+          parsedAuthority,
+          session.state,
+          promptId,
+          observedAt,
+          "SEND_UNCERTAIN",
+          completedSteps,
+          evidence,
+          "AUTH_SEND_ASSOCIATION_FAILURE",
+        ),
+      );
+    }
     if (sent.actionCount !== 1) {
-      evidence = AuthProbeEvidenceSchema.parse({ ...evidence, sendActionCount: 0 });
-      return await finish(resultForFailure(parsedAuthority, session.state, promptId, observedAt, "SEND_COUNT_NOT_ONE", completedSteps, evidence, "AUTH_SEND_ASSOCIATION_FAILURE"));
+      evidence = AuthProbeEvidenceSchema.parse({
+        ...evidence,
+        sendActionCount: 0,
+      });
+      return await finish(
+        resultForFailure(
+          parsedAuthority,
+          session.state,
+          promptId,
+          observedAt,
+          "SEND_COUNT_NOT_ONE",
+          completedSteps,
+          evidence,
+          "AUTH_SEND_ASSOCIATION_FAILURE",
+        ),
+      );
     }
     evidence = AuthProbeEvidenceSchema.parse({
       ...evidence,
       sendTransition: sent.transition,
       sendActionCount: 1,
-      transitionTrace: [...evidence.transitionTrace, "PROMPT_INSERTED", "SEND_ISSUED"],
+      transitionTrace: [
+        ...evidence.transitionTrace,
+        "PROMPT_INSERTED",
+        "SEND_ISSUED",
+      ],
     });
     if (sent.outcome !== "PASS" || sent.transition !== "PROVEN") {
-      return await finish(resultForFailure(parsedAuthority, session.state, promptId, observedAt, sent.transition === "UNCERTAIN" ? "SEND_UNCERTAIN" : "SEND_NOT_ACTIONABLE", completedSteps, evidence, "AUTH_SEND_ASSOCIATION_FAILURE"));
+      return await finish(
+        resultForFailure(
+          parsedAuthority,
+          session.state,
+          promptId,
+          observedAt,
+          sent.transition === "UNCERTAIN"
+            ? "SEND_UNCERTAIN"
+            : "SEND_NOT_ACTIONABLE",
+          completedSteps,
+          evidence,
+          "AUTH_SEND_ASSOCIATION_FAILURE",
+        ),
+      );
     }
     completedSteps.push(STEP.SEND);
 
     const generation = await adapter.observeGeneration(parsedAuthority);
     if (generation.outcome !== "PASS") {
-      return await finish(resultForFailure(parsedAuthority, session.state, promptId, observedAt, generation.failureCode ?? "BUSY_OBSERVATION_FAILED", completedSteps, evidence, "AUTH_REQUIRED_SURFACE_FAILURE"));
+      return await finish(
+        resultForFailure(
+          parsedAuthority,
+          session.state,
+          promptId,
+          observedAt,
+          generation.failureCode ?? "BUSY_OBSERVATION_FAILED",
+          completedSteps,
+          evidence,
+          "AUTH_REQUIRED_SURFACE_FAILURE",
+        ),
+      );
     }
     completedSteps.push(STEP.GENERATION);
-    evidence = AuthProbeEvidenceSchema.parse({ ...evidence, transitionTrace: [...evidence.transitionTrace, "SEND_TO_BUSY"] });
+    evidence = AuthProbeEvidenceSchema.parse({
+      ...evidence,
+      transitionTrace: [...evidence.transitionTrace, "SEND_TO_BUSY"],
+    });
 
     const response = await adapter.observeAssociatedResponse(parsedAuthority);
-    if (response.outcome !== "PASS" || response.assistantMessageCountDelta !== 1) {
-      return await finish(resultForFailure(parsedAuthority, session.state, promptId, observedAt, "RESPONSE_ASSOCIATION_FAILED", completedSteps, AuthProbeEvidenceSchema.parse({ ...evidence, responseAssociation: "FAILED" }), "AUTH_SEND_ASSOCIATION_FAILURE"));
+    if (
+      response.outcome !== "PASS" ||
+      response.association !== "EXACT_HEALTH_SEND" ||
+      response.assistantMessageCountDelta !== 1
+    ) {
+      return await finish(
+        resultForFailure(
+          parsedAuthority,
+          session.state,
+          promptId,
+          observedAt,
+          "RESPONSE_ASSOCIATION_FAILED",
+          completedSteps,
+          AuthProbeEvidenceSchema.parse({
+            ...evidence,
+            responseAssociation: "FAILED",
+            preSendAssistantMessageCount: response.preSendAssistantMessageCount,
+          }),
+          "AUTH_SEND_ASSOCIATION_FAILURE",
+        ),
+      );
     }
     completedSteps.push(STEP.RESPONSE);
-    evidence = AuthProbeEvidenceSchema.parse({ ...evidence, responseAssociation: "PROVEN", assistantMessageCountDelta: 1, transitionTrace: [...evidence.transitionTrace, "ASSISTANT_ASSOCIATED"] });
+    evidence = AuthProbeEvidenceSchema.parse({
+      ...evidence,
+      responseAssociation: "PROVEN",
+      preSendAssistantMessageCount: response.preSendAssistantMessageCount,
+      assistantMessageCountDelta: 1,
+      transitionTrace: [...evidence.transitionTrace, "ASSISTANT_ASSOCIATED"],
+    });
 
     const completion = await adapter.observeCompletion(parsedAuthority);
     if (completion.outcome !== "PASS") {
-      return await finish(resultForFailure(parsedAuthority, session.state, promptId, observedAt, completion.failureCode ?? "COMPLETION_TIMEOUT", completedSteps, AuthProbeEvidenceSchema.parse({ ...evidence, completion: "FAILED" }), "AUTH_REQUIRED_SURFACE_FAILURE"));
+      return await finish(
+        resultForFailure(
+          parsedAuthority,
+          session.state,
+          promptId,
+          observedAt,
+          completion.failureCode ?? "COMPLETION_TIMEOUT",
+          completedSteps,
+          AuthProbeEvidenceSchema.parse({ ...evidence, completion: "FAILED" }),
+          "AUTH_REQUIRED_SURFACE_FAILURE",
+        ),
+      );
     }
     completedSteps.push(STEP.COMPLETION);
-    evidence = AuthProbeEvidenceSchema.parse({ ...evidence, completion: "PROVEN", transitionTrace: [...evidence.transitionTrace, "BUSY_TO_IDLE"] });
+    evidence = AuthProbeEvidenceSchema.parse({
+      ...evidence,
+      completion: "PROVEN",
+      transitionTrace: [...evidence.transitionTrace, "BUSY_TO_IDLE"],
+    });
 
     const surfaces = await adapter.validateSurfaces(parsedAuthority);
     const capability = parsedAuthority.capability;
     if (capability.commandCodeSurfaceMeaningful && !surfaces.codeBlockPresent) {
-      return await finish(resultForFailure(parsedAuthority, session.state, promptId, observedAt, "COMMAND_SURFACE_FAILED", completedSteps, AuthProbeEvidenceSchema.parse({ ...evidence, codeBlockPresent: false }), "AUTH_REQUIRED_SURFACE_FAILURE"));
+      return await finish(
+        resultForFailure(
+          parsedAuthority,
+          session.state,
+          promptId,
+          observedAt,
+          "COMMAND_SURFACE_FAILED",
+          completedSteps,
+          AuthProbeEvidenceSchema.parse({
+            ...evidence,
+            codeBlockPresent: false,
+          }),
+          "AUTH_REQUIRED_SURFACE_FAILURE",
+        ),
+      );
     }
     if (capability.nativeCopyMeaningful && !surfaces.nativeCopyPresent) {
-      return await finish(resultForFailure(parsedAuthority, session.state, promptId, observedAt, "COPY_SURFACE_FAILED", completedSteps, AuthProbeEvidenceSchema.parse({ ...evidence, codeBlockPresent: surfaces.codeBlockPresent, nativeCopyPresent: false }), "AUTH_OPTIONAL_SURFACE_FAILURE"));
+      return await finish(
+        resultForFailure(
+          parsedAuthority,
+          session.state,
+          promptId,
+          observedAt,
+          "COPY_SURFACE_FAILED",
+          completedSteps,
+          AuthProbeEvidenceSchema.parse({
+            ...evidence,
+            codeBlockPresent: surfaces.codeBlockPresent,
+            nativeCopyPresent: false,
+          }),
+          "AUTH_OPTIONAL_SURFACE_FAILURE",
+        ),
+      );
     }
-    if (capability.deliveryTargetMeaningful && surfaces.deliveryTarget === "FAILED") {
-      return await finish(resultForFailure(parsedAuthority, session.state, promptId, observedAt, "DELIVERY_TARGET_FAILED", completedSteps, AuthProbeEvidenceSchema.parse({ ...evidence, codeBlockPresent: surfaces.codeBlockPresent, nativeCopyPresent: surfaces.nativeCopyPresent, deliveryTarget: "FAILED" }), "AUTH_OPTIONAL_SURFACE_FAILURE"));
+    if (
+      capability.deliveryTargetMeaningful &&
+      surfaces.deliveryTarget === "FAILED"
+    ) {
+      return await finish(
+        resultForFailure(
+          parsedAuthority,
+          session.state,
+          promptId,
+          observedAt,
+          "DELIVERY_TARGET_FAILED",
+          completedSteps,
+          AuthProbeEvidenceSchema.parse({
+            ...evidence,
+            codeBlockPresent: surfaces.codeBlockPresent,
+            nativeCopyPresent: surfaces.nativeCopyPresent,
+            deliveryTarget: "FAILED",
+          }),
+          "AUTH_OPTIONAL_SURFACE_FAILURE",
+        ),
+      );
     }
     completedSteps.push(STEP.SURFACES);
-    evidence = AuthProbeEvidenceSchema.parse({ ...evidence, codeBlockPresent: surfaces.codeBlockPresent, nativeCopyPresent: surfaces.nativeCopyPresent, deliveryTarget: surfaces.deliveryTarget, transitionTrace: [...evidence.transitionTrace, "SURFACES_VALIDATED"] });
-    return await finish(AuthProbeResultSchema.parse({
-      providerId: parsedAuthority.providerId,
-      surfaceId: parsedAuthority.surfaceId,
-      strategyId: parsedAuthority.strategy.strategyId,
-      sessionState: "PREPROVISIONED_DEDICATED",
-      executionOutcome: "PASS",
-      classification: "HEALTHY",
-      classificationBasis: "AUTHENTICATED_DEEP_PROBE_PASS",
-      failureCode: null,
-      completedSteps,
-      sendActionCount,
-      evidence,
-      observedAt,
-    }));
+    evidence = AuthProbeEvidenceSchema.parse({
+      ...evidence,
+      codeBlockPresent: surfaces.codeBlockPresent,
+      nativeCopyPresent: surfaces.nativeCopyPresent,
+      deliveryTarget: surfaces.deliveryTarget,
+      transitionTrace: [...evidence.transitionTrace, "SURFACES_VALIDATED"],
+    });
+    return await finish(
+      AuthProbeResultSchema.parse({
+        providerId: parsedAuthority.providerId,
+        surfaceId: parsedAuthority.surfaceId,
+        strategyId: parsedAuthority.strategy.strategyId,
+        sessionState: "PREPROVISIONED_DEDICATED",
+        executionOutcome: "PASS",
+        classification: "HEALTHY",
+        classificationBasis: "AUTHENTICATED_DEEP_PROBE_PASS",
+        failureCode: null,
+        completedSteps,
+        sendActionCount,
+        evidence,
+        observedAt,
+      }),
+    );
   } catch {
-    return await finish(resultForFailure(parsedAuthority, "PREPROVISIONED_DEDICATED", promptId, observedAt, "SEND_UNCERTAIN", completedSteps, evidence, "AUTH_SEND_ASSOCIATION_FAILURE"));
+    return await finish(
+      resultForFailure(
+        parsedAuthority,
+        "PREPROVISIONED_DEDICATED",
+        promptId,
+        observedAt,
+        sendActionCount > 0 ? "SEND_UNCERTAIN" : "PROBE_EXECUTION_FAILED",
+        completedSteps,
+        evidence,
+        sendActionCount > 0
+          ? "AUTH_SEND_ASSOCIATION_FAILURE"
+          : "AUTH_REQUIRED_SURFACE_FAILURE",
+      ),
+    );
   }
 }

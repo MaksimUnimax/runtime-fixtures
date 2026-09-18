@@ -3,6 +3,7 @@ import {
   AuthSurfaceIdSchema,
   createNoAuthSessionSource,
   createRuntimeAuthSessionReference,
+  getAuthSurfaceAuthority,
   type AuthSessionSource,
   type AuthSessionState,
   type AuthSurfaceId,
@@ -29,6 +30,34 @@ export function loadAuthSessionSourceFromEnvironment(
   if (!RUNTIME_REFERENCE_PATTERN.test(reference)) {
     throw new Error("AUTH_SESSION_REFERENCE_MUST_BE_OPAQUE");
   }
+  const expectedProviderId =
+    environment[`HEALTH_AUTH_SESSION_PROVIDER_${suffix}`];
+  const expectedSurfaceId =
+    environment[`HEALTH_AUTH_SESSION_SURFACE_${suffix}`];
+  const technicalSessionClass =
+    environment[`HEALTH_AUTH_SESSION_CLASS_${suffix}`];
+  const generationValue =
+    environment[`HEALTH_AUTH_SESSION_GENERATION_${suffix}`];
+  if (
+    expectedProviderId === undefined ||
+    expectedSurfaceId === undefined ||
+    technicalSessionClass === undefined ||
+    generationValue === undefined
+  ) {
+    throw new Error("AUTH_SESSION_BINDING_REQUIRED");
+  }
+  const expectedAuthority = getAuthSurfaceAuthority(parsedSurface);
+  if (
+    expectedProviderId !== expectedAuthority.providerId ||
+    expectedSurfaceId !== expectedAuthority.surfaceId ||
+    technicalSessionClass !== "DEDICATED_HEALTH"
+  ) {
+    throw new Error("AUTH_SESSION_BINDING_MISMATCH");
+  }
+  const sessionGeneration = Number(generationValue);
+  if (!Number.isSafeInteger(sessionGeneration) || sessionGeneration <= 0) {
+    throw new Error("AUTH_SESSION_GENERATION_INVALID");
+  }
   const stateValue =
     environment[`HEALTH_AUTH_SESSION_STATE_${suffix}`] ??
     "PREPROVISIONED_DEDICATED";
@@ -36,7 +65,12 @@ export function loadAuthSessionSourceFromEnvironment(
   if (state === "NO_SESSION_CONFIGURED") {
     throw new Error("AUTH_SESSION_REFERENCE_CANNOT_BE_NO_SESSION");
   }
-  return createRuntimeAuthSessionReference(reference, state);
+  return createRuntimeAuthSessionReference(
+    reference,
+    expectedAuthority,
+    state,
+    sessionGeneration,
+  );
 }
 export function authSessionSourceDiagnostic(
   source: AuthSessionSource,

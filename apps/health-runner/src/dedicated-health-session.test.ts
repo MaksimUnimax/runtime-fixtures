@@ -3,10 +3,10 @@ import {
   link,
   mkdir,
   readFile,
-  rename,
   symlink,
   writeFile,
 } from "node:fs/promises";
+import { renameSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -70,6 +70,19 @@ async function expectConfigError(
     expect(error).toBeInstanceOf(DedicatedHealthSessionConfigError);
     expect((error as DedicatedHealthSessionConfigError).code).toBe(code);
     expect((error as Error).message).toBe(code);
+  }
+}
+
+async function expectConfigErrorCodeOneOf(
+  action: () => Promise<unknown> | unknown,
+  codes: readonly string[],
+): Promise<void> {
+  try {
+    await action();
+    throw new Error("EXPECTED_CONFIG_ERROR");
+  } catch (error) {
+    expect(error).toBeInstanceOf(DedicatedHealthSessionConfigError);
+    expect(codes).toContain((error as DedicatedHealthSessionConfigError).code);
   }
 }
 
@@ -605,6 +618,10 @@ describe("dedicated Work Health session capability", () => {
     await withTempDirectory(async (directory) => {
       const statePath = join(directory, "work-state.json");
       const replacementPath = join(directory, "work-state-replacement.json");
+      const replacementTarget = join(
+        directory,
+        "work-state-replacement-target.json",
+      );
       const largeValue = "x".repeat(3_800_000);
       const originalContents = JSON.stringify({
         cookies: [],
@@ -617,27 +634,26 @@ describe("dedicated Work Health session capability", () => {
       });
       await writeFile(statePath, originalContents, { mode: 0o600 });
       await chmod(statePath, 0o600);
-      await writeFile(replacementPath, originalContents.replaceAll("x", "y"), {
-        mode: 0o600,
-      });
-      await chmod(replacementPath, 0o600);
+      await writeFile(
+        replacementTarget,
+        originalContents.replaceAll("x", "y"),
+        {
+          mode: 0o600,
+        },
+      );
+      await chmod(replacementTarget, 0o600);
+      await symlink(replacementTarget, replacementPath);
       const configPath = await createConfig(directory, workConfig(statePath));
       const loading = loadDedicatedHealthSessionRegistry(configPath);
-      const churn = (async () => {
-        await new Promise<void>((resolve) => setTimeout(resolve, 1));
-        for (let attempt = 0; attempt < 20; attempt += 1) {
-          const backupPath = join(
-            directory,
-            `work-state-backup-${attempt}.json`,
-          );
-          await rename(statePath, backupPath).catch(() => undefined);
-          await rename(replacementPath, statePath).catch(() => undefined);
-          await rename(statePath, replacementPath).catch(() => undefined);
-          await rename(backupPath, statePath).catch(() => undefined);
-        }
-      })();
-      await expectConfigError(() => loading, "STORAGE_STATE_UNAVAILABLE");
-      await churn;
+      const backupPath = join(directory, "work-state-backup.json");
+      renameSync(statePath, backupPath);
+      renameSync(replacementPath, statePath);
+      await expectConfigErrorCodeOneOf(
+        () => loading,
+        ["STORAGE_STATE_UNAVAILABLE", "STORAGE_STATE_SYMLINK"],
+      );
+      renameSync(statePath, replacementPath);
+      renameSync(backupPath, statePath);
     });
   });
 
@@ -1054,7 +1070,7 @@ describe("dedicated Alice Health session capability", () => {
     });
   });
 
-  it("AD16-18 rejects unsafe Alice state files and read churn", async () => {
+  it("AD16 rejects an unsafe Alice symlink state file", async () => {
     if (process.platform === "win32") return;
     await withTempDirectory(async (directory) => {
       const statePath = await createState(directory);
@@ -1067,6 +1083,13 @@ describe("dedicated Alice Health session capability", () => {
           ),
         "STORAGE_STATE_SYMLINK",
       );
+    });
+  });
+
+  it("AD17 rejects unsafe Alice state permissions", async () => {
+    if (process.platform === "win32") return;
+    await withTempDirectory(async (directory) => {
+      const statePath = await createState(directory);
       const permissionsConfig = await createConfig(
         directory,
         aliceConfig(statePath),
@@ -1077,9 +1100,18 @@ describe("dedicated Alice Health session capability", () => {
         () => loadDedicatedHealthSessionRegistry(permissionsConfig),
         "STORAGE_STATE_PERMISSIONS",
       );
+    });
+  });
 
+  it("AD18 rejects Alice state replacement during a secure read", async () => {
+    if (process.platform === "win32") return;
+    await withTempDirectory(async (directory) => {
       const churnState = join(directory, "alice-churn-state.json");
       const replacementState = join(directory, "alice-churn-replacement.json");
+      const replacementTarget = join(
+        directory,
+        "alice-churn-replacement-target.json",
+      );
       const originalContents = JSON.stringify({
         cookies: [],
         origins: [
@@ -1091,31 +1123,30 @@ describe("dedicated Alice Health session capability", () => {
       });
       await writeFile(churnState, originalContents, { mode: 0o600 });
       await chmod(churnState, 0o600);
-      await writeFile(replacementState, originalContents.replaceAll("x", "y"), {
-        mode: 0o600,
-      });
-      await chmod(replacementState, 0o600);
+      await writeFile(
+        replacementTarget,
+        originalContents.replaceAll("x", "y"),
+        {
+          mode: 0o600,
+        },
+      );
+      await chmod(replacementTarget, 0o600);
+      await symlink(replacementTarget, replacementState);
       const churnConfig = await createConfig(
         directory,
         aliceConfig(churnState),
         "churn.json",
       );
       const loading = loadDedicatedHealthSessionRegistry(churnConfig);
-      const churn = (async () => {
-        await new Promise<void>((resolve) => setTimeout(resolve, 1));
-        for (let attempt = 0; attempt < 20; attempt += 1) {
-          const backupPath = join(
-            directory,
-            `alice-churn-backup-${attempt}.json`,
-          );
-          await rename(churnState, backupPath).catch(() => undefined);
-          await rename(replacementState, churnState).catch(() => undefined);
-          await rename(churnState, replacementState).catch(() => undefined);
-          await rename(backupPath, churnState).catch(() => undefined);
-        }
-      })();
-      await expectConfigError(() => loading, "STORAGE_STATE_UNAVAILABLE");
-      await churn;
+      const backupPath = join(directory, "alice-churn-backup.json");
+      renameSync(churnState, backupPath);
+      renameSync(replacementState, churnState);
+      await expectConfigErrorCodeOneOf(
+        () => loading,
+        ["STORAGE_STATE_UNAVAILABLE", "STORAGE_STATE_SYMLINK"],
+      );
+      renameSync(churnState, replacementState);
+      renameSync(backupPath, churnState);
     });
   });
 

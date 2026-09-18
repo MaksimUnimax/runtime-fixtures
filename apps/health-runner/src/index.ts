@@ -196,6 +196,7 @@ export {
   AuthSessionSourceSchema,
   AuthSessionSourceTypeSchema,
   AuthSessionStateSchema,
+  AuthTechnicalSessionClassSchema,
   AuthSurfaceAuthoritySchema,
   AuthSurfaceIdSchema,
   AUTH_SURFACE_AUTHORITIES,
@@ -215,6 +216,7 @@ export type {
   AuthSessionSource,
   AuthSessionSourceType,
   AuthSessionState,
+  AuthTechnicalSessionClass,
   AuthSurfaceAuthority,
   AuthSurfaceId,
 } from "./auth-session-authority.js";
@@ -241,14 +243,13 @@ export type {
   AuthSendObservation,
   AuthSessionIdentityObservation,
   AuthSurfaceObservation,
+  AuthResponseAssociation,
 } from "./auth-deep-probe.js";
 export {
   authSessionSourceDiagnostic,
   loadAuthSessionSourceFromEnvironment,
 } from "./auth-session-runtime.js";
-export {
-  createAuthenticatedFixtureAdapter,
-} from "./auth-deep-probe-fixtures.js";
+export { createAuthenticatedFixtureAdapter } from "./auth-deep-probe-fixtures.js";
 export type {
   AuthFixtureFault,
   AuthFixtureTrace,
