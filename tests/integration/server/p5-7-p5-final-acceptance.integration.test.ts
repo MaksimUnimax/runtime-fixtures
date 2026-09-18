@@ -255,7 +255,7 @@ describe.sequential(
       const rows = await q<{ count: string }>(
         "SELECT count(*)::text AS count FROM drizzle.__drizzle_migrations",
       );
-      expect(rows.rows[0]?.count).toBe("20");
+      expect(rows.rows[0]?.count).toBe("21");
     });
     it("DB-02 enforces one current non-expired subscription", async () => {
       const f = await fixture();
