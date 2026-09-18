@@ -108,7 +108,7 @@ No Stream-1 product runtime was changed. The only overlap is migration numbering
 
 ## K. Git
 
-The correction is prepared as a normal R2 commit from the R1 candidate worktree. No force push, destructive rebase, main merge, or PR #9 mutation is permitted. Remote publication/readback is attempted separately; if credentials are unavailable it remains `ENVIRONMENT_DEFERRED`.
+The source correction is commit `75011e57127629bad4369878d8e53f4cbe7911ac`, tree `4d979b3acda52c6312a69296377696b9444fdd99`, parent `1b7127f880067e9b6cf2efa026f19c72027cad85`. No force push, destructive rebase, main merge, or PR #9 mutation is permitted. Remote publication/readback is attempted separately; if credentials are unavailable it remains `ENVIRONMENT_DEFERRED`.
 
 ## L. Deferred ledger
 
