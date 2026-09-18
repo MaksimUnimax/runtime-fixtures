@@ -377,25 +377,28 @@ describe("B2 common H3 execution engine", () => {
     expect(strategy.calls).toEqual([]);
   });
 
-  it("isolates Standard and Work strategies through one registry and rejects mismatches", async () => {
-    const standard = new FakeH3Strategy("CHATGPT_STANDARD");
+  it("fails closed for unported Work before prompt insertion or Send", async () => {
     const work = new FakeH3Strategy("CHATGPT_WORK");
-    const registry = new H3SurfaceStrategyRegistry([standard, work]);
 
+    expect(() => new H3SurfaceStrategyRegistry([work])).toThrow(
+      "STRATEGY_NOT_REGISTERED",
+    );
+    await expect(
+      runH3BehavioralSmoke(work, plan("CHATGPT_WORK")),
+    ).rejects.toMatchObject({ code: "STRATEGY_NOT_REGISTERED" });
+    expect(work.insertedPromptIds).toHaveLength(0);
+    expect(work.calls.filter((call) => call === "sendOnce")).toHaveLength(0);
+
+    const standard = new FakeH3Strategy("CHATGPT_STANDARD");
+    const registry = new H3SurfaceStrategyRegistry([standard]);
     const standardResult = await runH3BehavioralSmokeFromRegistry(
       registry,
       plan("CHATGPT_STANDARD"),
     );
-    const workResult = await runH3BehavioralSmokeFromRegistry(
-      registry,
-      plan("CHATGPT_WORK"),
-    );
     expect(standardResult.surfaceProfile.profileId).toBe(
       "CHATGPT_STANDARD_H3_V2",
     );
-    expect(workResult.surfaceProfile.profileId).toBe("CHATGPT_WORK_H3_V1");
     expect(standard.calls).toContain("sendOnce");
-    expect(work.calls).toContain("sendOnce");
 
     const mismatched = new FakeH3Strategy("CHATGPT_WORK");
     await expect(

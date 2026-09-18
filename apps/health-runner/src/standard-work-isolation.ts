@@ -20,7 +20,11 @@ export async function hasPositiveWorkSurfaceMarker(
     '@data-message-author-role="assistant" or ' +
     '@data-message-author-role="user" or ' +
     '@contenteditable="true" or ' +
-    "self::textarea or self::input" +
+    "self::textarea or self::input or self::pre or " +
+    "@data-writing-block-fullscreen-editor-region or " +
+    'contains(concat(" ", normalize-space(@class), " "), " cm-content ") or ' +
+    '@id="code-block-viewer" or ' +
+    '(self::form and .//*[@id="prompt-textarea"])' +
     "]";
   const count = await candidates.count();
   let eligibleVisible = 0;
@@ -28,7 +32,8 @@ export async function hasPositiveWorkSurfaceMarker(
     const candidate = candidates.nth(index);
     if ((await candidate.locator(`xpath=${excludedAncestor}`).count()) > 0)
       continue;
-    if (!(await candidate.isVisible().catch(() => false))) continue;
+    if (!(await candidate.isVisible({ timeout: 250 }).catch(() => false)))
+      continue;
     eligibleVisible += 1;
   }
   return eligibleVisible === 1;
