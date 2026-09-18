@@ -99,6 +99,7 @@ def run_runtime(runtime: Path, private_key: Path, output: Path) -> dict:
     server = SyntheticHealthServer(private_key).start()
     rows = []
     source = target = conflicts = None
+    server_stopped = False
     try:
         with sync_playwright() as pw:
             source = BrowserFixture(runtime, private_key, server, output / "source")
@@ -113,6 +114,7 @@ def run_runtime(runtime: Path, private_key: Path, output: Path) -> dict:
             source_events = list(source.events)
             rows.append({"id": "installed-export", "status": "PASS", "stores": len(source.state()["stores"])})
             source.close(); source = None
+            server.stop(); server_stopped = True
 
             target = BrowserFixture(runtime, private_key, server, output / "same-account-clean")
             target.open(pw); target.reset()
@@ -192,7 +194,8 @@ def run_runtime(runtime: Path, private_key: Path, output: Path) -> dict:
                     fixture.close()
                 except Exception:
                     pass
-        server.stop()
+        if not server_stopped:
+            server.stop()
     result = {"status": "PASS" if all(row["status"] == "PASS" for row in rows) else "FAIL", "runtime": str(runtime), "results": rows, "provider_requests": 0, "mandatory_control_requests": 0}
     (output / "result.json").write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
     return result
