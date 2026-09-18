@@ -226,9 +226,13 @@ No live LLM calls and no real notification sends occurred.
 R2 continues directly from R1 on branch
 `feature/stream2-o2-llm-notifications-r2-2026-09-19`. There was no force push,
 rebase, amend, reset, main merge, or PR #9 mutation. The bounded correction and
-this receipt are the only R2 worktree changes before commit. A normal push/readback
-will be attempted; if GitHub credentials are unavailable, publication remains
-`ENVIRONMENT_DEFERRED / NOT_REMOTE_VERIFIED`.
+this receipt are the only R2 worktree changes. The bounded R2 commit is
+`f728c18d105df48c8cbc62215f57f9133c793c44`, parent
+`58092e8f05c8a7292ba080381501ab4426e2bab1`, tree
+`689a6f24ffe5f3bd9da616b5b657735ed5ea9924`. A normal push was attempted and
+failed before authentication with `fatal: could not read Username for
+'https://github.com': No such device or address`; publication/readback is
+therefore `ENVIRONMENT_DEFERRED / NOT_REMOTE_VERIFIED`.
 
 ## N. Deferred ledger
 
