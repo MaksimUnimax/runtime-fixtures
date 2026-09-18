@@ -87,8 +87,8 @@ candidate. Those bypasses are not possible through the R3 public surface.
 
 | Check | Result |
 | --- | --- |
-| Dedicated session unit tests | 11 passed, 0 failed |
-| Full Health runner unit suite | 115 passed, 0 failed, 9 files |
+| Dedicated session unit tests | 12 passed, 0 failed |
+| Full Health runner unit suite | 116 passed, 0 failed, 9 files |
 | Dedicated synthetic Chromium loopback | 3 passed, 0 failed |
 | H2 Chromium security matrix | 13 passed, 0 failed |
 | Standard H3 Chromium regression | 37 passed, 0 failed |
