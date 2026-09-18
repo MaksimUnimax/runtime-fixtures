@@ -21,6 +21,22 @@ export const HealthStateSchema = z.enum([
 ]);
 export type HealthState = z.infer<typeof HealthStateSchema>;
 
+export const HealthClassificationBasisSchema = z.enum([
+  "HEALTHY_PRIMARY",
+  "HEALTHY_ALLOWED_OPTIONAL_ABSENCE",
+  "DRIFT_APPROVED_FALLBACK",
+  "DEGRADED_NON_CORE_FAILURE",
+  "DEGRADED_MATERIAL_FALLBACK",
+  "BROKEN_REQUIRED_CORE_FAILURE",
+  "UNKNOWN_PRE_IDENTITY_ENVIRONMENT",
+  "UNKNOWN_AUTH_OR_SECURITY_BLOCKER",
+  "MAINTENANCE_OPERATOR",
+  "INCOHERENT_ENVIRONMENT_OBSERVATION",
+]);
+export type HealthClassificationBasis = z.infer<
+  typeof HealthClassificationBasisSchema
+>;
+
 export const HealthLevelSchema = z.enum(["H0", "H1", "H2", "H3", "H4", "H5"]);
 export type HealthLevel = z.infer<typeof HealthLevelSchema>;
 
@@ -478,4 +494,44 @@ export const HealthClassificationInputSchema = z
   .strict();
 export type HealthClassificationInput = z.infer<
   typeof HealthClassificationInputSchema
+>;
+
+export const HealthProductFindingSchema = z
+  .object({
+    contourKey: BaselineContourKeySchema,
+    finding: z.enum(["BROKEN", "DEGRADED", "DRIFT"]),
+  })
+  .strict();
+export type HealthProductFinding = z.infer<typeof HealthProductFindingSchema>;
+
+export const HealthClassificationResultSchema = z
+  .object({
+    state: HealthStateSchema,
+    basis: HealthClassificationBasisSchema,
+    findingContourKeys: z
+      .array(BaselineContourKeySchema)
+      .max(BaselineContourKeySchema.options.length)
+      .refine((values) => new Set(values).size === values.length, {
+        message: "duplicate finding contour key",
+      }),
+    productFindings: z
+      .array(HealthProductFindingSchema)
+      .max(BaselineContourKeySchema.options.length)
+      .refine(
+        (values) =>
+          new Set(values.map((value) => value.contourKey)).size ===
+          values.length,
+        { message: "duplicate product finding" },
+      ),
+    environmentUncertaintyReasons: z
+      .array(EnvironmentUncertaintyReasonSchema)
+      .max(EnvironmentUncertaintyReasonSchema.options.length)
+      .refine((values) => new Set(values).size === values.length, {
+        message: "duplicate environment uncertainty reason",
+      }),
+    operatorMaintenance: z.boolean(),
+  })
+  .strict();
+export type HealthClassificationResult = z.infer<
+  typeof HealthClassificationResultSchema
 >;
