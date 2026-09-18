@@ -56,3 +56,13 @@ Development 0.2.3, code candidate `96af54f1d67c20f6eca2ade552fde20948f1e66d`; [�
 | A12, A25 | Durable text Send commit/no retry и no replay по Work/message/block; native повтор кнопки не делает второй запрос; зрелые Ozon recovery gates сохранены | Полная установленная recovery/UNKNOWN матрица и разные composer/upload UI |
 | A17, A21, A31 | Shared queue/context/observed quota: APP-10 доказывает 429 → удержание хвоста и невозможность раннего resume; обычные application тесты не делают control API calls | Межбраузерное согласование/наблюдение и реальная работа signed offline access |
 | A13–A16, A18–A20, A22–A24, A26–A30 | Не принимаются D2.4; account port из APP-08 не является авторизацией | I1, D3/S2, Q1 и серверная параллель |
+
+## Current D3/S2 classification — 2026-09-18
+
+The table above preserves the original D0/D2 historical matrix and its
+boundaries. The authoritative current A01–A32 statuses are now recorded in
+[D3S2-4 full coordination closure](client-i1/D3S2_4_FULL_COORDINATION_CLOSURE.md).
+In particular, A22, A23, and A24 are bounded automated candidates on the
+current integrated Stream-1 tree; A28 remains owned by parallel Stream 2; and
+owner/live, browser/environment, Q1, provisional-review, and publication gates
+remain deferred rather than being converted to PASS.

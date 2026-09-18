@@ -1,6 +1,6 @@
 # Текущее состояние
 
-Дата проверки: 2026-09-17.
+Дата проверки: 2026-09-18.
 Этап: D1 COMPLETED — D1.S1/D1.E0/D1.E1 приняты. D1.E1 IMPORT_ACCEPTED: 232 файла, remote CI и readback PASS. D0 COMPLETED; D2 IN_PROGRESS, D2.1 ACCEPTED; D2.2 ACCEPTED — SOURCE/PACKAGE/REMOTE CI/READBACK PASS; D2.3 INTERNAL_ADAPTER_ACCEPTED — SOURCE/PACKAGE/REMOTE CI/READBACK PASS; D2.4 DEVELOPMENT_APPLICATION_VERIFIED — SOURCE/PACKAGE/NATIVE_FIXTURE/REMOTE_CI/READBACK PASS; S1.1 DONE / REMOTE ACCEPTED.
 Product implementation: SERVER_IMPORTED_AND_VERIFIED; EXTENSION_BASELINES_IMPORTED_AND_VERIFIED; COMMON_CORE_COMPOSED_OZON_VERIFIED; BATCH_CONTEXT_VERIFIED; WB_INTERNAL_ADAPTER_VERIFIED; WB_APPLICATION_ROUTE_CONNECTED; COMBINED_OZON_WB_DEVELOPMENT_VERIFIED; REAL_ACCOUNT_AUTH_NOT_CONNECTED.
 Post-C3H P2 joint offline command/result recovery is `IMPLEMENTED_CANDIDATE_WITH_ENVIRONMENT_GAP`, architect review pending; it preserves P1 no-replay, adds bounded known-result materialization and fail-closed AI delivery recovery. P3 extension-local technical scheduler integration is `IMPLEMENTED_CANDIDATE`, architect review pending. The bounded automated pre-handoff candidate is `EARLY_I1_D2_AUTOMATED_PREHANDOFF_CANDIDATE_READY`; architect acceptance is pending. This does not mark D3/S2, Q1, B1, production deployment, or all-browser support complete. Stream 2 monitoring agents remain untouched. Evidence: [P2 joint result recovery](development/client-i1/POST_C3H_P2_JOINT_OFFLINE_COMMAND_RESULT_RECOVERY_2026-09-18.md), [P3 local scheduler](development/client-i1/POST_C3H_P3_LOCAL_SCHEDULER_INTEGRATION_2026-09-18.md), and [automated pre-handoff](development/client-i1/EARLY_I1_D2_AUTOMATED_PREHANDOFF_ACCEPTANCE_2026-09-18.md).
@@ -59,6 +59,21 @@ The synchronization/integration branch remains a history-preserving candidate; P
 
 [D1.E1](migration/EXTENSION_IMPORT_NEXT_STEP.md) завершён. D2.1 и D2.2 приняты. D2.3 внутренний adapter принят по source/package/remote CI/readback. D2.4 соединение с каталогом/popup/Work/delivery принято в development 0.2.3. S1.1 принят в canonical `main`; [post-merge authority и CI](server/S1_1_REMOTE_ACCEPTANCE_2026-09-14.md) зафиксированы. Early I1 integration continues on the accepted C2 base. C2.2-A, C2.2-B and C2.2-C are accepted within their bounded scopes. The next capability-related C2 step must separately identify explicit reviewed signed server permission keys and define a fail-closed mapping/intersection with the accepted packaged-local authority. Unknown/missing permission cannot activate a local capability, remote allow cannot manufacture an absent packaged capability, and denial must win. Prefer a read-only/non-executing effective-capability result before any Work wiring. Offline Work, provider replay and scheduler authority remain closed. Real S1.2 email/preprod, D3, full installed/live-product acceptance, beta, deployment and release remain later gates.
 WB R1–R8 остаются закрыты до установленной приёмки исправленного provider-neutral контура.
+
+## D3/S2 whole-layer closure handoff — 2026-09-18
+
+The integrated Stream-1 candidate has bounded automated implementation evidence
+for D3/S2 store/state, rare C3E/C3F coordination, provider quota behavior,
+A22/A23 transfer, and A24 local encrypted export/import. The exact crosswalk,
+A01–A32 current classification, privacy/architecture audit, regression receipt,
+deferred ledger, and Q1 cursor are in [D3S2-4 full coordination closure](development/client-i1/D3S2_4_FULL_COORDINATION_CLOSURE.md).
+
+Recommended architect disposition: `D3S2_PARTIAL_OWNER_DEFERRED_BUT_IMPLEMENTATION_COMPLETE`;
+Codex does not self-accept it. No real D3/S2 implementation defect was found.
+Owner/live, browser/environment, provisional-review, publication, Q1, and
+Stream-2 boundaries remain explicit. The first productive non-owner Q1 task is
+`Q1-A-20260919-INSTALLED-UNIFIED-FUNCTIONAL-MATRIX-AND-CURRENT-PACKAGE-REPLAY`;
+it is not started in this task.
 
 ## Как обновлять
 

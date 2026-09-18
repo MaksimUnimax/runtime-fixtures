@@ -78,6 +78,24 @@ self-accept A22/A23, and does not start A24 export/import. See
 
 A24 `SA-KEY-02` is `IMPLEMENTED_CANDIDATE / REMOTE_NOT_VERIFIED / ARCHITECT_REVIEW_REQUIRED` on the bounded branch `feature/d3s2-a24-export-import-2026-09-18`. It adds only local encrypted all-active-store export/import, exact adapters for the real historical Ozon/WB credential backup formats, strict account/conflict/tombstone handling, and no cloud-backup route. Focused EX-01..EX-74 and actual unpacked Chromium source/generated plus extracted/package journeys are green within the recorded scope. It is not A24 acceptance, does not reopen A22/A23, and does not start Q1, S1.2, Stream 2, deployment, browser publication, or monetization. See [A24 evidence](development/client-i1/D3S2_3_A24_EXPORT_IMPORT.md).
 
+## D3/S2 whole-layer closure handoff — 2026-09-18
+
+The current integrated Stream-1 candidate has bounded automated implementation
+evidence for store/state, rare sync/reconciliation, quota handling, A22/A23
+credential transfer, and A24 local encrypted export/import. The closure receipt
+is [D3S2-4 full coordination closure](development/client-i1/D3S2_4_FULL_COORDINATION_CLOSURE.md).
+The recommended architect disposition is
+`D3S2_PARTIAL_OWNER_DEFERRED_BUT_IMPLEMENTATION_COMPLETE`; this is not a
+self-acceptance. No D3/S2 implementation defect remains in the bounded scope.
+
+The current gates outside that scope are preserved: owner-authenticated I1
+health/work, live provider rights/account proof, browser-family environments,
+the A24-current installed transfer rerun blocked by host disk exhaustion,
+provisional transfer/export owner decisions, remote publication, Q1 operational
+acceptance, and Stream-2 monitoring. The next productive non-owner Q1 cursor is
+`Q1-A-20260919-INSTALLED-UNIFIED-FUNCTIONAL-MATRIX-AND-CURRENT-PACKAGE-REPLAY`;
+it is a handoff only and is not started here.
+
 ## Браузеры и ИИ
 
 Chrome, Opera, Yandex, Firefox и Safari — архитектурные цели. Принятая поддержка фиксируется по фактическому браузеру/ОС/ИИ/пакету.
