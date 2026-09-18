@@ -28,6 +28,7 @@
     "packages/control-client/src/config.js",
     "packages/control-client/src/crypto.js",
     "packages/control-client/src/credential-transfer.js",
+    "packages/bridge-core/src/stores/backup.js",
     "packages/control-client/src/packaged-capabilities.js",
     "packages/control-client/src/client.js",
     "packages/control-client/src/health-metadata.js",

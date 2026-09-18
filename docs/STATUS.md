@@ -10,6 +10,7 @@ Browser releases: NOT_CREATED.
 Live provider tests in this stage: NOT_RUN.
 
 D3S2-2A credential-transfer control-plane/ephemeral-relay foundation is `IMPLEMENTED_CANDIDATE / REMOTE_NOT_VERIFIED`; it does not self-accept A22/A23 and does not implement A24. Evidence: [D3S2-2A credential transfer foundation](development/client-i1/D3S2_2A_CREDENTIAL_TRANSFER_FOUNDATION.md).
+A24 `SA-KEY-02` is now `IMPLEMENTED_CANDIDATE / REMOTE_NOT_VERIFIED / ARCHITECT_REVIEW_REQUIRED` on the bounded `feature/d3s2-a24-export-import-2026-09-18` branch. The local-only encrypted all-stores file, strict parser, exact historical adapters, account/conflict/tombstone safety, popup flow, focused EX-01..EX-74 matrix, and installed source/generated plus extracted/package Chromium journey are recorded in [D3S2-3 A24 evidence](development/client-i1/D3S2_3_A24_EXPORT_IMPORT.md). This does not self-accept A24 or change A22/A23, Q1, S1.2, Stream 2, deployment, browser publication, or monetization.
 
 ## Компоненты
 

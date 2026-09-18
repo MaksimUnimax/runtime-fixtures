@@ -1,6 +1,7 @@
 "use strict";
 const $ = id => document.getElementById(id);
 let tabId, state, marketplace = "ozon", selectedId = "", editingId = null, busy = false, confirmAction = null;
+let backupText = "";
 const texts = { ACCESS_CONFIRMED: "Доступ подтверждён этой проверкой; кабинет и полный набор прав ещё не подтверждены",
   CREDENTIAL_REJECTED: "Ключ отклонён (401). Причина и срок действия не подтверждены", ACCESS_DENIED: "Недостаточно прав (403)",
   CHECK_FAILED: "Не удалось проверить: сеть, ответ площадки или формат запроса", STORE_CHANGE_CONFIRMATION_REQUIRED: "Подтвердите смену магазина",
@@ -99,6 +100,39 @@ $("auth-open").onclick = () => action(() => request("SA_AUTH_OPEN_PORTAL"));
 $("auth-cancel").onclick = () => action(() => request("SA_AUTH_CANCEL"));
 $("auth-reset").onclick = () => confirm("Локально завершить текущую сессию и выбрать аккаунт заново? Сохранённые магазины останутся изолированными по аккаунту.", () => request("SA_AUTH_RESET"));
 for (const part of ["seller", "performance", "token"]) $("check-" + part).onclick = () => action(() => request("SA_STORE_CHECK", { store_id: selectedId, part }));
+function downloadBackup(name, value) {
+  const url = URL.createObjectURL(new Blob([value], { type: "application/json" }));
+  const link = document.createElement("a"); link.href = url; link.download = name; link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+function backupSummary(preview) {
+  const conflicts = preview.classifications.filter(row => !["IMPORT_NEW", "SAME_CURRENT"].includes(row.kind));
+  return `${preview.legacy ? "Распознан старый provider backup через явный адаптер. Пароль старого файла не проверяется." : "Зашифрованный Seller Agents backup v1."} Магазинов: ${preview.storeCount}. Ozon/WB: ${preview.marketplaces.join(", ") || "нет"}. Безопасно добавить: ${preview.safeImportCount}. Уже совпадают: ${preview.storeCount - preview.safeImportCount - preview.rejectedCount}. Отклонено конфликтов: ${preview.rejectedCount}. ${conflicts.length ? "Конфликты пропущены без перезаписи." : "Конфликтов нет."}`;
+}
+$("backup-export").onclick = () => action(async () => {
+  const password = $("backup-password").value, confirmation = $("backup-password-confirm").value;
+  if (password.length < 8) throw new Error("Пароль должен содержать не менее 8 символов");
+  const response = await request("SA_BACKUP_EXPORT", { password, passwordConfirmation: confirmation });
+  downloadBackup(response.fileName, response.backup);
+  $("backup-password").value = $("backup-password-confirm").value = "";
+  $("backup-status").textContent = `Экспортировано магазинов: ${response.storeCount}. Файл сохранён локально как ${response.fileName}.`;
+});
+$("backup-preview").onclick = () => action(async () => {
+  const file = $("backup-file").files?.[0];
+  if (!file) throw new Error("Выберите файл копии");
+  if (file.size > 8 * 1024 * 1024) throw new Error("Файл больше 8 MiB");
+  backupText = await file.text();
+  const response = await request("SA_BACKUP_PREVIEW", { backup: backupText, password: $("backup-import-password").value });
+  $("backup-summary").textContent = backupSummary(response.preview);
+  $("backup-preview-result").hidden = false;
+  $("backup-status").textContent = "Проверка завершена. Нажмите финальную кнопку, чтобы применить только безопасные новые магазины.";
+});
+$("backup-import").onclick = () => action(async () => {
+  if (!backupText) throw new Error("Сначала проверьте файл");
+  const response = await request("SA_BACKUP_IMPORT", { backup: backupText, password: $("backup-import-password").value, apply: true });
+  $("backup-status").textContent = `Импорт завершён: добавлено ${response.imported.length}; конфликты не перезаписаны.`;
+  $("backup-preview-result").hidden = true; $("backup-file").value = ""; $("backup-import-password").value = ""; backupText = "";
+});
 chrome.tabs.query({ active: true, currentWindow: true }).then(tabs => { tabId = tabs[0]?.id; return refresh(true); }).catch(e => { $("status").textContent = e.message; });
 
 let refreshTimer;

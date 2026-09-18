@@ -96,6 +96,43 @@ async function saTransferReceive(message) {
   await SellerAgentsControlClient.acknowledgeCredentialTransfer({ requestId: request.requestId, packetId: received.packet.packetId, importDecision: "IMPORTED" });
   return { ok: true, requestId: request.requestId, importState: "IMPORTED", results: safe };
 }
+async function saBackupAccount() {
+  const accountId = await SellerAgentsControlClient.currentAccount();
+  if (!accountId) throw saError("AUTH_REQUIRED");
+  return accountId;
+}
+async function saBackupExport(message) {
+  const accountId = await saBackupAccount();
+  const password = String(message.password || ""), confirmation = String(message.passwordConfirmation || "");
+  if (password !== confirmation) throw saError("BACKUP_PASSWORD_CONFIRMATION_MISMATCH");
+  const payload = SellerAgentsStoreBackup.payloadFromStores(accountId, await saCatalog.backupSnapshot());
+  const backup = await SellerAgentsStoreBackup.encrypt(payload, password);
+  return { ok: true, backup, fileName: "seller-agents-store-backup-v1.json", storeCount: payload.stores.length };
+}
+async function saBackupDecodeAndPlan(message) {
+  const accountId = await saBackupAccount();
+  const decoded = await SellerAgentsStoreBackup.decrypt(message.backup, String(message.password || ""), accountId);
+  if (accountId !== await saBackupAccount()) throw saError("ACCOUNT_CHANGED");
+  const plan = await saCatalog.planBackupImport(decoded.payload);
+  if (accountId !== await saBackupAccount()) throw saError("ACCOUNT_CHANGED");
+  return { accountId, decoded, plan };
+}
+function saBackupPublicPlan(decoded, plan) {
+  const result = SellerAgentsStoreBackup.summary(decoded.payload, plan.classifications);
+  return { ...result, legacy: decoded.legacy, classifications: plan.classifications.map((row) => ({ storeId: row.storeId, kind: row.kind })) };
+}
+async function saBackupPreview(message) {
+  const { decoded, plan } = await saBackupDecodeAndPlan(message);
+  return { ok: true, preview: saBackupPublicPlan(decoded, plan) };
+}
+async function saBackupImport(message) {
+  if (message.apply !== true) throw saError("BACKUP_EXPLICIT_ACTION_REQUIRED");
+  const { accountId, decoded, plan } = await saBackupDecodeAndPlan(message);
+  const result = await saCatalog.applyBackupImport(decoded.payload, plan);
+  if (accountId !== await saBackupAccount()) throw saError("ACCOUNT_CHANGED");
+  for (const store of result.imported) void saRecordStoreMetadata(store);
+  return { ok: true, preview: saBackupPublicPlan(decoded, plan), imported: result.imported.map((store) => ({ id: store.id, name: store.name, marketplace: store.marketplace, credentialRevision: store.credentialRevision })), classifications: result.classifications.map((row) => ({ storeId: row.storeId, kind: row.kind })) };
+}
 function saStoreContext(store) {
   return { accountId: store.accountId, storeId: store.id, marketplace: store.marketplace,
     credentialRevision: store.credentialRevision, policyRevision: store.personalDataEnabled ? "personal-enabled" : "personal-disabled" };
@@ -903,6 +940,9 @@ async function saHandleMessage(message, sender) {
         await saInvalidateStore(message.store_id);
         void saRecordStoreTombstone({ ...deletedStore, lifecycleState: "TOMBSTONED", credentials: {}, credentialsStale: true, metadataRevision: (deletedStore.metadataRevision || 0) + 1 });
         return { ok: true };
+      case "SA_BACKUP_EXPORT": return saBackupExport(message);
+      case "SA_BACKUP_PREVIEW": return saBackupPreview(message);
+      case "SA_BACKUP_IMPORT": return saBackupImport(message);
       case "SA_WORK_START": return saWorkStart(message, sender);
       case "SA_WORK_RESUME": return saWorkResume(message, sender);
       case "SA_STORE_CHECK": return saCheckStore(message);

@@ -168,6 +168,66 @@
         return { kind: "IMPORTED", store: publicStore(store) };
       });
     }
+    async function backupSnapshot() {
+      const { id, all } = await state();
+      return Object.values(all.accounts[id]?.stores || {})
+        .filter((store) => (store.lifecycleState || "ACTIVE") === "ACTIVE")
+        .map((store) => structuredClone(store));
+    }
+    async function planBackupImport(payload) {
+      if (!payload?.accountBinding?.accountId) fail("BACKUP_ACCOUNT_MISMATCH");
+      const { id, all } = await state();
+      if (payload.accountBinding.accountId !== id) fail("BACKUP_ACCOUNT_MISMATCH");
+      const current = all.accounts[id]?.stores || {};
+      const classifications = payload.stores.map((incoming) => {
+        const previous = current[incoming.storeId];
+        if (!previous) return { storeId: incoming.storeId, kind: "IMPORT_NEW" };
+        if (previous.lifecycleState === "TOMBSTONED") return { storeId: incoming.storeId, kind: "LOCAL_TOMBSTONED" };
+        if (previous.marketplace !== incoming.marketplace) return { storeId: incoming.storeId, kind: "MARKETPLACE_MISMATCH" };
+        if (previous.providerIdentityState === "CONFIRMED" && incoming.providerIdentityState === "CONFIRMED" && previous.providerAccountId !== incoming.providerAccountId) return { storeId: incoming.storeId, kind: "PROVIDER_ACCOUNT_MISMATCH" };
+        const localCredentials = previous.credentials || {};
+        const incomingCredentials = incoming.credentials.type === "ozon" ? { seller: incoming.credentials.seller, performance: incoming.credentials.performance || {} } : { token: incoming.credentials.token };
+        if (previous.credentialRevision === incoming.credentialRevision && canonicalJson(localCredentials) === canonicalJson(incomingCredentials)) return { storeId: incoming.storeId, kind: "SAME_CURRENT" };
+        return { storeId: incoming.storeId, kind: "LOCAL_NEWER" };
+      });
+      return { accountId: id, classifications, safeStoreIds: classifications.filter((row) => row.kind === "IMPORT_NEW").map((row) => row.storeId) };
+    }
+    async function applyBackupImport(payload, expectedPlan) {
+      return mutate(async (scope, id) => {
+        if (payload?.accountBinding?.accountId !== id || expectedPlan?.accountId !== id) fail("ACCOUNT_CHANGED");
+        const current = scope.stores || {};
+        const actual = payload.stores.map((incoming) => {
+          const previous = current[incoming.storeId];
+          if (!previous) return { storeId: incoming.storeId, kind: "IMPORT_NEW" };
+          if (previous.lifecycleState === "TOMBSTONED") return { storeId: incoming.storeId, kind: "LOCAL_TOMBSTONED" };
+          if (previous.marketplace !== incoming.marketplace) return { storeId: incoming.storeId, kind: "MARKETPLACE_MISMATCH" };
+          if (previous.providerIdentityState === "CONFIRMED" && incoming.providerIdentityState === "CONFIRMED" && previous.providerAccountId !== incoming.providerAccountId) return { storeId: incoming.storeId, kind: "PROVIDER_ACCOUNT_MISMATCH" };
+          const localCredentials = previous.credentials || {};
+          const incomingCredentials = incoming.credentials.type === "ozon" ? { seller: incoming.credentials.seller, performance: incoming.credentials.performance || {} } : { token: incoming.credentials.token };
+          if (previous.credentialRevision === incoming.credentialRevision && canonicalJson(localCredentials) === canonicalJson(incomingCredentials)) return { storeId: incoming.storeId, kind: "SAME_CURRENT" };
+          return { storeId: incoming.storeId, kind: "LOCAL_NEWER" };
+        });
+        if (canonicalJson(actual) !== canonicalJson(expectedPlan.classifications || [])) fail("IMPORT_PLAN_STALE");
+        const safe = new Set((expectedPlan.safeStoreIds || []).filter((storeId) => actual.find((row) => row.storeId === storeId)?.kind === "IMPORT_NEW"));
+        const imported = [];
+        for (const incoming of payload.stores) {
+          if (!safe.has(incoming.storeId)) continue;
+          const credentials = incoming.credentials.type === "ozon"
+            ? normalizeCredentials("ozon", { seller: incoming.credentials.seller, performance: incoming.credentials.performance || {} })
+            : normalizeCredentials("wildberries", { token: incoming.credentials.token });
+          const store = {
+            id: incoming.storeId, accountId: id, marketplace: incoming.marketplace, name: incoming.label,
+            credentials, credentialRevision: incoming.credentialRevision, metadataRevision: incoming.metadataRevision,
+            lifecycleState: "ACTIVE", providerAccountId: incoming.providerIdentityState === "CONFIRMED" ? incoming.providerAccountId : null,
+            providerIdentityState: incoming.providerIdentityState, credentialsStale: false, personalDataEnabled: false,
+            verification: {}, createdAt: Date.now(),
+          };
+          scope.stores[store.id] = store;
+          imported.push(publicStore(store));
+        }
+        return { imported, classifications: actual };
+      });
+    }
     async function remove(id) {
       return mutate((scope) => {
         if (!scope.stores[id]) fail("STORE_NOT_FOUND");
@@ -259,7 +319,7 @@
         return publicStore(store);
       });
     }
-    return Object.freeze({ key, list, get, save, importCredential, remove, noteVerification, confirmProviderIdentity, metadataForSync, applyRemoteMetadata });
+    return Object.freeze({ key, list, get, save, importCredential, backupSnapshot, planBackupImport, applyBackupImport, remove, noteVerification, confirmProviderIdentity, metadataForSync, applyRemoteMetadata });
   }
   globalThis.SellerAgentsStoreCatalog = Object.freeze({ create });
 })();

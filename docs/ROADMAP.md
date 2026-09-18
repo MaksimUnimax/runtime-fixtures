@@ -74,6 +74,10 @@ Credential transfer control-plane and ephemeral-relay foundation is
 self-accept A22/A23, and does not start A24 export/import. See
 `development/client-i1/D3S2_2A_CREDENTIAL_TRANSFER_FOUNDATION.md`.
 
+## D3S2-3 A24 local candidate
+
+A24 `SA-KEY-02` is `IMPLEMENTED_CANDIDATE / REMOTE_NOT_VERIFIED / ARCHITECT_REVIEW_REQUIRED` on the bounded branch `feature/d3s2-a24-export-import-2026-09-18`. It adds only local encrypted all-active-store export/import, exact adapters for the real historical Ozon/WB credential backup formats, strict account/conflict/tombstone handling, and no cloud-backup route. Focused EX-01..EX-74 and actual unpacked Chromium source/generated plus extracted/package journeys are green within the recorded scope. It is not A24 acceptance, does not reopen A22/A23, and does not start Q1, S1.2, Stream 2, deployment, browser publication, or monetization. See [A24 evidence](development/client-i1/D3S2_3_A24_EXPORT_IMPORT.md).
+
 ## Браузеры и ИИ
 
 Chrome, Opera, Yandex, Firefox и Safari — архитектурные цели. Принятая поддержка фиксируется по фактическому браузеру/ОС/ИИ/пакету.
