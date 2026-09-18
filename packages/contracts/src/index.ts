@@ -67,8 +67,88 @@ export const ApiErrorCodeV1Schema = z.enum([
   "SYNC_REQUEST_INVALID",
   "ACCOUNT_IDENTITY_MISMATCH",
   "CLIENT_UPDATE_REQUIRED",
+  "SOURCE_OFFLINE",
+  "TRANSFER_EXPIRED",
+  "TRANSFER_INVALID",
+  "TRANSFER_REPLAY",
+  "TRANSFER_CONFLICT",
+  "TRANSFER_DEVICE_REVOKED",
+  "TRANSFER_ACCOUNT_MISMATCH",
+  "TRANSFER_PACKET_TOO_LARGE",
 ]);
 export type ApiErrorCodeV1 = z.infer<typeof ApiErrorCodeV1Schema>;
+
+/** Rare, explicit credential transfer control-plane contracts. Secret bytes are intentionally absent. */
+export const TransferRequestStateV1Schema = z.enum([
+  "REQUESTED",
+  "SOURCE_SEEN",
+  "PACKET_AVAILABLE_EPHEMERAL",
+  "DELIVERED_TO_RECIPIENT",
+  "COMPLETED",
+  "EXPIRED",
+  "CANCELLED",
+]);
+export type TransferRequestStateV1 = z.infer<
+  typeof TransferRequestStateV1Schema
+>;
+const TransferStoreSelectionV1Schema = z
+  .object({ storeId: z.string().min(1).max(128) })
+  .strict();
+export const TransferRequestV1Schema = z
+  .object({
+    requestId: z.uuid(),
+    accountId: z.uuid(),
+    recipientDeviceId: z.uuid(),
+    sourceDeviceId: z.uuid().nullable(),
+    recipientPublicKeySpki: z.string().min(64).max(2048),
+    createdAt: z.iso.datetime(),
+    expiresAt: z.iso.datetime(),
+    state: TransferRequestStateV1Schema,
+    selectedStores: z.array(TransferStoreSelectionV1Schema).max(16),
+    revision: z.number().int().positive(),
+  })
+  .strict();
+export type TransferRequestV1 = z.infer<typeof TransferRequestV1Schema>;
+export const TransferCreateRequestV1Schema = z
+  .object({
+    requestId: z.uuid(),
+    recipientDeviceId: z.uuid(),
+    recipientPublicKeySpki: z.string().min(64).max(2048),
+    sourceDeviceId: z.uuid().nullable().default(null),
+    selectedStores: z.array(TransferStoreSelectionV1Schema).max(16),
+    consent: z.literal(true),
+    expiresInSeconds: z.number().int().min(60).max(900).default(300),
+  })
+  .strict();
+export type TransferCreateRequestV1 = z.infer<
+  typeof TransferCreateRequestV1Schema
+>;
+export const TransferSubmitPacketV1Schema = z
+  .object({
+    requestId: z.uuid(),
+    packetId: z.uuid(),
+    envelope: z.string().min(1).max(131072),
+  })
+  .strict();
+export type TransferSubmitPacketV1 = z.infer<
+  typeof TransferSubmitPacketV1Schema
+>;
+export const TransferPacketV1Schema = z
+  .object({
+    requestId: z.uuid(),
+    packetId: z.uuid(),
+    envelope: z.string().min(1).max(131072),
+  })
+  .strict();
+export type TransferPacketV1 = z.infer<typeof TransferPacketV1Schema>;
+export const TransferAckV1Schema = z
+  .object({
+    requestId: z.uuid(),
+    packetId: z.uuid(),
+    importDecision: z.enum(["IMPORTED", "CONFLICT", "REJECTED"]),
+  })
+  .strict();
+export type TransferAckV1 = z.infer<typeof TransferAckV1Schema>;
 
 export const SellerAgentsSyncVersionV1Schema = z.literal(
   "seller_agents_sync_v1",

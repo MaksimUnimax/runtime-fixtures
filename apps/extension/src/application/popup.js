@@ -80,6 +80,16 @@ $("work-resume").onclick = () => action(() => request("SA_WORK_RESUME", { conver
 $("visibility").onclick = () => action(() => request(state.context.button_visible ? "OZ_WORK_HIDE" : "OZ_WORK_SHOW", { conversation_key: state.conversation_key }));
 $("finish").onclick = () => action(() => request("OZ_WORK_FINISH", { conversation_key: state.conversation_key }));
 $("resume").onclick = () => action(() => request("SA_RESUME_QUOTA"));
+$("transfer-create").onclick = () => action(async () => {
+  if (!$("transfer-consent").checked) throw new Error("Сначала подтвердите явное согласие на передачу через транспорт Seller Agents");
+  if (!selectedId) throw new Error("Выберите магазин для передачи");
+  const result = await request("SA_TRANSFER_CREATE", { consent: true, selectedStoreIds: [selectedId] });
+  $("transfer-status").textContent = `Запрос создан до ${new Date(result.request.expiresAt).toLocaleTimeString()}. Источник должен быть активен.`;
+});
+$("transfer-discover").onclick = () => action(async () => {
+  const result = await request("SA_TRANSFER_SOURCE_DISCOVER");
+  $("transfer-status").textContent = result.requests.length ? `Найдено запросов: ${result.requests.length}. Передача выполняется только после явного действия источника.` : "Активных запросов нет. Если источник спит, он не будет обещанно найден немедленно.";
+});
 $("auth-start").onclick = () => action(() => request("SA_AUTH_START"));
 $("auth-open").onclick = () => action(() => request("SA_AUTH_OPEN_PORTAL"));
 $("auth-cancel").onclick = () => action(() => request("SA_AUTH_CANCEL"));

@@ -121,6 +121,9 @@ importers:
       '@product/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@product/credential-transfer':
+        specifier: workspace:*
+        version: link:../../packages/server/credential-transfer
       '@product/db':
         specifier: workspace:*
         version: link:../../packages/server/db
@@ -416,6 +419,18 @@ importers:
         specifier: 4.1.5
         version: 4.1.5
 
+  packages/server/credential-transfer:
+    dependencies:
+      '@product/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
+      '@product/extension-auth':
+        specifier: workspace:*
+        version: link:../extension-auth
+      zod:
+        specifier: 4.1.5
+        version: 4.1.5
+
   packages/server/db:
     dependencies:
       '@product/adapter-registry':
@@ -454,6 +469,9 @@ importers:
       '@product/contracts':
         specifier: workspace:*
         version: link:../../contracts
+      '@product/credential-transfer':
+        specifier: workspace:*
+        version: link:../credential-transfer
       '@product/device-auth':
         specifier: workspace:*
         version: link:../device-auth

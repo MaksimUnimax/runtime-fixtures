@@ -26,6 +26,7 @@
     "@product/commercial-access": "workspace:*",
     "@product/commercial-catalog": "workspace:*",
     "@product/contracts": "workspace:*",
+    "@product/credential-transfer": "workspace:*",
     "@product/db": "workspace:*",
     "@product/device-auth": "workspace:*",
     "@product/device-management": "workspace:*",

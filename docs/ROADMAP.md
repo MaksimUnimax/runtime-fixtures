@@ -67,6 +67,13 @@ C3H corrected-autonomy, post-C3H P2 joint offline command/result recovery, and P
 Расширенное администрирование мониторинга и платежи не предшествуют первому общему сценарию.
 Минимальный сайт регистрации/установки/обратной связи обязателен до B1; продающие воронки развиваются позже.
 
+## D3S2-2A local candidate
+
+Credential transfer control-plane and ephemeral-relay foundation is
+`IMPLEMENTED_CANDIDATE / REMOTE_NOT_VERIFIED`. It remains bounded, does not
+self-accept A22/A23, and does not start A24 export/import. See
+`development/client-i1/D3S2_2A_CREDENTIAL_TRANSFER_FOUNDATION.md`.
+
 ## Браузеры и ИИ
 
 Chrome, Opera, Yandex, Firefox и Safari — архитектурные цели. Принятая поддержка фиксируется по фактическому браузеру/ОС/ИИ/пакету.

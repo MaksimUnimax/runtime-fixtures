@@ -58,6 +58,43 @@ async function saInitializeOnce() {
   if (!await SellerAgentsControlClient.currentAccount()) return;
   await saCatalog.list();
 }
+async function saTransferSourceSend(message) {
+  const request = message.request;
+  if (!request?.requestId || !request.recipientPublicKeySpki) throw saError("TRANSFER_INVALID");
+  const accountId = await SellerAgentsControlClient.currentAccount(), authority = await SellerAgentsControlClient.getAuthority();
+  const sourceDeviceId = authority?.deviceId;
+  if (!accountId || !sourceDeviceId || request.accountId !== accountId) throw saError("TRANSFER_ACCOUNT_MISMATCH");
+  await SellerAgentsControlClient.markCredentialTransferSourceSeen(request.requestId);
+  const selected = new Set((request.selectedStores || []).map(item => item.storeId));
+  const stores = [];
+  for (const store of await saCatalog.list()) {
+    if (!selected.has(store.id)) continue;
+    const full = await saCatalog.get(store.id);
+    stores.push({ storeId: full.id, marketplace: full.marketplace, name: full.name, credentialRevision: full.credentialRevision, metadataRevision: full.metadataRevision || 0, providerAccountId: full.providerIdentityState === "CONFIRMED" ? full.providerAccountId : null, providerIdentityState: full.providerIdentityState, lifecycleState: full.lifecycleState, credentials: structuredClone(full.credentials) });
+  }
+  const packetId = crypto.randomUUID();
+  const envelope = await SellerAgentsCredentialTransferCrypto.encrypt({ accountId, requestId: request.requestId, sourceDeviceId, recipientDeviceId: request.recipientDeviceId, packetId, recipientPublicKeySpki: request.recipientPublicKeySpki, payload: { transferPayloadVersion: "seller_agents_credential_payload_v1", stores } });
+  await SellerAgentsControlClient.submitCredentialTransferPacket({ requestId: request.requestId, packetId, envelope });
+  return { ok: true, requestId: request.requestId, packetId };
+}
+async function saTransferReceive(message) {
+  const request = message.request;
+  if (!request?.requestId || !request.sourceDeviceId) throw saError("TRANSFER_INVALID");
+  const received = await SellerAgentsControlClient.receiveCredentialTransfer(request.requestId, request.sourceDeviceId);
+  const payload = received.payload;
+  if (!payload || payload.transferPayloadVersion !== "seller_agents_credential_payload_v1" || !Array.isArray(payload.stores)) throw saError("TRANSFER_INVALID");
+  const results = [];
+  for (const store of payload.stores) {
+    if (!store?.storeId || !["ozon", "wildberries"].includes(store.marketplace) || typeof store.credentialRevision !== "string" || store.lifecycleState !== "ACTIVE") { results.push({ storeId: store?.storeId || null, kind: "CONFLICT", code: "TRANSFER_INVALID" }); continue; }
+    try { results.push({ storeId: store.storeId, ...(await saCatalog.importCredential(store)) }); }
+    catch (error) { results.push({ storeId: store.storeId, kind: "CONFLICT", code: error?.code || "TRANSFER_CONFLICT" }); }
+  }
+  const safe = results.map(({ storeId, kind, code, store }) => ({ storeId, kind, code, store: store ? { id: store.id, marketplace: store.marketplace, credentialRevision: store.credentialRevision } : null }));
+  const hasConflict = safe.some(item => item.kind === "CONFLICT");
+  if (hasConflict) return { ok: true, requestId: request.requestId, importState: "CONFLICT", results: safe };
+  await SellerAgentsControlClient.acknowledgeCredentialTransfer({ requestId: request.requestId, packetId: received.packet.packetId, importDecision: "IMPORTED" });
+  return { ok: true, requestId: request.requestId, importState: "IMPORTED", results: safe };
+}
 function saStoreContext(store) {
   return { accountId: store.accountId, storeId: store.id, marketplace: store.marketplace,
     credentialRevision: store.credentialRevision, policyRevision: store.personalDataEnabled ? "personal-enabled" : "personal-disabled" };
@@ -868,6 +905,18 @@ async function saHandleMessage(message, sender) {
       case "SA_WORK_START": return saWorkStart(message, sender);
       case "SA_WORK_RESUME": return saWorkResume(message, sender);
       case "SA_STORE_CHECK": return saCheckStore(message);
+      case "SA_TRANSFER_CREATE": return { ok: true, request: await SellerAgentsControlClient.createCredentialTransfer({ consent: message.consent === true, sourceDeviceId: message.sourceDeviceId || null, selectedStoreIds: message.selectedStoreIds || [], expiresInSeconds: message.expiresInSeconds || 300 }) };
+      case "SA_TRANSFER_SOURCE_DISCOVER": {
+        const requests = await SellerAgentsControlClient.listCredentialTransfers();
+        const sent = [];
+        for (const transferRequest of requests) {
+          try { sent.push(await saTransferSourceSend({ request: transferRequest })); }
+          catch (error) { sent.push({ ok: false, requestId: transferRequest.requestId, code: error?.code || "TRANSFER_INVALID" }); }
+        }
+        return { ok: true, requests, sent };
+      }
+      case "SA_TRANSFER_SOURCE_SEND": return saTransferSourceSend(message);
+      case "SA_TRANSFER_RECEIVE": return saTransferReceive(message);
       case "SA_RESUME_QUOTA": {
         await saAssertLocalAuthorityAdmission();
         const state = await saPopupState(message.tab_id), key = state.conversation_key;

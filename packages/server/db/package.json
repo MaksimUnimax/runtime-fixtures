@@ -20,6 +20,7 @@
     "db:migrate": "tsx src/migrate.ts"
   },
   "dependencies": {
+    "@product/credential-transfer": "workspace:*",
     "@product/adapter-registry": "workspace:*",
     "@product/beta-access": "workspace:*",
     "@product/admin-ai": "workspace:*",

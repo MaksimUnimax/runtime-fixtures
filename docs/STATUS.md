@@ -9,6 +9,8 @@ Deployment: NOT_STARTED.
 Browser releases: NOT_CREATED.
 Live provider tests in this stage: NOT_RUN.
 
+D3S2-2A credential-transfer control-plane/ephemeral-relay foundation is `IMPLEMENTED_CANDIDATE / REMOTE_NOT_VERIFIED`; it does not self-accept A22/A23 and does not implement A24. Evidence: [D3S2-2A credential transfer foundation](development/client-i1/D3S2_2A_CREDENTIAL_TRANSFER_FOUNDATION.md).
+
 ## Компоненты
 
 | Компонент | Исходное состояние | Состояние в Seller_Agents |

@@ -67,6 +67,12 @@ import type { BetaAdmissionService } from "@product/beta-access";
 import { registerBetaAdminRoutes } from "./beta-admin-routes.js";
 import type { SyncService } from "@product/sync";
 import { registerSyncRoutes } from "./sync-routes.js";
+import {
+  CredentialTransferService,
+  createMemoryTransferRepository,
+  type CredentialTransferService as CredentialTransferServiceType,
+} from "@product/credential-transfer";
+import { registerCredentialTransferRoutes } from "./credential-transfer-routes.js";
 
 export class ControlledError extends Error {
   public constructor(
@@ -96,6 +102,7 @@ export interface ApiDependencies {
   readonly adminAiService?: AdminAiService;
   readonly betaAdmissionService?: BetaAdmissionService;
   readonly syncService?: SyncService;
+  readonly credentialTransferService?: CredentialTransferServiceType;
 }
 
 function correlationId(request: FastifyRequest): string {
@@ -344,6 +351,13 @@ export function createApiApp(
       registerSyncRoutes(
         app,
         dependencies.syncService,
+        dependencies.extensionAuthService,
+      );
+    if (dependencies.extensionAuthService)
+      registerCredentialTransferRoutes(
+        app,
+        dependencies.credentialTransferService ??
+          new CredentialTransferService(createMemoryTransferRepository()),
         dependencies.extensionAuthService,
       );
   });

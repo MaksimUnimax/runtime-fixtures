@@ -154,6 +154,20 @@
         return publicStore(store);
       });
     }
+    async function importCredential(input) {
+      if (!input || typeof input !== "object" || typeof input.id !== "string" || typeof input.credentialRevision !== "string") fail("TRANSFER_CONFLICT");
+      return mutate(async (scope, id) => {
+        const previous = scope.stores[input.id];
+        if (previous?.lifecycleState === "TOMBSTONED" || previous && previous.marketplace !== input.marketplace) fail("TRANSFER_CONFLICT");
+        if (previous?.providerIdentityState === "CONFIRMED" && input.providerIdentityState === "CONFIRMED" && previous.providerAccountId !== input.providerAccountId) fail("TRANSFER_CONFLICT");
+        if (previous?.credentialRevision === input.credentialRevision) return { kind: "SAME_CURRENT", store: publicStore(previous) };
+        if (previous?.credentialRevision) return { kind: "CONFLICT", store: publicStore(previous) };
+        const credentials = normalizeCredentials(input.marketplace, input.credentials, {});
+        const store = { id: input.id, accountId: id, marketplace: input.marketplace, name: String(input.name || input.id).slice(0, 80), credentials, credentialRevision: input.credentialRevision, metadataRevision: Number(input.metadataRevision || 0), lifecycleState: "ACTIVE", providerAccountId: input.providerIdentityState === "CONFIRMED" ? input.providerAccountId || null : null, providerIdentityState: input.providerIdentityState === "CONFIRMED" ? "CONFIRMED" : "UNCONFIRMED", credentialsStale: false, personalDataEnabled: false, verification: {}, createdAt: Date.now() };
+        scope.stores[store.id] = store;
+        return { kind: "IMPORTED", store: publicStore(store) };
+      });
+    }
     async function remove(id) {
       return mutate((scope) => {
         if (!scope.stores[id]) fail("STORE_NOT_FOUND");
@@ -245,7 +259,7 @@
         return publicStore(store);
       });
     }
-    return Object.freeze({ key, list, get, save, remove, noteVerification, confirmProviderIdentity, metadataForSync, applyRemoteMetadata });
+    return Object.freeze({ key, list, get, save, importCredential, remove, noteVerification, confirmProviderIdentity, metadataForSync, applyRemoteMetadata });
   }
   globalThis.SellerAgentsStoreCatalog = Object.freeze({ create });
 })();
