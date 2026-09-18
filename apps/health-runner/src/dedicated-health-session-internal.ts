@@ -2,7 +2,8 @@ import type { BrowserContextOptions } from "playwright";
 
 export type DedicatedHealthSessionTargetKey =
   | "chatgpt_standard_health"
-  | "chatgpt_work_health";
+  | "chatgpt_work_health"
+  | "alice_health";
 
 export type DedicatedHealthSessionConfigErrorCode =
   | "INVALID_CONFIG_FILE_PATH"
@@ -25,6 +26,7 @@ export type DedicatedHealthSessionConfigErrorCode =
   | "STORAGE_STATE_PERMISSIONS"
   | "DUPLICATE_STORAGE_STATE"
   | "INVALID_WORK_START_URL"
+  | "INVALID_ALICE_START_URL"
   | "UNTRUSTED_SESSION_REGISTRY"
   | "TARGET_NOT_CONFIGURED";
 
@@ -53,6 +55,11 @@ export type TrustedDedicatedHealthSessionBinding = Readonly<
     }
   | {
       targetKey: "chatgpt_work_health";
+      storageState: DedicatedHealthSessionStorageState;
+      startUrl: string;
+    }
+  | {
+      targetKey: "alice_health";
       storageState: DedicatedHealthSessionStorageState;
       startUrl: string;
     }
@@ -93,7 +100,8 @@ export function resolveTrustedDedicatedHealthSessionBinding(
   }
   if (
     targetKey !== "chatgpt_standard_health" &&
-    targetKey !== "chatgpt_work_health"
+    targetKey !== "chatgpt_work_health" &&
+    targetKey !== "alice_health"
   ) {
     fail("TARGET_NOT_CONFIGURED");
   }

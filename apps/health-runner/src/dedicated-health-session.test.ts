@@ -18,6 +18,7 @@ import {
 import {
   ChromeBrowserDriver,
   createControlledTargetRegistry,
+  createDedicatedAliceHealthChromeBrowserDriver,
   createDedicatedHealthChromeBrowserDriver,
   createDedicatedWorkHealthChromeBrowserDriver,
   sanitizeH3EvidenceBundle,
@@ -31,7 +32,12 @@ async function withTempDirectory(
   try {
     await callback(directory);
   } finally {
-    await rm(directory, { force: true, recursive: true });
+    await rm(directory, {
+      force: true,
+      recursive: true,
+      maxRetries: 5,
+      retryDelay: 10,
+    });
   }
 }
 
@@ -76,6 +82,8 @@ function standardConfig(storageStatePath: string): unknown {
 
 const WORK_START_URL =
   "https://chatgpt.com/g/g-p-private-project/c/00000000-0000-4000-8000-000000000001";
+const ALICE_START_URL =
+  "https://alice.yandex.ru/chat/11111111-1111-4111-8111-111111111111";
 
 function workConfig(
   storageStatePath: string,
@@ -98,6 +106,37 @@ function twoTargetConfig(
       chatgpt_work_health: {
         storageStatePath: workStatePath,
         startUrl: WORK_START_URL,
+      },
+    },
+  };
+}
+
+function aliceConfig(
+  storageStatePath: string,
+  startUrl = ALICE_START_URL,
+): unknown {
+  return {
+    version: 1,
+    targets: { alice_health: { storageStatePath, startUrl } },
+  };
+}
+
+function threeTargetConfig(
+  standardStatePath: string,
+  workStatePath: string,
+  aliceStatePath: string,
+): unknown {
+  return {
+    version: 1,
+    targets: {
+      chatgpt_standard_health: { storageStatePath: standardStatePath },
+      chatgpt_work_health: {
+        storageStatePath: workStatePath,
+        startUrl: WORK_START_URL,
+      },
+      alice_health: {
+        storageStatePath: aliceStatePath,
+        startUrl: ALICE_START_URL,
       },
     },
   };
@@ -128,6 +167,18 @@ function bothTargetRegistry() {
       key: "chatgpt_work_health",
       startUrl: "https://chatgpt.com/caller-controlled-route",
       allowedTopLevelOrigins: ["https://chatgpt.com"],
+      browserFamily: "chrome",
+      navigationTimeoutMs: 5_000,
+    },
+  ]);
+}
+
+function aliceTargetRegistry() {
+  return createControlledTargetRegistry([
+    {
+      key: "alice_health",
+      startUrl: "https://alice.yandex.ru/caller-controlled-route",
+      allowedTopLevelOrigins: ["https://alice.yandex.ru"],
       browserFamily: "chrome",
       navigationTimeoutMs: 5_000,
     },
@@ -816,6 +867,442 @@ describe("dedicated Work Health session capability", () => {
         ).toBeUndefined();
       } finally {
         await driver.closeOrPersist();
+      }
+    });
+  });
+});
+
+describe("dedicated Alice Health session capability", () => {
+  it("AD01/AD22-25 loads an Alice-only opaque capability", async () => {
+    await withTempDirectory(async (directory) => {
+      const statePath = await createState(directory, "alice-state.json");
+      const registry = await loadDedicatedHealthSessionRegistry(
+        await createConfig(directory, aliceConfig(statePath)),
+      );
+      expect(Object.isFrozen(registry)).toBe(true);
+      expect(JSON.stringify(registry)).toBe("{}");
+      expect({ ...registry }).toEqual({});
+      expect(Reflect.ownKeys(registry)).toEqual([]);
+      expect(Object.getOwnPropertyDescriptors(registry)).toEqual({});
+      const binding = resolveTrustedDedicatedHealthSessionBinding(
+        registry,
+        "alice_health",
+      );
+      expect(binding.targetKey).toBe("alice_health");
+      expect(Object.isFrozen(binding)).toBe(true);
+      expect(Object.isFrozen(binding.storageState)).toBe(true);
+    });
+  });
+
+  it("AD02-04 keeps existing targets valid and protects all three state identities", async () => {
+    await withTempDirectory(async (directory) => {
+      const standardState = await createState(directory, "standard.json");
+      const workState = await createState(directory, "work.json");
+      const aliceState = await createState(directory, "alice.json");
+      await expect(
+        loadDedicatedHealthSessionRegistry(
+          await createConfig(
+            directory,
+            standardConfig(standardState),
+            "standard-config.json",
+          ),
+        ),
+      ).resolves.toBeTruthy();
+      await expect(
+        loadDedicatedHealthSessionRegistry(
+          await createConfig(
+            directory,
+            workConfig(workState),
+            "work-config.json",
+          ),
+        ),
+      ).resolves.toBeTruthy();
+      const registry = await loadDedicatedHealthSessionRegistry(
+        await createConfig(
+          directory,
+          threeTargetConfig(standardState, workState, aliceState),
+          "three-target-config.json",
+        ),
+      );
+      expect(
+        resolveTrustedDedicatedHealthSessionBinding(registry, "alice_health")
+          .targetKey,
+      ).toBe("alice_health");
+    });
+  });
+
+  it.each([
+    [
+      "AD05",
+      "missing startUrl",
+      (path: string) => ({
+        version: 1,
+        targets: { alice_health: { storageStatePath: path } },
+      }),
+      "CONFIG_SCHEMA_INVALID",
+    ],
+    [
+      "AD06",
+      "extra Alice field",
+      (path: string) => ({
+        version: 1,
+        targets: {
+          alice_health: {
+            storageStatePath: path,
+            startUrl: ALICE_START_URL,
+            unexpected: true,
+          },
+        },
+      }),
+      "CONFIG_SCHEMA_INVALID",
+    ],
+    [
+      "AD07",
+      "Standard startUrl",
+      (path: string) => ({
+        version: 1,
+        targets: {
+          chatgpt_standard_health: {
+            storageStatePath: path,
+            startUrl: ALICE_START_URL,
+          },
+        },
+      }),
+      "CONFIG_SCHEMA_INVALID",
+    ],
+    [
+      "AD08",
+      "HTTP URL",
+      (path: string) =>
+        aliceConfig(path, ALICE_START_URL.replace("https:", "http:")),
+      "INVALID_ALICE_START_URL",
+    ],
+    [
+      "AD09",
+      "wrong origin",
+      (path: string) =>
+        aliceConfig(
+          path,
+          ALICE_START_URL.replace("alice.yandex.ru", "example.com"),
+        ),
+      "INVALID_ALICE_START_URL",
+    ],
+    [
+      "AD10",
+      "credentials",
+      (path: string) =>
+        aliceConfig(
+          path,
+          ALICE_START_URL.replace(
+            "https://alice.yandex.ru",
+            "https://user:pass@alice.yandex.ru",
+          ),
+        ),
+      "INVALID_ALICE_START_URL",
+    ],
+    [
+      "AD11",
+      "query",
+      (path: string) => aliceConfig(path, `${ALICE_START_URL}?x=1`),
+      "INVALID_ALICE_START_URL",
+    ],
+    [
+      "AD12",
+      "fragment",
+      (path: string) => aliceConfig(path, `${ALICE_START_URL}#x`),
+      "INVALID_ALICE_START_URL",
+    ],
+    [
+      "AD13",
+      "root route",
+      (path: string) => aliceConfig(path, "https://alice.yandex.ru/"),
+      "INVALID_ALICE_START_URL",
+    ],
+    [
+      "AD14",
+      "fresh chat route",
+      (path: string) => aliceConfig(path, "https://alice.yandex.ru/chat/"),
+      "INVALID_ALICE_START_URL",
+    ],
+    [
+      "AD15",
+      "malformed UUID",
+      (path: string) =>
+        aliceConfig(path, "https://alice.yandex.ru/chat/not-a-uuid"),
+      "INVALID_ALICE_START_URL",
+    ],
+  ] as const)("%s rejects %s", async (_id, _label, configFactory, code) => {
+    await withTempDirectory(async (directory) => {
+      const statePath = await createState(directory);
+      await expectConfigError(
+        async () =>
+          loadDedicatedHealthSessionRegistry(
+            await createConfig(directory, configFactory(statePath)),
+          ),
+        code,
+      );
+    });
+  });
+
+  it("AD16-18 rejects unsafe Alice state files and read churn", async () => {
+    if (process.platform === "win32") return;
+    await withTempDirectory(async (directory) => {
+      const statePath = await createState(directory);
+      const stateLink = join(directory, "alice-state-link.json");
+      await symlink(statePath, stateLink);
+      await expectConfigError(
+        async () =>
+          loadDedicatedHealthSessionRegistry(
+            await createConfig(directory, aliceConfig(stateLink)),
+          ),
+        "STORAGE_STATE_SYMLINK",
+      );
+      const permissionsConfig = await createConfig(
+        directory,
+        aliceConfig(statePath),
+        "permissions.json",
+      );
+      await chmod(statePath, 0o604);
+      await expectConfigError(
+        () => loadDedicatedHealthSessionRegistry(permissionsConfig),
+        "STORAGE_STATE_PERMISSIONS",
+      );
+
+      const churnState = join(directory, "alice-churn-state.json");
+      const replacementState = join(directory, "alice-churn-replacement.json");
+      const originalContents = JSON.stringify({
+        cookies: [],
+        origins: [
+          {
+            origin: "https://alice.yandex.ru",
+            localStorage: [{ name: "large", value: "x".repeat(3_800_000) }],
+          },
+        ],
+      });
+      await writeFile(churnState, originalContents, { mode: 0o600 });
+      await chmod(churnState, 0o600);
+      await writeFile(replacementState, originalContents.replaceAll("x", "y"), {
+        mode: 0o600,
+      });
+      await chmod(replacementState, 0o600);
+      const churnConfig = await createConfig(
+        directory,
+        aliceConfig(churnState),
+        "churn.json",
+      );
+      const loading = loadDedicatedHealthSessionRegistry(churnConfig);
+      const churn = (async () => {
+        await new Promise<void>((resolve) => setTimeout(resolve, 1));
+        for (let attempt = 0; attempt < 20; attempt += 1) {
+          const backupPath = join(
+            directory,
+            `alice-churn-backup-${attempt}.json`,
+          );
+          await rename(churnState, backupPath).catch(() => undefined);
+          await rename(replacementState, churnState).catch(() => undefined);
+          await rename(churnState, replacementState).catch(() => undefined);
+          await rename(backupPath, churnState).catch(() => undefined);
+        }
+      })();
+      await expectConfigError(() => loading, "STORAGE_STATE_UNAVAILABLE");
+      await churn;
+    });
+  });
+
+  it("AD19-21 rejects Alice state identity duplication by path and inode", async () => {
+    if (process.platform === "win32") return;
+    await withTempDirectory(async (directory) => {
+      const standardState = await createState(directory, "standard.json");
+      const workState = await createState(directory, "work.json");
+      for (const [name, alicePath] of [
+        [
+          "standard-alice-hardlink.json",
+          join(directory, "standard-alice-link.json"),
+        ],
+        ["work-alice-hardlink.json", join(directory, "work-alice-link.json")],
+      ] as const) {
+        const source = name.startsWith("standard") ? standardState : workState;
+        await link(source, alicePath);
+        await expectConfigError(
+          async () =>
+            loadDedicatedHealthSessionRegistry(
+              await createConfig(
+                directory,
+                threeTargetConfig(standardState, workState, alicePath),
+                name,
+              ),
+            ),
+          "DUPLICATE_STORAGE_STATE",
+        );
+      }
+      await expectConfigError(
+        async () =>
+          loadDedicatedHealthSessionRegistry(
+            await createConfig(
+              directory,
+              threeTargetConfig(standardState, workState, workState),
+              "work-alice-same-path.json",
+            ),
+          ),
+        "DUPLICATE_STORAGE_STATE",
+      );
+      await expectConfigError(
+        async () =>
+          loadDedicatedHealthSessionRegistry(
+            await createConfig(
+              directory,
+              threeTargetConfig(standardState, workState, standardState),
+              "standard-alice-same-path.json",
+            ),
+          ),
+        "DUPLICATE_STORAGE_STATE",
+      );
+    });
+  });
+
+  it("AD26-28 reject forged, frozen, and Proxy registries", () => {
+    for (const forged of [{}, Object.freeze({}), new Proxy({}, {})]) {
+      expect(() =>
+        createDedicatedAliceHealthChromeBrowserDriver(
+          aliceTargetRegistry(),
+          forged as never,
+          "alice_health",
+        ),
+      ).toThrowError("UNTRUSTED_SESSION_REGISTRY");
+    }
+  });
+
+  it("AD29-33 keeps Alice route, UUID, and state authority out of the public API", async () => {
+    await withTempDirectory(async (directory) => {
+      const statePath = await createState(directory, "alice-secret-state.json");
+      const privateUrl =
+        "https://alice.yandex.ru/chat/22222222-2222-4222-8222-222222222222";
+      const registry = await loadDedicatedHealthSessionRegistry(
+        await createConfig(directory, aliceConfig(statePath, privateUrl)),
+      );
+      const driver = createDedicatedAliceHealthChromeBrowserDriver(
+        aliceTargetRegistry(),
+        registry,
+        "alice_health",
+      );
+      try {
+        const reflected = [
+          JSON.stringify(driver),
+          ...Object.keys(driver),
+          ...Reflect.ownKeys(driver).map(String),
+          ...Object.getOwnPropertyNames(driver),
+          ...Object.getOwnPropertySymbols(driver).map(String),
+          ...Object.values(Object.getOwnPropertyDescriptors(driver)).map(
+            (descriptor) => JSON.stringify(descriptor),
+          ),
+          JSON.stringify({ ...driver }),
+        ].join("\n");
+        expect(reflected).not.toContain(privateUrl);
+        expect(reflected).not.toContain("22222222-2222-4222-8222-222222222222");
+        expect(reflected).not.toContain("alice-secret-state");
+        expect(
+          (driver as unknown as { targets?: unknown }).targets,
+        ).toBeUndefined();
+        expect(
+          "resolveTrustedDedicatedHealthSessionBinding" in
+            (await import("./index.js")),
+        ).toBe(false);
+      } finally {
+        await driver.closeOrPersist();
+      }
+    });
+  });
+
+  it("AD34-38 freezes the trusted Alice route against caller mutation and cross-surface use", async () => {
+    await withTempDirectory(async (directory) => {
+      const statePath = await createState(directory, "alice-state.json");
+      const registry = await loadDedicatedHealthSessionRegistry(
+        await createConfig(directory, aliceConfig(statePath)),
+      );
+      const callerTargets = aliceTargetRegistry();
+      const driver = createDedicatedAliceHealthChromeBrowserDriver(
+        callerTargets,
+        registry,
+        "alice_health",
+      );
+      try {
+        const callerDefinitions = (
+          callerTargets as unknown as { targets: Map<string, unknown> }
+        ).targets;
+        callerDefinitions.set("alice_health", {
+          key: "alice_health",
+          startUrl: "https://evil.example/alternate",
+          allowedTopLevelOrigins: ["https://evil.example"],
+          browserFamily: "chrome",
+          navigationTimeoutMs: 5_000,
+        });
+        const binding = resolveTrustedDedicatedHealthSessionBinding(
+          registry,
+          "alice_health",
+        );
+        if (binding.targetKey !== "alice_health")
+          throw new Error("EXPECTED_ALICE_BINDING");
+        expect(binding.startUrl).toBe(ALICE_START_URL);
+        expect(binding.startUrl).not.toContain("evil.example");
+        expect(
+          (driver as unknown as { targets?: unknown }).targets,
+        ).toBeUndefined();
+        expect(() =>
+          createDedicatedHealthChromeBrowserDriver(
+            callerTargets,
+            registry,
+            "chatgpt_standard_health",
+          ),
+        ).toThrowError("TARGET_NOT_CONFIGURED");
+      } finally {
+        await driver.closeOrPersist();
+      }
+    });
+  });
+
+  it("AD39-44 retains only the frozen in-memory Alice snapshot after source changes", async () => {
+    await withTempDirectory(async (directory) => {
+      const statePath = await createState(directory, "alice-snapshot.json");
+      const configPath = await createConfig(directory, aliceConfig(statePath));
+      const registry = await loadDedicatedHealthSessionRegistry(configPath);
+      const sourceSnapshot = await readFile(statePath, "utf8");
+      const binding = resolveTrustedDedicatedHealthSessionBinding(
+        registry,
+        "alice_health",
+      );
+      const firstDriver = createDedicatedAliceHealthChromeBrowserDriver(
+        aliceTargetRegistry(),
+        registry,
+        "alice_health",
+      );
+      try {
+        await firstDriver.start();
+        expect(firstDriver.getRuntimeMetadata().browserName).toBe("chromium");
+        await firstDriver.stop();
+        expect(await readFile(statePath, "utf8")).toBe(sourceSnapshot);
+      } finally {
+        await firstDriver.closeOrPersist();
+      }
+      await writeFile(
+        statePath,
+        '{"cookies":[],"origins":[{"origin":"https://alice.yandex.ru"}]}',
+        { mode: 0o600 },
+      );
+      await chmod(statePath, 0o600);
+      expect(binding.storageState).toEqual({ cookies: [], origins: [] });
+      await rm(statePath, { force: true });
+      const secondDriver = createDedicatedAliceHealthChromeBrowserDriver(
+        aliceTargetRegistry(),
+        registry,
+        "alice_health",
+      );
+      try {
+        await secondDriver.start();
+        expect(binding.storageState).toEqual({ cookies: [], origins: [] });
+        expect(Object.isFrozen(binding.storageState)).toBe(true);
+        expect(JSON.stringify(secondDriver)).not.toContain("alice-snapshot");
+      } finally {
+        await secondDriver.closeOrPersist();
       }
     });
   });

@@ -2,6 +2,7 @@ import { constants } from "node:fs";
 import { lstat, open } from "node:fs/promises";
 import { isAbsolute, resolve } from "node:path";
 import { CHATGPT_WORK_H3_PROFILE, parseWorkRoute } from "./work-h3-profile.js";
+import { ALICE_H3_PROFILE } from "./alice-h3-profile.js";
 import {
   createTrustedDedicatedHealthSessionRegistry,
   DedicatedHealthSessionConfigError,
@@ -175,6 +176,7 @@ type ParsedTarget = Readonly<{
 
 const STANDARD_TARGET_KEY = "chatgpt_standard_health" as const;
 const WORK_TARGET_KEY = "chatgpt_work_health" as const;
+const ALICE_TARGET_KEY = "alice_health" as const;
 
 function parseWorkStartUrl(value: unknown): string {
   if (typeof value !== "string" || value.length === 0 || value.length > 2_048)
@@ -199,6 +201,32 @@ function parseWorkStartUrl(value: unknown): string {
   return parsed.toString();
 }
 
+function parseAliceStartUrl(value: unknown): string {
+  if (typeof value !== "string" || value.length === 0 || value.length > 2_048)
+    fail("INVALID_ALICE_START_URL");
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    fail("INVALID_ALICE_START_URL");
+  }
+  const conversationMatch = parsed.pathname.match(
+    ALICE_H3_PROFILE.conversationPath,
+  );
+  if (
+    parsed.protocol !== "https:" ||
+    parsed.origin !== ALICE_H3_PROFILE.approvedOrigin ||
+    parsed.username !== "" ||
+    parsed.password !== "" ||
+    parsed.search !== "" ||
+    parsed.hash !== "" ||
+    conversationMatch?.[0] !== parsed.pathname
+  ) {
+    fail("INVALID_ALICE_START_URL");
+  }
+  return parsed.toString();
+}
+
 function parseTarget(
   targetKey: DedicatedHealthSessionTargetKey,
   value: unknown,
@@ -211,7 +239,7 @@ function parseTarget(
   if (
     !hasOnlyKeys(value, expectedKeys) ||
     !("storageStatePath" in value) ||
-    (targetKey === WORK_TARGET_KEY && !("startUrl" in value))
+    (targetKey !== STANDARD_TARGET_KEY && !("startUrl" in value))
   ) {
     fail("CONFIG_SCHEMA_INVALID");
   }
@@ -222,7 +250,10 @@ function parseTarget(
   return {
     targetKey,
     storageStatePath,
-    startUrl: parseWorkStartUrl(value.startUrl),
+    startUrl:
+      targetKey === WORK_TARGET_KEY
+        ? parseWorkStartUrl(value.startUrl)
+        : parseAliceStartUrl(value.startUrl),
   };
 }
 
@@ -232,9 +263,15 @@ function parseConfig(value: unknown): ParsedTarget[] {
   const targets = value.targets;
   if (value.version !== 1 || !isRecord(targets)) fail("CONFIG_SCHEMA_INVALID");
   if (Object.keys(targets).length === 0) fail("NO_TARGETS_CONFIGURED");
-  if (!hasOnlyKeys(targets, [STANDARD_TARGET_KEY, WORK_TARGET_KEY]))
+  if (
+    !hasOnlyKeys(targets, [
+      STANDARD_TARGET_KEY,
+      WORK_TARGET_KEY,
+      ALICE_TARGET_KEY,
+    ])
+  )
     fail("CONFIG_SCHEMA_INVALID");
-  return ([STANDARD_TARGET_KEY, WORK_TARGET_KEY] as const)
+  return ([STANDARD_TARGET_KEY, WORK_TARGET_KEY, ALICE_TARGET_KEY] as const)
     .filter((targetKey) => targetKey in targets)
     .map((targetKey) => parseTarget(targetKey, targets[targetKey]));
 }

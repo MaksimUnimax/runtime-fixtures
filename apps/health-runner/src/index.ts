@@ -12,6 +12,7 @@ export { BrowserDriverError, ChromeBrowserDriver } from "./browser-driver.js";
 export {
   createDedicatedHealthChromeBrowserDriver,
   createDedicatedWorkHealthChromeBrowserDriver,
+  createDedicatedAliceHealthChromeBrowserDriver,
 } from "./browser-driver.js";
 export {
   DedicatedHealthSessionConfigError,

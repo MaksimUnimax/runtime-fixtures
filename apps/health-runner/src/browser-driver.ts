@@ -25,12 +25,12 @@ import { createChatGPTStandardH3Strategy } from "./standard-h3-strategy.js";
 import { createChatGPTWorkH3Strategy } from "./work-h3-strategy.js";
 import { createAliceH3Strategy } from "./alice-h3-strategy.js";
 import { CHATGPT_WORK_H3_PROFILE } from "./work-h3-profile.js";
+import { ALICE_H3_PROFILE } from "./alice-h3-profile.js";
 import type { H3SurfaceStrategy } from "./h3-strategy.js";
 import {
   DedicatedHealthSessionConfigError,
   resolveTrustedDedicatedHealthSessionBinding,
   type DedicatedHealthSessionRegistry,
-  type DedicatedHealthSessionStorageState,
   type TrustedDedicatedHealthSessionBinding,
 } from "./dedicated-health-session-internal.js";
 
@@ -80,16 +80,9 @@ export type ControlledNavigationResult = Readonly<{
 const DEFAULT_LAUNCH_TIMEOUT_MS = 15_000;
 const NAVIGATION_STABILIZATION_MS = 350;
 
-const dedicatedStandardStorageStates = new WeakMap<
+const dedicatedCapabilities = new WeakMap<
   ChromeBrowserDriver,
-  DedicatedHealthSessionStorageState
->();
-const dedicatedWorkCapabilities = new WeakMap<
-  ChromeBrowserDriver,
-  Extract<
-    TrustedDedicatedHealthSessionBinding,
-    { targetKey: "chatgpt_work_health" }
-  >
+  TrustedDedicatedHealthSessionBinding
 >();
 
 type FetchRequestPausedEvent = Readonly<{
@@ -152,9 +145,8 @@ export class ChromeBrowserDriver implements BrowserDriver {
     if (this.#state !== "PREPARED")
       throw new BrowserDriverError("INVALID_DRIVER_LIFECYCLE");
     try {
-      const standardStorageState = dedicatedStandardStorageStates.get(this);
-      const workCapability = dedicatedWorkCapabilities.get(this);
-      const storageState = workCapability?.storageState ?? standardStorageState;
+      const capability = dedicatedCapabilities.get(this);
+      const storageState = capability?.storageState;
       const browser = await chromium.launch({
         headless: true,
         timeout: this.launchTimeoutMs,
@@ -200,7 +192,9 @@ export class ChromeBrowserDriver implements BrowserDriver {
     }
     if (target.browserFamily !== this.family)
       throw new BrowserDriverError("CONTROLLED_TARGET_NOT_REGISTERED");
-    const startUrl = dedicatedWorkCapabilities.get(this)?.startUrl;
+    const capability = dedicatedCapabilities.get(this);
+    const startUrl =
+      capability && "startUrl" in capability ? capability.startUrl : undefined;
     this.#activeTarget = target;
     this.#primaryNavigationStarted = false;
     try {
@@ -289,8 +283,7 @@ export class ChromeBrowserDriver implements BrowserDriver {
   public async closeOrPersist(): Promise<void> {
     const context = this.#context;
     const browser = this.#browser;
-    dedicatedStandardStorageStates.delete(this);
-    dedicatedWorkCapabilities.delete(this);
+    dedicatedCapabilities.delete(this);
     await this.#disposeChromeNavigationFirewall();
     this.#page = undefined;
     this.#context = undefined;
@@ -518,7 +511,7 @@ export function createDedicatedHealthChromeBrowserDriver(
   const standardTarget = targets.resolve("chatgpt_standard_health");
   const standardTargets = createControlledTargetRegistry([standardTarget]);
   const driver = new ChromeBrowserDriver(standardTargets, launchTimeoutMs);
-  dedicatedStandardStorageStates.set(driver, binding.storageState);
+  dedicatedCapabilities.set(driver, binding);
   return driver;
 }
 
@@ -552,6 +545,40 @@ export function createDedicatedWorkHealthChromeBrowserDriver(
     },
   ]);
   const driver = new ChromeBrowserDriver(workTargets, launchTimeoutMs);
-  dedicatedWorkCapabilities.set(driver, binding);
+  dedicatedCapabilities.set(driver, binding);
+  return driver;
+}
+
+export function createDedicatedAliceHealthChromeBrowserDriver(
+  targets: ControlledTargetRegistry,
+  registry: DedicatedHealthSessionRegistry,
+  targetKey: "alice_health",
+  launchTimeoutMs = DEFAULT_LAUNCH_TIMEOUT_MS,
+): ChromeBrowserDriver {
+  if (targetKey !== "alice_health") {
+    throw new DedicatedHealthSessionConfigError("TARGET_NOT_CONFIGURED");
+  }
+  const binding = resolveTrustedDedicatedHealthSessionBinding(
+    registry,
+    "alice_health",
+  );
+  if (
+    binding.targetKey !== "alice_health" ||
+    typeof binding.startUrl !== "string"
+  ) {
+    throw new DedicatedHealthSessionConfigError("TARGET_NOT_CONFIGURED");
+  }
+  const aliceTarget = targets.resolve("alice_health");
+  const aliceTargets = createControlledTargetRegistry([
+    {
+      key: aliceTarget.key,
+      startUrl: binding.startUrl,
+      allowedTopLevelOrigins: [ALICE_H3_PROFILE.approvedOrigin],
+      browserFamily: "chrome",
+      navigationTimeoutMs: aliceTarget.navigationTimeoutMs,
+    },
+  ]);
+  const driver = new ChromeBrowserDriver(aliceTargets, launchTimeoutMs);
+  dedicatedCapabilities.set(driver, binding);
   return driver;
 }
