@@ -139,6 +139,8 @@
         const request = C.buildRequest(command, Credentials.sellerHeaders(saved,
           { hasBody: meta.method === "POST" && command.body !== undefined }));
         const guardedFetch = async (url, init) => {
+          if (typeof context.assertDispatchAuthority === "function")
+            await context.assertDispatchAuthority();
           await context.assertCurrent(); // Last awaited step before actual fetch.
           if (attempted) fail("HIDDEN_PROVIDER_REQUEST_FORBIDDEN");
           attempted = true;

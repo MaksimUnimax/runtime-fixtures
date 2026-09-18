@@ -248,6 +248,8 @@
     const guardedFetch = (guard) =>
       guard
         ? async (url, init) => {
+            if (typeof guard.assertDispatchAuthority === "function")
+              await guard.assertDispatchAuthority();
             await guard.assertCurrent();
             return fetchImpl(url, init);
           }

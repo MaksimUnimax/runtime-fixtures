@@ -167,14 +167,14 @@ await test('APP-03-two-WB-stores-two-dialogues-pinned-credentials-and-Ozon', asy
     assert.equal(seen.at(-1).headers['Client-Id'], 'FIXTURE_OZON_CLIENT');
   } finally { s.worker.close(); }
 });
-await test('APP-04-Hide-does-not-stop-inflight-tail-or-delivery-Finish-does', async () => {
+await test('APP-04-Hide-stops-not-yet-dispatched-tail-and-Finish-stops-delivery', async () => {
   let release, arrived;
   const entered = new Promise(r => arrived = r), wait = new Promise(r => release = r);
   const s = await setup({ fetch: async () => { arrived(); await wait; return new Response('{}', { headers: { 'content-type': 'application/json' } }); } }); try {
     const start = await s.start(await s.save(wb(fixtureToken))); await s.execute(start, api+'\n'+api);
     await entered;
     assert.equal((await s.popup('OZ_WORK_HIDE', { conversation_key: start.key })).ok, true);
-    release(); const owner = await s.collected(start); assert.equal(s.worker.network.length, 2);
+    release(); const owner = await s.collected(start); assert.equal(s.worker.network.length, 1);
     await s.deliver(start, owner);
     assert.equal((await s.popup('OZ_WORK_FINISH', { conversation_key: start.key })).ok, true);
     const late = await s.worker.request({ type: 'OZ_WORK_DELIVERY_ASSERT', conversation_key: start.key, owner_id: owner.operation_id, delivery_id: owner.delivery_id }); assert.equal(late.ok, false);
@@ -278,5 +278,50 @@ await test('APP-10-WB-observed-quota-holds-tail-without-Ozon-intervals-or-auto-r
     await new Promise(r=>setTimeout(r,30));
     assert.equal(s.worker.network.length,1,'early explicit resume cannot skip provider deadline');
   } finally { s.worker.close(); }
+});
+await test('C3A-01-valid-Work-command-gates-before-one-provider-request-and-no-control-call', async () => {
+  const s = await setup(); try {
+    const started = await s.start(await s.save(wb(fixtureToken)));
+    const controlBefore = s.worker.controlNetwork.length;
+    await s.execute(started, api);
+    await s.collected(started);
+    assert.equal(s.worker.network.length, 1);
+    assert.equal(s.worker.controlNetwork.length, controlBefore);
+  } finally { s.worker.close(); }
+});
+await test('C3A-02-missing-provenance-denies-before-provider', async () => {
+  const s = await setup(); try {
+    const started = await s.start(await s.save(wb(fixtureToken)));
+    const keys = await s.worker.call('(() => OzonRuntime.STORAGE_KEYS)');
+    s.worker.backing.local[keys.WORK_SESSIONS][started.key].admission_provenance = null;
+    await s.execute(started, api, 'c3a-missing-provenance');
+    await s.collected(started);
+    assert.equal(s.worker.network.length, 0);
+  } finally { s.worker.close(); }
+});
+await test('C3A-03-hidden-Work-denies-before-provider', async () => {
+  const s = await setup(); try {
+    const started = await s.start(await s.save(wb(fixtureToken)));
+    assert.equal((await s.popup('OZ_WORK_HIDE', { conversation_key: started.key })).ok, true);
+    const denied = await s.worker.request({ type: 'OZ_EXECUTE_COMMAND', conversation_key: started.key, command_text: api,
+      manual_request_id: 'c3a-hidden', work_session_id: started.session.start_intent_id }, started.sender);
+    assert.equal(denied.code, 'WORK_SESSION_NOT_VISIBLE');
+    assert.equal(s.worker.network.length, 0);
+  } finally { s.worker.close(); }
+});
+await test('C3A-04-finish-during-authority-crypto-evaluation-drops-stale-positive', async () => {
+  let pause = false, entered, release;
+  const cryptoEntered = new Promise(resolve => { entered = resolve; });
+  const cryptoRelease = new Promise(resolve => { release = resolve; });
+  const s = await setup({ beforeCryptoVerify: async () => { if (pause) { entered(); await cryptoRelease; } } }); try {
+    const started = await s.start(await s.save(wb(fixtureToken)));
+    pause = true;
+    await s.execute(started, api, 'c3a-finish-race');
+    await cryptoEntered;
+    assert.equal((await s.popup('OZ_WORK_FINISH', { conversation_key: started.key })).ok, true);
+    release();
+    await new Promise(resolve => setTimeout(resolve, 40));
+    assert.equal(s.worker.network.length, 0);
+  } finally { release(); s.worker.close(); }
 });
 console.log(JSON.stringify({ status:'PASS', results, live_provider_calls:0, scope:'actual generated worker/popup messages and attachment port; simulated browser and provider; not installed live acceptance' },null,2));

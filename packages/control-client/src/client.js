@@ -394,6 +394,23 @@
   }
   async function getHealthAuthorityContext() { await init(); if (!state.credentials || !state.authority) throw error("HEALTH_CONTEXT_INVALID"); await getVerifiedAuthorityTime(); return clone(state.authority); }
   async function getVerifiedAuthorityTime() { await init(); if (!state.credentials || !state.cacheClock || !state.authority) throw error("HEALTH_CONTEXT_INVALID"); return effectiveTime(state.cacheClock); }
+  /* C3A reads this cache snapshot only. It deliberately does not checkpoint,
+   * persist a denial, refresh Bootstrap, or acquire Health. */
+  async function getCachedContinuationState() {
+    await init();
+    return clone({
+      generation: state.generation,
+      authority: state.authority,
+      cacheClock: state.cacheClock,
+      localInvalidation: {
+        revoked: !state.credentials || !state.authority,
+        loggedOut: !state.credentials,
+        authReset: !state.credentials,
+        obsolete: false,
+        storeDeleted: false,
+      },
+    });
+  }
   function terminalAuthFailure(failure) { return failure?.code === "AUTH_REFRESH_INVALID" || failure?.status === 401 || ["AUTH_INVALID", "DEVICE_REVOKED"].includes(failure?.code); }
   async function invalidateKnown(context, failure, terminal = terminalAuthFailure(failure)) {
     return queueMutation(async () => {
@@ -669,6 +686,6 @@
   function init() { if (initialized) return Promise.resolve(publicStatus()); if (!initFlight) initFlight = restoreOnce().finally(() => { initFlight = null; }); return initFlight; }
   async function localReset() { await init(); await queueMutation(async () => { activationFlight = null; pollingFlight = null; refreshFlight = null; resetRuntimeClock(); await commit({ generation: state.generation + 1, credentials: null, pending: null, rotation: null, authority: null, cacheClock: null, lastError: null }, state.authority, "local_reset"); }); return publicStatus(); }
   async function cancelActivation() { await init(); await queueMutation(async () => { activationFlight = null; pollingFlight = null; await commit({ ...state, generation: state.generation + 1, pending: null, lastError: null }, state.authority, "activation_cancelled"); }); return publicStatus(); }
-  const api = { restore: init, status: async () => { await init(); const decision = await cacheAuthorizationCheckpoint(); return publicStatus(decision); }, currentAccount: async () => { await init(); return state.authority?.payload?.account?.id || null; }, generation: async () => { await init(); return state.generation; }, hasAuthority: async () => { await init(); return Boolean(state.authority && state.credentials); }, canWork: async () => { await init(); const decision = await cacheAuthorizationCheckpoint(); return decision.identity === authorityDecisionIdentity() && decision.allowed === true; }, getAuthority: async () => { await init(); const decision = await cacheAuthorizationCheckpoint(); const authority = clone(state.authority); if (authority && !(decision.identity === authorityDecisionIdentity() && decision.allowed === true)) authority.workAllowed = false; return authority; }, getHealthAuthorityContext, getVerifiedAuthorityTime, acquireSignedHealthAuthority, startActivation, cancelActivation, refresh, bootstrap, bootstrapWithPolicy, ensureForIdentity, localReset, openPortal: async () => { await init(); const pending = state.pending; if (!pendingLive(state.pending) || !validAuthContext(pending.authContext)) throw error("NO_ACTIVATION_ATTEMPT"); return openPortal(pending.authorizationId); }, onAuthorityChanged: handler => { authorityChanged = handler; } };
+  const api = { restore: init, status: async () => { await init(); const decision = await cacheAuthorizationCheckpoint(); return publicStatus(decision); }, currentAccount: async () => { await init(); return state.authority?.payload?.account?.id || null; }, generation: async () => { await init(); return state.generation; }, hasAuthority: async () => { await init(); return Boolean(state.authority && state.credentials); }, canWork: async () => { await init(); const decision = await cacheAuthorizationCheckpoint(); return decision.identity === authorityDecisionIdentity() && decision.allowed === true; }, getAuthority: async () => { await init(); const decision = await cacheAuthorizationCheckpoint(); const authority = clone(state.authority); if (authority && !(decision.identity === authorityDecisionIdentity() && decision.allowed === true)) authority.workAllowed = false; return authority; }, getCachedContinuationState, getHealthAuthorityContext, getVerifiedAuthorityTime, acquireSignedHealthAuthority, startActivation, cancelActivation, refresh, bootstrap, bootstrapWithPolicy, ensureForIdentity, localReset, openPortal: async () => { await init(); const pending = state.pending; if (!pendingLive(state.pending) || !validAuthContext(pending.authContext)) throw error("NO_ACTIVATION_ATTEMPT"); return openPortal(pending.authorizationId); }, onAuthorityChanged: handler => { authorityChanged = handler; } };
   globalThis.SellerAgentsControlClient = Object.freeze(api);
 })();

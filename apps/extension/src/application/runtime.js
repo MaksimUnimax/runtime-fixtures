@@ -464,6 +464,143 @@ async function saReadContext(key, immutable, ownerIdentity) {
     workSessionId: work.start_intent_id || "inactive", active: Boolean(workAllowed && store && ownerActive &&
       [OzonWorkSessionModel.STATES.ACTIVE_VISIBLE, OzonWorkSessionModel.STATES.ACTIVE_HIDDEN, OzonWorkSessionModel.STATES.RECOVERING].includes(work.state)) };
 }
+function saDispatchAuthorityError(code, deniedGates = []) {
+  const error = saAdmissionError(code, deniedGates);
+  error.external_request_executed = false;
+  return error;
+}
+function saDispatchFence(snapshot) {
+  return Object.freeze({
+    accountId: snapshot.accountId,
+    generation: snapshot.generation,
+    deviceId: snapshot.deviceId,
+    sessionId: snapshot.sessionId,
+    authorityIdentity: snapshot.authorityIdentity,
+    bootstrapSnapshotSha256: snapshot.bootstrapSnapshotSha256,
+    tabId: snapshot.tabId,
+    origin: snapshot.origin,
+    conversationKey: snapshot.conversationKey,
+    conversationId: snapshot.conversationId,
+    aiFamily: snapshot.aiFamily,
+    aiSurface: snapshot.aiSurface,
+    aiVariant: snapshot.aiVariant,
+    aiProfileKey: snapshot.aiProfileKey,
+    aiProfileRevision: snapshot.aiProfileRevision,
+    aiProfileScopeVariant: snapshot.aiProfileScopeVariant,
+    aiProfileContentSha256: snapshot.aiProfileContentSha256,
+    bindingId: snapshot.bindingId,
+    bindingRevision: snapshot.bindingRevision,
+    marketplace: snapshot.marketplace,
+    storeId: snapshot.storeId,
+    credentialRevision: snapshot.credentialRevision,
+    workState: snapshot.workState,
+    workRevision: snapshot.workRevision,
+    workStartIntentId: snapshot.workStartIntentId,
+    admissionProvenance: snapshot.admissionProvenance,
+    localInvalidation: snapshot.localInvalidation,
+  });
+}
+function saSameDispatchFence(left, right) {
+  return Boolean(left && right && JSON.stringify(left) === JSON.stringify(right));
+}
+async function saReadDispatchSnapshot(owner) {
+  const key = normalizeConversationKey(owner?.conversation_key);
+  const pinned = owner?.execution_context;
+  if (!key || !pinned || !owner?.tab_id) throw SellerAgentsExecutionContext.error("EXECUTION_CONTEXT_MISSING");
+  const currentOwner = await getManualOperation(key);
+  if (!currentOwner || currentOwner.operation_id !== owner.operation_id || !currentOwner.execution_context ||
+      SellerAgentsExecutionContext.fields.some(field => currentOwner.execution_context[field] !== pinned[field]))
+    throw SellerAgentsExecutionContext.error();
+  const tab = Number(owner.tab_id);
+  const identity = await tabIdentity(tab);
+  if (!identity?.conversation_id || conversationKeyFromIdentity(identity) !== key)
+    throw saDispatchAuthorityError("CONVERSATION_MISMATCH", ["conversation"]);
+  const binding = await bindingForConversationKey(key);
+  if (!binding?.store_context) throw saDispatchAuthorityError("CONVERSATION_NOT_BOUND", ["binding"]);
+  const store = await saAssertStore(binding.store_context);
+  const work = await workSessionFor(key);
+  if (work.state !== OzonWorkSessionModel.STATES.ACTIVE_VISIBLE)
+    throw saDispatchAuthorityError("WORK_SESSION_NOT_VISIBLE", ["workState"]);
+  const live = {
+    accountId: store.accountId, storeId: store.id, marketplace: store.marketplace,
+    credentialRevision: store.credentialRevision, conversationKey: key,
+    bindingId: binding.binding_id, bindingRevision: Number(binding.revision),
+    workSessionId: work.start_intent_id || "inactive",
+    policyRevision: store.personalDataEnabled ? "personal-enabled" : "personal-disabled",
+    commandHash: pinned.commandHash, requestId: pinned.requestId,
+    ...(pinned.authGeneration === undefined ? {} : { authGeneration: await SellerAgentsControlClient.generation() }),
+    active: true,
+  };
+  try { SellerAgentsExecutionContext.assertSame(pinned, live); }
+  catch (_) { throw SellerAgentsExecutionContext.error(); }
+  const cached = await SellerAgentsControlClient.getCachedContinuationState();
+  const authority = cached.authority;
+  const safeTimeMs = await SellerAgentsControlClient.getVerifiedAuthorityTime();
+  const payload = authority?.payload || {};
+  const profile = payload.ai?.profile || {};
+  const accountId = payload.account?.id || null;
+  const snapshot = {
+    accountId, generation: cached.generation, deviceId: authority?.deviceId || null,
+    sessionId: authority?.sessionId || null, authorityIdentity: saAuthorityIdentity(authority),
+    bootstrapSnapshotSha256: await saSnapshotDigest(authority?.envelope), tabId: tab,
+    origin: identity.origin, conversationKey: key, conversationId: identity.conversation_id,
+    aiFamily: identity.ai_id, aiSurface: payload.ai?.detected?.surface || null,
+    aiVariant: payload.ai?.detected?.variant ?? null, aiProfileKey: profile.profileKey || null,
+    aiProfileRevision: profile.revision ?? null, aiProfileScopeVariant: profile.scopeVariant ?? null,
+    aiProfileContentSha256: profile.contentSha256 || null, bindingId: binding.binding_id,
+    bindingRevision: Number(binding.revision), marketplace: store.marketplace, storeId: store.id,
+    credentialRevision: store.credentialRevision, workState: work.state,
+    workRevision: Number(work.revision || 0), workStartIntentId: work.start_intent_id || null,
+    admissionProvenance: JSON.stringify(work.admission_provenance || null),
+    localInvalidation: JSON.stringify(cached.localInvalidation || {}), safeTimeMs,
+    authorityExpiresAt: payload.expiresAt || null,
+  };
+  return { key, identity, binding, store, work, authority, cacheClock: cached.cacheClock,
+    safeTimeMs, current: { accountId, generation: cached.generation, deviceId: snapshot.deviceId,
+      sessionId: snapshot.sessionId, aiFamily: identity.ai_id, aiSurface: snapshot.aiSurface,
+      aiVariant: snapshot.aiVariant, aiProfileKey: snapshot.aiProfileKey,
+      aiProfileRevision: snapshot.aiProfileRevision, aiProfileScopeVariant: snapshot.aiProfileScopeVariant,
+      aiProfileContentSha256: snapshot.aiProfileContentSha256, origin: identity.origin,
+      conversationId: identity.conversation_id, conversationKey: key, bindingId: binding.binding_id,
+      bindingRevision: Number(binding.revision), storeId: store.id, marketplace: store.marketplace,
+      credentialRevision: store.credentialRevision, workStartIntentId: work.start_intent_id || null,
+      revoked: cached.localInvalidation?.revoked === true, loggedOut: cached.localInvalidation?.loggedOut === true,
+      authReset: cached.localInvalidation?.authReset === true, obsolete: cached.localInvalidation?.obsolete === true,
+      storeDeleted: cached.localInvalidation?.storeDeleted === true },
+    fence: saDispatchFence(snapshot) };
+}
+async function saEvaluateDispatchAuthority(owner) {
+  let initial;
+  try { initial = await saReadDispatchSnapshot(owner); }
+  catch (error) {
+    if (error?.external_request_executed === false) throw error;
+    throw saDispatchAuthorityError("WORK_AUTHORITY_REFRESH_REQUIRED", ["cachedAuthority"]);
+  }
+  const binding = initial.binding, store = initial.store, work = initial.work;
+  const identity = initial.identity, authority = initial.authority;
+  const input = {
+    operation: "CONTINUE", work, receipt: work.admission_provenance || null,
+    cachedAuthority: authority, cacheClock: initial.cacheClock, safeTimeMs: initial.safeTimeMs,
+    identity: { origin: identity.origin, conversationId: identity.conversation_id },
+    binding: { binding_id: binding.binding_id, revision: Number(binding.revision), origin: binding.origin,
+      ai_id: binding.ai_id, conversation_id: binding.conversation_id, conversation_key: binding.conversation_key,
+      store_context: binding.store_context },
+    store: { accountId: store.accountId, id: store.id, marketplace: store.marketplace, credentialRevision: store.credentialRevision },
+    current: initial.current,
+  };
+  let decision;
+  try { decision = await SellerAgentsOfflineWorkAuthority.evaluate(input); }
+  catch (_) { throw saDispatchAuthorityError("WORK_AUTHORITY_REFRESH_REQUIRED", ["cachedAuthority"]); }
+  if (decision.allowed !== true || decision.executionAuthority !== false)
+    throw saDispatchAuthorityError(decision.deniedGates?.includes("bootstrapFreshness") ? "WORK_AUTHORITY_REFRESH_REQUIRED" : "WORK_AUTHORITY_DENIED", decision.deniedGates);
+  let after;
+  try { after = await saReadDispatchSnapshot(owner); }
+  catch (error) { if (error?.external_request_executed === false) throw error; throw SellerAgentsExecutionContext.error(); }
+  const expiresAt = Date.parse(after.authority?.payload?.expiresAt || "");
+  if (!Number.isFinite(expiresAt) || after.safeTimeMs >= expiresAt || !saSameDispatchFence(initial.fence, after.fence))
+    throw saDispatchAuthorityError(after.safeTimeMs >= expiresAt ? "WORK_AUTHORITY_REFRESH_REQUIRED" : "WORK_AUTHORITY_CONTEXT_CHANGED", ["contextFence"]);
+  return decision;
+}
 async function saSettings(pinned) {
   const store = await saAssertStore(pinned);
   if (store.marketplace !== "ozon") throw saError("WRONG_SETTINGS_PROVIDER");
@@ -480,10 +617,13 @@ async function saGuard(owner) {
   const guard = SellerAgentsExecutionContext.createGuard(p, readCurrent);
   await guard.assertCurrent();
   const store = await saAssertStore(p);
-  if (p.marketplace === "wildberries") return SellerAgentsWBAdapter.createContext({ snapshot: p, readCurrent, credentials: store.credentials });
+  if (p.marketplace === "wildberries") {
+    const context = await SellerAgentsWBAdapter.createContext({ snapshot: p, readCurrent, credentials: store.credentials });
+    return Object.freeze({ ...context, async assertDispatchAuthority() { return saEvaluateDispatchAuthority(owner); } });
+  }
   const settings = await saSettings(p);
   await guard.assertCurrent();
-  return Object.freeze({ ...guard, async settings() { await guard.assertCurrent(); return settings; } });
+  return Object.freeze({ ...guard, async assertDispatchAuthority() { return saEvaluateDispatchAuthority(owner); }, async settings() { await guard.assertCurrent(); return settings; } });
 }
 async function saPublicContext(key) {
   const binding = key ? await bindingForConversationKey(key) : null;
