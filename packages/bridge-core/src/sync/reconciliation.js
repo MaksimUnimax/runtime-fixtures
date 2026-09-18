@@ -155,6 +155,50 @@
     return { allowed: true, code: null };
   }
 
+  const STORE_RECONCILIATION_CLASSES = Object.freeze({
+    IN_SYNC: "IN_SYNC",
+    SERVER_AHEAD_COMPATIBLE: "SERVER_AHEAD_COMPATIBLE",
+    STORE_TOMBSTONE_DOMINATES: "STORE_TOMBSTONE_DOMINATES",
+    STORE_PROVIDER_IDENTITY_MISMATCH: "STORE_PROVIDER_IDENTITY_MISMATCH",
+    STORE_STALE_REVISION: "STORE_STALE_REVISION",
+    UNKNOWN_REMOTE_INSTALLATION_STATE: "UNKNOWN_REMOTE_INSTALLATION_STATE",
+  });
+  function storeState(entry) {
+    const payload = entry.payload || entry;
+    return {
+      kind: entry.kind || payload.kind,
+      storeId: payload.storeId,
+      marketplace: payload.marketplace,
+      name: payload.name,
+      providerAccountId: payload.providerIdentityState === "CONFIRMED" ? payload.providerAccountId : null,
+      providerIdentityState: payload.providerIdentityState === "CONFIRMED" ? "CONFIRMED" : "UNCONFIRMED",
+      credentialRevision: payload.credentialRevision || null,
+      metadataRevision: Number.isSafeInteger(Number(payload.metadataRevision)) && Number(payload.metadataRevision) >= 0 ? Number(payload.metadataRevision) : 0,
+      lifecycleState: (entry.kind || payload.kind) === "STORE_TOMBSTONE" ? "TOMBSTONED" : "ACTIVE",
+    };
+  }
+  function sameStoreState(left, right) {
+    return Boolean(left && right && left.storeId === right.storeId && left.marketplace === right.marketplace && left.name === right.name && left.providerAccountId === right.providerAccountId && left.providerIdentityState === right.providerIdentityState && left.credentialRevision === right.credentialRevision && left.metadataRevision === right.metadataRevision && left.lifecycleState === right.lifecycleState);
+  }
+  function applyStoreMetadata({ current = null, serverRevision = 0, entry, receiveAtMs = 0 } = {}) {
+    const desired = storeState(entry);
+    if (!desired.storeId || !["ozon", "wildberries"].includes(desired.marketplace) || !desired.name) return { outcome: "CONFLICT", serverRevision, serverState: current, code: "STORE_METADATA_INVALID" };
+    if (!current) return { outcome: "ACK", serverRevision: serverRevision + 1, serverState: desired, code: null };
+    if (current.lifecycleState === "TOMBSTONED") return { outcome: desired.lifecycleState === "TOMBSTONED" ? "ACK" : "CONFLICT", serverRevision, serverState: current, code: desired.lifecycleState === "TOMBSTONED" ? STORE_RECONCILIATION_CLASSES.IN_SYNC : STORE_RECONCILIATION_CLASSES.STORE_TOMBSTONE_DOMINATES };
+    if (entry.baseRevision !== serverRevision) {
+      if (sameStoreState(desired, current)) return { outcome: "ACK", serverRevision, serverState: current, code: STORE_RECONCILIATION_CLASSES.IN_SYNC };
+      return { outcome: "CONFLICT", serverRevision, serverState: current, code: "SYNC_CONFLICT" };
+    }
+    if (current.providerIdentityState === "CONFIRMED" && desired.providerIdentityState === "CONFIRMED" && current.providerAccountId !== desired.providerAccountId)
+      return { outcome: "CONFLICT", serverRevision, serverState: current, code: STORE_RECONCILIATION_CLASSES.STORE_PROVIDER_IDENTITY_MISMATCH };
+    if (desired.metadataRevision < Number(current.metadataRevision || 0)) return { outcome: "CONFLICT", serverRevision, serverState: current, code: STORE_RECONCILIATION_CLASSES.STORE_STALE_REVISION };
+    if (current.providerIdentityState === "CONFIRMED") {
+      desired.providerIdentityState = "CONFIRMED";
+      desired.providerAccountId = current.providerAccountId;
+    }
+    return { outcome: "ACK", serverRevision: serverRevision + 1, serverState: desired, code: null };
+  }
+
   globalThis.SellerAgentsReconciliation = Object.freeze({
     CLASSES,
     PREFERRED_STATES,
@@ -170,5 +214,7 @@
     classifyComparison,
     reconcile,
     allowsFutureAction,
+    STORE_RECONCILIATION_CLASSES,
+    applyStoreMetadata,
   });
 })();

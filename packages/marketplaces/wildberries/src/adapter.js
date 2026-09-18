@@ -16,7 +16,13 @@
     const guard = globalThis.SellerAgentsExecutionContext.createGuard(snapshot, readCurrent);
     const saved = Credentials.normalizeSellerCredentials(structuredClone(credentials), { required: true });
     if (guard.snapshot.marketplace !== "wildberries") fail("MARKETPLACE_CONTEXT_MISMATCH");
-    if (await credentialRevision(saved) !== guard.snapshot.credentialRevision)
+    // Store credentialRevision is an opaque local fencing value. The execution
+    // guard below compares that value with the current pinned store context;
+    // never derive a server-visible revision from the credential secret. The
+    // legacy adapter fixture format remains accepted only for old local
+    // snapshots that explicitly carry the historical 64-hex revision.
+    if (/^[0-9a-f]{64}$/.test(String(guard.snapshot.credentialRevision || "")) &&
+        await credentialRevision(saved) !== guard.snapshot.credentialRevision)
       throw globalThis.SellerAgentsExecutionContext.error();
     await guard.assertCurrent();
     return Object.freeze({ ...guard, async credentials() { await guard.assertCurrent(); return saved; } });

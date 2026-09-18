@@ -17,9 +17,9 @@ const saCatalog = SellerAgentsStoreCatalog.create({
         clientSecret: input.performance?.clientSecret || previous.performance?.clientSecret });
     return { seller, performance };
   },
-  revision: (marketplace, c) => marketplace === "wildberries" ? SellerAgentsWBAdapter.credentialRevision(c) :
-    sha256Hex(JSON.stringify(["account-scoped-ozon-credentials", c.seller.clientId, c.seller.apiKey, c.performance.clientId, c.performance.clientSecret]))
+  revision: () => `credential-${crypto.randomUUID()}`
 });
+globalThis.SellerAgentsActiveStoreCatalog = saCatalog;
 const saQuota = SellerAgentsObservedQuota.create({ read: storageGet, write: storageSet, namespace: "seller_agents_observed_quota_v1" });
 const saReady = (async () => {
   await chrome.storage.local.setAccessLevel?.({ accessLevel: "TRUSTED_CONTEXTS" });
@@ -104,6 +104,14 @@ async function saRecordDeliveryMarker(conversationKey, binding = null, store = n
   const order = deliveryOrder && typeof deliveryOrder === "object" ? { ...deliveryOrder } : deliveryOrder;
   if (order && typeof order === "object") delete order.workGeneration;
   return SellerAgentsSyncJournal.recordDeliveryMarker({ binding, conversationKey, store, deliveryId, deliveryOrder: order, workGeneration }).catch(() => null);
+}
+async function saRecordStoreMetadata(store) {
+  if (!globalThis.SellerAgentsSyncJournal || !store) return null;
+  return SellerAgentsSyncJournal.recordStoreMetadata({ store }).catch(() => null);
+}
+async function saRecordStoreTombstone(store) {
+  if (!globalThis.SellerAgentsSyncJournal || !store) return null;
+  return SellerAgentsSyncJournal.recordStoreTombstone({ store }).catch(() => null);
 }
 function saAdmissionKey(tabId, conversationKey = null) {
   return `${Number(tabId)}:${conversationKey || "pending"}`;
@@ -847,12 +855,15 @@ async function saHandleMessage(message, sender) {
         const old = message.store?.id ? await saCatalog.get(message.store.id) : null;
         const saved = await saCatalog.save(message.store);
         if (old && (old.credentialRevision !== saved.credentialRevision || old.personalDataEnabled !== saved.personalDataEnabled)) await saInvalidateStore(saved.id);
+        void saRecordStoreMetadata(saved);
         return { ok: true, store: saved };
       }
       case "SA_STORE_DELETE":
         if (message.confirm !== true) throw saError("DELETE_CONFIRMATION_REQUIRED");
+        const deletedStore = await saCatalog.get(message.store_id);
         await saCatalog.remove(message.store_id);
         await saInvalidateStore(message.store_id);
+        void saRecordStoreTombstone({ ...deletedStore, lifecycleState: "TOMBSTONED", credentials: {}, credentialsStale: true, metadataRevision: (deletedStore.metadataRevision || 0) + 1 });
         return { ok: true };
       case "SA_WORK_START": return saWorkStart(message, sender);
       case "SA_WORK_RESUME": return saWorkResume(message, sender);
@@ -983,8 +994,14 @@ async function saCheckStore(message) {
   await saAssertStore(pinned);
   const httpStatus = Number(result.http_status || 0);
   const code = result.ok ? "ACCESS_CONFIRMED" : httpStatus === 401 ? "CREDENTIAL_REJECTED" : httpStatus === 403 ? "ACCESS_DENIED" : "CHECK_FAILED";
-  return { ok: true, store: await saCatalog.noteVerification(store.id, store.credentialRevision,
-    store.marketplace === "wildberries" ? "token" : message.part === "performance" ? "performance" : "seller", { code, httpStatus }) };
+  let saved = await saCatalog.noteVerification(store.id, store.credentialRevision,
+    store.marketplace === "wildberries" ? "token" : message.part === "performance" ? "performance" : "seller", { code, httpStatus });
+  // Provider identity is authoritative only when the provider path explicitly
+  // returns a confirmed account identifier. Labels, token shape, and failures
+  // never bind or erase provider identity.
+  if (result.provider_account_id) saved = await saCatalog.confirmProviderIdentity(store.id, store.credentialRevision, result.provider_account_id);
+  void saRecordStoreMetadata(saved);
+  return { ok: true, store: saved };
 }
 function saPrunePayload(owner, now = Date.now()) {
   if (!owner) return owner;

@@ -76,13 +76,41 @@
     return run;
   }
   async function identity() {
-    const authority = await SellerAgentsControlClient.getAuthority();
+    // C3E records local metadata only. Reading the cached continuation state
+    // avoids a control-authority checkpoint/persist side effect while a popup
+    // mutation is being returned to its caller.
+    const cached = await SellerAgentsControlClient.getCachedContinuationState?.();
+    const authority = cached?.authority || await SellerAgentsControlClient.getAuthority();
     const accountId = text(authority?.payload?.account?.id, 128), installationId = text(authority?.deviceId, 128);
     if (!accountId || !installationId) throw Object.assign(new Error("AUTH_REQUIRED"), { code: "AUTH_REQUIRED" });
     return { accountId, installationId };
   }
   async function metadata({ binding = null, store = null, conversationKey = "", kind, deliveryId = null, deliveryOrder = null, workGeneration = null }) {
     const auth = await identity();
+    if (["STORE_UPSERT", "STORE_TOMBSTONE"].includes(kind)) {
+      const storeId = text(store?.id || store?.storeId, 128);
+      const marketplace = text(store?.marketplace, 32);
+      const metadataRevision = integer(store?.metadataRevision);
+      if (!storeId || !marketplace || !metadataRevision && metadataRevision !== 0) throw Object.assign(new Error("STORE_METADATA_INVALID"), { code: "STORE_METADATA_INVALID" });
+      return {
+        auth,
+        entityId: `store:${storeId}`,
+        payload: {
+          kind,
+          conversationKeyDigest: await digest(`store:${storeId}`),
+          bindingId: null,
+          bindingRevision: 0,
+          storeId,
+          marketplace,
+          credentialRevision: text(store?.credentialRevision, 128),
+          name: text(store?.name, 80),
+          providerAccountId: store?.providerIdentityState === "CONFIRMED" ? text(store?.providerAccountId, 128) : null,
+          providerIdentityState: store?.providerIdentityState === "CONFIRMED" ? "CONFIRMED" : "UNCONFIRMED",
+          metadataRevision,
+          lifecycleState: kind === "STORE_TOMBSTONE" ? "TOMBSTONED" : "ACTIVE",
+        },
+      };
+    }
     const keyDigest = await digest(conversationKey || binding?.conversation_key || binding?.conversation_id || binding?.binding_id || "unbound");
     const bindingId = text(binding?.binding_id, 128), baseBindingRevision = integer(binding?.revision) || 0;
     const bindingRevision = kind === "FINISH" ? baseBindingRevision + 1 : baseBindingRevision;
@@ -109,10 +137,13 @@
   function compact(next, entityId) {
     const related = Object.values(next.entries).filter(entry => entry.entityId === entityId);
     const replaceable = related.filter(entry => ["PENDING", "RETRY_WAIT"].includes(entry.status));
-    for (const kind of ["BINDING_UPSERT", "FINISH", "DELIVERY_MARKER"]) {
+    for (const kind of ["BINDING_UPSERT", "FINISH", "DELIVERY_MARKER", "STORE_UPSERT", "STORE_TOMBSTONE"]) {
       const sameKind = replaceable.filter(entry => entry.kind === kind).sort((a, b) => a.localSequence - b.localSequence);
       for (const old of sameKind.slice(0, -1)) delete next.entries[old.entryId];
     }
+    const storeEntries = replaceable.filter(entry => ["STORE_UPSERT", "STORE_TOMBSTONE"].includes(entry.kind)).sort((a, b) => a.localSequence - b.localSequence);
+    const latestStore = storeEntries.at(-1);
+    if (latestStore?.kind === "STORE_TOMBSTONE") for (const old of storeEntries) if (old.entryId !== latestStore.entryId) delete next.entries[old.entryId];
     const pendingExplicit = Object.values(next.entries).filter(entry => entry.entityId === entityId && ["BINDING_UPSERT", "FINISH"].includes(entry.kind) && ["PENDING", "RETRY_WAIT"].includes(entry.status)).sort((a, b) => a.localSequence - b.localSequence).at(-1);
     if (pendingExplicit) for (const marker of Object.values(next.entries)) if (marker.entityId === entityId && marker.kind === "DELIVERY_MARKER" && ["PENDING", "RETRY_WAIT"].includes(marker.status) && marker.localSequence < pendingExplicit.localSequence) delete next.entries[marker.entryId];
     const keys = Object.keys(next.entries);
@@ -205,6 +236,7 @@
               if (!Number.isSafeInteger(Number(row.serverRevision)) || Number(row.serverRevision) < live.baseRevision) throw Object.assign(new Error("SYNC_CONTRACT_INVALID"), { code: "SYNC_CONTRACT_INVALID" });
               current.serverRevisions[live.entityId] = Number(row.serverRevision);
               if (row.serverState) {
+                if (["STORE_UPSERT", "STORE_TOMBSTONE"].includes(row.serverState.kind)) await globalThis.SellerAgentsActiveStoreCatalog?.applyRemoteMetadata?.(row.serverState);
                 current.serverStates[live.entityId] = clone(row.serverState);
                 current.reconciliation[live.entityId] = {
                   classification: row.code || row.serverState.reconciliation?.classification || (live.kind === "DELIVERY_MARKER" ? "IN_SYNC" : "SERVER_AHEAD_COMPATIBLE"),
@@ -218,6 +250,7 @@
               delete current.entries[live.entryId];
               for (const newer of Object.values(current.entries)) if (newer.entityId === live.entityId && newer.localSequence > live.localSequence && ["PENDING", "RETRY_WAIT"].includes(newer.status) && newer.baseRevision <= Number(row.serverRevision)) newer.baseRevision = Number(row.serverRevision);
             } else if (row.outcome === "CONFLICT") {
+              if (row.serverState && ["STORE_UPSERT", "STORE_TOMBSTONE"].includes(row.serverState.kind)) await globalThis.SellerAgentsActiveStoreCatalog?.applyRemoteMetadata?.(row.serverState);
               live.status = "CONFLICT"; live.conflict = { serverRevision: integer(row.serverRevision), serverState: row.serverState || null, classification: row.code || "EXPLICIT_BINDING_CONFLICT" }; live.lastError = text(row.code, 128) || "SYNC_CONFLICT";
               current.reconciliation[live.entityId] = { classification: row.code || "EXPLICIT_BINDING_CONFLICT", preferred: row.serverState?.reconciliation?.preferred || null, serverRevision: integer(row.serverRevision), serverState: clone(row.serverState) };
             } else if (row.outcome === "RETRY") {
@@ -256,6 +289,8 @@
     recordBinding: input => record("BINDING_UPSERT", input),
     recordFinish: input => record("FINISH", input),
     recordDeliveryMarker: input => record("DELIVERY_MARKER", input),
+    recordStoreMetadata: input => record("STORE_UPSERT", input),
+    recordStoreTombstone: input => record("STORE_TOMBSTONE", input),
     read: async () => clone(await read()),
     assertCurrentActionAllowed,
     syncNow,

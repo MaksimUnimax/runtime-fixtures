@@ -11,6 +11,8 @@ export {
   applyReconciliationEntry,
   compareDeliveryMarkers,
   RECONCILIATION_CLASSES,
+  STORE_RECONCILIATION_CLASSES,
+  applyStoreMetadataEntry,
   sameEffectiveBinding,
 } from "./reconciliation.js";
 

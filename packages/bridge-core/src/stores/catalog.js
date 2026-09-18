@@ -39,13 +39,18 @@
       return { id, all: data[key] || { version: 1, accounts: {} } };
     }
     function publicStore(store) {
-      const c = store.credentials;
+      const c = store.credentials || {};
       return {
         id: store.id,
         accountId: store.accountId,
         name: store.name,
         marketplace: store.marketplace,
         credentialRevision: store.credentialRevision,
+        metadataRevision: store.metadataRevision || 0,
+        lifecycleState: store.lifecycleState || "ACTIVE",
+        providerAccountId: store.providerAccountId || null,
+        providerIdentityState: store.providerIdentityState || "UNCONFIRMED",
+        credentialsStale: store.credentialsStale === true,
         personalDataEnabled: store.personalDataEnabled,
         sellerPresent: Boolean(c.seller?.clientId && c.seller?.apiKey),
         performancePresent: Boolean(
@@ -59,12 +64,14 @@
     }
     async function list() {
       const { id, all } = await state();
-      return Object.values(all.accounts[id]?.stores || {}).map(publicStore);
+      return Object.values(all.accounts[id]?.stores || {})
+        .filter(store => (store.lifecycleState || "ACTIVE") !== "TOMBSTONED")
+        .map(publicStore);
     }
     async function get(storeId) {
       const { id, all } = await state();
       const store = all.accounts[id]?.stores?.[storeId];
-      if (!store || store.accountId !== id) fail("STORE_NOT_FOUND");
+      if (!store || store.accountId !== id || store.lifecycleState === "TOMBSTONED") fail("STORE_NOT_FOUND");
       return structuredClone(store);
     }
     async function mutate(fn) {
@@ -93,6 +100,8 @@
             ? scope.stores[input.id]
             : null;
         if (input.id && !previous) fail("STORE_NOT_FOUND");
+        if (previous?.lifecycleState === "TOMBSTONED") fail("STORE_TOMBSTONED");
+        if (input.providerAccountId && input.providerAccountId !== previous?.providerAccountId) fail("PROVIDER_IDENTITY_CONFIRMATION_REQUIRED");
         const marketplace = previous?.marketplace || input.marketplace;
         if (
           !["ozon", "wildberries"].includes(marketplace) ||
@@ -104,7 +113,14 @@
           input.credentials || {},
           previous?.credentials,
         );
-        const credentialRevision = await revision(marketplace, credentials);
+        const credentialsUnchanged = Boolean(
+          previous && canonicalJson(previous.credentials || {}) === canonicalJson(credentials),
+        );
+        // A credential revision is an opaque fencing value. It is deliberately
+        // not a digest or fingerprint of secret material.
+        const credentialRevision = credentialsUnchanged
+          ? previous.credentialRevision
+          : await revision(marketplace, credentials);
         const serial = scope.next[marketplace] || 1;
         const name =
           String(input.name ?? previous?.name ?? "").trim() ||
@@ -118,6 +134,11 @@
           name,
           credentials,
           credentialRevision,
+          metadataRevision: (previous?.metadataRevision || 0) + 1,
+          lifecycleState: "ACTIVE",
+          providerAccountId: previous?.providerAccountId || null,
+          providerIdentityState: previous?.providerIdentityState || "UNCONFIRMED",
+          credentialsStale: false,
           personalDataEnabled:
             input.personalDataEnabled === undefined
               ? previous?.personalDataEnabled === true
@@ -136,14 +157,20 @@
     async function remove(id) {
       return mutate((scope) => {
         if (!scope.stores[id]) fail("STORE_NOT_FOUND");
-        delete scope.stores[id];
-        return { deleted: true };
+        const store = scope.stores[id];
+        if (!store) fail("STORE_NOT_FOUND");
+        store.lifecycleState = "TOMBSTONED";
+        store.credentials = {};
+        store.credentialsStale = true;
+        store.verification = {};
+        store.metadataRevision = (store.metadataRevision || 0) + 1;
+        return { deleted: true, store: publicStore(store) };
       });
     }
     async function noteVerification(id, expectedRevision, part, result) {
       return mutate((scope) => {
         const store = scope.stores[id];
-        if (!store || store.credentialRevision !== expectedRevision)
+        if (!store || store.lifecycleState === "TOMBSTONED" || store.credentialRevision !== expectedRevision)
           fail("STORE_CHANGED");
         store.verification = {
           ...store.verification,
@@ -156,7 +183,68 @@
         return publicStore(store);
       });
     }
-    return Object.freeze({ key, list, get, save, remove, noteVerification });
+    async function confirmProviderIdentity(id, expectedRevision, providerAccountId) {
+      if (typeof providerAccountId !== "string" || !/^[A-Za-z0-9._:-]{1,128}$/.test(providerAccountId)) fail("PROVIDER_IDENTITY_UNCONFIRMED");
+      return mutate(scope => {
+        const store = scope.stores[id];
+        if (!store || store.lifecycleState === "TOMBSTONED" || store.credentialRevision !== expectedRevision) fail("STORE_CHANGED");
+        if (store.providerIdentityState === "CONFIRMED" && store.providerAccountId !== providerAccountId) fail("STORE_PROVIDER_IDENTITY_MISMATCH");
+        store.providerAccountId = providerAccountId;
+        store.providerIdentityState = "CONFIRMED";
+        store.metadataRevision = (store.metadataRevision || 0) + 1;
+        return publicStore(store);
+      });
+    }
+    async function metadataForSync(id) {
+      const store = await get(id);
+      return {
+        kind: "STORE_UPSERT",
+        storeId: store.id,
+        marketplace: store.marketplace,
+        name: store.name,
+        providerAccountId: store.providerIdentityState === "CONFIRMED" ? store.providerAccountId : null,
+        providerIdentityState: store.providerIdentityState,
+        credentialRevision: store.credentialRevision,
+        metadataRevision: store.metadataRevision || 0,
+        lifecycleState: "ACTIVE",
+      };
+    }
+    async function applyRemoteMetadata(input) {
+      if (!input || !input.storeId || !["STORE_UPSERT", "STORE_TOMBSTONE"].includes(input.kind)) fail("INVALID_STORE_METADATA");
+      return mutate((scope, accountId) => {
+        const previous = scope.stores[input.storeId];
+        if (previous && previous.accountId !== accountId) fail("STORE_NOT_FOUND");
+        const incomingRevision = Number.isSafeInteger(Number(input.metadataRevision)) && Number(input.metadataRevision) >= 0 ? Number(input.metadataRevision) : 0;
+        if (previous?.lifecycleState === "TOMBSTONED") {
+          if (input.kind === "STORE_TOMBSTONE" && incomingRevision > (previous.metadataRevision || 0)) previous.metadataRevision = incomingRevision;
+          return publicStore(previous);
+        }
+        if (previous && incomingRevision < (previous.metadataRevision || 0)) return publicStore(previous);
+        if (previous?.providerIdentityState === "CONFIRMED" && input.providerIdentityState === "CONFIRMED" && previous.providerAccountId !== input.providerAccountId) fail("STORE_PROVIDER_IDENTITY_MISMATCH");
+        const store = previous || {
+          id: input.storeId,
+          accountId,
+          marketplace: input.marketplace,
+          credentials: {},
+          personalDataEnabled: false,
+          verification: {},
+          createdAt: Date.now(),
+        };
+        store.name = String(input.name || "").trim();
+        store.marketplace = input.marketplace;
+        store.providerIdentityState = previous?.providerIdentityState === "CONFIRMED" ? "CONFIRMED" : input.providerIdentityState === "CONFIRMED" ? "CONFIRMED" : "UNCONFIRMED";
+        store.providerAccountId = store.providerIdentityState === "CONFIRMED" ? (previous?.providerAccountId || input.providerAccountId || null) : null;
+        store.credentialRevision = input.credentialRevision || previous?.credentialRevision || null;
+        store.metadataRevision = incomingRevision;
+        store.lifecycleState = input.kind === "STORE_TOMBSTONE" ? "TOMBSTONED" : "ACTIVE";
+        store.credentials = input.kind === "STORE_TOMBSTONE" ? {} : (previous?.credentials || {});
+        store.credentialsStale = input.kind === "STORE_TOMBSTONE" || !Object.keys(store.credentials || {}).length || Boolean(previous?.credentials && previous.credentialRevision !== store.credentialRevision);
+        if (store.lifecycleState === "TOMBSTONED") store.verification = {};
+        scope.stores[store.id] = store;
+        return publicStore(store);
+      });
+    }
+    return Object.freeze({ key, list, get, save, remove, noteVerification, confirmProviderIdentity, metadataForSync, applyRemoteMetadata });
   }
   globalThis.SellerAgentsStoreCatalog = Object.freeze({ create });
 })();

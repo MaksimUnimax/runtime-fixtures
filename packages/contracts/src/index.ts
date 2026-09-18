@@ -144,7 +144,13 @@ const SyncReconciliationSchema = z
   .strict();
 const SyncStateV1Schema = z
   .object({
-    kind: z.enum(["BINDING_UPSERT", "FINISH", "DELIVERY_MARKER"]),
+    kind: z.enum([
+      "BINDING_UPSERT",
+      "FINISH",
+      "DELIVERY_MARKER",
+      "STORE_UPSERT",
+      "STORE_TOMBSTONE",
+    ]),
     conversationKeyDigest: SyncDigest,
     bindingId: SyncNullableString(128),
     bindingRevision: z.number().int().nonnegative().safe(),
@@ -156,6 +162,11 @@ const SyncStateV1Schema = z
     workGeneration: SyncNullableString(160).optional(),
     deliveryOrder: SyncDeliveryOrderSchema.optional(),
     reconciliation: SyncReconciliationSchema.optional(),
+    name: z.string().min(1).max(80).optional(),
+    providerAccountId: SyncNullableString(128).optional(),
+    providerIdentityState: z.enum(["CONFIRMED", "UNCONFIRMED"]).optional(),
+    metadataRevision: z.number().int().nonnegative().safe().optional(),
+    lifecycleState: z.enum(["ACTIVE", "TOMBSTONED"]).optional(),
   })
   .strict();
 export const SellerAgentsSyncEntryV1Schema = z
@@ -166,7 +177,13 @@ export const SellerAgentsSyncEntryV1Schema = z
     baseRevision: z.number().int().nonnegative().safe(),
     localSequence: z.number().int().positive().safe(),
     mutationGeneration: z.string().min(1).max(320),
-    kind: z.enum(["BINDING_UPSERT", "FINISH", "DELIVERY_MARKER"]),
+    kind: z.enum([
+      "BINDING_UPSERT",
+      "FINISH",
+      "DELIVERY_MARKER",
+      "STORE_UPSERT",
+      "STORE_TOMBSTONE",
+    ]),
     payload: SyncStateV1Schema,
   })
   .strict()
@@ -191,6 +208,46 @@ export const SellerAgentsSyncEntryV1Schema = z
         code: "custom",
         message: "delivery marker id is required",
         path: ["payload", "deliveryMarkerId"],
+      });
+    if (["STORE_UPSERT", "STORE_TOMBSTONE"].includes(value.kind)) {
+      for (const [field, valid] of [
+        ["storeId", Boolean(value.payload.storeId)],
+        ["name", Boolean(value.payload.name)],
+        ["providerIdentityState", Boolean(value.payload.providerIdentityState)],
+        ["metadataRevision", value.payload.metadataRevision !== undefined],
+        [
+          "lifecycleState",
+          value.payload.lifecycleState ===
+            (value.kind === "STORE_TOMBSTONE" ? "TOMBSTONED" : "ACTIVE"),
+        ] as [string, boolean],
+      ] as [string, boolean][])
+        if (!valid)
+          ctx.addIssue({
+            code: "custom",
+            message: `${field} is required for store metadata`,
+            path: ["payload", field],
+          });
+      if (
+        value.payload.deliveryMarkerId !== undefined ||
+        value.payload.deliveryOrder !== undefined
+      )
+        ctx.addIssue({
+          code: "custom",
+          message: "delivery fields are not valid for store metadata",
+          path: ["payload", "deliveryMarkerId"],
+        });
+    }
+    if (
+      !["STORE_UPSERT", "STORE_TOMBSTONE"].includes(value.kind) &&
+      (value.payload.name !== undefined ||
+        value.payload.providerIdentityState !== undefined ||
+        value.payload.metadataRevision !== undefined ||
+        value.payload.lifecycleState !== undefined)
+    )
+      ctx.addIssue({
+        code: "custom",
+        message: "store fields are only valid for store metadata",
+        path: ["payload", "name"],
       });
   });
 export type SellerAgentsSyncEntryV1 = z.infer<

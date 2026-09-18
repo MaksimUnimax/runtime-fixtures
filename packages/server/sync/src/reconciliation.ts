@@ -44,6 +44,29 @@ type Marker = {
 };
 export type StoredState = SyncPayload;
 
+export const STORE_RECONCILIATION_CLASSES = {
+  IN_SYNC: "IN_SYNC",
+  SERVER_AHEAD_COMPATIBLE: "SERVER_AHEAD_COMPATIBLE",
+  STORE_TOMBSTONE_DOMINATES: "STORE_TOMBSTONE_DOMINATES",
+  STORE_PROVIDER_IDENTITY_MISMATCH: "STORE_PROVIDER_IDENTITY_MISMATCH",
+  STORE_STALE_REVISION: "STORE_STALE_REVISION",
+  UNKNOWN_REMOTE_INSTALLATION_STATE: "UNKNOWN_REMOTE_INSTALLATION_STATE",
+} as const;
+export type StoreMetadataState = {
+  kind: "STORE_UPSERT" | "STORE_TOMBSTONE";
+  conversationKeyDigest: string;
+  bindingId: null;
+  bindingRevision: number;
+  storeId: string;
+  marketplace: "ozon" | "wildberries";
+  credentialRevision: string | null;
+  name: string;
+  providerAccountId: string | null;
+  providerIdentityState: "CONFIRMED" | "UNCONFIRMED";
+  metadataRevision: number;
+  lifecycleState: "ACTIVE" | "TOMBSTONED";
+};
+
 const explicit = (payload: SyncPayload | null): payload is SyncPayload =>
   Boolean(
     payload && (payload.kind === "BINDING_UPSERT" || payload.kind === "FINISH"),
@@ -296,6 +319,138 @@ function markerFrom(
     workGeneration: entry.payload.workGeneration || null,
   };
 }
+function storeStateFromEntry(
+  entry: SellerAgentsSyncEntryV1,
+): StoreMetadataState {
+  const payload = entry.payload;
+  return {
+    kind: entry.kind as StoreMetadataState["kind"],
+    conversationKeyDigest: payload.conversationKeyDigest,
+    bindingId: null,
+    bindingRevision: 0,
+    storeId: payload.storeId as string,
+    marketplace: payload.marketplace as "ozon" | "wildberries",
+    credentialRevision: payload.credentialRevision || null,
+    name: payload.name as string,
+    providerAccountId:
+      payload.providerIdentityState === "CONFIRMED"
+        ? payload.providerAccountId || null
+        : null,
+    providerIdentityState:
+      payload.providerIdentityState === "CONFIRMED"
+        ? "CONFIRMED"
+        : "UNCONFIRMED",
+    metadataRevision: Number(payload.metadataRevision),
+    lifecycleState: entry.kind === "STORE_TOMBSTONE" ? "TOMBSTONED" : "ACTIVE",
+  };
+}
+function sameStoreState(
+  left: StoreMetadataState | SyncPayload | null,
+  right: StoreMetadataState | SyncPayload | null,
+): boolean {
+  return Boolean(
+    left &&
+      right &&
+      left.kind === right.kind &&
+      left.storeId === right.storeId &&
+      left.marketplace === right.marketplace &&
+      left.name === right.name &&
+      left.providerAccountId === right.providerAccountId &&
+      left.providerIdentityState === right.providerIdentityState &&
+      left.credentialRevision === right.credentialRevision &&
+      left.metadataRevision === right.metadataRevision &&
+      left.lifecycleState === right.lifecycleState,
+  );
+}
+export function applyStoreMetadataEntry({
+  current,
+  serverRevision,
+  entry,
+}: {
+  current: SyncPayload | null;
+  serverRevision: number;
+  entry: SellerAgentsSyncEntryV1;
+}): {
+  outcome: "ACK" | "CONFLICT";
+  serverRevision: number;
+  serverState: SyncPayload | null;
+  code: string | null;
+} {
+  const desired = storeStateFromEntry(entry);
+  if (
+    !desired.storeId ||
+    !["ozon", "wildberries"].includes(desired.marketplace) ||
+    !desired.name ||
+    !Number.isSafeInteger(desired.metadataRevision) ||
+    desired.metadataRevision < 0
+  )
+    return {
+      outcome: "CONFLICT",
+      serverRevision,
+      serverState: current,
+      code: "STORE_METADATA_INVALID",
+    };
+  if (!current)
+    return {
+      outcome: "ACK",
+      serverRevision: serverRevision + 1,
+      serverState: desired as unknown as SyncPayload,
+      code: null,
+    };
+  if (current.lifecycleState === "TOMBSTONED")
+    return {
+      outcome: desired.lifecycleState === "TOMBSTONED" ? "ACK" : "CONFLICT",
+      serverRevision,
+      serverState: current,
+      code:
+        desired.lifecycleState === "TOMBSTONED"
+          ? STORE_RECONCILIATION_CLASSES.IN_SYNC
+          : STORE_RECONCILIATION_CLASSES.STORE_TOMBSTONE_DOMINATES,
+    };
+  if (entry.baseRevision !== serverRevision) {
+    if (sameStoreState(desired, current))
+      return {
+        outcome: "ACK",
+        serverRevision,
+        serverState: current,
+        code: STORE_RECONCILIATION_CLASSES.IN_SYNC,
+      };
+    return {
+      outcome: "CONFLICT",
+      serverRevision,
+      serverState: current,
+      code: "SYNC_CONFLICT",
+    };
+  }
+  if (
+    current.providerIdentityState === "CONFIRMED" &&
+    desired.providerIdentityState === "CONFIRMED" &&
+    current.providerAccountId !== desired.providerAccountId
+  )
+    return {
+      outcome: "CONFLICT",
+      serverRevision,
+      serverState: current,
+      code: STORE_RECONCILIATION_CLASSES.STORE_PROVIDER_IDENTITY_MISMATCH,
+    };
+  if (desired.metadataRevision < Number(current.metadataRevision || 0))
+    return {
+      outcome: "CONFLICT",
+      serverRevision,
+      serverState: current,
+      code: STORE_RECONCILIATION_CLASSES.STORE_STALE_REVISION,
+    };
+  if (current.providerIdentityState === "CONFIRMED") {
+    desired.providerIdentityState = "CONFIRMED";
+    desired.providerAccountId = current.providerAccountId || null;
+  }
+  return {
+    outcome: "ACK",
+    serverRevision: serverRevision + 1,
+    serverState: desired as unknown as SyncPayload,
+    code: null,
+  };
+}
 export function applyReconciliationEntry({
   current,
   serverRevision,
@@ -316,6 +471,8 @@ export function applyReconciliationEntry({
   serverState: StoredState | null;
   code: string | null;
 } {
+  if (entry.kind === "STORE_UPSERT" || entry.kind === "STORE_TOMBSTONE")
+    return applyStoreMetadataEntry({ current, serverRevision, entry });
   if (entry.kind === "DELIVERY_MARKER") {
     if (!current)
       return {
