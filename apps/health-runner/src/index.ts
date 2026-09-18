@@ -216,3 +216,83 @@ export class NoopBrowserDriver implements BrowserDriver {
   public async closeOrPersist(): Promise<void> {}
   public async stop(): Promise<void> {}
 }
+
+export {
+  NoSessionProviderIdSchema,
+  NoSessionSurfaceIdSchema,
+  NoSessionNavigationStateSchema,
+  NoSessionIdentityStateSchema,
+  NoSessionReachabilitySchema,
+  NoSessionContourStateSchema,
+  NoSessionAuthStateSchema,
+  NoSessionBlockerSchema,
+  NoSessionClassificationBasisSchema,
+  NoSessionElementMetadataSchema,
+  NoSessionEvidenceReferenceSchema,
+  NoSessionPageSnapshotSchema,
+  NoSessionObservationResultSchema,
+  parseNoSessionObservationResult,
+} from "./no-session-contracts.js";
+export type {
+  NoSessionProviderId,
+  NoSessionSurfaceId,
+  NoSessionNavigationState,
+  NoSessionIdentityState,
+  NoSessionReachability,
+  NoSessionContourState,
+  NoSessionAuthState,
+  NoSessionBlocker,
+  NoSessionClassificationBasis,
+  NoSessionElementMetadata,
+  NoSessionEvidenceReference,
+  NoSessionPageSnapshot,
+  NoSessionObservationResult,
+} from "./no-session-contracts.js";
+export {
+  NoSessionTargetSchema,
+  NO_SESSION_TARGETS,
+  NO_SESSION_PROVIDER_IDS,
+  NO_SESSION_SURFACE_IDS,
+  getNoSessionTarget,
+  getNoSessionTargetForSurface,
+  targetsForProvider,
+} from "./no-session-target-authority.js";
+export type { NoSessionTarget } from "./no-session-target-authority.js";
+export {
+  NoSessionSelectorProfileSchema,
+  NO_SESSION_STRATEGIES,
+  getNoSessionStrategy,
+  assertNoSessionStrategySeparation,
+} from "./no-session-strategies.js";
+export type {
+  NoSessionSelectorProfile,
+  NoSessionProviderStrategy,
+} from "./no-session-strategies.js";
+export {
+  NoSessionBrowserError,
+  ChromeNoSessionBrowserDriver,
+  createNoSessionChromeBrowserDriver,
+} from "./no-session-browser-driver.js";
+export type {
+  NoSessionBrowserErrorCode,
+  NoSessionNavigationResult,
+  NoSessionBrowserDriver,
+} from "./no-session-browser-driver.js";
+export {
+  NoSessionSafeMetadataPayloadSchema,
+  NoSessionStateTransitionPayloadSchema,
+  NoSessionSafeEvidencePayloadSchema,
+  NoSessionSafeEvidenceArtifactSchema,
+  NoSessionSafeEvidenceReferenceSchema,
+  NoSessionSafeEvidencePackageSchema,
+  createNoSessionSafeEvidence,
+  validateNoSessionSafeEvidence,
+} from "./no-session-evidence.js";
+export type {
+  NoSessionSafeEvidencePayload,
+  NoSessionSafeEvidenceArtifact,
+  NoSessionSafeEvidenceReference,
+  NoSessionSafeEvidencePackage,
+} from "./no-session-evidence.js";
+export { runNoSessionProbe, runNoSessionBatch } from "./no-session-runner.js";
+export type { NoSessionBrowserFactory } from "./no-session-runner.js";
