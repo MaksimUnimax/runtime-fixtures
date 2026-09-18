@@ -10,6 +10,8 @@ Observation date: 2026-09-18 (Europe/Moscow).
 | --- | --- |
 | R1 candidate | `e9169bf11ea2a99ba37e018c13c08c282e0b0053` |
 | R1 tree | `19ccc01e00848d778e187c1d0c8f5035cc6071c0` |
+| R2 correction commit | `b02591fb8a3813db0b9afdb6053dedfa48aae5cf` |
+| R2 correction tree | `d3ef64cd938a1effbb1b35a490c2b540f4b6a038` |
 | R1 parent / accepted L5A R3 | `c289534c94063ab72d812e48506668ad008f0cfd` / `97ad18421019180a866cb0767e0d9445c39c4b7b` |
 | R1 ancestry | `c289534` → `bf39bba` → `dc0069d` → `22c5d7d` verified |
 | Remote refs after `git fetch --all --prune` | `origin/main` `bc718cc5c677ad0eb4598e7de3ad766473ff0847`; integration and PR #9 `23047b3bdc22842a5b17e29e3d3f603c0ee51b16` |
