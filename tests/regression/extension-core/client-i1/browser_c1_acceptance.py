@@ -49,16 +49,16 @@ def wait_for(fn, description: str, timeout: float = 10):
     raise AssertionError(f"Timed out: {description}")
 
 
-def seed_authority(worker, private_key: Path):
+def seed_authority(worker, private_key: Path, device_id: str = DEVICE, session_id: str = SESSION):
     encoded = base64.b64encode(private_key.read_bytes()).decode("ascii")
     worker.evaluate(
-        """async (pkcs8) => {
+        """async ({pkcs8, fixtureDeviceId, fixtureSessionId}) => {
           const v = SellerAgentsBootstrapVerifier;
           const fromB64 = value => Uint8Array.from(atob(value), c => c.charCodeAt(0));
           const hex = bytes => [...bytes].map(x => x.toString(16).padStart(2, '0')).join('');
           const accountId = '11111111-1111-4222-8111-111111111111';
-          const deviceId = '22222222-2222-4222-8222-222222222222';
-          const sessionId = '33333333-3333-4333-8333-333333333333';
+          const deviceId = fixtureDeviceId || '22222222-2222-4222-8222-222222222222';
+          const sessionId = fixtureSessionId || '33333333-3333-4333-8333-333333333333';
           const keyId = 'browser-fixture-key';
           const content = {
             schemaVersion:'adapter_profile_v1',
@@ -95,19 +95,21 @@ def seed_authority(worker, private_key: Path):
           const browser = {family:'chrome',version:(String(navigator.userAgent).match(/(?:Chrome|YaBrowser)\\/(\\d+(?:\\.\\d+){0,3})/i)||[null,'0.0.0'])[1]};
           const cacheBinding = {cacheVersion:'control_cache_binding_v1',controlApiOrigin:cfg.controlApiOrigin,portalOrigin:cfg.portalOrigin,contractVersion:cfg.contractVersion,extensionVersion:cfg.extensionVersion,browser,detectedAi:{family:'chatgpt',surface:'web',variant:null},trustBundleSha256};
           const cacheClock = {cacheVersion:'control_cache_clock_v1',owner:{controlApiOrigin:cfg.controlApiOrigin,portalOrigin:cfg.portalOrigin,contractVersion:cfg.contractVersion,deviceId,sessionId},trustedServerTimeMs:now,effectiveTimeMs:now};
-          const credentials = {deviceId,sessionId,tokenType:'Bearer',accessToken:'BROWSER_FIXTURE_ACCESS_TOKEN_20260918',accessTokenExpiresAt:new Date(now+3600000).toISOString(),refreshToken:'R'.repeat(43),refreshTokenExpiresAt:new Date(now+7200000).toISOString()};
+          const credentials = {deviceId,sessionId,tokenType:'Bearer',accessToken:'BROWSER_FIXTURE_ACCESS_TOKEN_20260918_'+deviceId,accessTokenExpiresAt:new Date(now+3600000).toISOString(),refreshToken:'R'.repeat(43),refreshTokenExpiresAt:new Date(now+7200000).toISOString()};
           await chrome.storage.local.set({seller_agents_control_auth_v2:{generation:1,credentials,pending:null,rotation:null,authority:{verified:true,workAllowed:true,requestedAi:'chatgpt',generation:1,payload,envelope,deviceId,sessionId,cacheBinding},cacheClock,lastError:null}});
         }""",
-        encoded,
+        {"pkcs8": encoded, "fixtureDeviceId": device_id, "fixtureSessionId": session_id},
     )
 
 
 class BrowserFixture:
-    def __init__(self, runtime: Path, private_key: Path, server: SyntheticHealthServer, output: Path):
+    def __init__(self, runtime: Path, private_key: Path, server: SyntheticHealthServer, output: Path, device_id: str = DEVICE, session_id: str = SESSION):
         self.runtime = runtime
         self.private_key = private_key
         self.server = server
         self.output = output
+        self.device_id = device_id
+        self.session_id = session_id
         self.events: list[dict] = []
         self.errors: list[str] = []
         self.context = None
@@ -130,7 +132,7 @@ class BrowserFixture:
         self.context = pw.chromium.launch_persistent_context(self._profile.name, **options)
         self.context.on("request", lambda request: self.events.append({"url": request.url, "method": request.method}))
         self.worker = self.context.service_workers[0] if self.context.service_workers else self.context.wait_for_event("serviceworker")
-        seed_authority(self.worker, self.private_key)
+        seed_authority(self.worker, self.private_key, self.device_id, self.session_id)
         expected_worker_url = self.worker.url
         extension_url = self.worker.url.rsplit("/", 1)[0]
         self.context.close()
@@ -195,11 +197,11 @@ class BrowserFixture:
         self.server.configure_sync("unavailable")
         self.reload_popup()
 
-    def seed_store(self, marketplace, name):
+    def seed_store(self, marketplace, name, store_id=None, credential_revision=None):
         """Seed mature catalog state for the fixture; popup controls remain the SUT."""
-        store_id = "browser-ozon-source" if marketplace == "ozon" else "browser-wb-target"
+        store_id = store_id or ("browser-ozon-source" if marketplace == "ozon" else "browser-wb-target")
         self.worker.evaluate(
-            """async ({marketplace,name}) => {
+            """async ({marketplace,name,storeId,credentialRevision}) => {
               const accountId = '11111111-1111-4222-8111-111111111111';
               const credentials = marketplace === 'ozon'
                 ? {seller:{clientId:'100001',apiKey:'BROWSER-SELLER-KEY',present:true},performance:{clientId:'',clientSecret:'',present:false}}
@@ -208,21 +210,22 @@ class BrowserFixture:
                 ? JSON.stringify(['account-scoped-ozon-credentials','100001','BROWSER-SELLER-KEY','',''])
                 : JSON.stringify(['seller-agents-wb-personal','BROWSER-WB-PERSONAL-TOKEN']);
               const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
-              const revision = [...new Uint8Array(digest)].map(x=>x.toString(16).padStart(2,'0')).join('');
-              const id = marketplace === 'ozon' ? 'browser-ozon-source' : 'browser-wb-target';
+              const revision = credentialRevision || [...new Uint8Array(digest)].map(x=>x.toString(16).padStart(2,'0')).join('');
+              const id = storeId;
               const current = (await chrome.storage.local.get('seller_agents_stores_v1')).seller_agents_stores_v1 || {version:1,accounts:{}};
               const account = current.accounts[accountId] || {next:{ozon:1,wildberries:1},stores:{}};
               account.stores[id] = {id,accountId,marketplace,name,credentials,credentialRevision:revision,personalDataEnabled:false,verification:{},createdAt:1700000000000};
               account.next[marketplace] = Math.max(account.next[marketplace] || 1, 2);
               await chrome.storage.local.set({seller_agents_stores_v1:{...current,version:1,accounts:{...current.accounts,[accountId]:account}}});
             }""",
-            {"marketplace": marketplace, "name": name},
+            {"marketplace": marketplace, "name": name, "storeId": store_id, "credentialRevision": credential_revision},
         )
         self.reload_popup()
         self.popup.click("#ozon" if marketplace == "ozon" else "#wildberries")
-        wait_for(lambda: self.popup.locator("#stores option").count() == 1, f"{marketplace} store")
+        wait_for(lambda: self.popup.locator("#stores option").count() >= 1 and self.popup.locator(f"#stores option[value='{store_id}']").count() == 1, f"{marketplace} store")
+        self.popup.select_option("#stores", store_id)
         wait_for(lambda: self.popup.locator("#stores").input_value() == store_id, f"{marketplace} selected store")
-        return next(store for store in self.state()["stores"] if store["marketplace"] == marketplace)
+        return next(store for store in self.state()["stores"] if store["id"] == store_id)
 
     def add_ozon(self, name="Source Ozon"):
         return self.seed_store("ozon", name)

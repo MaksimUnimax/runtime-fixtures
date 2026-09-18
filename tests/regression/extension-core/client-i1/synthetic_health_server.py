@@ -45,6 +45,7 @@ class SyntheticHealthServer:
         self.sync_state_override: dict[str, Any] | None = None
         self.requests: list[dict[str, Any]] = []
         self.release = threading.Event()
+        self.sync_release = threading.Event()
         self.health_seen = threading.Event()
         self._server = ReusableThreadingHTTPServer(("127.0.0.1", 43100), self._handler())
         self.thread = threading.Thread(target=self._server.serve_forever, name="synthetic-health", daemon=True)
@@ -73,6 +74,13 @@ class SyntheticHealthServer:
                 })
                 if self.path == "/v1/sync":
                     response = fixture._sync(body)
+                    if fixture.sync_mode == "drop_once":
+                        fixture.sync_mode = "pass"
+                        self.close_connection = True
+                        return
+                    if fixture.sync_mode == "delay_once":
+                        fixture.sync_release.wait(15)
+                        fixture.sync_mode = "pass"
                     encoded = json.dumps(response, ensure_ascii=False, separators=(",", ":")).encode()
                     self.send_response(200 if fixture.sync_mode not in {"unavailable", "network"} else 503)
                     self.send_header("content-type", "application/json")
@@ -91,7 +99,7 @@ class SyntheticHealthServer:
                     return
                 if fixture.mode == "delayed":
                     fixture.release.wait(15)
-                response = fixture._health(body)
+                response = fixture._health(body, self.headers.get("authorization", ""))
                 encoded = json.dumps(response, ensure_ascii=False, separators=(",", ":")).encode()
                 self.send_response(200)
                 self.send_header("content-type", "application/json")
@@ -101,7 +109,7 @@ class SyntheticHealthServer:
 
         return Handler
 
-    def _health(self, body: dict[str, Any]) -> dict[str, Any]:
+    def _health(self, body: dict[str, Any], authorization: str = "") -> dict[str, Any]:
         bootstrap_envelope = body.get("bootstrapEnvelope") or {}
         payload_bytes = decode_b64url(bootstrap_envelope["payload"])
         payload = json.loads(payload_bytes)
@@ -109,9 +117,11 @@ class SyntheticHealthServer:
         observed = (now.timestamp() - 1)
         expires = (now.timestamp() + 15 * 60)
         iso = lambda seconds: __import__("datetime").datetime.fromtimestamp(seconds, __import__("datetime").timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+        token_device = authorization.removeprefix("Bearer BROWSER_FIXTURE_ACCESS_TOKEN_20260918_")
+        device_id = token_device if token_device else "22222222-2222-4222-8222-222222222222"
         context = {
             "accountId": payload["account"]["id"],
-            "deviceId": "22222222-2222-4222-8222-222222222222",
+            "deviceId": device_id,
             "sessionId": "33333333-3333-4333-8333-333333333333",
             "contractVersion": payload["contractVersion"],
             "configVersion": payload["configVersion"],
@@ -167,6 +177,10 @@ class SyntheticHealthServer:
     def configure_sync(self, mode: str, state: dict[str, Any] | None = None):
         self.sync_mode = mode
         self.sync_state_override = state
+        self.sync_release.clear()
+
+    def release_sync(self):
+        self.sync_release.set()
 
     def _sync(self, body: dict[str, Any]) -> dict[str, Any]:
         entries = body.get("entries") if isinstance(body.get("entries"), list) else []
