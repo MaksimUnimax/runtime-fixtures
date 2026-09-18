@@ -57,6 +57,15 @@ export const healthFailureClass = pgEnum("health_failure_class", [
   "PROVEN_PRODUCT_DRIFT",
   "MAINTENANCE",
 ]);
+export const healthEvaluationPhase = pgEnum("health_evaluation_phase", [
+  "H4_CANDIDATE",
+  "H5_CANARY",
+  "H5_POST_ROLLOUT",
+]);
+export const healthEvaluationStatus = pgEnum("health_evaluation_status", [
+  "ACTIVE",
+  "COMPLETED",
+]);
 
 const contourKeyCheck = (column: unknown) =>
   sql`${column} IN ('C01_PAGE_IDENTITY', 'C02_CONVERSATION_ROOT', 'C03_COMPOSER_ROOT', 'C04_COMPOSER_INPUT', 'C05_SEND_CONTROL', 'C06_BUSY_STOP_STATE', 'C07_ASSISTANT_MESSAGE', 'C08_MESSAGE_COMPLETION', 'C09_COMMAND_CODE_BLOCK_SURFACE', 'C10_NATIVE_COPY_CONTROL', 'C11_CONVERSATION_IDENTITY', 'C12_DELIVERY_INSERTION_PATH', 'C13_BLOCKING_STATE')`;
@@ -478,6 +487,78 @@ export const healthIncidents = pgTable(
     check(
       "health_incidents_updated_after_created",
       sql`${table.updatedAt} >= ${table.createdAt}`,
+    ),
+  ],
+);
+
+export const healthProfileEvaluations = pgTable(
+  "health_profile_evaluations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    evaluationKeySha256: varchar("evaluation_key_sha256", {
+      length: 64,
+    }).notNull(),
+    phase: healthEvaluationPhase("phase").notNull(),
+    provider: varchar("provider", { length: 64 }).notNull(),
+    surface: varchar("surface", { length: 128 }).notNull(),
+    target: varchar("target", { length: 128 }).notNull(),
+    variant: varchar("variant", { length: 128 }),
+    probeLayer: healthProbeLayer("probe_layer").notNull(),
+    baselineProfileRevisionId: uuid("baseline_profile_revision_id").notNull(),
+    candidateProfileRevisionId: uuid("candidate_profile_revision_id").notNull(),
+    suiteMachineKey: varchar("suite_machine_key", { length: 64 }).notNull(),
+    suiteRevision: integer("suite_revision").notNull(),
+    browserFamily: varchar("browser_family", { length: 32 }).notNull(),
+    browserVersion: varchar("browser_version", { length: 64 }).notNull(),
+    environmentClass: varchar("environment_class", { length: 128 }).notNull(),
+    status: healthEvaluationStatus("status").notNull(),
+    outcome: varchar("outcome", { length: 32 }).notNull(),
+    recommendation: varchar("recommendation", { length: 32 }),
+    result: jsonb("result").notNull(),
+    firstExecutionId: uuid("first_execution_id").notNull(),
+    latestExecutionId: uuid("latest_execution_id").notNull(),
+    firstEvaluatedAt: timestamp("first_evaluated_at", {
+      withTimezone: true,
+    }).notNull(),
+    latestEvaluatedAt: timestamp("latest_evaluated_at", {
+      withTimezone: true,
+    }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    unique("health_profile_evaluations_key_unique").on(
+      table.evaluationKeySha256,
+    ),
+    check(
+      "health_profile_evaluations_key_format",
+      sql`${table.evaluationKeySha256} ~ '^[0-9a-f]{64}$'`,
+    ),
+    check(
+      "health_profile_evaluations_suite_revision_positive",
+      sql`${table.suiteRevision} > 0`,
+    ),
+    check(
+      "health_profile_evaluations_browser_family",
+      sql`${table.browserFamily} IN ('chrome', 'yandex_chromium')`,
+    ),
+    check(
+      "health_profile_evaluations_result_object",
+      sql`jsonb_typeof(${table.result}) = 'object'`,
+    ),
+    check(
+      "health_profile_evaluations_time_order",
+      sql`${table.latestEvaluatedAt} >= ${table.firstEvaluatedAt}`,
+    ),
+    index("health_profile_evaluations_scope_index").on(
+      table.provider,
+      table.surface,
+      table.target,
+      table.phase,
     ),
   ],
 );

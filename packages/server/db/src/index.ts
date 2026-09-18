@@ -24,6 +24,11 @@ export { createProfileLifecycleRepository } from "./p7-profile-lifecycle-reposit
 export { createHealthPersistenceRepository } from "./health-persistence-repository.js";
 export { createHealthSchedulerRepository } from "./health-scheduler-repository.js";
 export { createHealthIncidentRepository } from "./health-incident-repository.js";
+export { createHealthEvaluationRepository } from "./health-evaluation-repository.js";
+export type {
+  PersistedHealthProfileEvaluation,
+  UpsertHealthProfileEvaluationResult,
+} from "./health-evaluation-repository.js";
 export type {
   HealthIncident,
   HealthIncidentProcessingResult,

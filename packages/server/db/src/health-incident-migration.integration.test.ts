@@ -52,7 +52,10 @@ async function installOldJournal(): Promise<string> {
       await cp(join(migrationsFolder, file), join(directory, file));
     }
   }
-  await runMigrations({ connectionString, migrationsDirectory: directory });
+  await runMigrations({
+    connectionString: connectionString!,
+    migrationsDirectory: directory,
+  });
   return directory;
 }
 
