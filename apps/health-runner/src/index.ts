@@ -186,6 +186,73 @@ export type {
   AliceH3Profile,
 } from "./alice-h3-profile.js";
 export { createAliceH3Strategy } from "./alice-h3-strategy.js";
+export {
+  AuthCapabilityStatusSchema,
+  AuthConversationStrategySchema,
+  AuthDeepProbeCapabilitySchema,
+  AuthProviderIdSchema,
+  AuthProviderStrategySchema,
+  AuthSessionReferenceSchema,
+  AuthSessionSourceSchema,
+  AuthSessionSourceTypeSchema,
+  AuthSessionStateSchema,
+  AuthSurfaceAuthoritySchema,
+  AuthSurfaceIdSchema,
+  AUTH_SURFACE_AUTHORITIES,
+  AUTH_SURFACE_AUTHORITY_BY_ID,
+  createNoAuthSessionSource,
+  createRuntimeAuthSessionReference,
+  getAuthSurfaceAuthority,
+  parseAuthSessionSource,
+} from "./auth-session-authority.js";
+export type {
+  AuthCapabilityStatus,
+  AuthConversationStrategy,
+  AuthDeepProbeCapability,
+  AuthProviderId,
+  AuthProviderStrategy,
+  AuthSessionReference,
+  AuthSessionSource,
+  AuthSessionSourceType,
+  AuthSessionState,
+  AuthSurfaceAuthority,
+  AuthSurfaceId,
+} from "./auth-session-authority.js";
+export {
+  AuthProbeClassificationBasisSchema,
+  AuthProbeClassificationSchema,
+  AuthProbeEvidenceSchema,
+  AuthProbeFailureCodeSchema,
+  AuthProbeResultSchema,
+  AuthProbeStepOutcomeSchema,
+  runAuthenticatedDeepProbe,
+} from "./auth-deep-probe.js";
+export type {
+  AuthenticatedDeepProbeAdapter,
+  AuthenticatedDeepProbeOptions,
+  AuthConversationObservation,
+  AuthProbeClassification,
+  AuthProbeClassificationBasis,
+  AuthProbeEvidence,
+  AuthProbeFailureCode,
+  AuthProbeResult,
+  AuthProbeStepOutcome,
+  AuthProbeStepResult,
+  AuthSendObservation,
+  AuthSessionIdentityObservation,
+  AuthSurfaceObservation,
+} from "./auth-deep-probe.js";
+export {
+  authSessionSourceDiagnostic,
+  loadAuthSessionSourceFromEnvironment,
+} from "./auth-session-runtime.js";
+export {
+  createAuthenticatedFixtureAdapter,
+} from "./auth-deep-probe-fixtures.js";
+export type {
+  AuthFixtureFault,
+  AuthFixtureTrace,
+} from "./auth-deep-probe-fixtures.js";
 export class NoopBrowserDriver implements BrowserDriver {
   public readonly sessionKind = "EPHEMERAL_CONTROLLED" as const;
   public constructor(public readonly family: BrowserFamily) {}
