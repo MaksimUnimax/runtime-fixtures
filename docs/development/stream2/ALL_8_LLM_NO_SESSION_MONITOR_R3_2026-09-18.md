@@ -102,7 +102,7 @@ result (two references per result).
 | Surface | Final origin | HTTP | Mode / fallback | Readiness | Identity | Composer / input / send | Auth | Outcome | Health |
 |---|---|---:|---|---|---|---|---|---|---|
 | ChatGPT Standard | `https://chatgpt.com` | 200 | headed / none | hydrated | proven | observed / observed / not expected | login required | public interactive | healthy |
-| ChatGPT Work | `https://invalid.example` on resource-limited attempt | — | headed attempted, environment-limited | not observed | not proven | not provable / not provable / not provable | not provable | browser failure | unknown |
+| ChatGPT Work | `null` (headed launch unavailable) | — | headed attempted, environment-limited | not observed | not proven | not provable / not provable / not provable | not provable | browser failure | unknown |
 | Alice | `https://alice.yandex.ru` | 200 | headed / none | hydrated | proven | observed / observed / observed | login required | public interactive | healthy |
 | DeepSeek | `https://chat.deepseek.com` | 202 | headed / none | static landing | not proven | not provable / not provable / not provable | not provable | identity not proven | unknown |
 | Grok | `https://grok.com` | 200 | headed / none | hydrated | proven | observed / observed / observed | not required | public interactive | healthy |

@@ -277,7 +277,9 @@ export async function runNoSessionProbe(
       mapped.basis,
       observedAt,
       "FAILED",
-      failedNavigation.finalOrigin,
+      mapped.blocker === "BROWSER_UNAVAILABLE"
+        ? null
+        : failedNavigation.finalOrigin,
       failedNavigation,
     );
   } finally {
