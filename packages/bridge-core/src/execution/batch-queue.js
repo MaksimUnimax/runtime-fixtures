@@ -818,6 +818,7 @@
             const physicalAttemptId = `physical-attempt-${crypto.randomUUID()}`;
             let physicalResult = null;
             let logicalResults;
+            let providerResponse = null;
             try {
               physicalResult = {
                 ...(await execute(liveLeader.command_text, {
@@ -831,17 +832,21 @@
                   quotaPermit: quotaDecision.quota,
                   providerAttemptId: groupProviderAttemptId,
                   logicalExecutionId: logicalId(owner, nextIndex),
-                  onProviderResponse: (response) => recordResponse({
-                    indexes: expectedIndexes,
-                    mutateOwner,
-                    ownerMatches,
-                    isCollecting,
-                    providerAttemptId: groupProviderAttemptId,
-                    response: response?.response || response,
-                  }),
+                  onProviderResponse: (response) => {
+                    providerResponse = response?.response || response;
+                  },
                 })),
                 physical_attempt_id: physicalAttemptId,
               };
+              if (providerResponse)
+                owner = await recordResponse({
+                  indexes: expectedIndexes,
+                  mutateOwner,
+                  ownerMatches,
+                  isCollecting,
+                  providerAttemptId: groupProviderAttemptId,
+                  response: providerResponse,
+                });
               if (physicalResult.ok === true) {
                 await storeCache(group.physical_command, physicalResult, null);
                 try {
@@ -1248,6 +1253,7 @@
           });
           let result;
           const requestStartedAt = Date.now();
+          let providerResponse = null;
           try {
             result = await execute(liveEntry.command_text, {
               executionCommand: physicalCommandForQuota,
@@ -1255,15 +1261,19 @@
               quotaPermit: quotaDecision.quota,
               providerAttemptId,
               logicalExecutionId: logicalId(owner, nextIndex),
-              onProviderResponse: (response) => recordResponse({
+              onProviderResponse: (response) => {
+                providerResponse = response?.response || response;
+              },
+            });
+            if (providerResponse)
+              owner = await recordResponse({
                 indexes: [nextIndex],
                 mutateOwner,
                 ownerMatches,
                 isCollecting,
                 providerAttemptId,
-                response: response?.response || response,
-              }),
-            });
+                response: providerResponse,
+              });
             if (
               result?.ok === true &&
               physicalCommandForQuota.operation === coalescedOperation
