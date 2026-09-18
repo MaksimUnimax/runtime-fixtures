@@ -10,6 +10,7 @@ This is a bounded Stream-1 candidate. It does not self-accept A24, reopen A22/A2
 
 - Repository: `MaksimUnimax/runtime-fixtures`.
 - Start HEAD/tree: `244e6a5596ed19620a775828b407ade264aac457` / `568f7897d54ee5e404aef596bb89fa0746928c15`.
+- Implementation final HEAD/tree: `403b5b3e29cb372b97913f66335720bb266a73ce` / `1d707df227ffe3b5324c04a9eba42ef1c6bffb95`.
 - Branch: `feature/d3s2-a24-export-import-2026-09-18`.
 - Accepted ancestor verified with `git merge-base --is-ancestor`.
 - Remote heads read: `origin/main` = `bc718cc5c677ad0eb4598e7de3ad766473ff0847`; `origin/integration/i1-c1-srv5-2026-09-16` = `23047b3bdc22842a5b17e29e3d3f603c0ee51b16`; the A24 branch has no remote head.
