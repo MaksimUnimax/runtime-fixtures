@@ -483,3 +483,161 @@ remote publication/readback, AUT-47/browser-family environment evidence, and
 the four rows explicitly identified above as existing lower-layer or
 supplementary installed coverage. Transfer, relay, export/import, Q1, S1.2,
 Stream 2, deployment, and browser-store publication were not started.
+
+## R4 final closure — 2026-09-18
+
+Work ID: `D3S2-1-R4-FINAL-INSTALLED-TRANSPORT-AND-FULL-REGRESSION-CLOSURE-2026-09-18`
+
+The R4 run started at branch `feature/d3s2-store-metadata-state-2026-09-18`,
+HEAD `b8ce0764d1f887df049fba6b7dc45bc7c9cb51ef`, tree
+`8ed312a14b4d6bbd2673d85acaa82dc47fbf34c0`, with accepted base
+`57f872b84bd121959c368d571d6bf9b80fdb3839` in ancestry. The final code
+candidate is bounded follow-up commit
+`6fc215e6fba1b6dfe2ca0eef84da0ac169d41d83`; the final evidence commit contains
+this section and its final tree is recorded in the terminal report.
+Existing untracked symlinks and `repro/` were preserved untouched.
+
+### Complete initial R4 gap batch
+
+Before patching, all reachable gaps were classified together:
+
+- R4-01 stale upsert after tombstone: existing C3E/C3F/helper coverage only;
+  no dedicated installed HTTP proof.
+- R4-02 second-installation convergence: persistent-context fixture coverage
+  existed, but no independent production response/transport receipt.
+- R4-03 cross-installation `credentialRevision`: local fence and privacy
+  coverage existed, but no independent installed HTTP convergence proof. The
+  first production-path probe also found a real defect: remote reconciliation
+  mutated the previous store object before comparing its credential revision,
+  so `credentialsStale` could remain false.
+- R4-04 duplicate `requestId`: server/client idempotence existed, but no
+  installed HTTP retry receipt. An early extracted-only attempt also exposed a
+  harness timing error that rewrote `nextAttemptAt`; the final harness uses
+  the production-written deadline and fake-clock advancement instead.
+- R4-05 delayed ACK/newer local revision: lower-layer late-ACK coverage
+  existed, but no installed delayed-response proof.
+- Full API/PostgreSQL/E2E gates had not been rerun after the R3 production
+  runtime change.
+- AUT-47 had conflicting historical PASS and current native-registration
+  deferral labels; this is resolved below.
+
+### Production and harness corrections
+
+The only production correction was in `packages/bridge-core/src/stores/catalog.js`:
+remote store reconciliation snapshots the previous `credentialRevision` before
+mutating the canonical store, so a newer remote credential revision correctly
+sets `credentialsStale` and fences old Work. No credential value is imported.
+
+The R4 browser harness adds independent installation/device identities, stable
+two-store seeding with opaque synthetic credential revisions, authenticated
+synthetic HTTP response delay/drop controls, and request/response receipts. It
+does not edit final extension state to manufacture a result; retry timing is
+driven by the production journal and a controlled fake clock.
+
+### Installed HTTP transport receipt
+
+Both actual-unpacked runtimes used Playwright Chromium `151.0.7922.34`, the
+popup/runtime mutation path, the live MV3 worker, the production C3E journal,
+the production `/v1/sync` client, and the synthetic server’s reconciliation
+semantics. The combined batch saw 10 `/v1/sync` requests per runtime (20
+combined); all bodies and responses were inspected.
+
+| Scenario | Source/generated | Extracted/package |
+|---|---|---|
+| SYNC-R4-01 stale `STORE_UPSERT` after tombstone | PASS; real HTTP conflict, no resurrection | PASS; real HTTP conflict, no resurrection |
+| SYNC-R4-02 installation B later contact | PASS; B removes X, Y survives | PASS; B removes X, Y survives |
+| SYNC-R4-03 credentialRevision convergence | PASS; newer opaque revision fences old Work | PASS; newer opaque revision fences old Work |
+| SYNC-R4-04 duplicate requestId | PASS; 2 requests, 1 server revision, pending compacted | PASS; 2 requests, 1 server revision, pending compacted |
+| SYNC-R4-05 delayed M1 ACK after M2 | PASS; M2 remains current/pending then converges | PASS; M2 remains current/pending then converges |
+
+The stale-upsert request was observed over HTTP and returned deterministic
+conflict/current-state handling; the tombstoned store was not recreated. The
+second-installation proof used independent persistent contexts and normal
+extension-initiated contact; there was no server poll, heartbeat, lease, or
+second sync model. The credential proof carried an opaque `credentialRevision`
+only; it carried no token, token hash, token fingerprint, or provider response.
+The duplicate proof dropped the first response after server application,
+retried the same request ID, and observed one server revision change. The
+delayed ACK proof created M2 before releasing M1 and verified M1 could not erase
+or compact M2.
+
+### Affected regression receipt
+
+- D3S2 matrix: 59/59 PASS.
+- C3E: PASS, including reordered-storage readback, offline retention,
+  tombstone, recovery, and R4 installed transport.
+- C3F: 28/28 PASS; C3G PASS; C3H PASS with the legitimate browser-proof
+  executor marker.
+- P1: PASS in source/generated and extracted/package installed Chromium
+  fixtures; P2: PASS in both; P3: PASS in both.
+- P3 100-wake soak: PASS, 100 duplicate/late wake deliveries, zero duplicate
+  side effects, max due batch 16.
+- Extension Core complete checker: PASS, 111 gate processes.
+- Extension I1 complete checker: PASS, 138 gate processes.
+- Application regression, relevant catalog/store tests, and sync-journal
+  readback regression: PASS within the complete Core/I1 gates and focused
+  `client-d3s2-c3e-store-journal.mjs` receipt.
+
+Task-owned PostgreSQL used image `postgres:18.0` on loopback. Migrations ran
+through the current highest migration. Receipts on this candidate:
+
+- DB unit: 12/12 PASS.
+- PostgreSQL integration: 40 files, 1,533/1,533 PASS.
+- API: 18 files, 225/225 PASS.
+- E2E: 88/88 PASS on the separately named task-owned `e2e` database.
+- Typecheck: PASS; lint: PASS; format: PASS; build: PASS; OpenAPI
+  generation/drift check: PASS; bridge guard: PASS.
+
+### Package and browser parity
+
+`SELLER_AGENTS_I1_C1_v0.2.4_LOCAL_DEVELOPMENT.zip` was 2,031,255 bytes with
+SHA-256
+`10bdc5af40112289039c94b0fa2c780315fea684841ccf6a06e894a4b123e7e4`.
+The repeat archive was byte-identical. Runtime inventory and source/generated
+versus extracted/package parity were identical; runtime syntax checks passed.
+Actual-unpacked source/generated and extracted/package Chromium results were
+green for BR-STORE-01..13 and SYNC-R4-01..05.
+
+### AUT-47 contradiction resolution
+
+AUT-47 is the same semantic in the historical and current C3H harness:
+“real unpacked Chromium-family proof.” The accepted historical artifact
+`C3H_CORRECTED_AUTONOMY_FULL_ACCEPTANCE_2026-09-18.md` records AUT-01..AUT-50
+PASS in Playwright-managed Chromium scope; a separate system-Google-Chrome
+route timed out at native MV3 registration. The same AUT-47 semantic was run
+against accepted base `57f872b8` and passed with all AUT-01..AUT-50. It was run
+against the current candidate and passed with the legitimate
+`C3H_BROWSER_PROOF=REAL_UNPACKED_CHROMIUM_PASS` Playwright executor; fresh R4
+source/package actual-unpacked coverage also passed.
+
+The unmarked current checker still reports the known native-registration
+environment deferral. Classification: **AUT47_PREVIOUS_PASS_CURRENT_ENVIRONMENT_DEFERRED**,
+with receipt `ENVIRONMENT_DEFERRED_AUT47_REPRODUCTION`. This is executor/
+environment bookkeeping, not a D3S2 regression and not an automated D3S2
+blocker. It must not be recorded as a historical C3H failure.
+
+### Privacy, safety, and boundary receipt
+
+All R4 request bodies and persisted synthetic server state were scanned for
+Ozon Seller, Ozon Performance, and WB tokens; token hashes/fingerprints;
+refresh/access secrets; raw provider responses or reports; AI content;
+storageState; and raw session payloads. None appeared. `credentialRevision`
+was opaque metadata only. R4 provider calls and AI resends were zero.
+
+Final safety counters remain: ordinary Ozon mandatory control calls 0,
+ordinary WB mandatory control calls 0, ordinary AI-delivery mandatory control
+calls 0, provider UNKNOWN automatic replay 0, known-response automatic
+provider replay 0, delivery UNKNOWN automatic resend 0, and confirmed-delivery
+duplicates 0. Metadata synchronization is service traffic and is not counted
+as an ordinary business-command authorization call.
+
+Exactly one C3E journal remains (`seller_agents_sync_journal_v1`), exactly one
+C3F reconciliation model remains, and one P3 technical wake coordinator
+remains. No Stream-2 implementation file was modified. No credential transfer,
+relay, export/import, Q1, S1.2, deployment, or browser-store publication was
+started.
+
+R4 does not self-accept D3S2-1. Automated D3S2-1 blockers remaining: none
+identified. Deferred items are architect review, remote publication/readback,
+and the environment-deferred unmarked AUT-47 reproduction; real-provider and
+browser-family owner gates remain outside this bounded automated closure.
