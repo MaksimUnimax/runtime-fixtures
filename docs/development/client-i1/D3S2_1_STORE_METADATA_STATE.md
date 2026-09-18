@@ -245,6 +245,107 @@ Transfer (`A22/A23`), export/import (`A24`), browser-family certification,
 live provider certification, owner-authenticated AI tests, Health/DOM monitor,
 API watcher, publication, and production deployment were not implemented.
 
+## R2 acceptance closure — 2026-09-18
+
+Work ID: `D3S2-1-R2-INSTALLED-METADATA-AND-P3-DIFFERENTIAL-CLOSURE-2026-09-18`.
+
+The R2 start was branch
+`feature/d3s2-store-metadata-state-2026-09-18`, HEAD
+`8132894b536a644d8751b51d586ec983fa5e633c`, tree
+`232e1703a0d65862e3572715134d5589ffb9c66f`. The bounded harness/evidence
+commit is `fc35ede35deb5f470b9a3524f263e3f9ee90a671`, tree
+`8f9da870a86ca395f87b03efed0ee68e1843bf17`; the documentation commit that
+records this section is the final R2 HEAD reported with this evidence.
+Existing R0/R1 commits were preserved.
+
+### Actual-unpacked Chromium metadata matrix
+
+The harness used Playwright with native Chromium `151.0.7922.34`, a real MV3
+service worker, popup product path, persistent profiles, and synthetic signed
+Ed25519 authority. Both source/generated and extracted/package runtimes were
+loaded as unpacked extensions. No jsdom, mocked Chrome API, lower-layer-only
+substitution, or static package inspection was used for this matrix.
+
+| Scenario | Source/generated | Extracted/package |
+|---|---|---|
+| BR-STORE-01 distinct stable stores/isolation | PASS | PASS |
+| BR-STORE-02 popup rename, stable storeId/revision, other store unchanged | PASS | PASS |
+| BR-STORE-03 offline rename, pending metadata journal, ordinary Work usable | PASS | PASS |
+| BR-STORE-04 restart preserves rename and pending journal | PASS | PASS |
+| BR-STORE-05 popup delete, immediate local fence, unrelated store survives | PASS | PASS |
+| BR-STORE-06 compact tombstone/pending metadata only | PASS | PASS |
+| BR-STORE-07 restart preserves tombstone/no recreation | PASS | PASS |
+| BR-STORE-08 stale rename/upsert cannot resurrect tombstone | PASS | PASS |
+| BR-STORE-09 late ACK/stale revision cannot roll tombstone back | PASS | PASS |
+| BR-STORE-10 second persistent context converges tombstone and preserves unrelated store | PASS | PASS |
+| BR-STORE-11 old credentialRevision Work is fenced; revision has no credential | PASS | PASS |
+| BR-STORE-12 restart/recovery does not autorun historical commands | PASS | PASS |
+| BR-STORE-13 metadata reconciliation has no provider/AI/ordinary mandatory calls | PASS | PASS |
+
+BR-STORE-08/09/10 used the real production
+`SellerAgentsActiveStoreCatalog.applyRemoteMetadata` reconciliation surface in
+the unpacked service worker with synthetic stale-upsert, late-ACK, and
+second-context recovery fixtures. BR-STORE-03 used the real popup rename path
+while the control fixture was unavailable; Work admission remained local.
+
+The installed `/v1/sync` HTTP round-trip was attempted with the test-only
+control fixture. The real MV3 sync path reached
+`SellerAgentsSyncJournal.syncNow`, but the existing journal write/readback
+condition (`SYNC_JOURNAL_WRITE_READBACK_FAILED`) occurred before a transport
+request, so the fixture recorded zero `/v1/sync` requests. This was not
+worked around by mutating hidden production state, weakening fencing, or
+claiming a transport proof. The browser layer reached the real worker/journal
+and reconciliation layers; lower-layer C3E/C3F tests prove the sync transport
+semantics. Installed sync-HTTP round-trip evidence remains deferred to a
+future harness repair/acceptance stage.
+
+### Native P3 differential and correction
+
+The exact original native P3 check was run with equivalent inputs on both
+`57f872b84bd121959c368d571d6bf9b80fdb3839` and
+`8132894b536a644d8751b51d586ec983fa5e633c`. Both failed identically at
+`Timed out: P3 durable wake drain`: the harness scheduled `now + 60s` and
+immediately expected the future item to drain. The accepted base therefore
+proves this is not a D3S2 regression. Classification:
+`P3_PRE_EXISTING_EXPECTED_SEMANTIC_MISMATCH` and `P3_HARNESS_DEFECT`.
+
+The bounded correction is test-only: the native harness first asserts that an
+early wake does not execute the future entry, then installs an explicit test
+clock and advances it past the due time before waking. Product timing was not
+weakened. Current-candidate native P3 is PASS for source/generated and
+extracted/package: one restart, two duplicate-wake attempts safely coalesced,
+zero marketplace requests, and zero periodic scheduler alarms. Lower-layer
+P3 is PASS, 7/7 scenarios and 100 wake deliveries with zero duplicate wake
+runs. UNKNOWN provider outcomes are not replayed; UNKNOWN AI delivery is not
+automatically resent; the scheduler creates no Start/Resume/command.
+
+### R2 receipts and boundaries
+
+- D3/S2 lower layer: 59/59 PASS; C3E rename/offline/tombstone/recovery PASS;
+  C3F 28/28 on both runtimes.
+- Native C1: 36/36 on source/generated and extracted/package. Native P1 and
+  P2: PASS on both runtimes. C3G/C3H, API, integration, E2E, and production
+  suites were not rerun because R2 changed only test infrastructure; their R1
+  green receipts remain unchanged.
+- Package: `SELLER_AGENTS_I1_C1_v0.2.4_LOCAL_DEVELOPMENT.zip`, 2,030,077
+  bytes, SHA-256
+  `2f2e3719f66a479a25a5ac64ba30a0875d9a80900c5349af9c3f1e4a24f5d9da`;
+  repeat archive and source/generated/extracted parity PASS.
+- Metadata reconciliation receipt: ordinary Ozon mandatory control calls 0,
+  ordinary WB mandatory control calls 0, ordinary AI delivery mandatory calls
+  0, provider UNKNOWN replay 0, AI delivery UNKNOWN automatic resend 0.
+- Privacy: all values were synthetic; no marketplace credential, token,
+  session, report, or AI body was stored or committed. Sync request count was
+  0 and the inspected fixture payload was secret-free. No Stream-2 file was
+  modified (`apps/health-runner/**`, `packages/server/health/**`, and
+  `tooling/api-watch/**` are untouched).
+
+R2 does not self-accept D3S2-1. No product defect was found and no production
+semantics were weakened. Remaining blockers/boundaries are architect review,
+remote publication, the installed sync-HTTP round-trip harness condition
+described above, and separately scoped browser-family/live-provider/owner-AI
+evidence. Transfer and export/import were not started.
+
 ## Deferred and next work
 
 Deferred: architect review/acceptance; remote publication/readback; real
