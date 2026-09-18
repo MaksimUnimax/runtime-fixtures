@@ -21,6 +21,12 @@ export type NoSessionBrowserErrorCode =
   | "NAVIGATION_FAILED"
   | "OBSERVATION_FAILED";
 
+export type NoSessionBrowserMode = "HEADED" | "HEADLESS_DIAGNOSTIC";
+export type NoSessionBrowserLaunchOptions = Readonly<{
+  mode?: NoSessionBrowserMode;
+  launchTimeoutMs?: number;
+}>;
+
 export class NoSessionBrowserError extends Error {
   public constructor(public readonly code: NoSessionBrowserErrorCode) {
     super(code);
@@ -156,7 +162,7 @@ export class ChromeNoSessionBrowserDriver implements NoSessionBrowserDriver {
     family: "chrome",
     browserName: "chromium",
     browserVersion: "unavailable",
-    headless: process.env.HEALTH_RUNNER_HEADFUL !== "1",
+    headless: false,
     sessionKind: "EPHEMERAL_CONTROLLED",
   };
   #lastNavigation: NoSessionNavigationResult = {
@@ -168,13 +174,25 @@ export class ChromeNoSessionBrowserDriver implements NoSessionBrowserDriver {
     outcome: "HTTP_FAILURE",
   };
 
-  public constructor(
-    private readonly launchTimeoutMs = DEFAULT_LAUNCH_TIMEOUT_MS,
-  ) {
+  public constructor(options: NoSessionBrowserLaunchOptions | number = {}) {
+    const launchTimeoutMs =
+      typeof options === "number"
+        ? options
+        : (options.launchTimeoutMs ?? DEFAULT_LAUNCH_TIMEOUT_MS);
+    this.mode =
+      typeof options === "number" ? "HEADED" : (options.mode ?? "HEADED");
+    this.launchTimeoutMs = launchTimeoutMs;
+    this.#runtimeMetadata = {
+      ...this.#runtimeMetadata,
+      headless: this.mode === "HEADLESS_DIAGNOSTIC",
+    };
     if (launchTimeoutMs < 250 || launchTimeoutMs > 30_000) {
       throw new Error("INVALID_BROWSER_LAUNCH_TIMEOUT");
     }
   }
+
+  readonly mode: NoSessionBrowserMode;
+  readonly launchTimeoutMs: number;
 
   public async start(): Promise<void> {
     if (this.#state !== "NEW")
@@ -217,6 +235,7 @@ export class ChromeNoSessionBrowserDriver implements NoSessionBrowserDriver {
       });
       this.#runtimeMetadata = {
         ...this.#runtimeMetadata,
+        headless: this.mode === "HEADLESS_DIAGNOSTIC",
         browserVersion: this.#browser.version(),
       };
       this.#state = "STARTED";
@@ -262,14 +281,22 @@ export class ChromeNoSessionBrowserDriver implements NoSessionBrowserDriver {
       }
       return this.#lastNavigation;
     } catch (error) {
-      const finalUrl = safeUrl(this.#page.url());
-      const finalOrigin = new URL(finalUrl).origin;
+      const currentUrl = this.#page.url();
+      let finalUrl = requestedStartUrl;
+      let finalOrigin = new URL(requestedStartUrl).origin;
+      try {
+        finalUrl = safeUrl(currentUrl);
+        finalOrigin = new URL(finalUrl).origin;
+      } catch {
+        // Preserve the sanitized requested origin when the browser never left
+        // its initial document or exposes a non-http(s) URL after failure.
+      }
       this.#lastNavigation = {
         requestedStartUrl,
         finalUrl,
         finalOrigin,
         mainDocumentHttpStatus: null,
-        redirectCount: 0,
+        redirectCount: Math.min(8, this.#lastNavigation.redirectCount),
         outcome: "HTTP_FAILURE",
       };
       if (error instanceof NoSessionBrowserError) throw error;
@@ -325,6 +352,7 @@ export class ChromeNoSessionBrowserDriver implements NoSessionBrowserDriver {
         captchaObserved,
         accessBlockedObserved,
         maintenanceObserved,
+        unsupportedEnvironmentObserved,
         documentTitle,
       ] = await Promise.all([
         countSelectors(this.#page, profile.identitySelectors),
@@ -338,6 +366,7 @@ export class ChromeNoSessionBrowserDriver implements NoSessionBrowserDriver {
         selectorPresent(this.#page, profile.captchaSelectors),
         selectorPresent(this.#page, profile.blockedSelectors),
         selectorPresent(this.#page, profile.maintenanceSelectors),
+        selectorPresent(this.#page, profile.unsupportedSelectors),
         this.#page.title().catch(() => ""),
       ]);
       const title = documentTitle.toLocaleLowerCase();
@@ -349,6 +378,9 @@ export class ChromeNoSessionBrowserDriver implements NoSessionBrowserDriver {
       );
       const blockedTitleObserved = profile.blockedTitleTokens.some((token) =>
         title.includes(token.toLocaleLowerCase()),
+      );
+      const unsupportedTitleObserved = profile.unsupportedTitleTokens.some(
+        (token) => title.includes(token.toLocaleLowerCase()),
       );
       const readiness =
         securityCheckpointObserved || captchaObserved
@@ -374,10 +406,12 @@ export class ChromeNoSessionBrowserDriver implements NoSessionBrowserDriver {
         captchaObserved,
         accessBlockedObserved,
         maintenanceObserved,
+        unsupportedEnvironmentObserved,
         readiness: NoSessionReadinessStateSchema.parse(readiness),
         providerTitleObserved,
         securityTitleObserved,
         blockedTitleObserved,
+        unsupportedTitleObserved,
       };
       return NoSessionPageSnapshotSchema.parse(snapshot);
     } catch (error) {
@@ -427,7 +461,7 @@ export class ChromeNoSessionBrowserDriver implements NoSessionBrowserDriver {
 }
 
 export function createNoSessionChromeBrowserDriver(
-  launchTimeoutMs = DEFAULT_LAUNCH_TIMEOUT_MS,
+  options: NoSessionBrowserLaunchOptions | number = {},
 ): ChromeNoSessionBrowserDriver {
-  return new ChromeNoSessionBrowserDriver(launchTimeoutMs);
+  return new ChromeNoSessionBrowserDriver(options);
 }

@@ -66,6 +66,7 @@ export const NoSessionSurfaceOutcomeSchema = z.enum([
   "AUTH_REQUIRED",
   "NOT_OBSERVABLE_WITHOUT_SESSION",
   "REGION_OR_ELIGIBILITY_RESTRICTED",
+  "UNSUPPORTED_ENVIRONMENT",
   "SECURITY_CHECKPOINT",
   "ACCESS_BLOCKED",
   "MAINTENANCE",
@@ -77,6 +78,26 @@ export const NoSessionSurfaceOutcomeSchema = z.enum([
 ]);
 export type NoSessionSurfaceOutcome = z.infer<
   typeof NoSessionSurfaceOutcomeSchema
+>;
+
+export const NoSessionBrowserObservationModeSchema = z.enum([
+  "HEADED",
+  "HEADLESS_DIAGNOSTIC",
+]);
+export type NoSessionBrowserObservationMode = z.infer<
+  typeof NoSessionBrowserObservationModeSchema
+>;
+
+export const NoSessionBrowserModeFallbackReasonSchema = z.enum([
+  "NOT_REQUIRED",
+  "SECURITY_CHECKPOINT",
+  "ACCESS_BLOCKED",
+  "IDENTITY_NOT_PROVEN",
+  "UNEXPECTED_STATIC_SURFACE",
+  "HEADED_INFRASTRUCTURE_UNAVAILABLE",
+]);
+export type NoSessionBrowserModeFallbackReason = z.infer<
+  typeof NoSessionBrowserModeFallbackReasonSchema
 >;
 
 export const NoSessionIdentityStateSchema = z.enum([
@@ -120,9 +141,37 @@ export const NoSessionBlockerSchema = z.enum([
   "NETWORK_FAILURE",
   "BROWSER_UNAVAILABLE",
   "UNEXPECTED_SURFACE",
+  "UNSUPPORTED_ENVIRONMENT",
   "ORIGIN_POLICY_VIOLATION",
 ]);
 export type NoSessionBlocker = z.infer<typeof NoSessionBlockerSchema>;
+
+const NoSessionBrowserObservationSummarySchema = z
+  .object({
+    mode: NoSessionBrowserObservationModeSchema,
+    identity: NoSessionIdentityStateSchema,
+    blocker: NoSessionBlockerSchema,
+    classification: HealthStateSchema,
+    surfaceOutcome: NoSessionSurfaceOutcomeSchema,
+  })
+  .strict();
+
+export const NoSessionBrowserModeMetadataSchema = z
+  .object({
+    canonicalMode: NoSessionBrowserObservationModeSchema,
+    authoritativeMode: NoSessionBrowserObservationModeSchema,
+    diagnosticMode: NoSessionBrowserObservationModeSchema.nullable(),
+    fallbackAttempted: z.boolean(),
+    fallbackReason: NoSessionBrowserModeFallbackReasonSchema,
+    headedInfrastructure: z.enum(["AVAILABLE", "UNAVAILABLE", "NOT_CHECKED"]),
+    environmentLimited: z.boolean(),
+    canonicalObservation: NoSessionBrowserObservationSummarySchema,
+    diagnosticObservation: NoSessionBrowserObservationSummarySchema.nullable(),
+  })
+  .strict();
+export type NoSessionBrowserModeMetadata = z.infer<
+  typeof NoSessionBrowserModeMetadataSchema
+>;
 
 export const NoSessionClassificationBasisSchema = z.enum([
   "PUBLIC_SURFACE_PRIMARY",
@@ -135,6 +184,7 @@ export const NoSessionClassificationBasisSchema = z.enum([
   "NETWORK_FAILURE",
   "SECURITY_CHECKPOINT",
   "ACCESS_BLOCKED",
+  "ENVIRONMENT_SUPPORT_BOUNDARY",
   "MAINTENANCE_SURFACE",
   "REQUIRED_CONTOUR_MISSING",
   "UNEXPECTED_SURFACE",
@@ -184,10 +234,12 @@ export const NoSessionPageSnapshotSchema = z
     captchaObserved: z.boolean(),
     accessBlockedObserved: z.boolean(),
     maintenanceObserved: z.boolean(),
+    unsupportedEnvironmentObserved: z.boolean(),
     readiness: NoSessionReadinessStateSchema,
     providerTitleObserved: z.boolean(),
     securityTitleObserved: z.boolean(),
     blockedTitleObserved: z.boolean(),
+    unsupportedTitleObserved: z.boolean(),
   })
   .strict();
 export type NoSessionPageSnapshot = z.infer<typeof NoSessionPageSnapshotSchema>;
@@ -200,6 +252,7 @@ export const NoSessionObservationResultSchema = z
     strategyId: z.string().regex(/^[a-z][a-z0-9-]{0,63}$/),
     strategyRevision: z.number().int().positive(),
     browserRuntime: BrowserRuntimeMetadataSchema,
+    browserMode: NoSessionBrowserModeMetadataSchema,
     navigation: NoSessionNavigationStateSchema,
     navigationEvidence: z
       .object({

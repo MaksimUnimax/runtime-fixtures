@@ -1,4 +1,5 @@
 import {
+  NoSessionBrowserModeMetadataSchema,
   type NoSessionObservationResult,
   NoSessionObservationResultSchema,
 } from "./no-session-contracts.js";
@@ -27,6 +28,82 @@ const EMPTY_ELEMENT_METADATA = Object.freeze({
   actionable: false,
 });
 
+type NoSessionObservationMode = "HEADED" | "HEADLESS_DIAGNOSTIC";
+
+function modeForRuntime(
+  runtime: NoSessionObservationResult["browserRuntime"],
+): NoSessionObservationMode {
+  return runtime.headless ? "HEADLESS_DIAGNOSTIC" : "HEADED";
+}
+
+function observationSummary(
+  result: NoSessionObservationResult,
+  mode: NoSessionObservationMode,
+) {
+  return {
+    mode,
+    identity: result.identity,
+    blocker: result.blocker,
+    classification: result.classification,
+    surfaceOutcome: result.surfaceOutcome,
+  };
+}
+
+function withSingleMode(
+  result: NoSessionObservationResult,
+  mode = modeForRuntime(result.browserRuntime),
+): NoSessionObservationResult {
+  return NoSessionObservationResultSchema.parse({
+    ...result,
+    browserMode: NoSessionBrowserModeMetadataSchema.parse({
+      canonicalMode: mode,
+      authoritativeMode: mode,
+      diagnosticMode: null,
+      fallbackAttempted: false,
+      fallbackReason: "NOT_REQUIRED",
+      headedInfrastructure: mode === "HEADED" ? "AVAILABLE" : "NOT_CHECKED",
+      environmentLimited: mode === "HEADLESS_DIAGNOSTIC",
+      canonicalObservation: observationSummary(result, mode),
+      diagnosticObservation: null,
+    }),
+  });
+}
+
+function withExecutionMetadata(
+  authoritative: NoSessionObservationResult,
+  canonical: NoSessionObservationResult,
+  diagnostic: NoSessionObservationResult | null,
+  fallbackReason: NoSessionObservationResult["browserMode"]["fallbackReason"],
+  headedInfrastructure: NoSessionObservationResult["browserMode"]["headedInfrastructure"],
+): NoSessionObservationResult {
+  const canonicalMode = modeForRuntime(canonical.browserRuntime);
+  const authoritativeMode = modeForRuntime(authoritative.browserRuntime);
+  const diagnosticMode = diagnostic
+    ? modeForRuntime(diagnostic.browserRuntime)
+    : null;
+  return NoSessionObservationResultSchema.parse({
+    ...authoritative,
+    browserMode: NoSessionBrowserModeMetadataSchema.parse({
+      canonicalMode,
+      authoritativeMode,
+      diagnosticMode,
+      fallbackAttempted:
+        diagnosticMode === "HEADLESS_DIAGNOSTIC" &&
+        authoritativeMode === "HEADED" &&
+        fallbackReason !== "NOT_REQUIRED",
+      fallbackReason,
+      headedInfrastructure,
+      environmentLimited:
+        headedInfrastructure === "UNAVAILABLE" ||
+        authoritativeMode === "HEADLESS_DIAGNOSTIC",
+      canonicalObservation: observationSummary(canonical, canonicalMode),
+      diagnosticObservation: diagnostic
+        ? observationSummary(diagnostic, diagnosticMode!)
+        : null,
+    }),
+  });
+}
+
 function failureResult(
   target: NoSessionTarget,
   browser: NoSessionBrowserDriver,
@@ -49,14 +126,49 @@ function failureResult(
             ? "SECURITY_CHECKPOINT"
             : blocker === "MAINTENANCE"
               ? "MAINTENANCE"
-              : "IDENTITY_NOT_PROVEN";
-  return NoSessionObservationResultSchema.parse({
+              : blocker === "UNSUPPORTED_ENVIRONMENT"
+                ? "UNSUPPORTED_ENVIRONMENT"
+                : "IDENTITY_NOT_PROVEN";
+  const result = NoSessionObservationResultSchema.parse({
     providerId: target.providerId,
     surfaceId: target.surfaceId,
     targetKey: target.targetKey,
     strategyId: target.strategyId,
     strategyRevision: target.strategyRevision,
     browserRuntime: browser.getRuntimeMetadata(),
+    browserMode: withSingleMode({
+      providerId: target.providerId,
+      surfaceId: target.surfaceId,
+      targetKey: target.targetKey,
+      strategyId: target.strategyId,
+      strategyRevision: target.strategyRevision,
+      browserRuntime: browser.getRuntimeMetadata(),
+      navigation,
+      navigationEvidence,
+      finalOrigin,
+      expectedOriginValid:
+        finalOrigin !== null &&
+        target.allowedTopLevelOrigins.includes(finalOrigin),
+      identity: "NOT_PROVEN",
+      publicSurface: "NOT_PROVABLE",
+      composer: "NOT_PROVABLE",
+      editableInput: "NOT_PROVABLE",
+      sendControl: "NOT_PROVABLE",
+      authentication: "NOT_PROVABLE",
+      blocker,
+      classification: blocker === "MAINTENANCE" ? "MAINTENANCE" : "UNKNOWN",
+      classificationBasis: basis,
+      surfaceOutcome,
+      readiness: "NOT_OBSERVED",
+      elementMetadata: {
+        composer: EMPTY_ELEMENT_METADATA,
+        editableInput: EMPTY_ELEMENT_METADATA,
+        sendControl: EMPTY_ELEMENT_METADATA,
+      },
+      noInteraction: true,
+      observedAt,
+      evidence: [],
+    } as unknown as NoSessionObservationResult).browserMode,
     navigation,
     navigationEvidence,
     finalOrigin,
@@ -83,6 +195,7 @@ function failureResult(
     observedAt,
     evidence: [],
   });
+  return result;
 }
 
 function mapBrowserError(error: unknown): {
@@ -133,12 +246,14 @@ export async function runNoSessionProbe(
     await browser.start();
     const navigation = await browser.open(target);
     const snapshot = await browser.observe(strategy.profile, 5_000);
-    result = strategy.evaluate(
-      target,
-      snapshot,
-      browser.getRuntimeMetadata(),
-      observedAt,
-      navigation,
+    result = withSingleMode(
+      strategy.evaluate(
+        target,
+        snapshot,
+        browser.getRuntimeMetadata(),
+        observedAt,
+        navigation,
+      ),
     );
     if (navigation.finalOrigin !== result.finalOrigin) {
       result = failureResult(
@@ -154,6 +269,7 @@ export async function runNoSessionProbe(
     }
   } catch (error) {
     const mapped = mapBrowserError(error);
+    const failedNavigation = browser.getNavigationEvidence();
     result = failureResult(
       target,
       browser,
@@ -161,8 +277,8 @@ export async function runNoSessionProbe(
       mapped.basis,
       observedAt,
       "FAILED",
-      null,
-      browser.getNavigationEvidence(),
+      failedNavigation.finalOrigin,
+      failedNavigation,
     );
   } finally {
     await browser.stop();
@@ -172,15 +288,22 @@ export async function runNoSessionProbe(
 
 export type NoSessionBrowserFactory = () => NoSessionBrowserDriver;
 
-const UNAVAILABLE_BROWSER_RUNTIME = {
-  family: "chrome" as const,
-  browserName: "unavailable",
-  browserVersion: "unavailable",
-  headless: true,
-  sessionKind: "EPHEMERAL_CONTROLLED" as const,
-};
+export type NoSessionAutomaticBrowserPolicy = Readonly<{
+  createHeadedBrowser: NoSessionBrowserFactory;
+  createHeadlessDiagnosticBrowser?: NoSessionBrowserFactory;
+  diagnosticFirst?: boolean;
+}>;
 
-function unavailableBrowser(): NoSessionBrowserDriver {
+function unavailableBrowser(
+  mode: "HEADED" | "HEADLESS_DIAGNOSTIC" = "HEADED",
+): NoSessionBrowserDriver {
+  const runtime = {
+    family: "chrome" as const,
+    browserName: "unavailable",
+    browserVersion: "unavailable",
+    headless: mode === "HEADLESS_DIAGNOSTIC",
+    sessionKind: "EPHEMERAL_CONTROLLED" as const,
+  };
   return {
     family: "chrome",
     sessionKind: "EPHEMERAL_CONTROLLED",
@@ -191,7 +314,7 @@ function unavailableBrowser(): NoSessionBrowserDriver {
     observe: async () => {
       throw new NoSessionBrowserError("CONTROLLED_BROWSER_UNAVAILABLE");
     },
-    getRuntimeMetadata: () => UNAVAILABLE_BROWSER_RUNTIME,
+    getRuntimeMetadata: () => runtime,
     getNavigationEvidence: () => ({
       requestedStartUrl: "https://invalid.example/",
       finalUrl: "https://invalid.example/",
@@ -208,11 +331,113 @@ function unavailableBrowser(): NoSessionBrowserDriver {
   };
 }
 
+function fallbackReasonFor(
+  result: NoSessionObservationResult,
+): NoSessionObservationResult["browserMode"]["fallbackReason"] {
+  if (
+    result.blocker === "SECURITY_CHECKPOINT" ||
+    result.blocker === "CAPTCHA_SECURITY_CHECKPOINT"
+  )
+    return "SECURITY_CHECKPOINT";
+  if (result.blocker === "ACCESS_BLOCKED") return "ACCESS_BLOCKED";
+  if (result.identity !== "PROVEN") return "IDENTITY_NOT_PROVEN";
+  if (result.readiness === "STATIC_LANDING") return "UNEXPECTED_STATIC_SURFACE";
+  return "NOT_REQUIRED";
+}
+
+async function runWithFactory(
+  target: NoSessionTarget,
+  factory: NoSessionBrowserFactory,
+  mode: "HEADED" | "HEADLESS_DIAGNOSTIC",
+  observedAt: string,
+): Promise<
+  NoSessionObservationResult & {
+    readonly evidence: readonly NoSessionSafeEvidenceReference[];
+  }
+> {
+  try {
+    return await runNoSessionProbe(
+      target,
+      factory(),
+      getNoSessionStrategy(target.surfaceId),
+      observedAt,
+    );
+  } catch {
+    return await runNoSessionProbe(
+      target,
+      unavailableBrowser(mode),
+      getNoSessionStrategy(target.surfaceId),
+      observedAt,
+    );
+  }
+}
+
+export async function runNoSessionAutomaticProbe(
+  target: NoSessionTarget,
+  policy: NoSessionAutomaticBrowserPolicy = {
+    createHeadedBrowser: () =>
+      createNoSessionChromeBrowserDriver({ mode: "HEADED" }),
+    createHeadlessDiagnosticBrowser: () =>
+      createNoSessionChromeBrowserDriver({ mode: "HEADLESS_DIAGNOSTIC" }),
+  },
+  observedAt = new Date().toISOString(),
+): Promise<
+  NoSessionObservationResult & {
+    readonly evidence: readonly NoSessionSafeEvidenceReference[];
+  }
+> {
+  const diagnosticFactory = policy.createHeadlessDiagnosticBrowser;
+  if (policy.diagnosticFirst && diagnosticFactory) {
+    const diagnostic = await runWithFactory(
+      target,
+      diagnosticFactory,
+      "HEADLESS_DIAGNOSTIC",
+      observedAt,
+    );
+    const reason = fallbackReasonFor(diagnostic);
+    const headed = await runWithFactory(
+      target,
+      policy.createHeadedBrowser,
+      "HEADED",
+      observedAt,
+    );
+    const headedAvailable = headed.blocker !== "BROWSER_UNAVAILABLE";
+    const authoritative = headedAvailable ? headed : diagnostic;
+    const canonical = headedAvailable ? headed : diagnostic;
+    return attachEvidence(
+      withExecutionMetadata(
+        authoritative,
+        canonical,
+        diagnostic,
+        headedAvailable ? reason : "HEADED_INFRASTRUCTURE_UNAVAILABLE",
+        headedAvailable ? "AVAILABLE" : "UNAVAILABLE",
+      ),
+    );
+  }
+
+  const headed = await runWithFactory(
+    target,
+    policy.createHeadedBrowser,
+    "HEADED",
+    observedAt,
+  );
+  const headedAvailable = headed.blocker !== "BROWSER_UNAVAILABLE";
+  return attachEvidence(
+    withExecutionMetadata(
+      headed,
+      headed,
+      null,
+      headedAvailable ? "NOT_REQUIRED" : "HEADED_INFRASTRUCTURE_UNAVAILABLE",
+      headedAvailable ? "AVAILABLE" : "UNAVAILABLE",
+    ),
+  );
+}
+
 export async function runNoSessionBatch(
   targets: readonly NoSessionTarget[] = NO_SESSION_TARGETS,
-  createBrowser: NoSessionBrowserFactory = () =>
-    createNoSessionChromeBrowserDriver(),
+  createBrowser?: NoSessionBrowserFactory,
   observedAt = new Date().toISOString(),
+  policy?: NoSessionAutomaticBrowserPolicy,
 ): Promise<
   readonly (NoSessionObservationResult & {
     readonly evidence: readonly NoSessionSafeEvidenceReference[];
@@ -221,6 +446,14 @@ export async function runNoSessionBatch(
   const results: (NoSessionObservationResult & {
     readonly evidence: readonly NoSessionSafeEvidenceReference[];
   })[] = [];
+  if (!createBrowser) {
+    for (const target of targets) {
+      results.push(
+        await runNoSessionAutomaticProbe(target, policy, observedAt),
+      );
+    }
+    return Object.freeze(results);
+  }
   for (const target of targets) {
     let browser: NoSessionBrowserDriver;
     try {

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  NoSessionBrowserModeMetadataSchema,
   NoSessionPageSnapshotSchema,
   type NoSessionAuthState,
   type NoSessionContourState,
@@ -27,10 +28,12 @@ export const NoSessionSelectorProfileSchema = z
     captchaSelectors: z.array(z.string().min(1).max(256)).max(8),
     blockedSelectors: z.array(z.string().min(1).max(256)).max(8),
     maintenanceSelectors: z.array(z.string().min(1).max(256)).max(8),
+    unsupportedSelectors: z.array(z.string().min(1).max(256)).max(8),
     hydrationSelectors: z.array(z.string().min(1).max(256)).max(8),
     providerTitleTokens: z.array(z.string().min(1).max(64)).max(4),
     securityTitleTokens: z.array(z.string().min(1).max(64)).max(4),
     blockedTitleTokens: z.array(z.string().min(1).max(64)).max(4),
+    unsupportedTitleTokens: z.array(z.string().min(1).max(64)).max(4),
   })
   .strict();
 export type NoSessionSelectorProfile = Readonly<
@@ -99,6 +102,7 @@ const PROFILES: readonly NoSessionSelectorProfile[] = [
       '[data-testid="maintenance"]',
       '[data-testid="status-page"]',
     ],
+    unsupportedSelectors: [],
     hydrationSelectors: [
       "main",
       "#prompt-textarea",
@@ -107,6 +111,7 @@ const PROFILES: readonly NoSessionSelectorProfile[] = [
     providerTitleTokens: ["chatgpt", "openai"],
     securityTitleTokens: ["just a moment", "checking your browser"],
     blockedTitleTokens: ["access denied", "forbidden"],
+    unsupportedTitleTokens: [],
   },
   {
     profileId: "chatgpt-work-public-v1",
@@ -146,6 +151,7 @@ const PROFILES: readonly NoSessionSelectorProfile[] = [
       '[data-testid="maintenance"]',
       '[data-testid="status-page"]',
     ],
+    unsupportedSelectors: [],
     hydrationSelectors: [
       "main[data-workspace]",
       '[data-testid="workspace-chat"]',
@@ -153,6 +159,7 @@ const PROFILES: readonly NoSessionSelectorProfile[] = [
     providerTitleTokens: ["chatgpt", "openai"],
     securityTitleTokens: ["just a moment", "checking your browser"],
     blockedTitleTokens: ["access denied", "forbidden"],
+    unsupportedTitleTokens: [],
   },
   {
     profileId: "alice-public-v1",
@@ -189,6 +196,7 @@ const PROFILES: readonly NoSessionSelectorProfile[] = [
       '[data-testid="maintenance"]',
       '[data-testid="alice-maintenance"]',
     ],
+    unsupportedSelectors: [],
     hydrationSelectors: [
       '[data-testid="alice-chat"]',
       '[data-testid="main-page"]',
@@ -197,6 +205,7 @@ const PROFILES: readonly NoSessionSelectorProfile[] = [
     providerTitleTokens: ["алиса", "alice", "яндекс"],
     securityTitleTokens: ["проверка"],
     blockedTitleTokens: ["доступ запрещен", "access denied"],
+    unsupportedTitleTokens: [],
   },
   {
     profileId: "deepseek-public-v1",
@@ -233,6 +242,7 @@ const PROFILES: readonly NoSessionSelectorProfile[] = [
       '[data-testid="deepseek-maintenance"]',
       '[data-testid="maintenance"]',
     ],
+    unsupportedSelectors: [],
     hydrationSelectors: [
       '[data-testid="deepseek-chat"]',
       '[data-testid="auth-panel"]',
@@ -240,6 +250,7 @@ const PROFILES: readonly NoSessionSelectorProfile[] = [
     providerTitleTokens: ["deepseek"],
     securityTitleTokens: ["security check", "checking your browser"],
     blockedTitleTokens: ["error", "access denied", "forbidden"],
+    unsupportedTitleTokens: [],
   },
   {
     profileId: "grok-public-v1",
@@ -276,6 +287,7 @@ const PROFILES: readonly NoSessionSelectorProfile[] = [
       '[data-testid="grok-maintenance"]',
       '[data-testid="maintenance"]',
     ],
+    unsupportedSelectors: [],
     hydrationSelectors: [
       '[data-testid="drop-container"]',
       'textarea[aria-label="Ask Grok anything"]',
@@ -283,12 +295,16 @@ const PROFILES: readonly NoSessionSelectorProfile[] = [
     providerTitleTokens: ["grok", "xai"],
     securityTitleTokens: ["just a moment", "checking your browser"],
     blockedTitleTokens: ["access denied", "forbidden"],
+    unsupportedTitleTokens: [],
   },
   {
     profileId: "claude-public-v1",
     identitySelectors: [
       'a[href*="claude.ai"]',
       'a[href*="/login"]',
+      '[data-testid="claude-login"]',
+      '[data-testid="login"]',
+      '[data-testid="sign-in"]',
       '[data-testid="claude-logo"]',
     ],
     surfaceSelectors: ['a[href*="claude.ai"]', '[data-testid="auth-panel"]'],
@@ -305,7 +321,13 @@ const PROFILES: readonly NoSessionSelectorProfile[] = [
       'button[aria-label*="Send"]',
     ],
     authSelectors: [],
-    loginSelectors: ['[data-testid="claude-login"]', 'a[href*="/login"]'],
+    loginSelectors: [
+      '[data-testid="claude-login"]',
+      '[data-testid="login"]',
+      '[data-testid="sign-in"]',
+      'a[href*="/login"]',
+      'button[aria-label*="Sign in"]',
+    ],
     securitySelectors: ['[data-testid="claude-security-check"]'],
     captchaSelectors: ['iframe[src*="captcha"]', '[data-testid="captcha"]'],
     blockedSelectors: [
@@ -316,10 +338,12 @@ const PROFILES: readonly NoSessionSelectorProfile[] = [
       '[data-testid="claude-maintenance"]',
       '[data-testid="maintenance"]',
     ],
+    unsupportedSelectors: [],
     hydrationSelectors: ['a[href*="claude.ai"]', '[data-testid="auth-panel"]'],
     providerTitleTokens: ["claude", "anthropic"],
     securityTitleTokens: ["just a moment", "checking your browser"],
     blockedTitleTokens: ["access denied", "forbidden"],
+    unsupportedTitleTokens: [],
   },
   {
     profileId: "gemini-public-v1",
@@ -359,6 +383,7 @@ const PROFILES: readonly NoSessionSelectorProfile[] = [
       '[data-testid="gemini-maintenance"]',
       '[data-testid="maintenance"]',
     ],
+    unsupportedSelectors: [],
     hydrationSelectors: [
       '[data-test-id="chat-app"]',
       '[data-test-id="textarea-inner"]',
@@ -367,13 +392,15 @@ const PROFILES: readonly NoSessionSelectorProfile[] = [
     providerTitleTokens: ["gemini", "bard", "google"],
     securityTitleTokens: ["checking your browser"],
     blockedTitleTokens: ["access denied", "forbidden"],
+    unsupportedTitleTokens: [],
   },
   {
     profileId: "qwen-public-v1",
     identitySelectors: [
       '[aria-label="New Chat"]',
       '[aria-label="Select Model"]',
-      "main",
+      '[aria-label="Qwen Studio"]',
+      '[data-testid="qwen-studio"]',
     ],
     surfaceSelectors: ["main", "textarea"],
     composerSelectors: ["textarea", '[role="textbox"]'],
@@ -391,10 +418,20 @@ const PROFILES: readonly NoSessionSelectorProfile[] = [
       '[data-testid="qwen-maintenance"]',
       '[data-testid="maintenance"]',
     ],
+    unsupportedSelectors: [
+      '[data-testid="unsupported-system"]',
+      '[data-testid="system-not-supported"]',
+      '[aria-label="System not supported"]',
+    ],
     hydrationSelectors: ["main", '[aria-label="New Chat"]', "textarea"],
     providerTitleTokens: ["qwen", "通义"],
     securityTitleTokens: ["checking your browser"],
     blockedTitleTokens: ["access denied", "forbidden"],
+    unsupportedTitleTokens: [
+      "current system does not support",
+      "system does not support",
+      "not supported",
+    ],
   },
   {
     profileId: "kimi-public-v1",
@@ -425,6 +462,7 @@ const PROFILES: readonly NoSessionSelectorProfile[] = [
       '[data-testid="kimi-maintenance"]',
       '[data-testid="maintenance"]',
     ],
+    unsupportedSelectors: [],
     hydrationSelectors: [
       '[data-testid="chat-editor"]',
       '[data-testid="sidebar-new-chat"]',
@@ -433,6 +471,7 @@ const PROFILES: readonly NoSessionSelectorProfile[] = [
     providerTitleTokens: ["kimi", "moonshot"],
     securityTitleTokens: ["just a moment", "checking your browser"],
     blockedTitleTokens: ["access denied", "forbidden"],
+    unsupportedTitleTokens: [],
   },
 ].map((profile) =>
   Object.freeze(NoSessionSelectorProfileSchema.parse(profile)),
@@ -494,7 +533,11 @@ function commonEvaluate(
   );
   const profileMatches = snapshot.profileId === strategy.profile.profileId;
   const identityProven =
-    expectedOriginValid && profileMatches && snapshot.identityMarkerCount > 0;
+    expectedOriginValid &&
+    profileMatches &&
+    (snapshot.identityMarkerCount > 0 ||
+      ((target.surfaceId === "QWEN" || target.surfaceId === "CLAUDE") &&
+        snapshot.providerTitleObserved));
   const identity: NoSessionObservationResult["identity"] = expectedOriginValid
     ? identityProven
       ? "PROVEN"
@@ -532,6 +575,17 @@ function commonEvaluate(
     "PUBLIC_SURFACE_PRIMARY";
   let surfaceOutcome: NoSessionObservationResult["surfaceOutcome"] =
     "PUBLIC_INTERACTIVE";
+  const normalClaudeLoginSurface =
+    target.surfaceId === "CLAUDE" &&
+    identityProven &&
+    snapshot.loginWallObserved &&
+    (() => {
+      try {
+        return new URL(navigation.finalUrl).pathname.startsWith("/login");
+      } catch {
+        return false;
+      }
+    })();
   if (
     navigation.mainDocumentHttpStatus !== null &&
     navigation.mainDocumentHttpStatus >= 500
@@ -550,6 +604,18 @@ function commonEvaluate(
     classification = "MAINTENANCE";
     classificationBasis = "MAINTENANCE_SURFACE";
     surfaceOutcome = "MAINTENANCE";
+  } else if (normalClaudeLoginSurface) {
+    classification = "HEALTHY";
+    classificationBasis = "PUBLIC_SURFACE_PRIMARY";
+    surfaceOutcome = "AUTH_REQUIRED";
+  } else if (
+    snapshot.unsupportedEnvironmentObserved ||
+    snapshot.unsupportedTitleObserved
+  ) {
+    blocker = "UNSUPPORTED_ENVIRONMENT";
+    classification = "UNKNOWN";
+    classificationBasis = "ENVIRONMENT_SUPPORT_BOUNDARY";
+    surfaceOutcome = "UNSUPPORTED_ENVIRONMENT";
   } else if (snapshot.captchaObserved) {
     blocker = "CAPTCHA_SECURITY_CHECKPOINT";
     classification = "UNKNOWN";
@@ -638,6 +704,9 @@ function commonEvaluate(
     surfaceOutcome = "PUBLIC_LANDING";
   }
 
+  const mode = browserRuntime.headless
+    ? ("HEADLESS_DIAGNOSTIC" as const)
+    : ("HEADED" as const);
   return {
     providerId: target.providerId,
     surfaceId: target.surfaceId,
@@ -645,6 +714,25 @@ function commonEvaluate(
     strategyId: target.strategyId,
     strategyRevision: target.strategyRevision,
     browserRuntime,
+    browserMode: NoSessionBrowserModeMetadataSchema.parse({
+      canonicalMode: mode,
+      authoritativeMode: mode,
+      diagnosticMode: null,
+      fallbackAttempted: false,
+      fallbackReason: "NOT_REQUIRED",
+      headedInfrastructure: browserRuntime.headless
+        ? "NOT_CHECKED"
+        : "AVAILABLE",
+      environmentLimited: browserRuntime.headless,
+      canonicalObservation: {
+        mode,
+        identity,
+        blocker,
+        classification,
+        surfaceOutcome,
+      },
+      diagnosticObservation: null,
+    }),
     navigation: "LOADED",
     navigationEvidence: {
       requestedStartUrl: navigation.requestedStartUrl,

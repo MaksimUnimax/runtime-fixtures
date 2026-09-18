@@ -234,6 +234,9 @@ export {
   NoSessionEvidenceReferenceSchema,
   NoSessionPageSnapshotSchema,
   NoSessionObservationResultSchema,
+  NoSessionBrowserObservationModeSchema,
+  NoSessionBrowserModeFallbackReasonSchema,
+  NoSessionBrowserModeMetadataSchema,
   parseNoSessionObservationResult,
 } from "./no-session-contracts.js";
 export type {
@@ -253,6 +256,9 @@ export type {
   NoSessionEvidenceReference,
   NoSessionPageSnapshot,
   NoSessionObservationResult,
+  NoSessionBrowserObservationMode,
+  NoSessionBrowserModeFallbackReason,
+  NoSessionBrowserModeMetadata,
 } from "./no-session-contracts.js";
 export {
   NoSessionTargetSchema,
@@ -287,6 +293,8 @@ export type {
   NoSessionBrowserErrorCode,
   NoSessionNavigationResult,
   NoSessionBrowserDriver,
+  NoSessionBrowserMode,
+  NoSessionBrowserLaunchOptions,
 } from "./no-session-browser-driver.js";
 export {
   NoSessionSafeMetadataPayloadSchema,
@@ -304,5 +312,12 @@ export type {
   NoSessionSafeEvidenceReference,
   NoSessionSafeEvidencePackage,
 } from "./no-session-evidence.js";
-export { runNoSessionProbe, runNoSessionBatch } from "./no-session-runner.js";
-export type { NoSessionBrowserFactory } from "./no-session-runner.js";
+export {
+  runNoSessionProbe,
+  runNoSessionAutomaticProbe,
+  runNoSessionBatch,
+} from "./no-session-runner.js";
+export type {
+  NoSessionAutomaticBrowserPolicy,
+  NoSessionBrowserFactory,
+} from "./no-session-runner.js";

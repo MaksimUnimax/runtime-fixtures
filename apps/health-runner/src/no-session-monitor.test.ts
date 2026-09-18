@@ -17,7 +17,12 @@ import {
   validateNoSessionSafeEvidence,
 } from "./no-session-evidence.js";
 import type { NoSessionBrowserDriver } from "./no-session-browser-driver.js";
-import { runNoSessionBatch, runNoSessionProbe } from "./no-session-runner.js";
+import { createNoSessionChromeBrowserDriver } from "./no-session-browser-driver.js";
+import {
+  runNoSessionAutomaticProbe,
+  runNoSessionBatch,
+  runNoSessionProbe,
+} from "./no-session-runner.js";
 
 const RUNTIME = {
   family: "chrome" as const,
@@ -61,10 +66,12 @@ function snapshotFor(
     captchaObserved: false,
     accessBlockedObserved: false,
     maintenanceObserved: false,
+    unsupportedEnvironmentObserved: false,
     readiness: "APP_HYDRATED",
     providerTitleObserved: true,
     securityTitleObserved: false,
     blockedTitleObserved: false,
+    unsupportedTitleObserved: false,
   };
 }
 
@@ -78,6 +85,9 @@ class FakeNoSessionBrowser implements NoSessionBrowserDriver {
   public constructor(
     private readonly snapshots: ReadonlyMap<string, NoSessionPageSnapshot>,
     private readonly failure: "NONE" | "NAVIGATION" = "NONE",
+    private readonly mode:
+      | "HEADED"
+      | "HEADLESS_DIAGNOSTIC" = "HEADLESS_DIAGNOSTIC",
   ) {}
   public async start(): Promise<void> {
     this.startCount += 1;
@@ -103,7 +113,7 @@ class FakeNoSessionBrowser implements NoSessionBrowserDriver {
     return snapshot;
   }
   public getRuntimeMetadata() {
-    return RUNTIME;
+    return { ...RUNTIME, headless: this.mode === "HEADLESS_DIAGNOSTIC" };
   }
   public getNavigationEvidence() {
     return {
@@ -238,8 +248,108 @@ describe("provider-specific no-session strategies", () => {
     expect(result.composer).toBe("NOT_PROVABLE");
   });
 
+  it("classifies the expected Claude login surface as an auth boundary", () => {
+    const target = getNoSessionTargetForSurface("CLAUDE");
+    const result = getNoSessionStrategy("CLAUDE").evaluate(
+      target,
+      {
+        ...snapshotFor("CLAUDE"),
+        loginWallObserved: true,
+        securityCheckpointObserved: false,
+        securityTitleObserved: false,
+        composer: {
+          elementCount: 0,
+          visible: false,
+          editable: false,
+          actionable: false,
+        },
+        editableInput: {
+          elementCount: 0,
+          visible: false,
+          editable: false,
+          actionable: false,
+        },
+        sendControl: {
+          elementCount: 0,
+          visible: false,
+          editable: false,
+          actionable: false,
+        },
+      },
+      RUNTIME,
+      "2026-09-18T11:00:00.000Z",
+      {
+        requestedStartUrl: target.startUrl,
+        finalUrl: "https://claude.ai/login",
+        finalOrigin: "https://claude.ai",
+        mainDocumentHttpStatus: 200,
+        redirectCount: 1,
+        outcome: "LOADED",
+      },
+    );
+    expect(result.identity).toBe("PROVEN");
+    expect(result.authentication).toBe("LOGIN_REQUIRED");
+    expect(result.surfaceOutcome).toBe("AUTH_REQUIRED");
+    expect(result.classification).toBe("HEALTHY");
+    expect(result.classificationBasis).toBe("PUBLIC_SURFACE_PRIMARY");
+  });
+
+  it("keeps a Claude security challenge distinct from its login surface", () => {
+    const target = getNoSessionTargetForSurface("CLAUDE");
+    const result = getNoSessionStrategy("CLAUDE").evaluate(
+      target,
+      {
+        ...snapshotFor("CLAUDE"),
+        securityCheckpointObserved: true,
+        securityTitleObserved: true,
+        loginWallObserved: false,
+      },
+      RUNTIME,
+      "2026-09-18T11:00:00.000Z",
+    );
+    expect(result.identity).toBe("PROVEN");
+    expect(result.blocker).toBe("SECURITY_CHECKPOINT");
+    expect(result.surfaceOutcome).toBe("SECURITY_CHECKPOINT");
+    expect(result.classification).toBe("UNKNOWN");
+  });
+
+  it("does not promote a normal Claude login-page captcha to a security gate", () => {
+    const target = getNoSessionTargetForSurface("CLAUDE");
+    const result = getNoSessionStrategy("CLAUDE").evaluate(
+      target,
+      {
+        ...snapshotFor("CLAUDE"),
+        loginWallObserved: true,
+        captchaObserved: true,
+        securityCheckpointObserved: false,
+      },
+      RUNTIME,
+      "2026-09-18T11:00:00.000Z",
+      {
+        requestedStartUrl: target.startUrl,
+        finalUrl: "https://claude.ai/login",
+        finalOrigin: "https://claude.ai",
+        mainDocumentHttpStatus: 200,
+        redirectCount: 1,
+        outcome: "LOADED",
+      },
+    );
+    expect(result.identity).toBe("PROVEN");
+    expect(result.authentication).toBe("LOGIN_REQUIRED");
+    expect(result.blocker).toBe("NONE");
+    expect(result.surfaceOutcome).toBe("AUTH_REQUIRED");
+  });
+
   it("reports a proven public page with a missing required contour as drift", () => {
-    const target = getNoSessionTargetForSurface("CHATGPT_STANDARD");
+    const standardTarget = getNoSessionTargetForSurface("CHATGPT_STANDARD");
+    const target = NoSessionTargetSchema.parse({
+      ...standardTarget,
+      sendControlExpected: true,
+      capabilityExpectation: {
+        ...standardTarget.capabilityExpectation,
+        sendControl: "EXPECTED",
+      },
+    });
     const strategy = getNoSessionStrategy("CHATGPT_STANDARD");
     const result = strategy.evaluate(
       target,
@@ -415,6 +525,7 @@ describe("provider-specific no-session strategies", () => {
         ...snapshotFor("QWEN"),
         identityMarkerCount: 0,
         surfaceMarkerCount: 0,
+        providerTitleObserved: false,
         readiness: "STATIC_LANDING",
       },
       RUNTIME,
@@ -422,6 +533,25 @@ describe("provider-specific no-session strategies", () => {
     );
     expect(result.identity).toBe("NOT_PROVEN");
     expect(result.surfaceOutcome).toBe("IDENTITY_NOT_PROVEN");
+  });
+
+  it("identifies Qwen's official unsupported-system surface as environmental", () => {
+    const target = getNoSessionTargetForSurface("QWEN");
+    const result = getNoSessionStrategy("QWEN").evaluate(
+      target,
+      {
+        ...snapshotFor("QWEN"),
+        unsupportedEnvironmentObserved: true,
+        unsupportedTitleObserved: true,
+      },
+      RUNTIME,
+      "2026-09-18T11:00:00.000Z",
+    );
+    expect(result.identity).toBe("PROVEN");
+    expect(result.blocker).toBe("UNSUPPORTED_ENVIRONMENT");
+    expect(result.surfaceOutcome).toBe("UNSUPPORTED_ENVIRONMENT");
+    expect(result.classificationBasis).toBe("ENVIRONMENT_SUPPORT_BOUNDARY");
+    expect(result.classification).toBe("UNKNOWN");
   });
 
   it("does not turn a pre-hydration observation into drift", () => {
@@ -573,6 +703,7 @@ describe("no-session L5-safe evidence", () => {
     expect(JSON.stringify(first.package)).not.toMatch(
       /prompt|response|cookie|token|storage|password|html|screenshot/i,
     );
+    expect(JSON.stringify(first.package)).toContain("HEADLESS_DIAGNOSTIC");
   });
 });
 
@@ -624,5 +755,175 @@ describe("no-session batch isolation", () => {
     );
     expect(fake.startCount).toBe(1);
     expect(fake.stopCount).toBe(1);
+  });
+});
+
+describe("automatic browser-mode policy", () => {
+  const target = getNoSessionTargetForSurface("CHATGPT_STANDARD");
+  const snapshots = new Map([
+    [
+      getNoSessionStrategy("CHATGPT_STANDARD").profile.profileId,
+      snapshotFor("CHATGPT_STANDARD"),
+    ],
+  ]);
+
+  it("keeps a successful headed observation canonical over a headless 403 diagnostic", async () => {
+    let headedCalls = 0;
+    let headlessCalls = 0;
+    const result = await runNoSessionAutomaticProbe(
+      target,
+      {
+        diagnosticFirst: true,
+        createHeadlessDiagnosticBrowser: () => {
+          headlessCalls += 1;
+          return new FakeNoSessionBrowser(
+            new Map([
+              [
+                getNoSessionStrategy("CHATGPT_STANDARD").profile.profileId,
+                {
+                  ...snapshotFor("CHATGPT_STANDARD"),
+                  identityMarkerCount: 0,
+                  surfaceMarkerCount: 0,
+                  securityCheckpointObserved: true,
+                  readiness: "SECURITY_GATE",
+                },
+              ],
+            ]),
+            "NONE",
+            "HEADLESS_DIAGNOSTIC",
+          );
+        },
+        createHeadedBrowser: () => {
+          headedCalls += 1;
+          return new FakeNoSessionBrowser(snapshots, "NONE", "HEADED");
+        },
+      },
+      "2026-09-18T11:00:00.000Z",
+    );
+    expect(result.classification).toBe("HEALTHY");
+    expect(result.browserMode.authoritativeMode).toBe("HEADED");
+    expect(result.browserMode.canonicalMode).toBe("HEADED");
+    expect(result.browserMode.fallbackAttempted).toBe(true);
+    expect(result.browserMode.fallbackReason).toBe("SECURITY_CHECKPOINT");
+    expect(result.browserMode.diagnosticObservation?.surfaceOutcome).toBe(
+      "SECURITY_CHECKPOINT",
+    );
+    expect(headedCalls).toBe(1);
+    expect(headlessCalls).toBe(1);
+  });
+
+  it("runs fallback at most once and makes headed identity authoritative", async () => {
+    let headedCalls = 0;
+    const result = await runNoSessionAutomaticProbe(
+      target,
+      {
+        diagnosticFirst: true,
+        createHeadlessDiagnosticBrowser: () =>
+          new FakeNoSessionBrowser(
+            new Map([
+              [
+                getNoSessionStrategy("CHATGPT_STANDARD").profile.profileId,
+                {
+                  ...snapshotFor("CHATGPT_STANDARD"),
+                  identityMarkerCount: 0,
+                  securityCheckpointObserved: true,
+                },
+              ],
+            ]),
+            "NONE",
+            "HEADLESS_DIAGNOSTIC",
+          ),
+        createHeadedBrowser: () => {
+          headedCalls += 1;
+          return new FakeNoSessionBrowser(snapshots, "NONE", "HEADED");
+        },
+      },
+      "2026-09-18T11:00:00.000Z",
+    );
+    expect(headedCalls).toBe(1);
+    expect(result.identity).toBe("PROVEN");
+    expect(result.browserMode.fallbackAttempted).toBe(true);
+  });
+
+  it("keeps both blocked modes as a precise headed access result", async () => {
+    const result = await runNoSessionAutomaticProbe(
+      target,
+      {
+        diagnosticFirst: true,
+        createHeadlessDiagnosticBrowser: () =>
+          new FakeNoSessionBrowser(
+            new Map([
+              [
+                getNoSessionStrategy("CHATGPT_STANDARD").profile.profileId,
+                {
+                  ...snapshotFor("CHATGPT_STANDARD"),
+                  identityMarkerCount: 0,
+                  securityCheckpointObserved: true,
+                },
+              ],
+            ]),
+            "NONE",
+            "HEADLESS_DIAGNOSTIC",
+          ),
+        createHeadedBrowser: () =>
+          new FakeNoSessionBrowser(
+            new Map([
+              [
+                getNoSessionStrategy("CHATGPT_STANDARD").profile.profileId,
+                {
+                  ...snapshotFor("CHATGPT_STANDARD"),
+                  identityMarkerCount: 0,
+                  surfaceMarkerCount: 0,
+                  accessBlockedObserved: true,
+                  readiness: "ACCESS_GATE",
+                },
+              ],
+            ]),
+            "NONE",
+            "HEADED",
+          ),
+      },
+      "2026-09-18T11:00:00.000Z",
+    );
+    expect(result.blocker).toBe("ACCESS_BLOCKED");
+    expect(result.classification).toBe("UNKNOWN");
+    expect(result.browserMode.authoritativeMode).toBe("HEADED");
+    expect(result.browserMode.diagnosticObservation?.blocker).toBe(
+      "SECURITY_CHECKPOINT",
+    );
+  });
+
+  it("reports missing headed infrastructure as environment/browser uncertainty", async () => {
+    const result = await runNoSessionAutomaticProbe(
+      target,
+      {
+        createHeadedBrowser: () => {
+          throw new Error("NO_DISPLAY");
+        },
+      },
+      "2026-09-18T11:00:00.000Z",
+    );
+    expect(result.blocker).toBe("BROWSER_UNAVAILABLE");
+    expect(result.classification).toBe("UNKNOWN");
+    expect(result.surfaceOutcome).toBe("BROWSER_FAILURE");
+    expect(result.browserMode.headedInfrastructure).toBe("UNAVAILABLE");
+    expect(result.browserMode.environmentLimited).toBe(true);
+  });
+
+  it("uses standard ephemeral sessionless Chromium modes without stealth or auth state", () => {
+    const headed = createNoSessionChromeBrowserDriver({ mode: "HEADED" });
+    const diagnostic = createNoSessionChromeBrowserDriver({
+      mode: "HEADLESS_DIAGNOSTIC",
+    });
+    expect(headed.mode).toBe("HEADED");
+    expect(headed.getRuntimeMetadata().headless).toBe(false);
+    expect(diagnostic.mode).toBe("HEADLESS_DIAGNOSTIC");
+    expect(diagnostic.getRuntimeMetadata().headless).toBe(true);
+    expect(headed.sessionKind).toBe("EPHEMERAL_CONTROLLED");
+    expect(
+      Object.keys(headed).some((key) =>
+        /storageState|cookie|header|persistent|stealth|fingerprint/i.test(key),
+      ),
+    ).toBe(false);
   });
 });
