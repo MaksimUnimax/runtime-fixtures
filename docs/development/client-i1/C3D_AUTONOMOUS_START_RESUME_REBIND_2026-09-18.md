@@ -210,9 +210,8 @@ installed-browser acceptance.
 ## Candidate identity and deferred ledger
 
 Candidate branch: `feature/i1-c3d-autonomous-start-resume-rebind-2026-09-18`.
-Candidate tree: recorded in the terminal report after the implementation
-commit. Candidate commit SHA: recorded in the terminal report after the
-implementation commit.
+Candidate commit SHA: `d91aa7095c84dead059beb5ea74662f59cd15311`.
+Candidate tree: `b6ee656f4e2209b3e80363246d7b9a93ddf259d5`.
 
 Preserved/deferred ledger:
 
