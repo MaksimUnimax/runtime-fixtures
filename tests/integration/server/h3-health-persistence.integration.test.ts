@@ -5,6 +5,7 @@ import {
   type HealthSuiteDefinition,
 } from "../../../packages/server/health/src/index.js";
 import {
+  createH3HealthEvidencePackage,
   createH3HealthPersistenceCommand,
   type H3HealthPersistenceContext,
 } from "../../../apps/health-runner/src/h3-health-persistence.js";
@@ -353,12 +354,15 @@ async function persist(
   surface: "standard" | "work",
   result: ReturnType<typeof H3ExecutionResultSchema.parse>,
 ) {
-  const command = createH3HealthPersistenceCommand(
+  const evidencePackage = createH3HealthEvidencePackage(
     result,
     context(suiteFor(surface)),
   );
-  const run = await repository.persistCompletedHealthRun(command);
+  const run = await repository.persistCompletedHealthRun(
+    evidencePackage.persistenceCommand,
+  );
   return {
+    evidencePackage,
     run,
     contours: await repository.listContourResults(run.id),
     evidence: await repository.listEvidenceReferences(run.id),
@@ -500,6 +504,26 @@ describe("B5 durable Standard/Work H3 evidence", () => {
       expect(stored.evidence).toHaveLength(11);
       expect(
         stored.evidence.every((item) => item.evidenceId.length === 36),
+      ).toBe(true);
+      const artifactById = new Map(
+        stored.evidencePackage.artifacts.map((artifact) => [
+          artifact.evidenceId,
+          artifact,
+        ]),
+      );
+      expect(
+        stored.evidence.every((reference) => {
+          const artifact = artifactById.get(reference.evidenceId);
+          return (
+            artifact !== undefined &&
+            reference.ruleId === artifact.ruleId &&
+            reference.classification === artifact.classification &&
+            reference.sha256 === artifact.sha256 &&
+            reference.sizeBytes === artifact.sizeBytes &&
+            reference.sha256 !== null &&
+            reference.sizeBytes !== null
+          );
+        }),
       ).toBe(true);
       expect(JSON.stringify(stored)).not.toMatch(
         /TOXIC_PROMPT|TOXIC_RESPONSE|TOXIC_DOM|TOXIC_HTML|TOXIC_PROJECT|TOXIC_CONVERSATION|TOXIC_COOKIE|TOXIC_TOKEN|TOXIC_STORAGE|TOXIC_SELLER/i,

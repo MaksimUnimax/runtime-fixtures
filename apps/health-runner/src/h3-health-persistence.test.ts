@@ -1,3 +1,4 @@
+import { createHash, randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { ZodError } from "zod";
 import {
@@ -5,9 +6,14 @@ import {
   HealthSuiteDefinitionSchema,
   classifyHealth,
 } from "@product/health";
+import { canonicalizeJson } from "@product/remote-config";
 import {
   createH3HealthPersistenceCommand,
+  createH3HealthEvidencePackage,
+  validateH3HealthEvidencePackage,
+  H3SafeEvidenceArtifactSchema,
   type H3HealthPersistenceContext,
+  type H3HealthEvidencePackage,
 } from "./h3-health-persistence.js";
 import { H3ExecutionResultSchema } from "./h3-engine.js";
 import {
@@ -27,7 +33,10 @@ const RUNTIME = {
   sessionKind: "EPHEMERAL_CONTROLLED" as const,
 };
 
-function suiteFor(surface: "standard" | "work", profileRevision: 1 | 2) {
+function suiteFor(
+  surface: "standard" | "work" | "alice",
+  profileRevision: 1 | 2,
+) {
   return HealthSuiteDefinitionSchema.parse({
     ...BASELINE_HEALTH_SUITE,
     scope: {
@@ -166,7 +175,7 @@ function event(
 }
 
 function execution(
-  surface: "CHATGPT_STANDARD" | "CHATGPT_WORK",
+  surface: "CHATGPT_STANDARD" | "CHATGPT_WORK" | "ALICE",
   outcome: "PASS" | "FAIL" | "UNCERTAIN",
   events: readonly ReturnType<typeof event>[],
   failureCode:
@@ -186,7 +195,9 @@ function execution(
     targetKey:
       surface === "CHATGPT_STANDARD"
         ? "chatgpt_standard_health"
-        : "chatgpt_work_health",
+        : surface === "CHATGPT_WORK"
+          ? "chatgpt_work_health"
+          : "alice_health",
     surfaceProfile:
       surface === "CHATGPT_STANDARD"
         ? {
@@ -194,11 +205,17 @@ function execution(
             profileId: "CHATGPT_STANDARD_H3_V2",
             profileRevision: 2,
           }
-        : {
-            surface,
-            profileId: "CHATGPT_WORK_H3_V1",
-            profileRevision: 1,
-          },
+        : surface === "CHATGPT_WORK"
+          ? {
+              surface,
+              profileId: "CHATGPT_WORK_H3_V1",
+              profileRevision: 1,
+            }
+          : {
+              surface,
+              profileId: "ALICE_H3_V1",
+              profileRevision: 1,
+            },
     outcome,
     completedSteps: events
       .filter((item) => item.outcome === "PASS")
@@ -214,7 +231,7 @@ function execution(
 }
 
 function context(
-  surface: "standard" | "work",
+  surface: "standard" | "work" | "alice",
   profileRevision: 1 | 2,
 ): H3HealthPersistenceContext {
   return {
@@ -902,5 +919,361 @@ describe("B5 H3 capture-boundary Health mapper", () => {
       expect(reference?.evidenceId.length).toBe(36);
     }
     expect(serialized).not.toContain("Работа");
+  });
+});
+
+it("E01: package exposes an artifact for every evidence reference", () => {
+  const evidencePackage = createH3HealthEvidencePackage(
+    execution("CHATGPT_STANDARD", "PASS", PASS_EVENTS, null, null, null),
+    context("standard", 2),
+  );
+  expect(evidencePackage.artifacts.length).toBeGreaterThan(0);
+  expect(evidencePackage.persistenceCommand.results).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        evidence: expect.arrayContaining([
+          expect.objectContaining({ sha256: expect.any(String) }),
+        ]),
+      }),
+    ]),
+  );
+});
+
+function packageFor(
+  surface: "CHATGPT_STANDARD" | "CHATGPT_WORK" | "ALICE",
+  surfaceKey: "standard" | "work" | "alice",
+  profileRevision: 1 | 2,
+  events: readonly ReturnType<typeof event>[] = PASS_EVENTS,
+) {
+  return createH3HealthEvidencePackage(
+    execution(surface, "PASS", events, null, null, null),
+    context(surfaceKey, profileRevision),
+  );
+}
+
+function mutablePackage(pkg: H3HealthEvidencePackage) {
+  return structuredClone(pkg) as unknown as {
+    artifacts: Array<{
+      evidenceId: string;
+      ruleId: string;
+      sha256: string;
+      sizeBytes: number;
+      payload: Record<string, unknown>;
+    }>;
+    persistenceCommand: {
+      results: Array<{
+        contourKey: string;
+        evidence: Array<{
+          evidenceId: string;
+          ruleId: string;
+          classification: string;
+          sha256: string | null;
+          sizeBytes: number | null;
+        }>;
+      }>;
+    };
+    classification: Record<string, unknown>;
+  };
+}
+
+describe("S2-L5 R1 safe evidence artifact matrix", () => {
+  it("E02: emits metadata and state-transition artifacts only", () => {
+    const pkg = packageFor("CHATGPT_STANDARD", "standard", 2);
+    expect(
+      pkg.artifacts.some(
+        (artifact) => artifact.payload.kind === "SAFE_ELEMENT_METADATA",
+      ),
+    ).toBe(true);
+    expect(
+      pkg.artifacts.some(
+        (artifact) => artifact.payload.kind === "STATE_TRANSITION_TRACE",
+      ),
+    ).toBe(true);
+    expect(
+      pkg.artifacts.every((artifact) =>
+        ["SAFE_ELEMENT_METADATA", "STATE_TRANSITION_TRACE"].includes(
+          artifact.payload.kind,
+        ),
+      ),
+    ).toBe(true);
+  });
+
+  it.each([
+    ["CHATGPT_STANDARD", "standard", 2],
+    ["CHATGPT_WORK", "work", 1],
+    ["ALICE", "alice", 1],
+  ] as const)(
+    "E03/E20-E23: emits safe package for %s",
+    (surface, key, revision) => {
+      const pkg = packageFor(surface, key, revision);
+      expect(pkg.summary).toMatchObject({
+        targetKey:
+          surface === "CHATGPT_STANDARD"
+            ? "chatgpt_standard_health"
+            : surface === "CHATGPT_WORK"
+              ? "chatgpt_work_health"
+              : "alice_health",
+        surface,
+        surfaceKey: key,
+        browserFamily: "chrome",
+        browserVersion: "120.0.0.0",
+        profileRevision: revision,
+        healthSuiteMachineKey: "baseline-contract-fixture",
+        healthSuiteRevision: 1,
+        classifierVersion: "p8.1-classifier-v1",
+      });
+      expect(pkg.summary.runId).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+      );
+    },
+  );
+
+  it("E04-E08: reference metadata exactly describes canonical artifact bytes", () => {
+    const pkg = packageFor("CHATGPT_STANDARD", "standard", 2);
+    const artifacts = new Map(
+      pkg.artifacts.map((artifact) => [artifact.evidenceId, artifact]),
+    );
+    for (const result of pkg.persistenceCommand.results) {
+      for (const reference of result.evidence) {
+        const artifact = artifacts.get(reference.evidenceId);
+        expect(artifact).toBeDefined();
+        expect(reference.evidenceId).toBe(artifact?.evidenceId);
+        expect(reference.ruleId).toBe(artifact?.ruleId);
+        expect(reference.classification).toBe(artifact?.classification);
+        expect(reference.sha256).toBe(artifact?.sha256);
+        expect(reference.sizeBytes).toBe(artifact?.sizeBytes);
+        const bytes = canonicalizeJson(artifact?.payload);
+        expect(reference.sha256).toBe(
+          createHash("sha256").update(bytes).digest("hex"),
+        );
+        expect(reference.sizeBytes).toBe(bytes.byteLength);
+      }
+    }
+  });
+
+  it("E09-E10/E28: identical bounded inputs hash identically and ordering is stable", () => {
+    const first = packageFor("CHATGPT_WORK", "work", 1);
+    const second = packageFor("CHATGPT_WORK", "work", 1);
+    expect(first.artifacts.map((item) => item.payload)).toEqual(
+      second.artifacts.map((item) => item.payload),
+    );
+    expect(first.artifacts.map((item) => item.sha256)).toEqual(
+      second.artifacts.map((item) => item.sha256),
+    );
+    expect(first.artifacts.map((item) => item.sizeBytes)).toEqual(
+      second.artifacts.map((item) => item.sizeBytes),
+    );
+    expect(first.artifacts.map((item) => item.contourKey)).toEqual(
+      first.persistenceCommand.results
+        .filter((item) => item.evidence.length > 0)
+        .map((item) => item.contourKey),
+    );
+    const changedEvents = PASS_EVENTS.map((item) =>
+      item.step === "IDENTIFY_SURFACE" ? { ...item, markerCount: 7 } : item,
+    );
+    const changed = packageFor("CHATGPT_WORK", "work", 1, changedEvents);
+    expect(changed.artifacts[0]?.sha256).not.toBe(first.artifacts[0]?.sha256);
+  });
+
+  it("E11-E12/E35: artifact payloads are strict and future capture rules fail closed", () => {
+    const pkg = packageFor("CHATGPT_STANDARD", "standard", 2);
+    const artifact = pkg.artifacts[0]!;
+    expect(
+      H3SafeEvidenceArtifactSchema.safeParse({
+        ...artifact,
+        payload: { ...artifact.payload, unknownField: "sentinel" },
+      }).success,
+    ).toBe(false);
+    expect(
+      H3SafeEvidenceArtifactSchema.safeParse({
+        ...artifact,
+        ruleId: "BOUNDED_DOM_FRAGMENT",
+      }).success,
+    ).toBe(false);
+    expect(
+      H3SafeEvidenceArtifactSchema.safeParse({
+        ...artifact,
+        ruleId: "SAFE_SCREENSHOT_REFERENCE",
+      }).success,
+    ).toBe(false);
+    expect(
+      pkg.artifacts.every(
+        (item) =>
+          !["BOUNDED_DOM_FRAGMENT", "SAFE_SCREENSHOT_REFERENCE"].includes(
+            item.ruleId as string,
+          ),
+      ),
+    ).toBe(true);
+  });
+
+  it("E13-E19: rejects raw sentinels upstream and excludes them from valid serialization", () => {
+    const source = execution(
+      "CHATGPT_STANDARD",
+      "PASS",
+      PASS_EVENTS,
+      null,
+      null,
+      null,
+    );
+    const sentinels = {
+      prompt: "PROMPT_SECRET_SENTINEL",
+      response: "RESPONSE_SECRET_SENTINEL",
+      dom: "DOM_SECRET_SENTINEL",
+      route: "ROUTE_SECRET_SENTINEL",
+      conversation: "CONVERSATION_SECRET_SENTINEL",
+      cookie: "COOKIE_SECRET_SENTINEL",
+      token: "TOKEN_SECRET_SENTINEL",
+      storage: "STORAGE_SECRET_SENTINEL",
+      seller: "SELLER_SECRET_SENTINEL",
+      customer: "CUSTOMER_SECRET_SENTINEL",
+      error: "ARBITRARY_ERROR_SECRET_SENTINEL",
+    } as const;
+    for (const [field, value] of Object.entries(sentinels)) {
+      expect(() =>
+        createH3HealthEvidencePackage(
+          { ...source, [field]: value },
+          context("standard", 2),
+        ),
+      ).toThrow();
+    }
+    const pkg = packageFor("CHATGPT_STANDARD", "standard", 2);
+    expect(JSON.stringify(pkg)).not.toMatch(
+      /PROMPT_SECRET_SENTINEL|RESPONSE_SECRET_SENTINEL|DOM_SECRET_SENTINEL|ROUTE_SECRET_SENTINEL|CONVERSATION_SECRET_SENTINEL|COOKIE_SECRET_SENTINEL|TOKEN_SECRET_SENTINEL|STORAGE_SECRET_SENTINEL|SELLER_SECRET_SENTINEL|CUSTOMER_SECRET_SENTINEL|ARBITRARY_ERROR_SECRET_SENTINEL/,
+    );
+  });
+
+  it("E24-E26: stores the exact detailed S2-L4 classification summary", () => {
+    const pkg = packageFor("CHATGPT_STANDARD", "standard", 2);
+    expect(pkg.classification).toMatchObject({
+      state: "HEALTHY",
+      basis: "HEALTHY_PRIMARY",
+      environmentUncertaintyReasons: [],
+      operatorMaintenance: false,
+    });
+    expect(new Set(pkg.classification.findingContourKeys).size).toBe(
+      pkg.classification.findingContourKeys.length,
+    );
+    const uncertain = createH3HealthEvidencePackage(
+      execution(
+        "CHATGPT_STANDARD",
+        "UNCERTAIN",
+        [event("IDENTIFY_SURFACE", "UNCERTAIN"), event("CLEANUP", "PASS")],
+        "LOGIN_REQUIRED",
+        "IDENTIFY_SURFACE",
+        "LOGIN_EXPIRED",
+      ),
+      context("standard", 2),
+    );
+    expect(uncertain.classification).toMatchObject({
+      state: "UNKNOWN",
+      basis: "UNKNOWN_AUTH_OR_SECURITY_BLOCKER",
+      environmentUncertaintyReasons: ["LOGIN_EXPIRED"],
+    });
+  });
+
+  it("E27: preserves fallback provenance in the command and safe metadata", () => {
+    const pkg = createH3HealthEvidencePackage(
+      withObservations(
+        [
+          contourObservation("C05_SEND_CONTROL", "SEMANTIC_SEND_CONTROL", {
+            primaryStrategyOutcome: "FAIL",
+            fallbackStrategyOutcomes: [
+              { strategyId: "COMPOSER_ACTION_CONTROL", outcome: "PASS" },
+            ],
+            selectedStrategyId: "COMPOSER_ACTION_CONTROL",
+            fallbackQuality: "APPROVED_EQUIVALENT",
+            evidenceKind: "STATE_TRANSITION_TRACE",
+          }),
+        ],
+        "SEND_ONCE",
+      ),
+      context("standard", 2),
+    );
+    expect(
+      pkg.persistenceCommand.results.find(
+        (result) => result.contourKey === "C05_SEND_CONTROL",
+      ),
+    ).toMatchObject({
+      fallbackStrategyOutcomes: [
+        { strategyId: "COMPOSER_ACTION_CONTROL", outcome: "PASS" },
+      ],
+      fallbackQuality: "APPROVED_EQUIVALENT",
+    });
+  });
+
+  it("E29-E33: rejects duplicate, orphan, mismatched, and tampered package records", () => {
+    const pkg = packageFor("CHATGPT_STANDARD", "standard", 2);
+    const duplicate = mutablePackage(pkg);
+    duplicate.artifacts[1]!.evidenceId = duplicate.artifacts[0]!.evidenceId;
+    expect(() => validateH3HealthEvidencePackage(duplicate)).toThrow(
+      "H3_EVIDENCE_DUPLICATE_ARTIFACT_ID",
+    );
+
+    const orphanReference = mutablePackage(pkg);
+    const resultWithoutEvidence =
+      orphanReference.persistenceCommand.results.find(
+        (result) => result.evidence.length === 0,
+      )!;
+    resultWithoutEvidence.evidence.push({
+      evidenceId: randomUUID(),
+      ruleId: "SAFE_ELEMENT_METADATA",
+      classification: "METADATA",
+      sha256: "a".repeat(64),
+      sizeBytes: 1,
+    });
+    expect(() => validateH3HealthEvidencePackage(orphanReference)).toThrow(
+      "H3_EVIDENCE_ORPHAN_REFERENCE",
+    );
+
+    const orphanArtifact = mutablePackage(pkg);
+    orphanArtifact.artifacts.push({
+      ...orphanArtifact.artifacts[0]!,
+      evidenceId: randomUUID(),
+    });
+    expect(() => validateH3HealthEvidencePackage(orphanArtifact)).toThrow(
+      "H3_EVIDENCE_ORPHAN_ARTIFACT",
+    );
+
+    const hashMismatch = mutablePackage(pkg);
+    hashMismatch.artifacts[0]!.sha256 = "b".repeat(64);
+    expect(() => validateH3HealthEvidencePackage(hashMismatch)).toThrow(
+      "H3_EVIDENCE_HASH_SIZE_MISMATCH",
+    );
+
+    const typeMismatch = mutablePackage(pkg);
+    const transition = typeMismatch.artifacts.find(
+      (artifact) => artifact.ruleId === "STATE_TRANSITION_TRACE",
+    )!;
+    transition.ruleId = "SAFE_ELEMENT_METADATA";
+    expect(() => validateH3HealthEvidencePackage(typeMismatch)).toThrow(
+      "H3_EVIDENCE_ARTIFACT_TYPE_MISMATCH",
+    );
+  });
+
+  it("E34: freezes package, artifacts, payloads, and classification", () => {
+    const pkg = packageFor("ALICE", "alice", 1);
+    expect(Object.isFrozen(pkg)).toBe(true);
+    expect(Object.isFrozen(pkg.artifacts)).toBe(true);
+    expect(Object.isFrozen(pkg.artifacts[0])).toBe(true);
+    expect(Object.isFrozen(pkg.artifacts[0]?.payload)).toBe(true);
+    expect(Object.isFrozen(pkg.classification)).toBe(true);
+    expect(() => {
+      (pkg.artifacts as unknown as Array<unknown>).push({});
+    }).toThrow(TypeError);
+    expect(pkg.artifacts.length).toBe(11);
+    expect(pkg.persistenceCommand.results[0]?.evidence).toHaveLength(1);
+  });
+
+  it("bounds fallback, finding, transition, and artifact counts", () => {
+    const pkg = packageFor("CHATGPT_STANDARD", "standard", 2);
+    expect(pkg.artifacts.length).toBeLessThanOrEqual(13);
+    expect(
+      pkg.persistenceCommand.results.every(
+        (result) => result.fallbackStrategyOutcomes.length <= 8,
+      ),
+    ).toBe(true);
+    expect(pkg.classification.findingContourKeys.length).toBeLessThanOrEqual(
+      13,
+    );
   });
 });

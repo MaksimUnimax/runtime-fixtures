@@ -170,6 +170,9 @@ importers:
       '@product/health':
         specifier: workspace:*
         version: link:../../packages/server/health
+      '@product/remote-config':
+        specifier: workspace:*
+        version: link:../../packages/server/remote-config
       '@product/shared':
         specifier: workspace:*
         version: link:../../packages/shared

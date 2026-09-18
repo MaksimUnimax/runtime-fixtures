@@ -135,11 +135,25 @@ export type {
 export {
   H3HealthPersistenceContextSchema,
   H3HealthPersistenceCommandSchema,
+  H3SafeMetadataArtifactPayloadSchema,
+  H3StateTransitionArtifactPayloadSchema,
+  H3SafeEvidenceArtifactPayloadSchema,
+  H3SafeEvidenceArtifactSchema,
+  H3HealthEvidenceSummarySchema,
+  H3HealthEvidencePackageSchema,
   createH3HealthPersistenceCommand,
+  createH3HealthEvidencePackage,
+  validateH3HealthEvidencePackage,
 } from "./h3-health-persistence.js";
 export type {
   H3HealthPersistenceContext,
   H3HealthPersistenceCommand,
+  H3SafeMetadataArtifactPayload,
+  H3StateTransitionArtifactPayload,
+  H3SafeEvidenceArtifactPayload,
+  H3SafeEvidenceArtifact,
+  H3HealthEvidenceSummary,
+  H3HealthEvidencePackage,
 } from "./h3-health-persistence.js";
 export type {
   SafeStructuralMetadata,
