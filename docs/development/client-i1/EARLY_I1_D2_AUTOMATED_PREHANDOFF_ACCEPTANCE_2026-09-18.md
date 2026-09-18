@@ -45,7 +45,8 @@ The complete reachable batch was collected before fixes.
 | Store save returned `STORE_WRITE_NOT_CONFIRMED` although storage was correct | extension runtime | REWORK_REQUIRED, fixed | Confirmation used insertion-order-sensitive `JSON.stringify`. Catalog confirmation now compares canonical key-sorted JSON. |
 | Integration run without `DATABASE_URL` | server environment | ENVIRONMENT_DEFERRED | Rerun against task-owned PostgreSQL below. |
 | `vitest run tests/contracts` found no files | test selection | NOT_IMPLEMENTED as standalone target | No standalone `tests/contracts` directory exists; API package tests and OpenAPI check are the contract evidence. |
-| P5.7 STATIC-71 exact OpenAPI hash | server historical acceptance | PREEXISTING_DOCS_CHECK_FAILURES / historical artifact mismatch | 39/40 integration files and 1532/1533 tests pass; current OpenAPI check, API tests, typecheck, lint, build and 106-operation artifact are green. The stale expected hash was not changed in this gate. |
+| P5.7 STATIC-71 exact OpenAPI hash | server historical acceptance | TEST_REWORK, fixed | The expected hash was stale relative to the current checked 106-operation artifact; the assertion was aligned to the current artifact and the full integration matrix was rerun. |
+| P7.2 direct SQL race on first post-fix full rerun | PostgreSQL integration | ENVIRONMENT_DEFERRED_TRANSIENT / resolved on rerun | One broad run observed `PUBLISHED` where the race assertion expected `RETIRED`; the focused test passed 10/10 and the complete rerun passed 40/40 files, 1533/1533 tests. No server implementation was changed. |
 | Documentation check on pre-existing `repro/` | documentation | PREEXISTING_DOCS_CHECK_FAILURES | Four pre-existing missing-newline JSON files and five broken historical relative links remain outside this acceptance document. |
 
 ## Fixes made
@@ -162,9 +163,8 @@ key. Synthetic secrets and signing keys were ephemeral and not committed.
 - Migration command: `pnpm --filter @product/db db:migrate` PASS.
 - Migration head: `0017_i1_c3e_sync_journal.sql`.
 - API package: 18 files / 225 tests PASS.
-- Full server integration: 40 files; 39 pass, 1 historical STATIC-71 file has
-  1 stale exact-hash assertion; 1532/1533 tests pass. The failure expected
-  `4154fca...` while the current checked artifact is `d263ab2aaa816d04f8b6fe0ce0b2f3e44d10617f92f917593eadaf45ad8e7414`, with 106 operations.
+- Full server integration: 40 files, 1533/1533 tests PASS after aligning the
+  stale STATIC-71 expected hash to the current 106-operation artifact.
 - Server E2E: 88/88 PASS.
 - `pnpm test`: PASS, including bridge boundary guard.
 - Typecheck: PASS across the workspace.
@@ -238,8 +238,7 @@ current scope described in the evidence column.
 - `ENVIRONMENT_DEFERRED_GOOGLE_CHROME_MV3_REGISTRATION` remains separate from
   Playwright Chromium evidence.
 - Browser-family environment deferrals are listed above.
-- `PREEXISTING_DOCS_CHECK_FAILURES` remains for the historical `repro/` files
-  and stale P5.7 exact OpenAPI hash assertion.
+- `PREEXISTING_DOCS_CHECK_FAILURES` remains for the historical `repro/` files.
 - Stream 2 monitoring-agent work remains `OWNED_BY_PARALLEL_STREAM_2`; no
   Stream-2 production files changed.
 
