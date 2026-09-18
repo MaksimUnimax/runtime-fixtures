@@ -3,3 +3,4 @@ export * from "./classifier.js";
 export * from "./h0.js";
 export * from "./registry.js";
 export * from "./types.js";
+export * from "./scheduler.js";

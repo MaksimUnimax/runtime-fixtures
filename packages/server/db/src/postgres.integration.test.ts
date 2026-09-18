@@ -111,6 +111,8 @@ describe.sequential("P2.1 PostgreSQL persistence integration", () => {
       "health_evidence_references",
       "health_incidents",
       "health_runs",
+      "health_scheduled_runs",
+      "health_schedules",
       "health_suite_revisions",
       "otp_challenges",
       "otp_email_jobs",
@@ -137,7 +139,7 @@ describe.sequential("P2.1 PostgreSQL persistence integration", () => {
     const count = await runtime.db.execute<{ count: string }>(sql`
       SELECT count(*)::text AS "count" FROM drizzle."__drizzle_migrations"
     `);
-    expect(count.rows[0]?.count).toBe("17");
+    expect(count.rows[0]?.count).toBe("18");
     const probe = await runtime.db.execute<{ probe: string | null }>(sql`
       SELECT to_regclass('__p1_migration_probe') AS "probe"
     `);

@@ -40,6 +40,7 @@ export type PersistedHealthRun = {
   browserVersion: string;
   extensionVersion: string;
   adapterEngineVersion: string;
+  scheduledRunId: string | null;
   healthLevel: "H0" | "H1" | "H2" | "H3" | "H4" | "H5";
   healthState: HealthState;
   classifierVersion: string;
@@ -61,6 +62,7 @@ export type PersistCompletedHealthRunInput = {
   classifierVersion: string;
   startedAt: Date;
   completedAt: Date;
+  scheduledRunId?: string | null;
 };
 
 type SuiteRow = {
@@ -86,6 +88,7 @@ type RunRow = {
   browserVersion: string;
   extensionVersion: string;
   adapterEngineVersion: string;
+  scheduledRunId: string | null;
   healthLevel: "H0" | "H1" | "H2" | "H3" | "H4" | "H5";
   healthState: HealthState;
   classifierVersion: string;
@@ -154,7 +157,7 @@ function suiteProjection(): string {
 }
 
 function runProjection(): string {
-  return `SELECT id,suite_revision_id AS "suiteRevisionId",adapter_id AS "adapterId",surface_id AS "surfaceId",variant_id AS "variantId",profile_id AS "profileId",profile_revision_id AS "profileRevisionId",profile_revision AS "profileRevision",browser_family AS "browserFamily",browser_version AS "browserVersion",extension_version AS "extensionVersion",adapter_engine_version AS "adapterEngineVersion",health_level AS "healthLevel",health_state AS "healthState",classifier_version AS "classifierVersion",scope,scope_sha256 AS "scopeSha256",operator_maintenance AS "operatorMaintenance",operator_maintenance_authority AS "operatorMaintenanceAuthority",started_at AS "startedAt",completed_at AS "completedAt",created_at AS "createdAt" FROM health_runs`;
+  return `SELECT id,suite_revision_id AS "suiteRevisionId",adapter_id AS "adapterId",surface_id AS "surfaceId",variant_id AS "variantId",profile_id AS "profileId",profile_revision_id AS "profileRevisionId",profile_revision AS "profileRevision",browser_family AS "browserFamily",browser_version AS "browserVersion",extension_version AS "extensionVersion",adapter_engine_version AS "adapterEngineVersion",scheduled_run_id AS "scheduledRunId",health_level AS "healthLevel",health_state AS "healthState",classifier_version AS "classifierVersion",scope,scope_sha256 AS "scopeSha256",operator_maintenance AS "operatorMaintenance",operator_maintenance_authority AS "operatorMaintenanceAuthority",started_at AS "startedAt",completed_at AS "completedAt",created_at AS "createdAt" FROM health_runs`;
 }
 
 async function persistOrReuseSuite(
@@ -236,6 +239,7 @@ function parseCompletedInput(input: PersistCompletedHealthRunInput) {
     "classifierVersion",
     "startedAt",
     "completedAt",
+    "scheduledRunId",
   ]);
   for (const key of Object.keys(value)) {
     if (!allowed.has(key))
@@ -274,6 +278,16 @@ function parseCompletedInput(input: PersistCompletedHealthRunInput) {
   ) {
     throw new Error("INVALID_MAINTENANCE_AUTHORITY");
   }
+  const scheduledRunId = value.scheduledRunId ?? null;
+  if (
+    scheduledRunId !== null &&
+    (typeof scheduledRunId !== "string" ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(
+        scheduledRunId,
+      ))
+  ) {
+    throw new Error("INVALID_SCHEDULED_RUN_ID");
+  }
   return {
     suite: validateHealthSuiteDefinition(value.suite),
     results: value.results.map((result) =>
@@ -285,6 +299,7 @@ function parseCompletedInput(input: PersistCompletedHealthRunInput) {
     classifierVersion: value.classifierVersion,
     startedAt: value.startedAt,
     completedAt: value.completedAt,
+    scheduledRunId,
   };
 }
 
@@ -320,7 +335,7 @@ export function createHealthPersistenceRepository(runtime: DatabaseRuntime) {
         const suiteRevision = await persistOrReuseSuite(q, input.suite);
         const runId = randomUUID();
         const run = await q.query<RunRow>(
-          `INSERT INTO health_runs(id,suite_revision_id,adapter_id,surface_id,variant_id,profile_id,profile_revision_id,profile_revision,browser_family,browser_version,extension_version,adapter_engine_version,health_level,health_state,classifier_version,scope,scope_sha256,operator_maintenance,operator_maintenance_authority,started_at,completed_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16::jsonb,$17,$18,$19,$20,$21) RETURNING id,suite_revision_id AS "suiteRevisionId",adapter_id AS "adapterId",surface_id AS "surfaceId",variant_id AS "variantId",profile_id AS "profileId",profile_revision_id AS "profileRevisionId",profile_revision AS "profileRevision",browser_family AS "browserFamily",browser_version AS "browserVersion",extension_version AS "extensionVersion",adapter_engine_version AS "adapterEngineVersion",health_level AS "healthLevel",health_state AS "healthState",classifier_version AS "classifierVersion",scope,scope_sha256 AS "scopeSha256",operator_maintenance AS "operatorMaintenance",operator_maintenance_authority AS "operatorMaintenanceAuthority",started_at AS "startedAt",completed_at AS "completedAt",created_at AS "createdAt"`,
+          `INSERT INTO health_runs(id,suite_revision_id,adapter_id,surface_id,variant_id,profile_id,profile_revision_id,profile_revision,browser_family,browser_version,extension_version,adapter_engine_version,scheduled_run_id,health_level,health_state,classifier_version,scope,scope_sha256,operator_maintenance,operator_maintenance_authority,started_at,completed_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17::jsonb,$18,$19,$20,$21,$22) RETURNING id,suite_revision_id AS "suiteRevisionId",adapter_id AS "adapterId",surface_id AS "surfaceId",variant_id AS "variantId",profile_id AS "profileId",profile_revision_id AS "profileRevisionId",profile_revision AS "profileRevision",browser_family AS "browserFamily",browser_version AS "browserVersion",extension_version AS "extensionVersion",adapter_engine_version AS "adapterEngineVersion",scheduled_run_id AS "scheduledRunId",health_level AS "healthLevel",health_state AS "healthState",classifier_version AS "classifierVersion",scope,scope_sha256 AS "scopeSha256",operator_maintenance AS "operatorMaintenance",operator_maintenance_authority AS "operatorMaintenanceAuthority",started_at AS "startedAt",completed_at AS "completedAt",created_at AS "createdAt"`,
           [
             runId,
             suiteRevision.id,
@@ -334,6 +349,7 @@ export function createHealthPersistenceRepository(runtime: DatabaseRuntime) {
             scope.browserVersion,
             scope.extensionVersion,
             scope.adapterEngineVersion,
+            input.scheduledRunId,
             input.healthLevel,
             healthState,
             input.classifierVersion,

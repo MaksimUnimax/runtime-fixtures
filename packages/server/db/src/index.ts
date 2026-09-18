@@ -22,6 +22,7 @@ export { createP6AdminCommercialReadRepository } from "./p6-admin-commercial-rea
 export { createAdapterRegistryCatalogRepository } from "./adapter-registry-repository.js";
 export { createProfileLifecycleRepository } from "./p7-profile-lifecycle-repository.js";
 export { createHealthPersistenceRepository } from "./health-persistence-repository.js";
+export { createHealthSchedulerRepository } from "./health-scheduler-repository.js";
 export { createBetaAdmissionRepository } from "./beta-admission-repository.js";
 export { createBootstrapAiResolutionRepository } from "./bootstrap-ai-resolution-repository.js";
 export { createP7AdminAiReadRepository } from "./p7-admin-ai-read-repository.js";
