@@ -19,12 +19,19 @@ after two bounded fixes. Remaining gaps are explicitly deferred below.
 - Branch: `acceptance/i1-d2-full-automated-prehandoff-2026-09-18`
 - Accepted P3 base: `4a339f31d09a877680f5904bcd5d17d8fba4e1c5`
 - Accepted P3 base tree: `d87080bbfedf73f47a0828d58e9e63fc41b80fed`
-- Base lineage: C3H `804d58b` → P1 implementation `77c101c` → P1-R1 `1d9f0ca` → P2 implementation `ca45019` / receipt `09b32c8` → P3 `4a339f3`
+- Base lineage: C3H `804d58b8198aa75fd8ec2830b7b37678dc8444bf` → P1 implementation `77c101c2dc3f9f5c7ef6124b78da52cd2c9a1572` → P1-R1 `1d9f0ca8986205f36911051fb5e4a73455d1202b` → P2 implementation `ca45019dd65369848732206ba781b091c2f17451` / receipt `09b32c88a0d594be8f4cd881b903ae55e8e12029` → P3 `4a339f31d09a877680f5904bcd5d17d8fba4e1c5`
 - Remotes fetched normally:
   - `origin/main` = `bc718cc5c677ad0eb4598e7de3ad766473ff0847`
   - `origin/integration/i1-c1-srv5-2026-09-16` = `23047b3bdc22842a5b17e29e3d3f603c0ee51b16`
   - `origin/docs/roadmap-autonomy-correction-2026-09-18` = `6a48af8cd19137aaa10688c36cb064d3c4b16969`
 - No force push, reset, rebase, amend, or merge was used.
+
+Final local candidate:
+
+- HEAD: `1809b15042227ae1134271100bbc485b468af45d`
+- tree: `9ade0a18420997c36e6cc96411307da5db4079b3`
+- acceptance commits: `8369401f4558e8710fa94f210b2100ac1487d0ce` and
+  `1809b15042227ae1134271100bbc485b468af45d`
 
 Final candidate commit and tree are recorded after validation in the terminal
 handoff. The pre-change base and tree above are immutable acceptance inputs.
