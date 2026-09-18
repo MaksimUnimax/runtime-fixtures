@@ -41,6 +41,8 @@ class SyntheticHealthServer:
     def __init__(self, private_key_path: Path):
         self.private_key = serialization.load_der_private_key(private_key_path.read_bytes(), password=None)
         self.mode = "pass"
+        self.sync_mode = "unavailable"
+        self.sync_state_override: dict[str, Any] | None = None
         self.requests: list[dict[str, Any]] = []
         self.release = threading.Event()
         self.health_seen = threading.Event()
@@ -62,6 +64,16 @@ class SyntheticHealthServer:
                 except json.JSONDecodeError:
                     body = {}
                 fixture.requests.append({"path": self.path, "method": "POST", "body": body})
+                if self.path == "/v1/sync":
+                    response = fixture._sync(body)
+                    encoded = json.dumps(response, ensure_ascii=False, separators=(",", ":")).encode()
+                    self.send_response(200 if fixture.sync_mode not in {"unavailable", "network"} else 503)
+                    self.send_header("content-type", "application/json")
+                    self.send_header("content-length", str(len(encoded)))
+                    self.end_headers()
+                    if fixture.sync_mode != "network": self.wfile.write(encoded)
+                    else: self.close_connection = True
+                    return
                 if self.path != "/v1/health-authority":
                     self.send_response(404)
                     self.end_headers()
@@ -144,6 +156,30 @@ class SyntheticHealthServer:
         self.mode = mode
         self.release.clear()
         self.health_seen.clear()
+
+    def configure_sync(self, mode: str, state: dict[str, Any] | None = None):
+        self.sync_mode = mode
+        self.sync_state_override = state
+
+    def _sync(self, body: dict[str, Any]) -> dict[str, Any]:
+        entries = body.get("entries") if isinstance(body.get("entries"), list) else []
+        results = []
+        for entry in entries:
+            payload = entry.get("payload") if isinstance(entry.get("payload"), dict) else {}
+            state = self.sync_state_override or payload
+            state = dict(state)
+            if self.sync_mode in {"stale_upsert", "late_ack"}:
+                state.update({"kind": "STORE_UPSERT", "lifecycleState": "ACTIVE", "name": "stale-server-name", "metadataRevision": 0})
+            results.append({
+                "requestId": entry.get("requestId"),
+                "mutationId": entry.get("mutationId"),
+                "entityId": entry.get("entityId"),
+                "serverRevision": 1,
+                "outcome": "CONFLICT" if self.sync_mode == "stale_upsert" else "ACK",
+                "code": "STORE_TOMBSTONE_DOMINATES" if self.sync_mode == "stale_upsert" else "IN_SYNC",
+                "serverState": state,
+            })
+        return {"syncVersion": body.get("syncVersion", "seller_agents_sync_v1"), "results": results}
 
     def stop(self):
         self._server.shutdown()

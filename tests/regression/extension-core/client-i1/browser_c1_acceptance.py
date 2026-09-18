@@ -29,6 +29,8 @@ BINDINGS = "ozmb_conversation_bindings"
 SESSIONS = "ozmb_work_sessions_v1"
 PENDING = "ozmb_pending_work_starts_v1"
 MANUAL = "ozmb_manual_operations"
+SYNC_JOURNAL = "seller_agents_sync_journal_v1"
+SCHEDULER = "seller_agents_technical_wake_v1"
 KEY_ID = "browser-fixture-key"
 ACCOUNT = "11111111-1111-4222-8111-111111111111"
 DEVICE = "22222222-2222-4222-8222-222222222222"
@@ -188,8 +190,9 @@ class BrowserFixture:
         return self.popup.evaluate("async ({tab,type,fields})=>chrome.runtime.sendMessage({type,tab_id:tab,...fields})", {"tab": self.tab_id, "type": typ, "fields": fields})
 
     def reset(self):
-        self.worker.evaluate(f"async()=>chrome.storage.local.remove({json.dumps([STORES,BINDINGS,SESSIONS,PENDING,MANUAL,'ozmb_diagnostics'])})")
+        self.worker.evaluate(f"async()=>chrome.storage.local.remove({json.dumps([STORES,BINDINGS,SESSIONS,PENDING,MANUAL,SYNC_JOURNAL,SCHEDULER,'ozmb_diagnostics'])})")
         self.server.configure("pass")
+        self.server.configure_sync("unavailable")
         self.reload_popup()
 
     def seed_store(self, marketplace, name):

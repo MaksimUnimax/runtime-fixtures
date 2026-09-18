@@ -38,6 +38,17 @@ def run_runtime(runtime: Path, private_key: Path, server: SyntheticHealthServer,
             fixture.restart()
             after_restart = fixture.worker.evaluate("async()=>SellerAgentsTechnicalScheduler.state()")
             assert after_restart["entries"].get("expiry:p3-browser")
+            fixture.worker.evaluate("async()=>SellerAgentsTechnicalScheduler.wake('early-alarm')")
+            assert "expiry:p3-browser" in fixture.worker.evaluate("async()=>SellerAgentsTechnicalScheduler.state()")["entries"]
+            fixture.worker.evaluate(
+                """({future}) => {
+                  const realNow = Date.now;
+                  globalThis.__saTestClock = future;
+                  Date.now = () => globalThis.__saTestClock;
+                  globalThis.__saRestoreTestClock = () => { Date.now = realNow; };
+                }""",
+                {"future": due + 1},
+            )
             fixture.worker.evaluate("async()=>SellerAgentsTechnicalScheduler.wake('p3-browser-alarm')")
             wait_for(
                 lambda: "expiry:p3-browser" not in fixture.worker.evaluate("async()=>SellerAgentsTechnicalScheduler.state()")["entries"],
