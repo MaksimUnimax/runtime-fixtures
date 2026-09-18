@@ -165,7 +165,15 @@ Early-I1/D2 pre-handoff acceptance. If accepted, the next dependency is
 
 ## Candidate identity
 
-The final candidate SHA/tree, deterministic ZIP identity, exact gate counts, and
-publication result are recorded in the terminal work report and must be updated
-after the final commit. Status remains `IMPLEMENTED_CANDIDATE` only after
-architect review; this document does not self-accept P2.
+Implementation candidate commit: `ca45019dd65369848732206ba781b091c2f17451`;
+implementation tree: `999c0420870629c483a8a175d025c9eb6976a17d`; parent is the
+exact accepted P1-R1 `1d9f0ca8986205f36911051fb5e4a73455d1202b`. The deterministic
+package is `SELLER_AGENTS_I1_C1_v0.2.4_LOCAL_DEVELOPMENT.zip`, 2,001,482 bytes,
+SHA-256 `d1a5edd5008ba6226167ef2731babd75179c3262ae5cd430488bf668b179f1a5`,
+with 39 runtime files, 39 extracted files, repeat archive equality, and source /
+extracted byte equality. The final Extension I1 checker reported 136/136 PASS.
+
+Status remains `IMPLEMENTED_CANDIDATE_WITH_ENVIRONMENT_GAP` until architect
+review. The system Google Chrome/native MV3 registration path remains separately
+deferred; the real unpacked Playwright Chromium source/extracted matrix passed.
+This document does not self-accept P2.
