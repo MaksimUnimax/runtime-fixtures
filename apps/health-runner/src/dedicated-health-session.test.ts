@@ -139,6 +139,15 @@ describe("dedicated Standard Health session capability", () => {
     expect(Object.keys(driver)).not.toContain("storageStatePath");
   });
 
+  it("DS-07 keeps downloads disabled at the BrowserContext boundary", async () => {
+    const source = await readFile(
+      new URL("./browser-driver.ts", import.meta.url),
+      "utf8",
+    );
+    expect(source).toMatch(/acceptDownloads:\s*false/);
+    expect(source).not.toMatch(/acceptDownloads:\s*true/);
+  });
+
   it("DS-RED-03 rejects a symlinked storage-state file", async () => {
     if (process.platform === "win32") return;
     await withTempDirectory(async (directory) => {
