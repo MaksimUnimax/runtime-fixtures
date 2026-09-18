@@ -4,7 +4,6 @@
   "use strict";
 
   const STORAGE_KEY = "seller_agents_sync_journal_v1";
-  const ALARM = "seller-agents-sync-v1";
   const VERSION = "seller_agents_sync_v1";
   const MAX_BATCH = 32;
   const MAX_ENTRIES = 256;
@@ -47,7 +46,19 @@
   async function read() {
     if (!stateFlight) stateFlight = (async () => {
       const data = await storageGet(STORAGE_KEY);
-      return data[STORAGE_KEY] ? normalize(data[STORAGE_KEY]) : empty();
+      const result = data[STORAGE_KEY] ? normalize(data[STORAGE_KEY]) : empty();
+      const currentWorker = String(globalThis.WORKER_SESSION_ID || "worker-unknown");
+      let changed = false;
+      for (const entry of Object.values(result.entries)) {
+        if (entry.status !== "IN_FLIGHT" || entry.attempt_worker_id === currentWorker) continue;
+        entry.status = "RETRY_WAIT";
+        entry.nextAttemptAt = Math.max(Date.now() + 1000, Number(entry.nextAttemptAt || 0));
+        entry.lastError = "WORKER_RESTART_RECOVERY";
+        entry.attempt_worker_id = null;
+        changed = true;
+      }
+      if (changed) await storageSet({ [STORAGE_KEY]: result });
+      return result;
     })().finally(() => { stateFlight = null; });
     return stateFlight;
   }
@@ -152,9 +163,17 @@
   }
   async function schedule() {
     const next = await read(), due = Object.values(next.entries).filter(entry => ["PENDING", "RETRY_WAIT"].includes(entry.status));
-    if (!due.length || !chrome.alarms?.create) return;
-    const when = Math.min(...due.map(entry => entry.nextAttemptAt || Date.now() + 5000));
-    await chrome.alarms.create(ALARM, { when: Math.max(Date.now() + 1000, when) });
+    const scheduler = globalThis.SellerAgentsTechnicalScheduler;
+    if (!due.length) {
+      await scheduler?.cancelKind?.(scheduler.KINDS.SYNC);
+      return;
+    }
+    const first = due.sort((a, b) => (a.nextAttemptAt || 0) - (b.nextAttemptAt || 0) || a.localSequence - b.localSequence)[0];
+    await scheduler?.schedule?.(scheduler.KINDS.SYNC, {
+      taskId: "sync:pending",
+      dueAt: first.nextAttemptAt || Date.now() + 5000,
+      identity: { requestId: first.requestId, installationId: first.installationId, retryGeneration: first.attempts },
+    });
   }
   async function markBatch(entries, patch) {
     return mutate(async () => {
@@ -169,7 +188,7 @@
       const now = Date.now(), next = await read();
       const selected = Object.values(next.entries).filter(entry => ["PENDING", "RETRY_WAIT"].includes(entry.status) && (entry.nextAttemptAt || 0) <= now).sort((a, b) => a.localSequence - b.localSequence).slice(0, MAX_BATCH);
       if (!selected.length) { await schedule(); return { ok: true, sent: 0, reason }; }
-      await markBatch(selected, entry => ({ status: "IN_FLIGHT", attempts: entry.attempts + 1, lastAttemptAt: now, lastError: null }));
+      await markBatch(selected, entry => ({ status: "IN_FLIGHT", attempts: entry.attempts + 1, attempt_worker_id: String(globalThis.WORKER_SESSION_ID || "worker-unknown"), lastAttemptAt: now, lastError: null }));
       try {
         const result = await SellerAgentsControlClient.synchronizeMetadata({ syncVersion: VERSION, entries: selected.map(wireEntry) });
         if (!result || result.syncVersion !== VERSION || !Array.isArray(result.results)) throw Object.assign(new Error("SYNC_CONTRACT_INVALID"), { code: "SYNC_CONTRACT_INVALID" });
@@ -222,7 +241,6 @@
     })().finally(() => { syncFlight = null; });
     return syncFlight;
   }
-  if (chrome.alarms?.onAlarm?.addListener) chrome.alarms.onAlarm.addListener(alarm => { if (alarm?.name === ALARM) void syncNow("alarm"); });
   async function assertCurrentActionAllowed(input = {}) {
     const auth = await identity();
     const keyDigest = await digest(input.conversationKey || input.binding?.conversation_key || input.binding?.binding_id || "unbound");
@@ -241,6 +259,7 @@
     read: async () => clone(await read()),
     assertCurrentActionAllowed,
     syncNow,
-    notifyNetworkRecovery: () => syncNow("network_recovery")
+    notifyNetworkRecovery: () => globalThis.SellerAgentsTechnicalScheduler?.wake?.("network_recovery") || syncNow("network_recovery")
   });
+  queueMicrotask(() => { void globalThis.SellerAgentsTechnicalScheduler?.wake?.("worker_ready"); });
 })();

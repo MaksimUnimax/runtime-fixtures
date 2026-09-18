@@ -43,7 +43,8 @@
     "packages/bridge-core/src/execution/batch-queue.js",
     "packages/bridge-core/src/execution/guarded-queue.js",
     "packages/bridge-core/src/execution/observed-quota.js",
-    "apps/extension/src/background/context/runtime-context.js"
+    "apps/extension/src/background/context/runtime-context.js",
+    "apps/extension/src/application/technical-scheduler.js"
   ],
   "worker_initializer": {
     "old": "let manualOperationsWriteLock = Promise.resolve();",

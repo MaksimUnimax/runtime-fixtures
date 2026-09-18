@@ -729,6 +729,7 @@ async function saInvalidateAuthority() {
 }
 SellerAgentsControlClient.onAuthorityChanged(() => saInvalidateAuthority());
 async function saPopupState(tabId) {
+  void globalThis.SellerAgentsTechnicalScheduler?.wake?.("popup_open");
   let live = { ai_id: null, origin: null, conversation_id: null, status: "unavailable", source: "none", chat_path: "" };
   let usableIdentity = false;
   try {
@@ -1016,17 +1017,33 @@ async function saAssertDeliveryOwner(owner) {
 }
 
 async function saCleanupExpiredPayloads() {
-  if (!await saEnabled()) return;
   const data = await storageGet(KEYS.MANUAL_OPERATIONS);
+  const now = Date.now();
+  let earliest = null;
   for (const [key, owner] of Object.entries(data[KEYS.MANUAL_OPERATIONS] || {})) {
     const expiry = owner.payload_expires_at_ms || Date.parse(owner.created_at || "") + SA_PAYLOAD_TTL;
-    if (!Number.isFinite(expiry) || expiry <= Date.now()) await mutateManualOperation(key, current => saPrunePayload(current));
+    if (!Number.isFinite(expiry) || expiry <= now) await mutateManualOperation(key, current => saPrunePayload(current));
+    else earliest = earliest === null ? expiry : Math.min(earliest, expiry);
   }
   await OzonFileDeliveryWorker.cleanupExpiredArtifacts();
+  const scheduler = globalThis.SellerAgentsTechnicalScheduler;
+  if (earliest !== null) await scheduler?.schedule?.(scheduler.KINDS.EXPIRY, { taskId: "expiry:buffers", dueAt: earliest, identity: { retryGeneration: "payload" } });
 }
-chrome.alarms.create("seller-agents-payload-cleanup", { periodInMinutes: 5 });
-chrome.alarms.onAlarm.addListener(alarm => { if (alarm.name === "seller-agents-payload-cleanup") void saCleanupExpiredPayloads(); });
-setTimeout(() => { void saCleanupExpiredPayloads(); }, 0);
+
+async function resumeKnownResultRecoveries() {
+  if (!await saEnabled()) throw saError("AUTH_REQUIRED");
+  const data = await storageGet(KEYS.MANUAL_OPERATIONS);
+  const flights = [];
+  for (const [conversationKey, owner] of Object.entries(data[KEYS.MANUAL_OPERATIONS] || {})) {
+    if (owner?.status !== MANUAL_OPERATION_STATUSES.REQUESTING || !owner.batch) continue;
+    const buffered = (owner.batch.entries || []).some((entry) =>
+      entry?.status === "requesting" &&
+      entry?.result_buffer?.phase === SellerAgentsResultRecovery.RESULT_PHASES.BUFFERED &&
+      entry?.provider_attempt?.state !== SellerAgentsProviderOutcome.STATES.OUTCOME_UNKNOWN);
+    if (buffered) flights.push(launchBatchProcessor("manual", conversationKey, owner.operation_id, "technical_known_result_recovery"));
+  }
+  await Promise.allSettled(flights);
+}
 const saFileOwners = SellerAgentsLocalOperations.createRecordStore({ read: keys => chrome.storage.session.get(keys),
   write: values => chrome.storage.session.set(values), namespace: "seller_agents_file_owners_v1" });
 async function saCheckOzonFileRef(command, context) {

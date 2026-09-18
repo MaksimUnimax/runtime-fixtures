@@ -238,5 +238,55 @@
     "target": "shared/direct_binary_file_delivery_patch.js",
     "old": "        return Object.freeze({ ...output, result, report_text: safeResultReport(output.report_text, result) });",
     "new": "        const finalOutput = Object.freeze({ ...output, result, report_text: safeResultReport(output.report_text, result) });\n        await notifyResult(finalOutput);\n        return finalOutput;"
+  },
+  {
+    "target": "service_worker.js",
+    "old": "const PROVIDER_QUOTA_ALARM = \"ozon-provider-quota-wake-v1\";\nconst WORK_SESSION_REFRESH_WAKE_ALARM = \"ozon-work-session-refresh-wake-v1\";\n",
+    "new": ""
+  },
+  {
+    "target": "service_worker.js",
+    "old": "  let earliest = null;\n  const manual = data[KEYS.MANUAL_OPERATIONS]",
+    "new": "  let earliest = null;\n  const dueLaunches = [];\n  const manual = data[KEYS.MANUAL_OPERATIONS]"
+  },
+  {
+    "target": "service_worker.js",
+    "old": "    if (wait <= now) setTimeout(() => { launchBatchProcessor(\"manual\", conversationKey, operation.operation_id, \"quota_wake\"); }, 0);\n    else earliest = earliest === null ? wait : Math.min(earliest, wait);",
+    "new": "    if (wait <= now) dueLaunches.push(launchBatchProcessor(\"manual\", conversationKey, operation.operation_id, \"quota_wake\"));\n    else earliest = earliest === null ? wait : Math.min(earliest, wait);"
+  },
+  {
+    "target": "service_worker.js",
+    "old": "    if (wait <= now) setTimeout(() => { launchBatchProcessor(\"autorun\", conversationKey, run.run_id, \"quota_wake\"); }, 0);\n    else earliest = earliest === null ? wait : Math.min(earliest, wait);\n  }\n  if (earliest !== null) scheduleProviderQuotaWake(earliest);",
+    "new": "    if (wait <= now) dueLaunches.push(launchBatchProcessor(\"autorun\", conversationKey, run.run_id, \"quota_wake\"));\n    else earliest = earliest === null ? wait : Math.min(earliest, wait);\n  }\n  await Promise.allSettled(dueLaunches);\n  if (earliest !== null) scheduleProviderQuotaWake(earliest);"
+  },
+  {
+    "target": "service_worker.js",
+    "old": "      case \"OZ_CONTENT_READY\":\n      case \"OZ_CONTENT_SYNC\": {",
+    "new": "      case \"OZ_CONTENT_READY\":\n      case \"OZ_CONTENT_SYNC\": {\n        void globalThis.SellerAgentsTechnicalScheduler?.wake?.(\"content_reconnect\");"
+  },
+  {
+    "target": "service_worker.js",
+    "old": "function scheduleProviderQuotaWake(whenMs) {\n  const when = Math.max(Date.now() + 1, Number(whenMs || 0));\n  if (chrome.alarms?.create) {\n    try { chrome.alarms.create(PROVIDER_QUOTA_ALARM, { when }); return; } catch (_) {}\n  }\n  setTimeout(() => { void resumeProviderQuotaWaits(); }, Math.max(1, when - Date.now()));\n}",
+    "new": "function scheduleProviderQuotaWake(whenMs) {\n  const scheduler = globalThis.SellerAgentsTechnicalScheduler;\n  if (scheduler?.schedule) {\n    void scheduler.schedule(scheduler.KINDS.QUOTA, { taskId: \"quota:pending\", dueAt: Math.max(Date.now() + 100, Number(whenMs || 0)), identity: { retryGeneration: String(whenMs || \"\") } });\n  }\n}"
+  },
+  {
+    "target": "service_worker.js",
+    "old": "if (chrome.alarms?.onAlarm?.addListener) {\n  chrome.alarms.onAlarm.addListener((alarm) => {\n    const name = String(alarm?.name || \"\");\n    if (name === WORK_SESSION_REFRESH_WAKE_ALARM) { void resumeWorkSessionRecoveries(); return; }\n    if (name === PROVIDER_QUOTA_ALARM) void resumeProviderQuotaWaits();\n  });\n}\nsetTimeout(() => { void resumeProviderQuotaWaits(); void resumeWorkSessionRecoveries(); }, 0);",
+    "new": ""
+  },
+  {
+    "target": "shared/file_delivery_port_worker.js",
+    "old": "  function putArtifact(record) { return idbRequest(\"readwrite\", (store) => store.put(record)); }",
+    "new": "  async function putArtifact(record) {\n    const result = await idbRequest(\"readwrite\", (store) => store.put(record));\n    const scheduler = globalThis.SellerAgentsTechnicalScheduler;\n    if (scheduler?.schedule && Number(record?.expires_at_ms || 0) > nowMs()) await scheduler.schedule(scheduler.KINDS.EXPIRY, { taskId: \"expiry:artifacts\", dueAt: Number(record.expires_at_ms), identity: { artifactKey: record.artifact_key, retryGeneration: record.expires_at_ms } });\n    return result;\n  }"
+  },
+  {
+    "target": "shared/file_delivery_port_worker.js",
+    "old": "  async function cleanupExpiredArtifacts() {\n    let records;\n    try { records = await allArtifacts(); } catch (_) { return; }\n    const current = nowMs();\n    for (const record of records || []) {\n      if (Number(record?.expires_at_ms || 0) > current) continue;\n      try { await deleteArtifact(record.artifact_key); } catch (_) {}\n    }\n  }",
+    "new": "  async function cleanupExpiredArtifacts() {\n    let records;\n    try { records = await allArtifacts(); } catch (_) { return; }\n    const current = nowMs();\n    for (const record of records || []) {\n      if (Number(record?.expires_at_ms || 0) > current) continue;\n      try { await deleteArtifact(record.artifact_key); } catch (_) {}\n    }\n    const future = (records || []).filter((record) => Number(record?.expires_at_ms || 0) > current);\n    const scheduler = globalThis.SellerAgentsTechnicalScheduler;\n    if (future.length && scheduler?.schedule) await scheduler.schedule(scheduler.KINDS.EXPIRY, { taskId: \"expiry:artifacts\", dueAt: Math.min(...future.map((record) => Number(record.expires_at_ms))), identity: { artifactKey: future[0].artifact_key, retryGeneration: Math.min(...future.map((record) => Number(record.expires_at_ms))) } });\n    else if (!future.length) await scheduler?.cancel?.(\"expiry:artifacts\");\n  }"
+  },
+  {
+    "target": "shared/file_delivery_port_worker.js",
+    "old": "  setTimeout(() => { void cleanupExpiredArtifacts(); }, 0);",
+    "new": ""
   }
 ]
