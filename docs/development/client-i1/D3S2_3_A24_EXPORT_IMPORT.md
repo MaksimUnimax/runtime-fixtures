@@ -153,3 +153,182 @@ Remote publication/readback: `ENVIRONMENT_DEFERRED_REMOTE_PUBLICATION`; no force
 32. Stream-2 implementation files modified: **no**.
 33. A24 fully proven for bounded automated scope: **no — candidate only; architect review and broader regression closure remain**.
 34. Automated blockers: pre-existing C3H AUT-47 environment deferral; unrelated direct-regression harness setup failures; remote publication/readback unavailable/deferred.
+
+## R1 broader regression and harness differential closure — 2026-09-18
+
+Work ID: `D3S2-3-R1-A24-BROADER-REGRESSION-AND-HARNESS-DIFFERENTIAL-CLOSURE-2026-09-18`.
+This is evidence-only R1 closure. No A24 product feature, production/harness
+code, Stream-2 implementation, server route, migration, contract, or API was
+added or changed.
+
+### Candidate identity and preflight
+
+- Start HEAD/tree: `5bfccdbb384b201e2c1d7d3046151a4340cd6243` /
+  `d88e75fa71b2346c9e09ab5de37321b93b3e78b2`.
+- Branch: `feature/d3s2-a24-export-import-2026-09-18`.
+- Accepted ancestor: `244e6a5596ed19620a775828b407ade264aac457`, ancestry check
+  PASS.
+- The only Stream-1 descendants of the accepted A24 candidate are the existing
+  branch commits `403b5b3`, `38f0077`, and `5bfccdb`; no newer legitimate
+  Stream-1 descendant or remote A24 head was found.
+- Remote readback: `origin/main` =
+  `bc718cc5c677ad0eb4598e7de3ad766473ff0847`,
+  `origin/integration/i1-c1-srv5-2026-09-16` =
+  `23047b3bdc22842a5b17e29e3d3f603c0ee51b16`, and
+  `origin/docs/roadmap-autonomy-correction-2026-09-18` =
+  `6a48af8cd19137aaa10688c36cb064d3c4b16969`.
+- Tracked worktree state was clean before R1 evidence editing. Existing
+  untracked `packages/server/**` symlink/repro content was not touched.
+  `apps/health-runner/**`, `packages/server/health/**`, and
+  `tooling/api-watch/**` have zero diff from the accepted base.
+
+### Differential: C3G and application AUTH_REQUIRED
+
+The reported isolated route was replayed with the same Node 24 invocation and
+the same packaged synthetic trust configuration against both the accepted base
+and the pre-R1 candidate:
+
+```text
+node tests/regression/extension-core/client-i1/client-c3g-corrected-predispatch.mjs <configured-runtime>
+node tests/regression/extension-core/application.mjs <configured-runtime>
+```
+
+The configured runtime was built by the canonical `make-browser-config.mjs`
+fixture composition. Both `244e6a` and `5bfccdb` produced the same
+`AUTH_REQUIRED` before the A24 backup path or provider dispatch was reached:
+
+- C3G: `C3G-RED-10`, `C3G-RED-11`, and all direct cases fail at worker fixture
+  setup with `AUTH_REQUIRED`; no production A24 code is reached.
+- Application: `application.mjs:58` account-only popup setup receives
+  `{ok:false, code:"AUTH_REQUIRED", error:"AUTH_REQUIRED"}`; no A24 code is
+  reached.
+- Root cause: the model fixture signs with its worker-local `fixture-key`,
+  while the installed packaged configuration trusts the independent
+  `browser-fixture-key`. This is a package-fixture identity mismatch, not a
+  product auth-state change.
+- Classification: `PRE_EXISTING_C3G_HARNESS_SETUP_FAILURE` and
+  `PRE_EXISTING_APPLICATION_HARNESS_SETUP_FAILURE` respectively; equivalently
+  a pre-existing direct packaged-fixture invocation limitation. It is not an
+  `A24_C3G_REGRESSION`, `A24_AUTH_STATE_REGRESSION`, or
+  `A24_APPLICATION_REGRESSION`.
+
+The accepted canonical composition, without the incompatible installed trust
+fixture, passes identically on base and candidate: C3G `12/12`, application
+regression `APP-00..10` plus `C3A-01..04`, and zero live provider calls.
+
+The older direct `client-c3e-sync-journal.mjs` was also run on base and
+candidate. Both stop at the same stale assertion expecting `BINDING_UPSERT`
+where the accepted D3/S2 line correctly emits `STORE_UPSERT`. This is
+`PRE_EXISTING_C3E_HARNESS_VERSION_MISMATCH`; the canonical D3/S2 C3E route is
+the accepted `STORE_UPSERT` route below.
+
+### AUT-47 classification
+
+The accepted semantic evidence remains the Playwright-managed Chromium route,
+not system Google Chrome registration. The current candidate reran the same
+legitimate Chromium route: installed C1 `BR-C1-01..36` passed for both
+source/generated and extracted/package, and the A24 installed route also
+registered and passed for both forms. C3H therefore reports `AUT-01..46`,
+`AUT-48..50` plus the Chromium proof for `AUT-47` as functional PASS.
+
+Classification: `AUT47_CURRENT_CANONICAL_PASS` and
+`AUT47_CANONICAL_PASS_NATIVE_ENVIRONMENT_DEFERRED`. The separate system/native
+Chrome MV3 registration mismatch remains environment-only; it is not an A24
+regression and no production auth workaround was added.
+
+### Current-candidate regression receipt
+
+| Gate | Result |
+|---|---|
+| A24 focused `EX-01..EX-74` | `74/74 PASS`, source helper and extracted helper |
+| Actual-unpacked A24 source/generated | PASS: four-store export, same-account import, wrong password, tamper, account mismatch, conflicts, legacy/unknown rejection |
+| Actual-unpacked A24 extracted/package | PASS: same matrix |
+| A22/A23 transfer domain | `9/9` transfer tests PASS; zero provider/AI effects |
+| A22/A23 installed transfer rerun | Environment-deferred before cases: available DBs reject the fixed fixture identities as collisions; a fresh disposable DB could not be provisioned because the host filesystem was full (`No space left on device`) |
+| Canonical C3E | PASS: journal rename, offline retention, tombstone, recovery; canonical D3/S2 metadata route `59/59 PASS` |
+| Canonical C3F | `28/28 PASS`, source and extracted direct runtimes |
+| Canonical C3G | `12/12 PASS`, source and extracted direct runtimes |
+| C3H | `50/50 PASS` with legitimate Chromium proof; no functional failures |
+| P1 | `10` provider-outcome scenarios PASS; UNKNOWN no-replay |
+| P2 | `9` result-recovery scenarios PASS; additional provider calls `0` |
+| P3 | `7` scheduler scenarios PASS; 100-wake soak PASS, duplicate side effects `0` |
+| Extension Core | `111/111 PASS` canonical unconfigured source/package checker |
+| Extension I1 | `140/140 PASS` source and extracted/package checker with Chromium proof |
+| Application regression | PASS in canonical model and installed C1 `36/36` |
+
+The installed transfer limitation is an environment receipt only. The prior
+accepted A22/A23 installed transfer evidence remains unchanged; no A22/A23
+implementation file was modified by A24.
+
+### Package and installed proof
+
+The configured final A24 package was rebuilt deterministically with the
+synthetic trust bundle used by the installed route:
+
+- ZIP: `SELLER_AGENTS_I1_C1_v0.2.4_LOCAL_DEVELOPMENT.zip`;
+- ZIP size: `2,076,761` bytes;
+- ZIP SHA-256: `0166cd246f5b37229caa1f33f284db5c4530892498882c0659e3e6759fcfedc6`;
+- repeat ZIP equality: PASS;
+- source/extracted byte equality: PASS;
+- runtime files: `39`; extracted files: `39`; JavaScript files: `36/36`
+  syntax PASS in each;
+- source/extracted inventory and per-file hashes: equal;
+- canonical fixture-neutral I1 checker package: `2,075,976` bytes,
+  SHA-256 `5f023926ce9fb140766b25fdb4dbe104ce5861f4996d2d3f01b5817aeca64b9c`,
+  repeat equality PASS.
+
+The installed configured source/generated and extracted/package A24 runs each
+reported PASS for export, four active stores, same-account clean-profile import,
+Ozon Seller-only, Ozon Seller+Performance, WB, wrong password, tamper, account
+mismatch, provider/marketplace/local-newer/tombstone conflicts, explicit
+legacy adapter, unknown old-looking JSON rejection, zero Work sessions, zero
+provider requests, and zero mandatory control requests.
+
+### Server and contract no-change proof
+
+The exact Git diff from `244e6a` to `5bfccdb` contains no files under
+`apps/api`, `packages/server`, `packages/contracts`, or `packages/shared`; no
+server route, migration, OpenAPI file, or contract changed. No backup storage,
+backup upload, password transport, or server backup route exists. A full
+PostgreSQL/API/E2E rerun was therefore not required for A24’s unchanged server
+surface. The installed A24 local operation observed zero `/v1/bootstrap`,
+`/v1/sync`, and mandatory control-plane requests after the baseline.
+
+### Zero-side-effect and privacy receipt
+
+- A24 export provider calls: `0`; import provider calls: `0`.
+- A24 export AI sends: `0`; import AI sends: `0`.
+- A24 export mandatory server calls: `0`; import mandatory server calls: `0`.
+- Ordinary Ozon control calls: `0`; ordinary WB control calls: `0`; ordinary
+  AI-delivery control calls: `0`.
+- Work created by import: `0`; provider replay caused by A24: `0`; AI UNKNOWN
+  resend caused by A24: `0`.
+- Synthetic password and active credential markers were absent from encrypted
+  downloaded bytes, logs, diagnostics, page/content-script projections, and
+  I1/Core receipts. The only legacy marker occurrences are the deliberate
+  plaintext legacy-adapter test input. No encrypted backup was uploaded,
+  placed in C3E, attached to AI, or used to export auth/session, transfer,
+  Work/result, or tombstone state.
+- This receipt does not claim secure JavaScript memory erasure.
+
+### Governance, publication, and remaining blockers
+
+- `PROVISIONAL_OWNER_REVIEW-D3S2-EXPORT-KDF-20260918`: preserved as
+  provisional; owner-final decision deferred.
+- `PROVISIONAL_OWNER_REVIEW-D3S2-EXPORT-IMPORT-LIMITS-20260918`: preserved as
+  provisional; owner-final decision deferred.
+- `PROVISIONAL_OWNER_REVIEW-D3S2-TRANSFER-CRYPTO-20260918`: preserved as
+  provisional; owner-final decision deferred.
+- `PROVISIONAL_OWNER_REVIEW-D3S2-TRANSFER-METADATA-RETENTION-20260918`:
+  preserved as provisional; owner-final decision deferred.
+- Environment-deferred: system/native Chrome AUT-47 route; current installed
+  A22/A23 rerun due fixture-identity collision and no-space fresh-DB failure;
+  remote publication/readback.
+- Stream-2 overlap: `NONE`; protected implementation paths untouched.
+- No force push, reset, rebase, amend, or remote publication was performed.
+
+The final HEAD/tree after the bounded evidence commit is recorded in the R1
+terminal report. The candidate under test for all functional conclusions above
+is exactly `5bfccdbb384b201e2c1d7d3046151a4340cd6243` /
+`d88e75fa71b2346c9e09ab5de37321b93b3e78b2`; this evidence append does not
+alter product behavior. Architect acceptance remains required.
