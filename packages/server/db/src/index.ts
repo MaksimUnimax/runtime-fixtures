@@ -36,6 +36,7 @@ export {
 export { createHealthEvaluationRepository } from "./health-evaluation-repository.js";
 export { createHealthAdminReadRepository } from "./health-admin-read-repository.js";
 export { createHealthNotificationAdminReadRepository } from "./health-notification-admin-read-repository.js";
+export { createHealthDiagnosticsReadRepository } from "./health-diagnostics-read-repository.js";
 export type {
   PersistedHealthProfileEvaluation,
   UpsertHealthProfileEvaluationResult,

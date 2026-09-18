@@ -18,6 +18,10 @@ import {
   HealthNotificationIntentDetailSchema,
   HealthNotificationIntentSummarySchema,
   HealthRecommendationSchema,
+  HealthDiagnosticsBreakdownSchema,
+  HealthDiagnosticsQuerySchema,
+  HealthDiagnosticsSummarySchema,
+  type HealthDiagnosticsReadRepository,
   type HealthNotificationAdminReadRepository,
   type HealthAdminReadRepository,
 } from "@product/health";
@@ -100,6 +104,7 @@ export function registerHealthAdminRoutes(
   guard: AdminRouteGuard,
   service: HealthAdminReadRepository,
   notificationService?: HealthNotificationAdminReadRepository,
+  diagnosticsService?: HealthDiagnosticsReadRepository,
 ): void {
   app.get(
     "/v1/admin/health/targets",
@@ -276,6 +281,46 @@ export function registerHealthAdminRoutes(
         if (!value) notFound();
         noStore(reply);
         return value;
+      },
+    );
+  }
+  if (diagnosticsService) {
+    app.get(
+      "/v1/admin/health/diagnostics/summary",
+      {
+        schema: {
+          querystring: HealthDiagnosticsQuerySchema,
+          response: { 200: HealthDiagnosticsSummarySchema, ...errors },
+        },
+      },
+      async (request, reply) => {
+        await guard.requireAdminPermission(request, "health.read");
+        const result = await read(() =>
+          diagnosticsService.getSummary(
+            HealthDiagnosticsQuerySchema.parse(request.query),
+          ),
+        );
+        noStore(reply);
+        return result;
+      },
+    );
+    app.get(
+      "/v1/admin/health/diagnostics/breakdown",
+      {
+        schema: {
+          querystring: HealthDiagnosticsQuerySchema,
+          response: { 200: HealthDiagnosticsBreakdownSchema, ...errors },
+        },
+      },
+      async (request, reply) => {
+        await guard.requireAdminPermission(request, "health.read");
+        const result = await read(() =>
+          diagnosticsService.getBreakdown(
+            HealthDiagnosticsQuerySchema.parse(request.query),
+          ),
+        );
+        noStore(reply);
+        return result;
       },
     );
   }

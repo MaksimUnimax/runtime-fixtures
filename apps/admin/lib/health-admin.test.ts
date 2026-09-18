@@ -17,6 +17,10 @@ const notificationDetailPage = readFileSync(
   new URL("../app/health/notifications/[id]/page.tsx", import.meta.url),
   "utf8",
 );
+const diagnosticsPage = readFileSync(
+  new URL("../app/health/diagnostics/page.tsx", import.meta.url),
+  "utf8",
+);
 
 describe("Health admin UI boundary", () => {
   it("exposes the bounded read-only target surface", () => {
@@ -41,6 +45,18 @@ describe("Health admin UI boundary", () => {
     expect(notificationDetailPage).toContain("No delivery, retry, suppression");
     expect(notificationDetailPage).not.toMatch(
       /Retry now|Send now|Cancel\b|Suppress\b|Unsuppress|Requeue|Mark delivered|claimToken|payload|webhook|email\b/i,
+    );
+  });
+
+  it("exposes bounded aggregate diagnostics without misleading metrics", () => {
+    expect(diagnosticsPage).toContain(
+      "/v1/admin/health/diagnostics/summary?window=24h",
+    );
+    expect(diagnosticsPage).toContain("UNKNOWN and missing coverage");
+    expect(diagnosticsPage).toContain("NOT_COVERED");
+    expect(diagnosticsPage).toContain("observational");
+    expect(diagnosticsPage).not.toMatch(
+      /success percentage|failure percentage|Retry now|Send now|claimToken|payload/,
     );
   });
 });

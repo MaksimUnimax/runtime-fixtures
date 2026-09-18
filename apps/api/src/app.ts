@@ -69,6 +69,7 @@ import { registerHealthAdminRoutes } from "./health-admin-routes.js";
 import type {
   HealthAdminReadRepository,
   HealthNotificationAdminReadRepository,
+  HealthDiagnosticsReadRepository,
 } from "@product/health";
 
 export class ControlledError extends Error {
@@ -100,6 +101,7 @@ export interface ApiDependencies {
   readonly betaAdmissionService?: BetaAdmissionService;
   readonly healthAdminService?: HealthAdminReadRepository;
   readonly healthNotificationAdminService?: HealthNotificationAdminReadRepository;
+  readonly healthDiagnosticsService?: HealthDiagnosticsReadRepository;
 }
 
 function correlationId(request: FastifyRequest): string {
@@ -352,6 +354,7 @@ export function createApiApp(
         ),
         dependencies.healthAdminService,
         dependencies.healthNotificationAdminService,
+        dependencies.healthDiagnosticsService,
       );
   });
   return app;

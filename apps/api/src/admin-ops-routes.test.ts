@@ -717,6 +717,6 @@ describe("P6.2 admin API boundary", () => {
         (count, path) => count + Object.keys(path).length,
         0,
       ),
-    ).toBe(113);
+    ).toBe(115);
   });
 });

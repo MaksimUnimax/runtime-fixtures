@@ -27,6 +27,7 @@ import {
   createBetaAdmissionRepository,
   createHealthAdminReadRepository,
   createHealthNotificationAdminReadRepository,
+  createHealthDiagnosticsReadRepository,
 } from "@product/db";
 import { AuthService, deriveAuthKeys, loadAuthRootSecret } from "@product/auth";
 import { AdminAuthService, deriveAdminAuthKeys } from "@product/admin-auth";
@@ -166,6 +167,7 @@ const app = createApiApp({
   healthAdminService: createHealthAdminReadRepository(database),
   healthNotificationAdminService:
     createHealthNotificationAdminReadRepository(database),
+  healthDiagnosticsService: createHealthDiagnosticsReadRepository(database),
 });
 let closing = false;
 async function shutdown(signal: string): Promise<void> {

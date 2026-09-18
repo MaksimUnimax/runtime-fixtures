@@ -40,6 +40,7 @@ import { BetaAdmissionService } from "@product/beta-access";
 import type {
   HealthAdminReadRepository,
   HealthNotificationAdminReadRepository,
+  HealthDiagnosticsReadRepository,
 } from "@product/health";
 
 type JsonPrimitive = boolean | null | number | string;
@@ -325,6 +326,14 @@ export async function generateOpenApiRepresentation(): Promise<string> {
       listNotifications: async () => ({ items: [], nextCursor: null }),
       getNotification: async () => null,
     } satisfies HealthNotificationAdminReadRepository,
+    healthDiagnosticsService: {
+      getSummary: async () => {
+        throw new Error("not used");
+      },
+      getBreakdown: async () => {
+        throw new Error("not used");
+      },
+    } satisfies HealthDiagnosticsReadRepository,
   });
   try {
     await app.ready();

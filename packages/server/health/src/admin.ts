@@ -339,6 +339,222 @@ export type HealthNotificationAdminReadRepository = {
   getNotification(id: string): Promise<HealthNotificationIntentDetail | null>;
 };
 
+export const HealthDiagnosticsWindowSchema = z.enum(["1h", "24h", "7d", "30d"]);
+export type HealthDiagnosticsWindow = z.infer<
+  typeof HealthDiagnosticsWindowSchema
+>;
+export const HealthDiagnosticsQuerySchema = z
+  .object({
+    window: HealthDiagnosticsWindowSchema.default("24h"),
+    provider: OptionalText,
+    surface: OptionalText,
+    browserFamily: HealthBrowserFamilySchema.optional(),
+    browserVersion: OptionalText,
+    profileRevisionId: Uuid.optional(),
+    healthState: HealthStateSchema.optional(),
+    incidentStatus: z
+      .enum([
+        "OPEN",
+        "INVESTIGATING",
+        "CANDIDATE_FIX",
+        "CANDIDATE_PASS",
+        "CANARY_ROLLOUT",
+        "ROLLOUT",
+        "RESOLVED",
+        "FALSE_POSITIVE",
+        "MAINTENANCE",
+      ])
+      .optional(),
+  })
+  .strict();
+export type HealthDiagnosticsQuery = z.infer<
+  typeof HealthDiagnosticsQuerySchema
+>;
+
+const DiagnosticsTimestamp = Timestamp.nullable();
+const DiagnosticsIdentity = z
+  .object({
+    provider: z.string().min(1).max(64),
+    surface: z.string().min(1).max(128),
+  })
+  .strict();
+
+export const HealthDiagnosticsTargetSchema = z
+  .object({
+    targetId: z.string().regex(/^[0-9a-f]{64}$/),
+    provider: z.string().min(1).max(64),
+    surface: z.string().min(1).max(128),
+    variant: z.string().min(1).max(128),
+    monitoringLayer: z.enum(["NO_SESSION", "AUTHENTICATED_DEEP"]),
+    browserFamily: HealthBrowserFamilySchema.nullable(),
+    browserVersion: z.string().max(64).nullable(),
+    observationStatus: z.enum(["OBSERVED", "NO_RECENT_RUN", "NO_DATA"]),
+    latestHealthState: HealthStateSchema.nullable(),
+    latestCompletedRunAt: DiagnosticsTimestamp,
+    latestHealthyAt: DiagnosticsTimestamp,
+    activeIncidentCount: z.number().int().nonnegative(),
+    latestIncidentRoot: BaselineContourKeySchema.nullable(),
+    baselineProfileRevisionId: Uuid.nullable(),
+    baselineProfileContentSha256: z
+      .string()
+      .regex(/^[0-9a-f]{64}$/)
+      .nullable(),
+    candidateProfileRevisionId: Uuid.nullable(),
+    latestNotificationState: HealthNotificationStateSchema.nullable(),
+  })
+  .strict();
+export type HealthDiagnosticsTarget = z.infer<
+  typeof HealthDiagnosticsTargetSchema
+>;
+
+export const HealthDiagnosticsStateCountSchema = z
+  .object({ state: HealthStateSchema, count: z.number().int().nonnegative() })
+  .strict();
+export type HealthDiagnosticsStateCount = z.infer<
+  typeof HealthDiagnosticsStateCountSchema
+>;
+
+export const HealthDiagnosticsProviderSurfaceSchema = z
+  .object({
+    ...DiagnosticsIdentity.shape,
+    variant: z.string().min(1).max(128),
+    count: z.number().int().nonnegative(),
+    incidentCount: z.number().int().nonnegative(),
+  })
+  .strict();
+export type HealthDiagnosticsProviderSurface = z.infer<
+  typeof HealthDiagnosticsProviderSurfaceSchema
+>;
+
+export const HealthDiagnosticsBrowserSchema = z
+  .object({
+    browserFamily: HealthBrowserFamilySchema,
+    browserVersion: z.string().min(1).max(64),
+    coverage: z.literal("OBSERVED"),
+    count: z.number().int().nonnegative(),
+    unknownCount: z.number().int().nonnegative(),
+  })
+  .strict();
+export type HealthDiagnosticsBrowser = z.infer<
+  typeof HealthDiagnosticsBrowserSchema
+>;
+
+export const HealthDiagnosticsProfileSchema = z
+  .object({
+    profileRevisionId: Uuid,
+    profileContentSha256: z.string().regex(/^[0-9a-f]{64}$/),
+    count: z.number().int().nonnegative(),
+    incidentCount: z.number().int().nonnegative(),
+    healthStates: z.array(HealthDiagnosticsStateCountSchema).max(6),
+    h4Evaluations: z.number().int().nonnegative(),
+    h5Evaluations: z.number().int().nonnegative(),
+  })
+  .strict();
+export type HealthDiagnosticsProfile = z.infer<
+  typeof HealthDiagnosticsProfileSchema
+>;
+
+export const HealthDiagnosticsIncidentRootSchema = z
+  .object({
+    rootContourKey: BaselineContourKeySchema.nullable(),
+    status: z.enum([
+      "OPEN",
+      "INVESTIGATING",
+      "CANDIDATE_FIX",
+      "CANDIDATE_PASS",
+      "CANARY_ROLLOUT",
+      "ROLLOUT",
+      "RESOLVED",
+      "FALSE_POSITIVE",
+      "MAINTENANCE",
+    ]),
+    provider: z.string().min(1).max(64),
+    surface: z.string().min(1).max(128),
+    activeCount: z.number().int().nonnegative(),
+    newCount: z.number().int().nonnegative(),
+    resolvedCount: z.number().int().nonnegative(),
+    medianDurationSeconds: z.number().nonnegative().nullable(),
+    oldestActiveAt: DiagnosticsTimestamp,
+  })
+  .strict();
+export type HealthDiagnosticsIncidentRoot = z.infer<
+  typeof HealthDiagnosticsIncidentRootSchema
+>;
+
+export const HealthDiagnosticsNotificationSummarySchema = z
+  .object({
+    pending: z.number().int().nonnegative(),
+    claimed: z.number().int().nonnegative(),
+    retryableFailures: z.number().int().nonnegative(),
+    terminalFailures: z.number().int().nonnegative(),
+    suppressed: z.number().int().nonnegative(),
+    delivered: z.number().int().nonnegative(),
+    oldestPendingAt: DiagnosticsTimestamp,
+    nextRetryAt: DiagnosticsTimestamp,
+    recentRecoveryNotifications: z.number().int().nonnegative(),
+    recentEscalationNotifications: z.number().int().nonnegative(),
+  })
+  .strict();
+export type HealthDiagnosticsNotificationSummary = z.infer<
+  typeof HealthDiagnosticsNotificationSummarySchema
+>;
+
+export const HealthDiagnosticsSchedulerSummarySchema = z
+  .object({
+    latestSuccessfulScheduledRunAt: DiagnosticsTimestamp,
+    latestFailedScheduledExecutionAt: DiagnosticsTimestamp,
+    overdueDueTargetCount: z.number().int().nonnegative(),
+    retryingExecutionCount: z.number().int().nonnegative(),
+  })
+  .strict();
+export type HealthDiagnosticsSchedulerSummary = z.infer<
+  typeof HealthDiagnosticsSchedulerSummarySchema
+>;
+
+export const HealthDiagnosticsSummarySchema = z
+  .object({
+    generatedAt: Timestamp,
+    window: HealthDiagnosticsWindowSchema,
+    windowStart: Timestamp,
+    windowEnd: Timestamp,
+    latestHealthObservationAt: DiagnosticsTimestamp,
+    stale: z.boolean(),
+    currentTargets: z.array(HealthDiagnosticsTargetSchema).max(50),
+    stateCounts: z.array(HealthDiagnosticsStateCountSchema).length(6),
+    productQualityCounts: z.array(HealthDiagnosticsStateCountSchema).length(4),
+    environmentCounts: z.array(HealthDiagnosticsStateCountSchema).length(2),
+    activeIncidentCount: z.number().int().nonnegative(),
+    notification: HealthDiagnosticsNotificationSummarySchema,
+    scheduler: HealthDiagnosticsSchedulerSummarySchema,
+  })
+  .strict();
+export type HealthDiagnosticsSummary = z.infer<
+  typeof HealthDiagnosticsSummarySchema
+>;
+
+export const HealthDiagnosticsBreakdownSchema = z
+  .object({
+    generatedAt: Timestamp,
+    window: HealthDiagnosticsWindowSchema,
+    windowStart: Timestamp,
+    windowEnd: Timestamp,
+    providerSurface: z.array(HealthDiagnosticsProviderSurfaceSchema).max(100),
+    browsers: z.array(HealthDiagnosticsBrowserSchema).max(100),
+    profiles: z.array(HealthDiagnosticsProfileSchema).max(100),
+    incidentRoots: z.array(HealthDiagnosticsIncidentRootSchema).max(100),
+  })
+  .strict();
+export type HealthDiagnosticsBreakdown = z.infer<
+  typeof HealthDiagnosticsBreakdownSchema
+>;
+
+export type HealthDiagnosticsReadRepository = {
+  getSummary(input: HealthDiagnosticsQuery): Promise<HealthDiagnosticsSummary>;
+  getBreakdown(
+    input: HealthDiagnosticsQuery,
+  ): Promise<HealthDiagnosticsBreakdown>;
+};
+
 export const HealthAdminTargetSummarySchema = z
   .object({
     targetId: z.string().regex(/^[0-9a-f]{64}$/),

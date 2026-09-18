@@ -47,6 +47,9 @@ export default function HealthPage() {
           recommendations. This page cannot publish, roll out, pause, rollback,
           or apply restrictions.
         </p>
+        <p>
+          <Link href="/health/diagnostics">Open aggregate diagnostics</Link>
+        </p>
         <LoadState busy={result.busy} error={result.error} />
         {result.data && result.data.items.length === 0 && (
           <p role="status">No Health targets are available.</p>

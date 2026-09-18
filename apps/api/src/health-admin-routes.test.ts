@@ -8,6 +8,10 @@ import {
 import type {
   HealthAdminReadRepository,
   HealthNotificationAdminReadRepository,
+  HealthDiagnosticsReadRepository,
+  HealthDiagnosticsSummary,
+  HealthDiagnosticsBreakdown,
+  HealthDiagnosticsStateCount,
 } from "@product/health";
 import type { AppConfig } from "@product/shared";
 import { createApiApp } from "./app.js";
@@ -27,6 +31,7 @@ function fixture(role: AdminRole): {
   headers: Record<string, string>;
   service: HealthAdminReadRepository;
   notificationService: HealthNotificationAdminReadRepository;
+  diagnosticsService: HealthDiagnosticsReadRepository;
 } {
   const repository: AdminAuthRepository = {
     createAdminSession: vi.fn(),
@@ -61,18 +66,84 @@ function fixture(role: AdminRole): {
     listNotifications: vi.fn(async () => ({ items: [], nextCursor: null })),
     getNotification: vi.fn(async () => null),
   };
+  const diagnosticsService: HealthDiagnosticsReadRepository = {
+    getSummary: vi.fn(
+      async () =>
+        ({
+          generatedAt: "2030-01-01T00:00:00.000Z",
+          window: "24h",
+          windowStart: "2029-12-31T00:00:00.000Z",
+          windowEnd: "2030-01-01T00:00:00.000Z",
+          latestHealthObservationAt: null,
+          stale: true,
+          currentTargets: [],
+          stateCounts: [
+            "HEALTHY",
+            "DRIFT",
+            "DEGRADED",
+            "BROKEN",
+            "UNKNOWN",
+            "MAINTENANCE",
+          ].map((state) => ({
+            state,
+            count: 0,
+          })) as unknown as HealthDiagnosticsStateCount[],
+          productQualityCounts: ["HEALTHY", "DRIFT", "DEGRADED", "BROKEN"].map(
+            (state) => ({ state, count: 0 }),
+          ) as unknown as HealthDiagnosticsStateCount[],
+          environmentCounts: ["UNKNOWN", "MAINTENANCE"].map((state) => ({
+            state,
+            count: 0,
+          })) as unknown as HealthDiagnosticsStateCount[],
+          activeIncidentCount: 0,
+          notification: {
+            pending: 0,
+            claimed: 0,
+            retryableFailures: 0,
+            terminalFailures: 0,
+            suppressed: 0,
+            delivered: 0,
+            oldestPendingAt: null,
+            nextRetryAt: null,
+            recentRecoveryNotifications: 0,
+            recentEscalationNotifications: 0,
+          },
+          scheduler: {
+            latestSuccessfulScheduledRunAt: null,
+            latestFailedScheduledExecutionAt: null,
+            overdueDueTargetCount: 0,
+            retryingExecutionCount: 0,
+          },
+        }) as unknown as HealthDiagnosticsSummary,
+    ),
+    getBreakdown: vi.fn(
+      async () =>
+        ({
+          generatedAt: "2030-01-01T00:00:00.000Z",
+          window: "24h",
+          windowStart: "2029-12-31T00:00:00.000Z",
+          windowEnd: "2030-01-01T00:00:00.000Z",
+          providerSurface: [],
+          browsers: [],
+          profiles: [],
+          incidentRoots: [],
+        }) as unknown as HealthDiagnosticsBreakdown,
+    ),
+  };
   const app = createApiApp({
     config,
     isInfrastructureReady: async () => true,
     adminAuthService: auth,
     healthAdminService: service,
     healthNotificationAdminService: notificationService,
+    healthDiagnosticsService: diagnosticsService,
   });
   const csrf = auth.csrf(token);
   return {
     app,
     service,
     notificationService,
+    diagnosticsService,
     headers: { cookie: `pcp_admin_session=${token}; pcp_admin_csrf=${csrf}` },
   };
 }
@@ -212,6 +283,60 @@ describe("S2-L7 Health admin route security", () => {
     });
     expect(response.statusCode).toBe(404);
     expect(f.notificationService.getNotification).toHaveBeenCalled();
+    await f.app.close();
+  });
+
+  it("allows bounded diagnostics to ADMIN_OPS and denies support and unauthenticated callers", async () => {
+    const ops = fixture("ADMIN_OPS");
+    const allowed = await ops.app.inject({
+      method: "GET",
+      url: "/v1/admin/health/diagnostics/summary?window=24h",
+      headers: ops.headers,
+    });
+    expect(allowed.statusCode).toBe(200);
+    expect(ops.diagnosticsService.getSummary).toHaveBeenCalledWith({
+      window: "24h",
+    });
+    await ops.app.close();
+
+    const support = fixture("ADMIN_SUPPORT");
+    const denied = await support.app.inject({
+      method: "GET",
+      url: "/v1/admin/health/diagnostics/summary",
+      headers: support.headers,
+    });
+    expect(denied.statusCode).toBe(403);
+    expect(support.diagnosticsService.getSummary).not.toHaveBeenCalled();
+    await support.app.close();
+
+    const anonymous = fixture("ADMIN_OPS");
+    const unauthenticated = await anonymous.app.inject({
+      method: "GET",
+      url: "/v1/admin/health/diagnostics/breakdown",
+    });
+    expect(unauthenticated.statusCode).toBe(401);
+    await anonymous.app.close();
+  });
+
+  it("rejects unsupported diagnostic windows and exposes no write routes", async () => {
+    const f = fixture("ADMIN_OPS");
+    const invalid = await f.app.inject({
+      method: "GET",
+      url: "/v1/admin/health/diagnostics/summary?window=all",
+      headers: f.headers,
+    });
+    expect(invalid.statusCode).toBe(400);
+    for (const method of ["POST", "PATCH", "PUT", "DELETE"] as const) {
+      expect(
+        (
+          await f.app.inject({
+            method,
+            url: "/v1/admin/health/diagnostics/summary",
+            headers: f.headers,
+          })
+        ).statusCode,
+      ).toBe(404);
+    }
     await f.app.close();
   });
 });
