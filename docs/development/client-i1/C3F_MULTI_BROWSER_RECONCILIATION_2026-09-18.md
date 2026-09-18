@@ -15,8 +15,10 @@ ancestry is preserved:
 `ed32fc1` → `3ae08e3` → `d91aa70` → `2b2ca0c` → `2809415` → `eeb943f`.
 
 The implementation candidate commit is `b72d2ed2fe52383f1c6644233bcba346f0908339`,
-tree `3d0a536271138ae91b95c938a0e7ea02a181deac`. The documentation commit that
-records this identity is the follow-up commit on the same feature branch.
+tree `3d0a536271138ae91b95c938a0e7ea02a181deac`; the formatting follow-up is
+`fcf54962f889e9695a7aa6dd2ad3a1704004d490`, tree
+`5b81e8ea13a4bc11a64ca0ec1dfe1f9aaa64af36`. The documentation commit records
+these identities on the same feature branch.
 
 ## Consistency model
 
