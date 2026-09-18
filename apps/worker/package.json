@@ -15,6 +15,7 @@
     "@product/db": "workspace:*",
     "@product/device-auth": "workspace:*",
     "@product/email": "workspace:*",
+    "@product/health": "workspace:*",
     "@product/observability": "workspace:*",
     "@product/shared": "workspace:*",
     "tsx": "4.20.5"

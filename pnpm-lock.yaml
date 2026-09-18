@@ -226,6 +226,9 @@ importers:
       '@product/email':
         specifier: workspace:*
         version: link:../../packages/server/email
+      '@product/health':
+        specifier: workspace:*
+        version: link:../../packages/server/health
       '@product/observability':
         specifier: workspace:*
         version: link:../../packages/server/observability

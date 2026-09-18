@@ -1,10 +1,12 @@
 import {
   classifyHealthDetailed,
+  deriveLlmHealthNotificationEvent,
   healthIncidentKeySha256,
   healthIncidentScopeSha256,
   isActiveIncidentStatus,
   isIncidentWorthyHealthState,
   selectRootContour,
+  type LlmHealthNotificationEventKind,
   HealthContourResultSchema,
   HealthLevelSchema,
   HealthStateSchema,
@@ -12,8 +14,15 @@ import {
   type BaselineContourKey,
   type HealthIncidentStatus,
   type HealthLevel,
+  type LlmHealthNotificationPolicy,
 } from "@product/health";
 import type { DatabaseQuery, DatabaseRuntime } from "./index.js";
+import {
+  observeLlmHealthFailureInTransaction,
+  recordLlmHealthNotificationInTransaction,
+  resumeLlmHealthProductNotificationInTransaction,
+  suppressLlmHealthProductNotificationsInTransaction,
+} from "./health-notification-repository.js";
 
 export type HealthIncident = {
   id: string;
@@ -268,7 +277,11 @@ async function updateIncidentObservation(
   return latestFailure ? "UPDATED" : "IGNORED";
 }
 
-export function createHealthIncidentRepository(runtime: DatabaseRuntime) {
+export function createHealthIncidentRepository(
+  runtime: DatabaseRuntime,
+  options: { notificationPolicy?: LlmHealthNotificationPolicy } = {},
+) {
+  const notificationPolicy = options.notificationPolicy;
   return {
     async processCompletedHealthRun(
       runId: string,
@@ -292,6 +305,26 @@ export function createHealthIncidentRepository(runtime: DatabaseRuntime) {
         const healthLevel = HealthLevelSchema.parse(
           run.healthLevel,
         ) as HealthLevel;
+        const notificationInput = (
+          incidentId: string,
+          eventKind: LlmHealthNotificationEventKind,
+          healthState: typeof persistedState,
+          eventRootContourKey = rootContourKey,
+        ) =>
+          deriveLlmHealthNotificationEvent(
+            {
+              incidentId,
+              healthRunId: run.id,
+              eventKind,
+              healthState,
+              provider: scope.adapterFamilyKey,
+              surface: scope.surfaceKey,
+              healthLevel,
+              rootContourKey: eventRootContourKey,
+              observedAt: run.completedAt,
+            },
+            notificationPolicy,
+          );
         const incidentScope = healthIncidentScopeSha256(scope, healthLevel);
         const incidentKey = healthIncidentKeySha256(
           scope,
@@ -313,7 +346,27 @@ export function createHealthIncidentRepository(runtime: DatabaseRuntime) {
               run,
               "HEALTHY",
             );
-            if (action === "RESOLVED") resolved.push(incident.id);
+            if (action === "RESOLVED") {
+              if (incident.status === "MAINTENANCE") {
+                const exited = notificationInput(
+                  incident.id,
+                  "MAINTENANCE_EXITED",
+                  "HEALTHY",
+                  incident.rootContourKey,
+                );
+                if (exited)
+                  await recordLlmHealthNotificationInTransaction(q, exited);
+              }
+              const recovered = notificationInput(
+                incident.id,
+                "INCIDENT_RECOVERED",
+                "HEALTHY",
+                incident.rootContourKey,
+              );
+              if (recovered)
+                await recordLlmHealthNotificationInTransaction(q, recovered);
+              resolved.push(incident.id);
+            }
           }
           return {
             runId,
@@ -332,7 +385,23 @@ export function createHealthIncidentRepository(runtime: DatabaseRuntime) {
               run,
               "MAINTENANCE",
             );
-            if (action === "MAINTENANCE") changed.push(incident.id);
+            if (action === "MAINTENANCE") {
+              if (incident.status !== "MAINTENANCE") {
+                const entered = notificationInput(
+                  incident.id,
+                  "MAINTENANCE_ENTERED",
+                  "MAINTENANCE",
+                  incident.rootContourKey,
+                );
+                if (entered)
+                  await recordLlmHealthNotificationInTransaction(q, entered);
+                await suppressLlmHealthProductNotificationsInTransaction(
+                  q,
+                  incident.id,
+                );
+              }
+              changed.push(incident.id);
+            }
           }
           return {
             runId,
@@ -353,6 +422,38 @@ export function createHealthIncidentRepository(runtime: DatabaseRuntime) {
             run,
             "FAILURE",
           );
+          if (action === "UPDATED") {
+            if (active.status === "MAINTENANCE") {
+              await resumeLlmHealthProductNotificationInTransaction(
+                q,
+                active.id,
+                run.completedAt,
+              );
+              const exited = notificationInput(
+                active.id,
+                "MAINTENANCE_EXITED",
+                persistedState,
+                active.rootContourKey,
+              );
+              if (exited)
+                await recordLlmHealthNotificationInTransaction(q, exited);
+            }
+            await observeLlmHealthFailureInTransaction(
+              q,
+              {
+                incidentId: active.id,
+                healthRunId: run.id,
+                eventKind: "INCIDENT_OPENED",
+                healthState: persistedState,
+                provider: scope.adapterFamilyKey,
+                surface: scope.surfaceKey,
+                healthLevel,
+                rootContourKey: active.rootContourKey,
+                observedAt: run.completedAt,
+              },
+              notificationPolicy,
+            );
+          }
           return { runId, action, incidentIds: [active.id] };
         }
 
@@ -378,6 +479,13 @@ export function createHealthIncidentRepository(runtime: DatabaseRuntime) {
           observedAt: run.completedAt,
         });
         if (created) {
+          const opened = notificationInput(
+            created.id,
+            "INCIDENT_OPENED",
+            persistedState,
+            created.rootContourKey,
+          );
+          if (opened) await recordLlmHealthNotificationInTransaction(q, opened);
           return { runId, action: "OPENED", incidentIds: [created.id] };
         }
         const raced = await activeByKey(q, incidentKey);
@@ -388,6 +496,23 @@ export function createHealthIncidentRepository(runtime: DatabaseRuntime) {
           run,
           "FAILURE",
         );
+        if (action === "UPDATED") {
+          await observeLlmHealthFailureInTransaction(
+            q,
+            {
+              incidentId: raced.id,
+              healthRunId: run.id,
+              eventKind: "INCIDENT_OPENED",
+              healthState: persistedState,
+              provider: scope.adapterFamilyKey,
+              surface: scope.surfaceKey,
+              healthLevel,
+              rootContourKey: raced.rootContourKey,
+              observedAt: run.completedAt,
+            },
+            notificationPolicy,
+          );
+        }
         return { runId, action, incidentIds: [raced.id] };
       });
     },

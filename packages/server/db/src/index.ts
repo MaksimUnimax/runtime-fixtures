@@ -24,6 +24,15 @@ export { createProfileLifecycleRepository } from "./p7-profile-lifecycle-reposit
 export { createHealthPersistenceRepository } from "./health-persistence-repository.js";
 export { createHealthSchedulerRepository } from "./health-scheduler-repository.js";
 export { createHealthIncidentRepository } from "./health-incident-repository.js";
+export {
+  createHealthNotificationRepository,
+  MAX_NOTIFICATION_ATTEMPTS,
+  NOTIFICATION_LEASE_MS,
+  recordLlmHealthNotificationInTransaction,
+  observeLlmHealthFailureInTransaction,
+  suppressLlmHealthProductNotificationsInTransaction,
+  resumeLlmHealthProductNotificationInTransaction,
+} from "./health-notification-repository.js";
 export { createHealthEvaluationRepository } from "./health-evaluation-repository.js";
 export { createHealthAdminReadRepository } from "./health-admin-read-repository.js";
 export type {
@@ -34,6 +43,11 @@ export type {
   HealthIncident,
   HealthIncidentProcessingResult,
 } from "./health-incident-repository.js";
+export type {
+  HealthNotificationIntent,
+  HealthNotificationRepository,
+  NotificationDeliveryFailureCode,
+} from "./health-notification-repository.js";
 export { createBetaAdmissionRepository } from "./beta-admission-repository.js";
 export { createBootstrapAiResolutionRepository } from "./bootstrap-ai-resolution-repository.js";
 export { createP7AdminAiReadRepository } from "./p7-admin-ai-read-repository.js";

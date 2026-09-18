@@ -66,6 +66,28 @@ export const healthEvaluationStatus = pgEnum("health_evaluation_status", [
   "ACTIVE",
   "COMPLETED",
 ]);
+export const healthNotificationEventKind = pgEnum(
+  "health_notification_event_kind",
+  [
+    "INCIDENT_OPENED",
+    "INCIDENT_ESCALATED",
+    "INCIDENT_RECOVERED",
+    "MAINTENANCE_ENTERED",
+    "MAINTENANCE_EXITED",
+  ],
+);
+export const healthNotificationSeverity = pgEnum(
+  "health_notification_severity",
+  ["INFO", "WARNING", "CRITICAL"],
+);
+export const healthNotificationState = pgEnum("health_notification_state", [
+  "PENDING",
+  "CLAIMED",
+  "DELIVERED",
+  "FAILED_RETRYABLE",
+  "FAILED_TERMINAL",
+  "SUPPRESSED",
+]);
 
 const contourKeyCheck = (column: unknown) =>
   sql`${column} IN ('C01_PAGE_IDENTITY', 'C02_CONVERSATION_ROOT', 'C03_COMPOSER_ROOT', 'C04_COMPOSER_INPUT', 'C05_SEND_CONTROL', 'C06_BUSY_STOP_STATE', 'C07_ASSISTANT_MESSAGE', 'C08_MESSAGE_COMPLETION', 'C09_COMMAND_CODE_BLOCK_SURFACE', 'C10_NATIVE_COPY_CONTROL', 'C11_CONVERSATION_IDENTITY', 'C12_DELIVERY_INSERTION_PATH', 'C13_BLOCKING_STATE')`;
@@ -487,6 +509,109 @@ export const healthIncidents = pgTable(
     check(
       "health_incidents_updated_after_created",
       sql`${table.updatedAt} >= ${table.createdAt}`,
+    ),
+  ],
+);
+
+export const healthNotificationIntents = pgTable(
+  "health_notification_intents",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    dedupKey: varchar("dedup_key", { length: 256 }).notNull(),
+    sourceDomain: varchar("source_domain", { length: 32 }).notNull(),
+    incidentId: uuid("incident_id")
+      .notNull()
+      .references(() => healthIncidents.id, {
+        onDelete: "restrict",
+        onUpdate: "restrict",
+      }),
+    healthRunId: uuid("health_run_id")
+      .notNull()
+      .references(() => healthRuns.id, {
+        onDelete: "restrict",
+        onUpdate: "restrict",
+      }),
+    eventKind: healthNotificationEventKind("event_kind").notNull(),
+    severity: healthNotificationSeverity("severity").notNull(),
+    routeKey: varchar("route_key", { length: 64 }).notNull(),
+    state: healthNotificationState("state").notNull(),
+    groupCount: integer("group_count").notNull().default(1),
+    firstObservedAt: timestamp("first_observed_at", {
+      withTimezone: true,
+    }).notNull(),
+    latestObservedAt: timestamp("latest_observed_at", {
+      withTimezone: true,
+    }).notNull(),
+    cooldownUntil: timestamp("cooldown_until", {
+      withTimezone: true,
+    }).notNull(),
+    nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    attemptCount: integer("attempt_count").notNull().default(0),
+    claimOwner: varchar("claim_owner", { length: 128 }),
+    claimToken: uuid("claim_token"),
+    claimExpiresAt: timestamp("claim_expires_at", { withTimezone: true }),
+    lastErrorCode: varchar("last_error_code", { length: 64 }),
+    suppressionReason: varchar("suppression_reason", { length: 64 }),
+    payload: jsonb("payload").notNull(),
+    retentionClass: varchar("retention_class", { length: 64 })
+      .notNull()
+      .default("OPERATIONAL_DEFAULT"),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    providerAdapterKey: varchar("provider_adapter_key", { length: 64 }),
+    providerDeliveryId: varchar("provider_delivery_id", { length: 128 }),
+    deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    unique("health_notification_intents_dedup_key_unique").on(table.dedupKey),
+    check(
+      "health_notification_intents_source_domain",
+      sql`${table.sourceDomain} = 'LLM_HEALTH'`,
+    ),
+    check(
+      "health_notification_intents_route_key",
+      sql`${table.routeKey} ~ '^[A-Z][A-Z0-9_]{0,63}$'`,
+    ),
+    check(
+      "health_notification_intents_group_count_positive",
+      sql`${table.groupCount} > 0`,
+    ),
+    check(
+      "health_notification_intents_attempt_count_nonnegative",
+      sql`${table.attemptCount} >= 0`,
+    ),
+    check(
+      "health_notification_intents_payload_object",
+      sql`jsonb_typeof(${table.payload}) = 'object'`,
+    ),
+    check(
+      "health_notification_intents_observation_order",
+      sql`${table.latestObservedAt} >= ${table.firstObservedAt}`,
+    ),
+    check(
+      "health_notification_intents_delivery_pair",
+      sql`(${table.deliveredAt} IS NULL OR ${table.state} = 'DELIVERED')`,
+    ),
+    check(
+      "health_notification_intents_claim_pair",
+      sql`(${table.state} <> 'CLAIMED' OR (${table.claimOwner} IS NOT NULL AND ${table.claimToken} IS NOT NULL AND ${table.claimExpiresAt} IS NOT NULL))`,
+    ),
+    index("health_notification_intents_due_index").on(
+      table.state,
+      table.nextAttemptAt,
+      table.claimExpiresAt,
+    ),
+    index("health_notification_intents_incident_index").on(
+      table.incidentId,
+      table.eventKind,
+      table.latestObservedAt,
     ),
   ],
 );
