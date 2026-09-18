@@ -22,7 +22,8 @@ const signing = persistedKeys
   ? { privateKey: createPrivateKey({ key: Buffer.from(persistedKeys.privateKey, "base64"), format: "der", type: "pkcs8" }), publicKey: undefined as unknown as ReturnType<typeof createPublicKey> }
   : generateKeyPairSync("ed25519");
 if (persistedKeys) signing.publicKey = createPublicKey(signing.privateKey);
-const accessSigning = { privateKey: signing.privateKey, publicKey: signing.publicKey, keyId: "i1-client-local" };
+const fixtureKeyId = process.env.SA_I1_KEY_ID ?? "i1-client-local";
+const accessSigning = { privateKey: signing.privateKey, publicKey: signing.publicKey, keyId: fixtureKeyId };
 const database = createDatabaseRuntime(process.env.DATABASE_URL!);
 const auth = new AuthService(createAuthRepository(database), deriveAuthKeys(root), undefined, () => "424242");
 const deviceAuth = new DeviceAuthorizationService(createDeviceAuthorizationRepository(database), deriveDeviceAuthKeys(root));
@@ -31,7 +32,7 @@ const deviceLimitResolver = process.env.SA_I1_ALLOW_TWO_DEVICES === "1"
   : new PreEntitlementDeviceLimitResolver();
 const deviceManagement = new DeviceManagementService(createDeviceManagementRepository(database), root, accessSigning, deviceLimitResolver);
 const extensionAuth = new ExtensionAuthService(createExtensionAuthRepository(database), deriveExtensionAuthKeys(root), undefined, accessSigning);
-const bootstrap = new BootstrapService({ resolve: async () => ({ configVersion: 1, signingKeyId: "i1-client-local", sourceFingerprintSha256: createHash("sha256").update(signing.publicKey.export({ format: "der", type: "spki" })).digest("hex"), compatibility: { extension: { status: "SUPPORTED", minimumVersion: null }, browser: { status: "SUPPORTED" } }, features: {} }) }, { signV2: async (keyId, payload) => signBootstrapSnapshotV2(payload, keyId, signing.privateKey) });
+const bootstrap = new BootstrapService({ resolve: async () => ({ configVersion: 1, signingKeyId: fixtureKeyId, sourceFingerprintSha256: createHash("sha256").update(signing.publicKey.export({ format: "der", type: "spki" })).digest("hex"), compatibility: { extension: { status: "SUPPORTED", minimumVersion: null }, browser: { status: "SUPPORTED" } }, features: {} }) }, { signV2: async (keyId, payload) => signBootstrapSnapshotV2(payload, keyId, signing.privateKey) });
 const app = createApiApp({ config: { environment: "test", databaseUrl: process.env.DATABASE_URL!, logLevel: "warn", apiPort, workerReadyDelayMs: 0 }, isInfrastructureReady: async () => true, authService: auth, deviceAuthorizationService: deviceAuth, deviceManagementService: deviceManagement, extensionAuthService: extensionAuth, bootstrapService: bootstrap, credentialTransferService: new CredentialTransferService(createCredentialTransferRepository(database)) });
 function loopbackDatabaseUrl(value: string | undefined): boolean {
   if (!value) return false;

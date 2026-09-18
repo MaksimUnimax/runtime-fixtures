@@ -731,3 +731,222 @@ environment-deferred. The next task after architect review is a bounded clean
 task-owned transfer API/DB fixture provisioning and rerun of Q1A-26..31,
 Q1A-38..43, Q1A-63..66, Q1A-67..73, and Q1A-81..91 where the architect requires
 installed proof; do not start Q1-B/C/D/E before that review.
+
+## R2 — clean fixture, remaining installed matrix, and transfer replay
+
+Work ID: `Q1-A-R2-20260919-CLEAN-FIXTURE-REMAINING-INSTALLED-MATRIX-AND-TRANSFER-REPLAY`.
+
+### R2 identities and environment
+
+- Start HEAD/tree: `94e00eeaa371f4bcc10f8d2d5781b6214c12d25a` /
+  `0a724cdb94eae132cfc2a6ce5fb50d62be08f050`; branch:
+  `feature/q1-a-installed-unified-matrix-2026-09-19`; accepted ancestry remains
+  `79893dd1f9f9e54dd9959b8ffdef83f7cf4fc0dd`.
+- Verified remote heads: `origin/main=bc718cc5c677ad0eb4598e7de3ad766473ff0847`,
+  `origin/integration/i1-c1-srv5-2026-09-16=23047b3bdc22842a5b17e29e3d3f603c0ee51b16`,
+  `origin/docs/roadmap-autonomy-correction-2026-09-18=6a48af8cd19137aaa10688c36cb064d3c4b16969`.
+- Exact package existed in `/tmp` and was not rebuilt: SHA-256
+  `0d23e0e195f42c4ccc7f3492c606cf95129332aef33b6ce90a495a589f9331e8`, size
+  `2,076,761`, runtime/extracted/ZIP inventory `39/39/39`, source/extracted parity
+  `PASS`, repeat archive identity `PASS`. Source and extracted runtimes registered
+  MV3 workers in canonical Playwright Chromium `151.0.7922.34` using
+  `/root/.cache/ms-playwright/chromium-1234/chrome-linux64/chrome`.
+- Disk was approximately `489 MB` free before R2 and `407 MB` free before final
+  task-owned database cleanup on the 59 GB root filesystem. Pre-existing untracked
+  symlink/repro paths were preserved. Stream-2 paths remained untouched.
+
+### R2 clean PostgreSQL/API fixture
+
+The existing task-owned `d3s2-r1-e2e-postgres` (`postgres:18.0`, loopback port
+`55446`) was reused without deleting volumes. Fresh disposable databases
+`q1a_r2_20260919_001` through `_006` were created, migrated through `0018`, and
+verified with `19` migration records. They contained no owner or production data.
+The real API was started with loopback `DATABASE_URL`, synthetic keys, package trust
+key ID `browser-fixture-key`, and `PRODUCT_CONTROL_PLANE_E2E=1`; it stayed alive on
+`127.0.0.1:43100`, and `/health/ready` returned `200`. The portal fixture was on
+`127.0.0.1:43101`. Those task-owned disposable databases were dropped after evidence
+capture; the pre-existing container was not removed.
+
+The prior R1 `127.0.0.1:43102/health/ready` timeout was caused by the API child exiting
+before listen on a stale fixture collision:
+`fixture identity collision for i1-client-one@example.test,i1-client-two@example.test`
+at `api-harness.ts:50`. The reused database was not clean. The runner suppressed the
+child output and exposed only readiness timeout. It was not a port conflict, disk
+failure, migration failure, Node startup failure, dependency wait, or bad health route.
+R2 made the fixture key ID configurable so the exact package trust key could be used;
+no production route or schema changed.
+
+### R2 complete initial failure batch
+
+| finding | classification | disposition |
+|---|---|---|
+| Reused-DB API exited on stale identity collision before listen | `SYNTHETIC_FIXTURE_DEFECT` / `HARNESS_DEFECT` | fresh DB and surfaced child output; resolved |
+| Reused OTP identity reached deliberate API `429` rate limit | `API_FIXTURE_DEFECT` | fresh synthetic identities; not product |
+| WB helper asserted Ozon fields after valid WB import | `HARNESS_DEFECT` | interpretation corrected; no product failure |
+| Source-offline custom probe hung in source-reopen helper | `HARNESS_DEFECT` | terminated safely; Q1A-70 remains environment-deferred |
+| Exact-package 2B helper reached `/activate` without selectable account | `SYNTHETIC_FIXTURE_DEFECT` / `HARNESS_DEFECT` | no product conclusion; Q1A-38..43, 71..73 remain environment-deferred |
+| Standalone verified-health helper used incompatible authority shape/key | `SYNTHETIC_FIXTURE_DEFECT` / `HARNESS_DEFECT` | direct exact-worker replay used; no product patch |
+| Client-cache helper used `fixture-key` instead of package `browser-fixture-key` | `SYNTHETIC_FIXTURE_DEFECT` / `HARNESS_DEFECT` | exact package unchanged; no product conclusion |
+| System Chrome 147 worker registration issue | `BROWSER_ENVIRONMENT_DEFECT` / Q1-B | remains outside Q1-A |
+
+No `PRODUCT_DEFECT`, `PACKAGE_DEFECT`, `POSTGRESQL_FIXTURE_DEFECT`, or disk-induced
+failure was evidenced.
+
+### R2 remaining-row results
+
+- Q1A-26: no exact installed large-JSON receipt; environment-deferred with the
+  specific missing installed payload driver. No full payload was committed.
+- Q1A-27: exact installed binary paths passed in application/P2, but the required
+  deterministic XLSX-specific receipt was not emitted; environment-deferred.
+- Q1A-28: original-provider-file-specific installed receipt was not emitted;
+  environment-deferred.
+- Q1A-29: exact source/extracted P2 materialization and bounded local technical-result
+  paths passed with zero additional provider calls; installed pass.
+- Q1A-30: exact expiry/wake receipt was not emitted; environment-deferred.
+- Q1A-31: exact supported IDB transaction-failure injection receipt was not emitted;
+  environment-deferred. P2 unknown-delivery/no-false-success paths passed.
+- Q1A-38..43: `p2-auth.integration.test.ts` passed `14/14` and
+  `s1-1-beta-admission.integration.test.ts` passed `11/11`, covering free-beta,
+  last-slot single winner, capacity closure, existing login, and idempotent mutation.
+  The exact-package installed activation helper did not reach account selection, so
+  these remain explicit installed-environment deferrals, not lower-layer substitutions.
+- Q1A-63..65: exact source/extracted P1 passed local quota, 429/Retry-After, and
+  authority-before-retry; no hidden retry or provider replay.
+- Q1A-66: second-installation partition/quota receipt was not emitted; environment-deferred.
+- Q1A-83/84/86/87/88: direct exact-worker replay passed grace boundary/cache-expired,
+  known revocation, account mismatch, and device/session mismatch fail-closed decisions.
+- Q1A-91: direct exact-worker replay passed stale Health with valid signed autonomous
+  grace (`ALLOW_OFFLINE_GRACE`, `healthRequired=false`) and independent grace expiry.
+- Q1A-67/68: exact package, two persistent Chromium profiles, real API, and clean DB
+  passed happy path and Ozon Seller+Performance; provider/AI calls were zero.
+- Q1A-69: same exact package and real API passed WB transfer with synthetic token hash only.
+- Q1A-70: source-offline recovery helper hung before producing a receipt; deferred.
+- Q1A-71..73: exact-package 2B activation could not complete; tamper/replay,
+  account/device isolation, and durable-storage audit remain deferred. Existing exact
+  P1/P2/A24 privacy evidence is supporting evidence only.
+
+### R2 authoritative Q1A-01..91 matrix
+
+Every row marked `INSTALLED_PASS` below used package SHA
+`0d23e0e195f42c4ccc7f3492c606cf95129332aef33b6ce90a495a589f9331e8`.
+
+| ID | final classification | package/evidence |
+|---|---|---|
+| Q1A-01 | `INSTALLED_PASS` | exact SHA; R1 C1 |
+| Q1A-02 | `INSTALLED_PASS` | exact SHA; R1 C1 |
+| Q1A-03 | `INSTALLED_PASS` | exact SHA; R1 C1 |
+| Q1A-04 | `INSTALLED_PASS` | exact SHA; R1 A24 |
+| Q1A-05 | `INSTALLED_PASS` | exact SHA; R1 A24 |
+| Q1A-06 | `INSTALLED_PASS` | exact SHA; R1 C1 |
+| Q1A-07 | `INSTALLED_PASS` | exact SHA; R1 C1 |
+| Q1A-08 | `INSTALLED_PASS` | exact SHA; exact C1 |
+| Q1A-09 | `INSTALLED_PASS` | exact SHA; exact C1 |
+| Q1A-10 | `INSTALLED_PASS` | exact SHA; exact C1 |
+| Q1A-11 | `INSTALLED_PASS` | exact SHA; exact C1 |
+| Q1A-12 | `INSTALLED_PASS` | exact SHA; exact C1 |
+| Q1A-13 | `INSTALLED_PASS` | exact SHA; exact C1 |
+| Q1A-14 | `INSTALLED_PASS` | exact SHA; exact C1 |
+| Q1A-15 | `INSTALLED_PASS` | exact SHA; exact C1/P1 |
+| Q1A-16 | `INSTALLED_PASS` | exact SHA; exact P1 |
+| Q1A-17 | `INSTALLED_PASS` | exact SHA; exact P1 |
+| Q1A-18 | `INSTALLED_PASS` | exact SHA; exact P1 |
+| Q1A-19 | `INSTALLED_PASS` | exact SHA; exact P1 |
+| Q1A-20 | `INSTALLED_PASS` | exact SHA; exact P1 |
+| Q1A-21 | `INSTALLED_PASS` | exact SHA; exact P1 |
+| Q1A-22 | `INSTALLED_PASS` | exact SHA; exact P1 |
+| Q1A-23 | `INSTALLED_PASS` | exact SHA; exact P2 |
+| Q1A-24 | `INSTALLED_PASS` | exact SHA; exact P1 |
+| Q1A-25 | `INSTALLED_PASS` | exact SHA; exact P2/C1 |
+| Q1A-26 | `ENVIRONMENT_DEFERRED_WITH_EXACT_CAUSE` | missing installed large-JSON driver |
+| Q1A-27 | `ENVIRONMENT_DEFERRED_WITH_EXACT_CAUSE` | missing installed XLSX driver |
+| Q1A-28 | `ENVIRONMENT_DEFERRED_WITH_EXACT_CAUSE` | missing installed original-file driver |
+| Q1A-29 | `INSTALLED_PASS` | exact SHA; exact P2 materialization |
+| Q1A-30 | `ENVIRONMENT_DEFERRED_WITH_EXACT_CAUSE` | missing installed expiry/wake driver |
+| Q1A-31 | `ENVIRONMENT_DEFERRED_WITH_EXACT_CAUSE` | missing installed IDB-failure driver |
+| Q1A-32 | `INSTALLED_PASS` | exact SHA; exact C1/P3 |
+| Q1A-33 | `INSTALLED_PASS` | exact SHA; exact C1/P3 |
+| Q1A-34 | `INSTALLED_PASS` | exact SHA; exact C1 |
+| Q1A-35 | `INSTALLED_PASS` | exact SHA; exact P1 |
+| Q1A-36 | `INSTALLED_PASS` | exact SHA; exact P2 |
+| Q1A-37 | `INSTALLED_PASS` | exact SHA; exact P2 |
+| Q1A-38 | `ENVIRONMENT_DEFERRED_WITH_EXACT_CAUSE` | installed activation account-selection gap |
+| Q1A-39 | `INSTALLED_PASS` | exact SHA; exact C1 logout fence |
+| Q1A-40 | `ENVIRONMENT_DEFERRED_WITH_EXACT_CAUSE` | installed activation account-selection gap |
+| Q1A-41 | `ENVIRONMENT_DEFERRED_WITH_EXACT_CAUSE` | installed activation gap; server 14/14 |
+| Q1A-42 | `ENVIRONMENT_DEFERRED_WITH_EXACT_CAUSE` | installed activation gap; server 14/14 |
+| Q1A-43 | `ENVIRONMENT_DEFERRED_WITH_EXACT_CAUSE` | installed activation gap; admin 11/11 |
+| Q1A-44 | `INSTALLED_PASS` | exact SHA; R1 C1 |
+| Q1A-45 | `INSTALLED_PASS` | exact SHA; R1 C1 |
+| Q1A-46 | `INSTALLED_PASS` | exact SHA; R1 C1 |
+| Q1A-47 | `INSTALLED_PASS` | exact SHA; R1 C1 |
+| Q1A-48 | `INSTALLED_PASS` | exact SHA; R1 R4 |
+| Q1A-49 | `INSTALLED_PASS` | exact SHA; R1 C2 |
+| Q1A-50 | `INSTALLED_PASS` | exact SHA; R1 C2 |
+| Q1A-51 | `INSTALLED_PASS` | exact SHA; R1 C2 |
+| Q1A-52 | `INSTALLED_PASS` | exact SHA; R1 C2 |
+| Q1A-53 | `INSTALLED_PASS` | exact SHA; R1 C2 |
+| Q1A-54 | `INSTALLED_PASS` | exact SHA; R1 R4 |
+| Q1A-55 | `INSTALLED_PASS` | exact SHA; R1 R4 |
+| Q1A-56 | `INSTALLED_PASS` | exact SHA; R1 R4 |
+| Q1A-57 | `INSTALLED_PASS` | exact SHA; R1 R4 |
+| Q1A-58 | `INSTALLED_PASS` | exact SHA; R1 R4 |
+| Q1A-59 | `INSTALLED_PASS` | exact SHA; R1 C1/R4 |
+| Q1A-60 | `INSTALLED_PASS` | exact SHA; R1 C1/R4 |
+| Q1A-61 | `INSTALLED_PASS` | exact SHA; R1 C1 |
+| Q1A-62 | `INSTALLED_PASS` | exact SHA; R1 C1/R4 |
+| Q1A-63 | `INSTALLED_PASS` | exact SHA; exact P1 |
+| Q1A-64 | `INSTALLED_PASS` | exact SHA; exact P1 |
+| Q1A-65 | `INSTALLED_PASS` | exact SHA; exact P1 |
+| Q1A-66 | `ENVIRONMENT_DEFERRED_WITH_EXACT_CAUSE` | missing installed second-profile quota receipt |
+| Q1A-67 | `INSTALLED_PASS` | exact SHA; real API/DB transfer |
+| Q1A-68 | `INSTALLED_PASS` | exact SHA; real API/DB Ozon Seller+Performance |
+| Q1A-69 | `INSTALLED_PASS` | exact SHA; real API/DB WB |
+| Q1A-70 | `ENVIRONMENT_DEFERRED_WITH_EXACT_CAUSE` | source-reopen helper hung |
+| Q1A-71 | `ENVIRONMENT_DEFERRED_WITH_EXACT_CAUSE` | exact 2B activation incomplete |
+| Q1A-72 | `ENVIRONMENT_DEFERRED_WITH_EXACT_CAUSE` | exact 2B activation incomplete |
+| Q1A-73 | `ENVIRONMENT_DEFERRED_WITH_EXACT_CAUSE` | exact 2B activation incomplete |
+| Q1A-74 | `INSTALLED_PASS` | exact SHA; R1 A24 |
+| Q1A-75 | `INSTALLED_PASS` | exact SHA; R1 A24 |
+| Q1A-76 | `INSTALLED_PASS` | exact SHA; R1 A24 |
+| Q1A-77 | `INSTALLED_PASS` | exact SHA; R1 A24 |
+| Q1A-78 | `INSTALLED_PASS` | exact SHA; R1 A24 |
+| Q1A-79 | `INSTALLED_PASS` | exact SHA; R1 A24 |
+| Q1A-80 | `INSTALLED_PASS` | exact SHA; R1 A24 |
+| Q1A-81 | `INSTALLED_PASS` | exact SHA; exact C1 |
+| Q1A-82 | `INSTALLED_PASS` | exact SHA; R1 C2 |
+| Q1A-83 | `INSTALLED_PASS` | exact SHA; exact worker grace boundary |
+| Q1A-84 | `INSTALLED_PASS` | exact SHA; exact worker CACHE_EXPIRED |
+| Q1A-85 | `INSTALLED_PASS` | exact SHA; R1 C1 |
+| Q1A-86 | `INSTALLED_PASS` | exact SHA; exact worker revocation |
+| Q1A-87 | `INSTALLED_PASS` | exact SHA; exact worker account mismatch |
+| Q1A-88 | `INSTALLED_PASS` | exact SHA; exact worker device/session mismatch |
+| Q1A-89 | `INSTALLED_PASS` | exact SHA; R1 C1 |
+| Q1A-90 | `INSTALLED_PASS` | exact SHA; R1 C1 |
+| Q1A-91 | `INSTALLED_PASS` | exact SHA; exact worker stale Health/grace |
+
+### R2 safety, privacy, regression, and governance
+
+- Ordinary Ozon control calls `0`; ordinary WB control calls `0`; ordinary AI-delivery
+  control calls `0`; provider UNKNOWN replay `0`; known-response redispatch `0`;
+  delivery UNKNOWN resend `0`; confirmed duplicate delivery `0`; ordinary Health
+  heartbeat `0`; command-time Bootstrap `0`.
+- Transfer-caused provider calls `0`; transfer-caused AI sends `0`; backup-caused
+  provider calls `0`; backup-caused AI sends `0`.
+- Synthetic markers and exact P1/P2/A24 receipts showed no durable marketplace
+  credentials, reports, provider files, command bodies, AI bodies, storageState, Health
+  envelopes, transfer ciphertext, backup plaintext, or backup password. The incomplete
+  2B privacy replay is not promoted to a new pass.
+- Only the fixture harness key-ID selection and this R2 document changed. No server,
+  contract, schema, extension, shared client, or Stream-2 implementation changed.
+  Focused server regression was `p2-auth 14/14 PASS` and `s1-1-beta-admission 11/11
+  PASS`; no full server/client regression was required.
+- Q1-B browser-family, Q1-C owner/live AI/provider/account, Q1-D admin/preprod/release,
+  Q1-E monitoring consumption, and owner-live choices remain in their owning lanes.
+  No row is `LOWER_LAYER_ONLY` in this R2 final table. Remote publication remains
+  `ENVIRONMENT_DEFERRED_REMOTE_PUBLICATION`; no force push or publication occurred.
+
+Recommended disposition remains `Q1A_PARTIAL_ENVIRONMENT_DEFERRED`, not acceptance. No
+genuine current-package product defect or automated Q1-A product blocker was found. The
+exact next task after architect review is bounded R3 fixture-only completion of the
+installed receipt gaps Q1A-26..31, Q1A-38..43, Q1A-66, and Q1A-70..73, followed by
+architect review; do not start Q1-B/C/D/E.
