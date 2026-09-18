@@ -25,6 +25,7 @@ import {
   createProfileLifecycleRepository,
   authorizeAdminMutationInTransaction,
   createBetaAdmissionRepository,
+  createSyncRepository,
 } from "@product/db";
 import { AuthService, deriveAuthKeys, loadAuthRootSecret } from "@product/auth";
 import { AdminAuthService, deriveAdminAuthKeys } from "@product/admin-auth";
@@ -59,6 +60,7 @@ import {
 } from "./bootstrap-signing.js";
 import { loadConfig } from "@product/shared";
 import { createApiApp } from "./app.js";
+import { SyncService } from "@product/sync";
 import { createInfrastructureReadiness } from "./infrastructure.js";
 
 const config = loadConfig(process.env);
@@ -161,6 +163,7 @@ const app = createApiApp({
     }),
   ),
   betaAdmissionService: betaAdmission,
+  syncService: new SyncService(createSyncRepository(database)),
 });
 let closing = false;
 async function shutdown(signal: string): Promise<void> {

@@ -145,6 +145,9 @@ importers:
       '@product/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@product/sync':
+        specifier: workspace:*
+        version: link:../../packages/server/sync
       fastify:
         specifier: 5.8.5
         version: 5.8.5
@@ -448,6 +451,9 @@ importers:
       '@product/compatibility':
         specifier: workspace:*
         version: link:../compatibility
+      '@product/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
       '@product/device-auth':
         specifier: workspace:*
         version: link:../device-auth
@@ -478,6 +484,9 @@ importers:
       '@product/subscriptions':
         specifier: workspace:*
         version: link:../subscriptions
+      '@product/sync':
+        specifier: workspace:*
+        version: link:../sync
       drizzle-orm:
         specifier: 0.45.2
         version: 0.45.2(@types/pg@8.15.5)(pg@8.16.3)
@@ -639,6 +648,18 @@ importers:
       '@product/plans':
         specifier: workspace:*
         version: link:../plans
+      zod:
+        specifier: 4.1.5
+        version: 4.1.5
+
+  packages/server/sync:
+    dependencies:
+      '@product/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
+      '@product/extension-auth':
+        specifier: workspace:*
+        version: link:../extension-auth
       zod:
         specifier: 4.1.5
         version: 4.1.5

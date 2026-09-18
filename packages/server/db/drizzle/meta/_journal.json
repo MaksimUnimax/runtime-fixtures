@@ -120,6 +120,13 @@
       "when": 1789390000000,
       "tag": "0016_s1_1_beta_access",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1789703141856,
+      "tag": "0017_i1_c3e_sync_journal",
+      "breakpoints": true
     }
   ]
 }

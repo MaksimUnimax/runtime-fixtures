@@ -37,6 +37,7 @@ import { AdminAuthService } from "@product/admin-auth";
 import type { AdminCommercialService } from "@product/admin-commercial";
 import type { AdminAiService } from "@product/admin-ai";
 import { BetaAdmissionService } from "@product/beta-access";
+import { SyncService } from "@product/sync";
 
 type JsonPrimitive = boolean | null | number | string;
 type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
@@ -307,6 +308,9 @@ export async function generateOpenApiRepresentation(): Promise<string> {
         updatedAt: new Date(),
       }),
       mutate: async () => ({ kind: "CONFLICT" }),
+    }),
+    syncService: new SyncService({
+      apply: async ({ entry }) => ({ outcome: "ACK", serverRevision: 1, serverState: entry.payload, code: null }),
     }),
   });
   try {

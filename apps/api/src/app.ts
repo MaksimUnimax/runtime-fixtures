@@ -65,6 +65,8 @@ import { registerAdminAiRoutes } from "./admin-ai-routes.js";
 import { createAdminRouteGuard } from "./admin-route-guard.js";
 import type { BetaAdmissionService } from "@product/beta-access";
 import { registerBetaAdminRoutes } from "./beta-admin-routes.js";
+import type { SyncService } from "@product/sync";
+import { registerSyncRoutes } from "./sync-routes.js";
 
 export class ControlledError extends Error {
   public constructor(
@@ -93,6 +95,7 @@ export interface ApiDependencies {
   readonly adminCommercialService?: AdminCommercialService;
   readonly adminAiService?: AdminAiService;
   readonly betaAdmissionService?: BetaAdmissionService;
+  readonly syncService?: SyncService;
 }
 
 function correlationId(request: FastifyRequest): string {
@@ -337,6 +340,8 @@ export function createApiApp(
         ),
         dependencies.betaAdmissionService,
       );
+    if (dependencies.syncService && dependencies.extensionAuthService)
+      registerSyncRoutes(app, dependencies.syncService, dependencies.extensionAuthService);
   });
   return app;
 }

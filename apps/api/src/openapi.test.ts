@@ -117,6 +117,7 @@ describe("OpenAPI foundation", () => {
         "/v1/health-authority",
         "/v1/plans/public",
         "/v1/subscription",
+        "/v1/sync",
       ].sort(),
     );
     expect(document.paths).toHaveProperty("/v1/bootstrap");

@@ -293,6 +293,13 @@ export async function makeWorker(directory, options = {}) {
       };
       (record.url.includes("127.0.0.1:43100") || record.url.includes("127.0.0.1:43101") ? controlNetwork : network).push(record);
       const healthEndpoint = record.url.endsWith("/v1/health-authority");
+      const syncEndpoint = record.url.endsWith("/v1/sync");
+      if (syncEndpoint && options.syncFetch)
+        return options.syncFetch(String(url), init, controlNetwork.length);
+      if (syncEndpoint) {
+        const body = JSON.parse(init.body || "{}");
+        return new Response(JSON.stringify({ syncVersion: "seller_agents_sync_v1", results: (body.entries || []).map(entry => ({ requestId: entry.requestId, mutationId: entry.mutationId, entityId: entry.entityId, outcome: "ACK", serverRevision: Number(entry.baseRevision || 0) + 1, serverState: entry.payload, code: null })) }), { status: 200, headers: { "content-type": "application/json" } });
+      }
       if (healthEndpoint && options.healthFetch)
         return options.healthFetch(String(url), init, controlNetwork.length);
       if (!healthEndpoint && options.fetch)

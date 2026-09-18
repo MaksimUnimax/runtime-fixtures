@@ -162,6 +162,7 @@
     "shared/bootstrap_verifier.js": ["packages/control-client/src/crypto.js"],
     "shared/application.js": [
       "packages/bridge-core/src/stores/catalog.js",
+      "apps/extension/src/application/sync-journal.js",
       "apps/extension/src/application/runtime.js",
       "apps/extension/src/application/delivery.js"
     ],

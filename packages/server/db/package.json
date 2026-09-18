@@ -40,6 +40,8 @@
     "@product/pricing": "workspace:*",
     "@product/shared": "workspace:*",
     "@product/subscriptions": "workspace:*",
+    "@product/sync": "workspace:*",
+    "@product/contracts": "workspace:*",
     "@product/remote-config": "workspace:*",
     "drizzle-orm": "0.45.2",
     "pg": "8.16.3"

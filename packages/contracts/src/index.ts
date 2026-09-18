@@ -62,8 +62,62 @@ export const ApiErrorCodeV1Schema = z.enum([
   "SUBSCRIPTION_PERIOD_ENDED",
   "SUBSCRIPTION_GRACE_ENDED",
   "SUBSCRIPTION_CORRUPTED",
+  "SYNC_CONFLICT",
+  "SYNC_REQUEST_ID_CONFLICT",
+  "SYNC_REQUEST_INVALID",
+  "ACCOUNT_IDENTITY_MISMATCH",
+  "CLIENT_UPDATE_REQUIRED",
 ]);
 export type ApiErrorCodeV1 = z.infer<typeof ApiErrorCodeV1Schema>;
+
+export const SellerAgentsSyncVersionV1Schema = z.literal("seller_agents_sync_v1");
+const SyncDigest = z.string().length(64).regex(/^[a-f0-9]{64}$/);
+const SyncNullableString = (max: number) => z.string().min(1).max(max).nullable();
+const SyncStateV1Schema = z.object({
+  kind: z.enum(["BINDING_UPSERT", "FINISH", "DELIVERY_MARKER"]),
+  conversationKeyDigest: SyncDigest,
+  bindingId: SyncNullableString(128),
+  bindingRevision: z.number().int().nonnegative().safe(),
+  storeId: SyncNullableString(128),
+  marketplace: z.enum(["ozon", "wildberries"]).nullable(),
+  credentialRevision: SyncNullableString(128),
+  deliveryMarkerId: SyncNullableString(128).optional(),
+}).strict();
+export const SellerAgentsSyncEntryV1Schema = z.object({
+  requestId: z.uuid(),
+  mutationId: z.string().min(1).max(320),
+  entityId: z.string().min(1).max(128),
+  baseRevision: z.number().int().nonnegative().safe(),
+  localSequence: z.number().int().positive().safe(),
+  mutationGeneration: z.string().min(1).max(320),
+  kind: z.enum(["BINDING_UPSERT", "FINISH", "DELIVERY_MARKER"]),
+  payload: SyncStateV1Schema,
+}).strict().superRefine((value, ctx) => {
+  if (value.kind !== value.payload.kind) ctx.addIssue({ code: "custom", message: "entry kind and payload kind must match", path: ["payload", "kind"] });
+  if (value.kind !== "DELIVERY_MARKER" && value.payload.deliveryMarkerId !== undefined) ctx.addIssue({ code: "custom", message: "delivery marker is only valid for delivery entries", path: ["payload", "deliveryMarkerId"] });
+  if (value.kind === "DELIVERY_MARKER" && !value.payload.deliveryMarkerId) ctx.addIssue({ code: "custom", message: "delivery marker id is required", path: ["payload", "deliveryMarkerId"] });
+});
+export type SellerAgentsSyncEntryV1 = z.infer<typeof SellerAgentsSyncEntryV1Schema>;
+export const SellerAgentsSyncRequestV1Schema = z.object({
+  syncVersion: SellerAgentsSyncVersionV1Schema,
+  installationId: z.uuid(),
+  entries: z.array(SellerAgentsSyncEntryV1Schema).min(1).max(32),
+}).strict();
+export type SellerAgentsSyncRequestV1 = z.infer<typeof SellerAgentsSyncRequestV1Schema>;
+export const SellerAgentsSyncResultV1Schema = z.object({
+  requestId: z.uuid(),
+  mutationId: z.string().min(1).max(320),
+  entityId: z.string().min(1).max(128),
+  outcome: z.enum(["ACK", "CONFLICT", "RETRY"]),
+  serverRevision: z.number().int().nonnegative().safe(),
+  serverState: SyncStateV1Schema.nullable(),
+  code: z.string().regex(/^[A-Z][A-Z0-9_]{0,63}$/).nullable(),
+}).strict();
+export const SellerAgentsSyncResponseV1Schema = z.object({
+  syncVersion: SellerAgentsSyncVersionV1Schema,
+  results: z.array(SellerAgentsSyncResultV1Schema).max(32),
+}).strict();
+export type SellerAgentsSyncResponseV1 = z.infer<typeof SellerAgentsSyncResponseV1Schema>;
 
 export const ApiErrorEnvelopeV1Schema = z.object({
   error: z.object({

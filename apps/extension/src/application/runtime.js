@@ -82,6 +82,18 @@ function saAdmissionError(code, deniedGates = []) {
   error.deniedGates = [...deniedGates];
   return error;
 }
+async function saRecordBindingMutation(binding, conversationKey, store = null) {
+  if (!globalThis.SellerAgentsSyncJournal || !binding) return null;
+  return SellerAgentsSyncJournal.recordBinding({ binding, conversationKey, store }).catch(() => null);
+}
+async function saRecordFinishMutation(conversationKey, binding = null, store = null) {
+  if (!globalThis.SellerAgentsSyncJournal) return null;
+  return SellerAgentsSyncJournal.recordFinish({ binding, conversationKey, store }).catch(() => null);
+}
+async function saRecordDeliveryMarker(conversationKey, binding = null, store = null, deliveryId = "") {
+  if (!globalThis.SellerAgentsSyncJournal) return null;
+  return SellerAgentsSyncJournal.recordDeliveryMarker({ binding, conversationKey, store, deliveryId }).catch(() => null);
+}
 function saAdmissionKey(tabId, conversationKey = null) {
   return `${Number(tabId)}:${conversationKey || "pending"}`;
 }
@@ -863,6 +875,11 @@ async function saHandleMessage(message, sender) {
       if (pending) {
         await clearPendingWorkStart(message.tab_id, pending.intent_id, pending.revision, "operator_finish");
         if (pending.conversation_key) await tabMessage(message.tab_id, { type: "OZ_WORK_APPLY_VISIBILITY", visible: false, conversation_key: pending.conversation_key });
+        if (pending.conversation_key) {
+          const binding = await bindingForConversationKey(pending.conversation_key);
+          const store = binding?.store_context ? await saAssertStore(binding.store_context).catch(() => null) : null;
+          await saRecordFinishMutation(pending.conversation_key, binding, store);
+        }
         return { ok: true, pending_cancelled: true };
       }
     }
@@ -885,13 +902,27 @@ async function saHandleMessage(message, sender) {
     }
     if (message.type.startsWith("OZ_BATCH_DELIVERY_")) {
       await assertManualBatchContext(message.conversation_key, message.owner_id || message.operation_id);
-      if (message.type === "OZ_BATCH_DELIVERY_COMPLETE") {
+    if (message.type === "OZ_BATCH_DELIVERY_COMPLETE") {
         const current = await getManualOperation(message.conversation_key);
         if (!current?.delivery?.sa_send_actor) throw saError("SEND_NOT_COMMITTED");
       }
     }
   }
   const result = await saLegacyMessage(message, sender);
+  if (enabled && result?.ok && message.type === "OZ_WORK_PENDING_IDENTITY" && result.binding) {
+    const store = result.binding.store_context ? await saAssertStore(result.binding.store_context) : null;
+    await saRecordBindingMutation(result.binding, result.binding.conversation_key || message.conversation_key, store);
+  }
+  if (enabled && result?.ok && message.type === "OZ_WORK_FINISH") {
+    const key = normalizeConversationKey(message.conversation_key), binding = await bindingForConversationKey(key);
+    const store = binding?.store_context ? await saAssertStore(binding.store_context).catch(() => null) : null;
+    await saRecordFinishMutation(key, binding, store);
+  }
+  if (enabled && result?.ok && ["OZ_BATCH_DELIVERY_COMPLETE", "OZ_REPORT_DELIVERY_CONFIRMED"].includes(message.type)) {
+    const key = normalizeConversationKey(message.conversation_key), binding = await bindingForConversationKey(key);
+    const store = binding?.store_context ? await saAssertStore(binding.store_context).catch(() => null) : null;
+    await saRecordDeliveryMarker(key, binding, store, message.delivery_id || message.owner_id || "");
+  }
   if (enabled && ["OZ_CONTENT_READY", "OZ_CONTENT_SYNC", "OZ_GET_MANUAL_STATE"].includes(message.type) && result?.ok) {
     const key = result.conversation_key || message.conversation_key;
     result.store_context = await saPublicContext(key);
