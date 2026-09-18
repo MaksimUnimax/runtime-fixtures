@@ -179,3 +179,149 @@ PostgreSQL inspection, server loss/retry, all substitution/tamper/replay and
 expiry cases, Ozon Seller-only, Ozon Seller+Performance, WB, safe import and
 conflict UI, zero provider calls, and zero AI sends. Then review the retention
 default and final conflict-choice UX. A24 remains separate.
+
+## R1 installed acceptance-closure evidence — 2026-09-18
+
+This section is appended to preserve the original 2A history. The bounded R1
+work started at `fe7d02c9374314ca827749fb4d8dfe71fbdb7f4d` (tree
+`f69a36a4f114c318d6b2e85c73343025c6ef3133`) on
+`feature/d3s2-credential-transfer-foundation-2026-09-18`, with
+`f642b5c60c95b74f126f3f77c62921f2ce9234cb` as the accepted ancestor.
+
+### Service-worker differential
+
+The complete pre-patch failure batch was collected before production edits.
+System Google Chrome 147.0.7727.116, using the earlier actual-unpacked
+invocation, loaded the extension ID/blessed extension context but emitted no
+MV3 service-worker target for both accepted f642 source/generated and
+extracted/package, and for both pre-R1 fe7d source/generated and
+extracted/package. No manifest error, worker parse/import error, CSP/permission
+error, startup exception, or missing-file error was reported. This is
+`PRE_EXISTING_BROWSER_ENVIRONMENT_FAILURE` with a
+`PRE_EXISTING_HARNESS_FAILURE` route mismatch, not a candidate regression.
+
+The canonical Playwright Chromium 151.0.7922.34 procedure then registered a
+worker for all four routes: f642 source/generated and extracted/package, and
+fe7d source/generated and extracted/package. The candidate worker exposed the
+transfer runtime in both package forms. Therefore the exact answer is: the
+failure was present on accepted f642, was not introduced by 2A, and the
+canonical installed harness is functional. The R1 product fixes were the real
+recipient UI/runtime receive path, production route read, and `storeId` to
+catalog `id` adaptation discovered by the installed run.
+
+### Installed two-context transfer
+
+The new harness uses two persistent Playwright Chromium profiles, separate
+unpacked installations, the real popup/application UI, real HTTP routes, a
+same-account synthetic identity, and distinct authenticated devices. It does
+not call transfer helpers directly. Both forms completed the Ozon Seller plus
+optional Performance happy path:
+
+| Case | Browser | Result | Request / store | Provider / AI |
+|---|---|---|---|---|
+| source/generated | Chromium 151.0.7922.34 | PASS: consent, request, discovery, encrypt, relay, decrypt, import, ACK, completed | `385ab525-6a6d-459d-b9dc-27014847d641` / `r1-source-generated-ozon` | 0 / 0 |
+| extracted/package | Chromium 151.0.7922.34 | PASS: same installed flow | `bbafd3c4-15c4-46d7-bd39-6afa3d645ac2` / `r1-extracted-package-ozon` | 0 / 0 |
+
+The recipient explicitly clicked `Получить передачу` after the consent UI;
+recipient key material was generated and retained by the privileged worker.
+The source discovered the request through the production read route and did
+not require a second confirmation. The installed receipt records only
+ciphertext request hashes (`bbd54c2d…8526bc` and `3a5e763a…6883ee`), never
+the packet bytes. The test starts with a blank target store and verifies the
+provider-shaped Ozon import and optional Performance section.
+
+The individually requested installed cases are classified as follows:
+
+| Cases | Installed result |
+|---|---|
+| TR-BR-01–04 | PASS in both package forms: UI consent/request, source discovery, Ozon Seller, Seller+Performance |
+| TR-BR-05 | NOT RUN installed: WB remains covered by transfer/domain tests, not this two-context receipt |
+| TR-BR-06 | NOT RUN as an installed process-kill; lower relay test is PASS for loss and safe retry |
+| TR-BR-07–18 | NOT RUN as the complete installed adversarial matrix; lower HTTP/domain coverage is PASS |
+| TR-BR-19–24 | NOT RUN as installed conflict matrix; lower import/domain coverage is PASS and fail-closed |
+| TR-BR-25–26 | NOT RUN as installed source-offline/wake; lower lifecycle coverage is PASS and no permanent poller exists |
+
+This distinction is intentional: the two happy-path installations are green,
+but R1 does not self-accept the unexecuted installed adversarial and lifecycle
+cases.
+
+### Crypto and confidentiality review
+
+The implementation uses WebCrypto ECDH P-256, HKDF-SHA-256, and AES-256-GCM.
+Each packet has a fresh source ephemeral ECDH key, a fresh 16-byte HKDF salt,
+and a fresh 12-byte AES-GCM IV with a 128-bit tag. HKDF `info` and AES-GCM AAD
+are the same explicit versioned binding containing `version`, `accountId`,
+`requestId`, `sourceDeviceId`, `recipientDeviceId`, and `packetId`. Public keys
+are strict SPKI DER/base64 values; malformed keys fail at WebCrypto import.
+The envelope is `credential_transfer_envelope_v1`, and the server bounds its
+serialized size at 131072 bytes. Recipient private CryptoKey material remains
+in the privileged worker's in-memory map and is not sent to page/server or
+persisted. Plaintext and keys are not logged.
+
+Supported server-confidentiality claim: with normal protocol state persisted
+or available, the server has metadata, the recipient public key, and opaque
+ciphertext, but no recipient private key; it therefore cannot decrypt by
+following the normal protocol. This does not claim resistance to a fully
+malicious server that rewrites application code.
+
+### Persistence, loss, and privacy
+
+The request table contains durable request/status metadata only: account,
+device, request/status identifiers, public key, expiry, revision/idempotency,
+and lifecycle timestamps. Ciphertext is absent from PostgreSQL schema/rows,
+durable queues/jobs, C3E state, and structured server fields. The relay is
+bounded process memory only. The lower process-loss test is green: relay loss
+leaves metadata incomplete, no invented packet/completion appears, and a valid
+retry creates a new ephemeral delivery. The installed happy-path receipts
+were searched for unique plaintext/ciphertext markers; no marker or packet
+bytes were written to evidence, logs, or database rows.
+
+Retention remains provisional under
+`PROVISIONAL_OWNER_REVIEW-D3S2-TRANSFER-METADATA-RETENTION-20260918`: bounded
+metadata-only retention sufficient for idempotency/security, not indefinite
+transfer history, and independent of ciphertext. Crypto remains provisional
+under `PROVISIONAL_OWNER_REVIEW-D3S2-TRANSFER-CRYPTO-20260918`.
+
+### Full verification receipts
+
+- PostgreSQL integration after all five fixture corrections: **40 files,
+  1,533 tests passed**, single-fork sequential run, exit 0; migrations through
+  0018 applied.
+- DB unit: 3 files / 12 passed. API unit: 18 files / 225 passed. Transfer
+  domain: 9 / 9 passed. OpenAPI generation/drift: PASS. Typecheck, lint,
+  format, build, and bridge guard: PASS.
+- E2E server suite: **88 tests passed**, single-worker Playwright run, exit 0,
+  against the task-owned ephemeral PostgreSQL database.
+- Extension Core: PASS, 111 gate processes. Extension I1: all AUT-01–46 and
+  AUT-48–50 pass; AUT-47 remains the known native system-Chrome registration
+  environment check and is separately classified environment-deferred. The
+  canonical Playwright installed differential above is green.
+- Final package: deterministic repeat build PASS; source/generated and
+  extracted/package byte parity PASS; 2,048,125 bytes; SHA-256
+  `4208f4d4115cd2ecbaf2bba78574f2cfade774a65e43306260fb05b32c381505`.
+
+### Safety and non-overlap
+
+Transfer caused zero marketplace-provider requests and zero AI sends in both
+installed runs. Ordinary Ozon/WB mandatory authorization and ordinary AI
+delivery control calls remained zero in the transfer harness. No production
+provider call, AI send, permanent polling, WebSocket, or heartbeat was added;
+P3 remains one bounded wake task where applicable. C3E remains exactly one
+journal and C3F exactly one reconciliation model. No files under
+`apps/health-runner/**`, `packages/server/health/**`, or `tooling/api-watch/**`
+were modified. No Stream-2 overlap was found.
+
+### R1 status
+
+A22 is `PARTIAL_AUTOMATED`: installed consent, source availability path,
+encrypted ephemeral relay, and two-package happy path are proven, while the
+installed loss/offline/adversarial matrix and full durable-artifact inspection
+are not all executed through two browser contexts.
+
+A23 is `PARTIAL_AUTOMATED`: installed authenticated import/ACK is proven and
+lower tests cover substitution, expiry, logout/revoke, replay, and conflict
+fail-closed behavior; the complete requested installed security/conflict matrix
+is not claimed. Remaining blockers before architect acceptance are the explicit
+TR-BR-05–26 installed cases marked NOT RUN above, final E2E receipt, and owner
+review of the two provisional decisions. A24, Stream 2, deployment, and store
+publication remain out of scope.
