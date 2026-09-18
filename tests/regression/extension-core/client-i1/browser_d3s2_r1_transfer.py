@@ -27,6 +27,11 @@ OTP = "424242"
 ACCOUNT_STORE = "seller_agents_stores_v1"
 
 
+def fixture_email(name: str) -> str:
+    namespace = re.sub(r"[^a-z0-9]", "", os.environ.get("SA_I1_FIXTURE_NAMESPACE", "fixture").lower())[:24] or "fixture"
+    return f"q1a-{namespace}-{name}@example.test"
+
+
 def wait_url(url: str, timeout: float = 45) -> None:
     import urllib.request
 
@@ -126,8 +131,8 @@ def run_runtime(runtime: Path, label: str, package_root: Path, api_log: list[str
             recipient_worker = recipient.service_workers[0] if recipient.service_workers else recipient.wait_for_event("serviceworker")
             source_popup = source.new_page(); source_popup.goto(source_worker.url.rsplit("/", 1)[0] + "/popup.html")
             recipient_popup = recipient.new_page(); recipient_popup.goto(recipient_worker.url.rsplit("/", 1)[0] + "/popup.html")
-            activate(source, source_popup, os.environ.get("D3S2_SOURCE_EMAIL", EMAIL))
-            activate(recipient, recipient_popup, os.environ.get("D3S2_RECIPIENT_EMAIL", EMAIL))
+            activate(source, source_popup, os.environ.get("D3S2_SOURCE_EMAIL", fixture_email("one")))
+            activate(recipient, recipient_popup, os.environ.get("D3S2_RECIPIENT_EMAIL", fixture_email("one")))
             seed_store(source_worker, store_id, {"seller": {"clientId": "100001", "apiKey": marker}, "performance": {"clientId": "perf-client", "clientSecret": "D3S2_R1_PERFORMANCE_MARKER_20260918"}}, "r1-source-revision")
             seed_store(recipient_worker, store_id, {}, None)
             selected_popup(source_popup, store_id)

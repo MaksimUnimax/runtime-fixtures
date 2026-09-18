@@ -23,6 +23,11 @@ const signing = persistedKeys
   : generateKeyPairSync("ed25519");
 if (persistedKeys) signing.publicKey = createPublicKey(signing.privateKey);
 const fixtureKeyId = process.env.SA_I1_KEY_ID ?? "i1-client-local";
+const fixtureNamespace = (process.env.SA_I1_FIXTURE_NAMESPACE ?? randomUUID())
+  .toLowerCase()
+  .replace(/[^a-z0-9]/g, "")
+  .slice(0, 24) || "fixture";
+const fixtureEmail = (name: string) => `q1a-${fixtureNamespace}-${name}@example.test`;
 const accessSigning = { privateKey: signing.privateKey, publicKey: signing.publicKey, keyId: fixtureKeyId };
 const database = createDatabaseRuntime(process.env.DATABASE_URL!);
 const auth = new AuthService(createAuthRepository(database), deriveAuthKeys(root), undefined, () => "424242");
@@ -42,8 +47,8 @@ async function prepareExistingFixtureAccounts(): Promise<void> {
   if (process.env.PRODUCT_CONTROL_PLANE_E2E !== "1" || process.env.SA_I1_SKIP_FIXTURE_SETUP === "1") return;
   if (!loopbackDatabaseUrl(process.env.DATABASE_URL)) throw new Error("PRODUCT_CONTROL_PLANE_E2E fixture setup requires a loopback DATABASE_URL");
   const emails = process.env.SA_I1_SAME_ACCOUNT_TWO_EMAILS === "1"
-    ? ["i1-client-one@example.test", "i1-client-two@example.test", "i1-client-three@example.test", "i1-client-attacker@example.test"]
-    : ["i1-client-one@example.test", "i1-client-two@example.test"];
+    ? [fixtureEmail("one"), fixtureEmail("two"), fixtureEmail("three"), fixtureEmail("attacker")]
+    : [fixtureEmail("one"), fixtureEmail("two")];
   const betaBefore = await database.query<{ mode: string; capacity: number; admitted: number }>("SELECT mode,capacity,admitted FROM beta_admission_state WHERE id=1");
   if (betaBefore.rows.length !== 1) throw new Error("fixture setup expected one beta admission state row");
   await database.transaction(async (tx) => {
@@ -64,7 +69,7 @@ async function prepareExistingFixtureAccounts(): Promise<void> {
   const before = betaBefore.rows[0], after = betaAfter.rows[0];
   const unchanged = Boolean(after && before.mode === after.mode && Number(before.capacity) === Number(after.capacity) && Number(before.admitted) === Number(after.admitted));
   if (!unchanged) throw new Error("fixture setup changed beta admission mode/capacity/admitted");
-  if (process.env.SA_I1_FIXTURE_EVIDENCE_PATH) writeFileSync(process.env.SA_I1_FIXTURE_EVIDENCE_PATH, JSON.stringify({ existing_fixture_accounts: 2, beta_unchanged: true }));
+  if (process.env.SA_I1_FIXTURE_EVIDENCE_PATH) writeFileSync(process.env.SA_I1_FIXTURE_EVIDENCE_PATH, JSON.stringify({ existing_fixture_accounts: 2, beta_unchanged: true, fixture_namespace: fixtureNamespace, fixture_emails: emails }));
 }
 void (async () => {
   if (fixtureKeysPath && !persistedKeys) writeFileSync(fixtureKeysPath, JSON.stringify({ root: root.toString("base64"), privateKey: signing.privateKey.export({ format: "der", type: "pkcs8" }).toString("base64") }), { mode: 0o600 });

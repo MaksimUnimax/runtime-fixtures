@@ -25,15 +25,20 @@ API_PORT, PORTAL_PORT = 43112, 43113
 API = f"http://127.0.0.1:{API_PORT}"
 OTP = "424242"
 EMAILS = {
-    "source": "i1-client-one@example.test",
-    "recipient": "i1-client-two@example.test",
-    "other_source": "i1-client-three@example.test",
-    "attacker": "i1-client-attacker@example.test",
+    "source": "one",
+    "recipient": "two",
+    "other_source": "three",
+    "attacker": "attacker",
 }
 SERVER_PROCESS = None
 SERVER_COMMAND = None
 SERVER_ENV = None
 SERVER_PROCESSES = []
+
+
+def fixture_email(name: str) -> str:
+    namespace = re.sub(r"[^a-z0-9]", "", os.environ.get("SA_I1_FIXTURE_NAMESPACE", "fixture").lower())[:24] or "fixture"
+    return f"q1a-{namespace}-{name}@example.test"
 
 
 def wait_url(url: str, timeout: float = 45) -> None:
@@ -220,7 +225,7 @@ def run_installed(runtime: Path, label: str) -> dict:
                 worker = context.service_workers[0] if context.service_workers else context.wait_for_event("serviceworker")
                 popup = context.new_page(); popup.goto(worker.url.rsplit("/", 1)[0] + "/popup.html")
                 popup.wait_for_selector("#auth-start")
-                activate(context, popup, EMAILS[key])
+                activate(context, popup, fixture_email(EMAILS[key]))
                 workers[key], popups[key] = worker, popup
                 worker._d3s2_popup = popup  # type: ignore[attr-defined]
 

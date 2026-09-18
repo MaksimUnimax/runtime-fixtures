@@ -13,6 +13,10 @@ ROOT = Path(__file__).resolve().parents[4]
 NODE = os.environ.get("SA_NODE_BIN", "node")
 PNPM = os.environ.get("SA_PNPM_BIN", "pnpm")
 
+def fixture_email(name: str) -> str:
+    namespace = re.sub(r"[^a-z0-9]", "", os.environ.get("SA_I1_FIXTURE_NAMESPACE", "fixture").lower())[:24] or "fixture"
+    return f"q1a-{namespace}-{name}@example.test"
+
 class SafeStageError(RuntimeError):
     def __init__(self, stage, status, code):
         super().__init__(f"{stage}: status={status} error_code={code}")
@@ -165,7 +169,7 @@ def run(runtime, output):
                         stage = "bootstrap_observed"
                         return worker.evaluate("""async () => { const authority = await SellerAgentsControlClient.getAuthority(); const status = await SellerAgentsControlClient.status(); return { account: authority?.payload?.account?.id || null, device: authority?.deviceId || null, session: authority?.sessionId || null, authenticated: status.authenticated, workAllowed: status.workAllowed }; }""")
 
-                    first_identity = activate("i1-client-one@example.test")
+                    first_identity = activate(fixture_email("one"))
                     assert first_identity["authenticated"] is True and first_identity["workAllowed"] is False
                     assert popup.locator("#catalog").is_visible()
                     first_account = popup.locator("#account").inner_text()
@@ -187,7 +191,7 @@ def run(runtime, output):
                     popup.locator("#confirmation").wait_for()
                     popup.locator("#confirmation #confirm").click()
                     popup.wait_for_function("() => document.querySelector('#auth-start').offsetParent !== null && document.querySelector('#account').innerText.includes('Вход не выполнен')")
-                    second_identity = activate("i1-client-two@example.test")
+                    second_identity = activate(fixture_email("two"))
                     assert popup.locator("#account").inner_text() != first_account
                     assert "Аккаунт A WB" not in popup.locator("#stores").inner_text()
                     worker_sentinel_after = worker.evaluate("globalThis.__saI1WorkerSentinel")
