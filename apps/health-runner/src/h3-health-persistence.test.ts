@@ -951,33 +951,289 @@ function packageFor(
   );
 }
 
-function mutablePackage(pkg: H3HealthEvidencePackage) {
-  return structuredClone(pkg) as unknown as {
-    artifacts: Array<{
-      evidenceId: string;
-      contourKey: string;
-      ruleId: string;
-      sha256: string;
-      sizeBytes: number;
-      payload: Record<string, unknown>;
-    }>;
-    persistenceCommand: {
-      results: Array<{
-        contourKey: string;
-        evidence: Array<{
-          evidenceId: string;
-          ruleId: string;
-          classification: string;
-          sha256: string | null;
-          sizeBytes: number | null;
-        }>;
-      }>;
-    };
-    classification: Record<string, unknown>;
+type MutableSummary = Record<string, unknown>;
+type MutableEvidenceReference = {
+  evidenceId: string;
+  ruleId: string;
+  classification: string;
+  sha256: string | null;
+  sizeBytes: number | null;
+};
+type MutableResult = {
+  contourKey: string;
+  evidence: MutableEvidenceReference[];
+  fallbackStrategyOutcomes: unknown[];
+};
+type MutableArtifact = {
+  evidenceId: string;
+  contourKey: string;
+  ruleId: string;
+  sha256: string;
+  sizeBytes: number;
+  payload: Record<string, unknown>;
+};
+type MutableEvidencePackage = {
+  persistenceCommand: {
+    startedAt: H3HealthEvidencePackage["persistenceCommand"]["startedAt"];
+    completedAt: H3HealthEvidencePackage["persistenceCommand"]["completedAt"];
+    results: MutableResult[];
   };
+  summary: MutableSummary;
+  classification: {
+    state: string;
+    findingContourKeys: string[];
+  };
+  artifacts: MutableArtifact[];
+};
+
+function mutablePackage(pkg: H3HealthEvidencePackage): MutableEvidencePackage {
+  const clone = JSON.parse(
+    JSON.stringify(pkg),
+  ) as unknown as MutableEvidencePackage;
+  clone.persistenceCommand.startedAt = pkg.persistenceCommand.startedAt;
+  clone.persistenceCommand.completedAt = pkg.persistenceCommand.completedAt;
+  return clone;
 }
 
 describe("S2-L5 R1 safe evidence artifact matrix", () => {
+  it("R3-RED-01: preserves an exact caller classifier version end to end", () => {
+    const pkg = createH3HealthEvidencePackage(
+      execution("CHATGPT_STANDARD", "PASS", PASS_EVENTS, null, null, null),
+      { ...context("standard", 2), classifierVersion: "stream2-l4-v-test" },
+    );
+    expect(pkg.persistenceCommand.classifierVersion).toBe("stream2-l4-v-test");
+    expect(pkg.summary.classifierVersion).toBe("stream2-l4-v-test");
+    expect(
+      createH3HealthPersistenceCommand(
+        execution("CHATGPT_STANDARD", "PASS", PASS_EVENTS, null, null, null),
+        { ...context("standard", 2), classifierVersion: "stream2-l4-v-test" },
+      ).classifierVersion,
+    ).toBe("stream2-l4-v-test");
+  });
+
+  it("R3-RED-02: does not publish a pre-persistence run identity", () => {
+    const pkg = packageFor("CHATGPT_STANDARD", "standard", 2);
+    expect(pkg.summary).not.toHaveProperty("runId");
+  });
+
+  it.each([
+    [
+      "surfaceKey",
+      (summary: MutableSummary) => {
+        summary.surfaceKey = "work";
+      },
+      "H3_EVIDENCE_SUMMARY_SURFACE_KEY_MISMATCH",
+    ],
+    [
+      "browserFamily",
+      (summary: MutableSummary) => {
+        summary.browserFamily = "yandex_chromium";
+      },
+      "H3_EVIDENCE_SUMMARY_BROWSER_FAMILY_MISMATCH",
+    ],
+    [
+      "browserVersion",
+      (summary: MutableSummary) => {
+        summary.browserVersion = "121.0.0.0";
+      },
+      "H3_EVIDENCE_SUMMARY_BROWSER_VERSION_MISMATCH",
+    ],
+    [
+      "profileRevision",
+      (summary: MutableSummary) => {
+        summary.profileRevision = 1;
+      },
+      "H3_EVIDENCE_SUMMARY_PROFILE_REVISION_MISMATCH",
+    ],
+    [
+      "healthSuiteMachineKey",
+      (summary: MutableSummary) => {
+        summary.healthSuiteMachineKey = "other-suite";
+      },
+      "H3_EVIDENCE_SUMMARY_SUITE_MACHINE_KEY_MISMATCH",
+    ],
+    [
+      "healthSuiteRevision",
+      (summary: MutableSummary) => {
+        summary.healthSuiteRevision = 2;
+      },
+      "H3_EVIDENCE_SUMMARY_SUITE_REVISION_MISMATCH",
+    ],
+    [
+      "classifierVersion",
+      (summary: MutableSummary) => {
+        summary.classifierVersion = "other-classifier";
+      },
+      "H3_EVIDENCE_SUMMARY_CLASSIFIER_VERSION_MISMATCH",
+    ],
+    [
+      "startedAt",
+      (summary: MutableSummary) => {
+        summary.startedAt = "2026-09-15T10:01:00.000Z";
+      },
+      "H3_EVIDENCE_SUMMARY_STARTED_AT_MISMATCH",
+    ],
+    [
+      "completedAt",
+      (summary: MutableSummary) => {
+        summary.completedAt = "2026-09-15T10:01:02.000Z";
+      },
+      "H3_EVIDENCE_SUMMARY_COMPLETED_AT_MISMATCH",
+    ],
+  ] as const)(
+    "R3-RED-03/04: rejects summary %s divergence",
+    (_name, mutate, code) => {
+      const pkg = mutablePackage(packageFor("CHATGPT_STANDARD", "standard", 2));
+      mutate(pkg.summary);
+      expect(() => validateH3HealthEvidencePackage(pkg)).toThrow(code);
+    },
+  );
+
+  it.each([
+    [
+      "surface",
+      (summary: MutableSummary) => {
+        summary.surface = "ALICE";
+      },
+      "H3_EVIDENCE_SUMMARY_SURFACE_TARGET_MISMATCH",
+    ],
+    [
+      "targetKey",
+      (summary: MutableSummary) => {
+        summary.targetKey = "alice_health";
+      },
+      "H3_EVIDENCE_SUMMARY_SURFACE_TARGET_MISMATCH",
+    ],
+  ] as const)(
+    "R3-RED-03/04: rejects packaged %s divergence",
+    (_name, mutate, code) => {
+      const pkg = mutablePackage(packageFor("CHATGPT_STANDARD", "standard", 2));
+      mutate(pkg.summary);
+      expect(() => validateH3HealthEvidencePackage(pkg)).toThrow(code);
+    },
+  );
+
+  it("R3-RED-05: rejects prototype Date mutation of package timestamps", () => {
+    const pkg = packageFor("CHATGPT_STANDARD", "standard", 2);
+    const before = pkg.persistenceCommand.startedAt.toISOString();
+    expect(() =>
+      Date.prototype.setTime.call(pkg.persistenceCommand.startedAt, 0),
+    ).toThrow(TypeError);
+    expect(pkg.persistenceCommand.startedAt.toISOString()).toBe(before);
+  });
+
+  it("R3 package validator negative matrix: rejects classification and artifact tampering", () => {
+    const classification = mutablePackage(
+      packageFor("CHATGPT_STANDARD", "standard", 2),
+    );
+    classification.classification.state = "BROKEN";
+    expect(() => validateH3HealthEvidencePackage(classification)).toThrow(
+      "H3_EVIDENCE_CLASSIFICATION_MISMATCH",
+    );
+
+    const artifactHash = mutablePackage(
+      packageFor("CHATGPT_STANDARD", "standard", 2),
+    );
+    artifactHash.artifacts[0]!.sha256 = "a".repeat(64);
+    expect(() => validateH3HealthEvidencePackage(artifactHash)).toThrow(
+      "H3_EVIDENCE_HASH_SIZE_MISMATCH",
+    );
+
+    const artifactSize = mutablePackage(
+      packageFor("CHATGPT_STANDARD", "standard", 2),
+    );
+    artifactSize.artifacts[0]!.sizeBytes += 1;
+    expect(() => validateH3HealthEvidencePackage(artifactSize)).toThrow(
+      "H3_EVIDENCE_HASH_SIZE_MISMATCH",
+    );
+
+    const artifactContour = mutablePackage(
+      packageFor("CHATGPT_STANDARD", "standard", 2),
+    );
+    const artifact = artifactContour.artifacts[0]!;
+    const referenceResult = artifactContour.persistenceCommand.results.find(
+      (result: MutableResult) => result.evidence.length > 0,
+    )!;
+    const movedContour =
+      artifact.contourKey === "C02_CONVERSATION_ROOT"
+        ? "C01_PAGE_IDENTITY"
+        : "C02_CONVERSATION_ROOT";
+    artifact.contourKey = movedContour;
+    artifact.payload.contourKey = movedContour;
+    const movedBytes = canonicalizeJson(artifact.payload);
+    artifact.sha256 = createHash("sha256").update(movedBytes).digest("hex");
+    artifact.sizeBytes = movedBytes.byteLength;
+    expect(() => validateH3HealthEvidencePackage(artifactContour)).toThrow(
+      "H3_EVIDENCE_REFERENCE_ARTIFACT_MISMATCH",
+    );
+    expect(referenceResult.contourKey).not.toBe(artifact.contourKey);
+
+    const referenceId = mutablePackage(
+      packageFor("CHATGPT_STANDARD", "standard", 2),
+    );
+    const reference = referenceId.persistenceCommand.results.find(
+      (result: MutableResult) => result.evidence.length > 0,
+    )!.evidence[0]!;
+    reference.evidenceId = randomUUID();
+    expect(() => validateH3HealthEvidencePackage(referenceId)).toThrow(
+      "H3_EVIDENCE_ORPHAN_REFERENCE",
+    );
+
+    const referenceHash = mutablePackage(
+      packageFor("CHATGPT_STANDARD", "standard", 2),
+    );
+    const hashReference = referenceHash.persistenceCommand.results.find(
+      (result: MutableResult) => result.evidence.length > 0,
+    )!.evidence[0]!;
+    hashReference.sha256 = "b".repeat(64);
+    expect(() => validateH3HealthEvidencePackage(referenceHash)).toThrow(
+      "H3_EVIDENCE_REFERENCE_ARTIFACT_MISMATCH",
+    );
+
+    const referenceSize = mutablePackage(
+      packageFor("CHATGPT_STANDARD", "standard", 2),
+    );
+    const sizeReference = referenceSize.persistenceCommand.results.find(
+      (result: MutableResult) => result.evidence.length > 0,
+    )!.evidence[0]!;
+    sizeReference.sizeBytes = (sizeReference.sizeBytes ?? 0) + 1;
+    expect(() => validateH3HealthEvidencePackage(referenceSize)).toThrow(
+      "H3_EVIDENCE_REFERENCE_ARTIFACT_MISMATCH",
+    );
+  });
+
+  it("R3 immutable package matrix: freezes all exposed mutable authorities", () => {
+    const pkg = packageFor("CHATGPT_STANDARD", "standard", 2);
+    expect(() => Object.assign(pkg, { unexpected: true })).toThrow(TypeError);
+    expect(() => Object.assign(pkg.summary, { surfaceKey: "work" })).toThrow(
+      TypeError,
+    );
+    expect(() =>
+      Object.assign(pkg.artifacts[0]!.payload, { markerCount: 1 }),
+    ).toThrow(TypeError);
+    expect(() => (pkg.artifacts as unknown as Array<unknown>).push({})).toThrow(
+      TypeError,
+    );
+    expect(() =>
+      pkg.persistenceCommand.results[0]!.fallbackStrategyOutcomes.push(
+        {} as never,
+      ),
+    ).toThrow(TypeError);
+    expect(() =>
+      pkg.classification.findingContourKeys.push("C01_PAGE_IDENTITY" as never),
+    ).toThrow(TypeError);
+    expect(() =>
+      Object.assign(pkg.persistenceCommand.startedAt, {
+        toISOString: () => "1970-01-01T00:00:00.000Z",
+      }),
+    ).toThrow(TypeError);
+    const before = pkg.persistenceCommand.startedAt.toISOString();
+    expect(() =>
+      Date.prototype.setTime.call(pkg.persistenceCommand.startedAt, 0),
+    ).toThrow(TypeError);
+    expect(pkg.persistenceCommand.startedAt.toISOString()).toBe(before);
+  });
+
   it("E02: emits metadata and state-transition artifacts only", () => {
     const pkg = packageFor("CHATGPT_STANDARD", "standard", 2);
     expect(
@@ -1023,9 +1279,7 @@ describe("S2-L5 R1 safe evidence artifact matrix", () => {
         healthSuiteRevision: 1,
         classifierVersion: "p8.1-classifier-v1",
       });
-      expect(pkg.summary.runId).toMatch(
-        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
-      );
+      expect(pkg.summary).not.toHaveProperty("runId");
     },
   );
 
@@ -1055,7 +1309,6 @@ describe("S2-L5 R1 safe evidence artifact matrix", () => {
   it("E09-E10/E28: identical bounded inputs hash identically and ordering is stable", () => {
     const first = packageFor("CHATGPT_WORK", "work", 1);
     const second = packageFor("CHATGPT_WORK", "work", 1);
-    expect(first.summary.runId).not.toBe(second.summary.runId);
     expect(first.artifacts.map((item) => item.evidenceId)).not.toEqual(
       second.artifacts.map((item) => item.evidenceId),
     );
@@ -1228,7 +1481,7 @@ describe("S2-L5 R1 safe evidence artifact matrix", () => {
     const orphanReference = mutablePackage(pkg);
     const resultWithoutEvidence =
       orphanReference.persistenceCommand.results.find(
-        (result) => result.evidence.length === 0,
+        (result: MutableResult) => result.evidence.length === 0,
       )!;
     resultWithoutEvidence.evidence.push({
       evidenceId: randomUUID(),
@@ -1258,7 +1511,8 @@ describe("S2-L5 R1 safe evidence artifact matrix", () => {
 
     const typeMismatch = mutablePackage(pkg);
     const transition = typeMismatch.artifacts.find(
-      (artifact) => artifact.ruleId === "STATE_TRANSITION_TRACE",
+      (artifact: MutableArtifact) =>
+        artifact.ruleId === "STATE_TRANSITION_TRACE",
     )!;
     transition.ruleId = "SAFE_ELEMENT_METADATA";
     expect(() => validateH3HealthEvidencePackage(typeMismatch)).toThrow(
@@ -1267,7 +1521,7 @@ describe("S2-L5 R1 safe evidence artifact matrix", () => {
 
     const ruleMismatch = mutablePackage(pkg);
     const ruleReference = ruleMismatch.persistenceCommand.results.find(
-      (result) => result.evidence.length > 0,
+      (result: MutableResult) => result.evidence.length > 0,
     )!.evidence[0]!;
     ruleReference.ruleId =
       ruleReference.ruleId === "SAFE_ELEMENT_METADATA"
@@ -1280,7 +1534,7 @@ describe("S2-L5 R1 safe evidence artifact matrix", () => {
     const classificationMismatch = mutablePackage(pkg);
     const classificationReference =
       classificationMismatch.persistenceCommand.results.find(
-        (result) => result.evidence.length > 0,
+        (result: MutableResult) => result.evidence.length > 0,
       )!.evidence[0]!;
     classificationReference.classification = "SCREENSHOT";
     expect(() =>
@@ -1289,11 +1543,12 @@ describe("S2-L5 R1 safe evidence artifact matrix", () => {
 
     const contourMismatch = mutablePackage(pkg);
     const contourResult = contourMismatch.persistenceCommand.results.find(
-      (result) => result.evidence.length > 0,
+      (result: MutableResult) => result.evidence.length > 0,
     )!;
     const contourReference = contourResult.evidence[0]!;
     const contourArtifact = contourMismatch.artifacts.find(
-      (artifact) => artifact.evidenceId === contourReference.evidenceId,
+      (artifact: MutableArtifact) =>
+        artifact.evidenceId === contourReference.evidenceId,
     )!;
     const movedContour =
       contourArtifact.contourKey === "C02_CONVERSATION_ROOT"
@@ -1313,7 +1568,7 @@ describe("S2-L5 R1 safe evidence artifact matrix", () => {
 
     const sizeMismatch = mutablePackage(pkg);
     const sizeReference = sizeMismatch.persistenceCommand.results.find(
-      (result) => result.evidence.length > 0,
+      (result: MutableResult) => result.evidence.length > 0,
     )!.evidence[0]!;
     sizeReference.sizeBytes = sizeReference.sizeBytes! + 1;
     expect(() => validateH3HealthEvidencePackage(sizeMismatch)).toThrow(
@@ -1330,7 +1585,7 @@ describe("S2-L5 R1 safe evidence artifact matrix", () => {
     expect(Object.isFrozen(pkg.classification)).toBe(true);
     expect(Object.isFrozen(pkg.persistenceCommand)).toBe(true);
     expect(() => {
-      pkg.persistenceCommand.startedAt.setTime(0);
+      Date.prototype.setTime.call(pkg.persistenceCommand.startedAt, 0);
     }).toThrow(TypeError);
     expect(() => {
       (pkg.artifacts as unknown as Array<unknown>).push({});

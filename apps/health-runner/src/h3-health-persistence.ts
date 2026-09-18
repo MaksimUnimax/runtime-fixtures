@@ -35,6 +35,57 @@ import { BrowserRuntimeMetadataSchema as RunnerBrowserRuntimeMetadataSchema } fr
 const IsoTimestampSchema = z.string().datetime({ offset: true });
 
 /**
+ * Package-local timestamp authority. It deliberately is not a Date: a frozen
+ * plain object cannot be reached through Date.prototype internal-slot
+ * mutators. The DB compatibility command materializes real Dates at its
+ * boundary.
+ */
+export type H3HealthEvidenceTimestamp = Readonly<{
+  readonly toISOString: () => string;
+  readonly valueOf: () => number;
+}>;
+
+function immutableTimestampFor(
+  isoTimestamp: string,
+): H3HealthEvidenceTimestamp {
+  const date = new Date(isoTimestamp);
+  const milliseconds = date.valueOf();
+  const canonical = date.toISOString();
+  return Object.freeze({
+    toISOString: () => canonical,
+    valueOf: () => milliseconds,
+  });
+}
+
+function isImmutableTimestamp(
+  value: unknown,
+): value is H3HealthEvidenceTimestamp {
+  if (
+    value === null ||
+    typeof value !== "object" ||
+    typeof (value as H3HealthEvidenceTimestamp).toISOString !== "function" ||
+    typeof (value as H3HealthEvidenceTimestamp).valueOf !== "function"
+  ) {
+    return false;
+  }
+  try {
+    const iso = (value as H3HealthEvidenceTimestamp).toISOString();
+    const milliseconds = (value as H3HealthEvidenceTimestamp).valueOf();
+    return (
+      typeof iso === "string" &&
+      Number.isFinite(milliseconds) &&
+      new Date(iso).toISOString() === iso &&
+      new Date(iso).valueOf() === milliseconds
+    );
+  } catch {
+    return false;
+  }
+}
+
+const H3HealthEvidenceTimestampSchema =
+  z.custom<H3HealthEvidenceTimestamp>(isImmutableTimestamp);
+
+/**
  * This is the only B5 input that may cross from the H3 runner into Health
  * persistence. It is intentionally separate from the browser observation
  * object: only the already-validated H3 result and approved runtime metadata
@@ -74,44 +125,37 @@ export type H3HealthPersistenceContext = z.input<
   typeof H3HealthPersistenceContextSchema
 >;
 
-export const H3HealthPersistenceCommandSchema = z
-  .object({
-    suite: HealthSuiteDefinitionSchema,
-    results: z
-      .array(HealthContourResultSchema)
-      .length(BASELINE_HEALTH_SUITE.contours.length),
-    operatorMaintenance: z.boolean(),
-    operatorMaintenanceAuthority: z.string().min(1).max(128).nullable(),
-    healthLevel: z.literal("H3"),
-    classifierVersion: z.string().min(1).max(64),
+const H3HealthPersistenceCommandFieldsSchema = z.object({
+  suite: HealthSuiteDefinitionSchema,
+  results: z
+    .array(HealthContourResultSchema)
+    .length(BASELINE_HEALTH_SUITE.contours.length),
+  operatorMaintenance: z.boolean(),
+  operatorMaintenanceAuthority: z.string().min(1).max(128).nullable(),
+  healthLevel: z.literal("H3"),
+  classifierVersion: z.string().min(1).max(64),
+});
+
+export const H3HealthPersistenceCommandSchema =
+  H3HealthPersistenceCommandFieldsSchema.extend({
     startedAt: z.date(),
     completedAt: z.date(),
-  })
-  .strict();
+  }).strict();
 export type H3HealthPersistenceCommand = z.infer<
   typeof H3HealthPersistenceCommandSchema
 >;
 
+const H3HealthEvidencePersistenceCommandSchema =
+  H3HealthPersistenceCommandFieldsSchema.extend({
+    startedAt: H3HealthEvidenceTimestampSchema,
+    completedAt: H3HealthEvidenceTimestampSchema,
+  }).strict();
+type H3HealthEvidencePersistenceCommand = z.infer<
+  typeof H3HealthEvidencePersistenceCommandSchema
+>;
+
 const R1_MAX_ARTIFACT_BYTES = 4_096;
 const R1_MAX_ARTIFACTS = 13;
-const DATE_MUTATORS = [
-  "setDate",
-  "setFullYear",
-  "setHours",
-  "setMilliseconds",
-  "setMinutes",
-  "setMonth",
-  "setSeconds",
-  "setTime",
-  "setUTCDate",
-  "setUTCFullYear",
-  "setUTCHours",
-  "setUTCMilliseconds",
-  "setUTCMinutes",
-  "setUTCMonth",
-  "setUTCSeconds",
-  "setYear",
-] as const;
 const R1EvidenceRuleSchema = z.enum([
   "SAFE_ELEMENT_METADATA",
   "STATE_TRANSITION_TRACE",
@@ -194,7 +238,6 @@ export type H3SafeEvidenceArtifact = Readonly<
 export const H3HealthEvidenceSummarySchema = z
   .object({
     schemaVersion: z.literal(1),
-    runId: z.uuid(),
     targetKey: ControlledTargetKeySchema,
     surface: H3SurfaceSchema,
     surfaceKey: z.string().min(1).max(64),
@@ -215,7 +258,7 @@ export type H3HealthEvidenceSummary = Readonly<
 
 export const H3HealthEvidencePackageSchema = z
   .object({
-    persistenceCommand: H3HealthPersistenceCommandSchema,
+    persistenceCommand: H3HealthEvidencePersistenceCommandSchema,
     classification: HealthClassificationResultSchema,
     summary: H3HealthEvidenceSummarySchema,
     artifacts: z.array(H3SafeEvidenceArtifactSchema).max(R1_MAX_ARTIFACTS),
@@ -401,35 +444,22 @@ function artifactFor(
 function persistenceCommandFor(
   context: z.infer<typeof H3HealthPersistenceContextSchema>,
   results: readonly HealthContourResult[],
-): H3HealthPersistenceCommand {
-  return H3HealthPersistenceCommandSchema.parse({
+): H3HealthEvidencePersistenceCommand {
+  return H3HealthEvidencePersistenceCommandSchema.parse({
     suite: context.suite,
     results,
     operatorMaintenance: context.operatorMaintenance,
     operatorMaintenanceAuthority: context.operatorMaintenanceAuthority,
     healthLevel: "H3",
     classifierVersion: context.classifierVersion,
-    startedAt: new Date(context.startedAt),
-    completedAt: new Date(context.completedAt),
+    startedAt: immutableTimestampFor(context.startedAt),
+    completedAt: immutableTimestampFor(context.completedAt),
   });
 }
 
 function deepFreeze<T>(value: T): T {
   if (value === null || typeof value !== "object" || Object.isFrozen(value)) {
     return value;
-  }
-  if (value instanceof Date) {
-    for (const method of DATE_MUTATORS) {
-      Object.defineProperty(value, method, {
-        configurable: false,
-        enumerable: false,
-        value: () => {
-          throw new TypeError("H3_EVIDENCE_IMMUTABLE_DATE");
-        },
-        writable: false,
-      });
-    }
-    return Object.freeze(value);
   }
   for (const nested of Object.values(value as Record<string, unknown>)) {
     deepFreeze(nested);
@@ -441,9 +471,63 @@ function boundedPackageError(code: string): never {
   throw new Error(code);
 }
 
+function packagedSurfaceKeyFor(
+  surface: z.infer<typeof H3SurfaceSchema>,
+): string {
+  switch (surface) {
+    case "CHATGPT_STANDARD":
+      return "standard";
+    case "CHATGPT_WORK":
+      return "work";
+    case "ALICE":
+      return "alice";
+  }
+}
+
+function assertSummaryPersistenceIntegrity(
+  pkg: z.infer<typeof H3HealthEvidencePackageSchema>,
+): void {
+  const { summary, persistenceCommand } = pkg;
+  const scope = persistenceCommand.suite.scope;
+  if (summary.surfaceKey !== scope.surfaceKey) {
+    boundedPackageError("H3_EVIDENCE_SUMMARY_SURFACE_KEY_MISMATCH");
+  }
+  if (summary.browserFamily !== scope.browserFamily) {
+    boundedPackageError("H3_EVIDENCE_SUMMARY_BROWSER_FAMILY_MISMATCH");
+  }
+  if (summary.browserVersion !== scope.browserVersion) {
+    boundedPackageError("H3_EVIDENCE_SUMMARY_BROWSER_VERSION_MISMATCH");
+  }
+  if (summary.profileRevision !== scope.profile.revision) {
+    boundedPackageError("H3_EVIDENCE_SUMMARY_PROFILE_REVISION_MISMATCH");
+  }
+  if (summary.healthSuiteMachineKey !== persistenceCommand.suite.machineKey) {
+    boundedPackageError("H3_EVIDENCE_SUMMARY_SUITE_MACHINE_KEY_MISMATCH");
+  }
+  if (summary.healthSuiteRevision !== persistenceCommand.suite.revision) {
+    boundedPackageError("H3_EVIDENCE_SUMMARY_SUITE_REVISION_MISMATCH");
+  }
+  if (summary.classifierVersion !== persistenceCommand.classifierVersion) {
+    boundedPackageError("H3_EVIDENCE_SUMMARY_CLASSIFIER_VERSION_MISMATCH");
+  }
+  if (summary.startedAt !== persistenceCommand.startedAt.toISOString()) {
+    boundedPackageError("H3_EVIDENCE_SUMMARY_STARTED_AT_MISMATCH");
+  }
+  if (summary.completedAt !== persistenceCommand.completedAt.toISOString()) {
+    boundedPackageError("H3_EVIDENCE_SUMMARY_COMPLETED_AT_MISMATCH");
+  }
+  if (
+    summary.surfaceKey !== packagedSurfaceKeyFor(summary.surface) ||
+    summary.targetKey !== H3_PACKAGED_TARGET_BY_SURFACE[summary.surface]
+  ) {
+    boundedPackageError("H3_EVIDENCE_SUMMARY_SURFACE_TARGET_MISMATCH");
+  }
+}
+
 function assertPackageIntegrity(
   pkg: z.infer<typeof H3HealthEvidencePackageSchema>,
 ): void {
+  assertSummaryPersistenceIntegrity(pkg);
   const expectedClassification = classifyHealthDetailed({
     suite: pkg.persistenceCommand.suite,
     results: pkg.persistenceCommand.results,
@@ -629,7 +713,6 @@ export function createH3HealthEvidencePackage(
     classification,
     summary: {
       schemaVersion: 1,
-      runId: randomUUID(),
       targetKey: execution.targetKey,
       surface: execution.surfaceProfile.surface,
       surfaceKey: context.suite.scope.surfaceKey,
@@ -640,8 +723,8 @@ export function createH3HealthEvidencePackage(
       healthSuiteMachineKey: context.suite.machineKey,
       healthSuiteRevision: context.suite.revision,
       classifierVersion: context.classifierVersion,
-      startedAt: context.startedAt,
-      completedAt: context.completedAt,
+      startedAt: persistenceCommand.startedAt.toISOString(),
+      completedAt: persistenceCommand.completedAt.toISOString(),
     },
     artifacts,
   });
@@ -651,8 +734,21 @@ export function createH3HealthPersistenceCommand(
   rawExecution: unknown,
   rawContext: H3HealthPersistenceContext,
 ): H3HealthPersistenceCommand {
-  return createH3HealthEvidencePackage(rawExecution, rawContext)
-    .persistenceCommand;
+  return materializeH3HealthPersistenceCommand(
+    createH3HealthEvidencePackage(rawExecution, rawContext),
+  );
+}
+
+/** Materializes only at the legacy DB command boundary; package authority stays immutable. */
+export function materializeH3HealthPersistenceCommand(
+  evidencePackage: H3HealthEvidencePackage,
+): H3HealthPersistenceCommand {
+  const pkg = validateH3HealthEvidencePackage(evidencePackage);
+  return H3HealthPersistenceCommandSchema.parse({
+    ...pkg.persistenceCommand,
+    startedAt: new Date(pkg.persistenceCommand.startedAt.toISOString()),
+    completedAt: new Date(pkg.persistenceCommand.completedAt.toISOString()),
+  });
 }
 
 export type { H3ExecutionResult };

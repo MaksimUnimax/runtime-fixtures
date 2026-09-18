@@ -7,6 +7,7 @@ import {
 import {
   createH3HealthEvidencePackage,
   createH3HealthPersistenceCommand,
+  materializeH3HealthPersistenceCommand,
   type H3HealthPersistenceContext,
 } from "../../../apps/health-runner/src/h3-health-persistence.js";
 import { H3ExecutionResultSchema } from "../../../apps/health-runner/src/h3-engine.js";
@@ -359,7 +360,7 @@ async function persist(
     context(suiteFor(surface)),
   );
   const run = await repository.persistCompletedHealthRun(
-    evidencePackage.persistenceCommand,
+    materializeH3HealthPersistenceCommand(evidencePackage),
   );
   return {
     evidencePackage,
@@ -499,6 +500,7 @@ describe("B5 durable Standard/Work H3 evidence", () => {
       expect(stored.run.healthState).toBe("HEALTHY");
       expect(stored.run.browserFamily).toBe("chrome");
       expect(stored.run.browserVersion).toBe("120.0.0.0");
+      expect(stored.run.classifierVersion).toBe("p8.1-classifier-v1");
       expect(stored.run.profileRevision).toBe(surface === "standard" ? 2 : 1);
       expect(stored.contours).toHaveLength(13);
       expect(stored.evidence).toHaveLength(11);

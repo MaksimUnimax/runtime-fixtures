@@ -142,6 +142,7 @@ export {
   H3HealthEvidenceSummarySchema,
   H3HealthEvidencePackageSchema,
   createH3HealthPersistenceCommand,
+  materializeH3HealthPersistenceCommand,
   createH3HealthEvidencePackage,
   validateH3HealthEvidencePackage,
 } from "./h3-health-persistence.js";
@@ -154,6 +155,7 @@ export type {
   H3SafeEvidenceArtifact,
   H3HealthEvidenceSummary,
   H3HealthEvidencePackage,
+  H3HealthEvidenceTimestamp,
 } from "./h3-health-persistence.js";
 export type {
   SafeStructuralMetadata,
