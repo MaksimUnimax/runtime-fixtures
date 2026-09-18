@@ -1581,3 +1581,62 @@ R5A closure: Q1A-26, Q1A-27, Q1A-28, Q1A-30, and Q1A-31 are completely closed
 as installed passes on SHA `93ba77f6…`. No genuine product defect appeared.
 This does not self-accept Q1-A. Exact next task: `Q1-A-R5B — INSTALLED BETA /
 CAPACITY / SECOND-INSTALLATION QUOTA CLOSURE`, covering Q1A-40/41/42/43/66.
+
+## Q1-A-R5B BETA/CAPACITY/SECOND-INSTALLATION-QUOTA CLOSURE
+
+Work ID: `Q1-A-R5B-20260919-INSTALLED-BETA-CAPACITY-AND-SECOND-INSTALLATION-QUOTA-CLOSURE`
+
+This bounded execution used the existing real namespaced OTP/admission/device
+activation fixture and the frozen local acceptance package only. It did not
+reopen Q1A-26/27/28/30/31 or start Q1A-70/71/72/73, Q1-B/Q1-C/Q1-D/Q1-E,
+S1.2, publication, monetization, or production deployment.
+
+The exact package was rebuilt only because the archive was absent:
+`SELLER_AGENTS_I1_C1_v0.2.4_LOCAL_DEVELOPMENT.zip`, SHA-256
+`93ba77f6fcac9932e991c94eded2d9638bb38c9990b8fcefd826d737aaf8d476`,
+2,076,757 bytes, with 39 runtime files, 39 extracted files, and 39 ZIP
+entries. The frozen API/portal origins, `i1-client-local` trust key and
+Chromium 151.0.7922.34 were unchanged.
+
+Initial driver lookup, before task-owned harness edits, classified all five
+rows as `TEST_DRIVER_MISSING`: the dedicated R5B installed beta/capacity and
+two-profile quota drivers did not exist. During harness execution, two further
+driver defects were corrected: the supervised API needed the frozen signing
+key explicitly, and the beta admin helper needed a CommonJS-compatible async
+entrypoint. Neither was a product change.
+
+The clean fixture migrated through 0018 on task-owned PostgreSQL 18 at port
+55446. Namespaced synthetic identities used `SA_I1_FIXTURE_NAMESPACE`; no
+real email, bearer token, storage state, owner credential, marketplace secret,
+or raw provider credential was persisted in evidence. The API readiness and
+portal activation boundary were reached, and the Q1A-40..43 real admission,
+capacity race, existing-account capacity behavior, and idempotent capacity
+increment driver reached its focused assertions on the exact package. The
+capacity race used one remaining slot and two concurrent OTP verification
+requests; the winner/loser retry path reused the original challenge and
+idempotency identity. The increment used request identity
+`q1a-r5b-43-capacity-increment` and the duplicate was checked as a replay.
+
+Q1A-66 was not accepted in this bounded run. The focused two-profile provider
+seam did prove independent Chromium profiles, provider status receipts, and
+zero Seller Agents control calls, but it did not complete the required
+second-dispatch/429 receipt on the final exact-package run; therefore no
+`INSTALLED_PASS` is recorded for Q1A-66 and no Q1A-66 table status is changed.
+The standalone P1 receipt remained green on source and extracted exact-package
+runtimes, including UNKNOWN no-replay and known 429/Retry-After behavior;
+this is regression evidence, not a substitute for the required R5B Q1A-66
+closure.
+
+Safety receipt from the focused quota/P1 runs: central quota lease requests 0,
+mandatory ordinary provider-dispatch control calls 0, provider UNKNOWN replay
+0, known-response redispatch 0, delivery UNKNOWN resend 0, and ordinary
+health heartbeat/command-time Bootstrap 0. Stream-2 implementation and
+evidence paths were untouched. Remote publication remains
+`ENVIRONMENT_DEFERRED_REMOTE_PUBLICATION`; this section does not self-accept
+Q1-A.
+
+R5B result: Q1A-40..43 have focused real-flow evidence in the task harness,
+but Q1A-66 remains open pending a complete installed two-profile receipt.
+The exact next task is to finish this same bounded R5B lane, specifically the
+Q1A-66 second-installation quota receipt and its Q1A-63..65 focused regression;
+R5C must not start until R5B is genuinely complete.
