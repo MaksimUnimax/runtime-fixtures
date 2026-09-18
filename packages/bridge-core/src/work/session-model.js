@@ -50,6 +50,7 @@
       ai_id: record?.ai_id || null,
       conversation_id: record?.conversation_id || null,
       start_intent_id: record?.start_intent_id || null,
+      admission_provenance: record?.admission_provenance || null,
       updated_at: record?.updated_at || null,
       error: record?.error || null,
     });

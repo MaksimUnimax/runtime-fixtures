@@ -409,6 +409,39 @@ async function saAdmitOnline({ operation, tabId, store, intentId, conversationKe
 function saReleaseAdmission(token) {
   if (token && saAdmissionEpochs.get(token.key) === token) saAdmissionEpochs.delete(token.key);
 }
+async function saAdmissionProvenanceSeed(admission, operation, intentId) {
+  const authority = admission.snapshot.authority, payload = authority?.payload, profile = payload?.ai?.profile || {};
+  return SellerAgentsOfflineWorkAuthority.createProvenance({
+    provenanceSchema: "seller_agents_online_admission_provenance_v1",
+    mode: "ONLINE_VERIFIED",
+    accountId: payload?.account?.id || null,
+    accountGeneration: admission.snapshot.fence.generation,
+    deviceId: admission.snapshot.fence.deviceId,
+    sessionId: admission.snapshot.fence.sessionId,
+    bootstrapSnapshotSha256: admission.snapshot.fence.bootstrapSnapshotSha256,
+    bootstrapConfigVersion: payload?.configVersion ?? null,
+    bootstrapContractVersion: payload?.contractVersion || null,
+    aiFamily: payload?.ai?.detected?.family || null,
+    aiSurface: payload?.ai?.detected?.surface || null,
+    aiVariant: payload?.ai?.detected?.variant ?? null,
+    aiProfileKey: profile.profileKey || null,
+    aiProfileRevision: profile.revision ?? null,
+    aiProfileScopeVariant: profile.scopeVariant ?? null,
+    aiProfileContentSha256: profile.contentSha256 || null,
+    marketplace: admission.snapshot.store.marketplace,
+    storeId: admission.snapshot.store.id,
+    credentialRevision: admission.snapshot.store.credentialRevision,
+    conversationKey: admission.snapshot.key || null,
+    conversationId: admission.snapshot.identity.conversation_id || null,
+    bindingId: admission.snapshot.binding?.binding_id || null,
+    bindingRevision: admission.snapshot.binding?.revision || null,
+    workStartIntentId: String(intentId || ""),
+    operation: String(operation || "").toUpperCase(),
+    admissionSafeTimeMs: await SellerAgentsControlClient.getVerifiedAuthorityTime(),
+    executionAuthority: false,
+    bearer: false,
+  });
+}
 async function saRunAdmissionMutation(token, fn) {
   if (!saAdmissionCurrent(token)) throw saAdmissionError("WORK_ADMISSION_CANCELLED");
   const flight = Promise.resolve().then(fn);
@@ -540,6 +573,7 @@ async function saWorkStart(message, sender) {
     if (key && !changingStore && ![OzonWorkSessionModel.STATES.INACTIVE, OzonWorkSessionModel.STATES.ERROR].includes(work?.state))
       throw saError("WORK_START_ALREADY_IN_PROGRESS");
     const admission = await saAdmitOnline({ operation: "start", tabId: message.tab_id, store, intentId, rebindPlan: plan });
+    const provenance = await saAdmissionProvenanceSeed(admission, "start", intentId);
     saStarts.set(Number(message.tab_id), await saAuthorityStoreContext(store));
     try {
       return await saRunAdmissionMutation(admission.token, async () => {
@@ -551,7 +585,7 @@ async function saWorkStart(message, sender) {
           await saRebindAfterFinishGuard(admission.token);
         }
         await saAdmissionMutationGuard({ operation: "start", tabId: message.tab_id, conversationKey: admission.snapshot.key, intentId });
-        return saLegacyMessage({ type: "OZ_WORK_START", tab_id: message.tab_id, start_intent_id: intentId }, sender);
+        return saLegacyMessage({ type: "OZ_WORK_START", tab_id: message.tab_id, start_intent_id: intentId, admission_provenance: provenance }, sender);
       });
     } finally { saReleaseAdmission(admission.token); saStarts.delete(Number(message.tab_id)); }
   });
@@ -571,9 +605,10 @@ async function saWorkResume(message, sender) {
     if (await getManualOperation(key).then(manualOperationActive)) throw saError("WORK_RESUME_OPERATION_ACTIVE");
     const intentId = `resume-${crypto.randomUUID()}`;
     const admission = await saAdmitOnline({ operation: "resume", tabId: tab, store, intentId, conversationKey: key });
+    const provenance = await saAdmissionProvenanceSeed(admission, "resume", intentId);
     try {
       await saAdmissionMutationGuard({ operation: "resume", tabId: tab, conversationKey: key });
-      return await saRunAdmissionMutation(admission.token, () => saLegacyMessage({ type: "OZ_WORK_RESUME", tab_id: tab, conversation_key: key }, sender));
+      return await saRunAdmissionMutation(admission.token, () => saLegacyMessage({ type: "OZ_WORK_RESUME", tab_id: tab, conversation_key: key, admission_provenance: provenance }, sender));
     } finally { saReleaseAdmission(admission.token); }
   });
 }

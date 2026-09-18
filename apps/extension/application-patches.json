@@ -27,7 +27,7 @@
   {
     "target": "service_worker.js",
     "old": "    version: 2,\n    state: OzonWorkSessionModel.STATES.PENDING_IDENTITY,",
-    "new": "    version: 2,\n    store_context: saStarts.get(Number(tab)) || null,\n    state: OzonWorkSessionModel.STATES.PENDING_IDENTITY,"
+    "new": "    version: 2,\n    store_context: saStarts.get(Number(tab)) || null,\n    admission_provenance: options.admission_provenance || null,\n    state: OzonWorkSessionModel.STATES.PENDING_IDENTITY,"
   },
   {
     "target": "service_worker.js",
@@ -42,7 +42,22 @@
   {
     "target": "service_worker.js",
     "old": "        const pending = await createPendingWorkStart(tab, live, { intent_id: requestedIntentId, revision: nextRevision, observed_conversation_id: live.conversation_id || null, conversation_key: key, expected_session_revision: currentSession?.revision ?? 0, state_before: currentSession?.state || OzonWorkSessionModel.STATES.INACTIVE });",
-    "new": "        await saAdmissionMutationGuard({ operation: \"start\", tabId: tab, conversationKey: key, intentId: requestedIntentId });\n        const pending = await createPendingWorkStart(tab, live, { intent_id: requestedIntentId, revision: nextRevision, observed_conversation_id: live.conversation_id || null, conversation_key: key, expected_session_revision: currentSession?.revision ?? 0, state_before: currentSession?.state || OzonWorkSessionModel.STATES.INACTIVE });"
+    "new": "        await saAdmissionMutationGuard({ operation: \"start\", tabId: tab, conversationKey: key, intentId: requestedIntentId });\n        const pending = await createPendingWorkStart(tab, live, { intent_id: requestedIntentId, revision: nextRevision, observed_conversation_id: live.conversation_id || null, conversation_key: key, expected_session_revision: currentSession?.revision ?? 0, state_before: currentSession?.state || OzonWorkSessionModel.STATES.INACTIVE, admission_provenance: message.admission_provenance || null });"
+  },
+  {
+    "target": "service_worker.js",
+    "old": "        const bindingSession = await mutateWorkSession(key, session.revision, OzonWorkSessionModel.STATES.BINDING, {\n          tab_id: tab,\n          origin: live.origin,\n          ai_id: live.ai_id,\n          conversation_id: live.conversation_id,\n          start_intent_id: null,\n          error: null\n        });\n        const visible = await mutateWorkSession(key, bindingSession.revision, OzonWorkSessionModel.STATES.ACTIVE_VISIBLE, { error: null });",
+    "new": "        const bindingSession = await mutateWorkSession(key, session.revision, OzonWorkSessionModel.STATES.BINDING, {\n          tab_id: tab,\n          origin: live.origin,\n          ai_id: live.ai_id,\n          conversation_id: live.conversation_id,\n          start_intent_id: null,\n          error: null\n        });\n        const visible = await mutateWorkSession(key, bindingSession.revision, OzonWorkSessionModel.STATES.ACTIVE_VISIBLE, { error: null, admission_provenance: SellerAgentsOfflineWorkAuthority.createProvenance(message.admission_provenance, { conversationKey: key, conversationId: live.conversation_id, bindingId: binding.binding_id, bindingRevision: Number(binding.revision), marketplace: binding.store_context?.marketplace || null, storeId: binding.store_context?.storeId || null, credentialRevision: binding.store_context?.credentialRevision || null }) });"
+  },
+  {
+    "target": "service_worker.js",
+    "old": "          const visible = await mutateWorkSession(key, bindingSession.revision, OzonWorkSessionModel.STATES.ACTIVE_VISIBLE, { error: null });",
+    "new": "          const visible = await mutateWorkSession(key, bindingSession.revision, OzonWorkSessionModel.STATES.ACTIVE_VISIBLE, { error: null, admission_provenance: SellerAgentsOfflineWorkAuthority.createProvenance(pending.admission_provenance, { conversationKey: key, conversationId: identity.conversation_id, bindingId: binding.binding_id, bindingRevision: Number(binding.revision), marketplace: binding.store_context?.marketplace || null, storeId: binding.store_context?.storeId || null, credentialRevision: binding.store_context?.credentialRevision || null }) });"
+  },
+  {
+    "target": "service_worker.js",
+    "old": "          transitionWorkSessionRecord(sessions, key, current.revision, OzonWorkSessionModel.STATES.INACTIVE, { tab_id: null, origin: null, ai_id: null, conversation_id: null, start_intent_id: null, error: null });",
+    "new": "          transitionWorkSessionRecord(sessions, key, current.revision, OzonWorkSessionModel.STATES.INACTIVE, { tab_id: null, origin: null, ai_id: null, conversation_id: null, start_intent_id: null, error: null, admission_provenance: null });"
   },
   {
     "target": "service_worker.js",
