@@ -37,7 +37,10 @@ import { AdminAuthService } from "@product/admin-auth";
 import type { AdminCommercialService } from "@product/admin-commercial";
 import type { AdminAiService } from "@product/admin-ai";
 import { BetaAdmissionService } from "@product/beta-access";
-import type { HealthAdminReadRepository } from "@product/health";
+import type {
+  HealthAdminReadRepository,
+  HealthNotificationAdminReadRepository,
+} from "@product/health";
 
 type JsonPrimitive = boolean | null | number | string;
 type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
@@ -318,6 +321,10 @@ export async function generateOpenApiRepresentation(): Promise<string> {
       getEvaluation: async () => null,
       listRecommendations: async () => ({ items: [], nextCursor: null }),
     } satisfies HealthAdminReadRepository,
+    healthNotificationAdminService: {
+      listNotifications: async () => ({ items: [], nextCursor: null }),
+      getNotification: async () => null,
+    } satisfies HealthNotificationAdminReadRepository,
   });
   try {
     await app.ready();

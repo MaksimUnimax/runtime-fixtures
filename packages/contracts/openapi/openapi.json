@@ -49773,6 +49773,1827 @@
         }
       }
     },
+    "/v1/admin/health/notifications": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 50,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z~[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "enum": [
+                "PENDING",
+                "CLAIMED",
+                "DELIVERED",
+                "FAILED_RETRYABLE",
+                "FAILED_TERMINAL",
+                "SUPPRESSED"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "eventKind",
+            "required": false,
+            "schema": {
+              "enum": [
+                "INCIDENT_OPENED",
+                "INCIDENT_ESCALATED",
+                "INCIDENT_RECOVERED",
+                "MAINTENANCE_ENTERED",
+                "MAINTENANCE_EXITED"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "severity",
+            "required": false,
+            "schema": {
+              "enum": [
+                "INFO",
+                "WARNING",
+                "CRITICAL"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "incidentId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "provider",
+            "required": false,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "surface",
+            "required": false,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "routeKey",
+            "required": false,
+            "schema": {
+              "pattern": "^[A-Z][A-Z0-9_]{0,63}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "items": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "attemptCount": {
+                            "maximum": 9007199254740991,
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "cooldownUntil": {
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                            "type": "string"
+                          },
+                          "createdAt": {
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                            "type": "string"
+                          },
+                          "deliveredAt": {
+                            "anyOf": [
+                              {
+                                "format": "date-time",
+                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "eventKind": {
+                            "enum": [
+                              "INCIDENT_OPENED",
+                              "INCIDENT_ESCALATED",
+                              "INCIDENT_RECOVERED",
+                              "MAINTENANCE_ENTERED",
+                              "MAINTENANCE_EXITED"
+                            ],
+                            "type": "string"
+                          },
+                          "firstObservedAt": {
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                            "type": "string"
+                          },
+                          "groupCount": {
+                            "exclusiveMinimum": 0,
+                            "maximum": 9007199254740991,
+                            "type": "integer"
+                          },
+                          "id": {
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                            "type": "string"
+                          },
+                          "incidentId": {
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                            "type": "string"
+                          },
+                          "lastProviderResultCode": {
+                            "anyOf": [
+                              {
+                                "enum": [
+                                  "DELIVERED",
+                                  "TRANSIENT_PROVIDER_FAILURE",
+                                  "RATE_LIMIT",
+                                  "CONFIGURATION_ERROR",
+                                  "PERMANENT_PROVIDER_REJECTION",
+                                  "DISABLED_ROUTE",
+                                  "UNKNOWN"
+                                ],
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "latestObservedAt": {
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                            "type": "string"
+                          },
+                          "nextAttemptAt": {
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                            "type": "string"
+                          },
+                          "provider": {
+                            "maxLength": 64,
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "providerSink": {
+                            "anyOf": [
+                              {
+                                "enum": [
+                                  "DETERMINISTIC_TEST_SINK",
+                                  "DISABLED_SINK"
+                                ],
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "routeKey": {
+                            "pattern": "^[A-Z][A-Z0-9_]{0,63}$",
+                            "type": "string"
+                          },
+                          "severity": {
+                            "enum": [
+                              "INFO",
+                              "WARNING",
+                              "CRITICAL"
+                            ],
+                            "type": "string"
+                          },
+                          "sourceDomain": {
+                            "enum": [
+                              "LLM_HEALTH"
+                            ],
+                            "type": "string"
+                          },
+                          "state": {
+                            "enum": [
+                              "PENDING",
+                              "CLAIMED",
+                              "DELIVERED",
+                              "FAILED_RETRYABLE",
+                              "FAILED_TERMINAL",
+                              "SUPPRESSED"
+                            ],
+                            "type": "string"
+                          },
+                          "suppressionReason": {
+                            "anyOf": [
+                              {
+                                "enum": [
+                                  "COOLDOWN",
+                                  "MAINTENANCE_ENTERED",
+                                  "DISABLED_ROUTE",
+                                  "OTHER"
+                                ],
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "surface": {
+                            "maxLength": 128,
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "updatedAt": {
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "sourceDomain",
+                          "incidentId",
+                          "eventKind",
+                          "severity",
+                          "state",
+                          "routeKey",
+                          "groupCount",
+                          "attemptCount",
+                          "nextAttemptAt",
+                          "deliveredAt",
+                          "suppressionReason",
+                          "firstObservedAt",
+                          "latestObservedAt",
+                          "cooldownUntil",
+                          "createdAt",
+                          "updatedAt",
+                          "lastProviderResultCode",
+                          "providerSink",
+                          "provider",
+                          "surface"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "nextCursor": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "INTERNAL_ERROR",
+                            "INVALID_REQUEST",
+                            "SERVICE_UNAVAILABLE",
+                            "AUTH_RATE_LIMITED",
+                            "AUTH_OTP_INVALID",
+                            "AUTH_LOGIN_DENIED",
+                            "AUTH_SESSION_INVALID",
+                            "AUTH_CSRF_INVALID",
+                            "BETA_CLOSED",
+                            "BETA_CAPACITY_REACHED",
+                            "AUTH_REFRESH_INVALID",
+                            "DEVICE_AUTH_RATE_LIMITED",
+                            "DEVICE_AUTH_INVALID",
+                            "DEVICE_AUTH_FORBIDDEN",
+                            "DEVICE_AUTH_STATE_CONFLICT",
+                            "DEVICE_AUTH_IDEMPOTENCY_CONFLICT",
+                            "DEVICE_AUTH_CLOSED",
+                            "DEVICE_AUTH_PENDING",
+                            "DEVICE_LIMIT_REACHED",
+                            "DEVICE_FORBIDDEN",
+                            "DEVICE_NOT_FOUND",
+                            "UNAUTHORIZED",
+                            "DEVICE_MISMATCH",
+                            "BOOTSTRAP_UNAVAILABLE",
+                            "SUBSCRIPTION_REQUIRED",
+                            "ACCOUNT_FORBIDDEN",
+                            "ADMIN_UNAUTHORIZED",
+                            "ADMIN_FORBIDDEN",
+                            "ADMIN_REAUTH_REQUIRED",
+                            "ADMIN_CSRF_INVALID",
+                            "ADMIN_RESOURCE_NOT_FOUND",
+                            "ADMIN_CONFLICT",
+                            "ADMIN_STATE_STALE",
+                            "ADMIN_LAST_OWNER_REQUIRED",
+                            "ADMIN_INVALID_LIFECYCLE",
+                            "ADMIN_ASSIGNMENT_TARGET_INELIGIBLE",
+                            "ADMIN_INVALID_HIERARCHY_BINDING",
+                            "SUBSCRIPTION_ALREADY_EXISTS",
+                            "PLAN_REVISION_NOT_PUBLISHED",
+                            "SUBSCRIPTION_PERIOD_INVALID",
+                            "SUBSCRIPTION_PERIOD_NOT_EXTENDED",
+                            "SUBSCRIPTION_GRACE_WINDOW_CONFLICT",
+                            "SUBSCRIPTION_STATE_TRANSITION_INVALID",
+                            "SUBSCRIPTION_ALREADY_SUSPENDED",
+                            "SUBSCRIPTION_NOT_SUSPENDED",
+                            "SUBSCRIPTION_RESTORE_ORIGIN_NOT_FOUND",
+                            "SUBSCRIPTION_PERIOD_ENDED",
+                            "SUBSCRIPTION_GRACE_ENDED",
+                            "SUBSCRIPTION_CORRUPTED"
+                          ],
+                          "type": "string"
+                        },
+                        "correlationId": {
+                          "maxLength": 128,
+                          "minLength": 1,
+                          "pattern": "^[A-Za-z0-9._:-]+$",
+                          "type": "string"
+                        },
+                        "message": {
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "correlationId"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "INTERNAL_ERROR",
+                            "INVALID_REQUEST",
+                            "SERVICE_UNAVAILABLE",
+                            "AUTH_RATE_LIMITED",
+                            "AUTH_OTP_INVALID",
+                            "AUTH_LOGIN_DENIED",
+                            "AUTH_SESSION_INVALID",
+                            "AUTH_CSRF_INVALID",
+                            "BETA_CLOSED",
+                            "BETA_CAPACITY_REACHED",
+                            "AUTH_REFRESH_INVALID",
+                            "DEVICE_AUTH_RATE_LIMITED",
+                            "DEVICE_AUTH_INVALID",
+                            "DEVICE_AUTH_FORBIDDEN",
+                            "DEVICE_AUTH_STATE_CONFLICT",
+                            "DEVICE_AUTH_IDEMPOTENCY_CONFLICT",
+                            "DEVICE_AUTH_CLOSED",
+                            "DEVICE_AUTH_PENDING",
+                            "DEVICE_LIMIT_REACHED",
+                            "DEVICE_FORBIDDEN",
+                            "DEVICE_NOT_FOUND",
+                            "UNAUTHORIZED",
+                            "DEVICE_MISMATCH",
+                            "BOOTSTRAP_UNAVAILABLE",
+                            "SUBSCRIPTION_REQUIRED",
+                            "ACCOUNT_FORBIDDEN",
+                            "ADMIN_UNAUTHORIZED",
+                            "ADMIN_FORBIDDEN",
+                            "ADMIN_REAUTH_REQUIRED",
+                            "ADMIN_CSRF_INVALID",
+                            "ADMIN_RESOURCE_NOT_FOUND",
+                            "ADMIN_CONFLICT",
+                            "ADMIN_STATE_STALE",
+                            "ADMIN_LAST_OWNER_REQUIRED",
+                            "ADMIN_INVALID_LIFECYCLE",
+                            "ADMIN_ASSIGNMENT_TARGET_INELIGIBLE",
+                            "ADMIN_INVALID_HIERARCHY_BINDING",
+                            "SUBSCRIPTION_ALREADY_EXISTS",
+                            "PLAN_REVISION_NOT_PUBLISHED",
+                            "SUBSCRIPTION_PERIOD_INVALID",
+                            "SUBSCRIPTION_PERIOD_NOT_EXTENDED",
+                            "SUBSCRIPTION_GRACE_WINDOW_CONFLICT",
+                            "SUBSCRIPTION_STATE_TRANSITION_INVALID",
+                            "SUBSCRIPTION_ALREADY_SUSPENDED",
+                            "SUBSCRIPTION_NOT_SUSPENDED",
+                            "SUBSCRIPTION_RESTORE_ORIGIN_NOT_FOUND",
+                            "SUBSCRIPTION_PERIOD_ENDED",
+                            "SUBSCRIPTION_GRACE_ENDED",
+                            "SUBSCRIPTION_CORRUPTED"
+                          ],
+                          "type": "string"
+                        },
+                        "correlationId": {
+                          "maxLength": 128,
+                          "minLength": 1,
+                          "pattern": "^[A-Za-z0-9._:-]+$",
+                          "type": "string"
+                        },
+                        "message": {
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "correlationId"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "INTERNAL_ERROR",
+                            "INVALID_REQUEST",
+                            "SERVICE_UNAVAILABLE",
+                            "AUTH_RATE_LIMITED",
+                            "AUTH_OTP_INVALID",
+                            "AUTH_LOGIN_DENIED",
+                            "AUTH_SESSION_INVALID",
+                            "AUTH_CSRF_INVALID",
+                            "BETA_CLOSED",
+                            "BETA_CAPACITY_REACHED",
+                            "AUTH_REFRESH_INVALID",
+                            "DEVICE_AUTH_RATE_LIMITED",
+                            "DEVICE_AUTH_INVALID",
+                            "DEVICE_AUTH_FORBIDDEN",
+                            "DEVICE_AUTH_STATE_CONFLICT",
+                            "DEVICE_AUTH_IDEMPOTENCY_CONFLICT",
+                            "DEVICE_AUTH_CLOSED",
+                            "DEVICE_AUTH_PENDING",
+                            "DEVICE_LIMIT_REACHED",
+                            "DEVICE_FORBIDDEN",
+                            "DEVICE_NOT_FOUND",
+                            "UNAUTHORIZED",
+                            "DEVICE_MISMATCH",
+                            "BOOTSTRAP_UNAVAILABLE",
+                            "SUBSCRIPTION_REQUIRED",
+                            "ACCOUNT_FORBIDDEN",
+                            "ADMIN_UNAUTHORIZED",
+                            "ADMIN_FORBIDDEN",
+                            "ADMIN_REAUTH_REQUIRED",
+                            "ADMIN_CSRF_INVALID",
+                            "ADMIN_RESOURCE_NOT_FOUND",
+                            "ADMIN_CONFLICT",
+                            "ADMIN_STATE_STALE",
+                            "ADMIN_LAST_OWNER_REQUIRED",
+                            "ADMIN_INVALID_LIFECYCLE",
+                            "ADMIN_ASSIGNMENT_TARGET_INELIGIBLE",
+                            "ADMIN_INVALID_HIERARCHY_BINDING",
+                            "SUBSCRIPTION_ALREADY_EXISTS",
+                            "PLAN_REVISION_NOT_PUBLISHED",
+                            "SUBSCRIPTION_PERIOD_INVALID",
+                            "SUBSCRIPTION_PERIOD_NOT_EXTENDED",
+                            "SUBSCRIPTION_GRACE_WINDOW_CONFLICT",
+                            "SUBSCRIPTION_STATE_TRANSITION_INVALID",
+                            "SUBSCRIPTION_ALREADY_SUSPENDED",
+                            "SUBSCRIPTION_NOT_SUSPENDED",
+                            "SUBSCRIPTION_RESTORE_ORIGIN_NOT_FOUND",
+                            "SUBSCRIPTION_PERIOD_ENDED",
+                            "SUBSCRIPTION_GRACE_ENDED",
+                            "SUBSCRIPTION_CORRUPTED"
+                          ],
+                          "type": "string"
+                        },
+                        "correlationId": {
+                          "maxLength": 128,
+                          "minLength": 1,
+                          "pattern": "^[A-Za-z0-9._:-]+$",
+                          "type": "string"
+                        },
+                        "message": {
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "correlationId"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "INTERNAL_ERROR",
+                            "INVALID_REQUEST",
+                            "SERVICE_UNAVAILABLE",
+                            "AUTH_RATE_LIMITED",
+                            "AUTH_OTP_INVALID",
+                            "AUTH_LOGIN_DENIED",
+                            "AUTH_SESSION_INVALID",
+                            "AUTH_CSRF_INVALID",
+                            "BETA_CLOSED",
+                            "BETA_CAPACITY_REACHED",
+                            "AUTH_REFRESH_INVALID",
+                            "DEVICE_AUTH_RATE_LIMITED",
+                            "DEVICE_AUTH_INVALID",
+                            "DEVICE_AUTH_FORBIDDEN",
+                            "DEVICE_AUTH_STATE_CONFLICT",
+                            "DEVICE_AUTH_IDEMPOTENCY_CONFLICT",
+                            "DEVICE_AUTH_CLOSED",
+                            "DEVICE_AUTH_PENDING",
+                            "DEVICE_LIMIT_REACHED",
+                            "DEVICE_FORBIDDEN",
+                            "DEVICE_NOT_FOUND",
+                            "UNAUTHORIZED",
+                            "DEVICE_MISMATCH",
+                            "BOOTSTRAP_UNAVAILABLE",
+                            "SUBSCRIPTION_REQUIRED",
+                            "ACCOUNT_FORBIDDEN",
+                            "ADMIN_UNAUTHORIZED",
+                            "ADMIN_FORBIDDEN",
+                            "ADMIN_REAUTH_REQUIRED",
+                            "ADMIN_CSRF_INVALID",
+                            "ADMIN_RESOURCE_NOT_FOUND",
+                            "ADMIN_CONFLICT",
+                            "ADMIN_STATE_STALE",
+                            "ADMIN_LAST_OWNER_REQUIRED",
+                            "ADMIN_INVALID_LIFECYCLE",
+                            "ADMIN_ASSIGNMENT_TARGET_INELIGIBLE",
+                            "ADMIN_INVALID_HIERARCHY_BINDING",
+                            "SUBSCRIPTION_ALREADY_EXISTS",
+                            "PLAN_REVISION_NOT_PUBLISHED",
+                            "SUBSCRIPTION_PERIOD_INVALID",
+                            "SUBSCRIPTION_PERIOD_NOT_EXTENDED",
+                            "SUBSCRIPTION_GRACE_WINDOW_CONFLICT",
+                            "SUBSCRIPTION_STATE_TRANSITION_INVALID",
+                            "SUBSCRIPTION_ALREADY_SUSPENDED",
+                            "SUBSCRIPTION_NOT_SUSPENDED",
+                            "SUBSCRIPTION_RESTORE_ORIGIN_NOT_FOUND",
+                            "SUBSCRIPTION_PERIOD_ENDED",
+                            "SUBSCRIPTION_GRACE_ENDED",
+                            "SUBSCRIPTION_CORRUPTED"
+                          ],
+                          "type": "string"
+                        },
+                        "correlationId": {
+                          "maxLength": 128,
+                          "minLength": 1,
+                          "pattern": "^[A-Za-z0-9._:-]+$",
+                          "type": "string"
+                        },
+                        "message": {
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "correlationId"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "INTERNAL_ERROR",
+                            "INVALID_REQUEST",
+                            "SERVICE_UNAVAILABLE",
+                            "AUTH_RATE_LIMITED",
+                            "AUTH_OTP_INVALID",
+                            "AUTH_LOGIN_DENIED",
+                            "AUTH_SESSION_INVALID",
+                            "AUTH_CSRF_INVALID",
+                            "BETA_CLOSED",
+                            "BETA_CAPACITY_REACHED",
+                            "AUTH_REFRESH_INVALID",
+                            "DEVICE_AUTH_RATE_LIMITED",
+                            "DEVICE_AUTH_INVALID",
+                            "DEVICE_AUTH_FORBIDDEN",
+                            "DEVICE_AUTH_STATE_CONFLICT",
+                            "DEVICE_AUTH_IDEMPOTENCY_CONFLICT",
+                            "DEVICE_AUTH_CLOSED",
+                            "DEVICE_AUTH_PENDING",
+                            "DEVICE_LIMIT_REACHED",
+                            "DEVICE_FORBIDDEN",
+                            "DEVICE_NOT_FOUND",
+                            "UNAUTHORIZED",
+                            "DEVICE_MISMATCH",
+                            "BOOTSTRAP_UNAVAILABLE",
+                            "SUBSCRIPTION_REQUIRED",
+                            "ACCOUNT_FORBIDDEN",
+                            "ADMIN_UNAUTHORIZED",
+                            "ADMIN_FORBIDDEN",
+                            "ADMIN_REAUTH_REQUIRED",
+                            "ADMIN_CSRF_INVALID",
+                            "ADMIN_RESOURCE_NOT_FOUND",
+                            "ADMIN_CONFLICT",
+                            "ADMIN_STATE_STALE",
+                            "ADMIN_LAST_OWNER_REQUIRED",
+                            "ADMIN_INVALID_LIFECYCLE",
+                            "ADMIN_ASSIGNMENT_TARGET_INELIGIBLE",
+                            "ADMIN_INVALID_HIERARCHY_BINDING",
+                            "SUBSCRIPTION_ALREADY_EXISTS",
+                            "PLAN_REVISION_NOT_PUBLISHED",
+                            "SUBSCRIPTION_PERIOD_INVALID",
+                            "SUBSCRIPTION_PERIOD_NOT_EXTENDED",
+                            "SUBSCRIPTION_GRACE_WINDOW_CONFLICT",
+                            "SUBSCRIPTION_STATE_TRANSITION_INVALID",
+                            "SUBSCRIPTION_ALREADY_SUSPENDED",
+                            "SUBSCRIPTION_NOT_SUSPENDED",
+                            "SUBSCRIPTION_RESTORE_ORIGIN_NOT_FOUND",
+                            "SUBSCRIPTION_PERIOD_ENDED",
+                            "SUBSCRIPTION_GRACE_ENDED",
+                            "SUBSCRIPTION_CORRUPTED"
+                          ],
+                          "type": "string"
+                        },
+                        "correlationId": {
+                          "maxLength": 128,
+                          "minLength": 1,
+                          "pattern": "^[A-Za-z0-9._:-]+$",
+                          "type": "string"
+                        },
+                        "message": {
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "correlationId"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/v1/admin/health/notifications/{id}": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "attemptCount": {
+                      "maximum": 9007199254740991,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "claim": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "attempt": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "leaseExpiresAt": {
+                          "anyOf": [
+                            {
+                              "format": "date-time",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "state": {
+                          "enum": [
+                            "CLAIMED",
+                            "UNCLAIMED"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "state",
+                        "leaseExpiresAt",
+                        "attempt"
+                      ],
+                      "type": "object"
+                    },
+                    "cooldownUntil": {
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                      "type": "string"
+                    },
+                    "dedupIdentity": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "eventKind": {
+                          "enum": [
+                            "INCIDENT_OPENED",
+                            "INCIDENT_ESCALATED",
+                            "INCIDENT_RECOVERED",
+                            "MAINTENANCE_ENTERED",
+                            "MAINTENANCE_EXITED"
+                          ],
+                          "type": "string"
+                        },
+                        "scheme": {
+                          "enum": [
+                            "LLM_HEALTH_V1"
+                          ],
+                          "type": "string"
+                        },
+                        "severity": {
+                          "enum": [
+                            "INFO",
+                            "WARNING",
+                            "CRITICAL"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "scheme",
+                        "eventKind",
+                        "severity"
+                      ],
+                      "type": "object"
+                    },
+                    "deliveredAt": {
+                      "anyOf": [
+                        {
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "eventKind": {
+                      "enum": [
+                        "INCIDENT_OPENED",
+                        "INCIDENT_ESCALATED",
+                        "INCIDENT_RECOVERED",
+                        "MAINTENANCE_ENTERED",
+                        "MAINTENANCE_EXITED"
+                      ],
+                      "type": "string"
+                    },
+                    "evidenceReferences": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "classification": {
+                            "enum": [
+                              "METADATA",
+                              "BOUNDED_FRAGMENT",
+                              "SCREENSHOT"
+                            ],
+                            "type": "string"
+                          },
+                          "evidenceId": {
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                            "type": "string"
+                          },
+                          "ruleId": {
+                            "enum": [
+                              "NO_EVIDENCE",
+                              "SAFE_ELEMENT_METADATA",
+                              "BOUNDED_DOM_FRAGMENT",
+                              "SAFE_SCREENSHOT_REFERENCE",
+                              "STATE_TRANSITION_TRACE"
+                            ],
+                            "type": "string"
+                          },
+                          "sha256": {
+                            "anyOf": [
+                              {
+                                "pattern": "^[0-9a-f]{64}$",
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "sizeBytes": {
+                            "anyOf": [
+                              {
+                                "maximum": 10000000,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "evidenceId",
+                          "ruleId",
+                          "classification",
+                          "sha256",
+                          "sizeBytes"
+                        ],
+                        "type": "object"
+                      },
+                      "maxItems": 32,
+                      "type": "array"
+                    },
+                    "firstObservedAt": {
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                      "type": "string"
+                    },
+                    "groupCount": {
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991,
+                      "type": "integer"
+                    },
+                    "id": {
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "type": "string"
+                    },
+                    "incident": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "browserFamily": {
+                          "enum": [
+                            "chrome",
+                            "yandex_chromium"
+                          ],
+                          "type": "string"
+                        },
+                        "firstSeenAt": {
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                          "type": "string"
+                        },
+                        "firstSeenRunId": {
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                          "type": "string"
+                        },
+                        "id": {
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                          "type": "string"
+                        },
+                        "lastObservedAt": {
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                          "type": "string"
+                        },
+                        "lastObservedRunId": {
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                          "type": "string"
+                        },
+                        "lastSeenAt": {
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                          "type": "string"
+                        },
+                        "latestSeenRunId": {
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                          "type": "string"
+                        },
+                        "provider": {
+                          "maxLength": 64,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "resolvedAt": {
+                          "anyOf": [
+                            {
+                              "format": "date-time",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "resolvedByRunId": {
+                          "anyOf": [
+                            {
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "rootContourKey": {
+                          "anyOf": [
+                            {
+                              "enum": [
+                                "C01_PAGE_IDENTITY",
+                                "C02_CONVERSATION_ROOT",
+                                "C03_COMPOSER_ROOT",
+                                "C04_COMPOSER_INPUT",
+                                "C05_SEND_CONTROL",
+                                "C06_BUSY_STOP_STATE",
+                                "C07_ASSISTANT_MESSAGE",
+                                "C08_MESSAGE_COMPLETION",
+                                "C09_COMMAND_CODE_BLOCK_SURFACE",
+                                "C10_NATIVE_COPY_CONTROL",
+                                "C11_CONVERSATION_IDENTITY",
+                                "C12_DELIVERY_INSERTION_PATH",
+                                "C13_BLOCKING_STATE"
+                              ],
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "status": {
+                          "enum": [
+                            "OPEN",
+                            "INVESTIGATING",
+                            "CANDIDATE_FIX",
+                            "CANDIDATE_PASS",
+                            "CANARY_ROLLOUT",
+                            "ROLLOUT",
+                            "RESOLVED",
+                            "FALSE_POSITIVE",
+                            "MAINTENANCE"
+                          ],
+                          "type": "string"
+                        },
+                        "surface": {
+                          "maxLength": 128,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "variant": {
+                          "maxLength": 128,
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "provider",
+                        "surface",
+                        "variant",
+                        "browserFamily",
+                        "status",
+                        "rootContourKey",
+                        "firstSeenRunId",
+                        "latestSeenRunId",
+                        "lastObservedRunId",
+                        "firstSeenAt",
+                        "lastSeenAt",
+                        "lastObservedAt",
+                        "resolvedByRunId",
+                        "resolvedAt"
+                      ],
+                      "type": "object"
+                    },
+                    "incidentId": {
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "type": "string"
+                    },
+                    "lastProviderResultCode": {
+                      "anyOf": [
+                        {
+                          "enum": [
+                            "DELIVERED",
+                            "TRANSIENT_PROVIDER_FAILURE",
+                            "RATE_LIMIT",
+                            "CONFIGURATION_ERROR",
+                            "PERMANENT_PROVIDER_REJECTION",
+                            "DISABLED_ROUTE",
+                            "UNKNOWN"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "latestObservedAt": {
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                      "type": "string"
+                    },
+                    "nextAttemptAt": {
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                      "type": "string"
+                    },
+                    "provider": {
+                      "maxLength": 64,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "providerSink": {
+                      "anyOf": [
+                        {
+                          "enum": [
+                            "DETERMINISTIC_TEST_SINK",
+                            "DISABLED_SINK"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "retention": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "expiresAt": {
+                          "anyOf": [
+                            {
+                              "format": "date-time",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "retentionClass": {
+                          "maxLength": 64,
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "retentionClass",
+                        "expiresAt"
+                      ],
+                      "type": "object"
+                    },
+                    "routeKey": {
+                      "pattern": "^[A-Z][A-Z0-9_]{0,63}$",
+                      "type": "string"
+                    },
+                    "severity": {
+                      "enum": [
+                        "INFO",
+                        "WARNING",
+                        "CRITICAL"
+                      ],
+                      "type": "string"
+                    },
+                    "sourceDomain": {
+                      "enum": [
+                        "LLM_HEALTH"
+                      ],
+                      "type": "string"
+                    },
+                    "sourceHealth": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "browserFamily": {
+                          "enum": [
+                            "chrome",
+                            "yandex_chromium"
+                          ],
+                          "type": "string"
+                        },
+                        "browserVersion": {
+                          "maxLength": 64,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "healthLevel": {
+                          "enum": [
+                            "H0",
+                            "H1",
+                            "H2",
+                            "H3",
+                            "H4",
+                            "H5"
+                          ],
+                          "type": "string"
+                        },
+                        "healthRunId": {
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                          "type": "string"
+                        },
+                        "healthState": {
+                          "enum": [
+                            "HEALTHY",
+                            "DRIFT",
+                            "DEGRADED",
+                            "BROKEN",
+                            "UNKNOWN",
+                            "MAINTENANCE"
+                          ],
+                          "type": "string"
+                        },
+                        "variant": {
+                          "maxLength": 128,
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "healthRunId",
+                        "healthState",
+                        "healthLevel",
+                        "browserFamily",
+                        "browserVersion",
+                        "variant"
+                      ],
+                      "type": "object"
+                    },
+                    "state": {
+                      "enum": [
+                        "PENDING",
+                        "CLAIMED",
+                        "DELIVERED",
+                        "FAILED_RETRYABLE",
+                        "FAILED_TERMINAL",
+                        "SUPPRESSED"
+                      ],
+                      "type": "string"
+                    },
+                    "suppressionReason": {
+                      "anyOf": [
+                        {
+                          "enum": [
+                            "COOLDOWN",
+                            "MAINTENANCE_ENTERED",
+                            "DISABLED_ROUTE",
+                            "OTHER"
+                          ],
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "surface": {
+                      "maxLength": 128,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "sourceDomain",
+                    "incidentId",
+                    "eventKind",
+                    "severity",
+                    "state",
+                    "routeKey",
+                    "groupCount",
+                    "attemptCount",
+                    "nextAttemptAt",
+                    "deliveredAt",
+                    "suppressionReason",
+                    "firstObservedAt",
+                    "latestObservedAt",
+                    "cooldownUntil",
+                    "createdAt",
+                    "updatedAt",
+                    "lastProviderResultCode",
+                    "providerSink",
+                    "provider",
+                    "surface",
+                    "dedupIdentity",
+                    "claim",
+                    "sourceHealth",
+                    "incident",
+                    "evidenceReferences",
+                    "retention"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "INTERNAL_ERROR",
+                            "INVALID_REQUEST",
+                            "SERVICE_UNAVAILABLE",
+                            "AUTH_RATE_LIMITED",
+                            "AUTH_OTP_INVALID",
+                            "AUTH_LOGIN_DENIED",
+                            "AUTH_SESSION_INVALID",
+                            "AUTH_CSRF_INVALID",
+                            "BETA_CLOSED",
+                            "BETA_CAPACITY_REACHED",
+                            "AUTH_REFRESH_INVALID",
+                            "DEVICE_AUTH_RATE_LIMITED",
+                            "DEVICE_AUTH_INVALID",
+                            "DEVICE_AUTH_FORBIDDEN",
+                            "DEVICE_AUTH_STATE_CONFLICT",
+                            "DEVICE_AUTH_IDEMPOTENCY_CONFLICT",
+                            "DEVICE_AUTH_CLOSED",
+                            "DEVICE_AUTH_PENDING",
+                            "DEVICE_LIMIT_REACHED",
+                            "DEVICE_FORBIDDEN",
+                            "DEVICE_NOT_FOUND",
+                            "UNAUTHORIZED",
+                            "DEVICE_MISMATCH",
+                            "BOOTSTRAP_UNAVAILABLE",
+                            "SUBSCRIPTION_REQUIRED",
+                            "ACCOUNT_FORBIDDEN",
+                            "ADMIN_UNAUTHORIZED",
+                            "ADMIN_FORBIDDEN",
+                            "ADMIN_REAUTH_REQUIRED",
+                            "ADMIN_CSRF_INVALID",
+                            "ADMIN_RESOURCE_NOT_FOUND",
+                            "ADMIN_CONFLICT",
+                            "ADMIN_STATE_STALE",
+                            "ADMIN_LAST_OWNER_REQUIRED",
+                            "ADMIN_INVALID_LIFECYCLE",
+                            "ADMIN_ASSIGNMENT_TARGET_INELIGIBLE",
+                            "ADMIN_INVALID_HIERARCHY_BINDING",
+                            "SUBSCRIPTION_ALREADY_EXISTS",
+                            "PLAN_REVISION_NOT_PUBLISHED",
+                            "SUBSCRIPTION_PERIOD_INVALID",
+                            "SUBSCRIPTION_PERIOD_NOT_EXTENDED",
+                            "SUBSCRIPTION_GRACE_WINDOW_CONFLICT",
+                            "SUBSCRIPTION_STATE_TRANSITION_INVALID",
+                            "SUBSCRIPTION_ALREADY_SUSPENDED",
+                            "SUBSCRIPTION_NOT_SUSPENDED",
+                            "SUBSCRIPTION_RESTORE_ORIGIN_NOT_FOUND",
+                            "SUBSCRIPTION_PERIOD_ENDED",
+                            "SUBSCRIPTION_GRACE_ENDED",
+                            "SUBSCRIPTION_CORRUPTED"
+                          ],
+                          "type": "string"
+                        },
+                        "correlationId": {
+                          "maxLength": 128,
+                          "minLength": 1,
+                          "pattern": "^[A-Za-z0-9._:-]+$",
+                          "type": "string"
+                        },
+                        "message": {
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "correlationId"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "INTERNAL_ERROR",
+                            "INVALID_REQUEST",
+                            "SERVICE_UNAVAILABLE",
+                            "AUTH_RATE_LIMITED",
+                            "AUTH_OTP_INVALID",
+                            "AUTH_LOGIN_DENIED",
+                            "AUTH_SESSION_INVALID",
+                            "AUTH_CSRF_INVALID",
+                            "BETA_CLOSED",
+                            "BETA_CAPACITY_REACHED",
+                            "AUTH_REFRESH_INVALID",
+                            "DEVICE_AUTH_RATE_LIMITED",
+                            "DEVICE_AUTH_INVALID",
+                            "DEVICE_AUTH_FORBIDDEN",
+                            "DEVICE_AUTH_STATE_CONFLICT",
+                            "DEVICE_AUTH_IDEMPOTENCY_CONFLICT",
+                            "DEVICE_AUTH_CLOSED",
+                            "DEVICE_AUTH_PENDING",
+                            "DEVICE_LIMIT_REACHED",
+                            "DEVICE_FORBIDDEN",
+                            "DEVICE_NOT_FOUND",
+                            "UNAUTHORIZED",
+                            "DEVICE_MISMATCH",
+                            "BOOTSTRAP_UNAVAILABLE",
+                            "SUBSCRIPTION_REQUIRED",
+                            "ACCOUNT_FORBIDDEN",
+                            "ADMIN_UNAUTHORIZED",
+                            "ADMIN_FORBIDDEN",
+                            "ADMIN_REAUTH_REQUIRED",
+                            "ADMIN_CSRF_INVALID",
+                            "ADMIN_RESOURCE_NOT_FOUND",
+                            "ADMIN_CONFLICT",
+                            "ADMIN_STATE_STALE",
+                            "ADMIN_LAST_OWNER_REQUIRED",
+                            "ADMIN_INVALID_LIFECYCLE",
+                            "ADMIN_ASSIGNMENT_TARGET_INELIGIBLE",
+                            "ADMIN_INVALID_HIERARCHY_BINDING",
+                            "SUBSCRIPTION_ALREADY_EXISTS",
+                            "PLAN_REVISION_NOT_PUBLISHED",
+                            "SUBSCRIPTION_PERIOD_INVALID",
+                            "SUBSCRIPTION_PERIOD_NOT_EXTENDED",
+                            "SUBSCRIPTION_GRACE_WINDOW_CONFLICT",
+                            "SUBSCRIPTION_STATE_TRANSITION_INVALID",
+                            "SUBSCRIPTION_ALREADY_SUSPENDED",
+                            "SUBSCRIPTION_NOT_SUSPENDED",
+                            "SUBSCRIPTION_RESTORE_ORIGIN_NOT_FOUND",
+                            "SUBSCRIPTION_PERIOD_ENDED",
+                            "SUBSCRIPTION_GRACE_ENDED",
+                            "SUBSCRIPTION_CORRUPTED"
+                          ],
+                          "type": "string"
+                        },
+                        "correlationId": {
+                          "maxLength": 128,
+                          "minLength": 1,
+                          "pattern": "^[A-Za-z0-9._:-]+$",
+                          "type": "string"
+                        },
+                        "message": {
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "correlationId"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "INTERNAL_ERROR",
+                            "INVALID_REQUEST",
+                            "SERVICE_UNAVAILABLE",
+                            "AUTH_RATE_LIMITED",
+                            "AUTH_OTP_INVALID",
+                            "AUTH_LOGIN_DENIED",
+                            "AUTH_SESSION_INVALID",
+                            "AUTH_CSRF_INVALID",
+                            "BETA_CLOSED",
+                            "BETA_CAPACITY_REACHED",
+                            "AUTH_REFRESH_INVALID",
+                            "DEVICE_AUTH_RATE_LIMITED",
+                            "DEVICE_AUTH_INVALID",
+                            "DEVICE_AUTH_FORBIDDEN",
+                            "DEVICE_AUTH_STATE_CONFLICT",
+                            "DEVICE_AUTH_IDEMPOTENCY_CONFLICT",
+                            "DEVICE_AUTH_CLOSED",
+                            "DEVICE_AUTH_PENDING",
+                            "DEVICE_LIMIT_REACHED",
+                            "DEVICE_FORBIDDEN",
+                            "DEVICE_NOT_FOUND",
+                            "UNAUTHORIZED",
+                            "DEVICE_MISMATCH",
+                            "BOOTSTRAP_UNAVAILABLE",
+                            "SUBSCRIPTION_REQUIRED",
+                            "ACCOUNT_FORBIDDEN",
+                            "ADMIN_UNAUTHORIZED",
+                            "ADMIN_FORBIDDEN",
+                            "ADMIN_REAUTH_REQUIRED",
+                            "ADMIN_CSRF_INVALID",
+                            "ADMIN_RESOURCE_NOT_FOUND",
+                            "ADMIN_CONFLICT",
+                            "ADMIN_STATE_STALE",
+                            "ADMIN_LAST_OWNER_REQUIRED",
+                            "ADMIN_INVALID_LIFECYCLE",
+                            "ADMIN_ASSIGNMENT_TARGET_INELIGIBLE",
+                            "ADMIN_INVALID_HIERARCHY_BINDING",
+                            "SUBSCRIPTION_ALREADY_EXISTS",
+                            "PLAN_REVISION_NOT_PUBLISHED",
+                            "SUBSCRIPTION_PERIOD_INVALID",
+                            "SUBSCRIPTION_PERIOD_NOT_EXTENDED",
+                            "SUBSCRIPTION_GRACE_WINDOW_CONFLICT",
+                            "SUBSCRIPTION_STATE_TRANSITION_INVALID",
+                            "SUBSCRIPTION_ALREADY_SUSPENDED",
+                            "SUBSCRIPTION_NOT_SUSPENDED",
+                            "SUBSCRIPTION_RESTORE_ORIGIN_NOT_FOUND",
+                            "SUBSCRIPTION_PERIOD_ENDED",
+                            "SUBSCRIPTION_GRACE_ENDED",
+                            "SUBSCRIPTION_CORRUPTED"
+                          ],
+                          "type": "string"
+                        },
+                        "correlationId": {
+                          "maxLength": 128,
+                          "minLength": 1,
+                          "pattern": "^[A-Za-z0-9._:-]+$",
+                          "type": "string"
+                        },
+                        "message": {
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "correlationId"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "INTERNAL_ERROR",
+                            "INVALID_REQUEST",
+                            "SERVICE_UNAVAILABLE",
+                            "AUTH_RATE_LIMITED",
+                            "AUTH_OTP_INVALID",
+                            "AUTH_LOGIN_DENIED",
+                            "AUTH_SESSION_INVALID",
+                            "AUTH_CSRF_INVALID",
+                            "BETA_CLOSED",
+                            "BETA_CAPACITY_REACHED",
+                            "AUTH_REFRESH_INVALID",
+                            "DEVICE_AUTH_RATE_LIMITED",
+                            "DEVICE_AUTH_INVALID",
+                            "DEVICE_AUTH_FORBIDDEN",
+                            "DEVICE_AUTH_STATE_CONFLICT",
+                            "DEVICE_AUTH_IDEMPOTENCY_CONFLICT",
+                            "DEVICE_AUTH_CLOSED",
+                            "DEVICE_AUTH_PENDING",
+                            "DEVICE_LIMIT_REACHED",
+                            "DEVICE_FORBIDDEN",
+                            "DEVICE_NOT_FOUND",
+                            "UNAUTHORIZED",
+                            "DEVICE_MISMATCH",
+                            "BOOTSTRAP_UNAVAILABLE",
+                            "SUBSCRIPTION_REQUIRED",
+                            "ACCOUNT_FORBIDDEN",
+                            "ADMIN_UNAUTHORIZED",
+                            "ADMIN_FORBIDDEN",
+                            "ADMIN_REAUTH_REQUIRED",
+                            "ADMIN_CSRF_INVALID",
+                            "ADMIN_RESOURCE_NOT_FOUND",
+                            "ADMIN_CONFLICT",
+                            "ADMIN_STATE_STALE",
+                            "ADMIN_LAST_OWNER_REQUIRED",
+                            "ADMIN_INVALID_LIFECYCLE",
+                            "ADMIN_ASSIGNMENT_TARGET_INELIGIBLE",
+                            "ADMIN_INVALID_HIERARCHY_BINDING",
+                            "SUBSCRIPTION_ALREADY_EXISTS",
+                            "PLAN_REVISION_NOT_PUBLISHED",
+                            "SUBSCRIPTION_PERIOD_INVALID",
+                            "SUBSCRIPTION_PERIOD_NOT_EXTENDED",
+                            "SUBSCRIPTION_GRACE_WINDOW_CONFLICT",
+                            "SUBSCRIPTION_STATE_TRANSITION_INVALID",
+                            "SUBSCRIPTION_ALREADY_SUSPENDED",
+                            "SUBSCRIPTION_NOT_SUSPENDED",
+                            "SUBSCRIPTION_RESTORE_ORIGIN_NOT_FOUND",
+                            "SUBSCRIPTION_PERIOD_ENDED",
+                            "SUBSCRIPTION_GRACE_ENDED",
+                            "SUBSCRIPTION_CORRUPTED"
+                          ],
+                          "type": "string"
+                        },
+                        "correlationId": {
+                          "maxLength": 128,
+                          "minLength": 1,
+                          "pattern": "^[A-Za-z0-9._:-]+$",
+                          "type": "string"
+                        },
+                        "message": {
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "correlationId"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "INTERNAL_ERROR",
+                            "INVALID_REQUEST",
+                            "SERVICE_UNAVAILABLE",
+                            "AUTH_RATE_LIMITED",
+                            "AUTH_OTP_INVALID",
+                            "AUTH_LOGIN_DENIED",
+                            "AUTH_SESSION_INVALID",
+                            "AUTH_CSRF_INVALID",
+                            "BETA_CLOSED",
+                            "BETA_CAPACITY_REACHED",
+                            "AUTH_REFRESH_INVALID",
+                            "DEVICE_AUTH_RATE_LIMITED",
+                            "DEVICE_AUTH_INVALID",
+                            "DEVICE_AUTH_FORBIDDEN",
+                            "DEVICE_AUTH_STATE_CONFLICT",
+                            "DEVICE_AUTH_IDEMPOTENCY_CONFLICT",
+                            "DEVICE_AUTH_CLOSED",
+                            "DEVICE_AUTH_PENDING",
+                            "DEVICE_LIMIT_REACHED",
+                            "DEVICE_FORBIDDEN",
+                            "DEVICE_NOT_FOUND",
+                            "UNAUTHORIZED",
+                            "DEVICE_MISMATCH",
+                            "BOOTSTRAP_UNAVAILABLE",
+                            "SUBSCRIPTION_REQUIRED",
+                            "ACCOUNT_FORBIDDEN",
+                            "ADMIN_UNAUTHORIZED",
+                            "ADMIN_FORBIDDEN",
+                            "ADMIN_REAUTH_REQUIRED",
+                            "ADMIN_CSRF_INVALID",
+                            "ADMIN_RESOURCE_NOT_FOUND",
+                            "ADMIN_CONFLICT",
+                            "ADMIN_STATE_STALE",
+                            "ADMIN_LAST_OWNER_REQUIRED",
+                            "ADMIN_INVALID_LIFECYCLE",
+                            "ADMIN_ASSIGNMENT_TARGET_INELIGIBLE",
+                            "ADMIN_INVALID_HIERARCHY_BINDING",
+                            "SUBSCRIPTION_ALREADY_EXISTS",
+                            "PLAN_REVISION_NOT_PUBLISHED",
+                            "SUBSCRIPTION_PERIOD_INVALID",
+                            "SUBSCRIPTION_PERIOD_NOT_EXTENDED",
+                            "SUBSCRIPTION_GRACE_WINDOW_CONFLICT",
+                            "SUBSCRIPTION_STATE_TRANSITION_INVALID",
+                            "SUBSCRIPTION_ALREADY_SUSPENDED",
+                            "SUBSCRIPTION_NOT_SUSPENDED",
+                            "SUBSCRIPTION_RESTORE_ORIGIN_NOT_FOUND",
+                            "SUBSCRIPTION_PERIOD_ENDED",
+                            "SUBSCRIPTION_GRACE_ENDED",
+                            "SUBSCRIPTION_CORRUPTED"
+                          ],
+                          "type": "string"
+                        },
+                        "correlationId": {
+                          "maxLength": 128,
+                          "minLength": 1,
+                          "pattern": "^[A-Za-z0-9._:-]+$",
+                          "type": "string"
+                        },
+                        "message": {
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "correlationId"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/v1/admin/health/recommendations": {
       "get": {
         "parameters": [

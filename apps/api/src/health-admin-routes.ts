@@ -14,7 +14,11 @@ import {
   HealthAdminTargetDetailSchema,
   HealthAdminTargetQuerySchema,
   HealthAdminTargetSummarySchema,
+  HealthNotificationAdminQuerySchema,
+  HealthNotificationIntentDetailSchema,
+  HealthNotificationIntentSummarySchema,
   HealthRecommendationSchema,
+  type HealthNotificationAdminReadRepository,
   type HealthAdminReadRepository,
 } from "@product/health";
 import type { AdminRouteGuard } from "./admin-route-guard.js";
@@ -95,6 +99,7 @@ export function registerHealthAdminRoutes(
   app: Api,
   guard: AdminRouteGuard,
   service: HealthAdminReadRepository,
+  notificationService?: HealthNotificationAdminReadRepository,
 ): void {
   app.get(
     "/v1/admin/health/targets",
@@ -227,4 +232,51 @@ export function registerHealthAdminRoutes(
       return result;
     },
   );
+  if (notificationService) {
+    app.get(
+      "/v1/admin/health/notifications",
+      {
+        schema: {
+          querystring: HealthNotificationAdminQuerySchema,
+          response: {
+            200: page(HealthNotificationIntentSummarySchema),
+            ...errors,
+          },
+        },
+      },
+      async (request, reply) => {
+        await guard.requireAdminPermission(request, "health.read");
+        const result = await read(() =>
+          notificationService.listNotifications(
+            HealthNotificationAdminQuerySchema.parse(request.query),
+          ),
+        );
+        noStore(reply);
+        return result;
+      },
+    );
+    app.get(
+      "/v1/admin/health/notifications/:id",
+      {
+        schema: {
+          params: uuidParams,
+          response: {
+            200: HealthNotificationIntentDetailSchema,
+            ...errors,
+          },
+        },
+      },
+      async (request, reply) => {
+        await guard.requireAdminPermission(request, "health.read");
+        const value = await read(() =>
+          notificationService.getNotification(
+            uuidParams.parse(request.params).id,
+          ),
+        );
+        if (!value) notFound();
+        noStore(reply);
+        return value;
+      },
+    );
+  }
 }

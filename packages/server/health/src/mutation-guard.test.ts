@@ -20,4 +20,22 @@ describe("Health product mutation boundary", () => {
     for (const mutation of mutationNames)
       expect(source).not.toContain(mutation);
   });
+
+  it("keeps the notification admin contract read-only", async () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const source = await readFile(resolve(here, "admin.ts"), "utf8");
+    expect(source).toContain("HealthNotificationAdminReadRepository");
+    expect(source).toContain("listNotifications");
+    expect(source).toContain("getNotification");
+    for (const mutation of [
+      "claimDue",
+      "markDelivered",
+      "failClaim",
+      "scheduleRetry",
+      "suppress(",
+      "deliver(",
+      "provider.send",
+    ])
+      expect(source).not.toContain(mutation);
+  });
 });

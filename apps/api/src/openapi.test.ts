@@ -66,6 +66,8 @@ describe("OpenAPI foundation", () => {
         "/v1/admin/health/evaluations/{id}",
         "/v1/admin/health/incidents",
         "/v1/admin/health/incidents/{id}",
+        "/v1/admin/health/notifications",
+        "/v1/admin/health/notifications/{id}",
         "/v1/admin/health/recommendations",
         "/v1/admin/health/targets",
         "/v1/admin/health/targets/{target_id}",

@@ -5,7 +5,10 @@ import {
   type AdminAuthRepository,
   type AdminRole,
 } from "@product/admin-auth";
-import type { HealthAdminReadRepository } from "@product/health";
+import type {
+  HealthAdminReadRepository,
+  HealthNotificationAdminReadRepository,
+} from "@product/health";
 import type { AppConfig } from "@product/shared";
 import { createApiApp } from "./app.js";
 
@@ -23,6 +26,7 @@ function fixture(role: AdminRole): {
   app: ReturnType<typeof createApiApp>;
   headers: Record<string, string>;
   service: HealthAdminReadRepository;
+  notificationService: HealthNotificationAdminReadRepository;
 } {
   const repository: AdminAuthRepository = {
     createAdminSession: vi.fn(),
@@ -53,16 +57,22 @@ function fixture(role: AdminRole): {
     getEvaluation: vi.fn(async () => null),
     listRecommendations: vi.fn(async () => ({ items: [], nextCursor: null })),
   };
+  const notificationService: HealthNotificationAdminReadRepository = {
+    listNotifications: vi.fn(async () => ({ items: [], nextCursor: null })),
+    getNotification: vi.fn(async () => null),
+  };
   const app = createApiApp({
     config,
     isInfrastructureReady: async () => true,
     adminAuthService: auth,
     healthAdminService: service,
+    healthNotificationAdminService: notificationService,
   });
   const csrf = auth.csrf(token);
   return {
     app,
     service,
+    notificationService,
     headers: { cookie: `pcp_admin_session=${token}; pcp_admin_csrf=${csrf}` },
   };
 }
@@ -105,6 +115,103 @@ describe("S2-L7 Health admin route security", () => {
       headers: f.headers,
     });
     expect(mutation.statusCode).toBe(404);
+    await f.app.close();
+  });
+
+  it.each(["ADMIN_OWNER", "ADMIN_OPS"] as const)(
+    "allows %s to list notification intents",
+    async (role) => {
+      const f = fixture(role);
+      const response = await f.app.inject({
+        method: "GET",
+        url: "/v1/admin/health/notifications?limit=1",
+        headers: f.headers,
+      });
+      expect(response.statusCode).toBe(200);
+      expect(f.notificationService.listNotifications).toHaveBeenCalledWith(
+        expect.objectContaining({ limit: 1 }),
+      );
+      await f.app.close();
+    },
+  );
+
+  it("denies support notification reads before the repository", async () => {
+    const f = fixture("ADMIN_SUPPORT");
+    const response = await f.app.inject({
+      method: "GET",
+      url: "/v1/admin/health/notifications",
+      headers: f.headers,
+    });
+    expect(response.statusCode).toBe(403);
+    expect(f.notificationService.listNotifications).not.toHaveBeenCalled();
+    await f.app.close();
+  });
+
+  it.each([
+    "ADMIN_SUPPORT",
+    "ADMIN_BILLING_READONLY",
+    "ADMIN_BETA_OPERATOR",
+  ] as const)("denies %s notification reads", async (role) => {
+    const f = fixture(role);
+    const response = await f.app.inject({
+      method: "GET",
+      url: "/v1/admin/health/notifications",
+      headers: f.headers,
+    });
+    expect(response.statusCode).toBe(403);
+    expect(f.notificationService.listNotifications).not.toHaveBeenCalled();
+    await f.app.close();
+  });
+
+  it("rejects notification limits above the Health admin maximum", async () => {
+    const f = fixture("ADMIN_OPS");
+    const response = await f.app.inject({
+      method: "GET",
+      url: "/v1/admin/health/notifications?limit=51",
+      headers: f.headers,
+    });
+    expect(response.statusCode).toBe(400);
+    expect(f.notificationService.listNotifications).not.toHaveBeenCalled();
+    await f.app.close();
+  });
+
+  it("rejects malformed notification cursors", async () => {
+    const f = fixture("ADMIN_OPS");
+    const response = await f.app.inject({
+      method: "GET",
+      url: "/v1/admin/health/notifications?cursor=not-a-cursor",
+      headers: f.headers,
+    });
+    expect(response.statusCode).toBe(400);
+    expect(f.notificationService.listNotifications).not.toHaveBeenCalled();
+    await f.app.close();
+  });
+
+  it("does not expose notification mutation methods or routes", async () => {
+    const f = fixture("ADMIN_OPS");
+    for (const method of ["POST", "PATCH", "PUT", "DELETE"] as const) {
+      const response = await f.app.inject({
+        method,
+        url: "/v1/admin/health/notifications",
+        headers: f.headers,
+      });
+      expect(response.statusCode).toBe(404);
+    }
+    expect(f.notificationService).not.toHaveProperty("claimDue");
+    expect(f.notificationService).not.toHaveProperty("markDelivered");
+    expect(f.notificationService).not.toHaveProperty("failClaim");
+    await f.app.close();
+  });
+
+  it("returns missing notification details using standard not-found behavior", async () => {
+    const f = fixture("ADMIN_OPS");
+    const response = await f.app.inject({
+      method: "GET",
+      url: "/v1/admin/health/notifications/00000000-0000-4000-8000-000000000000",
+      headers: f.headers,
+    });
+    expect(response.statusCode).toBe(404);
+    expect(f.notificationService.getNotification).toHaveBeenCalled();
     await f.app.close();
   });
 });

@@ -66,7 +66,10 @@ import { createAdminRouteGuard } from "./admin-route-guard.js";
 import type { BetaAdmissionService } from "@product/beta-access";
 import { registerBetaAdminRoutes } from "./beta-admin-routes.js";
 import { registerHealthAdminRoutes } from "./health-admin-routes.js";
-import type { HealthAdminReadRepository } from "@product/health";
+import type {
+  HealthAdminReadRepository,
+  HealthNotificationAdminReadRepository,
+} from "@product/health";
 
 export class ControlledError extends Error {
   public constructor(
@@ -96,6 +99,7 @@ export interface ApiDependencies {
   readonly adminAiService?: AdminAiService;
   readonly betaAdmissionService?: BetaAdmissionService;
   readonly healthAdminService?: HealthAdminReadRepository;
+  readonly healthNotificationAdminService?: HealthNotificationAdminReadRepository;
 }
 
 function correlationId(request: FastifyRequest): string {
@@ -347,6 +351,7 @@ export function createApiApp(
           dependencies.adminAuthService ?? unavailableAdmin,
         ),
         dependencies.healthAdminService,
+        dependencies.healthNotificationAdminService,
       );
   });
   return app;

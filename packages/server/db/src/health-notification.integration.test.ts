@@ -7,6 +7,7 @@ import {
 import {
   createDatabaseRuntime,
   createHealthNotificationRepository,
+  createHealthNotificationAdminReadRepository,
   recordLlmHealthNotificationInTransaction,
   resumeLlmHealthProductNotificationInTransaction,
   suppressLlmHealthProductNotificationsInTransaction,
@@ -21,6 +22,7 @@ const workerA = createDatabaseRuntime(connectionString);
 const workerB = createDatabaseRuntime(connectionString);
 const notificationsA = createHealthNotificationRepository(workerA);
 const notificationsB = createHealthNotificationRepository(workerB);
+const adminNotifications = createHealthNotificationAdminReadRepository(runtime);
 
 async function seedEpisode(): Promise<{
   incidentId: string;
@@ -266,6 +268,69 @@ describe.sequential(
       };
       expect(await sink.deliver(request)).toEqual(await sink.deliver(request));
       expect(sink.deliveries.size).toBe(1);
+    });
+
+    it("lists notifications with stable cursor ordering and bounded filters", async () => {
+      const first = await seedEpisode();
+      const second = await seedEpisode();
+      await runtime.transaction((q) =>
+        recordLlmHealthNotificationInTransaction(q, first.event),
+      );
+      await runtime.transaction((q) =>
+        recordLlmHealthNotificationInTransaction(q, second.event),
+      );
+      await runtime.query(
+        `UPDATE health_notification_intents SET created_at=$1,updated_at=$1`,
+        [new Date("2026-09-19T10:00:00.000Z")],
+      );
+      const page = await adminNotifications.listNotifications({ limit: 1 });
+      expect(page.items).toHaveLength(1);
+      expect(page.nextCursor).toMatch(
+        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z~[0-9a-f-]{36}$/,
+      );
+      const next = await adminNotifications.listNotifications({
+        limit: 1,
+        cursor: page.nextCursor!,
+      });
+      expect(next.items).toHaveLength(1);
+      expect(next.items[0]?.id).not.toBe(page.items[0]?.id);
+      const firstItem = (
+        await adminNotifications.listNotifications({ limit: 50 })
+      ).items.find((item) => item.incidentId === first.incidentId);
+      expect(firstItem).toBeDefined();
+      expect(
+        (
+          await adminNotifications.listNotifications({
+            limit: 50,
+            state: "PENDING",
+            severity: "CRITICAL",
+            incidentId: first.incidentId,
+            provider: firstItem!.provider,
+            surface: firstItem!.surface,
+            routeKey: "OWNER_MONITORING",
+          })
+        ).items.map((item) => item.incidentId),
+      ).toEqual([first.incidentId]);
+    });
+
+    it("projects safe detail state without payload, destination, or lease secrets", async () => {
+      const fixture = await seedEpisode();
+      await runtime.transaction((q) =>
+        recordLlmHealthNotificationInTransaction(q, fixture.event),
+      );
+      const intentId = (await notificationsA.listIntents())[0]?.id;
+      const item = await adminNotifications.getNotification(
+        intentId ?? "00000000-0000-0000-0000-000000000000",
+      );
+      expect(item).toBeDefined();
+      expect(item?.sourceDomain).toBe("LLM_HEALTH");
+      expect(item?.incident.id).toBe(fixture.incidentId);
+      expect(item?.sourceHealth.healthState).toBe("BROKEN");
+      expect(item).not.toHaveProperty("payload");
+      expect(item).not.toHaveProperty("claimToken");
+      expect(item).not.toHaveProperty("claimOwner");
+      expect(item).not.toHaveProperty("providerDeliveryId");
+      expect(item).not.toHaveProperty("providerResponseBody");
     });
 
     it("suppresses an undelivered product alert in maintenance and resumes it without a new OPEN key", async () => {

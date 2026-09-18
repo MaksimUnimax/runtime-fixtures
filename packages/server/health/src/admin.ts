@@ -8,6 +8,7 @@ import {
 import {
   BaselineContourKeySchema,
   HealthBrowserFamilySchema,
+  HealthLevelSchema,
   HealthStateSchema,
   SafeEvidenceReferenceSchema,
 } from "./types.js";
@@ -17,6 +18,51 @@ const Uuid = z.uuid();
 const Cursor = z.string().min(1).max(128).optional();
 const Limit = z.coerce.number().int().min(1).max(50).default(25);
 const OptionalText = z.string().min(1).max(128).optional();
+
+export const HealthNotificationEventKindSchema = z.enum([
+  "INCIDENT_OPENED",
+  "INCIDENT_ESCALATED",
+  "INCIDENT_RECOVERED",
+  "MAINTENANCE_ENTERED",
+  "MAINTENANCE_EXITED",
+]);
+export const HealthNotificationSeveritySchema = z.enum([
+  "INFO",
+  "WARNING",
+  "CRITICAL",
+]);
+export const HealthNotificationStateSchema = z.enum([
+  "PENDING",
+  "CLAIMED",
+  "DELIVERED",
+  "FAILED_RETRYABLE",
+  "FAILED_TERMINAL",
+  "SUPPRESSED",
+]);
+export const HealthNotificationProviderResultCodeSchema = z.enum([
+  "DELIVERED",
+  "TRANSIENT_PROVIDER_FAILURE",
+  "RATE_LIMIT",
+  "CONFIGURATION_ERROR",
+  "PERMANENT_PROVIDER_REJECTION",
+  "DISABLED_ROUTE",
+  "UNKNOWN",
+]);
+export const HealthNotificationSuppressionReasonSchema = z.enum([
+  "COOLDOWN",
+  "MAINTENANCE_ENTERED",
+  "DISABLED_ROUTE",
+  "OTHER",
+]);
+export const HealthNotificationSinkSchema = z.enum([
+  "DETERMINISTIC_TEST_SINK",
+  "DISABLED_SINK",
+]);
+export const HealthNotificationCursorSchema = z
+  .string()
+  .regex(
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z~[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+  );
 
 export const HealthAdminTargetQuerySchema = z
   .object({
@@ -86,6 +132,26 @@ export const HealthAdminRecommendationQuerySchema = z
   .strict();
 export type HealthAdminRecommendationQuery = z.infer<
   typeof HealthAdminRecommendationQuerySchema
+>;
+
+export const HealthNotificationAdminQuerySchema = z
+  .object({
+    limit: Limit,
+    cursor: HealthNotificationCursorSchema.optional(),
+    state: HealthNotificationStateSchema.optional(),
+    eventKind: HealthNotificationEventKindSchema.optional(),
+    severity: HealthNotificationSeveritySchema.optional(),
+    incidentId: Uuid.optional(),
+    provider: OptionalText,
+    surface: OptionalText,
+    routeKey: z
+      .string()
+      .regex(/^[A-Z][A-Z0-9_]{0,63}$/)
+      .optional(),
+  })
+  .strict();
+export type HealthNotificationAdminQuery = z.infer<
+  typeof HealthNotificationAdminQuerySchema
 >;
 
 export const HealthAvailabilityRecommendationSchema = z.enum([
@@ -195,6 +261,83 @@ export const HealthRecommendationSchema = z
   })
   .strict();
 export type HealthRecommendation = z.infer<typeof HealthRecommendationSchema>;
+
+const HealthNotificationSummaryFields = {
+  id: Uuid,
+  sourceDomain: z.literal("LLM_HEALTH"),
+  incidentId: Uuid,
+  eventKind: HealthNotificationEventKindSchema,
+  severity: HealthNotificationSeveritySchema,
+  state: HealthNotificationStateSchema,
+  routeKey: z.string().regex(/^[A-Z][A-Z0-9_]{0,63}$/),
+  groupCount: z.number().int().positive(),
+  attemptCount: z.number().int().nonnegative(),
+  nextAttemptAt: Timestamp,
+  deliveredAt: Timestamp.nullable(),
+  suppressionReason: HealthNotificationSuppressionReasonSchema.nullable(),
+  firstObservedAt: Timestamp,
+  latestObservedAt: Timestamp,
+  cooldownUntil: Timestamp,
+  createdAt: Timestamp,
+  updatedAt: Timestamp,
+  lastProviderResultCode: HealthNotificationProviderResultCodeSchema.nullable(),
+  providerSink: HealthNotificationSinkSchema.nullable(),
+  provider: z.string().min(1).max(64),
+  surface: z.string().min(1).max(128),
+};
+
+export const HealthNotificationIntentSummarySchema = z
+  .object(HealthNotificationSummaryFields)
+  .strict();
+export type HealthNotificationIntentSummary = z.infer<
+  typeof HealthNotificationIntentSummarySchema
+>;
+
+export const HealthNotificationIntentDetailSchema =
+  HealthNotificationIntentSummarySchema.extend({
+    dedupIdentity: z
+      .object({
+        scheme: z.literal("LLM_HEALTH_V1"),
+        eventKind: HealthNotificationEventKindSchema,
+        severity: HealthNotificationSeveritySchema,
+      })
+      .strict(),
+    claim: z
+      .object({
+        state: z.enum(["CLAIMED", "UNCLAIMED"]),
+        leaseExpiresAt: Timestamp.nullable(),
+        attempt: z.number().int().nonnegative(),
+      })
+      .strict(),
+    sourceHealth: z
+      .object({
+        healthRunId: Uuid,
+        healthState: HealthStateSchema,
+        healthLevel: HealthLevelSchema,
+        browserFamily: HealthBrowserFamilySchema,
+        browserVersion: z.string().min(1).max(64),
+        variant: z.string().min(1).max(128),
+      })
+      .strict(),
+    incident: HealthIncidentSummarySchema,
+    evidenceReferences: z.array(HealthAdminEvidenceReferenceSchema).max(32),
+    retention: z
+      .object({
+        retentionClass: z.string().min(1).max(64),
+        expiresAt: Timestamp.nullable(),
+      })
+      .strict(),
+  }).strict();
+export type HealthNotificationIntentDetail = z.infer<
+  typeof HealthNotificationIntentDetailSchema
+>;
+
+export type HealthNotificationAdminReadRepository = {
+  listNotifications(
+    input: HealthNotificationAdminQuery,
+  ): Promise<HealthAdminPage<HealthNotificationIntentSummary>>;
+  getNotification(id: string): Promise<HealthNotificationIntentDetail | null>;
+};
 
 export const HealthAdminTargetSummarySchema = z
   .object({
