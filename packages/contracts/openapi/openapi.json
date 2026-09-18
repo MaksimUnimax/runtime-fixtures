@@ -60472,7 +60472,9 @@
                           "enum": [
                             "BINDING_UPSERT",
                             "FINISH",
-                            "DELIVERY_MARKER"
+                            "DELIVERY_MARKER",
+                            "STORE_UPSERT",
+                            "STORE_TOMBSTONE"
                           ],
                           "type": "string"
                         },
@@ -60614,7 +60616,16 @@
                               "enum": [
                                 "BINDING_UPSERT",
                                 "FINISH",
-                                "DELIVERY_MARKER"
+                                "DELIVERY_MARKER",
+                                "STORE_UPSERT",
+                                "STORE_TOMBSTONE"
+                              ],
+                              "type": "string"
+                            },
+                            "lifecycleState": {
+                              "enum": [
+                                "ACTIVE",
+                                "TOMBSTONED"
                               ],
                               "type": "string"
                             },
@@ -60631,6 +60642,35 @@
                                   "type": "null"
                                 }
                               ]
+                            },
+                            "metadataRevision": {
+                              "maximum": 9007199254740991,
+                              "minimum": -9007199254740991,
+                              "type": "integer"
+                            },
+                            "name": {
+                              "maxLength": 80,
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "providerAccountId": {
+                              "anyOf": [
+                                {
+                                  "maxLength": 128,
+                                  "minLength": 1,
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "providerIdentityState": {
+                              "enum": [
+                                "CONFIRMED",
+                                "UNCONFIRMED"
+                              ],
+                              "type": "string"
                             },
                             "reconciliation": {
                               "additionalProperties": false,
@@ -61114,7 +61154,16 @@
                                     "enum": [
                                       "BINDING_UPSERT",
                                       "FINISH",
-                                      "DELIVERY_MARKER"
+                                      "DELIVERY_MARKER",
+                                      "STORE_UPSERT",
+                                      "STORE_TOMBSTONE"
+                                    ],
+                                    "type": "string"
+                                  },
+                                  "lifecycleState": {
+                                    "enum": [
+                                      "ACTIVE",
+                                      "TOMBSTONED"
                                     ],
                                     "type": "string"
                                   },
@@ -61131,6 +61180,35 @@
                                         "type": "null"
                                       }
                                     ]
+                                  },
+                                  "metadataRevision": {
+                                    "maximum": 9007199254740991,
+                                    "minimum": -9007199254740991,
+                                    "type": "integer"
+                                  },
+                                  "name": {
+                                    "maxLength": 80,
+                                    "minLength": 1,
+                                    "type": "string"
+                                  },
+                                  "providerAccountId": {
+                                    "anyOf": [
+                                      {
+                                        "maxLength": 128,
+                                        "minLength": 1,
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ]
+                                  },
+                                  "providerIdentityState": {
+                                    "enum": [
+                                      "CONFIRMED",
+                                      "UNCONFIRMED"
+                                    ],
+                                    "type": "string"
                                   },
                                   "reconciliation": {
                                     "additionalProperties": false,

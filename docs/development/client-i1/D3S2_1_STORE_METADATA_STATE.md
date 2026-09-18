@@ -2,7 +2,7 @@
 
 Work ID: `D3S2-1-STORE-METADATA-STATE-2026-09-18`
 
-Status: `IMPLEMENTED_CANDIDATE / REMOTE_NOT_VERIFIED`
+Status: `IMPLEMENTED_CANDIDATE / R1_CLOSURE_EVIDENCE / REMOTE_NOT_VERIFIED`
 
 This document records bounded local implementation evidence. It is not an
 architect acceptance, production deployment, browser-store publication, or
@@ -127,12 +127,14 @@ and `tooling/api-watch/**`.
   assertions pass except AUT-47, the externally deferred native unpacked
   Chromium MV3 registration gate.
 - Server sync/index/reconciliation tests: PASS, 16/16.
-- Full server unit suite excluding integration: PASS, 73 files and 1,552
-  tests. DB package run had 3 non-integration files pass; 8 PostgreSQL-backed
-  suites were environment-deferred because `DATABASE_URL` was not configured.
-- API suite: 17/18 files and 224/225 tests passed. The single failure is the
-  pre-existing tracked OpenAPI artifact drift check; D3S2-1 adds no API route
-  and no OpenAPI artifact was changed.
+- R0 recorded the full server unit suite as 73 files and 1,552 tests and
+  deferred PostgreSQL-backed suites because `DATABASE_URL` was not configured;
+  the R1 rerun and database receipts supersede that environment-limited
+  snapshot below.
+- R0 recorded the API suite as 17/18 files and 224/225 tests and described the
+  OpenAPI drift as pre-existing. R1's base-vs-candidate differential below
+  corrects that classification: the accepted base artifact was clean, while
+  the candidate artifact was stale after the legitimate D3S2 contract change.
 - Typecheck: contracts, server sync, server DB, and API all PASS under Node
   24.8.0.
 - Deterministic composition: repeat archive equality and source/extracted byte
@@ -151,6 +153,93 @@ Privacy review found no marketplace credentials, raw provider responses, seller
 reports, provider files, AI text, or secret-derived credential fingerprint in
 the new sync payload or server persistence. Synthetic credentials only were
 used in tests.
+
+## R1 acceptance-closure receipt
+
+Work ID: `D3S2-1-R1-STORE-METADATA-ACCEPTANCE-CLOSURE-2026-09-18`
+
+R1 started from implementation candidate `83c2feaa1223770839d3d5c67f478723a4d35746`,
+tree `d22f4b92a5af83741fc6dcf38530315687c72210`, on the same feature branch.
+The final receipt commit and tree are recorded by the terminal report; this
+document remains evidence, not an acceptance decision.
+
+The complete initial gap batch was reproduced before correction:
+
+- API: 224/225; the failing test was
+  `src/openapi.test.ts > OpenAPI foundation > accepts the tracked artifact when
+  it is generated from the current routes`.
+- PostgreSQL: no Compose binary was present, so the supported repository
+  `postgres:18.0` configuration was provisioned as a task-owned disposable
+  loopback container instead of using an owner database.
+- Chromium: bundled Playwright Chromium 151.0.7922.34 launched and the
+  current source/generated and extracted/package extension fixtures executed.
+
+The OpenAPI differential was made in detached temporary worktrees. The
+accepted base generated SHA-256
+`d263ab2aaa816d04f8b6fe0ce0b2f3e44d10617f92f917593eadaf45ad8e7414` and matched
+its tracked artifact. The pre-R1 candidate generated
+`626e7d799b49cb51553b6c1f471dcefac4d6820f093b7524706410892d5665c1`, while its
+tracked artifact was still the base hash. The generated diff added only the
+D3S2 store mutation enum and metadata schemas; route count remained 106. The
+classification is `EXPECTED_GENERATED_ARTIFACT_NOT_UPDATED`, exposed by the
+legitimate D3S2 contract change, not an unrelated pre-existing failure and not
+a design drift. The supported `pnpm openapi:generate` command updated the
+canonical artifact, and the exact stale hash in the integration acceptance
+fixture was updated only after verifying that contract diff. New artifact SHA:
+`626e7d799b49cb51553b6c1f471dcefac4d6820f093b7524706410892d5665c1`.
+
+Post-correction receipts:
+
+- API: 18 files, 225/225; `pnpm openapi:check` PASS.
+- PostgreSQL 18.0: task-owned container, migrations PASS through `0017_i1_c3e_sync_journal.sql`; inventory 18 rows; affected sync integration 1 file, 6/6; full relevant integration 40 files, 1533/1533.
+- E2E: disposable loopback database named `e2e`, 88/88 PASS. The initial
+  safety rejection against the non-`e2e` database was expected and recorded;
+  no owner or production database was used.
+- Server unit/full local suite: 108 files, 2027/2027; database unit subset
+  3 files, 12/12. Typecheck, lint, format, build, OpenAPI, and bridge guard
+  PASS.
+- Extension Core checker: PASS, 111 gate processes. Extension I1 checker:
+  PASS, 138 gate processes, with the real-unpacked proof flag for AUT-47.
+- D3/S2 matrix: 59/59. Direct C3E journal: rename/offline/tombstone/recovery
+  PASS. C3F source and extracted/package: 28/28 each; C3G: 12/12; C3H:
+  50/50; P1: 10 scenarios each; P2: 9 scenarios each; lower-layer P3:
+  7/7, 100 wake deliveries, zero duplicate wake runs.
+
+The actual unpacked Chromium receipt used Chromium 151.0.7922.34 and covered
+both source/generated and extracted/package runtimes. C1 was 36/36 on each;
+P1 and P2 were PASS on each. It exercised signed authority, multiple stores,
+store selection/rebind, restart/recovery persistence, stale credentialRevision
+fencing, delayed Finish/Health races, no historical command autorun, and
+ordinary no-control-call behavior. Metadata rename/delete/tombstone and
+server-recovery behavior are recorded separately as automated lower-layer
+proof; they are not mislabeled as Chromium-proven. The existing native P3
+harness remains a scenario mismatch: it schedules `now + 60s` and immediately
+expects a future item to drain. It failed only at that assertion; the
+lower-layer P3 model passed. No product patch was made for that harness issue.
+
+Package receipt: `SELLER_AGENTS_I1_C1_v0.2.4_LOCAL_DEVELOPMENT.zip`,
+2,030,077 bytes, SHA-256
+`2f2e3719f66a479a25a5ac64ba30a0875d9a80900c5349af9c3f1e4a24f5d9da`;
+repeat-archive equality and source/generated/extracted inventory parity PASS.
+The separately injected browser-fixture archive was also source/extracted
+byte-identical and was used only for synthetic local Chromium authority.
+
+The architecture recheck found one C3E-derived journal, one C3F-derived
+reconciliation model, no heartbeat/WebSocket/lease/polling extension, and no
+mandatory ordinary command/delivery control call. Ozon, WB, and ordinary AI
+delivery mandatory control-call counts were all zero. Provider UNKNOWN replay,
+known-response provider replay, delivery UNKNOWN automatic resend, and
+confirmed delivery duplicates were all zero. Revision-dominant tombstones
+cannot be resurrected by stale metadata; a recreated shop receives a new
+storeId. Provider/account uncertainty remains explicit and secrets remain
+local. Stream-2 implementation paths were untouched.
+
+R1 changed only the canonical generated OpenAPI artifact, its verified exact
+hash in the integration fixture, and this evidence update. No implementation
+commit was amended. No transfer, export/import, production publication, or
+Stream-2 work was started. Remote heads were read back and matched the
+preflight values, but no publication was attempted; remote publication remains
+`ENVIRONMENT_DEFERRED_REMOTE_PUBLICATION`. Architect acceptance remains open.
 
 Transfer (`A22/A23`), export/import (`A24`), browser-family certification,
 live provider certification, owner-authenticated AI tests, Health/DOM monitor,
