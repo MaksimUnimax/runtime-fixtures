@@ -177,6 +177,8 @@ type ParsedTarget = Readonly<{
 const STANDARD_TARGET_KEY = "chatgpt_standard_health" as const;
 const WORK_TARGET_KEY = "chatgpt_work_health" as const;
 const ALICE_TARGET_KEY = "alice_health" as const;
+const ALICE_DEDICATED_ROUTE =
+  /^\/chat\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function parseWorkStartUrl(value: unknown): string {
   if (typeof value !== "string" || value.length === 0 || value.length > 2_048)
@@ -210,9 +212,6 @@ function parseAliceStartUrl(value: unknown): string {
   } catch {
     fail("INVALID_ALICE_START_URL");
   }
-  const conversationMatch = parsed.pathname.match(
-    ALICE_H3_PROFILE.conversationPath,
-  );
   if (
     parsed.protocol !== "https:" ||
     parsed.origin !== ALICE_H3_PROFILE.approvedOrigin ||
@@ -220,7 +219,7 @@ function parseAliceStartUrl(value: unknown): string {
     parsed.password !== "" ||
     parsed.search !== "" ||
     parsed.hash !== "" ||
-    conversationMatch?.[0] !== parsed.pathname
+    !ALICE_DEDICATED_ROUTE.test(parsed.pathname)
   ) {
     fail("INVALID_ALICE_START_URL");
   }

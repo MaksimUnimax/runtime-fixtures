@@ -1031,6 +1031,16 @@ describe("dedicated Alice Health session capability", () => {
         aliceConfig(path, "https://alice.yandex.ru/chat/not-a-uuid"),
       "INVALID_ALICE_START_URL",
     ],
+    [
+      "AD15b",
+      "trailing slash after UUID",
+      (path: string) =>
+        aliceConfig(
+          path,
+          "https://alice.yandex.ru/chat/00000000-0000-4000-8000-000000000001/",
+        ),
+      "INVALID_ALICE_START_URL",
+    ],
   ] as const)("%s rejects %s", async (_id, _label, configFactory, code) => {
     await withTempDirectory(async (directory) => {
       const statePath = await createState(directory);
