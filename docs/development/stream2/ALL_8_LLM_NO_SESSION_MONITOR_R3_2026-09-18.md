@@ -75,7 +75,7 @@ the divergent unsupported contour.
 | Run | Repetitions | Result |
 |---|---:|---|
 | WD-16 alone | 20 | 20 pass |
-| Full dedicated-session containing suite | 20 | adjacent Alice AD16-18 churn failure observed at repetition 5; WD-16 itself passed |
+| Full dedicated-session containing suite | 5 attempted (stopped at first failure) | adjacent Alice AD16-18 churn failure at repetition 5; WD-16 itself passed in all 5 |
 | no-session suite immediately before WD-16 | 20 ordered pairs | 20 pass |
 | WD-16 immediately before no-session suite | 20 ordered pairs | 20 pass |
 
