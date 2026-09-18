@@ -950,3 +950,234 @@ genuine current-package product defect or automated Q1-A product blocker was fou
 exact next task after architect review is bounded R3 fixture-only completion of the
 installed receipt gaps Q1A-26..31, Q1A-38..43, Q1A-66, and Q1A-70..73, followed by
 architect review; do not start Q1-B/C/D/E.
+
+## R3 — fixture-only closure attempt and exact-package preflight
+
+Work ID: `Q1-A-R3-20260919-FINAL-FIXTURE-ONLY-INSTALLED-CLOSURE`.
+
+### R3 identity and boundaries
+
+- Start HEAD/tree: `55d38f40e4eb42eaaa65a7fd1d87a6ad733b6796` /
+  `b6ff3ca82baf70cf2a71156ccd1b379eede12c2d`; branch:
+  `feature/q1-a-installed-unified-matrix-2026-09-19`.
+- Accepted ancestry remains `79893dd1f9f9e54dd9959b8ffdef83f7cf4fc0dd`.
+- Live remote heads were verified unchanged:
+  `origin/main=bc718cc5c677ad0eb4598e7de3ad766473ff0847`,
+  `origin/integration/i1-c1-srv5-2026-09-16=23047b3bdc22842a5b17e29e3d3f603c0ee51b16`,
+  `origin/docs/roadmap-autonomy-correction-2026-09-18=6a48af8cd19137aaa10688c36cb064d3c4b16969`.
+- Stream-2 implementation paths `apps/health-runner/**`,
+  `packages/server/health/**`, and `tooling/api-watch/**` were not modified.
+- No production code, package source, schema, API route, transfer behavior, or
+  browser-store artifact was changed. The only implementation changes are
+  fixture/harness identity allocation in `api-harness.ts` and the three
+  installed browser helpers.
+
+### Exact package preflight
+
+The required package was not present in the repository, `/tmp`, `/root`, or
+the full local filesystem search:
+
+- required SHA-256:
+  `0d23e0e195f42c4ccc7f3492c606cf95129332aef33b6ce90a495a589f9331e8`;
+- required size/inventory: `2,076,761 bytes; 39 runtime / 39 extracted /
+  39 ZIP entries`;
+- result: `EXACT_PACKAGE_ARCHIVE_MISSING`.
+
+The available archives have different identities and were not used for any
+R3 installed result. Therefore no R3 installed result is combined with another
+package identity. Canonical Chromium is installed and reports
+`Google Chrome for Testing 151.0.7922.34` at
+`/root/.cache/ms-playwright/chromium-1234/chrome-linux64/chrome`, but the
+required archive could not be loaded for final Q1-A proof.
+
+### Clean fixture and activation correction
+
+The task-owned PostgreSQL 18.0 container `d3s2-r1-e2e-postgres` remained on
+loopback port `55446`. A disposable database
+`q1a_r3_probe_20260918_001` was created, migrated through 0018, used for the
+fixture reproduction, and dropped after capture. The API/portal method remains
+the R2 real API on `127.0.0.1:43100` and portal on
+`127.0.0.1:43101` (the transfer helper uses its bounded 43102/43103 pair).
+
+The reproduced activation failure was the fixed identity collision:
+`i1-client-one@example.test,i1-client-two@example.test`. The API child exited
+before listen, so the portal reached activation without selectable account
+state. The fixture now allocates a sanitized, stable per-run
+`SA_I1_FIXTURE_NAMESPACE` (or a fresh UUID), derives all synthetic identities
+from it, and records the namespace/emails in fixture evidence. The installed
+helpers use that same namespace, including the shared two-account and 2B
+security paths. No authenticated boolean or production bypass was added.
+
+With the corrected fixture, the existing two-profile transfer helper reached
+legitimate portal account selection, activated both synthetic profiles, and
+completed one transfer on a newly generated development runtime. This was
+harness validation only: the generated runtime did not have the required
+R3 package SHA and is not counted as an installed Q1-A pass.
+
+### Complete initial failure batch
+
+| scenario | initial outcome / first failure | classification | fix type | final outcome |
+|---|---|---|---|---|
+| Q1A-26 | no focused installed large-JSON driver; exact archive preflight then failed | TEST_DRIVER_MISSING | test driver required; blocked by missing exact archive | OPEN |
+| Q1A-27 | no focused installed XLSX/binary driver; exact archive preflight then failed | TEST_DRIVER_MISSING | test driver required; blocked by missing exact archive | OPEN |
+| Q1A-28 | no focused original-provider-file driver; exact archive preflight then failed | TEST_DRIVER_MISSING | test driver required; blocked by missing exact archive | OPEN |
+| Q1A-30 | no focused expiry/wake driver; exact archive preflight then failed | TEST_DRIVER_MISSING | test driver required; blocked by missing exact archive | OPEN |
+| Q1A-31 | no focused IDB commit-failure driver; exact archive preflight then failed | TEST_DRIVER_MISSING | test driver required; blocked by missing exact archive | OPEN |
+| Q1A-38 | activation helper had no selectable account after fixed-identity API collision | FIXTURE_DEFECT | unique namespaced identities; exact replay blocked by missing archive | OPEN |
+| Q1A-40 | same activation/account-selection failure | FIXTURE_DEFECT | shared namespaced activation fixture; exact replay blocked | OPEN |
+| Q1A-41 | same activation/account-selection failure before installed race | FIXTURE_DEFECT | shared namespaced activation fixture; exact replay blocked | OPEN |
+| Q1A-42 | same activation/account-selection failure before installed capacity gate | FIXTURE_DEFECT | shared namespaced activation fixture; exact replay blocked | OPEN |
+| Q1A-43 | same activation/account-selection failure before installed admin route | FIXTURE_DEFECT | shared namespaced activation fixture; exact replay blocked | OPEN |
+| Q1A-66 | no focused second-installation quota receipt; exact archive unavailable | TEST_DRIVER_MISSING | focused persistent-profile driver required | OPEN |
+| Q1A-70 | source-reopen custom helper hung before receipt | HARNESS_DEFECT | bounded close/reopen helper still required | OPEN |
+| Q1A-71 | 2B activation stopped at account selector before tamper/replay | FIXTURE_DEFECT | reuse namespaced shared activation fixture; exact replay blocked | OPEN |
+| Q1A-72 | 2B activation stopped at account selector before isolation smoke | FIXTURE_DEFECT | reuse namespaced shared activation fixture; exact replay blocked | OPEN |
+| Q1A-73 | 2B activation stopped at account selector before privacy audit | FIXTURE_DEFECT | reuse namespaced shared activation fixture; exact replay blocked | OPEN |
+
+No production patch was considered or made. The only corrected root cause
+reproduced in R3 was fixture identity reuse.
+
+### R3 results and non-results
+
+Q1A-26, Q1A-27, Q1A-28, Q1A-30, Q1A-31, Q1A-38, Q1A-40, Q1A-41,
+Q1A-42, Q1A-43, Q1A-66, Q1A-70, Q1A-71, Q1A-72, and Q1A-73 do not have
+R3 exact-package installed PASS receipts. No provider, AI, expiry, IDB,
+quota, capacity, transfer, replay, or privacy claim is promoted from the
+substitute-package activation probe.
+
+The corrected fixture was validated with real PostgreSQL/API/portal and real
+MV3 workers on Chromium 151.0.7922.34 for the bounded activation/transfer
+probe. Provider calls and AI sends were zero in that probe. The exact package
+worker result remains `NOT_RUN` because its archive is absent.
+
+### R3 authoritative Q1A-01..91 matrix
+
+| ID | final classification | evidence |
+|---|---|---|
+| Q1A-01 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-02 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-03 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-04 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-05 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-06 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-07 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-08 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-09 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-10 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-11 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-12 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-13 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-14 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-15 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-16 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-17 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-18 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-19 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-20 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-21 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-22 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-23 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-24 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-25 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-26 | TEST_DRIVER_MISSING | no focused installed driver; exact receipt not emitted |
+| Q1A-27 | TEST_DRIVER_MISSING | no focused installed driver; exact receipt not emitted |
+| Q1A-28 | TEST_DRIVER_MISSING | no focused installed driver; exact receipt not emitted |
+| Q1A-29 | INSTALLED_PASS | R2 exact-package materialization |
+| Q1A-30 | TEST_DRIVER_MISSING | no focused installed driver; exact receipt not emitted |
+| Q1A-31 | TEST_DRIVER_MISSING | no focused installed driver; exact receipt not emitted |
+| Q1A-32 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-33 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-34 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-35 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-36 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-37 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-38 | BROWSER_ENVIRONMENT_DEFECT | exact archive absent; fixture correction cannot be counted with another package |
+| Q1A-39 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-40 | BROWSER_ENVIRONMENT_DEFECT | exact archive absent; fixture correction cannot be counted with another package |
+| Q1A-41 | BROWSER_ENVIRONMENT_DEFECT | exact archive absent; fixture correction cannot be counted with another package |
+| Q1A-42 | BROWSER_ENVIRONMENT_DEFECT | exact archive absent; fixture correction cannot be counted with another package |
+| Q1A-43 | BROWSER_ENVIRONMENT_DEFECT | exact archive absent; fixture correction cannot be counted with another package |
+| Q1A-44 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-45 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-46 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-47 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-48 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-49 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-50 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-51 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-52 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-53 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-54 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-55 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-56 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-57 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-58 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-59 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-60 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-61 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-62 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-63 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-64 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-65 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-66 | BROWSER_ENVIRONMENT_DEFECT | exact archive absent; fixture correction cannot be counted with another package |
+| Q1A-67 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-68 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-69 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-70 | HARNESS_DEFECT | source-reopen helper remains unimplemented/hung; no exact receipt |
+| Q1A-71 | BROWSER_ENVIRONMENT_DEFECT | exact archive absent; fixture correction cannot be counted with another package |
+| Q1A-72 | BROWSER_ENVIRONMENT_DEFECT | exact archive absent; fixture correction cannot be counted with another package |
+| Q1A-73 | BROWSER_ENVIRONMENT_DEFECT | exact archive absent; fixture correction cannot be counted with another package |
+| Q1A-74 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-75 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-76 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-77 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-78 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-79 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-80 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-81 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-82 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-83 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-84 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-85 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-86 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-87 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-88 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-89 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-90 | INSTALLED_PASS | carried R2 exact-package receipt |
+| Q1A-91 | INSTALLED_PASS | carried R2 exact-package receipt |
+
+The carried R2 PASS rows remain valid because they retain their exact package
+identity. The R3 OPEN rows are not accepted as Q1-A closure.
+
+### Regression, safety, privacy, and governance
+
+- Fixture-helper Python syntax passed; API-harness formatting was corrected.
+  The namespaced activation/transfer probe passed on the substitute generated
+  runtime. Full R3 remaining-matrix, representative smoke, A22/A23, beta,
+  auth, Core, I1, application, and bridge reruns were not claimable because
+  the required exact archive was absent.
+- No new safety receipt is claimed. Existing R2 safety remains:
+  ordinary Ozon/WB/AI control calls 0; provider UNKNOWN replay 0; known-response
+  redispatch 0; delivery UNKNOWN resend 0; confirmed duplicate 0; Health
+  heartbeat 0; command-time Bootstrap 0; transfer provider/AI calls 0; backup
+  provider/AI calls 0.
+- No new privacy receipt is claimed. Existing R2 synthetic-marker evidence
+  remains the carried result; R3 found no privacy regression.
+- Q1-B browser-family, Q1-C owner/live provider/AI/account, Q1-D
+  admin/preprod/release, and Q1-E monitoring consumption remain deferred and
+  were not started.
+- Remote publication remains
+  `ENVIRONMENT_DEFERRED_REMOTE_PUBLICATION`; no force push, reset, rebase,
+  amend, or publication was performed.
+- Disk free space was approximately 468 MB at preflight and 477 MB after the
+  disposable database was dropped. No broad cleanup was performed.
+
+### R3 disposition
+
+R3 does not recommend architect acceptance. Recommended status remains
+`Q1A_PARTIAL_ENVIRONMENT_DEFERRED` with explicit open fixture/test-driver
+work, not a product defect. The exact next bounded task is to restore the
+required exact archive, add the focused Q1A-26/27/28/30/31/66 drivers, implement
+the bounded source close/reopen helper, run the corrected shared activation
+fixture for Q1A-38/40/41/42/43/71/72/73, then run the requested regression
+matrix and return to architect review. Do not start Q1-B/C/D/E.
