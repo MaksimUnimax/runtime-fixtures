@@ -192,8 +192,9 @@ set; no database server was available via `pg_isready`.
 `repro/sa-i1-c2-3c1-r1-20260918`,
 `repro/sa-i1-c2-3c1-r2-20260918`, and
 `repro/sa-i1-c2-3c2-offline-continuation-authority-20260918-01`; no C3E file
-adds a documentation error. The final candidate commit SHA/tree are recorded
-in the terminal report after commit. Remote publication is deferred because no
+adds a documentation error. The implementation candidate commit is
+`422d9833568aeb8c645ff962ab151c6aa162a469` with tree
+`f82cf0963a8edd16e228207d5a80dc6a7d5ec15a`. Remote publication is deferred because no
 legitimate publication process was available. Existing deferred ledger entries
 remain: `OWNER_DEFERRED_TEST-I1-ONLINE-WORK-HEALTH-20260917`,
 `PROVISIONAL_OWNER_REVIEW-HEALTH-TTL-20260917`,
@@ -201,6 +202,3 @@ remain: `OWNER_DEFERRED_TEST-I1-ONLINE-WORK-HEALTH-20260917`,
 SUPERSEDED_BY_OWNER`, `ENVIRONMENT_DEFERRED_REMOTE_PUBLICATION`, and
 `PREEXISTING_DOCS_CHECK_FAILURES`. Health and marketplace monitoring remain
 `OWNED_BY_PARALLEL_STREAM_2`; no Stream 2 implementation was changed.
-
-Candidate commit/tree, package receipt, complete regression results, and any
-pre-existing documentation failures are filled after the final validation run.
