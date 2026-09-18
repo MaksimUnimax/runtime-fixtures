@@ -26,12 +26,16 @@ after two bounded fixes. Remaining gaps are explicitly deferred below.
   - `origin/docs/roadmap-autonomy-correction-2026-09-18` = `6a48af8cd19137aaa10688c36cb064d3c4b16969`
 - No force push, reset, rebase, amend, or merge was used.
 
-Final local candidate:
+Pre-receipt local implementation candidate:
 
 - HEAD: `1809b15042227ae1134271100bbc485b468af45d`
 - tree: `9ade0a18420997c36e6cc96411307da5db4079b3`
 - acceptance commits: `8369401f4558e8710fa94f210b2100ac1487d0ce` and
   `1809b15042227ae1134271100bbc485b468af45d`
+
+The final documentation-receipt commit is the next commit on this branch; its
+exact SHA/tree are reported in the terminal handoff so this document does not
+claim a hash that would change when the receipt itself is committed.
 
 Final candidate commit and tree are recorded after validation in the terminal
 handoff. The pre-change base and tree above are immutable acceptance inputs.
