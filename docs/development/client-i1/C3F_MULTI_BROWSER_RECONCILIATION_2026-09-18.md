@@ -14,8 +14,9 @@ ancestry is preserved:
 
 `ed32fc1` → `3ae08e3` → `d91aa70` → `2b2ca0c` → `2809415` → `eeb943f`.
 
-The final candidate commit and tree are recorded in the terminal report after
-the documentation/package commit.
+The implementation candidate commit is `b72d2ed2fe52383f1c6644233bcba346f0908339`,
+tree `3d0a536271138ae91b95c938a0e7ea02a181deac`. The documentation commit that
+records this identity is the follow-up commit on the same feature branch.
 
 ## Consistency model
 
