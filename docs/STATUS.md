@@ -98,3 +98,17 @@ architect acceptance. See [the final consolidated receipt](development/q1/Q1_A_F
   not complete.
 - Next recommended independent lane after architect review:
   `Q1-B-20260919-AVAILABLE-BROWSER-FAMILY-MATRIX-AND-MV3-DIFFERENTIAL`.
+
+## Q1-B browser-family matrix — 2026-09-19
+
+Recommended disposition: `Q1B_PARTIAL_ENVIRONMENT_DEFERRED`; Codex does not
+self-accept Q1-B. Playwright Chromium 151 remains the only accepted browser
+evidence. Real Chrome 147, Opera, Yandex, Firefox runtime, and Safari remain
+browser/environment deferred. A deterministic Firefox carrier was added from
+the common runtime and is package-ready, not runtime-accepted. See [Q1-B
+browser-family matrix](development/q1/Q1_B_BROWSER_FAMILY_MATRIX_2026-09-19.md).
+
+The Chrome 147 differential reproduced branded Chrome refusal of
+`--load-extension` and `--disable-extensions-except`; this is an environment
+launch boundary, not a product-worker or manifest defect. Q1 overall, Q1-C,
+Q1-D, Q1-E, deployment, publication, and monetization remain open.

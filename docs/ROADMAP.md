@@ -119,3 +119,14 @@ architect acceptance. See [the final consolidated receipt](development/q1/Q1_A_F
   publication, and environment gates remain deferred.
 - Recommended next independent Stream-1 lane after architect review:
   `Q1-B-20260919-AVAILABLE-BROWSER-FAMILY-MATRIX-AND-MV3-DIFFERENTIAL`.
+
+## Q1-B browser-family matrix — 2026-09-19
+
+Recommended status: `Q1B_PARTIAL_ENVIRONMENT_DEFERRED`; architect review is
+required. The exact Q1-A package passes canonical Playwright Chromium 151
+reference evidence. System Google Chrome 147 was tested directly, but branded
+Chrome rejects the unpacked-extension command-line flags, so Chrome is not
+accepted from that run. Opera, Yandex, real Firefox, and Safari remain
+deferred. A deterministic Firefox-specific package was implemented from the
+unified runtime and is ready for a real Firefox environment. See [the Q1-B
+receipt](development/q1/Q1_B_BROWSER_FAMILY_MATRIX_2026-09-19.md).

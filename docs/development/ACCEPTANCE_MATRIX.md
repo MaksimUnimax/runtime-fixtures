@@ -77,3 +77,12 @@ Playwright Chromium `151.0.7922.34`. This is canonical synthetic installed
 acceptance pending architect decision; it is not Q1 overall completion and it
 does not claim Q1-B browser-family, Q1-C owner/live, Q1-D release, or Q1-E
 Stream-2 monitoring acceptance.
+
+## Q1-B browser-family matrix — 2026-09-19
+
+The Q1-B investigation recommends `Q1B_PARTIAL_ENVIRONMENT_DEFERRED` and is
+not self-accepted. Exact browser-specific evidence, package SHAs, Chrome 147
+root cause, Firefox carrier, and Opera/Yandex/Firefox/Safari procedures are in
+[Q1-B browser-family matrix](q1/Q1_B_BROWSER_FAMILY_MATRIX_2026-09-19.md).
+Chromium 151 evidence never transfers to Chrome, Opera, Yandex, Firefox, or
+Safari.
