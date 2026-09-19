@@ -1627,7 +1627,10 @@ relay semantics without redesigning the relay.
   central transfer lease for ordinary Work `0`.
 - Focused auth tests passed `18/18`, credential-transfer tests passed `9/9`,
   TypeScript validation of the R5C API harness passed, and bridge guard passed.
-  C3F passed `28/28` and C3G passed `12/12`. The broader generic C3E harness
+  P1 passed on source and extracted runtimes, P2 passed on source and
+  extracted runtimes, and P3 passed on source and extracted runtimes with zero
+  periodic scheduler alarms. C3F passed `28/28` and C3G passed `12/12`. The
+  broader generic C3E harness
   currently reports two pre-existing assertion/harness mismatches (C3E-01 and
   C3E-04), while C3H is green except the already-known AUT-47 native-MV3
   registration environment deferral. These were not transfer product defects
