@@ -78,3 +78,23 @@ it is not started in this task.
 ## Как обновлять
 
 Для каждого принятого изменения указывать версию/коммит, вид проверки, результат и ограничения. Нельзя одновременно оставлять текущему этапу статусы DONE и PENDING. Исторические неуспешные попытки находятся в evidence, а не в текущей строке.
+
+## Q1-A final installed consolidation — 2026-09-19
+
+Q1-A canonical synthetic installed automated acceptance is complete, pending
+architect acceptance. See [the final consolidated receipt](development/q1/Q1_A_FINAL_CONSOLIDATED_ACCEPTANCE_2026-09-19.md).
+
+- Recommended status: `Q1A_READY_FOR_ARCHITECT_ACCEPTANCE` (not self-accepted).
+- Q1A-01..91: all `INSTALLED_PASS` on frozen package SHA
+  `93ba77f6fcac9932e991c94eded2d9638bb38c9990b8fcefd826d737aaf8d476` with
+  Playwright Chromium `151.0.7922.34`.
+- No Q1-A production extension/server/contract/schema or Stream-2 implementation
+  change was made. Zero-control, no-replay, privacy, and architecture
+  uniqueness receipts remain consistent.
+- The pre-existing untracked `repro/` docs-check failure is unrelated and
+  non-blocking. Remote publication remains
+  `ENVIRONMENT_DEFERRED_REMOTE_PUBLICATION`.
+- Q1 overall, Q1-B, Q1-C, Q1-D, Q1-E, deployment, release, and publication are
+  not complete.
+- Next recommended independent lane after architect review:
+  `Q1-B-20260919-AVAILABLE-BROWSER-FAMILY-MATRIX-AND-MV3-DIFFERENTIAL`.

@@ -1,5 +1,7 @@
 # Q1-A Installed Unified Functional Matrix — 2026-09-19
 
+Current status is superseded by [Q1-A final consolidated acceptance](Q1_A_FINAL_CONSOLIDATED_ACCEPTANCE_2026-09-19.md). This file remains the additive historical R1–R5 evidence record; its earlier partial/deferred dispositions must not override the later consolidated receipt.
+
 Work ID: `Q1-A-20260919-INSTALLED-UNIFIED-FUNCTIONAL-MATRIX-AND-CURRENT-PACKAGE-REPLAY`
 
 Recommendation: `Q1A_PARTIAL_ENVIRONMENT_DEFERRED`

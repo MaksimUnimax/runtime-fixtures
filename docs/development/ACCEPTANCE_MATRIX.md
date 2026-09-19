@@ -66,3 +66,14 @@ In particular, A22, A23, and A24 are bounded automated candidates on the
 current integrated Stream-1 tree; A28 remains owned by parallel Stream 2; and
 owner/live, browser/environment, Q1, provisional-review, and publication gates
 remain deferred rather than being converted to PASS.
+
+## Q1-A canonical installed matrix — 2026-09-19
+
+The authoritative Q1-A installed matrix is maintained separately in [Q1-A
+final consolidated acceptance](q1/Q1_A_FINAL_CONSOLIDATED_ACCEPTANCE_2026-09-19.md).
+It reconciles Q1A-01..91 to `INSTALLED_PASS` on the exact frozen package
+`93ba77f6fcac9932e991c94eded2d9638bb38c9990b8fcefd826d737aaf8d476` using
+Playwright Chromium `151.0.7922.34`. This is canonical synthetic installed
+acceptance pending architect decision; it is not Q1 overall completion and it
+does not claim Q1-B browser-family, Q1-C owner/live, Q1-D release, or Q1-E
+Stream-2 monitoring acceptance.

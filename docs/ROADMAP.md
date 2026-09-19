@@ -101,3 +101,21 @@ it is a handoff only and is not started here.
 Chrome, Opera, Yandex, Firefox и Safari — архитектурные цели. Принятая поддержка фиксируется по фактическому браузеру/ОС/ИИ/пакету.
 Отсутствие Mac не разрешает назвать Safari проверенным. До реальной приёмки отображается соответствующий статус.
 Новые ИИ подключаются отдельными адаптерами после проверки; их число не является мерой готовности беты.
+
+## Q1-A installed automated lane — 2026-09-19
+
+The canonical Q1-A synthetic installed matrix is complete and pending
+architect acceptance. See [the final consolidated receipt](development/q1/Q1_A_FINAL_CONSOLIDATED_ACCEPTANCE_2026-09-19.md).
+
+- Status: `Q1A_READY_FOR_ARCHITECT_ACCEPTANCE` — recommendation only; Codex does
+  not self-accept.
+- Q1A-01..91 are all `INSTALLED_PASS` on frozen package SHA
+  `93ba77f6fcac9932e991c94eded2d9638bb38c9990b8fcefd826d737aaf8d476`, with
+  canonical Playwright Chromium `151.0.7922.34`.
+- Q1-A closure changed no production extension, server, contract, schema, or
+  Stream-2 implementation files. Generic C3E mismatches are pre-existing and
+  non-canonical; canonical C3E remains green.
+- Q1 overall, Q1-B, Q1-C, Q1-D, and Q1-E remain open. Owner, browser-family,
+  publication, and environment gates remain deferred.
+- Recommended next independent Stream-1 lane after architect review:
+  `Q1-B-20260919-AVAILABLE-BROWSER-FAMILY-MATRIX-AND-MV3-DIFFERENTIAL`.
