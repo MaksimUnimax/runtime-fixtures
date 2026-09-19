@@ -396,7 +396,7 @@ async function hydrateTarget(runtime: DatabaseRuntime, row: Row) {
       ),
     );
   const evidenceRows = await runtime.query<Row>(
-    `SELECT evidence_id AS "evidenceId",rule_id AS "ruleId",classification,sha256 FROM health_evidence_references WHERE run_id=$1 ORDER BY contour_key,evidence_id LIMIT 32`,
+    `SELECT evidence_id AS "evidenceId",rule_id AS "ruleId",classification,sha256,size_bytes AS "sizeBytes" FROM health_evidence_references WHERE run_id=$1 ORDER BY contour_key,evidence_id LIMIT 32`,
     [row.run_id],
   );
   const contourRows = await runtime.query<Row>(
