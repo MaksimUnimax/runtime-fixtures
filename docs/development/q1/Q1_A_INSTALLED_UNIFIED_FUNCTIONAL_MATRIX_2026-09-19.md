@@ -1419,10 +1419,10 @@ matrix is not an acceptance claim.
 | Q1A-67 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
 | Q1A-68 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
 | Q1A-69 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
-| Q1A-70 | R4_OPEN_DRIVER_OR_FLOW | final-package installed receipt not established in this bounded pass; see scope below. |
-| Q1A-71 | R4_OPEN_DRIVER_OR_FLOW | final-package installed receipt not established in this bounded pass; see scope below. |
-| Q1A-72 | R4_OPEN_DRIVER_OR_FLOW | final-package installed receipt not established in this bounded pass; see scope below. |
-| Q1A-73 | R4_OPEN_DRIVER_OR_FLOW | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-70 | INSTALLED_PASS | R5C fixed-package bounded source-offline/reopen receipt. |
+| Q1A-71 | INSTALLED_PASS | R5C fixed-package relay-boundary tamper and replay receipt. |
+| Q1A-72 | INSTALLED_PASS | R5C fixed-package account/device isolation receipt. |
+| Q1A-73 | INSTALLED_PASS | R5C fixed-package durable-storage privacy/process-loss receipt. |
 | Q1A-74 | REPRESENTATIVE_SMOKE_BOUNDARY | final-package installed receipt not established in this bounded pass; see scope below. |
 | Q1A-75 | REPRESENTATIVE_SMOKE_BOUNDARY | final-package installed receipt not established in this bounded pass; see scope below. |
 | Q1A-76 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
@@ -1471,6 +1471,192 @@ remaining beta/capacity/quota and transfer/privacy rows with fresh task-owned
 PostgreSQL databases and persistent Chromium profiles, rerun the complete
 representative smoke and required regression set, then return for architect
 review. Do not start Q1-B/Q1-C/Q1-D/Q1-E.
+
+## Q1-A-R5C CURRENT-PACKAGE TRANSFER REOPEN / SECURITY / PRIVACY CLOSURE
+
+Work ID: `Q1-A-R5C-20260919-CURRENT-PACKAGE-TRANSFER-REOPEN-SECURITY-PRIVACY-CLOSURE`
+
+This bounded section closes only Q1A-70, Q1A-71, Q1A-72, and Q1A-73. It does
+not reopen the accepted R5A/R5B/R5B-R1 rows and does not start Q1-B, Q1-C,
+Q1-D, Q1-E, S1.2, deployment, publication, or monetization.
+
+### Git, package, and environment
+
+- Start HEAD/tree: `966b2ff6666b6b3610c547dcee2f66774e9c2940` /
+  `b4f4d6c6f990861ae1833bdb4f7ab7a8e29646d1`.
+- Final bounded changes are test/harness and this evidence document only;
+  final commit IDs are reported in the terminal handoff. No reset, rebase,
+  amend, force push, or unrelated cleanup was used.
+- Remote heads remained `origin/main`
+  `bc718cc5c677ad0eb4598e7de3ad766473ff0847`,
+  `origin/integration/i1-c1-srv5-2026-09-16`
+  `23047b3bdc22842a5b17e29e3d3f603c0ee51b16`, and
+  `origin/docs/roadmap-autonomy-correction-2026-09-18`
+  `6a48af8cd19137aaa10688c36cb064d3c4b16969`.
+- Fixed package:
+  `/tmp/q1a-r5b-exact-build-r1.aBhrHj/package/SELLER_AGENTS_I1_C1_v0.2.4_LOCAL_DEVELOPMENT.zip`.
+  SHA-256 before/after:
+  `93ba77f6fcac9932e991c94eded2d9638bb38c9990b8fcefd826d737aaf8d476`;
+  size `2,076,757` bytes; inventory `39 runtime / 39 extracted / 39 ZIP`.
+- Canonical worker: Playwright Chromium `151.0.7922.34`, executable
+  `/root/.cache/ms-playwright/chromium-1234/chrome-linux64/chrome`.
+- Task-owned disposable Q1 profiles, extracts, logs, build caches, and the
+  obsolete Q1 database volume were removed. Approximate reclaimed material was
+  505 MB plus the obsolete task-owned PostgreSQL volume; no accepted evidence,
+  Git history, owner file, Stream-2 data, or arbitrary Docker volume was
+  removed. Final disk headroom was approximately 1.1 GB.
+
+### Fixture and initial failure batch
+
+The final fixture used PostgreSQL `18.0` on port `55446`, database
+`q1a_r5c_final_20260919_042300`, migrations through `0018`, API
+`127.0.0.1:43100`, portal `127.0.0.1:43101`, and namespace
+`q1ar5cfinal0423`. The real activation procedure created one shared account
+with distinct source, bound-recipient, and wrong-device identities, plus a
+separate wrong-account identity. No privileged storage injection or bypass
+route was used.
+
+The complete initial batch was attempted before any production modification:
+
+| Row | Initial classification | Reason |
+|---|---|---|
+| Q1A-70 | `SOURCE_REOPEN_HARNESS_DEFECT` | opaque helper had no bounded phase receipt |
+| Q1A-71 | `TRANSFER_SECURITY_HARNESS_DEFECT` | installed packet-fetch tamper interception was absent |
+| Q1A-72 | `TRANSFER_SECURITY_HARNESS_DEFECT` | installed account/device receipt was incomplete |
+| Q1A-73 | `TRANSFER_SECURITY_HARNESS_DEFECT` | durable all-surface marker scan was absent |
+
+No production defect was found and no production source was changed.
+
+### Instrumented source close/reopen trace
+
+Every phase was bounded. All phases passed; the durations below are in
+milliseconds and are intentionally safe metadata only:
+
+`SOURCE_PROFILE_CREATE_START 0`, `SOURCE_BROWSER_STARTED 1`,
+`SOURCE_WORKER_READY 0`, `SOURCE_AUTH_READY 229`,
+`SOURCE_ACCOUNT_SELECTED 5307`, `SOURCE_STORE_READY 6`;
+`RECIPIENT_PROFILE_CREATE_START 0`, `RECIPIENT_BROWSER_STARTED 0`,
+`RECIPIENT_WORKER_READY 0`, `RECIPIENT_AUTH_READY 234`,
+`RECIPIENT_ACCOUNT_SELECTED 5263`;
+`WRONG_DEVICE_PROFILE_CREATE_START 0`, `WRONG_DEVICE_BROWSER_STARTED 0`,
+`WRONG_DEVICE_WORKER_READY 0`, `WRONG_DEVICE_AUTH_READY 261`,
+`WRONG_DEVICE_ACCOUNT_SELECTED 5272`;
+`WRONG_ACCOUNT_PROFILE_CREATE_START 0`, `WRONG_ACCOUNT_BROWSER_STARTED 0`,
+`WRONG_ACCOUNT_WORKER_READY 0`, `WRONG_ACCOUNT_AUTH_READY 251`,
+`WRONG_ACCOUNT_ACCOUNT_SELECTED 5295`;
+`SOURCE_STORE_READY 3`, `SOURCE_BROWSER_CLOSE_START 0`,
+`SOURCE_BROWSER_CLOSED 0`, `SOURCE_PROCESS_EXIT_CONFIRMED 3`,
+`SOURCE_PROFILE_LOCK_RELEASED 4`;
+`RECIPIENT_REQUEST_CREATE_START 0`, `RECIPIENT_REQUEST_CREATED 1`,
+`RECIPIENT_CONSENT_REGISTERED 0`, `REQUEST_PENDING_SOURCE_OFFLINE 0`,
+`NO_PACKET_AVAILABLE 18`;
+`SOURCE_PROFILE_REOPEN_START 0`, `SOURCE_BROWSER_RESTARTED 0`,
+`SOURCE_WORKER_RESTARTED 0`, `SOURCE_AUTH_RESTORED 0`,
+`SOURCE_ACCOUNT_RESTORED 0`, `SOURCE_DISCOVERY_TRIGGERED 0`,
+`SOURCE_REQUEST_DISCOVERED 0`, `SOURCE_PACKET_ENCRYPTED 0`,
+`SOURCE_PACKET_SUBMITTED 13`;
+`RECIPIENT_PACKET_FETCHED 0`, `RECIPIENT_DECRYPTED 0`,
+`RECIPIENT_IMPORT_COMMITTED 1`, `RECIPIENT_ACK_SENT 0`,
+`TRANSFER_COMPLETED 17`.
+
+The historical hang maps exactly to `HARNESS_WAIT_CONDITION_WRONG`: the old
+opaque helper waited for source-side packet/completion while the source profile
+was closed. The new trace separates browser exit/profile unlock, truthful
+`REQUESTED`/no-packet state, same-profile auth restoration, explicit discovery,
+and packet submission. No unbounded wait remains.
+
+### Q1A-70 — installed source offline and later recovery
+
+`INSTALLED_PASS` on the fixed package. The source process exited and all
+profile lock files were absent before the recipient request. The server row
+was `REQUESTED`, with recipient/account metadata and no source device yet;
+packet fetch returned no packet. Reopening the same profile restored the same
+account, device, session, and extension identity. Explicit extension contact
+discovered the request, encrypted/submitted the packet, and the bound recipient
+decrypted, imported, ACKed, and completed it once. Duplicate import count was
+zero and transfer timers were empty before and after a two-second idle window.
+
+### Q1A-71 — tamper and replay
+
+`INSTALLED_PASS`. A ciphertext bit was changed at the R5C relay-boundary test
+interceptor after the real installed fetch path. The recipient rejected it
+before import: one interception, zero credential writes, no catalog change,
+and no successful ACK. A fresh legitimate packet completed. Replaying the
+completed artifact was rejected/no-op, with zero duplicate imports and zero
+credential-revision increment after replay.
+
+### Q1A-72 — account and device isolation
+
+`INSTALLED_PASS`. Account B received `404` on read and `409` on source-seen,
+packet, and cancel. The wrong same-account device received `404` on read,
+`409` on packet/cancel, and `400` on ACK. The bound recipient imported and ACKed
+successfully. Foreign credential writes were zero and safe error payloads
+contained no secret leakage.
+
+### Q1A-73 — durable-storage privacy
+
+`INSTALLED_PASS`. At request creation, after packet submission/fetch, and after
+completion, the scan covered 301 PostgreSQL application text/JSON/UUID columns
+through a data-only database dump, transfer metadata/events, queues/jobs,
+outbox/C3E records, API/portal logs, and task-owned log surfaces. The Ozon
+Seller marker, WB marker, packet marker, and packet-envelope fingerprint all
+had zero matches at every point. Plaintext durable matches `0`, ciphertext
+durable matches `0`, C3E secret matches `0`, queue/job matches `0`, log matches
+`0`, backup auto-upload `0`, and AI attachment/send `0`. Marker values are not
+stored in this document.
+
+The process-loss smoke showed packet `PACKET_AVAILABLE_EPHEMERAL` before API
+restart, safe request metadata retained after restart, packet fetch `409`
+after restart, and one safe resubmission/import. This preserves memory-only
+relay semantics without redesigning the relay.
+
+### Safety, regression, and governance receipts
+
+- Ozon Seller+Performance shape remains the accepted exact-package Q1A-68
+  installed receipt and was not redundantly replayed; current R5C exercised
+  Ozon Seller and WB shapes on the frozen package. Current transfer-domain
+  regression passed in both source-generated and extracted runtimes, including
+  the retained A22/A23 transfer domain `9/9`, WB happy transfer, expiry,
+  logout/revoke, replay, conflict/tombstone, tamper, offline/recovery, and
+  process-loss cases.
+- Transfer provider calls `0`; transfer AI sends `0`; ordinary Ozon control
+  calls `0`; ordinary WB control calls `0`; ordinary AI-delivery control calls
+  `0`; provider UNKNOWN auto replay `0`; known-response redispatch `0`; AI
+  UNKNOWN resend `0`; confirmed duplicate delivery `0`; Health heartbeat `0`;
+  command-time mandatory Bootstrap `0`; permanent transfer polling timers `0`;
+  central transfer lease for ordinary Work `0`.
+- Focused auth tests passed `18/18`, credential-transfer tests passed `9/9`,
+  TypeScript validation of the R5C API harness passed, and bridge guard passed.
+  C3F passed `28/28` and C3G passed `12/12`. The broader generic C3E harness
+  currently reports two pre-existing assertion/harness mismatches (C3E-01 and
+  C3E-04), while C3H is green except the already-known AUT-47 native-MV3
+  registration environment deferral. These were not transfer product defects
+  and were not hidden or changed in R5C.
+- The current compact cross-lane smoke covered exact-package authenticated
+  transfer, tamper/replay, isolation, process loss, C3F reconciliation, C3G
+  authority/zero-control, auth, and credential-transfer boundaries. Prior
+  accepted R5A/R5B/R5B-R1 receipts remain authoritative for the other listed
+  Q1-A smoke items; Q1-B/Q1-C/Q1-D/Q1-E remain outside scope.
+- Stream-2 implementation/evidence paths `apps/health-runner/**`,
+  `packages/server/health/**`, and `tooling/api-watch/**` were not modified.
+- Remote publication remains `ENVIRONMENT_DEFERRED_REMOTE_PUBLICATION`; no
+  claim of `REMOTE_VERIFIED` is made.
+
+### Final R5C matrix disposition
+
+| Row | Current status | Evidence |
+|---|---|---|
+| Q1A-70 | `INSTALLED_PASS` | bounded same-profile source offline/reopen on fixed package |
+| Q1A-71 | `INSTALLED_PASS` | relay-boundary ciphertext tamper and post-ACK replay |
+| Q1A-72 | `INSTALLED_PASS` | wrong-account/wrong-device route isolation |
+| Q1A-73 | `INSTALLED_PASS` | durable PostgreSQL/log/queue/C3E privacy scan and process loss |
+
+No Q1-A synthetic installed row remains open after applying this R5C closure.
+This is a recommendation for architect review, not self-acceptance:
+`R5C_READY_FOR_ARCHITECT_ACCEPTANCE`.
+
+Recommended next task (not started here):
+`Q1-A-FINAL-20260919-CONSOLIDATED-INSTALLED-ACCEPTANCE-AND-Q1-NEXT-LANE-HANDOFF`.
 
 ## Q1-A-R5A FILE/RESULT INSTALLED CLOSURE
 

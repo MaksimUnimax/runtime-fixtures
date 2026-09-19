@@ -41,6 +41,32 @@ import {
 } from "@product/remote-config";
 import { CredentialTransferService } from "../../../../packages/server/credential-transfer/src/index.ts";
 
+class R5CTestCredentialTransferService extends CredentialTransferService {
+  private tamperRequestId: string | null = null;
+  private tamperHits = 0;
+  private receiveCalls = 0;
+
+  public setTamperRequest(requestId: string | null): void {
+    this.tamperRequestId = requestId;
+  }
+
+  public tamperState(): { requestId: string | null; hits: number; receiveCalls: number } {
+    return { requestId: this.tamperRequestId, hits: this.tamperHits, receiveCalls: this.receiveCalls };
+  }
+
+  public override async receive(principal: Parameters<CredentialTransferService["receive"]>[0], requestId: string) {
+    this.receiveCalls += 1;
+    const packet = await super.receive(principal, requestId);
+    if (this.tamperRequestId !== requestId) return packet;
+    const envelope = JSON.parse(packet.envelope) as { ciphertext?: string };
+    if (typeof envelope.ciphertext === "string" && envelope.ciphertext.length > 1) {
+      envelope.ciphertext = `${envelope.ciphertext[0] === "A" ? "B" : "A"}${envelope.ciphertext.slice(1)}`;
+    }
+    this.tamperHits += 1;
+    return { ...packet, envelope: JSON.stringify(envelope) };
+  }
+}
+
 const fixtureKeysPath = process.env.SA_I1_FIXTURE_KEYS_PATH;
 let persistedKeys: { root: string; privateKey: string } | null = null;
 if (fixtureKeysPath) {
@@ -271,6 +297,9 @@ const bootstrap = new BootstrapService(
       ),
   },
 );
+const r5cTransferService = new R5CTestCredentialTransferService(
+  createCredentialTransferRepository(database),
+);
 const app = createApiApp({
   config: {
     environment: "test",
@@ -285,10 +314,18 @@ const app = createApiApp({
   deviceManagementService: deviceManagement,
   extensionAuthService: extensionAuth,
   bootstrapService: bootstrap,
-  credentialTransferService: new CredentialTransferService(
-    createCredentialTransferRepository(database),
-  ),
+  credentialTransferService: r5cTransferService,
 });
+
+// R5C-only relay-boundary interception. It is not part of production API
+// composition and returns only safe control metadata.
+app.post("/q1a-r5c/tamper", async (request) => {
+  const body = (request.body ?? {}) as { requestId?: unknown };
+  const requestId = typeof body.requestId === "string" ? body.requestId : null;
+  r5cTransferService.setTamperRequest(requestId);
+  return { ok: true, state: r5cTransferService.tamperState() };
+});
+app.get("/q1a-r5c/tamper", async () => ({ ok: true, state: r5cTransferService.tamperState() }));
 
 // R5B-R1 only: deterministic provider quota fixture at the test boundary.
 // This route is deliberately outside /v1 and is never part of production API
