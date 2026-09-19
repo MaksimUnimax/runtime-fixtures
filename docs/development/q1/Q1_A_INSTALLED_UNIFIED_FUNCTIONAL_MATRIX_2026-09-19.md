@@ -1653,8 +1653,9 @@ deployment, browser-store publication, monetization, or unrelated features.
 
 - Start HEAD/tree: `05828169fe967b2aa0c783fa3e3fcd155c136c73` /
   `4c99600d15c057b5150c14923776ad42c5df0bf5`.
-- Final HEAD/tree are the bounded evidence commit(s) recorded in the terminal
-  report; no production package file was changed.
+- Final HEAD/tree: `53daeeb8ce2bcccfde5947c06d364c06775e1463` /
+  `71398d072c70f5c6e75b234a925251fca56c3de1`; no production package file was
+  changed.
 - Expected remote heads were rechecked: `origin/main`
   `bc718cc5c677ad0eb4598e7de3ad766473ff0847`,
   `origin/integration/i1-c1-srv5-2026-09-16`
@@ -1672,8 +1673,9 @@ deployment, browser-store publication, monetization, or unrelated features.
   Q1 PostgreSQL containers/volumes/databases. Reclaimed bytes recorded during
   cleanup: 111,300,608 bytes from stale files plus approximately 559 MB from
   the obsolete Q1 database volume. Final recorded free space was approximately
-  68 MB. Repository history, accepted evidence, owner files, Stream-2 data,
-  and unrelated Docker volumes were not removed.
+  68 MB before the final receipt cleanup and 86 MB after dropping the
+  task-owned `q1a_r5b_r1_*` databases. Repository history, accepted evidence,
+  owner files, Stream-2 data, and unrelated Docker volumes were not removed.
 
 ### Clean fixture and initial failure batch
 
