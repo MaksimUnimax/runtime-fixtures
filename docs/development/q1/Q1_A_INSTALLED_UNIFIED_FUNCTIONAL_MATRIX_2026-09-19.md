@@ -1389,10 +1389,10 @@ matrix is not an acceptance claim.
 | Q1A-37 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
 | Q1A-38 | INSTALLED_PASS | final package SHA `93ba77f6fcac9932e991c94eded2d9638bb38c9990b8fcefd826d737aaf8d476`; Chromium 151 real API/DB activation/account isolation receipt. |
 | Q1A-39 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
-| Q1A-40 | R4_OPEN_DRIVER_OR_FLOW | final-package installed receipt not established in this bounded pass; see scope below. |
-| Q1A-41 | R4_OPEN_DRIVER_OR_FLOW | final-package installed receipt not established in this bounded pass; see scope below. |
-| Q1A-42 | R4_OPEN_DRIVER_OR_FLOW | final-package installed receipt not established in this bounded pass; see scope below. |
-| Q1A-43 | R4_OPEN_DRIVER_OR_FLOW | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-40 | INSTALLED_PASS | retained accepted bounded installed result; not reopened. |
+| Q1A-41 | INSTALLED_PASS | retained accepted bounded installed result; not reopened. |
+| Q1A-42 | INSTALLED_PASS | retained accepted bounded installed result; not reopened. |
+| Q1A-43 | INSTALLED_PASS | retained accepted bounded installed result; not reopened. |
 | Q1A-44 | REPRESENTATIVE_SMOKE_BOUNDARY | final-package installed receipt not established in this bounded pass; see scope below. |
 | Q1A-45 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
 | Q1A-46 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
@@ -1412,10 +1412,10 @@ matrix is not an acceptance claim.
 | Q1A-60 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
 | Q1A-61 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
 | Q1A-62 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
-| Q1A-63 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
-| Q1A-64 | REPRESENTATIVE_SMOKE_BOUNDARY | final-package installed receipt not established in this bounded pass; see scope below. |
-| Q1A-65 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
-| Q1A-66 | R4_OPEN_DRIVER_OR_FLOW | final-package installed receipt not established in this bounded pass; see scope below. |
+| Q1A-63 | INSTALLED_PASS | R5B-R1 exact-package two-dialogue same-installation local quota sharing receipt. |
+| Q1A-64 | INSTALLED_PASS | R5B-R1 exact-package known 429/Retry-After bounded-wait receipt. |
+| Q1A-65 | INSTALLED_PASS | R5B-R1 exact-package authority-fenced retry wake receipt. |
+| Q1A-66 | INSTALLED_PASS | R5B-R1 exact-package independent-profile/provider-global quota receipt; central lease 0. |
 | Q1A-67 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
 | Q1A-68 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
 | Q1A-69 | R4_NOT_RERUN | final-package installed receipt not established in this bounded pass; see scope below. |
@@ -1582,7 +1582,7 @@ as installed passes on SHA `93ba77f6…`. No genuine product defect appeared.
 This does not self-accept Q1-A. Exact next task: `Q1-A-R5B — INSTALLED BETA /
 CAPACITY / SECOND-INSTALLATION QUOTA CLOSURE`, covering Q1A-40/41/42/43/66.
 
-## Q1-A-R5B BETA/CAPACITY/SECOND-INSTALLATION-QUOTA CLOSURE
+## Q1-A-R5B BETA/CAPACITY/SECOND-INSTALLATION-QUOTA CLOSURE (SUPERSEDED BY R5B-R1)
 
 Work ID: `Q1-A-R5B-20260919-INSTALLED-BETA-CAPACITY-AND-SECOND-INSTALLATION-QUOTA-CLOSURE`
 
@@ -1640,3 +1640,198 @@ but Q1A-66 remains open pending a complete installed two-profile receipt.
 The exact next task is to finish this same bounded R5B lane, specifically the
 Q1A-66 second-installation quota receipt and its Q1A-63..65 focused regression;
 R5C must not start until R5B is genuinely complete.
+
+## Q1-A-R5B-R1 SECOND-INSTALLATION QUOTA CLOSURE
+
+Work ID: `Q1-A-R5B-R1-20260919-SECOND-INSTALLATION-QUOTA-AND-R5B-REGRESSION-CLOSURE`
+
+This is the bounded R5B rework. It closes Q1A-66 and reruns Q1A-63, Q1A-64,
+and Q1A-65. It does not start R5C, Q1-B, Q1-C, Q1-D, Q1-E, S1.2,
+deployment, browser-store publication, monetization, or unrelated features.
+
+### Git, package, and disk receipt
+
+- Start HEAD/tree: `05828169fe967b2aa0c783fa3e3fcd155c136c73` /
+  `4c99600d15c057b5150c14923776ad42c5df0bf5`.
+- Final HEAD/tree are the bounded evidence commit(s) recorded in the terminal
+  report; no production package file was changed.
+- Expected remote heads were rechecked: `origin/main`
+  `bc718cc5c677ad0eb4598e7de3ad766473ff0847`,
+  `origin/integration/i1-c1-srv5-2026-09-16`
+  `23047b3bdc22842a5b17e29e3d3f603c0ee51b16`, and
+  `origin/docs/roadmap-autonomy-correction-2026-09-18`
+  `6a48af8cd19137aaa10688c36cb064d3c4b16969`.
+- The exact package was rebuilt because the archive was absent, then verified
+  before and after the run: `SELLER_AGENTS_I1_C1_v0.2.4_LOCAL_DEVELOPMENT.zip`,
+  SHA-256 `93ba77f6fcac9932e991c94eded2d9638bb38c9990b8fcefd826d737aaf8d476`,
+  2,076,757 bytes, 39 runtime files / 39 extracted files / 39 ZIP entries.
+  The installed worker and popup used Playwright Chromium 151.0.7922.34.
+- Disk was approximately 56 MB free at the start. Safe task-owned cleanup
+  removed obsolete Q1 Chromium profiles, Q1 build/extraction directories,
+  stopped Q1 logs/process artifacts, task temp directories, and old disposable
+  Q1 PostgreSQL containers/volumes/databases. Reclaimed bytes recorded during
+  cleanup: 111,300,608 bytes from stale files plus approximately 559 MB from
+  the obsolete Q1 database volume. Final recorded free space was approximately
+  68 MB. Repository history, accepted evidence, owner files, Stream-2 data,
+  and unrelated Docker volumes were not removed.
+
+### Clean fixture and initial failure batch
+
+The run used PostgreSQL 18 on port 55446, a fresh namespaced database, and
+migrations through 0018. The real Seller Agents API was bound to
+127.0.0.1:43100 and the portal to 127.0.0.1:43101; `/health/ready` returned
+200. All IDs were synthetic and namespace-scoped.
+
+Before harness changes, the complete failure batch was collected:
+
+| Row | Initial result | Classification |
+|---|---|---|
+| Q1A-63 | installed orchestration missing/lower-layer only | `HARNESS_DEFECT` |
+| Q1A-64 | installed orchestration missing/lower-layer only | `HARNESS_DEFECT` |
+| Q1A-65 | installed orchestration missing/lower-layer only | `HARNESS_DEFECT` |
+| Q1A-66 | old lower-layer driver attempted a synthetic server on the real API port and did not prove the two-profile flow | `HARNESS_DEFECT` |
+| Initial P1 source | frozen trust key mismatch | `AUTH_FIXTURE_DEFECT` |
+
+No `PRODUCT_DEFECT` or `PACKAGE_DEFECT` was found. The production package was
+not modified. The test-only API route distinguishes the seller capability
+probe from the business request, returns a contract-valid synthetic
+`PREMIUM_PRO` response for the probe, and counts only business requests. The
+test-only worker receipt records capability probes separately.
+
+### Two legitimate installed profiles and provider fixture
+
+Profiles A and B were separate persistent Chromium user-data directories,
+loaded from the exact unpacked package. Both used the real MV3 worker,
+chrome.storage, real API/PostgreSQL activation, and real portal OTP/approval;
+no raw storage injection was used.
+
+| Profile | Account | Device | Session | Store | Credential revision |
+|---|---|---|---|---|---|
+| A | `2e41bf80-84a3-4e74-a9d3-b1175ea91da8` | `c7fe0e5e-1c87-48ac-8346-edcbaade9800` | `2acf939e-e890-4785-acc8-d5238c1488c4` | `store-36c88b0f-8087-48d2-a242-ab8255d69c58` | `credential-19a8caa5-df11-4a6b-8a08-ed0693de3238` |
+| B | `38c81b4e-7a57-4a26-b94a-2cd71991a88c` | `742b4d6c-9c76-48f6-8ddc-465d0ac2a28c` | `43d2282e-117e-45e6-971f-db9d0f8f5c73` | `store-8ff9344e-0bf4-45f8-9181-e7b513a5ade7` | `credential-e9e822bf-d0f3-40b9-bed0-b50b1392066f` |
+
+Both were authenticated with access basis `BETA`, had verified signed
+authority, Ozon and WB entitlements, revision-1 bindings, and the same safe
+synthetic provider/store label. Their local quota storage was independent;
+the provider-account hash was the same only because the synthetic Ozon
+credentials were deliberately the same.
+
+The provider fixture used window `q1a-r5b-r1-window-1`, a deterministic global
+threshold of one business request, installation markers A/B, explicit status,
+and `Retry-After: 2` on 429. Capability probes were not quota-consuming.
+
+### Q1A-66 installed phases and receipts
+
+- A first allowed analytics command reached the provider: business attempt 1,
+  HTTP 200.
+- B first allowed analytics command reached the provider independently and
+  received the deterministic combined-limit response: business attempt 1,
+  HTTP 429, `Retry-After: 2`.
+- Combined provider state was exactly two business requests: A/200 followed by
+  B/429; provider 429 count was exactly 1.
+- A local state before dispatch had attempts 0 and no quota state. After the
+  response it had attempts 1, status `[200]`, and local family
+  `seller.analytics_data.v1` with a next permitted time approximately 65,000
+  ms after the recorded request. A's immediate second dispatch left provider
+  attempts at 1.
+- B local state before dispatch had attempts 0 and no quota state. After the
+  response it had attempts 1, status `[429]`, `Retry-After` `["2"]`, and the
+  same local family with `retry_after_applied_at` and a later local permitted
+  time. Its disconnected state did not change afterward.
+- Q1A-66 control-call receipt: central quota lease calls 0 and mandatory
+  Seller Agents dispatch-control calls 0. No server push, WebSocket, or
+  heartbeat transferred quota state.
+- Every actual provider request was fenced by the installed account, device/
+  session, dialogue, Work, binding, store, credential revision, and signed
+  authority context. Hidden provider retry was 0; UNKNOWN replay was 0; no
+  cross-browser executor or lease was introduced.
+
+Result: `Q1A-66 = INSTALLED_PASS`.
+
+### Q1A-63, Q1A-64, and Q1A-65 regression receipts
+
+- Q1A-63: `INSTALLED_PASS`. One profile used two dialogues with the same
+  synthetic provider/store context. The first dialogue made exactly one
+  business provider attempt and received 429/Retry-After 2. After the local
+  quota state was durably observable, the second dialogue made zero additional
+  provider attempts; its receipt remained attempts 1 and the shared local
+  quota family was present. Unrelated context remained isolated and central
+  quota calls were 0.
+- Q1A-64: `INSTALLED_PASS`. Known 429/Retry-After 2 was recorded; after the
+  wait interval the receipt remained exactly one business attempt with no
+  automatic dispatch before local permission. Hidden retry was 0.
+- Q1A-65: `INSTALLED_PASS`. After known 429/Retry-After 2, the store
+  `credentialRevision` was changed before wake. At wake, authority was
+  re-evaluated, the stale retry was blocked before provider, and provider
+  attempts remained exactly one. No mandatory control call was added.
+
+### Representative smoke
+
+The same fixed package identity was used for the representative checks:
+
+| Scenario | Result |
+|---|---|
+| authenticated popup, real API activation, Start, ordinary Ozon command | PASS in R5B-R1 installed driver |
+| marketplace switch and Ozon Seller-only/WB store catalog | PASS in installed store/A24 and native application receipts |
+| ordinary WB command and popup/content delivery | PASS in native Chromium application receipt |
+| provider UNKNOWN with no replay | PASS in provider-outcome and P1 receipts |
+| offline Start and expiry boundary | PASS in C2 offline installed receipt |
+| A24 export/import, conflict, legacy, tamper rejection | PASS on source and extracted exact runtime |
+| FRESH authority and CACHE_EXPIRED denial | PASS in cache-time/C3G authority receipts |
+
+One older generic installed-local smoke invocation was not counted because its
+standalone API startup generated a new signing key instead of using the frozen
+package key; this was an `AUTH_FIXTURE_DEFECT`, corrected in the dedicated R5B
+driver. The real A/B activation receipt above used the fixed trust key and is
+the authoritative installed activation evidence.
+
+### Required regression matrix
+
+| Gate | Result |
+|---|---|
+| auth integration (`p2-auth`) | PASS, 14/14 |
+| beta admission integration (`s1-1-beta-admission`) | PASS, 11/11 |
+| C3G corrected predispatch | PASS, 12/12 |
+| C3H authority smoke | PASS for authority cases; AUT-47 native MV3 registration remained externally deferred |
+| P1 source | PASS |
+| P1 extracted | PASS |
+| P3 source/extracted | PASS |
+| Extension Core canonical route | PASS: application, provider outcome, WB adapter, core contracts, P3 |
+| Extension I1 packaged capability route | PASS, 5/5 |
+| application regression | PASS |
+| bridge guard | PASS |
+
+The C3H AUT-47 remainder is a genuine external browser-registration
+environment deferral, not a missing orchestration claim and not a product
+defect. No obsolete standalone artifact route was used as a failure reason.
+
+### Safety, privacy, governance, and closure
+
+- ordinary Ozon mandatory Seller Agents control calls: 0;
+  ordinary WB mandatory Seller Agents control calls: 0;
+  ordinary AI-delivery mandatory control calls: 0;
+  central cross-browser quota lease calls: 0;
+  mandatory Seller Agents marketplace-dispatch authorization calls: 0;
+  provider UNKNOWN automatic replay: 0;
+  known-response provider redispatch: 0;
+  AI UNKNOWN automatic resend: 0;
+  ordinary Health heartbeat: 0;
+  command-time mandatory Bootstrap: 0;
+  hidden retry count: 0.
+- Q1A-66 provider business calls: Profile A 1, Profile B 1; provider 429
+  count 1. Q1A-63 provider calls 1 total; Q1A-64 provider calls 1; Q1A-65
+  provider calls 1 and no retry-wake provider call.
+- Evidence contains only synthetic account/device/session/store IDs, safe
+  provider counters, statuses, Retry-After, local quota summaries, and
+  revisions. No marketplace credential, bearer token, cookie, storageState,
+  real email, or secret was persisted. Stream-2 implementation and evidence
+  paths were not modified.
+- Remote publication remains `ENVIRONMENT_DEFERRED_REMOTE_PUBLICATION`; no
+  force push, reset, rebase, amend, or destructive history rewrite was used.
+
+Closure recommendation: Q1A-40, Q1A-41, Q1A-42, Q1A-43, Q1A-63, Q1A-64,
+Q1A-65, and Q1A-66 are installed passes on the unchanged fixed package.
+There is no genuine product defect. This bounded R5B-R1 task is complete, but
+this document does not self-accept Q1-A. The exact next task, if the owner
+authorizes continuation, is `Q1-A-R5C-20260919-CURRENT-PACKAGE-TRANSFER-REOPEN-SECURITY-PRIVACY-CLOSURE`
+covering Q1A-70 through Q1A-73; R5C was not started here.

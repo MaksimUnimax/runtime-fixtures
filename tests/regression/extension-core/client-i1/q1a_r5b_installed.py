@@ -39,6 +39,7 @@ PACKAGE_BYTES = 2_076_757
 CHROMIUM = "/root/.cache/ms-playwright/chromium-1234/chrome-linux64/chrome"
 API = "http://127.0.0.1:43100"
 PORTAL = "http://127.0.0.1:43101"
+CHAT_CONVERSATION = "11111111-1111-4111-8111-111111111111"
 NAMESPACE = re.sub(r"[^a-z0-9]", "", os.environ.get("SA_I1_FIXTURE_NAMESPACE", "r5b").lower())[:24] or "r5b"
 ACTOR = "a5b5b5b5-b5b5-45b5-85b5-b5b5b5b5b5b5"
 
@@ -158,13 +159,15 @@ def run_admin_increment(db_url: str, request_id: str, expected_revision: int, am
 
 
 class InstalledClient:
-    def __init__(self, runtime: Path, existing_cookies: list[dict] | None = None):
+    def __init__(self, runtime: Path, existing_cookies: list[dict] | None = None, playwright_instance=None):
         self.runtime = runtime
         self.existing_cookies = existing_cookies or []
-        self.pw = sync_playwright().start()
+        self._owns_pw = playwright_instance is None
+        self.pw = playwright_instance or sync_playwright().start()
         options = {"headless": True, "executable_path": os.environ.get("SA_TEST_CHROMIUM", CHROMIUM),
                    "args": ["--no-sandbox", "--disable-dev-shm-usage", f"--disable-extensions-except={runtime}", f"--load-extension={runtime}"]}
-        self.context = self.pw.chromium.launch_persistent_context(tempfile.mkdtemp(prefix="q1a-r5b-profile-"), **options)
+        self._profile_dir = tempfile.TemporaryDirectory(prefix="q1a-r5b-profile-")
+        self.context = self.pw.chromium.launch_persistent_context(self._profile_dir.name, **options)
         self.responses = []
         self.bootstrap_bodies = []
         def observe(response):
@@ -181,8 +184,10 @@ class InstalledClient:
         self.context.route("https://chatgpt.com/**", lambda route: route.fulfill(body=(ROOT / "tests/regression/extension-core/fixtures/application-chat.html").read_text(), content_type="text/html"))
         self.worker = self.context.service_workers[0] if self.context.service_workers else self.context.wait_for_event("serviceworker")
         self.chat = self.context.new_page()
-        self.chat.goto("https://chatgpt.com/c/q1a-r5b-installed")
+        self.chat.goto(f"https://chatgpt.com/c/{CHAT_CONVERSATION}", wait_until="domcontentloaded")
+        self.tab_id = wait_for(lambda: self.worker.evaluate("async()=>{const x=await chrome.tabs.query({url:'https://chatgpt.com/c/*'});return x[0]?.id}"), "ChatGPT tab")
         self.popup = self.context.new_page()
+        self.popup.add_init_script(f"const originalQuery=chrome.tabs.query.bind(chrome.tabs);chrome.tabs.query=(query)=>query.active?Promise.resolve([{{id:{self.tab_id}}}]):originalQuery(query);")
         self.popup.goto(self.worker.url.rsplit("/", 1)[0] + "/popup.html")
 
     def activate(self, label: str, existing_cookies: list[dict] | None = None) -> dict:
@@ -197,7 +202,11 @@ class InstalledClient:
         # an admitted profile should remain on activation and load its account
         # list using the supplied portal session.
         if not cookies:
-            portal.wait_for_url("**/login?returnTo=*")
+            try:
+                portal.wait_for_url("**/login?returnTo=*", timeout=5000)
+            except Exception:
+                if "/activate?authorizationId=" not in portal.url:
+                    raise
         else:
             portal.wait_for_timeout(750)
         if "/login" in portal.url:
@@ -239,8 +248,8 @@ class InstalledClient:
         self.popup.click("#ozon" if marketplace == "ozon" else "#wildberries")
         self.popup.click("#add")
         if marketplace == "ozon":
-            self.popup.fill("#client-id", "100001")
-            self.popup.fill("#api-key", "SYNTHETIC-SELLER-KEY")
+            self.popup.fill("#seller-id", "100001")
+            self.popup.fill("#seller-key", "SYNTHETIC-SELLER-KEY")
         else:
             self.popup.fill("#token", "SYNTHETIC-WB-TOKEN")
         self.popup.fill("#name", name)
@@ -254,7 +263,9 @@ class InstalledClient:
         try:
             self.context.close()
         finally:
-            self.pw.stop()
+            if self._owns_pw:
+                self.pw.stop()
+            self._profile_dir.cleanup()
 
 
 def quota_profile(runtime: Path, label: str, status_sequence: list[int]) -> dict:
