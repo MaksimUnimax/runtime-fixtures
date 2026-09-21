@@ -51,3 +51,18 @@ WB R1–R8 остаются закрыты до установленной пр�
 ## Как обновлять
 
 Для каждого принятого изменения указывать версию/коммит, вид проверки, результат и ограничения. Нельзя одновременно оставлять текущему этапу статусы DONE и PENDING. Исторические неуспешные попытки находятся в evidence, а не в текущей строке.
+
+## Stream 2 — current authority and Telegram operator amendment (2026-09-21)
+
+Текущая принятая локальная Stream-2 authority не опубликована на GitHub remote и сохраняется проверенным self-contained bundle.
+
+- S2-L8: **FINAL ACCEPTED / NOT_REMOTE_VERIFIED**.
+- S2-A1 R6/R7 authority sentinel: **ACCEPTED BOUNDED**, но full S2-A1 остаётся **PARTIAL / NOT_ACCEPTED**.
+- Последняя A1 reconciliation: `24ba470a7b4a0f019115992e43a4c79f6be931c5`, reconciliation-only / no feature advance.
+- S2-A2–A10: NOT_STARTED / blocked until sufficient A1 authority.
+- Stream-2 source-authority bundle SHA-256: `d9d33ed66fe6f34c16f2a97f05e8ea592ae2244fd446612cf282d1438e07a9ff`; `git bundle verify` and disposable restore PASS.
+- Remote publication: `ENVIRONMENT_DEFERRED_REMOTE_PUBLICATION`.
+
+Owner amendment 2026-09-21: Stream 2 получает постоянный **Telegram operator control plane**. LLM monitoring и Swagger/API monitoring — разные функции с отдельными командами, durable intervals, forced-run controls, status/history и notifications. Для protected Swagger/OpenAPI источника бот должен передать оператору официальный URL и requestId; оператор скачивает файл легитимно и возвращает его Telegram document attachment; файл попадает в quarantine/inbox, получает provenance + SHA-256 + validation и только после этого становится candidate для S2-A1.
+
+Current priority для Stream 2: **S2-TG0 → TG1 → TG2 → TG3 → TG4**, затем bounded S2-A1 recovery через автоматический или operator-assisted first-party source path. TG implementation на момент этого статуса ещё не заявляется выполненной.
