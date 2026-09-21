@@ -13,6 +13,8 @@ import {
   FeedbackAdminCasesResponseV1Schema,
   FeedbackAggregateQueryV1Schema,
   FeedbackAggregateResponseV1Schema,
+  FeedbackFunnelQueryV1Schema,
+  FeedbackFunnelResponseV1Schema,
   FeedbackCaseDetailResponseV1Schema,
   FeedbackCaseParamsV1Schema,
   FeedbackFollowupBodyV1Schema,
@@ -201,6 +203,26 @@ export function registerAdminFeedbackRoutes(
       const query = FeedbackAggregateQueryV1Schema.parse(request.query);
       noStore(reply);
       return { items: await service.aggregateSignals(query) };
+    },
+  );
+  app.get(
+    "/v1/admin/support/funnels",
+    {
+      schema: {
+        querystring: FeedbackFunnelQueryV1Schema,
+        response: {
+          200: FeedbackFunnelResponseV1Schema,
+          400: ApiErrorEnvelopeV1Schema,
+          401: ApiErrorEnvelopeV1Schema,
+          403: ApiErrorEnvelopeV1Schema,
+        },
+      },
+    },
+    async (request, reply) => {
+      await guard.requireAdminPermission(request, "support.aggregate.read");
+      const query = FeedbackFunnelQueryV1Schema.parse(request.query);
+      noStore(reply);
+      return service.aggregateFunnel(query);
     },
   );
 }

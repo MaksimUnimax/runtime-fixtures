@@ -116,6 +116,8 @@ describe("B2 feedback/support safety foundation", () => {
     expect(
       await service.recordSignal("00000000-0000-4000-8000-000000000001", {
         event: "first_start",
+        accountId: "00000000-0000-4000-8000-000000000002",
+        idempotencyKey: "first-start-test-0001",
         productVersion: "0.2.4",
       }),
     ).toEqual({ ok: true, value: { accepted: true } });

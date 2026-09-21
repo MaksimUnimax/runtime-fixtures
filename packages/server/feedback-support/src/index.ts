@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import {
   FeedbackAggregateQueryV1Schema,
+  FeedbackFunnelQueryV1Schema,
   FeedbackCategoryV1Schema,
   FeedbackCaseStatusV1Schema,
   FeedbackCreateBodyV1Schema,
@@ -9,6 +10,8 @@ import {
   FeedbackSignalEventV1Schema,
   FeedbackSeverityV1Schema,
   type FeedbackAggregateItemV1,
+  type FeedbackFunnelQueryV1,
+  type FeedbackFunnelResponseV1,
   type FeedbackCaseItemV1,
   type FeedbackCaseStatusV1,
   type FeedbackCategoryV1,
@@ -97,16 +100,21 @@ export type FeedbackRepository = {
     userId: string;
     body: FeedbackSignalBodyV1;
     correlationId: string;
-  }): Promise<"ACCEPTED" | "RATE_LIMITED">;
+  }): Promise<"ACCEPTED" | "DUPLICATE" | "CONFLICT" | "RATE_LIMITED">;
   aggregateSignals(
     query: z.infer<typeof FeedbackAggregateQueryV1Schema>,
   ): Promise<FeedbackAggregate[]>;
+  aggregateFunnel(
+    query: FeedbackFunnelQueryV1,
+  ): Promise<FeedbackFunnelResponseV1>;
   purgeExpired(input: {
     now: Date;
     closedRetentionDays: number;
     signalRetentionDays: number;
   }): Promise<{ cases: number; signals: number }>;
-  anonymizeAccount(accountId: string): Promise<{ cases: number }>;
+  anonymizeAccount(
+    accountId: string,
+  ): Promise<{ cases: number; signals: number }>;
 };
 
 export type FeedbackServiceResult<T> =
@@ -394,6 +402,12 @@ export class FeedbackSupportService {
     return this.repository.aggregateSignals(parsed.data);
   }
 
+  async aggregateFunnel(raw: unknown): Promise<FeedbackFunnelResponseV1> {
+    const parsed = FeedbackFunnelQueryV1Schema.safeParse(raw);
+    if (!parsed.success) throw new Error("invalid funnel query");
+    return this.repository.aggregateFunnel(parsed.data);
+  }
+
   async purgeExpired(input: {
     now: Date;
     closedRetentionDays: number;
@@ -420,9 +434,9 @@ export class FeedbackSupportService {
       body: parsed.data,
       correlationId,
     });
-    return result === "RATE_LIMITED"
-      ? { ok: false, code: "RATE_LIMITED" }
-      : { ok: true, value: { accepted: true } };
+    if (result === "RATE_LIMITED") return { ok: false, code: "RATE_LIMITED" };
+    if (result === "CONFLICT") return { ok: false, code: "INVALID_REQUEST" };
+    return { ok: true, value: { accepted: true } };
   }
 
   validateCategory(value: unknown): value is FeedbackCategoryV1 {
@@ -443,3 +457,6 @@ export class FeedbackSupportService {
 }
 
 export { FeedbackAggregateQueryV1Schema } from "@product/contracts";
+export { FeedbackFunnelQueryV1Schema } from "@product/contracts";
+export { calculateFunnel, funnelWindow, FUNNEL_STAGES } from "./funnels.js";
+export type { FunnelSignalRecord } from "./funnels.js";

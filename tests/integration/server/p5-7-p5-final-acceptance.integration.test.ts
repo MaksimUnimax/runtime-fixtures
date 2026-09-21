@@ -251,11 +251,11 @@ describe.sequential(
     beforeEach(clean);
     afterAll(() => db.close());
 
-    it("DB-01 exposes migrations 0000 through 0019", async () => {
+    it("DB-01 exposes migrations 0000 through 0020", async () => {
       const rows = await q<{ count: string }>(
         "SELECT count(*)::text AS count FROM drizzle.__drizzle_migrations",
       );
-      expect(rows.rows[0]?.count).toBe("20");
+      expect(rows.rows[0]?.count).toBe("21");
     });
     it("DB-02 enforces one current non-expired subscription", async () => {
       const f = await fixture();
@@ -1480,7 +1480,7 @@ describe.sequential(
           ).length,
         0,
       );
-      expect(count).toBe(124);
+      expect(count).toBe(125);
       expect(
         createHash("sha256")
           .update(
@@ -1490,7 +1490,7 @@ describe.sequential(
           )
           .digest("hex"),
       ).toBe(
-        "3c0c0d63406d99b05e47501464d87aa7d9b9456e5cf38e88b8e4c80d04a89641",
+        "c9b5949a542c93e3578b894ab04d2dc9ccd1a0b17cbd97c06da16b2d972b1ee0",
       );
     });
     it("STATIC-72 OpenAPI has no checkout, webhook, or fake completion route", async () => {

@@ -177,6 +177,17 @@ per-command check, payment provider, checkout, migration, SMTP/Exim or
 Stream-2 implementation change was made. Recommended disposition is
 `M1B_READY_FOR_ARCHITECT_ACCEPTANCE`; no commercial numeric limit was chosen.
 
+## M1-C detailed funnel foundation — 2026-09-21
+
+The bounded M1-C candidate is recorded in [the detailed funnel receipt](development/m1/M1_DETAILED_FUNNEL_FOUNDATION_2026-09-21.md).
+It reuses the B2-A signal authority and adds versioned onboarding, first-value,
+and support funnels, deterministic conversion/time-to-value calculations,
+safe dimensions, idempotency, deletion handling and admin-only aggregate
+queries. Commercial stages are schema-compatible only; free-beta UX and
+commercial enforcement remain unchanged. Recommended disposition is
+`M1C_READY_FOR_ARCHITECT_ACCEPTANCE`; no live measurements or monetization
+launch is claimed.
+
 ## Q1-B browser-family matrix — 2026-09-19
 
 Recommended status: `Q1B_PARTIAL_ENVIRONMENT_DEFERRED`; architect review is

@@ -56289,12 +56289,47 @@
           },
           {
             "in": "query",
+            "name": "releaseIdentity",
+            "required": false,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._:-]+$",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
             "name": "browserFamily",
             "required": false,
             "schema": {
               "maxLength": 64,
               "minLength": 1,
               "pattern": "^[A-Za-z0-9._ -]+$",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "browserVersion",
+            "required": false,
+            "schema": {
+              "maxLength": 64,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._+-]+$",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "marketplace",
+            "required": false,
+            "schema": {
+              "enum": [
+                "NONE",
+                "OZON",
+                "WILDBERRIES"
+              ],
               "type": "string"
             }
           },
@@ -56339,6 +56374,17 @@
               ],
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "supportCode",
+            "required": false,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._:-]+$",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -56358,6 +56404,19 @@
                                 "maxLength": 64,
                                 "minLength": 1,
                                 "pattern": "^[A-Za-z0-9._ -]+$",
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "browserVersion": {
+                            "anyOf": [
+                              {
+                                "maxLength": 64,
+                                "minLength": 1,
+                                "pattern": "^[A-Za-z0-9._+-]+$",
                                 "type": "string"
                               },
                               {
@@ -56411,7 +56470,9 @@
                               "first_store_added",
                               "first_start",
                               "feedback_case_created",
-                              "feedback_case_resolved"
+                              "feedback_case_triaged",
+                              "feedback_case_resolved",
+                              "feedback_case_closed"
                             ],
                             "type": "string"
                           },
@@ -56428,12 +56489,40 @@
                               }
                             ]
                           },
+                          "marketplace": {
+                            "anyOf": [
+                              {
+                                "enum": [
+                                  "NONE",
+                                  "OZON",
+                                  "WILDBERRIES"
+                                ],
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
                           "productVersion": {
                             "anyOf": [
                               {
                                 "maxLength": 64,
                                 "minLength": 1,
                                 "pattern": "^[A-Za-z0-9._+-]+$",
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "releaseIdentity": {
+                            "anyOf": [
+                              {
+                                "maxLength": 128,
+                                "minLength": 1,
+                                "pattern": "^[A-Za-z0-9._:-]+$",
                                 "type": "string"
                               },
                               {
@@ -56457,6 +56546,19 @@
                                 "type": "null"
                               }
                             ]
+                          },
+                          "supportCode": {
+                            "anyOf": [
+                              {
+                                "maxLength": 128,
+                                "minLength": 1,
+                                "pattern": "^[A-Za-z0-9._:-]+$",
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
                           }
                         },
                         "required": [
@@ -56465,9 +56567,13 @@
                           "count",
                           "productVersion",
                           "extensionVersion",
+                          "releaseIdentity",
                           "browserFamily",
+                          "browserVersion",
+                          "marketplace",
                           "category",
-                          "status"
+                          "status",
+                          "supportCode"
                         ],
                         "type": "object"
                       },
@@ -59899,6 +60005,650 @@
             "description": "Default Response"
           },
           "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "INTERNAL_ERROR",
+                            "INVALID_REQUEST",
+                            "SERVICE_UNAVAILABLE",
+                            "AUTH_RATE_LIMITED",
+                            "AUTH_OTP_INVALID",
+                            "AUTH_LOGIN_DENIED",
+                            "AUTH_SESSION_INVALID",
+                            "AUTH_CSRF_INVALID",
+                            "BETA_CLOSED",
+                            "BETA_CAPACITY_REACHED",
+                            "AUTH_REFRESH_INVALID",
+                            "DEVICE_AUTH_RATE_LIMITED",
+                            "DEVICE_AUTH_INVALID",
+                            "DEVICE_AUTH_FORBIDDEN",
+                            "DEVICE_AUTH_STATE_CONFLICT",
+                            "DEVICE_AUTH_IDEMPOTENCY_CONFLICT",
+                            "DEVICE_AUTH_CLOSED",
+                            "DEVICE_AUTH_PENDING",
+                            "DEVICE_LIMIT_REACHED",
+                            "DEVICE_FORBIDDEN",
+                            "DEVICE_NOT_FOUND",
+                            "UNAUTHORIZED",
+                            "DEVICE_MISMATCH",
+                            "BOOTSTRAP_UNAVAILABLE",
+                            "SUBSCRIPTION_REQUIRED",
+                            "ACCOUNT_FORBIDDEN",
+                            "ADMIN_UNAUTHORIZED",
+                            "ADMIN_FORBIDDEN",
+                            "ADMIN_REAUTH_REQUIRED",
+                            "ADMIN_CSRF_INVALID",
+                            "ADMIN_RESOURCE_NOT_FOUND",
+                            "ADMIN_CONFLICT",
+                            "ADMIN_STATE_STALE",
+                            "ADMIN_LAST_OWNER_REQUIRED",
+                            "ADMIN_INVALID_LIFECYCLE",
+                            "ADMIN_ASSIGNMENT_TARGET_INELIGIBLE",
+                            "ADMIN_INVALID_HIERARCHY_BINDING",
+                            "SUBSCRIPTION_ALREADY_EXISTS",
+                            "PLAN_REVISION_NOT_PUBLISHED",
+                            "SUBSCRIPTION_PERIOD_INVALID",
+                            "SUBSCRIPTION_PERIOD_NOT_EXTENDED",
+                            "SUBSCRIPTION_GRACE_WINDOW_CONFLICT",
+                            "SUBSCRIPTION_STATE_TRANSITION_INVALID",
+                            "SUBSCRIPTION_ALREADY_SUSPENDED",
+                            "SUBSCRIPTION_NOT_SUSPENDED",
+                            "SUBSCRIPTION_RESTORE_ORIGIN_NOT_FOUND",
+                            "SUBSCRIPTION_PERIOD_ENDED",
+                            "SUBSCRIPTION_GRACE_ENDED",
+                            "SUBSCRIPTION_CORRUPTED",
+                            "SYNC_CONFLICT",
+                            "SYNC_REQUEST_ID_CONFLICT",
+                            "SYNC_REQUEST_INVALID",
+                            "ACCOUNT_IDENTITY_MISMATCH",
+                            "CLIENT_UPDATE_REQUIRED",
+                            "SOURCE_OFFLINE",
+                            "TRANSFER_EXPIRED",
+                            "TRANSFER_INVALID",
+                            "TRANSFER_REPLAY",
+                            "TRANSFER_CONFLICT",
+                            "TRANSFER_DEVICE_REVOKED",
+                            "TRANSFER_ACCOUNT_MISMATCH",
+                            "TRANSFER_PACKET_TOO_LARGE",
+                            "SUPPORT_CASE_NOT_FOUND",
+                            "SUPPORT_CASE_FORBIDDEN",
+                            "SUPPORT_CASE_RATE_LIMITED",
+                            "SUPPORT_CASE_INVALID_TRANSITION"
+                          ],
+                          "type": "string"
+                        },
+                        "correlationId": {
+                          "maxLength": 128,
+                          "minLength": 1,
+                          "pattern": "^[A-Za-z0-9._:-]+$",
+                          "type": "string"
+                        },
+                        "message": {
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "correlationId"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/v1/admin/support/funnels": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "funnel",
+            "required": true,
+            "schema": {
+              "enum": [
+                "ONBOARDING",
+                "FIRST_VALUE",
+                "SUPPORT"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "window",
+            "required": false,
+            "schema": {
+              "default": "30D",
+              "enum": [
+                "1D",
+                "7D",
+                "30D"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "productVersion",
+            "required": false,
+            "schema": {
+              "maxLength": 64,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._+-]+$",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "extensionVersion",
+            "required": false,
+            "schema": {
+              "maxLength": 64,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._+-]+$",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "releaseIdentity",
+            "required": false,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._:-]+$",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "browserFamily",
+            "required": false,
+            "schema": {
+              "maxLength": 64,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._ -]+$",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "browserVersion",
+            "required": false,
+            "schema": {
+              "maxLength": 64,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._+-]+$",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "marketplace",
+            "required": false,
+            "schema": {
+              "enum": [
+                "NONE",
+                "OZON",
+                "WILDBERRIES"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "supportCode",
+            "required": false,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9._:-]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "breakdowns": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "count": {
+                            "maximum": 9007199254740991,
+                            "minimum": -9007199254740991,
+                            "type": "integer"
+                          },
+                          "dimension": {
+                            "enum": [
+                              "productVersion",
+                              "extensionVersion",
+                              "releaseIdentity",
+                              "browserFamily",
+                              "browserVersion",
+                              "marketplace",
+                              "supportCode"
+                            ],
+                            "type": "string"
+                          },
+                          "stage": {
+                            "enum": [
+                              "registration_started",
+                              "account_created",
+                              "device_activated",
+                              "first_store_added",
+                              "first_start",
+                              "feedback_case_created",
+                              "feedback_case_triaged",
+                              "feedback_case_resolved",
+                              "feedback_case_closed"
+                            ],
+                            "type": "string"
+                          },
+                          "value": {
+                            "maxLength": 128,
+                            "minLength": 1,
+                            "pattern": "^[A-Za-z0-9._:-]+$",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "stage",
+                          "dimension",
+                          "value",
+                          "count"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "cohortCount": {
+                      "maximum": 9007199254740991,
+                      "minimum": -9007199254740991,
+                      "type": "integer"
+                    },
+                    "from": {
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                      "type": "string"
+                    },
+                    "funnel": {
+                      "enum": [
+                        "ONBOARDING",
+                        "FIRST_VALUE",
+                        "SUPPORT"
+                      ],
+                      "type": "string"
+                    },
+                    "stages": {
+                      "items": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "conversionFromPrevious": {
+                            "anyOf": [
+                              {
+                                "maximum": 1,
+                                "minimum": 0,
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "cumulativeConversion": {
+                            "anyOf": [
+                              {
+                                "maximum": 1,
+                                "minimum": 0,
+                                "type": "number"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "eligibleCount": {
+                            "maximum": 9007199254740991,
+                            "minimum": -9007199254740991,
+                            "type": "integer"
+                          },
+                          "medianSeconds": {
+                            "anyOf": [
+                              {
+                                "maximum": 9007199254740991,
+                                "minimum": -9007199254740991,
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "p90Seconds": {
+                            "anyOf": [
+                              {
+                                "maximum": 9007199254740991,
+                                "minimum": -9007199254740991,
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "reachedCount": {
+                            "maximum": 9007199254740991,
+                            "minimum": -9007199254740991,
+                            "type": "integer"
+                          },
+                          "stage": {
+                            "enum": [
+                              "registration_started",
+                              "account_created",
+                              "device_activated",
+                              "first_store_added",
+                              "first_start",
+                              "feedback_case_created",
+                              "feedback_case_triaged",
+                              "feedback_case_resolved",
+                              "feedback_case_closed"
+                            ],
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "stage",
+                          "eligibleCount",
+                          "reachedCount",
+                          "conversionFromPrevious",
+                          "cumulativeConversion",
+                          "medianSeconds",
+                          "p90Seconds"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "to": {
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "funnel",
+                    "from",
+                    "to",
+                    "cohortCount",
+                    "stages",
+                    "breakdowns"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "INTERNAL_ERROR",
+                            "INVALID_REQUEST",
+                            "SERVICE_UNAVAILABLE",
+                            "AUTH_RATE_LIMITED",
+                            "AUTH_OTP_INVALID",
+                            "AUTH_LOGIN_DENIED",
+                            "AUTH_SESSION_INVALID",
+                            "AUTH_CSRF_INVALID",
+                            "BETA_CLOSED",
+                            "BETA_CAPACITY_REACHED",
+                            "AUTH_REFRESH_INVALID",
+                            "DEVICE_AUTH_RATE_LIMITED",
+                            "DEVICE_AUTH_INVALID",
+                            "DEVICE_AUTH_FORBIDDEN",
+                            "DEVICE_AUTH_STATE_CONFLICT",
+                            "DEVICE_AUTH_IDEMPOTENCY_CONFLICT",
+                            "DEVICE_AUTH_CLOSED",
+                            "DEVICE_AUTH_PENDING",
+                            "DEVICE_LIMIT_REACHED",
+                            "DEVICE_FORBIDDEN",
+                            "DEVICE_NOT_FOUND",
+                            "UNAUTHORIZED",
+                            "DEVICE_MISMATCH",
+                            "BOOTSTRAP_UNAVAILABLE",
+                            "SUBSCRIPTION_REQUIRED",
+                            "ACCOUNT_FORBIDDEN",
+                            "ADMIN_UNAUTHORIZED",
+                            "ADMIN_FORBIDDEN",
+                            "ADMIN_REAUTH_REQUIRED",
+                            "ADMIN_CSRF_INVALID",
+                            "ADMIN_RESOURCE_NOT_FOUND",
+                            "ADMIN_CONFLICT",
+                            "ADMIN_STATE_STALE",
+                            "ADMIN_LAST_OWNER_REQUIRED",
+                            "ADMIN_INVALID_LIFECYCLE",
+                            "ADMIN_ASSIGNMENT_TARGET_INELIGIBLE",
+                            "ADMIN_INVALID_HIERARCHY_BINDING",
+                            "SUBSCRIPTION_ALREADY_EXISTS",
+                            "PLAN_REVISION_NOT_PUBLISHED",
+                            "SUBSCRIPTION_PERIOD_INVALID",
+                            "SUBSCRIPTION_PERIOD_NOT_EXTENDED",
+                            "SUBSCRIPTION_GRACE_WINDOW_CONFLICT",
+                            "SUBSCRIPTION_STATE_TRANSITION_INVALID",
+                            "SUBSCRIPTION_ALREADY_SUSPENDED",
+                            "SUBSCRIPTION_NOT_SUSPENDED",
+                            "SUBSCRIPTION_RESTORE_ORIGIN_NOT_FOUND",
+                            "SUBSCRIPTION_PERIOD_ENDED",
+                            "SUBSCRIPTION_GRACE_ENDED",
+                            "SUBSCRIPTION_CORRUPTED",
+                            "SYNC_CONFLICT",
+                            "SYNC_REQUEST_ID_CONFLICT",
+                            "SYNC_REQUEST_INVALID",
+                            "ACCOUNT_IDENTITY_MISMATCH",
+                            "CLIENT_UPDATE_REQUIRED",
+                            "SOURCE_OFFLINE",
+                            "TRANSFER_EXPIRED",
+                            "TRANSFER_INVALID",
+                            "TRANSFER_REPLAY",
+                            "TRANSFER_CONFLICT",
+                            "TRANSFER_DEVICE_REVOKED",
+                            "TRANSFER_ACCOUNT_MISMATCH",
+                            "TRANSFER_PACKET_TOO_LARGE",
+                            "SUPPORT_CASE_NOT_FOUND",
+                            "SUPPORT_CASE_FORBIDDEN",
+                            "SUPPORT_CASE_RATE_LIMITED",
+                            "SUPPORT_CASE_INVALID_TRANSITION"
+                          ],
+                          "type": "string"
+                        },
+                        "correlationId": {
+                          "maxLength": 128,
+                          "minLength": 1,
+                          "pattern": "^[A-Za-z0-9._:-]+$",
+                          "type": "string"
+                        },
+                        "message": {
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "correlationId"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "INTERNAL_ERROR",
+                            "INVALID_REQUEST",
+                            "SERVICE_UNAVAILABLE",
+                            "AUTH_RATE_LIMITED",
+                            "AUTH_OTP_INVALID",
+                            "AUTH_LOGIN_DENIED",
+                            "AUTH_SESSION_INVALID",
+                            "AUTH_CSRF_INVALID",
+                            "BETA_CLOSED",
+                            "BETA_CAPACITY_REACHED",
+                            "AUTH_REFRESH_INVALID",
+                            "DEVICE_AUTH_RATE_LIMITED",
+                            "DEVICE_AUTH_INVALID",
+                            "DEVICE_AUTH_FORBIDDEN",
+                            "DEVICE_AUTH_STATE_CONFLICT",
+                            "DEVICE_AUTH_IDEMPOTENCY_CONFLICT",
+                            "DEVICE_AUTH_CLOSED",
+                            "DEVICE_AUTH_PENDING",
+                            "DEVICE_LIMIT_REACHED",
+                            "DEVICE_FORBIDDEN",
+                            "DEVICE_NOT_FOUND",
+                            "UNAUTHORIZED",
+                            "DEVICE_MISMATCH",
+                            "BOOTSTRAP_UNAVAILABLE",
+                            "SUBSCRIPTION_REQUIRED",
+                            "ACCOUNT_FORBIDDEN",
+                            "ADMIN_UNAUTHORIZED",
+                            "ADMIN_FORBIDDEN",
+                            "ADMIN_REAUTH_REQUIRED",
+                            "ADMIN_CSRF_INVALID",
+                            "ADMIN_RESOURCE_NOT_FOUND",
+                            "ADMIN_CONFLICT",
+                            "ADMIN_STATE_STALE",
+                            "ADMIN_LAST_OWNER_REQUIRED",
+                            "ADMIN_INVALID_LIFECYCLE",
+                            "ADMIN_ASSIGNMENT_TARGET_INELIGIBLE",
+                            "ADMIN_INVALID_HIERARCHY_BINDING",
+                            "SUBSCRIPTION_ALREADY_EXISTS",
+                            "PLAN_REVISION_NOT_PUBLISHED",
+                            "SUBSCRIPTION_PERIOD_INVALID",
+                            "SUBSCRIPTION_PERIOD_NOT_EXTENDED",
+                            "SUBSCRIPTION_GRACE_WINDOW_CONFLICT",
+                            "SUBSCRIPTION_STATE_TRANSITION_INVALID",
+                            "SUBSCRIPTION_ALREADY_SUSPENDED",
+                            "SUBSCRIPTION_NOT_SUSPENDED",
+                            "SUBSCRIPTION_RESTORE_ORIGIN_NOT_FOUND",
+                            "SUBSCRIPTION_PERIOD_ENDED",
+                            "SUBSCRIPTION_GRACE_ENDED",
+                            "SUBSCRIPTION_CORRUPTED",
+                            "SYNC_CONFLICT",
+                            "SYNC_REQUEST_ID_CONFLICT",
+                            "SYNC_REQUEST_INVALID",
+                            "ACCOUNT_IDENTITY_MISMATCH",
+                            "CLIENT_UPDATE_REQUIRED",
+                            "SOURCE_OFFLINE",
+                            "TRANSFER_EXPIRED",
+                            "TRANSFER_INVALID",
+                            "TRANSFER_REPLAY",
+                            "TRANSFER_CONFLICT",
+                            "TRANSFER_DEVICE_REVOKED",
+                            "TRANSFER_ACCOUNT_MISMATCH",
+                            "TRANSFER_PACKET_TOO_LARGE",
+                            "SUPPORT_CASE_NOT_FOUND",
+                            "SUPPORT_CASE_FORBIDDEN",
+                            "SUPPORT_CASE_RATE_LIMITED",
+                            "SUPPORT_CASE_INVALID_TRANSITION"
+                          ],
+                          "type": "string"
+                        },
+                        "correlationId": {
+                          "maxLength": 128,
+                          "minLength": 1,
+                          "pattern": "^[A-Za-z0-9._:-]+$",
+                          "type": "string"
+                        },
+                        "message": {
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "correlationId"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "403": {
             "content": {
               "application/json": {
                 "schema": {
@@ -75185,10 +75935,21 @@
               "schema": {
                 "additionalProperties": false,
                 "properties": {
+                  "accountId": {
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "type": "string"
+                  },
                   "browserFamily": {
                     "maxLength": 64,
                     "minLength": 1,
                     "pattern": "^[A-Za-z0-9._ -]+$",
+                    "type": "string"
+                  },
+                  "browserVersion": {
+                    "maxLength": 64,
+                    "minLength": 1,
+                    "pattern": "^[A-Za-z0-9._+-]+$",
                     "type": "string"
                   },
                   "category": {
@@ -75213,6 +75974,11 @@
                     ],
                     "type": "string"
                   },
+                  "deviceId": {
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "type": "string"
+                  },
                   "event": {
                     "enum": [
                       "registration_started",
@@ -75221,7 +75987,9 @@
                       "first_store_added",
                       "first_start",
                       "feedback_case_created",
-                      "feedback_case_resolved"
+                      "feedback_case_triaged",
+                      "feedback_case_resolved",
+                      "feedback_case_closed"
                     ],
                     "type": "string"
                   },
@@ -75231,10 +75999,30 @@
                     "pattern": "^[A-Za-z0-9._+-]+$",
                     "type": "string"
                   },
+                  "idempotencyKey": {
+                    "maxLength": 128,
+                    "minLength": 16,
+                    "pattern": "^[A-Za-z0-9._:-]+$",
+                    "type": "string"
+                  },
+                  "marketplace": {
+                    "enum": [
+                      "NONE",
+                      "OZON",
+                      "WILDBERRIES"
+                    ],
+                    "type": "string"
+                  },
                   "productVersion": {
                     "maxLength": 64,
                     "minLength": 1,
                     "pattern": "^[A-Za-z0-9._+-]+$",
+                    "type": "string"
+                  },
+                  "releaseIdentity": {
+                    "maxLength": 128,
+                    "minLength": 1,
+                    "pattern": "^[A-Za-z0-9._:-]+$",
                     "type": "string"
                   },
                   "status": {
@@ -75246,10 +76034,18 @@
                       "CLOSED"
                     ],
                     "type": "string"
+                  },
+                  "supportCode": {
+                    "maxLength": 128,
+                    "minLength": 1,
+                    "pattern": "^[A-Za-z0-9._:-]+$",
+                    "type": "string"
                   }
                 },
                 "required": [
-                  "event"
+                  "event",
+                  "accountId",
+                  "idempotencyKey"
                 ],
                 "type": "object"
               }

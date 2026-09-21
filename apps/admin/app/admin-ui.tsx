@@ -886,6 +886,8 @@ function SupportPage() {
   } | null>(null);
   const [note, setNote] = useState("");
   const [aggregateText, setAggregateText] = useState("");
+  const [funnel, setFunnel] = useState("ONBOARDING");
+  const [funnelText, setFunnelText] = useState("");
   const search = (event: FormEvent) => {
     event.preventDefault();
     setPath(`/v1/admin/support/cases${query({ ...filters, limit: 50 })}`);
@@ -944,6 +946,16 @@ function SupportPage() {
         "/v1/admin/support/aggregates",
       );
       setAggregateText(JSON.stringify(value.items));
+    } catch (error) {
+      setNotice({ kind: "error", text: safeError(error) });
+    }
+  };
+  const loadFunnel = async () => {
+    try {
+      const value = await controlPlane<unknown>(
+        `/v1/admin/support/funnels?funnel=${encodeURIComponent(funnel)}&window=30D`,
+      );
+      setFunnelText(JSON.stringify(value));
     } catch (error) {
       setNotice({ kind: "error", text: safeError(error) });
     }
@@ -1008,16 +1020,34 @@ function SupportPage() {
           </div>
           <button type="submit">Filter</button>
           {has(me, "support.aggregate.read") && (
-            <button
-              type="button"
-              className="secondary"
-              onClick={() => void loadAggregates()}
-            >
-              Load aggregates
-            </button>
+            <>
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => void loadAggregates()}
+              >
+                Load aggregates
+              </button>
+              <select
+                value={funnel}
+                onChange={(e) => setFunnel(e.target.value)}
+              >
+                <option value="ONBOARDING">Onboarding funnel</option>
+                <option value="FIRST_VALUE">First-value funnel</option>
+                <option value="SUPPORT">Support funnel</option>
+              </select>
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => void loadFunnel()}
+              >
+                Load funnel
+              </button>
+            </>
           )}
         </form>
         {aggregateText && <pre>{aggregateText}</pre>}
+        {funnelText && <pre>{funnelText}</pre>}
       </section>
       <LoadState busy={result.busy} error={result.error} />
       {result.data && (

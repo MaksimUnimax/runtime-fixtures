@@ -1773,17 +1773,26 @@ export const FeedbackSignalEventV1Schema = z.enum([
   "first_store_added",
   "first_start",
   "feedback_case_created",
+  "feedback_case_triaged",
   "feedback_case_resolved",
+  "feedback_case_closed",
 ]);
 export type FeedbackSignalEventV1 = z.infer<typeof FeedbackSignalEventV1Schema>;
 export const FeedbackSignalBodyV1Schema = z
   .object({
     event: FeedbackSignalEventV1Schema,
+    accountId: z.uuid(),
+    deviceId: z.uuid().optional(),
+    idempotencyKey: SafeIdentifier.min(16),
     productVersion: B2SafeVersion.optional(),
     extensionVersion: B2SafeVersion.optional(),
     browserFamily: SafeBrowserFamily.optional(),
+    browserVersion: B2SafeVersion.optional(),
+    marketplace: FeedbackMarketplaceV1Schema.optional(),
     category: FeedbackCategoryV1Schema.optional(),
     status: FeedbackCaseStatusV1Schema.optional(),
+    supportCode: SafeIdentifier.optional(),
+    releaseIdentity: SafeIdentifier.optional(),
   })
   .strict();
 export type FeedbackSignalBodyV1 = z.infer<typeof FeedbackSignalBodyV1Schema>;
@@ -1796,9 +1805,13 @@ export const FeedbackAggregateQueryV1Schema = z
     to: z.iso.datetime().optional(),
     productVersion: B2SafeVersion.optional(),
     extensionVersion: B2SafeVersion.optional(),
+    releaseIdentity: SafeIdentifier.optional(),
     browserFamily: SafeBrowserFamily.optional(),
+    browserVersion: B2SafeVersion.optional(),
+    marketplace: FeedbackMarketplaceV1Schema.optional(),
     category: FeedbackCategoryV1Schema.optional(),
     status: FeedbackCaseStatusV1Schema.optional(),
+    supportCode: SafeIdentifier.optional(),
   })
   .strict();
 export const FeedbackAggregateItemV1Schema = z
@@ -1808,9 +1821,13 @@ export const FeedbackAggregateItemV1Schema = z
     count: z.number().int().nonnegative().safe(),
     productVersion: B2SafeVersion.nullable(),
     extensionVersion: B2SafeVersion.nullable(),
+    releaseIdentity: SafeIdentifier.nullable(),
     browserFamily: SafeBrowserFamily.nullable(),
+    browserVersion: B2SafeVersion.nullable(),
+    marketplace: FeedbackMarketplaceV1Schema.nullable(),
     category: FeedbackCategoryV1Schema.nullable(),
     status: FeedbackCaseStatusV1Schema.nullable(),
+    supportCode: SafeIdentifier.nullable(),
   })
   .strict();
 export type FeedbackAggregateItemV1 = z.infer<
@@ -1819,3 +1836,99 @@ export type FeedbackAggregateItemV1 = z.infer<
 export const FeedbackAggregateResponseV1Schema = z
   .object({ items: z.array(FeedbackAggregateItemV1Schema) })
   .strict();
+
+export const FeedbackFunnelNameV1Schema = z.enum([
+  "ONBOARDING",
+  "FIRST_VALUE",
+  "SUPPORT",
+]);
+export type FeedbackFunnelNameV1 = z.infer<typeof FeedbackFunnelNameV1Schema>;
+export const FeedbackCommercialFunnelStageV1Schema = z.enum([
+  "commercial_offer_viewed",
+  "plan_selected",
+  "checkout_started",
+  "commercial_entitlement_activated",
+]);
+export type FeedbackCommercialFunnelStageV1 = z.infer<
+  typeof FeedbackCommercialFunnelStageV1Schema
+>;
+export const FeedbackFunnelWindowV1Schema = z.enum(["1D", "7D", "30D"]);
+export type FeedbackFunnelWindowV1 = z.infer<
+  typeof FeedbackFunnelWindowV1Schema
+>;
+export const FeedbackFunnelQueryV1Schema = z
+  .object({
+    funnel: FeedbackFunnelNameV1Schema,
+    window: FeedbackFunnelWindowV1Schema.default("30D"),
+    from: z.iso.datetime().optional(),
+    to: z.iso.datetime().optional(),
+    productVersion: B2SafeVersion.optional(),
+    extensionVersion: B2SafeVersion.optional(),
+    releaseIdentity: SafeIdentifier.optional(),
+    browserFamily: SafeBrowserFamily.optional(),
+    browserVersion: B2SafeVersion.optional(),
+    marketplace: FeedbackMarketplaceV1Schema.optional(),
+    supportCode: SafeIdentifier.optional(),
+  })
+  .strict()
+  .refine(
+    (value) =>
+      (value.from === undefined && value.to === undefined) ||
+      (value.from !== undefined &&
+        value.to !== undefined &&
+        Date.parse(value.from) < Date.parse(value.to)),
+    "from and to must be supplied together as an increasing UTC interval",
+  );
+export const FeedbackFunnelStageV1Schema = z.enum([
+  "registration_started",
+  "account_created",
+  "device_activated",
+  "first_store_added",
+  "first_start",
+  "feedback_case_created",
+  "feedback_case_triaged",
+  "feedback_case_resolved",
+  "feedback_case_closed",
+]);
+export type FeedbackFunnelStageV1 = z.infer<typeof FeedbackFunnelStageV1Schema>;
+export const FeedbackFunnelStageMetricV1Schema = z
+  .object({
+    stage: FeedbackFunnelStageV1Schema,
+    eligibleCount: z.number().int().nonnegative().safe(),
+    reachedCount: z.number().int().nonnegative().safe(),
+    conversionFromPrevious: z.number().min(0).max(1).nullable(),
+    cumulativeConversion: z.number().min(0).max(1).nullable(),
+    medianSeconds: z.number().nonnegative().safe().nullable(),
+    p90Seconds: z.number().nonnegative().safe().nullable(),
+  })
+  .strict();
+export const FeedbackFunnelBreakdownV1Schema = z
+  .object({
+    stage: FeedbackFunnelStageV1Schema,
+    dimension: z.enum([
+      "productVersion",
+      "extensionVersion",
+      "releaseIdentity",
+      "browserFamily",
+      "browserVersion",
+      "marketplace",
+      "supportCode",
+    ]),
+    value: SafeIdentifier,
+    count: z.number().int().nonnegative().safe(),
+  })
+  .strict();
+export const FeedbackFunnelResponseV1Schema = z
+  .object({
+    funnel: FeedbackFunnelNameV1Schema,
+    from: z.iso.datetime(),
+    to: z.iso.datetime(),
+    cohortCount: z.number().int().nonnegative().safe(),
+    stages: z.array(FeedbackFunnelStageMetricV1Schema),
+    breakdowns: z.array(FeedbackFunnelBreakdownV1Schema),
+  })
+  .strict();
+export type FeedbackFunnelQueryV1 = z.infer<typeof FeedbackFunnelQueryV1Schema>;
+export type FeedbackFunnelResponseV1 = z.infer<
+  typeof FeedbackFunnelResponseV1Schema
+>;

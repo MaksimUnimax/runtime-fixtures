@@ -139,3 +139,13 @@ visibility and offline-authority/no-lease boundaries. FREE_BETA remains
 unlimited and commercial enforcement is disabled. This is not commercial
 launch, billing, checkout or live owner acceptance; recommended disposition is
 `M1B_READY_FOR_ARCHITECT_ACCEPTANCE` and Codex does not self-accept.
+
+## M1-C detailed funnel foundation — 2026-09-21
+
+The bounded M1-C candidate evidence is recorded in [M1-C detailed funnel foundation](m1/M1_DETAILED_FUNNEL_FOUNDATION_2026-09-21.md).
+It reuses the B2-A signal table, proves deterministic onboarding/first-value/
+support funnels, idempotency, account/device/marketplace dimensions,
+conversion/time-to-value, retention/deletion behavior and admin RBAC. It does
+not enable billing, checkout, third-party analytics, per-command telemetry,
+commercial enforcement or live measurement. Recommended disposition is
+`M1C_READY_FOR_ARCHITECT_ACCEPTANCE`; Codex does not self-accept.

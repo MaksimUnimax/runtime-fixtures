@@ -102,8 +102,11 @@ function repository(
     transitionCase: async () => caseDetail,
     recordSignal: async () => "ACCEPTED",
     aggregateSignals: async () => [],
+    aggregateFunnel: async () => {
+      throw new Error("not used in feedback route tests");
+    },
     purgeExpired: async () => ({ cases: 0, signals: 0 }),
-    anonymizeAccount: async () => ({ cases: 1 }),
+    anonymizeAccount: async () => ({ cases: 1, signals: 0 }),
   };
 }
 

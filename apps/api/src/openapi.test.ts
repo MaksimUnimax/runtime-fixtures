@@ -105,6 +105,7 @@ describe("OpenAPI foundation", () => {
         "/v1/admin/support/cases/{case_id}",
         "/v1/admin/support/cases/{case_id}/followups",
         "/v1/admin/support/cases/{case_id}/status",
+        "/v1/admin/support/funnels",
         "/v1/admin/users",
         "/v1/auth/logout",
         "/v1/auth/otp/request",

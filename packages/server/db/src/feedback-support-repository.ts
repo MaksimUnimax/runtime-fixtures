@@ -1,8 +1,11 @@
+import { createHash } from "node:crypto";
 import {
   FeedbackAggregateQueryV1Schema,
+  FeedbackFunnelQueryV1Schema,
   type FeedbackCaseItemV1,
   type FeedbackFollowupItemV1,
   type FeedbackSignalBodyV1,
+  type FeedbackFunnelQueryV1,
   SafeDiagnosticEnvelopeV1Schema,
 } from "@product/contracts";
 import {
@@ -13,6 +16,11 @@ import {
   type FeedbackRepository,
   rateKey,
   statusTransitionAllowed,
+} from "@product/feedback-support";
+import {
+  calculateFunnel,
+  funnelWindow,
+  type FunnelSignalRecord,
 } from "@product/feedback-support";
 import type { DatabaseQuery, DatabaseRuntime } from "./index.js";
 
@@ -154,18 +162,54 @@ async function audit(
 async function recordSignal(
   query: DatabaseQuery,
   body: FeedbackSignalBodyV1,
-): Promise<void> {
-  await query.query(
-    `INSERT INTO feedback_signal_events(event,product_version,extension_version,browser_family,category,status) VALUES($1,$2,$3,$4,$5,$6)`,
+  subjectId: string | null = null,
+): Promise<"ACCEPTED" | "DUPLICATE" | "CONFLICT"> {
+  const payloadHash = createHash("sha256")
+    .update(
+      JSON.stringify({
+        event: body.event,
+        accountId: body.accountId,
+        deviceId: body.deviceId ?? null,
+        productVersion: body.productVersion ?? null,
+        extensionVersion: body.extensionVersion ?? null,
+        releaseIdentity: body.releaseIdentity ?? null,
+        browserFamily: body.browserFamily ?? null,
+        browserVersion: body.browserVersion ?? null,
+        marketplace: body.marketplace ?? null,
+        category: body.category ?? null,
+        status: body.status ?? null,
+        supportCode: body.supportCode ?? null,
+      }),
+    )
+    .digest("hex");
+  const result = await query.query<{ id: string }>(
+    `INSERT INTO feedback_signal_events(event,schema_version,account_id,device_id,subject_id,idempotency_key,payload_hash,product_version,extension_version,release_identity,browser_family,browser_version,marketplace,category,status,support_code) VALUES($1,1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) ON CONFLICT(idempotency_key) DO NOTHING RETURNING id`,
     [
       body.event,
+      body.accountId,
+      body.deviceId ?? null,
+      subjectId,
+      body.idempotencyKey,
+      payloadHash,
       body.productVersion ?? null,
       body.extensionVersion ?? null,
+      body.releaseIdentity ?? null,
       body.browserFamily ?? null,
+      body.browserVersion ?? null,
+      body.marketplace ?? null,
       body.category ?? null,
       body.status ?? null,
+      body.supportCode ?? null,
     ],
   );
+  if (result.rows[0]) return "ACCEPTED";
+  const existing = await query.query<{ payload_hash: string }>(
+    `SELECT payload_hash FROM feedback_signal_events WHERE idempotency_key=$1`,
+    [body.idempotencyKey],
+  );
+  return existing.rows[0]?.payload_hash === payloadHash
+    ? "DUPLICATE"
+    : "CONFLICT";
 }
 
 export function createFeedbackSupportRepository(
@@ -229,14 +273,25 @@ export function createFeedbackSupportRepository(
             marketplace: row.marketplace,
           },
         );
-        await recordSignal(tx, {
-          event: "feedback_case_created",
-          productVersion: input.body.serverVersion,
-          extensionVersion: input.body.extensionVersion,
-          browserFamily: input.body.browserFamily,
-          category: input.body.category,
-          status: "NEW",
-        });
+        await recordSignal(
+          tx,
+          {
+            event: "feedback_case_created",
+            accountId: input.body.accountId,
+            deviceId: input.body.deviceId ?? undefined,
+            idempotencyKey: `feedback-case-created:${row.id}`,
+            productVersion: input.body.serverVersion,
+            extensionVersion: input.body.extensionVersion,
+            browserFamily: input.body.browserFamily,
+            browserVersion: input.body.browserVersion,
+            marketplace: input.body.marketplace,
+            category: input.body.category,
+            status: "NEW",
+            supportCode: input.body.supportCode,
+            releaseIdentity: input.body.releaseIdentity,
+          },
+          row.id,
+        );
         return withFollowups(row, []);
       });
     },
@@ -350,12 +405,34 @@ export function createFeedbackSupportRepository(
             resolutionCode: next.resolution_code,
           },
         );
-        if (input.status === "RESOLVED")
-          await recordSignal(tx, {
-            event: "feedback_case_resolved",
-            category: next.category,
-            status: next.status,
-          });
+        const signalEvent =
+          input.status === "TRIAGED"
+            ? "feedback_case_triaged"
+            : input.status === "RESOLVED"
+              ? "feedback_case_resolved"
+              : input.status === "CLOSED"
+                ? "feedback_case_closed"
+                : undefined;
+        if (signalEvent)
+          await recordSignal(
+            tx,
+            {
+              event: signalEvent,
+              accountId: next.account_id!,
+              deviceId: next.device_id ?? undefined,
+              idempotencyKey: `feedback-case-${signalEvent}:${next.id}`,
+              category: next.category,
+              status: next.status,
+              productVersion: next.server_version ?? undefined,
+              extensionVersion: next.extension_version ?? undefined,
+              browserFamily: next.browser_family ?? undefined,
+              browserVersion: next.browser_version ?? undefined,
+              marketplace: next.marketplace,
+              supportCode: next.support_code ?? undefined,
+              releaseIdentity: next.release_identity ?? undefined,
+            },
+            next.id,
+          );
         return withFollowups(next, await followups(tx, input.caseId));
       });
     },
@@ -370,8 +447,38 @@ export function createFeedbackSupportRepository(
           ))
         )
           return "RATE_LIMITED" as const;
-        await recordSignal(tx, input.body);
-        return "ACCEPTED" as const;
+        const account = await tx.query<{ id: string }>(
+          `SELECT a.id FROM accounts a JOIN account_memberships m ON m.account_id=a.id WHERE a.id=$1 AND a.status='ACTIVE' AND m.user_id=$2`,
+          [input.body.accountId, input.userId],
+        );
+        if (!account.rows[0]) return "CONFLICT" as const;
+        if (input.body.deviceId) {
+          const device = await tx.query<{ id: string }>(
+            `SELECT id FROM devices WHERE id=$1 AND account_id=$2`,
+            [input.body.deviceId, input.body.accountId],
+          );
+          if (!device.rows[0]) return "CONFLICT" as const;
+        }
+        if (
+          [
+            "registration_started",
+            "account_created",
+            "device_activated",
+            "first_store_added",
+            "first_start",
+          ].includes(input.body.event)
+        ) {
+          await tx.query(
+            `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`,
+            [`${input.body.accountId}:${input.body.event}`],
+          );
+          const existing = await tx.query<{ id: string }>(
+            `SELECT id FROM feedback_signal_events WHERE account_id=$1 AND event=$2 LIMIT 1`,
+            [input.body.accountId, input.body.event],
+          );
+          if (existing.rows[0]) return "DUPLICATE" as const;
+        }
+        return recordSignal(tx, input.body);
       });
     },
     async aggregateSignals(rawQuery) {
@@ -388,20 +495,30 @@ export function createFeedbackSupportRepository(
         add("product_version = ?", query.productVersion);
       if (query.extensionVersion)
         add("extension_version = ?", query.extensionVersion);
+      if (query.releaseIdentity)
+        add("release_identity = ?", query.releaseIdentity);
       if (query.browserFamily) add("browser_family = ?", query.browserFamily);
+      if (query.browserVersion)
+        add("browser_version = ?", query.browserVersion);
+      if (query.marketplace) add("marketplace = ?", query.marketplace);
       if (query.category) add("category = ?", query.category);
       if (query.status) add("status = ?", query.status);
+      if (query.supportCode) add("support_code = ?", query.supportCode);
       const result = await runtime.query<{
         day: string;
         event: FeedbackAggregate["event"];
         count: string | number;
         product_version: string | null;
         extension_version: string | null;
+        release_identity: string | null;
         browser_family: string | null;
+        browser_version: string | null;
+        marketplace: FeedbackAggregate["marketplace"];
         category: FeedbackAggregate["category"];
         status: FeedbackAggregate["status"];
+        support_code: string | null;
       }>(
-        `SELECT to_char(date_trunc('day',occurred_at),'YYYY-MM-DD') AS day,event::text AS event,count(*)::int AS count,product_version,extension_version,browser_family,category::text AS category,status::text AS status FROM feedback_signal_events${clauses.length ? ` WHERE ${clauses.join(" AND ")}` : ""} GROUP BY 1,2,4,5,6,7,8 ORDER BY 1 DESC,2 ASC`,
+        `SELECT to_char(date_trunc('day',occurred_at),'YYYY-MM-DD') AS day,event::text AS event,count(*)::int AS count,product_version,extension_version,release_identity,browser_family,browser_version,marketplace::text AS marketplace,category::text AS category,status::text AS status,support_code FROM feedback_signal_events${clauses.length ? ` WHERE ${clauses.join(" AND ")}` : ""} GROUP BY 1,2,4,5,6,7,8,9,10,11,12 ORDER BY 1 DESC,2 ASC`,
         values,
       );
       return result.rows.map((row) => ({
@@ -410,10 +527,60 @@ export function createFeedbackSupportRepository(
         count: Number(row.count),
         productVersion: row.product_version,
         extensionVersion: row.extension_version,
+        releaseIdentity: row.release_identity,
         browserFamily: row.browser_family,
+        browserVersion: row.browser_version,
+        marketplace: row.marketplace,
         category: row.category,
         status: row.status,
+        supportCode: row.support_code,
       }));
+    },
+    async aggregateFunnel(rawQuery: FeedbackFunnelQueryV1) {
+      const query = FeedbackFunnelQueryV1Schema.parse(rawQuery);
+      const { from, to } = funnelWindow(query);
+      const clauses = ["occurred_at >= $1", "occurred_at < $2"];
+      const values: unknown[] = [from, to];
+      const add = (sql: string, value: unknown) => {
+        values.push(value);
+        clauses.push(sql.replace("?", `$${values.length}`));
+      };
+      if (query.productVersion)
+        add("product_version = ?", query.productVersion);
+      if (query.extensionVersion)
+        add("extension_version = ?", query.extensionVersion);
+      if (query.releaseIdentity)
+        add("release_identity = ?", query.releaseIdentity);
+      if (query.browserFamily) add("browser_family = ?", query.browserFamily);
+      if (query.browserVersion)
+        add("browser_version = ?", query.browserVersion);
+      if (query.marketplace) add("marketplace = ?", query.marketplace);
+      if (query.supportCode) add("support_code = ?", query.supportCode);
+      const result = await runtime.query<{
+        event: FunnelSignalRecord["event"];
+        accountId: string | null;
+        subjectId: string | null;
+        occurredAt: Date | string;
+        productVersion: string | null;
+        extensionVersion: string | null;
+        releaseIdentity: string | null;
+        browserFamily: string | null;
+        browserVersion: string | null;
+        marketplace: string | null;
+        supportCode: string | null;
+      }>(
+        `SELECT event::text AS event,account_id AS "accountId",subject_id AS "subjectId",occurred_at AS "occurredAt",product_version AS "productVersion",extension_version AS "extensionVersion",release_identity AS "releaseIdentity",browser_family AS "browserFamily",browser_version AS "browserVersion",marketplace::text AS marketplace,support_code AS "supportCode" FROM feedback_signal_events WHERE ${clauses.join(" AND ")}`,
+        values,
+      );
+      return calculateFunnel({
+        funnel: query.funnel,
+        from,
+        to,
+        records: result.rows.map((row) => ({
+          ...row,
+          occurredAt: new Date(row.occurredAt),
+        })),
+      });
     },
     async purgeExpired(input) {
       const closedBefore = new Date(
@@ -435,11 +602,17 @@ export function createFeedbackSupportRepository(
       });
     },
     async anonymizeAccount(accountId) {
-      const result = await runtime.query<{ id: string }>(
-        `UPDATE feedback_cases SET account_id=NULL,created_by_user_id=NULL,device_id=NULL,description='[Feedback removed after account deletion]',diagnostics=NULL,updated_at=now() WHERE account_id=$1 RETURNING id`,
-        [accountId],
-      );
-      return { cases: result.rows.length };
+      return runtime.transaction(async (tx) => {
+        const result = await tx.query<{ id: string }>(
+          `UPDATE feedback_cases SET account_id=NULL,created_by_user_id=NULL,device_id=NULL,description='[Feedback removed after account deletion]',diagnostics=NULL,updated_at=now() WHERE account_id=$1 RETURNING id`,
+          [accountId],
+        );
+        const signals = await tx.query<{ id: string }>(
+          `UPDATE feedback_signal_events SET account_id=NULL,device_id=NULL,subject_id=NULL WHERE account_id=$1 RETURNING id`,
+          [accountId],
+        );
+        return { cases: result.rows.length, signals: signals.rows.length };
+      });
     },
   };
 }

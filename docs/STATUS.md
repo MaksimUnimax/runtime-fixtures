@@ -164,3 +164,13 @@ disabled, and ordinary Work/delivery has no device-limit call, lease or
 heartbeat. No migration, payment provider, checkout, SMTP/Exim or Stream-2
 change was made. The candidate recommends
 `M1B_READY_FOR_ARCHITECT_ACCEPTANCE`; Codex does not self-accept.
+
+## M1-C detailed funnel foundation — 2026-09-21
+
+The bounded M1-C candidate is recorded in [the M1-C receipt](development/m1/M1_DETAILED_FUNNEL_FOUNDATION_2026-09-21.md).
+It reuses B2-A signals rather than creating another telemetry system and adds
+privacy-safe funnel definitions, cohort math, time-to-value, safe dimensions,
+idempotent first milestones, support funnel stages and admin-only aggregate
+views. Commercial enforcement, checkout, third-party analytics and live
+measurement remain disabled. Recommendation:
+`M1C_READY_FOR_ARCHITECT_ACCEPTANCE`, not self-acceptance.

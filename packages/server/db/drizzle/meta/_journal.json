@@ -141,6 +141,13 @@
       "when": 1789705000000,
       "tag": "0019_b2_feedback_support",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1789706000000,
+      "tag": "0020_m1c_funnel_signals",
+      "breakpoints": true
     }
   ]
 }

@@ -58,7 +58,9 @@ export const feedbackSignalEvent = pgEnum("feedback_signal_event", [
   "first_store_added",
   "first_start",
   "feedback_case_created",
+  "feedback_case_triaged",
   "feedback_case_resolved",
+  "feedback_case_closed",
 ]);
 
 export const feedbackCases = pgTable(
@@ -170,11 +172,27 @@ export const feedbackSignalEvents = pgTable(
   {
     id: uuid("id").defaultRandom().primaryKey(),
     event: feedbackSignalEvent("event").notNull(),
+    schemaVersion: integer("schema_version").notNull().default(1),
+    accountId: uuid("account_id").references(() => accounts.id, {
+      onDelete: "set null",
+      onUpdate: "restrict",
+    }),
+    deviceId: uuid("device_id").references(() => devices.id, {
+      onDelete: "set null",
+      onUpdate: "restrict",
+    }),
+    subjectId: uuid("subject_id"),
+    idempotencyKey: varchar("idempotency_key", { length: 128 }).notNull(),
+    payloadHash: varchar("payload_hash", { length: 64 }).notNull(),
     productVersion: varchar("product_version", { length: 64 }),
     extensionVersion: varchar("extension_version", { length: 64 }),
+    releaseIdentity: varchar("release_identity", { length: 128 }),
     browserFamily: varchar("browser_family", { length: 64 }),
+    browserVersion: varchar("browser_version", { length: 64 }),
+    marketplace: feedbackMarketplace("marketplace"),
     category: feedbackCategory("category"),
     status: feedbackCaseStatus("status"),
+    supportCode: varchar("support_code", { length: 128 }),
     occurredAt: timestamp("occurred_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -186,8 +204,18 @@ export const feedbackSignalEvents = pgTable(
       table.productVersion,
       table.extensionVersion,
       table.browserFamily,
+      table.browserVersion,
+      table.marketplace,
       table.category,
       table.status,
+    ),
+    index("feedback_signal_events_account_occurred_index").on(
+      table.accountId,
+      table.occurredAt,
+    ),
+    index("feedback_signal_events_subject_occurred_index").on(
+      table.subjectId,
+      table.occurredAt,
     ),
   ],
 );

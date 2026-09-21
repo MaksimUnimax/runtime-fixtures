@@ -176,4 +176,49 @@ describe.sequential("B2 PostgreSQL feedback/support persistence", () => {
     });
     expect(purged.cases).toBe(1);
   });
+
+  it("stores one account milestone under concurrent retry and calculates an isolated funnel", async () => {
+    const key = "registration-started-integration-1";
+    const payload = {
+      event: "registration_started" as const,
+      accountId,
+      idempotencyKey: key,
+      productVersion: "0.2.4",
+      extensionVersion: "0.2.4",
+      browserFamily: "Opera",
+      browserVersion: "136",
+      releaseIdentity: "rc-1",
+    };
+    const results = await Promise.all([
+      service.recordSignal(userId, payload),
+      service.recordSignal(userId, payload),
+    ]);
+    expect(results.every((result) => result.ok)).toBe(true);
+    const accountCreated = await service.recordSignal(userId, {
+      event: "account_created",
+      accountId,
+      idempotencyKey: "account-created-integration-1",
+      productVersion: "0.2.4",
+    });
+    expect(accountCreated.ok).toBe(true);
+    const funnel = await service.aggregateFunnel({
+      funnel: "ONBOARDING",
+      from: "2026-01-01T00:00:00.000Z",
+      to: "2030-01-01T00:00:00.000Z",
+    });
+    expect(funnel.cohortCount).toBe(1);
+    expect(funnel.stages[0]!.reachedCount).toBe(1);
+    const rows = await runtime.query<{ count: string }>(
+      "SELECT count(*)::text AS count FROM feedback_signal_events WHERE account_id=$1 AND event='registration_started'",
+      [accountId],
+    );
+    expect(rows.rows[0]!.count).toBe("1");
+    const anonymized = await service.anonymizeAccount(accountId);
+    expect(anonymized.signals).toBeGreaterThanOrEqual(2);
+    const remaining = await runtime.query<{ count: string }>(
+      "SELECT count(*)::text AS count FROM feedback_signal_events WHERE account_id=$1",
+      [accountId],
+    );
+    expect(remaining.rows[0]!.count).toBe("0");
+  });
 });
