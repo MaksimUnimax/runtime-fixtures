@@ -1,0 +1,50 @@
+{
+  "manifestVersion": "b1_free_beta_rc_v1",
+  "releaseCandidateId": "seller-agents-free-beta-rc-2026-09-21",
+  "buildTimestamp": "2026-09-21T09:10:24.973Z",
+  "source": {
+    "head": "151b06bf25b8ff6abb2e59c76518c4e615860851",
+    "tree": "d73179e73b797759398ca2992efa227bc1f6155d"
+  },
+  "productVersion": "0.2.4",
+  "serverContract": "control_plane_v1",
+  "migrationLevel": 18,
+  "bootstrapTrust": {
+    "keyId": "octoport-preprod-2026-09-19",
+    "fingerprintSha256": "edc47821df296868c7061069ed50fa742f70a75889bd010dadef5166fadc4645",
+    "privateMaterialPackaged": false
+  },
+  "packages": {
+    "chromium": {
+      "filename": "SELLER_AGENTS_FREE_BETA_RC_0.2.4_CHROMIUM.zip",
+      "bytes": 2076778,
+      "sha256": "bfdb6f67b0abb7efd1f7892382e2b1c8c16c07c957e0567d247ef143091f61be",
+      "inventoryCount": 39,
+      "manifestVersion": "0.2.4",
+      "browserTarget": ["chrome", "opera", "yandex_chromium"],
+      "status": {
+        "chrome": "MANUAL_FOLLOW_UP_REQUIRED",
+        "opera": "BROWSER_ACCEPTED_BOUNDED_AUTOMATED",
+        "yandex_chromium": "PACKAGE_READY_RUNTIME_ENVIRONMENT_DEFERRED"
+      },
+      "serverEndpoints": ["https://api.octoport.ru", "https://app.octoport.ru"]
+    },
+    "firefox": {
+      "filename": "SELLER_AGENTS_FREE_BETA_RC_0.2.4_FIREFOX.zip",
+      "bytes": 3886154,
+      "sha256": "3db61719560acf27e29591efba3852d0df5e16a9328be813f1198082aee8a459",
+      "inventoryCount": 40,
+      "manifestVersion": "0.2.4",
+      "browserTarget": ["firefox"],
+      "status": "PACKAGE_READY_RUNTIME_ENVIRONMENT_DEFERRED",
+      "serverEndpoints": ["https://api.octoport.ru", "https://app.octoport.ru"]
+    }
+  },
+  "safari": {"status": "MACOS_TOOLING_DEFERRED", "packagePrepared": false},
+  "externalGates": {
+    "smtp": "WAITING_EXTERNAL_INFRA_ACTION",
+    "ownerLiveQ1C": "NOT_EXECUTABLE",
+    "browserPublication": "OWNER_ACTION_REQUIRED"
+  },
+  "productionPublished": false
+}

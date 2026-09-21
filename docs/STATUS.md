@@ -123,3 +123,14 @@ preprod/production separation, secret scanning, disposable migration/deploy
 failure detection, application rollback, and Bootstrap trust rotation/rollback
 passed. SMTP/Exim owner actions, Q1-C owner/live testing, browser publication,
 legal/paid actions, and production publication remain deferred independently.
+
+## B1 managed free-beta release preparation — 2026-09-21
+
+The automated candidate receipt is [B1 free-beta release preparation](development/b1/B1_FREE_BETA_RELEASE_PREPARATION_2026-09-21.md).
+It recommends `B1_AUTOMATED_RELEASE_PREP_PARTIAL_EXTERNAL_GATES` and is not
+self-accepted. Node 24 release parity, exact RC package manifest/hashes,
+installation and publisher metadata, onboarding state machine, beta-capacity
+procedure, compatibility matrix, upgrade/rollback procedure, safe diagnostics,
+release notes, and privacy/security gates passed. S1.2 real mailbox delivery,
+Q1-C owner/live testing, browser environment follow-up, publication/legal
+actions, and production launch remain outside this automated lane.

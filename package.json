@@ -25,6 +25,8 @@
     "api:dev": "pnpm --filter @product/api dev",
     "worker:dev": "pnpm --filter @product/worker dev",
     "bridge:guard": "node tooling/server/check-bridge-boundary.mjs",
+    "b1:prepare-rc": "node tooling/b1/prepare-release-candidate.mjs",
+    "b1:preflight": "node tooling/b1/release-preflight.mjs",
     "q1d:deployment-harness": "node tooling/q1d/deployment-harness.mjs",
     "openapi:generate": "pnpm --filter @product/api openapi:generate",
     "openapi:check": "pnpm --filter @product/api openapi:check",

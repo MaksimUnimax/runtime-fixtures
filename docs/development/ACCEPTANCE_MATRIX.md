@@ -96,3 +96,13 @@ preprod/prod isolation, migration safety, artifact identity, and rollback
 evidence. This does not convert the whole A27/A29 product requirements to
 installed or owner/live PASS, and it does not claim SMTP, Q1-C, publication,
 legal, or production-cutover acceptance.
+
+## B1 managed free-beta release preparation — 2026-09-21
+
+The bounded automated B1 preparation is recorded in [the B1 receipt](b1/B1_FREE_BETA_RELEASE_PREPARATION_2026-09-21.md).
+It recommends `B1_AUTOMATED_RELEASE_PREP_PARTIAL_EXTERNAL_GATES` and does not
+mark the beta released. It covers RC identity, package evidence,
+installation/onboarding preparation, compatibility, upgrade/rollback,
+diagnostics, publisher metadata, and release security gates. External OTP,
+owner/live, browser-environment, store, legal, and production gates remain
+deferred.

@@ -130,6 +130,17 @@ boundaries, migration failure detection, application rollback, and trust
 rotation/rollback passed in disposable/local evidence. SMTP/Exim, Stream 2,
 Q1-C owner/live testing, and production publication remain outside this lane.
 
+## B1 managed free-beta release preparation — 2026-09-21
+
+Automated release preparation is recorded in [the B1 receipt](development/b1/B1_FREE_BETA_RELEASE_PREPARATION_2026-09-21.md).
+The candidate recommendation is `B1_AUTOMATED_RELEASE_PREP_PARTIAL_EXTERNAL_GATES`;
+Codex does not self-accept B1 release. Node 24 parity, package identity,
+installation/publisher preparation, compatibility, upgrade/rollback,
+diagnostics/privacy, deployment checklist, and compact extension/server smoke
+are complete. Real OTP mailbox delivery, Q1-C owner/live sessions, browser
+environment follow-up, store publication, legal acceptance, and production
+cutover remain deferred.
+
 ## Q1-B browser-family matrix — 2026-09-19
 
 Recommended status: `Q1B_PARTIAL_ENVIRONMENT_DEFERRED`; architect review is
