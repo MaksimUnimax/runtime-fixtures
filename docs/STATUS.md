@@ -112,3 +112,14 @@ The Chrome 147 differential reproduced branded Chrome refusal of
 `--load-extension` and `--disable-extensions-except`; this is an environment
 launch boundary, not a product-worker or manifest defect. Q1 overall, Q1-C,
 Q1-D, Q1-E, deployment, publication, and monetization remain open.
+
+## Q1-D admin/security/preprod/rollback — 2026-09-21
+
+Bounded automated evidence is recorded in [Q1-D admin/security/preprod/rollback](development/q1/Q1_D_ADMIN_SECURITY_PREPROD_ROLLBACK_2026-09-21.md).
+The candidate recommendation is `Q1D_READY_FOR_ARCHITECT_ACCEPTANCE`; Codex
+does not self-accept. Admin authorization, session/CSRF/origin controls,
+support restrictions, capacity/audit safety, diagnostics privacy,
+preprod/production separation, secret scanning, disposable migration/deploy
+failure detection, application rollback, and Bootstrap trust rotation/rollback
+passed. SMTP/Exim owner actions, Q1-C owner/live testing, browser publication,
+legal/paid actions, and production publication remain deferred independently.

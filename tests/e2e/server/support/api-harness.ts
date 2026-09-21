@@ -69,7 +69,7 @@ assertE2eDatabase();
 const config = loadConfig({
   ...process.env,
   NODE_ENV: "test",
-  API_PORT: "3100",
+  API_PORT: process.env.API_PORT ?? "3100",
 });
 const database = createDatabaseRuntime(config.databaseUrl);
 const root = TEST_ONLY_AUTH_ROOT;
@@ -112,7 +112,9 @@ async function main(): Promise<void> {
       p3Catalog.findSigningKey(keyId),
     );
     const subscriptionRepository = createP5SubscriptionRepository(database);
-    const betaAdmission = new BetaAdmissionService(createBetaAdmissionRepository(database));
+    const betaAdmission = new BetaAdmissionService(
+      createBetaAdmissionRepository(database),
+    );
     const adminAuth = new AdminAuthService(
       createAdminAuthRepository(database),
       deriveAdminAuthKeys(root),
@@ -147,7 +149,10 @@ async function main(): Promise<void> {
             const beta = await betaAdmission.resolve(accountId);
             if (beta.kind === "BETA")
               return { kind: "BETA_UNLIMITED_FOR_COMMERCIAL_COUNT" as const };
-            return commercialAccess.resolveDeviceAdmission(accountId, at ?? new Date());
+            return commercialAccess.resolveDeviceAdmission(
+              accountId,
+              at ?? new Date(),
+            );
           },
         },
       ),
@@ -199,7 +204,7 @@ async function main(): Promise<void> {
       ),
       betaAdmissionService: betaAdmission,
     });
-    await app.listen({ host: "127.0.0.1", port: 3100 });
+    await app.listen({ host: "127.0.0.1", port: config.apiPort });
   } catch (error) {
     await close();
     throw error;

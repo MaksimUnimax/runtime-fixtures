@@ -86,3 +86,13 @@ root cause, Firefox carrier, and Opera/Yandex/Firefox/Safari procedures are in
 [Q1-B browser-family matrix](q1/Q1_B_BROWSER_FAMILY_MATRIX_2026-09-19.md).
 Chromium 151 evidence never transfers to Chrome, Opera, Yandex, Firefox, or
 Safari.
+
+## Q1-D admin/security/preprod/rollback — 2026-09-21
+
+The bounded Q1-D candidate evidence is recorded in [the Q1-D receipt](q1/Q1_D_ADMIN_SECURITY_PREPROD_ROLLBACK_2026-09-21.md).
+It recommends `Q1D_READY_FOR_ARCHITECT_ACCEPTANCE` and is not self-accepted.
+The receipt covers A27 server-side admin RBAC/session/CSRF/audit and A29
+preprod/prod isolation, migration safety, artifact identity, and rollback
+evidence. This does not convert the whole A27/A29 product requirements to
+installed or owner/live PASS, and it does not claim SMTP, Q1-C, publication,
+legal, or production-cutover acceptance.

@@ -12,9 +12,12 @@ import {
 import { resetE2eDatabase, sql } from "./database.js";
 export { sql };
 
-export const apiOrigin = "http://127.0.0.1:3100";
-export const portalOrigin = "http://127.0.0.1:3200";
-export const adminOrigin = "http://127.0.0.1:3300";
+const apiPort = process.env.E2E_API_PORT ?? "3100";
+const portalPort = process.env.E2E_PORTAL_PORT ?? "3200";
+const adminPort = process.env.E2E_ADMIN_PORT ?? "3300";
+export const apiOrigin = `http://127.0.0.1:${apiPort}`;
+export const portalOrigin = `http://127.0.0.1:${portalPort}`;
+export const adminOrigin = `http://127.0.0.1:${adminPort}`;
 
 export async function reset(): Promise<void> {
   await resetE2eDatabase();

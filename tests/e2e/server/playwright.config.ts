@@ -3,6 +3,9 @@ import { generateKeyPairSync } from "node:crypto";
 import { resolve } from "node:path";
 
 const serverWorkspaceCwd = resolve(__dirname, "../../..");
+const e2eApiPort = process.env.E2E_API_PORT ?? "3100";
+const e2ePortalPort = process.env.E2E_PORTAL_PORT ?? "3200";
+const e2eAdminPort = process.env.E2E_ADMIN_PORT ?? "3300";
 
 // Per-run only: the private half is passed to the disposable API process via
 // its environment and is never persisted or exposed by the test API.
@@ -55,7 +58,7 @@ export default defineConfig({
       cwd: serverWorkspaceCwd,
       command:
         "pnpm db:migrate && pnpm --filter @product/api exec tsx ../../tests/e2e/server/support/api-harness.ts",
-      url: "http://127.0.0.1:3100/health/ready",
+      url: `http://127.0.0.1:${e2eApiPort}/health/ready`,
       timeout: 60_000,
       reuseExistingServer: false,
       env: {
@@ -63,7 +66,7 @@ export default defineConfig({
         PRODUCT_CONTROL_PLANE_E2E: "1",
         NODE_ENV: "test",
         DATABASE_URL: process.env.DATABASE_URL ?? "",
-        API_PORT: "3100",
+        API_PORT: e2eApiPort,
         LOG_LEVEL: "warn",
         ...(e2eConfigSigningRingJson
           ? { CONFIG_SIGNING_KEY_RING_JSON: e2eConfigSigningRingJson }
@@ -72,31 +75,29 @@ export default defineConfig({
     },
     {
       cwd: serverWorkspaceCwd,
-      command:
-        "pnpm --filter @product/portal exec next dev --hostname 127.0.0.1 --port 3200",
-      url: "http://127.0.0.1:3200/login",
+      command: `pnpm --filter @product/portal exec next dev --hostname 127.0.0.1 --port ${e2ePortalPort}`,
+      url: `http://127.0.0.1:${e2ePortalPort}/login`,
       timeout: 60_000,
       reuseExistingServer: false,
       env: {
         ...process.env,
-        CONTROL_PLANE_API_ORIGIN: "http://127.0.0.1:3100",
+        CONTROL_PLANE_API_ORIGIN: `http://127.0.0.1:${e2eApiPort}`,
       },
     },
     {
       cwd: serverWorkspaceCwd,
-      command:
-        "pnpm --filter @product/admin exec next dev --hostname 127.0.0.1 --port 3300",
-      url: "http://127.0.0.1:3300/login",
+      command: `pnpm --filter @product/admin exec next dev --hostname 127.0.0.1 --port ${e2eAdminPort}`,
+      url: `http://127.0.0.1:${e2eAdminPort}/login`,
       timeout: 60_000,
       reuseExistingServer: false,
       env: {
         ...process.env,
-        CONTROL_PLANE_API_ORIGIN: "http://127.0.0.1:3100",
+        CONTROL_PLANE_API_ORIGIN: `http://127.0.0.1:${e2eApiPort}`,
       },
     },
   ],
   use: {
-    baseURL: "http://127.0.0.1:3200",
+    baseURL: `http://127.0.0.1:${e2ePortalPort}`,
     browserName: "chromium",
     trace: "off",
     video: "off",

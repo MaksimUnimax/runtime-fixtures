@@ -120,6 +120,16 @@ architect acceptance. See [the final consolidated receipt](development/q1/Q1_A_F
 - Recommended next independent Stream-1 lane after architect review:
   `Q1-B-20260919-AVAILABLE-BROWSER-FAMILY-MATRIX-AND-MV3-DIFFERENTIAL`.
 
+## Q1-D admin/security/preprod/rollback — 2026-09-21
+
+The bounded automated Q1-D candidate is recorded in [the Q1-D receipt](development/q1/Q1_D_ADMIN_SECURITY_PREPROD_ROLLBACK_2026-09-21.md).
+It recommends `Q1D_READY_FOR_ARCHITECT_ACCEPTANCE` and is not self-accepted.
+Admin RBAC/session/CSRF, support restrictions, capacity mutation authority,
+safe audit/diagnostics projections, environment and trust separation, secret
+boundaries, migration failure detection, application rollback, and trust
+rotation/rollback passed in disposable/local evidence. SMTP/Exim, Stream 2,
+Q1-C owner/live testing, and production publication remain outside this lane.
+
 ## Q1-B browser-family matrix — 2026-09-19
 
 Recommended status: `Q1B_PARTIAL_ENVIRONMENT_DEFERRED`; architect review is
