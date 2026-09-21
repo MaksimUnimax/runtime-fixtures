@@ -30,6 +30,7 @@
     "@product/db": "workspace:*",
     "@product/device-auth": "workspace:*",
     "@product/device-management": "workspace:*",
+    "@product/entitlements": "workspace:*",
     "@product/extension-auth": "workspace:*",
     "@product/feedback-support": "workspace:*",
     "@product/observability": "workspace:*",

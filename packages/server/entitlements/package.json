@@ -15,6 +15,10 @@
     "./seller-agents-beta-capability-policy": {
       "types": "./src/seller-agents-beta-capability-policy.ts",
       "default": "./src/seller-agents-beta-capability-policy.ts"
+    },
+    "./seller-agents-commercial-policy": {
+      "types": "./src/seller-agents-commercial-policy.ts",
+      "default": "./src/seller-agents-commercial-policy.ts"
     }
   },
   "scripts": {

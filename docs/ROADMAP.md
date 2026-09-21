@@ -153,6 +153,18 @@ It has no SMTP dependency and does not modify Stream 2. Real beta traffic,
 owner/live sessions, external OTP receipt, publication and monitoring remain
 separate gates.
 
+## M1 commercial entitlement foundation — 2026-09-21
+
+The provider-neutral commercial entitlement foundation is recorded in [the M1
+receipt](development/m1/M1_COMMERCIAL_ENTITLEMENT_FOUNDATION_2026-09-21.md).
+It is an automated implementation candidate only; it does not enable billing,
+checkout, real subscriptions, pricing, a payment provider, or change the
+free-beta experience. Seller Agents commercial mode is explicitly `DISABLED`
+by default, with normalized entitlement-event idempotency and monotonic
+revision semantics. Provider selection, pricing/trial policy, legal decisions,
+S1.2 owner infrastructure actions, Q1-C live testing, publication and
+production launch remain deferred.
+
 ## Q1-B browser-family matrix — 2026-09-19
 
 Recommended status: `Q1B_PARTIAL_ENVIRONMENT_DEFERRED`; architect review is

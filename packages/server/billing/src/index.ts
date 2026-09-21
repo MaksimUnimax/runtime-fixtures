@@ -4,6 +4,7 @@ import {
   type PurchasableOffer,
   type PurchasableOfferResolver,
 } from "@product/commercial-catalog";
+import { PlanCodeSchema } from "@product/plans";
 import { z } from "zod";
 
 const UuidSchema = z.uuid();
@@ -23,6 +24,218 @@ const CurrencySchema = z.string().regex(/^[A-Z]{3}$/);
 const IntervalUnitSchema = z.enum(["DAY", "MONTH", "YEAR"]);
 const IntervalCountSchema = z.number().int().min(1).max(1200);
 export type BillingIntervalUnit = z.infer<typeof IntervalUnitSchema>;
+
+const CommercialLifecycleSchema = z.enum([
+  "ACTIVE",
+  "GRACE",
+  "ENDED",
+  "SUSPENDED",
+]);
+export type CommercialEntitlementLifecycle = z.infer<
+  typeof CommercialLifecycleSchema
+>;
+const CommercialSourceSchema = z.enum([
+  "BILLING_PROVIDER",
+  "SYSTEM_RECONCILIATION",
+  "ADMIN",
+]);
+export type CommercialEntitlementSource = z.infer<
+  typeof CommercialSourceSchema
+>;
+const CommercialValueSchema = z.union([z.boolean(), z.number().int().safe()]);
+const CommercialPermissionsSchema = z
+  .record(z.string().min(1).max(128), CommercialValueSchema)
+  .refine((value) => Object.keys(value).length <= 128, {
+    message: "commercial permissions are bounded",
+  });
+
+/** Normalized provider-neutral entitlement event; raw provider payloads stop at the adapter. */
+export const CommercialEntitlementEventSchema = z
+  .object({
+    provider: MachineKeySchema,
+    eventId: OpaqueReferenceSchema,
+    accountId: UuidSchema,
+    planCode: PlanCodeSchema,
+    lifecycle: CommercialLifecycleSchema,
+    entitlementRevision: z.number().int().positive().safe(),
+    effectiveFrom: z.date(),
+    effectiveUntil: z.date().nullable(),
+    source: CommercialSourceSchema,
+    externalReference: OpaqueReferenceSchema.nullable(),
+    providerEventVersion: z.number().int().positive().safe(),
+    occurredAt: z.date(),
+    permissions: CommercialPermissionsSchema,
+  })
+  .strict()
+  .refine(
+    (value) =>
+      value.effectiveUntil === null ||
+      value.effectiveUntil > value.effectiveFrom,
+    { message: "commercial entitlement effective window is invalid" },
+  );
+export type CommercialEntitlementEvent = z.infer<
+  typeof CommercialEntitlementEventSchema
+>;
+
+export type CommercialEntitlementRecord = Readonly<{
+  accountId: string;
+  planCode: string;
+  lifecycle: CommercialEntitlementLifecycle;
+  entitlementRevision: number;
+  effectiveFrom: Date;
+  effectiveUntil: Date | null;
+  source: CommercialEntitlementSource;
+  externalReference: string | null;
+  providerEventVersion: number;
+  occurredAt: Date;
+  permissions: Readonly<Record<string, boolean | number>>;
+}>;
+
+export type CommercialEntitlementEventApplyResult =
+  | { kind: "APPLIED"; record: CommercialEntitlementRecord }
+  | { kind: "DUPLICATE"; record: CommercialEntitlementRecord }
+  | { kind: "STALE"; currentRevision: number }
+  | { kind: "CONFLICT"; code: "EVENT_ID_REUSED" | "REVISION_CONFLICT" };
+
+export type CommercialEntitlementProviderAdapter = {
+  readonly providerKey: string;
+  normalizeEvent(raw: unknown): Promise<
+    | { kind: "OK"; event: CommercialEntitlementEvent }
+    | {
+        kind: "REJECTED";
+        code: "MALFORMED_EVENT" | "PROVIDER_MISMATCH";
+      }
+  >;
+};
+
+export interface CommercialEntitlementEventRepository {
+  applyEvent(
+    event: CommercialEntitlementEvent,
+  ): Promise<CommercialEntitlementEventApplyResult>;
+  read(accountId: string): Promise<CommercialEntitlementRecord | null>;
+}
+
+function commercialEventCanonical(event: CommercialEntitlementEvent): string {
+  return JSON.stringify({
+    ...event,
+    effectiveFrom: event.effectiveFrom.toISOString(),
+    effectiveUntil: event.effectiveUntil?.toISOString() ?? null,
+    occurredAt: event.occurredAt.toISOString(),
+    permissions: Object.fromEntries(
+      Object.entries(event.permissions).sort(([a], [b]) => a.localeCompare(b)),
+    ),
+  });
+}
+
+function recordFromEvent(
+  event: CommercialEntitlementEvent,
+): CommercialEntitlementRecord {
+  return Object.freeze({
+    accountId: event.accountId,
+    planCode: event.planCode,
+    lifecycle: event.lifecycle,
+    entitlementRevision: event.entitlementRevision,
+    effectiveFrom: new Date(event.effectiveFrom.getTime()),
+    effectiveUntil: event.effectiveUntil
+      ? new Date(event.effectiveUntil.getTime())
+      : null,
+    source: event.source,
+    externalReference: event.externalReference,
+    providerEventVersion: event.providerEventVersion,
+    occurredAt: new Date(event.occurredAt.getTime()),
+    permissions: Object.freeze({ ...event.permissions }),
+  });
+}
+
+/** Deterministic fixture repository mirroring the required DB uniqueness/order rules. */
+export class InMemoryCommercialEntitlementEventRepository
+  implements CommercialEntitlementEventRepository
+{
+  private readonly events = new Map<string, string>();
+  private readonly records = new Map<string, CommercialEntitlementRecord>();
+
+  async applyEvent(
+    rawEvent: CommercialEntitlementEvent,
+  ): Promise<CommercialEntitlementEventApplyResult> {
+    const event = CommercialEntitlementEventSchema.parse(rawEvent);
+    const eventKey = `${event.provider}:${event.eventId}`;
+    const canonical = commercialEventCanonical(event);
+    const priorEvent = this.events.get(eventKey);
+    if (priorEvent !== undefined) {
+      if (priorEvent !== canonical)
+        return { kind: "CONFLICT", code: "EVENT_ID_REUSED" };
+      const current = this.records.get(event.accountId);
+      if (!current) return { kind: "CONFLICT", code: "EVENT_ID_REUSED" };
+      return { kind: "DUPLICATE", record: current };
+    }
+
+    const current = this.records.get(event.accountId);
+    if (current && event.entitlementRevision < current.entitlementRevision)
+      return { kind: "STALE", currentRevision: current.entitlementRevision };
+    if (
+      current &&
+      event.entitlementRevision === current.entitlementRevision &&
+      commercialEventCanonical({
+        ...event,
+        eventId: "current",
+        provider: "current",
+      }) !==
+        commercialEventCanonical({
+          ...event,
+          eventId: "current",
+          provider: "current",
+          lifecycle: current.lifecycle,
+          planCode: current.planCode,
+          effectiveFrom: current.effectiveFrom,
+          effectiveUntil: current.effectiveUntil,
+          source: current.source,
+          externalReference: current.externalReference,
+          providerEventVersion: current.providerEventVersion,
+          occurredAt: current.occurredAt,
+          permissions: current.permissions,
+        })
+    )
+      return { kind: "CONFLICT", code: "REVISION_CONFLICT" };
+
+    this.events.set(eventKey, canonical);
+    const record = recordFromEvent(event);
+    this.records.set(event.accountId, record);
+    return { kind: "APPLIED", record };
+  }
+
+  async read(accountId: string): Promise<CommercialEntitlementRecord | null> {
+    const record = this.records.get(accountId);
+    if (!record) return null;
+    return recordFromEvent({
+      provider: "snapshot",
+      eventId: `snapshot-${record.entitlementRevision}`,
+      accountId: record.accountId,
+      planCode: record.planCode,
+      lifecycle: record.lifecycle,
+      entitlementRevision: record.entitlementRevision,
+      effectiveFrom: record.effectiveFrom,
+      effectiveUntil: record.effectiveUntil,
+      source: record.source,
+      externalReference: record.externalReference,
+      providerEventVersion: record.providerEventVersion,
+      occurredAt: record.occurredAt,
+      permissions: record.permissions,
+    });
+  }
+}
+
+export async function processCommercialEntitlementEvent(
+  adapter: CommercialEntitlementProviderAdapter,
+  repository: CommercialEntitlementEventRepository,
+  rawEvent: unknown,
+): Promise<
+  | { kind: "REJECTED"; code: "MALFORMED_EVENT" | "PROVIDER_MISMATCH" }
+  | CommercialEntitlementEventApplyResult
+> {
+  const result = await adapter.normalizeEvent(rawEvent);
+  if (result.kind === "REJECTED") return result;
+  return repository.applyEvent(result.event);
+}
 
 export const CheckoutIdempotencyKeySchema = z
   .string()

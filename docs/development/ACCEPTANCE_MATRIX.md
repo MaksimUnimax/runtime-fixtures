@@ -117,3 +117,13 @@ privacy-safe onboarding/support aggregates, release linkage, configurable
 provisional retention and account anonymization. It does not require SMTP,
 does not modify Stream 2, and does not claim live beta, owner OTP, browser
 publication, production launch or monitoring acceptance.
+
+## M1 commercial entitlement foundation — 2026-09-21
+
+The bounded M1-A automated candidate is recorded in [M1 commercial entitlement
+foundation](m1/M1_COMMERCIAL_ENTITLEMENT_FOUNDATION_2026-09-21.md). It covers
+the provider-neutral normalized entitlement/event boundary, deterministic
+duplicate/stale revision handling, free-beta separation, capability mapping,
+offline-authority preservation and the disabled commercial-mode gate. It does
+not mark monetization launched and does not claim a payment provider, pricing,
+checkout, legal acceptance, S1.2, Q1-C, publication or production acceptance.

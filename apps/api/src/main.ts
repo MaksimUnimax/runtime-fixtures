@@ -66,8 +66,11 @@ import { SyncService } from "@product/sync";
 import { CredentialTransferService } from "@product/credential-transfer";
 import { createInfrastructureReadiness } from "./infrastructure.js";
 import { FeedbackSupportService } from "@product/feedback-support";
+import { sellerAgentsCommercialModeFromEnvironment } from "@product/entitlements/seller-agents-commercial-policy";
 
 const config = loadConfig(process.env);
+const commercialModeEnabled =
+  sellerAgentsCommercialModeFromEnvironment(process.env) === "ENABLED";
 const database = createDatabaseRuntime(config.databaseUrl);
 const subscriptions = createP5SubscriptionRepository(database);
 const subscriptionAccess = createP5SubscriptionAccessResolver(subscriptions);
@@ -122,6 +125,11 @@ const app = createApiApp({
         const beta = await betaAdmission.resolve(accountId);
         if (beta.kind === "BETA")
           return { kind: "BETA_UNLIMITED_FOR_COMMERCIAL_COUNT" as const };
+        if (!commercialModeEnabled)
+          return {
+            kind: "INELIGIBLE" as const,
+            reason: "NO_CURRENT_SUBSCRIPTION" as const,
+          };
         return commercialAccess.resolveDeviceAdmission(
           accountId,
           at ?? new Date(),
@@ -133,7 +141,7 @@ const app = createApiApp({
     { resolve: (input) => resolveP3BootstrapPolicy(input, p3Catalog) },
     createConfigSigningService(bootstrapSigningMaterial, p3Catalog),
     undefined,
-    commercialAccess,
+    commercialModeEnabled ? commercialAccess : undefined,
     new BootstrapAiResolutionService(
       createBootstrapAiResolutionRepository(database),
     ),

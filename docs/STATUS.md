@@ -145,3 +145,11 @@ redaction, audit references, aggregates, configurable 90/180-day provisional
 retention and account anonymization are covered by migration 0019, API/UI and
 Node 24/PostgreSQL evidence. SMTP/Exim, Stream 2, live owner traffic and
 publication were not modified.
+
+## M1 commercial entitlement foundation — 2026-09-21
+
+The M1-A automated candidate is recorded in [the M1 receipt](development/m1/M1_COMMERCIAL_ENTITLEMENT_FOUNDATION_2026-09-21.md).
+It adds only a provider-neutral Seller Agents commercial policy/event boundary
+and an explicit `DISABLED` production default. Free beta remains the active
+access basis; no payment provider, checkout, real subscription, pricing or
+SMTP/Exim path was enabled or modified. The candidate is not self-accepted.

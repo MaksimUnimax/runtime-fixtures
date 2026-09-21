@@ -133,6 +133,9 @@ importers:
       '@product/device-management':
         specifier: workspace:*
         version: link:../../packages/server/device-management
+      '@product/entitlements':
+        specifier: workspace:*
+        version: link:../../packages/server/entitlements
       '@product/extension-auth':
         specifier: workspace:*
         version: link:../../packages/server/extension-auth
@@ -352,6 +355,9 @@ importers:
       '@product/commercial-catalog':
         specifier: workspace:*
         version: link:../commercial-catalog
+      '@product/plans':
+        specifier: workspace:*
+        version: link:../plans
       zod:
         specifier: 4.1.5
         version: 4.1.5

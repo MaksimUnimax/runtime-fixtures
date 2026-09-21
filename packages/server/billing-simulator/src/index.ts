@@ -13,6 +13,9 @@ import {
   type BillingEventVerificationPort,
   type BillingEventVerificationResult,
   type VerifiedBillingEvent,
+  CommercialEntitlementEventSchema,
+  type CommercialEntitlementEvent,
+  type CommercialEntitlementProviderAdapter,
 } from "@product/billing";
 
 export type BillingSimulatorScenario =
@@ -267,3 +270,24 @@ export class DeterministicBillingSimulator
 
 export const createBillingSimulator = (options: BillingSimulatorOptions = {}) =>
   new DeterministicBillingSimulator(options);
+
+/** Deterministic normalized-event adapter for M1 policy tests; no provider calls. */
+export class DeterministicCommercialEntitlementAdapter
+  implements CommercialEntitlementProviderAdapter
+{
+  readonly providerKey = "simulator";
+
+  async normalizeEvent(raw: unknown): Promise<
+    | { kind: "OK"; event: CommercialEntitlementEvent }
+    | {
+        kind: "REJECTED";
+        code: "MALFORMED_EVENT" | "PROVIDER_MISMATCH";
+      }
+  > {
+    const parsed = CommercialEntitlementEventSchema.safeParse(raw);
+    if (!parsed.success) return { kind: "REJECTED", code: "MALFORMED_EVENT" };
+    if (parsed.data.provider !== this.providerKey)
+      return { kind: "REJECTED", code: "PROVIDER_MISMATCH" };
+    return { kind: "OK", event: parsed.data };
+  }
+}
