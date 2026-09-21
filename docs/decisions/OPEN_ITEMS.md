@@ -22,3 +22,9 @@
 | Политики платформ для распространения | Проверяются на выбранный канал; документ не заявляет разрешение или запрет | Подготовка соответствующего выпуска |
 
 Технические defaults: квота беты изначально закрыта до открытия администратором; места считаются по завершённым первым регистрациям, автоматически не возвращаются при удалении. Экспорт реквизитов защищён паролем. Подробности в нормативных документах; это явные проектные решения, а не якобы уже существующая реализация.
+
+| S2-TG1 Telegram operator service | Реализовать отдельный Stream-2 bot/control service, bot-token secret provisioning и authorized operator allowlist; initial transport — Telegram Bot API long polling | S2-TG1 |
+| S2-TG2 independent scheduling | Durable LLM and Swagger/API control records; independent intervals, status, run-now buttons/commands, same-lane duplicate protection, restart recovery | S2-TG2 |
+| S2-TG3 Swagger operator handoff | Official URL/request notification, reply correlation, Telegram document download, server quarantine/inbox, provenance/hash/validation, candidate handoff to S2-A1 | S2-TG3 |
+| S2-TG4 operator E2E | Unauthorized denial, notification delivery, schedule persistence, forced runs, protected-source request/upload/validation/result round-trip | S2-TG4 |
+| S2-A1 official source authority | Automatic acquisition remains preferred; protected sources may additionally use validated Telegram operator-assisted official-source acquisition. Full S2-A1 remains NOT_ACCEPTED until authority criteria pass | After TG3 capability and an actual bounded A1 recovery |
