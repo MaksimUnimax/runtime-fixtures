@@ -127,3 +127,15 @@ duplicate/stale revision handling, free-beta separation, capability mapping,
 offline-authority preservation and the disabled commercial-mode gate. It does
 not mark monetization launched and does not claim a payment provider, pricing,
 checkout, legal acceptance, S1.2, Q1-C, publication or production acceptance.
+
+## M1-B device / installation admission foundation — 2026-09-21
+
+The bounded M1-B candidate is recorded in [M1-B device / installation admission
+foundation](m1/M1_DEVICE_INSTALLATION_LIMIT_FOUNDATION_2026-09-21.md). It covers
+the existing account-bound device lifecycle, explicit future
+`UNLIMITED | positive finite` policy, atomic final-slot admission,
+idempotent exchange replay, account isolation, revoke release, safe admin
+visibility and offline-authority/no-lease boundaries. FREE_BETA remains
+unlimited and commercial enforcement is disabled. This is not commercial
+launch, billing, checkout or live owner acceptance; recommended disposition is
+`M1B_READY_FOR_ARCHITECT_ACCEPTANCE` and Codex does not self-accept.

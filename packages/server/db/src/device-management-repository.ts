@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { DeviceManagementRepository } from "@product/device-management";
+import { decideSellerAgentsDeviceAdmission } from "@product/entitlements";
 import type { DatabaseRuntime } from "./index.js";
 import { revokeDeviceInTransaction } from "./device-revocation.js";
 
@@ -131,7 +132,22 @@ export function createDeviceManagementRepository(
             `SELECT count(*) count FROM devices WHERE account_id=$1 AND status='ACTIVE'`,
             [a.approved_account_id],
           );
-          if (Number(count.rows[0]?.count) >= limit.maxActive) {
+          const activeDeviceCount = Number(count.rows[0]?.count);
+          // Zero is retained as the historical deny-all compatibility value.
+          // New commercial plans use the explicit UNLIMITED | positive FINITE
+          // provider-neutral model.
+          const decision =
+            limit.maxActive === 0
+              ? {
+                  kind: "DENY" as const,
+                  reason: "DEVICE_LIMIT_REACHED" as const,
+                }
+              : decideSellerAgentsDeviceAdmission({
+                  limit: { kind: "FINITE", value: limit.maxActive },
+                  activeDeviceCount,
+                  alreadyAdmitted: false,
+                });
+          if (decision.kind === "DENY") {
             await tx.query(
               `INSERT INTO audit_events(actor_type,action,target_type,target_id,correlation_id) VALUES('SYSTEM','DEVICE_ACTIVATION_LIMIT_REACHED','DEVICE_AUTHORIZATION',$1,$2)`,
               [a.id, input.correlationId],

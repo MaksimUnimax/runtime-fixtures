@@ -2,6 +2,7 @@ import {
   SELLER_AGENTS_CAPABILITY_PERMISSION_KEYS,
   type SellerAgentsCapabilityPermissionKey,
 } from "./seller-agents-capability-permissions.js";
+import type { SellerAgentsDeviceLimit } from "./seller-agents-device-admission.js";
 
 export const SELLER_AGENTS_COMMERCIAL_MODE_ENV =
   "SELLER_AGENTS_COMMERCIAL_MODE" as const;
@@ -25,6 +26,8 @@ export type SellerAgentsCommercialEntitlement = Readonly<{
   externalReference: string | null;
   lastVerifiedProviderEventVersion: number;
   permissions: Readonly<Record<string, boolean | number>>;
+  /** Future plan projection; absent for current beta/commercial records. */
+  deviceLimit?: SellerAgentsDeviceLimit;
 }>;
 
 export type SellerAgentsEffectiveAccess = Readonly<{

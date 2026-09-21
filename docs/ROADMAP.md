@@ -165,6 +165,18 @@ revision semantics. Provider selection, pricing/trial policy, legal decisions,
 S1.2 owner infrastructure actions, Q1-C live testing, publication and
 production launch remain deferred.
 
+## M1-B device / installation admission foundation — 2026-09-21
+
+M1-B is an automated implementation candidate in [the M1-B receipt](development/m1/M1_DEVICE_INSTALLATION_LIMIT_FOUNDATION_2026-09-21.md).
+The counted unit is the existing account-bound authenticated `devices.id`; the
+existing PostgreSQL activation transaction remains the only future admission
+enforcement point. The provider-neutral model supports explicit unlimited or
+positive finite limits, while current FREE_BETA remains unlimited and
+commercial enforcement remains disabled. No runtime lease, heartbeat,
+per-command check, payment provider, checkout, migration, SMTP/Exim or
+Stream-2 implementation change was made. Recommended disposition is
+`M1B_READY_FOR_ARCHITECT_ACCEPTANCE`; no commercial numeric limit was chosen.
+
 ## Q1-B browser-family matrix — 2026-09-19
 
 Recommended status: `Q1B_PARTIAL_ENVIRONMENT_DEFERRED`; architect review is

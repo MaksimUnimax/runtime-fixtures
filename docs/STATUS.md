@@ -153,3 +153,14 @@ It adds only a provider-neutral Seller Agents commercial policy/event boundary
 and an explicit `DISABLED` production default. Free beta remains the active
 access basis; no payment provider, checkout, real subscription, pricing or
 SMTP/Exim path was enabled or modified. The candidate is not self-accepted.
+
+## M1-B device / installation admission foundation — 2026-09-21
+
+The bounded M1-B candidate is recorded in [the M1-B receipt](development/m1/M1_DEVICE_INSTALLATION_LIMIT_FOUNDATION_2026-09-21.md).
+It adds an explicit provider-neutral `UNLIMITED | positive finite` device-limit
+model and binds positive finite admission to the existing atomic P2.5 account
+transaction. FREE_BETA remains unlimited, commercial enforcement remains
+disabled, and ordinary Work/delivery has no device-limit call, lease or
+heartbeat. No migration, payment provider, checkout, SMTP/Exim or Stream-2
+change was made. The candidate recommends
+`M1B_READY_FOR_ARCHITECT_ACCEPTANCE`; Codex does not self-accept.
