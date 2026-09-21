@@ -63,3 +63,15 @@ After TG3/TG4 the validated operator-assisted first-party source path can unbloc
 ## Non-interference
 
 No runtime implementation, Telegram bot deployment, scheduler implementation, provider probe, Stream-1 product code change or historical acceptance rewrite is part of this documentation amendment.
+
+## Publication receipt
+
+Remote documentation branch:
+`docs/stream2-telegram-operator-control-plane-2026-09-21`
+
+Draft PR:
+#24 — Stream 2: Telegram operator control plane requirements and roadmap
+
+This publishes the owner-approved documentation amendment only. It does not pretend the locally accepted Stream-2 implementation graph has been published to remote main.
+
+TG0 architectural/documentation content is complete on this branch; canonical merge/reconciliation with the unpublished accepted Stream-2 graph remains a source-authority operation, not a requirements decision.
