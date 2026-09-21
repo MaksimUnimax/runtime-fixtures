@@ -208,3 +208,17 @@ The active path is provider-neutral EmailProvider → local Exim at
 was introduced. This is not end-to-end mail acceptance: outbound TCP/25,
 PTR/DNS verification as applicable, real MX acceptance, and owner-mailbox OTP
 receipt remain external gates.
+
+## Current consolidated preprod deployment — 2026-09-21
+
+The accepted consolidated Stream-1 source (`600a6891a47f24eb9a008aa47182e31d5181d260` /
+`46fb4fd9c4d9ace39267998d0aaa028e096c28da`) is deployed to the existing
+owner-test/preprod API, worker, and portal services. Node 24 build, migrations
+through named `0020`, health, trust binding, B2/M1 smoke, local Exim handoff,
+and rollback readiness passed. The deployment receipt is [the current-line
+preprod receipt](development/preprod/PREPROD_CURRENT_LINE_DEPLOYMENT_2026-09-21.md).
+
+The deployment is `PREPROD_CURRENT_LINE_READY_EXCEPT_EXTERNAL_SMTP`: outbound
+TCP/25 remains blocked, PTR is still absent, and real owner-mailbox OTP receipt
+has not been tested. This does not mark Q1-C, S1.2 end-to-end delivery, B1
+public release, or production cutover complete.

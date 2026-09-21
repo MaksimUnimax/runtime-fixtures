@@ -161,3 +161,17 @@ local handoff checks are separate from real Internet delivery. The candidate
 recommendation is
 `S1_2_SOURCE_CONSOLIDATION_PARTIAL_EXTERNAL_DELIVERY_PENDING`; no real
 mailbox receipt or end-to-end S1.2 acceptance is claimed.
+
+## Current consolidated preprod deployment — 2026-09-21
+
+The current accepted Stream-1 line is deployed to the existing owner-test
+preprod API, worker, and portal. The deployment receipt is [the current-line
+preprod receipt](preprod/PREPROD_CURRENT_LINE_DEPLOYMENT_2026-09-21.md).
+Node 24 build, migration state through named `0020`, backup, API/portal/worker
+health, trust binding, B2/M1 smoke, local Exim handoff, and rollback readiness
+are recorded as PASS. The result is
+`PREPROD_CURRENT_LINE_READY_EXCEPT_EXTERNAL_SMTP`.
+
+This does not claim real Internet delivery, owner-mailbox OTP, Q1-C, S1.2
+end-to-end acceptance, B1 publication, or production cutover. TCP/25 remains
+blocked and PTR remains absent; DKIM and DMARC resolve publicly.

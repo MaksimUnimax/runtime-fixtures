@@ -189,3 +189,19 @@ MX acceptance and the real owner-mailbox OTP test remain pending. Recommended
 disposition is
 `S1_2_SOURCE_CONSOLIDATION_PARTIAL_EXTERNAL_DELIVERY_PENDING`; this is not
 S1.2 end-to-end acceptance.
+
+## Current consolidated preprod deployment — 2026-09-21
+
+The accepted consolidated Stream-1 line is deployed to the existing preprod
+services from source `600a6891a47f24eb9a008aa47182e31d5181d260` /
+`46fb4fd9c4d9ace39267998d0aaa028e096c28da`. Node 24 build, migration
+preflight/no-op through named `0020`, predeploy backup, API/worker/portal
+health, trust binding, B2/M1 smoke, local SMTP handoff, and rollback readiness
+passed. Business Bridge and Stream 2 were not modified.
+
+The deployment recommendation is `PREPROD_CURRENT_LINE_READY_EXCEPT_EXTERNAL_SMTP`.
+Outbound TCP/25 remains blocked, PTR remains absent, and real owner-mailbox
+OTP receipt remains untested. The evidence is [the current-line preprod
+deployment receipt](development/preprod/PREPROD_CURRENT_LINE_DEPLOYMENT_2026-09-21.md).
+Q1-C, S1.2 end-to-end delivery, B1 public release, and production cutover are
+not accepted by this deployment.
