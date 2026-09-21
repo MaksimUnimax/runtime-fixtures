@@ -198,3 +198,13 @@ accepted from that run. Opera, Yandex, real Firefox, and Safari remain
 deferred. A deterministic Firefox-specific package was implemented from the
 unified runtime and is ready for a real Firefox environment. See [the Q1-B
 receipt](development/q1/Q1_B_BROWSER_FAMILY_MATRIX_2026-09-19.md).
+
+## S1.2 own-SMTP source consolidation — 2026-09-21
+
+The application-owned SMTP implementation is now consolidated onto the
+accepted M1-C line in [the source-consolidation receipt](development/server/S1_2_OWN_SMTP_SOURCE_CONSOLIDATION_2026-09-21.md).
+The active path is provider-neutral EmailProvider → local Exim at
+`127.0.0.1:25`; Resend is not active and no third-party provider or test sink
+was introduced. This is not end-to-end mail acceptance: outbound TCP/25,
+PTR/DNS verification as applicable, real MX acceptance, and owner-mailbox OTP
+receipt remain external gates.

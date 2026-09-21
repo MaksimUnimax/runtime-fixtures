@@ -149,3 +149,15 @@ conversion/time-to-value, retention/deletion behavior and admin RBAC. It does
 not enable billing, checkout, third-party analytics, per-command telemetry,
 commercial enforcement or live measurement. Recommended disposition is
 `M1C_READY_FOR_ARCHITECT_ACCEPTANCE`; Codex does not self-accept.
+
+## S1.2 own-SMTP source consolidation — 2026-09-21
+
+The own-SMTP application source is consolidated onto the accepted M1-C line;
+see [the consolidation receipt](server/S1_2_OWN_SMTP_SOURCE_CONSOLIDATION_2026-09-21.md).
+The adapter targets the project-owned local Exim boundary and preserves OTP
+semantics without exposing OTP values. No fake sink, third-party provider,
+Stream-2 change, or Exim rework is part of this candidate. Application and
+local handoff checks are separate from real Internet delivery. The candidate
+recommendation is
+`S1_2_SOURCE_CONSOLIDATION_PARTIAL_EXTERNAL_DELIVERY_PENDING`; no real
+mailbox receipt or end-to-end S1.2 acceptance is claimed.

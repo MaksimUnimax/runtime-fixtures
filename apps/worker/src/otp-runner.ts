@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { EmailProvider } from "@product/auth";
 import { decryptOtpDelivery, type AuthKeys } from "@product/auth";
+import { EmailProviderError } from "@product/email";
 import type { DatabaseRuntime } from "@product/db";
 import type { JobRunner } from "./lifecycle.js";
 export class OtpEmailRunner implements JobRunner {
@@ -82,13 +83,25 @@ export class OtpEmailRunner implements JobRunner {
         `UPDATE otp_email_jobs SET status='SENT',sent_at=now(),ciphertext=NULL,nonce=NULL,auth_tag=NULL,lease_id=NULL,leased_until=NULL,provider_message_id=$2,updated_at=now() WHERE id=$1 AND lease_id=$3`,
         [row.id, sent.providerMessageId ?? null, lease],
       );
-    } catch {
+    } catch (error) {
+      const classified =
+        error instanceof EmailProviderError
+          ? error
+          : new EmailProviderError("UNKNOWN_OUTCOME", false);
       const exhausted = row.attempt_count >= row.max_attempts;
+      const errorCode =
+        classified.kind === "UNKNOWN_OUTCOME"
+          ? "EMAIL_PROVIDER_TIMEOUT_OR_UNKNOWN"
+          : classified.kind === "PROTOCOL_FAILURE"
+            ? "EMAIL_PROVIDER_PROTOCOL_FAILURE"
+            : classified.providerStatus
+              ? `EMAIL_PROVIDER_HTTP_${classified.providerStatus}`
+              : "EMAIL_PROVIDER_REJECTED";
       await this.db.query(
-        exhausted
-          ? `UPDATE otp_email_jobs SET status='DEAD',ciphertext=NULL,nonce=NULL,auth_tag=NULL,lease_id=NULL,leased_until=NULL,last_error_code='SMTP_SEND_FAILED' WHERE id=$1 AND lease_id=$2`
-          : `UPDATE otp_email_jobs SET status='PENDING',lease_id=NULL,leased_until=NULL,available_at=now()+interval '30 seconds',last_error_code='SMTP_SEND_FAILED' WHERE id=$1 AND lease_id=$2`,
-        [row.id, lease],
+        exhausted || !classified.retryable
+          ? `UPDATE otp_email_jobs SET status='DEAD',ciphertext=NULL,nonce=NULL,auth_tag=NULL,lease_id=NULL,leased_until=NULL,last_error_code=$3,updated_at=now() WHERE id=$1 AND lease_id=$2`
+          : `UPDATE otp_email_jobs SET status='PENDING',lease_id=NULL,leased_until=NULL,available_at=now()+interval '30 seconds',last_error_code=$3,updated_at=now() WHERE id=$1 AND lease_id=$2`,
+        [row.id, lease, errorCode],
       );
     }
   }

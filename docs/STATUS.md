@@ -174,3 +174,18 @@ idempotent first milestones, support funnel stages and admin-only aggregate
 views. Commercial enforcement, checkout, third-party analytics and live
 measurement remain disabled. Recommendation:
 `M1C_READY_FOR_ARCHITECT_ACCEPTANCE`, not self-acceptance.
+
+## S1.2 own-SMTP source consolidation — 2026-09-21
+
+The application-side own-SMTP changes are consolidated onto the latest
+accepted Stream-1 line. The worker uses the provider-neutral email boundary
+with local Exim submission at `127.0.0.1:25`, explicit Octoport sender
+identity, bounded SMTP timeouts and honest known/unknown outcome handling.
+The historical Resend decision is superseded and no active Resend dependency
+remains. Exim, Stream 2, Business Bridge and SMTP machine state were not
+modified by this source task. Application/local-MTA evidence is distinct from
+Internet delivery: AdminVPS TCP/25, PTR/DNS verification as applicable, real
+MX acceptance and the real owner-mailbox OTP test remain pending. Recommended
+disposition is
+`S1_2_SOURCE_CONSOLIDATION_PARTIAL_EXTERNAL_DELIVERY_PENDING`; this is not
+S1.2 end-to-end acceptance.
