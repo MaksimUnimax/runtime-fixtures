@@ -90,6 +90,17 @@ derived data may remain under existing policy.
 - PostgreSQL feedback/support integration: 3 passed, including concurrent
   idempotency, funnel query, and signal anonymization.
 - API: 19 files / 231 tests passed; OpenAPI regenerated and checked.
+- The requested `M1C-01..45` matrix is covered by grouped assertions: M1C-01..
+  08 and 10..23 by `funnels.test.ts` plus the PostgreSQL funnel test; M1C-09,
+  24, 28..32 and 40..41 by the PostgreSQL persistence/privacy tests; M1C-25..
+  27 by the admin route/permission and API regression; M1C-33..34 by the
+  commercial-stage contract test; M1C-35..39 and 44..45 by the existing
+  autonomy, API, Bootstrap and free-beta regression suites; M1C-42..43 by the
+  final path-boundary diff/guard. No raw content is used as evidence.
+- Full Node 24 workspace regression passed; full PostgreSQL integration passed:
+  41 files / 1536 tests. The bounded synthetic funnel calculation completed
+  within the performance guard and the added account/time indexes are used for
+  bounded signal queries.
 - Migration 0020 applied to disposable PostgreSQL; Node 24 workspace
   typecheck passed. No real traffic or live measurements are claimed.
 
