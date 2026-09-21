@@ -90,3 +90,28 @@ Read-only определяется бизнес-эффектом операци�
 
 Детали экранов и внешние API неизбежно уточняются по проверкам. Чтобы не переписывать проект заново, фиксируются границы, ID требований и переходы, а внешние неизвестные — в [OPEN_ITEMS](../decisions/OPEN_ITEMS.md).
 Изменение принятой механики требует отдельного решения; исправление реализации под существующее требование нового продуктового согласования не требует.
+
+## Stream 2 Telegram operator requirements
+
+| ID | Требование |
+|---|---|
+| SA-OBS-TG-01 | Stream-2 сообщает авторизованному Telegram-оператору о material change/problem с явным указанием lane, provider/target, classification, severity, runId и безопасной evidence reference |
+| SA-OBS-TG-02 | LLM monitoring и Swagger/API monitoring — независимые функции; команды, schedule state, run state, history и notifications не смешиваются |
+| SA-OBS-TG-03 | LLM interval и Swagger/API interval настраиваются независимо через Telegram и сохраняются durable через bot/process/VPS restart |
+| SA-OBS-TG-04 | Telegram предоставляет независимый forced start для каждого lane через команды и отдельные кнопки; forced run не меняет interval |
+| SA-OBS-TG-05 | При недоступном автоматическом official Swagger/OpenAPI acquisition бот отправляет authorized operator официальный URL, provider, requestId, ожидаемый тип файла и инструкцию вернуть attachment |
+| SA-OBS-TG-06 | Полученный Telegram document проходит authorization, request correlation, bounded size/type checks, parse/Swagger/OpenAPI validation, provenance capture и SHA-256; upload сам по себе не является API authority |
+| SA-OBS-TG-07 | Telegram operator и monitoring results не имеют Stream-1 execution authority и не могут автоматически менять Work/Bootstrap/offline grace/store permissions/commercial policy или патчить production code |
+| SA-OBS-TG-08 | Bot token и operator allowlist — server-side secrets/config; Telegram и evidence не содержат cookies, storageState, AI private content, marketplace credentials, seller reports, OTP или raw sessions |
+
+### Обязательные command namespaces
+
+LLM lane: `/llm_status`, `/llm_interval <duration>`, `/llm_run`.
+
+Swagger/API lane: `/swagger_status`, `/swagger_interval <duration>`, `/swagger_run`, а также bounded pending/request inspection where implemented.
+
+Кнопки UI обязаны вызывать те же lane-specific операции: status, run now, change interval. Общая двусмысленная кнопка «запустить мониторинг» не заменяет эти controls.
+
+### Human-assisted first-party source acquisition
+
+Допустимый путь: automatic official acquisition **или** official URL → authorized operator normal browser download → reply/document upload to bot → server quarantine → provenance/hash/validation → API-watch candidate. Candidate не получает automatic ACCEPTED status и не вызывает auto-patch.
