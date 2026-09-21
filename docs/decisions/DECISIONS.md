@@ -46,3 +46,12 @@
 
 Технические уточнения и открытые внешние проверки: [OPEN_ITEMS](OPEN_ITEMS.md).
 Изменение решения: добавить объяснение замены, обновить нормативный документ и проверку. Не стирать исторические результаты и не задним числом объявлять тест принятым.
+
+| D-39 | Telegram — постоянный operator control/notification plane Stream 2 | Оператор получает изменения/проблемы и управляет monitoring, но не продуктовым Work |
+| D-40 | LLM monitoring и Swagger/API monitoring управляются независимо | Разные namespaces, durable intervals, run state, forced-run controls, history и notifications |
+| D-41 | Для LLM используются lane-specific controls `/llm_status`, `/llm_interval`, `/llm_run`; для Swagger/API — `/swagger_status`, `/swagger_interval`, `/swagger_run` | Одна команда не меняет другой lane |
+| D-42 | При protected first-party Swagger source бот отправляет оператору official URL + requestId; оператор легитимно скачивает и возвращает Telegram document | Human-assisted acquisition дополняет automatic acquisition, не обходит provider auth/challenge |
+| D-43 | Telegram upload = operator-supplied official-source candidate, а не automatic authority | Требуются correlation, provenance, SHA-256, parse/schema validation и дальнейшая S2-A1 classification |
+| D-44 | Telegram bot token хранится только server-side; operator access — allowlist | Unauthorized users не получают internal monitoring state и не могут запускать monitor |
+| D-45 | Monitoring/Telegram имеют zero Stream-1 execution authority | Нет автоматического Work deny/allow, permission change, auto-patch или auto-enable API operations |
+| D-46 | Telegram control service использует outbound Telegram Bot API long polling как начальный deployment mode; durable control state хранится отдельно от процесса | Не нужен новый публичный ingress; implementation может быть пересмотрена отдельным решением при реальной необходимости |
