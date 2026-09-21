@@ -2,7 +2,7 @@
 
 Date: 2026-09-18
 Branch: seo/wordstat-batch-01-2026-09-16
-Status: **M4A R3 ACCEPTED 9.8/10 / M4B1 COVERAGE R3 AUTHORIZED / M4B2 BLOCKED / M4Q REQUIRED**
+Status: **M4A R3 ACCEPTED / M4B1 ACCEPTED / M4B2 NEXT PREPARATION / M4Q REQUIRED BEFORE M4C**
 
 ## Current cursor
 
@@ -11,10 +11,14 @@ M3_PRIMARY_ORGANIC = CLOSED
 M3_CONTROL_DEBT = OPEN UNTIL M6
 M4 = CURRENT
 M4A = R3_ACCEPTED
-M4A_WORK_RETURN = UPLOADED_AND_ACCEPTED
-M4A_RELEASE_READBACK = PASS
-M4A_MAIN_CHAT_QA = PASS
 M4B_LANDING_ACQUISITION = CURRENT
+M4B1 = ACCEPTED
+M4B1_FINAL_ACCEPTANCE = PASS
+M4B1_FINAL_TERMINAL_UNIVERSE = 9965
+M4B2 = NEXT_PREPARATION
+M4B2_WORK_START_ALLOWED = false
+M4Q_REQUIRED_BEFORE_M4C = true
+M4C_ALLOWED = false
 M5 = NOT STARTED
 M7 = BLOCKED
 ~~~
@@ -448,3 +452,41 @@ M4B1_FINAL_ACCEPTANCE = false
 M4B2_ALLOWED = false
 M4Q_REQUIRED_BEFORE_M4C = true
 ```
+
+
+## 2026-09-21 — M4B1 R5 Main Chat final acceptance
+
+Authority:
+`M4B1_R5_MAIN_CHAT_FINAL_ACCEPTANCE_2026-09-21.md`
+
+Owner R5 upload commit:
+`b09874c8fbb22a83f8fbaf8c3136d1365db8f127`
+
+Independent Main Chat QA:
+- 9/9 required R5 files present;
+- 8/8 non-self SHA-256 values independently match remote bytes;
+- 5,455/5,455 URL rows unique and terminal `INSPECTED`;
+- 5,455/5,455 structured page-evidence joins;
+- normalized-URL duplicates = 0;
+- missing/unknown page evidence = 0/0;
+- 45/45 discovery-channel rows;
+- 45/45 entity-synthesis rows;
+- 45/45 frontier-reconciliation rows;
+- R4→R5 non-Uniseller diffs across the three current-state tables = 0;
+- final terminal normalized universe = 9,965;
+- open URL unresolved = 0;
+- blocking channel HOLD = 0;
+- count equation failures = 0.
+
+```text
+M4B1_PRODUCT_VENDOR_PAGE_SURFACE = ACCEPTED
+M4B1_FINAL_ACCEPTANCE = true
+M4B1_OPEN_CRITICAL_DEFECTS = 0
+M4B2 = NEXT_PREPARATION
+M4B2_WORK_START_ALLOWED = false
+M4Q_REQUIRED_BEFORE_M4C = true
+M4C_ALLOWED = false
+```
+
+CURRENT_CURSOR:
+M4 CURRENT -> M4B1 ACCEPTED -> M4B2 PRE-STEP PREPARATION -> M4B2 WORK/RETURN QA -> M4Q -> M4C.
