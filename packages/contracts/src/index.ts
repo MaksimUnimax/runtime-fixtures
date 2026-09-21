@@ -75,6 +75,10 @@ export const ApiErrorCodeV1Schema = z.enum([
   "TRANSFER_DEVICE_REVOKED",
   "TRANSFER_ACCOUNT_MISMATCH",
   "TRANSFER_PACKET_TOO_LARGE",
+  "SUPPORT_CASE_NOT_FOUND",
+  "SUPPORT_CASE_FORBIDDEN",
+  "SUPPORT_CASE_RATE_LIMITED",
+  "SUPPORT_CASE_INVALID_TRANSITION",
 ]);
 export type ApiErrorCodeV1 = z.infer<typeof ApiErrorCodeV1Schema>;
 
@@ -1586,3 +1590,232 @@ export const AdminReconciliationJobItemV1Schema = z
 export const AdminReconciliationJobsResponseV1Schema = AdminPage(
   AdminReconciliationJobItemV1Schema,
 );
+
+/** B2 feedback/support contracts. Text and diagnostics are deliberately bounded and strict. */
+export const FeedbackCategoryV1Schema = z.enum([
+  "INSTALLATION",
+  "AUTH",
+  "OTP",
+  "STORE",
+  "OZON",
+  "WILDBERRIES",
+  "AI",
+  "COMMAND",
+  "REPORT",
+  "FILE_RESULT",
+  "SYNC",
+  "TRANSFER",
+  "BACKUP",
+  "BROWSER_COMPAT",
+  "SERVER_UNAVAILABLE",
+  "VERSION_INCOMPATIBLE",
+  "OTHER",
+]);
+export type FeedbackCategoryV1 = z.infer<typeof FeedbackCategoryV1Schema>;
+export const FeedbackCaseStatusV1Schema = z.enum([
+  "NEW",
+  "TRIAGED",
+  "NEEDS_INFO",
+  "RESOLVED",
+  "CLOSED",
+]);
+export type FeedbackCaseStatusV1 = z.infer<typeof FeedbackCaseStatusV1Schema>;
+export const FeedbackSeverityV1Schema = z.enum([
+  "LOW",
+  "MEDIUM",
+  "HIGH",
+  "BLOCKING",
+]);
+export type FeedbackSeverityV1 = z.infer<typeof FeedbackSeverityV1Schema>;
+export const FeedbackMarketplaceV1Schema = z.enum([
+  "NONE",
+  "OZON",
+  "WILDBERRIES",
+]);
+export type FeedbackMarketplaceV1 = z.infer<typeof FeedbackMarketplaceV1Schema>;
+const B2SafeVersion = z
+  .string()
+  .min(1)
+  .max(64)
+  .regex(/^[A-Za-z0-9._+-]+$/u);
+const SafeBrowserFamily = z
+  .string()
+  .min(1)
+  .max(64)
+  .regex(/^[A-Za-z0-9._ -]+$/u);
+const SafeIdentifier = z
+  .string()
+  .min(1)
+  .max(128)
+  .regex(/^[A-Za-z0-9._:-]+$/u);
+export const SafeDiagnosticEnvelopeV1Schema = z
+  .object({
+    productVersion: B2SafeVersion.optional(),
+    extensionVersion: B2SafeVersion.optional(),
+    browserFamily: SafeBrowserFamily.optional(),
+    browserVersion: B2SafeVersion.optional(),
+    osFamily: SafeBrowserFamily.optional(),
+    accountId: z.uuid().optional(),
+    deviceId: z.uuid().optional(),
+    errorCode: SafeIdentifier.optional(),
+    requestId: CorrelationIdV1Schema.optional(),
+    occurredAt: z.iso.datetime().optional(),
+    capabilityState: SafeIdentifier.optional(),
+    marketplace: FeedbackMarketplaceV1Schema.optional(),
+    syncState: SafeIdentifier.optional(),
+    releaseIdentity: SafeIdentifier.optional(),
+  })
+  .strict();
+export type SafeDiagnosticEnvelopeV1 = z.infer<
+  typeof SafeDiagnosticEnvelopeV1Schema
+>;
+export const FeedbackCreateBodyV1Schema = z
+  .object({
+    accountId: z.uuid(),
+    deviceId: z.uuid().nullable().optional(),
+    category: FeedbackCategoryV1Schema,
+    severity: FeedbackSeverityV1Schema.default("LOW"),
+    description: z.string().min(1).max(4000),
+    diagnostics: SafeDiagnosticEnvelopeV1Schema.optional(),
+    serverVersion: B2SafeVersion.optional(),
+    portalVersion: B2SafeVersion.optional(),
+    extensionVersion: B2SafeVersion.optional(),
+    browserFamily: SafeBrowserFamily.optional(),
+    browserVersion: B2SafeVersion.optional(),
+    marketplace: FeedbackMarketplaceV1Schema.default("NONE"),
+    supportCode: SafeIdentifier.optional(),
+    releaseIdentity: SafeIdentifier.optional(),
+  })
+  .strict();
+export type FeedbackCreateBodyV1 = z.infer<typeof FeedbackCreateBodyV1Schema>;
+export const FeedbackFollowupBodyV1Schema = z
+  .object({ description: z.string().min(1).max(4000) })
+  .strict();
+export const FeedbackCaseParamsV1Schema = z
+  .object({ case_id: z.uuid() })
+  .strict();
+export const FeedbackOwnCasesQueryV1Schema = z
+  .object({ status: FeedbackCaseStatusV1Schema.optional() })
+  .strict();
+export const FeedbackCaseItemV1Schema = z
+  .object({
+    caseId: z.uuid(),
+    accountId: z.uuid().nullable(),
+    deviceId: z.uuid().nullable(),
+    createdAt: z.iso.datetime(),
+    updatedAt: z.iso.datetime(),
+    category: FeedbackCategoryV1Schema,
+    severity: FeedbackSeverityV1Schema,
+    status: FeedbackCaseStatusV1Schema,
+    description: z.string(),
+    diagnostics: SafeDiagnosticEnvelopeV1Schema.nullable(),
+    serverVersion: B2SafeVersion.nullable(),
+    portalVersion: B2SafeVersion.nullable(),
+    extensionVersion: B2SafeVersion.nullable(),
+    browserFamily: SafeBrowserFamily.nullable(),
+    browserVersion: B2SafeVersion.nullable(),
+    marketplace: FeedbackMarketplaceV1Schema,
+    supportCode: SafeIdentifier.nullable(),
+    releaseIdentity: SafeIdentifier.nullable(),
+    assignedAdminPrincipalId: z.uuid().nullable(),
+    resolutionCode: SafeIdentifier.nullable(),
+  })
+  .strict();
+export type FeedbackCaseItemV1 = z.infer<typeof FeedbackCaseItemV1Schema>;
+export const FeedbackFollowupItemV1Schema = z
+  .object({
+    followupId: z.uuid(),
+    authorType: z.enum(["USER", "SUPPORT", "ADMIN"]),
+    body: z.string(),
+    createdAt: z.iso.datetime(),
+  })
+  .strict();
+export type FeedbackFollowupItemV1 = z.infer<
+  typeof FeedbackFollowupItemV1Schema
+>;
+export const FeedbackCaseDetailV1Schema = FeedbackCaseItemV1Schema.extend({
+  followups: z.array(FeedbackFollowupItemV1Schema),
+}).strict();
+export const FeedbackCaseListResponseV1Schema = z
+  .object({ items: z.array(FeedbackCaseItemV1Schema) })
+  .strict();
+export const FeedbackCaseDetailResponseV1Schema = FeedbackCaseDetailV1Schema;
+export const FeedbackCreatedResponseV1Schema = z
+  .object({ case: FeedbackCaseItemV1Schema })
+  .strict();
+export const FeedbackFollowupResponseV1Schema = z
+  .object({ followup: FeedbackFollowupItemV1Schema })
+  .strict();
+export const FeedbackStatusBodyV1Schema = z
+  .object({
+    status: FeedbackCaseStatusV1Schema,
+    resolutionCode: SafeIdentifier.optional(),
+  })
+  .strict();
+export const FeedbackAdminCasesQueryV1Schema = z
+  .object({
+    status: FeedbackCaseStatusV1Schema.optional(),
+    category: FeedbackCategoryV1Schema.optional(),
+    serverVersion: B2SafeVersion.optional(),
+    extensionVersion: B2SafeVersion.optional(),
+    browserFamily: SafeBrowserFamily.optional(),
+    marketplace: FeedbackMarketplaceV1Schema.optional(),
+    limit: z.coerce.number().int().min(1).max(100).default(50),
+  })
+  .strict();
+export const FeedbackAdminCasesResponseV1Schema = z
+  .object({ items: z.array(FeedbackCaseItemV1Schema) })
+  .strict();
+export const FeedbackSignalEventV1Schema = z.enum([
+  "registration_started",
+  "account_created",
+  "device_activated",
+  "first_store_added",
+  "first_start",
+  "feedback_case_created",
+  "feedback_case_resolved",
+]);
+export type FeedbackSignalEventV1 = z.infer<typeof FeedbackSignalEventV1Schema>;
+export const FeedbackSignalBodyV1Schema = z
+  .object({
+    event: FeedbackSignalEventV1Schema,
+    productVersion: B2SafeVersion.optional(),
+    extensionVersion: B2SafeVersion.optional(),
+    browserFamily: SafeBrowserFamily.optional(),
+    category: FeedbackCategoryV1Schema.optional(),
+    status: FeedbackCaseStatusV1Schema.optional(),
+  })
+  .strict();
+export type FeedbackSignalBodyV1 = z.infer<typeof FeedbackSignalBodyV1Schema>;
+export const FeedbackSignalResponseV1Schema = z
+  .object({ accepted: z.literal(true) })
+  .strict();
+export const FeedbackAggregateQueryV1Schema = z
+  .object({
+    from: z.iso.datetime().optional(),
+    to: z.iso.datetime().optional(),
+    productVersion: B2SafeVersion.optional(),
+    extensionVersion: B2SafeVersion.optional(),
+    browserFamily: SafeBrowserFamily.optional(),
+    category: FeedbackCategoryV1Schema.optional(),
+    status: FeedbackCaseStatusV1Schema.optional(),
+  })
+  .strict();
+export const FeedbackAggregateItemV1Schema = z
+  .object({
+    day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/u),
+    event: FeedbackSignalEventV1Schema,
+    count: z.number().int().nonnegative().safe(),
+    productVersion: B2SafeVersion.nullable(),
+    extensionVersion: B2SafeVersion.nullable(),
+    browserFamily: SafeBrowserFamily.nullable(),
+    category: FeedbackCategoryV1Schema.nullable(),
+    status: FeedbackCaseStatusV1Schema.nullable(),
+  })
+  .strict();
+export type FeedbackAggregateItemV1 = z.infer<
+  typeof FeedbackAggregateItemV1Schema
+>;
+export const FeedbackAggregateResponseV1Schema = z
+  .object({ items: z.array(FeedbackAggregateItemV1Schema) })
+  .strict();

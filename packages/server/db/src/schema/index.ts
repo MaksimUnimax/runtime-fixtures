@@ -16,3 +16,4 @@ export * from "./health";
 export * from "./beta";
 export * from "./sync";
 export * from "./credential-transfer";
+export * from "./feedback";

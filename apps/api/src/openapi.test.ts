@@ -100,6 +100,11 @@ describe("OpenAPI foundation", () => {
         "/v1/admin/principals/{principal_id}/roles/{role}/revoke",
         "/v1/admin/principals/{principal_id}/suspend",
         "/v1/admin/session",
+        "/v1/admin/support/aggregates",
+        "/v1/admin/support/cases",
+        "/v1/admin/support/cases/{case_id}",
+        "/v1/admin/support/cases/{case_id}/followups",
+        "/v1/admin/support/cases/{case_id}/status",
         "/v1/admin/users",
         "/v1/auth/logout",
         "/v1/auth/otp/request",
@@ -125,6 +130,10 @@ describe("OpenAPI foundation", () => {
         "/v1/plans/public",
         "/v1/subscription",
         "/v1/sync",
+        "/v1/support/cases",
+        "/v1/support/cases/{case_id}",
+        "/v1/support/cases/{case_id}/followups",
+        "/v1/support/signals",
       ].sort(),
     );
     expect(document.paths).toHaveProperty("/v1/bootstrap");

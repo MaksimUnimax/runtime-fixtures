@@ -73,6 +73,9 @@ import {
   type CredentialTransferService as CredentialTransferServiceType,
 } from "@product/credential-transfer";
 import { registerCredentialTransferRoutes } from "./credential-transfer-routes.js";
+import { registerFeedbackRoutes } from "./feedback-routes.js";
+import { registerAdminFeedbackRoutes } from "./admin-feedback-routes.js";
+import type { FeedbackSupportService } from "@product/feedback-support";
 
 export class ControlledError extends Error {
   public constructor(
@@ -103,6 +106,7 @@ export interface ApiDependencies {
   readonly betaAdmissionService?: BetaAdmissionService;
   readonly syncService?: SyncService;
   readonly credentialTransferService?: CredentialTransferServiceType;
+  readonly feedbackSupportService?: FeedbackSupportService;
 }
 
 function correlationId(request: FastifyRequest): string {
@@ -360,6 +364,21 @@ export function createApiApp(
           new CredentialTransferService(createMemoryTransferRepository()),
         dependencies.extensionAuthService,
       );
+    if (dependencies.feedbackSupportService) {
+      registerFeedbackRoutes(
+        app,
+        dependencies.authService ??
+          new AuthService(unavailable, deriveAuthKeys(Buffer.alloc(32))),
+        dependencies.feedbackSupportService,
+      );
+      registerAdminFeedbackRoutes(
+        app,
+        createAdminRouteGuard(
+          dependencies.adminAuthService ?? unavailableAdmin,
+        ),
+        dependencies.feedbackSupportService,
+      );
+    }
   });
   return app;
 }

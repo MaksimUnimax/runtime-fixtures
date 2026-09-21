@@ -27,6 +27,7 @@ import {
   createBetaAdmissionRepository,
   createSyncRepository,
   createCredentialTransferRepository,
+  createFeedbackSupportRepository,
 } from "@product/db";
 import { AuthService, deriveAuthKeys, loadAuthRootSecret } from "@product/auth";
 import { AdminAuthService, deriveAdminAuthKeys } from "@product/admin-auth";
@@ -64,6 +65,7 @@ import { createApiApp } from "./app.js";
 import { SyncService } from "@product/sync";
 import { CredentialTransferService } from "@product/credential-transfer";
 import { createInfrastructureReadiness } from "./infrastructure.js";
+import { FeedbackSupportService } from "@product/feedback-support";
 
 const config = loadConfig(process.env);
 const database = createDatabaseRuntime(config.databaseUrl);
@@ -168,6 +170,9 @@ const app = createApiApp({
   syncService: new SyncService(createSyncRepository(database)),
   credentialTransferService: new CredentialTransferService(
     createCredentialTransferRepository(database),
+  ),
+  feedbackSupportService: new FeedbackSupportService(
+    createFeedbackSupportRepository(database),
   ),
 });
 let closing = false;

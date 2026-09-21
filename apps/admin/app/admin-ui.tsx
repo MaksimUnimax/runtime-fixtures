@@ -34,7 +34,8 @@ type Section =
   | "price"
   | "entitlements"
   | "compatibility"
-  | "beta";
+  | "beta"
+  | "support";
 type Notice = { kind: "error" | "success" | "info"; text: string } | null;
 type Page<T> = { items: T[]; nextCursor: string | null };
 type Account = {
@@ -237,6 +238,7 @@ const nav = [
   ["Prices", "/commercial/prices", "price.read"],
   ["Entitlements", "/commercial/entitlements", "entitlement.read"],
   ["Compatibility", "/compatibility", "compatibility.read"],
+  ["Support cases", "/support", "support.case.read"],
 ] as const;
 
 const aiNav = [
@@ -850,6 +852,250 @@ function SearchPage({ kind }: { kind: "accounts" | "users" }) {
         Search uses only exact accepted API filters. Values are not persisted in
         browser storage.
       </p>
+    </Shell>
+  );
+}
+
+type SupportCase = {
+  caseId: string;
+  category: string;
+  severity: string;
+  status: string;
+  description: string;
+  serverVersion: string | null;
+  extensionVersion: string | null;
+  browserFamily: string | null;
+  marketplace: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+function SupportPage() {
+  const { me, setNotice } = useAdmin();
+  const [filters, setFilters] = useState<Record<string, string>>({});
+  const [path, setPath] = useState("/v1/admin/support/cases?limit=50");
+  const result = useData<{ items: SupportCase[] }>(path);
+  const [selected, setSelected] = useState<SupportCase | null>(null);
+  const [detail, setDetail] = useState<{
+    followups: {
+      followupId: string;
+      authorType: string;
+      body: string;
+      createdAt: string;
+    }[];
+  } | null>(null);
+  const [note, setNote] = useState("");
+  const [aggregateText, setAggregateText] = useState("");
+  const search = (event: FormEvent) => {
+    event.preventDefault();
+    setPath(`/v1/admin/support/cases${query({ ...filters, limit: 50 })}`);
+  };
+  const open = async (item: SupportCase) => {
+    setSelected(item);
+    try {
+      const value = await controlPlane<{
+        followups: {
+          followupId: string;
+          authorType: string;
+          body: string;
+          createdAt: string;
+        }[];
+      }>(`/v1/admin/support/cases/${item.caseId}`);
+      setDetail(value);
+    } catch {
+      setDetail(null);
+    }
+  };
+  const transition = async (status: string) => {
+    if (!selected || !has(me, "support.case.manage")) return;
+    try {
+      await controlPlane(`/v1/admin/support/cases/${selected.caseId}/status`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      setNotice({ kind: "success", text: "Support case updated." });
+      setPath(`/v1/admin/support/cases${query({ ...filters, limit: 50 })}`);
+      setSelected({ ...selected, status });
+    } catch (error) {
+      setNotice({ kind: "error", text: safeError(error) });
+    }
+  };
+  const addNote = async () => {
+    if (!selected || !note.trim() || !has(me, "support.case.manage")) return;
+    try {
+      await controlPlane(
+        `/v1/admin/support/cases/${selected.caseId}/followups`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ description: note }),
+        },
+      );
+      setNote("");
+      await open(selected);
+    } catch (error) {
+      setNotice({ kind: "error", text: safeError(error) });
+    }
+  };
+  const loadAggregates = async () => {
+    try {
+      const value = await controlPlane<{ items: unknown[] }>(
+        "/v1/admin/support/aggregates",
+      );
+      setAggregateText(JSON.stringify(value.items));
+    } catch (error) {
+      setNotice({ kind: "error", text: safeError(error) });
+    }
+  };
+  return (
+    <Shell title="Support cases">
+      <section className="card">
+        <form onSubmit={search}>
+          <div className="form-grid">
+            <label>
+              Status
+              <select
+                value={filters.status ?? ""}
+                onChange={(e) =>
+                  setFilters({ ...filters, status: e.target.value })
+                }
+              >
+                <option value="">Any</option>
+                {["NEW", "TRIAGED", "NEEDS_INFO", "RESOLVED", "CLOSED"].map(
+                  (value) => (
+                    <option key={value}>{value}</option>
+                  ),
+                )}
+              </select>
+            </label>
+            <label>
+              Category
+              <input
+                value={filters.category ?? ""}
+                onChange={(e) =>
+                  setFilters({ ...filters, category: e.target.value })
+                }
+              />
+            </label>
+            <label>
+              Version
+              <input
+                value={filters.extensionVersion ?? ""}
+                onChange={(e) =>
+                  setFilters({ ...filters, extensionVersion: e.target.value })
+                }
+              />
+            </label>
+            <label>
+              Browser
+              <input
+                value={filters.browserFamily ?? ""}
+                onChange={(e) =>
+                  setFilters({ ...filters, browserFamily: e.target.value })
+                }
+              />
+            </label>
+            <label>
+              Marketplace
+              <input
+                value={filters.marketplace ?? ""}
+                onChange={(e) =>
+                  setFilters({ ...filters, marketplace: e.target.value })
+                }
+              />
+            </label>
+          </div>
+          <button type="submit">Filter</button>
+          {has(me, "support.aggregate.read") && (
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => void loadAggregates()}
+            >
+              Load aggregates
+            </button>
+          )}
+        </form>
+        {aggregateText && <pre>{aggregateText}</pre>}
+      </section>
+      <LoadState busy={result.busy} error={result.error} />
+      {result.data && (
+        <section className="card">
+          <Table
+            headers={[
+              "Case",
+              "Category",
+              "Status",
+              "Version",
+              "Browser",
+              "Open",
+            ]}
+            rows={result.data.items.map((item) => [
+              <code key="id">{item.caseId}</code>,
+              item.category,
+              <span className="status" key="status">
+                {item.status}
+              </span>,
+              item.extensionVersion ?? "—",
+              item.browserFamily ?? "—",
+              <button key="open" type="button" onClick={() => void open(item)}>
+                Open
+              </button>,
+            ])}
+          />
+        </section>
+      )}
+      {selected && (
+        <section className="card">
+          <h2>
+            {selected.category} · {selected.caseId}
+          </h2>
+          <p>{selected.description}</p>
+          <p>
+            Severity: {selected.severity} · Marketplace: {selected.marketplace}
+          </p>
+          <div className="actions">
+            {has(me, "support.case.manage") &&
+              ["TRIAGED", "NEEDS_INFO", "RESOLVED", "CLOSED"].map((status) => (
+                <button
+                  key={status}
+                  type="button"
+                  onClick={() => void transition(status)}
+                  disabled={selected.status === status}
+                >
+                  {status}
+                </button>
+              ))}
+          </div>
+          <label>
+            Follow-up
+            <textarea
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              maxLength={4000}
+            />
+          </label>
+          {has(me, "support.case.manage") && (
+            <button
+              type="button"
+              onClick={() => void addNote()}
+              disabled={!note.trim()}
+            >
+              Add follow-up
+            </button>
+          )}
+          {detail?.followups?.length ? (
+            <ul>
+              {detail.followups.map((item) => (
+                <li key={item.followupId}>
+                  {item.authorType}: {item.body}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </section>
+      )}
     </Shell>
   );
 }
@@ -2324,6 +2570,8 @@ export function AdminScreen({ section }: { section: Section }) {
       return <Compatibility />;
     case "beta":
       return <BetaAdmissionPage />;
+    case "support":
+      return <SupportPage />;
     default:
       return <Dashboard />;
   }

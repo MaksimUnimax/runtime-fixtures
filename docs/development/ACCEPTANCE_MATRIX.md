@@ -106,3 +106,14 @@ installation/onboarding preparation, compatibility, upgrade/rollback,
 diagnostics, publisher metadata, and release security gates. External OTP,
 owner/live, browser-environment, store, legal, and production gates remain
 deferred.
+
+## B2 feedback / support / iteration foundation — 2026-09-21
+
+The bounded B2-A candidate evidence is recorded in [B2 feedback/support foundation](b2/B2_FEEDBACK_SUPPORT_FOUNDATION_2026-09-21.md).
+It recommends `B2A_READY_FOR_ARCHITECT_ACCEPTANCE` and is not self-accepted.
+The scope covers safe authenticated feedback intake, finite support workflow,
+Q1-D RBAC/audit integration, strict diagnostics and secret redaction,
+privacy-safe onboarding/support aggregates, release linkage, configurable
+provisional retention and account anonymization. It does not require SMTP,
+does not modify Stream 2, and does not claim live beta, owner OTP, browser
+publication, production launch or monitoring acceptance.

@@ -69,8 +69,8 @@ describe("P6.1 admin crypto and RBAC foundation", () => {
       "ADMIN_BETA_OPERATOR",
     ]);
   });
-  it("defines the frozen permission vocabulary without later domains", () => {
-    expect(ADMIN_PERMISSIONS).toHaveLength(29);
+  it("defines the permission vocabulary without Stream-2 monitoring domains", () => {
+    expect(ADMIN_PERMISSIONS).toHaveLength(32);
     expect(ADMIN_PERMISSIONS).toContain("beta.admission.read");
     expect(ADMIN_PERMISSIONS).toContain("beta.admission.manage");
     expect(ADMIN_PERMISSIONS.filter((p) => p.startsWith("ai."))).toEqual([
@@ -85,6 +85,9 @@ describe("P6.1 admin crypto and RBAC foundation", () => {
     expect(ADMIN_PERMISSIONS.some((p) => p.startsWith("diagnostic."))).toBe(
       false,
     );
+    expect(ADMIN_PERMISSIONS).toContain("support.case.read");
+    expect(ADMIN_PERMISSIONS).toContain("support.case.manage");
+    expect(ADMIN_PERMISSIONS).toContain("support.aggregate.read");
   });
   it("generates a 32-byte base64url session token", () => {
     const token = generateAdminSessionToken();

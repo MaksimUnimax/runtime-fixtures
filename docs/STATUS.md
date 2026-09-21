@@ -134,3 +134,14 @@ procedure, compatibility matrix, upgrade/rollback procedure, safe diagnostics,
 release notes, and privacy/security gates passed. S1.2 real mailbox delivery,
 Q1-C owner/live testing, browser environment follow-up, publication/legal
 actions, and production launch remain outside this automated lane.
+
+## B2 feedback / support / iteration foundation — 2026-09-21
+
+B2-A is an automated implementation candidate on the dedicated branch; its
+evidence is [B2 feedback/support foundation](development/b2/B2_FEEDBACK_SUPPORT_FOUNDATION_2026-09-21.md).
+The recommendation is `B2A_READY_FOR_ARCHITECT_ACCEPTANCE`, not a self-
+acceptance. User-owned cases, support/admin workflow, safe diagnostics,
+redaction, audit references, aggregates, configurable 90/180-day provisional
+retention and account anonymization are covered by migration 0019, API/UI and
+Node 24/PostgreSQL evidence. SMTP/Exim, Stream 2, live owner traffic and
+publication were not modified.

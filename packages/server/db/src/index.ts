@@ -25,6 +25,7 @@ export { createHealthPersistenceRepository } from "./health-persistence-reposito
 export { createBetaAdmissionRepository } from "./beta-admission-repository.js";
 export { createSyncRepository } from "./sync-repository.js";
 export { createCredentialTransferRepository } from "./credential-transfer-repository.js";
+export { createFeedbackSupportRepository } from "./feedback-support-repository.js";
 export { createBootstrapAiResolutionRepository } from "./bootstrap-ai-resolution-repository.js";
 export { createP7AdminAiReadRepository } from "./p7-admin-ai-read-repository.js";
 export { createP7AdminAiCommandRepository } from "./p7-admin-ai-command-repository.js";

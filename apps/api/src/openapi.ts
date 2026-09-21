@@ -38,6 +38,10 @@ import type { AdminCommercialService } from "@product/admin-commercial";
 import type { AdminAiService } from "@product/admin-ai";
 import { BetaAdmissionService } from "@product/beta-access";
 import { SyncService } from "@product/sync";
+import {
+  FeedbackSupportService,
+  type FeedbackRepository,
+} from "@product/feedback-support";
 
 type JsonPrimitive = boolean | null | number | string;
 type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
@@ -277,6 +281,9 @@ export async function generateOpenApiRepresentation(): Promise<string> {
     commercialPortalService: new CommercialPortalService(
       portalRepository,
       commercialAccess,
+    ),
+    feedbackSupportService: new FeedbackSupportService(
+      {} as FeedbackRepository,
     ),
     adminAuthService: new AdminAuthService(
       {

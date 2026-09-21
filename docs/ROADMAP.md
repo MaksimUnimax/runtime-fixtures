@@ -141,6 +141,18 @@ are complete. Real OTP mailbox delivery, Q1-C owner/live sessions, browser
 environment follow-up, store publication, legal acceptance, and production
 cutover remain deferred.
 
+## B2 feedback / support / iteration foundation — 2026-09-21
+
+The bounded B2-A feedback and support foundation is recorded in [the B2 receipt](development/b2/B2_FEEDBACK_SUPPORT_FOUNDATION_2026-09-21.md).
+It recommends `B2A_READY_FOR_ARCHITECT_ACCEPTANCE` and is not self-accepted.
+The additive migration 0019/API/UI surface provides authenticated own-case
+feedback, Q1-D-integrated support/admin workflow, strict safe diagnostics,
+redaction, bounded rate limits, privacy-safe aggregates, configurable
+provisional retention, account anonymization, and release/version linkage.
+It has no SMTP dependency and does not modify Stream 2. Real beta traffic,
+owner/live sessions, external OTP receipt, publication and monitoring remain
+separate gates.
+
 ## Q1-B browser-family matrix — 2026-09-19
 
 Recommended status: `Q1B_PARTIAL_ENVIRONMENT_DEFERRED`; architect review is
