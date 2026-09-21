@@ -66,3 +66,5 @@ WB R1–R8 остаются закрыты до установленной пр�
 Owner amendment 2026-09-21: Stream 2 получает постоянный **Telegram operator control plane**. LLM monitoring и Swagger/API monitoring — разные функции с отдельными командами, durable intervals, forced-run controls, status/history и notifications. Для protected Swagger/OpenAPI источника бот должен передать оператору официальный URL и requestId; оператор скачивает файл легитимно и возвращает его Telegram document attachment; файл попадает в quarantine/inbox, получает provenance + SHA-256 + validation и только после этого становится candidate для S2-A1.
 
 Current priority для Stream 2: **S2-TG0 → TG1 → TG2 → TG3 → TG4**, затем bounded S2-A1 recovery через автоматический или operator-assisted first-party source path. TG implementation на момент этого статуса ещё не заявляется выполненной.
+
+Telegram documentation publication: branch `docs/stream2-telegram-operator-control-plane-2026-09-21`, draft PR #24. This is documentation authority only; accepted Stream-2 implementation commits remain LOCAL / NOT_REMOTE_VERIFIED until their source graph is reconciled/published.
