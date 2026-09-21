@@ -123,8 +123,11 @@ or the matrix status `BLOCKED_OWNER_CREDENTIAL`; never fabricate it.
 
 The matrix maps each current live item once:
 
-- `OWNER_DEFERRED_TEST-I1-ONLINE-WORK-HEALTH-20260917` maps to
-  `Q1C-HEALTH-27` and remains a Stream-2/owner-live dependency.
+- `OWNER_DEFERRED_TEST-I1-ONLINE-WORK-HEALTH-20260917` maps across
+  `Q1C-OFFLINE-19` (owner-authenticated Start/Resume and authority behavior),
+  `Q1C-REBIND-14` (confirmed store-rebind/new Start), and `Q1C-HEALTH-27`
+  (passive AI/Work Health provenance); it remains a Stream-2/owner-live
+  dependency.
 - Real mailbox delivery and owner session creation map to `Q1C-OTP-01` and
   remain `BLOCKED_REAL_MAIL` until AdminVPS TCP/25, PTR, remote-MX acceptance,
   and actual mailbox arrival are proven.
