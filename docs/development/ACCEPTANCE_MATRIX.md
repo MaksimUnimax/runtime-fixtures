@@ -175,3 +175,15 @@ are recorded as PASS. The result is
 This does not claim real Internet delivery, owner-mailbox OTP, Q1-C, S1.2
 end-to-end acceptance, B1 publication, or production cutover. TCP/25 remains
 blocked and PTR remains absent; DKIM and DMARC resolve publicly.
+
+## Q1-C owner/live acceptance preparation — 2026-09-21
+
+Preparation is complete on a dedicated documentation-only branch. The
+[canonical runbook](q1/Q1_C_OWNER_LIVE_ACCEPTANCE_RUNBOOK_2026-09-21.md),
+[interactive one-card script](q1/Q1_C_OWNER_INTERACTIVE_TEST_SEQUENCE_2026-09-21.md),
+and the machine-readable matrix at `q1/Q1_C_OWNER_LIVE_MATRIX_2026-09-21.tsv`
+account for remaining owner/live gates without reopening accepted automation.
+The recommendation is `Q1C_OWNER_LIVE_PREPARATION_READY`; this is not Q1-C
+acceptance. The first test after SMTP readiness is `Q1C-OTP-01`. Real mailbox,
+owner marketplace/AI sessions, browser-family, macOS, and Stream-2 Health
+gates retain their exact separate classifications.

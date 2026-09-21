@@ -222,3 +222,14 @@ The deployment is `PREPROD_CURRENT_LINE_READY_EXCEPT_EXTERNAL_SMTP`: outbound
 TCP/25 remains blocked, PTR is still absent, and real owner-mailbox OTP receipt
 has not been tested. This does not mark Q1-C, S1.2 end-to-end delivery, B1
 public release, or production cutover complete.
+
+## Q1-C owner/live acceptance preparation — 2026-09-21
+
+The preparation-only Q1-C runbook, one-test-at-a-time architect script, and
+reconciled live matrix are recorded in [the Q1-C owner/live runbook](development/q1/Q1_C_OWNER_LIVE_ACCEPTANCE_RUNBOOK_2026-09-21.md).
+The recommendation is `Q1C_OWNER_LIVE_PREPARATION_READY`; no owner test,
+owner credential, AI session, OTP request, or Q1-C acceptance was performed.
+The first executable test after the SMTP gates clear is `Q1C-OTP-01`, the real
+mailbox OTP/login/device/Bootstrap flow. Existing automated evidence is not
+needlessly replayed manually. Browser environment defers, owner credential
+gates, real-mail gates, and the Stream-2 Health dependency remain distinct.

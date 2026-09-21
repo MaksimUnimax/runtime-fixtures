@@ -205,3 +205,15 @@ OTP receipt remains untested. The evidence is [the current-line preprod
 deployment receipt](development/preprod/PREPROD_CURRENT_LINE_DEPLOYMENT_2026-09-21.md).
 Q1-C, S1.2 end-to-end delivery, B1 public release, and production cutover are
 not accepted by this deployment.
+
+## Q1-C owner/live acceptance preparation — 2026-09-21
+
+The documentation-only preparation is recorded in [the owner/live acceptance runbook](development/q1/Q1_C_OWNER_LIVE_ACCEPTANCE_RUNBOOK_2026-09-21.md),
+[the one-test-at-a-time script](development/q1/Q1_C_OWNER_INTERACTIVE_TEST_SEQUENCE_2026-09-21.md),
+and the live matrix at `development/q1/Q1_C_OWNER_LIVE_MATRIX_2026-09-21.tsv`.
+It recommends `Q1C_OWNER_LIVE_PREPARATION_READY` and does not claim Q1-C
+acceptance. The first executable card after real SMTP readiness is
+`Q1C-OTP-01`; no OTP, owner credential, AI session, or live provider action was
+used during preparation. Current mail checks still show public DKIM/DMARC,
+absent PTR, and TCP/25 timeouts; owner credential/browser/macOS and Stream-2
+dependencies remain explicitly separated.
