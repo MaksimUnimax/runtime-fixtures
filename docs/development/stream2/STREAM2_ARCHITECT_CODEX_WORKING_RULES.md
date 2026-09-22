@@ -1,3 +1,12 @@
+> **PILOT BRANCH OVERRIDE — 2026-09-22**
+>
+> On branch `docs/single-executor-rdc-autowork-pilot-2026-09-22`, this file is
+> historical execution-model documentation only. The active pilot authority is
+> `docs/development/autowork/SINGLE_EXECUTOR_RDC_AUTOWORK_GOVERNOR.md`.
+> There is one primary executor (хуесос), Remote Desktop Commander is the
+> normal execution channel, and the previous Stream-2/Codex worker split does
+> not govern execution on this branch.
+>
 # Stream 2 — Architect / Codex working rules
 
 Status: **PERMANENT WORKING AUTHORITY**
