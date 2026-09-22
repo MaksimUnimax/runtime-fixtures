@@ -113,6 +113,27 @@ changes.
 auto-enabled operation and never mutates product adapters or Stream-1
 execution authority.
 
+## A6 report lifecycle
+
+Each scheduled or forced `SWAGGER_API` execution creates one durable report,
+transitions `CREATED → RUNNING`, records per-family safe outcomes, and ends in
+one immutable terminal state: `COMPLETED`, `PARTIAL`, `BLOCKED`, or `FAILED`.
+`SOURCE_URL_AUTHORITY_MISSING`, operator-required, and other external source
+conditions are blockers, not internal execution failures. A usable source plus
+one or more blocked families is `PARTIAL`; no usable current evidence is
+`BLOCKED`. A real semantic change does not fail an otherwise observed run.
+
+Migration `0027_s2_api_watch_reports` stores report identity, run source,
+timestamps, lifecycle state, aggregate safe counts, and one bounded outcome row
+per source family. Report rows contain no Swagger bodies, Telegram private
+content, credentials, or product patch recommendation.
+
+On the first accepted snapshot for a family, A3 inventory is recorded but A4
+has no base and therefore produces no diff. When the current SHA equals the
+last accepted SHA, the source is recorded as `NO_CHANGE` and no duplicate A4
+diff is created. When a different accepted snapshot exists, A4 and A5 run and
+their safe counts and severity are recorded in the report.
+
 ## Verification evidence
 
 The fixture suite uses a local HTTP server for status, redirect, timeout,

@@ -2,6 +2,7 @@ import { createDatabaseRuntime } from "@product/db";
 import {
   createApiWatchRunner,
   createPostgresApiWatchStore,
+  createPostgresApiWatchReportStore,
   productionSourceRegistry,
 } from "@product/api-watch";
 import {
@@ -48,6 +49,7 @@ const apiWatchRunner = createApiWatchRunner({
   registry: productionSourceRegistry,
   store: createPostgresApiWatchStore(database),
   pendingStore: createPostgresSwaggerSourceStore(database),
+  reportStore: createPostgresApiWatchReportStore(database),
   quarantineDir: swaggerQuarantineDir,
 });
 const scheduler = new IndependentMonitoringScheduler({

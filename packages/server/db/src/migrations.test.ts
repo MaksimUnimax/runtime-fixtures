@@ -77,8 +77,8 @@ describe("Stream-2 migration receipts", () => {
     expect(sql).toContain('CREATE TABLE "swagger_source_requests"');
     expect(sql).toContain('CREATE TABLE "swagger_source_artifacts"');
     expect(sql).toContain("OPERATOR_SUPPLIED_OFFICIAL_SOURCE_CANDIDATE");
-    expect(journal.entries.at(-4)?.tag).toBe("0023_s2_tg2_monitoring_lanes");
-    expect(journal.entries.at(-3)?.tag).toBe(
+    expect(journal.entries.at(-5)?.tag).toBe("0023_s2_tg2_monitoring_lanes");
+    expect(journal.entries.at(-4)?.tag).toBe(
       "0024_s2_tg3_operator_swagger_handoff",
     );
   });
@@ -94,7 +94,7 @@ describe("Stream-2 migration receipts", () => {
     expect(sql).toContain('CREATE TABLE "api_watch_authority_records"');
     expect(sql).toContain('CREATE TABLE "api_watch_snapshots"');
     expect(sql).toContain('CREATE TABLE "api_watch_inventories"');
-    expect(journal.entries.at(-2)?.tag).toBe(
+    expect(journal.entries.at(-3)?.tag).toBe(
       "0025_s2_api_watch_authority_snapshots",
     );
   });
@@ -109,8 +109,21 @@ describe("Stream-2 migration receipts", () => {
     ) as { entries: Array<{ tag: string }> };
     expect(sql).toContain('CREATE TABLE "api_watch_semantic_diffs"');
     expect(sql).toContain('CREATE TABLE "api_watch_semantic_diff_operations"');
-    expect(journal.entries.at(-1)?.tag).toBe(
+    expect(journal.entries.at(-2)?.tag).toBe(
       "0026_s2_api_watch_semantic_diffs",
     );
+  });
+
+  it("receipts the forward-only A6 report migration", async () => {
+    const sql = await readFile(
+      join(migrationsFolder, "0027_s2_api_watch_reports.sql"),
+      "utf8",
+    );
+    const journal = JSON.parse(
+      await readFile(join(migrationsFolder, "meta", "_journal.json"), "utf8"),
+    ) as { entries: Array<{ tag: string }> };
+    expect(sql).toContain('CREATE TABLE "api_watch_reports"');
+    expect(sql).toContain('CREATE TABLE "api_watch_report_sources"');
+    expect(journal.entries.at(-1)?.tag).toBe("0027_s2_api_watch_reports");
   });
 });

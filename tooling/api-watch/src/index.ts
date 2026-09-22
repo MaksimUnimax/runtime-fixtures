@@ -7,3 +7,4 @@ export * from "./snapshot.js";
 export * from "./inventory.js";
 export * from "./diff.js";
 export * from "./impact.js";
+export * from "./report.js";

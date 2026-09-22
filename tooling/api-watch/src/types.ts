@@ -251,6 +251,14 @@ export type ApiWatchReportSourceOutcome = {
   blockerCode: string | null;
   errorCode: string | null;
   changeMode: "NO_CHANGE" | "FIRST_SNAPSHOT" | "CHANGED" | null;
+  addedCount: number | null;
+  removedCount: number | null;
+  changedCount: number | null;
+  unchangedCount: number | null;
+  blockingRiskCount: number | null;
+  reviewRequiredCount: number | null;
+  unknownCount: number | null;
+  noPolicyImpactCount: number | null;
 };
 
 export type ApiWatchReport = {
