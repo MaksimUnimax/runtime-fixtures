@@ -83,56 +83,56 @@ I1 is not accepted until the rerun proves:
 - post-revoke refresh invalid;
 - no secrets persisted.
 
+## Root cause established — PREPROD_R1 trust-catalog repair wrote the malformed event
 
-## Production signing-history anomaly — forensic gate before any repair
+The provenance is no longer unknown.
 
-The first production `control_plane_v2` config publication attempt rolled back after the current parser encountered a persisted signing-key event with:
+The malformed persisted signing-key event came from the Stream-1 preprod deployment repair recorded in:
+
+`docs/development/preprod/PREPROD_CURRENT_LINE_DEPLOYMENT_2026-09-21.md`
+
+Work ID:
+
+`PREPROD_R1_20260921_CURRENT_CONSOLIDATED_LINE_DEPLOYMENT`
+
+During that deployment the clean-line API failed closed with:
+
+`bootstrap signing key metadata binding is invalid`
+
+Read-only inspection found that `public.signing_keys` and `public.signing_key_events` were empty while the configured preprod signing key already existed in the server secret environment and metadata file.
+
+The first repair wrapper failed because of a quoted environment value. Its invalid row was captured and the exact predeploy backup was restored.
+
+A second strict Node 24 one-off trust-catalog repair then inserted:
+
+- the correct 44-byte public SPKI;
+- `REGISTERED` and `ACTIVATED` signing-key events;
+- matching safe `SYSTEM` audit records.
+
+The production row later observed with:
 
 `reason_code = PREPROD_CATALOG_REPAIR`
 
-This value does not satisfy the current lowercase `StableMachineIdentifierV1Schema`.
+belongs to that trust-catalog repair lineage. It was not created by the ordinary signing-key publication command path.
 
-### Important correction
+### Concrete defect
 
-Do **not** add a parser exception or any other compatibility workaround yet.
+The repair path persisted an uppercase machine reason code that does not satisfy the current application grammar:
 
-The architect must first establish provenance and root cause for this production row.
+`^[a-z0-9][a-z0-9._-]*$`
 
-Unknowns that must be resolved before code or data repair:
+The database column was only `varchar(64)` and had no lexical CHECK constraint, so the database accepted the value.
 
-- exact event type;
-- exact key affected;
-- creation timestamp;
-- correlation with `audit_events`;
-- actor type / actor identity where available;
-- whether the row came from the accepted publication repository, an operational repair script, restore/import, or direct SQL;
-- whether this is the only malformed persisted signing-key event;
-- whether the malformed row is semantically required for the current active key lifecycle.
+Normal current command validation would reject that uppercase value.
 
-The database schema historically did not place a lexical CHECK constraint on `signing_key_events.reason_code`, so an out-of-band writer could have persisted an uppercase value even though current application command schemas reject it. This fact alone does not identify the writer.
+Therefore the defect is not “mysterious legacy data”. It is an **operator repair writer / persistence-contract defect introduced by our own PREPROD_R1 trust-catalog repair**.
 
-### Required next step
+### Required engineering response
 
-Run a read-only forensic provenance pass. No mutation.
+Do not invent another production workaround.
 
-The pass must:
+Before changing runtime parsing or production data, inspect the exact PREPROD_R1 repair mechanism/evidence and reproduce the defect in a disposable database.
 
-1. inventory every signing-key event with a non-null reason code;
-2. identify every value that fails the current machine-identifier grammar;
-3. locate the exact `PREPROD_CATALOG_REPAIR` row and its event type / creation time;
-4. correlate nearby and same-correlation `audit_events`;
-5. inspect safe operational/deployment history for the same timestamp / reason text;
-6. determine whether the row was produced by accepted code, one-off repair tooling, restore/import, or direct DB mutation;
-7. return a root-cause classification before any fix is designed.
+The correction must address the repair writer/persistence contract so the same class cannot recur, while preserving the historical audit trail.
 
-### Prohibited until provenance is known
-
-- no UPDATE/DELETE of signing-key history;
-- no parser exception;
-- no migration to normalize the value;
-- no direct SQL repair;
-- no new signing-key lifecycle event to mask the old one;
-- no V2 config publication retry.
-
-Only after root cause is established may the architect choose the actual repair.
-
+No V2 config publication retry is permitted until that correction is accepted.
