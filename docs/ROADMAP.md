@@ -63,3 +63,32 @@ S1.1 free beta eligibility и quota регистраций приняты. `I1-S
 Chrome, Opera, Yandex, Firefox и Safari — архитектурные цели. Принятая поддержка фиксируется по фактическому браузеру/ОС/ИИ/пакету.
 Отсутствие Mac не разрешает назвать Safari проверенным. До реальной приёмки отображается соответствующий статус.
 Новые ИИ подключаются отдельными адаптерами после проверки; их число не является мерой готовности беты.
+
+## Stream 2 — Telegram operator control plane (owner amendment 2026-09-21)
+
+Это постоянное дополнение к отдельному Stream 2 Monitoring / Health / Change-Detection.
+
+Stream 2 теперь имеет два независимых операторских контура:
+
+1. **LLM monitoring** — ChatGPT, Alice, DeepSeek, Grok, Claude, Gemini, Qwen, Kimi.
+2. **Swagger/API monitoring** — Ozon Seller API, Ozon Performance API, Wildberries API.
+
+Оба контура управляются через авторизованного Telegram-оператора, но имеют разные команды, расписания, принудительные запуски, состояния и уведомления. Сбой одного контура не останавливает другой и не влияет на обычный Work расширения.
+
+### Telegram roadmap
+
+| Этап | Работа | Критерий завершения |
+|---|---|---|
+| S2-TG0 — Telegram operator documentation/architecture | Зафиксировать требования, архитектуру, решения, security/privacy, acceptance и связь с S2-A1 | Нормативные документы согласованы; runtime ещё не заявляется |
+| S2-TG1 | Отдельный Telegram operator service, allowlist операторов, секрет bot token, lane-specific status/notifications | Авторизованный оператор получает безопасные события; посторонний пользователь ничего не получает |
+| S2-TG2 | Независимые durable schedules и forced-run control для LLM и Swagger/API | /llm_interval и /swagger_interval независимы; /llm_run и /swagger_run запускают только свой lane; настройки переживают restart |
+| S2-TG3 | Human-assisted Swagger handoff: official URL → operator download → Telegram document → quarantine/inbox → validation/provenance → API-monitor candidate | Файл коррелирован с requestId, SHA-256 и official source; неподходящие/несвязанные файлы отвергаются |
+| S2-TG4 | End-to-end operator acceptance/hardening | Уведомления, restart recovery, forced runs, schedule persistence, Swagger round-trip, unauthorized denial и privacy/security PASS |
+
+### Связь с API-watch
+
+S2-A1 остаётся **PARTIAL / NOT_ACCEPTED**: автоматический доступ к части first-party источников Ozon/WB ограничен provider challenge/fetch boundaries. Новое операторское решение не объявляет A1 завершённым; оно добавляет легитимный второй путь acquisition: бот присылает official URL → оператор скачивает файл через обычный браузер → возвращает документ боту → система валидирует provenance и использует его только как **operator-supplied official-source candidate**.
+
+S2-A2–A10 не открываются до достаточной authority S2-A1.
+
+Telegram/monitoring не имеет права менять Bootstrap, offline grace, Start/Resume, marketplace permission, commercial/device policy или автоматически патчить продукт.

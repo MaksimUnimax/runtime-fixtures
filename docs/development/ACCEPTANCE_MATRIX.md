@@ -56,3 +56,18 @@ Development 0.2.3, code candidate `96af54f1d67c20f6eca2ade552fde20948f1e66d`; [�
 | A12, A25 | Durable text Send commit/no retry и no replay по Work/message/block; native повтор кнопки не делает второй запрос; зрелые Ozon recovery gates сохранены | Полная установленная recovery/UNKNOWN матрица и разные composer/upload UI |
 | A17, A21, A31 | Shared queue/context/observed quota: APP-10 доказывает 429 → удержание хвоста и невозможность раннего resume; обычные application тесты не делают control API calls | Межбраузерное согласование/наблюдение и реальная работа signed offline access |
 | A13–A16, A18–A20, A22–A24, A26–A30 | Не принимаются D2.4; account port из APP-08 не является авторизацией | I1, D3/S2, Q1 и серверная параллель |
+
+## Stream 2 Telegram operator acceptance additions
+
+| Test ID | Требования | Сценарий и обязательный результат |
+|---|---|---|
+| A33 | SA-OBS-TG-01, SA-OBS-TG-08 | Authorized operator receives safe LLM/API change/problem notification; unauthorized Telegram user gets no internal data/control |
+| A34 | SA-OBS-TG-02, SA-OBS-TG-03 | `/llm_interval` changes only LLM cadence; `/swagger_interval` only Swagger/API cadence; both persist through process/VPS restart |
+| A35 | SA-OBS-TG-04 | `/llm_run` and LLM button launch only LLM lane; `/swagger_run` and Swagger button launch only API lane; forced run does not change interval; same-lane duplicate is controlled |
+| A36 | SA-OBS-TG-05 | Protected official API source produces Telegram operator request with provider, exact official URL, requestId and expected file type; no auth bypass |
+| A37 | SA-OBS-TG-06 | Reply/document upload correlates to pending request; stores filename/type/size/operator/request/source/timestamp/SHA-256; valid JSON/YAML OpenAPI/Swagger parses into candidate |
+| A38 | SA-OBS-TG-06, SA-OBS-TG-08 | Uncorrelated, unauthorized, oversized, invalid-format, malformed or non-Swagger upload is rejected/quarantined and never promoted |
+| A39 | SA-OBS-TG-07 | Valid uploaded spec/change evidence creates review candidate only; no automatic product patch, operation enable, Work deny, Bootstrap/offline/commercial/device mutation |
+| A40 | SA-OBS-TG-02, SA-OBS-TG-03, SA-OBS-TG-08 | Telegram outage/restart preserves durable lane configuration/pending requests and does not deny ordinary product Work; no raw session/AI/seller/credential data appears in Telegram/evidence |
+
+A33–A40 являются будущими acceptance-сценариями S2-TG1–TG4. Их наличие в матрице не означает PASS.

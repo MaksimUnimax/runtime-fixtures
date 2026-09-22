@@ -56,3 +56,21 @@ Payload шифруется для получателя, не расшифров�
 Технические значения по умолчанию: сырые безопасные диагностические события 14 дней; административный audit 90 дней; агрегаты беты 90 дней, затем пересмотр по фактической потребности.
 Это проектная политика, не утверждение юридической достаточности. Удаление аккаунта удаляет/обезличивает связанные данные по отдельной проверяемой процедуре; резервные копии доживают свой ограниченный цикл и не применяются как действующий каталог.
 Секреты production находятся в окружении/secret store выбранного хостинга, не в Git и не в документации.
+
+## Stream 2 Telegram operator data boundary
+
+Telegram — операторский канал Stream 2, а не пользовательское хранилище продукта.
+
+| Данные | Telegram | Сервер Stream 2 | Запрет |
+|---|---|---|---|
+| Monitoring notification | safe provider/target/class/severity/runId/evidence ref | incident/run metadata | raw AI chat/session, seller payload |
+| Bot token | никогда | secret environment/store | Git, docs, logs, Telegram |
+| Operator identity | Telegram numeric identity / allowlist check | minimal allowlist/audit metadata | использовать имя/username как sole authority |
+| Swagger request | official URL, provider, requestId, expected type | pending operator request | произвольный неофициальный URL как authority |
+| Swagger upload | document attachment | restricted quarantine/inbox + provenance + SHA-256 | исполнение файла, silent promotion to authority |
+
+Uploaded Swagger/OpenAPI хранится отдельно от Stream-1 product data и seller reports. До validation статус — quarantined/operator-supplied candidate. Разрешены только bounded document formats (initially JSON/YAML/YML) с parse/schema validation; содержимое не исполняется. Provenance включает pending request, official source URL, provider, authorized operator, Telegram message/document identifiers, filename, MIME, size, receive timestamp и SHA-256.
+
+Pending request и durable schedule state переживают restart. Retention файлов/metadata задаётся Stream-2 operations policy и не превращается в архив пользовательских данных.
+
+Telegram outage, file rejection или missing operator response не меняют Bootstrap/Work/offline/commercial/device authority.

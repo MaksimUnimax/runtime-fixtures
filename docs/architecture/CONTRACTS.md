@@ -70,3 +70,28 @@ retryable означает допустимость по политике, а н
 Расширение и сервер имеют независимые версии. Release manifest связывает extensionVersion, browser package hash, source commit, contract versions, minimum compatible server, profile schema/strategy versions и migration version.
 Bootstrap не сбрасывает квоты, credentials, завершённые execution или локальный buffer из-за смены AI profile.
 Новые схемы БД вводятся expand/contract с проверкой работающей предыдущей версии; rollback кода не объявляется rollback необратимой миграции.
+
+## Stream 2 Telegram operator control contracts
+
+Telegram operator control plane имеет два независимых lane contract:
+
+**LLM**: status, interval, run-now, latest run/result/incident.
+
+**SWAGGER_API**: status, interval, run-now, pending official-source requests, upload intake/result.
+
+Canonical command surface:
+
+- `/llm_status`
+- `/llm_interval <duration>`
+- `/llm_run`
+- `/swagger_status`
+- `/swagger_interval <duration>`
+- `/swagger_run`
+
+Buttons invoke those same underlying operations.
+
+Durable control state stores each lane independently: enabled/status, configured interval, next/last run, active run ID and last result. A manual run does not mutate interval. Same-lane active run returns deterministic ALREADY_RUNNING (or an explicitly versioned queued-run policy); one lane does not implicitly start the other.
+
+Swagger operator request contract contains requestId, provider, officialSourceUrl, expected content type/format, created/expires timestamps and state. Reply/document intake binds to the pending request and produces a quarantined candidate with SHA-256/provenance. Candidate states are at least RECEIVED/QUARANTINED, VALIDATED, REJECTED and CONSUMED. Validation does not equal architect acceptance.
+
+Telegram events and uploaded specs have `executionAuthority=false` by architecture. They cannot mutate Stream-1 Work/Bootstrap/offline permissions, commercial/device entitlement or production adapters.

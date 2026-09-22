@@ -1,0 +1,55 @@
+{
+  "schema": "stream2_current_frontier_v2",
+  "date": "2026-09-21",
+  "owner_priority": "STREAM2_TELEGRAM_OPERATOR_CONTROL_PLANE",
+  "llm_authority": {
+    "status": "FINAL_ACCEPTED_NOT_REMOTE_VERIFIED",
+    "s2_l8": "7ec0693e7e8149ae8d9c50ad41c237a23a34bd86",
+    "bounded_q1": "8118d3898fde1fd1dff77702e83d29804af9b812"
+  },
+  "api_authority": {
+    "s2_a1_status": "PARTIAL_AUTO_ACQUISITION_BLOCKED_OPERATOR_PATH_NOT_IMPLEMENTED",
+    "sentinel": "8381ff79b0745c0b03ad025a0d1a7ceda805a659",
+    "reconciliation": "24ba470a7b4a0f019115992e43a4c79f6be931c5",
+    "a2_a10": "BLOCKED_BY_A1"
+  },
+  "telegram": {
+    "requirement": "OWNER_APPROVED",
+    "implementation": "NOT_STARTED",
+    "roadmap": [
+      "S2-TG0",
+      "S2-TG1",
+      "S2-TG2",
+      "S2-TG3",
+      "S2-TG4"
+    ],
+    "lanes": {
+      "llm": {
+        "commands": [
+          "/llm_status",
+          "/llm_interval",
+          "/llm_run"
+        ],
+        "independent_schedule": true,
+        "independent_forced_run": true
+      },
+      "swagger_api": {
+        "commands": [
+          "/swagger_status",
+          "/swagger_interval",
+          "/swagger_run",
+          "/swagger_pending"
+        ],
+        "independent_schedule": true,
+        "independent_forced_run": true,
+        "human_assisted_official_source": true
+      }
+    }
+  },
+  "source_authority": {
+    "bundle_sha256": "d9d33ed66fe6f34c16f2a97f05e8ea592ae2244fd446612cf282d1438e07a9ff",
+    "verify": "PASS",
+    "disposable_restore": "PASS",
+    "remote_publication": "ENVIRONMENT_DEFERRED_REMOTE_PUBLICATION"
+  }
+}
