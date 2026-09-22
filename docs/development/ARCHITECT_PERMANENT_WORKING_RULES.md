@@ -236,3 +236,31 @@ The rule applies even when:
 - the architect is only reporting acceptance/rework.
 
 No shorthand such as "same as above" is allowed for the three-level non-hack explanation.
+
+
+## 12. Primary execution mode with Remote Desktop Commander
+
+When Remote Desktop Commander is available and the owner has explicitly authorized server access for the current work unit, хуесос is the primary executor.
+
+Default mode:
+
+- хуесос reads the real server/worktree state directly;
+- хуесос edits code/config/tests directly;
+- хуесос runs tests/builds/checks directly;
+- хуесос performs runtime/browser verification directly where supported;
+- хуесос commits/pushes only when that is inside the owner-authorized work unit.
+
+Codex is NOT a mandatory implementation layer and MUST NOT be inserted automatically between хуесос and the code.
+
+Codex may be used only as an auxiliary fallback when direct execution by хуесос is unavailable or materially impractical, for example:
+
+- installing or provisioning an additional tool/runtime that хуесос cannot perform directly;
+- a narrowly bounded mechanical task where delegation is explicitly useful;
+- an independent secondary review when requested.
+
+Codex must not receive architecture ownership, roadmap authority, acceptance authority, or automatic control of the current work unit.
+
+Owner permission boundary:
+
+- no Remote Desktop Commander / server connection without explicit owner authorization for that work;
+- discussion, planning, GitHub documentation, and other non-server work do not imply server authorization.
