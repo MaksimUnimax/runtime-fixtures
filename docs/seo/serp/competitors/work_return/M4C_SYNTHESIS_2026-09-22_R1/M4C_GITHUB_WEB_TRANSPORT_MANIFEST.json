@@ -1,0 +1,83 @@
+{
+  "work_id": "OCTOPORT_SEO_M4C_SYNTHESIS_2026-09-22_R1",
+  "transport_mode": "GITHUB_WEB_LINE_ALIGNED_BYTE_EXACT_PARTS",
+  "logical_outputs": 11,
+  "already_uploaded_commit": "cc4a30a742b2544eb1e52e40b14d97a2c29fb79d",
+  "max_part_bytes": 20971520,
+  "oversized_logical_files": [
+    {
+      "logical_file": "M4C_PAGE_EVIDENCE.tsv",
+      "original_bytes": 34206423,
+      "original_sha256": "e0433463f29daf4d2bec1dccd3fec541e9263161672c752898be18c18e7fa175",
+      "parts": [
+        {
+          "file": "M4C_PAGE_EVIDENCE.tsv.part001",
+          "bytes": 20969677,
+          "sha256": "c12c1d6f1641120a4d94a724e94558f930847415b32f18cd524cab8ddf0a5403"
+        },
+        {
+          "file": "M4C_PAGE_EVIDENCE.tsv.part002",
+          "bytes": 13236746,
+          "sha256": "114650340282df6a152c7c820247fa8336460c33345d52363a2ca8a8712b0fdb"
+        }
+      ]
+    },
+    {
+      "logical_file": "M4C_TASK_CAPABILITY_CLAIM_CONTENT_MATRIX.tsv",
+      "original_bytes": 185122964,
+      "original_sha256": "e45d2e6640d7b366b354ca66e19affcce04c8b2b18629905cfd020f9a2d6bebe",
+      "parts": [
+        {
+          "file": "M4C_TASK_CAPABILITY_CLAIM_CONTENT_MATRIX.tsv.part001",
+          "bytes": 20971347,
+          "sha256": "07f7db95dd4cd77816c099b0075f2b14b2b39a16962d519a4d3ec00aab5fac30"
+        },
+        {
+          "file": "M4C_TASK_CAPABILITY_CLAIM_CONTENT_MATRIX.tsv.part002",
+          "bytes": 20971264,
+          "sha256": "1da50e765a9605c251807562c526629fb9c3799ed72339fe60e27fd4fedc7981"
+        },
+        {
+          "file": "M4C_TASK_CAPABILITY_CLAIM_CONTENT_MATRIX.tsv.part003",
+          "bytes": 20970645,
+          "sha256": "cce90647e7a7237f95e9719dcac7bcbce8b8ec8731a21b2dffc4d39b678b7d28"
+        },
+        {
+          "file": "M4C_TASK_CAPABILITY_CLAIM_CONTENT_MATRIX.tsv.part004",
+          "bytes": 20970920,
+          "sha256": "29a2774adab5e519c0bd529c154745bb34c78d96da8a611e14f45a32bd0f1e3f"
+        },
+        {
+          "file": "M4C_TASK_CAPABILITY_CLAIM_CONTENT_MATRIX.tsv.part005",
+          "bytes": 20971300,
+          "sha256": "ea64d51075d0f2a54e5712a53fecc7d1d81e59da2513f0512f144a670ac761ec"
+        },
+        {
+          "file": "M4C_TASK_CAPABILITY_CLAIM_CONTENT_MATRIX.tsv.part006",
+          "bytes": 20971178,
+          "sha256": "1787e0c129e2df41b3b7e015f46db19e967cd70db877cdda7f7892e68b50251f"
+        },
+        {
+          "file": "M4C_TASK_CAPABILITY_CLAIM_CONTENT_MATRIX.tsv.part007",
+          "bytes": 20971505,
+          "sha256": "daaa5f2f4014a24acfdd8f903bef07b7ef53437a921a2e9f8348fc418a7c8a17"
+        },
+        {
+          "file": "M4C_TASK_CAPABILITY_CLAIM_CONTENT_MATRIX.tsv.part008",
+          "bytes": 20970353,
+          "sha256": "6eb7629d020dc34f00ad2026c8fdff1693d51215349b42eada09eed3a06ebbee"
+        },
+        {
+          "file": "M4C_TASK_CAPABILITY_CLAIM_CONTENT_MATRIX.tsv.part009",
+          "bytes": 17354452,
+          "sha256": "1c9714187953c6f48cdc48af9edeee0bddea25158feb33c60e729bb9220b66a1"
+        }
+      ]
+    }
+  ],
+  "missing_small_logical_files": [
+    "M4C_QA.md",
+    "M4C_RETURN_MANIFEST.json",
+    "M4C_SOURCE_MANIFEST.md"
+  ]
+}
