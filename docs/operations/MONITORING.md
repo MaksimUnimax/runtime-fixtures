@@ -27,6 +27,28 @@ HEALTHY, DRIFT, DEGRADED, BROKEN, UNKNOWN, MAINTENANCE различаются. �
 Выход: candidate diff registry/HELP/schemas + human-readable причины + новые/изменённые fixtures. Никаких автоматических бизнес-вызовов или auto-enable.
 WB R1–R8 gate действует также на задания watcher: обнаружить изменение документации можно, начинать реальную характеристику закрытых групп нельзя.
 
+### Wildberries production source handoff
+
+Для Wildberries внутренний source authority состоит из 13 официальных OpenAPI YAML-документов, но операторский путь фиксирован как **one bundle / one request / one upload**.
+
+Оператор не должен вручную скачивать или загружать 13 файлов. Нормальный путь:
+
+1. открыть `https://dev.wildberries.ru/` в обычном видимом браузере и пройти штатную проверку WB;
+2. одним операторским действием запустить same-origin helper;
+3. helper в этой же разрешённой браузерной сессии получает все 13 официальных YAML;
+4. браузер создаёт один `WB_OPENAPI_BUNDLE_V1` JSON-файл;
+5. TG3 создаёт один pending request;
+6. оператор выполняет один `/swagger_upload`;
+7. сервер атомарно валидирует 13/13 документов и только после полного PASS принимает WILDBERRIES authority.
+
+Bundle — только транспорт. Каждый YAML хранит отдельную provenance/SHA-256; семейная идентичность строится как детерминированный manifest SHA по всем 13 документам.
+
+Запрещены mirror fallback, Patchright, webdriver masking, cookie/storage export и иные способы обхода WBAAS. Подробная архитектурная authority: [S2_WB_SINGLE_BUNDLE_OPERATOR_HANDOFF_2026-09-22](../development/stream2/S2_WB_SINGLE_BUNDLE_OPERATOR_HANDOFF_2026-09-22.md).
+
+### Architect / Codex authority
+
+Архитектуру, roadmap, методы, scope, PASS/FAIL, rework и следующий шаг определяет архитектор. Codex выполняет только явно назначенную реализацию и тесты. Изменения архитектуры, roadmap, постоянных правил и operator workflow архитектор фиксирует в GitHub сам; чат не является authority-хранилищем. Полные правила: [STREAM2_ARCHITECT_CODEX_WORKING_RULES](../development/stream2/STREAM2_ARCHITECT_CODEX_WORKING_RULES.md).
+
 ## Доставка сигналов и нагрузка
 
 В бете достаточно одной очереди уведомлений в админке/issue candidate и выбранного владельцем канала. Публикация сообщений третьим лицам требует соответствующего поручения; здесь каналы не включаются.
