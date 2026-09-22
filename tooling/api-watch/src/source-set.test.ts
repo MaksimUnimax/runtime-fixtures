@@ -15,6 +15,7 @@ import {
   familyAuthorityStatus,
   runDocumentAuthorityPass,
 } from "./source-set.js";
+import { WB_BUNDLE_DOCUMENT_KEY, WB_BUNDLE_VERSION } from "./wb-bundle.js";
 import type { OperationInventory } from "./types.js";
 import { InMemoryApiWatchStore } from "./authority.js";
 
@@ -87,6 +88,15 @@ describe("production source authority model", () => {
       },
     });
     const store = new InMemorySwaggerSourceStore();
+    await store.createRequest({
+      requestId: "WILDBERRIES:WB_01_GENERAL",
+      sourceFamily: "WILDBERRIES",
+      documentKey: "WB_01_GENERAL",
+      officialUrl:
+        "https://dev.wildberries.ru/api/swagger/yaml/ru/01-general.yaml?region=ru",
+      expectedArtifactType: "YAML",
+      blockerReason: "historical per-document request",
+    });
     const result = await runDocumentAuthorityPass({
       registry,
       store: new InMemoryApiWatchStore(),
@@ -98,7 +108,12 @@ describe("production source authority model", () => {
     const pending = (await store.listPending(new Date(0))).filter(
       (request) => request.sourceFamily === "WILDBERRIES",
     );
-    expect(pending[0]?.documentKey).toBe("WB_01_GENERAL");
+    expect(pending).toHaveLength(1);
+    expect(pending[0]?.documentKey).toBe(WB_BUNDLE_DOCUMENT_KEY);
+    expect(pending[0]?.bundleVersion).toBe(WB_BUNDLE_VERSION);
+    expect((await store.getRequest("WILDBERRIES:WB_01_GENERAL"))?.status).toBe(
+      "CANCELLED",
+    );
   });
   it("SRC-07..SRC-10 classify partial, complete, and blocked families", () => {
     const accepted = (key: string) => ({
