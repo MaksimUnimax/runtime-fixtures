@@ -96,6 +96,23 @@ snapshot SHA, target snapshot SHA, and diff SHA.
 
 A4 does not classify product impact.
 
+## A5 safety and READ_POLICY impact
+
+A5 classifies only A4 operation changes. Severity is ordered
+`BLOCKING_RISK > REVIEW_REQUIRED > UNKNOWN > NO_POLICY_IMPACT`.
+
+Removed operations and any security-reference change are blocking risks.
+Request-body changes, parameter-count changes, response-status additions or
+removals, and deprecated-flag changes require review. Added operations require
+review even when their method is GET. OperationId-only, tag-only, and exposed
+summary-metadata changes have no policy impact when no other semantic field
+changes.
+
+`readPolicyCandidate` is either `NONE` or `REVIEW_REQUIRED`. Only
+`NO_POLICY_IMPACT` yields `NONE`; A5 never emits an auto-approved or
+auto-enabled operation and never mutates product adapters or Stream-1
+execution authority.
+
 ## Verification evidence
 
 The fixture suite uses a local HTTP server for status, redirect, timeout,
