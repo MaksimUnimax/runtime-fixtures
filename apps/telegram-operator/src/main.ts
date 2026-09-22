@@ -10,9 +10,7 @@ import {
   createSwaggerHandoffService,
   IndependentMonitoringScheduler,
 } from "@product/monitoring-control";
-import {
-  runLlmNoSessionMonitoring,
-} from "./runners.js";
+import { runLlmNoSessionMonitoring } from "./runners.js";
 import { createTelegramTransport } from "./telegram-client.js";
 import { TelegramOperatorService } from "./telegram.js";
 
