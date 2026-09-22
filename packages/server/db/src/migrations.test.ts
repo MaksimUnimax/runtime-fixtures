@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { migrationsFolder, runMigrations } from "./migrations.js";
 import type { DatabaseRuntime } from "./index.js";
 
@@ -60,5 +62,24 @@ describe("runMigrations", () => {
         migrator: vi.fn().mockRejectedValue(failure),
       }),
     ).rejects.toThrow(failure);
+  });
+});
+
+describe("Stream-2 migration receipts", () => {
+  it("keeps TG2 and TG3 migrations forward-only and journaled", async () => {
+    const sql = await readFile(
+      join(migrationsFolder, "0024_s2_tg3_operator_swagger_handoff.sql"),
+      "utf8",
+    );
+    const journal = JSON.parse(
+      await readFile(join(migrationsFolder, "meta", "_journal.json"), "utf8"),
+    ) as { entries: Array<{ idx: number; tag: string }> };
+    expect(sql).toContain('CREATE TABLE "swagger_source_requests"');
+    expect(sql).toContain('CREATE TABLE "swagger_source_artifacts"');
+    expect(sql).toContain("OPERATOR_SUPPLIED_OFFICIAL_SOURCE_CANDIDATE");
+    expect(journal.entries.at(-2)?.tag).toBe("0023_s2_tg2_monitoring_lanes");
+    expect(journal.entries.at(-1)?.tag).toBe(
+      "0024_s2_tg3_operator_swagger_handoff",
+    );
   });
 });

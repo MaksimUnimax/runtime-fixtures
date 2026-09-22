@@ -5,6 +5,8 @@ import {
   type MonitoringLane,
   type MonitoringLaneState,
   type MonitoringNotification,
+  type SwaggerHandoffService,
+  type SwaggerSourceFamily,
 } from "@product/monitoring-control";
 
 export type TelegramButton = { text: string; callback_data: string };
@@ -12,7 +14,20 @@ export type TelegramKeyboard = { inline_keyboard: TelegramButton[][] };
 
 export type TelegramUpdate = {
   updateId: number;
-  message?: { chatId: string; userId: string; text: string };
+  message?: {
+    chatId: string;
+    userId: string;
+    text?: string;
+    caption?: string;
+    document?: {
+      fileId: string;
+      fileName?: string;
+      fileSize?: number;
+      mimeType?: string;
+      bytes?: Uint8Array;
+      sourceFamily?: SwaggerSourceFamily;
+    };
+  };
   callbackQuery?: { id: string; chatId: string; userId: string; data: string };
 };
 
@@ -26,10 +41,12 @@ export interface TelegramTransport {
     keyboard?: TelegramKeyboard,
   ): Promise<void>;
   answerCallback(callbackQueryId: string, text: string): Promise<void>;
+  downloadFile?(fileId: string): Promise<Uint8Array>;
 }
 
 export type TelegramOperatorOptions = {
   scheduler: IndependentMonitoringScheduler;
+  swaggerHandoff?: SwaggerHandoffService;
   transport: TelegramTransport;
   operatorIds: ReadonlySet<string>;
   notificationChatIds?: readonly string[];
@@ -60,6 +77,16 @@ function keyboard(lane: MonitoringLane): TelegramKeyboard {
           callback_data: `monitor:${lane}:interval`,
         },
       ],
+      ...(lane === "SWAGGER_API"
+        ? [
+            [
+              {
+                text: "Pending source requests",
+                callback_data: "monitor:SWAGGER_API:pending",
+              },
+            ],
+          ]
+        : []),
     ],
   };
 }
@@ -122,12 +149,70 @@ export class TelegramOperatorService {
         update.callbackQuery.data,
       );
     } else if (update.message) {
-      await this.handleMessage(chatId, update.message.text);
+      await this.handleMessage(
+        chatId,
+        update.message.userId,
+        update.message.text ?? update.message.caption ?? "",
+        update.message.document,
+      );
     }
   }
 
-  private async handleMessage(chatId: string, text: string): Promise<void> {
+  private async handleMessage(
+    chatId: string,
+    operatorId: string,
+    text: string,
+    document?: NonNullable<TelegramUpdate["message"]>["document"],
+  ): Promise<void> {
     const parsed = command(text);
+    if (document) {
+      if (!this.options.swaggerHandoff) {
+        await this.options.transport.sendMessage(
+          chatId,
+          "Swagger handoff unavailable.",
+        );
+        return;
+      }
+      if (!parsed || parsed.name !== "swagger_upload" || !parsed.argument) {
+        await this.options.transport.sendMessage(
+          chatId,
+          "Upload with /swagger_upload <request_id> as the document caption.",
+        );
+        return;
+      }
+      if (
+        document.fileSize !== undefined &&
+        document.fileSize > this.options.swaggerHandoff.maxUploadBytes
+      ) {
+        await this.options.transport.sendMessage(chatId, "UPLOAD_TOO_LARGE");
+        return;
+      }
+      const bytes =
+        document.bytes ??
+        (document.fileId && this.options.transport.downloadFile
+          ? await this.options.transport.downloadFile(document.fileId)
+          : undefined);
+      if (!bytes) {
+        await this.options.transport.sendMessage(chatId, "UPLOAD_UNAVAILABLE");
+        return;
+      }
+      const result = await this.options.swaggerHandoff.upload({
+        requestId: parsed.argument,
+        operatorId,
+        originalFilename: document.fileName ?? "upload",
+        bytes,
+        declaredSourceFamily: document.sourceFamily,
+      });
+      await this.options.transport.sendMessage(
+        chatId,
+        result.kind === "CANDIDATE_READY"
+          ? `Swagger candidate ready: ${result.artifact.requestId}`
+          : result.kind === "DUPLICATE"
+            ? `Swagger upload duplicate: ${result.artifact.requestId}`
+            : result.code,
+      );
+      return;
+    }
     if (!parsed) return;
     switch (parsed.name) {
       case "help":
@@ -154,6 +239,14 @@ export class TelegramOperatorService {
         return this.changeInterval(chatId, "LLM", parsed.argument);
       case "swagger_interval":
         return this.changeInterval(chatId, "SWAGGER_API", parsed.argument);
+      case "swagger_pending":
+        return this.sendPending(chatId);
+      case "swagger_upload":
+        await this.options.transport.sendMessage(
+          chatId,
+          "Attach one .json, .yaml, or .yml document with /swagger_upload <request_id> as its caption.",
+        );
+        return;
       default:
         await this.options.transport.sendMessage(
           chatId,
@@ -167,9 +260,8 @@ export class TelegramOperatorService {
     chatId: string,
     data: string,
   ): Promise<void> {
-    const match = /^monitor:(LLM|SWAGGER_API):(status|run|interval)$/.exec(
-      data,
-    );
+    const match =
+      /^monitor:(LLM|SWAGGER_API):(status|run|interval|pending)$/.exec(data);
     if (!match) {
       await this.options.transport.answerCallback(callbackId, "DENIED");
       return;
@@ -179,10 +271,41 @@ export class TelegramOperatorService {
     await this.options.transport.answerCallback(callbackId, "OK");
     if (action === "status") return this.sendStatus(chatId, lane);
     if (action === "run") return this.sendRunAcknowledgement(chatId, lane);
+    if (action === "pending") {
+      if (lane !== "SWAGGER_API") {
+        await this.options.transport.sendMessage(chatId, "DENIED");
+        return;
+      }
+      return this.sendPending(chatId);
+    }
     await this.options.transport.sendMessage(
       chatId,
       `Use /${lane === "LLM" ? "llm" : "swagger"}_interval <5m..30d>.`,
       keyboard(lane),
+    );
+  }
+
+  private async sendPending(chatId: string): Promise<void> {
+    if (!this.options.swaggerHandoff) {
+      await this.options.transport.sendMessage(
+        chatId,
+        "Swagger handoff unavailable.",
+      );
+      return;
+    }
+    const requests = await this.options.swaggerHandoff.listPending();
+    const text = requests.length
+      ? requests
+          .map(
+            (request) =>
+              `${request.requestId} | ${request.sourceFamily} | ${request.status}\n${request.officialUrl}\nexpected=${request.expectedArtifactType}`,
+          )
+          .join("\n")
+      : "No pending Swagger source requests.";
+    await this.options.transport.sendMessage(
+      chatId,
+      text,
+      keyboard("SWAGGER_API"),
     );
   }
 

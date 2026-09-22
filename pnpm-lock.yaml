@@ -601,6 +601,9 @@ importers:
 
   packages/server/monitoring-control:
     dependencies:
+      yaml:
+        specifier: 2.9.0
+        version: 2.9.0
       zod:
         specifier: 4.1.5
         version: 4.1.5

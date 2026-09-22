@@ -34,6 +34,13 @@ export function createTelegramTransport(
             chat: { id: number };
             from?: { id: number };
             text?: string;
+            caption?: string;
+            document?: {
+              file_id: string;
+              file_name?: string;
+              file_size?: number;
+              mime_type?: string;
+            };
           };
           callback_query?: {
             id: string;
@@ -49,13 +56,25 @@ export function createTelegramTransport(
       });
       const mapped: TelegramUpdate[] = [];
       for (const update of updates) {
-        if (update.message?.text && update.message.from) {
+        if (
+          update.message?.from &&
+          (update.message.text || update.message.document)
+        ) {
           mapped.push({
             updateId: update.update_id,
             message: {
               chatId: String(update.message.chat.id),
               userId: String(update.message.from.id),
               text: update.message.text,
+              caption: update.message.caption,
+              document: update.message.document
+                ? {
+                    fileId: update.message.document.file_id,
+                    fileName: update.message.document.file_name,
+                    fileSize: update.message.document.file_size,
+                    mimeType: update.message.document.mime_type,
+                  }
+                : undefined,
             },
           });
         } else if (
@@ -79,6 +98,17 @@ export function createTelegramTransport(
           ? mapped[mapped.length - 1]!.updateId + 1
           : offset,
       };
+    },
+    async downloadFile(fileId: string) {
+      const file = await call<{ file_path?: string }>("getFile", {
+        file_id: fileId,
+      });
+      if (!file.file_path) throw new Error("TELEGRAM_FILE_PATH_MISSING");
+      const response = await fetcher(
+        `https://api.telegram.org/file/bot${token}/${file.file_path}`,
+      );
+      if (!response.ok) throw new Error("TELEGRAM_FILE_DOWNLOAD_FAILED");
+      return new Uint8Array(await response.arrayBuffer());
     },
     async sendMessage(
       chatId: string,

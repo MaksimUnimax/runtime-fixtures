@@ -1,6 +1,8 @@
 import { createDatabaseRuntime } from "@product/db";
 import {
   createPostgresMonitoringScheduleStore,
+  createPostgresSwaggerSourceStore,
+  createSwaggerHandoffService,
   IndependentMonitoringScheduler,
 } from "@product/monitoring-control";
 import {
@@ -27,6 +29,13 @@ if (!databaseUrl || !token || operatorIds.size === 0)
 
 const database = createDatabaseRuntime(databaseUrl);
 const transport = createTelegramTransport(token);
+const swaggerHandoff = createSwaggerHandoffService({
+  store: createPostgresSwaggerSourceStore(database),
+  quarantineDir: process.env.SWAGGER_QUARANTINE_DIR,
+  maxUploadBytes: process.env.MAX_SWAGGER_UPLOAD_BYTES
+    ? Number(process.env.MAX_SWAGGER_UPLOAD_BYTES)
+    : undefined,
+});
 const serviceRef: { current: TelegramOperatorService | undefined } = {
   current: undefined,
 };
@@ -45,6 +54,7 @@ const service = new TelegramOperatorService({
   operatorIds,
   notificationChatIds,
   scheduler,
+  swaggerHandoff,
 });
 serviceRef.current = service;
 
