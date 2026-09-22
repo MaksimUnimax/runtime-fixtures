@@ -1,0 +1,86 @@
+{
+  "work_id": "OCTOPORT_SEO_M4B2_CONTEXT_BASELINE_2026-09-22_R1",
+  "branch": "seo/wordstat-batch-01-2026-09-16",
+  "start_head": "232cff7312f3c2551ecda7dd360eb015b52ca33f",
+  "verdict": "PASS",
+  "generated_at": "2026-09-22T00:00:00Z",
+  "publication_path": "docs/seo/serp/competitors/work_return/M4B2_CONTEXT_BASELINE_2026-09-22_R1/",
+  "exact_output_count": 9,
+  "files": [
+    {
+      "name": "M4B2_SOURCE_MANIFEST.md",
+      "sha256": "f25d1cb260d850d62b096d8a792b3dd628920879c24aae13986d1946c2fd7fb9",
+      "bytes": 2740
+    },
+    {
+      "name": "M4B2_DISCOVERY_CHANNEL_COVERAGE.tsv",
+      "sha256": "bd6fbcf7bacd5843cc6f4717190bc8852c9df6e92ee084f83ba5b0f2330d2639",
+      "bytes": 7112
+    },
+    {
+      "name": "M4B2_URL_LEDGER.tsv",
+      "sha256": "6336671fd21f7eef8a0b2f00cec4d6b838be98f10a11d159d676e3bbc3b238e7",
+      "bytes": 1142596
+    },
+    {
+      "name": "M4B2_PAGE_EVIDENCE.tsv",
+      "sha256": "4d1167699a213e44e3c5c780c933f163657b3f13b536236361dff9747b6567a8",
+      "bytes": 4624085
+    },
+    {
+      "name": "M4B2_CANDIDATE_TERMS.tsv",
+      "sha256": "3a408cccbeb5f0334114f5b651bf126214e50397c8b37ad16d0ffd6f2e43af28",
+      "bytes": 852478
+    },
+    {
+      "name": "M4B2_ENTITY_SYNTHESIS_CURRENT.tsv",
+      "sha256": "5a3ef62465c174d0f3fc43eb9e77b9d082908afed90039ad36f8e493dcc9280b",
+      "bytes": 16211
+    },
+    {
+      "name": "M4B2_FRONTIER_RECONCILIATION.tsv",
+      "sha256": "589efe7d390ecf02e5412ded33b3484ee3fc464ab5c2fef4ac3810a7fbdaf52f",
+      "bytes": 2897
+    },
+    {
+      "name": "M4B2_QA.md",
+      "sha256": "182ab955ec63b07ef0f890f418edbf4ef5d9c16cf5ce5ac88786b2652163d36d",
+      "bytes": 2209
+    },
+    {
+      "name": "M4B2_RETURN_MANIFEST.json",
+      "sha256": null,
+      "bytes": null
+    }
+  ],
+  "counts": {
+    "authorized_entities": 15,
+    "accepted_page_candidate_anchors": 43,
+    "zero_anchor_bootstrap_urls": 4,
+    "total_execution_seed_rows": 47,
+    "url_ledger_rows": 1476,
+    "inspected_page_evidence_rows": 1412,
+    "candidate_term_rows": 1412,
+    "discovery_channel_rows": 15,
+    "entity_synthesis_rows": 15,
+    "frontier_reconciliation_rows": 15,
+    "open_url_unresolved": 0,
+    "blocking_channel_hold": 0,
+    "silent_url_loss": 0
+  },
+  "terminal_states": {
+    "INSPECTED": 1412,
+    "HTTP_ERROR": 12,
+    "REDIRECT_IN_SCOPE": 9,
+    "FACET_OR_SORT_VARIANT": 42,
+    "NOT_FOUND": 1
+  },
+  "external_calls": {
+    "search_provider": 0,
+    "wordstat": 0,
+    "alice": 0,
+    "m4q": 0,
+    "github_writes_by_work": 0
+  },
+  "self_hash_policy": "M4B2_RETURN_MANIFEST.json sha256 intentionally null because a file cannot contain its own stable digest; verify ZIP and the other eight listed file digests externally."
+}
