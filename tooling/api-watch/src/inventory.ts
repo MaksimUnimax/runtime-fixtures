@@ -56,6 +56,24 @@ function securityReferences(
   ].sort();
 }
 
+function hasRequestBody(
+  operation: Record<string, unknown>,
+  pathParameters: unknown[],
+): boolean {
+  if (operation.requestBody && typeof operation.requestBody === "object")
+    return true;
+  const operationParameters = Array.isArray(operation.parameters)
+    ? operation.parameters
+    : [];
+  return [...pathParameters, ...operationParameters].some(
+    (parameter) =>
+      parameter &&
+      typeof parameter === "object" &&
+      !Array.isArray(parameter) &&
+      (parameter as Record<string, unknown>).in === "body",
+  );
+}
+
 export function buildCompleteOperationInventory(input: {
   sourceFamily: SwaggerSourceFamily;
   snapshotSha256: string;
@@ -67,9 +85,10 @@ export function buildCompleteOperationInventory(input: {
   const operations: OperationInventoryItem[] = [];
   for (const path of Object.keys(paths).sort()) {
     const pathItem = asObject(paths[path]);
-    const pathParameters = Array.isArray(pathItem.parameters)
-      ? pathItem.parameters.length
-      : 0;
+    const pathParameterValues = Array.isArray(pathItem.parameters)
+      ? pathItem.parameters
+      : [];
+    const pathParameters = pathParameterValues.length;
     for (const method of HTTP_METHODS) {
       const operation = pathItem[method.toLowerCase()];
       if (
@@ -97,9 +116,7 @@ export function buildCompleteOperationInventory(input: {
             ? null
             : createHash("sha256").update(summary).digest("hex"),
         securitySchemeReferences: securityReferences(op, document.root),
-        requestBodyPresent: Boolean(
-          op.requestBody && typeof op.requestBody === "object",
-        ),
+        requestBodyPresent: hasRequestBody(op, pathParameterValues),
         parameterCount:
           pathParameters +
           (Array.isArray(op.parameters) ? op.parameters.length : 0),

@@ -42,7 +42,14 @@ const SWAGGER_2 = Buffer.from(
     swagger: "2.0",
     info: { title: "Fixture", version: "1" },
     paths: {
-      "/health": { get: { responses: { "200": { description: "ok" } } } },
+      "/health": {
+        post: {
+          parameters: [
+            { in: "body", name: "payload", schema: { type: "object" } },
+          ],
+          responses: { "200": { description: "ok" } },
+        },
+      },
     },
   }),
 );
@@ -987,6 +994,7 @@ describe("A3 complete operation inventory", () => {
       filename: "snapshot.json",
     });
     expect(value.operationCount).toBe(1);
+    expect(value.operations[0]?.requestBodyPresent).toBe(true);
   });
   for (const method of ["GET", "POST", "PUT", "PATCH", "DELETE"] as const)
     it(`A3-${method === "GET" ? "03" : method === "POST" ? "04" : method === "PUT" ? "05" : method === "PATCH" ? "06" : "07"} ${method} identity`, () => {
