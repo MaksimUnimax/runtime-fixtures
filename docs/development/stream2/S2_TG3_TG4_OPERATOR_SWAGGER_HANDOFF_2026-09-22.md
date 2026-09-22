@@ -50,4 +50,6 @@ TG3 covers the required 30-case request, quarantine, parser, provenance,
 authority-boundary, durability, and non-interference matrix. TG4 extends the
 existing Telegram harness across the 30 integrated command, callback, upload,
 restart, notification, and security scenarios. No live Telegram token is used
-by automated acceptance.
+by automated acceptance. The TG4 operator suite is 34/34 and the dedicated
+Stream-2 security review is 6/6; source-context review classifies the Telegram
+token as transport configuration only, with no token logging or persistence.
