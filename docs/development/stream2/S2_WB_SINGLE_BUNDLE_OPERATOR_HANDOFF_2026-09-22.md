@@ -233,3 +233,33 @@ Implementation acceptance: **PASS / bounded**.
 Production WB source authority: **NOT YET ACCEPTED**.
 
 The next action is operator acquisition and one-bundle upload. Only after a valid 13/13 bundle is accepted may real production A2→A10 continuation run.
+
+
+## Telegram-only operator UX authority
+
+The human operator surface for this workflow is **Telegram bot only**.
+
+The operator must NOT be required to:
+
+- open a server terminal;
+- know repository paths;
+- discover or copy a request ID manually;
+- run a CLI upload command outside Telegram;
+- upload 13 individual files.
+
+The Telegram bot owns the complete operator handoff:
+
+1. The bot exposes one pending WB source task.
+2. The bot shows that exactly one bundle is required.
+3. The bot provides the browser-helper artifact or the exact helper text/instructions directly in the Telegram conversation.
+4. The operator uses a normal visible browser on `https://dev.wildberries.ru/`, completes the ordinary WB challenge if shown, and runs the supplied same-origin helper once.
+5. The browser produces one JSON bundle.
+6. The operator sends that one JSON file back to the same Telegram bot.
+7. The bot binds the attachment to the active `WB_OPENAPI_BUNDLE` pending request automatically. The operator must not manually type or copy the request ID when there is exactly one eligible pending WB bundle request.
+8. The bot performs the existing upload/validation pipeline and reports the final authority result.
+
+The low-level `/swagger_upload <request_id>` command may remain as an administrative/debug fallback, but it is NOT the primary operator UX.
+
+If more than one eligible pending upload exists, the bot must present an explicit choice using safe labels; it must not guess.
+
+Current implementation is not considered complete for operator UX until this Telegram attachment flow is live-proven end-to-end.
