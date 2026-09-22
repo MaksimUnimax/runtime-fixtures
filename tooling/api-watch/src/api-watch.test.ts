@@ -97,7 +97,12 @@ function registryFor(
   family: SourceRegistryEntry["sourceFamily"] = "OZON_SELLER",
   policy: SourceRegistryEntry["operatorAcceptancePolicy"] = "REVIEW_REQUIRED",
 ) {
-  return createSourceRegistry({ [family]: entry(url, family, policy) });
+  return createSourceRegistry({
+    OZON_SELLER: { officialUrl: null, documents: [] },
+    OZON_PERFORMANCE: { officialUrl: null, documents: [] },
+    WILDBERRIES: { officialUrl: null, documents: [] },
+    [family]: entry(url, family, policy),
+  });
 }
 
 async function acceptedRecord(
@@ -243,7 +248,9 @@ describe("A1 runtime API source authority", () => {
     expect(
       (
         await acquireOfficialSource({
-          entry: createSourceRegistry().get("OZON_SELLER"),
+          entry: createSourceRegistry({
+            OZON_SELLER: { officialUrl: null, documents: [] },
+          }).get("OZON_SELLER"),
         })
       ).kind,
     ).toBe("SOURCE_URL_AUTHORITY_MISSING");
@@ -463,7 +470,11 @@ describe("A1 runtime API source authority", () => {
   it("A1-24 scheduled Swagger run uses the same handler", async () => {
     let calls = 0;
     const runner = createApiWatchRunner({
-      registry: createSourceRegistry(),
+      registry: createSourceRegistry({
+        OZON_SELLER: { officialUrl: null, documents: [] },
+        OZON_PERFORMANCE: { officialUrl: null, documents: [] },
+        WILDBERRIES: { officialUrl: null, documents: [] },
+      }),
       store: new InMemoryApiWatchStore(),
       pendingStore: new InMemorySwaggerSourceStore(),
     });

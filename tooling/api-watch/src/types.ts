@@ -31,11 +31,20 @@ export type OperatorAcceptancePolicy = "REVIEW_REQUIRED" | "DETERMINISTIC";
 export type SourceRegistryEntry = {
   sourceFamily: SwaggerSourceFamily;
   officialUrl: string | null;
+  documents?: readonly SourceDocument[];
   expectedArtifactTypes: readonly ExpectedArtifactType[];
   maximumBytes: number;
   acquisitionPolicy: AcquisitionPolicy;
   operatorAcceptancePolicy: OperatorAcceptancePolicy;
   acceptedHosts?: readonly string[];
+  requiredServerIdentity?: string;
+  titlePattern?: RegExp;
+};
+
+export type SourceDocument = {
+  documentKey: string;
+  officialUrl: string;
+  expectedArtifactTypes: readonly ExpectedArtifactType[];
 };
 
 export type SourceRegistry = {
@@ -48,6 +57,7 @@ export type AcquisitionOutcome =
       kind: "ACQUIRED_OFFICIAL_SOURCE_CANDIDATE";
       sourceFamily: SwaggerSourceFamily;
       officialUrl: string;
+      documentKey?: string | null;
       bytes: Uint8Array;
       sha256: string;
       sizeBytes: number;
@@ -65,6 +75,7 @@ export type AcquisitionOutcome =
         | "INVALID_OFFICIAL_SOURCE_RESPONSE";
       sourceFamily: SwaggerSourceFamily;
       officialUrl: string | null;
+      documentKey?: string | null;
       blockerReason: string;
       httpStatus?: number;
       retryAfterSeconds?: number | null;
@@ -108,10 +119,12 @@ export type SnapshotMetadata = {
   createdAt: Date;
   authorityRecordId: string;
   artifactPath: string;
+  documentKey?: string | null;
 };
 
 export type OperationInventoryItem = {
   sourceFamily: SwaggerSourceFamily;
+  documentKey?: string | null;
   snapshotSha256: string;
   identity: string;
   method: string;
@@ -369,6 +382,33 @@ export type ApiWatchDependencies = {
   incidentNotifier?: ApiWatchIncidentNotifier;
   retryStore?: ApiWatchRetryStore;
   scheduleEarlier?: (retryAt: Date) => Promise<void>;
+};
+
+export type SourceDocumentAuthority = {
+  sourceFamily: SwaggerSourceFamily;
+  documentKey: string;
+  officialUrl: string;
+  status:
+    | "ACQUIRED"
+    | "OPERATOR_SOURCE_REQUIRED"
+    | "SOURCE_TEMPORARILY_UNAVAILABLE"
+    | "INVALID";
+  sha256: string | null;
+  sizeBytes: number | null;
+  specVersion: string | null;
+  authorityStatus: AuthorityStatus;
+  blockerReason: string | null;
+};
+
+export type FamilyManifest = {
+  sourceFamily: SwaggerSourceFamily;
+  manifestSha256: string;
+  documents: Array<{
+    documentKey: string;
+    sha256: string;
+    sizeBytes: number;
+    specVersion: string;
+  }>;
 };
 
 export type ProductRegistryEntry = {

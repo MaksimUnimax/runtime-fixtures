@@ -9,6 +9,7 @@ import {
   API_WATCH_TIMEOUT_MS,
   type AcquisitionOutcome,
   type ExpectedArtifactType,
+  type SourceDocument,
   type SourceRegistryEntry,
 } from "./types.js";
 
@@ -38,12 +39,16 @@ function failure(
 }
 
 function acceptedHosts(entry: SourceRegistryEntry): Set<string> {
-  if (!entry.officialUrl) return new Set();
+  if (!entry.officialUrl && !entry.documents?.length) return new Set();
   const explicit = entry.acceptedHosts?.map((host) => host.toLowerCase());
   return new Set(
     explicit?.length
       ? explicit
-      : [new URL(entry.officialUrl).hostname.toLowerCase()],
+      : [
+          new URL(
+            entry.officialUrl ?? entry.documents![0]!.officialUrl,
+          ).hostname.toLowerCase(),
+        ],
   );
 }
 
@@ -111,12 +116,15 @@ function isHtml(response: Response, bytes: Uint8Array): boolean {
 
 export async function acquireOfficialSource(input: {
   entry: SourceRegistryEntry;
+  document?: SourceDocument;
   fetcher?: FetchLike;
   timeoutMs?: number;
   maxRedirects?: number;
 }): Promise<AcquisitionOutcome> {
   const { entry } = input;
-  if (!entry.officialUrl)
+  const document = input.document;
+  const officialUrl = document?.officialUrl ?? entry.officialUrl;
+  if (!officialUrl)
     return failure(
       entry,
       "SOURCE_URL_AUTHORITY_MISSING",
@@ -126,7 +134,7 @@ export async function acquireOfficialSource(input: {
   const timeoutMs = input.timeoutMs ?? API_WATCH_TIMEOUT_MS;
   const maxRedirects = input.maxRedirects ?? API_WATCH_MAX_REDIRECTS;
   const hosts = acceptedHosts(entry);
-  let currentUrl = entry.officialUrl;
+  let currentUrl = officialUrl;
   let redirects = 0;
   let response: Response;
   try {
@@ -172,7 +180,11 @@ export async function acquireOfficialSource(input: {
     );
   }
 
-  if (response.status === 401 || response.status === 403) {
+  if (
+    response.status === 401 ||
+    response.status === 403 ||
+    response.status === 498
+  ) {
     return failure(
       entry,
       "OPERATOR_SOURCE_REQUIRED",
@@ -247,10 +259,35 @@ export async function acquireOfficialSource(input: {
       `official${extension}`,
       Math.min(entry.maximumBytes, API_WATCH_MAX_ARTIFACT_BYTES),
     );
+    if (entry.requiredServerIdentity) {
+      const servers = Array.isArray(validation.document.root.servers)
+        ? validation.document.root.servers
+            .filter(
+              (server): server is Record<string, unknown> =>
+                Boolean(server) && typeof server === "object",
+            )
+            .map((server) => server.url)
+            .filter((url): url is string => typeof url === "string")
+        : [];
+      if (!servers.some((server) => server === entry.requiredServerIdentity))
+        throw new Error("SOURCE_SERVER_IDENTITY_MISMATCH");
+    }
+    if (entry.titlePattern) {
+      const info = validation.document.root.info;
+      const title =
+        info &&
+        typeof info === "object" &&
+        !Array.isArray(info) &&
+        typeof (info as Record<string, unknown>).title === "string"
+          ? (info as Record<string, unknown>).title
+          : "";
+      if (!entry.titlePattern.test(typeof title === "string" ? title : ""))
+        throw new Error("SOURCE_TITLE_IDENTITY_MISMATCH");
+    }
     return {
       kind: "ACQUIRED_OFFICIAL_SOURCE_CANDIDATE",
       sourceFamily: entry.sourceFamily,
-      officialUrl: entry.officialUrl,
+      officialUrl,
       bytes,
       sha256: createHash("sha256").update(bytes).digest("hex"),
       sizeBytes: bytes.byteLength,
@@ -259,6 +296,7 @@ export async function acquireOfficialSource(input: {
       finalUrl: currentUrl,
       parserResult: validation.parserResult,
       validationResult: validation.validationResult,
+      documentKey: document?.documentKey ?? null,
     };
   } catch (error) {
     return failure(

@@ -23,7 +23,7 @@ import {
   InMemoryApiWatchIncidentStore,
 } from "./incident.js";
 import { applyRetryDecision, InMemoryApiWatchRetryStore } from "./retry.js";
-import { productionSourceRegistry } from "./source-registry.js";
+import { createSourceRegistry } from "./source-registry.js";
 import type { AuthorityRecord } from "./types.js";
 
 function spec(target: boolean): Uint8Array {
@@ -233,8 +233,13 @@ export async function runApiWatchAcceptance() {
   const blockedReports = new InMemoryApiWatchReportStore();
   const blockedIncidents = new InMemoryApiWatchIncidentStore();
   const pending = new InMemorySwaggerSourceStore();
+  const blockedRegistry = createSourceRegistry({
+    OZON_SELLER: { officialUrl: null, documents: [] },
+    OZON_PERFORMANCE: { officialUrl: null, documents: [] },
+    WILDBERRIES: { officialUrl: null, documents: [] },
+  });
   const blockedRunner = createApiWatchRunner({
-    registry: productionSourceRegistry,
+    registry: blockedRegistry,
     store: new InMemoryApiWatchStore(),
     pendingStore: pending,
     reportStore: blockedReports,
