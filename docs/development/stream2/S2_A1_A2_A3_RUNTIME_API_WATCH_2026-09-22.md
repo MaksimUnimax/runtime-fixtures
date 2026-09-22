@@ -75,6 +75,27 @@ A3 intentionally performs no semantic diff or product crosswalk. Those remain
 later authority-controlled work. No Stream-1 authority, product adapter,
 heartbeat, or auto-patch path is changed by this package.
 
+## A4 semantic diff
+
+A4 compares two immutable A2 snapshots from the same source family through
+their complete A3 inventories. The stable identity remains
+`SOURCE_FAMILY:UPPERCASE_METHOD:NORMALIZED_PATH`; an operationId rename is a
+`CHANGED` operation, while a method or path change is a remove plus add.
+
+Each operation is deterministically classified as `ADDED`, `REMOVED`,
+`CHANGED`, or `UNCHANGED`. Changed operations contain only normalized,
+field-level before/after deltas. Set-like tags, security references, and
+response status keys are sorted and deduplicated. The canonical diff excludes
+`createdAt`; `DIFF_SHA256` therefore remains stable across repeated runs and
+input iteration order.
+
+Migration `0026_s2_api_watch_semantic_diffs` stores the safe diff summary and
+normalized operation delta rows. It does not store source specifications or
+raw operation bodies. The semantic identity is unique for source family, base
+snapshot SHA, target snapshot SHA, and diff SHA.
+
+A4 does not classify product impact.
+
 ## Verification evidence
 
 The fixture suite uses a local HTTP server for status, redirect, timeout,

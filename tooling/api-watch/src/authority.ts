@@ -18,6 +18,8 @@ import type {
   AuthorityRecordInput,
   AuthorityStatus,
   OperatorCandidateReview,
+  SemanticDiff,
+  SemanticDiffOperation,
   SourceRegistry,
 } from "./types.js";
 import { acquireOfficialSource } from "./acquire.js";
@@ -35,10 +37,23 @@ function cloneSnapshot<T extends { createdAt: Date }>(value: T): T {
   return { ...value, createdAt: new Date(value.createdAt) };
 }
 
+function cloneSemanticDiff(diff: SemanticDiff): SemanticDiff {
+  return {
+    ...diff,
+    createdAt: new Date(diff.createdAt),
+    methodCountsBefore: { ...diff.methodCountsBefore },
+    methodCountsAfter: { ...diff.methodCountsAfter },
+    operations: JSON.parse(
+      JSON.stringify(diff.operations),
+    ) as SemanticDiffOperation[],
+  };
+}
+
 export type InMemoryApiWatchState = {
   authorities: Map<string, AuthorityRecord>;
   snapshots: Map<string, import("./types.js").SnapshotMetadata>;
   inventories: Map<string, import("./types.js").OperationInventory>;
+  diffs: Map<string, SemanticDiff>;
 };
 
 export function createInMemoryApiWatchState(): InMemoryApiWatchState {
@@ -46,6 +61,7 @@ export function createInMemoryApiWatchState(): InMemoryApiWatchState {
     authorities: new Map(),
     snapshots: new Map(),
     inventories: new Map(),
+    diffs: new Map(),
   };
 }
 
@@ -110,6 +126,26 @@ export class InMemoryApiWatchStore implements ApiWatchStore {
           JSON.stringify(inventory),
         ) as import("./types.js").OperationInventory)
       : undefined;
+  }
+
+  async saveSemanticDiff(diff: SemanticDiff): Promise<SemanticDiff> {
+    const key = `${diff.sourceFamily}:${diff.baseSnapshotSha256}:${diff.targetSnapshotSha256}:${diff.diffSha256}`;
+    const existing = this.state.diffs.get(key);
+    if (existing) return cloneSemanticDiff(existing);
+    this.state.diffs.set(key, cloneSemanticDiff(diff));
+    return cloneSemanticDiff(diff);
+  }
+
+  async findSemanticDiff(
+    sourceFamily: SwaggerSourceFamily,
+    baseSnapshotSha256: string,
+    targetSnapshotSha256: string,
+    diffSha256: string,
+  ): Promise<SemanticDiff | undefined> {
+    const diff = this.state.diffs.get(
+      `${sourceFamily}:${baseSnapshotSha256}:${targetSnapshotSha256}:${diffSha256}`,
+    );
+    return diff ? cloneSemanticDiff(diff) : undefined;
   }
 }
 
@@ -241,6 +277,80 @@ export function createPostgresApiWatchStore(
       return result.rows[0]?.inventory as
         | import("./types.js").OperationInventory
         | undefined;
+    },
+    async saveSemanticDiff(diff) {
+      const existing = await this.findSemanticDiff(
+        diff.sourceFamily,
+        diff.baseSnapshotSha256,
+        diff.targetSnapshotSha256,
+        diff.diffSha256,
+      );
+      if (existing) return existing;
+      await runtime.transaction(async (query) => {
+        await query.query(
+          `INSERT INTO api_watch_semantic_diffs(diff_id,source_family,base_snapshot_sha256,target_snapshot_sha256,diff_sha256,created_at,base_path_count,target_path_count,base_operation_count,target_operation_count,added_count,removed_count,changed_count,unchanged_count,method_counts_before,method_counts_after,deprecated_before,deprecated_after) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb,$16::jsonb,$17,$18) ON CONFLICT (source_family,base_snapshot_sha256,target_snapshot_sha256,diff_sha256) DO NOTHING`,
+          [
+            diff.diffId,
+            diff.sourceFamily,
+            diff.baseSnapshotSha256,
+            diff.targetSnapshotSha256,
+            diff.diffSha256,
+            diff.createdAt,
+            diff.basePathCount,
+            diff.targetPathCount,
+            diff.baseOperationCount,
+            diff.targetOperationCount,
+            diff.addedCount,
+            diff.removedCount,
+            diff.changedCount,
+            diff.unchangedCount,
+            JSON.stringify(diff.methodCountsBefore),
+            JSON.stringify(diff.methodCountsAfter),
+            diff.deprecatedBefore,
+            diff.deprecatedAfter,
+          ],
+        );
+        for (const operation of diff.operations)
+          await query.query(
+            `INSERT INTO api_watch_semantic_diff_operations(diff_id,identity,source_family,method,path,state,before_operation,after_operation,deltas) VALUES($1,$2,$3,$4,$5,$6,$7::jsonb,$8::jsonb,$9::jsonb) ON CONFLICT (diff_id,identity) DO NOTHING`,
+            [
+              diff.diffId,
+              operation.identity,
+              operation.sourceFamily,
+              operation.method,
+              operation.path,
+              operation.state,
+              JSON.stringify(operation.before),
+              JSON.stringify(operation.after),
+              JSON.stringify(operation.deltas),
+            ],
+          );
+      });
+      return diff;
+    },
+    async findSemanticDiff(
+      sourceFamily,
+      baseSnapshotSha256,
+      targetSnapshotSha256,
+      diffSha256,
+    ) {
+      const summary = await runtime.query<Record<string, unknown>>(
+        `SELECT diff_id AS "diffId",source_family AS "sourceFamily",base_snapshot_sha256 AS "baseSnapshotSha256",target_snapshot_sha256 AS "targetSnapshotSha256",diff_sha256 AS "diffSha256",created_at AS "createdAt",base_path_count AS "basePathCount",target_path_count AS "targetPathCount",base_operation_count AS "baseOperationCount",target_operation_count AS "targetOperationCount",added_count AS "addedCount",removed_count AS "removedCount",changed_count AS "changedCount",unchanged_count AS "unchangedCount",method_counts_before AS "methodCountsBefore",method_counts_after AS "methodCountsAfter",deprecated_before AS "deprecatedBefore",deprecated_after AS "deprecatedAfter" FROM api_watch_semantic_diffs WHERE source_family=$1 AND base_snapshot_sha256=$2 AND target_snapshot_sha256=$3 AND diff_sha256=$4`,
+        [sourceFamily, baseSnapshotSha256, targetSnapshotSha256, diffSha256],
+      );
+      const row = summary.rows[0];
+      if (!row) return undefined;
+      const operations = await runtime.query<Record<string, unknown>>(
+        `SELECT identity,source_family AS "sourceFamily",method,path,state,before_operation AS "before",after_operation AS "after",deltas FROM api_watch_semantic_diff_operations WHERE diff_id=$1 ORDER BY source_family,path,method,identity`,
+        [row.diffId],
+      );
+      return {
+        ...(row as unknown as Omit<SemanticDiff, "operations" | "createdAt">),
+        createdAt: new Date(row.createdAt as string | Date),
+        methodCountsBefore: row.methodCountsBefore as Record<string, number>,
+        methodCountsAfter: row.methodCountsAfter as Record<string, number>,
+        operations: operations.rows as unknown as SemanticDiffOperation[],
+      };
     },
   };
 }

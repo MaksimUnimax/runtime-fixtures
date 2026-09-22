@@ -137,6 +137,141 @@ export type OperationInventory = {
   operations: OperationInventoryItem[];
 };
 
+export type DiffOperationState = "ADDED" | "REMOVED" | "CHANGED" | "UNCHANGED";
+
+export type DiffField =
+  | "deprecated"
+  | "operationId"
+  | "parameterCount"
+  | "requestBodyPresent"
+  | "responseStatusKeys"
+  | "securitySchemeReferences"
+  | "summaryHash"
+  | "tags";
+
+export type DiffFieldDelta = {
+  field: DiffField;
+  before: unknown;
+  after: unknown;
+};
+
+export type SemanticOperation = {
+  identity: string;
+  sourceFamily: SwaggerSourceFamily;
+  method: string;
+  path: string;
+  operationId: string | null;
+  deprecated: boolean;
+  tags: string[];
+  summaryHash: string | null;
+  securitySchemeReferences: string[];
+  requestBodyPresent: boolean;
+  parameterCount: number;
+  responseStatusKeys: string[];
+};
+
+export type SemanticDiffOperation = {
+  identity: string;
+  sourceFamily: SwaggerSourceFamily;
+  method: string;
+  path: string;
+  state: DiffOperationState;
+  before: SemanticOperation | null;
+  after: SemanticOperation | null;
+  deltas: DiffFieldDelta[];
+};
+
+export type SemanticDiff = {
+  diffId: string;
+  sourceFamily: SwaggerSourceFamily;
+  baseSnapshotSha256: string;
+  targetSnapshotSha256: string;
+  diffSha256: string;
+  createdAt: Date;
+  basePathCount: number;
+  targetPathCount: number;
+  baseOperationCount: number;
+  targetOperationCount: number;
+  addedCount: number;
+  removedCount: number;
+  changedCount: number;
+  unchangedCount: number;
+  methodCountsBefore: Record<string, number>;
+  methodCountsAfter: Record<string, number>;
+  deprecatedBefore: number;
+  deprecatedAfter: number;
+  operations: SemanticDiffOperation[];
+};
+
+export type ApiWatchImpactSeverity =
+  | "BLOCKING_RISK"
+  | "REVIEW_REQUIRED"
+  | "UNKNOWN"
+  | "NO_POLICY_IMPACT";
+
+export type ReadPolicyCandidate = "NONE" | "REVIEW_REQUIRED";
+
+export type ApiWatchImpactOperation = {
+  identity: string;
+  state: DiffOperationState;
+  severity: ApiWatchImpactSeverity;
+  readPolicyCandidate: ReadPolicyCandidate;
+  reasons: string[];
+};
+
+export type ApiWatchImpact = {
+  diffId: string;
+  operations: ApiWatchImpactOperation[];
+  blockingRiskCount: number;
+  reviewRequiredCount: number;
+  unknownCount: number;
+  noPolicyImpactCount: number;
+  overallSeverity: ApiWatchImpactSeverity;
+};
+
+export type ApiWatchReportState =
+  | "CREATED"
+  | "RUNNING"
+  | "COMPLETED"
+  | "PARTIAL"
+  | "BLOCKED"
+  | "FAILED";
+
+export type ApiWatchReportSource = "SCHEDULED" | "FORCED";
+
+export type ApiWatchReportSourceOutcome = {
+  sourceFamily: SwaggerSourceFamily;
+  acquisitionOutcome: string;
+  authorityStatus: AuthorityStatus | null;
+  snapshotSha256: string | null;
+  inventoryOperationCount: number | null;
+  baseSnapshotSha256: string | null;
+  diffSha256: string | null;
+  impactSeverity: ApiWatchImpactSeverity | null;
+  blockerCode: string | null;
+  errorCode: string | null;
+  changeMode: "NO_CHANGE" | "FIRST_SNAPSHOT" | "CHANGED" | null;
+};
+
+export type ApiWatchReport = {
+  reportId: string;
+  runSource: ApiWatchReportSource;
+  createdAt: Date;
+  startedAt: Date | null;
+  completedAt: Date | null;
+  state: ApiWatchReportState;
+  sources: ApiWatchReportSourceOutcome[];
+  addedCount: number;
+  removedCount: number;
+  changedCount: number;
+  unchangedCount: number;
+  blockingRiskCount: number;
+  reviewRequiredCount: number;
+  unknownCount: number;
+  noPolicyImpactCount: number;
+  overallImpactSeverity: ApiWatchImpactSeverity | null;
+};
+
 export type ApiWatchSqlQuery = {
   query<T extends Record<string, unknown> = Record<string, unknown>>(
     text: string,
@@ -160,6 +295,42 @@ export interface ApiWatchStore {
     sourceFamily: SwaggerSourceFamily,
     snapshotSha256: string,
   ): Promise<OperationInventory | undefined>;
+  saveSemanticDiff(diff: SemanticDiff): Promise<SemanticDiff>;
+  findSemanticDiff(
+    sourceFamily: SwaggerSourceFamily,
+    baseSnapshotSha256: string,
+    targetSnapshotSha256: string,
+    diffSha256: string,
+  ): Promise<SemanticDiff | undefined>;
+}
+
+export interface ApiWatchReportStore {
+  createReport(input: {
+    reportId?: string;
+    runSource: ApiWatchReportSource;
+    createdAt: Date;
+  }): Promise<ApiWatchReport>;
+  getReport(reportId: string): Promise<ApiWatchReport | undefined>;
+  transitionReport(input: {
+    reportId: string;
+    state: ApiWatchReportState;
+    at: Date;
+    sources?: ApiWatchReportSourceOutcome[];
+    counts?: Partial<
+      Pick<
+        ApiWatchReport,
+        | "addedCount"
+        | "removedCount"
+        | "changedCount"
+        | "unchangedCount"
+        | "blockingRiskCount"
+        | "reviewRequiredCount"
+        | "unknownCount"
+        | "noPolicyImpactCount"
+        | "overallImpactSeverity"
+      >
+    >;
+  }): Promise<ApiWatchReport>;
 }
 
 export type OperatorCandidateReview =
@@ -182,6 +353,8 @@ export type ApiWatchDependencies = {
   fetcher?: typeof fetch;
   clock?: () => Date;
   quarantineDir?: string;
+  snapshotRoot?: string;
+  reportStore?: ApiWatchReportStore;
 };
 
 export type _TypeOnlyGuards = {
