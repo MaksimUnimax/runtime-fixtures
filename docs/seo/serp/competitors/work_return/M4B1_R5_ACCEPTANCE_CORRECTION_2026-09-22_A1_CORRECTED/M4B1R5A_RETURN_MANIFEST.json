@@ -1,0 +1,93 @@
+{
+  "work_id": "OCTOPORT_SEO_M4B1_R5_ACCEPTANCE_CORRECTION_2026-09-22_A1",
+  "status": "PASS",
+  "recovery_required": false,
+  "repository": "MaksimUnimax/runtime-fixtures",
+  "branch": "seo/wordstat-batch-01-2026-09-16",
+  "start_live_remote_head": "3ae5775e83f7c15d340825fd7ef4cd6cde64a74b",
+  "end_observed_remote_head": "3ae5775e83f7c15d340825fd7ef4cd6cde64a74b",
+  "authority_drift_detected": false,
+  "authority_drift_material": false,
+  "correction_scope": {
+    "defects_corrected": 2,
+    "reg024_phase_accounting": true,
+    "uniseller_occurrence_losslessness_proof": true,
+    "frozen_r5_url_overlay_modified": false,
+    "frozen_r5_page_evidence_modified": false
+  },
+  "uniseller_snapshot": {
+    "snapshot_id": "UNISELLER_BLOG_R5_20260921T132714781Z",
+    "snapshot_timestamp": "2026-09-21T13:27:14.781Z",
+    "source_collection_url": "https://uniseller.io/blog/",
+    "method": "RECONSTRUCTED_FROM_COMPLETE_RETAINED_R5_DOM_OCCURRENCE_LEDGER",
+    "retained_source_sha256": "cee097a88e2a8443712d5b917b853e1bb353af60ab1785ddab6cb15cf211f834",
+    "chunk_size": 250,
+    "extraction_chunks": 22
+  },
+  "occurrence_accounting": {
+    "occurrence_rows": 5475,
+    "contiguous_occurrence_indices": true,
+    "duplicate_occurrence_indices": 0,
+    "unique_normalized_identities": 5474,
+    "duplicate_occurrence_rows": 1,
+    "article_unique_identities": 4307,
+    "theme_taxonomy_unique_identities": 1166,
+    "root_unique_identities": 1
+  },
+  "identity_reconciliation": {
+    "already_accepted_identities": 19,
+    "r5_new_terminal_identities": 5455,
+    "unmatched_identities": 0,
+    "r5_identities_missing_from_occurrence_proof": 0,
+    "silent_url_loss": 0
+  },
+  "frontier_accounting": {
+    "rows": 45,
+    "unique_registry_ids": 45,
+    "equation_pass_rows": 45,
+    "equation_fail_rows": 0,
+    "reg024_equation": "4 + 109 + 12 + 10 + 0 = 135",
+    "reg051_equation": "2 + 66 + 0 + 0 + 5455 = 5523",
+    "global_final_terminal_identities": 9965,
+    "open_url_unresolved": 0,
+    "blocking_channel_hold": 0
+  },
+  "frozen_r5_authority": {
+    "url_overlay_rows": 5455,
+    "page_evidence_rows": 5455,
+    "url_evidence_joins": 5455,
+    "url_overlay_sha256": "4a7e71693e7f434dcdefad60a8733372d9c427f1fba76305cf09b706044f4dfd",
+    "page_evidence_sha256": "cf39aae1f9ff20797b418bf91081bf4e15b000c3b9a1783154d2ddaa4da887b4"
+  },
+  "boundary": {
+    "other_44_entities_materially_unchanged": true,
+    "search_provider_calls": 0,
+    "wordstat_calls": 0,
+    "alice_calls": 0,
+    "m4q_calls": 0,
+    "new_competitors": 0,
+    "page_refetches": 0,
+    "github_writes": 0
+  },
+  "output_files": [
+    "M4B1R5A_SOURCE_MANIFEST.md",
+    "M4B1R5A_UNISELLER_OCCURRENCE_LEDGER.tsv",
+    "M4B1R5A_FRONTIER_RECONCILIATION.tsv",
+    "M4B1R5A_QA.md",
+    "M4B1R5A_RETURN_MANIFEST.json"
+  ],
+  "sha256_by_output_file": {
+    "M4B1R5A_SOURCE_MANIFEST.md": "14677830ab9ac2c0ef1d2b175b76c038bcc23a3baf938db3d525c5249a64c1b4",
+    "M4B1R5A_UNISELLER_OCCURRENCE_LEDGER.tsv": "4cd4c2e08c1b62a161541d868ac343ed631d6fa8e5587f1eb784e1472e8ec8b2",
+    "M4B1R5A_FRONTIER_RECONCILIATION.tsv": "7b2da7bd5087a3bddf4e66248d5f71dcd6028320a9f4cb8c9a6575b1b44ca531",
+    "M4B1R5A_QA.md": "0761a04b7634e84b972f51c41b9ec751c11125468951dff5d04eb88263060402",
+    "M4B1R5A_RETURN_MANIFEST_json": "SELF_REFERENTIAL_NOT_INCLUDED"
+  },
+  "output_row_counts": {
+    "M4B1R5A_UNISELLER_OCCURRENCE_LEDGER_tsv": 5475,
+    "M4B1R5A_FRONTIER_RECONCILIATION_tsv": 45
+  },
+  "qa_verdict": "PASS",
+  "git_writes_executed": 0,
+  "generated_at": "2026-09-22T02:28:38.349Z"
+}
