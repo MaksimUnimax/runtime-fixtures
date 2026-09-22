@@ -1,6 +1,6 @@
 # M4 progress — Search competitor + landing corpus
 
-Date: 2026-09-18
+Date: 2026-09-22
 Branch: seo/wordstat-batch-01-2026-09-16
 Status: **M4A R3 ACCEPTED / M4B1 ACCEPTED / M4B2 NEXT PREPARATION / M4Q REQUIRED BEFORE M4C**
 
@@ -30,7 +30,7 @@ M7 = BLOCKED
 - M4A_PRE_STEP_RESEARCH_AND_EXECUTION_GATE_2026-09-18.md = SUPERSEDED HISTORY
 - M4A_WORK_PROMPT_2026-09-18.md = DO NOT EXECUTE
 
-## Why M4A is next
+## Historical note — why M4A was next
 
 Search competitors must be derived from accepted M3 recurrence, not from remembered brands or a business-rival shortlist.
 
@@ -40,7 +40,7 @@ Original R04 excluded. R04R1 is authority.
 
 Full-volume cross-file recurrence/lineage analysis is assigned to ChatGPT Work under quality-first and Work-handoff rules.
 
-## Next physical action
+## Historical next physical action at the original M4A stage
 
 Main Chat re-prepares M4A from live HEAD after explicit LEVEL 1 + M4 LEVEL 2 read, persists/readbacks the new preparation, and only then may a new Work prompt be relayed.
 
@@ -490,3 +490,46 @@ M4C_ALLOWED = false
 
 CURRENT_CURSOR:
 M4 CURRENT -> M4B1 ACCEPTED -> M4B2 PRE-STEP PREPARATION -> M4B2 WORK/RETURN QA -> M4Q -> M4C.
+
+
+## 2026-09-22 — M4B1 R5 A1 final acceptance
+
+Current acceptance authority:
+`M4B1_R5_A1_MAIN_CHAT_FINAL_ACCEPTANCE_2026-09-22.md`
+
+The earlier 2026-09-21 acceptance is superseded as final acceptance authority because later full-volume Work QA exposed two acceptance defects:
+- REG024 phase accounting omitted explicit R4 +10 in its equation;
+- Uniseller occurrence-level losslessness had not been independently retained/proven.
+
+A1 correction PASS:
+- exactly 5 required correction files remote-read back;
+- occurrence rows = 5,475;
+- contiguous occurrence indices = PASS;
+- unique normalized identities = 5,474;
+- duplicate occurrence rows = 1;
+- 19 already accepted + 5,455 R5 new terminal = 5,474;
+- silent URL loss = 0;
+- frontier rows = 45;
+- equation pass = 45/45;
+- REG024 = `4 + 109 + 12 + 10 + 0 = 135`;
+- REG051 = `2 + 66 + 0 + 0 + 5455 = 5523`;
+- global terminal universe = 9,965;
+- open URL unresolved = 0;
+- blocking channel HOLD = 0;
+- other 44 entities materially unchanged.
+
+```text
+M4B1_PRODUCT_VENDOR_PAGE_SURFACE = ACCEPTED
+M4B1_FINAL_ACCEPTANCE = true
+M4B1_OPEN_CRITICAL_DEFECTS = 0
+M4B1_FINAL_TERMINAL_UNIVERSE = 9965
+
+M4B2 = NEXT_PREPARATION
+M4B2_WORK_START_ALLOWED = false
+M4Q_REQUIRED_BEFORE_M4C = true
+M4C_ALLOWED = false
+```
+
+CURRENT_CURSOR:
+M4 CURRENT -> M4B1 ACCEPTED -> M4B2 PRE-STEP PREPARATION -> M4B2 WORK/RETURN QA -> M4Q -> M4C.
+

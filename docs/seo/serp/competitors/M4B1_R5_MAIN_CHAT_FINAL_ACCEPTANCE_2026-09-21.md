@@ -1,7 +1,13 @@
 # Octoport SEO — M4B1 R5 Main Chat final acceptance
 
+> **SUPERSESSION NOTICE — 2026-09-22**
+>
+> This 2026-09-21 acceptance was later found incomplete by full-volume Work acceptance QA: REG024 phase accounting did not explicitly include the R4 +10 delta, and the 5,475-occurrence Uniseller losslessness claim lacked an occurrence-level ledger. It is retained as historical evidence only.
+>
+> Current acceptance authority: `M4B1_R5_A1_MAIN_CHAT_FINAL_ACCEPTANCE_2026-09-22.md`.
+
 Date: 2026-09-21
-Status: **ACCEPTED**
+Status: **SUPERSEDED / HISTORICAL — SEE A1 FINAL ACCEPTANCE**
 Work ID: `OCTOPORT_SEO_M4B1_UNISELLER_URL_TERMINALIZATION_2026-09-19_R5`
 
 ## 1. Upload identity
