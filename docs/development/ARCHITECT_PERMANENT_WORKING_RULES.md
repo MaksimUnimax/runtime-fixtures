@@ -264,3 +264,30 @@ Owner permission boundary:
 
 - no Remote Desktop Commander / server connection without explicit owner authorization for that work;
 - discussion, planning, GitHub documentation, and other non-server work do not imply server authorization.
+
+
+## 13. Primary-worker / frontier-review operating model
+
+Default operating model:
+
+- хуесос performs the main project work directly;
+- хуесос owns architecture, implementation, tests, runtime/browser verification, acceptance, roadmap progression, and project-state maintenance within the owner-authorized work unit;
+- frontier / secondary models are not the primary workers.
+
+Frontier / secondary models are reserved primarily for independent control:
+
+- architecture review;
+- adversarial review;
+- diff review;
+- acceptance review;
+- roadmap / scope drift detection;
+- security / regression review;
+- challenge of хуесос decisions when the owner wants a second opinion.
+
+The owner may invoke those models periodically rather than continuously.
+
+Their purpose is to audit хуесос, not to replace хуесос as the normal executor.
+
+If an external review finds a defect, хуесос remains responsible for understanding the finding, deciding the correction, implementing it, testing it, and updating project authority.
+
+Remote Desktop Commander usage remains owner-authorized per work unit. Discussion/planning alone does not authorize server access.
