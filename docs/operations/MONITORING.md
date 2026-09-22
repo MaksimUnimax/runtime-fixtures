@@ -45,6 +45,8 @@ Bundle — только транспорт. Каждый YAML хранит от�
 
 Запрещены mirror fallback, Patchright, webdriver masking, cookie/storage export и иные способы обхода WBAAS. Подробная архитектурная authority: [S2_WB_SINGLE_BUNDLE_OPERATOR_HANDOFF_2026-09-22](../development/stream2/S2_WB_SINGLE_BUNDLE_OPERATOR_HANDOFF_2026-09-22.md).
 
+Текущий production-статус WB на 2026-09-22: single-bundle handoff реализован и протестирован; один pending request = `WILDBERRIES:WB_OPENAPI_BUNDLE`. Прямая серверная загрузка всех 13 документов возвращает HTTP 498, поэтому authority остаётся `OPERATOR_SOURCE_REQUIRED` до одного ручного bundle-upload. После валидного 13/13 bundle автоматически продолжается существующий A2→A10 pipeline.
+
 ### Architect / Codex authority
 
 Архитектуру, roadmap, методы, scope, PASS/FAIL, rework и следующий шаг определяет архитектор. Codex выполняет только явно назначенную реализацию и тесты. Изменения архитектуры, roadmap, постоянных правил и operator workflow архитектор фиксирует в GitHub сам; чат не является authority-хранилищем. Полные правила: [STREAM2_ARCHITECT_CODEX_WORKING_RULES](../development/stream2/STREAM2_ARCHITECT_CODEX_WORKING_RULES.md).
