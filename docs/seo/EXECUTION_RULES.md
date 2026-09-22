@@ -539,6 +539,33 @@ SERVER / EXTENSION / SITE IMPLEMENTATION = DO NOT TOUCH
 
 Before eventual implementation/merge, refresh current main and check overlap with parallel work.
 
+## 29A. Full-chain decision verification — OWNER-LOCKED
+
+Before Main Chat states a material fact, identifies an artifact, advances a cursor, prepares a next step, writes to GitHub, or tells the owner to upload/use a file, the conclusion must pass the complete verification chain:
+
+```text
+USER/MD/HISTORY CLAIM
+-> LIVE GITHUB HEAD / CURRENT AUTHORITY
+-> EXACT ARTIFACT IDENTITY (name + manifest/work_id + hash/blob/row identity where available)
+-> APPLICABLE LEVEL 1 / LEVEL 2 RULE
+-> AUTHORITY CONTINUITY / DEPENDENCY CHECK
+-> ONLY THEN ACTION OR OWNER-FACING CONCLUSION
+```
+
+Hard requirements:
+
+- never identify an artifact from filename resemblance alone;
+- for ZIP/file handoff, inspect the actual manifest or contained file set before saying "this is the one";
+- never invent or infer a chat URL, artifact URL, repository path, branch, timestamp or source location from adjacent evidence;
+- a remembered or copied conversation link does not become the target link unless the exact target artifact/conversation is verified;
+- if one link in the chain is unavailable, return `HOLD / EVIDENCE_REQUIRED` rather than guessing;
+- when two sources conflict, stop and reconcile before any dependent action;
+- large-data rules remain in force: this verification gate does not authorize Main Chat to process a large corpus that belongs in Work;
+- after every material conclusion, preserve the evidence path sufficient for the next session to reproduce why the conclusion was allowed.
+
+Regression fixture:
+the 2026-09-22 M4B1 R3 recovery incident demonstrated that a transient Work/chat attachment was treated as durable authority and later a different archive was misidentified from context without opening its manifest. Both behaviors are forbidden.
+
 ## 30. Major-stage closure gate
 
 A stage closes only when:
