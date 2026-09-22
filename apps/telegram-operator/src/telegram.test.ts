@@ -422,16 +422,16 @@ describe("TG4 Telegram operator integration hardening", () => {
 
   it("TG4-21 no Stream-1 execution-authority mutation", async () => {
     const f = await fixture();
-    expect(JSON.stringify(await f.handoffStore.listPending(new Date()))).not.toMatch(
-      /executionAuthority|bootstrap/i,
-    );
+    expect(
+      JSON.stringify(await f.handoffStore.listPending(new Date())),
+    ).not.toMatch(/executionAuthority|bootstrap/i);
   });
 
   it("TG4-22 no product auto-patch", async () => {
     const f = await fixture();
-    expect(JSON.stringify(await f.handoffStore.listPending(new Date()))).not.toMatch(
-      /auto.?patch|adapter/i,
-    );
+    expect(
+      JSON.stringify(await f.handoffStore.listPending(new Date())),
+    ).not.toMatch(/auto.?patch|adapter/i);
   });
 
   it("TG4-23 no heartbeat", async () => {
