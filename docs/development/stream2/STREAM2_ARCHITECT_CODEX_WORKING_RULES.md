@@ -78,3 +78,12 @@ When the architect changes:
 - source-authority model;
 
 the architect must persist that decision in GitHub immediately rather than leaving it only in chat or delegating the decision/documentation to Codex.
+
+
+## Global permanent rule authority
+
+This Stream-2 rule set is subordinate to and must be read together with:
+
+`docs/development/ARCHITECT_PERMANENT_WORKING_RULES.md`
+
+That global authority requires every project message to include a concrete three-level upward dependency chain and, at every level, an explicit explanation of why the selected decision is not a workaround / костыль. If those explanations cannot be made, implementation must stop until provenance and ownership are established.
