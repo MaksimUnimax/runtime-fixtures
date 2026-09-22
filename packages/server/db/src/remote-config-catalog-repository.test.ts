@@ -29,3 +29,23 @@ it("fails closed for corrupt signing-key rows", async () => {
     ).rejects.toThrow();
   }
 });
+
+it("reads the approved immutable historical signing reason unchanged", async () => {
+  const event = {
+    id: "11111111-1111-4111-8111-111111111111",
+    keyId: "config-current",
+    eventType: "REGISTERED",
+    occurredAt: new Date("2026-09-21T00:00:00.000Z"),
+    reasonCode: "PREPROD_CATALOG_REPAIR",
+    createdAt: new Date("2026-09-21T00:00:00.000Z"),
+  };
+  const database: DatabaseQuery = {
+    query: async (sql) =>
+      sql.includes("signing_key_events") ? { rows: [event] } : { rows: [] },
+  } as DatabaseQuery;
+  await expect(
+    createRemoteConfigCatalogRepository(database).listSigningKeyEvents(
+      "config-current",
+    ),
+  ).resolves.toEqual([event]);
+});

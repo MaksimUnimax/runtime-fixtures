@@ -33,6 +33,7 @@
     "admin:bootstrap-owner": "tsx tooling/server/admin-bootstrap-owner.ts",
     "beta:bootstrap-open": "tsx tooling/server/bootstrap-beta-admission.ts",
     "config:trust-export": "tsx tooling/server/export-config-trust-bundle.ts",
+    "config-signing:bootstrap-catalog": "tsx tooling/server/bootstrap-config-signing-catalog.ts",
     "format:check": "prettier --check \"{apps/api,apps/portal,apps/admin,apps/worker,apps/health-runner,packages/server,packages/contracts,packages/shared,tooling/server,infra/local,tests/integration/server}/**/*.{ts,tsx,js,mjs,cjs,json,css,scss,yml,yaml}\" package.json pnpm-workspace.yaml tsconfig.base.json eslint.config.mjs .github/workflows/server-ci.yml",
     "docs:check": "node tooling/checks/docs-check.mjs"
   },

@@ -65,6 +65,10 @@ export const signingKeyEvents = pgTable(
       t.keyId,
       t.occurredAt,
     ),
+    check(
+      "signing_key_events_reason_code_contract",
+      sql`${t.reasonCode} IS NULL OR ${t.reasonCode} ~ '^[a-z0-9][a-z0-9._-]{0,63}$'`,
+    ),
   ],
 );
 export const configReleases = pgTable(

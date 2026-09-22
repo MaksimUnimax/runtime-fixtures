@@ -45,13 +45,22 @@ export const SigningKeyMetadataSchema = z
     createdAt: TimestampSchema,
   })
   .strict();
+/**
+ * Signing-key events are immutable history. One pre-contract repair event was
+ * persisted before the machine-identifier rule existed, so the reader keeps
+ * that exact legacy value while new command inputs remain strict below.
+ */
+export const PersistedSigningKeyReasonCodeSchema = z.union([
+  StableMachineIdentifierV1Schema,
+  z.literal("PREPROD_CATALOG_REPAIR"),
+]);
 export const SigningKeyEventSchema = z
   .object({
     id: z.uuid(),
     keyId: StableMachineIdentifierV1Schema,
     eventType: z.enum(["REGISTERED", "ACTIVATED", "RETIRED", "REVOKED"]),
     occurredAt: TimestampSchema,
-    reasonCode: StableMachineIdentifierV1Schema.nullable(),
+    reasonCode: PersistedSigningKeyReasonCodeSchema.nullable(),
     createdAt: TimestampSchema,
   })
   .strict();

@@ -17,6 +17,9 @@ import {
   configRolloutSelectionModeV1,
   configReleaseHashes,
   CreateRolloutCommandSchema,
+  PersistedSigningKeyReasonCodeSchema,
+  SigningKeyEventSchema,
+  SigningKeyReasonCommandSchema,
   rolloutBucketV1,
   selectRolloutCandidateV1,
   signBootstrapSnapshot,
@@ -82,6 +85,71 @@ describe("P3.3 manifests and cohorts", () => {
         percentageBps: 10000,
       }),
     ).toBe(false);
+  });
+});
+
+describe("persisted signing-event reason compatibility", () => {
+  const base = {
+    id: "11111111-1111-4111-8111-111111111111",
+    keyId: "config-current",
+    eventType: "REGISTERED" as const,
+    occurredAt: new Date("2026-09-21T00:00:00.000Z"),
+    createdAt: new Date("2026-09-21T00:00:00.000Z"),
+  };
+
+  it.each(["ops.repair-1", null, "PREPROD_CATALOG_REPAIR"])(
+    "accepts persisted reason %s",
+    (reasonCode) => {
+      expect(
+        SigningKeyEventSchema.parse({ ...base, reasonCode }).reasonCode,
+      ).toBe(reasonCode);
+    },
+  );
+
+  it.each(["OTHER_UPPERCASE", "MixedCase"])(
+    "rejects unapproved uppercase persisted reason %s",
+    (reasonCode) => {
+      expect(() =>
+        PersistedSigningKeyReasonCodeSchema.parse(reasonCode),
+      ).toThrow();
+      expect(() =>
+        SigningKeyEventSchema.parse({ ...base, reasonCode }),
+      ).toThrow();
+    },
+  );
+
+  it("keeps new command validation strict while accepting lowercase reasons", () => {
+    expect(() =>
+      SigningKeyReasonCommandSchema.parse({
+        keyId: "config-current",
+        reasonCode: "PREPROD_CATALOG_REPAIR",
+      }),
+    ).toThrow();
+    expect(
+      SigningKeyReasonCommandSchema.parse({
+        keyId: "config-current",
+        reasonCode: "preprod_catalog_repair",
+      }).reasonCode,
+    ).toBe("preprod_catalog_repair");
+  });
+
+  it("resolves historical REGISTERED/ACTIVATED events without changing bytes", () => {
+    const historical = [
+      SigningKeyEventSchema.parse({
+        ...base,
+        reasonCode: "PREPROD_CATALOG_REPAIR",
+      }),
+      SigningKeyEventSchema.parse({
+        ...base,
+        id: "22222222-2222-4222-8222-222222222222",
+        eventType: "ACTIVATED",
+        occurredAt: new Date("2026-09-21T00:00:01.000Z"),
+        createdAt: new Date("2026-09-21T00:00:01.000Z"),
+        reasonCode: null,
+      }),
+    ];
+    expect(resolveSigningKeyLifecycle(historical)).toEqual({ state: "ACTIVE" });
+    expect(historical[0]!.reasonCode).toBe("PREPROD_CATALOG_REPAIR");
   });
 });
 

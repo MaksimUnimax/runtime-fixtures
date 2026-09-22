@@ -148,6 +148,13 @@
       "when": 1789706000000,
       "tag": "0020_m1c_funnel_signals",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1790070000000,
+      "tag": "0032_s1_signing_reason_contract_guard",
+      "breakpoints": true
     }
   ]
 }
