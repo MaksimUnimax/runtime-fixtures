@@ -1,5 +1,10 @@
 import { createDatabaseRuntime } from "@product/db";
 import {
+  createApiWatchRunner,
+  createPostgresApiWatchStore,
+  productionSourceRegistry,
+} from "@product/api-watch";
+import {
   createPostgresMonitoringScheduleStore,
   createPostgresSwaggerSourceStore,
   createSwaggerHandoffService,
@@ -7,7 +12,6 @@ import {
 } from "@product/monitoring-control";
 import {
   runLlmNoSessionMonitoring,
-  runSwaggerApiMonitoring,
 } from "./runners.js";
 import { createTelegramTransport } from "./telegram-client.js";
 import { TelegramOperatorService } from "./telegram.js";
@@ -29,9 +33,12 @@ if (!databaseUrl || !token || operatorIds.size === 0)
 
 const database = createDatabaseRuntime(databaseUrl);
 const transport = createTelegramTransport(token);
+const swaggerQuarantineDir =
+  process.env.SWAGGER_QUARANTINE_DIR ??
+  "/var/lib/octoport/api-watch/quarantine";
 const swaggerHandoff = createSwaggerHandoffService({
   store: createPostgresSwaggerSourceStore(database),
-  quarantineDir: process.env.SWAGGER_QUARANTINE_DIR,
+  quarantineDir: swaggerQuarantineDir,
   maxUploadBytes: process.env.MAX_SWAGGER_UPLOAD_BYTES
     ? Number(process.env.MAX_SWAGGER_UPLOAD_BYTES)
     : undefined,
@@ -39,6 +46,12 @@ const swaggerHandoff = createSwaggerHandoffService({
 const serviceRef: { current: TelegramOperatorService | undefined } = {
   current: undefined,
 };
+const apiWatchRunner = createApiWatchRunner({
+  registry: productionSourceRegistry,
+  store: createPostgresApiWatchStore(database),
+  pendingStore: createPostgresSwaggerSourceStore(database),
+  quarantineDir: swaggerQuarantineDir,
+});
 const scheduler = new IndependentMonitoringScheduler({
   notifier: async (notification) => {
     await serviceRef.current?.notify(notification);
@@ -46,7 +59,7 @@ const scheduler = new IndependentMonitoringScheduler({
   store: createPostgresMonitoringScheduleStore(database),
   runners: {
     LLM: runLlmNoSessionMonitoring,
-    SWAGGER_API: runSwaggerApiMonitoring,
+    SWAGGER_API: apiWatchRunner,
   },
 });
 const service = new TelegramOperatorService({

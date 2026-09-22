@@ -1,0 +1,26 @@
+{
+  "name": "@product/api-watch",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "build": "tsup src/index.ts --format esm --target node24 --clean"
+  },
+  "dependencies": {
+    "@product/monitoring-control": "workspace:*",
+    "yaml": "2.9.0",
+    "zod": "4.1.5"
+  },
+  "devDependencies": {
+    "@types/node": "24.3.0",
+    "tsup": "8.5.0"
+  }
+}

@@ -162,6 +162,13 @@
       "when": 1790035200000,
       "tag": "0024_s2_tg3_operator_swagger_handoff",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1790035300000,
+      "tag": "0025_s2_api_watch_authority_snapshots",
+      "breakpoints": true
     }
   ]
 }

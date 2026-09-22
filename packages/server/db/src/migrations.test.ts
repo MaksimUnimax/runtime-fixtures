@@ -82,4 +82,20 @@ describe("Stream-2 migration receipts", () => {
       "0024_s2_tg3_operator_swagger_handoff",
     );
   });
+
+  it("receipts the forward-only A1/A2/A3 migration", async () => {
+    const sql = await readFile(
+      join(migrationsFolder, "0025_s2_api_watch_authority_snapshots.sql"),
+      "utf8",
+    );
+    const journal = JSON.parse(
+      await readFile(join(migrationsFolder, "meta", "_journal.json"), "utf8"),
+    ) as { entries: Array<{ tag: string }> };
+    expect(sql).toContain('CREATE TABLE "api_watch_authority_records"');
+    expect(sql).toContain('CREATE TABLE "api_watch_snapshots"');
+    expect(sql).toContain('CREATE TABLE "api_watch_inventories"');
+    expect(journal.entries.at(-1)?.tag).toBe(
+      "0025_s2_api_watch_authority_snapshots",
+    );
+  });
 });

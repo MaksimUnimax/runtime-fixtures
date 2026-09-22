@@ -91,6 +91,11 @@ export interface SwaggerSourceStore {
   }): Promise<SwaggerSourceRequest>;
   getRequest(requestId: string): Promise<SwaggerSourceRequest | undefined>;
   listPending(now: Date): Promise<SwaggerSourceRequest[]>;
+  findOpenRequest(
+    sourceFamily: SwaggerSourceFamily,
+    officialUrl: string,
+    now: Date,
+  ): Promise<SwaggerSourceRequest | undefined>;
   listArtifacts(requestId: string): Promise<SwaggerArtifact[]>;
   findArtifactByDigest(
     requestId: string,
@@ -181,6 +186,20 @@ export class InMemorySwaggerSourceStore implements SwaggerSourceStore {
     return pending.sort(
       (a, b) => a.createdAt.valueOf() - b.createdAt.valueOf(),
     );
+  }
+
+  async findOpenRequest(
+    sourceFamily: SwaggerSourceFamily,
+    officialUrl: string,
+    now: Date,
+  ) {
+    const requests = await this.listPending(now);
+    const request = requests.find(
+      (candidate) =>
+        candidate.sourceFamily === sourceFamily &&
+        candidate.officialUrl === officialUrl,
+    );
+    return request;
   }
 
   async listArtifacts(requestId: string) {
@@ -327,6 +346,14 @@ export function createPostgresSwaggerSourceStore(
       );
       return result.rows.map(mapRequest);
     },
+    async findOpenRequest(sourceFamily, officialUrl, now) {
+      await this.listPending(now);
+      const result = await runtime.query<RequestRow>(
+        `${requestProjection} WHERE source_family=$1 AND official_url=$2 AND status IN ('PENDING_OPERATOR_UPLOAD','UPLOAD_RECEIVED','QUARANTINED','VALIDATION_FAILED') ORDER BY created_at LIMIT 1`,
+        [sourceFamily, officialUrl],
+      );
+      return result.rows[0] ? mapRequest(result.rows[0]) : undefined;
+    },
     async listArtifacts(requestId) {
       const result = await runtime.query<ArtifactRow>(
         `${artifactProjection} WHERE request_id=$1 ORDER BY received_at,artifact_id`,
@@ -444,6 +471,51 @@ function validateRoot(value: unknown): {
         : null;
   if (!version) throw new Error("OPENAPI_VERSION_MISSING");
   return { version, root };
+}
+
+export type ParsedSwaggerDocument = {
+  root: Record<string, unknown>;
+  format: "JSON" | "YAML";
+  version: string;
+};
+
+export function parseSwaggerDocument(
+  bytes: Uint8Array,
+  filename: string,
+  maxBytes = MAX_SWAGGER_UPLOAD_BYTES,
+): ParsedSwaggerDocument {
+  if (bytes.byteLength > maxBytes) throw new Error("UPLOAD_TOO_LARGE");
+  const extension = extname(filename).toLowerCase();
+  if (!acceptedExtension(filename))
+    throw new Error("UNSUPPORTED_ARTIFACT_EXTENSION");
+  const parsed = parseDocument(bytes, extension);
+  const root = validateRoot(parsed.value);
+  return { root: root.root, format: parsed.format, version: root.version };
+}
+
+export function validateSwaggerBytes(
+  bytes: Uint8Array,
+  filename: string,
+  maxBytes = MAX_SWAGGER_UPLOAD_BYTES,
+): {
+  parserResult: Record<string, unknown>;
+  validationResult: Record<string, unknown>;
+  detectedSpecVersion: string;
+  document: ParsedSwaggerDocument;
+} {
+  const document = parseSwaggerDocument(bytes, filename, maxBytes);
+  return {
+    parserResult: { parsed: true, format: document.format },
+    validationResult: {
+      rootObject: true,
+      infoObject: true,
+      pathsObject: true,
+      recognizedVersion: true,
+      sourceFamilyCompatibility: "NOT_DETERMINED",
+    },
+    detectedSpecVersion: document.version,
+    document,
+  };
 }
 
 export function createSwaggerHandoffService(options: {

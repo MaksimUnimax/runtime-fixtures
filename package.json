@@ -14,7 +14,7 @@
     }
   },
   "scripts": {
-    "lint": "eslint apps/api apps/portal apps/admin apps/worker apps/health-runner apps/telegram-operator packages/server packages/contracts packages/shared tooling/server tests/integration/server tests/e2e/server --max-warnings=0 && pnpm bridge:guard",
+    "lint": "eslint apps/api apps/portal apps/admin apps/worker apps/health-runner apps/telegram-operator packages/server packages/contracts packages/shared tooling/server tooling/api-watch tests/integration/server tests/e2e/server --max-warnings=0 && pnpm bridge:guard",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test && pnpm bridge:guard",
     "test:integration": "vitest run --config tests/integration/server/vitest.config.ts",
@@ -29,7 +29,7 @@
     "openapi:check": "pnpm --filter @product/api openapi:check",
     "admin:bootstrap-owner": "tsx tooling/server/admin-bootstrap-owner.ts",
     "config:trust-export": "tsx tooling/server/export-config-trust-bundle.ts",
-    "format:check": "prettier --check \"{apps/api,apps/portal,apps/admin,apps/worker,apps/health-runner,packages/server,packages/contracts,packages/shared,tooling/server,infra/local,tests/integration/server}/**/*.{ts,tsx,js,mjs,cjs,json,css,scss,yml,yaml}\" package.json pnpm-workspace.yaml tsconfig.base.json eslint.config.mjs .github/workflows/server-ci.yml",
+    "format:check": "prettier --check \"{apps/api,apps/portal,apps/admin,apps/worker,apps/health-runner,apps/telegram-operator,packages/server,packages/contracts,packages/shared,tooling/server,tooling/api-watch,infra/local,tests/integration/server}/**/*.{ts,tsx,js,mjs,cjs,json,css,scss,yml,yaml}\" package.json pnpm-workspace.yaml tsconfig.base.json eslint.config.mjs .github/workflows/server-ci.yml",
     "docs:check": "node tooling/checks/docs-check.mjs"
   },
   "devDependencies": {
