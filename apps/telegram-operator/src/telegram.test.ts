@@ -147,7 +147,12 @@ describe("TG4 Telegram operator integration hardening", () => {
       updateId: 1,
       message: { chatId: "42", userId: "8", text: "/help" },
     });
+    await service.handleUpdate({
+      updateId: 2,
+      message: { chatId: "42", userId: "8", text: "/swagger_pending" },
+    });
     expect(messages[0]?.text).toBe("DENIED");
+    expect(messages[1]?.text).toBe("DENIED");
   });
 
   it("TG4-03 /llm_status", async () => {
