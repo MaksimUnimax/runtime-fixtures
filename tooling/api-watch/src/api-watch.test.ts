@@ -14,13 +14,10 @@ import {
   createInMemorySwaggerSourceState,
   createSwaggerHandoffService,
   InMemorySwaggerSourceStore,
-  type SwaggerArtifact,
 } from "@product/monitoring-control";
 import {
   acquireOfficialSource,
   createApiWatchRunner,
-  createApiWatchRuntime,
-  createInMemoryApiWatchState,
   InMemoryApiWatchStore,
   createSourceRegistry,
   evaluateOperatorCandidate,
@@ -29,10 +26,7 @@ import {
   type SourceRegistryEntry,
 } from "./index.js";
 import { promoteAcceptedSnapshot } from "./snapshot.js";
-import {
-  buildCompleteOperationInventory,
-  inventoryAcceptedSnapshots,
-} from "./inventory.js";
+import { buildCompleteOperationInventory } from "./inventory.js";
 
 const OPENAPI_3 = Buffer.from(
   JSON.stringify({

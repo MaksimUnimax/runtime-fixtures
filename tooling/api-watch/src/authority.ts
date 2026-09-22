@@ -7,7 +7,6 @@ import {
   SwaggerSourceFamilySchema,
   type SwaggerArtifact,
   type SwaggerSourceFamily,
-  type SwaggerSourceRequest,
   type SwaggerSourceStore,
 } from "@product/monitoring-control";
 import type {
@@ -20,7 +19,6 @@ import type {
   AuthorityStatus,
   OperatorCandidateReview,
   SourceRegistry,
-  SourceRegistryEntry,
 } from "./types.js";
 import { acquireOfficialSource } from "./acquire.js";
 
