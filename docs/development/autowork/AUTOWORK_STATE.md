@@ -543,3 +543,28 @@ After explicit owner resume:
 11. update durable state forward-only.
 
 No current work should proceed while OWNER_STOP remains ACTIVE.
+
+
+## OWNER RESUME CHECKPOINT — 2026-09-22
+
+OWNER_STOP = SUPERSEDED_BY_CURRENT_GOVERNOR_RESUME
+
+The owner repasted the permanent governor containing the current direct instruction:
+
+`NO CURRENT DIRECT OWNER STOP: KEEP MOVING.`
+
+Therefore the previous owner STOP checkpoint is superseded and autowork is active.
+
+Current execution transport check:
+
+- Remote Desktop Commander device list: empty;
+- live R5 worktree therefore remains unreadable/unmodifiable through the normal transport;
+- no reset/clean/merge or alternate write path is authorized over the unknown dirty live worktree.
+
+While RDC is unavailable, only independent GitHub-authoritative work that does not
+depend on the dirty R5 worktree may proceed. The first such work unit is reconciliation
+of the Stream 2 documentation claim that `work/stream2-tg3-swagger-handoff-2026-09-22`
+and commit `77918a1ea5f8cd764bf6abe94b8dfb0ad61f7fd3` were remotely pushed, because current
+GitHub lookups do not resolve that branch or commit.
+
+Exact R5 safe-resume sequence from the prior checkpoint remains unchanged once RDC returns.
