@@ -47,6 +47,8 @@ Bundle — только транспорт. Каждый YAML хранит от�
 
 Текущий production-статус WB на 2026-09-22: single-bundle handoff реализован и протестирован; один pending request = `WILDBERRIES:WB_OPENAPI_BUNDLE`. Прямая серверная загрузка всех 13 документов возвращает HTTP 498, поэтому authority остаётся `OPERATOR_SOURCE_REQUIRED` до одного ручного bundle-upload. После валидного 13/13 bundle автоматически продолжается существующий A2→A10 pipeline.
 
+Для оператора этот handoff выполняется только через Telegram-бота. Бот обязан сам показать единственную pending-задачу WB, выдать helper/инструкцию, принять один JSON-файл вложением и автоматически привязать его к `WB_OPENAPI_BUNDLE`. Ручной ввод requestId, терминал и 13 отдельных загрузок не являются штатным UX. Низкоуровневый `/swagger_upload <request_id>` остаётся только административным fallback.
+
 ### Architect / Codex authority
 
 Архитектуру, roadmap, методы, scope, PASS/FAIL, rework и следующий шаг определяет архитектор. Codex выполняет только явно назначенную реализацию и тесты. Изменения архитектуры, roadmap, постоянных правил и operator workflow архитектор фиксирует в GitHub сам; чат не является authority-хранилищем. Полные правила: [STREAM2_ARCHITECT_CODEX_WORKING_RULES](../development/stream2/STREAM2_ARCHITECT_CODEX_WORKING_RULES.md).
