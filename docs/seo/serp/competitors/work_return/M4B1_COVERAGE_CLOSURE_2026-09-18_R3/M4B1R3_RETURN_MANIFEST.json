@@ -1,0 +1,145 @@
+{
+  "WORK_ID": "OCTOPORT_SEO_M4B1_R3_REACQUISITION_2026-09-22_R1",
+  "branch": "seo/wordstat-batch-01-2026-09-16",
+  "START_HEAD": "35e39d98e74aea75ba90b817bc267763fbd23e76",
+  "END_OBSERVED_HEAD": "35e39d98e74aea75ba90b817bc267763fbd23e76",
+  "authority_drift_status": "NONE",
+  "verdict": "PASS",
+  "generated_at": "2026-09-22T08:14:50.044Z",
+  "exact_file_list": [
+    "M4B1R3_SOURCE_MANIFEST.md",
+    "M4B1R3_DISCOVERY_CHANNEL_COVERAGE.tsv",
+    "M4B1R3_URL_OVERLAY.tsv",
+    "M4B1R3_PAGE_EVIDENCE_OVERLAY.tsv",
+    "M4B1R3_CANDIDATE_TERMS_OVERLAY.tsv",
+    "M4B1R3_ENTITY_SYNTHESIS_CURRENT.tsv",
+    "M4B1R3_FRONTIER_RECONCILIATION.tsv",
+    "M4B1R3_QA.md",
+    "M4B1R3_RETURN_MANIFEST.json"
+  ],
+  "files": [
+    {
+      "name": "M4B1R3_SOURCE_MANIFEST.md",
+      "sha256": "14459118ba73f7260e215d9d62f2575f51d8b6e232fff04689fd54f166accd70",
+      "bytes": 3043
+    },
+    {
+      "name": "M4B1R3_DISCOVERY_CHANNEL_COVERAGE.tsv",
+      "sha256": "c1140b2a2f1972a7ab542cf4a6d7915867d965a35857f6585b22c9fe4eeab981",
+      "bytes": 38707
+    },
+    {
+      "name": "M4B1R3_URL_OVERLAY.tsv",
+      "sha256": "b85c16f368ed08621fd9cb660f392c65b60b2d592be5601d0ed6ae3a99ac63b0",
+      "bytes": 8527663
+    },
+    {
+      "name": "M4B1R3_PAGE_EVIDENCE_OVERLAY.tsv",
+      "sha256": "974a52dff243587a6118cb68e5b6daac457ef6a34d9aef7896be90e6a7b08f75",
+      "bytes": 16311713
+    },
+    {
+      "name": "M4B1R3_CANDIDATE_TERMS_OVERLAY.tsv",
+      "sha256": "f26836d936d65719fc68c78fc4f7f23b88913dc410c1791f45754ceb32670559",
+      "bytes": 3604557
+    },
+    {
+      "name": "M4B1R3_ENTITY_SYNTHESIS_CURRENT.tsv",
+      "sha256": "cfbe1f9f3a0b183f6df4d63a59ba647a3984b1dab4de9abe57a3d230ed3cf730",
+      "bytes": 124086
+    },
+    {
+      "name": "M4B1R3_FRONTIER_RECONCILIATION.tsv",
+      "sha256": "114a306c355da0f19312324ee7aeb46f59d1a005ee1c9a426f4677777a679a52",
+      "bytes": 6585
+    },
+    {
+      "name": "M4B1R3_QA.md",
+      "sha256": "e8f0d5a3d09c866380747870b4bd9b51763aeb81b672daa6f00d62e1a12d114d",
+      "bytes": 2458
+    },
+    {
+      "name": "M4B1R3_RETURN_MANIFEST.json",
+      "sha256": null,
+      "bytes": null
+    }
+  ],
+  "row_counts": {
+    "M4B1R3_DISCOVERY_CHANNEL_COVERAGE_tsv": 45,
+    "M4B1R3_URL_OVERLAY_tsv": 11222,
+    "M4B1R3_PAGE_EVIDENCE_OVERLAY_tsv": 5118,
+    "M4B1R3_CANDIDATE_TERMS_OVERLAY_tsv": 5116,
+    "M4B1R3_ENTITY_SYNTHESIS_CURRENT_tsv": 45,
+    "M4B1R3_FRONTIER_RECONCILIATION_tsv": 45
+  },
+  "hard_qa": {
+    "LIVE_BRANCH_FETCHED": true,
+    "START_HEAD": "35e39d98e74aea75ba90b817bc267763fbd23e76",
+    "FROZEN_R1_R2_IDENTITIES_MATCH": true,
+    "AUTHORIZED_ENTITIES": 45,
+    "UNAUTHORIZED_ENTITIES": 0,
+    "DISCOVERY_CHANNEL_COVERAGE_ROWS": 45,
+    "ANCHOR_CHANNEL_TERMINAL": "45/45",
+    "PRIMARY_NAV_TAXONOMY_TERMINAL": "45/45",
+    "BREADCRUMB_LOCAL_CHANNEL_TERMINAL": "45/45",
+    "SITEMAP_CHANNEL_TERMINAL": "45/45",
+    "PAGINATION_CHANNEL_TERMINAL": "45/45",
+    "ALL_R3_NEW_ELIGIBLE_URLS_TERMINAL": true,
+    "ALL_R3_NEW_INSPECTED_HAVE_PAGE_EVIDENCE": true,
+    "R3_NEW_URL_SILENT_LOSS": 0,
+    "FINAL_ENTITY_SYNTHESIS_ROWS": 45,
+    "FINAL_FRONTIER_RECONCILIATION_ROWS": 45,
+    "FRONTIER_COUNT_EQUATIONS_PASS": "45/45",
+    "ARBITRARY_SAMPLING": 0,
+    "WHOLE_DOMAIN_CRAWL": 0,
+    "COMPLETE_INTERNAL_LINK_GRAPH_REQUIRED": false,
+    "R2_416_DIAGNOSTIC_REPLAY_REQUIRED": false,
+    "SEARCH_PROVIDER_CALLS": 0,
+    "WORDSTAT_CALLS": 0,
+    "ALICE_CALLS": 0,
+    "M4Q_CALLS": 0,
+    "NEW_COMPETITOR_ENTITIES": 0,
+    "FINAL_CLUSTER_PAGE_IA_DECISIONS": 0,
+    "COMPETITOR_CLAIM_AS_OCTOPORT_FACT": 0,
+    "COMPETITOR_TOPIC_AS_PROVEN_DEMAND": 0,
+    "CANDIDATE_TERMS_HAVE_EXACT_PAGE_PROVENANCE": true,
+    "HISTORICAL_R3_COMPARATOR_REPORTED": true,
+    "CURRENT_PUBLIC_DRIFT_CLASSIFIED": true,
+    "OPEN_CRITICAL_DEFECTS": 0,
+    "GITHUB_WRITES": 0
+  },
+  "counts": {
+    "authorized_entities": 45,
+    "pre_r3_normalized_universe": 1612,
+    "fresh_r3_new_url_rows": 11222,
+    "fresh_r3_inspected_rows": 5118,
+    "fresh_r3_environment_failure_terminals": 5971,
+    "fresh_r3_blocking_hold": 0,
+    "fresh_r3_open_url_unresolved": 0,
+    "fresh_r3_silent_url_loss": 0,
+    "current_merged_normalized_universe": 12834
+  },
+  "terminal_state_distribution": {
+    "INSPECTED": 5118,
+    "EXECUTION_ENVIRONMENT_FAILURE": 5971,
+    "NOT_FOUND": 1,
+    "HTTP_ERROR_503": 97,
+    "DUPLICATE_CANONICAL": 19,
+    "ACCESS_BLOCKED": 10,
+    "REDIRECT_OUT_OF_SCOPE": 2,
+    "AUTH_REQUIRED": 2,
+    "NON_HTML": 1,
+    "HTTP_ERROR_502": 1
+  },
+  "historical_comparator": {
+    "newUrls": 2888,
+    "inspected": 2845,
+    "environmentFailures": 43,
+    "mergedUniverse": 4500,
+    "openUnresolved": 0,
+    "silentLoss": 0
+  },
+  "current_vs_historical_classification": "CURRENT_PUBLIC_DRIFT_DETECTED",
+  "github_writes": 0,
+  "self_hash_policy": "The return manifest cannot contain its own stable SHA-256. SHA-256 and bytes are provided for the other eight files; the ZIP digest is reported separately."
+}
