@@ -136,3 +136,84 @@ Before changing runtime parsing or production data, inspect the exact PREPROD_R1
 The correction must address the repair writer/persistence contract so the same class cannot recur, while preserving the historical audit trail.
 
 No V2 config publication retry is permitted until that correction is accepted.
+
+
+## Accepted architecture decision — signing-event persistence repair
+
+The root cause is established: PREPROD_R1's one-off trust-catalog repair wrote an uppercase reason code directly into `signing_key_events`, bypassing the normal command schema. The database accepted it because `reason_code` had no lexical CHECK constraint. The event history is intentionally immutable, so rewriting or deleting that historical row is forbidden.
+
+### Three-level dependency chain
+
+#### LEVEL 1 — persisted signing-key event contract
+
+Required behavior:
+
+- historical persisted events must remain readable without rewriting immutable history;
+- new reason-code writes must obey the canonical lowercase machine-identifier grammar;
+- the exact known historical value `PREPROD_CATALOG_REPAIR` must be represented explicitly as historical persistence compatibility, not accepted as a new command value;
+- PostgreSQL must enforce the lowercase grammar for all future rows.
+
+Why this is not a hack:
+
+- authority: the persisted event log is append-only audit/state history;
+- ownership: parsing persisted history and enforcing future persistence belong to the event persistence contract;
+- avoided workaround: no UPDATE/DELETE of the historical row, no direct SQL normalization, no blanket case-insensitive parser;
+- hack boundary not crossed: only the proven historical literal is admitted on read, while future writes are made stricter at both application and DB layers.
+
+Implementation consequence:
+
+- keep `SigningKeyReasonCommandSchema.reasonCode = StableMachineIdentifierV1Schema`;
+- introduce a persisted-event reason-code schema that accepts current lowercase identifiers plus the exact historical literal `PREPROD_CATALOG_REPAIR`;
+- add a forward migration with a `NOT VALID` CHECK constraint so existing history is preserved but every future insert/update must satisfy the lowercase grammar;
+- do not validate the old violating row through the new DB constraint.
+
+#### LEVEL 2 — signing-key lifecycle and trust-catalog publication
+
+Required behavior:
+
+- lifecycle resolution, config publication, and runtime Bootstrap signing must consume the same canonical event-history reader;
+- future trust-catalog bootstrap/repair must use the domain publication repository, never ad-hoc SQL inserts.
+
+Why this is not a hack:
+
+- authority: `resolveSigningKeyLifecycle`, `createP3PolicyPublicationRepository`, and `createConfigSigningService` define one lifecycle authority;
+- ownership: the trust-catalog subsystem owns key registration/activation and audit;
+- avoided workaround: no special bypass in only the V2 publication harness and no special bypass only in Bootstrap signing;
+- hack boundary not crossed: the same event history is parsed and validated identically for publication and runtime signing.
+
+Implementation consequence:
+
+- add an official bounded trust-catalog bootstrap/reconciliation tool for the empty-catalog case that calls `registerSigningKey` and `activateSigningKey` through `createP3PolicyPublicationRepository`;
+- the tool must refuse non-empty/conflicting catalog state;
+- it must never write `signing_key_events` directly.
+
+#### LEVEL 3 — signed Bootstrap trust authority
+
+Required behavior:
+
+- `control_plane_v2` Bootstrap may be signed only by a configured key whose public metadata matches and whose lifecycle resolves ACTIVE;
+- historical operator metadata must not invalidate an otherwise valid cryptographic lifecycle;
+- no signature verification, key binding, or lifecycle check may be bypassed.
+
+Why this is not a hack:
+
+- authority: the signed Bootstrap trust model is the product-level security invariant;
+- ownership: the API signer and remote-config resolver remain the sole authority;
+- avoided workaround: no fake V2 config row, fake extension release, unsigned Bootstrap, or acceptance of HTTP 200 without Ed25519 verification;
+- hack boundary not crossed: all cryptographic checks stay intact; the repair only restores the persistence contract required to evaluate the real lifecycle.
+
+### Required implementation sequence
+
+1. Reproduce the PREPROD_R1 malformed-reason scenario in a disposable PostgreSQL database.
+2. Implement historical persisted-read compatibility for the exact proven literal only.
+3. Add the forward DB CHECK `NOT VALID` constraint for future lowercase reason codes.
+4. Add the canonical trust-catalog bootstrap/reconciliation tool using the existing publication repository.
+5. Prove direct invalid future inserts are rejected by PostgreSQL.
+6. Prove current command schema still rejects uppercase reason codes.
+7. Prove the historical event remains byte-for-byte unchanged.
+8. Run full affected regression.
+9. Deploy the corrected API.
+10. Publish the first V2 config through `publishConfigRelease`.
+11. Run fresh device → signed V2 Bootstrap → refresh → revoke/invalidation live acceptance.
+
+No other repair is authorized.
