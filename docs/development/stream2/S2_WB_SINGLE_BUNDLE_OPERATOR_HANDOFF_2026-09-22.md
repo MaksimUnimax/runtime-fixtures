@@ -140,3 +140,96 @@ First production snapshot rule:
 Any prior interpretation requiring 13 operator-required downloads, 13 operator pending requests, or 13 operator uploads is superseded by this decision.
 
 The system may still preserve 13 internal document records. Operator UX remains **one bundle, one request, one upload**.
+
+
+## Implementation receipt — 2026-09-22
+
+Work ID: `S2_WB_SINGLE_OFFICIAL_BUNDLE_HANDOFF_2026-09-22_R1`.
+
+Implementation branch reported by Terminal 2:
+
+`work/stream2-tg3-swagger-handoff-2026-09-22`
+
+Start HEAD:
+
+`d43b5b8496d5cd36742acd530cac2cb4642f2fd4`
+
+End HEAD:
+
+`77918a1ea5f8cd764bf6abe94b8dfb0ad61f7fd3`
+
+Implementation commits:
+
+- `2096265` — `feat(stream2): add single-file wb source bundle`;
+- `77918a1` — `test(stream2): verify atomic wb bundle handoff`.
+
+Terminal report states remote push PASS.
+
+### Implemented operator model
+
+Current WB operator handoff is now implemented as:
+
+- one pending request;
+- request ID `WILDBERRIES:WB_OPENAPI_BUNDLE`;
+- document key `WB_OPENAPI_BUNDLE`;
+- expected artifact type `JSON`;
+- one browser helper execution;
+- 13 official WB fetches inside that execution;
+- one downloaded JSON bundle on full success;
+- zero downloaded bundle files on any source failure;
+- no partial bundle;
+- one `/swagger_upload <request_id>`;
+- atomic 13/13 validation.
+
+Per-document SHA-256 and deterministic family-manifest SHA logic are implemented. Downstream A2→A10 continuation is implemented but has not yet executed against live WB source authority because no operator bundle has been uploaded.
+
+### Current live source state
+
+All 13 direct server-side WB acquisitions returned HTTP 498 and remain `OPERATOR_SOURCE_REQUIRED`.
+
+Therefore current production authority state remains blocked pending exactly one operator bundle upload.
+
+The exact operator action is:
+
+1. Open `https://dev.wildberries.ru/` in a normal browser.
+2. Complete the normal WB challenge if presented.
+3. Run `wb-official-bundle-browser.js` once in that already-authorized same-origin browser context.
+4. Confirm that exactly one JSON bundle is downloaded.
+5. Upload that one file with:
+   `/swagger_upload WILDBERRIES:WB_OPENAPI_BUNDLE`.
+
+No individual YAML download/upload loop is permitted.
+
+### Verification receipt
+
+Reported regression:
+
+- API-watch: 157/157;
+- A10 acceptance: 4/4;
+- monitoring-control: 41/41;
+- Telegram operator: 40/40;
+- Health: 131/131;
+- health-runner: 302/302;
+- DB unit/migration: 21/21;
+- root typecheck/build/lint/format/docs/bridge/diff checks: PASS.
+
+Security report:
+
+- anti-bot bypass: NONE;
+- Patchright: NONE;
+- webdriver masking: NONE;
+- mirror source: NONE;
+- cookie export: NONE;
+- browser-storage export: NONE;
+- Stream-1 authority mutation: NONE;
+- secret leak: NONE.
+
+Database integration remains `ENVIRONMENT_DEFERRED_DATABASE_URL`.
+
+### Current acceptance boundary
+
+Implementation acceptance: **PASS / bounded**.
+
+Production WB source authority: **NOT YET ACCEPTED**.
+
+The next action is operator acquisition and one-bundle upload. Only after a valid 13/13 bundle is accepted may real production A2→A10 continuation run.
