@@ -23,6 +23,7 @@ export { createAdapterRegistryCatalogRepository } from "./adapter-registry-repos
 export { createProfileLifecycleRepository } from "./p7-profile-lifecycle-repository.js";
 export { createHealthPersistenceRepository } from "./health-persistence-repository.js";
 export { createBetaAdmissionRepository } from "./beta-admission-repository.js";
+export { bootstrapInitialBetaAdmission } from "./beta-admission-bootstrap.js";
 export { createSyncRepository } from "./sync-repository.js";
 export { createCredentialTransferRepository } from "./credential-transfer-repository.js";
 export { createFeedbackSupportRepository } from "./feedback-support-repository.js";
