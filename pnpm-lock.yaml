@@ -57,6 +57,9 @@ importers:
       typescript-eslint:
         specifier: 8.42.0
         version: 8.42.0(eslint@9.35.0)(typescript@5.9.2)
+      tsx:
+        specifier: 4.20.5
+        version: 4.20.5
       vitest:
         specifier: 3.2.6
         version: 3.2.6(@types/node@24.3.0)(tsx@4.20.5)(yaml@2.9.0)
