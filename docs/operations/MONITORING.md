@@ -59,3 +59,8 @@ Bundle — только транспорт. Каждый YAML хранит от�
 Одинаковые сигналы дедуплицируются; recovery закрывает инцидент; нет тысячи одинаковых уведомлений при падении одного сайта.
 Browser runner имеет ограниченную параллельность, timeout и отдельный ресурсный лимит. Он не забирает все DB connections/API workers.
 Оператор видит последнее успешное выполнение самого монитора: отсутствие уведомлений при сломанном runner не трактуется как здоровье.
+
+
+### Telegram production prerequisite
+
+Production Telegram operator acceptance is blocked until the owner provisions a real bot token and owner/admin Telegram identity binding in the approved production secret/config path. Automated Telegram tests do not equal a live bot. Do not instruct the owner to use `/swagger_pending`, upload a WB bundle, or validate the one-file Telegram flow until those credentials/bindings exist and the deployed service is proven live. See [S2_TELEGRAM_PRODUCTION_PREREQUISITES_2026-09-22](../development/stream2/S2_TELEGRAM_PRODUCTION_PREREQUISITES_2026-09-22.md).
