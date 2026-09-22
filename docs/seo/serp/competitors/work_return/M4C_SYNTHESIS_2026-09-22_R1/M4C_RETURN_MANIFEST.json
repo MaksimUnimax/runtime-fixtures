@@ -1,0 +1,121 @@
+{
+  "work_id": "OCTOPORT_SEO_M4C_SYNTHESIS_2026-09-22_R1",
+  "start_head": "b72a510138bf5a324be45b74311058d364ae099f",
+  "end_observed_head": "b72a510138bf5a324be45b74311058d364ae099f",
+  "authority_drift_status": "NONE",
+  "verdict": "PASS",
+  "frozen_authority_blobs": {
+    "expected": 64,
+    "matched": 64,
+    "mismatched": 0,
+    "missing": 0
+  },
+  "source_accounting": {
+    "source_url_occurrences": 25295,
+    "source_page_evidence_rows": 12820,
+    "source_candidate_occurrences": 8431,
+    "final_deduped_urls": 15469,
+    "final_page_evidence_rows": 12502,
+    "final_matrix_rows": 212200,
+    "final_candidate_occurrence_rows": 8431,
+    "m5_hypothesis_rows": 867,
+    "m6_candidate_rows": 5973,
+    "r3_r4_r5_overlap_rows": 4306,
+    "fresh_failure_with_durable_content_rows": 3986
+  },
+  "registry": {
+    "m4a_entities": 60,
+    "m4b1_entities": 45,
+    "m4b2_entities": 15,
+    "m4c_registry_rows": 60,
+    "m4c_coverage_rows": 60
+  },
+  "ranking_query_lane": "SOURCE_UNAVAILABLE_DECLARED_LIMITATION",
+  "ranking_query_zero_rows_interpreted_as_zero_queries": false,
+  "decisions_not_made": {
+    "competitor_topic_as_proven_demand": 0,
+    "competitor_claim_as_octoport_fact": 0,
+    "final_cluster": 0,
+    "final_page_ownership": 0,
+    "final_url_h1_title": 0
+  },
+  "calls": {
+    "web_or_provider_acquisition": 0,
+    "search_provider": 0,
+    "wordstat": 0,
+    "alice": 0,
+    "ai_provider": 0
+  },
+  "open_critical_defects": 0,
+  "github_writes": 0,
+  "expected_files_in_zip": 11,
+  "files": [
+    {
+      "file": "M4C_SOURCE_MANIFEST.md",
+      "bytes": 18396,
+      "sha256": "8698f1e986fbb3452a7cc421111ab418400a89ab173cf91a453ce9b05b86a6dc",
+      "rows": null
+    },
+    {
+      "file": "M4C_HARDENED_COMPETITOR_REGISTRY.tsv",
+      "bytes": 159425,
+      "sha256": "aa9e292366256b012cb033c3e367ef265d21edfae3bbce6984891ef868fc6c65",
+      "rows": 60
+    },
+    {
+      "file": "M4C_COVERAGE_LEDGER.tsv",
+      "bytes": 29326,
+      "sha256": "ead407a14bcd66bfd28a8e9d48659993b4895a8720d6c8f71e4eca0f1f0df921",
+      "rows": 60
+    },
+    {
+      "file": "M4C_URL_LEDGER.tsv",
+      "bytes": 22615444,
+      "sha256": "b9d3a5acbc9f59c5c6b47af7cb8a3f85cfbf81512c39010ebebdf1df9c41fd3c",
+      "rows": 15469
+    },
+    {
+      "file": "M4C_PAGE_EVIDENCE.tsv",
+      "bytes": 34206423,
+      "sha256": "e0433463f29daf4d2bec1dccd3fec541e9263161672c752898be18c18e7fa175",
+      "rows": 12502
+    },
+    {
+      "file": "M4C_TASK_CAPABILITY_CLAIM_CONTENT_MATRIX.tsv",
+      "bytes": 185122964,
+      "sha256": "e45d2e6640d7b366b354ca66e19affcce04c8b2b18629905cfd020f9a2d6bebe",
+      "rows": 212200
+    },
+    {
+      "file": "M4C_COMPETITOR_CANDIDATE_REGISTER.tsv",
+      "bytes": 10414658,
+      "sha256": "6b1aa14e6ff1af4b1d610859706d0da0eb1d84686a47d65bcc61d146f5fd7e61",
+      "rows": 8431
+    },
+    {
+      "file": "M4C_M5_AI_HYPOTHESIS_INPUTS.tsv",
+      "bytes": 875579,
+      "sha256": "77bd1757dee67dfcacb69d7055c31e4dee711b6ab7e589c08f06d3e4fd308e92",
+      "rows": 867
+    },
+    {
+      "file": "M4C_M6_DEMAND_GAP_CANDIDATES.tsv",
+      "bytes": 6542735,
+      "sha256": "e2d204ce993b5574b3400dfbaa3188481ac03124a2a428c190d24ec9ce137e82",
+      "rows": 5973
+    },
+    {
+      "file": "M4C_QA.md",
+      "bytes": 2853,
+      "sha256": "b6a4b818f000d925b68a32a03a3c3542b1c37711fa6b1f97ebd11dff27f82210",
+      "rows": null
+    },
+    {
+      "file": "M4C_RETURN_MANIFEST.json",
+      "bytes": null,
+      "sha256": null,
+      "rows": null
+    }
+  ],
+  "self_hash_policy": "M4C_RETURN_MANIFEST.json sha256 and bytes are null to avoid self-reference; ZIP SHA-256 is reported in the Work handoff."
+}
