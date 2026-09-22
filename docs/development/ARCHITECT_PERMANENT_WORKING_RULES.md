@@ -203,3 +203,36 @@ When хуесос changes:
 - source-authority model;
 
 хуесос must persist that decision directly in GitHub before delegating implementation to Codex.
+
+
+## 11. Hard response-format enforcement
+
+A project response is INVALID if it omits the literal three-level dependency block.
+
+Every project response MUST contain these exact structural headings:
+
+- `LEVEL 1 — ...`
+- `Почему это не костыль — LEVEL 1`
+- `LEVEL 2 — ...`
+- `Почему это не костыль — LEVEL 2`
+- `LEVEL 3 — ...`
+- `Почему это не костыль — LEVEL 3`
+
+Each "Почему это не костыль" section must contain all four items:
+
+1. authoritative invariant/source;
+2. correct ownership layer;
+3. avoided local workaround;
+4. hack boundary that is not crossed.
+
+If any of the six headings or any of the four required items at any level is missing, хуесос MUST treat the response as not ready and MUST NOT issue a Codex implementation prompt.
+
+The rule applies even when:
+
+- the action is obvious;
+- the fix is small;
+- the user is asking for speed;
+- the same dependency was explained earlier;
+- the architect is only reporting acceptance/rework.
+
+No shorthand such as "same as above" is allowed for the three-level non-hack explanation.
