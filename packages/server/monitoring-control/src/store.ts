@@ -267,9 +267,10 @@ export function createPostgresMonitoringScheduleStore(
   async function read(
     query: MonitoringSqlQuery,
     lane: MonitoringLane,
+    forUpdate = false,
   ): Promise<MonitoringLaneState> {
     const result = await query.query<StateRow>(
-      `${stateProjection} WHERE lane=$1`,
+      `${stateProjection} WHERE lane=$1${forUpdate ? " FOR UPDATE" : ""}`,
       [lane],
     );
     if (!result.rows[0]) throw new Error("MONITORING_SCHEDULE_NOT_FOUND");
@@ -314,7 +315,10 @@ export function createPostgresMonitoringScheduleStore(
     },
     async startRun({ lane, source, now, leaseMs }) {
       return runtime.transaction(async (query) => {
-        const current = await read(query, lane);
+        // The lane row is the durable single-flight lock. A transaction alone
+        // is not sufficient: without FOR UPDATE, concurrent schedulers can
+        // both observe an idle row and overwrite each other's active run.
+        const current = await read(query, lane, true);
         if (current.activeRun && current.activeRun.leaseExpiresAt > now)
           return { kind: "ALREADY_RUNNING", runId: current.activeRun.runId };
         if (
@@ -333,11 +337,6 @@ export function createPostgresMonitoringScheduleStore(
           source === "SCHEDULED"
             ? new Date(now.valueOf() + current.intervalSeconds * 1000)
             : current.nextRunAt;
-        const updated = await query.query<StateRow>(
-          `${stateProjection} WHERE lane=$1`,
-          [lane],
-        );
-        if (!updated.rows[0]) throw new Error("MONITORING_SCHEDULE_NOT_FOUND");
         await query.query(
           `UPDATE monitoring_lane_schedules SET active_run_id=$2,active_run_source=$3,active_run_started_at=$4,active_run_lease_expires_at=$5,next_run_at=$6,updated_at=$7 WHERE lane=$1`,
           [lane, run.runId, source, now, run.leaseExpiresAt, nextRunAt, now],

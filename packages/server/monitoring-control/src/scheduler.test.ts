@@ -6,7 +6,12 @@ import {
   parseMonitoringDuration,
 } from "./contracts.js";
 import { IndependentMonitoringScheduler } from "./scheduler.js";
-import { InMemoryMonitoringScheduleStore } from "./store.js";
+import {
+  InMemoryMonitoringScheduleStore,
+  createPostgresMonitoringScheduleStore,
+  type MonitoringSqlQuery,
+  type MonitoringSqlRuntime,
+} from "./store.js";
 
 const clock = {
   value: new Date("2026-09-22T00:00:00.000Z"),
@@ -212,5 +217,46 @@ describe("TG2 independent monitoring scheduler", () => {
       "AUTH_REQUIRED",
     );
     await second.stop();
+  });
+
+  it("TG2-26 locks a PostgreSQL lane row before deciding single-flight", async () => {
+    const queries: string[] = [];
+    const row = {
+      lane: "LLM",
+      enabled: true,
+      intervalSeconds: 90 * 60,
+      nextRunAt: new Date("2026-09-22T00:00:00.000Z"),
+      lastRunAt: null,
+      activeRunId: null,
+      activeRunSource: null,
+      activeRunStartedAt: null,
+      activeRunLeaseExpiresAt: null,
+      lastResult: null,
+      notificationFailureCount: 0,
+      lastNotificationError: null,
+      updatedAt: new Date("2026-09-22T00:00:00.000Z"),
+    };
+    const runtime: MonitoringSqlRuntime = {
+      async query<T extends Record<string, unknown>>(text: string) {
+        queries.push(text);
+        return { rows: [row] as unknown as T[] };
+      },
+      async transaction<T>(
+        operation: (query: MonitoringSqlQuery) => Promise<T>,
+      ) {
+        return operation(runtime);
+      },
+    };
+    const store = createPostgresMonitoringScheduleStore(runtime);
+    const result = await store.startRun({
+      lane: "LLM",
+      source: "FORCED",
+      now: new Date("2026-09-22T00:00:00.000Z"),
+      leaseMs: 60_000,
+    });
+    expect(result.kind).toBe("STARTED");
+    expect(queries.some((query) => /WHERE lane=\$1 FOR UPDATE$/.test(query))).toBe(
+      true,
+    );
   });
 });
