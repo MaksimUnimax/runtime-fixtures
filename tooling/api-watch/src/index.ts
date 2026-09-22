@@ -12,3 +12,4 @@ export * from "./product-registry.js";
 export * from "./crosswalk.js";
 export * from "./incident.js";
 export * from "./retry.js";
+export * from "./acceptance.js";

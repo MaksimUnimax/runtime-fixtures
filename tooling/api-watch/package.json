@@ -12,6 +12,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "acceptance": "vitest run src/acceptance.test.ts",
     "build": "tsup src/index.ts --format esm --target node24 --clean"
   },
   "dependencies": {
