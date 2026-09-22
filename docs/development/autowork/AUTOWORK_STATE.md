@@ -180,3 +180,130 @@ Never store here:
 - Telegram bot token;
 - raw seller reports;
 - private AI conversation content.
+
+## STOP CHECKPOINT — 2026-09-22
+
+OWNER_STOP = ACTIVE
+
+No new implementation work may start until the owner resumes autowork.
+
+### Current live engineering worktree
+
+- worktree: `/root/runtime-fixtures-s1-q1c-live`
+- branch: `work/stream1-q1c-live-smtp-otp-2026-09-22`
+- HEAD: `5fff0caf4e517040d178edf055556a00993c1bb7`
+
+Current dirty state was intentionally preserved; no reset/cleanup was performed.
+
+Dirty files:
+
+- `apps/extension/application-patches.json` — current composer-readiness repair candidate owned by this autowork pass;
+- `tests/regression/extension-core/client-i1/browser_c1_acceptance.py` — current RED/acceptance coverage owned by this autowork pass;
+- `tests/regression/imported/ozon-v0.1.22/validation/regression/run_direct_binary_provider_attachment_gate.mjs` — pre-existing/unknown dirty change, left untouched and not claimed by this work.
+
+Owned diff:
+
+- 2 files;
+- 30 insertions;
+- `git diff --check`: PASS.
+
+No active test process remains from the last browser run.
+Temporary synthetic Health ports 43100/43200 are not listening.
+
+### Active candidate
+
+STATUS: `REWORK_REQUIRED`
+
+Candidate intent:
+
+- make Work Start tolerate a normal bounded delay before the AI composer becomes usable;
+- fail closed with `COMPOSER_NOT_FOUND` when readiness never arrives;
+- do not add browser-specific sleep logic;
+- do not add retry after irreversible Send.
+
+Current implementation candidate:
+
+- adds `WORK_START_COMPOSER_READY_TIMEOUT_MS = 8000`;
+- adds bounded `waitForWorkStartComposerContext()`;
+- `sendWorkSessionPrompt()` waits for a real composer context before reading/staging text.
+
+Current regression additions:
+
+- `BR-C1-37`: composer exists but is hidden for 3 seconds, then becomes visible; Work Start must eventually activate;
+- `BR-C1-38`: composer never becomes ready; wait must be bounded and fail closed.
+
+### Evidence
+
+Before repair:
+
+- `BR-C1-37` was RED in Playwright Chromium for both source and extracted runtimes.
+
+After current repair candidate:
+
+Playwright Chromium:
+- `BR-C1-37`: PASS source + extracted;
+- `BR-C1-38`: PASS source + extracted;
+- local deterministic composed build: PASS;
+- local synthetic package SHA256: `678af0b21d3921a439b86c82e5b286f70ff3c2872e128083d8920bbd657b2417`.
+
+Real Opera:
+- `BR-C1-37`: FAIL;
+- `BR-C1-38`: FAIL;
+- therefore the current candidate is NOT ACCEPTED.
+
+Earlier Opera evidence remains valid:
+- installed extension/service worker/popup/storage/restart work in real Opera;
+- broad browser-application fixture passes in Opera;
+- signed verifier passes in Opera;
+- offline continuation passes in Opera;
+- timing probe showed Work Start fails with 0–2 second pre-start delay and succeeds after about 4 seconds.
+
+Do NOT collapse this into "Opera unsupported"; current evidence indicates a narrower Work Start/browser-readiness problem.
+
+### Exact unresolved root cause
+
+The 8-second bounded wait fixes the synthetic delayed-composer condition in Playwright Chromium but does not yet make the same focused Work Start cases pass in Opera.
+
+The next run must first determine WHY the Opera content runtime still fails before changing the implementation again.
+
+Required provenance direction on resume:
+
+`Opera focused failure`
+→ content-script/runtime lifecycle evidence
+→ whether patched wait executes
+→ actual composer visibility/context observed by the extension
+→ browser-specific launch/content-script timing or product logic owner
+→ only then next repair.
+
+Do not add an Opera-only sleep or special-case branch without dependency proof.
+
+### Accepted/current roadmap position
+
+R3:
+- production V2 config publication remains complete;
+- signing-contract repair remains complete;
+- final owner-controlled live device approval → signed V2 Bootstrap → refresh → revoke/invalidation remains `OWNER_DEFERRED_TEST`.
+
+R5:
+- active area;
+- installed Playwright Chromium extension evidence exists;
+- real Opera extension loading/popup/storage/restart evidence exists;
+- current Work Start readiness repair is `REWORK_REQUIRED`;
+- Chrome/Yandex legitimate native extension-install route remains unresolved;
+- Firefox installed acceptance remains unfinished.
+
+R11:
+- production Telegram bot token/admin identity provisioning remains owner-external/deferred.
+
+### Safe resume point
+
+When owner resumes autowork:
+
+1. verify this checkpoint and current worktree HEAD/dirty files;
+2. do not touch the unrelated dirty direct-binary regression file unless its provenance is established;
+3. investigate the Opera failure with bounded diagnostic evidence before another product-code edit;
+4. determine why the patched Work Start wait is insufficient in Opera;
+5. repair the owning abstraction only after three-level dependency proof;
+6. rerun focused Chromium + Opera cases;
+7. only then run affected C1/P1/offline regression and decide ACCEPT/REWORK;
+8. update this state file.
