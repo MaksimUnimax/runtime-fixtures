@@ -255,8 +255,8 @@ describe("TG2 independent monitoring scheduler", () => {
       leaseMs: 60_000,
     });
     expect(result.kind).toBe("STARTED");
-    expect(queries.some((query) => /WHERE lane=\$1 FOR UPDATE$/.test(query))).toBe(
-      true,
-    );
+    expect(
+      queries.some((query) => /WHERE lane=\$1 FOR UPDATE$/.test(query)),
+    ).toBe(true);
   });
 });
