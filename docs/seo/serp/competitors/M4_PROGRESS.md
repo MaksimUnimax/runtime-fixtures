@@ -533,3 +533,41 @@ M4C_ALLOWED = false
 CURRENT_CURSOR:
 M4 CURRENT -> M4B1 ACCEPTED -> M4B2 PRE-STEP PREPARATION -> M4B2 WORK/RETURN QA -> M4Q -> M4C.
 
+## 2026-09-22 — M4B2 pre-step preparation R1
+
+M4B1 is accepted under:
+`M4B1_R5_A1_MAIN_CHAT_FINAL_ACCEPTANCE_2026-09-22.md`.
+
+M4B2 deterministic unit is now prepared from accepted M4A authority:
+
+- 12 EDITORIAL_OR_PUBLISHER = 32 accepted page-candidate anchors;
+- 2 NATIVE_MARKETPLACE_BASELINE = 8 anchors;
+- 1 AGGREGATOR_DIRECTORY = 3 anchors;
+- total = 15 entities / 43 accepted page-candidate anchors.
+
+Preparation detected two accepted registry entities with zero page-candidate rows:
+- REG032 Reg;
+- REG033 Rutube.
+
+To prevent silent entity loss, four exact accepted M4A occurrence URLs are frozen as zero-anchor bootstrap seeds. This does not alter the accepted 43-anchor count.
+
+```text
+M4B2_REGISTRY_ENTITIES = 15
+M4B2_ACCEPTED_PAGE_CANDIDATE_ANCHORS = 43
+M4B2_ZERO_ANCHOR_REGISTRY_ENTITIES = 2
+M4B2_BOOTSTRAP_URLS = 4
+M4B2_TOTAL_EXECUTION_SEED_ROWS = 47
+M4B2_PREPARATION = COMPLETE
+M4B2_WORK_START_ALLOWED = false pending remote readback
+M4Q_REQUIRED_BEFORE_M4C = true
+M4C_ALLOWED = false
+```
+
+Prepared authorities:
+- M4B2_AUTHORITY_MANIFEST_2026-09-22_R1.tsv
+- M4B2_PRE_STEP_RESEARCH_AND_EXECUTION_GATE_2026-09-22_R1.md
+- M4B2_EXECUTION_RELEASE_2026-09-22_R1.md
+- M4B2_WORK_PROMPT_2026-09-22_R1.md
+
+CURRENT_CURSOR:
+M4 CURRENT -> M4B1 ACCEPTED -> M4B2 PREPARED / REMOTE READBACK REQUIRED -> M4B2 WORK -> MAIN CHAT RETURN QA -> M4Q -> M4C.
