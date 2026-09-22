@@ -64,11 +64,16 @@ describe("TG2 independent monitoring scheduler", () => {
     const { store, implementation } = scheduler();
     await store.ensureDefaults(clock.now());
     const before = await store.getState("SWAGGER_API");
-    await implementation.scheduleEarlier("SWAGGER_API", new Date(clock.now().valueOf() + 5 * 60 * 1000));
+    await implementation.scheduleEarlier(
+      "SWAGGER_API",
+      new Date(clock.now().valueOf() + 5 * 60 * 1000),
+    );
     const after = await store.getState("SWAGGER_API");
     expect(after.intervalSeconds).toBe(before.intervalSeconds);
     expect(after.nextRunAt.valueOf()).toBeLessThan(before.nextRunAt.valueOf());
-    expect((await store.getState("LLM")).nextRunAt).toEqual((await store.getState("LLM")).nextRunAt);
+    expect((await store.getState("LLM")).nextRunAt).toEqual(
+      (await store.getState("LLM")).nextRunAt,
+    );
   });
   it("TG2-01/TG2-02 expose independent defaults", async () => {
     const { store } = scheduler();

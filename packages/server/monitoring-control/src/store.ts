@@ -24,7 +24,11 @@ export interface MonitoringScheduleStore {
     intervalSeconds: number,
     now: Date,
   ): Promise<MonitoringLaneState>;
-  scheduleEarlier(lane: MonitoringLane, retryAt: Date, now: Date): Promise<MonitoringLaneState>;
+  scheduleEarlier(
+    lane: MonitoringLane,
+    retryAt: Date,
+    now: Date,
+  ): Promise<MonitoringLaneState>;
   startRun(input: {
     lane: MonitoringLane;
     source: MonitoringRunSource;
@@ -323,9 +327,17 @@ export function createPostgresMonitoringScheduleStore(
     },
     async scheduleEarlier(lane, retryAt, now) {
       const current = await read(runtime, lane);
-      const nextRunAt = retryAt < current.nextRunAt ? retryAt : current.nextRunAt;
-      await runtime.query(`UPDATE monitoring_lane_schedules SET next_run_at=$2,updated_at=$3 WHERE lane=$1`, [lane, nextRunAt, now]);
-      return { ...current, nextRunAt: new Date(nextRunAt), updatedAt: new Date(now) };
+      const nextRunAt =
+        retryAt < current.nextRunAt ? retryAt : current.nextRunAt;
+      await runtime.query(
+        `UPDATE monitoring_lane_schedules SET next_run_at=$2,updated_at=$3 WHERE lane=$1`,
+        [lane, nextRunAt, now],
+      );
+      return {
+        ...current,
+        nextRunAt: new Date(nextRunAt),
+        updatedAt: new Date(now),
+      };
     },
     async startRun({ lane, source, now, leaseMs }) {
       return runtime.transaction(async (query) => {

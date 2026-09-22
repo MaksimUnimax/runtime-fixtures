@@ -444,14 +444,25 @@ export type ApiWatchIncidentEvent =
   | { kind: "OPENED"; incident: ApiWatchIncident }
   | { kind: "RESOLVED"; incident: ApiWatchIncident };
 export interface ApiWatchIncidentStore {
-  observe(input: Omit<ApiWatchIncident, "incidentId" | "occurrenceCount" | "state" | "resolvedAt">): Promise<{ incident: ApiWatchIncident; opened: boolean }>;
+  observe(
+    input: Omit<
+      ApiWatchIncident,
+      "incidentId" | "occurrenceCount" | "state" | "resolvedAt"
+    >,
+  ): Promise<{ incident: ApiWatchIncident; opened: boolean }>;
   resolve(incidentKey: string, at: Date): Promise<ApiWatchIncident | undefined>;
   listOpen(): Promise<ApiWatchIncident[]>;
   find(incidentKey: string): Promise<ApiWatchIncident | undefined>;
 }
-export type ApiWatchIncidentNotifier = (event: ApiWatchIncidentEvent) => Promise<void>;
+export type ApiWatchIncidentNotifier = (
+  event: ApiWatchIncidentEvent,
+) => Promise<void>;
 
-export type ApiWatchRetryFailureClass = "NETWORK" | "TIMEOUT" | "HTTP_5XX" | "HTTP_429";
+export type ApiWatchRetryFailureClass =
+  | "NETWORK"
+  | "TIMEOUT"
+  | "HTTP_5XX"
+  | "HTTP_429";
 export type ApiWatchRetryState = {
   sourceFamily: SwaggerSourceFamily;
   failureEpisodeId: string;
@@ -463,7 +474,9 @@ export type ApiWatchRetryState = {
   updatedAt: Date;
 };
 export interface ApiWatchRetryStore {
-  get(sourceFamily: SwaggerSourceFamily): Promise<ApiWatchRetryState | undefined>;
+  get(
+    sourceFamily: SwaggerSourceFamily,
+  ): Promise<ApiWatchRetryState | undefined>;
   save(state: ApiWatchRetryState): Promise<ApiWatchRetryState>;
   clear(sourceFamily: SwaggerSourceFamily): Promise<void>;
   list(): Promise<ApiWatchRetryState[]>;
