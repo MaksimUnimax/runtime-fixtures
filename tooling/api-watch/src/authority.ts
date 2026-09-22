@@ -56,7 +56,9 @@ export class InMemoryApiWatchStore implements ApiWatchStore {
     private readonly state: InMemoryApiWatchState = createInMemoryApiWatchState(),
   ) {}
 
-  async saveAuthorityRecord(input: AuthorityRecordInput): Promise<AuthorityRecord> {
+  async saveAuthorityRecord(
+    input: AuthorityRecordInput,
+  ): Promise<AuthorityRecord> {
     const record: AuthorityRecord = {
       ...input,
       recordId: input.recordId ?? randomUUID(),
@@ -92,14 +94,23 @@ export class InMemoryApiWatchStore implements ApiWatchStore {
   async saveInventory(inventory: import("./types.js").OperationInventory) {
     this.state.inventories.set(
       `${inventory.sourceFamily}:${inventory.snapshotSha256}`,
-      JSON.parse(JSON.stringify(inventory)) as import("./types.js").OperationInventory,
+      JSON.parse(
+        JSON.stringify(inventory),
+      ) as import("./types.js").OperationInventory,
     );
   }
 
-  async findInventory(sourceFamily: SwaggerSourceFamily, snapshotSha256: string) {
-    const inventory = this.state.inventories.get(`${sourceFamily}:${snapshotSha256}`);
+  async findInventory(
+    sourceFamily: SwaggerSourceFamily,
+    snapshotSha256: string,
+  ) {
+    const inventory = this.state.inventories.get(
+      `${sourceFamily}:${snapshotSha256}`,
+    );
     return inventory
-      ? (JSON.parse(JSON.stringify(inventory)) as import("./types.js").OperationInventory)
+      ? (JSON.parse(
+          JSON.stringify(inventory),
+        ) as import("./types.js").OperationInventory)
       : undefined;
   }
 }
@@ -161,7 +172,8 @@ export function createPostgresApiWatchStore(
           input.failureClassification,
         ],
       );
-      if (!result.rows[0]) throw new Error("API_WATCH_AUTHORITY_RECORD_CREATE_FAILED");
+      if (!result.rows[0])
+        throw new Error("API_WATCH_AUTHORITY_RECORD_CREATE_FAILED");
       return mapAuthority(result.rows[0]);
     },
     async listAuthorityRecords() {
@@ -228,7 +240,9 @@ export function createPostgresApiWatchStore(
         `SELECT inventory FROM api_watch_inventories WHERE source_family=$1 AND snapshot_sha256=$2`,
         [sourceFamily, snapshotSha256],
       );
-      return result.rows[0]?.inventory as import("./types.js").OperationInventory | undefined;
+      return result.rows[0]?.inventory as
+        | import("./types.js").OperationInventory
+        | undefined;
     },
   };
 }
@@ -242,14 +256,20 @@ function authorityFromOutcome(
     sourceFamily: outcome.sourceFamily,
     officialUrl: outcome.officialUrl,
     acquisitionMode: "AUTOMATIC",
-    authorityStatus: accepted ? "AUTHORITY_ACCEPTED" : outcome.kind === "INVALID_OFFICIAL_SOURCE_RESPONSE" ? "AUTHORITY_REJECTED" : "AUTHORITY_BLOCKED",
+    authorityStatus: accepted
+      ? "AUTHORITY_ACCEPTED"
+      : outcome.kind === "INVALID_OFFICIAL_SOURCE_RESPONSE"
+        ? "AUTHORITY_REJECTED"
+        : "AUTHORITY_BLOCKED",
     sha256: accepted ? outcome.sha256 : null,
     sizeBytes: accepted ? outcome.sizeBytes : null,
     specVersion: accepted ? outcome.specVersion : null,
     acquiredAt: accepted ? now : null,
     validatedAt: now,
     operatorRequestId: null,
-    artifactExtension: accepted ? `.${outcome.artifactType.toLowerCase()}` : null,
+    artifactExtension: accepted
+      ? `.${outcome.artifactType.toLowerCase()}`
+      : null,
     safeProvenance: accepted
       ? { finalUrl: outcome.finalUrl, redirectPolicy: "accepted-host-set" }
       : {},
@@ -268,7 +288,10 @@ export async function runAuthorityPass(input: {
   const outcomes: AcquisitionOutcome[] = [];
   const records: AuthorityRecord[] = [];
   for (const entry of input.registry.list()) {
-    const outcome = await acquireOfficialSource({ entry, fetcher: input.fetcher });
+    const outcome = await acquireOfficialSource({
+      entry,
+      fetcher: input.fetcher,
+    });
     outcomes.push(outcome);
     if (outcome.kind === "OPERATOR_SOURCE_REQUIRED" && entry.officialUrl) {
       const existing = await input.pendingStore.findOpenRequest(
@@ -300,7 +323,10 @@ function invalidCandidate(reason: string): OperatorCandidateReview {
 function candidatePath(root: string, artifact: SwaggerArtifact): string {
   const filename = basename(artifact.quarantineFilename);
   const path = resolve(root, filename);
-  if (path !== resolve(root, filename) || filename !== artifact.quarantineFilename)
+  if (
+    path !== resolve(root, filename) ||
+    filename !== artifact.quarantineFilename
+  )
     throw new Error("QUARANTINE_PATH_INVALID");
   return path;
 }
@@ -319,17 +345,24 @@ export async function evaluateOperatorCandidate(input: {
   if (request.status === "CANCELLED" || request.status === "EXPIRED")
     return invalidCandidate("PENDING_REQUEST_FINALIZED");
   const entry = input.registry.get(request.sourceFamily);
-  if (!entry.officialUrl) return { kind: "AUTHORITY_BLOCKED", reason: "SOURCE_URL_AUTHORITY_MISSING" };
+  if (!entry.officialUrl)
+    return {
+      kind: "AUTHORITY_BLOCKED",
+      reason: "SOURCE_URL_AUTHORITY_MISSING",
+    };
   if (request.officialUrl !== entry.officialUrl)
     return invalidCandidate("PENDING_URL_NOT_CURRENT_AUTHORITY");
-  const candidates = (await input.pendingStore.listArtifacts(request.requestId)).filter(
-    (artifact) => artifact.status === "CANDIDATE_READY",
-  );
+  const candidates = (
+    await input.pendingStore.listArtifacts(request.requestId)
+  ).filter((artifact) => artifact.status === "CANDIDATE_READY");
   const candidate = candidates[0];
   if (!candidate) return invalidCandidate("CANDIDATE_NOT_READY");
-  if (candidate.requestId !== request.requestId) return invalidCandidate("REQUEST_ID_MISMATCH");
-  if (candidate.sourceFamily !== request.sourceFamily) return invalidCandidate("SOURCE_FAMILY_MISMATCH");
-  if (candidate.officialUrl !== request.officialUrl) return invalidCandidate("OFFICIAL_URL_MISMATCH");
+  if (candidate.requestId !== request.requestId)
+    return invalidCandidate("REQUEST_ID_MISMATCH");
+  if (candidate.sourceFamily !== request.sourceFamily)
+    return invalidCandidate("SOURCE_FAMILY_MISMATCH");
+  if (candidate.officialUrl !== request.officialUrl)
+    return invalidCandidate("OFFICIAL_URL_MISMATCH");
   if (candidate.authorityState !== OPERATOR_SUPPLIED_OFFICIAL_SOURCE_CANDIDATE)
     return invalidCandidate("CANDIDATE_STATE_INVALID");
   let bytes: Uint8Array;
@@ -339,9 +372,14 @@ export async function evaluateOperatorCandidate(input: {
     return invalidCandidate("CANDIDATE_BYTES_UNAVAILABLE");
   }
   const digest = createHash("sha256").update(bytes).digest("hex");
-  if (digest !== candidate.sha256) return invalidCandidate("CANDIDATE_DIGEST_MISMATCH");
-  if (bytes.byteLength !== candidate.sizeBytes) return invalidCandidate("CANDIDATE_SIZE_MISMATCH");
-  if (candidate.parserResult.parsed !== true || candidate.validationResult.recognizedVersion !== true)
+  if (digest !== candidate.sha256)
+    return invalidCandidate("CANDIDATE_DIGEST_MISMATCH");
+  if (bytes.byteLength !== candidate.sizeBytes)
+    return invalidCandidate("CANDIDATE_SIZE_MISMATCH");
+  if (
+    candidate.parserResult.parsed !== true ||
+    candidate.validationResult.recognizedVersion !== true
+  )
     return invalidCandidate("CANDIDATE_VALIDATION_INVALID");
   let parsed: ReturnType<typeof parseSwaggerDocument>;
   try {
@@ -363,7 +401,9 @@ export async function evaluateOperatorCandidate(input: {
     acquiredAt: candidate.receivedAt,
     validatedAt: now(),
     operatorRequestId: request.requestId,
-    artifactExtension: candidate.originalFilename.slice(candidate.originalFilename.lastIndexOf(".")),
+    artifactExtension: candidate.originalFilename.slice(
+      candidate.originalFilename.lastIndexOf("."),
+    ),
     safeProvenance: { candidateArtifactId: candidate.artifactId },
     failureClassification: null,
   });

@@ -2,7 +2,11 @@ import { createHash, randomUUID } from "node:crypto";
 import { lstat, mkdir, open, readFile, rename } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { SwaggerSourceFamilySchema } from "@product/monitoring-control";
-import type { ApiWatchStore, AuthorityRecord, SnapshotMetadata } from "./types.js";
+import type {
+  ApiWatchStore,
+  AuthorityRecord,
+  SnapshotMetadata,
+} from "./types.js";
 import { API_WATCH_MAX_ARTIFACT_BYTES } from "./types.js";
 
 export const DEFAULT_API_WATCH_SNAPSHOT_ROOT =
@@ -21,7 +25,10 @@ async function assertDirectory(path: string): Promise<void> {
     if (stat.isSymbolicLink() || !stat.isDirectory())
       throw new Error("SNAPSHOT_PATH_NOT_DIRECTORY");
   } catch (error) {
-    if (error instanceof Error && error.message === "SNAPSHOT_PATH_NOT_DIRECTORY")
+    if (
+      error instanceof Error &&
+      error.message === "SNAPSHOT_PATH_NOT_DIRECTORY"
+    )
       throw error;
     await mkdir(path, { recursive: true });
     const stat = await lstat(path);
@@ -108,7 +115,9 @@ export async function promoteAcceptedSnapshot(input: {
   return store.saveSnapshot(metadata);
 }
 
-export async function readAcceptedSnapshot(metadata: SnapshotMetadata): Promise<Uint8Array> {
+export async function readAcceptedSnapshot(
+  metadata: SnapshotMetadata,
+): Promise<Uint8Array> {
   const bytes = await readFile(metadata.artifactPath);
   if (createHash("sha256").update(bytes).digest("hex") !== metadata.sha256)
     throw new Error("SNAPSHOT_DIGEST_MISMATCH");

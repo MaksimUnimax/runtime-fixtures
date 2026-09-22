@@ -144,7 +144,9 @@ export type ApiWatchSqlQuery = {
   ): Promise<{ rows: T[] }>;
 };
 export type ApiWatchSqlRuntime = ApiWatchSqlQuery & {
-  transaction<T>(operation: (query: ApiWatchSqlQuery) => Promise<T>): Promise<T>;
+  transaction<T>(
+    operation: (query: ApiWatchSqlQuery) => Promise<T>,
+  ): Promise<T>;
 };
 
 export interface ApiWatchStore {

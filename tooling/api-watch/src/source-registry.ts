@@ -30,7 +30,9 @@ function cloneEntry(entry: SourceRegistryEntry): SourceRegistryEntry {
 }
 
 export function createSourceRegistry(
-  overrides: Partial<Record<SwaggerSourceFamily, Partial<SourceRegistryEntry>>> = {},
+  overrides: Partial<
+    Record<SwaggerSourceFamily, Partial<SourceRegistryEntry>>
+  > = {},
 ): SourceRegistry {
   const entries = productionEntries.map((base) => {
     const override = overrides[base.sourceFamily];

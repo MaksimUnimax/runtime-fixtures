@@ -38,7 +38,11 @@ function failure(
 function acceptedHosts(entry: SourceRegistryEntry): Set<string> {
   if (!entry.officialUrl) return new Set();
   const explicit = entry.acceptedHosts?.map((host) => host.toLowerCase());
-  return new Set(explicit?.length ? explicit : [new URL(entry.officialUrl).hostname.toLowerCase()]);
+  return new Set(
+    explicit?.length
+      ? explicit
+      : [new URL(entry.officialUrl).hostname.toLowerCase()],
+  );
 }
 
 function artifactTypeFor(url: string): ExpectedArtifactType {
@@ -96,7 +100,10 @@ function isAccessControlPage(bytes: Uint8Array): boolean {
 function isHtml(response: Response, bytes: Uint8Array): boolean {
   const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
   if (contentType.includes("text/html")) return true;
-  const prefix = new TextDecoder().decode(bytes.slice(0, 512)).trimStart().toLowerCase();
+  const prefix = new TextDecoder()
+    .decode(bytes.slice(0, 512))
+    .trimStart()
+    .toLowerCase();
   return prefix.startsWith("<!doctype html") || prefix.startsWith("<html");
 }
 
@@ -136,10 +143,20 @@ export async function acquireOfficialSource(input: {
       if (![301, 302, 303, 307, 308].includes(response.status)) break;
       const location = response.headers.get("location");
       if (!location || redirects >= maxRedirects)
-        return failure(entry, "INVALID_OFFICIAL_SOURCE_RESPONSE", "Redirect policy rejected the response.", response.status);
+        return failure(
+          entry,
+          "INVALID_OFFICIAL_SOURCE_RESPONSE",
+          "Redirect policy rejected the response.",
+          response.status,
+        );
       const nextUrl = new URL(location, currentUrl);
       if (!hosts.has(nextUrl.hostname.toLowerCase()))
-        return failure(entry, "INVALID_OFFICIAL_SOURCE_RESPONSE", "Redirect left the accepted official host set.", response.status);
+        return failure(
+          entry,
+          "INVALID_OFFICIAL_SOURCE_RESPONSE",
+          "Redirect left the accepted official host set.",
+          response.status,
+        );
       redirects += 1;
       currentUrl = nextUrl.toString();
     }
@@ -154,13 +171,28 @@ export async function acquireOfficialSource(input: {
   }
 
   if (response.status === 401 || response.status === 403) {
-    return failure(entry, "OPERATOR_SOURCE_REQUIRED", "Official source requires legitimate operator access.", response.status);
+    return failure(
+      entry,
+      "OPERATOR_SOURCE_REQUIRED",
+      "Official source requires legitimate operator access.",
+      response.status,
+    );
   }
   if (response.status === 429 || response.status >= 500) {
-    return failure(entry, "SOURCE_TEMPORARILY_UNAVAILABLE", "Official source returned a transient response.", response.status);
+    return failure(
+      entry,
+      "SOURCE_TEMPORARILY_UNAVAILABLE",
+      "Official source returned a transient response.",
+      response.status,
+    );
   }
   if (!response.ok)
-    return failure(entry, "INVALID_OFFICIAL_SOURCE_RESPONSE", "Official source returned an unexpected HTTP response.", response.status);
+    return failure(
+      entry,
+      "INVALID_OFFICIAL_SOURCE_RESPONSE",
+      "Official source returned an unexpected HTTP response.",
+      response.status,
+    );
 
   let bytes: Uint8Array;
   try {
@@ -180,14 +212,33 @@ export async function acquireOfficialSource(input: {
   }
   if (isHtml(response, bytes)) {
     return isAccessControlPage(bytes)
-      ? failure(entry, "OPERATOR_SOURCE_REQUIRED", "Official source returned an access-control page.", response.status)
-      : failure(entry, "INVALID_OFFICIAL_SOURCE_RESPONSE", "Official source returned HTML instead of an API document.", response.status);
+      ? failure(
+          entry,
+          "OPERATOR_SOURCE_REQUIRED",
+          "Official source returned an access-control page.",
+          response.status,
+        )
+      : failure(
+          entry,
+          "INVALID_OFFICIAL_SOURCE_RESPONSE",
+          "Official source returned HTML instead of an API document.",
+          response.status,
+        );
   }
 
   const artifactType = artifactTypeFor(currentUrl);
-  const extension = artifactType === "JSON" ? ".json" : artifactType === "YAML" ? ".yaml" : ".yml";
+  const extension =
+    artifactType === "JSON"
+      ? ".json"
+      : artifactType === "YAML"
+        ? ".yaml"
+        : ".yml";
   try {
-    const validation = validateSwaggerBytes(bytes, `official${extension}`, Math.min(entry.maximumBytes, API_WATCH_MAX_ARTIFACT_BYTES));
+    const validation = validateSwaggerBytes(
+      bytes,
+      `official${extension}`,
+      Math.min(entry.maximumBytes, API_WATCH_MAX_ARTIFACT_BYTES),
+    );
     return {
       kind: "ACQUIRED_OFFICIAL_SOURCE_CANDIDATE",
       sourceFamily: entry.sourceFamily,
@@ -205,12 +256,16 @@ export async function acquireOfficialSource(input: {
     return failure(
       entry,
       "INVALID_OFFICIAL_SOURCE_RESPONSE",
-      error instanceof Error ? error.message : "Official source document validation failed.",
+      error instanceof Error
+        ? error.message
+        : "Official source document validation failed.",
       response.status,
     );
   }
 }
 
-export function sourceFamilyOf(outcome: AcquisitionOutcome): SwaggerSourceFamily {
+export function sourceFamilyOf(
+  outcome: AcquisitionOutcome,
+): SwaggerSourceFamily {
   return outcome.sourceFamily;
 }
