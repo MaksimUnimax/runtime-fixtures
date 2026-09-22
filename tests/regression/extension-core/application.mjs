@@ -189,10 +189,10 @@ await test('APP-05-conflicting-store-confirmation-cannot-bypass-admission', asyn
     const rejected = await s.popup('SA_WORK_START', { store_id: b.id }); assert.equal(rejected.code, 'STORE_CHANGE_CONFIRMATION_REQUIRED');
     const stillRejected = await s.popup('SA_WORK_START', { store_id: b.id, confirm_change: true });
     assert.equal(stillRejected.code, 'WORK_START_ALREADY_IN_PROGRESS');
+    assert.equal(s.worker.messages.filter(m=>m.type==='OZ_BATCH_DELIVERY_AVAILABLE').length,0);
     release(); await until(() => s.worker.network.length === 2, 'APP-05 second provider request');
     assert.equal(s.worker.network.length, 2);
     assert.equal((await s.worker.call('bindingForConversationKey', first.key)).store_context.storeId, a.id);
-    assert.equal(s.worker.messages.filter(m=>m.type==='OZ_BATCH_DELIVERY_AVAILABLE').length,0);
     assert.equal((await s.worker.call('workSessionFor', first.key)).state,'active_visible');
   } finally { release?.(); s.worker.close(); }
 });

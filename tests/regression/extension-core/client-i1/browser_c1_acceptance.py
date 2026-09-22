@@ -145,12 +145,31 @@ class BrowserFixture:
         self.page = self.context.new_page()
         self.page.on("pageerror", lambda error: self.errors.append(str(error)))
         self.page.goto(f"https://chatgpt.com/c/{CONVERSATION}", wait_until="domcontentloaded")
-        self.tab_id = wait_for(lambda: self.worker.evaluate("async()=>{const x=await chrome.tabs.query({url:'https://chatgpt.com/c/*'});return x[0]?.id}"), "ChatGPT tab")
+        self.tab_id = self._bind_current_page_tab("ChatGPT tab")
         self.popup = self.context.new_page()
         self.popup.on("pageerror", lambda error: self.errors.append(str(error)))
         self.popup.add_init_script(f"const originalQuery=chrome.tabs.query.bind(chrome.tabs);chrome.tabs.query=(query)=>query.active?Promise.resolve([{{id:{self.tab_id}}}]):originalQuery(query);")
         self.popup.goto(extension_url + "/popup.html")
         wait_for(lambda: "Аккаунт · 11111111" in self.popup.locator("#account").inner_text(), "popup account")
+
+    def _bind_current_page_tab(self, description: str):
+        """Bind popup actions to the exact Playwright page created by this fixture."""
+        marker = f"seller-agents-c1-{time.monotonic_ns()}"
+        self.page.evaluate("(value)=>{document.title=value}", marker)
+
+        def matching_tab():
+            return self.worker.evaluate(
+                """async ({url,marker})=>{
+                  const matches=(await chrome.tabs.query({})).filter(tab => tab.url === url && tab.title === marker);
+                  return matches.length === 1 ? matches[0].id : null;
+                }""",
+                {"url": self.page.url, "marker": marker},
+            )
+
+        tab_id = wait_for(matching_tab, description)
+        target = self.worker.evaluate("async (id)=>chrome.tabs.get(id)", tab_id)
+        assert target.get("url") == self.page.url, {"page": self.page.url, "tab": target}
+        return tab_id
 
     def restart(self):
         """Restart the extension context so each matrix case has a fresh worker heap."""
@@ -164,7 +183,7 @@ class BrowserFixture:
         self.page = self.context.new_page()
         self.page.on("pageerror", lambda error: self.errors.append(str(error)))
         self.page.goto(f"https://chatgpt.com/c/{CONVERSATION}", wait_until="domcontentloaded")
-        self.tab_id = wait_for(lambda: self.worker.evaluate("async()=>{const x=await chrome.tabs.query({url:'https://chatgpt.com/c/*'});return x[0]?.id}"), "ChatGPT tab restart")
+        self.tab_id = self._bind_current_page_tab("ChatGPT tab restart")
         self.popup = self.context.new_page()
         self.popup.on("pageerror", lambda error: self.errors.append(str(error)))
         self.popup.add_init_script(f"const originalQuery=chrome.tabs.query.bind(chrome.tabs);chrome.tabs.query=(query)=>query.active?Promise.resolve([{{id:{self.tab_id}}}]):originalQuery(query);")
@@ -460,6 +479,26 @@ def run_candidate(runtime: Path, private_key: Path, server: SyntheticHealthServe
         def recovery():
             denied("tampered"); valid_start(); assert fixture.active()
         case("BR-C1-36", "worker recovers after denial/tamper/race and fresh Start works", recovery)
+
+        def delayed_composer_visibility():
+            fresh(); server.configure("pass")
+            fixture.page.evaluate("""()=>{const composer=document.querySelector('#prompt-textarea');if(!composer)throw new Error('fixture composer missing');composer.style.display='none';setTimeout(()=>{composer.style.display='';},3000)}""")
+            fixture.click_start()
+            wait_for(fixture.active, "delayed composer visibility", 12)
+        case("BR-C1-37", "Work Start waits for a composer that becomes visible after browser layout settles", delayed_composer_visibility)
+
+        def composer_never_ready_is_bounded():
+            fresh(); server.configure("pass")
+            fixture.page.evaluate("""()=>{const composer=document.querySelector('#prompt-textarea');if(!composer)throw new Error('fixture composer missing');composer.style.display='none'}""")
+            health_before = fixture.health_count(); started = time.monotonic(); fixture.click_start()
+            def failed():
+                session = fixture.storage().get(SESSIONS, {}).get(CONVERSATION_KEY, {})
+                return session.get("state") == "error" and (session.get("error") or {}).get("code") == "COMPOSER_NOT_FOUND"
+            wait_for(failed, "bounded missing composer failure", 12)
+            elapsed = time.monotonic() - started
+            assert 7 <= elapsed < 12, elapsed
+            assert fixture.health_count() - health_before == 1
+        case("BR-C1-38", "Work Start composer readiness wait is bounded and fails closed", composer_never_ready_is_bounded)
 
         if fixture.errors:
             rows.append({"id": "BROWSER-RUNTIME-ERRORS", "status": "FAIL", "error": repr(fixture.errors)})

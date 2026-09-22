@@ -288,5 +288,15 @@
     "target": "shared/file_delivery_port_worker.js",
     "old": "  setTimeout(() => { void cleanupExpiredArtifacts(); }, 0);",
     "new": ""
+  },
+  {
+    "target": "content_script.js",
+    "old": "  const COMPOSER_SEND_SETTLE_TIMEOUT_MS = 7000;",
+    "new": "  const COMPOSER_SEND_SETTLE_TIMEOUT_MS = 7000;\n  const WORK_START_COMPOSER_READY_TIMEOUT_MS = 8000;"
+  },
+  {
+    "target": "content_script.js",
+    "old": "  async function sendWorkSessionPrompt(messageText, intentId, revision) {\n    const context = primaryComposerContext();\n    if (!context) throw Object.assign(new Error(\"Не найден composer текущего AI.\"), { code: \"COMPOSER_NOT_FOUND\" });",
+    "new": "  async function waitForWorkStartComposerContext(timeoutMs = WORK_START_COMPOSER_READY_TIMEOUT_MS) {\n    const deadline = Date.now() + Math.max(0, Number(timeoutMs || 0));\n    while (current() && Date.now() < deadline) {\n      const context = primaryComposerContext();\n      if (context) return context;\n      await sleep(SEND_TARGET_SAMPLE_INTERVAL_MS);\n    }\n    if (!current()) throw Object.assign(new Error(\"Content runtime superseded while waiting for Work Start composer.\"), { code: \"CONTENT_RUNTIME_SUPERSEDED\" });\n    return null;\n  }\n\n  async function sendWorkSessionPrompt(messageText, intentId, revision) {\n    const context = await waitForWorkStartComposerContext();\n    if (!context) throw Object.assign(new Error(\"Не найден composer текущего AI.\"), { code: \"COMPOSER_NOT_FOUND\" });"
   }
 ]
