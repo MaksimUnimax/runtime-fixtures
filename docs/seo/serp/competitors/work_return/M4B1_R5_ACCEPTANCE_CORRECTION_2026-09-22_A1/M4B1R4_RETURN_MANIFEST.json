@@ -1,0 +1,83 @@
+{
+  "work_id": "OCTOPORT_SEO_M4B1_COVERAGE_RECOVERY_2026-09-18_R4",
+  "status": "PARTIAL",
+  "recovery_required": true,
+  "repository": "MaksimUnimax/runtime-fixtures",
+  "branch": "seo/wordstat-batch-01-2026-09-16",
+  "start_live_remote_head": "6c77986ec8795766ee8e8af7fec1b9744916a6ad",
+  "end_observed_remote_head": "6c77986ec8795766ee8e8af7fec1b9744916a6ad",
+  "authority_drift_detected": true,
+  "authority_drift_material": false,
+  "authority_drift_notes": "Current M4 Level2 adds the separate M4Q lane and explicitly leaves the M4B1 page-surface contract unchanged.",
+  "frozen_r3_baseline": {
+    "entities": 45,
+    "accepted_anchors": 100,
+    "merged_normalized_url_universe": 4500,
+    "open_url_unresolved": 0,
+    "blocking_channel_holds": 47,
+    "entities_with_blocking_hold": 39,
+    "sitemap_holds": 37,
+    "pagination_holds": 10
+  },
+  "r4_channel_accounting": {
+    "sitemap_hold_attempts": 37,
+    "pagination_hold_attempts": 10,
+    "sitemap_recovered_to_terminal": 37,
+    "pagination_recovered_to_terminal": 10,
+    "remaining_blocking_holds": 0,
+    "remaining_entities_with_blocking_hold": 0
+  },
+  "r4_url_accounting": {
+    "new_normalized_identities_observed": 5441,
+    "materialized_overlay_identities": 10,
+    "terminal_materialized_identities": 10,
+    "inspected_identities": 7,
+    "execution_environment_terminal_identities": 2,
+    "not_found_terminal_identities": 1,
+    "uniseller_unmaterialized_unresolved_identities": 5431,
+    "final_merged_terminal_normalized_identity_universe": 4510,
+    "open_url_unresolved": 5431,
+    "silent_url_loss_zero_proven": false
+  },
+  "acquisition": {
+    "public_exact_url_browsing": true,
+    "search_provider_calls": 0,
+    "wordstat_calls": 0,
+    "alice_calls": 0,
+    "m4q_calls": 0,
+    "new_competitors": 0
+  },
+  "output_files": [
+    "M4B1R4_SOURCE_MANIFEST.md",
+    "M4B1R4_DISCOVERY_CHANNEL_COVERAGE.tsv",
+    "M4B1R4_URL_OVERLAY.tsv",
+    "M4B1R4_PAGE_EVIDENCE_OVERLAY.tsv",
+    "M4B1R4_CANDIDATE_TERMS_OVERLAY.tsv",
+    "M4B1R4_ENTITY_SYNTHESIS_CURRENT.tsv",
+    "M4B1R4_FRONTIER_RECONCILIATION.tsv",
+    "M4B1R4_QA.md",
+    "M4B1R4_RETURN_MANIFEST.json"
+  ],
+  "sha256_by_output_file": {
+    "M4B1R4_SOURCE_MANIFEST.md": "96d507c33266faf96013cf471e28576045796c085c95209ab8033f335564f30e",
+    "M4B1R4_DISCOVERY_CHANNEL_COVERAGE.tsv": "98dba43f9b4f1c5d8852bb7952d3393ce969ce8854ea35e816e68758346617a5",
+    "M4B1R4_URL_OVERLAY.tsv": "bd26821ecfbdb5a46401d24b1d12ea3d5b7e9d9b802a4371c693067b2852260b",
+    "M4B1R4_PAGE_EVIDENCE_OVERLAY.tsv": "9308b367d1eed6b0106cf4f8b66b61b66fbb422d2b54b25e19ed9fa380d197b0",
+    "M4B1R4_CANDIDATE_TERMS_OVERLAY.tsv": "a866fa5ace96a41b50bd9dec9324d9ba7a709d07e315275757687c92ecdd8326",
+    "M4B1R4_ENTITY_SYNTHESIS_CURRENT.tsv": "d61fd14f1d5bf7ee5087b4f1ea26926925a63c41e93af10f4bbecfbb155c7a4f",
+    "M4B1R4_FRONTIER_RECONCILIATION.tsv": "6fa8ddf51df835af725325d304a551026767be1db6b6e97aec8c96da7d0cca5a",
+    "M4B1R4_QA.md": "9d397848a4870fa827d638d366c1dbb68485a0e4e9301b376d95d2ef042c1b1a",
+    "M4B1R4_RETURN_MANIFEST.json": "SELF_REFERENTIAL_NOT_INCLUDED"
+  },
+  "output_row_counts": {
+    "M4B1R4_DISCOVERY_CHANNEL_COVERAGE_tsv": 45,
+    "M4B1R4_URL_OVERLAY_tsv": 10,
+    "M4B1R4_PAGE_EVIDENCE_OVERLAY_tsv": 7,
+    "M4B1R4_CANDIDATE_TERMS_OVERLAY_tsv": 0,
+    "M4B1R4_ENTITY_SYNTHESIS_CURRENT_tsv": 45,
+    "M4B1R4_FRONTIER_RECONCILIATION_tsv": 45
+  },
+  "qa_verdict": "PARTIAL / RECOVERY_REQUIRED",
+  "git_writes_executed": 0,
+  "timestamp": "2026-09-19T01:40:28.568Z"
+}
