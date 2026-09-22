@@ -126,4 +126,11 @@ describe("Stream-2 migration receipts", () => {
     expect(sql).toContain('CREATE TABLE "api_watch_report_sources"');
     expect(journal.entries.at(-1)?.tag).toBe("0027_s2_api_watch_reports");
   });
+
+  it("receipts the forward-only A7 product crosswalk migration", async () => {
+    const sql = await readFile(join(migrationsFolder, "0028_s2_api_watch_product_crosswalk.sql"), "utf8");
+    const journal = JSON.parse(await readFile(join(migrationsFolder, "meta", "_journal.json"), "utf8")) as { entries: Array<{ tag: string }> };
+    expect(sql).toContain('CREATE TABLE "api_watch_product_crosswalk"');
+    expect(journal.entries.at(-1)?.tag).toBe("0028_s2_api_watch_product_crosswalk");
+  });
 });

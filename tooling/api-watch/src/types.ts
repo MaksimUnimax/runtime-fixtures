@@ -67,6 +67,7 @@ export type AcquisitionOutcome =
       officialUrl: string | null;
       blockerReason: string;
       httpStatus?: number;
+      retryAfterSeconds?: number | null;
     };
 
 export type AuthorityStatus =
@@ -363,7 +364,110 @@ export type ApiWatchDependencies = {
   quarantineDir?: string;
   snapshotRoot?: string;
   reportStore?: ApiWatchReportStore;
+  crosswalkStore?: ProductCrosswalkStore;
+  incidentStore?: ApiWatchIncidentStore;
+  incidentNotifier?: ApiWatchIncidentNotifier;
+  retryStore?: ApiWatchRetryStore;
+  scheduleEarlier?: (retryAt: Date) => Promise<void>;
 };
+
+export type ProductRegistryEntry = {
+  sourceFamily: SwaggerSourceFamily;
+  runtimeAlias: string;
+  method: string;
+  normalizedPath: string;
+  executionEnabled: boolean;
+  effect: string;
+  privacyClass: string;
+  runtimeSafetyClass: string | null;
+  workflowRole: string | null;
+  entitlementKey: string | null;
+  currentness: string | null;
+  blockedReason: string | null;
+  providerMetadata: Record<string, unknown>;
+};
+
+export type CrosswalkState =
+  | "MAPPED_ENABLED"
+  | "MAPPED_DISABLED"
+  | "SOURCE_ONLY"
+  | "RUNTIME_ONLY"
+  | "AMBIGUOUS_RUNTIME_MAPPING";
+export type CrosswalkReviewState =
+  | "NO_ACTION"
+  | "REVIEW_REQUIRED"
+  | "BLOCKING_RISK";
+export type ProductCrosswalkRow = {
+  crosswalkId: string;
+  reportId: string;
+  sourceFamily: SwaggerSourceFamily;
+  sourceIdentity: string;
+  runtimeAlias: string | null;
+  crosswalkState: CrosswalkState;
+  reviewState: CrosswalkReviewState;
+  executionEnabled: boolean | null;
+  impactSeverity: ApiWatchImpactSeverity | null;
+  diffSha256: string | null;
+  createdAt: Date;
+};
+
+export interface ProductCrosswalkStore {
+  saveRows(rows: ProductCrosswalkRow[]): Promise<ProductCrosswalkRow[]>;
+  listRows(reportId: string): Promise<ProductCrosswalkRow[]>;
+}
+
+export type ApiWatchIncidentType =
+  | "SOURCE_AUTHORITY_BLOCKED"
+  | "API_CHANGE_BLOCKING"
+  | "API_CHANGE_REVIEW_REQUIRED"
+  | "RUNTIME_OPERATION_STALE"
+  | "RUNTIME_MAPPING_AMBIGUOUS"
+  | "WATCH_RUN_FAILED";
+export type ApiWatchIncidentState = "OPEN" | "RESOLVED";
+export type ApiWatchIncident = {
+  incidentId: string;
+  incidentKey: string;
+  incidentType: ApiWatchIncidentType;
+  sourceFamily: SwaggerSourceFamily | null;
+  operationIdentity: string | null;
+  firstSeenAt: Date;
+  lastSeenAt: Date;
+  resolvedAt: Date | null;
+  occurrenceCount: number;
+  severity: ApiWatchImpactSeverity;
+  latestReportId: string;
+  latestDiffSha256: string | null;
+  safeSummaryCode: string;
+  state: ApiWatchIncidentState;
+};
+export type ApiWatchIncidentEvent =
+  | { kind: "OPENED"; incident: ApiWatchIncident }
+  | { kind: "RESOLVED"; incident: ApiWatchIncident };
+export interface ApiWatchIncidentStore {
+  observe(input: Omit<ApiWatchIncident, "incidentId" | "occurrenceCount" | "state" | "resolvedAt">): Promise<{ incident: ApiWatchIncident; opened: boolean }>;
+  resolve(incidentKey: string, at: Date): Promise<ApiWatchIncident | undefined>;
+  listOpen(): Promise<ApiWatchIncident[]>;
+  find(incidentKey: string): Promise<ApiWatchIncident | undefined>;
+}
+export type ApiWatchIncidentNotifier = (event: ApiWatchIncidentEvent) => Promise<void>;
+
+export type ApiWatchRetryFailureClass = "NETWORK" | "TIMEOUT" | "HTTP_5XX" | "HTTP_429";
+export type ApiWatchRetryState = {
+  sourceFamily: SwaggerSourceFamily;
+  failureEpisodeId: string;
+  failureClass: ApiWatchRetryFailureClass;
+  retryCount: number;
+  nextRetryAt: Date | null;
+  lastAttemptAt: Date;
+  lastResult: string;
+  updatedAt: Date;
+};
+export interface ApiWatchRetryStore {
+  get(sourceFamily: SwaggerSourceFamily): Promise<ApiWatchRetryState | undefined>;
+  save(state: ApiWatchRetryState): Promise<ApiWatchRetryState>;
+  clear(sourceFamily: SwaggerSourceFamily): Promise<void>;
+  list(): Promise<ApiWatchRetryState[]>;
+}
 
 export type _TypeOnlyGuards = {
   artifact: SwaggerArtifact;
