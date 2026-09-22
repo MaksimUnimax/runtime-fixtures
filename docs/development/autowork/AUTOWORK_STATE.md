@@ -437,3 +437,109 @@ uncommitted state cannot be read back.
 9. update this durable state forward-only.
 
 No browser-specific product workaround is authorized by this finding.
+
+
+## OWNER STOP CHECKPOINT — 2026-09-22
+
+OWNER_STOP = ACTIVE
+
+A current direct owner instruction ordered:
+
+`остановись жди команды`
+
+No new implementation or investigation work may start until the owner explicitly
+resumes autowork.
+
+### Accepted/current state at STOP
+
+R3:
+- production V2 config publication remains complete;
+- signing-contract repair remains complete;
+- final owner-controlled live device approval → signed V2 Bootstrap → refresh →
+  revoke/invalidation remains `OWNER_DEFERRED_TEST`.
+
+R5:
+- active installed/operational acceptance area;
+- Playwright Chromium installed evidence exists;
+- real Opera extension load/popup/storage/restart evidence exists;
+- generic bounded composer-readiness candidate remains
+  `REWORK_REQUIRED / NOT ACCEPTED`;
+- Opera focused failure root cause is proven
+  `HARNESS_DEFECT / TEST_TAB_IDENTITY_DEFECT`, not a product defect.
+
+### Active/incomplete R5 candidate
+
+Last verified live engineering worktree before RDC loss:
+
+- worktree: `/root/runtime-fixtures-s1-q1c-live`;
+- branch: `work/stream1-q1c-live-smtp-otp-2026-09-22`;
+- HEAD: `5fff0caf4e517040d178edf055556a00993c1bb7`;
+- dirty: `apps/extension/application-patches.json`;
+- dirty: `tests/regression/extension-core/client-i1/browser_c1_acceptance.py`;
+- dirty/unknown provenance and forbidden to touch:
+  `tests/regression/imported/ozon-v0.1.22/validation/regression/run_direct_binary_provider_attachment_gate.mjs`.
+
+An attempted deterministic fixture page↔tab binding edit was interrupted by RDC
+transport loss before readback. Whether that edit reached the live file remains
+UNKNOWN. Do not assume it applied and do not repeat blindly.
+
+### Current environment defer
+
+Remote Desktop Commander device:
+
+- device: `Easyscript`;
+- status at last check: `offline`;
+- last seen: `2026-09-22T10:59:59.453Z`.
+
+This blocks safe readback/mutation of the dirty live R5 worktree.
+
+### Stream 2 authority discrepancy discovered before STOP
+
+Read-only GitHub reconciliation found that current `main` documentation claims:
+
+- WB single-bundle implementation branch
+  `work/stream2-tg3-swagger-handoff-2026-09-22`;
+- end commit `77918a1ea5f8cd764bf6abe94b8dfb0ad61f7fd3`;
+- reported remote push PASS.
+
+But current GitHub lookup could not resolve either that branch or that commit, and
+default-branch code search did not find the documented
+`WB_OPENAPI_BUNDLE` / `wb_openapi_bundle_v1` implementation symbols.
+
+Therefore that implementation remote-presence claim is NOT VERIFIED and must be
+reconciled before treating the bounded Stream 2 implementation receipt as live
+repository authority. No Stream 2 product/monitoring code was changed in this
+dialogue.
+
+### Owner/external deferred items
+
+Still open:
+
+- `OWNER-DEFERRED-I1-LIVE-DEVICE-APPROVAL`;
+- `OWNER-DEFERRED-TELEGRAM-PROVISIONING`.
+
+Telegram production token/admin identity remain absent and must not be invented
+or committed.
+
+### Exact safe resume point
+
+After explicit owner resume:
+
+1. read this governor and this state;
+2. check RDC device availability;
+3. if RDC is back, verify live R5 branch/HEAD/dirty files before any mutation;
+4. read back `browser_c1_acceptance.py` and determine whether the interrupted
+   deterministic page↔tab binding edit actually applied;
+5. preserve the unknown-provenance direct-binary regression file untouched;
+6. finish the harness repair only if required;
+7. rerun BR-C1-37/38 on Playwright Chromium source/extracted and real Opera
+   source/extracted;
+8. if focused evidence is green, run affected C1, P1 outcome/replay, offline
+   continuation/restart, browser application, package identity, and
+   `git diff --check`;
+9. decide ACCEPT/REWORK for the generic composer-readiness candidate;
+10. separately reconcile the Stream 2 documented `77918a1` remote-push claim
+    against actual GitHub authority before relying on it;
+11. update durable state forward-only.
+
+No current work should proceed while OWNER_STOP remains ACTIVE.
