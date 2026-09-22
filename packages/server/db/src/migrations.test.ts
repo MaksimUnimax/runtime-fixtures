@@ -77,8 +77,8 @@ describe("Stream-2 migration receipts", () => {
     expect(sql).toContain('CREATE TABLE "swagger_source_requests"');
     expect(sql).toContain('CREATE TABLE "swagger_source_artifacts"');
     expect(sql).toContain("OPERATOR_SUPPLIED_OFFICIAL_SOURCE_CANDIDATE");
-    expect(journal.entries.at(-2)?.tag).toBe("0023_s2_tg2_monitoring_lanes");
-    expect(journal.entries.at(-1)?.tag).toBe(
+    expect(journal.entries.at(-3)?.tag).toBe("0023_s2_tg2_monitoring_lanes");
+    expect(journal.entries.at(-2)?.tag).toBe(
       "0024_s2_tg3_operator_swagger_handoff",
     );
   });
