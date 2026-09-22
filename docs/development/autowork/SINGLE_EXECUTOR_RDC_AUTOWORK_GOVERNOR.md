@@ -182,7 +182,6 @@ Codex may be used only as an auxiliary fallback when direct execution by
 - installing/provisioning an additional program/runtime that cannot be
   installed directly through available tools;
 - a tightly bounded mechanical transformation;
-- an independent secondary review explicitly useful to the owner.
 
 Codex never receives:
 
