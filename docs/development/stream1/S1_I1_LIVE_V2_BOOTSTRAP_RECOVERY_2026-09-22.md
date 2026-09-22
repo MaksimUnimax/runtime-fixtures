@@ -120,3 +120,20 @@ Required behavior:
 - historical rows remain immutable.
 
 After that bounded compatibility repair is tested and published, retry the existing V2 config publication through `createP3PolicyPublicationRepository(...).publishConfigRelease(...)`, then rerun the fresh live device → V2 Bootstrap → refresh → revoke/invalidation acceptance flow.
+
+
+### Deployment requirement for the legacy-reason compatibility repair
+
+The read-side compatibility repair must be deployed to the production API before the V2 live Bootstrap rerun.
+
+Reason: `createConfigSigningService(...)` reads `listSigningKeyEvents(keyId)` again for every V1/V2 signing operation and resolves lifecycle before signing. Therefore fixing only the one-shot publication harness is insufficient: without the same read-side parser compatibility in the deployed API, V2 Bootstrap would still fail at signing time on the same immutable historical `PREPROD_CATALOG_REPAIR` event.
+
+Required sequence is therefore:
+
+1. production read-only inventory of invalid persisted reason codes;
+2. bounded parser compatibility fix for the exact known legacy literal only;
+3. regression;
+4. deploy/restart production API with that fix;
+5. health/readiness PASS;
+6. publish the first V2 config through the normal publication repository;
+7. run fresh live device → signed V2 Bootstrap → refresh → revoke/invalidation.
