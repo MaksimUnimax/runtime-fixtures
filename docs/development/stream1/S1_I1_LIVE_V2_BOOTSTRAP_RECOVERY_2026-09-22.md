@@ -82,3 +82,41 @@ I1 is not accepted until the rerun proves:
 - post-revoke access invalid;
 - post-revoke refresh invalid;
 - no secrets persisted.
+
+
+## Production publication blocker discovered — legacy signing-key reason code
+
+The first production `control_plane_v2` config publication attempt did not mutate production state.
+
+Observed safe result:
+
+- active production signing key exists and is bound correctly;
+- no V2 config release existed;
+- publication entered the normal repository transaction;
+- publication failed while reading the existing signing-key lifecycle;
+- transaction rolled back;
+- no config release and no publication audit were created.
+
+The exact persisted legacy value that caused current-schema parsing to fail is:
+
+`PREPROD_CATALOG_REPAIR`
+
+Current `StableMachineIdentifierV1Schema` accepts only lowercase machine identifiers. The signing-key event table is append-only and protected by an immutable UPDATE/DELETE trigger, so direct SQL correction of historical event data is forbidden.
+
+### Architect decision
+
+Do not mutate, delete, or rewrite the historical signing-key event.
+
+Do not relax new signing-key mutation commands to accept arbitrary uppercase reason codes.
+
+The safe repair is a backward-compatible **read-side legacy exception** only after a production read-only inventory proves that the only invalid persisted reason code is the known historical value `PREPROD_CATALOG_REPAIR`.
+
+Required behavior:
+
+- new signing-key reason commands remain constrained by `StableMachineIdentifierV1Schema`;
+- persisted event parsing additionally accepts the exact legacy literal `PREPROD_CATALOG_REPAIR`;
+- signing-key lifecycle semantics remain unchanged because lifecycle evaluation depends on key/event/time ordering, not reason-code spelling;
+- any other invalid persisted reason code is a stop condition requiring architect review;
+- historical rows remain immutable.
+
+After that bounded compatibility repair is tested and published, retry the existing V2 config publication through `createP3PolicyPublicationRepository(...).publishConfigRelease(...)`, then rerun the fresh live device → V2 Bootstrap → refresh → revoke/invalidation acceptance flow.
