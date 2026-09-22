@@ -558,7 +558,7 @@ M4B2_ZERO_ANCHOR_REGISTRY_ENTITIES = 2
 M4B2_BOOTSTRAP_URLS = 4
 M4B2_TOTAL_EXECUTION_SEED_ROWS = 47
 M4B2_PREPARATION = COMPLETE
-M4B2_WORK_START_ALLOWED = false pending remote readback
+M4B2_WORK_START_ALLOWED = true
 M4Q_REQUIRED_BEFORE_M4C = true
 M4C_ALLOWED = false
 ```
@@ -570,4 +570,32 @@ Prepared authorities:
 - M4B2_WORK_PROMPT_2026-09-22_R1.md
 
 CURRENT_CURSOR:
-M4 CURRENT -> M4B1 ACCEPTED -> M4B2 PREPARED / REMOTE READBACK REQUIRED -> M4B2 WORK -> MAIN CHAT RETURN QA -> M4Q -> M4C.
+M4 CURRENT -> M4B1 ACCEPTED -> M4B2 R1 AUTHORIZED / WORK MAY START -> M4B2 WORK -> MAIN CHAT RETURN QA -> M4Q -> M4C.
+
+
+## 2026-09-22 — M4B2 R1 release remote-readback PASS
+
+Preparation commit:
+`68809be4823688ac855486c0985cea23c04cfd05`
+
+Independent remote readback confirmed:
+
+- authority manifest = 47 rows;
+- unique authorized entities = 15;
+- accepted page-candidate anchors = 43;
+- zero-anchor bootstrap URLs = 4;
+- zero-anchor entities = REG032 Reg + REG033 Rutube;
+- editorial anchors = 32;
+- native-baseline anchors = 8;
+- aggregator anchors = 3;
+- gate/release/prompt/staging/progress readback = PASS.
+
+```text
+M4B2_R1_RELEASE_READBACK = PASS
+M4B2_WORK_START_ALLOWED = true
+M4Q_REQUIRED_BEFORE_M4C = true
+M4C_ALLOWED = false
+```
+
+CURRENT_CURSOR:
+M4 CURRENT -> M4B1 ACCEPTED -> OWNER RELAYS M4B2 R1 WORK PROMPT -> WORK EXECUTES 15-ENTITY/47-SEED BOUNDED UNIT -> OWNER UPLOAD -> MAIN CHAT RETURN QA -> M4Q -> M4C.
