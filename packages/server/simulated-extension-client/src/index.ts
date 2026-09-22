@@ -4,13 +4,19 @@ import {
   RefreshResponseV1Schema,
   ApiErrorEnvelopeV1Schema,
   BootstrapRequestV1Schema,
+  BootstrapRequestV2Schema,
   SignedBootstrapEnvelopeV1Schema,
+  SignedBootstrapEnvelopeV2Schema,
   type BootstrapRequestV1,
+  type BootstrapRequestV2,
   type BootstrapSnapshotPayloadV1,
+  type BootstrapSnapshotPayloadV2,
   type SignedBootstrapEnvelopeV1,
+  type SignedBootstrapEnvelopeV2,
 } from "@product/contracts";
 import {
   verifyBootstrapEnvelope,
+  verifyBootstrapEnvelopeV2,
   type BootstrapVerificationFailure,
 } from "@product/remote-config";
 import type { KeyObject } from "node:crypto";
@@ -60,7 +66,7 @@ type Credentials = {
   refreshToken: string;
   refreshTokenExpiresAt: string;
 };
-export type BootstrapResult =
+export type BootstrapResultV1 =
   | {
       kind: "VERIFIED";
       payload: BootstrapSnapshotPayloadV1;
@@ -68,6 +74,15 @@ export type BootstrapResult =
     }
   | { kind: "HTTP_ERROR"; status: number; code: string }
   | { kind: "VERIFICATION_FAILURE"; error: BootstrapVerificationFailure };
+export type BootstrapResultV2 =
+  | {
+      kind: "VERIFIED";
+      payload: BootstrapSnapshotPayloadV2;
+      envelope: SignedBootstrapEnvelopeV2;
+    }
+  | { kind: "HTTP_ERROR"; status: number; code: string }
+  | { kind: "VERIFICATION_FAILURE"; error: BootstrapVerificationFailure };
+export type BootstrapResult = BootstrapResultV1 | BootstrapResultV2;
 export type BootstrapPolicyUnavailableReason =
   | "NOT_AUTHORIZED"
   | "CACHE_INVALID"
@@ -290,13 +305,27 @@ export class SimulatedExtensionClient {
 
   async bootstrap(
     input: Omit<BootstrapRequestV1, "deviceId">,
+  ): Promise<BootstrapResultV1>;
+  async bootstrap(
+    input: Omit<BootstrapRequestV2, "deviceId">,
+  ): Promise<BootstrapResultV2>;
+  async bootstrap(
+    input:
+      | Omit<BootstrapRequestV1, "deviceId">
+      | Omit<BootstrapRequestV2, "deviceId">,
   ): Promise<BootstrapResult> {
     if (!this.credentials)
       return { kind: "HTTP_ERROR", status: 401, code: "UNAUTHORIZED" };
-    const request = BootstrapRequestV1Schema.parse({
-      ...input,
-      deviceId: this.credentials.deviceId,
-    });
+    const request =
+      input.contractVersion === "control_plane_v2"
+        ? BootstrapRequestV2Schema.parse({
+            ...input,
+            deviceId: this.credentials.deviceId,
+          })
+        : BootstrapRequestV1Schema.parse({
+            ...input,
+            deviceId: this.credentials.deviceId,
+          });
     const response = await this.fetcher(
       `${this.controlPlaneApiOrigin}/v1/bootstrap`,
       {
@@ -327,6 +356,22 @@ export class SimulatedExtensionClient {
         status: response.status,
         code: error.success ? error.data.error.code : "HTTP_ERROR",
       };
+    }
+    if (request.contractVersion === "control_plane_v2") {
+      const envelope = SignedBootstrapEnvelopeV2Schema.safeParse(body);
+      if (!envelope.success)
+        return { kind: "VERIFICATION_FAILURE", error: "INVALID_ENVELOPE" };
+      const verified = verifyBootstrapEnvelopeV2(
+        envelope.data,
+        this.trustedConfigSigningKeys,
+      );
+      return verified.ok
+        ? {
+            kind: "VERIFIED",
+            payload: verified.payload,
+            envelope: envelope.data,
+          }
+        : { kind: "VERIFICATION_FAILURE", error: verified.error };
     }
     const envelope = SignedBootstrapEnvelopeV1Schema.safeParse(body);
     if (!envelope.success)
