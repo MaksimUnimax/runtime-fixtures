@@ -84,56 +84,55 @@ I1 is not accepted until the rerun proves:
 - no secrets persisted.
 
 
-## Production publication blocker discovered — legacy signing-key reason code
+## Production signing-history anomaly — forensic gate before any repair
 
-The first production `control_plane_v2` config publication attempt did not mutate production state.
+The first production `control_plane_v2` config publication attempt rolled back after the current parser encountered a persisted signing-key event with:
 
-Observed safe result:
+`reason_code = PREPROD_CATALOG_REPAIR`
 
-- active production signing key exists and is bound correctly;
-- no V2 config release existed;
-- publication entered the normal repository transaction;
-- publication failed while reading the existing signing-key lifecycle;
-- transaction rolled back;
-- no config release and no publication audit were created.
+This value does not satisfy the current lowercase `StableMachineIdentifierV1Schema`.
 
-The exact persisted legacy value that caused current-schema parsing to fail is:
+### Important correction
 
-`PREPROD_CATALOG_REPAIR`
+Do **not** add a parser exception or any other compatibility workaround yet.
 
-Current `StableMachineIdentifierV1Schema` accepts only lowercase machine identifiers. The signing-key event table is append-only and protected by an immutable UPDATE/DELETE trigger, so direct SQL correction of historical event data is forbidden.
+The architect must first establish provenance and root cause for this production row.
 
-### Architect decision
+Unknowns that must be resolved before code or data repair:
 
-Do not mutate, delete, or rewrite the historical signing-key event.
+- exact event type;
+- exact key affected;
+- creation timestamp;
+- correlation with `audit_events`;
+- actor type / actor identity where available;
+- whether the row came from the accepted publication repository, an operational repair script, restore/import, or direct SQL;
+- whether this is the only malformed persisted signing-key event;
+- whether the malformed row is semantically required for the current active key lifecycle.
 
-Do not relax new signing-key mutation commands to accept arbitrary uppercase reason codes.
+The database schema historically did not place a lexical CHECK constraint on `signing_key_events.reason_code`, so an out-of-band writer could have persisted an uppercase value even though current application command schemas reject it. This fact alone does not identify the writer.
 
-The safe repair is a backward-compatible **read-side legacy exception** only after a production read-only inventory proves that the only invalid persisted reason code is the known historical value `PREPROD_CATALOG_REPAIR`.
+### Required next step
 
-Required behavior:
+Run a read-only forensic provenance pass. No mutation.
 
-- new signing-key reason commands remain constrained by `StableMachineIdentifierV1Schema`;
-- persisted event parsing additionally accepts the exact legacy literal `PREPROD_CATALOG_REPAIR`;
-- signing-key lifecycle semantics remain unchanged because lifecycle evaluation depends on key/event/time ordering, not reason-code spelling;
-- any other invalid persisted reason code is a stop condition requiring architect review;
-- historical rows remain immutable.
+The pass must:
 
-After that bounded compatibility repair is tested and published, retry the existing V2 config publication through `createP3PolicyPublicationRepository(...).publishConfigRelease(...)`, then rerun the fresh live device → V2 Bootstrap → refresh → revoke/invalidation acceptance flow.
+1. inventory every signing-key event with a non-null reason code;
+2. identify every value that fails the current machine-identifier grammar;
+3. locate the exact `PREPROD_CATALOG_REPAIR` row and its event type / creation time;
+4. correlate nearby and same-correlation `audit_events`;
+5. inspect safe operational/deployment history for the same timestamp / reason text;
+6. determine whether the row was produced by accepted code, one-off repair tooling, restore/import, or direct DB mutation;
+7. return a root-cause classification before any fix is designed.
 
+### Prohibited until provenance is known
 
-### Deployment requirement for the legacy-reason compatibility repair
+- no UPDATE/DELETE of signing-key history;
+- no parser exception;
+- no migration to normalize the value;
+- no direct SQL repair;
+- no new signing-key lifecycle event to mask the old one;
+- no V2 config publication retry.
 
-The read-side compatibility repair must be deployed to the production API before the V2 live Bootstrap rerun.
+Only after root cause is established may the architect choose the actual repair.
 
-Reason: `createConfigSigningService(...)` reads `listSigningKeyEvents(keyId)` again for every V1/V2 signing operation and resolves lifecycle before signing. Therefore fixing only the one-shot publication harness is insufficient: without the same read-side parser compatibility in the deployed API, V2 Bootstrap would still fail at signing time on the same immutable historical `PREPROD_CATALOG_REPAIR` event.
-
-Required sequence is therefore:
-
-1. production read-only inventory of invalid persisted reason codes;
-2. bounded parser compatibility fix for the exact known legacy literal only;
-3. regression;
-4. deploy/restart production API with that fix;
-5. health/readiness PASS;
-6. publish the first V2 config through the normal publication repository;
-7. run fresh live device → signed V2 Bootstrap → refresh → revoke/invalidation.
