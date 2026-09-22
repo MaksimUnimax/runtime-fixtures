@@ -186,15 +186,15 @@ Process the complete bounded 45-entity execution unit in Work.
 
 ## 9. Required outputs — exactly 9
 
-1. `M4B1R3R1_SOURCE_MANIFEST.md`
-2. `M4B1R3R1_DISCOVERY_CHANNEL_COVERAGE.tsv`
-3. `M4B1R3R1_URL_OVERLAY.tsv`
-4. `M4B1R3R1_PAGE_EVIDENCE_OVERLAY.tsv`
-5. `M4B1R3R1_CANDIDATE_TERMS_OVERLAY.tsv`
-6. `M4B1R3R1_ENTITY_SYNTHESIS_CURRENT.tsv`
-7. `M4B1R3R1_FRONTIER_RECONCILIATION.tsv`
-8. `M4B1R3R1_QA.md`
-9. `M4B1R3R1_RETURN_MANIFEST.json`
+1. `M4B1R3_SOURCE_MANIFEST.md`
+2. `M4B1R3_DISCOVERY_CHANNEL_COVERAGE.tsv`
+3. `M4B1R3_URL_OVERLAY.tsv`
+4. `M4B1R3_PAGE_EVIDENCE_OVERLAY.tsv`
+5. `M4B1R3_CANDIDATE_TERMS_OVERLAY.tsv`
+6. `M4B1R3_ENTITY_SYNTHESIS_CURRENT.tsv`
+7. `M4B1R3_FRONTIER_RECONCILIATION.tsv`
+8. `M4B1R3_QA.md`
+9. `M4B1R3_RETURN_MANIFEST.json`
 
 The return manifest must contain SHA-256 for the other eight files and exact byte/row counts.
 
@@ -241,10 +241,10 @@ After owner upload Main Chat must:
 
 1. verify all 9 files and hashes;
 2. remote-read back the return;
-3. compare current R3R1 against the historical R3 aggregate authority carried by R4/R5;
+3. compare current R3 against the historical R3 aggregate authority carried by R4/R5;
 4. classify downstream impact;
 5. only then either:
-   - accept R3R1 as recovery evidence and resume M4C; or
+   - accept the reacquired R3 as recovery evidence and resume M4C; or
    - reopen only affected R4/R5 dependency slices.
 
 ## 12. Handoff
@@ -266,4 +266,4 @@ A conversation URL is not a ZIP link.
 
 Owner will upload the 9 unpacked files to:
 
-`docs/seo/serp/competitors/work_return/M4B1_R3_REACQUISITION_2026-09-22_R1/`
+`docs/seo/serp/competitors/work_return/M4B1_COVERAGE_CLOSURE_2026-09-18_R3/`
