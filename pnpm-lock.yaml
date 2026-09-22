@@ -190,6 +190,28 @@ importers:
         specifier: 8.5.0
         version: 8.5.0(postcss@8.5.18)(tsx@4.20.5)(typescript@5.9.2)(yaml@2.9.0)
 
+  apps/telegram-operator:
+    dependencies:
+      '@product/db':
+        specifier: workspace:*
+        version: link:../../packages/server/db
+      '@product/health-runner':
+        specifier: workspace:*
+        version: link:../health-runner
+      '@product/monitoring-control':
+        specifier: workspace:*
+        version: link:../../packages/server/monitoring-control
+      '@product/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+      tsx:
+        specifier: 4.20.5
+        version: 4.20.5
+    devDependencies:
+      tsup:
+        specifier: 8.5.0
+        version: 8.5.0(postcss@8.5.18)(tsx@4.20.5)(typescript@5.9.2)(yaml@2.9.0)
+
   apps/portal:
     dependencies:
       next:
@@ -576,6 +598,16 @@ importers:
       zod:
         specifier: 4.1.5
         version: 4.1.5
+
+  packages/server/monitoring-control:
+    dependencies:
+      zod:
+        specifier: 4.1.5
+        version: 4.1.5
+    devDependencies:
+      '@types/node':
+        specifier: 24.3.0
+        version: 24.3.0
 
   packages/server/observability:
     dependencies:

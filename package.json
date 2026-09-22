@@ -14,12 +14,12 @@
     }
   },
   "scripts": {
-    "lint": "eslint apps/api apps/portal apps/admin apps/worker apps/health-runner packages/server packages/contracts packages/shared tooling/server tests/integration/server tests/e2e/server --max-warnings=0 && pnpm bridge:guard",
+    "lint": "eslint apps/api apps/portal apps/admin apps/worker apps/health-runner apps/telegram-operator packages/server packages/contracts packages/shared tooling/server tests/integration/server tests/e2e/server --max-warnings=0 && pnpm bridge:guard",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test && pnpm bridge:guard",
     "test:integration": "vitest run --config tests/integration/server/vitest.config.ts",
     "test:e2e": "PRODUCT_CONTROL_PLANE_E2E=1 playwright test --config tests/e2e/server/playwright.config.ts",
-    "build": "pnpm --filter @product/api build && pnpm --filter @product/worker build && pnpm --filter @product/health-runner build && pnpm --filter @product/portal build && pnpm --filter @product/admin build",
+    "build": "pnpm --filter @product/api build && pnpm --filter @product/worker build && pnpm --filter @product/health-runner build && pnpm --filter @product/telegram-operator build && pnpm --filter @product/portal build && pnpm --filter @product/admin build",
     "db:generate": "pnpm --filter @product/db db:generate",
     "db:migrate": "pnpm --filter @product/db db:migrate",
     "api:dev": "pnpm --filter @product/api dev",

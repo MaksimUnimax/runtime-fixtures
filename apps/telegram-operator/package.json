@@ -1,0 +1,22 @@
+{
+  "name": "@product/telegram-operator",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "build": "tsup src/main.ts --format esm --target node24 --clean"
+  },
+  "dependencies": {
+    "@product/db": "workspace:*",
+    "@product/health-runner": "workspace:*",
+    "@product/monitoring-control": "workspace:*",
+    "@product/shared": "workspace:*",
+    "tsx": "4.20.5"
+  },
+  "devDependencies": {
+    "tsup": "8.5.0"
+  }
+}
