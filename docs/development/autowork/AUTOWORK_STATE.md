@@ -713,3 +713,151 @@ R11 production Telegram token/admin identity remains
 
 Next roadmap selection must reconstruct the highest-value executable unfinished
 work without reopening this accepted repair unless new evidence appears.
+
+
+## R5 ACCEPTANCE EVIDENCE SUPERSEDING SUPPLEMENT — 2026-09-22
+
+STATUS = ACCEPTED
+SUPERSEDES_EVIDENCE_ONLY = R5 WORK-START / COMPOSER-READINESS ACCEPTANCE
+REMOTE_PUBLICATION = ENVIRONMENT_DEFERRED
+
+This supplement does not reopen the accepted R5 composer-readiness repair.
+It corrects and strengthens the evidence record after a clean isolated rebuild.
+
+### Canonical accepted product behavior
+
+The accepted product/harness candidate remains local commit:
+
+`a3a1209d925144f9ea526ec312d94bce53c80431`
+
+on branch:
+
+`work/stream1-q1c-live-smtp-otp-2026-09-22`.
+
+The accepted semantics remain:
+
+- bounded pre-send composer readiness;
+- fail closed with `COMPOSER_NOT_FOUND`;
+- no Opera/browser-specific wait;
+- no retry after irreversible send;
+- deterministic exact Playwright page↔tab binding in the browser harness.
+
+### Stronger clean-isolation evidence
+
+To avoid contamination by a separate dirty browser-family candidate, acceptance was
+repeated from a clean worktree rooted at `a3a1209...`:
+
+- worktree:
+  `/root/runtime-fixtures-r5-composer-isolated-20260922`;
+- branch:
+  `work/r5-composer-readiness-isolated-2026-09-22`.
+
+Fresh composed package:
+
+- name:
+  `SELLER_AGENTS_I1_C1_v0.2.4_LOCAL_DEVELOPMENT.zip`;
+- SHA-256:
+  `ab948e0825a7f89be9a137796bd96e72694a933dba2faace6db144bad07ea076`;
+- repeat archive identity: PASS;
+- source↔extracted byte identity: PASS.
+
+Focused installed/browser evidence:
+
+- BR-C1-37/38 Playwright Chromium source+extracted: 4/4 PASS;
+- BR-C1-37/38 real Opera 136 source+extracted: 4/4 PASS.
+
+Affected regression on the fresh isolated package:
+
+- full C1 source: 38/38 PASS;
+- full C1 extracted: 38/38 PASS;
+- P1 provider outcome/replay source+extracted: PASS;
+- C2 offline/restart source: 5/5 PASS;
+- C2 offline/restart extracted: 5/5 PASS;
+- broad browser-application source: PASS;
+- broad browser-application extracted: PASS;
+- final `tooling/checks/extension_i1.py`:
+  `stage=I1-C1 status=PASS gate_processes=140`;
+- final Node runtime: `v24.20.0`;
+- `git diff --check`: PASS.
+
+The first isolated wide-gate failure was environmental only: the worktree had no
+installed `tsx`. A frozen offline install using the declared lockfile and Node 24
+restored the declared development environment; no product code was changed.
+
+### Frozen imported regression provenance correction
+
+The previously unknown dirty imported regression was proven against the frozen
+import manifest.
+
+Path:
+
+`tests/regression/imported/ozon-v0.1.22/validation/regression/run_direct_binary_provider_attachment_gate.mjs`
+
+Authoritative frozen git blob:
+
+`a3279b8d5f6de243a4c60a7cbcbe3958fd19d04a`
+
+The dirty/live variant matched that exact blob. The committed mutation introduced
+by `d5ba502f5098a48411372a261b81debf705d4de1` did not.
+
+A forward-only integrity correction was committed in the isolated branch:
+
+`7a2e7a79d29023290eb5f35d37adc26242e3aaba`
+
+This correction restores frozen donor identity and changes no product behavior.
+
+### Remote publication state
+
+A normal non-force HTTPS push of the isolated branch stalled in Git transport
+without completing authentication and was terminated rather than retried
+unchanged.
+
+Current GitHub authority does not yet resolve:
+
+- `a3a1209d925144f9ea526ec312d94bce53c80431`;
+- `7a2e7a79d29023290eb5f35d37adc26242e3aaba`;
+- branch `work/r5-composer-readiness-isolated-2026-09-22`.
+
+Therefore publication remains:
+
+`ENVIRONMENT_DEFERRED_REMOTE_PUBLICATION`.
+
+Local accepted commits and evidence are preserved.
+
+### Separate active browser-family candidate
+
+The original worktree is now intentionally treated as a separate unfinished R5
+candidate and must not be mixed with the accepted composer-readiness verdict.
+
+Current original worktree:
+
+- path: `/root/runtime-fixtures-s1-q1c-live`;
+- branch: `work/stream1-q1c-live-smtp-otp-2026-09-22`;
+- HEAD: `a3a1209d925144f9ea526ec312d94bce53c80431`.
+
+It contains a broad dirty browser-family expansion touching server, contracts,
+control-client, health-runner, admin, browser acceptance and migration surfaces,
+including new browser-family tests/module and migration `0033`.
+
+This browser-family candidate is:
+
+`IMPLEMENTED_CANDIDATE / NOT_ACCEPTED`
+
+until its own three-level ownership analysis and complete regression/installed
+browser evidence are completed.
+
+Do not reset, clean, fold into composer-readiness acceptance, or claim it accepted.
+
+### Next dependency-correct work
+
+Continue R5 with the separate browser-family candidate:
+
+1. reconstruct its intended contract and provenance;
+2. review complete diff/failure batch;
+3. perform three-level dependency analysis;
+4. run focused contract/migration/control-client checks;
+5. run affected server/integration regression;
+6. run installed browser evidence only for claims that the candidate actually owns;
+7. accept/rework independently;
+8. keep owner-deferred R3 device approval and owner-external R11 Telegram provisioning
+   skipped while executable work remains.
