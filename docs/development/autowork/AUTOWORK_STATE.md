@@ -568,3 +568,148 @@ and commit `77918a1ea5f8cd764bf6abe94b8dfb0ad61f7fd3` were remotely pushed, beca
 GitHub lookups do not resolve that branch or commit.
 
 Exact R5 safe-resume sequence from the prior checkpoint remains unchanged once RDC returns.
+
+
+## R5 WORK-START / COMPOSER-READINESS ACCEPTANCE — 2026-09-22
+
+STATUS = ACCEPTED
+
+OWNER_STOP = NOT_ACTIVE
+
+### Accepted revision
+
+Live engineering branch:
+
+- `work/stream1-q1c-live-smtp-otp-2026-09-22`
+- accepted local commit:
+  `a3a1209d925144f9ea526ec312d94bce53c80431`
+- tree:
+  `113220d62a1d847a348bfa46b06d83e6a013bddf`
+
+Accepted change:
+
+- Work Start waits boundedly for a real current composer context before reading,
+  staging, durable send commit, or click;
+- timeout remains bounded at 8000 ms and fails closed with
+  `COMPOSER_NOT_FOUND`;
+- no automatic retry was added after irreversible Send;
+- no Opera-specific sleep/branch was added;
+- browser acceptance harness now binds popup actions to the exact Playwright
+  page rather than the first URL-matching restored tab;
+- APP-05 admission regression now asserts zero delivery while the provider is
+  still deliberately held, not after release when valid completion may race.
+
+### Root causes closed
+
+1. Generic product gap:
+   a normal delayed composer could make Start fail immediately before the page
+   finished becoming usable.
+2. Opera-focused false failure:
+   persistent Opera restored an older ChatGPT tab; the harness selected
+   `chrome.tabs.query(...)[0]` while Playwright mutated a different current
+   fixture page. Classification:
+   `HARNESS_DEFECT / TEST_TAB_IDENTITY_DEFECT`.
+3. Wide-regression timing flake:
+   APP-05 checked for zero delivery after provider release, when valid original
+   batch completion was already permitted. Classification:
+   `HARNESS_DEFECT / TEST_PHASE_RACE`.
+4. C3H AUT-47 first wide-run failure:
+   required browser-proof evidence flag was omitted even though the exact
+   unpacked package had already passed installed Chromium C1. No product change
+   was required.
+
+### Acceptance evidence
+
+Exact product package:
+
+- SHA-256:
+  `678af0b21d3921a439b86c82e5b286f70ff3c2872e128083d8920bbd657b2417`;
+- deterministic rebuild: exact archive match;
+- source/extracted inventory: 39/39;
+- source↔extracted byte identity: PASS;
+- rebuilt runtime contains the composer-readiness wait in source and extracted.
+
+Focused readiness:
+
+- Playwright Chromium 151.0.7922.34:
+  BR-C1-37 + BR-C1-38 source/extracted = 4/4 PASS;
+- real Opera 136.0.6008.22:
+  BR-C1-37 + BR-C1-38 source/extracted = 4/4 PASS.
+
+Affected regression:
+
+- full C1 Playwright Chromium:
+  38 source + 38 extracted = 76/76 PASS;
+- P1 provider outcome/replay:
+  12 source + 12 extracted = 24/24 PASS;
+- offline continuation/restart:
+  5 source + 5 extracted = 10/10 PASS;
+- browser application:
+  source PASS + extracted PASS;
+- Extension I1 wider gate:
+  140 gate processes PASS with the already-proven
+  `C3H_BROWSER_PROOF=REAL_UNPACKED_CHROMIUM_PASS` evidence prerequisite;
+- final JSON/Python/Node syntax checks: PASS;
+- `git diff --check`: PASS.
+
+An additional full-Opera C1 sweep was started only as a stronger optional check.
+It produced 15 consecutive source PASS cases before being deliberately stopped
+because every matrix case restarts persistent Opera and the repeated browser
+startup dominated the run. It was not stopped because of a product/test
+failure. The required focused Opera source/extracted proof had already passed.
+
+### Three-level acceptance proof
+
+LEVEL 1 — Work Start send path / browser fixture:
+composer readiness is owned by the content script that can observe the actual
+DOM immediately before staging/send. Test page↔tab identity is owned by the
+browser harness. No browser special case or post-click retry was introduced.
+
+LEVEL 2 — Work lifecycle / installed acceptance:
+admission and signed authority may complete before the AI composer is usable;
+the send path therefore performs a bounded pre-send readiness wait. Installed
+evidence is valid only when the harness targets the exact page under test.
+
+LEVEL 3 — product invariant:
+Start must either send the startup prompt exactly once into the intended
+dialogue/store context or fail closed. Ordinary Work remains local/autonomous,
+provider UNKNOWN is not replayed, Health is not a Work heartbeat, and browser
+support is not inferred from another browser.
+
+### Git/publication state
+
+Remote branch `origin/work/stream1-q1c-live-smtp-otp-2026-09-22` is at
+`134a74ad71b6b80f14215c4c0164d39169a5322d`.
+
+The remote revision is a direct ancestor of accepted local `a3a1209`:
+
+- behind remote: 0;
+- local commits ahead: 5;
+- merge base: `134a74ad71b6b80f14215c4c0164d39169a5322d`.
+
+A single normal non-force push was attempted after proving fast-forward lineage,
+but the HTTPS transport hung without completing authentication. The attempt was
+terminated and must not be repeated unchanged. Remote publication therefore
+remains `ENVIRONMENT_DEFERRED_REMOTE_PUBLICATION`.
+
+### Preserved unrelated dirty state
+
+After the accepted commit, the only remaining dirty file is:
+
+`tests/regression/imported/ozon-v0.1.22/validation/regression/run_direct_binary_provider_attachment_gate.mjs`
+
+Its pre-existing/unknown provenance remains unresolved. It was not staged,
+committed, reset, cleaned, or modified by this accepted repair.
+
+### Roadmap position after acceptance
+
+R5 Work Start/composer-readiness defect is closed.
+
+R3 final owner-controlled live device approval/revoke remains
+`OWNER_DEFERRED_TEST`.
+
+R11 production Telegram token/admin identity remains
+`OWNER_EXTERNAL_ACTION_DEFERRED`.
+
+Next roadmap selection must reconstruct the highest-value executable unfinished
+work without reopening this accepted repair unless new evidence appears.
