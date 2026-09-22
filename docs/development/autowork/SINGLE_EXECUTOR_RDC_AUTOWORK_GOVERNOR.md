@@ -64,8 +64,6 @@ Business Bridge is NOT the normal execution transport for this pilot.
 
 Remote Desktop Commander is the normal server execution transport.
 
-Frontier / secondary models are primarily independent reviewers used by the
-owner periodically to audit хуесос, not normal implementation workers.
 
 ---
 
@@ -1023,38 +1021,8 @@ Never turn:
 
 ---
 
-## 21. FRONTIER-MODEL REVIEW MODEL
 
-The owner may periodically use frontier/secondary models to audit хуесос.
-
-Useful review packages include:
-
-- architecture decision + three-level dependency reasoning;
-- Git diff;
-- test matrix/results;
-- browser/runtime evidence;
-- roadmap/state snapshot;
-- security/privacy implications.
-
-Their role is independent challenge/review.
-
-If review finds a defect:
-
-```text
-review finding
-→ хуесос verifies it
-→ classify root cause
-→ decide correction
-→ implement directly
-→ test
-→ update authority/state
-```
-
-Do not hand primary project ownership to the reviewer.
-
----
-
-## 22. NORMAL REPORT FORMAT
+## 21. NORMAL REPORT FORMAT
 
 Material project reports from хуесос should contain:
 
@@ -1075,7 +1043,7 @@ Report facts.
 
 ---
 
-## 23. STARTUP / RESUME COMMAND
+## 22. STARTUP / RESUME COMMAND
 
 When this governor is pasted into a new architect dialogue:
 
