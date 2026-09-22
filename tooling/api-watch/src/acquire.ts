@@ -25,6 +25,7 @@ function failure(
   >,
   blockerReason: string,
   httpStatus?: number,
+  retryAfterSeconds?: number | null,
 ): AcquisitionOutcome {
   return {
     kind,
@@ -32,6 +33,7 @@ function failure(
     officialUrl: entry.officialUrl,
     blockerReason,
     ...(httpStatus === undefined ? {} : { httpStatus }),
+    ...(retryAfterSeconds === undefined ? {} : { retryAfterSeconds }),
   };
 }
 
@@ -179,11 +181,14 @@ export async function acquireOfficialSource(input: {
     );
   }
   if (response.status === 429 || response.status >= 500) {
+    const retryAfter = response.headers.get("retry-after");
+    const parsedRetryAfter = retryAfter && /^\d+(?:\.\d+)?$/.test(retryAfter.trim()) ? Number(retryAfter) : null;
     return failure(
       entry,
       "SOURCE_TEMPORARILY_UNAVAILABLE",
       "Official source returned a transient response.",
       response.status,
+      parsedRetryAfter,
     );
   }
   if (!response.ok)

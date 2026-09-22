@@ -71,6 +71,10 @@ export class IndependentMonitoringScheduler {
     );
   }
 
+  async scheduleEarlier(lane: MonitoringLane, retryAt: Date): Promise<MonitoringLaneState> {
+    return this.options.store.scheduleEarlier(lane, retryAt, this.clock.now());
+  }
+
   async runNow(lane: MonitoringLane): Promise<MonitoringRunAcknowledgement> {
     return this.begin(lane, "FORCED");
   }

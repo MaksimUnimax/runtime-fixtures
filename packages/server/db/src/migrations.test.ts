@@ -134,4 +134,11 @@ describe("Stream-2 migration receipts", () => {
     expect(sql).toContain('CREATE TABLE "api_watch_incidents"');
     expect(journal.entries.find((entry) => entry.tag === "0029_s2_api_watch_incidents")?.tag).toBe("0029_s2_api_watch_incidents");
   });
+
+  it("receipts the forward-only A9 retry migration", async () => {
+    const sql = await readFile(join(migrationsFolder, "0030_s2_api_watch_retry_state.sql"), "utf8");
+    const journal = JSON.parse(await readFile(join(migrationsFolder, "meta", "_journal.json"), "utf8")) as { entries: Array<{ tag: string }> };
+    expect(sql).toContain('CREATE TABLE "api_watch_retry_state"');
+    expect(journal.entries.find((entry) => entry.tag === "0030_s2_api_watch_retry_state")?.tag).toBe("0030_s2_api_watch_retry_state");
+  });
 });

@@ -7,6 +7,8 @@ import { diffInventories } from "./diff.js";
 import { classifyApiImpact } from "./impact.js";
 import { promoteAcceptedSnapshot, readAcceptedSnapshot } from "./snapshot.js";
 import { buildCompleteOperationInventory } from "./inventory.js";
+import { evaluateApiWatchIncidents } from "./incident.js";
+import { applyRetryDecision } from "./retry.js";
 import type {
   ApiWatchDependencies,
   ApiWatchReportSourceOutcome,
@@ -367,6 +369,23 @@ export async function runApiWatchReport(input: {
       sources,
       counts: reportCounts(sources),
     });
+    const completedReport = await reportStore.getReport(report.reportId);
+    if (completedReport && dependencies.incidentStore)
+      await evaluateApiWatchIncidents({
+        report: completedReport,
+        store: dependencies.incidentStore,
+        notifier: dependencies.incidentNotifier,
+        now: currentTime(dependencies),
+      });
+    if (dependencies.retryStore)
+      for (const outcome of pass.outcomes)
+        await applyRetryDecision({
+          sourceFamily: outcome.sourceFamily,
+          outcome,
+          store: dependencies.retryStore,
+          scheduleEarlier: dependencies.scheduleEarlier,
+          now: currentTime(dependencies),
+        });
     return reportResult(state);
   } catch {
     await reportStore.transitionReport({

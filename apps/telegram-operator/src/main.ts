@@ -3,6 +3,8 @@ import {
   createApiWatchRunner,
   createPostgresApiWatchStore,
   createPostgresApiWatchReportStore,
+  createPostgresApiWatchIncidentStore,
+  createPostgresApiWatchRetryStore,
   productionSourceRegistry,
 } from "@product/api-watch";
 import {
@@ -45,11 +47,17 @@ const swaggerHandoff = createSwaggerHandoffService({
 const serviceRef: { current: TelegramOperatorService | undefined } = {
   current: undefined,
 };
+const retrySchedulerRef: { current: IndependentMonitoringScheduler | undefined } = { current: undefined };
+const incidentStore = createPostgresApiWatchIncidentStore(database);
 const apiWatchRunner = createApiWatchRunner({
   registry: productionSourceRegistry,
   store: createPostgresApiWatchStore(database),
   pendingStore: createPostgresSwaggerSourceStore(database),
   reportStore: createPostgresApiWatchReportStore(database),
+  incidentStore,
+  incidentNotifier: async (event) => serviceRef.current?.notifyIncident(event),
+  retryStore: createPostgresApiWatchRetryStore(database),
+  scheduleEarlier: async (retryAt) => { await retrySchedulerRef.current?.scheduleEarlier("SWAGGER_API", retryAt); },
   quarantineDir: swaggerQuarantineDir,
 });
 const scheduler = new IndependentMonitoringScheduler({
@@ -62,12 +70,14 @@ const scheduler = new IndependentMonitoringScheduler({
     SWAGGER_API: apiWatchRunner,
   },
 });
+retrySchedulerRef.current = scheduler;
 const service = new TelegramOperatorService({
   transport,
   operatorIds,
   notificationChatIds,
   scheduler,
   swaggerHandoff,
+  incidentStore,
 });
 serviceRef.current = service;
 

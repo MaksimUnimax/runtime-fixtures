@@ -197,6 +197,13 @@
       "when": 1790035700000,
       "tag": "0029_s2_api_watch_incidents",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1790035800000,
+      "tag": "0030_s2_api_watch_retry_state",
+      "breakpoints": true
     }
   ]
 }
