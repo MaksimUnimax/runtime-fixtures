@@ -269,10 +269,26 @@ export async function evaluateApiWatchIncidents(input: {
     activeKeys.add(value.incidentKey);
   }
   if (input.report.state === "COMPLETED") {
+    const acceptedFamilies = new Set(
+      input.report.sources
+        .filter(
+          (source) =>
+            source.authorityStatus === "AUTHORITY_ACCEPTED" &&
+            source.snapshotSha256 !== null &&
+            source.blockerCode === null,
+        )
+        .map((source) => source.sourceFamily),
+    );
     for (const open of await input.store.listOpen()) {
       if (activeKeys.has(open.incidentKey)) continue;
       if (
+        open.incidentType === "SOURCE_AUTHORITY_BLOCKED" &&
+        (open.sourceFamily === null || !acceptedFamilies.has(open.sourceFamily))
+      )
+        continue;
+      if (
         open.incidentType === "WATCH_RUN_FAILED" ||
+        open.incidentType === "SOURCE_AUTHORITY_BLOCKED" ||
         open.incidentType === "API_CHANGE_BLOCKING" ||
         open.incidentType === "API_CHANGE_REVIEW_REQUIRED" ||
         open.incidentType === "RUNTIME_OPERATION_STALE" ||
