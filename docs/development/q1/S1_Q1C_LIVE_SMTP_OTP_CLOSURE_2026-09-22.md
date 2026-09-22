@@ -212,3 +212,54 @@ No product or configuration change was made in this continuation. The
 temporary harnesses were untracked and removed after the safe readback. No
 credential, device code, token, cookie, OTP, private key, or message content
 was printed or persisted.
+
+## Signing-event contract and V2 production continuation — 2026-09-22
+
+Work ID: `S1_I1_SIGNING_EVENT_CONTRACT_V2_FINAL_2026-09-22_R1`
+
+The persisted signing-event compatibility repair was implemented in commit
+`a4864a4` and the executable catalog CLI/test follow-up was committed in
+`c99a5a0`. New command reason codes remain strict lowercase machine
+identifiers. Historical `PREPROD_CATALOG_REPAIR` events remain readable and
+unchanged. Migration `0032_s1_signing_reason_contract_guard` was applied with
+the named reason-code check `NOT VALID`; no historical row was modified.
+
+The canonical signing-catalog bootstrap tool was added and uses the normal
+repository registration/activation methods. Production readback found the
+configured signer `ACTIVE`; the tool returned `ALREADY_HEALTHY` and performed
+no catalog mutation. The production API was restarted through the existing
+service path and `/health/live` and `/health/ready` returned 200.
+
+Exactly one V2 config release was published through the canonical publication
+repository with empty compatibility/feature source arrays:
+
+```text
+V2_CONFIG_PUBLISHED = YES
+CONFIG_VERSION = 1
+CONTRACT_VERSION = control_plane_v2
+SNAPSHOT_VERSION = bootstrap_snapshot_v2
+ENVELOPE_VERSION = bootstrap_envelope_v2
+CONFIG_RELEASE_AUDIT = PASS
+```
+
+The final live device continuation used owner package version `0.2.4` and
+started exactly one authorization for `Q1 Live Chrome V2 Final`. The owner did
+not approve before the authorization expired, so exchange returned `CLOSED`.
+No access or refresh credential was issued, and signed Bootstrap, refresh,
+revoke, and post-revoke credential checks were not reached. Safe production
+readback found zero active test devices and zero active test sessions.
+
+```text
+DEVICE_AUTH_START = PASS
+OWNER_APPROVAL = FAIL_TIMEOUT
+DEVICE_EXCHANGE = CLOSED
+BOOTSTRAP = NOT_REACHED
+REFRESH = NOT_REACHED
+REVOCATION = NOT_REACHED
+ACTIVE_TEST_DEVICE_COUNT_FINAL = 0
+ACTIVE_TEST_SESSION_COUNT_FINAL = 0
+```
+
+No secret, token, device code, cookie, private key, or private message data
+was printed or committed. Remote publication of the two implementation
+commits remained unavailable because GitHub credentials were not present.
