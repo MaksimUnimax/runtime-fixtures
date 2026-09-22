@@ -12,6 +12,11 @@ import type { ApiWatchStore } from "./types.js";
 import type { SwaggerSourceStore } from "@product/monitoring-control";
 import { promoteAcceptedSnapshot } from "./snapshot.js";
 import { buildCompleteOperationInventory } from "./inventory.js";
+import {
+  WB_BUNDLE_DOCUMENT_KEY,
+  WB_BUNDLE_OFFICIAL_URL,
+  WB_BUNDLE_VERSION,
+} from "./wb-bundle.js";
 
 export function canonicalFamilyManifest(input: {
   sourceFamily: "WILDBERRIES";
@@ -128,6 +133,7 @@ export async function runDocumentAuthorityPass(input: {
   const documents: SourceDocumentAuthority[] = [];
   const records: AuthorityRecord[] = [];
   const outcomes: Awaited<ReturnType<typeof acquireOfficialSource>>[] = [];
+  let wbBundleRequestCreated = false;
   for (const entry of input.registry.list()) {
     const configuredDocuments = entry.documents?.length
       ? entry.documents
@@ -151,28 +157,64 @@ export async function runDocumentAuthorityPass(input: {
         : fetchedOutcome;
       outcomes.push(outcome);
       if (outcome.kind === "OPERATOR_SOURCE_REQUIRED") {
-        const officialUrl = document?.officialUrl ?? entry.officialUrl;
-        if (officialUrl) {
-          const existing = await input.pendingStore.findOpenRequest(
-            entry.sourceFamily,
-            officialUrl,
-            now(),
-            document?.documentKey,
-          );
-          if (!existing)
-            await input.pendingStore.createRequest({
-              requestId: document
-                ? `${entry.sourceFamily}:${document.documentKey}`
-                : undefined,
-              sourceFamily: entry.sourceFamily,
-              documentKey: document?.documentKey,
+        if (entry.sourceFamily === "WILDBERRIES") {
+          if (!wbBundleRequestCreated) {
+            const pendingRequests = await input.pendingStore.listPending(now());
+            for (const pendingRequest of pendingRequests) {
+              if (
+                pendingRequest.sourceFamily === "WILDBERRIES" &&
+                pendingRequest.documentKey &&
+                pendingRequest.documentKey !== WB_BUNDLE_DOCUMENT_KEY
+              )
+                await input.pendingStore.setRequestStatus(
+                  pendingRequest.requestId,
+                  "CANCELLED",
+                );
+            }
+            const existing = await input.pendingStore.findOpenRequest(
+              "WILDBERRIES",
+              WB_BUNDLE_OFFICIAL_URL,
+              now(),
+              WB_BUNDLE_DOCUMENT_KEY,
+            );
+            if (!existing)
+              await input.pendingStore.createRequest({
+                requestId: "WILDBERRIES:WB_OPENAPI_BUNDLE",
+                sourceFamily: "WILDBERRIES",
+                documentKey: WB_BUNDLE_DOCUMENT_KEY,
+                bundleVersion: WB_BUNDLE_VERSION,
+                officialUrl: WB_BUNDLE_OFFICIAL_URL,
+                expectedArtifactType: "JSON",
+                createdAt: now(),
+                blockerReason:
+                  "One complete official Wildberries bundle is required after individual official documents require operator access.",
+              });
+            wbBundleRequestCreated = true;
+          }
+        } else {
+          const officialUrl = document?.officialUrl ?? entry.officialUrl;
+          if (officialUrl) {
+            const existing = await input.pendingStore.findOpenRequest(
+              entry.sourceFamily,
               officialUrl,
-              expectedArtifactType:
-                document?.expectedArtifactTypes.join(",") ??
-                entry.expectedArtifactTypes.join(","),
-              createdAt: now(),
-              blockerReason: outcome.blockerReason,
-            });
+              now(),
+              document?.documentKey,
+            );
+            if (!existing)
+              await input.pendingStore.createRequest({
+                requestId: document
+                  ? `${entry.sourceFamily}:${document.documentKey}`
+                  : undefined,
+                sourceFamily: entry.sourceFamily,
+                documentKey: document?.documentKey,
+                officialUrl,
+                expectedArtifactType:
+                  document?.expectedArtifactTypes.join(",") ??
+                  entry.expectedArtifactTypes.join(","),
+                createdAt: now(),
+                blockerReason: outcome.blockerReason,
+              });
+          }
         }
       }
       const accepted = outcome.kind === "ACQUIRED_OFFICIAL_SOURCE_CANDIDATE";

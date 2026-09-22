@@ -35,6 +35,7 @@ export type SwaggerSourceRequest = {
   sourceFamily: SwaggerSourceFamily;
   officialUrl: string;
   documentKey: string | null;
+  bundleVersion: string | null;
   expectedArtifactType: string;
   createdAt: Date;
   status: SwaggerSourceRequestStatus;
@@ -75,6 +76,15 @@ export type SwaggerUploadResult =
   | { kind: "DUPLICATE"; artifact: SwaggerArtifact }
   | { kind: "REJECTED"; code: string; quarantineFilename?: string };
 
+export type SwaggerUploadValidation =
+  | {
+      accepted: true;
+      parserResult: Record<string, unknown>;
+      validationResult: Record<string, unknown>;
+      detectedSpecVersion: string;
+    }
+  | { accepted: false; code: string };
+
 export type SwaggerHandoffService = {
   maxUploadBytes: number;
   listPending(): Promise<SwaggerSourceRequest[]>;
@@ -87,6 +97,7 @@ export interface SwaggerSourceStore {
     sourceFamily: SwaggerSourceFamily;
     officialUrl: string;
     documentKey?: string | null;
+    bundleVersion?: string | null;
     expectedArtifactType: string;
     createdAt?: Date;
     expiresAt?: Date | null;
@@ -154,6 +165,7 @@ export class InMemorySwaggerSourceStore implements SwaggerSourceStore {
       sourceFamily: SwaggerSourceFamilySchema.parse(input.sourceFamily),
       officialUrl: input.officialUrl,
       documentKey: input.documentKey ?? null,
+      bundleVersion: input.bundleVersion ?? null,
       expectedArtifactType: input.expectedArtifactType,
       createdAt: new Date(input.createdAt ?? new Date()),
       status: "PENDING_OPERATOR_UPLOAD",
@@ -261,6 +273,7 @@ type RequestRow = {
   sourceFamily: string;
   officialUrl: string;
   documentKey: string | null;
+  bundleVersion: string | null;
   expectedArtifactType: string;
   createdAt: Date;
   status: string;
@@ -275,7 +288,7 @@ type ArtifactRow = Omit<
   validationResult: unknown;
 };
 
-const requestProjection = `SELECT request_id AS "requestId",source_family AS "sourceFamily",official_url AS "officialUrl",document_key AS "documentKey",expected_artifact_type AS "expectedArtifactType",created_at AS "createdAt",status,expires_at AS "expiresAt",blocker_reason AS "blockerReason" FROM swagger_source_requests`;
+const requestProjection = `SELECT request_id AS "requestId",source_family AS "sourceFamily",official_url AS "officialUrl",document_key AS "documentKey",bundle_version AS "bundleVersion",expected_artifact_type AS "expectedArtifactType",created_at AS "createdAt",status,expires_at AS "expiresAt",blocker_reason AS "blockerReason" FROM swagger_source_requests`;
 const artifactProjection = `SELECT artifact_id AS "artifactId",request_id AS "requestId",source_family AS "sourceFamily",official_url AS "officialUrl",status,quarantine_filename AS "quarantineFilename",original_filename AS "originalFilename",operator_id AS "operatorId",received_at AS "receivedAt",size_bytes AS "sizeBytes",sha256,detected_spec_version AS "detectedSpecVersion",parser_result AS "parserResult",validation_result AS "validationResult",authority_state AS "authorityState" FROM swagger_source_artifacts`;
 
 function mapRequest(row: RequestRow): SwaggerSourceRequest {
@@ -284,6 +297,7 @@ function mapRequest(row: RequestRow): SwaggerSourceRequest {
     sourceFamily: SwaggerSourceFamilySchema.parse(row.sourceFamily),
     officialUrl: row.officialUrl,
     documentKey: row.documentKey,
+    bundleVersion: row.bundleVersion,
     expectedArtifactType: row.expectedArtifactType,
     createdAt: new Date(row.createdAt),
     status: SwaggerSourceRequestStatusSchema.parse(row.status),
@@ -324,12 +338,13 @@ export function createPostgresSwaggerSourceStore(
       if (inserted.rows[0]) throw new Error("SWAGGER_REQUEST_ALREADY_EXISTS");
       const createdAt = input.createdAt ?? new Date();
       const write = await runtime.query<RequestRow>(
-        `INSERT INTO swagger_source_requests(request_id,source_family,official_url,document_key,expected_artifact_type,created_at,status,expires_at,blocker_reason) VALUES($1,$2,$3,$4,$5,$6,'PENDING_OPERATOR_UPLOAD',$7,$8) RETURNING request_id AS "requestId",source_family AS "sourceFamily",official_url AS "officialUrl",document_key AS "documentKey",expected_artifact_type AS "expectedArtifactType",created_at AS "createdAt",status,expires_at AS "expiresAt",blocker_reason AS "blockerReason"`,
+        `INSERT INTO swagger_source_requests(request_id,source_family,official_url,document_key,bundle_version,expected_artifact_type,created_at,status,expires_at,blocker_reason) VALUES($1,$2,$3,$4,$5,$6,$7,'PENDING_OPERATOR_UPLOAD',$8,$9) RETURNING request_id AS "requestId",source_family AS "sourceFamily",official_url AS "officialUrl",document_key AS "documentKey",bundle_version AS "bundleVersion",expected_artifact_type AS "expectedArtifactType",created_at AS "createdAt",status,expires_at AS "expiresAt",blocker_reason AS "blockerReason"`,
         [
           requestId,
           input.sourceFamily,
           input.officialUrl,
           input.documentKey ?? null,
+          input.bundleVersion ?? null,
           input.expectedArtifactType,
           createdAt,
           input.expiresAt ?? null,
@@ -533,6 +548,14 @@ export function createSwaggerHandoffService(options: {
   quarantineDir?: string;
   maxUploadBytes?: number;
   now?: () => Date;
+  validateUpload?: (input: {
+    bytes: Uint8Array;
+    originalFilename: string;
+    request: SwaggerSourceRequest;
+  }) =>
+    | Promise<SwaggerUploadValidation | undefined>
+    | SwaggerUploadValidation
+    | undefined;
 }) {
   const quarantineDir =
     options.quarantineDir ??
@@ -560,10 +583,25 @@ export function createSwaggerHandoffService(options: {
       input.declaredSourceFamily !== request.sourceFamily
     )
       return { kind: "REJECTED", code: "SOURCE_FAMILY_MISMATCH" };
-    if (request.documentKey && input.documentKey !== request.documentKey)
+    if (
+      request.documentKey &&
+      request.documentKey !== "WB_OPENAPI_BUNDLE" &&
+      input.documentKey !== request.documentKey
+    )
       return { kind: "REJECTED", code: "DOCUMENT_KEY_MISMATCH" };
     if (input.bytes.byteLength > maxUploadBytes)
       return { kind: "REJECTED", code: "UPLOAD_TOO_LARGE" };
+
+    const sha256 = createHash("sha256").update(input.bytes).digest("hex");
+    const duplicate = await options.store.findArtifactByDigest(
+      request.requestId,
+      sha256,
+    );
+    if (duplicate) return { kind: "DUPLICATE", artifact: duplicate };
+    if (["CANDIDATE_READY", "CANCELLED", "EXPIRED"].includes(request.status))
+      return { kind: "REJECTED", code: "REQUEST_FINALIZED" };
+    if ((await options.store.listArtifacts(request.requestId)).length > 0)
+      return { kind: "REJECTED", code: "REQUEST_ARTIFACT_ALREADY_RECEIVED" };
 
     await mkdir(quarantineDir, { recursive: true });
     const extension = extname(input.originalFilename).toLowerCase();
@@ -572,28 +610,6 @@ export function createSwaggerHandoffService(options: {
       flag: "wx",
     });
     await options.store.setRequestStatus(request.requestId, "QUARANTINED");
-    const sha256 = createHash("sha256").update(input.bytes).digest("hex");
-    const duplicate = await options.store.findArtifactByDigest(
-      request.requestId,
-      sha256,
-    );
-    if (duplicate) return { kind: "DUPLICATE", artifact: duplicate };
-    if (["CANDIDATE_READY", "CANCELLED", "EXPIRED"].includes(request.status))
-      return {
-        kind: "REJECTED",
-        code: "REQUEST_FINALIZED",
-        quarantineFilename,
-      };
-    if (
-      await options.store
-        .listArtifacts(request.requestId)
-        .then((items) => items.length > 0)
-    )
-      return {
-        kind: "REJECTED",
-        code: "REQUEST_ARTIFACT_ALREADY_RECEIVED",
-        quarantineFilename,
-      };
 
     const originalFilename = safeOriginalFilename(input.originalFilename);
     let parserResult: Record<string, unknown> = { parsed: false };
@@ -606,27 +622,36 @@ export function createSwaggerHandoffService(options: {
     try {
       if (!acceptedExtension(input.originalFilename))
         throw new Error("UNSUPPORTED_ARTIFACT_EXTENSION");
-      const parsed = parseDocument(input.bytes, extension);
-      parserResult = { parsed: true, format: parsed.format };
-      const root = validateRoot(parsed.value);
-      detectedSpecVersion = root.version;
-      validationResult = {
-        rootObject: true,
-        infoObject: true,
-        pathsObject: true,
-        recognizedVersion: true,
-        sourceFamilyCompatibility: "NOT_DETERMINED",
-      };
+      const specialized = await options.validateUpload?.({
+        bytes: input.bytes,
+        originalFilename: input.originalFilename,
+        request,
+      });
+      if (specialized) {
+        if (!specialized.accepted) throw new Error(specialized.code);
+        parserResult = specialized.parserResult;
+        validationResult = specialized.validationResult;
+        detectedSpecVersion = specialized.detectedSpecVersion;
+      } else {
+        const parsed = parseDocument(input.bytes, extension);
+        parserResult = { parsed: true, format: parsed.format };
+        const root = validateRoot(parsed.value);
+        detectedSpecVersion = root.version;
+        validationResult = {
+          rootObject: true,
+          infoObject: true,
+          pathsObject: true,
+          recognizedVersion: true,
+          sourceFamilyCompatibility: "NOT_DETERMINED",
+        };
+      }
       status = "CANDIDATE_READY";
       authorityState = OPERATOR_SUPPLIED_OFFICIAL_SOURCE_CANDIDATE;
     } catch (error) {
       parserResult = {
         ...parserResult,
         errorCode:
-          error instanceof Error &&
-          /^(?:UNSUPPORTED_ARTIFACT_EXTENSION|OPENAPI_[A-Z_]+|TEXT_CONTENT_INVALID)$/.test(
-            error.message,
-          )
+          error instanceof Error && /^[A-Z][A-Z0-9_]+$/.test(error.message)
             ? error.message
             : "INVALID_DOCUMENT",
       };

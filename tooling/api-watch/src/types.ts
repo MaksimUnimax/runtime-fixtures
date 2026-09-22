@@ -356,7 +356,13 @@ export interface ApiWatchReportStore {
 }
 
 export type OperatorCandidateReview =
-  | { kind: "AUTHORITY_ACCEPTED"; record: AuthorityRecord }
+  | {
+      kind: "AUTHORITY_ACCEPTED";
+      record: AuthorityRecord;
+      records?: AuthorityRecord[];
+      familyManifestSha256?: string;
+      documentKeys?: string[];
+    }
   | { kind: "AUTHORITY_REVIEW_REQUIRED"; record: AuthorityRecord }
   | { kind: "AUTHORITY_REJECTED"; reason: string }
   | { kind: "AUTHORITY_BLOCKED"; reason: string };

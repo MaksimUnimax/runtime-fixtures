@@ -37,17 +37,29 @@ repeated same-host HTTP 307 redirects and were rejected by the maximum
 redirect policy. Neither produced accepted source bytes, a SHA-256, or an
 inventory.
 
-All thirteen supplied Wildberries URLs required legitimate operator access
-in the bounded run. The resulting document-scoped operator request identities
-are deterministic:
+All thirteen supplied Wildberries URLs returned HTTP 498 and required
+legitimate operator access in the bounded run. The operator handoff is
+intentionally one deterministic bundle request rather than thirteen
+document-scoped requests.
 
-`WILDBERRIES:WB_01_GENERAL` through `WILDBERRIES:WB_13_FINANCES`.
+The operator handoff is a single request, not thirteen requests:
 
-Each request is bound to `sourceFamily + documentKey + officialUrl`, expects
-`YAML`, and cannot be satisfied by an upload for another document key. The
-Telegram upload remains a quarantined
-`OPERATOR_SUPPLIED_OFFICIAL_SOURCE_CANDIDATE`; existing A1 authority review
-is still required before A2 snapshot promotion.
+- `documentKey=WB_OPENAPI_BUNDLE`
+- `bundleVersion=wb_openapi_bundle_v1`
+- `expectedArtifactType=JSON`
+- request ID `WILDBERRIES:WB_OPENAPI_BUNDLE`
+
+The supplied browser helper runs once in a visible page whose origin is
+exactly `https://dev.wildberries.ru/`. It performs sequential same-origin
+fetches, downloads exactly one JSON bundle only after all thirteen responses
+are HTTP 200 and OpenAPI YAML-shaped, and produces no partial bundle. The
+Telegram action is one upload using `/swagger_upload <request_id>`.
+
+The server validates the fixed document set, URLs, filenames, YAML roots,
+non-empty paths, per-document SHA-256 values, and the canonical family
+manifest. A valid bundle atomically yields thirteen accepted per-document
+authority records and can begin thirteen immutable A2 snapshots plus the
+complete family A3 inventory. A partial bundle yields no accepted authority.
 
 No automatic retry is applied to the Wildberries operator-required results.
 No operator file was uploaded by this execution.

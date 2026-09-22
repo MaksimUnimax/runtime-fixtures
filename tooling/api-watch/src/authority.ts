@@ -22,6 +22,12 @@ import type {
   SourceRegistry,
 } from "./types.js";
 import { runDocumentAuthorityPass } from "./source-set.js";
+import {
+  WB_BUNDLE_DOCUMENT_KEY,
+  WB_BUNDLE_OFFICIAL_URL,
+  WB_BUNDLE_VERSION,
+  validateWbBundle,
+} from "./wb-bundle.js";
 
 function cloneRecord(record: AuthorityRecord): AuthorityRecord {
   return {
@@ -395,6 +401,16 @@ export async function evaluateOperatorCandidate(input: {
   if (request.status === "CANCELLED" || request.status === "EXPIRED")
     return invalidCandidate("PENDING_REQUEST_FINALIZED");
   const entry = input.registry.get(request.sourceFamily);
+  const isWbBundle =
+    request.sourceFamily === "WILDBERRIES" &&
+    request.documentKey === WB_BUNDLE_DOCUMENT_KEY;
+  if (isWbBundle) {
+    if (
+      request.officialUrl !== WB_BUNDLE_OFFICIAL_URL ||
+      request.bundleVersion !== WB_BUNDLE_VERSION
+    )
+      return invalidCandidate("WB_BUNDLE_REQUEST_METADATA_INVALID");
+  }
   const registeredDocument = request.documentKey
     ? entry.documents?.find(
         (document) => document.documentKey === request.documentKey,
@@ -402,14 +418,14 @@ export async function evaluateOperatorCandidate(input: {
     : undefined;
   const currentOfficialUrl =
     registeredDocument?.officialUrl ?? entry.officialUrl;
-  if (request.documentKey && !registeredDocument)
+  if (request.documentKey && !registeredDocument && !isWbBundle)
     return invalidCandidate("DOCUMENT_KEY_NOT_CURRENT_AUTHORITY");
-  if (!currentOfficialUrl)
+  if (!currentOfficialUrl && !isWbBundle)
     return {
       kind: "AUTHORITY_BLOCKED",
       reason: "SOURCE_URL_AUTHORITY_MISSING",
     };
-  if (request.officialUrl !== currentOfficialUrl)
+  if (!isWbBundle && request.officialUrl !== currentOfficialUrl)
     return invalidCandidate("PENDING_URL_NOT_CURRENT_AUTHORITY");
   const candidates = (
     await input.pendingStore.listArtifacts(request.requestId)
@@ -435,6 +451,51 @@ export async function evaluateOperatorCandidate(input: {
     return invalidCandidate("CANDIDATE_DIGEST_MISMATCH");
   if (bytes.byteLength !== candidate.sizeBytes)
     return invalidCandidate("CANDIDATE_SIZE_MISMATCH");
+  if (isWbBundle) {
+    let bundle: ReturnType<typeof validateWbBundle>;
+    try {
+      bundle = validateWbBundle(bytes, candidate.originalFilename);
+    } catch (error) {
+      return invalidCandidate(
+        error instanceof Error ? error.message : "WB_BUNDLE_INVALID",
+      );
+    }
+    const records: AuthorityRecord[] = [];
+    for (const document of bundle.documents) {
+      records.push(
+        await input.store.saveAuthorityRecord({
+          sourceFamily: "WILDBERRIES",
+          officialUrl: document.officialUrl,
+          acquisitionMode: "OPERATOR_SUPPLIED",
+          authorityStatus: "AUTHORITY_ACCEPTED",
+          sha256: document.sha256,
+          sizeBytes: document.byteLength,
+          specVersion: document.specVersion,
+          acquiredAt: candidate.receivedAt,
+          validatedAt: now(),
+          operatorRequestId: request.requestId,
+          artifactExtension: ".yaml",
+          safeProvenance: {
+            bundleArtifactId: candidate.artifactId,
+            bundleVersion: bundle.bundleVersion,
+            documentKey: document.documentKey,
+            familyManifestSha256: bundle.familyManifestSha256,
+            outerBundleSha256: bundle.outerSha256,
+          },
+          failureClassification: null,
+        }),
+      );
+    }
+    return {
+      kind: "AUTHORITY_ACCEPTED",
+      record: records[0]!,
+      records,
+      familyManifestSha256: bundle.familyManifestSha256,
+      documentKeys: records.map((record) =>
+        String(record.safeProvenance.documentKey),
+      ),
+    };
+  }
   if (
     candidate.parserResult.parsed !== true ||
     candidate.validationResult.recognizedVersion !== true

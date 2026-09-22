@@ -211,6 +211,13 @@
       "when": 1790035900000,
       "tag": "0031_s2_api_watch_source_documents",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1790036000000,
+      "tag": "0032_s2_wb_bundle_handoff",
+      "breakpoints": true
     }
   ]
 }

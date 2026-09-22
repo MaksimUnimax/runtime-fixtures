@@ -6,6 +6,7 @@ import {
   createPostgresApiWatchIncidentStore,
   createPostgresApiWatchRetryStore,
   productionSourceRegistry,
+  validateWbBundleUpload,
 } from "@product/api-watch";
 import {
   createPostgresMonitoringScheduleStore,
@@ -43,6 +44,7 @@ const swaggerHandoff = createSwaggerHandoffService({
   maxUploadBytes: process.env.MAX_SWAGGER_UPLOAD_BYTES
     ? Number(process.env.MAX_SWAGGER_UPLOAD_BYTES)
     : undefined,
+  validateUpload: validateWbBundleUpload,
 });
 const serviceRef: { current: TelegramOperatorService | undefined } = {
   current: undefined,

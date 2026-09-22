@@ -178,7 +178,7 @@ export class TelegramOperatorService {
       if (!parsed || parsed.name !== "swagger_upload" || !parsed.argument) {
         await this.options.transport.sendMessage(
           chatId,
-          "Upload with /swagger_upload <request_id> [document_key] as the document caption.",
+          "Attach the complete WB bundle with /swagger_upload <request_id> as the caption.",
         );
         return;
       }
@@ -248,7 +248,7 @@ export class TelegramOperatorService {
       case "swagger_upload":
         await this.options.transport.sendMessage(
           chatId,
-          "Attach one .json, .yaml, or .yml document with /swagger_upload <request_id> [document_key] as its caption.",
+          "Attach one official source or the complete WB JSON bundle with /swagger_upload <request_id> as its caption.",
         );
         return;
       default:

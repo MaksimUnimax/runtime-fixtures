@@ -14,3 +14,4 @@ export * from "./incident.js";
 export * from "./retry.js";
 export * from "./acceptance.js";
 export * from "./source-set.js";
+export * from "./wb-bundle.js";
