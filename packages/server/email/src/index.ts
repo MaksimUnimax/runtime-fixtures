@@ -10,6 +10,7 @@ const SmtpSchema = z.object({
   port: z.coerce.number().int().min(1).max(65535),
   secure: z.preprocess(booleanFromEnv, z.boolean()),
   requireTls: z.preprocess(booleanFromEnv, z.boolean()),
+  tlsServername: z.string().min(1).optional(),
   username: z.string().optional(),
   password: z.string().optional(),
   from: z.string().email(),
@@ -27,6 +28,7 @@ export function loadSmtpConfig(env: NodeJS.ProcessEnv): SmtpConfig {
     port: env.SMTP_PORT || "25",
     secure: env.SMTP_SECURE || "false",
     requireTls: env.SMTP_REQUIRE_TLS || "false",
+    tlsServername: env.SMTP_TLS_SERVERNAME || undefined,
     username: env.SMTP_USERNAME || undefined,
     password: env.SMTP_PASSWORD || undefined,
     from,
@@ -123,7 +125,10 @@ export class SmtpEmailProvider implements EmailProvider {
       auth: config.username
         ? { user: config.username, pass: config.password }
         : undefined,
-      tls: { rejectUnauthorized: true },
+      tls: {
+        rejectUnauthorized: true,
+        servername: config.tlsServername,
+      },
       connectionTimeout: config.timeoutMs,
       greetingTimeout: config.timeoutMs,
       socketTimeout: config.timeoutMs,

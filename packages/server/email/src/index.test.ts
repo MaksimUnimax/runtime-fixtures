@@ -111,6 +111,7 @@ describe("Octoport-owned SMTP transactional OTP adapter", () => {
         SMTP_PORT: "25",
         SMTP_SECURE: "false",
         SMTP_REQUIRE_TLS: "false",
+        SMTP_TLS_SERVERNAME: "mail.octoport.ru",
         SMTP_FROM: "no-reply@octoport.ru",
       }),
     ).toMatchObject({
@@ -118,6 +119,7 @@ describe("Octoport-owned SMTP transactional OTP adapter", () => {
       port: 25,
       from: "no-reply@octoport.ru",
       envelopeFrom: "no-reply@octoport.ru",
+      tlsServername: "mail.octoport.ru",
     });
     expect(() =>
       loadSmtpConfig({
