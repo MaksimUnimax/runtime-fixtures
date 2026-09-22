@@ -107,7 +107,7 @@ When the owner issues STOP:
 1. stop starting new implementation work;
 2. preserve repository/worktree state;
 3. update durable autowork state;
-4. report current accepted frontier;
+4. report current accepted state/cursor;
 5. report active/incomplete candidate;
 6. report deferred owner/external/environment items;
 7. report exact safe resume point;
@@ -321,7 +321,7 @@ defer, or owner STOP, update:
 State must include:
 
 - last reconstruction time;
-- accepted frontier;
+- accepted state/cursor;
 - active candidate if any;
 - latest accepted revision(s);
 - current environment/runtime identity where relevant;
@@ -1063,7 +1063,7 @@ If no genuine executable work remains because every remaining item is owner,
 external, or environment deferred:
 
 - update durable state;
-- report the deferred frontier once;
+- report the deferred state once;
 - do not manufacture filler;
 - wait for new owner/environment input.
 
