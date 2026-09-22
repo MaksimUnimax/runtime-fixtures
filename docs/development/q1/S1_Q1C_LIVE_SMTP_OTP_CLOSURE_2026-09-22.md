@@ -156,3 +156,59 @@ The exact remaining acceptance boundary is `OWNER_LIVE_MAILBOX_TEST` plus
 Stream-1 acceptance is started.
 
 Recommendation: `S1_Q1C_LIVE_SMTP_OTP_ENVIRONMENT_BLOCKED`
+
+## I1 live V2 device continuation — 2026-09-22
+
+Work ID: `S1_I1_LIVE_V2_BOOTSTRAP_REFRESH_REVOKE_2026-09-22_R1`
+
+This terminal continuation used the already-pushed V2 client correction at
+`134a74ad71b6b80f14215c4c0164d39169a5322d`. No second authorization was
+created. The prior `Q1 Live Chrome` device was revoked first and its safe
+readback was `active=0`, `active_sessions=0`; its revocation audit was
+verified with one device event and one session event.
+
+One fresh `Q1 Live Chrome V2` authorization was then started and approved:
+
+```text
+DEVICE_AUTH_START = PASS
+OWNER_APPROVAL = PASS
+DEVICE_EXCHANGE = PASS
+DEVICE_ID_PRESENT = YES
+SESSION_ID_PRESENT = YES
+ACCESS_TOKEN_ISSUED = YES
+REFRESH_TOKEN_ISSUED = YES
+```
+
+The live V2 Bootstrap request reached the production API and returned the
+safe failure `HTTP 503 / BOOTSTRAP_UNAVAILABLE`. No signed envelope was
+returned, so Bootstrap signature verification, refresh, and post-revoke
+credential calls were not reached. Bounded server-side correlation showed
+that production currently has no `control_plane_v2` row in `config_releases`
+and no deployed catalog row for extension version `1.2.3`; this is the first
+failed boundary observed in this continuation. No production configuration
+was changed.
+
+The owner then revoked `Q1 Live Chrome V2`. Final safe production readback:
+
+```text
+FINAL_DEVICE_REVOKE = PASS
+ACTIVE_DEVICE_COUNT_FINAL = 0
+Q1_LIVE_CHROME_V2_REVOKED = 1
+Q1_LIVE_CHROME_V2_ACTIVE_SESSIONS = 0
+Q1_LIVE_CHROME_REVOKE_DEVICE_AUDITS = 1
+Q1_LIVE_CHROME_V2_REVOKE_SESSION_AUDITS = 1
+Q1_LIVE_CHROME_REVOKE = 1
+```
+
+```text
+V2_BOOTSTRAP_HTTP = FAIL (503 BOOTSTRAP_UNAVAILABLE)
+V2_BOOTSTRAP_SIGNATURE = NOT_REACHED
+V2_REFRESH = NOT_REACHED
+POST_REVOKE_ACCESS_VALID = NOT_EXECUTED (credentials not retained after the failure)
+POST_REVOKE_REFRESH_VALID = NOT_EXECUTED (credentials not retained after the failure)
+```
+
+No product or configuration change was made in this continuation. The
+temporary harnesses were untracked and removed after the safe readback. No
+credential, device code, token, cookie, OTP, private key, or message content
+was printed or persisted.
