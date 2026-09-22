@@ -55,6 +55,7 @@ export async function promoteAcceptedSnapshot(input: {
   bytes: Uint8Array;
   store: ApiWatchStore;
   snapshotRoot?: string;
+  documentKey?: string | null;
   now?: () => Date;
 }): Promise<SnapshotMetadata> {
   const { record, bytes, store } = input;
@@ -111,6 +112,7 @@ export async function promoteAcceptedSnapshot(input: {
     createdAt: (input.now ?? (() => new Date()))(),
     authorityRecordId: record.recordId,
     artifactPath,
+    documentKey: input.documentKey ?? null,
   };
   return store.saveSnapshot(metadata);
 }

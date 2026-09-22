@@ -187,4 +187,24 @@ describe("Stream-2 migration receipts", () => {
       )?.tag,
     ).toBe("0030_s2_api_watch_retry_state");
   });
+
+  it("receipts the forward-only multi-document source migration", async () => {
+    const sql = await readFile(
+      join(migrationsFolder, "0031_s2_api_watch_source_documents.sql"),
+      "utf8",
+    );
+    const journal = JSON.parse(
+      await readFile(join(migrationsFolder, "meta", "_journal.json"), "utf8"),
+    ) as { entries: Array<{ tag: string }> };
+    expect(sql).toContain('CREATE TABLE "api_watch_source_documents"');
+    expect(sql).toContain('ADD COLUMN "document_key"');
+    expect(sql).toContain(
+      'ALTER TABLE "api_watch_snapshots" ADD COLUMN "document_key"',
+    );
+    expect(
+      journal.entries.find(
+        (entry) => entry.tag === "0031_s2_api_watch_source_documents",
+      )?.tag,
+    ).toBe("0031_s2_api_watch_source_documents");
+  });
 });

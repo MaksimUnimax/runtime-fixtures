@@ -61,9 +61,29 @@ async function fixtureServer(initial: Buffer): Promise<{
 
 function allFamilyRegistry(url: string) {
   return createSourceRegistry({
-    OZON_SELLER: { officialUrl: url },
-    OZON_PERFORMANCE: { officialUrl: url },
-    WILDBERRIES: { officialUrl: url },
+    OZON_SELLER: {
+      officialUrl: url,
+      requiredServerIdentity: undefined,
+      titlePattern: undefined,
+    },
+    OZON_PERFORMANCE: {
+      officialUrl: url,
+      requiredServerIdentity: undefined,
+      titlePattern: undefined,
+    },
+    WILDBERRIES: {
+      officialUrl: url,
+      requiredServerIdentity: undefined,
+      titlePattern: undefined,
+    },
+  });
+}
+
+function missingAuthorityRegistry() {
+  return createSourceRegistry({
+    OZON_SELLER: { officialUrl: null, documents: [] },
+    OZON_PERFORMANCE: { officialUrl: null, documents: [] },
+    WILDBERRIES: { officialUrl: null, documents: [] },
   });
 }
 
@@ -155,7 +175,7 @@ describe("A6 API-watch report lifecycle", () => {
     const apiState = createInMemoryApiWatchState();
     const result = await runApiWatchReport({
       ...reportDependencies(
-        createSourceRegistry(),
+        missingAuthorityRegistry(),
         await mkdtemp(join(tmpdir(), "s2-a6-")),
         reportStore,
         apiState,
@@ -175,7 +195,13 @@ describe("A6 API-watch report lifecycle", () => {
     const root = await mkdtemp(join(tmpdir(), "s2-a6-partial-"));
     try {
       const registry = createSourceRegistry({
-        OZON_SELLER: { officialUrl: server.url },
+        OZON_SELLER: {
+          officialUrl: server.url,
+          requiredServerIdentity: undefined,
+          titlePattern: undefined,
+        },
+        OZON_PERFORMANCE: { officialUrl: null, documents: [] },
+        WILDBERRIES: { officialUrl: null, documents: [] },
       });
       const result = await runApiWatchReport({
         ...reportDependencies(registry, root, reportStore),
@@ -244,7 +270,13 @@ describe("A6 API-watch report lifecycle", () => {
     const root = await mkdtemp(join(tmpdir(), "s2-a6-first-"));
     try {
       const setup = reportDependencies(
-        createSourceRegistry({ OZON_SELLER: { officialUrl: server.url } }),
+        createSourceRegistry({
+          OZON_SELLER: {
+            officialUrl: server.url,
+            requiredServerIdentity: undefined,
+            titlePattern: undefined,
+          },
+        }),
         root,
       );
       await runApiWatchReport({
@@ -269,7 +301,13 @@ describe("A6 API-watch report lifecycle", () => {
     const apiState = createInMemoryApiWatchState();
     try {
       const setup = reportDependencies(
-        createSourceRegistry({ OZON_SELLER: { officialUrl: server.url } }),
+        createSourceRegistry({
+          OZON_SELLER: {
+            officialUrl: server.url,
+            requiredServerIdentity: undefined,
+            titlePattern: undefined,
+          },
+        }),
         root,
         new InMemoryApiWatchReportStore(),
         apiState,
@@ -300,7 +338,7 @@ describe("A6 API-watch report lifecycle", () => {
     const root = await mkdtemp(join(tmpdir(), "s2-a6-forced-"));
     try {
       await runApiWatchReport({
-        ...reportDependencies(createSourceRegistry(), root, reportStore),
+        ...reportDependencies(missingAuthorityRegistry(), root, reportStore),
         runId: "forced",
         source: "FORCED",
       });
@@ -317,7 +355,7 @@ describe("A6 API-watch report lifecycle", () => {
     const root = await mkdtemp(join(tmpdir(), "s2-a6-scheduled-"));
     try {
       await runApiWatchReport({
-        ...reportDependencies(createSourceRegistry(), root, reportStore),
+        ...reportDependencies(missingAuthorityRegistry(), root, reportStore),
         runId: "scheduled",
         source: "SCHEDULED",
       });

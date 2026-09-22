@@ -26,6 +26,7 @@ export type TelegramUpdate = {
       mimeType?: string;
       bytes?: Uint8Array;
       sourceFamily?: SwaggerSourceFamily;
+      documentKey?: string;
     };
   };
   callbackQuery?: { id: string; chatId: string; userId: string; data: string };
@@ -177,7 +178,7 @@ export class TelegramOperatorService {
       if (!parsed || parsed.name !== "swagger_upload" || !parsed.argument) {
         await this.options.transport.sendMessage(
           chatId,
-          "Upload with /swagger_upload <request_id> as the document caption.",
+          "Upload with /swagger_upload <request_id> [document_key] as the document caption.",
         );
         return;
       }
@@ -197,12 +198,14 @@ export class TelegramOperatorService {
         await this.options.transport.sendMessage(chatId, "UPLOAD_UNAVAILABLE");
         return;
       }
+      const [requestId, documentKey] = parsed.argument.split(/\s+/, 2);
       const result = await this.options.swaggerHandoff.upload({
-        requestId: parsed.argument,
+        requestId: requestId!,
         operatorId,
         originalFilename: document.fileName ?? "upload",
         bytes,
         declaredSourceFamily: document.sourceFamily,
+        documentKey: document.documentKey ?? documentKey,
       });
       await this.options.transport.sendMessage(
         chatId,
@@ -245,7 +248,7 @@ export class TelegramOperatorService {
       case "swagger_upload":
         await this.options.transport.sendMessage(
           chatId,
-          "Attach one .json, .yaml, or .yml document with /swagger_upload <request_id> as its caption.",
+          "Attach one .json, .yaml, or .yml document with /swagger_upload <request_id> [document_key] as its caption.",
         );
         return;
       default:
@@ -299,7 +302,7 @@ export class TelegramOperatorService {
       ? requests
           .map(
             (request) =>
-              `${request.requestId} | ${request.sourceFamily} | ${request.status}\n${request.officialUrl}\nexpected=${request.expectedArtifactType}`,
+              `${request.requestId} | ${request.sourceFamily} | ${request.documentKey ?? "family"} | ${request.status}\n${request.officialUrl}\nexpected=${request.expectedArtifactType}`,
           )
           .join("\n")
       : "No pending Swagger source requests.";

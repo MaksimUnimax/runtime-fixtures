@@ -10,7 +10,6 @@ import {
   type SwaggerSourceStore,
 } from "@product/monitoring-control";
 import type {
-  AcquisitionOutcome,
   ApiWatchSqlRuntime,
   ApiWatchStore,
   AuthorityPassResult,
@@ -22,7 +21,7 @@ import type {
   SemanticDiffOperation,
   SourceRegistry,
 } from "./types.js";
-import { acquireOfficialSource } from "./acquire.js";
+import { runDocumentAuthorityPass } from "./source-set.js";
 
 function cloneRecord(record: AuthorityRecord): AuthorityRecord {
   return {
@@ -225,12 +224,12 @@ export function createPostgresApiWatchStore(
     },
     async saveSnapshot(metadata) {
       const existing = await runtime.query<Record<string, unknown>>(
-        `SELECT snapshot_id AS "snapshotId",source_family AS "sourceFamily",sha256,size_bytes AS "sizeBytes",spec_version AS "specVersion",official_url AS "officialUrl",acquisition_mode AS "acquisitionMode",created_at AS "createdAt",authority_record_id AS "authorityRecordId",artifact_path AS "artifactPath" FROM api_watch_snapshots WHERE source_family=$1 AND sha256=$2`,
+        `SELECT snapshot_id AS "snapshotId",source_family AS "sourceFamily",sha256,size_bytes AS "sizeBytes",spec_version AS "specVersion",official_url AS "officialUrl",acquisition_mode AS "acquisitionMode",created_at AS "createdAt",authority_record_id AS "authorityRecordId",artifact_path AS "artifactPath",document_key AS "documentKey" FROM api_watch_snapshots WHERE source_family=$1 AND sha256=$2`,
         [metadata.sourceFamily, metadata.sha256],
       );
       if (existing.rows[0]) return existing.rows[0] as never as typeof metadata;
       const result = await runtime.query<Record<string, unknown>>(
-        `INSERT INTO api_watch_snapshots(snapshot_id,source_family,sha256,size_bytes,spec_version,official_url,acquisition_mode,created_at,authority_record_id,artifact_path) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING snapshot_id AS "snapshotId",source_family AS "sourceFamily",sha256,size_bytes AS "sizeBytes",spec_version AS "specVersion",official_url AS "officialUrl",acquisition_mode AS "acquisitionMode",created_at AS "createdAt",authority_record_id AS "authorityRecordId",artifact_path AS "artifactPath"`,
+        `INSERT INTO api_watch_snapshots(snapshot_id,source_family,sha256,size_bytes,spec_version,official_url,acquisition_mode,created_at,authority_record_id,artifact_path,document_key) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING snapshot_id AS "snapshotId",source_family AS "sourceFamily",sha256,size_bytes AS "sizeBytes",spec_version AS "specVersion",official_url AS "officialUrl",acquisition_mode AS "acquisitionMode",created_at AS "createdAt",authority_record_id AS "authorityRecordId",artifact_path AS "artifactPath",document_key AS "documentKey"`,
         [
           metadata.snapshotId,
           metadata.sourceFamily,
@@ -242,6 +241,7 @@ export function createPostgresApiWatchStore(
           metadata.createdAt,
           metadata.authorityRecordId,
           metadata.artifactPath,
+          metadata.documentKey ?? null,
         ],
       );
       if (!result.rows[0]) throw new Error("API_WATCH_SNAPSHOT_CREATE_FAILED");
@@ -249,7 +249,7 @@ export function createPostgresApiWatchStore(
     },
     async listSnapshots() {
       const result = await runtime.query<Record<string, unknown>>(
-        `SELECT snapshot_id AS "snapshotId",source_family AS "sourceFamily",sha256,size_bytes AS "sizeBytes",spec_version AS "specVersion",official_url AS "officialUrl",acquisition_mode AS "acquisitionMode",created_at AS "createdAt",authority_record_id AS "authorityRecordId",artifact_path AS "artifactPath" FROM api_watch_snapshots ORDER BY created_at,snapshot_id`,
+        `SELECT snapshot_id AS "snapshotId",source_family AS "sourceFamily",sha256,size_bytes AS "sizeBytes",spec_version AS "specVersion",official_url AS "officialUrl",acquisition_mode AS "acquisitionMode",created_at AS "createdAt",authority_record_id AS "authorityRecordId",artifact_path AS "artifactPath",document_key AS "documentKey" FROM api_watch_snapshots ORDER BY created_at,snapshot_id`,
       );
       return result.rows as never as import("./types.js").SnapshotMetadata[];
     },
@@ -355,36 +355,6 @@ export function createPostgresApiWatchStore(
   };
 }
 
-function authorityFromOutcome(
-  outcome: AcquisitionOutcome,
-  now: Date,
-): AuthorityRecordInput {
-  const accepted = outcome.kind === "ACQUIRED_OFFICIAL_SOURCE_CANDIDATE";
-  return {
-    sourceFamily: outcome.sourceFamily,
-    officialUrl: outcome.officialUrl,
-    acquisitionMode: "AUTOMATIC",
-    authorityStatus: accepted
-      ? "AUTHORITY_ACCEPTED"
-      : outcome.kind === "INVALID_OFFICIAL_SOURCE_RESPONSE"
-        ? "AUTHORITY_REJECTED"
-        : "AUTHORITY_BLOCKED",
-    sha256: accepted ? outcome.sha256 : null,
-    sizeBytes: accepted ? outcome.sizeBytes : null,
-    specVersion: accepted ? outcome.specVersion : null,
-    acquiredAt: accepted ? now : null,
-    validatedAt: now,
-    operatorRequestId: null,
-    artifactExtension: accepted
-      ? `.${outcome.artifactType.toLowerCase()}`
-      : null,
-    safeProvenance: accepted
-      ? { finalUrl: outcome.finalUrl, redirectPolicy: "accepted-host-set" }
-      : {},
-    failureClassification: accepted ? null : outcome.kind,
-  };
-}
-
 export async function runAuthorityPass(input: {
   registry: SourceRegistry;
   store: ApiWatchStore;
@@ -392,36 +362,8 @@ export async function runAuthorityPass(input: {
   fetcher?: typeof fetch;
   now?: () => Date;
 }): Promise<AuthorityPassResult> {
-  const now = input.now ?? (() => new Date());
-  const outcomes: AcquisitionOutcome[] = [];
-  const records: AuthorityRecord[] = [];
-  for (const entry of input.registry.list()) {
-    const outcome = await acquireOfficialSource({
-      entry,
-      fetcher: input.fetcher,
-    });
-    outcomes.push(outcome);
-    if (outcome.kind === "OPERATOR_SOURCE_REQUIRED" && entry.officialUrl) {
-      const existing = await input.pendingStore.findOpenRequest(
-        entry.sourceFamily,
-        entry.officialUrl,
-        now(),
-      );
-      if (!existing)
-        await input.pendingStore.createRequest({
-          sourceFamily: entry.sourceFamily,
-          officialUrl: entry.officialUrl,
-          expectedArtifactType: entry.expectedArtifactTypes.join(","),
-          createdAt: now(),
-          blockerReason: outcome.blockerReason,
-        });
-    }
-    const record = await input.store.saveAuthorityRecord(
-      authorityFromOutcome(outcome, now()),
-    );
-    records.push(record);
-  }
-  return { outcomes, records };
+  const pass = await runDocumentAuthorityPass(input);
+  return { outcomes: pass.outcomes, records: pass.records };
 }
 
 function invalidCandidate(reason: string): OperatorCandidateReview {
@@ -453,12 +395,21 @@ export async function evaluateOperatorCandidate(input: {
   if (request.status === "CANCELLED" || request.status === "EXPIRED")
     return invalidCandidate("PENDING_REQUEST_FINALIZED");
   const entry = input.registry.get(request.sourceFamily);
-  if (!entry.officialUrl)
+  const registeredDocument = request.documentKey
+    ? entry.documents?.find(
+        (document) => document.documentKey === request.documentKey,
+      )
+    : undefined;
+  const currentOfficialUrl =
+    registeredDocument?.officialUrl ?? entry.officialUrl;
+  if (request.documentKey && !registeredDocument)
+    return invalidCandidate("DOCUMENT_KEY_NOT_CURRENT_AUTHORITY");
+  if (!currentOfficialUrl)
     return {
       kind: "AUTHORITY_BLOCKED",
       reason: "SOURCE_URL_AUTHORITY_MISSING",
     };
-  if (request.officialUrl !== entry.officialUrl)
+  if (request.officialUrl !== currentOfficialUrl)
     return invalidCandidate("PENDING_URL_NOT_CURRENT_AUTHORITY");
   const candidates = (
     await input.pendingStore.listArtifacts(request.requestId)
@@ -512,7 +463,10 @@ export async function evaluateOperatorCandidate(input: {
     artifactExtension: candidate.originalFilename.slice(
       candidate.originalFilename.lastIndexOf("."),
     ),
-    safeProvenance: { candidateArtifactId: candidate.artifactId },
+    safeProvenance: {
+      candidateArtifactId: candidate.artifactId,
+      ...(request.documentKey ? { documentKey: request.documentKey } : {}),
+    },
     failureClassification: null,
   });
   return record.authorityStatus === "AUTHORITY_ACCEPTED"

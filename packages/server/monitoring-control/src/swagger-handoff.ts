@@ -34,6 +34,7 @@ export type SwaggerSourceRequest = {
   requestId: string;
   sourceFamily: SwaggerSourceFamily;
   officialUrl: string;
+  documentKey: string | null;
   expectedArtifactType: string;
   createdAt: Date;
   status: SwaggerSourceRequestStatus;
@@ -66,6 +67,7 @@ export type SwaggerUploadInput = {
   bytes: Uint8Array;
   receivedAt?: Date;
   declaredSourceFamily?: SwaggerSourceFamily;
+  documentKey?: string;
 };
 
 export type SwaggerUploadResult =
@@ -84,6 +86,7 @@ export interface SwaggerSourceStore {
     requestId?: string;
     sourceFamily: SwaggerSourceFamily;
     officialUrl: string;
+    documentKey?: string | null;
     expectedArtifactType: string;
     createdAt?: Date;
     expiresAt?: Date | null;
@@ -95,6 +98,7 @@ export interface SwaggerSourceStore {
     sourceFamily: SwaggerSourceFamily,
     officialUrl: string,
     now: Date,
+    documentKey?: string | null,
   ): Promise<SwaggerSourceRequest | undefined>;
   listArtifacts(requestId: string): Promise<SwaggerArtifact[]>;
   findArtifactByDigest(
@@ -149,6 +153,7 @@ export class InMemorySwaggerSourceStore implements SwaggerSourceStore {
       requestId: input.requestId ?? randomUUID(),
       sourceFamily: SwaggerSourceFamilySchema.parse(input.sourceFamily),
       officialUrl: input.officialUrl,
+      documentKey: input.documentKey ?? null,
       expectedArtifactType: input.expectedArtifactType,
       createdAt: new Date(input.createdAt ?? new Date()),
       status: "PENDING_OPERATOR_UPLOAD",
@@ -192,12 +197,14 @@ export class InMemorySwaggerSourceStore implements SwaggerSourceStore {
     sourceFamily: SwaggerSourceFamily,
     officialUrl: string,
     now: Date,
+    documentKey?: string | null,
   ) {
     const requests = await this.listPending(now);
     const request = requests.find(
       (candidate) =>
         candidate.sourceFamily === sourceFamily &&
-        candidate.officialUrl === officialUrl,
+        candidate.officialUrl === officialUrl &&
+        (documentKey === undefined || candidate.documentKey === documentKey),
     );
     return request;
   }
@@ -253,6 +260,7 @@ type RequestRow = {
   requestId: string;
   sourceFamily: string;
   officialUrl: string;
+  documentKey: string | null;
   expectedArtifactType: string;
   createdAt: Date;
   status: string;
@@ -267,7 +275,7 @@ type ArtifactRow = Omit<
   validationResult: unknown;
 };
 
-const requestProjection = `SELECT request_id AS "requestId",source_family AS "sourceFamily",official_url AS "officialUrl",expected_artifact_type AS "expectedArtifactType",created_at AS "createdAt",status,expires_at AS "expiresAt",blocker_reason AS "blockerReason" FROM swagger_source_requests`;
+const requestProjection = `SELECT request_id AS "requestId",source_family AS "sourceFamily",official_url AS "officialUrl",document_key AS "documentKey",expected_artifact_type AS "expectedArtifactType",created_at AS "createdAt",status,expires_at AS "expiresAt",blocker_reason AS "blockerReason" FROM swagger_source_requests`;
 const artifactProjection = `SELECT artifact_id AS "artifactId",request_id AS "requestId",source_family AS "sourceFamily",official_url AS "officialUrl",status,quarantine_filename AS "quarantineFilename",original_filename AS "originalFilename",operator_id AS "operatorId",received_at AS "receivedAt",size_bytes AS "sizeBytes",sha256,detected_spec_version AS "detectedSpecVersion",parser_result AS "parserResult",validation_result AS "validationResult",authority_state AS "authorityState" FROM swagger_source_artifacts`;
 
 function mapRequest(row: RequestRow): SwaggerSourceRequest {
@@ -275,6 +283,7 @@ function mapRequest(row: RequestRow): SwaggerSourceRequest {
     requestId: row.requestId,
     sourceFamily: SwaggerSourceFamilySchema.parse(row.sourceFamily),
     officialUrl: row.officialUrl,
+    documentKey: row.documentKey,
     expectedArtifactType: row.expectedArtifactType,
     createdAt: new Date(row.createdAt),
     status: SwaggerSourceRequestStatusSchema.parse(row.status),
@@ -315,11 +324,12 @@ export function createPostgresSwaggerSourceStore(
       if (inserted.rows[0]) throw new Error("SWAGGER_REQUEST_ALREADY_EXISTS");
       const createdAt = input.createdAt ?? new Date();
       const write = await runtime.query<RequestRow>(
-        `INSERT INTO swagger_source_requests(request_id,source_family,official_url,expected_artifact_type,created_at,status,expires_at,blocker_reason) VALUES($1,$2,$3,$4,$5,'PENDING_OPERATOR_UPLOAD',$6,$7) RETURNING request_id AS "requestId",source_family AS "sourceFamily",official_url AS "officialUrl",expected_artifact_type AS "expectedArtifactType",created_at AS "createdAt",status,expires_at AS "expiresAt",blocker_reason AS "blockerReason"`,
+        `INSERT INTO swagger_source_requests(request_id,source_family,official_url,document_key,expected_artifact_type,created_at,status,expires_at,blocker_reason) VALUES($1,$2,$3,$4,$5,$6,'PENDING_OPERATOR_UPLOAD',$7,$8) RETURNING request_id AS "requestId",source_family AS "sourceFamily",official_url AS "officialUrl",document_key AS "documentKey",expected_artifact_type AS "expectedArtifactType",created_at AS "createdAt",status,expires_at AS "expiresAt",blocker_reason AS "blockerReason"`,
         [
           requestId,
           input.sourceFamily,
           input.officialUrl,
+          input.documentKey ?? null,
           input.expectedArtifactType,
           createdAt,
           input.expiresAt ?? null,
@@ -346,11 +356,11 @@ export function createPostgresSwaggerSourceStore(
       );
       return result.rows.map(mapRequest);
     },
-    async findOpenRequest(sourceFamily, officialUrl, now) {
+    async findOpenRequest(sourceFamily, officialUrl, now, documentKey) {
       await this.listPending(now);
       const result = await runtime.query<RequestRow>(
-        `${requestProjection} WHERE source_family=$1 AND official_url=$2 AND status IN ('PENDING_OPERATOR_UPLOAD','UPLOAD_RECEIVED','QUARANTINED','VALIDATION_FAILED') ORDER BY created_at LIMIT 1`,
-        [sourceFamily, officialUrl],
+        `${requestProjection} WHERE source_family=$1 AND official_url=$2 AND ($3::text IS NULL OR document_key=$3) AND status IN ('PENDING_OPERATOR_UPLOAD','UPLOAD_RECEIVED','QUARANTINED','VALIDATION_FAILED') ORDER BY created_at LIMIT 1`,
+        [sourceFamily, officialUrl, documentKey ?? null],
       );
       return result.rows[0] ? mapRequest(result.rows[0]) : undefined;
     },
@@ -550,6 +560,8 @@ export function createSwaggerHandoffService(options: {
       input.declaredSourceFamily !== request.sourceFamily
     )
       return { kind: "REJECTED", code: "SOURCE_FAMILY_MISMATCH" };
+    if (request.documentKey && input.documentKey !== request.documentKey)
+      return { kind: "REJECTED", code: "DOCUMENT_KEY_MISMATCH" };
     if (input.bytes.byteLength > maxUploadBytes)
       return { kind: "REJECTED", code: "UPLOAD_TOO_LARGE" };
 

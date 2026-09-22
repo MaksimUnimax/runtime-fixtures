@@ -77,6 +77,7 @@ function hasRequestBody(
 export function buildCompleteOperationInventory(input: {
   sourceFamily: SwaggerSourceFamily;
   snapshotSha256: string;
+  documentKey?: string | null;
   bytes: Uint8Array;
   filename: string;
 }): OperationInventory {
@@ -104,6 +105,7 @@ export function buildCompleteOperationInventory(input: {
       const operationPath = `${input.sourceFamily}:${method}:${normalized}`;
       operations.push({
         sourceFamily: input.sourceFamily,
+        documentKey: input.documentKey ?? null,
         snapshotSha256: input.snapshotSha256,
         identity: operationPath,
         method,
