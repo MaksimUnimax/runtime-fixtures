@@ -217,3 +217,12 @@ Why this is not a hack:
 11. Run fresh device → signed V2 Bootstrap → refresh → revoke/invalidation live acceptance.
 
 No other repair is authorized.
+
+
+### Migration namespace allocation
+
+Stream 2 has already consumed migration numbers through `0031` on its active line. To preserve the later single synchronization boundary and avoid a cross-stream filename/ordinal collision, this Stream-1 persistence-contract repair is allocated:
+
+`0032_s1_signing_reason_contract_guard.sql`
+
+The Stream-1 branch may therefore intentionally jump from its current local `0020` to `0032`. The gap is reserved by already-existing Stream-2 work and must not be filled by Stream 1.
