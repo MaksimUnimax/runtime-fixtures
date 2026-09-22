@@ -1,158 +1,157 @@
 # Seller Agents / Octoport — Autowork State
 
-Status: DURABLE CURRENT-STATE AUTHORITY FOR SINGLE-EXECUTOR PILOT
+Status: CURRENT DURABLE STATE — SINGLE-EXECUTOR PILOT
+Last reconstructed: 2026-09-22
 
-This file stores CURRENT state.
+## Accepted/current state
 
-It is deliberately separate from:
+Primary live engineering worktree:
 
-`SINGLE_EXECUTOR_RDC_AUTOWORK_GOVERNOR.md`
+- branch: `work/stream1-q1c-live-smtp-otp-2026-09-22`
+- current HEAD: `5fff0caf4e517040d178edf055556a00993c1bb7`
+- worktree: clean
 
-The governor is universal and must not contain a hard-coded current cursor.
+Current live services:
 
-This file may change after every material accepted step, rework boundary,
-defer, owner STOP, or resume.
+- API: active/running
+- worker: active/running
+- portal: active/running
+- `https://api.octoport.ru/health/live`: 200
+- `https://api.octoport.ru/health/ready`: 200
 
----
+Current signed-bootstrap state:
 
-## Reconstruction status
+- historical signing-event persistence defect repaired in source;
+- migration `0032_s1_signing_reason_contract_guard` applied;
+- configured signer resolves ACTIVE;
+- canonical signing-catalog tool returns `ALREADY_HEALTHY` without mutation;
+- production API restarted through existing service path;
+- first `control_plane_v2` config release published;
+- V2 config version: 1;
+- `control_plane_v2 / bootstrap_snapshot_v2 / bootstrap_envelope_v2`;
+- publication audit: PASS.
 
-CURRENT_STATE_RECONSTRUCTION = REQUIRED_ON_FIRST_AUTOWORK_RUN
+Current implementation commits on the live engineering branch:
 
-The first active run under the single-executor governor must reconstruct the
-current project state from:
+- `a4864a4` — harden signing-event persistence contract;
+- `c99a5a0` — make signing-catalog CLI executable;
+- `5fff0ca` — record current signing-contract/V2 boundary.
 
-- repository ROADMAP / STATUS / SPEC / DECISIONS / OPEN_ITEMS;
-- accepted evidence;
-- current Git branches/worktrees;
-- current runtime/server facts when relevant;
-- current direct owner instructions;
-- prior accepted/deferred history.
+## Active acceptance boundary
 
-Do not infer a current cursor from this template.
+The final live device continuation for package version `0.2.4` reached an
+owner approval gate.
 
----
+Observed:
 
-## Accepted state/cursor
+- device authorization start: PASS;
+- owner approval: timeout / not performed;
+- exchange: CLOSED after expiry;
+- no access/refresh credentials issued;
+- signed V2 Bootstrap therefore not reached in that final run;
+- final active test devices: 0;
+- final active test sessions: 0.
 
-To be populated from live authority on the first active execution cycle.
-
----
-
-## Active candidate
-
-NONE RECORDED IN THIS TEMPLATE.
-
-A live active candidate must be reconstructed rather than invented.
-
----
-
-## Latest accepted revisions
-
-To be populated from live authority.
-
-Never place private secrets here.
-
----
+This is not a product defect by itself.
 
 ## Owner-deferred ledger
 
-No current entries are asserted by this template.
+### OWNER-DEFERRED-I1-LIVE-DEVICE-APPROVAL
 
-Use one block per item:
+TYPE: `OWNER_DEFERRED_TEST`
 
-```text
-ID:
-TYPE: OWNER_DEFERRED_TEST
 ROADMAP_AREA:
+R3 / R5 — live device authorization → signed V2 Bootstrap → refresh →
+revoke/invalidation.
+
 CANDIDATE_REVISION:
+`5fff0caf4e517040d178edf055556a00993c1bb7`
+
 MISSING_OWNER_ACTION:
+Approve the bounded `Q1 Live Chrome V2 Final` device authorization during a
+fresh live run and later perform the owner revoke step when requested by that
+same bounded live sequence.
+
 WHY_AUTOMATION_CANNOT_LEGITIMATELY_PERFORM_IT:
+The acceptance specifically proves owner-controlled device approval/revocation
+authority. It must not be forged or bypassed.
+
 AUTOMATED_EVIDENCE_ALREADY_OBTAINED:
+Production V2 signing/config path is healthy and publication succeeded; prior
+device start/exchange paths have independently succeeded; current services are
+live/ready.
+
 ACCEPTANCE_BLOCKED:
+Final live signed V2 Bootstrap + refresh + post-revoke access/refresh
+invalidation proof.
+
 FUTURE_OWNER_PROCEDURE:
+Run one fresh bounded device authorization; owner approves before expiry;
+executor continues through exchange, signed V2 Bootstrap, refresh, owner revoke,
+and post-revoke invalidation checks.
+
 STATUS:
-```
+OPEN / SKIP DURING AUTOWORK.
 
-When the governor is pasted again, unresolved owner-deferred items are skipped
-and autowork continues elsewhere.
+### OWNER-DEFERRED-TELEGRAM-PROVISIONING
 
-Do not repeatedly ask the owner.
+TYPE: `OWNER_EXTERNAL_ACTION_DEFERRED`
 
----
-
-## Owner-external ledger
-
-Use one block per irreversible/external requirement:
-
-```text
-ID:
-TYPE: OWNER_EXTERNAL_ACTION_DEFERRED
 ROADMAP_AREA:
-EXACT_EXTERNAL_ACTION:
-WHY_OWNER_AUTHORITY_IS_REQUIRED:
-ALREADY_PROVEN:
-BLOCKED_ACCEPTANCE:
-INDEPENDENT_WORK_REMAINING:
+R11 — Telegram monitoring operator production provisioning.
+
+MISSING_OWNER_ACTION:
+Create/provide production Telegram bot provisioning and owner/admin Telegram
+identity binding through the approved secret/config path.
+
+WHY_AUTOMATION_CANNOT_LEGITIMATELY_PERFORM_IT:
+No production bot token or owner/admin identity binding currently exists.
+Secrets must not be invented or committed.
+
+ACCEPTANCE_BLOCKED:
+Live Telegram operator acceptance and real WB one-file operator handoff.
+
 STATUS:
-```
+OPEN / SKIP DURING AUTOWORK.
 
----
+## Environment-deferred items
 
-## Environment-deferred ledger
+Remote publication of the current Stream-1 implementation commits has been
+reported unavailable from the live engineering worktree because GitHub
+credentials are not present there. Do not repeatedly retry unchanged
+credentials.
 
-Use one block per environment/tool/provider blocker:
+This does not block local/server engineering or the separate GitHub connector
+used for architect-owned documentation.
 
-```text
-ID:
-TYPE: ENVIRONMENT_DEFERRED
-ROADMAP_AREA:
-BLOCKER:
-EVIDENCE:
-RETRY_CONDITION:
-INDEPENDENT_WORK_REMAINING:
-STATUS:
-```
+## Current roadmap cursor
 
-Do not repeatedly run unchanged probes.
+Highest confirmed current program area:
 
----
+- R3 live server↔extension authority is implemented through production V2
+  config publication, with final owner-controlled live device acceptance
+  deferred.
+- R5 installed/operational acceptance contains useful executable work that does
+  not require the deferred owner device approval.
+- R9–R12 monitoring areas remain available when dependency-correct, but Telegram
+  production provisioning is owner-deferred.
 
-## Provisional decisions
+## Next dependency-correct executable work
 
-Use one block per current reversible owner-review decision:
+Reconstruct and execute the strongest current installed unified-extension
+acceptance that can be performed autonomously on the server:
 
-```text
-ID:
-TYPE: PROVISIONAL_OWNER_REVIEW
-DECISION:
-REASON:
-ALTERNATIVES:
-CONSEQUENCES:
-REVERSIBILITY:
-AFFECTED_ROADMAP_OR_FILES:
-STATUS:
-```
-
-Owner correction supersedes it forward-only.
-
----
-
-## Unresolved dependencies
-
-Record only real dependencies proven by current authority.
-
-Do not manufacture dependencies from old roadmap text.
-
----
-
-## Next dependency-correct candidates
-
-Recompute after every accepted/reworked/deferred material step.
-
-Do not keep stale next-step choices after repository/runtime truth changes.
-
----
+1. identify the current intended Chromium extension artifact/build;
+2. verify package/source identity;
+3. establish real Playwright Chromium extension-loading capability;
+4. install/load the current unified extension in a dedicated test profile;
+5. execute the highest-value current installed functional matrix that does not
+   require owner secrets or provider access-control bypass;
+6. capture failures as a complete batch;
+7. fix real product/harness defects directly if found;
+8. rerun affected regression;
+9. record precise browser/runtime evidence;
+10. do not claim Chrome/Opera/Yandex/Firefox/Safari from Chromium evidence.
 
 ## Resume rule
 
@@ -160,13 +159,11 @@ On resume:
 
 1. read the universal governor;
 2. read this state file;
-3. verify current live Git/runtime facts;
+3. verify current Git/runtime facts;
 4. correct stale state forward-only;
 5. skip unresolved owner/external items;
-6. select the highest-value executable dependency-correct work;
-7. continue automatically.
-
----
+6. continue with the highest-value executable dependency-correct work;
+7. update this file after material acceptance/rework/defer.
 
 ## Security
 
