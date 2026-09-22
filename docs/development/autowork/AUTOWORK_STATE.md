@@ -9,7 +9,7 @@ Primary live engineering worktree:
 
 - branch: `work/stream1-q1c-live-smtp-otp-2026-09-22`
 - current HEAD: `5fff0caf4e517040d178edf055556a00993c1bb7`
-- worktree: clean
+- worktree: dirty at the last verified live readback; exact files are recorded below
 
 Current live services:
 
@@ -183,9 +183,9 @@ Never store here:
 
 ## STOP CHECKPOINT — 2026-09-22
 
-OWNER_STOP = ACTIVE
+OWNER_STOP = SUPERSEDED_BY_DIRECT_OWNER_RESUME_2026-09-22
 
-No new implementation work may start until the owner resumes autowork.
+The owner explicitly resumed autowork in the next architect dialogue. This historical STOP checkpoint remains as handoff evidence only and no longer blocks execution.
 
 ### Current live engineering worktree
 
@@ -307,3 +307,133 @@ When owner resumes autowork:
 6. rerun focused Chromium + Opera cases;
 7. only then run affected C1/P1/offline regression and decide ACCEPT/REWORK;
 8. update this state file.
+
+
+## RESUME / ROOT-CAUSE CHECKPOINT — 2026-09-22
+
+OWNER_STOP = NOT_ACTIVE
+
+### Live state verified before transport loss
+
+Remote Desktop Commander verified the live engineering worktree before any new
+material repair:
+
+- worktree: `/root/runtime-fixtures-s1-q1c-live`;
+- branch: `work/stream1-q1c-live-smtp-otp-2026-09-22`;
+- HEAD: `5fff0caf4e517040d178edf055556a00993c1bb7`;
+- dirty: `apps/extension/application-patches.json`;
+- dirty: `tests/regression/extension-core/client-i1/browser_c1_acceptance.py`;
+- dirty/unknown provenance and still forbidden to touch:
+  `tests/regression/imported/ozon-v0.1.22/validation/regression/run_direct_binary_provider_attachment_gate.mjs`.
+
+The composed source and extracted runtimes used for the focused candidate both
+contain `WORK_START_COMPOSER_READY_TIMEOUT_MS`,
+`waitForWorkStartComposerContext()`, and the awaited call from
+`sendWorkSessionPrompt()`. Stale/unpatched composition is therefore excluded.
+
+### Corrected focused Opera evidence
+
+The actual focused Opera summary is more precise than the historical STOP
+summary:
+
+- source runtime: BR-C1-37 FAIL, BR-C1-38 FAIL;
+- extracted runtime: BR-C1-37 FAIL, BR-C1-38 PASS.
+
+Playwright Chromium remains PASS for BR-C1-37 and BR-C1-38 on both source and
+extracted runtimes.
+
+### Root cause proved
+
+Classification:
+
+`HARNESS_DEFECT / TEST_TAB_IDENTITY_DEFECT`
+
+The Opera product runtime is not the owner of the focused failure.
+
+Evidence:
+
+1. Immediately before Start, Playwright's current fixture page contains a
+   visible `#prompt-textarea` with non-zero geometry, and
+   `OZ_GET_IDENTITY` responds with confirmed ChatGPT identity.
+2. During the same failed Start, temporary instrumentation in a copied runtime
+   showed the executing content-script world repeatedly had no
+   `#prompt-textarea` at all, while the ChatGPT adapter was selected and the
+   document itself was visible.
+3. A tab/page inventory after persistent-profile restart proved why:
+   Opera restored an older ChatGPT tab with title `Just a moment...`, then the
+   harness created a second current fixture ChatGPT page. The harness selected
+   `chrome.tabs.query(...)[0]`, which bound popup actions to the restored old
+   tab instead of the Playwright page it had just created.
+4. In the proving run the harness-selected tab id was `830234674`, while the
+   current marked fixture page was tab id `830234682`. Both had the same
+   ChatGPT conversation URL, so URL-only first-match selection was ambiguous.
+
+This explains the previous contradiction: Playwright mutated/hid/revealed the
+new fixture composer, while Work Start executed in a different restored tab
+whose content runtime had no composer.
+
+### Three-level ownership proof
+
+LEVEL 1 — browser fixture tab binding:
+the fixture creates one concrete Playwright page and must bind popup actions to
+that exact page. Array position from a URL query is not an identity. The owner
+is `BrowserFixture.open()/restart()`, not product composer logic.
+
+LEVEL 2 — installed browser acceptance workflow:
+Q1-A/Q1-B already classify fixture identity/launch mismatches as
+`HARNESS_DEFECT` and explicitly avoid product patches for them. Evidence is
+valid only when the action is delivered to the intended candidate page.
+
+LEVEL 3 — product/system invariant:
+SA-BROWSER-01 requires real per-browser acceptance without inferring one browser
+from another. A browser-neutral runtime must not gain an Opera-only sleep,
+timeout increase, weakened composer validation, or retry merely to compensate
+for a test harness targeting the wrong tab.
+
+### Intended repair boundary
+
+Repair the test harness so the Playwright-created fixture page is mapped
+deterministically to its Chrome tab, for example with a unique test-only page
+marker/title and an exact matching tab lookup. Do not add Opera-specific
+product code.
+
+The generic bounded composer-readiness product candidate remains
+`REWORK_REQUIRED / NOT YET ACCEPTED` until it is rerun through the corrected
+harness. BR-C1-37 was independently RED before that candidate on Playwright
+Chromium, so the candidate must be evaluated on its own generic semantics after
+the harness defect is removed; the Opera harness finding alone neither accepts
+nor rejects it.
+
+### Execution transport blocker
+
+During the first surgical harness-edit call, Remote Desktop Commander stopped
+responding. Readback could not be completed. The device later reported:
+
+- device: `Easyscript`;
+- status: `offline`;
+- last seen: `2026-09-22T10:59:59.453Z`.
+
+Therefore the on-server application state of that attempted harness edit is
+UNKNOWN. Do not assume it applied and do not repeat blindly.
+
+This is an execution-transport blocker, not an owner STOP and not a product
+blocker. GitHub documentation access remains available, but the dirty live
+engineering worktree must not be modified through a different path while its
+uncommitted state cannot be read back.
+
+### Exact safe resume after RDC reconnects
+
+1. verify HEAD, branch, and all dirty files;
+2. read back `browser_c1_acceptance.py` to determine whether the attempted
+   deterministic tab-binding edit actually applied;
+3. preserve the unknown-provenance direct-binary regression file untouched;
+4. if needed, apply only the deterministic fixture page↔tab binding repair;
+5. run BR-C1-37/38 in Playwright Chromium source/extracted;
+6. run equivalent focused real Opera source/extracted;
+7. if green, run affected C1, P1 outcome/replay, offline continuation/restart,
+   browser application, package/source↔extracted identity, `git diff --check`,
+   and ownership-layer wider regression;
+8. only then decide ACCEPT/REWORK for the generic composer-readiness candidate;
+9. update this durable state forward-only.
+
+No browser-specific product workaround is authorized by this finding.
