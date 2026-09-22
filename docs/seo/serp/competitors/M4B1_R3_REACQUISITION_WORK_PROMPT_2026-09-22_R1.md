@@ -222,7 +222,7 @@ Do not treat related-post recommendations as pagination.
 
 ## 8. URL IDENTITY / TERMINALIZATION
 
-Compare every R3R1-discovered URL against the frozen pre-R3 1612 normalized identities.
+Compare every R3-discovered URL against the frozen pre-R3 1612 normalized identities.
 
 Preserve separately:
 
@@ -253,7 +253,7 @@ No silent URL loss.
 
 ## 9. PAGE EVIDENCE
 
-For EVERY fresh R3R1 `INSPECTED` new identity create structured page evidence.
+For EVERY fresh R3 `INSPECTED` new identity create structured page evidence.
 
 Use the existing M4B1 evidence schema.
 
@@ -289,7 +289,7 @@ Competitor claims remain competitor evidence only.
 
 ## 10. CANDIDATE TERMS / TASKS
 
-Create candidate rows only from newly inspected R3R1 pages.
+Create candidate rows only from newly inspected R3 pages.
 
 Every candidate must retain exact page provenance.
 
@@ -303,7 +303,7 @@ Do not call Wordstat here.
 
 Build a current 45-row synthesis using:
 
-`R1 + R2 + fresh R3R1`.
+`R1 + R2 + fresh R3`.
 
 Historical R1/R2 files remain immutable.
 
@@ -317,7 +317,7 @@ For every entity preserve:
 
 - R1 current URL count;
 - R2 added URL count;
-- fresh R3R1 discovered URL count;
+- fresh R3 discovered URL count;
 - current merged unique normalized URL count;
 - terminal current URL count;
 - channel states;
@@ -395,15 +395,15 @@ Classify environment uncertainty separately.
 
 Create exactly:
 
-1. `M4B1R3R1_SOURCE_MANIFEST.md`
-2. `M4B1R3R1_DISCOVERY_CHANNEL_COVERAGE.tsv`
-3. `M4B1R3R1_URL_OVERLAY.tsv`
-4. `M4B1R3R1_PAGE_EVIDENCE_OVERLAY.tsv`
-5. `M4B1R3R1_CANDIDATE_TERMS_OVERLAY.tsv`
-6. `M4B1R3R1_ENTITY_SYNTHESIS_CURRENT.tsv`
-7. `M4B1R3R1_FRONTIER_RECONCILIATION.tsv`
-8. `M4B1R3R1_QA.md`
-9. `M4B1R3R1_RETURN_MANIFEST.json`
+1. `M4B1R3_SOURCE_MANIFEST.md`
+2. `M4B1R3_DISCOVERY_CHANNEL_COVERAGE.tsv`
+3. `M4B1R3_URL_OVERLAY.tsv`
+4. `M4B1R3_PAGE_EVIDENCE_OVERLAY.tsv`
+5. `M4B1R3_CANDIDATE_TERMS_OVERLAY.tsv`
+6. `M4B1R3_ENTITY_SYNTHESIS_CURRENT.tsv`
+7. `M4B1R3_FRONTIER_RECONCILIATION.tsv`
+8. `M4B1R3_QA.md`
+9. `M4B1R3_RETURN_MANIFEST.json`
 
 The return manifest must contain:
 - WORK_ID;
@@ -436,9 +436,9 @@ BREADCRUMB_LOCAL_CHANNEL_TERMINAL = 45/45
 SITEMAP_CHANNEL_TERMINAL = 45/45
 PAGINATION_CHANNEL_TERMINAL = 45/45
 
-ALL_R3R1_NEW_ELIGIBLE_URLS_TERMINAL = true OR exact blockers returned
-ALL_R3R1_NEW_INSPECTED_HAVE_PAGE_EVIDENCE = true
-R3R1_NEW_URL_SILENT_LOSS = 0
+ALL_R3_NEW_ELIGIBLE_URLS_TERMINAL = true OR exact blockers returned
+ALL_R3_NEW_INSPECTED_HAVE_PAGE_EVIDENCE = true
+R3_NEW_URL_SILENT_LOSS = 0
 
 FINAL_ENTITY_SYNTHESIS_ROWS = 45
 FINAL_FRONTIER_RECONCILIATION_ROWS = 45
@@ -503,11 +503,11 @@ AUTHORITY_DRIFT_STATUS =
 VERDICT =
 
 AUTHORIZED_ENTITIES =
-R3R1_NEW_URL_ROWS =
-R3R1_NEW_INSPECTED_ROWS =
-R3R1_BLOCKING_HOLD =
-R3R1_OPEN_URL_UNRESOLVED =
-R3R1_SILENT_URL_LOSS =
+R3_NEW_URL_ROWS =
+R3_NEW_INSPECTED_ROWS =
+R3_BLOCKING_HOLD =
+R3_OPEN_URL_UNRESOLVED =
+R3_SILENT_URL_LOSS =
 
 HISTORICAL_R3_COMPARISON =
 FILES_IN_ZIP = 9
@@ -521,6 +521,6 @@ A ChatGPT conversation URL is NOT a ZIP artifact link.
 
 Owner will unpack and upload all 9 files together to:
 
-`docs/seo/serp/competitors/work_return/M4B1_R3_REACQUISITION_2026-09-22_R1/`
+`docs/seo/serp/competitors/work_return/M4B1_COVERAGE_CLOSURE_2026-09-18_R3/`
 
 After owner upload Main Chat performs remote readback, hash/file QA and dependency reconciliation before M4C.
