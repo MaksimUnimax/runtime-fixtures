@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
 import { InMemorySwaggerSourceStore } from "@product/monitoring-control";
-import { runApiWatchReport, createApiWatchRunner } from "./run.js";
+import { createApiWatchRunner } from "./run.js";
 import {
   createInMemoryApiWatchState,
   InMemoryApiWatchStore,
@@ -24,7 +24,7 @@ import {
 } from "./incident.js";
 import { applyRetryDecision, InMemoryApiWatchRetryStore } from "./retry.js";
 import { productionSourceRegistry } from "./source-registry.js";
-import type { ApiWatchReport, AuthorityRecord } from "./types.js";
+import type { AuthorityRecord } from "./types.js";
 
 function spec(target: boolean): Uint8Array {
   const paths: Record<string, unknown> = {

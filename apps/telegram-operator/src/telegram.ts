@@ -315,12 +315,14 @@ export class TelegramOperatorService {
     lane: MonitoringLane,
   ): Promise<void> {
     const state = await this.options.scheduler.status(lane);
-    const incidents = lane === "SWAGGER_API" && this.options.incidentStore
-      ? await this.options.incidentStore.listOpen()
-      : [];
-    const incidentSuffix = lane === "SWAGGER_API"
-      ? `, incidents=${incidents.length}/${incidents.map((item) => item.severity).sort()[0] ?? "NONE"}`
-      : "";
+    const incidents =
+      lane === "SWAGGER_API" && this.options.incidentStore
+        ? await this.options.incidentStore.listOpen()
+        : [];
+    const incidentSuffix =
+      lane === "SWAGGER_API"
+        ? `, incidents=${incidents.length}/${incidents.map((item) => item.severity).sort()[0] ?? "NONE"}`
+        : "";
     await this.options.transport.sendMessage(
       chatId,
       `${safeStatus(state)}${incidentSuffix}`,
@@ -387,10 +389,24 @@ export class TelegramOperatorService {
       );
   }
 
-  async notifyIncident(event: { kind: "OPENED" | "RESOLVED"; incident: { sourceFamily: string | null; incidentType: string; severity: string; safeSummaryCode: string; latestReportId: string } }): Promise<void> {
+  async notifyIncident(event: {
+    kind: "OPENED" | "RESOLVED";
+    incident: {
+      sourceFamily: string | null;
+      incidentType: string;
+      severity: string;
+      safeSummaryCode: string;
+      latestReportId: string;
+    };
+  }): Promise<void> {
     const incident = event.incident;
     const text = `API-watch incident ${event.kind.toLowerCase()}: ${incident.sourceFamily ?? "GLOBAL"} ${incident.incidentType} ${incident.severity} ${incident.safeSummaryCode} report=${incident.latestReportId}`;
-    for (const chatId of this.options.notificationChatIds ?? []) await this.options.transport.sendMessage(chatId, text, keyboard("SWAGGER_API"));
+    for (const chatId of this.options.notificationChatIds ?? [])
+      await this.options.transport.sendMessage(
+        chatId,
+        text,
+        keyboard("SWAGGER_API"),
+      );
   }
 
   private async poll(): Promise<void> {
