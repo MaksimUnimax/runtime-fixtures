@@ -33,7 +33,7 @@ Do not infer a current cursor from this template.
 
 ---
 
-## Accepted frontier
+## Accepted state/cursor
 
 To be populated from live authority on the first active execution cycle.
 
