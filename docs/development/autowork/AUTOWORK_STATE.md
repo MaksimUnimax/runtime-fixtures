@@ -35,19 +35,25 @@ Last reconstruction: 2026-09-23T06:31:21+03:00
   - `packages/server/db/src/browser-family-migration.test.ts`
   - `packages/shared/src/browser.test.ts`
   - `tests/regression/extension-core/client-i1/browser-family-contract.mjs`
-- `tests/e2e/server/activation.spec.ts` currently contains the port-contract repair: the activation URL expectation uses `portalOrigin` instead of hard-coded `http://127.0.0.1:3200`.
+- `tests/e2e/server/activation.spec.ts` contains the port-contract repair: the activation URL expectation uses `portalOrigin` instead of hard-coded `http://127.0.0.1:3200`.
 - That repair matches the existing parameterized `E2E_PORTAL_PORT` contract in Playwright config/fixtures.
-- The repair is preserved but **not accepted** because no new post-repair validation is claimed after owner STOP.
+- Focused non-default-port E2E on the preserved candidate (`E2E_PORTAL_PORT=3210`) passed 1/1 before the latest STOP.
 
 ## Current evidence
 
-- Verified toolchain for the completed unit-test run: Node `v24.20.0`, pnpm `10.34.5`.
-- Full repository `pnpm test`: **PASS**, exit code 0, before the interrupted validation chain.
-- Bridge boundary guard inside that run: **PASS**.
-- A combined validation chain `pnpm typecheck -> pnpm lint -> pnpm format:check -> pnpm openapi:check -> pnpm build` was started.
-- Owner STOP interrupted that chain during `pnpm typecheck`; therefore **NO PASS CLAIM** exists for that chain.
-- No source/unit result is promoted to installed-browser acceptance.
-- No real Chrome/Opera/Yandex/Firefox/Safari PASS is claimed.
+- Candidate identity SHA-256: `0f8d089b13409911fc48fb43f438a8b124e57146ae7a7bda16087a8fa36531cb`.
+- Node `v24.20.0`; pnpm `10.34.5`.
+- Focused activation E2E with non-default portal port: **PASS 1/1**.
+- Typecheck, lint + bridge guard, format, OpenAPI and five-app build: **PASS**.
+- Migration `0033` on fresh disposable PostgreSQL: **PASS**.
+- PostgreSQL integration: **42/42 files, 1553/1553 tests PASS**.
+- Fresh deterministic package SHA-256: `5279666b79b8321e31499e8245b7fbcd4643e30720a3dc8dafa3d09686b1804e`; repeat ZIP identity and source↔extracted byte identity: **PASS**.
+- Browser-family composed-runtime contract: **PASS** for Chrome, Opera, Yandex, Firefox and Safari identities; Edge remains unmodeled/rejected.
+- Playwright Chromium native unpacked C1: source **38/38 PASS**, extracted **38/38 PASS**. This proves `REAL_UNPACKED_CHROMIUM_PASS` only.
+- Extension I1 rerun with that proven marker: **PASS, 142 gate processes**.
+- Opera BR-C1-01 source+extracted smoke: **PASS**. Full Opera source matrix is **REWORK_REQUIRED / NOT_ACCEPTED**: BR-C1-19 failed `WORK_START_PENDING_COMMIT_READBACK_FAILED`; BR-C1-21 timed out waiting for `#account`; owner STOP interrupted after BR-C1-22 started.
+- Yandex clean-profile headless/headed load-flag probes and bounded CDP probe registered **zero Seller Agents extension targets**; classify current automated route as `ENVIRONMENT_DEFERRED`, not product PASS/FAIL.
+- No Google Chrome, Firefox or Safari family PASS is claimed.
 
 ## Deferred / external / environment boundaries
 
@@ -78,25 +84,24 @@ Last reconstruction: 2026-09-23T06:31:21+03:00
 ## Unresolved dependencies
 
 1. Preserve the current dirty candidate exactly; do not reset, clean, rebase, or overwrite it on resume.
-2. Validate the `portalOrigin` / `E2E_PORTAL_PORT` repair with focused server E2E, including a non-default portal port.
-3. Re-run the interrupted full validation chain and collect the complete reachable failure batch before any further repair.
-4. Verify DB migration/integration against a disposable PostgreSQL instance.
-5. Re-run affected server E2E/OpenAPI/build and extension contract/regression gates.
-6. Produce installed evidence per browser family only in legitimate target environments.
-7. Accept each browser-family claim separately; defer unavailable environments instead of transferring Chromium evidence.
+2. Analyze Opera BR-C1-19 and BR-C1-21 together as the current reachable failure batch.
+3. Perform three-level ownership analysis before changing product or harness code; repair only the owning layer.
+4. Rerun focused Opera evidence for the repaired failure(s), then the affected full Opera source+extracted matrix if candidate identity changes.
+5. Keep Yandex `ENVIRONMENT_DEFERRED` unless a legitimate controllable native install route becomes available; do not transfer Opera/Chromium evidence.
+6. Produce Chrome, Firefox and Safari family evidence only in legitimate target environments; unavailable environments remain deferred.
+7. Accept or rework the browser-family candidate only after browser-specific evidence is complete enough for the exact claims being made.
 
 ## Exact safe resume rule
 
 On explicit owner resume:
 
-1. Re-read this file and inspect the preserved branch/worktree before mutation.
-2. Confirm branch, HEAD and dirty-file identity; preserve `7e630f58...` as the documentation checkpoint and `2193f345...` as the product base.
-3. Do not repeat accepted historical work.
-4. Run focused validation of the already-present activation port repair.
-5. Run the complete validation/failure batch; only then perform three-level dependency analysis for any remaining failures.
-6. Complete DB integration/E2E, build/package and installed browser-family evidence where legitimately available.
-7. Classify unavailable real-browser requirements as deferred; never fake or transfer PASS.
-8. Decide **ACCEPTED** vs **REWORK_REQUIRED** only from complete evidence, then update this state again.
+1. Re-read this file and `docs/development/q1/R5_Q1B_BROWSER_FAMILY_RESUME_EVIDENCE_2026-09-23.md`; verify branch/HEAD and preserved **46 tracked dirty + 6 untracked** identity before mutation.
+2. Do not repeat already-green activation E2E, server validation, PostgreSQL integration, Chromium C1 or Extension I1 unless candidate identity changes.
+3. Reconstruct Opera BR-C1-19/21 failure evidence and perform three-level dependency analysis.
+4. Repair only the proven owning layer and run focused Opera evidence first.
+5. If focused evidence passes and candidate identity changed, run affected regression and full Opera source+extracted C1.
+6. Keep Yandex/Chrome/Firefox/Safari claims environment-specific; defer unavailable legitimate install/runtime environments instead of transferring evidence.
+7. Decide **ACCEPTED**, **PARTIAL/DEFERRED**, or **REWORK_REQUIRED** only from the resulting exact browser-family evidence; then update durable state again.
 
 ## STOP governor recheck
 
