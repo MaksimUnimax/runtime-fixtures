@@ -133,6 +133,32 @@ describe("A5 conservative API change impact", () => {
     );
   });
 
+  it("C03 classifies parameter/request/response schema changes as REVIEW_REQUIRED", () => {
+    for (const field of [
+      "parameterSchemaSha256",
+      "requestSchemaSha256",
+      "responseSchemaSha256",
+    ] as const) {
+      const result = impact(
+        [item({ [field]: "a".repeat(64) })],
+        [item({ [field]: "b".repeat(64) })],
+      );
+      expect(result.overallSeverity).toBe("REVIEW_REQUIRED");
+      expect(result.operations[0]?.reasons).toHaveLength(1);
+    }
+  });
+
+  it("C03 classifies security requirement semantic changes as BLOCKING_RISK", () => {
+    const result = impact(
+      [item({ securityRequirementsSha256: "a".repeat(64) })],
+      [item({ securityRequirementsSha256: "b".repeat(64) })],
+    );
+    expect(result.overallSeverity).toBe("BLOCKING_RISK");
+    expect(result.operations[0]?.reasons).toEqual([
+      "SECURITY_REQUIREMENTS_CHANGED",
+    ]);
+  });
+
   it("A5-10 classifies operationId-only changes as NO_POLICY_IMPACT", () => {
     const result = impact([item()], [item({ operationId: "renamed" })]);
     expect(result.overallSeverity).toBe("NO_POLICY_IMPACT");

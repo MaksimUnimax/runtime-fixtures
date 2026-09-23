@@ -231,6 +231,45 @@ describe("A6 API-watch report lifecycle", () => {
     }
   });
 
+  it("C03 report preserves source, exact snapshot version identity, and uncertainty", async () => {
+    const server = await fixtureServer(DOCUMENT_A);
+    const root = await mkdtemp(join(tmpdir(), "s2-c03-report-"));
+    try {
+      const registry = createSourceRegistry({
+        OZON_SELLER: {
+          officialUrl: server.url,
+          requiredServerIdentity: undefined,
+          titlePattern: undefined,
+        },
+        OZON_PERFORMANCE: { officialUrl: null, documents: [] },
+        WILDBERRIES: { officialUrl: null, documents: [] },
+      });
+      const setup = reportDependencies(registry, root);
+      await runApiWatchReport({
+        ...setup,
+        runId: "c03-evidence",
+        source: "FORCED",
+      });
+      const report = await setup.reportStore.getReport(
+        "api-watch:c03-evidence",
+      );
+      const observed = report?.sources.find(
+        (source) => source.sourceFamily === "OZON_SELLER",
+      );
+      const uncertain = report?.sources.find(
+        (source) => source.sourceFamily === "WILDBERRIES",
+      );
+      expect(observed?.snapshotSha256).toMatch(/^[a-f0-9]{64}$/);
+      expect(observed?.baseSnapshotSha256).toBeNull();
+      expect(observed?.blockerCode).toBeNull();
+      expect(uncertain?.snapshotSha256).toBeNull();
+      expect(uncertain?.blockerCode).toBe("SOURCE_URL_AUTHORITY_MISSING");
+    } finally {
+      await server.close();
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it("A6-09 all usable first observations complete successfully", async () => {
     const server = await fixtureServer(DOCUMENT_A);
     const root = await mkdtemp(join(tmpdir(), "s2-a6-complete-"));

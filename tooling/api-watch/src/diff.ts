@@ -20,6 +20,10 @@ const FIELD_ORDER: readonly DiffField[] = [
   "securitySchemeReferences",
   "summaryHash",
   "tags",
+  "parameterSchemaSha256",
+  "requestSchemaSha256",
+  "responseSchemaSha256",
+  "securityRequirementsSha256",
 ];
 
 function sortedUnique(values: readonly string[]): string[] {
@@ -40,6 +44,10 @@ function semanticOperation(item: OperationInventoryItem): SemanticOperation {
     requestBodyPresent: item.requestBodyPresent,
     parameterCount: item.parameterCount,
     responseStatusKeys: sortedUnique(item.responseStatusKeys),
+    parameterSchemaSha256: item.parameterSchemaSha256 ?? "",
+    requestSchemaSha256: item.requestSchemaSha256 ?? null,
+    responseSchemaSha256: item.responseSchemaSha256 ?? "",
+    securityRequirementsSha256: item.securityRequirementsSha256 ?? "",
   };
 }
 

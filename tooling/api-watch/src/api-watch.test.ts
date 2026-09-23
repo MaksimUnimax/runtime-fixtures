@@ -233,6 +233,58 @@ describe("A1 runtime API source authority", () => {
     }
   });
 
+  it("C03 times out when the body stalls after response headers", async () => {
+    const server = await fixtureServer((_request, response) => {
+      response
+        .writeHead(200, { "content-type": "application/json" })
+        .flushHeaders();
+      response.write('{"openapi":"3.0.3"');
+      setTimeout(() => response.end("}"), 100);
+    });
+    try {
+      expect(
+        (
+          await acquireOfficialSource({
+            entry: entry(`${server.url}/source`),
+            timeoutMs: 20,
+          })
+        ).kind,
+      ).toBe("SOURCE_TEMPORARILY_UNAVAILABLE");
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("C03 applies one total deadline across redirects", async () => {
+    const server = await fixtureServer((request, response) => {
+      if (new URL(request.url).pathname === "/start") {
+        setTimeout(
+          () => response.writeHead(302, { location: "/final" }).end(),
+          80,
+        );
+        return;
+      }
+      setTimeout(() => {
+        response
+          .writeHead(200, { "content-type": "application/json" })
+          .flushHeaders();
+        response.end(OPENAPI_3);
+      }, 80);
+    });
+    try {
+      expect(
+        (
+          await acquireOfficialSource({
+            entry: entry(`${server.url}/start`),
+            timeoutMs: 120,
+          })
+        ).kind,
+      ).toBe("SOURCE_TEMPORARILY_UNAVAILABLE");
+    } finally {
+      await server.close();
+    }
+  });
+
   it("A1-09 network failure is temporary", async () => {
     expect(
       (
