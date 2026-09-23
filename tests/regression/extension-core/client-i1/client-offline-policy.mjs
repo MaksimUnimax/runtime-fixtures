@@ -48,15 +48,16 @@ function fakeIDB() {
             const result = {};
             queueMicrotask(() => {
               if (kind === "get" || kind === "all") stats.reads++;
-              if (kind === "put") { stats.writes++; records.set(value.artifact_key, value); }
+              if (kind === "put") { stats.writes++; records.set(value.artifact_key ?? value.requestId, value); }
               if (kind === "delete") { stats.writes++; records.delete(value); }
-              result.result = kind === "get" ? records.get(value) : kind === "all" ? [...records.values()] : value?.artifact_key;
+              if (kind === "clear") { stats.writes++; records.clear(); }
+              result.result = kind === "get" ? records.get(value) : kind === "all" ? [...records.values()] : value?.artifact_key ?? value?.requestId;
               result.onsuccess?.();
               queueMicrotask(() => tx.oncomplete?.());
             });
             return result;
           };
-          return { get: key => op("get", key), put: value => op("put", value), delete: key => op("delete", key), getAll: () => op("all") };
+          return { get: key => op("get", key), put: value => op("put", value), delete: key => op("delete", key), getAll: () => op("all"), clear: () => op("clear") };
         } };
         return tx;
       } };
@@ -104,12 +105,13 @@ async function prepared(options = {}) {
   if (options.credentials) Object.assign(backing.local[AUTH].credentials, options.credentials);
   await options.mutateBacking?.(backing);
   const packagedConfig = options.packagedConfigFactory ? await options.packagedConfigFactory(backing) : options.packagedConfig;
+  const indexedDB = options.indexedDB || fakeIDB();
   const worker = await makeWorker(runtime, {
     backing,
     seedAuthority: false,
     wallClock,
     monotonicClock,
-    indexedDB: options.indexedDB,
+    indexedDB,
     beforeCryptoVerify: options.beforeCryptoVerify,
     accountId: options.accountId,
     deviceId: options.deviceId,
