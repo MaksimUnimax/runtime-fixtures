@@ -1,17 +1,18 @@
 # Octoport SEO — M1 progress
 
 Date: 2026-09-23
-Status: **PRELAUNCH BASELINE READY FOR FINAL ACCEPTANCE**
+Status: **PASS / PRELAUNCH NO-PRODUCTION-SITE BASELINE**
 Branch: `seo/wordstat-batch-01-2026-09-16`
 
-Current owner authority:
-`docs/seo/technical/M1_OWNER_PRELAUNCH_SCOPE_CORRECTION_2026-09-23_R1.md`
+Current authority:
+`docs/seo/technical/M1_LIVE_MEASUREMENT_BASELINE_2026-09-23_R1.md`
 
-## Current truth
+Owner correction:
+`docs/seo/technical/M1_OWNER_PRELAUNCH_SCOPE_CORRECTION_2026-09-23_R1.md`
 
 ```text
 PRODUCTION_SEO_SITE = NOT_YET_EXISTS
-CURRENT_PUBLIC_PAGE = PRELAUNCH PLACEHOLDER / FOUNDATION
+CURRENT_PUBLIC_SURFACE = PRELAUNCH PLACEHOLDER / FOUNDATION
 
 PLACEHOLDER_HOME_SOURCE_LIVE_BYTE_IDENTITY = PASS
 PLACEHOLDER_ROBOTS_SOURCE_LIVE_BYTE_IDENTITY = PASS
@@ -22,21 +23,14 @@ YANDEX_METRIKA = NOT_APPLICABLE_PRELAUNCH
 GOOGLE_SEARCH_CONSOLE = NOT_APPLICABLE_PRELAUNCH
 INDEXED_BRANDED_PRODUCTION_BASELINE = NOT_APPLICABLE_PRELAUNCH
 
-M1_PRIVATE_MEASUREMENT_SETUP_REQUIRED_NOW = false
+PRIVATE_MEASUREMENT_SETUP_REQUIRED_NOW = false
 M1_BLOCKING_UNKNOWN = 0
+M1_OPEN_CRITICAL_DEFECTS = 0
+M1_CURRENT_STAGE_SCORE = 9.6/10
+M1 = PASS
 ```
 
-## Superseded cursor
+No further Webmaster/Metrika/GSC checks are authorized before a real production SEO site exists.
 
-The earlier `HOLD_OWNER_SETUP_REQUIRED` interpretation for Webmaster and the released Metrika/GSC readiness checks are superseded by explicit owner product-state authority.
-
-No further private measurement-system reads are authorized in M1.
-
-## Current next step
-
-```text
-M1 FINAL PRELAUNCH BASELINE ACCEPTANCE
--> M6 FINAL CLOSURE
--> R4 CURRENT-AUTHORITY RESCORE
--> M7 COLLECTION FREEZE
-```
+Next:
+`M6 FINAL HARD-GATE CLOSURE -> R4 -> M7`.
