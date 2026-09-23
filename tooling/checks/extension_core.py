@@ -34,6 +34,7 @@ def main():
               "live_provider_calls": 0, "installed_acceptance": False}
     try:
         original.negative_control(output)
+        runner.run("core-build-create-pending-extraction", ["node", ROOT / "tests/regression/extension-core/client-i1/create-pending-work-start-extraction.mjs"])
         source, extracted, receipt = composed.build(output / "package")
         result["composition"] = receipt
         work = output / "work"
