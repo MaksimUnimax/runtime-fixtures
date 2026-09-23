@@ -1,0 +1,95 @@
+{
+  "work_id": "OCTOPORT_SEO_M6_PRE_ACQUISITION_RECONCILIATION_2026-09-23_R1",
+  "start_head": "409d2bde3f79432141400bd4258dfa23627bf99b",
+  "end_observed_head": "409d2bde3f79432141400bd4258dfa23627bf99b",
+  "authority_drift_status": "NONE",
+  "verdict": "PASS_PRE_ACQUISITION_PLAN_PENDING_MAIN_CHAT_ACCEPTANCE",
+  "metrics": {
+    "FROZEN_REQUIRED_BLOBS_MATCH": "6/6",
+    "M4C_BASE_M6_SOURCE_ROWS_ACCOUNTED": "5973/5973",
+    "TARGETED_OVERLAY_SOURCE_ROWS_ACCOUNTED": "133/133",
+    "TOTAL_PRIMARY_M6_SOURCE_ROWS": "6106/6106",
+    "SILENT_SOURCE_LOSS": 0,
+    "M2R_LINEAGE_REVIEWED": "1123/1123",
+    "M4Q_QUERY_UNIVERSE_REVIEWED": "15542/15542",
+    "M5_ROUTING_ROWS_REVIEWED": "1000/1000",
+    "REUSE_EXISTING_WORDSTAT_EVIDENCE": 1,
+    "EXACT_DUPLICATE": 0,
+    "PROVIDER_REQUIRED_DEMAND_VALIDATION": 4,
+    "NO_INCREMENTAL_INFORMATION_GAIN": 2574,
+    "OUT_OF_PRODUCT_SCOPE": 1821,
+    "HOLD_AMBIGUOUS": 1676,
+    "OWNER_OR_PRODUCT_FACT_REQUIRED": 30,
+    "DISPOSITION_ACCOUNTING": "6106/6106",
+    "GAP_REGISTER_ROWS": 19,
+    "PROVIDER_CANDIDATE_ROWS": 15,
+    "WORDSTAT_PROVIDER_CANDIDATES": 4,
+    "SEARCH_PROVIDER_CANDIDATES": 11,
+    "BRIDGE_CAPABILITY_HOLD_ROWS": 9,
+    "M3_QUERIES_ACCOUNTED": "15/15",
+    "M3_OVERLAP_REUSE": 15,
+    "M3_TEMPORAL_REUSE_FROM_M4Q_R2": 15,
+    "M3_REGION_PROVIDER_CANDIDATES": 2,
+    "M3_FULL_SERP_CAPABILITY_HOLDS": 6,
+    "M3_DEVICE_CAPABILITY_HOLDS": 3,
+    "M1_PRE_M7_DEPENDENCY_RECORDED": "true",
+    "DUPLICATE_PROVIDER_ACQUISITION": 0,
+    "M5_HYPOTHESIS_AS_PROVIDER_GAP": 0,
+    "SEARCH_VISIBILITY_AS_DEMAND": 0,
+    "COMPETITOR_TOPIC_AS_DEMAND": 0,
+    "PROVIDER_CALLS": 0,
+    "YANDEX_SEARCH_CALLS": 0,
+    "WORDSTAT_CALLS": 0,
+    "ALICE_CALLS": 0,
+    "WEB_ACQUISITION_BY_WORK": 0,
+    "GITHUB_WRITES": 0,
+    "OPEN_CRITICAL_DEFECTS": 0
+  },
+  "files": [
+    {
+      "filename": "M6_SOURCE_MANIFEST.md",
+      "bytes": 6825,
+      "sha256": "0d9eea31a4a4e9e16437edbd362868390bd4fca96948cc4951b6b61f6aa1fbb8",
+      "row_count": null,
+      "role": "Governing and source identities"
+    },
+    {
+      "filename": "M6_DEMAND_CANDIDATE_RECONCILIATION.tsv",
+      "bytes": 6040447,
+      "sha256": "88511188728629062ac065a8bc0f9ac75b5fcd12e13392c65199045a84419832",
+      "row_count": 6106,
+      "role": "Full primary source reconciliation"
+    },
+    {
+      "filename": "M6_GAP_REGISTER.tsv",
+      "bytes": 47076,
+      "sha256": "89d1d89ade0deb16e012854e8146f67c2d05f8204860bb0e983bbf4c890107ad",
+      "row_count": 19,
+      "role": "Deduplicated decision-level gaps"
+    },
+    {
+      "filename": "M6_PROVIDER_CANDIDATE_MANIFEST.tsv",
+      "bytes": 24193,
+      "sha256": "483aff4a5cd0d657f896a33f13e11ada9bd1e20c895aa0b3202d9e3479d6481d",
+      "row_count": 15,
+      "role": "Unreleased provider candidate and capability-hold plan"
+    },
+    {
+      "filename": "M6_M3_CONTROL_PLAN.tsv",
+      "bytes": 13591,
+      "sha256": "8f9b6646f37b428e8ee70299ed3b68dd2ff6d4ce11d9497c1142edde1d11b191",
+      "row_count": 15,
+      "role": "Five independent control decisions per M3 query"
+    },
+    {
+      "filename": "M6_QA.md",
+      "bytes": 3801,
+      "sha256": "87e13f82e2ed12d81e9848fce3c5b46b25064400fd888d75cd9aa4cd3d2f25ed",
+      "row_count": null,
+      "role": "Full-volume QA and boundaries"
+    }
+  ],
+  "self_hash_policy": "Return manifest SHA256 omitted from itself to avoid recursive self-hash. ZIP SHA256 reported externally.",
+  "publication_target": "docs/seo/work_return/M6_PRE_ACQUISITION_RECONCILIATION_2026-09-23_R1/",
+  "provider_command_released": false
+}
