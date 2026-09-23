@@ -42,12 +42,12 @@ SEARCH REGION:
   LAST_OPERATION_ID = spregqnga31l4fm29b3b
   FIRST_OPERATION_ID = NOT_SURFACED_IN_SUBMIT_ENVELOPE
 
-DURABLE_TIMING:
+TIMING:
   SUBMIT_RESULT_COMMIT_TIME_UTC = 2026-09-23T12:05:28Z
   FIRST_NO_DUE_COLLECT_COMMIT_TIME_UTC = 2026-09-23T12:08:38Z
-  ELAPSED_BY_FIRST_NO_DUE_COMMIT = 190 seconds
-  REQUIRED_DEFERRED_BARRIER = 300 seconds minimum
-  FIRST_COLLECT_OCCURRED_BEFORE_CONSERVATIVE_BARRIER = true
+  CONSERVATIVE_BARRIER_PASS_TIME_UTC = 2026-09-23T12:10:28Z
+  REQUIRED_DEFERRED_BARRIER = 300 seconds
+  SECOND_COLLECT_RELEASE = PASS
 
 CAPABILITY HOLDS:
   SEARCH_HTML = 6
@@ -57,19 +57,23 @@ M1_PRE_M7 = OPEN
 M7 = BLOCKED
 ```
 
-## Current action gate
+## Current exact next action
 
-The first collect was too early under the conservative durable timing gate and correctly performed zero provider calls.
+Exactly one collection action is released:
 
-No resubmit is permitted.
+```text
+SEARCH_ASYNC_BATCH_API_V1 {"action":"collectN","jobId":"octoport-m6-search-region-controls-r1-20260923","count":2}
+```
 
-A later collect may be released only after the conservative 5-minute barrier measured from the durable submit-result commit is satisfied.
-
-Raw lifecycle evidence:
-- `docs/seo/work/M6_PENDING_PROVIDER_RAW/M6_SEARCH_REGION_BATCH_START.json`
-- `docs/seo/work/M6_PENDING_PROVIDER_RAW/M6_SEARCH_REGION_BATCH_SUBMIT.json`
-- `docs/seo/work/M6_PENDING_PROVIDER_RAW/M6_SEARCH_REGION_BATCH_COLLECT_01_NO_DUE.json`
+Rules:
+- same durable job only;
+- no resubmit;
+- persist/readback the complete returned envelope;
+- if partial, later collect requires a new release;
+- UNKNOWN blocks replay;
+- export remains blocked until terminal collection.
 
 Authorities:
-- `docs/seo/M6_SEARCH_REGION_CONTROL_SUBMIT_RELEASE_2026-09-23_R1.md`
-- `docs/seo/M6_SEARCH_REGION_CONTROL_COLLECT_RELEASE_2026-09-23_R1.md`
+- `docs/seo/M6_SEARCH_REGION_CONTROL_COLLECT_RELEASE_2026-09-23_R2.md`
+- `docs/seo/M6_SEARCH_REGION_CONTROL_COMPARISON_PLAN_2026-09-23_R1.md`
+- `docs/seo/work/M6_PENDING_PROVIDER_RAW/M6_SEARCH_REGION_BATCH_COLLECT_01_NO_DUE.json`
