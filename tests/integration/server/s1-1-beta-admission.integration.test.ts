@@ -226,6 +226,25 @@ describe.sequential("S1.1 beta admission on real PostgreSQL", () => {
     expect(JSON.stringify(rows.rows[0])).not.toMatch(/otp|token|secret/i);
   });
 
+  it("redacts secret-shaped admin reasons before audit persistence", async () => {
+    const actor = await admin();
+    const result = await service.mutate(
+      input(actor, "request-redacted-reason", {
+        reason:
+          "token=supersecretvalue Bearer abcdefghijklmnopqrstuvwxyz123456",
+      }),
+    );
+    expect(result.kind).toBe("APPLIED");
+    const row = await q<{ reason: string }>(
+      "SELECT reason FROM audit_events WHERE action='BETA_ADMISSION_CHANGED'",
+    );
+    expect(row.rows[0]!.reason).not.toContain("supersecretvalue");
+    expect(row.rows[0]!.reason).not.toContain(
+      "abcdefghijklmnopqrstuvwxyz123456",
+    );
+    expect(row.rows[0]!.reason).toContain("[REDACTED");
+  });
+
   it("rechecks current manage permission inside the transaction", async () => {
     const actor = await admin();
     await q(

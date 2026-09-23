@@ -20,6 +20,7 @@ import {
   type TypedEntitlementValue,
 } from "@product/plans";
 import type { DatabaseQuery, DatabaseRuntime } from "./index.js";
+import { safeAuditReason } from "./safe-audit.js";
 
 type Query = Pick<DatabaseQuery, "query">;
 type OverrideRow = {
@@ -83,7 +84,7 @@ async function audit(
       action,
       accountId,
       context.correlationId,
-      context.reason,
+      safeAuditReason(context.reason),
       JSON.stringify(metadata),
     ],
   );

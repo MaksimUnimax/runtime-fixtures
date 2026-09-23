@@ -1,4 +1,5 @@
 import type { DatabaseQuery } from "./index.js";
+import { safeAuditReason } from "./safe-audit.js";
 
 export type DeviceRevocationInput = {
   deviceId: string;
@@ -41,7 +42,7 @@ export async function revokeDeviceInTransaction(
       input.deviceAuditAction,
       row.id,
       input.correlationId,
-      input.reason ?? null,
+      input.reason ? safeAuditReason(input.reason) : null,
       input.actorType === "ADMIN"
         ? JSON.stringify({
             accountId: row.account_id,
