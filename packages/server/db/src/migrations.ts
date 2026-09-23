@@ -21,6 +21,28 @@ export interface RunMigrationsOptions {
   migrationsDirectory?: string;
 }
 
+async function assertNoUntrackedApplicationObjects(
+  runtime: Pick<DatabaseRuntime, "query">,
+): Promise<void> {
+  const objects = await runtime.query<{ has_objects: boolean }>(
+    "SELECT EXISTS (" +
+      "SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace " +
+      "WHERE n.nspname='public' AND c.relkind IN ('r','p','v','m','S','f') " +
+      "UNION ALL " +
+      "SELECT 1 FROM pg_type t JOIN pg_namespace n ON n.oid=t.typnamespace " +
+      "WHERE n.nspname='public' " +
+      "UNION ALL " +
+      "SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace " +
+      "WHERE n.nspname='public'" +
+      ") AS has_objects",
+  );
+  if (objects.rows[0]?.has_objects) {
+    throw new Error(
+      "MIGRATION_HISTORY_UNTRACKED; existing application objects require explicit reconciliation",
+    );
+  }
+}
+
 /** Reject a different migration lineage before Drizzle can silently skip older timestamps. */
 export async function assertMigrationHistory(
   runtime: Pick<DatabaseRuntime, "query">,
@@ -29,10 +51,17 @@ export async function assertMigrationHistory(
   const exists = await runtime.query<{ relation: string | null }>(
     "SELECT to_regclass('drizzle.__drizzle_migrations')::text AS relation",
   );
-  if (!exists.rows[0]?.relation) return;
+  if (!exists.rows[0]?.relation) {
+    await assertNoUntrackedApplicationObjects(runtime);
+    return;
+  }
   const applied = await runtime.query<{ hash: string; created_at: string }>(
     "SELECT hash, created_at::text FROM drizzle.__drizzle_migrations ORDER BY created_at, id",
   );
+  if (applied.rows.length === 0) {
+    await assertNoUntrackedApplicationObjects(runtime);
+    return;
+  }
   const expected = readMigrationFiles({ migrationsFolder: directory });
   for (const [index, row] of applied.rows.entries()) {
     const migration = expected[index];
