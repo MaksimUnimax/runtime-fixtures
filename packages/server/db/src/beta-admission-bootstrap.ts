@@ -1,4 +1,5 @@
 import type { DatabaseRuntime } from "./index.js";
+import { safeAuditReason } from "./safe-audit.js";
 
 const INITIAL_BOOTSTRAP_LOCK_KEY =
   "product-control-plane/beta-admission/initial-bootstrap/v1";
@@ -62,7 +63,7 @@ export async function bootstrapInitialBetaAdmission(
          VALUES('SYSTEM',NULL,'BETA_ADMISSION_INITIAL_BOOTSTRAPPED','BETA_ADMISSION_STATE',NULL,$1,$2,$3::jsonb)`,
         [
           input.correlationId,
-          input.reason,
+          safeAuditReason(input.reason),
           JSON.stringify({
             old: { mode: "CLOSED", capacity: 0, admitted: 0, revision: 1 },
             new: { mode: "OPEN", capacity: 1, admitted: 0, revision: 2 },

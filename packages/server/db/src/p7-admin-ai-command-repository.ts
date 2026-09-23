@@ -11,6 +11,7 @@ import {
 } from "@product/adapter-registry";
 import type { AdminAiRegistryCommandRepository } from "@product/admin-ai";
 import type { DatabaseQuery, DatabaseRuntime } from "./index.js";
+import { safeAuditReason } from "./safe-audit.js";
 import { authorizeAdminMutationInTransaction } from "./admin-mutation-authorization.js";
 
 type Row = Record<string, unknown>;
@@ -58,7 +59,7 @@ async function audit(
       targetType,
       targetId,
       input.correlationId,
-      input.reason,
+      safeAuditReason(input.reason),
       JSON.stringify(metadata),
     ],
   );

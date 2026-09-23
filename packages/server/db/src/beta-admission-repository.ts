@@ -7,6 +7,7 @@ import {
   AdminMutationAuthorizationError,
   authorizeAdminMutationInTransaction,
 } from "./admin-mutation-authorization.js";
+import { safeAuditReason } from "./safe-audit.js";
 
 const stateId = 1;
 
@@ -159,7 +160,7 @@ export function createBetaAdmissionRepository(
           [
             input.actorPrincipalId,
             input.correlationId,
-            input.reason,
+            safeAuditReason(input.reason),
             JSON.stringify({
               action: input.action,
               requestIdHash: input.requestIdHash,

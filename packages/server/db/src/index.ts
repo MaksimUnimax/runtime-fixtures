@@ -55,6 +55,7 @@ export { bootstrapInitialBetaAdmission } from "./beta-admission-bootstrap.js";
 export { createSyncRepository } from "./sync-repository.js";
 export { createCredentialTransferRepository } from "./credential-transfer-repository.js";
 export { createFeedbackSupportRepository } from "./feedback-support-repository.js";
+export { retentionConfig as loadFeedbackRetentionConfig } from "@product/feedback-support";
 export { createBootstrapAiResolutionRepository } from "./bootstrap-ai-resolution-repository.js";
 export { createP7AdminAiReadRepository } from "./p7-admin-ai-read-repository.js";
 export { createP7AdminAiCommandRepository } from "./p7-admin-ai-command-repository.js";

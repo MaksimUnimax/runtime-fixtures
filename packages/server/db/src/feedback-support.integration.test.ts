@@ -17,6 +17,7 @@ describe.sequential("B2 PostgreSQL feedback/support persistence", () => {
   let userId: string;
   let otherUserId: string;
   let accountId: string;
+  let supportPrincipalId: string;
 
   beforeAll(async () => {
     runtime = createDatabaseRuntime(connectionString!);
@@ -42,6 +43,15 @@ describe.sequential("B2 PostgreSQL feedback/support persistence", () => {
     await runtime.query(
       "INSERT INTO account_memberships(account_id,user_id,role) VALUES($1,$2,'OWNER')",
       [accountId, userId],
+    );
+    supportPrincipalId = randomUUID();
+    await runtime.query(
+      "INSERT INTO admin_principals(id,user_id,status,revision) VALUES($1,$2,'ACTIVE',1)",
+      [supportPrincipalId, otherUserId],
+    );
+    await runtime.query(
+      "INSERT INTO admin_role_grants(admin_principal_id,role) VALUES($1,'ADMIN_SUPPORT')",
+      [supportPrincipalId],
     );
   });
 
@@ -75,21 +85,21 @@ describe.sequential("B2 PostgreSQL feedback/support persistence", () => {
 
     const triaged = await service.transitionCase(
       "SUPPORT",
-      randomUUID(),
+      supportPrincipalId,
       created.value.caseId,
       { status: "TRIAGED" },
     );
     expect(triaged.ok).toBe(true);
     const resolved = await service.transitionCase(
       "SUPPORT",
-      randomUUID(),
+      supportPrincipalId,
       created.value.caseId,
       { status: "RESOLVED", resolutionCode: "FIXED" },
     );
     expect(resolved.ok).toBe(true);
     const invalid = await service.transitionCase(
       "SUPPORT",
-      randomUUID(),
+      supportPrincipalId,
       created.value.caseId,
       { status: "NEW" },
     );
@@ -133,6 +143,48 @@ describe.sequential("B2 PostgreSQL feedback/support persistence", () => {
     );
   });
 
+  it("fails closed when support mutation authority is revoked after route admission", async () => {
+    const created = await service.createCase(userId, {
+      accountId,
+      category: "OTHER",
+      description: "authority fence",
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+
+    await runtime.query(
+      "UPDATE admin_role_grants SET revoked_at=now(),revoked_by_admin_principal_id=$1 WHERE admin_principal_id=$1 AND role='ADMIN_SUPPORT' AND revoked_at IS NULL",
+      [supportPrincipalId],
+    );
+
+    const transitioned = await service.transitionCase(
+      "SUPPORT",
+      supportPrincipalId,
+      created.value.caseId,
+      { status: "TRIAGED" },
+    );
+    expect(transitioned).toEqual({ ok: false, code: "FORBIDDEN" });
+
+    const followup = await service.addAdminFollowup(
+      "SUPPORT",
+      supportPrincipalId,
+      created.value.caseId,
+      { description: "must not persist" },
+    );
+    expect(followup).toEqual({ ok: false, code: "FORBIDDEN" });
+
+    const state = await runtime.query<{ status: string }>(
+      "SELECT status FROM feedback_cases WHERE id=$1",
+      [created.value.caseId],
+    );
+    expect(state.rows[0]?.status).toBe("NEW");
+    const mutations = await runtime.query<{ count: string }>(
+      "SELECT count(*)::text AS count FROM audit_events WHERE target_id=$1 AND action IN ('SUPPORT_CASE_STATUS_CHANGED','SUPPORT_CASE_FOLLOWUP_ADDED')",
+      [created.value.caseId],
+    );
+    expect(mutations.rows[0]?.count).toBe("0");
+  });
+
   it("supports account anonymization and configurable retention deletion", async () => {
     const created = await service.createCase(userId, {
       accountId,
@@ -141,15 +193,30 @@ describe.sequential("B2 PostgreSQL feedback/support persistence", () => {
     });
     expect(created.ok).toBe(true);
     if (!created.ok) return;
-    await service.transitionCase("ADMIN", randomUUID(), created.value.caseId, {
-      status: "TRIAGED",
-    });
-    await service.transitionCase("ADMIN", randomUUID(), created.value.caseId, {
-      status: "RESOLVED",
-    });
-    await service.transitionCase("ADMIN", randomUUID(), created.value.caseId, {
-      status: "CLOSED",
-    });
+    await service.transitionCase(
+      "SUPPORT",
+      supportPrincipalId,
+      created.value.caseId,
+      {
+        status: "TRIAGED",
+      },
+    );
+    await service.transitionCase(
+      "SUPPORT",
+      supportPrincipalId,
+      created.value.caseId,
+      {
+        status: "RESOLVED",
+      },
+    );
+    await service.transitionCase(
+      "SUPPORT",
+      supportPrincipalId,
+      created.value.caseId,
+      {
+        status: "CLOSED",
+      },
+    );
     const anonymized = await service.anonymizeAccount(accountId);
     expect(anonymized.cases).toBe(1);
     const row = await runtime.query<{
@@ -166,7 +233,7 @@ describe.sequential("B2 PostgreSQL feedback/support persistence", () => {
       diagnostics: null,
     });
     await runtime.query(
-      "UPDATE feedback_cases SET updated_at='2020-01-01T00:00:00Z' WHERE id=$1",
+      "UPDATE feedback_cases SET closed_at='2020-01-01T00:00:00Z',updated_at='2030-01-01T00:00:00Z' WHERE id=$1",
       [created.value.caseId],
     );
     const purged = await service.purgeExpired({
