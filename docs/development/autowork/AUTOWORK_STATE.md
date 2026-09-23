@@ -1,12 +1,12 @@
 # OCTOPORT durable autowork state
 
-Last reconstruction: 2026-09-23T05:55:00+03:00
+Last reconstruction: 2026-09-23T05:59:06+03:00
 
 ## Owner control state
 
-- AUTOWORK: **STOPPED_BY_OWNER**
-- Current direct owner instruction: **зафиксировать прогресс и остановиться**.
-- No new implementation, test, build, browser or runtime work may start until the owner explicitly resumes autowork.
+- AUTOWORK: **ACTIVE**
+- Current direct owner instruction: **STOP отменен; продолжать работу по governor**.
+- Owner explicitly resumed autowork; continue from the preserved R5/Q1-B candidate without repeating accepted work.
 
 ## Accepted state / cursor before the active candidate
 
@@ -18,7 +18,7 @@ Last reconstruction: 2026-09-23T05:55:00+03:00
 
 ## Active candidate at STOP
 
-- Status: **IMPLEMENTED_CANDIDATE / NOT_ACCEPTED / STOPPED_BY_OWNER**
+- Status: **IMPLEMENTED_CANDIDATE / NOT_ACCEPTED / ACTIVE**
 - Worktree: `/root/runtime-fixtures-r5-browser-family-isolated-20260923`
 - Branch: `work/r5-browser-family-isolated-2026-09-23`
 - Accepted/base product revision: `2193f34523e8c0b15046c38c32af499f1b226179`
@@ -105,6 +105,12 @@ On explicit owner resume:
 - One stale pre-STOP Opera/C1 acceptance process (`PID 2620181`) was found still alive during the governor recheck and was terminated with `SIGTERM`; readback confirmed that no matching browser acceptance process remains.
 - No implementation, test, build, browser, or runtime work was started by this recheck.
 
+## Owner resume — 2026-09-23
+
+- Owner explicitly cancelled STOP and instructed autowork to continue.
+- Resume identity was verified before mutation: branch `work/r5-browser-family-isolated-2026-09-23`, preserved product candidate **46 tracked dirty + 6 untracked**, and no matching R5 test/browser process running.
+- Next action remains the preserved dependency-correct R5/Q1-B acceptance sequence: focused activation-port evidence, full validation/failure batch with real disposable PostgreSQL, then affected installed/browser evidence.
+
 ## Preservation note
 
-Owner STOP is active. The candidate remains in the same isolated worktree with all tracked and untracked implementation changes preserved. This state update is documentation-only and does not itself accept the candidate or any browser-family claim.
+Owner STOP is no longer active. The candidate remains in the same isolated worktree with all tracked and untracked implementation changes preserved. Resume state does not itself accept the candidate or any browser-family claim.
