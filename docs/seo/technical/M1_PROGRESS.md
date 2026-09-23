@@ -1,10 +1,10 @@
 # Octoport SEO — M1 progress
 
 Date: 2026-09-23
-Status: **ACTIVE / PRIVATE WEBMASTER READ CURRENT**
+Status: **ACTIVE / PRIVATE METRIKA READ CURRENT**
 Branch: `seo/wordstat-batch-01-2026-09-16`
 
-## Accepted M1 public evidence
+## Accepted public evidence
 
 ```text
 CURRENT_MAIN_HEAD = 5d160f8711c795f71fc4212782813a64bb439513
@@ -23,45 +23,51 @@ CANONICAL = https://octoport.ru/
 
 LIVE_METRIKA_TAG = absent
 LIVE_GA_GTM_TAG = absent
-PUBLIC_YANDEX_VERIFICATION_META = absent
-PUBLIC_GOOGLE_VERIFICATION_META = absent
-
-FIRST_PARTY_RESULT_IN_BOUNDED_PUBLIC_SEARCH_SAMPLE = not observed
-THIS_DOES_NOT_PROVE_ENGINE_NONINDEXING = true
 ```
 
-Public evidence:
-- `docs/seo/technical/m1_evidence/2026-09-23/M1_PUBLIC_LIVE_HTTP_SOURCE_EVIDENCE.json`
-- `docs/seo/technical/m1_evidence/2026-09-23/M1_PUBLIC_BRANDED_SEARCH_VISIBILITY.md`
-
-## Current private evidence needs
+## Yandex Webmaster
 
 ```text
-YANDEX_WEBMASTER = OPEN
-YANDEX_METRIKA = OPEN
-GOOGLE_SEARCH_CONSOLE = OPEN
+LISTHOSTS = OK / HTTP 200
+AUTHORIZED_HOST_COUNT = 1
+OCTOPORT_MATCH_COUNT = 0
+UNRELATED_HOST_DETAILS_PERSISTED = false
+YANDEX_WEBMASTER = HOLD_OWNER_SETUP_REQUIRED
 ```
 
-## Current exact action
+Sanitized authority:
+`docs/seo/technical/m1_evidence/2026-09-23/M1_WEBMASTER_LISTHOSTS_SANITIZED.json`
 
-Exactly one Yandex Webmaster read is released:
+No automatic site-add or verification action is authorized.
+
+## Current exact next action
+
+First set and save active Bridge service:
+`metrika`
+
+Then exactly one read-only command is released:
 
 ```text
-WEBMASTER_API_V1 {"method":"listHosts"}
+METRIKA_API_V1 {"method":"listCounters","page":1,"perPage":1000}
 ```
-
-Purpose:
-- determine whether `octoport.ru` exists in the current authorized Webmaster account;
-- obtain exact provider `host_id` if present.
 
 Privacy:
-unrelated Webmaster properties must not be persisted into the Octoport project repository.
+unrelated counters/sites must not be persisted into the Octoport project.
 
-After the result:
-`SANITIZED OCTOPORT PROJECTION -> GITHUB -> READBACK -> then decide getHostInfo or owner setup HOLD`.
+After result:
+`SANITIZED OCTOPORT PROJECTION -> GITHUB -> READBACK -> determine Metrika readiness`.
 
-No further Webmaster/Metrika action is currently released.
+## Still open
 
-M1 remains OPEN.
-M6 final closure remains blocked by M1.
-M7 remains BLOCKED.
+```text
+YANDEX_METRIKA = OPEN
+GOOGLE_SEARCH_CONSOLE = OPEN
+M1 = OPEN
+M6_FINAL_CLOSURE = BLOCKED_BY_M1
+M7 = BLOCKED
+```
+
+Authorities:
+- `docs/seo/technical/M1_LIVE_MEASUREMENT_PRE_STEP_GATE_2026-09-23_R1.md`
+- `docs/seo/technical/M1_WEBMASTER_LISTHOSTS_RELEASE_2026-09-23_R1.md`
+- `docs/seo/technical/M1_METRIKA_LISTCOUNTERS_RELEASE_2026-09-23_R1.md`
