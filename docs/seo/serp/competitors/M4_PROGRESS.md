@@ -1352,3 +1352,46 @@ EXPORT_ALLOWED_NOW = 0
 
 CURRENT_CURSOR:
 M4Q R2 PASS A2 ACCEPTED -> 45-ITEM LOCAL START PASS -> FIRST SUBMIT SLICE 22 ACCEPTED / 23 PENDING -> REMAINING submitN(23) RELEASED -> ACTUAL RESULT REQUIRED -> PERSIST/READBACK -> COLLECT PHASE -> EXPORT -> PASS B.
+
+
+## 2026-09-23 — M4Q R2 early collect deviation reconciled / remaining submits re-released
+
+Observed deviation:
+`raw/M4Q_R2_03_EARLY_COLLECT_2026-09-23.md`
+
+Continuation authority:
+`M4Q_R2_EARLY_COLLECT_ACCEPTANCE_AND_REMAINING_SUBMIT_RELEASE_2026-09-23_R1.md`
+
+Observed state:
+
+```text
+PENDING = 23
+WAITING = 21
+SUCCEEDED = 1
+FAILED = 0
+PARSE_FAILED = 0
+UNKNOWN = 0
+REQUESTS_STARTED = 22
+OPERATIONS_ACCEPTED = 22
+POLLS_STARTED = 1
+REVISION = 47
+```
+
+Interpretation:
+one already-submitted operation was collected successfully before submit-phase closure. No data loss, no replay and no ambiguous state occurred. The 23 not-yet-submitted items remain cleanly PENDING.
+
+Released exactly one continuation action:
+
+```text
+SEARCH_ASYNC_BATCH_API_V1 {"action":"submitN","jobId":"octoport-m4q-r2-b001-20260923","count":23}
+```
+
+```text
+REMAINING_SUBMITN_COMMANDS_ALLOWED_NOW = 1
+REMAINING_SUBMITN_COUNT_LIMIT = 23
+COLLECT_ALLOWED_NOW = 0
+EXPORT_ALLOWED_NOW = 0
+```
+
+CURRENT_CURSOR:
+M4Q R2 PASS A2 ACCEPTED -> 22 SUBMITTED -> 1 EARLY COLLECT SUCCEEDED -> 23 PENDING -> submitN(23) RE-RELEASED -> ACTUAL RESULT REQUIRED -> SUBMIT-PHASE CLOSURE -> COLLECTION -> EXPORT -> PASS B.
