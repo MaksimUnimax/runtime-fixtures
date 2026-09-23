@@ -94,6 +94,7 @@ $("transfer-discover").onclick = () => action(async () => {
 $("transfer-receive").onclick = () => action(async () => {
   const result = await request("SA_TRANSFER_RECEIVE_PENDING");
   $("transfer-status").textContent = result.importState === "IMPORTED" ? "Передача принята и магазин импортирован." : result.importState === "CONFLICT" ? "Передача получена, но импорт остановлен из-за конфликта магазина." : result.code === "SOURCE_OFFLINE" ? "Источник ещё не доставил передачу." : "Активной передачи для получения нет.";
+  if (result.importState === "IMPORTED" && result.requestId) void request("SA_TRANSFER_RESULT_CONSUME", { requestId: result.requestId }).catch(() => null);
 });
 $("auth-start").onclick = () => action(() => request("SA_AUTH_START"));
 $("auth-open").onclick = () => action(() => request("SA_AUTH_OPEN_PORTAL"));
