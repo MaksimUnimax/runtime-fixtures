@@ -1,3 +1,4 @@
+import { verifyBrowserProof, currentSourceHead } from "./browser-proof.mjs";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { makeWorker, signFixtureBootstrap, until } from "../worker-harness.mjs";
@@ -130,7 +131,7 @@ class AcceptanceHarness {
 }
 
 const h = new AcceptanceHarness();
-const browserProof = process.env.C3H_BROWSER_PROOF === "REAL_UNPACKED_CHROMIUM_PASS";
+const browserProofFile = process.env.C3H_BROWSER_PROOF_FILE;
 const fresh = async options => h.installation(options);
 const finish = async f => f.worker.popup({ type: "OZ_WORK_FINISH", tab_id: f.worker.tabId, conversation_key: f.key });
 const noProviderCall = f => assert.equal(f.worker.network.length, 0);
@@ -183,8 +184,7 @@ await test("AUT-44", "no periodic Health call is needed to keep Work alive", asy
 await test("AUT-45", "Health observation freshness does not truncate signed grace", async () => { const f = await fresh({ authority: "grace", dialogue: "aut45" }); const decision = await h.evaluate(f, {}, "START"); assert.equal(decision.allowed, true); assert.equal(decision.healthRequired, false); });
 await test("AUT-46", "source and extracted runtimes run this same harness", async () => { assert.ok(runtime.endsWith("runtime") || runtime.endsWith("extracted")); });
 await test("AUT-47", "real unpacked Chromium-family proof", async () => {
-  if (!browserProof) throw Object.assign(new Error("native MV3 registration remains externally deferred after bounded browser attempt"), { code: "ENVIRONMENT_DEFERRED_NATIVE_MV3_REGISTRATION" });
-  assert.equal(browserProof, true);
+  assert.equal(verifyBrowserProof(runtime, browserProofFile, currentSourceHead()), true);
 });
 await test("AUT-48", "dialogue/store isolation survives sync recovery", async () => { const a = await fresh({ dialogue: "aut48-a", marketplace: "ozon" }), b = await fresh({ dialogue: "aut48-b", marketplace: "ozon" }), c = await fresh({ dialogue: "aut48-c", marketplace: "wildberries" }); await h.start(a); await h.start(b); await h.start(c); h.sync.online = true; await a.worker.call("SellerAgentsSyncJournal.syncNow", "recovery"); await b.worker.call("SellerAgentsSyncJournal.syncNow", "recovery"); await c.worker.call("SellerAgentsSyncJournal.syncNow", "recovery"); assert.notEqual(a.backing.local[BINDINGS][a.key].store_context.storeId, b.backing.local[BINDINGS][b.key].store_context.storeId); assert.notEqual(b.marketplace, c.marketplace); });
 await test("AUT-49", "UNKNOWN provider request is never replayed", async () => { let release; const waiting = new Promise(resolve => { release = resolve; }); const f = await fresh({ dialogue: "aut49", fetch: async () => { await waiting; return new Response('{"result":[]}', { headers: { "content-type": "application/json" } }); } }); await h.start(f); const promise = h.execute(f); await until(() => f.worker.network.length === 1, "UNKNOWN provider request"); const snapshot = clone(f.backing); f.worker.close(); release(); const reopened = await makeWorker(runtime, { backing: snapshot, seedAuthority: false, healthFetch: async () => { throw new Error("offline"); } }); try { await new Promise(resolve => setTimeout(resolve, 20)); assert.equal(reopened.network.length, 0); } finally { reopened.close(); } await promise.catch(() => {}); });

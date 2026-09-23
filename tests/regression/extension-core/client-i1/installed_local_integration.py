@@ -5,7 +5,7 @@ generates its signing key at process start and exports only the public bundle;
 the private key remains in that API process and is never copied to the package.
 """
 from pathlib import Path
-import argparse, json, os, re, subprocess, tempfile, time, urllib.request
+import argparse, json, os, re, subprocess, tempfile, time, urllib.request, uuid
 from urllib.parse import urlparse
 from playwright.sync_api import sync_playwright
 
@@ -13,8 +13,8 @@ ROOT = Path(__file__).resolve().parents[4]
 NODE = os.environ.get("SA_NODE_BIN", "node")
 PNPM = os.environ.get("SA_PNPM_BIN", "pnpm")
 
-def fixture_email(name: str) -> str:
-    namespace = re.sub(r"[^a-z0-9]", "", os.environ.get("SA_I1_FIXTURE_NAMESPACE", "fixture").lower())[:24] or "fixture"
+def fixture_email(name: str, namespace: str) -> str:
+    namespace = re.sub(r"[^a-z0-9]", "", namespace.lower())[:24] or "fixture"
     return f"q1a-{namespace}-{name}@example.test"
 
 class SafeStageError(RuntimeError):
@@ -64,7 +64,8 @@ def run(runtime, output):
     if missing:
         raise RuntimeError("required installed-local inputs missing: " + ", ".join(missing))
     api_port, portal_port = "43100", "43101"
-    env = {**os.environ, "SA_I1_API_PORT": api_port}
+    namespace = os.environ.get("SA_I1_FIXTURE_NAMESPACE") or uuid.uuid4().hex
+    env = {**os.environ, "SA_I1_API_PORT": api_port, "SA_I1_FIXTURE_NAMESPACE": namespace}
     processes = []
     result = {"status": "RUNNING", "installed_acceptance": False, "otp": "development fixed OTP; not email evidence", "live_provider_calls": 0}
     with tempfile.TemporaryDirectory(prefix="seller-agents-i1-local-") as temp:
@@ -86,6 +87,9 @@ def run(runtime, output):
                 raise RuntimeError("API did not export public trust bundle")
             if not fixture_evidence_path.exists() or json.loads(fixture_evidence_path.read_text())["existing_fixture_accounts"] != 2 or json.loads(fixture_evidence_path.read_text())["beta_unchanged"] is not True:
                 raise RuntimeError("API fixture preparation evidence is incomplete")
+            evidence = json.loads(fixture_evidence_path.read_text())
+            if evidence.get("fixture_emails") != [fixture_email("one", namespace), fixture_email("two", namespace)]:
+                raise RuntimeError("API and browser fixture identities do not match")
             config = subprocess.check_output([NODE, str(ROOT / "tests/regression/extension-core/client-i1/make-browser-config.mjs"), str(private_placeholder), str(trust_path)], cwd=ROOT, env=env, text=True)
             configured_package = os.environ.get("SA_Q1A_FINAL_PACKAGE_ROOT")
             if configured_package:
@@ -176,7 +180,7 @@ def run(runtime, output):
                         stage = "bootstrap_observed"
                         return worker.evaluate("""async () => { const authority = await SellerAgentsControlClient.getAuthority(); const status = await SellerAgentsControlClient.status(); return { account: authority?.payload?.account?.id || null, device: authority?.deviceId || null, session: authority?.sessionId || null, authenticated: status.authenticated, workAllowed: status.workAllowed }; }""")
 
-                    first_identity = activate(fixture_email("one"))
+                    first_identity = activate(fixture_email("one", namespace))
                     assert first_identity["authenticated"] is True and first_identity["workAllowed"] is False
                     assert popup.locator("#catalog").is_visible()
                     first_account = popup.locator("#account").inner_text()
@@ -198,7 +202,7 @@ def run(runtime, output):
                     popup.locator("#confirmation").wait_for()
                     popup.locator("#confirmation #confirm").click()
                     popup.wait_for_function("() => document.querySelector('#auth-start').offsetParent !== null && document.querySelector('#account').innerText.includes('Вход не выполнен')")
-                    second_identity = activate(fixture_email("two"))
+                    second_identity = activate(fixture_email("two", namespace))
                     assert popup.locator("#account").inner_text() != first_account
                     assert "Аккаунт A WB" not in popup.locator("#stores").inner_text()
                     worker_sentinel_after = worker.evaluate("globalThis.__saI1WorkerSentinel")

@@ -28,7 +28,8 @@ on:
       - ".prettierignore"
       - ".github/workflows/server-ci.yml"
   push:
-    paths:
+    branches: [main, "work/c-integration", "controller/**"]
+  paths:
       - "apps/api/**"
       - "apps/portal/**"
       - "apps/admin/**"

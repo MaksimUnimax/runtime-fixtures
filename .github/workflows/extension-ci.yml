@@ -2,7 +2,8 @@ name: Extension CI
 
 on:
   push:
-    paths:
+    branches: [main, "work/c-integration", "controller/**"]
+  paths:
       - 'apps/extension/**'
       - 'packages/bridge-core/**'
       - 'packages/marketplaces/**'

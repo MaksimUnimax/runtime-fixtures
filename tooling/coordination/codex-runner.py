@@ -49,7 +49,12 @@ def main():
         command = [LAUNCHERS[args.role], "exec", "-m", MODEL,
                    "-s", "read-only" if args.read_only else "workspace-write",
                    "-C", str(directory), "-o", str(logs / (args.task + "-result.md")), "-"]
-        with prompt_file.open() as prompt, (logs / (args.task + "-exec.log")).open("a") as output:
+        effective_file = logs / (args.task + "-effective.md")
+        contract = "PARENT EXECUTION CONTRACT: You are a bounded child in a separate worktree, not the A/B/C parent. Do not call control.py status/start/submit from the child; those commands belong to the parent worktree. Do not commit, stage, push, or change shared Git metadata. The parent reads your diff and runs Git after review. A task request for a commit is fulfilled by a reviewed parent commit; never bypass the sandbox or request access to the entire shared .git. Leave source changes in your assigned child copy, report changed files and test evidence, and finish. Model is gpt-6-luna only.\n\n"
+        control.write_json(logs / (args.task + "-boundary.json"), {"git_owner":"parent", "model":MODEL, "worktree":str(directory)})
+        effective_file.write_text(contract + prompt_file.read_text() + "\n\n" + contract)
+        os.chmod(effective_file, 0o600)
+        with effective_file.open() as prompt, (logs / (args.task + "-exec.log")).open("a") as output:
             child = subprocess.Popen(command, cwd=directory, env=environment, stdin=prompt,
                                      stdout=output, stderr=subprocess.STDOUT, start_new_session=True)
             receipt = {"role": args.role, "task": args.task, "model": MODEL,
