@@ -93,6 +93,13 @@ function reportDependencies(
   reportStore = new InMemoryApiWatchReportStore(),
   apiState = createInMemoryApiWatchState(),
 ) {
+  for (const entry of registry.list()) {
+    for (const document of entry.documents ?? []) {
+      if (new URL(document.officialUrl).hostname !== "127.0.0.1") {
+        throw new Error("EXTERNAL_NETWORK_FORBIDDEN_IN_REPORT_FIXTURE");
+      }
+    }
+  }
   return {
     dependencies: {
       registry,
@@ -108,6 +115,12 @@ function reportDependencies(
 }
 
 describe("A6 API-watch report lifecycle", () => {
+  it("rejects a fixture registry that accidentally retains production URLs", () => {
+    expect(() => reportDependencies(createSourceRegistry(), "/unused")).toThrow(
+      "EXTERNAL_NETWORK_FORBIDDEN_IN_REPORT_FIXTURE",
+    );
+  });
+
   it("A6-01 transitions CREATED to RUNNING", async () => {
     const store = new InMemoryApiWatchReportStore();
     const report = await store.createReport({
@@ -276,6 +289,8 @@ describe("A6 API-watch report lifecycle", () => {
             requiredServerIdentity: undefined,
             titlePattern: undefined,
           },
+          OZON_PERFORMANCE: { officialUrl: null, documents: [] },
+          WILDBERRIES: { officialUrl: null, documents: [] },
         }),
         root,
       );
@@ -307,6 +322,8 @@ describe("A6 API-watch report lifecycle", () => {
             requiredServerIdentity: undefined,
             titlePattern: undefined,
           },
+          OZON_PERFORMANCE: { officialUrl: null, documents: [] },
+          WILDBERRIES: { officialUrl: null, documents: [] },
         }),
         root,
         new InMemoryApiWatchReportStore(),
