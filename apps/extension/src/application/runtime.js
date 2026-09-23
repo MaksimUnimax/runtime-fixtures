@@ -856,6 +856,11 @@ async function saSupportSnapshot(tabId) {
       workAllowed: popup.auth?.workAllowed === true,
       lastErrorCode: saSupportCode(popup.auth?.lastError?.code),
       aiStatus: saSupportToken(popup.auth?.authority?.aiStatus),
+      compatibility: popup.auth?.compatibility ? {
+        extensionStatus: saSupportCode(popup.auth.compatibility.extension?.status),
+        minimumExtensionVersion: typeof popup.auth.compatibility.extension?.minimumVersion === "string" && /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(popup.auth.compatibility.extension.minimumVersion) ? popup.auth.compatibility.extension.minimumVersion : null,
+        browserStatus: saSupportCode(popup.auth.compatibility.browser?.status),
+      } : null,
     },
     page: { aiFamily, identityStatus: saSupportToken(popup.identity?.status) },
     work: {

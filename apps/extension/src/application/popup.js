@@ -30,6 +30,10 @@ function render() {
   $("auth-start").textContent = state.auth?.pending ? "Открыть портал ещё раз" : "Войти через портал";
   $("auth-reset").hidden = !authenticated && !state.auth?.pending;
   $("auth-cancel").hidden = !state.auth?.pending;
+  const extensionCompatibility = state.auth?.compatibility?.extension;
+  const updateRecommended = authenticated && extensionCompatibility?.status === "UPDATE_RECOMMENDED";
+  $("compatibility-note").hidden = !updateRecommended;
+  $("compatibility-note").textContent = updateRecommended ? `Подписанная конфигурация рекомендует обновить расширение. Текущая версия пока разрешена.${extensionCompatibility.minimumVersion ? ` Минимально допустимая версия: ${extensionCompatibility.minimumVersion}.` : ""}` : "";
   if (!authenticated) return;
   for (const id of ["ozon", "wildberries"]) $(id).setAttribute("aria-pressed", String(id === marketplace));
   const choices = state.stores.filter(s => s.marketplace === marketplace);
