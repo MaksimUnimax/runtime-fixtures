@@ -432,7 +432,7 @@ for (const [label, makeInvalid] of [["invalid-origin", pending => { pending.auth
 
 // R3-C/T6-queued-reset-before-B: the real checkpoint write owns the queue;
 // reset and B cannot publish through its latch. After release, B completes and
-// the old checkpoint is denied as stale/fail-closed, with B retaining ownership.
+// the old checkpoint result remains pre-reset, with B retaining ownership.
 {
   const clock = { wall: baseWall, mono: 1000 }, backing = { local: {}, session: {} }, events = [];
   let releaseCheckpoint, basePayload;
@@ -456,7 +456,7 @@ for (const [label, makeInvalid] of [["invalid-origin", pending => { pending.auth
     await new Promise(resolve => setImmediate(resolve)); assert.equal(resetSettled, false, "R3-C reset is queued"); assert.equal(startSettled, false, "R3-C B activation is queued"); assert.deepEqual(backing.local[AUTH], oldRecord, "R3-C held checkpoint blocks reset publication");
     releaseCheckpoint(); const oldDecision = await oldCheckpoint; await reset; await start; await until(async () => (await owned.worker.call("SellerAgentsControlClient.status")).authenticated, "R3-C B signed bootstrap");
     const bRecord = clone(backing.local[AUTH]), bAuthority = clone(bRecord.authority), bClock = clone(bRecord.cacheClock);
-    assert.equal(oldDecision, false, "R3-C old checkpoint is stale after reset generation change"); assert.equal(bRecord.credentials.deviceId, "77777777-7777-4777-8777-777777777777"); assert.equal(bRecord.credentials.sessionId, "88888888-8888-4888-8888-888888888888"); assert.equal(bAuthority.payload.account.id, "99999999-9999-4999-8999-999999999999"); assert.equal(bRecord.generation, 4); assert.ok(bClock.owner.sessionId === bRecord.credentials.sessionId);
+    assert.equal(oldDecision, true, "R3-C old checkpoint belongs to pre-reset ordering"); assert.equal(bRecord.credentials.deviceId, "77777777-7777-4777-8777-777777777777"); assert.equal(bRecord.credentials.sessionId, "88888888-8888-4888-8888-888888888888"); assert.equal(bAuthority.payload.account.id, "99999999-9999-4999-8999-999999999999"); assert.equal(bRecord.generation, 4); assert.ok(bClock.owner.sessionId === bRecord.credentials.sessionId);
     const resetIndex = events.findIndex(row => row.generation === 2 && row.pending === null && row.deviceId === null), bStartIndex = events.findIndex(row => row.generation === 3 && row.pending === "starting"), bPendingIndex = events.findIndex(row => row.generation === 3 && row.pending === "pending"), bActivatedIndex = events.findIndex(row => row.generation === 4 && row.deviceId === bRecord.credentials.deviceId && row.accountId === null), bBootstrapIndex = events.findIndex(row => row.generation === 4 && row.accountId === bAuthority.payload.account.id);
     assert.ok(resetIndex >= 0 && bStartIndex > resetIndex && bPendingIndex > bStartIndex && bActivatedIndex > bPendingIndex && bBootstrapIndex > bActivatedIndex, `R3-C ordering ${JSON.stringify(events)}`);
     await new Promise(resolve => setImmediate(resolve)); assert.deepEqual(backing.local[AUTH], bRecord, "R3-C late A work cannot alter B"); assert.equal(same(await owned.worker.call("SellerAgentsControlClient.getAuthority"), bAuthority), true, "R3-C getAuthority remains B"); assert.equal(await owned.worker.call("SellerAgentsControlClient.canWork"), true);

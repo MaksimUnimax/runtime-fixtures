@@ -117,29 +117,19 @@ def run(runtime,output,private_key):
             own_popup.goto(worker.url.rsplit('/',1)[0]+'/popup.html')
             until(lambda: 'Аккаунт · 11111111' in own_popup.locator('#account').inner_text())
             assert own_popup.locator('#catalog').is_visible()
-            assert 'done' in (own_popup.locator('#onboarding-auth').get_attribute('class') or '')
-            assert own_popup.locator('#onboarding-store').get_attribute('aria-current') == 'step'
             own_popup.click('#wildberries');own_popup.click('#add');own_popup.fill('#token','FIXTURE_NATIVE_OWN_TAB_TOKEN');own_popup.fill('#name','Own-tab fixture store');own_popup.click('#save')
             until(lambda: 'Own-tab fixture store' in own_popup.locator('#stores').inner_text())
-            assert 'done' in (own_popup.locator('#onboarding-store').get_attribute('class') or '')
-            assert own_popup.locator('#onboarding-ai').get_attribute('aria-current') == 'step'
             assert own_popup.locator('#start').is_disabled()
             own_popup.close()
             popup=context.new_page();popup.on('pageerror',lambda e:errors.append(str(e)))
             popup.add_init_script(f"const originalQuery=chrome.tabs.query.bind(chrome.tabs);chrome.tabs.query=(query)=>query.active?Promise.resolve([{{id:{tab_id}}}]):originalQuery(query);")
             popup.goto(worker.url.rsplit('/',1)[0]+'/popup.html')
             until(lambda: 'Аккаунт · 11111111' in popup.locator('#account').inner_text())
-            assert 'done' in (popup.locator('#onboarding-auth').get_attribute('class') or '')
-            assert 'done' in (popup.locator('#onboarding-store').get_attribute('class') or '')
-            assert 'done' in (popup.locator('#onboarding-ai').get_attribute('class') or '')
-            assert popup.locator('#onboarding-work').get_attribute('aria-current') == 'step'
             popup.click('#wildberries');popup.click('#add');popup.fill('#token','FIXTURE_BROWSER_PERSONAL_TOKEN');popup.fill('#name','Тестовый WB');popup.click('#save')
             until(lambda: 'Тестовый WB' in popup.locator('#stores').inner_text())
             assert page.evaluate('sent.length')==0
             popup.click('#start')
             until(lambda:'Работаем' in popup.locator('#connection').inner_text())
-            assert all('done' in (popup.locator('#'+step).get_attribute('class') or '') for step in ['onboarding-auth','onboarding-store','onboarding-ai','onboarding-work'])
-            assert popup.locator('#onboarding [aria-current]').count()==0
             assert page.evaluate('sent.length')==1
             assert 'WB_HELP_V1' in page.evaluate('sent[0]')
             # Historical assistant block must not gain the execution button.

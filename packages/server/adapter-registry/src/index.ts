@@ -32,10 +32,6 @@ export const ProfileSchemaVersionSchema = z.literal("adapter_profile_v1");
 export const CompatibilitySchemaVersionSchema = z.literal(
   "profile_compatibility_v1",
 );
-export const ProfileCompatibilityContractVersionSchema = z.enum([
-  "control_plane_v1",
-  "control_plane_v2",
-]);
 
 const SelectorReferenceSchema = z.enum([
   "page-root",
@@ -116,7 +112,7 @@ const SelectorPlanSchema = z
 export const ProfileCompatibilityConstraintsV1Schema = z
   .object({
     schemaVersion: CompatibilitySchemaVersionSchema,
-    contractVersion: ProfileCompatibilityContractVersionSchema,
+    contractVersion: z.literal("control_plane_v1"),
     browserFamilies: z
       .array(BrowserFamilySchema)
       .min(1)
@@ -215,9 +211,6 @@ export const AdapterProfileContentV1Schema = z
 
 export type AdapterProfileContentV1 = z.infer<
   typeof AdapterProfileContentV1Schema
->;
-export type ProfileCompatibilityContractVersion = z.infer<
-  typeof ProfileCompatibilityContractVersionSchema
 >;
 export type ProfileCompatibilityConstraintsV1 = z.infer<
   typeof ProfileCompatibilityConstraintsV1Schema

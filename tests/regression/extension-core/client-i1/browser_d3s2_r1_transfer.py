@@ -136,12 +136,8 @@ def run_runtime(runtime: Path, label: str, package_root: Path, api_log: list[str
             recipient_worker = recipient.service_workers[0] if recipient.service_workers else recipient.wait_for_event("serviceworker")
             source_popup = source.new_page(); source_popup.goto(source_worker.url.rsplit("/", 1)[0] + "/popup.html")
             recipient_popup = recipient.new_page(); recipient_popup.goto(recipient_worker.url.rsplit("/", 1)[0] + "/popup.html")
-            # Each package variant gets its own pre-created fixture account.
-            # Two simultaneous devices are sufficient; the next variant must not
-            # reuse the first account and accidentally request a third device.
-            account_email = fixture_email("one" if label == "source-generated" else "two")
-            activate(source, source_popup, os.environ.get("D3S2_SOURCE_EMAIL", account_email))
-            activate(recipient, recipient_popup, os.environ.get("D3S2_RECIPIENT_EMAIL", account_email))
+            activate(source, source_popup, os.environ.get("D3S2_SOURCE_EMAIL", fixture_email("one")))
+            activate(recipient, recipient_popup, os.environ.get("D3S2_RECIPIENT_EMAIL", fixture_email("one")))
             seed_store(source_worker, store_id, {"seller": {"clientId": "100001", "apiKey": marker}, "performance": {"clientId": "perf-client", "clientSecret": "D3S2_R1_PERFORMANCE_MARKER_20260918"}}, "r1-source-revision")
             seed_store(recipient_worker, store_id, {}, None)
             selected_popup(source_popup, store_id)
@@ -156,17 +152,6 @@ def run_runtime(runtime: Path, label: str, package_root: Path, api_log: list[str
             request_record = created.json()
             assert request_body["consent"] is True and request_body["recipientDeviceId"] != request_record.get("sourceDeviceId")
             assert "ciphertext" not in json.dumps(request_record)
-            restarted = os.environ.get("D3S2_R1_RESTART_RECIPIENT") == "1"
-            if restarted:
-                # Keep the same synthetic profile so the non-extractable key
-                # must survive worker/browser shutdown through IndexedDB.
-                recipient.close()
-                recipient = pw.chromium.launch_persistent_context(recipient_profile.name, **options)
-                recipient.on("request", lambda request: captures.append({"method": request.method, "url": request.url, "body_sha256": hashlib.sha256((request.post_data or "").encode()).hexdigest() if request.post_data else None, "body_has_ciphertext": "ciphertext" in (request.post_data or "")}))
-                recipient_worker = recipient.service_workers[0] if recipient.service_workers else recipient.wait_for_event("serviceworker")
-                recipient_popup = recipient.new_page()
-                recipient_popup.goto(recipient_worker.url.rsplit("/", 1)[0] + "/popup.html")
-                selected_popup(recipient_popup, store_id)
             source_popup.click("#transfer-discover")
             source_popup.wait_for_function("() => /Найдено запросов: 1/.test(document.querySelector('#transfer-status')?.textContent || '')")
             source_popup.wait_for_timeout(250)
@@ -181,7 +166,7 @@ def run_runtime(runtime: Path, label: str, package_root: Path, api_log: list[str
             target = recipient_worker.evaluate("async ({id}) => { const s = await SellerAgentsActiveStoreCatalog.get(id); return {marketplace:s.marketplace, seller:s.credentials.seller, performance:s.credentials.performance, revision:s.credentialRevision}; }", {"id": store_id})
             assert target["seller"]["apiKey"] == marker
             assert target["performance"]["clientSecret"] == "D3S2_R1_PERFORMANCE_MARKER_20260918"
-            return {"status": "PASS", "recipient_restarted": restarted, "browser": recipient.browser.version, "request_id": request_record["requestId"], "store_id": store_id, "source_device": request_record.get("sourceDeviceId"), "recipient_device": request_record["recipientDeviceId"], "ciphertext_request_hashes": [x["body_sha256"] for x in captures if x["body_has_ciphertext"]], "provider_requests": [x for x in captures if "ozon.ru" in x["url"] or "wildberries.ru" in x["url"]], "ai_requests": [x for x in captures if "chatgpt.com" in x["url"] and x["method"] == "POST"]}
+            return {"status": "PASS", "browser": recipient.browser.version, "request_id": request_record["requestId"], "store_id": store_id, "source_device": request_record.get("sourceDeviceId"), "recipient_device": request_record["recipientDeviceId"], "ciphertext_request_hashes": [x["body_sha256"] for x in captures if x["body_has_ciphertext"]], "provider_requests": [x for x in captures if "ozon.ru" in x["url"] or "wildberries.ru" in x["url"]], "ai_requests": [x for x in captures if "chatgpt.com" in x["url"] and x["method"] == "POST"]}
         finally:
             source.close(); recipient.close(); source_profile.cleanup(); recipient_profile.cleanup()
 

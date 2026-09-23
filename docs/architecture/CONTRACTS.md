@@ -7,7 +7,6 @@
 Для v1 сохраняется rollout authority `bootstrap.config`; v2 в этой волне
 выбирает только последний опубликованный `CONFIG_RELEASE` своей версии.
 Отдельный `bootstrap.config.v2` rollout и миграция базы не вводятся.
-`profile_compatibility_v1` сохраняет свой schemaVersion; его `contractVersion` всегда указывается явно как `control_plane_v1` или `control_plane_v2`. Существующие v1-профили и их fingerprints не меняются, автоматического повышения версии нет.
 Точные URL новых endpoints определяются из схем при переносе; не создавать независимо написанный клиент по предположениям из Markdown.
 
 ## Идентификаторы

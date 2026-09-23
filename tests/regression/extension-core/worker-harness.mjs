@@ -5,68 +5,6 @@ import vm from "node:vm";
 import { webcrypto } from "node:crypto";
 
 const AUTH_STORAGE_KEY = "seller_agents_control_auth_v2";
-const fixtureIndexedDBByBacking = new WeakMap();
-function createFixtureIndexedDB() {
-  const records = new Map();
-  return {
-    open() {
-      const request = {};
-      queueMicrotask(() => {
-        request.result = {
-          objectStoreNames: { contains: () => true },
-          close() {},
-          transaction() {
-            const tx = {
-              objectStore() {
-                const op = (kind, value) => {
-                  const result = {};
-                  queueMicrotask(() => {
-                    if (kind === "put") {
-                      records.set(
-                        value.requestId ?? value.artifact_key,
-                        structuredClone(value),
-                      );
-                    }
-                    if (kind === "delete") records.delete(value);
-                    if (kind === "clear") records.clear();
-                    result.result =
-                      kind === "get"
-                        ? structuredClone(records.get(value))
-                        : kind === "all"
-                          ? [...records.values()].map(structuredClone)
-                          : undefined;
-                    result.onsuccess?.();
-                    queueMicrotask(() => tx.oncomplete?.());
-                  });
-                  return result;
-                };
-                return {
-                  get: (key) => op("get", key),
-                  getAll: () => op("all"),
-                  put: (value) => op("put", value),
-                  delete: (key) => op("delete", key),
-                  clear: () => op("clear"),
-                };
-              },
-            };
-            return tx;
-          },
-        };
-        request.onsuccess?.();
-      });
-      return request;
-    },
-  };
-}
-function fixtureIndexedDB(backing, options) {
-  if (Object.hasOwn(options, "indexedDB")) return options.indexedDB;
-  let indexedDB = fixtureIndexedDBByBacking.get(backing);
-  if (!indexedDB) {
-    indexedDB = createFixtureIndexedDB();
-    fixtureIndexedDBByBacking.set(backing, indexedDB);
-  }
-  return indexedDB;
-}
 function canonical(value) {
   if (value === null) return "null";
   if (typeof value === "boolean") return value ? "true" : "false";
@@ -645,7 +583,7 @@ export async function makeWorker(directory, options = {}) {
     Blob,
     navigator: { userAgent: fixtureUserAgent },
     performance: { now: monotonicClock },
-    indexedDB: fixtureIndexedDB(backing, options),
+    indexedDB: options.indexedDB,
     __SELLER_AGENTS_PACKAGED_CONFIG__: JSON.stringify(fixtureConfig),
     __SELLER_AGENTS_TEST_HOOKS__: options.testHooks || Object.freeze({}),
     structuredClone,

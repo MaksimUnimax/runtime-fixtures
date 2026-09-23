@@ -26,6 +26,11 @@
   },
   {
     "target": "service_worker.js",
+    "old": "    version: 2,\n    state: OzonWorkSessionModel.STATES.PENDING_IDENTITY,",
+    "new": "    version: 2,\n    store_context: saStarts.get(Number(tab)) || null,\n    admission_provenance: options.admission_provenance || null,\n    state: OzonWorkSessionModel.STATES.PENDING_IDENTITY,"
+  },
+  {
+    "target": "service_worker.js",
     "old": "async function dispatchPendingWorkStartPrompt(tab, pending, promptText) {",
     "new": "async function dispatchPendingWorkStartPrompt(tab, pending, promptText) {\n  await saPendingGuard(pending);\n  if (pending.store_context) promptText = await saPrompt(pending.store_context);"
   },
@@ -53,6 +58,11 @@
     "target": "service_worker.js",
     "old": "          transitionWorkSessionRecord(sessions, key, current.revision, OzonWorkSessionModel.STATES.INACTIVE, { tab_id: null, origin: null, ai_id: null, conversation_id: null, start_intent_id: null, error: null });",
     "new": "          transitionWorkSessionRecord(sessions, key, current.revision, OzonWorkSessionModel.STATES.INACTIVE, { tab_id: null, origin: null, ai_id: null, conversation_id: null, start_intent_id: null, error: null, admission_provenance: null });"
+  },
+  {
+    "target": "service_worker.js",
+    "old": "  pending[slot] = transaction;\n  await diagnostic(\"WORK_START_PENDING_CREATED\", { intent_id: transaction.intent_id, revision: transaction.revision, tab_id: tab, conversation_id: observedConversationId, state_before: options.state_before || null, state_after: transaction.state, external_request_executed: false });\n  await storageSet({ [KEYS.PENDING_WORK_STARTS]: pending });",
+    "new": "  pending[slot] = transaction;\n  await diagnostic(\"WORK_START_PENDING_CREATED\", { intent_id: transaction.intent_id, revision: transaction.revision, tab_id: tab, conversation_id: observedConversationId, state_before: options.state_before || null, state_after: transaction.state, external_request_executed: false });\n  await saAdmissionMutationGuard({ operation: \"start\", tabId: tab, conversationKey, intentId: transaction.intent_id });\n  await storageSet({ [KEYS.PENDING_WORK_STARTS]: pending });"
   },
   {
     "target": "service_worker.js",

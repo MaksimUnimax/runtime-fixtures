@@ -8,10 +8,7 @@ const texts = { ACCESS_CONFIRMED: "Доступ подтверждён этой 
   WORK_SESSION_ALREADY_ACTIVE: "Этот магазин уже подключён", STORE_NOT_FOUND: "Магазин удалён. Откройте список заново",
   POPUP_CONTEXT_STALE: "Диалог изменился. Откройте расширение в нужной вкладке", WORK_START_UNSUPPORTED_PAGE: "Откройте поддерживаемый ИИ: ChatGPT или Алису",
   EXECUTION_CONTEXT_CHANGED: "Магазин или рабочая сессия изменились. Нажмите «Начать работу»", RESULT_EXPIRED: "Часовой срок результата истёк", NO_QUOTA_WAIT: "Нет пакета, ожидающего продолжения",
-  AUTH_REQUIRED: "Выполните вход через портал", WORK_POLICY_BLOCKED: "Работа недоступна: подписанная политика не разрешила этот профиль ИИ", DEVICE_AUTH_CLOSED: "Попытка входа закрыта. Начните новую попытку", BOOTSTRAP_EXPIRED: "Проверенная сессия истекла. Выполните вход заново",
-  UNSUPPORTED_BROWSER: "Текущий браузер или его версия не подтверждены подписанной совместимостью. Доказательства другого браузера не переносятся сюда", BOOTSTRAP_PROFILE_INCOMPATIBLE: "Подписанная конфигурация не разрешает текущую версию расширения или браузера", WORK_UNSUPPORTED_AI: "Откройте поддерживаемый ИИ: ChatGPT или Алису",
-  SOURCE_OFFLINE: "Источник передачи сейчас недоступен. Повтор не считается доставкой", TRANSFER_VAULT_UNAVAILABLE: "Безопасное локальное хранилище ключа передачи недоступно. Передача не начата", TRANSFER_VAULT_PERSIST_FAILED: "Не удалось безопасно сохранить локальный ключ передачи. Запрос не считается готовым", TRANSFER_VAULT_CLEAR_FAILED: "Не удалось подтвердить очистку локального ключа передачи. Сброс не считается завершённым",
-  TRANSFER_KEY_MISSING: "Локальный ключ этой передачи отсутствует. Создайте новый запрос на получающей установке", TRANSFER_ACCOUNT_MISMATCH: "Передача относится к другому аккаунту или установке и заблокирована", TRANSFER_EXPIRED: "Срок запроса передачи истёк. Создайте новый запрос", TRANSFER_REPLAY: "Передача уже завершена или повтор заблокирован" };
+  AUTH_REQUIRED: "Выполните вход через портал", WORK_POLICY_BLOCKED: "Работа недоступна: подписанная политика не разрешила этот профиль ИИ", DEVICE_AUTH_CLOSED: "Попытка входа закрыта. Начните новую попытку", BOOTSTRAP_EXPIRED: "Проверенная сессия истекла. Выполните вход заново" };
 async function request(type, fields = {}) {
   const response = await chrome.runtime.sendMessage({ type, tab_id: tabId, ...fields });
   if (!response?.ok) throw new Error(texts[response?.code] || `Действие не выполнено: ${response?.code || "нет ответа расширения"}`);
@@ -19,28 +16,6 @@ async function request(type, fields = {}) {
 }
 async function action(fn) { if (busy) return; busy = true; $("status").textContent = "Выполняем…"; try { await fn(); await refresh(); $("status").textContent = "Готово"; } catch (e) { $("status").textContent = e.message; } finally { busy = false; } }
 function selected() { return state?.stores.find(x => x.id === selectedId); }
-function onboardingModel(value) {
-  const authenticated = value?.auth?.authenticated === true;
-  const hasStore = authenticated && Array.isArray(value?.stores) && value.stores.length > 0;
-  const aiReady = Boolean(value?.identity?.ai_id && ["chatgpt", "alice"].includes(value.identity.ai_id));
-  const workReady = Boolean(value?.context?.work_active === true && ["active_visible", "active_hidden", "recovering"].includes(value?.work?.state));
-  return [
-    { id: "onboarding-auth", done: authenticated, text: authenticated ? "1. Вход через портал подтверждён." : "1. Войдите через портал и подтвердите эту установку." },
-    { id: "onboarding-store", done: hasStore, text: hasStore ? "2. Магазин добавлен." : "2. Добавьте магазин Ozon или WB и сохраните его ключи локально." },
-    { id: "onboarding-ai", done: aiReady, text: aiReady ? `3. Открыт ${value.identity.ai_id === "chatgpt" ? "ChatGPT" : "Алиса"}.` : "3. Откройте ChatGPT или Алису в текущей вкладке." },
-    { id: "onboarding-work", done: workReady, text: workReady ? "4. Work активен — расширение готово к командам." : "4. После первых трёх шагов выберите магазин и нажмите «Начать работу»." },
-  ];
-}
-function renderOnboarding() {
-  const steps = onboardingModel(state);
-  const firstPending = steps.find(step => !step.done)?.id || null;
-  for (const step of steps) {
-    const node = $(step.id);
-    node.textContent = step.text;
-    node.classList.toggle("done", step.done);
-    if (step.id === firstPending) node.setAttribute("aria-current", "step"); else node.removeAttribute("aria-current");
-  }
-}
 function render() {
   const authenticated = state.auth?.authenticated === true;
   $("account").textContent = state.account.label;
@@ -52,11 +27,6 @@ function render() {
   $("auth-start").textContent = state.auth?.pending ? "Открыть портал ещё раз" : "Войти через портал";
   $("auth-reset").hidden = !authenticated && !state.auth?.pending;
   $("auth-cancel").hidden = !state.auth?.pending;
-  const extensionCompatibility = state.auth?.compatibility?.extension;
-  const updateRecommended = authenticated && extensionCompatibility?.status === "UPDATE_RECOMMENDED";
-  $("compatibility-note").hidden = !updateRecommended;
-  $("compatibility-note").textContent = updateRecommended ? `Подписанная конфигурация рекомендует обновить расширение. Текущая версия пока разрешена.${extensionCompatibility.minimumVersion ? ` Минимально допустимая версия: ${extensionCompatibility.minimumVersion}.` : ""}` : "";
-  renderOnboarding();
   if (!authenticated) return;
   for (const id of ["ozon", "wildberries"]) $(id).setAttribute("aria-pressed", String(id === marketplace));
   const choices = state.stores.filter(s => s.marketplace === marketplace);
@@ -124,12 +94,6 @@ $("transfer-discover").onclick = () => action(async () => {
 $("transfer-receive").onclick = () => action(async () => {
   const result = await request("SA_TRANSFER_RECEIVE_PENDING");
   $("transfer-status").textContent = result.importState === "IMPORTED" ? "Передача принята и магазин импортирован." : result.importState === "CONFLICT" ? "Передача получена, но импорт остановлен из-за конфликта магазина." : result.code === "SOURCE_OFFLINE" ? "Источник ещё не доставил передачу." : "Активной передачи для получения нет.";
-  if (result.importState === "IMPORTED" && result.requestId) void request("SA_TRANSFER_RESULT_CONSUME", { requestId: result.requestId }).catch(() => null);
-});
-$("support-generate").onclick = () => action(async () => {
-  const result = await request("SA_SUPPORT_SNAPSHOT");
-  $("support-snapshot").value = JSON.stringify(result.snapshot, null, 2);
-  $("support-snapshot").hidden = false;
 });
 $("auth-start").onclick = () => action(() => request("SA_AUTH_START"));
 $("auth-open").onclick = () => action(() => request("SA_AUTH_OPEN_PORTAL"));
