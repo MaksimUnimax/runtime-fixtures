@@ -1,5 +1,7 @@
 # Серверный Codex в каждом потоке
 
+**Обязательное правило владельца: только Luna. Для этой программы закреплена gpt-6-luna; менять модель, включать другую модель по fallback или менять глобальный config запрещено. При недоступности Luna чат продолжает сам.**
+
 Профили уже существуют и авторизованы через ChatGPT, не через API key. Проверено 2026-09-23 через login status. Не менять их авторизацию, не копировать auth.json и не выводить credentials.
 Назначение новых дочерних заданий:
 
@@ -36,12 +38,12 @@ CLI launcher может работать под своим установлен�
 Сначала сохранить конкретный task prompt в своём logs/ROLE/TASK.md. Пример для A; B/C подставляют свой launcher, ROLE и путь:
 
 ```sh
-flock -n /root/octoport-control/codex-A.lock \
-  codex exec -m gpt-6-luna -s workspace-write \
-  -C /root/octoport-control/worktrees/A/TASK \
-  -o /root/octoport-control/logs/A/TASK-result.md \
-  - < /root/octoport-control/logs/A/TASK.md
+python3 tooling/coordination/codex-runner.py A TASK
+# Для ограниченного read-only ревью:
+python3 tooling/coordination/codex-runner.py A TASK --read-only
 ```
+
+Runner жёстко задаёт gpt-6-luna, проверяет ChatGPT login, сохраняет PID/result/log, использует per-role lock и не принимает параметр выбора другой модели. При лимите нет автоматического fallback.
 
 Это схема команды, TASK должен быть реальным идентификатором подготовленного worktree, не буквальным незаполненным placeholder.
 Запускать через RDC с ограниченным ожиданием и сохранением логов; проверять завершение/exit code, не висеть в одном блокирующем вызове на часы.
