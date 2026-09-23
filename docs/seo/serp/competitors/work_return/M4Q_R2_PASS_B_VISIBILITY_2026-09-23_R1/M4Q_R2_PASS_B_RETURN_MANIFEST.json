@@ -1,0 +1,99 @@
+{
+  "work_id": "OCTOPORT_SEO_M4Q_R2_VISIBILITY_RECONCILIATION_2026-09-23_R1",
+  "start_head": "9e3b38b70d13d3fe28462acb059112880d1c2553",
+  "end_observed_head": "9e3b38b70d13d3fe28462acb059112880d1c2553",
+  "authority_drift_status": "NONE",
+  "verdict": "PASS_BOUNDED_VISIBILITY_WITH_EXPLICIT_IDENTITY_HOLDS",
+  "input_exports": 2,
+  "input_export_sha256_match": "2/2",
+  "execution_queries": 45,
+  "serp_result_rows": 4500,
+  "authorized_competitors": 60,
+  "visibility_matrix_rows": 1850,
+  "authorized_competitor_match_rows": 1850,
+  "no_authorized_match_rows": 2576,
+  "ambiguous_competitor_match_rows": 74,
+  "m3_controls_accounted": "15/15",
+  "m4c_reconciliation_accounted": "45/45",
+  "m6_routing_accounted": "45/45",
+  "silent_serp_row_loss": 0,
+  "search_visibility_as_demand": 0,
+  "final_cluster_decisions": 0,
+  "final_page_ownership_decisions": 0,
+  "open_critical_defects": 0,
+  "github_writes": 0,
+  "known_query_top100_enrichment": "COMPLETE_FOR_45_FROZEN_QUERIES",
+  "arbitrary_domain_to_unknown_query_reverse_index_recall": "NOT_PROVEN; LIMITATION_ACTIVE",
+  "input_attachment_identities": [
+    {
+      "file": "search-octoport-m4q-r2-b001-20260923-r225-0-24.json",
+      "bytes": 9207000,
+      "sha256": "4e9890bfba1006e116523701d61d0edfc82f6305b68d412101eb5f4aaec4aeb7"
+    },
+    {
+      "file": "search-octoport-m4q-r2-b001-20260923-r225-25-44.json",
+      "bytes": 7586040,
+      "sha256": "d185d8a11cfbe70beb10418da7341000481d3faa7856a8ed62a1237cfe73e254"
+    }
+  ],
+  "hash_policy": "Seven non-self files have final bytes and SHA-256 below; return manifest excludes its own bytes/hash to avoid circular self-reference.",
+  "files_in_zip": 8,
+  "files": [
+    {
+      "filename": "M4Q_R2_PASS_B_SOURCE_MANIFEST.md",
+      "bytes": 7777,
+      "sha256": "724851bf55eb0e6be0221aa3c5d09b6eb34c3abe40b5043288b589d44bcd0848",
+      "row_count": null,
+      "role": "frozen sources, methods, evidence identity and claim boundaries"
+    },
+    {
+      "filename": "M4Q_R2_SERP_RESULT_LEDGER.tsv",
+      "bytes": 5586149,
+      "sha256": "b571a5576329d509d7be0749a9c01a1215b0bb630f25fbfd574966da37983d38",
+      "row_count": 4500,
+      "role": "complete normalized 45-by-100 Search row evidence"
+    },
+    {
+      "filename": "M4Q_R2_COMPETITOR_VISIBILITY_MATRIX.tsv",
+      "bytes": 3092939,
+      "sha256": "b5ec0d6c6069a79eb58d4fcd421e7b1f9fcfdbe8c0463d68efeb017c7f473146",
+      "row_count": 1850,
+      "role": "observed authorized competitor ranking occurrences"
+    },
+    {
+      "filename": "M4Q_R2_QUERY_VISIBILITY_SUMMARY.tsv",
+      "bytes": 88618,
+      "sha256": "18cde0b16f07fc88fab09d2f44454c976c3d84cd3d122d299c56635c0d082948",
+      "row_count": 45,
+      "role": "one bounded observation per accepted query"
+    },
+    {
+      "filename": "M4Q_R2_COMPETITOR_VISIBILITY_SUMMARY.tsv",
+      "bytes": 91007,
+      "sha256": "e1693e68ed37c9e53be3c86f7f391ae4d3abed66425b49560aa77335c5e1d573",
+      "row_count": 60,
+      "role": "one current visibility row per authorized registry entity"
+    },
+    {
+      "filename": "M4Q_R2_M4C_M6_RECONCILIATION.tsv",
+      "bytes": 174077,
+      "sha256": "560e86d2fe785c302922928c2d78bb934780d3dd786f98bbfc498548eb0c26b1",
+      "row_count": 45,
+      "role": "45 query-specific bounded M4Q/M4C/M6 reconciliations"
+    },
+    {
+      "filename": "M4Q_R2_PASS_B_QA.md",
+      "bytes": 5525,
+      "sha256": "51dbdc4985a041cee8463f56c98d5e06294db7e77c51c983d74a869a03421f6b",
+      "row_count": null,
+      "role": "input, row, match, authority, and claim-boundary QA"
+    },
+    {
+      "filename": "M4Q_R2_PASS_B_RETURN_MANIFEST.json",
+      "bytes": null,
+      "sha256": null,
+      "row_count": null,
+      "role": "self-hash-excluded return manifest"
+    }
+  ]
+}
