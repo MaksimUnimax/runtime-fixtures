@@ -4,7 +4,6 @@ let saCatalogEnabled = false;
 const saStarts = new Map();
 const saWorkFlights = new Map();
 const saAdmissionEpochs = new Map();
-const saTransferRecipientRequests = new Set();
 const saCatalog = SellerAgentsStoreCatalog.create({
   read: storageGet, write: storageSet,
   currentAccount: () => SellerAgentsControlClient.currentAccount(),
@@ -82,6 +81,11 @@ async function saTransferReceive(message) {
   const request = message.request;
   if (!request?.requestId || !request.sourceDeviceId) throw saError("TRANSFER_INVALID");
   const received = await SellerAgentsControlClient.receiveCredentialTransfer(request.requestId, request.sourceDeviceId);
+  if (received.ackedResult) return { ok: true, ...received.result, recovered: true };
+  if (received.pendingAck) {
+    await SellerAgentsControlClient.acknowledgeCredentialTransfer({ requestId: request.requestId, packetId: received.packet.packetId, importDecision: "IMPORTED" });
+    return { ok: true, ...received.result, recovered: true };
+  }
   const payload = received.payload;
   if (!payload || payload.transferPayloadVersion !== "seller_agents_credential_payload_v1" || !Array.isArray(payload.stores)) throw saError("TRANSFER_INVALID");
   const results = [];
@@ -93,8 +97,9 @@ async function saTransferReceive(message) {
   const safe = results.map(({ storeId, kind, code, store }) => ({ storeId, kind, code, store: store ? { id: store.id, marketplace: store.marketplace, credentialRevision: store.credentialRevision } : null }));
   const hasConflict = safe.some(item => item.kind === "CONFLICT");
   if (hasConflict) return { ok: true, requestId: request.requestId, importState: "CONFLICT", results: safe };
+  const durable = await SellerAgentsControlClient.recordCredentialTransferImported({ requestId: request.requestId, packetId: received.packet.packetId, results: safe });
   await SellerAgentsControlClient.acknowledgeCredentialTransfer({ requestId: request.requestId, packetId: received.packet.packetId, importDecision: "IMPORTED" });
-  return { ok: true, requestId: request.requestId, importState: "IMPORTED", results: safe };
+  return { ok: true, ...durable };
 }
 async function saBackupAccount() {
   const accountId = await SellerAgentsControlClient.currentAccount();
@@ -822,6 +827,62 @@ async function saInvalidateAuthority() {
   }
 }
 SellerAgentsControlClient.onAuthorityChanged(() => saInvalidateAuthority());
+function saSupportCode(value) {
+  const code = typeof value === "string" ? value : "";
+  return /^[A-Z][A-Z0-9_]{0,79}$/.test(code) ? code : null;
+}
+function saSupportToken(value) {
+  const token = typeof value === "string" ? value : "";
+  return /^[a-z][a-z0-9_]{0,39}$/.test(token) ? token : null;
+}
+async function saSupportSnapshot(tabId) {
+  const popup = await saPopupState(tabId);
+  const observed = globalThis.SellerAgentsBrowserIdentity?.current?.() || {};
+  const stores = Array.isArray(popup.stores) ? popup.stores : [];
+  const family = globalThis.SellerAgentsBrowserIdentity?.families?.includes(observed.family) ? observed.family : null;
+  const version = typeof observed.version === "string" && /^\d+(?:\.\d+){0,3}$/.test(observed.version) ? observed.version : null;
+  const workState = saSupportToken(popup.work?.state);
+  const aiFamily = ["chatgpt", "alice"].includes(popup.identity?.ai_id) ? popup.identity.ai_id : null;
+  return Object.freeze({
+    snapshotVersion: "seller_agents_support_snapshot_v1",
+    generatedAt: new Date().toISOString(),
+    extension: {
+      version: String(globalThis.SellerAgentsControlConfig?.extensionVersion || ""),
+      environment: String(globalThis.SellerAgentsControlConfig?.environment || ""),
+    },
+    browser: { family, version, evidence: "OBSERVED_RUNTIME_ONLY" },
+    auth: {
+      authenticated: popup.auth?.authenticated === true,
+      workAllowed: popup.auth?.workAllowed === true,
+      lastErrorCode: saSupportCode(popup.auth?.lastError?.code),
+      aiStatus: saSupportToken(popup.auth?.authority?.aiStatus),
+      compatibility: popup.auth?.compatibility ? {
+        extensionStatus: saSupportCode(popup.auth.compatibility.extension?.status),
+        minimumExtensionVersion: typeof popup.auth.compatibility.extension?.minimumVersion === "string" && /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(popup.auth.compatibility.extension.minimumVersion) ? popup.auth.compatibility.extension.minimumVersion : null,
+        browserStatus: saSupportCode(popup.auth.compatibility.browser?.status),
+      } : null,
+    },
+    page: { aiFamily, identityStatus: saSupportToken(popup.identity?.status) },
+    work: {
+      state: workState,
+      pending: Boolean(popup.pending),
+      pendingOutcome: saSupportToken(popup.pending?.send_outcome),
+    },
+    stores: {
+      total: stores.length,
+      ozon: stores.filter(store => store?.marketplace === "ozon").length,
+      wildberries: stores.filter(store => store?.marketplace === "wildberries").length,
+    },
+    privacy: {
+      accountIdentifiersIncluded: false,
+      deviceSessionIdentifiersIncluded: false,
+      storeIdentifiersIncluded: false,
+      credentialsIncluded: false,
+      conversationIdentifiersIncluded: false,
+      marketplacePayloadIncluded: false,
+    },
+  });
+}
 async function saPopupState(tabId) {
   void globalThis.SellerAgentsTechnicalScheduler?.wake?.("popup_open");
   let live = { ai_id: null, origin: null, conversation_id: null, status: "unavailable", source: "none", chat_path: "" };
@@ -926,6 +987,7 @@ async function saHandleMessage(message, sender) {
     await saInitialize();
     switch (message.type) {
       case "SA_POPUP_STATE": return saPopupState(message.tab_id);
+      case "SA_SUPPORT_SNAPSHOT": return { ok: true, snapshot: await saSupportSnapshot(message.tab_id) };
       case "SA_STORE_SAVE": {
         const old = message.store?.id ? await saCatalog.get(message.store.id) : null;
         const saved = await saCatalog.save(message.store);
@@ -948,7 +1010,6 @@ async function saHandleMessage(message, sender) {
       case "SA_STORE_CHECK": return saCheckStore(message);
       case "SA_TRANSFER_CREATE": {
         const request = await SellerAgentsControlClient.createCredentialTransfer({ consent: message.consent === true, sourceDeviceId: message.sourceDeviceId || null, selectedStoreIds: message.selectedStoreIds || [], expiresInSeconds: message.expiresInSeconds || 300 });
-        saTransferRecipientRequests.add(request.requestId);
         return { ok: true, request };
       }
       case "SA_TRANSFER_SOURCE_DISCOVER": {
@@ -964,20 +1025,27 @@ async function saHandleMessage(message, sender) {
       case "SA_TRANSFER_RECEIVE": return saTransferReceive(message);
       case "SA_TRANSFER_RECEIVE_PENDING": {
         let pending = null;
-        for (const requestId of saTransferRecipientRequests) {
+        for (const local of await SellerAgentsControlClient.listCredentialTransferRecipients()) {
           try {
-            const request = await SellerAgentsControlClient.readCredentialTransfer(requestId);
-            if (request.state === "PACKET_AVAILABLE_EPHEMERAL" || request.state === "DELIVERED_TO_RECIPIENT") {
-              pending = await saTransferReceive({ request });
-              if (pending.importState !== "CONFLICT") saTransferRecipientRequests.delete(requestId);
-              break;
+            if (local.phase === "ACKED_RESULT" && local.result) { pending = { ok: true, ...local.result, recovered: true }; break; }
+            if (local.phase === "IMPORTED_PENDING_ACK" && local.packetId && local.result) {
+              await SellerAgentsControlClient.acknowledgeCredentialTransfer({ requestId: local.requestId, packetId: local.packetId, importDecision: "IMPORTED" });
+              pending = { ok: true, ...local.result, recovered: true }; break;
             }
+            const request = await SellerAgentsControlClient.readCredentialTransfer(local.requestId);
+            if (["EXPIRED", "CANCELLED"].includes(request?.state)) { await SellerAgentsControlClient.discardCredentialTransfer(local.requestId); continue; }
+            if (request?.state === "COMPLETED") { await SellerAgentsControlClient.discardCredentialTransfer(local.requestId); continue; }
+            if (request?.state === "PACKET_AVAILABLE_EPHEMERAL" || request?.state === "DELIVERED_TO_RECIPIENT") { pending = await saTransferReceive({ request }); break; }
           } catch (error) {
-            if (error?.code === "TRANSFER_EXPIRED" || error?.code === "TRANSFER_REPLAY" || error?.code === "TRANSFER_ACCOUNT_MISMATCH") saTransferRecipientRequests.delete(requestId);
+            if (["TRANSFER_EXPIRED", "TRANSFER_REPLAY", "TRANSFER_ACCOUNT_MISMATCH"].includes(error?.code)) await SellerAgentsControlClient.discardCredentialTransfer(local.requestId).catch(() => null);
             else if (error?.code === "SOURCE_OFFLINE") pending = { ok: false, code: error.code, importState: "SOURCE_OFFLINE" };
           }
         }
         return pending || { ok: false, importState: "PENDING" };
+      }
+      case "SA_TRANSFER_RESULT_CONSUME": {
+        const result = await SellerAgentsControlClient.consumeCredentialTransferResult(message.requestId);
+        return { ok: true, requestId: result.requestId };
       }
       case "SA_RESUME_QUOTA": {
         await saAssertLocalAuthorityAdmission();

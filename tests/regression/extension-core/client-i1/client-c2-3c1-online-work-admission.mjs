@@ -13,6 +13,33 @@ const PENDING = "ozmb_pending_work_starts_v1";
 const canonical = value => value === null ? "null" : typeof value === "boolean" ? (value ? "true" : "false") : typeof value === "string" ? JSON.stringify(value) : typeof value === "number" ? String(value) : Array.isArray(value) ? `[${value.map(canonical).join(",")}]` : `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${canonical(value[key])}`).join(",")}}`;
 const clone = value => JSON.parse(JSON.stringify(value));
 const b64url = value => Buffer.from(value).toString("base64url");
+function fakeIDB() {
+  const records = new Map();
+  return { records, open() {
+    const request = {};
+    queueMicrotask(() => {
+      request.result = { objectStoreNames: { contains: () => true }, close() {}, transaction() {
+        const tx = { objectStore() {
+          const op = (kind, value) => {
+            const result = {};
+            queueMicrotask(() => {
+              if (kind === "put") records.set(value.requestId ?? value.artifact_key, structuredClone(value));
+              if (kind === "delete") records.delete(value);
+              if (kind === "clear") records.clear();
+              result.result = kind === "get" ? structuredClone(records.get(value)) : kind === "all" ? [...records.values()].map(structuredClone) : undefined;
+              result.onsuccess?.(); queueMicrotask(() => tx.oncomplete?.());
+            });
+            return result;
+          };
+          return { get: key => op("get", key), getAll: () => op("all"), put: value => op("put", value), delete: key => op("delete", key), clear: () => op("clear") };
+        } };
+        return tx;
+      } };
+      request.onsuccess?.();
+    });
+    return request;
+  } };
+}
 
 async function healthEnvelope(backing, overrides = {}) {
   const authority = backing.local[AUTH].authority;
@@ -57,7 +84,7 @@ async function fixture(options = {}) {
   let release;
   const gate = options.gated ? new Promise(resolve => { release = resolve; }) : null;
   const calls = [];
-  const worker = await makeWorker(runtime, { backing, seedAuthority: false, testHooks: options.testHooks, onStorageWrite: options.onStorageWrite, healthFetch: async (url, init) => {
+  const worker = await makeWorker(runtime, { backing, seedAuthority: false, indexedDB: fakeIDB(), testHooks: options.testHooks, onStorageWrite: options.onStorageWrite, healthFetch: async (url, init) => {
     calls.push({ url: String(url), method: init?.method || "GET" });
     if (gate) await gate;
     if (mode === "network") throw new Error("network unavailable");

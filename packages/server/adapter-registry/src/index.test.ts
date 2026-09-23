@@ -4,6 +4,7 @@ import {
   AdapterProfileContentV1Schema,
   PROFILE_MAX_SERIALIZED_BYTES,
   ProfileCompatibilityConstraintsV1Schema,
+  ProfileCompatibilityContractVersionSchema,
   ProfileKeySchema,
   ProfileRevisionInputSchema,
   SurfaceKeySchema,
@@ -114,6 +115,28 @@ describe("adapter registry identifiers and profile schema", () => {
     expect(
       ProfileCompatibilityConstraintsV1Schema.parse(compatibility),
     ).toEqual(compatibility);
+    expect(
+      ProfileCompatibilityConstraintsV1Schema.parse({
+        ...compatibility,
+        contractVersion: "control_plane_v2",
+      }).contractVersion,
+    ).toBe("control_plane_v2");
+    expect(
+      ProfileCompatibilityContractVersionSchema.safeParse("control_plane_v3")
+        .success,
+    ).toBe(false);
+    expect(
+      ProfileCompatibilityConstraintsV1Schema.safeParse({
+        ...compatibility,
+        contractVersion: "control_plane_v3",
+      }).success,
+    ).toBe(false);
+    expect(
+      ProfileCompatibilityConstraintsV1Schema.safeParse({
+        ...compatibility,
+        contractVersion: undefined,
+      }).success,
+    ).toBe(false);
     expect(
       AdapterProfileContentV1Schema.safeParse({ ...content, unknown: true })
         .success,
