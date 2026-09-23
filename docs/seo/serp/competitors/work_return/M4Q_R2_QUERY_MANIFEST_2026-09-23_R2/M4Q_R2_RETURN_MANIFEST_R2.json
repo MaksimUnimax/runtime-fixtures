@@ -1,0 +1,74 @@
+{
+  "work_id": "OCTOPORT_SEO_M4Q_R2_QUERY_MANIFEST_2026-09-23_R2",
+  "start_head": "ea97ad52b8119794a1f93b3a74b5c31bec0fcd64",
+  "end_observed_head": "ea97ad52b8119794a1f93b3a74b5c31bec0fcd64",
+  "authority_drift_status": "NONE",
+  "verdict": "PASS_QUERY_AUTHORITY_CORRECTION",
+  "frozen_authority_blobs_match": "24/24",
+  "source_universe_rows": 15542,
+  "unique_universe_ids": 15542,
+  "unique_exact_safe_query_keys": 7787,
+  "r1_execution_queries": 387,
+  "r1_m3_or_m2r_authority_execution_queries": 77,
+  "r1_pure_m4c_only_execution_queries": 310,
+  "r2_execution_queries": 45,
+  "r2_m3_authority_queries": 8,
+  "r2_m2r_authority_queries": 30,
+  "r2_m3_and_m2r_authority_queries": 7,
+  "r2_pure_m4c_only_execution_queries": 0,
+  "r1_execution_removed_or_deferred": 353,
+  "r1_execution_retained": 34,
+  "new_execution_queries_not_in_r1": 11,
+  "disposition_counts": {
+    "SEARCH_REQUIRED_CONTROL_REFRESH": 15,
+    "HOLD_AMBIGUOUS": 4078,
+    "OUT_OF_PRODUCT_SCOPE": 4451,
+    "EXACT_DUPLICATE_OF_EXECUTION_QUERY": 36,
+    "NO_INCREMENTAL_SEARCH_INFORMATION_GAIN": 5501,
+    "SEARCH_REQUIRED": 30,
+    "DEFER_TO_M6_DEMAND_VALIDATION": 715,
+    "NOT_A_PLAUSIBLE_SEARCH_QUERY": 716
+  },
+  "m2r_accounted": "1123/1123",
+  "m3_accounted": "15/15",
+  "m4c_candidate_accounted": "8431/8431",
+  "m4c_m6_groups_accounted": "5973/5973",
+  "synthetic_queries_created": 0,
+  "silent_source_loss": 0,
+  "open_critical_defects": 0,
+  "batch_count": 1,
+  "max_batch_size": 45,
+  "provider_calls": 0,
+  "github_writes": 0,
+  "known_query_yandex_visibility": "TARGET_OF_R2",
+  "unknown_query_reverse_index_recall": "SOURCE_UNAVAILABLE_DECLARED_LIMITATION",
+  "files_in_zip": 6,
+  "hash_policy": "sha256/bytes for five non-self files; self hash excluded to avoid circular identity",
+  "files": [
+    {
+      "name": "M4Q_R2_SOURCE_MANIFEST_R2.md",
+      "bytes": 7800,
+      "sha256": "965bf8a06952ca5898db59c091f9b6c53ba64abcc9d17188719e361ec9cdbe5c"
+    },
+    {
+      "name": "M4Q_R2_QUERY_UNIVERSE_LEDGER_R2.tsv",
+      "bytes": 24292106,
+      "sha256": "da230b0cd9f56d112f1b9761a1275d857c048bf52dfad863560cd1b119ff192a"
+    },
+    {
+      "name": "M4Q_R2_SEARCH_EXECUTION_MANIFEST_R2.tsv",
+      "bytes": 84995,
+      "sha256": "523b02a6975a0972e895516cc75014b60b14f23d17c58e7321d6240f373bdd66"
+    },
+    {
+      "name": "M4Q_R2_BATCH_PLAN_R2.tsv",
+      "bytes": 1370,
+      "sha256": "83bb886cb0ac50d37522a9c7c25703a9c26d241ee27030c5eeb21c2ab0fda63e"
+    },
+    {
+      "name": "M4Q_R2_QA_R2.md",
+      "bytes": 6103,
+      "sha256": "5cf2996f7ea0f03a69c80e476bd373a5526ace403924e095b6c9c1d0f0c48456"
+    }
+  ]
+}
