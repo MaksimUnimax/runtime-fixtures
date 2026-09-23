@@ -1,0 +1,138 @@
+{
+  "work_id": "OCTOPORT_SEO_M1_LIVE_MEASUREMENT_BASELINE_2026-09-23_R1",
+  "evidence_class": "PUBLIC_LIVE_HTTP_SOURCE",
+  "collected_after_gate": true,
+  "collected_date": "2026-09-23",
+  "source_repository": "MaksimUnimax/runtime-fixtures",
+  "source_ref": "main",
+  "source_head": "5d160f8711c795f71fc4212782813a64bb439513",
+  "urls": {
+    "home": {
+      "requested": "https://octoport.ru/",
+      "final_url": "https://octoport.ru/",
+      "status": 200,
+      "redirects": [],
+      "content_type": "text/html",
+      "content_length_header": "9487",
+      "x_robots_tag": null,
+      "hsts": null,
+      "bytes": 9487,
+      "sha256": "2e59af80c28fe74848c96e8869c47bb57ac38a33327d2ae95b7b31e7a9c24127"
+    },
+    "robots": {
+      "requested": "https://octoport.ru/robots.txt",
+      "final_url": "https://octoport.ru/robots.txt",
+      "status": 200,
+      "redirects": [],
+      "content_type": "text/plain",
+      "content_length_header": "65",
+      "x_robots_tag": null,
+      "hsts": null,
+      "bytes": 65,
+      "sha256": "a3e53ce760645eba16df505b218e54ef64da0ea0b9c0894ab26a82078418c1a4"
+    },
+    "sitemap": {
+      "requested": "https://octoport.ru/sitemap.xml",
+      "final_url": "https://octoport.ru/sitemap.xml",
+      "status": 200,
+      "redirects": [],
+      "content_type": "text/xml",
+      "content_length_header": "228",
+      "x_robots_tag": null,
+      "hsts": null,
+      "bytes": 228,
+      "sha256": "9f5ec468d950fe2b28a9e6d45b0626e4bd2d258a7996613d9f763c732392a559"
+    }
+  },
+  "source_live": {
+    "home": {
+      "source_bytes": 9487,
+      "source_sha256": "2e59af80c28fe74848c96e8869c47bb57ac38a33327d2ae95b7b31e7a9c24127",
+      "live_bytes": 9487,
+      "live_sha256": "2e59af80c28fe74848c96e8869c47bb57ac38a33327d2ae95b7b31e7a9c24127",
+      "byte_identical": true
+    },
+    "robots": {
+      "source_bytes": 65,
+      "source_sha256": "a3e53ce760645eba16df505b218e54ef64da0ea0b9c0894ab26a82078418c1a4",
+      "live_bytes": 65,
+      "live_sha256": "a3e53ce760645eba16df505b218e54ef64da0ea0b9c0894ab26a82078418c1a4",
+      "byte_identical": true
+    },
+    "sitemap": {
+      "source_bytes": 228,
+      "source_sha256": "9f5ec468d950fe2b28a9e6d45b0626e4bd2d258a7996613d9f763c732392a559",
+      "live_bytes": 228,
+      "live_sha256": "9f5ec468d950fe2b28a9e6d45b0626e4bd2d258a7996613d9f763c732392a559",
+      "byte_identical": true
+    }
+  },
+  "home_markers": {
+    "html_lang": "ru",
+    "title": "Octoport — ИИ-сотрудник для Ozon и Wildberries",
+    "meta_description": "Octoport соединяет выбранный вами ИИ с Ozon и Wildberries через браузерное расширение. Готовим бесплатную закрытую бету.",
+    "meta_robots": null,
+    "google_site_verification": null,
+    "yandex_verification": null,
+    "canonical": [
+      "https://octoport.ru/"
+    ],
+    "h1": [
+      "Ваш ИИ получает руки для работы с маркетплейсами."
+    ],
+    "jsonld_count": 0,
+    "script_srcs": [],
+    "has_yandex_metrica": false,
+    "has_google_analytics_or_gtm": false,
+    "anchor_hrefs": [
+      "#top",
+      "#how",
+      "#privacy",
+      "#beta",
+      "#beta",
+      "#how"
+    ],
+    "external_http_links": [],
+    "path_links": [],
+    "hash_links": [
+      "#top",
+      "#how",
+      "#privacy",
+      "#beta",
+      "#beta",
+      "#how"
+    ]
+  },
+  "canonicalization": [
+    {
+      "requested": "http://octoport.ru/",
+      "final_url": "https://octoport.ru/",
+      "status": 200,
+      "redirects": [
+        {
+          "status": 308,
+          "from": "http://octoport.ru/",
+          "to": "https://octoport.ru/"
+        }
+      ]
+    },
+    {
+      "requested": "https://www.octoport.ru/",
+      "final_url": "https://octoport.ru/",
+      "status": 200,
+      "redirects": [
+        {
+          "status": 308,
+          "from": "https://www.octoport.ru/",
+          "to": "https://octoport.ru/"
+        }
+      ]
+    }
+  ],
+  "claim_boundary": {
+    "public_reachability_proves_indexing": false,
+    "public_source_proves_search_console_ownership": false,
+    "public_source_proves_webmaster_ownership": false,
+    "absence_of_public_tag_proves_no_private_property": false
+  }
+}
