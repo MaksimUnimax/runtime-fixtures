@@ -57,3 +57,53 @@ Do not recreate the local job just to erase the process history.
 ### Status
 
 `RECOVERY IN PROGRESS / PROVIDER SUBMIT BLOCKED UNTIL S03 RELEASE GATE PASS`.
+
+
+## OSEO-F02 — M1 public read-only check started before durable M1 pre-step gate
+
+Date: 2026-09-23.
+Stage: M1 current-site + measurement baseline.
+
+### Incident
+
+After M6 internal reconciliation was reduced to the separate M1 blocker, Main Chat read current source authority and then issued initial public read-only HTTP/curl checks for `octoport.ru` before first creating and remote-reading a dedicated durable M1 pre-step/gate artifact.
+
+Observed actions were read-only:
+- HTTP/HTTPS/www response/redirect checks;
+- homepage/robots/sitemap fetches;
+- local source-vs-live byte/hash comparison.
+
+No provider Search/Wordstat action occurred.
+No account/private console action occurred.
+No site mutation occurred.
+
+### Root cause
+
+Main Chat transitioned directly from M6 closure work into M1 evidence collection and treated the already-read LEVEL 1 + generic M1 roadmap rule as sufficient, instead of materializing the exact M1 execution contract first.
+
+### Impact
+
+The initial public observations are technically reproducible but are **not accepted M1 evidence** because the required durable pre-step ordering was violated.
+
+### Recovery
+
+```text
+PRESERVE INCIDENT
+-> DO NOT ACCEPT FIRST PUBLIC CHECKS
+-> COMPLETE FRESH M1 METHOD RESEARCH
+-> CREATE DEDICATED M1 PRE-STEP / EXECUTION GATE
+-> REMOTE READBACK
+-> RE-RUN PUBLIC LIVE CHECKS
+-> PERSIST RESULTS
+-> ONLY THEN M1 QA / ACCEPTANCE
+```
+
+The initial source/live size mismatch statement was also corrected: `7467` was source character count, while `9487` was byte count. A subsequent byte-level comparison showed source/live homepage identity, but that observation is also re-run after the proper gate.
+
+### Permanent prevention
+
+Any roadmap cursor transition to a different major stage requires a new durable step-specific preparation artifact before the first evidence-acquisition command, even when the action is free/read-only/public and even if LEVEL 1 was already read earlier in the same chat.
+
+### Status
+
+`RECOVERY IN PROGRESS / FIRST M1 OBSERVATIONS NOT ACCEPTED`.
