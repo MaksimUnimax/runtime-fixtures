@@ -250,6 +250,90 @@ describe("migration lineage guard", () => {
     expect(migrator).not.toHaveBeenCalled();
     expect(runtime.close).toHaveBeenCalledOnce();
   });
+  it("rejects an existing application schema when the migration ledger is missing", async () => {
+    const runtime = createRuntime();
+    runtime.query = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [{ relation: null }] })
+      .mockResolvedValueOnce({ rows: [{ has_objects: true }] });
+    const migrator = vi.fn();
+
+    await expect(
+      runMigrations({
+        connectionString: "postgres://example.invalid/test",
+        createRuntime: () => runtime,
+        migrator,
+      }),
+    ).rejects.toThrow("MIGRATION_HISTORY_UNTRACKED");
+
+    expect(migrator).not.toHaveBeenCalled();
+    expect(runtime.close).toHaveBeenCalledOnce();
+  });
+
+  it("rejects an existing application schema when the migration ledger is empty", async () => {
+    const runtime = createRuntime();
+    runtime.query = vi
+      .fn()
+      .mockResolvedValueOnce({
+        rows: [{ relation: "drizzle.__drizzle_migrations" }],
+      })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ has_objects: true }] });
+    const migrator = vi.fn();
+
+    await expect(
+      runMigrations({
+        connectionString: "postgres://example.invalid/test",
+        createRuntime: () => runtime,
+        migrator,
+      }),
+    ).rejects.toThrow("MIGRATION_HISTORY_UNTRACKED");
+
+    expect(migrator).not.toHaveBeenCalled();
+    expect(runtime.close).toHaveBeenCalledOnce();
+  });
+
+  it("rejects the observed legacy Stream-2 hybrid sequence before invoking the migrator", async () => {
+    const { readMigrationFiles } = await import("drizzle-orm/migrator");
+    const canonical = readMigrationFiles({ migrationsFolder });
+    const scheduler = canonical.find(
+      (migration) => migration.folderMillis === 1790071001000,
+    );
+    expect(scheduler).toBeDefined();
+    const hybrid = [
+      ...canonical.slice(0, 17).map((migration) => ({
+        hash: migration.hash,
+        created_at: String(migration.folderMillis),
+      })),
+      {
+        hash: scheduler!.hash,
+        created_at: "1789395000000",
+      },
+      ...canonical.slice(17, 19).map((migration) => ({
+        hash: migration.hash,
+        created_at: String(migration.folderMillis),
+      })),
+    ];
+    const runtime = createRuntime();
+    runtime.query = vi
+      .fn()
+      .mockResolvedValueOnce({
+        rows: [{ relation: "drizzle.__drizzle_migrations" }],
+      })
+      .mockResolvedValueOnce({ rows: hybrid });
+    const migrator = vi.fn();
+    await expect(
+      runMigrations({
+        connectionString: "postgres://example.invalid/test",
+        createRuntime: () => runtime,
+        migrator,
+      }),
+    ).rejects.toThrow("MIGRATION_HISTORY_DIVERGED");
+
+    expect(migrator).not.toHaveBeenCalled();
+    expect(runtime.close).toHaveBeenCalledOnce();
+  });
+
   it("accepts an exact prefix of the canonical migration history", async () => {
     const { readMigrationFiles } = await import("drizzle-orm/migrator");
     const prefix = readMigrationFiles({ migrationsFolder }).slice(0, 23);

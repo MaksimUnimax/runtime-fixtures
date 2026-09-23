@@ -4,7 +4,10 @@ import { readFile } from "node:fs/promises";
 import { runInNewContext } from "node:vm";
 import {
   CredentialTransferService,
+  EphemeralTransferRelay,
+  TransferError,
   createMemoryTransferRepository,
+  type TransferRepository,
 } from "./index.js";
 
 const accountA = "11111111-1111-4111-8111-111111111111",
@@ -36,11 +39,14 @@ const createInput = (overrides = {}) => ({
   expiresInSeconds: 300,
   ...overrides,
 });
-function setup() {
+function setup(
+  relayOptions: ConstructorParameters<typeof EphemeralTransferRelay>[0] = {},
+  repository: TransferRepository = createMemoryTransferRepository(),
+) {
   let clock = new Date("2026-09-18T10:00:00.000Z");
   const service = new CredentialTransferService(
-    createMemoryTransferRepository(),
-    undefined,
+    repository,
+    new EphemeralTransferRelay(relayOptions),
     () => clock,
   );
   return {
@@ -50,6 +56,24 @@ function setup() {
     },
   };
 }
+async function prepare(
+  service: CredentialTransferService,
+  requestId: string,
+  target = recipient,
+  caller = source,
+) {
+  await service.create(
+    target,
+    createInput({ requestId, recipientDeviceId: target.deviceId }),
+  );
+  await service.sourceSeen(caller, requestId);
+}
+const idFor = (value: number) => `${value}1111111-1111-4111-8111-111111111111`;
+const packet = (requestId: string, envelope: string, packetId = idFor(7)) => ({
+  requestId,
+  packetId,
+  envelope,
+});
 async function cryptoApi() {
   const sourceText = await readFile(
     new URL(
@@ -78,7 +102,10 @@ async function cryptoApi() {
 }
 
 describe("D3S2-2A control-plane foundation", () => {
-  afterEach(() => vi.restoreAllMocks());
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
   it("TR-01..08 creates an explicit, device-bound, immutable-key idempotent request", async () => {
     const { service } = setup();
     const first = await service.create(recipient, createInput());
@@ -270,12 +297,314 @@ describe("D3S2-2A control-plane foundation", () => {
   it("expiry fails closed and never reopens", async () => {
     const { service, advance } = setup();
     await service.create(recipient, createInput({ expiresInSeconds: 60 }));
+    await service.sourceSeen(source, id);
+    await service.submit(source, packet(id, "expiring"));
     advance(61_000);
+    await service.expireDue();
+    expect(service.relayForTests().statsForTests().packets).toBe(0);
     await expect(service.sourceSeen(source, id)).rejects.toThrow(
       "TRANSFER_EXPIRED",
     );
     await expect(service.read(recipient, id)).resolves.toMatchObject({
       state: "EXPIRED",
     });
+  });
+
+  it("enforces the exact UTF-8 envelope byte limit", async () => {
+    const { service } = setup();
+    await prepare(service, id);
+    await service.submit(source, packet(id, "é".repeat(65536)));
+    expect(service.relayForTests().statsForTests().envelopeBytes).toBe(131072);
+    await expect(
+      service.submit(source, packet(id, "é".repeat(65537), idFor(8))),
+    ).rejects.toMatchObject({ code: "TRANSFER_PACKET_TOO_LARGE" });
+    expect(service.relayForTests().statsForTests().envelopeBytes).toBe(131072);
+  });
+
+  it("enforces global packet and per-account packet quotas", async () => {
+    const global = setup({ maxPackets: 2 });
+    for (const requestId of [idFor(1), idFor(2), idFor(3)])
+      await prepare(global.service, requestId);
+    await global.service.submit(source, packet(idFor(1), "one"));
+    await global.service.submit(source, packet(idFor(2), "two"));
+    await expect(
+      global.service.submit(source, packet(idFor(3), "three")),
+    ).rejects.toMatchObject({ code: "TRANSFER_CONFLICT" });
+    expect(global.service.relayForTests().statsForTests().packets).toBe(2);
+
+    const perAccount = setup({ maxPacketsPerAccount: 1 });
+    const recipientB = {
+      sessionId: "52111111-1111-4111-8111-111111111111",
+      deviceId: "52111111-1111-4111-8111-111111111112",
+      accountId: accountB,
+    };
+    await prepare(perAccount.service, idFor(4));
+    await prepare(perAccount.service, idFor(5), recipientB, other);
+    await perAccount.service.submit(source, packet(idFor(4), "a"));
+    await perAccount.service.submit(other, packet(idFor(5), "b"));
+    expect(
+      perAccount.service.relayForTests().statsForTests(accountA).packets,
+    ).toBe(1);
+    expect(
+      perAccount.service.relayForTests().statsForTests(accountB).packets,
+    ).toBe(1);
+  });
+
+  it("enforces global and per-account envelope byte quotas", async () => {
+    const global = setup({ maxEnvelopeBytes: 10 });
+    await prepare(global.service, idFor(1));
+    await prepare(global.service, idFor(2));
+    await global.service.submit(source, packet(idFor(1), "123456"));
+    await expect(
+      global.service.submit(source, packet(idFor(2), "12345")),
+    ).rejects.toMatchObject({ code: "TRANSFER_CONFLICT" });
+    expect(global.service.relayForTests().statsForTests().envelopeBytes).toBe(
+      6,
+    );
+
+    const perAccount = setup({ maxEnvelopeBytesPerAccount: 10 });
+    const recipientB = {
+      sessionId: "52111111-1111-4111-8111-111111111111",
+      deviceId: "52111111-1111-4111-8111-111111111112",
+      accountId: accountB,
+    };
+    await prepare(perAccount.service, idFor(3));
+    await prepare(perAccount.service, idFor(4));
+    await prepare(perAccount.service, idFor(5), recipientB, other);
+    await perAccount.service.submit(source, packet(idFor(3), "123456"));
+    await expect(
+      perAccount.service.submit(source, packet(idFor(4), "12345")),
+    ).rejects.toMatchObject({ code: "TRANSFER_CONFLICT" });
+    await perAccount.service.submit(other, packet(idFor(5), "12345"));
+    expect(
+      perAccount.service.relayForTests().statsForTests(accountA).envelopeBytes,
+    ).toBe(6);
+    expect(
+      perAccount.service.relayForTests().statsForTests(accountB).envelopeBytes,
+    ).toBe(5);
+  });
+
+  it("replaces by accounting delta and preserves the prior packet on failed admission", async () => {
+    const { service } = setup({
+      maxPackets: 1,
+      maxPacketsPerAccount: 1,
+      maxEnvelopeBytes: 8,
+      maxEnvelopeBytesPerAccount: 8,
+    });
+    await prepare(service, id);
+    await service.submit(source, packet(id, "123456", idFor(7)));
+    await expect(
+      service.submit(source, packet(id, "123456789", idFor(8))),
+    ).rejects.toMatchObject({ code: "TRANSFER_CONFLICT" });
+    await expect(service.receive(recipient, id)).resolves.toMatchObject({
+      packetId: idFor(7),
+      envelope: "123456",
+    });
+    await service.submit(source, packet(id, "12345678", idFor(9)));
+    expect(service.relayForTests().statsForTests()).toMatchObject({
+      packets: 1,
+      envelopeBytes: 8,
+    });
+  });
+
+  it("preserves the prior active packet when replacement durability fails", async () => {
+    const repository = createMemoryTransferRepository();
+    let markCount = 0;
+    const failingReplacement: TransferRepository = {
+      ...repository,
+      async markPacketAvailable(input) {
+        markCount += 1;
+        if (markCount === 2) throw new TransferError("TRANSFER_CONFLICT");
+        return repository.markPacketAvailable(input);
+      },
+    };
+    const service = new CredentialTransferService(
+      failingReplacement,
+      new EphemeralTransferRelay(),
+      () => new Date("2026-09-18T10:00:00.000Z"),
+    );
+    await prepare(service, id);
+    await service.submit(source, packet(id, "old", idFor(7)));
+
+    await expect(
+      service.submit(source, packet(id, "new", idFor(8))),
+    ).rejects.toThrow("TRANSFER_CONFLICT");
+
+    expect(service.relayForTests().statsForTests()).toMatchObject({
+      packets: 1,
+      envelopeBytes: 3,
+      reserved: 0,
+    });
+    await expect(service.receive(recipient, id)).resolves.toMatchObject({
+      packetId: idFor(7),
+      envelope: "old",
+    });
+  });
+
+  it("expires relay bytes on its timer without request traffic", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-18T10:00:00.000Z"));
+    const service = new CredentialTransferService(
+      createMemoryTransferRepository(),
+      new EphemeralTransferRelay(),
+      () => new Date(),
+    );
+    await prepare(service, id);
+    await service.submit(source, packet(id, "synthetic-envelope"));
+    expect(service.relayForTests().statsForTests().packets).toBe(1);
+    await vi.advanceTimersByTimeAsync(300_001);
+    expect(service.relayForTests().statsForTests().packets).toBe(0);
+  });
+
+  it("reserves before the durable transition and keeps reservations unreadable", async () => {
+    const repository = createMemoryTransferRepository();
+    let finishMark!: () => void;
+    let signalMark!: () => void;
+    const marking = new Promise<void>((resolve) => (finishMark = resolve));
+    const started = new Promise<void>((resolve) => (signalMark = resolve));
+    const gated: TransferRepository = {
+      ...repository,
+      async markPacketAvailable(input) {
+        signalMark();
+        await marking;
+        return repository.markPacketAvailable(input);
+      },
+    };
+    const service = new CredentialTransferService(
+      gated,
+      new EphemeralTransferRelay(),
+      () => new Date("2026-09-18T10:00:00.000Z"),
+    );
+    await prepare(service, id);
+    const submitting = service.submit(source, packet(id, "reserved"));
+    await started;
+    expect(service.relayForTests().statsForTests()).toMatchObject({
+      packets: 1,
+      reserved: 1,
+    });
+    await expect(service.receive(recipient, id)).rejects.toThrow(
+      "SOURCE_OFFLINE",
+    );
+    finishMark();
+    await submitting;
+    expect(service.relayForTests().statsForTests().reserved).toBe(0);
+    await expect(service.receive(recipient, id)).resolves.toMatchObject({
+      envelope: "reserved",
+    });
+  });
+
+  it("fails closed when a reservation expires after the durable transition starts", async () => {
+    const repository = createMemoryTransferRepository();
+    let clock = new Date("2026-09-18T10:00:00.000Z");
+    let finishMark!: () => void;
+    let signalMark!: () => void;
+    const marking = new Promise<void>((resolve) => (finishMark = resolve));
+    const started = new Promise<void>((resolve) => (signalMark = resolve));
+    const gated: TransferRepository = {
+      ...repository,
+      async markPacketAvailable(input) {
+        signalMark();
+        await marking;
+        return repository.markPacketAvailable(input);
+      },
+    };
+    const service = new CredentialTransferService(
+      gated,
+      new EphemeralTransferRelay(),
+      () => clock,
+    );
+    await prepare(service, id);
+    const submitting = service.submit(source, packet(id, "expires-in-flight"));
+    await started;
+    clock = new Date("2026-09-18T10:05:01.000Z");
+    finishMark();
+
+    await expect(submitting).rejects.toThrow("TRANSFER_EXPIRED");
+    expect(service.relayForTests().statsForTests()).toMatchObject({
+      packets: 0,
+      envelopeBytes: 0,
+      reserved: 0,
+    });
+    await expect(service.receive(recipient, id)).rejects.toThrow(
+      "SOURCE_OFFLINE",
+    );
+  });
+
+  it("releases a reservation when durable availability fails", async () => {
+    const repository = createMemoryTransferRepository();
+    const failing: TransferRepository = {
+      ...repository,
+      async markPacketAvailable() {
+        throw new TransferError("TRANSFER_CONFLICT");
+      },
+    };
+    const service = new CredentialTransferService(
+      failing,
+      new EphemeralTransferRelay(),
+      () => new Date("2026-09-18T10:00:00.000Z"),
+    );
+    await prepare(service, id);
+    await expect(
+      service.submit(source, packet(id, "reserved")),
+    ).rejects.toThrow("TRANSFER_CONFLICT");
+    expect(service.relayForTests().statsForTests()).toMatchObject({
+      packets: 0,
+      envelopeBytes: 0,
+    });
+  });
+
+  it("cancellation clears a reservation without broadening cancellation states", async () => {
+    const repository = createMemoryTransferRepository();
+    let finishMark!: () => void;
+    let signalMark!: () => void;
+    const marking = new Promise<void>((resolve) => (finishMark = resolve));
+    const started = new Promise<void>((resolve) => (signalMark = resolve));
+    const gated: TransferRepository = {
+      ...repository,
+      async markPacketAvailable(input) {
+        signalMark();
+        await marking;
+        return repository.markPacketAvailable(input);
+      },
+    };
+    const service = new CredentialTransferService(
+      gated,
+      new EphemeralTransferRelay(),
+      () => new Date("2026-09-18T10:00:00.000Z"),
+    );
+    await prepare(service, id);
+    const submitting = service.submit(source, packet(id, "reserved"));
+    await started;
+    await service.cancel(recipient, id);
+    finishMark();
+    await expect(submitting).rejects.toThrow("TRANSFER_REPLAY");
+    expect(service.relayForTests().statsForTests().packets).toBe(0);
+  });
+
+  it("keeps concurrent quota pressure within configured limits", async () => {
+    const { service } = setup({
+      maxPackets: 4,
+      maxPacketsPerAccount: 2,
+      maxEnvelopeBytes: 12,
+      maxEnvelopeBytesPerAccount: 6,
+    });
+    const ids = [1, 2, 3, 4, 5].map(idFor);
+    await Promise.all(ids.map((requestId) => prepare(service, requestId)));
+    const results = await Promise.allSettled(
+      ids.map((requestId) => service.submit(source, packet(requestId, "123"))),
+    );
+    expect(
+      results.filter((result) => result.status === "fulfilled"),
+    ).toHaveLength(2);
+    expect(service.relayForTests().statsForTests()).toMatchObject({
+      packets: 2,
+      envelopeBytes: 6,
+    });
+    expect(
+      service.relayForTests().statsForTests(accountA).packets,
+    ).toBeLessThanOrEqual(2);
+    expect(
+      service.relayForTests().statsForTests(accountA).envelopeBytes,
+    ).toBeLessThanOrEqual(6);
   });
 });

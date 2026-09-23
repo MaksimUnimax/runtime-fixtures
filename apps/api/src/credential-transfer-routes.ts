@@ -64,6 +64,7 @@ export function registerCredentialTransferRoutes(
         "TRANSFER_INVALID",
         "TRANSFER_REPLAY",
         "TRANSFER_CONFLICT",
+        "TRANSFER_PACKET_TOO_LARGE",
         "TRANSFER_DEVICE_REVOKED",
         "TRANSFER_ACCOUNT_MISMATCH",
       ];

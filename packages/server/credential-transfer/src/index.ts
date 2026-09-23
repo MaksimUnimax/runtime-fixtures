@@ -15,6 +15,7 @@ export type TransferFailure =
   | "TRANSFER_EXPIRED"
   | "TRANSFER_REPLAY"
   | "TRANSFER_CONFLICT"
+  | "TRANSFER_PACKET_TOO_LARGE"
   | "TRANSFER_DEVICE_REVOKED"
   | "TRANSFER_ACCOUNT_MISMATCH"
   | "SOURCE_OFFLINE";
@@ -69,38 +70,222 @@ export interface TransferRepository {
 }
 
 type RelayPacket = TransferPacketV1 & {
+  accountId: string;
   sourceDeviceId: string;
   expiresAt: number;
+  envelopeBytes: number;
 };
+
+type RelayReservation = {
+  accountId: string;
+  sourceDeviceId: string;
+  expiresAt: number;
+  envelopeBytes: number;
+  reservationId: number;
+};
+
+export interface EphemeralTransferRelayOptions {
+  maxPackets: number;
+  maxPacketsPerAccount: number;
+  maxEnvelopeBytes: number;
+  maxEnvelopeBytesPerAccount: number;
+}
+
+const DEFAULT_RELAY_LIMITS: EphemeralTransferRelayOptions = {
+  maxPackets: 64,
+  maxPacketsPerAccount: 8,
+  maxEnvelopeBytes: 8 * 1024 * 1024,
+  maxEnvelopeBytesPerAccount: 1024 * 1024,
+};
+
+const MAX_PACKET_ENVELOPE_BYTES = 131072;
 
 /** Process-memory-only relay. It deliberately has no serialization, queue, cache, or logging hook. */
 export class EphemeralTransferRelay {
   private readonly packets = new Map<string, RelayPacket>();
+  private readonly reservations = new Map<string, RelayReservation>();
+  private readonly limits: EphemeralTransferRelayOptions;
+  private timer: ReturnType<typeof setTimeout> | undefined;
+  private nextReservationId = 1;
+  private clockOffsetMs = 0;
 
-  put(packet: TransferPacketV1, sourceDeviceId: string, expiresAt: Date): void {
-    this.packets.set(packet.requestId, {
-      ...packet,
+  public constructor(options: Partial<EphemeralTransferRelayOptions> = {}) {
+    this.limits = { ...DEFAULT_RELAY_LIMITS, ...options };
+  }
+
+  reserve(
+    packet: TransferPacketV1,
+    accountId: string,
+    sourceDeviceId: string,
+    expiresAt: Date,
+    now = new Date(),
+  ): number {
+    const envelopeBytes = new TextEncoder().encode(packet.envelope).byteLength;
+    if (envelopeBytes > MAX_PACKET_ENVELOPE_BYTES)
+      throw new TransferError("TRANSFER_PACKET_TOO_LARGE");
+    this.prune(now);
+
+    const existing = this.packets.get(packet.requestId);
+    if (
+      this.reservations.has(packet.requestId) ||
+      (existing &&
+        (existing.accountId !== accountId ||
+          existing.sourceDeviceId !== sourceDeviceId))
+    )
+      throw new TransferError("TRANSFER_CONFLICT");
+
+    const usage = this.usage(accountId, packet.requestId);
+    if (
+      usage.totalPackets + 1 > this.limits.maxPackets ||
+      usage.accountPackets + 1 > this.limits.maxPacketsPerAccount ||
+      usage.totalBytes + envelopeBytes > this.limits.maxEnvelopeBytes ||
+      usage.accountBytes + envelopeBytes >
+        this.limits.maxEnvelopeBytesPerAccount
+    )
+      throw new TransferError("TRANSFER_CONFLICT");
+
+    const reservationId = this.nextReservationId++;
+    this.reservations.set(packet.requestId, {
+      accountId,
       sourceDeviceId,
       expiresAt: expiresAt.getTime(),
+      envelopeBytes,
+      reservationId,
     });
+    this.scheduleExpiry(now);
+    return reservationId;
+  }
+
+  activate(
+    requestId: string,
+    reservationId: number,
+    packet: TransferPacketV1,
+    now = new Date(),
+  ): boolean {
+    const reservation = this.reservations.get(requestId);
+    if (!reservation || reservation.reservationId !== reservationId)
+      return false;
+    if (reservation.expiresAt <= now.getTime()) {
+      this.reservations.delete(requestId);
+      this.scheduleExpiry(now);
+      return false;
+    }
+    this.reservations.delete(requestId);
+    this.packets.set(requestId, {
+      ...packet,
+      accountId: reservation.accountId,
+      sourceDeviceId: reservation.sourceDeviceId,
+      expiresAt: reservation.expiresAt,
+      envelopeBytes: reservation.envelopeBytes,
+    });
+    this.scheduleExpiry(now);
+    return true;
+  }
+
+  release(requestId: string, reservationId: number, now = new Date()): void {
+    const reservation = this.reservations.get(requestId);
+    if (reservation?.reservationId === reservationId) {
+      this.reservations.delete(requestId);
+      this.scheduleExpiry(now);
+    }
   }
 
   get(requestId: string, now: Date): RelayPacket | undefined {
+    this.prune(now);
+    if (this.reservations.has(requestId)) return undefined;
     const packet = this.packets.get(requestId);
-    if (!packet) return undefined;
-    if (packet.expiresAt <= now.getTime()) {
-      this.packets.delete(requestId);
-      return undefined;
-    }
-    return { ...packet };
+    return packet ? { ...packet } : undefined;
   }
 
-  delete(requestId: string): void {
-    this.packets.delete(requestId);
+  delete(requestId: string, now = new Date()): void {
+    const removedPacket = this.packets.delete(requestId);
+    const removedReservation = this.reservations.delete(requestId);
+    if (removedPacket || removedReservation) this.scheduleExpiry(now);
   }
 
   clear(): void {
     this.packets.clear();
+    this.reservations.clear();
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = undefined;
+  }
+
+  prune(now: Date): number {
+    let removed = 0;
+    for (const [requestId, packet] of this.packets) {
+      if (packet.expiresAt <= now.getTime()) {
+        this.packets.delete(requestId);
+        removed += 1;
+      }
+    }
+    for (const [requestId, reservation] of this.reservations) {
+      if (reservation.expiresAt <= now.getTime()) {
+        this.reservations.delete(requestId);
+        removed += 1;
+      }
+    }
+    if (removed) this.scheduleExpiry(now);
+    return removed;
+  }
+
+  /** Test hook exposes counters and limits only, never packet contents. */
+  statsForTests(accountId?: string) {
+    const usage = this.usage(accountId);
+    const reservations = [...this.reservations.values()].filter(
+      (reservation) => !accountId || reservation.accountId === accountId,
+    );
+    return {
+      packets: accountId ? usage.accountPackets : usage.totalPackets,
+      envelopeBytes: accountId ? usage.accountBytes : usage.totalBytes,
+      reserved: reservations.length,
+    };
+  }
+
+  private usage(accountId?: string, replacingRequestId?: string) {
+    let totalPackets = 0;
+    let accountPackets = 0;
+    let totalBytes = 0;
+    let accountBytes = 0;
+
+    for (const [requestId, packet] of this.packets) {
+      if (requestId === replacingRequestId || this.reservations.has(requestId))
+        continue;
+      totalPackets += 1;
+      totalBytes += packet.envelopeBytes;
+      if (!accountId || packet.accountId === accountId) {
+        accountPackets += 1;
+        accountBytes += packet.envelopeBytes;
+      }
+    }
+    for (const reservation of this.reservations.values()) {
+      totalPackets += 1;
+      totalBytes += reservation.envelopeBytes;
+      if (!accountId || reservation.accountId === accountId) {
+        accountPackets += 1;
+        accountBytes += reservation.envelopeBytes;
+      }
+    }
+    return { totalPackets, accountPackets, totalBytes, accountBytes };
+  }
+
+  private scheduleExpiry(now = new Date()): void {
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = undefined;
+    let earliest = Number.POSITIVE_INFINITY;
+    for (const packet of this.packets.values())
+      earliest = Math.min(earliest, packet.expiresAt);
+    for (const reservation of this.reservations.values())
+      earliest = Math.min(earliest, reservation.expiresAt);
+    if (!Number.isFinite(earliest)) return;
+    this.clockOffsetMs = Date.now() - now.getTime();
+    this.timer = setTimeout(
+      () => {
+        this.timer = undefined;
+        this.prune(new Date(Date.now() - this.clockOffsetMs));
+      },
+      Math.max(0, earliest - now.getTime()),
+    );
+    this.timer.unref?.();
   }
 
   /** Test/operations hook exposes only packet presence, never bytes. */
@@ -143,17 +328,52 @@ export class CredentialTransferService {
   }
 
   public async submit(principal: ExtensionPrincipal, input: unknown) {
+    if (
+      typeof input === "object" &&
+      input !== null &&
+      "envelope" in input &&
+      typeof input.envelope === "string" &&
+      new TextEncoder().encode(input.envelope).byteLength >
+        MAX_PACKET_ENVELOPE_BYTES
+    )
+      throw new TransferError("TRANSFER_PACKET_TOO_LARGE");
     const packet = TransferSubmitPacketV1Schema.parse(input);
-    const request = await this.repository.markPacketAvailable({
+    const now = this.now();
+    const current = await this.repository.read({
       principal,
       requestId: packet.requestId,
-      now: this.now(),
+      now,
     });
-    this.relay.put(
-      TransferPacketV1Schema.parse(packet),
+    if (!current) throw new TransferError("TRANSFER_ACCOUNT_MISMATCH");
+    if (current.sourceDeviceId !== principal.deviceId)
+      throw new TransferError("TRANSFER_ACCOUNT_MISMATCH");
+    const parsedPacket = TransferPacketV1Schema.parse(packet);
+    const reservationId = this.relay.reserve(
+      parsedPacket,
+      current.accountId,
       principal.deviceId,
-      new Date(request.expiresAt),
+      new Date(current.expiresAt),
+      now,
     );
+    try {
+      await this.repository.markPacketAvailable({
+        principal,
+        requestId: packet.requestId,
+        now: this.now(),
+      });
+    } catch (error) {
+      this.relay.release(packet.requestId, reservationId, this.now());
+      throw error;
+    }
+    if (
+      !this.relay.activate(
+        packet.requestId,
+        reservationId,
+        parsedPacket,
+        this.now(),
+      )
+    )
+      throw new TransferError("TRANSFER_EXPIRED");
     return {
       request: await this.repository.read({
         principal,
@@ -173,8 +393,9 @@ export class CredentialTransferService {
     const packet = this.relay.get(requestId, this.now());
     if (!packet) throw new TransferError("SOURCE_OFFLINE");
     if (
-      packet.sourceDeviceId !== request.sourceDeviceId &&
-      request.sourceDeviceId
+      packet.accountId !== request.accountId ||
+      (packet.sourceDeviceId !== request.sourceDeviceId &&
+        request.sourceDeviceId)
     )
       throw new TransferError("TRANSFER_ACCOUNT_MISMATCH");
     await this.repository.markDelivered({
@@ -199,7 +420,7 @@ export class CredentialTransferService {
       ack,
       now: this.now(),
     });
-    this.relay.delete(ack.requestId);
+    this.relay.delete(ack.requestId, this.now());
     return result;
   }
 
@@ -209,12 +430,14 @@ export class CredentialTransferService {
       requestId,
       now: this.now(),
     });
-    this.relay.delete(requestId);
+    this.relay.delete(requestId, this.now());
     return result;
   }
 
   public expireDue() {
-    return this.repository.expireDue(this.now());
+    const now = this.now();
+    this.relay.prune(now);
+    return this.repository.expireDue(now);
   }
 
   public relayForTests() {
