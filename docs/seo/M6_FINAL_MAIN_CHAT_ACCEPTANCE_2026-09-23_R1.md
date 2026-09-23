@@ -1,0 +1,213 @@
+# Octoport SEO — M6 final Main Chat acceptance — 2026-09-23 R1
+
+Status: **PASS / NAMED GAPS CLOSED OR EXPLICIT NONBLOCKING HOLD / M3 CONTROL PATCH CLOSED**
+Branch: `seo/wordstat-batch-01-2026-09-16`
+START_HEAD: `ef5b54fc8cd36e55826c527163272d1f69cb4334`
+
+Current prerequisite:
+`docs/seo/technical/M1_LIVE_MEASUREMENT_BASELINE_2026-09-23_R1.md`
+
+## 1. Entry / prerequisite state
+
+```text
+M0 = PASS
+M1 = PASS / PRELAUNCH_NO_PRODUCTION_SITE
+M2 CURRENT AUTHORITY = ACCEPTED
+M3 PRIMARY ORGANIC = ACCEPTED
+M4 = ACCEPTED WITH DECLARED M4Q SOURCE LIMITATION
+M5 = ACCEPTED / HYPOTHESIS ONLY
+M6 PRE-ACQUISITION = ACCEPTED
+```
+
+M1 no longer blocks M6 final closure.
+
+## 2. Provider terminal accounting
+
+Wordstat:
+
+```text
+M6PC001 = SUCCEEDED / VALID_EMPTY_LITERAL_TOP_RESPONSE
+M6PC002 = SUCCEEDED / VALID_EMPTY_LITERAL_TOP_RESPONSE
+M6PC003 = SUCCEEDED / VALID_EMPTY_LITERAL_TOP_RESPONSE
+M6PC004 = FAILED_TERMINAL / INVALID_QUERY / EXPLICIT NONBLOCKING HOLD
+
+WORDSTAT_PROVIDER_CANDIDATES = 4
+TERMINAL = 4/4
+OUTCOME_UNKNOWN = 0
+AUTOMATIC_RETRY = 0
+UNAUTHORIZED_REWRITE = 0
+```
+
+Regional Search:
+
+```text
+M6PC006 / R04 = SUCCEEDED / NO_MATERIAL_CHANGE
+M6PC008 / R06 = SUCCEEDED / ENRICH
+
+SEARCH_REGION_CANDIDATES = 2
+TERMINAL_SUCCESS = 2/2
+OUTCOME_UNKNOWN = 0
+RAW_EXPORT_ROWS = 40/40
+```
+
+Full Search export authority:
+`docs/seo/work/M6_PENDING_PROVIDER_RAW/search-octoport-m6-search-region-controls-r1-20260923-r10-0-1.json`
+
+Row-level regional reconciliation:
+`docs/seo/work/M6_PENDING_PROVIDER_RAW/M6_SEARCH_REGION_CONTROL_ROWS_2026-09-23_R1.tsv`
+
+## 3. M3 control-patch accounting
+
+```text
+M3_AUTHORITY_QUERIES = 15/15
+M3_CROSS_QUERY_OVERLAP = CLOSED_BY_ACCEPTED_M4A / 105 PAIRS
+M3_TEMPORAL_REPEAT = CLOSED_BY_ACCEPTED_M4Q_R2 / 15/15
+M3_REGION_CONTROLS_SELECTED = 2
+M3_REGION_CONTROLS_EXECUTED = 2/2
+
+M3_FULL_SERP_HTML:
+  NO_MATERIAL_INFO_GAIN = 9
+  EXPLICIT_NONBLOCKING_CAPABILITY_HOLD = 6
+
+M3_DEVICE:
+  NO_MATERIAL_INFO_GAIN = 12
+  EXPLICIT_NONBLOCKING_CAPABILITY_HOLD = 3
+```
+
+The current Search corpus remains explicitly organic XML.
+No HTML/full-SERP or device-equivalence claim is admitted.
+
+## 4. M6 source/gap accounting
+
+Accepted pre-acquisition universe:
+
+```text
+PRIMARY_M6_SOURCE_ROWS = 6106/6106
+
+REUSE_EXISTING_WORDSTAT_EVIDENCE = 1
+PROVIDER_REQUIRED_DEMAND_VALIDATION = 4
+NO_INCREMENTAL_INFORMATION_GAIN = 2574
+OUT_OF_PRODUCT_SCOPE = 1821
+HOLD_AMBIGUOUS = 1676
+OWNER_OR_PRODUCT_FACT_REQUIRED = 30
+```
+
+Owner/product-fact reconciliation:
+
+```text
+SOURCE_ROWS_REVIEWED = 30/30
+PRODUCT_CAPABILITY_HOLD = 29
+OUT_OF_PRODUCT_SCOPE = 1
+OWNER_INPUT_REQUIRED_NOW = 0
+```
+
+Authority:
+`docs/seo/M6_OWNER_PRODUCT_FACT_MAIN_CHAT_RECONCILIATION_2026-09-23_R1.md`.
+
+Ambiguous rows:
+
+```text
+HOLD_AMBIGUOUS = 1676
+STATE = TERMINAL_NONBLOCKING_HOLD_FOR_COLLECTION_FREEZE
+SILENT_EXCLUSION = 0
+```
+
+## 5. Explicit open HOLD / limitation register
+
+Nonblocking collection-freeze limitations:
+
+```text
+M6PC004_PROVIDER_INVALID_QUERY_HOLD = 1
+SEARCH_HTML_CAPABILITY_HOLD = 6
+SEARCH_USERAGENT_CAPABILITY_HOLD = 3
+SOURCE_IDENTITY_HOLD_AMBIGUOUS = 1676
+PRODUCT_CAPABILITY_HOLD = 29
+M4Q_RANKING_QUERY_SOURCE_LIMITATION = ACTIVE / ACCEPTED
+```
+
+These HOLDs:
+- do not become zero-demand evidence;
+- do not become supported product capability;
+- do not become final semantic KEEP;
+- must remain visible downstream where relevant;
+- reopen only under their accepted triggers.
+
+## 6. No AI contamination
+
+```text
+ALICE_PROVIDER_CALLS_IN_M6 = 0
+AI_PROVIDER_EVIDENCE_ROWS_IN_SEARCH_SIDE = 0
+M5_HYPOTHESES_USED_AS_PROVIDER_FACT = 0
+```
+
+M5 remains provisional diagnostic preparation only.
+
+## 7. Persistence / recovery
+
+Current accepted evidence is durable in GitHub and remote-read back.
+
+Provider lifecycle/raw evidence includes:
+- M6PC001..M6PC004 raw Wordstat JSON;
+- Search batch start;
+- Search submit;
+- first NO_DUE collect;
+- terminal collect;
+- full terminal Search export;
+- 40-row regional comparison ledger.
+
+```text
+CHAT_ONLY_ACCEPTED_EVIDENCE = 0
+UNKNOWN_PROVIDER_OUTCOMES = 0
+UNAUTHORIZED_PROVIDER_REPLAY = 0
+OPEN_CRITICAL_DEFECTS = 0
+```
+
+## 8. M6 hard gate
+
+```text
+LEVEL1_READ = PASS
+APPLICABLE_LEVEL2_READ = PASS
+PRE_ACQUISITION_FULL_VOLUME_ACCOUNTING = PASS
+INFORMATION_GAIN_GATE = PASS
+PROVIDER_EXECUTION_GATE = PASS
+RAW_PERSISTENCE_READBACK = PASS
+M3_CONTROL_PATCH = PASS_WITH_EXPLICIT_NONBLOCKING_HOLDS
+OWNER_PRODUCT_FACT_RECONCILIATION = PASS
+HOLD_ACCOUNTING = PASS
+M1_PRE_M7_DEPENDENCY = PASS
+UNKNOWN_PROVIDER_OUTCOMES = 0
+OPEN_HIGH_VALUE_BLOCKING_GAPS = 0
+OPEN_CRITICAL_DEFECTS = 0
+```
+
+## 9. Current quality score
+
+```text
+goal/output completeness = 10.0
+method/source support = 9.5
+evidence/provenance integrity = 10.0
+coverage/accounting = 10.0
+analytical correctness/claim boundaries = 9.5
+adversarial QA = 9.5
+persistence/readback/reproducibility = 10.0
+owner usability = 9.5
+information gain/efficiency = 10.0
+downstream readiness = 9.5
+
+QUALITY_TOTAL = 97.5 / 100
+M6_CURRENT_SCORE = 9.75 / 10
+```
+
+## 10. Final verdict
+
+```text
+M6 = PASS
+M6_FINAL_CLOSURE = ACCEPTED
+M6_HIGH_VALUE_GAPS = CLOSED_OR_EXPLICIT_NONBLOCKING_HOLD
+M3_CONTROL_DEBT = CLOSED_WITH_EXPLICIT_NONBLOCKING_CAPABILITY_LIMITATIONS
+UNKNOWN_PROVIDER_OUTCOMES = 0
+M7_BLOCKED_BY_M6 = false
+```
+
+Next:
+`R4 CURRENT-AUTHORITY RESCORE -> M7 SEARCH-SIDE COLLECTION FREEZE`.
