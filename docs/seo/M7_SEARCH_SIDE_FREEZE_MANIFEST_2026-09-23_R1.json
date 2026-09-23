@@ -1,0 +1,1259 @@
+{
+  "schema": "OCTOPORT_M7_SEARCH_SIDE_FREEZE_MANIFEST_V1",
+  "freeze_id": "OCTOPORT_SEO_M7_SEARCH_SIDE_COLLECTION_FREEZE_2026-09-23_R1",
+  "date": "2026-09-23",
+  "repository": "MaksimUnimax/runtime-fixtures",
+  "branch": "seo/wordstat-batch-01-2026-09-16",
+  "frozen_input_head": "3b71060bf529c67c7f3578ca6bfb268407e72b0b",
+  "frozen_input_tree_sha": "0f76ea976f16901e67811bfb25eedd3f883498f6",
+  "rule": "All paths below are frozen by exact Git blob SHA. Later branch changes do not mutate this snapshot.",
+  "stage_state": {
+    "M0": "PASS",
+    "M1": "PASS_PRELAUNCH_NO_PRODUCTION_SITE",
+    "M2": "PASS_WITH_ACCEPTED_HISTORICAL_PERSISTENCE_LIMITATION",
+    "M3": "PASS_CURRENT_HARDENED_AUTHORITY",
+    "M4": "ACCEPTED_WITH_DECLARED_M4Q_SOURCE_LIMITATION",
+    "M5": "ACCEPTED_HYPOTHESIS_ONLY_EXCLUDED_FROM_W1_SEMANTIC_DECISIONS",
+    "M6": "PASS",
+    "unknown_provider_outcomes": 0,
+    "alice_provider_evidence_rows": 0
+  },
+  "expected_core_counts": {
+    "m2r_lineage_rows": 1123,
+    "m3_authority_queries": 15,
+    "m3_primary_occurrences": 300,
+    "m4a_pairwise_top10_rows": 105,
+    "m4a_registry_rows": 60,
+    "m4c_candidate_occurrence_rows": 8431,
+    "m4c_m6_candidate_rows": 5973,
+    "m4q_query_universe_rows": 15542,
+    "m6_primary_source_rows": 6106,
+    "m6_hold_ambiguous_rows": 1676,
+    "m6_owner_product_rows": 30,
+    "m6_region_control_rows": 40
+  },
+  "explicit_nonblocking_holds": {
+    "m6pc004_provider_invalid_query": 1,
+    "search_html_capability_holds": 6,
+    "search_useragent_capability_holds": 3,
+    "source_identity_hold_ambiguous": 1676,
+    "product_capability_holds": 29,
+    "m4q_ranking_query_source_limitation": true,
+    "historical_b01_exact_wrapper_limitation": "B01-01..14 structured factual transcriptions; no replay required"
+  },
+  "w1_contract": {
+    "allowed_access_values": [
+      "allowed",
+      "context_only",
+      "audit_fallback",
+      "method_only"
+    ],
+    "semantic_decision_inputs": "Only records marked allowed may directly feed Search semantic identity/relevance/task/intent/priority. context_only may constrain interpretation but not create query truth. audit_fallback is for provenance/defect resolution only. method_only defines process.",
+    "prohibited_access_values": [
+      "prohibited_semantic_input",
+      "prohibited_direct_use"
+    ],
+    "alice_input_rows": 0,
+    "m5_hypothesis_semantic_use": 0,
+    "final_page_ownership_decisions_allowed": 0,
+    "final_url_h1_title_ia_decisions_allowed": 0
+  },
+  "authority_file_count": 162,
+  "role_counts": {
+    "process_governor": 2,
+    "work_handoff_rule": 1,
+    "stage_gate_authority": 1,
+    "step_method_index": 1,
+    "m7_m8_method": 1,
+    "product_truth": 1,
+    "m0_current_authority": 1,
+    "m1_owner_correction": 1,
+    "m1_current_authority": 1,
+    "pre_m7_rescore": 1,
+    "m6_final_acceptance": 1,
+    "m2_wordstat_raw": 30,
+    "m2_method_retro": 1,
+    "m2_current_demand_lineage": 1,
+    "m2_family_context": 1,
+    "m2_reconciliation_report": 1,
+    "m2_current_acceptance": 1,
+    "m2_output_manifest": 1,
+    "m3_query_authority": 1,
+    "m3_method_retro": 1,
+    "m3_serp_export": 2,
+    "m3_serp_analysis": 15,
+    "m3_serp_export_historical_malformed_transport": 1,
+    "m3_serp_export_manifest": 11,
+    "m3_serp_export_recovery_authority": 1,
+    "m3_serp_recovery_qa": 1,
+    "m4a_acceptance": 1,
+    "m4a_hardened": 11,
+    "m4b1_current_acceptance": 1,
+    "m4b2_current_acceptance": 1,
+    "m4q_manifest_acceptance": 1,
+    "m4q_visibility_acceptance": 1,
+    "m4q_targeted_acceptance": 1,
+    "m4_current_acceptance": 1,
+    "m4q_query_universe": 7,
+    "m4q_current_search_visibility": 8,
+    "m4q_targeted_overlay": 7,
+    "m4c_current_synthesis": 7,
+    "m4c_transport_audit": 3,
+    "m5_preparation_source": 1,
+    "m5_acceptance": 1,
+    "m5_hypothesis_layer": 5,
+    "m6_preacquisition": 7,
+    "m6_preacquisition_acceptance": 1,
+    "m6_wordstat_reconciliation": 1,
+    "m6_search_comparison_method": 1,
+    "m6_search_region_reconciliation": 1,
+    "m6_product_fact_reconciliation": 1,
+    "m6_hold_register": 1,
+    "m6_product_fact_rows": 1,
+    "m6_provider_raw": 10
+  },
+  "access_counts": {
+    "method_only": 7,
+    "allowed": 66,
+    "context_only": 32,
+    "audit_fallback": 49,
+    "prohibited_direct_use": 1,
+    "prohibited_semantic_input": 7
+  },
+  "files": [
+    {
+      "path": "docs/seo/LEVEL1/README.md",
+      "git_blob_sha": "4c3a30644ac736b926ec82bba6b1a6e33434ac06",
+      "bytes": 2695,
+      "role": "process_governor",
+      "w1_access": "method_only"
+    },
+    {
+      "path": "docs/seo/EXECUTION_RULES.md",
+      "git_blob_sha": "4e999af4826d6f72fd15f481a698f674c8ed2d5c",
+      "bytes": 17979,
+      "role": "process_governor",
+      "w1_access": "method_only"
+    },
+    {
+      "path": "docs/seo/WORK_HANDOFF_RULE.md",
+      "git_blob_sha": "71a031e74b921dade5998beb842fb3afcc4478e7",
+      "bytes": 11604,
+      "role": "work_handoff_rule",
+      "w1_access": "method_only"
+    },
+    {
+      "path": "docs/seo/STAGE_GATES_M0_M7.md",
+      "git_blob_sha": "7c08885c230226ae8b7395c8af168baad05e6d6d",
+      "bytes": 16240,
+      "role": "stage_gate_authority",
+      "w1_access": "method_only"
+    },
+    {
+      "path": "docs/seo/LEVEL2/OCTOPORT_STEP_RULES_INDEX.md",
+      "git_blob_sha": "2438ed88a5d129b41dca88d2f87a22bc4b3515cd",
+      "bytes": 9903,
+      "role": "step_method_index",
+      "w1_access": "method_only"
+    },
+    {
+      "path": "docs/seo/LEVEL2/M7_M8_SEARCH_FREEZE_AND_SEMANTIC_MASTER_RULES.md",
+      "git_blob_sha": "1e29a2af8440084c5890e1b397167cc384154d85",
+      "bytes": 4038,
+      "role": "m7_m8_method",
+      "w1_access": "method_only"
+    },
+    {
+      "path": "docs/seo/PRODUCT_TRUTH.md",
+      "git_blob_sha": "6a469d5743142d3e476afa5d2cda653fd411ecb8",
+      "bytes": 14268,
+      "role": "product_truth",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/evidence/M0_SCOPE_SOURCE_RETRO_CONSOLIDATION_2026-09-18.md",
+      "git_blob_sha": "cd79ac5189631b7083694c5903f66eb18cd525de",
+      "bytes": 9463,
+      "role": "m0_current_authority",
+      "w1_access": "context_only"
+    },
+    {
+      "path": "docs/seo/technical/M1_OWNER_PRELAUNCH_SCOPE_CORRECTION_2026-09-23_R1.md",
+      "git_blob_sha": "f970efff5efcba1abf485ff4d816c32d49c9b1d4",
+      "bytes": 2520,
+      "role": "m1_owner_correction",
+      "w1_access": "context_only"
+    },
+    {
+      "path": "docs/seo/technical/M1_LIVE_MEASUREMENT_BASELINE_2026-09-23_R1.md",
+      "git_blob_sha": "f13d34fe7c29746a4ee275935432a29689dcf1df",
+      "bytes": 3532,
+      "role": "m1_current_authority",
+      "w1_access": "context_only"
+    },
+    {
+      "path": "docs/seo/R4_PRE_M7_CURRENT_AUTHORITY_RESCORE_2026-09-23_R1.md",
+      "git_blob_sha": "a1a6d37b7262d1a02b592e4717f9a6b1b9e59976",
+      "bytes": 6353,
+      "role": "pre_m7_rescore",
+      "w1_access": "method_only"
+    },
+    {
+      "path": "docs/seo/M6_FINAL_MAIN_CHAT_ACCEPTANCE_2026-09-23_R1.md",
+      "git_blob_sha": "cac7c479e05ff9616160d415dd9218c8c97f018a",
+      "bytes": 5239,
+      "role": "m6_final_acceptance",
+      "w1_access": "context_only"
+    },
+    {
+      "path": "docs/seo/wordstat/raw/B01_01_2026-09-16.md",
+      "git_blob_sha": "7c84470c4b99300bd58f59832d6ed953326d656d",
+      "bytes": 7574,
+      "role": "m2_wordstat_raw",
+      "w1_access": "audit_fallback"
+    },
+    {
+      "path": "docs/seo/wordstat/raw/B01_02_2026-09-16.md",
+      "git_blob_sha": "a4aa9620f412d918b74378250cef048fd6c99fb8",
+      "bytes": 9214,
+      "role": "m2_wordstat_raw",
+      "w1_access": "audit_fallback"
+    },
+    {
+      "path": "docs/seo/wordstat/raw/B01_03_2026-09-16.md",
+      "git_blob_sha": "7dea474b214083d5e5295f7708b162b8516ed86f",
+      "bytes": 1282,
+      "role": "m2_wordstat_raw",
+      "w1_access": "audit_fallback"
+    },
+    {
+      "path": "docs/seo/wordstat/raw/B01_04_2026-09-16.md",
+      "git_blob_sha": "fd22daa190df67b5f373d43443daf363f27d5a61",
+      "bytes": 1345,
+      "role": "m2_wordstat_raw",
+      "w1_access": "audit_fallback"
+    },
+    {
+      "path": "docs/seo/wordstat/raw/B01_05_2026-09-16.md",
+      "git_blob_sha": "ef4e6811b4db427ccb3a983bed76e34441b4389a",
+      "bytes": 2225,
+      "role": "m2_wordstat_raw",
+      "w1_access": "audit_fallback"
+    },
+    {
+      "path": "docs/seo/wordstat/raw/B01_06_2026-09-16.md",
+      "git_blob_sha": "2c93b451a4c2767b1ff069b30ce6a0a0b4594013",
+      "bytes": 2741,
+      "role": "m2_wordstat_raw",
+      "w1_access": "audit_fallback"
+    },
+    {
+      "path": "docs/seo/wordstat/raw/B01_07_2026-09-16.md",
+      "git_blob_sha": "182403efdd9c9b5c038c80f3633f7b8a6bd8465c",
+      "bytes": 2619,
+      "role": "m2_wordstat_raw",
+      "w1_access": "audit_fallback"
+    },
+    {
+      "path": "docs/seo/wordstat/raw/B01_08_2026-09-16.md",
+      "git_blob_sha": "c5274fb738c863f9507e9ac9319d6b495d33f28b",
+      "bytes": 2209,
+      "role": "m2_wordstat_raw",
+      "w1_access": "audit_fallback"
+    },
+    {
+      "path": "docs/seo/wordstat/raw/B01_09_2026-09-16.md",
+      "git_blob_sha": "b2793fbb06f3ab7f0f757c99742ebb171f5cb1ce",
+      "bytes": 2126,
+      "role": "m2_wordstat_raw",
+      "w1_access": "audit_fallback"
+    },
+    {
+      "path": "docs/seo/wordstat/raw/B01_10_2026-09-16.md",
+      "git_blob_sha": "acef0e550b754f6042a2de34cc67df0af3778777",
+      "bytes": 1306,
+      "role": "m2_wordstat_raw",
+      "w1_access": "audit_fallback"
+    },
+    {
+      "path": "docs/seo/wordstat/raw/B01_11_2026-09-16.md",
+      "git_blob_sha": "21eee7ce982d67df3b630d34c91bbd4649fb2459",
+      "bytes": 1314,
+      "role": "m2_wordstat_raw",
+      "w1_access": "audit_fallback"
+    },
+    {
+      "path": "docs/seo/wordstat/raw/B01_12_2026-09-16.md",
+      "git_blob_sha": "59ca61b0b572fe7410eed0628a402ba8dee0149b",
+      "bytes": 1419,
+      "role": "m2_wordstat_raw",
+      "w1_access": "audit_fallback"
+    },
+    {
+      "path": "docs/seo/wordstat/raw/B01_13_2026-09-16.md",
+      "git_blob_sha": "f4d843c1f5aef928305dbc44dfc3ced5fec39b38",
+      "bytes": 1343,
+      "role": "m2_wordstat_raw",
+      "w1_access": "audit_fallback"
+    },
+    {
+      "path": "docs/seo/wordstat/raw/B01_14_2026-09-16.md",
+      "git_blob_sha": "a1ec2d6d691a013adb4d7b76841c49cdeaa145ff",
+      "bytes": 3763,
+      "role": "m2_wordstat_raw",
+      "w1_access": "audit_fallback"
+    },
+    {
+      "path": "docs/seo/wordstat/raw/B01_15_2026-09-16.md",
+      "git_blob_sha": "99d60360b2d23a4fc48a879b66972790bfa70cd6",
+      "bytes": 1466,
+      "role": "m2_wordstat_raw",
+      "w1_access": "audit_fallback"
+    },
+    {
+      "path": "docs/seo/wordstat/raw/B02_01_2026-09-16.md",
+      "git_blob_sha": "8fb846f5bb29083b5a220675d6442db62160c51b",
+      "bytes": 3257,
+      "role": "m2_wordstat_raw",
+      "w1_access": "audit_fallback"
+    },
+    {
+      "path": "docs/seo/wordstat/raw/B02_02_2026-09-16.md",
+      "git_blob_sha": "9ceff66e5953a16aeabfcd42e8b7cc3bf7cf74e4",
+      "bytes": 3504,
+      "role": "m2_wordstat_raw",
+      "w1_access": "audit_fallback"
+    },
+    {
+      "path": "docs/seo/wordstat/raw/B02_03_2026-09-16.md",
+      "git_blob_sha": "960775bb3112e0c4bffd3f39beba65d45fa104f8",
+      "bytes": 3116,
+      "role": "m2_wordstat_raw",
+      "w1_access": "audit_fallback"
+    },
+    {
+      "path": "docs/seo/wordstat/raw/B02_04_2026-09-16.md",
+      "git_blob_sha": "97dbf327a3af7505d323f2bc7b0893690a8c473a",
+      "bytes": 3410,
+      "role": "m2_wordstat_raw",
+      "w1_access": "audit_fallback"
+    },
+    {
+      "path": "docs/seo/wordstat/raw/B02_05_2026-09-16.md",
+      "git_blob_sha": "72f31eb639e47a0c4a1663540f1dbc8c2b3d8c54",
+      "bytes": 3227,
+      "role": "m2_wordstat_raw",
+      "w1_access": "audit_fallback"
+    },
+    {
+      "path": "docs/seo/wordstat/raw/B02_06_2026-09-16.md",
+      "git_blob_sha": "9932c189464336feb6f974923c8a5da762558af7",
+      "bytes": 3469,
+      "role": "m2_wordstat_raw",
+      "w1_access": "audit_fallback"
+    },
+    {
+      "path": "docs/seo/wordstat/raw/B02_07_2026-09-16.md",
+      "git_blob_sha": "562dea0f7771aa08bc50e03e59485fcda77b26de",
+      "bytes": 3414,
+      "role": "m2_wordstat_raw",
+      "w1_access": "audit_fallback"
+    },
+    {
+      "path": "docs/seo/wordstat/raw/B02_08_2026-09-16.md",
+      "git_blob_sha": "17b9b0c9b5adf5f0629cd2efc36dfd07dc520e81",
+      "bytes": 3189,
+      "role": "m2_wordstat_raw",
+      "w1_access": "audit_fallback"
+    },
+    {
+      "path": "docs/seo/wordstat/raw/B02_09_2026-09-16.md",
+      "git_blob_sha": "96f8eb30ebdb62f44cb4568d9101d658349fca45",
+      "bytes": 3735,
+      "role": "m2_wordstat_raw",
+      "w1_access": "audit_fallback"
+    },
+    {
+      "path": "docs/seo/wordstat/raw/B02_10_2026-09-16.md",
+      "git_blob_sha": "ae815c9f0ccf6927fd5df595324e7579218222a1",
+      "bytes": 3483,
+      "role": "m2_wordstat_raw",
+      "w1_access": "audit_fallback"
+    },
+    {
+      "path": "docs/seo/wordstat/raw/B02_11_2026-09-16.md",
+      "git_blob_sha": "4ec4bbb2edadc66adb159a6f3f567c5000210e48",
+      "bytes": 3360,
+      "role": "m2_wordstat_raw",
+      "w1_access": "audit_fallback"
+    },
+    {
+      "path": "docs/seo/wordstat/raw/B02_12_2026-09-16.md",
+      "git_blob_sha": "6d62208e54d4332b40627cb99bc24263d54b9958",
+      "bytes": 3813,
+      "role": "m2_wordstat_raw",
+      "w1_access": "audit_fallback"
+    },
+    {
+      "path": "docs/seo/wordstat/raw/B02_13_2026-09-16.md",
+      "git_blob_sha": "f1099631c3f9ba88c087895fd331a4b04ee5d9d2",
+      "bytes": 4334,
+      "role": "m2_wordstat_raw",
+      "w1_access": "audit_fallback"
+    },
+    {
+      "path": "docs/seo/wordstat/raw/B02_14_2026-09-16.md",
+      "git_blob_sha": "4b87c276d42c25a11fba63a873098a44fd5807e5",
+      "bytes": 3139,
+      "role": "m2_wordstat_raw",
+      "w1_access": "audit_fallback"
+    },
+    {
+      "path": "docs/seo/wordstat/raw/B02_15_2026-09-16.md",
+      "git_blob_sha": "fa98afba5c33dd9e4e7dd79c6f0327130f2ff248",
+      "bytes": 1723,
+      "role": "m2_wordstat_raw",
+      "w1_access": "audit_fallback"
+    },
+    {
+      "path": "docs/seo/wordstat/M2_WORDSTAT_RETRO_GATE_AUDIT_2026-09-16.md",
+      "git_blob_sha": "14bea2f8101be36fde0e0b583de2875169bbd287",
+      "bytes": 15195,
+      "role": "m2_method_retro",
+      "w1_access": "context_only"
+    },
+    {
+      "path": "docs/seo/work/M2R_PHRASE_LINEAGE_LEDGER_2026-09-17.csv",
+      "git_blob_sha": "9343048ed82f129b3f7433c46899e6f255a420a8",
+      "bytes": 443233,
+      "role": "m2_current_demand_lineage",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/work/M2R_FAMILY_COVERAGE_MATRIX_2026-09-17.csv",
+      "git_blob_sha": "076c0d95b1e08984e8d311d5547b24cb5cd74ed3",
+      "bytes": 5996,
+      "role": "m2_family_context",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/work/M2R_FULL_VOLUME_RECONCILIATION_2026-09-17.md",
+      "git_blob_sha": "f850699a095ba480451b117b9ff0ba357d9e7488",
+      "bytes": 7241,
+      "role": "m2_reconciliation_report",
+      "w1_access": "context_only"
+    },
+    {
+      "path": "docs/seo/work/M2R_RECONCILIATION_MAIN_CHAT_RETURN_QA_2026-09-17.md",
+      "git_blob_sha": "58af2c3c9c1c1dd9afa6ebf37692a553d5c0ee63",
+      "bytes": 8541,
+      "role": "m2_current_acceptance",
+      "w1_access": "context_only"
+    },
+    {
+      "path": "docs/seo/work/M2R_RECONCILIATION_OUTPUT_MANIFEST_2026-09-17.json",
+      "git_blob_sha": "3dffb528a9fc72cea45228b4be09e81ab40222e1",
+      "bytes": 2828,
+      "role": "m2_output_manifest",
+      "w1_access": "audit_fallback"
+    },
+    {
+      "path": "docs/seo/serp/M3_QUERY_MATRIX_2026-09-17.md",
+      "git_blob_sha": "0d43a40a8d5c865f2078a4f6f2a01815cd9b415f",
+      "bytes": 12356,
+      "role": "m3_query_authority",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/serp/M3_METHOD_RETROSPECTIVE_AND_CONTROL_DEBT_2026-09-18.md",
+      "git_blob_sha": "60a1b6de5c660733a0d2ea4d25d7fc56d84c5b99",
+      "bytes": 4243,
+      "role": "m3_method_retro",
+      "w1_access": "context_only"
+    },
+    {
+      "path": "docs/seo/serp/exports/S01_ИИ_АГЕНТЫ_ДЛЯ_МАРКЕТПЛЕЙСОВ_NORMALIZED_2026-09-16.json",
+      "git_blob_sha": "5a6860a78f9d13b8c4ec47be511e690736244931",
+      "bytes": 15408,
+      "role": "m3_serp_export",
+      "w1_access": "audit_fallback"
+    },
+    {
+      "path": "docs/seo/serp/analysis/S01_06_COLLECT_SUCCEEDED_2026-09-16.md",
+      "git_blob_sha": "9651e689f0420966f445671552bfddeb29d626ce",
+      "bytes": 1729,
+      "role": "m3_serp_analysis",
+      "w1_access": "context_only"
+    },
+    {
+      "path": "docs/seo/serp/exports/S02_ИИ_АГЕНТ_ДЛЯ_ОЗОН_NORMALIZED_2026-09-16.json",
+      "git_blob_sha": "239079428669e81426abfec3b326072f457d8403",
+      "bytes": 15053,
+      "role": "m3_serp_export",
+      "w1_access": "audit_fallback"
+    },
+    {
+      "path": "docs/seo/serp/analysis/S02_EXPORT_AND_INTENT_2026-09-16.md",
+      "git_blob_sha": "d707343192f42efb7e8325cae5ae7364b8e8b574",
+      "bytes": 5665,
+      "role": "m3_serp_analysis",
+      "w1_access": "context_only"
+    },
+    {
+      "path": "docs/seo/serp/exports/S03_ИИ_АГЕНТ_ДЛЯ_WILDBERRIES_NORMALIZED_2026-09-16.json",
+      "git_blob_sha": "0a8db42e188c112610790c3260da263bde66a621",
+      "bytes": 13495,
+      "role": "m3_serp_export_historical_malformed_transport",
+      "w1_access": "prohibited_direct_use"
+    },
+    {
+      "path": "docs/seo/serp/analysis/S02_VS_S03_OZON_WB_PAIRED_COMPARISON_2026-09-16.md",
+      "git_blob_sha": "1904284f095a3f75543973d2411eb50c95ab510d",
+      "bytes": 8221,
+      "role": "m3_serp_analysis",
+      "w1_access": "context_only"
+    },
+    {
+      "path": "docs/seo/serp/raw/R01_06_EXPORT_MANIFEST_2026-09-17.md",
+      "git_blob_sha": "82e44cfd57a193ecf8792594a48846ffe6815785",
+      "bytes": 3611,
+      "role": "m3_serp_export_manifest",
+      "w1_access": "audit_fallback"
+    },
+    {
+      "path": "docs/seo/serp/analysis/R01_06_EXPORT_ANALYSIS_2026-09-17.md",
+      "git_blob_sha": "363fc00bc106d238f78508562fed86f1ef575543",
+      "bytes": 11169,
+      "role": "m3_serp_analysis",
+      "w1_access": "context_only"
+    },
+    {
+      "path": "docs/seo/serp/raw/R02_06_EXPORT_MANIFEST_2026-09-17.md",
+      "git_blob_sha": "f92a9f453b8520ca6705830805ffd6fc2bf70543",
+      "bytes": 3322,
+      "role": "m3_serp_export_manifest",
+      "w1_access": "audit_fallback"
+    },
+    {
+      "path": "docs/seo/serp/analysis/R02_06_EXPORT_ANALYSIS_2026-09-17.md",
+      "git_blob_sha": "0f3e0a31d0b4e818cedd4dc4a46764b69bf1111f",
+      "bytes": 11215,
+      "role": "m3_serp_analysis",
+      "w1_access": "context_only"
+    },
+    {
+      "path": "docs/seo/serp/raw/R03_06_EXPORT_MANIFEST_2026-09-17.md",
+      "git_blob_sha": "e61206b60b6140621e25a5931bd7cdd0e6093742",
+      "bytes": 4424,
+      "role": "m3_serp_export_manifest",
+      "w1_access": "audit_fallback"
+    },
+    {
+      "path": "docs/seo/serp/analysis/R03_06_EXPORT_ANALYSIS_2026-09-17.md",
+      "git_blob_sha": "3096fdab69765f2f2d8ad7862167b37fe7b64e0e",
+      "bytes": 8909,
+      "role": "m3_serp_analysis",
+      "w1_access": "context_only"
+    },
+    {
+      "path": "docs/seo/serp/raw/R04R1_07_EXPORT_MANIFEST_2026-09-17.md",
+      "git_blob_sha": "ad5a5c232cdb80b87fd615fc8fb1eaf5f6e7ce6d",
+      "bytes": 2182,
+      "role": "m3_serp_export_manifest",
+      "w1_access": "audit_fallback"
+    },
+    {
+      "path": "docs/seo/serp/analysis/R04R1_07_EXPORT_ANALYSIS_2026-09-17.md",
+      "git_blob_sha": "ac9f4d4af9bae586633e28b1125778d6b54454fb",
+      "bytes": 9120,
+      "role": "m3_serp_analysis",
+      "w1_access": "context_only"
+    },
+    {
+      "path": "docs/seo/serp/raw/R05_07_EXPORT_MANIFEST_2026-09-17.md",
+      "git_blob_sha": "3fbfb7e8a70ae691158c370e677f951d12ccd5d8",
+      "bytes": 2357,
+      "role": "m3_serp_export_manifest",
+      "w1_access": "audit_fallback"
+    },
+    {
+      "path": "docs/seo/serp/analysis/R05_07_EXPORT_ANALYSIS_2026-09-17.md",
+      "git_blob_sha": "1b450eb5fdd4a31adc531bc16901cd18487d88a2",
+      "bytes": 10196,
+      "role": "m3_serp_analysis",
+      "w1_access": "context_only"
+    },
+    {
+      "path": "docs/seo/serp/raw/recovery/R06_2026-09-18/R06_10_RECOVERED_EXPORT_MANIFEST_2026-09-18.md",
+      "git_blob_sha": "bf2c9d622a1ca138d20b01e74271dd6f47a312ed",
+      "bytes": 4088,
+      "role": "m3_serp_export_recovery_authority",
+      "w1_access": "audit_fallback"
+    },
+    {
+      "path": "docs/seo/serp/raw/recovery/R06_2026-09-18/R06_11_RECOVERY_QA_2026-09-18.md",
+      "git_blob_sha": "ae3b31c39659ecd78cc04ac9ecc8d16ac81cc2cd",
+      "bytes": 3624,
+      "role": "m3_serp_recovery_qa",
+      "w1_access": "audit_fallback"
+    },
+    {
+      "path": "docs/seo/serp/analysis/R06_08_EXPORT_ANALYSIS_2026-09-17.md",
+      "git_blob_sha": "4072051e0478b599694a90b0c01fd4ed11209cdc",
+      "bytes": 11003,
+      "role": "m3_serp_analysis",
+      "w1_access": "context_only"
+    },
+    {
+      "path": "docs/seo/serp/raw/R07_06_EXPORT_MANIFEST_2026-09-17.md",
+      "git_blob_sha": "fd6f6f1f50ae3f8aa60f38fca735a6422e3d4d3a",
+      "bytes": 4380,
+      "role": "m3_serp_export_manifest",
+      "w1_access": "audit_fallback"
+    },
+    {
+      "path": "docs/seo/serp/analysis/R07_06_EXPORT_ANALYSIS_2026-09-17.md",
+      "git_blob_sha": "c9c4f7c9b9dd076678f4617828d4d0876c73d339",
+      "bytes": 8217,
+      "role": "m3_serp_analysis",
+      "w1_access": "context_only"
+    },
+    {
+      "path": "docs/seo/serp/raw/R08_06_EXPORT_MANIFEST_2026-09-17.md",
+      "git_blob_sha": "b6668ad2d60ffc7520858430b668949ec14f6159",
+      "bytes": 2638,
+      "role": "m3_serp_export_manifest",
+      "w1_access": "audit_fallback"
+    },
+    {
+      "path": "docs/seo/serp/analysis/R08_06_EXPORT_ANALYSIS_2026-09-17.md",
+      "git_blob_sha": "3749c4dbad12e05eea1a12d6c95459eca3647994",
+      "bytes": 8999,
+      "role": "m3_serp_analysis",
+      "w1_access": "context_only"
+    },
+    {
+      "path": "docs/seo/serp/raw/R09_05_EXPORT_MANIFEST_2026-09-17.md",
+      "git_blob_sha": "63cf809f38c9844e3d4ccc9da8a5cadee5d67ffc",
+      "bytes": 2808,
+      "role": "m3_serp_export_manifest",
+      "w1_access": "audit_fallback"
+    },
+    {
+      "path": "docs/seo/serp/analysis/R09_05_EXPORT_ANALYSIS_2026-09-17.md",
+      "git_blob_sha": "012eaee0effeeff314d0bfa4b513241dac1c0713",
+      "bytes": 10851,
+      "role": "m3_serp_analysis",
+      "w1_access": "context_only"
+    },
+    {
+      "path": "docs/seo/serp/raw/R10_06_EXPORT_MANIFEST_2026-09-17.md",
+      "git_blob_sha": "7c68991db43d0a6812a74f46188d84d48e25f5ca",
+      "bytes": 4622,
+      "role": "m3_serp_export_manifest",
+      "w1_access": "audit_fallback"
+    },
+    {
+      "path": "docs/seo/serp/analysis/R10_06_EXPORT_ANALYSIS_2026-09-17.md",
+      "git_blob_sha": "db1c6b1fedcf06045579e8b91965ef5390c669eb",
+      "bytes": 11704,
+      "role": "m3_serp_analysis",
+      "w1_access": "context_only"
+    },
+    {
+      "path": "docs/seo/serp/raw/R11_04_EXPORT_MANIFEST_2026-09-17.md",
+      "git_blob_sha": "dbf011110ac74489d8f28728985e0ede16fa2f52",
+      "bytes": 4088,
+      "role": "m3_serp_export_manifest",
+      "w1_access": "audit_fallback"
+    },
+    {
+      "path": "docs/seo/serp/analysis/R11_04_EXPORT_ANALYSIS_2026-09-17.md",
+      "git_blob_sha": "5b32262f506036f8c16b3f84352f4a5e38bd175a",
+      "bytes": 7030,
+      "role": "m3_serp_analysis",
+      "w1_access": "context_only"
+    },
+    {
+      "path": "docs/seo/serp/raw/R12_04_EXPORT_MANIFEST_2026-09-17.md",
+      "git_blob_sha": "5afdfece0c18684c89af17ef8998501daf8e5c1f",
+      "bytes": 4843,
+      "role": "m3_serp_export_manifest",
+      "w1_access": "audit_fallback"
+    },
+    {
+      "path": "docs/seo/serp/analysis/R12_04_EXPORT_ANALYSIS_2026-09-17.md",
+      "git_blob_sha": "c4eeeeb13a5a6dcbecca66203ca7f69733fdfa03",
+      "bytes": 13394,
+      "role": "m3_serp_analysis",
+      "w1_access": "context_only"
+    },
+    {
+      "path": "docs/seo/serp/competitors/M4A_R3_MAIN_CHAT_RETURN_QA_2026-09-18.md",
+      "git_blob_sha": "97a802d24537a8829c773b10bc9ce26330e681ae",
+      "bytes": 6849,
+      "role": "m4a_acceptance",
+      "w1_access": "context_only"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4A_HARDENED_2026-09-18_R3/M4A_ANALYSIS.md",
+      "git_blob_sha": "0bd08fdd939925a99c64c9a9842461efe3288fe7",
+      "bytes": 5916,
+      "role": "m4a_hardened",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4A_HARDENED_2026-09-18_R3/M4A_COLLISION_UNCERTAINTY_LEDGER.tsv",
+      "git_blob_sha": "12c52d209a67eee06c5ed9276a5dfbd15c043f07",
+      "bytes": 81907,
+      "role": "m4a_hardened",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4A_HARDENED_2026-09-18_R3/M4A_COMPETITOR_REGISTRY.tsv",
+      "git_blob_sha": "822155d7cebcbcf5cf8cdaef0f92782d5f84cd59",
+      "bytes": 30421,
+      "role": "m4a_hardened",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4A_HARDENED_2026-09-18_R3/M4A_DOMAIN_RECURRENCE.tsv",
+      "git_blob_sha": "a131d27ceab7e5273ae0ab2ec7f4230841776654",
+      "bytes": 33557,
+      "role": "m4a_hardened",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4A_HARDENED_2026-09-18_R3/M4A_PAGE_CANDIDATES.tsv",
+      "git_blob_sha": "c388aba7b1deaded3b5bb46b9d39212cf3eb94db",
+      "bytes": 61639,
+      "role": "m4a_hardened",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4A_HARDENED_2026-09-18_R3/M4A_PAIRWISE_TOP10_SIMILARITY.tsv",
+      "git_blob_sha": "66a7e080adecb0231bf9cc60834248e5c03a2c67",
+      "bytes": 15803,
+      "role": "m4a_hardened",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4A_HARDENED_2026-09-18_R3/M4A_QA.md",
+      "git_blob_sha": "e349049b1f038f0d4188d7fae70726d334c7f5fd",
+      "bytes": 2334,
+      "role": "m4a_hardened",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4A_HARDENED_2026-09-18_R3/M4A_QUERY_PROFILES.tsv",
+      "git_blob_sha": "69bd0f12165c15d43b336a8eee41fc58e3b1ac3c",
+      "bytes": 9998,
+      "role": "m4a_hardened",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4A_HARDENED_2026-09-18_R3/M4A_RETURN_MANIFEST.json",
+      "git_blob_sha": "ce72593bdcb28aa65f78fca3bb07f5d70f0f93aa",
+      "bytes": 2882,
+      "role": "m4a_hardened",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4A_HARDENED_2026-09-18_R3/M4A_SERP_OCCURRENCES_CLASSIFIED.tsv",
+      "git_blob_sha": "0028a743c8617c569ba37dfa4b59e92b5f56e18d",
+      "bytes": 366854,
+      "role": "m4a_hardened",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4A_HARDENED_2026-09-18_R3/M4A_SOURCE_MANIFEST.md",
+      "git_blob_sha": "3e97a377c8df407474260ebe81dd30e63e41157a",
+      "bytes": 5632,
+      "role": "m4a_hardened",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/serp/competitors/M4B1_R5_A1_MAIN_CHAT_FINAL_ACCEPTANCE_2026-09-22.md",
+      "git_blob_sha": "aa129da41a5eeb13c4c0f93b1e1156a4dad86c1b",
+      "bytes": 4823,
+      "role": "m4b1_current_acceptance",
+      "w1_access": "context_only"
+    },
+    {
+      "path": "docs/seo/serp/competitors/M4B2_R1_MAIN_CHAT_FINAL_ACCEPTANCE_2026-09-22.md",
+      "git_blob_sha": "9e086c28da48fe34a6886d28181bad29846e60f4",
+      "bytes": 1246,
+      "role": "m4b2_current_acceptance",
+      "w1_access": "context_only"
+    },
+    {
+      "path": "docs/seo/serp/competitors/M4Q_R2_PASS_A2_MAIN_CHAT_ACCEPTANCE_2026-09-23.md",
+      "git_blob_sha": "aae61da9b272d16e9d2098c088638f7cebc0e930",
+      "bytes": 4509,
+      "role": "m4q_manifest_acceptance",
+      "w1_access": "context_only"
+    },
+    {
+      "path": "docs/seo/serp/competitors/M4Q_R2_PASS_B_MAIN_CHAT_ACCEPTANCE_2026-09-23_R1.md",
+      "git_blob_sha": "fee2919f871846144f2f14abe86e7c2eb7b2e035",
+      "bytes": 7118,
+      "role": "m4q_visibility_acceptance",
+      "w1_access": "context_only"
+    },
+    {
+      "path": "docs/seo/serp/competitors/M4Q_R2_TARGETED_M4C_RECHECK_MAIN_CHAT_ACCEPTANCE_2026-09-23_R1.md",
+      "git_blob_sha": "a9738377589633c07396159ee02a688810debc57",
+      "bytes": 6251,
+      "role": "m4q_targeted_acceptance",
+      "w1_access": "context_only"
+    },
+    {
+      "path": "docs/seo/serp/competitors/M4C_R1_MAIN_CHAT_FINAL_ACCEPTANCE_2026-09-23.md",
+      "git_blob_sha": "8b8f075052f03511e6d0b831a3688e65da488f7d",
+      "bytes": 7697,
+      "role": "m4_current_acceptance",
+      "w1_access": "context_only"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4Q_R2_QUERY_MANIFEST_2026-09-23_R2/M4Q_R2_BATCH_PLAN_R2.tsv",
+      "git_blob_sha": "9bafe36cea686e3f791ae56bde505b3282080284",
+      "bytes": 1370,
+      "role": "m4q_query_universe",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4Q_R2_QUERY_MANIFEST_2026-09-23_R2/M4Q_R2_QA_R2.md",
+      "git_blob_sha": "12a2100fcdbeb8ae18dc0a82c18fd7df1e758c53",
+      "bytes": 6103,
+      "role": "m4q_query_universe",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4Q_R2_QUERY_MANIFEST_2026-09-23_R2/M4Q_R2_QUERY_UNIVERSE_LEDGER_R2.tsv",
+      "git_blob_sha": "23b1a272ddfae3bf03d2b4a57525a773ace7fdac",
+      "bytes": 24292106,
+      "role": "m4q_query_universe",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4Q_R2_QUERY_MANIFEST_2026-09-23_R2/M4Q_R2_RETURN_MANIFEST_R2.json",
+      "git_blob_sha": "f9a91b2073e12b4764dfbdc592be8d7b058242ff",
+      "bytes": 2609,
+      "role": "m4q_query_universe",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4Q_R2_QUERY_MANIFEST_2026-09-23_R2/M4Q_R2_SEARCH_EXECUTION_MANIFEST_R2.tsv",
+      "git_blob_sha": "d82fef9ec9bc3d757dc85b771f6c114b92c0cd1a",
+      "bytes": 84995,
+      "role": "m4q_query_universe",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4Q_R2_QUERY_MANIFEST_2026-09-23_R2/M4Q_R2_SOURCE_MANIFEST_R2.md",
+      "git_blob_sha": "cb99fb2a2fef9a6b25da720ac49c2ec02f5ffb46",
+      "bytes": 7800,
+      "role": "m4q_query_universe",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4Q_R2_QUERY_MANIFEST_2026-09-23_R2/README.md",
+      "git_blob_sha": "1535b49e5a119457b9aceaeedc75e673b658fac0",
+      "bytes": 433,
+      "role": "m4q_query_universe",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4Q_R2_PASS_B_VISIBILITY_2026-09-23_R1/M4Q_R2_COMPETITOR_VISIBILITY_MATRIX.tsv",
+      "git_blob_sha": "a693809a6907f5bde1a909e6dcb7656b87fcd3a4",
+      "bytes": 3092939,
+      "role": "m4q_current_search_visibility",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4Q_R2_PASS_B_VISIBILITY_2026-09-23_R1/M4Q_R2_COMPETITOR_VISIBILITY_SUMMARY.tsv",
+      "git_blob_sha": "0b177bc8d7adc893cb12f9b4d9246315cb0771b0",
+      "bytes": 91007,
+      "role": "m4q_current_search_visibility",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4Q_R2_PASS_B_VISIBILITY_2026-09-23_R1/M4Q_R2_M4C_M6_RECONCILIATION.tsv",
+      "git_blob_sha": "363536ac20c41e4b8b9c136f842ef12db0ce15c3",
+      "bytes": 174077,
+      "role": "m4q_current_search_visibility",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4Q_R2_PASS_B_VISIBILITY_2026-09-23_R1/M4Q_R2_PASS_B_QA.md",
+      "git_blob_sha": "7aa5187724e9182e00df31472fc7a7e30463b552",
+      "bytes": 5525,
+      "role": "m4q_current_search_visibility",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4Q_R2_PASS_B_VISIBILITY_2026-09-23_R1/M4Q_R2_PASS_B_RETURN_MANIFEST.json",
+      "git_blob_sha": "5a620e5c57a17a3f4dab499cbd3cd45b49e53873",
+      "bytes": 3744,
+      "role": "m4q_current_search_visibility",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4Q_R2_PASS_B_VISIBILITY_2026-09-23_R1/M4Q_R2_PASS_B_SOURCE_MANIFEST.md",
+      "git_blob_sha": "396f5c32d1fad34ca8f9113a3a7b3b9f3cc36431",
+      "bytes": 7777,
+      "role": "m4q_current_search_visibility",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4Q_R2_PASS_B_VISIBILITY_2026-09-23_R1/M4Q_R2_QUERY_VISIBILITY_SUMMARY.tsv",
+      "git_blob_sha": "d8401597cb66a9c4181422af37453934113dfd57",
+      "bytes": 88618,
+      "role": "m4q_current_search_visibility",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4Q_R2_PASS_B_VISIBILITY_2026-09-23_R1/M4Q_R2_SERP_RESULT_LEDGER.tsv",
+      "git_blob_sha": "41041493677627bfaf30de8eb7ec88a52ceb0a91",
+      "bytes": 5586149,
+      "role": "m4q_current_search_visibility",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4Q_R2_TARGETED_M4C_RECHECK_2026-09-23_R1/M4Q_R2_TARGETED_CANDIDATE_DELTA.tsv",
+      "git_blob_sha": "dc9aa037a5da3101c72d4c6460109e4f69d5eea2",
+      "bytes": 104248,
+      "role": "m4q_targeted_overlay",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4Q_R2_TARGETED_M4C_RECHECK_2026-09-23_R1/M4Q_R2_TARGETED_M4C_M6_RECONCILIATION.tsv",
+      "git_blob_sha": "a0123d35a62b4ec969b53cb4f6ac753de83a3633",
+      "bytes": 55745,
+      "role": "m4q_targeted_overlay",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4Q_R2_TARGETED_M4C_RECHECK_2026-09-23_R1/M4Q_R2_TARGETED_M4C_SOURCE_MANIFEST.md",
+      "git_blob_sha": "4d50e24d9a48b9b9f9d2976bce2070d12bf92536",
+      "bytes": 5963,
+      "role": "m4q_targeted_overlay",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4Q_R2_TARGETED_M4C_RECHECK_2026-09-23_R1/M4Q_R2_TARGETED_PAGE_EVIDENCE.tsv",
+      "git_blob_sha": "c2aaf2d18784e0386d044621c9409225b1efe4a4",
+      "bytes": 2602167,
+      "role": "m4q_targeted_overlay",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4Q_R2_TARGETED_M4C_RECHECK_2026-09-23_R1/M4Q_R2_TARGETED_RECHECK_QA.md",
+      "git_blob_sha": "3170877fa7f7ef8f7660fb11f8ad161efc898c44",
+      "bytes": 4122,
+      "role": "m4q_targeted_overlay",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4Q_R2_TARGETED_M4C_RECHECK_2026-09-23_R1/M4Q_R2_TARGETED_RECHECK_RETURN_MANIFEST.json",
+      "git_blob_sha": "a88cfa601639ef60889afeaabb8e28f3757c7df1",
+      "bytes": 3439,
+      "role": "m4q_targeted_overlay",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4Q_R2_TARGETED_M4C_RECHECK_2026-09-23_R1/M4Q_R2_TARGETED_URL_RECHECK_LEDGER.tsv",
+      "git_blob_sha": "2f1362b6f3b0fe40e49716d9cc1f3ebd006644a6",
+      "bytes": 67588,
+      "role": "m4q_targeted_overlay",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4C_SYNTHESIS_2026-09-22_R1/M4C_COMPETITOR_CANDIDATE_REGISTER.tsv",
+      "git_blob_sha": "93debb9c20c2f6df6d146e018e9b5afa96350124",
+      "bytes": 10414658,
+      "role": "m4c_current_synthesis",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4C_SYNTHESIS_2026-09-22_R1/M4C_COVERAGE_LEDGER.tsv",
+      "git_blob_sha": "e308aac9ade959c3a4faebb7c391ea3d25c7c7f4",
+      "bytes": 29326,
+      "role": "m4c_current_synthesis",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4C_SYNTHESIS_2026-09-22_R1/M4C_HARDENED_COMPETITOR_REGISTRY.tsv",
+      "git_blob_sha": "43ce2150686b1b1df33ddb947b8a6920ebb2f112",
+      "bytes": 159425,
+      "role": "m4c_current_synthesis",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4C_SYNTHESIS_2026-09-22_R1/M4C_M6_DEMAND_GAP_CANDIDATES.tsv",
+      "git_blob_sha": "345b1aa7c1aac4f283b3d36361aa33cad369e267",
+      "bytes": 6542735,
+      "role": "m4c_current_synthesis",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4C_SYNTHESIS_2026-09-22_R1/M4C_QA.md",
+      "git_blob_sha": "9499d407b12a61eb44d4f069584c949197d2e755",
+      "bytes": 2853,
+      "role": "m4c_current_synthesis",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4C_SYNTHESIS_2026-09-22_R1/M4C_RETURN_MANIFEST.json",
+      "git_blob_sha": "5b4ff58d82a08bc5846f6291f41acedaf19037e1",
+      "bytes": 3637,
+      "role": "m4c_current_synthesis",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4C_SYNTHESIS_2026-09-22_R1/M4C_SOURCE_MANIFEST.md",
+      "git_blob_sha": "47f06a9f7bb27b4b3d3bd399834776f4754d4781",
+      "bytes": 18396,
+      "role": "m4c_current_synthesis",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4C_SYNTHESIS_2026-09-22_R1/M4C_GITHUB_WEB_TRANSPORT_MANIFEST.json",
+      "git_blob_sha": "1170d50f3a2f060aa84aa22ee8e003ba2a1f3388",
+      "bytes": 3126,
+      "role": "m4c_transport_audit",
+      "w1_access": "audit_fallback"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4C_SYNTHESIS_2026-09-22_R1/M4C_ONLY_11_PARTS.zip",
+      "git_blob_sha": "f7bbe53099a169b1624097f998722dbebe9a7272",
+      "bytes": 10082076,
+      "role": "m4c_transport_audit",
+      "w1_access": "audit_fallback"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4C_SYNTHESIS_2026-09-22_R1/REASSEMBLE_M4C_OVERSIZED.py",
+      "git_blob_sha": "c17523dbfeec93bc33ea8e31c8530646c4ab6bb5",
+      "bytes": 927,
+      "role": "m4c_transport_audit",
+      "w1_access": "audit_fallback"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4C_SYNTHESIS_2026-09-22_R1/M4C_M5_AI_HYPOTHESIS_INPUTS.tsv",
+      "git_blob_sha": "7b190250660ee5245df7b0b3a79ce4cefdee9373",
+      "bytes": 875579,
+      "role": "m5_preparation_source",
+      "w1_access": "prohibited_semantic_input"
+    },
+    {
+      "path": "docs/seo/M5_MAIN_CHAT_ACCEPTANCE_2026-09-23_R1.md",
+      "git_blob_sha": "1ba7eda6e51fef110be3847b10819ddab344e5f9",
+      "bytes": 5638,
+      "role": "m5_acceptance",
+      "w1_access": "prohibited_semantic_input"
+    },
+    {
+      "path": "docs/seo/work_return/M5_AI_DIAGNOSTIC_HYPOTHESIS_REGISTER_2026-09-23_R1/M5_AI_DIAGNOSTIC_HYPOTHESIS_REGISTER.tsv",
+      "git_blob_sha": "fea13f2d07c05952ac1adc68d062a9da43f4bb25",
+      "bytes": 224928,
+      "role": "m5_hypothesis_layer",
+      "w1_access": "prohibited_semantic_input"
+    },
+    {
+      "path": "docs/seo/work_return/M5_AI_DIAGNOSTIC_HYPOTHESIS_REGISTER_2026-09-23_R1/M5_INPUT_DISPOSITION_LEDGER.tsv",
+      "git_blob_sha": "9f0ec02927c16046ec0d836133a5e660b8d29dbd",
+      "bytes": 893800,
+      "role": "m5_hypothesis_layer",
+      "w1_access": "prohibited_semantic_input"
+    },
+    {
+      "path": "docs/seo/work_return/M5_AI_DIAGNOSTIC_HYPOTHESIS_REGISTER_2026-09-23_R1/M5_QA.md",
+      "git_blob_sha": "d4b82f6838d3a991ada7348e2bcd04ebac3a2862",
+      "bytes": 3172,
+      "role": "m5_hypothesis_layer",
+      "w1_access": "prohibited_semantic_input"
+    },
+    {
+      "path": "docs/seo/work_return/M5_AI_DIAGNOSTIC_HYPOTHESIS_REGISTER_2026-09-23_R1/M5_RETURN_MANIFEST.json",
+      "git_blob_sha": "1639cfe3fdd378234667bfdbe531bdc11651e1b7",
+      "bytes": 2043,
+      "role": "m5_hypothesis_layer",
+      "w1_access": "prohibited_semantic_input"
+    },
+    {
+      "path": "docs/seo/work_return/M5_AI_DIAGNOSTIC_HYPOTHESIS_REGISTER_2026-09-23_R1/M5_SOURCE_MANIFEST.md",
+      "git_blob_sha": "37477d51805c16dc5737be0dfd3d372ffe12b7e7",
+      "bytes": 5600,
+      "role": "m5_hypothesis_layer",
+      "w1_access": "prohibited_semantic_input"
+    },
+    {
+      "path": "docs/seo/work_return/M6_PRE_ACQUISITION_RECONCILIATION_2026-09-23_R1/M6_DEMAND_CANDIDATE_RECONCILIATION.tsv",
+      "git_blob_sha": "7ffae2ce3140156226dcf9994d9b4f89ddb70a33",
+      "bytes": 6040447,
+      "role": "m6_preacquisition",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/work_return/M6_PRE_ACQUISITION_RECONCILIATION_2026-09-23_R1/M6_GAP_REGISTER.tsv",
+      "git_blob_sha": "d0c850a73c5bc3b66ec0363a1f05641844751581",
+      "bytes": 47076,
+      "role": "m6_preacquisition",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/work_return/M6_PRE_ACQUISITION_RECONCILIATION_2026-09-23_R1/M6_M3_CONTROL_PLAN.tsv",
+      "git_blob_sha": "2ccbe24eb3c552e066c0a542c8dad4df01d5c620",
+      "bytes": 13591,
+      "role": "m6_preacquisition",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/work_return/M6_PRE_ACQUISITION_RECONCILIATION_2026-09-23_R1/M6_PROVIDER_CANDIDATE_MANIFEST.tsv",
+      "git_blob_sha": "620c98ac3a45023d885ce9df944ec10aa145115f",
+      "bytes": 24193,
+      "role": "m6_preacquisition",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/work_return/M6_PRE_ACQUISITION_RECONCILIATION_2026-09-23_R1/M6_QA.md",
+      "git_blob_sha": "d9be904fe53f5d3108729e53e04a964f3fa44705",
+      "bytes": 3801,
+      "role": "m6_preacquisition",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/work_return/M6_PRE_ACQUISITION_RECONCILIATION_2026-09-23_R1/M6_RETURN_MANIFEST.json",
+      "git_blob_sha": "83a6f8bb7990400b9923ed4361c1380c4a738739",
+      "bytes": 3545,
+      "role": "m6_preacquisition",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/work_return/M6_PRE_ACQUISITION_RECONCILIATION_2026-09-23_R1/M6_SOURCE_MANIFEST.md",
+      "git_blob_sha": "0758d6d1c635f6930570160f3b9dd72e92b1b42f",
+      "bytes": 6825,
+      "role": "m6_preacquisition",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/M6_PRE_ACQUISITION_MAIN_CHAT_ACCEPTANCE_2026-09-23_R1.md",
+      "git_blob_sha": "40e1636bad788c2215f49f496d3e058c759c610e",
+      "bytes": 7330,
+      "role": "m6_preacquisition_acceptance",
+      "w1_access": "context_only"
+    },
+    {
+      "path": "docs/seo/M6_WORDSTAT_PROVIDER_RECONCILIATION_2026-09-23_R1.md",
+      "git_blob_sha": "268fe96068c1ac727e2772ac00e099ac27bef6b1",
+      "bytes": 7128,
+      "role": "m6_wordstat_reconciliation",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/M6_SEARCH_REGION_CONTROL_COMPARISON_PLAN_2026-09-23_R1.md",
+      "git_blob_sha": "e0693b12be542b30d7d532ea12c9a61002e5d0aa",
+      "bytes": 3826,
+      "role": "m6_search_comparison_method",
+      "w1_access": "context_only"
+    },
+    {
+      "path": "docs/seo/M6_SEARCH_REGION_CONTROL_MAIN_CHAT_RECONCILIATION_2026-09-23_R1.md",
+      "git_blob_sha": "8cae057b64f16b627a089c999227aab9fc5d5fea",
+      "bytes": 10617,
+      "role": "m6_search_region_reconciliation",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/M6_OWNER_PRODUCT_FACT_MAIN_CHAT_RECONCILIATION_2026-09-23_R1.md",
+      "git_blob_sha": "980d50e94d32b629303ff7a1775ec59ae2b4668c",
+      "bytes": 5848,
+      "role": "m6_product_fact_reconciliation",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/M6_HOLD_AND_BLOCKING_RECONCILIATION_2026-09-23_R1.md",
+      "git_blob_sha": "57e6ad2ae7cee401bf66a0fd831ebeaccaadc345",
+      "bytes": 7832,
+      "role": "m6_hold_register",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/work/M6_OWNER_PRODUCT_FACT_RECONCILIATION_2026-09-23_R1.tsv",
+      "git_blob_sha": "309d0812fd874694f2cdaa748cbef6633c06576f",
+      "bytes": 17501,
+      "role": "m6_product_fact_rows",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/work/M6_PENDING_PROVIDER_RAW/M6PC001.json",
+      "git_blob_sha": "52d31ed494da096bf333df588f716e28aac5a358",
+      "bytes": 4158,
+      "role": "m6_provider_raw",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/work/M6_PENDING_PROVIDER_RAW/M6PC002.json",
+      "git_blob_sha": "1fd801c61f4183ebfb089955352cfdc585e543f0",
+      "bytes": 4196,
+      "role": "m6_provider_raw",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/work/M6_PENDING_PROVIDER_RAW/M6PC003.json",
+      "git_blob_sha": "c510b2a39a15cd5e1aed2e6ab249dc58b85cc879",
+      "bytes": 4350,
+      "role": "m6_provider_raw",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/work/M6_PENDING_PROVIDER_RAW/M6PC004.json",
+      "git_blob_sha": "cdbbe72cf3d6d614f0f52375e99aefa42bf195b4",
+      "bytes": 4712,
+      "role": "m6_provider_raw",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/work/M6_PENDING_PROVIDER_RAW/M6_SEARCH_REGION_BATCH_COLLECT_01_NO_DUE.json",
+      "git_blob_sha": "dfc25aac4c8ee615f4a118f817f2de419fbd5594",
+      "bytes": 867,
+      "role": "m6_provider_raw",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/work/M6_PENDING_PROVIDER_RAW/M6_SEARCH_REGION_BATCH_COLLECT_02_TERMINAL.json",
+      "git_blob_sha": "e604d7b362b979cec392b9157930d1991a9e680e",
+      "bytes": 873,
+      "role": "m6_provider_raw",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/work/M6_PENDING_PROVIDER_RAW/M6_SEARCH_REGION_BATCH_START.json",
+      "git_blob_sha": "30562139ee3b8383c00f0e2d54358b2207ac1fb8",
+      "bytes": 688,
+      "role": "m6_provider_raw",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/work/M6_PENDING_PROVIDER_RAW/M6_SEARCH_REGION_BATCH_SUBMIT.json",
+      "git_blob_sha": "e2e2042abe9f3bd29d70a5ad521c31acbd999903",
+      "bytes": 872,
+      "role": "m6_provider_raw",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/work/M6_PENDING_PROVIDER_RAW/M6_SEARCH_REGION_CONTROL_ROWS_2026-09-23_R1.tsv",
+      "git_blob_sha": "adb5929cfdbbfca897640629cbc9899ccea2c846",
+      "bytes": 29332,
+      "role": "m6_provider_raw",
+      "w1_access": "allowed"
+    },
+    {
+      "path": "docs/seo/work/M6_PENDING_PROVIDER_RAW/search-octoport-m6-search-region-controls-r1-20260923-r10-0-1.json",
+      "git_blob_sha": "55e98f4b46edbb8a74db846553f3f74dd97d068e",
+      "bytes": 159213,
+      "role": "m6_provider_raw",
+      "w1_access": "allowed"
+    }
+  ]
+}
