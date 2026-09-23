@@ -1,0 +1,401 @@
+{
+  "schema": "OCTOPORT_M8_CANONICAL_DIRECT_INPUT_MANIFEST_V2",
+  "work_id": "OCTOPORT_SEO_M8_SEARCH_ONLY_SEMANTIC_MASTER_2026-09-23_R2",
+  "date": "2026-09-23",
+  "source_freeze_id": "OCTOPORT_SEO_M7_SEARCH_SIDE_COLLECTION_FREEZE_2026-09-23_R1",
+  "frozen_input_head": "3b71060bf529c67c7f3578ca6bfb268407e72b0b",
+  "source_freeze_manifest_blob": "3cc09a62aa4ac4bed0af44939a9be63820657219",
+  "rule": "This is the canonical direct-input subset for M8. The 162-file M7 manifest remains the complete audit catalog. Files not listed here are not direct M8 inputs unless opened as audit fallback under the M7 access rules.",
+  "primary_occurrence_equation": {
+    "M2R": 1123,
+    "M4Q_R2_QUERY_UNIVERSE": 15542,
+    "M4C_COMPETITOR_CANDIDATE": 8431,
+    "M4Q_R2_TARGETED_DELTA": 133,
+    "total": 25229
+  },
+  "prohibited": {
+    "m5_ai_hypothesis_files": "all M7 files with w1_access=prohibited_semantic_input",
+    "malformed_s03": "all M7 files with w1_access=prohibited_direct_use",
+    "alice_or_gensearch_evidence": true,
+    "new_web_or_provider_acquisition": true
+  },
+  "files": [
+    {
+      "path": "docs/seo/PRODUCT_TRUTH.md",
+      "git_blob_sha": "6a469d5743142d3e476afa5d2cda653fd411ecb8",
+      "bytes": 14268,
+      "m7_role": "product_truth",
+      "m7_w1_access": "allowed",
+      "m8_input_mode": "DIRECT_PRODUCT_BOUNDARY"
+    },
+    {
+      "path": "docs/seo/evidence/M0_SCOPE_SOURCE_RETRO_CONSOLIDATION_2026-09-18.md",
+      "git_blob_sha": "cd79ac5189631b7083694c5903f66eb18cd525de",
+      "bytes": 9463,
+      "m7_role": "m0_current_authority",
+      "m7_w1_access": "context_only",
+      "m8_input_mode": "CONTEXT_BOUNDARY"
+    },
+    {
+      "path": "docs/seo/technical/M1_OWNER_PRELAUNCH_SCOPE_CORRECTION_2026-09-23_R1.md",
+      "git_blob_sha": "f970efff5efcba1abf485ff4d816c32d49c9b1d4",
+      "bytes": 2520,
+      "m7_role": "m1_owner_correction",
+      "m7_w1_access": "context_only",
+      "m8_input_mode": "CONTEXT_BOUNDARY"
+    },
+    {
+      "path": "docs/seo/technical/M1_LIVE_MEASUREMENT_BASELINE_2026-09-23_R1.md",
+      "git_blob_sha": "f13d34fe7c29746a4ee275935432a29689dcf1df",
+      "bytes": 3532,
+      "m7_role": "m1_current_authority",
+      "m7_w1_access": "context_only",
+      "m8_input_mode": "CONTEXT_BOUNDARY"
+    },
+    {
+      "path": "docs/seo/work/M2R_PHRASE_LINEAGE_LEDGER_2026-09-17.csv",
+      "git_blob_sha": "9343048ed82f129b3f7433c46899e6f255a420a8",
+      "bytes": 443233,
+      "m7_role": "m2_current_demand_lineage",
+      "m7_w1_access": "allowed",
+      "m8_input_mode": "PRIMARY_OCCURRENCE",
+      "expected_data_rows": 1123
+    },
+    {
+      "path": "docs/seo/work/M2R_FAMILY_COVERAGE_MATRIX_2026-09-17.csv",
+      "git_blob_sha": "076c0d95b1e08984e8d311d5547b24cb5cd74ed3",
+      "bytes": 5996,
+      "m7_role": "m2_family_context",
+      "m7_w1_access": "allowed",
+      "m8_input_mode": "DIRECT_DEMAND_OVERLAY"
+    },
+    {
+      "path": "docs/seo/work/M2R_RECONCILIATION_MAIN_CHAT_RETURN_QA_2026-09-17.md",
+      "git_blob_sha": "58af2c3c9c1c1dd9afa6ebf37692a553d5c0ee63",
+      "bytes": 8541,
+      "m7_role": "m2_current_acceptance",
+      "m7_w1_access": "context_only",
+      "m8_input_mode": "CONTEXT_BOUNDARY"
+    },
+    {
+      "path": "docs/seo/serp/M3_QUERY_MATRIX_2026-09-17.md",
+      "git_blob_sha": "0d43a40a8d5c865f2078a4f6f2a01815cd9b415f",
+      "bytes": 12356,
+      "m7_role": "m3_query_authority",
+      "m7_w1_access": "allowed",
+      "m8_input_mode": "DIRECT_SEARCH_OVERLAY"
+    },
+    {
+      "path": "docs/seo/serp/M3_METHOD_RETROSPECTIVE_AND_CONTROL_DEBT_2026-09-18.md",
+      "git_blob_sha": "60a1b6de5c660733a0d2ea4d25d7fc56d84c5b99",
+      "bytes": 4243,
+      "m7_role": "m3_method_retro",
+      "m7_w1_access": "context_only",
+      "m8_input_mode": "CONTEXT_BOUNDARY"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4A_HARDENED_2026-09-18_R3/M4A_SERP_OCCURRENCES_CLASSIFIED.tsv",
+      "git_blob_sha": "0028a743c8617c569ba37dfa4b59e92b5f56e18d",
+      "bytes": 366854,
+      "m7_role": "m4a_hardened",
+      "m7_w1_access": "allowed",
+      "m8_input_mode": "DIRECT_SEARCH_OVERLAY",
+      "expected_data_rows": 300
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4A_HARDENED_2026-09-18_R3/M4A_QUERY_PROFILES.tsv",
+      "git_blob_sha": "69bd0f12165c15d43b336a8eee41fc58e3b1ac3c",
+      "bytes": 9998,
+      "m7_role": "m4a_hardened",
+      "m7_w1_access": "allowed",
+      "m8_input_mode": "DIRECT_SEARCH_OVERLAY"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4A_HARDENED_2026-09-18_R3/M4A_PAIRWISE_TOP10_SIMILARITY.tsv",
+      "git_blob_sha": "66a7e080adecb0231bf9cc60834248e5c03a2c67",
+      "bytes": 15803,
+      "m7_role": "m4a_hardened",
+      "m7_w1_access": "allowed",
+      "m8_input_mode": "DIRECT_SEARCH_OVERLAY",
+      "expected_data_rows": 105
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4A_HARDENED_2026-09-18_R3/M4A_COLLISION_UNCERTAINTY_LEDGER.tsv",
+      "git_blob_sha": "12c52d209a67eee06c5ed9276a5dfbd15c043f07",
+      "bytes": 81907,
+      "m7_role": "m4a_hardened",
+      "m7_w1_access": "allowed",
+      "m8_input_mode": "DIRECT_SEARCH_OVERLAY"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4A_HARDENED_2026-09-18_R3/M4A_DOMAIN_RECURRENCE.tsv",
+      "git_blob_sha": "a131d27ceab7e5273ae0ab2ec7f4230841776654",
+      "bytes": 33557,
+      "m7_role": "m4a_hardened",
+      "m7_w1_access": "allowed",
+      "m8_input_mode": "DIRECT_COMPETITOR_OVERLAY"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4A_HARDENED_2026-09-18_R3/M4A_COMPETITOR_REGISTRY.tsv",
+      "git_blob_sha": "822155d7cebcbcf5cf8cdaef0f92782d5f84cd59",
+      "bytes": 30421,
+      "m7_role": "m4a_hardened",
+      "m7_w1_access": "allowed",
+      "m8_input_mode": "DIRECT_COMPETITOR_OVERLAY"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4A_HARDENED_2026-09-18_R3/M4A_ANALYSIS.md",
+      "git_blob_sha": "0bd08fdd939925a99c64c9a9842461efe3288fe7",
+      "bytes": 5916,
+      "m7_role": "m4a_hardened",
+      "m7_w1_access": "allowed",
+      "m8_input_mode": "CONTEXT_BOUNDARY"
+    },
+    {
+      "path": "docs/seo/serp/competitors/M4A_R3_MAIN_CHAT_RETURN_QA_2026-09-18.md",
+      "git_blob_sha": "97a802d24537a8829c773b10bc9ce26330e681ae",
+      "bytes": 6849,
+      "m7_role": "m4a_acceptance",
+      "m7_w1_access": "context_only",
+      "m8_input_mode": "CONTEXT_BOUNDARY"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4Q_R2_QUERY_MANIFEST_2026-09-23_R2/M4Q_R2_QUERY_UNIVERSE_LEDGER_R2.tsv",
+      "git_blob_sha": "23b1a272ddfae3bf03d2b4a57525a773ace7fdac",
+      "bytes": 24292106,
+      "m7_role": "m4q_query_universe",
+      "m7_w1_access": "allowed",
+      "m8_input_mode": "PRIMARY_OCCURRENCE",
+      "expected_data_rows": 15542
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4Q_R2_QUERY_MANIFEST_2026-09-23_R2/M4Q_R2_SEARCH_EXECUTION_MANIFEST_R2.tsv",
+      "git_blob_sha": "d82fef9ec9bc3d757dc85b771f6c114b92c0cd1a",
+      "bytes": 84995,
+      "m7_role": "m4q_query_universe",
+      "m7_w1_access": "allowed",
+      "m8_input_mode": "DIRECT_SEARCH_OVERLAY"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4Q_R2_PASS_B_VISIBILITY_2026-09-23_R1/M4Q_R2_SERP_RESULT_LEDGER.tsv",
+      "git_blob_sha": "41041493677627bfaf30de8eb7ec88a52ceb0a91",
+      "bytes": 5586149,
+      "m7_role": "m4q_current_search_visibility",
+      "m7_w1_access": "allowed",
+      "m8_input_mode": "DIRECT_SEARCH_OVERLAY"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4Q_R2_PASS_B_VISIBILITY_2026-09-23_R1/M4Q_R2_QUERY_VISIBILITY_SUMMARY.tsv",
+      "git_blob_sha": "d8401597cb66a9c4181422af37453934113dfd57",
+      "bytes": 88618,
+      "m7_role": "m4q_current_search_visibility",
+      "m7_w1_access": "allowed",
+      "m8_input_mode": "DIRECT_SEARCH_OVERLAY"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4Q_R2_PASS_B_VISIBILITY_2026-09-23_R1/M4Q_R2_COMPETITOR_VISIBILITY_MATRIX.tsv",
+      "git_blob_sha": "a693809a6907f5bde1a909e6dcb7656b87fcd3a4",
+      "bytes": 3092939,
+      "m7_role": "m4q_current_search_visibility",
+      "m7_w1_access": "allowed",
+      "m8_input_mode": "DIRECT_SEARCH_OVERLAY"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4Q_R2_PASS_B_VISIBILITY_2026-09-23_R1/M4Q_R2_COMPETITOR_VISIBILITY_SUMMARY.tsv",
+      "git_blob_sha": "0b177bc8d7adc893cb12f9b4d9246315cb0771b0",
+      "bytes": 91007,
+      "m7_role": "m4q_current_search_visibility",
+      "m7_w1_access": "allowed",
+      "m8_input_mode": "DIRECT_SEARCH_OVERLAY"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4Q_R2_PASS_B_VISIBILITY_2026-09-23_R1/M4Q_R2_M4C_M6_RECONCILIATION.tsv",
+      "git_blob_sha": "363536ac20c41e4b8b9c136f842ef12db0ce15c3",
+      "bytes": 174077,
+      "m7_role": "m4q_current_search_visibility",
+      "m7_w1_access": "allowed",
+      "m8_input_mode": "DIRECT_SEARCH_OVERLAY"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4Q_R2_TARGETED_M4C_RECHECK_2026-09-23_R1/M4Q_R2_TARGETED_CANDIDATE_DELTA.tsv",
+      "git_blob_sha": "dc9aa037a5da3101c72d4c6460109e4f69d5eea2",
+      "bytes": 104248,
+      "m7_role": "m4q_targeted_overlay",
+      "m7_w1_access": "allowed",
+      "m8_input_mode": "PRIMARY_OCCURRENCE",
+      "expected_data_rows": 133
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4Q_R2_TARGETED_M4C_RECHECK_2026-09-23_R1/M4Q_R2_TARGETED_PAGE_EVIDENCE.tsv",
+      "git_blob_sha": "c2aaf2d18784e0386d044621c9409225b1efe4a4",
+      "bytes": 2602167,
+      "m7_role": "m4q_targeted_overlay",
+      "m7_w1_access": "allowed",
+      "m8_input_mode": "DIRECT_SEARCH_OVERLAY"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4Q_R2_TARGETED_M4C_RECHECK_2026-09-23_R1/M4Q_R2_TARGETED_M4C_M6_RECONCILIATION.tsv",
+      "git_blob_sha": "a0123d35a62b4ec969b53cb4f6ac753de83a3633",
+      "bytes": 55745,
+      "m7_role": "m4q_targeted_overlay",
+      "m7_w1_access": "allowed",
+      "m8_input_mode": "DIRECT_SEARCH_OVERLAY"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4C_SYNTHESIS_2026-09-22_R1/M4C_COMPETITOR_CANDIDATE_REGISTER.tsv",
+      "git_blob_sha": "93debb9c20c2f6df6d146e018e9b5afa96350124",
+      "bytes": 10414658,
+      "m7_role": "m4c_current_synthesis",
+      "m7_w1_access": "allowed",
+      "m8_input_mode": "PRIMARY_OCCURRENCE",
+      "expected_data_rows": 8431
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4C_SYNTHESIS_2026-09-22_R1/M4C_HARDENED_COMPETITOR_REGISTRY.tsv",
+      "git_blob_sha": "43ce2150686b1b1df33ddb947b8a6920ebb2f112",
+      "bytes": 159425,
+      "m7_role": "m4c_current_synthesis",
+      "m7_w1_access": "allowed",
+      "m8_input_mode": "DIRECT_COMPETITOR_OVERLAY"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4C_SYNTHESIS_2026-09-22_R1/M4C_COVERAGE_LEDGER.tsv",
+      "git_blob_sha": "e308aac9ade959c3a4faebb7c391ea3d25c7c7f4",
+      "bytes": 29326,
+      "m7_role": "m4c_current_synthesis",
+      "m7_w1_access": "allowed",
+      "m8_input_mode": "DIRECT_COMPETITOR_OVERLAY"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4C_SYNTHESIS_2026-09-22_R1/M4C_M6_DEMAND_GAP_CANDIDATES.tsv",
+      "git_blob_sha": "345b1aa7c1aac4f283b3d36361aa33cad369e267",
+      "bytes": 6542735,
+      "m7_role": "m4c_current_synthesis",
+      "m7_w1_access": "allowed",
+      "m8_input_mode": "DIRECT_COMPETITOR_OVERLAY"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4C_SYNTHESIS_2026-09-22_R1/M4C_SOURCE_MANIFEST.md",
+      "git_blob_sha": "47f06a9f7bb27b4b3d3bd399834776f4754d4781",
+      "bytes": 18396,
+      "m7_role": "m4c_current_synthesis",
+      "m7_w1_access": "allowed",
+      "m8_input_mode": "CONTEXT_BOUNDARY"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4C_SYNTHESIS_2026-09-22_R1/M4C_QA.md",
+      "git_blob_sha": "9499d407b12a61eb44d4f069584c949197d2e755",
+      "bytes": 2853,
+      "m7_role": "m4c_current_synthesis",
+      "m7_w1_access": "allowed",
+      "m8_input_mode": "CONTEXT_BOUNDARY"
+    },
+    {
+      "path": "docs/seo/serp/competitors/M4C_R1_MAIN_CHAT_FINAL_ACCEPTANCE_2026-09-23.md",
+      "git_blob_sha": "8b8f075052f03511e6d0b831a3688e65da488f7d",
+      "bytes": 7697,
+      "m7_role": "m4_current_acceptance",
+      "m7_w1_access": "context_only",
+      "m8_input_mode": "CONTEXT_BOUNDARY"
+    },
+    {
+      "path": "docs/seo/work_return/M6_PRE_ACQUISITION_RECONCILIATION_2026-09-23_R1/M6_DEMAND_CANDIDATE_RECONCILIATION.tsv",
+      "git_blob_sha": "7ffae2ce3140156226dcf9994d9b4f89ddb70a33",
+      "bytes": 6040447,
+      "m7_role": "m6_preacquisition",
+      "m7_w1_access": "allowed",
+      "m8_input_mode": "DIRECT_M6_OVERLAY",
+      "expected_data_rows": 6106
+    },
+    {
+      "path": "docs/seo/work_return/M6_PRE_ACQUISITION_RECONCILIATION_2026-09-23_R1/M6_GAP_REGISTER.tsv",
+      "git_blob_sha": "d0c850a73c5bc3b66ec0363a1f05641844751581",
+      "bytes": 47076,
+      "m7_role": "m6_preacquisition",
+      "m7_w1_access": "allowed",
+      "m8_input_mode": "DIRECT_M6_OVERLAY"
+    },
+    {
+      "path": "docs/seo/work_return/M6_PRE_ACQUISITION_RECONCILIATION_2026-09-23_R1/M6_M3_CONTROL_PLAN.tsv",
+      "git_blob_sha": "2ccbe24eb3c552e066c0a542c8dad4df01d5c620",
+      "bytes": 13591,
+      "m7_role": "m6_preacquisition",
+      "m7_w1_access": "allowed",
+      "m8_input_mode": "DIRECT_M6_OVERLAY"
+    },
+    {
+      "path": "docs/seo/work_return/M6_PRE_ACQUISITION_RECONCILIATION_2026-09-23_R1/M6_PROVIDER_CANDIDATE_MANIFEST.tsv",
+      "git_blob_sha": "620c98ac3a45023d885ce9df944ec10aa145115f",
+      "bytes": 24193,
+      "m7_role": "m6_preacquisition",
+      "m7_w1_access": "allowed",
+      "m8_input_mode": "DIRECT_M6_OVERLAY"
+    },
+    {
+      "path": "docs/seo/work_return/M6_PRE_ACQUISITION_RECONCILIATION_2026-09-23_R1/M6_QA.md",
+      "git_blob_sha": "d9be904fe53f5d3108729e53e04a964f3fa44705",
+      "bytes": 3801,
+      "m7_role": "m6_preacquisition",
+      "m7_w1_access": "allowed",
+      "m8_input_mode": "CONTEXT_BOUNDARY"
+    },
+    {
+      "path": "docs/seo/M6_WORDSTAT_PROVIDER_RECONCILIATION_2026-09-23_R1.md",
+      "git_blob_sha": "268fe96068c1ac727e2772ac00e099ac27bef6b1",
+      "bytes": 7128,
+      "m7_role": "m6_wordstat_reconciliation",
+      "m7_w1_access": "allowed",
+      "m8_input_mode": "DIRECT_M6_OVERLAY"
+    },
+    {
+      "path": "docs/seo/M6_SEARCH_REGION_CONTROL_MAIN_CHAT_RECONCILIATION_2026-09-23_R1.md",
+      "git_blob_sha": "8cae057b64f16b627a089c999227aab9fc5d5fea",
+      "bytes": 10617,
+      "m7_role": "m6_search_region_reconciliation",
+      "m7_w1_access": "allowed",
+      "m8_input_mode": "DIRECT_M6_OVERLAY"
+    },
+    {
+      "path": "docs/seo/M6_OWNER_PRODUCT_FACT_MAIN_CHAT_RECONCILIATION_2026-09-23_R1.md",
+      "git_blob_sha": "980d50e94d32b629303ff7a1775ec59ae2b4668c",
+      "bytes": 5848,
+      "m7_role": "m6_product_fact_reconciliation",
+      "m7_w1_access": "allowed",
+      "m8_input_mode": "DIRECT_M6_OVERLAY"
+    },
+    {
+      "path": "docs/seo/M6_HOLD_AND_BLOCKING_RECONCILIATION_2026-09-23_R1.md",
+      "git_blob_sha": "57e6ad2ae7cee401bf66a0fd831ebeaccaadc345",
+      "bytes": 7832,
+      "m7_role": "m6_hold_register",
+      "m7_w1_access": "allowed",
+      "m8_input_mode": "DIRECT_M6_OVERLAY"
+    },
+    {
+      "path": "docs/seo/M6_FINAL_MAIN_CHAT_ACCEPTANCE_2026-09-23_R1.md",
+      "git_blob_sha": "cac7c479e05ff9616160d415dd9218c8c97f018a",
+      "bytes": 5239,
+      "m7_role": "m6_final_acceptance",
+      "m7_w1_access": "context_only",
+      "m8_input_mode": "CONTEXT_BOUNDARY"
+    },
+    {
+      "path": "docs/seo/work/M6_OWNER_PRODUCT_FACT_RECONCILIATION_2026-09-23_R1.tsv",
+      "git_blob_sha": "309d0812fd874694f2cdaa748cbef6633c06576f",
+      "bytes": 17501,
+      "m7_role": "m6_product_fact_rows",
+      "m7_w1_access": "allowed",
+      "m8_input_mode": "DIRECT_M6_OVERLAY",
+      "expected_data_rows": 30
+    },
+    {
+      "path": "docs/seo/work/M6_PENDING_PROVIDER_RAW/M6_SEARCH_REGION_CONTROL_ROWS_2026-09-23_R1.tsv",
+      "git_blob_sha": "adb5929cfdbbfca897640629cbc9899ccea2c846",
+      "bytes": 29332,
+      "m7_role": "m6_provider_raw",
+      "m7_w1_access": "allowed",
+      "m8_input_mode": "DIRECT_M6_OVERLAY",
+      "expected_data_rows": 40
+    }
+  ]
+}
