@@ -213,3 +213,33 @@ by source, unit, type, build and disposable-PostgreSQL evidence on the corrected
 tree.
 
 Overall architectural, deployment and production acceptance are **not claimed**.
+
+## Controller retention defect correction — 2026-09-23
+
+Controller evidence reproduced two release blockers in the previous B06 candidate: a post-start purge rejection could become an unhandled rejection (`exit=1`), and slow retention work overlapped (`maxActive=4`, `activeAfterStop=4`). The repository also deleted every eligible row and materialized every deleted id.
+
+Corrected source now:
+- keeps exactly one retention purge in flight;
+- keeps initial purge failure fail-closed;
+- catches/reports later scheduled failures and waits the normal interval before the next attempt;
+- stops future scheduling and awaits the current purge before worker DB shutdown can proceed;
+- bounds each repository pass to 500 rows per feedback class by default, with validated upper bounds, `FOR UPDATE SKIP LOCKED`, a transaction-local PostgreSQL statement timeout, and count-only result materialization;
+- preserves strict `< cutoff` retention semantics so rows exactly at the configured boundary remain;
+- leaves excess eligible rows for later scheduled passes instead of draining an unbounded backlog in one tick.
+
+Exact implementation before final formatting: `d409939321e3a299f6bab11dcaa2a91d9d996f31`.
+A separate pre-existing/incomplete parent draft was preserved without acceptance at `35a91a9` on `preserve/B/B06-parent-draft-20260923`; it is not part of this candidate.
+
+Final-source verification on Node 24.20.0 / pnpm 10.34.5:
+- worker tests: 22/22 PASS; retention runner subset is 6/6 within that suite;
+- worker typecheck: PASS;
+- DB typecheck: PASS;
+- feedback-support tests: 16/16 PASS;
+- DB unit tests: 31/31 PASS;
+- focused ESLint: PASS;
+- focused Prettier: PASS after formatting normalization;
+- worker build: PASS;
+- supervised disposable-PostgreSQL retention integration: 6/6 PASS, job `6a0610e732254337b11fa9585b8cf378`, exit 0, peak 524 MiB, OOM 0, cgroup cleanup verified.
+
+Integration log: `/root/octoport-control/logs/B/b06-retention-integration-r2.log`.
+No live/historical purge, live migration, production restart, or audit-events TTL change was performed.
