@@ -1218,3 +1218,37 @@ M7 = BLOCKED
 
 CURRENT_CURSOR:
 M4 ACCEPTED -> M4Q R2 PASS A2 ACCEPTED -> CURRENT BRIDGE 0.1.9 ASYNC PREFLIGHT PASS -> CREATE/READBACK 45-QUERY DURABLE ASYNC JOB (NO PROVIDER CALL) -> FRESH TARIFF CHECK -> BOUNDED submitN -> EXPLICIT COLLECT -> COMPLETE EXPORT -> PASS B WORK VISIBILITY MATRIX -> MAIN CHAT RECONCILIATION -> M5.
+
+
+## 2026-09-23 — M4Q R2 45-item deferred Search local-start release
+
+Authority:
+`M4Q_R2_ASYNC_ACQUISITION_START_RELEASE_2026-09-23_R1.md`
+
+Release commits:
+- create: `c99ee3359d7236dbfbcdec0756b11f57afbb0f46`
+- exact command freeze: `fef050374a0c14b9bac39edc4389303596a4dfd5`
+
+Frozen execution:
+
+```text
+JOB_ID = octoport-m4q-r2-b001-20260923
+PROTOCOL = SEARCH_ASYNC_BATCH_API_V1
+QUERY_COUNT = 45
+GROUPS_ON_PAGE = 100
+FIX_TYPO_MODE = OFF
+MAX_REQUESTS = 45
+MAX_COST_RUB = 1.3725
+
+LOCAL_STARTS_ALLOWED_NOW = 1
+PROVIDER_SUBMITS_ALLOWED_NOW = 0
+PROVIDER_COLLECTIONS_ALLOWED_NOW = 0
+LOCAL_EXPORTS_ALLOWED_NOW = 0
+```
+
+The 45 query-level information-gain/provenance contracts remain those independently accepted in Pass A2. Grouping them into one durable async job follows the already accepted KW-002 YMB 0.1.9 grouped-queue execution pattern and does not collapse item identity.
+
+Expected local-start result is 45 PENDING items with zero provider calls, but only the actual returned `SEARCH_ASYNC_BATCH_RESULT_V1` is execution authority.
+
+CURRENT_CURSOR:
+M4Q R2 PASS A2 ACCEPTED -> ONE 45-ITEM ASYNC LOCAL START RELEASED -> ACTUAL START RESULT REQUIRED -> PERSIST/READBACK -> FRESH TARIFF CHECK -> SEPARATE submitN RELEASE -> COLLECT -> EXPORT -> PASS B.
