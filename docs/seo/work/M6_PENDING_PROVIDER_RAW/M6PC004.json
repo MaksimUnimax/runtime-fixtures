@@ -1,0 +1,161 @@
+{
+  "bridge": "yandex-marketing-bridge",
+  "version": "0.1.9",
+  "service": "wordstat",
+  "operation": "batch.next",
+  "job_id": "octoport-m6-wordstat-funnel-returns-r1-20260923",
+  "run_id": null,
+  "status": "ERROR",
+  "reason": "3",
+  "command": {
+    "action": "next",
+    "jobId": "octoport-m6-wordstat-funnel-returns-r1-20260923"
+  },
+  "progress": {
+    "job_id": "octoport-m6-wordstat-funnel-returns-r1-20260923",
+    "status": "COMPLETED",
+    "total": 2,
+    "input_count": 2,
+    "duplicate_count": 0,
+    "pending": 0,
+    "claimed": 0,
+    "requesting": 0,
+    "succeeded": 1,
+    "failed_terminal": 1,
+    "outcome_unknown": 0,
+    "skipped": 0,
+    "cancelled": 0,
+    "terminal": 2,
+    "requests_started": 2,
+    "estimated_cost_rub": 0.04,
+    "active_item_id": null,
+    "stop_reason": null,
+    "next_safe_action": "NONE"
+  },
+  "item": {
+    "automatic_retry": false,
+    "claimed_at": "2026-09-23T11:50:45.169Z",
+    "claimed_by": "worker-2eb70a9b-b5c2-46d4-9d35-722434bbd6d0:wordstat-batch",
+    "command": {
+      "devices": [
+        "DEVICE_ALL"
+      ],
+      "method": "getTop",
+      "numPhrases": 100,
+      "phrase": "Процент возвратов на Wildberries: как считать, анализировать и снижать",
+      "regions": [
+        "225"
+      ]
+    },
+    "completed_at": "2026-09-23T11:50:46.771Z",
+    "error": {
+      "code": "3",
+      "message": "Invalid query"
+    },
+    "estimated_cost_rub": 0.02,
+    "fingerprint": "707839a2f29e0a23",
+    "item_id": "octoport-m6-wordstat-funnel-returns-r1-20260923:707839a2f29e0a23",
+    "outcome_unknown_reason": null,
+    "request_executed": true,
+    "request_id": "wordstat-batch-b8614d92-e2b2-4aaf-b6fa-e38afce2ff69",
+    "request_started_at": "2026-09-23T11:50:45.171Z",
+    "request_worker_session_id": "worker-2eb70a9b-b5c2-46d4-9d35-722434bbd6d0:wordstat-batch",
+    "result_ref": null,
+    "status": "FAILED_TERMINAL",
+    "updated_at": "2026-09-23T11:50:46.771Z",
+    "result_payload": {
+      "bridge": "yandex-marketing-bridge",
+      "version": "0.1.9",
+      "service": "wordstat",
+      "operation": "getTop",
+      "request_id": "wordstat-batch-b8614d92-e2b2-4aaf-b6fa-e38afce2ff69",
+      "run_id": null,
+      "job_id": "octoport-m6-wordstat-funnel-returns-r1-20260923",
+      "status": "ERROR",
+      "reason": "3",
+      "cost_estimate": {
+        "estimated_rub": 0.02,
+        "tariff_checked_at": "2026-08-12",
+        "tariff_source": "[https://aistudio.yandex.ru/docs/ru/search-api/pricing.html](https://aistudio.yandex.ru/docs/ru/search-api/pricing.html)"
+      },
+      "policy": {
+        "channel": "manual",
+        "active_service": "wordstat"
+      },
+      "command": {
+        "method": "getTop",
+        "phrase": "Процент возвратов на Wildberries: как считать, анализировать и снижать",
+        "numPhrases": 100,
+        "regions": [
+          "225"
+        ],
+        "devices": [
+          "DEVICE_ALL"
+        ]
+      },
+      "http_status": 400,
+      "elapsed_ms": 1591,
+      "result": {
+        "error": {
+          "http_status": 400,
+          "code": "3",
+          "message": "Invalid query"
+        }
+      },
+      "request_executed": true,
+      "automatic_retry": false
+    }
+  },
+  "provider_result": {
+    "bridge": "yandex-marketing-bridge",
+    "version": "0.1.9",
+    "service": "wordstat",
+    "operation": "getTop",
+    "request_id": "wordstat-batch-b8614d92-e2b2-4aaf-b6fa-e38afce2ff69",
+    "run_id": null,
+    "job_id": "octoport-m6-wordstat-funnel-returns-r1-20260923",
+    "status": "ERROR",
+    "reason": "3",
+    "cost_estimate": {
+      "estimated_rub": 0.02,
+      "tariff_checked_at": "2026-08-12",
+      "tariff_source": "[https://aistudio.yandex.ru/docs/ru/search-api/pricing.html](https://aistudio.yandex.ru/docs/ru/search-api/pricing.html)"
+    },
+    "policy": {
+      "channel": "manual",
+      "active_service": "wordstat"
+    },
+    "command": {
+      "method": "getTop",
+      "phrase": "Процент возвратов на Wildberries: как считать, анализировать и снижать",
+      "numPhrases": 100,
+      "regions": [
+        "225"
+      ],
+      "devices": [
+        "DEVICE_ALL"
+      ]
+    },
+    "http_status": 400,
+    "elapsed_ms": 1591,
+    "result": {
+      "error": {
+        "http_status": 400,
+        "code": "3",
+        "message": "Invalid query"
+      }
+    },
+    "request_executed": true,
+    "automatic_retry": false
+  },
+  "cost_estimate": {
+    "estimated_rub": 0.04,
+    "max_rub": 0.04
+  },
+  "policy": {
+    "max_requests": 2,
+    "max_cost_rub": 0.04
+  },
+  "request_executed": true,
+  "automatic_retry": false
+}
