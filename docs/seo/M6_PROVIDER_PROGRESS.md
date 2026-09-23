@@ -20,34 +20,33 @@ WORDSTAT:
   NEW_SEMANTIC_ROWS = 0
 
 SEARCH REGION:
-  M6PC006 = SUBMITTED / WAITING
-  M6PC008 = SUBMITTED / WAITING
+  M6PC006 = COLLECTION SUCCEEDED / EXPORT RELEASED
+  M6PC008 = COLLECTION SUCCEEDED / EXPORT RELEASED
   EXECUTION_DEPTH_CORRECTION = TOP20
   REGION = 213 MOSCOW
   LOCAL_JOB = octoport-m6-search-region-controls-r1-20260923
+
   LOCAL_START_READBACK = PASS
   SUBMIT_READBACK = PASS
-  FIRST_COLLECT_READBACK = PASS
-  FIRST_COLLECT_CODE = NO_DUE_OPERATIONS
-  FIRST_COLLECT_REQUEST_EXECUTED = false
-  FIRST_COLLECT_PROVIDER_CALLS = 0
+  FIRST_COLLECT_READBACK = PASS / NO_DUE_OPERATIONS / provider_calls=0
+  SECOND_COLLECT_READBACK = PASS / TERMINAL
+
   PENDING = 0
-  WAITING = 2
+  WAITING = 0
+  SUCCEEDED = 2
+  PARSE_FAILED = 0
+  FAILED = 0
+  UNKNOWN = 0
   REQUESTS_STARTED = 2
   OPERATIONS_ACCEPTED = 2
-  POLLS_STARTED = 0
-  UNRESOLVED = 2
-  UNKNOWN = 0
-  REVISION = 4
-  LAST_OPERATION_ID = spregqnga31l4fm29b3b
-  FIRST_OPERATION_ID = NOT_SURFACED_IN_SUBMIT_ENVELOPE
+  POLLS_STARTED = 2
+  UNRESOLVED = 0
+  ALL_SUCCESSFUL = true
+  REVISION = 10
 
-TIMING:
-  SUBMIT_RESULT_COMMIT_TIME_UTC = 2026-09-23T12:05:28Z
-  FIRST_NO_DUE_COLLECT_COMMIT_TIME_UTC = 2026-09-23T12:08:38Z
-  CONSERVATIVE_BARRIER_PASS_TIME_UTC = 2026-09-23T12:10:28Z
-  REQUIRED_DEFERRED_BARRIER = 300 seconds
-  SECOND_COLLECT_RELEASE = PASS
+  LAST_OPERATION_ID = spregqnga31l4fm29b3b
+  FIRST_OPERATION_ID = MUST_BE_RECOVERED_FROM_EXPORT
+  FROZEN_COMPARISON_PLAN = docs/seo/M6_SEARCH_REGION_CONTROL_COMPARISON_PLAN_2026-09-23_R1.md
 
 CAPABILITY HOLDS:
   SEARCH_HTML = 6
@@ -59,21 +58,36 @@ M7 = BLOCKED
 
 ## Current exact next action
 
-Exactly one collection action is released:
+Exactly one local, zero-provider export action is released:
 
 ```text
-SEARCH_ASYNC_BATCH_API_V1 {"action":"collectN","jobId":"octoport-m6-search-region-controls-r1-20260923","count":2}
+SEARCH_ASYNC_BATCH_API_V1 {"action":"exportPage","jobId":"octoport-m6-search-region-controls-r1-20260923","after":-1,"limit":2,"revision":10}
 ```
 
-Rules:
-- same durable job only;
-- no resubmit;
-- persist/readback the complete returned envelope;
-- if partial, later collect requires a new release;
-- UNKNOWN blocks replay;
-- export remains blocked until terminal collection.
+Expected:
+```text
+request_executed = false
+provider_calls = 0
+revision = 10
+item_count = 2
+items_with_raw = 2
+items_with_normalized = 2
+states.SUCCEEDED = 2
+has_more = false
+all_job_items_in_this_file = true
+```
+
+Return must include both:
+- complete export receipt;
+- actual generated JSON file.
+
+After export:
+`FILE -> GitHub -> remote readback -> operation/query mapping QA -> full Top20 regional comparison`.
+
+No further submit/collect is authorized.
 
 Authorities:
 - `docs/seo/M6_SEARCH_REGION_CONTROL_COLLECT_RELEASE_2026-09-23_R2.md`
 - `docs/seo/M6_SEARCH_REGION_CONTROL_COMPARISON_PLAN_2026-09-23_R1.md`
-- `docs/seo/work/M6_PENDING_PROVIDER_RAW/M6_SEARCH_REGION_BATCH_COLLECT_01_NO_DUE.json`
+- `docs/seo/M6_SEARCH_REGION_CONTROL_EXPORT_RELEASE_2026-09-23_R1.md`
+- `docs/seo/work/M6_PENDING_PROVIDER_RAW/M6_SEARCH_REGION_BATCH_COLLECT_02_TERMINAL.json`
