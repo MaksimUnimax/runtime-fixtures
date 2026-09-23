@@ -184,6 +184,16 @@ revision = 0
 
 These are expectations only. The actual returned `SEARCH_ASYNC_BATCH_RESULT_V1` is authority.
 
+## 7A. Exact released command
+
+The only executable Bridge command released by this authority is:
+
+```text
+SEARCH_ASYNC_BATCH_API_V1 {"action":"start","jobId":"octoport-m4q-r2-b001-20260923","queries":["chatgpt для ozon","chatgpt для wildberries","анализ ниш wildberries для продавца","аналитика маркетплейсов для селлеров","аналитика рекламы маркетплейсов","ии агент для wildberries","ии агент для озон","ии агенты для маркетплейсов","как заполнить карточку товара wildberries","как работать в кабинете wildberries продавцу","какой ии выбрать для маркетплейсов","отчеты для селлеров маркетплейсов","подключить chatgpt к маркетплейсу","поисковые запросы wildberries для продавца","помощник селлера маркетплейсов","chatgpt для маркетплейсов","аналитика запросов маркетплейсов","аналитика карточек маркетплейсов","аналитика маркетплейсов","аналитика продаж на маркетплейсах","аналитика рекламы wildberries","внутренняя аналитика маркетплейсов","дрр ozon","дрр wildberries","загрузка отчетов с маркетплейсов","ии ассистент для маркетплейсов","ии для аналитики маркетплейсов","ии помощник селлера","как работать в кабинете wildberries","лучшие сервисы аналитики маркетплейсов","маржинальность на маркетплейсах","отчет маркетплейса вайлдберриз","отчет маркетплейса озон","отчет о списаниях маркетплейс","отчеты маркетплейсов","отчеты продаж маркетплейсов","подключить ии к маркетплейсу","поисковые запросы wildberries","прибыль на маркетплейсах","расчет прибыли на маркетплейсе","расширение для аналитики маркетплейсов","сервис аналитики маркетплейсов","финансовая аналитика маркетплейсов","чистая прибыль на маркетплейсе","юнит экономика маркетплейсов"],"confirmBillable":true,"maxRequests":45,"maxCostRub":1.3725,"searchType":"SEARCH_TYPE_RU","region":"225","page":0,"groupsOnPage":100,"docsInGroup":1,"groupMode":"GROUP_MODE_FLAT","familyMode":"FAMILY_MODE_MODERATE","fixTypoMode":"FIX_TYPO_MODE_OFF","sortMode":"SORT_MODE_BY_RELEVANCE","sortOrder":"SORT_ORDER_DESC"}
+```
+
+Do not alter query order, query text, job id, budget or Search parameters when executing this release.
+
 ## 8. Not released
 
 ```text
