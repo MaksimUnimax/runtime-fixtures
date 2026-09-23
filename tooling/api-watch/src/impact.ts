@@ -38,13 +38,29 @@ function changedImpact(operation: SemanticDiffOperation): {
         fieldSeverity = "BLOCKING_RISK";
         reason = "SECURITY_REFERENCE_CHANGED";
         break;
+      case "securityRequirementsSha256":
+        fieldSeverity = "BLOCKING_RISK";
+        reason = "SECURITY_REQUIREMENTS_CHANGED";
+        break;
       case "requestBodyPresent":
         fieldSeverity = "REVIEW_REQUIRED";
         reason = "REQUEST_BODY_PRESENCE_CHANGED";
         break;
+      case "requestSchemaSha256":
+        fieldSeverity = "REVIEW_REQUIRED";
+        reason = "REQUEST_SCHEMA_CHANGED";
+        break;
       case "parameterCount":
         fieldSeverity = "REVIEW_REQUIRED";
         reason = "PARAMETER_COUNT_CHANGED";
+        break;
+      case "parameterSchemaSha256":
+        fieldSeverity = "REVIEW_REQUIRED";
+        reason = "PARAMETER_SCHEMA_CHANGED";
+        break;
+      case "responseSchemaSha256":
+        fieldSeverity = "REVIEW_REQUIRED";
+        reason = "RESPONSE_SCHEMA_CHANGED";
         break;
       case "responseStatusKeys":
         fieldSeverity = "REVIEW_REQUIRED";

@@ -137,6 +137,10 @@ export type OperationInventoryItem = {
   requestBodyPresent: boolean;
   parameterCount: number;
   responseStatusKeys: string[];
+  parameterSchemaSha256?: string;
+  requestSchemaSha256?: string | null;
+  responseSchemaSha256?: string;
+  securityRequirementsSha256?: string;
 };
 
 export type OperationInventory = {
@@ -161,7 +165,11 @@ export type DiffField =
   | "responseStatusKeys"
   | "securitySchemeReferences"
   | "summaryHash"
-  | "tags";
+  | "tags"
+  | "parameterSchemaSha256"
+  | "requestSchemaSha256"
+  | "responseSchemaSha256"
+  | "securityRequirementsSha256";
 
 export type DiffFieldDelta = {
   field: DiffField;
@@ -182,6 +190,10 @@ export type SemanticOperation = {
   requestBodyPresent: boolean;
   parameterCount: number;
   responseStatusKeys: string[];
+  parameterSchemaSha256: string;
+  requestSchemaSha256: string | null;
+  responseSchemaSha256: string;
+  securityRequirementsSha256: string;
 };
 
 export type SemanticDiffOperation = {

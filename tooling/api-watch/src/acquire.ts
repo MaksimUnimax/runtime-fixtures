@@ -85,6 +85,9 @@ async function readBoundedBody(
       }
       chunks.push(next.value);
     }
+  } catch (error) {
+    await reader.cancel(error).catch(() => undefined);
+    throw error;
   } finally {
     reader.releaseLock();
   }
@@ -137,40 +140,42 @@ export async function acquireOfficialSource(input: {
   let currentUrl = officialUrl;
   let redirects = 0;
   let response: Response;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     while (true) {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), timeoutMs);
-      try {
-        response = await fetcher(currentUrl, {
-          method: "GET",
-          redirect: "manual",
-          signal: controller.signal,
-        });
-      } finally {
-        clearTimeout(timer);
-      }
+      response = await fetcher(currentUrl, {
+        method: "GET",
+        redirect: "manual",
+        signal: controller.signal,
+      });
       if (![301, 302, 303, 307, 308].includes(response.status)) break;
       const location = response.headers.get("location");
-      if (!location || redirects >= maxRedirects)
+      if (!location || redirects >= maxRedirects) {
+        clearTimeout(timer);
         return failure(
           entry,
           "INVALID_OFFICIAL_SOURCE_RESPONSE",
           "Redirect policy rejected the response.",
           response.status,
         );
+      }
       const nextUrl = new URL(location, currentUrl);
-      if (!hosts.has(nextUrl.hostname.toLowerCase()))
+      if (!hosts.has(nextUrl.hostname.toLowerCase())) {
+        clearTimeout(timer);
         return failure(
           entry,
           "INVALID_OFFICIAL_SOURCE_RESPONSE",
           "Redirect left the accepted official host set.",
           response.status,
         );
+      }
       redirects += 1;
+      await response.body?.cancel().catch(() => undefined);
       currentUrl = nextUrl.toString();
     }
   } catch (error) {
+    clearTimeout(timer);
     return failure(
       entry,
       "SOURCE_TEMPORARILY_UNAVAILABLE",
@@ -185,6 +190,7 @@ export async function acquireOfficialSource(input: {
     response.status === 403 ||
     response.status === 498
   ) {
+    clearTimeout(timer);
     return failure(
       entry,
       "OPERATOR_SOURCE_REQUIRED",
@@ -193,6 +199,7 @@ export async function acquireOfficialSource(input: {
     );
   }
   if (response.status === 429 || response.status >= 500) {
+    clearTimeout(timer);
     const retryAfter = response.headers.get("retry-after");
     const parsedRetryAfter =
       retryAfter && /^\d+(?:\.\d+)?$/.test(retryAfter.trim())
@@ -206,13 +213,15 @@ export async function acquireOfficialSource(input: {
       parsedRetryAfter,
     );
   }
-  if (!response.ok)
+  if (!response.ok) {
+    clearTimeout(timer);
     return failure(
       entry,
       "INVALID_OFFICIAL_SOURCE_RESPONSE",
       "Official source returned an unexpected HTTP response.",
       response.status,
     );
+  }
 
   let bytes: Uint8Array;
   try {
@@ -221,6 +230,13 @@ export async function acquireOfficialSource(input: {
       Math.min(entry.maximumBytes, API_WATCH_MAX_ARTIFACT_BYTES),
     );
   } catch (error) {
+    if (controller.signal.aborted)
+      return failure(
+        entry,
+        "SOURCE_TEMPORARILY_UNAVAILABLE",
+        "Official source acquisition timed out.",
+        response.status,
+      );
     return failure(
       entry,
       "INVALID_OFFICIAL_SOURCE_RESPONSE",
@@ -229,6 +245,8 @@ export async function acquireOfficialSource(input: {
         : "Official source body could not be read safely.",
       response.status,
     );
+  } finally {
+    clearTimeout(timer);
   }
   if (isHtml(response, bytes)) {
     return isAccessControlPage(bytes)
