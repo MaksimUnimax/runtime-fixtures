@@ -77,6 +77,14 @@ class CoordinationTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "OWNERSHIP_VIOLATION"):
                 control.scope_guard("A")
 
+    def test_extension_owner_can_change_its_actual_browser_regressions_and_builders(self):
+        names = "tests/regression/extension-core/client-i1/browser_c1_acceptance.py\ntooling/build/extension_composed.py\ntooling/checks/extension_i1.py"
+        with patch.object(control, "git", side_effect=[names, ""]):
+            self.assertEqual(len(control.scope_guard("A")), 3)
+        with patch.object(control, "git", side_effect=["tests/regression/imported/frozen-source.js", ""]):
+            with self.assertRaisesRegex(RuntimeError, "OWNERSHIP_VIOLATION"):
+                control.scope_guard("A")
+
     def test_busy_heavy_slot_does_not_start_a_command(self):
         import fcntl
         with (self.root / "heavy.lock").open("a+") as lock:

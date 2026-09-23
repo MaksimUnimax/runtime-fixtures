@@ -15,7 +15,13 @@
         "packages/marketplaces/**",
         "tests/extension/**",
         "tests/e2e/extension/**",
-        "docs/development/coordination/receipts/A/**"
+        "docs/development/coordination/receipts/A/**",
+        "tests/regression/extension-core/**",
+        "tooling/build/extension_composed.py",
+        "tooling/build/extension_firefox.py",
+        "tooling/checks/extension_core.py",
+        "tooling/checks/extension_i1.py",
+        "tooling/checks/extension-test-requirements.txt"
       ],
       "deny": [
         "**/package.json"
