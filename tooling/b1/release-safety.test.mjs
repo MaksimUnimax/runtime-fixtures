@@ -11,6 +11,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import process from "node:process";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
@@ -21,7 +22,7 @@ import {
   sourceIdentity,
 } from "./release-lib.mjs";
 
-const NODE = "/root/.nvm/versions/node/v24.20.0/bin/node";
+const NODE = process.execPath;
 const prepareTool = resolve("tooling/b1/prepare-release-candidate.mjs");
 const preflightTool = resolve("tooling/b1/release-preflight.mjs");
 
