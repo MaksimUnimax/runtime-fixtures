@@ -1,7 +1,7 @@
 # Octoport SEO — M8 progress
 
 Date: 2026-09-23
-Status: **PREPARATION R2 IN PROGRESS / R1 WORK RELEASE SUPERSEDED**
+Status: **R2 RELEASED / WAITING CHATGPT WORK RETURN**
 Branch: `seo/wordstat-batch-01-2026-09-16`
 
 ## Current accepted chain
@@ -16,31 +16,69 @@ M5 = ACCEPTED HYPOTHESIS ONLY
 M6 = PASS
 R4 = PASS
 M7 = PASS / SEARCH-SIDE FREEZE
-M8 = PREPARATION R2
-```
-
-## Superseded M8 release
-
-The following R1 artifacts remain historical but are **NOT EXECUTABLE**:
-
-- `docs/seo/M8_SEARCH_ONLY_SEMANTIC_MASTER_PRE_HANDOFF_2026-09-23_R1.md`
-- `docs/seo/M8_SEARCH_ONLY_SEMANTIC_MASTER_WORK_PROMPT_2026-09-23_R1.md`
-
-Reason:
-`OSEO-F04 — M8 Work release issued before complete two-level step preparation`.
-
-No Work result produced from R1 may be accepted as current M8 authority.
-
-## Current cursor
-
-```text
-CURRENT_PHYSICAL_STEP = M8 STEP PREPARATION R2
-LEVEL1_REVIEW = REQUIRED
-LEVEL2_REVIEW = REQUIRED
-FRESH_METHOD_RESEARCH = REQUIRED
-STEP_PREPARATION_R2 = NOT_YET_PERSISTED
-WORK_RELEASE_ALLOWED = false
+M8 = R2 RELEASED TO WORK
 M9 = BLOCKED
 ```
 
-M7 frozen Search-side inputs remain unchanged unless the R2 preparation detects an actual authority conflict.
+## Two-level preparation
+
+```text
+LEVEL1_READ = PASS
+LEVEL2_READ = PASS
+ROADMAP_CURRENT_STATE_READ = PASS
+FAILURE_HISTORY_READ = PASS
+FRESH_METHOD_RESEARCH = PASS
+STEP_PREPARATION_R2 = PASS / REMOTE READBACK
+PRE_HANDOFF_R2 = PASS / REMOTE READBACK
+WORK_PROMPT_R2 = PASS / REMOTE READBACK
+```
+
+Current artifacts:
+
+- `docs/seo/M8_STEP_PREPARATION_2026-09-23_R2.md`
+  blob `bd33d4280935424a2dbc6da591964318df36877f`
+
+- `docs/seo/M8_CANONICAL_DIRECT_INPUT_MANIFEST_2026-09-23_R2.json`
+  blob `0767d7b67b482281d02777cd1ba4530b00d090f4`
+
+- `docs/seo/M8_SEARCH_ONLY_SEMANTIC_MASTER_PRE_HANDOFF_2026-09-23_R2.md`
+  blob `2dd30339e0e37bd2b283ae73e6163ce51ff0dbc9`
+
+- `docs/seo/M8_SEARCH_ONLY_SEMANTIC_MASTER_WORK_PROMPT_2026-09-23_R2.md`
+  blob `b977110dc1776ccca06ee162d8b6a5b1a8483901`
+
+R1 pre-handoff/prompt:
+`SUPERSEDED / DO NOT EXECUTE`.
+
+## Work contract
+
+```text
+PRIMARY_RAW_OCCURRENCES = 25229
+CANONICAL_DIRECT_CONTEXT_FILES = 46
+FULL_M7_AUDIT_CATALOG = 162
+
+OUTPUT_FILES = 9
+ALICE_INPUT_ROWS = 0
+PROVIDER_CALLS = 0
+WEB_ACQUISITION_BY_WORK = 0
+GITHUB_WRITES_BY_WORK = 0
+M9_CLUSTERING = NOT_AUTHORIZED
+```
+
+## Owner relay
+
+Main Chat must provide the R2 Work prompt directly in chat, complete and copy-ready.
+
+Work returns one ZIP containing exactly 9 final files.
+
+Staging path:
+
+`docs/seo/work_return/M8_SEARCH_ONLY_SEMANTIC_MASTER_2026-09-23_R2/`
+
+Exact upload URL:
+
+`https://github.com/MaksimUnimax/runtime-fixtures/upload/seo/wordstat-batch-01-2026-09-16/docs/seo/work_return/M8_SEARCH_ONLY_SEMANTIC_MASTER_2026-09-23_R2/`
+
+After owner upload:
+
+`REMOTE READBACK -> MAIN CHAT FULL QA -> ACCEPT | REWORK | HOLD -> only then M9`.
