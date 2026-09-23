@@ -1,0 +1,27 @@
+{
+  "schema": "OCTOPORT_M1_WEBMASTER_LISTHOSTS_SANITIZED_V1",
+  "date": "2026-09-23",
+  "bridge": "yandex-marketing-bridge",
+  "bridge_version": "0.1.9",
+  "service": "webmaster",
+  "operation": "listHosts",
+  "request_id": "webmaster-dbbb3c78-86c7-472a-919d-4982de97f70d",
+  "status": "OK",
+  "http_status": 200,
+  "elapsed_ms": 1776,
+  "request_executed": true,
+  "automatic_retry": false,
+  "authorized_host_count": 1,
+  "octoport_target": "https://octoport.ru/",
+  "octoport_match_count": 0,
+  "octoport_property_present": false,
+  "unrelated_host_details_persisted": false,
+  "result_state": "HOLD_OWNER_SETUP_REQUIRED",
+  "claim_boundary": {
+    "proves_current_authorized_webmaster_list_read": true,
+    "proves_octopport_not_present_in_current_authorized_host_list": true,
+    "proves_site_not_indexed": false,
+    "authorizes_automatic_site_add": false,
+    "authorizes_verification_mutation": false
+  }
+}
