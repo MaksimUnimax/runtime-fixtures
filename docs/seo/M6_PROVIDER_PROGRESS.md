@@ -3,7 +3,6 @@
 Date: 2026-09-23
 Status: **ACTIVE CURRENT CURSOR**
 Branch: `seo/wordstat-batch-01-2026-09-16`
-Current HEAD before this progress write: `1fdfbb1380d806ddb49675cac6b5360afddbaf38`
 
 ## Current accepted chain
 
@@ -28,6 +27,10 @@ SEARCH REGION:
   LOCAL_JOB = octoport-m6-search-region-controls-r1-20260923
   LOCAL_START_READBACK = PASS
   SUBMIT_READBACK = PASS
+  FIRST_COLLECT_READBACK = PASS
+  FIRST_COLLECT_CODE = NO_DUE_OPERATIONS
+  FIRST_COLLECT_REQUEST_EXECUTED = false
+  FIRST_COLLECT_PROVIDER_CALLS = 0
   PENDING = 0
   WAITING = 2
   REQUESTS_STARTED = 2
@@ -39,6 +42,13 @@ SEARCH REGION:
   LAST_OPERATION_ID = spregqnga31l4fm29b3b
   FIRST_OPERATION_ID = NOT_SURFACED_IN_SUBMIT_ENVELOPE
 
+DURABLE_TIMING:
+  SUBMIT_RESULT_COMMIT_TIME_UTC = 2026-09-23T12:05:28Z
+  FIRST_NO_DUE_COLLECT_COMMIT_TIME_UTC = 2026-09-23T12:08:38Z
+  ELAPSED_BY_FIRST_NO_DUE_COMMIT = 190 seconds
+  REQUIRED_DEFERRED_BARRIER = 300 seconds minimum
+  FIRST_COLLECT_OCCURRED_BEFORE_CONSERVATIVE_BARRIER = true
+
 CAPABILITY HOLDS:
   SEARCH_HTML = 6
   SEARCH_USERAGENT = 3
@@ -47,24 +57,19 @@ M1_PRE_M7 = OPEN
 M7 = BLOCKED
 ```
 
-## Current exact next action
+## Current action gate
 
-Exactly one collection action is released:
+The first collect was too early under the conservative durable timing gate and correctly performed zero provider calls.
 
-```text
-SEARCH_ASYNC_BATCH_API_V1 {"action":"collectN","jobId":"octoport-m6-search-region-controls-r1-20260923","count":2}
-```
+No resubmit is permitted.
 
-Rules:
-- same durable job only;
-- no resubmit;
-- if not due yet, `NO_DUE_OPERATIONS` is valid and should have `request_executed=false/provider_calls=0`;
-- persist/readback every collect result before any later collect;
-- UNKNOWN blocks replay;
-- terminal target is SUCCEEDED=2 / WAITING=0 / unresolved=0;
-- export only after terminal collection.
+A later collect may be released only after the conservative 5-minute barrier measured from the durable submit-result commit is satisfied.
+
+Raw lifecycle evidence:
+- `docs/seo/work/M6_PENDING_PROVIDER_RAW/M6_SEARCH_REGION_BATCH_START.json`
+- `docs/seo/work/M6_PENDING_PROVIDER_RAW/M6_SEARCH_REGION_BATCH_SUBMIT.json`
+- `docs/seo/work/M6_PENDING_PROVIDER_RAW/M6_SEARCH_REGION_BATCH_COLLECT_01_NO_DUE.json`
 
 Authorities:
 - `docs/seo/M6_SEARCH_REGION_CONTROL_SUBMIT_RELEASE_2026-09-23_R1.md`
 - `docs/seo/M6_SEARCH_REGION_CONTROL_COLLECT_RELEASE_2026-09-23_R1.md`
-- `docs/seo/work/M6_PENDING_PROVIDER_RAW/M6_SEARCH_REGION_BATCH_SUBMIT.json`
