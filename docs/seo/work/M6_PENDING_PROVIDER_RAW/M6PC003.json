@@ -1,0 +1,146 @@
+{
+  "bridge": "yandex-marketing-bridge",
+  "version": "0.1.9",
+  "service": "wordstat",
+  "operation": "batch.next",
+  "job_id": "octoport-m6-wordstat-funnel-returns-r1-20260923",
+  "run_id": null,
+  "status": "OK",
+  "reason": null,
+  "command": {
+    "action": "next",
+    "jobId": "octoport-m6-wordstat-funnel-returns-r1-20260923"
+  },
+  "progress": {
+    "job_id": "octoport-m6-wordstat-funnel-returns-r1-20260923",
+    "status": "RUNNING",
+    "total": 2,
+    "input_count": 2,
+    "duplicate_count": 0,
+    "pending": 1,
+    "claimed": 0,
+    "requesting": 0,
+    "succeeded": 1,
+    "failed_terminal": 0,
+    "outcome_unknown": 0,
+    "skipped": 0,
+    "cancelled": 0,
+    "terminal": 1,
+    "requests_started": 1,
+    "estimated_cost_rub": 0.02,
+    "active_item_id": null,
+    "stop_reason": null,
+    "next_safe_action": "CLAIM_NEXT"
+  },
+  "item": {
+    "automatic_retry": false,
+    "claimed_at": "2026-09-23T11:45:16.155Z",
+    "claimed_by": "worker-2eb70a9b-b5c2-46d4-9d35-722434bbd6d0:wordstat-batch",
+    "command": {
+      "devices": [
+        "DEVICE_ALL"
+      ],
+      "method": "getTop",
+      "numPhrases": 100,
+      "phrase": "Как построить воронку продаж на маркетплейсе",
+      "regions": [
+        "225"
+      ]
+    },
+    "completed_at": "2026-09-23T11:45:17.611Z",
+    "error": null,
+    "estimated_cost_rub": 0.02,
+    "fingerprint": "6af1218f7c9ff404",
+    "item_id": "octoport-m6-wordstat-funnel-returns-r1-20260923:6af1218f7c9ff404",
+    "outcome_unknown_reason": null,
+    "request_executed": true,
+    "request_id": "wordstat-batch-51be0b6f-873e-4bc1-b639-af3a2c9183b5",
+    "request_started_at": "2026-09-23T11:45:16.158Z",
+    "request_worker_session_id": "worker-2eb70a9b-b5c2-46d4-9d35-722434bbd6d0:wordstat-batch",
+    "result_ref": "wordstat-batch-51be0b6f-873e-4bc1-b639-af3a2c9183b5",
+    "status": "SUCCEEDED",
+    "updated_at": "2026-09-23T11:45:17.611Z",
+    "result_payload": {
+      "bridge": "yandex-marketing-bridge",
+      "version": "0.1.9",
+      "service": "wordstat",
+      "operation": "getTop",
+      "request_id": "wordstat-batch-51be0b6f-873e-4bc1-b639-af3a2c9183b5",
+      "run_id": null,
+      "job_id": "octoport-m6-wordstat-funnel-returns-r1-20260923",
+      "status": "OK",
+      "reason": null,
+      "cost_estimate": {
+        "estimated_rub": 0.02,
+        "tariff_checked_at": "2026-08-12",
+        "tariff_source": "[https://aistudio.yandex.ru/docs/ru/search-api/pricing.html](https://aistudio.yandex.ru/docs/ru/search-api/pricing.html)"
+      },
+      "policy": {
+        "channel": "manual",
+        "active_service": "wordstat"
+      },
+      "command": {
+        "method": "getTop",
+        "phrase": "Как построить воронку продаж на маркетплейсе",
+        "numPhrases": 100,
+        "regions": [
+          "225"
+        ],
+        "devices": [
+          "DEVICE_ALL"
+        ]
+      },
+      "http_status": 200,
+      "elapsed_ms": 1445,
+      "result": {},
+      "request_executed": true,
+      "automatic_retry": false
+    }
+  },
+  "provider_result": {
+    "bridge": "yandex-marketing-bridge",
+    "version": "0.1.9",
+    "service": "wordstat",
+    "operation": "getTop",
+    "request_id": "wordstat-batch-51be0b6f-873e-4bc1-b639-af3a2c9183b5",
+    "run_id": null,
+    "job_id": "octoport-m6-wordstat-funnel-returns-r1-20260923",
+    "status": "OK",
+    "reason": null,
+    "cost_estimate": {
+      "estimated_rub": 0.02,
+      "tariff_checked_at": "2026-08-12",
+      "tariff_source": "[https://aistudio.yandex.ru/docs/ru/search-api/pricing.html](https://aistudio.yandex.ru/docs/ru/search-api/pricing.html)"
+    },
+    "policy": {
+      "channel": "manual",
+      "active_service": "wordstat"
+    },
+    "command": {
+      "method": "getTop",
+      "phrase": "Как построить воронку продаж на маркетплейсе",
+      "numPhrases": 100,
+      "regions": [
+        "225"
+      ],
+      "devices": [
+        "DEVICE_ALL"
+      ]
+    },
+    "http_status": 200,
+    "elapsed_ms": 1445,
+    "result": {},
+    "request_executed": true,
+    "automatic_retry": false
+  },
+  "cost_estimate": {
+    "estimated_rub": 0.02,
+    "max_rub": 0.04
+  },
+  "policy": {
+    "max_requests": 2,
+    "max_cost_rub": 0.04
+  },
+  "request_executed": true,
+  "automatic_retry": false
+}
