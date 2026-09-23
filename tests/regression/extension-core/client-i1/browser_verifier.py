@@ -1,6 +1,9 @@
 """Run the signed-bootstrap verifier inside a real Chromium extension worker."""
 from pathlib import Path
 import argparse
+import hashlib
+import subprocess
+from datetime import datetime, timezone
 import json
 import os
 import tempfile
@@ -39,7 +42,15 @@ def run(runtime: Path, output: Path) -> None:
             }""")
             if result != {"valid": True, "account": "11111111-1111-4111-8111-111111111111", "tamperRejected": True}:
                 raise AssertionError(result)
-            (output / "result.json").write_text(json.dumps({"status": "PASS", "browser": browser.browser.version, **result}, ensure_ascii=False, indent=2))
+            rows = []
+            for file in sorted(runtime.rglob("*"), key=lambda f: f.relative_to(runtime).as_posix()):
+                if file.is_symlink():
+                    raise RuntimeError("Runtime symlink is not accepted")
+                if file.is_file():
+                    rows.append(file.relative_to(runtime).as_posix() + "\0" + hashlib.sha256(file.read_bytes()).hexdigest() + "\n")
+            fingerprint = hashlib.sha256("".join(rows).encode()).hexdigest()
+            source_head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=Path(__file__).resolve().parents[4], text=True).strip()
+            (output / "result.json").write_text(json.dumps({"status": "PASS", "browser": browser.browser.version, "runtimePath": str(runtime.resolve()), "runtimeSha256": fingerprint, "sourceHead": source_head, "generatedAt": datetime.now(timezone.utc).isoformat(), **result}, ensure_ascii=False, indent=2))
         finally:
             browser.close()
     print(json.dumps(json.loads((output / "result.json").read_text()), ensure_ascii=False))

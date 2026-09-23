@@ -96,9 +96,19 @@ def update_state(role, action, args):
             state["review_pending"] = True
             state.setdefault("review_reason", "4 hours since start/last controller review")
             state.setdefault("review_requested_at", now_text())
+        state["controller_notices"] = controller_notices(role)
         state.update(updated_at=now_text(), head=git("rev-parse", "HEAD"))
         write_json(path, state)
         return state
+
+
+def controller_notices(role):
+    notices = []
+    for path in sorted((CONTROL / "controller-notices").glob(role + "-*.json")):
+        item = json.loads(path.read_text())
+        if item.get("role") == role and item.get("status") != "CLOSED":
+            notices.append(item)
+    return notices
 
 
 def require_running(role):
@@ -250,7 +260,11 @@ def main():
         require_running("C")
         if git("status", "--porcelain") or args.base != git("rev-parse", "origin/main"):
             raise RuntimeError("MAIN_READY_REQUIRES_CLEAN_HEAD_AND_FETCHED_BASE")
-        receipt = {"head": git("rev-parse", "HEAD"), "tree": git("rev-parse", "HEAD^{tree}"),
+        ci = subprocess.run([sys.executable, str(ROOT / "tooling/coordination/ci_gate.py"), "--sha", git("rev-parse", "HEAD"), "--branch", git("branch", "--show-current")], text=True, capture_output=True, timeout=90)
+        if ci.returncode:
+            raise RuntimeError("CURRENT_CANDIDATE_CI_NOT_GREEN: " + ci.stdout.strip())
+        ci_evidence = json.loads(ci.stdout)
+        receipt = {"ci": ci_evidence, "head": git("rev-parse", "HEAD"), "tree": git("rev-parse", "HEAD^{tree}"),
                    "base": args.base, "evidence": args.summary, "recorded_at": now_text()}
         write_json(CONTROL / "main-ready.json", receipt)
         print(json.dumps(receipt, ensure_ascii=False))
@@ -273,6 +287,8 @@ def main():
         print(json.dumps(state, ensure_ascii=False, indent=2))
         if state["review_pending"]:
             print("НУЖЕН КОНТРОЛЬ [" + args.role + "]: " + state.get("review_reason", "review pending") + "; независимая работа разрешена")
+        for notice in state.get("controller_notices", []):
+            print("КОНТРОЛЛЕР [" + args.role + "]: " + json.dumps(notice, ensure_ascii=False))
         for item in state["owner_requests"]:
             print("НУЖНО ДЕЙСТВИЕ ВЛАДЕЛЬЦА [" + args.role + "]: " + item)
     return 0

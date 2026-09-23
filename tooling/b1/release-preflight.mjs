@@ -1,10 +1,27 @@
-// Quarantined by the canonical-base audit. Replacement and acceptance: C01.
-// This is a release blocker, not a working release validator.
-console.error(JSON.stringify({
-  status: "BLOCKED_UNVERIFIED_RELEASE",
-  code: "LEGACY_RELEASE_TOOL_QUARANTINED",
-  reason: "Legacy validation trusted self-declared metadata and accepted a non-extension ZIP.",
-  next: "docs/development/coordination/PLAN.md#c--интеграция-выпуск-и-мониторинг",
-  productionMutation: "NOT_PERFORMED"
-}, null, 2));
-process.exitCode = 78;
+#!/usr/bin/env node
+/* global console, process */
+
+import { resolve } from "node:path";
+import { preflight } from "./release-lib.mjs";
+
+try {
+  if (process.argv.length !== 5 || process.argv[3] !== "--authority")
+    throw new Error(
+      "Usage: release-preflight.mjs <candidate-dir> --authority <external.json>",
+    );
+  const result = preflight({
+    candidateDir: resolve(process.argv[2]),
+    authorityPath: resolve(process.argv[4]),
+  });
+  console.log(JSON.stringify(result));
+} catch (error) {
+  console.error(
+    JSON.stringify({
+      status: "FAIL",
+      code: "RELEASE_PREFLIGHT_FAILED",
+      reason: error.message,
+      productionMutation: "NOT_PERFORMED",
+    }),
+  );
+  process.exitCode = 1;
+}

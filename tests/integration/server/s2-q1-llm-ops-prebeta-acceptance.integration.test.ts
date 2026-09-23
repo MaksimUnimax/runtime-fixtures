@@ -220,7 +220,8 @@ async function normalizeNotificationTimes(incidentId: string, at: string) {
 
 async function deliverPending(sink: DeterministicNotificationTestSink) {
   await runtime.query(
-    "UPDATE health_notification_intents SET next_attempt_at=CURRENT_TIMESTAMP WHERE state='PENDING'",
+    "UPDATE health_notification_intents SET next_attempt_at=$1 WHERE state='PENDING'",
+    [new Date("2026-09-19T23:00:00.000Z")],
   );
   const runner = new HealthNotificationRunner(runtime, sink, 60_000);
   let delivered = 0;

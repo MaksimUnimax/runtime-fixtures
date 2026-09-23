@@ -1,7 +1,7 @@
 name: Coordination and release safety
 on:
   push:
-    paths: ["tooling/coordination/**", "tooling/b1/**", "docs/development/coordination/**", ".github/workflows/coordination.yml"]
+    branches: [main, "work/c-integration", "controller/**"]
   pull_request:
     paths: ["tooling/coordination/**", "tooling/b1/**", "docs/development/coordination/**", ".github/workflows/coordination.yml"]
   workflow_dispatch:
@@ -18,3 +18,4 @@ jobs:
           node-version: 24.20.0
       - run: python3 -m unittest discover -s tooling/coordination -p 'test_*.py'
       - run: node --test tooling/b1/release-safety.test.mjs
+      - run: node --test tests/regression/extension-core/client-i1/browser-proof.test.mjs
