@@ -17,6 +17,7 @@ from pathlib import Path
 
 
 IMPORT_SCRIPTS = re.compile(r"importScripts\((.*?)\);", re.DOTALL)
+FIREFOX_REQUIRED_DATA_COLLECTION = ["authenticationInfo", "personallyIdentifyingInfo"]
 
 
 def sha256(data: bytes) -> str:
@@ -79,7 +80,10 @@ def build(input_runtime: Path, output: Path) -> dict:
     manifest["browser_specific_settings"] = {
         "gecko": {
             "id": "seller-agents@example.test",
-            "strict_min_version": "121.0",
+            "strict_min_version": "140.0",
+            "data_collection_permissions": {
+                "required": FIREFOX_REQUIRED_DATA_COLLECTION,
+            },
         }
     }
     write_json(output / "manifest.json", manifest)
@@ -116,9 +120,11 @@ def build(input_runtime: Path, output: Path) -> dict:
         "differences": [
             "manifest.background.service_worker -> background.scripts",
             "manifest.browser_specific_settings.gecko",
+            "manifest.browser_specific_settings.gecko.data_collection_permissions",
             "generated firefox_background.js with common importScripts graph flattened",
         ],
         "semantic_source": "common runtime copied without product-source fork",
+        "data_collection_permissions": manifest["browser_specific_settings"]["gecko"]["data_collection_permissions"],
         "installed_acceptance": False,
     }
     write_json(output.parent / "firefox-composition-receipt.json", receipt)
