@@ -28,31 +28,7 @@ on:
       - ".prettierignore"
       - ".github/workflows/server-ci.yml"
   push:
-    paths:
-      - "apps/api/**"
-      - "apps/portal/**"
-      - "apps/admin/**"
-      - "apps/worker/**"
-      - "apps/health-runner/**"
-      - "apps/telegram-operator/**"
-      - "tooling/api-watch/**"
-      - "packages/server/**"
-      - "packages/contracts/**"
-      - "packages/shared/**"
-      - "tests/integration/server/**"
-      - "tests/e2e/server/**"
-      - "tooling/server/**"
-      - "tooling/checks/server-import-check.mjs"
-      - "infra/local/**"
-      - "docs/server/**"
-      - "docs/migration/evidence/SERVER_IMPORT_MANIFEST.json"
-      - "package.json"
-      - "pnpm-lock.yaml"
-      - "pnpm-workspace.yaml"
-      - "tsconfig.base.json"
-      - "eslint.config.mjs"
-      - ".prettierignore"
-      - ".github/workflows/server-ci.yml"
+    branches: [main, "work/c-integration", "controller/**"]
   workflow_dispatch:
 
 permissions:
