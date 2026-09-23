@@ -30,7 +30,7 @@ Q1C-CHROME-28	Real Chrome manual smoke	BLOCKED_OWNER_BROWSER	SHARED_READY_WINDOW
 Q1C-OPERA-29	Real Opera smoke	ALREADY_ACCEPTED_AUTOMATED	SHARED_READY_WINDOW	Do not repeat full matrix; optional focused smoke	Opera 24/24 bounded truth remains valid	REVERIFY_EXACT_RC
 Q1C-YANDEX-30	Yandex manual/runtime smoke	BLOCKED_OWNER_BROWSER	SHARED_READY_WINDOW	Load package and open popup once	Direct Yandex evidence or precise defer	REVERIFY_EXACT_RC
 Q1C-FIREFOX-31	Firefox manual/runtime smoke	BLOCKED_OWNER_BROWSER	SHARED_READY_WINDOW	Load package via legitimate developer route	Direct Firefox evidence or precise defer	REVERIFY_EXACT_RC
-Q1C-SAFARI-32	Safari/macOS smoke	BLOCKED_REAL_MAC	SHARED_READY_WINDOW	Предоставить реальный Safari/macOS тестеру или выполнить карточку; cloud packaging не заменяет этот тест	Direct macOS evidence only	REVERIFY_EXACT_RC
+Q1C-SAFARI-32	Safari/macOS smoke	BLOCKED_REAL_MAC	DEFERRED_POST_RELEASE_BY_OWNER	Не требуется для беты; вероятная работа после релиза, отдельная реальная Safari/macOS проверка при будущем старте	Direct macOS evidence only	DEFERRED_POST_RELEASE_BY_OWNER
 Q1C-PRIVACY-33	Evidence redaction/privacy	READY	AUTO_FIRST	A/B/C готовят доказательство; владелец только для выбранного короткого UX-контроля	No OTP/credential/token/cookie/report/AI/transfer secret	REVERIFY_EXACT_RC
 Q1C-ACCOUNT-34	Owner logout/retain/delete UX	READY	SHARED_READY_WINDOW	Execute accepted account lifecycle UX only if chosen	State follows privacy/deletion contract	REVERIFY_EXACT_RC
 Q1C-APP-35	Optional Seller Agents service restart	READY	AUTO_FIRST	C проводит в staging; владелец нужен только для отдельно согласуемого реального окна обслуживания	Health recovers without trust/data change	REVERIFY_EXACT_RC
