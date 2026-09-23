@@ -84,4 +84,192 @@ describe.sequential("canonical product and monitoring migration intake", () => {
       );
     }
   });
+  it("rejects untracked application objects before creating migration history", async () => {
+    await runtime.query(
+      "DROP SCHEMA IF EXISTS public CASCADE; DROP SCHEMA IF EXISTS drizzle CASCADE; CREATE SCHEMA public",
+    );
+    await runtime.query("CREATE TABLE untracked_probe(id integer PRIMARY KEY)");
+    try {
+      await expect(runMigrations({ connectionString })).rejects.toThrow(
+        "MIGRATION_HISTORY_UNTRACKED",
+      );
+      expect(
+        (
+          await runtime.query(
+            "SELECT to_regclass('drizzle.__drizzle_migrations')::text AS name",
+          )
+        ).rows[0]?.name,
+      ).toBeNull();
+      expect(
+        (
+          await runtime.query(
+            "SELECT to_regclass('public.untracked_probe')::text AS name",
+          )
+        ).rows[0]?.name,
+      ).toBe("untracked_probe");
+    } finally {
+      await runtime.query(
+        "DROP SCHEMA IF EXISTS public CASCADE; DROP SCHEMA IF EXISTS drizzle CASCADE; CREATE SCHEMA public",
+      );
+    }
+  });
+
+  it("rejects an untracked enum-only schema before creating migration history", async () => {
+    await runtime.query(
+      "DROP SCHEMA IF EXISTS public CASCADE; DROP SCHEMA IF EXISTS drizzle CASCADE; CREATE SCHEMA public",
+    );
+    await runtime.query("CREATE TYPE untracked_state AS ENUM ('ACTIVE')");
+    try {
+      await expect(runMigrations({ connectionString })).rejects.toThrow(
+        "MIGRATION_HISTORY_UNTRACKED",
+      );
+      expect(
+        (
+          await runtime.query(
+            "SELECT to_regclass('drizzle.__drizzle_migrations')::text AS name",
+          )
+        ).rows[0]?.name,
+      ).toBeNull();
+      expect(
+        (
+          await runtime.query(
+            "SELECT EXISTS (SELECT 1 FROM pg_type t JOIN pg_namespace n ON n.oid=t.typnamespace WHERE n.nspname='public' AND t.typname='untracked_state') AS present",
+          )
+        ).rows[0]?.present,
+      ).toBe(true);
+    } finally {
+      await runtime.query(
+        "DROP SCHEMA IF EXISTS public CASCADE; DROP SCHEMA IF EXISTS drizzle CASCADE; CREATE SCHEMA public",
+      );
+    }
+  });
+
+  it("rejects an untracked function-only schema before creating migration history", async () => {
+    await runtime.query(
+      "DROP SCHEMA IF EXISTS public CASCADE; DROP SCHEMA IF EXISTS drizzle CASCADE; CREATE SCHEMA public",
+    );
+    await runtime.query(
+      "CREATE FUNCTION untracked_probe() RETURNS integer LANGUAGE sql AS 'SELECT 1'",
+    );
+    try {
+      await expect(runMigrations({ connectionString })).rejects.toThrow(
+        "MIGRATION_HISTORY_UNTRACKED",
+      );
+      expect(
+        (
+          await runtime.query(
+            "SELECT to_regclass('drizzle.__drizzle_migrations')::text AS name",
+          )
+        ).rows[0]?.name,
+      ).toBeNull();
+      expect(
+        (
+          await runtime.query(
+            "SELECT EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public' AND p.proname='untracked_probe') AS present",
+          )
+        ).rows[0]?.present,
+      ).toBe(true);
+    } finally {
+      await runtime.query(
+        "DROP SCHEMA IF EXISTS public CASCADE; DROP SCHEMA IF EXISTS drizzle CASCADE; CREATE SCHEMA public",
+      );
+    }
+  });
+
+  it("rejects the observed historical hybrid lineage without mutating it", async () => {
+    await runtime.query(
+      "DROP SCHEMA IF EXISTS public CASCADE; DROP SCHEMA IF EXISTS drizzle CASCADE; CREATE SCHEMA public",
+    );
+    const root = await mkdtemp(join(tmpdir(), "octoport-hybrid-"));
+    const legacyDirectory = join(root, "legacy");
+    const productDirectory = join(root, "product");
+    try {
+      const journal = JSON.parse(
+        await readFile(join(migrationsFolder, "meta/_journal.json"), "utf8"),
+      ) as {
+        version: string;
+        dialect: string;
+        entries: Array<{
+          idx: number;
+          version: string;
+          when: number;
+          tag: string;
+          breakpoints: boolean;
+        }>;
+      };
+      const writeJournal = async (
+        directory: string,
+        entries: typeof journal.entries,
+      ) => {
+        await mkdir(join(directory, "meta"), { recursive: true });
+        await writeFile(
+          join(directory, "meta/_journal.json"),
+          JSON.stringify({ ...journal, entries }),
+        );
+      };
+      const productPrefix = journal.entries.slice(0, 17);
+      const scheduler = journal.entries.find(
+        (entry) => entry.tag === "0034_s2_l6_durable_health_scheduler",
+      );
+      if (!scheduler) throw new Error("canonical scheduler migration missing");
+      const legacyScheduler = {
+        ...scheduler,
+        idx: 17,
+        when: 1789395000000,
+        tag: "0017_s2_l6_durable_health_scheduler",
+      };
+
+      await writeJournal(legacyDirectory, [...productPrefix, legacyScheduler]);
+      for (const entry of productPrefix) {
+        await cp(
+          join(migrationsFolder, entry.tag + ".sql"),
+          join(legacyDirectory, entry.tag + ".sql"),
+        );
+      }
+      await cp(
+        join(migrationsFolder, scheduler.tag + ".sql"),
+        join(legacyDirectory, legacyScheduler.tag + ".sql"),
+      );
+      const { migrate } = await import("drizzle-orm/node-postgres/migrator");
+      await migrate(runtime.db, { migrationsFolder: legacyDirectory });
+
+      const productWithI1AndTransfer = journal.entries.slice(0, 19);
+      await writeJournal(productDirectory, productWithI1AndTransfer);
+      for (const entry of productWithI1AndTransfer) {
+        await cp(
+          join(migrationsFolder, entry.tag + ".sql"),
+          join(productDirectory, entry.tag + ".sql"),
+        );
+      }
+      await migrate(runtime.db, { migrationsFolder: productDirectory });
+
+      const id = "10000000-0000-4000-8000-000000000002";
+      await runtime.query("INSERT INTO users(id) VALUES($1)", [id]);
+      const before = (
+        await runtime.query(
+          "SELECT hash,created_at FROM drizzle.__drizzle_migrations ORDER BY id",
+        )
+      ).rows;
+      expect(before).toHaveLength(20);
+
+      await expect(runMigrations({ connectionString })).rejects.toThrow(
+        "MIGRATION_HISTORY_DIVERGED",
+      );
+      expect(
+        (
+          await runtime.query(
+            "SELECT hash,created_at FROM drizzle.__drizzle_migrations ORDER BY id",
+          )
+        ).rows,
+      ).toEqual(before);
+      expect(
+        (await runtime.query("SELECT id FROM users WHERE id=$1", [id])).rows,
+      ).toEqual([{ id }]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+      await runtime.query(
+        "DROP SCHEMA IF EXISTS public CASCADE; DROP SCHEMA IF EXISTS drizzle CASCADE; CREATE SCHEMA public",
+      );
+    }
+  });
 });

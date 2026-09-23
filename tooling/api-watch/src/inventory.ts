@@ -28,6 +28,175 @@ function asObject(value: unknown): Record<string, unknown> {
     : {};
 }
 
+function canonical(value: unknown, seen = new Set<object>()): unknown {
+  if (value === null || typeof value !== "object") return value;
+  if (Array.isArray(value)) {
+    if (seen.has(value)) return { $cycle: true };
+    seen.add(value);
+    const result = value.map((item) => canonical(item, seen));
+    seen.delete(value);
+    return result;
+  }
+  if (seen.has(value)) return { $cycle: true };
+  seen.add(value);
+  const object = value as Record<string, unknown>;
+  const result: Record<string, unknown> = {};
+  for (const key of Object.keys(object).sort()) {
+    if (key === "description" || key === "example" || key === "examples")
+      continue;
+    const field = object[key];
+    result[key] =
+      (key === "enum" || key === "required") && Array.isArray(field)
+        ? [...field]
+            .map((item) => canonical(item, seen))
+            .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)))
+        : canonical(field, seen);
+  }
+  seen.delete(value);
+  return result;
+}
+
+function localRef(
+  value: unknown,
+  root: Record<string, unknown>,
+  seen = new Set<string>(),
+): unknown {
+  if (Array.isArray(value))
+    return value.map((item) => localRef(item, root, seen));
+  if (!value || typeof value !== "object") return value;
+  const object = value as Record<string, unknown>;
+  if (typeof object.$ref === "string" && object.$ref.startsWith("#/")) {
+    const ref = object.$ref;
+    if (seen.has(ref)) return { $recursiveRef: ref };
+    const target = ref
+      .slice(2)
+      .split("/")
+      .map((part) => part.replace(/~1/g, "/").replace(/~0/g, "~"))
+      .reduce<unknown>((at, key) => asObject(at)[key], root);
+    if (target === undefined) return { $unresolvedRef: ref };
+    return localRef(target, root, new Set([...seen, ref]));
+  }
+  return Object.fromEntries(
+    Object.entries(object).map(([key, item]) => [
+      key,
+      localRef(item, root, seen),
+    ]),
+  );
+}
+
+function fingerprint(value: unknown): string {
+  return createHash("sha256")
+    .update(JSON.stringify(canonical(value)))
+    .digest("hex");
+}
+
+function schemaFingerprint(
+  value: unknown,
+  root: Record<string, unknown>,
+): string {
+  return fingerprint(localRef(value ?? null, root));
+}
+
+function securityFingerprint(
+  operation: Record<string, unknown>,
+  root: Record<string, unknown>,
+): string {
+  const value =
+    operation.security === undefined
+      ? (root.security ?? [])
+      : operation.security;
+  const requirements = Array.isArray(value)
+    ? value
+        .map((item) =>
+          Object.fromEntries(
+            Object.entries(asObject(item))
+              .sort(([a], [b]) => a.localeCompare(b))
+              .map(([key, scopes]) => [
+                key,
+                [
+                  ...new Set(
+                    Array.isArray(scopes)
+                      ? scopes.filter((s): s is string => typeof s === "string")
+                      : [],
+                  ),
+                ].sort(),
+              ]),
+          ),
+        )
+        .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)))
+    : value;
+  const definitions = asObject(
+    asObject(root.components).securitySchemes ?? root.securityDefinitions,
+  );
+  const used = new Set(
+    Array.isArray(requirements)
+      ? requirements.flatMap((item) => Object.keys(asObject(item)))
+      : [],
+  );
+  const schemes = Object.fromEntries(
+    [...used]
+      .sort()
+      .map((name) => [name, localRef(definitions[name] ?? null, root)]),
+  );
+  return fingerprint({ requirements, schemes });
+}
+
+function parametersFingerprint(
+  operation: Record<string, unknown>,
+  pathParameters: unknown[],
+  root: Record<string, unknown>,
+): string {
+  const all = [
+    ...pathParameters,
+    ...(Array.isArray(operation.parameters) ? operation.parameters : []),
+  ];
+  const projected = all
+    .map((raw) => {
+      const parameter = asObject(localRef(raw, root));
+      return Object.fromEntries(
+        Object.entries(parameter)
+          .filter(
+            ([key]) =>
+              key !== "description" && key !== "example" && key !== "examples",
+          )
+          .sort(([a], [b]) => a.localeCompare(b)),
+      );
+    })
+    .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
+  return fingerprint(projected);
+}
+
+function requestFingerprint(
+  operation: Record<string, unknown>,
+  parameters: unknown[],
+  root: Record<string, unknown>,
+): string | null {
+  if (operation.requestBody !== undefined)
+    return schemaFingerprint(operation.requestBody, root);
+  const bodies = [
+    ...parameters,
+    ...(Array.isArray(operation.parameters) ? operation.parameters : []),
+  ]
+    .filter((raw) => asObject(raw).in === "body")
+    .map((raw) => asObject(raw).schema ?? null);
+  return bodies.length ? schemaFingerprint(bodies, root) : null;
+}
+
+function responseFingerprint(
+  responses: Record<string, unknown>,
+  root: Record<string, unknown>,
+): string {
+  return schemaFingerprint(
+    Object.fromEntries(
+      Object.entries(responses).map(([status, raw]) => {
+        const response = asObject(localRef(raw, root));
+        return [status, response.schema ?? response.content ?? null];
+      }),
+    ),
+    root,
+  );
+}
+
 function normalizedPath(path: string): string {
   const withSlash = path.startsWith("/") ? path : `/${path}`;
   return withSlash.replace(/\/{2,}/g, "/") || "/";
@@ -123,6 +292,18 @@ export function buildCompleteOperationInventory(input: {
           pathParameters +
           (Array.isArray(op.parameters) ? op.parameters.length : 0),
         responseStatusKeys: Object.keys(responses).sort(),
+        parameterSchemaSha256: parametersFingerprint(
+          op,
+          pathParameterValues,
+          document.root,
+        ),
+        requestSchemaSha256: requestFingerprint(
+          op,
+          pathParameterValues,
+          document.root,
+        ),
+        responseSchemaSha256: responseFingerprint(responses, document.root),
+        securityRequirementsSha256: securityFingerprint(op, document.root),
       });
     }
   }

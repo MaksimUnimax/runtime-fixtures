@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { diffInventories } from "./diff.js";
 import { InMemoryApiWatchStore } from "./authority.js";
 import type { OperationInventory, OperationInventoryItem } from "./types.js";
+import { buildCompleteOperationInventory } from "./inventory.js";
 
 const FAMILY = "OZON_SELLER" as const;
 const BASE_SHA = "a".repeat(64);
@@ -66,6 +67,214 @@ function compare(
 }
 
 describe("A4 semantic API diffs", () => {
+  it("C03 detects requiredness, type, enum, request, response and security changes from OpenAPI", () => {
+    const make = (
+      schema: unknown,
+      responseSchema: unknown,
+      security: unknown,
+    ) =>
+      buildCompleteOperationInventory({
+        sourceFamily: FAMILY,
+        snapshotSha256: BASE_SHA,
+        bytes: Buffer.from(
+          JSON.stringify({
+            openapi: "3.0.3",
+            info: { title: "fixture", version: "1" },
+            components: { schemas: { Payload: schema } },
+            security: security,
+            paths: {
+              "/items": {
+                post: {
+                  requestBody: {
+                    required: true,
+                    content: {
+                      "application/json": {
+                        schema: { $ref: "#/components/schemas/Payload" },
+                      },
+                    },
+                  },
+                  responses: {
+                    "200": {
+                      description: "ok",
+                      content: {
+                        "application/json": { schema: responseSchema },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          }),
+        ),
+        filename: "openapi.json",
+      }).operations[0]!;
+    const base = make(
+      {
+        type: "object",
+        required: ["id"],
+        properties: { id: { type: "string", enum: ["a", "b"] } },
+      },
+      { type: "string" },
+      [{ bearer: [] }],
+    );
+    const cases = [
+      make(
+        {
+          type: "object",
+          required: [],
+          properties: { id: { type: "string", enum: ["a", "b"] } },
+        },
+        { type: "string" },
+        [{ bearer: [] }],
+      ),
+      make(
+        {
+          type: "object",
+          required: ["id"],
+          properties: { id: { type: "integer", enum: ["a", "b"] } },
+        },
+        { type: "string" },
+        [{ bearer: [] }],
+      ),
+      make(
+        {
+          type: "object",
+          required: ["id"],
+          properties: {
+            id: { type: "object", properties: { value: { type: "string" } } },
+          },
+        },
+        { type: "string" },
+        [{ bearer: [] }],
+      ),
+      make(
+        {
+          type: "object",
+          required: ["id"],
+          properties: { id: { type: "array", items: { type: "string" } } },
+        },
+        { type: "string" },
+        [{ bearer: [] }],
+      ),
+      make(
+        {
+          type: "object",
+          required: ["id"],
+          properties: { id: { type: "string", enum: ["a", "c"] } },
+        },
+        { type: "string" },
+        [{ bearer: [] }],
+      ),
+      make(
+        {
+          type: "object",
+          required: ["id"],
+          properties: {
+            id: { type: "string", enum: ["a", "b"] },
+            extra: { type: "boolean" },
+          },
+        },
+        { type: "string" },
+        [{ bearer: [] }],
+      ),
+      make(
+        {
+          type: "object",
+          required: ["id"],
+          properties: { id: { type: "string", enum: ["a", "b"] } },
+        },
+        { type: "integer" },
+        [{ bearer: [] }],
+      ),
+      make(
+        {
+          type: "object",
+          required: ["id"],
+          properties: { id: { type: "string", enum: ["a", "b"] } },
+        },
+        { type: "string" },
+        [{ apiKey: [] }],
+      ),
+    ];
+    for (const target of cases) {
+      const diff = compare([base], [target]);
+      expect(diff.operations[0]?.state).toBe("CHANGED");
+      expect(diff.operations[0]?.deltas.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("C03 detects response-level local ref target changes", () => {
+    const build = (responseSchema: unknown) =>
+      buildCompleteOperationInventory({
+        sourceFamily: FAMILY,
+        snapshotSha256: BASE_SHA,
+        bytes: Buffer.from(
+          JSON.stringify({
+            openapi: "3.0.3",
+            info: { title: "x", version: "1" },
+            components: {
+              responses: {
+                Item: {
+                  description: "item",
+                  content: {
+                    "application/json": { schema: responseSchema },
+                  },
+                },
+              },
+            },
+            paths: {
+              "/x": {
+                get: {
+                  responses: {
+                    "200": { $ref: "#/components/responses/Item" },
+                  },
+                },
+              },
+            },
+          }),
+        ),
+        filename: "openapi.json",
+      }).operations[0]!;
+    const result = compare(
+      [build({ type: "string" })],
+      [build({ type: "integer" })],
+    );
+    expect(result.operations[0]?.state).toBe("CHANGED");
+    expect(result.operations[0]?.deltas).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ field: "responseSchemaSha256" }),
+      ]),
+    );
+  });
+
+  it("C03 ignores schema descriptions, object key order, and enum order", () => {
+    const build = (schema: unknown) =>
+      buildCompleteOperationInventory({
+        sourceFamily: FAMILY,
+        snapshotSha256: BASE_SHA,
+        bytes: Buffer.from(
+          JSON.stringify({
+            openapi: "3.0.3",
+            info: { title: "x", version: "1" },
+            paths: {
+              "/x": {
+                get: {
+                  parameters: [{ in: "query", name: "q", schema }],
+                  responses: { "200": {} },
+                },
+              },
+            },
+          }),
+        ),
+        filename: "openapi.json",
+      }).operations[0]!;
+    expect(
+      compare(
+        [build({ type: "string", enum: ["a", "b"], description: "one" })],
+        [build({ description: "two", enum: ["b", "a"], type: "string" })],
+      ).operations[0]?.state,
+    ).toBe("UNCHANGED");
+  });
   it("A4-01 identical inventories are all UNCHANGED", () => {
     const diff = compare([operation()], [operation()]);
     expect(diff.unchangedCount).toBe(1);
