@@ -1,0 +1,40 @@
+{
+  "action": "collectN",
+  "job_id": "octoport-m6-search-region-controls-r1-20260923",
+  "ok": true,
+  "request_executed": true,
+  "provider_calls": 2,
+  "processed": 2,
+  "normalized": 2,
+  "bounded_stop": false,
+  "last": {
+    "outcome": "received",
+    "code": null,
+    "index": 1,
+    "operation_id": "spregqnga31l4fm29b3b"
+  },
+  "progress": {
+    "job_id": "octoport-m6-search-region-controls-r1-20260923",
+    "control": "RUNNING",
+    "total": 2,
+    "counts": {
+      "PENDING": 0,
+      "SUBMITTING": 0,
+      "WAITING": 0,
+      "COLLECTING": 0,
+      "RESULT_SAVED": 0,
+      "SUCCEEDED": 2,
+      "PARSE_FAILED": 0,
+      "FAILED": 0,
+      "UNKNOWN": 0,
+      "CANCELLED": 0
+    },
+    "requests_started": 2,
+    "operations_accepted": 2,
+    "polls_started": 2,
+    "unresolved": 0,
+    "all_successful": true,
+    "busy": false,
+    "revision": 10
+  }
+}
