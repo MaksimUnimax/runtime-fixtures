@@ -27,9 +27,40 @@ HEALTHY, DRIFT, DEGRADED, BROKEN, UNKNOWN, MAINTENANCE различаются. �
 Выход: candidate diff registry/HELP/schemas + human-readable причины + новые/изменённые fixtures. Никаких автоматических бизнес-вызовов или auto-enable.
 WB R1–R8 gate действует также на задания watcher: обнаружить изменение документации можно, начинать реальную характеристику закрытых групп нельзя.
 
+### Wildberries production source handoff
+
+Для Wildberries внутренний source authority состоит из 13 официальных OpenAPI YAML-документов, но операторский путь фиксирован как **one bundle / one request / one upload**.
+
+Оператор не должен вручную скачивать или загружать 13 файлов. Нормальный путь:
+
+1. открыть `https://dev.wildberries.ru/` в обычном видимом браузере и пройти штатную проверку WB;
+2. одним операторским действием запустить same-origin helper;
+3. helper в этой же разрешённой браузерной сессии получает все 13 официальных YAML;
+4. браузер создаёт один `WB_OPENAPI_BUNDLE_V1` JSON-файл;
+5. TG3 создаёт один pending request;
+6. оператор выполняет один `/swagger_upload`;
+7. сервер атомарно валидирует 13/13 документов и только после полного PASS принимает WILDBERRIES authority.
+
+Bundle — только транспорт. Каждый YAML хранит отдельную provenance/SHA-256; семейная идентичность строится как детерминированный manifest SHA по всем 13 документам.
+
+Запрещены mirror fallback, Patchright, webdriver masking, cookie/storage export и иные способы обхода WBAAS. Подробная архитектурная authority: [S2_WB_SINGLE_BUNDLE_OPERATOR_HANDOFF_2026-09-22](../development/stream2/S2_WB_SINGLE_BUNDLE_OPERATOR_HANDOFF_2026-09-22.md).
+
+Текущий production-статус WB на 2026-09-22: single-bundle handoff реализован и протестирован; один pending request = `WILDBERRIES:WB_OPENAPI_BUNDLE`. Прямая серверная загрузка всех 13 документов возвращает HTTP 498, поэтому authority остаётся `OPERATOR_SOURCE_REQUIRED` до одного ручного bundle-upload. После валидного 13/13 bundle автоматически продолжается существующий A2→A10 pipeline.
+
+Для оператора этот handoff выполняется только через Telegram-бота. Бот обязан сам показать единственную pending-задачу WB, выдать helper/инструкцию, принять один JSON-файл вложением и автоматически привязать его к `WB_OPENAPI_BUNDLE`. Ручной ввод requestId, терминал и 13 отдельных загрузок не являются штатным UX. Низкоуровневый `/swagger_upload <request_id>` остаётся только административным fallback.
+
+### Architect / Codex authority
+
+Архитектуру, roadmap, методы, scope, PASS/FAIL, rework и следующий шаг определяет архитектор. Codex выполняет только явно назначенную реализацию и тесты. Изменения архитектуры, roadmap, постоянных правил и operator workflow архитектор фиксирует в GitHub сам; чат не является authority-хранилищем. Полные правила: [STREAM2_ARCHITECT_CODEX_WORKING_RULES](../development/stream2/STREAM2_ARCHITECT_CODEX_WORKING_RULES.md).
+
 ## Доставка сигналов и нагрузка
 
 В бете достаточно одной очереди уведомлений в админке/issue candidate и выбранного владельцем канала. Публикация сообщений третьим лицам требует соответствующего поручения; здесь каналы не включаются.
 Одинаковые сигналы дедуплицируются; recovery закрывает инцидент; нет тысячи одинаковых уведомлений при падении одного сайта.
 Browser runner имеет ограниченную параллельность, timeout и отдельный ресурсный лимит. Он не забирает все DB connections/API workers.
 Оператор видит последнее успешное выполнение самого монитора: отсутствие уведомлений при сломанном runner не трактуется как здоровье.
+
+
+### Telegram production prerequisite
+
+Production Telegram operator acceptance is blocked until the owner provisions a real bot token and owner/admin Telegram identity binding in the approved production secret/config path. Automated Telegram tests do not equal a live bot. Do not instruct the owner to use `/swagger_pending`, upload a WB bundle, or validate the one-file Telegram flow until those credentials/bindings exist and the deployed service is proven live. See [S2_TELEGRAM_PRODUCTION_PREREQUISITES_2026-09-22](../development/stream2/S2_TELEGRAM_PRODUCTION_PREREQUISITES_2026-09-22.md).
