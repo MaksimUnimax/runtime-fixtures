@@ -2,12 +2,16 @@
 
 import { createHash, createPublicKey } from "node:crypto";
 import {
+  closeSync,
   constants as fsConstants,
   copyFileSync,
   existsSync,
+  fstatSync,
   lstatSync,
   mkdirSync,
+  openSync,
   readFileSync,
+  readSync,
   realpathSync,
   statSync,
   writeFileSync,
@@ -678,6 +682,39 @@ function validatePackagedConfig(config, authority) {
   }
 }
 
+function readBoundedRegularFile(path, maxBytes) {
+  const noFollow = fsConstants.O_NOFOLLOW ?? 0;
+  const fd = openSync(path, fsConstants.O_RDONLY | noFollow);
+  try {
+    const before = fstatSync(fd);
+    if (!before.isFile()) fail("Package input must be a regular file");
+    if (before.size > maxBytes) fail("Package input exceeds size limit");
+
+    const bytes = Buffer.allocUnsafe(before.size + 1);
+    let total = 0;
+    while (total < bytes.length) {
+      const read = readSync(fd, bytes, total, bytes.length - total, null);
+      if (read === 0) break;
+      total += read;
+    }
+
+    const after = fstatSync(fd);
+    if (
+      !after.isFile() ||
+      after.dev !== before.dev ||
+      after.ino !== before.ino ||
+      after.size !== before.size ||
+      total !== before.size
+    ) {
+      fail("Package input changed during bounded read");
+    }
+    if (total > maxBytes) fail("Package input exceeds size limit");
+    return bytes.subarray(0, total);
+  } finally {
+    closeSync(fd);
+  }
+}
+
 function checkPackage(file, browser, authority, expectedRoot = null) {
   const supplied = resolve(file);
   if (lstatSync(supplied).isSymbolicLink()) {
@@ -688,7 +725,7 @@ function checkPackage(file, browser, authority, expectedRoot = null) {
     fail("Candidate package escapes candidate directory");
   }
 
-  const bytes = readFileSync(actualPath);
+  const bytes = readBoundedRegularFile(actualPath, MAX_ARCHIVE_BYTES);
   const entries = readZip(bytes);
   ensureNoPrivateMaterial(entries);
 

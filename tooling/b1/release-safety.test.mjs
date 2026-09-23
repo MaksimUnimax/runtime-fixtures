@@ -6,6 +6,7 @@ import {
   mkdtempSync,
   readFileSync,
   rmSync,
+  truncateSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -372,6 +373,48 @@ expectPrepareFailure(
 expectPrepareFailure("private-key material is rejected", "secret");
 expectPrepareFailure("forbidden secret file is rejected", "secretfile");
 expectPrepareFailure("symlink-like ZIP entry is rejected", "symlink");
+
+test("oversized package input is rejected before archive allocation", () => {
+  const value = fixture();
+  try {
+    const oversized = join(value.root, "oversized.zip");
+    writeFileSync(oversized, "");
+    truncateSync(oversized, 128 * 1024 * 1024 + 1);
+    assert.throws(
+      () =>
+        prepareCandidate({
+          authorityPath: value.authority,
+          outputDir: join(value.root, "oversized-output"),
+          chromium: oversized,
+          firefox: join(value.candidate, "firefox.zip"),
+        }),
+      /size limit/i,
+    );
+  } finally {
+    cleanup(value);
+  }
+});
+
+test("non-regular package input is rejected before archive read", () => {
+  const value = fixture();
+  try {
+    const directoryInput = join(value.root, "directory.zip");
+    mkdirSync(directoryInput);
+    assert.throws(
+      () =>
+        prepareCandidate({
+          authorityPath: value.authority,
+          outputDir: join(value.root, "directory-output"),
+          chromium: directoryInput,
+          firefox: join(value.candidate, "firefox.zip"),
+        }),
+      /regular file/i,
+    );
+  } finally {
+    cleanup(value);
+  }
+});
+
 expectPrepareFailure(
   "missing reachable packaged config is rejected",
   "missing_config",
