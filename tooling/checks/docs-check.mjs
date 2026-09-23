@@ -73,7 +73,7 @@ function visit(dir) {
     if (entry.isDirectory()) visit(absolute);
     else {
       const path = relative(root, absolute).replaceAll("\\", "/");
-      if (/\.(md|mjs|json|ya?ml)$/.test(path) || [".gitignore", ".editorconfig"].includes(path)) files[path] = readFileSync(absolute, "utf8");
+      if (/\.(md|mjs|json|tsv|ya?ml)$/.test(path) || [".gitignore", ".editorconfig"].includes(path)) files[path] = readFileSync(absolute, "utf8");
     }
   }
 }
