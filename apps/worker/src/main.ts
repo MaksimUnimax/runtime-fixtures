@@ -41,6 +41,10 @@ const runtime = await startWorker(
     new FeedbackRetentionRunner(
       createFeedbackSupportRepository(database),
       loadFeedbackRetentionConfig(process.env),
+      undefined,
+      undefined,
+      (error) =>
+        logger.error({ err: error }, "Feedback retention purge failed"),
     ),
   ]),
   logger,
