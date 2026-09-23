@@ -23,6 +23,24 @@ export function createSyncRepository(runtime: DatabaseRuntime): SyncRepository {
   return {
     async apply({ principal, entry, fingerprint }) {
       return runtime.transaction(async (tx: DatabaseQuery) => {
+        // Re-check and lock durable authority inside the same transaction as
+        // the sync write. This closes the preHandler -> repository revocation
+        // race: either sync holds a shared authority lock and commits first,
+        // or revocation commits first and this request fails closed.
+        const authority = await tx.query<{ id: string }>(
+          `SELECT s.id FROM sessions s
+           JOIN devices d ON d.id=s.device_id AND d.account_id=s.account_id
+           JOIN accounts a ON a.id=s.account_id
+           JOIN users u ON u.id=d.created_by_user_id
+           WHERE s.id=$1 AND d.id=$2 AND a.id=$3
+             AND s.status='ACTIVE' AND s.revoked_at IS NULL
+             AND d.status='ACTIVE' AND d.revoked_at IS NULL
+             AND a.status='ACTIVE' AND u.status='ACTIVE'
+           FOR SHARE OF s,d,a,u`,
+          [principal.sessionId, principal.deviceId, principal.accountId],
+        );
+        if (!authority.rows[0]) throw new Error("EXTENSION_AUTH_UNAUTHORIZED");
+
         await tx.query(
           `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`,
           [

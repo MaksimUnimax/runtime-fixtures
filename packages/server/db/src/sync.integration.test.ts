@@ -295,6 +295,33 @@ describe.sequential("C3E real PostgreSQL sync acceptance", () => {
     expect(rows.rows[0]?.count).toBe("0:0");
   });
 
+  it("B04 rejects a stale principal if device/session authority is revoked before the sync transaction", async () => {
+    const authenticated = await auth.authenticateAccess(fixture.token);
+    expect(authenticated.ok).toBe(true);
+    if (!authenticated.ok) throw new Error(authenticated.code);
+
+    await runtime.query(
+      "UPDATE devices SET status='REVOKED',revoked_at=now() WHERE id=$1",
+      [fixture.deviceId],
+    );
+    await runtime.query(
+      "UPDATE sessions SET status='REVOKED',revoked_at=now(),revoke_reason='DEVICE_REVOKED' WHERE id=$1",
+      [fixture.sessionId],
+    );
+
+    await expect(
+      service.apply(authenticated.value, body([entry()])),
+    ).rejects.toThrow("EXTENSION_AUTH_UNAUTHORIZED");
+    expect(
+      (
+        await runtime.query<{ count: string }>(
+          "SELECT count(*)::text AS count FROM sync_entities WHERE account_id=$1",
+          [fixture.accountId],
+        )
+      ).rows[0]?.count,
+    ).toBe("0");
+  });
+
   it("isolates accounts and fails closed for wrong installation, revoked access, and arbitrary input", async () => {
     const other = await createFixture();
     const item = entry();

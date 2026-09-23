@@ -61,6 +61,7 @@ async function jobFor(challengeId: string) {
       attempt_count: number;
       lease_id: string | null;
       leased_until: Date | null;
+      last_error_code: string | null;
     }>("SELECT * FROM otp_email_jobs WHERE challenge_id=$1", [challengeId])
   ).rows[0]!;
 }
@@ -488,7 +489,7 @@ describe.sequential("P2.2 real PostgreSQL authentication matrix", () => {
     ).toBe(portalLookup(keys, verified.value.sessionToken));
   });
 
-  it("T2-14/T2-15/T2-16 claim concurrency, valid leases, and expired recovery are safe", async () => {
+  it("T2-14/T2-15/T2-16 claim concurrency is safe and expired leases fail closed", async () => {
     const email = "lease@example.test",
       id = await fixture(email);
     await fixtureJob(id, email);
@@ -529,7 +530,12 @@ describe.sequential("P2.2 real PostgreSQL authentication matrix", () => {
       [valid],
     );
     await a.tick();
-    expect((await jobFor(valid)).status).toBe("SENT");
+    const expired = await jobFor(valid);
+    expect(expired.status).toBe("DEAD");
+    expect(expired.attempt_count).toBe(1);
+    expect(expired.ciphertext).toBeNull();
+    expect(expired.last_error_code).toBe("LEASE_EXPIRED_UNKNOWN_OUTCOME");
+    expect(calls).toBe(1);
   });
 
   it("T2-17 through T2-22 clear secrets for exhausted, sent, dead, consumed, expired, and superseded jobs", async () => {

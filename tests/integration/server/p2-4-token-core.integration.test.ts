@@ -234,6 +234,41 @@ describe.sequential("P2.4 real PostgreSQL token-core matrix", () => {
     });
   });
 
+  it("B04 serializes concurrent different-idempotency refreshes and compromises the reused family", async () => {
+    const state = await activeSession();
+    const original = value(await service().issue(state.sessionId));
+    const results = await Promise.all([
+      service().refresh(original.refreshToken, "A".repeat(16), "race-a"),
+      service().refresh(original.refreshToken, "B".repeat(16), "race-b"),
+    ]);
+    expect(results.filter((result) => result.ok)).toHaveLength(1);
+    expect(
+      results.filter(
+        (result) => !result.ok && result.code === "EXTENSION_AUTH_REUSE",
+      ),
+    ).toHaveLength(1);
+    const session = await query<{
+      status: string;
+      revoked_at: Date | null;
+      revoke_reason: string | null;
+    }>("SELECT status,revoked_at,revoke_reason FROM sessions WHERE id=$1", [
+      state.sessionId,
+    ]);
+    expect(session.rows[0]).toMatchObject({
+      status: "COMPROMISED",
+      revoked_at: expect.any(Date),
+      revoke_reason: "REFRESH_REUSE",
+    });
+    expect(
+      (
+        await query<{ count: string }>(
+          "SELECT count(*)::text AS count FROM refresh_tokens WHERE session_id=$1",
+          [state.sessionId],
+        )
+      ).rows[0]?.count,
+    ).toBe("2");
+  });
+
   it("T2-E/F treats changed idempotency or an expired replay window as reuse and compromises the whole family", async () => {
     const state = await activeSession();
     const original = value(await service().issue(state.sessionId));
