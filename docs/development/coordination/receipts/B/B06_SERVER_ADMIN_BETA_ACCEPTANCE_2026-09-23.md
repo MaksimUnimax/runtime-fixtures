@@ -2,7 +2,7 @@
 
 Role: B
 Task: B06
-Status: SOURCE_CANDIDATE_READY_FOR_C_REVIEW
+Status: SOURCE_CORRECTION_READY_FOR_C_REVIEW
 Overall B06 architectural/live acceptance: NOT CLAIMED.
 
 ## Revisions
@@ -170,33 +170,46 @@ Final isolated-smoke log:
 The earlier broad E2E run is retained only as environment diagnostics, not as
 a product failure or PASS.
 
-## Open review / blocked action
+## Controller correction — retention release blocker
 
-### Audit retention authority conflict
+Controller review reproduced process exit on a post-start purge rejection and concurrent purges still active after stop. The previous repository path also deleted all eligible rows and materialized every returned ID.
 
-B06 does **not** add automatic deletion of `audit_events`.
+Correction code commit before this receipt: `dfdd6314b9faab2230a13854e0abf625d74ba053`.
 
-The active documentation currently conflicts:
-- `DATA_AND_SECURITY` names 90 days as a technical admin-audit default;
-- `DATA_MODEL` describes audit as append-only/long-lived and states retention
-  policy direction is not finalized.
+The correction keeps one purge in flight, preserves fail-closed initial startup, handles later failures without an unhandled rejection or tight retry, and makes stop await the active purge before database shutdown. Each repository pass is bounded to 500 cases and 500 signals by default under a 5-second transaction-local PostgreSQL statement timeout, returns only aggregate counts, and preserves strict `< cutoff` semantics.
 
-Deleting append-only audit rows without one authoritative policy would be an
-architectural/data-retention change. B has requested controller review and
-blocks that specific deletion action until authority is resolved.
+Final-tree checks:
+- worker tests: 22/22 PASS, including 6 retention regressions;
+- feedback-support unit: 16/16 PASS;
+- DB unit: 31/31 PASS;
+- worker and DB typecheck: PASS;
+- focused ESLint and Prettier: PASS;
+- worker build: PASS;
+- disposable PostgreSQL feedback-support integration: 6/6 PASS;
+- resource job `10cfbfe7f13d478283589d242975d51f`: exit 0, OOM 0, cleanup verified, peak 547356672 bytes;
+- JSON evidence: `/root/octoport-control/logs/B/b06-retention-integration-final.json`.
 
-### Live owner/admin access
+`apps/worker/src/main.ts` adds only the retention error logger callback. C has an independent C04 notification-wiring change in `/root/octoport-control/worktrees/C/c04-runtime-monitoring-current`; C must preserve both meanings during integration.
 
-Current owner-readiness documents reserve the real ADMIN_OWNER transfer and
-mailbox OTP flow to the bounded controller/owner operation. B06 does not
-activate beta, bypass CLOSED admission, create a user by SQL, use mailbox
-credentials, or claim live owner/admin acceptance.
+An unrelated unfinished parent draft discovered during handoff was preserved as `preserve/B/B06-parent-draft-20260923` commit `35a91a9` and is explicitly NOT_ACCEPTED.
+
+The controller has resolved the earlier audit-policy ambiguity: the 90-day technical beta default applies only to the explicit administrative-audit category. This correction does not implement audit-event deletion and does not authorize any historical or live purge.
+
+## Remaining gates
+
+The retention-policy question is resolved, but this source correction still does
+**not** authorize deletion from `audit_events`, historical cleanup, a first live
+purge, deployment, or beta opening. Those actions remain separate explicit gates.
+
+The ADMIN_OWNER transfer has been independently verified by the controller.
+Installed owner-profile marketplace import and browser/live acceptance remain
+separate product gates and are not inferred from this server source candidate.
 
 ## Result
 
-B06 executable source candidate is ready for C intake/review with strong
-server, PostgreSQL, API, build and isolated browser evidence.
+The corrected B06 source candidate is ready for exact C intake/review. The
+controller-reproduced retention crash/overlap/unbounded-delete defect is covered
+by source, unit, type, build and disposable-PostgreSQL evidence on the corrected
+tree.
 
-It is **not** self-declared as final B06 acceptance because audit retention
-policy remains an explicit controller decision, and live owner/admin transfer
-is a separate controlled operation.
+Overall architectural, deployment and production acceptance are **not claimed**.
