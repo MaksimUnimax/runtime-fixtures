@@ -70,6 +70,8 @@ def update_state(role, action, args):
             state["resume_receipt"] = args.receipt
             state.setdefault("review_clock", now)
         elif action == "waiting":
+            if state["status"] == "STOPPED":
+                raise RuntimeError("STOPPED: waiting cannot clear an explicit pause")
             state["status"] = "WAITING_INPUT"
         elif action == "checkpoint":
             state.update(task=args.task or state.get("task"), result=args.summary, next=args.next)
@@ -119,6 +121,19 @@ def scope_guard(role, base=None):
     return sorted(set(changed))
 
 
+def validate_test_container(info, cfg):
+    expected_binding = [{"HostIp": "127.0.0.1", "HostPort": str(cfg["port"])}]
+    if info.get("Config", {}).get("Labels", {}).get("octoport.coordination") != "2p1":
+        raise RuntimeError("TEST_DB_LABEL_MISMATCH")
+    if info.get("HostConfig", {}).get("PortBindings", {}).get("5432/tcp") != expected_binding:
+        raise RuntimeError("TEST_DB_PORT_MAPPING_MISMATCH")
+    if info.get("NetworkSettings", {}).get("Ports", {}).get("5432/tcp") != expected_binding:
+        raise RuntimeError("TEST_DB_ACTIVE_PORT_MISMATCH")
+    environment = dict(item.split("=", 1) for item in info.get("Config", {}).get("Env", []) if "=" in item)
+    if environment.get("POSTGRES_USER") != "octoport_test" or environment.get("POSTGRES_DB") != cfg["database"] or environment.get("POSTGRES_PASSWORD") != cfg["password"]:
+        raise RuntimeError("TEST_DB_CONTAINER_IDENTITY_MISMATCH")
+
+
 def database(role):
     require_running(role)
     CONTROL.mkdir(mode=0o700, exist_ok=True)
@@ -153,6 +168,8 @@ def database(role):
         elif inspect.stdout.strip() != "2p1":
             raise RuntimeError("TEST_DB_LABEL_MISMATCH")
         subprocess.run(["docker", "start", cfg["container"]], check=True, stdout=subprocess.DEVNULL)
+        info = json.loads(subprocess.check_output(["docker", "inspect", cfg["container"]], text=True))[0]
+        validate_test_container(info, cfg)
         for _ in range(20):
             result = subprocess.run(["docker", "exec", cfg["container"], "pg_isready",
                 "-U", "octoport_test", "-d", cfg["database"]],
@@ -207,7 +224,7 @@ def main():
     parser.add_argument("role", choices=["A", "B", "C"])
     parser.add_argument("action", choices=["status", "start", "pause", "resume", "waiting",
         "checkpoint", "request-review", "request-owner", "reviewed", "owner-done",
-        "guard", "submit", "ensure-db", "heavy"])
+        "guard", "submit", "ready-main", "ensure-db", "heavy"])
     parser.add_argument("--summary", default="")
     parser.add_argument("--task", default="")
     parser.add_argument("--next", default="")
@@ -227,6 +244,16 @@ def main():
         print(json.dumps({k: v for k, v in cfg.items() if k != "password"}))
     elif args.action == "guard":
         print(json.dumps({"allowed_files": scope_guard(args.role, args.base)}))
+    elif args.action == "ready-main":
+        if args.role != "C" or not args.summary or not args.base:
+            raise RuntimeError("MAIN_READY_REQUIRES_C_BASE_AND_VALIDATION_EVIDENCE")
+        require_running("C")
+        if git("status", "--porcelain") or args.base != git("rev-parse", "origin/main"):
+            raise RuntimeError("MAIN_READY_REQUIRES_CLEAN_HEAD_AND_FETCHED_BASE")
+        receipt = {"head": git("rev-parse", "HEAD"), "tree": git("rev-parse", "HEAD^{tree}"),
+                   "base": args.base, "evidence": args.summary, "recorded_at": now_text()}
+        write_json(CONTROL / "main-ready.json", receipt)
+        print(json.dumps(receipt, ensure_ascii=False))
     elif args.action == "submit":
         require_running(args.role)
         if git("status", "--porcelain"):

@@ -8,16 +8,29 @@ rules = json.loads((root / "docs/development/coordination/OWNERSHIP.json").read_
 role = next((key for key,value in rules["roles"].items() if value["path"] == str(root)), None)
 if role is None:
     raise SystemExit("Unknown stream worktree")
-allowed = {"refs/heads/" + rules["roles"][role]["branch"]}
+own_ref = "refs/heads/" + rules["roles"][role]["branch"]
+current_ref = subprocess.check_output(["git", "symbolic-ref", "HEAD"], text=True).strip()
+if current_ref != own_ref:
+    raise SystemExit("Stream branch does not match the assigned role")
+allowed = {own_ref}
 if role == "C":
     allowed.add("refs/heads/main")
 for line in sys.stdin:
     local_ref, local_sha, remote_ref, remote_sha = line.split()
+    if local_ref not in (own_ref, "HEAD"):
+        raise SystemExit("Publish only the current assigned stream ref")
+    head = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+    if local_sha != head:
+        raise SystemExit("Publish only the checked current HEAD")
     if local_sha == "0" * 40 or remote_ref not in allowed:
         raise SystemExit("Stream cannot delete or publish this ref: " + remote_ref)
     if remote_ref == "refs/heads/main":
         head = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
         if local_sha != head or subprocess.check_output(["git", "status", "--porcelain"], text=True).strip():
             raise SystemExit("Main requires the clean, checked current candidate")
+        ready_path = Path("/root/octoport-control/main-ready.json")
+        ready = json.loads(ready_path.read_text()) if ready_path.exists() else {}
+        if ready.get("head") != local_sha or ready.get("base") != remote_sha or not ready.get("evidence"):
+            raise SystemExit("Main requires an exact ready-main receipt with current remote base and validation evidence")
         if subprocess.call(["git", "merge-base", "--is-ancestor", remote_sha, local_sha]):
             raise SystemExit("Main history must be preserved; fetch and reconcile")

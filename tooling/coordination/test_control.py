@@ -32,6 +32,25 @@ class CoordinationTests(unittest.TestCase):
             control.update_state("A", "start", self.args)
         self.assertEqual(json.loads((self.root / "A.json").read_text())["status"], "STOPPED")
 
+    def test_waiting_cannot_clear_stop(self):
+        control.update_state("A", "pause", self.args)
+        with self.assertRaisesRegex(RuntimeError, "STOPPED"):
+            control.update_state("A", "waiting", self.args)
+        self.assertEqual(json.loads((self.root / "A.json").read_text())["status"], "STOPPED")
+
+    def test_test_container_requires_exact_loopback_port_and_database_identity(self):
+        import copy
+        cfg = {"port":15541,"database":"octoport_a_test","password":"disposable-test-value"}
+        info = {"Config":{"Labels":{"octoport.coordination":"2p1"},"Env":["POSTGRES_USER=octoport_test","POSTGRES_DB=octoport_a_test","POSTGRES_PASSWORD=disposable-test-value"]},"HostConfig":{"PortBindings":{"5432/tcp":[{"HostIp":"127.0.0.1","HostPort":"15541"}]}},"NetworkSettings":{"Ports":{"5432/tcp":[{"HostIp":"127.0.0.1","HostPort":"15541"}]}}}
+        control.validate_test_container(info,cfg)
+        for change in ["configured_port", "active_port", "database"]:
+            bad = copy.deepcopy(info)
+            if change == "configured_port": bad["HostConfig"]["PortBindings"]["5432/tcp"][0]["HostPort"] = "5432"
+            elif change == "active_port": bad["NetworkSettings"]["Ports"]["5432/tcp"][0]["HostIp"] = "0.0.0.0"
+            else: bad["Config"]["Env"][1] = "POSTGRES_DB=production"
+            with self.subTest(change=change), self.assertRaisesRegex(RuntimeError,"TEST_DB_"):
+                control.validate_test_container(bad,cfg)
+
     def test_due_review_does_not_stop_independent_work(self):
         state = control.update_state("A", "start", self.args)
         state["review_clock"] = time.time() - control.PERIOD - 1
