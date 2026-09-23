@@ -33,7 +33,7 @@ C00 startup/CI → постоянно C02 intake A/B → C01 достоверн�
 - Все файлы сверяй с OWNERSHIP.json. Общий контракт — один автор, согласованный формат и проверки обоих потребителей. DB/migrations — только B; C интегрирует.
 - Промежуточный checkpoint сохраняй на безопасной границе каждые примерно 60–90 минут значимой работы и перед длинной проверкой. Непринятый checkpoint явно NOT_ACCEPTED; незаконченный кусок нельзя передавать как готовый.
 - Перед коммитом: python3 tooling/coordination/control.py C guard. Не отключай hooks.
-- После законченного проверенного коммита A/B подают exact HEAD через C submit --summary "задача; команды/результат/путь evidence; ограничения", затем могут продолжить независимую работу. C читает /root/octoport-control/inbox и интегрирует по PROTOCOL.md. Не жди завершения всех модулей.
+- После законченного проверенного коммита A/B подают exact HEAD через control.py A submit или control.py B submit соответственно, с --summary "задача; команды/результат/путь evidence; ограничения", затем могут продолжить независимую работу. C не подаёт их кандидатов от своего имени. C читает /root/octoport-control/inbox и интегрирует по PROTOCOL.md. Не жди завершения всех модулей.
 - В состоянии сохраняй task/result/next через checkpoint; подробный evidence в docs/development/coordination/receipts/C/. Курсор и SHA живут в состоянии, не переписываются в этот промпт.
 - Не выставляй себе архитектурную/live/production-приёмку. SOURCE, PACKAGE, INSTALLED_SYNTHETIC, LIVE_OWNER и DEPLOYMENT различаются.
 
