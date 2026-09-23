@@ -1,6 +1,7 @@
 import { cp, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { BrowserFamilies } from "@product/shared";
 import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDatabaseRuntime, type DatabaseRuntime } from "./index.js";
@@ -144,7 +145,38 @@ describe.sequential("P2.1 PostgreSQL persistence integration", () => {
     const count = await runtime.db.execute<{ count: string }>(sql`
       SELECT count(*)::text AS "count" FROM drizzle."__drizzle_migrations"
     `);
-    expect(count.rows[0]?.count).toBe("22");
+    expect(count.rows[0]?.count).toBe("23");
+    const browserFamilyRows = await runtime.db.execute<{
+      enumlabel: string;
+    }>(sql`
+      SELECT enum_value.enumlabel
+      FROM pg_enum AS enum_value
+      INNER JOIN pg_type AS enum_type ON enum_type.oid = enum_value.enumtypid
+      INNER JOIN pg_namespace AS namespace ON namespace.oid = enum_type.typnamespace
+      WHERE namespace.nspname = 'public' AND enum_type.typname = 'browser_family'
+      ORDER BY enum_value.enumsortorder
+    `);
+    expect(browserFamilyRows.rows.map((row) => row.enumlabel).sort()).toEqual(
+      [...BrowserFamilies].sort(),
+    );
+    const browserConstraintRows = await runtime.db.execute<{
+      conname: string;
+      definition: string;
+    }>(sql`
+      SELECT conname, pg_get_constraintdef(oid) AS definition
+      FROM pg_constraint
+      WHERE conname IN (
+        'adapter_profile_assignments_browser_family',
+        'health_runs_browser_family'
+      )
+      ORDER BY conname
+    `);
+    expect(browserConstraintRows.rows).toHaveLength(2);
+    for (const row of browserConstraintRows.rows) {
+      for (const family of BrowserFamilies) {
+        expect(row.definition).toContain(family);
+      }
+    }
     const probe = await runtime.db.execute<{ probe: string | null }>(sql`
       SELECT to_regclass('__p1_migration_probe') AS "probe"
     `);

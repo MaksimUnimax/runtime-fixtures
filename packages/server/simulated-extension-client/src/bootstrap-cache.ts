@@ -9,6 +9,7 @@ import {
   verifyBootstrapEnvelope,
   type TrustedConfigSigningKeyRing,
 } from "@product/remote-config";
+import { BrowserFamilies, type BrowserFamily } from "@product/shared";
 import { z } from "zod";
 
 export const BOOTSTRAP_CACHE_VERSION = "bootstrap_cache_v1" as const;
@@ -29,7 +30,7 @@ const CacheRequestContextSchema = z
     extensionVersion: z.string().min(1),
     browser: z
       .object({
-        family: z.enum(["chrome", "yandex_chromium"]),
+        family: z.enum(BrowserFamilies),
         version: z.string().min(1).max(64),
       })
       .strict(),
@@ -72,7 +73,7 @@ export type BootstrapRequestContext = {
   contractVersion: "control_plane_v1";
   extensionVersion: string;
   browser: {
-    family: "chrome" | "yandex_chromium";
+    family: BrowserFamily;
     version: string;
   };
   detectedAi: NormalizedDetectedAi | null;

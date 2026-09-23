@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { canonicalizeJson } from "@product/remote-config";
 import { selectRolloutCandidateV1 } from "@product/remote-config";
-import { SemVerV1Schema } from "@product/shared";
+import { BrowserFamilies, SemVerV1Schema } from "@product/shared";
 import { z } from "zod";
 
 const MACHINE_KEY_PATTERN = /^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$/;
@@ -27,7 +27,7 @@ export const ProfileRevisionStateSchema = z.enum([
   "PUBLISHED",
   "RETIRED",
 ]);
-export const BrowserFamilySchema = z.enum(["chrome", "yandex_chromium"]);
+export const BrowserFamilySchema = z.enum(BrowserFamilies);
 export const ProfileSchemaVersionSchema = z.literal("adapter_profile_v1");
 export const CompatibilitySchemaVersionSchema = z.literal(
   "profile_compatibility_v1",
@@ -116,7 +116,7 @@ export const ProfileCompatibilityConstraintsV1Schema = z
     browserFamilies: z
       .array(BrowserFamilySchema)
       .min(1)
-      .max(2)
+      .max(BrowserFamilies.length)
       .refine((values) => new Set(values).size === values.length, {
         message: "duplicate browser family",
       }),
@@ -133,7 +133,7 @@ export const ProfileCompatibilityConstraintsV1Schema = z
           })
           .strict(),
       )
-      .max(2)
+      .max(BrowserFamilies.length)
       .refine(
         (values) =>
           new Set(values.map((value) => value.browserFamily)).size ===

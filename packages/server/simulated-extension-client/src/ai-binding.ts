@@ -3,7 +3,7 @@ import {
   type BootstrapDetectedAiV1,
   type BootstrapSnapshotPayloadV1,
 } from "@product/contracts";
-import { compareChromiumVersionV1 } from "@product/compatibility";
+import { compareBrowserVersionV1 } from "@product/compatibility";
 import {
   AdapterProfileContentV1Schema,
   ProfileCompatibilityConstraintsV1Schema,
@@ -12,13 +12,13 @@ import {
   type AdapterProfileContentV1,
   type ProfileCompatibilityConstraintsV1,
 } from "@product/adapter-registry";
-import { compareSemVerV1 } from "@product/shared";
+import { compareSemVerV1, type BrowserFamily } from "@product/shared";
 
 export type ClientAiBindingContext = {
   detectedAi: BootstrapDetectedAiV1 | null;
   contractVersion: "control_plane_v1";
   extensionVersion: string;
-  browser: { family: "chrome" | "yandex_chromium"; version: string };
+  browser: { family: BrowserFamily; version: string };
 };
 
 export type SimulatedBoundAiProfile = {
@@ -67,7 +67,7 @@ function compatible(
   );
   if (
     minimumBrowser &&
-    (compareChromiumVersionV1(
+    (compareBrowserVersionV1(
       context.browser.version,
       minimumBrowser.minimumVersion,
     ) ?? -1) < 0

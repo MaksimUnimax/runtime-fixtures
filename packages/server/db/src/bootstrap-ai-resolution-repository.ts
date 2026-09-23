@@ -1,7 +1,7 @@
+import type { BrowserFamily } from "@product/shared";
 import type { DatabaseRuntime } from "./index.js";
 
 type JsonRecord = Record<string, unknown>;
-type BrowserFamily = "chrome" | "yandex_chromium";
 
 type BootstrapAiAssignmentRevisionSnapshot = {
   revision: number;

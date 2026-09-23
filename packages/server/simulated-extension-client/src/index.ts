@@ -20,6 +20,7 @@ import {
   type BootstrapVerificationFailure,
 } from "@product/remote-config";
 import type { KeyObject } from "node:crypto";
+import type { BrowserFamily } from "@product/shared";
 import {
   InMemoryBootstrapSnapshotStore,
   isTerminallyInvalidatedCache,
@@ -173,7 +174,7 @@ export class SimulatedExtensionClient {
   async startAuthorization(
     metadata: {
       clientType: "browser_extension";
-      browserFamily: "chrome" | "yandex_chromium";
+      browserFamily: BrowserFamily;
       browserVersion?: string;
       extensionVersion: string;
       deviceLabel?: string;

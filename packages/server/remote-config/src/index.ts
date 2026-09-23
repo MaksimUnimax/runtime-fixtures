@@ -6,8 +6,10 @@ import {
   type KeyObject,
 } from "node:crypto";
 import {
+  BrowserFamilies,
   compareSemVerV1,
   StableMachineIdentifierV1Schema,
+  type BrowserFamily,
 } from "@product/shared";
 import {
   resolveCompatibility,
@@ -436,7 +438,7 @@ export const PublishFeatureRuleRevisionCommandSchema = z
     featureKey: FeatureKeySchema,
     contractVersion: ContractVersionSchema,
     enabled: z.boolean(),
-    browserFamily: z.enum(["chrome", "yandex_chromium"]).nullable(),
+    browserFamily: z.enum(BrowserFamilies).nullable(),
     minimumExtensionVersion: z.string().nullable(),
     publishedAt: z.date(),
   })
@@ -602,7 +604,7 @@ export type P3FeatureRule = {
   revision: number;
   contractVersion: ContractVersion;
   enabled: boolean;
-  browserFamily: "chrome" | "yandex_chromium" | null;
+  browserFamily: BrowserFamily | null;
   minimumExtensionVersion: string | null;
 };
 export type P3Rollout = {
@@ -631,7 +633,7 @@ export const P3FeatureRuleSchema = z
     revision: z.number().int().positive(),
     contractVersion: ContractVersionSchema,
     enabled: z.boolean(),
-    browserFamily: z.enum(["chrome", "yandex_chromium"]).nullable(),
+    browserFamily: z.enum(BrowserFamilies).nullable(),
     minimumExtensionVersion: z.string().nullable(),
   })
   .strict()
@@ -768,7 +770,7 @@ export async function listP3SelectableConfigReleases(
 export type ResolveP3BootstrapPolicyInput = {
   contractVersion: ContractVersion;
   extensionVersion: string;
-  browser: { family: "chrome" | "yandex_chromium"; version: string };
+  browser: { family: BrowserFamily; version: string };
   accountId: string;
   deviceId: string;
 };

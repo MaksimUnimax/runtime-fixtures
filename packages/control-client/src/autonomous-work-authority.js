@@ -3,6 +3,7 @@
   "use strict";
   const config = globalThis.SellerAgentsControlConfig;
   const verifier = globalThis.SellerAgentsBootstrapVerifier;
+  const browserIdentity = globalThis.SellerAgentsBrowserIdentity;
   const packaged = globalThis.SellerAgentsPackagedCapabilities;
   const intersection = globalThis.SellerAgentsCapabilityIntersection;
   const sourcePermission = Object.freeze({ ozon: "source.ozon", wildberries: "source.wildberries" });
@@ -16,8 +17,8 @@
   const parsed = value => { const result = Date.parse(value); return Number.isSafeInteger(result) && result >= 0 && result <= maxDate ? result : null; };
   function freeze(value) { if (!value || typeof value !== "object" || Object.isFrozen(value)) return value; for (const child of Object.values(value)) freeze(child); return Object.freeze(value); }
   function deny(denied, code) { if (!denied.includes(code)) denied.push(code); }
-  function browserFamily() { const ua = typeof navigator === "object" ? String(navigator.userAgent || "").toLowerCase() : ""; return ua.includes("yabrowser") ? "yandex_chromium" : "chrome"; }
-  function browserVersion() { const ua = typeof navigator === "object" ? String(navigator.userAgent || "") : ""; return ua.match(/(?:Chrome|YaBrowser)\/(\d+(?:\.\d+){0,3})/i)?.[1] || "0.0.0"; }
+  function browserFamily() { return browserIdentity?.current?.().family || null; }
+  function browserVersion() { return browserIdentity?.current?.().version || null; }
   function bytes(value) { if (!text(value) || !/^[A-Za-z0-9_-]+$/.test(value)) return null; try { const padded = value.replace(/-/g, "+").replace(/_/g, "/") + "=".repeat((4 - value.length % 4) % 4); const result = Uint8Array.from(atob(padded), char => char.charCodeAt(0)); return verifier.base64urlEncode(result) === value ? result : null; } catch (_) { return null; } }
   async function digest(value) { return [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier.canonicalJson(value))))].map(item => item.toString(16).padStart(2, "0")).join(""); }
   function atLeast(actual, minimum) { const a = typeof actual === "string" && actual.split(".").map(Number), b = typeof minimum === "string" && minimum.split(".").map(Number); if (!a || !b || a.length < 3 || b.length < 3 || a.some(Number.isNaN) || b.some(Number.isNaN)) return false; for (let i = 0; i < 3; i += 1) if (a[i] !== b[i]) return a[i] > b[i]; return true; }

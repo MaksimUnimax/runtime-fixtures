@@ -144,7 +144,7 @@ describe.sequential("P7.1 adapter registry PostgreSQL boundary", () => {
     const result = await runtime.db.execute<{ count: string }>(sql`
       SELECT count(*)::text AS count FROM drizzle."__drizzle_migrations"
     `);
-    expect(result.rows[0]?.count).toBe("21");
+    expect(result.rows[0]?.count).toBe("23");
   });
 
   it("enforces scoped identity uniqueness and hierarchy foreign keys", async () => {

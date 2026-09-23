@@ -15,6 +15,7 @@ import {
   type HealthSuiteDefinition,
 } from "@product/health";
 import { canonicalizeJson } from "@product/remote-config";
+import type { BrowserFamily } from "@product/shared";
 import type { DatabaseQuery, DatabaseRuntime } from "./index.js";
 
 export type HealthSuiteRevision = {
@@ -82,7 +83,7 @@ type RunRow = {
   profileId: string;
   profileRevisionId: string;
   profileRevision: number;
-  browserFamily: "chrome" | "yandex_chromium";
+  browserFamily: BrowserFamily;
   browserVersion: string;
   extensionVersion: string;
   adapterEngineVersion: string;

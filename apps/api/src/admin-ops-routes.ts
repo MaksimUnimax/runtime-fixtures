@@ -5,6 +5,7 @@ import type {
   RawServerDefault,
 } from "fastify";
 import type { Logger } from "pino";
+import type { BrowserFamily } from "@product/shared";
 import type { AdminPermission } from "@product/admin-auth";
 import type { AdminOpsService } from "@product/admin-ops";
 import {
@@ -141,7 +142,7 @@ function deviceResponse(value: {
 }) {
   return {
     ...value,
-    browserFamily: value.browserFamily as "chrome" | "yandex_chromium",
+    browserFamily: value.browserFamily as BrowserFamily,
     createdAt: iso(value.createdAt),
     activatedAt: value.activatedAt ? iso(value.activatedAt) : null,
     lastSeenAt: value.lastSeenAt ? iso(value.lastSeenAt) : null,

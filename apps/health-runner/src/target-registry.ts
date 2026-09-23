@@ -1,6 +1,9 @@
 import { type BrowserFamily } from "@product/shared";
 import { z } from "zod";
 
+// This is intentionally the implemented Health-driver subset, not the product
+// BrowserFamilies vocabulary. Additional product browsers require a real driver
+// before they are eligible as controlled Health targets.
 const ControlledBrowserFamilySchema = z.enum(["chrome", "yandex_chromium"]);
 
 const TARGET_KEY_PATTERN = /^[a-z][a-z0-9_]{0,63}$/;

@@ -5,6 +5,7 @@ import type {
   RawServerDefault,
 } from "fastify";
 import type { Logger } from "pino";
+import type { BrowserFamily } from "@product/shared";
 import type { AuthService } from "@product/auth";
 import {
   type DeviceManagementService,
@@ -197,7 +198,7 @@ export function registerDeviceManagementRoutes(
       return reply.send({
         devices: result.devices.map((device) => ({
           ...device,
-          browserFamily: device.browserFamily as "chrome" | "yandex_chromium",
+          browserFamily: device.browserFamily as BrowserFamily,
           createdAt: device.createdAt.toISOString(),
           activatedAt: device.activatedAt?.toISOString() ?? null,
           lastSeenAt: device.lastSeenAt?.toISOString() ?? null,

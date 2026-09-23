@@ -185,10 +185,29 @@ class InstalledClient:
         self.worker = self.context.service_workers[0] if self.context.service_workers else self.context.wait_for_event("serviceworker")
         self.chat = self.context.new_page()
         self.chat.goto(f"https://chatgpt.com/c/{CHAT_CONVERSATION}", wait_until="domcontentloaded")
-        self.tab_id = wait_for(lambda: self.worker.evaluate("async()=>{const x=await chrome.tabs.query({url:'https://chatgpt.com/c/*'});return x[0]?.id}"), "ChatGPT tab")
+        self.tab_id = self.bind_page_tab(self.chat, "ChatGPT tab")
         self.popup = self.context.new_page()
         self.popup.add_init_script(f"const originalQuery=chrome.tabs.query.bind(chrome.tabs);chrome.tabs.query=(query)=>query.active?Promise.resolve([{{id:{self.tab_id}}}]):originalQuery(query);")
         self.popup.goto(self.worker.url.rsplit("/", 1)[0] + "/popup.html")
+
+    def bind_page_tab(self, page, description: str) -> int:
+        """Return the Chrome tab id owned by the exact Playwright page."""
+        marker = f"seller-agents-r5b-{time.monotonic_ns()}"
+        page.evaluate("(value)=>{document.title=value}", marker)
+
+        def matching_tab():
+            return self.worker.evaluate(
+                """async ({url,marker})=>{
+                  const matches=(await chrome.tabs.query({})).filter(tab => tab.url === url && tab.title === marker);
+                  return matches.length === 1 ? matches[0].id : null;
+                }""",
+                {"url": page.url, "marker": marker},
+            )
+
+        tab_id = wait_for(matching_tab, description)
+        target = self.worker.evaluate("async (id)=>chrome.tabs.get(id)", tab_id)
+        assert target.get("url") == page.url, {"page": page.url, "tab": target}
+        return int(tab_id)
 
     def activate(self, label: str, existing_cookies: list[dict] | None = None) -> dict:
         cookies = existing_cookies if existing_cookies is not None else self.existing_cookies

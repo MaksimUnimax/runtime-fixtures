@@ -1,3 +1,4 @@
+import type { BrowserFamily } from "@product/shared";
 import type { BootstrapSnapshotPayload } from "@product/contracts";
 import type {
   VerifyBootstrapEnvelopeResult,
@@ -10,7 +11,7 @@ export type OfflineClientContext = {
   contractVersion: BootstrapSnapshotPayload["contractVersion"];
   extensionVersion: string;
   browser: {
-    family: "chrome" | "yandex_chromium";
+    family: BrowserFamily;
     version: string;
   };
 };

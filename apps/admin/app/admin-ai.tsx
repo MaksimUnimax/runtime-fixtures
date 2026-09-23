@@ -143,7 +143,12 @@ type AssignmentRevision = {
   percentageBps: number;
   createdAt: string;
 };
-type BrowserFamily = "chrome" | "yandex_chromium";
+type BrowserFamily =
+  | "chrome"
+  | "opera"
+  | "yandex_chromium"
+  | "firefox"
+  | "safari";
 type Reference =
   | "page-root"
   | "conversation-root"
@@ -1150,7 +1155,10 @@ function ProfileEditor({
             }}
           >
             <option value="chrome">chrome</option>
+            <option value="opera">opera</option>
             <option value="yandex_chromium">yandex_chromium</option>
+            <option value="firefox">firefox</option>
+            <option value="safari">safari</option>
           </select>
         </label>
         {compatibility.browserFamilies.map((family) => (
@@ -1743,7 +1751,10 @@ export function AssignmentsWorkspace() {
                 }
               >
                 <option value="chrome">chrome</option>
+                <option value="opera">opera</option>
                 <option value="yandex_chromium">yandex_chromium</option>
+                <option value="firefox">firefox</option>
+                <option value="safari">safari</option>
               </select>
             </label>
             <label>
@@ -2649,7 +2660,10 @@ export function AssignmentsWorkspaceV2() {
                 }
               >
                 <option value="chrome">chrome</option>
+                <option value="opera">opera</option>
                 <option value="yandex_chromium">yandex_chromium</option>
+                <option value="firefox">firefox</option>
+                <option value="safari">safari</option>
               </select>
             </label>
             <label>

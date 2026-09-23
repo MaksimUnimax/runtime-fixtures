@@ -42,6 +42,7 @@ def main():
                 runner.run(label + "-syntax-" + file.stem, [node, "--check", file])
             tests = [
                 ("contracts", ROOT / "tests/regression/extension-core/core-contracts.mjs"),
+                ("i1-browser-family-contract", ROOT / "tests/regression/extension-core/client-i1/browser-family-contract.mjs"),
                 ("worker", ROOT / "tests/regression/extension-core/worker-lifecycle.mjs"),
                 ("context", ROOT / "tests/regression/extension-core/batch-context.mjs"),
                 ("wb", ROOT / "tests/regression/extension-core/wb-adapter.mjs"),

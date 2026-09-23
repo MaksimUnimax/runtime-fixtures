@@ -166,12 +166,12 @@ describe("P6.4 admin-commercial validation contracts", () => {
     ));
   it("compatibility query accepts supported browser scopes", () =>
     expect(
-      ["chrome", "yandex_chromium"].map(
+      ["chrome", "opera", "yandex_chromium", "firefox", "safari"].map(
         (scope) => AdminCompatibilityQuerySchema.parse({ scope }).scope,
       ),
-    ).toEqual(["chrome", "yandex_chromium"]));
+    ).toEqual(["chrome", "opera", "yandex_chromium", "firefox", "safari"]));
   it("compatibility query rejects an unknown scope", () =>
-    rejects(() => AdminCompatibilityQuerySchema.parse({ scope: "firefox" })));
+    rejects(() => AdminCompatibilityQuerySchema.parse({ scope: "edge" })));
   it("compatibility query accepts a UUID cursor", () =>
     expect(AdminCompatibilityQuerySchema.parse({ cursor: id }).cursor).toBe(
       id,

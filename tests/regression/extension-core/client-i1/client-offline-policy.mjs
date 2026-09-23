@@ -341,7 +341,7 @@ for (const [label, offset, expected] of [["expiresAt", 0, "STALE_BUT_OFFLINE_GRA
 for (const [label, changes, userAgent] of [
   ["api origin", { controlApiOrigin: "http://127.0.0.1:43199" }],
   ["portal origin", { portalOrigin: "http://127.0.0.1:43199" }],
-  ["browser", {}, "Mozilla/5.0 Chrome/120.0.0.0"],
+  ["browser", {}, "Mozilla/5.0 Gecko/20100101 Firefox/156.0"],
   ["extension version", { extensionVersion: "0.2.5" }],
   ["contract", { contractVersion: "control_plane_v3" }],
   ["packaged trust ring", { trustBundle: { trustBundleVersion: "bootstrap_trust_bundle_v1", algorithm: "Ed25519", publicKeyFormat: "spki_der", publicKeyEncoding: "base64", fingerprintAlgorithm: "sha256", fingerprintEncoding: "lowercase_hex", keys: [] } }],

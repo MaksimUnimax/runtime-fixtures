@@ -4,7 +4,7 @@ import {
   type BootstrapDetectedAiV1,
 } from "@product/contracts";
 import {
-  compareChromiumVersionV1,
+  compareBrowserVersionV1,
   type ContractVersion,
 } from "@product/compatibility";
 import {
@@ -13,9 +13,7 @@ import {
   validateProfileContent,
   type AssignmentMode,
 } from "@product/adapter-registry";
-import { compareSemVerV1 } from "@product/shared";
-
-type BrowserFamily = "chrome" | "yandex_chromium";
+import { compareSemVerV1, type BrowserFamily } from "@product/shared";
 
 export type BootstrapAiResolutionInput = {
   detected: BootstrapDetectedAiV1;
@@ -170,7 +168,7 @@ function checkCompatibility(
   );
   if (
     minimumBrowser &&
-    (compareChromiumVersionV1(
+    (compareBrowserVersionV1(
       input.browser.version,
       minimumBrowser.minimumVersion,
     ) ?? -1) < 0

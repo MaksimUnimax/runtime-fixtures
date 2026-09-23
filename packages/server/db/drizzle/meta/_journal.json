@@ -155,6 +155,13 @@
       "when": 1790070000000,
       "tag": "0032_s1_signing_reason_contract_guard",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1790071000000,
+      "tag": "0033_browser_family_product_matrix",
+      "breakpoints": true
     }
   ]
 }

@@ -64,7 +64,7 @@ export const adapterProfileAssignments = pgTable(
     }).onDelete("restrict"),
     check(
       "adapter_profile_assignments_browser_family",
-      sql`${table.browserFamily} IN ('chrome', 'yandex_chromium')`,
+      sql`${table.browserFamily} IN ('chrome', 'opera', 'yandex_chromium', 'firefox', 'safari')`,
     ),
     check(
       "adapter_profile_assignments_seed_length",

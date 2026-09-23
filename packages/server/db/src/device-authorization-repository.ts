@@ -1,3 +1,4 @@
+import type { BrowserFamily } from "@product/shared";
 import {
   equalArtifact,
   type DeviceAuthorizationRecord,
@@ -92,7 +93,7 @@ export function createDeviceAuthorizationRepository(
     async previewPendingAuthorization(id, now) {
       const result = await runtime.query<{
         id: string;
-        browser_family: "chrome" | "yandex_chromium";
+        browser_family: BrowserFamily;
         browser_version: string | null;
         extension_version: string;
         device_label: string | null;

@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { createAccessAuthProbe } from "./support/access-auth-probe.js";
-import { accountId, approve, client, credentials, login, reset, sql, start } from "./support/fixtures.js";
+import { accountId, approve, client, credentials, login, portalOrigin, reset, sql, start } from "./support/fixtures.js";
 
 test.beforeEach(async () => reset());
 
@@ -17,7 +17,7 @@ test("portal approval activates and refreshes a simulated extension", async ({ p
   const extension = client();
   const authorization = await start(extension);
   expect(authorization.verificationUrl).toBe(
-    `http://127.0.0.1:3200/activate?authorizationId=${authorization.authorizationId}`,
+    `${portalOrigin}/activate?authorizationId=${authorization.authorizationId}`,
   );
   expect(authorization.verificationUrl).not.toContain(authorization.deviceCode);
   expect(authorization.verificationUrl).not.toContain(authorization.userCode);

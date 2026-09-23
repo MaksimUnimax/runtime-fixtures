@@ -25,6 +25,8 @@ def seed_authority(worker, private_key):
       const hex = bytes => [...bytes].map(value => value.toString(16).padStart(2, '0')).join('');
       const deviceId = '22222222-2222-4222-8222-222222222222';
       const sessionId = '33333333-3333-4333-8333-333333333333';
+      const browser = SellerAgentsBrowserIdentity.current();
+      if (!browser?.family || !browser?.version) throw new Error('fixture browser identity unavailable');
       const content = {
         schemaVersion: 'adapter_profile_v1',
         page: {identityStrategy: 'page_identity', conversationStrategy: 'conversation_root', composerStrategy: 'composer_root'},
@@ -43,7 +45,7 @@ def seed_authority(worker, private_key):
         ]
       };
       const compatibility = {
-        schemaVersion: 'profile_compatibility_v1', contractVersion: 'control_plane_v1', browserFamilies: ['chrome'],
+        schemaVersion: 'profile_compatibility_v1', contractVersion: 'control_plane_v1', browserFamilies: [browser.family],
         minimumBrowserVersions: [], minimumExtensionVersion: null
       };
       const profileBytes = new TextEncoder().encode(v.canonicalJson({content, compatibility}));
@@ -66,8 +68,6 @@ def seed_authority(worker, private_key):
       const signature = new Uint8Array(await crypto.subtle.sign('Ed25519', key, signed));
       const envelope = {envelopeVersion: 'bootstrap_envelope_v2', algorithm: 'Ed25519', keyId, payload: v.base64urlEncode(payloadBytes), signature: v.base64urlEncode(signature)};
       const cfg = SellerAgentsControlConfig;
-      const ua = String(navigator.userAgent || '').toLowerCase();
-      const browser = {family: ua.includes('yabrowser') ? 'yandex_chromium' : 'chrome', version: (String(navigator.userAgent || '').match(/(?:Chrome|YaBrowser)\/(\d+(?:\.\d+){0,3})/i) || [null, '0.0.0'])[1]};
       const trustBundleSha256 = hex(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(v.canonicalJson(cfg.trustBundle)))));
       const cacheBinding = {cacheVersion: 'control_cache_binding_v1', controlApiOrigin: cfg.controlApiOrigin, portalOrigin: cfg.portalOrigin, contractVersion: cfg.contractVersion, extensionVersion: cfg.extensionVersion, browser, detectedAi: {family: 'chatgpt', surface: 'web', variant: null}, trustBundleSha256};
       const serverTimeMs = Date.parse(payload.serverTime);

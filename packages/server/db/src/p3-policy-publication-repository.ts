@@ -14,6 +14,7 @@ import {
 import {
   compareSemVerV1,
   StableMachineIdentifierV1Schema,
+  type BrowserFamily,
 } from "@product/shared";
 import {
   configReleaseHashes,
@@ -291,7 +292,7 @@ function rowPolicy(row: Record<string, unknown>): CompatibilityPolicyRevision {
     policyKey: String(row.policyKey),
     revision: Number(row.revision),
     contractVersion: String(row.contractVersion),
-    browserFamily: row.browserFamily as "chrome" | "yandex_chromium" | null,
+    browserFamily: row.browserFamily as BrowserFamily | null,
     minimumExtensionVersion: row.minimumExtensionVersion as string | null,
     recommendedExtensionVersion: row.recommendedExtensionVersion as
       | string

@@ -3164,7 +3164,10 @@
                           "browserFamily": {
                             "enum": [
                               "chrome",
-                              "yandex_chromium"
+                              "opera",
+                              "yandex_chromium",
+                              "firefox",
+                              "safari"
                             ],
                             "type": "string"
                           },
@@ -9277,7 +9280,10 @@
             "schema": {
               "enum": [
                 "chrome",
-                "yandex_chromium"
+                "opera",
+                "yandex_chromium",
+                "firefox",
+                "safari"
               ],
               "type": "string"
             }
@@ -9314,7 +9320,10 @@
                           "browserFamily": {
                             "enum": [
                               "chrome",
-                              "yandex_chromium"
+                              "opera",
+                              "yandex_chromium",
+                              "firefox",
+                              "safari"
                             ],
                             "type": "string"
                           },
@@ -10224,7 +10233,10 @@
                   "browserFamily": {
                     "enum": [
                       "chrome",
-                      "yandex_chromium"
+                      "opera",
+                      "yandex_chromium",
+                      "firefox",
+                      "safari"
                     ],
                     "type": "string"
                   },
@@ -11082,7 +11094,10 @@
                     "browserFamily": {
                       "enum": [
                         "chrome",
-                        "yandex_chromium"
+                        "opera",
+                        "yandex_chromium",
+                        "firefox",
+                        "safari"
                       ],
                       "type": "string"
                     },
@@ -22548,11 +22563,14 @@
                                 "items": {
                                   "enum": [
                                     "chrome",
-                                    "yandex_chromium"
+                                    "opera",
+                                    "yandex_chromium",
+                                    "firefox",
+                                    "safari"
                                   ],
                                   "type": "string"
                                 },
-                                "maxItems": 2,
+                                "maxItems": 5,
                                 "minItems": 1,
                                 "type": "array"
                               },
@@ -22569,7 +22587,10 @@
                                     "browserFamily": {
                                       "enum": [
                                         "chrome",
-                                        "yandex_chromium"
+                                        "opera",
+                                        "yandex_chromium",
+                                        "firefox",
+                                        "safari"
                                       ],
                                       "type": "string"
                                     },
@@ -22586,7 +22607,7 @@
                                   ],
                                   "type": "object"
                                 },
-                                "maxItems": 2,
+                                "maxItems": 5,
                                 "type": "array"
                               },
                               "minimumExtensionVersion": {
@@ -24410,11 +24431,14 @@
                           "items": {
                             "enum": [
                               "chrome",
-                              "yandex_chromium"
+                              "opera",
+                              "yandex_chromium",
+                              "firefox",
+                              "safari"
                             ],
                             "type": "string"
                           },
-                          "maxItems": 2,
+                          "maxItems": 5,
                           "minItems": 1,
                           "type": "array"
                         },
@@ -24431,7 +24455,10 @@
                               "browserFamily": {
                                 "enum": [
                                   "chrome",
-                                  "yandex_chromium"
+                                  "opera",
+                                  "yandex_chromium",
+                                  "firefox",
+                                  "safari"
                                 ],
                                 "type": "string"
                               },
@@ -24448,7 +24475,7 @@
                             ],
                             "type": "object"
                           },
-                          "maxItems": 2,
+                          "maxItems": 5,
                           "type": "array"
                         },
                         "minimumExtensionVersion": {
@@ -26238,11 +26265,14 @@
                           "items": {
                             "enum": [
                               "chrome",
-                              "yandex_chromium"
+                              "opera",
+                              "yandex_chromium",
+                              "firefox",
+                              "safari"
                             ],
                             "type": "string"
                           },
-                          "maxItems": 2,
+                          "maxItems": 5,
                           "minItems": 1,
                           "type": "array"
                         },
@@ -26259,7 +26289,10 @@
                               "browserFamily": {
                                 "enum": [
                                   "chrome",
-                                  "yandex_chromium"
+                                  "opera",
+                                  "yandex_chromium",
+                                  "firefox",
+                                  "safari"
                                 ],
                                 "type": "string"
                               },
@@ -26276,7 +26309,7 @@
                             ],
                             "type": "object"
                           },
-                          "maxItems": 2,
+                          "maxItems": 5,
                           "type": "array"
                         },
                         "minimumExtensionVersion": {
@@ -28087,11 +28120,14 @@
                           "items": {
                             "enum": [
                               "chrome",
-                              "yandex_chromium"
+                              "opera",
+                              "yandex_chromium",
+                              "firefox",
+                              "safari"
                             ],
                             "type": "string"
                           },
-                          "maxItems": 2,
+                          "maxItems": 5,
                           "minItems": 1,
                           "type": "array"
                         },
@@ -28108,7 +28144,10 @@
                               "browserFamily": {
                                 "enum": [
                                   "chrome",
-                                  "yandex_chromium"
+                                  "opera",
+                                  "yandex_chromium",
+                                  "firefox",
+                                  "safari"
                                 ],
                                 "type": "string"
                               },
@@ -28125,7 +28164,7 @@
                             ],
                             "type": "object"
                           },
-                          "maxItems": 2,
+                          "maxItems": 5,
                           "type": "array"
                         },
                         "minimumExtensionVersion": {
@@ -29936,11 +29975,14 @@
                           "items": {
                             "enum": [
                               "chrome",
-                              "yandex_chromium"
+                              "opera",
+                              "yandex_chromium",
+                              "firefox",
+                              "safari"
                             ],
                             "type": "string"
                           },
-                          "maxItems": 2,
+                          "maxItems": 5,
                           "minItems": 1,
                           "type": "array"
                         },
@@ -29957,7 +29999,10 @@
                               "browserFamily": {
                                 "enum": [
                                   "chrome",
-                                  "yandex_chromium"
+                                  "opera",
+                                  "yandex_chromium",
+                                  "firefox",
+                                  "safari"
                                 ],
                                 "type": "string"
                               },
@@ -29974,7 +30019,7 @@
                             ],
                             "type": "object"
                           },
-                          "maxItems": 2,
+                          "maxItems": 5,
                           "type": "array"
                         },
                         "minimumExtensionVersion": {
@@ -31794,11 +31839,14 @@
                           "items": {
                             "enum": [
                               "chrome",
-                              "yandex_chromium"
+                              "opera",
+                              "yandex_chromium",
+                              "firefox",
+                              "safari"
                             ],
                             "type": "string"
                           },
-                          "maxItems": 2,
+                          "maxItems": 5,
                           "minItems": 1,
                           "type": "array"
                         },
@@ -31815,7 +31863,10 @@
                               "browserFamily": {
                                 "enum": [
                                   "chrome",
-                                  "yandex_chromium"
+                                  "opera",
+                                  "yandex_chromium",
+                                  "firefox",
+                                  "safari"
                                 ],
                                 "type": "string"
                               },
@@ -31832,7 +31883,7 @@
                             ],
                             "type": "object"
                           },
-                          "maxItems": 2,
+                          "maxItems": 5,
                           "type": "array"
                         },
                         "minimumExtensionVersion": {
@@ -33643,11 +33694,14 @@
                           "items": {
                             "enum": [
                               "chrome",
-                              "yandex_chromium"
+                              "opera",
+                              "yandex_chromium",
+                              "firefox",
+                              "safari"
                             ],
                             "type": "string"
                           },
-                          "maxItems": 2,
+                          "maxItems": 5,
                           "minItems": 1,
                           "type": "array"
                         },
@@ -33664,7 +33718,10 @@
                               "browserFamily": {
                                 "enum": [
                                   "chrome",
-                                  "yandex_chromium"
+                                  "opera",
+                                  "yandex_chromium",
+                                  "firefox",
+                                  "safari"
                                 ],
                                 "type": "string"
                               },
@@ -33681,7 +33738,7 @@
                             ],
                             "type": "object"
                           },
-                          "maxItems": 2,
+                          "maxItems": 5,
                           "type": "array"
                         },
                         "minimumExtensionVersion": {
@@ -51377,12 +51434,24 @@
             "name": "scope",
             "required": false,
             "schema": {
-              "enum": [
-                "GLOBAL",
-                "chrome",
-                "yandex_chromium"
-              ],
-              "type": "string"
+              "anyOf": [
+                {
+                  "enum": [
+                    "GLOBAL"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "enum": [
+                    "chrome",
+                    "opera",
+                    "yandex_chromium",
+                    "firefox",
+                    "safari"
+                  ],
+                  "type": "string"
+                }
+              ]
             }
           },
           {
@@ -51526,7 +51595,10 @@
                       {
                         "enum": [
                           "chrome",
-                          "yandex_chromium"
+                          "opera",
+                          "yandex_chromium",
+                          "firefox",
+                          "safari"
                         ],
                         "type": "string"
                       },
@@ -63164,7 +63236,10 @@
                           "family": {
                             "enum": [
                               "chrome",
-                              "yandex_chromium"
+                              "opera",
+                              "yandex_chromium",
+                              "firefox",
+                              "safari"
                             ],
                             "type": "string"
                           },
@@ -63263,7 +63338,10 @@
                           "family": {
                             "enum": [
                               "chrome",
-                              "yandex_chromium"
+                              "opera",
+                              "yandex_chromium",
+                              "firefox",
+                              "safari"
                             ],
                             "type": "string"
                           },
@@ -66851,7 +66929,10 @@
                   "browserFamily": {
                     "enum": [
                       "chrome",
-                      "yandex_chromium"
+                      "opera",
+                      "yandex_chromium",
+                      "firefox",
+                      "safari"
                     ],
                     "type": "string"
                   },
@@ -68029,7 +68110,10 @@
                     "browserFamily": {
                       "enum": [
                         "chrome",
-                        "yandex_chromium"
+                        "opera",
+                        "yandex_chromium",
+                        "firefox",
+                        "safari"
                       ],
                       "type": "string"
                     },
@@ -69917,7 +70001,10 @@
                           "browserFamily": {
                             "enum": [
                               "chrome",
-                              "yandex_chromium"
+                              "opera",
+                              "yandex_chromium",
+                              "firefox",
+                              "safari"
                             ],
                             "type": "string"
                           },
@@ -71070,7 +71157,10 @@
                           "family": {
                             "enum": [
                               "chrome",
-                              "yandex_chromium"
+                              "opera",
+                              "yandex_chromium",
+                              "firefox",
+                              "safari"
                             ],
                             "type": "string"
                           },

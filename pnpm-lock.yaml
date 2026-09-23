@@ -394,6 +394,9 @@ importers:
       '@product/remote-config':
         specifier: workspace:*
         version: link:../remote-config
+      '@product/shared':
+        specifier: workspace:*
+        version: link:../../shared
 
   packages/server/commercial-access:
     dependencies:

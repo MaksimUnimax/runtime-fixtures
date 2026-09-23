@@ -88,6 +88,34 @@ describe("device authorization Fastify boundary", () => {
     await app.close();
   });
 
+  it("accepts every modeled product browser family at the public authorization boundary", async () => {
+    const { service, auth } = dependencies();
+    const app = createApiApp({
+      config,
+      isInfrastructureReady: async () => true,
+      authService: auth as unknown as AuthService,
+      deviceAuthorizationService:
+        service as unknown as DeviceAuthorizationService,
+    });
+    for (const [index, browserFamily] of [
+      "chrome",
+      "opera",
+      "yandex_chromium",
+      "firefox",
+      "safari",
+    ].entries()) {
+      const response = await app.inject({
+        method: "POST",
+        url: "/v1/device-authorizations",
+        headers: { "idempotency-key": String(index + 1).repeat(16) },
+        payload: { ...body, browserFamily },
+      });
+      expect(response.statusCode).toBe(201);
+    }
+    expect(service.start).toHaveBeenCalledTimes(5);
+    await app.close();
+  });
+
   it("API-START-14..16 maps safe service failures without leaking request secrets", async () => {
     for (const [code, status] of [
       ["SERVICE_UNAVAILABLE", 503],
@@ -130,7 +158,7 @@ describe("device authorization Fastify boundary", () => {
     });
     for (const payload of [
       { ...body, clientType: "mobile" },
-      { ...body, browserFamily: "firefox" },
+      { ...body, browserFamily: "edge" },
       { clientType: "browser_extension", browserFamily: "chrome" },
       { ...body, extensionVersion: "x".repeat(65) },
       { ...body, deviceLabel: "<script>" },

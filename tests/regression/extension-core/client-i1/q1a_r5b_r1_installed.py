@@ -194,12 +194,14 @@ class InstalledProfile:
 
     def dispatch(self, command: str, key: str = conversation_key(CHAT_CONVERSATION), tab_id: int | None = None) -> dict:
         if tab_id is None:
-            tab_id = self.worker.evaluate("async()=>{const tabs=await chrome.tabs.query({url:'https://chatgpt.com/*'});return tabs[0]?.id;}")
+            tab_id = self.client.tab_id
+        conversation_id = key.split("|", 1)[1]
+        sender_url = f"https://chatgpt.com/c/{conversation_id}"
         result = self.worker.evaluate(
             """async ({message, sender}) => { try { return await saHandleMessage(message, sender); } catch (error) { return {error:String(error?.message||error), code:error?.code||null}; } }""",
             {
                 "message": {"type": "OZ_EXECUTE_COMMAND", "tab_id": tab_id, "conversation_key": key, "command_text": command, "manual_request_id": f"{self.label}-{time.time_ns()}", "work_session_id": self.session_summary(key).get("start_intent_id")},
-                "sender": {"tab": {"id": tab_id, "url": f"https://chatgpt.com/c/{CHAT_CONVERSATION}"}, "url": f"https://chatgpt.com/c/{CHAT_CONVERSATION}"},
+                "sender": {"tab": {"id": tab_id, "url": sender_url}, "url": sender_url},
             },
         )
         return result
@@ -213,9 +215,9 @@ class InstalledProfile:
     def start_second_dialogue(self) -> tuple[str, int]:
         name = "22222222-2222-4222-8222-222222222222"
         page = self.client.context.new_page()
-        page.goto(f"https://chatgpt.com/c/{name}")
+        page.goto(f"https://chatgpt.com/c/{name}", wait_until="domcontentloaded")
         key = conversation_key(name)
-        tab_id = wait_for(lambda: self.worker.evaluate("async ({url})=>{const tabs=await chrome.tabs.query({url:'https://chatgpt.com/*'});return tabs.find(t=>t.url===url)?.id||null;}", {"url": f"https://chatgpt.com/c/{name}"}), "second dialogue tab")
+        tab_id = self.client.bind_page_tab(page, "second dialogue tab")
         response = self.popup.evaluate(
             "async ({tab,store})=>chrome.runtime.sendMessage({type:'SA_WORK_START',tab_id:tab,store_id:store,confirm_change:true,start_intent_id:'q1a-r5b-r1-second-dialogue'})",
             {"tab": tab_id, "store": self.store_id},

@@ -1,12 +1,14 @@
 import {
+  BrowserFamilies,
   compareSemVerV1,
   SemVerV1Schema,
   StableMachineIdentifierV1Schema,
+  type BrowserFamily,
 } from "@product/shared";
 import { z } from "zod";
 
 const HashSchema = z.string().regex(/^[0-9a-f]{64}$/);
-const BrowserFamilySchema = z.enum(["chrome", "yandex_chromium"]);
+export const BrowserFamilySchema = z.enum(BrowserFamilies);
 const TimestampSchema = z.date();
 export const ReleaseChannelSchema = StableMachineIdentifierV1Schema;
 export const ContractVersionSchema = z.enum([
@@ -14,6 +16,7 @@ export const ContractVersionSchema = z.enum([
   "control_plane_v2",
 ]);
 export type ContractVersion = z.infer<typeof ContractVersionSchema>;
+export type { BrowserFamily };
 export const ExtensionReleaseSchema = z
   .object({
     id: z.uuid(),
@@ -154,7 +157,7 @@ export const PublishCompatibilityPolicyRevisionCommandSchema = z
       ctx.addIssue({ code: "custom", message: "duplicate blocked version" });
     if (
       v.minimumBrowserVersion &&
-      compareChromiumVersionV1(
+      compareBrowserVersionV1(
         v.minimumBrowserVersion,
         v.minimumBrowserVersion,
       ) === undefined
@@ -175,7 +178,7 @@ export interface CompatibilityPublicationPort {
   ): Promise<CompatibilityPolicyRevision>;
 }
 
-export function compareChromiumVersionV1(
+export function compareBrowserVersionV1(
   a: string,
   b: string,
 ): -1 | 0 | 1 | undefined {
@@ -207,7 +210,7 @@ export type CompatibilityResolution = {
 export type CompatibilityResolverInput = {
   contractVersion: ContractVersion;
   extensionVersion: string;
-  browserFamily: "chrome" | "yandex_chromium";
+  browserFamily: BrowserFamily;
   browserVersion: string;
   release?: ExtensionRelease;
   releaseContracts: ReleaseContractSupport[];
@@ -283,7 +286,7 @@ export function resolveCompatibility(
     browser = "UNSUPPORTED_BROWSER";
   else if (
     exactPolicy?.minimumBrowserVersion &&
-    (compareChromiumVersionV1(
+    (compareBrowserVersionV1(
       input.browserVersion,
       exactPolicy.minimumBrowserVersion,
     ) ?? -1) < 0

@@ -1,5 +1,7 @@
 import {
+  BrowserFamilySchema,
   PublishCompatibilityPolicyRevisionCommandSchema,
+  type BrowserFamily,
   type CompatibilityMutationContext,
   type CompatibilityPolicyRevision,
 } from "@product/compatibility";
@@ -116,7 +118,7 @@ export const AdminCommercialOverrideQuerySchema = z
 export const AdminCompatibilityQuerySchema = z
   .object({
     policyKey: Machine.optional(),
-    scope: z.enum(["GLOBAL", "chrome", "yandex_chromium"]).optional(),
+    scope: z.union([z.literal("GLOBAL"), BrowserFamilySchema]).optional(),
     limit: Limit,
     cursor: Cursor,
   })
@@ -266,7 +268,7 @@ export const OverrideClearBodySchema = z
   .refine((v) => v.expiresAt === null || v.expiresAt > v.effectiveFrom);
 export const CompatibilityPublishBodySchema = z
   .object({
-    browserFamily: z.enum(["chrome", "yandex_chromium"]).nullable(),
+    browserFamily: BrowserFamilySchema.nullable(),
     minimumExtensionVersion: z.string().min(1).max(64).nullable(),
     recommendedExtensionVersion: z.string().min(1).max(64).nullable(),
     minimumBrowserVersion: z.string().min(1).max(64).nullable(),
@@ -503,7 +505,7 @@ export type AdminCommercialService = AdminCommercialReadRepository & {
     policyKey: string;
     actorId: string;
     correlationId: string;
-    browserFamily: "chrome" | "yandex_chromium" | null;
+    browserFamily: BrowserFamily | null;
     minimumExtensionVersion: string | null;
     recommendedExtensionVersion: string | null;
     minimumBrowserVersion: string | null;

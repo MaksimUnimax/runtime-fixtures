@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  BrowserFamilies,
   SemVerV1Schema,
   StableMachineIdentifierV1Schema,
 } from "@product/shared";
@@ -594,7 +595,7 @@ const SafeVersion = z
 export const DeviceAuthorizationStartBodyV1Schema = z
   .object({
     clientType: z.literal("browser_extension"),
-    browserFamily: z.enum(["chrome", "yandex_chromium"]),
+    browserFamily: z.enum(BrowserFamilies),
     browserVersion: SafeVersion.optional(),
     extensionVersion: SafeVersion,
     deviceLabel: z
@@ -656,7 +657,7 @@ export const DeviceAuthorizationPreviewResponseV1Schema = z
     status: z.literal("pending"),
     authorizationId: z.uuid(),
     clientType: z.literal("browser_extension"),
-    browserFamily: z.enum(["chrome", "yandex_chromium"]),
+    browserFamily: z.enum(BrowserFamilies),
     browserVersion: z.string().nullable(),
     extensionVersion: z.string(),
     deviceLabel: z.string().nullable(),
@@ -696,7 +697,7 @@ export const DeviceListItemV1Schema = z.object({
   id: z.uuid(),
   status: z.enum(["ACTIVE", "REVOKED"]),
   label: z.string().nullable(),
-  browserFamily: z.enum(["chrome", "yandex_chromium"]),
+  browserFamily: z.enum(BrowserFamilies),
   browserVersionLastSeen: z.string().nullable(),
   extensionVersionLastSeen: z.string().nullable(),
   createdAt: z.string().datetime(),
@@ -867,7 +868,7 @@ const BootstrapRequestShape = {
   extensionVersion: SemVerV1Schema,
   browser: z
     .object({
-      family: z.enum(["chrome", "yandex_chromium"]),
+      family: z.enum(BrowserFamilies),
       version: z.string().min(1).max(64),
     })
     .strict(),

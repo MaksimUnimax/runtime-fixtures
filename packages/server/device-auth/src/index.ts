@@ -1,3 +1,4 @@
+import type { BrowserFamily } from "@product/shared";
 import {
   createCipheriv,
   createDecipheriv,
@@ -46,7 +47,7 @@ export interface DeviceAuthorizationRecord {
   userCodeHash: string;
   expiresAt: Date;
   approvedAccountId?: string | null;
-  browserFamily?: "chrome" | "yandex_chromium";
+  browserFamily?: BrowserFamily;
   browserVersion?: string;
   extensionVersion?: string;
   deviceLabel?: string;
@@ -80,7 +81,7 @@ export interface DeviceAuthorizationRepository {
   ): Promise<
     | {
         id: string;
-        browserFamily: "chrome" | "yandex_chromium";
+        browserFamily: BrowserFamily;
         browserVersion: string | null;
         extensionVersion: string;
         deviceLabel: string | null;
@@ -308,7 +309,7 @@ export class DeviceAuthorizationService {
   async start(
     body: {
       clientType: "browser_extension";
-      browserFamily: "chrome" | "yandex_chromium";
+      browserFamily: BrowserFamily;
       browserVersion?: string;
       extensionVersion: string;
       deviceLabel?: string;

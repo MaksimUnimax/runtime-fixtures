@@ -17,6 +17,25 @@ function canonical(value) {
     .join(",")}}`;
 }
 const b64url = (value) => Buffer.from(value).toString("base64url");
+const DEFAULT_FIXTURE_USER_AGENT = "Mozilla/5.0 Chrome/120.0.0.0";
+function fixtureBrowserIdentity(userAgent) {
+  const ua = String(userAgent || "");
+  const match = (pattern) => ua.match(pattern)?.[1] || null;
+  const yandex = match(/YaBrowser\/(\d+(?:\.\d+){0,3})/i);
+  if (yandex) return { family: "yandex_chromium", version: yandex };
+  const opera = match(/(?:OPR|Opera)\/(\d+(?:\.\d+){0,3})/i);
+  if (opera) return { family: "opera", version: opera };
+  const firefox = match(/Firefox\/(\d+(?:\.\d+){0,3})/i);
+  if (firefox) return { family: "firefox", version: firefox };
+  if (/Edg(?:A|iOS)?\//i.test(ua)) return null;
+  const safari = /Safari\//i.test(ua) && !/(?:Chrome|Chromium|CriOS|HeadlessChrome|OPR|Opera|YaBrowser|FxiOS)\//i.test(ua)
+    ? match(/Version\/(\d+(?:\.\d+){0,3})/i)
+    : null;
+  if (safari) return { family: "safari", version: safari };
+  const chrome = match(/(?:Chrome|Chromium|HeadlessChrome)\/(\d+(?:\.\d+){0,3})/i);
+  if (chrome) return { family: "chrome", version: chrome };
+  return null;
+}
 
 export async function signFixtureBootstrap(
   backing,
@@ -63,6 +82,9 @@ export async function until(fn, description) {
   throw new Error("Timed out: " + description);
 }
 export async function makeWorker(directory, options = {}) {
+  const fixtureUserAgent = options.userAgent || DEFAULT_FIXTURE_USER_AGENT;
+  const fixtureBrowser = fixtureBrowserIdentity(fixtureUserAgent);
+  assert.ok(fixtureBrowser, "worker fixture requires an explicit supported browser user agent");
   const network = [],
     controlNetwork = [],
     messages = [],
@@ -248,7 +270,7 @@ export async function makeWorker(directory, options = {}) {
     const compatibility = {
       schemaVersion: "profile_compatibility_v1",
       contractVersion: "control_plane_v1",
-      browserFamilies: ["chrome"],
+      browserFamilies: [fixtureBrowser.family],
       minimumBrowserVersions: [],
       minimumExtensionVersion: null,
     };
@@ -324,16 +346,7 @@ export async function makeWorker(directory, options = {}) {
       portalOrigin: fixtureConfig.portalOrigin,
       contractVersion: fixtureConfig.contractVersion,
       extensionVersion: fixtureConfig.extensionVersion,
-      browser: {
-        family: String(options.userAgent || "")
-          .toLowerCase()
-          .includes("yabrowser")
-          ? "yandex_chromium"
-          : "chrome",
-        version: (String(options.userAgent || "").match(
-          /(?:Chrome|YaBrowser)\/(\d+(?:\.\d+){0,3})/i,
-        ) || [null, "0.0.0"])[1],
-      },
+      browser: { ...fixtureBrowser },
       detectedAi: { family: "chatgpt", surface: "web", variant: null },
       trustBundleSha256,
     };
@@ -568,7 +581,7 @@ export async function makeWorker(directory, options = {}) {
     Headers,
     AbortController,
     Blob,
-    navigator: { userAgent: options.userAgent || "" },
+    navigator: { userAgent: fixtureUserAgent },
     performance: { now: monotonicClock },
     indexedDB: options.indexedDB,
     __SELLER_AGENTS_PACKAGED_CONFIG__: JSON.stringify(fixtureConfig),

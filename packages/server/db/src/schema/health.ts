@@ -159,7 +159,7 @@ export const healthRuns = pgTable(
     ),
     check(
       "health_runs_browser_family",
-      sql`${table.browserFamily} IN ('chrome', 'yandex_chromium')`,
+      sql`${table.browserFamily} IN ('chrome', 'opera', 'yandex_chromium', 'firefox', 'safari')`,
     ),
     check(
       "health_runs_health_level",
