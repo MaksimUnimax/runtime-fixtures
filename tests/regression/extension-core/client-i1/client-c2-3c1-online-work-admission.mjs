@@ -9,6 +9,7 @@ const AUTH = "seller_agents_control_auth_v2";
 const STORES = "seller_agents_stores_v1";
 const BINDINGS = "ozmb_conversation_bindings";
 const SESSIONS = "ozmb_work_sessions_v1";
+const PENDING = "ozmb_pending_work_starts_v1";
 const canonical = value => value === null ? "null" : typeof value === "boolean" ? (value ? "true" : "false") : typeof value === "string" ? JSON.stringify(value) : typeof value === "number" ? String(value) : Array.isArray(value) ? `[${value.map(canonical).join(",")}]` : `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${canonical(value[key])}`).join(",")}}`;
 const clone = value => JSON.parse(JSON.stringify(value));
 const b64url = value => Buffer.from(value).toString("base64url");
@@ -56,7 +57,7 @@ async function fixture(options = {}) {
   let release;
   const gate = options.gated ? new Promise(resolve => { release = resolve; }) : null;
   const calls = [];
-  const worker = await makeWorker(runtime, { backing, seedAuthority: false, testHooks: options.testHooks, healthFetch: async (url, init) => {
+  const worker = await makeWorker(runtime, { backing, seedAuthority: false, testHooks: options.testHooks, onStorageWrite: options.onStorageWrite, healthFetch: async (url, init) => {
     calls.push({ url: String(url), method: init?.method || "GET" });
     if (gate) await gate;
     if (mode === "network") throw new Error("network unavailable");
@@ -175,6 +176,50 @@ await run("C1-45", "pending_identity to confirmed identity to binding remains in
 await run("C1-46", "historical Start binding semantics remain intact", async () => { const f = await fixture({ bound: true }); try { const r = await start(f); assert.equal(r.ok, true); assert.equal((await f.worker.call("getPendingWorkStarts"))[f.worker.tabId].conversation_key, f.key); } finally { await close(f); } });
 await run("C1-47", "Resume transition semantics remain intact", async () => { const f = await fixture({ bound: true }); try { const r = await resume(f); assert.equal(r.ok, true); const session = await f.worker.call("workSessionFor", f.key); assert.equal(session.state, "active_visible"); assert.equal(session.start_intent_id, null); } finally { await close(f); } });
 await run("C1-48", "old commands never autorun after admission", async () => { const f = await fixture(); try { await start(f); assert.equal(f.worker.messages.some(message => message.type === "OZ_EXECUTE_COMMAND"), false); assert.equal(f.calls.some(row => row.url.includes("ozon.ru")), false); } finally { await close(f); } });
+await run("C1-49", "pending Work Start map writes serialize across parallel dialogues", async () => {
+  let activePendingWrites = 0, maxPendingWrites = 0, gatedWrites = 0, releasePair;
+  const pair = new Promise(resolve => { releasePair = resolve; });
+  const f = await fixture({ onStorageWrite: async (kind, values) => {
+    if (kind !== "local" || !Object.prototype.hasOwnProperty.call(values, PENDING)) return;
+    activePendingWrites += 1;
+    maxPendingWrites = Math.max(maxPendingWrites, activePendingWrites);
+    gatedWrites += 1;
+    if (gatedWrites === 2) releasePair();
+    if (gatedWrites <= 2) await Promise.race([pair, new Promise(resolve => setTimeout(resolve, 75))]);
+    activePendingWrites -= 1;
+  } });
+  try {
+    f.worker.addTab(88, "serialized-pending-dialogue");
+    const [one, two] = await Promise.all([
+      start(f, { start_intent_id: "serialized-a" }),
+      f.worker.popup({ type: "SA_WORK_START", store_id: f.store.id, tab_id: 88, confirm_change: false, start_intent_id: "serialized-b" }),
+    ]);
+    assert.equal(one.ok, true, JSON.stringify(one));
+    assert.equal(two.ok, true, JSON.stringify(two));
+    const pending = await f.worker.call("getPendingWorkStarts");
+    assert.ok(pending[f.worker.tabId], JSON.stringify(pending));
+    assert.ok(pending[88], JSON.stringify(pending));
+    assert.equal(maxPendingWrites, 1, `pending-map writes overlapped: ${maxPendingWrites}`);
+  } finally { releasePair?.(); await close(f); }
+});
+await run("C1-50", "expired send commit clears pending without reentrant write-lock deadlock", async () => {
+  const f = await fixture();
+  try {
+    const started = await start(f, { start_intent_id: "expired-commit" });
+    assert.equal(started.ok, true, JSON.stringify(started));
+    const pending = (await f.worker.call("getPendingWorkStarts"))[f.worker.tabId];
+    assert.ok(pending, "pending Start missing before expiry injection");
+    f.backing.local[PENDING][f.worker.tabId].expires_at = new Date(Date.now() - 1000).toISOString();
+    const expiry = await Promise.race([
+      f.worker.request({ type: "OZ_WORK_START_COMMIT_REQUEST", intent_id: pending.intent_id, revision: pending.revision, identity: f.identity, actor_id: "expired-actor" }, { tab: { id: f.worker.tabId } }),
+      new Promise(resolve => setTimeout(() => resolve({ deadlocked: true }), 500)),
+    ]);
+    assert.notEqual(expiry?.deadlocked, true, "expired commit deadlocked while clearing pending Start");
+    assert.equal(expiry?.ok, false, JSON.stringify(expiry));
+    assert.equal(expiry?.code, "WORK_PENDING_TIMEOUT", JSON.stringify(expiry));
+    assert.equal((await f.worker.call("getPendingWorkStarts"))[f.worker.tabId] || null, null);
+  } finally { await close(f); }
+});
 
 const rb = [];
 const runRB = async (id, description, fn) => {
