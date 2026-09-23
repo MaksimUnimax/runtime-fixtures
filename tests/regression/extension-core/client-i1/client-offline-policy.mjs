@@ -109,7 +109,7 @@ async function prepared(options = {}) {
     seedAuthority: false,
     wallClock,
     monotonicClock,
-    indexedDB: options.indexedDB,
+    ...(Object.hasOwn(options, "indexedDB") ? { indexedDB: options.indexedDB } : {}),
     beforeCryptoVerify: options.beforeCryptoVerify,
     accountId: options.accountId,
     deviceId: options.deviceId,
