@@ -4,7 +4,6 @@ let saCatalogEnabled = false;
 const saStarts = new Map();
 const saWorkFlights = new Map();
 const saAdmissionEpochs = new Map();
-const saTransferRecipientRequests = new Set();
 const saCatalog = SellerAgentsStoreCatalog.create({
   read: storageGet, write: storageSet,
   currentAccount: () => SellerAgentsControlClient.currentAccount(),
@@ -82,6 +81,11 @@ async function saTransferReceive(message) {
   const request = message.request;
   if (!request?.requestId || !request.sourceDeviceId) throw saError("TRANSFER_INVALID");
   const received = await SellerAgentsControlClient.receiveCredentialTransfer(request.requestId, request.sourceDeviceId);
+  if (received.ackedResult) return { ok: true, ...received.result, recovered: true };
+  if (received.pendingAck) {
+    await SellerAgentsControlClient.acknowledgeCredentialTransfer({ requestId: request.requestId, packetId: received.packet.packetId, importDecision: "IMPORTED" });
+    return { ok: true, ...received.result, recovered: true };
+  }
   const payload = received.payload;
   if (!payload || payload.transferPayloadVersion !== "seller_agents_credential_payload_v1" || !Array.isArray(payload.stores)) throw saError("TRANSFER_INVALID");
   const results = [];
@@ -93,8 +97,9 @@ async function saTransferReceive(message) {
   const safe = results.map(({ storeId, kind, code, store }) => ({ storeId, kind, code, store: store ? { id: store.id, marketplace: store.marketplace, credentialRevision: store.credentialRevision } : null }));
   const hasConflict = safe.some(item => item.kind === "CONFLICT");
   if (hasConflict) return { ok: true, requestId: request.requestId, importState: "CONFLICT", results: safe };
+  const durable = await SellerAgentsControlClient.recordCredentialTransferImported({ requestId: request.requestId, packetId: received.packet.packetId, results: safe });
   await SellerAgentsControlClient.acknowledgeCredentialTransfer({ requestId: request.requestId, packetId: received.packet.packetId, importDecision: "IMPORTED" });
-  return { ok: true, requestId: request.requestId, importState: "IMPORTED", results: safe };
+  return { ok: true, ...durable };
 }
 async function saBackupAccount() {
   const accountId = await SellerAgentsControlClient.currentAccount();
@@ -948,7 +953,6 @@ async function saHandleMessage(message, sender) {
       case "SA_STORE_CHECK": return saCheckStore(message);
       case "SA_TRANSFER_CREATE": {
         const request = await SellerAgentsControlClient.createCredentialTransfer({ consent: message.consent === true, sourceDeviceId: message.sourceDeviceId || null, selectedStoreIds: message.selectedStoreIds || [], expiresInSeconds: message.expiresInSeconds || 300 });
-        saTransferRecipientRequests.add(request.requestId);
         return { ok: true, request };
       }
       case "SA_TRANSFER_SOURCE_DISCOVER": {
@@ -964,20 +968,27 @@ async function saHandleMessage(message, sender) {
       case "SA_TRANSFER_RECEIVE": return saTransferReceive(message);
       case "SA_TRANSFER_RECEIVE_PENDING": {
         let pending = null;
-        for (const requestId of saTransferRecipientRequests) {
+        for (const local of await SellerAgentsControlClient.listCredentialTransferRecipients()) {
           try {
-            const request = await SellerAgentsControlClient.readCredentialTransfer(requestId);
-            if (request.state === "PACKET_AVAILABLE_EPHEMERAL" || request.state === "DELIVERED_TO_RECIPIENT") {
-              pending = await saTransferReceive({ request });
-              if (pending.importState !== "CONFLICT") saTransferRecipientRequests.delete(requestId);
-              break;
+            if (local.phase === "ACKED_RESULT" && local.result) { pending = { ok: true, ...local.result, recovered: true }; break; }
+            if (local.phase === "IMPORTED_PENDING_ACK" && local.packetId && local.result) {
+              await SellerAgentsControlClient.acknowledgeCredentialTransfer({ requestId: local.requestId, packetId: local.packetId, importDecision: "IMPORTED" });
+              pending = { ok: true, ...local.result, recovered: true }; break;
             }
+            const request = await SellerAgentsControlClient.readCredentialTransfer(local.requestId);
+            if (["EXPIRED", "CANCELLED"].includes(request?.state)) { await SellerAgentsControlClient.discardCredentialTransfer(local.requestId); continue; }
+            if (request?.state === "COMPLETED") { await SellerAgentsControlClient.discardCredentialTransfer(local.requestId); continue; }
+            if (request?.state === "PACKET_AVAILABLE_EPHEMERAL" || request?.state === "DELIVERED_TO_RECIPIENT") { pending = await saTransferReceive({ request }); break; }
           } catch (error) {
-            if (error?.code === "TRANSFER_EXPIRED" || error?.code === "TRANSFER_REPLAY" || error?.code === "TRANSFER_ACCOUNT_MISMATCH") saTransferRecipientRequests.delete(requestId);
+            if (["TRANSFER_EXPIRED", "TRANSFER_REPLAY", "TRANSFER_ACCOUNT_MISMATCH"].includes(error?.code)) await SellerAgentsControlClient.discardCredentialTransfer(local.requestId).catch(() => null);
             else if (error?.code === "SOURCE_OFFLINE") pending = { ok: false, code: error.code, importState: "SOURCE_OFFLINE" };
           }
         }
         return pending || { ok: false, importState: "PENDING" };
+      }
+      case "SA_TRANSFER_RESULT_CONSUME": {
+        const result = await SellerAgentsControlClient.consumeCredentialTransferResult(message.requestId);
+        return { ok: true, requestId: result.requestId };
       }
       case "SA_RESUME_QUOTA": {
         await saAssertLocalAuthorityAdmission();
