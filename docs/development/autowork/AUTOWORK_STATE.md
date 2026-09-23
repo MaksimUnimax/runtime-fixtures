@@ -1,12 +1,12 @@
 # OCTOPORT durable autowork state
 
-Last reconstruction: 2026-09-23T05:59:06+03:00
+Last reconstruction: 2026-09-23T06:31:21+03:00
 
 ## Owner control state
 
-- AUTOWORK: **ACTIVE**
-- Current direct owner instruction: **STOP отменен; продолжать работу по governor**.
-- Owner explicitly resumed autowork; continue from the preserved R5/Q1-B candidate without repeating accepted work.
+- AUTOWORK: **STOPPED_BY_OWNER**
+- Current direct owner instruction: **зафиксировать прогресс и остановиться**.
+- Owner issued a new direct STOP after the R5/Q1-B resume pass; no new implementation/test/browser work may start until explicitly resumed again.
 
 ## Accepted state / cursor before the active candidate
 
@@ -18,7 +18,7 @@ Last reconstruction: 2026-09-23T05:59:06+03:00
 
 ## Active candidate at STOP
 
-- Status: **IMPLEMENTED_CANDIDATE / NOT_ACCEPTED / ACTIVE**
+- Status: **IMPLEMENTED_CANDIDATE / NOT_ACCEPTED / STOPPED_BY_OWNER**
 - Worktree: `/root/runtime-fixtures-r5-browser-family-isolated-20260923`
 - Branch: `work/r5-browser-family-isolated-2026-09-23`
 - Accepted/base product revision: `2193f34523e8c0b15046c38c32af499f1b226179`
@@ -111,6 +111,26 @@ On explicit owner resume:
 - Resume identity was verified before mutation: branch `work/r5-browser-family-isolated-2026-09-23`, preserved product candidate **46 tracked dirty + 6 untracked**, and no matching R5 test/browser process running.
 - Next action remains the preserved dependency-correct R5/Q1-B acceptance sequence: focused activation-port evidence, full validation/failure batch with real disposable PostgreSQL, then affected installed/browser evidence.
 
+## Latest R5/Q1-B resume evidence before STOP
+
+- Durable evidence receipt: `docs/development/q1/R5_Q1B_BROWSER_FAMILY_RESUME_EVIDENCE_2026-09-23.md`.
+- Candidate identity SHA-256: `0f8d089b13409911fc48fb43f438a8b124e57146ae7a7bda16087a8fa36531cb`.
+- Focused non-default portal-port E2E: PASS 1/1.
+- Typecheck / lint / format / OpenAPI / build: PASS.
+- Candidate migration `0033`: PASS on fresh disposable PostgreSQL.
+- PostgreSQL integration: 42/42 files, 1553/1553 tests PASS.
+- Fresh package SHA-256: `5279666b79b8321e31499e8245b7fbcd4643e30720a3dc8dafa3d09686b1804e`; repeat ZIP and source↔extracted identity PASS.
+- Playwright Chromium C1 source 38/38 + extracted 38/38 PASS; this proves `REAL_UNPACKED_CHROMIUM_PASS` only.
+- Extension I1 with proven Chromium marker: PASS, 142 gate processes.
+- Opera BR-C1-01 source+extracted smoke PASS; full Opera source run is NOT accepted: BR-C1-19 failed `WORK_START_PENDING_COMMIT_READBACK_FAILED`, BR-C1-21 timed out waiting for `#account`, and owner STOP interrupted the matrix after BR-C1-22 started.
+- Yandex native package registration remains `ENVIRONMENT_DEFERRED`: clean-profile headless/headed flag attempts and bounded CDP probe produced zero Seller Agents extension targets.
+- No Chrome, Firefox or Safari family PASS is claimed from Chromium/Opera evidence.
+- STOP cleanup: no matching R5 test/browser process remains; disposable `octo-r5q1b-validation-pg` was removed.
+
+### Exact next action after explicit owner resume
+
+Analyze Opera BR-C1-19 and BR-C1-21 as one reachable failure batch, perform three-level ownership analysis, repair only the owning layer, then rerun focused Opera evidence before the affected full Opera matrix. Do not replay already-green DB/server/Chromium gates unless the candidate identity changes.
+
 ## Preservation note
 
-Owner STOP is no longer active. The candidate remains in the same isolated worktree with all tracked and untracked implementation changes preserved. Resume state does not itself accept the candidate or any browser-family claim.
+Owner STOP is active again. The candidate remains in the same isolated worktree with all tracked and untracked implementation changes preserved. This STOP state does not itself accept the candidate or any browser-family claim.
