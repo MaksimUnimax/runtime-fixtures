@@ -47,6 +47,7 @@ def main():
             runner.run(label + "-wb-adapter", ["node", ROOT / "tests/regression/extension-core/wb-adapter.mjs", runtime])
             runner.run(label + "-application", ["node", ROOT / "tests/regression/extension-core/application.mjs", runtime])
             runner.run(label + "-transfer-recipient-recovery", ["node", ROOT / "tests/regression/extension-core/client-i1/client-transfer-recipient-recovery.mjs", runtime])
+            runner.run(label + "-support-snapshot", ["node", ROOT / "tests/regression/extension-core/client-i1/client-support-snapshot.mjs", runtime])
             repo = work / label
             validation = repo / composed.baseline.OZON_REL / "validation"
             runner.run(label + "-transaction-abort", ["node", validation / "indexeddb-transaction-durability-v1/run_prefix_transaction_abort_gate.mjs", repo])

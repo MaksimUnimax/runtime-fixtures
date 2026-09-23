@@ -827,6 +827,62 @@ async function saInvalidateAuthority() {
   }
 }
 SellerAgentsControlClient.onAuthorityChanged(() => saInvalidateAuthority());
+function saSupportCode(value) {
+  const code = typeof value === "string" ? value : "";
+  return /^[A-Z][A-Z0-9_]{0,79}$/.test(code) ? code : null;
+}
+function saSupportToken(value) {
+  const token = typeof value === "string" ? value : "";
+  return /^[a-z][a-z0-9_]{0,39}$/.test(token) ? token : null;
+}
+async function saSupportSnapshot(tabId) {
+  const popup = await saPopupState(tabId);
+  const observed = globalThis.SellerAgentsBrowserIdentity?.current?.() || {};
+  const stores = Array.isArray(popup.stores) ? popup.stores : [];
+  const family = globalThis.SellerAgentsBrowserIdentity?.families?.includes(observed.family) ? observed.family : null;
+  const version = typeof observed.version === "string" && /^\d+(?:\.\d+){0,3}$/.test(observed.version) ? observed.version : null;
+  const workState = saSupportToken(popup.work?.state);
+  const aiFamily = ["chatgpt", "alice"].includes(popup.identity?.ai_id) ? popup.identity.ai_id : null;
+  return Object.freeze({
+    snapshotVersion: "seller_agents_support_snapshot_v1",
+    generatedAt: new Date().toISOString(),
+    extension: {
+      version: String(globalThis.SellerAgentsControlConfig?.extensionVersion || ""),
+      environment: String(globalThis.SellerAgentsControlConfig?.environment || ""),
+    },
+    browser: { family, version, evidence: "OBSERVED_RUNTIME_ONLY" },
+    auth: {
+      authenticated: popup.auth?.authenticated === true,
+      workAllowed: popup.auth?.workAllowed === true,
+      lastErrorCode: saSupportCode(popup.auth?.lastError?.code),
+      aiStatus: saSupportToken(popup.auth?.authority?.aiStatus),
+      compatibility: popup.auth?.compatibility ? {
+        extensionStatus: saSupportCode(popup.auth.compatibility.extension?.status),
+        minimumExtensionVersion: typeof popup.auth.compatibility.extension?.minimumVersion === "string" && /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(popup.auth.compatibility.extension.minimumVersion) ? popup.auth.compatibility.extension.minimumVersion : null,
+        browserStatus: saSupportCode(popup.auth.compatibility.browser?.status),
+      } : null,
+    },
+    page: { aiFamily, identityStatus: saSupportToken(popup.identity?.status) },
+    work: {
+      state: workState,
+      pending: Boolean(popup.pending),
+      pendingOutcome: saSupportToken(popup.pending?.send_outcome),
+    },
+    stores: {
+      total: stores.length,
+      ozon: stores.filter(store => store?.marketplace === "ozon").length,
+      wildberries: stores.filter(store => store?.marketplace === "wildberries").length,
+    },
+    privacy: {
+      accountIdentifiersIncluded: false,
+      deviceSessionIdentifiersIncluded: false,
+      storeIdentifiersIncluded: false,
+      credentialsIncluded: false,
+      conversationIdentifiersIncluded: false,
+      marketplacePayloadIncluded: false,
+    },
+  });
+}
 async function saPopupState(tabId) {
   void globalThis.SellerAgentsTechnicalScheduler?.wake?.("popup_open");
   let live = { ai_id: null, origin: null, conversation_id: null, status: "unavailable", source: "none", chat_path: "" };
@@ -931,6 +987,7 @@ async function saHandleMessage(message, sender) {
     await saInitialize();
     switch (message.type) {
       case "SA_POPUP_STATE": return saPopupState(message.tab_id);
+      case "SA_SUPPORT_SNAPSHOT": return { ok: true, snapshot: await saSupportSnapshot(message.tab_id) };
       case "SA_STORE_SAVE": {
         const old = message.store?.id ? await saCatalog.get(message.store.id) : null;
         const saved = await saCatalog.save(message.store);
