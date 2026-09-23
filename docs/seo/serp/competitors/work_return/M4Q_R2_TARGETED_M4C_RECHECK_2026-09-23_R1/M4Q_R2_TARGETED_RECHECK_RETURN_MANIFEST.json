@@ -1,0 +1,98 @@
+{
+  "work_id": "OCTOPORT_SEO_M4Q_R2_TARGETED_M4C_RECHECK_2026-09-23_R1",
+  "start_head": "bac03ea0c1fcbf517f6eee548750c62e9257d3ad",
+  "end_observed_head": "bac03ea0c1fcbf517f6eee548750c62e9257d3ad",
+  "authority_drift_status": "NONE",
+  "verdict": "PASS_TARGETED_RECHECK_WITH_TERMINAL_ACCESS_HOLDS",
+  "frozen_target_blob": "c567aeef24441e2c0e3e05a153dd6bdf33384201",
+  "target_rows": 59,
+  "unique_target_urls": 59,
+  "target_registry_entities": 12,
+  "targets_terminal_accounted": 59,
+  "silent_target_loss": 0,
+  "page_evidence_rows": 47,
+  "candidate_delta_rows": 133,
+  "new_candidate_rows": 64,
+  "possible_variant_rows": 19,
+  "m4c_changed_targets": 42,
+  "m4c_no_material_change_targets": 2,
+  "m4c_hold_targets": 12,
+  "terminal_state_counts": {
+    "INSPECTED": 47,
+    "TIMEOUT": 6,
+    "ROBOTS_OR_ACCESS_BLOCKED": 6
+  },
+  "candidate_status_counts": {
+    "POSSIBLE_VARIANT": 19,
+    "NEW_CANDIDATE": 64,
+    "OUT_OF_SCOPE": 24,
+    "ALREADY_PRESENT": 14,
+    "AMBIGUOUS": 12
+  },
+  "m4c_change_class_counts": {
+    "ADD_CURRENT_URL_AND_PAGE_EVIDENCE": 36,
+    "OUT_OF_SCOPE": 3,
+    "TARGET_INACCESSIBLE_KEEP_DURABLE_HISTORY": 12,
+    "NO_MATERIAL_CHANGE": 2,
+    "ADD_CURRENT_PAGE_EVIDENCE": 6
+  },
+  "http_status_not_exposed": true,
+  "intermediate_redirect_hops_not_exposed": true,
+  "yandex_search_calls": 0,
+  "wordstat_calls": 0,
+  "alice_calls": 0,
+  "github_writes": 0,
+  "files_in_zip": 7,
+  "self_hash_policy": "SHA256/bytes for six non-self files; own bytes/SHA256 null because a self-containing hash is circular.",
+  "files": [
+    {
+      "filename": "M4Q_R2_TARGETED_M4C_SOURCE_MANIFEST.md",
+      "bytes": 5963,
+      "sha256": "57fc38b17682fceb16e70269cd7ccf87074c81bbb437898297cb0fef2965b367",
+      "row_count": null,
+      "role": "frozen authority, actual site-observation method and claim boundaries"
+    },
+    {
+      "filename": "M4Q_R2_TARGETED_URL_RECHECK_LEDGER.tsv",
+      "bytes": 67588,
+      "sha256": "3211eef3405a82a7aa6634042858e60b79a92dbcaaf311f1eb36d94a4d19e285",
+      "row_count": 59,
+      "role": "one terminal access and canonical identity row per exact frozen URL"
+    },
+    {
+      "filename": "M4Q_R2_TARGETED_PAGE_EVIDENCE.tsv",
+      "bytes": 2602167,
+      "sha256": "96d930d02060141a6eb9242c8079121a85359a256ff2fd39e0c4995577b05486",
+      "row_count": 47,
+      "role": "complete visible current page text and page-level evidence for accessible targets"
+    },
+    {
+      "filename": "M4Q_R2_TARGETED_CANDIDATE_DELTA.tsv",
+      "bytes": 104248,
+      "sha256": "7be0b515c6821188294e2bcb94f16a71b0af050911d33c5f62a48b1b1c797acf",
+      "row_count": 133,
+      "role": "verbatim page wording and exact-safe M4C candidate joins"
+    },
+    {
+      "filename": "M4Q_R2_TARGETED_M4C_M6_RECONCILIATION.tsv",
+      "bytes": 55745,
+      "sha256": "cb10a7aa797a5d9031bd5029327424cb70d5316d312edb0ffbb365aca9d04acf",
+      "row_count": 59,
+      "role": "target-level current M4C/M6 dependency effects"
+    },
+    {
+      "filename": "M4Q_R2_TARGETED_RECHECK_QA.md",
+      "bytes": 4122,
+      "sha256": "5c326d6cb4214b461984ef1da3e35d383262a08b2e0e01cafe741374570383e4",
+      "row_count": null,
+      "role": "full target/candidate reconciliation and method-limit QA"
+    },
+    {
+      "filename": "M4Q_R2_TARGETED_RECHECK_RETURN_MANIFEST.json",
+      "bytes": null,
+      "sha256": null,
+      "row_count": null,
+      "role": "return identity, self-hash excluded"
+    }
+  ]
+}
