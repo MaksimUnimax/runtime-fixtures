@@ -1252,3 +1252,52 @@ Expected local-start result is 45 PENDING items with zero provider calls, but on
 
 CURRENT_CURSOR:
 M4Q R2 PASS A2 ACCEPTED -> ONE 45-ITEM ASYNC LOCAL START RELEASED -> ACTUAL START RESULT REQUIRED -> PERSIST/READBACK -> FRESH TARIFF CHECK -> SEPARATE submitN RELEASE -> COLLECT -> EXPORT -> PASS B.
+
+
+## 2026-09-23 — M4Q R2 45-item async start PASS / first submit slice released
+
+Raw start authority:
+`raw/M4Q_R2_01_START_2026-09-23.md`
+
+Release authority:
+`M4Q_R2_ASYNC_START_ACCEPTANCE_AND_SUBMIT_RELEASE_2026-09-23_R1.md`
+
+Observed local start:
+
+```text
+JOB_ID = octoport-m4q-r2-b001-20260923
+TOTAL = 45
+PENDING = 45
+WAITING = 0
+FAILED = 0
+UNKNOWN = 0
+REQUEST_EXECUTED = false
+PROVIDER_CALLS = 0
+REVISION = 0
+REMOTE_READBACK = PASS
+```
+
+Fresh official deferred price check immediately before provider release:
+
+```text
+DAY_DEFERRED_RUB_PER_REQUEST = 0.0305
+FULL_45_SUBMIT_CEILING_RUB = 1.3725
+CURRENT_PRICING_WINDOW_AT_CHECK = DAY
+```
+
+Released exactly one provider action:
+
+```text
+SEARCH_ASYNC_BATCH_API_V1 {"action":"submitN","jobId":"octoport-m4q-r2-b001-20260923","count":25}
+```
+
+```text
+FIRST_SUBMITN_COMMANDS_ALLOWED_NOW = 1
+FIRST_SUBMITN_COUNT_LIMIT = 25
+SECOND_SUBMITN_ALLOWED_NOW = 0
+COLLECT_ALLOWED_NOW = 0
+EXPORT_ALLOWED_NOW = 0
+```
+
+CURRENT_CURSOR:
+M4Q R2 PASS A2 ACCEPTED -> 45-ITEM LOCAL START PASS -> FIRST submitN(25) RELEASED -> ACTUAL RESULT REQUIRED -> PERSIST/READBACK -> REMAINING SUBMIT SLICE -> COLLECT -> EXPORT -> PASS B.
