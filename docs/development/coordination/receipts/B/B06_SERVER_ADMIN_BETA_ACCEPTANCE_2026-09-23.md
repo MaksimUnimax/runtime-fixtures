@@ -243,3 +243,37 @@ Final-source verification on Node 24.20.0 / pnpm 10.34.5:
 
 Integration log: `/root/octoport-control/logs/B/b06-retention-integration-r2.log`.
 No live/historical purge, live migration, production restart, or audit-events TTL change was performed.
+
+## Administrative audit retention completion — 2026-09-23
+
+Controller/C follow-up identified one remaining B06 release blocker after the feedback-retention fix: the 90-day technical-beta administrative-audit category required an explicit bounded expiration procedure. This is now implemented without authorizing or running live/historical cleanup.
+
+Policy boundary:
+- category: `ADMIN_AI_REGISTRY` only;
+- exact eligible actions: `P7_ADMIN_ADAPTER_CREATED`, `P7_ADMIN_ADAPTER_UPDATED`, `P7_ADMIN_SURFACE_CREATED`, `P7_ADMIN_SURFACE_UPDATED`, `P7_ADMIN_VARIANT_CREATED`, `P7_ADMIN_VARIANT_UPDATED`, `P7_ADMIN_PROFILE_CREATED`, `P7_ADMIN_PROFILE_UPDATED`;
+- deletion additionally requires the exact expected `ADMIN` actor type and exact registry target type (`AI_ADAPTER`, `AI_SURFACE`, `AI_VARIANT`, `ADAPTER_PROFILE`);
+- all unknown actions fail closed and remain;
+- admin owner/session/principal/role/status history, beta-admission history, support events, device/security history, financial/payment/subscription transitions, policy/publication/profile-lifecycle history, and the retention audit event itself remain outside this cleanup.
+
+Safety/runtime boundary:
+- strict `< cutoff` with a fixed 90-day minimum;
+- validated batch size and transaction-local PostgreSQL statement timeout;
+- count-only DELETE result, no returned/deleted ID list;
+- each nonzero batch writes one SYSTEM `ADMIN_AUDIT_RETENTION_PURGED` event with category/cutoff/count/batch only; expired reason/metadata/content is not copied;
+- one runner batch per scheduled pass; single in-flight; initial failure fail-closed; periodic rejection handled; stop awaits in-flight;
+- runtime is default-disabled. It runs only when `OCTOPORT_ADMIN_AUDIT_RETENTION_ENABLED=true`. This flag must not be enabled for live cleanup until the owner/controller separately approves the concrete eligible category/count/window.
+
+Implementation commit: `7f58a38d2430108d95d49cb54a92733771002bcb` before latest-main merge.
+
+Verification on Node 24.20.0 / pnpm 10.34.5:
+- worker tests: 28/28 PASS, including audit-retention runner 6/6 and feedback-retention runner 6/6;
+- worker typecheck: PASS;
+- DB typecheck: PASS;
+- DB unit tests: 31/31 PASS;
+- focused ESLint: PASS;
+- focused Prettier: PASS;
+- worker build: PASS;
+- disposable PostgreSQL audit-retention integration: 2/2 PASS; job `6f9e0d78f9a4468d8a3cb2371c01214b`, exit 0, peak 534,773,760 bytes, OOM 0, cleanup verified;
+- integration stdout: `/root/octoport-control/logs/B/b06-audit-retention-integration.log`.
+
+No live purge, historical purge, live migration, production restart, or deployment was performed.
