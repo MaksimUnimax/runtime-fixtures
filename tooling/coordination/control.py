@@ -12,6 +12,7 @@ import signal
 import subprocess
 import sys
 import time
+import resource_runner
 from datetime import datetime, timezone
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -98,6 +99,7 @@ def update_state(role, action, args):
             state.setdefault("review_requested_at", now_text())
         state["controller_notices"] = controller_notices(role)
         state.update(updated_at=now_text(), head=git("rev-parse", "HEAD"))
+        state["resources"] = resource_runner.snapshot(ROOT)
         write_json(path, state)
         return state
 
@@ -190,18 +192,19 @@ def database(role):
         raise RuntimeError("TEST_DB_PREFLIGHT_FAILED")
 
 
-def heavy(role, command, with_db):
+def heavy(role, command, with_db, profile=None, memory_mib=None, timeout_seconds=3600):
     require_running(role)
     if command and command[0] == "--":
         command = command[1:]
     if not command:
         raise RuntimeError("Command required after --")
     CONTROL.mkdir(mode=0o700, exist_ok=True)
+    # Respect an already running old wrapper during the migration.
     with (CONTROL / "heavy.lock").open("a+") as lock:
         try:
-            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            fcntl.flock(lock, fcntl.LOCK_SH | fcntl.LOCK_NB)
         except BlockingIOError:
-            print("HEAVY_SLOT_BUSY: continue another independent task")
+            print("RESOURCE_WAIT: LEGACY_HEAVY_RUNNING")
             return 75
         env = os.environ.copy()
         env["PATH"] = NODE + ":" + env.get("PATH", "")
@@ -216,17 +219,11 @@ def heavy(role, command, with_db):
             env["DATABASE_URL"] = "postgresql://octoport_test:" + cfg["password"] + "@127.0.0.1:" + str(cfg["port"]) + "/" + cfg["database"]
         elif any(x in " ".join(command) for x in ("test:integration", "db:migrate")):
             raise RuntimeError("DATABASE_PREFLIGHT_REQUIRED: use --db, never a live DATABASE_URL")
-        print("HEAVY_SLOT_ACQUIRED " + role, flush=True)
-        child = subprocess.Popen(command, cwd=ROOT, env=env, start_new_session=True)
-        def stop(signum, _frame):
-            os.killpg(child.pid, signal.SIGTERM)
-            child.wait()
-            raise SystemExit(128 + signum)
-        signal.signal(signal.SIGTERM, stop)
-        signal.signal(signal.SIGINT, stop)
-        code = child.wait()
-        print("HEAVY_SLOT_RELEASED exit=" + str(code), flush=True)
-        return code
+        if profile is None:
+            text = " ".join(command)
+            profile = "e2e" if any(x in text for x in ("test:e2e", "playwright test")) else "integration" if "test:integration" in text else "general"
+        return resource_runner.run(role, command, ROOT, env, CONTROL, profile,
+                                   memory_mib, timeout_seconds, with_db)
 
 
 def main():
@@ -234,13 +231,16 @@ def main():
     parser.add_argument("role", choices=["A", "B", "C"])
     parser.add_argument("action", choices=["status", "start", "pause", "resume", "waiting",
         "checkpoint", "request-review", "request-owner", "reviewed", "owner-done",
-        "guard", "submit", "ready-main", "ensure-db", "heavy"])
+        "guard", "submit", "ready-main", "ensure-db", "heavy", "resources"])
     parser.add_argument("--summary", default="")
     parser.add_argument("--task", default="")
     parser.add_argument("--next", default="")
     parser.add_argument("--receipt", default="")
     parser.add_argument("--base")
     parser.add_argument("--db", action="store_true")
+    parser.add_argument("--profile", choices=sorted(resource_runner.PROFILES))
+    parser.add_argument("--memory-mib", type=int)
+    parser.add_argument("--timeout-seconds", type=int, default=3600)
     # Explicit separator keeps command options out of the controller parser.
     argv = sys.argv[1:]
     split = argv.index("--") if "--" in argv else len(argv)
@@ -248,7 +248,10 @@ def main():
     command = argv[split + 1:]
     require_location(args.role)
     if args.action == "heavy":
-        return heavy(args.role, command, args.db)
+        return heavy(args.role, command, args.db, args.profile, args.memory_mib, args.timeout_seconds)
+    if args.action == "resources":
+        print(json.dumps(resource_runner.snapshot(ROOT)))
+        return 0
     if args.action == "ensure-db":
         cfg = database(args.role)
         print(json.dumps({k: v for k, v in cfg.items() if k != "password"}))

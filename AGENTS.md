@@ -58,3 +58,8 @@ It must not independently change project roadmap, architecture, product scope or
 - Do not use force push to bypass another stream's work.
 - Keep unrelated formatting or cleanup out of bounded changes.
 - Report what changed, what was tested, remaining limitations, and the exact resulting revision.
+
+
+## Owner resource and throughput policy
+
+At every controller review inspect disk/inodes, MemAvailable, swap/PSI/OOM and process ownership/lifecycle. Read docs/development/coordination/RESOURCE_POLICY.md. Preserve useful concurrency and quality; proactively recommend added RAM whenever measured workload/queue shows it can increase useful throughput. Owner prefers speed over RAM cost. Do not impose a blanket single-process or single-job rule. Report historical garbage, provenance and size to owner before any cleanup; obtain approval for the concrete cleanup inventory. Newly supervised test groups always terminate their own descendants at completion. Never sweep historical files, containers or unrelated processes as part of that lifecycle.
