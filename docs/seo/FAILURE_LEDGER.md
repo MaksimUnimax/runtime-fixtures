@@ -152,3 +152,71 @@ DOES A PRODUCTION SEO SITE EXIST?
 ```
 
 If the owner/product authority says no, close M1 as a prelaunch baseline and defer ownership/measurement setup to launch/indexing/measurement stages.
+
+
+## OSEO-F04 — M8 Work release issued before complete two-level step preparation
+
+Date: 2026-09-23.
+Stage: M8 Search-only semantic master.
+
+### Incident
+
+After M7 PASS, Main Chat created an M8 pre-handoff and canonical Work prompt before materializing a complete M8 step-preparation artifact containing the mandatory two-level gate fields required by LEVEL 1 and LEVEL 2.
+
+The issued R1 handoff included useful execution constraints, but it did not itself prove the required preparation sequence:
+
+```text
+LIVE HEAD
+-> LEVEL 1
+-> LEVEL 2
+-> ROADMAP/CURRENT STATE
+-> FAILURE HISTORY
+-> FRESH METHOD RESEARCH
+-> EXACT STEP CONTRACT
+-> GITHUB
+-> REMOTE READBACK
+-> ONLY THEN WORK RELEASE
+```
+
+### Impact
+
+No Work execution had been accepted from the R1 prompt.
+No provider action occurred.
+No M8 analytical output was produced or accepted.
+
+Therefore the defect is a release-order/process defect, not evidence contamination.
+
+### Recovery
+
+```text
+R1 WORK RELEASE = SUPERSEDED / NOT EXECUTABLE
+-> re-read current LEVEL 1
+-> re-read LEVEL 2 index + dedicated M7/M8 rule
+-> restore current roadmap/cursor
+-> read failures/current evidence
+-> perform fresh external M8 method research
+-> create complete M8 STEP PREPARATION R2
+-> GitHub persist
+-> remote readback
+-> create new M8 PRE-HANDOFF R2
+-> remote readback
+-> create canonical WORK PROMPT R2
+-> remote readback
+-> owner receives full prompt directly in chat
+```
+
+### Prevention
+
+For every Work-backed major stage, a pre-handoff file is not a substitute for the step-preparation record.
+
+Both must exist in order:
+
+```text
+STEP_PREPARATION
+-> PRE_HANDOFF_MANIFEST
+-> WORK_PROMPT
+```
+
+### Status
+
+`RECOVERY ACTIVE / R1 M8 WORK RELEASE SUPERSEDED`.
