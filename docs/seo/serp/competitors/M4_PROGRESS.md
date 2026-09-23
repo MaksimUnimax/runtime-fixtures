@@ -1553,3 +1553,48 @@ EXPORT_ALLOWED_NOW = 0
 
 CURRENT_CURSOR:
 44 SUBMITTED / 38 SUCCEEDED / 6 WAITING / 1 PENDING -> ONE collectN(6) RELEASED -> ACTUAL RESULT REQUIRED -> PERSIST/READBACK -> FINAL PENDING DECISION.
+
+
+## 2026-09-23 — M4Q R2 first 44 items terminal-successful / final pending submit released
+
+Current durable state before final submit:
+
+```text
+TOTAL = 45
+REQUESTS_STARTED = 44
+OPERATIONS_ACCEPTED = 44
+POLLS_STARTED = 44
+PENDING = 1
+WAITING = 0
+SUCCEEDED = 44
+FAILED = 0
+PARSE_FAILED = 0
+UNKNOWN = 0
+REVISION = 220
+```
+
+All 44 already-submitted async operations are terminal-successful and normalized.
+
+Fresh official Yandex Search API pricing rechecked immediately before the final paid submit:
+
+```text
+DAY_DEFERRED_RUB_PER_REQUEST = 0.0305
+ONE_FINAL_SUBMIT_CEILING_RUB = 0.0305
+FULL_45_SUBMIT_CEILING_RUB = 1.3725
+```
+
+Released exactly one final submit action:
+
+```text
+SEARCH_ASYNC_BATCH_API_V1 {"action":"submitN","jobId":"octoport-m4q-r2-b001-20260923","count":1}
+```
+
+```text
+FINAL_SUBMIT_COMMANDS_ALLOWED_NOW = 1
+FINAL_SUBMIT_COUNT = 1
+COLLECT_ALLOWED_NOW = 0
+EXPORT_ALLOWED_NOW = 0
+```
+
+CURRENT_CURSOR:
+44/45 SUCCEEDED / 1 PENDING -> FINAL submitN(1) RELEASED -> ACTUAL RESULT REQUIRED -> PERSIST/READBACK -> WAIT UNTIL DUE -> FINAL collectN(1) -> 45/45 TERMINAL -> EXPORT -> PASS B.
