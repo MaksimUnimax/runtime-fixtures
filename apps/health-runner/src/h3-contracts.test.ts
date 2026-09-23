@@ -63,6 +63,7 @@ describe("P8.4 H3 contract foundation", () => {
       durationMs: 12,
       markerCount: 1,
       transitionObserved: true,
+      observations: [],
     });
     expect(event).toEqual({
       step: "OBSERVE_COMPLETION",
@@ -70,6 +71,7 @@ describe("P8.4 H3 contract foundation", () => {
       durationMs: 12,
       markerCount: 1,
       transitionObserved: true,
+      observations: [],
     });
   });
 

@@ -1,5 +1,9 @@
 # Repository Maintenance Rules
 
+## Current authorized program
+
+Octoport uses one canonical main and three scoped worktrees. Read docs/development/coordination/README.md, PROTOCOL.md, PLAN.md and OWNERSHIP.json before work. This owner-authorized program supersedes older single-executor/Stream-1/Stream-2 scheduling instructions, without changing product/security requirements or historical evidence. Each stream may select the next ready task within its assigned PLAN queue; it must not invent adjacent scope. Only C integrates main; only B authors DB/migration changes after the baseline. Explicit STOP always wins over an automatic governor repeat. Review requests are durable and do not block independent permitted work.
+
 ## Entry point
 
 Read `README.md`, `docs/README.md`, and the documentation for the subsystem you are changing. If the task changes a shared contract, read `docs/architecture/CONTRACTS.md` before editing it.
@@ -31,7 +35,7 @@ Before integration or merge work:
 
 An implementation executor may write or fix code, run prescribed tests, and report factual results inside a bounded task.
 
-It must not independently choose project roadmap, architecture, product scope, repository strategy, or the next stage of work.
+It must not independently change project roadmap, architecture, product scope or repository strategy. The active owner-authorized coordination plan permits selecting the next ready task within the assigned stream; moving outside that plan requires controller review.
 
 ## Validation
 

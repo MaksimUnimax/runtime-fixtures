@@ -16,10 +16,23 @@ import {
 } from "./strategies.js";
 import {
   ControlledTargetRegistry,
+  createControlledTargetRegistry,
   type ControlledTarget,
 } from "./target-registry.js";
 import type { BrowserFamily } from "@product/shared";
 import { shouldBlockPrimaryDocumentRequest } from "./navigation-policy.js";
+import { createChatGPTStandardH3Strategy } from "./standard-h3-strategy.js";
+import { createChatGPTWorkH3Strategy } from "./work-h3-strategy.js";
+import { createAliceH3Strategy } from "./alice-h3-strategy.js";
+import { CHATGPT_WORK_H3_PROFILE } from "./work-h3-profile.js";
+import { ALICE_H3_PROFILE } from "./alice-h3-profile.js";
+import type { H3SurfaceStrategy } from "./h3-strategy.js";
+import {
+  DedicatedHealthSessionConfigError,
+  resolveTrustedDedicatedHealthSessionBinding,
+  type DedicatedHealthSessionRegistry,
+  type TrustedDedicatedHealthSessionBinding,
+} from "./dedicated-health-session-internal.js";
 
 export type BrowserDriverErrorCode =
   | "INVALID_DRIVER_LIFECYCLE"
@@ -67,6 +80,11 @@ export type ControlledNavigationResult = Readonly<{
 const DEFAULT_LAUNCH_TIMEOUT_MS = 15_000;
 const NAVIGATION_STABILIZATION_MS = 350;
 
+const dedicatedCapabilities = new WeakMap<
+  ChromeBrowserDriver,
+  TrustedDedicatedHealthSessionBinding
+>();
+
 type FetchRequestPausedEvent = Readonly<{
   requestId: string;
   request: Readonly<{ url: string }>;
@@ -77,6 +95,7 @@ type FetchRequestPausedEvent = Readonly<{
 export class ChromeBrowserDriver implements BrowserDriver {
   public readonly family = "chrome" as const;
   public readonly sessionKind = "EPHEMERAL_CONTROLLED" as const;
+  #targets: ControlledTargetRegistry;
   #browser: Browser | undefined;
   #context: BrowserContext | undefined;
   #page: Page | undefined;
@@ -101,9 +120,10 @@ export class ChromeBrowserDriver implements BrowserDriver {
     | undefined;
 
   public constructor(
-    private readonly targets: ControlledTargetRegistry,
+    targets: ControlledTargetRegistry,
     private readonly launchTimeoutMs = DEFAULT_LAUNCH_TIMEOUT_MS,
   ) {
+    this.#targets = targets;
     if (
       !Number.isInteger(launchTimeoutMs) ||
       launchTimeoutMs < 250 ||
@@ -125,12 +145,15 @@ export class ChromeBrowserDriver implements BrowserDriver {
     if (this.#state !== "PREPARED")
       throw new BrowserDriverError("INVALID_DRIVER_LIFECYCLE");
     try {
+      const capability = dedicatedCapabilities.get(this);
+      const storageState = capability?.storageState;
       const browser = await chromium.launch({
         headless: true,
         timeout: this.launchTimeoutMs,
       });
       const context = await browser.newContext({
         acceptDownloads: false,
+        ...(storageState ? { storageState } : {}),
       });
       this.#browser = browser;
       this.#context = context;
@@ -163,16 +186,19 @@ export class ChromeBrowserDriver implements BrowserDriver {
     this.#throwIfUnsafeTopLevelNavigation();
     let target: ControlledTarget;
     try {
-      target = this.targets.resolve(targetKey);
+      target = this.#targets.resolve(targetKey);
     } catch {
       throw new BrowserDriverError("CONTROLLED_TARGET_NOT_REGISTERED");
     }
     if (target.browserFamily !== this.family)
       throw new BrowserDriverError("CONTROLLED_TARGET_NOT_REGISTERED");
+    const capability = dedicatedCapabilities.get(this);
+    const startUrl =
+      capability && "startUrl" in capability ? capability.startUrl : undefined;
     this.#activeTarget = target;
     this.#primaryNavigationStarted = false;
     try {
-      await this.#page.goto(target.startUrl, {
+      await this.#page.goto(startUrl ?? target.startUrl, {
         timeout: target.navigationTimeoutMs,
         waitUntil: "domcontentloaded",
       });
@@ -203,6 +229,33 @@ export class ChromeBrowserDriver implements BrowserDriver {
     };
   }
 
+  public createChatGPTStandardH3Strategy(): H3SurfaceStrategy {
+    if (this.#state !== "LAUNCHED" || !this.#page || !this.#activeTarget) {
+      throw new BrowserDriverError("INVALID_DRIVER_LIFECYCLE");
+    }
+    return createChatGPTStandardH3Strategy(this.#page, this.#activeTarget, () =>
+      this.closeOrPersist(),
+    );
+  }
+
+  public createChatGPTWorkH3Strategy(): H3SurfaceStrategy {
+    if (this.#state !== "LAUNCHED" || !this.#page || !this.#activeTarget) {
+      throw new BrowserDriverError("INVALID_DRIVER_LIFECYCLE");
+    }
+    return createChatGPTWorkH3Strategy(this.#page, this.#activeTarget, () =>
+      this.closeOrPersist(),
+    );
+  }
+
+  public createAliceH3Strategy(): H3SurfaceStrategy {
+    if (this.#state !== "LAUNCHED" || !this.#page || !this.#activeTarget) {
+      throw new BrowserDriverError("INVALID_DRIVER_LIFECYCLE");
+    }
+    return createAliceH3Strategy(this.#page, this.#activeTarget, () =>
+      this.closeOrPersist(),
+    );
+  }
+
   public async observeStrategy(
     strategyId: PackagedStrategyId,
     timeoutMs: number,
@@ -230,6 +283,7 @@ export class ChromeBrowserDriver implements BrowserDriver {
   public async closeOrPersist(): Promise<void> {
     const context = this.#context;
     const browser = this.#browser;
+    dedicatedCapabilities.delete(this);
     await this.#disposeChromeNavigationFirewall();
     this.#page = undefined;
     this.#context = undefined;
@@ -436,4 +490,95 @@ export class ChromeBrowserDriver implements BrowserDriver {
       setTimeout(resolve, NAVIGATION_STABILIZATION_MS);
     });
   }
+}
+
+export function createDedicatedHealthChromeBrowserDriver(
+  targets: ControlledTargetRegistry,
+  registry: DedicatedHealthSessionRegistry,
+  targetKey: "chatgpt_standard_health",
+  launchTimeoutMs = DEFAULT_LAUNCH_TIMEOUT_MS,
+): ChromeBrowserDriver {
+  if (targetKey !== "chatgpt_standard_health") {
+    throw new DedicatedHealthSessionConfigError("TARGET_NOT_CONFIGURED");
+  }
+  const binding = resolveTrustedDedicatedHealthSessionBinding(
+    registry,
+    "chatgpt_standard_health",
+  );
+  if (binding.targetKey !== "chatgpt_standard_health") {
+    throw new DedicatedHealthSessionConfigError("TARGET_NOT_CONFIGURED");
+  }
+  const standardTarget = targets.resolve("chatgpt_standard_health");
+  const standardTargets = createControlledTargetRegistry([standardTarget]);
+  const driver = new ChromeBrowserDriver(standardTargets, launchTimeoutMs);
+  dedicatedCapabilities.set(driver, binding);
+  return driver;
+}
+
+export function createDedicatedWorkHealthChromeBrowserDriver(
+  targets: ControlledTargetRegistry,
+  registry: DedicatedHealthSessionRegistry,
+  targetKey: "chatgpt_work_health",
+  launchTimeoutMs = DEFAULT_LAUNCH_TIMEOUT_MS,
+): ChromeBrowserDriver {
+  if (targetKey !== "chatgpt_work_health") {
+    throw new DedicatedHealthSessionConfigError("TARGET_NOT_CONFIGURED");
+  }
+  const binding = resolveTrustedDedicatedHealthSessionBinding(
+    registry,
+    "chatgpt_work_health",
+  );
+  if (
+    binding.targetKey !== "chatgpt_work_health" ||
+    typeof binding.startUrl !== "string"
+  ) {
+    throw new DedicatedHealthSessionConfigError("TARGET_NOT_CONFIGURED");
+  }
+  const workTarget = targets.resolve("chatgpt_work_health");
+  const workTargets = createControlledTargetRegistry([
+    {
+      key: workTarget.key,
+      startUrl: binding.startUrl,
+      allowedTopLevelOrigins: [CHATGPT_WORK_H3_PROFILE.approvedOrigin],
+      browserFamily: "chrome",
+      navigationTimeoutMs: workTarget.navigationTimeoutMs,
+    },
+  ]);
+  const driver = new ChromeBrowserDriver(workTargets, launchTimeoutMs);
+  dedicatedCapabilities.set(driver, binding);
+  return driver;
+}
+
+export function createDedicatedAliceHealthChromeBrowserDriver(
+  targets: ControlledTargetRegistry,
+  registry: DedicatedHealthSessionRegistry,
+  targetKey: "alice_health",
+  launchTimeoutMs = DEFAULT_LAUNCH_TIMEOUT_MS,
+): ChromeBrowserDriver {
+  if (targetKey !== "alice_health") {
+    throw new DedicatedHealthSessionConfigError("TARGET_NOT_CONFIGURED");
+  }
+  const binding = resolveTrustedDedicatedHealthSessionBinding(
+    registry,
+    "alice_health",
+  );
+  if (
+    binding.targetKey !== "alice_health" ||
+    typeof binding.startUrl !== "string"
+  ) {
+    throw new DedicatedHealthSessionConfigError("TARGET_NOT_CONFIGURED");
+  }
+  const aliceTarget = targets.resolve("alice_health");
+  const aliceTargets = createControlledTargetRegistry([
+    {
+      key: aliceTarget.key,
+      startUrl: binding.startUrl,
+      allowedTopLevelOrigins: [ALICE_H3_PROFILE.approvedOrigin],
+      browserFamily: "chrome",
+      navigationTimeoutMs: aliceTarget.navigationTimeoutMs,
+    },
+  ]);
+  const driver = new ChromeBrowserDriver(aliceTargets, launchTimeoutMs);
+  dedicatedCapabilities.set(driver, binding);
+  return driver;
 }

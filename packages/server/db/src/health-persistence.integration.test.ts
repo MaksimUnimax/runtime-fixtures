@@ -16,11 +16,11 @@ const connectionString = process.env.DATABASE_URL;
 if (!connectionString) throw new Error("DATABASE_URL is required");
 
 const IDS = {
-  adapter: "00000000-0000-4000-8000-000000000001",
-  surface: "00000000-0000-4000-8000-000000000002",
-  profile: "00000000-0000-4000-8000-000000000003",
-  profileRevision: "00000000-0000-4000-8000-000000000004",
-  variant: "00000000-0000-4000-8000-000000000005",
+  adapter: "b5000000-0000-4000-8000-000000000001",
+  surface: "b5000000-0000-4000-8000-000000000002",
+  profile: "b5000000-0000-4000-8000-000000000003",
+  profileRevision: "b5000000-0000-4000-8000-000000000004",
+  variant: "b5000000-0000-4000-8000-000000000005",
 };
 
 const runtime = createDatabaseRuntime(connectionString);
@@ -32,20 +32,29 @@ const DUPLICATE_EVIDENCE_ID = "00000000-0000-4000-8000-000000000011";
 function suiteWithScope(
   changes: Partial<HealthSuiteDefinition["scope"]> = {},
 ): HealthSuiteDefinition {
+  const fixtureScope = {
+    ...BASELINE_HEALTH_SUITE.scope,
+    adapterFamilyId: IDS.adapter,
+    surfaceId: IDS.surface,
+    profile: { id: IDS.profile, revision: 1 },
+    healthSuite: { machineKey: "b5-health-fixture", revision: 1 },
+  };
   return validateHealthSuiteDefinition({
     ...BASELINE_HEALTH_SUITE,
-    scope: { ...BASELINE_HEALTH_SUITE.scope, ...changes },
+    machineKey: "b5-health-fixture",
+    scope: { ...fixtureScope, ...changes },
   });
 }
 
 function suiteRevision(revision: number): HealthSuiteDefinition {
+  const fixture = suiteWithScope();
   return validateHealthSuiteDefinition({
-    ...BASELINE_HEALTH_SUITE,
+    ...fixture,
     revision,
     scope: {
-      ...BASELINE_HEALTH_SUITE.scope,
+      ...fixture.scope,
       healthSuite: {
-        machineKey: BASELINE_HEALTH_SUITE.machineKey,
+        machineKey: fixture.machineKey,
         revision,
       },
     },
@@ -83,7 +92,7 @@ function resultWith(
 }
 
 function input(
-  suite: unknown = BASELINE_HEALTH_SUITE,
+  suite: unknown = suiteWithScope(),
   results: readonly unknown[] = passedResults(),
   changes: Record<string, unknown> = {},
 ) {
@@ -127,10 +136,10 @@ async function countPersistedRowsForSuite(suite: HealthSuiteDefinition) {
 describe("P8.2 health persistence", () => {
   beforeAll(async () => {
     await runtime.ready();
-    await runtime.query(`DROP SCHEMA IF EXISTS public CASCADE`);
-    await runtime.query(`DROP SCHEMA IF EXISTS drizzle CASCADE`);
-    await runtime.query(`CREATE SCHEMA public`);
-    await runMigrations({ connectionString });
+    await runtime.query("DROP SCHEMA IF EXISTS public CASCADE");
+    await runtime.query("DROP SCHEMA IF EXISTS drizzle CASCADE");
+    await runtime.query("CREATE SCHEMA public");
+    await runMigrations({ connectionString: connectionString! });
     await runtime.query(
       `INSERT INTO ai_adapters(id,machine_key,display_name) VALUES($1,'fixture-ai','Fixture AI')`,
       [IDS.adapter],
@@ -245,6 +254,12 @@ describe("P8.2 health persistence", () => {
       "UNKNOWN",
       (() => {
         const result = resultWith("C13_BLOCKING_STATE", {
+          primaryStrategyOutcome: "UNCERTAIN",
+          fallbackStrategyOutcomes: [],
+          selectedStrategyId: null,
+          structuralOutcome: "UNCERTAIN",
+          behavioralOutcome: "UNCERTAIN",
+          fallbackQuality: "NOT_APPLICABLE",
           environmentStatus: "UNCERTAIN",
           uncertaintyReason: "LOGIN_EXPIRED",
         });
@@ -262,7 +277,7 @@ describe("P8.2 health persistence", () => {
     "persists classifier-derived %s state",
     async (expected, results, maintenance) => {
       const run = await repository.persistCompletedHealthRun(
-        input(BASELINE_HEALTH_SUITE, results, {
+        input(suiteWithScope(), results, {
           operatorMaintenance: maintenance,
           operatorMaintenanceAuthority: maintenance ? "health-operator" : null,
         }),
@@ -273,6 +288,23 @@ describe("P8.2 health persistence", () => {
       );
     },
   );
+
+  it("rejects incoherent C13 environment uncertainty before persistence", async () => {
+    const result = resultWith("C13_BLOCKING_STATE", {
+      environmentStatus: "UNCERTAIN",
+      uncertaintyReason: "LOGIN_EXPIRED",
+    });
+    await expect(
+      repository.persistCompletedHealthRun(
+        input(suiteWithScope(), [
+          ...passedResults().filter(
+            (item) => item.contourKey !== result.contourKey,
+          ),
+          result,
+        ]),
+      ),
+    ).rejects.toThrow("INCOHERENT_ENVIRONMENT_OBSERVATION");
+  });
 
   it("rejects a caller-provided authoritative state", async () => {
     await expect(
@@ -324,15 +356,11 @@ describe("P8.2 health persistence", () => {
     }
     if (errorCode === "UNKNOWN_CONTOUR_RESULT") {
       await expect(
-        repository.persistCompletedHealthRun(
-          input(BASELINE_HEALTH_SUITE, results),
-        ),
+        repository.persistCompletedHealthRun(input(suiteWithScope(), results)),
       ).rejects.toThrow();
     } else {
       await expect(
-        repository.persistCompletedHealthRun(
-          input(BASELINE_HEALTH_SUITE, results),
-        ),
+        repository.persistCompletedHealthRun(input(suiteWithScope(), results)),
       ).rejects.toThrow(errorCode);
     }
   });
@@ -369,11 +397,11 @@ describe("P8.2 health persistence", () => {
     await expect(
       repository.persistCompletedHealthRun(
         input({
-          ...BASELINE_HEALTH_SUITE,
+          ...suiteWithScope(),
           scope: {
-            ...BASELINE_HEALTH_SUITE.scope,
+            ...suiteWithScope().scope,
             healthSuite: {
-              machineKey: BASELINE_HEALTH_SUITE.machineKey,
+              machineKey: suiteWithScope().machineKey,
               revision: 2,
             },
           },
@@ -398,7 +426,7 @@ describe("P8.2 health persistence", () => {
       evidence: [firstEvidence],
     });
     const firstRun = await repository.persistCompletedHealthRun(
-      input(BASELINE_HEALTH_SUITE, [
+      input(suiteWithScope(), [
         ...passedResults().filter(
           (item) => item.contourKey !== firstResult.contourKey,
         ),
@@ -487,7 +515,7 @@ describe("P8.2 health persistence", () => {
       ],
     });
     const run = await repository.persistCompletedHealthRun(
-      input(BASELINE_HEALTH_SUITE, [
+      input(suiteWithScope(), [
         ...passedResults().filter(
           (item) => item.contourKey !== result.contourKey,
         ),
@@ -555,23 +583,39 @@ describe("P8.2 health persistence", () => {
     const run = await repository.persistCompletedHealthRun(input());
     await expect(
       runtime.query(
-        `INSERT INTO health_incidents(scope_sha256,status,first_seen_run_id,latest_seen_run_id,first_seen_at,last_seen_at) VALUES($1,'OPEN',$2,$2,$3,$4)`,
+        `INSERT INTO health_incidents(scope_sha256,incident_scope_sha256,incident_key_sha256,status,first_seen_run_id,latest_seen_run_id,root_contour_key,first_seen_at,last_seen_at,last_observed_run_id,last_observed_at) VALUES($1,$5,$6,'OPEN',$2,$2,NULL,$3,$4,$2,$4)`,
         [
           "2".repeat(64),
           run.id,
           new Date("2026-09-12T10:00:02Z"),
           new Date("2026-09-12T10:00:01Z"),
+          "4".repeat(64),
+          "5".repeat(64),
         ],
       ),
     ).rejects.toThrow();
     await runtime.query(
-      `INSERT INTO health_incidents(scope_sha256,status,first_seen_run_id,latest_seen_run_id,first_seen_at,last_seen_at) VALUES($1,'OPEN',$2,$2,$3,$4)`,
+      `INSERT INTO health_incidents(scope_sha256,incident_scope_sha256,incident_key_sha256,status,first_seen_run_id,latest_seen_run_id,root_contour_key,first_seen_at,last_seen_at,last_observed_run_id,last_observed_at) VALUES($1,$5,$6,'OPEN',$2,$2,NULL,$3,$4,$2,$4)`,
       [
         "3".repeat(64),
         run.id,
         new Date("2026-09-12T10:00:01Z"),
         new Date("2026-09-12T10:00:02Z"),
+        "6".repeat(64),
+        "7".repeat(64),
       ],
+    );
+  });
+
+  it("creates a new random completed run for each caller retry", async () => {
+    const first = await repository.persistCompletedHealthRun(input());
+    const second = await repository.persistCompletedHealthRun(input());
+    expect(first.id).not.toBe(second.id);
+    expect(first.id).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
+    expect(second.id).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
     );
   });
 });

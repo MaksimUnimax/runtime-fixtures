@@ -13,6 +13,7 @@ import {
   HealthStateSchema,
   HealthSuiteDefinitionSchema,
   HealthSuiteRegistry,
+  classifyHealthDetailed,
   classifyHealth,
   createBaselineHealthSuite,
   healthSuiteFingerprint,
@@ -100,6 +101,47 @@ function suiteWith(
       ...(contourChanges[definition.key] ?? {}),
     })),
   });
+}
+
+function environmentUncertainResult(
+  reason: HealthContourResult["uncertaintyReason"],
+): HealthContourResult {
+  if (reason === null) throw new Error("TEST_UNCERTAINTY_REASON_REQUIRED");
+  return resultFor("C13_BLOCKING_STATE", {
+    primaryStrategyOutcome: "UNCERTAIN",
+    fallbackStrategyOutcomes: [],
+    selectedStrategyId: null,
+    structuralOutcome: "UNCERTAIN",
+    behavioralOutcome: "UNCERTAIN",
+    environmentStatus: "UNCERTAIN",
+    uncertaintyReason: reason,
+  });
+}
+
+function notObservedResult(
+  key: HealthContourDefinition["key"],
+): HealthContourResult {
+  return resultFor(key, {
+    observationStatus: "NOT_OBSERVED",
+    primaryStrategyOutcome: "NOT_ATTEMPTED",
+    fallbackStrategyOutcomes: [],
+    selectedStrategyId: null,
+    structuralOutcome: "NOT_RUN",
+    behavioralOutcome: "NOT_RUN",
+    fallbackQuality: "NOT_APPLICABLE",
+    environmentStatus: "VALID",
+    uncertaintyReason: null,
+  });
+}
+
+function preIdentityResults(
+  reason: HealthContourResult["uncertaintyReason"],
+): HealthContourResult[] {
+  return BASELINE_HEALTH_SUITE.contours.map((contour) =>
+    contour.key === "C13_BLOCKING_STATE"
+      ? environmentUncertainResult(reason)
+      : notObservedResult(contour.key),
+  );
 }
 
 describe("P8.1 health contracts", () => {
@@ -244,6 +286,22 @@ describe("P8.1 health contracts", () => {
     ).toBe(false);
   });
 
+  it("rejects an uncertainty reason without UNCERTAIN status and vice versa", () => {
+    expect(
+      HealthContourResultSchema.safeParse({
+        ...resultFor("C13_BLOCKING_STATE"),
+        uncertaintyReason: "LOGIN_EXPIRED",
+      }).success,
+    ).toBe(false);
+    expect(
+      HealthContourResultSchema.safeParse({
+        ...resultFor("C13_BLOCKING_STATE"),
+        environmentStatus: "UNCERTAIN",
+        uncertaintyReason: null,
+      }).success,
+    ).toBe(false);
+  });
+
   it("validates the exact C01-C13 baseline catalog", () => {
     expect(BASELINE_CONTOUR_KEYS).toHaveLength(13);
     expect(
@@ -335,10 +393,7 @@ describe("deterministic health classifier", () => {
   });
 
   it("returns UNKNOWN for controlled-environment uncertainty, distinct from BROKEN", () => {
-    const uncertain = resultFor("C13_BLOCKING_STATE", {
-      environmentStatus: "UNCERTAIN",
-      uncertaintyReason: "LOGIN_EXPIRED",
-    });
+    const uncertain = environmentUncertainResult("LOGIN_EXPIRED");
     const broken = resultFor("C05_SEND_CONTROL", {
       primaryStrategyOutcome: "FAIL",
       fallbackStrategyOutcomes: [
@@ -455,6 +510,17 @@ describe("deterministic health classifier", () => {
         operatorMaintenance: false,
       }),
     ).toBe("DEGRADED");
+    expect(
+      classifyHealthDetailed({
+        suite: BASELINE_HEALTH_SUITE,
+        results: replaceResult(passedResults(), degradedFallback),
+        operatorMaintenance: false,
+      }),
+    ).toMatchObject({
+      state: "DEGRADED",
+      basis: "DEGRADED_MATERIAL_FALLBACK",
+      findingContourKeys: ["C10_NATIVE_COPY_CONTROL"],
+    });
   });
 
   it("never promotes a failing selected fallback to DRIFT from favorable quality", () => {
@@ -518,10 +584,9 @@ describe("deterministic health classifier", () => {
   });
 
   it("returns UNKNOWN for complete valid uncertainty with product hard failure", () => {
-    const uncertain = resultFor("C13_BLOCKING_STATE", {
-      environmentStatus: "UNCERTAIN",
-      uncertaintyReason: "CONTROLLED_BROWSER_UNAVAILABLE",
-    });
+    const uncertain = environmentUncertainResult(
+      "CONTROLLED_BROWSER_UNAVAILABLE",
+    );
     const hardFailure = resultFor("C05_SEND_CONTROL", {
       primaryStrategyOutcome: "FAIL",
       fallbackStrategyOutcomes: [
@@ -540,7 +605,55 @@ describe("deterministic health classifier", () => {
         ),
         operatorMaintenance: false,
       }),
-    ).toBe("UNKNOWN");
+    ).toBe("BROKEN");
+  });
+
+  it("L4-RED-02 does not collapse contradictory environment reasons into UNKNOWN", () => {
+    const first = resultFor("C13_BLOCKING_STATE", {
+      primaryStrategyOutcome: "UNCERTAIN",
+      selectedStrategyId: null,
+      structuralOutcome: "UNCERTAIN",
+      behavioralOutcome: "UNCERTAIN",
+      environmentStatus: "UNCERTAIN",
+      uncertaintyReason: "CONTROLLED_BROWSER_UNAVAILABLE",
+    });
+    const second = resultFor("C12_DELIVERY_INSERTION_PATH", {
+      primaryStrategyOutcome: "UNCERTAIN",
+      selectedStrategyId: null,
+      structuralOutcome: "UNCERTAIN",
+      behavioralOutcome: "UNCERTAIN",
+      environmentStatus: "UNCERTAIN",
+      uncertaintyReason: "NETWORK_FAILURE_BEFORE_PAGE_IDENTITY",
+    });
+    expect(() =>
+      classifyHealth({
+        suite: BASELINE_HEALTH_SUITE,
+        results: replaceResult(replaceResult(passedResults(), first), second),
+        operatorMaintenance: false,
+      }),
+    ).toThrow("INCOHERENT_ENVIRONMENT_OBSERVATION");
+  });
+
+  it("L4-RED-03 does not accept pre-identity uncertainty after confident identity", () => {
+    const uncertain = resultFor("C13_BLOCKING_STATE", {
+      primaryStrategyOutcome: "UNCERTAIN",
+      selectedStrategyId: null,
+      structuralOutcome: "UNCERTAIN",
+      behavioralOutcome: "UNCERTAIN",
+      environmentStatus: "UNCERTAIN",
+      uncertaintyReason: "NETWORK_FAILURE_BEFORE_PAGE_IDENTITY",
+    });
+    expect(() =>
+      classifyHealth({
+        suite: BASELINE_HEALTH_SUITE,
+        results: replaceResult(passedResults(), uncertain),
+        operatorMaintenance: false,
+      }),
+    ).toThrow("INCOHERENT_ENVIRONMENT_OBSERVATION");
+  });
+
+  it("L4-RED-04 exposes a bounded detailed classification authority", () => {
+    expect(typeof classifyHealthDetailed).toBe("function");
   });
 
   it("returns MAINTENANCE for complete valid maintenance with product failure", () => {
@@ -699,6 +812,13 @@ describe("deterministic health classifier", () => {
         operatorMaintenance: false,
       }),
     ).toBe("HEALTHY");
+    expect(
+      classifyHealthDetailed({
+        suite: BASELINE_HEALTH_SUITE,
+        results: withoutOptional,
+        operatorMaintenance: false,
+      }).basis,
+    ).toBe("HEALTHY_ALLOWED_OPTIONAL_ABSENCE");
     const notPermitted = suiteWith(
       {},
       {
@@ -761,6 +881,241 @@ describe("deterministic health classifier", () => {
       Array.from({ length: 20 }, () => "HEALTHY"),
     );
   });
+
+  it.each([
+    "CONTROLLED_BROWSER_UNAVAILABLE",
+    "NETWORK_FAILURE_BEFORE_PAGE_IDENTITY",
+  ] as const)("L4 pre-identity %s is UNKNOWN", (reason) => {
+    const input = {
+      suite: BASELINE_HEALTH_SUITE,
+      results: preIdentityResults(reason),
+      operatorMaintenance: false,
+    };
+    expect(classifyHealth(input)).toBe("UNKNOWN");
+    expect(classifyHealthDetailed(input)).toMatchObject({
+      state: "UNKNOWN",
+      basis: "UNKNOWN_PRE_IDENTITY_ENVIRONMENT",
+      environmentUncertaintyReasons: [reason],
+    });
+  });
+
+  it.each([
+    "LOGIN_EXPIRED",
+    "VERIFICATION_CHECKPOINT",
+    "CAPTCHA_SECURITY_CHECKPOINT",
+    "ACCOUNT_BLOCKED",
+  ] as const)("L4 coherent %s is UNKNOWN", (reason) => {
+    const input = {
+      suite: BASELINE_HEALTH_SUITE,
+      results: preIdentityResults(reason),
+      operatorMaintenance: false,
+    };
+    expect(classifyHealth(input)).toBe("UNKNOWN");
+    expect(classifyHealthDetailed(input).basis).toBe(
+      "UNKNOWN_AUTH_OR_SECURITY_BLOCKER",
+    );
+  });
+
+  it.each([
+    ["C03_COMPOSER_ROOT", "BROKEN"],
+    ["C04_COMPOSER_INPUT", "BROKEN"],
+    ["C05_SEND_CONTROL", "BROKEN"],
+    ["C09_COMMAND_CODE_BLOCK_SURFACE", "BROKEN"],
+  ] as const)(
+    "L4 independent %s failure remains visible beside pre-identity uncertainty",
+    (key, expected) => {
+      const definition = definitionFor(key);
+      const failure = resultFor(key, {
+        primaryStrategyOutcome: "FAIL",
+        fallbackStrategyOutcomes: definition.fallbackStrategyIds.map(
+          (strategyId) => ({ strategyId, outcome: "FAIL" as const }),
+        ),
+        selectedStrategyId: null,
+        structuralOutcome: "FAIL",
+        behavioralOutcome: "FAIL",
+      });
+      const input = {
+        suite: BASELINE_HEALTH_SUITE,
+        results: replaceResult(
+          replaceResult(
+            passedResults(),
+            environmentUncertainResult("CONTROLLED_BROWSER_UNAVAILABLE"),
+          ),
+          failure,
+        ),
+        operatorMaintenance: false,
+      };
+      expect(classifyHealth(input)).toBe(expected);
+      expect(classifyHealthDetailed(input).findingContourKeys).toContain(key);
+    },
+  );
+
+  it("rejects a pre-identity marker after identity when no independent product finding exists", () => {
+    expect(() =>
+      classifyHealth({
+        suite: BASELINE_HEALTH_SUITE,
+        results: replaceResult(
+          passedResults(),
+          environmentUncertainResult("CONTROLLED_BROWSER_UNAVAILABLE"),
+        ),
+        operatorMaintenance: false,
+      }),
+    ).toThrow("INCOHERENT_ENVIRONMENT_OBSERVATION");
+  });
+
+  it("preserves MAINTENANCE only after structural and coherence validation", () => {
+    const input = {
+      suite: BASELINE_HEALTH_SUITE,
+      results: preIdentityResults("LOGIN_EXPIRED"),
+      operatorMaintenance: true,
+    };
+    expect(classifyHealth(input)).toBe("MAINTENANCE");
+    expect(classifyHealthDetailed(input)).toMatchObject({
+      state: "MAINTENANCE",
+      basis: "MAINTENANCE_OPERATOR",
+      operatorMaintenance: true,
+    });
+  });
+
+  it("rejects uncertainty on a non-C13 contour and conflicting reasons", () => {
+    const invalid = resultFor("C12_DELIVERY_INSERTION_PATH", {
+      primaryStrategyOutcome: "UNCERTAIN",
+      selectedStrategyId: null,
+      structuralOutcome: "UNCERTAIN",
+      behavioralOutcome: "UNCERTAIN",
+      environmentStatus: "UNCERTAIN",
+      uncertaintyReason: "NETWORK_FAILURE_BEFORE_PAGE_IDENTITY",
+    });
+    expect(() =>
+      classifyHealth({
+        suite: BASELINE_HEALTH_SUITE,
+        results: replaceResult(passedResults(), invalid),
+        operatorMaintenance: false,
+      }),
+    ).toThrow("INCOHERENT_ENVIRONMENT_OBSERVATION");
+  });
+
+  it("keeps detailed state equal to simple state and uses a bounded basis", () => {
+    const fallback = resultFor("C05_SEND_CONTROL", {
+      primaryStrategyOutcome: "FAIL",
+      fallbackStrategyOutcomes: [
+        { strategyId: "COMPOSER_ACTION_CONTROL", outcome: "PASS" },
+      ],
+      selectedStrategyId: "COMPOSER_ACTION_CONTROL",
+      fallbackQuality: "APPROVED_EQUIVALENT",
+    });
+    const detailed = classifyHealthDetailed({
+      suite: BASELINE_HEALTH_SUITE,
+      results: replaceResult(passedResults(), fallback),
+      operatorMaintenance: false,
+    });
+    expect(detailed.state).toBe(
+      classifyHealth({
+        suite: BASELINE_HEALTH_SUITE,
+        results: replaceResult(passedResults(), fallback),
+        operatorMaintenance: false,
+      }),
+    );
+    expect(detailed).toMatchObject({
+      state: "DRIFT",
+      basis: "DRIFT_APPROVED_FALLBACK",
+      findingContourKeys: ["C05_SEND_CONTROL"],
+      productFindings: [{ contourKey: "C05_SEND_CONTROL", finding: "DRIFT" }],
+    });
+    expect(Object.isFrozen(detailed)).toBe(true);
+    expect(Object.isFrozen(detailed.productFindings)).toBe(true);
+  });
+
+  it("orders detailed findings by suite order regardless of input order", () => {
+    const drift = resultFor("C05_SEND_CONTROL", {
+      primaryStrategyOutcome: "FAIL",
+      fallbackStrategyOutcomes: [
+        { strategyId: "COMPOSER_ACTION_CONTROL", outcome: "PASS" },
+      ],
+      selectedStrategyId: "COMPOSER_ACTION_CONTROL",
+      fallbackQuality: "APPROVED_EQUIVALENT",
+    });
+    const degraded = resultFor("C10_NATIVE_COPY_CONTROL", {
+      primaryStrategyOutcome: "FAIL",
+      fallbackStrategyOutcomes: [
+        { strategyId: "COPY_ANCHOR_ASSOCIATION", outcome: "FAIL" },
+      ],
+      selectedStrategyId: null,
+      structuralOutcome: "FAIL",
+      behavioralOutcome: "FAIL",
+    });
+    const detailed = classifyHealthDetailed({
+      suite: BASELINE_HEALTH_SUITE,
+      results: replaceResult(
+        replaceResult(passedResults(), drift),
+        degraded,
+      ).reverse(),
+      operatorMaintenance: false,
+    });
+    expect(detailed.findingContourKeys).toEqual([
+      "C05_SEND_CONTROL",
+      "C10_NATIVE_COPY_CONTROL",
+    ]);
+  });
+
+  it("never copies evidence or provider content into detailed output", () => {
+    const result = resultFor("C05_SEND_CONTROL", {
+      evidence: [
+        {
+          evidenceId: UUIDS.principal,
+          ruleId: "SAFE_ELEMENT_METADATA",
+          classification: "METADATA",
+          sha256: "a".repeat(64),
+          sizeBytes: 12,
+        },
+      ],
+    });
+    const detailed = classifyHealthDetailed({
+      suite: BASELINE_HEALTH_SUITE,
+      results: replaceResult(passedResults(), result),
+      operatorMaintenance: false,
+    });
+    expect(JSON.stringify(detailed)).not.toContain("evidenceId");
+    expect(JSON.stringify(detailed)).not.toContain(UUIDS.principal);
+    expect(Object.keys(detailed).sort()).toEqual([
+      "basis",
+      "environmentUncertaintyReasons",
+      "findingContourKeys",
+      "operatorMaintenance",
+      "productFindings",
+      "state",
+    ]);
+  });
+
+  it("is byte-equivalent for repeated identical input and has no clock dependency", () => {
+    const input = {
+      suite: BASELINE_HEALTH_SUITE,
+      results: passedResults(),
+      operatorMaintenance: false,
+    };
+    const serialized = JSON.stringify(classifyHealthDetailed(input));
+    expect(
+      Array.from({ length: 20 }, () =>
+        JSON.stringify(classifyHealthDetailed(input)),
+      ),
+    ).toEqual(Array.from({ length: 20 }, () => serialized));
+  });
+
+  it.each(["standard", "work", "alice"] as const)(
+    "keeps shared classification semantics target-neutral for %s",
+    (surfaceKey) => {
+      const suite = suiteWith({ surfaceKey });
+      const detailed = classifyHealthDetailed({
+        suite,
+        results: passedResults(suite),
+        operatorMaintenance: false,
+      });
+      expect(detailed).toMatchObject({
+        state: "HEALTHY",
+        basis: "HEALTHY_PRIMARY",
+      });
+    },
+  );
 });
 
 function validP7Candidate(): unknown {

@@ -8,3 +8,4 @@ packages:
   - "packages/ai-adapters/*"
   - "packages/browser-platform/*"
   - "packages/server/*"
+  - "tooling/api-watch"

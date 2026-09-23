@@ -1,31 +1,18 @@
-# Runtime Fixtures
+# Octoport
 
-TypeScript workspace for runtime integration fixtures, contract validation, browser regression testing, and supporting service scaffolds.
+Основной репозиторий Octoport: расширение для работы с маркетплейсами через AI-интерфейсы, backend управления доступом и конфигурацией, мониторинг и инструменты выпуска.
+Историческое имя репозитория — runtime-fixtures. Оно больше не означает тестовую отдельную линию продукта.
 
-## Scope
+Общая ветка: **main**. Разработка: **A (расширение), B (backend), C (интеграция/выпуск/мониторинг)**.
 
-This repository groups executable applications, shared packages, integration fixtures, automated checks, deployment scaffolds, and engineering evidence used to validate interactions between components.
+- [Начать работу и восстановить контекст](docs/development/coordination/README.md)
+- [Технический план и выявленные проблемы](docs/development/coordination/PLAN.md)
+- [Фактическая база и ограничения приёмки](docs/development/coordination/BASELINE_2026-09-23.md)
+- [Техническая документация](docs/README.md)
+- [ТЗ](docs/product/SPEC.md)
+- [Правила репозитория](AGENTS.md)
 
-The top-level documentation is intentionally implementation-focused. Component-specific behavior and historical evidence live next to the relevant code or under `docs/`.
+Исполняемые приложения находятся в apps, общие модули в packages, проверки в tests и tooling. Сайт/SEO разрабатывается отдельно и не входит в эту параллельную программу.
+Node 24.20.0, pnpm 10.34.5. Используйте frozen lockfile, отдельные тестовые среды и общий слот тяжёлых проверок по протоколу.
 
-## Layout
-
-| Path | Purpose |
-|---|---|
-| `apps/` | executable application surfaces and runtime entry points |
-| `packages/` | shared libraries, contracts, adapters, and service modules |
-| `tests/` | integration, regression, and end-to-end checks |
-| `tooling/` | build, validation, packaging, and repository tooling |
-| `infra/` | deployment and environment scaffolding |
-| `docs/` | technical notes, implementation evidence, and maintenance records |
-| `.github/` | repository automation and CI definitions |
-
-## Working in the repository
-
-Use the root package scripts and the workflow relevant to the component being changed. Keep changes bounded to the requested subsystem, preserve existing regression coverage, and verify the exact remote revision before integration work.
-
-Repository maintenance rules are in `AGENTS.md`. The technical documentation index is in `docs/README.md`.
-
-## Validation
-
-Different areas have separate validation routes. A successful documentation, packaging, or fixture check proves only that bounded check; it does not imply unrelated runtime or deployment acceptance.
+Успешная сборка/fixture не доказывает установленную, live или production-готовность. Текущая версия — проверяемая база разработки, не разрешение на выпуск.

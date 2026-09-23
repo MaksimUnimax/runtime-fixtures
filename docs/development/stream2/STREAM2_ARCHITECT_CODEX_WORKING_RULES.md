@@ -1,3 +1,5 @@
+> HISTORICAL / SUPERSEDED for scheduling: use docs/development/coordination/README.md and per-role runtime state. This receipt remains evidence of its original revision; do not restart the old executor from it.
+
 # Stream 2 — Architect / Codex working rules
 
 Status: **PERMANENT WORKING AUTHORITY**

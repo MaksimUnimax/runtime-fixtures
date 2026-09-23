@@ -33,6 +33,7 @@
     "@product/entitlements": "workspace:*",
     "@product/extension-auth": "workspace:*",
     "@product/feedback-support": "workspace:*",
+    "@product/health": "workspace:*",
     "@product/observability": "workspace:*",
     "@product/remote-config": "workspace:*",
     "@product/shared": "workspace:*",

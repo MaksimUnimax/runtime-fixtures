@@ -229,6 +229,7 @@ function PageMessage({ notice }: { notice: Notice }) {
 }
 
 const nav = [
+  ["Health", "/health", "health.read"],
   ["Beta admission", "/beta", "beta.admission.read"],
   ["Accounts", "/accounts", "account.read"],
   ["Users", "/users", "user.read"],

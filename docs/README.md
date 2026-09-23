@@ -1,4 +1,6 @@
-# Technical Documentation Index
+# Документация Octoport
+
+**Текущая программа:** [единая разработка A/B/C](development/coordination/README.md), [план](development/coordination/PLAN.md), [база](development/coordination/BASELINE_2026-09-23.md). Старые Stream-1/Stream-2 документы сохраняются как исторические receipts.
 
 This directory contains implementation-oriented technical notes, contracts, validation records, migration evidence, and operational procedures for the workspace.
 

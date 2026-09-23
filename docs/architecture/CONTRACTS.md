@@ -35,9 +35,9 @@ ConversationKey на сервере передаётся как account-scoped o
 - OTP verify принимает стабильный `Idempotency-Key` на логическую попытку. Сервер хранит только HMAC-идентификатор и минимальную квитанцию replay; портал переиспользует ключ только при retry той же попытки.
 - S1.1 admin contract: `GET/POST /v1/admin/beta/admission` с optimistic `revision`, bounded reason, explicit action и requestId.
 
-### Future I1 extension impact
+### Текущий потребитель расширения
 
-The unified extension is not imported in this repository. At I1 its bootstrap consumer must treat `accessBasis: BETA` as sufficient control-plane access, preserve `subscription.state=NONE` as a genuine no-subscription value, and avoid deriving a commercial device limit from the BETA basis. Existing extension bootstrap parsing must tolerate the optional field while the unified contract version remains `control_plane_v1`.
+Единое расширение и control-client находятся в этом репозитории. Текущий I1 потребитель использует подписанный control_plane_v2/account UUID; сервер сохраняет отдельную совместимость v1. accessBasis=BETA достаточен для beta-доступа, subscription.state=NONE не подменяется подпиской, коммерческий device limit из BETA не выводится. Общий контракт меняется через одного автора C с проверками потребителей A/B; актуальная программа — docs/development/coordination/README.md.
 - Shop metadata: список/создание/переименование/удаление, revision и idempotency; без raw credential.
 - Binding reconcile: изменения конкретных привязок с baseRevision/requestId и последними локальными маркерами.
 - Transfer request/status/channel: отдельный редкий путь с согласованием получателя.

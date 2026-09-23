@@ -2,6 +2,7 @@ import type { BrowserFamily } from "@product/shared";
 import type { BrowserDriver } from "./browser-driver.js";
 
 export type { BrowserFamily } from "@product/shared";
+export { createNoSessionHealthSchedules } from "./scheduler-targets.js";
 export type {
   BrowserDriver,
   BrowserDriverErrorCode,
@@ -10,11 +11,30 @@ export type {
 } from "./browser-driver.js";
 export { BrowserDriverError, ChromeBrowserDriver } from "./browser-driver.js";
 export {
+  createDedicatedHealthChromeBrowserDriver,
+  createDedicatedWorkHealthChromeBrowserDriver,
+  createDedicatedAliceHealthChromeBrowserDriver,
+} from "./browser-driver.js";
+export {
+  DedicatedHealthSessionConfigError,
+  loadDedicatedHealthSessionRegistry,
+} from "./dedicated-health-session.js";
+export type {
+  DedicatedHealthSessionConfigErrorCode,
+  DedicatedHealthSessionRegistry,
+  DedicatedHealthSessionTargetKey,
+} from "./dedicated-health-session.js";
+export {
   ControlledTargetRegistry,
   ControlledTargetKeySchema,
   createControlledTargetRegistry,
+  createPackagedH3TargetRegistry,
+  createPackagedStandardH3TargetRegistry,
+  createPackagedWorkH3TargetRegistry,
+  createPackagedAliceH3TargetRegistry,
 } from "./target-registry.js";
 export type { ControlledTarget } from "./target-registry.js";
+export type { ControlledTargetKey } from "./target-registry.js";
 export {
   BrowserRuntimeMetadataSchema,
   H2ExecutionErrorSchema,
@@ -50,6 +70,58 @@ export type {
   H3RunPlan,
 } from "./h3-contracts.js";
 export {
+  H3PackagedActionSchema,
+  H3SurfaceProfileSchema,
+  H3_PACKAGED_ACTION_KIND_ORDER,
+  compileH3PackagedActions,
+  getPackagedH3Profile,
+  parseH3SurfaceProfile,
+  parseH3PackagedAction,
+} from "./h3-actions.js";
+export type {
+  H3BridgeSurfaceCheck,
+  H3PackagedAction,
+  H3PackagedActionSequence,
+  H3SurfaceProfile,
+} from "./h3-actions.js";
+export {
+  H3StrategyError,
+  H3StrategyErrorCodeSchema,
+  H3StrategyStepOutcomeSchema,
+  H3ContourObservationSchema,
+  H3StrategyStepResultSchema,
+  createH3ContourObservation,
+  parseH3StrategyStepResult,
+  validateH3SurfaceStrategy,
+} from "./h3-strategy.js";
+export type {
+  H3StrategyErrorCode,
+  H3StrategyStepOutcome,
+  H3ContourObservation,
+  H3StrategyStepResult,
+  H3SurfaceStrategy,
+} from "./h3-strategy.js";
+export {
+  H3_PACKAGED_TARGET_BY_SURFACE,
+  H3CleanupOutcomeSchema,
+  H3EngineInputError,
+  H3ExecutionFailureCodeSchema,
+  H3ExecutionOutcomeSchema,
+  H3ExecutionResultSchema,
+  H3SurfaceStrategyRegistry,
+  getPackagedH3Target,
+  runH3BehavioralSmoke,
+  runH3BehavioralSmokeFromRegistry,
+} from "./h3-engine.js";
+export type {
+  H3CleanupOutcome,
+  H3Clock,
+  H3ExecutionFailureCode,
+  H3ExecutionOptions,
+  H3ExecutionOutcome,
+  H3ExecutionResult,
+} from "./h3-engine.js";
+export {
   H3EvidenceOutcomeSchema,
   H3SafeEvidenceEventSchema,
   H3SafeEvidenceBundleSchema,
@@ -61,11 +133,128 @@ export type {
   H3SafeEvidenceEvent,
   H3SafeEvidenceBundle,
 } from "./evidence-sanitizer.js";
+export {
+  H3HealthPersistenceContextSchema,
+  H3HealthPersistenceCommandSchema,
+  H3SafeMetadataArtifactPayloadSchema,
+  H3StateTransitionArtifactPayloadSchema,
+  H3SafeEvidenceArtifactPayloadSchema,
+  H3SafeEvidenceArtifactSchema,
+  H3HealthEvidenceSummarySchema,
+  H3HealthEvidencePackageSchema,
+  createH3HealthPersistenceCommand,
+  materializeH3HealthPersistenceCommand,
+  createH3HealthEvidencePackage,
+  validateH3HealthEvidencePackage,
+} from "./h3-health-persistence.js";
+export type {
+  H3HealthPersistenceContext,
+  H3HealthPersistenceCommand,
+  H3SafeMetadataArtifactPayload,
+  H3StateTransitionArtifactPayload,
+  H3SafeEvidenceArtifactPayload,
+  H3SafeEvidenceArtifact,
+  H3HealthEvidenceSummary,
+  H3HealthEvidencePackage,
+  H3HealthEvidenceTimestamp,
+} from "./h3-health-persistence.js";
 export type {
   SafeStructuralMetadata,
   SafeStructuralObservation,
 } from "./strategies.js";
-
+export {
+  CHATGPT_STANDARD_H3_PROFILE,
+  chatGPTConversationIdentity,
+  resolveChatGPTConversationIdentity,
+} from "./standard-h3-profile.js";
+export type { ChatGPTStandardH3Profile } from "./standard-h3-profile.js";
+export { createChatGPTStandardH3Strategy } from "./standard-h3-strategy.js";
+export {
+  ALICE_H3_PROFILE,
+  aliceAssistantMessages,
+  aliceCodeBlocks,
+  aliceCodeContents,
+  aliceComposerRoots,
+  aliceCopyControls,
+  aliceInputCandidates,
+  aliceMessageId,
+  aliceOknyxControls,
+  aliceStopControls,
+  resolveAliceConversationIdentity,
+} from "./alice-h3-profile.js";
+export type {
+  AliceConversationIdentityResolution,
+  AliceH3Profile,
+} from "./alice-h3-profile.js";
+export { createAliceH3Strategy } from "./alice-h3-strategy.js";
+export {
+  AuthCapabilityStatusSchema,
+  AuthConversationStrategySchema,
+  AuthDeepProbeCapabilitySchema,
+  AuthProviderIdSchema,
+  AuthProviderStrategySchema,
+  AuthSessionReferenceSchema,
+  AuthSessionSourceSchema,
+  AuthSessionSourceTypeSchema,
+  AuthSessionStateSchema,
+  AuthTechnicalSessionClassSchema,
+  AuthSurfaceAuthoritySchema,
+  AuthSurfaceIdSchema,
+  AUTH_SURFACE_AUTHORITIES,
+  AUTH_SURFACE_AUTHORITY_BY_ID,
+  createNoAuthSessionSource,
+  createRuntimeAuthSessionReference,
+  getAuthSurfaceAuthority,
+  parseAuthSessionSource,
+} from "./auth-session-authority.js";
+export type {
+  AuthCapabilityStatus,
+  AuthConversationStrategy,
+  AuthDeepProbeCapability,
+  AuthProviderId,
+  AuthProviderStrategy,
+  AuthSessionReference,
+  AuthSessionSource,
+  AuthSessionSourceType,
+  AuthSessionState,
+  AuthTechnicalSessionClass,
+  AuthSurfaceAuthority,
+  AuthSurfaceId,
+} from "./auth-session-authority.js";
+export {
+  AuthProbeClassificationBasisSchema,
+  AuthProbeClassificationSchema,
+  AuthProbeEvidenceSchema,
+  AuthProbeFailureCodeSchema,
+  AuthProbeResultSchema,
+  AuthProbeStepOutcomeSchema,
+  runAuthenticatedDeepProbe,
+} from "./auth-deep-probe.js";
+export type {
+  AuthenticatedDeepProbeAdapter,
+  AuthenticatedDeepProbeOptions,
+  AuthConversationObservation,
+  AuthProbeClassification,
+  AuthProbeClassificationBasis,
+  AuthProbeEvidence,
+  AuthProbeFailureCode,
+  AuthProbeResult,
+  AuthProbeStepOutcome,
+  AuthProbeStepResult,
+  AuthSendObservation,
+  AuthSessionIdentityObservation,
+  AuthSurfaceObservation,
+  AuthResponseAssociation,
+} from "./auth-deep-probe.js";
+export {
+  authSessionSourceDiagnostic,
+  loadAuthSessionSourceFromEnvironment,
+} from "./auth-session-runtime.js";
+export { createAuthenticatedFixtureAdapter } from "./auth-deep-probe-fixtures.js";
+export type {
+  AuthFixtureFault,
+  AuthFixtureTrace,
+} from "./auth-deep-probe-fixtures.js";
 export class NoopBrowserDriver implements BrowserDriver {
   public readonly sessionKind = "EPHEMERAL_CONTROLLED" as const;
   public constructor(public readonly family: BrowserFamily) {}
@@ -96,3 +285,108 @@ export class NoopBrowserDriver implements BrowserDriver {
   public async closeOrPersist(): Promise<void> {}
   public async stop(): Promise<void> {}
 }
+
+export {
+  NoSessionProviderIdSchema,
+  NoSessionSurfaceIdSchema,
+  NoSessionNavigationStateSchema,
+  NoSessionReadinessStateSchema,
+  NoSessionNavigationOutcomeSchema,
+  NoSessionSurfaceOutcomeSchema,
+  NoSessionIdentityStateSchema,
+  NoSessionReachabilitySchema,
+  NoSessionContourStateSchema,
+  NoSessionAuthStateSchema,
+  NoSessionBlockerSchema,
+  NoSessionClassificationBasisSchema,
+  NoSessionElementMetadataSchema,
+  NoSessionEvidenceReferenceSchema,
+  NoSessionPageSnapshotSchema,
+  NoSessionObservationResultSchema,
+  NoSessionBrowserObservationModeSchema,
+  NoSessionBrowserModeFallbackReasonSchema,
+  NoSessionBrowserModeMetadataSchema,
+  parseNoSessionObservationResult,
+} from "./no-session-contracts.js";
+export type {
+  NoSessionProviderId,
+  NoSessionSurfaceId,
+  NoSessionNavigationState,
+  NoSessionReadinessState,
+  NoSessionNavigationOutcome,
+  NoSessionSurfaceOutcome,
+  NoSessionIdentityState,
+  NoSessionReachability,
+  NoSessionContourState,
+  NoSessionAuthState,
+  NoSessionBlocker,
+  NoSessionClassificationBasis,
+  NoSessionElementMetadata,
+  NoSessionEvidenceReference,
+  NoSessionPageSnapshot,
+  NoSessionObservationResult,
+  NoSessionBrowserObservationMode,
+  NoSessionBrowserModeFallbackReason,
+  NoSessionBrowserModeMetadata,
+} from "./no-session-contracts.js";
+export {
+  NoSessionTargetSchema,
+  NoSessionCapabilityExpectationSchema,
+  NO_SESSION_TARGETS,
+  NO_SESSION_PROVIDER_IDS,
+  NO_SESSION_SURFACE_IDS,
+  getNoSessionTarget,
+  getNoSessionTargetForSurface,
+  targetsForProvider,
+} from "./no-session-target-authority.js";
+export type {
+  NoSessionTarget,
+  NoSessionCapabilityExpectation,
+} from "./no-session-target-authority.js";
+export {
+  NoSessionSelectorProfileSchema,
+  NO_SESSION_STRATEGIES,
+  getNoSessionStrategy,
+  assertNoSessionStrategySeparation,
+} from "./no-session-strategies.js";
+export type {
+  NoSessionSelectorProfile,
+  NoSessionProviderStrategy,
+} from "./no-session-strategies.js";
+export {
+  NoSessionBrowserError,
+  ChromeNoSessionBrowserDriver,
+  createNoSessionChromeBrowserDriver,
+} from "./no-session-browser-driver.js";
+export type {
+  NoSessionBrowserErrorCode,
+  NoSessionNavigationResult,
+  NoSessionBrowserDriver,
+  NoSessionBrowserMode,
+  NoSessionBrowserLaunchOptions,
+} from "./no-session-browser-driver.js";
+export {
+  NoSessionSafeMetadataPayloadSchema,
+  NoSessionStateTransitionPayloadSchema,
+  NoSessionSafeEvidencePayloadSchema,
+  NoSessionSafeEvidenceArtifactSchema,
+  NoSessionSafeEvidenceReferenceSchema,
+  NoSessionSafeEvidencePackageSchema,
+  createNoSessionSafeEvidence,
+  validateNoSessionSafeEvidence,
+} from "./no-session-evidence.js";
+export type {
+  NoSessionSafeEvidencePayload,
+  NoSessionSafeEvidenceArtifact,
+  NoSessionSafeEvidenceReference,
+  NoSessionSafeEvidencePackage,
+} from "./no-session-evidence.js";
+export {
+  runNoSessionProbe,
+  runNoSessionAutomaticProbe,
+  runNoSessionBatch,
+} from "./no-session-runner.js";
+export type {
+  NoSessionAutomaticBrowserPolicy,
+  NoSessionBrowserFactory,
+} from "./no-session-runner.js";

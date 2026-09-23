@@ -1,3 +1,5 @@
+> HISTORICAL / SUPERSEDED for scheduling: use docs/development/coordination/README.md and per-role runtime state. This receipt remains evidence of its original revision; do not restart the old executor from it.
+
 # Seller Agents / Octoport — Permanent Architect Working Rules
 
 Status: **PERMANENT WORKING AUTHORITY**

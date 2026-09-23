@@ -86,6 +86,17 @@ describe.sequential("P2.1 PostgreSQL persistence integration", () => {
       "ai_adapters",
       "ai_surfaces",
       "ai_variants",
+      "api_watch_authority_records",
+      "api_watch_incidents",
+      "api_watch_inventories",
+      "api_watch_product_crosswalk",
+      "api_watch_report_sources",
+      "api_watch_reports",
+      "api_watch_retry_state",
+      "api_watch_semantic_diff_operations",
+      "api_watch_semantic_diffs",
+      "api_watch_snapshots",
+      "api_watch_source_documents",
       "audit_events",
       "auth_rate_limit_buckets",
       "beta_admission_mutations",
@@ -116,8 +127,13 @@ describe.sequential("P2.1 PostgreSQL persistence integration", () => {
       "health_contour_results",
       "health_evidence_references",
       "health_incidents",
+      "health_notification_intents",
+      "health_profile_evaluations",
       "health_runs",
+      "health_scheduled_runs",
+      "health_schedules",
       "health_suite_revisions",
+      "monitoring_lane_schedules",
       "otp_challenges",
       "otp_email_jobs",
       "otp_verify_replays",
@@ -137,6 +153,8 @@ describe.sequential("P2.1 PostgreSQL persistence integration", () => {
       "signing_keys",
       "subscription_transitions",
       "subscriptions",
+      "swagger_source_artifacts",
+      "swagger_source_requests",
       "sync_entities",
       "sync_request_receipts",
       "user_identities",
@@ -145,7 +163,7 @@ describe.sequential("P2.1 PostgreSQL persistence integration", () => {
     const count = await runtime.db.execute<{ count: string }>(sql`
       SELECT count(*)::text AS "count" FROM drizzle."__drizzle_migrations"
     `);
-    expect(count.rows[0]?.count).toBe("23");
+    expect(count.rows[0]?.count).toBe("38");
     const browserFamilyRows = await runtime.db.execute<{
       enumlabel: string;
     }>(sql`
@@ -167,11 +185,12 @@ describe.sequential("P2.1 PostgreSQL persistence integration", () => {
       FROM pg_constraint
       WHERE conname IN (
         'adapter_profile_assignments_browser_family',
-        'health_runs_browser_family'
+        'health_runs_browser_family',
+        'health_profile_evaluations_browser_family'
       )
       ORDER BY conname
     `);
-    expect(browserConstraintRows.rows).toHaveLength(2);
+    expect(browserConstraintRows.rows).toHaveLength(3);
     for (const row of browserConstraintRows.rows) {
       for (const family of BrowserFamilies) {
         expect(row.definition).toContain(family);

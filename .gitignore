@@ -22,3 +22,6 @@ test-results/
 *.tsbuildinfo
 owner_refs/
 recommendations/
+
+# Python coordination checks
+__pycache__/

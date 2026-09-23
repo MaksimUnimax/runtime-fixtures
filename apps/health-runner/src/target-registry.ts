@@ -10,6 +10,7 @@ const TARGET_KEY_PATTERN = /^[a-z][a-z0-9_]{0,63}$/;
 export const ControlledTargetKeySchema = z
   .string()
   .regex(TARGET_KEY_PATTERN, "invalid controlled target key");
+export type ControlledTargetKey = z.infer<typeof ControlledTargetKeySchema>;
 
 const ControlledTargetDefinitionSchema = z
   .object({
@@ -106,4 +107,70 @@ export function createControlledTargetRegistry(
   definitions: readonly unknown[],
 ): ControlledTargetRegistry {
   return new ControlledTargetRegistry(definitions);
+}
+
+/** The credential-free production target for the packaged Standard profile. */
+export function createPackagedStandardH3TargetRegistry(): ControlledTargetRegistry {
+  return new ControlledTargetRegistry([
+    {
+      key: "chatgpt_standard_health",
+      startUrl: "https://chatgpt.com/",
+      allowedTopLevelOrigins: ["https://chatgpt.com"],
+      browserFamily: "chrome",
+      navigationTimeoutMs: 15_000,
+    },
+  ]);
+}
+
+/** The credential-free production target for the packaged Work profile. */
+export function createPackagedWorkH3TargetRegistry(): ControlledTargetRegistry {
+  return new ControlledTargetRegistry([
+    {
+      key: "chatgpt_work_health",
+      startUrl: "https://chatgpt.com/",
+      allowedTopLevelOrigins: ["https://chatgpt.com"],
+      browserFamily: "chrome",
+      navigationTimeoutMs: 15_000,
+    },
+  ]);
+}
+
+/** The credential-free, non-authenticated target for Alice H3. */
+export function createPackagedAliceH3TargetRegistry(): ControlledTargetRegistry {
+  return new ControlledTargetRegistry([
+    {
+      key: "alice_health",
+      startUrl: "https://alice.yandex.ru/",
+      allowedTopLevelOrigins: ["https://alice.yandex.ru"],
+      browserFamily: "chrome",
+      navigationTimeoutMs: 15_000,
+    },
+  ]);
+}
+
+/** All packaged non-authenticated H3 targets; no caller-supplied target is added. */
+export function createPackagedH3TargetRegistry(): ControlledTargetRegistry {
+  return new ControlledTargetRegistry([
+    {
+      key: "chatgpt_standard_health",
+      startUrl: "https://chatgpt.com/",
+      allowedTopLevelOrigins: ["https://chatgpt.com"],
+      browserFamily: "chrome",
+      navigationTimeoutMs: 15_000,
+    },
+    {
+      key: "chatgpt_work_health",
+      startUrl: "https://chatgpt.com/",
+      allowedTopLevelOrigins: ["https://chatgpt.com"],
+      browserFamily: "chrome",
+      navigationTimeoutMs: 15_000,
+    },
+    {
+      key: "alice_health",
+      startUrl: "https://alice.yandex.ru/",
+      allowedTopLevelOrigins: ["https://alice.yandex.ru"],
+      browserFamily: "chrome",
+      navigationTimeoutMs: 15_000,
+    },
+  ]);
 }

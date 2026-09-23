@@ -1,0 +1,51 @@
+CREATE TABLE "api_watch_reports" (
+  "report_id" varchar(160) PRIMARY KEY NOT NULL,
+  "run_source" varchar(16) NOT NULL,
+  "created_at" timestamp with time zone NOT NULL,
+  "started_at" timestamp with time zone,
+  "completed_at" timestamp with time zone,
+  "state" varchar(16) NOT NULL,
+  "added_count" integer NOT NULL DEFAULT 0,
+  "removed_count" integer NOT NULL DEFAULT 0,
+  "changed_count" integer NOT NULL DEFAULT 0,
+  "unchanged_count" integer NOT NULL DEFAULT 0,
+  "blocking_risk_count" integer NOT NULL DEFAULT 0,
+  "review_required_count" integer NOT NULL DEFAULT 0,
+  "unknown_count" integer NOT NULL DEFAULT 0,
+  "no_policy_impact_count" integer NOT NULL DEFAULT 0,
+  "overall_impact_severity" varchar(24),
+  CONSTRAINT "api_watch_reports_source_check" CHECK ("run_source" IN ('SCHEDULED','FORCED')),
+  CONSTRAINT "api_watch_reports_state_check" CHECK ("state" IN ('CREATED','RUNNING','COMPLETED','PARTIAL','BLOCKED','FAILED')),
+  CONSTRAINT "api_watch_reports_impact_check" CHECK ("overall_impact_severity" IS NULL OR "overall_impact_severity" IN ('BLOCKING_RISK','REVIEW_REQUIRED','UNKNOWN','NO_POLICY_IMPACT')),
+  CONSTRAINT "api_watch_reports_counts_check" CHECK ("added_count" >= 0 AND "removed_count" >= 0 AND "changed_count" >= 0 AND "unchanged_count" >= 0 AND "blocking_risk_count" >= 0 AND "review_required_count" >= 0 AND "unknown_count" >= 0 AND "no_policy_impact_count" >= 0)
+);
+--> statement-breakpoint
+CREATE TABLE "api_watch_report_sources" (
+  "report_id" varchar(160) NOT NULL,
+  "source_family" varchar(32) NOT NULL,
+  "acquisition_outcome" varchar(64) NOT NULL,
+  "authority_status" varchar(32),
+  "snapshot_sha256" varchar(64),
+  "inventory_operation_count" integer,
+  "base_snapshot_sha256" varchar(64),
+  "diff_sha256" varchar(64),
+  "impact_severity" varchar(24),
+  "blocker_code" varchar(64),
+  "error_code" varchar(64),
+  "change_mode" varchar(24),
+  "added_count" integer,
+  "removed_count" integer,
+  "changed_count" integer,
+  "unchanged_count" integer,
+  "blocking_risk_count" integer,
+  "review_required_count" integer,
+  "unknown_count" integer,
+  "no_policy_impact_count" integer,
+  CONSTRAINT "api_watch_report_sources_pk" PRIMARY KEY ("report_id","source_family"),
+  CONSTRAINT "api_watch_report_sources_report_fk" FOREIGN KEY ("report_id") REFERENCES "api_watch_reports"("report_id") ON DELETE CASCADE,
+  CONSTRAINT "api_watch_report_sources_family_check" CHECK ("source_family" IN ('OZON_SELLER','OZON_PERFORMANCE','WILDBERRIES')),
+  CONSTRAINT "api_watch_report_sources_impact_check" CHECK ("impact_severity" IS NULL OR "impact_severity" IN ('BLOCKING_RISK','REVIEW_REQUIRED','UNKNOWN','NO_POLICY_IMPACT')),
+  CONSTRAINT "api_watch_report_sources_mode_check" CHECK ("change_mode" IS NULL OR "change_mode" IN ('NO_CHANGE','FIRST_SNAPSHOT','CHANGED'))
+);
+--> statement-breakpoint
+CREATE INDEX "api_watch_reports_created_index" ON "api_watch_reports" USING btree ("created_at","report_id");

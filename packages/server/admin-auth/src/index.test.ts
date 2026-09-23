@@ -69,8 +69,8 @@ describe("P6.1 admin crypto and RBAC foundation", () => {
       "ADMIN_BETA_OPERATOR",
     ]);
   });
-  it("defines the permission vocabulary without Stream-2 monitoring domains", () => {
-    expect(ADMIN_PERMISSIONS).toHaveLength(32);
+  it("defines the combined support and read-only health permission vocabulary", () => {
+    expect(ADMIN_PERMISSIONS).toHaveLength(33);
     expect(ADMIN_PERMISSIONS).toContain("beta.admission.read");
     expect(ADMIN_PERMISSIONS).toContain("beta.admission.manage");
     expect(ADMIN_PERMISSIONS.filter((p) => p.startsWith("ai."))).toEqual([
@@ -81,7 +81,7 @@ describe("P6.1 admin crypto and RBAC foundation", () => {
       "ai.assignment.read",
       "ai.assignment.manage",
     ]);
-    expect(ADMIN_PERMISSIONS.some((p) => p.startsWith("health."))).toBe(false);
+    expect(ADMIN_PERMISSIONS).toContain("health.read");
     expect(ADMIN_PERMISSIONS.some((p) => p.startsWith("diagnostic."))).toBe(
       false,
     );
@@ -163,6 +163,11 @@ describe("P6.1 admin crypto and RBAC foundation", () => {
         "ai.assignment.manage",
       ]),
     );
+  });
+  it("gives ops Health read without a Health mutation permission", () => {
+    const permissions = permissionsForRole("ADMIN_OPS");
+    expect(permissions).toContain("health.read");
+    expect(permissions).not.toContain("health.manage");
   });
   it("gives support only P7 reads", () => {
     const permissions = permissionsForRole("ADMIN_SUPPORT");

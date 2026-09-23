@@ -42,6 +42,11 @@ import {
   FeedbackSupportService,
   type FeedbackRepository,
 } from "@product/feedback-support";
+import type {
+  HealthAdminReadRepository,
+  HealthNotificationAdminReadRepository,
+  HealthDiagnosticsReadRepository,
+} from "@product/health";
 
 type JsonPrimitive = boolean | null | number | string;
 type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
@@ -324,6 +329,27 @@ export async function generateOpenApiRepresentation(): Promise<string> {
         code: null,
       }),
     }),
+    healthAdminService: {
+      listTargets: async () => ({ items: [], nextCursor: null }),
+      getTarget: async () => null,
+      listIncidents: async () => ({ items: [], nextCursor: null }),
+      getIncident: async () => null,
+      listEvaluations: async () => ({ items: [], nextCursor: null }),
+      getEvaluation: async () => null,
+      listRecommendations: async () => ({ items: [], nextCursor: null }),
+    } satisfies HealthAdminReadRepository,
+    healthNotificationAdminService: {
+      listNotifications: async () => ({ items: [], nextCursor: null }),
+      getNotification: async () => null,
+    } satisfies HealthNotificationAdminReadRepository,
+    healthDiagnosticsService: {
+      getSummary: async () => {
+        throw new Error("not used");
+      },
+      getBreakdown: async () => {
+        throw new Error("not used");
+      },
+    } satisfies HealthDiagnosticsReadRepository,
   });
   try {
     await app.ready();

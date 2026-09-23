@@ -76,6 +76,12 @@ import { registerCredentialTransferRoutes } from "./credential-transfer-routes.j
 import { registerFeedbackRoutes } from "./feedback-routes.js";
 import { registerAdminFeedbackRoutes } from "./admin-feedback-routes.js";
 import type { FeedbackSupportService } from "@product/feedback-support";
+import { registerHealthAdminRoutes } from "./health-admin-routes.js";
+import type {
+  HealthAdminReadRepository,
+  HealthNotificationAdminReadRepository,
+  HealthDiagnosticsReadRepository,
+} from "@product/health";
 
 export class ControlledError extends Error {
   public constructor(
@@ -107,6 +113,9 @@ export interface ApiDependencies {
   readonly syncService?: SyncService;
   readonly credentialTransferService?: CredentialTransferServiceType;
   readonly feedbackSupportService?: FeedbackSupportService;
+  readonly healthAdminService?: HealthAdminReadRepository;
+  readonly healthNotificationAdminService?: HealthNotificationAdminReadRepository;
+  readonly healthDiagnosticsService?: HealthDiagnosticsReadRepository;
 }
 
 function correlationId(request: FastifyRequest): string {
@@ -379,6 +388,16 @@ export function createApiApp(
         dependencies.feedbackSupportService,
       );
     }
+    if (dependencies.healthAdminService)
+      registerHealthAdminRoutes(
+        app,
+        createAdminRouteGuard(
+          dependencies.adminAuthService ?? unavailableAdmin,
+        ),
+        dependencies.healthAdminService,
+        dependencies.healthNotificationAdminService,
+        dependencies.healthDiagnosticsService,
+      );
   });
   return app;
 }

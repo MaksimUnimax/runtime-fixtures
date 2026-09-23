@@ -1,0 +1,21 @@
+{
+  "source": "77918a1ea5f8cd764bf6abe94b8dfb0ad61f7fd3",
+  "canonical_base": "bdfaafc45612bd3ceacb52534478217fe17b6ff8",
+  "mapping": {
+    "0019_s2_l6_durable_health_scheduler": "0034_s2_l6_durable_health_scheduler",
+    "0020_s2_l6_health_incident_lifecycle": "0035_s2_l6_health_incident_lifecycle",
+    "0021_s2_l7_h4_h5_evaluations": "0036_s2_l7_h4_h5_evaluations",
+    "0022_s2_o2_llm_health_notification_intents": "0037_s2_o2_llm_health_notification_intents",
+    "0023_s2_tg2_monitoring_lanes": "0038_s2_tg2_monitoring_lanes",
+    "0024_s2_tg3_operator_swagger_handoff": "0039_s2_tg3_operator_swagger_handoff",
+    "0025_s2_api_watch_authority_snapshots": "0040_s2_api_watch_authority_snapshots",
+    "0026_s2_api_watch_semantic_diffs": "0041_s2_api_watch_semantic_diffs",
+    "0027_s2_api_watch_reports": "0042_s2_api_watch_reports",
+    "0028_s2_api_watch_product_crosswalk": "0043_s2_api_watch_product_crosswalk",
+    "0029_s2_api_watch_incidents": "0044_s2_api_watch_incidents",
+    "0030_s2_api_watch_retry_state": "0045_s2_api_watch_retry_state",
+    "0031_s2_api_watch_source_documents": "0046_s2_api_watch_source_documents",
+    "0032_s2_wb_bundle_handoff": "0047_s2_wb_bundle_handoff"
+  },
+  "policy": "Preserve the product journal prefix. Append unchanged SQL from Stream 2 after 0033. Legacy Stream 2 database histories require explicit reconciliation, never automatic timestamp-only upgrade."
+}

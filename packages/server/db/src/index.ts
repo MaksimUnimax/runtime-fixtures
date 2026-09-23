@@ -22,6 +22,34 @@ export { createP6AdminCommercialReadRepository } from "./p6-admin-commercial-rea
 export { createAdapterRegistryCatalogRepository } from "./adapter-registry-repository.js";
 export { createProfileLifecycleRepository } from "./p7-profile-lifecycle-repository.js";
 export { createHealthPersistenceRepository } from "./health-persistence-repository.js";
+export { createHealthSchedulerRepository } from "./health-scheduler-repository.js";
+export { createHealthIncidentRepository } from "./health-incident-repository.js";
+export {
+  createHealthNotificationRepository,
+  MAX_NOTIFICATION_ATTEMPTS,
+  NOTIFICATION_LEASE_MS,
+  recordLlmHealthNotificationInTransaction,
+  observeLlmHealthFailureInTransaction,
+  suppressLlmHealthProductNotificationsInTransaction,
+  resumeLlmHealthProductNotificationInTransaction,
+} from "./health-notification-repository.js";
+export { createHealthEvaluationRepository } from "./health-evaluation-repository.js";
+export { createHealthAdminReadRepository } from "./health-admin-read-repository.js";
+export { createHealthNotificationAdminReadRepository } from "./health-notification-admin-read-repository.js";
+export { createHealthDiagnosticsReadRepository } from "./health-diagnostics-read-repository.js";
+export type {
+  PersistedHealthProfileEvaluation,
+  UpsertHealthProfileEvaluationResult,
+} from "./health-evaluation-repository.js";
+export type {
+  HealthIncident,
+  HealthIncidentProcessingResult,
+} from "./health-incident-repository.js";
+export type {
+  HealthNotificationIntent,
+  HealthNotificationRepository,
+  NotificationDeliveryFailureCode,
+} from "./health-notification-repository.js";
 export { createBetaAdmissionRepository } from "./beta-admission-repository.js";
 export { bootstrapInitialBetaAdmission } from "./beta-admission-bootstrap.js";
 export { createSyncRepository } from "./sync-repository.js";

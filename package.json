@@ -14,12 +14,12 @@
     }
   },
   "scripts": {
-    "lint": "eslint apps/api apps/portal apps/admin apps/worker apps/health-runner packages/server packages/contracts packages/shared tooling/server tests/integration/server tests/e2e/server --max-warnings=0 && pnpm bridge:guard",
+    "lint": "eslint apps/api apps/portal apps/admin apps/worker apps/health-runner apps/telegram-operator packages/server packages/contracts packages/shared tooling/server tooling/api-watch tests/integration/server tests/e2e/server --max-warnings=0 && pnpm bridge:guard",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test && pnpm bridge:guard",
     "test:integration": "vitest run --config tests/integration/server/vitest.config.ts",
     "test:e2e": "PRODUCT_CONTROL_PLANE_E2E=1 playwright test --config tests/e2e/server/playwright.config.ts",
-    "build": "pnpm --filter @product/api build && pnpm --filter @product/worker build && pnpm --filter @product/health-runner build && pnpm --filter @product/portal build && pnpm --filter @product/admin build",
+    "build": "pnpm --filter @product/api build && pnpm --filter @product/worker build && pnpm --filter @product/health-runner build && pnpm --filter @product/portal build && pnpm --filter @product/admin build && pnpm --filter @product/telegram-operator build",
     "db:generate": "pnpm --filter @product/db db:generate",
     "db:migrate": "pnpm --filter @product/db db:migrate",
     "api:dev": "pnpm --filter @product/api dev",
@@ -34,7 +34,7 @@
     "beta:bootstrap-open": "tsx tooling/server/bootstrap-beta-admission.ts",
     "config:trust-export": "tsx tooling/server/export-config-trust-bundle.ts",
     "config-signing:bootstrap-catalog": "tsx tooling/server/bootstrap-config-signing-catalog.ts",
-    "format:check": "prettier --check \"{apps/api,apps/portal,apps/admin,apps/worker,apps/health-runner,packages/server,packages/contracts,packages/shared,tooling/server,infra/local,tests/integration/server}/**/*.{ts,tsx,js,mjs,cjs,json,css,scss,yml,yaml}\" package.json pnpm-workspace.yaml tsconfig.base.json eslint.config.mjs .github/workflows/server-ci.yml",
+    "format:check": "prettier --check \"{apps/api,apps/portal,apps/admin,apps/worker,apps/health-runner,apps/telegram-operator,packages/server,packages/contracts,packages/shared,tooling/server,tooling/api-watch,infra/local,tests/integration/server}/**/*.{ts,tsx,js,mjs,cjs,json,css,scss,yml,yaml}\" package.json pnpm-workspace.yaml tsconfig.base.json eslint.config.mjs .github/workflows/server-ci.yml",
     "docs:check": "node tooling/checks/docs-check.mjs"
   },
   "devDependencies": {
@@ -56,8 +56,8 @@
     "tsx": "4.20.5",
     "vitest": "3.2.6"
   },
-  "description": "Seller Agents monorepo — imported server foundation; extension integration pending",
+  "description": "Octoport monorepo: extension, backend, monitoring and release tooling",
   "sellerAgents": {
-    "stage": "server_import"
+    "stage": "integrated_candidate"
   }
 }

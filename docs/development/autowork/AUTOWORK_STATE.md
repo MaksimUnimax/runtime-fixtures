@@ -1,3 +1,5 @@
+> HISTORICAL / SUPERSEDED for scheduling: use docs/development/coordination/README.md and per-role runtime state. This receipt remains evidence of its original revision; do not restart the old executor from it.
+
 # OCTOPORT durable autowork state
 
 Last reconstruction: 2026-09-23T06:31:21+03:00

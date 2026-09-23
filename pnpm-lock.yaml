@@ -51,15 +51,15 @@ importers:
       prettier:
         specifier: 3.6.2
         version: 3.6.2
+      tsx:
+        specifier: 4.20.5
+        version: 4.20.5
       typescript:
         specifier: 5.9.2
         version: 5.9.2
       typescript-eslint:
         specifier: 8.42.0
         version: 8.42.0(eslint@9.35.0)(typescript@5.9.2)
-      tsx:
-        specifier: 4.20.5
-        version: 4.20.5
       vitest:
         specifier: 3.2.6
         version: 3.2.6(@types/node@24.3.0)(tsx@4.20.5)(yaml@2.9.0)
@@ -145,6 +145,9 @@ importers:
       '@product/feedback-support':
         specifier: workspace:*
         version: link:../../packages/server/feedback-support
+      '@product/health':
+        specifier: workspace:*
+        version: link:../../packages/server/health
       '@product/observability':
         specifier: workspace:*
         version: link:../../packages/server/observability
@@ -185,6 +188,9 @@ importers:
       '@product/health':
         specifier: workspace:*
         version: link:../../packages/server/health
+      '@product/remote-config':
+        specifier: workspace:*
+        version: link:../../packages/server/remote-config
       '@product/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -218,6 +224,31 @@ importers:
         specifier: 19.1.9
         version: 19.1.9(@types/react@19.1.12)
 
+  apps/telegram-operator:
+    dependencies:
+      '@product/api-watch':
+        specifier: workspace:*
+        version: link:../../tooling/api-watch
+      '@product/db':
+        specifier: workspace:*
+        version: link:../../packages/server/db
+      '@product/health-runner':
+        specifier: workspace:*
+        version: link:../health-runner
+      '@product/monitoring-control':
+        specifier: workspace:*
+        version: link:../../packages/server/monitoring-control
+      '@product/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+      tsx:
+        specifier: 4.20.5
+        version: 4.20.5
+    devDependencies:
+      tsup:
+        specifier: 8.5.0
+        version: 8.5.0(postcss@8.5.18)(tsx@4.20.5)(typescript@5.9.2)(yaml@2.9.0)
+
   apps/worker:
     dependencies:
       '@product/auth':
@@ -235,6 +266,9 @@ importers:
       '@product/email':
         specifier: workspace:*
         version: link:../../packages/server/email
+      '@product/health':
+        specifier: workspace:*
+        version: link:../../packages/server/health
       '@product/observability':
         specifier: workspace:*
         version: link:../../packages/server/observability
@@ -625,6 +659,19 @@ importers:
         specifier: 4.1.5
         version: 4.1.5
 
+  packages/server/monitoring-control:
+    dependencies:
+      yaml:
+        specifier: 2.9.0
+        version: 2.9.0
+      zod:
+        specifier: 4.1.5
+        version: 4.1.5
+    devDependencies:
+      '@types/node':
+        specifier: 24.3.0
+        version: 24.3.0
+
   packages/server/observability:
     dependencies:
       pino:
@@ -714,6 +761,25 @@ importers:
       zod:
         specifier: 4.1.5
         version: 4.1.5
+
+  tooling/api-watch:
+    dependencies:
+      '@product/monitoring-control':
+        specifier: workspace:*
+        version: link:../../packages/server/monitoring-control
+      yaml:
+        specifier: 2.9.0
+        version: 2.9.0
+      zod:
+        specifier: 4.1.5
+        version: 4.1.5
+    devDependencies:
+      '@types/node':
+        specifier: 24.3.0
+        version: 24.3.0
+      tsup:
+        specifier: 8.5.0
+        version: 8.5.0(postcss@8.5.18)(tsx@4.20.5)(typescript@5.9.2)(yaml@2.9.0)
 
 packages:
 

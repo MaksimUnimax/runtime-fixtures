@@ -50,6 +50,7 @@ export const ADMIN_PERMISSIONS = [
   "support.case.read",
   "support.case.manage",
   "support.aggregate.read",
+  "health.read",
 ] as const;
 export type AdminPermission = (typeof ADMIN_PERMISSIONS)[number];
 
@@ -79,6 +80,7 @@ const rolePermissions: Record<AdminRole, readonly AdminPermission[]> = {
     "support.case.read",
     "support.case.manage",
     "support.aggregate.read",
+    "health.read",
   ],
   ADMIN_SUPPORT: [
     "account.read",
