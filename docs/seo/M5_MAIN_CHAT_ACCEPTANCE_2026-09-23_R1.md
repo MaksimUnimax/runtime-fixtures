@@ -1,0 +1,233 @@
+# Octoport SEO — M5 Main Chat acceptance R1
+
+Date: 2026-09-23
+Status: **ACCEPTED / PROVISIONAL HYPOTHESIS REGISTER ONLY / NO AI PROVIDER EVIDENCE**
+WORK_ID: `OCTOPORT_SEO_M5_AI_DIAGNOSTIC_HYPOTHESIS_REGISTER_2026-09-23_R1`
+
+Repository: `MaksimUnimax/runtime-fixtures`
+Branch: `seo/wordstat-batch-01-2026-09-16`
+
+Work START_HEAD / END_OBSERVED_HEAD:
+`30c3e8d8e0a82d5827a258ecb01a66b96817b0f4`
+
+Owner upload HEAD:
+`cb2fcef5876b699065ba6348ce6939d17cb864ab`
+
+## 1. Upload / drift QA
+
+Independent comparison from Work END_OBSERVED_HEAD to owner upload HEAD:
+
+```text
+AHEAD_BY = 1
+UPLOAD_DELTA_FILES = 5
+EXPECTED_M5_RETURN_FILES = 5
+UNEXPECTED_PATHS = 0
+UPSTREAM_AUTHORITY_CHANGED_IN_UPLOAD = 0
+```
+
+Uploaded files:
+
+1. `M5_SOURCE_MANIFEST.md`
+2. `M5_INPUT_DISPOSITION_LEDGER.tsv`
+3. `M5_AI_DIAGNOSTIC_HYPOTHESIS_REGISTER.tsv`
+4. `M5_QA.md`
+5. `M5_RETURN_MANIFEST.json`
+
+## 2. Byte identity QA
+
+Main Chat independently recomputed UTF-8 bytes and SHA-256 from exact uploaded Git blob content.
+
+```text
+NON_SELF_FILE_BYTES_MATCH = 4/4
+NON_SELF_FILE_SHA256_MATCH = 4/4
+RETURN_MANIFEST_SELF_HASH_POLICY = VALID
+```
+
+Verified:
+
+- `M5_SOURCE_MANIFEST.md`
+  SHA256 = `2747b071f235849a1188d79722e67b0fa8b8dbe5c8b06e2638bc001b4edf10cd`
+
+- `M5_INPUT_DISPOSITION_LEDGER.tsv`
+  SHA256 = `507697be386723cd150b1bae4d37648088f412b925bd06744ebad3c5014ba9e7`
+
+- `M5_AI_DIAGNOSTIC_HYPOTHESIS_REGISTER.tsv`
+  SHA256 = `00b2c55dd1e5dfcdd66ea63fa277222391702977eac5b80fc28638367f3a969a`
+
+- `M5_QA.md`
+  SHA256 = `af2e7f2a4a7a52b3c048b02a2ab678f00c9f3d638196b88aab3406488d13132f`
+
+## 3. Primary input accounting
+
+Main Chat independently joined the disposition ledger back to the two frozen source inputs.
+
+```text
+M4C_BASE_SOURCE_ROWS = 867
+M4C_BASE_LEDGER_ROWS = 867
+M4C_SOURCE_IDS_MISSING = 0
+M4C_SOURCE_IDS_EXTRA = 0
+M4C_SOURCE_WORDING_MISMATCH = 0
+M4C_SOURCE_STATUS_MISMATCH = 0
+
+TARGETED_OVERLAY_SOURCE_ROWS = 133
+TARGETED_OVERLAY_LEDGER_ROWS = 133
+TARGETED_SOURCE_IDS_MISSING = 0
+TARGETED_SOURCE_IDS_EXTRA = 0
+TARGETED_SOURCE_WORDING_MISMATCH = 0
+TARGETED_SOURCE_STATUS_MISMATCH = 0
+TARGETED_SOURCE_REGISTRY_MISMATCH = 0
+
+TOTAL_PRIMARY_INPUTS = 1000/1000
+SILENT_INPUT_LOSS = 0
+```
+
+## 4. Disposition accounting
+
+Independent parse:
+
+```text
+ADMIT_PROVISIONAL_HYPOTHESIS = 65
+EXACT_DUPLICATE_OF_ADMITTED_HYPOTHESIS = 28
+SEARCH_OR_M6_ONLY_NOT_AI_DIAGNOSTIC = 188
+OUT_OF_PRODUCT_SCOPE = 681
+HOLD_AMBIGUOUS = 28
+SUPERSEDED_BY_CURRENT_M4_EVIDENCE = 10
+
+DISPOSITION_SUM = 1000/1000
+UNIQUE_INPUT_ROW_IDS = 1000/1000
+```
+
+Per source layer:
+
+```text
+M4C_R1_M5_INPUT = 867
+M4Q_R2_TARGETED_CANDIDATE_DELTA = 133
+```
+
+No targeted source row with source status `OUT_OF_SCOPE` or `AMBIGUOUS` was admitted.
+
+## 5. Hypothesis register mechanical QA
+
+```text
+REGISTER_ROWS = 65
+UNIQUE_HYPOTHESIS_IDS = 65/65
+UNIQUE_EXACT_SAFE_COMPARISON_KEYS = 65/65
+
+ADMIT_LEDGER_UNIQUE_HYPOTHESIS_IDS = 65
+REGISTER_SET_EQUALS_ADMIT_SET = true
+
+LINKED_INPUT_ROWS = 93
+REGISTER_SOURCE_LINKS = 93
+MISSING_REVERSE_LINKS = 0
+INVALID_REGISTER_SOURCE_LINKS = 0
+```
+
+Every `ADMIT` and `EXACT_DUPLICATE` row points to an existing admitted hypothesis, and every such input row is preserved in that hypothesis' source provenance.
+
+Exact-duplicate identity QA:
+
+```text
+EXACT_DUPLICATE_ROWS = 28
+EXACT_SAFE_WORDING_KEY_MISMATCH = 0
+```
+
+No synonym/morphology merge was accepted as exact identity.
+
+## 6. Required hypothesis fields / method boundary
+
+For all 65 rows:
+
+```text
+SOURCE_PROVENANCE_PRESENT = 65/65
+CURRENT_UNCERTAINTY_PRESENT = 65/65
+EXPECTED_FUTURE_AI_INFO_GAIN_PRESENT = 65/65
+LIKELY_SEARCH_DECISION_PRESENT = 65/65
+M10B_SELECTION_REQUIREMENT_PRESENT = 65/65
+M10A_PRECONDITION_EXPLICIT = 65/65
+CLAIM_BOUNDARY_PRESENT = 65/65
+
+STATUS =
+PROVISIONAL_HYPOTHESIS_ONLY_NO_AI_PROVIDER_EVIDENCE
+for 65/65
+```
+
+All 65 hypotheses contain accepted current M4Q Search context.
+
+```text
+M4Q_QUERY_REFS_IN_REGISTER = 339
+UNKNOWN_M4Q_QUERY_REFS = 0
+HYPOTHESES_WITHOUT_CURRENT_M4Q_QUERY_CONTEXT = 0
+```
+
+No final AI case selection, ranking/priority winner, final cluster/page or IA decision is present.
+
+## 7. Claim / provider boundary
+
+Accepted:
+
+```text
+AI_PROVIDER_EVIDENCE_ROWS = 0
+FINAL_AI_CASE_SELECTIONS = 0
+
+ALICE_CALLS = 0
+YANDEX_SEARCH_CALLS = 0
+WORDSTAT_CALLS = 0
+WEB_ACQUISITION_BY_WORK = 0
+
+SEARCH_VISIBILITY_AS_DEMAND = 0
+COMPETITOR_TOPIC_AS_DEMAND = 0
+COMPETITOR_CLAIM_AS_OCTOPORT_FACT = 0
+FINAL_CLUSTER_DECISIONS = 0
+FINAL_PAGE_OWNERSHIP_DECISIONS = 0
+FINAL_URL_H1_TITLE_DECISIONS = 0
+
+OPEN_CRITICAL_DEFECTS = 0
+```
+
+M5 hypotheses are provisional diagnostic candidates only.
+
+They do not authorize Alice execution now.
+
+Final AI case selection remains M10B, after a frozen M10A Search-only baseline exists.
+
+## 8. Final verdict
+
+```text
+M5_UPLOAD_QA = PASS
+M5_BYTE_IDENTITY_QA = PASS
+M5_FULL_INPUT_ACCOUNTING_QA = PASS
+M5_PROVENANCE_QA = PASS
+M5_HYPOTHESIS_REGISTER_QA = PASS
+M5_CLAIM_BOUNDARY_QA = PASS
+
+M5 = ACCEPTED
+M5_AI_DIAGNOSTIC_HYPOTHESIS_REGISTER_ROWS = 65
+M5_ROW_LEVEL_HOLDS = 28
+M5_AI_PROVIDER_EVIDENCE = 0
+```
+
+## 9. Roadmap cursor
+
+Active roadmap requires:
+
+```text
+M4 = ACCEPTED / CURRENT WITH EXPLICIT BOUNDED HOLDS
+M5 = ACCEPTED
+M6 = NEXT PREPARATION
+M7 = BLOCKED
+```
+
+Important retrospective gate:
+
+```text
+M1_LIVE_MEASUREMENT_BASELINE = STILL OPEN/PARTIAL
+M1 MUST BE CLOSED BEFORE M6 FINAL CLOSURE / M7
+```
+
+Therefore M6 preparation may begin, but M7 cannot be released until:
+- M6 named gaps are terminal;
+- M3 control debt is closed or explicit HOLD;
+- M1 current live/measurement baseline is completed or explicit blocking HOLD.
+
+NEXT:
+prepare complete M6 gap register / provider-control plan from current accepted M2/M3/M4/M5 authority before any new provider call.
