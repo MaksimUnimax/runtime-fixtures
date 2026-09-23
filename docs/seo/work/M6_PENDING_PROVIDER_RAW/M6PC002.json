@@ -1,0 +1,146 @@
+{
+  "bridge": "yandex-marketing-bridge",
+  "version": "0.1.9",
+  "service": "wordstat",
+  "operation": "batch.next",
+  "job_id": "octoport-m6-wordstat-abc-r1-20260923",
+  "run_id": null,
+  "status": "OK",
+  "reason": null,
+  "command": {
+    "action": "next",
+    "jobId": "octoport-m6-wordstat-abc-r1-20260923"
+  },
+  "progress": {
+    "job_id": "octoport-m6-wordstat-abc-r1-20260923",
+    "status": "COMPLETED",
+    "total": 2,
+    "input_count": 2,
+    "duplicate_count": 0,
+    "pending": 0,
+    "claimed": 0,
+    "requesting": 0,
+    "succeeded": 2,
+    "failed_terminal": 0,
+    "outcome_unknown": 0,
+    "skipped": 0,
+    "cancelled": 0,
+    "terminal": 2,
+    "requests_started": 2,
+    "estimated_cost_rub": 0.04,
+    "active_item_id": null,
+    "stop_reason": null,
+    "next_safe_action": "NONE"
+  },
+  "item": {
+    "automatic_retry": false,
+    "claimed_at": "2026-09-23T11:42:55.364Z",
+    "claimed_by": "worker-2eb70a9b-b5c2-46d4-9d35-722434bbd6d0:wordstat-batch",
+    "command": {
+      "devices": [
+        "DEVICE_ALL"
+      ],
+      "method": "getTop",
+      "numPhrases": 200,
+      "phrase": "Как сделать ABC-анализ на Wildberries",
+      "regions": [
+        "225"
+      ]
+    },
+    "completed_at": "2026-09-23T11:42:56.765Z",
+    "error": null,
+    "estimated_cost_rub": 0.02,
+    "fingerprint": "270f1ff78722ccc9",
+    "item_id": "octoport-m6-wordstat-abc-r1-20260923:270f1ff78722ccc9",
+    "outcome_unknown_reason": null,
+    "request_executed": true,
+    "request_id": "wordstat-batch-9a106edb-55ce-480f-915b-703c80f23e6a",
+    "request_started_at": "2026-09-23T11:42:55.366Z",
+    "request_worker_session_id": "worker-2eb70a9b-b5c2-46d4-9d35-722434bbd6d0:wordstat-batch",
+    "result_ref": "wordstat-batch-9a106edb-55ce-480f-915b-703c80f23e6a",
+    "status": "SUCCEEDED",
+    "updated_at": "2026-09-23T11:42:56.765Z",
+    "result_payload": {
+      "bridge": "yandex-marketing-bridge",
+      "version": "0.1.9",
+      "service": "wordstat",
+      "operation": "getTop",
+      "request_id": "wordstat-batch-9a106edb-55ce-480f-915b-703c80f23e6a",
+      "run_id": null,
+      "job_id": "octoport-m6-wordstat-abc-r1-20260923",
+      "status": "OK",
+      "reason": null,
+      "cost_estimate": {
+        "estimated_rub": 0.02,
+        "tariff_checked_at": "2026-08-12",
+        "tariff_source": "[https://aistudio.yandex.ru/docs/ru/search-api/pricing.html](https://aistudio.yandex.ru/docs/ru/search-api/pricing.html)"
+      },
+      "policy": {
+        "channel": "manual",
+        "active_service": "wordstat"
+      },
+      "command": {
+        "method": "getTop",
+        "phrase": "Как сделать ABC-анализ на Wildberries",
+        "numPhrases": 200,
+        "regions": [
+          "225"
+        ],
+        "devices": [
+          "DEVICE_ALL"
+        ]
+      },
+      "http_status": 200,
+      "elapsed_ms": 1395,
+      "result": {},
+      "request_executed": true,
+      "automatic_retry": false
+    }
+  },
+  "provider_result": {
+    "bridge": "yandex-marketing-bridge",
+    "version": "0.1.9",
+    "service": "wordstat",
+    "operation": "getTop",
+    "request_id": "wordstat-batch-9a106edb-55ce-480f-915b-703c80f23e6a",
+    "run_id": null,
+    "job_id": "octoport-m6-wordstat-abc-r1-20260923",
+    "status": "OK",
+    "reason": null,
+    "cost_estimate": {
+      "estimated_rub": 0.02,
+      "tariff_checked_at": "2026-08-12",
+      "tariff_source": "[https://aistudio.yandex.ru/docs/ru/search-api/pricing.html](https://aistudio.yandex.ru/docs/ru/search-api/pricing.html)"
+    },
+    "policy": {
+      "channel": "manual",
+      "active_service": "wordstat"
+    },
+    "command": {
+      "method": "getTop",
+      "phrase": "Как сделать ABC-анализ на Wildberries",
+      "numPhrases": 200,
+      "regions": [
+        "225"
+      ],
+      "devices": [
+        "DEVICE_ALL"
+      ]
+    },
+    "http_status": 200,
+    "elapsed_ms": 1395,
+    "result": {},
+    "request_executed": true,
+    "automatic_retry": false
+  },
+  "cost_estimate": {
+    "estimated_rub": 0.04,
+    "max_rub": 0.04
+  },
+  "policy": {
+    "max_requests": 2,
+    "max_cost_rub": 0.04
+  },
+  "request_executed": true,
+  "automatic_retry": false
+}
