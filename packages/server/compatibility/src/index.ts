@@ -170,7 +170,7 @@ export type PublishCompatibilityPolicyRevisionCommand = z.infer<
 export interface CompatibilityPublicationPort {
   publishExtensionRelease(
     command: PublishExtensionReleaseCommand,
-    context: P3MutationContext,
+    context: CompatibilityMutationContext,
   ): Promise<ExtensionRelease>;
   publishCompatibilityPolicyRevision(
     command: PublishCompatibilityPolicyRevisionCommand,

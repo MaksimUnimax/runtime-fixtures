@@ -1,9 +1,13 @@
 import {
   BrowserFamilySchema,
+  ContractVersionSchema,
   PublishCompatibilityPolicyRevisionCommandSchema,
+  PublishExtensionReleaseCommandSchema,
+  type CompatibilityPublicationPort,
   type BrowserFamily,
   type CompatibilityMutationContext,
   type CompatibilityPolicyRevision,
+  type ExtensionRelease,
 } from "@product/compatibility";
 import type {
   InspectedPlan,
@@ -268,6 +272,7 @@ export const OverrideClearBodySchema = z
   .refine((v) => v.expiresAt === null || v.expiresAt > v.effectiveFrom);
 export const CompatibilityPublishBodySchema = z
   .object({
+    contractVersion: ContractVersionSchema,
     browserFamily: BrowserFamilySchema.nullable(),
     minimumExtensionVersion: z.string().min(1).max(64).nullable(),
     recommendedExtensionVersion: z.string().min(1).max(64).nullable(),
@@ -298,6 +303,30 @@ export const CompatibilityPublishBodySchema = z
       });
     if (new Set(v.blockedVersions).size !== v.blockedVersions.length)
       c.addIssue({ code: "custom", message: "duplicate blocked version" });
+  });
+
+export const ExtensionReleasePublishBodySchema = z
+  .object({
+    version: PublishExtensionReleaseCommandSchema.shape.version,
+    releaseChannel: PublishExtensionReleaseCommandSchema.shape.releaseChannel,
+    artifactSha256:
+      PublishExtensionReleaseCommandSchema.shape.artifactSha256.unwrap(),
+    supportedContracts:
+      PublishExtensionReleaseCommandSchema.shape.supportedContracts,
+    supportedBrowsers:
+      PublishExtensionReleaseCommandSchema.shape.supportedBrowsers,
+    reason: Reason,
+  })
+  .strict()
+  .superRefine((value, ctx) => {
+    if (
+      new Set(value.supportedContracts).size !== value.supportedContracts.length
+    )
+      ctx.addIssue({ code: "custom", message: "duplicate contract" });
+    if (
+      new Set(value.supportedBrowsers).size !== value.supportedBrowsers.length
+    )
+      ctx.addIssue({ code: "custom", message: "duplicate browser" });
   });
 
 export type AdminCommercialPage<T> = { items: T[]; nextCursor?: string };
@@ -503,6 +532,7 @@ export type AdminCommercialService = AdminCommercialReadRepository & {
   }): Promise<AccountEntitlementOverrideCommandResult>;
   publishCompatibility(input: {
     policyKey: string;
+    contractVersion: z.infer<typeof ContractVersionSchema>;
     actorId: string;
     correlationId: string;
     browserFamily: BrowserFamily | null;
@@ -514,6 +544,16 @@ export type AdminCommercialService = AdminCommercialReadRepository & {
     blockedVersions: string[];
     reason: string;
   }): Promise<CompatibilityPolicyRevision>;
+  publishExtensionRelease(input: {
+    version: string;
+    releaseChannel: string;
+    artifactSha256: string;
+    supportedContracts: z.infer<typeof ContractVersionSchema>[];
+    supportedBrowsers: BrowserFamily[];
+    actorId: string;
+    correlationId: string;
+    reason: string;
+  }): Promise<ExtensionRelease>;
 };
 
 type MutationPorts = {
@@ -521,6 +561,7 @@ type MutationPorts = {
   prices: PriceCommandRepository;
   overrides: AccountEntitlementOverrideMutationPort;
   compatibility: {
+    publishExtensionRelease: CompatibilityPublicationPort["publishExtensionRelease"];
     publishCompatibilityPolicyRevision: (
       c: z.input<typeof PublishCompatibilityPolicyRevisionCommandSchema>,
       x: CompatibilityMutationContext,
@@ -717,7 +758,7 @@ export function createAdminCommercialService(
       ports.compatibility.publishCompatibilityPolicyRevision(
         {
           policyKey: x.policyKey,
-          contractVersion: "control_plane_v1",
+          contractVersion: x.contractVersion,
           browserFamily: x.browserFamily,
           minimumExtensionVersion: x.minimumExtensionVersion,
           recommendedExtensionVersion: x.recommendedExtensionVersion,
@@ -726,6 +767,18 @@ export function createAdminCommercialService(
           maintenanceCode: x.maintenanceCode,
           blockedVersions: x.blockedVersions,
           publishedAt: new Date(),
+        },
+        context(x),
+      ),
+    publishExtensionRelease: (x) =>
+      ports.compatibility.publishExtensionRelease(
+        {
+          version: x.version,
+          releaseChannel: x.releaseChannel,
+          artifactSha256: x.artifactSha256,
+          releasedAt: new Date(),
+          supportedContracts: x.supportedContracts,
+          supportedBrowsers: x.supportedBrowsers,
         },
         context(x),
       ),

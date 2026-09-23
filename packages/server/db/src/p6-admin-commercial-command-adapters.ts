@@ -73,10 +73,18 @@ export function createP6AdminCompatibilityCommandAdapter(
   runtime: DatabaseRuntime,
 ): CompatibilityPublicationPort {
   return {
-    publishExtensionRelease: (...args) =>
-      createP3PolicyPublicationRepository(runtime).publishExtensionRelease(
-        ...args,
-      ),
+    publishExtensionRelease: (command, context) => {
+      if (context.actorType !== "ADMIN")
+        throw new Error("ADMIN_EXTENSION_RELEASE_CONTEXT_REQUIRED");
+      return createP3PolicyPublicationRepository(runtime, {
+        beforeExtensionReleasePublication: (tx) =>
+          authorizeAdminMutationInTransaction(
+            tx,
+            context.actorId,
+            "compatibility.manage",
+          ),
+      }).publishExtensionRelease(command, context);
+    },
     publishCompatibilityPolicyRevision: (command, context) =>
       createP3PolicyPublicationRepository(runtime, {
         beforeCompatibilityPublication:

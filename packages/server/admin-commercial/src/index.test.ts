@@ -6,6 +6,8 @@ import {
   AdminCommercialPriceQuerySchema,
   AdminCompatibilityQuerySchema,
   CompatibilityPublishBodySchema,
+  ExtensionReleasePublishBodySchema,
+  createAdminCommercialService,
   DefinitionCreateBodySchema,
   DefinitionDescriptionBodySchema,
   DefinitionDeprecateBodySchema,
@@ -44,6 +46,7 @@ const priceDraft = {
   reason,
 };
 const compatibility = {
+  contractVersion: "control_plane_v1" as const,
   browserFamily: "chrome" as const,
   minimumExtensionVersion: "1.0.0",
   recommendedExtensionVersion: "1.1.0",
@@ -632,4 +635,137 @@ describe("P6.4 admin-commercial validation contracts", () => {
         minimumBrowserVersion: 120,
       }),
     ));
+  it("compatibility requires an explicit known contract version", () => {
+    rejects(() => {
+      const missing: Record<string, unknown> = { ...compatibility };
+      delete missing.contractVersion;
+      CompatibilityPublishBodySchema.parse(missing);
+    });
+    rejects(() =>
+      CompatibilityPublishBodySchema.parse({
+        ...compatibility,
+        contractVersion: "control_plane_v3",
+      }),
+    );
+  });
+  it("extension release requires store-safe exact artifact bytes", () => {
+    const body = {
+      version: "0.2.4",
+      releaseChannel: "stable",
+      artifactSha256: "a".repeat(64),
+      supportedContracts: ["control_plane_v2"],
+      supportedBrowsers: ["opera"],
+      reason,
+    };
+    expect(ExtensionReleasePublishBodySchema.parse(body)).toEqual(body);
+    rejects(() =>
+      ExtensionReleasePublishBodySchema.parse({
+        ...body,
+        artifactSha256: undefined,
+      }),
+    );
+    rejects(() =>
+      ExtensionReleasePublishBodySchema.parse({
+        ...body,
+        supportedContracts: ["control_plane_v3"],
+      }),
+    );
+    rejects(() =>
+      ExtensionReleasePublishBodySchema.parse({
+        ...body,
+        supportedBrowsers: ["unknown"],
+      }),
+    );
+    rejects(() =>
+      ExtensionReleasePublishBodySchema.parse({ ...body, releaseId: id }),
+    );
+  });
+  it("admin service passes compatibility version and ADMIN release context", async () => {
+    const compatibilityCalls: unknown[] = [];
+    const releaseCalls: unknown[] = [];
+    const service = createAdminCommercialService({} as never, {
+      plans: {} as never,
+      prices: {} as never,
+      overrides: {} as never,
+      compatibility: {
+        publishCompatibilityPolicyRevision: async (command, context) => {
+          compatibilityCalls.push({ command, context });
+          return {} as never;
+        },
+        publishExtensionRelease: async (command, context) => {
+          releaseCalls.push({ command, context });
+          return {} as never;
+        },
+      },
+    });
+    for (const contractVersion of [
+      "control_plane_v1",
+      "control_plane_v2",
+    ] as const)
+      await service.publishCompatibility({
+        policyKey: "store1.opera.v2",
+        contractVersion,
+        actorId: id,
+        correlationId: "request",
+        browserFamily: "opera",
+        minimumExtensionVersion: "0.2.4",
+        recommendedExtensionVersion: "0.2.4",
+        minimumBrowserVersion: "136",
+        maintenanceMode: false,
+        maintenanceCode: null,
+        blockedVersions: [],
+        reason,
+      });
+    for (const [index, contractVersion] of [
+      "control_plane_v1",
+      "control_plane_v2",
+    ].entries()) {
+      const call = compatibilityCalls[index] as {
+        command: { contractVersion: string };
+      };
+      expect(call.command.contractVersion).toBe(contractVersion);
+    }
+    const before = Date.now();
+    await service.publishExtensionRelease({
+      version: "0.2.4",
+      releaseChannel: "stable",
+      artifactSha256: "b".repeat(64),
+      supportedContracts: ["control_plane_v2"],
+      supportedBrowsers: ["opera"],
+      actorId: id,
+      correlationId: "release-request",
+      reason,
+    });
+    const releaseCall = releaseCalls[0] as {
+      context: {
+        actorType: string;
+        actorId: string;
+        correlationId: string;
+        reason: string;
+      };
+      command: {
+        artifactSha256: string;
+        supportedContracts: string[];
+        supportedBrowsers: string[];
+        releasedAt: Date;
+      };
+    };
+    expect(releaseCall.context).toMatchObject({
+      actorType: "ADMIN",
+      actorId: id,
+      correlationId: "release-request",
+      reason,
+    });
+    expect(releaseCall.command).toMatchObject({
+      artifactSha256: "b".repeat(64),
+      supportedContracts: ["control_plane_v2"],
+      supportedBrowsers: ["opera"],
+    });
+    expect(releaseCall.command.releasedAt.getTime()).toBeGreaterThanOrEqual(
+      before,
+    );
+    expect(releaseCall.command.releasedAt.getTime()).toBeLessThanOrEqual(
+      Date.now(),
+    );
+  });
 });
