@@ -4,6 +4,10 @@
 
 This directory contains implementation-oriented technical notes, contracts, validation records, migration evidence, and operational procedures for the workspace.
 
+## Продукт и участие владельца
+
+- [Детальное ТЗ, перенос Ozon/WB тестов, подготовка владельца и публикация](product/readiness/README.md)
+
 ## Architecture
 
 - [System overview](architecture/OVERVIEW.md)
