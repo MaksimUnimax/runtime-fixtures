@@ -1,0 +1,59 @@
+{
+  "work_id": "OCTOPORT_SEO_M5_AI_DIAGNOSTIC_HYPOTHESIS_REGISTER_2026-09-23_R1",
+  "start_head": "30c3e8d8e0a82d5827a258ecb01a66b96817b0f4",
+  "end_observed_head": "30c3e8d8e0a82d5827a258ecb01a66b96817b0f4",
+  "authority_drift_status": "NONE",
+  "verdict": "PASS_PROVISIONAL_HYPOTHESIS_REGISTER_WITH_ROW_LEVEL_HOLDS",
+  "input_rows": {
+    "m4c": 867,
+    "targeted_delta": 133,
+    "total": 1000
+  },
+  "disposition_counts": {
+    "DISPOSITION_ADMIT": 65,
+    "DISPOSITION_EXACT_DUPLICATE": 28,
+    "DISPOSITION_SEARCH_OR_M6_ONLY": 188,
+    "DISPOSITION_OUT_OF_SCOPE": 681,
+    "DISPOSITION_HOLD_AMBIGUOUS": 28,
+    "DISPOSITION_SUPERSEDED": 10
+  },
+  "admitted_hypotheses": 65,
+  "files": [
+    {
+      "filename": "M5_SOURCE_MANIFEST.md",
+      "bytes": 5600,
+      "sha256": "2747b071f235849a1188d79722e67b0fa8b8dbe5c8b06e2638bc001b4edf10cd",
+      "data_rows": null,
+      "role": "Read authority, input identity, parser, limitations and method"
+    },
+    {
+      "filename": "M5_INPUT_DISPOSITION_LEDGER.tsv",
+      "bytes": 893800,
+      "sha256": "507697be386723cd150b1bae4d37648088f412b925bd06744ebad3c5014ba9e7",
+      "data_rows": 1000,
+      "role": "Lossless 1,000-row M5 disposition accounting"
+    },
+    {
+      "filename": "M5_AI_DIAGNOSTIC_HYPOTHESIS_REGISTER.tsv",
+      "bytes": 224928,
+      "sha256": "00b2c55dd1e5dfcdd66ea63fa277222391702977eac5b80fc28638367f3a969a",
+      "data_rows": 65,
+      "role": "Provisional later-AI diagnostic hypotheses with source provenance"
+    },
+    {
+      "filename": "M5_QA.md",
+      "bytes": 3172,
+      "sha256": "af2e7f2a4a7a52b3c048b02a2ab678f00c9f3d638196b88aab3406488d13132f",
+      "data_rows": null,
+      "role": "Full-volume source, join, boundary and no-provider checks"
+    }
+  ],
+  "self_hash_policy": "SELF_SHA256_EXCLUDED_TO_AVOID_RECURSIVE_SELF_HASH; manifest bytes verifiable externally; no fabricated self-hash.",
+  "self": {
+    "filename": "M5_RETURN_MANIFEST.json",
+    "sha256": null,
+    "data_rows": null
+  },
+  "github_writes": 0,
+  "provider_calls": 0
+}
