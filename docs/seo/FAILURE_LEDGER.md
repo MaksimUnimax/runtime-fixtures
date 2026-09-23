@@ -107,3 +107,48 @@ Any roadmap cursor transition to a different major stage requires a new durable 
 ### Status
 
 `RECOVERY IN PROGRESS / FIRST M1 OBSERVATIONS NOT ACCEPTED`.
+
+
+## OSEO-F03 — Prelaunch placeholder misclassified as production SEO site
+
+Date: 2026-09-23.
+Stage: M1 current-site + measurement baseline.
+
+### Incident
+
+Main Chat observed that `octoport.ru` publicly returned a valid page and incorrectly escalated M1 into production-site ownership/readiness checks for:
+- Yandex Webmaster;
+- Yandex Metrika;
+- Google Search Console.
+
+The owner corrected the product state: Octoport does **not yet have a production SEO site**. The reachable page is a prelaunch placeholder/foundation, so those ownership/measurement systems are not expected to exist yet.
+
+### Impact
+
+Two read-only Yandex account calls were performed:
+- Webmaster `listHosts`;
+- Metrika `listCounters`.
+
+Both were non-mutating. No site/property/counter was added, changed or verified. No retry occurred.
+
+The earlier interpretation `HOLD_OWNER_SETUP_REQUIRED` is superseded.
+
+### Correct state
+
+```text
+PRODUCTION_SEO_SITE = NOT_YET_EXISTS
+YANDEX_WEBMASTER = NOT_APPLICABLE_PRELAUNCH
+YANDEX_METRIKA = NOT_APPLICABLE_PRELAUNCH
+GOOGLE_SEARCH_CONSOLE = NOT_APPLICABLE_PRELAUNCH
+```
+
+### Prevention
+
+Do not infer launch-state from public reachability alone.
+
+Before checking ownership/indexing/measurement tools, first establish:
+```text
+DOES A PRODUCTION SEO SITE EXIST?
+```
+
+If the owner/product authority says no, close M1 as a prelaunch baseline and defer ownership/measurement setup to launch/indexing/measurement stages.
