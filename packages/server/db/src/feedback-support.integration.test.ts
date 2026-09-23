@@ -240,8 +240,72 @@ describe.sequential("B2 PostgreSQL feedback/support persistence", () => {
       now: new Date("2030-01-01T00:00:00.000Z"),
       closedRetentionDays: 1,
       signalRetentionDays: 1,
+      batchSize: 500,
+      statementTimeoutMs: 5_000,
     });
     expect(purged.cases).toBe(1);
+  });
+
+  it("deletes retention rows in bounded batches and preserves the exact cutoff", async () => {
+    const now = new Date("2030-01-01T00:00:00.000Z");
+    const cutoff = new Date("2029-12-31T00:00:00.000Z");
+    const older = new Date("2029-12-30T23:59:59.999Z");
+    await runtime.query(
+      `INSERT INTO feedback_cases(category,description,status,closed_at)
+       SELECT 'OTHER','retention batch fixture','CLOSED',$1::timestamptz
+       FROM generate_series(1,7)`,
+      [older],
+    );
+    await runtime.query(
+      `INSERT INTO feedback_cases(category,description,status,closed_at)
+       VALUES('OTHER','cutoff boundary fixture','CLOSED',$1)`,
+      [cutoff],
+    );
+    await runtime.query(
+      `INSERT INTO feedback_signal_events(event,idempotency_key,payload_hash,occurred_at)
+       SELECT 'registration_started','retention-batch-' || value,repeat('a',64),$1
+       FROM generate_series(1,7) AS series(value)`,
+      [older],
+    );
+    await runtime.query(
+      `INSERT INTO feedback_signal_events(event,idempotency_key,payload_hash,occurred_at)
+       VALUES('registration_started','retention-cutoff-boundary',repeat('b',64),$1)`,
+      [cutoff],
+    );
+
+    const purge = () =>
+      service.purgeExpired({
+        now,
+        closedRetentionDays: 1,
+        signalRetentionDays: 1,
+        batchSize: 3,
+        statementTimeoutMs: 5_000,
+      });
+    await expect(purge()).resolves.toEqual({ cases: 3, signals: 3 });
+    await expect(purge()).resolves.toEqual({ cases: 3, signals: 3 });
+    await expect(purge()).resolves.toEqual({ cases: 1, signals: 1 });
+    const remaining = await runtime.query<{ cases: string; signals: string }>(
+      `SELECT
+         (SELECT count(*)::text FROM feedback_cases) AS cases,
+         (SELECT count(*)::text FROM feedback_signal_events) AS signals`,
+    );
+    expect(remaining.rows[0]).toEqual({ cases: "1", signals: "1" });
+  });
+
+  it("rejects invalid retention batch and statement timeout configuration", async () => {
+    const input = {
+      now: new Date("2030-01-01T00:00:00.000Z"),
+      closedRetentionDays: 1,
+      signalRetentionDays: 1,
+      batchSize: 3,
+      statementTimeoutMs: 5_000,
+    };
+    await expect(
+      service.purgeExpired({ ...input, batchSize: 0 }),
+    ).rejects.toThrow("batchSize");
+    await expect(
+      service.purgeExpired({ ...input, statementTimeoutMs: 30_001 }),
+    ).rejects.toThrow("statementTimeoutMs");
   });
 
   it("stores one account milestone under concurrent retry and calculates an isolated funnel", async () => {
