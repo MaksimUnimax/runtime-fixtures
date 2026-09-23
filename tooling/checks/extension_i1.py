@@ -34,6 +34,10 @@ def main():
         assert receipt["stage"] == "I1-C1" and receipt["version"] == "0.2.4"
         result["composition"] = receipt
         for runtime, label in ((source, "i1-source"), (extracted, "i1-package")):
+            browser_output = output / (label + "-browser-proof")
+            runner.run(label + "-native-browser-proof", [os.environ.get("WB_TEST_PYTHON", "python3"), ROOT / "tests/regression/extension-core/client-i1/browser_verifier.py", "--runtime", runtime, "--output", browser_output])
+            runner.env["C3H_BROWSER_PROOF_FILE"] = str(browser_output / "result.json")
+            runner.env.pop("C3H_BROWSER_PROOF", None)
             manifest = composed.baseline.read_json(runtime / "manifest.json")
             assert manifest["version"] == "0.2.4"
             assert "http://127.0.0.1:43100/*" in manifest["host_permissions"]

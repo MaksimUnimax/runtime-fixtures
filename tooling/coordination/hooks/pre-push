@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 import subprocess
 import sys
+import time
 root = Path(subprocess.check_output(["git", "rev-parse", "--show-toplevel"], text=True).strip())
 rules = json.loads((root / "docs/development/coordination/OWNERSHIP.json").read_text())
 role = next((key for key,value in rules["roles"].items() if value["path"] == str(root)), None)
@@ -32,5 +33,9 @@ for line in sys.stdin:
         ready = json.loads(ready_path.read_text()) if ready_path.exists() else {}
         if ready.get("head") != local_sha or ready.get("base") != remote_sha or not ready.get("evidence"):
             raise SystemExit("Main requires an exact ready-main receipt with current remote base and validation evidence")
+        ci = ready.get("ci", {})
+        age = time.time() - ci.get("checked_at", 0)
+        if ci.get("status") != "PASS" or ci.get("head") != local_sha or age < 0 or age > 1800:
+            raise SystemExit("Main requires fresh full CI evidence for this exact candidate SHA")
         if subprocess.call(["git", "merge-base", "--is-ancestor", remote_sha, local_sha]):
             raise SystemExit("Main history must be preserved; fetch and reconcile")
