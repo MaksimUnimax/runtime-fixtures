@@ -3,28 +3,6 @@ name: Extension CI
 on:
   push:
     branches: [main, "work/c-integration", "controller/**"]
-  paths:
-      - 'apps/extension/**'
-      - 'packages/bridge-core/**'
-      - 'packages/marketplaces/**'
-      - 'packages/ai-adapters/**'
-      - 'packages/browser-platform/**'
-      - 'packages/control-client/**'
-      - 'packages/contracts/**'
-      - 'migration/reference/wildberries-v0.3.0/**'
-      - 'tests/regression/imported/**'
-      - 'tests/regression/extension-core/**'
-      - 'tests/fixtures/imported/**'
-      - 'tooling/build/extension_baseline.py'
-      - 'tooling/build/extension_composed.py'
-      - 'tooling/checks/extension_core.py'
-      - 'tooling/checks/extension_import.py'
-      - 'tooling/checks/extension-test-requirements.txt'
-      - 'docs/migration/evidence/extensions-2026-09-14/RUNTIME_FILE_MAP.json'
-      - 'docs/migration/evidence/extensions-2026-09-14/RUNTIME_LOAD_GRAPH.json'
-      - 'docs/migration/evidence/extensions-2026-09-14/TEST_AND_AUTHORITY_INPUTS.json'
-      - 'docs/migration/evidence/extension-import-2026-09-14/IMPORT_MANIFEST.json'
-      - '.github/workflows/extension-ci.yml'
   pull_request:
     paths:
       - 'apps/extension/**'

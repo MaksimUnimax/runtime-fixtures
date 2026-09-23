@@ -3,15 +3,6 @@ name: Extension I1-C1 client
 on:
   push:
     branches: [main, "work/c-integration", "controller/**"]
-  branches: [main, "feature/extension-i1-*"]
-    paths:
-      - "apps/extension/**"
-      - "packages/control-client/**"
-      - "packages/bridge-core/src/{stores,execution,work}/**"
-      - "tooling/build/extension_composed.py"
-      - "tooling/checks/extension_i1.py"
-      - "tests/regression/extension-core/**"
-      - ".github/workflows/extension-i1-ci.yml"
   pull_request:
     branches: [main]
     paths:
