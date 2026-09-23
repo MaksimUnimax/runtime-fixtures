@@ -1,0 +1,36 @@
+ID	Требование	Исторический_статус_не_текущая_приёмка	Режим	Действие	Критерий	Статус_новой_сборки
+Q1C-OTP-01	Real OTP account login device activation Bootstrap	BLOCKED_REAL_MAIL	SHARED_READY_WINDOW	Открыть реальный ящик и ввести код в официальный портал; пароль/код не передавать чату	Mailbox arrival plus login device and Bootstrap pass	REVERIFY_EXACT_RC
+Q1C-EXT-03	Extension authorization/device binding	READY	SHARED_READY_WINDOW	Authorize unchanged extension for logged-in account	Account/device binds without secret exposure	REVERIFY_EXACT_RC
+Q1C-BS-04	Signed Bootstrap/account binding/reopen	READY	AUTO_FIRST	A/B/C готовят доказательство; владелец только для выбранного короткого UX-контроля	Preprod trust identity and beta permissions accepted	REVERIFY_EXACT_RC
+Q1C-AUTH-02	Logout and re-login invalidation	READY	SHARED_READY_WINDOW	Logout then re-login using real mailbox	Old session invalidated and new session valid	REVERIFY_EXACT_RC
+Q1C-BETA-05	Free-beta non-commercial UX	READY	AUTO_FIRST	A/B/C готовят доказательство; владелец только для выбранного короткого UX-контроля	No checkout payment prompt or commercial denial	REVERIFY_EXACT_RC
+Q1C-OZON-06	Ozon store add/validation	BLOCKED_OWNER_CREDENTIAL	SHARED_READY_WINDOW	Add one Ozon store in UI	Store validates or honest provider failure	REVERIFY_EXACT_RC
+Q1C-OZON-07	Ozon Start/read-only command	BLOCKED_OWNER_CREDENTIAL	SHARED_READY_WINDOW	Run one bounded read-only Ozon command	Correct binding and safe result	REVERIFY_EXACT_RC
+Q1C-OZON-08	Ozon report/file result	BLOCKED_OWNER_CREDENTIAL	SHARED_READY_WINDOW	Request one report or file result	Same-dialogue delivery without durable raw report	REVERIFY_EXACT_RC
+Q1C-WB-09	Wildberries store add/validation	BLOCKED_OWNER_CREDENTIAL	SHARED_READY_WINDOW	Add one WB store in UI	Store validates or honest provider failure	REVERIFY_EXACT_RC
+Q1C-WB-10	Wildberries Start/read-only command	BLOCKED_OWNER_CREDENTIAL	SHARED_READY_WINDOW	Run one bounded read-only WB command	Correct binding and safe result	REVERIFY_EXACT_RC
+Q1C-WB-11	Wildberries result/reopen	BLOCKED_OWNER_CREDENTIAL	SHARED_READY_WINDOW	Reopen browser/dialogue and inspect result	Correct durable binding and delivery	REVERIFY_EXACT_RC
+Q1C-AI-12	Real ChatGPT/Alice session/composer	BLOCKED_OWNER_CREDENTIAL	SHARED_READY_WINDOW	Use approved live AI composer once	Correct provenance with no content capture	REVERIFY_EXACT_RC
+Q1C-RESTART-13	Browser close/reopen/service-worker boundary	READY	AUTO_FIRST	A/B/C готовят доказательство; владелец только для выбранного короткого UX-контроля	Durable state restored without duplicate execution	REVERIFY_EXACT_RC
+Q1C-REBIND-14	Explicit store rebind and new Start	BLOCKED_OWNER_CREDENTIAL	AUTO_FIRST	A/B/C готовят доказательство; владелец только для выбранного короткого UX-контроля	New binding authoritative old command not autorun	REVERIFY_EXACT_RC
+Q1C-MSTORE-15	Two stores same marketplace isolation	BLOCKED_OWNER_CREDENTIAL	AUTO_FIRST	A/B/C готовят доказательство; владелец только для выбранного короткого UX-контроля	No cross-store command/result leakage	REVERIFY_EXACT_RC
+Q1C-SWITCH-16	Marketplace switch warning and binding	BLOCKED_OWNER_CREDENTIAL	AUTO_FIRST	A/B/C готовят доказательство; владелец только для выбранного короткого UX-контроля	New marketplace authoritative old commands not autorun	REVERIFY_EXACT_RC
+Q1C-DIALOGUE-17	Parallel independent dialogues	BLOCKED_OWNER_CREDENTIAL	AUTO_FIRST	A/B/C готовят доказательство; владелец только для выбранного короткого UX-контроля	One executor each and no cross-delivery	REVERIFY_EXACT_RC
+Q1C-MBROWSER-18	Two installations independently usable	BLOCKED_OWNER_BROWSER	SHARED_READY_WINDOW	Sign in second installation and run bounded action	No exclusive lease or cross-delivery	REVERIFY_EXACT_RC
+Q1C-OFFLINE-19	Offline signed authority/grace	READY	AUTO_FIRST	A/B/C готовят доказательство; владелец только для выбранного короткого UX-контроля	Grace authority permits operation per policy	REVERIFY_EXACT_RC
+Q1C-CACHE-20	Cache expiry denial	ALREADY_ACCEPTED_AUTOMATED	AUTO_FIRST	Не создавать искусственно на реальной площадке; только детерминированные проверки	Fresh/grace/expired rules remain green	REVERIFY_EXACT_RC
+Q1C-UNKNOWN-21	Provider UNKNOWN no replay	ALREADY_ACCEPTED_AUTOMATED	AUTO_FIRST	Не создавать искусственно на реальной площадке; только детерминированные проверки	No automatic replay or burst	REVERIFY_EXACT_RC
+Q1C-429-22	429 retry safety	ALREADY_ACCEPTED_AUTOMATED	AUTO_FIRST	Не создавать искусственно на реальной площадке; только детерминированные проверки	Retry-After policy remains green	REVERIFY_EXACT_RC
+Q1C-FINISH-23	Finish abort semantics	READY	AUTO_FIRST	A/B/C готовят доказательство; владелец только для выбранного короткого UX-контроля	Work terminates and stale command does not run	REVERIFY_EXACT_RC
+Q1C-TRANSFER-24	Transfer owner UX	BLOCKED_OWNER_BROWSER	SHARED_READY_WINDOW	Initiate and confirm one safe transfer	UX completes without secret evidence	REVERIFY_EXACT_RC
+Q1C-EXPORT-25	Export/import owner UX	READY	SHARED_READY_WINDOW	Export then import through product UI	Local state restores without uploading artifact	REVERIFY_EXACT_RC
+Q1C-B2-26	Feedback/support UX	READY	AUTO_FIRST	A/B/C готовят доказательство; владелец только для выбранного короткого UX-контроля	Case ID and safe diagnostics only	REVERIFY_EXACT_RC
+Q1C-HEALTH-27	Live Work Health provenance	STREAM2_DEPENDENCY	SHARED_READY_WINDOW	Observe one live Work Health result	Authoritative passive provenance recorded by Stream-2 owner	REVERIFY_EXACT_RC
+Q1C-CHROME-28	Real Chrome manual smoke	BLOCKED_OWNER_BROWSER	SHARED_READY_WINDOW	Install/open popup/auth-state harmless smoke	Direct Chrome evidence only	REVERIFY_EXACT_RC
+Q1C-OPERA-29	Real Opera smoke	ALREADY_ACCEPTED_AUTOMATED	SHARED_READY_WINDOW	Do not repeat full matrix; optional focused smoke	Opera 24/24 bounded truth remains valid	REVERIFY_EXACT_RC
+Q1C-YANDEX-30	Yandex manual/runtime smoke	BLOCKED_OWNER_BROWSER	SHARED_READY_WINDOW	Load package and open popup once	Direct Yandex evidence or precise defer	REVERIFY_EXACT_RC
+Q1C-FIREFOX-31	Firefox manual/runtime smoke	BLOCKED_OWNER_BROWSER	SHARED_READY_WINDOW	Load package via legitimate developer route	Direct Firefox evidence or precise defer	REVERIFY_EXACT_RC
+Q1C-SAFARI-32	Safari/macOS smoke	BLOCKED_REAL_MAC	SHARED_READY_WINDOW	Предоставить реальный Safari/macOS тестеру или выполнить карточку; cloud packaging не заменяет этот тест	Direct macOS evidence only	REVERIFY_EXACT_RC
+Q1C-PRIVACY-33	Evidence redaction/privacy	READY	AUTO_FIRST	A/B/C готовят доказательство; владелец только для выбранного короткого UX-контроля	No OTP/credential/token/cookie/report/AI/transfer secret	REVERIFY_EXACT_RC
+Q1C-ACCOUNT-34	Owner logout/retain/delete UX	READY	SHARED_READY_WINDOW	Execute accepted account lifecycle UX only if chosen	State follows privacy/deletion contract	REVERIFY_EXACT_RC
+Q1C-APP-35	Optional Seller Agents service restart	READY	AUTO_FIRST	C проводит в staging; владелец нужен только для отдельно согласуемого реального окна обслуживания	Health recovers without trust/data change	REVERIFY_EXACT_RC
