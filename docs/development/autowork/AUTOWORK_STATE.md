@@ -1,6 +1,6 @@
 # OCTOPORT durable autowork state
 
-Last reconstruction: 2026-09-23T04:11:39+03:00
+Last reconstruction: 2026-09-23T05:55:00+03:00
 
 ## Owner control state
 
@@ -22,7 +22,7 @@ Last reconstruction: 2026-09-23T04:11:39+03:00
 - Worktree: `/root/runtime-fixtures-r5-browser-family-isolated-20260923`
 - Branch: `work/r5-browser-family-isolated-2026-09-23`
 - Accepted/base product revision: `2193f34523e8c0b15046c38c32af499f1b226179`
-- Durable STOP checkpoint HEAD: `7e630f58eb779b9e697666a92e7d4a48e4e87a84`
+- Previous durable STOP checkpoint before this recheck: `a24afd03cd3807cadc34b523117b2f5577f78dc2`; current durable state revision is the Git HEAD containing this file.
 - Working tree is intentionally dirty and preserved: **46 tracked dirty + 6 untracked files**.
 - No implementation candidate commit has been created; the HEAD above is documentation-only STOP state.
 
@@ -97,6 +97,13 @@ On explicit owner resume:
 6. Complete DB integration/E2E, build/package and installed browser-family evidence where legitimately available.
 7. Classify unavailable real-browser requirements as deferred; never fake or transfer PASS.
 8. Decide **ACCEPTED** vs **REWORK_REQUIRED** only from complete evidence, then update this state again.
+
+## STOP governor recheck
+
+- Automatic governor repetition did **not** resume autowork.
+- Live branch/worktree identity and the preserved **46 tracked dirty + 6 untracked** candidate were re-read without mutation.
+- One stale pre-STOP Opera/C1 acceptance process (`PID 2620181`) was found still alive during the governor recheck and was terminated with `SIGTERM`; readback confirmed that no matching browser acceptance process remains.
+- No implementation, test, build, browser, or runtime work was started by this recheck.
 
 ## Preservation note
 
