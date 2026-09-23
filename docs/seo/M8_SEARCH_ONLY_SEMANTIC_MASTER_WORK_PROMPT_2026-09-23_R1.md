@@ -1,3 +1,5 @@
+> **SUPERSEDED / DO NOT EXECUTE.** Replaced by M8 R2 two-level preparation after OSEO-F04. This file is retained as history only.
+
 # M8 — canonical ChatGPT Work Search-only semantic master prompt
 
 WORK_ID: `OCTOPORT_SEO_M8_SEARCH_ONLY_SEMANTIC_MASTER_2026-09-23_R1`
