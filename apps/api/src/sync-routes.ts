@@ -61,6 +61,11 @@ export function registerSyncRoutes(
       } catch (error) {
         if (
           error instanceof Error &&
+          error.message === "EXTENSION_AUTH_UNAUTHORIZED"
+        )
+          throw new ControlledError("UNAUTHORIZED", "Unauthorized", 401);
+        if (
+          error instanceof Error &&
           error.message === "ACCOUNT_IDENTITY_MISMATCH"
         )
           throw new ControlledError(

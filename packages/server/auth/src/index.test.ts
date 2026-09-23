@@ -84,6 +84,7 @@ describe("P2.2 mandatory crypto and normalization regression matrix", () => {
   });
   it("CRYPTO-04/05 rejects invalid roots and separates every purpose", async () => {
     const { loadAuthRootSecret } = await import("./index.js");
+    expect(() => loadAuthRootSecret({})).toThrow();
     expect(() =>
       loadAuthRootSecret({ AUTH_ROOT_SECRET_B64: "bad!" }),
     ).toThrow();

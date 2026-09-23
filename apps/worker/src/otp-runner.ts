@@ -20,10 +20,12 @@ export class OtpEmailRunner implements JobRunner {
   }
   async tick() {
     const lease = randomUUID();
-    // A recovered lease which has already reached its send budget must never
-    // produce a sixth provider attempt.
+    // An expired PROCESSING lease is an ambiguous delivery outcome: the
+    // worker may have crashed before or after SMTP accepted the message.
+    // Retrying could duplicate an OTP email, so fail closed and require a
+    // fresh logical delivery instead.
     await this.db.query(
-      `UPDATE otp_email_jobs SET status='DEAD',ciphertext=NULL,nonce=NULL,auth_tag=NULL,lease_id=NULL,leased_until=NULL,last_error_code='SEND_ATTEMPTS_EXHAUSTED',updated_at=now() WHERE status='PROCESSING' AND leased_until<now() AND attempt_count>=max_attempts`,
+      `UPDATE otp_email_jobs SET status='DEAD',ciphertext=NULL,nonce=NULL,auth_tag=NULL,lease_id=NULL,leased_until=NULL,last_error_code='LEASE_EXPIRED_UNKNOWN_OUTCOME',updated_at=now() WHERE status='PROCESSING' AND (leased_until IS NULL OR leased_until<now())`,
     );
     const job = await this.db.query<{
       id: string;
@@ -38,7 +40,7 @@ export class OtpEmailRunner implements JobRunner {
       consumed_at: Date | null;
       invalidated_at: Date | null;
     }>(
-      `WITH candidate AS (SELECT j.id FROM otp_email_jobs j WHERE ((j.status='PENDING' AND j.available_at<=now()) OR (j.status='PROCESSING' AND j.leased_until<now())) AND j.attempt_count<j.max_attempts ORDER BY j.available_at FOR UPDATE SKIP LOCKED LIMIT 1) UPDATE otp_email_jobs j SET status='PROCESSING',lease_id=$1,leased_until=now()+interval '60 seconds',attempt_count=j.attempt_count+1,updated_at=now() FROM candidate WHERE j.id=candidate.id RETURNING j.id,j.challenge_id,j.ciphertext,j.nonce,j.auth_tag,j.attempt_count,j.max_attempts`,
+      `WITH candidate AS (SELECT j.id FROM otp_email_jobs j WHERE j.status='PENDING' AND j.available_at<=now() AND j.attempt_count<j.max_attempts ORDER BY j.available_at FOR UPDATE SKIP LOCKED LIMIT 1) UPDATE otp_email_jobs j SET status='PROCESSING',lease_id=$1,leased_until=now()+interval '60 seconds',attempt_count=j.attempt_count+1,updated_at=now() FROM candidate WHERE j.id=candidate.id RETURNING j.id,j.challenge_id,j.ciphertext,j.nonce,j.auth_tag,j.attempt_count,j.max_attempts`,
       [lease],
     );
     const row = job.rows[0];
