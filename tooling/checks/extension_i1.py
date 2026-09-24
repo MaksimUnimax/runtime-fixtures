@@ -76,6 +76,8 @@ def main():
                 ("i1-c2-3b2-verified-health-authority", ROOT / "tests/regression/extension-core/client-i1/client-c2-3b2-verified-health-authority.mjs"),
                 ("i1-c2-3c1-online-work-admission", ROOT / "tests/regression/extension-core/client-i1/client-c2-3c1-online-work-admission.mjs"),
                 ("i1-c3d-autonomous-lifecycle", ROOT / "tests/regression/extension-core/client-i1/client-c3d-autonomous-lifecycle.mjs"),
+                ("i1-c3e-sync-journal", ROOT / "tests/regression/extension-core/client-i1/client-c3e-sync-journal.mjs"),
+                ("i1-a04-n2-local-snapshot", ROOT / "tests/regression/extension-core/client-i1/client-a04-n2-local-snapshot.mjs"),
                 ("i1-c3f-reconciliation", ROOT / "tests/regression/extension-core/client-i1/client-c3f-reconciliation.mjs"),
                 ("i1-c3g-corrected-predispatch", ROOT / "tests/regression/extension-core/client-i1/client-c3g-corrected-predispatch.mjs"),
                 ("i1-c3h-corrected-autonomy-full-acceptance", ROOT / "tests/regression/extension-core/client-i1/client-c3h-corrected-autonomy-full-acceptance.mjs"),

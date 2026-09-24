@@ -193,6 +193,45 @@ async function saRecordStoreTombstone(store) {
   if (!globalThis.SellerAgentsSyncJournal || !store) return null;
   return SellerAgentsSyncJournal.recordStoreTombstone({ store }).catch(() => null);
 }
+async function saAdoptRemoteBindingSnapshot({ conversationKey, expectedAccountId, serverState } = {}) {
+  await saReady;
+  const accountId = await SellerAgentsControlClient.currentAccount();
+  if (!accountId || accountId !== expectedAccountId) return { adopted: false, code: "SYNC_SNAPSHOT_CONTEXT_STALE" };
+  const key = normalizeConversationKey(conversationKey).toLowerCase();
+  const separator = key.indexOf("|"), origin = separator > 0 ? key.slice(0, separator) : "", conversationId = separator > 0 ? key.slice(separator + 1) : "";
+  const bindingId = typeof serverState?.bindingId === "string" && serverState.bindingId.length <= 128 ? serverState.bindingId : null;
+  const bindingRevision = Number(serverState?.bindingRevision);
+  const storeId = typeof serverState?.storeId === "string" && serverState.storeId.length <= 128 ? serverState.storeId : null;
+  const marketplace = ["ozon", "wildberries"].includes(serverState?.marketplace) ? serverState.marketplace : null;
+  if (!origin || !conversationId || conversationKeyFromIdentity({ origin, conversation_id: conversationId, status: "confirmed" }) !== key || !bindingId || !Number.isSafeInteger(bindingRevision) || bindingRevision < 1 || !storeId || !marketplace) return { adopted: false, code: "SYNC_SNAPSHOT_REMOTE_BINDING_INVALID" };
+  let store;
+  try { store = await saCatalog.get(storeId); } catch (_) { return { adopted: false, code: "SYNC_SNAPSHOT_LOCAL_CREDENTIALS_REQUIRED" }; }
+  if (store.accountId !== accountId || store.marketplace !== marketplace) return { adopted: false, code: "SYNC_SNAPSHOT_STORE_CONFLICT" };
+  return withBindingWrite(async () => {
+    if (await SellerAgentsControlClient.currentAccount() !== accountId) return { adopted: false, code: "SYNC_SNAPSHOT_CONTEXT_STALE" };
+    const bindings = await getConversationBindings(), existing = normalizeBindingRecord(bindings[key], key);
+    if (existing) return { adopted: false, code: "SYNC_SNAPSHOT_CONTEXT_STALE" };
+    const now = new Date().toISOString();
+    const record = {
+      binding_id: bindingId,
+      revision: bindingRevision,
+      origin,
+      ai_id: BB2ConversationIdentity.providerForOrigin(origin),
+      conversation_id: conversationId,
+      conversation_key: key,
+      bound_at: now,
+      updated_at: now,
+      store_context: await saAuthorityStoreContext(store),
+      assistant_baseline_ids: [],
+    };
+    bindings[key] = record;
+    await storageSet({ [KEYS.CONVERSATION_BINDINGS]: bindings });
+    const readback = normalizeBindingRecord((await getConversationBindings())[key], key);
+    if (!readback || readback.binding_id !== bindingId || Number(readback.revision) !== bindingRevision || readback.store_context?.storeId !== storeId) throw saError("SYNC_SNAPSHOT_ADOPTION_READBACK_FAILED");
+    return { adopted: true, code: null, binding: readback };
+  });
+}
+globalThis.SellerAgentsSyncSnapshotAdoption = Object.freeze({ apply: saAdoptRemoteBindingSnapshot });
 function saAdmissionKey(tabId, conversationKey = null) {
   return `${Number(tabId)}:${conversationKey || "pending"}`;
 }
