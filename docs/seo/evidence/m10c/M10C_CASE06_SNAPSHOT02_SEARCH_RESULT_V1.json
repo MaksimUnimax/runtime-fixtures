@@ -1,0 +1,77 @@
+{
+  "bridge": "yandex-marketing-bridge",
+  "version": "0.1.9",
+  "service": "search",
+  "operation": "genSearch",
+  "request_id": "search-987f52d9-a0d8-4f34-b103-58a8930bb144",
+  "run_id": null,
+  "status": "OK",
+  "reason": null,
+  "cost_estimate": {
+    "estimated_rub": 5.08,
+    "tariff_checked_at": "2026-08-19",
+    "tariff_source": "[https://aistudio.yandex.ru/docs/ru/search-api/pricing.html](https://aistudio.yandex.ru/docs/ru/search-api/pricing.html)"
+  },
+  "policy": {
+    "channel": "manual",
+    "active_service": "search"
+  },
+  "command": {
+    "method": "genSearch",
+    "queryText": "подключить chatgpt к маркетплейсу",
+    "confirmBillable": true
+  },
+  "http_status": 200,
+  "elapsed_ms": 6155,
+  "result": {
+    "mode": "generative",
+    "message": {
+      "content": "Вот что удалось найти среди результатов поиска:\n\n* [sdvg.vc]([https://sdvg.vc/blog/podklyuchenie-chatgpt-k-bitrix24-prostaya-instruktsiya/](https://sdvg.vc/blog/podklyuchenie-chatgpt-k-bitrix24-prostaya-instruktsiya/)): Для подключения ChatGPT к Bitrix24 можно использовать **готовые приложения из маркетплейса** или **интегрировать через REST API**. [1]\n\n* [apimonster.ru]([https://apimonster.ru/connector/bundle/openai/ozon/](https://apimonster.ru/connector/bundle/openai/ozon/)): Интеграция OpenAI и Ozon через ApiMonster связывает ChatGPT с магазином на Ozon без программирования. [2] С помощью этого коннектора селлеры могут автоматически генерировать SEO-описания для карточек товаров, мгновенно отвечать на отзывы покупателей и обрабатывать вопросы клиентов с помощью нейросетей. [2]\n\n* [jafo.ru]([https://jafo.ru/blog/podklyuchit-claude-chatgpt-k-wildberries-ozon](https://jafo.ru/blog/podklyuchit-claude-chatgpt-k-wildberries-ozon)): ChatGPT можно подключить к кабинетам Wildberries и Ozon напрямую, чтобы ассистент мог смотреть заказы, остатки, отзывы и рекламу, а по команде менять цены и отвечать покупателям. [3]\n\n* [blog.fin-academy.pro]([https://blog.fin-academy.pro/finansy-marketplejsov-chatgpt](https://blog.fin-academy.pro/finansy-marketplejsov-chatgpt)): ChatGPT Plus с Code Interpreter собирает финансы маркетплейса из отчётов Wildberries и Ozon за 15–20 минут: выручка, комиссии, логистика, маржа и единый P&L по двум площадкам без ручной склейки. [4]\n\n* [chat-gpt-openai.ru]([https://chat-gpt-openai.ru/assistants/marketplejsy](https://chat-gpt-openai.ru/assistants/marketplejsy)): ChatGPT для маркетплейсов помогает продавцам создавать продающие карточки товаров, усиливать SEO и увеличивать продажи на маркетплейсах с помощью искусственного интеллекта. [5]",
+      "role": "ROLE_ASSISTANT"
+    },
+    "sources": [
+      {
+        "url": "[https://sdvg.vc/blog/podklyuchenie-chatgpt-k-bitrix24-prostaya-instruktsiya/](https://sdvg.vc/blog/podklyuchenie-chatgpt-k-bitrix24-prostaya-instruktsiya/)",
+        "title": "Подключение ChatGPT к Bitrix24: простая инструкция | SDVG Labs",
+        "used": true
+      },
+      {
+        "url": "[https://apimonster.ru/connector/bundle/openai/ozon/](https://apimonster.ru/connector/bundle/openai/ozon/)",
+        "title": "Интеграция OpenAI / ChatGpt (ОпенАИ / ЧатГпт) и Ozon (Озон) по API без программиста",
+        "used": true
+      },
+      {
+        "url": "[https://jafo.ru/blog/podklyuchit-claude-chatgpt-k-wildberries-ozon](https://jafo.ru/blog/podklyuchit-claude-chatgpt-k-wildberries-ozon)",
+        "title": "Как подключить Claude или ChatGPT к Wildberries и Ozon и управлять магазином прямо в чате — Блог JAFO",
+        "used": true
+      },
+      {
+        "url": "[https://blog.fin-academy.pro/finansy-marketplejsov-chatgpt](https://blog.fin-academy.pro/finansy-marketplejsov-chatgpt)",
+        "title": "Финансы на маркетплейсах через ChatGPT: выручка, комиссии и маржа по отчётам Wildberries и Ozon без ручной склейки",
+        "used": true
+      },
+      {
+        "url": "[https://chat-gpt-openai.ru/assistants/marketplejsy](https://chat-gpt-openai.ru/assistants/marketplejsy)",
+        "title": "Чат GPT для маркетплейсов",
+        "used": true
+      }
+    ],
+    "searchQueries": [
+      {
+        "text": "как подключить chatgpt к маркетплейсу",
+        "reqId": "1790258291900488-15340062825473119957-e23cqdexdbpywinn-BAL"
+      }
+    ],
+    "fixedMisspellQuery": "",
+    "isAnswerRejected": false,
+    "isBulletAnswer": true,
+    "hints": [],
+    "problematicAnswer": false,
+    "transport": {
+      "wire_format": "json_array",
+      "frame_count": 1
+    }
+  },
+  "request_executed": true,
+  "automatic_retry": false
+}
