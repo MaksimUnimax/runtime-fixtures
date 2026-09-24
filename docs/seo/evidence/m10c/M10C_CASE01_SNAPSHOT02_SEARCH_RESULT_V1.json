@@ -1,0 +1,81 @@
+{
+  "bridge": "yandex-marketing-bridge",
+  "version": "0.1.9",
+  "service": "search",
+  "operation": "genSearch",
+  "request_id": "search-b1e138cb-4c3e-4cc3-b0ef-6c537da590bb",
+  "run_id": null,
+  "status": "OK",
+  "reason": null,
+  "cost_estimate": {
+    "estimated_rub": 5.08,
+    "tariff_checked_at": "2026-08-19",
+    "tariff_source": "[https://aistudio.yandex.ru/docs/ru/search-api/pricing.html](https://aistudio.yandex.ru/docs/ru/search-api/pricing.html)"
+  },
+  "policy": {
+    "channel": "manual",
+    "active_service": "search"
+  },
+  "command": {
+    "method": "genSearch",
+    "queryText": "ии помощник селлера",
+    "confirmBillable": true
+  },
+  "http_status": 200,
+  "elapsed_ms": 3996,
+  "result": {
+    "mode": "generative",
+    "message": {
+      "content": "Несколько ИИ-помощников для селлеров (продавцов на маркетплейсах):\n\n* **SELLER MOON**. [1] Инструмент подключается к магазину по API, видит данные из отчётов и помогает получать ответы по продажам, остаткам, рекламе, выплатам, возвратам и товарам. [1] Нейросеть анализирует отчётность, делает выводы и предлагает конкретные шаги для улучшения продаж, управления остатками и оптимизации рекламы. [1]\n* **«Салли»**. [2] ИИ-помощник селлера для Wildberries и Ozon. [2] Каждый день проверяет продажи, рекламу, остатки и финансы и показывает, где продавец теряет деньги. [2] Сервис предоставляет готовые дашборды, чат-аналитик, отчёты и уведомления. [2]\n* **InfoSell**. [3] Сервис с ИИ-продуктами для маркетплейсов, включая ИИ-ассистент селлера. [3] ИИ анализирует кабинет и карточки товаров, выдаёт готовые решения, автоматизирует рутину, создаёт и анализирует карточки товара, экспортирует их в кабинет, а также управляет акциями. [3]\n* **ILAI**. [5] Виртуальный помощник с ИИ для маркетплейсов, в том числе для Wildberries. [5] Сервис объединяет аналитику магазина, SEO карточек, рекламу, AI-инструменты и автоматизацию ежедневных задач селлера. [5]",
+      "role": "ROLE_ASSISTANT"
+    },
+    "sources": [
+      {
+        "url": "[https://sellermoon.ru/tools/ai-assistant](https://sellermoon.ru/tools/ai-assistant)",
+        "title": "ИИ-ассистент Wildberries и Ozon, AI-помощник селлера для аналитики продаж, остатков и рекламы — SELLER MOON",
+        "used": true
+      },
+      {
+        "url": "[https://sally-seller.ru/](https://sally-seller.ru/)",
+        "title": "Салли — ИИ-помощник селлера для Wildberries и Ozon",
+        "used": true
+      },
+      {
+        "url": "[https://infosell.tech/](https://infosell.tech/)",
+        "title": "InfoSell — ИИ-сервисы для продавцов маркетплейсов",
+        "used": true
+      },
+      {
+        "url": "[https://sellergpt.ru/](https://sellergpt.ru/)",
+        "title": "ИИ-менеджер для продаж в переписке — Нейросеть — Ассистент | SellerGPT",
+        "used": false
+      },
+      {
+        "url": "[https://ilai.io/](https://ilai.io/)",
+        "title": "ILAI - виртуальный помощник с ИИ для маркетплейсов",
+        "used": true
+      }
+    ],
+    "searchQueries": [
+      {
+        "text": "ии помощник селлера",
+        "reqId": "1790255815043571-5033274312227059409-adw6exh2pwi6img3-BAL"
+      }
+    ],
+    "fixedMisspellQuery": "",
+    "isAnswerRejected": false,
+    "isBulletAnswer": false,
+    "hints": [
+      "Какие основные функции у SELLER MOON?",
+      "Какие преимущества у ILAI перед другими помощниками?",
+      "Как выбрать подходящий ИИ-помощник для селлера?"
+    ],
+    "problematicAnswer": false,
+    "transport": {
+      "wire_format": "json_array",
+      "frame_count": 1
+    }
+  },
+  "request_executed": true,
+  "automatic_retry": false
+}
