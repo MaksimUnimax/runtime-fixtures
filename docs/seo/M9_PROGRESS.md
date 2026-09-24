@@ -1,7 +1,7 @@
 # Octoport SEO — M9 progress
 
 Date: 2026-09-24
-Status: **WAVE-1 SUBMIT SLICE-1 PASS / 19 WAITING / 6 PENDING / SLICE-2 PREFLIGHT OPEN**
+Status: **WAVE-1 SUBMIT SLICE-2 RELEASED / WAITING RESULT**
 Branch: `seo/wordstat-batch-01-2026-09-16`
 
 ## Current accepted chain
@@ -13,7 +13,7 @@ M9 BOUNDARY-RESOLUTION PRE-ACQ = PASS / MAIN CHAT ACCEPTED
 M10A = BLOCKED
 
 CURRENT PHYSICAL STEP =
-M9 BOUNDARY-RESOLUTION WAVE-1 SUBMIT SLICE-2 PREFLIGHT
+M9 BOUNDARY-RESOLUTION WAVE-1 SUBMIT SLICE-2 / PROVIDER OPERATION ADMISSION
 ```
 
 ## Accepted M9 unresolved state
@@ -246,6 +246,29 @@ Exactly 6 rows remain PENDING.
 A second paid submit slice is not automatic; it requires a fresh tariff check plus separate durable release/readback.
 
 Collection remains closed.
+
+## Wave-1 submit slice-2 release
+
+Release:
+`docs/seo/M9_BOUNDARY_RESOLUTION_WAVE1_SUBMIT_SLICE2_RELEASE_2026-09-24_R1.md`
+
+```text
+FRESH_TARIFF_RECHECK = PASS
+YANDEX_TARIFF_TIME = 2026-09-24 10:34 UTC+3
+ACTIVE_RATE = DAY_DEFERRED
+UNIT_COST_RUB = 0.0305
+REMAINING_PENDING = 6
+SLICE2_MAX_COST_RUB = 0.183
+WAVE1_TOTAL_MAX_COST_RUB = 0.7625
+
+AUTHORIZED_ACTION =
+SEARCH_ASYNC_BATCH_API_V1 {"action":"submitN","jobId":"octoport-m9br-wave1-20260924-r1","count":6}
+
+COLLECTN = CLOSED
+THIRD_SUBMITN = CLOSED
+```
+
+Exactly one bounded slice-2 submit is authorized. A safe early stop may return fewer than six processed; any further submit requires a new receipt/readback/release.
 
 ## Owner relay
 
