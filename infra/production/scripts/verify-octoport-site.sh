@@ -68,7 +68,7 @@ check_release() {
   [[ -d "${target}" ]] || fail "current release target does not exist: ${target}"
 
   local required
-  for required in index.html styles.css robots.txt sitemap.xml; do
+  for required in index.html privacy.html support.html install.html styles.css robots.txt sitemap.xml; do
     [[ -f "${target}/${required}" ]] || fail "current release is missing ${required}"
   done
 
@@ -115,16 +115,62 @@ check_served_certificates() {
 
 check_site_content() {
   expect_status_with_retry 200 'https://octoport.ru/' octoport.ru 443
+  expect_status_with_retry 200 'https://octoport.ru/privacy' octoport.ru 443
+  expect_status_with_retry 200 'https://octoport.ru/support' octoport.ru 443
+  expect_status_with_retry 200 'https://octoport.ru/install' octoport.ru 443
   expect_status_with_retry 200 'https://octoport.ru/styles.css' octoport.ru 443
   expect_status_with_retry 200 'https://octoport.ru/robots.txt' octoport.ru 443
   expect_status_with_retry 200 'https://octoport.ru/sitemap.xml' octoport.ru 443
 
   local homepage homepage_headers css_headers content_type homepage_csp css_csp
+  local privacy support install
   local homepage_cache css_cache css_frame_options css_nosniff
 
   homepage="$(curl --silent --show-error --resolve 'octoport.ru:443:127.0.0.1' 'https://octoport.ru/')"
   grep -Fq '<title>Octoport' <<<"${homepage}" || fail "homepage does not contain the Octoport title"
   grep -Fq 'Набор ещё не открыт' <<<"${homepage}" || fail "homepage beta-state copy is missing"
+
+  privacy="$(curl --silent --show-error --resolve 'octoport.ru:443:127.0.0.1' 'https://octoport.ru/privacy')"
+  support="$(curl --silent --show-error --resolve 'octoport.ru:443:127.0.0.1' 'https://octoport.ru/support')"
+  install="$(curl --silent --show-error --resolve 'octoport.ru:443:127.0.0.1' 'https://octoport.ru/install')"
+
+  grep -Fq '<title>Octoport — Privacy</title>' <<<"${privacy}" || fail "privacy page title is missing"
+  grep -Fq 'не сохраняет Ozon/Wildberries реквизиты' <<<"${privacy}" || fail "privacy page credential boundary is missing"
+  grep -Fq 'технический срок хранения один час' <<<"${privacy}" || fail "privacy page one-hour local buffer statement is missing"
+  grep -Fq 'support@octoport.ru' <<<"${privacy}" || fail "privacy page support contact is missing"
+  grep -Fq 'DOM-данные или снимки страниц, просматриваемых пользователем, включая страницы с данными покупателей' <<<"${privacy}" \
+    || fail "privacy page customer/user page DOM and screenshot boundary is missing"
+  if grep -Eiq 'мы не храним данные|Octoport ничего не хранит|не хранит никаких данных|we store no data|no data stored' \
+    <<<"${privacy}"; then
+    fail "privacy page contains an unsupported claim that Octoport stores no data"
+  fi
+
+  grep -Fq '<title>Octoport — Support</title>' <<<"${support}" || fail "support page title is missing"
+  grep -Fq 'support@octoport.ru' <<<"${support}" || fail "support page contact is missing"
+  grep -Fq 'Safari в бету не входит' <<<"${support}" || fail "support page Safari beta boundary is missing"
+  grep -F -i -q -- 'не отправляйте секреты' <<<"${support}" || fail "support page sensitive-data warning is missing"
+  grep -F -i -q -- 'редактирование цен, карточек товаров и ставок не поддерживается' <<<"${support}" \
+    || fail "support page read-only boundary is missing"
+  grep -Fq 'не отправляйте полные экспорты AI-разговоров' <<<"${support}" \
+    || fail "support page AI conversation export warning is missing"
+  grep -Fq 'более поздний безопасный для конфиденциальности канал поддержки прямо их не запросит' <<<"${support}" \
+    || fail "support page AI conversation export exception is missing"
+  grep -Fq 'Одобрение магазина и готовность продукта — разные этапы.' <<<"${support}" \
+    || fail "support page must distinguish store approval from product readiness"
+
+  grep -Fq '<title>Install Octoport</title>' <<<"${install}" || fail "install page title is missing"
+  grep -Fq 'Официальная установка Octoport из каталога расширений готовится' <<<"${install}" \
+    || fail "install page does not state that catalog installation is being prepared"
+  if grep -Eiq 'официальн.{0,30}(одобрен(а|о|ы)?|опубликован(а|о|ы)?)\b|магазин.{0,30}(одобрил|одобрен(а|о|ы)?|опубликован(а|о|ы)?|approved|published)\b|каталог.{0,30}(одобрен(а|о|ы)?|опубликован(а|о|ы)?|approved|published)\b|карточк.{0,30}(одобрена|опубликована|approved|published)\b|store.{0,20}(approved|published)\b|Safari.{0,30}(поддерживается|входит в бету|supported)' \
+    <<<"${support}${install}"; then
+    fail "support/install page contains an unsupported store or Safari claim"
+  fi
+  for page in "${privacy}" "${support}" "${install}"; do
+    grep -Fq 'Octoport' <<<"${page}" || fail "public page is missing Octoport branding"
+    if grep -Eiq 'localhost|chrome://extensions|file://' <<<"${page}"; then
+      fail "public page contains a development installation route"
+    fi
+  done
 
   homepage_headers="$(curl --silent --show-error --head --resolve 'octoport.ru:443:127.0.0.1' 'https://octoport.ru/')"
   homepage_csp="$(header_value "${homepage_headers}" 'content-security-policy')"

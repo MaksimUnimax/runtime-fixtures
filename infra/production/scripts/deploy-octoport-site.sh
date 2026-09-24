@@ -46,7 +46,7 @@ assert_source() {
   [[ -f "${SCRIPT_DIR}/verify-octoport-site.sh" ]] || fail "missing site verifier"
 
   local required
-  for required in index.html styles.css robots.txt sitemap.xml; do
+  for required in index.html privacy.html support.html install.html styles.css robots.txt sitemap.xml; do
     [[ -f "${SOURCE_SITE}/${required}" ]] || fail "site source is missing ${required}"
   done
 
