@@ -1,7 +1,7 @@
 # Octoport SEO — M9 progress
 
 Date: 2026-09-24
-Status: **BOUNDARY-RESOLUTION FULL RERUN ACCEPTED / WAVE-2 INFORMATION-GAIN PREP OPEN**
+Status: **BOUNDARY-RESOLUTION WAVE-2 LOCAL START RELEASED / WAITING RESULT**
 Branch: `seo/wordstat-batch-01-2026-09-16`
 
 ## Current accepted chain
@@ -13,7 +13,7 @@ M9 BOUNDARY-RESOLUTION PRE-ACQ = PASS / MAIN CHAT ACCEPTED
 M10A = BLOCKED
 
 CURRENT PHYSICAL STEP =
-M9 BOUNDARY-RESOLUTION WAVE-2 INFORMATION-GAIN PRE-ACQUISITION
+M9 BOUNDARY-RESOLUTION WAVE-2 LOCAL JOB START
 ```
 
 ## Accepted M9 unresolved state
@@ -661,6 +661,42 @@ M10A = BLOCKED
 The next physical step is a new M9 boundary-resolution information-gain pass over unresolved identities, beginning from the 19 previously deferred exact-query candidates and reprioritizing them against the current 1,406 material-HOLD universe.
 
 No provider execution is authorized yet.
+
+## Wave-2 information-gain selection / local-start release
+
+Pre-acquisition:
+`docs/seo/M9_BOUNDARY_RESOLUTION_WAVE2_PREACQ_2026-09-24_R1.md`
+
+Exact query manifest:
+`docs/seo/M9_BOUNDARY_RESOLUTION_WAVE2_QUERY_MANIFEST_2026-09-24_R1.tsv`
+
+Local-start release:
+`docs/seo/M9_BOUNDARY_RESOLUTION_WAVE2_LOCAL_START_RELEASE_2026-09-24_R1.md`
+
+```text
+DEFERRED_CANDIDATES_RECHECKED = 19/19
+WAVE2_SEARCH_CANDIDATES = 18
+ZERO_GAIN_EXCLUDED = 1
+
+UNIQUE_MATERIAL_HOLDS_TOUCHED = 346
+TO_CURRENT_47_ANCHORS = 106
+INTERNAL_WAVE2_MATERIAL_HOLDS = 41
+TO_OTHER_NONANCHORS = 199
+
+EXPECTED_POST_WAVE2_ANCHORS = 65
+EXPECTED_POST_WAVE2_NO_SERP = 39
+EXPECTED_CHANGED_COMPARABILITY = 1701
+
+JOB_ID = octoport-m9br-wave2-20260924-r1
+QUERY_COUNT = 18
+MAX_REQUESTS = 18
+MAX_COST_RUB = 0.549
+
+LOCAL_START = RELEASED
+PAID_SUBMITN = CLOSED
+```
+
+The excluded identity is `ии для продаж на маркетплейсах`: current material-HOLD information gain = 0 under frozen task/intent/product/scope authority.
 
 ## Owner relay
 
