@@ -1,0 +1,131 @@
+{
+  "schema": "OCTOPORT_M9_BOUNDARY_RESOLUTION_PREACQ_INPUT_MANIFEST_V1",
+  "work_id": "OCTOPORT_SEO_M9_BOUNDARY_RESOLUTION_PREACQ_2026-09-24_R1",
+  "date": "2026-09-24",
+  "repository": "MaksimUnimax/runtime-fixtures",
+  "branch": "seo/wordstat-batch-01-2026-09-16",
+  "source_head": "739b8c343974c013ac4843c654cced34ca0c0adb",
+  "purpose": "Full-volume pre-acquisition reconciliation of 82 M9 cluster-eligible identities without current exact Search evidence and all accepted M9 HOLD boundaries. Work selects a bounded first Search acquisition wave; Work does not call providers.",
+  "accepted_m9": {
+    "identities": 7913,
+    "cluster_eligible": 104,
+    "current_search_anchors": 22,
+    "missing_current_search": 82,
+    "pairwise": 5356,
+    "hold_boundaries": 1518,
+    "material_hold_boundaries": 1424,
+    "merge_supported": 3,
+    "split_supported": 3835,
+    "retained_clusters": 0,
+    "hold_clusters": 104
+  },
+  "frozen_provider_target_context": {
+    "intended_search_type": "SEARCH_TYPE_RU",
+    "intended_region": "225",
+    "intended_depth": 100,
+    "reason": "Preserve comparability with accepted current M4Q RU225 Top100 Search-anchor authority.",
+    "execution_not_authorized_by_this_manifest": true
+  },
+  "prohibited": {
+    "provider_calls_by_work": true,
+    "web_acquisition_by_work": true,
+    "alice_or_ai_search": true,
+    "query_rephrasing_not_present_in_m8_identity": true,
+    "recursive_related_query_expansion": true,
+    "m10a_page_ownership": true
+  },
+  "file_count": 14,
+  "files": [
+    {
+      "path": "docs/seo/PRODUCT_TRUTH.md",
+      "git_blob_sha": "6a469d5743142d3e476afa5d2cda653fd411ecb8",
+      "bytes": 14268,
+      "role": "PRODUCT_BOUNDARY"
+    },
+    {
+      "path": "docs/seo/M8_R3_MAIN_CHAT_FINAL_ACCEPTANCE_2026-09-24_R1.md",
+      "git_blob_sha": "9624decd46ae12c9a6c8faf139bec9ebf545adae",
+      "bytes": 9717,
+      "role": "M8_ACCEPTANCE_CONTEXT"
+    },
+    {
+      "path": "docs/seo/work_return/M8_SEARCH_ONLY_SEMANTIC_MASTER_2026-09-24_R3/M8_SEMANTIC_IDENTITY_MASTER.tsv",
+      "git_blob_sha": "2faaca90c49d5e2ca9c5121c1ef187b3a3f6844f",
+      "bytes": 11405030,
+      "role": "M8_SEMANTIC_AUTHORITY",
+      "expected_data_rows": 7913
+    },
+    {
+      "path": "docs/seo/M9_R2_MAIN_CHAT_FINAL_ACCEPTANCE_2026-09-24_R1.md",
+      "git_blob_sha": "7acc7f0e4bd70761c06e828bcea4da82a4cd2736",
+      "bytes": 10173,
+      "role": "M9_ACCEPTANCE_AUTHORITY"
+    },
+    {
+      "path": "docs/seo/work_return/M9_SEARCH_ONLY_CLUSTERING_2026-09-24_R2/M9_IDENTITY_ELIGIBILITY_LEDGER.tsv",
+      "git_blob_sha": "91d341ec9b4b90cb9dce2a8bd3dec171b2a10c41",
+      "bytes": 4464973,
+      "role": "M9_ELIGIBILITY",
+      "expected_data_rows": 7913
+    },
+    {
+      "path": "docs/seo/work_return/M9_SEARCH_ONLY_CLUSTERING_2026-09-24_R2/M9_PAIRWISE_CLUSTER_EVIDENCE.tsv",
+      "git_blob_sha": "1ed11a2f135e7f7a8749c80be9efb971e267eda2",
+      "bytes": 4724034,
+      "role": "M9_PAIRWISE_AUTHORITY",
+      "expected_data_rows": 5356
+    },
+    {
+      "path": "docs/seo/work_return/M9_SEARCH_ONLY_CLUSTERING_2026-09-24_R2/M9_CLUSTER_MASTER.tsv",
+      "git_blob_sha": "a44b15539ff6ff3e472add8045a05bdd63086d05",
+      "bytes": 105796,
+      "role": "M9_CLUSTER_AUTHORITY",
+      "expected_data_rows": 104
+    },
+    {
+      "path": "docs/seo/work_return/M9_SEARCH_ONLY_CLUSTERING_2026-09-24_R2/M9_CLUSTER_MEMBERSHIP.tsv",
+      "git_blob_sha": "c757fd9738cfb06fc0db8184308490351dbce9a1",
+      "bytes": 37637,
+      "role": "M9_MEMBERSHIP",
+      "expected_data_rows": 104
+    },
+    {
+      "path": "docs/seo/work_return/M9_SEARCH_ONLY_CLUSTERING_2026-09-24_R2/M9_HOLD_BOUNDARY_LEDGER.tsv",
+      "git_blob_sha": "9f8f78dc6ef2c118530f31be6b40c3fbe98a8586",
+      "bytes": 1363559,
+      "role": "M9_MATERIAL_HOLD_AUTHORITY",
+      "expected_data_rows": 1424
+    },
+    {
+      "path": "docs/seo/work_return/M9_SEARCH_ONLY_CLUSTERING_2026-09-24_R2/M9_QA.md",
+      "git_blob_sha": "198173b01dd2e1e067e22ce9007d10a7377b0003",
+      "bytes": 7457,
+      "role": "M9_QA_CONTEXT"
+    },
+    {
+      "path": "docs/seo/M9_SEARCH_ANCHOR_MAP_2026-09-24_R2.tsv",
+      "git_blob_sha": "61a6d6c5befbc20f75fadddfd035b7affc6fe14c",
+      "bytes": 8366,
+      "role": "M9_EXISTING_SEARCH_ANCHORS",
+      "expected_data_rows": 22
+    },
+    {
+      "path": "docs/seo/PROVIDER_QUERY_RELEASE_RULE.md",
+      "git_blob_sha": "4d5de2446e04684c6b36ce19ab5f32fb05e9c9ce",
+      "bytes": 4848,
+      "role": "PROVIDER_RELEASE_RULE"
+    },
+    {
+      "path": "docs/seo/LEVEL2/M6_GAP_CLOSURE_AND_PROVIDER_RULES.md",
+      "git_blob_sha": "598a248c459b705ac9b7a0e53a86870733d6f379",
+      "bytes": 3320,
+      "role": "INFORMATION_GAIN_PROVIDER_RULE"
+    },
+    {
+      "path": "docs/seo/serp/competitors/M4Q_R2_BRIDGE_PREFLIGHT_2026-09-23_R2.md",
+      "git_blob_sha": "df6f3e9c5f3b4c8b6f0c8aa3de0d97732b6fa58c",
+      "bytes": 6733,
+      "role": "ACCEPTED_BRIDGE_CAPABILITY_CONTEXT"
+    }
+  ]
+}
