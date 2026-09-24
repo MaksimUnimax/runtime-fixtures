@@ -56,6 +56,7 @@ def main():
                 ("i1-a04-network-correctness", ROOT / "tests/regression/extension-core/client-i1/client-a04-network-correctness.mjs"),
                 ("application", ROOT / "tests/regression/extension-core/application.mjs"),
                 ("i1-lifecycle", ROOT / "tests/regression/extension-core/client-i1/client-lifecycle.mjs"),
+                ("i1-request-deadline", ROOT / "tests/regression/extension-core/client-i1/client-request-deadline.mjs"),
                 ("i1-races", ROOT / "tests/regression/extension-core/client-i1/client-races.mjs"),
                 ("i1-r2", ROOT / "tests/regression/extension-core/client-i1/client-r2.mjs"),
                 ("i1-r3", ROOT / "tests/regression/extension-core/client-i1/client-r3.mjs"),
