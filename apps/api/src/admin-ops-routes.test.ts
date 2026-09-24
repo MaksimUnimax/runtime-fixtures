@@ -720,7 +720,8 @@ describe("P6.2 admin API boundary", () => {
     ).toBe(137);
     expect(
       Object.keys(
-        document.paths["/v1/admin/compatibility/releases/{version}/publish"],
+        document.paths["/v1/admin/compatibility/releases/{version}/publish"] ??
+          {},
       ),
     ).toEqual(["post"]);
   });
