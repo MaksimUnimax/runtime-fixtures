@@ -15,6 +15,7 @@ This directory contains implementation-oriented technical notes, contracts, vali
 - [Data and security](architecture/DATA_AND_SECURITY.md)
 - [Shared contracts](architecture/CONTRACTS.md)
 - [Synchronization rules](architecture/SYNC.md)
+- [Согласованная политика подписки и автономности](architecture/SUBSCRIPTION_ACCESS_POLICY.md)
 - [State machines](architecture/STATE_MACHINES.md)
 
 ## Development and validation
