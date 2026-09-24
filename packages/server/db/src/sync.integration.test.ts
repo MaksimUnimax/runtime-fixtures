@@ -40,6 +40,11 @@ type SyncResponseBody = {
     serverState: Record<string, unknown> | null;
     code: string | null;
   }>;
+  snapshots?: Array<{
+    entityId: string;
+    serverRevision: number;
+    serverState: Record<string, unknown> | null;
+  }>;
   error?: { code: string; message?: string };
   [key: string]: unknown;
 };
@@ -84,11 +89,16 @@ function entry(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function body(entries: unknown[], installationId = fixture.deviceId) {
+function body(
+  entries: unknown[],
+  installationId = fixture.deviceId,
+  readEntityIds?: string[],
+) {
   return {
     syncVersion: "seller_agents_sync_v1" as const,
     installationId,
     entries,
+    ...(readEntityIds ? { readEntityIds } : {}),
   };
 }
 
@@ -135,8 +145,8 @@ describe.sequential("C3E real PostgreSQL sync acceptance", () => {
       undefined,
       createEphemeralAccessTokenSigningKey("c3e-sync-test"),
     );
-    service = new SyncService(createSyncRepository(runtime));
     reader = createSyncSnapshotReader(runtime);
+    service = new SyncService(createSyncRepository(runtime), reader);
     app = createApiApp({
       config,
       isInfrastructureReady: async () => true,
@@ -837,6 +847,90 @@ describe.sequential("C3E real PostgreSQL sync acceptance", () => {
       outcome: "ACK",
       entityId: binding.entityId,
       serverRevision: 1,
+    });
+  });
+
+  it("serves read-only snapshots over POST /v1/sync without creating receipts", async () => {
+    const digest = "4".repeat(64);
+    const conversationId = `conversation:${digest}`;
+    const binding = entry({
+      entityId: randomUUID(),
+      payload: payload({
+        conversationKeyDigest: digest,
+        bindingId: "binding-http-read",
+      }),
+    });
+    expect(
+      (await service.apply(fixture, body([binding]))).results[0]?.outcome,
+    ).toBe("ACK");
+    const receiptsBefore = await runtime.query<{ count: string }>(
+      "SELECT count(*)::text AS count FROM sync_request_receipts WHERE account_id=$1",
+      [fixture.accountId],
+    );
+
+    const missing = `conversation:${"5".repeat(64)}`;
+    const response = await post(
+      body([], fixture.deviceId, [missing, conversationId]),
+    );
+    expect(response.statusCode).toBe(200);
+    expect(response.json().results).toEqual([]);
+    expect(response.json().snapshots).toEqual([
+      { entityId: missing, serverRevision: 0, serverState: null },
+      expect.objectContaining({
+        entityId: conversationId,
+        serverRevision: 1,
+        serverState: expect.objectContaining({
+          bindingId: "binding-http-read",
+          conversationKeyDigest: digest,
+        }),
+      }),
+    ]);
+    const receiptsAfter = await runtime.query<{ count: string }>(
+      "SELECT count(*)::text AS count FROM sync_request_receipts WHERE account_id=$1",
+      [fixture.accountId],
+    );
+    expect(receiptsAfter.rows).toEqual(receiptsBefore.rows);
+  });
+
+  it("returns the post-mutation committed snapshot for a mixed HTTP sync request", async () => {
+    const digest = "6".repeat(64);
+    const conversationId = `conversation:${digest}`;
+    const first = entry({
+      entityId: randomUUID(),
+      payload: payload({
+        conversationKeyDigest: digest,
+        bindingId: "binding-http-mixed",
+        bindingRevision: 1,
+      }),
+    });
+    expect(
+      (await service.apply(fixture, body([first]))).results[0]?.outcome,
+    ).toBe("ACK");
+
+    const next = entry({
+      entityId: randomUUID(),
+      baseRevision: 1,
+      payload: payload({
+        conversationKeyDigest: digest,
+        bindingId: "binding-http-mixed",
+        bindingRevision: 2,
+      }),
+    });
+    const response = await post(
+      body([next], fixture.deviceId, [conversationId]),
+    );
+    expect(response.statusCode).toBe(200);
+    expect(response.json().results?.[0]).toMatchObject({
+      outcome: "ACK",
+      serverRevision: 2,
+    });
+    expect(response.json().snapshots?.[0]).toMatchObject({
+      entityId: conversationId,
+      serverRevision: 2,
+      serverState: {
+        bindingId: "binding-http-mixed",
+        bindingRevision: 2,
+      },
     });
   });
 
