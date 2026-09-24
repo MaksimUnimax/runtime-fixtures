@@ -19,8 +19,19 @@
   let activationFlight = null, refreshFlight = null, pollingFlight = null, authorityChanged = null;
   let runtimeClockOwner = null, runtimeAnchor = null, runtimeEffectiveHighWatermark = null, runtimeFloorNeedsPersistence = false, runtimeLastCheckpointAllowed = null;
   let bootstrapAttemptSequence = 0;
-  const transferRecipientKeys = new Map();
-  function clearTransferRecipientKeys() { transferRecipientKeys.clear(); }
+  const transferVault = globalThis.SellerAgentsCredentialTransferVault;
+  const transferRecipientFlights = new Map();
+  async function clearTransferRecipientVault() {
+    if (!transferVault) throw error("TRANSFER_VAULT_UNAVAILABLE");
+    try { await transferVault.clear(); } catch (failure) { throw error("TRANSFER_VAULT_CLEAR_FAILED", safeError(failure)); }
+  }
+  function transferSingleFlight(requestId, fn) {
+    const id = String(requestId || "");
+    if (transferRecipientFlights.has(id)) return transferRecipientFlights.get(id);
+    const run = Promise.resolve().then(fn).finally(() => { if (transferRecipientFlights.get(id) === run) transferRecipientFlights.delete(id); });
+    transferRecipientFlights.set(id, run);
+    return run;
+  }
   const transportProvenance = new WeakMap();
   const httpErrorProvenance = new WeakMap();
   function error(code, detail) { const value = Object.assign(new Error(code), { code }); if (detail !== undefined) value.detail = detail; return value; }
@@ -65,7 +76,7 @@
   function validRestoredPending(value) { return validStarting(value) || validPending(value) && parsedMillis(value.expiresAt) > now(); }
   function pendingLive(value) { return value?.phase !== "starting" && validPending(value) && Date.parse(value.expiresAt) > now(); }
   function publicPending(value) { if (!value) return null; return { authorizationId: value.authorizationId, userCode: value.userCode, expiresAt: value.expiresAt, verificationUri: url(`/activate?authorizationId=${encodeURIComponent(value.authorizationId)}`, config.portalOrigin) }; }
-  function publicStatus(decision = null) { const authority = state.authority, accountId = authority?.payload?.account?.id || null, snapshot = authority?.payload || null, matching = decision && decision.identity && sameAuthorityRuntimeIdentity(decision.identity, authorityDecisionIdentity()); return Object.freeze({ authenticated: Boolean(state.credentials && authority && accountId), accountId, account: accountId ? { kind: "control_account", label: `Аккаунт · ${accountId.slice(0, 8)}` } : null, pending: pendingLive(state.pending) ? publicPending(state.pending) : null, lastError: state.lastError, generation: state.generation, workAllowed: Boolean(accountId && matching && decision.allowed === true), authority: authority ? { configVersion: snapshot.configVersion, expiresAt: snapshot.expiresAt, aiStatus: snapshot.ai.status } : null }); }
+  function publicStatus(decision = null) { const authority = state.authority, accountId = authority?.payload?.account?.id || null, snapshot = authority?.payload || null, matching = decision && decision.identity && sameAuthorityRuntimeIdentity(decision.identity, authorityDecisionIdentity()); const compatibility = snapshot?.compatibility ? { extension: { status: snapshot.compatibility.extension.status, minimumVersion: snapshot.compatibility.extension.minimumVersion }, browser: { status: snapshot.compatibility.browser.status } } : null; return Object.freeze({ authenticated: Boolean(state.credentials && authority && accountId), accountId, account: accountId ? { kind: "control_account", label: `Аккаунт · ${accountId.slice(0, 8)}` } : null, pending: pendingLive(state.pending) ? publicPending(state.pending) : null, lastError: state.lastError, generation: state.generation, workAllowed: Boolean(accountId && matching && decision.allowed === true), authority: authority ? { configVersion: snapshot.configVersion, expiresAt: snapshot.expiresAt, aiStatus: snapshot.ai.status } : null, compatibility }); }
   function authorityStaticValid(snapshot) {
     const extension = snapshot?.compatibility?.extension;
     return Boolean(snapshot && snapshot.account?.status === "ACTIVE" && snapshot.devicePolicy?.status === "ACTIVE" && ["SUPPORTED", "UPDATE_RECOMMENDED"].includes(extension?.status) && snapshot.compatibility?.browser?.status === "SUPPORTED" && (extension.minimumVersion === null || (parseSemver(extension.minimumVersion) && versionAtLeast(config.extensionVersion, extension.minimumVersion))));
@@ -419,12 +430,15 @@
   async function invalidateKnown(context, failure, terminal = terminalAuthFailure(failure)) {
     return queueMutation(async () => {
       if (!isCurrent(context)) return false;
-      if (terminal) clearTransferRecipientKeys();
       const previous = state.authority;
       const next = { ...state, generation: state.generation + 1, credentials: terminal ? null : state.credentials, pending: null, rotation: null, authority: null, cacheClock: terminal ? null : state.cacheClock, lastError: safeError(failure) };
       /* The denial is authoritative before any storage or cleanup await. */
       state = next;
-      if (terminal) resetRuntimeClock();
+      let transferCleanupFailure = null;
+      if (terminal) {
+        resetRuntimeClock();
+        try { await clearTransferRecipientVault(); } catch (cleanupFailure) { transferCleanupFailure = cleanupFailure; }
+      }
       detachObsoleteOwners();
       let persistenceFailure = null;
       try { await persist(next); }
@@ -438,7 +452,7 @@
       if (previous && typeof authorityChanged === "function") {
         try { await authorityChanged(null, failure?.code || "authority_invalid", state.generation); } catch (_) { /* cleanup is advisory */ }
       }
-      return persistenceFailure ? { denied: true, persistenceFailure: persistenceFailure.code } : true;
+      return persistenceFailure || transferCleanupFailure ? { denied: true, ...(persistenceFailure ? { persistenceFailure: persistenceFailure.code } : {}), ...(transferCleanupFailure ? { transferCleanupFailure: transferCleanupFailure.code } : {}) } : true;
     });
   }
   async function invalidateUnauthorized(context, failure) { return invalidateKnown(context, failure, true); }
@@ -685,30 +699,166 @@
       }
     }
     if (state.pending && !validRestoredPending(state.pending)) await invalidateKnown(contextForState(), error("ACTIVATION_CONTEXT_MISMATCH"), true);
+    try { await transferVault?.prune(now()); } catch (_) { /* transfer actions fail closed on vault access; auth restore remains independent */ }
     const restoredDecision = state.authority && state.credentials ? await cacheAuthorizationCheckpoint() : { allowed: false };
     initialized = true; if (pendingLive(state.pending)) void ensurePolling(); return publicStatus(restoredDecision);
   }
   function init() { if (initialized) return Promise.resolve(publicStatus()); if (!initFlight) initFlight = restoreOnce().finally(() => { initFlight = null; }); return initFlight; }
-  async function localReset() { await init(); await queueMutation(async () => { activationFlight = null; pollingFlight = null; refreshFlight = null; clearTransferRecipientKeys(); resetRuntimeClock(); await commit({ generation: state.generation + 1, credentials: null, pending: null, rotation: null, authority: null, cacheClock: null, lastError: null }, state.authority, "local_reset"); }); return publicStatus(); }
+  async function localReset() { await init(); await queueMutation(async () => {
+    activationFlight = null; pollingFlight = null; refreshFlight = null;
+    const previous = state.authority, next = { generation: state.generation + 1, credentials: null, pending: null, rotation: null, authority: null, cacheClock: null, lastError: null };
+    state = next; resetRuntimeClock();
+    let cleanupFailure = null;
+    try { await clearTransferRecipientVault(); } catch (failure) { cleanupFailure = failure; }
+    await commit({ ...next, lastError: cleanupFailure ? safeError(cleanupFailure) : null }, previous, "local_reset");
+    if (cleanupFailure) throw cleanupFailure;
+  }); return publicStatus(); }
   async function cancelActivation() { await init(); await queueMutation(async () => { activationFlight = null; pollingFlight = null; await commit({ ...state, generation: state.generation + 1, pending: null, lastError: null }, state.authority, "activation_cancelled"); }); return publicStatus(); }
   async function synchronizeMetadata(body) {
     await init(); if (!state.credentials) throw error("AUTH_REQUIRED"); await ensureAuthOwnership();
     if (!body || body.syncVersion !== "seller_agents_sync_v1" || !Array.isArray(body.entries) || body.entries.length < 1 || body.entries.length > 32) throw error("SYNC_REQUEST_INVALID");
     return (await request("/v1/sync", { method: "POST", headers: { Authorization: `Bearer ${state.credentials.accessToken}` }, body: { ...body, installationId: state.credentials.deviceId } })).body;
   }
-  async function transferAuth() { await init(); if (!state.credentials || !state.authority?.payload?.account?.id) throw error("AUTH_REQUIRED"); return { credentials: state.credentials, accountId: state.authority.payload.account.id }; }
+  async function transferAuth() {
+    await init();
+    if (!state.credentials || !state.authority?.payload?.account?.id) throw error("AUTH_REQUIRED");
+    await ensureAuthOwnership();
+    return { credentials: state.credentials, accountId: state.authority.payload.account.id, sessionId: state.credentials.sessionId };
+  }
+  function transferRecordMatches(record, auth) {
+    return Boolean(record && record.accountId === auth.accountId && record.recipientDeviceId === auth.credentials.deviceId && record.sessionId === auth.sessionId);
+  }
+  function transferBodyFromRecord(record) {
+    return { requestId: record.requestId, recipientDeviceId: record.recipientDeviceId, recipientPublicKeySpki: record.publicKeySpki, sourceDeviceId: record.sourceDeviceId || null, selectedStores: record.selectedStoreIds.map(storeId => ({ storeId })), consent: true, expiresInSeconds: record.expiresInSeconds };
+  }
+  function assertTransferRequestMatches(record, result) {
+    const stores = Array.isArray(result?.selectedStores) ? result.selectedStores.map(item => item?.storeId) : [];
+    if (!result || result.requestId !== record.requestId || result.accountId !== record.accountId || result.recipientDeviceId !== record.recipientDeviceId || result.recipientPublicKeySpki !== record.publicKeySpki || (record.sourceDeviceId && result.sourceDeviceId !== record.sourceDeviceId) || verifier.canonicalJson(stores) !== verifier.canonicalJson(record.selectedStoreIds) || !Number.isFinite(Date.parse(result.expiresAt))) throw error("TRANSFER_REQUEST_MISMATCH");
+    return result;
+  }
+  function safeTransferResult(input) {
+    if (!input || input.importState !== "IMPORTED" || typeof input.requestId !== "string" || !Array.isArray(input.results)) throw error("TRANSFER_RESULT_INVALID");
+    return { requestId: input.requestId, importState: "IMPORTED", results: input.results.map(item => ({ storeId: typeof item?.storeId === "string" ? item.storeId : null, kind: typeof item?.kind === "string" ? item.kind : null, code: typeof item?.code === "string" ? item.code : null, store: item?.store ? { id: String(item.store.id || ""), marketplace: String(item.store.marketplace || ""), credentialRevision: String(item.store.credentialRevision || "") } : null })) };
+  }
+  function publicTransferRecord(record) {
+    return clone({ requestId: record.requestId, sourceDeviceId: record.sourceDeviceId || null, phase: record.phase, expiresAt: record.expiresAt, packetId: record.packetId || null, result: record.result || null });
+  }
+  async function requireTransferRecord(requestId, auth = null) {
+    const identity = auth || await transferAuth(), record = await transferVault.get(requestId);
+    if (!record) throw error("TRANSFER_KEY_MISSING");
+    if (!transferRecordMatches(record, identity)) throw error("TRANSFER_ACCOUNT_MISMATCH");
+    return { auth: identity, record };
+  }
+  async function reconcilePreparedCredentialTransfer(record, auth) {
+    if (record.phase !== "PREPARED") return record;
+    const body = transferBodyFromRecord(record), options = { method: "POST", headers: { Authorization: `Bearer ${auth.credentials.accessToken}` }, body };
+    let response;
+    try { response = await request("/v1/credential-transfers", options); }
+    catch (failure) {
+      if (failure?.status) throw failure;
+      response = await request("/v1/credential-transfers", options);
+    }
+    const result = assertTransferRequestMatches(record, response.body);
+    const currentAuth = await transferAuth();
+    if (!transferRecordMatches(record, currentAuth)) throw error("TRANSFER_ACCOUNT_MISMATCH");
+    const active = await transferVault.update(record.requestId, current => ({ ...current, phase: "ACTIVE", sourceDeviceId: result.sourceDeviceId || current.sourceDeviceId || null, expiresAt: result.expiresAt }));
+    return { record: active, request: clone(result) };
+  }
   async function createCredentialTransfer(input = {}) {
-    const { credentials } = await transferAuth(); if (input.consent !== true) throw error("TRANSFER_CONSENT_REQUIRED");
+    const auth = await transferAuth();
+    if (input.consent !== true) throw error("TRANSFER_CONSENT_REQUIRED");
+    if (!transferVault) throw error("TRANSFER_VAULT_UNAVAILABLE");
     const keys = await SellerAgentsCredentialTransferCrypto.generateRecipientKeyPair(), requestId = input.requestId || crypto.randomUUID();
-    const body = { requestId, recipientDeviceId: credentials.deviceId, recipientPublicKeySpki: keys.publicKeySpki, sourceDeviceId: input.sourceDeviceId || null, selectedStores: (input.selectedStoreIds || []).map(storeId => ({ storeId })), consent: true, expiresInSeconds: Math.min(900, Math.max(60, Number(input.expiresInSeconds || 300))) };
-    const result = (await request("/v1/credential-transfers", { method: "POST", headers: { Authorization: `Bearer ${credentials.accessToken}` }, body })).body; transferRecipientKeys.set(requestId, keys.privateKey); return clone(result);
+    const selectedStoreIds = (input.selectedStoreIds || []).map(value => String(value).trim());
+    const requestedExpiry = input.expiresInSeconds === undefined ? 300 : Number(input.expiresInSeconds);
+    if (selectedStoreIds.length > 16 || selectedStoreIds.some(value => !value || value.length > 128) || !Number.isInteger(requestedExpiry)) throw error("TRANSFER_REQUEST_INVALID");
+    const expiresInSeconds = Math.min(900, Math.max(60, requestedExpiry));
+    const prepared = { vaultVersion: transferVault.VERSION, requestId, accountId: auth.accountId, recipientDeviceId: auth.credentials.deviceId, sessionId: auth.sessionId, sourceDeviceId: input.sourceDeviceId || null, selectedStoreIds, publicKeySpki: keys.publicKeySpki, privateKey: keys.privateKey, expiresInSeconds, expiresAt: new Date(now() + expiresInSeconds * 1000).toISOString(), phase: "PREPARED", packetId: null, result: null };
+    try { await transferVault.put(prepared); } catch (failure) { throw error("TRANSFER_VAULT_PERSIST_FAILED", safeError(failure)); }
+    const reconciled = await reconcilePreparedCredentialTransfer(prepared, auth);
+    return clone(reconciled.request);
+  }
+  async function listCredentialTransferRecipients() {
+    const auth = await transferAuth();
+    if (!transferVault) throw error("TRANSFER_VAULT_UNAVAILABLE");
+    const rows = [];
+    for (const stored of await transferVault.list()) {
+      if (!transferRecordMatches(stored, auth)) { await transferVault.remove(stored.requestId).catch(() => null); continue; }
+      let record = stored;
+      if (record.phase === "PREPARED") {
+        try { record = (await reconcilePreparedCredentialTransfer(record, auth)).record; }
+        catch (failure) { if (failure?.code === "TRANSFER_EXPIRED" || failure?.code === "TRANSFER_REPLAY" || failure?.code === "TRANSFER_ACCOUNT_MISMATCH") await transferVault.remove(record.requestId).catch(() => null); else rows.push(publicTransferRecord(record)); continue; }
+      }
+      rows.push(publicTransferRecord(record));
+    }
+    return rows;
   }
   async function listCredentialTransfers() { const { credentials } = await transferAuth(); return clone((await request("/v1/credential-transfers/pending/source", { headers: { Authorization: `Bearer ${credentials.accessToken}` } })).body); }
   async function readCredentialTransfer(requestId) { const { credentials } = await transferAuth(); return clone((await request(`/v1/credential-transfers/${encodeURIComponent(requestId)}`, { headers: { Authorization: `Bearer ${credentials.accessToken}` } })).body); }
   async function markCredentialTransferSourceSeen(requestId) { const { credentials } = await transferAuth(); return clone((await request(`/v1/credential-transfers/${encodeURIComponent(requestId)}/source-seen`, { method: "POST", headers: { Authorization: `Bearer ${credentials.accessToken}` } })).body); }
   async function submitCredentialTransferPacket(input) { const { credentials } = await transferAuth(); return clone((await request(`/v1/credential-transfers/${encodeURIComponent(input.requestId)}/packet`, { method: "POST", headers: { Authorization: `Bearer ${credentials.accessToken}` }, body: { requestId: input.requestId, packetId: input.packetId, envelope: input.envelope } })).body); }
-  async function receiveCredentialTransfer(requestId, sourceDeviceId) { const { credentials, accountId } = await transferAuth(); const privateKey = transferRecipientKeys.get(requestId); if (!privateKey) throw error("TRANSFER_KEY_MISSING"); const packet = (await request(`/v1/credential-transfers/${encodeURIComponent(requestId)}/packet`, { headers: { Authorization: `Bearer ${credentials.accessToken}` } })).body; const payload = await SellerAgentsCredentialTransferCrypto.decrypt({ envelope: packet.envelope, privateKey, accountId, requestId, sourceDeviceId, recipientDeviceId: credentials.deviceId, packetId: packet.packetId }); return { packet, payload }; }
-  async function acknowledgeCredentialTransfer(input) { const { credentials } = await transferAuth(); const result = clone((await request(`/v1/credential-transfers/${encodeURIComponent(input.requestId)}/ack`, { method: "POST", headers: { Authorization: `Bearer ${credentials.accessToken}` }, body: input })).body); transferRecipientKeys.delete(input.requestId); return result; }
-  const api = { restore: init, status: async () => { await init(); const decision = await cacheAuthorizationCheckpoint(); return publicStatus(decision); }, currentAccount: async () => { await init(); return state.authority?.payload?.account?.id || null; }, generation: async () => { await init(); return state.generation; }, hasAuthority: async () => { await init(); return Boolean(state.authority && state.credentials); }, canWork: async () => { await init(); const decision = await cacheAuthorizationCheckpoint(); return decision.identity === authorityDecisionIdentity() && decision.allowed === true; }, getAuthority: async () => { await init(); const decision = await cacheAuthorizationCheckpoint(); const authority = clone(state.authority); if (authority && !(decision.identity === authorityDecisionIdentity() && decision.allowed === true)) authority.workAllowed = false; return authority; }, getCachedContinuationState, getHealthAuthorityContext, getVerifiedAuthorityTime, acquireSignedHealthAuthority, synchronizeMetadata, createCredentialTransfer, listCredentialTransfers, readCredentialTransfer, markCredentialTransferSourceSeen, submitCredentialTransferPacket, receiveCredentialTransfer, acknowledgeCredentialTransfer, startActivation, cancelActivation, refresh, bootstrap, bootstrapWithPolicy, ensureForIdentity, localReset, openPortal: async () => { await init(); const pending = state.pending; if (!pendingLive(state.pending) || !validAuthContext(pending.authContext)) throw error("NO_ACTIVATION_ATTEMPT"); return openPortal(pending.authorizationId); }, onAuthorityChanged: handler => { authorityChanged = handler; } };
+  async function receiveCredentialTransfer(requestId, sourceDeviceId) {
+    return transferSingleFlight(requestId, async () => {
+      const { auth, record } = await requireTransferRecord(requestId);
+      if (record.phase === "ACKED_RESULT") return { ackedResult: true, result: clone(record.result) };
+      if (record.phase === "IMPORTED_PENDING_ACK") return { pendingAck: true, packet: { packetId: record.packetId }, result: clone(record.result) };
+      if (!record.privateKey) throw error("TRANSFER_KEY_MISSING");
+      const packet = (await request(`/v1/credential-transfers/${encodeURIComponent(requestId)}/packet`, { headers: { Authorization: `Bearer ${auth.credentials.accessToken}` } })).body;
+      if (!packet?.packetId || packet.requestId !== requestId) throw error("TRANSFER_PACKET_INVALID");
+      const current = await transferVault.update(requestId, value => ({ ...value, phase: "RECEIVING", sourceDeviceId: sourceDeviceId || value.sourceDeviceId || null, packetId: packet.packetId }));
+      if (!transferRecordMatches(current, await transferAuth())) throw error("TRANSFER_ACCOUNT_MISMATCH");
+      const payload = await SellerAgentsCredentialTransferCrypto.decrypt({ envelope: packet.envelope, privateKey: current.privateKey, accountId: auth.accountId, requestId, sourceDeviceId, recipientDeviceId: auth.credentials.deviceId, packetId: packet.packetId });
+      return { packet, payload };
+    });
+  }
+  async function recordCredentialTransferImported(input) {
+    const { record } = await requireTransferRecord(input?.requestId);
+    if (!input?.packetId || record.packetId !== input.packetId) throw error("TRANSFER_PACKET_CHANGED");
+    if (record.phase === "ACKED_RESULT" && record.result) return clone(record.result);
+    if (record.phase === "IMPORTED_PENDING_ACK" && record.result) return clone(record.result);
+    if (record.phase !== "RECEIVING") throw error("TRANSFER_IMPORT_PHASE_INVALID");
+    const result = safeTransferResult({ requestId: input.requestId, importState: "IMPORTED", results: input.results || [] });
+    await transferVault.update(input.requestId, current => {
+      if (current.packetId !== input.packetId) throw error("TRANSFER_PACKET_CHANGED");
+      if (current.phase === "ACKED_RESULT" && current.result) return current;
+      if (current.phase === "IMPORTED_PENDING_ACK" && current.result) return current;
+      if (current.phase !== "RECEIVING") throw error("TRANSFER_IMPORT_PHASE_INVALID");
+      return { ...current, phase: "IMPORTED_PENDING_ACK", packetId: input.packetId, result };
+    });
+    return clone(result);
+  }
+  async function acknowledgeCredentialTransfer(input) {
+    return transferSingleFlight(input?.requestId, async () => {
+      const { auth, record } = await requireTransferRecord(input?.requestId);
+      if (record.phase === "ACKED_RESULT") return { request: null, result: clone(record.result), reconciled: true };
+      if (record.phase !== "IMPORTED_PENDING_ACK" || !record.result || record.packetId !== input.packetId) throw error("TRANSFER_IMPORT_NOT_DURABLE");
+      let serverResult, reconciled = false;
+      try { serverResult = clone((await request(`/v1/credential-transfers/${encodeURIComponent(input.requestId)}/ack`, { method: "POST", headers: { Authorization: `Bearer ${auth.credentials.accessToken}` }, body: input })).body); }
+      catch (failure) {
+        let observed = null;
+        try { observed = clone((await request(`/v1/credential-transfers/${encodeURIComponent(input.requestId)}`, { headers: { Authorization: `Bearer ${auth.credentials.accessToken}` } })).body); } catch (_) {}
+        if (observed?.state !== "COMPLETED") throw failure;
+        serverResult = observed; reconciled = true;
+      }
+      const latestAuth = await transferAuth();
+      if (!transferRecordMatches(record, latestAuth)) throw error("TRANSFER_ACCOUNT_MISMATCH");
+      const acked = await transferVault.update(input.requestId, current => ({ ...current, phase: "ACKED_RESULT", privateKey: null, result: current.result }));
+      return { request: serverResult, result: clone(acked.result), reconciled };
+    });
+  }
+  async function discardCredentialTransfer(requestId) {
+    const auth = await transferAuth(), record = await transferVault.get(requestId);
+    if (!record) return false;
+    if (!transferRecordMatches(record, auth)) throw error("TRANSFER_ACCOUNT_MISMATCH");
+    await transferVault.remove(requestId); return true;
+  }
+  async function consumeCredentialTransferResult(requestId) {
+    const { record } = await requireTransferRecord(requestId);
+    if (record.phase !== "ACKED_RESULT" || !record.result) throw error("TRANSFER_RESULT_NOT_READY");
+    const result = clone(record.result);
+    await transferVault.remove(requestId);
+    return result;
+  }
+  const api = { restore: init, status: async () => { await init(); const decision = await cacheAuthorizationCheckpoint(); return publicStatus(decision); }, currentAccount: async () => { await init(); return state.authority?.payload?.account?.id || null; }, generation: async () => { await init(); return state.generation; }, hasAuthority: async () => { await init(); return Boolean(state.authority && state.credentials); }, canWork: async () => { await init(); const decision = await cacheAuthorizationCheckpoint(); return decision.identity === authorityDecisionIdentity() && decision.allowed === true; }, getAuthority: async () => { await init(); const decision = await cacheAuthorizationCheckpoint(); const authority = clone(state.authority); if (authority && !(decision.identity === authorityDecisionIdentity() && decision.allowed === true)) authority.workAllowed = false; return authority; }, getCachedContinuationState, getHealthAuthorityContext, getVerifiedAuthorityTime, acquireSignedHealthAuthority, synchronizeMetadata, createCredentialTransfer, listCredentialTransferRecipients, listCredentialTransfers, readCredentialTransfer, markCredentialTransferSourceSeen, submitCredentialTransferPacket, receiveCredentialTransfer, recordCredentialTransferImported, acknowledgeCredentialTransfer, discardCredentialTransfer, consumeCredentialTransferResult, startActivation, cancelActivation, refresh, bootstrap, bootstrapWithPolicy, ensureForIdentity, localReset, openPortal: async () => { await init(); const pending = state.pending; if (!pendingLive(state.pending) || !validAuthContext(pending.authContext)) throw error("NO_ACTIVATION_ATTEMPT"); return openPortal(pending.authorizationId); }, onAuthorityChanged: handler => { authorityChanged = handler; } };
   globalThis.SellerAgentsControlClient = Object.freeze(api);
 })();
