@@ -1,7 +1,7 @@
 # Octoport SEO — M9 progress
 
 Date: 2026-09-24
-Status: **WAVE-1 PRE-COLLECTION WAIT / EARLIEST SAFE 12:41:34 +05**
+Status: **WAVE-1 COLLECT SLICE-1 RELEASED / WAITING RESULT**
 Branch: `seo/wordstat-batch-01-2026-09-16`
 
 ## Current accepted chain
@@ -13,7 +13,7 @@ M9 BOUNDARY-RESOLUTION PRE-ACQ = PASS / MAIN CHAT ACCEPTED
 M10A = BLOCKED
 
 CURRENT PHYSICAL STEP =
-M9 BOUNDARY-RESOLUTION WAVE-1 PRE-COLLECTION TIME GATE
+M9 BOUNDARY-RESOLUTION WAVE-1 COLLECT SLICE-1 / PROVIDER RESULT CHECK
 ```
 
 ## Accepted M9 unresolved state
@@ -342,6 +342,25 @@ COLLECTN_AUTHORIZED = false
 ```
 
 No provider-backed collect may run before the earliest safe time.
+
+## Wave-1 collect slice-1 release
+
+Release:
+`docs/seo/M9_BOUNDARY_RESOLUTION_WAVE1_COLLECT_SLICE1_RELEASE_2026-09-24_R1.md`
+
+```text
+PRE_COLLECTION_TIME_GATE = PASS
+OPERATION_ID_READBACK = 25/25 PASS
+FRESH_PROVIDER_CONTRACT_CHECK = PASS
+
+AUTHORIZED_ACTION =
+SEARCH_ASYNC_BATCH_API_V1 {"action":"collectN","jobId":"octoport-m9br-wave1-20260924-r1","count":25}
+
+SECOND_COLLECTN = CLOSED
+SUBMITN = CLOSED
+```
+
+One bounded collection slice is authorized. Any further collection decision depends on this returned durable state.
 
 ## Owner relay
 
