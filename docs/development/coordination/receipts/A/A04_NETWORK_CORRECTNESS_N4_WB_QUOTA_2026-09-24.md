@@ -33,8 +33,15 @@ Official WB API documentation (https://dev.wildberries.ru/en/docs/openapi/api-in
 
 - `tests/regression/extension-core/wb-adapter.mjs` adds WB 429 header precedence, durable cooldown across credential rotation, confirmed-account Marketplace grouping/isolation, non-Marketplace separation, and conservative unconfirmed store-local behavior.
 - `tests/regression/extension-core/application.mjs` proves the actual application/catalog path: two separate WB store cards with the same confirmed provider account share an observed Marketplace-category wait and the second request is blocked before provider fetch.
-- Parent Node 24.20.0 focused composed verification: WB adapter PASS 21 scenarios; application PASS including `APP-10b`; zero live provider calls; evidence `/root/octoport-control/logs/A/a04-n4-focused-parent-2`.
+- Parent Node 24.20.0 focused composed verification after review follow-up: WB adapter PASS 22 scenarios; application PASS including `APP-10b`; zero live provider calls; evidence `/root/octoport-control/logs/A/a04-n4-focused-parent-3`.
 
 ## Limits
 
 This candidate does not pre-plan every documented WB method rate interval and does not create a global cross-browser/server quota coordinator. It persists only observed provider waits. Broader groups beyond the officially documented Marketplace example remain method-specific until independently verified. Installed browser and live-provider acceptance remain separate gates.
+## Independent review follow-up
+
+Read-only Luna review of `8d816156ce15755bbe68187ec4fd7d4ec81a93bc` found no blocking implementation defect, but identified one medium quota-conservatism race: an in-flight unconfirmed context could persist a wait under the store-local scope just before the catalog promoted that store to a confirmed provider identity; a later confirmed context could otherwise consult only the provider-account scope and miss the older local wait.
+
+The follow-up closes that transition without weakening execution fences. A confirmed WB context now consults both its provider-account scope and its stable store-local scope and uses the later deadline. Observed waits from a confirmed context are written to both scopes. This preserves a pre-confirmation local wait through identity promotion while still allowing distinct confirmed store cards to converge through the provider-account scope. Regression `WB-11d` proves promotion cannot bypass the existing cooldown.
+
+Review evidence: `/root/octoport-control/logs/A/a04-n4-review-8d81615-result.md`. The follow-up remains local-only quota state; no server coordinator, hidden retry or UNKNOWN replay was added.

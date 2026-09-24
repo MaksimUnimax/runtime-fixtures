@@ -226,6 +226,18 @@ try {
     assert.equal((await different.run()).ok, true);
     assert.equal(different.network.length, 1, "unconfirmed cards do not converge by account or credential");
   });
+  await test("WB-11d-unconfirmed-to-confirmed-promotion-keeps-store-local-wait", async () => {
+    const backing = {}, clock = { value: 1000 };
+    const unconfirmed = await setup(basic, { backing, clock, storeId: "promotion-card", key: "promotion-before-confirm",
+      fetch: async () => new Response("limited", { status: 429, headers: { "x-ratelimit-retry": "25" } }) });
+    await unconfirmed.run();
+    assert.equal(unconfirmed.network.length, 1);
+    const promoted = await setup(basic, { backing, clock, storeId: "promotion-card", key: "promotion-after-confirm",
+      token: "FIXTURE_WB_PROMOTED_TOKEN",
+      quotaIdentity: { state: "CONFIRMED", providerAccountId: "wb-promoted-cabinet" } });
+    assert.equal((await promoted.run()).code, "PROVIDER_QUOTA_WAITING");
+    assert.equal(promoted.network.length, 0, "provider identity promotion cannot bypass the pre-confirmation store-local wait");
+  });
   await test("WB-12-quota-storage-failure-retains-result-stops-tail", async () => {
     const s = await setup(basic + "\n" + basic, { fetch: async () => new Response('{"result":42}', { headers: { "content-type": "application/json", "retry-after": "5" } }),
       write: async (values) => { if (Object.keys(values).some((key) => key.startsWith("fixture-quota:"))) throw new Error("fixture-disk-failure"); } });
