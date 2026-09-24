@@ -4,7 +4,7 @@
   "date": "2026-09-24",
   "repository": "MaksimUnimax/runtime-fixtures",
   "branch": "seo/wordstat-batch-01-2026-09-16",
-  "source_head": "8e65f77adc0f13b5a2ad8c37b6a225401cc00a1c",
+  "source_head": "86bfef5d35571e59f309508d6d2ca4ebedf4cae0",
   "base_r1_manifest": {
     "path": "docs/seo/M9_CANONICAL_DIRECT_INPUT_MANIFEST_2026-09-24_R1.json",
     "git_blob_sha": "5b208b4d170e01b6775772fe00fb01928fd442da",
@@ -39,7 +39,8 @@
     "domain_set_rule": "unique exact values of result_domain",
     "current_precedence": "M4Q RU225 current snapshot primary",
     "historical_context": "M4A supporting only; never mixed into current URL-overlap metrics",
-    "regional_context": "M6 region-213 controls sensitivity only; never mixed into RU225 overlap metrics"
+    "regional_context": "M6 region-213 controls sensitivity only; never mixed into RU225 overlap metrics",
+    "page_type_authority_rule": "Use M4A dominant_top10_page_type only where M9_SEARCH_ANCHOR_MAP supplies an accepted M4A authority query ID; otherwise result_page_type_relation must be NA_NOT_AUTHORIZED unless another frozen authority explicitly supplies page type."
   },
   "prohibited": {
     "alice_or_ai_search": true,
@@ -177,8 +178,8 @@
     },
     {
       "path": "docs/seo/M9_SEARCH_ANCHOR_MAP_2026-09-24_R2.tsv",
-      "git_blob_sha": "b68878bf76f93a4aa1f7e1bd197e57dd7be870bc",
-      "bytes": 7657,
+      "git_blob_sha": "61a6d6c5befbc20f75fadddfd035b7affc6fe14c",
+      "bytes": 8366,
       "role": "M9_CURRENT_SEARCH_ANCHOR_MAP",
       "expected_data_rows": 22
     }
