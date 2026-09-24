@@ -1,0 +1,81 @@
+{
+  "bridge": "yandex-marketing-bridge",
+  "version": "0.1.9",
+  "service": "search",
+  "operation": "genSearch",
+  "request_id": "search-2e2e2e68-846f-4335-9838-2158fa266cb1",
+  "run_id": null,
+  "status": "OK",
+  "reason": null,
+  "cost_estimate": {
+    "estimated_rub": 5.08,
+    "tariff_checked_at": "2026-08-19",
+    "tariff_source": "[https://aistudio.yandex.ru/docs/ru/search-api/pricing.html](https://aistudio.yandex.ru/docs/ru/search-api/pricing.html)"
+  },
+  "policy": {
+    "channel": "manual",
+    "active_service": "search"
+  },
+  "command": {
+    "method": "genSearch",
+    "queryText": "ии агенты для маркетплейсов",
+    "confirmBillable": true
+  },
+  "http_status": 200,
+  "elapsed_ms": 4540,
+  "result": {
+    "mode": "generative",
+    "message": {
+      "content": "**ИИ-агенты для маркетплейсов** помогают автоматизировать ключевые процессы работы с площадками: управление карточками, ценообразование, сбор аналитики, контроль остатков, ответы покупателям, модерации и отчёты. [1] \n\nНекоторые возможности ИИ-агентов для маркетплейсов:\n\n* **Автоматизация контента и работы с карточками**. [1] Агент обновляет фото, характеристики, SEO-поля, проверяет ошибки, предлагает улучшения, отслеживает модерацию и формирует корректные описания. [1]\n* **Контроль цен и мониторинг конкурентов**. [1] ИИ-агент анализирует рынок, отслеживает динамику цен конкурентов, предлагает корректировки, предупреждает о рисках и помогает удерживать оптимальную позицию в выдаче. [1]\n* **Управление остатками и прогноз продаж**. [1] Искусственный интеллект анализирует спрос, скорость продаж, сезонность и рекомендует пополнения, перераспределение складов и точки выхода в дефицит. [1]\n* **Ответы клиентам и работа с репутацией**. [1] Агент отвечает на вопросы, анализирует отзывы, формирует выводы, предлагает улучшения карточек и продуктовой матрицы. [1]\n\nНесколько сервисов, которые предлагают ИИ-агентов для маркетплейсов:\n\n* **«Дживио Агент»**. [4] Персональный AI-менеджер, который управляет ценами, отвечает на отзывы, следит за остатками и анализирует данные. [4]\n* **«БЕРКУЗ ТЕХНОЛОГИИ»**. [5] Предлагает команду AI-агентов, которые управляют магазинами на Wildberries и Ozon, следят за SEO, рекламой и остатками. [5]",
+      "role": "ROLE_ASSISTANT"
+    },
+    "sources": [
+      {
+        "url": "[https://www.kt-team.ru/product-pages/ai-agents-marketplaces](https://www.kt-team.ru/product-pages/ai-agents-marketplaces)",
+        "title": "ИИ агенты для маркетплейсов",
+        "used": true
+      },
+      {
+        "url": "[https://osmi-it.ru/chat-boty-dlya-biznesa/marketplace/](https://osmi-it.ru/chat-boty-dlya-biznesa/marketplace/)",
+        "title": "ИИ агент для маркетплейса под ключ, разработка чат-ботов для маркетинга, аналитики и продаж на маркетплейсах",
+        "used": false
+      },
+      {
+        "url": "[https://vc.ru/ai/3156861-ii-agenty-dlya-1s-ozon-i-yandeks-direkt](https://vc.ru/ai/3156861-ii-agenty-dlya-1s-ozon-i-yandeks-direkt)",
+        "title": "ИИ-агенты уже работают с 1С, Ozon и Яндекс Директом: что подключить селлеру, маркетологу и бухгалтеру — AI на vc.ru",
+        "used": false
+      },
+      {
+        "url": "[https://jvo.ru/agent](https://jvo.ru/agent)",
+        "title": "Персональный AI-менеджер для автоматизации на маркетплейсах Ozon и Wildberries в e-commerce | Дживио Агент",
+        "used": true
+      },
+      {
+        "url": "[https://berkuz.ru/](https://berkuz.ru/)",
+        "title": "AI‑агенты для управления магазином на Wildberries и Ozon",
+        "used": true
+      }
+    ],
+    "searchQueries": [
+      {
+        "text": "ии агенты для маркетплейсов",
+        "reqId": "1790258478425156-5641162860187828869-rud6gzpngjcdycpp-BAL"
+      }
+    ],
+    "fixedMisspellQuery": "",
+    "isAnswerRejected": false,
+    "isBulletAnswer": false,
+    "hints": [
+      "Какие преимущества дают ИИ-агенты продавцам?",
+      "Как выбрать подходящего ИИ-агента для маркетплейса?",
+      "Какие недостатки есть у ИИ-агентов для маркетплейсов?"
+    ],
+    "problematicAnswer": false,
+    "transport": {
+      "wire_format": "json_array",
+      "frame_count": 1
+    }
+  },
+  "request_executed": true,
+  "automatic_retry": false
+}
