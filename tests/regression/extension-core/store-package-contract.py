@@ -28,7 +28,7 @@ def authority(control="https://api.octoport.ru", portal="https://app.octoport.ru
         "productVersion": "0.2.4",
         "contractVersion": "control_plane_v2",
         "migrationLevel": 48,
-        "environment": "STORE REVIEW",
+        "environment": "PREPRODUCTION",
         "origins": {"controlApiOrigin": control, "portalOrigin": portal},
         "trustBundle": {
             "trustBundleVersion": "bootstrap_trust_bundle_v1",
@@ -77,13 +77,13 @@ with tempfile.TemporaryDirectory(prefix="octoport-store-contract-") as temp:
     assert not any(value.startswith("http://127.0.0.1") for value in manifest["host_permissions"])
     worker = (runtime / "service_worker.js").read_text(encoding="utf-8")
     assert "globalThis.__SELLER_AGENTS_PACKAGED_CONFIG__=" in worker
-    assert "control_plane_v2" in worker and "STORE REVIEW" in worker
+    assert "control_plane_v2" in worker and "PREPRODUCTION" in worker
     for visible in ("popup.html", "popup.js", "shared/application.js"):
         text = (runtime / visible).read_text(encoding="utf-8")
         assert "Seller Agents" not in text
         assert "Octoport" in text
     assert receipt["build_mode"] == "store"
-    assert receipt["environment"] == "STORE REVIEW"
+    assert receipt["environment"] == "PREPRODUCTION"
     assert receipt["package"]["name"] == "OCTOPORT_v0.2.4_CHROMIUM_STORE.zip"
     assert receipt["package"]["repeat_archive_match"] is True
     assert receipt["release_authority_sha256"] == composed.baseline.sha256(auth.read_bytes())
@@ -98,14 +98,28 @@ with tempfile.TemporaryDirectory(prefix="octoport-store-contract-") as temp:
     assert "https://api.octoport.ru/*" in firefox_manifest["host_permissions"]
     assert not any(value.startswith("http://127.0.0.1") for value in firefox_manifest["host_permissions"])
 
+def rejected(root, value, name):
+    auth = write_authority(root, value)
+    try:
+        composed.build(root / name, mode="store", release_authority=auth)
+    except AssertionError:
+        return
+    raise AssertionError(f"store mode accepted invalid authority: {name}")
+
+
 with tempfile.TemporaryDirectory(prefix="octoport-store-negative-") as temp:
     root = Path(temp)
-    auth = write_authority(root, authority(control="http://127.0.0.1:43100"))
-    try:
-        composed.build(root / "bad", mode="store", release_authority=auth)
-    except AssertionError:
-        pass
-    else:
-        raise AssertionError("store mode accepted a non-HTTPS control origin")
+    rejected(root, authority(control="http://127.0.0.1:43100"), "http-origin")
+    production = authority()
+    production["environment"] = "PRODUCTION"
+    rejected(root, production, "production-environment")
+    duplicate_id = authority()
+    duplicate_id["trustBundle"]["keys"].append(dict(duplicate_id["trustBundle"]["keys"][0]))
+    rejected(root, duplicate_id, "duplicate-key-id")
+    duplicate_fingerprint = authority()
+    duplicate = dict(duplicate_fingerprint["trustBundle"]["keys"][0])
+    duplicate["keyId"] = "fixture-store-key-2"
+    duplicate_fingerprint["trustBundle"]["keys"].append(duplicate)
+    rejected(root, duplicate_fingerprint, "duplicate-fingerprint")
 
-print(json.dumps({"status": "PASS", "checks": ["store HTTPS/v2 config", "Octoport icons", "deterministic Chromium ZIP", "Firefox store derivative", "HTTP authority rejected"]}))
+print(json.dumps({"status": "PASS", "checks": ["store HTTPS/v2 config", "Octoport icons", "deterministic Chromium ZIP", "Firefox store derivative", "HTTP authority rejected", "PRODUCTION authority rejected", "duplicate trust keys rejected"]}))

@@ -9,7 +9,8 @@ Installed/store/live acceptance: NOT CLAIMED
 
 This change adds one explicit store/release mode to the existing common extension builder; it does not create a second release architecture.
 Development mode remains the default and keeps LOCAL DEVELOPMENT loopback behavior.
-Store mode requires an external release-authority JSON, rejects LOCAL/non-HTTPS origins, requires control_plane_v2 and validates the public Ed25519 trust-bundle shape/fingerprints.
+Store mode requires an external release-authority JSON, accepts only the PREPRODUCTION store-review lane, rejects non-HTTPS origins, requires control_plane_v2 and validates the public Ed25519 trust-bundle shape/fingerprints.
+Duplicate trust key IDs and duplicate fingerprints are rejected before packaging.
 The frozen imported Ozon donor remains unchanged.
 
 The accepted integration base fa5687b32363ad55c52ca1d84aef8cd7569aa931 is an ancestor of the A working line.
@@ -41,7 +42,8 @@ No production mutation or DB mutation was performed.
 
 ## Verification before commit
 
-Targeted store contract: PASS.
+Targeted store contract: PASS, including negative rejection for HTTP origins, PRODUCTION authority in this PREPRODUCTION lane, duplicate trust key IDs and duplicate trust fingerprints.
+A bounded read-only Luna review found no current-candidate integration blocker after this hardening. Its remaining low cross-owner observation is that the shared C01 validator does not independently assert the Firefox stable add-on ID; A's Firefox builder/contract does assert octoport@octoport.ru, and C/controller should add the C01 identity assertion before relying on that shared gate for Firefox submission.
 Development builder regression: PASS and deterministic.
 Full extension_core via A heavy/build: PASS, 119 gate processes, Node v24.20.0; installed_acceptance=false and live_provider_calls=0.
 Heavy-runner cgroup terminated; no A test unit remained.

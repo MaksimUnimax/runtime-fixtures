@@ -50,14 +50,20 @@ def validate_trust_bundle(bundle):
     assert bundle["fingerprintEncoding"] == "lowercase_hex"
     assert isinstance(bundle["keys"], list) and 1 <= len(bundle["keys"]) <= 8
     active = 0
+    key_ids = set()
+    fingerprints = set()
     for key in bundle["keys"]:
         assert isinstance(key, dict) and set(key) == {
             "keyId", "publicKey", "fingerprintSha256", "lifecycle", "trustEligibility"
         }
         assert re.fullmatch(r"[a-z0-9][a-z0-9._-]{0,63}", key["keyId"])
+        assert key["keyId"] not in key_ids
+        key_ids.add(key["keyId"])
         der = base64.b64decode(key["publicKey"], validate=True)
         assert len(der) == 44 and der[:12].hex() == "302a300506032b6570032100"
         assert baseline.sha256(der) == key["fingerprintSha256"]
+        assert key["fingerprintSha256"] not in fingerprints
+        fingerprints.add(key["fingerprintSha256"])
         assert key["lifecycle"] in {"ACTIVE", "RETIRED"}
         expected = "SIGNING_AND_VERIFICATION" if key["lifecycle"] == "ACTIVE" else "VERIFICATION_OVERLAP"
         assert key["trustEligibility"] == expected
@@ -80,9 +86,7 @@ def store_config(authority_path, recipe):
     assert authority["productVersion"] == recipe["version"]
     assert authority["contractVersion"] == "control_plane_v2"
     assert isinstance(authority["migrationLevel"], int) and authority["migrationLevel"] >= 0
-    assert isinstance(authority["environment"], str)
-    assert re.fullmatch(r"[A-Z][A-Z0-9_. -]{1,63}", authority["environment"])
-    assert "LOCAL" not in authority["environment"]
+    assert authority["environment"] == "PREPRODUCTION"
     assert isinstance(authority["origins"], dict) and set(authority["origins"]) == {
         "controlApiOrigin", "portalOrigin"
     }
