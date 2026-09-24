@@ -55,6 +55,9 @@ jobs:
 
           required_files = [
               root / "index.html",
+              root / "privacy.html",
+              root / "support.html",
+              root / "install.html",
               root / "styles.css",
               root / "robots.txt",
               sitemap_path,
@@ -72,6 +75,8 @@ jobs:
                   self.html_lang = None
                   self.scripts = 0
                   self.stylesheets = []
+                  self.h1 = []
+                  self.in_h1 = False
 
               def handle_starttag(self, tag, attrs):
                   attrs = dict(attrs)
@@ -87,6 +92,16 @@ jobs:
                       self.stylesheets.append(attrs.get("href"))
                   if tag == "script":
                       self.scripts += 1
+                  if tag == "h1":
+                      self.in_h1 = True
+
+              def handle_endtag(self, tag):
+                  if tag == "h1":
+                      self.in_h1 = False
+
+              def handle_data(self, data):
+                  if self.in_h1:
+                      self.h1.append(data)
 
           parser = PageParser()
           parser.feed(index)
@@ -129,6 +144,131 @@ jobs:
           assert len(css.encode("utf-8")) < 100_000, "stylesheet unexpectedly large"
 
           print("SITE-S0 PASS: canonical, copy boundaries, anchors, robots and sitemap")
+
+          page_specs = {
+              "privacy": {
+                  "title": "Octoport — Privacy",
+                  "h1": "Privacy",
+                  "canonical": "https://octoport.ru/privacy",
+                  "required": [
+                      "обычной работе",
+                      "технический срок хранения один час",
+                      "Просроченный результат уже нельзя использовать",
+                      "Backend Octoport не сохраняет Ozon/Wildberries реквизиты",
+                      "необработанные деловые отчёты или файлы",
+                      "архив AI-разговоров",
+                      "DOM-данные или снимки страниц, просматриваемых пользователем, включая страницы с данными покупателей",
+                      "зашифрованные реквизиты могут пройти через ограниченную серверную память",
+                      "Сервер их не расшифровывает",
+                      "не сохраняет зашифрованное тело реквизитов в постоянной базе",
+                      "Только по запросу пользователя выбранный результат может быть передан",
+                      "записи аккаунта и сессий",
+                      "support@octoport.ru",
+                  ],
+              },
+              "support": {
+                  "title": "Octoport — Support",
+                  "h1": "Support",
+                  "canonical": "https://octoport.ru/support",
+                  "required": [
+                      "ранней бете",
+                      "Safari в бету не входит",
+                      "read-only",
+                      "редактирование цен, карточек товаров и ставок не поддерживается",
+                      "support@octoport.ru",
+                      "одноразовые коды (OTP), пароли",
+                      "cookies и токены сессий",
+                      "сырые отчёты продавца",
+                      "не отправляйте полные экспорты AI-разговоров",
+                      "более поздний безопасный для конфиденциальности канал поддержки прямо их не запросит",
+                      "Одобрение магазина и готовность продукта — разные этапы.",
+                      "/privacy",
+                      "/install",
+                  ],
+              },
+              "install": {
+                  "title": "Install Octoport",
+                  "h1": "Install Octoport",
+                  "canonical": "https://octoport.ru/install",
+                  "required": [
+                      "Официальная установка Octoport из каталога расширений готовится",
+                      "не публикуем инструкции для ZIP-файла",
+                      "/privacy",
+                      "/support",
+                  ],
+              },
+          }
+
+          for page_name, spec in page_specs.items():
+              page_path = root / f"{page_name}.html"
+              html = page_path.read_text(encoding="utf-8")
+              page_parser = PageParser()
+              page_parser.feed(html)
+              assert page_parser.html_lang == "ru", f"{page_name}: html lang must be ru"
+              assert page_parser.canonical == [spec["canonical"]], \
+                  f"{page_name}: unexpected canonical {page_parser.canonical}"
+              assert page_parser.stylesheets == ["/styles.css"], \
+                  f"{page_name}: shared stylesheet link is missing"
+              assert page_parser.scripts == 0, f"{page_name}: executable JavaScript is forbidden"
+              assert f"<title>{spec['title']}</title>" in html, f"{page_name}: title is missing"
+              assert len(page_parser.h1) == 1 and "".join(page_parser.h1) == spec["h1"], \
+                  f"{page_name}: expected one H1 with text {spec['h1']!r}"
+
+              for href in page_parser.hrefs:
+                  if href.startswith("/"):
+                      path, _, fragment = href.partition("#")
+                      targets = {"/": root / "index.html", "/privacy": root / "privacy.html",
+                                 "/support": root / "support.html", "/install": root / "install.html",
+                                 "/styles.css": root / "styles.css"}
+                      target = targets.get(path)
+                      assert target and target.is_file(), f"{page_name}: broken or unapproved local link {href}"
+                      if fragment:
+                          linked_page = PageParser()
+                          linked_page.feed(target.read_text(encoding="utf-8"))
+                          assert fragment in linked_page.ids, f"{page_name}: broken fragment link {href}"
+                  elif href.startswith("mailto:"):
+                      assert href == "mailto:support@octoport.ru", \
+                          f"{page_name}: unexpected support email {href}"
+                  else:
+                      raise AssertionError(f"{page_name}: unsafe or unapproved link {href}")
+
+              lowered_page = html.lower()
+              for required_text in spec["required"]:
+                  assert required_text.lower() in lowered_page, \
+                      f"{page_name}: required content is missing: {required_text}"
+              assert "octoport" in lowered_page, f"{page_name}: Octoport branding is missing"
+              for stale_domain in ("selleragents.ru", "openscript.ru"):
+                  assert stale_domain not in lowered_page, \
+                      f"{page_name}: stale domain leaked into public page: {stale_domain}"
+              for development_route in ("localhost", "chrome://extensions", "file://"):
+                  assert development_route not in lowered_page, \
+                      f"{page_name}: development install route leaked into public page: {development_route}"
+
+              if page_name == "privacy":
+                  no_data_claims = [
+                      r"мы не храним данные",
+                      r"octoport ничего не хранит",
+                      r"не хранит никаких данных",
+                      r"we store no data",
+                      r"no data stored",
+                  ]
+                  assert not any(re.search(pattern, lowered_page, re.I) for pattern in no_data_claims), \
+                      "privacy: unsupported claim that Octoport stores no data"
+
+              if page_name in {"support", "install"}:
+                  false_claims = [
+                      r"официальн[^.!?]{0,30}(?:одобрен(?:а|о|ы)?|опубликован(?:а|о|ы)?)\b",
+                      r"(?:магазин|store)[^.!?]{0,30}(?:одобрил|одобрен(?:а|о|ы)?|approved|published)\b",
+                      r"(?:каталог|карточк)[^.!?]{0,30}(?:одобрен(?:а|о|ы)?|опубликован(?:а|о|ы)?|approved|published)\b",
+                      r"store[^.!?]{0,20}(approved|published)\b",
+                      r"safari[^.!?]{0,30}(поддерживается|входит в бету|supported)",
+                  ]
+                  assert not any(re.search(pattern, lowered_page, re.I) for pattern in false_claims), \
+                      f"{page_name}: unsupported store or Safari claim"
+
+              assert len(html.encode("utf-8")) < 50_000, f"{page_name}: page is unexpectedly large"
+
+          print("STORE-0 PASS: public pages, links, required copy and claim boundaries")
           PY
 
       - name: Validate SITE-S1 deployment source
@@ -153,6 +293,12 @@ jobs:
           grep -Fq 'expires 5m;' "${nginx_conf}"
           grep -Fq 'Content-Security-Policy' "${nginx_conf}"
           grep -Fq 'default-src '\''none'\''' "${nginx_conf}"
+          grep -Fq 'location = /privacy {' "${nginx_conf}"
+          grep -Fq 'location = /support {' "${nginx_conf}"
+          grep -Fq 'location = /install {' "${nginx_conf}"
+          grep -Fq 'try_files /privacy.html =404;' "${nginx_conf}"
+          grep -Fq 'try_files /support.html =404;' "${nginx_conf}"
+          grep -Fq 'try_files /install.html =404;' "${nginx_conf}"
 
           if grep -Eq '^[[:space:]]*add_header[[:space:]]+Cache-Control([[:space:]]|;)' "${nginx_conf}"; then
             echo 'location-level add_header Cache-Control would break security-header inheritance' >&2
@@ -168,6 +314,9 @@ jobs:
           grep -Fq 'verify-octoport-site.sh' "${deploy_script}"
           grep -Fq 'styles.css lost the inherited CSP' "${verify_script}"
           grep -Fq 'styles.css lost X-Frame-Options' "${verify_script}"
+          grep -Fq "https://octoport.ru/privacy" "${verify_script}"
+          grep -Fq "https://octoport.ru/support" "${verify_script}"
+          grep -Fq "https://octoport.ru/install" "${verify_script}"
 
           if grep -Eq 'rm[[:space:]]+-rf' "${deploy_script}"; then
             echo 'recursive forced deletion is not allowed in the site deploy script' >&2
