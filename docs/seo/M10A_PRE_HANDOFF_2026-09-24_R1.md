@@ -1,0 +1,73 @@
+# Octoport SEO — M10A Search-only page/IA baseline — PRE-HANDOFF — 2026-09-24 R1
+
+WORK_ID: `OCTOPORT_SEO_M10A_SEARCH_ONLY_PAGE_IA_BASELINE_2026-09-24_R1`
+ROADMAP_STAGE: `M10A SEARCH-ONLY QUERY->PAGE / IA BASELINE FREEZE`
+Status: **READY FOR WORK PROMPT AFTER REMOTE READBACK**
+Repository: `MaksimUnimax/runtime-fixtures`
+Branch: `seo/wordstat-batch-01-2026-09-16`
+PREPARATION_PARENT_HEAD: `92dd9c58fd2be92e80376cc362651e1685d7a300`
+
+Binding input manifest:
+`docs/seo/M10A_SEARCH_ONLY_PAGE_IA_INPUT_MANIFEST_2026-09-24_R1.json`
+blob `4ab96efc02cf81198599caaf81dcd5f601d8ba0d`.
+
+Step preparation:
+`docs/seo/M10A_STEP_PREPARATION_2026-09-24_R1.md`
+blob `ea07a677d59150f6519a8893c135eb0f81d496a7`.
+
+Current site overlay:
+`docs/seo/M10A_CURRENT_SITE_SOURCE_OVERLAY_2026-09-24_R1.md`
+blob `b5f41ff4d0db562cc2346b672e412880585188ef`.
+
+Accepted M9 closure:
+`docs/seo/M9_TERMINAL_HOLD_RECONCILIATION_MAIN_CHAT_ACCEPTANCE_2026-09-24_R1.md`
+blob `f35e5132d64ade78ce6c8fb8a2aea2292f41c02a`.
+
+## Frozen execution state
+
+```text
+EXISTING_SITE_SURFACE_ROWS = 4
+M9_CLUSTER_ROWS = 104
+M9_CLUSTER_STATE_HOLD = 104
+M10A_EXPLICIT_HOLD_CARRY = 104
+MATERIAL_HOLD_BOUNDARIES = 1399
+
+EXPECTED_SEARCH_OWNER_HOLD = 104
+EXPECTED_PAGE_ROLE_HOLD = 104
+EXPECTED_EXISTING_SEARCH_OWNER_ASSIGNMENTS = 0
+EXPECTED_PLANNED_SEARCH_PAGE_CREATE_AUTHORIZATIONS = 0
+EXPECTED_PARENT_CHILD_IA_ASSIGNMENTS = 0
+EXPECTED_INTERNAL_LINK_OWNER_CONTRACTS = 0
+EXPECTED_HOLD_PAGE_OWNERSHIP_BOUNDARY = 1399
+```
+
+Current source main HEAD:
+`f079c2e7199250397259ea9ede10a4f72694f5c1`.
+
+Physical current source pages:
+`/`, `/install`, `/privacy`, `/support`.
+
+These are descriptive current surfaces only. No M9 Search owner is implied.
+
+## Execution boundary
+
+```text
+ALICE_INPUT_ROWS = 0
+AI_PROVIDER_EVIDENCE_ROWS = 0
+FINAL_AI_CASE_SELECTIONS = 0
+PROVIDER_CALLS = 0
+WEB_ACQUISITION_BY_WORK = 0
+GITHUB_WRITES_BY_WORK = 0
+SITE_MUTATIONS = 0
+SEARCH_OWNER_ASSIGNMENTS = 0
+NEW_PLANNED_SEARCH_PAGES = 0
+M10B/C/D_EXECUTION = 0
+M11_EXECUTION = 0
+```
+
+Work must produce exactly seven final files and stop.
+
+Owner staging after return:
+`docs/seo/work_return/M10A_SEARCH_ONLY_PAGE_IA_BASELINE_2026-09-24_R1/`
+
+Main Chat independently audits the complete return. Only accepted M10A opens M10B.
