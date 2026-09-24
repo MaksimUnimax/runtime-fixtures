@@ -1,8 +1,11 @@
 # Octoport SEO — M9 progress
 
 Date: 2026-09-24
-Status: **R2 RELEASED / WAITING CHATGPT WORK RETURN**
+Status: **PASS_WITH_HOLD_BOUNDARIES / ACCEPTED BOUNDED AUTHORITY**
 Branch: `seo/wordstat-batch-01-2026-09-16`
+
+Current acceptance:
+`docs/seo/M9_R2_MAIN_CHAT_FINAL_ACCEPTANCE_2026-09-24_R1.md`
 
 ## Current accepted chain
 
@@ -10,82 +13,95 @@ Branch: `seo/wordstat-batch-01-2026-09-16`
 M0..M7 = ACCEPTED
 M8 R3 = PASS / ACCEPTED
 M9 R1 = SUPERSEDED / NOT EXECUTABLE
-M9 R2 = RELEASED TO WORK
-M10A = BLOCKED
+M9 R2 = PASS_WITH_HOLD_BOUNDARIES / ACCEPTED
+M10A = BLOCKED BY UNRESOLVED M9 CLUSTER BOUNDARIES
 ```
 
-## Two-level preparation
+## Accepted M9 authority
 
 ```text
-LEVEL1_READ = PASS
-LEVEL2_READ = PASS
-ROADMAP_CURRENT_STATE_READ = PASS
-FAILURE_HISTORY_READ = PASS
-FRESH_METHOD_RESEARCH = PASS
-SOURCE_TO_METHOD_TRACE = PASS
-STEP_PREPARATION_R2 = PASS / REMOTE READBACK
-PRE_HANDOFF_R2 = PASS / REMOTE READBACK
-WORK_PROMPT_R2 = PASS / REMOTE READBACK
-```
-
-Authorities:
-
-- `docs/seo/M9_STEP_PREPARATION_2026-09-24_R2.md`
-  blob `7ad9740eecf8433f678860c122971bd9c6a73de1`
-
-- `docs/seo/M9_CANONICAL_DIRECT_INPUT_MANIFEST_2026-09-24_R2.json`
-  blob `424f2e61c54388c90fb5cc91495f7f5c8f81898b`
-
-- `docs/seo/M9_SEARCH_ANCHOR_MAP_2026-09-24_R2.tsv`
-  blob `61a6d6c5befbc20f75fadddfd035b7affc6fe14c`
-
-- `docs/seo/M9_SEARCH_ONLY_CLUSTERING_PRE_HANDOFF_2026-09-24_R2.md`
-  blob `9a7ac34435e2e834e7153fe6ba368531f81e17da`
-
-- `docs/seo/M9_SEARCH_ONLY_CLUSTERING_WORK_PROMPT_2026-09-24_R2.md`
-  blob `01a9eb08d12b635d2dd5f76f3da68313332364f9`
-
-## R2 clustering contract
-
-```text
-M8_IDENTITIES_ACCOUNTED = 7913
-CLUSTER_ELIGIBLE_WORKING = 104
-
+M8_IDENTITIES_ACCOUNTED = 7913/7913
+CLUSTER_ELIGIBLE = 104/104
 SEARCH_ANCHOR_MAP = 22/22
-SEARCH_ANCHOR_MAPPING = 1:1 unique M4Q query IDs
+PAIRWISE_ROWS = 5356/5356
 
-PAIRWISE_ROWS = 5356
 BOTH_CURRENT_SERP = 231
 ONE_CURRENT_SERP = 1804
 NO_CURRENT_SERP = 3321
 
-CURRENT_OVERLAP_SOURCE = M4Q RU225 Top100
-URL_FIELD = result_url_normalized
-DOMAIN_FIELD = result_domain
-AD_HOC_URL_RENORMALIZATION = forbidden
-M4A_CURRENT_OVERLAP_MIX = forbidden
-M6_REGION213_RU225_OVERLAP_MIX = forbidden
-AD_HOC_PAGE_TYPE_INFERENCE = forbidden
+MERGE_SUPPORTED = 3
+SPLIT_SUPPORTED = 3835
+HOLD_BOUNDARY = 1518
 
-OUTPUT_FILES = 9
+MATERIAL_HOLD_BOUNDARIES = 1424
+
+CLUSTER_MASTER_ROWS = 104
+RETAINED_CLUSTER = 0
+RETAINED_SINGLETON = 0
+HOLD_CLUSTER_BOUNDARY = 104
+MEMBERSHIP_ROWS = 104/104
+
+ADVERSARIAL_DIAGNOSTIC_ROWS = 17
+PAIRS_CHANGED_AFTER_QA = 0
+CLUSTERS_CHANGED_AFTER_QA = 0
+
 ALICE_INPUT_ROWS = 0
-PROVIDER_CALLS = 0
-WEB_ACQUISITION_BY_WORK = 0
-GITHUB_WRITES_BY_WORK = 0
-M10A = NOT_AUTHORIZED
+FINAL_PAGE_OWNERSHIP_DECISIONS = 0
+OPEN_CRITICAL_DEFECTS = 0
+
+QUALITY_TOTAL = 93.7/100
+M9_CURRENT_SCORE = 9.37/10
 ```
 
-## Owner relay
+## Main Chat independent QA
 
-Main Chat must provide the complete R2 Work prompt directly in chat.
+```text
+RETURN_MANIFEST_HASH_MATCH = 8/8 non-self outputs
+RETURN_MANIFEST_BYTE_MATCH = 8/8
 
-Work returns one ZIP containing exactly 9 files.
+M8_ELIGIBILITY_JOIN_MISMATCH = 0
+PAIRWISE_MISSING = 0
+PAIRWISE_EXTRA = 0
+PAIR_ID_DETERMINISM_MISMATCH = 0
+CLUSTER_ID_DETERMINISM_MISMATCH = 0
 
-Staging:
-`docs/seo/work_return/M9_SEARCH_ONLY_CLUSTERING_2026-09-24_R2/`
+BILATERAL_SERP_METRICS_RECOMPUTED = 231/231
+BILATERAL_SERP_METRIC_MISMATCH = 0
+PAGE_TYPE_RELATION_MISMATCH = 0
 
-Upload URL:
-`https://github.com/MaksimUnimax/runtime-fixtures/upload/seo/wordstat-batch-01-2026-09-16/docs/seo/work_return/M9_SEARCH_ONLY_CLUSTERING_2026-09-24_R2/`
+MATERIAL_HOLD_RECOMPUTED = 1424
+MATERIAL_HOLD_LEDGER = 1424
+MATERIAL_HOLD_SET_MISMATCH = 0
 
-After upload:
-`REMOTE READBACK -> MAIN CHAT QA -> ACCEPT | REWORK | HOLD -> only then M10A`.
+UNJUSTIFIED_HOLD_CLUSTER_STATE = 0
+```
+
+Three supported merge edges remain unmaterialized because both endpoints have material external HOLD boundaries.
+
+## Noncritical debt
+
+```text
+NONCRITICAL_REASON_TAXONOMY_DEBT_ROWS = 5
+```
+
+Five marketplace-specific HOLD pairs use the broader frozen code `H_GENERIC_SPECIFIC_UNRESOLVED`.
+Outcome/rationale remain correct; no hard-gate impact.
+
+Refine only under a future new M9 preparation authority if the affected universe is rerun.
+
+## Current cursor
+
+```text
+M9 = ACCEPTED_BOUNDED_AUTHORITY
+M10A_ORDINARY_PAGE_OWNERSHIP_ALLOWED = false
+
+CURRENT_PHYSICAL_NEXT_STEP =
+  M9 BOUNDARY-RESOLUTION STEP PREPARATION
+
+DO NOT:
+- assign page owners;
+- create URLs/H1/Title/IA;
+- use Alice to replace missing ordinary Search evidence.
+```
+
+Next step must use the two-level gate again and decide which unresolved Search boundaries merit additional ordinary Search evidence versus explicit persistent HOLD.
