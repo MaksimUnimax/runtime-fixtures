@@ -16,7 +16,12 @@ async function proxy(
       { status: 404 },
     );
   const headers = new Headers();
-  for (const name of ["content-type", "cookie", "x-csrf-token"]) {
+  for (const name of [
+    "content-type",
+    "cookie",
+    "x-csrf-token",
+    "idempotency-key",
+  ]) {
     const value = request.headers.get(name);
     if (value) headers.set(name, value);
   }
