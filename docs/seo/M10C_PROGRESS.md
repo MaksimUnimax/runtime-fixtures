@@ -1,7 +1,7 @@
 # Octoport SEO — M10C progress
 
 Date: 2026-09-24
-Status: **CASE01–CASE05 TERMINAL CLOSED / CASE06 SNAPSHOT02 RELEASED**
+Status: **CASE01–CASE06 TERMINAL CLOSED / CASE07 SNAPSHOT01 RELEASED**
 Branch: `seo/wordstat-batch-01-2026-09-16`
 
 ## Accepted chain
@@ -242,3 +242,28 @@ Current authorized action:
 `SEARCH_API_V1 {"method":"genSearch","queryText":"подключить chatgpt к маркетплейсу","confirmBillable":true}`
 
 One second Case06 snapshot is authorized. If material doubt remains after it, Main Chat must amend the case before any third request. Case07 remains closed.
+
+Case06 terminal closure:
+`docs/seo/M10C_CASE06_TERMINAL_CLOSURE_2026-09-24_R1.md`
+blob `39954bd37a11917af9b0f8dbc47e12bc2f4edb2e`.
+
+```text
+CASE06_SNAPSHOTS = 2
+CASE06_TERMINAL_EVIDENCE_STATE = STABLE_CONNECTOR_REPORT_MIX_WITH_PERSISTENT_SCOPE_CONTAMINATION
+CASE06_ESTIMATED_PROVIDER_COST_RUB = 10.16
+```
+
+Cumulative paid GenSearch through Case06:
+```text
+PAID_REQUESTS = 10
+ESTIMATED_COST_RUB = 50.80
+```
+
+Case07 snapshot-1 release:
+`docs/seo/M10C_CASE07_SNAPSHOT01_RELEASE_2026-09-24_R1.md`
+blob `6e111de5cb8ba0076075ae94f9882f305ce7e1e5`.
+
+Current authorized action:
+`SEARCH_API_V1 {"method":"genSearch","queryText":"ии агенты для маркетплейсов","confirmBillable":true}`
+
+Exactly one Case07 provider request is authorized. Quality-priority rule remains active; Case08 remains closed.
