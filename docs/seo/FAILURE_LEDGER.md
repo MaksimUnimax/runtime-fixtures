@@ -393,3 +393,71 @@ Transport recovery must end with the original authoritative file present byte-ex
 ### Status
 
 `RECOVERED / REGRESSION RULE ADDED`.
+
+
+## OSEO-F07 — M9 R1 clustering release under-specified operational Search comparison rules
+
+Date: 2026-09-24.
+Stage: M9 Search-only clustering.
+
+### Incident
+
+M9 R1 step preparation/pre-handoff/prompt were released before the current Main Chat cycle completed the mandatory two-level re-read + fresh external clustering-method check requested by the owner.
+
+The R1 method direction was broadly correct, but its execution contract left several material choices implicit:
+
+- exact URL equality/canonical comparison field for SERP overlap;
+- current M4Q RU225 precedence versus historical M4A Search evidence;
+- prohibition on mixing M6 region-213 controls into the Russia-225 overlap matrix;
+- how `result_page_type_relation` must behave when no accepted page-type authority exists;
+- deterministic 1:1 mapping of the 22 M8 Search-anchored Working identities to current M4Q query IDs;
+- closed pair reason/evidence-grade vocabulary.
+
+Leaving these implicit could allow Work to invent a clustering method while executing.
+
+### Impact
+
+No M9 Work return exists and no M9 clustering result was accepted.
+
+No provider call, web acquisition or site mutation occurred.
+
+Therefore this is a preparation/method-freeze defect only.
+
+### Recovery
+
+```text
+M9 R1 EXECUTION AUTHORITY = SUPERSEDED
+-> live HEAD
+-> LEVEL 1 re-read
+-> exact M9 LEVEL 2 re-read
+-> accepted M8/failure history read
+-> fresh current method research
+-> freeze exact Search-anchor map
+-> freeze URL/domain overlap fields and Search snapshot precedence
+-> freeze page-type NA behavior
+-> freeze pair reason/evidence grades
+-> create M9 R2 step preparation
+-> GitHub readback
+-> pre-handoff R2
+-> Work prompt R2
+```
+
+### Prevention
+
+For SERP clustering, "use SERP overlap" is not an executable method until the contract explicitly defines:
+
+```text
+QUERY -> SEARCH SNAPSHOT IDENTITY
+URL COMPARISON FIELD
+DOMAIN COMPARISON FIELD
+RANK CUTS
+MISSING-SERP SEMANTICS
+CURRENT-vs-HISTORICAL PRECEDENCE
+PAGE-TYPE AUTHORITY
+PAIR DECISION REASONS
+CLUSTER CONFLICT RULE
+```
+
+### Status
+
+`RECOVERY ACTIVE / M9 R1 NOT EXECUTABLE`.
