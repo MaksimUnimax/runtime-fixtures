@@ -4,6 +4,7 @@
   "use strict";
 
   const STORAGE_KEY = "seller_agents_sync_journal_v1";
+  const BINDINGS_STORAGE_KEY = "ozmb_conversation_bindings";
   const VERSION = "seller_agents_sync_v1";
   const MAX_BATCH = 32;
   const MAX_ENTRIES = 256;
@@ -46,6 +47,39 @@
   function empty() {
     return { version: VERSION, sequence: 0, entries: {}, serverRevisions: {}, serverStates: {}, reconciliation: {}, snapshotAt: 0 };
   }
+  function copyLegacyKnowledge(result, legacyKey, slot) {
+    if (!legacyKey || legacyKey === slot) return false;
+    let changed = false;
+    const sourceRevision = Object.prototype.hasOwnProperty.call(result.serverRevisions, legacyKey) ? integer(result.serverRevisions[legacyKey]) : null;
+    const targetRevision = Object.prototype.hasOwnProperty.call(result.serverRevisions, slot) ? integer(result.serverRevisions[slot]) : null;
+    if (sourceRevision !== null && (targetRevision === null || sourceRevision > targetRevision)) {
+      result.serverRevisions[slot] = sourceRevision;
+      changed = true;
+    }
+    const sourceState = result.serverStates[legacyKey], sourceReconciliation = result.reconciliation[legacyKey];
+    const sourceKnowledgeRevision = Math.max(sourceRevision ?? 0, integer(sourceReconciliation?.serverRevision));
+    const targetKnowledgeRevision = Math.max(targetRevision ?? 0, integer(result.reconciliation[slot]?.serverRevision));
+    if (sourceState && (!result.serverStates[slot] || sourceKnowledgeRevision >= targetKnowledgeRevision)) {
+      result.serverStates[slot] = clone(sourceState);
+      changed = true;
+    }
+    if (sourceReconciliation && (!result.reconciliation[slot] || sourceKnowledgeRevision >= targetKnowledgeRevision)) {
+      result.reconciliation[slot] = clone(sourceReconciliation);
+      changed = true;
+    }
+    return changed;
+  }
+  async function migrateLegacyKnowledgeFromBindings(result, bindings = {}) {
+    let changed = false;
+    for (const [storedKey, binding] of Object.entries(bindings || {})) {
+      const accountId = text(binding?.store_context?.accountId, 128), bindingId = text(binding?.binding_id, 128);
+      const conversationKey = normalizedConversationKey(binding?.conversation_key || storedKey);
+      if (!accountId || !conversationKey) continue;
+      const keyDigest = await digest(conversationKey), slot = stateSlot(accountId, `conversation:${keyDigest}`);
+      for (const legacyKey of [bindingId, keyDigest]) changed = copyLegacyKnowledge(result, legacyKey, slot) || changed;
+    }
+    return changed;
+  }
   function validEntry(entry) {
     return entry && typeof entry === "object" && text(entry.entryId, 320) && text(entry.requestId, 128) && text(entry.mutationId, 320) && text(entry.entityId, 128) && (!entry.wireEntityId || text(entry.wireEntityId, 128)) && text(entry.kind, 64) && ["PENDING", "RETRY_WAIT", "IN_FLIGHT", "CONFLICT", "FAILED"].includes(entry.status) && Number.isSafeInteger(entry.localSequence) && bytes(entry.payload) <= MAX_PAYLOAD_BYTES;
   }
@@ -64,15 +98,22 @@
     for (const [key, value] of Object.entries(raw.serverRevisions)) if (mapKey(key) && Number.isSafeInteger(Number(value)) && Number(value) >= 0) result.serverRevisions[key] = Number(value);
     for (const [key, value] of Object.entries(raw.serverStates || {})) if (mapKey(key) && value && typeof value === "object" && bytes(value) <= 4096) result.serverStates[key] = clone(value);
     for (const [key, value] of Object.entries(raw.reconciliation || {})) if (mapKey(key) && value && typeof value === "object" && bytes(value) <= 4096) result.reconciliation[key] = clone(value);
+    for (const entry of Object.values(result.entries)) {
+      const accountId = text(entry.accountId, 128), keyDigest = text(entry.payload?.conversationKeyDigest, 64);
+      if (!accountId || !/^[a-f0-9]{64}$/.test(keyDigest || "") || !["BINDING_UPSERT", "FINISH", "DELIVERY_MARKER"].includes(entry.kind)) continue;
+      const slot = stateSlot(accountId, `conversation:${keyDigest}`);
+      for (const legacyKey of [entry.wireEntityId, keyDigest]) copyLegacyKnowledge(result, legacyKey, slot);
+    }
     if (Object.keys(result.entries).length > MAX_ENTRIES) throw Object.assign(new Error("SYNC_JOURNAL_CORRUPT"), { code: "SYNC_JOURNAL_CORRUPT" });
     return result;
   }
   async function read() {
     if (!stateFlight) stateFlight = (async () => {
-      const data = await storageGet(STORAGE_KEY);
+      const data = await storageGet([STORAGE_KEY, BINDINGS_STORAGE_KEY]);
       const result = data[STORAGE_KEY] ? normalize(data[STORAGE_KEY]) : empty();
       const currentWorker = String(globalThis.WORKER_SESSION_ID || "worker-unknown");
-      let changed = false;
+      let changed = Boolean(data[STORAGE_KEY] && canonicalJson(data[STORAGE_KEY]) !== canonicalJson(result));
+      changed = await migrateLegacyKnowledgeFromBindings(result, data[BINDINGS_STORAGE_KEY] || {}) || changed;
       for (const entry of Object.values(result.entries)) {
         if (entry.status !== "IN_FLIGHT" || entry.attempt_worker_id === currentWorker) continue;
         entry.status = "RETRY_WAIT";
@@ -181,6 +222,15 @@
       }
     }
     if (Object.keys(next.entries).length > MAX_ENTRIES) throw Object.assign(new Error("SYNC_JOURNAL_FULL"), { code: "SYNC_JOURNAL_FULL" });
+  }
+  function latestExplicitEntry(next, accountId, entityId, afterSequence = -1) {
+    return Object.values(next.entries)
+      .filter(entry => entry.accountId === accountId && entry.entityId === entityId &&
+        ["BINDING_UPSERT", "FINISH"].includes(entry.kind) &&
+        ["PENDING", "RETRY_WAIT", "IN_FLIGHT", "CONFLICT", "FAILED"].includes(entry.status) &&
+        entry.localSequence > afterSequence)
+      .sort((a, b) => a.localSequence - b.localSequence)
+      .at(-1) || null;
   }
   function entryFor(next, record, auth, payload) {
     next.sequence += 1;
@@ -354,6 +404,7 @@
     if (!conversationKey) throw Object.assign(new Error("SYNC_CONVERSATION_KEY_INVALID"), { code: "SYNC_CONVERSATION_KEY_INVALID" });
     const keyDigest = await digest(conversationKey), entityId = `conversation:${keyDigest}`;
     const local = bindingContext(auth, entityId, keyDigest, input.binding, input.store, input.workGeneration);
+    const journal = await read();
     return Object.freeze({
       version: "seller_agents_snapshot_intent_v1",
       accountId: auth.accountId,
@@ -361,12 +412,13 @@
       conversationKey,
       conversationKeyDigest: keyDigest,
       entityIds: Object.freeze([entityId]),
+      journalSequence: journal.sequence,
       localFence: bindingFence(local),
     });
   }
   async function applySnapshotRead(input = {}) {
     const intent = input.intent;
-    if (!intent || intent.version !== "seller_agents_snapshot_intent_v1" || !Array.isArray(intent.entityIds) || intent.entityIds.length !== 1) throw Object.assign(new Error("SYNC_SNAPSHOT_INTENT_INVALID"), { code: "SYNC_SNAPSHOT_INTENT_INVALID" });
+    if (!intent || intent.version !== "seller_agents_snapshot_intent_v1" || !Array.isArray(intent.entityIds) || intent.entityIds.length !== 1 || !Number.isSafeInteger(Number(intent.journalSequence)) || Number(intent.journalSequence) < 0) throw Object.assign(new Error("SYNC_SNAPSHOT_INTENT_INVALID"), { code: "SYNC_SNAPSHOT_INTENT_INVALID" });
     const auth = await identity();
     if (auth.accountId !== intent.accountId || auth.installationId !== intent.installationId) return { applied: false, code: "SYNC_SNAPSHOT_CONTEXT_STALE" };
     const currentConversationKey = normalizedConversationKey(input.currentConversationKey);
@@ -381,6 +433,8 @@
     if (serverState && ["BINDING_UPSERT", "FINISH", "DELIVERY_MARKER"].includes(serverState.kind) && serverState.conversationKeyDigest !== intent.conversationKeyDigest) throw Object.assign(new Error("SYNC_SNAPSHOT_RESPONSE_INVALID"), { code: "SYNC_SNAPSHOT_RESPONSE_INVALID" });
     return mutate(async () => {
       const current = clone(await read()), slot = stateSlot(auth.accountId, entityId), priorRevision = integer(current.serverRevisions[slot]) || 0;
+      const newerExplicit = latestExplicitEntry(current, auth.accountId, entityId, Number(intent.journalSequence));
+      if (newerExplicit) return { applied: false, code: "SYNC_SNAPSHOT_CONTEXT_STALE" };
       if (serverRevision < priorRevision) return { applied: false, code: "SYNC_SNAPSHOT_STALE", serverRevision: priorRevision };
       if (serverState?.kind === "DELIVERY_MARKER" && current.serverStates[slot]) {
         const classification = SellerAgentsReconciliation.classifyComparison({
@@ -394,6 +448,16 @@
           await write(current);
           return { applied: true, code: "SYNC_SNAPSHOT_LATE_DELIVERY_OBSOLETE", serverRevision, classification };
         }
+      }
+      const unresolvedExplicit = latestExplicitEntry(current, auth.accountId, entityId);
+      if (serverState?.kind === "DELIVERY_MARKER" && unresolvedExplicit) {
+        current.serverRevisions[slot] = serverRevision;
+        current.snapshotAt = Date.now();
+        for (const entry of Object.values(current.entries)) {
+          if (entry.accountId === auth.accountId && entry.entityId === entityId && ["PENDING", "RETRY_WAIT"].includes(entry.status) && entry.baseRevision <= serverRevision) entry.baseRevision = serverRevision;
+        }
+        await write(current);
+        return { applied: true, code: "SYNC_SNAPSHOT_LATE_DELIVERY_OBSOLETE", serverRevision, classification: "STALE_DELIVERY_OBSOLETE" };
       }
       if (serverState === null) {
         current.serverRevisions[slot] = serverRevision;
@@ -424,12 +488,15 @@
     const conversationKey = normalizedConversationKey(input.conversationKey || input.binding?.conversation_key);
     if (!conversationKey) return { allowed: true, code: null };
     const entityId = await conversationEntityId(conversationKey), keyDigest = entityId.slice("conversation:".length), slot = stateSlot(auth.accountId, entityId);
-    const current = (await read()).reconciliation[slot];
-    if (!current?.serverState) return { allowed: true, code: null };
-    const local = bindingContext(auth, entityId, keyDigest, input.binding, input.store, input.workGeneration);
-    const server = { ...clone(current.serverState), accountId: auth.accountId, entityId };
-    if (["EXPLICIT_BINDING_CONFLICT", "REQUIRES_EXPLICIT_USER_REBIND_RESOLUTION"].includes(current.classification))
+    const journal = await read(), local = bindingContext(auth, entityId, keyDigest, input.binding, input.store, input.workGeneration);
+    // Pending local explicit changes are local truth until the server reconciles them.
+    // They must not block already-permitted offline Resume/store work; only
+    // server-known conflict/Finish may fence future actions here.
+    const current = journal.reconciliation[slot];
+    if (["EXPLICIT_BINDING_CONFLICT", "REQUIRES_EXPLICIT_USER_REBIND_RESOLUTION"].includes(current?.classification))
       return { allowed: false, code: "SYNC_EXPLICIT_BINDING_CONFLICT" };
+    if (!current?.serverState) return { allowed: true, code: null };
+    const server = { ...clone(current.serverState), accountId: auth.accountId, entityId };
     return SellerAgentsReconciliation.allowsFutureAction({ local, server });
   }
   globalThis.SellerAgentsSyncJournal = Object.freeze({
