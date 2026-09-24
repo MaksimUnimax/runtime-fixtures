@@ -35,8 +35,8 @@ Parent focused verification on the integrated diff:
 - worker-lifecycle PASS 6/6 including provider-429 no hidden retry and worker-restart no replay;
 - batch-context PASS 12/12;
 - P3 technical scheduler PASS 7 scenarios;
-- `extension_core.py` PASS 119 gates; resource job `5fbc1b8dd9f448bbb7450a7d499cb6a7`, exit 0, OOM 0, cleanup verified, peak 179,306,496 bytes;
-- `extension_i1.py` PASS 146 gates; resource job `5c8d3adc2a424557b4ce112888401264`, exit 0, OOM 0, cleanup verified, peak 408,944,640 bytes.
+- exact committed-head `extension_core.py` PASS 119 gates; evidence `/root/octoport-control/logs/A/a04-n5-exact-145efb2-core/summary.json`; resource job `725f5eb02ba345d7ab831046f6134142`, exit 0, OOM 0, cleanup verified, peak 178,257,920 bytes;
+- exact committed-head `extension_i1.py` PASS 146 gates; evidence `/root/octoport-control/logs/A/a04-n5-exact-145efb2-i1/summary.json`; resource job `d95d18434b5b4328ab1ac118795e8bf7`, exit 0, OOM 0, cleanup verified, peak 358,612,992 bytes.
 
 ## Limits
 
