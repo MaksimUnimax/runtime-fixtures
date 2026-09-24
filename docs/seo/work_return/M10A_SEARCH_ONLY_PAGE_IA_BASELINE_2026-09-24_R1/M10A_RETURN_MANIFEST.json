@@ -1,0 +1,64 @@
+{
+  "schema": "OCTOPORT_M10A_SEARCH_ONLY_PAGE_IA_BASELINE_RETURN_MANIFEST_V1",
+  "work_id": "OCTOPORT_SEO_M10A_SEARCH_ONLY_PAGE_IA_BASELINE_2026-09-24_R1",
+  "start_head": "e3b4ee1174fe2e7017b20af3235685cae5d1bd01",
+  "end_observed_head": "e3b4ee1174fe2e7017b20af3235685cae5d1bd01",
+  "start_site_main_head": "f079c2e7199250397259ea9ede10a4f72694f5c1",
+  "end_site_main_head": "f079c2e7199250397259ea9ede10a4f72694f5c1",
+  "authority_drift_status": "NONE_FROZEN_INPUTS_UNCHANGED",
+  "verdict": "PASS_LOCAL_WORK_RETURN_AWAIT_MAIN_CHAT_ACCEPTANCE",
+  "m10b_gate_recommendation": "OPEN_ONLY_AFTER_MAIN_CHAT_ACCEPTS_THIS_SEARCH_ONLY_BASELINE",
+  "self_hash_exclusion": "Manifest records exact UTF-8 byte counts and SHA-256 hashes of the six non-self final files; ZIP SHA-256 is reported separately after packaging.",
+  "files": [
+    {
+      "name": "M10A_SOURCE_MANIFEST.md",
+      "utf8_bytes": 5157,
+      "sha256": "714d2899807c5f7ac22ca8ca4bf31a528f8be5692287bf5f50d3ad7dcc86d469",
+      "line_count": 51
+    },
+    {
+      "name": "M10A_EXISTING_SITE_SURFACE.tsv",
+      "utf8_bytes": 2821,
+      "sha256": "8a35c1d9cac251935c3b6fb0393ebb5f09f043aff6d426d9ba459b522a7d0bde",
+      "line_count": 5,
+      "data_rows": 4,
+      "columns": 13
+    },
+    {
+      "name": "M10A_CLUSTER_PAGE_IA_BASELINE.tsv",
+      "utf8_bytes": 146608,
+      "sha256": "816d4f68b990033b5474180eb98c271175e07178623689e03a33abcb1fb82bd9",
+      "line_count": 105,
+      "data_rows": 104,
+      "columns": 24
+    },
+    {
+      "name": "M10A_CANNIBALIZATION_BOUNDARY.tsv",
+      "utf8_bytes": 1557644,
+      "sha256": "e6c2b8b094adecbcfbf90f9488f52f93a9447b65eff25a3e9f625a620b045060",
+      "line_count": 1400,
+      "data_rows": 1399,
+      "columns": 20
+    },
+    {
+      "name": "M10A_ADVERSARIAL_DIAGNOSTIC.tsv",
+      "utf8_bytes": 9612,
+      "sha256": "49b10fc05c3173b283ea049052a8213d9046727809e69be4696470839ee4f9e5",
+      "line_count": 19,
+      "data_rows": 18,
+      "columns": 11
+    },
+    {
+      "name": "M10A_QA.md",
+      "utf8_bytes": 4632,
+      "sha256": "513b1e7d0de5d2495a6e4fef230f79da137855c5f5ac3988125441982c33431c",
+      "line_count": 106
+    }
+  ],
+  "file_count_in_zip": 7,
+  "provider_calls": 0,
+  "bridge_commands": 0,
+  "web_acquisition_by_work": 0,
+  "github_writes_by_work": 0,
+  "site_mutations": 0
+}
