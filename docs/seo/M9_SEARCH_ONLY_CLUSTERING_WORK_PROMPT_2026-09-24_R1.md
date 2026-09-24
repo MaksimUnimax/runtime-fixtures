@@ -1,4 +1,4 @@
-# M9 — canonical ChatGPT Work Search-only clustering prompt — R1
+> **SUPERSEDED FOR EXECUTION / DO NOT RUN.** Replaced by M9 R2 after OSEO-F07. Retained as history only.\n\n# M9 — canonical ChatGPT Work Search-only clustering prompt — R1
 
 WORK_ID: `OCTOPORT_SEO_M9_SEARCH_ONLY_CLUSTERING_2026-09-24_R1`
 
