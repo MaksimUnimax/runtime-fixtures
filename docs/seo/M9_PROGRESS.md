@@ -1,7 +1,7 @@
 # Octoport SEO — M9 progress
 
 Date: 2026-09-24
-Status: **BOUNDARY-RESOLUTION WAVE-2 EVIDENCE ACCEPTED / FULL M9 RERUN R2 HANDOFF READY**
+Status: **M9 R2 ACCEPTED / TERMINAL SEARCH-ONLY HOLD RECONCILIATION CURRENT**
 Branch: `seo/wordstat-batch-01-2026-09-16`
 
 ## Current accepted chain
@@ -13,7 +13,7 @@ M9 BOUNDARY-RESOLUTION PRE-ACQ = PASS / MAIN CHAT ACCEPTED
 M10A = BLOCKED
 
 CURRENT PHYSICAL STEP =
-M9 BOUNDARY-RESOLUTION FULL 5,356-PAIR WORK RERUN R2
+M9 TERMINAL SEARCH-ONLY HOLD / INFORMATION-GAIN RECONCILIATION
 ```
 
 ## Accepted M9 unresolved state
@@ -856,8 +856,69 @@ M10A = BLOCKED
 Work must recompute all 5,356 pairs, material HOLDs and complete-link clusters. Partial patch of the 1,701 changed-comparability pairs is forbidden. Main Chat must independently audit and accept the R2 return before M10A can open.
 
 
+## Full rerun R2 — Main Chat acceptance
+
+Acceptance:
+`docs/seo/M9_BOUNDARY_RESOLUTION_RERUN_MAIN_CHAT_ACCEPTANCE_2026-09-24_R2.md`
+blob `2b5f6c0a29397de23abe21f3f36eb0ab6d9035b2`.
+
+Accepted Work upload commit:
+`6b3fc513d12e9f20941c7c1841c5908422943cce`.
+
+```text
+RETURN_FILES = 9/9
+PAIRWISE_ROWS = 5356/5356
+SEARCH_ANCHORS = 65/65
+NO_CURRENT_EXACT_SERP = 39/39
+
+BOTH_CURRENT_SERP = 2080/2080
+ONE_CURRENT_SERP = 2535/2535
+NO_CURRENT_SERP = 741/741
+
+MERGE_SUPPORTED = 28
+SPLIT_SUPPORTED = 3835
+HOLD_BOUNDARY = 1493
+MATERIAL_HOLD = 1399
+
+PAIR_DECISIONS_CHANGED_VS_R1 = 7
+HOLD_TO_MERGE = 7
+FROZEN_NON_SEARCH_PAIR_FIELD_DRIFT = 0
+BILATERAL_OVERLAP_RECOMPUTATION_MISMATCH = 0
+MATERIAL_HOLD_LEDGER_EXACT_SET = PASS
+
+RETAINED_CLUSTER = 0
+RETAINED_SINGLETON = 0
+HOLD_CLUSTER_BOUNDARY = 104
+
+MAIN_CHAT_QA = PASS
+OPEN_CRITICAL_DEFECTS = 0
+VERDICT = PASS_WITH_HOLD_BOUNDARIES / ACCEPTED_BOUNDED_AUTHORITY
+```
+
+Remaining material HOLD composition:
+
+```text
+ANCHOR_TO_ANCHOR = 477
+ANCHOR_TO_NONANCHOR = 613
+NONANCHOR_TO_NONANCHOR = 309
+TOTAL = 1399
+```
+
+Remaining 39 non-anchor identities:
+
+```text
+PAGE_TITLE_OR_SOURCE_PHRASE / NO SAFE EXACT QUERY PROBE = 33
+AMBIGUOUS_QUERY_FORM = 5
+DEMAND_OR_TESTED_EXACT_QUERY = 1
+```
+
+The sole exact-query non-anchor (`ии для продаж на маркетплейсах`) has current material-HOLD degree 0. No additional provider execution is currently authorized.
+
+Next physical step is terminal Search-only HOLD / information-gain reconciliation. M10A remains blocked until Main Chat accepts that closure.
+
+
 ## Owner relay
 
-Wave-1 and Wave-2 Search acquisition are complete for the currently authorized boundary-resolution plan. No further provider submit/collect is authorized.
+Wave-1 and Wave-2 Search acquisition and the complete R2 rerun are accepted. No further provider submit/collect is authorized from current evidence.
 
-Current next action is the Work full rerun R2 from the 65-anchor frozen authority. M10A remains blocked.
+Current next action is terminal Search-only HOLD / information-gain reconciliation. M10A remains blocked until that closure is independently accepted.
