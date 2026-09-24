@@ -1,0 +1,110 @@
+{
+  "bridge": "yandex-marketing-bridge",
+  "version": "0.1.9",
+  "service": "search",
+  "operation": "genSearch",
+  "request_id": "search-5bd426b6-f2ed-4606-9756-07b29bf76970",
+  "run_id": null,
+  "status": "OK",
+  "reason": null,
+  "cost_estimate": {
+    "estimated_rub": 5.08,
+    "tariff_checked_at": "2026-08-19",
+    "tariff_source": "[https://aistudio.yandex.ru/docs/ru/search-api/pricing.html](https://aistudio.yandex.ru/docs/ru/search-api/pricing.html)"
+  },
+  "policy": {
+    "channel": "manual",
+    "active_service": "search"
+  },
+  "command": {
+    "method": "genSearch",
+    "queryText": "сервис аналитики маркетплейсов",
+    "confirmBillable": true
+  },
+  "http_status": 200,
+  "elapsed_ms": 5718,
+  "result": {
+    "mode": "generative",
+    "message": {
+      "content": "Некоторые сервисы аналитики маркетплейсов в 2026 году:\n\n* **MPSTATS**. [2] Многофункциональный сервис, который собирает в одном месте аналитику продаж, конкурентов и рекламных активностей на крупных маркетплейсах. [2] Дополнительно используются ИИ-модули для прогноза спроса и оценки перспективных ниш. [2]\n* **Stat4Market**. [2] Сервис детально анализирует Wildberries и Ozon: следит за движением остатков, логистикой, заказами и прогнозами поставок. [2] Платформа помогает оценивать позиции конкурентов и сравнивать динамику категорий. [2]\n* **SellerStats**. [2] Аналитическая платформа, которая считает маржинальность и выкуп, отслеживает динамику SKU и выявляет тренды. [2]\n* **MP Manager**. [2] Система для продавцов, позволяющая контролировать операции на крупных маркетплейсах: от анализа заказов и остатков до планирования закупок по фактическому спросу. [2] Встроенные инструменты автоматизируют управление поставками и облегчают расчёты. [2]\n* **Wildbox**. [2] Официальный партнёр Wildberries, предлагает расширенный набор аналитики: через веб-кабинет, расширение и Телеграм-бот сервис показывает оборачиваемость, юнит-экономику, SEO-данные, рыночные тренды и конкурентные изменения. [2]\n* **SalesFinder**. [2] Помогает быстро находить закономерности и корректировать стратегию на основе фактических данных. [2]\n* **MarketGuru**. [2] Лёгкий инструмент внешней аналитики для Wildberries, который помогает быстро оценивать спрос, конкурентность и привлекательность карточек. [2] Браузерное расширение показывает продажи, выручку, остатки, SEO-позиции и динамику карточек прямо на маркетплейсе. [2]",
+      "role": "ROLE_ASSISTANT"
+    },
+    "sources": [
+      {
+        "url": "[https://vc.ru/marketplace/1695332-kak-effektivno-upravlyat-i-analizirovat-marketpleisy-v-2026-godu-top-14-servisov-dlya-marketpleisov](https://vc.ru/marketplace/1695332-kak-effektivno-upravlyat-i-analizirovat-marketpleisy-v-2026-godu-top-14-servisov-dlya-marketpleisov)",
+        "title": "Как эффективно управлять и анализировать маркетплейсы в 2026 году — ТОП-14 Сервисов для маркетплейсов — Маркетплейсы на vc.ru",
+        "used": false
+      },
+      {
+        "url": "[https://tproger.ru/articles/top-14-servisov-analitiki-marketplejsov-v-2026-godu---luchwie-bes](https://tproger.ru/articles/top-14-servisov-analitiki-marketplejsov-v-2026-godu---luchwie-bes)",
+        "title": "ТОП-14 сервисов аналитики маркетплейсов в 2026 году – лучшие бесплатные и платные программы",
+        "used": true
+      },
+      {
+        "url": "[https://www.business.ru/article/7478-analiz-konkurentov-marketpleysov-polnoe-rukovodstvo-dlya-sellera-statbru](https://www.business.ru/article/7478-analiz-konkurentov-marketpleysov-polnoe-rukovodstvo-dlya-sellera-statbru)",
+        "title": "Анализ конкурентов маркетплейсов: методы и стратегии для 2026 года",
+        "used": false
+      },
+      {
+        "url": "[https://mpagency.ru/blog/luchshie-servisy-analitiki-marketplejsov-2026-reyting/](https://mpagency.ru/blog/luchshie-servisy-analitiki-marketplejsov-2026-reyting/)",
+        "title": "Лучшие сервисы аналитики маркетплейсов в 2026: рейтинг 11 платформ для селлеров | MPAgency",
+        "used": false
+      },
+      {
+        "url": "[https://vc.ru/marketing/1311211-36-luchshih-servisov-analitiki-marketpleisov-v-2026-godu](https://vc.ru/marketing/1311211-36-luchshih-servisov-analitiki-marketpleisov-v-2026-godu)",
+        "title": "36 лучших сервисов аналитики маркетплейсов в 2026 году — Маркетинг на vc.ru",
+        "used": false
+      },
+      {
+        "url": "[https://tochka.com/knowledge/marketpleisy/analiz-nish-na-marketpleysah-na-chto-smotret-selleru/](https://tochka.com/knowledge/marketpleisy/analiz-nish-na-marketpleysah-na-chto-smotret-selleru/)",
+        "title": "Анализ ниш для селлера: какие категории растут на маркетплейсах в 2026 году — Точка Банк",
+        "used": false
+      },
+      {
+        "url": "[https://selsup.ru/blog/servisy-analitiki-prodazh-na-marketplejsah-top-6-dlya-vseh-ploshhadok/](https://selsup.ru/blog/servisy-analitiki-prodazh-na-marketplejsah-top-6-dlya-vseh-ploshhadok/)",
+        "title": "Сервисы для работы с маркетплейсами в 2026 году",
+        "used": false
+      },
+      {
+        "url": "[https://kokoc.com/blog/servisy-analitiki-marketplejsov/](https://kokoc.com/blog/servisy-analitiki-marketplejsov/)",
+        "title": "15 лучших сервисов аналитики маркетплейсов + сравнение",
+        "used": false
+      },
+      {
+        "url": "[https://otzyvmarketing.ru/best/servisy-analitiki-marketplejsov/](https://otzyvmarketing.ru/best/servisy-analitiki-marketplejsov/)",
+        "title": "37 сервисов аналитики маркетплейсов - рейтинг 2026 года",
+        "used": false
+      },
+      {
+        "url": "[https://dzen.ru/a/aUQWDPSpOUYB-b9U](https://dzen.ru/a/aUQWDPSpOUYB-b9U)",
+        "title": "Топ 10 сервисов аналитики маркетплейсов 2026: как выбрать свой | Обзоры и рейтинги | Дзен",
+        "used": false
+      }
+    ],
+    "searchQueries": [
+      {
+        "text": "как анализировать маркетплейсы 2026",
+        "reqId": "1790258613478078-11886375985735129703-rs6g5w5henwwmqoi-BAL"
+      },
+      {
+        "text": "лучшие сервисы аналитики маркетплейсов 2026",
+        "reqId": "1790258613477387-3220882908404180431-snfw4bbvnbggzme7-BAL"
+      }
+    ],
+    "fixedMisspellQuery": "",
+    "isAnswerRejected": false,
+    "isBulletAnswer": false,
+    "hints": [
+      "Какие основные функции есть у сервисов аналитики маркетплейсов?",
+      "Как выбрать подходящий сервис аналитики для маркетплейса?",
+      "Какие преимущества у MPSTATS перед другими сервисами?"
+    ],
+    "problematicAnswer": false,
+    "transport": {
+      "wire_format": "json_array",
+      "frame_count": 1
+    }
+  },
+  "request_executed": true,
+  "automatic_retry": false
+}
