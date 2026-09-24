@@ -1,0 +1,113 @@
+# Octoport SEO — M10A Search-only page/IA baseline — Main Chat acceptance — 2026-09-24 R1
+
+Status: **PASS / SEARCH-ONLY PAGE-IA BASELINE FROZEN / M10B GATE OPEN**
+Repository: `MaksimUnimax/runtime-fixtures`
+Branch: `seo/wordstat-batch-01-2026-09-16`
+Accepted Work upload commit: `b79604502c6feb2caf238d8d117ffec1596a6187`
+Accepted Work return: `docs/seo/work_return/M10A_SEARCH_ONLY_PAGE_IA_BASELINE_2026-09-24_R1/`
+
+## Independent Main Chat acceptance
+
+```text
+RETURN_FILES = 7/7
+RETURN_MANIFEST_HASH_MATCH = 6/6
+RETURN_MANIFEST_BYTE_MATCH = 6/6
+RETURN_MANIFEST_LINE_COUNT_MATCH = 6/6
+
+WORK_START_HEAD = e3b4ee1174fe2e7017b20af3235685cae5d1bd01
+WORK_END_OBSERVED_HEAD = e3b4ee1174fe2e7017b20af3235685cae5d1bd01
+WORK_START_SITE_MAIN_HEAD = f079c2e7199250397259ea9ede10a4f72694f5c1
+WORK_END_SITE_MAIN_HEAD = f079c2e7199250397259ea9ede10a4f72694f5c1
+MAIN_CHAT_ACCEPTANCE_SITE_MAIN_HEAD = f079c2e7199250397259ea9ede10a4f72694f5c1
+AUTHORITY_DRIFT_STATUS = NONE_FROZEN_INPUTS_UNCHANGED
+
+EXISTING_SITE_SURFACE_ROWS = 4/4
+EXISTING_SITE_SURFACE_EXACT_SOURCE_MISMATCH = 0
+CURRENT_SITE_SOURCE_HEAD_MATCH = true
+
+CLUSTER_BASELINE_ROWS = 104/104
+CLUSTER_ID_SET_MATCH = true
+MEMBERSHIP_SET_MATCH = true
+BASELINE_SOURCE_JOIN_MISMATCH = 0
+
+CURRENT_SEARCH_ANCHORS = 65/65
+NO_CURRENT_EXACT_SERP = 39/39
+MATERIAL_HOLD_DEGREE_MATCH = 104/104
+SUPPORTED_MERGE_DEGREE_MATCH = 104/104
+
+SEARCH_OWNER_HOLD = 104/104
+PROVISIONAL_OWNER_NONE_HOLD = 104/104
+PAGE_ROLE_HOLD = 104/104
+EXISTING_SEARCH_OWNER_ASSIGNMENTS = 0
+PLANNED_SEARCH_PAGE_CREATE_AUTHORIZATIONS = 0
+PARENT_CHILD_IA_ASSIGNMENTS = 0
+INTERNAL_LINK_OWNER_CONTRACTS = 0
+
+POSITIVE_MATERIAL_HOLD_DEGREE_CLUSTERS = 103/103
+ZERO_MATERIAL_HOLD_DEGREE_CLUSTERS = 1/1
+
+CANNIBALIZATION_BOUNDARY_ROWS = 1399/1399
+MATERIAL_HOLD_PAIR_SET_MATCH = true
+BOUNDARY_SOURCE_JOIN_MISMATCH = 0
+HOLD_PAGE_OWNERSHIP_BOUNDARY = 1399/1399
+SAME_PAGE_AUTHORIZATIONS = 0
+SEPARATE_PAGE_AUTHORIZATIONS = 0
+
+TERMINAL_CURRENT_SEARCH_CONFLICT = 477/477
+HOLD_NO_SAFE_EXACT_QUERY_AUTHORITY = 922/922
+
+HOME_AUTO_OWNER_ASSIGNMENTS = 0
+UTILITY_SURFACE_AUTO_OWNER_ASSIGNMENTS = 0
+SUSPICIOUS_OWNER_URL_ROWS = 0
+
+M5_HYPOTHESIS_REGISTER_USED_AS_INPUT = 0
+ALICE_INPUT_ROWS = 0
+AI_PROVIDER_EVIDENCE_ROWS = 0
+FINAL_AI_CASE_SELECTIONS = 0
+PRODUCT_CAPABILITY_AS_PAGE_CREATION_PROOF = 0
+
+PROVIDER_CALLS_BY_WORK = 0
+WEB_ACQUISITION_BY_WORK = 0
+GITHUB_WRITES_BY_WORK = 0
+SITE_MUTATIONS = 0
+
+INDEPENDENT_ADVERSARIAL_QA = PASS
+ADVERSARIAL_DIAGNOSTIC_ROWS = 18/18
+ADVERSARIAL_ROWS_CHANGED_OUTPUT = 0
+OPEN_CRITICAL_DEFECTS = 0
+
+SEARCH_ONLY_BASELINE_FROZEN_BEFORE_AI = true
+MAIN_CHAT_QA = PASS
+VERDICT = PASS_SEARCH_ONLY_PAGE_IA_BASELINE
+M10B_GATE = OPEN
+```
+
+## Accepted baseline interpretation
+
+The frozen M10A Search-only baseline intentionally assigns **no page owner** to any of the 104 accepted M9 clusters. This is the correct current Search-only result, not missing work.
+
+All 104 clusters remain explicit owner/page-role HOLDs. All 1,399 material page-ownership boundaries remain HOLD; neither same-page nor separate-page authorization is introduced.
+
+The four current source surfaces `/`, `/install`, `/privacy`, `/support` are accepted only as physical source facts at `main@f079c2e7199250397259ea9ede10a4f72694f5c1`. None is granted M9/M10A Search ownership by physical existence.
+
+## Causal baseline boundary
+
+This M10A baseline is now immutable evidence for the next AI diagnostic sequence.
+
+M10B may use:
+- this frozen M10A Search-only baseline;
+- the accepted M5 provisional hypothesis register;
+- current governing methodology;
+
+only to select final diagnostic cases with named information gain.
+
+M10B must not retroactively rewrite M10A.
+M10B must not acquire Alice/AI evidence.
+M10B must not assign final page owners.
+
+## Gate decision
+
+`M10B_GATE = OPEN`.
+
+Next physical step:
+`M10B FINAL AI DIAGNOSTIC CASE SELECTION`.
