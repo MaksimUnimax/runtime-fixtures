@@ -1,7 +1,7 @@
 # Octoport SEO — M8 progress
 
 Date: 2026-09-24
-Status: **R3 RETURN PUBLISHED PARTIALLY / MAIN CHAT HOLD**
+Status: **R3 RETURN 8/9 PUBLISHED / MAIN CHAT HOLD ONLY ON RAW LEDGER TRANSPORT**
 Branch: `seo/wordstat-batch-01-2026-09-16`
 
 ## Current accepted chain
@@ -23,79 +23,69 @@ M8 R3 MAIN CHAT = HOLD_RETURN_PUBLICATION_INCOMPLETE
 M9 = BLOCKED
 ```
 
-## R3 Work report
+## Publication
+
+Required = 9.
+Published = 8.
+Missing = 1:
+
+`M8_RAW_OCCURRENCE_LEDGER.tsv`
+
+Return-manifest identity:
 
 ```text
-START_HEAD = cc9c667844dd6de5fc7cdb46c9abfd9cf05d3001
-END_OBSERVED_HEAD = cc9c667844dd6de5fc7cdb46c9abfd9cf05d3001
-AUTHORITY_DRIFT_STATUS = NONE_FROZEN_INPUTS_UNCHANGED
-
-RAW_OCCURRENCE_ROWS = 25229/25229
-SEMANTIC_IDENTITY_ROWS = 7913
-WORKING = 104
-REVIEW_HOLD = 5064
-EXCLUDED = 2737
-BRAND_DEFENSE = 8
-XREF_ROWS = 25229
-ADVERSARIAL_DIAGNOSTIC_ROWS = 697
-IDENTITIES_CHANGED_AFTER_ADVERSARIAL_QA = 21
-OPEN_CRITICAL_DEFECTS = 0
+BYTES = 76810357
+SHA256 = 2091432f5eb131b425349954f0518cc8122e98461d932d9b2d7de64e6828bcfc
+LINES = 25230
+DATA_ROWS = 25229
 ```
 
-## GitHub publication state
+GitHub browser upload is blocked by the 25 MiB web limit; ordinary Git/Git blob capacity is sufficient because the file is below 100 MiB.
 
-Target:
-`docs/seo/work_return/M8_SEARCH_ONLY_SEMANTIC_MASTER_2026-09-24_R3/`
-
-Required files = 9.
-Published files = 5.
-Missing files = 4.
-
-Present:
-- `M8_SOURCE_MANIFEST.md`
-- `M8_IDENTITY_SOURCE_XREF.tsv`
-- `M8_HOLD_REVIEW_LEDGER.tsv`
-- `M8_ADVERSARIAL_DIAGNOSTIC.tsv`
-- `M8_QA.md`
-
-Missing:
-- `M8_RAW_OCCURRENCE_LEDGER.tsv`
-- `M8_SEMANTIC_IDENTITY_MASTER.tsv`
-- `M8_REASON_CODE_DICTIONARY.md`
-- `M8_RETURN_MANIFEST.json`
-
-## Main Chat independent QA already passed on present files
+## Main Chat QA already passed on published 8/9
 
 ```text
+SEMANTIC_MASTER_ROWS = 7913
+SEMANTIC_MASTER_REQUIRED_COLUMNS = 36/36
+SEMANTIC_MASTER_MALFORMED_ROWS = 0
+UNIQUE_SEMANTIC_IDS = 7913
+STATE_SUM = 104 + 5064 + 2737 + 8 = 7913
+
 XREF_ROWS = 25229
 XREF_UNIQUE_RAW_IDS = 25229
-XREF_UNIQUE_RAW_BACKED_SEMANTIC_IDS = 7905
-XREF_MALFORMED_ROWS = 0
+XREF_NOT_IN_MASTER = 0
+MASTER_WITHOUT_XREF = 8/8 BRAND_DEFENSE
+
+DETERMINISTIC_RAW_BACKED_M8SID_MISMATCH = 0/7905
 
 HOLD_LEDGER_ROWS = 5168
-HOLD_BLOCKING_ROWS = 5064
-HOLD_NONBLOCKING_PRODUCT_BOUNDARY_ROWS = 104
-HOLD_MALFORMED_ROWS = 0
+HOLD_MASTER_STATE_MISMATCH = 0
+HOLD_BLOCKING_REVIEW = 5064/5064
+HOLD_NONBLOCKING_WORKING = 104/104
 
 ADVERSARIAL_ROWS = 697
-ADVERSARIAL_UNIQUE_IDS = 697
 ADVERSARIAL_CHANGED_YES = 21
-ADVERSARIAL_CHANGED_NO = 676
-ADVERSARIAL_MALFORMED_ROWS = 0
+ADVERSARIAL_UNKNOWN_MASTER_IDS = 0
+
+REASON_CODES_USED_DEFINED = 33/33
+REASON_STATE_MISMATCH = 0
+PRIORITY_STATE_MISMATCH = 0
+
+RETURN_MANIFEST_HASH_MATCH_FOR_PUBLISHED_NONSELF_OUTPUTS = 7/7
 ```
 
-These figures are consistent with the Work summary but do not replace verification of the missing master/raw/reason/return-manifest artifacts.
+Current QA:
+`docs/seo/M8_R3_MAIN_CHAT_RETURN_QA_2026-09-24_R2.md`
 
-Current Main Chat QA:
-`docs/seo/M8_R3_MAIN_CHAT_RETURN_QA_2026-09-24_R1.md`
+## Exact remaining action
 
-## Exact next action
+Publish the original Work-produced `M8_RAW_OCCURRENCE_LEDGER.tsv` byte-exactly.
+
+Preferred recovery:
+attach that one file to Main Chat so Main Chat can use the authenticated GitHub blob API rather than GitHub browser upload.
+
+After publication:
+`RAW HASH/BYTES/ROWS -> RAW/XREF JOIN -> SOURCE-LAYER COUNTS -> FULL 9/9 MANIFEST QA -> QUALITY SCORE -> ACCEPT | REWORK | HOLD`.
 
 No Work rerun.
-
-Upload only the four missing files to the existing R3 staging directory.
-
-After they appear:
-`REMOTE READBACK -> HASH/BYTE/ROW QA -> XREF/MASTER/REASON JOIN QA -> QUALITY SCORE -> ACCEPT | REWORK | HOLD`.
-
-M9 remains blocked until M8 Main Chat acceptance.
+M9 remains blocked until M8 acceptance.
