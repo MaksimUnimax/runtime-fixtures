@@ -1,7 +1,7 @@
 # Octoport SEO — M9 progress
 
 Date: 2026-09-24
-Status: **BOUNDARY-RESOLUTION WAVE-2 SUBMIT PASS / OPERATION-ID READBACK OPEN**
+Status: **BOUNDARY-RESOLUTION WAVE-2 EVIDENCE ACCEPTED / FULL M9 RERUN R2 HANDOFF READY**
 Branch: `seo/wordstat-batch-01-2026-09-16`
 
 ## Current accepted chain
@@ -13,15 +13,15 @@ M9 BOUNDARY-RESOLUTION PRE-ACQ = PASS / MAIN CHAT ACCEPTED
 M10A = BLOCKED
 
 CURRENT PHYSICAL STEP =
-M9 BOUNDARY-RESOLUTION WAVE-2 OPERATION-ID READBACK / PRE-COLLECTION
+M9 BOUNDARY-RESOLUTION FULL 5,356-PAIR WORK RERUN R2
 ```
 
 ## Accepted M9 unresolved state
 
 ```text
 CLUSTER_ELIGIBLE = 104
-CURRENT_SEARCH_ANCHORED = 47
-NO_CURRENT_EXACT_SERP = 57
+CURRENT_SEARCH_ANCHORED = 65
+NO_CURRENT_EXACT_SERP = 39
 
 MERGE_SUPPORTED = 21
 SPLIT_SUPPORTED = 3835
@@ -772,9 +772,92 @@ ITEMSPAGE_READBACK = OPEN
 COLLECTN = CLOSED UNTIL OPERATION-ID READBACK + FIVE-MINUTE GATE
 ```
 
+## Wave-2 terminal lifecycle / evidence acceptance
+
+Provider lifecycle completed cleanly:
+
+```text
+JOB_ID = octoport-m9br-wave2-20260924-r1
+TOTAL = 18
+REQUESTS_STARTED = 18
+OPERATIONS_ACCEPTED = 18
+POLLS_STARTED = 18
+SUCCEEDED = 18
+PENDING = 0
+WAITING = 0
+FAILED = 0
+PARSE_FAILED = 0
+UNKNOWN = 0
+UNRESOLVED = 0
+ALL_SUCCESSFUL = true
+TERMINAL_REVISION = 90
+```
+
+Accepted complete export:
+`docs/seo/M9_BOUNDARY_RESOLUTION_WAVE2_EXPORT_ACCEPTANCE_2026-09-24_R1.md`
+blob `705c788b7da7da95b14b728aff58b1b0b2478782`.
+
+Accepted Top20 overlap projection:
+`docs/seo/M9_BOUNDARY_RESOLUTION_WAVE2_OVERLAP_PROJECTION_ACCEPTANCE_2026-09-24_R1.md`
+blob `4b572ecc568e504b7a845d1142f6511d26678af3`.
+
+```text
+WAVE2_EXPORT_ITEMS = 18/18
+WAVE2_NORMALIZED_ROWS = 1800/1800
+WAVE2_RESULTS_PER_QUERY = 100/100
+WAVE2_URL_COMPARISON_ELIGIBLE = 18/18
+WAVE2_TOP20_PROJECTION_ROWS = 360/360
+WAVE2_TOP10_UNIQUE_URLS = 10/10 FOR 18/18
+WAVE2_TOP20_UNIQUE_URLS = 20/20 FOR 18/18
+PROVIDER_LIFECYCLE = CLOSED
+```
+
+Three Wave-2 snapshots contain repeated exact URLs only below rank 20. Frozen M9 overlap uses unique exact-value sets at Top10/Top20, so these deep-rank repeats do not invalidate the accepted overlap projection.
+
+## Full rerun R2 handoff
+
+65-anchor map:
+`docs/seo/M9_BOUNDARY_RESOLUTION_SEARCH_ANCHOR_MAP_2026-09-24_R2.tsv`
+blob `32b6ec36c1707808519d7f885f511f4258f117e1`.
+
+Binding rerun input manifest:
+`docs/seo/M9_BOUNDARY_RESOLUTION_RERUN_INPUT_MANIFEST_2026-09-24_R2.json`
+blob `fb010d0fd96750a3cec3f3d2efa2ae504e5b88d6`.
+
+Pre-handoff:
+`docs/seo/M9_BOUNDARY_RESOLUTION_RERUN_PRE_HANDOFF_2026-09-24_R2.md`
+blob `721c78fc5b98ff94010924f04f483847d6758dae`.
+
+Canonical Work prompt:
+`docs/seo/M9_BOUNDARY_RESOLUTION_RERUN_WORK_PROMPT_2026-09-24_R2.md`
+blob `04ce0efd3550b8d905245ac0d454141768442517`.
+
+```text
+CURRENT_SEARCH_ANCHORS = 65/65
+NO_CURRENT_EXACT_SERP = 39/39
+
+EXPECTED_R2_RERUN:
+BOTH_CURRENT_SERP = 2080
+ONE_CURRENT_SERP = 2535
+NO_CURRENT_SERP = 741
+PAIRWISE = 5356
+
+CHANGED_COMPARABILITY_VS_ACCEPTED_R1 = 1701
+UNCHANGED_COMPARABILITY_VS_ACCEPTED_R1 = 3655
+R1_EXISTING_BILATERAL_UNCHANGED = 1081
+
+WORK_PROVIDER_CALLS_ALLOWED = 0
+WORK_BRIDGE_COMMANDS_ALLOWED = 0
+WORK_WEB_ACQUISITION_ALLOWED = 0
+WORK_GITHUB_WRITES_ALLOWED = 0
+M10A = BLOCKED
+```
+
+Work must recompute all 5,356 pairs, material HOLDs and complete-link clusters. Partial patch of the 1,701 changed-comparability pairs is forbidden. Main Chat must independently audit and accept the R2 return before M10A can open.
+
+
 ## Owner relay
 
-Current Wave-1 plan contains 25 exact queries.
-The 25-query ceiling is reached because 44 exact candidates passed the releaseability gate; 19 remain deferred by deterministic rank, not discarded.
+Wave-1 and Wave-2 Search acquisition are complete for the currently authorized boundary-resolution plan. No further provider submit/collect is authorized.
 
-M10A remains blocked.
+Current next action is the Work full rerun R2 from the 65-anchor frozen authority. M10A remains blocked.
