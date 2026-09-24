@@ -1,7 +1,7 @@
 # C02 / N2 cross-browser sync contract handoff — 2026-09-24
 
 Role: C
-Status: DESIGN ASSIGNMENT / NOT IMPLEMENTED / NOT LIVE
+Status: SHARED WIRE IMPLEMENTED IN C CANDIDATE / SERVER+CLIENT ROLLOUT NOT YET ACCEPTED / NOT LIVE
 Reviewed base: `866a99562f3e21cf259e065d6c504ac938247963`.
 Controller authority: `SUBSCRIPTION-NETWORK-REVIEW-20260924` assigns the shared N2 boundary to C, DB/migrations to B, and extension implementation to A.
 
@@ -51,6 +51,14 @@ A is assigned the client implementation only after server support is accepted:
 - existing scheduler/wake paths only for bounded open/new-conversation or service-wake reads, never per command/report;
 - A-owned regression/e2e coverage.
 
+## C shared-wire implementation
+
+The C-owned shared schema now exposes optional `readEntityIds` and optional response `snapshots` without changing the V1 version string or the legacy mutation entry shape. New read IDs are canonical-only. Conversation reads require exactly `conversation:<64 lowercase hex>`; store reads require `store:<storeId>` with the complete entity key within the existing 128-character storage-key width. Current locally-created `store-<uuid>` identities satisfy that bound; longer imported local IDs are not silently widened into the server key.
+
+The request requires at least one mutation or read, rejects duplicate read IDs, and enforces `entries + unique reads <= 32`. Response snapshots are bounded to 32, reject duplicate entity IDs, enforce each non-null state at 4096 UTF-8 JSON bytes and reject a total JSON response above 256 KiB. Existing mutation results use the same state bound already enforced durably by PostgreSQL.
+
+A real old extracted runtime from exact `f079c2e` was exercised with a response containing an extra `snapshots` member. It continued to send the legacy mutation-only request, ignored the optional response field safely, consumed `results`, and drained the journal. Evidence: `/root/octoport-control/logs/C/n2-wire-legacy-consumer-probe.mjs`. This is compatibility evidence only; no new reads are sent before server-first acceptance.
+
 ## B migration invariants
 
 `sync_entities` binding rows may be migrated using stored `state.conversationKeyDigest`. Historical `sync_request_receipts` must remain replay-compatible: the default is to retain their original wire `entity_id` and fingerprint because the fingerprint covers the old entry.
@@ -83,4 +91,4 @@ Server/read failure does not block already permitted offline continuation. Pendi
 Read-only design review evidence: `/root/octoport-control/logs/C/n2-cross-browser-contract-review-20260924-result.md`.
 Operational B handoff: `/root/octoport-control/logs/C/N2_CROSS_BROWSER_SYNC_REQUEST_2026-09-24.md`.
 
-No implementation, migration, live DB mutation, or cross-browser acceptance is claimed by this receipt.
+This receipt claims the C-owned shared wire schema, generated OpenAPI representation, architecture documentation and legacy-response compatibility proof only. It does not claim B server/DB rollout, A client read/reconciliation rollout, migration activation, live DB mutation, deployment, or cross-browser acceptance.

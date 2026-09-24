@@ -26,6 +26,7 @@ import {
   authorizeAdminMutationInTransaction,
   createBetaAdmissionRepository,
   createSyncRepository,
+  createSyncSnapshotReader,
   createCredentialTransferRepository,
   createFeedbackSupportRepository,
   createHealthAdminReadRepository,
@@ -178,7 +179,10 @@ const app = createApiApp({
     }),
   ),
   betaAdmissionService: betaAdmission,
-  syncService: new SyncService(createSyncRepository(database)),
+  syncService: new SyncService(
+    createSyncRepository(database),
+    createSyncSnapshotReader(database),
+  ),
   credentialTransferService: new CredentialTransferService(
     createCredentialTransferRepository(database),
   ),

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { AppConfig } from "@product/shared";
+import { SyncSnapshotReadError } from "@product/sync";
 import { createApiApp } from "./app.js";
 
 const config: AppConfig = {
@@ -72,4 +73,59 @@ describe("sync route stale-authority handling", () => {
     expect(syncService.apply).toHaveBeenCalledOnce();
     await app.close();
   });
+
+  it.each([
+    {
+      error: new SyncSnapshotReadError("SYNC_SNAPSHOT_ENTITY_IDS_INVALID"),
+      statusCode: 400,
+      code: "SYNC_REQUEST_INVALID",
+    },
+    {
+      error: new SyncSnapshotReadError("SYNC_SNAPSHOT_STATE_TOO_LARGE"),
+      statusCode: 409,
+      code: "SYNC_CONFLICT",
+    },
+  ])(
+    "maps snapshot reader bounds to a stable API envelope",
+    async ({ error, statusCode, code }) => {
+      const principal = {
+        sessionId: "11111111-1111-4111-8111-111111111111",
+        deviceId: "22222222-2222-4222-8222-222222222222",
+        accountId: "33333333-3333-4333-8333-333333333333",
+      };
+      const extensionAuthService = {
+        authenticateAccess: vi.fn(async () => ({
+          ok: true as const,
+          value: principal,
+        })),
+      };
+      const syncService = {
+        apply: vi.fn(async () => {
+          throw error;
+        }),
+      };
+      const app = createApiApp({
+        config,
+        isInfrastructureReady: async () => true,
+        extensionAuthService: extensionAuthService as never,
+        syncService: syncService as never,
+      });
+      const response = await app.inject({
+        method: "POST",
+        url: "/v1/sync",
+        headers: { authorization: "Bearer synthetic-access-token" },
+        payload: {
+          syncVersion: "seller_agents_sync_v1",
+          installationId: principal.deviceId,
+          entries: [],
+          readEntityIds: [`conversation:${"a".repeat(64)}`],
+        },
+      });
+
+      expect(response.statusCode).toBe(statusCode);
+      expect(response.json()).toMatchObject({ error: { code } });
+      expect(syncService.apply).toHaveBeenCalledOnce();
+      await app.close();
+    },
+  );
 });

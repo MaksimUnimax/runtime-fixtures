@@ -14,7 +14,7 @@ import type {
   ExtensionAuthService,
   ExtensionPrincipal,
 } from "@product/extension-auth";
-import type { SyncService } from "@product/sync";
+import { SyncSnapshotReadError, type SyncService } from "@product/sync";
 import { authenticateExtensionBearer } from "./extension-access-auth.js";
 import { ControlledError } from "./app.js";
 
@@ -82,6 +82,37 @@ export function registerSyncRoutes(
             "Request identity conflict",
             409,
           );
+        if (
+          error instanceof Error &&
+          error.message === "SYNC_CANONICAL_ENTITY_MISMATCH"
+        )
+          throw new ControlledError(
+            "SYNC_CONFLICT",
+            "Binding entity identity mismatch",
+            409,
+          );
+        if (
+          error instanceof Error &&
+          error.message === "SYNC_CANONICAL_ENTITY_COLLISION"
+        )
+          throw new ControlledError(
+            "SYNC_CONFLICT",
+            "Binding entity state is ambiguous",
+            409,
+          );
+        if (error instanceof SyncSnapshotReadError) {
+          if (error.code === "SYNC_SNAPSHOT_ENTITY_IDS_INVALID")
+            throw new ControlledError(
+              "SYNC_REQUEST_INVALID",
+              "Invalid sync snapshot request",
+              400,
+            );
+          throw new ControlledError(
+            "SYNC_CONFLICT",
+            "Sync snapshot state exceeds durable bounds",
+            409,
+          );
+        }
         throw error;
       }
     },
