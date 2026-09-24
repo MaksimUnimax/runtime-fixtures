@@ -1,7 +1,7 @@
 # Octoport SEO — M9 progress
 
 Date: 2026-09-24
-Status: **WAVE-1 PROVIDER RELEASE READBACK PASS / WAITING LOCAL START RESULT**
+Status: **WAVE-1 LOCAL START PASS / PAID SUBMIT PREFLIGHT OPEN**
 Branch: `seo/wordstat-batch-01-2026-09-16`
 
 ## Current accepted chain
@@ -13,7 +13,7 @@ M9 BOUNDARY-RESOLUTION PRE-ACQ = PASS / MAIN CHAT ACCEPTED
 M10A = BLOCKED
 
 CURRENT PHYSICAL STEP =
-M9 BOUNDARY-RESOLUTION WAVE-1 LOCAL START / RUNTIME READBACK
+M9 BOUNDARY-RESOLUTION WAVE-1 PAID SUBMIT PREFLIGHT
 ```
 
 ## Accepted M9 unresolved state
@@ -165,6 +165,34 @@ After future terminal, persisted and read-back Search evidence:
 - Main Chat accepts / holds / reworks.
 
 No partial pair patch.
+
+## Wave-1 local start receipt
+
+Receipt:
+`docs/seo/M9_BOUNDARY_RESOLUTION_WAVE1_START_RECEIPT_2026-09-24_R1.md`
+
+```text
+START_RUNTIME_GATE = PASS
+JOB_ID = octoport-m9br-wave1-20260924-r1
+CONTROL = RUNNING
+TOTAL = 25
+PENDING = 25
+REQUEST_EXECUTED = false
+PROVIDER_CALLS = 0
+REQUESTS_STARTED = 0
+OPERATIONS_ACCEPTED = 0
+POLLS_STARTED = 0
+UNRESOLVED = 25
+REVISION = 0
+```
+
+The actual runtime accepted the released deferred job without a provider call.
+
+Paid `submitN` remains closed until:
+1. official tariff is freshly rechecked immediately before submission;
+2. submit authorization is persisted and read back.
+
+No blind resubmit.
 
 ## Owner relay
 
