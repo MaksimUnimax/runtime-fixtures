@@ -22,6 +22,11 @@ export { createP6AdminCommercialReadRepository } from "./p6-admin-commercial-rea
 export { createAdapterRegistryCatalogRepository } from "./adapter-registry-repository.js";
 export { createProfileLifecycleRepository } from "./p7-profile-lifecycle-repository.js";
 export { createHealthPersistenceRepository } from "./health-persistence-repository.js";
+export { createHealthNoSessionPersistenceRepository } from "./health-no-session-persistence-repository.js";
+export {
+  createHealthNoSessionCompletionAdapter,
+  type NoSessionHealthCompletionResult,
+} from "./health-no-session-completion-adapter.js";
 export { createHealthSchedulerRepository } from "./health-scheduler-repository.js";
 export { createHealthIncidentRepository } from "./health-incident-repository.js";
 export {

@@ -12,6 +12,7 @@
   "dependencies": {
     "@product/api-watch": "workspace:*",
     "@product/db": "workspace:*",
+    "@product/health": "workspace:*",
     "@product/health-runner": "workspace:*",
     "@product/monitoring-control": "workspace:*",
     "@product/shared": "workspace:*",

@@ -17,6 +17,7 @@ import {
   type HealthScheduledRun,
 } from "@product/health";
 import type { DatabaseQuery, DatabaseRuntime } from "./index.js";
+import { createHealthIncidentRepository } from "./health-incident-repository.js";
 
 type ScheduleRow = {
   id: string;
@@ -117,7 +118,16 @@ function staleOwner(): never {
   throw new Error("HEALTH_SCHEDULED_RUN_STALE_OWNER");
 }
 
-export function createHealthSchedulerRepository(runtime: DatabaseRuntime) {
+type HealthIncidentProcessor = {
+  processCompletedHealthRun(runId: string): Promise<unknown>;
+};
+
+export function createHealthSchedulerRepository(
+  runtime: DatabaseRuntime,
+  options: { incidentProcessor?: HealthIncidentProcessor } = {},
+) {
+  const incidents =
+    options.incidentProcessor ?? createHealthIncidentRepository(runtime);
   const repository: DurableHealthSchedulerRepository & {
     createSchedule(input: unknown): Promise<HealthSchedule>;
     getSchedule(scheduleId: string): Promise<HealthSchedule | undefined>;
@@ -408,11 +418,48 @@ export function createHealthSchedulerRepository(runtime: DatabaseRuntime) {
     },
 
     async reconcilePersistedResults(now) {
-      const result = await runtime.query<{ count: string }>(
-        `WITH recovered AS (UPDATE health_scheduled_runs r SET state='SUCCEEDED',finished_at=$1,lease_id=NULL,owner_id=NULL,lease_expires_at=NULL,health_run_id=h.id,health_state=h.health_state,updated_at=$1 FROM health_runs h WHERE h.scheduled_run_id=r.id AND r.state IN ('CLAIMED','RUNNING','TIMED_OUT','FAILED_RETRYABLE') AND r.health_run_id IS NULL RETURNING r.schedule_id) UPDATE health_schedules s SET last_success_at=$1,updated_at=$1 FROM recovered WHERE s.id=recovered.schedule_id RETURNING 1`,
-        [now],
+      const candidates = await runtime.query<{
+        scheduledRunId: string;
+        scheduleId: string;
+        healthRunId: string;
+        healthState: string;
+        runKind: string;
+      }>(
+        `SELECT r.id AS "scheduledRunId",r.schedule_id AS "scheduleId",h.id AS "healthRunId",h.health_state AS "healthState",h.run_kind AS "runKind"
+         FROM health_scheduled_runs r
+         JOIN health_runs h ON h.scheduled_run_id=r.id
+         WHERE r.state IN ('CLAIMED','RUNNING','TIMED_OUT','FAILED_RETRYABLE')
+           AND r.health_run_id IS NULL
+         ORDER BY r.due_slot_at,r.created_at,r.id`,
       );
-      return Number(result.rows.length);
+      let recovered = 0;
+      for (const candidate of candidates.rows) {
+        const healthState = HealthStateSchema.parse(candidate.healthState);
+        if (candidate.runKind === "NO_SESSION_OBSERVATION") {
+          await incidents.processCompletedHealthRun(candidate.healthRunId);
+        }
+        const updated = await runtime.transaction(async (q) => {
+          const result = await q.query<{ scheduleId: string }>(
+            `UPDATE health_scheduled_runs
+             SET state='SUCCEEDED',finished_at=$2,lease_id=NULL,owner_id=NULL,lease_expires_at=NULL,
+                 health_run_id=$3,health_state=$4,updated_at=$2
+             WHERE id=$1
+               AND state IN ('CLAIMED','RUNNING','TIMED_OUT','FAILED_RETRYABLE')
+               AND health_run_id IS NULL
+             RETURNING schedule_id AS "scheduleId"`,
+            [candidate.scheduledRunId, now, candidate.healthRunId, healthState],
+          );
+          const row = result.rows[0];
+          if (!row) return false;
+          await q.query(
+            `UPDATE health_schedules SET last_success_at=$2,updated_at=$2 WHERE id=$1`,
+            [row.scheduleId, now],
+          );
+          return true;
+        });
+        if (updated) recovered += 1;
+      }
+      return recovered;
     },
 
     async getScheduledRun(runId) {

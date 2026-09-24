@@ -182,9 +182,9 @@ describe("TG4 Telegram operator integration hardening", () => {
     await scheduler.start();
     await service.handleUpdate({
       updateId: 1,
-      message: { chatId: "42", userId: "7", text: "/llm_interval 5m" },
+      message: { chatId: "42", userId: "7", text: "/llm_interval 1h" },
     });
-    expect(messages.at(-1)?.text).toContain("interval set to 5m");
+    expect(messages.at(-1)?.text).toContain("interval set to 1h");
     await scheduler.stop();
   });
 
@@ -200,12 +200,21 @@ describe("TG4 Telegram operator integration hardening", () => {
   });
 
   it("TG4-07 invalid interval rejected", async () => {
-    const { service, messages } = await fixture();
+    const { service, messages, scheduler } = await fixture();
+    await scheduler.start();
     await service.handleUpdate({
       updateId: 1,
-      message: { chatId: "42", userId: "7", text: "/llm_interval 1m" },
+      message: { chatId: "42", userId: "7", text: "/llm_interval 5m" },
     });
-    expect(messages.at(-1)?.text).toContain("MONITORING_DURATION_OUT_OF_RANGE");
+    expect(messages.at(-1)?.text).toContain(
+      "HEALTH_SCHEDULE_INTERVAL_OUT_OF_RANGE",
+    );
+    await service.handleUpdate({
+      updateId: 2,
+      message: { chatId: "42", userId: "7", text: "/swagger_interval 5m" },
+    });
+    expect(messages.at(-1)?.text).toContain("interval set to 5m");
+    await scheduler.stop();
   });
 
   it("TG4-08 /llm_run starts exactly one LLM run", async () => {

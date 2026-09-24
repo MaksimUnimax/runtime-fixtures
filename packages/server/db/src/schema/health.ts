@@ -24,6 +24,10 @@ import {
 export const healthSuiteKind = pgEnum("health_suite_kind", [
   "BASELINE_CONTRACT_FIXTURE",
 ]);
+export const healthRunKind = pgEnum("health_run_kind", [
+  "BASELINE_CONTOUR",
+  "NO_SESSION_OBSERVATION",
+]);
 export const healthIncidentStatus = pgEnum("health_incident_status", [
   "OPEN",
   "INVESTIGATING",
@@ -129,12 +133,14 @@ export const healthRuns = pgTable(
   "health_runs",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    suiteRevisionId: uuid("suite_revision_id")
-      .notNull()
-      .references(() => healthSuiteRevisions.id, {
+    runKind: healthRunKind("run_kind").notNull().default("BASELINE_CONTOUR"),
+    suiteRevisionId: uuid("suite_revision_id").references(
+      () => healthSuiteRevisions.id,
+      {
         onDelete: "restrict",
         onUpdate: "restrict",
-      }),
+      },
+    ),
     adapterId: uuid("adapter_id")
       .notNull()
       .references(() => aiAdapters.id, {
@@ -153,10 +159,10 @@ export const healthRuns = pgTable(
     profileRevision: integer("profile_revision").notNull(),
     browserFamily: varchar("browser_family", { length: 32 }).notNull(),
     browserVersion: varchar("browser_version", { length: 64 }).notNull(),
-    extensionVersion: varchar("extension_version", { length: 64 }).notNull(),
+    extensionVersion: varchar("extension_version", { length: 64 }),
     adapterEngineVersion: varchar("adapter_engine_version", {
       length: 64,
-    }).notNull(),
+    }),
     scheduledRunId: uuid("scheduled_run_id"),
     healthLevel: varchar("health_level", { length: 2 }).notNull(),
     healthState: varchar("health_state", { length: 16 }).notNull(),
@@ -210,6 +216,10 @@ export const healthRuns = pgTable(
     check(
       "health_runs_profile_revision_positive",
       sql`${table.profileRevision} > 0`,
+    ),
+    check(
+      "health_runs_kind_shape",
+      sql`(${table.runKind} = 'BASELINE_CONTOUR' AND ${table.suiteRevisionId} IS NOT NULL AND ${table.extensionVersion} IS NOT NULL AND ${table.adapterEngineVersion} IS NOT NULL) OR (${table.runKind} = 'NO_SESSION_OBSERVATION' AND ${table.suiteRevisionId} IS NULL AND ${table.extensionVersion} IS NULL AND ${table.adapterEngineVersion} IS NULL AND ${table.scheduledRunId} IS NOT NULL AND ${table.healthLevel} = 'H2' AND ${table.operatorMaintenance} = false AND ${table.operatorMaintenanceAuthority} IS NULL)`,
     ),
     check(
       "health_runs_browser_family",
@@ -422,6 +432,90 @@ export const healthEvidenceReferences = pgTable(
     check(
       "health_evidence_references_size",
       sql`${table.sizeBytes} IS NULL OR ${table.sizeBytes} BETWEEN 0 AND 10000000`,
+    ),
+  ],
+);
+
+export const healthNoSessionObservations = pgTable(
+  "health_no_session_observations",
+  {
+    runId: uuid("run_id")
+      .primaryKey()
+      .references(() => healthRuns.id, {
+        onDelete: "restrict",
+        onUpdate: "restrict",
+      }),
+    providerId: varchar("provider_id", { length: 32 }).notNull(),
+    observationSurfaceId: varchar("observation_surface_id", {
+      length: 64,
+    }).notNull(),
+    targetKey: varchar("target_key", { length: 64 }).notNull(),
+    strategyId: varchar("strategy_id", { length: 64 }).notNull(),
+    strategyRevision: integer("strategy_revision").notNull(),
+    classification: varchar("classification", { length: 16 }).notNull(),
+    classificationBasis: varchar("classification_basis", {
+      length: 64,
+    }).notNull(),
+    surfaceOutcome: varchar("surface_outcome", { length: 64 }).notNull(),
+    blocker: varchar("blocker", { length: 64 }).notNull(),
+    observedAt: timestamp("observed_at", { withTimezone: true }).notNull(),
+    resultSha256: varchar("result_sha256", { length: 64 }).notNull(),
+    observation: jsonb("observation").notNull(),
+  },
+  (table) => [
+    check(
+      "health_no_session_observations_revision_positive",
+      sql`${table.strategyRevision} > 0`,
+    ),
+    check(
+      "health_no_session_observations_classification",
+      sql`${table.classification} IN ('HEALTHY','DRIFT','DEGRADED','BROKEN','UNKNOWN','MAINTENANCE')`,
+    ),
+    check(
+      "health_no_session_observations_result_sha256",
+      sql`${table.resultSha256} ~ '^[0-9a-f]{64}$'`,
+    ),
+    check(
+      "health_no_session_observations_object",
+      sql`jsonb_typeof(${table.observation}) = 'object' AND pg_column_size(${table.observation}) <= 65536`,
+    ),
+  ],
+);
+
+export const healthNoSessionEvidenceReferences = pgTable(
+  "health_no_session_evidence_references",
+  {
+    evidenceId: uuid("evidence_id").primaryKey(),
+    runId: uuid("run_id")
+      .notNull()
+      .references(() => healthNoSessionObservations.runId, {
+        onDelete: "restrict",
+        onUpdate: "restrict",
+      }),
+    ruleId: varchar("rule_id", { length: 64 }).notNull(),
+    classification: varchar("classification", { length: 32 }).notNull(),
+    sha256: varchar("sha256", { length: 64 }).notNull(),
+    sizeBytes: integer("size_bytes").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    check(
+      "health_no_session_evidence_rule",
+      sql`${table.ruleId} IN ('SAFE_ELEMENT_METADATA','STATE_TRANSITION_TRACE')`,
+    ),
+    check(
+      "health_no_session_evidence_classification",
+      sql`${table.classification} = 'METADATA'`,
+    ),
+    check(
+      "health_no_session_evidence_sha256",
+      sql`${table.sha256} ~ '^[0-9a-f]{64}$'`,
+    ),
+    check(
+      "health_no_session_evidence_size",
+      sql`${table.sizeBytes} BETWEEN 0 AND 4096`,
     ),
   ],
 );

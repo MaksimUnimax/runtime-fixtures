@@ -43,7 +43,7 @@ describe.sequential("canonical product and monitoring migration intake", () => {
             "SELECT count(*)::int AS count FROM drizzle.__drizzle_migrations",
           )
         ).rows,
-      ).toEqual([{ count: 38 }]);
+      ).toEqual([{ count: 39 }]);
       expect(
         (
           await runtime.query(

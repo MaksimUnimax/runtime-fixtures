@@ -1,4 +1,8 @@
 import {
+  DEFAULT_NO_SESSION_CADENCE,
+  HealthScheduleCadenceSchema,
+} from "@product/health";
+import {
   formatMonitoringDuration,
   parseMonitoringDuration,
   type IndependentMonitoringScheduler,
@@ -58,6 +62,23 @@ export type TelegramOperatorOptions = {
 
 function laneLabel(lane: MonitoringLane): string {
   return lane === "LLM" ? "LLM" : "Swagger/API";
+}
+
+function intervalRangeLabel(lane: MonitoringLane): string {
+  return lane === "LLM" ? "1h..7d" : "5m..30d";
+}
+
+function parseLaneInterval(lane: MonitoringLane, raw: string): number {
+  const seconds = parseMonitoringDuration(raw);
+  if (lane === "LLM") {
+    const accepted = HealthScheduleCadenceSchema.safeParse({
+      ...DEFAULT_NO_SESSION_CADENCE,
+      intervalSeconds: seconds,
+    });
+    if (!accepted.success)
+      throw new Error("HEALTH_SCHEDULE_INTERVAL_OUT_OF_RANGE");
+  }
+  return seconds;
 }
 
 function keyboard(lane: MonitoringLane): TelegramKeyboard {
@@ -222,7 +243,7 @@ export class TelegramOperatorService {
       case "help":
         await this.options.transport.sendMessage(
           chatId,
-          "/llm_status, /llm_run, /llm_interval <5m..30d>\n/swagger_status, /swagger_run, /swagger_interval <5m..30d>",
+          "/llm_status, /llm_run, /llm_interval <1h..7d>\n/swagger_status, /swagger_run, /swagger_interval <5m..30d>",
           keyboard("LLM"),
         );
         await this.options.transport.sendMessage(
@@ -284,7 +305,7 @@ export class TelegramOperatorService {
     }
     await this.options.transport.sendMessage(
       chatId,
-      `Use /${lane === "LLM" ? "llm" : "swagger"}_interval <5m..30d>.`,
+      `Use /${lane === "LLM" ? "llm" : "swagger"}_interval <${intervalRangeLabel(lane)}>.`,
       keyboard(lane),
     );
   }
@@ -360,12 +381,12 @@ export class TelegramOperatorService {
     if (!raw) {
       await this.options.transport.sendMessage(
         chatId,
-        `Usage: /${lane === "LLM" ? "llm" : "swagger"}_interval <5m..30d>`,
+        `Usage: /${lane === "LLM" ? "llm" : "swagger"}_interval <${intervalRangeLabel(lane)}>`,
       );
       return;
     }
     try {
-      const seconds = parseMonitoringDuration(raw);
+      const seconds = parseLaneInterval(lane, raw);
       const state = await this.options.scheduler.setInterval(lane, seconds);
       await this.options.transport.sendMessage(
         chatId,
@@ -377,7 +398,7 @@ export class TelegramOperatorService {
         error instanceof Error ? error.message : "INVALID_MONITORING_DURATION";
       await this.options.transport.sendMessage(
         chatId,
-        `${code}: use a duration from 5m through 30d.`,
+        `${code}: use ${intervalRangeLabel(lane)}.`,
       );
     }
   }

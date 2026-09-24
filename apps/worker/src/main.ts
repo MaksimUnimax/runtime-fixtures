@@ -16,6 +16,7 @@ import { DeviceAuthorizationExpiryRunner } from "./device-authorization-expiry-r
 import { CompositeJobRunner } from "./composite-runner.js";
 import { SubscriptionLifecycleRunner } from "./subscription-lifecycle-runner.js";
 import { FeedbackRetentionRunner } from "./feedback-retention-runner.js";
+import { createHealthNotificationJobRunner } from "./health-notification-runtime.js";
 import {
   AuditRetentionRunner,
   adminAuditRetentionEnabled,
@@ -29,43 +30,49 @@ export class NoopJobRunner implements JobRunner {
 const config = loadConfig(process.env);
 const logger = createLogger(config.logLevel);
 const database = createDatabaseRuntime(config.databaseUrl);
+const healthNotificationRunner = createHealthNotificationJobRunner(
+  database,
+  process.env,
+);
+const runners: JobRunner[] = [
+  new OtpEmailRunner(
+    database,
+    deriveAuthKeys(loadAuthRootSecret(process.env)),
+    new SmtpEmailProvider(loadSmtpConfig(process.env)),
+  ),
+  new DeviceAuthorizationExpiryRunner(
+    createDeviceAuthorizationRepository(database),
+  ),
+  new SubscriptionLifecycleRunner(
+    createP5SubscriptionLifecycleRepository(database),
+  ),
+  new FeedbackRetentionRunner(
+    createFeedbackSupportRepository(database),
+    loadFeedbackRetentionConfig(process.env),
+    undefined,
+    undefined,
+    (error) => logger.error({ err: error }, "Feedback retention purge failed"),
+  ),
+  ...(adminAuditRetentionEnabled(process.env)
+    ? [
+        new AuditRetentionRunner(
+          createAuditRetentionRepository(database),
+          undefined,
+          undefined,
+          (error) =>
+            logger.error(
+              { err: error },
+              "Administrative audit retention failed",
+            ),
+        ),
+      ]
+    : []),
+];
+if (healthNotificationRunner) runners.push(healthNotificationRunner);
+
 const runtime = await startWorker(
   database,
-  new CompositeJobRunner([
-    new OtpEmailRunner(
-      database,
-      deriveAuthKeys(loadAuthRootSecret(process.env)),
-      new SmtpEmailProvider(loadSmtpConfig(process.env)),
-    ),
-    new DeviceAuthorizationExpiryRunner(
-      createDeviceAuthorizationRepository(database),
-    ),
-    new SubscriptionLifecycleRunner(
-      createP5SubscriptionLifecycleRepository(database),
-    ),
-    new FeedbackRetentionRunner(
-      createFeedbackSupportRepository(database),
-      loadFeedbackRetentionConfig(process.env),
-      undefined,
-      undefined,
-      (error) =>
-        logger.error({ err: error }, "Feedback retention purge failed"),
-    ),
-    ...(adminAuditRetentionEnabled(process.env)
-      ? [
-          new AuditRetentionRunner(
-            createAuditRetentionRepository(database),
-            undefined,
-            undefined,
-            (error) =>
-              logger.error(
-                { err: error },
-                "Administrative audit retention failed",
-              ),
-          ),
-        ]
-      : []),
-  ]),
+  new CompositeJobRunner(runners),
   logger,
 );
 
