@@ -11,6 +11,7 @@ import type { JobRunner } from "./lifecycle.js";
 /** Independent monitoring job; product Work execution does not depend on it. */
 export class HealthNotificationRunner implements JobRunner {
   private timer: NodeJS.Timeout | undefined;
+  private inFlight: Promise<boolean> | undefined;
   private readonly repository: ReturnType<
     typeof createHealthNotificationRepository
   >;
@@ -19,8 +20,10 @@ export class HealthNotificationRunner implements JobRunner {
     database: DatabaseRuntime,
     private readonly provider: NotificationDeliveryPort,
     private readonly intervalMs = 5_000,
+    repository?: ReturnType<typeof createHealthNotificationRepository>,
   ) {
-    this.repository = createHealthNotificationRepository(database);
+    this.repository =
+      repository ?? createHealthNotificationRepository(database);
   }
 
   async start(): Promise<void> {
@@ -31,11 +34,23 @@ export class HealthNotificationRunner implements JobRunner {
   async stop(): Promise<void> {
     if (this.timer) clearInterval(this.timer);
     this.timer = undefined;
+    if (this.inFlight) await this.inFlight;
   }
 
   async tick(
     ownerId = `health-notification-worker:${process.pid}`,
   ): Promise<boolean> {
+    if (this.inFlight) return false;
+    const work = this.tickOnce(ownerId);
+    this.inFlight = work;
+    try {
+      return await work;
+    } finally {
+      if (this.inFlight === work) this.inFlight = undefined;
+    }
+  }
+
+  private async tickOnce(ownerId: string): Promise<boolean> {
     const intent = await this.repository.claimDue({ ownerId });
     if (!intent) return false;
     if (!intent.claimToken) throw new Error("NOTIFICATION_CLAIM_TOKEN_MISSING");
