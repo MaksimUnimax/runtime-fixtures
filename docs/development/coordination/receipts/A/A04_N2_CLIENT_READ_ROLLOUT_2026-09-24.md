@@ -1,12 +1,13 @@
 # A04 / N2 client read rollout — 2026-09-24
 
 Role: A
-Status: **SOURCE + PACKAGE VERIFIED / READY FOR C INTEGRATION REVIEW / NOT LIVE**
+Status: **SOURCE + PACKAGE VERIFIED / INTEGRATED IN MAIN / NOT LIVE**
 Server-first prerequisite in main: `f11b3d5918fd69bc313c9e6609516bc11c7f25ae`
 Final merged main head used by this candidate: `42a4c96ed5d4d738d56b2041b16b1dc50708d67b`
 Product commit: `e94457a7467e14ee4cdb838cdcfded7cc6111017`
 Test-only follow-up: `76bf057f6bfb91c014718bb21456d6899e92c459`
 Final tested merge head: `742848f47c3d9076575643c4eee8f587e9cf27d5`
+Main integration commits: `7cab8bc1a5ce872e733f860c76f93b98a898f2ad` (product), `9708305e85659b872a1a195194f0862e35e6734a` (test), `4ae52bb7d79ca02487cf70f9966dac5530c14e8f` (receipt).
 
 ## Implemented boundary
 
