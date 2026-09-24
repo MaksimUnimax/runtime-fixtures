@@ -1,0 +1,189 @@
+{
+  "schema": "OCTOPORT_M10A_SEARCH_ONLY_PAGE_IA_INPUT_MANIFEST_V1",
+  "work_id": "OCTOPORT_SEO_M10A_SEARCH_ONLY_PAGE_IA_BASELINE_2026-09-24_R1",
+  "date": "2026-09-24",
+  "repository": "MaksimUnimax/runtime-fixtures",
+  "branch": "seo/wordstat-batch-01-2026-09-16",
+  "preparation_parent_head": "769b42a64dc30e58af3a1bdc3566b1624af955bf",
+  "purpose": "Freeze the Search-only query-to-page / IA baseline before any Alice/AI diagnostic selection or acquisition, preserving all accepted M9 explicit HOLDs and current physical site surfaces without inventing page owners or planned pages.",
+  "method_authority": [
+    {
+      "path": "docs/seo/LEVEL2/M5_M10_SEARCH_ONLY_AND_ALICE_SEQUENCE_RULES.md",
+      "blob": "2c63e4228f9cc6f2d26555fcb02d445baafb1000"
+    },
+    {
+      "path": "docs/seo/LEVEL2/M9_M11_CLUSTER_IA_RULES.md",
+      "blob": "2f87943fbe9037c58276d2dd3a805d070bd070a4"
+    },
+    {
+      "path": "docs/seo/WORK_HANDOFF_RULE.md",
+      "blob": "71a031e74b921dade5998beb842fb3afcc4478e7"
+    },
+    {
+      "path": "docs/seo/M10A_STEP_PREPARATION_2026-09-24_R1.md",
+      "blob": "ea07a677d59150f6519a8893c135eb0f81d496a7"
+    }
+  ],
+  "frozen_inputs": [
+    {
+      "path": "docs/seo/M9_TERMINAL_HOLD_RECONCILIATION_MAIN_CHAT_ACCEPTANCE_2026-09-24_R1.md",
+      "blob": "f35e5132d64ade78ce6c8fb8a2aea2292f41c02a",
+      "role": "M9_TERMINAL_ACCEPTANCE"
+    },
+    {
+      "path": "docs/seo/work_return/M9_TERMINAL_HOLD_RECONCILIATION_2026-09-24_R1/M9H_M10A_CARRY_FORWARD.tsv",
+      "blob": "8fbc7b9669b19838a58efa7a6d8213dbc073b707",
+      "role": "M10A_EXPLICIT_HOLD_CARRY",
+      "expected_rows": 104
+    },
+    {
+      "path": "docs/seo/work_return/M9_TERMINAL_HOLD_RECONCILIATION_2026-09-24_R1/M9H_MATERIAL_HOLD_DISPOSITION.tsv",
+      "blob": "6aba4c4716d57605af9f2ae3b11b77db701d8ba1",
+      "role": "M10A_CANNIBALIZATION_BOUNDARY_AUTHORITY",
+      "expected_rows": 1399
+    },
+    {
+      "path": "docs/seo/work_return/M9_BOUNDARY_RESOLUTION_FULL_RERUN_2026-09-24_R2/M9_CLUSTER_MASTER.tsv",
+      "blob": "5d9d86bf87a3c6306db496a577b954ea0cfe4efc",
+      "role": "M9_CLUSTER_MASTER",
+      "expected_rows": 104
+    },
+    {
+      "path": "docs/seo/work_return/M9_BOUNDARY_RESOLUTION_FULL_RERUN_2026-09-24_R2/M9_CLUSTER_MEMBERSHIP.tsv",
+      "blob": "7df5d573e823c3eea49f0010ad13b78d0a396215",
+      "role": "M9_CLUSTER_MEMBERSHIP",
+      "expected_rows": 104
+    },
+    {
+      "path": "docs/seo/PRODUCT_TRUTH.md",
+      "blob": "6a469d5743142d3e476afa5d2cda653fd411ecb8",
+      "role": "PRODUCT_TRUTH"
+    },
+    {
+      "path": "docs/seo/technical/M1_LIVE_MEASUREMENT_BASELINE_2026-09-23_R1.md",
+      "blob": "f13d34fe7c29746a4ee275935432a29689dcf1df",
+      "role": "ACCEPTED_PRELAUNCH_SITE_BASELINE"
+    },
+    {
+      "path": "docs/seo/M10A_CURRENT_SITE_SOURCE_OVERLAY_2026-09-24_R1.md",
+      "blob": "b5f41ff4d0db562cc2346b672e412880585188ef",
+      "role": "CURRENT_SITE_SOURCE_OVERLAY"
+    }
+  ],
+  "current_site_source": {
+    "repository": "MaksimUnimax/runtime-fixtures",
+    "branch": "main",
+    "head": "f079c2e7199250397259ea9ede10a4f72694f5c1",
+    "live_deployment_claim": false,
+    "surfaces": [
+      {
+        "path": "apps/site/public/index.html",
+        "blob": "3123a714e2092fb156eebe498ef97bb5969567f6",
+        "canonical": "https://octoport.ru/",
+        "source_role": "PRELAUNCH_PRODUCT_LANDING_FOUNDATION"
+      },
+      {
+        "path": "apps/site/public/install.html",
+        "blob": "99bc456742375219779ae9c611580e389b81c7a1",
+        "canonical": "https://octoport.ru/install",
+        "source_role": "INSTALLATION_STATUS_HELP"
+      },
+      {
+        "path": "apps/site/public/privacy.html",
+        "blob": "bb975f29e3fbe8e1cfeb1fa19f397f9e5dc1f101",
+        "canonical": "https://octoport.ru/privacy",
+        "source_role": "PRIVACY_DATA_HANDLING"
+      },
+      {
+        "path": "apps/site/public/support.html",
+        "blob": "2ebb8fdab73c50d98a3af70198f98813cbab942b",
+        "canonical": "https://octoport.ru/support",
+        "source_role": "SUPPORT_BETA_HELP"
+      }
+    ],
+    "robots": {
+      "path": "apps/site/public/robots.txt",
+      "blob": "446df898e31b99b230e8a49a7c94a45e4df96228"
+    },
+    "sitemap": {
+      "path": "apps/site/public/sitemap.xml",
+      "blob": "fdceb2ff477941104373850846c33bac2a5d3ced",
+      "listed_urls": [
+        "https://octoport.ru/"
+      ]
+    }
+  },
+  "expected": {
+    "existing_site_surface_rows": 4,
+    "cluster_rows": 104,
+    "cluster_state_hold_boundary": 104,
+    "carry_search_only_hold_to_m10a": 104,
+    "current_search_anchors": 65,
+    "no_current_exact_serp": 39,
+    "material_hold_pairs": 1399,
+    "search_owner_hold_rows": 104,
+    "page_role_hold_rows": 104,
+    "existing_search_owner_assignments": 0,
+    "planned_search_page_create_authorizations": 0,
+    "parent_child_ia_assignments": 0,
+    "internal_link_owner_contracts": 0,
+    "hold_page_ownership_boundary_rows": 1399
+  },
+  "closed_vocabulary": {
+    "search_owner_state": [
+      "HOLD_NO_SEARCH_ONLY_OWNER"
+    ],
+    "provisional_primary_page_owner": [
+      "NONE_HOLD"
+    ],
+    "page_role_type": [
+      "HOLD_NOT_AUTHORIZED_BY_SEARCH_ONLY_BASELINE"
+    ],
+    "existing_page_relation": [
+      "NO_EXISTING_SEARCH_OWNER_ASSIGNED"
+    ],
+    "planned_page_relation": [
+      "NO_PLANNED_SEARCH_PAGE_AUTHORIZED"
+    ],
+    "parent_child_ia_state": [
+      "HOLD_NOT_AUTHORIZED"
+    ],
+    "internal_link_responsibility_state": [
+      "HOLD_NOT_AUTHORIZED"
+    ],
+    "boundary_state": [
+      "HOLD_PAGE_OWNERSHIP_BOUNDARY"
+    ],
+    "current_site_surface_search_owner_state": [
+      "CURRENT_PHYSICAL_SURFACE_ONLY_NO_M9_SEARCH_OWNER_IMPLIED"
+    ]
+  },
+  "immutable_authority": [
+    "M9 cluster IDs",
+    "M9 cluster states",
+    "M9 cluster membership",
+    "M9 primary jobs/intents/scopes/product boundaries",
+    "M9H material HOLD exact pair set",
+    "M9H anchor/query states",
+    "M9H carry-forward state"
+  ],
+  "prohibited": [
+    "ALICE_INPUT",
+    "AI_PROVIDER_EVIDENCE",
+    "FINAL_AI_CASE_SELECTION",
+    "PROVIDER_CALLS",
+    "WEB_ACQUISITION_BY_WORK",
+    "GITHUB_WRITES_BY_WORK",
+    "SITE_MUTATION",
+    "M9_CLUSTER_CHANGE",
+    "M9_BOUNDARY_CHANGE",
+    "SEARCH_OWNER_ASSIGNMENT",
+    "NEW_PLANNED_SEARCH_PAGE",
+    "URL_H1_TITLE_DECISION",
+    "M10B_EXECUTION",
+    "M10C_EXECUTION",
+    "M10D_EXECUTION",
+    "M11_EXECUTION"
+  ],
+  "gate_rule": "M10A passes only if all 104 clusters have an explicit Search-only owner hypothesis or HOLD. Under accepted current authority all 104 are explicit HOLDs, no Search owner/page role/new page/IA/link ownership is authorized, all 1399 cannibalization boundaries remain HOLD, current physical surfaces are recorded without being assigned M9 ownership, and no AI evidence is used."
+}
