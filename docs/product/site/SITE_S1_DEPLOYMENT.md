@@ -1,8 +1,8 @@
 # Octoport SITE-S1 static deployment
 
-Status: PREPARED / NOT DEPLOYED
+Status: LIVE; site/application ingress separated on 2026-09-24
 
-SITE-S1 turns the already-accepted static public-site source into a reproducible nginx deployment, but repository preparation is not production activation.
+SITE-S1 publishes the static public site. The 2026-09-24 recovery preserves the deployed portal/API independently; see [the recovery receipt](../../operations/OCTOPORT_SITE_INGRESS_RECOVERY_2026-09-24.md). Repository/CI evidence and live recovery remain separate acceptance levels.
 
 ## Runtime boundary
 
@@ -24,10 +24,12 @@ SITE-S1 changes only the public apex behavior after deployment:
 
 - `https://octoport.ru/` -> static public site;
 - `https://www.octoport.ru/*` -> permanent redirect to canonical apex;
-- `https://app.octoport.ru/` -> remains explicit `503` until portal deployment;
-- `https://api.octoport.ru/` -> remains explicit JSON `503` until API deployment;
+- `https://app.octoport.ru/` -> existing portal at loopback port 3100;
+- `https://api.octoport.ru/` -> existing API at loopback port 3000;
 - `admin.octoport.ru` -> remains disabled as an nginx application hostname;
 - `docs.selleragents.ru` -> must remain operational and keep its own certificate.
+
+The site deployer owns `octoport-site.conf` only (public-site HTTPS and shared HTTP/ACME redirects, including mail). Existing app/API HTTPS routes live separately in `octoport-apps.conf`. Its repository template records the accepted topology; application ingress is installed by a separately authorized application deployment/recovery, never by the static-site script. An existing separate application config is required before site deployment. Do not run historical site scripts that expect application 503 placeholders.
 
 ## Safety design
 
@@ -35,15 +37,17 @@ SITE-S1 changes only the public apex behavior after deployment:
 
 - root execution on the accepted server;
 - clean repository checkout;
+- exclusive site-deployment lock and existing separate application ingress;
+- static-only nginx source with no application proxy/placeholder blocks;
 - expected public IPv4 and DNS resolution;
 - accepted Octoport certificate with at least seven days remaining;
 - active nginx and certbot timer;
 - valid source files and closed-beta copy;
 - an existing `current` path only if it is a symlink.
 
-Before changing live state it creates a root-only backup under `/var/backups/octoport-site/<UTC-stamp>/` containing the previous Octoport nginx configs and previous current-release target.
+Before changing live state it creates a root-only backup under `/var/backups/octoport-site/<UTC-stamp>/` containing only the previous site/predeploy nginx configs, previous current-release target, and the application-config hash. It never backs up/restores application configs as part of a site transaction.
 
-On any failure after the backup boundary it captures diagnostics and restores the previous nginx/current state. The deployment uses nginx reload, not restart, and contains no recursive forced cleanup of releases.
+On any failure after the backup boundary it captures diagnostics and restores the previous site nginx/current state. Application-config changes are detected before installation and before success; rollback preserves the current application config, including independent application maintenance. The deployment uses nginx reload, not restart, and contains no recursive forced cleanup of releases.
 
 ## Header/cache invariant
 
@@ -56,10 +60,12 @@ The live verifier explicitly checks this inheritance on `styles.css`.
 Repository preparation must pass:
 
 - `Site CI`;
-- `Site Deploy CI`;
+- `Site Deploy CI`, including disposable-filesystem install/rollback and negative route checks;
 - Documentation CI;
 - architect readback of the final diff against current `main`.
 
 Server execution is a separate action performed only after source acceptance. Successful server execution must run the deploy script and then the verifier again, recording exact checkout SHA, backup path, release target, HTTP/HTTPS matrix, security headers, TLS/SNI result, old docs preservation and nginx state.
 
-Until that server execution is accepted, `octoport.ru` remains on the DOMAIN-D2 intentional `503` behavior.
+The current live verifier requires 200 for all four public pages, portal root/login and API live/ready health with valid response bodies. It also requires the anonymous portal-to-API accounts request to return 401 with `AUTH_SESSION_INVALID`. A 503 placeholder is a deployment failure. These read-only checks do not claim successful email delivery, OTP login or installed-extension acceptance.
+
+Current recovery kept the existing static release `1761e2f92841a2aa3ca8b10e8bee0e3c74e7700e` and all four public page bodies unchanged. The revised deployment script is tested separately in disposable paths; the recovery was a bounded nginx config replacement/reload, not a new application or static-content deployment.
