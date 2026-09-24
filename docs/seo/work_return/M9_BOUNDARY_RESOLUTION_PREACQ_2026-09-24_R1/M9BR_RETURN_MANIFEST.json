@@ -1,0 +1,80 @@
+{
+  "schema": "OCTOPORT_M9BR_RETURN_MANIFEST_V1",
+  "work_id": "OCTOPORT_SEO_M9_BOUNDARY_RESOLUTION_PREACQ_2026-09-24_R1",
+  "start_head": "3903b57bf9bd64b2b06e79d74f30cd936c5dceb7",
+  "end_observed_head": "3903b57bf9bd64b2b06e79d74f30cd936c5dceb7",
+  "authority_drift_status": "NONE_FROZEN_INPUTS_UNCHANGED",
+  "verdict": "PASS_PREACQ_PLANNING_ONLY",
+  "eight_nonself_outputs": [
+    {
+      "name": "M9BR_SOURCE_MANIFEST.md",
+      "utf8_bytes": 4738,
+      "sha256": "78bb572407c05689590cdedd2f564a60b87b017dab0cf93bb6803aefe926f9ea",
+      "line_count": 52
+    },
+    {
+      "name": "M9BR_IDENTITY_DISPOSITION.tsv",
+      "utf8_bytes": 63307,
+      "sha256": "342c8ea2eb74b18a5d8c5b79a735b2e4aa630b1f57738b4a000701a31dad262b",
+      "line_count": 105,
+      "data_row_count": 104
+    },
+    {
+      "name": "M9BR_BOUNDARY_IMPACT_LEDGER.tsv",
+      "utf8_bytes": 195621,
+      "sha256": "23b499dc3cc2291e9e8c06fca01743f10e865183a6b640d6be931fdbae09373d",
+      "line_count": 83,
+      "data_row_count": 82
+    },
+    {
+      "name": "M9BR_WAVE1_QUERY_MANIFEST.tsv",
+      "utf8_bytes": 48049,
+      "sha256": "cb51eab2c05127bcc0fc14e236ac0ee700417bc2af9b00a194f6a8b501a1ffcd",
+      "line_count": 26,
+      "data_row_count": 25
+    },
+    {
+      "name": "M9BR_DEFERRED_OR_PERSISTENT_HOLD.tsv",
+      "utf8_bytes": 32045,
+      "sha256": "b28867e22cadba44aeda99a114fb1d8244a34c9cbfdecbacd5c66228b69576a9",
+      "line_count": 58,
+      "data_row_count": 57
+    },
+    {
+      "name": "M9BR_PROVIDER_RELEASE_PLAN.tsv",
+      "utf8_bytes": 77310,
+      "sha256": "0333386fbedf437ae1bd898d391087a62178e98c15c71baa49d52ed52250e682",
+      "line_count": 26,
+      "data_row_count": 25
+    },
+    {
+      "name": "M9BR_ADVERSARIAL_DIAGNOSTIC.tsv",
+      "utf8_bytes": 5337,
+      "sha256": "99da74a5b2a2f6c9b0018d3466f73923d561add43c0d74550cae930fc29eaf67",
+      "line_count": 15,
+      "data_row_count": 14
+    },
+    {
+      "name": "M9BR_QA.md",
+      "utf8_bytes": 5695,
+      "sha256": "1bc91591345c9ea5c80ececff6f3e848df598bf97c14490e033a434796e499dd",
+      "line_count": 107
+    }
+  ],
+  "self_hash_exclusion": "This manifest is intentionally not hashed within itself.",
+  "zip_members_expected": [
+    "M9BR_SOURCE_MANIFEST.md",
+    "M9BR_IDENTITY_DISPOSITION.tsv",
+    "M9BR_BOUNDARY_IMPACT_LEDGER.tsv",
+    "M9BR_WAVE1_QUERY_MANIFEST.tsv",
+    "M9BR_DEFERRED_OR_PERSISTENT_HOLD.tsv",
+    "M9BR_PROVIDER_RELEASE_PLAN.tsv",
+    "M9BR_ADVERSARIAL_DIAGNOSTIC.tsv",
+    "M9BR_QA.md",
+    "M9BR_RETURN_MANIFEST.json"
+  ],
+  "provider_calls": 0,
+  "bridge_commands": 0,
+  "web_acquisition": 0,
+  "github_writes": 0
+}
