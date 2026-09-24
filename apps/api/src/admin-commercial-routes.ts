@@ -34,6 +34,7 @@ import {
   OverrideSetBodySchema,
   OverrideClearBodySchema,
   CompatibilityPublishBodySchema,
+  ConfigReleasePublishBodySchema,
   ExtensionReleasePublishBodySchema,
 } from "@product/admin-commercial";
 import type { AdminPermission } from "@product/admin-auth";
@@ -744,6 +745,57 @@ export function registerAdminCommercialRoutes(
           ...ctx(s, r, r.body.reason),
         }),
       ),
+  );
+  post(
+    "/v1/admin/compatibility/config-releases/publish",
+    "compatibility.manage",
+    { body: ConfigReleasePublishBodySchema },
+    async (r, s) => {
+      const body = ConfigReleasePublishBodySchema.parse(r.body);
+      try {
+        return await service.publishConfigRelease({
+          ...body,
+          ...ctx(s, r, body.reason),
+        });
+      } catch (e) {
+        const message =
+          e && typeof e === "object" && "message" in e
+            ? String((e as { message: unknown }).message)
+            : "";
+        const code =
+          e && typeof e === "object" && "code" in e
+            ? String((e as { code: unknown }).code)
+            : "";
+        if (
+          message === "P3_CONFIG_BASE_NOT_FOUND" ||
+          message === "P3_SIGNING_KEY_NOT_FOUND" ||
+          message === "P3_POLICY_SOURCE_MISSING" ||
+          message === "P3_FEATURE_RULE_SOURCE_MISSING" ||
+          message === "P3_ROLLOUT_SOURCE_MISSING"
+        )
+          throw new ControlledError(
+            "ADMIN_RESOURCE_NOT_FOUND",
+            "Admin resource not found",
+            404,
+          );
+        if (
+          message === "P3_CONFIG_BASE_STALE" ||
+          message === "P3_CONFIG_BASE_INVALID" ||
+          message === "P3_CONFIG_LINK_NO_CHANGE" ||
+          message.startsWith("P3_SIGNING_KEY_") ||
+          message.startsWith("P3_POLICY_SOURCE_") ||
+          message.startsWith("P3_FEATURE_RULE_SOURCE_") ||
+          message.startsWith("P3_ROLLOUT_SOURCE_") ||
+          code === "23505"
+        )
+          throw new ControlledError(
+            "ADMIN_CONFLICT",
+            "Admin operation conflicts with current state",
+            409,
+          );
+        throw e;
+      }
+    },
   );
   post(
     "/v1/admin/compatibility/policies/:policy_key/publish",
