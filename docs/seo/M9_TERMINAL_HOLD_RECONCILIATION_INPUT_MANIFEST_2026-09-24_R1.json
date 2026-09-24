@@ -1,0 +1,105 @@
+{
+  "schema": "OCTOPORT_M9_TERMINAL_SEARCH_HOLD_RECONCILIATION_INPUT_MANIFEST_V1",
+  "work_id": "OCTOPORT_SEO_M9_TERMINAL_HOLD_RECONCILIATION_2026-09-24_R1",
+  "date": "2026-09-24",
+  "repository": "MaksimUnimax/runtime-fixtures",
+  "branch": "seo/wordstat-batch-01-2026-09-16",
+  "preparation_parent_head": "95b87780586c57a39393c4c131c416cd2897f51b",
+  "purpose": "Close the Search-only boundary-resolution loop without changing accepted M9 pair or cluster authority. Classify every accepted material HOLD and every remaining non-anchor identity by current Search-provider information gain / exact-query authority, define explicit HOLD carry-forward and reopen triggers, and produce the gate recommendation for M10A. No provider execution.",
+  "accepted_r2": {
+    "acceptance_path": "docs/seo/M9_BOUNDARY_RESOLUTION_RERUN_MAIN_CHAT_ACCEPTANCE_2026-09-24_R2.md",
+    "acceptance_blob": "2b5f6c0a29397de23abe21f3f36eb0ab6d9035b2",
+    "pairwise_path": "docs/seo/work_return/M9_BOUNDARY_RESOLUTION_FULL_RERUN_2026-09-24_R2/M9_PAIRWISE_CLUSTER_EVIDENCE.tsv",
+    "pairwise_blob": "a63c0db1ff57bdc922147057542c0a936a70b0b6",
+    "hold_path": "docs/seo/work_return/M9_BOUNDARY_RESOLUTION_FULL_RERUN_2026-09-24_R2/M9_HOLD_BOUNDARY_LEDGER.tsv",
+    "hold_blob": "09e73bb2b89c03b77a1e4fc88aba801e90c01c60",
+    "eligibility_path": "docs/seo/work_return/M9_BOUNDARY_RESOLUTION_FULL_RERUN_2026-09-24_R2/M9_IDENTITY_ELIGIBILITY_LEDGER.tsv",
+    "eligibility_blob": "dd4d9b5f4870fa71560109e77598cfacf9eb6e17",
+    "cluster_master_path": "docs/seo/work_return/M9_BOUNDARY_RESOLUTION_FULL_RERUN_2026-09-24_R2/M9_CLUSTER_MASTER.tsv",
+    "cluster_master_blob": "5d9d86bf87a3c6306db496a577b954ea0cfe4efc",
+    "membership_path": "docs/seo/work_return/M9_BOUNDARY_RESOLUTION_FULL_RERUN_2026-09-24_R2/M9_CLUSTER_MEMBERSHIP.tsv",
+    "membership_blob": "7df5d573e823c3eea49f0010ad13b78d0a396215"
+  },
+  "supporting_authority": [
+    {
+      "path": "docs/seo/work_return/M9_BOUNDARY_RESOLUTION_PREACQ_2026-09-24_R1/M9BR_IDENTITY_DISPOSITION.tsv",
+      "blob": "8a46d21e01bd732c1c982edda287f78d52c5e2ee",
+      "role": "ORIGINAL_QUERY_FORM_AND_PREACQ_DISPOSITION"
+    },
+    {
+      "path": "docs/seo/M9_BOUNDARY_RESOLUTION_WAVE2_QUERY_MANIFEST_2026-09-24_R1.tsv",
+      "blob": "d0dacd0068d92ff5a68644e5fb203e5e988a8fcf",
+      "role": "WAVE2_EXECUTED_EXACT_QUERY_SET"
+    },
+    {
+      "path": "docs/seo/M9_BOUNDARY_RESOLUTION_SEARCH_ANCHOR_MAP_2026-09-24_R2.tsv",
+      "blob": "32b6ec36c1707808519d7f885f511f4258f117e1",
+      "role": "CURRENT_65_ANCHOR_MAP"
+    },
+    {
+      "path": "docs/seo/M9_PROGRESS.md",
+      "blob": "57209073890db7f577cbbd33992b86950ee0c8a5",
+      "role": "CURRENT_CURSOR"
+    }
+  ],
+  "expected": {
+    "material_hold_pairs": 1399,
+    "anchor_to_anchor_material_hold": 477,
+    "anchor_to_nonanchor_material_hold": 613,
+    "nonanchor_to_nonanchor_material_hold": 309,
+    "current_search_anchors": 65,
+    "nonanchor_identities": 39,
+    "nonanchor_page_title_or_source_phrase": 33,
+    "nonanchor_ambiguous_query_form": 5,
+    "nonanchor_demand_or_tested_exact_query": 1,
+    "nonanchor_with_positive_material_hold_degree": 38,
+    "nonanchor_with_zero_material_hold_degree": 1,
+    "expected_terminal_current_search_conflict_pairs": 477,
+    "expected_hold_no_safe_exact_query_authority_pairs": 922,
+    "expected_current_authorized_search_provider_calls": 0,
+    "cluster_rows": 104,
+    "cluster_state_hold_boundary": 104
+  },
+  "immutable_authority": [
+    "M9 pair decisions",
+    "M9 pair reason codes",
+    "M9 frozen non-Search pair relations",
+    "M9 Search overlap metrics",
+    "M9 cluster IDs",
+    "M9 cluster states",
+    "M9 cluster membership"
+  ],
+  "material_hold_classification_vocabulary": [
+    "TERMINAL_CURRENT_SEARCH_CONFLICT",
+    "HOLD_NO_SAFE_EXACT_QUERY_AUTHORITY"
+  ],
+  "nonanchor_identity_classification_vocabulary": [
+    "PERSISTENT_HOLD_NO_EXACT_QUERY_PROBE",
+    "QUERY_FORM_AMBIGUOUS_HOLD",
+    "NO_INCREMENTAL_GAIN_EXACT_QUERY"
+  ],
+  "carry_forward_state": "CARRY_SEARCH_ONLY_HOLD_TO_M10A",
+  "reopen_trigger_classes": [
+    "NEW_ACCEPTED_EXACT_QUERY_AUTHORITY",
+    "NEW_CURRENT_SEARCH_EVIDENCE",
+    "OWNER_RESOLVED_QUERY_FORM",
+    "LATER_CAUSAL_AI_DELTA_AFTER_SEARCH_BASELINE"
+  ],
+  "gate_rule": "Recommend M10A_SEARCH_BASELINE_GATE=OPEN_WITH_EXPLICIT_HOLDS only if all 1399 material HOLDs and all 39 non-anchor identities are accounted, no current safe exact-query candidate has positive material-HOLD information gain, authorized provider calls are zero, and no accepted M9 pair/cluster authority is changed.",
+  "prohibited": [
+    "PROVIDER_CALLS",
+    "BRIDGE_COMMANDS",
+    "WORDSTAT_EXECUTION",
+    "YANDEX_SEARCH_EXECUTION",
+    "ALICE_EXECUTION",
+    "GENSEARCH_EXECUTION",
+    "WEB_ACQUISITION",
+    "GITHUB_WRITES",
+    "PAIR_DECISION_CHANGE",
+    "PAIR_REASON_CHANGE",
+    "SEARCH_OVERLAP_CHANGE",
+    "CLUSTER_CHANGE",
+    "M10A_PAGE_OWNERSHIP_EXECUTION",
+    "URL_H1_TITLE_IA"
+  ]
+}
