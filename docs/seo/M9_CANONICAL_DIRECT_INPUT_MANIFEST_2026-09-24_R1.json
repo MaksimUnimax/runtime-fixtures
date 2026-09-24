@@ -1,0 +1,152 @@
+{
+  "schema": "OCTOPORT_M9_CANONICAL_DIRECT_INPUT_MANIFEST_V1",
+  "work_id": "OCTOPORT_SEO_M9_SEARCH_ONLY_CLUSTERING_2026-09-24_R1",
+  "date": "2026-09-24",
+  "repository": "MaksimUnimax/runtime-fixtures",
+  "branch": "seo/wordstat-batch-01-2026-09-16",
+  "source_head": "017afcdfe9f4d11dbecac671226463bf9bb840d6",
+  "rule": "M9 clusters only accepted M8 WORKING identities. REVIEW_HOLD/EXCLUDED/BRAND_DEFENSE remain accounted but are not ordinary clustering candidates. Files outside this manifest are audit fallback only unless the step contract explicitly authorizes them.",
+  "eligibility": {
+    "semantic_identity_rows": 7913,
+    "clustering_eligible_working": 104,
+    "carried_review_hold": 5064,
+    "excluded_not_clustered": 2737,
+    "brand_defense_not_clustered": 8,
+    "exact_organic_query_observed_working": 22,
+    "no_exact_organic_query_observation_working": 82,
+    "pairwise_working_pairs": 5356,
+    "both_exact_serp_pairs": 231,
+    "one_exact_serp_pairs": 1804,
+    "no_exact_serp_pairs": 3321
+  },
+  "prohibited": {
+    "alice_or_ai_search": true,
+    "m5_hypothesis_semantic_use": true,
+    "m8_review_hold_as_cluster_member": true,
+    "m8_excluded_as_cluster_member": true,
+    "m8_brand_defense_as_ordinary_cluster_member": true,
+    "new_provider_or_web_acquisition": true
+  },
+  "files": [
+    {
+      "path": "docs/seo/PRODUCT_TRUTH.md",
+      "git_blob_sha": "6a469d5743142d3e476afa5d2cda653fd411ecb8",
+      "bytes": 14268,
+      "role": "PRODUCT_BOUNDARY"
+    },
+    {
+      "path": "docs/seo/M8_R3_MAIN_CHAT_FINAL_ACCEPTANCE_2026-09-24_R1.md",
+      "git_blob_sha": "9624decd46ae12c9a6c8faf139bec9ebf545adae",
+      "bytes": 9717,
+      "role": "M8_ACCEPTANCE_CONTEXT"
+    },
+    {
+      "path": "docs/seo/work_return/M8_SEARCH_ONLY_SEMANTIC_MASTER_2026-09-24_R3/M8_SEMANTIC_IDENTITY_MASTER.tsv",
+      "git_blob_sha": "2faaca90c49d5e2ca9c5121c1ef187b3a3f6844f",
+      "bytes": 11405030,
+      "role": "M8_SEMANTIC_AUTHORITY",
+      "expected_data_rows": 7913
+    },
+    {
+      "path": "docs/seo/work_return/M8_SEARCH_ONLY_SEMANTIC_MASTER_2026-09-24_R3/M8_IDENTITY_SOURCE_XREF.tsv",
+      "git_blob_sha": "1e4d17a2c355de72d9246e4432f0f691df0aaf4b",
+      "bytes": 4227700,
+      "role": "M8_LINEAGE_CONTEXT",
+      "expected_data_rows": 25229
+    },
+    {
+      "path": "docs/seo/work_return/M8_SEARCH_ONLY_SEMANTIC_MASTER_2026-09-24_R3/M8_HOLD_REVIEW_LEDGER.tsv",
+      "git_blob_sha": "0b76b515ebf3394be0813793898374f97fcddcdb",
+      "bytes": 3477495,
+      "role": "M8_HOLD_CONTEXT",
+      "expected_data_rows": 5168
+    },
+    {
+      "path": "docs/seo/work_return/M8_SEARCH_ONLY_SEMANTIC_MASTER_2026-09-24_R3/M8_REASON_CODE_DICTIONARY.md",
+      "git_blob_sha": "8e7ce6a073fbee9fe6f832577c0b46b0f42e0162",
+      "bytes": 29415,
+      "role": "M8_REASON_CONTEXT"
+    },
+    {
+      "path": "docs/seo/work_return/M8_SEARCH_ONLY_SEMANTIC_MASTER_2026-09-24_R3/M8_QA.md",
+      "git_blob_sha": "655207d340c2594180d683760f2262c4abf2d7e3",
+      "bytes": 9876,
+      "role": "M8_QA_CONTEXT"
+    },
+    {
+      "path": "docs/seo/serp/M3_QUERY_MATRIX_2026-09-17.md",
+      "git_blob_sha": "0d43a40a8d5c865f2078a4f6f2a01815cd9b415f",
+      "bytes": 12356,
+      "role": "M3_QUERY_AUTHORITY"
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4A_HARDENED_2026-09-18_R3/M4A_SERP_OCCURRENCES_CLASSIFIED.tsv",
+      "git_blob_sha": "0028a743c8617c569ba37dfa4b59e92b5f56e18d",
+      "bytes": 366854,
+      "role": "SEARCH_BASELINE_OVERLAY",
+      "expected_data_rows": 300
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4A_HARDENED_2026-09-18_R3/M4A_QUERY_PROFILES.tsv",
+      "git_blob_sha": "69bd0f12165c15d43b336a8eee41fc58e3b1ac3c",
+      "bytes": 9998,
+      "role": "SEARCH_QUERY_PROFILE",
+      "expected_data_rows": 15
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4A_HARDENED_2026-09-18_R3/M4A_PAIRWISE_TOP10_SIMILARITY.tsv",
+      "git_blob_sha": "66a7e080adecb0231bf9cc60834248e5c03a2c67",
+      "bytes": 15803,
+      "role": "HISTORICAL_PAIRWISE_SERP",
+      "expected_data_rows": 105
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4A_HARDENED_2026-09-18_R3/M4A_COLLISION_UNCERTAINTY_LEDGER.tsv",
+      "git_blob_sha": "12c52d209a67eee06c5ed9276a5dfbd15c043f07",
+      "bytes": 81907,
+      "role": "SEARCH_COLLISION_CONTEXT",
+      "expected_data_rows": 92
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4Q_R2_QUERY_MANIFEST_2026-09-23_R2/M4Q_R2_SEARCH_EXECUTION_MANIFEST_R2.tsv",
+      "git_blob_sha": "d82fef9ec9bc3d757dc85b771f6c114b92c0cd1a",
+      "bytes": 84995,
+      "role": "CURRENT_SEARCH_EXECUTION",
+      "expected_data_rows": 45
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4Q_R2_PASS_B_VISIBILITY_2026-09-23_R1/M4Q_R2_SERP_RESULT_LEDGER.tsv",
+      "git_blob_sha": "41041493677627bfaf30de8eb7ec88a52ceb0a91",
+      "bytes": 5586149,
+      "role": "CURRENT_SERP_AUTHORITY",
+      "expected_data_rows": 4500
+    },
+    {
+      "path": "docs/seo/serp/competitors/work_return/M4Q_R2_PASS_B_VISIBILITY_2026-09-23_R1/M4Q_R2_QUERY_VISIBILITY_SUMMARY.tsv",
+      "git_blob_sha": "d8401597cb66a9c4181422af37453934113dfd57",
+      "bytes": 88618,
+      "role": "CURRENT_SERP_QUERY_SUMMARY",
+      "expected_data_rows": 45
+    },
+    {
+      "path": "docs/seo/serp/competitors/recovery/M4Q_R2_TARGETED_PAGE_EVIDENCE_2026-09-24_R1/M4Q_R2_TARGETED_PAGE_EVIDENCE_RECOVERED.tsv",
+      "git_blob_sha": "b62d1c2cfb8ccb4dba84b8d3d691cb5d1c5fb77c",
+      "bytes": 2602161,
+      "role": "PAGE_TYPE_CONTEXT",
+      "expected_data_rows": 47
+    },
+    {
+      "path": "docs/seo/M6_SEARCH_REGION_CONTROL_MAIN_CHAT_RECONCILIATION_2026-09-23_R1.md",
+      "git_blob_sha": "8cae057b64f16b627a089c999227aab9fc5d5fea",
+      "bytes": 10617,
+      "role": "REGION_SENSITIVITY_CONTEXT"
+    },
+    {
+      "path": "docs/seo/work/M6_PENDING_PROVIDER_RAW/M6_SEARCH_REGION_CONTROL_ROWS_2026-09-23_R1.tsv",
+      "git_blob_sha": "adb5929cfdbbfca897640629cbc9899ccea2c846",
+      "bytes": 29332,
+      "role": "REGION_SENSITIVITY_ROWS",
+      "expected_data_rows": 40
+    }
+  ]
+}
