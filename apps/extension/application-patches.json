@@ -62,7 +62,7 @@
   {
     "target": "service_worker.js",
     "old": "async function resumeProviderQuotaWaits() {",
-    "new": "async function resumeProviderQuotaWaits() {\n  if (await saEnabled()) return;"
+    "new": "async function resumeProviderQuotaWaits() {\n  const sellerAgentsEnabled = await saEnabled();"
   },
   {
     "target": "content_script.js",
@@ -248,6 +248,16 @@
     "target": "service_worker.js",
     "old": "    if (wait <= now) setTimeout(() => { launchBatchProcessor(\"autorun\", conversationKey, run.run_id, \"quota_wake\"); }, 0);\n    else earliest = earliest === null ? wait : Math.min(earliest, wait);\n  }\n  if (earliest !== null) scheduleProviderQuotaWake(earliest);",
     "new": "    if (wait <= now) dueLaunches.push(launchBatchProcessor(\"autorun\", conversationKey, run.run_id, \"quota_wake\"));\n    else earliest = earliest === null ? wait : Math.min(earliest, wait);\n  }\n  await Promise.allSettled(dueLaunches);\n  if (earliest !== null) scheduleProviderQuotaWake(earliest);"
+  },
+  {
+    "target": "service_worker.js",
+    "old": "  for (const [conversationKey, run] of Object.entries(runs)) {",
+    "new": "  if (!sellerAgentsEnabled) for (const [conversationKey, run] of Object.entries(runs)) {"
+  },
+  {
+    "target": "service_worker.js",
+    "old": "      const autoruns = data?.[keys?.AUTO_RUNS] || {};",
+    "new": "      const sellerAgentsEnabled = typeof globalThis.saEnabled === \"function\" && await globalThis.saEnabled();\n      const autoruns = sellerAgentsEnabled ? {} : (data?.[keys?.AUTO_RUNS] || {});"
   },
   {
     "target": "service_worker.js",

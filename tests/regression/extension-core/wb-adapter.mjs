@@ -20,12 +20,15 @@ async function test(id, fn) {
 }
 async function setup(source = basic, options = {}) {
   const backing = options.backing || {}, network = [], delivered = [], diagnostics = [];
-  const snapshot = { accountId: "fixture-SA-account", storeId: "fixture-WB-store", marketplace: "wildberries",
-    credentialRevision: await api.credentialRevision({ token }), conversationKey: options.key || "fixture-WB-dialogue",
+  const activeToken = options.token || token;
+  const storeId = options.storeId || "fixture-WB-store";
+  const snapshot = { accountId: "fixture-SA-account", storeId, marketplace: "wildberries",
+    credentialRevision: await api.credentialRevision({ token: activeToken }), conversationKey: options.key || "fixture-WB-dialogue",
     bindingId: "fixture-binding", bindingRevision: 1, workSessionId: "fixture-work", policyRevision: "personal-enabled",
     commandHash: await api.hash(source), requestId: "fixture-request" };
   const live = { ...snapshot, active: true };
-  const context = await api.createContext({ snapshot, readCurrent: async () => live, credentials: { token } });
+  const context = await api.createContext({ snapshot, readCurrent: async () => live, credentials: { token: activeToken },
+    quotaIdentity: options.quotaIdentity || { state: "UNCONFIRMED" } });
   const read = async (key) => ({ [key]: backing[key] === undefined ? undefined : clone(backing[key]) });
   const write = async (values) => { if (options.write) await options.write(values); Object.assign(backing, clone(values)); };
   const records = options.records || local.createRecordStore({ read, write, namespace: "fixture-records" });
@@ -161,6 +164,79 @@ try {
     clock.value = 7000;
     await other.queue.process({ context: other.context }); assert.equal(other.network.length, 1);
     assert.equal(s.network.length, 1, "clock passing does not replay 429 or resume another batch");
+  });
+  await test("WB-11a-wb-ratelimit-retry-is-durable-and-precedes-reset", async () => {
+    const backing = {}, clock = { value: 1000 };
+    const first = await setup(basic + "\n" + basic, { backing, clock,
+      fetch: async () => new Response("limited", { status: 429, headers: {
+        "x-ratelimit-retry": "5", "x-ratelimit-reset": "1" } }) });
+    assert.equal((await first.run()).code, "PROVIDER_QUOTA_WAITING");
+    assert.equal(first.network.length, 1);
+    const rotated = await setup(basic, { backing, clock, token: "FIXTURE_WB_ROTATED_TOKEN", key: "rotated-credential-dialogue",
+      storeId: first.snapshot.storeId,
+      fetch: async () => new Response('{"result":42}', { headers: { "content-type": "application/json" } }) });
+    clock.value = 3000; // past Reset, still before the Retry deadline
+    assert.equal((await rotated.run()).code, "PROVIDER_QUOTA_WAITING");
+    assert.equal(rotated.network.length, 0, "credential rotation cannot bypass the durable wait");
+    clock.value = 6001;
+    assert.equal((await rotated.run()).ok, true);
+    assert.equal(rotated.network.length, 1);
+    assert.equal(first.network.length, 1, "429 is not replayed");
+
+    const precedenceBacking = {}, precedenceClock = { value: 1000 };
+    const precedence = await setup(basic, { backing: precedenceBacking, clock: precedenceClock, storeId: "header-precedence-store",
+      fetch: async () => new Response("limited", { status: 429, headers: {
+        "x-ratelimit-retry": "5", "retry-after": "1" } }) });
+    await precedence.run();
+    const beforeWbDeadline = await setup(basic, { backing: precedenceBacking, clock: precedenceClock,
+      storeId: "header-precedence-store", key: "header-precedence-follow-up" });
+    precedenceClock.value = 3000;
+    assert.equal((await beforeWbDeadline.run()).code, "PROVIDER_QUOTA_WAITING");
+    assert.equal(beforeWbDeadline.network.length, 0, "WB Retry header wins over the shorter generic header");
+  });
+  await test("WB-11b-confirmed-marketplace-cabinet-sharing-and-isolation", async () => {
+    const backing = {}, clock = { value: 1000 };
+    const confirmed = { state: "CONFIRMED", providerAccountId: "wb-cabinet-alpha" };
+    const limited = await setup(command("seller_warehouses"), { backing, clock, storeId: "card-one", quotaIdentity: confirmed,
+      fetch: async () => new Response("limited", { status: 429, headers: { "x-ratelimit-retry": "30" } }) });
+    await limited.run(); assert.equal(limited.network.length, 1);
+    const sameCabinet = await setup(command("marketplace_offices"), { backing, clock, storeId: "card-two",
+      token: "FIXTURE_WB_CARD_TWO_TOKEN", key: "same-cabinet-dialogue", quotaIdentity: confirmed });
+    assert.equal((await sameCabinet.run()).code, "PROVIDER_QUOTA_WAITING");
+    assert.equal(sameCabinet.network.length, 0, "different marketplace operations share the confirmed cabinet group");
+    const otherCabinet = await setup(command("seller_warehouses"), { backing, clock, storeId: "card-three",
+      key: "other-cabinet-dialogue", quotaIdentity: { state: "CONFIRMED", providerAccountId: "wb-cabinet-beta" } });
+    assert.equal((await otherCabinet.run()).ok, true);
+    assert.equal(otherCabinet.network.length, 1, "separate confirmed provider accounts remain isolated");
+    const nonMarketplace = await setup(command("statistics_sales", { query: { dateFrom: "2024-01-01" } }),
+      { backing, clock, storeId: "card-four", key: "non-marketplace-dialogue", quotaIdentity: confirmed });
+    assert.equal((await nonMarketplace.run()).ok, true);
+    assert.equal(nonMarketplace.network.length, 1, "a method outside Marketplace does not inherit its cooldown");
+  });
+  await test("WB-11c-unconfirmed-store-local-identity-survives-rotation", async () => {
+    const backing = {}, clock = { value: 1000 };
+    const first = await setup(basic, { backing, clock, storeId: "unconfirmed-one", key: "unconfirmed-first",
+      fetch: async () => new Response("limited", { status: 429, headers: { "retry-after": "20" } }) });
+    await first.run();
+    const rotated = await setup(basic, { backing, clock, storeId: "unconfirmed-one", key: "unconfirmed-rotated",
+      token: "FIXTURE_WB_UNCONFIRMED_ROTATED_TOKEN" });
+    assert.equal((await rotated.run()).code, "PROVIDER_QUOTA_WAITING");
+    assert.equal(rotated.network.length, 0);
+    const different = await setup(basic, { backing, clock, storeId: "unconfirmed-two", key: "unconfirmed-other-store" });
+    assert.equal((await different.run()).ok, true);
+    assert.equal(different.network.length, 1, "unconfirmed cards do not converge by account or credential");
+  });
+  await test("WB-11d-unconfirmed-to-confirmed-promotion-keeps-store-local-wait", async () => {
+    const backing = {}, clock = { value: 1000 };
+    const unconfirmed = await setup(basic, { backing, clock, storeId: "promotion-card", key: "promotion-before-confirm",
+      fetch: async () => new Response("limited", { status: 429, headers: { "x-ratelimit-retry": "25" } }) });
+    await unconfirmed.run();
+    assert.equal(unconfirmed.network.length, 1);
+    const promoted = await setup(basic, { backing, clock, storeId: "promotion-card", key: "promotion-after-confirm",
+      token: "FIXTURE_WB_PROMOTED_TOKEN",
+      quotaIdentity: { state: "CONFIRMED", providerAccountId: "wb-promoted-cabinet" } });
+    assert.equal((await promoted.run()).code, "PROVIDER_QUOTA_WAITING");
+    assert.equal(promoted.network.length, 0, "provider identity promotion cannot bypass the pre-confirmation store-local wait");
   });
   await test("WB-12-quota-storage-failure-retains-result-stops-tail", async () => {
     const s = await setup(basic + "\n" + basic, { fetch: async () => new Response('{"result":42}', { headers: { "content-type": "application/json", "retry-after": "5" } }),

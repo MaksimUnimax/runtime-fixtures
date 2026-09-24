@@ -12,7 +12,7 @@
     const value = Credentials.normalizeSellerCredentials(raw, { required: true });
     return hash(JSON.stringify(["seller-agents-wb-personal", value.token]));
   }
-  async function createContext({ snapshot, readCurrent, credentials }) {
+  async function createContext({ snapshot, readCurrent, credentials, quotaIdentity = null }) {
     const guard = globalThis.SellerAgentsExecutionContext.createGuard(snapshot, readCurrent);
     const saved = Credentials.normalizeSellerCredentials(structuredClone(credentials), { required: true });
     if (guard.snapshot.marketplace !== "wildberries") fail("MARKETPLACE_CONTEXT_MISMATCH");
@@ -25,7 +25,12 @@
         await credentialRevision(saved) !== guard.snapshot.credentialRevision)
       throw globalThis.SellerAgentsExecutionContext.error();
     await guard.assertCurrent();
-    return Object.freeze({ ...guard, async credentials() { await guard.assertCurrent(); return saved; } });
+    const identity = quotaIdentity?.state === "CONFIRMED" &&
+      typeof quotaIdentity.providerAccountId === "string" && quotaIdentity.providerAccountId.length
+      ? Object.freeze({ kind: "provider_account", value: quotaIdentity.providerAccountId })
+      : Object.freeze({ kind: "store_local", value: guard.snapshot.storeId });
+    return Object.freeze({ ...guard, quotaIdentity: identity,
+      async credentials() { await guard.assertCurrent(); return saved; } });
   }
   function assertPolicy(command, context) {
     const meta = C.resolveOperation(command.operation);
@@ -163,7 +168,23 @@
           const response = await fetchImpl(url, { ...init, credentials: "omit" });
           httpStatus = Number(response.status || 0);
           filename = originalName(response);
-          return response;
+          // WB documents X-Ratelimit-Retry as the seconds until another
+          // attempt is allowed. On 429 it takes precedence over generic
+          // Retry-After; X-Ratelimit-Reset is a different deadline.
+          if (httpStatus !== 429) return response;
+          const retry = response.headers?.get?.("x-ratelimit-retry");
+          if (retry == null || !/^\d+(?:\.\d+)?$/.test(String(retry).trim())) return response;
+          const headers = new Proxy(response.headers, { get(target, property) {
+            if (property === "get") return (name) => String(name).toLowerCase() === "retry-after"
+              ? String(retry).trim() : target.get(name);
+            const value = Reflect.get(target, property, target);
+            return typeof value === "function" ? value.bind(target) : value;
+          } });
+          return new Proxy(response, { get(target, property) {
+            if (property === "headers") return headers;
+            const value = Reflect.get(target, property, target);
+            return typeof value === "function" ? value.bind(target) : value;
+          } });
         };
         const binary = request.response_mode === "binary";
         const response = await (binary ? transport.executeBinaryOnce : transport.executeJsonOnce)({

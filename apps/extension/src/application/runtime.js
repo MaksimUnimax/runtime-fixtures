@@ -779,7 +779,8 @@ async function saGuard(owner) {
   await guard.assertCurrent();
   const store = await saAssertStore(p);
   if (p.marketplace === "wildberries") {
-    const context = await SellerAgentsWBAdapter.createContext({ snapshot: p, readCurrent, credentials: store.credentials });
+    const context = await SellerAgentsWBAdapter.createContext({ snapshot: p, readCurrent, credentials: store.credentials,
+      quotaIdentity: { state: store.providerIdentityState, providerAccountId: store.providerAccountId } });
     return Object.freeze({ ...context, async assertDispatchAuthority() { return saEvaluateDispatchAuthority(owner); } });
   }
   const settings = await saSettings(p);
