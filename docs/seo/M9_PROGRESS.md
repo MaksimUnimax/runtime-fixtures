@@ -1,7 +1,7 @@
 # Octoport SEO — M9 progress
 
 Date: 2026-09-24
-Status: **WAVE-1 PROVIDER COMPLETE / TERMINAL ITEM READBACK RELEASED**
+Status: **WAVE-1 TERMINAL ITEMS PASS / EXPORT RELEASED**
 Branch: `seo/wordstat-batch-01-2026-09-16`
 
 ## Current accepted chain
@@ -13,7 +13,7 @@ M9 BOUNDARY-RESOLUTION PRE-ACQ = PASS / MAIN CHAT ACCEPTED
 M10A = BLOCKED
 
 CURRENT PHYSICAL STEP =
-M9 BOUNDARY-RESOLUTION WAVE-1 TERMINAL ITEMS READBACK
+M9 BOUNDARY-RESOLUTION WAVE-1 DURABLE EVIDENCE EXPORT
 ```
 
 ## Accepted M9 unresolved state
@@ -513,6 +513,29 @@ SEARCH_ASYNC_BATCH_API_V1 {"action":"itemsPage","jobId":"octoport-m9br-wave1-202
 PROVIDER_CALLS_EXPECTED = 0
 EXPORTPAGE = CLOSED UNTIL TERMINAL ITEMS PASS
 ```
+
+## Wave-1 terminal items readback
+
+Receipt:
+`docs/seo/M9_BOUNDARY_RESOLUTION_WAVE1_TERMINAL_ITEMS_READBACK_2026-09-24_R1.md`
+
+```text
+ROW_COUNT = 25/25
+STATE_SUCCEEDED = 25/25
+POLL_COUNT_ONE = 25/25
+ERROR_CODE_NULL = 25/25
+PARSE_ERROR_NULL = 25/25
+OPERATION_ID_MATCH_PRIOR_READBACK = 25/25
+TERMINAL_ITEMS_GATE = PASS
+
+FROZEN_EXPORT_REVISION = 125
+AUTHORIZED_LOCAL_ACTION =
+SEARCH_ASYNC_BATCH_API_V1 {"action":"exportPage","jobId":"octoport-m9br-wave1-20260924-r1","after":-1,"limit":25,"revision":125}
+
+PROVIDER_CALLS_EXPECTED = 0
+```
+
+If the first export file cannot fit all 25 items under the 16 MiB page budget, continue only from the returned exact `next_after` under the same frozen revision.
 
 ## Owner relay
 
