@@ -1,7 +1,7 @@
 # Octoport SEO — M9 progress
 
 Date: 2026-09-24
-Status: **WAVE-1 PAID SUBMIT RELEASED / WAITING SUBMITN RESULT**
+Status: **WAVE-1 SUBMIT SLICE-1 PASS / 19 WAITING / 6 PENDING / SLICE-2 PREFLIGHT OPEN**
 Branch: `seo/wordstat-batch-01-2026-09-16`
 
 ## Current accepted chain
@@ -13,7 +13,7 @@ M9 BOUNDARY-RESOLUTION PRE-ACQ = PASS / MAIN CHAT ACCEPTED
 M10A = BLOCKED
 
 CURRENT PHYSICAL STEP =
-M9 BOUNDARY-RESOLUTION WAVE-1 SUBMITN / PROVIDER OPERATION ADMISSION
+M9 BOUNDARY-RESOLUTION WAVE-1 SUBMIT SLICE-2 PREFLIGHT
 ```
 
 ## Accepted M9 unresolved state
@@ -216,6 +216,36 @@ SECOND_SUBMITN = CLOSED
 ```
 
 One bounded `submitN` is authorized. A bounded early stop is valid; it does not authorize an automatic second slice. Any UNKNOWN/failure stops the lifecycle for reconciliation.
+
+## Wave-1 submit slice-1 receipt
+
+Receipt:
+`docs/seo/M9_BOUNDARY_RESOLUTION_WAVE1_SUBMIT_SLICE1_RECEIPT_2026-09-24_R1.md`
+
+```text
+SLICE1_GATE = PASS_BOUNDED_STOP
+REQUEST_EXECUTED = true
+PROVIDER_CALLS = 19
+PROCESSED = 19
+BOUNDED_STOP = true
+
+TOTAL = 25
+WAITING = 19
+PENDING = 6
+UNKNOWN = 0
+FAILED = 0
+REQUESTS_STARTED = 19
+OPERATIONS_ACCEPTED = 19
+POLLS_STARTED = 0
+REVISION = 38
+```
+
+The first 19 accepted rows are provider-admitted and MUST NOT be submitted again.
+
+Exactly 6 rows remain PENDING.
+A second paid submit slice is not automatic; it requires a fresh tariff check plus separate durable release/readback.
+
+Collection remains closed.
 
 ## Owner relay
 
