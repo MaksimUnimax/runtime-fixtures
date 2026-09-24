@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { generateKeyPairSync, randomUUID } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createApiApp } from "../../../apps/api/src/app.js";
 import type { AppConfig } from "../../../packages/shared/src/index.js";
@@ -15,6 +15,7 @@ import {
   createP6AdminEntitlementCommandAdapter,
   createP6AdminPlanCommandAdapter,
   createP6AdminPriceCommandAdapter,
+  createP3PolicyPublicationRepository,
   type DatabaseRuntime,
 } from "../../../packages/server/db/src/index.js";
 import { runMigrations } from "../../../packages/server/db/src/migrations.js";
@@ -60,6 +61,7 @@ type Item = Value & {
   linkedConfigVersions: string[];
 };
 type JsonBody = {
+  id?: string;
   error: { code: string };
   value: Value;
   status: string;
@@ -104,7 +106,10 @@ async function n(table: string, where = "TRUE", args: unknown[] = []) {
   );
   return Number(r.rows[0]!.count);
 }
-async function admin(role: AdminRole = "ADMIN_OWNER"): Promise<Session> {
+async function admin(
+  role: AdminRole = "ADMIN_OWNER",
+  revokeConfigPermissionAfterRouteAuth = false,
+): Promise<Session> {
   const userId = id(),
     principalId = id(),
     portalId = id();
@@ -137,13 +142,28 @@ async function admin(role: AdminRole = "ADMIN_OWNER"): Promise<Session> {
   if (!elevated.ok) throw new Error(`admin fixture failed: ${elevated.code}`);
   const token = elevated.value.sessionToken,
     csrf = auth.csrf(token);
+  const compatibility = createP6AdminCompatibilityCommandAdapter(db);
   const service = createAdminCommercialService(
     createP6AdminCommercialReadRepository(db),
     {
       plans: createP6AdminPlanCommandAdapter(db),
       prices: createP6AdminPriceCommandAdapter(db),
       overrides: createP6AdminEntitlementCommandAdapter(db),
-      compatibility: createP6AdminCompatibilityCommandAdapter(db),
+      compatibility: revokeConfigPermissionAfterRouteAuth
+        ? {
+            ...compatibility,
+            publishAdminConfigRelease: async (command, context) => {
+              // This service method is reached only after the HTTP route guard
+              // has authorized the request. Revoke before the adapter opens
+              // its transaction to exercise the transaction-time check.
+              await q(
+                "UPDATE admin_role_grants SET revoked_at=$2,revoked_by_admin_principal_id=$1 WHERE admin_principal_id=$1 AND revoked_at IS NULL",
+                [principalId, NOW],
+              );
+              return compatibility.publishAdminConfigRelease(command, context);
+            },
+          }
+        : compatibility,
     },
   );
   const app = createApiApp({
@@ -159,8 +179,12 @@ async function admin(role: AdminRole = "ADMIN_OWNER"): Promise<Session> {
     principalId,
   };
 }
-async function withAdmin<T>(role: AdminRole, work: (f: Session) => Promise<T>) {
-  const f = await admin(role);
+async function withAdmin<T>(
+  role: AdminRole,
+  work: (f: Session) => Promise<T>,
+  revokeConfigPermissionAfterRouteAuth = false,
+) {
+  const f = await admin(role, revokeConfigPermissionAfterRouteAuth);
   try {
     return await work(f);
   } finally {
@@ -347,6 +371,60 @@ async function publishRelease(f: Session, version = "0.2.4") {
     },
   );
 }
+async function seedConfigSigningKey(active = true) {
+  const keyId = key("config-signing");
+  const publicKeySpkiDer = generateKeyPairSync("ed25519").publicKey.export({
+    format: "der",
+    type: "spki",
+  });
+  const publication = createP3PolicyPublicationRepository(db);
+  const systemContext = {
+    actorType: "SYSTEM" as const,
+    correlationId: id(),
+    reason: "integration fixture",
+  };
+  await publication.registerSigningKey(
+    { keyId, publicKeySpkiDer },
+    systemContext,
+  );
+  if (active) await publication.activateSigningKey(keyId, systemContext);
+  return keyId;
+}
+async function seedConfigBaseline(
+  compatibilityPolicyRevisionIds: string[] = [],
+) {
+  const signingKeyId = await seedConfigSigningKey();
+  const publication = createP3PolicyPublicationRepository(db);
+  const release = await publication.publishConfigRelease(
+    {
+      contractVersion: "control_plane_v2",
+      snapshotVersion: "bootstrap_snapshot_v2",
+      envelopeVersion: "bootstrap_envelope_v2",
+      signingKeyId,
+      compatibilityPolicyRevisionIds,
+      featureRuleRevisionIds: [],
+      featureRolloutRevisionIds: [],
+      publishedAt: NOW,
+    },
+    {
+      actorType: "SYSTEM",
+      correlationId: id(),
+      reason: "integration baseline",
+    },
+  );
+  return { configVersion: release.configVersion, signingKeyId };
+}
+function configReleaseBody(
+  expectedLatestConfigVersion: number,
+  policyRevisionId: string,
+) {
+  return {
+    contractVersion: "control_plane_v2" as const,
+    expectedLatestConfigVersion,
+    compatibilityPolicyRevisionIds: [policyRevisionId],
+    reason: rsn("publish config release"),
+  };
+}
 
 describe.sequential("P6.4 behavioral real PostgreSQL acceptance matrix", () => {
   beforeAll(async () => {
@@ -463,6 +541,168 @@ describe.sequential("P6.4 behavioral real PostgreSQL acceptance matrix", () => {
           (await q("SELECT mode FROM beta_admission_state WHERE id=1")).rows[0]
             ?.mode,
         ).toBe("CLOSED");
+      }));
+    it("[A05e] OWNER add-only config link preserves current v2 baseline and rejects no-op replay", async () =>
+      withAdmin("ADMIN_OWNER", async (f) => {
+        const existingPolicy = await publishCompat(
+          f,
+          key("existing-v2"),
+          "chrome",
+          { contractVersion: "control_plane_v2" },
+        );
+        const baseline = await seedConfigBaseline([
+          String(existingPolicy.json().id),
+        ]);
+        const policy = await publishCompat(f, key("store1-v2"), "opera", {
+          contractVersion: "control_plane_v2",
+          minimumExtensionVersion: "0.2.4",
+          recommendedExtensionVersion: "0.2.4",
+        });
+        expect(policy.statusCode).toBe(200);
+        const correlationId = id();
+        const reason = rsn("publish config release");
+        const response = await f.app.inject({
+          method: "POST",
+          url: "/v1/admin/compatibility/config-releases/publish",
+          headers: {
+            cookie: f.cookie,
+            "x-csrf-token": f.csrf,
+            "x-request-id": correlationId,
+          },
+          payload: configReleaseBody(
+            baseline.configVersion,
+            String(policy.json().id),
+          ),
+        });
+        expect(response.statusCode).toBe(200);
+        expect(response.headers["cache-control"]).toBe("no-store");
+        const publishedConfig = response.json();
+        expect(publishedConfig).toMatchObject({
+          contractVersion: "control_plane_v2",
+          snapshotVersion: "bootstrap_snapshot_v2",
+          envelopeVersion: "bootstrap_envelope_v2",
+          signingKeyId: baseline.signingKeyId,
+        });
+        expect(publishedConfig.configVersion).toEqual(expect.any(Number));
+        expect(publishedConfig.configVersion).toBeGreaterThan(
+          baseline.configVersion,
+        );
+        expect(publishedConfig).not.toHaveProperty("privateKey");
+        expect(
+          (
+            await q(
+              "SELECT policy_revision_id FROM config_release_compatibility_policies WHERE config_version=$1 ORDER BY policy_revision_id",
+              [publishedConfig.configVersion],
+            )
+          ).rows.map((row) => row.policy_revision_id),
+        ).toEqual(
+          [String(existingPolicy.json().id), String(policy.json().id)].sort(),
+        );
+        const audit = (
+          await q<{
+            actor_type: string;
+            actor_id: string;
+            correlation_id: string;
+            reason: string;
+          }>(
+            "SELECT actor_type,actor_id,correlation_id,reason FROM audit_events WHERE action='CONFIG_RELEASE_PUBLISHED' AND actor_type='ADMIN'",
+          )
+        ).rows[0];
+        expect(audit).toEqual({
+          actor_type: "ADMIN",
+          actor_id: f.principalId,
+          correlation_id: correlationId,
+          reason,
+        });
+        const replay = await call(
+          f,
+          "POST",
+          "/v1/admin/compatibility/config-releases/publish",
+          configReleaseBody(
+            Number(publishedConfig.configVersion),
+            String(policy.json().id),
+          ),
+        );
+        expect(replay.statusCode).toBe(409);
+        expect(code(replay)).toBe("ADMIN_CONFLICT");
+        expect(await n("config_releases")).toBe(2);
+        expect(await n("beta_admission_state", "mode='OPEN'")).toBe(0);
+      }));
+    it("[A05f] transaction-time config permission revocation prevents config/link/audit mutation", async () =>
+      withAdmin(
+        "ADMIN_OWNER",
+        async (f) => {
+          const policy = await publishCompat(f, key("revoked-v2"), "opera", {
+            contractVersion: "control_plane_v2",
+          });
+          const baseline = await seedConfigBaseline();
+          const beforeAudit = await n("audit_events");
+          const response = await call(
+            f,
+            "POST",
+            "/v1/admin/compatibility/config-releases/publish",
+            configReleaseBody(baseline.configVersion, String(policy.json().id)),
+          );
+          expect(response.statusCode).toBe(403);
+          expect(code(response)).toBe("ADMIN_FORBIDDEN");
+          expect(await n("config_releases")).toBe(1);
+          expect(await n("config_release_compatibility_policies")).toBe(0);
+          expect(await n("audit_events")).toBe(beforeAudit);
+        },
+        true,
+      ));
+    it("[A05g] ADMIN_OPS config publication is denied with no mutation", async () =>
+      withAdmin("ADMIN_OPS", async (f) => {
+        const beforeAudit = await n("audit_events");
+        const response = await call(
+          f,
+          "POST",
+          "/v1/admin/compatibility/config-releases/publish",
+          configReleaseBody(1, id()),
+        );
+        expect(response.statusCode).toBe(403);
+        expect(await n("config_releases")).toBe(0);
+        expect(await n("config_release_compatibility_policies")).toBe(0);
+        expect(await n("audit_events")).toBe(beforeAudit);
+      }));
+    it("[A05h] missing policy and revoked baseline signing authority fail closed without new publication", async () =>
+      withAdmin("ADMIN_OWNER", async (f) => {
+        const policy = await publishCompat(f, key("source-v2"), "opera", {
+          contractVersion: "control_plane_v2",
+        });
+        const baseline = await seedConfigBaseline();
+        const missingSource = await call(
+          f,
+          "POST",
+          "/v1/admin/compatibility/config-releases/publish",
+          configReleaseBody(baseline.configVersion, id()),
+        );
+        expect(missingSource.statusCode).toBe(404);
+        expect(code(missingSource)).toBe("ADMIN_RESOURCE_NOT_FOUND");
+        expect(await n("config_releases")).toBe(1);
+
+        const publication = createP3PolicyPublicationRepository(db);
+        await publication.revokeSigningKey(
+          {
+            keyId: baseline.signingKeyId,
+            reasonCode: "store1-test-revoke",
+          },
+          {
+            actorType: "SYSTEM",
+            correlationId: id(),
+            reason: "integration fixture revoke",
+          },
+        );
+        const revokedSigningKey = await call(
+          f,
+          "POST",
+          "/v1/admin/compatibility/config-releases/publish",
+          configReleaseBody(baseline.configVersion, String(policy.json().id)),
+        );
+        expect(revokedSigningKey.statusCode).toBe(409);
+        expect(code(revokedSigningKey)).toBe("ADMIN_CONFLICT");
+        expect(await n("config_releases")).toBe(1);
+        expect(await n("config_release_compatibility_policies")).toBe(0);
       }));
     it("[A05c] ADMIN_OPS is denied release publication without release or audit", async () =>
       withAdmin("ADMIN_OPS", async (f) => {

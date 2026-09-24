@@ -32,6 +32,18 @@ const MAX_ZIP_ENTRIES = 4096;
 const MAX_ENTRY_BYTES = 64 * 1024 * 1024;
 const MAX_TOTAL_UNCOMPRESSED_BYTES = 256 * 1024 * 1024;
 const PACKAGED_CONFIG_MARKER = "globalThis.__SELLER_AGENTS_PACKAGED_CONFIG__=";
+const FIREFOX_STORE_ID = "octoport@octoport.ru";
+const STORE_REVIEW_ENVIRONMENT = "PREPRODUCTION";
+const STORE_BACKGROUND_FORBIDDEN_MARKERS = [
+  Buffer.from("LOCAL DEVELOPMENT"),
+  Buffer.from("http://127.0.0.1:43100"),
+  Buffer.from("http://127.0.0.1:43101"),
+  Buffer.from("config-local-development"),
+];
+const STORE_POPUP_FORBIDDEN_MARKERS = [
+  Buffer.from("LOCAL DEVELOPMENT"),
+  Buffer.from("Локальная разработка"),
+];
 const PRIVATE_KEY_MARKER = Buffer.from("-----BEGIN");
 
 const fail = (message) => {
@@ -295,9 +307,7 @@ export function readAuthority(file, candidateDir) {
     !/^[A-Za-z0-9_]{1,80}$/.test(authority.contractVersion) ||
     !Number.isSafeInteger(authority.migrationLevel) ||
     authority.migrationLevel < 0 ||
-    typeof authority.environment !== "string" ||
-    !/^[A-Z][A-Z0-9_. -]{1,63}$/.test(authority.environment) ||
-    /LOCAL/.test(authority.environment) ||
+    authority.environment !== STORE_REVIEW_ENVIRONMENT ||
     !exactKeys(authority.origins, ["controlApiOrigin", "portalOrigin"])
   ) {
     fail("Invalid authority schema");
@@ -573,12 +583,109 @@ function ensureNoPrivateMaterial(entries) {
   }
 }
 
+function ensureNoStoreDevelopmentMaterial(entries, manifest, reachable) {
+  for (const path of reachable) {
+    const data = entries.get(path);
+    if (
+      STORE_BACKGROUND_FORBIDDEN_MARKERS.some((marker) => data.includes(marker))
+    ) {
+      fail("Package background contains development-only material");
+    }
+  }
+
+  const popupPath = manifest.action?.default_popup;
+  if (popupPath !== undefined) {
+    if (!safeDeclaredPath(popupPath)) {
+      fail("Extension popup declaration is invalid");
+    }
+    const popup = entries.get(popupPath);
+    if (!popup?.length) {
+      fail("Declared extension popup is missing or empty");
+    }
+
+    const popupResources = new Set([popupPath]);
+    const popupSource = popup.toString("utf8");
+    const referenceRegex = /\b(?:src|href)\s*=\s*(["'])([^"']+)\1/gi;
+    for (const match of popupSource.matchAll(referenceRegex)) {
+      const reference = match[2];
+      if (!safeDeclaredPath(reference)) {
+        fail("Popup references an unsafe resource path");
+      }
+      const resolved = join(dirname(popupPath), reference);
+      if (!safeDeclaredPath(resolved) || !entries.get(resolved)?.length) {
+        fail("Popup referenced resource is missing or unsafe");
+      }
+      popupResources.add(resolved);
+    }
+
+    for (const resource of popupResources) {
+      const data = entries.get(resource);
+      if (
+        STORE_POPUP_FORBIDDEN_MARKERS.some((marker) => data.includes(marker))
+      ) {
+        fail("Package popup surface contains development-only material");
+      }
+    }
+  }
+}
+
+function escapedIdentifierChar(source, offset, expected) {
+  if (source[offset] === expected) {
+    return { next: offset + 1, escaped: false };
+  }
+  if (source[offset] !== "\\" || source[offset + 1] !== "u") return null;
+
+  let end;
+  let hex;
+  if (source[offset + 2] === "{") {
+    end = source.indexOf("}", offset + 3);
+    if (end < 0) return null;
+    hex = source.slice(offset + 3, end);
+    if (!/^[0-9a-fA-F]{1,6}$/.test(hex)) return null;
+    end += 1;
+  } else {
+    hex = source.slice(offset + 2, offset + 6);
+    if (!/^[0-9a-fA-F]{4}$/.test(hex)) return null;
+    end = offset + 6;
+  }
+  const codePoint = Number.parseInt(hex, 16);
+  if (codePoint > 0x10ffff || String.fromCodePoint(codePoint) !== expected) {
+    return null;
+  }
+  return { next: end, escaped: true };
+}
+
+function containsEscapedImportScriptsIdentifier(source) {
+  const expected = "importScripts";
+  for (let start = 0; start < source.length; start += 1) {
+    let cursor = start;
+    let escaped = false;
+    let matched = true;
+    for (const character of expected) {
+      const part = escapedIdentifierChar(source, cursor, character);
+      if (!part) {
+        matched = false;
+        break;
+      }
+      cursor = part.next;
+      escaped ||= part.escaped;
+    }
+    if (matched && escaped) return true;
+  }
+  return false;
+}
+
 function backgroundScripts(entries, manifest, browser) {
   const queue = [];
   if (browser === "chromium") {
     const serviceWorker = manifest.background?.service_worker;
     if (!safeDeclaredPath(serviceWorker)) {
       fail("Chromium service worker declaration is invalid");
+    }
+    if (manifest.background?.type !== undefined) {
+      fail(
+        "Chromium module service worker is not accepted by this release gate",
+      );
     }
     queue.push(serviceWorker);
   } else {
@@ -602,11 +709,19 @@ function backgroundScripts(entries, manifest, browser) {
     visited.add(path);
 
     const source = data.toString("utf8");
-    const importRegex = /importScripts\(([^)]*)\);/g;
-    for (const match of source.matchAll(importRegex)) {
+    if (containsEscapedImportScriptsIdentifier(source)) {
+      fail("Background runtime contains escaped importScripts identifier");
+    }
+    const tokenRegex = /\bimportScripts\b/g;
+    for (const token of source.matchAll(tokenRegex)) {
+      const tail = source.slice(token.index + token[0].length);
+      const call = tail.match(/^\(([^)]*)\);/);
+      if (!call) {
+        fail("Background runtime contains unsupported importScripts syntax");
+      }
       let imported;
       try {
-        imported = JSON.parse(`[${match[1]}]`);
+        imported = JSON.parse(`[${call[1]}]`);
       } catch {
         fail("Background runtime contains non-static importScripts");
       }
@@ -747,6 +862,12 @@ function checkPackage(file, browser, authority, expectedRoot = null) {
   ) {
     fail("Package manifest version does not match release authority");
   }
+  if (
+    browser === "firefox" &&
+    manifest.browser_specific_settings?.gecko?.id !== FIREFOX_STORE_ID
+  ) {
+    fail("Firefox package stable extension ID mismatch");
+  }
 
   const hosts = manifest.host_permissions;
   if (
@@ -773,6 +894,7 @@ function checkPackage(file, browser, authority, expectedRoot = null) {
   }
 
   const reachable = backgroundScripts(entries, manifest, browser);
+  ensureNoStoreDevelopmentMaterial(entries, manifest, reachable);
   const configs = [];
   for (const path of reachable) {
     configs.push(
