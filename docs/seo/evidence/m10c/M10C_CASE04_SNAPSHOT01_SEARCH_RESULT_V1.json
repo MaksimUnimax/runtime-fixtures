@@ -1,0 +1,91 @@
+{
+  "bridge": "yandex-marketing-bridge",
+  "version": "0.1.9",
+  "service": "search",
+  "operation": "genSearch",
+  "request_id": "search-59200248-1c6c-4ff8-ab34-846ce8d5a4e8",
+  "run_id": null,
+  "status": "OK",
+  "reason": null,
+  "cost_estimate": {
+    "estimated_rub": 5.08,
+    "tariff_checked_at": "2026-08-19",
+    "tariff_source": "[https://aistudio.yandex.ru/docs/ru/search-api/pricing.html](https://aistudio.yandex.ru/docs/ru/search-api/pricing.html)"
+  },
+  "policy": {
+    "channel": "manual",
+    "active_service": "search"
+  },
+  "command": {
+    "method": "genSearch",
+    "queryText": "chatgpt для ozon",
+    "confirmBillable": true
+  },
+  "http_status": 200,
+  "elapsed_ms": 8469,
+  "result": {
+    "mode": "generative",
+    "message": {
+      "content": "Вот что удалось найти среди результатов поиска:\n\n* [apimonster.ru]([https://apimonster.ru/connector/bundle/openai/ozon/](https://apimonster.ru/connector/bundle/openai/ozon/)): Интеграция OpenAI и Ozon через ApiMonster — мощный инструмент для автоматизации продаж на маркетплейсе. [2] Коннектор связывает ChatGPT с вашим магазином на Озон без программирования. [2] С его помощью селлеры могут автоматически генерировать SEO-описания для карточек товаров, мгновенно отвечать на отзывы покупателей и обрабатывать вопросы клиентов с помощью нейросетей. [2]\n\n* [cossa.ru]([https://www.cossa.ru/gdekurs/349253/](https://www.cossa.ru/gdekurs/349253/)): ChatGPT — текстовая нейросеть, способная написать структурированные SEO-описания с учётом алгоритмов поиска. [3]\n\n* [jafo.ru]([https://jafo.ru/blog/podklyuchit-claude-chatgpt-k-wildberries-ozon](https://jafo.ru/blog/podklyuchit-claude-chatgpt-k-wildberries-ozon)): ChatGPT можно подключить к кабинетам Wildberries и Ozon напрямую. [4] Для этого нужно добавить коннектор в своём ассистенте. [4]\n\n* [xway.ru]([https://xway.ru/blog/ozon-i-chatgpt-kak-sozdat-prodayushhie-foto-s-pomoshhyu-iskusstvennogo-intellekta](https://xway.ru/blog/ozon-i-chatgpt-kak-sozdat-prodayushhie-foto-s-pomoshhyu-iskusstvennogo-intellekta)): С помощью ChatGPT селлер может генерировать тексты, создавать изображение с нуля, менять существующие снимки, добавлять SEO-ключи в существующее описание, подобрать ключевые слова, придумать готовые ответы на вопросы и отзывы или создать шаблоны, сгенерировать тексты для инфографики. [5]\n\n* [tablichki.tech]([https://tablichki.tech/ocifrovka_marketplace_blog/tpost/ai_marketplaces](https://tablichki.tech/ocifrovka_marketplace_blog/tpost/ai_marketplaces)): ChatGPT способен анализировать выгрузки маркетплейсов, находить закономерности и давать рекомендации по управлению продажами. [6]\n\n* [seller.ozon.ru]([https://seller.ozon.ru/media/boost/7-nejrosetej-dlya-prodavcov-na-marketplejsah/](https://seller.ozon.ru/media/boost/7-nejrosetej-dlya-prodavcov-na-marketplejsah/)): С помощью ChatGPT можно писать тексты для карточек товаров. [7] Главное ― составить для нейросети правильный «промпт», то есть задание. [7] Чтобы ChatGPT вас идеально понял, нужно давать ему прямое указание, например: «Напиши текст для карточки товара на Ozon по следующим вводным» — и перечислить важную информацию, которую вы хотите отразить в описании. [7]",
+      "role": "ROLE_ASSISTANT"
+    },
+    "sources": [
+      {
+        "url": "[https://www.ozon.ru/product/chatgpt-plus-gpt-5-6-na-1-mesyats-maksimum-vozmozhnostey-ii-rabota-ucheba-biznes-sovmestnyy-dostup-5543975862/](https://www.ozon.ru/product/chatgpt-plus-gpt-5-6-na-1-mesyats-maksimum-vozmozhnostey-ii-rabota-ucheba-biznes-sovmestnyy-dostup-5543975862/)",
+        "title": "ChatGPT Plus GPT-5.6 на 1 месяц Максимум возможностей ИИ Работа, учёба, бизнес Совместный доступ купить на OZON по низкой цене (5543975862)",
+        "used": false
+      },
+      {
+        "url": "[https://apimonster.ru/connector/bundle/openai/ozon/](https://apimonster.ru/connector/bundle/openai/ozon/)",
+        "title": "Интеграция OpenAI / ChatGpt (ОпенАИ / ЧатГпт) и Ozon (Озон) по API без программиста",
+        "used": true
+      },
+      {
+        "url": "[https://www.cossa.ru/gdekurs/349253/](https://www.cossa.ru/gdekurs/349253/)",
+        "title": "ТОП-7 лучших ИИ генераторов для создания карточек на Озон в 2026 году: платные и бесплатные нейросет",
+        "used": true
+      },
+      {
+        "url": "[https://jafo.ru/blog/podklyuchit-claude-chatgpt-k-wildberries-ozon](https://jafo.ru/blog/podklyuchit-claude-chatgpt-k-wildberries-ozon)",
+        "title": "Как подключить Claude или ChatGPT к Wildberries и Ozon и управлять магазином прямо в чате — Блог JAFO",
+        "used": true
+      },
+      {
+        "url": "[https://xway.ru/blog/ozon-i-chatgpt-kak-sozdat-prodayushhie-foto-s-pomoshhyu-iskusstvennogo-intellekta](https://xway.ru/blog/ozon-i-chatgpt-kak-sozdat-prodayushhie-foto-s-pomoshhyu-iskusstvennogo-intellekta)",
+        "title": "Как создать фото на Ozon с помощью искусственного интеллекта — блог XWAY",
+        "used": true
+      },
+      {
+        "url": "[https://tablichki.tech/ocifrovka_marketplace_blog/tpost/ai_marketplaces](https://tablichki.tech/ocifrovka_marketplace_blog/tpost/ai_marketplaces)",
+        "title": "ИИ для маркетплейсов: анализ Wildberries и Ozon через ChatGPT",
+        "used": true
+      },
+      {
+        "url": "[https://seller.ozon.ru/media/boost/7-nejrosetej-dlya-prodavcov-na-marketplejsah/](https://seller.ozon.ru/media/boost/7-nejrosetej-dlya-prodavcov-na-marketplejsah/)",
+        "title": "Нейросети и ИИ для маркетплейса Ozon: как автоматизировать создание карточек товара",
+        "used": true
+      }
+    ],
+    "searchQueries": [
+      {
+        "text": "как использовать chatgpt для ozon",
+        "reqId": "1790257065891183-10722280772091903777-oofe4bahe33j3pvq-BAL"
+      },
+      {
+        "text": "chatgpt для ozon",
+        "reqId": "1790257065557514-1274809485167079107-potw2dvfhhbj5s6t-BAL"
+      }
+    ],
+    "fixedMisspellQuery": "",
+    "isAnswerRejected": false,
+    "isBulletAnswer": true,
+    "hints": [],
+    "problematicAnswer": false,
+    "transport": {
+      "wire_format": "json_array",
+      "frame_count": 1
+    }
+  },
+  "request_executed": true,
+  "automatic_retry": false
+}
