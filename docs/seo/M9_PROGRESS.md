@@ -1,7 +1,7 @@
 # Octoport SEO — M9 progress
 
 Date: 2026-09-24
-Status: **WAVE-1 COLLECT SLICE-1 PASS / 12 SUCCEEDED / 13 WAITING / SLICE-2 OPEN**
+Status: **WAVE-1 COLLECT SLICE-2 RELEASED / WAITING RESULT**
 Branch: `seo/wordstat-batch-01-2026-09-16`
 
 ## Current accepted chain
@@ -390,6 +390,25 @@ Indices 0..11 returned terminal provider results and normalized successfully.
 Indices 12..24 remain WAITING and were not processed by slice 1.
 
 A second collect is allowed only after a separate durable release/readback. No new five-minute delay is needed for these unpolled rows because their original due time already passed.
+
+## Wave-1 collect slice-2 release
+
+Release:
+`docs/seo/M9_BOUNDARY_RESOLUTION_WAVE1_COLLECT_SLICE2_RELEASE_2026-09-24_R1.md`
+
+```text
+CURRENT = 12 SUCCEEDED / 13 WAITING
+SLICE1_LAST_INDEX = 11
+REMAINING_UNPOLLED = indices 12..24
+
+AUTHORIZED_ACTION =
+SEARCH_ASYNC_BATCH_API_V1 {"action":"collectN","jobId":"octoport-m9br-wave1-20260924-r1","count":13}
+
+THIRD_COLLECTN = CLOSED
+SUBMITN = CLOSED
+```
+
+The remaining 13 rows are still on their original due schedule; no new five-minute wait applies before this slice.
 
 ## Owner relay
 
