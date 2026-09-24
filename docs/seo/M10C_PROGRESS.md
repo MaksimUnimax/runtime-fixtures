@@ -1,7 +1,7 @@
 # Octoport SEO — M10C progress
 
 Date: 2026-09-24
-Status: **CASE01+CASE02 TERMINAL CLOSED / CASE03 SNAPSHOT01 RELEASED**
+Status: **CASE01+CASE02+CASE03 TERMINAL CLOSED / CASE04 SNAPSHOT01 RELEASED**
 Branch: `seo/wordstat-batch-01-2026-09-16`
 
 ## Accepted chain
@@ -129,3 +129,23 @@ Current authorized action:
 `SEARCH_API_V1 {"method":"genSearch","queryText":"ии агент для озон","confirmBillable":true}`
 
 Exactly one Case03 provider request is authorized. Case03 snapshot-2 and Case04 remain closed.
+
+Case03 terminal closure:
+`docs/seo/M10C_CASE03_TERMINAL_CLOSURE_2026-09-24_R1.md`
+blob `34fbfeda446ed1ac1d7c108443f0b973f23ee8c5`.
+
+```text
+CASE03_SNAPSHOTS = 1/2_ALLOWED
+CASE03_TERMINAL_EVIDENCE_STATE = COHERENT_AUTONOMOUS_WRITE_FRAMING
+CASE03_ESTIMATED_PROVIDER_COST_RUB = 5.08
+CASE03_SNAPSHOT02 = CLOSED
+```
+
+Case04 snapshot-1 release:
+`docs/seo/M10C_CASE04_SNAPSHOT01_RELEASE_2026-09-24_R1.md`
+blob `7e69fb0842733530e22693355699703791b3b8be`.
+
+Current authorized action:
+`SEARCH_API_V1 {"method":"genSearch","queryText":"chatgpt для ozon","confirmBillable":true}`
+
+Exactly one Case04 provider request is authorized. Case04 snapshot-2 and Case05 remain closed.
