@@ -1,7 +1,7 @@
 # Octoport SEO — M9 progress
 
 Date: 2026-09-24
-Status: **WAVE-1 PROVIDER LIFECYCLE COMPLETE / LOCAL TERMINAL READBACK + EXPORT OPEN**
+Status: **WAVE-1 PROVIDER COMPLETE / TERMINAL ITEM READBACK RELEASED**
 Branch: `seo/wordstat-batch-01-2026-09-16`
 
 ## Current accepted chain
@@ -13,7 +13,7 @@ M9 BOUNDARY-RESOLUTION PRE-ACQ = PASS / MAIN CHAT ACCEPTED
 M10A = BLOCKED
 
 CURRENT PHYSICAL STEP =
-M9 BOUNDARY-RESOLUTION WAVE-1 LOCAL TERMINAL READBACK / EXPORT
+M9 BOUNDARY-RESOLUTION WAVE-1 TERMINAL ITEMS READBACK
 ```
 
 ## Accepted M9 unresolved state
@@ -497,6 +497,22 @@ Immediate next actions are local/read-only:
 1. terminal `itemsPage` readback;
 2. complete durable `exportPage`;
 3. inspect the exported 25-query evidence before rebuilding M9.
+
+## Wave-1 terminal items readback release
+
+Release:
+`docs/seo/M9_BOUNDARY_RESOLUTION_WAVE1_TERMINAL_ITEMS_RELEASE_2026-09-24_R1.md`
+
+```text
+PROVIDER_LIFECYCLE = PASS_COMPLETE
+REVISION = 125
+
+AUTHORIZED_LOCAL_ACTION =
+SEARCH_ASYNC_BATCH_API_V1 {"action":"itemsPage","jobId":"octoport-m9br-wave1-20260924-r1","after":-1,"limit":25}
+
+PROVIDER_CALLS_EXPECTED = 0
+EXPORTPAGE = CLOSED UNTIL TERMINAL ITEMS PASS
+```
 
 ## Owner relay
 
