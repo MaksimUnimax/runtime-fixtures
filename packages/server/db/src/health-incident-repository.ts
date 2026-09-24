@@ -11,11 +11,14 @@ import {
   HealthLevelSchema,
   HealthStateSchema,
   HealthSuiteDefinitionSchema,
+  NoSessionObservationResultSchema,
   type BaselineContourKey,
   type HealthIncidentStatus,
   type HealthLevel,
   type LlmHealthNotificationPolicy,
 } from "@product/health";
+import { createHash } from "node:crypto";
+import { canonicalizeJson } from "@product/remote-config";
 import type { DatabaseQuery, DatabaseRuntime } from "./index.js";
 import {
   observeLlmHealthFailureInTransaction,
@@ -56,13 +59,16 @@ export type HealthIncidentProcessingResult = {
 
 type RunRow = {
   id: string;
-  suiteRevisionId: string;
+  runKind: "BASELINE_CONTOUR" | "NO_SESSION_OBSERVATION";
+  suiteRevisionId: string | null;
   healthLevel: string;
   healthState: string;
   scope: unknown;
   scopeSha256: string;
   operatorMaintenance: boolean;
   completedAt: Date;
+  browserFamily: string;
+  profileId: string;
 };
 
 type SuiteRow = { definition: unknown };
@@ -124,7 +130,7 @@ function isAfter(
 
 async function getRun(q: DatabaseQuery, runId: string): Promise<RunRow> {
   const result = await q.query<RunRow>(
-    `SELECT id,suite_revision_id AS "suiteRevisionId",health_level AS "healthLevel",health_state AS "healthState",scope,scope_sha256 AS "scopeSha256",operator_maintenance AS "operatorMaintenance",completed_at AS "completedAt" FROM health_runs WHERE id=$1 FOR SHARE`,
+    `SELECT id,run_kind AS "runKind",suite_revision_id AS "suiteRevisionId",health_level AS "healthLevel",health_state AS "healthState",scope,scope_sha256 AS "scopeSha256",operator_maintenance AS "operatorMaintenance",completed_at AS "completedAt",browser_family AS "browserFamily",profile_id AS "profileId" FROM health_runs WHERE id=$1 FOR SHARE`,
     [runId],
   );
   const row = result.rows[0];
@@ -156,6 +162,27 @@ async function getClassification(
     results,
     operatorMaintenance: run.operatorMaintenance,
   });
+}
+
+function noSessionIncidentIdentity(
+  run: RunRow,
+  observation: ReturnType<typeof NoSessionObservationResultSchema.parse>,
+  healthLevel: HealthLevel,
+) {
+  const identity = {
+    schemaVersion: "health_no_session_incident_v1",
+    provider: observation.providerId,
+    surface: observation.surfaceId,
+    targetKey: observation.targetKey,
+    browserFamily: run.browserFamily,
+    profileId: run.profileId,
+    strategyId: observation.strategyId,
+    healthLevel,
+  };
+  const digest = createHash("sha256")
+    .update(canonicalizeJson(identity))
+    .digest("hex");
+  return { identity, digest };
 }
 
 async function activeByKey(
@@ -288,23 +315,60 @@ export function createHealthIncidentRepository(
     ): Promise<HealthIncidentProcessingResult> {
       return runtime.transaction(async (q) => {
         const run = await getRun(q, runId);
-        const classification = await getClassification(q, run);
         const persistedState = HealthStateSchema.parse(run.healthState);
-        if (classification.state !== persistedState) {
-          throw new Error("HEALTH_RUN_CLASSIFICATION_MISMATCH");
-        }
-        const scope = HealthSuiteDefinitionSchema.parse(
-          (
-            await q.query<SuiteRow>(
-              `SELECT definition FROM health_suite_revisions WHERE id=$1`,
-              [run.suiteRevisionId],
-            )
-          ).rows[0]?.definition,
-        ).scope;
-        const rootContourKey = selectRootContour(classification);
         const healthLevel = HealthLevelSchema.parse(
           run.healthLevel,
         ) as HealthLevel;
+        let scope: { adapterFamilyKey: string; surfaceKey: string };
+        let baselineScope:
+          | ReturnType<typeof HealthSuiteDefinitionSchema.parse>["scope"]
+          | undefined;
+        let rootContourKey: BaselineContourKey | null;
+        let incidentScope: string;
+        let incidentKey: string;
+        if (run.runKind === "NO_SESSION_OBSERVATION") {
+          const detail = await q.query<{ observation: unknown }>(
+            `SELECT observation FROM health_no_session_observations WHERE run_id=$1`,
+            [run.id],
+          );
+          const observation = NoSessionObservationResultSchema.parse(
+            detail.rows[0]?.observation,
+          );
+          if (observation.classification !== persistedState)
+            throw new Error("HEALTH_RUN_CLASSIFICATION_MISMATCH");
+          scope = {
+            adapterFamilyKey: observation.providerId,
+            surfaceKey: observation.surfaceId,
+          };
+          rootContourKey = null;
+          const identity = noSessionIncidentIdentity(
+            run,
+            observation,
+            healthLevel,
+          );
+          incidentScope = identity.digest;
+          incidentKey = identity.digest;
+        } else {
+          const classification = await getClassification(q, run);
+          if (classification.state !== persistedState)
+            throw new Error("HEALTH_RUN_CLASSIFICATION_MISMATCH");
+          baselineScope = HealthSuiteDefinitionSchema.parse(
+            (
+              await q.query<SuiteRow>(
+                `SELECT definition FROM health_suite_revisions WHERE id=$1`,
+                [run.suiteRevisionId],
+              )
+            ).rows[0]?.definition,
+          ).scope;
+          scope = baselineScope;
+          rootContourKey = selectRootContour(classification);
+          incidentScope = healthIncidentScopeSha256(baselineScope, healthLevel);
+          incidentKey = healthIncidentKeySha256(
+            baselineScope,
+            healthLevel,
+            rootContourKey,
+          );
+        }
         const notificationInput = (
           incidentId: string,
           eventKind: LlmHealthNotificationEventKind,
@@ -325,13 +389,6 @@ export function createHealthIncidentRepository(
             },
             notificationPolicy,
           );
-        const incidentScope = healthIncidentScopeSha256(scope, healthLevel);
-        const incidentKey = healthIncidentKeySha256(
-          scope,
-          healthLevel,
-          rootContourKey,
-        );
-
         if (persistedState === "UNKNOWN") {
           return { runId, action: "NOOP", incidentIds: [] };
         }

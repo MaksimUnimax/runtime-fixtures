@@ -267,6 +267,13 @@
       "when": 1790071015000,
       "tag": "0048_health_browser_family_matrix",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1790071016000,
+      "tag": "0049_s2_l5_no_session_persistence",
+      "breakpoints": true
     }
   ]
 }
