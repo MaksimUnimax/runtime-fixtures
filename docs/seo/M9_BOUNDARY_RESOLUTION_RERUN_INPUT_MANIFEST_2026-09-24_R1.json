@@ -1,0 +1,162 @@
+{
+  "schema": "OCTOPORT_M9_BOUNDARY_RESOLUTION_FULL_RERUN_INPUT_MANIFEST_V1",
+  "work_id": "OCTOPORT_SEO_M9_BOUNDARY_RESOLUTION_FULL_RERUN_2026-09-24_R1",
+  "date": "2026-09-24",
+  "repository": "MaksimUnimax/runtime-fixtures",
+  "branch": "seo/wordstat-batch-01-2026-09-16",
+  "preparation_parent_head": "7d82d76ec42f1009b0eff304a0a0e21bfa73f246",
+  "rule": "Preserve accepted M9 R2 non-Search semantic/task/page-type dimensions. Replace only current Search-anchor authority with the accepted 47-anchor map, recompute Search comparability and exact overlap for the complete 5,356-pair universe, then recompute evidence grades, pair decisions, HOLDs and complete-link clusters under the unchanged R2 method.",
+  "base_input_manifest": {
+    "path": "docs/seo/M9_CANONICAL_DIRECT_INPUT_MANIFEST_2026-09-24_R2.json",
+    "git_blob_sha": "424f2e61c54388c90fb5cc91495f7f5c8f81898b",
+    "logical_files": 19,
+    "status": "BINDING_BASE_INPUT_AUTHORITY_UNCHANGED"
+  },
+  "expected": {
+    "semantic_identities": 7913,
+    "cluster_eligible": 104,
+    "search_anchors": 47,
+    "no_current_exact_serp": 57,
+    "pairwise_pairs": 5356,
+    "both_current_serp": 1081,
+    "one_current_serp": 2679,
+    "no_current_serp_pairs": 1596,
+    "comparability_changed_pairs": 2275,
+    "comparability_unchanged_pairs": 3081,
+    "old_old_both_pairs": 231,
+    "old_new_to_both_pairs": 550,
+    "new_new_to_both_pairs": 300,
+    "new_remaining_to_one_pairs": 1425
+  },
+  "frozen_non_search_pair_fields": [
+    "pair_id",
+    "semantic_identity_id_a",
+    "semantic_identity_id_b",
+    "canonical_text_a",
+    "canonical_text_b",
+    "preliminary_family_a",
+    "preliminary_family_b",
+    "user_task_relation",
+    "intent_relation",
+    "marketplace_scope_relation",
+    "product_fit_relation",
+    "result_page_type_relation"
+  ],
+  "recompute_for_all_5356": [
+    "search_comparability",
+    "current_query_id_a",
+    "current_query_id_b",
+    "exact_url_overlap_top10_count",
+    "exact_url_union_top10_count",
+    "exact_url_jaccard_top10",
+    "exact_url_overlap_top20_count",
+    "exact_url_union_top20_count",
+    "exact_url_jaccard_top20",
+    "domain_overlap_top10_count",
+    "domain_union_top10_count",
+    "domain_jaccard_top10",
+    "search_evidence_refs",
+    "evidence_grade",
+    "pair_decision",
+    "pair_reason_code",
+    "rationale",
+    "claim_boundary"
+  ],
+  "overlay_files": [
+    {
+      "path": "docs/seo/M9_R2_MAIN_CHAT_FINAL_ACCEPTANCE_2026-09-24_R1.md",
+      "git_blob_sha": "7acc7f0e4bd70761c06e828bcea4da82a4cd2736",
+      "role": "ACCEPTED_M9_R2_BASELINE"
+    },
+    {
+      "path": "docs/seo/work_return/M9_SEARCH_ONLY_CLUSTERING_2026-09-24_R2/M9_PAIRWISE_CLUSTER_EVIDENCE.tsv",
+      "git_blob_sha": "1ed11a2f135e7f7a8749c80be9efb971e267eda2",
+      "role": "FROZEN_NON_SEARCH_PAIR_DIMENSIONS_AND_DIFF_BASELINE",
+      "expected_data_rows": 5356
+    },
+    {
+      "path": "docs/seo/work_return/M9_SEARCH_ONLY_CLUSTERING_2026-09-24_R2/M9_CLUSTER_MASTER.tsv",
+      "git_blob_sha": "a44b15539ff6ff3e472add8045a05bdd63086d05",
+      "role": "CLUSTER_DIFF_BASELINE"
+    },
+    {
+      "path": "docs/seo/work_return/M9_SEARCH_ONLY_CLUSTERING_2026-09-24_R2/M9_CLUSTER_MEMBERSHIP.tsv",
+      "git_blob_sha": "c757fd9738cfb06fc0db8184308490351dbce9a1",
+      "role": "MEMBERSHIP_DIFF_BASELINE",
+      "expected_data_rows": 104
+    },
+    {
+      "path": "docs/seo/M9_BOUNDARY_RESOLUTION_PREACQ_MAIN_CHAT_ACCEPTANCE_2026-09-24_R1.md",
+      "git_blob_sha": "1d82c1412d59061501ac4c49ce2427cc001cf13d",
+      "role": "WAVE1_SELECTION_ACCEPTANCE"
+    },
+    {
+      "path": "docs/seo/work_return/M9_BOUNDARY_RESOLUTION_PREACQ_2026-09-24_R1/M9BR_WAVE1_QUERY_MANIFEST.tsv",
+      "git_blob_sha": "3222b6b96ea7e7c558d08be34e74482ce4f81a4e",
+      "role": "WAVE1_EXACT_QUERY_IDENTITY",
+      "expected_data_rows": 25
+    },
+    {
+      "path": "docs/seo/M9_BOUNDARY_RESOLUTION_WAVE1_EXPORT_ACCEPTANCE_2026-09-24_R1.md",
+      "git_blob_sha": "4f83d5d0432d8b0cfbbc79648f71d07fcbc5a80c",
+      "role": "WAVE1_FULL_EXPORT_ACCEPTANCE"
+    },
+    {
+      "path": "docs/seo/M9_BOUNDARY_RESOLUTION_WAVE1_OVERLAP_PROJECTION_ACCEPTANCE_2026-09-24_R1.md",
+      "git_blob_sha": "3f5e02f7a424fdbbfaaf367108550f84f698dd2b",
+      "role": "WAVE1_TOP20_PROJECTION_ACCEPTANCE"
+    },
+    {
+      "path": "docs/seo/serp/raw/M9_BOUNDARY_RESOLUTION_WAVE1_2026-09-24_R1/M9BR_WAVE1_TOP20_URL_DOMAIN.tsv.gz.b64",
+      "git_blob_sha": "cb2d10581aff2810549fc1a9841b51edb652d428",
+      "role": "WAVE1_CURRENT_OVERLAP_ROWS",
+      "decoded_tsv_sha256": "b01d9c0ccbbfb2c7cfcb5af33762c7d9a74c686c2102e5d1419e1bf97491bb95",
+      "expected_data_rows": 500
+    },
+    {
+      "path": "docs/seo/M9_BOUNDARY_RESOLUTION_SEARCH_ANCHOR_MAP_2026-09-24_R1.tsv",
+      "git_blob_sha": "5c9aa993f9d17c1434deb0da059e316a98da54f1",
+      "role": "CURRENT_47_SEARCH_ANCHOR_MAP",
+      "expected_data_rows": 47
+    }
+  ],
+  "overlap_sources": {
+    "old_22": {
+      "path": "docs/seo/serp/competitors/work_return/M4Q_R2_PASS_B_VISIBILITY_2026-09-23_R1/M4Q_R2_SERP_RESULT_LEDGER.tsv",
+      "git_blob_sha": "41041493677627bfaf30de8eb7ec88a52ceb0a91",
+      "url_field": "result_url_normalized",
+      "domain_field": "result_domain",
+      "rank_field": "result_rank"
+    },
+    "new_25": {
+      "path": "docs/seo/serp/raw/M9_BOUNDARY_RESOLUTION_WAVE1_2026-09-24_R1/M9BR_WAVE1_TOP20_URL_DOMAIN.tsv.gz.b64",
+      "git_blob_sha": "cb2d10581aff2810549fc1a9841b51edb652d428",
+      "decoded_fields": [
+        "index",
+        "rank",
+        "url",
+        "domain"
+      ]
+    },
+    "rule": "Use exact values as stored. No cross-source or ad-hoc re-normalization. New projection is valid only for Top10/Top20 overlap and is linked to the accepted full Top100 export."
+  },
+  "page_type_rule": "Freeze accepted R2 result_page_type_relation. New 25 anchors do not create page-type authority; do not infer page type from titles/snippets/raw Search.",
+  "prohibited": [
+    "PROVIDER_CALLS",
+    "WORDSTAT_EXECUTION",
+    "YANDEX_SEARCH_EXECUTION",
+    "ALICE_EXECUTION",
+    "GENSEARCH_EXECUTION",
+    "WEB_ACQUISITION",
+    "NEW_LIVE_SITE_CRAWL",
+    "GITHUB_WRITES",
+    "SITE_MUTATION",
+    "AD_HOC_URL_RENORMALIZATION",
+    "AD_HOC_DOMAIN_RENORMALIZATION",
+    "AD_HOC_PAGE_TYPE_INFERENCE",
+    "PARTIAL_PAIR_PATCH",
+    "NEW_SEMANTIC_RELATION_INFERENCE_WITHOUT_NAMED_INPUT_DEFECT",
+    "M10A_PAGE_OWNERSHIP",
+    "URL_H1_TITLE_IA"
+  ]
+}
