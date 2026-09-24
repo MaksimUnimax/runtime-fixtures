@@ -33,7 +33,9 @@ export class SyncRequestError extends Error {
   public constructor(
     public readonly code:
       | "SYNC_REQUEST_ID_CONFLICT"
-      | "ACCOUNT_IDENTITY_MISMATCH",
+      | "ACCOUNT_IDENTITY_MISMATCH"
+      | "SYNC_CANONICAL_ENTITY_MISMATCH"
+      | "SYNC_CANONICAL_ENTITY_COLLISION",
   ) {
     super(code);
   }

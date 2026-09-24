@@ -82,6 +82,24 @@ export function registerSyncRoutes(
             "Request identity conflict",
             409,
           );
+        if (
+          error instanceof Error &&
+          error.message === "SYNC_CANONICAL_ENTITY_MISMATCH"
+        )
+          throw new ControlledError(
+            "SYNC_CONFLICT",
+            "Binding entity identity mismatch",
+            409,
+          );
+        if (
+          error instanceof Error &&
+          error.message === "SYNC_CANONICAL_ENTITY_COLLISION"
+        )
+          throw new ControlledError(
+            "SYNC_CONFLICT",
+            "Binding entity state is ambiguous",
+            409,
+          );
         throw error;
       }
     },
