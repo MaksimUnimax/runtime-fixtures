@@ -279,6 +279,27 @@ await test('APP-10-WB-observed-quota-holds-tail-without-Ozon-intervals-or-auto-r
     assert.equal(s.worker.network.length,1,'early explicit resume cannot skip provider deadline');
   } finally { s.worker.close(); }
 });
+await test('APP-10b-WB-confirmed-cabinet-quota-shares-across-store-cards-and-marketplace-methods', async () => {
+  const s = await setup({ fetch: async (url) => {
+    if (url.includes('/api/v3/warehouses')) return new Response('limited', { status:429, headers:{'x-ratelimit-retry':'30'} });
+    if (url.includes('/api/v3/offices')) return new Response('{"result":[]}', { headers:{'content-type':'application/json'} });
+    return new Response('{"result":[]}', { headers:{'content-type':'application/json'} });
+  } }); try {
+    const a = await s.save(wb(fixtureToken)), b = await s.save(wb('FIXTURE_CONFIRMED_CARD_TWO'));
+    await s.worker.call('saCatalog.confirmProviderIdentity', a.id, a.credentialRevision, 'wb-confirmed-cabinet');
+    await s.worker.call('saCatalog.confirmProviderIdentity', b.id, b.credentialRevision, 'wb-confirmed-cabinet');
+    const first = await s.start(a);
+    const tab = s.worker.addTab(88, 'wb-confirmed-second-dialogue');
+    const second = await s.start(b, { tabId:88, ...tab });
+    await s.execute(first, 'WB_API_V1 {"operation":"seller_warehouses","params":{}}', 'wb-confirmed-first');
+    await s.collected(first);
+    assert.equal(s.worker.network.filter(x=>x.url.includes('/api/v3/warehouses')).length, 1);
+    await s.execute(second, 'WB_API_V1 {"operation":"marketplace_offices","params":{}}', 'wb-confirmed-second');
+    await until(async()=>{const o=await s.worker.call('getManualOperation',second.key);return o?.batch?.request_state==='quota_waiting'&&o;},'confirmed WB cabinet shares Marketplace observed wait');
+    assert.equal(s.worker.network.filter(x=>x.url.includes('/api/v3/offices')).length, 0);
+    assert.equal(s.worker.network.length, 1, 'second confirmed card is blocked before provider fetch');
+  } finally { s.worker.close(); }
+});
 await test('C3A-01-valid-Work-command-gates-before-one-provider-request-and-no-control-call', async () => {
   const s = await setup(); try {
     const started = await s.start(await s.save(wb(fixtureToken)));

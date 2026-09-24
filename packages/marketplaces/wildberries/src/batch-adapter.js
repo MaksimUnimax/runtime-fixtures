@@ -59,8 +59,16 @@
   }
   function createPorts(context, { quota, diagnostic, workerId, provider = A.createProvider(), flights = new Map() }) {
     const { snapshot } = context;
-  const scope = async (command) => A.hash(JSON.stringify(["wildberries", snapshot.accountId,
-        snapshot.credentialRevision, A.operation(command).host]));
+  const scopes = async (command) => {
+    const identity = context.quotaIdentity || { kind: "store_local", value: snapshot.storeId };
+    const operation = A.operation(command);
+    const group = operation.category === "marketplace" ? "category:marketplace" : `method:${command.operation}`;
+    const identities = identity.kind === "provider_account"
+      ? [identity, { kind: "store_local", value: snapshot.storeId }]
+      : [identity];
+    return Promise.all(identities.map((item) =>
+      A.hash(JSON.stringify(["wildberries", item.kind, item.value, group]))));
+  };
       const ports = {
         normalizeKey: (key) => key, workerId, flights,
         singleFlight: globalThis.SellerAgentsLocalOperations.singleFlight,
@@ -95,7 +103,12 @@
         reviewedAcquisitionProfile: () => null, acquisitionPlanning: () => null,
         coalescedOperation: null, providerId: "wildberries", bridgeErrorCode: "WB_BRIDGE_ERROR",
         executionError: (command, fingerprint, error) => A.localError(error, command?.operation, error?.external_request_executed === true),
-        prepareQuota: async (command) => quota.prepare(await scope(command)),
+        prepareQuota: async (command) => {
+          const decisions = await Promise.all((await scopes(command)).map((scope) => quota.prepare(scope)));
+          return decisions.reduce((selected, current) =>
+            Number(current?.quota?.next_allowed_at || 0) > Number(selected?.quota?.next_allowed_at || 0)
+              ? current : selected);
+        },
         quotaMetadata: (value) => value,
         async persistQuotaWait(o) {
           await o.mutateOwner((owner) => o.ownerMatches(owner) && o.isCollecting(owner) ?
@@ -104,7 +117,10 @@
         async execute(text, { executionCommand, onProviderResponse, onProviderResult }) {
           const result = await provider.execute(text, { context, executionCommand, onProviderResponse, onProviderResult });
           await context.assertCurrent();
-          try { await quota.observe(await scope(executionCommand), result.response_meta?.retry_after); }
+          try {
+            for (const scope of await scopes(executionCommand))
+              await quota.observe(scope, result.response_meta?.retry_after);
+          }
           catch (error) {
             // Commit the received result first; then stop before any further dispatch.
             result.stop_after_result = "QUOTA_OBSERVATION_FAILED_NO_RETRY";
