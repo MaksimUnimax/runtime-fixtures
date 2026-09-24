@@ -62,6 +62,7 @@ describe("OpenAPI foundation", () => {
         "/v1/admin/commercial/prices/{price_id}/status",
         "/v1/admin/compatibility/policies",
         "/v1/admin/compatibility/policies/{policy_key}/publish",
+        "/v1/admin/compatibility/releases/{version}/publish",
         "/v1/admin/health/diagnostics/breakdown",
         "/v1/admin/health/diagnostics/summary",
         "/v1/admin/health/evaluations",
