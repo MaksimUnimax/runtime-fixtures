@@ -1,7 +1,7 @@
 # Octoport SEO — M8 progress
 
 Date: 2026-09-24
-Status: **R3 RELEASED / WAITING CHATGPT WORK RETURN**
+Status: **R3 RETURN PUBLISHED PARTIALLY / MAIN CHAT HOLD**
 Branch: `seo/wordstat-batch-01-2026-09-16`
 
 ## Current accepted chain
@@ -18,85 +18,84 @@ R4 = PASS
 M7 = PASS_WITH_TRANSPORT_CORRECTION
 M8 R1 = SUPERSEDED
 M8 R2 = HOLD_SEMANTIC_CONTRACT_DEFECT / NOT ACCEPTED
-M8 R3 = RELEASED TO WORK
+M8 R3 WORK VERDICT = PASS
+M8 R3 MAIN CHAT = HOLD_RETURN_PUBLICATION_INCOMPLETE
 M9 = BLOCKED
 ```
 
-## R2 defect / recovery
-
-Historical malformed targeted page evidence:
-`docs/seo/serp/competitors/work_return/M4Q_R2_TARGETED_M4C_RECHECK_2026-09-23_R1/M4Q_R2_TARGETED_PAGE_EVIDENCE.tsv`
-
-Current parser-safe recovery:
-`docs/seo/serp/competitors/recovery/M4Q_R2_TARGETED_PAGE_EVIDENCE_2026-09-24_R1/M4Q_R2_TARGETED_PAGE_EVIDENCE_RECOVERED.tsv`
+## R3 Work report
 
 ```text
-RECOVERY_BLOB = b62d1c2cfb8ccb4dba84b8d3d691cb5d1c5fb77c
-RECOVERY_SHA256 = a9ec3a14319edc0a4721e702378e910461490be1deba4136afcdf2276c2585d5
-RECOVERY_ROWS = 47/47
-RECOVERY_WIDTH = 21/21
-SEMANTIC_CHANGE = false
+START_HEAD = cc9c667844dd6de5fc7cdb46c9abfd9cf05d3001
+END_OBSERVED_HEAD = cc9c667844dd6de5fc7cdb46c9abfd9cf05d3001
+AUTHORITY_DRIFT_STATUS = NONE_FROZEN_INPUTS_UNCHANGED
+
+RAW_OCCURRENCE_ROWS = 25229/25229
+SEMANTIC_IDENTITY_ROWS = 7913
+WORKING = 104
+REVIEW_HOLD = 5064
+EXCLUDED = 2737
+BRAND_DEFENSE = 8
+XREF_ROWS = 25229
+ADVERSARIAL_DIAGNOSTIC_ROWS = 697
+IDENTITIES_CHANGED_AFTER_ADVERSARIAL_QA = 21
+OPEN_CRITICAL_DEFECTS = 0
 ```
 
-M7 correction:
-`docs/seo/M7_SEARCH_SIDE_FREEZE_TRANSPORT_CORRECTION_2026-09-24_R2.json`
-blob `ed1bad03d793ed0b0315c94b3b1bf46771736fd8`.
+## GitHub publication state
 
-## R3 two-level preparation
-
-```text
-LEVEL1_READ = PASS
-LEVEL2_READ = PASS
-ROADMAP_CURRENT_STATE_READ = PASS
-FAILURE_HISTORY_READ = PASS
-FRESH_METHOD_RESEARCH = PASS / SAME-STAGE CURRENT
-STEP_PREPARATION_R3 = PASS / REMOTE READBACK
-PRE_HANDOFF_R3 = PASS / REMOTE READBACK
-WORK_PROMPT_R3 = PASS / REMOTE READBACK
-```
-
-Current R3 authorities:
-
-- `docs/seo/M8_STEP_PREPARATION_2026-09-24_R3.md`
-  blob `4ee2374170cd3a0765af5f59d191215cfaf54889`
-
-- `docs/seo/M8_CANONICAL_DIRECT_INPUT_MANIFEST_2026-09-24_R3.json`
-  blob `d6ddafd812baacd60e737a3141971b76f81da485`
-
-- `docs/seo/M8_SEARCH_ONLY_SEMANTIC_MASTER_PRE_HANDOFF_2026-09-24_R3.md`
-  blob `0301d97c26de56276deefccd76f9a8b2f8ebc2fc`
-
-- `docs/seo/M8_SEARCH_ONLY_SEMANTIC_MASTER_WORK_PROMPT_2026-09-24_R3.md`
-  blob `a9a20871b3c8cc3a5c64fa6a318886692d85f800`
-
-## R3 Work contract
-
-```text
-PRIMARY_RAW_OCCURRENCES = 25229
-CANONICAL_DIRECT_CONTEXT_FILES = 46
-OUTPUT_FILES = 9
-
-DIRECT_TSV_PREFLIGHT = MANDATORY
-MALFORMED_DIRECT_TSV_PHYSICAL_LINES_REQUIRED = 0
-
-ALICE_INPUT_ROWS = 0
-PROVIDER_CALLS = 0
-WEB_ACQUISITION_BY_WORK = 0
-GITHUB_WRITES_BY_WORK = 0
-M9_CLUSTERING = NOT_AUTHORIZED
-```
-
-## Owner relay
-
-Main Chat provides the R3 Work prompt directly in chat.
-
-Work must return one ZIP containing exactly 9 final files.
-
-Staging:
+Target:
 `docs/seo/work_return/M8_SEARCH_ONLY_SEMANTIC_MASTER_2026-09-24_R3/`
 
-Exact upload URL:
-`https://github.com/MaksimUnimax/runtime-fixtures/upload/seo/wordstat-batch-01-2026-09-16/docs/seo/work_return/M8_SEARCH_ONLY_SEMANTIC_MASTER_2026-09-24_R3/`
+Required files = 9.
+Published files = 5.
+Missing files = 4.
 
-After upload:
-`REMOTE READBACK -> MAIN CHAT FULL QA -> ACCEPT | REWORK | HOLD -> only then M9`.
+Present:
+- `M8_SOURCE_MANIFEST.md`
+- `M8_IDENTITY_SOURCE_XREF.tsv`
+- `M8_HOLD_REVIEW_LEDGER.tsv`
+- `M8_ADVERSARIAL_DIAGNOSTIC.tsv`
+- `M8_QA.md`
+
+Missing:
+- `M8_RAW_OCCURRENCE_LEDGER.tsv`
+- `M8_SEMANTIC_IDENTITY_MASTER.tsv`
+- `M8_REASON_CODE_DICTIONARY.md`
+- `M8_RETURN_MANIFEST.json`
+
+## Main Chat independent QA already passed on present files
+
+```text
+XREF_ROWS = 25229
+XREF_UNIQUE_RAW_IDS = 25229
+XREF_UNIQUE_RAW_BACKED_SEMANTIC_IDS = 7905
+XREF_MALFORMED_ROWS = 0
+
+HOLD_LEDGER_ROWS = 5168
+HOLD_BLOCKING_ROWS = 5064
+HOLD_NONBLOCKING_PRODUCT_BOUNDARY_ROWS = 104
+HOLD_MALFORMED_ROWS = 0
+
+ADVERSARIAL_ROWS = 697
+ADVERSARIAL_UNIQUE_IDS = 697
+ADVERSARIAL_CHANGED_YES = 21
+ADVERSARIAL_CHANGED_NO = 676
+ADVERSARIAL_MALFORMED_ROWS = 0
+```
+
+These figures are consistent with the Work summary but do not replace verification of the missing master/raw/reason/return-manifest artifacts.
+
+Current Main Chat QA:
+`docs/seo/M8_R3_MAIN_CHAT_RETURN_QA_2026-09-24_R1.md`
+
+## Exact next action
+
+No Work rerun.
+
+Upload only the four missing files to the existing R3 staging directory.
+
+After they appear:
+`REMOTE READBACK -> HASH/BYTE/ROW QA -> XREF/MASTER/REASON JOIN QA -> QUALITY SCORE -> ACCEPT | REWORK | HOLD`.
+
+M9 remains blocked until M8 Main Chat acceptance.
