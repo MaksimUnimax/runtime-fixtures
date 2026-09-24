@@ -86,6 +86,57 @@ function parseInput(raw: unknown): NoSessionPersistenceInput {
 const hashJson = (value: unknown) =>
   createHash("sha256").update(canonicalizeJson(value)).digest("hex");
 
+function httpOriginOnly(value: string): string {
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error("NO_SESSION_URL_ORIGIN_INVALID");
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error("NO_SESSION_URL_ORIGIN_INVALID");
+  }
+  return parsed.origin;
+}
+
+function nullableHttpOriginOnly(value: string | null): string | null {
+  return value === null ? null : httpOriginOnly(value);
+}
+
+function sanitizeObservationForPersistence(
+  observation: NoSessionObservationResult,
+): NoSessionObservationResult {
+  const requestedStartUrl = httpOriginOnly(
+    observation.navigationEvidence.requestedStartUrl,
+  );
+  const finalUrl = nullableHttpOriginOnly(
+    observation.navigationEvidence.finalUrl,
+  );
+  const navigationFinalOrigin = nullableHttpOriginOnly(
+    observation.navigationEvidence.finalOrigin,
+  );
+  const finalOrigin = nullableHttpOriginOnly(observation.finalOrigin);
+  const finalOrigins = [finalUrl, navigationFinalOrigin, finalOrigin].filter(
+    (value): value is string => value !== null,
+  );
+  if (
+    finalOrigins.length > 1 &&
+    finalOrigins.some((value) => value !== finalOrigins[0])
+  ) {
+    throw new Error("NO_SESSION_FINAL_ORIGIN_MISMATCH");
+  }
+  return NoSessionObservationResultSchema.parse({
+    ...observation,
+    navigationEvidence: {
+      ...observation.navigationEvidence,
+      requestedStartUrl,
+      finalUrl,
+      finalOrigin: navigationFinalOrigin,
+    },
+    finalOrigin,
+  }) as NoSessionObservationResult;
+}
+
 function validateSurfacePair(observation: NoSessionObservationResult) {
   const expected =
     observation.surfaceId === "CHATGPT_STANDARD" ||
@@ -238,9 +289,10 @@ export function createHealthNoSessionPersistenceRepository(
   return {
     async persistCompletedNoSessionHealthRun(raw: unknown) {
       const input = parseInput(raw);
-      const observation = NoSessionObservationResultSchema.parse(
+      const parsedObservation = NoSessionObservationResultSchema.parse(
         input.observation,
       ) as NoSessionObservationResult;
+      const observation = sanitizeObservationForPersistence(parsedObservation);
       const evidenceIds = new Set<string>();
       for (const reference of observation.evidence) {
         if (evidenceIds.has(reference.evidenceId))

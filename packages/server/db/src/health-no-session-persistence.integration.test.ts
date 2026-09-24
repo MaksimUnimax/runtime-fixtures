@@ -86,14 +86,14 @@ function observation(
     },
     navigation: "LOADED",
     navigationEvidence: {
-      requestedStartUrl: "https://chatgpt.com/",
-      finalUrl: "https://chatgpt.com/",
-      finalOrigin: "https://chatgpt.com/",
+      requestedStartUrl: "https://chatgpt.com",
+      finalUrl: "https://chatgpt.com",
+      finalOrigin: "https://chatgpt.com",
       mainDocumentHttpStatus: 200,
       redirectCount: 0,
       outcome: "LOADED",
     },
-    finalOrigin: "https://chatgpt.com/",
+    finalOrigin: "https://chatgpt.com",
     expectedOriginValid: true,
     identity: "PROVEN",
     publicSurface: "REACHABLE",
@@ -543,6 +543,134 @@ describe.sequential("C04 no-session persistence PostgreSQL acceptance", () => {
       ambiguous.id,
       observation(12, { strategyId: "chatgpt-standard-ambiguous-v1" }),
       "NO_SESSION_PROFILE_REVISION_AUTHORITY_AMBIGUOUS",
+    );
+  });
+
+  it("persists only sanitized URL origins and replays equivalent safe observations", async () => {
+    const privacySchedule = await makeScheduledRun({ started: true });
+    const privacyObservation = observation(13, {
+      navigationEvidence: {
+        requestedStartUrl:
+          "https://privacy-user-13:privacy-pass-13@chatgpt.com/private-path-13?token=secret-query-13#secret-fragment-13",
+        finalUrl:
+          "https://chatgpt.com/session-path-13?session=secret-session-13#secret-final-fragment-13",
+        finalOrigin:
+          "https://chatgpt.com/final-origin-path-13?token=secret-origin-13#secret-origin-fragment-13",
+        mainDocumentHttpStatus: 200,
+        redirectCount: 1,
+        outcome: "LOADED",
+      },
+      finalOrigin:
+        "https://chatgpt.com/top-final-path-13?token=secret-top-13#secret-top-fragment-13",
+    });
+    const persisted = await persistence.persistCompletedNoSessionHealthRun(
+      persistenceInput(privacySchedule.id, privacyObservation),
+    );
+    const persistedDetail = await runtime.query<{
+      observation: unknown;
+      resultSha256: string;
+    }>(
+      'SELECT observation,result_sha256 AS "resultSha256" FROM health_no_session_observations WHERE run_id=$1',
+      [persisted.healthRunId],
+    );
+    const persistedObservation = persistedDetail.rows[0]?.observation;
+    expect(persistedObservation).toMatchObject({
+      navigationEvidence: {
+        requestedStartUrl: "https://chatgpt.com",
+        finalUrl: "https://chatgpt.com",
+        finalOrigin: "https://chatgpt.com",
+      },
+      finalOrigin: "https://chatgpt.com",
+    });
+    const storedJson = JSON.stringify(persistedObservation);
+    for (const secret of [
+      "privacy-user-13",
+      "privacy-pass-13",
+      "private-path-13",
+      "secret-query-13",
+      "secret-fragment-13",
+      "session-path-13",
+      "secret-session-13",
+      "secret-final-fragment-13",
+      "final-origin-path-13",
+      "secret-origin-13",
+      "secret-origin-fragment-13",
+      "top-final-path-13",
+      "secret-top-13",
+      "secret-top-fragment-13",
+    ]) {
+      expect(storedJson).not.toContain(secret);
+    }
+    const evidence = await runtime.query<{
+      evidenceId: string;
+      ruleId: string;
+      classification: string;
+      sha256: string;
+      sizeBytes: number;
+    }>(
+      'SELECT evidence_id AS "evidenceId",rule_id AS "ruleId",classification,sha256,size_bytes AS "sizeBytes" FROM health_no_session_evidence_references WHERE run_id=$1',
+      [persisted.healthRunId],
+    );
+    expect(evidence.rows).toEqual(privacyObservation.evidence);
+
+    const equivalentObservation = observation(13, {
+      navigationEvidence: {
+        requestedStartUrl:
+          "https://another-user:another-pass@CHATGPT.COM:443/another-private-path?token=another-secret#another-fragment",
+        finalUrl:
+          "https://CHATGPT.COM:443/another-session?session=another-secret#another-final-fragment",
+        finalOrigin:
+          "https://CHATGPT.COM:443/another-origin-path?token=another-origin-secret#another-origin-fragment",
+        mainDocumentHttpStatus: 200,
+        redirectCount: 1,
+        outcome: "LOADED",
+      },
+      finalOrigin:
+        "https://CHATGPT.COM:443/another-top-final?token=another-top-secret#another-top-fragment",
+    });
+    const replay = await persistence.persistCompletedNoSessionHealthRun(
+      persistenceInput(privacySchedule.id, equivalentObservation),
+    );
+    expect(replay.healthRunId).toBe(persisted.healthRunId);
+    const replayDetail = await runtime.query<{ resultSha256: string }>(
+      'SELECT result_sha256 AS "resultSha256" FROM health_no_session_observations WHERE run_id=$1',
+      [persisted.healthRunId],
+    );
+    expect(replayDetail.rows[0]?.resultSha256).toBe(
+      persistedDetail.rows[0]?.resultSha256,
+    );
+
+    const mismatchedSchedule = await makeScheduledRun({ started: true });
+    await expectRejectedWithoutRun(
+      mismatchedSchedule.id,
+      observation(14, {
+        navigationEvidence: {
+          requestedStartUrl: "https://chatgpt.com/private",
+          finalUrl: "https://chatgpt.com/session",
+          finalOrigin: "https://example.com/other",
+          mainDocumentHttpStatus: 200,
+          redirectCount: 0,
+          outcome: "LOADED",
+        },
+        finalOrigin: "https://chatgpt.com",
+      }),
+      "NO_SESSION_FINAL_ORIGIN_MISMATCH",
+    );
+
+    const nonHttpSchedule = await makeScheduledRun({ started: true });
+    await expectRejectedWithoutRun(
+      nonHttpSchedule.id,
+      observation(15, {
+        navigationEvidence: {
+          requestedStartUrl: "ftp://chatgpt.com/private?token=secret",
+          finalUrl: "https://chatgpt.com",
+          finalOrigin: "https://chatgpt.com",
+          mainDocumentHttpStatus: 200,
+          redirectCount: 0,
+          outcome: "LOADED",
+        },
+      }),
+      "NO_SESSION_URL_ORIGIN_INVALID",
     );
   });
 });
