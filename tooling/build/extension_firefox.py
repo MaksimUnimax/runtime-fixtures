@@ -18,6 +18,8 @@ from pathlib import Path
 
 IMPORT_SCRIPTS = re.compile(r"importScripts\((.*?)\);", re.DOTALL)
 FIREFOX_REQUIRED_DATA_COLLECTION = ["authenticationInfo", "personallyIdentifyingInfo"]
+FIREFOX_LOOPBACK_WITH_PORT = re.compile(r"^http://127\.0\.0\.1:\d+/\*$")
+FIREFOX_LOOPBACK_PORTLESS = "http://127.0.0.1/*"
 
 
 def sha256(data: bytes) -> str:
