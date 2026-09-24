@@ -192,7 +192,9 @@
       kind: entry.kind, payload: clone(entry.payload) };
   }
   function retryable(error) {
-    return error?.code === "CONTROL_TRANSPORT_UNAVAILABLE" || [408, 425, 429, 500, 502, 503, 504].includes(Number(error?.status)) || error?.code === "SERVICE_UNAVAILABLE";
+    return ["CONTROL_TRANSPORT_UNAVAILABLE", "CONTROL_REQUEST_TIMEOUT"].includes(error?.code) ||
+      [408, 425, 429, 500, 502, 503, 504].includes(Number(error?.status)) ||
+      error?.code === "SERVICE_UNAVAILABLE";
   }
   function authDenied(error) {
     return [401, 403].includes(Number(error?.status)) || ["UNAUTHORIZED", "DEVICE_MISMATCH", "DEVICE_REVOKED", "AUTH_REFRESH_INVALID", "ACCOUNT_IDENTITY_MISMATCH"].includes(error?.code);

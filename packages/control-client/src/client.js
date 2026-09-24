@@ -11,6 +11,7 @@
   const OPAQUE_TOKEN = /^[A-Za-z0-9_-]{43}$/;
   const EXCHANGE_PENDING = "DEVICE_AUTH_PENDING";
   const RETRYABLE_EXCHANGE_STATUS = new Set([429, 500, 502, 503, 504]);
+  const CONTROL_REQUEST_DEADLINE_MS = 30000;
   const TERMINAL_EXCHANGE_ERRORS = new Set(["DEVICE_AUTH_CLOSED", "DEVICE_AUTH_INVALID", "DEVICE_LIMIT_REACHED", "SUBSCRIPTION_REQUIRED"]);
   const LOCAL_AI = Object.freeze({ chatgpt: Object.freeze({ family: "chatgpt", surface: "web" }), alice: Object.freeze({ family: "alice", surface: "web" }) });
   const MAX_DATE_MS = 8640000000000000;
@@ -212,20 +213,49 @@
     const endpoint = url(path), headers = new Headers(options.headers || {}), requestOptions = { ...options };
     headers.set("Accept", "application/json");
     if (requestOptions.body !== undefined) { headers.set("Content-Type", "application/json"); requestOptions.body = JSON.stringify(requestOptions.body); }
-    requestOptions.headers = headers;
-    let response;
-    try { response = await fetch(endpoint, requestOptions); }
-    catch (_) { const failure = error("CONTROL_TRANSPORT_UNAVAILABLE"); transportProvenance.set(failure, endpoint); throw failure; }
-    let body = null, bodyFailure = false;
-    try {
-      const text = await readLimitedBody(response); body = text ? JSON.parse(text) : null;
-    } catch (failure) {
-      bodyFailure = true;
-      if (failure?.code === "CONTROL_RESPONSE_TOO_LARGE") { failure.status = response.status; failure.responseOk = response.ok; failure.retryAfterMs = parseRetryAfter(response); failure.body = null; }
-      if (failure?.code === "CONTROL_RESPONSE_TOO_LARGE") throw failure;
+    const callerSignal = requestOptions.signal, controller = new AbortController();
+    let timer = null, rejectInterrupted, resolveInterrupted;
+    const interrupted = callerSignal ? new Promise((resolve, reject) => { resolveInterrupted = resolve; rejectInterrupted = reject; }) : null;
+    const abortFromCaller = () => {
+      rejectInterrupted(error("CONTROL_REQUEST_ABORTED"));
+      controller.abort();
+    };
+    if (callerSignal) {
+      if (callerSignal.aborted) abortFromCaller();
+      else callerSignal.addEventListener("abort", abortFromCaller, { once: true });
     }
-    if (!response.ok) { const failure = error(body?.error?.code || `CONTROL_HTTP_${response.status}`); failure.status = response.status; failure.retryAfterMs = parseRetryAfter(response); failure.body = body; if (!bodyFailure) httpErrorProvenance.set(failure, endpoint); throw failure; }
-    return { body, response };
+    requestOptions.signal = controller.signal;
+    requestOptions.headers = headers;
+    const operation = (async () => {
+      let response;
+      try { response = await fetch(endpoint, requestOptions); }
+      catch (_) { const failure = error("CONTROL_TRANSPORT_UNAVAILABLE"); transportProvenance.set(failure, endpoint); throw failure; }
+      let body = null, bodyFailure = false;
+      try {
+        const text = await readLimitedBody(response); body = text ? JSON.parse(text) : null;
+      } catch (failure) {
+        bodyFailure = true;
+        if (failure?.code === "CONTROL_RESPONSE_TOO_LARGE") { failure.status = response.status; failure.responseOk = response.ok; failure.retryAfterMs = parseRetryAfter(response); failure.body = null; }
+        if (failure?.code === "CONTROL_RESPONSE_TOO_LARGE") throw failure;
+      }
+      if (!response.ok) { const failure = error(body?.error?.code || `CONTROL_HTTP_${response.status}`); failure.status = response.status; failure.retryAfterMs = parseRetryAfter(response); failure.body = body; if (!bodyFailure) httpErrorProvenance.set(failure, endpoint); throw failure; }
+      return { body, response };
+    })();
+    try {
+      const deadline = new Promise((_, reject) => {
+        timer = setTimeout(() => {
+          const failure = error("CONTROL_REQUEST_TIMEOUT");
+          transportProvenance.set(failure, endpoint);
+          reject(failure);
+          controller.abort();
+        }, CONTROL_REQUEST_DEADLINE_MS);
+      });
+      return await Promise.race(interrupted ? [operation, deadline, interrupted] : [operation, deadline]);
+    } finally {
+      if (timer !== null) clearTimeout(timer);
+      if (callerSignal) callerSignal.removeEventListener("abort", abortFromCaller);
+      resolveInterrupted?.();
+    }
   }
   function assertStart(body) { if (!body || body.status !== "pending" || !UUID.test(body.authorizationId) || !OPAQUE_TOKEN.test(body.deviceCode) || !/^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{4}-[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{4}$/.test(body.userCode) || !Number.isFinite(Date.parse(body.expiresAt))) throw error("INVALID_DEVICE_AUTH_RESPONSE"); return body; }
   function assertTokens(body) { if (!body || body.status !== "activated" || !validCredentials(body)) throw error("INVALID_TOKEN_RESPONSE"); return { deviceId: body.deviceId, sessionId: body.sessionId, tokenType: body.tokenType, accessToken: body.accessToken, accessTokenExpiresAt: body.accessTokenExpiresAt, refreshToken: body.refreshToken, refreshTokenExpiresAt: body.refreshTokenExpiresAt }; }
