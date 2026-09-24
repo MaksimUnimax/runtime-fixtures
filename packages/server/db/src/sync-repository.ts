@@ -1,7 +1,7 @@
 import type { SyncRepository, SyncRepositoryResult } from "@product/sync";
 import type { SellerAgentsSyncEntryV1 } from "@product/contracts";
 import type { DatabaseQuery, DatabaseRuntime } from "./index.js";
-import { applyReconciliationEntry } from "@product/sync";
+import { applyReconciliationEntry, SyncRequestError } from "@product/sync";
 
 type Row = {
   fingerprint: string;
@@ -18,6 +18,11 @@ const result = (row: Row): SyncRepositoryResult => ({
   serverState: row.server_state,
   code: row.code,
 });
+
+const isBindingEntry = (entry: SellerAgentsSyncEntryV1): boolean =>
+  entry.kind === "BINDING_UPSERT" ||
+  entry.kind === "FINISH" ||
+  entry.kind === "DELIVERY_MARKER";
 
 export function createSyncRepository(runtime: DatabaseRuntime): SyncRepository {
   return {
@@ -61,18 +66,55 @@ export function createSyncRepository(runtime: DatabaseRuntime): SyncRepository {
             throw new Error("SYNC_REQUEST_ID_CONFLICT");
           return result(prior);
         }
+        const isBinding = isBindingEntry(entry);
+        const canonicalEntityId = isBinding
+          ? `conversation:${entry.payload.conversationKeyDigest}`
+          : entry.entityId;
+        if (
+          isBinding &&
+          entry.entityId.startsWith("conversation:") &&
+          entry.entityId !== canonicalEntityId
+        )
+          throw new SyncRequestError("SYNC_CANONICAL_ENTITY_MISMATCH");
         await tx.query(
           `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`,
-          [`sync:entity:${principal.accountId}:${entry.entityId}`],
+          [`sync:entity:${principal.accountId}:${canonicalEntityId}`],
         );
+        if (isBinding && entry.entityId !== canonicalEntityId)
+          await tx.query(
+            `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`,
+            [`sync:entity:${principal.accountId}:${entry.entityId}`],
+          );
         const entities = await tx.query<{
+          entity_id: string;
           server_revision: number;
           state: SellerAgentsSyncEntryV1["payload"];
         }>(
-          `SELECT server_revision,state FROM sync_entities WHERE account_id=$1 AND entity_id=$2 FOR UPDATE`,
-          [principal.accountId, entry.entityId],
+          isBinding
+            ? `SELECT entity_id,server_revision,state FROM sync_entities WHERE account_id=$1 AND (entity_id=$2 OR (state->>'conversationKeyDigest'=$3 AND state->>'kind' IN ('BINDING_UPSERT','FINISH','DELIVERY_MARKER'))) FOR UPDATE`
+            : `SELECT entity_id,server_revision,state FROM sync_entities WHERE account_id=$1 AND entity_id=$2 FOR UPDATE`,
+          isBinding
+            ? [
+                principal.accountId,
+                canonicalEntityId,
+                entry.payload.conversationKeyDigest,
+              ]
+            : [principal.accountId, entry.entityId],
         );
-        const current = entities.rows[0] || { server_revision: 0, state: null };
+        if (isBinding && entities.rows.length > 1)
+          throw new SyncRequestError("SYNC_CANONICAL_ENTITY_COLLISION");
+        const physical = entities.rows[0];
+        if (
+          isBinding &&
+          physical &&
+          (physical.state?.conversationKeyDigest !==
+            entry.payload.conversationKeyDigest ||
+            !["BINDING_UPSERT", "FINISH", "DELIVERY_MARKER"].includes(
+              physical.state?.kind,
+            ))
+        )
+          throw new SyncRequestError("SYNC_CANONICAL_ENTITY_COLLISION");
+        const current = physical || { server_revision: 0, state: null };
         const serverRevision = Number(current.server_revision || 0);
         const preferredInstallationId =
           current.state?.reconciliation?.preferred?.installationId || null;
@@ -88,22 +130,36 @@ export function createSyncRepository(runtime: DatabaseRuntime): SyncRepository {
         const reconciliation = applyReconciliationEntry({
           current: current.state,
           serverRevision,
-          entry,
+          entry: isBinding ? { ...entry, entityId: canonicalEntityId } : entry,
           principal,
           receiveAtMs: Date.now(),
           revokedInstallationIds,
         });
         if (reconciliation.outcome === "ACK" && reconciliation.serverState) {
-          await tx.query(
-            `INSERT INTO sync_entities(account_id,entity_id,server_revision,state,installation_id,updated_at) VALUES($1,$2,$3,$4,$5,now()) ON CONFLICT(account_id,entity_id) DO UPDATE SET server_revision=EXCLUDED.server_revision,state=EXCLUDED.state,installation_id=EXCLUDED.installation_id,updated_at=EXCLUDED.updated_at`,
-            [
-              principal.accountId,
-              entry.entityId,
-              reconciliation.serverRevision,
-              JSON.stringify(reconciliation.serverState),
-              principal.deviceId,
-            ],
-          );
+          if (physical) {
+            await tx.query(
+              `UPDATE sync_entities SET entity_id=$3,server_revision=$4,state=$5,installation_id=$6,updated_at=now() WHERE account_id=$1 AND entity_id=$2`,
+              [
+                principal.accountId,
+                physical.entity_id,
+                canonicalEntityId,
+                reconciliation.serverRevision,
+                JSON.stringify(reconciliation.serverState),
+                principal.deviceId,
+              ],
+            );
+          } else {
+            await tx.query(
+              `INSERT INTO sync_entities(account_id,entity_id,server_revision,state,installation_id,updated_at) VALUES($1,$2,$3,$4,$5,now())`,
+              [
+                principal.accountId,
+                canonicalEntityId,
+                reconciliation.serverRevision,
+                JSON.stringify(reconciliation.serverState),
+                principal.deviceId,
+              ],
+            );
+          }
         }
         await tx.query(
           `INSERT INTO sync_request_receipts(account_id,installation_id,request_id,entity_id,mutation_id,fingerprint,outcome,server_revision,server_state,code) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
