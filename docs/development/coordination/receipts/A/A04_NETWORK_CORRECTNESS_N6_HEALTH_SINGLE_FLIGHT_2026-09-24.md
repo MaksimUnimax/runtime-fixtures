@@ -31,3 +31,10 @@ Controller N6 review identified duplicate signed Health acquisitions when matchi
 ## Limits
 
 This is same-runtime in-flight coalescing only. It intentionally does not coordinate Health across browsers/devices, persist Health state, add positive/negative caching, or change N2 sync/server contracts. Browser-installed and live-server acceptance remain separate gates.
+## Exact-head follow-up
+
+The first exact-head `extension_i1.py` run on source commit `a8b5f3477c5540e7cc64d1285c5aac16c03a67a5` stopped at the older C2.3-C1 synthetic assertions that required exactly two Health requests for parallel independent admissions. The product behavior was the intended N6 optimization: both admissions succeeded while their identical Health transport overlapped and produced one request.
+
+The affected C1-30/C1-31/RB-24/PR-20 assertions now preserve the real acceptance criterion—both dialogue/store admissions must independently succeed—and allow one or two Health requests depending on whether the matching requests overlap. A focused rerun of C2.3-C1 plus Health transport is PASS under Node 24.20.0; resource job `dba42413882a4d088a649674b880b0a8` exited 0, OOM 0, cleanup verified, peak 336,592,896 bytes. This is a test expectation correction only; the single-flight implementation is unchanged.
+
+Read-only Luna review of source commit `a8b5f3477c5540e7cc64d1285c5aac16c03a67a5` reports no blocking or medium correctness defect. It identified only optional evidence gaps; direct concurrent DENY sharing/refetch was already added before commit, and the final test follow-up does not change production source.
