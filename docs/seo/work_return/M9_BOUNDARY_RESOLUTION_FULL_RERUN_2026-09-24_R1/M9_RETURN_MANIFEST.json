@@ -1,0 +1,75 @@
+{
+  "schema": "OCTOPORT_M9_BOUNDARY_RESOLUTION_FULL_RERUN_RETURN_MANIFEST_V1",
+  "work_id": "OCTOPORT_SEO_M9_BOUNDARY_RESOLUTION_FULL_RERUN_2026-09-24_R1",
+  "start_head": "6f6d22168ffd2e065264df5716fcb0ef6a7310ac",
+  "end_observed_head": "6f6d22168ffd2e065264df5716fcb0ef6a7310ac",
+  "authority_drift_status": "NONE_FROZEN_INPUTS_UNCHANGED",
+  "verdict": "PASS_WITH_HOLD_BOUNDARIES",
+  "self_hash_exclusion": "This manifest is excluded from the eight-file hash list; ZIP SHA-256 is reported separately after archive creation.",
+  "files": [
+    {
+      "name": "M9_SOURCE_MANIFEST.md",
+      "utf8_bytes": 10123,
+      "sha256": "052566ae145b0b838cf8d965386baf6b4e38d49d5be8728e50a347b319f24284",
+      "line_count": 81
+    },
+    {
+      "name": "M9_IDENTITY_ELIGIBILITY_LEDGER.tsv",
+      "utf8_bytes": 4562430,
+      "sha256": "6bee2d4cdecd0ec57e1b2da4cc39f459e9091ccf9df28d572e545ba6b5e776b3",
+      "line_count": 7914,
+      "data_rows": 7913,
+      "columns": 18
+    },
+    {
+      "name": "M9_PAIRWISE_CLUSTER_EVIDENCE.tsv",
+      "utf8_bytes": 4869239,
+      "sha256": "2d4c92844c9d54a50da3f93831b0a7a6bbadf4637632253cbed70b36b742a42a",
+      "line_count": 5357,
+      "data_rows": 5356,
+      "columns": 30
+    },
+    {
+      "name": "M9_CLUSTER_MASTER.tsv",
+      "utf8_bytes": 109572,
+      "sha256": "2a432fdf1ccb4d9fb667af70740ad8ef301c45b6b845191a41c42877910d7594",
+      "line_count": 105,
+      "data_rows": 104,
+      "columns": 25
+    },
+    {
+      "name": "M9_CLUSTER_MEMBERSHIP.tsv",
+      "utf8_bytes": 42854,
+      "sha256": "eba17104376c9651777cf5ae0ab0a2f48b335d5e5748df18bd4c940b1776f688",
+      "line_count": 105,
+      "data_rows": 104,
+      "columns": 13
+    },
+    {
+      "name": "M9_HOLD_BOUNDARY_LEDGER.tsv",
+      "utf8_bytes": 1439424,
+      "sha256": "78be750d7b34565b26d9368a13b0054673d0c0bcd4e7ec44dfa1526578480d5e",
+      "line_count": 1407,
+      "data_rows": 1406,
+      "columns": 14
+    },
+    {
+      "name": "M9_ADVERSARIAL_DIAGNOSTIC.tsv",
+      "utf8_bytes": 17294,
+      "sha256": "230a98d7bc81ea1aa408f0d6409a280e4d1ebe43db8b2917358dc1d299b57b6d",
+      "line_count": 29,
+      "data_rows": 28,
+      "columns": 10
+    },
+    {
+      "name": "M9_QA.md",
+      "utf8_bytes": 13120,
+      "sha256": "78bf7a96cc6dcb8596381aa52606f14642e2fbbf090141f6e3f51d557f58217f",
+      "line_count": 199
+    }
+  ],
+  "file_count_in_zip": 9,
+  "provider_calls": 0,
+  "web_acquisition": 0,
+  "github_writes": 0
+}
