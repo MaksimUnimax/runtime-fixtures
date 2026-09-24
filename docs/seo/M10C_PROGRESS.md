@@ -1,7 +1,7 @@
 # Octoport SEO — M10C progress
 
 Date: 2026-09-24
-Status: **CASE01+CASE02+CASE03 TERMINAL CLOSED / CASE04 SNAPSHOT02 RELEASED**
+Status: **CASE01–CASE04 TERMINAL CLOSED / CASE05 SNAPSHOT01 RELEASED**
 Branch: `seo/wordstat-batch-01-2026-09-16`
 
 ## Accepted chain
@@ -166,3 +166,26 @@ Current authorized action:
 `SEARCH_API_V1 {"method":"genSearch","queryText":"chatgpt для ozon","confirmBillable":true}`
 
 This is the second and final authorized snapshot for Case04. Third snapshot and Case05 remain closed.
+
+Owner quality-priority directive:
+`docs/seo/M10C_OWNER_QUALITY_PRIORITY_DIRECTIVE_2026-09-24_R1.md`
+blob `6dbde17502348053b00a4bddbac00542bf96a78a`.
+
+Case04 terminal closure:
+`docs/seo/M10C_CASE04_TERMINAL_CLOSURE_2026-09-24_R1.md`
+blob `68ea695d36045406023b5300453c14f9a89ad18a`.
+
+```text
+CASE04_SNAPSHOTS = 2
+CASE04_TERMINAL_EVIDENCE_STATE = STABLE_MIXED_CONNECTOR_CONTENT_ANALYTICS_FRAMING
+CASE04_ESTIMATED_PROVIDER_COST_RUB = 10.16
+```
+
+Case05 snapshot-1 release:
+`docs/seo/M10C_CASE05_SNAPSHOT01_RELEASE_2026-09-24_R1.md`
+blob `5bbfb5628efdf9c5c010253682b30504710b827b`.
+
+Current authorized action:
+`SEARCH_API_V1 {"method":"genSearch","queryText":"chatgpt для wildberries","confirmBillable":true}`
+
+Exactly one Case05 provider request is authorized. Snapshot-2 is favored when any decision-relevant doubt remains; Case06 remains closed.
