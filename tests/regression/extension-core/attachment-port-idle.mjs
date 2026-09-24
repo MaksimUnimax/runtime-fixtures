@@ -18,7 +18,7 @@ class FakeHTMLElement {
   remove() { this.isConnected = false; }
 }
 
-function makePage({ respond, disconnectFirst = false } = {}) {
+function makePage({ respond, disconnectFirst = false, adapterOverrides = {} } = {}) {
   const page = { ports: [], requests: [], intervals: 0, wakeListener: null };
   const document = {
     querySelector: () => null,
@@ -27,7 +27,15 @@ function makePage({ respond, disconnectFirst = false } = {}) {
     documentElement: new FakeHTMLElement()
   };
   const identity = { status: 'confirmed', origin: 'https://chatgpt.com', ai_id: 'chatgpt', conversation_id: 'idle-fixture-conversation' };
-  const activeAdapter = { id: 'chatgpt', composerContext: () => null };
+  const activeAdapter = {
+    id: 'chatgpt',
+    composerContext: () => null,
+    userMessages: () => [],
+    assistantMessages: () => [],
+    messageId: node => String(node?.id || ''),
+    messageText: node => String(node?.text || ''),
+    ...adapterOverrides
+  };
   const event = () => {
     const listeners = [];
     return { addListener(fn) { listeners.push(fn); }, fire(value) { for (const fn of [...listeners]) fn(value); } };
@@ -86,6 +94,15 @@ assert.equal(startup.intervals, 0, 'composed attachment runtime creates no inter
 await wait(80);
 assert.equal(startup.requests.length, 1, 'idle runtime does not poll again');
 
+const staleWake = makePage({ respond: () => terminal });
+await wait(320);
+assert.equal(staleWake.runtime.port, null);
+staleWake.wake({ ...owner, conversation_key: 'https://chatgpt.com|stale-previous-conversation' });
+await wait(80);
+assert.equal(staleWake.requests.length, 1, 'stale wake does not fall back to broad current-conversation recovery');
+assert.equal(staleWake.ports.length, 1, 'stale wake does not reconnect from idle');
+assert.equal(staleWake.runtime.port, null);
+
 const unsupported = { ...owner, delivery_phase: 'unsupported-fixture-phase' };
 const targeted = makePage({ respond: async (_message, index) => {
   if (index === 1) return terminal;
@@ -117,6 +134,37 @@ assert.equal(disconnected.ports.length, 3, 'startup, failed active connection, a
 assert.equal(disconnected.runtime.port, null, 'active recovery reconnect is released after terminal failure');
 assert.equal(disconnected.runtime.reconnect_timer, null);
 
+const committedSendRecovery = {
+  ...owner,
+  delivery_phase: 'attachment_send_committed',
+  outgoing_text: 'fixture committed send payload',
+  baseline_user_turn_ids: []
+};
+const committedSend = makePage({
+  disconnectFirst: true,
+  adapterOverrides: {
+    userMessages: () => [{ id: 'fixture-user-turn', text: 'fixture committed send payload' }],
+    assistantMessages: () => []
+  },
+  respond: (_message, index) => {
+    if (index === 1) return terminal;
+    if (index === 3) return { ok: true, recovery: committedSendRecovery };
+    if (index === 4) return { ok: true, confirmed: true };
+    return terminal;
+  }
+});
+await wait(320);
+committedSend.wake(owner);
+await wait(700);
+assert.deepEqual(
+  committedSend.requests.map(row => row.type),
+  ['OZ_ATTACHMENT_RECOVERY_GET', 'OZ_ATTACHMENT_RECOVERY_GET', 'OZ_ATTACHMENT_RECOVERY_GET', 'OZ_ATTACHMENT_CONFIRM'],
+  'disconnect before committed-send readback rereads durable phase and never reissues Send commit'
+);
+assert.equal(committedSend.requests.some(row => row.type === 'OZ_ATTACHMENT_SEND_COMMIT'), false);
+assert.equal(committedSend.runtime.port, null);
+assert.equal(committedSend.runtime.reconnect_timer, null);
+
 const cancelledRecovery = { ...owner, delivery_phase: 'attachment_claimed' };
 const cancelled = makePage({ respond: (_message, index) => index === 2 ? { ok: true, recovery: cancelledRecovery } : terminal });
 await wait(320);
@@ -126,4 +174,4 @@ assert.equal(cancelled.runtime.port, null, 'cancelled active recovery releases i
 assert.equal(cancelled.runtime.reconnect_timer, null);
 assert.equal(cancelled.runtime.active_tasks, 0);
 
-console.log(JSON.stringify({ status: 'PASS', startup: true, targetedWake: true, activeReconnect: true, cancellation: true, failureCleanup: true }));
+console.log(JSON.stringify({ status: 'PASS', startup: true, staleWakeIgnored: true, targetedWake: true, activeReconnect: true, committedSendNoReplay: true, cancellation: true, failureCleanup: true }));

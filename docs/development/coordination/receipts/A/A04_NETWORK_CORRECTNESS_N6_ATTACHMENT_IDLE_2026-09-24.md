@@ -28,3 +28,14 @@ Controller N6 review identified that every supported AI tab kept the attachment 
 ## Limits
 
 This is a client/runtime efficiency change only. It does not change N2 sync wire, provider commands, control-server behavior, subscription policy, or live browser/store acceptance. Browser-native lifecycle proof remains separate from this synthetic composed-runtime evidence.
+## Independent review follow-up
+
+Read-only Luna review of `74db16d2c1e46f27214797661385061b10a9097d` found no blocking defect in idle cleanup/reconnect itself, but identified one medium correctness gap: a stale targeted wake whose conversation key no longer matched the current page could fall back to unscoped current-conversation recovery. It also noted missing direct evidence for committed-phase no-replay across an active disconnect.
+
+The follow-up fixes the medium gap by making any non-null expectation with a mismatched current conversation return no recovery immediately; it never broadens to an unscoped lookup. Regression now proves a stale wake does not reconnect or issue a new recovery RPC.
+
+The evidence gap is closed for the highest-risk Send phase: a disconnect before committed-Send recovery readback causes a bounded reconnect, rereads the exact durable `attachment_send_committed` owner, performs confirmation only, and never emits `OZ_ATTACHMENT_SEND_COMMIT` again. Existing APP-07/R5 coverage continues to protect the normal binary attachment path and no-replay authority.
+
+Post-review focused Node 24.20.0 evidence `/root/octoport-control/logs/A/a04-n6b-focused-parent-reviewfix2`: attachment idle lifecycle PASS with `staleWakeIgnored=true` and `committedSendNoReplay=true`; application PASS including APP-07; client R5 PASS. Resource job `ce4cbaf2833d44fabc40ccdede1be50b` exited 0, OOM 0, cleanup verified, peak 153,092,096 bytes.
+
+Review evidence: `/root/octoport-control/logs/A/a04-n6b-review-74db16d-result.md`.

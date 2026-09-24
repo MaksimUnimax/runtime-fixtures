@@ -388,5 +388,10 @@
     "target": "attachment_delivery_port_content.js",
     "old": "      if ([\"ATTACHMENT_PORT_DISCONNECTED\", \"ATTACHMENT_PORT_UNAVAILABLE\", \"ATTACHMENT_PORT_POST_FAILED\"].includes(error?.code)) throw error;\n      await failDelivery(recovery, error);\n      return { ok: false, code: error?.code || \"ATTACHMENT_DELIVERY_FAILED\" };",
     "new": "      if ([\"ATTACHMENT_PORT_DISCONNECTED\", \"ATTACHMENT_PORT_UNAVAILABLE\", \"ATTACHMENT_PORT_POST_FAILED\"].includes(error?.code)) throw error;\n      const failed = await failDelivery(recovery, error);\n      if (!failed?.ok && [\"ATTACHMENT_PORT_DISCONNECTED\", \"ATTACHMENT_PORT_UNAVAILABLE\", \"ATTACHMENT_PORT_POST_FAILED\"].includes(failed?.code)) throw Object.assign(new Error(failed.error || \"Attachment failure state could not be recorded.\"), { code: failed.code });\n      return { ok: false, code: error?.code || \"ATTACHMENT_DELIVERY_FAILED\" };"
+  },
+  {
+    "target": "attachment_delivery_port_content.js",
+    "old": "  async function queryRecovery(expectation = null) {\n    const key = conversationKey();\n    if (!key) return null;\n    const expected = expectation && String(expectation.conversation_key || \"\").toLowerCase() === key\n      ? expectation\n      : null;",
+    "new": "  async function queryRecovery(expectation = null) {\n    const key = conversationKey();\n    if (!key) return null;\n    const expected = expectation && String(expectation.conversation_key || \"\").toLowerCase() === key\n      ? expectation\n      : null;\n    if (expectation && !expected) return null;"
   }
 ]
