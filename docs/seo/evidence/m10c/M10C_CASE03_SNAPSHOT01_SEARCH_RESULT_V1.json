@@ -1,0 +1,81 @@
+{
+  "bridge": "yandex-marketing-bridge",
+  "version": "0.1.9",
+  "service": "search",
+  "operation": "genSearch",
+  "request_id": "search-5076b59e-eaad-4afe-acec-df2ae68cd2b3",
+  "run_id": null,
+  "status": "OK",
+  "reason": null,
+  "cost_estimate": {
+    "estimated_rub": 5.08,
+    "tariff_checked_at": "2026-08-19",
+    "tariff_source": "[https://aistudio.yandex.ru/docs/ru/search-api/pricing.html](https://aistudio.yandex.ru/docs/ru/search-api/pricing.html)"
+  },
+  "policy": {
+    "channel": "manual",
+    "active_service": "search"
+  },
+  "command": {
+    "method": "genSearch",
+    "queryText": "ии агент для озон",
+    "confirmBillable": true
+  },
+  "http_status": 200,
+  "elapsed_ms": 4759,
+  "result": {
+    "mode": "generative",
+    "message": {
+      "content": "Несколько сервисов с ИИ-агентами для Ozon:\n\n* **«Промто»**. [1] Сервис для аналитики и управления продажами на Ozon. [1] Агент собирает товары и карточки, показывает несобранные отправления, контролирует остатки, разбирает продажи, транзакции и возвраты. [1] \n* **JAFO**. [2] ИИ-ассистент для Wildberries и Ozon. [2] Управляет каталогом, ценами, рекламой и аналитикой на двух маркетплейсах сразу. [2] Агент берёт на себя 80% рутины менеджера: мониторинг продаж и остатков, ответы на отзывы, обновление карточек, управление рекламой, отслеживание цен конкурентов. [2]\n* **«БЕРКУЗ ТЕХНОЛОГИИ»**. [3] Сервис предлагает команду AI-агентов для управления магазином на Wildberries и Ozon. [3] Агенты управляют карточками товаров, отслеживают цены конкурентов, работают с отзывами и вопросами покупателей, ведут аналитику и прогнозирование, управляют остатками и поставками. [3]\n* **MarketAut**. [4] Сервис позволяет подключить магазин к любой нейросети, например ChatGPT, Claude, Gemini. [4] После описания задачи агент импортирует товары, поставит цены, ответит покупателям, переоценит остатки и отчитается о результате. [4]",
+      "role": "ROLE_ASSISTANT"
+    },
+    "sources": [
+      {
+        "url": "[https://promto.ai/apps/ozon](https://promto.ai/apps/ozon)",
+        "title": "ИИ для Ozon — аналитика продавца, товары и FBS/FBO",
+        "used": true
+      },
+      {
+        "url": "[https://jafo.ru/](https://jafo.ru/)",
+        "title": "JAFO — ИИ-ассистент для Wildberries и Ozon",
+        "used": true
+      },
+      {
+        "url": "[https://berkuz.ru/](https://berkuz.ru/)",
+        "title": "AI‑агенты для управления магазином на Wildberries и Ozon",
+        "used": true
+      },
+      {
+        "url": "[https://marketaut.ru/](https://marketaut.ru/)",
+        "title": "MarketAut - ИИ-агенты для Wildberries, Ozon",
+        "used": true
+      },
+      {
+        "url": "[https://ainsider.ru/blog/ii-v-prodazhah/ii-agent-dlya-ozon-kak-avtomatizirovat-prodazhi-na-marketpleyse](https://ainsider.ru/blog/ii-v-prodazhah/ii-agent-dlya-ozon-kak-avtomatizirovat-prodazhi-na-marketpleyse)",
+        "title": "ИИ-агент для автоматизации продаж на Ozon: подключение, задачи, риски",
+        "used": false
+      }
+    ],
+    "searchQueries": [
+      {
+        "text": "ии агент для ozon",
+        "reqId": "1790256924686599-1922138941832208509-ngp6et3xflkdijxp-BAL"
+      }
+    ],
+    "fixedMisspellQuery": "",
+    "isAnswerRejected": false,
+    "isBulletAnswer": false,
+    "hints": [
+      "Какие преимущества у ИИ-агентов для Ozon?",
+      "Как выбрать подходящий ИИ-агентом для Ozon?",
+      "Какие нейросети поддерживает MarketAut?"
+    ],
+    "problematicAnswer": false,
+    "transport": {
+      "wire_format": "json_array",
+      "frame_count": 1
+    }
+  },
+  "request_executed": true,
+  "automatic_retry": false
+}
