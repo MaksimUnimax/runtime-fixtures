@@ -14,6 +14,7 @@ PRODUCTION_DIR="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
 REPO_ROOT="$(cd -- "${PRODUCTION_DIR}/../.." && pwd)"
 SOURCE_SITE="${REPO_ROOT}/apps/site/public"
 SOURCE_NGINX="${PRODUCTION_DIR}/nginx/${LIVE_NAME}"
+APPS_NGINX="${NGINX_CONF_DIR}/octoport-apps.conf"
 SOURCE_SHA="$(git -C "${REPO_ROOT}" rev-parse HEAD)"
 RELEASE_DIR="${RELEASES_DIR}/${SOURCE_SHA}"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
@@ -58,6 +59,18 @@ assert_source() {
     || fail "site source canonical URL is not octoport.ru"
   grep -Fq 'Набор ещё не открыт' "${SOURCE_SITE}/index.html" \
     || fail "site source does not preserve the closed-beta state"
+}
+
+assert_existing_app_ingress() {
+  [[ -f "${APPS_NGINX}" ]] || fail "missing established app/API ingress ${APPS_NGINX}"
+  grep -Fq 'server_name app.octoport.ru;' "${APPS_NGINX}" \
+    || fail "app.octoport.ru is missing from established app/API ingress"
+  grep -Fq 'proxy_pass http://127.0.0.1:3100;' "${APPS_NGINX}" \
+    || fail "app.octoport.ru established proxy target changed"
+  grep -Fq 'server_name api.octoport.ru;' "${APPS_NGINX}" \
+    || fail "api.octoport.ru is missing from established app/API ingress"
+  grep -Fq 'proxy_pass http://127.0.0.1:3000;' "${APPS_NGINX}" \
+    || fail "api.octoport.ru established proxy target changed"
 }
 
 assert_server_ipv4() {
@@ -224,6 +237,7 @@ main() {
 
   assert_clean_checkout
   assert_source
+  assert_existing_app_ingress
   assert_server_ipv4
   assert_dns
   assert_tls

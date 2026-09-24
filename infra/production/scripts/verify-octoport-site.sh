@@ -5,6 +5,7 @@ SITE_ROOT="/var/www/octoport-site"
 CURRENT_LINK="${SITE_ROOT}/current"
 CERT_FILE="/etc/letsencrypt/live/octoport.ru/fullchain.pem"
 DOMAINS=(octoport.ru www.octoport.ru app.octoport.ru api.octoport.ru)
+HTTP_DOMAINS=(octoport.ru www.octoport.ru app.octoport.ru api.octoport.ru mail.octoport.ru)
 EXPECTED_SITE_SHA="${EXPECTED_SITE_SHA:-}"
 MAX_ATTEMPTS="${MAX_ATTEMPTS:-20}"
 RETRY_DELAY="${RETRY_DELAY:-0.5}"
@@ -194,9 +195,9 @@ check_site_content() {
   grep -Fq 'max-age=300' <<<"${css_cache}" || fail "styles.css cache-control is ${css_cache:-<missing>}, expected max-age=300"
 }
 
-check_redirects_and_unavailable_apps() {
-  local host location api_type api_body
-  for host in "${DOMAINS[@]}"; do
+check_redirects_and_existing_apps() {
+  local host location
+  for host in "${HTTP_DOMAINS[@]}"; do
     expect_status_with_retry 308 "http://${host}/" "${host}" 80
   done
 
@@ -208,14 +209,9 @@ check_redirects_and_unavailable_apps() {
   [[ "${location}" == 'https://octoport.ru/site-s1-check?probe=1' ]] \
     || fail "www redirect location is ${location:-<missing>}"
 
-  expect_status_with_retry 503 'https://app.octoport.ru/' app.octoport.ru 443
-  expect_status_with_retry 503 'https://api.octoport.ru/' api.octoport.ru 443
-
-  api_type="$(curl --silent --show-error --head --resolve 'api.octoport.ru:443:127.0.0.1' 'https://api.octoport.ru/' \
-    | awk 'BEGIN{IGNORECASE=1} /^content-type:/ {sub(/\r$/, ""); print $2; exit}')"
-  [[ "${api_type}" == application/json* ]] || fail "API predeploy content-type is ${api_type:-<missing>}"
-  api_body="$(curl --silent --show-error --resolve 'api.octoport.ru:443:127.0.0.1' 'https://api.octoport.ru/')"
-  grep -Fq 'service_not_deployed' <<<"${api_body}" || fail "API predeploy body changed unexpectedly"
+  expect_status_with_retry 200 'https://app.octoport.ru/login' app.octoport.ru 443
+  expect_status_with_retry 200 'https://api.octoport.ru/health/live' api.octoport.ru 443
+  expect_status_with_retry 200 'https://api.octoport.ru/health/ready' api.octoport.ru 443
 }
 
 check_old_docs_service() {
@@ -244,13 +240,13 @@ main() {
   check_certificate_file
   check_served_certificates
   check_site_content
-  check_redirects_and_unavailable_apps
+  check_redirects_and_existing_apps
   check_old_docs_service
   check_admin_not_enabled
   systemctl is-active --quiet nginx || fail "nginx is not active"
   systemctl is-active --quiet certbot.timer || fail "certbot.timer is not active"
 
-  log "PASS: live static site, inherited security headers, TLS, redirects, unavailable app/API boundaries and old docs service"
+  log "PASS: live static site, inherited security headers, TLS, redirects, preserved app/API ingress and old docs service"
 }
 
 main "$@"

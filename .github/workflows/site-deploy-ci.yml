@@ -52,9 +52,9 @@ jobs:
           deploy = Path("infra/production/scripts/deploy-octoport-site.sh").read_text(encoding="utf-8")
           verify = Path("infra/production/scripts/verify-octoport-site.sh").read_text(encoding="utf-8")
 
-          enabled = {"octoport.ru", "www.octoport.ru", "app.octoport.ru", "api.octoport.ru"}
-          for host in enabled:
-              assert host in nginx, f"nginx live config missing {host}"
+          expected_http_hosts = {"octoport.ru", "www.octoport.ru", "app.octoport.ru", "api.octoport.ru", "mail.octoport.ru"}
+          for host in expected_http_hosts:
+              assert host in nginx, f"nginx HTTP ingress missing {host}"
               assert host in verify, f"verifier missing {host}"
 
           server_names = re.findall(r"server_name\s+([^;]+);", nginx)
@@ -63,13 +63,19 @@ jobs:
 
           assert "root /var/www/octoport-site/current;" in nginx
           assert "return 308 https://octoport.ru$request_uri;" in nginx
-          assert 'return 503 "Octoport portal is not deployed yet.\\n";' in nginx
-          assert "service_not_deployed" in nginx
+          assert "server_name app.octoport.ru;" not in nginx, "site ingress must not own app 443 vhost"
+          assert "server_name api.octoport.ru;" not in nginx, "site ingress must not own API 443 vhost"
+          assert "service_not_deployed" not in nginx
+          assert 'return 503 "Octoport portal is not deployed yet.\\n";' not in nginx
           assert "Content-Security-Policy" in nginx and "default-src 'none'" in nginx
           assert "/etc/letsencrypt/live/octoport.ru/fullchain.pem" in nginx
 
           assert 'SITE_ROOT="/var/www/octoport-site"' in deploy
           assert 'RELEASE_DIR="${RELEASES_DIR}/${SOURCE_SHA}"' in deploy
+          assert 'APPS_NGINX="${NGINX_CONF_DIR}/octoport-apps.conf"' in deploy
+          assert "assert_existing_app_ingress" in deploy
+          assert "proxy_pass http://127.0.0.1:3100;" in deploy
+          assert "proxy_pass http://127.0.0.1:3000;" in deploy
           assert "backup_existing_state" in deploy
           assert "capture_failure_diagnostics" in deploy
           assert "restore_previous_state" in deploy
@@ -82,6 +88,10 @@ jobs:
           assert "admin\\.octoport\\.ru" in verify, "admin-host safety check is mandatory"
           assert "certbot.timer" in verify
           assert "EXPECTED_SITE_SHA" in verify
+          assert "check_redirects_and_existing_apps" in verify
+          assert "https://app.octoport.ru/login" in verify
+          assert "https://api.octoport.ru/health/live" in verify
+          assert "https://api.octoport.ru/health/ready" in verify
           assert "grep -Fq 'Не отправляйте секреты'" in verify, "support secret-warning check must be locale-independent"
           assert "grep -Fq 'Редактирование цен, карточек товаров и ставок не поддерживается'" in verify, "support read-only check must be locale-independent"
 
