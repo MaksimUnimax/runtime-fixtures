@@ -1,7 +1,7 @@
 # Octoport SEO — M9 progress
 
 Date: 2026-09-24
-Status: **WAVE-1 FINAL COLLECT RELEASED / WAITING RESULT**
+Status: **WAVE-1 PROVIDER LIFECYCLE COMPLETE / LOCAL TERMINAL READBACK + EXPORT OPEN**
 Branch: `seo/wordstat-batch-01-2026-09-16`
 
 ## Current accepted chain
@@ -13,7 +13,7 @@ M9 BOUNDARY-RESOLUTION PRE-ACQ = PASS / MAIN CHAT ACCEPTED
 M10A = BLOCKED
 
 CURRENT PHYSICAL STEP =
-M9 BOUNDARY-RESOLUTION WAVE-1 FINAL COLLECT / PROVIDER RESULT CHECK
+M9 BOUNDARY-RESOLUTION WAVE-1 LOCAL TERMINAL READBACK / EXPORT
 ```
 
 ## Accepted M9 unresolved state
@@ -459,6 +459,44 @@ SUBMITN = CLOSED
 
 If index 24 returns waiting, a new five-minute gate applies before another poll.
 If it succeeds and normalizes, collection is complete and the next step is local readback/export.
+
+## Wave-1 final collect receipt
+
+Receipt:
+`docs/seo/M9_BOUNDARY_RESOLUTION_WAVE1_FINAL_COLLECT_RECEIPT_2026-09-24_R1.md`
+
+```text
+FINAL_COLLECT_GATE = PASS_COMPLETE
+
+TOTAL = 25
+SUCCEEDED = 25
+WAITING = 0
+PENDING = 0
+RESULT_SAVED = 0
+PARSE_FAILED = 0
+FAILED = 0
+UNKNOWN = 0
+CANCELLED = 0
+
+REQUESTS_STARTED = 25
+OPERATIONS_ACCEPTED = 25
+POLLS_STARTED = 25
+UNRESOLVED = 0
+ALL_SUCCESSFUL = true
+REVISION = 125
+
+SUBMIT_PROVIDER_CALLS_TOTAL = 25
+COLLECT_PROVIDER_CALLS_TOTAL = 25
+NORMALIZED_RESULTS_TOTAL = 25
+PROVIDER_LIFECYCLE_GATE = PASS_COMPLETE
+```
+
+No further provider submit or collect is authorized or required for Wave-1.
+
+Immediate next actions are local/read-only:
+1. terminal `itemsPage` readback;
+2. complete durable `exportPage`;
+3. inspect the exported 25-query evidence before rebuilding M9.
 
 ## Owner relay
 
