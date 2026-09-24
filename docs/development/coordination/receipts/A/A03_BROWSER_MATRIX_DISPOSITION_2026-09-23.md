@@ -58,3 +58,33 @@ A03 has a complete **bounded browser-family accounting** for the currently reach
 - Safari: real macOS environment deferred.
 
 No browser family is accepted based on another browser's evidence. Remaining environment gates stay visible for release planning and owner/controller review.
+
+## Post-controller update — exact A head 0755f7c
+
+The earlier bounded disposition is preserved as historical evidence. The following newer exact-head evidence changes two browser rows without transferring results between families.
+
+### Yandex Browser
+
+The earlier Yandex Stable command-line route remains historical environment evidence. On the official **Yandex Browser Beta development route**, real vendor Beta `26.8.1.1101` registered the exact Seller Agents runtime, exposed its real service worker and popup, and the runtime identified itself as `yandex_chromium`.
+
+The bounded BR-C1 matrix then passed:
+- source: **38/38**;
+- extracted: **38/38**;
+- total: **76/76**;
+- provider requests: **0**.
+
+Receipt:
+`A03_YANDEX_BETA_REAL_BROWSER_MATRIX_2026-09-23.md`.
+
+This closes the reachable Yandex Beta installed-synthetic development matrix. It does **not** close stable/store installation, store signing/distribution, N→N+1 update, LIVE_OWNER, or release acceptance.
+
+### Firefox
+
+Real Firefox `155.0.1` now has stronger runtime evidence than the earlier temporary-install-only smoke: the exact Firefox carrier installed as `seller-agents@example.test`, its real `moz-extension://` popup loaded, and popup→background messaging succeeded.
+
+Three bounded attempts to extend this into the full Work/Ozon/WB matrix stopped at automation/control-method boundaries before marketplace import. Under the three-attempt rule the same technique is not repeated.
+
+Receipt:
+`A03_FIREFOX155_NATIVE_RUNTIME_SMOKE_2026-09-23.md`.
+
+Firefox full functional matrix and signed release/update route remain open. This is a harness gate, not a product FAIL.
