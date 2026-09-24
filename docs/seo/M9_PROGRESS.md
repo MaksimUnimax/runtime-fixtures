@@ -1,7 +1,7 @@
 # Octoport SEO — M9 progress
 
 Date: 2026-09-24
-Status: **WAVE-1 OPERATION-ID READBACK PASS / PRE-COLLECTION TIME GATE**
+Status: **WAVE-1 PRE-COLLECTION WAIT / EARLIEST SAFE 12:41:34 +05**
 Branch: `seo/wordstat-batch-01-2026-09-16`
 
 ## Current accepted chain
@@ -326,6 +326,22 @@ All 25 accepted provider operation IDs are now preserved in durable project stat
 No submit work remains.
 
 Collection is still closed until the conservative minimum five-minute deferred-processing interval is proven satisfied.
+
+## Wave-1 pre-collection time gate
+
+Authority:
+`docs/seo/M9_BOUNDARY_RESOLUTION_WAVE1_PRECOLLECT_TIME_GATE_2026-09-24_R1.md`
+
+```text
+MIN_FIRST_POLL_MS = 5 minutes
+CONSERVATIVE_LAST_ADMISSION_RECEIPT_TIME = 2026-09-24T12:36:34+05:00
+EARLIEST_SAFE_COLLECTION = 2026-09-24T12:41:34+05:00
+LAST_OBSERVED_TIME = 2026-09-24T12:39:52+05:00
+PRE_COLLECTION_TIME_GATE = WAIT
+COLLECTN_AUTHORIZED = false
+```
+
+No provider-backed collect may run before the earliest safe time.
 
 ## Owner relay
 
