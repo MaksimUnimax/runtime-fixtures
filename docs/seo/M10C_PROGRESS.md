@@ -1,7 +1,7 @@
 # Octoport SEO — M10C progress
 
 Date: 2026-09-24
-Status: **CASE01–CASE04 TERMINAL CLOSED / CASE05 SNAPSHOT01 RELEASED**
+Status: **CASE01–CASE04 TERMINAL CLOSED / CASE05 SNAPSHOT02 RELEASED**
 Branch: `seo/wordstat-batch-01-2026-09-16`
 
 ## Accepted chain
@@ -189,3 +189,20 @@ Current authorized action:
 `SEARCH_API_V1 {"method":"genSearch","queryText":"chatgpt для wildberries","confirmBillable":true}`
 
 Exactly one Case05 provider request is authorized. Snapshot-2 is favored when any decision-relevant doubt remains; Case06 remains closed.
+
+Case05 snapshot-1 raw evidence:
+`docs/seo/evidence/m10c/M10C_CASE05_SNAPSHOT01_SEARCH_RESULT_V1.json`
+blob `84d4651a5f19133490c0b4bffee1a2d19fcd47bc`.
+
+Case05 snapshot-1 assessment:
+`docs/seo/M10C_CASE05_SNAPSHOT01_ASSESSMENT_2026-09-24_R1.md`
+blob `a3306ec80359ebeb5a4637fa9b1092a794ee88ac`.
+
+Case05 snapshot-2 release:
+`docs/seo/M10C_CASE05_SNAPSHOT02_RELEASE_2026-09-24_R1.md`
+blob `0876d402d961dbecd2d6d954868e22b3c45c5ac9`.
+
+Current authorized action:
+`SEARCH_API_V1 {"method":"genSearch","queryText":"chatgpt для wildberries","confirmBillable":true}`
+
+One second Case05 snapshot is authorized under the owner quality-priority rule. If material doubt remains after it, Main Chat must amend the case before any third request. Case06 remains closed.
