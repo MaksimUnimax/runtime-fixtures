@@ -1,0 +1,19 @@
+wave_order	boundary_query_id	semantic_identity_id	exact_query_text	query_form_class	current_material_hold_degree	material_hold_to_current_anchor47_degree	material_hold_to_nonanchor57_degree	material_hold_to_supported_merge_node_degree	merge_components_touched	self_merge_degree	release_state
+1	M9BRW2Q_001_437d0cbcb94b3694	M8SID_437d0cbcb94b3694	программа аналитики маркетплейсов	DEMAND_OR_TESTED_EXACT_QUERY	24	21	3	15	5	1	WAVE2_SEARCH_CANDIDATE
+2	M9BRW2Q_002_fb4d67f1c380d11c	M8SID_fb4d67f1c380d11c	аналитика маркетплейсов топ сервисов	DEMAND_OR_TESTED_EXACT_QUERY	21	18	3	14	5	0	WAVE2_SEARCH_CANDIDATE
+3	M9BRW2Q_003_24825275388a8170	M8SID_24825275388a8170	нейросеть для работы с маркетплейсами	DEMAND_OR_TESTED_EXACT_QUERY	14	9	5	3	1	0	WAVE2_SEARCH_CANDIDATE
+4	M9BRW2Q_004_eaab889abab5ccd5	M8SID_eaab889abab5ccd5	ии для работы с маркетплейсами	DEMAND_OR_TESTED_EXACT_QUERY	14	9	5	3	1	0	WAVE2_SEARCH_CANDIDATE
+5	M9BRW2Q_005_21a8a6bdb4a71db0	M8SID_21a8a6bdb4a71db0	ии агент для селлера	DEMAND_OR_TESTED_EXACT_QUERY	10	5	5	0	0	0	WAVE2_SEARCH_CANDIDATE
+6	M9BRW2Q_006_5fc65259888e054b	M8SID_5fc65259888e054b	ии ассистент селлера	DEMAND_OR_TESTED_EXACT_QUERY	10	5	5	0	0	0	WAVE2_SEARCH_CANDIDATE
+7	M9BRW2Q_007_c41c83a50b6900cb	M8SID_c41c83a50b6900cb	ии агенты маркетплейсы отчеты	DEMAND_OR_TESTED_EXACT_QUERY	10	5	5	0	0	0	WAVE2_SEARCH_CANDIDATE
+8	M9BRW2Q_008_b5ea13003e4c370e	M8SID_b5ea13003e4c370e	где скачать отчет о выкупах маркетплейсов	DEMAND_OR_TESTED_EXACT_QUERY	41	4	37	0	0	0	WAVE2_SEARCH_CANDIDATE
+9	M9BRW2Q_009_f89f2eed596da6c9	M8SID_f89f2eed596da6c9	как загрузить отчеты маркетплейса	DEMAND_OR_TESTED_EXACT_QUERY	41	4	37	0	0	0	WAVE2_SEARCH_CANDIDATE
+10	M9BRW2Q_010_83f33ee4e629a7c9	M8SID_83f33ee4e629a7c9	Как читать финансовый отчёт Wildberries и Ozon	NATURAL_EXACT_SEARCH_PROBE_NO_DEMAND	30	4	26	0	0	0	WAVE2_SEARCH_CANDIDATE
+11	M9BRW2Q_011_3a3efaeed3152b7e	M8SID_3a3efaeed3152b7e	ии ассистент для озон	DEMAND_OR_TESTED_EXACT_QUERY	9	4	5	0	0	0	WAVE2_SEARCH_CANDIDATE
+12	M9BRW2Q_012_250abbb38cffed7a	M8SID_250abbb38cffed7a	Как скачать отчёт о продажах на Wildberries	NATURAL_EXACT_SEARCH_PROBE_NO_DEMAND	39	3	36	0	0	0	WAVE2_SEARCH_CANDIDATE
+13	M9BRW2Q_013_2b25fa19b017655f	M8SID_2b25fa19b017655f	Как сверить финансовые отчеты Wildberries?	NATURAL_EXACT_SEARCH_PROBE_NO_DEMAND	28	3	25	0	0	0	WAVE2_SEARCH_CANDIDATE
+14	M9BRW2Q_014_a80ecbe39e0f75b9	M8SID_a80ecbe39e0f75b9	Как читать и анализировать финансовый отчёт Wildberries	NATURAL_EXACT_SEARCH_PROBE_NO_DEMAND	28	3	25	0	0	0	WAVE2_SEARCH_CANDIDATE
+15	M9BRW2Q_015_1c0ee8bb00ecd201	M8SID_1c0ee8bb00ecd201	Как правильно рассчитать ДРР на Wildberries?	NATURAL_EXACT_SEARCH_PROBE_NO_DEMAND	15	3	12	0	0	0	WAVE2_SEARCH_CANDIDATE
+16	M9BRW2Q_016_096b2cc4a0b3c4f5	M8SID_096b2cc4a0b3c4f5	Как анализировать отчет о продажах на Wildberries	NATURAL_EXACT_SEARCH_PROBE_NO_DEMAND	18	2	16	0	0	0	WAVE2_SEARCH_CANDIDATE
+17	M9BRW2Q_017_51050ceda2b330da	M8SID_51050ceda2b330da	Как читать и анализировать отчеты о продажах на Wildberries	NATURAL_EXACT_SEARCH_PROBE_NO_DEMAND	18	2	16	0	0	0	WAVE2_SEARCH_CANDIDATE
+18	M9BRW2Q_018_81d8f3590bddaaab	M8SID_81d8f3590bddaaab	Как построить воронку продаж на маркетплейсе	NATURAL_EXACT_SEARCH_PROBE_NO_DEMAND	17	2	15	0	0	0	WAVE2_SEARCH_CANDIDATE
