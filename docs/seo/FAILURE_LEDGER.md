@@ -329,3 +329,67 @@ A manifest row_count or a parser capable of multiline fields cannot substitute f
 ### Status
 
 `RECOVERED / CURRENT AUTHORITY MUST USE PARSER-SAFE RECOVERY TRANSPORT`.
+
+
+## OSEO-F06 — GitHub Web 25 MiB limit blocked one M8 Work-return artifact
+
+Date: 2026-09-24.
+Stage: M8 return publication.
+
+### Incident
+
+Work R3 returned a valid `M8_RAW_OCCURRENCE_LEDGER.tsv` of 76,810,357 bytes.
+
+GitHub Web upload rejected that single file because the browser upload surface limits individual files to 25 MiB, even though the file remains below Git's 100 MB ordinary blob limit.
+
+Eight other M8 files were published normally.
+
+### Impact
+
+This was a publication-transport defect only.
+
+The original Work-produced raw ledger remained byte-exact and was independently verified before publication:
+
+```text
+BYTES = 76810357
+SHA256 = 2091432f5eb131b425349954f0518cc8122e98461d932d9b2d7de64e6828bcfc
+DATA_ROWS = 25229
+```
+
+No Work rerun or semantic regeneration was required.
+
+### Recovery
+
+Main Chat:
+1. verified the original attachment bytes/content;
+2. created a deterministic gzip transport under 25 MiB;
+3. installed a one-shot path-filtered GitHub Actions recovery;
+4. owner uploaded one small gzip file;
+5. workflow verified gzip hash, restored the original raw TSV, verified raw hash/size/line count, committed the raw TSV, and removed the gzip;
+6. Main Chat remote-read back the original raw TSV and completed QA.
+
+Published Git blob:
+
+`50f4e750a446dfa7907c13d576d04e071255dfd2`.
+
+### Permanent prevention
+
+Before owner relay of future Work returns, inspect final artifact sizes.
+
+If any required individual artifact exceeds GitHub Web's per-file upload limit but remains below Git's ordinary blob limit:
+
+```text
+DO NOT REGENERATE
+DO NOT SPLIT AUTHORITY UNLESS METHOD REQUIRES IT
+DO NOT ASK FOR REPEATED WEB UPLOADS
+
+USE:
+ordinary Git / GitHub Desktop
+or a pre-gated deterministic compressed transport with exact hash verification
+```
+
+Transport recovery must end with the original authoritative file present byte-exactly in the repository.
+
+### Status
+
+`RECOVERED / REGRESSION RULE ADDED`.
