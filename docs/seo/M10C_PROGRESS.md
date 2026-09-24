@@ -1,7 +1,7 @@
 # Octoport SEO — M10C progress
 
 Date: 2026-09-24
-Status: **CASE01 SNAPSHOT01 ACCEPTED / CONDITIONAL SNAPSHOT02 RELEASED**
+Status: **CASE01 TERMINAL CLOSED / CASE02 SNAPSHOT01 RELEASED**
 Branch: `seo/wordstat-batch-01-2026-09-16`
 
 ## Accepted chain
@@ -89,3 +89,23 @@ Current authorized action:
 `SEARCH_API_V1 {"method":"genSearch","queryText":"ии помощник селлера","confirmBillable":true}`
 
 This is the second and final authorized snapshot for Case01. Third snapshot and next case remain closed.
+
+Case01 terminal closure:
+`docs/seo/M10C_CASE01_TERMINAL_CLOSURE_2026-09-24_R1.md`
+blob `607062e3913d8683942af82ceccbd77413fa2a27`.
+
+```text
+CASE01_SNAPSHOTS = 2/2
+CASE01_TERMINAL_EVIDENCE_STATE = STABLE_MIXED_CAPABILITY_FRAMING
+CASE01_ESTIMATED_PROVIDER_COST_RUB = 10.16
+CASE01_THIRD_SNAPSHOT = FORBIDDEN
+```
+
+Case02 snapshot-1 release:
+`docs/seo/M10C_CASE02_SNAPSHOT01_RELEASE_2026-09-24_R1.md`
+blob `1caa33f32766420a2ff612c02f1fe620ed2e6fac`.
+
+Current authorized action:
+`SEARCH_API_V1 {"method":"genSearch","queryText":"подключить ии к маркетплейсу","confirmBillable":true}`
+
+Exactly one Case02 provider request is authorized. Case02 snapshot-2 and Case03 remain closed.
