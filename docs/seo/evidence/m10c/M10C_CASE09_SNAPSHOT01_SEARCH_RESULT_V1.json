@@ -1,0 +1,81 @@
+{
+  "bridge": "yandex-marketing-bridge",
+  "version": "0.1.9",
+  "service": "search",
+  "operation": "genSearch",
+  "request_id": "search-c2bb0393-3e2c-4246-80bb-2705c209284f",
+  "run_id": null,
+  "status": "OK",
+  "reason": null,
+  "cost_estimate": {
+    "estimated_rub": 5.08,
+    "tariff_checked_at": "2026-08-19",
+    "tariff_source": "[https://aistudio.yandex.ru/docs/ru/search-api/pricing.html](https://aistudio.yandex.ru/docs/ru/search-api/pricing.html)"
+  },
+  "policy": {
+    "channel": "manual",
+    "active_service": "search"
+  },
+  "command": {
+    "method": "genSearch",
+    "queryText": "ии для аналитики маркетплейсов",
+    "confirmBillable": true
+  },
+  "http_status": 200,
+  "elapsed_ms": 5489,
+  "result": {
+    "mode": "generative",
+    "message": {
+      "content": "**Искусственный интеллект (ИИ) для аналитики маркетплейсов** позволяет быстрее анализировать данные, находить проблемы в продажах и оптимизировать рекламу. [1] \n\nНекоторые возможности ИИ для аналитики маркетплейсов:\n\n* **Общий анализ аккаунта**. [1] ИИ определяет рост или падение продаж, изменения конверсии, проблемные категории товаров, влияние рекламы на оборот. [1]\n* **Анализ заказов и продаж**. [1] Нейросеть выявляет тренды продаж, определяет товары-лидеры, находит позиции с падающим спросом, выявляет влияние сезонности. [1]\n* **Анализ поставок и остатков**. [1] ИИ способен выявить риск out-of-stock, избыточные остатки, проблемы с оборачиваемостью. [1]\n* **Анализ воронки продаж**. [1] ИИ анализирует весь путь покупателя: показ → клик → добавление в корзину → заказ → выкуп. [1]\n* **Анализ рекламы маркетплейсов**. [1] ИИ может анализировать рекламные показатели: ДРР (доля рекламных расходов), эффективность кампаний, ставки и бюджет, влияние рекламы на прибыль. [1]\n* **Анализ юнит-экономики**. [1] Нейросети могут рассчитать маржинальность товаров, влияние скидок, логистики и комиссии, реальную прибыль. [1]\n\nНесколько сервисов, которые предоставляют ИИ-аналитику для маркетплейсов:\n\n* **RocketMetrix**. [3] Сервис подключается к API магазина на Ozon или Wildberries, автоматически синхронизирует данные и даёт полную картину бизнеса — от воронки продаж до управленческого P&L. [3]\n* **Komanda.ai**. [4] Платформа позволяет работать с данными маркетплейсов, обрабатывать карточки товаров, отзывы и отчёты. [4]",
+      "role": "ROLE_ASSISTANT"
+    },
+    "sources": [
+      {
+        "url": "[https://tablichki.tech/ocifrovka_marketplace_blog/tpost/ai_marketplaces](https://tablichki.tech/ocifrovka_marketplace_blog/tpost/ai_marketplaces)",
+        "title": "ИИ для маркетплейсов: анализ Wildberries и Ozon через ChatGPT",
+        "used": true
+      },
+      {
+        "url": "[https://tablichki.tech/](https://tablichki.tech/)",
+        "title": "Оцифровка маркетплейсов",
+        "used": false
+      },
+      {
+        "url": "[https://app.rocketmetrix.ru/](https://app.rocketmetrix.ru/)",
+        "title": "RocketMetrix — ИИ-аналитика для маркетплейсов",
+        "used": true
+      },
+      {
+        "url": "[https://komanda.ai/marketplace](https://komanda.ai/marketplace)",
+        "title": "ИИ для маркетплейсов — карточки, отзывы, отчёты — Komanda.ai | Команда.АИ",
+        "used": true
+      },
+      {
+        "url": "[https://sellermoon.ru/faq/wildberries/ii-analitika-prognozirovanie-sprosa-i-trendov](https://sellermoon.ru/faq/wildberries/ii-analitika-prognozirovanie-sprosa-i-trendov)",
+        "title": "ИИ-аналитика на маркетплейсах: как нейросети помогают выбрать нишу и товар, прогнозирование спроса и трендов на WB и Ozon — SELLER MOON",
+        "used": false
+      }
+    ],
+    "searchQueries": [
+      {
+        "text": "ии для аналитики маркетплейсов",
+        "reqId": "1790259338515816-13728771568574402213-iowzc7f4la3zxgjx-BAL"
+      }
+    ],
+    "fixedMisspellQuery": "",
+    "isAnswerRejected": false,
+    "isBulletAnswer": false,
+    "hints": [
+      "Какие ещё сервисы ИИ-аналитики существуют для маркетплейсов?",
+      "Как ИИ помогает в оптимизации рекламных кампаний на маркетплейсах?",
+      "Какие преимущества даёт использование ИИ для анализа продаж?"
+    ],
+    "problematicAnswer": false,
+    "transport": {
+      "wire_format": "json_array",
+      "frame_count": 1
+    }
+  },
+  "request_executed": true,
+  "automatic_retry": false
+}
