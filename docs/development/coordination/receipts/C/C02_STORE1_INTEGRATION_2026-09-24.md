@@ -35,11 +35,12 @@ Focused integrated-tree verification before this receipt commit:
 - stale A authority against the integrated source: expected FAIL `Authority source identity is stale`;
 - C01 independently accepts only PREPRODUCTION release authority; PRODUCTION fails closed;
 - C01 independently asserts the stable Firefox add-on ID `octoport@octoport.ru`; a different ID fails closed before release preparation;
-- C01 rejects known development-only/loopback fallback markers in the reachable classic background runtime and in the declared popup plus its direct local `src`/`href` resources. Chromium module service workers are fail-closed until a dedicated ESM dependency validator exists. Classic background dependency traversal accepts only canonical static `importScripts(...);`; whitespace/no-semicolon/comment-obfuscated variants fail closed rather than escaping traversal;
-- `tooling/b1/release-safety.test.mjs`: 40/40 PASS, including negative PREPRODUCTION, module-worker, canonical-import syntax, background sanitation, popup-resource sanitation and Firefox stable-ID cases;
+- C01 rejects known development-only/loopback fallback markers in the reachable classic background runtime and in the declared popup plus its direct local `src`/`href` resources. Chromium module service workers are fail-closed until a dedicated ESM dependency validator exists. Classic background dependency traversal accepts only canonical static `importScripts(...);`; whitespace/no-semicolon/comment-obfuscated variants fail closed rather than escaping traversal; Unicode-escaped spellings that evaluate to `importScripts` and bracket-notation access such as `globalThis["importScripts"](...)` are also rejected fail-closed;
+- `tooling/b1/release-safety.test.mjs`: 42/42 PASS, including negative PREPRODUCTION, module-worker, canonical-import syntax, Unicode-escape, bracket-notation, background sanitation, popup-resource sanitation and Firefox stable-ID cases;
 - `tests/regression/extension-core/store-package-contract.py`: PASS, including PREPRODUCTION-only, duplicate-trust and store sanitation checks;
 - `pnpm openapi:check`: PASS; focused Prettier check: PASS;
-- supervised resource job `046cf92b9b6549ebb5b7967ce6c72a89`: exit 0, OOM 0, cleanup verified, peak 326 MiB.
+- supervised resource job `1502921352c248678d0dd3563b2f4003`: exit 0, OOM 0, cleanup verified, peak 342 MiB;
+- final read-only Luna R6 review on exact code diff SHA-256 `13df80e5bc111dc78cd52a06ce64a5f0c1997c6eb608f3d770e65a77d0a66210`: no blocker remains; the review specifically confirmed the Unicode-escaped identifier and bracket-notation fixtures exercise the stated bypasses and are rejected by package preparation.
 
 Deterministic package bytes at this stage:
 - Chromium `OCTOPORT_v0.2.4_CHROMIUM_STORE.zip`: SHA-256 `7f631db34ac7c7966b6e7cf1b8ea84864e6e5cafff3494827dc181fdc86478ef`, 2,108,729 bytes;

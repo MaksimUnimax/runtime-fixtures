@@ -114,7 +114,7 @@ if mode=="case_duplicate":
 if mode=="development_popup":
     rows.append(("popup.html",b'<html><script src="popup.js"></script></html>'))
     rows.append(("popup.js","console.log('Локальная разработка')".encode()))
-if mode in ("import_whitespace", "import_no_semicolon", "import_comment"):
+if mode in ("import_whitespace", "import_no_semicolon", "import_comment", "import_unicode_escape", "import_bracket"):
     rows.append(("dev.js",b"/* LOCAL DEVELOPMENT */"))
 if mode=="symlink":
     with zipfile.ZipFile(path,"w") as z:
@@ -199,6 +199,12 @@ function makeZip(path, browser, options = {}) {
   }
   if (options.mode === "import_comment") {
     worker += 'importScripts/*comment*/("dev.js");\n';
+  }
+  if (options.mode === "import_unicode_escape") {
+    worker += 'import\\u0053cripts("dev.js");\n';
+  }
+  if (options.mode === "import_bracket") {
+    worker += 'globalThis["importScripts"]("dev.js");\n';
   }
 
   const result = spawnSync(
@@ -412,6 +418,28 @@ test("non-canonical classic importScripts without semicolon is rejected fail-clo
 test("comment-obfuscated classic importScripts is rejected fail-closed", () => {
   const value = fixture({
     chromium: { mode: "import_comment" },
+  });
+  try {
+    assert.throws(() => prepare(value), /unsupported importScripts syntax/);
+  } finally {
+    cleanup(value);
+  }
+});
+
+test("Unicode-escaped importScripts identifier is rejected fail-closed", () => {
+  const value = fixture({
+    chromium: { mode: "import_unicode_escape" },
+  });
+  try {
+    assert.throws(() => prepare(value), /escaped importScripts identifier/);
+  } finally {
+    cleanup(value);
+  }
+});
+
+test("bracket-notation importScripts access is rejected fail-closed", () => {
+  const value = fixture({
+    chromium: { mode: "import_bracket" },
   });
   try {
     assert.throws(() => prepare(value), /unsupported importScripts syntax/);

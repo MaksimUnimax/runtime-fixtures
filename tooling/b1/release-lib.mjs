@@ -629,6 +629,52 @@ function ensureNoStoreDevelopmentMaterial(entries, manifest, reachable) {
   }
 }
 
+function escapedIdentifierChar(source, offset, expected) {
+  if (source[offset] === expected) {
+    return { next: offset + 1, escaped: false };
+  }
+  if (source[offset] !== "\\" || source[offset + 1] !== "u") return null;
+
+  let end;
+  let hex;
+  if (source[offset + 2] === "{") {
+    end = source.indexOf("}", offset + 3);
+    if (end < 0) return null;
+    hex = source.slice(offset + 3, end);
+    if (!/^[0-9a-fA-F]{1,6}$/.test(hex)) return null;
+    end += 1;
+  } else {
+    hex = source.slice(offset + 2, offset + 6);
+    if (!/^[0-9a-fA-F]{4}$/.test(hex)) return null;
+    end = offset + 6;
+  }
+  const codePoint = Number.parseInt(hex, 16);
+  if (codePoint > 0x10ffff || String.fromCodePoint(codePoint) !== expected) {
+    return null;
+  }
+  return { next: end, escaped: true };
+}
+
+function containsEscapedImportScriptsIdentifier(source) {
+  const expected = "importScripts";
+  for (let start = 0; start < source.length; start += 1) {
+    let cursor = start;
+    let escaped = false;
+    let matched = true;
+    for (const character of expected) {
+      const part = escapedIdentifierChar(source, cursor, character);
+      if (!part) {
+        matched = false;
+        break;
+      }
+      cursor = part.next;
+      escaped ||= part.escaped;
+    }
+    if (matched && escaped) return true;
+  }
+  return false;
+}
+
 function backgroundScripts(entries, manifest, browser) {
   const queue = [];
   if (browser === "chromium") {
@@ -663,6 +709,9 @@ function backgroundScripts(entries, manifest, browser) {
     visited.add(path);
 
     const source = data.toString("utf8");
+    if (containsEscapedImportScriptsIdentifier(source)) {
+      fail("Background runtime contains escaped importScripts identifier");
+    }
     const tokenRegex = /\bimportScripts\b/g;
     for (const token of source.matchAll(tokenRegex)) {
       const tail = source.slice(token.index + token[0].length);
