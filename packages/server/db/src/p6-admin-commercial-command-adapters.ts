@@ -7,7 +7,12 @@ import { createP3PolicyPublicationRepository } from "./p3-policy-publication-rep
 import type { PlanEntitlementCommandRepository } from "@product/plans";
 import type { PriceCommandRepository } from "@product/pricing";
 import type { AccountEntitlementOverrideMutationPort } from "@product/entitlements";
-import type { CompatibilityPublicationPort } from "@product/compatibility";
+import type {
+  CompatibilityMutationContext,
+  CompatibilityPublicationPort,
+  ContractVersion,
+} from "@product/compatibility";
+import type { ConfigRelease } from "@product/remote-config";
 
 export function createP6AdminPlanCommandAdapter(
   runtime: DatabaseRuntime,
@@ -71,7 +76,16 @@ export function createP6AdminEntitlementCommandAdapter(
 }
 export function createP6AdminCompatibilityCommandAdapter(
   runtime: DatabaseRuntime,
-): CompatibilityPublicationPort {
+): CompatibilityPublicationPort & {
+  publishAdminConfigRelease: (
+    command: {
+      contractVersion: ContractVersion;
+      expectedLatestConfigVersion: number;
+      compatibilityPolicyRevisionIds: string[];
+    },
+    context: CompatibilityMutationContext,
+  ) => Promise<ConfigRelease>;
+} {
   return {
     publishExtensionRelease: (command, context) => {
       if (context.actorType !== "ADMIN")
@@ -97,5 +111,18 @@ export function createP6AdminCompatibilityCommandAdapter(
                 )
             : undefined,
       }).publishCompatibilityPolicyRevision(command, context),
+    publishAdminConfigRelease: (command, context) => {
+      if (context.actorType !== "ADMIN")
+        throw new Error("ADMIN_CONFIG_RELEASE_CONTEXT_REQUIRED");
+      const repository = createP3PolicyPublicationRepository(runtime, {
+        beforeConfigReleasePublication: (tx) =>
+          authorizeAdminMutationInTransaction(
+            tx,
+            context.actorId,
+            "compatibility.manage",
+          ),
+      });
+      return repository.publishAdminConfigRelease(command, context);
+    },
   };
 }

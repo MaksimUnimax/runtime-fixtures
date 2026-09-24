@@ -329,6 +329,25 @@ export const ExtensionReleasePublishBodySchema = z
       ctx.addIssue({ code: "custom", message: "duplicate browser" });
   });
 
+export const ConfigReleasePublishBodySchema = z
+  .object({
+    contractVersion: ContractVersionSchema,
+    expectedLatestConfigVersion: z.number().int().positive(),
+    compatibilityPolicyRevisionIds: z.array(Uuid).min(1),
+    reason: Reason,
+  })
+  .strict()
+  .superRefine((value, ctx) => {
+    if (
+      new Set(value.compatibilityPolicyRevisionIds).size !==
+      value.compatibilityPolicyRevisionIds.length
+    )
+      ctx.addIssue({
+        code: "custom",
+        message: "duplicate compatibility source",
+      });
+  });
+
 export type AdminCommercialPage<T> = { items: T[]; nextCursor?: string };
 export type AdminCommercialReadRepository = {
   listPlans(
@@ -371,6 +390,24 @@ export type CompatibilityAdminRevision = CompatibilityPolicyRevision & {
   linkedConfigVersions: number[];
 };
 export type AdminCommercialService = AdminCommercialReadRepository & {
+  publishConfigRelease(input: {
+    contractVersion: "control_plane_v1" | "control_plane_v2";
+    expectedLatestConfigVersion: number;
+    compatibilityPolicyRevisionIds: string[];
+    actorId: string;
+    correlationId: string;
+    reason: string;
+  }): Promise<{
+    configVersion: number;
+    contractVersion: "control_plane_v1" | "control_plane_v2";
+    snapshotVersion: "bootstrap_snapshot_v1" | "bootstrap_snapshot_v2";
+    envelopeVersion: "bootstrap_envelope_v1" | "bootstrap_envelope_v2";
+    contentHashSha256: string;
+    sourceFingerprintSha256: string;
+    signingKeyId: string;
+    publishedAt: Date;
+    createdAt: Date;
+  }>;
   createPlan(input: {
     code: string;
     actorId: string;
@@ -566,6 +603,20 @@ type MutationPorts = {
       c: z.input<typeof PublishCompatibilityPolicyRevisionCommandSchema>,
       x: CompatibilityMutationContext,
     ) => Promise<CompatibilityPolicyRevision>;
+    publishAdminConfigRelease: (
+      c: Omit<z.infer<typeof ConfigReleasePublishBodySchema>, "reason">,
+      x: CompatibilityMutationContext,
+    ) => Promise<{
+      configVersion: number;
+      contractVersion: "control_plane_v1" | "control_plane_v2";
+      snapshotVersion: "bootstrap_snapshot_v1" | "bootstrap_snapshot_v2";
+      envelopeVersion: "bootstrap_envelope_v1" | "bootstrap_envelope_v2";
+      contentHashSha256: string;
+      sourceFingerprintSha256: string;
+      signingKeyId: string;
+      publishedAt: Date;
+      createdAt: Date;
+    }>;
   };
 };
 export function createAdminCommercialService(
@@ -584,6 +635,15 @@ export function createAdminCommercialService(
   });
   return {
     ...reads,
+    publishConfigRelease: (x) => {
+      const { actorId, correlationId, reason, ...manifest } = x;
+      return ports.compatibility.publishAdminConfigRelease(manifest, {
+        actorType: "ADMIN",
+        actorId,
+        correlationId,
+        reason,
+      });
+    },
     createPlan: (x) => ports.plans.createPlan({ code: x.code }, context(x)),
     createPlanRevision: (x) =>
       ports.plans.createDraftPlanRevision(

@@ -133,6 +133,12 @@ const extensionReleaseBody = {
   supportedBrowsers: ["opera"],
   reason: "ticket-1",
 };
+const configReleaseBody = {
+  contractVersion: "control_plane_v2",
+  expectedLatestConfigVersion: 7,
+  compatibilityPolicyRevisionIds: [revisionId],
+  reason: "ticket-1",
+};
 
 type Behavior = (...args: unknown[]) => unknown;
 function harness(
@@ -1357,6 +1363,148 @@ describe("P6.4 admin-commercial controller", () => {
       createdAt: "2026-09-23T10:00:00.000Z",
     });
     expect(calls).toContain("publishExtensionRelease");
+  });
+  it("publishes an add-only v2 config link through compatibility.manage with no-store", async () => {
+    const configRelease = {
+      configVersion: 9,
+      contractVersion: "control_plane_v2",
+      snapshotVersion: "bootstrap_snapshot_v2",
+      envelopeVersion: "bootstrap_envelope_v2",
+      contentHashSha256: "a".repeat(64),
+      sourceFingerprintSha256: "b".repeat(64),
+      signingKeyId: "test-ed25519",
+      publishedAt: new Date("2026-09-24T10:00:00.000Z"),
+      createdAt: new Date("2026-09-24T10:00:00.000Z"),
+    };
+    const { app, behavior, calls } = harness();
+    apps.push(app);
+    behavior.set("publishConfigRelease", (input) => {
+      expect(input).toMatchObject({
+        ...configReleaseBody,
+        actorId,
+        correlationId: expect.any(String),
+      });
+      return configRelease;
+    });
+    const response = await app.inject({
+      method: "POST",
+      url: "/v1/admin/compatibility/config-releases/publish",
+      headers: mutationHeaders,
+      payload: configReleaseBody,
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.headers["cache-control"]).toBe("no-store");
+    expect(json(response)).toMatchObject({
+      configVersion: 9,
+      contractVersion: "control_plane_v2",
+      signingKeyId: "test-ed25519",
+    });
+    expect(json(response)).not.toHaveProperty("privateKey");
+    expect(calls).toContain("publishConfigRelease");
+  });
+  it("rejects missing, stale-shape, duplicate, and unknown config-link fields before service", async () => {
+    const { app, calls } = harness();
+    apps.push(app);
+    for (const payload of [
+      { ...configReleaseBody, expectedLatestConfigVersion: 0 },
+      Object.fromEntries(
+        Object.entries(configReleaseBody).filter(
+          ([key]) => key !== "expectedLatestConfigVersion",
+        ),
+      ),
+      { ...configReleaseBody, unknown: true },
+      {
+        ...configReleaseBody,
+        compatibilityPolicyRevisionIds: [revisionId, revisionId],
+      },
+      { ...configReleaseBody, compatibilityPolicyRevisionIds: [] },
+    ]) {
+      expectError(
+        await app.inject({
+          method: "POST",
+          url: "/v1/admin/compatibility/config-releases/publish",
+          headers: mutationHeaders,
+          payload,
+        }),
+        400,
+        "INVALID_REQUEST",
+      );
+    }
+    expect(calls).not.toContain("publishConfigRelease");
+  });
+  it("forbids an admin without compatibility.manage from config release publication", async () => {
+    const { app, calls } = harness({
+      permissions: subject.permissions.filter(
+        (permission) => permission !== "compatibility.manage",
+      ),
+    });
+    apps.push(app);
+    expectError(
+      await app.inject({
+        method: "POST",
+        url: "/v1/admin/compatibility/config-releases/publish",
+        headers: mutationHeaders,
+        payload: configReleaseBody,
+      }),
+      403,
+      "ADMIN_FORBIDDEN",
+    );
+    expect(calls).not.toContain("publishConfigRelease");
+  });
+  it("maps missing baseline/source and stale/no-op config links to safe admin errors", async () => {
+    const { app, behavior } = harness();
+    apps.push(app);
+    for (const message of [
+      "P3_CONFIG_BASE_NOT_FOUND",
+      "P3_POLICY_SOURCE_MISSING",
+    ]) {
+      behavior.set("publishConfigRelease", () => {
+        throw new Error(message);
+      });
+      expectError(
+        await app.inject({
+          method: "POST",
+          url: "/v1/admin/compatibility/config-releases/publish",
+          headers: mutationHeaders,
+          payload: configReleaseBody,
+        }),
+        404,
+        "ADMIN_RESOURCE_NOT_FOUND",
+      );
+    }
+    for (const message of [
+      "P3_CONFIG_BASE_STALE",
+      "P3_CONFIG_LINK_NO_CHANGE",
+    ]) {
+      behavior.set("publishConfigRelease", () => {
+        throw new Error(message);
+      });
+      expectError(
+        await app.inject({
+          method: "POST",
+          url: "/v1/admin/compatibility/config-releases/publish",
+          headers: mutationHeaders,
+          payload: configReleaseBody,
+        }),
+        409,
+        "ADMIN_CONFLICT",
+      );
+    }
+    behavior.set("publishConfigRelease", () => {
+      throw Object.assign(new Error("sensitive constraint detail"), {
+        code: "23505",
+      });
+    });
+    const conflict = await app.inject({
+      method: "POST",
+      url: "/v1/admin/compatibility/config-releases/publish",
+      headers: mutationHeaders,
+      payload: configReleaseBody,
+    });
+    expectError(conflict, 409, "ADMIN_CONFLICT");
+    expect(JSON.stringify(conflict.json())).not.toContain(
+      "sensitive constraint detail",
+    );
   });
   it("rejects unknown release contracts and browsers before service mutation", async () => {
     const { app, calls } = harness();

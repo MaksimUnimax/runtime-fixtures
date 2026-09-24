@@ -683,6 +683,7 @@ describe("P6.4 admin-commercial validation contracts", () => {
   it("admin service passes compatibility version and ADMIN release context", async () => {
     const compatibilityCalls: unknown[] = [];
     const releaseCalls: unknown[] = [];
+    const configCalls: unknown[] = [];
     const service = createAdminCommercialService({} as never, {
       plans: {} as never,
       prices: {} as never,
@@ -695,6 +696,26 @@ describe("P6.4 admin-commercial validation contracts", () => {
         publishExtensionRelease: async (command, context) => {
           releaseCalls.push({ command, context });
           return {} as never;
+        },
+        publishAdminConfigRelease: async (command, context) => {
+          configCalls.push({ command, context });
+          return {
+            configVersion: 9,
+            contractVersion: command.contractVersion,
+            snapshotVersion:
+              command.contractVersion === "control_plane_v2"
+                ? "bootstrap_snapshot_v2"
+                : "bootstrap_snapshot_v1",
+            envelopeVersion:
+              command.contractVersion === "control_plane_v2"
+                ? "bootstrap_envelope_v2"
+                : "bootstrap_envelope_v1",
+            contentHashSha256: "c".repeat(64),
+            sourceFingerprintSha256: "d".repeat(64),
+            signingKeyId: "test-ed25519",
+            publishedAt: new Date(),
+            createdAt: new Date(),
+          };
         },
       },
     });
@@ -767,5 +788,28 @@ describe("P6.4 admin-commercial validation contracts", () => {
     expect(releaseCall.command.releasedAt.getTime()).toBeLessThanOrEqual(
       Date.now(),
     );
+
+    await service.publishConfigRelease({
+      contractVersion: "control_plane_v2",
+      expectedLatestConfigVersion: 7,
+      compatibilityPolicyRevisionIds: [id2],
+      actorId: id,
+      correlationId: "config-request",
+      reason,
+    });
+    expect(configCalls).toHaveLength(1);
+    expect(configCalls[0]).toEqual({
+      command: {
+        contractVersion: "control_plane_v2",
+        expectedLatestConfigVersion: 7,
+        compatibilityPolicyRevisionIds: [id2],
+      },
+      context: {
+        actorType: "ADMIN",
+        actorId: id,
+        correlationId: "config-request",
+        reason,
+      },
+    });
   });
 });

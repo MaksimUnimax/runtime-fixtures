@@ -41,6 +41,17 @@ import type { DatabaseQuery, DatabaseRuntime } from "./index.js";
 import { safeAuditReason } from "./safe-audit.js";
 
 type Context = P3MutationContext | CompatibilityMutationContext;
+type AdminConfigReleaseCommand = {
+  contractVersion: PublishConfigReleaseCommand["contractVersion"];
+  expectedLatestConfigVersion: number;
+  compatibilityPolicyRevisionIds: string[];
+};
+type AdminConfigReleasePublicationRepository = {
+  publishAdminConfigRelease(
+    command: AdminConfigReleaseCommand,
+    context: CompatibilityMutationContext,
+  ): ReturnType<P3PublicationPort["publishConfigRelease"]>;
+};
 async function audit(
   q: { query: DatabaseQuery["query"] },
   context: Context,
@@ -287,6 +298,48 @@ async function validateConfigSources(
     rolloutFeatures.add(pair[0]!.featureKey);
   }
 }
+async function insertConfigRelease(
+  q: { query: DatabaseQuery["query"] },
+  value: PublishConfigReleaseCommand,
+  context: Context,
+) {
+  const hashes = configReleaseHashes(value);
+  const r = await q.query<Record<string, unknown>>(
+    'INSERT INTO config_releases(contract_version,snapshot_version,envelope_version,content_hash_sha256,source_fingerprint_sha256,signing_key_id,published_at) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING config_version AS "configVersion",contract_version AS "contractVersion",snapshot_version AS "snapshotVersion",envelope_version AS "envelopeVersion",content_hash_sha256 AS "contentHashSha256",source_fingerprint_sha256 AS "sourceFingerprintSha256",signing_key_id AS "signingKeyId",published_at AS "publishedAt",created_at AS "createdAt"',
+    [
+      value.contractVersion,
+      value.snapshotVersion,
+      value.envelopeVersion,
+      hashes.contentHashSha256,
+      hashes.sourceFingerprintSha256,
+      value.signingKeyId,
+      value.publishedAt,
+    ],
+  );
+  const configVersion = Number(r.rows[0]!.configVersion);
+  for (const id of value.compatibilityPolicyRevisionIds)
+    await q.query(
+      "INSERT INTO config_release_compatibility_policies(config_version,policy_revision_id) VALUES($1,$2)",
+      [configVersion, id],
+    );
+  for (const id of value.featureRuleRevisionIds)
+    await q.query(
+      "INSERT INTO config_release_feature_rules(config_version,feature_rule_revision_id) VALUES($1,$2)",
+      [configVersion, id],
+    );
+  for (const id of value.featureRolloutRevisionIds)
+    await q.query(
+      "INSERT INTO config_release_rollout_revisions(config_version,rollout_revision_id,target_kind) VALUES($1,$2,'FEATURE_RULE')",
+      [configVersion, id],
+    );
+  await audit(q, context, "CONFIG_RELEASE_PUBLISHED", "CONFIG_RELEASE", null, {
+    configVersion,
+    contractVersion: value.contractVersion,
+    sourceFingerprintSha256: hashes.sourceFingerprintSha256,
+  });
+  return ConfigReleaseSchema.parse(r.rows[0]!);
+}
+
 function rowPolicy(row: Record<string, unknown>): CompatibilityPolicyRevision {
   return CompatibilityPolicyRevisionSchema.parse({
     id: String(row.id),
@@ -313,8 +366,11 @@ export function createP3PolicyPublicationRepository(
     clock?: () => Date;
     beforeExtensionReleasePublication?: (tx: DatabaseQuery) => Promise<void>;
     beforeCompatibilityPublication?: (tx: DatabaseQuery) => Promise<void>;
+    beforeConfigReleasePublication?: (tx: DatabaseQuery) => Promise<void>;
   } = {},
-): CompatibilityPublicationPort & P3PublicationPort {
+): CompatibilityPublicationPort &
+  P3PublicationPort &
+  AdminConfigReleasePublicationRepository {
   const clock = options.clock ?? (() => new Date());
   return {
     async registerSigningKey(command, context) {
@@ -671,50 +727,92 @@ export function createP3PolicyPublicationRepository(
     },
     async publishConfigRelease(command, context) {
       const value = PublishConfigReleaseCommandSchema.parse(command);
-      const hashes = configReleaseHashes(value);
       return runtime.transaction(async (q) => {
+        await q.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [
+          `p3-config:${value.contractVersion}`,
+        ]);
         await validateConfigSources(q, value);
-        const r = await q.query<Record<string, unknown>>(
-          'INSERT INTO config_releases(contract_version,snapshot_version,envelope_version,content_hash_sha256,source_fingerprint_sha256,signing_key_id,published_at) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING config_version AS "configVersion",contract_version AS "contractVersion",snapshot_version AS "snapshotVersion",envelope_version AS "envelopeVersion",content_hash_sha256 AS "contentHashSha256",source_fingerprint_sha256 AS "sourceFingerprintSha256",signing_key_id AS "signingKeyId",published_at AS "publishedAt",created_at AS "createdAt"',
-          [
-            value.contractVersion,
-            value.snapshotVersion,
-            value.envelopeVersion,
-            hashes.contentHashSha256,
-            hashes.sourceFingerprintSha256,
-            value.signingKeyId,
-            value.publishedAt,
+        return insertConfigRelease(q, value, context);
+      });
+    },
+    async publishAdminConfigRelease(command, context) {
+      if (context.actorType !== "ADMIN")
+        throw new Error("ADMIN_CONFIG_RELEASE_CONTEXT_REQUIRED");
+      CompatibilityMutationContextSchema.parse(context);
+      if (!options.beforeConfigReleasePublication)
+        throw new Error("ADMIN_CONFIG_RELEASE_AUTHORIZATION_REQUIRED");
+      if (
+        !Number.isInteger(command.expectedLatestConfigVersion) ||
+        command.expectedLatestConfigVersion <= 0 ||
+        command.compatibilityPolicyRevisionIds.length === 0 ||
+        new Set(command.compatibilityPolicyRevisionIds).size !==
+          command.compatibilityPolicyRevisionIds.length
+      )
+        throw new Error("ADMIN_CONFIG_RELEASE_COMMAND_INVALID");
+      return runtime.transaction(async (q) => {
+        await options.beforeConfigReleasePublication!(q);
+        await q.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [
+          `p3-config:${command.contractVersion}`,
+        ]);
+        const current = await q.query<{
+          configVersion: number;
+          snapshotVersion: string;
+          envelopeVersion: string;
+          signingKeyId: string;
+        }>(
+          'SELECT config_version AS "configVersion",snapshot_version AS "snapshotVersion",envelope_version AS "envelopeVersion",signing_key_id AS "signingKeyId" FROM config_releases WHERE contract_version=$1 ORDER BY config_version DESC LIMIT 1',
+          [command.contractVersion],
+        );
+        const base = current.rows[0];
+        if (!base) throw new Error("P3_CONFIG_BASE_NOT_FOUND");
+        if (base.configVersion !== command.expectedLatestConfigVersion)
+          throw new Error("P3_CONFIG_BASE_STALE");
+        const expectedSnapshot =
+          command.contractVersion === "control_plane_v2"
+            ? "bootstrap_snapshot_v2"
+            : "bootstrap_snapshot_v1";
+        const expectedEnvelope =
+          command.contractVersion === "control_plane_v2"
+            ? "bootstrap_envelope_v2"
+            : "bootstrap_envelope_v1";
+        if (
+          base.snapshotVersion !== expectedSnapshot ||
+          base.envelopeVersion !== expectedEnvelope
+        )
+          throw new Error("P3_CONFIG_BASE_INVALID");
+        const policyLinks = await q.query<{ id: string }>(
+          "SELECT policy_revision_id AS id FROM config_release_compatibility_policies WHERE config_version=$1 ORDER BY policy_revision_id",
+          [base.configVersion],
+        );
+        const featureLinks = await q.query<{ id: string }>(
+          "SELECT feature_rule_revision_id AS id FROM config_release_feature_rules WHERE config_version=$1 ORDER BY feature_rule_revision_id",
+          [base.configVersion],
+        );
+        const rolloutLinks = await q.query<{ id: string }>(
+          "SELECT rollout_revision_id AS id FROM config_release_rollout_revisions WHERE config_version=$1 ORDER BY rollout_revision_id",
+          [base.configVersion],
+        );
+        const existingPolicies = new Set(policyLinks.rows.map((row) => row.id));
+        const addedPolicies = command.compatibilityPolicyRevisionIds.filter(
+          (id) => !existingPolicies.has(id),
+        );
+        if (addedPolicies.length === 0)
+          throw new Error("P3_CONFIG_LINK_NO_CHANGE");
+        const value = PublishConfigReleaseCommandSchema.parse({
+          contractVersion: command.contractVersion,
+          snapshotVersion: base.snapshotVersion,
+          envelopeVersion: base.envelopeVersion,
+          signingKeyId: base.signingKeyId,
+          compatibilityPolicyRevisionIds: [
+            ...existingPolicies,
+            ...addedPolicies,
           ],
-        );
-        const configVersion = Number(r.rows[0]!.configVersion);
-        for (const id of value.compatibilityPolicyRevisionIds)
-          await q.query(
-            "INSERT INTO config_release_compatibility_policies(config_version,policy_revision_id) VALUES($1,$2)",
-            [configVersion, id],
-          );
-        for (const id of value.featureRuleRevisionIds)
-          await q.query(
-            "INSERT INTO config_release_feature_rules(config_version,feature_rule_revision_id) VALUES($1,$2)",
-            [configVersion, id],
-          );
-        for (const id of value.featureRolloutRevisionIds)
-          await q.query(
-            "INSERT INTO config_release_rollout_revisions(config_version,rollout_revision_id,target_kind) VALUES($1,$2,'FEATURE_RULE')",
-            [configVersion, id],
-          );
-        await audit(
-          q,
-          context,
-          "CONFIG_RELEASE_PUBLISHED",
-          "CONFIG_RELEASE",
-          null,
-          {
-            configVersion,
-            contractVersion: value.contractVersion,
-            sourceFingerprintSha256: hashes.sourceFingerprintSha256,
-          },
-        );
-        return ConfigReleaseSchema.parse(r.rows[0]!);
+          featureRuleRevisionIds: featureLinks.rows.map((row) => row.id),
+          featureRolloutRevisionIds: rolloutLinks.rows.map((row) => row.id),
+          publishedAt: clock(),
+        });
+        await validateConfigSources(q, value);
+        return insertConfigRelease(q, value, context);
       });
     },
   };

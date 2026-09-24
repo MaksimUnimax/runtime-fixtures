@@ -62,6 +62,7 @@ describe("OpenAPI foundation", () => {
         "/v1/admin/commercial/prices/{price_id}/status",
         "/v1/admin/compatibility/policies",
         "/v1/admin/compatibility/policies/{policy_key}/publish",
+        "/v1/admin/compatibility/config-releases/publish",
         "/v1/admin/compatibility/releases/{version}/publish",
         "/v1/admin/health/diagnostics/breakdown",
         "/v1/admin/health/diagnostics/summary",
@@ -152,6 +153,59 @@ describe("OpenAPI foundation", () => {
     expect(document.paths).toHaveProperty("/v1/bootstrap");
     expect(document.paths).not.toHaveProperty("/v1/billing/checkouts");
     expect(document.paths).not.toHaveProperty("/test-controlled-error");
+  });
+
+  it("documents the strict config release mutation without caller timestamps", async () => {
+    const document = JSON.parse(await generateOpenApiRepresentation()) as {
+      paths: Record<
+        string,
+        {
+          post: {
+            requestBody: {
+              content: Record<string, { schema: unknown }>;
+            };
+          };
+        }
+      >;
+    };
+    const operation =
+      document.paths["/v1/admin/compatibility/config-releases/publish"]!.post;
+    expect(
+      operation.requestBody.content["application/json"]!.schema,
+    ).toMatchObject({
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        contractVersion: {
+          enum: ["control_plane_v1", "control_plane_v2"],
+          type: "string",
+        },
+        expectedLatestConfigVersion: { type: "integer" },
+        compatibilityPolicyRevisionIds: {
+          type: "array",
+          items: { type: "string", format: "uuid" },
+        },
+        reason: { type: "string" },
+      },
+      required: [
+        "contractVersion",
+        "expectedLatestConfigVersion",
+        "compatibilityPolicyRevisionIds",
+        "reason",
+      ],
+    });
+    const schemaText = JSON.stringify(
+      operation.requestBody.content["application/json"]!.schema,
+    );
+    for (const forbidden of [
+      "publishedAt",
+      "signingKeyId",
+      "snapshotVersion",
+      "envelopeVersion",
+      "featureRuleRevisionIds",
+      "featureRolloutRevisionIds",
+    ])
+      expect(schemaText).not.toContain(forbidden);
   });
 
   it("accepts the tracked artifact when it is generated from the current routes", async () => {
