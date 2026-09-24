@@ -1,7 +1,7 @@
 # Octoport SEO — M9 progress
 
 Date: 2026-09-24
-Status: **WAVE-1 COLLECT SLICE-1 RELEASED / WAITING RESULT**
+Status: **WAVE-1 COLLECT SLICE-1 PASS / 12 SUCCEEDED / 13 WAITING / SLICE-2 OPEN**
 Branch: `seo/wordstat-batch-01-2026-09-16`
 
 ## Current accepted chain
@@ -13,7 +13,7 @@ M9 BOUNDARY-RESOLUTION PRE-ACQ = PASS / MAIN CHAT ACCEPTED
 M10A = BLOCKED
 
 CURRENT PHYSICAL STEP =
-M9 BOUNDARY-RESOLUTION WAVE-1 COLLECT SLICE-1 / PROVIDER RESULT CHECK
+M9 BOUNDARY-RESOLUTION WAVE-1 COLLECT SLICE-2 / PROVIDER RESULT CHECK
 ```
 
 ## Accepted M9 unresolved state
@@ -361,6 +361,35 @@ SUBMITN = CLOSED
 ```
 
 One bounded collection slice is authorized. Any further collection decision depends on this returned durable state.
+
+## Wave-1 collect slice-1 receipt
+
+Receipt:
+`docs/seo/M9_BOUNDARY_RESOLUTION_WAVE1_COLLECT_SLICE1_RECEIPT_2026-09-24_R1.md`
+
+```text
+COLLECT_SLICE1_GATE = PASS_BOUNDED_STOP
+PROVIDER_CALLS = 12
+PROCESSED = 12
+NORMALIZED = 12
+BOUNDED_STOP = true
+
+TOTAL = 25
+SUCCEEDED = 12
+WAITING = 13
+RESULT_SAVED = 0
+PARSE_FAILED = 0
+FAILED = 0
+UNKNOWN = 0
+POLLS_STARTED = 12
+UNRESOLVED = 13
+REVISION = 86
+```
+
+Indices 0..11 returned terminal provider results and normalized successfully.
+Indices 12..24 remain WAITING and were not processed by slice 1.
+
+A second collect is allowed only after a separate durable release/readback. No new five-minute delay is needed for these unpolled rows because their original due time already passed.
 
 ## Owner relay
 
