@@ -9,3 +9,7 @@
 Пути: код и проверки точных перечисленных коммитов; apps/health-runner/src/{h2.ts,no-session-contracts.ts}; packages/server/health/src/{index.ts,no-session.ts}; tooling/build/extension_firefox.py; tests/regression/extension-core/firefox-package-contract.mjs; packages/contracts/openapi/openapi.json; профильные receipts и docs/development/coordination. Небольшая проверка/исправление правил координации допускается только для устранения обнаруженного повторяющегося deadlock, без ослабления guard/CI/STOP.
 
 Кандидат передаётся через единственную границу C после точных проверок. Незакоммиченные файлы потоков не перезаписываются: сначала сохранённые checkpoints, проверка hashes и перенос принятого смысла; никакого reset/clean/force. Рабочие состояния/ветки/входящие обновляются только с конкретным review receipt. Внешняя публикация и её минимум проверяются по STORE_POLICY; production/расширение набора не выполняются.
+
+## Уточнение границы: потребитель admin API
+
+При проверке B b9b8e718 воспроизведено чтением строгой схемы: admin UI не посылает обязательный contractVersion; BFF не допускает добавленный POST releases/:version/publish. Назначаю ограниченное исправление apps/admin/app/admin-ui.tsx, apps/admin/lib/{admin-ui.test.ts,control-plane-route.ts,control-plane-route.test.ts}. Сохранить существующий v1 по умолчанию, предоставить явный выбор v2, разрешить только точный новый маршрут с допустимой версией. Сессии, роли и CSRF не менять. Проверки доказывают совместимость тела с API и точную границу proxy.
