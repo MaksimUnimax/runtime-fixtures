@@ -1,7 +1,7 @@
 # Octoport SEO — M9 progress
 
 Date: 2026-09-24
-Status: **WAVE-1 COLLECT SLICE-2 PASS / 24 SUCCEEDED / 1 WAITING / FINAL COLLECT OPEN**
+Status: **WAVE-1 FINAL COLLECT RELEASED / WAITING RESULT**
 Branch: `seo/wordstat-batch-01-2026-09-16`
 
 ## Current accepted chain
@@ -13,7 +13,7 @@ M9 BOUNDARY-RESOLUTION PRE-ACQ = PASS / MAIN CHAT ACCEPTED
 M10A = BLOCKED
 
 CURRENT PHYSICAL STEP =
-M9 BOUNDARY-RESOLUTION WAVE-1 COLLECT SLICE-2 / PROVIDER RESULT CHECK
+M9 BOUNDARY-RESOLUTION WAVE-1 FINAL COLLECT / PROVIDER RESULT CHECK
 ```
 
 ## Accepted M9 unresolved state
@@ -438,6 +438,27 @@ The sole remaining WAITING row is index 24 / operation `sprababvmok5spakfra2`.
 It has not yet been polled, so its original due time applies and already passed.
 
 A final `collectN count=1` requires a separate release/readback.
+
+## Wave-1 final collect release
+
+Release:
+`docs/seo/M9_BOUNDARY_RESOLUTION_WAVE1_FINAL_COLLECT_RELEASE_2026-09-24_R1.md`
+
+```text
+CURRENT = 24 SUCCEEDED / 1 WAITING
+SOLE_WAITING_INDEX = 24
+SOLE_WAITING_OPERATION_ID = sprababvmok5spakfra2
+SOLE_WAITING_POLL_COUNT = 0
+
+AUTHORIZED_ACTION =
+SEARCH_ASYNC_BATCH_API_V1 {"action":"collectN","jobId":"octoport-m9br-wave1-20260924-r1","count":1}
+
+ADDITIONAL_COLLECTN = CLOSED
+SUBMITN = CLOSED
+```
+
+If index 24 returns waiting, a new five-minute gate applies before another poll.
+If it succeeds and normalizes, collection is complete and the next step is local readback/export.
 
 ## Owner relay
 
