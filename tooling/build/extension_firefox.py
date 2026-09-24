@@ -78,6 +78,12 @@ def build(input_runtime: Path, output: Path) -> dict:
 
     background = flatten(input_runtime / "service_worker_entry.js", input_runtime)
     (output / "firefox_background.js").write_bytes(background)
+    # Firefox match patterns do not accept explicit ports. Only normalize the
+    # local development loopback permissions; production origins stay exact.
+    manifest["host_permissions"] = list(dict.fromkeys(
+        FIREFOX_LOOPBACK_PORTLESS if FIREFOX_LOOPBACK_WITH_PORT.fullmatch(pattern) else pattern
+        for pattern in manifest.get("host_permissions", [])
+    ))
     manifest["background"] = {"scripts": ["firefox_background.js"]}
     manifest["browser_specific_settings"] = {
         "gecko": {
@@ -120,6 +126,7 @@ def build(input_runtime: Path, output: Path) -> dict:
             "repeat_archive_match": True,
         },
         "differences": [
+            "manifest.host_permissions: loopback development ports normalized for Firefox",
             "manifest.background.service_worker -> background.scripts",
             "manifest.browser_specific_settings.gecko",
             "manifest.browser_specific_settings.gecko.data_collection_permissions",

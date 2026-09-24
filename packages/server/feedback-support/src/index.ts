@@ -111,6 +111,8 @@ export type FeedbackRepository = {
     now: Date;
     closedRetentionDays: number;
     signalRetentionDays: number;
+    batchSize: number;
+    statementTimeoutMs: number;
   }): Promise<{ cases: number; signals: number }>;
   anonymizeAccount(
     accountId: string,
@@ -412,6 +414,8 @@ export class FeedbackSupportService {
     now: Date;
     closedRetentionDays: number;
     signalRetentionDays: number;
+    batchSize: number;
+    statementTimeoutMs: number;
   }) {
     return this.repository.purgeExpired(input);
   }

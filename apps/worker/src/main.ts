@@ -1,7 +1,10 @@
 import {
+  createAuditRetentionRepository,
   createDatabaseRuntime,
   createDeviceAuthorizationRepository,
+  createFeedbackSupportRepository,
   createP5SubscriptionLifecycleRepository,
+  loadFeedbackRetentionConfig,
 } from "@product/db";
 import { createLogger } from "@product/observability";
 import { loadConfig } from "@product/shared";
@@ -12,6 +15,11 @@ import { OtpEmailRunner } from "./otp-runner.js";
 import { DeviceAuthorizationExpiryRunner } from "./device-authorization-expiry-runner.js";
 import { CompositeJobRunner } from "./composite-runner.js";
 import { SubscriptionLifecycleRunner } from "./subscription-lifecycle-runner.js";
+import { FeedbackRetentionRunner } from "./feedback-retention-runner.js";
+import {
+  AuditRetentionRunner,
+  adminAuditRetentionEnabled,
+} from "./audit-retention-runner.js";
 
 export class NoopJobRunner implements JobRunner {
   async start(): Promise<void> {}
@@ -35,6 +43,28 @@ const runtime = await startWorker(
     new SubscriptionLifecycleRunner(
       createP5SubscriptionLifecycleRepository(database),
     ),
+    new FeedbackRetentionRunner(
+      createFeedbackSupportRepository(database),
+      loadFeedbackRetentionConfig(process.env),
+      undefined,
+      undefined,
+      (error) =>
+        logger.error({ err: error }, "Feedback retention purge failed"),
+    ),
+    ...(adminAuditRetentionEnabled(process.env)
+      ? [
+          new AuditRetentionRunner(
+            createAuditRetentionRepository(database),
+            undefined,
+            undefined,
+            (error) =>
+              logger.error(
+                { err: error },
+                "Administrative audit retention failed",
+              ),
+          ),
+        ]
+      : []),
   ]),
   logger,
 );

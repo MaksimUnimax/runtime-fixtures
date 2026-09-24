@@ -16,6 +16,7 @@ import {
   type ProfileMutationContext,
 } from "@product/adapter-registry";
 import type { DatabaseQuery, DatabaseRuntime } from "./index.js";
+import { safeAuditReason } from "./safe-audit.js";
 
 export type P7MutationAuthorizationHook = (
   tx: DatabaseQuery,
@@ -77,7 +78,7 @@ async function audit(
       targetType,
       targetId,
       c.correlationId,
-      c.reason,
+      safeAuditReason(c.reason),
       JSON.stringify(metadata),
     ],
   );

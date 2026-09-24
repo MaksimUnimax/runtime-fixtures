@@ -609,7 +609,7 @@ Examples:
 6. Device activation exchange is single-use.
 7. Monetary values use minor-unit integer + currency.
 8. Effective subscription references exact price/plan revisions.
-9. Audit and state-transition history are append-only.
+9. Audit and state-transition history are append-only during their retention window; expiration is a separate bounded authorized retention operation, never an edit or arbitrary early deletion.
 10. Health evidence never requires real seller/customer payload storage.
 11. Remote profile payload is validated against a versioned declarative schema before publication.
 
@@ -617,11 +617,11 @@ Examples:
 
 - accounts/users: legal/product retention policy to be finalized before production;
 - financial/payment records: retain according to legal/accounting requirements;
-- audit: long-lived operational/security retention;
+- administrative audit: 90-day technical beta default from DATA_AND_SECURITY; explicit category-scoped expiration with bounded batches, safe counts and protected/recent-event checks. This is not a blanket TTL for all audit_events or state-transition history;
 - diagnostic events: bounded retention, then aggregate/delete;
 - health screenshots/evidence: short bounded retention unless attached to active incident/release acceptance;
 - OTP challenges: short retention/delete after security window;
 - refresh tokens/session history: retain enough metadata for security/audit, never plaintext token;
 - archived plans/prices/profile revisions: retained for historical reproducibility.
 
-Exact durations are a production/legal decision and will be configured/documented before P14.
+Production durations remain a separate decision before P14. The existing administrative-audit beta default is 90 days; this documentation does not authorize an immediate live or historical purge. See ../development/coordination/CONTROLLER_REVIEW_2026-09-23.md for the current implementation assignment.

@@ -34,6 +34,7 @@ import {
   OverrideSetBodySchema,
   OverrideClearBodySchema,
   CompatibilityPublishBodySchema,
+  ExtensionReleasePublishBodySchema,
 } from "@product/admin-commercial";
 import type { AdminPermission } from "@product/admin-auth";
 import type { AdminRouteGuard } from "./admin-route-guard.js";
@@ -761,6 +762,38 @@ export function registerAdminCommercialRoutes(
         linkedConfigVersions: [],
         activationStatus: "REVISION_PUBLISHED_NOT_AUTO_ACTIVATED" as const,
       };
+    },
+  );
+  post(
+    "/v1/admin/compatibility/releases/:version/publish",
+    "compatibility.manage",
+    {
+      params: z.object({ version: z.string() }).strict(),
+      body: ExtensionReleasePublishBodySchema,
+    },
+    async (r, s) => {
+      const body = ExtensionReleasePublishBodySchema.parse(r.body);
+      if (r.params.version !== body.version)
+        throw new ControlledError("INVALID_REQUEST", "Invalid request", 400);
+      try {
+        return await service.publishExtensionRelease({
+          ...body,
+          ...ctx(s, r, body.reason),
+        });
+      } catch (e) {
+        if (
+          e &&
+          typeof e === "object" &&
+          "code" in e &&
+          (e as { code?: string }).code === "23505"
+        )
+          throw new ControlledError(
+            "ADMIN_CONFLICT",
+            "Admin operation conflicts with current state",
+            409,
+          );
+        throw e;
+      }
     },
   );
 }

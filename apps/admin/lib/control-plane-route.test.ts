@@ -26,6 +26,7 @@ function materialize(template: string) {
     .replaceAll("{profile_id}", uuid)
     .replaceAll("{assignment_id}", uuid)
     .replaceAll("{revision}", "7")
+    .replaceAll("{version}", "0.2.4")
     .replaceAll("{entitlement_key}", "feature.export")
     .replaceAll("{policy_key}", "global")
     .replaceAll("{role}", "ADMIN_OPS");
@@ -33,10 +34,10 @@ function materialize(template: string) {
 
 describe("admin BFF exact route boundary", () => {
   it("keeps the exact accepted tuple arithmetic", () => {
-    expect(ADMIN_ALLOWED_TUPLES.length).toBe(84);
+    expect(ADMIN_ALLOWED_TUPLES.length).toBe(85);
     expect(OTP_ALLOWED_TUPLES.length).toBe(2);
-    expect(ADMIN_ALLOWED_TUPLES.length + OTP_ALLOWED_TUPLES.length).toBe(86);
-    expect(BFF_ALLOWED_TUPLE_COUNT).toBe(86);
+    expect(ADMIN_ALLOWED_TUPLES.length + OTP_ALLOWED_TUPLES.length).toBe(87);
+    expect(BFF_ALLOWED_TUPLE_COUNT).toBe(87);
   });
   it.each(ADMIN_ALLOWED_TUPLES)("allows accepted admin tuple %s", (tuple) => {
     const separator = tuple.indexOf(" ");
@@ -52,6 +53,11 @@ describe("admin BFF exact route boundary", () => {
   });
   it.each([
     ["GET", "/v1/admin/future"],
+    ["GET", "/v1/admin/compatibility/releases/0.2.4/publish"],
+    ["POST", "/v1/admin/compatibility/releases/0.2.4/publish/extra"],
+    ["POST", "/v1/admin/compatibility/releases/%2e%2e/publish"],
+    ["POST", "/v1/admin/compatibility/releases/../publish"],
+    ["POST", `/v1/admin/compatibility/releases/${"1".repeat(65)}/publish`],
     ["POST", "/v1/admin/commercial/plans/future"],
     ["GET", "/v1/bootstrap"],
     ["DELETE", "/v1/admin/me"],

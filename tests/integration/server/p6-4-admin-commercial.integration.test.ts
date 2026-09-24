@@ -94,7 +94,7 @@ async function clean() {
     "DROP FUNCTION IF EXISTS p64_fail_plan(),p64_fail_price(),p64_fail_def(),p64_fail_override(),p64_fail_compat()",
   );
   await q(
-    "TRUNCATE billing_reconciliation_jobs,checkout_intents,billing_events,subscription_transitions,payments,subscriptions,price_sale_assignments,price_revisions,prices,plan_entitlements,plan_revisions,entitlement_definitions,plans,config_release_compatibility_policies,config_releases,compatibility_policy_blocked_versions,compatibility_policy_revisions,admin_sessions,admin_role_grants,admin_principals,audit_events,account_memberships,portal_sessions,user_identities,accounts,users CASCADE",
+    "TRUNCATE extension_release_contracts,extension_release_browsers,extension_releases,billing_reconciliation_jobs,checkout_intents,billing_events,subscription_transitions,payments,subscriptions,price_sale_assignments,price_revisions,prices,plan_entitlements,plan_revisions,entitlement_definitions,plans,config_release_compatibility_policies,config_releases,compatibility_policy_blocked_versions,compatibility_policy_revisions,admin_sessions,admin_role_grants,admin_principals,audit_events,account_memberships,portal_sessions,user_identities,accounts,users CASCADE",
   );
 }
 async function n(table: string, where = "TRUE", args: unknown[] = []) {
@@ -318,6 +318,7 @@ async function publishCompat(
     "POST",
     `/v1/admin/compatibility/policies/${policyKey}/publish`,
     {
+      contractVersion: "control_plane_v1",
       browserFamily,
       minimumExtensionVersion: null,
       recommendedExtensionVersion: null,
@@ -330,6 +331,21 @@ async function publishCompat(
     },
   );
   return r;
+}
+async function publishRelease(f: Session, version = "0.2.4") {
+  return call(
+    f,
+    "POST",
+    `/v1/admin/compatibility/releases/${version}/publish`,
+    {
+      version,
+      releaseChannel: "stable",
+      artifactSha256: "d".repeat(64),
+      supportedContracts: ["control_plane_v2"],
+      supportedBrowsers: ["opera"],
+      reason: rsn("release"),
+    },
+  );
 }
 
 describe.sequential("P6.4 behavioral real PostgreSQL acceptance matrix", () => {
@@ -395,6 +411,94 @@ describe.sequential("P6.4 behavioral real PostgreSQL acceptance matrix", () => {
         expect(r.json().activationStatus).toBe(
           "REVISION_PUBLISHED_NOT_AUTO_ACTIVATED",
         );
+      }));
+    it("[A05b] OWNER publishes STORE-1 v2 release and compatibility policy", async () =>
+      withAdmin("ADMIN_OWNER", async (f) => {
+        const release = await publishRelease(f);
+        expect(release.statusCode).toBe(200);
+        expect(release.json()).toMatchObject({
+          version: "0.2.4",
+          artifactSha256: "d".repeat(64),
+        });
+        expect(release.json()).not.toHaveProperty("reason");
+        expect(release.json()).not.toHaveProperty("privateKey");
+        const auditAfterPublish = await n("audit_events", "actor_type='ADMIN'");
+        const duplicate = await publishRelease(f);
+        expect(duplicate.statusCode).toBe(409);
+        expect(await n("extension_releases")).toBe(1);
+        expect(await n("audit_events", "actor_type='ADMIN'")).toBe(
+          auditAfterPublish,
+        );
+        await publishCompat(f, "store1.opera.v2", "opera", {
+          contractVersion: "control_plane_v2",
+          minimumExtensionVersion: "0.2.4",
+          recommendedExtensionVersion: "0.2.4",
+          minimumBrowserVersion: "136",
+        });
+        expect(
+          (
+            await q("SELECT contract_version FROM extension_release_contracts")
+          ).rows.map((row) => row.contract_version),
+        ).toEqual(["control_plane_v2"]);
+        expect(
+          (
+            await q("SELECT browser_family FROM extension_release_browsers")
+          ).rows.map((row) => row.browser_family),
+        ).toEqual(["opera"]);
+        expect(
+          (await q("SELECT artifact_sha256 FROM extension_releases")).rows[0]
+            ?.artifact_sha256,
+        ).toBe("d".repeat(64));
+        expect(
+          (
+            await q(
+              "SELECT contract_version,minimum_browser_version FROM compatibility_policy_revisions WHERE policy_key='store1.opera.v2'",
+            )
+          ).rows[0],
+        ).toMatchObject({
+          contract_version: "control_plane_v2",
+          minimum_browser_version: "136",
+        });
+        expect(
+          (await q("SELECT mode FROM beta_admission_state WHERE id=1")).rows[0]
+            ?.mode,
+        ).toBe("CLOSED");
+      }));
+    it("[A05c] ADMIN_OPS is denied release publication without release or audit", async () =>
+      withAdmin("ADMIN_OPS", async (f) => {
+        const auditBefore = await n("audit_events", "actor_type='ADMIN'");
+        const r = await publishRelease(f);
+        expect(r.statusCode).toBe(403);
+        expect(await n("extension_releases")).toBe(0);
+        expect(await n("audit_events", "actor_type='ADMIN'")).toBe(auditBefore);
+      }));
+    it("[A05d] transaction-time revoked compatibility role denies release and audit", async () =>
+      withAdmin("ADMIN_OWNER", async (f) => {
+        await q(
+          "UPDATE admin_role_grants SET revoked_at=$2,revoked_by_admin_principal_id=$1 WHERE admin_principal_id=$1 AND revoked_at IS NULL",
+          [f.principalId, NOW],
+        );
+        const auditBefore = await n("audit_events", "actor_type='ADMIN'");
+        await expect(
+          createP6AdminCompatibilityCommandAdapter(db).publishExtensionRelease(
+            {
+              version: "0.2.4",
+              releaseChannel: "stable",
+              artifactSha256: "d".repeat(64),
+              releasedAt: NOW,
+              supportedContracts: ["control_plane_v2"],
+              supportedBrowsers: ["opera"],
+            },
+            {
+              actorType: "ADMIN",
+              actorId: f.principalId,
+              correlationId: id(),
+              reason: rsn("revoked"),
+            },
+          ),
+        ).rejects.toMatchObject({ code: "ADMIN_FORBIDDEN" });
+        expect(await n("extension_releases")).toBe(0);
+        expect(await n("audit_events", "actor_type='ADMIN'")).toBe(auditBefore);
       }));
     it("[A06] ADMIN_OPS performs compatibility.read successfully", async () =>
       withAdmin("ADMIN_OPS", async (f) => {

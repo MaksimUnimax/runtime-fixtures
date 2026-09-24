@@ -105,7 +105,9 @@ async function prepared(options = {}) {
   if (options.credentials) Object.assign(backing.local[AUTH].credentials, options.credentials);
   await options.mutateBacking?.(backing);
   const packagedConfig = options.packagedConfigFactory ? await options.packagedConfigFactory(backing) : options.packagedConfig;
-  const indexedDB = options.indexedDB || fakeIDB();
+  const indexedDB = Object.hasOwn(options, "indexedDB")
+    ? options.indexedDB
+    : fakeIDB();
   const worker = await makeWorker(runtime, {
     backing,
     seedAuthority: false,

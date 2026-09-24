@@ -13,6 +13,7 @@ import {
   AdminMutationAuthorizationError,
   authorizeAdminMutationInTransaction,
 } from "./admin-mutation-authorization.js";
+import { safeAuditReason } from "./safe-audit.js";
 
 const manageLock = "product-control-plane/admin-auth/manage/v1";
 
@@ -158,7 +159,7 @@ async function audit(
       input.targetType,
       input.targetId,
       input.correlationId,
-      input.reason,
+      safeAuditReason(input.reason),
       input.metadata === undefined ? null : JSON.stringify(input.metadata),
     ],
   );
@@ -482,7 +483,7 @@ export function createAdminOpsRepository(
           deviceRevokeReason: "ADMIN_REVOKED",
           deviceAuditAction: "ADMIN_DEVICE_REVOKED",
           correlationId: input.correlationId,
-          reason: input.reason,
+          reason: safeAuditReason(input.reason),
         });
         return result === "revoked"
           ? ("REVOKED" as const)

@@ -38,6 +38,7 @@ import {
   type P3PublicationPort,
 } from "@product/remote-config";
 import type { DatabaseQuery, DatabaseRuntime } from "./index.js";
+import { safeAuditReason } from "./safe-audit.js";
 
 type Context = P3MutationContext | CompatibilityMutationContext;
 async function audit(
@@ -57,7 +58,7 @@ async function audit(
       targetType,
       targetId,
       context.correlationId,
-      context.reason ?? null,
+      context.reason ? safeAuditReason(context.reason) : null,
       safeMetadata ? JSON.stringify(safeMetadata) : null,
     ],
   );
@@ -310,6 +311,7 @@ export function createP3PolicyPublicationRepository(
   runtime: DatabaseRuntime,
   options: {
     clock?: () => Date;
+    beforeExtensionReleasePublication?: (tx: DatabaseQuery) => Promise<void>;
     beforeCompatibilityPublication?: (tx: DatabaseQuery) => Promise<void>;
   } = {},
 ): CompatibilityPublicationPort & P3PublicationPort {
@@ -445,7 +447,13 @@ export function createP3PolicyPublicationRepository(
     },
     async publishExtensionRelease(command, context) {
       const value = PublishExtensionReleaseCommandSchema.parse(command);
+      CompatibilityMutationContextSchema.parse(context);
       return runtime.transaction(async (q) => {
+        if (context.actorType === "ADMIN") {
+          if (!options.beforeExtensionReleasePublication)
+            throw new Error("ADMIN_EXTENSION_RELEASE_AUTHORIZATION_REQUIRED");
+          await options.beforeExtensionReleasePublication(q);
+        }
         const inserted = await q.query<Record<string, unknown>>(
           'INSERT INTO extension_releases(version,release_channel,artifact_sha256,released_at) VALUES($1,$2,$3,$4) RETURNING id,version,release_channel AS "releaseChannel",artifact_sha256 AS "artifactSha256",released_at AS "releasedAt",created_at AS "createdAt"',
           [
