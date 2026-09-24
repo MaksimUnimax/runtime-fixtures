@@ -1,0 +1,77 @@
+{
+  "bridge": "yandex-marketing-bridge",
+  "version": "0.1.9",
+  "service": "search",
+  "operation": "genSearch",
+  "request_id": "search-e1909455-84bf-4dbf-bcde-9287a38bff23",
+  "run_id": null,
+  "status": "OK",
+  "reason": null,
+  "cost_estimate": {
+    "estimated_rub": 5.08,
+    "tariff_checked_at": "2026-08-19",
+    "tariff_source": "[https://aistudio.yandex.ru/docs/ru/search-api/pricing.html](https://aistudio.yandex.ru/docs/ru/search-api/pricing.html)"
+  },
+  "policy": {
+    "channel": "manual",
+    "active_service": "search"
+  },
+  "command": {
+    "method": "genSearch",
+    "queryText": "chatgpt для wildberries",
+    "confirmBillable": true
+  },
+  "http_status": 200,
+  "elapsed_ms": 4974,
+  "result": {
+    "mode": "generative",
+    "message": {
+      "content": "Вот что удалось найти среди результатов поиска:\n\n* [legasoft.ru]([https://legasoft.ru/about/blog/marketpleysy/avtomatizatsiya-planirovaniya-postavok-s-pomoshchyu-iskusstvennogo-intellekta/](https://legasoft.ru/about/blog/marketpleysy/avtomatizatsiya-planirovaniya-postavok-s-pomoshchyu-iskusstvennogo-intellekta/)): ChatGPT с инструментом Data Analysis позволяет проанализировать данные и спланировать поставки товаров на маркетплейсе Wildberries с учётом спроса и остатков на складах. [1]\n\n* [apimonster.ru]([https://apimonster.ru/connector/bundle/openai/wildberries/](https://apimonster.ru/connector/bundle/openai/wildberries/)): Интеграция OpenAI и Wildberries от ApiMonster позволяет автоматизировать работу с маркетплейсом с помощью искусственного интеллекта. [2] Коннектор автоматически генерирует уникальные SEO-описания для карточек товаров, мгновенно анализирует отзывы покупателей и создаёт грамотные ответы на вопросы. [2]\n\n* [jafo.ru]([https://jafo.ru/blog/podklyuchit-claude-chatgpt-k-wildberries-ozon](https://jafo.ru/blog/podklyuchit-claude-chatgpt-k-wildberries-ozon)): ChatGPT можно подключить к кабинетам Wildberries и Ozon напрямую. [3] Это даёт постоянный доступ к заказам, остаткам, отзывам и рекламе. [3]\n\n* [blog.fin-academy.pro]([https://blog.fin-academy.pro/finansy-marketplejsov-chatgpt](https://blog.fin-academy.pro/finansy-marketplejsov-chatgpt)): ChatGPT Plus с Code Interpreter собирает финансы маркетплейса из отчётов Wildberries и Ozon за 15–20 минут: выручка, комиссии, логистика, маржа и единый P&L по двум площадкам без ручной склейки. [4]\n\n* [tablichki.tech]([https://tablichki.tech/ocifrovka_marketplace_blog/tpost/ai_marketplaces](https://tablichki.tech/ocifrovka_marketplace_blog/tpost/ai_marketplaces)): ChatGPT способен анализировать выгрузки маркетплейсов, находить закономерности и давать рекомендации по управлению продажами. [5] Для качественного анализа требуется дополнительная подготовка данных. [5]",
+      "role": "ROLE_ASSISTANT"
+    },
+    "sources": [
+      {
+        "url": "[https://legasoft.ru/about/blog/marketpleysy/avtomatizatsiya-planirovaniya-postavok-s-pomoshchyu-iskusstvennogo-intellekta/](https://legasoft.ru/about/blog/marketpleysy/avtomatizatsiya-planirovaniya-postavok-s-pomoshchyu-iskusstvennogo-intellekta/)",
+        "title": "Автоматизация планирования поставок на WB с помощью искусственного интеллекта",
+        "used": true
+      },
+      {
+        "url": "[https://apimonster.ru/connector/bundle/openai/wildberries/](https://apimonster.ru/connector/bundle/openai/wildberries/)",
+        "title": "Интеграция OpenAI / ChatGpt (ОпенАИ / ЧатГпт) и Wildberries (Вайлдберриз) по API без программиста",
+        "used": true
+      },
+      {
+        "url": "[https://jafo.ru/blog/podklyuchit-claude-chatgpt-k-wildberries-ozon](https://jafo.ru/blog/podklyuchit-claude-chatgpt-k-wildberries-ozon)",
+        "title": "Как подключить Claude или ChatGPT к Wildberries и Ozon и управлять магазином прямо в чате — Блог JAFO",
+        "used": true
+      },
+      {
+        "url": "[https://blog.fin-academy.pro/finansy-marketplejsov-chatgpt](https://blog.fin-academy.pro/finansy-marketplejsov-chatgpt)",
+        "title": "Финансы на маркетплейсах через ChatGPT: выручка, комиссии и маржа по отчётам Wildberries и Ozon без ручной склейки",
+        "used": true
+      },
+      {
+        "url": "[https://tablichki.tech/ocifrovka_marketplace_blog/tpost/ai_marketplaces](https://tablichki.tech/ocifrovka_marketplace_blog/tpost/ai_marketplaces)",
+        "title": "ИИ для маркетплейсов: анализ Wildberries и Ozon через ChatGPT",
+        "used": true
+      }
+    ],
+    "searchQueries": [
+      {
+        "text": "как использовать chatgpt для wildberries",
+        "reqId": "1790257995841912-6382301960358758611-jjleoq7twfmpzee5-BAL"
+      }
+    ],
+    "fixedMisspellQuery": "",
+    "isAnswerRejected": false,
+    "isBulletAnswer": true,
+    "hints": [],
+    "problematicAnswer": false,
+    "transport": {
+      "wire_format": "json_array",
+      "frame_count": 1
+    }
+  },
+  "request_executed": true,
+  "automatic_retry": false
+}
