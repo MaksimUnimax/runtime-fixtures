@@ -521,6 +521,40 @@ await test("N2-A18", "pending local explicit change wins over equal-or-older sna
   } finally { worker.close(); }
 });
 
+await test("N2-A19", "snapshot service failure preserves local Work and uses bounded retry cooldown", async () => {
+  let reads = 0;
+  const worker = await makeWorker(runtime, {
+    accountId: accountA,
+    deviceId: deviceA,
+    syncFetch: async () => {
+      reads += 1;
+      return new Response(JSON.stringify({ error: { code: "SERVICE_UNAVAILABLE" } }), {
+        status: 503,
+        headers: { "content-type": "application/json" },
+      });
+    },
+  });
+  try {
+    const store = await addStore(worker), binding = await startAndBind(worker, store), key = keyOf(worker);
+    const popup = await worker.popup({ type: "SA_POPUP_STATE", tab_id: worker.tabId });
+    assert.equal(popup.ok, true);
+    assert.equal(popup.context.work_active, true);
+    await until(() => reads === 1, "N2 failed popup snapshot read");
+    const decision = await worker.call("SellerAgentsSyncJournal.assertCurrentActionAllowed", { conversationKey: key, binding, store });
+    assert.equal(decision.allowed, true);
+    const again = await worker.call("SellerAgentsSyncJournal.syncConversationSnapshot", {
+      conversationKey: key,
+      binding,
+      store,
+      reason: "failed-read-repeat",
+    });
+    assert.equal(again.ok, true);
+    assert.equal(again.read, 0);
+    assert.equal(again.code, "SYNC_SNAPSHOT_COOLDOWN");
+    assert.equal(reads, 1);
+  } finally { worker.close(); }
+});
+
 const failures = results.filter(row => row.status === "FAIL");
 console.log(JSON.stringify({ status: failures.length ? "FAIL" : "PASS", scope: "A04_N2_LOCAL_SNAPSHOT", results, failureBatch: failures }, null, 2));
 if (failures.length) process.exitCode = 1;
