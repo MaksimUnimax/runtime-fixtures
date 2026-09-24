@@ -1,7 +1,7 @@
 # Octoport SEO — M8 progress
 
-Date: 2026-09-23
-Status: **R2 RELEASED / WAITING CHATGPT WORK RETURN**
+Date: 2026-09-24
+Status: **R3 RELEASED / WAITING CHATGPT WORK RETURN**
 Branch: `seo/wordstat-batch-01-2026-09-16`
 
 ## Current accepted chain
@@ -11,53 +11,74 @@ M0 = PASS
 M1 = PASS / PRELAUNCH_NO_PRODUCTION_SITE
 M2 = PASS CURRENT AUTHORITY
 M3 = PASS CURRENT HARDENED AUTHORITY
-M4 = ACCEPTED WITH DECLARED M4Q LIMITATION
+M4 = ACCEPTED WITH DECLARED M4Q LIMITATION + TRANSPORT CORRECTION
 M5 = ACCEPTED HYPOTHESIS ONLY
 M6 = PASS
 R4 = PASS
-M7 = PASS / SEARCH-SIDE FREEZE
-M8 = R2 RELEASED TO WORK
+M7 = PASS_WITH_TRANSPORT_CORRECTION
+M8 R1 = SUPERSEDED
+M8 R2 = HOLD_SEMANTIC_CONTRACT_DEFECT / NOT ACCEPTED
+M8 R3 = RELEASED TO WORK
 M9 = BLOCKED
 ```
 
-## Two-level preparation
+## R2 defect / recovery
+
+Historical malformed targeted page evidence:
+`docs/seo/serp/competitors/work_return/M4Q_R2_TARGETED_M4C_RECHECK_2026-09-23_R1/M4Q_R2_TARGETED_PAGE_EVIDENCE.tsv`
+
+Current parser-safe recovery:
+`docs/seo/serp/competitors/recovery/M4Q_R2_TARGETED_PAGE_EVIDENCE_2026-09-24_R1/M4Q_R2_TARGETED_PAGE_EVIDENCE_RECOVERED.tsv`
+
+```text
+RECOVERY_BLOB = b62d1c2cfb8ccb4dba84b8d3d691cb5d1c5fb77c
+RECOVERY_SHA256 = a9ec3a14319edc0a4721e702378e910461490be1deba4136afcdf2276c2585d5
+RECOVERY_ROWS = 47/47
+RECOVERY_WIDTH = 21/21
+SEMANTIC_CHANGE = false
+```
+
+M7 correction:
+`docs/seo/M7_SEARCH_SIDE_FREEZE_TRANSPORT_CORRECTION_2026-09-24_R2.json`
+blob `ed1bad03d793ed0b0315c94b3b1bf46771736fd8`.
+
+## R3 two-level preparation
 
 ```text
 LEVEL1_READ = PASS
 LEVEL2_READ = PASS
 ROADMAP_CURRENT_STATE_READ = PASS
 FAILURE_HISTORY_READ = PASS
-FRESH_METHOD_RESEARCH = PASS
-STEP_PREPARATION_R2 = PASS / REMOTE READBACK
-PRE_HANDOFF_R2 = PASS / REMOTE READBACK
-WORK_PROMPT_R2 = PASS / REMOTE READBACK
+FRESH_METHOD_RESEARCH = PASS / SAME-STAGE CURRENT
+STEP_PREPARATION_R3 = PASS / REMOTE READBACK
+PRE_HANDOFF_R3 = PASS / REMOTE READBACK
+WORK_PROMPT_R3 = PASS / REMOTE READBACK
 ```
 
-Current artifacts:
+Current R3 authorities:
 
-- `docs/seo/M8_STEP_PREPARATION_2026-09-23_R2.md`
-  blob `bd33d4280935424a2dbc6da591964318df36877f`
+- `docs/seo/M8_STEP_PREPARATION_2026-09-24_R3.md`
+  blob `4ee2374170cd3a0765af5f59d191215cfaf54889`
 
-- `docs/seo/M8_CANONICAL_DIRECT_INPUT_MANIFEST_2026-09-23_R2.json`
-  blob `0767d7b67b482281d02777cd1ba4530b00d090f4`
+- `docs/seo/M8_CANONICAL_DIRECT_INPUT_MANIFEST_2026-09-24_R3.json`
+  blob `d6ddafd812baacd60e737a3141971b76f81da485`
 
-- `docs/seo/M8_SEARCH_ONLY_SEMANTIC_MASTER_PRE_HANDOFF_2026-09-23_R2.md`
-  blob `2dd30339e0e37bd2b283ae73e6163ce51ff0dbc9`
+- `docs/seo/M8_SEARCH_ONLY_SEMANTIC_MASTER_PRE_HANDOFF_2026-09-24_R3.md`
+  blob `0301d97c26de56276deefccd76f9a8b2f8ebc2fc`
 
-- `docs/seo/M8_SEARCH_ONLY_SEMANTIC_MASTER_WORK_PROMPT_2026-09-23_R2.md`
-  blob `b977110dc1776ccca06ee162d8b6a5b1a8483901`
+- `docs/seo/M8_SEARCH_ONLY_SEMANTIC_MASTER_WORK_PROMPT_2026-09-24_R3.md`
+  blob `a9a20871b3c8cc3a5c64fa6a318886692d85f800`
 
-R1 pre-handoff/prompt:
-`SUPERSEDED / DO NOT EXECUTE`.
-
-## Work contract
+## R3 Work contract
 
 ```text
 PRIMARY_RAW_OCCURRENCES = 25229
 CANONICAL_DIRECT_CONTEXT_FILES = 46
-FULL_M7_AUDIT_CATALOG = 162
-
 OUTPUT_FILES = 9
+
+DIRECT_TSV_PREFLIGHT = MANDATORY
+MALFORMED_DIRECT_TSV_PHYSICAL_LINES_REQUIRED = 0
+
 ALICE_INPUT_ROWS = 0
 PROVIDER_CALLS = 0
 WEB_ACQUISITION_BY_WORK = 0
@@ -67,18 +88,15 @@ M9_CLUSTERING = NOT_AUTHORIZED
 
 ## Owner relay
 
-Main Chat must provide the R2 Work prompt directly in chat, complete and copy-ready.
+Main Chat provides the R3 Work prompt directly in chat.
 
-Work returns one ZIP containing exactly 9 final files.
+Work must return one ZIP containing exactly 9 final files.
 
-Staging path:
-
-`docs/seo/work_return/M8_SEARCH_ONLY_SEMANTIC_MASTER_2026-09-23_R2/`
+Staging:
+`docs/seo/work_return/M8_SEARCH_ONLY_SEMANTIC_MASTER_2026-09-24_R3/`
 
 Exact upload URL:
+`https://github.com/MaksimUnimax/runtime-fixtures/upload/seo/wordstat-batch-01-2026-09-16/docs/seo/work_return/M8_SEARCH_ONLY_SEMANTIC_MASTER_2026-09-24_R3/`
 
-`https://github.com/MaksimUnimax/runtime-fixtures/upload/seo/wordstat-batch-01-2026-09-16/docs/seo/work_return/M8_SEARCH_ONLY_SEMANTIC_MASTER_2026-09-23_R2/`
-
-After owner upload:
-
+After upload:
 `REMOTE READBACK -> MAIN CHAT FULL QA -> ACCEPT | REWORK | HOLD -> only then M9`.
