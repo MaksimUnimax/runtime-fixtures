@@ -59,8 +59,12 @@
   }
   function createPorts(context, { quota, diagnostic, workerId, provider = A.createProvider(), flights = new Map() }) {
     const { snapshot } = context;
-  const scope = async (command) => A.hash(JSON.stringify(["wildberries", snapshot.accountId,
-        snapshot.credentialRevision, A.operation(command).host]));
+  const scope = async (command) => {
+    const identity = context.quotaIdentity || { kind: "store_local", value: snapshot.storeId };
+    const operation = A.operation(command);
+    const group = operation.category === "marketplace" ? "category:marketplace" : `method:${command.operation}`;
+    return A.hash(JSON.stringify(["wildberries", identity.kind, identity.value, group]));
+  };
       const ports = {
         normalizeKey: (key) => key, workerId, flights,
         singleFlight: globalThis.SellerAgentsLocalOperations.singleFlight,
