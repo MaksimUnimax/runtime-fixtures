@@ -178,7 +178,7 @@
     {
       "path": "docs/seo/M9_SEARCH_ANCHOR_MAP_2026-09-24_R2.tsv",
       "git_blob_sha": "b68878bf76f93a4aa1f7e1bd197e57dd7be870bc",
-      "bytes": 6721,
+      "bytes": 7657,
       "role": "M9_CURRENT_SEARCH_ANCHOR_MAP",
       "expected_data_rows": 22
     }
