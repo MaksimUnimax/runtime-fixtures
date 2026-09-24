@@ -1,0 +1,81 @@
+{
+  "bridge": "yandex-marketing-bridge",
+  "version": "0.1.9",
+  "service": "search",
+  "operation": "genSearch",
+  "request_id": "search-ccc53292-fcb1-4a8c-bcd5-35c1acd97026",
+  "run_id": null,
+  "status": "OK",
+  "reason": null,
+  "cost_estimate": {
+    "estimated_rub": 5.08,
+    "tariff_checked_at": "2026-08-19",
+    "tariff_source": "[https://aistudio.yandex.ru/docs/ru/search-api/pricing.html](https://aistudio.yandex.ru/docs/ru/search-api/pricing.html)"
+  },
+  "policy": {
+    "channel": "manual",
+    "active_service": "search"
+  },
+  "command": {
+    "method": "genSearch",
+    "queryText": "подключить ии к маркетплейсу",
+    "confirmBillable": true
+  },
+  "http_status": 200,
+  "elapsed_ms": 4427,
+  "result": {
+    "mode": "generative",
+    "message": {
+      "content": "**Подключить ИИ-агента к маркетплейсу можно с помощью MCP-протокола** (Model Context Protocol). [1][2] Он позволяет ИИ-модели подключаться к внешним данным и работать с ними в реальном времени. [1] \n\n**Чтобы подключить MCP, нужно выполнить следующие шаги**: [1]\n\n1. **Получить API-ключ**. [1] Для этого нужно зайти в настройки аккаунта MP Manager и скопировать ключ. [1] Он бесплатный и доступен всем пользователям. [1]\n2. **Выбрать ИИ-ассистента**. [1] MCP поддерживают Claude, Codex, OpenCode и другие популярные модели. [1]\n3. **Настроить подключение**. [1] В настройках ассистента нужно указать URL сервера MP Manager и API-ключ. [1]\n4. **Начать с простых запросов**. [1] Например, «Покажи топ-10 товаров по выручке за месяц» или «Какая маржа у артикула WB-12345?». [1]\n\nПосле подключения агент получит доступ к данным магазинов на маркетплейсах, таких как Wildberries, Ozon и Яндекс Маркет. [1]\n\nЕщё один сервис для подключения ИИ-агента к маркетплейсам — **MarketAut**. [4] Он позволяет подключить магазин к любой нейросети за 10 минут и работает с Wildberries и Ozon. [4]",
+      "role": "ROLE_ASSISTANT"
+    },
+    "sources": [
+      {
+        "url": "[https://uniseller.io/blog/mcp-dlya-sellerov-ii-agenty/](https://uniseller.io/blog/mcp-dlya-sellerov-ii-agenty/)",
+        "title": "MCP для селлеров: как подключить ИИ-агента к маркетплейсам",
+        "used": true
+      },
+      {
+        "url": "[https://mpmgr.ru/blog/trends/mcp-ii-agenty-dlya-sellerov](https://mpmgr.ru/blog/trends/mcp-ii-agenty-dlya-sellerov)",
+        "title": "MCP: как подключить ИИ-агента к продажам на маркетплейсах - MP Manager",
+        "used": true
+      },
+      {
+        "url": "[https://paramiko.ru/solutions/ii-agenty-dlya-marketpleysov](https://paramiko.ru/solutions/ii-agenty-dlya-marketpleysov)",
+        "title": "ИИ-агенты для маркетплейсов: что поручить и как проверить — Paramiko",
+        "used": false
+      },
+      {
+        "url": "[https://marketaut.ru/](https://marketaut.ru/)",
+        "title": "MarketAut - ИИ-агенты для Wildberries, Ozon",
+        "used": true
+      },
+      {
+        "url": "[https://vc.ru/ai/3156861-ii-agenty-dlya-1s-ozon-i-yandeks-direkt](https://vc.ru/ai/3156861-ii-agenty-dlya-1s-ozon-i-yandeks-direkt)",
+        "title": "ИИ-агенты уже работают с 1С, Ozon и Яндекс Директом: что подключить селлеру, маркетологу и бухгалтеру — AI на vc.ru",
+        "used": false
+      }
+    ],
+    "searchQueries": [
+      {
+        "text": "как подключить ии к маркетплейсу",
+        "reqId": "1790256028444352-13547903019162442519-tna5ser3simef2ah-BAL"
+      }
+    ],
+    "fixedMisspellQuery": "",
+    "isAnswerRejected": false,
+    "isBulletAnswer": false,
+    "hints": [
+      "Какие преимущества даёт использование MCP?",
+      "Какие ограничения есть у MCP?",
+      "Как выбрать подходящую модель для MCP?"
+    ],
+    "problematicAnswer": false,
+    "transport": {
+      "wire_format": "json_array",
+      "frame_count": 1
+    }
+  },
+  "request_executed": true,
+  "automatic_retry": false
+}
