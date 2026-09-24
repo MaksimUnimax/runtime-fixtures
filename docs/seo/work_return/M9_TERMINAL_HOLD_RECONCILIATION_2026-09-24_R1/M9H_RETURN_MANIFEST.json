@@ -1,0 +1,69 @@
+{
+  "schema": "OCTOPORT_M9_TERMINAL_HOLD_RECONCILIATION_RETURN_MANIFEST_V1",
+  "work_id": "OCTOPORT_SEO_M9_TERMINAL_HOLD_RECONCILIATION_2026-09-24_R1",
+  "start_head": "c20e333c04b42019589311c91095bb48911f35b5",
+  "end_observed_head": "c20e333c04b42019589311c91095bb48911f35b5",
+  "authority_drift_status": "NONE_FROZEN_INPUTS_UNCHANGED",
+  "verdict": "PASS_TERMINAL_SEARCH_ONLY_RECONCILIATION",
+  "m10a_search_baseline_gate_recommendation": "OPEN_WITH_EXPLICIT_HOLDS",
+  "self_hash_exclusion": "Manifest hashes exactly the seven non-self files; ZIP hash reported after creation.",
+  "files": [
+    {
+      "name": "M9H_SOURCE_MANIFEST.md",
+      "utf8_bytes": 5575,
+      "sha256": "be01faa5d733acf13c78a84530fce241e520d0d5b18b4c74fcad3c9853aa6a27",
+      "line_count": 55
+    },
+    {
+      "name": "M9H_MATERIAL_HOLD_DISPOSITION.tsv",
+      "utf8_bytes": 1379933,
+      "sha256": "4fc18314846d49e453bfc0ea936ecc09a29aa951de2dfd272ad60b0d298c8a43",
+      "line_count": 1400,
+      "data_rows": 1399,
+      "columns": 16
+    },
+    {
+      "name": "M9H_NONANCHOR_IDENTITY_DISPOSITION.tsv",
+      "utf8_bytes": 32460,
+      "sha256": "48466b2bfba0c26d962aabae699e0491b2d08efb4c285c504fda7e6bdf720abc",
+      "line_count": 40,
+      "data_rows": 39,
+      "columns": 14
+    },
+    {
+      "name": "M9H_PROVIDER_GAIN_LEDGER.tsv",
+      "utf8_bytes": 27232,
+      "sha256": "876aecaae128d3bf9c441fa61174eb09ac6d3f3e37c8b49e444dd366cfa44e3c",
+      "line_count": 40,
+      "data_rows": 39,
+      "columns": 10
+    },
+    {
+      "name": "M9H_M10A_CARRY_FORWARD.tsv",
+      "utf8_bytes": 82952,
+      "sha256": "56d38a63e335bea0fe3f0c892990988b1e4c55c0e3c8480406490df13e6215cc",
+      "line_count": 105,
+      "data_rows": 104,
+      "columns": 13
+    },
+    {
+      "name": "M9H_ADVERSARIAL_DIAGNOSTIC.tsv",
+      "utf8_bytes": 6281,
+      "sha256": "29f4578bb3848691497451a7f3358c0d01a1064aace36ef821b73187e386e97b",
+      "line_count": 17,
+      "data_rows": 16,
+      "columns": 7
+    },
+    {
+      "name": "M9H_QA.md",
+      "utf8_bytes": 5215,
+      "sha256": "c8e21657461ef964a8ac1b51d9143093e97ac51581462dd66dc085df48f365de",
+      "line_count": 83
+    }
+  ],
+  "file_count_in_zip": 8,
+  "provider_calls": 0,
+  "bridge_commands": 0,
+  "web_acquisition": 0,
+  "github_writes": 0
+}
