@@ -15,3 +15,5 @@
 При проверке B b9b8e718 воспроизведено чтением строгой схемы: admin UI не посылает обязательный contractVersion; BFF не допускает добавленный POST releases/:version/publish. Назначаю ограниченное исправление apps/admin/app/admin-ui.tsx, apps/admin/lib/{admin-ui.test.ts,control-plane-route.ts,control-plane-route.test.ts}. Сохранить существующий v1 по умолчанию, предоставить явный выбор v2, разрешить только точный новый маршрут с допустимой версией. Сессии, роли и CSRF не менять. Проверки доказывают совместимость тела с API и точную границу proxy.
 
 CI показал два устаревших exact-surface ожидания после добавления release HTTP: apps/api/src/admin-ops-routes.test.ts и apps/api/src/openapi.test.ts. В scope включено обновление перечня на один уже авторизованный POST release маршрут и соответствующей точной арифметики, без ослабления проверок или изменения других endpoints.
+
+Та же exact API arithmetic найдена в tests/integration/server/p5-7-p5-final-acceptance.integration.test.ts; включена в то же согласование surface.
