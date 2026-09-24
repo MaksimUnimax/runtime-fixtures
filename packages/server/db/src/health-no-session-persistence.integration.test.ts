@@ -8,6 +8,7 @@ import {
   createDatabaseRuntime,
   createHealthAdminReadRepository,
   createHealthIncidentRepository,
+  createHealthNoSessionCompletionAdapter,
   createHealthNoSessionPersistenceRepository,
   createHealthSchedulerRepository,
 } from "./index.js";
@@ -25,6 +26,7 @@ const IDS = {
 const runtime = createDatabaseRuntime(connectionString);
 const scheduler = createHealthSchedulerRepository(runtime);
 const persistence = createHealthNoSessionPersistenceRepository(runtime);
+const completion = createHealthNoSessionCompletionAdapter(runtime);
 const incidents = createHealthIncidentRepository(runtime);
 const admin = createHealthAdminReadRepository(runtime);
 const baseTime = new Date("2026-09-23T12:00:00.000Z");
@@ -544,6 +546,81 @@ describe.sequential("C04 no-session persistence PostgreSQL acceptance", () => {
       observation(12, { strategyId: "chatgpt-standard-ambiguous-v1" }),
       "NO_SESSION_PROFILE_REVISION_AUTHORITY_AMBIGUOUS",
     );
+  });
+
+  it("completes scheduled no-session persistence and incident processing idempotently", async () => {
+    const scheduled = await makeScheduledRun({ started: true });
+    const broken = observation(16, {
+      classification: "BROKEN",
+      classificationBasis: "BROWSER_FAILURE",
+      surfaceOutcome: "BROWSER_FAILURE",
+      blocker: "BROWSER_UNAVAILABLE",
+    });
+
+    const first = await completion.completeScheduledNoSessionHealthRun(
+      persistenceInput(scheduled.id, broken),
+    );
+    expect(first).toMatchObject({
+      scheduledRunId: scheduled.id,
+      healthState: "BROKEN",
+      incident: { action: "OPENED" },
+    });
+    expect(first.incident.incidentIds).toHaveLength(1);
+
+    const replay = await completion.completeScheduledNoSessionHealthRun(
+      persistenceInput(scheduled.id, broken),
+    );
+    expect(replay.healthRunId).toBe(first.healthRunId);
+    expect(replay.healthState).toBe(first.healthState);
+    expect(replay.incident.incidentIds).toEqual(first.incident.incidentIds);
+    expect(["IGNORED", "NOOP"]).toContain(replay.incident.action);
+
+    const counts = await runtime.query<{
+      runCount: string;
+      incidentCount: string;
+      intentCount: string;
+    }>(
+      'SELECT (SELECT count(*)::text FROM health_runs WHERE scheduled_run_id=$1) AS "runCount",(SELECT count(*)::text FROM health_incidents WHERE first_seen_run_id=$2 OR latest_seen_run_id=$2) AS "incidentCount",(SELECT count(*)::text FROM health_notification_intents WHERE health_run_id=$2) AS "intentCount"',
+      [scheduled.id, first.healthRunId],
+    );
+    expect(counts.rows[0]).toEqual({
+      runCount: "1",
+      incidentCount: "1",
+      intentCount: "1",
+    });
+
+    const running = await scheduler.getScheduledRun(scheduled.id);
+    if (!running?.ownerId || !running.leaseId) {
+      throw new Error("NO_SESSION_BRIDGE_TEST_RUN_NOT_OWNED");
+    }
+    const finished = await scheduler.finishSuccess({
+      runId: scheduled.id,
+      ownerId: running.ownerId,
+      leaseId: running.leaseId,
+      now: new Date(Date.parse(broken.observedAt) + 2_000),
+      healthRunId: first.healthRunId,
+      healthState: first.healthState,
+    });
+    expect(finished).toMatchObject({
+      state: "SUCCEEDED",
+      healthRunId: first.healthRunId,
+      healthState: "BROKEN",
+    });
+
+    const replayAfterFinish =
+      await completion.completeScheduledNoSessionHealthRun(
+        persistenceInput(scheduled.id, broken),
+      );
+    expect(replayAfterFinish.healthRunId).toBe(first.healthRunId);
+    const finalCounts = await runtime.query<{
+      runCount: string;
+      incidentCount: string;
+      intentCount: string;
+    }>(
+      'SELECT (SELECT count(*)::text FROM health_runs WHERE scheduled_run_id=$1) AS "runCount",(SELECT count(*)::text FROM health_incidents WHERE first_seen_run_id=$2 OR latest_seen_run_id=$2) AS "incidentCount",(SELECT count(*)::text FROM health_notification_intents WHERE health_run_id=$2) AS "intentCount"',
+      [scheduled.id, first.healthRunId],
+    );
+    expect(finalCounts.rows[0]).toEqual(counts.rows[0]);
   });
 
   it("persists only sanitized URL origins and replays equivalent safe observations", async () => {
