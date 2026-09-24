@@ -1,7 +1,7 @@
 # Octoport SEO — M9 progress
 
 Date: 2026-09-24
-Status: **WAVE-1 SUBMIT SLICE-2 RELEASED / WAITING RESULT**
+Status: **WAVE-1 SUBMIT COMPLETE / 25 WAITING / OPERATION-ID READBACK OPEN**
 Branch: `seo/wordstat-batch-01-2026-09-16`
 
 ## Current accepted chain
@@ -13,7 +13,7 @@ M9 BOUNDARY-RESOLUTION PRE-ACQ = PASS / MAIN CHAT ACCEPTED
 M10A = BLOCKED
 
 CURRENT PHYSICAL STEP =
-M9 BOUNDARY-RESOLUTION WAVE-1 SUBMIT SLICE-2 / PROVIDER OPERATION ADMISSION
+M9 BOUNDARY-RESOLUTION WAVE-1 OPERATION-ID READBACK / PRE-COLLECTION GATE
 ```
 
 ## Accepted M9 unresolved state
@@ -269,6 +269,39 @@ THIRD_SUBMITN = CLOSED
 ```
 
 Exactly one bounded slice-2 submit is authorized. A safe early stop may return fewer than six processed; any further submit requires a new receipt/readback/release.
+
+## Wave-1 submit slice-2 receipt
+
+Receipt:
+`docs/seo/M9_BOUNDARY_RESOLUTION_WAVE1_SUBMIT_SLICE2_RECEIPT_2026-09-24_R1.md`
+
+```text
+SLICE2_GATE = PASS
+SLICE2_PROVIDER_CALLS = 6
+SLICE2_PROCESSED = 6
+SLICE2_BOUNDED_STOP = false
+
+TOTAL = 25
+PENDING = 0
+WAITING = 25
+UNKNOWN = 0
+FAILED = 0
+REQUESTS_STARTED = 25
+OPERATIONS_ACCEPTED = 25
+POLLS_STARTED = 0
+REVISION = 50
+
+SUBMISSION_PHASE = PASS_COMPLETE
+```
+
+Cross-slice:
+`19 + 6 = 25` confirmed provider submissions and 25 accepted operations.
+
+No additional submit is authorized or needed.
+
+Immediate next action is local/read-only `itemsPage` for all 25 rows so Main Chat can preserve and verify every accepted operation ID before any provider-backed collection.
+
+`collectN` remains closed.
 
 ## Owner relay
 
