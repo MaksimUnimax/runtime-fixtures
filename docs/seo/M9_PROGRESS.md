@@ -1,7 +1,7 @@
 # Octoport SEO — M9 progress
 
 Date: 2026-09-24
-Status: **BOUNDARY-RESOLUTION PRE-ACQ RELEASED / WAITING CHATGPT WORK RETURN**
+Status: **BOUNDARY-RESOLUTION PRE-ACQ ACCEPTED / PROVIDER PREFLIGHT OPEN**
 Branch: `seo/wordstat-batch-01-2026-09-16`
 
 ## Current accepted chain
@@ -9,10 +9,11 @@ Branch: `seo/wordstat-batch-01-2026-09-16`
 ```text
 M0..M8 = ACCEPTED
 M9 R2 = PASS_WITH_HOLD_BOUNDARIES / ACCEPTED_BOUNDED_AUTHORITY
+M9 BOUNDARY-RESOLUTION PRE-ACQ = PASS / MAIN CHAT ACCEPTED
 M10A = BLOCKED
 
 CURRENT PHYSICAL STEP =
-M9 BOUNDARY-RESOLUTION PRE-ACQUISITION RECONCILIATION
+M9 BOUNDARY-RESOLUTION PROVIDER PREFLIGHT / RELEASE
 ```
 
 ## Accepted M9 unresolved state
@@ -62,47 +63,82 @@ Authorities:
 - `docs/seo/M9_BOUNDARY_RESOLUTION_WORK_PROMPT_2026-09-24_R1.md`
   blob `23df71016c92d5450371ba35a8ed9473d2decc20`
 
-## Work contract
+## Accepted Work return
+
+Staging:
+`docs/seo/work_return/M9_BOUNDARY_RESOLUTION_PREACQ_2026-09-24_R1/`
+
+Acceptance:
+`docs/seo/M9_BOUNDARY_RESOLUTION_PREACQ_MAIN_CHAT_ACCEPTANCE_2026-09-24_R1.md`
+
+Independent Main Chat result:
 
 ```text
-EXISTING_CURRENT_SEARCH_ANCHOR = 22
-MISSING_CURRENT_SEARCH = 82
+RETURN_FILES = 9/9
+RETURN_MANIFEST_HASH_MATCH = 8/8
+RETURN_MANIFEST_BYTE_MATCH = 8/8
 
-WORK REVIEWS ALL 82
-WAVE1_QUERY_COUNT <= 25
+IDENTITY_DISPOSITION_ROWS = 104/104
+BOUNDARY_IMPACT_ROWS = 82/82
 
-QUERY_REPHRASE = 0
-RELATED_QUERY_EXPANSION = 0
+QUERY_FORM:
+  DEMAND_OR_TESTED_EXACT_QUERY = 33
+  NATURAL_EXACT_SEARCH_PROBE_NO_DEMAND = 11
+  PAGE_TITLE_OR_SOURCE_PHRASE = 33
+  AMBIGUOUS_QUERY_FORM = 5
+
+DISPOSITION:
+  EXISTING_CURRENT_SEARCH_ANCHOR = 22
+  WAVE1_SEARCH_CANDIDATE = 25
+  DEFER_SEARCH_CANDIDATE = 19
+  PERSISTENT_HOLD_NO_EXACT_QUERY_PROBE = 33
+  QUERY_FORM_AMBIGUOUS_HOLD = 5
+
+WAVE1_QUERY_COUNT = 25
+WAVE1_REPHRASED_QUERY = 0
+WAVE1_EXISTING_SEARCH_DUPLICATE = 0
+WAVE1_PROVIDER_LIMIT_VIOLATION = 0
+WAVE1_DETERMINISTIC_ORDER = PASS
+
+PAIRWISE_RECOMPUTED = 5356/5356
+HOLD_BOUNDARY_RECOMPUTED = 1518/1518
+MATERIAL_HOLD_RECOMPUTED = 1424/1424
+ONE_CURRENT_SERP_HOLD_RECOMPUTED = 396/396
+BOUNDARY_IMPACT_DEGREE_MISMATCH = 0
 
 PROVIDER_CALLS_BY_WORK = 0
 BRIDGE_COMMANDS_BY_WORK = 0
 WEB_ACQUISITION_BY_WORK = 0
 GITHUB_WRITES_BY_WORK = 0
 
-OUTPUT_FILES = 9
+MAIN_CHAT_RETURN_QA = PASS
+OPEN_CRITICAL_DEFECTS = 0
 ```
 
 ## Provider boundary
 
-No provider command is authorized yet.
+No Bridge lifecycle command and no paid provider request is authorized yet.
 
-After Work return and Main Chat acceptance:
-1. recheck current installed Bridge capability;
-2. recheck current Search API tariff;
-3. freeze exact per-query/batch provider release;
-4. remote-readback;
-5. only then local start / provider lifecycle.
+Pre-acquisition planning is accepted. Before any `start` or `submitN`:
+
+1. recheck the current installed Bridge package/capability;
+2. fresh-check official Yandex Search API deferred-search contract and current tariff;
+3. freeze the exact Wave-1 provider release and cost cap;
+4. persist the release artifact;
+5. remote-readback the release;
+6. only then issue the first Bridge lifecycle command.
+
+After future terminal, persisted and read-back Search evidence:
+- rebuild the Search-anchor map;
+- rerun the complete 5,356-pair M9 universe;
+- rerun clusters and adversarial QA;
+- Main Chat accepts / holds / reworks.
+
+No partial pair patch.
 
 ## Owner relay
 
-Main Chat must provide the complete Work prompt directly in chat.
-
-Work returns one ZIP with exactly 9 final files.
-
-Staging:
-`docs/seo/work_return/M9_BOUNDARY_RESOLUTION_PREACQ_2026-09-24_R1/`
-
-Upload URL:
-`https://github.com/MaksimUnimax/runtime-fixtures/upload/seo/wordstat-batch-01-2026-09-16/docs/seo/work_return/M9_BOUNDARY_RESOLUTION_PREACQ_2026-09-24_R1/`
+Current Wave-1 plan contains 25 exact queries.
+The 25-query ceiling is reached because 44 exact candidates passed the releaseability gate; 19 remain deferred by deterministic rank, not discarded.
 
 M10A remains blocked.
