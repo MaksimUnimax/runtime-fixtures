@@ -717,6 +717,11 @@ describe("P6.2 admin API boundary", () => {
         (count, path) => count + Object.keys(path).length,
         0,
       ),
-    ).toBe(136);
+    ).toBe(137);
+    expect(
+      Object.keys(
+        document.paths["/v1/admin/compatibility/releases/{version}/publish"],
+      ),
+    ).toEqual(["post"]);
   });
 });
