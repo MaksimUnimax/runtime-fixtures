@@ -1,3 +1,5 @@
+> **SUPERSEDED FOR EXECUTION / DO NOT RE-RUN.** M8 R2 ended in `HOLD_SEMANTIC_CONTRACT_DEFECT`; use M8 R3 corrected transport authority. Retained as history only.
+
 # Octoport SEO — M8 Search-only Semantic Master — STEP PREPARATION R2
 
 Date: 2026-09-23
