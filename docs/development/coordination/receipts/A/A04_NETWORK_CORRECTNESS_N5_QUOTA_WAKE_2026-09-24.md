@@ -23,6 +23,7 @@ A bounded Luna child reproduced the defect against base `d34175afec872474a34dcce
 `tests/regression/extension-core/full-worker-composed.mjs` now exercises the real composed alarm listener with the existing manual Work path:
 - an early alarm leaves the authorized package waiting and performs no extra provider request;
 - once the observed quota deadline is due, the existing package resumes exactly once without popup click or tab switch;
+- a fresh worker created from the same durable browser storage reconstructs the waiting package/scheduler state and resumes exactly one due provider dispatch;
 - `Finish` before the due alarm prevents any second provider dispatch;
 - stale autorun quota state does not reconstruct/rearm an active-runtime QUOTA task.
 
@@ -30,7 +31,7 @@ A bounded Luna child reproduced the defect against base `d34175afec872474a34dcce
 
 Parent focused verification on the integrated diff:
 - deterministic composition build PASS;
-- full-worker-composed PASS with `quota_alarm_resume=true`, `early_quota_alarm_stays_scheduled=true`, `finish_blocks_quota_dispatch=true`, `autorun_quota_wake_disabled=true`;
+- full-worker-composed PASS with `quota_alarm_resume=true`, `fresh_worker_quota_alarm_resume=true`, `early_quota_alarm_stays_scheduled=true`, `finish_blocks_quota_dispatch=true`, `autorun_quota_wake_disabled=true`;
 - worker-lifecycle PASS 6/6 including provider-429 no hidden retry and worker-restart no replay;
 - batch-context PASS 12/12;
 - P3 technical scheduler PASS 7 scenarios;
@@ -40,3 +41,8 @@ Parent focused verification on the integrated diff:
 ## Limits
 
 This does not claim installed-browser or live-provider acceptance. It does not implement N2 cross-browser wire identity/pull or N4 Wildberries quota/header semantics. It does not permit replay after an unknown provider outcome; existing batch/context/result-recovery fences remain authoritative.
+## Independent review
+
+Read-only Luna review of exact implementation commit `de5d54d13368a7663587587e3921a4bac95a10fc` found no blocking implementation defect. It identified one test-coverage gap: the alarm scenario originally kept the same worker alive.
+
+That gap was closed before submission by persisting the authorized quota-wait package in shared synthetic browser storage, closing the first worker, creating a fresh worker, firing the durable technical alarm after the deadline, and proving exactly one provider dispatch with the package returning to `idle`. Evidence: `/root/octoport-control/logs/A/a04-n5-review-de5d54d-result.md` plus the final `full-worker-composed.mjs` regression.

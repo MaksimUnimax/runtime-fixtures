@@ -120,6 +120,44 @@ try {
   assert.equal((await quotaWorker.call("getManualOperation", key)).batch.request_state, "idle");
 } finally { quotaWorker.close(); }
 
+// A real MV3 wake starts a fresh worker. Persist the authorized package and
+// technical scheduler state, close the worker, then fire the durable alarm in
+// a new worker using the same browser storage.
+const restartBacking = { local: {}, session: {} };
+let restartQuotaNow = Date.now();
+const restartFetch = async url => {
+  if (url.startsWith("https://api-seller.ozon.ru/")) return response({ result: [] });
+  throw new Error(`Unexpected network target in restarted quota fixture: ${url}`);
+};
+const restartWorkerOne = await makeWorker(runtime, { backing: restartBacking, wallClock: () => restartQuotaNow, fetch: restartFetch });
+let restartKey, restartDeadline;
+try {
+  const saved = await restartWorkerOne.popup({ type: "SA_STORE_SAVE", store: { marketplace: "ozon", name: "Restart quota fixture", personalDataEnabled: true, credentials: { seller: { clientId: "RESTART_QUOTA_CLIENT", apiKey: "RESTART_QUOTA_KEY" }, performance: {} } } });
+  assert.equal(saved.ok, true, JSON.stringify(saved));
+  restartKey = await restartWorkerOne.start();
+  const session = await restartWorkerOne.call("workSessionFor", restartKey);
+  const first = { operation: "analytics_data", params: { date_from: "2026-09-01", date_to: "2026-09-02", dimension: ["day"], metrics: ["revenue"], limit: 100 } };
+  const second = { ...first, params: { ...first.params, date_from: "2026-09-03", date_to: "2026-09-04" } };
+  const admission = await restartWorkerOne.request({ type: "OZ_EXECUTE_COMMAND", conversation_key: restartKey, command_text: `OZON_API_V1\n${JSON.stringify(first)}\nOZON_API_V1\n${JSON.stringify(second)}`, manual_request_id: "composed-quota-restart", work_session_id: session.start_intent_id });
+  assert.equal(admission.ok, true, JSON.stringify(admission));
+  const waitingOwner = await until(async () => {
+    const owner = await restartWorkerOne.call("getManualOperation", restartKey);
+    return owner?.batch?.request_state === "quota_waiting" ? owner : null;
+  }, "restart fixture reaches quota wait");
+  restartDeadline = Number(waitingOwner.batch.quota_wait.next_allowed_at);
+  assert.equal(restartWorkerOne.network.filter(row => row.url.startsWith("https://api-seller.ozon.ru/")).length, 1);
+} finally { restartWorkerOne.close(); }
+restartQuotaNow = restartDeadline + 1;
+const restartWorkerTwo = await makeWorker(runtime, { backing: restartBacking, wallClock: () => restartQuotaNow, fetch: restartFetch });
+try {
+  const scheduler = await restartWorkerTwo.call("(() => SellerAgentsTechnicalScheduler)");
+  await restartWorkerTwo.fireAlarm(scheduler.ALARM);
+  await until(async () => restartWorkerTwo.network.filter(row => row.url.startsWith("https://api-seller.ozon.ru/")).length === 1, "fresh worker resumes durable quota wait");
+  await new Promise(resolve => setTimeout(resolve, 30));
+  assert.equal(restartWorkerTwo.network.filter(row => row.url.startsWith("https://api-seller.ozon.ru/")).length, 1, "fresh worker resumes exactly one provider dispatch");
+  assert.equal((await restartWorkerTwo.call("getManualOperation", restartKey)).batch.request_state, "idle");
+} finally { restartWorkerTwo.close(); }
+
 let finishedQuotaNow = Date.now();
 const finishedQuotaWorker = await makeWorker(runtime, { wallClock: () => finishedQuotaNow, fetch: async url => {
   if (url.startsWith("https://api-seller.ozon.ru/")) return response({ result: [] });
@@ -165,4 +203,4 @@ try {
 } finally { autorunWorker.close(); }
 
 assert.equal(independentFingerprint({ operation: "description_category_dependent_attribute_values", params: cases.at(-1)[1] }), "cd4bce38");
-console.log(JSON.stringify({ status: "PASS", setup: "SA_STORE_SAVE+SA_WORK_START+real_start_ack_identity", cases: passes.length, aliases: passes, exact_once: true, quota_alarm_resume: true, early_quota_alarm_stays_scheduled: true, finish_blocks_quota_dispatch: true, autorun_quota_wake_disabled: true, failure_events_zero: ["MANUAL_BATCH_FAILED", "BATCH_PROCESSOR_UNCAUGHT"], provider_split_asserted: true, semantic_fingerprint: "cd4bce38", workers_closed: true }));
+console.log(JSON.stringify({ status: "PASS", setup: "SA_STORE_SAVE+SA_WORK_START+real_start_ack_identity", cases: passes.length, aliases: passes, exact_once: true, quota_alarm_resume: true, fresh_worker_quota_alarm_resume: true, early_quota_alarm_stays_scheduled: true, finish_blocks_quota_dispatch: true, autorun_quota_wake_disabled: true, failure_events_zero: ["MANUAL_BATCH_FAILED", "BATCH_PROCESSOR_UNCAUGHT"], provider_split_asserted: true, semantic_fingerprint: "cd4bce38", workers_closed: true }));
