@@ -15,6 +15,16 @@ assert.match(popupJs, /request\("SA_SUPPORT_SNAPSHOT"\)/);
 assert.match(popupJs, /support-snapshot/);
 assert.match(popupJs, /UPDATE_RECOMMENDED/);
 assert.match(popupJs, /Текущая версия пока разрешена/);
+const textsStart = popupJs.indexOf("const texts = ");
+const textsEnd = popupJs.indexOf(";\nasync function request", textsStart);
+assert.ok(textsStart >= 0 && textsEnd > textsStart, "popup texts map must remain extractable");
+const ownerTexts = new Function(`return (${popupJs.slice(textsStart + "const texts = ".length, textsEnd)});`)();
+for (const code of ["SYNC_EXPLICIT_BINDING_CONFLICT", "SYNC_SERVER_FINISH_FENCE", "SYNC_NEWER_BINDING_FENCE"]) {
+  assert.equal(typeof ownerTexts[code], "string", code);
+  assert.ok(ownerTexts[code].length >= 40, code);
+  assert.equal(ownerTexts[code].includes(code), false, code);
+  assert.match(ownerTexts[code], /Start|магазин|привязк|завершен/i, code);
+}
 const worker = await makeWorker(runtime, {
   userAgent: "Mozilla/5.0 Chrome/147.0.7727.116 Safari/537.36",
 });
