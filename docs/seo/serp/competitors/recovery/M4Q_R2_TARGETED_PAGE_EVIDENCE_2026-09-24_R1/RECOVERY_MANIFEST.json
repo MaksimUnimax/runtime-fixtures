@@ -1,0 +1,29 @@
+{
+  "schema": "OCTOPORT_M4Q_TARGETED_PAGE_EVIDENCE_TRANSPORT_RECOVERY_V1",
+  "date": "2026-09-24",
+  "historical_source": {
+    "path": "docs/seo/serp/competitors/work_return/M4Q_R2_TARGETED_M4C_RECHECK_2026-09-23_R1/M4Q_R2_TARGETED_PAGE_EVIDENCE.tsv",
+    "sha256": "96d930d02060141a6eb9242c8079121a85359a256ff2fd39e0c4995577b05486",
+    "bytes": 2602167,
+    "git_blob_sha": "c2aaf2d18784e0386d044621c9409225b1efe4a4",
+    "physical_lines": 54,
+    "declared_columns": 21
+  },
+  "recovered": {
+    "path": "docs/seo/serp/competitors/recovery/M4Q_R2_TARGETED_PAGE_EVIDENCE_2026-09-24_R1/M4Q_R2_TARGETED_PAGE_EVIDENCE_RECOVERED.tsv",
+    "sha256": "a9ec3a14319edc0a4721e702378e910461490be1deba4136afcdf2276c2585d5",
+    "bytes": 2602161,
+    "data_rows": 47,
+    "unique_ids": 47,
+    "columns": 21
+  },
+  "affected_record_ids": [
+    "M4QR2TR0058",
+    "M4QR2TR0059"
+  ],
+  "unaffected_rows_exact_text_match": 45,
+  "recovery_rule": "record starts at ^M4QR2TR\\d{4}\\t; continuation physical LF encoded as literal \\n",
+  "semantic_change": false,
+  "provider_calls": 0,
+  "web_acquisition": 0
+}
