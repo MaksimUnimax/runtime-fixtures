@@ -75,6 +75,19 @@ function healthClaim(payload, overrides = {}) {
     ...overrides,
   };
 }
+function deferred() {
+  let resolve;
+  const promise = new Promise((done) => { resolve = done; });
+  return { promise, resolve };
+}
+async function waitFor(predicate, description) {
+  const end = Date.now() + 5000;
+  while (Date.now() < end) {
+    if (predicate()) return;
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  throw new Error(`Timed out waiting for ${description}`);
+}
 async function fixture(options = {}) {
   const backing = options.backing || { local: {}, session: {} };
   const network = [];
@@ -137,6 +150,97 @@ async function main() {
   );
   read.worker.close();
 
+  const detectedChatgpt = { family: "chatgpt", surface: "web", variant: null };
+  const detectedAlice = { family: "alice", surface: "web", variant: null };
+  const unavailableClaim = {
+    healthClaimVersion: "health_claim_v1",
+    status: "UNAVAILABLE",
+    target: "WORK",
+    reason: "PRODUCER_UNAVAILABLE",
+    observedAt: new Date(now).toISOString(),
+    executionAuthority: false,
+  };
+  const unavailableEnvelope = await signHealth(seeded.backing, unavailableClaim);
+  const denyEnvelope = await signHealth(seeded.backing, {
+    healthClaimVersion: "health_claim_v1",
+    status: "DENY",
+    target: "WORK",
+    reason: "PRODUCER_DENIED",
+    observedAt: new Date(now).toISOString(),
+    executionAuthority: false,
+  });
+  const passEnvelope = await signHealth(seeded.backing, healthClaim(payload));
+  async function delayedFixture(responseEnvelope) {
+    const gate = deferred();
+    const f = await fixture({
+      runtime,
+      backing: clone(seeded.backing),
+      seedAuthority: false,
+      fetch: async () => {
+        await gate.promise;
+        return new Response(JSON.stringify(responseEnvelope), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      },
+    });
+    return { ...f, gate };
+  }
+  const shared = await delayedFixture(passEnvelope);
+  const firstFlight = shared.worker.call("SellerAgentsControlClient.acquireSignedHealthAuthority", { detectedAi: detectedChatgpt });
+  const secondFlight = shared.worker.call("SellerAgentsControlClient.acquireSignedHealthAuthority", { detectedAi: detectedChatgpt });
+  await waitFor(() => shared.network.length === 1, "first shared Health request");
+  assert.equal(shared.network.length, 1);
+  shared.gate.resolve();
+  const [firstResult, secondResult] = await Promise.all([firstFlight, secondFlight]);
+  assert.deepEqual(secondResult, firstResult);
+  assert.notStrictEqual(secondResult, firstResult);
+  assert.notStrictEqual(secondResult.envelope, firstResult.envelope);
+  const unchangedEnvelopePayload = secondResult.envelope.payload;
+  firstResult.envelope.payload = "caller-mutation";
+  assert.equal(secondResult.envelope.payload, unchangedEnvelopePayload, "callers receive isolated result clones");
+  assert.equal(shared.network.length, 1, "identical concurrent calls share one request");
+  await shared.worker.call("SellerAgentsControlClient.acquireSignedHealthAuthority", { detectedAi: detectedChatgpt });
+  assert.equal(shared.network.length, 2, "a settled flight is not cached");
+  shared.worker.close();
+
+  const distinctAi = await delayedFixture(unavailableEnvelope);
+  const chatgptFlight = distinctAi.worker.call("SellerAgentsControlClient.acquireSignedHealthAuthority", { detectedAi: detectedChatgpt });
+  const aliceFlight = distinctAi.worker.call("SellerAgentsControlClient.acquireSignedHealthAuthority", { detectedAi: detectedAlice });
+  await waitFor(() => distinctAi.network.length === 2, "separate Health requests for different detected AI");
+  assert.equal(distinctAi.network.length, 2, "different detected AI identities do not coalesce");
+  distinctAi.gate.resolve();
+  const unavailableResults = await Promise.all([chatgptFlight, aliceFlight]);
+  assert.ok(unavailableResults.every((result) => result.payload.status === "UNAVAILABLE"));
+  await distinctAi.worker.call("SellerAgentsControlClient.acquireSignedHealthAuthority", { detectedAi: detectedChatgpt });
+  assert.equal(distinctAi.network.length, 3, "shared UNAVAILABLE does not survive settlement");
+  distinctAi.worker.close();
+
+  const denied = await delayedFixture(denyEnvelope);
+  const denyOne = denied.worker.call("SellerAgentsControlClient.acquireSignedHealthAuthority", { detectedAi: detectedChatgpt });
+  const denyTwo = denied.worker.call("SellerAgentsControlClient.acquireSignedHealthAuthority", { detectedAi: detectedChatgpt });
+  await waitFor(() => denied.network.length === 1, "shared Health DENY request");
+  denied.gate.resolve();
+  const deniedResults = await Promise.all([denyOne, denyTwo]);
+  assert.ok(deniedResults.every((result) => result.payload.status === "DENY"));
+  assert.equal(denied.network.length, 1, "matching concurrent DENY calls share only the in-flight request");
+  await denied.worker.call("SellerAgentsControlClient.acquireSignedHealthAuthority", { detectedAi: detectedChatgpt });
+  assert.equal(denied.network.length, 2, "DENY is refetched immediately after the flight settles");
+  denied.worker.close();
+
+  const stale = await delayedFixture(passEnvelope);
+  const staleOne = stale.worker.call("SellerAgentsControlClient.acquireSignedHealthAuthority", { detectedAi: detectedChatgpt });
+  const staleTwo = stale.worker.call("SellerAgentsControlClient.acquireSignedHealthAuthority", { detectedAi: detectedChatgpt });
+  await waitFor(() => stale.network.length === 1, "pending Health request before auth mutation");
+  await stale.worker.call("SellerAgentsControlClient.localReset");
+  stale.gate.resolve();
+  await Promise.all([
+    assert.rejects(staleOne, /AUTH_GENERATION_CHANGED/),
+    assert.rejects(staleTwo, /AUTH_GENERATION_CHANGED/),
+  ]);
+  assert.equal(stale.network.length, 1, "stale shared PASS is discarded after auth reset");
+  stale.worker.close();
+
   const cases = {
     "HT-01": "V1 untouched by separate contract",
     "HT-02": "V2 payload has no health field",
@@ -151,6 +255,11 @@ async function main() {
     "HT-27": "no provider send",
     "HT-28": "read-back adds no network",
     "HT-29": "synthetic fixture is transport-only",
+    "HT-34": "matching concurrent Health calls share only their in-flight request",
+    "HT-35": "settled PASS, DENY and UNAVAILABLE flights are refetched",
+    "HT-36": "detected AI identity separates in-flight Health requests",
+    "HT-37": "auth reset discards a delayed shared Health result",
+    "HT-38": "matching concurrent DENY coalesces only while in flight",
   };
 
   const expired = await fixture({

@@ -34,6 +34,7 @@
     return run;
   }
   const transportProvenance = new WeakMap();
+  const healthFlights = new Map();
   const httpErrorProvenance = new WeakMap();
   function error(code, detail) { const value = Object.assign(new Error(code), { code }); if (detail !== undefined) value.detail = detail; return value; }
   function now() { return Date.now(); }
@@ -51,8 +52,10 @@
   function authorityNeedsInvalidation(previous, next, reason) { if (!previous || !next) return Boolean(previous || next); if (!sameAuthorityIdentity(previous, next)) return true; if (["refresh_invalid", "bootstrap_unauthorized", "authority_invalid", "local_reset"].includes(reason)) return true; if (previous.workAllowed && !next.workAllowed) return true; return staticCanWork(previous.payload) && !staticCanWork(next.payload); }
   async function commit(next, previous = state.authority, reason = "state_changed") {
     const changed = authorityNeedsInvalidation(previous, next.authority, reason);
+    const healthAuthorityChanged = authorityDecisionIdentity(previous, previous?.generation ?? state.generation) !== authorityDecisionIdentity(next.authority, next.generation);
     await persist(next);
     state = next;
+    if (changed || healthAuthorityChanged) healthFlights.clear();
     if (changed && typeof authorityChanged === "function") { try { await authorityChanged(clone(state.authority), reason, state.generation); } catch (_) { /* guards remain authoritative */ } }
     return true;
   }
@@ -483,11 +486,32 @@
     const context = options.context ? clone(options.context) : contextForState(); if (!isCurrent(context)) throw error("AUTH_GENERATION_CHANGED");
     const requestedAi = options.detectedAi?.family || null;
     if (!requestedAi || !LOCAL_AI[requestedAi] || options.detectedAi.surface !== LOCAL_AI[requestedAi].surface || options.detectedAi.variant !== null) throw error("HEALTH_CONTEXT_INVALID");
-    const authority = clone(state.authority), authorityIdentityBefore = authorityDecisionIdentity(authority, context.generation); if (!authority?.envelope) throw error("HEALTH_CONTEXT_INVALID"); const result = await authenticatedRequest("/v1/health-authority", { method: "POST", body: healthRequest(options.detectedAi, state.credentials, authority) }, context);
-    if (!isCurrent(context) || authorityIdentityBefore !== authorityDecisionIdentity()) throw error("AUTH_GENERATION_CHANGED");
-    const verified = await verifier.verifyHealthV1(result.body, config.trustBundle); if (!verified.ok) throw error(`HEALTH_${verified.error}`);
-    if (verified.payload.status === "PASS") { const expected = await healthContextFromBootstrap(authority?.payload, authority, state.credentials); if (!expected || verifier.canonicalJson(expected) !== verifier.canonicalJson(verified.payload.context)) throw error("HEALTH_CONTEXT_MISMATCH"); }
-    return { payload: clone(verified.payload), envelope: clone(verified.envelope) };
+    const authority = clone(state.authority), credentials = clone(state.credentials), authorityIdentityBefore = authorityDecisionIdentity(authority, context.generation); if (!authority?.envelope) throw error("HEALTH_CONTEXT_INVALID");
+    const requestIdentity = verifier.canonicalJson({ family: options.detectedAi.family, surface: options.detectedAi.surface, variant: options.detectedAi.variant });
+    const flightKey = verifier.canonicalJson({ authority: authorityIdentityBefore, detectedAi: requestIdentity });
+    const currentForFlight = () => isCurrent(context) && authorityIdentityBefore === authorityDecisionIdentity();
+    if (!currentForFlight()) throw error("AUTH_GENERATION_CHANGED");
+    const existing = healthFlights.get(flightKey);
+    if (existing && existing.isCurrent()) {
+      const shared = await existing.promise;
+      if (!currentForFlight()) throw error("AUTH_GENERATION_CHANGED");
+      return clone(shared);
+    }
+    const flight = { isCurrent: currentForFlight, promise: null };
+    healthFlights.set(flightKey, flight);
+    flight.promise = Promise.resolve().then(async () => {
+      try {
+        const result = await authenticatedRequest("/v1/health-authority", { method: "POST", body: healthRequest(options.detectedAi, credentials, authority) }, context);
+        if (!currentForFlight()) throw error("AUTH_GENERATION_CHANGED");
+        const verified = await verifier.verifyHealthV1(result.body, config.trustBundle); if (!verified.ok) throw error(`HEALTH_${verified.error}`);
+        if (verified.payload.status === "PASS") { const expected = await healthContextFromBootstrap(authority?.payload, authority, credentials); if (!expected || verifier.canonicalJson(expected) !== verifier.canonicalJson(verified.payload.context)) throw error("HEALTH_CONTEXT_MISMATCH"); }
+        if (!currentForFlight()) throw error("AUTH_GENERATION_CHANGED");
+        return { payload: clone(verified.payload), envelope: clone(verified.envelope) };
+      } finally {
+        if (healthFlights.get(flightKey) === flight) healthFlights.delete(flightKey);
+      }
+    });
+    return clone(await flight.promise);
   }
   async function getHealthAuthorityContext() { await init(); if (!state.credentials || !state.authority) throw error("HEALTH_CONTEXT_INVALID"); await getVerifiedAuthorityTime(); return clone(state.authority); }
   async function getVerifiedAuthorityTime() { await init(); if (!state.credentials || !state.cacheClock || !state.authority) throw error("HEALTH_CONTEXT_INVALID"); return effectiveTime(state.cacheClock); }
