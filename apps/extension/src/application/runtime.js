@@ -923,6 +923,24 @@ async function saSupportSnapshot(tabId) {
     },
   });
 }
+async function saRefreshConversationSnapshot(conversationKey) {
+  if (!conversationKey || !globalThis.SellerAgentsSyncJournal?.syncConversationSnapshot) return null;
+  try {
+    const binding = await bindingForConversationKey(conversationKey);
+    let store = null;
+    if (binding?.store_context?.storeId) {
+      try { store = await saCatalog.get(binding.store_context.storeId); } catch (_) {}
+    }
+    const work = await workSessionFor(conversationKey);
+    return await SellerAgentsSyncJournal.syncConversationSnapshot({
+      conversationKey,
+      binding,
+      store,
+      workGeneration: work?.start_intent_id || null,
+      reason: "popup_open",
+    });
+  } catch (_) { return null; }
+}
 async function saPopupState(tabId) {
   void globalThis.SellerAgentsTechnicalScheduler?.wake?.("popup_open");
   let live = { ai_id: null, origin: null, conversation_id: null, status: "unavailable", source: "none", chat_path: "" };
@@ -932,10 +950,11 @@ async function saPopupState(tabId) {
     usableIdentity = true;
   } catch (_) {}
   const key = usableIdentity && live.conversation_id ? conversationKeyFromIdentity(live) : null;
-  const context = await saPublicContext(key);
   const pending = usableIdentity ? (await getPendingWorkStarts())[String(tabId)] || null : null;
   const auth = await SellerAgentsControlClient.status();
   const work = key ? await workSessionFor(key) : null;
+  if (auth.authenticated && key) void saRefreshConversationSnapshot(key);
+  const context = await saPublicContext(key);
   const publicWork = auth.workAllowed ? work : work ? { ...work, state: OzonWorkSessionModel.STATES.INACTIVE } : null;
   let stores = [];
   if (auth.authenticated) stores = await saCatalog.list();
