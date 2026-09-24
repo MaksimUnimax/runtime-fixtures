@@ -5,7 +5,6 @@ import {
   PackagedStrategyIdSchema,
   StructuralAssertionIdSchema,
   BrowserRuntimeMetadataSchema,
-  type BrowserRuntimeMetadata,
   type BaselineContourKey,
   type EnvironmentUncertaintyReason,
   type PackagedStrategyId,
