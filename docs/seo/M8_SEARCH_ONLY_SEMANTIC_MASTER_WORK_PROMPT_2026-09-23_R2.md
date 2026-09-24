@@ -1,3 +1,5 @@
+> **SUPERSEDED FOR EXECUTION / DO NOT RE-RUN.** M8 R2 ended in `HOLD_SEMANTIC_CONTRACT_DEFECT`; use M8 R3 corrected transport authority. Retained as history only.
+
 # M8 — canonical ChatGPT Work Search-only semantic master prompt — R2
 
 WORK_ID: `OCTOPORT_SEO_M8_SEARCH_ONLY_SEMANTIC_MASTER_2026-09-23_R2`
