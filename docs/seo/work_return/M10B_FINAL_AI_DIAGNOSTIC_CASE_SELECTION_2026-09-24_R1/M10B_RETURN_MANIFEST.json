@@ -1,0 +1,70 @@
+{
+  "schema": "OCTOPORT_M10B_FINAL_AI_CASE_SELECTION_RETURN_MANIFEST_V1",
+  "work_id": "OCTOPORT_SEO_M10B_FINAL_AI_DIAGNOSTIC_CASE_SELECTION_2026-09-24_R1",
+  "start_head": "e9d13991446f04a2f69ce4940afefd10096f4517",
+  "end_observed_head": "e9d13991446f04a2f69ce4940afefd10096f4517",
+  "authority_drift_status": "NONE_FROZEN_INPUTS_UNCHANGED",
+  "verdict": "PASS_LOCAL_CASE_SELECTION_AWAIT_MAIN_CHAT_ACCEPTANCE",
+  "m10c_gate_recommendation": "OPEN_ONLY_AFTER_MAIN_CHAT_ACCEPTS_THIS_CASE_SELECTION_AND_COMPLETES_FRESH_PROVIDER_BRIDGE_COST_PREFLIGHT",
+  "self_hash_exclusion": "Exact UTF-8 byte counts and SHA-256 hashes apply to the seven non-self files; the ZIP hash is reported separately after packaging.",
+  "files": [
+    {
+      "name": "M10B_SOURCE_MANIFEST.md",
+      "utf8_bytes": 4799,
+      "sha256": "08d68ea66c7dda1375a6081d7b29907232011887d34626ea1c2bd79daeab691a",
+      "line_count": 35
+    },
+    {
+      "name": "M10B_HYPOTHESIS_DISPOSITION.tsv",
+      "utf8_bytes": 101592,
+      "sha256": "de133e7684d76a4b9f22c1da2cd535487f840f5e866b70787bb3e076b9204b0a",
+      "line_count": 66,
+      "data_rows": 65,
+      "columns": 14
+    },
+    {
+      "name": "M10B_CASE_CLUSTER_XREF.tsv",
+      "utf8_bytes": 176597,
+      "sha256": "4e5947651c8ffc57f3109072859d39cd6b9be8af6b23bd0e05678e8a7184d6fe",
+      "line_count": 185,
+      "data_rows": 184,
+      "columns": 12
+    },
+    {
+      "name": "M10B_CASE_BOUNDARY_XREF.tsv",
+      "utf8_bytes": 175922,
+      "sha256": "fb2c5416ed8644bed6dc57b936d664a6f537886589f48da0257b39fce2ba371f",
+      "line_count": 167,
+      "data_rows": 166,
+      "columns": 10
+    },
+    {
+      "name": "M10B_FINAL_AI_DIAGNOSTIC_CASES.tsv",
+      "utf8_bytes": 48614,
+      "sha256": "c6ecec21a2b5f6a38eadd6abcde99b71ad3e985b97a1796c3e45f26bb0e8f2a0",
+      "line_count": 16,
+      "data_rows": 15,
+      "columns": 26
+    },
+    {
+      "name": "M10B_ADVERSARIAL_DIAGNOSTIC.tsv",
+      "utf8_bytes": 15646,
+      "sha256": "238ba2957df74cd0b302c7a5ac78b9b874430acd1206e70c0f5f4d9c32d07c6b",
+      "line_count": 26,
+      "data_rows": 25,
+      "columns": 10
+    },
+    {
+      "name": "M10B_QA.md",
+      "utf8_bytes": 5871,
+      "sha256": "c13b09864d6e763b3cfc00175202ac87b247e11093fa7d8e23d4536a16770ec1",
+      "line_count": 123
+    }
+  ],
+  "file_count_in_zip": 8,
+  "ai_provider_calls": 0,
+  "yandex_ai_executions": 0,
+  "alice_executions": 0,
+  "web_acquisition_by_work": 0,
+  "github_writes_by_work": 0
+}
