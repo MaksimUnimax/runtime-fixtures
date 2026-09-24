@@ -38,6 +38,7 @@ import {
   type P3PublicationPort,
 } from "@product/remote-config";
 import type { DatabaseQuery, DatabaseRuntime } from "./index.js";
+import { safeAuditReason } from "./safe-audit.js";
 
 type Context = P3MutationContext | CompatibilityMutationContext;
 async function audit(
@@ -57,7 +58,7 @@ async function audit(
       targetType,
       targetId,
       context.correlationId,
-      context.reason ?? null,
+      context.reason ? safeAuditReason(context.reason) : null,
       safeMetadata ? JSON.stringify(safeMetadata) : null,
     ],
   );

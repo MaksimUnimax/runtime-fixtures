@@ -23,6 +23,10 @@ import {
   type FunnelSignalRecord,
 } from "@product/feedback-support";
 import type { DatabaseQuery, DatabaseRuntime } from "./index.js";
+import {
+  AdminMutationAuthorizationError,
+  authorizeAdminMutationInTransaction,
+} from "./admin-mutation-authorization.js";
 
 type CaseRow = {
   id: string;
@@ -157,6 +161,23 @@ async function audit(
       JSON.stringify(metadata),
     ],
   );
+}
+
+async function authorizeSupportMutation(
+  query: DatabaseQuery,
+  actorId: string,
+): Promise<boolean> {
+  try {
+    await authorizeAdminMutationInTransaction(
+      query,
+      actorId,
+      "support.case.manage",
+    );
+    return true;
+  } catch (error) {
+    if (error instanceof AdminMutationAuthorizationError) return false;
+    throw error;
+  }
 }
 
 async function recordSignal(
@@ -311,6 +332,11 @@ export function createFeedbackSupportRepository(
     },
     async addFollowup(input) {
       return runtime.transaction(async (tx) => {
+        if (
+          input.actorType !== "USER" &&
+          !(await authorizeSupportMutation(tx, input.actorId))
+        )
+          return { kind: "FORBIDDEN" as const };
         const row = await loadCase(tx, input.caseId, true);
         if (!row) return { kind: "NOT_FOUND" as const };
         if (
@@ -382,6 +408,8 @@ export function createFeedbackSupportRepository(
     },
     async transitionCase(input) {
       return runtime.transaction(async (tx) => {
+        if (!(await authorizeSupportMutation(tx, input.actorId)))
+          return { kind: "FORBIDDEN" as const };
         const row = await loadCase(tx, input.caseId, true);
         if (!row) return { kind: "NOT_FOUND" as const };
         if (!statusTransitionAllowed(row.status, input.status))
@@ -591,7 +619,7 @@ export function createFeedbackSupportRepository(
       );
       return runtime.transaction(async (tx) => {
         const cases = await tx.query<{ id: string }>(
-          `DELETE FROM feedback_cases WHERE status='CLOSED' AND updated_at < $1 RETURNING id`,
+          `DELETE FROM feedback_cases WHERE status='CLOSED' AND closed_at IS NOT NULL AND closed_at < $1 RETURNING id`,
           [closedBefore],
         );
         const signals = await tx.query<{ id: string }>(

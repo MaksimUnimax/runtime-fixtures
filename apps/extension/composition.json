@@ -60,6 +60,11 @@
       "replacement": "apps/extension/src/background/compat/singleFlight.js"
     },
     {
+      "function": "createPendingWorkStart",
+      "source_sha256": "7bbf2b74017852afc3c4af834bea076440bf07c6adbf29e9be69de798bc559b8",
+      "replacement": "apps/extension/src/background/compat/createPendingWorkStart.js"
+    },
+    {
       "function": "getManualOperation",
       "source_sha256": "9be6c7fe8905fa6f49174ed20622609633cf149dbbe3cc3e570617a4069fa455",
       "replacement": "apps/extension/src/background/compat/getManualOperation.js"

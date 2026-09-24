@@ -314,6 +314,29 @@ describe.sequential("P6.2 admin operations on real PostgreSQL", () => {
     },
   );
 
+  it("redacts secret-shaped reasons before admin audit persistence", async () => {
+    const owner = await makeUser(70);
+    const target = await makeUser(71);
+    await makePrincipal(owner.id, "ADMIN_OWNER", actorId);
+    const result = await createAdminOpsRepository(db).createPrincipal({
+      userId: target.id,
+      initialRole: "ADMIN_SUPPORT",
+      actorId,
+      correlationId: "p62-redacted-reason",
+      reason: "token=supersecretvalue Bearer abcdefghijklmnopqrstuvwxyz123456",
+    });
+    expect(result.kind).toBe("OK");
+    const rows = await q<{ reason: string }>(
+      "SELECT reason FROM audit_events WHERE correlation_id='p62-redacted-reason' ORDER BY created_at",
+    );
+    expect(rows.rows.length).toBeGreaterThan(0);
+    for (const row of rows.rows) {
+      expect(row.reason).not.toContain("supersecretvalue");
+      expect(row.reason).not.toContain("abcdefghijklmnopqrstuvwxyz123456");
+      expect(row.reason).toContain("[REDACTED");
+    }
+  });
+
   it("cursor must be from the current account filter", async () => {
     const owner = await makeUser(9);
     const first = await makeAccount(owner.id);

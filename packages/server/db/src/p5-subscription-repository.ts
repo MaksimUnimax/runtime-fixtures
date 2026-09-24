@@ -16,6 +16,7 @@ import {
   type SubscriptionState,
 } from "@product/subscriptions";
 import type { DatabaseQuery, DatabaseRuntime } from "./index.js";
+import { safeAuditReason } from "./safe-audit.js";
 
 type Query = Pick<DatabaseQuery, "query">;
 type Row = {
@@ -91,7 +92,7 @@ async function audit(
       action,
       subscriptionId,
       context.correlationId,
-      context.reason,
+      safeAuditReason(context.reason),
       JSON.stringify(metadata),
     ],
   );

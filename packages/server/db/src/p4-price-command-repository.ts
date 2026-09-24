@@ -22,6 +22,7 @@ import {
   type PublishedPriceRevision,
 } from "@product/pricing";
 import type { DatabaseQuery, DatabaseRuntime } from "./index.js";
+import { safeAuditReason } from "./safe-audit.js";
 
 type Query = Pick<DatabaseQuery, "query">;
 
@@ -200,7 +201,7 @@ async function audit(
       targetType,
       targetId,
       context.correlationId,
-      context.reason,
+      safeAuditReason(context.reason),
       safeMetadata ? JSON.stringify(safeMetadata) : null,
     ],
   );
