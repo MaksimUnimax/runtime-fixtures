@@ -1,0 +1,81 @@
+{
+  "bridge": "yandex-marketing-bridge",
+  "version": "0.1.9",
+  "service": "search",
+  "operation": "genSearch",
+  "request_id": "search-c4086f64-7049-44f8-9bcb-e80cadea117f",
+  "run_id": null,
+  "status": "OK",
+  "reason": null,
+  "cost_estimate": {
+    "estimated_rub": 5.08,
+    "tariff_checked_at": "2026-08-19",
+    "tariff_source": "[https://aistudio.yandex.ru/docs/ru/search-api/pricing.html](https://aistudio.yandex.ru/docs/ru/search-api/pricing.html)"
+  },
+  "policy": {
+    "channel": "manual",
+    "active_service": "search"
+  },
+  "command": {
+    "method": "genSearch",
+    "queryText": "ии ассистент для маркетплейсов",
+    "confirmBillable": true
+  },
+  "http_status": 200,
+  "elapsed_ms": 4215,
+  "result": {
+    "mode": "generative",
+    "message": {
+      "content": "Несколько ИИ-ассистентов для маркетплейсов:\n\n* **Blaber.AI**. [2] Нейросеть отвечает на отзывы, вопросы и в чатах маркетплейсов, таких как Ozon, Wildberries, Яндекс Маркет и «Авито». [2] Аналитика показывает, что нужно улучшить в товарах. [2]\n* **SELLER MOON**. [3] ИИ-помощник для аналитики продаж, остатков и рекламы. [3] Анализирует динамику продаж по товарам, категориям и периодам, контролирует остатки и оборачиваемость, находит возвраты, отмены и проблемные SKU. [3]\n* **InfoSell**. [4] Сервис с ИИ-продуктами для маркетплейсов, включая ИИ-ассистент селлера, финансовый ассистент, автоответчик, инфографику, нейрофотосессии, видео и другие инструменты. [4]\n* **JAFO**. [5] ИИ-агент управляет каталогом, ценами, рекламой и аналитикой на Wildberries и Ozon. [5] Берёт на себя 80% рутины менеджера: мониторинг продаж и остатков, ответы на отзывы, обновление карточек, управление рекламой, отслеживание цен конкурентов. [5]",
+      "role": "ROLE_ASSISTANT"
+    },
+    "sources": [
+      {
+        "url": "[https://komanda.ai/marketplace-assistant](https://komanda.ai/marketplace-assistant)",
+        "title": "ИИ ассистент по маркетплейсам",
+        "used": false
+      },
+      {
+        "url": "[https://blaber.ai/](https://blaber.ai/)",
+        "title": "ИИ-ответы на отзывы, вопросы и чаты маркетплейсов — Blaber.AI",
+        "used": true
+      },
+      {
+        "url": "[https://sellermoon.ru/tools/ai-assistant](https://sellermoon.ru/tools/ai-assistant)",
+        "title": "ИИ-ассистент Wildberries и Ozon, AI-помощник селлера для аналитики продаж, остатков и рекламы — SELLER MOON",
+        "used": true
+      },
+      {
+        "url": "[https://infosell.tech/](https://infosell.tech/)",
+        "title": "InfoSell — ИИ-сервисы для продавцов маркетплейсов",
+        "used": true
+      },
+      {
+        "url": "[https://jafo.ru/](https://jafo.ru/)",
+        "title": "JAFO — ИИ-ассистент для Wildberries и Ozon",
+        "used": true
+      }
+    ],
+    "searchQueries": [
+      {
+        "text": "ии ассистент для маркетплейсов",
+        "reqId": "1790260343908217-6716152144612086131-msbvtyuqfy4cyxnx-BAL"
+      }
+    ],
+    "fixedMisspellQuery": "",
+    "isAnswerRejected": false,
+    "isBulletAnswer": false,
+    "hints": [
+      "Какие основные функции ИИ-ассистентов для селлеров?",
+      "Как выбрать подходящий ИИ-ассистент для маркетплейса?",
+      "Какие преимущества использования ИИ-ассистентов на маркетплейсах?"
+    ],
+    "problematicAnswer": false,
+    "transport": {
+      "wire_format": "json_array",
+      "frame_count": 1
+    }
+  },
+  "request_executed": true,
+  "automatic_retry": false
+}
