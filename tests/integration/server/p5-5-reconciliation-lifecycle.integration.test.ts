@@ -413,6 +413,110 @@ describe("P5.5 real PostgreSQL reconciliation and lifecycle", () => {
       ).rows[0]?.source,
     ).toBe("RECONCILIATION");
   });
+  it("success expires a due ACTIVE subscription before repair activation", async () => {
+    const f = await fixture();
+    const oldId = id();
+    const dueAt = new Date("2026-09-06T00:00:00Z");
+    const oldStartedAt = new Date("2026-09-01T00:00:00Z");
+    await q(
+      "INSERT INTO subscriptions(id,account_id,state,state_revision,current_plan_revision_id,started_at,current_period_start,current_period_end,state_reason,created_at,updated_at) VALUES($1,$2,'ACTIVE',1,$3,$4,$4,$5,'existing',$4,$4)",
+      [oldId, f.accountId, f.planRevisionId, oldStartedAt, dueAt],
+    );
+    await q(
+      "INSERT INTO subscription_transitions(subscription_id,transition_revision,from_state,to_state,source,actor_type,reason,occurred_at) VALUES($1,1,NULL,'ACTIVE','ADMIN','SYSTEM','fixture',$2)",
+      [oldId, oldStartedAt],
+    );
+    await q(
+      "INSERT INTO billing_reconciliation_jobs(payment_id,state,next_attempt_at,created_at,updated_at) VALUES($1,'READY',$2,$2,$2)",
+      [f.paymentId, now],
+    );
+    const repo = createP5ReconciliationRepository(db);
+    const claim = (
+      await repo.claimDue({ now, leaseMs: 60_000, batchSize: 1 })
+    )[0]!;
+    const result = await repo.applyStatus({
+      claim,
+      status: {
+        kind: "FOUND",
+        state: "SUCCEEDED",
+        amountMinor: 1900,
+        currency: "RUB",
+        statusAt: new Date("2026-09-07T11:00:00Z"),
+      },
+      processedAt: now,
+      correlationId: id(),
+    });
+    expect(result.kind).toBe("APPLIED");
+    expect(
+      (
+        await q<{ state: string }>(
+          "SELECT state FROM subscriptions WHERE id=$1",
+          [oldId],
+        )
+      ).rows[0]?.state,
+    ).toBe("EXPIRED");
+    expect(
+      (
+        await q<{ state: string }>(
+          "SELECT state FROM subscriptions ORDER BY state",
+        )
+      ).rows
+        .map((row) => row.state)
+        .sort(),
+    ).toEqual(["ACTIVE", "EXPIRED"]);
+  });
+  it("due GRACE becomes PAST_DUE and blocks reconciliation activation", async () => {
+    const f = await fixture();
+    const oldId = id();
+    const oldStartedAt = new Date("2026-09-01T00:00:00Z");
+    await q(
+      "INSERT INTO subscriptions(id,account_id,state,state_revision,current_plan_revision_id,started_at,current_period_start,current_period_end,grace_until,state_reason,created_at,updated_at) VALUES($1,$2,'GRACE',2,$3,$4,$4,$5,$6,'existing',$4,$4)",
+      [
+        oldId,
+        f.accountId,
+        f.planRevisionId,
+        oldStartedAt,
+        new Date("2026-09-07T00:00:00Z"),
+        now,
+      ],
+    );
+    await q(
+      "INSERT INTO subscription_transitions(subscription_id,transition_revision,from_state,to_state,source,actor_type,reason,occurred_at) VALUES($1,1,NULL,'ACTIVE','ADMIN','SYSTEM','fixture active',$2),($1,2,'ACTIVE','GRACE','ADMIN','SYSTEM','fixture grace',$3)",
+      [oldId, oldStartedAt, new Date("2026-09-07T00:00:00Z")],
+    );
+    await q(
+      "INSERT INTO billing_reconciliation_jobs(payment_id,state,next_attempt_at,created_at,updated_at) VALUES($1,'READY',$2,$2,$2)",
+      [f.paymentId, now],
+    );
+    const repo = createP5ReconciliationRepository(db);
+    const claim = (
+      await repo.claimDue({ now, leaseMs: 60_000, batchSize: 1 })
+    )[0]!;
+    const result = await repo.applyStatus({
+      claim,
+      status: {
+        kind: "FOUND",
+        state: "SUCCEEDED",
+        amountMinor: 1900,
+        currency: "RUB",
+        statusAt: new Date("2026-09-07T11:00:00Z"),
+      },
+      processedAt: now,
+      correlationId: id(),
+    });
+    expect(result).toMatchObject({
+      kind: "FAILED",
+      code: "CURRENT_SUBSCRIPTION_CONFLICT",
+    });
+    expect(
+      (
+        await q<{ state: string }>(
+          "SELECT state FROM subscriptions WHERE id=$1",
+          [oldId],
+        )
+      ).rows[0]?.state,
+    ).toBe("PAST_DUE");
+  });
   it("success settles the job", async () => {
     const f = await fixture();
     await q(

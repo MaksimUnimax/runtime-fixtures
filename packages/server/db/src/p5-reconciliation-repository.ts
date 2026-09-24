@@ -13,6 +13,7 @@ import {
   type BillingPaymentStatusState,
 } from "@product/billing";
 import type { DatabaseQuery, DatabaseRuntime } from "./index.js";
+import { transitionDueSubscriptionForAccount } from "./p5-subscription-lifecycle-transition.js";
 
 type Query = Pick<DatabaseQuery, "query">;
 // SQL row shapes are deliberately local to this repository; PostgreSQL aliases are validated by the queries.
@@ -534,6 +535,27 @@ export function createP5ReconciliationRepository(
             processedAt,
           );
           return terminalResult(ignored, claim.paymentId);
+        }
+        const lifecycle = await transitionDueSubscriptionForAccount(q, {
+          accountId: claim.accountId,
+          now: processedAt,
+          correlationId,
+        });
+        if (lifecycle.kind === "CORRUPTED") {
+          const failed = await terminalize(q, event.id, "FAILED", processedAt, {
+            paymentId: claim.paymentId,
+            code: "PAYMENT_SUBSCRIPTION_CORRUPTED",
+          });
+          await finishJob(
+            q,
+            claim.paymentId,
+            claim.leaseToken,
+            "READY",
+            "PAYMENT_SUBSCRIPTION_CORRUPTED",
+            new Date(processedAt.getTime() + 60_000),
+            processedAt,
+          );
+          return terminalResult(failed, claim.paymentId);
         }
         const current = await q.query<Row>(
           "SELECT id FROM subscriptions WHERE account_id=$1 AND state <> 'EXPIRED' LIMIT 1 FOR UPDATE",

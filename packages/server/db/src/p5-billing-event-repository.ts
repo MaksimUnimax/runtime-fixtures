@@ -11,6 +11,7 @@ import {
   type VerifiedBillingEvent,
 } from "@product/billing";
 import type { DatabaseQuery, DatabaseRuntime } from "./index.js";
+import { transitionDueSubscriptionForAccount } from "./p5-subscription-lifecycle-transition.js";
 
 type Query = Pick<DatabaseQuery, "query">;
 type PaymentState =
@@ -476,6 +477,25 @@ export function createP5BillingEventRepository(
               failureCode: checkout
                 ? "CHECKOUT_CORRUPTED"
                 : "CHECKOUT_NOT_FOUND",
+            },
+          );
+          return resultFromTerminal(failed, false);
+        }
+
+        const lifecycle = await transitionDueSubscriptionForAccount(q, {
+          accountId: payment.accountId,
+          now: input.receivedAt,
+          correlationId: context.correlationId,
+        });
+        if (lifecycle.kind === "CORRUPTED") {
+          const failed = await terminalize(
+            q,
+            ledger.id,
+            "FAILED",
+            input.receivedAt,
+            {
+              paymentId: payment.id,
+              failureCode: "PAYMENT_SUBSCRIPTION_CORRUPTED",
             },
           );
           return resultFromTerminal(failed, false);
