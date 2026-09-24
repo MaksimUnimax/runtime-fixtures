@@ -1,7 +1,7 @@
 # Octoport SEO — M9 progress
 
 Date: 2026-09-24
-Status: **WAVE-1 LOCAL START PASS / PAID SUBMIT PREFLIGHT OPEN**
+Status: **WAVE-1 PAID SUBMIT RELEASED / WAITING SUBMITN RESULT**
 Branch: `seo/wordstat-batch-01-2026-09-16`
 
 ## Current accepted chain
@@ -13,7 +13,7 @@ M9 BOUNDARY-RESOLUTION PRE-ACQ = PASS / MAIN CHAT ACCEPTED
 M10A = BLOCKED
 
 CURRENT PHYSICAL STEP =
-M9 BOUNDARY-RESOLUTION WAVE-1 PAID SUBMIT PREFLIGHT
+M9 BOUNDARY-RESOLUTION WAVE-1 SUBMITN / PROVIDER OPERATION ADMISSION
 ```
 
 ## Accepted M9 unresolved state
@@ -193,6 +193,29 @@ Paid `submitN` remains closed until:
 2. submit authorization is persisted and read back.
 
 No blind resubmit.
+
+## Wave-1 paid submit release
+
+Release:
+`docs/seo/M9_BOUNDARY_RESOLUTION_WAVE1_SUBMIT_RELEASE_2026-09-24_R1.md`
+
+```text
+FRESH_TARIFF_RECHECK = PASS
+TARIFF_CHECK_TIME = 2026-09-24 10:31 UTC+3
+ACTIVE_RATE = DAY_DEFERRED
+UNIT_COST_RUB = 0.0305
+MAX_PROVIDER_SUBMITS = 25
+MAX_COST_RUB = 0.7625
+SUBMIT_RELEASE_READBACK = REQUIRED
+
+AUTHORIZED_ACTION =
+SEARCH_ASYNC_BATCH_API_V1 {"action":"submitN","jobId":"octoport-m9br-wave1-20260924-r1","count":25}
+
+COLLECTN = CLOSED
+SECOND_SUBMITN = CLOSED
+```
+
+One bounded `submitN` is authorized. A bounded early stop is valid; it does not authorize an automatic second slice. Any UNKNOWN/failure stops the lifecycle for reconciliation.
 
 ## Owner relay
 
