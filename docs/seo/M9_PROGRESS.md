@@ -1,7 +1,7 @@
 # Octoport SEO — M9 progress
 
 Date: 2026-09-24
-Status: **BOUNDARY-RESOLUTION WAVE-2 LOCAL START RELEASED / WAITING RESULT**
+Status: **BOUNDARY-RESOLUTION WAVE-2 START PASS / PAID SUBMIT PREFLIGHT OPEN**
 Branch: `seo/wordstat-batch-01-2026-09-16`
 
 ## Current accepted chain
@@ -13,7 +13,7 @@ M9 BOUNDARY-RESOLUTION PRE-ACQ = PASS / MAIN CHAT ACCEPTED
 M10A = BLOCKED
 
 CURRENT PHYSICAL STEP =
-M9 BOUNDARY-RESOLUTION WAVE-2 LOCAL JOB START
+M9 BOUNDARY-RESOLUTION WAVE-2 PAID SUBMIT PREFLIGHT
 ```
 
 ## Accepted M9 unresolved state
@@ -697,6 +697,32 @@ PAID_SUBMITN = CLOSED
 ```
 
 The excluded identity is `ии для продаж на маркетплейсах`: current material-HOLD information gain = 0 under frozen task/intent/product/scope authority.
+
+## Wave-2 local-start receipt
+
+Receipt:
+`docs/seo/M9_BOUNDARY_RESOLUTION_WAVE2_START_RECEIPT_2026-09-24_R1.md`
+
+```text
+LOCAL_START_GATE = PASS
+JOB_ID = octoport-m9br-wave2-20260924-r1
+TOTAL = 18
+PENDING = 18
+WAITING = 0
+SUCCEEDED = 0
+FAILED = 0
+UNKNOWN = 0
+
+REQUEST_EXECUTED = false
+PROVIDER_CALLS = 0
+REQUESTS_STARTED = 0
+OPERATIONS_ACCEPTED = 0
+POLLS_STARTED = 0
+UNRESOLVED = 18
+REVISION = 0
+
+PAID_SUBMITN = CLOSED UNTIL FRESH TARIFF CHECK + SEPARATE RELEASE
+```
 
 ## Owner relay
 
