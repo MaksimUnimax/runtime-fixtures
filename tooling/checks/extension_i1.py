@@ -53,6 +53,7 @@ def main():
                 ("provider-outcome", ROOT / "tests/regression/extension-core/provider-outcome.mjs"),
                 ("i1-p2-result-recovery", ROOT / "tests/regression/extension-core/client-i1/client-p2-result-recovery.mjs"),
                 ("i1-p3-technical-scheduler", ROOT / "tests/regression/extension-core/client-i1/client-p3-technical-scheduler.mjs"),
+                ("i1-a04-network-correctness", ROOT / "tests/regression/extension-core/client-i1/client-a04-network-correctness.mjs"),
                 ("application", ROOT / "tests/regression/extension-core/application.mjs"),
                 ("i1-lifecycle", ROOT / "tests/regression/extension-core/client-i1/client-lifecycle.mjs"),
                 ("i1-races", ROOT / "tests/regression/extension-core/client-i1/client-races.mjs"),

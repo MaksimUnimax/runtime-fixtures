@@ -247,6 +247,58 @@
     await invalidateKnown(contextForState(), failure, true);
     throw error("AUTH_REQUIRED");
   }
+  async function ensureFreshAccess(context, options = {}) {
+    if (!state.credentials) throw error("AUTH_REQUIRED");
+    if (!isCurrent(context)) throw error("AUTH_GENERATION_CHANGED");
+    const forced = options.force === true;
+    if (!forced && accessFresh()) return clone(state.credentials);
+    try {
+      await refresh({ context, ...(forced ? { force: true, rejectedAccessToken: options.rejectedAccessToken } : {}) });
+    } catch (failure) {
+      if (isCurrent(context) && (failure?.status === 401 || failure?.status === 403 || terminalAuthFailure(failure))) await invalidateKnown(context, failure, true);
+      throw failure;
+    }
+    if (!isCurrent(context) || !state.credentials) throw error("AUTH_GENERATION_CHANGED");
+    return clone(state.credentials);
+  }
+  function terminalServiceAuthFailure(failure) {
+    return ["DEVICE_MISMATCH", "ACCOUNT_IDENTITY_MISMATCH", "TRANSFER_DEVICE_REVOKED"].includes(failure?.code);
+  }
+  async function authenticatedRequest(path, options = {}, requestContext = null) {
+    await init();
+    if (!state.credentials) throw error("AUTH_REQUIRED");
+    await ensureAuthOwnership();
+    const context = requestContext ? clone(requestContext) : contextForState();
+    if (!isCurrent(context)) throw error("AUTH_GENERATION_CHANGED");
+    await ensureFreshAccess(context);
+    let retried = false;
+    while (true) {
+      if (!isCurrent(context) || !state.credentials) throw error("AUTH_GENERATION_CHANGED");
+      const rejectedAccessToken = state.credentials.accessToken;
+      const headers = new Headers(options.headers || {});
+      headers.set("Authorization", `Bearer ${rejectedAccessToken}`);
+      try {
+        return await request(path, { ...options, headers });
+      } catch (failure) {
+        if (!isCurrent(context)) throw failure;
+        if (failure?.status !== 401) {
+          if (terminalServiceAuthFailure(failure)) await invalidateKnown(context, failure, true);
+          throw failure;
+        }
+        if (retried) {
+          await invalidateKnown(context, failure, true);
+          throw failure;
+        }
+        retried = true;
+        try {
+          await ensureFreshAccess(context, { force: true, rejectedAccessToken });
+        } catch (refreshFailure) {
+          if (refreshFailure?.status === 401 || refreshFailure?.status === 403 || terminalAuthFailure(refreshFailure)) throw refreshFailure;
+          throw failure;
+        }
+      }
+    }
+  }
   async function ensurePolling() {
     await init();
     if (!pendingLive(state.pending)) return;
@@ -401,7 +453,7 @@
     const context = options.context ? clone(options.context) : contextForState(); if (!isCurrent(context)) throw error("AUTH_GENERATION_CHANGED");
     const requestedAi = options.detectedAi?.family || null;
     if (!requestedAi || !LOCAL_AI[requestedAi] || options.detectedAi.surface !== LOCAL_AI[requestedAi].surface || options.detectedAi.variant !== null) throw error("HEALTH_CONTEXT_INVALID");
-    const authority = clone(state.authority), authorityIdentityBefore = authorityDecisionIdentity(authority, context.generation); if (!authority?.envelope) throw error("HEALTH_CONTEXT_INVALID"); const result = await request("/v1/health-authority", { method: "POST", headers: { Authorization: `Bearer ${state.credentials.accessToken}` }, body: healthRequest(options.detectedAi, state.credentials, authority) });
+    const authority = clone(state.authority), authorityIdentityBefore = authorityDecisionIdentity(authority, context.generation); if (!authority?.envelope) throw error("HEALTH_CONTEXT_INVALID"); const result = await authenticatedRequest("/v1/health-authority", { method: "POST", body: healthRequest(options.detectedAi, state.credentials, authority) }, context);
     if (!isCurrent(context) || authorityIdentityBefore !== authorityDecisionIdentity()) throw error("AUTH_GENERATION_CHANGED");
     const verified = await verifier.verifyHealthV1(result.body, config.trustBundle); if (!verified.ok) throw error(`HEALTH_${verified.error}`);
     if (verified.payload.status === "PASS") { const expected = await healthContextFromBootstrap(authority?.payload, authority, state.credentials); if (!expected || verifier.canonicalJson(expected) !== verifier.canonicalJson(verified.payload.context)) throw error("HEALTH_CONTEXT_MISMATCH"); }
@@ -717,13 +769,14 @@
   async function synchronizeMetadata(body) {
     await init(); if (!state.credentials) throw error("AUTH_REQUIRED"); await ensureAuthOwnership();
     if (!body || body.syncVersion !== "seller_agents_sync_v1" || !Array.isArray(body.entries) || body.entries.length < 1 || body.entries.length > 32) throw error("SYNC_REQUEST_INVALID");
-    return (await request("/v1/sync", { method: "POST", headers: { Authorization: `Bearer ${state.credentials.accessToken}` }, body: { ...body, installationId: state.credentials.deviceId } })).body;
+    return (await authenticatedRequest("/v1/sync", { method: "POST", body: { ...body, installationId: state.credentials.deviceId } })).body;
   }
   async function transferAuth() {
     await init();
     if (!state.credentials || !state.authority?.payload?.account?.id) throw error("AUTH_REQUIRED");
     await ensureAuthOwnership();
-    return { credentials: state.credentials, accountId: state.authority.payload.account.id, sessionId: state.credentials.sessionId };
+    const context = contextForState();
+    return { credentials: clone(state.credentials), accountId: state.authority.payload.account.id, sessionId: state.credentials.sessionId, context };
   }
   function transferRecordMatches(record, auth) {
     return Boolean(record && record.accountId === auth.accountId && record.recipientDeviceId === auth.credentials.deviceId && record.sessionId === auth.sessionId);
@@ -751,12 +804,12 @@
   }
   async function reconcilePreparedCredentialTransfer(record, auth) {
     if (record.phase !== "PREPARED") return record;
-    const body = transferBodyFromRecord(record), options = { method: "POST", headers: { Authorization: `Bearer ${auth.credentials.accessToken}` }, body };
+    const body = transferBodyFromRecord(record), options = { method: "POST", body };
     let response;
-    try { response = await request("/v1/credential-transfers", options); }
+    try { response = await authenticatedRequest("/v1/credential-transfers", options, auth.context); }
     catch (failure) {
       if (failure?.status) throw failure;
-      response = await request("/v1/credential-transfers", options);
+      response = await authenticatedRequest("/v1/credential-transfers", options, auth.context);
     }
     const result = assertTransferRequestMatches(record, response.body);
     const currentAuth = await transferAuth();
@@ -793,17 +846,17 @@
     }
     return rows;
   }
-  async function listCredentialTransfers() { const { credentials } = await transferAuth(); return clone((await request("/v1/credential-transfers/pending/source", { headers: { Authorization: `Bearer ${credentials.accessToken}` } })).body); }
-  async function readCredentialTransfer(requestId) { const { credentials } = await transferAuth(); return clone((await request(`/v1/credential-transfers/${encodeURIComponent(requestId)}`, { headers: { Authorization: `Bearer ${credentials.accessToken}` } })).body); }
-  async function markCredentialTransferSourceSeen(requestId) { const { credentials } = await transferAuth(); return clone((await request(`/v1/credential-transfers/${encodeURIComponent(requestId)}/source-seen`, { method: "POST", headers: { Authorization: `Bearer ${credentials.accessToken}` } })).body); }
-  async function submitCredentialTransferPacket(input) { const { credentials } = await transferAuth(); return clone((await request(`/v1/credential-transfers/${encodeURIComponent(input.requestId)}/packet`, { method: "POST", headers: { Authorization: `Bearer ${credentials.accessToken}` }, body: { requestId: input.requestId, packetId: input.packetId, envelope: input.envelope } })).body); }
+  async function listCredentialTransfers() { const auth = await transferAuth(); return clone((await authenticatedRequest("/v1/credential-transfers/pending/source", {}, auth.context)).body); }
+  async function readCredentialTransfer(requestId) { const auth = await transferAuth(); return clone((await authenticatedRequest(`/v1/credential-transfers/${encodeURIComponent(requestId)}`, {}, auth.context)).body); }
+  async function markCredentialTransferSourceSeen(requestId) { const auth = await transferAuth(); return clone((await authenticatedRequest(`/v1/credential-transfers/${encodeURIComponent(requestId)}/source-seen`, { method: "POST" }, auth.context)).body); }
+  async function submitCredentialTransferPacket(input) { const auth = await transferAuth(); return clone((await authenticatedRequest(`/v1/credential-transfers/${encodeURIComponent(input.requestId)}/packet`, { method: "POST", body: { requestId: input.requestId, packetId: input.packetId, envelope: input.envelope } }, auth.context)).body); }
   async function receiveCredentialTransfer(requestId, sourceDeviceId) {
     return transferSingleFlight(requestId, async () => {
       const { auth, record } = await requireTransferRecord(requestId);
       if (record.phase === "ACKED_RESULT") return { ackedResult: true, result: clone(record.result) };
       if (record.phase === "IMPORTED_PENDING_ACK") return { pendingAck: true, packet: { packetId: record.packetId }, result: clone(record.result) };
       if (!record.privateKey) throw error("TRANSFER_KEY_MISSING");
-      const packet = (await request(`/v1/credential-transfers/${encodeURIComponent(requestId)}/packet`, { headers: { Authorization: `Bearer ${auth.credentials.accessToken}` } })).body;
+      const packet = (await authenticatedRequest(`/v1/credential-transfers/${encodeURIComponent(requestId)}/packet`, {}, auth.context)).body;
       if (!packet?.packetId || packet.requestId !== requestId) throw error("TRANSFER_PACKET_INVALID");
       const current = await transferVault.update(requestId, value => ({ ...value, phase: "RECEIVING", sourceDeviceId: sourceDeviceId || value.sourceDeviceId || null, packetId: packet.packetId }));
       if (!transferRecordMatches(current, await transferAuth())) throw error("TRANSFER_ACCOUNT_MISMATCH");
@@ -833,10 +886,10 @@
       if (record.phase === "ACKED_RESULT") return { request: null, result: clone(record.result), reconciled: true };
       if (record.phase !== "IMPORTED_PENDING_ACK" || !record.result || record.packetId !== input.packetId) throw error("TRANSFER_IMPORT_NOT_DURABLE");
       let serverResult, reconciled = false;
-      try { serverResult = clone((await request(`/v1/credential-transfers/${encodeURIComponent(input.requestId)}/ack`, { method: "POST", headers: { Authorization: `Bearer ${auth.credentials.accessToken}` }, body: input })).body); }
+      try { serverResult = clone((await authenticatedRequest(`/v1/credential-transfers/${encodeURIComponent(input.requestId)}/ack`, { method: "POST", body: input }, auth.context)).body); }
       catch (failure) {
         let observed = null;
-        try { observed = clone((await request(`/v1/credential-transfers/${encodeURIComponent(input.requestId)}`, { headers: { Authorization: `Bearer ${auth.credentials.accessToken}` } })).body); } catch (_) {}
+        try { observed = clone((await authenticatedRequest(`/v1/credential-transfers/${encodeURIComponent(input.requestId)}`, {}, auth.context)).body); } catch (_) {}
         if (observed?.state !== "COMPLETED") throw failure;
         serverResult = observed; reconciled = true;
       }
