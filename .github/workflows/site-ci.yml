@@ -5,6 +5,7 @@ on:
     paths:
       - "apps/site/**"
       - "infra/production/nginx/octoport-site.conf"
+      - "infra/production/nginx/octoport-apps.conf"
       - "infra/production/scripts/deploy-octoport-site.sh"
       - "infra/production/scripts/verify-octoport-site.sh"
       - "infra/production/README.md"
@@ -13,6 +14,7 @@ on:
     paths:
       - "apps/site/**"
       - "infra/production/nginx/octoport-site.conf"
+      - "infra/production/nginx/octoport-apps.conf"
       - "infra/production/scripts/deploy-octoport-site.sh"
       - "infra/production/scripts/verify-octoport-site.sh"
       - "infra/production/README.md"
@@ -277,6 +279,7 @@ jobs:
           set -Eeuo pipefail
 
           nginx_conf="infra/production/nginx/octoport-site.conf"
+          apps_conf="infra/production/nginx/octoport-apps.conf"
           deploy_script="infra/production/scripts/deploy-octoport-site.sh"
           verify_script="infra/production/scripts/verify-octoport-site.sh"
 
@@ -285,8 +288,8 @@ jobs:
 
           grep -Fq 'server_name octoport.ru;' "${nginx_conf}"
           grep -Fq 'server_name www.octoport.ru;' "${nginx_conf}"
-          grep -Fq 'server_name app.octoport.ru;' "${nginx_conf}"
-          grep -Fq 'server_name api.octoport.ru;' "${nginx_conf}"
+          grep -Fq 'server_name app.octoport.ru;' "${apps_conf}"
+          grep -Fq 'server_name api.octoport.ru;' "${apps_conf}"
           grep -Fq 'root /var/www/octoport-site/current;' "${nginx_conf}"
           grep -Fq 'return 308 https://octoport.ru$request_uri;' "${nginx_conf}"
           grep -Fq 'expires -1;' "${nginx_conf}"
@@ -305,7 +308,7 @@ jobs:
             exit 1
           fi
 
-          if grep -Eq 'server_name[^;]*admin\.octoport\.ru' "${nginx_conf}"; then
+          if grep -Eq 'server_name[^;]*admin\.octoport\.ru' "${nginx_conf}" "${apps_conf}"; then
             echo 'admin.octoport.ru must remain disabled as an application hostname' >&2
             exit 1
           fi

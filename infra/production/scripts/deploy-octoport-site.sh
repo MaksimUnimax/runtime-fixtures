@@ -8,6 +8,8 @@ CURRENT_LINK="${SITE_ROOT}/current"
 NGINX_CONF_DIR="/etc/nginx/conf.d"
 PREDEPLOY_NAME="octoport-predeploy.conf"
 LIVE_NAME="octoport-site.conf"
+APPS_NAME="octoport-apps.conf"
+APPLICATION_INGRESS_SHA=""
 CERT_FILE="/etc/letsencrypt/live/octoport.ru/fullchain.pem"
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 PRODUCTION_DIR="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
@@ -37,6 +39,24 @@ require_command() {
   command -v "$1" >/dev/null 2>&1 || fail "missing required command: $1"
 }
 
+acquire_deploy_lock() {
+  exec 9>/run/lock/octoport-site-deploy.lock
+  flock -n 9 || fail "another Octoport site deployment is running"
+}
+
+assert_application_ingress() {
+  [[ -s "${NGINX_CONF_DIR}/${APPS_NAME}" ]] \
+    || fail "separate application ingress ${APPS_NAME} is required; site deployment must not provision applications"
+  APPLICATION_INGRESS_SHA="$(sha256sum "${NGINX_CONF_DIR}/${APPS_NAME}" | cut -d' ' -f1)"
+}
+
+assert_application_ingress_unchanged() {
+  local current_sha
+  current_sha="$(sha256sum "${NGINX_CONF_DIR}/${APPS_NAME}" | cut -d' ' -f1)"
+  [[ "${current_sha}" == "${APPLICATION_INGRESS_SHA}" ]] \
+    || fail "application ingress changed during site deployment; retry after application maintenance"
+}
+
 assert_clean_checkout() {
   [[ -z "$(git -C "${REPO_ROOT}" status --porcelain)" ]] || fail "repository checkout is not clean"
 }
@@ -44,6 +64,13 @@ assert_clean_checkout() {
 assert_source() {
   [[ -f "${SOURCE_NGINX}" ]] || fail "missing ${SOURCE_NGINX}"
   [[ -f "${SCRIPT_DIR}/verify-octoport-site.sh" ]] || fail "missing site verifier"
+
+  # The site template owns HTTP redirects and the two public-site TLS hosts only.
+  [[ "$(grep -Ec '^server[[:space:]]*\{' "${SOURCE_NGINX}")" == 3 ]] \
+    || fail "site ingress must contain only three public-site/redirect server blocks"
+  if grep -Eq 'proxy_pass|service_not_deployed|portal is not deployed|server_name[[:space:]]+(app|api)\.octoport\.ru[[:space:]]*;' "${SOURCE_NGINX}"; then
+    fail "site ingress must not define application routes or predeployment placeholders"
+  fi
 
   local required
   for required in index.html privacy.html support.html install.html styles.css robots.txt sitemap.xml; do
@@ -95,12 +122,13 @@ assert_current_path_safe() {
 backup_existing_state() {
   install -d -m 0700 "${BACKUP_DIR}"
 
-  shopt -s nullglob
-  local file
-  for file in "${NGINX_CONF_DIR}"/octoport*.conf; do
-    cp -a "${file}" "${BACKUP_DIR}/"
+  local name
+  for name in "${LIVE_NAME}" "${PREDEPLOY_NAME}"; do
+    if [[ -f "${NGINX_CONF_DIR}/${name}" ]]; then
+      cp -a "${NGINX_CONF_DIR}/${name}" "${BACKUP_DIR}/"
+    fi
   done
-  shopt -u nullglob
+  printf '%s\n' "${APPLICATION_INGRESS_SHA}" >"${BACKUP_DIR}/application-ingress-sha256.txt"
 
   if [[ -L "${CURRENT_LINK}" ]]; then
     readlink -f "${CURRENT_LINK}" >"${BACKUP_DIR}/current-target.txt"
@@ -138,12 +166,13 @@ restore_previous_state() {
   log "rolling back Octoport site/nginx state"
 
   rm -f "${NGINX_CONF_DIR}/${LIVE_NAME}" "${NGINX_CONF_DIR}/${PREDEPLOY_NAME}"
-  shopt -s nullglob
-  local file
-  for file in "${BACKUP_DIR}"/octoport*.conf; do
-    cp -a "${file}" "${NGINX_CONF_DIR}/"
+  # Never restore app/API configs: they are outside a static-site transaction.
+  local name
+  for name in "${LIVE_NAME}" "${PREDEPLOY_NAME}"; do
+    if [[ -f "${BACKUP_DIR}/${name}" ]]; then
+      cp -a "${BACKUP_DIR}/${name}" "${NGINX_CONF_DIR}/"
+    fi
   done
-  shopt -u nullglob
 
   if [[ -s "${BACKUP_DIR}/current-target.txt" ]]; then
     local previous_target tmp_link
@@ -210,6 +239,7 @@ switch_current_release() {
 }
 
 install_live_ingress() {
+  assert_application_ingress_unchanged
   install -m 0644 "${SOURCE_NGINX}" "${NGINX_CONF_DIR}/${LIVE_NAME}"
   rm -f "${NGINX_CONF_DIR}/${PREDEPLOY_NAME}"
   nginx -t
@@ -218,12 +248,14 @@ install_live_ingress() {
 
 main() {
   require_root
-  for command_name in awk cat chmod cmp cp cut find getent git grep install ip ln ls mv nginx openssl readlink rm sleep sort systemctl tr wc curl bash; do
+  for command_name in awk cat chmod cmp cp cut find getent git grep install ip ln ls mv nginx openssl readlink rm sleep sort systemctl tr wc curl bash flock sha256sum; do
     require_command "${command_name}"
   done
 
+  acquire_deploy_lock
   assert_clean_checkout
   assert_source
+  assert_application_ingress
   assert_server_ipv4
   assert_dns
   assert_tls
@@ -247,10 +279,13 @@ main() {
   log "running post-deploy verification"
   EXPECTED_SITE_SHA="${SOURCE_SHA}" bash "${SCRIPT_DIR}/verify-octoport-site.sh"
 
+  assert_application_ingress_unchanged
   SUCCESS=1
   log "PASS: Octoport static site deployed from ${SOURCE_SHA}"
   log "release: ${RELEASE_DIR}"
   log "backup: ${BACKUP_DIR}"
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
+fi
