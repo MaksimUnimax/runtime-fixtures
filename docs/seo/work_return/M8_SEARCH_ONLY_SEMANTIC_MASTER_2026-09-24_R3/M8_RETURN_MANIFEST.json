@@ -1,0 +1,65 @@
+{
+  "schema": "M8_RETURN_MANIFEST_R3",
+  "work_id": "OCTOPORT_SEO_M8_SEARCH_ONLY_SEMANTIC_MASTER_2026-09-24_R3",
+  "start_head": "cc9c667844dd6de5fc7cdb46c9abfd9cf05d3001",
+  "end_observed_head": "cc9c667844dd6de5fc7cdb46c9abfd9cf05d3001",
+  "authority_drift_status": "NONE_FROZEN_INPUTS_UNCHANGED",
+  "self_hash_exclusion": "This manifest lists eight other files. It intentionally does not list or hash itself.",
+  "non_self_file_count": 8,
+  "zip_file_count_including_this_manifest": 9,
+  "files": [
+    {
+      "file": "M8_SOURCE_MANIFEST.md",
+      "utf8_bytes": 14517,
+      "sha256": "8a531afd81f2691638d7c806e2d1731573df414ce0ca58312ad7850cad5bcd58",
+      "line_count": 105
+    },
+    {
+      "file": "M8_RAW_OCCURRENCE_LEDGER.tsv",
+      "utf8_bytes": 76810357,
+      "sha256": "2091432f5eb131b425349954f0518cc8122e98461d932d9b2d7de64e6828bcfc",
+      "line_count": 25230,
+      "data_rows": 25229
+    },
+    {
+      "file": "M8_SEMANTIC_IDENTITY_MASTER.tsv",
+      "utf8_bytes": 11405030,
+      "sha256": "7de172d2e7742472d364d771b3b162c8795bd7c25fa2b147756e3122a6a5d22b",
+      "line_count": 7914,
+      "data_rows": 7913
+    },
+    {
+      "file": "M8_IDENTITY_SOURCE_XREF.tsv",
+      "utf8_bytes": 4227700,
+      "sha256": "4559919054a3c47d2b6b875d16696dfc9fef34b1e12f845e928f93d653d20f9c",
+      "line_count": 25230,
+      "data_rows": 25229
+    },
+    {
+      "file": "M8_REASON_CODE_DICTIONARY.md",
+      "utf8_bytes": 29415,
+      "sha256": "e2bd0ed1194c38277fcd3c0b94166a2ab5251def51821221e70e3224198d5c46",
+      "line_count": 301
+    },
+    {
+      "file": "M8_HOLD_REVIEW_LEDGER.tsv",
+      "utf8_bytes": 3477495,
+      "sha256": "c3f8bbabbf0aa40d9c3049aa3aea8d926661493f4fa0924f40b80ad311602e46",
+      "line_count": 5169,
+      "data_rows": 5168
+    },
+    {
+      "file": "M8_ADVERSARIAL_DIAGNOSTIC.tsv",
+      "utf8_bytes": 291584,
+      "sha256": "0d45d35bc9a5ccf83cfdc75f099dfd400ff54bafccee7d310ec3e64364a0f443",
+      "line_count": 698,
+      "data_rows": 697
+    },
+    {
+      "file": "M8_QA.md",
+      "utf8_bytes": 9876,
+      "sha256": "7b72e104980e0f1d40924c09db5cfc9bb2c8b63e6f611aaef38b5ca5a5caf297",
+      "line_count": 279
+    }
+  ]
+}
