@@ -1,7 +1,7 @@
 # Octoport SEO — M9 progress
 
 Date: 2026-09-24
-Status: **WAVE-1 SUBMIT COMPLETE / 25 WAITING / OPERATION-ID READBACK OPEN**
+Status: **WAVE-1 OPERATION-ID READBACK PASS / PRE-COLLECTION TIME GATE**
 Branch: `seo/wordstat-batch-01-2026-09-16`
 
 ## Current accepted chain
@@ -13,7 +13,7 @@ M9 BOUNDARY-RESOLUTION PRE-ACQ = PASS / MAIN CHAT ACCEPTED
 M10A = BLOCKED
 
 CURRENT PHYSICAL STEP =
-M9 BOUNDARY-RESOLUTION WAVE-1 OPERATION-ID READBACK / PRE-COLLECTION GATE
+M9 BOUNDARY-RESOLUTION WAVE-1 PRE-COLLECTION TIME GATE
 ```
 
 ## Accepted M9 unresolved state
@@ -302,6 +302,30 @@ No additional submit is authorized or needed.
 Immediate next action is local/read-only `itemsPage` for all 25 rows so Main Chat can preserve and verify every accepted operation ID before any provider-backed collection.
 
 `collectN` remains closed.
+
+## Wave-1 operation-ID readback
+
+Receipt:
+`docs/seo/M9_BOUNDARY_RESOLUTION_WAVE1_OPERATION_ID_READBACK_2026-09-24_R1.md`
+
+```text
+ITEMS_PAGE_REQUEST_EXECUTED = false
+ITEMS_PAGE_PROVIDER_CALLS = 0
+ROW_COUNT = 25/25
+INDEX_SET = 0..24
+OPERATION_ID_UNIQUE = 25/25
+STATE_WAITING = 25/25
+POLL_COUNT_ZERO = 25/25
+ERROR_CODE_NULL = 25/25
+PARSE_ERROR_NULL = 25/25
+OPERATION_ID_READBACK_GATE = PASS
+```
+
+All 25 accepted provider operation IDs are now preserved in durable project state.
+
+No submit work remains.
+
+Collection is still closed until the conservative minimum five-minute deferred-processing interval is proven satisfied.
 
 ## Owner relay
 
