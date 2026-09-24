@@ -1,7 +1,7 @@
 # Octoport SEO — M9 progress
 
 Date: 2026-09-24
-Status: **BOUNDARY-RESOLUTION PRE-ACQ ACCEPTED / PROVIDER PREFLIGHT OPEN**
+Status: **WAVE-1 PROVIDER RELEASE READBACK PASS / WAITING LOCAL START RESULT**
 Branch: `seo/wordstat-batch-01-2026-09-16`
 
 ## Current accepted chain
@@ -13,7 +13,7 @@ M9 BOUNDARY-RESOLUTION PRE-ACQ = PASS / MAIN CHAT ACCEPTED
 M10A = BLOCKED
 
 CURRENT PHYSICAL STEP =
-M9 BOUNDARY-RESOLUTION PROVIDER PREFLIGHT / RELEASE
+M9 BOUNDARY-RESOLUTION WAVE-1 LOCAL START / RUNTIME READBACK
 ```
 
 ## Accepted M9 unresolved state
@@ -115,18 +115,48 @@ MAIN_CHAT_RETURN_QA = PASS
 OPEN_CRITICAL_DEFECTS = 0
 ```
 
-## Provider boundary
+## Wave-1 provider release
 
-No Bridge lifecycle command and no paid provider request is authorized yet.
+Release authority:
+`docs/seo/M9_BOUNDARY_RESOLUTION_WAVE1_PROVIDER_RELEASE_2026-09-24_R1.md`
 
-Pre-acquisition planning is accepted. Before any `start` or `submitN`:
+```text
+PROVIDER_PREFLIGHT = PASS
+BRIDGE_PACKAGE_AUTHORITY = YMB 0.1.9 / commit b218afb0187bd26af1d7ada3590b02edc2d4a2de
+OFFICIAL_TARIFF_RECHECK = PASS
+DAY_DEFERRED_UNIT_COST_RUB = 0.0305
+WAVE1_QUERY_COUNT = 25
+WAVE1_MAX_REQUESTS = 25
+WAVE1_MAX_COST_RUB = 0.7625
+RELEASE_REMOTE_READBACK = PASS
 
-1. recheck the current installed Bridge package/capability;
-2. fresh-check official Yandex Search API deferred-search contract and current tariff;
-3. freeze the exact Wave-1 provider release and cost cap;
-4. persist the release artifact;
-5. remote-readback the release;
-6. only then issue the first Bridge lifecycle command.
+FIRST_AUTHORIZED_ACTION = start
+START_EXPECTED_PROVIDER_CALLS = 0
+PAID_SUBMITN = CLOSED
+```
+
+The released local job id is:
+`octoport-m9br-wave1-20260924-r1`
+
+Only the exact released `SEARCH_ASYNC_BATCH_API_V1 action=start` may run now.
+
+Required return gate:
+
+```text
+request_executed = false
+provider_calls = 0
+total = 25
+PENDING = 25
+requests_started = 0
+operations_accepted = 0
+polls_started = 0
+unresolved = 25
+revision = 0
+```
+
+Any mismatch stops before paid provider execution.
+
+After the start result is persisted/read back, Main Chat must freshly recheck the tariff again immediately before any billable `submitN`. No blind retry.
 
 After future terminal, persisted and read-back Search evidence:
 - rebuild the Search-anchor map;
