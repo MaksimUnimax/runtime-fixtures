@@ -1,0 +1,154 @@
+{
+  "schema": "OCTOPORT_M10B_FINAL_AI_DIAGNOSTIC_CASE_SELECTION_INPUT_MANIFEST_V1",
+  "work_id": "OCTOPORT_SEO_M10B_FINAL_AI_DIAGNOSTIC_CASE_SELECTION_2026-09-24_R1",
+  "date": "2026-09-24",
+  "repository": "MaksimUnimax/runtime-fixtures",
+  "branch": "seo/wordstat-batch-01-2026-09-16",
+  "preparation_parent_head": "e93b975893fde2a3c4da9f84b5db4f2dd1341995",
+  "purpose": "Select final bounded AI-search diagnostic cases from the accepted M5 provisional hypothesis register against the frozen M10A Search-only baseline. Preserve complete lineage, no arbitrary quota, no AI provider execution.",
+  "method_authority": [
+    {
+      "path": "docs/seo/LEVEL2/M5_M10_SEARCH_ONLY_AND_ALICE_SEQUENCE_RULES.md",
+      "blob": "2c63e4228f9cc6f2d26555fcb02d445baafb1000"
+    },
+    {
+      "path": "docs/seo/LEVEL2/M9_M11_CLUSTER_IA_RULES.md",
+      "blob": "2f87943fbe9037c58276d2dd3a805d070bd070a4"
+    },
+    {
+      "path": "docs/seo/WORK_HANDOFF_RULE.md",
+      "blob": "71a031e74b921dade5998beb842fb3afcc4478e7"
+    },
+    {
+      "path": "docs/seo/M10B_STEP_PREPARATION_2026-09-24_R1.md",
+      "blob": "8a06eff867d569bd96d42b6527886b4a6015ef84"
+    }
+  ],
+  "frozen_inputs": [
+    {
+      "path": "docs/seo/M10A_MAIN_CHAT_ACCEPTANCE_2026-09-24_R1.md",
+      "blob": "a0cc44f9631067f4938044fe0a4c21e6ed4898cb",
+      "role": "FROZEN_M10A_ACCEPTANCE"
+    },
+    {
+      "path": "docs/seo/work_return/M10A_SEARCH_ONLY_PAGE_IA_BASELINE_2026-09-24_R1/M10A_CLUSTER_PAGE_IA_BASELINE.tsv",
+      "blob": "81a385400dffce94441525938ac4916d4db95cc2",
+      "role": "FROZEN_M10A_CLUSTER_BASELINE",
+      "expected_rows": 104
+    },
+    {
+      "path": "docs/seo/work_return/M10A_SEARCH_ONLY_PAGE_IA_BASELINE_2026-09-24_R1/M10A_CANNIBALIZATION_BOUNDARY.tsv",
+      "blob": "aafa9698cc1cc83751699ac45048b53d5505f96b",
+      "role": "FROZEN_M10A_BOUNDARY_BASELINE",
+      "expected_rows": 1399
+    },
+    {
+      "path": "docs/seo/work_return/M10A_SEARCH_ONLY_PAGE_IA_BASELINE_2026-09-24_R1/M10A_EXISTING_SITE_SURFACE.tsv",
+      "blob": "b1805310f77263a8734260fafb00ef0c5025d44a",
+      "role": "FROZEN_M10A_SITE_SURFACES",
+      "expected_rows": 4
+    },
+    {
+      "path": "docs/seo/M5_MAIN_CHAT_ACCEPTANCE_2026-09-23_R1.md",
+      "blob": "1ba7eda6e51fef110be3847b10819ddab344e5f9",
+      "role": "ACCEPTED_M5_AUTHORITY"
+    },
+    {
+      "path": "docs/seo/work_return/M5_AI_DIAGNOSTIC_HYPOTHESIS_REGISTER_2026-09-23_R1/M5_AI_DIAGNOSTIC_HYPOTHESIS_REGISTER.tsv",
+      "blob": "fea13f2d07c05952ac1adc68d062a9da43f4bb25",
+      "role": "M5_HYPOTHESIS_REGISTER",
+      "expected_rows": 65
+    },
+    {
+      "path": "docs/seo/work_return/M5_AI_DIAGNOSTIC_HYPOTHESIS_REGISTER_2026-09-23_R1/M5_INPUT_DISPOSITION_LEDGER.tsv",
+      "blob": "9f0ec02927c16046ec0d836133a5e660b8d29dbd",
+      "role": "M5_HYPOTHESIS_SOURCE_LINEAGE",
+      "expected_rows": 1000
+    },
+    {
+      "path": "docs/seo/M9_BOUNDARY_RESOLUTION_SEARCH_ANCHOR_MAP_2026-09-24_R2.tsv",
+      "blob": "32b6ec36c1707808519d7f885f511f4258f117e1",
+      "role": "CURRENT_EXACT_QUERY_TEXT_AUTHORITY",
+      "expected_rows": 65
+    },
+    {
+      "path": "docs/seo/PRODUCT_TRUTH.md",
+      "blob": "6a469d5743142d3e476afa5d2cda653fd411ecb8",
+      "role": "PRODUCT_BOUNDARY"
+    }
+  ],
+  "expected_mechanical_crosswalk": {
+    "m5_hypotheses": 65,
+    "hypotheses_with_direct_current_query_link": 43,
+    "hypotheses_without_direct_current_query_link": 22,
+    "direct_hypothesis_query_cluster_link_rows": 164,
+    "direct_linked_m10a_clusters": 19,
+    "unique_material_boundaries_touched_by_direct_linked_clusters": 363
+  },
+  "m10a_frozen_state": {
+    "cluster_rows": 104,
+    "search_owner_hold": 104,
+    "page_role_hold": 104,
+    "material_boundary_rows": 1399,
+    "same_page_authorizations": 0,
+    "separate_page_authorizations": 0,
+    "current_search_anchors": 65,
+    "no_current_exact_serp": 39
+  },
+  "hypothesis_disposition_vocabulary": [
+    "SELECT_FINAL_AI_DIAGNOSTIC",
+    "COVERED_BY_SELECTED_CASE",
+    "NO_MATERIAL_M10A_DECISION_LINK",
+    "HOLD_AMBIGUOUS_M10A_LINK",
+    "NO_EXECUTABLE_DIAGNOSTIC_PROMPT"
+  ],
+  "link_basis_vocabulary": [
+    "DIRECT_CURRENT_QUERY_LINK",
+    "DEFENSIBLE_TASK_SCOPE_LINK",
+    "NONE"
+  ],
+  "prompt_source_vocabulary": [
+    "EXACT_CURRENT_SEARCH_QUERY",
+    "M5_COMPARISON_KEY_DIAGNOSTIC_NOT_DEMAND",
+    "M5_PROVISIONAL_QUESTION_MINIMAL_USER_FORM_DIAGNOSTIC_NOT_DEMAND"
+  ],
+  "case_rules": [
+    "Every selected case names at least one affected M10A cluster.",
+    "Every selected case names at least one concrete frozen M10A HOLD state or material boundary affected.",
+    "Every selected case has specific expected information gain and possible later M10D effect.",
+    "No selected case exists solely for curiosity, representativeness, competitor monitoring, or product capability proof.",
+    "Direct current-query link is preferred.",
+    "Non-direct mapping requires task/intent + marketplace + product-boundary compatibility and cannot be lexical-only.",
+    "Case consolidation allowed only for equivalent prompt, affected cluster, diagnostic uncertainty, and expected decision impact.",
+    "Every selected case freezes exact prompt, variability plan, bounded max snapshots, stop rule, and evidence capture fields.",
+    "Provider execution remains unauthorized in M10B."
+  ],
+  "required_outputs": [
+    "M10B_SOURCE_MANIFEST.md",
+    "M10B_HYPOTHESIS_DISPOSITION.tsv",
+    "M10B_CASE_CLUSTER_XREF.tsv",
+    "M10B_CASE_BOUNDARY_XREF.tsv",
+    "M10B_FINAL_AI_DIAGNOSTIC_CASES.tsv",
+    "M10B_ADVERSARIAL_DIAGNOSTIC.tsv",
+    "M10B_QA.md",
+    "M10B_RETURN_MANIFEST.json"
+  ],
+  "prohibited": [
+    "AI_PROVIDER_CALLS",
+    "YANDEX_AI_EXECUTION",
+    "ALICE_EXECUTION",
+    "WEB_ACQUISITION_BY_WORK",
+    "GITHUB_WRITES_BY_WORK",
+    "M10A_BASELINE_MUTATION",
+    "M9_CLUSTER_MUTATION",
+    "SEARCH_BASELINE_REWRITE",
+    "FINAL_PAGE_OWNERSHIP",
+    "URL_H1_TITLE_IA_DECISION",
+    "M10C_EXECUTION",
+    "M10D_EXECUTION",
+    "M11_EXECUTION",
+    "ARBITRARY_CASE_QUOTA",
+    "FIRST_N_SELECTION",
+    "REPRESENTATIVE_SAMPLING"
+  ]
+}
