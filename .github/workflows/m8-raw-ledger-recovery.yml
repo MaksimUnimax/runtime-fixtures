@@ -1,0 +1,48 @@
+name: M8 raw ledger publication recovery
+
+on:
+  push:
+    branches:
+      - seo/wordstat-batch-01-2026-09-16
+    paths:
+      - docs/seo/work_return/M8_SEARCH_ONLY_SEMANTIC_MASTER_2026-09-24_R3/M8_RAW_OCCURRENCE_LEDGER.tsv.gz
+
+permissions:
+  contents: write
+
+jobs:
+  recover:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify gzip transport and recover raw ledger
+        shell: bash
+        run: |
+          set -euo pipefail
+          dir="docs/seo/work_return/M8_SEARCH_ONLY_SEMANTIC_MASTER_2026-09-24_R3"
+          gz="$dir/M8_RAW_OCCURRENCE_LEDGER.tsv.gz"
+          raw="$dir/M8_RAW_OCCURRENCE_LEDGER.tsv"
+
+          test -f "$gz"
+          echo "6f87fdadcc56d5aef493902f5bf17f44fbc37d113233c8531e4e9c0ea23d71c5  $gz" | sha256sum -c -
+          gzip -dc "$gz" > "$raw"
+          test "$(stat -c %s "$raw")" = "76810357"
+          echo "2091432f5eb131b425349954f0518cc8122e98461d932d9b2d7de64e6828bcfc  $raw" | sha256sum -c -
+          test "$(wc -l < "$raw")" = "25230"
+
+      - name: Commit recovered raw ledger
+        shell: bash
+        run: |
+          set -euo pipefail
+          dir="docs/seo/work_return/M8_SEARCH_ONLY_SEMANTIC_MASTER_2026-09-24_R3"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$dir/M8_RAW_OCCURRENCE_LEDGER.tsv"
+          git rm "$dir/M8_RAW_OCCURRENCE_LEDGER.tsv.gz"
+          git commit -m "seo: publish M8 raw occurrence ledger [skip ci]"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
