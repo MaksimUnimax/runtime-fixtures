@@ -171,6 +171,15 @@ def compose(directory, mode="development", release_authority=None):
         text = output[patch["target"]].decode()
         assert text.count(patch["old"]) == 1, (patch["target"], patch["old"][:100], text.count(patch["old"]))
         output[patch["target"]] = text.replace(patch["old"], patch["new"]).encode()
+    if mode == "store":
+        visible_brand_targets = {
+            "popup.html": 5,
+            "popup.js": 2,
+            "shared/application.js": 1,
+        }
+        for target, expected_count in visible_brand_targets.items():
+            assert output[target].count(b"Seller Agents") == expected_count, target
+            output[target] = output[target].replace(b"Seller Agents", b"Octoport")
     # This is a distinct composed package. The frozen donor stays untouched.
     for relative, data in output.items():
         data = data.replace(b"0.1.22", recipe["version"].encode())

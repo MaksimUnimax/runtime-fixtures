@@ -21,6 +21,7 @@ The exact candidate commit is the commit containing this receipt; release author
 Owner preapproved a replaceable minimalist octopus icon in OWNER_ICON_APPROVAL_20260924.json.
 The package contains transparent Octoport PNG icons at 16, 48 and 128 px and declares them in manifest.icons/action.default_icon.
 Store package name/title are Octoport; development package branding remains Seller Agents Development.
+Store-mode also changes only the visible popup/transfer/backup/delivery product label from Seller Agents to Octoport, with exact occurrence guards; internal protocol keys and backup format identifiers are unchanged.
 Firefox store derivative uses stable extension id octoport@octoport.ru; development keeps seller-agents@example.test.
 
 ## Public endpoints and trust input
@@ -47,8 +48,8 @@ Heavy-runner cgroup terminated; no A test unit remained.
 git diff --check: PASS.
 
 Pre-commit deterministic package preview:
-- Chromium OCTOPORT_v0.2.4_CHROMIUM_STORE.zip: 2,109,648 bytes; SHA-256 12c56358cb694439943876d9ca17a9519412f63f66fe18354405d16b9c66041b
-- Firefox OCTOPORT_v0.2.4_FIREFOX_STORE.zip: 3,943,351 bytes; SHA-256 e45d1f14f4ab658201792f7e24834cbb1b6962542b5fc26966dedf42045ca2cb
+- Chromium OCTOPORT_v0.2.4_CHROMIUM_STORE.zip: 2,109,608 bytes; SHA-256 4d87e730c378d942fc2ca70872b51a0b5afbf427269619a1a92e26f5af276665
+- Firefox OCTOPORT_v0.2.4_FIREFOX_STORE.zip: 3,943,306 bytes; SHA-256 ef94a855e392a40b887434e887bb00d407c2b935b336ef0d7adfe3c9ee437f58
 
 These hashes are preview identities, not release acceptance. After committing, A must regenerate external authority for the exact commit HEAD/tree, rebuild both archives, require byte-identical hashes above, then pass the existing C01 release validator.
 

@@ -78,6 +78,10 @@ with tempfile.TemporaryDirectory(prefix="octoport-store-contract-") as temp:
     worker = (runtime / "service_worker.js").read_text(encoding="utf-8")
     assert "globalThis.__SELLER_AGENTS_PACKAGED_CONFIG__=" in worker
     assert "control_plane_v2" in worker and "STORE REVIEW" in worker
+    for visible in ("popup.html", "popup.js", "shared/application.js"):
+        text = (runtime / visible).read_text(encoding="utf-8")
+        assert "Seller Agents" not in text
+        assert "Octoport" in text
     assert receipt["build_mode"] == "store"
     assert receipt["environment"] == "STORE REVIEW"
     assert receipt["package"]["name"] == "OCTOPORT_v0.2.4_CHROMIUM_STORE.zip"
