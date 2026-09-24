@@ -917,8 +917,35 @@ The sole exact-query non-anchor (`ии для продаж на маркетпл
 Next physical step is terminal Search-only HOLD / information-gain reconciliation. M10A remains blocked until Main Chat accepts that closure.
 
 
+## Terminal HOLD reconciliation — Work handoff ready
+
+Binding input manifest:
+`docs/seo/M9_TERMINAL_HOLD_RECONCILIATION_INPUT_MANIFEST_2026-09-24_R1.json`
+blob `535919cb6140f70fe6a8f4e326eb00a919ca8bd5`.
+
+Pre-handoff:
+`docs/seo/M9_TERMINAL_HOLD_RECONCILIATION_PRE_HANDOFF_2026-09-24_R1.md`
+blob `ccaef05269cb3784dcbcc3452c0ba7edcc93051c`.
+
+Canonical Work prompt:
+`docs/seo/M9_TERMINAL_HOLD_RECONCILIATION_WORK_PROMPT_2026-09-24_R1.md`
+blob `c9bdf5ee618e20d4985b5be0a178a7face75254a`.
+
+```text
+WORK_ID = OCTOPORT_SEO_M9_TERMINAL_HOLD_RECONCILIATION_2026-09-24_R1
+MATERIAL_HOLD = 1399
+EXPECTED_TERMINAL_CURRENT_SEARCH_CONFLICT = 477
+EXPECTED_HOLD_NO_SAFE_EXACT_QUERY_AUTHORITY = 922
+NONANCHOR_IDENTITIES = 39
+EXPECTED_AUTHORIZED_SEARCH_PROVIDER_CALLS = 0
+M10A_PAGE_OWNERSHIP_EXECUTION = FORBIDDEN
+```
+
+Work returns exactly 8 files. Main Chat independently accepts / holds / reworks and only then decides the M10A Search-baseline gate.
+
+
 ## Owner relay
 
 Wave-1 and Wave-2 Search acquisition and the complete R2 rerun are accepted. No further provider submit/collect is authorized from current evidence.
 
-Current next action is terminal Search-only HOLD / information-gain reconciliation. M10A remains blocked until that closure is independently accepted.
+Current next action is the released Work terminal Search-only HOLD / information-gain reconciliation. M10A remains blocked until that return is independently accepted.
