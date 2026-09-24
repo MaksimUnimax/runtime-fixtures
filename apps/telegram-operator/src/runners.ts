@@ -1,9 +1,11 @@
+import type { SchedulerCycleSummary } from "@product/health";
 import {
   runNoSessionBatch,
   type NoSessionObservationResult,
 } from "@product/health-runner";
 import type {
   MonitoringLaneRunner,
+  MonitoringNotification,
   MonitoringRunResult,
 } from "@product/monitoring-control";
 
@@ -58,6 +60,38 @@ export const runLlmNoSessionMonitoring: MonitoringLaneRunner = async () => {
   const results = await runNoSessionBatch();
   return resultFromNoSessionBatch(results);
 };
+
+export function resultFromDurableHealthCycle(
+  summary: SchedulerCycleSummary,
+): MonitoringRunResult {
+  const failures =
+    summary.retryableFailures + summary.terminalFailures + summary.timedOut;
+  return {
+    status: failures > 0 ? "FAILED" : "SUCCEEDED",
+    code: failures > 0 ? "HEALTH_SCHEDULER_EXECUTION_FAILED" : null,
+    summary: `Durable Health cycle: materialized=${summary.materialized}, claimed=${summary.claimed}, succeeded=${summary.succeeded}, failed=${failures}, reconciled=${summary.reconciled}.`,
+  };
+}
+
+export function createLlmMonitoringRunner(
+  runScheduledCycle: () => Promise<SchedulerCycleSummary>,
+  forcedRunner: MonitoringLaneRunner = runLlmNoSessionMonitoring,
+): MonitoringLaneRunner {
+  return async (input) =>
+    input.source === "FORCED"
+      ? forcedRunner(input)
+      : resultFromDurableHealthCycle(await runScheduledCycle());
+}
+
+export function shouldSendMonitoringNotification(
+  notification: MonitoringNotification,
+): boolean {
+  return !(
+    notification.lane === "LLM" &&
+    notification.source === "SCHEDULED" &&
+    notification.result.code !== "HEALTH_SCHEDULER_EXECUTION_FAILED"
+  );
+}
 
 export const runSwaggerApiMonitoring: MonitoringLaneRunner = async () => ({
   status: "SOURCE_UNAVAILABLE",

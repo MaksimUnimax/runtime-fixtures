@@ -232,6 +232,9 @@ importers:
       '@product/db':
         specifier: workspace:*
         version: link:../../packages/server/db
+      '@product/health':
+        specifier: workspace:*
+        version: link:../../packages/server/health
       '@product/health-runner':
         specifier: workspace:*
         version: link:../health-runner

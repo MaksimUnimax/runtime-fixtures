@@ -278,6 +278,7 @@ export async function runDurableHealthSchedulerCycle(
   options: DurableHealthSchedulerOptions,
 ): Promise<SchedulerCycleSummary> {
   const now = options.clock.now();
+  let reconciled = await options.repository.reconcilePersistedResults(now);
   const due = await options.repository.listDueSchedules(now);
   let materialized = 0;
   for (const schedule of due) {
@@ -388,7 +389,7 @@ export async function runDurableHealthSchedulerCycle(
       else retryableFailures += 1;
     }
   }
-  const reconciled = await options.repository.reconcilePersistedResults(
+  reconciled += await options.repository.reconcilePersistedResults(
     options.clock.now(),
   );
   return {

@@ -485,7 +485,7 @@ describe("durable Health scheduler contract", () => {
       ),
     ).toBe(true);
     expect(repo.schedules.get(ID)!.nextDueAt.valueOf()).toBe(
-      NOW.valueOf() + 21_600_000,
+      NOW.valueOf() + DEFAULT_NO_SESSION_CADENCE.intervalSeconds * 1_000,
     );
   });
 
@@ -506,6 +506,52 @@ describe("durable Health scheduler contract", () => {
     repo.runs.set(started.id, { ...started, healthRunId: "health-committed" });
     expect(await repo.reconcilePersistedResults()).toBe(1);
     expect(repo.runs.get(started.id)?.state).toBe("SUCCEEDED");
+  });
+
+  it("reconciles a committed result before claiming work after restart", async () => {
+    const repo = new MemoryScheduler();
+    const created = await repo.materializeDueSlot(ID, NOW);
+    const claimed = await repo.claimNext({
+      ownerId: "dead-worker",
+      now: NOW,
+      leaseMs: 1_000,
+    });
+    const started = await repo.startRun({
+      runId: created!.id,
+      ownerId: "dead-worker",
+      leaseId: claimed!.leaseId!,
+      now: NOW,
+    });
+    repo.runs.set(started.id, {
+      ...started,
+      healthRunId: "health-committed",
+      healthState: "BROKEN",
+    });
+    let executed = 0;
+    const later = new Date(NOW.valueOf() + 2_000);
+    const summary = await runDurableHealthSchedulerCycle({
+      repository: repo,
+      clock: { now: () => later },
+      ownerId: "recovery-worker",
+      leaseMs: 10_000,
+      maxConcurrency: 1,
+      execute: async () => {
+        executed += 1;
+        return {
+          outcome: "SUCCEEDED",
+          healthRunId: "unexpected-second-probe",
+          healthState: "HEALTHY",
+        };
+      },
+    });
+    expect(summary.reconciled).toBe(1);
+    expect(summary.claimed).toBe(0);
+    expect(executed).toBe(0);
+    expect(repo.runs.get(started.id)).toMatchObject({
+      state: "SUCCEEDED",
+      healthRunId: "health-committed",
+      healthState: "BROKEN",
+    });
   });
 
   it("closes a running timeout and leaves on-demand identity separate", async () => {

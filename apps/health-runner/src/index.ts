@@ -2,7 +2,10 @@ import type { BrowserFamily } from "@product/shared";
 import type { BrowserDriver } from "./browser-driver.js";
 
 export type { BrowserFamily } from "@product/shared";
-export { createNoSessionHealthSchedules } from "./scheduler-targets.js";
+export {
+  createNoSessionHealthSchedules,
+  ensureNoSessionHealthSchedules,
+} from "./scheduler-targets.js";
 export type {
   BrowserDriver,
   BrowserDriverErrorCode,
