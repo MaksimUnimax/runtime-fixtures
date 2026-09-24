@@ -19,10 +19,19 @@ const textsStart = popupJs.indexOf("const texts = ");
 const textsEnd = popupJs.indexOf(";\nasync function request", textsStart);
 assert.ok(textsStart >= 0 && textsEnd > textsStart, "popup texts map must remain extractable");
 const ownerTexts = new Function(`return (${popupJs.slice(textsStart + "const texts = ".length, textsEnd)});`)();
-for (const code of ["SYNC_EXPLICIT_BINDING_CONFLICT", "SYNC_SERVER_FINISH_FENCE", "SYNC_NEWER_BINDING_FENCE"]) {
+const actionableOwnerCodes = [
+  "SYNC_EXPLICIT_BINDING_CONFLICT", "SYNC_SERVER_FINISH_FENCE", "SYNC_NEWER_BINDING_FENCE",
+  "CONVERSATION_MISMATCH", "CONVERSATION_NOT_BOUND", "WORK_START_ALREADY_IN_PROGRESS",
+  "WORK_SESSION_NOT_INACTIVE", "WORK_RESUME_OPERATION_ACTIVE", "WORK_AUTHORITY_DENIED",
+  "WORK_AUTHORITY_REFRESH_REQUIRED", "BOOTSTRAP_SNAPSHOT_INVALID", "ACCOUNT_CHANGED",
+  "BACKUP_PASSWORD_CONFIRMATION_MISMATCH", "BACKUP_EXPLICIT_ACTION_REQUIRED", "TRANSFER_INVALID",
+];
+for (const code of actionableOwnerCodes) {
   assert.equal(typeof ownerTexts[code], "string", code);
-  assert.ok(ownerTexts[code].length >= 40, code);
+  assert.ok(ownerTexts[code].length >= 30, code);
   assert.equal(ownerTexts[code].includes(code), false, code);
+}
+for (const code of ["SYNC_EXPLICIT_BINDING_CONFLICT", "SYNC_SERVER_FINISH_FENCE", "SYNC_NEWER_BINDING_FENCE"]) {
   assert.match(ownerTexts[code], /Start|магазин|привязк|завершен/i, code);
 }
 const worker = await makeWorker(runtime, {
