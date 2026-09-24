@@ -148,8 +148,8 @@ check_site_content() {
   grep -Fq '<title>Octoport — Support</title>' <<<"${support}" || fail "support page title is missing"
   grep -Fq 'support@octoport.ru' <<<"${support}" || fail "support page contact is missing"
   grep -Fq 'Safari в бету не входит' <<<"${support}" || fail "support page Safari beta boundary is missing"
-  grep -F -i -q -- 'не отправляйте секреты' <<<"${support}" || fail "support page sensitive-data warning is missing"
-  grep -F -i -q -- 'редактирование цен, карточек товаров и ставок не поддерживается' <<<"${support}" \
+  grep -Fq 'Не отправляйте секреты' <<<"${support}" || fail "support page sensitive-data warning is missing"
+  grep -Fq 'Редактирование цен, карточек товаров и ставок не поддерживается' <<<"${support}" \
     || fail "support page read-only boundary is missing"
   grep -Fq 'не отправляйте полные экспорты AI-разговоров' <<<"${support}" \
     || fail "support page AI conversation export warning is missing"
