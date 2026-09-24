@@ -796,9 +796,22 @@
     if (cleanupFailure) throw cleanupFailure;
   }); return publicStatus(); }
   async function cancelActivation() { await init(); await queueMutation(async () => { activationFlight = null; pollingFlight = null; await commit({ ...state, generation: state.generation + 1, pending: null, lastError: null }, state.authority, "activation_cancelled"); }); return publicStatus(); }
+  function validSyncReadEntityId(value) {
+    if (typeof value !== "string") return false;
+    if (/^conversation:[a-f0-9]{64}$/.test(value)) return true;
+    if (!/^store:.{1,122}$/s.test(value)) return false;
+    return [...value.slice("store:".length)].every(character => {
+      const code = character.charCodeAt(0);
+      return code > 0x1f && code !== 0x7f;
+    });
+  }
   async function synchronizeMetadata(body) {
     await init(); if (!state.credentials) throw error("AUTH_REQUIRED"); await ensureAuthOwnership();
-    if (!body || body.syncVersion !== "seller_agents_sync_v1" || !Array.isArray(body.entries) || body.entries.length < 1 || body.entries.length > 32) throw error("SYNC_REQUEST_INVALID");
+    const entries = body?.entries, readEntityIds = body?.readEntityIds ?? [];
+    if (!body || body.syncVersion !== "seller_agents_sync_v1" || !Array.isArray(entries) || entries.length > 32 ||
+      !Array.isArray(readEntityIds) || readEntityIds.length > 32 || entries.length + readEntityIds.length < 1 ||
+      entries.length + readEntityIds.length > 32 || new Set(readEntityIds).size !== readEntityIds.length ||
+      readEntityIds.some(value => !validSyncReadEntityId(value))) throw error("SYNC_REQUEST_INVALID");
     return (await authenticatedRequest("/v1/sync", { method: "POST", body: { ...body, installationId: state.credentials.deviceId } })).body;
   }
   async function transferAuth() {

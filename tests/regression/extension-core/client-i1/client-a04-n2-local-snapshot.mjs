@@ -193,7 +193,7 @@ await test("N2-A07", "response after dialogue change is ignored without mutating
   } finally { worker.close(); }
 });
 
-await test("N2-A08", "production sync request keeps old wire shape until server-first rollout", async () => {
+await test("N2-A08", "mutation sync preserves historical wire shape while snapshot reads use a separate request", async () => {
   const worker = await makeWorker(runtime, { accountId: accountA, deviceId: deviceA });
   try {
     const store = await addStore(worker);
@@ -337,6 +337,222 @@ await test("N2-A13", "legacy unscoped explicit conflict without server state rem
     assert.equal(decision.allowed, false);
     assert.equal(decision.code, "SYNC_EXPLICIT_BINDING_CONFLICT");
   } finally { reopened.close(); }
+});
+
+await test("N2-A14", "control client accepts bounded canonical read-only sync and rejects invalid read shapes", async () => {
+  let body = null;
+  const worker = await makeWorker(runtime, {
+    accountId: accountA,
+    deviceId: deviceA,
+    syncFetch: async (_url, init) => {
+      body = JSON.parse(init.body);
+      return new Response(JSON.stringify({
+        syncVersion: "seller_agents_sync_v1",
+        results: [],
+        snapshots: body.readEntityIds.map(entityId => ({ entityId, serverRevision: 0, serverState: null })),
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    },
+  });
+  try {
+    const entityId = expectedEntity(keyOf(worker));
+    const response = await worker.call("SellerAgentsControlClient.synchronizeMetadata", {
+      syncVersion: "seller_agents_sync_v1",
+      entries: [],
+      readEntityIds: [entityId],
+    });
+    assert.deepEqual(body.entries, []);
+    assert.deepEqual(body.readEntityIds, [entityId]);
+    assert.equal(body.installationId, deviceA);
+    assert.equal(response.snapshots[0].entityId, entityId);
+    for (const readEntityIds of [[], [entityId, entityId], ["legacy-random-binding-id"]]) {
+      await assert.rejects(
+        () => worker.call("SellerAgentsControlClient.synchronizeMetadata", {
+          syncVersion: "seller_agents_sync_v1",
+          entries: [],
+          readEntityIds,
+        }),
+        error => error?.code === "SYNC_REQUEST_INVALID",
+      );
+    }
+  } finally { worker.close(); }
+});
+
+await test("N2-A15", "read-only conversation snapshot uses canonical wire and applies bounded remote knowledge", async () => {
+  let requestBody = null;
+  const worker = await makeWorker(runtime, {
+    accountId: accountA,
+    deviceId: deviceA,
+    syncFetch: async (_url, init) => {
+      requestBody = JSON.parse(init.body);
+      const entityId = requestBody.readEntityIds[0];
+      const digest = entityId.slice("conversation:".length);
+      return new Response(JSON.stringify({
+        syncVersion: "seller_agents_sync_v1",
+        results: [],
+        snapshots: [{
+          entityId,
+          serverRevision: 4,
+          serverState: {
+            kind: "BINDING_UPSERT",
+            conversationKeyDigest: digest,
+            bindingId: "remote-read-binding",
+            bindingRevision: 4,
+            storeId: "remote-store-without-local-credentials",
+            marketplace: "ozon",
+            credentialRevision: "remote-read-credential",
+            bindingState: "BOUND",
+            workGeneration: null,
+          },
+        }],
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    },
+  });
+  try {
+    const key = keyOf(worker), entityId = expectedEntity(key);
+    const result = await worker.call("SellerAgentsSyncJournal.syncConversationSnapshot", {
+      conversationKey: key,
+      reason: "n2-test",
+    });
+    assert.equal(result.ok, true, JSON.stringify(result));
+    assert.equal(result.read, 1);
+    assert.equal(result.classification, "SERVER_AHEAD_COMPATIBLE");
+    assert.equal(result.adoption.adopted, false);
+    assert.equal(result.adoption.code, "SYNC_SNAPSHOT_LOCAL_CREDENTIALS_REQUIRED");
+    assert.deepEqual(requestBody.entries, []);
+    assert.deepEqual(requestBody.readEntityIds, [entityId]);
+    const state = await worker.call("SellerAgentsSyncJournal.read");
+    assert.equal(state.serverRevisions[`${accountA}\u001f${entityId}`], 4);
+  } finally { worker.close(); }
+});
+
+await test("N2-A16", "popup-open snapshot read is background-only, rare and does not block local popup state", async () => {
+  let release, requestBody = null, syncCalls = 0;
+  const pendingResponse = new Promise(resolve => { release = resolve; });
+  const worker = await makeWorker(runtime, {
+    accountId: accountA,
+    deviceId: deviceA,
+    syncFetch: async (_url, init) => {
+      syncCalls += 1;
+      requestBody = JSON.parse(init.body);
+      return pendingResponse;
+    },
+  });
+  try {
+    const popup = await Promise.race([
+      worker.popup({ type: "SA_POPUP_STATE", tab_id: worker.tabId }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("popup blocked on snapshot network")), 250)),
+    ]);
+    assert.equal(popup.ok, true);
+    await until(() => requestBody, "N2 popup snapshot request");
+    assert.deepEqual(requestBody.entries, []);
+    assert.deepEqual(requestBody.readEntityIds, [expectedEntity(keyOf(worker))]);
+    release(new Response(JSON.stringify({
+      syncVersion: "seller_agents_sync_v1",
+      results: [],
+      snapshots: [{ entityId: requestBody.readEntityIds[0], serverRevision: 0, serverState: null }],
+    }), { status: 200, headers: { "content-type": "application/json" } }));
+    await until(() => (worker.backing.local[JOURNAL]?.snapshotAt || 0) > 0, "N2 popup snapshot applied");
+    const second = await worker.popup({ type: "SA_POPUP_STATE", tab_id: worker.tabId });
+    assert.equal(second.ok, true);
+    await new Promise(resolve => setTimeout(resolve, 25));
+    assert.equal(syncCalls, 1, "success cooldown keeps popup refresh from becoming polling");
+    const cooldown = await worker.call("SellerAgentsSyncJournal.syncConversationSnapshot", {
+      conversationKey: keyOf(worker),
+      reason: "repeat-popup",
+    });
+    assert.equal(cooldown.ok, true);
+    assert.equal(cooldown.read, 0);
+    assert.equal(cooldown.code, "SYNC_SNAPSHOT_COOLDOWN");
+  } finally { worker.close(); }
+});
+
+await test("N2-A17", "repeated popup refresh is bounded by snapshot cooldown instead of polling", async () => {
+  let reads = 0;
+  const worker = await makeWorker(runtime, {
+    accountId: accountA,
+    deviceId: deviceA,
+    syncFetch: async (_url, init) => {
+      reads += 1;
+      const body = JSON.parse(init.body);
+      return new Response(JSON.stringify({
+        syncVersion: "seller_agents_sync_v1",
+        results: [],
+        snapshots: [{ entityId: body.readEntityIds[0], serverRevision: 0, serverState: null }],
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    },
+  });
+  try {
+    for (let index = 0; index < 5; index += 1) {
+      const popup = await worker.popup({ type: "SA_POPUP_STATE", tab_id: worker.tabId });
+      assert.equal(popup.ok, true);
+    }
+    await until(() => reads === 1, "N2 one bounded popup read");
+    await new Promise(resolve => setTimeout(resolve, 25));
+    assert.equal(reads, 1);
+  } finally { worker.close(); }
+});
+
+await test("N2-A18", "pending local explicit change wins over equal-or-older snapshot revision", async () => {
+  const worker = await makeWorker(runtime, { accountId: accountA, deviceId: deviceA });
+  try {
+    const store = await addStore(worker), binding = await startAndBind(worker, store), key = keyOf(worker);
+    const intent = await worker.call("SellerAgentsSyncJournal.createSnapshotReadIntent", { conversationKey: key, binding, store });
+    const pending = Object.values((await worker.call("SellerAgentsSyncJournal.read")).entries)
+      .find(entry => entry.kind === "BINDING_UPSERT");
+    assert.ok(pending);
+    const result = await worker.call("SellerAgentsSyncJournal.applySnapshotRead", {
+      intent,
+      currentConversationKey: key,
+      binding,
+      store,
+      snapshots: [{
+        entityId: intent.entityIds[0],
+        serverRevision: Number(pending.baseRevision || 0),
+        serverState: Number(pending.baseRevision || 0) === 0 ? null : remoteState(intent, store, {
+          bindingId: "older-server-binding",
+          bindingRevision: Number(pending.baseRevision || 0),
+        }),
+      }],
+    });
+    assert.equal(result.applied, false);
+    assert.equal(result.code, "SYNC_SNAPSHOT_LOCAL_EXPLICIT_AHEAD");
+    const decision = await worker.call("SellerAgentsSyncJournal.assertCurrentActionAllowed", { conversationKey: key, binding, store });
+    assert.equal(decision.allowed, true);
+  } finally { worker.close(); }
+});
+
+await test("N2-A19", "snapshot service failure preserves local Work and uses bounded retry cooldown", async () => {
+  let reads = 0;
+  const worker = await makeWorker(runtime, {
+    accountId: accountA,
+    deviceId: deviceA,
+    syncFetch: async () => {
+      reads += 1;
+      return new Response(JSON.stringify({ error: { code: "SERVICE_UNAVAILABLE" } }), {
+        status: 503,
+        headers: { "content-type": "application/json" },
+      });
+    },
+  });
+  try {
+    const store = await addStore(worker), binding = await startAndBind(worker, store), key = keyOf(worker);
+    const popup = await worker.popup({ type: "SA_POPUP_STATE", tab_id: worker.tabId });
+    assert.equal(popup.ok, true);
+    assert.equal(popup.context.work_active, true);
+    await until(() => reads === 1, "N2 failed popup snapshot read");
+    const decision = await worker.call("SellerAgentsSyncJournal.assertCurrentActionAllowed", { conversationKey: key, binding, store });
+    assert.equal(decision.allowed, true);
+    const again = await worker.call("SellerAgentsSyncJournal.syncConversationSnapshot", {
+      conversationKey: key,
+      binding,
+      store,
+      reason: "failed-read-repeat",
+    });
+    assert.equal(again.ok, true);
+    assert.equal(again.read, 0);
+    assert.equal(again.code, "SYNC_SNAPSHOT_COOLDOWN");
+    assert.equal(reads, 1);
+  } finally { worker.close(); }
 });
 
 const failures = results.filter(row => row.status === "FAIL");

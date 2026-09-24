@@ -11,9 +11,13 @@
   const MAX_PAYLOAD_BYTES = 1800;
   const RETRY_MS = [5000, 15000, 30000, 60000, 120000, 300000];
   const MAX_RETRY_MS = 300000;
+  const SNAPSHOT_READ_RETRY_MS = 60000;
+  const SNAPSHOT_READ_SUCCESS_MS = 300000;
   let stateFlight = null;
   let mutationFlight = Promise.resolve();
   let syncFlight = null;
+  const snapshotFlights = new Map();
+  const snapshotNextAllowedAt = new Map();
 
   const text = (value, max = 256) => typeof value === "string" && value.length <= max ? value : null;
   const entityKey = value => typeof value === "string" && value.length > 0 && value.length <= 128;
@@ -435,6 +439,9 @@
       const current = clone(await read()), slot = stateSlot(auth.accountId, entityId), priorRevision = integer(current.serverRevisions[slot]) || 0;
       const newerExplicit = latestExplicitEntry(current, auth.accountId, entityId, Number(intent.journalSequence));
       if (newerExplicit) return { applied: false, code: "SYNC_SNAPSHOT_CONTEXT_STALE" };
+      const unresolvedExplicit = latestExplicitEntry(current, auth.accountId, entityId);
+      if (unresolvedExplicit && serverRevision <= integer(unresolvedExplicit.baseRevision))
+        return { applied: false, code: "SYNC_SNAPSHOT_LOCAL_EXPLICIT_AHEAD", serverRevision };
       if (serverRevision < priorRevision) return { applied: false, code: "SYNC_SNAPSHOT_STALE", serverRevision: priorRevision };
       if (serverState?.kind === "DELIVERY_MARKER" && current.serverStates[slot]) {
         const classification = SellerAgentsReconciliation.classifyComparison({
@@ -449,7 +456,6 @@
           return { applied: true, code: "SYNC_SNAPSHOT_LATE_DELIVERY_OBSOLETE", serverRevision, classification };
         }
       }
-      const unresolvedExplicit = latestExplicitEntry(current, auth.accountId, entityId);
       if (serverState?.kind === "DELIVERY_MARKER" && unresolvedExplicit) {
         current.serverRevisions[slot] = serverRevision;
         current.snapshotAt = Date.now();
@@ -483,6 +489,41 @@
       return { applied: true, code: null, serverRevision, classification, adoption: adoption ? clone(adoption) : null };
     });
   }
+  async function syncConversationSnapshot(input = {}) {
+    const intent = await createSnapshotReadIntent(input);
+    const entityId = intent.entityIds[0], snapshotKey = stateSlot(intent.accountId, entityId);
+    const reason = text(input.reason, 64) || "conversation_open";
+    if (snapshotFlights.has(snapshotKey)) return snapshotFlights.get(snapshotKey);
+    const now = Date.now(), nextAllowedAt = Number(snapshotNextAllowedAt.get(snapshotKey) || 0);
+    if (nextAllowedAt > now) return { ok: true, read: 0, reason, code: "SYNC_SNAPSHOT_COOLDOWN", nextAllowedAt };
+    snapshotNextAllowedAt.set(snapshotKey, now + SNAPSHOT_READ_RETRY_MS);
+    const flight = (async () => {
+      try {
+        const result = await SellerAgentsControlClient.synchronizeMetadata({
+          syncVersion: VERSION,
+          entries: [],
+          readEntityIds: [...intent.entityIds],
+        });
+        if (!result || result.syncVersion !== VERSION || !Array.isArray(result.results) || result.results.length !== 0 ||
+          !Array.isArray(result.snapshots) || result.snapshots.length !== intent.entityIds.length)
+          throw Object.assign(new Error("SYNC_SNAPSHOT_RESPONSE_INVALID"), { code: "SYNC_SNAPSHOT_RESPONSE_INVALID" });
+        const applied = await applySnapshotRead({
+          intent,
+          currentConversationKey: intent.conversationKey,
+          binding: input.binding || null,
+          store: input.store || null,
+          workGeneration: input.workGeneration || null,
+          snapshots: result.snapshots,
+        });
+        snapshotNextAllowedAt.set(snapshotKey, Date.now() + SNAPSHOT_READ_SUCCESS_MS);
+        return { ok: true, read: intent.entityIds.length, reason, ...applied };
+      } catch (error) {
+        return { ok: false, read: 0, reason, code: error?.code || "SYNC_SNAPSHOT_READ_FAILED" };
+      }
+    })().finally(() => snapshotFlights.delete(snapshotKey));
+    snapshotFlights.set(snapshotKey, flight);
+    return flight;
+  }
   async function assertCurrentActionAllowed(input = {}) {
     const auth = await identity();
     const conversationKey = normalizedConversationKey(input.conversationKey || input.binding?.conversation_key);
@@ -509,6 +550,7 @@
     entityIdForConversation: conversationEntityId,
     createSnapshotReadIntent,
     applySnapshotRead,
+    syncConversationSnapshot,
     assertCurrentActionAllowed,
     syncNow,
     notifyNetworkRecovery: () => globalThis.SellerAgentsTechnicalScheduler?.wake?.("network_recovery") || syncNow("network_recovery")
