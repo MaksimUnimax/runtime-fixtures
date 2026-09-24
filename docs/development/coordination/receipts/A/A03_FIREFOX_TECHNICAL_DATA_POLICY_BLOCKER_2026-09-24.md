@@ -41,6 +41,16 @@ Server/B-owned bootstrap path:
 - Health authority follows the same bootstrap browser dependency.
 
 This means the current implementation transmits Firefox browser metadata as a functional prerequisite. A cannot truthfully make `technicalAndInteraction` optional in the manifest while leaving that transmission mandatory.
+
+## Current integrated-store evidence
+
+C built the current-main Firefox STORE package from `4ae52bb7d79ca02487cf70f9966dac5530c14e8f`:
+- package: `/root/octoport-control/logs/C/store-release-4ae52bb/OCTOPORT_v0.2.4_FIREFOX_STORE.zip`;
+- SHA-256: `713e2a857974da3a3b94bcf6d66fe226e46e8de64c55ae4815d0e2fc19ff8ece`;
+- its `manifest.json` declares only required `authenticationInfo` and `personallyIdentifyingInfo`; it does not declare `technicalAndInteraction`;
+- the composition receipt explicitly records `installed_acceptance: false`.
+
+The current source still makes browser metadata mandatory in the relevant control-plane path: `packages/control-client/src/client.js` sends browser family/version for device authorization and bootstrap, while `BootstrapRequestShape.browser` in `packages/contracts/src/index.ts` requires both `family` and `version`. Therefore the freshly composed STORE package does not remove this blocker and must not be treated as AMO-ready/publication acceptance.
 ## Required cross-owner decision / acceptance
 
 A requests controller/C assignment for one bounded shared-contract change.
@@ -65,7 +75,7 @@ Firefox source/package/temp-install evidence remains valid for the previously te
 No manifest change was made in this step because adding an optional declaration without implementing a real opt-out would misrepresent runtime behavior.
 
 Independent A product work has now exhausted the currently ready queue:
-- N2 client read rollout is submitted to C;
+- N2 client read rollout is integrated in `main` at `4ae52bb7d79ca02487cf70f9966dac5530c14e8f`;
 - Opera reviewer assets are already prepared and must not be regenerated;
 - ordinary installed owner marketplace import requires owner-authenticated profile access;
 - Yandex stable/store update route is external;
