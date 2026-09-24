@@ -64,7 +64,10 @@ function fingerprint(entry: SellerAgentsSyncEntryV1): string {
   return createHash("sha256").update(JSON.stringify(entry)).digest("hex");
 }
 export class SyncService {
-  public constructor(private readonly repository: SyncRepository) {}
+  public constructor(
+    private readonly repository: SyncRepository,
+    private readonly snapshotReader?: SyncSnapshotReader,
+  ) {}
   public async apply(
     principal: ExtensionPrincipal,
     body: unknown,
@@ -72,6 +75,9 @@ export class SyncService {
     const request = SellerAgentsSyncRequestV1Schema.parse(body);
     if (request.installationId !== principal.deviceId)
       throw new SyncRequestError("ACCOUNT_IDENTITY_MISMATCH");
+    const readEntityIds = request.readEntityIds ?? [];
+    if (readEntityIds.length > 0 && !this.snapshotReader)
+      throw new Error("SYNC_SNAPSHOT_READER_UNAVAILABLE");
     const results = [];
     for (const entry of request.entries) {
       const parsed = SellerAgentsSyncEntryV1Schema.parse(entry);
@@ -102,9 +108,17 @@ export class SyncService {
         });
       }
     }
+    const snapshots =
+      readEntityIds.length > 0
+        ? await this.snapshotReader!.readSnapshots({
+            principal,
+            entityIds: readEntityIds,
+          })
+        : undefined;
     return SellerAgentsSyncResponseV1Schema.parse({
       syncVersion: request.syncVersion,
       results,
+      ...(snapshots ? { snapshots } : {}),
     });
   }
 }
