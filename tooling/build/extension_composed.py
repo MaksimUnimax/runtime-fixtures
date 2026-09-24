@@ -171,6 +171,21 @@ def compose(directory, mode="development", release_authority=None):
     if parsed_config is not None:
         config_bytes = json.dumps(parsed_config, ensure_ascii=False, separators=(",", ":"))
         output["service_worker.js"] = b"globalThis.__SELLER_AGENTS_PACKAGED_CONFIG__=" + json.dumps(config_bytes).encode() + b";\n" + output["service_worker.js"]
+        if mode == "store":
+            development_config = (ROOT / "packages/control-client/src/config.js").read_bytes()
+            assert output["service_worker.js"].count(development_config) == 1
+            store_config_module = b"""/* Store package requires the build-time packaged authority; no development fallback. */
+(() => {
+  "use strict";
+  const override = globalThis.__SELLER_AGENTS_PACKAGED_CONFIG__;
+  if (!override) throw new Error("PACKAGED_CONFIG_REQUIRED");
+  const value = typeof override === "string" ? JSON.parse(override) : override;
+  globalThis.SellerAgentsControlConfig = Object.freeze(value);
+})();
+"""
+            output["service_worker.js"] = output["service_worker.js"].replace(
+                development_config, store_config_module
+            )
     for patch in json.loads(read_input(recipe["application_patches"], inputs)):
         text = output[patch["target"]].decode()
         assert text.count(patch["old"]) == 1, (patch["target"], patch["old"][:100], text.count(patch["old"]))
@@ -184,6 +199,15 @@ def compose(directory, mode="development", release_authority=None):
         for target, expected_count in visible_brand_targets.items():
             assert output[target].count(b"Seller Agents") == expected_count, target
             output[target] = output[target].replace(b"Seller Agents", b"Octoport")
+        popup = output["popup.html"]
+        assert popup.count("Локальная разработка".encode()) == 1
+        assert popup.count(b"LOCAL DEVELOPMENT") == 1
+        popup = popup.replace("Локальная разработка".encode(), "Проверяем аккаунт…".encode())
+        popup = popup.replace(
+            b"LOCAL DEVELOPMENT \xc2\xb7 I1-C1 \xc2\xb7 ",
+            b"BETA \xc2\xb7 ",
+        )
+        output["popup.html"] = popup
     # This is a distinct composed package. The frozen donor stays untouched.
     for relative, data in output.items():
         data = data.replace(b"0.1.22", recipe["version"].encode())

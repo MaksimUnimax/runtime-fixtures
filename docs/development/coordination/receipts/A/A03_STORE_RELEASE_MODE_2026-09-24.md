@@ -23,6 +23,7 @@ Owner preapproved a replaceable minimalist octopus icon in OWNER_ICON_APPROVAL_2
 The package contains transparent Octoport PNG icons at 16, 48 and 128 px and declares them in manifest.icons/action.default_icon.
 Store package name/title are Octoport; development package branding remains Seller Agents Development.
 Store-mode also changes only the visible popup/transfer/backup/delivery product label from Seller Agents to Octoport, with exact occurrence guards; internal protocol keys and backup format identifiers are unchanged.
+Store sanitation removes the checked-in LOCAL DEVELOPMENT/loopback fallback module from the packaged worker and requires the packaged authority at runtime. The popup initial account placeholder/footer are store-safe (no development labeling). Development mode retains its original local fallback and labels.
 Firefox store derivative uses stable extension id octoport@octoport.ru; development keeps seller-agents@example.test.
 
 ## Public endpoints and trust input
@@ -43,15 +44,16 @@ No production mutation or DB mutation was performed.
 ## Verification before commit
 
 Targeted store contract: PASS, including negative rejection for HTTP origins, PRODUCTION authority in this PREPRODUCTION lane, duplicate trust key IDs and duplicate trust fingerprints.
-A bounded read-only Luna review found no current-candidate integration blocker after this hardening. Its remaining low cross-owner observation is that the shared C01 validator does not independently assert the Firefox stable add-on ID; A's Firefox builder/contract does assert octoport@octoport.ru, and C/controller should add the C01 identity assertion before relying on that shared gate for Firefox submission.
+A later store-hygiene audit found and fixed two store-only development leaks that the earlier C01 did not detect: the checked-in LOCAL DEVELOPMENT loopback fallback remained embedded after the packaged config prefix, and popup initial/footer text still exposed local-development labeling. Store mode now replaces the config module with a packaged-authority-required module and rewrites the initial/footer text; regression tests forbid LOCAL DEVELOPMENT, loopback origins, config-local-development and the Russian local-development label anywhere in the relevant store runtime.
+A bounded read-only Luna review of the preceding authority-hardened candidate found no integration blocker in that reviewed scope. Its remaining low cross-owner observation is that the shared C01 validator does not independently assert the Firefox stable add-on ID; A's Firefox builder/contract does assert octoport@octoport.ru, and C/controller should add the C01 identity assertion before relying on that shared gate for Firefox submission.
 Development builder regression: PASS and deterministic.
 Full extension_core via A heavy/build: PASS, 119 gate processes, Node v24.20.0; installed_acceptance=false and live_provider_calls=0.
 Heavy-runner cgroup terminated; no A test unit remained.
 git diff --check: PASS.
 
 Pre-commit deterministic package preview:
-- Chromium OCTOPORT_v0.2.4_CHROMIUM_STORE.zip: 2,109,608 bytes; SHA-256 4d87e730c378d942fc2ca70872b51a0b5afbf427269619a1a92e26f5af276665
-- Firefox OCTOPORT_v0.2.4_FIREFOX_STORE.zip: 3,943,306 bytes; SHA-256 ef94a855e392a40b887434e887bb00d407c2b935b336ef0d7adfe3c9ee437f58
+- Chromium OCTOPORT_v0.2.4_CHROMIUM_STORE.zip: 2,108,729 bytes; SHA-256 7f631db34ac7c7966b6e7cf1b8ea84864e6e5cafff3494827dc181fdc86478ef
+- Firefox OCTOPORT_v0.2.4_FIREFOX_STORE.zip: 3,941,573 bytes; SHA-256 ccdd95cee7c1b6e35369095b8ebd751a9c9572b686aed48ea917850b7f13363b
 
 These hashes are package identities, not installed/store acceptance. Exact committed-head C01 validation is recorded out-of-tree under /root/octoport-control/logs/A/store-release-final/ after the final source commit, because embedding that final HEAD/tree back into this tracked receipt would itself create a new source identity. A state/inbox names the exact submitted candidate.
 
