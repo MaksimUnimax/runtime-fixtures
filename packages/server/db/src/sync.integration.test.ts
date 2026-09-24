@@ -5,6 +5,7 @@ import {
   createDatabaseRuntime,
   createExtensionAuthRepository,
   createSyncRepository,
+  createSyncSnapshotReader,
   type DatabaseRuntime,
 } from "./index.js";
 import { runMigrations } from "./migrations.js";
@@ -46,6 +47,7 @@ type SyncResponse = { statusCode: number; json(): SyncResponseBody };
 let runtime: DatabaseRuntime;
 let auth: ExtensionAuthService;
 let service: SyncService;
+let reader: ReturnType<typeof createSyncSnapshotReader>;
 let app!: ReturnType<typeof createApiApp>;
 let fixture: Fixture;
 
@@ -134,6 +136,7 @@ describe.sequential("C3E real PostgreSQL sync acceptance", () => {
       createEphemeralAccessTokenSigningKey("c3e-sync-test"),
     );
     service = new SyncService(createSyncRepository(runtime));
+    reader = createSyncSnapshotReader(runtime);
     app = createApiApp({
       config,
       isInfrastructureReady: async () => true,
@@ -736,5 +739,240 @@ describe.sequential("C3E real PostgreSQL sync acceptance", () => {
       [fixture.accountId],
     );
     expect(rows.rows.map((row) => row.entity_id)).toEqual([storeId]);
+  });
+
+  it("reads canonical snapshots in request order without receipts, state writes, or timestamp changes", async () => {
+    const digest = "9".repeat(64);
+    const conversationId = `conversation:${digest}`;
+    const binding = entry({
+      entityId: randomUUID(),
+      payload: payload({
+        conversationKeyDigest: digest,
+        bindingId: "binding-read",
+      }),
+    });
+    expect(
+      (await service.apply(fixture, body([binding]))).results[0]?.outcome,
+    ).toBe("ACK");
+
+    const storeEntityId = "store:read-store";
+    const storeEntry = entry({
+      entityId: storeEntityId,
+      kind: "STORE_UPSERT",
+      payload: {
+        ...payload({
+          kind: "STORE_UPSERT",
+          conversationKeyDigest: "a".repeat(64),
+          bindingId: null,
+          storeId: "read-store",
+        }),
+        name: "Read Store",
+        providerIdentityState: "UNCONFIRMED",
+        metadataRevision: 1,
+        lifecycleState: "ACTIVE",
+      },
+    });
+    expect(
+      (await service.apply(fixture, body([storeEntry]))).results[0]?.outcome,
+    ).toBe("ACK");
+
+    const before = await runtime.query<{
+      entity_id: string;
+      server_revision: number;
+      state: Record<string, unknown>;
+      updated_at: string;
+    }>(
+      "SELECT entity_id,server_revision,state,updated_at::text AS updated_at FROM sync_entities WHERE account_id=$1 ORDER BY entity_id",
+      [fixture.accountId],
+    );
+    const receiptsBefore = await runtime.query<{ count: string }>(
+      "SELECT count(*)::text AS count FROM sync_request_receipts WHERE account_id=$1",
+      [fixture.accountId],
+    );
+
+    const missing = `conversation:${"0".repeat(64)}`;
+    const snapshots = await reader.readSnapshots({
+      principal: fixture,
+      entityIds: [storeEntityId, missing, conversationId],
+    });
+    expect(snapshots).toHaveLength(3);
+    expect(snapshots[0]).toMatchObject({
+      entityId: storeEntityId,
+      serverRevision: 1,
+      serverState: { kind: "STORE_UPSERT", storeId: "read-store" },
+    });
+    expect(snapshots[1]).toEqual({
+      entityId: missing,
+      serverRevision: 0,
+      serverState: null,
+    });
+    expect(snapshots[2]).toMatchObject({
+      entityId: conversationId,
+      serverRevision: 1,
+      serverState: {
+        kind: "BINDING_UPSERT",
+        conversationKeyDigest: digest,
+        bindingId: "binding-read",
+      },
+    });
+
+    const after = await runtime.query<{
+      entity_id: string;
+      server_revision: number;
+      state: Record<string, unknown>;
+      updated_at: string;
+    }>(
+      "SELECT entity_id,server_revision,state,updated_at::text AS updated_at FROM sync_entities WHERE account_id=$1 ORDER BY entity_id",
+      [fixture.accountId],
+    );
+    const receiptsAfter = await runtime.query<{ count: string }>(
+      "SELECT count(*)::text AS count FROM sync_request_receipts WHERE account_id=$1",
+      [fixture.accountId],
+    );
+    expect(after.rows).toEqual(before.rows);
+    expect(receiptsAfter.rows).toEqual(receiptsBefore.rows);
+
+    const replay = await service.apply(fixture, body([binding]));
+    expect(replay.results[0]).toMatchObject({
+      outcome: "ACK",
+      entityId: binding.entityId,
+      serverRevision: 1,
+    });
+  });
+
+  it("isolates snapshot reads by principal account even for the same canonical entity ID", async () => {
+    const other = await createFixture();
+    const digest = "a".repeat(64);
+    const entityId = `conversation:${digest}`;
+    const first = entry({
+      entityId: randomUUID(),
+      payload: payload({
+        conversationKeyDigest: digest,
+        bindingId: "binding-account-one",
+      }),
+    });
+    const second = entry({
+      entityId: randomUUID(),
+      payload: payload({
+        conversationKeyDigest: digest,
+        bindingId: "binding-account-two",
+      }),
+    });
+    expect(
+      (await service.apply(fixture, body([first]))).results[0]?.outcome,
+    ).toBe("ACK");
+    expect(
+      (await service.apply(other, body([second], other.deviceId))).results[0]
+        ?.outcome,
+    ).toBe("ACK");
+
+    const own = await reader.readSnapshots({
+      principal: fixture,
+      entityIds: [entityId],
+    });
+    const theirs = await reader.readSnapshots({
+      principal: other,
+      entityIds: [entityId],
+    });
+    expect(own[0]?.serverState?.bindingId).toBe("binding-account-one");
+    expect(theirs[0]?.serverState?.bindingId).toBe("binding-account-two");
+  });
+
+  it("re-checks session, device, account, and user authority inside every snapshot transaction", async () => {
+    const entityId = `conversation:${"b".repeat(64)}`;
+    const cases = [
+      {
+        update: "UPDATE sessions SET status='REVOKED' WHERE id=$1",
+        id: (owner: Fixture) => owner.sessionId,
+      },
+      {
+        update: "UPDATE devices SET status='REVOKED' WHERE id=$1",
+        id: (owner: Fixture) => owner.deviceId,
+      },
+      {
+        update: "UPDATE accounts SET status='SUSPENDED' WHERE id=$1",
+        id: (owner: Fixture) => owner.accountId,
+      },
+      {
+        update:
+          "UPDATE users SET status='SUSPENDED' WHERE id=(SELECT created_by_user_id FROM devices WHERE id=$1)",
+        id: (owner: Fixture) => owner.deviceId,
+      },
+    ] as const;
+
+    for (const scenario of cases) {
+      const owner = await createFixture();
+      await runtime.query(scenario.update, [scenario.id(owner)]);
+      await expect(
+        reader.readSnapshots({ principal: owner, entityIds: [entityId] }),
+      ).rejects.toThrow("EXTENSION_AUTH_UNAUTHORIZED");
+    }
+  });
+
+  it("rejects noncanonical, duplicate, and oversized snapshot keys before reading state", async () => {
+    const valid = Array.from(
+      { length: 32 },
+      (_, index) => `conversation:${index.toString(16).padStart(64, "0")}`,
+    );
+    expect(
+      await reader.readSnapshots({ principal: fixture, entityIds: valid }),
+    ).toEqual(
+      valid.map((entityId) => ({
+        entityId,
+        serverRevision: 0,
+        serverState: null,
+      })),
+    );
+
+    const invalidSets = [
+      [...valid, `conversation:${"f".repeat(64)}`],
+      [valid[0]!, valid[0]!],
+      [randomUUID()],
+      [`conversation:${"A".repeat(64)}`],
+      ["store:"],
+      [`store:${"x".repeat(123)}`],
+      ["store:bad\ncontrol"],
+    ];
+    for (const entityIds of invalidSets)
+      await expect(
+        reader.readSnapshots({ principal: fixture, entityIds }),
+      ).rejects.toThrow("SYNC_SNAPSHOT_ENTITY_IDS_INVALID");
+  });
+
+  it("returns a coherent revision/state pair during a concurrent mutation and read", async () => {
+    const digest = "c".repeat(64);
+    const entityId = `conversation:${digest}`;
+    const initial = entry({
+      entityId: randomUUID(),
+      payload: payload({
+        conversationKeyDigest: digest,
+        bindingId: "binding-concurrent",
+        bindingRevision: 1,
+      }),
+    });
+    expect(
+      (await service.apply(fixture, body([initial]))).results[0]?.outcome,
+    ).toBe("ACK");
+
+    const next = entry({
+      entityId: randomUUID(),
+      baseRevision: 1,
+      payload: payload({
+        conversationKeyDigest: digest,
+        bindingId: "binding-concurrent",
+        bindingRevision: 2,
+      }),
+    });
+    const [, snapshots] = await Promise.all([
+      service.apply(fixture, body([next])),
+      reader.readSnapshots({ principal: fixture, entityIds: [entityId] }),
+    ]);
+    const snapshot = snapshots[0];
+    expect(
+      snapshot?.serverRevision === 1 || snapshot?.serverRevision === 2,
+    ).toBe(true);
+    expect(snapshot?.serverState?.bindingRevision).toBe(
+      snapshot?.serverRevision,
+    );
   });
 });

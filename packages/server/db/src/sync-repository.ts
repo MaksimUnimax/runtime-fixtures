@@ -1,7 +1,16 @@
-import type { SyncRepository, SyncRepositoryResult } from "@product/sync";
+import type {
+  SyncRepository,
+  SyncRepositoryResult,
+  SyncSnapshotReader,
+} from "@product/sync";
 import type { SellerAgentsSyncEntryV1 } from "@product/contracts";
+import type { ExtensionPrincipal } from "@product/extension-auth";
 import type { DatabaseQuery, DatabaseRuntime } from "./index.js";
-import { applyReconciliationEntry, SyncRequestError } from "@product/sync";
+import {
+  applyReconciliationEntry,
+  SyncRequestError,
+  SyncSnapshotReadError,
+} from "@product/sync";
 
 type Row = {
   fingerprint: string;
@@ -24,6 +33,106 @@ const isBindingEntry = (entry: SellerAgentsSyncEntryV1): boolean =>
   entry.kind === "FINISH" ||
   entry.kind === "DELIVERY_MARKER";
 
+const MAX_SNAPSHOT_ENTITY_IDS = 32;
+const MAX_SYNC_ENTITY_ID_LENGTH = 128;
+const CANONICAL_CONVERSATION_ENTITY_ID = /^conversation:[a-f0-9]{64}$/;
+const STORE_ENTITY_PREFIX = "store:";
+
+function hasStoreIdControlCharacters(storeId: string): boolean {
+  for (let index = 0; index < storeId.length; index += 1) {
+    const code = storeId.charCodeAt(index);
+    if (code <= 0x1f || code === 0x7f) return true;
+  }
+  return false;
+}
+
+function isCanonicalSnapshotEntityId(entityId: string): boolean {
+  if (CANONICAL_CONVERSATION_ENTITY_ID.test(entityId)) return true;
+  if (
+    !entityId.startsWith(STORE_ENTITY_PREFIX) ||
+    entityId.length > MAX_SYNC_ENTITY_ID_LENGTH
+  )
+    return false;
+  const storeId = entityId.slice(STORE_ENTITY_PREFIX.length);
+  return (
+    storeId.length > 0 &&
+    storeId.length <= 128 &&
+    !hasStoreIdControlCharacters(storeId)
+  );
+}
+
+function validateSnapshotEntityIds(entityIds: readonly string[]): void {
+  if (
+    entityIds.length > MAX_SNAPSHOT_ENTITY_IDS ||
+    new Set(entityIds).size !== entityIds.length ||
+    entityIds.some(
+      (entityId) =>
+        typeof entityId !== "string" || !isCanonicalSnapshotEntityId(entityId),
+    )
+  )
+    throw new SyncSnapshotReadError("SYNC_SNAPSHOT_ENTITY_IDS_INVALID");
+}
+
+async function assertDurableSyncAuthority(
+  tx: DatabaseQuery,
+  principal: ExtensionPrincipal,
+): Promise<void> {
+  const authority = await tx.query<{ id: string }>(
+    `SELECT s.id FROM sessions s
+     JOIN devices d ON d.id=s.device_id AND d.account_id=s.account_id
+     JOIN accounts a ON a.id=s.account_id
+     JOIN users u ON u.id=d.created_by_user_id
+     WHERE s.id=$1 AND d.id=$2 AND a.id=$3
+       AND s.status='ACTIVE' AND s.revoked_at IS NULL
+       AND d.status='ACTIVE' AND d.revoked_at IS NULL
+       AND a.status='ACTIVE' AND u.status='ACTIVE'
+     FOR SHARE OF s,d,a,u`,
+    [principal.sessionId, principal.deviceId, principal.accountId],
+  );
+  if (!authority.rows[0]) throw new Error("EXTENSION_AUTH_UNAUTHORIZED");
+}
+
+export function createSyncSnapshotReader(
+  runtime: DatabaseRuntime,
+): SyncSnapshotReader {
+  return {
+    async readSnapshots({ principal, entityIds }) {
+      validateSnapshotEntityIds(entityIds);
+      return runtime.transaction(async (tx: DatabaseQuery) => {
+        await assertDurableSyncAuthority(tx, principal);
+        const entities = await tx.query<{
+          entity_id: string;
+          server_revision: number;
+          state: SellerAgentsSyncEntryV1["payload"];
+          state_bytes: number;
+        }>(
+          `SELECT entity_id,server_revision,state,octet_length(state::text) AS state_bytes
+           FROM sync_entities
+           WHERE account_id=$1 AND entity_id=ANY($2::text[])`,
+          [principal.accountId, [...entityIds]],
+        );
+        const byEntityId = new Map(
+          entities.rows.map((row) => {
+            if (Number(row.state_bytes) > 4096)
+              throw new SyncSnapshotReadError("SYNC_SNAPSHOT_STATE_TOO_LARGE");
+            return [row.entity_id, row] as const;
+          }),
+        );
+        return entityIds.map((entityId) => {
+          const row = byEntityId.get(entityId);
+          return row
+            ? {
+                entityId,
+                serverRevision: Number(row.server_revision),
+                serverState: row.state,
+              }
+            : { entityId, serverRevision: 0, serverState: null };
+        });
+      });
+    },
+  };
+}
+
 export function createSyncRepository(runtime: DatabaseRuntime): SyncRepository {
   return {
     async apply({ principal, entry, fingerprint }) {
@@ -32,19 +141,7 @@ export function createSyncRepository(runtime: DatabaseRuntime): SyncRepository {
         // the sync write. This closes the preHandler -> repository revocation
         // race: either sync holds a shared authority lock and commits first,
         // or revocation commits first and this request fails closed.
-        const authority = await tx.query<{ id: string }>(
-          `SELECT s.id FROM sessions s
-           JOIN devices d ON d.id=s.device_id AND d.account_id=s.account_id
-           JOIN accounts a ON a.id=s.account_id
-           JOIN users u ON u.id=d.created_by_user_id
-           WHERE s.id=$1 AND d.id=$2 AND a.id=$3
-             AND s.status='ACTIVE' AND s.revoked_at IS NULL
-             AND d.status='ACTIVE' AND d.revoked_at IS NULL
-             AND a.status='ACTIVE' AND u.status='ACTIVE'
-           FOR SHARE OF s,d,a,u`,
-          [principal.sessionId, principal.deviceId, principal.accountId],
-        );
-        if (!authority.rows[0]) throw new Error("EXTENSION_AUTH_UNAUTHORIZED");
+        await assertDurableSyncAuthority(tx, principal);
 
         await tx.query(
           `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`,
