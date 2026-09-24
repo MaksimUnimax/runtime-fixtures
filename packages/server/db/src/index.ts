@@ -53,7 +53,10 @@ export type {
 } from "./health-notification-repository.js";
 export { createBetaAdmissionRepository } from "./beta-admission-repository.js";
 export { bootstrapInitialBetaAdmission } from "./beta-admission-bootstrap.js";
-export { createSyncRepository } from "./sync-repository.js";
+export {
+  createSyncRepository,
+  createSyncSnapshotReader,
+} from "./sync-repository.js";
 export { createCredentialTransferRepository } from "./credential-transfer-repository.js";
 export { createFeedbackSupportRepository } from "./feedback-support-repository.js";
 export {

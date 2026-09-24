@@ -22,6 +22,26 @@ export interface SyncRepositoryResult {
   readonly serverState: SellerAgentsSyncEntryV1["payload"] | null;
   readonly code: string | null;
 }
+export interface SyncSnapshot {
+  readonly entityId: string;
+  readonly serverRevision: number;
+  readonly serverState: SellerAgentsSyncEntryV1["payload"] | null;
+}
+export interface SyncSnapshotReader {
+  readSnapshots(input: {
+    principal: ExtensionPrincipal;
+    entityIds: readonly string[];
+  }): Promise<readonly SyncSnapshot[]>;
+}
+export class SyncSnapshotReadError extends Error {
+  public constructor(
+    public readonly code:
+      | "SYNC_SNAPSHOT_ENTITY_IDS_INVALID"
+      | "SYNC_SNAPSHOT_STATE_TOO_LARGE",
+  ) {
+    super(code);
+  }
+}
 export interface SyncRepository {
   apply(input: {
     principal: ExtensionPrincipal;
