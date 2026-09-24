@@ -4,6 +4,7 @@
   "use strict";
 
   const STORAGE_KEY = "seller_agents_sync_journal_v1";
+  const BINDINGS_STORAGE_KEY = "ozmb_conversation_bindings";
   const VERSION = "seller_agents_sync_v1";
   const MAX_BATCH = 32;
   const MAX_ENTRIES = 256;
@@ -16,6 +17,7 @@
 
   const text = (value, max = 256) => typeof value === "string" && value.length <= max ? value : null;
   const entityKey = value => typeof value === "string" && value.length > 0 && value.length <= 128;
+  const mapKey = value => typeof value === "string" && value.length > 0 && value.length <= 320;
   const integer = (value, fallback = 0) => Number.isSafeInteger(Number(value)) && Number(value) >= 0 ? Number(value) : fallback;
   const clone = value => value === undefined ? undefined : structuredClone(value);
   const canonicalJson = value => {
@@ -25,6 +27,16 @@
   };
   const bytes = value => new TextEncoder().encode(JSON.stringify(value)).byteLength;
   const digest = async value => [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(String(value))))].map(x => x.toString(16).padStart(2, "0")).join("");
+  const normalizedConversationKey = value => {
+    const key = typeof value === "string" ? value.trim().toLowerCase() : "";
+    return key && key.length <= 320 && key.includes("|") ? key : null;
+  };
+  const conversationEntityId = async value => {
+    const key = normalizedConversationKey(value);
+    if (!key) throw Object.assign(new Error("SYNC_CONVERSATION_KEY_INVALID"), { code: "SYNC_CONVERSATION_KEY_INVALID" });
+    return `conversation:${await digest(key)}`;
+  };
+  const stateSlot = (accountId, entityId) => `${String(accountId || "")}\u001f${String(entityId || "")}`;
   const stableJitter = (requestId, attempt) => {
     let hash = 2166136261;
     for (const char of `${requestId}:${attempt}`) hash = Math.imul(hash ^ char.charCodeAt(0), 16777619);
@@ -35,25 +47,73 @@
   function empty() {
     return { version: VERSION, sequence: 0, entries: {}, serverRevisions: {}, serverStates: {}, reconciliation: {}, snapshotAt: 0 };
   }
+  function copyLegacyKnowledge(result, legacyKey, slot) {
+    if (!legacyKey || legacyKey === slot) return false;
+    let changed = false;
+    const sourceRevision = Object.prototype.hasOwnProperty.call(result.serverRevisions, legacyKey) ? integer(result.serverRevisions[legacyKey]) : null;
+    const targetRevision = Object.prototype.hasOwnProperty.call(result.serverRevisions, slot) ? integer(result.serverRevisions[slot]) : null;
+    if (sourceRevision !== null && (targetRevision === null || sourceRevision > targetRevision)) {
+      result.serverRevisions[slot] = sourceRevision;
+      changed = true;
+    }
+    const sourceState = result.serverStates[legacyKey], sourceReconciliation = result.reconciliation[legacyKey];
+    const sourceKnowledgeRevision = Math.max(sourceRevision ?? 0, integer(sourceReconciliation?.serverRevision));
+    const targetKnowledgeRevision = Math.max(targetRevision ?? 0, integer(result.reconciliation[slot]?.serverRevision));
+    if (sourceState && (!result.serverStates[slot] || sourceKnowledgeRevision >= targetKnowledgeRevision)) {
+      result.serverStates[slot] = clone(sourceState);
+      changed = true;
+    }
+    if (sourceReconciliation && (!result.reconciliation[slot] || sourceKnowledgeRevision >= targetKnowledgeRevision)) {
+      result.reconciliation[slot] = clone(sourceReconciliation);
+      changed = true;
+    }
+    return changed;
+  }
+  async function migrateLegacyKnowledgeFromBindings(result, bindings = {}) {
+    let changed = false;
+    for (const [storedKey, binding] of Object.entries(bindings || {})) {
+      const accountId = text(binding?.store_context?.accountId, 128), bindingId = text(binding?.binding_id, 128);
+      const conversationKey = normalizedConversationKey(binding?.conversation_key || storedKey);
+      if (!accountId || !conversationKey) continue;
+      const keyDigest = await digest(conversationKey), slot = stateSlot(accountId, `conversation:${keyDigest}`);
+      for (const legacyKey of [bindingId, keyDigest]) changed = copyLegacyKnowledge(result, legacyKey, slot) || changed;
+    }
+    return changed;
+  }
   function validEntry(entry) {
-    return entry && typeof entry === "object" && text(entry.entryId, 320) && text(entry.requestId, 128) && text(entry.mutationId, 320) && text(entry.entityId, 128) && text(entry.kind, 64) && ["PENDING", "RETRY_WAIT", "IN_FLIGHT", "CONFLICT", "FAILED"].includes(entry.status) && Number.isSafeInteger(entry.localSequence) && bytes(entry.payload) <= MAX_PAYLOAD_BYTES;
+    return entry && typeof entry === "object" && text(entry.entryId, 320) && text(entry.requestId, 128) && text(entry.mutationId, 320) && text(entry.entityId, 128) && (!entry.wireEntityId || text(entry.wireEntityId, 128)) && text(entry.kind, 64) && ["PENDING", "RETRY_WAIT", "IN_FLIGHT", "CONFLICT", "FAILED"].includes(entry.status) && Number.isSafeInteger(entry.localSequence) && bytes(entry.payload) <= MAX_PAYLOAD_BYTES;
   }
   function normalize(raw) {
     if (!raw || raw.version !== VERSION || !raw.entries || typeof raw.entries !== "object" || !raw.serverRevisions || typeof raw.serverRevisions !== "object") throw Object.assign(new Error("SYNC_JOURNAL_CORRUPT"), { code: "SYNC_JOURNAL_CORRUPT" });
     const result = { version: VERSION, sequence: integer(raw.sequence), entries: {}, serverRevisions: {}, serverStates: {}, reconciliation: {}, snapshotAt: integer(raw.snapshotAt) };
-    for (const [key, entry] of Object.entries(raw.entries)) if (validEntry(entry)) result.entries[key] = clone(entry); else throw Object.assign(new Error("SYNC_JOURNAL_CORRUPT"), { code: "SYNC_JOURNAL_CORRUPT" });
-    for (const [key, value] of Object.entries(raw.serverRevisions)) if (entityKey(key) && Number.isSafeInteger(Number(value)) && Number(value) >= 0) result.serverRevisions[key] = Number(value);
-    for (const [key, value] of Object.entries(raw.serverStates || {})) if (entityKey(key) && value && typeof value === "object" && bytes(value) <= 4096) result.serverStates[key] = clone(value);
-    for (const [key, value] of Object.entries(raw.reconciliation || {})) if (entityKey(key) && value && typeof value === "object" && bytes(value) <= 4096) result.reconciliation[key] = clone(value);
+    for (const [key, entry] of Object.entries(raw.entries)) {
+      if (!validEntry(entry)) throw Object.assign(new Error("SYNC_JOURNAL_CORRUPT"), { code: "SYNC_JOURNAL_CORRUPT" });
+      const normalizedEntry = clone(entry), keyDigest = text(entry.payload?.conversationKeyDigest, 64);
+      if (["BINDING_UPSERT", "FINISH", "DELIVERY_MARKER"].includes(entry.kind) && /^[a-f0-9]{64}$/.test(keyDigest || "")) {
+        normalizedEntry.wireEntityId = text(entry.wireEntityId, 128) || entry.entityId;
+        normalizedEntry.entityId = `conversation:${keyDigest}`;
+      }
+      result.entries[key] = normalizedEntry;
+    }
+    for (const [key, value] of Object.entries(raw.serverRevisions)) if (mapKey(key) && Number.isSafeInteger(Number(value)) && Number(value) >= 0) result.serverRevisions[key] = Number(value);
+    for (const [key, value] of Object.entries(raw.serverStates || {})) if (mapKey(key) && value && typeof value === "object" && bytes(value) <= 4096) result.serverStates[key] = clone(value);
+    for (const [key, value] of Object.entries(raw.reconciliation || {})) if (mapKey(key) && value && typeof value === "object" && bytes(value) <= 4096) result.reconciliation[key] = clone(value);
+    for (const entry of Object.values(result.entries)) {
+      const accountId = text(entry.accountId, 128), keyDigest = text(entry.payload?.conversationKeyDigest, 64);
+      if (!accountId || !/^[a-f0-9]{64}$/.test(keyDigest || "") || !["BINDING_UPSERT", "FINISH", "DELIVERY_MARKER"].includes(entry.kind)) continue;
+      const slot = stateSlot(accountId, `conversation:${keyDigest}`);
+      for (const legacyKey of [entry.wireEntityId, keyDigest]) copyLegacyKnowledge(result, legacyKey, slot);
+    }
     if (Object.keys(result.entries).length > MAX_ENTRIES) throw Object.assign(new Error("SYNC_JOURNAL_CORRUPT"), { code: "SYNC_JOURNAL_CORRUPT" });
     return result;
   }
   async function read() {
     if (!stateFlight) stateFlight = (async () => {
-      const data = await storageGet(STORAGE_KEY);
+      const data = await storageGet([STORAGE_KEY, BINDINGS_STORAGE_KEY]);
       const result = data[STORAGE_KEY] ? normalize(data[STORAGE_KEY]) : empty();
       const currentWorker = String(globalThis.WORKER_SESSION_ID || "worker-unknown");
-      let changed = false;
+      let changed = Boolean(data[STORAGE_KEY] && canonicalJson(data[STORAGE_KEY]) !== canonicalJson(result));
+      changed = await migrateLegacyKnowledgeFromBindings(result, data[BINDINGS_STORAGE_KEY] || {}) || changed;
       for (const entry of Object.values(result.entries)) {
         if (entry.status !== "IN_FLIGHT" || entry.attempt_worker_id === currentWorker) continue;
         entry.status = "RETRY_WAIT";
@@ -116,13 +176,15 @@
         },
       };
     }
-    const keyDigest = await digest(conversationKey || binding?.conversation_key || binding?.conversation_id || binding?.binding_id || "unbound");
+    const normalizedKey = normalizedConversationKey(conversationKey || binding?.conversation_key);
+    if (!normalizedKey) throw Object.assign(new Error("SYNC_CONVERSATION_KEY_INVALID"), { code: "SYNC_CONVERSATION_KEY_INVALID" });
+    const keyDigest = await digest(normalizedKey);
     const bindingId = text(binding?.binding_id, 128), baseBindingRevision = integer(binding?.revision) || 0;
     const bindingRevision = kind === "FINISH" ? baseBindingRevision + 1 : baseBindingRevision;
     const storeId = text(store?.id || binding?.store_context?.storeId, 128), marketplace = text(store?.marketplace || binding?.store_context?.marketplace, 32);
     const credentialRevision = text(store?.credentialRevision || binding?.store_context?.credentialRevision, 128);
     return {
-      auth, entityId: bindingId || keyDigest, payload: {
+      auth, entityId: `conversation:${keyDigest}`, wireEntityId: bindingId || keyDigest, payload: {
         kind, conversationKeyDigest: keyDigest, bindingId, bindingRevision,
         storeId, marketplace, credentialRevision,
         bindingState: kind === "FINISH" ? "FINISHED" : "BOUND",
@@ -139,8 +201,8 @@
       }
     };
   }
-  function compact(next, entityId) {
-    const related = Object.values(next.entries).filter(entry => entry.entityId === entityId);
+  function compact(next, entityId, accountId) {
+    const related = Object.values(next.entries).filter(entry => entry.entityId === entityId && (!accountId || entry.accountId === accountId));
     const replaceable = related.filter(entry => ["PENDING", "RETRY_WAIT"].includes(entry.status));
     for (const kind of ["BINDING_UPSERT", "FINISH", "DELIVERY_MARKER", "STORE_UPSERT", "STORE_TOMBSTONE"]) {
       const sameKind = replaceable.filter(entry => entry.kind === kind).sort((a, b) => a.localSequence - b.localSequence);
@@ -149,8 +211,8 @@
     const storeEntries = replaceable.filter(entry => ["STORE_UPSERT", "STORE_TOMBSTONE"].includes(entry.kind)).sort((a, b) => a.localSequence - b.localSequence);
     const latestStore = storeEntries.at(-1);
     if (latestStore?.kind === "STORE_TOMBSTONE") for (const old of storeEntries) if (old.entryId !== latestStore.entryId) delete next.entries[old.entryId];
-    const pendingExplicit = Object.values(next.entries).filter(entry => entry.entityId === entityId && ["BINDING_UPSERT", "FINISH"].includes(entry.kind) && ["PENDING", "RETRY_WAIT"].includes(entry.status)).sort((a, b) => a.localSequence - b.localSequence).at(-1);
-    if (pendingExplicit) for (const marker of Object.values(next.entries)) if (marker.entityId === entityId && marker.kind === "DELIVERY_MARKER" && ["PENDING", "RETRY_WAIT"].includes(marker.status) && marker.localSequence < pendingExplicit.localSequence) delete next.entries[marker.entryId];
+    const pendingExplicit = Object.values(next.entries).filter(entry => entry.entityId === entityId && (!accountId || entry.accountId === accountId) && ["BINDING_UPSERT", "FINISH"].includes(entry.kind) && ["PENDING", "RETRY_WAIT"].includes(entry.status)).sort((a, b) => a.localSequence - b.localSequence).at(-1);
+    if (pendingExplicit) for (const marker of Object.values(next.entries)) if (marker.entityId === entityId && marker.accountId === pendingExplicit.accountId && marker.kind === "DELIVERY_MARKER" && ["PENDING", "RETRY_WAIT"].includes(marker.status) && marker.localSequence < pendingExplicit.localSequence) delete next.entries[marker.entryId];
     const keys = Object.keys(next.entries);
     if (keys.length > MAX_ENTRIES) {
       const removable = Object.values(next.entries).filter(entry => ["PENDING", "RETRY_WAIT", "FAILED"].includes(entry.status)).sort((a, b) => a.localSequence - b.localSequence);
@@ -161,12 +223,21 @@
     }
     if (Object.keys(next.entries).length > MAX_ENTRIES) throw Object.assign(new Error("SYNC_JOURNAL_FULL"), { code: "SYNC_JOURNAL_FULL" });
   }
+  function latestExplicitEntry(next, accountId, entityId, afterSequence = -1) {
+    return Object.values(next.entries)
+      .filter(entry => entry.accountId === accountId && entry.entityId === entityId &&
+        ["BINDING_UPSERT", "FINISH"].includes(entry.kind) &&
+        ["PENDING", "RETRY_WAIT", "IN_FLIGHT", "CONFLICT", "FAILED"].includes(entry.status) &&
+        entry.localSequence > afterSequence)
+      .sort((a, b) => a.localSequence - b.localSequence)
+      .at(-1) || null;
+  }
   function entryFor(next, record, auth, payload) {
     next.sequence += 1;
     const requestId = crypto.randomUUID(), mutationId = `${auth.installationId}:${next.sequence}`;
     return {
-      entryId: `${record.entityId}:${next.sequence}`, requestId, mutationId, entityId: record.entityId,
-      accountId: auth.accountId, installationId: auth.installationId, baseRevision: integer(next.serverRevisions[record.entityId]),
+      entryId: `${record.entityId}:${next.sequence}`, requestId, mutationId, entityId: record.entityId, wireEntityId: record.wireEntityId || null,
+      accountId: auth.accountId, installationId: auth.installationId, baseRevision: integer(next.serverRevisions[stateSlot(auth.accountId, record.entityId)]),
       localSequence: next.sequence, mutationGeneration: `${auth.installationId}:${record.entityId}:${next.sequence}`,
       kind: payload.kind, payload: clone(payload), status: "PENDING", attempts: 0,
       nextAttemptAt: 0, lastAttemptAt: 0, lastError: null, conflict: null,
@@ -179,7 +250,7 @@
       const next = clone(await read());
       const entry = entryFor(next, recordData, recordData.auth, recordData.payload);
       next.entries[entry.entryId] = entry;
-      compact(next, entry.entityId);
+      compact(next, entry.entityId, entry.accountId);
       await write(next);
       return entry;
     });
@@ -187,12 +258,12 @@
     return clone(entry);
   }
   function wireEntry(entry) {
-    return { requestId: entry.requestId, mutationId: entry.mutationId, entityId: entry.entityId,
+    return { requestId: entry.requestId, mutationId: entry.mutationId, entityId: entry.wireEntityId || entry.entityId,
       baseRevision: entry.baseRevision, localSequence: entry.localSequence, mutationGeneration: entry.mutationGeneration,
       kind: entry.kind, payload: clone(entry.payload) };
   }
   function retryable(error) {
-    return ["CONTROL_TRANSPORT_UNAVAILABLE", "CONTROL_REQUEST_TIMEOUT"].includes(error?.code) ||
+    return ["CONTROL_TRANSPORT_UNAVAILABLE", "CONTROL_REQUEST_TIMEOUT", "SYNC_RESPONSE_CONTEXT_STALE"].includes(error?.code) ||
       [408, 425, 429, 500, 502, 503, 504].includes(Number(error?.status)) ||
       error?.code === "SERVICE_UNAVAILABLE";
   }
@@ -200,8 +271,9 @@
     return [401, 403].includes(Number(error?.status)) || ["UNAUTHORIZED", "DEVICE_MISMATCH", "DEVICE_REVOKED", "AUTH_REFRESH_INVALID", "ACCOUNT_IDENTITY_MISMATCH"].includes(error?.code);
   }
   async function schedule() {
+    const auth = await identity().catch(() => null);
     const next = await read(), due = Object.values(next.entries).filter(entry =>
-      ["PENDING", "RETRY_WAIT"].includes(entry.status) && entry.kind !== "DELIVERY_MARKER");
+      auth && entry.accountId === auth.accountId && entry.installationId === auth.installationId && ["PENDING", "RETRY_WAIT"].includes(entry.status) && entry.kind !== "DELIVERY_MARKER");
     const scheduler = globalThis.SellerAgentsTechnicalScheduler;
     if (!due.length) {
       await scheduler?.cancelKind?.(scheduler.KINDS.SYNC);
@@ -224,8 +296,11 @@
   async function syncNow(reason = "scheduled") {
     if (syncFlight) return syncFlight;
     syncFlight = (async () => {
+      let auth;
+      try { auth = await identity(); }
+      catch (error) { return { ok: false, code: error?.code || "AUTH_REQUIRED", sent: 0, reason }; }
       const now = Date.now(), next = await read();
-      const selected = Object.values(next.entries).filter(entry => ["PENDING", "RETRY_WAIT"].includes(entry.status) && (entry.nextAttemptAt || 0) <= now).sort((a, b) => a.localSequence - b.localSequence).slice(0, MAX_BATCH);
+      const selected = Object.values(next.entries).filter(entry => entry.accountId === auth.accountId && entry.installationId === auth.installationId && ["PENDING", "RETRY_WAIT"].includes(entry.status) && (entry.nextAttemptAt || 0) <= now).sort((a, b) => a.localSequence - b.localSequence).slice(0, MAX_BATCH);
       if (!selected.length) { await schedule(); return { ok: true, sent: 0, reason }; }
       await markBatch(selected, entry => ({ status: "IN_FLIGHT", attempts: entry.attempts + 1, attempt_worker_id: String(globalThis.WORKER_SESSION_ID || "worker-unknown"), lastAttemptAt: now, lastError: null }));
       try {
@@ -233,34 +308,49 @@
         if (!result || result.syncVersion !== VERSION || !Array.isArray(result.results)) throw Object.assign(new Error("SYNC_CONTRACT_INVALID"), { code: "SYNC_CONTRACT_INVALID" });
         const byRequest = new Map(result.results.map(row => [row?.requestId, row]));
         if (byRequest.size !== selected.length || selected.some(entry => !byRequest.has(entry.requestId))) throw Object.assign(new Error("SYNC_CONTRACT_INVALID"), { code: "SYNC_CONTRACT_INVALID" });
+        const responseAuth = await identity().catch(() => null);
+        if (!responseAuth || responseAuth.accountId !== auth.accountId || responseAuth.installationId !== auth.installationId) throw Object.assign(new Error("SYNC_RESPONSE_CONTEXT_STALE"), { code: "SYNC_RESPONSE_CONTEXT_STALE" });
         await mutate(async () => {
           const current = await read();
           for (const entry of selected) {
             const row = byRequest.get(entry.requestId), live = current.entries[entry.entryId];
-            if (!live || row.mutationId !== live.mutationId || row.entityId !== live.entityId) throw Object.assign(new Error("SYNC_CONTRACT_INVALID"), { code: "SYNC_CONTRACT_INVALID" });
-            const priorRevision = integer(current.serverRevisions[live.entityId]) || 0;
+            if (!live || row.mutationId !== live.mutationId || row.entityId !== (live.wireEntityId || live.entityId)) throw Object.assign(new Error("SYNC_CONTRACT_INVALID"), { code: "SYNC_CONTRACT_INVALID" });
+            const slot = stateSlot(live.accountId, live.entityId);
+            const priorRevision = integer(current.serverRevisions[slot]) || 0;
             if (Number(row.serverRevision) < priorRevision) continue;
             if (row.outcome === "ACK") {
               if (!Number.isSafeInteger(Number(row.serverRevision)) || Number(row.serverRevision) < live.baseRevision) throw Object.assign(new Error("SYNC_CONTRACT_INVALID"), { code: "SYNC_CONTRACT_INVALID" });
-              current.serverRevisions[live.entityId] = Number(row.serverRevision);
-              if (row.serverState) {
+              current.serverRevisions[slot] = Number(row.serverRevision);
+              const newerExplicit = Object.values(current.entries).some(entry => entry.accountId === live.accountId && entry.entityId === live.entityId && entry.localSequence > live.localSequence && ["BINDING_UPSERT", "FINISH"].includes(entry.kind));
+              let lateDeliveryClass = null;
+              if (live.kind === "DELIVERY_MARKER" && row.serverState && current.serverStates[slot]) {
+                lateDeliveryClass = SellerAgentsReconciliation.classifyComparison({
+                  server: { ...clone(current.serverStates[slot]), accountId: live.accountId, entityId: live.entityId },
+                  delivery: { ...clone(row.serverState), accountId: live.accountId, entityId: live.entityId },
+                });
+                if (!["SERVER_FINISH_WINS_OVER_LATE_DELIVERY", "STALE_DELIVERY_OBSOLETE"].includes(lateDeliveryClass)) lateDeliveryClass = null;
+              }
+              const staleDelivery = live.kind === "DELIVERY_MARKER" && (newerExplicit || lateDeliveryClass);
+              if (row.serverState && !staleDelivery) {
                 if (["STORE_UPSERT", "STORE_TOMBSTONE"].includes(row.serverState.kind)) await globalThis.SellerAgentsActiveStoreCatalog?.applyRemoteMetadata?.(row.serverState);
-                current.serverStates[live.entityId] = clone(row.serverState);
-                current.reconciliation[live.entityId] = {
+                current.serverStates[slot] = clone(row.serverState);
+                current.reconciliation[slot] = {
                   classification: row.code || row.serverState.reconciliation?.classification || (live.kind === "DELIVERY_MARKER" ? "IN_SYNC" : "SERVER_AHEAD_COMPATIBLE"),
                   preferred: row.serverState.reconciliation?.preferred || null,
                   serverRevision: Number(row.serverRevision),
                   serverState: clone(row.serverState),
                 };
-              } else if (live.kind === "DELIVERY_MARKER") {
-                current.reconciliation[live.entityId] = { classification: "UNKNOWN_REMOTE_INSTALLATION_STATE", preferred: null, serverRevision: Number(row.serverRevision), serverState: null };
+              } else if (live.kind === "DELIVERY_MARKER" && !staleDelivery) {
+                current.reconciliation[slot] = { classification: "UNKNOWN_REMOTE_INSTALLATION_STATE", preferred: null, serverRevision: Number(row.serverRevision), serverState: null };
+              } else if (staleDelivery && !current.reconciliation[slot]) {
+                current.reconciliation[slot] = { classification: lateDeliveryClass || "STALE_DELIVERY_OBSOLETE", preferred: null, serverRevision: Number(row.serverRevision), serverState: null };
               }
               delete current.entries[live.entryId];
-              for (const newer of Object.values(current.entries)) if (newer.entityId === live.entityId && newer.localSequence > live.localSequence && ["PENDING", "RETRY_WAIT"].includes(newer.status) && newer.baseRevision <= Number(row.serverRevision)) newer.baseRevision = Number(row.serverRevision);
+              for (const newer of Object.values(current.entries)) if (newer.accountId === live.accountId && newer.entityId === live.entityId && newer.localSequence > live.localSequence && ["PENDING", "RETRY_WAIT"].includes(newer.status) && newer.baseRevision <= Number(row.serverRevision)) newer.baseRevision = Number(row.serverRevision);
             } else if (row.outcome === "CONFLICT") {
               if (row.serverState && ["STORE_UPSERT", "STORE_TOMBSTONE"].includes(row.serverState.kind)) await globalThis.SellerAgentsActiveStoreCatalog?.applyRemoteMetadata?.(row.serverState);
               live.status = "CONFLICT"; live.conflict = { serverRevision: integer(row.serverRevision), serverState: row.serverState || null, classification: row.code || "EXPLICIT_BINDING_CONFLICT" }; live.lastError = text(row.code, 128) || "SYNC_CONFLICT";
-              current.reconciliation[live.entityId] = { classification: row.code || "EXPLICIT_BINDING_CONFLICT", preferred: row.serverState?.reconciliation?.preferred || null, serverRevision: integer(row.serverRevision), serverState: clone(row.serverState) };
+              current.reconciliation[slot] = { classification: row.code || "EXPLICIT_BINDING_CONFLICT", preferred: row.serverState?.reconciliation?.preferred || null, serverRevision: integer(row.serverRevision), serverState: clone(row.serverState) };
             } else if (row.outcome === "RETRY") {
               live.status = "RETRY_WAIT"; live.nextAttemptAt = now + retryDelay(live.requestId, live.attempts); live.lastError = text(row.code, 128) || "SYNC_RETRY_WAIT";
             } else throw Object.assign(new Error("SYNC_CONTRACT_INVALID"), { code: "SYNC_CONTRACT_INVALID" });
@@ -286,16 +376,128 @@
     })().finally(() => { syncFlight = null; });
     return syncFlight;
   }
+  function bindingContext(auth, entityId, keyDigest, binding = null, store = null, workGeneration = null) {
+    return {
+      accountId: auth.accountId,
+      entityId,
+      conversationKeyDigest: keyDigest,
+      bindingId: text(binding?.binding_id, 128),
+      bindingRevision: integer(binding?.revision) || 0,
+      storeId: text(store?.id || binding?.store_context?.storeId, 128),
+      marketplace: text(store?.marketplace || binding?.store_context?.marketplace, 32),
+      workGeneration: text(workGeneration, 160),
+      bindingState: "BOUND",
+    };
+  }
+  const bindingFence = value => canonicalJson({
+    accountId: value.accountId,
+    entityId: value.entityId,
+    bindingId: value.bindingId,
+    bindingRevision: value.bindingRevision,
+    storeId: value.storeId,
+    marketplace: value.marketplace,
+    workGeneration: value.workGeneration,
+  });
+  async function createSnapshotReadIntent(input = {}) {
+    const auth = await identity();
+    const conversationKey = normalizedConversationKey(input.conversationKey || input.binding?.conversation_key);
+    if (!conversationKey) throw Object.assign(new Error("SYNC_CONVERSATION_KEY_INVALID"), { code: "SYNC_CONVERSATION_KEY_INVALID" });
+    const keyDigest = await digest(conversationKey), entityId = `conversation:${keyDigest}`;
+    const local = bindingContext(auth, entityId, keyDigest, input.binding, input.store, input.workGeneration);
+    const journal = await read();
+    return Object.freeze({
+      version: "seller_agents_snapshot_intent_v1",
+      accountId: auth.accountId,
+      installationId: auth.installationId,
+      conversationKey,
+      conversationKeyDigest: keyDigest,
+      entityIds: Object.freeze([entityId]),
+      journalSequence: journal.sequence,
+      localFence: bindingFence(local),
+    });
+  }
+  async function applySnapshotRead(input = {}) {
+    const intent = input.intent;
+    if (!intent || intent.version !== "seller_agents_snapshot_intent_v1" || !Array.isArray(intent.entityIds) || intent.entityIds.length !== 1 || !Number.isSafeInteger(Number(intent.journalSequence)) || Number(intent.journalSequence) < 0) throw Object.assign(new Error("SYNC_SNAPSHOT_INTENT_INVALID"), { code: "SYNC_SNAPSHOT_INTENT_INVALID" });
+    const auth = await identity();
+    if (auth.accountId !== intent.accountId || auth.installationId !== intent.installationId) return { applied: false, code: "SYNC_SNAPSHOT_CONTEXT_STALE" };
+    const currentConversationKey = normalizedConversationKey(input.currentConversationKey);
+    if (!currentConversationKey || currentConversationKey !== intent.conversationKey) return { applied: false, code: "SYNC_SNAPSHOT_CONTEXT_STALE" };
+    const entityId = await conversationEntityId(currentConversationKey);
+    if (entityId !== intent.entityIds[0] || entityId !== `conversation:${intent.conversationKeyDigest}`) throw Object.assign(new Error("SYNC_SNAPSHOT_INTENT_INVALID"), { code: "SYNC_SNAPSHOT_INTENT_INVALID" });
+    const local = bindingContext(auth, entityId, intent.conversationKeyDigest, input.binding, input.store, input.workGeneration);
+    if (bindingFence(local) !== intent.localFence) return { applied: false, code: "SYNC_SNAPSHOT_CONTEXT_STALE" };
+    if (!Array.isArray(input.snapshots) || input.snapshots.length !== 1) throw Object.assign(new Error("SYNC_SNAPSHOT_RESPONSE_INVALID"), { code: "SYNC_SNAPSHOT_RESPONSE_INVALID" });
+    const snapshot = input.snapshots[0], serverRevision = Number(snapshot?.serverRevision), serverState = snapshot?.serverState ?? null;
+    if (!snapshot || snapshot.entityId !== entityId || !Number.isSafeInteger(serverRevision) || serverRevision < 0 || (serverState === null ? serverRevision !== 0 : serverRevision < 1) || (serverState !== null && (typeof serverState !== "object" || bytes(serverState) > 4096))) throw Object.assign(new Error("SYNC_SNAPSHOT_RESPONSE_INVALID"), { code: "SYNC_SNAPSHOT_RESPONSE_INVALID" });
+    if (serverState && ["BINDING_UPSERT", "FINISH", "DELIVERY_MARKER"].includes(serverState.kind) && serverState.conversationKeyDigest !== intent.conversationKeyDigest) throw Object.assign(new Error("SYNC_SNAPSHOT_RESPONSE_INVALID"), { code: "SYNC_SNAPSHOT_RESPONSE_INVALID" });
+    return mutate(async () => {
+      const current = clone(await read()), slot = stateSlot(auth.accountId, entityId), priorRevision = integer(current.serverRevisions[slot]) || 0;
+      const newerExplicit = latestExplicitEntry(current, auth.accountId, entityId, Number(intent.journalSequence));
+      if (newerExplicit) return { applied: false, code: "SYNC_SNAPSHOT_CONTEXT_STALE" };
+      if (serverRevision < priorRevision) return { applied: false, code: "SYNC_SNAPSHOT_STALE", serverRevision: priorRevision };
+      if (serverState?.kind === "DELIVERY_MARKER" && current.serverStates[slot]) {
+        const classification = SellerAgentsReconciliation.classifyComparison({
+          server: { ...clone(current.serverStates[slot]), accountId: auth.accountId, entityId },
+          delivery: { ...clone(serverState), accountId: auth.accountId, entityId },
+        });
+        if (["SERVER_FINISH_WINS_OVER_LATE_DELIVERY", "STALE_DELIVERY_OBSOLETE"].includes(classification)) {
+          current.serverRevisions[slot] = serverRevision;
+          current.snapshotAt = Date.now();
+          if (current.reconciliation[slot]) current.reconciliation[slot].serverRevision = serverRevision;
+          await write(current);
+          return { applied: true, code: "SYNC_SNAPSHOT_LATE_DELIVERY_OBSOLETE", serverRevision, classification };
+        }
+      }
+      const unresolvedExplicit = latestExplicitEntry(current, auth.accountId, entityId);
+      if (serverState?.kind === "DELIVERY_MARKER" && unresolvedExplicit) {
+        current.serverRevisions[slot] = serverRevision;
+        current.snapshotAt = Date.now();
+        for (const entry of Object.values(current.entries)) {
+          if (entry.accountId === auth.accountId && entry.entityId === entityId && ["PENDING", "RETRY_WAIT"].includes(entry.status) && entry.baseRevision <= serverRevision) entry.baseRevision = serverRevision;
+        }
+        await write(current);
+        return { applied: true, code: "SYNC_SNAPSHOT_LATE_DELIVERY_OBSOLETE", serverRevision, classification: "STALE_DELIVERY_OBSOLETE" };
+      }
+      if (serverState === null) {
+        current.serverRevisions[slot] = serverRevision;
+        delete current.serverStates[slot];
+        current.reconciliation[slot] = { classification: "UNKNOWN_REMOTE_INSTALLATION_STATE", preferred: null, serverRevision, serverState: null };
+        current.snapshotAt = Date.now();
+        await write(current);
+        return { applied: true, code: "SYNC_SNAPSHOT_MISSING", serverRevision, classification: "UNKNOWN_REMOTE_INSTALLATION_STATE" };
+      }
+      const server = { ...clone(serverState), accountId: auth.accountId, entityId };
+      const localForComparison = local.bindingId ? local : null;
+      const classification = SellerAgentsReconciliation.classifyComparison({ local: localForComparison, server });
+      let adoption = null;
+      if (!local.bindingId && ["BOUND", "FINISHED"].includes(server.bindingState) && classification === "SERVER_AHEAD_COMPATIBLE") {
+        adoption = await globalThis.SellerAgentsSyncSnapshotAdoption?.apply?.({ conversationKey: currentConversationKey, expectedAccountId: auth.accountId, serverState: clone(serverState) }) || { adopted: false, code: "SYNC_SNAPSHOT_ADOPTION_UNAVAILABLE" };
+        if (adoption.code === "SYNC_SNAPSHOT_CONTEXT_STALE") return { applied: false, code: "SYNC_SNAPSHOT_CONTEXT_STALE" };
+      }
+      current.serverRevisions[slot] = serverRevision;
+      current.serverStates[slot] = clone(serverState);
+      current.reconciliation[slot] = { classification, preferred: serverState.reconciliation?.preferred || null, serverRevision, serverState: clone(serverState), adoption: adoption ? { adopted: adoption.adopted === true, code: adoption.code || null } : null };
+      current.snapshotAt = Date.now();
+      await write(current);
+      return { applied: true, code: null, serverRevision, classification, adoption: adoption ? clone(adoption) : null };
+    });
+  }
   async function assertCurrentActionAllowed(input = {}) {
     const auth = await identity();
-    const keyDigest = await digest(input.conversationKey || input.binding?.conversation_key || input.binding?.binding_id || "unbound");
-    const entityId = text(input.binding?.binding_id, 128) || keyDigest;
-    const current = (await read()).reconciliation[entityId];
-    if (!current?.serverState) return { allowed: true, code: null };
-    const local = { accountId: auth.accountId, entityId, conversationKeyDigest: keyDigest, bindingId: input.binding?.binding_id || null, bindingRevision: integer(input.binding?.revision) || 0, storeId: input.store?.id || input.binding?.store_context?.storeId || null, marketplace: input.store?.marketplace || input.binding?.store_context?.marketplace || null, workGeneration: input.workGeneration || null, bindingState: "BOUND" };
-    if (["EXPLICIT_BINDING_CONFLICT", "REQUIRES_EXPLICIT_USER_REBIND_RESOLUTION"].includes(current.classification))
+    const conversationKey = normalizedConversationKey(input.conversationKey || input.binding?.conversation_key);
+    if (!conversationKey) return { allowed: true, code: null };
+    const entityId = await conversationEntityId(conversationKey), keyDigest = entityId.slice("conversation:".length), slot = stateSlot(auth.accountId, entityId);
+    const journal = await read(), local = bindingContext(auth, entityId, keyDigest, input.binding, input.store, input.workGeneration);
+    // Pending local explicit changes are local truth until the server reconciles them.
+    // They must not block already-permitted offline Resume/store work; only
+    // server-known conflict/Finish may fence future actions here.
+    const current = journal.reconciliation[slot];
+    if (["EXPLICIT_BINDING_CONFLICT", "REQUIRES_EXPLICIT_USER_REBIND_RESOLUTION"].includes(current?.classification))
       return { allowed: false, code: "SYNC_EXPLICIT_BINDING_CONFLICT" };
-    return SellerAgentsReconciliation.allowsFutureAction({ local, server: current.serverState });
+    if (!current?.serverState) return { allowed: true, code: null };
+    const server = { ...clone(current.serverState), accountId: auth.accountId, entityId };
+    return SellerAgentsReconciliation.allowsFutureAction({ local, server });
   }
   globalThis.SellerAgentsSyncJournal = Object.freeze({
     recordBinding: input => record("BINDING_UPSERT", input),
@@ -304,6 +506,9 @@
     recordStoreMetadata: input => record("STORE_UPSERT", input),
     recordStoreTombstone: input => record("STORE_TOMBSTONE", input),
     read: async () => clone(await read()),
+    entityIdForConversation: conversationEntityId,
+    createSnapshotReadIntent,
+    applySnapshotRead,
     assertCurrentActionAllowed,
     syncNow,
     notifyNetworkRecovery: () => globalThis.SellerAgentsTechnicalScheduler?.wake?.("network_recovery") || syncNow("network_recovery")

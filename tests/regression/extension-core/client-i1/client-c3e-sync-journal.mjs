@@ -30,14 +30,14 @@ async function startAndBind(f) {
 
 await test("C3E-01", "local binding success creates compact durable pending metadata", async () => {
   const f = await fixture();
-  try { const binding = await startAndBind(f); const journal = f.backing.local[JOURNAL]; const entries = Object.values(journal.entries); assert.equal(entries.length, 1); assert.equal(entries[0].status, "PENDING"); assert.equal(entries[0].kind, "BINDING_UPSERT"); assert.equal(entries[0].payload.bindingId, binding.binding_id); assert.equal("conversationKey" in entries[0].payload, false); }
+  try { const binding = await startAndBind(f); const journal = f.backing.local[JOURNAL]; const entries = Object.values(journal.entries); const bindingEntry = entries.find(entry => entry.kind === "BINDING_UPSERT"); assert.ok(bindingEntry); assert.equal(bindingEntry.status, "PENDING"); assert.equal(bindingEntry.payload.bindingId, binding.binding_id); assert.equal(bindingEntry.entityId.startsWith("conversation:"), true); assert.equal("conversationKey" in bindingEntry.payload, false); }
   finally { f.worker.close(); }
 });
 await test("C3E-02", "restart preserves requestId and retry attempt state", async () => {
   const f = await fixture();
-  const binding = await startAndBind(f); assert.ok(binding); const backing = f.backing; const before = clone(backing.local[JOURNAL]); f.worker.close();
+  const binding = await startAndBind(f); assert.ok(binding); const backing = f.backing; const before = clone(backing.local[JOURNAL]); const beforeBinding = Object.values(before.entries).find(entry => entry.kind === "BINDING_UPSERT"); assert.ok(beforeBinding); f.worker.close();
   const reopened = await fixture(backing, async () => new Response(JSON.stringify({ error: { code: "SERVICE_UNAVAILABLE" } }), { status: 503, headers: { "content-type": "application/json" } }));
-  try { const restored = await reopened.worker.call("SellerAgentsSyncJournal.read"); assert.equal(restored.entries[Object.keys(restored.entries)[0]].requestId, before.entries[Object.keys(before.entries)[0]].requestId); const outcome = await reopened.worker.call("SellerAgentsSyncJournal.syncNow", "test"); assert.equal(outcome.ok, false); const after = await reopened.worker.call("SellerAgentsSyncJournal.read"); const entry = after.entries[Object.keys(after.entries)[0]]; assert.equal(entry.status, "RETRY_WAIT"); assert.equal(entry.attempts, 1); assert.ok(entry.nextAttemptAt > Date.now()); }
+  try { const restored = await reopened.worker.call("SellerAgentsSyncJournal.read"); const restoredBinding = Object.values(restored.entries).find(entry => entry.kind === "BINDING_UPSERT"); assert.equal(restoredBinding.requestId, beforeBinding.requestId); const outcome = await reopened.worker.call("SellerAgentsSyncJournal.syncNow", "test"); assert.equal(outcome.ok, false); const after = await reopened.worker.call("SellerAgentsSyncJournal.read"); const entry = Object.values(after.entries).find(row => row.kind === "BINDING_UPSERT"); assert.equal(entry.status, "RETRY_WAIT"); assert.equal(entry.attempts, 1); assert.ok(entry.nextAttemptAt > Date.now()); }
   finally { reopened.worker.close(); }
 });
 await test("C3E-03", "ACK compacts only the sent mutation and leaves a newer dirty mutation", async () => {
@@ -48,7 +48,7 @@ await test("C3E-03", "ACK compacts only the sent mutation and leaves a newer dir
 });
 await test("C3E-04", "conflict is durable, stops retry, and retains local desired metadata", async () => {
   const f = await fixture(null, async (_url, init) => { const body = JSON.parse(init.body); return new Response(JSON.stringify({ syncVersion: "seller_agents_sync_v1", results: body.entries.map(entry => ({ requestId: entry.requestId, mutationId: entry.mutationId, entityId: entry.entityId, outcome: "CONFLICT", serverRevision: 7, serverState: { ...entry.payload, bindingRevision: 99 }, code: "SYNC_CONFLICT" })) }), { status: 200, headers: { "content-type": "application/json" } }); });
-  try { await startAndBind(f); const result = await f.worker.call("SellerAgentsSyncJournal.syncNow", "test"); assert.equal(result.ok, true); const journal = await f.worker.call("SellerAgentsSyncJournal.read"); const entry = Object.values(journal.entries)[0]; assert.equal(entry.status, "CONFLICT"); assert.equal(entry.payload.kind, "BINDING_UPSERT"); assert.equal(entry.conflict.serverRevision, 7); }
+  try { await startAndBind(f); const result = await f.worker.call("SellerAgentsSyncJournal.syncNow", "test"); assert.equal(result.ok, true); const journal = await f.worker.call("SellerAgentsSyncJournal.read"); const entry = Object.values(journal.entries).find(row => row.kind === "BINDING_UPSERT"); assert.equal(entry.status, "CONFLICT"); assert.equal(entry.payload.kind, "BINDING_UPSERT"); assert.equal(entry.conflict.serverRevision, 7); }
   finally { f.worker.close(); }
 });
 await test("C3E-05", "delivery marker is compact and does not issue an immediate sync request", async () => {

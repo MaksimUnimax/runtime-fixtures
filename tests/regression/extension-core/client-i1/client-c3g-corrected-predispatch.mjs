@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import path from "node:path";
 import { makeWorker, signFixtureBootstrap, until } from "../worker-harness.mjs";
 
@@ -68,15 +69,17 @@ async function waitFailed(f) {
 
 function journalState(f, patch) {
   const binding = f.backing.local[BINDINGS][f.key];
+  const digest = createHash("sha256").update(String(f.key).toLowerCase()).digest("hex");
+  const entityId = `conversation:${digest}`, slot = `${f.store.accountId}\u001f${entityId}`;
   const state = {
     version: "seller_agents_sync_v1", sequence: 1, entries: {}, serverRevisions: {}, serverStates: {},
     reconciliation: {}, snapshotAt: Date.now(),
   };
-  state.reconciliation[binding.binding_id] = {
+  state.reconciliation[slot] = {
     classification: patch.classification,
     preferred: patch.preferred || null,
     serverRevision: patch.serverRevision || binding.revision,
-    serverState: { accountId: f.store.accountId, entityId: binding.binding_id, conversationKeyDigest: f.key,
+    serverState: { accountId: f.store.accountId, entityId, conversationKeyDigest: digest,
       bindingId: binding.binding_id, bindingRevision: patch.bindingRevision || binding.revision, storeId: patch.storeId || f.store.id,
       marketplace: patch.marketplace || f.store.marketplace, credentialRevision: f.store.credentialRevision,
       workGeneration: patch.workGeneration || f.backing.local[SESSIONS][f.key].start_intent_id || null,
