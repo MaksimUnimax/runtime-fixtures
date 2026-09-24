@@ -78,10 +78,19 @@ with tempfile.TemporaryDirectory(prefix="octoport-store-contract-") as temp:
     worker = (runtime / "service_worker.js").read_text(encoding="utf-8")
     assert "globalThis.__SELLER_AGENTS_PACKAGED_CONFIG__=" in worker
     assert "control_plane_v2" in worker and "PREPRODUCTION" in worker
+    assert "PACKAGED_CONFIG_REQUIRED" in worker
+    assert "LOCAL DEVELOPMENT" not in worker
+    assert "127.0.0.1:43100" not in worker and "127.0.0.1:43101" not in worker
+    assert "config-local-development" not in worker
     for visible in ("popup.html", "popup.js", "shared/application.js"):
         text = (runtime / visible).read_text(encoding="utf-8")
         assert "Seller Agents" not in text
         assert "Octoport" in text
+    popup = (runtime / "popup.html").read_text(encoding="utf-8")
+    assert "Локальная разработка" not in popup
+    assert "LOCAL DEVELOPMENT" not in popup
+    assert "Проверяем аккаунт…" in popup
+    assert "BETA · результаты сразу в ИИ · буфер до 1 часа" in popup
     assert receipt["build_mode"] == "store"
     assert receipt["environment"] == "PREPRODUCTION"
     assert receipt["package"]["name"] == "OCTOPORT_v0.2.4_CHROMIUM_STORE.zip"
