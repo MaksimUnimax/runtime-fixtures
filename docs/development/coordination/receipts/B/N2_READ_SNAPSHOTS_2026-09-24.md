@@ -56,6 +56,14 @@ Disposable PostgreSQL / unit:
 - exit 0; peak 581 MiB; cleanup_verified.
 - log: /root/octoport-control/logs/B/n2-read-snapshots-postgres-20260924.log
 
+Exact merged-code-head revalidation after integrating origin/main 8109589d29a540b6f8fe78840ede721f69c5206e:
+- tested code HEAD: 885179dd7ddae0e0a6f6f9f369f3980086161a63;
+- @product/sync typecheck + @product/db typecheck through build profile: PASS; resource unit octoport-test-b-849d46b121654caa8913f781e1f754ae.service, exit 0, peak 759 MiB, cleanup_verified;
+- @product/sync unit tests: 16/16 PASS;
+- packages/server/db/src/sync.integration.test.ts: 22/22 PASS against the B-owned disposable PostgreSQL;
+- integration resource unit octoport-test-b-b742a612a83f49dd95b28eae8c5bc3fc.service, exit 0, peak 582 MiB, cleanup_verified;
+- final log: /root/octoport-control/logs/B/n2-read-snapshots-postgres-20260924-final.log.
+
 ## Remaining boundary
 
 C still owns readEntityIds/snapshots HTTP wire schemas, combined entries+reads<=32 validation, response<=256 KiB enforcement, service ordering/wiring, and final integration acceptance.
