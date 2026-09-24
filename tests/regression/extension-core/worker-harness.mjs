@@ -153,6 +153,8 @@ export async function makeWorker(directory, options = {}) {
     listeners = [],
     connectListeners = [],
     storageChangedListeners = [],
+    alarmListeners = [],
+    alarmEntries = new Map(),
     timers = new Set();
   const backing = options.backing || { local: {}, session: {} };
   const wallClock = () =>
@@ -599,11 +601,12 @@ export async function makeWorker(directory, options = {}) {
       },
     },
     alarms: {
-      create() {},
-      async clear() {
+      create(name, details) { alarmEntries.set(name, details); },
+      async clear(name) {
+        alarmEntries.delete(name);
         return true;
       },
-      onAlarm: { addListener() {} },
+      onAlarm: { addListener(fn) { alarmListeners.push(fn); } },
     },
     downloads: {
       async download() {
@@ -925,6 +928,10 @@ export async function makeWorker(directory, options = {}) {
     setDialogue(id) {
       identity.conversation_id = id;
       tab.url = identity.origin + "/c/" + id;
+    },
+    async fireAlarm(name) {
+      for (const listener of alarmListeners) listener({ name, scheduledTime: alarmEntries.get(name)?.when || Date.now() });
+      await new Promise((resolve) => setTimeout(resolve, 0));
     },
     portRequest(message) {
       return new Promise((resolve) => {
