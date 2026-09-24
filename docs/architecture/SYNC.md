@@ -19,6 +19,16 @@ Worker владеет локальной таблицей диалогов и о
 Две установки временно могут исполнять независимо. Возможны повтор одинаковой команды, двойное сообщение в ИИ, расход общей квоты площадки и устаревшие ответы. Это принятый предел автономности, а не exactly-once между браузерами.
 Новый Start при неподтверждённой глобальной смене ясно показывает локальное состояние; после обнаруженного другого магазина конфликт разрешается для этого диалога, не для всего расширения.
 
+## N2: общий wire для редкого чтения состояния
+
+Остаётся один транспорт `POST /v1/sync`; отдельного read endpoint, heartbeat, lease, WebSocket или server poll не вводится. Для binding-состояния канонический server entity key — `conversation:<conversationKeyDigest>`, где digest — 64 hex SHA-256 подтверждённого conversation key. Для store metadata ключ — `store:<storeId>`. Сырые conversation ID, содержимое диалога, marketplace credentials и отчёты в этот wire не входят.
+
+Совместимый V1 request получает необязательный `readEntityIds`. Это уникальные канонические IDs, максимум 32. `entries` по-прежнему максимум 32, но может быть пустым только когда есть хотя бы один read; `entries + unique readEntityIds <= 32`. Старые mutation-only клиенты продолжают посылать прежний shape. Во время server-first rollout legacy mutation `entityId` не становится canonical-only на wire: сервер обязан вывести канонический storage/lock key из binding payload и сохранить exact historical replay/fingerprint semantics. Новые `readEntityIds` принимают только канонические ключи.
+
+Совместимый V1 response получает необязательный `snapshots`. Для каждого запрошенного ID сервер возвращает ровно один snapshot в порядке request: `entityId`, `serverRevision`, `serverState`. Неизвестная сущность — revision `0` и `null` state. Read-only вызов не создаёт entity, receipt и не меняет `updated_at`. Mixed call сначала завершает mutations, затем делает bounded read актуального committed состояния; это не обещание атомарности всего batch сверх уже существующей mutation semantics.
+
+Каждый `serverState` ограничен существующим durable пределом 4096 UTF-8 bytes. `snapshots <= 32`, полный JSON response — не более 256 KiB. Сервер не обрезает state молча: нарушение границы fail closed. Новые request fields не отправляются клиентом до принятого server-first deployment; optional response snapshots должны оставаться совместимыми со старым response consumer.
+
 ## Восстановление связи
 
 Расширение инициирует запросы. Сервер не опрашивает браузеры.

@@ -162,8 +162,30 @@ const SyncDigest = z
   .string()
   .length(64)
   .regex(/^[a-f0-9]{64}$/);
+export const SellerAgentsSyncReadEntityIdV1Schema = z.union([
+  z
+    .string()
+    .length(77)
+    .regex(/^conversation:[a-f0-9]{64}$/),
+  z
+    .string()
+    .min(7)
+    .max(128)
+    .regex(/^store:.{1,122}$/s)
+    .refine((value) =>
+      [...value.slice("store:".length)].every((character) => {
+        const code = character.charCodeAt(0);
+        return code > 0x1f && code !== 0x7f;
+      }),
+    ),
+]);
+export type SellerAgentsSyncReadEntityIdV1 = z.infer<
+  typeof SellerAgentsSyncReadEntityIdV1Schema
+>;
 const SyncNullableString = (max: number) =>
   z.string().min(1).max(max).nullable();
+const syncJsonUtf8Bytes = (value: unknown): number =>
+  new TextEncoder().encode(JSON.stringify(value)).byteLength;
 const SyncDeliveryOrderSchema = z
   .object({
     aiOrderId: SyncNullableString(240).optional(),
@@ -254,6 +276,15 @@ const SyncStateV1Schema = z
     lifecycleState: z.enum(["ACTIVE", "TOMBSTONED"]).optional(),
   })
   .strict();
+const SyncBoundedStateV1Schema = SyncStateV1Schema.nullable().superRefine(
+  (value, ctx) => {
+    if (value !== null && syncJsonUtf8Bytes(value) > 4096)
+      ctx.addIssue({
+        code: "custom",
+        message: "sync state exceeds 4096 UTF-8 bytes",
+      });
+  },
+);
 export const SellerAgentsSyncEntryV1Schema = z
   .object({
     requestId: z.uuid(),
@@ -342,9 +373,32 @@ export const SellerAgentsSyncRequestV1Schema = z
   .object({
     syncVersion: SellerAgentsSyncVersionV1Schema,
     installationId: z.uuid(),
-    entries: z.array(SellerAgentsSyncEntryV1Schema).min(1).max(32),
+    entries: z.array(SellerAgentsSyncEntryV1Schema).max(32),
+    readEntityIds: z
+      .array(SellerAgentsSyncReadEntityIdV1Schema)
+      .max(32)
+      .optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((value, ctx) => {
+    const readEntityIds = value.readEntityIds ?? [];
+    if (value.entries.length === 0 && readEntityIds.length === 0)
+      ctx.addIssue({
+        code: "custom",
+        message: "at least one mutation or read is required",
+      });
+    if (new Set(readEntityIds).size !== readEntityIds.length)
+      ctx.addIssue({
+        code: "custom",
+        message: "read entity ids must be unique",
+        path: ["readEntityIds"],
+      });
+    if (value.entries.length + readEntityIds.length > 32)
+      ctx.addIssue({
+        code: "custom",
+        message: "mutations plus unique reads must not exceed 32",
+      });
+  });
 export type SellerAgentsSyncRequestV1 = z.infer<
   typeof SellerAgentsSyncRequestV1Schema
 >;
@@ -355,19 +409,44 @@ export const SellerAgentsSyncResultV1Schema = z
     entityId: z.string().min(1).max(128),
     outcome: z.enum(["ACK", "CONFLICT", "RETRY"]),
     serverRevision: z.number().int().nonnegative().safe(),
-    serverState: SyncStateV1Schema.nullable(),
+    serverState: SyncBoundedStateV1Schema,
     code: z
       .string()
       .regex(/^[A-Z][A-Z0-9_]{0,63}$/)
       .nullable(),
   })
   .strict();
+export const SellerAgentsSyncSnapshotV1Schema = z
+  .object({
+    entityId: SellerAgentsSyncReadEntityIdV1Schema,
+    serverRevision: z.number().int().nonnegative().safe(),
+    serverState: SyncBoundedStateV1Schema,
+  })
+  .strict();
+export type SellerAgentsSyncSnapshotV1 = z.infer<
+  typeof SellerAgentsSyncSnapshotV1Schema
+>;
 export const SellerAgentsSyncResponseV1Schema = z
   .object({
     syncVersion: SellerAgentsSyncVersionV1Schema,
     results: z.array(SellerAgentsSyncResultV1Schema).max(32),
+    snapshots: z.array(SellerAgentsSyncSnapshotV1Schema).max(32).optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((value, ctx) => {
+    const snapshotIds = (value.snapshots ?? []).map((item) => item.entityId);
+    if (new Set(snapshotIds).size !== snapshotIds.length)
+      ctx.addIssue({
+        code: "custom",
+        message: "snapshot entity ids must be unique",
+        path: ["snapshots"],
+      });
+    if (syncJsonUtf8Bytes(value) > 256 * 1024)
+      ctx.addIssue({
+        code: "custom",
+        message: "sync response exceeds 256 KiB",
+      });
+  });
 export type SellerAgentsSyncResponseV1 = z.infer<
   typeof SellerAgentsSyncResponseV1Schema
 >;
