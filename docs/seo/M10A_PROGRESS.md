@@ -1,7 +1,7 @@
 # Octoport SEO — M10A progress
 
 Date: 2026-09-24
-Status: **SEARCH-ONLY PAGE/IA BASELINE HANDOFF PREPARED**
+Status: **SEARCH-ONLY PAGE/IA BASELINE WORK HANDOFF READY**
 Branch: `seo/wordstat-batch-01-2026-09-16`
 
 ## Accepted chain
@@ -54,3 +54,9 @@ Work must freeze this all-HOLD Search-only baseline without assigning current or
 
 Owner staging after Work return:
 `docs/seo/work_return/M10A_SEARCH_ONLY_PAGE_IA_BASELINE_2026-09-24_R1/`
+
+Canonical Work prompt:
+`docs/seo/M10A_WORK_PROMPT_2026-09-24_R1.md`
+blob `87219a59a9bc5d1f8eed7881aba5e6d9c95f0bbf`.
+
+Work return must contain exactly 7 files and stop before M10B.
