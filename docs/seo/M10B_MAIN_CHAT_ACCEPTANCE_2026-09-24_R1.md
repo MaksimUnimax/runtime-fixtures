@@ -1,0 +1,110 @@
+# Octoport SEO — M10B final AI diagnostic case selection — Main Chat acceptance — 2026-09-24 R1
+
+Status: **PASS / FINAL AI DIAGNOSTIC CASE SET ACCEPTED / M10C PREFLIGHT OPEN**
+Repository: `MaksimUnimax/runtime-fixtures`
+Branch: `seo/wordstat-batch-01-2026-09-16`
+Accepted Work upload commit: `8d8a41a907d1282c8c7c3c61e1f0cb44966300ae`
+Accepted Work return: `docs/seo/work_return/M10B_FINAL_AI_DIAGNOSTIC_CASE_SELECTION_2026-09-24_R1/`
+
+## Independent Main Chat acceptance
+
+```text
+RETURN_FILES = 8/8
+RETURN_MANIFEST_HASH_MATCH = 7/7
+RETURN_MANIFEST_BYTE_MATCH = 7/7
+RETURN_MANIFEST_LINE_COUNT_MATCH = 7/7
+
+WORK_START_HEAD = e9d13991446f04a2f69ce4940afefd10096f4517
+WORK_END_OBSERVED_HEAD = e9d13991446f04a2f69ce4940afefd10096f4517
+AUTHORITY_DRIFT_STATUS = NONE_FROZEN_INPUTS_UNCHANGED
+
+M5_HYPOTHESIS_ROWS = 65/65
+HYPOTHESIS_DISPOSITION_ROWS = 65/65
+HYPOTHESIS_ID_SET_MATCH = true
+HYPOTHESIS_MULTI_DISPOSITION = 0
+
+HYPOTHESES_WITH_DIRECT_CURRENT_QUERY_LINK = 43/43
+HYPOTHESES_WITHOUT_DIRECT_CURRENT_QUERY_LINK = 22/22
+DIRECT_HYPOTHESIS_QUERY_CLUSTER_LINK_ROWS = 164/164
+DIRECT_LINKED_M10A_CLUSTERS = 19/19
+DIRECT_LINKED_MATERIAL_BOUNDARIES = 363/363
+
+SELECT_FINAL_AI_DIAGNOSTIC = 15
+COVERED_BY_SELECTED_CASE = 3
+NO_MATERIAL_M10A_DECISION_LINK = 12
+HOLD_AMBIGUOUS_M10A_LINK = 35
+NO_EXECUTABLE_DIAGNOSTIC_PROMPT = 0
+
+FINAL_AI_DIAGNOSTIC_CASES = 15
+FINAL_AI_DIAGNOSTIC_CASE_IDS_UNIQUE = 15/15
+CASE_ID_DERIVATION_MISMATCH = 0
+SELECTED_CASES_WITH_DIRECT_QUERY_PROMPT = 15/15
+DIRECT_PROMPT_QUERY_TEXT_MISMATCH = 0
+SELECTED_OR_COVERED_PROMPT_OUTSIDE_OWN_DIRECT_AUTHORITY = 0
+
+CASE_CLUSTER_XREF_ROWS = 184/184
+CASE_CLUSTER_XREF_SOURCE_MISMATCH = 0
+SELECTED_CASE_WITHOUT_CLUSTER_XREF = 0
+SELECTED_OR_COVERED_HYPOTHESIS_WITHOUT_CLUSTER_XREF = 0
+
+CASE_BOUNDARY_XREF_ROWS = 166/166
+CASE_BOUNDARY_UNIQUE_PAIR_IDS = 155
+INVALID_BOUNDARY_XREF = 0
+BOUNDARY_XREF_NOT_INCIDENT_TO_AFFECTED_CLUSTER = 0
+
+CASE_AFFECTED_CLUSTER_SET_XREF_MISMATCH = 0
+CASE_FROZEN_BOUNDARY_CONTEXT_NOT_IN_XREF = 0
+
+COVERED_CASE_CONSOLIDATIONS = 3
+LOSSY_COVERAGE_DEFECTS = 0
+
+PROMPT_SOURCE_EXACT_CURRENT_SEARCH_QUERY = 15/15
+M10B_DIAGNOSTIC_PROMPT_FROM_NON_DIRECT_SOURCE = 0
+MAX_SNAPSHOTS = 2 for 15/15
+MAX_SNAPSHOTS_OUT_OF_RANGE = 0
+M10C_EXECUTION_AUTHORIZED_HERE = false for 15/15
+
+M10A_BASELINE_MUTATIONS = 0
+M9_CLUSTER_MUTATIONS = 0
+M5_HYPOTHESIS_MUTATIONS = 0
+
+AI_PROVIDER_CALLS_BY_WORK = 0
+YANDEX_AI_EXECUTIONS_BY_WORK = 0
+ALICE_EXECUTIONS_BY_WORK = 0
+WEB_ACQUISITION_BY_WORK = 0
+GITHUB_WRITES_BY_WORK = 0
+
+OPEN_CRITICAL_DEFECTS = 0
+MAIN_CHAT_QA = PASS
+VERDICT = PASS_FINAL_AI_DIAGNOSTIC_CASE_SELECTION
+M10C_PREFLIGHT_GATE = OPEN
+```
+
+## Accepted selected-case boundary
+
+Exactly 15 AI diagnostic cases are accepted. This number is evidence-derived, not a quota.
+
+All 15 use exact accepted current Search query wording, giving a controlled ordinary-Search vs AI-search comparison. No non-direct M5 source phrase was promoted into an executable prompt.
+
+The three `COVERED_BY_SELECTED_CASE` consolidations are accepted as lossless:
+
+- `M5H00027` is covered by `M5H00026` on the same Wildberries AI-agent uncertainty, exact query and primary cluster;
+- `M5H00041` is covered by `M5H00040` on the same Wildberries DRR uncertainty, exact query and primary cluster;
+- `M5H00053` is covered by `M5H00024` on the same marketplace analytics uncertainty, exact query and primary cluster.
+
+## Baseline / downstream boundary
+
+M10A remains immutable.
+M10B does not predict any AI answer or M10D outcome.
+M10B does not itself authorize provider execution.
+
+Each accepted case allows at most two snapshots under its frozen variability plan, but M10C must perform a fresh provider/Bridge/cost/transport preflight and may further reduce or block execution.
+
+## Gate decision
+
+`M10C_PREFLIGHT_GATE = OPEN`.
+
+Next physical step:
+`M10C CURRENT YANDEX AI / ALICE PROVIDER + BRIDGE + COST + PERSISTENCE PREFLIGHT`.
+
+No AI provider call is authorized by this acceptance alone.
