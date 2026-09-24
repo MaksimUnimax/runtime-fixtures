@@ -8,7 +8,7 @@
   const MAX_BATCH = 32;
   const MAX_ENTRIES = 256;
   const MAX_PAYLOAD_BYTES = 1800;
-  const RETRY_MS = [5000, 15000, 30000, 60000, 120000];
+  const RETRY_MS = [5000, 15000, 30000, 60000, 120000, 300000];
   const MAX_RETRY_MS = 300000;
   let stateFlight = null;
   let mutationFlight = Promise.resolve();
@@ -198,7 +198,8 @@
     return [401, 403].includes(Number(error?.status)) || ["UNAUTHORIZED", "DEVICE_MISMATCH", "DEVICE_REVOKED", "AUTH_REFRESH_INVALID", "ACCOUNT_IDENTITY_MISMATCH"].includes(error?.code);
   }
   async function schedule() {
-    const next = await read(), due = Object.values(next.entries).filter(entry => ["PENDING", "RETRY_WAIT"].includes(entry.status));
+    const next = await read(), due = Object.values(next.entries).filter(entry =>
+      ["PENDING", "RETRY_WAIT"].includes(entry.status) && entry.kind !== "DELIVERY_MARKER");
     const scheduler = globalThis.SellerAgentsTechnicalScheduler;
     if (!due.length) {
       await scheduler?.cancelKind?.(scheduler.KINDS.SYNC);
@@ -268,9 +269,13 @@
       } catch (error) {
         if (authDenied(error)) {
           await markBatch(selected, () => ({ status: "FAILED", nextAttemptAt: 0, lastError: text(error.code, 128) || "AUTH_REQUIRED" }));
-          try { await SellerAgentsControlClient.localReset(); } catch (_) {}
         } else if (retryable(error)) {
-          await markBatch(selected, entry => ({ status: "RETRY_WAIT", nextAttemptAt: Date.now() + retryDelay(entry.requestId, entry.attempts), lastError: text(error.code, 128) || "SYNC_RETRY_WAIT" }));
+          const retryAfterMs = Math.max(0, Number(error?.retryAfterMs) || 0);
+          await markBatch(selected, entry => ({
+            status: "RETRY_WAIT",
+            nextAttemptAt: Date.now() + Math.min(MAX_RETRY_MS, Math.max(retryDelay(entry.requestId, entry.attempts), retryAfterMs)),
+            lastError: text(error.code, 128) || "SYNC_RETRY_WAIT"
+          }));
         } else {
           await markBatch(selected, () => ({ status: "FAILED", nextAttemptAt: 0, lastError: text(error.code, 128) || "SYNC_CONTRACT_INVALID" }));
         }
