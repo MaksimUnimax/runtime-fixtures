@@ -1,7 +1,7 @@
 # Octoport SEO — M9 progress
 
 Date: 2026-09-24
-Status: **RELEASED / WAITING CHATGPT WORK RETURN**
+Status: **R2 RELEASED / WAITING CHATGPT WORK RETURN**
 Branch: `seo/wordstat-batch-01-2026-09-16`
 
 ## Current accepted chain
@@ -9,11 +9,12 @@ Branch: `seo/wordstat-batch-01-2026-09-16`
 ```text
 M0..M7 = ACCEPTED
 M8 R3 = PASS / ACCEPTED
-M9 = RELEASED TO WORK
+M9 R1 = SUPERSEDED / NOT EXECUTABLE
+M9 R2 = RELEASED TO WORK
 M10A = BLOCKED
 ```
 
-## M9 preparation
+## Two-level preparation
 
 ```text
 LEVEL1_READ = PASS
@@ -21,35 +22,50 @@ LEVEL2_READ = PASS
 ROADMAP_CURRENT_STATE_READ = PASS
 FAILURE_HISTORY_READ = PASS
 FRESH_METHOD_RESEARCH = PASS
-STEP_PREPARATION = PASS / REMOTE READBACK
-PRE_HANDOFF = PASS / REMOTE READBACK
-WORK_PROMPT = PASS / REMOTE READBACK
+SOURCE_TO_METHOD_TRACE = PASS
+STEP_PREPARATION_R2 = PASS / REMOTE READBACK
+PRE_HANDOFF_R2 = PASS / REMOTE READBACK
+WORK_PROMPT_R2 = PASS / REMOTE READBACK
 ```
 
 Authorities:
 
-- `docs/seo/M9_STEP_PREPARATION_2026-09-24_R1.md`
-  blob `6ec22f7b586b05f0987b367c3dcb4d83914c0524`
+- `docs/seo/M9_STEP_PREPARATION_2026-09-24_R2.md`
+  blob `7ad9740eecf8433f678860c122971bd9c6a73de1`
 
-- `docs/seo/M9_CANONICAL_DIRECT_INPUT_MANIFEST_2026-09-24_R1.json`
-  blob `5b208b4d170e01b6775772fe00fb01928fd442da`
+- `docs/seo/M9_CANONICAL_DIRECT_INPUT_MANIFEST_2026-09-24_R2.json`
+  blob `424f2e61c54388c90fb5cc91495f7f5c8f81898b`
 
-- `docs/seo/M9_SEARCH_ONLY_CLUSTERING_PRE_HANDOFF_2026-09-24_R1.md`
-  blob `ed3ab495be4e1faced958441afbba410672375dd`
+- `docs/seo/M9_SEARCH_ANCHOR_MAP_2026-09-24_R2.tsv`
+  blob `61a6d6c5befbc20f75fadddfd035b7affc6fe14c`
 
-- `docs/seo/M9_SEARCH_ONLY_CLUSTERING_WORK_PROMPT_2026-09-24_R1.md`
-  blob `99c1c8a58c4bcc083c64cc999c15298ce0beb220`
+- `docs/seo/M9_SEARCH_ONLY_CLUSTERING_PRE_HANDOFF_2026-09-24_R2.md`
+  blob `9a7ac34435e2e834e7153fe6ba368531f81e17da`
 
-## Work contract
+- `docs/seo/M9_SEARCH_ONLY_CLUSTERING_WORK_PROMPT_2026-09-24_R2.md`
+  blob `01a9eb08d12b635d2dd5f76f3da68313332364f9`
+
+## R2 clustering contract
 
 ```text
 M8_IDENTITIES_ACCOUNTED = 7913
 CLUSTER_ELIGIBLE_WORKING = 104
-PAIRWISE_ROWS = 5356
 
-BOTH_EXACT_SERP_PAIRS = 231
-ONE_EXACT_SERP_PAIRS = 1804
-NO_EXACT_SERP_PAIRS = 3321
+SEARCH_ANCHOR_MAP = 22/22
+SEARCH_ANCHOR_MAPPING = 1:1 unique M4Q query IDs
+
+PAIRWISE_ROWS = 5356
+BOTH_CURRENT_SERP = 231
+ONE_CURRENT_SERP = 1804
+NO_CURRENT_SERP = 3321
+
+CURRENT_OVERLAP_SOURCE = M4Q RU225 Top100
+URL_FIELD = result_url_normalized
+DOMAIN_FIELD = result_domain
+AD_HOC_URL_RENORMALIZATION = forbidden
+M4A_CURRENT_OVERLAP_MIX = forbidden
+M6_REGION213_RU225_OVERLAP_MIX = forbidden
+AD_HOC_PAGE_TYPE_INFERENCE = forbidden
 
 OUTPUT_FILES = 9
 ALICE_INPUT_ROWS = 0
@@ -61,17 +77,15 @@ M10A = NOT_AUTHORIZED
 
 ## Owner relay
 
-Main Chat must provide the complete M9 Work prompt directly in chat.
+Main Chat must provide the complete R2 Work prompt directly in chat.
 
-Work returns one ZIP with exactly 9 files.
+Work returns one ZIP containing exactly 9 files.
 
 Staging:
-
-`docs/seo/work_return/M9_SEARCH_ONLY_CLUSTERING_2026-09-24_R1/`
+`docs/seo/work_return/M9_SEARCH_ONLY_CLUSTERING_2026-09-24_R2/`
 
 Upload URL:
-
-`https://github.com/MaksimUnimax/runtime-fixtures/upload/seo/wordstat-batch-01-2026-09-16/docs/seo/work_return/M9_SEARCH_ONLY_CLUSTERING_2026-09-24_R1/`
+`https://github.com/MaksimUnimax/runtime-fixtures/upload/seo/wordstat-batch-01-2026-09-16/docs/seo/work_return/M9_SEARCH_ONLY_CLUSTERING_2026-09-24_R2/`
 
 After upload:
 `REMOTE READBACK -> MAIN CHAT QA -> ACCEPT | REWORK | HOLD -> only then M10A`.
