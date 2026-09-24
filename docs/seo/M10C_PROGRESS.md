@@ -1,7 +1,7 @@
 # Octoport SEO — M10C progress
 
 Date: 2026-09-24
-Status: **CASE01–CASE04 TERMINAL CLOSED / CASE05 SNAPSHOT02 RELEASED**
+Status: **CASE01–CASE05 TERMINAL CLOSED / CASE06 SNAPSHOT01 RELEASED**
 Branch: `seo/wordstat-batch-01-2026-09-16`
 
 ## Accepted chain
@@ -206,3 +206,22 @@ Current authorized action:
 `SEARCH_API_V1 {"method":"genSearch","queryText":"chatgpt для wildberries","confirmBillable":true}`
 
 One second Case05 snapshot is authorized under the owner quality-priority rule. If material doubt remains after it, Main Chat must amend the case before any third request. Case06 remains closed.
+
+Case05 terminal closure:
+`docs/seo/M10C_CASE05_TERMINAL_CLOSURE_2026-09-24_R1.md`
+blob `299d03c54f92971ad68ea290c60f14345a2f6fef`.
+
+```text
+CASE05_SNAPSHOTS = 2
+CASE05_TERMINAL_EVIDENCE_STATE = STABLE_MIXED_LIVE_CONNECTOR_AND_FILE_REPORT_ANALYTICS
+CASE05_ESTIMATED_PROVIDER_COST_RUB = 10.16
+```
+
+Case06 snapshot-1 release:
+`docs/seo/M10C_CASE06_SNAPSHOT01_RELEASE_2026-09-24_R1.md`
+blob `cd7ea08565b0deb8dbfe62e0f93321ccf36a3d5a`.
+
+Current authorized action:
+`SEARCH_API_V1 {"method":"genSearch","queryText":"подключить chatgpt к маркетплейсу","confirmBillable":true}`
+
+Exactly one Case06 provider request is authorized. Quality-priority rule remains active; Case07 remains closed.
