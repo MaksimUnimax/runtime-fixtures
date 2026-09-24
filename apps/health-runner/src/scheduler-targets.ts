@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import {
   DEFAULT_NO_SESSION_CADENCE,
+  HealthScheduleCadenceSchema,
   type HealthScheduleInput,
 } from "@product/health";
 import type { HealthSchedule } from "@product/health";
@@ -14,13 +15,24 @@ function stableScheduleId(targetKey: string): string {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-8${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
 }
 
+function noSessionCadence(intervalSeconds: number): HealthSchedule["cadence"] {
+  const result = HealthScheduleCadenceSchema.safeParse({
+    ...DEFAULT_NO_SESSION_CADENCE,
+    intervalSeconds,
+  });
+  if (!result.success) throw new Error("NO_SESSION_SCHEDULE_CADENCE_INVALID");
+  return result.data;
+}
+
 /**
  * The public monitor is a typed durable capability. It deliberately has no
  * authenticated-session lookup or readiness gate; deep probes are additive.
  */
 export function createNoSessionHealthSchedules(
   firstDueAt: Date,
+  intervalSeconds = DEFAULT_NO_SESSION_CADENCE.intervalSeconds,
 ): readonly HealthScheduleInput[] {
+  const cadence = noSessionCadence(intervalSeconds);
   return NO_SESSION_TARGETS.map((target) => ({
     scheduleId: stableScheduleId(target.targetKey),
     monitorTarget: target.targetKey,
@@ -28,7 +40,7 @@ export function createNoSessionHealthSchedules(
     surface: target.surfaceId,
     probeLayer: "NO_SESSION" as const,
     enabled: true,
-    cadence: DEFAULT_NO_SESSION_CADENCE,
+    cadence,
     nextDueAt: new Date(firstDueAt),
     revision: 1,
   }));
@@ -37,15 +49,25 @@ export function createNoSessionHealthSchedules(
 export interface NoSessionScheduleBootstrapRepository {
   getSchedule(scheduleId: string): Promise<HealthSchedule | undefined>;
   createSchedule(input: unknown): Promise<HealthSchedule>;
+  updateSchedule(input: {
+    scheduleId: string;
+    enabled: boolean;
+    cadence: HealthSchedule["cadence"];
+    nextDueAt: Date;
+  }): Promise<HealthSchedule>;
 }
 
 /** Ensures the accepted target schedules exist; retries are safe across wakes. */
 export async function ensureNoSessionHealthSchedules(
   repository: NoSessionScheduleBootstrapRepository,
   firstDueAt: Date,
+  intervalSeconds = DEFAULT_NO_SESSION_CADENCE.intervalSeconds,
 ): Promise<number> {
   let created = 0;
-  for (const schedule of createNoSessionHealthSchedules(firstDueAt)) {
+  for (const schedule of createNoSessionHealthSchedules(
+    firstDueAt,
+    intervalSeconds,
+  )) {
     const existing = await repository.getSchedule(schedule.scheduleId);
     if (existing) {
       if (
@@ -55,6 +77,22 @@ export async function ensureNoSessionHealthSchedules(
         existing.probeLayer !== schedule.probeLayer
       ) {
         throw new Error("NO_SESSION_SCHEDULE_IDENTITY_CONFLICT");
+      }
+      if (existing.cadence.intervalSeconds !== intervalSeconds) {
+        const cadence = noSessionCadence(intervalSeconds);
+        try {
+          await repository.updateSchedule({
+            scheduleId: existing.scheduleId,
+            enabled: existing.enabled,
+            cadence,
+            nextDueAt: new Date(firstDueAt),
+          });
+        } catch {
+          const raced = await repository.getSchedule(existing.scheduleId);
+          if (!raced || raced.cadence.intervalSeconds !== intervalSeconds) {
+            throw new Error("NO_SESSION_SCHEDULE_CADENCE_UPDATE_FAILED");
+          }
+        }
       }
       continue;
     }

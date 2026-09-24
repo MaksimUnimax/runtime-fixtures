@@ -21,7 +21,7 @@ describe("no-session durable schedule definitions", () => {
       ),
     ).toBe(true);
     expect(
-      schedules.every((item) => item.cadence.intervalSeconds >= 3_600),
+      schedules.every((item) => item.cadence.intervalSeconds === 21_600),
     ).toBe(true);
     expect(schedules.some((item) => item.surface === "CHATGPT_WORK")).toBe(
       true,
@@ -54,6 +54,25 @@ describe("no-session durable schedule definitions", () => {
         rows.set(schedule.scheduleId, row);
         return row;
       },
+      updateSchedule: async (input: {
+        scheduleId: string;
+        enabled: boolean;
+        cadence: HealthSchedule["cadence"];
+        nextDueAt: Date;
+      }) => {
+        const existing = rows.get(input.scheduleId);
+        if (!existing) throw new Error("missing");
+        const row: HealthSchedule = {
+          ...existing,
+          enabled: input.enabled,
+          cadence: input.cadence,
+          nextDueAt: input.nextDueAt,
+          revision: existing.revision + 1,
+          updatedAt: new Date(input.nextDueAt),
+        };
+        rows.set(input.scheduleId, row);
+        return row;
+      },
     };
     const at = new Date("2026-09-23T00:00:00Z");
     expect(await ensureNoSessionHealthSchedules(repository, at)).toBe(
@@ -65,5 +84,21 @@ describe("no-session durable schedule definitions", () => {
     expect(new Set([...rows.values()].map((row) => row.surface)).size).toBe(
       NO_SESSION_TARGETS.length,
     );
+
+    const changedAt = new Date("2026-09-23T01:00:00Z");
+    expect(
+      await ensureNoSessionHealthSchedules(repository, changedAt, 3_600),
+    ).toBe(0);
+    expect(
+      [...rows.values()].every(
+        (row) =>
+          row.cadence.intervalSeconds === 3_600 &&
+          row.nextDueAt.valueOf() === changedAt.valueOf() &&
+          row.revision === 2,
+      ),
+    ).toBe(true);
+    await expect(
+      ensureNoSessionHealthSchedules(repository, changedAt, 300),
+    ).rejects.toThrow("NO_SESSION_SCHEDULE_CADENCE_INVALID");
   });
 });
