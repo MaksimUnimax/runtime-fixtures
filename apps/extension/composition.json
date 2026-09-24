@@ -169,6 +169,11 @@
   },
   "worker_postload": ["shared/wb_adapter.js", "shared/application.js"],
   "application_patches": "apps/extension/application-patches.json",
+  "static_files": {
+    "icons/octoport-16.png": "apps/extension/src/assets/octoport-16.png",
+    "icons/octoport-48.png": "apps/extension/src/assets/octoport-48.png",
+    "icons/octoport-128.png": "apps/extension/src/assets/octoport-128.png"
+  },
   "application_files": {
     "shared/bootstrap_verifier.js": ["packages/control-client/src/crypto.js"],
     "shared/application.js": [

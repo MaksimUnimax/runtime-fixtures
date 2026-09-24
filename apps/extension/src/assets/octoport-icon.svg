@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Octoport octopus">
+  <g fill="none" stroke="#172554" stroke-width="11" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M34 72 C24 83 25 98 14 106"/><path d="M44 77 C38 91 39 103 31 113"/>
+    <path d="M53 79 C50 94 51 106 47 116"/><path d="M61 80 C60 96 61 108 60 118"/>
+    <path d="M67 80 C68 96 67 108 68 118"/><path d="M75 79 C78 94 77 106 81 116"/>
+    <path d="M84 77 C90 91 89 103 97 113"/><path d="M94 72 C104 83 103 98 114 106"/>
+  </g>
+  <path fill="#172554" d="M64 14c-25 0-43 18-43 42 0 21 17 35 43 35s43-14 43-35c0-24-18-42-43-42Z"/>
+  <circle cx="50" cy="54" r="5" fill="#fff"/><circle cx="78" cy="54" r="5" fill="#fff"/>
+</svg>
