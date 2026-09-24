@@ -157,6 +157,7 @@ export async function makeWorker(directory, options = {}) {
     alarmEntries = new Map(),
     timers = new Set();
   const backing = options.backing || { local: {}, session: {} };
+  const timerScale = Number.isFinite(options.timerScale) && options.timerScale > 0 ? options.timerScale : 1;
   const wallClock = () =>
     typeof options.wallClock === "function"
       ? options.wallClock()
@@ -767,7 +768,7 @@ export async function makeWorker(directory, options = {}) {
       const timer = setTimeout(() => {
         timers.delete(timer);
         fn(...args);
-      }, ms);
+      }, ms * timerScale);
       timers.add(timer);
       return timer;
     },
@@ -776,7 +777,7 @@ export async function makeWorker(directory, options = {}) {
       clearTimeout(timer);
     },
     setInterval(fn, ms, ...args) {
-      const timer = setInterval(fn, ms, ...args);
+      const timer = setInterval(fn, ms * timerScale, ...args);
       timers.add(timer);
       return timer;
     },
@@ -964,6 +965,7 @@ export async function makeWorker(directory, options = {}) {
         runtime: listeners.length,
       };
     },
+    pendingTimerCount() { return timers.size; },
     call,
     async settings() {
       const response = await request(
