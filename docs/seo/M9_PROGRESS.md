@@ -1,7 +1,7 @@
 # Octoport SEO — M9 progress
 
 Date: 2026-09-24
-Status: **WAVE-1 COLLECT SLICE-2 RELEASED / WAITING RESULT**
+Status: **WAVE-1 COLLECT SLICE-2 PASS / 24 SUCCEEDED / 1 WAITING / FINAL COLLECT OPEN**
 Branch: `seo/wordstat-batch-01-2026-09-16`
 
 ## Current accepted chain
@@ -409,6 +409,35 @@ SUBMITN = CLOSED
 ```
 
 The remaining 13 rows are still on their original due schedule; no new five-minute wait applies before this slice.
+
+## Wave-1 collect slice-2 receipt
+
+Receipt:
+`docs/seo/M9_BOUNDARY_RESOLUTION_WAVE1_COLLECT_SLICE2_RECEIPT_2026-09-24_R1.md`
+
+```text
+COLLECT_SLICE2_GATE = PASS_BOUNDED_STOP
+PROVIDER_CALLS = 12
+PROCESSED = 12
+NORMALIZED = 12
+BOUNDED_STOP = true
+
+TOTAL = 25
+SUCCEEDED = 24
+WAITING = 1
+RESULT_SAVED = 0
+PARSE_FAILED = 0
+FAILED = 0
+UNKNOWN = 0
+POLLS_STARTED = 24
+UNRESOLVED = 1
+REVISION = 122
+```
+
+The sole remaining WAITING row is index 24 / operation `sprababvmok5spakfra2`.
+It has not yet been polled, so its original due time applies and already passed.
+
+A final `collectN count=1` requires a separate release/readback.
 
 ## Owner relay
 
