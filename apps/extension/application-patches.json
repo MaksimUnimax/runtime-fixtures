@@ -318,5 +318,80 @@
     "target": "service_worker.js",
     "old": "chrome.tabs.onRemoved.addListener((tabId) => {\n  void (async () => { await clearTabAIMode(tabId); const starts = await getPendingWorkStarts(); if (starts[String(tabId)]) { delete starts[String(tabId)]; await storageSet({ [KEYS.PENDING_WORK_STARTS]: starts }); await diagnostic(\"WORK_PENDING_START_CANCELLED_TAB_CLOSED\", { tab_id: tabId, external_request_executed: false }); } })().catch(() => null);\n});",
     "new": "chrome.tabs.onRemoved.addListener((tabId) => {\n  void (async () => { await clearTabAIMode(tabId); await clearPendingWorkStartForTab(tabId, \"tab_closed\"); })().catch(() => null);\n});"
+  },
+  {
+    "target": "attachment_delivery_port_content.js",
+    "old": "    poll_timer: null,\n    reconnect_timer: null,\n    dispose: null",
+    "new": "    startup_timer: null,\n    reconnect_timer: null,\n    active_tasks: 0,\n    dispose: null"
+  },
+  {
+    "target": "attachment_delivery_port_content.js",
+    "old": "  function scheduleReconnect() {\n    if (!current() || runtime.reconnect_timer) return;\n    runtime.reconnect_timer = setTimeout(() => {\n      runtime.reconnect_timer = null;\n      if (!current()) return;\n      ensurePort();\n      void recoverCurrent();\n    }, 250);\n  }",
+    "new": "  function shouldKeepPort() { return runtime.active_tasks > 0 || runtime.pending.size > 0; }\n\n  function closeIdlePort() {\n    if (!current() || shouldKeepPort()) return;\n    if (runtime.reconnect_timer) clearTimeout(runtime.reconnect_timer);\n    runtime.reconnect_timer = null;\n    if (!runtime.port) return;\n    const port = runtime.port;\n    runtime.port = null;\n    try { port.disconnect?.(); } catch (_) {}\n  }\n\n  function scheduleReconnect() {\n    if (!current() || !shouldKeepPort() || runtime.reconnect_timer) return;\n    runtime.reconnect_timer = setTimeout(() => {\n      runtime.reconnect_timer = null;\n      if (!current() || !shouldKeepPort()) return;\n      ensurePort();\n    }, 250);\n  }"
+  },
+  {
+    "target": "attachment_delivery_port_content.js",
+    "old": "      runtime.port = null;\n      failPending(\"ATTACHMENT_PORT_DISCONNECTED\", chrome.runtime.lastError?.message || \"Attachment delivery port disconnected.\");\n      scheduleReconnect();",
+    "new": "      runtime.port = null;\n      failPending(\"ATTACHMENT_PORT_DISCONNECTED\", chrome.runtime.lastError?.message || \"Attachment delivery port disconnected.\");\n      if (shouldKeepPort()) scheduleReconnect();"
+  },
+  {
+    "target": "attachment_delivery_port_content.js",
+    "old": "      clearTimeout(pending.timer);\n      pending.resolve(message.response || { ok: false, code: \"ATTACHMENT_PORT_EMPTY_RESPONSE\" });",
+    "new": "      clearTimeout(pending.timer);\n      pending.resolve(message.response || { ok: false, code: \"ATTACHMENT_PORT_EMPTY_RESPONSE\" });\n      closeIdlePort();"
+  },
+  {
+    "target": "attachment_delivery_port_content.js",
+    "old": "        runtime.pending.delete(requestId);\n        resolve({ ok: false, code: \"ATTACHMENT_PORT_TIMEOUT\", error: `Attachment port request timed out: ${type}` });",
+    "new": "        runtime.pending.delete(requestId);\n        resolve({ ok: false, code: \"ATTACHMENT_PORT_TIMEOUT\", error: `Attachment port request timed out: ${type}` });\n        closeIdlePort();"
+  },
+  {
+    "target": "attachment_delivery_port_content.js",
+    "old": "        clearTimeout(timer);\n        resolve({ ok: false, code: \"ATTACHMENT_PORT_POST_FAILED\", error: String(error?.message || error) });",
+    "new": "        clearTimeout(timer);\n        resolve({ ok: false, code: \"ATTACHMENT_PORT_POST_FAILED\", error: String(error?.message || error) });\n        closeIdlePort();"
+  },
+  {
+    "target": "attachment_delivery_port_content.js",
+    "old": "    const response = await request(\"OZ_ATTACHMENT_RECOVERY_GET\", {\n      conversation_key: key,\n      ...(expected ? { owner_kind: String(expected.owner_kind || \"\"), owner_id: String(expected.owner_id || \"\"), delivery_id: String(expected.delivery_id || \"\") } : {})\n    });\n    if (!response?.ok) throw Object.assign(new Error(response?.error || \"Attachment recovery request failed.\"), { code: response?.code || \"ATTACHMENT_RECOVERY_FAILED\", active_delivery_expected: Boolean(expected) });\n    return response.recovery || null;",
+    "new": "    const response = await request(\"OZ_ATTACHMENT_RECOVERY_GET\", {\n      conversation_key: key,\n      ...(expected ? { owner_kind: String(expected.owner_kind || \"\"), owner_id: String(expected.owner_id || \"\"), delivery_id: String(expected.delivery_id || \"\") } : {})\n    });\n    if (!response?.ok) throw Object.assign(new Error(response?.error || \"Attachment recovery request failed.\"), { code: response?.code || \"ATTACHMENT_RECOVERY_FAILED\", active_delivery_expected: Boolean(expected) });\n    const recovery = response.recovery || null;\n    if (expected && recovery && (String(recovery.owner_kind || \"\") !== String(expected.owner_kind || \"\") || String(recovery.owner_id || \"\") !== String(expected.owner_id || \"\") || String(recovery.delivery_id || \"\") !== String(expected.delivery_id || \"\"))) return null;\n    return recovery;"
+  },
+  {
+    "target": "attachment_delivery_port_content.js",
+    "old": "      await failDelivery(recovery, error);\n      return { ok: false, code: error?.code || \"ATTACHMENT_DELIVERY_FAILED\" };",
+    "new": "      if ([\"ATTACHMENT_PORT_DISCONNECTED\", \"ATTACHMENT_PORT_UNAVAILABLE\", \"ATTACHMENT_PORT_POST_FAILED\"].includes(error?.code)) throw error;\n      await failDelivery(recovery, error);\n      return { ok: false, code: error?.code || \"ATTACHMENT_DELIVERY_FAILED\" };"
+  },
+  {
+    "target": "attachment_delivery_port_content.js",
+    "old": "  async function recoverCurrent(expectation = null) {\n    if (!current()) return { ok: false, code: \"ATTACHMENT_RUNTIME_DISPOSED\" };\n    const activeExpected = Boolean(expectation && expectation.owner_kind && expectation.owner_id && expectation.delivery_id);\n    try {\n      const recovery = await queryRecovery(expectation);\n      if (recovery) return await processRecovery(recovery);\n      return { ok: true, recovery: null };\n    } catch (error) {\n      if (activeExpected || error?.active_delivery_expected === true) {\n        status(`Ozon: ошибка проверки активной доставки файла (${error?.code || \"ATTACHMENT_RECOVERY_FAILED\"}).`, \"error\");\n      } else {\n        console.debug(`[Ozon Bridge] idle attachment recovery probe unavailable: ${error?.code || \"ATTACHMENT_RECOVERY_FAILED\"}`);\n      }\n      return { ok: false, code: error?.code || \"ATTACHMENT_RECOVERY_FAILED\", error: String(error?.message || error), idle_probe: !activeExpected };\n    }\n  }",
+    "new": "  async function recoverCurrent(expectation = null) {\n    if (!current()) return { ok: false, code: \"ATTACHMENT_RUNTIME_DISPOSED\" };\n    const activeExpected = Boolean(expectation && expectation.owner_kind && expectation.owner_id && expectation.delivery_id);\n    runtime.active_tasks += 1;\n    let exactExpectation = activeExpected ? expectation : null;\n    let reconnectAttempts = 0;\n    try {\n      for (;;) {\n        try {\n          const recovery = await queryRecovery(exactExpectation);\n          if (!recovery) return { ok: true, recovery: null };\n          exactExpectation = { owner_kind: recovery.owner_kind, owner_id: recovery.owner_id, delivery_id: recovery.delivery_id, conversation_key: recovery.conversation_key };\n          return await processRecovery(recovery);\n        } catch (error) {\n          const disconnected = [\"ATTACHMENT_PORT_DISCONNECTED\", \"ATTACHMENT_PORT_UNAVAILABLE\", \"ATTACHMENT_PORT_POST_FAILED\"].includes(error?.code);\n          if (!disconnected || reconnectAttempts >= 3 || !current()) {\n            if (activeExpected || error?.active_delivery_expected === true) status(`Ozon: ошибка проверки активной доставки файла (${error?.code || \"ATTACHMENT_RECOVERY_FAILED\"}).`, \"error\");\n            else console.debug(`[Ozon Bridge] idle attachment recovery probe unavailable: ${error?.code || \"ATTACHMENT_RECOVERY_FAILED\"}`);\n            return { ok: false, code: error?.code || \"ATTACHMENT_RECOVERY_FAILED\", error: String(error?.message || error), idle_probe: !activeExpected };\n          }\n          reconnectAttempts += 1;\n          await sleep(250);\n          if (current() && shouldKeepPort() && !runtime.port) ensurePort();\n        }\n      }\n    } finally {\n      runtime.active_tasks = Math.max(0, runtime.active_tasks - 1);\n      closeIdlePort();\n    }\n  }"
+  },
+  {
+    "target": "attachment_delivery_port_content.js",
+    "old": "  runtime.recoverCurrent = recoverCurrent;\n  ensurePort();\n  runtime.poll_timer = setInterval(() => { if (current()) void recoverCurrent(); }, RECOVERY_POLL_MS);\n  setTimeout(() => { void recoverCurrent(); }, 250);",
+    "new": "  runtime.recoverCurrent = recoverCurrent;\n  runtime.startup_timer = setTimeout(() => { runtime.startup_timer = null; if (current()) void recoverCurrent(); }, 250);"
+  },
+  {
+    "target": "attachment_delivery_port_content.js",
+    "old": "    if (runtime.poll_timer) clearInterval(runtime.poll_timer);\n    if (runtime.reconnect_timer) clearTimeout(runtime.reconnect_timer);\n    runtime.poll_timer = null;",
+    "new": "    if (runtime.startup_timer) clearTimeout(runtime.startup_timer);\n    if (runtime.reconnect_timer) clearTimeout(runtime.reconnect_timer);\n    runtime.startup_timer = null;"
+  },
+  {
+    "target": "attachment_delivery_port_content.js",
+    "old": "  const RECOVERY_POLL_MS = 60_000;",
+    "new": ""
+  },
+  {
+    "target": "attachment_delivery_port_content.js",
+    "old": "  async function recoverCurrent(expectation = null) {\n    if (!current()) return { ok: false, code: \"ATTACHMENT_RUNTIME_DISPOSED\" };\n    const activeExpected = Boolean(expectation && expectation.owner_kind && expectation.owner_id && expectation.delivery_id);",
+    "new": "  async function recoverCurrent(expectation = null) {\n    if (!current()) return { ok: false, code: \"ATTACHMENT_RUNTIME_DISPOSED\" };\n    if (runtime.startup_timer) clearTimeout(runtime.startup_timer);\n    runtime.startup_timer = null;\n    const activeExpected = Boolean(expectation && expectation.owner_kind && expectation.owner_id && expectation.delivery_id);"
+  },
+  {
+    "target": "attachment_delivery_port_content.js",
+    "old": "      if ([\"ATTACHMENT_PORT_DISCONNECTED\", \"ATTACHMENT_PORT_UNAVAILABLE\", \"ATTACHMENT_PORT_POST_FAILED\"].includes(error?.code)) throw error;\n      await failDelivery(recovery, error);\n      return { ok: false, code: error?.code || \"ATTACHMENT_DELIVERY_FAILED\" };",
+    "new": "      if ([\"ATTACHMENT_PORT_DISCONNECTED\", \"ATTACHMENT_PORT_UNAVAILABLE\", \"ATTACHMENT_PORT_POST_FAILED\"].includes(error?.code)) throw error;\n      const failed = await failDelivery(recovery, error);\n      if (!failed?.ok && [\"ATTACHMENT_PORT_DISCONNECTED\", \"ATTACHMENT_PORT_UNAVAILABLE\", \"ATTACHMENT_PORT_POST_FAILED\"].includes(failed?.code)) throw Object.assign(new Error(failed.error || \"Attachment failure state could not be recorded.\"), { code: failed.code });\n      return { ok: false, code: error?.code || \"ATTACHMENT_DELIVERY_FAILED\" };"
+  },
+  {
+    "target": "attachment_delivery_port_content.js",
+    "old": "  async function queryRecovery(expectation = null) {\n    const key = conversationKey();\n    if (!key) return null;\n    const expected = expectation && String(expectation.conversation_key || \"\").toLowerCase() === key\n      ? expectation\n      : null;",
+    "new": "  async function queryRecovery(expectation = null) {\n    const key = conversationKey();\n    if (!key) return null;\n    const expected = expectation && String(expectation.conversation_key || \"\").toLowerCase() === key\n      ? expectation\n      : null;\n    if (expectation && !expected) return null;"
   }
 ]
