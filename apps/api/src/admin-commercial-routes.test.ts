@@ -115,6 +115,7 @@ const overrideBody = {
   reason: "ticket-1",
 };
 const compatibilityBody = {
+  contractVersion: "control_plane_v1",
   browserFamily: "chrome",
   minimumExtensionVersion: "1.0.0",
   recommendedExtensionVersion: "1.1.0",
@@ -122,6 +123,14 @@ const compatibilityBody = {
   maintenanceMode: false,
   maintenanceCode: null,
   blockedVersions: ["0.9.0"],
+  reason: "ticket-1",
+};
+const extensionReleaseBody = {
+  version: "0.2.4",
+  releaseChannel: "stable",
+  artifactSha256: "c".repeat(64),
+  supportedContracts: ["control_plane_v2"],
+  supportedBrowsers: ["opera"],
   reason: "ticket-1",
 };
 
@@ -1269,6 +1278,145 @@ describe("P6.4 admin-commercial controller", () => {
       linkedConfigVersions: [],
       activationStatus: "REVISION_PUBLISHED_NOT_AUTO_ACTIVATED",
     });
+  });
+  it("passes explicit v2 compatibility contract and rejects missing or unknown versions", async () => {
+    const { app, behavior } = harness();
+    apps.push(app);
+    const seen: unknown[] = [];
+    behavior.set("publishCompatibility", (...args) => {
+      seen.push(args[0]);
+      return {
+        id: "00000000-0000-4000-8000-000000000012",
+        revision: 2,
+        policyKey: "global",
+      };
+    });
+    const valid = await app.inject({
+      method: "POST",
+      url: "/v1/admin/compatibility/policies/global/publish",
+      headers: mutationHeaders,
+      payload: { ...compatibilityBody, contractVersion: "control_plane_v2" },
+    });
+    expect(valid.statusCode).toBe(200);
+    expect(seen[0]).toMatchObject({ contractVersion: "control_plane_v2" });
+    for (const payload of [
+      Object.fromEntries(
+        Object.entries(compatibilityBody).filter(
+          ([key]) => key !== "contractVersion",
+        ),
+      ),
+      { ...compatibilityBody, contractVersion: "control_plane_v3" },
+    ]) {
+      const response = await app.inject({
+        method: "POST",
+        url: "/v1/admin/compatibility/policies/global/publish",
+        headers: mutationHeaders,
+        payload,
+      });
+      expectError(response, 400, "INVALID_REQUEST");
+    }
+    expect(seen).toHaveLength(1);
+  });
+  it("publishes an extension release through compatibility.manage with no-store", async () => {
+    const release = {
+      id: "00000000-0000-4000-8000-000000000013",
+      version: "0.2.4",
+      releaseChannel: "stable",
+      artifactSha256: "c".repeat(64),
+      releasedAt: new Date("2026-09-23T10:00:00.000Z"),
+      createdAt: new Date("2026-09-23T10:00:00.000Z"),
+    };
+    const { app, behavior, calls } = harness();
+    apps.push(app);
+    behavior.set("publishExtensionRelease", (...args) => {
+      expect(args[0]).toMatchObject({
+        ...extensionReleaseBody,
+        supportedContracts: ["control_plane_v1", "control_plane_v2"],
+        supportedBrowsers: ["opera", "chrome"],
+        actorId,
+        reason: "ticket-1",
+      });
+      expect(args[0]).not.toHaveProperty("releasedAt");
+      return release;
+    });
+    const response = await app.inject({
+      method: "POST",
+      url: "/v1/admin/compatibility/releases/0.2.4/publish",
+      headers: mutationHeaders,
+      payload: {
+        ...extensionReleaseBody,
+        supportedContracts: ["control_plane_v1", "control_plane_v2"],
+        supportedBrowsers: ["opera", "chrome"],
+      },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.headers["cache-control"]).toBe("no-store");
+    expect(json(response)).toEqual({
+      ...release,
+      releasedAt: "2026-09-23T10:00:00.000Z",
+      createdAt: "2026-09-23T10:00:00.000Z",
+    });
+    expect(calls).toContain("publishExtensionRelease");
+  });
+  it("rejects unknown release contracts and browsers before service mutation", async () => {
+    const { app, calls } = harness();
+    apps.push(app);
+    for (const payload of [
+      { ...extensionReleaseBody, supportedContracts: ["control_plane_v3"] },
+      { ...extensionReleaseBody, supportedBrowsers: ["unknown_browser"] },
+    ]) {
+      const response = await app.inject({
+        method: "POST",
+        url: "/v1/admin/compatibility/releases/0.2.4/publish",
+        headers: mutationHeaders,
+        payload,
+      });
+      expectError(response, 400, "INVALID_REQUEST");
+    }
+    expect(calls).not.toContain("publishExtensionRelease");
+  });
+  it("maps duplicate release conflicts without exposing database errors", async () => {
+    const { app, behavior } = harness();
+    apps.push(app);
+    behavior.set("publishExtensionRelease", () => {
+      throw Object.assign(new Error("constraint detail"), { code: "23505" });
+    });
+    expectError(
+      await app.inject({
+        method: "POST",
+        url: "/v1/admin/compatibility/releases/0.2.4/publish",
+        headers: mutationHeaders,
+        payload: extensionReleaseBody,
+      }),
+      409,
+      "ADMIN_CONFLICT",
+    );
+    const conflict = await app.inject({
+      method: "POST",
+      url: "/v1/admin/compatibility/releases/0.2.4/publish",
+      headers: mutationHeaders,
+      payload: extensionReleaseBody,
+    });
+    expect(JSON.stringify(conflict.json())).not.toContain("constraint detail");
+  });
+  it("forbids ADMIN_OPS from extension release publication", async () => {
+    const { app, calls } = harness({
+      permissions: subject.permissions.filter(
+        (p) => p !== "compatibility.manage",
+      ),
+    });
+    apps.push(app);
+    expectError(
+      await app.inject({
+        method: "POST",
+        url: "/v1/admin/compatibility/releases/0.2.4/publish",
+        headers: mutationHeaders,
+        payload: extensionReleaseBody,
+      }),
+      403,
+      "ADMIN_FORBIDDEN",
+    );
+    expect(calls).not.toContain("publishExtensionRelease");
   });
   it("maps compatibility service failure", async () => {
     const { app, behavior } = harness();

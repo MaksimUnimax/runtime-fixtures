@@ -30,7 +30,7 @@ Requirement IDs соответствуют [SPEC](../product/SPEC.md). При р
 | A23 | SA-KEY-01, SA-AUTH-01 | Recipient/account substitution, expiry, logout/revoke, повтор packet отвергаются; чужие ключи не сохраняются |
 | A24 | SA-KEY-02 | Один файл все магазины; пароль/целостность/version/старый формат/конфликт проверены; импорт не запускает Work |
 | A25 | SA-AI-01, SA-CMD-03 | Composer replacement, user draft, empty composer без нового turn, attachment readiness: честный send proof/UNKNOWN |
-| A26 | SA-BROWSER-01 | Каждый целевой browser/OS/AI package проходит popup, lifecycle, files, update; Safari без real Mac не PASS |
+| A26 | SA-BROWSER-01 | Каждый целевой browser/OS/AI package беты (Chrome, Opera, Yandex, Firefox) проходит popup, lifecycle, files, update. Safari — DEFERRED_POST_RELEASE_BY_OWNER: не блокирует бету, не получает PASS; перед будущим выпуском нужен отдельный real Safari/macOS proof |
 | A27 | SA-ADMIN-01 | RBAC/CSRF/admin session/audit; support не меняет квоту и не получает секреты; статистика задерживается без сбоя сервиса |
 | A28 | SA-OBS-01 | DOM drift vs login/CAPTCHA/UNKNOWN; API report-start vs order-create, nested privacy/shared schema; никакого auto publish |
 | A29 | SA-RELEASE-01 | Preprod/prod изолированы; backup восстановлен; финальный package/contract/profile совместим; rollback предусмотрен |

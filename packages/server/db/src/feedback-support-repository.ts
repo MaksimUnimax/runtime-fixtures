@@ -60,6 +60,32 @@ type FollowupRow = {
 
 const caseColumns = `id,account_id,created_by_user_id,device_id,created_at,updated_at,category,severity,status,description,diagnostics,server_version,portal_version,extension_version,browser_family,browser_version,marketplace,support_code,release_identity,assigned_admin_principal_id,resolution_code`;
 const iso = (value: Date | string) => new Date(value).toISOString();
+const MAX_RETENTION_BATCH_SIZE = 1_000;
+const MAX_RETENTION_STATEMENT_TIMEOUT_MS = 30_000;
+
+function validateRetentionPurgeInput(input: {
+  batchSize: number;
+  statementTimeoutMs: number;
+}): void {
+  if (
+    !Number.isInteger(input.batchSize) ||
+    input.batchSize < 1 ||
+    input.batchSize > MAX_RETENTION_BATCH_SIZE
+  ) {
+    throw new Error(
+      `retention batchSize must be an integer between 1 and ${MAX_RETENTION_BATCH_SIZE}`,
+    );
+  }
+  if (
+    !Number.isInteger(input.statementTimeoutMs) ||
+    input.statementTimeoutMs < 1 ||
+    input.statementTimeoutMs > MAX_RETENTION_STATEMENT_TIMEOUT_MS
+  ) {
+    throw new Error(
+      `retention statementTimeoutMs must be an integer between 1 and ${MAX_RETENTION_STATEMENT_TIMEOUT_MS}`,
+    );
+  }
+}
 
 function mapCase(row: CaseRow): FeedbackCaseItemV1 {
   const diagnostics = SafeDiagnosticEnvelopeV1Schema.safeParse(row.diagnostics);
@@ -611,6 +637,7 @@ export function createFeedbackSupportRepository(
       });
     },
     async purgeExpired(input) {
+      validateRetentionPurgeInput(input);
       const closedBefore = new Date(
         input.now.getTime() - input.closedRetentionDays * 86_400_000,
       );
@@ -618,15 +645,39 @@ export function createFeedbackSupportRepository(
         input.now.getTime() - input.signalRetentionDays * 86_400_000,
       );
       return runtime.transaction(async (tx) => {
-        const cases = await tx.query<{ id: string }>(
-          `DELETE FROM feedback_cases WHERE status='CLOSED' AND closed_at IS NOT NULL AND closed_at < $1 RETURNING id`,
-          [closedBefore],
+        await tx.query("SELECT set_config('statement_timeout', $1, true)", [
+          `${input.statementTimeoutMs}ms`,
+        ]);
+        const result = await tx.query<{ cases: number; signals: number }>(
+          `WITH case_candidates AS (
+             SELECT id FROM feedback_cases
+             WHERE status='CLOSED' AND closed_at IS NOT NULL AND closed_at < $1
+             ORDER BY closed_at ASC, id ASC
+             LIMIT $3
+             FOR UPDATE SKIP LOCKED
+           ), deleted_cases AS (
+             DELETE FROM feedback_cases AS cases
+             USING case_candidates
+             WHERE cases.id=case_candidates.id
+             RETURNING 1
+           ), signal_candidates AS (
+             SELECT id FROM feedback_signal_events
+             WHERE occurred_at < $2
+             ORDER BY occurred_at ASC, id ASC
+             LIMIT $3
+             FOR UPDATE SKIP LOCKED
+           ), deleted_signals AS (
+             DELETE FROM feedback_signal_events AS signals
+             USING signal_candidates
+             WHERE signals.id=signal_candidates.id
+             RETURNING 1
+           )
+           SELECT
+             (SELECT count(*)::int FROM deleted_cases) AS cases,
+             (SELECT count(*)::int FROM deleted_signals) AS signals`,
+          [closedBefore, signalBefore, input.batchSize],
         );
-        const signals = await tx.query<{ id: string }>(
-          `DELETE FROM feedback_signal_events WHERE occurred_at < $1 RETURNING id`,
-          [signalBefore],
-        );
-        return { cases: cases.rows.length, signals: signals.rows.length };
+        return result.rows[0] ?? { cases: 0, signals: 0 };
       });
     },
     async anonymizeAccount(accountId) {

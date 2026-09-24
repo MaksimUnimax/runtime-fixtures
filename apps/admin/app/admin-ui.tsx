@@ -204,8 +204,12 @@ export function buildPriceCreateBody(input: {
   };
 }
 
-export function buildCompatibilityPublishBody(reason: string) {
+export function buildCompatibilityPublishBody(
+  reason: string,
+  contractVersion: "control_plane_v1" | "control_plane_v2" = "control_plane_v1",
+) {
   return {
+    contractVersion,
     browserFamily: null,
     minimumExtensionVersion: null,
     recommendedExtensionVersion: null,
@@ -2255,6 +2259,9 @@ function Compatibility() {
       : null,
   );
   const [policyKey, setPolicyKey] = useState("global");
+  const [contractVersion, setContractVersion] = useState<
+    "control_plane_v1" | "control_plane_v2"
+  >("control_plane_v1");
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
@@ -2282,7 +2289,9 @@ function Compatibility() {
         {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify(buildCompatibilityPublishBody(reason.trim())),
+          body: JSON.stringify(
+            buildCompatibilityPublishBody(reason.trim(), contractVersion),
+          ),
         },
       );
       setReason("");
@@ -2333,6 +2342,18 @@ function Compatibility() {
                 value={policyKey}
                 onChange={(e) => setPolicyKey(e.target.value)}
               />
+            </label>
+            <label>
+              Contract version
+              <select
+                value={contractVersion}
+                onChange={(e) =>
+                  setContractVersion(e.target.value as typeof contractVersion)
+                }
+              >
+                <option value="control_plane_v1">control_plane_v1</option>
+                <option value="control_plane_v2">control_plane_v2</option>
+              </select>
             </label>
           </div>
           <label>

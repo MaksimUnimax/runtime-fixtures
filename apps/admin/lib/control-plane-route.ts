@@ -46,6 +46,7 @@ export const ADMIN_ALLOWED_TUPLES = [
   "POST /v1/admin/commercial/prices/{price_id}/sale-assignments",
   "POST /v1/admin/commercial/prices/{price_id}/status",
   "POST /v1/admin/compatibility/policies/{policy_key}/publish",
+  "POST /v1/admin/compatibility/releases/{version}/publish",
   "POST /v1/admin/principals",
   "POST /v1/admin/principals/{principal_id}/restore",
   "POST /v1/admin/principals/{principal_id}/roles/{role}/grant",
@@ -115,6 +116,7 @@ const segmentPattern = (segment: string): string => {
     segment === "{assignment_id}"
   )
     return UUID;
+  if (segment === "{version}") return "[A-Za-z0-9][A-Za-z0-9.+_-]{0,63}";
   if (segment === "{revision}") return "[1-9][0-9]*";
   if (
     segment === "{entitlement_key}" ||

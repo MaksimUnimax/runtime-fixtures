@@ -22576,7 +22576,8 @@
                               },
                               "contractVersion": {
                                 "enum": [
-                                  "control_plane_v1"
+                                  "control_plane_v1",
+                                  "control_plane_v2"
                                 ],
                                 "type": "string"
                               },
@@ -24444,7 +24445,8 @@
                         },
                         "contractVersion": {
                           "enum": [
-                            "control_plane_v1"
+                            "control_plane_v1",
+                            "control_plane_v2"
                           ],
                           "type": "string"
                         },
@@ -26278,7 +26280,8 @@
                         },
                         "contractVersion": {
                           "enum": [
-                            "control_plane_v1"
+                            "control_plane_v1",
+                            "control_plane_v2"
                           ],
                           "type": "string"
                         },
@@ -28133,7 +28136,8 @@
                         },
                         "contractVersion": {
                           "enum": [
-                            "control_plane_v1"
+                            "control_plane_v1",
+                            "control_plane_v2"
                           ],
                           "type": "string"
                         },
@@ -29988,7 +29992,8 @@
                         },
                         "contractVersion": {
                           "enum": [
-                            "control_plane_v1"
+                            "control_plane_v1",
+                            "control_plane_v2"
                           ],
                           "type": "string"
                         },
@@ -31852,7 +31857,8 @@
                         },
                         "contractVersion": {
                           "enum": [
-                            "control_plane_v1"
+                            "control_plane_v1",
+                            "control_plane_v2"
                           ],
                           "type": "string"
                         },
@@ -33707,7 +33713,8 @@
                         },
                         "contractVersion": {
                           "enum": [
-                            "control_plane_v1"
+                            "control_plane_v1",
+                            "control_plane_v2"
                           ],
                           "type": "string"
                         },
@@ -51607,6 +51614,13 @@
                       }
                     ]
                   },
+                  "contractVersion": {
+                    "enum": [
+                      "control_plane_v1",
+                      "control_plane_v2"
+                    ],
+                    "type": "string"
+                  },
                   "maintenanceCode": {
                     "anyOf": [
                       {
@@ -51666,6 +51680,7 @@
                   }
                 },
                 "required": [
+                  "contractVersion",
                   "browserFamily",
                   "minimumExtensionVersion",
                   "recommendedExtensionVersion",
@@ -51673,6 +51688,173 @@
                   "maintenanceMode",
                   "maintenanceCode",
                   "blockedVersions",
+                  "reason"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {},
+                  "properties": {},
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {},
+                  "properties": {},
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {},
+                  "properties": {},
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {},
+                  "properties": {},
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {},
+                  "properties": {},
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {},
+                  "properties": {},
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {},
+                  "properties": {},
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/v1/admin/compatibility/releases/{version}/publish": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "artifactSha256": {
+                    "pattern": "^[0-9a-f]{64}$",
+                    "type": "string"
+                  },
+                  "reason": {
+                    "maxLength": 256,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "releaseChannel": {
+                    "maxLength": 64,
+                    "minLength": 1,
+                    "pattern": "^[a-z0-9][a-z0-9._-]*$",
+                    "type": "string"
+                  },
+                  "supportedBrowsers": {
+                    "items": {
+                      "enum": [
+                        "chrome",
+                        "opera",
+                        "yandex_chromium",
+                        "firefox",
+                        "safari"
+                      ],
+                      "type": "string"
+                    },
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "supportedContracts": {
+                    "items": {
+                      "enum": [
+                        "control_plane_v1",
+                        "control_plane_v2"
+                      ],
+                      "type": "string"
+                    },
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "version": {
+                    "maxLength": 64,
+                    "minLength": 1,
+                    "pattern": "^(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)(?:-(?:0|[1-9]\\d*|\\d*[A-Za-z-][0-9A-Za-z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "version",
+                  "releaseChannel",
+                  "artifactSha256",
+                  "supportedContracts",
+                  "supportedBrowsers",
                   "reason"
                 ],
                 "type": "object"
