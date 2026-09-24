@@ -32,6 +32,7 @@ const MAX_ZIP_ENTRIES = 4096;
 const MAX_ENTRY_BYTES = 64 * 1024 * 1024;
 const MAX_TOTAL_UNCOMPRESSED_BYTES = 256 * 1024 * 1024;
 const PACKAGED_CONFIG_MARKER = "globalThis.__SELLER_AGENTS_PACKAGED_CONFIG__=";
+const FIREFOX_STORE_ID = "octoport@octoport.ru";
 const PRIVATE_KEY_MARKER = Buffer.from("-----BEGIN");
 
 const fail = (message) => {
@@ -746,6 +747,12 @@ function checkPackage(file, browser, authority, expectedRoot = null) {
     manifest.version !== authority.productVersion
   ) {
     fail("Package manifest version does not match release authority");
+  }
+  if (
+    browser === "firefox" &&
+    manifest.browser_specific_settings?.gecko?.id !== FIREFOX_STORE_ID
+  ) {
+    fail("Firefox package stable extension ID mismatch");
   }
 
   const hosts = manifest.host_permissions;

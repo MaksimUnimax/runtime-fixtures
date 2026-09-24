@@ -50,6 +50,7 @@ function makeTrustBundle(keyId) {
 
 const trustedBundle = makeTrustBundle("fixture-release-key");
 const attackerBundle = makeTrustBundle("attacker-release-key");
+const FIREFOX_STORE_ID = "octoport@octoport.ru";
 const BASE_ORIGINS = {
   controlApiOrigin: "https://api.fixture.invalid",
   portalOrigin: "https://app.fixture.invalid",
@@ -139,6 +140,13 @@ function makeZip(path, browser, options = {}) {
       browser === "chromium"
         ? { service_worker: "worker.js" }
         : { scripts: ["worker.js"] },
+    ...(browser === "firefox"
+      ? {
+          browser_specific_settings: {
+            gecko: { id: options.firefoxId ?? FIREFOX_STORE_ID },
+          },
+        }
+      : {}),
   };
 
   if (options.mode === "not_extension") {
@@ -327,6 +335,20 @@ test("NOT_AN_EXTENSION never becomes release PASS", () => {
   });
   try {
     assert.throws(() => prepare(value));
+  } finally {
+    cleanup(value);
+  }
+});
+
+test("Firefox package with a different stable add-on ID is rejected", () => {
+  const value = fixture({
+    firefox: { firefoxId: "different@octoport.ru" },
+  });
+  try {
+    assert.throws(
+      () => prepare(value),
+      /Firefox package stable extension ID mismatch/,
+    );
   } finally {
     cleanup(value);
   }

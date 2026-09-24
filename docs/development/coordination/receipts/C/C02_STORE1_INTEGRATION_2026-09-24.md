@@ -7,11 +7,11 @@ Installed browser / live deployment / store submission: NOT CLAIMED.
 ## Accepted baseline and exact intake
 
 - accepted main baseline before this cycle: `7e3e781491d42e366d60d3b3976cdd5bf179f840`;
-- A exact submitted candidate: `64aa249fdbc8fe27bc3c180be99c027e4cc2c92e` (supersedes `d12c8af...`);
+- A final exact submitted candidate: `04d6fe6afdd0ff778ddb6b8dcdbbe7467e4ed67a` (supersedes all earlier A03 store submissions, including `64aa249...` and `d12c8af...`);
 - B exact submitted candidate: `da7e1238192b91bd4e331af525b00800da250db0`;
 - A and B candidate path sets do not overlap and both merged cleanly on the accepted baseline; whole moving role branches were not merged.
 
-A contributes the existing-builder explicit store mode, Octoport visible branding, owner-preapproved 16/48/128 PNG icons + SVG, deterministic Chromium/Firefox store package generation and package-contract checks.
+A contributes the existing-builder explicit store mode, Octoport visible branding, owner-preapproved 16/48/128 PNG icons + SVG, deterministic Chromium/Firefox store package generation and package-contract checks. Its superseding hardening restricts this store-review lane to PREPRODUCTION authority and rejects duplicate trust key IDs/fingerprints before packaging.
 
 B contributes the normal authenticated ADMIN HTTP config-release linking path, preserving the existing extension-release, compatibility-policy and P7 assignment paths. The new route is `POST /v1/admin/compatibility/config-releases/publish`, protected by the existing admin mutation/session/CSRF guard and transaction-time `compatibility.manage` authorization. It uses expected-latest CAS, preserves existing signing/feature/rollout links, requires a new compatibility policy link, and writes ADMIN audit attribution/reason/correlation.
 
@@ -33,9 +33,10 @@ The C01 release validator remains fail closed. External release authority binds 
 Focused integrated-tree verification before this receipt commit:
 - positive `release-preflight`: PASS on the then-current integrated source;
 - stale A authority against the integrated source: expected FAIL `Authority source identity is stale`;
-- `tooling/b1/release-safety.test.mjs`: 32/32 PASS;
-- `tests/regression/extension-core/store-package-contract.py`: PASS;
-- supervised resource job `e38c0aab9c1647a68644118ccfe5047b`: exit 0, OOM 0, cleanup verified, peak 48 MiB.
+- C01 independently asserts the stable Firefox add-on ID `octoport@octoport.ru`; a different ID fails closed before release preparation;
+- `tooling/b1/release-safety.test.mjs`: 33/33 PASS, including the negative Firefox stable-ID case;
+- `tests/regression/extension-core/store-package-contract.py`: PASS, including PREPRODUCTION-only and duplicate-trust negative checks;
+- supervised resource job `ace268cfe2ff47bcbbe284c837841829`: exit 0, OOM 0, cleanup verified, peak 108 MiB; focused Prettier check also PASS.
 
 Deterministic package bytes at this stage:
 - Chromium `OCTOPORT_v0.2.4_CHROMIUM_STORE.zip`: SHA-256 `4d87e730c378d942fc2ca70872b51a0b5afbf427269619a1a92e26f5af276665`, 2,109,608 bytes;
