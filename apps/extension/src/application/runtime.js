@@ -953,7 +953,6 @@ async function saWorkStart(message, sender) {
     const live = await tabIdentity(normalizeTabId(message.tab_id));
     const key = live.conversation_id ? conversationKeyFromIdentity(live) : null;
     const binding = key ? await bindingForConversationKey(key) : null;
-    await saAssertReconciliationAction(binding, store, key);
     const work = key ? await workSessionFor(key) : null;
     const pending = (await getPendingWorkStarts())[String(message.tab_id)];
     if (pending && String(pending.expires_at || "") > new Date().toISOString())
@@ -968,6 +967,7 @@ async function saWorkStart(message, sender) {
     const intentId = String(message.start_intent_id || "").trim() || `work-start-${crypto.randomUUID()}`;
     const authority = await SellerAgentsControlClient.getAuthority();
     const sourceStore = changingStore ? await saAssertStore(binding.store_context) : null;
+    await saAssertReconciliationAction(binding, sourceStore || store, key);
     const plan = changingStore ? saRebindPlan({ tabId: message.tab_id, identity: live, key, binding, work, sourceStore, targetStore: store, intentId, authority }) : null;
     if (key && !changingStore && ![OzonWorkSessionModel.STATES.INACTIVE, OzonWorkSessionModel.STATES.ERROR].includes(work?.state))
       throw saError("WORK_START_ALREADY_IN_PROGRESS");
@@ -1156,10 +1156,10 @@ async function saHandleMessage(message, sender) {
       await assertTabConversation(sender?.tab?.id, message.conversation_key);
       const binding = await bindingForConversationKey(message.conversation_key);
       const store = await saAssertStore(binding?.store_context);
-      await saAssertReconciliationAction(binding, store, message.conversation_key, message.work_session_id);
       const work = await workSessionFor(message.conversation_key);
       if (work.state !== "active_visible") throw saError("WORK_SESSION_NOT_VISIBLE");
       if (message.work_session_id !== work.start_intent_id) throw saError("WORK_SESSION_CHANGED");
+      await saAssertReconciliationAction(binding, store, message.conversation_key, message.work_session_id);
     }
     if (message.type.startsWith("OZ_BATCH_DELIVERY_")) {
       await assertManualBatchContext(message.conversation_key, message.owner_id || message.operation_id);

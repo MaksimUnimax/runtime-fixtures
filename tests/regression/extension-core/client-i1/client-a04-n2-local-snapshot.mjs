@@ -266,6 +266,79 @@ await test("N2-A10", "snapshot knowledge from another account cannot fence the c
   } finally { second.close(); }
 });
 
+await test("N2-A11", "snapshot response started before local Finish is rejected while pending Finish preserves offline continuation", async () => {
+  const worker = await makeWorker(runtime, { accountId: accountA, deviceId: deviceA });
+  try {
+    const store = await addStore(worker), binding = await startAndBind(worker, store), key = keyOf(worker);
+    const intent = await worker.call("SellerAgentsSyncJournal.createSnapshotReadIntent", { conversationKey: key, binding, store });
+    await worker.call("SellerAgentsSyncJournal.recordFinish", { conversationKey: key, binding, store });
+    const late = await worker.call("SellerAgentsSyncJournal.applySnapshotRead", {
+      intent,
+      currentConversationKey: key,
+      binding,
+      store,
+      snapshots: [{ entityId: intent.entityIds[0], serverRevision: 6, serverState: remoteState(intent, store, { kind: "DELIVERY_MARKER", bindingId: binding.binding_id, bindingRevision: binding.revision }) }],
+    });
+    assert.equal(late.applied, false);
+    assert.equal(late.code, "SYNC_SNAPSHOT_CONTEXT_STALE");
+    const decision = await worker.call("SellerAgentsSyncJournal.assertCurrentActionAllowed", { conversationKey: key, binding, store });
+    assert.equal(decision.allowed, true);
+    assert.equal(decision.code, null);
+  } finally { worker.close(); }
+});
+
+await test("N2-A12", "legacy unscoped server Finish is migrated through the local account binding and remains a fence", async () => {
+  const worker = await makeWorker(runtime, { accountId: accountA, deviceId: deviceA });
+  const store = await addStore(worker), binding = await startAndBind(worker, store), key = keyOf(worker);
+  await worker.call("SellerAgentsSyncJournal.syncNow", "seed-legacy-knowledge");
+  const backing = worker.backing, journal = backing.local[JOURNAL], entityId = expectedEntity(key);
+  const slot = `${accountA}\u001f${entityId}`;
+  const finish = {
+    kind: "FINISH",
+    conversationKeyDigest: entityId.slice("conversation:".length),
+    bindingId: binding.binding_id,
+    bindingRevision: binding.revision + 1,
+    storeId: store.id,
+    marketplace: store.marketplace,
+    credentialRevision: store.credentialRevision,
+    bindingState: "FINISHED",
+    workGeneration: null,
+  };
+  journal.serverRevisions = { [binding.binding_id]: 7 };
+  journal.serverStates = { [binding.binding_id]: finish };
+  journal.reconciliation = { [binding.binding_id]: { classification: "SERVER_AHEAD_COMPATIBLE", preferred: null, serverRevision: 7, serverState: finish } };
+  worker.close();
+  const reopened = await makeWorker(runtime, { backing, accountId: accountA, deviceId: deviceA });
+  try {
+    const restored = await reopened.call("SellerAgentsSyncJournal.read");
+    assert.equal(restored.serverRevisions[slot], 7);
+    assert.equal(restored.serverStates[slot].bindingState, "FINISHED");
+    const decision = await reopened.call("SellerAgentsSyncJournal.assertCurrentActionAllowed", { conversationKey: key, binding, store });
+    assert.equal(decision.allowed, false);
+    assert.equal(decision.code, "SYNC_SERVER_FINISH_FENCE");
+  } finally { reopened.close(); }
+});
+
+await test("N2-A13", "legacy unscoped explicit conflict without server state remains fail-closed after migration", async () => {
+  const worker = await makeWorker(runtime, { accountId: accountA, deviceId: deviceA });
+  const store = await addStore(worker), binding = await startAndBind(worker, store), key = keyOf(worker);
+  await worker.call("SellerAgentsSyncJournal.syncNow", "seed-legacy-conflict");
+  const backing = worker.backing, journal = backing.local[JOURNAL], entityId = expectedEntity(key);
+  const slot = `${accountA}\u001f${entityId}`;
+  journal.serverRevisions = { [binding.binding_id]: 9 };
+  journal.serverStates = {};
+  journal.reconciliation = { [binding.binding_id]: { classification: "EXPLICIT_BINDING_CONFLICT", preferred: null, serverRevision: 9, serverState: null } };
+  worker.close();
+  const reopened = await makeWorker(runtime, { backing, accountId: accountA, deviceId: deviceA });
+  try {
+    const restored = await reopened.call("SellerAgentsSyncJournal.read");
+    assert.equal(restored.reconciliation[slot].classification, "EXPLICIT_BINDING_CONFLICT");
+    const decision = await reopened.call("SellerAgentsSyncJournal.assertCurrentActionAllowed", { conversationKey: key, binding, store });
+    assert.equal(decision.allowed, false);
+    assert.equal(decision.code, "SYNC_EXPLICIT_BINDING_CONFLICT");
+  } finally { reopened.close(); }
+});
+
 const failures = results.filter(row => row.status === "FAIL");
 console.log(JSON.stringify({ status: failures.length ? "FAIL" : "PASS", scope: "A04_N2_LOCAL_SNAPSHOT", results, failureBatch: failures }, null, 2));
 if (failures.length) process.exitCode = 1;
