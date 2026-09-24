@@ -1,0 +1,43 @@
+{
+  "schema": "OCTOPORT_M7_SEARCH_SIDE_FREEZE_TRANSPORT_CORRECTION_V2",
+  "date": "2026-09-24",
+  "correction_id": "OCTOPORT_SEO_M7_SEARCH_SIDE_FREEZE_TRANSPORT_CORRECTION_2026-09-24_R2",
+  "base_freeze": {
+    "manifest_path": "docs/seo/M7_SEARCH_SIDE_FREEZE_MANIFEST_2026-09-23_R1.json",
+    "manifest_blob_sha": "3cc09a62aa4ac4bed0af44939a9be63820657219",
+    "frozen_input_head": "3b71060bf529c67c7f3578ca6bfb268407e72b0b"
+  },
+  "correction": {
+    "type": "TRANSPORT_ONLY",
+    "semantic_change": false,
+    "historical_direct_input": {
+      "path": "docs/seo/serp/competitors/work_return/M4Q_R2_TARGETED_M4C_RECHECK_2026-09-23_R1/M4Q_R2_TARGETED_PAGE_EVIDENCE.tsv",
+      "git_blob_sha": "c2aaf2d18784e0386d044621c9409225b1efe4a4",
+      "bytes": 2602167,
+      "sha256": "96d930d02060141a6eb9242c8079121a85359a256ff2fd39e0c4995577b05486",
+      "downstream_access": "prohibited_direct_use"
+    },
+    "replacement_direct_input": {
+      "path": "docs/seo/serp/competitors/recovery/M4Q_R2_TARGETED_PAGE_EVIDENCE_2026-09-24_R1/M4Q_R2_TARGETED_PAGE_EVIDENCE_RECOVERED.tsv",
+      "git_blob_sha": "b62d1c2cfb8ccb4dba84b8d3d691cb5d1c5fb77c",
+      "bytes": 2602161,
+      "sha256": "a9ec3a14319edc0a4721e702378e910461490be1deba4136afcdf2276c2585d5",
+      "data_rows": 47,
+      "columns": 21,
+      "downstream_access": "allowed",
+      "role": "m4q_targeted_overlay_recovered"
+    },
+    "recovery_qa": {
+      "path": "docs/seo/serp/competitors/recovery/M4Q_R2_TARGETED_PAGE_EVIDENCE_2026-09-24_R1/RECOVERY_QA.md",
+      "git_blob_sha": "1a899ddebdf06d59dbcf3f6860c2d63ee5cb953d"
+    },
+    "recovery_manifest": {
+      "path": "docs/seo/serp/competitors/recovery/M4Q_R2_TARGETED_PAGE_EVIDENCE_2026-09-24_R1/RECOVERY_MANIFEST.json",
+      "git_blob_sha": "0bed248bb611386bb8adb66d62ff29a67064c49d"
+    }
+  },
+  "effective_freeze_rule": "Use the M7 R1 manifest as the immutable base plus this correction overlay. Replace only the malformed targeted-page-evidence direct input for downstream parsing. Do not count the replacement as a second evidence universe.",
+  "core_counts_unchanged": true,
+  "unknown_provider_outcomes": 0,
+  "alice_provider_evidence_rows": 0
+}
