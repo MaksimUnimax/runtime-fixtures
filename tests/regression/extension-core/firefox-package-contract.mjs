@@ -14,5 +14,23 @@ assert.deepEqual(
   manifest.browser_specific_settings?.gecko?.data_collection_permissions,
   { required: ["authenticationInfo", "personallyIdentifyingInfo"] },
 );
+const loopbackHosts = (manifest.host_permissions || []).filter(value =>
+  value.startsWith("http://127.0.0.1"),
+);
+assert.equal(
+  loopbackHosts.some(value => /^http:\/\/127\.0\.0\.1:\d+\//.test(value)),
+  false,
+  "Firefox loopback host permissions must not include explicit ports",
+);
+if (loopbackHosts.length) {
+  assert.ok(
+    loopbackHosts.includes("http://127.0.0.1/*"),
+    "Firefox loopback development access must use the portless host pattern",
+  );
+}
 assert.ok(fs.statSync(path.join(runtime, "firefox_background.js")).size > 0);
-console.log(JSON.stringify({ status: "PASS", requiredDataCollection: manifest.browser_specific_settings.gecko.data_collection_permissions.required }));
+console.log(JSON.stringify({
+  status: "PASS",
+  requiredDataCollection: manifest.browser_specific_settings.gecko.data_collection_permissions.required,
+  loopbackHostPermissions: loopbackHosts,
+}));

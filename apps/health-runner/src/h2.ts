@@ -4,31 +4,21 @@ import {
   EnvironmentUncertaintyReasonSchema,
   PackagedStrategyIdSchema,
   StructuralAssertionIdSchema,
+  BrowserRuntimeMetadataSchema,
   type BaselineContourKey,
   type EnvironmentUncertaintyReason,
   type PackagedStrategyId,
   type StructuralAssertionId,
 } from "@product/health";
 import { z } from "zod";
-import { BrowserFamilies } from "@product/shared";
 import { BrowserDriverError, type BrowserDriver } from "./browser-driver.js";
 import type { SafeStructuralObservation } from "./strategies.js";
 import { ControlledTargetKeySchema } from "./target-registry.js";
 
-const IsoTimestampSchema = z.string().datetime({ offset: true });
+export { BrowserRuntimeMetadataSchema } from "@product/health";
+export type { BrowserRuntimeMetadata } from "@product/health";
 
-export const BrowserRuntimeMetadataSchema = z
-  .object({
-    family: z.enum(BrowserFamilies),
-    browserName: z.string().min(1).max(64),
-    browserVersion: z.string().min(1).max(64),
-    headless: z.boolean(),
-    sessionKind: z.literal("EPHEMERAL_CONTROLLED"),
-  })
-  .strict();
-export type BrowserRuntimeMetadata = z.infer<
-  typeof BrowserRuntimeMetadataSchema
->;
+const IsoTimestampSchema = z.string().datetime({ offset: true });
 
 const H2ProbeContourSchema = z
   .object({

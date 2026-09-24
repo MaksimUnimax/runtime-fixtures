@@ -143,13 +143,24 @@
   }
   async function legacyPayload(value, accountId) {
     object(value, "LEGACY"); depth(value);
-    const make = (marketplace, credentials, suffix) => ({ payloadVersion: PAYLOAD_VERSION, accountBinding: { accountId }, createdAt: new Date().toISOString(), stores: [{ storeId: `store-${crypto.randomUUID()}`, label: `Imported ${suffix}`, marketplace, providerAccountId: null, providerIdentityState: "UNCONFIRMED", credentialRevision: `credential-${crypto.randomUUID()}`, metadataRevision: 0, credentials }] });
+    const make = async (marketplace, credentials, suffix) => {
+      const identity = await checksum({
+        accountId,
+        marketplace,
+        format: value.format,
+        backup_version: value.backup_version,
+        exported_at: value.exported_at,
+        extension_version: value.extension_version,
+        extension_id: value.extension_id,
+      });
+      return { payloadVersion: PAYLOAD_VERSION, accountBinding: { accountId }, createdAt: String(value.exported_at || new Date().toISOString()), stores: [{ storeId: `legacy-${marketplace}-${identity.slice(0, 32)}`, label: `Imported ${suffix}`, marketplace, providerAccountId: null, providerIdentityState: "UNCONFIRMED", credentialRevision: `legacy-${identity}`, metadataRevision: 0, credentials }] };
+    };
     const incoming = value.credentials;
     if (value.format === "ozon-bridge-seller-credentials-backup" && value.backup_version === 1) {
       exactKeys(value, ["format", "backup_version", "exported_at", "extension_version", "extension_id", "contains_secrets", "credentials_sha256", "credentials"]);
       exactKeys(incoming, ["seller_client_id", "seller_api_key"]); if (value.contains_secrets !== true) fail("BACKUP_LEGACY_INVALID");
       if (await checksum(incoming) !== String(value.credentials_sha256 || "").toLowerCase()) fail("BACKUP_CHECKSUM_MISMATCH");
-      return validatePayload(make("ozon", { type: "ozon", version: 1, seller: { clientId: string(incoming.seller_client_id, "SELLER_CLIENT_ID"), apiKey: string(incoming.seller_api_key, "SELLER_API_KEY") }, performance: null }, "Ozon"), accountId);
+      return validatePayload(await make("ozon", { type: "ozon", version: 1, seller: { clientId: string(incoming.seller_client_id, "SELLER_CLIENT_ID"), apiKey: string(incoming.seller_api_key, "SELLER_API_KEY") }, performance: null }, "Ozon"), accountId);
     }
     if (value.format === "ozon-bridge-credentials-backup" && value.backup_version === 2) {
       exactKeys(value, ["format", "backup_version", "exported_at", "extension_version", "extension_id", "contains_secrets", "credentials_sha256", "credentials"]);
@@ -157,13 +168,13 @@
       if (await checksum(incoming) !== String(value.credentials_sha256 || "").toLowerCase()) fail("BACKUP_CHECKSUM_MISMATCH");
       const seller = string(incoming.seller_client_id, "SELLER_CLIENT_ID"), apiKey = string(incoming.seller_api_key, "SELLER_API_KEY");
       const performance = incoming.performance_client_id && incoming.performance_client_secret ? { clientId: string(incoming.performance_client_id, "PERFORMANCE_CLIENT_ID"), clientSecret: string(incoming.performance_client_secret, "PERFORMANCE_CLIENT_SECRET") } : null;
-      return validatePayload(make("ozon", { type: "ozon", version: 1, seller: { clientId: seller, apiKey }, performance }, "Ozon"), accountId);
+      return validatePayload(await make("ozon", { type: "ozon", version: 1, seller: { clientId: seller, apiKey }, performance }, "Ozon"), accountId);
     }
     if (value.format === "wildberries-bridge-seller-credentials-backup" && [1, 2].includes(value.backup_version)) {
       exactKeys(value, ["format", "backup_version", "exported_at", "extension_version", "extension_id", "contains_secrets", "credentials_sha256", "credentials"]);
       exactKeys(incoming, ["seller_token", "seller_token_type"]); if (value.contains_secrets !== true || incoming.seller_token_type !== "personal") fail("BACKUP_LEGACY_INVALID");
       if (await checksum(incoming) !== String(value.credentials_sha256 || "").toLowerCase()) fail("BACKUP_CHECKSUM_MISMATCH");
-      return validatePayload(make("wildberries", { type: "wildberries", version: 1, token: string(incoming.seller_token, "WB_TOKEN"), tokenType: "personal" }, "Wildberries"), accountId);
+      return validatePayload(await make("wildberries", { type: "wildberries", version: 1, token: string(incoming.seller_token, "WB_TOKEN"), tokenType: "personal" }, "Wildberries"), accountId);
     }
     fail("BACKUP_VERSION_UNSUPPORTED");
   }

@@ -101,6 +101,40 @@ await run("EX-64..EX-67", "real historical provider backups are explicit adapter
   const ozonLegacy = { format: "ozon-bridge-seller-credentials-backup", backup_version: 1, exported_at: "2026-01-01T00:00:00.000Z", extension_version: "0.1.22", extension_id: null, contains_secrets: true, credentials: { seller_client_id: "legacy-client", seller_api_key: "legacy-key" } };
   ozonLegacy.credentials_sha256 = await digest(ozonLegacy.credentials);
   const adapted = await backup.decrypt(JSON.stringify(ozonLegacy), "unused", accountA); assert.equal(adapted.legacy, true); assert.equal(adapted.payload.stores[0].credentials.seller.apiKey, "legacy-key");
+  const repeated = await backup.decrypt(JSON.stringify(ozonLegacy), "unused", accountA);
+  assert.equal(repeated.payload.stores[0].storeId, adapted.payload.stores[0].storeId);
+  assert.equal(repeated.payload.stores[0].credentialRevision, adapted.payload.stores[0].credentialRevision);
+  const otherAccount = await backup.decrypt(JSON.stringify(ozonLegacy), "unused", accountB);
+  assert.notEqual(otherAccount.payload.stores[0].storeId, adapted.payload.stores[0].storeId);
+  const ozonV2 = { format: "ozon-bridge-credentials-backup", backup_version: 2, exported_at: "2026-08-17T03:57:15.847Z", extension_version: "0.1.12", extension_id: "synthetic-ozon-extension", contains_secrets: true, credentials: { seller_client_id: "legacy-v2-client", seller_api_key: "legacy-v2-key", performance_client_id: "legacy-performance-client", performance_client_secret: "legacy-performance-secret" } };
+  ozonV2.credentials_sha256 = await digest(ozonV2.credentials);
+  const wbV2 = { format: "wildberries-bridge-seller-credentials-backup", backup_version: 2, exported_at: "2026-08-12T14:05:27.253Z", extension_version: "0.1.2", extension_id: "synthetic-wb-extension", contains_secrets: true, credentials: { seller_token: "legacy-wb-token", seller_token_type: "personal" } };
+  wbV2.credentials_sha256 = await digest(wbV2.credentials);
+  for (const legacy of [ozonV2, wbV2]) {
+    const first = await backup.decrypt(JSON.stringify(legacy), "unused", accountA);
+    const second = await backup.decrypt(JSON.stringify(legacy), "unused", accountA);
+    assert.equal(second.payload.stores[0].storeId, first.payload.stores[0].storeId);
+    assert.equal(second.payload.stores[0].credentialRevision, first.payload.stores[0].credentialRevision);
+    assert.notEqual((await backup.decrypt(JSON.stringify(legacy), "unused", accountB)).payload.stores[0].storeId, first.payload.stores[0].storeId);
+  }
+  const legacyStorage = {};
+  const legacyContext = { ...context, SellerAgentsLocalOperations: { createWriteQueue: () => ({ run: fn => fn() }) } };
+  vm.createContext(legacyContext);
+  vm.runInContext(fs.readFileSync(new URL("../../../../packages/bridge-core/src/stores/catalog.js", import.meta.url), "utf8"), legacyContext, { filename: "catalog.js" });
+  const legacyCatalog = legacyContext.SellerAgentsStoreCatalog.create({
+    read: async key => structuredClone(key ? { [key]: legacyStorage[key] } : legacyStorage),
+    write: async values => Object.assign(legacyStorage, structuredClone(values)),
+    currentAccount: async () => accountA,
+    normalizeCredentials: (_marketplace, input) => structuredClone(input),
+    revision: async () => "unused-revision",
+    uuid: () => "unused-uuid",
+  });
+  const previewPlan = await legacyCatalog.planBackupImport(adapted.payload);
+  assert.equal(previewPlan.classifications[0].kind, "IMPORT_NEW");
+  const applied = await legacyCatalog.applyBackupImport(repeated.payload, previewPlan);
+  assert.equal(applied.imported.length, 1);
+  const repeatPlan = await legacyCatalog.planBackupImport((await backup.decrypt(JSON.stringify(ozonLegacy), "unused", accountA)).payload);
+  assert.equal(repeatPlan.classifications[0].kind, "SAME_CURRENT");
   const unknown = { format: "seller-agents-old-looking-json", backup_version: 0, credentials: { seller_client_id: "x", seller_api_key: "y" } }; await rejects(() => backup.decrypt(JSON.stringify(unknown), "unused", accountA), "BACKUP_VERSION_UNSUPPORTED");
 });
 await run("EX-68..EX-74", "secret lifetime/privacy boundaries contain no plaintext in envelope and reject arbitrary page-shaped payloads", async () => {
