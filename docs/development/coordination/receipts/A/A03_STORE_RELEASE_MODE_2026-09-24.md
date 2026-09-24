@@ -51,11 +51,11 @@ Pre-commit deterministic package preview:
 - Chromium OCTOPORT_v0.2.4_CHROMIUM_STORE.zip: 2,109,608 bytes; SHA-256 4d87e730c378d942fc2ca70872b51a0b5afbf427269619a1a92e26f5af276665
 - Firefox OCTOPORT_v0.2.4_FIREFOX_STORE.zip: 3,943,306 bytes; SHA-256 ef94a855e392a40b887434e887bb00d407c2b935b336ef0d7adfe3c9ee437f58
 
-These hashes are preview identities, not release acceptance. After committing, A must regenerate external authority for the exact commit HEAD/tree, rebuild both archives, require byte-identical hashes above, then pass the existing C01 release validator.
+These hashes are package identities, not installed/store acceptance. Exact committed-head C01 validation is recorded out-of-tree under /root/octoport-control/logs/A/store-release-final/ after the final source commit, because embedding that final HEAD/tree back into this tracked receipt would itself create a new source identity. A state/inbox names the exact submitted candidate.
 
 ## Remaining gates
 
-- Exact committed-head C01 validation is still required.
+- C must repeat/rebind package authority to the resulting integrated C SHA before release use; A's C01 PASS does not transfer across a different source tree.
 - Ordinary installed Opera authentication/import/use evidence is still required; fixture/load-unpacked evidence is not ordinary store installation.
 - Supported owner marketplace backups remain private intake only; no tokens are copied to Git/logs/backend.
 - Normal backend config-release/link/assignment operator path is B-owned and remains a separate gate.
