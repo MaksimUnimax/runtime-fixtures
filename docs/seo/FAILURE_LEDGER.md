@@ -220,3 +220,112 @@ STEP_PREPARATION
 ### Status
 
 `RECOVERY ACTIVE / R1 M8 WORK RELEASE SUPERSEDED`.
+
+
+## OSEO-F05 — M4Q targeted page evidence violated its declared physical-line TSV contract
+
+Date: 2026-09-24.
+Stage discovered: M8 Search-only semantic master.
+Origin stage: M4Q R2 targeted M4C recheck.
+
+### Incident
+
+ChatGPT Work M8 R2 correctly stopped with `HOLD_SEMANTIC_CONTRACT_DEFECT`.
+
+Frozen input:
+
+`docs/seo/serp/competitors/work_return/M4Q_R2_TARGETED_M4C_RECHECK_2026-09-23_R1/M4Q_R2_TARGETED_PAGE_EVIDENCE.tsv`
+
+The accepted M4Q source manifest declared:
+
+```text
+FIELD_SEPARATOR = TAB
+RECORD_SEPARATOR = PHYSICAL NEWLINE
+CSV_QUOTE_SEMANTICS = DISABLED
+CONTROL CHARACTERS = escaped
+```
+
+But the exact frozen bytes contain physical LF characters inside records `M4QR2TR0058` and `M4QR2TR0059`.
+
+Observed:
+
+```text
+EXPECTED_COLUMNS = 21
+EXPECTED_LOGICAL_ROWS = 47
+SOURCE_PHYSICAL_LINES = 54
+BAD_PHYSICAL_DATA_LINES = 8
+AFFECTED_RECORDS = M4QR2TR0058,M4QR2TR0059
+```
+
+### Origin proof
+
+The historical Work return manifest itself records:
+
+```text
+M4Q_R2_TARGETED_PAGE_EVIDENCE.tsv
+bytes = 2602167
+sha256 = 96d930d02060141a6eb9242c8079121a85359a256ff2fd39e0c4995577b05486
+row_count = 47
+```
+
+Those bytes/hash exactly match the malformed frozen Git file.
+
+Therefore:
+
+```text
+GITHUB_PUBLICATION_MUTATION = false
+DEFECT_EXISTED_IN_ORIGINAL_WORK_RETURN = true
+```
+
+The earlier M4Q QA statement that the final ZIP passed tab-width checks was insufficient/incorrect under the declared physical-line parser contract.
+
+### Impact
+
+M4Q semantic/page evidence is recoverable, but the historical transport cannot be used directly by M8.
+
+No M8 semantic master was accepted from R2.
+No provider call or web acquisition occurred in M8.
+
+### Recovery
+
+A deterministic transport-only recovery was created:
+
+`docs/seo/serp/competitors/recovery/M4Q_R2_TARGETED_PAGE_EVIDENCE_2026-09-24_R1/`
+
+Recovery rule:
+
+```text
+record begins at ^M4QR2TR\d{4}\t
+non-ID physical lines continue the preceding record
+continuation physical LF -> literal \n
+no other normalization/change
+```
+
+Verified:
+
+```text
+RECOVERED_ROWS = 47/47
+RECOVERED_COLUMNS = 21/21 for 47/47
+UNMODIFIED_GOOD_ROWS = 45/45 exact text match
+SEMANTIC_ROWS_ADDED = 0
+SEMANTIC_ROWS_REMOVED = 0
+RECOVERED_SHA256 = a9ec3a14319edc0a4721e702378e910461490be1deba4136afcdf2276c2585d5
+```
+
+### Permanent prevention
+
+For any TSV contract using `QUOTE_NONE` + physical-newline records, Work/Main Chat acceptance must verify the **published/returned exact bytes** with:
+
+```text
+physical line count
+column width per physical data line
+expected row count
+record-ID uniqueness
+manifest byte/hash identity
+```
+
+A manifest row_count or a parser capable of multiline fields cannot substitute for that check.
+
+### Status
+
+`RECOVERED / CURRENT AUTHORITY MUST USE PARSER-SAFE RECOVERY TRANSPORT`.
