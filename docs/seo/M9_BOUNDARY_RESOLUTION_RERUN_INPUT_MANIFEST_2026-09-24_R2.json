@@ -1,0 +1,151 @@
+{
+  "schema": "OCTOPORT_M9_BOUNDARY_RESOLUTION_FULL_RERUN_INPUT_MANIFEST_V2",
+  "work_id": "OCTOPORT_SEO_M9_BOUNDARY_RESOLUTION_FULL_RERUN_2026-09-24_R2",
+  "date": "2026-09-24",
+  "repository": "MaksimUnimax/runtime-fixtures",
+  "branch": "seo/wordstat-batch-01-2026-09-16",
+  "preparation_parent_head": "2d9db3d3e8a2acc3173acc2fce4eec49a744a7d0",
+  "rule": "Start from the independently accepted M9 boundary-resolution full rerun R1. Freeze every accepted non-Search pair dimension. Add exactly 18 accepted Wave-2 current RU225 Search anchors to the accepted 47-anchor authority, recompute Search comparability and exact overlap for the complete 5,356-pair universe, then recompute evidence grades, pair decisions, material HOLDs and complete-link clusters under the unchanged method. No partial patch.",
+  "baseline": {
+    "acceptance_path": "docs/seo/M9_BOUNDARY_RESOLUTION_RERUN_MAIN_CHAT_ACCEPTANCE_2026-09-24_R1.md",
+    "acceptance_git_blob": "530a8679140220ee11c5e8489d6a4c99b82a579c",
+    "pairwise_path": "docs/seo/work_return/M9_BOUNDARY_RESOLUTION_FULL_RERUN_2026-09-24_R1/M9_PAIRWISE_CLUSTER_EVIDENCE.tsv",
+    "pairwise_git_blob": "e1c3e6adcc2763296d87a9863620154d8fed0963",
+    "eligibility_path": "docs/seo/work_return/M9_BOUNDARY_RESOLUTION_FULL_RERUN_2026-09-24_R1/M9_IDENTITY_ELIGIBILITY_LEDGER.tsv",
+    "eligibility_git_blob": "abb0db0891a54a6c27bfe8e314c8ad2541ea6ba9",
+    "cluster_master_path": "docs/seo/work_return/M9_BOUNDARY_RESOLUTION_FULL_RERUN_2026-09-24_R1/M9_CLUSTER_MASTER.tsv",
+    "cluster_master_git_blob": "9d86156fb11e40cf6913764d9f372f5e111a5bf9",
+    "cluster_membership_path": "docs/seo/work_return/M9_BOUNDARY_RESOLUTION_FULL_RERUN_2026-09-24_R1/M9_CLUSTER_MEMBERSHIP.tsv",
+    "cluster_membership_git_blob": "6d7e30c5763eb80278ef16c45896e396da68228d",
+    "hold_ledger_path": "docs/seo/work_return/M9_BOUNDARY_RESOLUTION_FULL_RERUN_2026-09-24_R1/M9_HOLD_BOUNDARY_LEDGER.tsv",
+    "hold_ledger_git_blob": "8287ec72c53ed6447c67d7b7b05dc69b834675e3"
+  },
+  "expected": {
+    "semantic_identities": 7913,
+    "cluster_eligible": 104,
+    "search_anchors": 65,
+    "old_search_anchors_before_wave2": 47,
+    "new_wave2_search_anchors": 18,
+    "no_current_exact_serp": 39,
+    "pairwise_pairs": 5356,
+    "both_current_serp": 2080,
+    "one_current_serp": 2535,
+    "no_current_serp_pairs": 741,
+    "comparability_changed_pairs_vs_r1": 1701,
+    "comparability_unchanged_pairs_vs_r1": 3655,
+    "old47_new18_one_to_both": 846,
+    "new18_new18_none_to_both": 153,
+    "new18_remaining39_none_to_one": 702
+  },
+  "frozen_non_search_pair_fields": [
+    "pair_id",
+    "semantic_identity_id_a",
+    "semantic_identity_id_b",
+    "canonical_text_a",
+    "canonical_text_b",
+    "preliminary_family_a",
+    "preliminary_family_b",
+    "user_task_relation",
+    "intent_relation",
+    "marketplace_scope_relation",
+    "product_fit_relation",
+    "result_page_type_relation"
+  ],
+  "recompute_for_all_5356": [
+    "search_comparability",
+    "current_query_id_a",
+    "current_query_id_b",
+    "exact_url_overlap_top10_count",
+    "exact_url_union_top10_count",
+    "exact_url_jaccard_top10",
+    "exact_url_overlap_top20_count",
+    "exact_url_union_top20_count",
+    "exact_url_jaccard_top20",
+    "domain_overlap_top10_count",
+    "domain_union_top10_count",
+    "domain_jaccard_top10",
+    "search_evidence_refs",
+    "evidence_grade",
+    "pair_decision",
+    "pair_reason_code",
+    "rationale",
+    "claim_boundary"
+  ],
+  "new_authority_files": [
+    {
+      "path": "docs/seo/M9_BOUNDARY_RESOLUTION_WAVE2_EXPORT_ACCEPTANCE_2026-09-24_R1.md",
+      "git_blob_sha": "705c788b7da7da95b14b728aff58b1b0b2478782",
+      "role": "WAVE2_FULL_EXPORT_ACCEPTANCE"
+    },
+    {
+      "path": "docs/seo/M9_BOUNDARY_RESOLUTION_WAVE2_OVERLAP_PROJECTION_ACCEPTANCE_2026-09-24_R1.md",
+      "git_blob_sha": "4b572ecc568e504b7a845d1142f6511d26678af3",
+      "role": "WAVE2_TOP20_PROJECTION_ACCEPTANCE"
+    },
+    {
+      "path": "docs/seo/serp/raw/M9_BOUNDARY_RESOLUTION_WAVE2_2026-09-24_R1/M9BR_WAVE2_TOP20_URL_DOMAIN.tsv.gz.b64",
+      "git_blob_sha": "427185ac67687352f318f2a7f73b81fce3acd22b",
+      "decoded_tsv_sha256": "d4ff38e0cdb4869bd6968314facd6f5bdeffd45fac5d37a8b43845f2a45f4c2b",
+      "expected_data_rows": 360,
+      "role": "WAVE2_CURRENT_OVERLAP_ROWS"
+    },
+    {
+      "path": "docs/seo/M9_BOUNDARY_RESOLUTION_SEARCH_ANCHOR_MAP_2026-09-24_R2.tsv",
+      "git_blob_sha": "32b6ec36c1707808519d7f885f511f4258f117e1",
+      "expected_data_rows": 65,
+      "role": "CURRENT_65_SEARCH_ANCHOR_MAP"
+    }
+  ],
+  "overlap_sources": {
+    "old_22": {
+      "path": "docs/seo/serp/competitors/work_return/M4Q_R2_PASS_B_VISIBILITY_2026-09-23_R1/M4Q_R2_SERP_RESULT_LEDGER.tsv",
+      "git_blob_sha": "41041493677627bfaf30de8eb7ec88a52ceb0a91",
+      "url_field": "result_url_normalized",
+      "domain_field": "result_domain",
+      "rank_field": "result_rank"
+    },
+    "wave1_25": {
+      "path": "docs/seo/serp/raw/M9_BOUNDARY_RESOLUTION_WAVE1_2026-09-24_R1/M9BR_WAVE1_TOP20_URL_DOMAIN.tsv.gz.b64",
+      "git_blob_sha": "cb2d10581aff2810549fc1a9841b51edb652d428",
+      "decoded_tsv_sha256": "b01d9c0ccbbfb2c7cfcb5af33762c7d9a74c686c2102e5d1419e1bf97491bb95",
+      "fields": [
+        "index",
+        "rank",
+        "url",
+        "domain"
+      ]
+    },
+    "wave2_18": {
+      "path": "docs/seo/serp/raw/M9_BOUNDARY_RESOLUTION_WAVE2_2026-09-24_R1/M9BR_WAVE2_TOP20_URL_DOMAIN.tsv.gz.b64",
+      "git_blob_sha": "427185ac67687352f318f2a7f73b81fce3acd22b",
+      "decoded_tsv_sha256": "d4ff38e0cdb4869bd6968314facd6f5bdeffd45fac5d37a8b43845f2a45f4c2b",
+      "fields": [
+        "index",
+        "rank",
+        "url",
+        "domain"
+      ]
+    },
+    "rule": "Use exact stored values as unique sets inside TOP10 rank<=10 and TOP20 rank<=20. No cross-source/ad-hoc URL or domain normalization. Repeated URLs outside Top20 do not enter M9 overlap windows."
+  },
+  "page_type_rule": "Freeze the accepted R1 rerun result_page_type_relation for every pair. The 18 new Search snapshots create no page-type authority; do not infer page type from titles, snippets, URLs, domains, raw XML or normalized Search text.",
+  "prohibited": [
+    "PROVIDER_CALLS",
+    "BRIDGE_COMMANDS",
+    "WORDSTAT_EXECUTION",
+    "YANDEX_SEARCH_EXECUTION",
+    "ALICE_EXECUTION",
+    "GENSEARCH_EXECUTION",
+    "WEB_ACQUISITION",
+    "NEW_LIVE_SITE_CRAWL",
+    "GITHUB_WRITES",
+    "SITE_MUTATION",
+    "AD_HOC_URL_RENORMALIZATION",
+    "AD_HOC_DOMAIN_RENORMALIZATION",
+    "AD_HOC_PAGE_TYPE_INFERENCE",
+    "PARTIAL_PAIR_PATCH",
+    "NEW_NON_SEARCH_SEMANTIC_RELATION_INFERENCE_WITHOUT_NAMED_INPUT_DEFECT",
+    "M10A_PAGE_OWNERSHIP",
+    "URL_H1_TITLE_IA"
+  ]
+}
