@@ -1,7 +1,7 @@
 # Octoport SEO — M10C progress
 
 Date: 2026-09-24
-Status: **CAPABILITY PROBE PASS / CASE01 SINGLE PAID SNAPSHOT RELEASED**
+Status: **CASE01 SNAPSHOT01 ACCEPTED / CONDITIONAL SNAPSHOT02 RELEASED**
 Branch: `seo/wordstat-batch-01-2026-09-16`
 
 ## Accepted chain
@@ -72,3 +72,20 @@ Current authorized action:
 `SEARCH_API_V1 {"method":"genSearch","queryText":"ии помощник селлера","confirmBillable":true}`
 
 Exactly one paid provider request is authorized. Next case and second snapshot remain closed.
+
+Case01 snapshot-1 raw evidence:
+`docs/seo/evidence/m10c/M10C_CASE01_SNAPSHOT01_SEARCH_RESULT_V1.json`
+blob `43f02c8a9604df35fe2c31fe799fa35d8d84d914`.
+
+Case01 snapshot-1 assessment:
+`docs/seo/M10C_CASE01_SNAPSHOT01_RECEIPT_2026-09-24_R1.md`
+blob `9b79c9989453be15f5f544916330751b06401baf`.
+
+Conditional snapshot-2 release:
+`docs/seo/M10C_CASE01_SNAPSHOT02_RELEASE_2026-09-24_R1.md`
+blob `47608031b91bfe87b9cd070c35b011afff8744b2`.
+
+Current authorized action:
+`SEARCH_API_V1 {"method":"genSearch","queryText":"ии помощник селлера","confirmBillable":true}`
+
+This is the second and final authorized snapshot for Case01. Third snapshot and next case remain closed.
