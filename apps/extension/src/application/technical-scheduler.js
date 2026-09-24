@@ -173,10 +173,14 @@
     try {
       const journal = globalThis.SellerAgentsSyncJournal;
       const state = await journal?.read?.();
-      const pending = Object.values(state?.entries || {}).filter((entry) => ["PENDING", "RETRY_WAIT"].includes(entry.status));
+      const pending = Object.values(state?.entries || {}).filter((entry) =>
+        ["PENDING", "RETRY_WAIT"].includes(entry.status) && entry.kind !== "DELIVERY_MARKER");
       if (pending.length) {
         const first = pending.sort((a, b) => (a.nextAttemptAt || 0) - (b.nextAttemptAt || 0) || a.localSequence - b.localSequence)[0];
-        await schedule(KINDS.SYNC, { taskId: "sync:pending", dueAt: first.nextAttemptAt || now + 1000, identity: { requestId: first.requestId, installationId: first.installationId, retryGeneration: first.attempts } });
+        const scheduled = (await read()).entries["sync:pending"];
+        const sameRequest = scheduled?.identity?.requestId === first.requestId;
+        const dueAt = first.nextAttemptAt || (sameRequest ? scheduled?.dueAt : 0) || now + 1000;
+        await schedule(KINDS.SYNC, { taskId: "sync:pending", dueAt, identity: { requestId: first.requestId, installationId: first.installationId, retryGeneration: first.attempts } });
       } else await cancelKind(KINDS.SYNC);
     } catch (_) {}
 
