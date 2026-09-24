@@ -22,6 +22,8 @@ const IDS = {
   surface: "c4000000-0000-4000-8000-000000000002",
   profile: "c4000000-0000-4000-8000-000000000003",
   revision: "c4000000-0000-4000-8000-000000000004",
+  recoveryProfile: "c4000000-0000-4000-8000-000000000005",
+  recoveryRevision: "c4000000-0000-4000-8000-000000000006",
 };
 const runtime = createDatabaseRuntime(connectionString);
 const scheduler = createHealthSchedulerRepository(runtime);
@@ -275,6 +277,9 @@ describe.sequential("C04 no-session persistence PostgreSQL acceptance", () => {
     );
     await seedProfile(IDS.profile, "chatgpt-standard-public-v1", [
       IDS.revision,
+    ]);
+    await seedProfile(IDS.recoveryProfile, "chatgpt-standard-recovery-v1", [
+      IDS.recoveryRevision,
     ]);
     await seedProfile(
       uuid(30),
@@ -546,6 +551,180 @@ describe.sequential("C04 no-session persistence PostgreSQL acceptance", () => {
       observation(12, { strategyId: "chatgpt-standard-ambiguous-v1" }),
       "NO_SESSION_PROFILE_REVISION_AUTHORITY_AMBIGUOUS",
     );
+  });
+
+  it("reconciles persisted no-session side effects before scheduler success", async () => {
+    await scheduler.reconcilePersistedResults(
+      new Date(baseTime.valueOf() + 600_000),
+    );
+
+    const brokenSchedule = await makeScheduledRun({ started: true });
+    const broken = observation(17, {
+      strategyId: "chatgpt-standard-recovery-v1",
+      classification: "BROKEN",
+      classificationBasis: "BROWSER_FAILURE",
+      surfaceOutcome: "BROWSER_FAILURE",
+      blocker: "BROWSER_UNAVAILABLE",
+    });
+    const persistedBroken =
+      await persistence.persistCompletedNoSessionHealthRun(
+        persistenceInput(brokenSchedule.id, broken),
+      );
+
+    const beforeBroken = await runtime.query<{
+      incidents: string;
+      intents: string;
+    }>(
+      'SELECT (SELECT count(*)::text FROM health_incidents WHERE first_seen_run_id=$1 OR latest_seen_run_id=$1) AS "incidents",(SELECT count(*)::text FROM health_notification_intents WHERE health_run_id=$1) AS "intents"',
+      [persistedBroken.healthRunId],
+    );
+    expect(beforeBroken.rows[0]).toEqual({ incidents: "0", intents: "0" });
+    expect((await scheduler.getScheduledRun(brokenSchedule.id))?.state).toBe(
+      "RUNNING",
+    );
+
+    expect(
+      await scheduler.reconcilePersistedResults(
+        new Date(baseTime.valueOf() + 610_000),
+      ),
+    ).toBe(1);
+    expect(await scheduler.getScheduledRun(brokenSchedule.id)).toMatchObject({
+      state: "SUCCEEDED",
+      healthRunId: persistedBroken.healthRunId,
+      healthState: "BROKEN",
+    });
+
+    const brokenCounts = await runtime.query<{
+      runs: string;
+      incidents: string;
+      intents: string;
+    }>(
+      'SELECT (SELECT count(*)::text FROM health_runs WHERE scheduled_run_id=$1) AS "runs",(SELECT count(*)::text FROM health_incidents WHERE first_seen_run_id=$2 OR latest_seen_run_id=$2) AS "incidents",(SELECT count(*)::text FROM health_notification_intents WHERE health_run_id=$2) AS "intents"',
+      [brokenSchedule.id, persistedBroken.healthRunId],
+    );
+    expect(brokenCounts.rows[0]).toEqual({
+      runs: "1",
+      incidents: "1",
+      intents: "1",
+    });
+    expect(
+      await scheduler.reconcilePersistedResults(
+        new Date(baseTime.valueOf() + 620_000),
+      ),
+    ).toBe(0);
+    expect(
+      (
+        await runtime.query<{ count: string }>(
+          "SELECT count(*)::text AS count FROM health_notification_intents WHERE health_run_id=$1",
+          [persistedBroken.healthRunId],
+        )
+      ).rows[0]?.count,
+    ).toBe("1");
+
+    const healthySchedule = await makeScheduledRun({ started: true });
+    const healthy = observation(18, {
+      strategyId: "chatgpt-standard-recovery-v1",
+    });
+    const persistedHealthy =
+      await persistence.persistCompletedNoSessionHealthRun(
+        persistenceInput(healthySchedule.id, healthy),
+      );
+    expect(
+      await scheduler.reconcilePersistedResults(
+        new Date(baseTime.valueOf() + 630_000),
+      ),
+    ).toBe(1);
+    const incident = await runtime.query<{
+      count: string;
+      status: string;
+    }>(
+      "SELECT count(*)::text AS count,min(status::text) AS status FROM health_incidents WHERE first_seen_run_id=$1 OR resolved_by_run_id=$2",
+      [persistedBroken.healthRunId, persistedHealthy.healthRunId],
+    );
+    expect(incident.rows[0]).toEqual({ count: "1", status: "RESOLVED" });
+    const recoveryIntent = await runtime.query<{ eventKind: string }>(
+      'SELECT event_kind AS "eventKind" FROM health_notification_intents WHERE health_run_id=$1 ORDER BY event_kind',
+      [persistedHealthy.healthRunId],
+    );
+    expect(recoveryIntent.rows).toEqual([{ eventKind: "INCIDENT_RECOVERED" }]);
+
+    const unknownSchedule = await makeScheduledRun({ started: true });
+    const unknown = observation(19, {
+      strategyId: "chatgpt-standard-recovery-v1",
+      classification: "UNKNOWN",
+    });
+    const persistedUnknown =
+      await persistence.persistCompletedNoSessionHealthRun(
+        persistenceInput(unknownSchedule.id, unknown),
+      );
+    expect(
+      await scheduler.reconcilePersistedResults(
+        new Date(baseTime.valueOf() + 640_000),
+      ),
+    ).toBe(1);
+    expect(await scheduler.getScheduledRun(unknownSchedule.id)).toMatchObject({
+      state: "SUCCEEDED",
+      healthRunId: persistedUnknown.healthRunId,
+      healthState: "UNKNOWN",
+    });
+    const unknownEffects = await runtime.query<{
+      incidents: string;
+      intents: string;
+    }>(
+      'SELECT (SELECT count(*)::text FROM health_incidents WHERE first_seen_run_id=$1 OR latest_seen_run_id=$1 OR resolved_by_run_id=$1) AS "incidents",(SELECT count(*)::text FROM health_notification_intents WHERE health_run_id=$1) AS "intents"',
+      [persistedUnknown.healthRunId],
+    );
+    expect(unknownEffects.rows[0]).toEqual({ incidents: "0", intents: "0" });
+
+    const failingSchedule = await makeScheduledRun({ started: true });
+    const failing = observation(20, {
+      strategyId: "chatgpt-standard-recovery-v1",
+      classification: "BROKEN",
+      classificationBasis: "BROWSER_FAILURE",
+      surfaceOutcome: "BROWSER_FAILURE",
+      blocker: "BROWSER_UNAVAILABLE",
+    });
+    const persistedFailing =
+      await persistence.persistCompletedNoSessionHealthRun(
+        persistenceInput(failingSchedule.id, failing),
+      );
+    const failingScheduler = createHealthSchedulerRepository(runtime, {
+      incidentProcessor: {
+        async processCompletedHealthRun(runId) {
+          if (runId === persistedFailing.healthRunId) {
+            throw new Error("TEST_INCIDENT_PROCESSOR_FAILURE");
+          }
+          return incidents.processCompletedHealthRun(runId);
+        },
+      },
+    });
+    await expect(
+      failingScheduler.reconcilePersistedResults(
+        new Date(baseTime.valueOf() + 650_000),
+      ),
+    ).rejects.toThrow("TEST_INCIDENT_PROCESSOR_FAILURE");
+    expect(await scheduler.getScheduledRun(failingSchedule.id)).toMatchObject({
+      state: "RUNNING",
+      healthRunId: null,
+    });
+    expect(
+      await scheduler.reconcilePersistedResults(
+        new Date(baseTime.valueOf() + 660_000),
+      ),
+    ).toBe(1);
+    const failingCounts = await runtime.query<{
+      runs: string;
+      incidents: string;
+      intents: string;
+    }>(
+      'SELECT (SELECT count(*)::text FROM health_runs WHERE scheduled_run_id=$1) AS "runs",(SELECT count(*)::text FROM health_incidents WHERE first_seen_run_id=$2 OR latest_seen_run_id=$2) AS "incidents",(SELECT count(*)::text FROM health_notification_intents WHERE health_run_id=$2) AS "intents"',
+      [failingSchedule.id, persistedFailing.healthRunId],
+    );
+    expect(failingCounts.rows[0]).toEqual({
+      runs: "1",
+      incidents: "1",
+      intents: "1",
+    });
   });
 
   it("completes scheduled no-session persistence and incident processing idempotently", async () => {
