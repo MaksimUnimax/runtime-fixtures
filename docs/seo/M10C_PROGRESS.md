@@ -1,7 +1,7 @@
 # Octoport SEO — M10C progress
 
 Date: 2026-09-24
-Status: **GENSEARCH PREFLIGHT PASS / NON-BILLABLE CAPABILITY PROBE RELEASED**
+Status: **CAPABILITY PROBE PASS / CASE01 SINGLE PAID SNAPSHOT RELEASED**
 Branch: `seo/wordstat-batch-01-2026-09-16`
 
 ## Accepted chain
@@ -60,4 +60,15 @@ CONDITIONAL_REPEATS_MAX = 15
 ABSOLUTE_TWO_SNAPSHOT_CEILING_RUB = 152.40
 ```
 
-Paid GenSearch remains closed until capability probe receipt is persisted/read back and a separate per-case release is issued.
+Capability probe receipt:
+`docs/seo/M10C_GENSEARCH_CAPABILITY_PROBE_RECEIPT_2026-09-24_R1.md`
+blob `31fa4dced95ddc3d505c908d68142e7a92f3d1b1`.
+
+Case01 paid release:
+`docs/seo/M10C_GENSEARCH_CASE01_PAID_RELEASE_2026-09-24_R1.md`
+blob `eb3541b0d61d854ba5519274cb496aae68ce0561`.
+
+Current authorized action:
+`SEARCH_API_V1 {"method":"genSearch","queryText":"ии помощник селлера","confirmBillable":true}`
+
+Exactly one paid provider request is authorized. Next case and second snapshot remain closed.
