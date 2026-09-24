@@ -1,4 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { NextRequest } from "next/server";
+import { POST } from "./route.js";
 import {
   allowedRoute,
   controlPlaneOrigin,
@@ -7,6 +9,83 @@ import config from "../../../../next.config.js";
 
 describe("portal control-plane BFF boundary", () => {
   const id = "123e4567-e89b-42d3-a456-426614174000";
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("forwards only approved auth headers including the exact idempotency key", async () => {
+    const environment = process.env as Record<string, string | undefined>;
+    const priorOrigin = environment.CONTROL_PLANE_API_ORIGIN;
+    environment.CONTROL_PLANE_API_ORIGIN = "https://api.example.test";
+
+    const downstream = vi.fn(
+      async (_input: RequestInfo | URL, _init?: RequestInit) =>
+        new Response(JSON.stringify({ status: "ok" }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+    );
+    vi.stubGlobal("fetch", downstream);
+
+    const context = {
+      params: Promise.resolve({ path: ["v1", "auth", "otp", "verify"] }),
+    };
+    try {
+      const first = new NextRequest(
+        "https://portal.example.test/api/control-plane/v1/auth/otp/verify",
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            cookie: "pcp_session=session-value; pcp_csrf=csrf-cookie",
+            "x-csrf-token": "csrf-header",
+            "idempotency-key": "otp-verify-key",
+            "x-unapproved-header": "must-not-pass",
+          },
+          body: JSON.stringify({ code: "123456" }),
+        },
+      );
+      expect((await POST(first, context)).status).toBe(200);
+
+      const second = new NextRequest(
+        "https://portal.example.test/api/control-plane/v1/auth/otp/verify",
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            cookie: "pcp_session=session-value; pcp_csrf=csrf-cookie",
+            "x-csrf-token": "csrf-header",
+            "x-unapproved-header": "must-not-pass",
+          },
+          body: JSON.stringify({ code: "654321" }),
+        },
+      );
+      expect((await POST(second, context)).status).toBe(200);
+
+      expect(downstream).toHaveBeenCalledTimes(2);
+      const firstHeaders = new Headers(
+        (downstream.mock.calls[0]?.[1] as RequestInit | undefined)?.headers,
+      );
+      expect(firstHeaders.get("content-type")).toBe("application/json");
+      expect(firstHeaders.get("cookie")).toBe(
+        "pcp_session=session-value; pcp_csrf=csrf-cookie",
+      );
+      expect(firstHeaders.get("x-csrf-token")).toBe("csrf-header");
+      expect(firstHeaders.get("idempotency-key")).toBe("otp-verify-key");
+      expect(firstHeaders.has("x-unapproved-header")).toBe(false);
+
+      const secondHeaders = new Headers(
+        (downstream.mock.calls[1]?.[1] as RequestInit | undefined)?.headers,
+      );
+      expect(secondHeaders.has("idempotency-key")).toBe(false);
+      expect(secondHeaders.has("x-unapproved-header")).toBe(false);
+    } finally {
+      environment.CONTROL_PLANE_API_ORIGIN = priorOrigin;
+    }
+  });
+
   it.each([
     ["POST", "/v1/auth/otp/request"],
     ["POST", "/v1/auth/otp/verify"],
