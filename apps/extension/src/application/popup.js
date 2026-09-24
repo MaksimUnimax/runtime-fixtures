@@ -27,9 +27,14 @@ const texts = { ACCESS_CONFIRMED: "Доступ подтверждён этой 
   TRANSFER_INVALID: "Запрос передачи повреждён или устарел. Создайте новый запрос передачи и не повторяйте старый пакет",
   SOURCE_OFFLINE: "Источник передачи сейчас недоступен. Повтор не считается доставкой", TRANSFER_VAULT_UNAVAILABLE: "Безопасное локальное хранилище ключа передачи недоступно. Передача не начата", TRANSFER_VAULT_PERSIST_FAILED: "Не удалось безопасно сохранить локальный ключ передачи. Запрос не считается готовым", TRANSFER_VAULT_CLEAR_FAILED: "Не удалось подтвердить очистку локального ключа передачи. Сброс не считается завершённым",
   TRANSFER_KEY_MISSING: "Локальный ключ этой передачи отсутствует. Создайте новый запрос на получающей установке", TRANSFER_ACCOUNT_MISMATCH: "Передача относится к другому аккаунту или установке и заблокирована", TRANSFER_EXPIRED: "Срок запроса передачи истёк. Создайте новый запрос", TRANSFER_REPLAY: "Передача уже завершена или повтор заблокирован" };
+function ownerErrorText(code, lead = "Действие не выполнено") {
+  const safeCode = typeof code === "string" && /^[A-Z0-9_]{1,80}$/.test(code) ? code : null;
+  if (safeCode && texts[safeCode]) return texts[safeCode];
+  return `${lead}. Обновите состояние расширения и повторите действие. Код для поддержки: ${safeCode || "UNKNOWN"}`;
+}
 async function request(type, fields = {}) {
   const response = await chrome.runtime.sendMessage({ type, tab_id: tabId, ...fields });
-  if (!response?.ok) throw new Error(texts[response?.code] || `Действие не выполнено: ${response?.code || "нет ответа расширения"}`);
+  if (!response?.ok) throw new Error(ownerErrorText(response?.code));
   return response;
 }
 async function action(fn) { if (busy) return; busy = true; $("status").textContent = "Выполняем…"; try { await fn(); await refresh(); $("status").textContent = "Готово"; } catch (e) { $("status").textContent = e.message; } finally { busy = false; } }
@@ -61,7 +66,7 @@ function render() {
   $("account").textContent = state.account.label;
   $("auth").hidden = authenticated;
   $("catalog").hidden = !authenticated;
-  $("auth-status").textContent = state.auth?.lastError ? (texts[state.auth.lastError.code] || state.auth.lastError.code) : authenticated ? "Вход подтверждён подписанным bootstrap V2." : state.auth?.pending ? "Откройте портал и подтвердите устройство для своего аккаунта." : "Войдите, чтобы подключить принадлежащий вам аккаунт.";
+  $("auth-status").textContent = state.auth?.lastError ? ownerErrorText(state.auth.lastError.code, "Не удалось обновить состояние входа") : authenticated ? "Вход подтверждён подписанным bootstrap V2." : state.auth?.pending ? "Откройте портал и подтвердите устройство для своего аккаунта." : "Войдите, чтобы подключить принадлежащий вам аккаунт.";
   $("auth-code").textContent = state.auth?.pending ? `Код подтверждения: ${state.auth.pending.userCode}` : "";
   $("auth-open").hidden = !state.auth?.pending;
   $("auth-start").textContent = state.auth?.pending ? "Открыть портал ещё раз" : "Войти через портал";
@@ -83,7 +88,7 @@ function render() {
   $("check-seller").hidden = $("check-performance").hidden = marketplace !== "ozon";
   $("check-token").hidden = marketplace !== "wildberries";
   $("check-seller").disabled = !s?.sellerPresent; $("check-performance").disabled = !s?.performancePresent; $("check-token").disabled = !s?.tokenPresent;
-  $("verification").textContent = Object.entries(s?.verification || {}).map(([part, v]) => `${part}: ${texts[v.code] || v.code}`).join(". ") || "Кабинет и доступ не проверены. Проверка выполняется только по нажатию.";
+  $("verification").textContent = Object.entries(s?.verification || {}).map(([part, v]) => `${part}: ${ownerErrorText(v.code, "Проверка не завершена")}`).join(". ") || "Кабинет и доступ не проверены. Проверка выполняется только по нажатию.";
   const connected = state.stores.find(x => x.id === state.context.store_id), active = state.context.work_active;
   const labels = { active_visible: "Работаем", active_hidden: "Работаем · кнопка скрыта", recovering: "Восстанавливаем", binding: "Подключаем", error: "Ошибка запуска", inactive: "Завершено" };
   $("connection").textContent = state.identity.ai_id ? connected ? `${labels[state.work?.state] || "Диалог подключён"}: ${connected.name} · ${connected.marketplace === "ozon" ? "Ozon" : "WB"}` : "Диалог не подключён" : "Откройте ChatGPT или Алису в текущей вкладке";
