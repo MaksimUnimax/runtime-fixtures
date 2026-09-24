@@ -1,0 +1,76 @@
+{
+  "schema": "OCTOPORT_M9_BOUNDARY_RESOLUTION_FULL_RERUN_RETURN_MANIFEST_V2",
+  "work_id": "OCTOPORT_SEO_M9_BOUNDARY_RESOLUTION_FULL_RERUN_2026-09-24_R2",
+  "start_head": "776f703a4e4658e6e67d4e7addb12d8a501e1ae5",
+  "end_observed_head": "776f703a4e4658e6e67d4e7addb12d8a501e1ae5",
+  "authority_drift_status": "NONE_FROZEN_INPUTS_UNCHANGED",
+  "verdict": "PASS_WITH_HOLD_BOUNDARIES",
+  "self_hash_exclusion": "This manifest is excluded from the eight-file hash list; ZIP hash is reported separately.",
+  "files": [
+    {
+      "name": "M9_SOURCE_MANIFEST.md",
+      "utf8_bytes": 9068,
+      "sha256": "a941df01e9d9d408237e01d49a19f409887e2da26a291a564cc201320b74ca04",
+      "line_count": 77
+    },
+    {
+      "name": "M9_IDENTITY_ELIGIBILITY_LEDGER.tsv",
+      "utf8_bytes": 4594562,
+      "sha256": "caedfbf64aa51aa142daeda6ad50480966c0d353dcee718133a8c726acc42e98",
+      "line_count": 7914,
+      "data_rows": 7913,
+      "columns": 18
+    },
+    {
+      "name": "M9_PAIRWISE_CLUSTER_EVIDENCE.tsv",
+      "utf8_bytes": 4907618,
+      "sha256": "4b85a09c83852b91048727f404015a412b697de05a3bf5a888f34c5418cc73ac",
+      "line_count": 5357,
+      "data_rows": 5356,
+      "columns": 30
+    },
+    {
+      "name": "M9_CLUSTER_MASTER.tsv",
+      "utf8_bytes": 110256,
+      "sha256": "1e3daafcdd5c8441c70d17e95ea1d80aee0f01369218db4e452ad5deb31af839",
+      "line_count": 105,
+      "data_rows": 104,
+      "columns": 25
+    },
+    {
+      "name": "M9_CLUSTER_MEMBERSHIP.tsv",
+      "utf8_bytes": 43286,
+      "sha256": "866eb84ffb811aba04080fee77a9f50e3a136da924a4512d50c1d16c851f062f",
+      "line_count": 105,
+      "data_rows": 104,
+      "columns": 13
+    },
+    {
+      "name": "M9_HOLD_BOUNDARY_LEDGER.tsv",
+      "utf8_bytes": 1448615,
+      "sha256": "8931aad9fa151e748b8a92a7d704d4da2d24af9c5fb9a50914cab6913d0e7404",
+      "line_count": 1400,
+      "data_rows": 1399,
+      "columns": 14
+    },
+    {
+      "name": "M9_ADVERSARIAL_DIAGNOSTIC.tsv",
+      "utf8_bytes": 22717,
+      "sha256": "63e0296c58dfbd0dca10c14b955c0c8f90b7129c142c5bd3b89a4f2f7a8adc16",
+      "line_count": 32,
+      "data_rows": 31,
+      "columns": 10
+    },
+    {
+      "name": "M9_QA.md",
+      "utf8_bytes": 15842,
+      "sha256": "ca7e3f2654edb891a0cc57036786cd3fe05275e8bc3de1ae36f4ae7f0cca5962",
+      "line_count": 205
+    }
+  ],
+  "file_count_in_zip": 9,
+  "provider_calls": 0,
+  "bridge_commands": 0,
+  "web_acquisition": 0,
+  "github_writes": 0
+}
