@@ -1,4 +1,4 @@
-# Octoport SEO — M9 Search-only SERP + user-task clustering — STEP PREPARATION R1
+> **SUPERSEDED FOR EXECUTION / DO NOT RUN.** Replaced by M9 R2 after OSEO-F07. Retained as history only.\n\n# Octoport SEO — M9 Search-only SERP + user-task clustering — STEP PREPARATION R1
 
 Date: 2026-09-24
 Status: **PREPARATION COMPLETE / WORK RELEASE NOT YET ISSUED**
