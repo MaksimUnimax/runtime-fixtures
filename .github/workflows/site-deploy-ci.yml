@@ -82,6 +82,8 @@ jobs:
           assert "admin\\.octoport\\.ru" in verify, "admin-host safety check is mandatory"
           assert "certbot.timer" in verify
           assert "EXPECTED_SITE_SHA" in verify
+          assert "grep -Fq 'Не отправляйте секреты'" in verify, "support secret-warning check must be locale-independent"
+          assert "grep -Fq 'Редактирование цен, карточек товаров и ставок не поддерживается'" in verify, "support read-only check must be locale-independent"
 
           print("SITE-S1 DEPLOY CONTRACT PASS")
           PY

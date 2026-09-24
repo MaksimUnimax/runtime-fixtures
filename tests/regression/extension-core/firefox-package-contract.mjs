@@ -8,7 +8,11 @@ assert.ok(runtime, "runtime directory required");
 const manifest = JSON.parse(fs.readFileSync(path.join(runtime, "manifest.json"), "utf8"));
 assert.equal(manifest.manifest_version, 3);
 assert.deepEqual(manifest.background, { scripts: ["firefox_background.js"] });
-assert.equal(manifest.browser_specific_settings?.gecko?.id, "seller-agents@example.test");
+const storePackage = manifest.name === "Octoport — Ozon + Wildberries";
+assert.equal(
+  manifest.browser_specific_settings?.gecko?.id,
+  storePackage ? "octoport@octoport.ru" : "seller-agents@example.test",
+);
 assert.equal(manifest.browser_specific_settings?.gecko?.strict_min_version, "140.0");
 assert.deepEqual(
   manifest.browser_specific_settings?.gecko?.data_collection_permissions,

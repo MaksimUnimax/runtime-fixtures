@@ -85,9 +85,10 @@ def build(input_runtime: Path, output: Path) -> dict:
         for pattern in manifest.get("host_permissions", [])
     ))
     manifest["background"] = {"scripts": ["firefox_background.js"]}
+    store_package = manifest.get("name") == "Octoport — Ozon + Wildberries"
     manifest["browser_specific_settings"] = {
         "gecko": {
-            "id": "seller-agents@example.test",
+            "id": "octoport@octoport.ru" if store_package else "seller-agents@example.test",
             "strict_min_version": "140.0",
             "data_collection_permissions": {
                 "required": FIREFOX_REQUIRED_DATA_COLLECTION,
@@ -102,7 +103,11 @@ def build(input_runtime: Path, output: Path) -> dict:
         data = path.read_bytes()
         files.append({"path": relative, "sha256": sha256(data), "bytes": len(data)})
 
-    archive = output.parent / "SELLER_AGENTS_I1_C1_v0.2.4_FIREFOX_LOCAL_DEVELOPMENT.zip"
+    archive = output.parent / (
+        "OCTOPORT_v0.2.4_FIREFOX_STORE.zip"
+        if store_package
+        else "SELLER_AGENTS_I1_C1_v0.2.4_FIREFOX_LOCAL_DEVELOPMENT.zip"
+    )
     repeat = output.parent / (archive.name + ".repeat")
     for target in (archive, repeat):
         with zipfile.ZipFile(target, "w", compression=zipfile.ZIP_STORED) as zipped:
@@ -116,6 +121,7 @@ def build(input_runtime: Path, output: Path) -> dict:
     repeat.unlink()
     receipt = {
         "browser": "firefox",
+        "build_mode": "store" if store_package else "development",
         "version": manifest["version"],
         "source_runtime": str(input_runtime),
         "files": files,
