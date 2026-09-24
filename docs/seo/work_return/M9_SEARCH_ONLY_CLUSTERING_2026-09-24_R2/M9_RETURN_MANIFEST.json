@@ -1,0 +1,67 @@
+{
+  "schema": "M9_SEARCH_ONLY_CLUSTERING_RETURN_R2",
+  "work_id": "OCTOPORT_SEO_M9_SEARCH_ONLY_CLUSTERING_2026-09-24_R2",
+  "start_head": "50dbbc8edd9c466b7a441b524b545c146201e931",
+  "end_observed_head": "50dbbc8edd9c466b7a441b524b545c146201e931",
+  "authority_drift_status": "NONE_FROZEN_INPUTS_UNCHANGED",
+  "verdict": "PASS_WITH_HOLD_BOUNDARIES",
+  "non_self_file_count": 8,
+  "zip_file_count_including_manifest": 9,
+  "self_hash_exclusion": "Manifest records eight other files; self hash intentionally omitted.",
+  "files": [
+    {
+      "file": "M9_SOURCE_MANIFEST.md",
+      "utf8_bytes": 6382,
+      "sha256": "ed10303e2b8189f3d996672ba5b7852d0b950d1b78e027df098a2b1277d6a756",
+      "line_count": 59
+    },
+    {
+      "file": "M9_IDENTITY_ELIGIBILITY_LEDGER.tsv",
+      "utf8_bytes": 4464973,
+      "sha256": "0b6b11636bcb47ee2208d5b28d8ede681046692b7c3fbabef851f9031590c515",
+      "line_count": 7914,
+      "data_rows": 7913
+    },
+    {
+      "file": "M9_PAIRWISE_CLUSTER_EVIDENCE.tsv",
+      "utf8_bytes": 4724034,
+      "sha256": "ae3dbb4e4ee18b9d2a996c47ac49eda6e0ab2b1b9fba1715238d247178c726cf",
+      "line_count": 5357,
+      "data_rows": 5356
+    },
+    {
+      "file": "M9_CLUSTER_MASTER.tsv",
+      "utf8_bytes": 105796,
+      "sha256": "92eb6613c4c8dec11d8ce3005fc0b22e4b098391ffcaed8d0f19d2cc64515873",
+      "line_count": 105,
+      "data_rows": 104
+    },
+    {
+      "file": "M9_CLUSTER_MEMBERSHIP.tsv",
+      "utf8_bytes": 37637,
+      "sha256": "116b62fa2eb4a97be3f2da12cd716e6d2215945fee07ef1f8f757064b5294e9c",
+      "line_count": 105,
+      "data_rows": 104
+    },
+    {
+      "file": "M9_HOLD_BOUNDARY_LEDGER.tsv",
+      "utf8_bytes": 1363559,
+      "sha256": "cf6c5ea2aae38a7cc51e6b12292279781e460bbbe693b38b10f1ef40a8ad78c8",
+      "line_count": 1425,
+      "data_rows": 1424
+    },
+    {
+      "file": "M9_ADVERSARIAL_DIAGNOSTIC.tsv",
+      "utf8_bytes": 8198,
+      "sha256": "8cabfb65568e0647de7fb98b29417fbc0cfa2e7a9aec49c3ec846da2b8441f9b",
+      "line_count": 18,
+      "data_rows": 17
+    },
+    {
+      "file": "M9_QA.md",
+      "utf8_bytes": 7457,
+      "sha256": "9b5730dd157d04709fe0bd5c0541f5b3f773d85096f8df7cd19ccc7e3a006a5b",
+      "line_count": 191
+    }
+  ]
+}
