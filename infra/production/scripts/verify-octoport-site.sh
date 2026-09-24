@@ -5,7 +5,6 @@ SITE_ROOT="/var/www/octoport-site"
 CURRENT_LINK="${SITE_ROOT}/current"
 CERT_FILE="/etc/letsencrypt/live/octoport.ru/fullchain.pem"
 DOMAINS=(octoport.ru www.octoport.ru app.octoport.ru api.octoport.ru)
-HTTP_DOMAINS=(octoport.ru www.octoport.ru app.octoport.ru api.octoport.ru mail.octoport.ru)
 EXPECTED_SITE_SHA="${EXPECTED_SITE_SHA:-}"
 MAX_ATTEMPTS="${MAX_ATTEMPTS:-20}"
 RETRY_DELAY="${RETRY_DELAY:-0.5}"
@@ -195,9 +194,9 @@ check_site_content() {
   grep -Fq 'max-age=300' <<<"${css_cache}" || fail "styles.css cache-control is ${css_cache:-<missing>}, expected max-age=300"
 }
 
-check_redirects_and_existing_apps() {
+check_redirects() {
   local host location
-  for host in "${HTTP_DOMAINS[@]}"; do
+  for host in "${DOMAINS[@]}"; do
     expect_status_with_retry 308 "http://${host}/" "${host}" 80
   done
 
@@ -209,9 +208,25 @@ check_redirects_and_existing_apps() {
   [[ "${location}" == 'https://octoport.ru/site-s1-check?probe=1' ]] \
     || fail "www redirect location is ${location:-<missing>}"
 
+}
+
+check_application_routes() {
+  expect_status_with_retry 200 'https://app.octoport.ru/' app.octoport.ru 443
   expect_status_with_retry 200 'https://app.octoport.ru/login' app.octoport.ru 443
-  expect_status_with_retry 200 'https://api.octoport.ru/health/live' api.octoport.ru 443
-  expect_status_with_retry 200 'https://api.octoport.ru/health/ready' api.octoport.ru 443
+
+  local health body
+  for health in live ready; do
+    expect_status_with_retry 200 "https://api.octoport.ru/health/${health}" api.octoport.ru 443
+    body="$(curl --silent --show-error --resolve 'api.octoport.ru:443:127.0.0.1' "https://api.octoport.ru/health/${health}")"
+    python3 -c 'import json,sys; assert json.load(sys.stdin).get("status") == sys.argv[1]' "${health}" <<<"${body}" \
+      || fail "API ${health} route returned an invalid health response"
+  done
+
+  # Read-only anonymous request checks portal -> API routing and its auth guard.
+  expect_status_with_retry 401 'https://app.octoport.ru/api/control-plane/v1/accounts' app.octoport.ru 443
+  body="$(curl --silent --show-error --resolve 'app.octoport.ru:443:127.0.0.1' 'https://app.octoport.ru/api/control-plane/v1/accounts')"
+  python3 -c 'import json,sys; assert json.load(sys.stdin).get("error", {}).get("code") == "AUTH_SESSION_INVALID"' <<<"${body}" \
+    || fail "portal control-plane route did not preserve the anonymous authentication guard"
 }
 
 check_old_docs_service() {
@@ -231,7 +246,7 @@ check_admin_not_enabled() {
 }
 
 main() {
-  for command_name in awk basename curl grep nginx openssl readlink systemctl; do
+  for command_name in awk basename curl grep nginx openssl readlink systemctl python3; do
     require_command "${command_name}"
   done
 
@@ -240,13 +255,16 @@ main() {
   check_certificate_file
   check_served_certificates
   check_site_content
-  check_redirects_and_existing_apps
+  check_redirects
+  check_application_routes
   check_old_docs_service
   check_admin_not_enabled
   systemctl is-active --quiet nginx || fail "nginx is not active"
   systemctl is-active --quiet certbot.timer || fail "certbot.timer is not active"
 
-  log "PASS: live static site, inherited security headers, TLS, redirects, preserved app/API ingress and old docs service"
+  log "PASS: live static site, inherited security headers, TLS, redirects, deployed app/API routes and anonymous authentication guard and old docs service"
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
+fi

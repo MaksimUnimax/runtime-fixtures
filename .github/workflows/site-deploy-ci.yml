@@ -5,6 +5,8 @@ on:
     paths:
       - "apps/site/public/**"
       - "infra/production/nginx/octoport-site.conf"
+      - "infra/production/nginx/octoport-apps.conf"
+      - "tests/regression/site/**"
       - "infra/production/scripts/deploy-octoport-site.sh"
       - "infra/production/scripts/verify-octoport-site.sh"
       - ".github/workflows/site-deploy-ci.yml"
@@ -12,6 +14,8 @@ on:
     paths:
       - "apps/site/public/**"
       - "infra/production/nginx/octoport-site.conf"
+      - "infra/production/nginx/octoport-apps.conf"
+      - "tests/regression/site/**"
       - "infra/production/scripts/deploy-octoport-site.sh"
       - "infra/production/scripts/verify-octoport-site.sh"
       - ".github/workflows/site-deploy-ci.yml"
@@ -41,6 +45,9 @@ jobs:
           bash -n infra/production/scripts/deploy-octoport-site.sh
           bash -n infra/production/scripts/verify-octoport-site.sh
 
+      - name: Test site deployment isolation and regression detection
+        run: python3 -m unittest discover -s tests/regression/site -p 'test_*.py' -v
+
       - name: Validate SITE-S1 deployment contract
         shell: bash
         run: |
@@ -49,33 +56,31 @@ jobs:
           import re
 
           nginx = Path("infra/production/nginx/octoport-site.conf").read_text(encoding="utf-8")
+          apps = Path("infra/production/nginx/octoport-apps.conf").read_text(encoding="utf-8")
           deploy = Path("infra/production/scripts/deploy-octoport-site.sh").read_text(encoding="utf-8")
           verify = Path("infra/production/scripts/verify-octoport-site.sh").read_text(encoding="utf-8")
 
-          expected_http_hosts = {"octoport.ru", "www.octoport.ru", "app.octoport.ru", "api.octoport.ru", "mail.octoport.ru"}
-          for host in expected_http_hosts:
-              assert host in nginx, f"nginx HTTP ingress missing {host}"
+          enabled = {"octoport.ru", "www.octoport.ru", "app.octoport.ru", "api.octoport.ru"}
+          for host in enabled:
+              assert host in nginx, f"nginx live config missing {host}"
               assert host in verify, f"verifier missing {host}"
 
-          server_names = re.findall(r"server_name\s+([^;]+);", nginx)
+          server_names = re.findall(r"server_name\s+([^;]+);", nginx + apps)
           flattened = {host for group in server_names for host in group.split()}
           assert "admin.octoport.ru" not in flattened, "admin.octoport.ru must not become an app vhost"
 
           assert "root /var/www/octoport-site/current;" in nginx
           assert "return 308 https://octoport.ru$request_uri;" in nginx
-          assert "server_name app.octoport.ru;" not in nginx, "site ingress must not own app 443 vhost"
-          assert "server_name api.octoport.ru;" not in nginx, "site ingress must not own API 443 vhost"
-          assert "service_not_deployed" not in nginx
-          assert 'return 503 "Octoport portal is not deployed yet.\\n";' not in nginx
+          assert "service_not_deployed" not in nginx and "proxy_pass" not in nginx
+          assert "proxy_pass http://127.0.0.1:3100;" in apps
+          assert "proxy_pass http://127.0.0.1:3000;" in apps
+          assert "assert_application_ingress_unchanged" in deploy and "flock -n 9" in deploy
+          assert "check_application_routes" in verify and "expect_status_with_retry 503" not in verify
           assert "Content-Security-Policy" in nginx and "default-src 'none'" in nginx
           assert "/etc/letsencrypt/live/octoport.ru/fullchain.pem" in nginx
 
           assert 'SITE_ROOT="/var/www/octoport-site"' in deploy
           assert 'RELEASE_DIR="${RELEASES_DIR}/${SOURCE_SHA}"' in deploy
-          assert 'APPS_NGINX="${NGINX_CONF_DIR}/octoport-apps.conf"' in deploy
-          assert "assert_existing_app_ingress" in deploy
-          assert "proxy_pass http://127.0.0.1:3100;" in deploy
-          assert "proxy_pass http://127.0.0.1:3000;" in deploy
           assert "backup_existing_state" in deploy
           assert "capture_failure_diagnostics" in deploy
           assert "restore_previous_state" in deploy
@@ -88,10 +93,6 @@ jobs:
           assert "admin\\.octoport\\.ru" in verify, "admin-host safety check is mandatory"
           assert "certbot.timer" in verify
           assert "EXPECTED_SITE_SHA" in verify
-          assert "check_redirects_and_existing_apps" in verify
-          assert "https://app.octoport.ru/login" in verify
-          assert "https://api.octoport.ru/health/live" in verify
-          assert "https://api.octoport.ru/health/ready" in verify
           assert "grep -Fq 'Не отправляйте секреты'" in verify, "support secret-warning check must be locale-independent"
           assert "grep -Fq 'Редактирование цен, карточек товаров и ставок не поддерживается'" in verify, "support read-only check must be locale-independent"
 

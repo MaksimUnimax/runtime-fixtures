@@ -5,6 +5,7 @@ on:
     paths:
       - "apps/site/**"
       - "infra/production/nginx/octoport-site.conf"
+      - "infra/production/nginx/octoport-apps.conf"
       - "infra/production/scripts/deploy-octoport-site.sh"
       - "infra/production/scripts/verify-octoport-site.sh"
       - "infra/production/README.md"
@@ -13,6 +14,7 @@ on:
     paths:
       - "apps/site/**"
       - "infra/production/nginx/octoport-site.conf"
+      - "infra/production/nginx/octoport-apps.conf"
       - "infra/production/scripts/deploy-octoport-site.sh"
       - "infra/production/scripts/verify-octoport-site.sh"
       - "infra/production/README.md"
@@ -277,21 +279,17 @@ jobs:
           set -Eeuo pipefail
 
           nginx_conf="infra/production/nginx/octoport-site.conf"
+          apps_conf="infra/production/nginx/octoport-apps.conf"
           deploy_script="infra/production/scripts/deploy-octoport-site.sh"
           verify_script="infra/production/scripts/verify-octoport-site.sh"
 
           bash -n "${deploy_script}"
           bash -n "${verify_script}"
 
-          grep -Fq 'server_name octoport.ru www.octoport.ru app.octoport.ru api.octoport.ru mail.octoport.ru;' "${nginx_conf}"
-          if grep -Fq 'server_name app.octoport.ru;' "${nginx_conf}"; then
-            echo 'site ingress must not own app.octoport.ru 443 vhost' >&2
-            exit 1
-          fi
-          if grep -Fq 'server_name api.octoport.ru;' "${nginx_conf}"; then
-            echo 'site ingress must not own api.octoport.ru 443 vhost' >&2
-            exit 1
-          fi
+          grep -Fq 'server_name octoport.ru;' "${nginx_conf}"
+          grep -Fq 'server_name www.octoport.ru;' "${nginx_conf}"
+          grep -Fq 'server_name app.octoport.ru;' "${apps_conf}"
+          grep -Fq 'server_name api.octoport.ru;' "${apps_conf}"
           grep -Fq 'root /var/www/octoport-site/current;' "${nginx_conf}"
           grep -Fq 'return 308 https://octoport.ru$request_uri;' "${nginx_conf}"
           grep -Fq 'expires -1;' "${nginx_conf}"
@@ -310,25 +308,18 @@ jobs:
             exit 1
           fi
 
-          if grep -Eq 'server_name[^;]*admin\.octoport\.ru' "${nginx_conf}"; then
+          if grep -Eq 'server_name[^;]*admin\.octoport\.ru' "${nginx_conf}" "${apps_conf}"; then
             echo 'admin.octoport.ru must remain disabled as an application hostname' >&2
             exit 1
           fi
 
           grep -Fq 'systemctl reload nginx' "${deploy_script}"
           grep -Fq 'verify-octoport-site.sh' "${deploy_script}"
-          grep -Fq 'APPS_NGINX="${NGINX_CONF_DIR}/octoport-apps.conf"' "${deploy_script}"
-          grep -Fq 'assert_existing_app_ingress' "${deploy_script}"
-          grep -Fq 'proxy_pass http://127.0.0.1:3100;' "${deploy_script}"
-          grep -Fq 'proxy_pass http://127.0.0.1:3000;' "${deploy_script}"
           grep -Fq 'styles.css lost the inherited CSP' "${verify_script}"
           grep -Fq 'styles.css lost X-Frame-Options' "${verify_script}"
           grep -Fq "https://octoport.ru/privacy" "${verify_script}"
           grep -Fq "https://octoport.ru/support" "${verify_script}"
           grep -Fq "https://octoport.ru/install" "${verify_script}"
-          grep -Fq "https://app.octoport.ru/login" "${verify_script}"
-          grep -Fq "https://api.octoport.ru/health/live" "${verify_script}"
-          grep -Fq "https://api.octoport.ru/health/ready" "${verify_script}"
 
           if grep -Eq 'rm[[:space:]]+-rf' "${deploy_script}"; then
             echo 'recursive forced deletion is not allowed in the site deploy script' >&2
