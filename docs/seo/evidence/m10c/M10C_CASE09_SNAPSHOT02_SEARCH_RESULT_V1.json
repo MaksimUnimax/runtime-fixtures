@@ -1,0 +1,110 @@
+{
+  "bridge": "yandex-marketing-bridge",
+  "version": "0.1.9",
+  "service": "search",
+  "operation": "genSearch",
+  "request_id": "search-58b88d6b-a5ca-4fc5-a978-c2c0d65856ed",
+  "run_id": null,
+  "status": "OK",
+  "reason": null,
+  "cost_estimate": {
+    "estimated_rub": 5.08,
+    "tariff_checked_at": "2026-08-19",
+    "tariff_source": "[https://aistudio.yandex.ru/docs/ru/search-api/pricing.html](https://aistudio.yandex.ru/docs/ru/search-api/pricing.html)"
+  },
+  "policy": {
+    "channel": "manual",
+    "active_service": "search"
+  },
+  "command": {
+    "method": "genSearch",
+    "queryText": "ии для аналитики маркетплейсов",
+    "confirmBillable": true
+  },
+  "http_status": 200,
+  "elapsed_ms": 5511,
+  "result": {
+    "mode": "generative",
+    "message": {
+      "content": "**Искусственный интеллект (ИИ) помогает анализировать данные маркетплейсов**, находить проблемы в продажах и оптимизировать рекламу. [3] Некоторые возможности ИИ для аналитики маркетплейсов:\n\n* **Общий анализ аккаунта**. [3] ИИ определяет рост или падение продаж, изменения конверсии, проблемные категории товаров, влияние рекламы на оборот. [3]\n* **Анализ заказов и продаж**. [3] Нейросеть может выявить тренды продаж, определить товары-лидеры, найти позиции с падающим спросом, выявить влияние сезонности. [3]\n* **Анализ поставок и остатков**. [3] ИИ способен выявить риск out-of-stock, избыточные остатки, проблемы с оборачиваемостью. [3]\n* **Анализ воронки продаж**. [3] ИИ анализирует весь путь покупателя: показ → клик → добавление в корзину → заказ → выкуп. [3] Нейросеть помогает понять, где именно теряются покупатели, почему падает конверсия, какие карточки товаров требуют доработки. [3]\n* **Анализ рекламы маркетплейсов**. [3] ИИ может анализировать рекламные показатели: ДРР (доля рекламных расходов), эффективность кампаний, ставки и бюджет, влияние рекламы на прибыль. [3]\n* **Анализ юнит-экономики**. [3] Нейросети могут рассчитать маржинальность товаров, влияние скидок, влияние логистики и комиссии, реальную прибыль. [3]\n\nНесколько сервисов с ИИ для аналитики маркетплейсов:\n\n* **RocketMetrix**. [7] Подключается к API магазина на Ozon или Wildberries, автоматически синхронизирует данные каждую ночь и даёт полную картину бизнеса — от воронки продаж до управленческого P&L. [7]\n* **Komanda.ai**. [9] Платформа позволяет работать с данными маркетплейсов, генерировать карточки товаров, отзывы и отчёты. [9]",
+      "role": "ROLE_ASSISTANT"
+    },
+    "sources": [
+      {
+        "url": "[https://secrets.tbank.ru/tehnologii/kak-primeniat-ii-na-marketpleisah/](https://secrets.tbank.ru/tehnologii/kak-primeniat-ii-na-marketpleisah/)",
+        "title": "ИИ для маркетплейсов: 5 сценариев, как селлеру внедрить нейросети и увеличить продажи",
+        "used": false
+      },
+      {
+        "url": "[https://www.kp.ru/money/biznes/luchshie-nejroseti-dlya-marketplejsov/](https://www.kp.ru/money/biznes/luchshie-nejroseti-dlya-marketplejsov/)",
+        "title": "10 лучших нейросетей для маркетплейсов 2026: рейтинг топ бесплатных, платных нейросетей для создания карточек товаров, инфографики, генерации изображений, написания текстов на маркетплейсы Wildberries, Ozon, Яндекс-Маркет с отзывами и ценами",
+        "used": false
+      },
+      {
+        "url": "[https://tablichki.tech/ocifrovka_marketplace_blog/tpost/ai_marketplaces](https://tablichki.tech/ocifrovka_marketplace_blog/tpost/ai_marketplaces)",
+        "title": "ИИ для маркетплейсов: анализ Wildberries и Ozon через ChatGPT",
+        "used": true
+      },
+      {
+        "url": "[https://tproger.ru/articles/top-14-servisov-analitiki-marketplejsov-v-2026-godu---luchwie-bes](https://tproger.ru/articles/top-14-servisov-analitiki-marketplejsov-v-2026-godu---luchwie-bes)",
+        "title": "ТОП-14 сервисов аналитики маркетплейсов в 2026 году – лучшие бесплатные и платные программы",
+        "used": false
+      },
+      {
+        "url": "[https://tablichki.tech/](https://tablichki.tech/)",
+        "title": "Оцифровка маркетплейсов",
+        "used": false
+      },
+      {
+        "url": "[https://vc.ru/marketplace/3154683-top-servisov-analitiki-marketpleysov-dlya-wildberries-i-ozon](https://vc.ru/marketplace/3154683-top-servisov-analitiki-marketpleysov-dlya-wildberries-i-ozon)",
+        "title": "Топ 5 сервисов аналитики маркетплейсов в 2026 году — Маркетплейсы на vc.ru",
+        "used": false
+      },
+      {
+        "url": "[https://app.rocketmetrix.ru/](https://app.rocketmetrix.ru/)",
+        "title": "RocketMetrix — ИИ-аналитика для маркетплейсов",
+        "used": true
+      },
+      {
+        "url": "[https://dzen.ru/a/aUQWDPSpOUYB-b9U](https://dzen.ru/a/aUQWDPSpOUYB-b9U)",
+        "title": "Топ 10 сервисов аналитики маркетплейсов 2026: как выбрать свой | Обзоры и рейтинги | Дзен",
+        "used": false
+      },
+      {
+        "url": "[https://komanda.ai/marketplace](https://komanda.ai/marketplace)",
+        "title": "ИИ для маркетплейсов — карточки, отзывы, отчёты — Komanda.ai | Команда.АИ",
+        "used": true
+      },
+      {
+        "url": "[https://sberbusiness.live/publications/nejroseti-dlya-marketplejsov-podborka](https://sberbusiness.live/publications/nejroseti-dlya-marketplejsov-podborka)",
+        "title": "Нейросети для маркетплейсов: подборка ИИ-инструментов 2026 года",
+        "used": false
+      }
+    ],
+    "searchQueries": [
+      {
+        "text": "лучшие ии для аналитики маркетплейсов 2026",
+        "reqId": "1790259503961431-15618017790946082791-kh2dcjbpk5ule5ib-BAL"
+      },
+      {
+        "text": "ии для аналитики маркетплейсов",
+        "reqId": "1790259503194373-2456995460044304902-q6bvn2ao7chkhxo7-BAL"
+      }
+    ],
+    "fixedMisspellQuery": "",
+    "isAnswerRejected": false,
+    "isBulletAnswer": false,
+    "hints": [
+      "Какие ещё сервисы с ИИ для аналитики маркетплейсов существуют?",
+      "Как ИИ помогает оптимизировать карточки товаров?",
+      "Какие преимущества даёт использование ИИ в анализе маркетплейсов?"
+    ],
+    "problematicAnswer": false,
+    "transport": {
+      "wire_format": "json_array",
+      "frame_count": 1
+    }
+  },
+  "request_executed": true,
+  "automatic_retry": false
+}
