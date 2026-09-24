@@ -111,6 +111,11 @@ if mode=="duplicate":
     rows.append(("manifest.json",b"{}"))
 if mode=="case_duplicate":
     rows.append(("MANIFEST.JSON",b"{}"))
+if mode=="development_popup":
+    rows.append(("popup.html",b'<html><script src="popup.js"></script></html>'))
+    rows.append(("popup.js","console.log('Локальная разработка')".encode()))
+if mode in ("import_whitespace", "import_no_semicolon", "import_comment"):
+    rows.append(("dev.js",b"/* LOCAL DEVELOPMENT */"))
 if mode=="symlink":
     with zipfile.ZipFile(path,"w") as z:
         i=zipfile.ZipInfo("link")
@@ -158,6 +163,12 @@ function makeZip(path, browser, options = {}) {
       `${authority.origins.portalOrigin}/*`,
     ];
   }
+  if (options.mode === "development_popup") {
+    manifest.action = { default_popup: "popup.html" };
+  }
+  if (options.mode === "module_background") {
+    manifest.background = { service_worker: "worker.js", type: "module" };
+  }
 
   let config = packagedConfig(authority);
   if (options.mode === "attacker_key") {
@@ -170,12 +181,25 @@ function makeZip(path, browser, options = {}) {
     config = { ...config, environment: "ANOTHER_ENVIRONMENT" };
   }
 
-  const worker =
+  let worker =
     options.mode === "missing_config"
       ? "console.log('runtime');\n"
       : `globalThis.__SELLER_AGENTS_PACKAGED_CONFIG__=${JSON.stringify(
           JSON.stringify(config),
         )};\n`;
+  if (options.mode === "development_material") {
+    worker +=
+      "/* LOCAL DEVELOPMENT http://127.0.0.1:43100 http://127.0.0.1:43101 config-local-development */\n";
+  }
+  if (options.mode === "import_whitespace") {
+    worker += 'importScripts ("dev.js");\n';
+  }
+  if (options.mode === "import_no_semicolon") {
+    worker += 'importScripts("dev.js")\n';
+  }
+  if (options.mode === "import_comment") {
+    worker += 'importScripts/*comment*/("dev.js");\n';
+  }
 
   const result = spawnSync(
     "python3",
@@ -335,6 +359,90 @@ test("NOT_AN_EXTENSION never becomes release PASS", () => {
   });
   try {
     assert.throws(() => prepare(value));
+  } finally {
+    cleanup(value);
+  }
+});
+
+test("PRODUCTION authority is rejected in PREPRODUCTION store-review lane", () => {
+  const value = fixture({ authority: { environment: "PRODUCTION" } });
+  try {
+    assert.throws(() => prepare(value), /Invalid authority schema/);
+  } finally {
+    cleanup(value);
+  }
+});
+
+test("Chromium module service worker is rejected until C01 has an ESM dependency validator", () => {
+  const value = fixture({
+    chromium: { mode: "module_background" },
+  });
+  try {
+    assert.throws(
+      () => prepare(value),
+      /Chromium module service worker is not accepted/,
+    );
+  } finally {
+    cleanup(value);
+  }
+});
+
+test("non-canonical classic importScripts whitespace form is rejected fail-closed", () => {
+  const value = fixture({
+    chromium: { mode: "import_whitespace" },
+  });
+  try {
+    assert.throws(() => prepare(value), /unsupported importScripts syntax/);
+  } finally {
+    cleanup(value);
+  }
+});
+
+test("non-canonical classic importScripts without semicolon is rejected fail-closed", () => {
+  const value = fixture({
+    chromium: { mode: "import_no_semicolon" },
+  });
+  try {
+    assert.throws(() => prepare(value), /unsupported importScripts syntax/);
+  } finally {
+    cleanup(value);
+  }
+});
+
+test("comment-obfuscated classic importScripts is rejected fail-closed", () => {
+  const value = fixture({
+    chromium: { mode: "import_comment" },
+  });
+  try {
+    assert.throws(() => prepare(value), /unsupported importScripts syntax/);
+  } finally {
+    cleanup(value);
+  }
+});
+
+test("package background containing development-only material is rejected", () => {
+  const value = fixture({
+    chromium: { mode: "development_material" },
+  });
+  try {
+    assert.throws(
+      () => prepare(value),
+      /background contains development-only material/,
+    );
+  } finally {
+    cleanup(value);
+  }
+});
+
+test("package popup containing development-only material is rejected", () => {
+  const value = fixture({
+    chromium: { mode: "development_popup" },
+  });
+  try {
+    assert.throws(
+      () => prepare(value),
+      /popup surface contains development-only material/,
+    );
   } finally {
     cleanup(value);
   }

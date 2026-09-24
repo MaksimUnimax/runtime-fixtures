@@ -7,11 +7,11 @@ Installed browser / live deployment / store submission: NOT CLAIMED.
 ## Accepted baseline and exact intake
 
 - accepted main baseline before this cycle: `7e3e781491d42e366d60d3b3976cdd5bf179f840`;
-- A final exact submitted candidate: `04d6fe6afdd0ff778ddb6b8dcdbbe7467e4ed67a` (supersedes all earlier A03 store submissions, including `64aa249...` and `d12c8af...`);
+- A final exact submitted candidate: `144551fdb8d9d67b2988162592b27716b9c2e42d` (supersedes all earlier A03 store submissions, including `04d6fe6...`, `64aa249...` and `d12c8af...`);
 - B exact submitted candidate: `da7e1238192b91bd4e331af525b00800da250db0`;
 - A and B candidate path sets do not overlap and both merged cleanly on the accepted baseline; whole moving role branches were not merged.
 
-A contributes the existing-builder explicit store mode, Octoport visible branding, owner-preapproved 16/48/128 PNG icons + SVG, deterministic Chromium/Firefox store package generation and package-contract checks. Its superseding hardening restricts this store-review lane to PREPRODUCTION authority and rejects duplicate trust key IDs/fingerprints before packaging.
+A contributes the existing-builder explicit store mode, Octoport visible branding, owner-preapproved 16/48/128 PNG icons + SVG, deterministic Chromium/Firefox store package generation and package-contract checks. Its superseding hardening restricts this store-review lane to PREPRODUCTION authority, rejects duplicate trust key IDs/fingerprints, removes LOCAL DEVELOPMENT/loopback fallback from the packaged worker, and removes development-only popup labels before packaging.
 
 B contributes the normal authenticated ADMIN HTTP config-release linking path, preserving the existing extension-release, compatibility-policy and P7 assignment paths. The new route is `POST /v1/admin/compatibility/config-releases/publish`, protected by the existing admin mutation/session/CSRF guard and transaction-time `compatibility.manage` authorization. It uses expected-latest CAS, preserves existing signing/feature/rollout links, requires a new compatibility policy link, and writes ADMIN audit attribution/reason/correlation.
 
@@ -33,14 +33,17 @@ The C01 release validator remains fail closed. External release authority binds 
 Focused integrated-tree verification before this receipt commit:
 - positive `release-preflight`: PASS on the then-current integrated source;
 - stale A authority against the integrated source: expected FAIL `Authority source identity is stale`;
+- C01 independently accepts only PREPRODUCTION release authority; PRODUCTION fails closed;
 - C01 independently asserts the stable Firefox add-on ID `octoport@octoport.ru`; a different ID fails closed before release preparation;
-- `tooling/b1/release-safety.test.mjs`: 33/33 PASS, including the negative Firefox stable-ID case;
-- `tests/regression/extension-core/store-package-contract.py`: PASS, including PREPRODUCTION-only and duplicate-trust negative checks;
-- supervised resource job `ace268cfe2ff47bcbbe284c837841829`: exit 0, OOM 0, cleanup verified, peak 108 MiB; focused Prettier check also PASS.
+- C01 rejects known development-only/loopback fallback markers in the reachable classic background runtime and in the declared popup plus its direct local `src`/`href` resources. Chromium module service workers are fail-closed until a dedicated ESM dependency validator exists. Classic background dependency traversal accepts only canonical static `importScripts(...);`; whitespace/no-semicolon/comment-obfuscated variants fail closed rather than escaping traversal;
+- `tooling/b1/release-safety.test.mjs`: 40/40 PASS, including negative PREPRODUCTION, module-worker, canonical-import syntax, background sanitation, popup-resource sanitation and Firefox stable-ID cases;
+- `tests/regression/extension-core/store-package-contract.py`: PASS, including PREPRODUCTION-only, duplicate-trust and store sanitation checks;
+- `pnpm openapi:check`: PASS; focused Prettier check: PASS;
+- supervised resource job `046cf92b9b6549ebb5b7967ce6c72a89`: exit 0, OOM 0, cleanup verified, peak 326 MiB.
 
 Deterministic package bytes at this stage:
-- Chromium `OCTOPORT_v0.2.4_CHROMIUM_STORE.zip`: SHA-256 `4d87e730c378d942fc2ca70872b51a0b5afbf427269619a1a92e26f5af276665`, 2,109,608 bytes;
-- Firefox `OCTOPORT_v0.2.4_FIREFOX_STORE.zip`: SHA-256 `ef94a855e392a40b887434e887bb00d407c2b935b336ef0d7adfe3c9ee437f58`, 3,943,306 bytes.
+- Chromium `OCTOPORT_v0.2.4_CHROMIUM_STORE.zip`: SHA-256 `7f631db34ac7c7966b6e7cf1b8ea84864e6e5cafff3494827dc181fdc86478ef`, 2,108,729 bytes;
+- Firefox `OCTOPORT_v0.2.4_FIREFOX_STORE.zip`: SHA-256 `ccdd95cee7c1b6e35369095b8ebd751a9c9572b686aed48ea917850b7f13363b`, 3,941,573 bytes.
 
 This tracked receipt itself changes Git source identity. Therefore the pre-receipt authority is NOT the final release authority. Immediately after committing this receipt, C must regenerate the external authority for the final containing commit/tree and rerun prepare/preflight. The final authority/candidate evidence lives outside Git under `/root/octoport-control/logs/C/store-release-store1-final/` so recording it does not recursively change the source identity.
 
