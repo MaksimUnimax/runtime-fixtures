@@ -1,0 +1,77 @@
+# Octoport SEO — M9 progress
+
+Date: 2026-09-24
+Status: **RELEASED / WAITING CHATGPT WORK RETURN**
+Branch: `seo/wordstat-batch-01-2026-09-16`
+
+## Current accepted chain
+
+```text
+M0..M7 = ACCEPTED
+M8 R3 = PASS / ACCEPTED
+M9 = RELEASED TO WORK
+M10A = BLOCKED
+```
+
+## M9 preparation
+
+```text
+LEVEL1_READ = PASS
+LEVEL2_READ = PASS
+ROADMAP_CURRENT_STATE_READ = PASS
+FAILURE_HISTORY_READ = PASS
+FRESH_METHOD_RESEARCH = PASS
+STEP_PREPARATION = PASS / REMOTE READBACK
+PRE_HANDOFF = PASS / REMOTE READBACK
+WORK_PROMPT = PASS / REMOTE READBACK
+```
+
+Authorities:
+
+- `docs/seo/M9_STEP_PREPARATION_2026-09-24_R1.md`
+  blob `6ec22f7b586b05f0987b367c3dcb4d83914c0524`
+
+- `docs/seo/M9_CANONICAL_DIRECT_INPUT_MANIFEST_2026-09-24_R1.json`
+  blob `5b208b4d170e01b6775772fe00fb01928fd442da`
+
+- `docs/seo/M9_SEARCH_ONLY_CLUSTERING_PRE_HANDOFF_2026-09-24_R1.md`
+  blob `ed3ab495be4e1faced958441afbba410672375dd`
+
+- `docs/seo/M9_SEARCH_ONLY_CLUSTERING_WORK_PROMPT_2026-09-24_R1.md`
+  blob `99c1c8a58c4bcc083c64cc999c15298ce0beb220`
+
+## Work contract
+
+```text
+M8_IDENTITIES_ACCOUNTED = 7913
+CLUSTER_ELIGIBLE_WORKING = 104
+PAIRWISE_ROWS = 5356
+
+BOTH_EXACT_SERP_PAIRS = 231
+ONE_EXACT_SERP_PAIRS = 1804
+NO_EXACT_SERP_PAIRS = 3321
+
+OUTPUT_FILES = 9
+ALICE_INPUT_ROWS = 0
+PROVIDER_CALLS = 0
+WEB_ACQUISITION_BY_WORK = 0
+GITHUB_WRITES_BY_WORK = 0
+M10A = NOT_AUTHORIZED
+```
+
+## Owner relay
+
+Main Chat must provide the complete M9 Work prompt directly in chat.
+
+Work returns one ZIP with exactly 9 files.
+
+Staging:
+
+`docs/seo/work_return/M9_SEARCH_ONLY_CLUSTERING_2026-09-24_R1/`
+
+Upload URL:
+
+`https://github.com/MaksimUnimax/runtime-fixtures/upload/seo/wordstat-batch-01-2026-09-16/docs/seo/work_return/M9_SEARCH_ONLY_CLUSTERING_2026-09-24_R1/`
+
+After upload:
+`REMOTE READBACK -> MAIN CHAT QA -> ACCEPT | REWORK | HOLD -> only then M10A`.
