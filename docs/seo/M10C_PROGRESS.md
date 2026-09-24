@@ -1,7 +1,7 @@
 # Octoport SEO — M10C progress
 
 Date: 2026-09-24
-Status: **CASE01–CASE09 TERMINAL CLOSED / CASE10 SNAPSHOT01 RELEASED**
+Status: **CASE01–CASE09 TERMINAL CLOSED / CASE10 SNAPSHOT02 RELEASED**
 Branch: `seo/wordstat-batch-01-2026-09-16`
 
 ## Accepted chain
@@ -376,3 +376,20 @@ Current authorized action:
 `SEARCH_API_V1 {"method":"genSearch","queryText":"ии ассистент для маркетплейсов","confirmBillable":true}`
 
 Exactly one Case10 provider request is authorized. Quality-priority rule remains active; Case11 remains closed.
+
+Case10 snapshot-1 raw evidence:
+`docs/seo/evidence/m10c/M10C_CASE10_SNAPSHOT01_SEARCH_RESULT_V1.json`
+blob `a53ad4ada73a15492daeb65af938928b20c7e26b`.
+
+Case10 snapshot-1 assessment:
+`docs/seo/M10C_CASE10_SNAPSHOT01_ASSESSMENT_2026-09-24_R1.md`
+blob `85e5fc4c4353b69dc10005f68fb2246c19c6f64a`.
+
+Case10 snapshot-2 release:
+`docs/seo/M10C_CASE10_SNAPSHOT02_RELEASE_2026-09-24_R1.md`
+blob `822733855e94fc3511190e63743979055bdb25fa`.
+
+Current authorized action:
+`SEARCH_API_V1 {"method":"genSearch","queryText":"ии ассистент для маркетплейсов","confirmBillable":true}`
+
+One second Case10 snapshot is authorized. If material doubt remains after it, Main Chat must amend the case before any third request. Case11 remains closed.
