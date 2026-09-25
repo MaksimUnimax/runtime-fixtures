@@ -4,11 +4,12 @@ Status: **SOURCE/PACKAGE REGRESSION COMPLETE; NO LIVE_OWNER/PROVIDER/DEPLOYMENT 
 
 ## Trigger
 
-C residual readiness work rechecked current Wildberries token policy. Official WB materials current on 2026-09-25 distinguish Personal tokens for own/on-premise integrations from Service tokens for catalog cloud services and describe 180-day token lifetime. The current Octoport beta remains the direct-local Personal-token path; Service/Base/OAuth are not treated as equivalent credentials by this evidence.
+C residual readiness work rechecked current Wildberries token policy. The directly retrievable official WB seller token-creation guide, rechecked on 2026-09-25, distinguishes Personal tokens for own/local/on-premise integrations, Service tokens for official-catalog cloud services, Base tokens for real-data testing/other applicable cases, and Test tokens for sandbox, and states a 180-day token lifetime. The current Octoport beta remains the direct-local Personal-token path; Service/Base/Test/OAuth are not treated as equivalent credentials by this evidence or runtime.
 
-Official references checked:
+Official primary source checked and directly retrievable in independent review:
 - https://seller.wildberries.ru/instructions/ru/ru/material/how-to-create-update-or-delete-a-wb-api-token
-- https://seller.wildberries.ru/instructions/ru/uz/material/api-integration-with-token
+
+The readiness conclusion intentionally does not rely on developer-site pages that were not independently retrievable during C review.
 
 ## Current runtime boundary
 
