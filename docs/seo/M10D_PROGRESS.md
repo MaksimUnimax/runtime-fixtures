@@ -1,7 +1,7 @@
 # Octoport SEO — M10D progress
 
 Date: 2026-09-25
-Status: **WORK PROMPT RELEASED / AWAITING CHATGPT WORK EXECUTION**
+Status: **M10D ACCEPTED / M11 PREFLIGHT OPEN**
 Branch: `seo/wordstat-batch-01-2026-09-16`
 
 ## Cursor
@@ -63,3 +63,27 @@ No M11 execution.
 
 Owner action:
 relay the exact canonical Work prompt to ChatGPT Work.
+
+
+## Main Chat acceptance
+
+`docs/seo/M10D_MAIN_CHAT_ACCEPTANCE_2026-09-25_R1.md`
+blob `afa6aeca62d59c41fa41cef997e5eee810693812`.
+
+Owner upload head:
+`2f923c502ef03dd226d5db5dd3f5495602cfe808`
+with exact parent handoff head
+`5caa7d500f3d3857c4b627e18147f8e2bcc81b07`.
+
+```text
+M10D = ACCEPTED
+CASE_OUTCOMES = CHANGE 0 / ENRICH 6 / DE_RISK 4 / NO_CHANGE 0 / HOLD 5
+CASE_ROWS = 15/15
+CLUSTER_XREF_ROWS = 184/184
+BOUNDARY_XREF_ROWS = 166/166
+CROSS_CASE_ROWS = 74/74
+ADVERSARIAL_PASS = 20/20
+QUALITY_SCORE = 9.9/10
+M11_PREFLIGHT = OPEN
+M11_EXECUTION = NOT_YET_RELEASED
+```
