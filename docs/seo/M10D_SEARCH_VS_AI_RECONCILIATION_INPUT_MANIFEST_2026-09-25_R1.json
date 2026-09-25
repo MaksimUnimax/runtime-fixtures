@@ -1,0 +1,200 @@
+{
+  "schema": "OCTOPORT_M10D_SEARCH_VS_AI_RECONCILIATION_INPUT_MANIFEST_V1",
+  "work_id": "OCTOPORT_SEO_M10D_SEARCH_VS_AI_RECONCILIATION_2026-09-25_R1",
+  "roadmap_stage": "M10D_SEARCH_VS_AI_RECONCILIATION",
+  "repository": "MaksimUnimax/runtime-fixtures",
+  "branch": "seo/wordstat-batch-01-2026-09-16",
+  "manifest_parent_head": "416a3206c3857290ef21c4a01fbe76aa5059d8c7",
+  "step_preparation": {
+    "path": "docs/seo/M10D_STEP_PREPARATION_2026-09-25_R1.md",
+    "blob": "04990733b31a943dc26213a9b622b5d7fb2b39d5"
+  },
+  "governing_rules": [
+    {
+      "path": "docs/seo/LEVEL1/README.md",
+      "blob": "4c3a30644ac736b926ec82bba6b1a6e33434ac06"
+    },
+    {
+      "path": "docs/seo/EXECUTION_RULES.md",
+      "blob": "4e999af4826d6f72fd15f481a698f674c8ed2d5c"
+    },
+    {
+      "path": "docs/seo/QUALITY_FIRST_RESOURCE_RULE.md",
+      "blob": "9917a52b837bcb8ae50eb63cc53e7becd1671b39"
+    },
+    {
+      "path": "docs/seo/WORK_HANDOFF_RULE.md",
+      "blob": "71a031e74b921dade5998beb842fb3afcc4478e7"
+    },
+    {
+      "path": "docs/seo/METHODOLOGY.md",
+      "blob": "6a85c53ec7994e3f68636dccc49c71d5be95d5ae"
+    },
+    {
+      "path": "docs/seo/PRODUCT_TRUTH.md",
+      "blob": "6a469d5743142d3e476afa5d2cda653fd411ecb8"
+    },
+    {
+      "path": "docs/seo/LEVEL2/README.md",
+      "blob": "4c9427619d35dcc0bfa62385b48e9278cdaaff0a"
+    },
+    {
+      "path": "docs/seo/LEVEL2/OCTOPORT_STEP_RULES_INDEX.md",
+      "blob": "2438ed88a5d129b41dca88d2f87a22bc4b3515cd"
+    },
+    {
+      "path": "docs/seo/LEVEL2/M5_M10_SEARCH_ONLY_AND_ALICE_SEQUENCE_RULES.md",
+      "blob": "2c63e4228f9cc6f2d26555fcb02d445baafb1000"
+    },
+    {
+      "path": "docs/seo/LEVEL2/M9_M11_CLUSTER_IA_RULES.md",
+      "blob": "2f87943fbe9037c58276d2dd3a805d070bd070a4"
+    },
+    {
+      "path": "docs/seo/FAILURE_LEDGER.md",
+      "blob": "2527cb7adb10a57795f0b80f16660b4475f6e825"
+    }
+  ],
+  "accepted_authorities": [
+    {
+      "path": "docs/seo/M10A_MAIN_CHAT_ACCEPTANCE_2026-09-24_R1.md",
+      "blob": "a0cc44f9631067f4938044fe0a4c21e6ed4898cb"
+    },
+    {
+      "path": "docs/seo/M10B_MAIN_CHAT_ACCEPTANCE_2026-09-24_R1.md",
+      "blob": "e35c5a8b58e3e9e34c375938a7593ffa6deb85b6"
+    },
+    {
+      "path": "docs/seo/M10C_MAIN_CHAT_ACCEPTANCE_2026-09-25_R1.md",
+      "blob": "179dd999133fba7eeeaad83e3d72876c79dcda90"
+    },
+    {
+      "path": "docs/seo/M10C_ACCEPTED_EVIDENCE_MANIFEST_2026-09-25_R1.json",
+      "blob": "5a07366b653b7c0db6b49a791dfe739e900724f8"
+    }
+  ],
+  "analytical_inputs": [
+    {
+      "path": "docs/seo/work_return/M10A_SEARCH_ONLY_PAGE_IA_BASELINE_2026-09-24_R1/M10A_CLUSTER_PAGE_IA_BASELINE.tsv",
+      "blob": "81a385400dffce94441525938ac4916d4db95cc2",
+      "rows": 104,
+      "columns": 24
+    },
+    {
+      "path": "docs/seo/work_return/M10A_SEARCH_ONLY_PAGE_IA_BASELINE_2026-09-24_R1/M10A_CANNIBALIZATION_BOUNDARY.tsv",
+      "blob": "aafa9698cc1cc83751699ac45048b53d5505f96b",
+      "rows": 1399,
+      "columns": 20,
+      "utf8_bytes": 1557644,
+      "read_note": "Read from Git checkout; connector text renderer may return empty content for this large file."
+    },
+    {
+      "path": "docs/seo/work_return/M10A_SEARCH_ONLY_PAGE_IA_BASELINE_2026-09-24_R1/M10A_EXISTING_SITE_SURFACE.tsv",
+      "blob": "b1805310f77263a8734260fafb00ef0c5025d44a",
+      "rows": 4
+    },
+    {
+      "path": "docs/seo/work_return/M10B_FINAL_AI_DIAGNOSTIC_CASE_SELECTION_2026-09-24_R1/M10B_FINAL_AI_DIAGNOSTIC_CASES.tsv",
+      "blob": "c0ff9b679387ff737f6e5f013286383bb7814169",
+      "rows": 15,
+      "columns": 26
+    },
+    {
+      "path": "docs/seo/work_return/M10B_FINAL_AI_DIAGNOSTIC_CASE_SELECTION_2026-09-24_R1/M10B_CASE_CLUSTER_XREF.tsv",
+      "blob": "8c2dff5e5686ba88b37b3c32fe1ce0339c05c1ab",
+      "rows": 184,
+      "columns": 12
+    },
+    {
+      "path": "docs/seo/work_return/M10B_FINAL_AI_DIAGNOSTIC_CASE_SELECTION_2026-09-24_R1/M10B_CASE_BOUNDARY_XREF.tsv",
+      "blob": "613873b6c6499425ed3570a43927c6e283900602",
+      "rows": 166,
+      "columns": 10,
+      "unique_pair_ids": 155
+    },
+    {
+      "path": "docs/seo/work_return/M10B_FINAL_AI_DIAGNOSTIC_CASE_SELECTION_2026-09-24_R1/M10B_HYPOTHESIS_DISPOSITION.tsv",
+      "blob": "bc66e4d1c525a1fa83637f50327ba859133a5318"
+    }
+  ],
+  "m10c_evidence": {
+    "accepted_manifest_path": "docs/seo/M10C_ACCEPTED_EVIDENCE_MANIFEST_2026-09-25_R1.json",
+    "accepted_manifest_blob": "5a07366b653b7c0db6b49a791dfe739e900724f8",
+    "raw_snapshots": 27,
+    "terminal_cases": 15,
+    "unique_request_ids": 27,
+    "provider_failures": 0,
+    "estimated_total_rub": 137.16
+  },
+  "expected_accounting": {
+    "cases": 15,
+    "case_evidence_summary_rows": 15,
+    "case_reconciliation_rows": 15,
+    "cluster_xref_rows": 184,
+    "boundary_xref_rows": 166,
+    "unique_boundary_pair_ids": 155,
+    "shared_cluster_targets": 63,
+    "shared_boundary_targets": 11,
+    "cross_case_reconciliation_rows": 74,
+    "m10a_cluster_rows": 104,
+    "m10a_boundary_rows": 1399,
+    "raw_m10c_snapshots": 27
+  },
+  "closed_vocabularies": {
+    "m10d_outcome": [
+      "CHANGE",
+      "ENRICH",
+      "DE_RISK",
+      "NO_CHANGE",
+      "HOLD"
+    ],
+    "causal_strength": [
+      "DIRECT",
+      "SUPPORTING",
+      "NONE",
+      "CONFLICTED"
+    ],
+    "m11_implication": [
+      "REOPEN_FOR_M11_CAUSAL_DELTA",
+      "NARROW_HOLD_FOR_M11",
+      "ADD_CONTEXT_ONLY",
+      "PRESERVE_M10A_BASELINE",
+      "HOLD_FOR_M11"
+    ],
+    "effect_class": [
+      "REOPEN",
+      "NARROW_HOLD",
+      "ENRICH_ONLY",
+      "PRESERVE",
+      "HOLD"
+    ],
+    "cross_case_state": [
+      "CONSISTENT",
+      "COMPLEMENTARY",
+      "MATERIAL_CONFLICT",
+      "HOLD"
+    ]
+  },
+  "prohibited_inputs": [
+    "new provider calls",
+    "new web acquisition by Work",
+    "consumer Alice evidence outside accepted M10C corpus",
+    "unaccepted site/product claims",
+    "M11 final architecture decisions",
+    "any file that supersedes accepted M10A/M10B/M10C authority without Main Chat acceptance"
+  ],
+  "outputs_exactly": [
+    "M10D_SOURCE_MANIFEST.md",
+    "M10D_CASE_EVIDENCE_SUMMARY.tsv",
+    "M10D_CASE_RECONCILIATION.tsv",
+    "M10D_CLUSTER_DELTA_XREF.tsv",
+    "M10D_BOUNDARY_DELTA_XREF.tsv",
+    "M10D_CROSS_CASE_RECONCILIATION.tsv",
+    "M10D_ADVERSARIAL_DIAGNOSTIC.tsv",
+    "M10D_QA.md",
+    "M10D_RETURN_MANIFEST.json"
+  ],
+  "staging_path": "docs/seo/work_return/M10D_SEARCH_VS_AI_RECONCILIATION_2026-09-25_R1/",
+  "publication_policy": "Work packages exactly nine final files into one ZIP for owner download; Work does not write GitHub. Owner uploads all unpacked final files together to staging; Main Chat remote-readbacks and independently QA's before acceptance.",
+  "claim_boundary": "M10D produces causal reconciliation only; no final page ownership, no KEEP/OPTIMIZE/CREATE/ROUTE, no final URL/H1/Title/IA."
+}
