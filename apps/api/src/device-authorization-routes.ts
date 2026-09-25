@@ -77,18 +77,18 @@ export function registerDeviceAuthorizationRoutes(
         throw new ControlledError("INVALID_REQUEST", "Invalid request", 400);
       const body = DeviceAuthorizationStartBodyV1Schema.parse(request.body);
       const startInput: DeviceAuthorizationStartInput =
-        body.browserFamily === undefined
+        "browserFamily" in body
           ? {
-              clientType: body.clientType,
-              ...(body.deviceLabel ? { deviceLabel: body.deviceLabel } : {}),
-            }
-          : {
               clientType: body.clientType,
               browserFamily: body.browserFamily,
               ...(body.browserVersion
                 ? { browserVersion: body.browserVersion }
                 : {}),
-              extensionVersion: body.extensionVersion!,
+              extensionVersion: body.extensionVersion,
+              ...(body.deviceLabel ? { deviceLabel: body.deviceLabel } : {}),
+            }
+          : {
+              clientType: body.clientType,
               ...(body.deviceLabel ? { deviceLabel: body.deviceLabel } : {}),
             };
       const result = await service.start(
