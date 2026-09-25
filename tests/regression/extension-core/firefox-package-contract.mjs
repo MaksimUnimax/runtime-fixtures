@@ -16,7 +16,17 @@ assert.equal(
 assert.equal(manifest.browser_specific_settings?.gecko?.strict_min_version, "140.0");
 assert.deepEqual(
   manifest.browser_specific_settings?.gecko?.data_collection_permissions,
-  { required: ["authenticationInfo", "personallyIdentifyingInfo"] },
+  {
+    required: [
+      "authenticationInfo",
+      "personallyIdentifyingInfo",
+      "browsingActivity",
+      "websiteContent",
+      "searchTerms",
+      "financialAndPaymentInfo",
+      "personalCommunications",
+    ],
+  },
 );
 const loopbackHosts = (manifest.host_permissions || []).filter(value =>
   value.startsWith("http://127.0.0.1"),
