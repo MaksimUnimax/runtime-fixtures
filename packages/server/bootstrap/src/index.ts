@@ -34,6 +34,7 @@ import { BootstrapAiResolutionService } from "./ai-resolution.js";
 import type { BetaAccessResolution } from "@product/beta-access";
 
 export * from "./ai-resolution.js";
+export * from "./local-client-authority.js";
 
 export type BootstrapSubject = {
   accountId: string;

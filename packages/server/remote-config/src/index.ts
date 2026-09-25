@@ -688,6 +688,14 @@ export const P3RolloutRevisionSchema = z
 export interface P3BootstrapPolicyCatalog
   extends RemoteConfigCatalogRepository,
     CompatibilityCatalogRepository {
+  listLatestExtensionReleaseSupports(limit: number): Promise<
+    Array<
+      import("@product/compatibility").ExtensionRelease & {
+        contractVersions: ContractVersion[];
+        browserFamilies: BrowserFamily[];
+      }
+    >
+  >;
   findRolloutByKey(rolloutKey: string): Promise<P3Rollout | undefined>;
   findFeatureDefinition(
     featureKey: string,
