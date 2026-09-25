@@ -1,0 +1,295 @@
+{
+  "schema": "OCTOPORT_M11_FINAL_PAGE_OWNERSHIP_IA_INPUT_MANIFEST_V1",
+  "work_id": "OCTOPORT_SEO_M11_FINAL_PAGE_OWNERSHIP_IA_2026-09-25_R1",
+  "roadmap_stage": "M11_FINAL_PAGE_OWNERSHIP_IA",
+  "repository": "MaksimUnimax/runtime-fixtures",
+  "branch": "seo/wordstat-batch-01-2026-09-16",
+  "manifest_parent_head": "62eb645bca3ebb00d3adad524232f24031487b84",
+  "step_preparation": {
+    "path": "docs/seo/M11_STEP_PREPARATION_2026-09-25_R1.md",
+    "blob": "92cdb01d7d9b05cdf9e74d125080bf0557ef82f8"
+  },
+  "governing_rules": [
+    {
+      "path": "docs/seo/LEVEL1/README.md",
+      "blob": "4c3a30644ac736b926ec82bba6b1a6e33434ac06"
+    },
+    {
+      "path": "docs/seo/EXECUTION_RULES.md",
+      "blob": "4e999af4826d6f72fd15f481a698f674c8ed2d5c"
+    },
+    {
+      "path": "docs/seo/QUALITY_FIRST_RESOURCE_RULE.md",
+      "blob": "9917a52b837bcb8ae50eb63cc53e7becd1671b39"
+    },
+    {
+      "path": "docs/seo/WORK_HANDOFF_RULE.md",
+      "blob": "71a031e74b921dade5998beb842fb3afcc4478e7"
+    },
+    {
+      "path": "docs/seo/METHODOLOGY.md",
+      "blob": "6a85c53ec7994e3f68636dccc49c71d5be95d5ae"
+    },
+    {
+      "path": "docs/seo/PRODUCT_TRUTH.md",
+      "blob": "6a469d5743142d3e476afa5d2cda653fd411ecb8"
+    },
+    {
+      "path": "docs/seo/LEVEL2/README.md",
+      "blob": "4c9427619d35dcc0bfa62385b48e9278cdaaff0a"
+    },
+    {
+      "path": "docs/seo/LEVEL2/OCTOPORT_STEP_RULES_INDEX.md",
+      "blob": "2438ed88a5d129b41dca88d2f87a22bc4b3515cd"
+    },
+    {
+      "path": "docs/seo/LEVEL2/M9_M11_CLUSTER_IA_RULES.md",
+      "blob": "2f87943fbe9037c58276d2dd3a805d070bd070a4"
+    },
+    {
+      "path": "docs/seo/LEVEL2/M5_M10_SEARCH_ONLY_AND_ALICE_SEQUENCE_RULES.md",
+      "blob": "2c63e4228f9cc6f2d26555fcb02d445baafb1000"
+    },
+    {
+      "path": "docs/seo/FAILURE_LEDGER.md",
+      "blob": "2527cb7adb10a57795f0b80f16660b4475f6e825"
+    }
+  ],
+  "accepted_search_lineage": [
+    {
+      "path": "docs/seo/M8_R3_MAIN_CHAT_FINAL_ACCEPTANCE_2026-09-24_R1.md",
+      "blob": "9624decd46ae12c9a6c8faf139bec9ebf545adae"
+    },
+    {
+      "path": "docs/seo/work_return/M8_SEARCH_ONLY_SEMANTIC_MASTER_2026-09-24_R3/M8_SEMANTIC_IDENTITY_MASTER.tsv",
+      "blob": "2faaca90c49d5e2ca9c5121c1ef187b3a3f6844f",
+      "rows": 7913,
+      "columns": 36,
+      "read_scope": "join only M9 member semantic_identity_ids; do not reclassify M8 universe"
+    },
+    {
+      "path": "docs/seo/M9_TERMINAL_HOLD_RECONCILIATION_MAIN_CHAT_ACCEPTANCE_2026-09-24_R1.md",
+      "blob": "f35e5132d64ade78ce6c8fb8a2aea2292f41c02a"
+    },
+    {
+      "path": "docs/seo/work_return/M9_BOUNDARY_RESOLUTION_FULL_RERUN_2026-09-24_R2/M9_CLUSTER_MASTER.tsv",
+      "blob": "5d9d86bf87a3c6306db496a577b954ea0cfe4efc",
+      "rows": 104,
+      "columns": 25
+    },
+    {
+      "path": "docs/seo/work_return/M9_BOUNDARY_RESOLUTION_FULL_RERUN_2026-09-24_R2/M9_CLUSTER_MEMBERSHIP.tsv",
+      "blob": "7df5d573e823c3eea49f0010ad13b78d0a396215",
+      "rows": 104,
+      "columns": 13
+    },
+    {
+      "path": "docs/seo/work_return/M9_BOUNDARY_RESOLUTION_FULL_RERUN_2026-09-24_R2/M9_PAIRWISE_CLUSTER_EVIDENCE.tsv",
+      "blob": "a63c0db1ff57bdc922147057542c0a936a70b0b6",
+      "rows": 5356,
+      "columns": 30
+    },
+    {
+      "path": "docs/seo/work_return/M9_BOUNDARY_RESOLUTION_FULL_RERUN_2026-09-24_R2/M9_HOLD_BOUNDARY_LEDGER.tsv",
+      "blob": "09e73bb2b89c03b77a1e4fc88aba801e90c01c60",
+      "rows": 1399,
+      "columns": 14
+    }
+  ],
+  "frozen_m10a": [
+    {
+      "path": "docs/seo/M10A_MAIN_CHAT_ACCEPTANCE_2026-09-24_R1.md",
+      "blob": "a0cc44f9631067f4938044fe0a4c21e6ed4898cb"
+    },
+    {
+      "path": "docs/seo/work_return/M10A_SEARCH_ONLY_PAGE_IA_BASELINE_2026-09-24_R1/M10A_CLUSTER_PAGE_IA_BASELINE.tsv",
+      "blob": "81a385400dffce94441525938ac4916d4db95cc2",
+      "rows": 104,
+      "columns": 24
+    },
+    {
+      "path": "docs/seo/work_return/M10A_SEARCH_ONLY_PAGE_IA_BASELINE_2026-09-24_R1/M10A_CANNIBALIZATION_BOUNDARY.tsv",
+      "blob": "aafa9698cc1cc83751699ac45048b53d5505f96b",
+      "rows": 1399,
+      "columns": 20,
+      "utf8_bytes": 1557644
+    },
+    {
+      "path": "docs/seo/work_return/M10A_SEARCH_ONLY_PAGE_IA_BASELINE_2026-09-24_R1/M10A_EXISTING_SITE_SURFACE.tsv",
+      "blob": "b1805310f77263a8734260fafb00ef0c5025d44a",
+      "rows": 4,
+      "columns": 13
+    }
+  ],
+  "accepted_m10d": [
+    {
+      "path": "docs/seo/M10D_MAIN_CHAT_ACCEPTANCE_2026-09-25_R1.md",
+      "blob": "afa6aeca62d59c41fa41cef997e5eee810693812"
+    },
+    {
+      "path": "docs/seo/work_return/M10D_SEARCH_VS_AI_RECONCILIATION_2026-09-25_R1/M10D_CASE_RECONCILIATION.tsv",
+      "blob": "07741bfca8f95e726998cdc14920e78c17d4519a",
+      "rows": 15,
+      "columns": 16
+    },
+    {
+      "path": "docs/seo/work_return/M10D_SEARCH_VS_AI_RECONCILIATION_2026-09-25_R1/M10D_CLUSTER_DELTA_XREF.tsv",
+      "blob": "78a756a88c5c123ad59449df918671ec3871c2ef",
+      "rows": 184,
+      "columns": 17
+    },
+    {
+      "path": "docs/seo/work_return/M10D_SEARCH_VS_AI_RECONCILIATION_2026-09-25_R1/M10D_BOUNDARY_DELTA_XREF.tsv",
+      "blob": "1f3925005710de7c739303e0fc8db9d09930b17d",
+      "rows": 166,
+      "columns": 15
+    },
+    {
+      "path": "docs/seo/work_return/M10D_SEARCH_VS_AI_RECONCILIATION_2026-09-25_R1/M10D_CROSS_CASE_RECONCILIATION.tsv",
+      "blob": "d9db28eed89f00f9cf6bf0373890f8c4667ae4ea",
+      "rows": 74,
+      "columns": 10
+    },
+    {
+      "path": "docs/seo/work_return/M10D_SEARCH_VS_AI_RECONCILIATION_2026-09-25_R1/M10D_CASE_EVIDENCE_SUMMARY.tsv",
+      "blob": "db35b725fe74d41bc8945a63b515678a698871c2",
+      "rows": 15,
+      "columns": 18
+    }
+  ],
+  "current_site_authority": {
+    "repository": "MaksimUnimax/runtime-fixtures",
+    "branch": "main",
+    "checked_head": "7945d62854e135421c3db003c603187b9f37866b",
+    "m10a_source_head": "f079c2e7199250397259ea9ede10a4f72694f5c1",
+    "commits_ahead": 33,
+    "public_site_paths_changed_since_m10a": 0,
+    "files": [
+      {
+        "path": "apps/site/public/index.html",
+        "blob": "3123a714e2092fb156eebe498ef97bb5969567f6"
+      },
+      {
+        "path": "apps/site/public/install.html",
+        "blob": "99bc456742375219779ae9c611580e389b81c7a1"
+      },
+      {
+        "path": "apps/site/public/privacy.html",
+        "blob": "bb975f29e3fbe8e1cfeb1fa19f397f9e5dc1f101"
+      },
+      {
+        "path": "apps/site/public/support.html",
+        "blob": "2ebb8fdab73c50d98a3af70198f98813cbab942b"
+      }
+    ]
+  },
+  "expected_search_pair_counts": {
+    "pairwise_rows": 5356,
+    "merge_supported": 28,
+    "split_supported": 3835,
+    "hold_boundary": 1493,
+    "material_hold_rows": 1399
+  },
+  "expected_accounting": {
+    "clusters": 104,
+    "cluster_memberships": 104,
+    "m10a_boundaries": 1399,
+    "m10d_cluster_delta_rows": 184,
+    "m10d_boundary_delta_rows": 166,
+    "m10d_cross_case_rows": 74,
+    "existing_site_surfaces": 4
+  },
+  "closed_vocabularies": {
+    "final_owner_state": [
+      "OWNER_ASSIGNED",
+      "HOLD_NO_FINAL_OWNER"
+    ],
+    "route_class": [
+      "HOME",
+      "MARKETPLACE_PAGE",
+      "FEATURE_OR_USE_CASE",
+      "LLM_INTEGRATION_PAGE",
+      "SUPPORT_OR_DOCS",
+      "ARTICLE_GUIDE",
+      "NO_INDEX_TARGET",
+      "HOLD"
+    ],
+    "physical_action": [
+      "KEEP",
+      "OPTIMIZE",
+      "CREATE",
+      "ROUTE_INTERNAL_LINK",
+      "RECHECK_HOLD"
+    ],
+    "owner_origin": [
+      "EXISTING_SURFACE",
+      "PLANNED_PAGE_JOB"
+    ],
+    "indexability_intent": [
+      "INDEXABLE",
+      "NO_INDEX_SUPPORTING_SURFACE",
+      "HOLD"
+    ],
+    "owner_compatibility": [
+      "SAME_OWNER_ALLOWED",
+      "SEPARATE_OWNER_REQUIRED",
+      "UNRESOLVED_HOLD",
+      "NOT_APPLICABLE_HOLD_OWNER"
+    ],
+    "pair_disposition": [
+      "SAME_OWNER",
+      "SEPARATE_OWNERS",
+      "HOLD",
+      "NON_OWNER_PAIR"
+    ],
+    "hold_resolution": [
+      "RESOLVED_SAME_OWNER",
+      "RESOLVED_SEPARATE_OWNERS",
+      "REMAINS_HOLD",
+      "NON_OWNER_UNRESOLVED"
+    ],
+    "surface_decision": [
+      "SEO_OWNER_KEEP",
+      "SEO_OWNER_OPTIMIZE",
+      "SUPPORTING_SURFACE_KEEP",
+      "NO_SEARCH_TARGET_KEEP",
+      "HOLD"
+    ],
+    "edge_type": [
+      "PARENT_CHILD",
+      "CONTEXTUAL_INTERNAL_LINK",
+      "SUPPORT_LINK",
+      "NAVIGATION_LINK"
+    ],
+    "guard_state": [
+      "NO_MATERIAL_CONFLICT",
+      "DISTINCT_PAGE_JOBS",
+      "HOLD_POTENTIAL_CANNIBALIZATION"
+    ]
+  },
+  "prohibited": [
+    "new provider/web acquisition",
+    "mutation of M8/M9/M10A/M10D authorities",
+    "lexical-only owner grouping",
+    "AI-only CREATE authorization",
+    "same owner across M9 SPLIT_SUPPORTED pair",
+    "CREATE while an unresolved material same-owner boundary remains inside the proposed page group",
+    "final planned URL/H1/Title/description",
+    "site implementation"
+  ],
+  "outputs_exactly": [
+    "M11_SOURCE_MANIFEST.md",
+    "M11_CLUSTER_FINAL_OWNERSHIP.tsv",
+    "M11_PAGE_OWNER_REGISTRY.tsv",
+    "M11_PAIRWISE_OWNER_COMPATIBILITY.tsv",
+    "M11_MATERIAL_HOLD_RESOLUTION.tsv",
+    "M11_EXISTING_SURFACE_DECISION.tsv",
+    "M11_IA_EDGE_REGISTRY.tsv",
+    "M11_CANNIBALIZATION_GUARD.tsv",
+    "M11_ADVERSARIAL_DIAGNOSTIC.tsv",
+    "M11_QA.md",
+    "M11_RETURN_MANIFEST.json"
+  ],
+  "staging_path": "docs/seo/work_return/M11_FINAL_PAGE_OWNERSHIP_IA_2026-09-25_R1/",
+  "claim_boundary": "M11 assigns final analytical page owners/IA and physical actions only. Planned owner IDs are not final URLs. H1/Title/content specifications begin in M12; site code changes begin later."
+}
