@@ -134,6 +134,23 @@ try {
 } finally {
   recommendedWorker.close();
 }
+
+const deniedTechnicalWorker = await makeWorker(runtime, {
+  userAgent: "Mozilla/5.0 Gecko/20100101 Firefox/156.0",
+  firefoxPermissions: { getAll: async () => ({ data_collection: [] }) },
+});
+try {
+  const response = await deniedTechnicalWorker.popup({ type: "SA_SUPPORT_SNAPSHOT", tab_id: 77 });
+  const snapshot = JSON.parse(JSON.stringify(response.snapshot));
+  assert.equal(Object.hasOwn(snapshot, "browser"), false, "Firefox opt-out omits browser family/version from support payload");
+  assert.deepEqual(snapshot.extension, { environment: "LOCAL DEVELOPMENT" }, "Firefox opt-out omits extension version from support payload");
+  const serialized = JSON.stringify(snapshot);
+  assert.equal(serialized.includes("firefox"), false);
+  assert.equal(serialized.includes("156.0"), false);
+  assert.equal(serialized.includes("0.2.4"), false);
+} finally {
+  deniedTechnicalWorker.close();
+}
 console.log(JSON.stringify({
   status: "PASS",
   scope: "A06_PRIVACY_SAFE_SUPPORT_AND_UPDATE_ADVISORY",

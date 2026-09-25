@@ -84,6 +84,13 @@ export type BootstrapResultV2 =
   | { kind: "HTTP_ERROR"; status: number; code: string }
   | { kind: "VERIFICATION_FAILURE"; error: BootstrapVerificationFailure };
 export type BootstrapResult = BootstrapResultV1 | BootstrapResultV2;
+type DistributiveOmit<T, K extends PropertyKey> = T extends unknown
+  ? Omit<T, Extract<keyof T, K>>
+  : never;
+type BootstrapRequestV2WithoutDeviceId = DistributiveOmit<
+  BootstrapRequestV2,
+  "deviceId"
+>;
 export type BootstrapPolicyUnavailableReason =
   | "NOT_AUTHORIZED"
   | "CACHE_INVALID"
@@ -308,12 +315,12 @@ export class SimulatedExtensionClient {
     input: Omit<BootstrapRequestV1, "deviceId">,
   ): Promise<BootstrapResultV1>;
   async bootstrap(
-    input: Omit<BootstrapRequestV2, "deviceId">,
+    input: BootstrapRequestV2WithoutDeviceId,
   ): Promise<BootstrapResultV2>;
   async bootstrap(
     input:
       | Omit<BootstrapRequestV1, "deviceId">
-      | Omit<BootstrapRequestV2, "deviceId">,
+      | BootstrapRequestV2WithoutDeviceId,
   ): Promise<BootstrapResult> {
     if (!this.credentials)
       return { kind: "HTTP_ERROR", status: 401, code: "UNAUTHORIZED" };

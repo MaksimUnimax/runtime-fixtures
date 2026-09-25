@@ -116,6 +116,48 @@ describe("device authorization Fastify boundary", () => {
     await app.close();
   });
 
+  it("accepts privacy-neutral authorization only when all client software metadata is withheld", async () => {
+    const { service, auth } = dependencies();
+    const app = createApiApp({
+      config,
+      isInfrastructureReady: async () => true,
+      authService: auth as unknown as AuthService,
+      deviceAuthorizationService:
+        service as unknown as DeviceAuthorizationService,
+    });
+    const withheld = {
+      clientType: "browser_extension",
+      deviceLabel: "Firefox private metadata",
+    };
+    const response = await app.inject({
+      method: "POST",
+      url: "/v1/device-authorizations",
+      headers: { "idempotency-key": "W".repeat(16) },
+      payload: withheld,
+    });
+    expect(response.statusCode).toBe(201);
+    expect(service.start).toHaveBeenLastCalledWith(
+      withheld,
+      "W".repeat(16),
+      "127.0.0.1",
+      expect.any(String),
+    );
+    for (const payload of [
+      { ...withheld, browserFamily: "firefox" },
+      { ...withheld, extensionVersion: "0.2.4" },
+      { ...withheld, browserVersion: "155.0.1" },
+    ]) {
+      const invalid = await app.inject({
+        method: "POST",
+        url: "/v1/device-authorizations",
+        headers: { "idempotency-key": "P".repeat(16) },
+        payload,
+      });
+      expect(invalid.statusCode).toBe(400);
+    }
+    await app.close();
+  });
+
   it("API-START-14..16 maps safe service failures without leaking request secrets", async () => {
     for (const [code, status] of [
       ["SERVICE_UNAVAILABLE", 503],

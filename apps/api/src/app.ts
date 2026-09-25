@@ -265,6 +265,7 @@ export function createApiApp(
         dependencies.authService ??
           new AuthService(unavailable, deriveAuthKeys(Buffer.alloc(32))),
         dependencies.deviceManagementService,
+        dependencies.extensionAuthService,
       );
     const unavailableExtension: ExtensionAuthRepository = {
       consumeRefreshRate: async () => ({ allowed: false }),

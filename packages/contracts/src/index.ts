@@ -671,20 +671,43 @@ const SafeVersion = z
   .min(1)
   .max(64)
   .regex(/^[A-Za-z0-9._+-]+$/);
-export const DeviceAuthorizationStartBodyV1Schema = z
+const DeviceLabelV1Schema = z
+  .string()
+  .min(1)
+  .max(128)
+  .regex(/^[^<>]*$/u);
+const DeviceClientMetadataWithheldV1Schema = z
+  .object({ state: z.literal("WITHHELD") })
+  .strict();
+const DeviceClientMetadataPresentV1Schema = z
   .object({
-    clientType: z.literal("browser_extension"),
+    state: z.literal("PRESENT"),
     browserFamily: z.enum(BrowserFamilies),
-    browserVersion: SafeVersion.optional(),
-    extensionVersion: SafeVersion,
-    deviceLabel: z
-      .string()
-      .min(1)
-      .max(128)
-      .regex(/^[^<>]*$/u)
-      .optional(),
+    browserVersion: z.string().nullable(),
+    extensionVersion: z.string(),
   })
   .strict();
+export const DeviceClientMetadataV1Schema = z.discriminatedUnion("state", [
+  DeviceClientMetadataWithheldV1Schema,
+  DeviceClientMetadataPresentV1Schema,
+]);
+export const DeviceAuthorizationStartBodyV1Schema = z.union([
+  z
+    .object({
+      clientType: z.literal("browser_extension"),
+      browserFamily: z.enum(BrowserFamilies),
+      browserVersion: SafeVersion.optional(),
+      extensionVersion: SafeVersion,
+      deviceLabel: DeviceLabelV1Schema.optional(),
+    })
+    .strict(),
+  z
+    .object({
+      clientType: z.literal("browser_extension"),
+      deviceLabel: DeviceLabelV1Schema.optional(),
+    })
+    .strict(),
+]);
 export const DeviceAuthorizationStartResponseV1Schema = z.object({
   status: z.literal("pending"),
   authorizationId: z.uuid(),
@@ -731,18 +754,41 @@ export const OwnedAccountsResponseV1Schema = z
 export const DeviceAuthorizationPreviewParamsV1Schema = z
   .object({ id: z.uuid() })
   .strict();
-export const DeviceAuthorizationPreviewResponseV1Schema = z
-  .object({
-    status: z.literal("pending"),
-    authorizationId: z.uuid(),
-    clientType: z.literal("browser_extension"),
-    browserFamily: z.enum(BrowserFamilies),
-    browserVersion: z.string().nullable(),
-    extensionVersion: z.string(),
-    deviceLabel: z.string().nullable(),
-    expiresAt: z.string().datetime(),
-  })
-  .strict();
+const DeviceAuthorizationPreviewBaseV1Shape = {
+  status: z.literal("pending"),
+  authorizationId: z.uuid(),
+  clientType: z.literal("browser_extension"),
+  deviceLabel: z.string().nullable(),
+  expiresAt: z.string().datetime(),
+};
+export const DeviceAuthorizationPreviewResponseV1Schema = z.union([
+  z
+    .object({
+      ...DeviceAuthorizationPreviewBaseV1Shape,
+      clientMetadata: DeviceClientMetadataWithheldV1Schema,
+    })
+    .strict(),
+  z
+    .object({
+      ...DeviceAuthorizationPreviewBaseV1Shape,
+      clientMetadata: DeviceClientMetadataPresentV1Schema,
+      browserFamily: z.enum(BrowserFamilies),
+      browserVersion: z.string().nullable(),
+      extensionVersion: z.string(),
+    })
+    .strict()
+    .superRefine((value, context) => {
+      if (
+        value.browserFamily !== value.clientMetadata.browserFamily ||
+        value.browserVersion !== value.clientMetadata.browserVersion ||
+        value.extensionVersion !== value.clientMetadata.extensionVersion
+      )
+        context.addIssue({
+          code: "custom",
+          message: "legacy client metadata must match authoritative metadata",
+        });
+    }),
+]);
 export const DeviceAuthorizationApprovedResponseV1Schema = z.object({
   status: z.literal("approved"),
   authorizationId: z.uuid(),
@@ -772,22 +818,53 @@ export const DeviceListQueryV1Schema = z
     cursor: z.uuid().optional(),
   })
   .strict();
-export const DeviceListItemV1Schema = z.object({
+const DeviceListItemBaseV1Shape = {
   id: z.uuid(),
   status: z.enum(["ACTIVE", "REVOKED"]),
   label: z.string().nullable(),
-  browserFamily: z.enum(BrowserFamilies),
-  browserVersionLastSeen: z.string().nullable(),
-  extensionVersionLastSeen: z.string().nullable(),
   createdAt: z.string().datetime(),
   activatedAt: z.string().datetime().nullable(),
   lastSeenAt: z.string().datetime().nullable(),
   revokedAt: z.string().datetime().nullable(),
-});
+};
+export const DeviceListItemV1Schema = z.union([
+  z
+    .object({
+      ...DeviceListItemBaseV1Shape,
+      clientMetadata: DeviceClientMetadataWithheldV1Schema,
+    })
+    .strict(),
+  z
+    .object({
+      ...DeviceListItemBaseV1Shape,
+      clientMetadata: DeviceClientMetadataPresentV1Schema,
+      browserFamily: z.enum(BrowserFamilies),
+      browserVersionLastSeen: z.string().nullable(),
+      extensionVersionLastSeen: z.string(),
+    })
+    .strict()
+    .superRefine((value, context) => {
+      if (
+        value.browserFamily !== value.clientMetadata.browserFamily ||
+        value.browserVersionLastSeen !== value.clientMetadata.browserVersion ||
+        value.extensionVersionLastSeen !== value.clientMetadata.extensionVersion
+      )
+        context.addIssue({
+          code: "custom",
+          message: "legacy client metadata must match authoritative metadata",
+        });
+    }),
+]);
 export const DeviceListResponseV1Schema = z.object({
   devices: z.array(DeviceListItemV1Schema),
   nextCursor: z.uuid().nullable(),
 });
+export const DeviceClientMetadataClearResponseV1Schema = z
+  .object({
+    status: z.literal("cleared"),
+    deviceId: z.uuid(),
+  })
+  .strict();
 export const DeviceRevokeParamsV1Schema = z
   .object({ device_id: z.uuid() })
   .strict();
@@ -943,7 +1020,19 @@ export const BootstrapEnvelopeVersionV2Schema = z.literal(
 
 const IsoTimestampV1Schema = z.string().datetime({ offset: true });
 
-const BootstrapRequestShape = {
+const BootstrapDetectedAiRequestV1Schema = z
+  .object({
+    family: StableMachineIdentifierV1Schema,
+    surface: StableMachineIdentifierV1Schema,
+    variant: StableMachineIdentifierV1Schema.nullable().optional(),
+  })
+  .strict();
+const BootstrapRequestCommonShape = {
+  deviceId: z.uuid(),
+  lastConfigVersion: z.number().int().min(0).nullable(),
+  detectedAi: BootstrapDetectedAiRequestV1Schema.optional(),
+};
+const BootstrapIdentifiedClientShape = {
   extensionVersion: SemVerV1Schema,
   browser: z
     .object({
@@ -951,32 +1040,34 @@ const BootstrapRequestShape = {
       version: z.string().min(1).max(64),
     })
     .strict(),
-  deviceId: z.uuid(),
-  lastConfigVersion: z.number().int().min(0).nullable(),
-  detectedAi: z
-    .object({
-      family: StableMachineIdentifierV1Schema,
-      surface: StableMachineIdentifierV1Schema,
-      variant: StableMachineIdentifierV1Schema.nullable().optional(),
-    })
-    .strict()
-    .optional(),
 };
 export const BootstrapRequestV1Schema = z
   .object({
     contractVersion: ControlPlaneContractVersionV1Schema,
-    ...BootstrapRequestShape,
+    ...BootstrapIdentifiedClientShape,
+    ...BootstrapRequestCommonShape,
   })
   .strict();
 export type BootstrapRequestV1 = z.infer<typeof BootstrapRequestV1Schema>;
-export const BootstrapRequestV2Schema = z
+export const BootstrapIdentifiedRequestV2Schema = z
   .object({
     contractVersion: ControlPlaneContractVersionV2Schema,
-    ...BootstrapRequestShape,
+    ...BootstrapIdentifiedClientShape,
+    ...BootstrapRequestCommonShape,
   })
   .strict();
+export const BootstrapPrivacyNeutralRequestV2Schema = z
+  .object({
+    contractVersion: ControlPlaneContractVersionV2Schema,
+    ...BootstrapRequestCommonShape,
+  })
+  .strict();
+export const BootstrapRequestV2Schema = z.union([
+  BootstrapIdentifiedRequestV2Schema,
+  BootstrapPrivacyNeutralRequestV2Schema,
+]);
 export type BootstrapRequestV2 = z.infer<typeof BootstrapRequestV2Schema>;
-export const BootstrapRequestSchema = z.discriminatedUnion("contractVersion", [
+export const BootstrapRequestSchema = z.union([
   BootstrapRequestV1Schema,
   BootstrapRequestV2Schema,
 ]);
@@ -1053,6 +1144,166 @@ export type BootstrapAiUnavailableReasonV1 = z.infer<
 export type BootstrapAiResolutionV1 = z.infer<
   typeof BootstrapAiResolutionV1Schema
 >;
+
+export const LocalClientAuthorityReleaseSupportV1Schema = z
+  .object({
+    extensionVersion: SemVerV1Schema,
+    contractVersions: z
+      .array(ControlPlaneContractVersionSchema)
+      .min(1)
+      .max(8)
+      .refine(
+        (value) => new Set(value).size === value.length,
+        "duplicate contract version",
+      ),
+    browserFamilies: z
+      .array(z.enum(BrowserFamilies))
+      .min(1)
+      .max(BrowserFamilies.length)
+      .refine(
+        (value) => new Set(value).size === value.length,
+        "duplicate browser family",
+      ),
+  })
+  .strict();
+
+export const LocalClientAuthorityPolicyV1Schema = z
+  .object({
+    policyKey: StableMachineIdentifierV1Schema,
+    revision: z.number().int().positive().safe(),
+    contractVersion: ControlPlaneContractVersionV2Schema,
+    browserFamily: z.enum(BrowserFamilies).nullable(),
+    minimumExtensionVersion: SemVerV1Schema.nullable(),
+    recommendedExtensionVersion: SemVerV1Schema.nullable(),
+    minimumBrowserVersion: z
+      .string()
+      .min(1)
+      .max(64)
+      .regex(/^\d+(?:\.\d+){0,3}$/)
+      .nullable(),
+    maintenanceMode: z.boolean(),
+    maintenanceCode: StableMachineIdentifierV1Schema.nullable(),
+    blockedVersions: z
+      .array(SemVerV1Schema)
+      .max(128)
+      .refine(
+        (value) => new Set(value).size === value.length,
+        "duplicate blocked version",
+      ),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (value.maintenanceMode !== (value.maintenanceCode !== null))
+      context.addIssue({
+        code: "custom",
+        path: ["maintenanceCode"],
+        message: "maintenance code must match maintenance mode",
+      });
+    if (value.browserFamily === null && value.minimumBrowserVersion !== null)
+      context.addIssue({
+        code: "custom",
+        path: ["minimumBrowserVersion"],
+        message: "global policy cannot set a browser minimum",
+      });
+  });
+
+export const LocalClientAuthorityFeatureRuleV1Schema = z
+  .object({
+    featureKey: StableMachineIdentifierV1Schema,
+    revision: z.number().int().positive().safe(),
+    contractVersion: ControlPlaneContractVersionV2Schema,
+    enabled: z.boolean(),
+    browserFamily: z.enum(BrowserFamilies).nullable(),
+    minimumExtensionVersion: SemVerV1Schema.nullable(),
+  })
+  .strict();
+
+const LocalClientAuthorityAiResolutionV1Schema = z.discriminatedUnion(
+  "status",
+  [
+    z
+      .object({
+        status: z.literal("UNAVAILABLE"),
+        reason: BootstrapAiUnavailableReasonV1Schema,
+      })
+      .strict(),
+    z
+      .object({
+        status: z.literal("RESOLVED"),
+        profile: BootstrapAiProfileV1Schema,
+      })
+      .strict(),
+  ],
+);
+
+const LocalClientAuthorityAiCandidateV1Schema = z
+  .object({
+    browserFamily: z.enum(BrowserFamilies),
+    resolution: LocalClientAuthorityAiResolutionV1Schema,
+  })
+  .strict();
+
+export const LocalClientAuthorityAiV1Schema = z.discriminatedUnion("status", [
+  z.object({ status: z.literal("UNCONFIGURED") }).strict(),
+  z
+    .object({
+      status: z.literal("CANDIDATES"),
+      detected: BootstrapDetectedAiV1Schema,
+      candidates: z
+        .array(LocalClientAuthorityAiCandidateV1Schema)
+        .max(BrowserFamilies.length)
+        .refine(
+          (value) =>
+            new Set(value.map((candidate) => candidate.browserFamily)).size ===
+            value.length,
+          "duplicate browser candidate",
+        ),
+    })
+    .strict(),
+]);
+
+export const LocalClientAuthorityV1Schema = z
+  .object({
+    schemaVersion: z.literal("local_client_authority_v1"),
+    contractVersion: ControlPlaneContractVersionV2Schema,
+    compatibility: z
+      .object({
+        releases: z
+          .array(LocalClientAuthorityReleaseSupportV1Schema)
+          .max(64)
+          .refine(
+            (value) =>
+              new Set(value.map((release) => release.extensionVersion)).size ===
+              value.length,
+            "duplicate release version",
+          ),
+        policies: z
+          .array(LocalClientAuthorityPolicyV1Schema)
+          .max(32)
+          .refine(
+            (value) =>
+              new Set(
+                value.map((policy) => `${policy.policyKey}:${policy.revision}`),
+              ).size === value.length,
+            "duplicate policy revision",
+          ),
+      })
+      .strict(),
+    featureRules: z
+      .array(LocalClientAuthorityFeatureRuleV1Schema)
+      .max(128)
+      .refine(
+        (value) =>
+          new Set(value.map((rule) => rule.featureKey)).size === value.length,
+        "duplicate feature key",
+      ),
+    ai: LocalClientAuthorityAiV1Schema,
+  })
+  .strict();
+export type LocalClientAuthorityV1 = z.infer<
+  typeof LocalClientAuthorityV1Schema
+>;
+
 const SubscriptionV1Schema = z.discriminatedUnion("state", [
   z.object({ state: z.literal("NONE"), planRevision: z.null() }).strict(),
   z
@@ -1071,7 +1322,23 @@ const SubscriptionV1Schema = z.discriminatedUnion("state", [
     .strict(),
 ]);
 
-const BootstrapSnapshotPayloadShape = {
+const BootstrapCompatibilityV1Schema = z
+  .object({
+    extension: z
+      .object({
+        status: z.enum(["SUPPORTED", "UPDATE_RECOMMENDED", "UPDATE_REQUIRED"]),
+        minimumVersion: SemVerV1Schema.nullable(),
+      })
+      .strict(),
+    browser: z
+      .object({
+        status: z.enum(["SUPPORTED", "UNSUPPORTED_BROWSER", "MAINTENANCE"]),
+      })
+      .strict(),
+  })
+  .strict();
+
+const BootstrapSnapshotCommonShape = {
   configVersion: z.number().int().positive(),
   issuedAt: IsoTimestampV1Schema,
   expiresAt: IsoTimestampV1Schema,
@@ -1082,26 +1349,11 @@ const BootstrapSnapshotPayloadShape = {
   // The pre-P4 device limit is an internal device-management rule.  It is
   // deliberately not part of the frozen bootstrap snapshot wire format.
   devicePolicy: z.object({ status: z.literal("ACTIVE") }).strict(),
-  compatibility: z
-    .object({
-      extension: z
-        .object({
-          status: z.enum([
-            "SUPPORTED",
-            "UPDATE_RECOMMENDED",
-            "UPDATE_REQUIRED",
-          ]),
-          minimumVersion: SemVerV1Schema.nullable(),
-        })
-        .strict(),
-      browser: z
-        .object({
-          status: z.enum(["SUPPORTED", "UNSUPPORTED_BROWSER", "MAINTENANCE"]),
-        })
-        .strict(),
-    })
-    .strict(),
   entitlements: BoundedEntitlementMapV1Schema,
+};
+
+const BootstrapIdentifiedAuthorityShape = {
+  compatibility: BootstrapCompatibilityV1Schema,
   features: BoundedFeatureMapV1Schema,
   ai: BootstrapAiResolutionV1Schema,
 };
@@ -1142,22 +1394,47 @@ export const BootstrapSnapshotPayloadV1Schema = z
     snapshotVersion: BootstrapSnapshotVersionV1Schema,
     contractVersion: ControlPlaneContractVersionV1Schema,
     account: z.object({ status: z.literal("ACTIVE") }).strict(),
-    ...BootstrapSnapshotPayloadShape,
+    ...BootstrapSnapshotCommonShape,
+    ...BootstrapIdentifiedAuthorityShape,
   })
   .strict()
   .superRefine(validateBootstrapSnapshotTimes);
 export type BootstrapSnapshotPayloadV1 = z.infer<
   typeof BootstrapSnapshotPayloadV1Schema
 >;
-export const BootstrapSnapshotPayloadV2Schema = z
+
+export const BootstrapIdentifiedSnapshotPayloadV2Schema = z
   .object({
     snapshotVersion: BootstrapSnapshotVersionV2Schema,
     contractVersion: ControlPlaneContractVersionV2Schema,
     account: z.object({ id: z.uuid(), status: z.literal("ACTIVE") }).strict(),
-    ...BootstrapSnapshotPayloadShape,
+    ...BootstrapSnapshotCommonShape,
+    ...BootstrapIdentifiedAuthorityShape,
   })
   .strict()
   .superRefine(validateBootstrapSnapshotTimes);
+export type BootstrapIdentifiedSnapshotPayloadV2 = z.infer<
+  typeof BootstrapIdentifiedSnapshotPayloadV2Schema
+>;
+
+export const BootstrapPrivacyNeutralSnapshotPayloadV2Schema = z
+  .object({
+    snapshotVersion: BootstrapSnapshotVersionV2Schema,
+    contractVersion: ControlPlaneContractVersionV2Schema,
+    account: z.object({ id: z.uuid(), status: z.literal("ACTIVE") }).strict(),
+    ...BootstrapSnapshotCommonShape,
+    localClientAuthority: LocalClientAuthorityV1Schema,
+  })
+  .strict()
+  .superRefine(validateBootstrapSnapshotTimes);
+export type BootstrapPrivacyNeutralSnapshotPayloadV2 = z.infer<
+  typeof BootstrapPrivacyNeutralSnapshotPayloadV2Schema
+>;
+
+export const BootstrapSnapshotPayloadV2Schema = z.union([
+  BootstrapIdentifiedSnapshotPayloadV2Schema,
+  BootstrapPrivacyNeutralSnapshotPayloadV2Schema,
+]);
 export type BootstrapSnapshotPayloadV2 = z.infer<
   typeof BootstrapSnapshotPayloadV2Schema
 >;
@@ -1488,7 +1765,26 @@ export const AdminUserItemV1Schema = z
   })
   .strict();
 export const AdminUsersResponseV1Schema = AdminPage(AdminUserItemV1Schema);
-export const AdminDeviceItemV1Schema = DeviceListItemV1Schema.strict();
+const AdminDeviceItemBaseV1Shape = {
+  id: z.uuid(),
+  status: z.enum(["ACTIVE", "REVOKED"]),
+  label: z.string().nullable(),
+  createdAt: z.string().datetime(),
+  activatedAt: z.string().datetime().nullable(),
+  lastSeenAt: z.string().datetime().nullable(),
+  revokedAt: z.string().datetime().nullable(),
+};
+export const AdminDeviceItemV1Schema = z.union([
+  z.object(AdminDeviceItemBaseV1Shape).strict(),
+  z
+    .object({
+      ...AdminDeviceItemBaseV1Shape,
+      browserFamily: z.enum(BrowserFamilies),
+      browserVersionLastSeen: z.string().nullable(),
+      extensionVersionLastSeen: z.string(),
+    })
+    .strict(),
+]);
 export const AdminDevicesResponseV1Schema = AdminPage(AdminDeviceItemV1Schema);
 export const AdminSubscriptionResponseV1Schema = z
   .object({

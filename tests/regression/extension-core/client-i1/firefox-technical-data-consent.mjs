@@ -20,8 +20,10 @@ function makeRuntime({
   requestDecision = true,
   queryFails = false,
   omitDataCollection = false,
+  permissionsUnavailable = false,
 } = {}) {
   const calls = { getAll: 0, request: 0, remove: 0 };
+  const withdrawalListeners = new Set();
   const permissions = {
     async getAll() {
       calls.getAll += 1;
@@ -40,10 +42,11 @@ function makeRuntime({
       assert.equal(JSON.stringify(value), JSON.stringify({ data_collection: [CATEGORY] }));
       return grants.delete(CATEGORY);
     },
+    onRemoved: { addListener(listener) { withdrawalListeners.add(listener); }, removeListener(listener) { withdrawalListeners.delete(listener); } },
   };
   const context = {
     navigator: { userAgent: ua },
-    browser: { permissions },
+    browser: permissionsUnavailable ? {} : { permissions },
     console,
   };
   context.globalThis = context;
@@ -54,6 +57,7 @@ function makeRuntime({
     api: context.SellerAgentsTechnicalDataConsent,
     grants,
     calls,
+    withdraw: async () => Promise.all([...withdrawalListeners].map(listener => listener())),
   };
 }
 
@@ -88,6 +92,10 @@ const absentProjection = plain(
 );
 assert.equal(absentProjection.consent.granted, false);
 assert.deepEqual(absentProjection.body, { clientType: "browser_extension" });
+const labeledProjection = plain(await absent.api.projectControlRequest("device_authorization", {
+  clientType: "browser_extension", browserFamily: "firefox", browserVersion: "156.0", extensionVersion: "0.2.4", deviceLabel: "My laptop",
+}));
+assert.deepEqual(labeledProjection.body, { clientType: "browser_extension", deviceLabel: "My laptop" });
 await assert.rejects(
   () => absent.api.projectControlRequest("unknown", {}),
   /TECHNICAL_DATA_PROJECTION_KIND_INVALID/,
@@ -120,6 +128,8 @@ assert.deepEqual(
 
 const restarted = makeRuntime({ ua: firefoxUa, grants: grantedStore });
 assert.equal((await restarted.api.consent()).granted, true, "restart must re-read Firefox permission");
+let withdrawalObserved = 0;
+restarted.api.onWithdrawal(() => { withdrawalObserved += 1; });
 
 const beforeRevoke = plain(
   (await restarted.api.projectControlRequest("health_authority", {
@@ -130,6 +140,8 @@ const beforeRevoke = plain(
 );
 assert.equal(beforeRevoke.bootstrap.browser.family, "firefox");
 assert.equal(await restarted.api.revoke(), true);
+await restarted.withdraw();
+assert.equal(withdrawalObserved, 1, "permission removal event re-reads source-of-truth state");
 const afterRevoke = plain(
   (await restarted.api.projectControlRequest("health_authority", {
     healthTransportVersion: "health_transport_v1",
@@ -149,6 +161,11 @@ const failedProjection = plain(
 assert.equal(failedProjection.consent.granted, false);
 assert.equal(failedProjection.consent.source, "query_failed");
 assert.equal(Object.hasOwn(failedProjection.body, "browser"), false);
+assert.deepEqual(failedProjection.body, { contractVersion: "control_plane_v2", deviceId: "device-1", lastConfigVersion: 9, detectedAi: bootstrap.detectedAi });
+
+const missingApi = makeRuntime({ ua: firefoxUa, permissionsUnavailable: true });
+assert.equal((await missingApi.api.consent()).granted, false);
+assert.equal((await missingApi.api.projectControlRequest("device_authorization", chromeBody)).body.clientType, "browser_extension");
 
 const unsupportedConsentShape = makeRuntime({
   ua: firefoxUa,
@@ -175,9 +192,12 @@ console.log(JSON.stringify({
     "decline",
     "grant",
     "restart",
+    "withdrawal_event_requeries_permission",
     "revocation_before_next_projection",
     "query_failure_fail_closed",
     "missing_data_collection_fail_closed",
+    "missing_permission_api_fail_closed",
+    "explicit_device_label_preserved",
     "invalid_projection_fail_closed",
   ],
 }));

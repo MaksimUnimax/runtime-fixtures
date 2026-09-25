@@ -25,6 +25,11 @@
   function invalidation(current) { if (current.revoked === true || current.knownRevoke === true || current.knownRevoked === true || current.loggedOut === true || current.authReset === true || current.obsolete === true) return "DENY_AUTH_INVALIDATED"; if (current.storeDeleted === true) return "DENY_STORE_CONTEXT"; return null; }
   function freshness(payload, clock, requestedTime) { const expires = parsed(payload?.expiresAt), grace = parsed(payload?.offlineGraceUntil), server = parsed(payload?.serverTime); const values = [clock?.effectiveTimeMs, clock?.trustedServerTimeMs, server, requestedTime].filter(Number.isSafeInteger); if (expires === null || grace === null || server === null || grace <= expires || values.length < 3 || values.some(value => value < 0 || value > maxDate)) return { state: null, effectiveTimeMs: null }; const effectiveTimeMs = Math.max(...values); return { state: effectiveTimeMs < expires ? "FRESH" : effectiveTimeMs < grace ? "STALE_BUT_OFFLINE_GRACE_ELIGIBLE" : "CACHE_EXPIRED", effectiveTimeMs }; }
   function capability(payload, state, source, marketplace, family) { const sourceKey = sourcePermission[marketplace], aiKey = aiPermission[family]; if (!sourceKey || !aiKey) return { source: null, ai: null, result: null }; try { const result = intersection.evaluateVerifiedMetadata({ metadataVersion: "signed_bootstrap_metadata_v1", source: source === "ONLINE" ? "ONLINE" : "CACHE", freshness: state, executionAuthority: false, configVersion: payload.configVersion, accessBasis: payload.accessBasis, signedEntitlements: payload.entitlements, signedFeatures: payload.features, ai: payload.ai }); const sourceRow = result.capabilities.find(row => row.entitlementKey === sourceKey && row.capabilityId === capabilityId[sourceKey]); const aiRow = result.capabilities.find(row => row.entitlementKey === aiKey && row.capabilityId === capabilityId[aiKey]); return { source: sourceRow || null, ai: aiRow || null, result }; } catch (_) { return { source: null, ai: null, result: null }; } }
+  function signedPayloadProjection(payload) {
+    if (!plain(payload?.localClientAuthority)) return payload;
+    const { compatibility, features, ai, ...signedPayload } = payload;
+    return signedPayload;
+  }
   function context(value, current, authority, payload, operation) {
     const identity = plain(value.identity) ? value.identity : plain(value.dialogue?.identity) ? value.dialogue.identity : {};
     const family = current.aiFamily || current.aiProvider || identity.ai_id || identity.provider || payload.ai?.detected?.family;
@@ -59,7 +64,7 @@
     const operation = typeof rawOperation === "string" ? rawOperation.toUpperCase() : null, denied = [], gates = {};
     const invalid = invalidation(current); if (invalid) deny(denied, invalid);
     if (!authority || !plain(payload)) { deny(denied, "DENY_AUTH_INVALIDATED"); return freeze({ schemaVersion: "autonomous_work_authority_decision_v1", allowed: false, executionAuthority: false, operation, authorityState: "DENY_AUTH_INVALIDATED", freshness: null, effectiveTimeMs: null, deniedGates: denied, gates, provenanceUsed: false, healthRequired: options.requireHealth === true }); }
-    let signed = false; try { const verified = await verifier.verifyV2(authority.envelope, config.trustBundle); signed = authority.verified === true && verified.ok === true && verifier.canonicalJson(verified.payload) === verifier.canonicalJson(payload); } catch (_) {}
+    let signed = false; try { const verified = await verifier.verifyV2(authority.envelope, config.trustBundle); const expectedSignedPayload = signedPayloadProjection(payload); signed = authority.verified === true && verified.ok === true && verifier.canonicalJson(verified.payload) === verifier.canonicalJson(expectedSignedPayload); } catch (_) {}
     gates.signedBootstrap = signed; if (!signed) deny(denied, "DENY_AUTH_INVALIDATED");
     const time = freshness(payload, value.cacheClock, value.effectiveTimeMs); gates.freshness = time.state !== null;
     if (time.state === "CACHE_EXPIRED") deny(denied, "DENY_CACHE_EXPIRED"); else if (!gates.freshness) deny(denied, "DENY_AUTH_INVALIDATED");

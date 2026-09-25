@@ -121,6 +121,62 @@ describe("SimulatedExtensionClient", () => {
     });
   });
 
+  it("sends and verifies a privacy-neutral control_plane_v2 bootstrap contract", async () => {
+    const k1 = generateKeyPairSync("ed25519");
+    const {
+      compatibility: _compatibility,
+      features: _features,
+      ai: _ai,
+      ...common
+    } = payload;
+    void _compatibility;
+    void _features;
+    void _ai;
+    const payloadV2: BootstrapSnapshotPayloadV2 = {
+      ...common,
+      snapshotVersion: "bootstrap_snapshot_v2",
+      contractVersion: "control_plane_v2",
+      account: {
+        id: "11111111-1111-4111-8111-111111111111",
+        status: "ACTIVE",
+      },
+      localClientAuthority: {
+        schemaVersion: "local_client_authority_v1",
+        contractVersion: "control_plane_v2",
+        compatibility: { releases: [], policies: [] },
+        featureRules: [],
+        ai: { status: "UNCONFIGURED" },
+      },
+    };
+    let requestBody: Record<string, unknown> | undefined;
+    const client = activatedClient(
+      new Map([["k1", k1.publicKey]]),
+      async (_input, init) => {
+        requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        return new Response(
+          JSON.stringify(
+            signBootstrapSnapshotV2(payloadV2, "k1", k1.privateKey),
+          ),
+          { status: 200 },
+        );
+      },
+    );
+    const result = await client.bootstrap({
+      contractVersion: "control_plane_v2",
+      lastConfigVersion: null,
+    });
+    expect(result).toMatchObject({
+      kind: "VERIFIED",
+      payload: payloadV2,
+      envelope: { envelopeVersion: "bootstrap_envelope_v2" },
+    });
+    expect(requestBody).toEqual({
+      contractVersion: "control_plane_v2",
+      deviceId: "123e4567-e89b-42d3-a456-426614174000",
+      lastConfigVersion: null,
+    });
+  });
+
   it("rejects unknown keys, tampering, and HTTP errors as non-verified results", async () => {
     const k1 = generateKeyPairSync("ed25519");
     const k2 = generateKeyPairSync("ed25519");

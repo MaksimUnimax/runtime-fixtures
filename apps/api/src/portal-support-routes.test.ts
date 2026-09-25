@@ -32,15 +32,29 @@ function app(
   preview: () => Promise<
     | {
         id: string;
-        browserFamily: "chrome";
-        browserVersion: string;
-        extensionVersion: string;
-        deviceLabel: string;
+        clientMetadata:
+          | { state: "WITHHELD" }
+          | {
+              state: "PRESENT";
+              browserFamily: "chrome";
+              browserVersion: string | null;
+              extensionVersion: string;
+            };
+        browserFamily?: "chrome";
+        browserVersion?: string | null;
+        extensionVersion?: string;
+        deviceLabel: string | null;
         expiresAt: Date;
       }
     | undefined
   > = async () => ({
     id: "123e4567-e89b-42d3-a456-426614174001",
+    clientMetadata: {
+      state: "PRESENT" as const,
+      browserFamily: "chrome" as const,
+      browserVersion: "1",
+      extensionVersion: "2",
+    },
     browserFamily: "chrome" as const,
     browserVersion: "1",
     extensionVersion: "2",
@@ -96,5 +110,48 @@ describe("P2.6 portal support routes", () => {
     });
     expect(unavailable.statusCode).toBe(404);
     await server.close();
+  });
+
+  it("projects PRESENT metadata compatibly and omits legacy metadata when WITHHELD", async () => {
+    const present = app();
+    const presentResponse = await present.inject({
+      method: "GET",
+      url: "/v1/device-authorizations/123e4567-e89b-42d3-a456-426614174001",
+      headers: { cookie: "pcp_portal_session=valid" },
+    });
+    expect(presentResponse.statusCode).toBe(200);
+    expect(presentResponse.json()).toMatchObject({
+      clientMetadata: {
+        state: "PRESENT",
+        browserFamily: "chrome",
+        browserVersion: "1",
+        extensionVersion: "2",
+      },
+      browserFamily: "chrome",
+      browserVersion: "1",
+      extensionVersion: "2",
+    });
+    await present.close();
+
+    const withheld = app(async () => ({
+      id: "123e4567-e89b-42d3-a456-426614174001",
+      clientMetadata: { state: "WITHHELD" as const },
+      deviceLabel: null,
+      expiresAt: new Date("2030-01-01T00:00:00Z"),
+    }));
+    const withheldResponse = await withheld.inject({
+      method: "GET",
+      url: "/v1/device-authorizations/123e4567-e89b-42d3-a456-426614174001",
+      headers: { cookie: "pcp_portal_session=valid" },
+    });
+    expect(withheldResponse.statusCode).toBe(200);
+    expect(withheldResponse.json()).toMatchObject({
+      clientMetadata: { state: "WITHHELD" },
+      deviceLabel: null,
+    });
+    expect(withheldResponse.json()).not.toHaveProperty("browserFamily");
+    expect(withheldResponse.json()).not.toHaveProperty("browserVersion");
+    expect(withheldResponse.json()).not.toHaveProperty("extensionVersion");
+    await withheld.close();
   });
 });

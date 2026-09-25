@@ -2,15 +2,17 @@
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { controlPlane } from "../../lib/control-plane";
+import {
+  deviceClientMetadataDisplay,
+  type DeviceClientMetadata,
+} from "../../lib/device-client-metadata";
 type Account = {
   id: string;
   displayName: string | null;
   status: "ACTIVE" | "SUSPENDED";
 };
 type Preview = {
-  browserFamily: string;
-  browserVersion: string | null;
-  extensionVersion: string;
+  clientMetadata: DeviceClientMetadata;
   deviceLabel: string | null;
   expiresAt: string;
 };
@@ -64,6 +66,9 @@ function ActivateContent() {
         : "Request could not be completed.",
     );
   };
+  const metadata = preview
+    ? deviceClientMetadataDisplay(preview.clientMetadata)
+    : undefined;
   return (
     <main>
       <h1>Activate device</h1>
@@ -72,12 +77,9 @@ function ActivateContent() {
           <dt>Device</dt>
           <dd>{preview.deviceLabel ?? "Unnamed device"}</dd>
           <dt>Browser</dt>
-          <dd>
-            {preview.browserFamily}
-            {preview.browserVersion ? ` ${preview.browserVersion}` : ""}
-          </dd>
+          <dd>{metadata?.browser}</dd>
           <dt>Extension</dt>
-          <dd>{preview.extensionVersion}</dd>
+          <dd>{metadata?.extension}</dd>
           <dt>Expires</dt>
           <dd>{preview.expiresAt}</dd>
         </dl>

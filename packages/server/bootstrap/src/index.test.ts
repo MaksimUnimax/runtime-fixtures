@@ -7,7 +7,11 @@ import {
   verifyBootstrapEnvelopeV2,
 } from "@product/remote-config";
 import type { BootstrapSnapshotPayloadV1 } from "@product/contracts";
-import { BootstrapError, BootstrapService } from "./index.js";
+import {
+  BootstrapError,
+  BootstrapService,
+  type LocalClientAuthorityMaterializer,
+} from "./index.js";
 import type { CommercialAccessResolution } from "@product/commercial-access";
 import { getSellerAgentsFreeBetaCapabilityPermissions } from "@product/entitlements/seller-agents-beta-capability-policy";
 
@@ -93,6 +97,7 @@ describe("BootstrapService", () => {
         account: { id: subject.accountId, status: "ACTIVE" },
       },
     });
+    if (v2.ok) expect(v2.payload).not.toHaveProperty("localClientAuthority");
   });
   const commercialSubscription = {
     id: subject.accountId,
@@ -148,6 +153,267 @@ describe("BootstrapService", () => {
       },
     };
   }
+
+  it("signs privacy-neutral v2 authority without invoking the identified resolver", async () => {
+    const pair = generateKeyPairSync("ed25519");
+    const resolve = vi.fn(async () => policy.resolve({}));
+    const materialize = vi.fn(async (input: { detectedAi?: unknown }) => ({
+      configVersion: 9,
+      signingKeyId: "config-key",
+      sourceFingerprintSha256: "b".repeat(64),
+      localClientAuthority: {
+        schemaVersion: "local_client_authority_v1" as const,
+        contractVersion: "control_plane_v2" as const,
+        compatibility: {
+          releases: [
+            {
+              extensionVersion: "1.2.3",
+              contractVersions: ["control_plane_v2" as const],
+              browserFamilies: ["firefox" as const],
+            },
+          ],
+          policies: [],
+        },
+        featureRules: [],
+        ai: input.detectedAi
+          ? {
+              status: "CANDIDATES" as const,
+              detected: {
+                family: "alpha",
+                surface: "page",
+                variant: null,
+              },
+              candidates: [],
+            }
+          : { status: "UNCONFIGURED" as const },
+      },
+    }));
+    const service = new BootstrapService(
+      { resolve },
+      {
+        sign: async (_keyId, payload) =>
+          signBootstrapSnapshot(payload, "config-key", pair.privateKey),
+        signV2: async (_keyId, payload) =>
+          signBootstrapSnapshotV2(payload, "config-key", pair.privateKey),
+      },
+      { now: () => new Date("2026-01-01T00:00:00.000Z") },
+      { resolve: async () => eligibleCommercial() },
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { materialize } as unknown as LocalClientAuthorityMaterializer,
+    );
+    const envelope = await service.issueV2(subject, {
+      contractVersion: "control_plane_v2",
+      deviceId: subject.deviceId,
+      lastConfigVersion: null,
+      detectedAi: { family: "alpha", surface: "page" },
+    });
+    const verified = verifyBootstrapEnvelopeV2(
+      envelope,
+      new Map([["config-key", pair.publicKey]]),
+    );
+    expect(resolve).not.toHaveBeenCalled();
+    expect(materialize).toHaveBeenCalledWith({
+      contractVersion: "control_plane_v2",
+      accountId: subject.accountId,
+      deviceId: subject.deviceId,
+      detectedAi: { family: "alpha", surface: "page", variant: null },
+    });
+    expect(verified).toMatchObject({
+      ok: true,
+      payload: {
+        configVersion: 9,
+        accessBasis: "COMMERCIAL",
+        localClientAuthority: {
+          schemaVersion: "local_client_authority_v1",
+          contractVersion: "control_plane_v2",
+        },
+      },
+    });
+    if (verified.ok) {
+      expect(verified.payload).not.toHaveProperty("compatibility");
+      expect(verified.payload).not.toHaveProperty("features");
+      expect(verified.payload).not.toHaveProperty("ai");
+    }
+  });
+
+  it("does not expose detected-AI profile candidates for ineligible privacy-neutral access", async () => {
+    const pair = generateKeyPairSync("ed25519");
+    const materialize = vi.fn(async (input: { detectedAi?: unknown }) => ({
+      configVersion: 10,
+      signingKeyId: "config-key",
+      sourceFingerprintSha256: "c".repeat(64),
+      localClientAuthority: {
+        schemaVersion: "local_client_authority_v1" as const,
+        contractVersion: "control_plane_v2" as const,
+        compatibility: { releases: [], policies: [] },
+        featureRules: [],
+        ai: input.detectedAi
+          ? {
+              status: "CANDIDATES" as const,
+              detected: {
+                family: "alpha",
+                surface: "page",
+                variant: null,
+              },
+              candidates: [],
+            }
+          : { status: "UNCONFIGURED" as const },
+      },
+    }));
+    const service = new BootstrapService(
+      policy,
+      {
+        sign: async (_keyId, payload) =>
+          signBootstrapSnapshot(payload, "config-key", pair.privateKey),
+        signV2: async (_keyId, payload) =>
+          signBootstrapSnapshotV2(payload, "config-key", pair.privateKey),
+      },
+      { now: () => new Date("2026-01-01T00:00:00.000Z") },
+      { resolve: async () => ineligibleCommercial() },
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { materialize } as unknown as LocalClientAuthorityMaterializer,
+    );
+    const verified = verifyBootstrapEnvelopeV2(
+      await service.issueV2(subject, {
+        contractVersion: "control_plane_v2",
+        deviceId: subject.deviceId,
+        lastConfigVersion: null,
+        detectedAi: { family: "alpha", surface: "page" },
+      }),
+      new Map([["config-key", pair.publicKey]]),
+    );
+    expect(materialize).toHaveBeenCalledWith({
+      contractVersion: "control_plane_v2",
+      accountId: subject.accountId,
+      deviceId: subject.deviceId,
+    });
+    expect(verified).toMatchObject({
+      ok: true,
+      payload: {
+        accessBasis: "NONE",
+        localClientAuthority: {
+          ai: {
+            status: "CANDIDATES",
+            detected: {
+              family: "alpha",
+              surface: "page",
+              variant: null,
+            },
+            candidates: [],
+          },
+        },
+      },
+    });
+  });
+
+  it("fails closed for privacy-neutral v2 when no local authority materializer is installed", async () => {
+    const { service } = signedService(eligibleCommercial());
+    await expect(
+      service.issueV2(subject, {
+        contractVersion: "control_plane_v2",
+        deviceId: subject.deviceId,
+        lastConfigVersion: null,
+      }),
+    ).rejects.toMatchObject({ code: "UNAVAILABLE" });
+  });
+
+  it("fails closed when the privacy-neutral materializer rejects its source", async () => {
+    const pair = generateKeyPairSync("ed25519");
+    const materialize = vi
+      .fn()
+      .mockResolvedValue({ failure: "LOCAL_AUTHORITY_SOURCE_INVALID" });
+    const service = new BootstrapService(
+      policy,
+      {
+        sign: async (_keyId, payload) =>
+          signBootstrapSnapshot(payload, "config-key", pair.privateKey),
+        signV2: async (_keyId, payload) =>
+          signBootstrapSnapshotV2(payload, "config-key", pair.privateKey),
+      },
+      { now: () => new Date("2026-01-01T00:00:00.000Z") },
+      { resolve: async () => eligibleCommercial() },
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { materialize } as unknown as LocalClientAuthorityMaterializer,
+    );
+    await expect(
+      service.issueV2(subject, {
+        contractVersion: "control_plane_v2",
+        deviceId: subject.deviceId,
+        lastConfigVersion: null,
+      }),
+    ).rejects.toMatchObject({ code: "UNAVAILABLE" });
+  });
+
+  it("fails closed when a bounded local authority still exceeds the signed envelope limit", async () => {
+    const pair = generateKeyPairSync("ed25519");
+    const releases = Array.from({ length: 64 }, (_, index) => ({
+      extensionVersion: `1.0.${index}`,
+      contractVersions: ["control_plane_v2" as const],
+      browserFamilies: [
+        "chrome" as const,
+        "opera" as const,
+        "yandex_chromium" as const,
+        "firefox" as const,
+        "safari" as const,
+      ],
+    }));
+    const featureRules = Array.from({ length: 128 }, (_, index) => ({
+      featureKey: `f${String(index).padStart(3, "0")}${"x".repeat(48)}`,
+      revision: 1,
+      contractVersion: "control_plane_v2" as const,
+      enabled: true,
+      browserFamily: null,
+      minimumExtensionVersion: null,
+    }));
+    const materialize = vi.fn().mockResolvedValue({
+      configVersion: 11,
+      signingKeyId: "config-key",
+      sourceFingerprintSha256: "d".repeat(64),
+      localClientAuthority: {
+        schemaVersion: "local_client_authority_v1" as const,
+        contractVersion: "control_plane_v2" as const,
+        compatibility: { releases, policies: [] },
+        featureRules,
+        ai: { status: "UNCONFIGURED" as const },
+      },
+    });
+    const service = new BootstrapService(
+      policy,
+      {
+        sign: async (_keyId, payload) =>
+          signBootstrapSnapshot(payload, "config-key", pair.privateKey),
+        signV2: async (_keyId, payload) =>
+          signBootstrapSnapshotV2(payload, "config-key", pair.privateKey),
+      },
+      { now: () => new Date("2026-01-01T00:00:00.000Z") },
+      { resolve: async () => eligibleCommercial() },
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { materialize } as unknown as LocalClientAuthorityMaterializer,
+    );
+    await expect(
+      service.issueV2(subject, {
+        contractVersion: "control_plane_v2",
+        deviceId: subject.deviceId,
+        lastConfigVersion: null,
+      }),
+    ).rejects.toMatchObject({ code: "UNAVAILABLE" });
+  });
 
   it("projects the actual subscription and exact UUID into a signed snapshot", async () => {
     const f = signedService(eligibleCommercial());

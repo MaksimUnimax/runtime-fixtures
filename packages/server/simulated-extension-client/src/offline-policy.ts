@@ -132,7 +132,11 @@ function signedCapabilityEnabled(
   payload: BootstrapSnapshotPayload,
   capability: string,
 ): boolean {
-  return Object.hasOwn(payload.features, capability)
-    ? payload.features[capability] === true
-    : payload.entitlements[capability] === true;
+  if ("features" in payload && Object.hasOwn(payload.features, capability))
+    return payload.features[capability] === true;
+  // Privacy-neutral v2 carries featureRules for local client materialization.
+  // This legacy simulated offline policy does not evaluate that algorithm; it
+  // therefore stays fail-closed for feature-only capabilities and may only use
+  // common signed entitlements here.
+  return payload.entitlements[capability] === true;
 }

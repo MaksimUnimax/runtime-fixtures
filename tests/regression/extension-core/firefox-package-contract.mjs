@@ -26,6 +26,7 @@ assert.deepEqual(
       "financialAndPaymentInfo",
       "personalCommunications",
     ],
+    optional: ["technicalAndInteraction"],
   },
 );
 const loopbackHosts = (manifest.host_permissions || []).filter(value =>
