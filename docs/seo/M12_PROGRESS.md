@@ -1,7 +1,7 @@
 # Octoport SEO — M12 progress
 
 Date: 2026-09-25
-Status: **M12 ACCEPTED / M13 PREFLIGHT OPEN**
+Status: **M12 ACCEPTED / R2 CORRECTION CURRENT / M13 PREFLIGHT OPEN**
 Branch: `seo/wordstat-batch-01-2026-09-16`
 
 ## Cursor
@@ -56,3 +56,33 @@ PRIORITY = LOW
 
 M11 HOLD clusters imported = 0/102.
 M13 technical SEO preflight may now start.
+
+
+## Current corrected M12 authority — R2
+
+Correction acceptance:
+`docs/seo/M12_MAIN_CHAT_CORRECTION_ACCEPTANCE_2026-09-25_R2.md`
+blob `782f182026172009a220e80a37b9c48e4017be11`.
+
+Current corrected artifacts:
+- M12_SOURCE_MANIFEST_2026-09-25_R2.md — blob `8a43afecd780ed27181c2574ef501bf161bbd814`
+- M12_PAGE_SPEC_REGISTRY_2026-09-25_R2.tsv — blob `53fd8d3217df7b00dbc644a4d396fcd258e497d8`
+- M12_CONTENT_BLOCK_CONTRACT_2026-09-25_R2.tsv — blob `b32e4b0c0f8255ef28035a2cf7ce1c804ef9fc10`
+- M12_ADVERSARIAL_DIAGNOSTIC_2026-09-25_R2.tsv — blob `4acfd6e0b0171866966c255443509d8825f8f125`
+- M12_QA_2026-09-25_R2.md — blob `44992c67159ae6b6e0d8055cb597a8165d598f56`
+
+Unchanged current artifacts:
+- M12_INTERNAL_LINK_CONTRACT_2026-09-25_R1.tsv — blob `f35ca60c318efe0c74b2d6219bcb680943560c14`
+- M12_PROOF_TRUST_REQUIREMENTS_2026-09-25_R1.tsv — blob `7b5e5a523a877dad3a08343c681ed7a379ec2631`
+
+```text
+HOME_ACTION = OPTIMIZE
+HOME_H1 = Подключите ваш ИИ к Ozon и Wildberries
+HOME_BRAND_SUBHEADLINE = Ваш ИИ получает руки для работы с маркетплейсами.
+ANALYTICS_SPEC_CHANGED = false
+M11_HOLD_CLUSTER_IMPORT = 0/102
+M13_PREFLIGHT = OPEN
+M13_EXECUTION = NOT_YET_RELEASED
+```
+
+M13-M18 must consume R2 current M12 authority, not the superseded HOME KEEP/H1 values in historical R1.
