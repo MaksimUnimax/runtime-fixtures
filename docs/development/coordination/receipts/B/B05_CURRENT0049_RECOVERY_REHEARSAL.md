@@ -111,23 +111,29 @@ Result:
 Resource receipt:
 `/root/octoport-control/resource-jobs/b415448da80f48f2b1673f76e2fc7c57/receipt.json`.
 
-## Final exact-source acceptance
+## Final bounded exact-source acceptance
 
 Clean tested source revision:
-`16b26f8a69d588dcad22b792ad2a8c5815bb2de6`.
+`3afb17b4397fb492fbaaa1aaa2c61bf8e353f8f4`.
 
 Clean tested source tree:
-`c83466c6806400a693686c4352e6f2243d1cf5ef`.
+`7816391ce4f694480658e1819c69fb87b956a476`.
+
+Bounded candidate boundary:
+- baseline `origin/main = c520015cfa2a4630d06b3013b9cd78aafde352da`;
+- the tested snapshot differs from that baseline only by this B05 receipt and
+  `tooling/server/b05-current0049-recovery.ts`;
+- prior submit `da6973263621967b9b93937369b884edac2f0f03` included the historical B tail and is **SUPERSEDED / DO NOT INTEGRATE**.
 
 Supervised resource job:
-- id `f130b1f82b9d4fc198538ed253639f5e`;
-- unit `octoport-test-b-f130b1f82b9d4fc198538ed253639f5e.service`;
-- command exit `0`, peak `307232768` bytes, OOM `0`, cleanup verified;
+- id `244ca728ebcb4afebdd2e71f1d800757`;
+- unit `octoport-test-b-244ca728ebcb4afebdd2e71f1d800757.service`;
+- command exit `0`, peak `284164096` bytes, OOM `0`, cleanup verified;
 - resource receipt:
-  `/root/octoport-control/resource-jobs/f130b1f82b9d4fc198538ed253639f5e/receipt.json`.
+  `/root/octoport-control/resource-jobs/244ca728ebcb4afebdd2e71f1d800757/receipt.json`.
 
 Final privacy-safe rehearsal log:
-`/root/octoport-control/logs/B/b05-current0049-recovery-d55363c27623.log`.
+`/root/octoport-control/logs/B/b05-current0049-recovery-13520ae7baba.log`.
 
 Verified recovery invariants:
 - journal file SHA-256
@@ -147,10 +153,10 @@ Verified recovery invariants:
 
 Archive evidence:
 - path:
-  `/root/octoport-control/backups/B/b05-current0049-recovery-d55363c27623.dump`;
+  `/root/octoport-control/backups/B/b05-current0049-recovery-13520ae7baba.dump`;
 - SHA-256
-  `9906a4ad7ca7be44c59b91152687c8a77dee268c6673e7822014c2869a310031`;
-- size `401110` bytes, mode `0600`, custom archive TOC entries `689`.
+  `e3a6fb1bb00609a9bf986545a9afb6277c7b1972d98c5a0fc83660642ded6fd8`;
+- size `401109` bytes, mode `0600`, custom archive TOC entries `689`.
 
 C05 local handoff:
 - retained disposable target database:
