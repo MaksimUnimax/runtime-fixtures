@@ -2,7 +2,7 @@
 
 Date: 2026-09-25
 Role: B
-Status: helper implemented; parent supervised disposable PostgreSQL run pending
+Status: B-owned disposable PostgreSQL recovery rehearsal PASS; C05 immutable-artifact rollback remains open
 Scope: current canonical schema source0049 plus synthetic no-session Health data
 
 ## Rerun command
@@ -66,10 +66,60 @@ revision/tree, migration identities, synthetic counts, archive metadata and
 PASS/FAIL only. It does not contain credentials, OTP material, session tokens or
 customer data.
 
+## Acceptance evidence
+
+Tested source revision:
+`57b231b193bd752d9ea892a0432d6a4152759ff6`.
+
+Tested source tree:
+`9427633bac4f410102238118497e8a1c63e304e8`.
+
+Supervised command:
+`python3 tooling/coordination/control.py B heavy --db --profile integration --timeout-seconds 3600 -- pnpm exec tsx tooling/server/b05-current0049-recovery.ts`.
+
+Result:
+- exit code `0`; resource job
+  `b415448da80f48f2b1673f76e2fc7c57`;
+- unit `octoport-test-b-b415448da80f48f2b1673f76e2fc7c57.service`;
+- peak `310378496` bytes (~296 MiB), OOM `0`, cleanup verified;
+- journal file SHA-256
+  `9aae17cef6769bea4c621ad3b68c8048af3d3387a9b9ffad461442259cffeabc`;
+- source and restored applied journals both
+  `39 / 0049_s2_l5_no_session_persistence / 1790071016000`;
+- ordered applied-journal identity on both sides:
+  `563cadf21d89a967c0909ab30765b5811b549c6552831d5aa482edbd9831ada5`;
+- restored synthetic application data: users `1`, accounts `1`,
+  portal sessions `1`; restored authentication and owned-account read PASS;
+- restored API `/health/ready`: HTTP `200`;
+- restored no-session state: classification `BROKEN`, metadata evidence `1`,
+  scheduler reconciled to `SUCCEEDED`;
+- replay/reconciliation final counts stayed exactly
+  `runs=1, observations=1, incidents=1, LLM_HEALTH outbox=1`;
+- archive:
+  `/root/octoport-control/backups/B/b05-current0049-recovery-a9b2621a066f.dump`,
+  SHA-256
+  `5b07f1ce96c15bd58cf369c52346cec0dbe3fc9954301a1df7503679134ede84`,
+  `401087` bytes, mode `0600`, TOC entries `689`;
+- retained disposable target:
+  `octoport_b_recovery_restore_current0049` in `octoport-b-test-pg`;
+- private C05 handoff reference:
+  `/root/octoport-control/backups/B/b05-current0049-restored-target.json`,
+  confirmed mode `0600`. The DB URL remains only in that private local file.
+
+Resource receipt:
+`/root/octoport-control/resource-jobs/b415448da80f48f2b1673f76e2fc7c57/receipt.json`.
+
 ## Evidence state and limits
 
-The helper has not been run by this child. Parent must run the exact supervised
-command above and review the emitted evidence before recording rehearsal PASS.
-No immutable artifact rollback, live0049, production, Telegram delivery, or
-deployment acceptance is claimed. This helper only proves source and restored
-state in the disposable B PostgreSQL environment.
+This proves the current accepted source0049 schema can be backed up as a real
+PostgreSQL custom archive, restored into a fresh B-owned disposable database,
+and used by the actual application auth/readiness paths plus the existing
+no-session scheduler/incident/outbox repositories without duplicate
+reconciliation effects.
+
+It does not prove immutable application-artifact rollback, live0049,
+production, Telegram delivery, production RPO/RTO, scheduled backup retention,
+or deployment acceptance. C owns the immutable artifact/rollback part of C05
+and may consume the retained private disposable target above. No live DB,
+0050, down migration, real mailbox, customer data or production service was
+used or changed.
