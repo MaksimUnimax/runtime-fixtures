@@ -1,0 +1,76 @@
+{
+  "schema": "M10D_RETURN_MANIFEST_V1",
+  "work_id": "OCTOPORT_SEO_M10D_SEARCH_VS_AI_RECONCILIATION_2026-09-25_R1",
+  "start_head": "5caa7d500f3d3857c4b627e18147f8e2bcc81b07",
+  "end_observed_head": "5caa7d500f3d3857c4b627e18147f8e2bcc81b07",
+  "authority_drift_status": "NONE_FROZEN_INPUTS_UNCHANGED",
+  "local_verdict": "PASS_LOCAL_M10D_RECONCILIATION / MAIN_CHAT_ACCEPTANCE_PENDING",
+  "files": [
+    {
+      "filename": "M10D_ADVERSARIAL_DIAGNOSTIC.tsv",
+      "utf8_bytes": 7867,
+      "sha256": "e4eeb719e16b451c967ab1b27eba97d0eb1d1d7fe880effc051ba43b11525687",
+      "line_count": 21,
+      "data_rows": 20,
+      "columns": 6
+    },
+    {
+      "filename": "M10D_BOUNDARY_DELTA_XREF.tsv",
+      "utf8_bytes": 307624,
+      "sha256": "181b6e1f2ff1fc6a33bc36c0b6151cab136982ec149448176806137c4495c097",
+      "line_count": 167,
+      "data_rows": 166,
+      "columns": 15
+    },
+    {
+      "filename": "M10D_CASE_EVIDENCE_SUMMARY.tsv",
+      "utf8_bytes": 17609,
+      "sha256": "e6e52daa6649cab11a7ce229dddbc5cafba03db6d4e8e1f67815d5c4bfd74cc7",
+      "line_count": 16,
+      "data_rows": 15,
+      "columns": 18
+    },
+    {
+      "filename": "M10D_CASE_RECONCILIATION.tsv",
+      "utf8_bytes": 34850,
+      "sha256": "ee7590c8ea88d6a7c138018c2438af10b5f7ebe4944c9c31d921504589d9967e",
+      "line_count": 16,
+      "data_rows": 15,
+      "columns": 16
+    },
+    {
+      "filename": "M10D_CLUSTER_DELTA_XREF.tsv",
+      "utf8_bytes": 343370,
+      "sha256": "c5fde1a4980f4f536b8b51e28c687033ba5ce253603866cda0a57496b52169e4",
+      "line_count": 185,
+      "data_rows": 184,
+      "columns": 17
+    },
+    {
+      "filename": "M10D_CROSS_CASE_RECONCILIATION.tsv",
+      "utf8_bytes": 54533,
+      "sha256": "577f197b8bd92591cfa08de19784fe11d9cc95f9d743472726c17ae37b8bd2e9",
+      "line_count": 75,
+      "data_rows": 74,
+      "columns": 10
+    },
+    {
+      "filename": "M10D_QA.md",
+      "utf8_bytes": 4547,
+      "sha256": "4a3fa41a0ea25ecc8e3b8fda70761a942c7c87626ecb142b63a649a78dff4ed1",
+      "line_count": 77
+    },
+    {
+      "filename": "M10D_SOURCE_MANIFEST.md",
+      "utf8_bytes": 9879,
+      "sha256": "f699c53b7f47d092b6df42119779a699ec0d23459b9b500d76606d40d035975d",
+      "line_count": 88
+    }
+  ],
+  "provider_calls": 0,
+  "web_acquisition_by_work": 0,
+  "github_writes_by_work": 0,
+  "site_mutations": 0,
+  "zip_sha256": null,
+  "zip_sha256_record_location": "Terminal delivery report; archive containing this manifest cannot contain its own final SHA-256 without circular hash dependency."
+}
