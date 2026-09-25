@@ -1,133 +1,108 @@
 # Octoport SEO — M13 progress
 
 Date: 2026-09-25
-Status: **PREPARED / MAIN CHAT EXECUTION READY / M14 BLOCKED**
-Branch: `seo/wordstat-batch-01-2026-09-16`
+Status: **ACCEPTED / M14 PREPARATION RELEASED / M14 IMPLEMENTATION NOT YET AUTHORIZED**
+Branch: seo/wordstat-batch-01-2026-09-16
 
 ## Cursor
 
-```text
 M0..M12 = ACCEPTED
 M11/M12 CURRENT AUTHORITY = R2 CORRECTION
-M13 = PREPARED / NOT YET EXECUTED
-M14+ = BLOCKED
-```
+M13 = ACCEPTED
+M14 = PREPARATION ALLOWED / IMPLEMENTATION NOT YET STARTED
+M15+ = BLOCKED
 
-## Binding preparation chain
+## Binding M13 authority
 
-Step preparation:
-`docs/seo/M13_STEP_PREPARATION_2026-09-25_R1.md`
-blob `131529b1c07d967936aee683a4af14e0cf7bdfe1`.
+Preparation:
+docs/seo/M13_STEP_PREPARATION_2026-09-25_R1.md
 
 Input manifest:
-`docs/seo/M13_TECHNICAL_SEO_INPUT_MANIFEST_2026-09-25_R1.json`
-blob `c4983d38c4650101f2dd984375e9f775988c7324`.
+docs/seo/M13_TECHNICAL_SEO_INPUT_MANIFEST_2026-09-25_R1.json
+
+Execution outputs:
+1. docs/seo/M13_SOURCE_MANIFEST.md
+2. docs/seo/M13_TECHNICAL_REQUIREMENTS.tsv
+3. docs/seo/M13_ROUTE_HTTP_CANONICAL_MATRIX.tsv
+4. docs/seo/M13_ROBOTS_SITEMAP_INDEXING_SPEC.tsv
+5. docs/seo/M13_METADATA_STRUCTURED_DATA_SPEC.tsv
+6. docs/seo/M13_PERFORMANCE_MOBILE_SPEC.tsv
+7. docs/seo/M13_IMPLEMENTATION_FILE_MAP.tsv
+8. docs/seo/M13_ADVERSARIAL_DIAGNOSTIC.tsv
+9. docs/seo/M13_QA.md
 
 Applicable LEVEL 2:
-`docs/seo/LEVEL2/M13_M18_IMPLEMENTATION_LAUNCH_MEASUREMENT_RULES.md`
-blob `fe11b327eefff20f6c807581ae947a78c6bcc6e8`.
+docs/seo/LEVEL2/M13_M18_IMPLEMENTATION_LAUNCH_MEASUREMENT_RULES.md
 
-Current M11:
-`docs/seo/M11_MAIN_CHAT_CORRECTION_ACCEPTANCE_2026-09-25_R2.md`
-blob `0fd15af86ba93a6eaae73b43f4507522576f0df3`.
+## Execution facts
 
-Current M12:
-`docs/seo/M12_MAIN_CHAT_CORRECTION_ACCEPTANCE_2026-09-25_R2.md`
-blob `782f182026172009a220e80a37b9c48e4017be11`.
+PREPARATION_SEO_HEAD = 15f3e4f69cb54a80b29f268d5da389ca4b1082e9
+FROZEN_MAIN_HEAD = 7945d62854e135421c3db003c603187b9f37866b
+FIRST_8_OUTPUT_REMOTE_HEAD = 0b6b894505268a44bf58c3225fbb6f8545fe146d
 
-## Preparation heads
-
-```text
-PREPARATION_SEO_PARENT_HEAD = 07ac195167e8e0fe4adfb6a110116e604031b6c2
-PREPARATION_MAIN_HEAD = 7945d62854e135421c3db003c603187b9f37866b
-```
-
-## Execution mode
-
-```text
 WORK_TRIGGER = false
 EXECUTOR = MAIN_CHAT
 PROVIDER_CALLS = 0
 SITE_MUTATIONS_IN_M13 = 0
 MAIN_MUTATIONS_IN_M13 = 0
-```
 
-## Frozen technical target
+M13_REQUIREMENTS = 28
+M13_ROUTE_CASES = 21
+M13_INDEXING_SURFACES = 9
+M13_METADATA_SURFACES = 5
+M13_PERFORMANCE_CHECKS = 13
+M13_IMPLEMENTATION_FILE_ROWS = 15
+M13_ADVERSARIAL_TESTS = 18
+
+OPEN_CRITICAL_SPEC_DEFECTS = 0
+QUALITY_SCORE = 9.8/10
+M13_ACCEPTED = true
+
+## Frozen launch technical target
 
 Indexable:
-- `https://octoport.ru/`
-- `https://octoport.ru/seller-analytics`
+- https://octoport.ru/
+- https://octoport.ru/seller-analytics
 
-Crawlable noindex/follow service surfaces:
-- `https://octoport.ru/privacy`
-- `https://octoport.ru/support`
-- `https://octoport.ru/install`
+Crawlable noindex,follow:
+- https://octoport.ru/privacy
+- https://octoport.ru/support
+- https://octoport.ru/install
 
-Sitemap target set:
+Sitemap:
 - HOME
 - seller-analytics
 
 Yandex AI:
 - no YandexAdditional/YandexAdditionalBot opt-out.
 
-Structured data at M14 launch:
-- none unless a later explicit truthful authority reopens it.
+Structured data:
+- NONE at M14 launch unless later truthful authority explicitly reopens it.
 
-## Key implementation requirements frozen for M14
+## Confirmed current implementation deltas for M14
 
-- direct canonical HTTPS apex behavior;
-- known .html aliases -> canonical extensionless URLs;
-- trailing slash aliases -> canonical no-slash routes;
-- /index.html -> /;
-- unknown URLs -> 404, never HOME;
-- add seller-analytics static source + nginx route;
-- service pages noindex, follow but crawlable;
-- update sitemap/robots;
-- preserve app/api noindex ingress and routing;
-- crawlable HOME <-> analytics HTML links;
-- static initial HTML for critical content;
-- update Site CI, deploy source checks, live verifier and regression tests;
-- no fake SoftwareApplication/FAQ/review/price markup;
-- responsive/mobile/CWV acceptance contract.
+- HTTP www has avoidable two-hop normalization.
+- current .html aliases return duplicate 200 bodies.
+- current service trailing-slash variants return 404 instead of canonical redirects.
+- seller-analytics is not implemented yet.
+- service pages lack noindex,follow.
+- HOME still carries historical pre-M12 R2 Title/H1.
+- sitemap is still pre-analytics.
+- Site CI/deploy/verifier/regression guards still know the old site surface.
 
-## Required M13 execution outputs
+Preserve:
+- unknown route real 404;
+- static initial HTML architecture;
+- security/cache headers;
+- separate app/API ingress;
+- app/API X-Robots noindex behavior;
+- deployment rollback and application-ingress integrity guards.
 
-1. M13_SOURCE_MANIFEST.md
-2. M13_TECHNICAL_REQUIREMENTS.tsv
-3. M13_ROUTE_HTTP_CANONICAL_MATRIX.tsv
-4. M13_ROBOTS_SITEMAP_INDEXING_SPEC.tsv
-5. M13_METADATA_STRUCTURED_DATA_SPEC.tsv
-6. M13_PERFORMANCE_MOBILE_SPEC.tsv
-7. M13_IMPLEMENTATION_FILE_MAP.tsv
-8. M13_ADVERSARIAL_DIAGNOSTIC.tsv
-9. M13_QA.md
+## Next step
 
-## First execution action
+M14 does not start from this file alone.
 
-After this preparation is remote-read back:
+Next physical action:
+M14 STEP PREPARATION under live LEVEL 1 + M13-M18 LEVEL 2, with fresh current-main and parallel-work reconciliation.
 
-```text
-FRESH READ-ONLY LIVE HTTP BASELINE
--> apex / www / http redirects
--> HOME
--> privacy
--> support
--> install
--> robots.txt
--> sitemap.xml
--> representative duplicate aliases
-```
-
-No server, Webmaster, Search Console or repository mutation.
-
-If live observation cannot be obtained:
-`LIVE_BASELINE_UNAVAILABLE`.
-Do not infer live state from source.
-
-## Downstream
-
-M14 implementation remains blocked until:
-- all nine M13 artifacts exist;
-- M13 hard gates PASS;
-- Main Chat accepts M13;
-- current main is re-fetched for implementation handoff.
+Only after M14 preparation is persisted and remote-read back may bounded public-site implementation be authorized.
