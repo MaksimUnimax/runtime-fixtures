@@ -149,3 +149,31 @@ QUALITY_SCORE = 9.8/10
 M12_PREFLIGHT = OPEN
 M12_EXECUTION = NOT_YET_RELEASED
 ```
+
+
+## Current provider-free correction authority — R2
+
+Historical M11 R1 acceptance remains preserved.
+
+Current correction acceptance:
+`docs/seo/M11_MAIN_CHAT_CORRECTION_ACCEPTANCE_2026-09-25_R2.md`
+blob `0fd15af86ba93a6eaae73b43f4507522576f0df3`.
+
+Current corrected M11 snapshots:
+- `docs/seo/M11_CLUSTER_FINAL_OWNERSHIP_CURRENT_2026-09-25_R2.tsv`
+  blob `d8b3b90e5c8624663daf732ca445512ce0d77950`
+- `docs/seo/M11_PAGE_OWNER_REGISTRY_CURRENT_2026-09-25_R2.tsv`
+  blob `0ee117f499fd129e7c11d8856c853e811e99ec15`
+- `docs/seo/M11_EXISTING_SURFACE_DECISION_CURRENT_2026-09-25_R2.tsv`
+  blob `d3c1149c5f6beae255cd64a2ae522da7102f98e3`
+
+```text
+CURRENT_HOME_PHYSICAL_ACTION = OPTIMIZE
+CURRENT_HOME_SURFACE_DECISION = SEO_OWNER_OPTIMIZE
+OWNER_IDS_CHANGED = 0
+CLUSTER_ASSIGNMENTS_CHANGED = 0
+IA_CHANGED = 0
+HOLD_CLUSTERS = 102
+```
+
+M13-M18 must consume these R2 owner-action snapshots rather than the historical HOME KEEP value.
