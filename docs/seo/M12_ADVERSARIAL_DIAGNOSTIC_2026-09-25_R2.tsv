@@ -1,0 +1,20 @@
+test_id	scenario	expected_guard	observed	verdict	evidence_refs
+AD01_EXACT_OWNER_SET	Only accepted M11 owners become specs	Exactly two owner IDs	2/2 exact M11 owner IDs	PASS	docs/seo/M11_MAIN_CHAT_ACCEPTANCE_2026-09-25_R1.md
+AD02_HOLD_IMPORT_ZERO	Held clusters leak into page targets	102 held clusters excluded	0 held clusters imported as primary/secondary/FAQ targets	PASS	docs/seo/M11_MAIN_CHAT_ACCEPTANCE_2026-09-25_R1.md
+AD03_EMPTY_SEED_NOT_ZERO	Missing HOME Wordstat count misread as zero	Preserve EMPTY_SUCCESS_SEED without numeric inference	HOME metric value NOT_RETURNED	PASS	docs/seo/work/M2R_PHRASE_LINEAGE_LEDGER_2026-09-17.csv
+AD04_ANALYTICS_EXACT_METRIC	Analytics broad seed total misused	Exact query metric must be observed 15	Primary metric = 15	PASS	docs/seo/work/M2R_PHRASE_LINEAGE_LEDGER_2026-09-17.csv
+AD05_BROAD_4290_NOT_QUERY_METRIC	M2R-A01 broad seed total shown as query frequency	4290 kept only as seed-total provenance	4290 absent from primary_query_metric_value	PASS	docs/seo/work/M2R_PHRASE_LINEAGE_LEDGER_2026-09-17.csv
+AD06_PLANNED_URL_UNIQUE	CREATE page collides with current routes	Unique shallow descriptive URL	https://octoport.ru/seller-analytics is distinct from / /install /privacy /support	PASS	docs/seo/M12_PAGE_SPEC_REGISTRY_2026-09-25_R1.tsv
+AD07_HOME_TRUTH	HOME implies Octoport is own AI	Selected user AI/bridge framing required	Direct H1 «Подключите ваш ИИ к Ozon и Wildberries» matches accepted connector task; current metaphor retained only as brand subheadline; Octoport remains a bridge, not its own LLM.	PASS	docs/seo/PRODUCT_TRUTH.md
+AD08_ANALYTICS_OWN_STORE_BOUNDARY	Analytics page drifts to external intelligence	Seller-owned data only	Own coverage and prohibited blocks explicitly exclude external intelligence	PASS	docs/seo/M12_PAGE_SPEC_REGISTRY_2026-09-25_R1.tsv
+AD09_WRITEBACK_FORBIDDEN	Page promises autonomous mutation	Read-only launch boundary	Write-back/autonomous claims prohibited	PASS	docs/seo/PRODUCT_TRUTH.md
+AD10_FAKE_FAQ	FAQ added as SEO convention	No FAQ without distinct evidence	FAQ state NOT_REQUIRED for both pages	PASS	docs/seo/M12_PAGE_SPEC_REGISTRY_2026-09-25_R1.tsv
+AD11_FAKE_SCHEMA	Schema added for ranking	Schema only if genuine supported entity/content	Analytics NONE; HOME held for M13 review and not assumed	PASS	docs/seo/M12_PAGE_SPEC_REGISTRY_2026-09-25_R1.tsv
+AD12_FAKE_PROOF	Synthetic screenshots/cases used	Real/source-backed proof only	Analytics requires real sanitized demo; fake metrics/cases forbidden	PASS	docs/seo/M12_PROOF_TRUST_REQUIREMENTS_2026-09-25_R1.tsv
+AD13_INTERNAL_LINKS	New page orphaned	Both accepted M11 edges represented	2/2 link contracts	PASS	docs/seo/M12_INTERNAL_LINK_CONTRACT_2026-09-25_R1.tsv
+AD14_CANNIBALIZATION	HOME and analytics overlap primary jobs	Distinct owner coverage	HOME connector job and analytics own-store job explicitly separated	PASS	docs/seo/M11_MAIN_CHAT_ACCEPTANCE_2026-09-25_R1.md
+AD15_BETA_STATE	Copy claims public access	Closed beta boundary	Public availability claim prohibited	PASS	docs/seo/PRODUCT_TRUTH.md
+AD16_PRICE_STATE	Historical 199/299 reused	No current price without new authority	No price in page contracts	PASS	docs/seo/PRODUCT_TRUTH.md
+AD17_SITE_MUTATION	M12 edits site files	Specs only	No site mutation performed	PASS	docs/seo/M12_STEP_PREPARATION_2026-09-25_R1.md
+AD18_M13_LEAK	M12 implements robots/sitemap/http	M13 remains separate	Only desired page-level canonical/indexing states recorded	PASS	docs/seo/LEVEL2/M12_PAGE_SPECS_CONTENT_RULES.md
+AD19_HOME_ACTION_CONSISTENCY	Existing HOME receives accepted SEO changes	Existing page must be OPTIMIZE rather than KEEP when Title/H1/internal-link contract changes	M11 current R2 and M12 current R2 both classify HOME as OPTIMIZE	PASS	docs/seo/M11_MAIN_CHAT_CORRECTION_ACCEPTANCE_2026-09-25_R2.md | docs/seo/M12_PAGE_SPEC_REGISTRY_2026-09-25_R2.tsv
