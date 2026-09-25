@@ -153,6 +153,8 @@ Exact wording/status-column mutation belongs to C. The existing `API_MAPPING_REQ
 
 Read-only Luna review evidence: `/root/octoport-control/logs/A/a04-business-coverage-review-result.md`. The review of exact candidate `87d523d6146dbdac837f286bec76dd92731671af` found two High and two Medium evidence defects: nullable numeric coercion, duplicate join-key acceptance, overclaimed WB movement coverage for `STD-11`, and overclaimed WB cancellation coverage for `CAP-12`. The follow-up candidate fixes all four by failing incomplete numeric inputs closed, rejecting duplicate keys on both sides, and downgrading those two WB scenarios to explicit `BOUNDARY` states. No runtime/provider behavior is added.
 
+Follow-up read-only Luna re-review of exact semantic-fix commit `1c882488031d74db734b6fe01706dde9dbaca8ea` is recorded at `/root/octoport-control/logs/A/a04-business-coverage-rereview-result.md`. It marks all four prior findings CLOSED, reports no new High/Medium findings, and independently confirms the focused validator at 45 scenario rows / 137 WB operation references / 25 numeric cases.
+
 ## Remaining gates
 
 This block does not prove:
