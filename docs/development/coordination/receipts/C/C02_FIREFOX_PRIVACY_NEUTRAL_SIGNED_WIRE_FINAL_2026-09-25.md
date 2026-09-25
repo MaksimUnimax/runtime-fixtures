@@ -114,6 +114,8 @@ Partial legacy tuples remain invalid. Regression evidence after the fix:
 
 No other concrete defect was reported by that Luna review.
 
+Follow-up read-only Luna review `c02-firefox-admin-fix-review-r3` inspected only `36cc97f99f3a19e8de400916cc43002e9dba8fd2..d24838669c54f21dc161dc48a7e71e0e288384c2` and reported High 0 / Medium 0 / Low 0. It explicitly marked the previous Medium as resolved, confirmed both strict admin projection branches and partial-tuple rejection, and found no authorization weakening or new response-shape defect.
+
 ## Acceptance boundary
 
 This is not deployment acceptance.
