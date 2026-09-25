@@ -717,7 +717,7 @@ describe("P6.2 admin API boundary", () => {
         (count, path) => count + Object.keys(path).length,
         0,
       ),
-    ).toBe(138);
+    ).toBe(139);
     expect(
       Object.keys(
         document.paths["/v1/admin/compatibility/releases/{version}/publish"] ??
