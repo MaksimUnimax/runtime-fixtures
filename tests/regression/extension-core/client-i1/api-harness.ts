@@ -251,8 +251,9 @@ const fixtureProfileBrowserFamilies = (
 )
   .split(",")
   .map((value) => value.trim())
-  .filter((value): value is "chrome" | "opera" | "firefox" | "yandex" =>
-    ["chrome", "opera", "firefox", "yandex"].includes(value),
+  .filter(
+    (value): value is "chrome" | "opera" | "firefox" | "yandex_chromium" =>
+      ["chrome", "opera", "firefox", "yandex_chromium"].includes(value),
   );
 if (!fixtureProfileBrowserFamilies.length)
   throw new Error(
