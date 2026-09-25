@@ -442,6 +442,46 @@ describe.sequential("P3.4 real PostgreSQL authenticated bootstrap", () => {
     expect(response.json().payload).toBeDefined();
   });
 
+  it("keeps an older v1 client on v1 authority after a newer v2 catalog is published", async () => {
+    const v1Release = await graph();
+    const v2Release = await localAuthorityGraph();
+    expect(v2Release.configVersion).toBeGreaterThan(v1Release.configVersion);
+
+    const v1Response = await post(request());
+    const v1Verified = verifyBootstrapEnvelope(
+      v1Response.json(),
+      new Map([[material.keyId, material.publicKey]]),
+    );
+    expect(v1Response.statusCode).toBe(200);
+    expect(v1Verified).toMatchObject({
+      ok: true,
+      payload: {
+        contractVersion: "control_plane_v1",
+        snapshotVersion: "bootstrap_snapshot_v1",
+        configVersion: v1Release.configVersion,
+      },
+    });
+
+    const v2Response = await post({
+      contractVersion: "control_plane_v2",
+      deviceId: principal.deviceId,
+      lastConfigVersion: null,
+    });
+    const v2Verified = verifyBootstrapEnvelopeV2(
+      v2Response.json(),
+      new Map([[material.keyId, material.publicKey]]),
+    );
+    expect(v2Response.statusCode).toBe(200);
+    expect(v2Verified).toMatchObject({
+      ok: true,
+      payload: {
+        contractVersion: "control_plane_v2",
+        snapshotVersion: "bootstrap_snapshot_v2",
+        configVersion: v2Release.configVersion,
+      },
+    });
+  });
+
   it("serves a verified privacy-neutral v2 snapshot without client software metadata", async () => {
     const release = await localAuthorityGraph();
     const response = await post({
