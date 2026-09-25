@@ -19,23 +19,12 @@ import {
   shouldSendMonitoringNotification,
 } from "./runners.js";
 import { createPostgresDurableNoSessionHealthRuntime } from "./health-runtime.js";
+import { parseTelegramOperatorConfig } from "./config.js";
 import { createTelegramTransport } from "./telegram-client.js";
 import { TelegramOperatorService } from "./telegram.js";
 
-const databaseUrl = process.env.DATABASE_URL;
-const token = process.env.TELEGRAM_BOT_TOKEN;
-const operatorIds = new Set(
-  (process.env.TELEGRAM_OPERATOR_IDS ?? "")
-    .split(",")
-    .map((value) => value.trim())
-    .filter(Boolean),
-);
-const notificationChatIds = (process.env.TELEGRAM_NOTIFICATION_CHAT_IDS ?? "")
-  .split(",")
-  .map((value) => value.trim())
-  .filter(Boolean);
-if (!databaseUrl || !token || operatorIds.size === 0)
-  throw new Error("TELEGRAM_OPERATOR_CONFIGURATION_MISSING");
+const { databaseUrl, token, operatorIds, notificationChatIds } =
+  parseTelegramOperatorConfig(process.env);
 
 const database = createDatabaseRuntime(databaseUrl);
 const monitoringStore = createPostgresMonitoringScheduleStore(database);
