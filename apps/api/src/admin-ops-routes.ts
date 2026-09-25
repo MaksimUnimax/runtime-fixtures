@@ -7,7 +7,7 @@ import type {
 import type { Logger } from "pino";
 import type { BrowserFamily } from "@product/shared";
 import type { AdminPermission } from "@product/admin-auth";
-import type { AdminOpsService } from "@product/admin-ops";
+import type { AdminOpsService, SafeDevice } from "@product/admin-ops";
 import {
   AdminAccountParamsV1Schema,
   AdminAccountsQueryV1Schema,
@@ -128,25 +128,22 @@ function userResponse(value: {
     updatedAt: iso(value.updatedAt),
   };
 }
-function deviceResponse(value: {
-  id: string;
-  status: "ACTIVE" | "REVOKED";
-  label: string | null;
-  browserFamily: string;
-  browserVersionLastSeen: string | null;
-  extensionVersionLastSeen: string | null;
-  createdAt: Date;
-  activatedAt: Date | null;
-  lastSeenAt: Date | null;
-  revokedAt: Date | null;
-}) {
-  return {
-    ...value,
-    browserFamily: value.browserFamily as BrowserFamily,
+function deviceResponse(value: SafeDevice) {
+  const common = {
+    id: value.id,
+    status: value.status,
+    label: value.label,
     createdAt: iso(value.createdAt),
     activatedAt: value.activatedAt ? iso(value.activatedAt) : null,
     lastSeenAt: value.lastSeenAt ? iso(value.lastSeenAt) : null,
     revokedAt: value.revokedAt ? iso(value.revokedAt) : null,
+  };
+  if (value.clientMetadata.state === "WITHHELD") return common;
+  return {
+    ...common,
+    browserFamily: value.clientMetadata.browserFamily as BrowserFamily,
+    browserVersionLastSeen: value.clientMetadata.browserVersion,
+    extensionVersionLastSeen: value.clientMetadata.extensionVersion,
   };
 }
 function principalResponse(value: {

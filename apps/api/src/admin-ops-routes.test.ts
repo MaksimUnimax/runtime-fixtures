@@ -534,6 +534,12 @@ describe("P6.2 admin API boundary", () => {
               id: deviceId,
               status: "ACTIVE",
               label: "Work browser",
+              clientMetadata: {
+                state: "PRESENT",
+                browserFamily: "chrome",
+                browserVersion: "140.0",
+                extensionVersion: "6.2.0",
+              },
               browserFamily: "chrome",
               browserVersionLastSeen: "140.0",
               extensionVersionLastSeen: "6.2.0",
