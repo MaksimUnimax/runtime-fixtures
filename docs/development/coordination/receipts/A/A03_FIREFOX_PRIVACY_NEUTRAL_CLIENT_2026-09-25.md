@@ -69,17 +69,18 @@ The repeated full run used the required runtime and runner:
 - `PATH=/root/.nvm/versions/node/v24.20.0/bin:$PATH`
 - `python3 tooling/coordination/control.py A heavy --profile browser -- python3 tooling/checks/extension_core.py --output /root/octoport-control/logs/A/A03_FIREFOX_PRIVACY_NEUTRAL_FINAL_R2/core`
 
-Result: `PASS`, 129/129 gates, Node `v24.20.0`, `live_provider_calls=0`, `installed_acceptance=false`.
-Evidence: `/root/octoport-control/logs/A/A03_FIREFOX_PRIVACY_NEUTRAL_FINAL_R2/core/summary.json` and `gates.json`.
+Merged-tree rehearsal result: `PASS`, 129/129 gates, Node `v24.20.0`, `live_provider_calls=0`, `installed_acceptance=false`.
+Exact final A-only code HEAD `174d8d0386f963ab6796a7ca4e2a05f802f69521` was then rerun independently and also passed 129/129 gates under `/root/octoport-control/logs/A/A03_FIREFOX_PRIVACY_NEUTRAL_FINAL_R3/core/`.
 
 The merge commit itself was not manufactured: `A guard --base origin/main` accepted only A-owned delta, but the repository pre-commit hook re-runs default `A guard` and therefore rejects already-accepted B05 files introduced by the upstream merge. Hooks were not disabled or bypassed. The merge rehearsal was aborted after evidence collection; the A-only checkpoint remained intact.
 
 ## Remaining gates
 
-- A-only final candidate must include the exact store-package assertion update and be re-run on its exact SHA before submit.
+- Exact A-only code candidate `174d8d0386f963ab6796a7ca4e2a05f802f69521` includes the store-package assertion update, passed full `extension_core` 129/129 and was submitted to C.
 - Compatible privacy-neutral server/database/shared-schema implementation is not deployed; no privacy-neutral request was sent to old live/preprod.
-- No real Firefox installed grant/decline/revoke proof yet.
+- Real Firefox 155.0.1 grant/deny/revoke and installed-synthetic neutral→identified→neutral wire proof is now PASS; see `A03_FIREFOX155_PRIVACY_NEUTRAL_INSTALLED_2026-09-25.md`.
+- Compatible backend deployment and full Firefox Work/Ozon/WB acceptance remain open.
 - No AMO submission/readiness claim.
 - Coordination review is needed for the merge-aware pre-commit hook behavior; A will not bypass it.
 
-Verdict: SOURCE/FOCUSED/PACKAGE/FULL_EXTENSION_CORE_PASS_NOT_ACCEPTED.
+Verdict: SOURCE/FOCUSED/PACKAGE/FULL_EXTENSION_CORE/REAL_FIREFOX_CONSENT_WIRE_PASS_NOT_ACCEPTED.
