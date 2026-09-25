@@ -1,5 +1,9 @@
 import { createHmac, hkdfSync } from "node:crypto";
-import { deviceCodeArtifact, deriveDeviceAuthKeys } from "@product/device-auth";
+import {
+  deviceCodeArtifact,
+  deriveDeviceAuthKeys,
+  type DeviceClientMetadata,
+} from "@product/device-auth";
 import {
   deriveActivationRefreshToken,
   deriveExtensionAuthKeys,
@@ -132,6 +136,12 @@ export interface DeviceManagementRepository {
     | { kind: "ok"; devices: SafeDevice[]; nextCursor?: string }
     | { kind: "forbidden" | "invalid-cursor" }
   >;
+  forgetCurrentClientMetadata(input: {
+    sessionId: string;
+    deviceId: string;
+    accountId: string;
+    correlationId: string;
+  }): Promise<"cleared" | "unauthorized">;
   revoke(input: {
     portalUserId: string;
     deviceId: string;
@@ -142,9 +152,10 @@ export interface SafeDevice {
   id: string;
   status: "ACTIVE" | "REVOKED";
   label: string | null;
-  browserFamily: string;
-  browserVersionLastSeen: string | null;
-  extensionVersionLastSeen: string | null;
+  clientMetadata: DeviceClientMetadata;
+  browserFamily?: string;
+  browserVersionLastSeen?: string | null;
+  extensionVersionLastSeen?: string;
   createdAt: Date;
   activatedAt: Date | null;
   lastSeenAt: Date | null;
@@ -271,6 +282,18 @@ export class DeviceManagementService {
               ? ("FORBIDDEN" as const)
               : ("INVALID_CURSOR" as const),
         };
+  }
+  async forgetCurrentClientMetadata(
+    principal: { sessionId: string; deviceId: string; accountId: string },
+    correlationId: string,
+  ) {
+    const result = await this.repository.forgetCurrentClientMetadata({
+      ...principal,
+      correlationId,
+    });
+    return result === "cleared"
+      ? { kind: "CLEARED" as const, deviceId: principal.deviceId }
+      : { kind: "UNAUTHORIZED" as const };
   }
   async revoke(portalUserId: string, deviceId: string, correlationId: string) {
     const r = await this.repository.revoke({

@@ -38,6 +38,29 @@ export interface StartSecrets {
   deviceCode: string;
   userCode: string;
 }
+export type DeviceClientMetadata =
+  | { state: "WITHHELD" }
+  | {
+      state: "PRESENT";
+      browserFamily: BrowserFamily;
+      browserVersion: string | null;
+      extensionVersion: string;
+    };
+export type DeviceAuthorizationStartInput =
+  | {
+      clientType: "browser_extension";
+      browserFamily: BrowserFamily;
+      browserVersion?: string;
+      extensionVersion: string;
+      deviceLabel?: string;
+    }
+  | {
+      clientType: "browser_extension";
+      browserFamily?: never;
+      browserVersion?: never;
+      extensionVersion?: never;
+      deviceLabel?: string;
+    };
 export interface DeviceAuthorizationRecord {
   id: string;
   status: DeviceAuthorizationStatus;
@@ -50,7 +73,7 @@ export interface DeviceAuthorizationRecord {
   browserFamily?: BrowserFamily;
   browserVersion?: string;
   extensionVersion?: string;
-  deviceLabel?: string;
+  deviceLabel?: string | null;
   approvedUserId?: string | null;
   approvedAt?: Date | null;
   deniedAt?: Date | null;
@@ -81,9 +104,10 @@ export interface DeviceAuthorizationRepository {
   ): Promise<
     | {
         id: string;
-        browserFamily: BrowserFamily;
-        browserVersion: string | null;
-        extensionVersion: string;
+        clientMetadata: DeviceClientMetadata;
+        browserFamily?: BrowserFamily;
+        browserVersion?: string | null;
+        extensionVersion?: string;
         deviceLabel: string | null;
         expiresAt: Date;
       }
@@ -307,13 +331,7 @@ export class DeviceAuthorizationService {
     return this.repository.previewPendingAuthorization(id, this.now());
   }
   async start(
-    body: {
-      clientType: "browser_extension";
-      browserFamily: BrowserFamily;
-      browserVersion?: string;
-      extensionVersion: string;
-      deviceLabel?: string;
-    },
+    body: DeviceAuthorizationStartInput,
     idempotencyKey: string,
     ip: string,
     correlationId: string,
@@ -344,9 +362,13 @@ export class DeviceAuthorizationService {
         deviceCodeHash: deviceCodeArtifact(this.keys, deviceCode),
         userCodeHash: userCodeArtifact(this.keys, rawUserCode),
         expiresAt,
-        browserFamily: body.browserFamily,
-        browserVersion: body.browserVersion,
-        extensionVersion: body.extensionVersion,
+        ...(body.browserFamily === undefined
+          ? {}
+          : {
+              browserFamily: body.browserFamily,
+              browserVersion: body.browserVersion,
+              extensionVersion: body.extensionVersion,
+            }),
         deviceLabel: body.deviceLabel,
         envelope: encryptStartSecrets(
           this.keys,
