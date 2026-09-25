@@ -32,6 +32,7 @@ PNPM = os.environ.get("SA_PNPM_BIN", "pnpm")
 API_PORT = os.environ.get("SA_I1_API_PORT", "18101")
 PORTAL_PORT = os.environ.get("SA_I1_PORTAL_PORT", "18111")
 OPERA = os.environ.get("SA_TEST_OPERA", "/usr/bin/opera")
+YANDEX = os.environ.get("SA_TEST_YANDEX", "/root/octoport-control/browsers/A/yandex-beta-26.8.1.1101-1/unpack/opt/yandex/browser-beta/yandex-browser-beta")
 FIREFOX = os.environ.get("SA_TEST_FIREFOX", "/root/octoport-control/browsers/A/firefox-155.0.1/unpack/firefox/firefox")
 GECKO = os.environ.get("SA_TEST_GECKO", "/root/.cache/selenium/geckodriver/linux64/0.37.1/geckodriver")
 TECH = "technicalAndInteraction"
@@ -136,11 +137,11 @@ def activate_playwright(context, popup, portal_port: str, email: str):
     portal.close()
 
 
-def opera_case(runtime: Path, email: str, network_evidence: Path) -> dict:
-    result = {"status": "FAIL", "browser": "opera", "stage": "start"}
-    with sync_playwright() as pw, tempfile.TemporaryDirectory(prefix="octoport-a-v2-opera-") as profile:
+def chromium_family_case(runtime: Path, email: str, network_evidence: Path, *, label: str, executable: str, expected_family: str) -> dict:
+    result = {"status": "FAIL", "browser": label, "stage": "start"}
+    with sync_playwright() as pw, tempfile.TemporaryDirectory(prefix=f"octoport-a-v2-{label}-") as profile:
         ctx = pw.chromium.launch_persistent_context(
-            profile, headless=True, executable_path=OPERA,
+            profile, headless=True, executable_path=executable,
             args=["--no-sandbox", "--disable-dev-shm-usage",
                   f"--disable-extensions-except={runtime}", f"--load-extension={runtime}"],
         )
@@ -179,16 +180,16 @@ def opera_case(runtime: Path, email: str, network_evidence: Path) -> dict:
             assert resolved["canWork"] is True
             assert resolved["aiStatus"] == "RESOLVED"
             assert resolved["profileContract"] == "control_plane_v2"
-            assert "opera" in resolved["profileFamilies"]
-            assert resolved["browser"].get("family") == "opera"
-            opera_rows = json.loads(network_evidence.read_text()) if network_evidence.exists() else []
-            opera_bootstrap = [row for row in opera_rows if row["path"] == "/v1/bootstrap"]
+            assert expected_family in resolved["profileFamilies"]
+            assert resolved["browser"].get("family") == expected_family
+            browser_rows = json.loads(network_evidence.read_text()) if network_evidence.exists() else []
+            browser_bootstrap = [row for row in browser_rows if row["path"] == "/v1/bootstrap"]
             expected_identified_keys = [
                 "browser", "contractVersion", "detectedAi", "deviceId",
                 "extensionVersion", "lastConfigVersion",
             ]
-            if not opera_bootstrap or opera_bootstrap[-1].get("bodyKeys") != expected_identified_keys:
-                raise RuntimeError("OPERA_BOOTSTRAP_REQUEST_SHAPE_MISMATCH")
+            if not browser_bootstrap or browser_bootstrap[-1].get("bodyKeys") != expected_identified_keys:
+                raise RuntimeError(f"{label.upper()}_BOOTSTRAP_REQUEST_SHAPE_MISMATCH")
             result.update({
                 "status": "PASS",
                 "stage": "complete",
@@ -462,6 +463,13 @@ def main(output: Path):
     private_placeholder = output / "unused-private-key.der"
     common = output / "common"
     firefox_runtime = output / "firefox-runtime"
+    selected = os.environ.get("SA_PARITY_BROWSER", "all")
+    if selected not in {"all", "opera", "firefox", "yandex"}:
+        raise RuntimeError("INVALID_PARITY_BROWSER")
+    profile_families = (
+        "yandex_chromium" if selected == "yandex"
+        else "opera,firefox"
+    )
     env = {
         **os.environ,
         "PRODUCT_CONTROL_PLANE_E2E": "1",
@@ -472,7 +480,7 @@ def main(output: Path):
         "SA_I1_FIXTURE_EVIDENCE_PATH": str(fixture_evidence),
         "SA_I1_NETWORK_EVIDENCE_PATH": str(network_evidence),
         "SA_I1_PROFILE_CONTRACT_VERSION": "control_plane_v2",
-        "SA_I1_PROFILE_BROWSER_FAMILIES": "opera,firefox",
+        "SA_I1_PROFILE_BROWSER_FAMILIES": profile_families,
         "SA_I1_FORCE_BETA_BOOTSTRAP": "1",
         "SA_I1_ENABLE_LOCAL_CLIENT_AUTHORITY": "1",
         "SA_I1_REDACT_FIXTURE_IDENTITIES": "1",
@@ -501,7 +509,8 @@ def main(output: Path):
         evidence = json.loads(fixture_evidence.read_text())
         if evidence.get("profile_contract_version") != "control_plane_v2":
             raise RuntimeError("FIXTURE_PROFILE_CONTRACT_MISMATCH")
-        if evidence.get("profile_browser_families") != ["opera", "firefox"]:
+        expected_profile_families = profile_families.split(",")
+        if evidence.get("profile_browser_families") != expected_profile_families:
             raise RuntimeError("FIXTURE_PROFILE_BROWSER_MISMATCH")
         config = subprocess.check_output(
             [NODE, str(ROOT / "tests/regression/extension-core/client-i1/make-browser-config.mjs"),
@@ -532,13 +541,18 @@ def main(output: Path):
         processes.append(portal)
         wait_http(f"http://127.0.0.1:{PORTAL_PORT}/login")
 
-        selected = os.environ.get("SA_PARITY_BROWSER", "all")
-        if selected not in {"all", "opera", "firefox"}:
-            raise RuntimeError("INVALID_PARITY_BROWSER")
         if selected in {"all", "opera"}:
-            result["opera"] = opera_case(common / "runtime", fixture_email("one", namespace), network_evidence)
+            result["opera"] = chromium_family_case(
+                common / "runtime", fixture_email("one", namespace), network_evidence,
+                label="opera", executable=OPERA, expected_family="opera",
+            )
         if selected in {"all", "firefox"}:
             result["firefox"] = firefox_case(firefox_zip, fixture_email("two", namespace), network_evidence)
+        if selected == "yandex":
+            result["yandex"] = chromium_family_case(
+                common / "runtime", fixture_email("one", namespace), network_evidence,
+                label="yandex", executable=YANDEX, expected_family="yandex_chromium",
+            )
         result["fixture"] = {
             "profileContractVersion": evidence.get("profile_contract_version"),
             "profileBrowserFamilies": evidence.get("profile_browser_families"),
@@ -551,7 +565,7 @@ def main(output: Path):
             "bootstrapBodyKeys": [row["bodyKeys"] for row in safe_events if row["path"] == "/v1/bootstrap"],
             "forgetCount": sum(1 for row in safe_events if row["path"] == "/v1/devices/current/client-metadata/forget"),
         }
-        expected = [result[name]["status"] for name in ("opera", "firefox") if name in result]
+        expected = [result[name]["status"] for name in ("opera", "firefox", "yandex") if name in result]
         result["status"] = "PASS" if expected and all(status == "PASS" for status in expected) else "FAIL"
     finally:
         for process in reversed(processes):
