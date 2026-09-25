@@ -1,6 +1,6 @@
 # Источники и пределы проверки
 
-Проверка выполнена 2026-09-23. Внешние требования меняются; перед Submit сверяется реальный dashboard. Снимок проекта не является обещанием неизменности активно работающих A/B/C.
+Базовая проверка выполнена 2026-09-23; WB token-policy повторно сверена по официальным материалам 2026-09-25. Внешние требования меняются; перед Submit сверяется реальный dashboard. Снимок проекта не является обещанием неизменности активно работающих A/B/C.
 
 ## Проект Octoport
 
@@ -51,7 +51,6 @@
 | [Safari extensions](https://developer.apple.com/safari/extensions/) | Реальные Safari web extensions, App Store и web packager без локального Mac/Xcode |
 | [Apple enrollment](https://developer.apple.com/programs/enroll/) | Individual/organization/2FA/identity/membership; региональные цены |
 | [Safari packager detail](https://developer.apple.com/documentation/safariservices/packaging-and-distributing-safari-web-extensions-with-app-store-connect) | Точная ссылка на маршрут; детальный JS-документ не извлечён поисковым инструментом. Ограничения нашего ZIP проверить до обещания готового пути |
-| [WB token authorization](https://dev.wildberries.ru/knowledge-base/articles/019dce8b-461a-78c7-b94c-6b5ea8cc8e86/avtorizatsiia-dlia-servisov) | Найден официальный материал; прямое открытие возвращало HTTP498. Полные правила применимости к Octoport **не подтверждены**, это открытый gate |
-| [WB token connection](https://dev.wildberries.ru/knowledge-base/articles/019d49a0-f9f7-79a4-b5ee-df5dabe9cff4/kak-podkliuchit-sia-po-api-cherez-token) | Аналогично: официальный URL найден, текст не получен из-за498 |
+| [WB token creation](https://seller.wildberries.ru/instructions/ru/ru/material/how-to-create-update-or-delete-a-wb-api-token) | Повторно проверено 2026-09-25: токены действуют 180 дней; Personal token предназначен для собственных/local/on-premise систем, Service — для облачного сервиса из официального каталога, Base — для real-data тестирования/случаев, где другие типы не подходят, Test — только sandbox. Для Personal/Base можно выбрать Read Only, когда запись не нужна |
 
 Не использованы сторонние пересказы API как нормативное основание. WB-семейства в матрице — проектная адаптация бизнес-целей, не подтверждение текущих endpoint/прав. Временные оценки участия владельца и предлагаемый смысловой scoring — планирование на основе объёма, не статистика провайдера или уже измеренная скорость.
