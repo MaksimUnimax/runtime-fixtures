@@ -109,6 +109,24 @@ class VerifyOpsReleaseTest(unittest.TestCase):
         ):
             verify_release(self.root)
 
+    def test_root_only_file_fails(self) -> None:
+        payload = self.root / "payload.txt"
+        payload.chmod(0o600)
+        self._refresh_metadata()
+        with self.assertRaisesRegex(
+            ReleaseVerificationError, "RELEASE_PERMISSIONS_INVALID"
+        ):
+            verify_release(self.root)
+
+    def test_untraversable_directory_fails(self) -> None:
+        runtime = self.root / "runtime"
+        runtime.chmod(0o700)
+        self._refresh_metadata()
+        with self.assertRaisesRegex(
+            ReleaseVerificationError, "RELEASE_PERMISSIONS_INVALID"
+        ):
+            verify_release(self.root)
+
 
 if __name__ == "__main__":
     unittest.main()

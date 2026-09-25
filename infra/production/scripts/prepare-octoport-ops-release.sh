@@ -66,6 +66,11 @@ export PATH="$(dirname "${NODE_BIN}"):${PATH}"
   CI=true "${PNPM_BIN}" install --offline --frozen-lockfile --ignore-scripts --prod
 )
 
+# pnpm's local content-addressable store can preserve root-only read modes from
+# the build host. The immutable release contains no secrets, so normalize the
+# payload for a dedicated non-root service while keeping it non-writable.
+chmod -R a+rX,go-w "${tmp}"
+
 tsx_cli="${tmp}/apps/telegram-operator/node_modules/tsx/dist/cli.mjs"
 entry="${tmp}/apps/telegram-operator/dist/main.js"
 [[ -f "${tsx_cli}" && -f "${entry}" ]] ||

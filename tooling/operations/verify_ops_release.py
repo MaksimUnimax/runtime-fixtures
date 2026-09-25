@@ -112,11 +112,13 @@ def verify_release(root_value: str | Path) -> dict[str, object]:
                 raise ReleaseVerificationError("RELEASE_SYMLINK_INVALID") from error
             continue
         if path.is_dir():
-            if stat.S_IMODE(metadata.st_mode) & 0o022:
+            mode = stat.S_IMODE(metadata.st_mode)
+            if mode & 0o022 or mode & 0o005 != 0o005:
                 raise ReleaseVerificationError("RELEASE_PERMISSIONS_INVALID")
             continue
         if path.is_file():
-            if stat.S_IMODE(metadata.st_mode) & 0o022:
+            mode = stat.S_IMODE(metadata.st_mode)
+            if mode & 0o022 or mode & 0o004 != 0o004:
                 raise ReleaseVerificationError("RELEASE_PERMISSIONS_INVALID")
             name = path.relative_to(root).as_posix()
             if name != "RELEASE_SHA256SUMS":
