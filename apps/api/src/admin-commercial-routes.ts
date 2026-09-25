@@ -15,6 +15,7 @@ import {
   AdminCommercialDefinitionQuerySchema,
   AdminCommercialOverrideQuerySchema,
   AdminCompatibilityQuerySchema,
+  AdminConfigReleaseReadQuerySchema,
   PlanCreateBodySchema,
   PlanDraftBodySchema,
   PlanUpdateBodySchema,
@@ -429,6 +430,27 @@ export function registerAdminCommercialRoutes(
           AdminCompatibilityQuerySchema.parse(r.query),
         ),
       ),
+  );
+  get(
+    "/v1/admin/compatibility/releases/:version",
+    "compatibility.read",
+    { params: z.object({ version: z.string().min(1).max(64) }).strict() },
+    async (r) => {
+      const value = await service.getExtensionRelease(r.params.version);
+      if (!value) fail("NOT_FOUND", 404);
+      return value;
+    },
+  );
+  get(
+    "/v1/admin/compatibility/config-releases/latest",
+    "compatibility.read",
+    { querystring: AdminConfigReleaseReadQuerySchema },
+    async (r) => {
+      const query = AdminConfigReleaseReadQuerySchema.parse(r.query);
+      const value = await service.getLatestConfigRelease(query.contractVersion);
+      if (!value) fail("NOT_FOUND", 404);
+      return value;
+    },
   );
 
   post(

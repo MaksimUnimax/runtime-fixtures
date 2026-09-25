@@ -51,6 +51,7 @@ function fixture(role: AdminRole) {
     () => new Date("2030-01-01T00:00:00Z"),
   );
   const service = {
+    resolve: vi.fn(async () => ({ kind: "BETA" as const })),
     read: vi.fn(async () => state),
     mutate: vi.fn(async () => ({
       kind: "APPLIED" as const,
@@ -104,6 +105,22 @@ describe("S1.1 beta admin route authorization", () => {
       await f.app.close();
     },
   );
+
+  it("reads one account admission without opening or mutating beta", async () => {
+    const f = fixture("ADMIN_SUPPORT");
+    const accountId = "00000000-0000-4000-8000-000000000004";
+    const response = await f.app.inject({
+      method: "GET",
+      url: `/v1/admin/beta/admission/accounts/${accountId}`,
+      headers: f.headers,
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.headers["cache-control"]).toBe("no-store");
+    expect(response.json()).toEqual({ accountId, admitted: true });
+    expect(f.service.resolve).toHaveBeenCalledWith(accountId);
+    expect(f.service.mutate).not.toHaveBeenCalled();
+    await f.app.close();
+  });
 
   it("support can read beta admission but cannot mutate it", async () => {
     const f = fixture("ADMIN_SUPPORT");

@@ -34,6 +34,8 @@ async function fixture(
       | "CHARGEBACK";
     withCheckout?: boolean;
     periodEnd?: Date;
+    billingIntervalUnit?: "DAY" | "MONTH" | "YEAR";
+    billingIntervalCount?: number;
   } = {},
 ) {
   const userId = id(),
@@ -62,9 +64,18 @@ async function fixture(
     "INSERT INTO prices(id,plan_id,code,market_key,channel_key,status) VALUES($1,$2,$3,'ru','web','ACTIVE')",
     [priceId, planId, `pr-${priceId.slice(0, 8)}`],
   );
+  const billingIntervalUnit = options.billingIntervalUnit ?? "MONTH";
+  const billingIntervalCount = options.billingIntervalCount ?? 1;
   await q(
-    "INSERT INTO price_revisions(id,price_id,plan_revision_id,revision,state,amount_minor,currency,billing_interval_unit,billing_interval_count,effective_from,published_at) VALUES($1,$2,$3,1,'PUBLISHED',1900,'RUB','MONTH',1,$4,$4)",
-    [priceRevisionId, priceId, planRevisionId, now],
+    "INSERT INTO price_revisions(id,price_id,plan_revision_id,revision,state,amount_minor,currency,billing_interval_unit,billing_interval_count,effective_from,published_at) VALUES($1,$2,$3,1,'PUBLISHED',1900,'RUB',$4,$5,$6,$6)",
+    [
+      priceRevisionId,
+      priceId,
+      planRevisionId,
+      billingIntervalUnit,
+      billingIntervalCount,
+      now,
+    ],
   );
   const state = options.state ?? "PENDING";
   await q(
@@ -82,7 +93,7 @@ async function fixture(
   if (options.withCheckout !== false) {
     const checkoutId = id();
     await q(
-      "INSERT INTO checkout_intents(id,account_id,price_revision_id,plan_revision_id,provider,state,idempotency_key_hash,request_fingerprint_sha256,admitted_at,amount_minor,currency,billing_interval_unit,billing_interval_count,created_at,updated_at) VALUES($1,$2,$3,$4,'simulator','CREATING',$5,$6,$7,1900,'RUB','MONTH',1,$7,$7)",
+      "INSERT INTO checkout_intents(id,account_id,price_revision_id,plan_revision_id,provider,state,idempotency_key_hash,request_fingerprint_sha256,admitted_at,amount_minor,currency,billing_interval_unit,billing_interval_count,created_at,updated_at) VALUES($1,$2,$3,$4,'simulator','CREATING',$5,$6,$7,1900,'RUB',$8,$9,$7,$7)",
       [
         checkoutId,
         accountId,
@@ -91,6 +102,8 @@ async function fixture(
         sha256(`k-${paymentId}`),
         sha256(`f-${paymentId}`),
         now,
+        billingIntervalUnit,
+        billingIntervalCount,
       ],
     );
     await q(
@@ -413,6 +426,224 @@ describe("P5.5 real PostgreSQL reconciliation and lifecycle", () => {
       ).rows[0]?.source,
     ).toBe("RECONCILIATION");
   });
+  it("success materializes stale ACTIVE before reconciliation activation", async () => {
+    const f = await fixture();
+    const staleId = id();
+    const start = new Date("2026-09-06T00:00:00.000Z");
+    const due = new Date("2026-09-07T11:30:00.000Z");
+    await q(
+      "INSERT INTO subscriptions(id,account_id,state,state_revision,current_plan_revision_id,started_at,current_period_start,current_period_end,state_reason,created_at,updated_at) VALUES($1,$2,'ACTIVE',1,$3,$4,$4,$5,'stale active',$4,$4)",
+      [staleId, f.accountId, f.planRevisionId, start, due],
+    );
+    await q(
+      "INSERT INTO subscription_transitions(subscription_id,transition_revision,to_state,source,actor_type,reason,occurred_at) VALUES($1,1,'ACTIVE','ADMIN','SYSTEM','stale fixture',$2)",
+      [staleId, start],
+    );
+    await q(
+      "INSERT INTO billing_reconciliation_jobs(payment_id,state,next_attempt_at,created_at,updated_at) VALUES($1,'READY',$2,$2,$2)",
+      [f.paymentId, now],
+    );
+    const repo = createP5ReconciliationRepository(db);
+    const claim = (
+      await repo.claimDue({ now, leaseMs: 60_000, batchSize: 1 })
+    )[0]!;
+    const result = await repo.applyStatus({
+      claim,
+      status: {
+        kind: "FOUND",
+        state: "SUCCEEDED",
+        amountMinor: 1900,
+        currency: "RUB",
+        statusAt: new Date("2026-09-07T11:00:00Z"),
+      },
+      processedAt: now,
+      correlationId: id(),
+    });
+    expect(result.kind).toBe("APPLIED");
+    expect(
+      (
+        await q<{ state: string }>(
+          "SELECT state FROM subscriptions WHERE id=$1",
+          [staleId],
+        )
+      ).rows[0]?.state,
+    ).toBe("EXPIRED");
+    expect(
+      (
+        await q<{ count: string }>(
+          "SELECT count(*)::text AS count FROM subscriptions WHERE account_id=$1 AND state <> 'EXPIRED'",
+          [f.accountId],
+        )
+      ).rows[0]?.count,
+    ).toBe("1");
+    expect(
+      (
+        await q<{
+          from_state: string | null;
+          to_state: string;
+          occurred_at: Date;
+        }>(
+          "SELECT from_state,to_state,occurred_at FROM subscription_transitions WHERE subscription_id=$1 ORDER BY transition_revision",
+          [staleId],
+        )
+      ).rows.map((row) => ({
+        fromState: row.from_state,
+        toState: row.to_state,
+        occurredAt: new Date(row.occurred_at).toISOString(),
+      })),
+    ).toEqual([
+      { fromState: null, toState: "ACTIVE", occurredAt: start.toISOString() },
+      {
+        fromState: "ACTIVE",
+        toState: "EXPIRED",
+        occurredAt: due.toISOString(),
+      },
+    ]);
+  });
+
+  it("worker-first and inline-first reconciliation produce the same stale-subscription semantic history", async () => {
+    const f = await fixture();
+    const staleId = id();
+    const start = new Date("2026-09-06T00:00:00.000Z");
+    const due = new Date("2026-09-07T11:30:00.000Z");
+    await q(
+      "INSERT INTO subscriptions(id,account_id,state,state_revision,current_plan_revision_id,started_at,current_period_start,current_period_end,state_reason,created_at,updated_at) VALUES($1,$2,'ACTIVE',1,$3,$4,$4,$5,'stale active',$4,$4)",
+      [staleId, f.accountId, f.planRevisionId, start, due],
+    );
+    await q(
+      "INSERT INTO subscription_transitions(subscription_id,transition_revision,to_state,source,actor_type,reason,occurred_at) VALUES($1,1,'ACTIVE','ADMIN','SYSTEM','stale fixture',$2)",
+      [staleId, start],
+    );
+    const worker = createP5SubscriptionLifecycleRepository(db);
+    expect(
+      await worker.processDue({
+        now,
+        batchSize: 10,
+        correlationId: id(),
+      }),
+    ).toMatchObject({ transitioned: 1, corrupted: 0 });
+    await q(
+      "INSERT INTO billing_reconciliation_jobs(payment_id,state,next_attempt_at,created_at,updated_at) VALUES($1,'READY',$2,$2,$2)",
+      [f.paymentId, now],
+    );
+    const repo = createP5ReconciliationRepository(db);
+    const claim = (
+      await repo.claimDue({ now, leaseMs: 60_000, batchSize: 1 })
+    )[0]!;
+    expect(
+      (
+        await repo.applyStatus({
+          claim,
+          status: {
+            kind: "FOUND",
+            state: "SUCCEEDED",
+            amountMinor: 1900,
+            currency: "RUB",
+            statusAt: new Date("2026-09-07T11:00:00Z"),
+          },
+          processedAt: now,
+          correlationId: id(),
+        })
+      ).kind,
+    ).toBe("APPLIED");
+    expect(
+      (
+        await q<{
+          from_state: string | null;
+          to_state: string;
+          occurred_at: Date;
+        }>(
+          "SELECT from_state,to_state,occurred_at FROM subscription_transitions WHERE subscription_id=$1 ORDER BY transition_revision",
+          [staleId],
+        )
+      ).rows.map((row) => ({
+        fromState: row.from_state,
+        toState: row.to_state,
+        occurredAt: new Date(row.occurred_at).toISOString(),
+      })),
+    ).toEqual([
+      { fromState: null, toState: "ACTIVE", occurredAt: start.toISOString() },
+      {
+        fromState: "ACTIVE",
+        toState: "EXPIRED",
+        occurredAt: due.toISOString(),
+      },
+    ]);
+    expect(
+      (
+        await q<{ count: string }>(
+          "SELECT count(*)::text AS count FROM subscriptions WHERE account_id=$1 AND state <> 'EXPIRED'",
+          [f.accountId],
+        )
+      ).rows[0]?.count,
+    ).toBe("1");
+  });
+
+  it("immediately expires a delayed reconciliation subscription whose provider period already ended", async () => {
+    const f = await fixture({
+      billingIntervalUnit: "DAY",
+      billingIntervalCount: 1,
+    });
+    await q(
+      "INSERT INTO billing_reconciliation_jobs(payment_id,state,next_attempt_at,created_at,updated_at) VALUES($1,'READY',$2,$2,$2)",
+      [f.paymentId, now],
+    );
+    const repo = createP5ReconciliationRepository(db);
+    const claim = (
+      await repo.claimDue({ now, leaseMs: 60_000, batchSize: 1 })
+    )[0]!;
+    const processedAt = new Date("2026-09-09T12:00:00.000Z");
+    expect(
+      (
+        await repo.applyStatus({
+          claim,
+          status: {
+            kind: "FOUND",
+            state: "SUCCEEDED",
+            amountMinor: 1900,
+            currency: "RUB",
+            statusAt: new Date("2026-09-07T11:00:00Z"),
+          },
+          processedAt,
+          correlationId: id(),
+        })
+      ).kind,
+    ).toBe("APPLIED");
+    const payment = (
+      await q<{ subscription_id: string }>(
+        "SELECT subscription_id FROM payments WHERE id=$1",
+        [f.paymentId],
+      )
+    ).rows[0]!;
+    expect(
+      (
+        await q<{ state: string }>(
+          "SELECT state FROM subscriptions WHERE id=$1",
+          [payment.subscription_id],
+        )
+      ).rows[0]?.state,
+    ).toBe("EXPIRED");
+    expect(
+      (
+        await q<{ from_state: string | null; to_state: string }>(
+          "SELECT from_state,to_state FROM subscription_transitions WHERE subscription_id=$1 ORDER BY transition_revision",
+          [payment.subscription_id],
+        )
+      ).rows.map((row) => [row.from_state, row.to_state]),
+    ).toEqual([
+      [null, "ACTIVE"],
+      ["ACTIVE", "EXPIRED"],
+    ]);
+    expect(
+      (
+        await q<{ count: string }>(
+          "SELECT count(*)::text AS count FROM subscriptions WHERE account_id=$1 AND state <> 'EXPIRED'",
+          [f.accountId],
+        )
+      ).rows[0]?.count,
+    ).toBe("0");
+  });
+
   it("success settles the job", async () => {
     const f = await fixture();
     await q(

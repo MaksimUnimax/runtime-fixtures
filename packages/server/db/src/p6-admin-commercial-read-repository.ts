@@ -1,6 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type {
   AdminCommercialReadRepository,
+  AdminConfigReleaseRead,
+  AdminExtensionReleaseRead,
   CompatibilityAdminRevision,
 } from "@product/admin-commercial";
 import type { AccountEntitlementOverride } from "@product/entitlements";
@@ -240,9 +242,47 @@ export function createP6AdminCommercialReadRepository(
       });
       return result.kind === "OK" ? result.value : { kind: "NOT_FOUND" };
     },
+    async getExtensionRelease(version) {
+      const r = await runtime.query<any>(
+        `SELECT r.id,r.version,r.release_channel AS "releaseChannel",
+          r.artifact_sha256 AS "artifactSha256",r.released_at AS "releasedAt",
+          r.created_at AS "createdAt",
+          COALESCE((SELECT array_agg(contract_version::text ORDER BY contract_version::text)
+            FROM extension_release_contracts c WHERE c.release_id=r.id),ARRAY[]::text[]) AS "supportedContracts",
+          COALESCE((SELECT array_agg(browser_family::text ORDER BY browser_family::text)
+            FROM extension_release_browsers b WHERE b.release_id=r.id),ARRAY[]::text[]) AS "supportedBrowsers"
+         FROM extension_releases r WHERE r.version=$1`,
+        [version],
+      );
+      return r.rows[0] ? (r.rows[0] as AdminExtensionReleaseRead) : null;
+    },
+    async getLatestConfigRelease(contractVersion) {
+      const r = await runtime.query<any>(
+        `SELECT c.config_version AS "configVersion",c.contract_version AS "contractVersion",
+          c.snapshot_version AS "snapshotVersion",c.envelope_version AS "envelopeVersion",
+          c.content_hash_sha256 AS "contentHashSha256",
+          c.source_fingerprint_sha256 AS "sourceFingerprintSha256",
+          c.signing_key_id AS "signingKeyId",c.published_at AS "publishedAt",
+          c.created_at AS "createdAt",
+          COALESCE((SELECT array_agg(policy_revision_id ORDER BY policy_revision_id)
+            FROM config_release_compatibility_policies p
+            WHERE p.config_version=c.config_version),'{}') AS "compatibilityPolicyRevisionIds"
+         FROM config_releases c WHERE c.contract_version=$1
+         ORDER BY c.config_version DESC LIMIT 1`,
+        [contractVersion],
+      );
+      if (!r.rows[0]) return null;
+      return {
+        ...r.rows[0],
+        configVersion: Number(r.rows[0].configVersion),
+        compatibilityPolicyRevisionIds: [
+          ...(r.rows[0].compatibilityPolicyRevisionIds ?? []),
+        ].map(String),
+      } as AdminConfigReleaseRead;
+    },
     async listCompatibility(input) {
-      const args: unknown[] = [],
-        where: string[] = ["p.contract_version='control_plane_v1'"];
+      const args: unknown[] = [input.contractVersion ?? "control_plane_v1"],
+        where: string[] = ["p.contract_version=$1"];
       if (input.policyKey) {
         args.push(input.policyKey);
         where.push(`p.policy_key=$${args.length}`);

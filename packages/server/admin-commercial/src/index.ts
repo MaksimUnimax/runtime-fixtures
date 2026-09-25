@@ -121,11 +121,16 @@ export const AdminCommercialOverrideQuerySchema = z
   .strict();
 export const AdminCompatibilityQuerySchema = z
   .object({
+    contractVersion: ContractVersionSchema.optional(),
     policyKey: Machine.optional(),
     scope: z.union([z.literal("GLOBAL"), BrowserFamilySchema]).optional(),
     limit: Limit,
     cursor: Cursor,
   })
+  .strict();
+
+export const AdminConfigReleaseReadQuerySchema = z
+  .object({ contractVersion: ContractVersionSchema })
   .strict();
 export const PlanCreateBodySchema = z
   .object({ code: Machine, reason: Reason })
@@ -379,6 +384,12 @@ export type AdminCommercialReadRepository = {
     | CommercialEntitlementResolution
     | { kind: "ACCOUNT_NOT_FOUND" | "NO_PLAN_BINDING" | "NOT_FOUND" }
   >;
+  getExtensionRelease(
+    version: string,
+  ): Promise<AdminExtensionReleaseRead | null>;
+  getLatestConfigRelease(
+    contractVersion: "control_plane_v1" | "control_plane_v2",
+  ): Promise<AdminConfigReleaseRead | null>;
   listCompatibility(
     input: z.infer<typeof AdminCompatibilityQuerySchema>,
   ): Promise<
@@ -388,6 +399,22 @@ export type AdminCommercialReadRepository = {
 export type CompatibilityAdminRevision = CompatibilityPolicyRevision & {
   blockedVersions: string[];
   linkedConfigVersions: number[];
+};
+export type AdminExtensionReleaseRead = ExtensionRelease & {
+  supportedContracts: Array<"control_plane_v1" | "control_plane_v2">;
+  supportedBrowsers: BrowserFamily[];
+};
+export type AdminConfigReleaseRead = {
+  configVersion: number;
+  contractVersion: "control_plane_v1" | "control_plane_v2";
+  snapshotVersion: "bootstrap_snapshot_v1" | "bootstrap_snapshot_v2";
+  envelopeVersion: "bootstrap_envelope_v1" | "bootstrap_envelope_v2";
+  contentHashSha256: string;
+  sourceFingerprintSha256: string;
+  signingKeyId: string;
+  compatibilityPolicyRevisionIds: string[];
+  publishedAt: Date;
+  createdAt: Date;
 };
 export type AdminCommercialService = AdminCommercialReadRepository & {
   publishConfigRelease(input: {

@@ -495,6 +495,47 @@ describe.sequential("P5.3 simulated checkout on real PostgreSQL", () => {
       ).kind,
     ).toBe("READY");
   });
+  it("31a admits checkout when stale ACTIVE is due but lifecycle worker has not run", async () => {
+    const customer = await account();
+    const commercial = await offer();
+    const staleId = id();
+    const start = new Date("2026-09-01T00:00:00.000Z");
+    const due = new Date("2026-09-06T11:00:00.000Z");
+    await q(
+      "INSERT INTO subscriptions(id,account_id,state,state_revision,current_plan_revision_id,started_at,current_period_start,current_period_end,state_reason,created_at,updated_at) VALUES($1,$2,'ACTIVE',1,$3,$4,$4,$5,'stale active',$4,$4)",
+      [staleId, customer.accountId, commercial.planRevisionId, start, due],
+    );
+    await q(
+      "INSERT INTO subscription_transitions(subscription_id,transition_revision,to_state,source,actor_type,reason,occurred_at) VALUES($1,1,'ACTIVE','ADMIN','SYSTEM','stale fixture',$2)",
+      [staleId, start],
+    );
+    const result = await service().createCheckout(
+      {
+        accountId: customer.accountId,
+        priceRevisionId: commercial.priceRevisionId,
+        idempotencyKey: key(),
+      },
+      context(customer.userId),
+    );
+    expect(result.kind).toBe("READY");
+    expect(
+      (
+        await q<{ state: string }>(
+          "SELECT state FROM subscriptions WHERE id=$1",
+          [staleId],
+        )
+      ).rows[0]?.state,
+    ).toBe("EXPIRED");
+    expect(
+      (
+        await q<{ action: string }>(
+          "SELECT action FROM audit_events WHERE target_id=$1 AND action='SUBSCRIPTION_EXPIRED'",
+          [staleId],
+        )
+      ).rows,
+    ).toHaveLength(1);
+  });
+
   it("32 maps closed sale exactly", async () =>
     expect(
       (await checkout({ offerOptions: { selected: false } })).result,

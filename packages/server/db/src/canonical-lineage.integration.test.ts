@@ -10,6 +10,81 @@ const runtime = createDatabaseRuntime(connectionString);
 describe.sequential("canonical product and monitoring migration intake", () => {
   beforeAll(() => runtime.ready());
   afterAll(() => runtime.close());
+
+  it("upgrades the observed 22-entry owner-test prefix to current0051 without losing rows", async () => {
+    await runtime.query(
+      "DROP SCHEMA IF EXISTS public CASCADE; DROP SCHEMA IF EXISTS drizzle CASCADE; CREATE SCHEMA public",
+    );
+    const directory = await mkdtemp(join(tmpdir(), "octoport-prefix22-"));
+    try {
+      const journal = JSON.parse(
+        await readFile(join(migrationsFolder, "meta/_journal.json"), "utf8"),
+      ) as {
+        entries: Array<{ tag: string; when: number }>;
+      };
+      const currentCount = journal.entries.length;
+      const currentLatest = journal.entries.at(-1);
+      expect(currentCount).toBe(40);
+      expect(currentLatest).toMatchObject({
+        tag: "0051_firefox_privacy_neutral_device_metadata",
+        when: 1790071018000,
+      });
+
+      const prefix = { ...journal, entries: journal.entries.slice(0, 22) };
+      await mkdir(join(directory, "meta"));
+      await writeFile(
+        join(directory, "meta/_journal.json"),
+        JSON.stringify(prefix),
+      );
+      for (const entry of prefix.entries)
+        await cp(
+          join(migrationsFolder, entry.tag + ".sql"),
+          join(directory, entry.tag + ".sql"),
+        );
+
+      await runMigrations({ connectionString, migrationsDirectory: directory });
+      const id = "10000000-0000-4000-8000-000000000022";
+      await runtime.query("INSERT INTO users(id) VALUES($1)", [id]);
+
+      const before = await runtime.query<{
+        hash: string;
+        created_at: string;
+      }>(
+        "SELECT hash,created_at::text FROM drizzle.__drizzle_migrations ORDER BY created_at,id",
+      );
+      expect(before.rows).toHaveLength(22);
+
+      await runMigrations({ connectionString });
+
+      expect(
+        (await runtime.query("SELECT id FROM users WHERE id=$1", [id])).rows,
+      ).toEqual([{ id }]);
+      expect(
+        (
+          await runtime.query(
+            "SELECT count(*)::int AS count,max(created_at)::text AS latest FROM drizzle.__drizzle_migrations",
+          )
+        ).rows,
+      ).toEqual([{ count: 40, latest: "1790071018000" }]);
+      expect(
+        (
+          await runtime.query(
+            "SELECT to_regclass('swagger_source_requests')::text AS name",
+          )
+        ).rows[0]?.name,
+      ).toBe("swagger_source_requests");
+      expect(
+        (
+          await runtime.query(
+            "SELECT is_nullable FROM information_schema.columns WHERE table_schema='public' AND table_name='devices' AND column_name='browser_family'",
+          )
+        ).rows,
+      ).toEqual([{ is_nullable: "YES" }]);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   it("upgrades the preserved 23-entry product prefix without losing rows", async () => {
     await runtime.query(
       "DROP SCHEMA IF EXISTS public CASCADE; DROP SCHEMA IF EXISTS drizzle CASCADE; CREATE SCHEMA public",
