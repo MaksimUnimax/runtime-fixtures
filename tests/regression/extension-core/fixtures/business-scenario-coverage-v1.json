@@ -641,7 +641,7 @@
     {
       "id": "CAP-12",
       "ozonCoverage": "COMPOSITE",
-      "wbCoverage": "BOUNDARY",
+      "wbCoverage": "COMPOSITE",
       "ozonOperations": ["returns_list", "order_cancel_status"],
       "wbOperations": [
         "buyer_return_claims",
@@ -656,7 +656,7 @@
       "periodPolicy": "EXPLICIT_WHERE_APPLICABLE",
       "continuationPolicy": "EXPLICIT_PAGINATION",
       "omissionPolicy": "MISSING_NOT_ZERO",
-      "externalDependency": "WB_CANCELLATION_EVENT_SOURCE_AND_SEMANTICS_NOT_VERIFIED",
+      "externalDependency": "OFFICIAL_WB_STATUS_SCHEMA_CONFIRMED__LIVE_VALUE_GOLD_SET_REQUIRED",
       "numericFixtures": ["returns_boundary"]
     },
     {

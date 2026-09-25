@@ -58,8 +58,8 @@ Validator result:
 
 WB operation-level coverage states:
 - `DIRECT`: 2;
-- `COMPOSITE`: 32;
-- `BOUNDARY`: 6;
+- `COMPOSITE`: 33;
+- `BOUNDARY`: 5;
 - `EXTERNAL_CONTEXT`: 3;
 - `CONTRIBUTION_ONLY`: 1;
 - `LOCAL_FILE_HISTORY`: 1.
@@ -68,7 +68,6 @@ The non-feature/full-boundary rows are deliberately visible:
 - `STD-10` — public incident context required;
 - `STD-11` — WB stock/sales/finance/returns signals do not prove inventory movement/write-off event semantics;
 - `STD-14`, `STD-15` — buyer-specific delivery availability is not inferred from generic WB signals;
-- `CAP-12` — WB return signals and order-status routes do not yet prove cancellation event semantics;
 - `CAP-02` — no single WB equivalent is claimed for Ozon product visibility;
 - `CAP-15` — no exact WB analogue is invented for Ozon FBS error index;
 - `CAP-20` — public research belongs to the AI/web evidence layer;
@@ -141,8 +140,8 @@ Real OTP, real marketplace credentials, real AI sessions, second real installati
 A recommends that C **not** convert the current mapping into `PASS_FEATURE` yet.
 
 A source evidence supports these machine states conceptually:
-- 34 WB `DIRECT|COMPOSITE` rows: `PINNED_OPERATION_MAPPING_READY__FIELD_SCHEMA_LIVE_REQUIRED`;
-- 6 `BOUNDARY` rows: `PINNED_MAPPING_BOUNDARY__NO_FALSE_EQUIVALENT`;
+- 35 WB `DIRECT|COMPOSITE` rows: `PINNED_OPERATION_MAPPING_READY__FIELD_SCHEMA_LIVE_REQUIRED`;
+- 5 `BOUNDARY` rows: `PINNED_MAPPING_BOUNDARY__NO_FALSE_EQUIVALENT`;
 - 3 `EXTERNAL_CONTEXT` rows: `EXTERNAL_CONTEXT_REQUIRED`;
 - `CAP-24`: `CONTRIBUTION_ONLY__FULL_PROFIT_DEFERRED`;
 - `CAP-25`: `LOCAL_FILE_HISTORY__SEARCH_ENTITLEMENT_REQUIRED`.
@@ -154,6 +153,18 @@ Exact wording/status-column mutation belongs to C. The existing `API_MAPPING_REQ
 Read-only Luna review evidence: `/root/octoport-control/logs/A/a04-business-coverage-review-result.md`. The review of exact candidate `87d523d6146dbdac837f286bec76dd92731671af` found two High and two Medium evidence defects: nullable numeric coercion, duplicate join-key acceptance, overclaimed WB movement coverage for `STD-11`, and overclaimed WB cancellation coverage for `CAP-12`. The follow-up candidate fixes all four by failing incomplete numeric inputs closed, rejecting duplicate keys on both sides, and downgrading those two WB scenarios to explicit `BOUNDARY` states. Targeted read-only re-review of exact `1c882488031d74db734b6fe01706dde9dbaca8ea` is recorded at `/root/octoport-control/logs/A/a04-business-coverage-rereview-result.md`: all four findings CLOSED, no new High/Medium findings. The later receipt-only commit does not change executable/test fixture bytes. No runtime/provider behavior is added.
 
 Follow-up read-only Luna re-review of exact semantic-fix commit `1c882488031d74db734b6fe01706dde9dbaca8ea` is recorded at `/root/octoport-control/logs/A/a04-business-coverage-rereview-result.md`. It marks all four prior findings CLOSED, reports no new High/Medium findings, and independently confirms the focused validator at 45 scenario rows / 137 WB operation references / 25 numeric cases.
+
+## Current official WB schema reconciliation — 2026-09-25
+
+Primary WB documentation was checked after the first two Luna reviews rather than inferring field semantics from operation names:
+- FBS `POST /api/v3/orders/status` documents `supplierStatus=cancel` and WB-side cancellation states including `canceled`, `canceled_by_client`, `declined_by_client`, and `defect` (`https://dev.wildberries.ru/en/openapi/orders-fbs`).
+- DBS `POST /api/marketplace/v3/dbs/orders/status/info` documents seller `cancel`/buyer `reject` and WB-side cancellation states; current release notes say these list-based methods replace the deprecated single-order DBS routes (`https://dev.wildberries.ru/en/openapi/orders-dbs`).
+- DBW official documentation states that the DBW order surface manages statuses/cancellation and uses `receive` vs `reject` for buyer acceptance/refusal (`https://dev.wildberries.ru/en/openapi/orders-dbw`).
+- the pinned registry maps `fbs_order_statuses`, `dbs_order_statuses`, and `dbw_order_statuses` to the corresponding current READ endpoints, and `goods_return` / `buyer_return_claims` cover the return side.
+
+Therefore `CAP-12` is upgraded from WB `BOUNDARY` to operation/schema-level `COMPOSITE`. This still does **not** claim live-account values, owner gold-set agreement, or full provider-field acceptance; its external dependency remains `LIVE_VALUE_GOLD_SET_REQUIRED`.
+
+`STD-11` remains `BOUNDARY`. Official WB Analytics documents current and daily stock-history reports, but those snapshots/history do not identify a causal inventory movement/write-off event source. No causal movement is inferred from a stock delta.
 
 ## Remaining gates
 
