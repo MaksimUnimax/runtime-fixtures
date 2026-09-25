@@ -139,16 +139,10 @@ async function currentSubscription(
   planRevisionId: string,
   state = "ACTIVE",
 ) {
-  const inserted = await q<{ id: string }>(
-    "INSERT INTO subscriptions(account_id,state,state_revision,current_plan_revision_id,started_at,current_period_start,current_period_end,state_reason) VALUES($1,$2,1,$3,$4,$4,$5,'P5.3 current fixture') RETURNING id",
+  await q(
+    "INSERT INTO subscriptions(account_id,state,state_revision,current_plan_revision_id,started_at,current_period_start,current_period_end,state_reason) VALUES($1,$2,1,$3,$4,$4,$5,'P5.3 current fixture')",
     [accountId, state, planRevisionId, clock, new Date("2026-10-01T00:00:00Z")],
   );
-  const subscriptionId = inserted.rows[0]!.id;
-  await q(
-    "INSERT INTO subscription_transitions(subscription_id,transition_revision,from_state,to_state,source,actor_type,reason,occurred_at) VALUES($1,1,NULL,$2,'ADMIN','SYSTEM','P5.3 current fixture',$3)",
-    [subscriptionId, state, clock],
-  );
-  return subscriptionId;
 }
 
 function service(
@@ -479,115 +473,6 @@ describe.sequential("P5.3 simulated checkout on real PostgreSQL", () => {
       kind: "REJECTED",
       code: "CURRENT_SUBSCRIPTION_EXISTS",
     });
-  });
-  it("30a admits checkout after inline expiry of a due ACTIVE subscription", async () => {
-    const customer = await account();
-    const commercial = await offer();
-    await currentSubscription(customer.accountId, commercial.planRevisionId);
-    await q(
-      "UPDATE subscriptions SET current_period_end=$1 WHERE account_id=$2",
-      [new Date("2026-09-08T00:00:00Z"), customer.accountId],
-    );
-    clock = new Date("2026-09-10T00:00:00Z");
-    const result = await service().createCheckout(
-      {
-        accountId: customer.accountId,
-        priceRevisionId: commercial.priceRevisionId,
-        idempotencyKey: key(),
-      },
-      context(customer.userId),
-    );
-    expect(result.kind).toBe("READY");
-    expect(
-      (
-        await q<{ state: string }>(
-          "SELECT state FROM subscriptions WHERE account_id=$1",
-          [customer.accountId],
-        )
-      ).rows[0]?.state,
-    ).toBe("EXPIRED");
-  });
-  it("30b unauthorized prepare does not materialize expiry", async () => {
-    const customer = await account({ owner: false });
-    const commercial = await offer();
-    await currentSubscription(customer.accountId, commercial.planRevisionId);
-    await q(
-      "UPDATE subscriptions SET current_period_end=$1 WHERE account_id=$2",
-      [new Date("2026-09-08T00:00:00Z"), customer.accountId],
-    );
-    clock = new Date("2026-09-10T00:00:00Z");
-    const result = await service().createCheckout(
-      {
-        accountId: customer.accountId,
-        priceRevisionId: commercial.priceRevisionId,
-        idempotencyKey: key(),
-      },
-      context(customer.userId),
-    );
-    expect(result).toMatchObject({ kind: "REJECTED", code: "FORBIDDEN" });
-    expect(
-      (
-        await q<{ state: string }>(
-          "SELECT state FROM subscriptions WHERE account_id=$1",
-          [customer.accountId],
-        )
-      ).rows[0]?.state,
-    ).toBe("ACTIVE");
-  });
-  it("30c finalize expires a subscription that became due after prepare", async () => {
-    const customer = await account();
-    const commercial = await offer();
-    const delayedSubscription = createCheckoutService({
-      repository: createP5CheckoutRepository(db, { now: () => clock }),
-      offerResolver: createP4CommercialCatalogRepository(db),
-      provider: {
-        providerKey: "simulator",
-        async createCheckout() {
-          await q(
-            "INSERT INTO subscriptions(account_id,state,state_revision,current_plan_revision_id,started_at,current_period_start,current_period_end,state_reason) VALUES($1,'ACTIVE',1,$2,$3,$3,$4,'P5.3 finalize fixture')",
-            [
-              customer.accountId,
-              commercial.planRevisionId,
-              new Date("2026-09-01T00:00:00Z"),
-              new Date("2026-10-01T00:00:00Z"),
-            ],
-          );
-          await q(
-            "INSERT INTO subscription_transitions(subscription_id,transition_revision,from_state,to_state,source,actor_type,reason,occurred_at) SELECT id,1,NULL,'ACTIVE','ADMIN','SYSTEM','P5.3 finalize lifecycle fixture',current_period_start FROM subscriptions WHERE account_id=$1",
-            [customer.accountId],
-          );
-          await q(
-            "UPDATE subscriptions SET current_period_end=$1 WHERE account_id=$2",
-            [new Date("2026-09-08T00:00:00Z"), customer.accountId],
-          );
-          return {
-            kind: "CREATED" as const,
-            providerCheckoutId: `co_${id()}`,
-            providerPaymentId: `pay_${id()}`,
-            checkoutReference: `ref_${id()}`,
-          };
-        },
-      },
-      now: () => clock,
-    });
-    clock = new Date("2026-09-10T00:00:00Z");
-    const result = await delayedSubscription.createCheckout(
-      {
-        accountId: customer.accountId,
-        priceRevisionId: commercial.priceRevisionId,
-        idempotencyKey: key(),
-      },
-      context(customer.userId),
-    );
-    expect(result.kind).toBe("READY");
-    expect(
-      (
-        await q<{ state: string }>(
-          "SELECT state FROM subscriptions WHERE account_id=$1 AND state='EXPIRED' LIMIT 1",
-          [customer.accountId],
-        )
-      ).rows[0]?.state,
-    ).toBe("EXPIRED");
   });
   it("31 permits only expired subscription history", async () => {
     const customer = await account();

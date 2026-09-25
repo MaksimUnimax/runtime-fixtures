@@ -17,7 +17,6 @@ import {
 } from "@product/subscriptions";
 import type { DatabaseQuery, DatabaseRuntime } from "./index.js";
 import { safeAuditReason } from "./safe-audit.js";
-import { transitionDueSubscriptionForAccount } from "./p5-subscription-lifecycle-transition.js";
 
 type Query = Pick<DatabaseQuery, "query">;
 type Row = {
@@ -226,13 +225,6 @@ export function createP5SubscriptionRepository(
       });
       if (!(await accountLock(q, command.accountId)))
         return rejection("ACCOUNT_NOT_FOUND");
-      const lifecycle = await transitionDueSubscriptionForAccount(q, {
-        accountId: command.accountId,
-        now: capturedNow,
-        correlationId: context.correlationId,
-      });
-      if (lifecycle.kind === "CORRUPTED")
-        return rejection("SUBSCRIPTION_CORRUPTED");
       const existing = await q.query<{ id: string }>(
         "SELECT id FROM subscriptions WHERE account_id=$1 AND state <> 'EXPIRED' LIMIT 1",
         [command.accountId],

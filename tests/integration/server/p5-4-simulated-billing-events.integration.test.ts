@@ -597,64 +597,6 @@ describe.sequential(
       expect(await rows("subscriptions")).toHaveLength(1);
     });
 
-    it("26a expires due ACTIVE history before payment activation", async () => {
-      const f = await fixture();
-      const oldId = id();
-      const dueAt = new Date("2030-09-07T00:00:00Z");
-      await q(
-        "INSERT INTO subscriptions(id,account_id,state,state_revision,current_plan_revision_id,started_at,current_period_start,current_period_end,state_reason,created_at,updated_at) VALUES($1,$2,'ACTIVE',1,$3,$4,$4,$5,'existing',$4,$4)",
-        [oldId, f.accountId, f.planRevisionId, createdAt, dueAt],
-      );
-      await q(
-        "INSERT INTO subscription_transitions(subscription_id,transition_revision,from_state,to_state,source,actor_type,reason,occurred_at) VALUES($1,1,NULL,'ACTIVE','ADMIN','SYSTEM','fixture',$2)",
-        [oldId, createdAt],
-      );
-      const result = await deliver(f);
-      expect(result.kind).toBe("APPLIED");
-      const expired = await q<{ state: string }>(
-        "SELECT state FROM subscriptions WHERE id=$1",
-        [oldId],
-      );
-      expect(expired.rows[0]?.state).toBe("EXPIRED");
-      expect(await rows("subscriptions")).toHaveLength(2);
-      expect(
-        (await rows("subscriptions")).map((row) => row.state).sort(),
-      ).toEqual(["ACTIVE", "EXPIRED"]);
-    });
-
-    it("26b due GRACE becomes PAST_DUE and still conflicts with payment activation", async () => {
-      const f = await fixture();
-      const oldId = id();
-      await q(
-        "INSERT INTO subscriptions(id,account_id,state,state_revision,current_plan_revision_id,started_at,current_period_start,current_period_end,grace_until,state_reason,created_at,updated_at) VALUES($1,$2,'GRACE',2,$3,$4,$4,$5,$6,'existing',$4,$4)",
-        [
-          oldId,
-          f.accountId,
-          f.planRevisionId,
-          createdAt,
-          new Date("2030-09-07T00:00:00Z"),
-          new Date("2030-09-07T12:00:00Z"),
-        ],
-      );
-      await q(
-        "INSERT INTO subscription_transitions(subscription_id,transition_revision,from_state,to_state,source,actor_type,reason,occurred_at) VALUES($1,1,NULL,'ACTIVE','ADMIN','SYSTEM','fixture active',$2),($1,2,'ACTIVE','GRACE','ADMIN','SYSTEM','fixture grace',$3)",
-        [oldId, createdAt, new Date("2030-09-07T00:00:00Z")],
-      );
-      const result = await deliver(f);
-      expect(result).toMatchObject({
-        kind: "FAILED",
-        code: "CURRENT_SUBSCRIPTION_CONFLICT",
-      });
-      expect(
-        (
-          await q<{ state: string }>(
-            "SELECT state FROM subscriptions WHERE id=$1",
-            [oldId],
-          )
-        ).rows[0]?.state,
-      ).toBe("PAST_DUE");
-    });
-
     it("27 semantic success duplicate is IGNORED without extending the period", async () => {
       const f = await fixture();
       const first = await deliver(f);

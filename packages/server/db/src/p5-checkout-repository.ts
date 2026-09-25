@@ -13,10 +13,6 @@ import {
 } from "@product/billing";
 import type { BillingIntervalUnit } from "@product/billing";
 import type { DatabaseQuery, DatabaseRuntime } from "./index.js";
-import {
-  hasBlockingSubscriptionAt,
-  transitionDueSubscriptionForAccount,
-} from "./p5-subscription-lifecycle-transition.js";
 
 type Query = Pick<DatabaseQuery, "query">;
 type Row = {
@@ -126,8 +122,6 @@ async function accountPolicy(
   q: Query,
   accountId: string,
   actorId: string,
-  at: Date,
-  includeCurrentSubscription = true,
 ): Promise<CheckoutAccountObservation> {
   const account = await q.query<{ status: "ACTIVE" | "SUSPENDED" }>(
     "SELECT status FROM accounts WHERE id=$1",
@@ -144,27 +138,16 @@ async function accountPolicy(
     "SELECT user_id AS \"userId\" FROM account_memberships WHERE account_id=$1 AND user_id=$2 AND role='OWNER'",
     [accountId, actorId],
   );
-  const owner = Boolean(member.rows[0]);
-  return {
-    accountExists: true,
-    owner,
-    accountStatus: account.rows[0].status,
-    hasCurrentSubscription:
-      includeCurrentSubscription && owner
-        ? await hasBlockingSubscriptionAt(q, { accountId, now: at })
-        : false,
-  };
-}
-
-async function hasCurrentSubscription(
-  q: Query,
-  accountId: string,
-): Promise<boolean> {
   const current = await q.query<{ id: string }>(
     "SELECT id FROM subscriptions WHERE account_id=$1 AND state <> 'EXPIRED' LIMIT 1",
     [accountId],
   );
-  return Boolean(current.rows[0]);
+  return {
+    accountExists: true,
+    owner: Boolean(member.rows[0]),
+    accountStatus: account.rows[0].status,
+    hasCurrentSubscription: Boolean(current.rows[0]),
+  };
 }
 
 async function loadIntent(
@@ -289,10 +272,7 @@ export function createP5CheckoutRepository(
       idempotencyKeyHash,
     }): Promise<CheckoutInspection> {
       return runtime.transaction(async (q) => {
-        const capturedNow = now();
-        // Preflight remains read-only and date-aware. Mutation authority stays
-        // in prepare/finalize under the account lock.
-        const account = await accountPolicy(q, accountId, actorId, capturedNow);
+        const account = await accountPolicy(q, accountId, actorId);
         const intent =
           account.accountExists && account.owner
             ? await loadIntent(q, accountId, idempotencyKeyHash)
@@ -308,14 +288,7 @@ export function createP5CheckoutRepository(
       return runtime.transaction(async (q) => {
         if (!(await lockAccount(q, input.accountId)))
           return { kind: "REJECTED", code: "ACCOUNT_NOT_FOUND" };
-        const capturedNow = now();
-        const account = await accountPolicy(
-          q,
-          input.accountId,
-          input.actorId,
-          capturedNow,
-          false,
-        );
+        const account = await accountPolicy(q, input.accountId, input.actorId);
         const existing = await loadIntent(
           q,
           input.accountId,
@@ -329,42 +302,22 @@ export function createP5CheckoutRepository(
             return { kind: "REJECTED", code: "IDEMPOTENCY_KEY_REUSED" };
           if (existing.provider !== input.provider)
             return { kind: "REJECTED", code: "CHECKOUT_PROVIDER_MISMATCH" };
-          let lifecycleCorrupted = false;
-          if (
-            existing.state === "CREATING" &&
-            account.accountExists &&
-            account.owner &&
-            account.accountStatus !== "SUSPENDED"
-          ) {
-            const lifecycle = await transitionDueSubscriptionForAccount(q, {
-              accountId: input.accountId,
-              now: capturedNow,
-              correlationId: context.correlationId,
-            });
-            lifecycleCorrupted = lifecycle.kind === "CORRUPTED";
-          }
-          const current =
-            account.accountExists && account.owner
-              ? await hasCurrentSubscription(q, input.accountId)
-              : false;
           const blocked = !account.accountExists
             ? "ACCOUNT_NOT_FOUND"
             : !account.owner
               ? "FORBIDDEN"
               : account.accountStatus === "SUSPENDED"
                 ? "ACCOUNT_SUSPENDED"
-                : lifecycleCorrupted
-                  ? "CHECKOUT_CORRUPTED"
-                  : current
-                    ? "CURRENT_SUBSCRIPTION_EXISTS"
-                    : null;
+                : account.hasCurrentSubscription
+                  ? "CURRENT_SUBSCRIPTION_EXISTS"
+                  : null;
           if (blocked && existing.state === "CREATING") {
             const terminal = await terminalFailure(
               q,
               existing,
               blocked,
               context,
-              capturedNow,
+              now(),
             );
             return terminal.kind === "FAILED"
               ? { kind: "EXISTING", intent: terminal.intent }
@@ -377,14 +330,7 @@ export function createP5CheckoutRepository(
         if (!account.owner) return { kind: "REJECTED", code: "FORBIDDEN" };
         if (account.accountStatus === "SUSPENDED")
           return { kind: "REJECTED", code: "ACCOUNT_SUSPENDED" };
-        const lifecycle = await transitionDueSubscriptionForAccount(q, {
-          accountId: input.accountId,
-          now: capturedNow,
-          correlationId: context.correlationId,
-        });
-        if (lifecycle.kind === "CORRUPTED")
-          return { kind: "REJECTED", code: "CHECKOUT_CORRUPTED" };
-        if (await hasCurrentSubscription(q, input.accountId))
+        if (account.hasCurrentSubscription)
           return { kind: "REJECTED", code: "CURRENT_SUBSCRIPTION_EXISTS" };
         const actionable = await otherActionableIntent(
           q,
@@ -469,20 +415,6 @@ export function createP5CheckoutRepository(
               "ACCOUNT_SUSPENDED",
               context,
               now(),
-            );
-          const capturedNow = now();
-          const lifecycle = await transitionDueSubscriptionForAccount(q, {
-            accountId: locked.accountId,
-            now: capturedNow,
-            correlationId: context.correlationId,
-          });
-          if (lifecycle.kind === "CORRUPTED")
-            return await terminalFailure(
-              q,
-              locked,
-              "CHECKOUT_CORRUPTED",
-              context,
-              capturedNow,
             );
           const subscription = await q.query<{ id: string }>(
             "SELECT id FROM subscriptions WHERE account_id=$1 AND state <> 'EXPIRED' LIMIT 1",
