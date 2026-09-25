@@ -1,6 +1,9 @@
 import { generateKeyPairSync } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import type { BootstrapSnapshotPayloadV1 } from "@product/contracts";
+import type {
+  BootstrapSnapshotPayloadV1,
+  BootstrapSnapshotPayloadV2,
+} from "@product/contracts";
 import {
   signBootstrapSnapshot,
   signBootstrapSnapshotV2,
@@ -186,6 +189,81 @@ describe("I1-SRV.4 offline policy primitive", () => {
         fallbackTrigger: "NETWORK_TRANSPORT",
       }),
     ).toEqual({ decision: "DENY", reason: "UNVERIFIED_SNAPSHOT" });
+  });
+
+  it("keeps privacy-neutral offline capability checks fail-closed without local feature materialization", () => {
+    const {
+      compatibility: _compatibility,
+      features: _features,
+      ai: _ai,
+      ...common
+    } = payload({ entitlements: { "source.ozon": true } });
+    void _compatibility;
+    void _features;
+    void _ai;
+    const neutralPayload: BootstrapSnapshotPayloadV2 = {
+      ...common,
+      snapshotVersion: "bootstrap_snapshot_v2",
+      contractVersion: "control_plane_v2",
+      account: {
+        id: "123e4567-e89b-42d3-a456-426614174000",
+        status: "ACTIVE",
+      },
+      localClientAuthority: {
+        schemaVersion: "local_client_authority_v1",
+        contractVersion: "control_plane_v2",
+        compatibility: { releases: [], policies: [] },
+        featureRules: [
+          {
+            featureKey: "feature.local-only",
+            revision: 1,
+            contractVersion: "control_plane_v2",
+            enabled: true,
+            browserFamily: null,
+            minimumExtensionVersion: null,
+          },
+        ],
+        ai: { status: "UNCONFIGURED" },
+      },
+    };
+    const envelope = signBootstrapSnapshotV2(
+      neutralPayload,
+      "k1",
+      key.privateKey,
+    );
+    const verification = verifyBootstrapEnvelopeV2(
+      envelope,
+      new Map([["k1", key.publicKey]]),
+    );
+    if (!verification.ok) throw new Error("neutral V2 fixture did not verify");
+    const v2Context = {
+      ...context,
+      contractVersion: "control_plane_v2" as const,
+    };
+    const commonInput = {
+      verification,
+      cachedContext: v2Context,
+      currentContext: v2Context,
+      effectiveNowMs: Date.parse("2026-01-01T00:01:00.000Z"),
+      fallbackTrigger: "NETWORK_TRANSPORT" as const,
+    };
+    expect(
+      evaluateCachedBootstrapEligibility({
+        ...commonInput,
+        localPackagedCapabilities: new Set(["source.ozon"]),
+        requestedCapabilities: ["source.ozon"],
+      }),
+    ).toMatchObject({
+      decision: "ALLOW",
+      effectiveFeatures: { "source.ozon": true },
+    });
+    expect(
+      evaluateCachedBootstrapEligibility({
+        ...commonInput,
+        localPackagedCapabilities: new Set(["feature.local-only"]),
+        requestedCapabilities: ["feature.local-only"],
+      }),
+    ).toEqual({ decision: "DENY", reason: "SIGNED_CAPABILITY_DENIED" });
   });
 
   it.each([

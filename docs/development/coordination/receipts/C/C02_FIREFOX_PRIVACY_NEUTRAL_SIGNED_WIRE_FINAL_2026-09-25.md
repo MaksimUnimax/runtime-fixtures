@@ -116,6 +116,31 @@ No other concrete defect was reported by that Luna review.
 
 Follow-up read-only Luna review `c02-firefox-admin-fix-review-r3` inspected only `36cc97f99f3a19e8de400916cc43002e9dba8fd2..d24838669c54f21dc161dc48a7e71e0e288384c2` and reported High 0 / Medium 0 / Low 0. It explicitly marked the previous Medium as resolved, confirmed both strict admin projection branches and partial-tuple rejection, and found no authorization weakening or new response-shape defect.
 
+## Exact-head CI regression and consumer repair
+
+Candidate `a05d2f9af1b41055445aabb96731db557263f8aa` was published only to `work/c-integration`; it is **NOT ready-main**. Its first exact-head Server CI run `36094309248` failed at root `pnpm typecheck`.
+
+GitHub job `107943188571` localized the source regression to `@product/simulated-extension-client`:
+
+- the legacy v2 bootstrap overload used non-distributive `Omit<BootstrapRequestV2, "deviceId">`, which erased the identified branch fields after v2 became a union;
+- the legacy offline capability helper read `payload.features` without narrowing the new privacy-neutral payload branch.
+
+C corrected that consumer without teaching the legacy offline helper a second local-authority algorithm:
+
+- bootstrap input uses a distributive omit and accepts both exact v2 request variants;
+- privacy-neutral signed payloads verify normally;
+- offline capability evaluation uses legacy `features` only when present and otherwise remains fail-closed for feature-only local authority, while common signed entitlements remain usable.
+
+Focused simulated-client validation after the repair:
+
+- typecheck: PASS;
+- unit tests: 62/62 PASS;
+- formatting/lint: PASS after test-fixture cleanup.
+
+A first local root-typecheck rerun exposed stale workspace links: the local `apps/telegram-operator/node_modules/@product/health` symlink was missing even though package.json and pnpm-lock were correct. A CI-style `CI=true pnpm install --offline --frozen-lockfile --ignore-scripts` restored workspace links without source changes. Resource job `1dddfbc5f8094bd798c73e3c53f5ab42` then ran full root `pnpm typecheck` successfully across all 40/41 participating workspace projects, exit 0, OOM 0, cleanup verified.
+
+The failed `a05d2f9...` Server CI remains historical evidence and is not counted as PASS. A new exact HEAD and fresh five-workflow gate are required after this consumer repair.
+
 ## Acceptance boundary
 
 This is not deployment acceptance.
