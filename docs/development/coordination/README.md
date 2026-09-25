@@ -53,3 +53,5 @@
 ## Текущее назначение после аудита потоков
 
 [Аудит и ограниченные задания от 25.09.2026](STREAMS_AUDIT_ASSIGNMENT_2026-09-25.md): закрытые N2/C04 SOURCE, независимая работа A03 и B05, общий Firefox-контракт C и реальный сценарий ревьюера Opera. Запуск нового диалога не стирает прежний прогресс.
+
+Точный C-owned контракт для Firefox privacy-neutral режима и назначения A/B: [FIREFOX_PRIVACY_NEUTRAL_CONTRACT_2026-09-25.md](FIREFOX_PRIVACY_NEUTRAL_CONTRACT_2026-09-25.md).
