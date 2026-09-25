@@ -1,0 +1,19 @@
+test_id	scenario	expected_guard	observed_preparation_state	verdict	evidence_refs
+M13ADV001	Known .html duplicate serves 200	Alias must 308 canonical extensionless	LIVE_DEFECT_CONFIRMED: index/privacy/support/install .html duplicate 200	PASS_SPEC_GUARD	live baseline; route matrix
+M13ADV002	HTTP www incurs two redirects	HTTP www ordinary path direct 308 HTTPS apex	LIVE_DEFECT_CONFIRMED: HTTP www -> HTTPS www -> apex	PASS_SPEC_GUARD	live baseline; route matrix
+M13ADV003	Known trailing slash unmanaged	Known service/analytics slash -> 308 no-slash	LIVE_DEFECT_CONFIRMED: service slash 404; analytics absent	PASS_SPEC_GUARD	live baseline; route matrix
+M13ADV004	Analytics owner omitted	/seller-analytics must exist in M14 and sitemap	LIVE_EXPECTED_PREIMPLEMENTATION: 404	PASS_SPEC_GUARD	M11/M12 R2; live
+M13ADV005	Service pages become Search targets	Service pages crawlable noindex,follow absent sitemap	LIVE_DEFECT_CONFIRMED: no robots meta	PASS_SPEC_GUARD	M11; Yandex robots; live
+M13ADV006	Unknown soft-redirect to HOME	Unknown public URL remains 404	LIVE_GOOD: representative unknown 404	PASS_PRESERVE	live baseline
+M13ADV007	Canonical used as sole duplicate control	Known aliases redirect rather than serve duplicate 200	CURRENT_SOURCE_SERVES_HTML_ALIASES	PASS_SPEC_GUARD	Yandex+Google canonical
+M13ADV008	robots blocks service page with noindex	Service pages crawlable so noindex observable	CURRENT_ROBOTS_GOOD; future guard	PASS_SPEC_GUARD	Yandex robots
+M13ADV009	Yandex AI accidentally opted out	No YandexAdditional/YandexAdditionalBot Disallow	NO_OPTOUT_OBSERVED	PASS_PRESERVE	Yandex AI; robots
+M13ADV010	Analytics orphaned	Regular HTML HOME->analytics and analytics->HOME	CURRENT_ANALYTICS_ABSENT; M12 edges frozen 2/2	PASS_SPEC_GUARD	M12 link contract
+M13ADV011	Critical content client-render-only	Critical content remains initial static HTML	CURRENT_STATIC_GOOD	PASS_PRESERVE	Yandex rendering; source
+M13ADV012	Fake rich-result markup added	Structured data NONE until truthful complete authority	CURRENT_NONE; fake schema forbidden	PASS_SPEC_GUARD	Google SoftwareApplication; M12
+M13ADV013	SEO patch overwrites app/API ingress	octoport-apps.conf/behavior do-not-change	CURRENT_SEPARATE_INGRESS_GOOD	PASS_PRESERVE	apps conf; regression
+M13ADV014	Field CWV fabricated	FIELD_DATA_NOT_AVAILABLE when p75 evidence absent	NO_FIELD_DATA_ACCEPTED	PASS_SPEC_GUARD	CWV; performance
+M13ADV015	M11/M12 drift during M13	Stop/reconcile dependencies	SEO/main re-fetch identical before execution	PASS	preparation heads; git re-fetch
+M13ADV016	HOME metadata remains historical	M14 applies exact M12 R2 H1/Title and brand subheadline	LIVE_DEFECT_CONFIRMED: old Title/H1	PASS_SPEC_GUARD	M12 R2; live
+M13ADV017	Sitemap stays HOME-only after analytics	Exact sitemap HOME + analytics	LIVE_PREIMPLEMENTATION: current sitemap old set	PASS_SPEC_GUARD	M11/M12; sitemap
+M13ADV018	Analytics proof faked	Concrete categories/examples and central value need endpoint/product proof plus real sanitized/source-backed example	PROOF_GATE_OPEN_FOR_IMPLEMENTATION	PASS_SPEC_GUARD	M12 proof/trust
