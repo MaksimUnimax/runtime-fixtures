@@ -166,10 +166,12 @@ Therefore `CAP-12` is upgraded from WB `BOUNDARY` to operation/schema-level `COM
 
 `STD-11` remains `BOUNDARY`. Official WB Analytics documents current and daily stock-history reports, but those snapshots/history do not identify a causal inventory movement/write-off event source. No causal movement is inferred from a stock delta.
 
+A follow-up independent HTTP refetch from this environment returned HTTP 498 for the WB documentation pages, so no stronger freshness claim is added from that refetch. The accepted CAP-12 classification remains bounded to the previously captured operation/schema evidence and the pinned current aliases; it is not live-account or complete provider-field acceptance.
+
 ## Remaining gates
 
 This block does not prove:
-- fresh official WB OpenAPI/schema authority;
+- a fresh bundled/offline WB OpenAPI artifact plus complete field-level schema/unit crosswalk for all 45 scenarios; this does not reopen CAP-12's accepted current web-documentation status/cancellation mapping;
 - exact response-field semantics/units for all 45 WB cases;
 - live Ozon/WB business values or owner gold-set agreement;
 - the six AI-surface scenario matrix;
