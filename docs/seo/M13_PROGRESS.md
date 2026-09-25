@@ -38,6 +38,8 @@ docs/seo/LEVEL2/M13_M18_IMPLEMENTATION_LAUNCH_MEASUREMENT_RULES.md
 
 PREPARATION_SEO_HEAD = 15f3e4f69cb54a80b29f268d5da389ca4b1082e9
 FROZEN_MAIN_HEAD = 7945d62854e135421c3db003c603187b9f37866b
+POST_QA_OBSERVED_MAIN_HEAD = 6e442755c514803a8bc6e04ce40a58bed2883c77
+AUTHORITY_DRIFT_STATUS = NON_OVERLAPPING_MAIN_ADVANCE_RECONCILED
 FIRST_8_OUTPUT_REMOTE_HEAD = 0b6b894505268a44bf58c3225fbb6f8545fe146d
 
 WORK_TRIGGER = false
@@ -57,6 +59,11 @@ M13_ADVERSARIAL_TESTS = 18
 OPEN_CRITICAL_SPEC_DEFECTS = 0
 QUALITY_SCORE = 9.8/10
 M13_ACCEPTED = true
+
+Post-QA main drift reconciliation:
+- frozen M13 public-site/ingress/deploy/verifier/CI/site-regression blobs = 14/14 unchanged;
+- changed main paths are outside the M13 implementation-source set;
+- M14 must still re-fetch current main and revalidate product/privacy proof before mutation.
 
 ## Frozen launch technical target
 
