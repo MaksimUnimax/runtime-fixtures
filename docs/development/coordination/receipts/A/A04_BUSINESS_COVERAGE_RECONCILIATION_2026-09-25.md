@@ -49,7 +49,7 @@ Validator is imported by the existing A-owned `tests/regression/extension-core/c
 Validator result:
 - scenarios accounted: **45/45**;
 - Ozon operation references: **101**, all existing/current/enabled/READ;
-- WB operation references: **134**, all existing/current/enabled/READ and none `blocked_pii`;
+- WB operation references: **137**, all existing/current/enabled/READ and none `blocked_pii`;
 - WB host families exercised by the mapping: **12** (`advert`, `advert_media`, `analytics`, `calendar`, `content`, `feedbacks`, `finance`, `marketplace`, `prices`, `returns`, `statistics`, `supplies`);
 - registry drift is fail-closed by exact hashes;
 - continuation must remain explicit;
@@ -58,15 +58,17 @@ Validator result:
 
 WB operation-level coverage states:
 - `DIRECT`: 2;
-- `COMPOSITE`: 34;
-- `BOUNDARY`: 4;
+- `COMPOSITE`: 32;
+- `BOUNDARY`: 6;
 - `EXTERNAL_CONTEXT`: 3;
 - `CONTRIBUTION_ONLY`: 1;
 - `LOCAL_FILE_HISTORY`: 1.
 
 The non-feature/full-boundary rows are deliberately visible:
 - `STD-10` — public incident context required;
+- `STD-11` — WB stock/sales/finance/returns signals do not prove inventory movement/write-off event semantics;
 - `STD-14`, `STD-15` — buyer-specific delivery availability is not inferred from generic WB signals;
+- `CAP-12` — WB return signals and order-status routes do not yet prove cancellation event semantics;
 - `CAP-02` — no single WB equivalent is claimed for Ozon product visibility;
 - `CAP-15` — no exact WB analogue is invented for Ozon FBS error index;
 - `CAP-20` — public research belongs to the AI/web evidence layer;
@@ -79,15 +81,15 @@ The non-feature/full-boundary rows are deliberately visible:
 Fixture set:
 `tests/regression/extension-core/fixtures/business-scenario-numeric-fixtures-v1.json`.
 
-The validator executes **18 deterministic cases** covering the business rules that must not depend on model creativity:
-- complete vs incomplete sales totals;
+The validator executes **25 deterministic cases** covering the business rules that must not depend on model creativity:
+- complete vs incomplete sales totals, including missing/null numeric fields;
 - daily best/worst with deterministic tie-break;
 - percentage change including zero-base → `null`/unknown, not invented infinity;
 - warehouse sorting;
 - days-of-cover with missing/zero demand not treated as a valid zero result;
 - DRR = ad spend / comparable revenue, with zero/incomplete revenue denied;
-- platform contribution after marketplace expenses, explicitly `isNetProfit=false`;
-- top-N join and duplicate-key rejection;
+- platform contribution after marketplace expenses, explicitly `isNetProfit=false`, with incomplete/missing cost inputs denied;
+- top-N join with duplicate-key rejection on both catalog and sales sides;
 - CAP-25 business-key dedup where `pageCount` does not prove completeness;
 - causal factors remain `HYPOTHESIS_NOT_PROVEN_CAUSE`.
 
@@ -139,13 +141,17 @@ Real OTP, real marketplace credentials, real AI sessions, second real installati
 A recommends that C **not** convert the current mapping into `PASS_FEATURE` yet.
 
 A source evidence supports these machine states conceptually:
-- 36 WB `DIRECT|COMPOSITE` rows: `PINNED_OPERATION_MAPPING_READY__FIELD_SCHEMA_LIVE_REQUIRED`;
-- 4 `BOUNDARY` rows: `PINNED_MAPPING_BOUNDARY__NO_FALSE_EQUIVALENT`;
+- 34 WB `DIRECT|COMPOSITE` rows: `PINNED_OPERATION_MAPPING_READY__FIELD_SCHEMA_LIVE_REQUIRED`;
+- 6 `BOUNDARY` rows: `PINNED_MAPPING_BOUNDARY__NO_FALSE_EQUIVALENT`;
 - 3 `EXTERNAL_CONTEXT` rows: `EXTERNAL_CONTEXT_REQUIRED`;
 - `CAP-24`: `CONTRIBUTION_ONLY__FULL_PROFIT_DEFERRED`;
 - `CAP-25`: `LOCAL_FILE_HISTORY__SEARCH_ENTITLEMENT_REQUIRED`.
 
 Exact wording/status-column mutation belongs to C. The existing `API_MAPPING_REQUIRED` may remain until C chooses the shared readiness vocabulary and WB official/source freshness + field-level schema evidence are resolved.
+
+## Independent review correction
+
+Read-only Luna review of exact candidate `87d523d6146dbdac837f286bec76dd92731671af` found two High and two Medium evidence defects: nullable numeric coercion, duplicate join-key acceptance, overclaimed WB movement coverage for `STD-11`, and overclaimed WB cancellation coverage for `CAP-12`. The follow-up candidate fixes all four by failing incomplete numeric inputs closed, rejecting duplicate keys on both sides, and downgrading those two WB scenarios to explicit `BOUNDARY` states. No runtime/provider behavior is added.
 
 ## Remaining gates
 

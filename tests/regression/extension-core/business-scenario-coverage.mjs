@@ -216,12 +216,24 @@ for (const row of coverage.scenarios) {
 
 const calculators = {
   sales_totals(input) {
-    if (!input.complete)
+    const rows = Array.isArray(input.rows) ? input.rows : [];
+    const invalid = rows.some(
+      (row) =>
+        row?.money === null ||
+        row?.money === undefined ||
+        row?.units === null ||
+        row?.units === undefined ||
+        typeof row?.money !== "number" ||
+        typeof row?.units !== "number" ||
+        !Number.isFinite(row.money) ||
+        !Number.isFinite(row.units),
+    );
+    if (!input.complete || invalid)
       return { status: "INCOMPLETE", money: null, units: null };
     return {
       status: "COMPLETE",
-      money: input.rows.reduce((sum, row) => sum + Number(row.money), 0),
-      units: input.rows.reduce((sum, row) => sum + Number(row.units), 0),
+      money: rows.reduce((sum, row) => sum + row.money, 0),
+      units: rows.reduce((sum, row) => sum + row.units, 0),
     };
   },
   daily_rank(input) {
@@ -287,15 +299,27 @@ const calculators = {
     return (spend / revenue) * 100;
   },
   platform_contribution(input) {
-    const values = [
+    const incomplete = {
+      status: "INCOMPLETE",
+      label: "platform_contribution",
+      amount: null,
+      isNetProfit: false,
+    };
+    const raw = [
       input.revenue,
       input.fees,
       input.storage,
       input.logistics,
       input.ads,
-    ].map(Number);
-    assert.ok(values.every(Number.isFinite));
+    ];
+    if (
+      !input.complete ||
+      raw.some((value) => typeof value !== "number" || !Number.isFinite(value))
+    )
+      return incomplete;
+    const values = raw;
     return {
+      status: "COMPLETE",
       label: "platform_contribution",
       amount:
         values[0] - values.slice(1).reduce((sum, value) => sum + value, 0),
@@ -303,6 +327,18 @@ const calculators = {
     };
   },
   top_n_join(input) {
+    const catalogIds = input.catalog.map((row) => row.id);
+    if (new Set(catalogIds).size !== catalogIds.length)
+      return { status: "DUPLICATE_KEY", side: "catalog" };
+    const salesIds = input.sales.map((row) => row.id);
+    if (new Set(salesIds).size !== salesIds.length)
+      return { status: "DUPLICATE_KEY", side: "sales" };
+    if (
+      input.sales.some(
+        (row) => typeof row.money !== "number" || !Number.isFinite(row.money),
+      )
+    )
+      return { status: "INCOMPLETE" };
     const catalog = new Map(input.catalog.map((row) => [row.id, row]));
     const ranked = [...input.sales]
       .sort(
@@ -324,10 +360,13 @@ const calculators = {
     return { top, missingCatalog };
   },
   join_unique(input) {
-    const ids = input.right.map((row) => row.id);
-    return {
-      status: new Set(ids).size === ids.length ? "UNIQUE" : "DUPLICATE_KEY",
-    };
+    const left = input.left.map((row) => row.id);
+    if (new Set(left).size !== left.length)
+      return { status: "DUPLICATE_KEY", side: "left" };
+    const right = input.right.map((row) => row.id);
+    if (new Set(right).size !== right.length)
+      return { status: "DUPLICATE_KEY", side: "right" };
+    return { status: "UNIQUE" };
   },
   search_dedup(input) {
     const keys = input.rows.map(

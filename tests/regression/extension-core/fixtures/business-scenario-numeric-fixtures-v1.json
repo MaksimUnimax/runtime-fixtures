@@ -212,9 +212,11 @@
         "fees": 110,
         "storage": 45,
         "logistics": 75,
-        "ads": 90
+        "ads": 90,
+        "complete": true
       },
       "expected": {
+        "status": "COMPLETE",
         "label": "platform_contribution",
         "amount": 680,
         "isNetProfit": false
@@ -287,7 +289,8 @@
         ]
       },
       "expected": {
-        "status": "DUPLICATE_KEY"
+        "status": "DUPLICATE_KEY",
+        "side": "right"
       }
     },
     {
@@ -339,6 +342,155 @@
       "expected": {
         "claim": "HYPOTHESIS_NOT_PROVEN_CAUSE",
         "factorCount": 2
+      }
+    },
+    {
+      "id": "sales_totals_missing_money",
+      "kind": "sales_totals",
+      "input": {
+        "complete": true,
+        "rows": [
+          {
+            "units": 2
+          }
+        ]
+      },
+      "expected": {
+        "status": "INCOMPLETE",
+        "money": null,
+        "units": null
+      }
+    },
+    {
+      "id": "sales_totals_null_units",
+      "kind": "sales_totals",
+      "input": {
+        "complete": true,
+        "rows": [
+          {
+            "money": 120,
+            "units": null
+          }
+        ]
+      },
+      "expected": {
+        "status": "INCOMPLETE",
+        "money": null,
+        "units": null
+      }
+    },
+    {
+      "id": "platform_contribution_incomplete",
+      "kind": "platform_contribution",
+      "input": {
+        "complete": false,
+        "revenue": 1000,
+        "fees": 110,
+        "storage": 45,
+        "logistics": 75,
+        "ads": 90
+      },
+      "expected": {
+        "status": "INCOMPLETE",
+        "label": "platform_contribution",
+        "amount": null,
+        "isNetProfit": false
+      }
+    },
+    {
+      "id": "platform_contribution_null_storage",
+      "kind": "platform_contribution",
+      "input": {
+        "complete": true,
+        "revenue": 1000,
+        "fees": 110,
+        "storage": null,
+        "logistics": 75,
+        "ads": 90
+      },
+      "expected": {
+        "status": "INCOMPLETE",
+        "label": "platform_contribution",
+        "amount": null,
+        "isNetProfit": false
+      }
+    },
+    {
+      "id": "top_n_duplicate_catalog_rejected",
+      "kind": "top_n_join",
+      "input": {
+        "sales": [
+          {
+            "id": "p1",
+            "money": 500
+          }
+        ],
+        "catalog": [
+          {
+            "id": "p1",
+            "name": "One"
+          },
+          {
+            "id": "p1",
+            "name": "Duplicate"
+          }
+        ],
+        "n": 1
+      },
+      "expected": {
+        "status": "DUPLICATE_KEY",
+        "side": "catalog"
+      }
+    },
+    {
+      "id": "top_n_duplicate_sales_rejected",
+      "kind": "top_n_join",
+      "input": {
+        "sales": [
+          {
+            "id": "p1",
+            "money": 500
+          },
+          {
+            "id": "p1",
+            "money": 400
+          }
+        ],
+        "catalog": [
+          {
+            "id": "p1",
+            "name": "One"
+          }
+        ],
+        "n": 1
+      },
+      "expected": {
+        "status": "DUPLICATE_KEY",
+        "side": "sales"
+      }
+    },
+    {
+      "id": "join_duplicate_left_rejected",
+      "kind": "join_unique",
+      "input": {
+        "left": [
+          {
+            "id": "p1"
+          },
+          {
+            "id": "p1"
+          }
+        ],
+        "right": [
+          {
+            "id": "p1",
+            "v": 1
+          }
+        ]
+      },
+      "expected": {
+        "status": "DUPLICATE_KEY",
+        "side": "left"
       }
     }
   ]

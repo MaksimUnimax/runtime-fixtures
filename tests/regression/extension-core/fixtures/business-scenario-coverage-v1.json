@@ -227,7 +227,7 @@
     {
       "id": "STD-11",
       "ozonCoverage": "COMPOSITE",
-      "wbCoverage": "COMPOSITE",
+      "wbCoverage": "BOUNDARY",
       "ozonOperations": [
         "stock_analytics",
         "finance_accrual_postings",
@@ -241,11 +241,15 @@
         "buyer_return_claims"
       ],
       "identifiers": ["product", "warehouse", "event"],
-      "metrics": ["stock_delta:units", "money:provider_currency"],
+      "metrics": [
+        "stock_snapshot:units",
+        "sale_return_finance:provider_signals",
+        "movement_writeoff:event_unverified"
+      ],
       "periodPolicy": "EXPLICIT_WHERE_APPLICABLE",
       "continuationPolicy": "EXPLICIT_ONLY",
       "omissionPolicy": "MISSING_NOT_ZERO",
-      "externalDependency": null,
+      "externalDependency": "WB_INVENTORY_MOVEMENT_EVENT_SOURCE_AND_SEMANTICS_NOT_VERIFIED",
       "numericFixtures": ["movement_evidence"]
     },
     {
@@ -637,19 +641,22 @@
     {
       "id": "CAP-12",
       "ozonCoverage": "COMPOSITE",
-      "wbCoverage": "COMPOSITE",
+      "wbCoverage": "BOUNDARY",
       "ozonOperations": ["returns_list", "order_cancel_status"],
       "wbOperations": [
         "buyer_return_claims",
         "goods_return",
-        "statistics_sales"
+        "statistics_sales",
+        "fbs_order_statuses",
+        "dbs_order_statuses",
+        "dbw_order_statuses"
       ],
       "identifiers": ["return/order/product"],
       "metrics": ["return_status:enum", "cancellation_status:enum"],
       "periodPolicy": "EXPLICIT_WHERE_APPLICABLE",
       "continuationPolicy": "EXPLICIT_PAGINATION",
       "omissionPolicy": "MISSING_NOT_ZERO",
-      "externalDependency": null,
+      "externalDependency": "WB_CANCELLATION_EVENT_SOURCE_AND_SEMANTICS_NOT_VERIFIED",
       "numericFixtures": ["returns_boundary"]
     },
     {
