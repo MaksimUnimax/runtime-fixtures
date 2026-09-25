@@ -1,0 +1,899 @@
+{
+  "schemaVersion": "business_scenario_coverage_v1",
+  "readiness": {
+    "path": "docs/product/readiness/BUSINESS_SCENARIOS.tsv",
+    "expectedRows": 45,
+    "semanticColumns": [
+      "ID",
+      "WB_адаптация",
+      "WB_семейство_данных_кандидат",
+      "Проверяемый_результат"
+    ],
+    "semanticProjectionSha256": "4013ffaf678697ed1ed940c89fa3cd7cb0dbaf08e947597e02f071d8eff04c4a"
+  },
+  "authorities": {
+    "ozon": {
+      "version": "ozon-v0.1.22",
+      "registryPath": "apps/extension/src/imported/ozon-v0.1.22/shared/ozon_operation_registry.js",
+      "registrySha256": "b42b51f815c0f88e89e1cd193d28cc4f72949d5dd1738ab35d473b226fd0a832"
+    },
+    "wildberries": {
+      "version": "wildberries-v0.3.0-frozen-reference",
+      "sourceCommit": "006af2724aafdf6589c16881c1ed06eb01cca281",
+      "registryPath": "migration/reference/wildberries-v0.3.0/runtime/shared/wb_operations.js",
+      "registrySha256": "08e8a2ad1f325a4bdc0a909b37220b7abaa0be1d94d6b53192666ed5f22c2c75"
+    }
+  },
+  "globalPolicies": {
+    "effect": "READ",
+    "providerRequestRule": "ONE_EXPLICIT_BUSINESS_REQUEST_PER_OPERATION_NO_HIDDEN_RETRY",
+    "continuationRule": "NEXT_CURSOR_REPORT_STATUS_OR_PAGE_REQUIRES_EXPLICIT_NEXT_COMMAND",
+    "missingRule": "MISSING_ROW_403_UNREADY_REPORT_NOT_ZERO",
+    "joinRule": "VERIFY_GRAIN_AND_IDENTITY_BEFORE_JOIN",
+    "currencyRule": "KEEP_PROVIDER_CURRENCY_EXPLICIT",
+    "timezoneRule": "PERIOD_TIMEZONE_MUST_BE_EXPLICIT_FOR_TIME_BUCKETS"
+  },
+  "scenarios": [
+    {
+      "id": "STD-01",
+      "ozonCoverage": "COMPOSITE",
+      "wbCoverage": "COMPOSITE",
+      "ozonOperations": ["analytics_data"],
+      "wbOperations": ["statistics_orders", "statistics_sales"],
+      "identifiers": ["offer_id/sku", "nmID/chrtID/vendorCode"],
+      "metrics": ["money:provider_currency", "units:count"],
+      "periodPolicy": "EXPLICIT_WHERE_APPLICABLE",
+      "continuationPolicy": "EXPLICIT_ONLY",
+      "omissionPolicy": "MISSING_NOT_ZERO",
+      "externalDependency": null,
+      "numericFixtures": ["sales_totals"]
+    },
+    {
+      "id": "STD-02",
+      "ozonCoverage": "COMPOSITE",
+      "wbCoverage": "COMPOSITE",
+      "ozonOperations": ["analytics_data"],
+      "wbOperations": ["statistics_orders", "sales_funnel_history"],
+      "identifiers": ["day", "offer_id/sku", "nmID"],
+      "metrics": ["daily_money:provider_currency", "daily_units:count"],
+      "periodPolicy": "EXPLICIT_WHERE_APPLICABLE",
+      "continuationPolicy": "EXPLICIT_ONLY",
+      "omissionPolicy": "MISSING_NOT_ZERO",
+      "externalDependency": null,
+      "numericFixtures": ["daily_rank"]
+    },
+    {
+      "id": "STD-03",
+      "ozonCoverage": "COMPOSITE",
+      "wbCoverage": "COMPOSITE",
+      "ozonOperations": ["analytics_data", "seller_product_info_list"],
+      "wbOperations": ["statistics_sales", "cards_list"],
+      "identifiers": ["offer_id/sku", "nmID/chrtID/vendorCode"],
+      "metrics": ["revenue:provider_currency"],
+      "periodPolicy": "EXPLICIT_WHERE_APPLICABLE",
+      "continuationPolicy": "EXPLICIT_ONLY",
+      "omissionPolicy": "MISSING_NOT_ZERO",
+      "externalDependency": null,
+      "numericFixtures": ["top_n_join"]
+    },
+    {
+      "id": "STD-04",
+      "ozonCoverage": "COMPOSITE",
+      "wbCoverage": "COMPOSITE",
+      "ozonOperations": ["analytics_data"],
+      "wbOperations": ["statistics_orders"],
+      "identifiers": ["day"],
+      "metrics": [
+        "money:provider_currency",
+        "units:count",
+        "change:percent_or_null"
+      ],
+      "periodPolicy": "EXPLICIT_WHERE_APPLICABLE",
+      "continuationPolicy": "EXPLICIT_ONLY",
+      "omissionPolicy": "MISSING_NOT_ZERO",
+      "externalDependency": null,
+      "numericFixtures": ["percent_change"]
+    },
+    {
+      "id": "STD-05",
+      "ozonCoverage": "COMPOSITE",
+      "wbCoverage": "COMPOSITE",
+      "ozonOperations": [
+        "analytics_data",
+        "stocks_current",
+        "product_content_rating",
+        "performance_daily"
+      ],
+      "wbOperations": [
+        "statistics_orders",
+        "stock_products",
+        "cards_errors",
+        "promo_fullstats"
+      ],
+      "identifiers": ["product", "period"],
+      "metrics": [
+        "sales_delta:percent",
+        "stock:units",
+        "ad_spend:provider_currency"
+      ],
+      "periodPolicy": "EXPLICIT_WHERE_APPLICABLE",
+      "continuationPolicy": "EXPLICIT_ONLY",
+      "omissionPolicy": "MISSING_NOT_ZERO",
+      "externalDependency": "OPTIONAL_BUSINESS_CONTEXT",
+      "numericFixtures": ["causal_factors"]
+    },
+    {
+      "id": "STD-06",
+      "ozonCoverage": "COMPOSITE",
+      "wbCoverage": "COMPOSITE",
+      "ozonOperations": [
+        "seller_product_list",
+        "analytics_data",
+        "stock_turnover_analytics",
+        "performance_daily"
+      ],
+      "wbOperations": [
+        "cards_errors",
+        "statistics_orders",
+        "stock_products",
+        "promo_fullstats"
+      ],
+      "identifiers": ["product", "signal"],
+      "metrics": ["evidence_score:ordinal"],
+      "periodPolicy": "EXPLICIT_WHERE_APPLICABLE",
+      "continuationPolicy": "EXPLICIT_ONLY",
+      "omissionPolicy": "MISSING_NOT_ZERO",
+      "externalDependency": null,
+      "numericFixtures": ["attention_rank"]
+    },
+    {
+      "id": "STD-07",
+      "ozonCoverage": "COMPOSITE",
+      "wbCoverage": "COMPOSITE",
+      "ozonOperations": ["stock_turnover_analytics", "analytics_data"],
+      "wbOperations": ["stock_products", "statistics_sales"],
+      "identifiers": ["product", "warehouse"],
+      "metrics": [
+        "stock:units",
+        "avg_daily_sales:units/day",
+        "days_cover:days_or_unknown"
+      ],
+      "periodPolicy": "EXPLICIT_WHERE_APPLICABLE",
+      "continuationPolicy": "EXPLICIT_ONLY",
+      "omissionPolicy": "MISSING_NOT_ZERO",
+      "externalDependency": null,
+      "numericFixtures": ["days_cover"]
+    },
+    {
+      "id": "STD-08",
+      "ozonCoverage": "COMPOSITE",
+      "wbCoverage": "COMPOSITE",
+      "ozonOperations": [
+        "fbo_stock_by_warehouse",
+        "fbs_stock_by_warehouse",
+        "seller_warehouse_list",
+        "ozon_warehouse_list"
+      ],
+      "wbOperations": [
+        "wb_warehouse_stocks",
+        "fbs_stocks",
+        "seller_warehouses",
+        "marketplace_offices"
+      ],
+      "identifiers": ["warehouse_id", "sku/nmID/chrtID"],
+      "metrics": ["stock:units"],
+      "periodPolicy": "CURRENT_SNAPSHOT",
+      "continuationPolicy": "EXPLICIT_ONLY",
+      "omissionPolicy": "MISSING_NOT_ZERO",
+      "externalDependency": null,
+      "numericFixtures": ["warehouse_stock_sort"]
+    },
+    {
+      "id": "STD-09",
+      "ozonCoverage": "COMPOSITE",
+      "wbCoverage": "COMPOSITE",
+      "ozonOperations": ["analytics_data"],
+      "wbOperations": ["statistics_sales", "marketplace_offices"],
+      "identifiers": ["warehouse", "day"],
+      "metrics": ["sales_money:provider_currency", "sales_units:count"],
+      "periodPolicy": "EXPLICIT_WHERE_APPLICABLE",
+      "continuationPolicy": "EXPLICIT_ONLY",
+      "omissionPolicy": "MISSING_NOT_ZERO",
+      "externalDependency": null,
+      "numericFixtures": ["warehouse_sales_sort"]
+    },
+    {
+      "id": "STD-10",
+      "ozonCoverage": "EXTERNAL_CONTEXT",
+      "wbCoverage": "EXTERNAL_CONTEXT",
+      "ozonOperations": [
+        "fbo_stock_by_warehouse",
+        "fbs_stock_by_warehouse",
+        "ozon_warehouse_list"
+      ],
+      "wbOperations": [
+        "wb_warehouse_stocks",
+        "stock_offices",
+        "marketplace_offices"
+      ],
+      "identifiers": ["warehouse", "product"],
+      "metrics": ["current_stock:units"],
+      "periodPolicy": "EXPLICIT_WHERE_APPLICABLE",
+      "continuationPolicy": "EXPLICIT_ONLY",
+      "omissionPolicy": "MISSING_NOT_ZERO",
+      "externalDependency": "PUBLIC_INCIDENT_DATE_LINK_REQUIRED",
+      "numericFixtures": ["incident_boundary"]
+    },
+    {
+      "id": "STD-11",
+      "ozonCoverage": "COMPOSITE",
+      "wbCoverage": "COMPOSITE",
+      "ozonOperations": [
+        "stock_analytics",
+        "finance_accrual_postings",
+        "returns_list"
+      ],
+      "wbOperations": [
+        "stock_products",
+        "statistics_sales",
+        "finance_sales_detail_period",
+        "goods_return",
+        "buyer_return_claims"
+      ],
+      "identifiers": ["product", "warehouse", "event"],
+      "metrics": ["stock_delta:units", "money:provider_currency"],
+      "periodPolicy": "EXPLICIT_WHERE_APPLICABLE",
+      "continuationPolicy": "EXPLICIT_ONLY",
+      "omissionPolicy": "MISSING_NOT_ZERO",
+      "externalDependency": null,
+      "numericFixtures": ["movement_evidence"]
+    },
+    {
+      "id": "STD-12",
+      "ozonCoverage": "COMPOSITE",
+      "wbCoverage": "COMPOSITE",
+      "ozonOperations": ["supply_order_list", "supply_order_get"],
+      "wbOperations": ["fbw_supplies", "fbs_supplies"],
+      "identifiers": ["supply_id/order_id"],
+      "metrics": ["status:enum"],
+      "periodPolicy": "EXPLICIT_WHERE_APPLICABLE",
+      "continuationPolicy": "EXPLICIT_PAGINATION",
+      "omissionPolicy": "MISSING_NOT_ZERO",
+      "externalDependency": null,
+      "numericFixtures": ["supply_status"]
+    },
+    {
+      "id": "STD-13",
+      "ozonCoverage": "COMPOSITE",
+      "wbCoverage": "COMPOSITE",
+      "ozonOperations": [
+        "supply_order_details",
+        "supply_order_act_accept_status",
+        "stocks_current"
+      ],
+      "wbOperations": [
+        "fbw_supply",
+        "fbw_supply_goods",
+        "acceptance_report_create",
+        "acceptance_report_status",
+        "acceptance_report_download",
+        "stock_products"
+      ],
+      "identifiers": ["supply_id", "product"],
+      "metrics": ["status:enum", "accepted_units:count", "stock:units"],
+      "periodPolicy": "EXPLICIT_WHERE_APPLICABLE",
+      "continuationPolicy": "EXPLICIT_REPORT_LIFECYCLE",
+      "omissionPolicy": "MISSING_NOT_ZERO",
+      "externalDependency": null,
+      "numericFixtures": ["supply_acceptance"]
+    },
+    {
+      "id": "STD-14",
+      "ozonCoverage": "COMPOSITE",
+      "wbCoverage": "BOUNDARY",
+      "ozonOperations": [
+        "product_visibility_info",
+        "stocks_current",
+        "warehouse_invalid_products"
+      ],
+      "wbOperations": [
+        "cards_errors",
+        "banned_products_blocked",
+        "banned_products_shadowed",
+        "stock_products"
+      ],
+      "identifiers": ["product", "region_optional"],
+      "metrics": ["stock:units", "visibility:provider_signal"],
+      "periodPolicy": "EXPLICIT_WHERE_APPLICABLE",
+      "continuationPolicy": "EXPLICIT_ONLY",
+      "omissionPolicy": "MISSING_NOT_ZERO",
+      "externalDependency": "BUYER_SPECIFIC_DELIVERY_MAY_BE_UNAVAILABLE",
+      "numericFixtures": ["visibility_boundary"]
+    },
+    {
+      "id": "STD-15",
+      "ozonCoverage": "DIRECT",
+      "wbCoverage": "BOUNDARY",
+      "ozonOperations": [
+        "warehouses_with_invalid_products",
+        "warehouse_invalid_products"
+      ],
+      "wbOperations": [
+        "banned_products_blocked",
+        "banned_products_shadowed",
+        "seller_warehouses",
+        "marketplace_offices"
+      ],
+      "identifiers": ["warehouse", "product"],
+      "metrics": ["restriction:provider_signal"],
+      "periodPolicy": "EXPLICIT_WHERE_APPLICABLE",
+      "continuationPolicy": "EXPLICIT_ONLY",
+      "omissionPolicy": "MISSING_NOT_ZERO",
+      "externalDependency": "BUYER_SPECIFIC_DELIVERY_MAY_BE_UNAVAILABLE",
+      "numericFixtures": ["restriction_boundary"]
+    },
+    {
+      "id": "STD-16",
+      "ozonCoverage": "COMPOSITE",
+      "wbCoverage": "COMPOSITE",
+      "ozonOperations": ["performance_campaigns", "performance_expense"],
+      "wbOperations": ["promo_campaigns", "promo_spend_history"],
+      "identifiers": ["campaign", "period"],
+      "metrics": ["spend:provider_currency"],
+      "periodPolicy": "EXPLICIT_WHERE_APPLICABLE",
+      "continuationPolicy": "EXPLICIT_ONLY",
+      "omissionPolicy": "MISSING_NOT_ZERO",
+      "externalDependency": null,
+      "numericFixtures": ["ad_spend_rank"]
+    },
+    {
+      "id": "STD-17",
+      "ozonCoverage": "COMPOSITE",
+      "wbCoverage": "COMPOSITE",
+      "ozonOperations": [
+        "performance_campaign_product",
+        "performance_daily",
+        "analytics_data"
+      ],
+      "wbOperations": [
+        "promo_fullstats",
+        "promo_normquery_stats_daily",
+        "statistics_sales"
+      ],
+      "identifiers": ["campaign", "product", "period"],
+      "metrics": [
+        "spend:provider_currency",
+        "clicks:count",
+        "revenue:provider_currency",
+        "drr:percent_or_null"
+      ],
+      "periodPolicy": "EXPLICIT_WHERE_APPLICABLE",
+      "continuationPolicy": "EXPLICIT_ONLY",
+      "omissionPolicy": "MISSING_NOT_ZERO",
+      "externalDependency": null,
+      "numericFixtures": ["ad_efficiency"]
+    },
+    {
+      "id": "STD-18",
+      "ozonCoverage": "COMPOSITE",
+      "wbCoverage": "COMPOSITE",
+      "ozonOperations": ["performance_campaign_products", "stocks_current"],
+      "wbOperations": ["promo_nms", "promo_campaigns", "stock_products"],
+      "identifiers": ["campaign", "product"],
+      "metrics": ["stock:units", "advertised:boolean"],
+      "periodPolicy": "EXPLICIT_WHERE_APPLICABLE",
+      "continuationPolicy": "EXPLICIT_ONLY",
+      "omissionPolicy": "MISSING_NOT_ZERO",
+      "externalDependency": null,
+      "numericFixtures": ["ad_stock_join"]
+    },
+    {
+      "id": "STD-19",
+      "ozonCoverage": "COMPOSITE",
+      "wbCoverage": "COMPOSITE",
+      "ozonOperations": [
+        "performance_campaign_products",
+        "product_content_rating",
+        "product_visibility_info"
+      ],
+      "wbOperations": [
+        "promo_nms",
+        "cards_errors",
+        "banned_products_blocked",
+        "banned_products_shadowed"
+      ],
+      "identifiers": ["campaign", "product"],
+      "metrics": ["content_issue:boolean", "visibility_issue:boolean"],
+      "periodPolicy": "EXPLICIT_WHERE_APPLICABLE",
+      "continuationPolicy": "EXPLICIT_ONLY",
+      "omissionPolicy": "MISSING_NOT_ZERO",
+      "externalDependency": null,
+      "numericFixtures": ["ad_content_join"]
+    },
+    {
+      "id": "STD-20",
+      "ozonCoverage": "COMPOSITE",
+      "wbCoverage": "COMPOSITE",
+      "ozonOperations": ["performance_expense", "analytics_data"],
+      "wbOperations": ["promo_spend_history", "statistics_sales"],
+      "identifiers": ["period"],
+      "metrics": [
+        "spend:provider_currency",
+        "revenue:provider_currency",
+        "drr:percent_or_null"
+      ],
+      "periodPolicy": "EXPLICIT_WHERE_APPLICABLE",
+      "continuationPolicy": "EXPLICIT_ONLY",
+      "omissionPolicy": "MISSING_NOT_ZERO",
+      "externalDependency": null,
+      "numericFixtures": ["drr_compare"]
+    },
+    {
+      "id": "CAP-01",
+      "ozonCoverage": "DIRECT",
+      "wbCoverage": "DIRECT",
+      "ozonOperations": ["seller_product_list"],
+      "wbOperations": ["cards_list"],
+      "identifiers": ["offer_id/product_id/sku", "nmID/chrtID/vendorCode"],
+      "metrics": ["catalog_rows:count"],
+      "periodPolicy": "EXPLICIT_WHERE_APPLICABLE",
+      "continuationPolicy": "EXPLICIT_PAGINATION",
+      "omissionPolicy": "MISSING_NOT_ZERO",
+      "externalDependency": null,
+      "numericFixtures": ["catalog_identity"]
+    },
+    {
+      "id": "CAP-02",
+      "ozonCoverage": "DIRECT",
+      "wbCoverage": "BOUNDARY",
+      "ozonOperations": ["product_visibility_info"],
+      "wbOperations": [
+        "cards_errors",
+        "banned_products_blocked",
+        "banned_products_shadowed",
+        "stock_products"
+      ],
+      "identifiers": ["product"],
+      "metrics": ["visibility:provider_signal", "stock:units"],
+      "periodPolicy": "EXPLICIT_WHERE_APPLICABLE",
+      "continuationPolicy": "EXPLICIT_ONLY",
+      "omissionPolicy": "MISSING_NOT_ZERO",
+      "externalDependency": "WB_NO_SINGLE_OZON_VISIBILITY_EQUIVALENT",
+      "numericFixtures": ["visibility_boundary"]
+    },
+    {
+      "id": "CAP-03",
+      "ozonCoverage": "COMPOSITE",
+      "wbCoverage": "COMPOSITE",
+      "ozonOperations": ["product_content_rating", "seller_product_attributes"],
+      "wbOperations": ["cards_errors", "content_recommendations", "cards_list"],
+      "identifiers": ["product"],
+      "metrics": ["official_errors:count", "expert_quality:separate"],
+      "periodPolicy": "EXPLICIT_WHERE_APPLICABLE",
+      "continuationPolicy": "EXPLICIT_ONLY",
+      "omissionPolicy": "MISSING_NOT_ZERO",
+      "externalDependency": null,
+      "numericFixtures": ["content_quality_boundary"]
+    },
+    {
+      "id": "CAP-04",
+      "ozonCoverage": "COMPOSITE",
+      "wbCoverage": "COMPOSITE",
+      "ozonOperations": [
+        "fbo_stock_by_warehouse",
+        "fbs_stock_by_warehouse",
+        "seller_warehouse_list"
+      ],
+      "wbOperations": [
+        "wb_warehouse_stocks",
+        "fbs_stocks",
+        "seller_warehouses"
+      ],
+      "identifiers": ["warehouse", "product/size"],
+      "metrics": ["stock:units"],
+      "periodPolicy": "CURRENT_SNAPSHOT",
+      "continuationPolicy": "EXPLICIT_ONLY",
+      "omissionPolicy": "MISSING_NOT_ZERO",
+      "externalDependency": null,
+      "numericFixtures": ["warehouse_stock_sort"]
+    },
+    {
+      "id": "CAP-05",
+      "ozonCoverage": "DIRECT",
+      "wbCoverage": "COMPOSITE",
+      "ozonOperations": ["stock_turnover_analytics"],
+      "wbOperations": ["stock_products", "statistics_sales"],
+      "identifiers": ["product"],
+      "metrics": ["stock:units", "turnover/days_cover:calculated"],
+      "periodPolicy": "EXPLICIT_WHERE_APPLICABLE",
+      "continuationPolicy": "EXPLICIT_ONLY",
+      "omissionPolicy": "MISSING_NOT_ZERO",
+      "externalDependency": null,
+      "numericFixtures": ["days_cover"]
+    },
+    {
+      "id": "CAP-06",
+      "ozonCoverage": "COMPOSITE",
+      "wbCoverage": "COMPOSITE",
+      "ozonOperations": [
+        "cluster_list",
+        "ozon_warehouse_list",
+        "seller_warehouse_list"
+      ],
+      "wbOperations": [
+        "marketplace_offices",
+        "seller_warehouses",
+        "fbw_warehouses"
+      ],
+      "identifiers": ["warehouse/office/cluster"],
+      "metrics": ["geography:provider_fields"],
+      "periodPolicy": "EXPLICIT_WHERE_APPLICABLE",
+      "continuationPolicy": "EXPLICIT_ONLY",
+      "omissionPolicy": "MISSING_NOT_ZERO",
+      "externalDependency": null,
+      "numericFixtures": ["warehouse_identity"]
+    },
+    {
+      "id": "CAP-07",
+      "ozonCoverage": "DIRECT",
+      "wbCoverage": "COMPOSITE",
+      "ozonOperations": ["supply_order_list"],
+      "wbOperations": ["fbw_supplies", "fbs_supplies"],
+      "identifiers": ["supply_id/order_id"],
+      "metrics": ["status:enum"],
+      "periodPolicy": "EXPLICIT_WHERE_APPLICABLE",
+      "continuationPolicy": "EXPLICIT_PAGINATION",
+      "omissionPolicy": "MISSING_NOT_ZERO",
+      "externalDependency": null,
+      "numericFixtures": ["supply_status"]
+    },
+    {
+      "id": "CAP-08",
+      "ozonCoverage": "COMPOSITE",
+      "wbCoverage": "COMPOSITE",
+      "ozonOperations": [
+        "supply_order_details",
+        "supply_order_act_product_get",
+        "supply_order_act_summary_get"
+      ],
+      "wbOperations": [
+        "fbw_supply",
+        "fbw_supply_goods",
+        "fbs_supply",
+        "fbs_supply_order_ids",
+        "acceptance_report_create"
+      ],
+      "identifiers": ["supply_id", "product/order"],
+      "metrics": ["status:enum", "accepted_units:count"],
+      "periodPolicy": "EXPLICIT_WHERE_APPLICABLE",
+      "continuationPolicy": "EXPLICIT_NEXT_READ",
+      "omissionPolicy": "MISSING_NOT_ZERO",
+      "externalDependency": null,
+      "numericFixtures": ["supply_acceptance"]
+    },
+    {
+      "id": "CAP-09",
+      "ozonCoverage": "COMPOSITE",
+      "wbCoverage": "COMPOSITE",
+      "ozonOperations": [
+        "posting_fbo_list",
+        "fbs_posting_list",
+        "fbp_posting_list"
+      ],
+      "wbOperations": [
+        "statistics_orders",
+        "statistics_sales",
+        "fbs_orders",
+        "dbs_orders",
+        "dbw_orders"
+      ],
+      "identifiers": ["posting/order", "scheme"],
+      "metrics": ["orders:count", "sales:count", "status:enum"],
+      "periodPolicy": "EXPLICIT_WHERE_APPLICABLE",
+      "continuationPolicy": "EXPLICIT_ONLY",
+      "omissionPolicy": "MISSING_NOT_ZERO",
+      "externalDependency": null,
+      "numericFixtures": ["order_sale_distinction"]
+    },
+    {
+      "id": "CAP-10",
+      "ozonCoverage": "DIRECT",
+      "wbCoverage": "DIRECT",
+      "ozonOperations": ["product_prices_bulk", "product_price_details"],
+      "wbOperations": ["prices_all", "prices_by_nm", "size_prices"],
+      "identifiers": ["product/size"],
+      "metrics": [
+        "seller_price:provider_currency",
+        "discount:provider_field",
+        "buyer_price:provider_field"
+      ],
+      "periodPolicy": "EXPLICIT_WHERE_APPLICABLE",
+      "continuationPolicy": "EXPLICIT_PAGINATION",
+      "omissionPolicy": "MISSING_NOT_ZERO",
+      "externalDependency": null,
+      "numericFixtures": ["price_semantics"]
+    },
+    {
+      "id": "CAP-11",
+      "ozonCoverage": "COMPOSITE",
+      "wbCoverage": "COMPOSITE",
+      "ozonOperations": ["seller_actions_list", "seller_action_products"],
+      "wbOperations": [
+        "calendar_promotions",
+        "calendar_promotion_details",
+        "calendar_promotion_nomenclatures"
+      ],
+      "identifiers": ["promotion", "product"],
+      "metrics": [
+        "participation:boolean/provider_signal",
+        "price:provider_currency"
+      ],
+      "periodPolicy": "EXPLICIT_WHERE_APPLICABLE",
+      "continuationPolicy": "EXPLICIT_PAGINATION",
+      "omissionPolicy": "MISSING_NOT_ZERO",
+      "externalDependency": null,
+      "numericFixtures": ["promotion_participation"]
+    },
+    {
+      "id": "CAP-12",
+      "ozonCoverage": "COMPOSITE",
+      "wbCoverage": "COMPOSITE",
+      "ozonOperations": ["returns_list", "order_cancel_status"],
+      "wbOperations": [
+        "buyer_return_claims",
+        "goods_return",
+        "statistics_sales"
+      ],
+      "identifiers": ["return/order/product"],
+      "metrics": ["return_status:enum", "cancellation_status:enum"],
+      "periodPolicy": "EXPLICIT_WHERE_APPLICABLE",
+      "continuationPolicy": "EXPLICIT_PAGINATION",
+      "omissionPolicy": "MISSING_NOT_ZERO",
+      "externalDependency": null,
+      "numericFixtures": ["returns_boundary"]
+    },
+    {
+      "id": "CAP-13",
+      "ozonCoverage": "COMPOSITE",
+      "wbCoverage": "COMPOSITE",
+      "ozonOperations": ["finance_balance", "finance_realization_v2"],
+      "wbOperations": ["finance_balance", "finance_sales_reports"],
+      "identifiers": ["period/report"],
+      "metrics": [
+        "balance:provider_currency",
+        "accrual/payout:provider_currency"
+      ],
+      "periodPolicy": "EXPLICIT_WHERE_APPLICABLE",
+      "continuationPolicy": "EXPLICIT_ONLY",
+      "omissionPolicy": "MISSING_NOT_ZERO",
+      "externalDependency": null,
+      "numericFixtures": ["finance_distinction"]
+    },
+    {
+      "id": "CAP-14",
+      "ozonCoverage": "COMPOSITE",
+      "wbCoverage": "COMPOSITE",
+      "ozonOperations": ["finance_accrual_by_day", "finance_realization_v2"],
+      "wbOperations": ["finance_sales_detail_period", "deductions"],
+      "identifiers": ["period", "line_type"],
+      "metrics": ["amount:provider_currency", "sign:plus_minus"],
+      "periodPolicy": "EXPLICIT_WHERE_APPLICABLE",
+      "continuationPolicy": "EXPLICIT_PAGINATION",
+      "omissionPolicy": "MISSING_NOT_ZERO",
+      "externalDependency": null,
+      "numericFixtures": ["finance_reconciliation"]
+    },
+    {
+      "id": "CAP-15",
+      "ozonCoverage": "DIRECT",
+      "wbCoverage": "BOUNDARY",
+      "ozonOperations": ["seller_rating_summary", "seller_fbs_error_index"],
+      "wbOperations": [
+        "analytics_item_rating_v2",
+        "analytics_item_rating_v1",
+        "measurement_penalties"
+      ],
+      "identifiers": ["seller/product"],
+      "metrics": ["rating:provider_metric", "penalty:provider_metric"],
+      "periodPolicy": "EXPLICIT_WHERE_APPLICABLE",
+      "continuationPolicy": "EXPLICIT_ONLY",
+      "omissionPolicy": "MISSING_NOT_ZERO",
+      "externalDependency": "WB_NO_EXACT_OZON_FBS_ERROR_INDEX_EQUIVALENT",
+      "numericFixtures": ["rating_boundary"]
+    },
+    {
+      "id": "CAP-16",
+      "ozonCoverage": "COMPOSITE",
+      "wbCoverage": "COMPOSITE",
+      "ozonOperations": ["review_list", "question_list"],
+      "wbOperations": ["feedbacks_list", "questions_list"],
+      "identifiers": ["product", "feedback/question"],
+      "metrics": ["count:count", "text:privacy_gated"],
+      "periodPolicy": "EXPLICIT_WHERE_APPLICABLE",
+      "continuationPolicy": "EXPLICIT_PAGINATION",
+      "omissionPolicy": "MISSING_NOT_ZERO",
+      "externalDependency": null,
+      "numericFixtures": ["feedback_privacy"]
+    },
+    {
+      "id": "CAP-17",
+      "ozonCoverage": "DIRECT",
+      "wbCoverage": "COMPOSITE",
+      "ozonOperations": ["performance_campaigns"],
+      "wbOperations": ["promo_campaigns", "media_campaigns"],
+      "identifiers": ["campaign"],
+      "metrics": ["campaign_status:enum"],
+      "periodPolicy": "EXPLICIT_WHERE_APPLICABLE",
+      "continuationPolicy": "EXPLICIT_PAGINATION",
+      "omissionPolicy": "MISSING_NOT_ZERO",
+      "externalDependency": null,
+      "numericFixtures": ["campaign_inventory"]
+    },
+    {
+      "id": "CAP-18",
+      "ozonCoverage": "COMPOSITE",
+      "wbCoverage": "COMPOSITE",
+      "ozonOperations": ["performance_daily", "performance_campaign_product"],
+      "wbOperations": ["promo_fullstats", "media_stats"],
+      "identifiers": ["campaign", "product", "day"],
+      "metrics": ["spend:provider_currency", "clicks:count", "views:count"],
+      "periodPolicy": "EXPLICIT_WHERE_APPLICABLE",
+      "continuationPolicy": "EXPLICIT_ONLY",
+      "omissionPolicy": "MISSING_NOT_ZERO",
+      "externalDependency": null,
+      "numericFixtures": ["ad_stats_grain"]
+    },
+    {
+      "id": "CAP-19",
+      "ozonCoverage": "COMPOSITE",
+      "wbCoverage": "COMPOSITE",
+      "ozonOperations": [
+        "performance_expense",
+        "stocks_current",
+        "analytics_data",
+        "finance_realization_v2"
+      ],
+      "wbOperations": [
+        "promo_spend_history",
+        "stock_products",
+        "statistics_sales",
+        "finance_sales_detail_period"
+      ],
+      "identifiers": ["product", "period"],
+      "metrics": [
+        "spend:provider_currency",
+        "stock:units",
+        "sales/finance:provider_currency"
+      ],
+      "periodPolicy": "EXPLICIT_WHERE_APPLICABLE",
+      "continuationPolicy": "EXPLICIT_ONLY",
+      "omissionPolicy": "MISSING_NOT_ZERO",
+      "externalDependency": null,
+      "numericFixtures": ["cross_source_join"]
+    },
+    {
+      "id": "CAP-20",
+      "ozonCoverage": "EXTERNAL_CONTEXT",
+      "wbCoverage": "EXTERNAL_CONTEXT",
+      "ozonOperations": ["seller_product_info_list"],
+      "wbOperations": ["cards_list"],
+      "identifiers": ["own_product", "public_source"],
+      "metrics": ["private_fact:separate", "public_fact:cited"],
+      "periodPolicy": "EXPLICIT_WHERE_APPLICABLE",
+      "continuationPolicy": "EXPLICIT_ONLY",
+      "omissionPolicy": "MISSING_NOT_ZERO",
+      "externalDependency": "AI_PUBLIC_RESEARCH_REQUIRED",
+      "numericFixtures": ["external_fact_boundary"]
+    },
+    {
+      "id": "CAP-21",
+      "ozonCoverage": "COMPOSITE",
+      "wbCoverage": "COMPOSITE",
+      "ozonOperations": ["product_queries", "product_content_rating"],
+      "wbOperations": [
+        "search_report_product",
+        "search_report_details",
+        "cards_list"
+      ],
+      "identifiers": ["product", "search_text"],
+      "metrics": ["query:keyword", "frequency/position:provider_metric_only"],
+      "periodPolicy": "EXPLICIT_WHERE_APPLICABLE",
+      "continuationPolicy": "EXPLICIT_ONLY",
+      "omissionPolicy": "MISSING_NOT_ZERO",
+      "externalDependency": "SEARCH_ANALYTICS_ENTITLEMENT_MAY_BE_REQUIRED",
+      "numericFixtures": ["search_fact_boundary"]
+    },
+    {
+      "id": "CAP-22",
+      "ozonCoverage": "EXTERNAL_CONTEXT",
+      "wbCoverage": "EXTERNAL_CONTEXT",
+      "ozonOperations": ["seller_product_info_list"],
+      "wbOperations": ["cards_list"],
+      "identifiers": ["own_product", "competitor_url"],
+      "metrics": ["own_card:provider_data", "competitor:public_only"],
+      "periodPolicy": "EXPLICIT_WHERE_APPLICABLE",
+      "continuationPolicy": "EXPLICIT_ONLY",
+      "omissionPolicy": "MISSING_NOT_ZERO",
+      "externalDependency": "PUBLIC_COMPETITOR_PAGES_OR_OWNER_LINKS_REQUIRED",
+      "numericFixtures": ["competitor_boundary"]
+    },
+    {
+      "id": "CAP-23",
+      "ozonCoverage": "COMPOSITE",
+      "wbCoverage": "COMPOSITE",
+      "ozonOperations": [
+        "marketplace_search_queries_top",
+        "product_queries_details"
+      ],
+      "wbOperations": [
+        "search_report_main",
+        "search_report_groups",
+        "search_report_details",
+        "brand_share"
+      ],
+      "identifiers": ["query/category/product"],
+      "metrics": ["position/share:provider_metric_or_null"],
+      "periodPolicy": "EXPLICIT_WHERE_APPLICABLE",
+      "continuationPolicy": "EXPLICIT_ONLY",
+      "omissionPolicy": "MISSING_NOT_ZERO",
+      "externalDependency": "SEARCH_ANALYTICS_ENTITLEMENT_MAY_BE_REQUIRED",
+      "numericFixtures": ["search_position_boundary"]
+    },
+    {
+      "id": "CAP-24",
+      "ozonCoverage": "CONTRIBUTION_ONLY",
+      "wbCoverage": "CONTRIBUTION_ONLY",
+      "ozonOperations": [
+        "finance_realization_v2",
+        "finance_accrual_by_day",
+        "report_placement_by_products_create",
+        "performance_expense",
+        "analytics_data"
+      ],
+      "wbOperations": [
+        "finance_sales_detail_period",
+        "deductions",
+        "paid_storage_create",
+        "paid_storage_status",
+        "paid_storage_download",
+        "promo_spend_history",
+        "statistics_sales"
+      ],
+      "identifiers": ["sku/nmID", "period"],
+      "metrics": [
+        "revenue:provider_currency",
+        "platform_fees:provider_currency",
+        "storage:provider_currency",
+        "ads:provider_currency",
+        "platform_contribution:provider_currency"
+      ],
+      "periodPolicy": "EXPLICIT_WHERE_APPLICABLE",
+      "continuationPolicy": "EXPLICIT_REPORT_LIFECYCLE",
+      "omissionPolicy": "MISSING_NOT_ZERO",
+      "externalDependency": "COGS_TAX_EXTERNAL_COSTS_DEFERRED_FOR_FULL_PROFIT",
+      "numericFixtures": ["platform_contribution"]
+    },
+    {
+      "id": "CAP-25",
+      "ozonCoverage": "LOCAL_FILE_HISTORY",
+      "wbCoverage": "LOCAL_FILE_HISTORY",
+      "ozonOperations": [
+        "product_queries",
+        "product_queries_details",
+        "seller_product_info_list"
+      ],
+      "wbOperations": [
+        "search_report_product",
+        "search_report_details",
+        "cards_list"
+      ],
+      "identifiers": ["product", "query", "period", "business_key"],
+      "metrics": ["query:keyword", "provider_metrics:as_returned"],
+      "periodPolicy": "EXPLICIT_WHERE_APPLICABLE",
+      "continuationPolicy": "EXPLICIT_ONLY",
+      "omissionPolicy": "MISSING_NOT_ZERO",
+      "externalDependency": "PRIOR_MONTH_FILES_OWNER_MANAGED",
+      "numericFixtures": ["search_dedup"]
+    }
+  ]
+}

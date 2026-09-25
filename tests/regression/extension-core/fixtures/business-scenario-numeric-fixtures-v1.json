@@ -1,0 +1,345 @@
+{
+  "schemaVersion": "business_scenario_numeric_fixtures_v1",
+  "cases": [
+    {
+      "id": "sales_totals_complete",
+      "kind": "sales_totals",
+      "input": {
+        "complete": true,
+        "rows": [
+          {
+            "money": 120.5,
+            "units": 2
+          },
+          {
+            "money": 79.5,
+            "units": 1
+          },
+          {
+            "money": 300,
+            "units": 3
+          }
+        ]
+      },
+      "expected": {
+        "status": "COMPLETE",
+        "money": 500,
+        "units": 6
+      }
+    },
+    {
+      "id": "sales_totals_incomplete",
+      "kind": "sales_totals",
+      "input": {
+        "complete": false,
+        "rows": [
+          {
+            "money": 120,
+            "units": 2
+          }
+        ]
+      },
+      "expected": {
+        "status": "INCOMPLETE",
+        "money": null,
+        "units": null
+      }
+    },
+    {
+      "id": "daily_rank_ties",
+      "kind": "daily_rank",
+      "input": {
+        "rows": [
+          {
+            "day": "2026-09-01",
+            "money": 100
+          },
+          {
+            "day": "2026-09-02",
+            "money": 300
+          },
+          {
+            "day": "2026-09-03",
+            "money": 50
+          },
+          {
+            "day": "2026-09-04",
+            "money": 300
+          },
+          {
+            "day": "2026-09-05",
+            "money": 80
+          },
+          {
+            "day": "2026-09-06",
+            "money": 200
+          }
+        ]
+      },
+      "expected": {
+        "best": ["2026-09-02", "2026-09-04", "2026-09-06"],
+        "worst": ["2026-09-03", "2026-09-05", "2026-09-01"]
+      }
+    },
+    {
+      "id": "percent_change_positive",
+      "kind": "percent_change",
+      "input": {
+        "current": 120,
+        "previous": 100
+      },
+      "expected": 20
+    },
+    {
+      "id": "percent_change_zero_base",
+      "kind": "percent_change",
+      "input": {
+        "current": 50,
+        "previous": 0
+      },
+      "expected": null
+    },
+    {
+      "id": "warehouse_stock_sort",
+      "kind": "warehouse_sort",
+      "input": {
+        "rows": [
+          {
+            "warehouse": "B",
+            "units": 7
+          },
+          {
+            "warehouse": "A",
+            "units": 12
+          },
+          {
+            "warehouse": "C",
+            "units": 12
+          }
+        ]
+      },
+      "expected": ["A", "C", "B"]
+    },
+    {
+      "id": "warehouse_sales_sort",
+      "kind": "warehouse_sort",
+      "input": {
+        "rows": [
+          {
+            "warehouse": "South",
+            "units": 5
+          },
+          {
+            "warehouse": "North",
+            "units": 9
+          },
+          {
+            "warehouse": "East",
+            "units": 2
+          }
+        ]
+      },
+      "expected": ["North", "South", "East"]
+    },
+    {
+      "id": "days_cover_known",
+      "kind": "days_cover",
+      "input": {
+        "stock": 42,
+        "demandUnits": 21,
+        "days": 7,
+        "complete": true
+      },
+      "expected": 14
+    },
+    {
+      "id": "days_cover_missing",
+      "kind": "days_cover",
+      "input": {
+        "stock": 42,
+        "demandUnits": null,
+        "days": 7,
+        "complete": false
+      },
+      "expected": null
+    },
+    {
+      "id": "days_cover_zero_demand",
+      "kind": "days_cover",
+      "input": {
+        "stock": 42,
+        "demandUnits": 0,
+        "days": 7,
+        "complete": true
+      },
+      "expected": null
+    },
+    {
+      "id": "drr_known",
+      "kind": "drr",
+      "input": {
+        "spend": 150,
+        "revenue": 1000,
+        "complete": true
+      },
+      "expected": 15
+    },
+    {
+      "id": "drr_zero_revenue",
+      "kind": "drr",
+      "input": {
+        "spend": 150,
+        "revenue": 0,
+        "complete": true
+      },
+      "expected": null
+    },
+    {
+      "id": "drr_incomplete",
+      "kind": "drr",
+      "input": {
+        "spend": 150,
+        "revenue": 1000,
+        "complete": false
+      },
+      "expected": null
+    },
+    {
+      "id": "platform_contribution",
+      "kind": "platform_contribution",
+      "input": {
+        "revenue": 1000,
+        "fees": 110,
+        "storage": 45,
+        "logistics": 75,
+        "ads": 90
+      },
+      "expected": {
+        "label": "platform_contribution",
+        "amount": 680,
+        "isNetProfit": false
+      }
+    },
+    {
+      "id": "top_n_join",
+      "kind": "top_n_join",
+      "input": {
+        "sales": [
+          {
+            "id": "p1",
+            "money": 500
+          },
+          {
+            "id": "p2",
+            "money": 700
+          },
+          {
+            "id": "p3",
+            "money": 100
+          }
+        ],
+        "catalog": [
+          {
+            "id": "p1",
+            "name": "One"
+          },
+          {
+            "id": "p2",
+            "name": "Two"
+          }
+        ],
+        "n": 2
+      },
+      "expected": {
+        "top": [
+          {
+            "id": "p2",
+            "name": "Two",
+            "money": 700
+          },
+          {
+            "id": "p1",
+            "name": "One",
+            "money": 500
+          }
+        ],
+        "missingCatalog": []
+      }
+    },
+    {
+      "id": "join_duplicate_rejected",
+      "kind": "join_unique",
+      "input": {
+        "left": [
+          {
+            "id": "p1"
+          }
+        ],
+        "right": [
+          {
+            "id": "p1",
+            "v": 1
+          },
+          {
+            "id": "p1",
+            "v": 2
+          }
+        ]
+      },
+      "expected": {
+        "status": "DUPLICATE_KEY"
+      }
+    },
+    {
+      "id": "search_dedup_business_key",
+      "kind": "search_dedup",
+      "input": {
+        "rows": [
+          {
+            "period": "2026-08",
+            "product": "p1",
+            "query": "red dress",
+            "orders": 3
+          },
+          {
+            "period": "2026-08",
+            "product": "p1",
+            "query": "red dress",
+            "orders": 3
+          },
+          {
+            "period": "2026-08",
+            "product": "p1",
+            "query": "blue dress",
+            "orders": 1
+          }
+        ],
+        "pageCount": 99
+      },
+      "expected": {
+        "uniqueCount": 2,
+        "pageCountProvesCompleteness": false
+      }
+    },
+    {
+      "id": "causal_language_boundary",
+      "kind": "causal_boundary",
+      "input": {
+        "signals": [
+          {
+            "name": "stock_drop",
+            "delta": -50
+          },
+          {
+            "name": "ad_spend",
+            "delta": -30
+          }
+        ]
+      },
+      "expected": {
+        "claim": "HYPOTHESIS_NOT_PROVEN_CAUSE",
+        "factorCount": 2
+      }
+    }
+  ]
+}
