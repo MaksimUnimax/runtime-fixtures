@@ -126,7 +126,7 @@ localClientAuthority = {
 
 A privacy-neutral payload does not contain the legacy server-evaluated `compatibility`, `features`, or resolved `ai` fields. The local authority is inside the signed canonical payload; unsigned headers, query parameters, portal state or local storage can never substitute for it.
 
-The existing 32 KiB signed payload bound remains. The server must fail closed rather than truncate an authority bundle.
+The existing envelope bound remains exactly the current `payload.max(32768)` base64url-character limit. The server must fail closed rather than truncate an authority bundle.
 ### 5.1 Compatibility bundle
 
 `ReleaseSupport` contains only server-published release facts needed by the current resolver:
@@ -151,7 +151,7 @@ blockedVersions[]
 
 Only policies linked to the selected config release are included. More than 32 linked policy revisions or more than 128 blocked versions in one revision is source-invalid for privacy-neutral bootstrap; no partial list is signed.
 
-Local evaluation uses the same comparison rules as the existing server resolver: exact release and contract support, global plus exact-family policy uniqueness, maintenance, blocked version, minimum/recommended extension version, release browser support, then exact-family minimum browser version.
+Local evaluation uses the same comparison rules as the existing server resolver: exact release and contract support, global plus exact-family policy uniqueness, the existing `maintenanceMode`/`maintenanceCode` consistency check, maintenance, blocked version, minimum/recommended extension version, release browser support, then exact-family minimum browser version.
 ### 5.2 Feature rules
 
 The server performs account/device rollout selection first because that selection does not require client software metadata. It then signs one selected rule per feature:
@@ -219,7 +219,7 @@ When it is absent or denied:
 - never retry an error by silently switching to the identified shape;
 - keep local browser/version values only in local cache/binding checks.
 
-Current application Health is already an optional online observation, not lifecycle authority. Skipping it therefore must not disable command admission. A verified auth/bootstrap denial, device revocation or signed compatibility failure still applies normally.
+Current application Health is already an optional online observation, not lifecycle authority. Skipping acquisition because technical permission is absent therefore must not disable command admission and is not treated as an implicit PASS. When Health is acquired, an authenticated and verified Health `DENY` remains an admission veto exactly as today. A verified auth/bootstrap denial, device revocation or signed compatibility failure also still applies normally.
 
 On permission withdrawal:
 - stop future technical transmissions immediately;
