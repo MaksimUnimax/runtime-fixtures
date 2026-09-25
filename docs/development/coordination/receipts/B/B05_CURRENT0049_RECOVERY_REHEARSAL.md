@@ -2,7 +2,7 @@
 
 Date: 2026-09-25
 Role: B
-Status: helper fixed; preliminary dirty-worktree rehearsal PASS; clean exact-source rerun pending
+Status: B-owned current0049 disposable PostgreSQL recovery PASS; C05 immutable-artifact rollback remains open
 Scope: current canonical schema source0049 plus synthetic no-session Health data
 
 ## Rerun command
@@ -111,11 +111,61 @@ Result:
 Resource receipt:
 `/root/octoport-control/resource-jobs/b415448da80f48f2b1673f76e2fc7c57/receipt.json`.
 
+## Final exact-source acceptance
+
+Clean tested source revision:
+`16b26f8a69d588dcad22b792ad2a8c5815bb2de6`.
+
+Clean tested source tree:
+`c83466c6806400a693686c4352e6f2243d1cf5ef`.
+
+Supervised resource job:
+- id `f130b1f82b9d4fc198538ed253639f5e`;
+- unit `octoport-test-b-f130b1f82b9d4fc198538ed253639f5e.service`;
+- command exit `0`, peak `307232768` bytes, OOM `0`, cleanup verified;
+- resource receipt:
+  `/root/octoport-control/resource-jobs/f130b1f82b9d4fc198538ed253639f5e/receipt.json`.
+
+Final privacy-safe rehearsal log:
+`/root/octoport-control/logs/B/b05-current0049-recovery-d55363c27623.log`.
+
+Verified recovery invariants:
+- journal file SHA-256
+  `9aae17cef6769bea4c621ad3b68c8048af3d3387a9b9ffad461442259cffeabc`;
+- source and restored journals both
+  `39 / 0049_s2_l5_no_session_persistence / 1790071016000`;
+- ordered applied-journal identity on both sides
+  `563cadf21d89a967c0909ab30765b5811b549c6552831d5aa482edbd9831ada5`;
+- restored synthetic application state: users `1`, accounts `1`, portal sessions `1`;
+- restored idempotent OTP verification replay, `AuthService.authenticate()`, and
+  `listOwnedAccounts()` all passed;
+- restored API `/health/ready` returned HTTP `200`;
+- restored no-session Health state retained classification `BROKEN`, one
+  metadata evidence reference, and reconciled the scheduled run to `SUCCEEDED`;
+- exact replay plus a second reconciliation left exactly
+  `runs=1, observations=1, incidents=1, LLM_HEALTH outbox=1`.
+
+Archive evidence:
+- path:
+  `/root/octoport-control/backups/B/b05-current0049-recovery-d55363c27623.dump`;
+- SHA-256
+  `9906a4ad7ca7be44c59b91152687c8a77dee268c6673e7822014c2869a310031`;
+- size `401110` bytes, mode `0600`, custom archive TOC entries `689`.
+
+C05 local handoff:
+- retained disposable target database:
+  `octoport_b_recovery_restore_current0049` in `octoport-b-test-pg`;
+- source rehearsal database is absent after cleanup;
+- private mode-`0600` target reference:
+  `/root/octoport-control/backups/B/b05-current0049-restored-target.json`;
+- the disposable DB URL exists only in that private local reference and is not
+  written to Git, normal logs, or this receipt.
+
 ## Evidence state and limits
 
-This preliminary run shows the current source0049 recovery procedure can complete successfully on B's disposable PostgreSQL, but it is not the final exact-source acceptance because the helper worktree was dirty during execution.
+The final clean exact-source run above is the accepted B-owned recovery evidence. The earlier dirty-worktree run is retained only as preliminary historical evidence and is not used as the acceptance identity.
 
-It does not prove immutable application-artifact rollback, live0049,
+This B05 evidence does not prove immutable application-artifact rollback, live0049,
 production, Telegram delivery, production RPO/RTO, scheduled backup retention,
 or deployment acceptance. C owns the immutable artifact/rollback part of C05
 and may consume the retained private disposable target above. No live DB,
