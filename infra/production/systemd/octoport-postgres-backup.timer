@@ -1,0 +1,12 @@
+[Unit]
+Description=Daily Octoport independent PostgreSQL backup schedule
+
+[Timer]
+OnCalendar=daily
+Persistent=yes
+RandomizedDelaySec=30m
+AccuracySec=5m
+Unit=octoport-postgres-backup.service
+
+[Install]
+WantedBy=timers.target

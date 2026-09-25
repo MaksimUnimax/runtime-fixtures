@@ -18,7 +18,8 @@
   "dependencies": {
     "@product/monitoring-control": "workspace:*",
     "yaml": "2.9.0",
-    "zod": "4.1.5"
+    "zod": "4.1.5",
+    "typescript": "5.9.2"
   },
   "devDependencies": {
     "@types/node": "24.3.0",
