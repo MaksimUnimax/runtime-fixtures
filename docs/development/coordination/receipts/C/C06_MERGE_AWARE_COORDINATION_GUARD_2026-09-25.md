@@ -47,6 +47,18 @@ Real Git mini-rehearsal with the actual pre-commit hook:
 
 No hook bypass, force-push, reset of published history, live DB action, or product runtime change was used.
 
+## Independent review
+
+Read-only Luna review `c06-merge-aware-guard-review` inspected exact code checkpoint `c24940f5541ce18c8a0e13c0b5edbc41cfb3a7e2` and reported **No findings**. It confirmed:
+
+- merge-time default comparison uses `MERGE_HEAD`;
+- non-merge fallback remains `HEAD`;
+- explicit `--base` still bypasses automatic detection;
+- forbidden local paths remain subject to the existing ownership filter;
+- no new cherry-pick/rebase behavior or hook bypass was introduced.
+
+Review limits: read-only source inspection; the reviewer did not independently rerun the unit suite or Git mini-rehearsal.
+
 ## Acceptance boundary
 
 This receipt proves the guard algorithm and hook behavior in source/disposable Git rehearsal. A and B should only retry ordinary current-main synchronization after this exact coordination change is accepted into `main`; they must not bypass hooks in the meantime.
