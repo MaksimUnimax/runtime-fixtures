@@ -1,0 +1,214 @@
+{
+  "schema": "OCTOPORT_M13_TECHNICAL_SEO_SPEC_INPUT_MANIFEST_V1",
+  "work_id": "OCTOPORT_SEO_M13_TECHNICAL_SEO_SPEC_2026-09-25_R1",
+  "roadmap_stage": "M13_TECHNICAL_SEO_SPECIFICATION",
+  "repository": "MaksimUnimax/runtime-fixtures",
+  "branch": "seo/wordstat-batch-01-2026-09-16",
+  "manifest_parent_head": "d6eb997730f284349dd223ec8922d9400c9ffcd4",
+  "execution_mode": "MAIN_CHAT_FULL_SCOPE_NO_WORK",
+  "step_preparation": {
+    "path": "docs/seo/M13_STEP_PREPARATION_2026-09-25_R1.md",
+    "blob": "131529b1c07d967936aee683a4af14e0cf7bdfe1"
+  },
+  "governing_rules": [
+    {
+      "path": "docs/seo/LEVEL1/README.md",
+      "blob": "4c3a30644ac736b926ec82bba6b1a6e33434ac06"
+    },
+    {
+      "path": "docs/seo/EXECUTION_RULES.md",
+      "blob": "4e999af4826d6f72fd15f481a698f674c8ed2d5c"
+    },
+    {
+      "path": "docs/seo/QUALITY_FIRST_RESOURCE_RULE.md",
+      "blob": "9917a52b837bcb8ae50eb63cc53e7becd1671b39"
+    },
+    {
+      "path": "docs/seo/WORK_HANDOFF_RULE.md",
+      "blob": "71a031e74b921dade5998beb842fb3afcc4478e7"
+    },
+    {
+      "path": "docs/seo/METHODOLOGY.md",
+      "blob": "6a85c53ec7994e3f68636dccc49c71d5be95d5ae"
+    },
+    {
+      "path": "docs/seo/PRODUCT_TRUTH.md",
+      "blob": "6a469d5743142d3e476afa5d2cda653fd411ecb8"
+    },
+    {
+      "path": "docs/seo/LEVEL2/M13_M18_IMPLEMENTATION_LAUNCH_MEASUREMENT_RULES.md",
+      "blob": "fe11b327eefff20f6c807581ae947a78c6bcc6e8"
+    },
+    {
+      "path": "docs/seo/FAILURE_LEDGER.md",
+      "blob": "2527cb7adb10a57795f0b80f16660b4475f6e825"
+    }
+  ],
+  "current_seo_authority": [
+    {
+      "path": "docs/seo/M11_MAIN_CHAT_CORRECTION_ACCEPTANCE_2026-09-25_R2.md",
+      "blob": "0fd15af86ba93a6eaae73b43f4507522576f0df3"
+    },
+    {
+      "path": "docs/seo/M11_CLUSTER_FINAL_OWNERSHIP_CURRENT_2026-09-25_R2.tsv",
+      "blob": "d8b3b90e5c8624663daf732ca445512ce0d77950",
+      "rows": 104
+    },
+    {
+      "path": "docs/seo/M11_PAGE_OWNER_REGISTRY_CURRENT_2026-09-25_R2.tsv",
+      "blob": "0ee117f499fd129e7c11d8856c853e811e99ec15",
+      "rows": 2
+    },
+    {
+      "path": "docs/seo/M11_EXISTING_SURFACE_DECISION_CURRENT_2026-09-25_R2.tsv",
+      "blob": "d3c1149c5f6beae255cd64a2ae522da7102f98e3",
+      "rows": 4
+    },
+    {
+      "path": "docs/seo/M12_MAIN_CHAT_CORRECTION_ACCEPTANCE_2026-09-25_R2.md",
+      "blob": "782f182026172009a220e80a37b9c48e4017be11"
+    },
+    {
+      "path": "docs/seo/M12_PAGE_SPEC_REGISTRY_2026-09-25_R2.tsv",
+      "blob": "53fd8d3217df7b00dbc644a4d396fcd258e497d8",
+      "rows": 2
+    },
+    {
+      "path": "docs/seo/M12_CONTENT_BLOCK_CONTRACT_2026-09-25_R2.tsv",
+      "blob": "b32e4b0c0f8255ef28035a2cf7ce1c804ef9fc10",
+      "rows": 15
+    },
+    {
+      "path": "docs/seo/M12_INTERNAL_LINK_CONTRACT_2026-09-25_R1.tsv",
+      "blob": "f35ca60c318efe0c74b2d6219bcb680943560c14",
+      "rows": 2
+    },
+    {
+      "path": "docs/seo/M12_PROOF_TRUST_REQUIREMENTS_2026-09-25_R1.tsv",
+      "blob": "7b5e5a523a877dad3a08343c681ed7a379ec2631",
+      "rows": 6
+    },
+    {
+      "path": "docs/seo/M12_QA_2026-09-25_R2.md",
+      "blob": "44992c67159ae6b6e0d8055cb597a8165d598f56"
+    }
+  ],
+  "current_main": {
+    "head": "7945d62854e135421c3db003c603187b9f37866b",
+    "public_site": [
+      {
+        "path": "apps/site/public/index.html",
+        "blob": "3123a714e2092fb156eebe498ef97bb5969567f6"
+      },
+      {
+        "path": "apps/site/public/install.html",
+        "blob": "99bc456742375219779ae9c611580e389b81c7a1"
+      },
+      {
+        "path": "apps/site/public/privacy.html",
+        "blob": "bb975f29e3fbe8e1cfeb1fa19f397f9e5dc1f101"
+      },
+      {
+        "path": "apps/site/public/support.html",
+        "blob": "2ebb8fdab73c50d98a3af70198f98813cbab942b"
+      },
+      {
+        "path": "apps/site/public/robots.txt",
+        "blob": "446df898e31b99b230e8a49a7c94a45e4df96228"
+      },
+      {
+        "path": "apps/site/public/sitemap.xml",
+        "blob": "fdceb2ff477941104373850846c33bac2a5d3ced"
+      },
+      {
+        "path": "apps/site/public/styles.css",
+        "blob": "cda70d351cb72332c70d7a32e5b31d3182e0a374"
+      },
+      {
+        "path": "apps/site/README.md",
+        "blob": "28442c9c361e64e2fa161281db768a3dc6ca8ecc"
+      }
+    ],
+    "ingress_and_tests": [
+      {
+        "path": "infra/production/nginx/octoport-site.conf",
+        "blob": "4efcf08a2c118986496298789bac2565b1067994"
+      },
+      {
+        "path": "infra/production/nginx/octoport-apps.conf",
+        "blob": "adbea6c2d6af15c0ed7bb05af1a7a7e05029d49f",
+        "mutation_policy": "DO_NOT_CHANGE"
+      },
+      {
+        "path": "infra/production/scripts/deploy-octoport-site.sh",
+        "blob": "f35a27b084ddce4cb9342852e5e35579ef0bc6b6"
+      },
+      {
+        "path": "infra/production/scripts/verify-octoport-site.sh",
+        "blob": "753782280daa59bd0def52232b23465937f1a880"
+      },
+      {
+        "path": ".github/workflows/site-ci.yml",
+        "blob": "9c6320dff4f45bf50cc86c1afcdf4893613e374f"
+      },
+      {
+        "path": "tests/regression/site/test_site_deployment.py",
+        "blob": "79d5dca16f5fbb26c70450d6b121d59d281ecc69"
+      }
+    ]
+  },
+  "target_surfaces": {
+    "indexable": [
+      {
+        "url": "https://octoport.ru/",
+        "owner_id": "M11PAGE_EXISTING_HOME",
+        "action": "OPTIMIZE"
+      },
+      {
+        "url": "https://octoport.ru/seller-analytics",
+        "owner_id": "M11PAGE_aaa90aa723a3694c",
+        "action": "CREATE"
+      }
+    ],
+    "noindex_follow": [
+      {
+        "url": "https://octoport.ru/privacy",
+        "reason": "M11_NO_SEARCH_TARGET_KEEP"
+      },
+      {
+        "url": "https://octoport.ru/support",
+        "reason": "M11_SUPPORTING_SURFACE_KEEP"
+      },
+      {
+        "url": "https://octoport.ru/install",
+        "reason": "M11_SUPPORTING_SURFACE_KEEP_PLACEHOLDER"
+      }
+    ]
+  },
+  "expected_outputs": [
+    "M13_SOURCE_MANIFEST.md",
+    "M13_TECHNICAL_REQUIREMENTS.tsv",
+    "M13_ROUTE_HTTP_CANONICAL_MATRIX.tsv",
+    "M13_ROBOTS_SITEMAP_INDEXING_SPEC.tsv",
+    "M13_METADATA_STRUCTURED_DATA_SPEC.tsv",
+    "M13_PERFORMANCE_MOBILE_SPEC.tsv",
+    "M13_IMPLEMENTATION_FILE_MAP.tsv",
+    "M13_ADVERSARIAL_DIAGNOSTIC.tsv",
+    "M13_QA.md"
+  ],
+  "first_execution_action": "Fresh read-only live technical baseline after this manifest/preparation are remote-read back. No live observation gathered before the durable gate is accepted.",
+  "work_trigger": {
+    "required": false,
+    "reason": "Finite small technical surface; complete current sources can be inspected and specified in Main Chat without sampling."
+  },
+  "hard_prohibitions": [
+    "site mutation during M13",
+    "main branch mutation during M13",
+    "M14 implementation before M13 acceptance",
+    "new page/owner outside accepted M11/M12",
+    "provider Search/Wordstat/GenSearch acquisition",
+    "Yandex Webmaster/Search Console mutation",
+    "fake structured data price/review/rating",
+    "rewriting app/api ingress behavior"
+  ]
+}
