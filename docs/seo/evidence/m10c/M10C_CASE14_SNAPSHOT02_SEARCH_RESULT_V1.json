@@ -1,0 +1,110 @@
+{
+  "bridge": "yandex-marketing-bridge",
+  "version": "0.1.9",
+  "service": "search",
+  "operation": "genSearch",
+  "request_id": "search-525af74d-9631-408a-bc1a-3250cb7ad2c7",
+  "run_id": null,
+  "status": "OK",
+  "reason": null,
+  "cost_estimate": {
+    "estimated_rub": 5.08,
+    "tariff_checked_at": "2026-08-19",
+    "tariff_source": "[https://aistudio.yandex.ru/docs/ru/search-api/pricing.html](https://aistudio.yandex.ru/docs/ru/search-api/pricing.html)"
+  },
+  "policy": {
+    "channel": "manual",
+    "active_service": "search"
+  },
+  "command": {
+    "method": "genSearch",
+    "queryText": "отчеты маркетплейсов",
+    "confirmBillable": true
+  },
+  "http_status": 200,
+  "elapsed_ms": 5736,
+  "result": {
+    "mode": "generative",
+    "message": {
+      "content": "**Отчёты маркетплейсов** — важный инструмент для оценки и мониторинга бизнеса на площадках. [2] В основном такие отчёты бывают двух видов: [2]\n\n1. **Финансовые отчёты**. [2] Включают информацию о продажах, прибыли и убытках, а также остатки на складе и другие финансовые показатели. [2] Такие отчёты помогают оценить эффективность бизнеса и принять решения, связанные с финансовым планированием и управлением. [2]\n2. **Отчёты о клиентах, товарах и других параметрах бизнеса**. [2] Например, можно получить отчёты о клиентах, которые совершили наибольшее количество покупок, или о товарах, которые наиболее популярны среди клиентов. [2] Такие отчёты помогают лучше понять клиентов и определить популярные товары. [2]\n\nНекоторые виды отчётов маркетплейсов:\n\n* **Отчёт о реализации**. [1] Показывает, какие товары были реализованы, в каком периоде, по какой цене и на каких условиях. [1]\n* **Финансовая детализация**. [1] Помогает увидеть, из чего сложилась итоговая сумма. [1] В ней важно смотреть комиссии, логистику, удержания, возвраты, компенсации, штрафы, корректировки, услуги площадки. [1]\n* **Отчёт о перечислениях**. [1] Показывает, какую сумму маркетплейс перечислил продавцу и за какой период. [1]\n* **Отчёты по возвратам**. [1] Возвраты влияют на выручку, выплаты, прибыль и остатки. [1]\n* **Отчёты по рекламе**. [1] Рекламные расходы часто живут отдельно от продаж, но для реальной прибыли их нужно связывать с заказами и маржей. [1]\n* **Отчёты по остаткам**. [1] Остатки влияют на оборачиваемость, план поставок, хранение, out-of-stock и замороженную оборотку. [1]\n\nС 1 июля 2026 года отчёты о выкупленных товарах на маркетплейсе Ozon формируются каждый день. [8]",
+      "role": "ROLE_ASSISTANT"
+    },
+    "sources": [
+      {
+        "url": "[https://totalcrm.ru/blog/2026/05/marketplejsy-fns-i-dannye-po-oborotam-chto-selleru-proverit-v-uchete-do-novyh-pravil-2026_301](https://totalcrm.ru/blog/2026/05/marketplejsy-fns-i-dannye-po-oborotam-chto-selleru-proverit-v-uchete-do-novyh-pravil-2026_301)",
+        "title": "Маркетплейсы, ФНС и данные по оборотам: что селлеру проверить в учете до новых правил 2026",
+        "used": true
+      },
+      {
+        "url": "[https://www.klerk.ru/user/1986827/573630/](https://www.klerk.ru/user/1986827/573630/)",
+        "title": "Анализ данных и отчетность на маркетплейсах: как получить ценную информацию для управленческих решений",
+        "used": true
+      },
+      {
+        "url": "[https://totalcrm.ru/blog/2025/12/kak-chitat-i-ponimat-otchety-marketplejsov-v-2025-godu-poshagovoe-rukovodstvo-dlya-sellerov_108](https://totalcrm.ru/blog/2025/12/kak-chitat-i-ponimat-otchety-marketplejsov-v-2025-godu-poshagovoe-rukovodstvo-dlya-sellerov_108)",
+        "title": "Как читать отчеты маркетплейсов 2025: полное руководство для Wildberries, Ozon и Яндекс-маркета с примерами расчётов",
+        "used": false
+      },
+      {
+        "url": "[https://www.business.ru/article/7357-samye-prodavaemye-tovary-na-marketpleysah-2026-statbru](https://www.business.ru/article/7357-samye-prodavaemye-tovary-na-marketpleysah-2026-statbru)",
+        "title": "Самые продаваемые товары на маркетплейсах 2026: аналитика и выбор ниши",
+        "used": false
+      },
+      {
+        "url": "[https://tochka.com/knowledge/marketpleisy/kak-chitat-otchyoty-ozon-po-prodazham/](https://tochka.com/knowledge/marketpleisy/kak-chitat-otchyoty-ozon-po-prodazham/)",
+        "title": "Как читать отчёт о реализации Ozon: расшифровка финансового отчёта — Точка Банк",
+        "used": false
+      },
+      {
+        "url": "[https://www.glavbukh.ru/art/391168-marketpleysy-v-godu-buhuchet-poshagovaya-instruktsiya-v-1s](https://www.glavbukh.ru/art/391168-marketpleysy-v-godu-buhuchet-poshagovaya-instruktsiya-v-1s)",
+        "title": "Маркетплейсы с 25 августа 2026 года: бухучет, налоговый учет, пошаговая инструкция в 1С",
+        "used": false
+      },
+      {
+        "url": "[https://mpmgr.ru/features/analytics](https://mpmgr.ru/features/analytics)",
+        "title": "Аналитика продаж на Wildberries, Ozon и Яндекс.Маркете - MP Manager",
+        "used": false
+      },
+      {
+        "url": "[https://seller.ozon.ru/media/news/otchyoty-o-vykupah-marketplejsom-stanut-ezhednevnymi/](https://seller.ozon.ru/media/news/otchyoty-o-vykupah-marketplejsom-stanut-ezhednevnymi/)",
+        "title": "Отчёты о выкупах маркетплейсом станут ежедневными",
+        "used": true
+      },
+      {
+        "url": "[https://secrets.tbank.ru/razvitie/chistaya-pribyl-na-marketplejse/](https://secrets.tbank.ru/razvitie/chistaya-pribyl-na-marketplejse/)",
+        "title": "Финансовые отчеты для маркетплейсов в 2026: какие нужны и как читать",
+        "used": false
+      },
+      {
+        "url": "[https://datainsight.ru/DI_eCommerce_2026](https://datainsight.ru/DI_eCommerce_2026)",
+        "title": "Интернет-торговля в России 2026 - маркетинговое исследование от агентства Data Insight",
+        "used": false
+      }
+    ],
+    "searchQueries": [
+      {
+        "text": "отчеты маркетплейсов 2026",
+        "reqId": "1790302540611873-280515790122437095-luxjtm57brqwctpk-BAL"
+      },
+      {
+        "text": "отчеты маркетплейсов",
+        "reqId": "1790302540612768-2468304051313004092-tdrj4irfpdzoi6pn-BAL"
+      }
+    ],
+    "fixedMisspellQuery": "",
+    "isAnswerRejected": false,
+    "isBulletAnswer": false,
+    "hints": [
+      "Как использовать отчёты о клиентах для улучшения бизнеса?",
+      "Какие инструменты предоставляют маркетплейсы для отчётов?",
+      "Какие факторы влияют на формирование отчётов о реализации?"
+    ],
+    "problematicAnswer": false,
+    "transport": {
+      "wire_format": "json_array",
+      "frame_count": 1
+    }
+  },
+  "request_executed": true,
+  "automatic_retry": false
+}
