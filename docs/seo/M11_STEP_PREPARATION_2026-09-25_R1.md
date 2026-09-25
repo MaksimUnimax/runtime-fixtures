@@ -382,8 +382,9 @@ claim_boundary
 Closed `edge_type`:
 `PARENT_CHILD | CONTEXTUAL_INTERNAL_LINK | SUPPORT_LINK | NAVIGATION_LINK`.
 
-No edge may point to a HOLD/nonexistent owner.
-No assigned indexable owner may be orphaned.
+An IA edge endpoint may be either an assigned page owner ID or one of the four fixed current existing-surface IDs when that surface has a non-HOLD surface_decision.
+No edge may point to a HOLD/nonexistent owner or HOLD existing surface.
+Every assigned indexable owner other than an SEO-owning HOME must have at least one incoming required edge from an assigned owner or current non-HOLD existing surface; orphan assigned targets are forbidden.
 
 ## 18. Cannibalization guard
 
