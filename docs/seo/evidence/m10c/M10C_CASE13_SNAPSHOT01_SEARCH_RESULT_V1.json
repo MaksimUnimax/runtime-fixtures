@@ -1,0 +1,95 @@
+{
+  "bridge": "yandex-marketing-bridge",
+  "version": "0.1.9",
+  "service": "search",
+  "operation": "genSearch",
+  "request_id": "search-008ba71c-4dec-4937-a0eb-52431d48dad4",
+  "run_id": null,
+  "status": "OK",
+  "reason": null,
+  "cost_estimate": {
+    "estimated_rub": 5.08,
+    "tariff_checked_at": "2026-08-19",
+    "tariff_source": "[https://aistudio.yandex.ru/docs/ru/search-api/pricing.html](https://aistudio.yandex.ru/docs/ru/search-api/pricing.html)"
+  },
+  "policy": {
+    "channel": "manual",
+    "active_service": "search"
+  },
+  "command": {
+    "method": "genSearch",
+    "queryText": "дрр wildberries",
+    "confirmBillable": true
+  },
+  "http_status": 200,
+  "elapsed_ms": 4031,
+  "result": {
+    "mode": "generative",
+    "message": {
+      "content": "**ДРР (доля рекламных расходов) на Wildberries** — это процент от выручки, который уходит на рекламу. [4][6] Показатель позволяет оценить эффективность рекламных вложений. [1][6] \n\n**Формула расчёта**: ДРР = (Расходы на рекламу / Выручка от продаж) × 100%. [4][5] \n\n**Пример расчёта**: если на рекламу потратили 30 000 рублей и получили выручку 100 000 рублей, то ДРР составит 30% (30 000 / 100 000) × 100%. [6]\n\n**Нормальный ДРР зависит от категории товара и маржинальности**: [4]\n\n* **Товары повседневного спроса**: 5–10%. [4]\n* **Средняя маржинальность**: 10–20%. [4]\n* **Высокая маржинальность**: 15–25%. [4]\n* **Новые товары (запуск)**: 20–30%. [4]\n\n**ДРР выше 30% требует срочной оптимизации стратегии**. [6] \n\n**Основные способы снижения ДРР**: оптимизация ставок, улучшение карточек товаров, работа с товарами-локомотивами и отключение неэффективных кампаний. [6]",
+      "role": "ROLE_ASSISTANT"
+    },
+    "sources": [
+      {
+        "url": "[https://marpla.ru/blog/raschet-drr-na-wildberries/](https://marpla.ru/blog/raschet-drr-na-wildberries/)",
+        "title": "ДРР что это в рекламе на WB, как считается доля рекламных расходов",
+        "used": true
+      },
+      {
+        "url": "[https://wildcrm.ru/tpost/bb3addjfa1-drr-na-wildberries-kak-rasschitat-i-opti](https://wildcrm.ru/tpost/bb3addjfa1-drr-na-wildberries-kak-rasschitat-i-opti)",
+        "title": "ДРР на wildberries — как рассчитать и оптимизировать | Статьи от WildCRM",
+        "used": false
+      },
+      {
+        "url": "[https://jvo.ru/blog/dolyareklamnyhraskhodovnawbiozonraschyotinormy](https://jvo.ru/blog/dolyareklamnyhraskhodovnawbiozonraschyotinormy)",
+        "title": "Доля рекламных расходов на WB и Ozon: расчёт и нормы",
+        "used": false
+      },
+      {
+        "url": "[https://mpmgr.ru/blog/analytics/drr-kak-schitat](https://mpmgr.ru/blog/analytics/drr-kak-schitat)",
+        "title": "ДРР на Wildberries: формула расчёта и как снизить расходы на рекламу - MP Manager",
+        "used": true
+      },
+      {
+        "url": "[https://mpagency.ru/blog/drr-na-marketplejsah/](https://mpagency.ru/blog/drr-na-marketplejsah/)",
+        "title": "ДРР на маркетплейсах: что это, формула расчёта, норма и как снизить — 2026 | MPAgency",
+        "used": true
+      },
+      {
+        "url": "[https://o-ff.ru/blog/post/drr-na-wildberries-2026](https://o-ff.ru/blog/post/drr-na-wildberries-2026)",
+        "title": "ДРР на Wildberries в 2026: что это, как рассчитать и снизить",
+        "used": true
+      },
+      {
+        "url": "[https://wbstat.pro/blog/reklama-na-wildberries-i-upravlenie-reklamoy/](https://wbstat.pro/blog/reklama-na-wildberries-i-upravlenie-reklamoy/)",
+        "title": "Действительно ли внутренняя реклама на WILDBERRIES работает эффективно? Как не слить бюджет впустую?",
+        "used": false
+      }
+    ],
+    "searchQueries": [
+      {
+        "text": "дрр wildberries что это",
+        "reqId": "1790301419145545-11140532201085018005-tna5ser3simef2ah-BAL"
+      },
+      {
+        "text": "дрр wildberries",
+        "reqId": "1790301418627150-412917771730888867-e2l343dvkkjgvmbq-BAL"
+      }
+    ],
+    "fixedMisspellQuery": "",
+    "isAnswerRejected": false,
+    "isBulletAnswer": false,
+    "hints": [
+      "Какие факторы влияют на ДРР на Wildberries?",
+      "Какие инструменты на Wildberries помогают отслеживать ДРР?",
+      "Как ДРР влияет на прибыль магазина?"
+    ],
+    "problematicAnswer": false,
+    "transport": {
+      "wire_format": "json_array",
+      "frame_count": 1
+    }
+  },
+  "request_executed": true,
+  "automatic_retry": false
+}
