@@ -1,9 +1,9 @@
 ID	Требование	Исторический_статус_не_текущая_приёмка	Режим	Действие	Критерий	Статус_новой_сборки
 Q1C-OTP-01	Real OTP account login device activation Bootstrap	BLOCKED_REAL_MAIL	SHARED_READY_WINDOW	Открыть реальный ящик и ввести код в официальный портал; пароль/код не передавать чату	Mailbox arrival plus login device and Bootstrap pass	REVERIFY_EXACT_RC
 Q1C-EXT-03	Extension authorization/device binding	READY	SHARED_READY_WINDOW	Authorize unchanged extension for logged-in account	Account/device binds without secret exposure	REVERIFY_EXACT_RC
-Q1C-BS-04	Signed Bootstrap/account binding/reopen	READY	AUTO_FIRST	A/B/C готовят доказательство; владелец только для выбранного короткого UX-контроля	Preprod trust identity and beta permissions accepted	REVERIFY_EXACT_RC
+Q1C-BS-04	Signed Bootstrap/account binding/reopen	READY	AUTO_FIRST	A/B/C готовят доказательство; владелец только для выбранного короткого UX-контроля	Preprod trust identity and beta permissions accepted	PASS_REAL_BROWSER_DISPOSABLE_SIGNED_BOOTSTRAP__LIVE_OWNER_BINDING_REOPEN_OPEN
 Q1C-AUTH-02	Logout and re-login invalidation	READY	SHARED_READY_WINDOW	Logout then re-login using real mailbox	Old session invalidated and new session valid	REVERIFY_EXACT_RC
-Q1C-BETA-05	Free-beta non-commercial UX	READY	AUTO_FIRST	A/B/C готовят доказательство; владелец только для выбранного короткого UX-контроля	No checkout payment prompt or commercial denial	REVERIFY_EXACT_RC
+Q1C-BETA-05	Free-beta non-commercial UX	READY	AUTO_FIRST	A/B/C готовят доказательство; владелец только для выбранного короткого UX-контроля	No checkout payment prompt or commercial denial	PASS_AUTOMATED_FREE_BETA_POLICY__LIVE_DEPLOYED_UX_OPEN
 Q1C-OZON-06	Ozon store add/validation	BLOCKED_OWNER_CREDENTIAL	SHARED_READY_WINDOW	Add one Ozon store in UI	Store validates or honest provider failure	REVERIFY_EXACT_RC
 Q1C-OZON-07	Ozon Start/read-only command	BLOCKED_OWNER_CREDENTIAL	SHARED_READY_WINDOW	Run one bounded read-only Ozon command	Correct binding and safe result	REVERIFY_EXACT_RC
 Q1C-OZON-08	Ozon report/file result	BLOCKED_OWNER_CREDENTIAL	SHARED_READY_WINDOW	Request one report or file result	Same-dialogue delivery without durable raw report	REVERIFY_EXACT_RC
