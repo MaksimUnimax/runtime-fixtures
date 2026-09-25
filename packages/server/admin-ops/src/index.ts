@@ -158,18 +158,35 @@ export type SafeUser = {
   createdAt: Date;
   updatedAt: Date;
 };
-export type SafeDevice = {
+type SafeDeviceBase = {
   id: string;
   status: "ACTIVE" | "REVOKED";
   label: string | null;
-  browserFamily: string;
-  browserVersionLastSeen: string | null;
-  extensionVersionLastSeen: string | null;
   createdAt: Date;
   activatedAt: Date | null;
   lastSeenAt: Date | null;
   revokedAt: Date | null;
 };
+export type SafeDevice = SafeDeviceBase &
+  (
+    | {
+        clientMetadata: { state: "WITHHELD" };
+        browserFamily?: never;
+        browserVersionLastSeen?: never;
+        extensionVersionLastSeen?: never;
+      }
+    | {
+        clientMetadata: {
+          state: "PRESENT";
+          browserFamily: string;
+          browserVersion: string | null;
+          extensionVersion: string;
+        };
+        browserFamily: string;
+        browserVersionLastSeen: string | null;
+        extensionVersionLastSeen: string;
+      }
+  );
 export type AuditEvent = {
   id: string;
   actorType: string;

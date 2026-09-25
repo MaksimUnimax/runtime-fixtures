@@ -1,14 +1,16 @@
 "use client";
 import { useEffect, useState } from "react";
 import { controlPlane } from "../../lib/control-plane";
+import {
+  deviceClientMetadataDisplay,
+  type DeviceClientMetadata,
+} from "../../lib/device-client-metadata";
 type Account = { id: string; displayName: string | null; status: string };
 type Device = {
   id: string;
   status: string;
   label: string | null;
-  browserFamily: string;
-  browserVersionLastSeen: string | null;
-  extensionVersionLastSeen: string | null;
+  clientMetadata: DeviceClientMetadata;
   activatedAt: string | null;
   lastSeenAt: string | null;
 };
@@ -53,17 +55,19 @@ export default function Devices() {
         </select>
       </label>
       <ul>
-        {devices.map((d) => (
-          <li key={d.id}>
-            {d.label ?? "Unnamed device"} — {d.status}, {d.browserFamily}{" "}
-            {d.browserVersionLastSeen ?? ""}, extension{" "}
-            {d.extensionVersionLastSeen ?? ""}; activated {d.activatedAt ?? "—"}
-            , last seen {d.lastSeenAt ?? "—"}{" "}
-            {d.status === "ACTIVE" && (
-              <button onClick={() => void revoke(d.id)}>Revoke</button>
-            )}
-          </li>
-        ))}
+        {devices.map((d) => {
+          const metadata = deviceClientMetadataDisplay(d.clientMetadata);
+          return (
+            <li key={d.id}>
+              {d.label ?? "Unnamed device"} — {d.status}, {metadata.browser},
+              extension {metadata.extension}; activated {d.activatedAt ?? "—"},
+              last seen {d.lastSeenAt ?? "—"}{" "}
+              {d.status === "ACTIVE" && (
+                <button onClick={() => void revoke(d.id)}>Revoke</button>
+              )}
+            </li>
+          );
+        })}
       </ul>
     </main>
   );

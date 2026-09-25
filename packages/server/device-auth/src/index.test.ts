@@ -234,6 +234,17 @@ describe("device authorization crypto and policy", () => {
       deviceLabel: "laptop",
     };
     const original = requestFingerprint(body);
+    const withheld = requestFingerprint({
+      clientType: "browser_extension",
+      deviceLabel: "laptop",
+    });
+    expect(withheld).not.toBe(original);
+    expect(
+      requestFingerprint({
+        deviceLabel: "laptop",
+        clientType: "browser_extension",
+      }),
+    ).toBe(withheld);
     expect(
       requestFingerprint({
         extensionVersion: "2",
@@ -252,6 +263,40 @@ describe("device authorization crypto and policy", () => {
     ])
       expect(requestFingerprint({ ...body, ...changed })).not.toBe(original);
   });
+  it("starts privacy-neutral authorization without fabricating client metadata", async () => {
+    const start = vi.fn().mockImplementation(async ({ record }) => ({
+      ok: true,
+      value: { record, replay: false },
+    }));
+    const service = new DeviceAuthorizationService(
+      { start, approve: vi.fn(), deny: vi.fn(), expireDue: vi.fn() } as never,
+      keys,
+      () => new Date("2026-09-03T00:00:00.000Z"),
+      () => ({
+        deviceCode: generateDeviceCode(Buffer.alloc(32, 6)),
+        rawUserCode: "ABCDEFGH",
+      }),
+    );
+    const result = await service.start(
+      { clientType: "browser_extension", deviceLabel: "manual-label" },
+      "P".repeat(16),
+      "198.51.100.9",
+      "privacy-neutral",
+    );
+    expect(result.ok).toBe(true);
+    const record = start.mock.calls[0]?.[0].record;
+    expect(record).toMatchObject({ deviceLabel: "manual-label" });
+    expect(record).not.toHaveProperty("browserFamily");
+    expect(record).not.toHaveProperty("browserVersion");
+    expect(record).not.toHaveProperty("extensionVersion");
+    expect(record.requestFingerprint).toBe(
+      requestFingerprint({
+        clientType: "browser_extension",
+        deviceLabel: "manual-label",
+      }),
+    );
+  });
+
   it("T1 state matrix permits only the four P2.3 transitions", () => {
     for (const [from, to, allowed] of [
       ["PENDING", "APPROVED", true],

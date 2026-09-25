@@ -75,14 +75,18 @@ async function approved(
   const expiresAt =
     (changes.expiresAt as Date | undefined) ??
     new Date(fixedNow.getTime() + 60_000);
+  const withheld = changes.withheld === true;
   await q(
     `INSERT INTO device_authorizations(id,device_code_hash,user_code_hash,status,requested_client_type,browser_family,browser_version,extension_version,device_label,approved_account_id,approved_user_id,expires_at,start_secret_ciphertext,start_secret_nonce,start_secret_auth_tag)
-     VALUES($1,$2,$3,$4,'browser_extension','chrome','123','2.5','My device',$5,$6,$7,$8,$9,$10)`,
+     VALUES($1,$2,$3,$4,'browser_extension',$5,$6,$7,'My device',$8,$9,$10,$11,$12,$13)`,
     [
       id,
       "code:" + deviceCode,
       "user:" + id,
       changes.status ?? "APPROVED",
+      withheld ? null : "chrome",
+      withheld ? null : "123",
+      withheld ? null : "2.5",
       state.accountId,
       state.userId,
       expiresAt,
@@ -210,6 +214,139 @@ describe.sequential("P2.5 real PostgreSQL device-management A-J", () => {
       sessions: "1",
       refreshes: "1",
     });
+  });
+
+  it("preserves WITHHELD metadata through exchange/list and clears only the authenticated current device", async () => {
+    const state = await owner();
+    const other = await owner();
+    const identified = await activate(state, 10);
+    const withheldAuth = await approved(state, { withheld: true });
+    const withheld = await service(10).exchange(
+      withheldAuth.deviceCode,
+      "N".repeat(16),
+      "203.0.113.40",
+      "withheld-exchange",
+    );
+    if (withheld.kind !== "ACTIVATED") {
+      throw new Error("withheld activation fixture failed: " + withheld.kind);
+    }
+    const otherDevice = await activate(other, 10);
+
+    expect(
+      (
+        await q<{
+          browser_family: string | null;
+          browser_version_last_seen: string | null;
+          extension_version_last_seen: string | null;
+        }>(
+          "SELECT browser_family,browser_version_last_seen,extension_version_last_seen FROM devices WHERE id=$1",
+          [withheld.deviceId],
+        )
+      ).rows[0],
+    ).toEqual({
+      browser_family: null,
+      browser_version_last_seen: null,
+      extension_version_last_seen: null,
+    });
+
+    const page = await service(10).list(state.userId, state.accountId, 10);
+    if (page.kind !== "ok") throw new Error("privacy-neutral list failed");
+    const withheldListed = page.devices.find((x) => x.id === withheld.deviceId);
+    const identifiedListed = page.devices.find(
+      (x) => x.id === identified.result.deviceId,
+    );
+    expect(withheldListed?.clientMetadata).toEqual({ state: "WITHHELD" });
+    expect(withheldListed).not.toHaveProperty("browserFamily");
+    expect(withheldListed).not.toHaveProperty("browserVersionLastSeen");
+    expect(withheldListed).not.toHaveProperty("extensionVersionLastSeen");
+    expect(identifiedListed).toMatchObject({
+      clientMetadata: {
+        state: "PRESENT",
+        browserFamily: "chrome",
+        browserVersion: "123",
+        extensionVersion: "2.5",
+      },
+      browserFamily: "chrome",
+      browserVersionLastSeen: "123",
+      extensionVersionLastSeen: "2.5",
+    });
+
+    const authenticated = await extension().authenticateAccess(
+      identified.result.accessToken,
+    );
+    if (!authenticated.ok) throw new Error(authenticated.code);
+    const principal = authenticated.value;
+    await expect(
+      service(10).forgetCurrentClientMetadata(principal, "clear-1"),
+    ).resolves.toEqual({
+      kind: "CLEARED",
+      deviceId: identified.result.deviceId,
+    });
+    await expect(
+      service(10).forgetCurrentClientMetadata(principal, "clear-2"),
+    ).resolves.toEqual({
+      kind: "CLEARED",
+      deviceId: identified.result.deviceId,
+    });
+    expect(
+      (
+        await q<{
+          browser_family: string | null;
+          browser_version_last_seen: string | null;
+          extension_version_last_seen: string | null;
+          status: string;
+        }>(
+          "SELECT browser_family,browser_version_last_seen,extension_version_last_seen,status FROM devices WHERE id=$1",
+          [identified.result.deviceId],
+        )
+      ).rows[0],
+    ).toEqual({
+      browser_family: null,
+      browser_version_last_seen: null,
+      extension_version_last_seen: null,
+      status: "ACTIVE",
+    });
+    expect(
+      (await extension().authenticateAccess(identified.result.accessToken)).ok,
+    ).toBe(true);
+    expect(
+      (
+        await q<{ count: string }>(
+          "SELECT count(*)::text AS count FROM audit_events WHERE action='DEVICE_CLIENT_METADATA_CLEARED' AND target_id=$1",
+          [identified.result.deviceId],
+        )
+      ).rows[0]?.count,
+    ).toBe("1");
+
+    await expect(
+      service(10).forgetCurrentClientMetadata(
+        {
+          sessionId: otherDevice.result.sessionId,
+          deviceId: identified.result.deviceId,
+          accountId: state.accountId,
+        },
+        "clear-cross-account",
+      ),
+    ).resolves.toEqual({ kind: "UNAUTHORIZED" });
+    await expect(
+      q("UPDATE devices SET browser_family='chrome' WHERE id=$1", [
+        identified.result.deviceId,
+      ]),
+    ).rejects.toMatchObject({ code: "23514" });
+
+    await expect(
+      service(10).revoke(
+        state.userId,
+        identified.result.deviceId,
+        "revoke-after-clear",
+      ),
+    ).resolves.toMatchObject({ kind: "REVOKED" });
+    expect(
+      (await extension().authenticateAccess(identified.result.accessToken)).ok,
+    ).toBe(false);
+    await expect(
+      service(10).forgetCurrentClientMetadata(principal, "clear-after-revoke"),
+    ).resolves.toEqual({ kind: "UNAUTHORIZED" });
   });
 
   it("D leaves pending closed and ineligible approval states without credentials", async () => {
@@ -386,6 +523,7 @@ describe.sequential("P2.5 real PostgreSQL device-management A-J", () => {
       "activatedAt",
       "browserFamily",
       "browserVersionLastSeen",
+      "clientMetadata",
       "createdAt",
       "extensionVersionLastSeen",
       "id",

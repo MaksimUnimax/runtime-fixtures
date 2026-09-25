@@ -534,6 +534,12 @@ describe("P6.2 admin API boundary", () => {
               id: deviceId,
               status: "ACTIVE",
               label: "Work browser",
+              clientMetadata: {
+                state: "PRESENT",
+                browserFamily: "chrome",
+                browserVersion: "140.0",
+                extensionVersion: "6.2.0",
+              },
               browserFamily: "chrome",
               browserVersionLastSeen: "140.0",
               extensionVersionLastSeen: "6.2.0",
@@ -574,6 +580,56 @@ describe("P6.2 admin API boundary", () => {
     });
     expect(JSON.stringify(response.json())).not.toMatch(
       /sessionId|refreshToken|tokenHash|tokenFamily|authorizationSecret/i,
+    );
+  });
+
+  it("returns a withheld admin device without fabricated legacy metadata", async () => {
+    const { app } = makeApp({
+      repository: {
+        listDevices: async () => ({
+          items: [
+            {
+              id: deviceId,
+              status: "ACTIVE",
+              label: "Private Firefox",
+              clientMetadata: { state: "WITHHELD" },
+              createdAt,
+              activatedAt: createdAt,
+              lastSeenAt: updatedAt,
+              revokedAt: null,
+            },
+          ],
+          nextCursor: undefined,
+        }),
+      },
+    });
+    apps.push(app);
+    const response = await app.inject({
+      method: "GET",
+      url: `/v1/admin/accounts/${accountId}/devices`,
+      headers: { cookie: adminCookie },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({
+      items: [
+        {
+          id: deviceId,
+          status: "ACTIVE",
+          label: "Private Firefox",
+          createdAt: createdAt.toISOString(),
+          activatedAt: createdAt.toISOString(),
+          lastSeenAt: updatedAt.toISOString(),
+          revokedAt: null,
+        },
+      ],
+      nextCursor: null,
+    });
+    expect(response.json().items[0]).not.toHaveProperty("browserFamily");
+    expect(response.json().items[0]).not.toHaveProperty(
+      "browserVersionLastSeen",
+    );
+    expect(response.json().items[0]).not.toHaveProperty(
+      "extensionVersionLastSeen",
     );
   });
 
@@ -717,7 +773,7 @@ describe("P6.2 admin API boundary", () => {
         (count, path) => count + Object.keys(path).length,
         0,
       ),
-    ).toBe(138);
+    ).toBe(139);
     expect(
       Object.keys(
         document.paths["/v1/admin/compatibility/releases/{version}/publish"] ??

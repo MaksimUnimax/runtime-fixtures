@@ -429,6 +429,80 @@ describe.sequential("P7.3 bootstrap AI resolution with PostgreSQL", () => {
     ).toMatchObject({ reason: "PROFILE_INCOMPATIBLE" });
   });
 
+  it("materializes family-scoped AI candidates without client software metadata", async () => {
+    const chrome = await createScope(V_STANDARD, "DEVICE");
+    const firefoxScope = await createProfileLifecycleRepository(
+      runtime,
+    ).createAssignmentScope({
+      scope: {
+        adapterId: A,
+        surfaceId: S_STANDARD,
+        variantId: V_STANDARD,
+        browserFamily: "firefox",
+        subjectKind: "ACCOUNT",
+      },
+      context,
+    });
+    const chromeCompatibility = {
+      ...compatibility,
+      minimumExtensionVersion: "9.0.0",
+    };
+    const firefoxCompatibility = {
+      ...compatibility,
+      browserFamilies: ["firefox" as const],
+      minimumExtensionVersion: "9.0.0",
+    };
+    const chromeRevision = await publishWithCompatibility(
+      P_STANDARD,
+      chromeCompatibility,
+    );
+    const firefoxRevision = await publishWithCompatibility(
+      P_STANDARD,
+      firefoxCompatibility,
+    );
+    const repository = createProfileLifecycleRepository(runtime);
+    await repository.assignDirect({
+      assignmentId: chrome.id,
+      baselineProfileRevisionId: chromeRevision,
+      expectedLatestAssignmentRevision: null,
+      context,
+    });
+    await repository.assignDirect({
+      assignmentId: firefoxScope.id,
+      baselineProfileRevisionId: firefoxRevision,
+      expectedLatestAssignmentRevision: null,
+      context,
+    });
+
+    const candidates = await resolver.resolveLocalCandidates({
+      detected: {
+        family: "chatgpt",
+        surface: "standard",
+        variant: "standard_composer_v1",
+      },
+      contractVersion: "control_plane_v2",
+      accountId: ACCOUNT,
+      deviceId: DEVICE,
+    });
+    expect(candidates).toHaveLength(2);
+    expect(candidates).toMatchObject([
+      {
+        browserFamily: "chrome",
+        resolution: {
+          status: "RESOLVED",
+          profile: { profileKey: "standard-profile" },
+        },
+      },
+      {
+        browserFamily: "firefox",
+        resolution: {
+          status: "RESOLVED",
+          profile: { profileKey: "standard-profile" },
+        },
+      },
+    ]);
+  });
+
   it("proves one-statement coherence during a competing PostgreSQL mutation", async () => {
     const scope = await createScope(V_STANDARD);
     const repository = createProfileLifecycleRepository(runtime);

@@ -5,22 +5,24 @@ import type {
   RawServerDefault,
 } from "fastify";
 import type { Logger } from "pino";
-import type { BrowserFamily } from "@product/shared";
 import type { AuthService } from "@product/auth";
 import {
   type DeviceManagementService,
   validExchangeIdempotencyKey,
 } from "@product/device-management";
+import type { ExtensionAuthService } from "@product/extension-auth";
 import {
   ApiErrorEnvelopeV1Schema,
   DeviceAuthorizationExchangeBodyV1Schema,
   DeviceAuthorizationExchangeResponseV1Schema,
+  DeviceClientMetadataClearResponseV1Schema,
   DeviceListQueryV1Schema,
   DeviceListResponseV1Schema,
   DeviceRevokeParamsV1Schema,
   DeviceRevokeResponseV1Schema,
 } from "@product/contracts";
 import { ControlledError } from "./app.js";
+import { authenticateExtensionBearer } from "./extension-access-auth.js";
 
 const sessionCookie = "pcp_portal_session";
 const csrfCookie = "pcp_csrf";
@@ -37,6 +39,7 @@ export function registerDeviceManagementRoutes(
   >,
   auth: AuthService,
   service: DeviceManagementService,
+  extensionAuth?: ExtensionAuthService,
 ): void {
   const portal = async (
     request: {
@@ -157,6 +160,52 @@ export function registerDeviceManagementRoutes(
       });
     },
   );
+  if (extensionAuth)
+    app.post(
+      "/v1/devices/current/client-metadata/forget",
+      {
+        schema: {
+          response: {
+            200: DeviceClientMetadataClearResponseV1Schema,
+            400: ApiErrorEnvelopeV1Schema,
+            401: ApiErrorEnvelopeV1Schema,
+            403: ApiErrorEnvelopeV1Schema,
+            503: ApiErrorEnvelopeV1Schema,
+          },
+        },
+      },
+      async (request, reply) => {
+        if (request.body !== undefined)
+          throw new ControlledError("INVALID_REQUEST", "Invalid request", 400);
+        const authenticated = await authenticateExtensionBearer(
+          request.headers.authorization,
+          extensionAuth,
+        );
+        if (!authenticated.ok)
+          throw new ControlledError("UNAUTHORIZED", "Unauthorized", 401);
+        let result;
+        try {
+          result = await service.forgetCurrentClientMetadata(
+            authenticated.value,
+            request.id,
+          );
+        } catch {
+          throw unavailable();
+        }
+        if (result.kind === "UNAUTHORIZED")
+          throw new ControlledError(
+            "DEVICE_MISMATCH",
+            "Device authority unavailable",
+            403,
+          );
+        reply.header("cache-control", "no-store");
+        reply.header("pragma", "no-cache");
+        return reply.send({
+          status: "cleared",
+          deviceId: result.deviceId,
+        });
+      },
+    );
   app.get(
     "/v1/devices",
     {
@@ -196,14 +245,27 @@ export function registerDeviceManagementRoutes(
       if (result.kind !== "ok") throw unavailable();
       reply.header("cache-control", "no-store");
       return reply.send({
-        devices: result.devices.map((device) => ({
-          ...device,
-          browserFamily: device.browserFamily as BrowserFamily,
-          createdAt: device.createdAt.toISOString(),
-          activatedAt: device.activatedAt?.toISOString() ?? null,
-          lastSeenAt: device.lastSeenAt?.toISOString() ?? null,
-          revokedAt: device.revokedAt?.toISOString() ?? null,
-        })),
+        devices: result.devices.map((device) => {
+          const common = {
+            id: device.id,
+            status: device.status,
+            label: device.label,
+            clientMetadata: device.clientMetadata,
+            createdAt: device.createdAt.toISOString(),
+            activatedAt: device.activatedAt?.toISOString() ?? null,
+            lastSeenAt: device.lastSeenAt?.toISOString() ?? null,
+            revokedAt: device.revokedAt?.toISOString() ?? null,
+          };
+          return device.clientMetadata.state === "PRESENT"
+            ? {
+                ...common,
+                browserFamily: device.clientMetadata.browserFamily,
+                browserVersionLastSeen: device.clientMetadata.browserVersion,
+                extensionVersionLastSeen:
+                  device.clientMetadata.extensionVersion,
+              }
+            : common;
+        }),
         nextCursor: result.nextCursor ?? null,
       });
     },

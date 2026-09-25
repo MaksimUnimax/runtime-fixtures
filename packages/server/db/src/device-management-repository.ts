@@ -1,8 +1,31 @@
 import { randomUUID } from "node:crypto";
+import type { BrowserFamily } from "@product/shared";
+import type { DeviceClientMetadata } from "@product/device-auth";
 import type { DeviceManagementRepository } from "@product/device-management";
 import { decideSellerAgentsDeviceAdmission } from "@product/entitlements";
 import type { DatabaseRuntime } from "./index.js";
 import { revokeDeviceInTransaction } from "./device-revocation.js";
+
+function clientMetadata(
+  browserFamily: BrowserFamily | null,
+  browserVersion: string | null,
+  extensionVersion: string | null,
+): DeviceClientMetadata {
+  if (
+    browserFamily === null &&
+    browserVersion === null &&
+    extensionVersion === null
+  )
+    return { state: "WITHHELD" };
+  if (browserFamily !== null && extensionVersion !== null)
+    return {
+      state: "PRESENT",
+      browserFamily,
+      browserVersion,
+      extensionVersion,
+    };
+  throw new Error("DEVICE_CLIENT_METADATA_CORRUPTED");
+}
 
 export function createDeviceManagementRepository(
   runtime: DatabaseRuntime,
@@ -244,20 +267,30 @@ export function createDeviceManagementRepository(
           input.limit + 1,
         ],
       );
-      const rows = q.rows.slice(0, input.limit).map((r) => ({
-        id: String(r.id),
-        status: String(r.status) as "ACTIVE" | "REVOKED",
-        label: r.label as string | null,
-        browserFamily: String(r.browser_family),
-        browserVersionLastSeen: r.browser_version_last_seen as string | null,
-        extensionVersionLastSeen: r.extension_version_last_seen as
-          | string
-          | null,
-        createdAt: new Date(String(r.created_at)),
-        activatedAt: r.activated_at ? new Date(String(r.activated_at)) : null,
-        lastSeenAt: r.last_seen_at ? new Date(String(r.last_seen_at)) : null,
-        revokedAt: r.revoked_at ? new Date(String(r.revoked_at)) : null,
-      }));
+      const rows = q.rows.slice(0, input.limit).map((r) => {
+        const metadata = clientMetadata(
+          r.browser_family as BrowserFamily | null,
+          r.browser_version_last_seen as string | null,
+          r.extension_version_last_seen as string | null,
+        );
+        return {
+          id: String(r.id),
+          status: String(r.status) as "ACTIVE" | "REVOKED",
+          label: r.label as string | null,
+          clientMetadata: metadata,
+          ...(metadata.state === "PRESENT"
+            ? {
+                browserFamily: metadata.browserFamily,
+                browserVersionLastSeen: metadata.browserVersion,
+                extensionVersionLastSeen: metadata.extensionVersion,
+              }
+            : {}),
+          createdAt: new Date(String(r.created_at)),
+          activatedAt: r.activated_at ? new Date(String(r.activated_at)) : null,
+          lastSeenAt: r.last_seen_at ? new Date(String(r.last_seen_at)) : null,
+          revokedAt: r.revoked_at ? new Date(String(r.revoked_at)) : null,
+        };
+      });
       return {
         kind: "ok" as const,
         devices: rows,
@@ -265,6 +298,42 @@ export function createDeviceManagementRepository(
           ? { nextCursor: rows.at(-1)!.id }
           : {}),
       };
+    },
+    async forgetCurrentClientMetadata(input) {
+      return runtime.transaction(async (tx) => {
+        const result = await tx.query<{
+          browser_family: BrowserFamily | null;
+          browser_version_last_seen: string | null;
+          extension_version_last_seen: string | null;
+        }>(
+          `SELECT d.browser_family,d.browser_version_last_seen,d.extension_version_last_seen
+             FROM devices d
+             JOIN sessions s ON s.id=$3 AND s.device_id=d.id AND s.account_id=d.account_id
+            WHERE d.id=$1 AND d.account_id=$2 AND d.status='ACTIVE' AND s.status='ACTIVE'
+            FOR UPDATE OF d`,
+          [input.deviceId, input.accountId, input.sessionId],
+        );
+        const row = result.rows[0];
+        if (!row) return "unauthorized" as const;
+        const metadata = clientMetadata(
+          row.browser_family,
+          row.browser_version_last_seen,
+          row.extension_version_last_seen,
+        );
+        if (metadata.state === "WITHHELD") return "cleared" as const;
+        await tx.query(
+          `UPDATE devices
+              SET browser_family=NULL,browser_version_last_seen=NULL,extension_version_last_seen=NULL
+            WHERE id=$1 AND account_id=$2`,
+          [input.deviceId, input.accountId],
+        );
+        await tx.query(
+          `INSERT INTO audit_events(actor_type,action,target_type,target_id,correlation_id)
+           VALUES('EXTENSION_CLIENT','DEVICE_CLIENT_METADATA_CLEARED','DEVICE',$1,$2)`,
+          [input.deviceId, input.correlationId],
+        );
+        return "cleared" as const;
+      });
     },
     async revoke(input) {
       return runtime.transaction(async (tx) => {

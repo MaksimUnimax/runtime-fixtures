@@ -3,6 +3,7 @@ import {
   equalArtifact,
   type DeviceAuthorizationRecord,
   type DeviceAuthorizationRepository,
+  type DeviceClientMetadata,
   type DeviceAuthResult,
 } from "@product/device-auth";
 import type { DatabaseQuery, DatabaseRuntime } from "./index.js";
@@ -30,7 +31,32 @@ function date(value: unknown): Date {
     ? new Date(value.getTime())
     : new Date(String(value));
 }
+function clientMetadata(
+  browserFamily: BrowserFamily | null,
+  browserVersion: string | null,
+  extensionVersion: string | null,
+): DeviceClientMetadata {
+  if (
+    browserFamily === null &&
+    browserVersion === null &&
+    extensionVersion === null
+  )
+    return { state: "WITHHELD" };
+  if (browserFamily !== null && extensionVersion !== null)
+    return {
+      state: "PRESENT",
+      browserFamily,
+      browserVersion,
+      extensionVersion,
+    };
+  throw new Error("DEVICE_CLIENT_METADATA_CORRUPTED");
+}
 function record(row: Row): DeviceAuthorizationRecord {
+  const metadata = clientMetadata(
+    row.browser_family as BrowserFamily | null,
+    row.browser_version as string | null,
+    row.extension_version as string | null,
+  );
   return {
     id: String(row.id),
     status: String(row.status) as DeviceAuthorizationRecord["status"],
@@ -39,6 +65,14 @@ function record(row: Row): DeviceAuthorizationRecord {
     deviceCodeHash: String(row.device_code_hash),
     userCodeHash: String(row.user_code_hash),
     expiresAt: date(row.expires_at),
+    ...(metadata.state === "PRESENT"
+      ? {
+          browserFamily: metadata.browserFamily,
+          browserVersion: metadata.browserVersion ?? undefined,
+          extensionVersion: metadata.extensionVersion,
+        }
+      : {}),
+    deviceLabel: row.device_label as string | null | undefined,
     approvedAccountId: row.approved_account_id as string | null,
     approvedUserId: row.approved_user_id as string | null,
     approvedAt: row.approved_at ? date(row.approved_at) : null,
@@ -93,9 +127,9 @@ export function createDeviceAuthorizationRepository(
     async previewPendingAuthorization(id, now) {
       const result = await runtime.query<{
         id: string;
-        browser_family: BrowserFamily;
+        browser_family: BrowserFamily | null;
         browser_version: string | null;
-        extension_version: string;
+        extension_version: string | null;
         device_label: string | null;
         expires_at: Date;
       }>(
@@ -103,16 +137,25 @@ export function createDeviceAuthorizationRepository(
         [id, now],
       );
       const row = result.rows[0];
-      return row
-        ? {
-            id: row.id,
-            browserFamily: row.browser_family,
-            browserVersion: row.browser_version,
-            extensionVersion: row.extension_version,
-            deviceLabel: row.device_label,
-            expiresAt: date(row.expires_at),
-          }
-        : undefined;
+      if (!row) return undefined;
+      const metadata = clientMetadata(
+        row.browser_family,
+        row.browser_version,
+        row.extension_version,
+      );
+      return {
+        id: row.id,
+        clientMetadata: metadata,
+        ...(metadata.state === "PRESENT"
+          ? {
+              browserFamily: metadata.browserFamily,
+              browserVersion: metadata.browserVersion,
+              extensionVersion: metadata.extensionVersion,
+            }
+          : {}),
+        deviceLabel: row.device_label,
+        expiresAt: date(row.expires_at),
+      };
     },
     async start(input) {
       try {

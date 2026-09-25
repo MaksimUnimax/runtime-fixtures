@@ -78,16 +78,22 @@ export function registerPortalSupportRoutes(
           404,
         );
       reply.header("cache-control", "no-store");
-      return {
-        status: "pending",
+      const common = {
+        status: "pending" as const,
         authorizationId: preview.id,
-        clientType: "browser_extension",
-        browserFamily: preview.browserFamily,
-        browserVersion: preview.browserVersion,
-        extensionVersion: preview.extensionVersion,
+        clientType: "browser_extension" as const,
+        clientMetadata: preview.clientMetadata,
         deviceLabel: preview.deviceLabel,
         expiresAt: preview.expiresAt.toISOString(),
       };
+      return preview.clientMetadata.state === "PRESENT"
+        ? {
+            ...common,
+            browserFamily: preview.clientMetadata.browserFamily,
+            browserVersion: preview.clientMetadata.browserVersion,
+            extensionVersion: preview.clientMetadata.extensionVersion,
+          }
+        : common;
     },
   );
 }

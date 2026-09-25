@@ -6,7 +6,12 @@ import {
   P3RolloutSchema,
   type P3BootstrapPolicyCatalog,
 } from "@product/remote-config";
-import { CompatibilityPolicyRevisionSchema } from "@product/compatibility";
+import {
+  BrowserFamilySchema,
+  CompatibilityPolicyRevisionSchema,
+  ContractVersionSchema,
+  ExtensionReleaseSchema,
+} from "@product/compatibility";
 import type { DatabaseQuery } from "./index.js";
 
 /** Exact, validated persisted graph reader used solely by P3.3 resolution. */
@@ -22,6 +27,23 @@ export function createP3BootstrapPolicyCatalogRepository(
   return {
     ...compatibility,
     ...remote,
+    async listLatestExtensionReleaseSupports(limit) {
+      if (!Number.isInteger(limit) || limit < 1 || limit > 64)
+        throw new Error("invalid extension release limit");
+      const r = await db.query(
+        'SELECT e.id,e.version,e.release_channel AS "releaseChannel",e.artifact_sha256 AS "artifactSha256",e.released_at AS "releasedAt",e.created_at AS "createdAt",COALESCE(c.versions,ARRAY[]::text[]) AS "contractVersions",COALESCE(b.families,ARRAY[]::text[]) AS "browserFamilies" FROM extension_releases e LEFT JOIN LATERAL (SELECT array_agg(contract_version::text ORDER BY contract_version::text) AS versions FROM extension_release_contracts WHERE release_id=e.id) c ON TRUE LEFT JOIN LATERAL (SELECT array_agg(browser_family::text ORDER BY browser_family::text) AS families FROM extension_release_browsers WHERE release_id=e.id) b ON TRUE ORDER BY e.released_at DESC,e.id DESC LIMIT $1',
+        [limit],
+      );
+      return r.rows.map((row) => {
+        const { contractVersions, browserFamilies, ...release } = row;
+        return {
+          ...ExtensionReleaseSchema.parse(release),
+          contractVersions:
+            ContractVersionSchema.array().parse(contractVersions),
+          browserFamilies: BrowserFamilySchema.array().parse(browserFamilies),
+        };
+      });
+    },
     async findFeatureDefinition(featureKey) {
       const r = await db.query(
         'SELECT feature_key AS "featureKey" FROM feature_definitions WHERE feature_key=$1',

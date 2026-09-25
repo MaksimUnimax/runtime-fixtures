@@ -120,9 +120,19 @@ def require_running(role):
         raise RuntimeError("STOPPED: no new work permitted")
 
 
+def default_scope_base():
+    merge = subprocess.run(
+        ["git", "rev-parse", "-q", "--verify", "MERGE_HEAD"],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+    )
+    return merge.stdout.strip() if merge.returncode == 0 else "HEAD"
+
+
 def scope_guard(role, base=None):
     spec = policy()["roles"][role]
-    changed = git("diff", "--name-only", base or "HEAD").splitlines()
+    changed = git("diff", "--name-only", base or default_scope_base()).splitlines()
     changed += git("ls-files", "--others", "--exclude-standard").splitlines()
     bad = sorted({p for p in changed if p and (
         not any(fnmatch.fnmatchcase(p, x) for x in spec["allow"])

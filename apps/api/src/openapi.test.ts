@@ -139,6 +139,7 @@ describe("OpenAPI foundation", () => {
         "/v1/device-authorizations/{id}/approve",
         "/v1/device-authorizations/{id}/deny",
         "/v1/devices",
+        "/v1/devices/current/client-metadata/forget",
         "/v1/devices/{device_id}/revoke",
         "/v1/health-authority",
         "/v1/plans/public",
@@ -206,6 +207,199 @@ describe("OpenAPI foundation", () => {
       "featureRolloutRevisionIds",
     ])
       expect(schemaText).not.toContain(forbidden);
+  });
+
+  it("documents privacy-neutral device metadata as explicit PRESENT/WITHHELD unions", async () => {
+    type JsonSchema = {
+      anyOf?: JsonSchema[];
+      enum?: string[];
+      items?: JsonSchema;
+      properties?: Record<string, JsonSchema>;
+      required?: string[];
+    };
+    type OpenApiDocument = {
+      paths: Record<
+        string,
+        {
+          get?: {
+            responses: Record<
+              string,
+              { content: Record<string, { schema: JsonSchema }> }
+            >;
+          };
+          post?: {
+            requestBody: {
+              content: Record<string, { schema: JsonSchema }>;
+            };
+          };
+        }
+      >;
+    };
+    const document = JSON.parse(
+      await generateOpenApiRepresentation(),
+    ) as OpenApiDocument;
+    const start =
+      document.paths["/v1/device-authorizations"]!.post!.requestBody.content[
+        "application/json"
+      ]!.schema;
+    const startBranches = start.anyOf ?? [];
+    expect(startBranches).toHaveLength(2);
+    const identifiedStart = startBranches.find((schema) =>
+      schema.required?.includes("browserFamily"),
+    );
+    const withheldStart = startBranches.find(
+      (schema) => !schema.required?.includes("browserFamily"),
+    );
+    if (!identifiedStart || !withheldStart)
+      throw new Error("privacy-neutral start branches missing");
+    expect(identifiedStart.required).toEqual(
+      expect.arrayContaining([
+        "clientType",
+        "browserFamily",
+        "extensionVersion",
+      ]),
+    );
+    expect(withheldStart.required).toEqual(["clientType"]);
+    expect(withheldStart.properties).not.toHaveProperty("browserFamily");
+    expect(withheldStart.properties).not.toHaveProperty("browserVersion");
+    expect(withheldStart.properties).not.toHaveProperty("extensionVersion");
+
+    const preview =
+      document.paths["/v1/device-authorizations/{id}"]!.get!.responses["200"]!
+        .content["application/json"]!.schema;
+    const previewBranches = preview.anyOf ?? [];
+    expect(previewBranches).toHaveLength(2);
+    const state = (schema: JsonSchema) =>
+      schema.properties?.clientMetadata?.properties?.state?.enum?.[0];
+    const withheldPreview = previewBranches.find(
+      (schema) => state(schema) === "WITHHELD",
+    );
+    const presentPreview = previewBranches.find(
+      (schema) => state(schema) === "PRESENT",
+    );
+    if (!withheldPreview || !presentPreview)
+      throw new Error("privacy-neutral preview branches missing");
+    expect(withheldPreview.required).not.toContain("browserFamily");
+    expect(withheldPreview.properties).not.toHaveProperty("browserFamily");
+    expect(presentPreview.required).toEqual(
+      expect.arrayContaining([
+        "browserFamily",
+        "browserVersion",
+        "extensionVersion",
+      ]),
+    );
+
+    const items =
+      document.paths["/v1/devices"]!.get!.responses["200"]!.content[
+        "application/json"
+      ]!.schema.properties?.devices?.items;
+    if (!items) throw new Error("device item schema missing");
+    const itemBranches = items.anyOf ?? [];
+    expect(itemBranches).toHaveLength(2);
+    const withheldDevice = itemBranches.find(
+      (schema) => state(schema) === "WITHHELD",
+    );
+    const presentDevice = itemBranches.find(
+      (schema) => state(schema) === "PRESENT",
+    );
+    if (!withheldDevice || !presentDevice)
+      throw new Error("privacy-neutral device branches missing");
+    expect(withheldDevice.properties).not.toHaveProperty("browserFamily");
+    expect(withheldDevice.properties).not.toHaveProperty(
+      "extensionVersionLastSeen",
+    );
+    expect(presentDevice.required).toEqual(
+      expect.arrayContaining([
+        "browserFamily",
+        "browserVersionLastSeen",
+        "extensionVersionLastSeen",
+      ]),
+    );
+
+    const adminItems =
+      document.paths["/v1/admin/accounts/{account_id}/devices"]!.get!.responses[
+        "200"
+      ]!.content["application/json"]!.schema.properties?.items?.items;
+    if (!adminItems) throw new Error("admin device item schema missing");
+    const adminBranches = adminItems.anyOf ?? [];
+    expect(adminBranches).toHaveLength(2);
+    const adminPresent = adminBranches.find((schema) =>
+      schema.required?.includes("browserFamily"),
+    );
+    const adminWithheld = adminBranches.find(
+      (schema) => !schema.required?.includes("browserFamily"),
+    );
+    if (!adminPresent || !adminWithheld)
+      throw new Error("admin PRESENT/WITHHELD branches missing");
+    expect(adminWithheld.properties).not.toHaveProperty("browserFamily");
+    expect(adminWithheld.properties).not.toHaveProperty(
+      "extensionVersionLastSeen",
+    );
+    expect(adminPresent.required).toEqual(
+      expect.arrayContaining([
+        "browserFamily",
+        "browserVersionLastSeen",
+        "extensionVersionLastSeen",
+      ]),
+    );
+  });
+
+  it("documents identified and privacy-neutral control_plane_v2 bootstrap variants explicitly", async () => {
+    type JsonSchema = {
+      anyOf?: JsonSchema[];
+      enum?: string[];
+      properties?: Record<string, JsonSchema>;
+      required?: string[];
+    };
+    const document = JSON.parse(await generateOpenApiRepresentation()) as {
+      paths: Record<
+        string,
+        {
+          post: {
+            requestBody: {
+              content: Record<string, { schema: JsonSchema }>;
+            };
+          };
+        }
+      >;
+    };
+    const schema =
+      document.paths["/v1/bootstrap"]!.post.requestBody.content[
+        "application/json"
+      ]!.schema;
+    const v2 = (schema.anyOf ?? []).find((branch) =>
+      branch.anyOf?.some(
+        (candidate) =>
+          candidate.properties?.contractVersion?.enum?.[0] ===
+          "control_plane_v2",
+      ),
+    );
+    if (!v2?.anyOf) throw new Error("control_plane_v2 bootstrap union missing");
+    expect(v2.anyOf).toHaveLength(2);
+    const identified = v2.anyOf.find((branch) =>
+      branch.required?.includes("extensionVersion"),
+    );
+    const neutral = v2.anyOf.find(
+      (branch) => !branch.required?.includes("extensionVersion"),
+    );
+    if (!identified || !neutral)
+      throw new Error("identified/privacy-neutral bootstrap branches missing");
+    expect(identified.required).toEqual(
+      expect.arrayContaining([
+        "contractVersion",
+        "extensionVersion",
+        "browser",
+        "deviceId",
+        "lastConfigVersion",
+      ]),
+    );
+    expect(neutral.required).toEqual([
+      "contractVersion",
+      "deviceId",
+      "lastConfigVersion",
+    ]);
+    expect(neutral.properties).not.toHaveProperty("extensionVersion");
+    expect(neutral.properties).not.toHaveProperty("browser");
   });
 
   it("accepts the tracked artifact when it is generated from the current routes", async () => {

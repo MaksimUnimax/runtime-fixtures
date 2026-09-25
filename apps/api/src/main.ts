@@ -53,6 +53,7 @@ import { DeviceManagementService } from "@product/device-management";
 import {
   BootstrapAiResolutionService,
   BootstrapService,
+  LocalClientAuthorityMaterializer,
 } from "@product/bootstrap";
 import {
   CommercialAccessService,
@@ -100,6 +101,13 @@ const adminAuth = new AdminAuthService(
 );
 const bootstrapSigningMaterial = loadConfigSigningMaterial(process.env);
 const p3Catalog = createP3BootstrapPolicyCatalogRepository(database);
+const bootstrapAiResolution = new BootstrapAiResolutionService(
+  createBootstrapAiResolutionRepository(database),
+);
+const localClientAuthority = new LocalClientAuthorityMaterializer(
+  p3Catalog,
+  bootstrapAiResolution,
+);
 await bindConfigSigningRing(bootstrapSigningMaterial, (keyId) =>
   p3Catalog.findSigningKey(keyId),
 );
@@ -146,10 +154,12 @@ const app = createApiApp({
     createConfigSigningService(bootstrapSigningMaterial, p3Catalog),
     undefined,
     commercialModeEnabled ? commercialAccess : undefined,
-    new BootstrapAiResolutionService(
-      createBootstrapAiResolutionRepository(database),
-    ),
+    bootstrapAiResolution,
     betaAdmission,
+    undefined,
+    undefined,
+    undefined,
+    localClientAuthority,
   ),
   publicCommercialCatalogReader: createP4CommercialCatalogRepository(database),
   commercialPortalService: commercialPortal,

@@ -9,6 +9,7 @@ import type { AuthService } from "@product/auth";
 import {
   DeviceAuthorizationService,
   validIdempotencyKey,
+  type DeviceAuthorizationStartInput,
   type DeviceAuthFailure,
 } from "@product/device-auth";
 import {
@@ -75,7 +76,27 @@ export function registerDeviceAuthorizationRoutes(
       if (typeof key !== "string" || !validIdempotencyKey(key))
         throw new ControlledError("INVALID_REQUEST", "Invalid request", 400);
       const body = DeviceAuthorizationStartBodyV1Schema.parse(request.body);
-      const result = await service.start(body, key, request.ip, request.id);
+      const startInput: DeviceAuthorizationStartInput =
+        "browserFamily" in body
+          ? {
+              clientType: body.clientType,
+              browserFamily: body.browserFamily,
+              ...(body.browserVersion
+                ? { browserVersion: body.browserVersion }
+                : {}),
+              extensionVersion: body.extensionVersion,
+              ...(body.deviceLabel ? { deviceLabel: body.deviceLabel } : {}),
+            }
+          : {
+              clientType: body.clientType,
+              ...(body.deviceLabel ? { deviceLabel: body.deviceLabel } : {}),
+            };
+      const result = await service.start(
+        startInput,
+        key,
+        request.ip,
+        request.id,
+      );
       if (!result.ok) throw error(result.code);
       reply.header("cache-control", "no-store");
       return reply.status(201).send({

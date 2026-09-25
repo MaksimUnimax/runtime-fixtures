@@ -73,7 +73,7 @@ async function makePrincipal(
 async function makeDevice(accountId: string, userId: string) {
   const id = randomUUID();
   await q(
-    "INSERT INTO devices(id,account_id,created_by_user_id,status,browser_family,created_at) VALUES($1,$2,$3,'ACTIVE','chrome',$4)",
+    "INSERT INTO devices(id,account_id,created_by_user_id,status,browser_family,extension_version_last_seen,created_at) VALUES($1,$2,$3,'ACTIVE','chrome','1.0.0',$4)",
     [id, accountId, userId, at],
   );
   const sessionId = randomUUID();
@@ -292,6 +292,42 @@ describe.sequential("P6.2 admin operations on real PostgreSQL", () => {
       );
     },
   );
+
+  it("projects admin device metadata as PRESENT or WITHHELD without fabricated legacy fields", async () => {
+    const owner = await makeUser(72);
+    const account = await makeAccount(owner.id);
+    const present = await makeDevice(account, owner.id);
+    const withheld = await makeDevice(account, owner.id);
+    await q(
+      "UPDATE devices SET browser_family=NULL,browser_version_last_seen=NULL,extension_version_last_seen=NULL WHERE id=$1",
+      [withheld.id],
+    );
+    const result = await createAdminOpsRepository(db).listDevices({
+      accountId: account,
+      limit: 10,
+    });
+    expect("kind" in result).toBe(false);
+    if ("kind" in result) return;
+    const presentItem = result.items.find((item) => item.id === present.id);
+    const withheldItem = result.items.find((item) => item.id === withheld.id);
+    expect(presentItem).toMatchObject({
+      clientMetadata: {
+        state: "PRESENT",
+        browserFamily: "chrome",
+        browserVersion: null,
+        extensionVersion: "1.0.0",
+      },
+      browserFamily: "chrome",
+      browserVersionLastSeen: null,
+      extensionVersionLastSeen: "1.0.0",
+    });
+    expect(withheldItem).toMatchObject({
+      clientMetadata: { state: "WITHHELD" },
+    });
+    expect(withheldItem).not.toHaveProperty("browserFamily");
+    expect(withheldItem).not.toHaveProperty("browserVersionLastSeen");
+    expect(withheldItem).not.toHaveProperty("extensionVersionLastSeen");
+  });
 
   it.each(roles)(
     "principal creation accepts exact initial role %s",

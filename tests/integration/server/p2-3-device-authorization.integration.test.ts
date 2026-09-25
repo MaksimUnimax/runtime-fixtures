@@ -140,6 +140,82 @@ describe.sequential("P2.3 real PostgreSQL device authorization matrix", () => {
     );
   });
 
+  it("stores privacy-neutral authorization as WITHHELD and keeps identified replay distinct", async () => {
+    const neutralBody = {
+      clientType: "browser_extension" as const,
+      deviceLabel: "manual-label",
+    };
+    const key = "W".repeat(16);
+    const first = value(
+      await service().start(neutralBody, key, "198.51.100.25", "neutral-start"),
+    );
+    expect(
+      value(
+        await service().start(
+          neutralBody,
+          key,
+          "198.51.100.25",
+          "neutral-replay",
+        ),
+      ),
+    ).toEqual(first);
+    const preview = await service().previewPendingAuthorization(
+      first.authorizationId,
+    );
+    expect(preview).toMatchObject({
+      clientMetadata: { state: "WITHHELD" },
+      deviceLabel: "manual-label",
+    });
+    expect(preview).not.toHaveProperty("browserFamily");
+    expect(preview).not.toHaveProperty("browserVersion");
+    expect(preview).not.toHaveProperty("extensionVersion");
+    expect(
+      (
+        await q<{
+          browser_family: string | null;
+          browser_version: string | null;
+          extension_version: string | null;
+        }>(
+          "SELECT browser_family,browser_version,extension_version FROM device_authorizations WHERE id=$1",
+          [first.authorizationId],
+        )
+      ).rows[0],
+    ).toEqual({
+      browser_family: null,
+      browser_version: null,
+      extension_version: null,
+    });
+    expect(
+      await service().start(body, key, "198.51.100.25", "neutral-conflict"),
+    ).toEqual({ ok: false, code: "DEVICE_AUTH_IDEMPOTENCY_CONFLICT" });
+    await expect(
+      q(
+        "UPDATE device_authorizations SET browser_family='chrome' WHERE id=$1",
+        [first.authorizationId],
+      ),
+    ).rejects.toMatchObject({ code: "23514" });
+
+    const identified = value(await start("J".repeat(16)));
+    expect(
+      await service().previewPendingAuthorization(identified.authorizationId),
+    ).toMatchObject({
+      clientMetadata: {
+        state: "PRESENT",
+        browserFamily: "chrome",
+        browserVersion: null,
+        extensionVersion: "1",
+      },
+      browserFamily: "chrome",
+      browserVersion: null,
+      extensionVersion: "1",
+    });
+    await expect(
+      q("UPDATE device_authorizations SET extension_version=NULL WHERE id=$1", [
+        identified.authorizationId,
+      ]),
+    ).rejects.toMatchObject({ code: "23514" });
+  });
+
   it("T2-11/12/23/24/26/27/29/34/35 closes terminal records, clears secrets, and preserves approved replay secrets", async () => {
     const { userId, accountId } = await owner();
     const created = value(await start("C".repeat(16)));
@@ -565,7 +641,7 @@ describe.sequential("P2.3 real PostgreSQL device authorization matrix", () => {
     ).toEqual({ ok: false, code: "DEVICE_AUTH_COLLISION" });
     const duplicateId = randomUUID();
     await q(
-      "INSERT INTO device_authorizations(id,device_code_hash,user_code_hash,status,requested_client_type,browser_family,idempotency_key_hash,request_fingerprint,start_secret_ciphertext,start_secret_nonce,start_secret_auth_tag,expires_at) VALUES($1,$2,$3,'PENDING','browser_extension','chrome',$4,$5,$6,$7,$8,now()+interval '1 hour')",
+      "INSERT INTO device_authorizations(id,device_code_hash,user_code_hash,status,requested_client_type,browser_family,extension_version,idempotency_key_hash,request_fingerprint,start_secret_ciphertext,start_secret_nonce,start_secret_auth_tag,expires_at) VALUES($1,$2,$3,'PENDING','browser_extension','chrome','1',$4,$5,$6,$7,$8,now()+interval '1 hour')",
       [
         duplicateId,
         deviceCodeArtifact(keys, "C".repeat(43)),
