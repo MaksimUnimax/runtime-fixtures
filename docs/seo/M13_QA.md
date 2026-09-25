@@ -12,10 +12,24 @@ Preparation SEO head:
 Frozen main head:
 7945d62854e135421c3db003c603187b9f37866b
 
-Immediately before execution and again before QA:
+Immediately before execution and before the first acceptance QA:
 - SEO branch matched its expected remote head;
-- main matched 7945d62854e135421c3db003c603187b9f37866b;
-- no M11/M12 or implementation-source authority drift was observed.
+- main matched 7945d62854e135421c3db003c603187b9f37866b.
+
+During final publication/readback, main advanced to:
+6e442755c514803a8bc6e04ce40a58bed2883c77
+
+Drift reconciliation:
+- 15 main commits were classified;
+- changes were in API, extension, portal, contracts, server/database and their tests/coordination receipts;
+- none of the 14 frozen M13 public-site/ingress/CI/deploy/verifier/regression source paths changed;
+- every frozen source blob in M13_TECHNICAL_SEO_INPUT_MANIFEST remained byte-identical;
+- octoport-apps.conf itself remained unchanged;
+- no M11/M12 SEO authority changed.
+
+AUTHORITY_DRIFT_STATUS = NON_OVERLAPPING_MAIN_ADVANCE_RECONCILED
+
+The new application behavior remains subject to the already-required M14 current-implementation/Product-Truth/privacy proof revalidation. It does not invalidate the M13 technical route/index/canonical specification.
 
 Applicable LEVEL 2:
 docs/seo/LEVEL2/M13_M18_IMPLEMENTATION_LAUNCH_MEASUREMENT_RULES.md
@@ -189,6 +203,7 @@ The two-point deduction reflects that M14 still has a real product-proof depende
 ## Final acceptance
 
 M13_HARD_GATES = PASS
+AUTHORITY_DRIFT_STATUS = NON_OVERLAPPING_MAIN_ADVANCE_RECONCILED
 M13_QUALITY_SCORE = 9.8/10
 M13_ACCEPTED = true
 M14_PREPARATION_ALLOWED = true
