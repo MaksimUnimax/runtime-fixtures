@@ -691,29 +691,23 @@ export const DeviceClientMetadataV1Schema = z.discriminatedUnion("state", [
   DeviceClientMetadataWithheldV1Schema,
   DeviceClientMetadataPresentV1Schema,
 ]);
-export const DeviceAuthorizationStartBodyV1Schema = z
-  .object({
-    clientType: z.literal("browser_extension"),
-    browserFamily: z.enum(BrowserFamilies).optional(),
-    browserVersion: SafeVersion.optional(),
-    extensionVersion: SafeVersion.optional(),
-    deviceLabel: DeviceLabelV1Schema.optional(),
-  })
-  .strict()
-  .superRefine((value, context) => {
-    const identified =
-      value.browserFamily !== undefined && value.extensionVersion !== undefined;
-    const withheld =
-      value.browserFamily === undefined &&
-      value.browserVersion === undefined &&
-      value.extensionVersion === undefined;
-    if (!identified && !withheld)
-      context.addIssue({
-        code: "custom",
-        message:
-          "client software metadata must be fully identified or withheld",
-      });
-  });
+export const DeviceAuthorizationStartBodyV1Schema = z.union([
+  z
+    .object({
+      clientType: z.literal("browser_extension"),
+      browserFamily: z.enum(BrowserFamilies),
+      browserVersion: SafeVersion.optional(),
+      extensionVersion: SafeVersion,
+      deviceLabel: DeviceLabelV1Schema.optional(),
+    })
+    .strict(),
+  z
+    .object({
+      clientType: z.literal("browser_extension"),
+      deviceLabel: DeviceLabelV1Schema.optional(),
+    })
+    .strict(),
+]);
 export const DeviceAuthorizationStartResponseV1Schema = z.object({
   status: z.literal("pending"),
   authorizationId: z.uuid(),
@@ -767,38 +761,34 @@ const DeviceAuthorizationPreviewBaseV1Shape = {
   deviceLabel: z.string().nullable(),
   expiresAt: z.string().datetime(),
 };
-export const DeviceAuthorizationPreviewResponseV1Schema = z
-  .object({
-    ...DeviceAuthorizationPreviewBaseV1Shape,
-    clientMetadata: DeviceClientMetadataV1Schema,
-    browserFamily: z.enum(BrowserFamilies).optional(),
-    browserVersion: z.string().nullable().optional(),
-    extensionVersion: z.string().optional(),
-  })
-  .strict()
-  .superRefine((value, context) => {
-    if (value.clientMetadata.state === "WITHHELD") {
+export const DeviceAuthorizationPreviewResponseV1Schema = z.union([
+  z
+    .object({
+      ...DeviceAuthorizationPreviewBaseV1Shape,
+      clientMetadata: DeviceClientMetadataWithheldV1Schema,
+    })
+    .strict(),
+  z
+    .object({
+      ...DeviceAuthorizationPreviewBaseV1Shape,
+      clientMetadata: DeviceClientMetadataPresentV1Schema,
+      browserFamily: z.enum(BrowserFamilies),
+      browserVersion: z.string().nullable(),
+      extensionVersion: z.string(),
+    })
+    .strict()
+    .superRefine((value, context) => {
       if (
-        value.browserFamily !== undefined ||
-        value.browserVersion !== undefined ||
-        value.extensionVersion !== undefined
+        value.browserFamily !== value.clientMetadata.browserFamily ||
+        value.browserVersion !== value.clientMetadata.browserVersion ||
+        value.extensionVersion !== value.clientMetadata.extensionVersion
       )
         context.addIssue({
           code: "custom",
-          message: "withheld client metadata must omit legacy fields",
+          message: "legacy client metadata must match authoritative metadata",
         });
-      return;
-    }
-    if (
-      value.browserFamily !== value.clientMetadata.browserFamily ||
-      value.browserVersion !== value.clientMetadata.browserVersion ||
-      value.extensionVersion !== value.clientMetadata.extensionVersion
-    )
-      context.addIssue({
-        code: "custom",
-        message: "legacy client metadata must match authoritative metadata",
-      });
-  });
+    }),
+]);
 export const DeviceAuthorizationApprovedResponseV1Schema = z.object({
   status: z.literal("approved"),
   authorizationId: z.uuid(),
@@ -837,38 +827,34 @@ const DeviceListItemBaseV1Shape = {
   lastSeenAt: z.string().datetime().nullable(),
   revokedAt: z.string().datetime().nullable(),
 };
-export const DeviceListItemV1Schema = z
-  .object({
-    ...DeviceListItemBaseV1Shape,
-    clientMetadata: DeviceClientMetadataV1Schema,
-    browserFamily: z.enum(BrowserFamilies).optional(),
-    browserVersionLastSeen: z.string().nullable().optional(),
-    extensionVersionLastSeen: z.string().optional(),
-  })
-  .strict()
-  .superRefine((value, context) => {
-    if (value.clientMetadata.state === "WITHHELD") {
+export const DeviceListItemV1Schema = z.union([
+  z
+    .object({
+      ...DeviceListItemBaseV1Shape,
+      clientMetadata: DeviceClientMetadataWithheldV1Schema,
+    })
+    .strict(),
+  z
+    .object({
+      ...DeviceListItemBaseV1Shape,
+      clientMetadata: DeviceClientMetadataPresentV1Schema,
+      browserFamily: z.enum(BrowserFamilies),
+      browserVersionLastSeen: z.string().nullable(),
+      extensionVersionLastSeen: z.string(),
+    })
+    .strict()
+    .superRefine((value, context) => {
       if (
-        value.browserFamily !== undefined ||
-        value.browserVersionLastSeen !== undefined ||
-        value.extensionVersionLastSeen !== undefined
+        value.browserFamily !== value.clientMetadata.browserFamily ||
+        value.browserVersionLastSeen !== value.clientMetadata.browserVersion ||
+        value.extensionVersionLastSeen !== value.clientMetadata.extensionVersion
       )
         context.addIssue({
           code: "custom",
-          message: "withheld client metadata must omit legacy fields",
+          message: "legacy client metadata must match authoritative metadata",
         });
-      return;
-    }
-    if (
-      value.browserFamily !== value.clientMetadata.browserFamily ||
-      value.browserVersionLastSeen !== value.clientMetadata.browserVersion ||
-      value.extensionVersionLastSeen !== value.clientMetadata.extensionVersion
-    )
-      context.addIssue({
-        code: "custom",
-        message: "legacy client metadata must match authoritative metadata",
-      });
-  });
+    }),
+]);
 export const DeviceListResponseV1Schema = z.object({
   devices: z.array(DeviceListItemV1Schema),
   nextCursor: z.uuid().nullable(),

@@ -209,6 +209,114 @@ describe("OpenAPI foundation", () => {
       expect(schemaText).not.toContain(forbidden);
   });
 
+  it("documents privacy-neutral device metadata as explicit PRESENT/WITHHELD unions", async () => {
+    type JsonSchema = {
+      anyOf?: JsonSchema[];
+      enum?: string[];
+      items?: JsonSchema;
+      properties?: Record<string, JsonSchema>;
+      required?: string[];
+    };
+    type OpenApiDocument = {
+      paths: Record<
+        string,
+        {
+          get?: {
+            responses: Record<
+              string,
+              { content: Record<string, { schema: JsonSchema }> }
+            >;
+          };
+          post?: {
+            requestBody: {
+              content: Record<string, { schema: JsonSchema }>;
+            };
+          };
+        }
+      >;
+    };
+    const document = JSON.parse(
+      await generateOpenApiRepresentation(),
+    ) as OpenApiDocument;
+    const start =
+      document.paths["/v1/device-authorizations"]!.post!.requestBody.content[
+        "application/json"
+      ]!.schema;
+    const startBranches = start.anyOf ?? [];
+    expect(startBranches).toHaveLength(2);
+    const identifiedStart = startBranches.find((schema) =>
+      schema.required?.includes("browserFamily"),
+    );
+    const withheldStart = startBranches.find(
+      (schema) => !schema.required?.includes("browserFamily"),
+    );
+    if (!identifiedStart || !withheldStart)
+      throw new Error("privacy-neutral start branches missing");
+    expect(identifiedStart.required).toEqual(
+      expect.arrayContaining([
+        "clientType",
+        "browserFamily",
+        "extensionVersion",
+      ]),
+    );
+    expect(withheldStart.required).toEqual(["clientType"]);
+    expect(withheldStart.properties).not.toHaveProperty("browserFamily");
+    expect(withheldStart.properties).not.toHaveProperty("browserVersion");
+    expect(withheldStart.properties).not.toHaveProperty("extensionVersion");
+
+    const preview =
+      document.paths["/v1/device-authorizations/{id}"]!.get!.responses["200"]!
+        .content["application/json"]!.schema;
+    const previewBranches = preview.anyOf ?? [];
+    expect(previewBranches).toHaveLength(2);
+    const state = (schema: JsonSchema) =>
+      schema.properties?.clientMetadata?.properties?.state?.enum?.[0];
+    const withheldPreview = previewBranches.find(
+      (schema) => state(schema) === "WITHHELD",
+    );
+    const presentPreview = previewBranches.find(
+      (schema) => state(schema) === "PRESENT",
+    );
+    if (!withheldPreview || !presentPreview)
+      throw new Error("privacy-neutral preview branches missing");
+    expect(withheldPreview.required).not.toContain("browserFamily");
+    expect(withheldPreview.properties).not.toHaveProperty("browserFamily");
+    expect(presentPreview.required).toEqual(
+      expect.arrayContaining([
+        "browserFamily",
+        "browserVersion",
+        "extensionVersion",
+      ]),
+    );
+
+    const items =
+      document.paths["/v1/devices"]!.get!.responses["200"]!.content[
+        "application/json"
+      ]!.schema.properties?.devices?.items;
+    if (!items) throw new Error("device item schema missing");
+    const itemBranches = items.anyOf ?? [];
+    expect(itemBranches).toHaveLength(2);
+    const withheldDevice = itemBranches.find(
+      (schema) => state(schema) === "WITHHELD",
+    );
+    const presentDevice = itemBranches.find(
+      (schema) => state(schema) === "PRESENT",
+    );
+    if (!withheldDevice || !presentDevice)
+      throw new Error("privacy-neutral device branches missing");
+    expect(withheldDevice.properties).not.toHaveProperty("browserFamily");
+    expect(withheldDevice.properties).not.toHaveProperty(
+      "extensionVersionLastSeen",
+    );
+    expect(presentDevice.required).toEqual(
+      expect.arrayContaining([
+        "browserFamily",
+        "browserVersionLastSeen",
+        "extensionVersionLastSeen",
+      ]),
+    );
+  });
+
   it("accepts the tracked artifact when it is generated from the current routes", async () => {
     await expect(checkOpenApiArtifact()).resolves.toBe(true);
   });

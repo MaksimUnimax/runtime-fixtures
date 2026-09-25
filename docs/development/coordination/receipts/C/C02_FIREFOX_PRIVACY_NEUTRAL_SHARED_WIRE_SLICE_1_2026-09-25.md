@@ -46,11 +46,21 @@ B slice-1 C revalidation:
 - resource jobs completed without OOM and cleanup was verified.
 
 C shared-wire focused regression:
-- contracts browser/privacy start cases plus API authorization/device/portal/OpenAPI: 27/27 PASS.
+- contracts browser/privacy start cases plus API authorization/device/portal/OpenAPI and portal metadata formatter: 30/30 PASS.
+- full portal suite: 41/41 PASS.
 - contracts typecheck: PASS.
 - API typecheck: PASS.
+- portal typecheck: PASS.
 - tracked OpenAPI check: PASS.
+- generated OpenAPI has explicit PRESENT/WITHHELD branches for start, preview and device list; partial metadata is not documented as valid.
 - partial metadata, non-empty forget body, missing bearer and post-auth authority mismatch have explicit negative coverage.
+
+Independent Luna read-only review:
+- task: `c02-firefox-wire-review-r1`, exit 0.
+- confirmed no separate auth/replay/session-clearing defect in the reviewed path.
+- found an OpenAPI documentation defect caused by runtime-only refinements; corrected by structural union schemas plus OpenAPI regression.
+- found portal PRESENT-only rendering; corrected through one shared formatter. WITHHELD renders as `Not shared`, with unit coverage.
+- known B admin projection blocker remained independently confirmed and is not claimed fixed here.
 
 Post-main verification of base `7945d628...`: all five required workflows PASS:
 Server CI, Extension CI, Extension I1-C1 client, Documentation CI, Coordination and release safety.

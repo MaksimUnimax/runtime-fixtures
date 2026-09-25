@@ -78714,47 +78714,74 @@
           "content": {
             "application/json": {
               "schema": {
-                "additionalProperties": false,
-                "properties": {
-                  "browserFamily": {
-                    "enum": [
-                      "chrome",
-                      "opera",
-                      "yandex_chromium",
-                      "firefox",
-                      "safari"
+                "anyOf": [
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "browserFamily": {
+                        "enum": [
+                          "chrome",
+                          "opera",
+                          "yandex_chromium",
+                          "firefox",
+                          "safari"
+                        ],
+                        "type": "string"
+                      },
+                      "browserVersion": {
+                        "maxLength": 64,
+                        "minLength": 1,
+                        "pattern": "^[A-Za-z0-9._+-]+$",
+                        "type": "string"
+                      },
+                      "clientType": {
+                        "enum": [
+                          "browser_extension"
+                        ],
+                        "type": "string"
+                      },
+                      "deviceLabel": {
+                        "maxLength": 128,
+                        "minLength": 1,
+                        "pattern": "^[^<>]*$",
+                        "type": "string"
+                      },
+                      "extensionVersion": {
+                        "maxLength": 64,
+                        "minLength": 1,
+                        "pattern": "^[A-Za-z0-9._+-]+$",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "clientType",
+                      "browserFamily",
+                      "extensionVersion"
                     ],
-                    "type": "string"
+                    "type": "object"
                   },
-                  "browserVersion": {
-                    "maxLength": 64,
-                    "minLength": 1,
-                    "pattern": "^[A-Za-z0-9._+-]+$",
-                    "type": "string"
-                  },
-                  "clientType": {
-                    "enum": [
-                      "browser_extension"
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "clientType": {
+                        "enum": [
+                          "browser_extension"
+                        ],
+                        "type": "string"
+                      },
+                      "deviceLabel": {
+                        "maxLength": 128,
+                        "minLength": 1,
+                        "pattern": "^[^<>]*$",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "clientType"
                     ],
-                    "type": "string"
-                  },
-                  "deviceLabel": {
-                    "maxLength": 128,
-                    "minLength": 1,
-                    "pattern": "^[^<>]*$",
-                    "type": "string"
-                  },
-                  "extensionVersion": {
-                    "maxLength": 64,
-                    "minLength": 1,
-                    "pattern": "^[A-Za-z0-9._+-]+$",
-                    "type": "string"
+                    "type": "object"
                   }
-                },
-                "required": [
-                  "clientType"
-                ],
-                "type": "object"
+                ]
               }
             }
           },
@@ -79888,36 +79915,16 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": false,
-                  "properties": {
-                    "authorizationId": {
-                      "format": "uuid",
-                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                      "type": "string"
-                    },
-                    "browserFamily": {
-                      "enum": [
-                        "chrome",
-                        "opera",
-                        "yandex_chromium",
-                        "firefox",
-                        "safari"
-                      ],
-                      "type": "string"
-                    },
-                    "browserVersion": {
-                      "anyOf": [
-                        {
+                  "anyOf": [
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "authorizationId": {
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                           "type": "string"
                         },
-                        {
-                          "type": "null"
-                        }
-                      ]
-                    },
-                    "clientMetadata": {
-                      "anyOf": [
-                        {
+                        "clientMetadata": {
                           "additionalProperties": false,
                           "properties": {
                             "state": {
@@ -79932,7 +79939,73 @@
                           ],
                           "type": "object"
                         },
-                        {
+                        "clientType": {
+                          "enum": [
+                            "browser_extension"
+                          ],
+                          "type": "string"
+                        },
+                        "deviceLabel": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "expiresAt": {
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                          "type": "string"
+                        },
+                        "status": {
+                          "enum": [
+                            "pending"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "status",
+                        "authorizationId",
+                        "clientType",
+                        "deviceLabel",
+                        "expiresAt",
+                        "clientMetadata"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "authorizationId": {
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                          "type": "string"
+                        },
+                        "browserFamily": {
+                          "enum": [
+                            "chrome",
+                            "opera",
+                            "yandex_chromium",
+                            "firefox",
+                            "safari"
+                          ],
+                          "type": "string"
+                        },
+                        "browserVersion": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "clientMetadata": {
                           "additionalProperties": false,
                           "properties": {
                             "browserFamily": {
@@ -79972,49 +80045,52 @@
                             "extensionVersion"
                           ],
                           "type": "object"
-                        }
-                      ]
-                    },
-                    "clientType": {
-                      "enum": [
-                        "browser_extension"
-                      ],
-                      "type": "string"
-                    },
-                    "deviceLabel": {
-                      "anyOf": [
-                        {
+                        },
+                        "clientType": {
+                          "enum": [
+                            "browser_extension"
+                          ],
                           "type": "string"
                         },
-                        {
-                          "type": "null"
+                        "deviceLabel": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "expiresAt": {
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                          "type": "string"
+                        },
+                        "extensionVersion": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "enum": [
+                            "pending"
+                          ],
+                          "type": "string"
                         }
-                      ]
-                    },
-                    "expiresAt": {
-                      "format": "date-time",
-                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
-                      "type": "string"
-                    },
-                    "extensionVersion": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "enum": [
-                        "pending"
+                      },
+                      "required": [
+                        "status",
+                        "authorizationId",
+                        "clientType",
+                        "deviceLabel",
+                        "expiresAt",
+                        "clientMetadata",
+                        "browserFamily",
+                        "browserVersion",
+                        "extensionVersion"
                       ],
-                      "type": "string"
+                      "type": "object"
                     }
-                  },
-                  "required": [
-                    "status",
-                    "authorizationId",
-                    "clientType",
-                    "deviceLabel",
-                    "expiresAt",
-                    "clientMetadata"
-                  ],
-                  "type": "object"
+                  ]
                 }
               }
             },
@@ -81830,43 +81906,23 @@
                   "properties": {
                     "devices": {
                       "items": {
-                        "additionalProperties": false,
-                        "properties": {
-                          "activatedAt": {
-                            "anyOf": [
-                              {
-                                "format": "date-time",
-                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
-                                "type": "string"
+                        "anyOf": [
+                          {
+                            "additionalProperties": false,
+                            "properties": {
+                              "activatedAt": {
+                                "anyOf": [
+                                  {
+                                    "format": "date-time",
+                                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
                               },
-                              {
-                                "type": "null"
-                              }
-                            ]
-                          },
-                          "browserFamily": {
-                            "enum": [
-                              "chrome",
-                              "opera",
-                              "yandex_chromium",
-                              "firefox",
-                              "safari"
-                            ],
-                            "type": "string"
-                          },
-                          "browserVersionLastSeen": {
-                            "anyOf": [
-                              {
-                                "type": "string"
-                              },
-                              {
-                                "type": "null"
-                              }
-                            ]
-                          },
-                          "clientMetadata": {
-                            "anyOf": [
-                              {
+                              "clientMetadata": {
                                 "additionalProperties": false,
                                 "properties": {
                                   "state": {
@@ -81881,7 +81937,106 @@
                                 ],
                                 "type": "object"
                               },
-                              {
+                              "createdAt": {
+                                "format": "date-time",
+                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                                "type": "string"
+                              },
+                              "id": {
+                                "format": "uuid",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                                "type": "string"
+                              },
+                              "label": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "lastSeenAt": {
+                                "anyOf": [
+                                  {
+                                    "format": "date-time",
+                                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "revokedAt": {
+                                "anyOf": [
+                                  {
+                                    "format": "date-time",
+                                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "status": {
+                                "enum": [
+                                  "ACTIVE",
+                                  "REVOKED"
+                                ],
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "status",
+                              "label",
+                              "createdAt",
+                              "activatedAt",
+                              "lastSeenAt",
+                              "revokedAt",
+                              "clientMetadata"
+                            ],
+                            "type": "object"
+                          },
+                          {
+                            "additionalProperties": false,
+                            "properties": {
+                              "activatedAt": {
+                                "anyOf": [
+                                  {
+                                    "format": "date-time",
+                                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "browserFamily": {
+                                "enum": [
+                                  "chrome",
+                                  "opera",
+                                  "yandex_chromium",
+                                  "firefox",
+                                  "safari"
+                                ],
+                                "type": "string"
+                              },
+                              "browserVersionLastSeen": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "clientMetadata": {
                                 "additionalProperties": false,
                                 "properties": {
                                   "browserFamily": {
@@ -81921,75 +82076,78 @@
                                   "extensionVersion"
                                 ],
                                 "type": "object"
-                              }
-                            ]
-                          },
-                          "createdAt": {
-                            "format": "date-time",
-                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
-                            "type": "string"
-                          },
-                          "extensionVersionLastSeen": {
-                            "type": "string"
-                          },
-                          "id": {
-                            "format": "uuid",
-                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                            "type": "string"
-                          },
-                          "label": {
-                            "anyOf": [
-                              {
-                                "type": "string"
                               },
-                              {
-                                "type": "null"
-                              }
-                            ]
-                          },
-                          "lastSeenAt": {
-                            "anyOf": [
-                              {
+                              "createdAt": {
                                 "format": "date-time",
                                 "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
                                 "type": "string"
                               },
-                              {
-                                "type": "null"
-                              }
-                            ]
-                          },
-                          "revokedAt": {
-                            "anyOf": [
-                              {
-                                "format": "date-time",
-                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                              "extensionVersionLastSeen": {
                                 "type": "string"
                               },
-                              {
-                                "type": "null"
+                              "id": {
+                                "format": "uuid",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                                "type": "string"
+                              },
+                              "label": {
+                                "anyOf": [
+                                  {
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "lastSeenAt": {
+                                "anyOf": [
+                                  {
+                                    "format": "date-time",
+                                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "revokedAt": {
+                                "anyOf": [
+                                  {
+                                    "format": "date-time",
+                                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "status": {
+                                "enum": [
+                                  "ACTIVE",
+                                  "REVOKED"
+                                ],
+                                "type": "string"
                               }
-                            ]
-                          },
-                          "status": {
-                            "enum": [
-                              "ACTIVE",
-                              "REVOKED"
+                            },
+                            "required": [
+                              "id",
+                              "status",
+                              "label",
+                              "createdAt",
+                              "activatedAt",
+                              "lastSeenAt",
+                              "revokedAt",
+                              "clientMetadata",
+                              "browserFamily",
+                              "browserVersionLastSeen",
+                              "extensionVersionLastSeen"
                             ],
-                            "type": "string"
+                            "type": "object"
                           }
-                        },
-                        "required": [
-                          "id",
-                          "status",
-                          "label",
-                          "createdAt",
-                          "activatedAt",
-                          "lastSeenAt",
-                          "revokedAt",
-                          "clientMetadata"
-                        ],
-                        "type": "object"
+                        ]
                       },
                       "type": "array"
                     },
