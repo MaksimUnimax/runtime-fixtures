@@ -1,7 +1,7 @@
 # Octoport SEO — M10C progress
 
 Date: 2026-09-24
-Status: **CASE01–CASE10 TERMINAL CLOSED / CASE11 SNAPSHOT02 RELEASED**
+Status: **CASE01–CASE11 TERMINAL CLOSED / CASE12 SNAPSHOT01 RELEASED**
 Branch: `seo/wordstat-batch-01-2026-09-16`
 
 ## Accepted chain
@@ -439,3 +439,32 @@ Current authorized action:
 `SEARCH_API_V1 {"method":"genSearch","queryText":"ии агент для wildberries","confirmBillable":true}`
 
 One second Case11 snapshot is authorized. If material doubt remains after it, Main Chat must amend the case before any third request. Case12 remains closed.
+
+Case11 raw snapshot-2:
+`docs/seo/evidence/m10c/M10C_CASE11_SNAPSHOT02_SEARCH_RESULT_V1.json`
+blob `01c7fac78f0b3c2772e9f5e830ee636e629734cb`.
+
+Case11 terminal closure:
+`docs/seo/M10C_CASE11_TERMINAL_CLOSURE_2026-09-25_R1.md`
+blob `03a1a1e840bb9057efb5b26bde174139470d415c`.
+
+```text
+CASE11_SNAPSHOTS = 2
+CASE11_TERMINAL_EVIDENCE_STATE = STABLE_THIRD_PARTY_AUTONOMOUS_AGENT_WITH_REPEATED_BYO_LLM_SIGNAL
+CASE11_ESTIMATED_PROVIDER_COST_RUB = 10.16
+```
+
+Cumulative paid GenSearch through Case11:
+```text
+PAID_REQUESTS = 19
+ESTIMATED_COST_RUB = 96.52
+```
+
+Case12 snapshot-1 release:
+`docs/seo/M10C_CASE12_SNAPSHOT01_RELEASE_2026-09-25_R1.md`
+blob `1c77e9dae41b2e69be2e1bed1d6a231d48d294f4`.
+
+Current authorized action:
+`SEARCH_API_V1 {"method":"genSearch","queryText":"отчет маркетплейса вайлдберриз","confirmBillable":true}`
+
+Exactly one Case12 provider request is authorized. Quality-priority rule remains active; Case13 remains closed.
