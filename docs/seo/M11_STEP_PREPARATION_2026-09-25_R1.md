@@ -345,7 +345,7 @@ m11_hold_resolution
 owner_id_a
 owner_id_b
 resolution_rationale
-evidence_refs
+m11_evidence_refs
 ```
 
 Closed `m11_hold_resolution`:
