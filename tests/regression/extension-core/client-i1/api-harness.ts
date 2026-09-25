@@ -31,7 +31,10 @@ import {
   ExtensionAuthService,
   deriveExtensionAuthKeys,
 } from "@product/extension-auth";
-import { BootstrapService } from "@product/bootstrap";
+import {
+  BootstrapService,
+  LocalClientAuthorityMaterializer,
+} from "@product/bootstrap";
 import type { BootstrapAiResolutionService } from "@product/bootstrap";
 import { profileRevisionFingerprint } from "@product/adapter-registry";
 import {
@@ -50,16 +53,30 @@ class R5CTestCredentialTransferService extends CredentialTransferService {
     this.tamperRequestId = requestId;
   }
 
-  public tamperState(): { requestId: string | null; hits: number; receiveCalls: number } {
-    return { requestId: this.tamperRequestId, hits: this.tamperHits, receiveCalls: this.receiveCalls };
+  public tamperState(): {
+    requestId: string | null;
+    hits: number;
+    receiveCalls: number;
+  } {
+    return {
+      requestId: this.tamperRequestId,
+      hits: this.tamperHits,
+      receiveCalls: this.receiveCalls,
+    };
   }
 
-  public override async receive(principal: Parameters<CredentialTransferService["receive"]>[0], requestId: string) {
+  public override async receive(
+    principal: Parameters<CredentialTransferService["receive"]>[0],
+    requestId: string,
+  ) {
     this.receiveCalls += 1;
     const packet = await super.receive(principal, requestId);
     if (this.tamperRequestId !== requestId) return packet;
     const envelope = JSON.parse(packet.envelope) as { ciphertext?: string };
-    if (typeof envelope.ciphertext === "string" && envelope.ciphertext.length > 1) {
+    if (
+      typeof envelope.ciphertext === "string" &&
+      envelope.ciphertext.length > 1
+    ) {
       envelope.ciphertext = `${envelope.ciphertext[0] === "A" ? "B" : "A"}${envelope.ciphertext.slice(1)}`;
     }
     this.tamperHits += 1;
@@ -225,10 +242,26 @@ const r5bProfileContent = {
     },
   ],
 } as const;
+const fixtureProfileContractVersion =
+  process.env.SA_I1_PROFILE_CONTRACT_VERSION === "control_plane_v2"
+    ? "control_plane_v2"
+    : "control_plane_v1";
+const fixtureProfileBrowserFamilies = (
+  process.env.SA_I1_PROFILE_BROWSER_FAMILIES ?? "chrome"
+)
+  .split(",")
+  .map((value) => value.trim())
+  .filter((value): value is "chrome" | "opera" | "firefox" | "yandex" =>
+    ["chrome", "opera", "firefox", "yandex"].includes(value),
+  );
+if (!fixtureProfileBrowserFamilies.length)
+  throw new Error(
+    "SA_I1_PROFILE_BROWSER_FAMILIES has no supported browser family",
+  );
 const r5bProfileCompatibility = {
   schemaVersion: "profile_compatibility_v1",
-  contractVersion: "control_plane_v1",
-  browserFamilies: ["chrome"],
+  contractVersion: fixtureProfileContractVersion,
+  browserFamilies: fixtureProfileBrowserFamilies,
   minimumBrowserVersions: [],
   minimumExtensionVersion: null,
 } as const;
@@ -236,31 +269,79 @@ const r5bProfileSha256 = profileRevisionFingerprint({
   content: r5bProfileContent,
   compatibility: r5bProfileCompatibility,
 });
+const resolvedFixtureProfile = {
+  profileKey: "r5b-chatgpt-profile",
+  revision: 1,
+  scopeVariant: null,
+  schemaVersion: "adapter_profile_v1" as const,
+  contentSha256: r5bProfileSha256,
+  content: r5bProfileContent,
+  compatibility: r5bProfileCompatibility,
+};
 const r5bAiResolution = {
   resolve: async (input: {
     detected: { family: string; surface: string; variant: string | null };
   }) => ({
     status: "RESOLVED" as const,
     detected: input.detected,
-    profile: {
-      profileKey: "r5b-chatgpt-profile",
-      revision: 1,
-      scopeVariant: null,
-      schemaVersion: "adapter_profile_v1" as const,
-      contentSha256: r5bProfileSha256,
-      content: r5bProfileContent,
-      compatibility: r5bProfileCompatibility,
-    },
+    profile: resolvedFixtureProfile,
   }),
+  resolveLocalCandidates: async (input: {
+    detected: { family: string; surface: string; variant: string | null };
+  }) =>
+    fixtureProfileBrowserFamilies.map((browserFamily) => ({
+      browserFamily,
+      resolution: {
+        status: "RESOLVED" as const,
+        detected: input.detected,
+        profile: resolvedFixtureProfile,
+      },
+    })),
 } as unknown as BootstrapAiResolutionService;
+const fixtureSourceFingerprintSha256 = createHash("sha256")
+  .update(signing.publicKey.export({ format: "der", type: "spki" }))
+  .digest("hex");
+const fixtureBetaAccess =
+  process.env.SA_I1_FORCE_BETA_BOOTSTRAP === "1"
+    ? { resolve: async () => ({ kind: "BETA" as const }) }
+    : betaAdmission;
+const fixtureLocalAuthorityCatalog = {
+  findLatestConfigRelease: async () => ({
+    configVersion: 1,
+    signingKeyId: fixtureKeyId,
+    sourceFingerprintSha256: fixtureSourceFingerprintSha256,
+    contractVersion: "control_plane_v2" as const,
+    snapshotVersion: "bootstrap_snapshot_v2" as const,
+    envelopeVersion: "bootstrap_envelope_v2" as const,
+  }),
+  listLatestExtensionReleaseSupports: async () => [
+    {
+      id: "11111111-1111-4111-8111-111111111111",
+      version: "0.2.4",
+      contractVersions: ["control_plane_v2"] as const,
+      browserFamilies: fixtureProfileBrowserFamilies,
+    },
+  ],
+  listConfigCompatibilityPolicyRevisions: async () => [],
+  listConfigFeatureRules: async () => [],
+  listConfigFeatureRolloutRevisions: async () => [],
+  listBlockedVersions: async () => [],
+  findRolloutById: async () => undefined,
+  findFeatureRuleRevision: async () => undefined,
+};
+const fixtureLocalClientAuthority =
+  process.env.SA_I1_ENABLE_LOCAL_CLIENT_AUTHORITY === "1"
+    ? new LocalClientAuthorityMaterializer(
+        fixtureLocalAuthorityCatalog as never,
+        r5bAiResolution,
+      )
+    : undefined;
 const bootstrap = new BootstrapService(
   {
     resolve: async () => ({
       configVersion: 1,
       signingKeyId: fixtureKeyId,
-      sourceFingerprintSha256: createHash("sha256")
-        .update(signing.publicKey.export({ format: "der", type: "spki" }))
-        .digest("hex"),
+      sourceFingerprintSha256: fixtureSourceFingerprintSha256,
       compatibility: {
         extension: { status: "SUPPORTED", minimumVersion: null },
         browser: { status: "SUPPORTED" },
@@ -277,7 +358,7 @@ const bootstrap = new BootstrapService(
   undefined,
   undefined,
   r5bAiResolution,
-  betaAdmission,
+  fixtureBetaAccess,
   undefined,
   {
     resolve: async () => {
@@ -296,6 +377,7 @@ const bootstrap = new BootstrapService(
         new Map([[fixtureKeyId, signing.publicKey]]),
       ),
   },
+  fixtureLocalClientAuthority,
 );
 const r5cTransferService = new R5CTestCredentialTransferService(
   createCredentialTransferRepository(database),
@@ -316,6 +398,33 @@ const app = createApiApp({
   bootstrapService: bootstrap,
   credentialTransferService: r5cTransferService,
 });
+const networkEvidencePath = process.env.SA_I1_NETWORK_EVIDENCE_PATH;
+const safeNetworkEvents: Array<{
+  method: string;
+  path: string;
+  status: number;
+  bodyKeys: string[];
+}> = [];
+if (networkEvidencePath)
+  app.addHook("onResponse", async (request, reply) => {
+    const rawPath = request.url.split("?", 1)[0];
+    if (!rawPath.startsWith("/v1/")) return;
+    const path = rawPath.replace(
+      /^\/v1\/device-authorizations\/[0-9a-f-]{36}(?=\/|$)/i,
+      "/v1/device-authorizations/{authorizationId}",
+    );
+    const body = request.body;
+    safeNetworkEvents.push({
+      method: request.method,
+      path,
+      status: reply.statusCode,
+      bodyKeys:
+        body && typeof body === "object" && !Array.isArray(body)
+          ? Object.keys(body as Record<string, unknown>).sort()
+          : [],
+    });
+    writeFileSync(networkEvidencePath, JSON.stringify(safeNetworkEvents));
+  });
 
 // R5C-only relay-boundary interception. It is not part of production API
 // composition and returns only safe control metadata.
@@ -325,7 +434,10 @@ app.post("/q1a-r5c/tamper", async (request) => {
   r5cTransferService.setTamperRequest(requestId);
   return { ok: true, state: r5cTransferService.tamperState() };
 });
-app.get("/q1a-r5c/tamper", async () => ({ ok: true, state: r5cTransferService.tamperState() }));
+app.get("/q1a-r5c/tamper", async () => ({
+  ok: true,
+  state: r5cTransferService.tamperState(),
+}));
 
 // R5B-R1 only: deterministic provider quota fixture at the test boundary.
 // This route is deliberately outside /v1 and is never part of production API
@@ -492,7 +604,11 @@ async function prepareExistingFixtureAccounts(): Promise<void> {
         existing_fixture_accounts: 2,
         beta_unchanged: true,
         fixture_namespace: fixtureNamespace,
-        fixture_emails: emails,
+        ...(process.env.SA_I1_REDACT_FIXTURE_IDENTITIES === "1"
+          ? {}
+          : { fixture_emails: emails }),
+        profile_contract_version: fixtureProfileContractVersion,
+        profile_browser_families: fixtureProfileBrowserFamilies,
       }),
     );
 }
