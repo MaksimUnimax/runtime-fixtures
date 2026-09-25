@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { AuthService } from "@product/auth";
 import type { DeviceManagementService } from "@product/device-management";
+import type { ExtensionAuthService } from "@product/extension-auth";
 import type { AppConfig } from "@product/shared";
 import { createApiApp } from "./app.js";
 
@@ -32,6 +33,9 @@ function fixture(
     list: vi
       .fn()
       .mockResolvedValue({ kind: "ok", devices: [], nextCursor: undefined }),
+    forgetCurrentClientMetadata: vi
+      .fn()
+      .mockResolvedValue({ kind: "CLEARED", deviceId }),
     revoke: vi.fn().mockResolvedValue({ kind: "REVOKED" }),
   };
   const auth = {
@@ -127,6 +131,122 @@ describe("P2.5 device management Fastify boundary", () => {
     expect(service.exchange).not.toHaveBeenCalled();
     await app.close();
   });
+  it("projects PRESENT metadata compatibly and omits legacy fields for WITHHELD devices", async () => {
+    const { app, service } = fixture();
+    service.list.mockResolvedValueOnce({
+      kind: "ok",
+      devices: [
+        {
+          id: deviceId,
+          status: "ACTIVE",
+          label: "present",
+          clientMetadata: {
+            state: "PRESENT",
+            browserFamily: "opera",
+            browserVersion: "136.0",
+            extensionVersion: "0.2.4",
+          },
+          createdAt: new Date("2026-09-25T00:00:00.000Z"),
+          activatedAt: null,
+          lastSeenAt: null,
+          revokedAt: null,
+        },
+        {
+          id: "750e8400-e29b-41d4-a716-446655440001",
+          status: "ACTIVE",
+          label: null,
+          clientMetadata: { state: "WITHHELD" },
+          createdAt: new Date("2026-09-25T00:00:01.000Z"),
+          activatedAt: null,
+          lastSeenAt: null,
+          revokedAt: null,
+        },
+      ],
+      nextCursor: undefined,
+    });
+    const response = await app.inject({
+      method: "GET",
+      url: `/v1/devices?accountId=${deviceId}`,
+      headers: { cookie: "pcp_portal_session=session" },
+    });
+    expect(response.statusCode).toBe(200);
+    const [present, withheld] = response.json().devices;
+    expect(present).toMatchObject({
+      clientMetadata: {
+        state: "PRESENT",
+        browserFamily: "opera",
+        browserVersion: "136.0",
+        extensionVersion: "0.2.4",
+      },
+      browserFamily: "opera",
+      browserVersionLastSeen: "136.0",
+      extensionVersionLastSeen: "0.2.4",
+    });
+    expect(withheld.clientMetadata).toEqual({ state: "WITHHELD" });
+    expect(withheld).not.toHaveProperty("browserFamily");
+    expect(withheld).not.toHaveProperty("browserVersionLastSeen");
+    expect(withheld).not.toHaveProperty("extensionVersionLastSeen");
+    await app.close();
+  });
+
+  it("clears only current authenticated device metadata with an empty body", async () => {
+    const f = fixture();
+    await f.app.close();
+    const principal = {
+      accountId: "850e8400-e29b-41d4-a716-446655440000",
+      deviceId,
+      sessionId,
+    };
+    const extensionAuth = {
+      authenticateAccess: vi
+        .fn()
+        .mockResolvedValue({ ok: true, value: principal }),
+    };
+    const app = createApiApp({
+      config,
+      isInfrastructureReady: async () => true,
+      authService: f.auth as unknown as AuthService,
+      deviceManagementService: f.service as unknown as DeviceManagementService,
+      extensionAuthService: extensionAuth as unknown as ExtensionAuthService,
+    });
+    const missing = await app.inject({
+      method: "POST",
+      url: "/v1/devices/current/client-metadata/forget",
+    });
+    expect(missing.statusCode).toBe(401);
+    const body = await app.inject({
+      method: "POST",
+      url: "/v1/devices/current/client-metadata/forget",
+      headers: { authorization: "Bearer access" },
+      payload: {},
+    });
+    expect(body.statusCode).toBe(400);
+    const success = await app.inject({
+      method: "POST",
+      url: "/v1/devices/current/client-metadata/forget",
+      headers: { authorization: "Bearer access" },
+    });
+    expect(success.statusCode).toBe(200);
+    expect(success.headers["cache-control"]).toBe("no-store");
+    expect(success.headers.pragma).toBe("no-cache");
+    expect(success.json()).toEqual({ status: "cleared", deviceId });
+    expect(f.service.forgetCurrentClientMetadata).toHaveBeenCalledWith(
+      principal,
+      expect.any(String),
+    );
+    f.service.forgetCurrentClientMetadata.mockResolvedValueOnce({
+      kind: "UNAUTHORIZED",
+    });
+    const mismatch = await app.inject({
+      method: "POST",
+      url: "/v1/devices/current/client-metadata/forget",
+      headers: { authorization: "Bearer access" },
+    });
+    expect(mismatch.statusCode).toBe(403);
+    expect(mismatch.json().error.code).toBe("DEVICE_MISMATCH");
+    await app.close();
+  });
+
   it("requires portal auth for list and CSRF for revoke", async () => {
     const { app, auth } = fixture();
     auth.authenticate.mockResolvedValueOnce(undefined);

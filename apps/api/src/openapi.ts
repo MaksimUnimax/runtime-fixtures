@@ -255,6 +255,7 @@ export async function generateOpenApiRepresentation(): Promise<string> {
         consumeExchangeRate: async () => ({ allowed: false }),
         exchange: async () => ({ kind: "closed" }),
         list: async () => ({ kind: "forbidden" }),
+        forgetCurrentClientMetadata: async () => "unauthorized",
         revoke: async () => "not-found",
       } satisfies DeviceManagementRepository,
       Buffer.alloc(32, 3),

@@ -35,6 +35,23 @@ describe("browser-family public contracts", () => {
     });
   }
 
+  it("accepts the privacy-neutral start shape but rejects partial client metadata", () => {
+    expect(
+      DeviceAuthorizationStartBodyV1Schema.safeParse({
+        clientType: "browser_extension",
+        deviceLabel: "Firefox private metadata",
+      }).success,
+    ).toBe(true);
+    for (const body of [
+      { clientType: "browser_extension", browserFamily: "firefox" },
+      { clientType: "browser_extension", browserVersion: "155.0.1" },
+      { clientType: "browser_extension", extensionVersion: "0.2.4" },
+    ])
+      expect(DeviceAuthorizationStartBodyV1Schema.safeParse(body).success).toBe(
+        false,
+      );
+  });
+
   it("rejects an unmodeled browser family", () => {
     expect(
       DeviceAuthorizationStartBodyV1Schema.safeParse({

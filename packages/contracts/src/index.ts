@@ -671,20 +671,49 @@ const SafeVersion = z
   .min(1)
   .max(64)
   .regex(/^[A-Za-z0-9._+-]+$/);
+const DeviceLabelV1Schema = z
+  .string()
+  .min(1)
+  .max(128)
+  .regex(/^[^<>]*$/u);
+const DeviceClientMetadataWithheldV1Schema = z
+  .object({ state: z.literal("WITHHELD") })
+  .strict();
+const DeviceClientMetadataPresentV1Schema = z
+  .object({
+    state: z.literal("PRESENT"),
+    browserFamily: z.enum(BrowserFamilies),
+    browserVersion: z.string().nullable(),
+    extensionVersion: z.string(),
+  })
+  .strict();
+export const DeviceClientMetadataV1Schema = z.discriminatedUnion("state", [
+  DeviceClientMetadataWithheldV1Schema,
+  DeviceClientMetadataPresentV1Schema,
+]);
 export const DeviceAuthorizationStartBodyV1Schema = z
   .object({
     clientType: z.literal("browser_extension"),
-    browserFamily: z.enum(BrowserFamilies),
+    browserFamily: z.enum(BrowserFamilies).optional(),
     browserVersion: SafeVersion.optional(),
-    extensionVersion: SafeVersion,
-    deviceLabel: z
-      .string()
-      .min(1)
-      .max(128)
-      .regex(/^[^<>]*$/u)
-      .optional(),
+    extensionVersion: SafeVersion.optional(),
+    deviceLabel: DeviceLabelV1Schema.optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((value, context) => {
+    const identified =
+      value.browserFamily !== undefined && value.extensionVersion !== undefined;
+    const withheld =
+      value.browserFamily === undefined &&
+      value.browserVersion === undefined &&
+      value.extensionVersion === undefined;
+    if (!identified && !withheld)
+      context.addIssue({
+        code: "custom",
+        message:
+          "client software metadata must be fully identified or withheld",
+      });
+  });
 export const DeviceAuthorizationStartResponseV1Schema = z.object({
   status: z.literal("pending"),
   authorizationId: z.uuid(),
@@ -731,18 +760,45 @@ export const OwnedAccountsResponseV1Schema = z
 export const DeviceAuthorizationPreviewParamsV1Schema = z
   .object({ id: z.uuid() })
   .strict();
+const DeviceAuthorizationPreviewBaseV1Shape = {
+  status: z.literal("pending"),
+  authorizationId: z.uuid(),
+  clientType: z.literal("browser_extension"),
+  deviceLabel: z.string().nullable(),
+  expiresAt: z.string().datetime(),
+};
 export const DeviceAuthorizationPreviewResponseV1Schema = z
   .object({
-    status: z.literal("pending"),
-    authorizationId: z.uuid(),
-    clientType: z.literal("browser_extension"),
-    browserFamily: z.enum(BrowserFamilies),
-    browserVersion: z.string().nullable(),
-    extensionVersion: z.string(),
-    deviceLabel: z.string().nullable(),
-    expiresAt: z.string().datetime(),
+    ...DeviceAuthorizationPreviewBaseV1Shape,
+    clientMetadata: DeviceClientMetadataV1Schema,
+    browserFamily: z.enum(BrowserFamilies).optional(),
+    browserVersion: z.string().nullable().optional(),
+    extensionVersion: z.string().optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((value, context) => {
+    if (value.clientMetadata.state === "WITHHELD") {
+      if (
+        value.browserFamily !== undefined ||
+        value.browserVersion !== undefined ||
+        value.extensionVersion !== undefined
+      )
+        context.addIssue({
+          code: "custom",
+          message: "withheld client metadata must omit legacy fields",
+        });
+      return;
+    }
+    if (
+      value.browserFamily !== value.clientMetadata.browserFamily ||
+      value.browserVersion !== value.clientMetadata.browserVersion ||
+      value.extensionVersion !== value.clientMetadata.extensionVersion
+    )
+      context.addIssue({
+        code: "custom",
+        message: "legacy client metadata must match authoritative metadata",
+      });
+  });
 export const DeviceAuthorizationApprovedResponseV1Schema = z.object({
   status: z.literal("approved"),
   authorizationId: z.uuid(),
@@ -772,22 +828,57 @@ export const DeviceListQueryV1Schema = z
     cursor: z.uuid().optional(),
   })
   .strict();
-export const DeviceListItemV1Schema = z.object({
+const DeviceListItemBaseV1Shape = {
   id: z.uuid(),
   status: z.enum(["ACTIVE", "REVOKED"]),
   label: z.string().nullable(),
-  browserFamily: z.enum(BrowserFamilies),
-  browserVersionLastSeen: z.string().nullable(),
-  extensionVersionLastSeen: z.string().nullable(),
   createdAt: z.string().datetime(),
   activatedAt: z.string().datetime().nullable(),
   lastSeenAt: z.string().datetime().nullable(),
   revokedAt: z.string().datetime().nullable(),
-});
+};
+export const DeviceListItemV1Schema = z
+  .object({
+    ...DeviceListItemBaseV1Shape,
+    clientMetadata: DeviceClientMetadataV1Schema,
+    browserFamily: z.enum(BrowserFamilies).optional(),
+    browserVersionLastSeen: z.string().nullable().optional(),
+    extensionVersionLastSeen: z.string().optional(),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (value.clientMetadata.state === "WITHHELD") {
+      if (
+        value.browserFamily !== undefined ||
+        value.browserVersionLastSeen !== undefined ||
+        value.extensionVersionLastSeen !== undefined
+      )
+        context.addIssue({
+          code: "custom",
+          message: "withheld client metadata must omit legacy fields",
+        });
+      return;
+    }
+    if (
+      value.browserFamily !== value.clientMetadata.browserFamily ||
+      value.browserVersionLastSeen !== value.clientMetadata.browserVersion ||
+      value.extensionVersionLastSeen !== value.clientMetadata.extensionVersion
+    )
+      context.addIssue({
+        code: "custom",
+        message: "legacy client metadata must match authoritative metadata",
+      });
+  });
 export const DeviceListResponseV1Schema = z.object({
   devices: z.array(DeviceListItemV1Schema),
   nextCursor: z.uuid().nullable(),
 });
+export const DeviceClientMetadataClearResponseV1Schema = z
+  .object({
+    status: z.literal("cleared"),
+    deviceId: z.uuid(),
+  })
+  .strict();
 export const DeviceRevokeParamsV1Schema = z
   .object({ device_id: z.uuid() })
   .strict();
@@ -1488,7 +1579,20 @@ export const AdminUserItemV1Schema = z
   })
   .strict();
 export const AdminUsersResponseV1Schema = AdminPage(AdminUserItemV1Schema);
-export const AdminDeviceItemV1Schema = DeviceListItemV1Schema.strict();
+export const AdminDeviceItemV1Schema = z
+  .object({
+    id: z.uuid(),
+    status: z.enum(["ACTIVE", "REVOKED"]),
+    label: z.string().nullable(),
+    browserFamily: z.enum(BrowserFamilies),
+    browserVersionLastSeen: z.string().nullable(),
+    extensionVersionLastSeen: z.string().nullable(),
+    createdAt: z.string().datetime(),
+    activatedAt: z.string().datetime().nullable(),
+    lastSeenAt: z.string().datetime().nullable(),
+    revokedAt: z.string().datetime().nullable(),
+  })
+  .strict();
 export const AdminDevicesResponseV1Schema = AdminPage(AdminDeviceItemV1Schema);
 export const AdminSubscriptionResponseV1Schema = z
   .object({
