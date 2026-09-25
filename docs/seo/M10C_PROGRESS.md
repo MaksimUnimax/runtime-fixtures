@@ -1,7 +1,7 @@
 # Octoport SEO — M10C progress
 
 Date: 2026-09-24
-Status: **CASE01–CASE13 TERMINAL CLOSED / CASE14 SNAPSHOT02 RELEASED**
+Status: **CASE01–CASE14 TERMINAL CLOSED / CASE15 SNAPSHOT02 RELEASED**
 Branch: `seo/wordstat-batch-01-2026-09-16`
 
 ## Accepted chain
@@ -577,3 +577,44 @@ Current authorized action:
 `SEARCH_API_V1 {"method":"genSearch","queryText":"отчеты маркетплейсов","confirmBillable":true}`
 
 One second Case14 snapshot is authorized. If material doubt remains after it, Main Chat must amend the case before any third request. Case15 remains closed.
+
+Case14 raw snapshot-2:
+`docs/seo/evidence/m10c/M10C_CASE14_SNAPSHOT02_SEARCH_RESULT_V1.json`
+blob `e895cd51a74245aec5ba3e7bd11868465c21bdea`.
+
+Case14 terminal closure:
+`docs/seo/M10C_CASE14_TERMINAL_CLOSURE_2026-09-25_R1.md`
+blob `02439f7bf19176de0d54f136a5ec9e1c7fc7c8b1`.
+
+```text
+CASE14_SNAPSHOTS = 2
+CASE14_TERMINAL_EVIDENCE_STATE = STABLE_OFFICIAL_OZON_PLUS_THIRD_PARTY_ACCOUNTING_REPORT_MIX
+CASE14_ESTIMATED_PROVIDER_COST_RUB = 10.16
+```
+
+Case15 snapshot-1 release receipt:
+`docs/seo/M10C_CASE15_SNAPSHOT01_RELEASE_RECEIPT_2026-09-25_R1.md`
+blob `eb8e1e3835645280a7485fad131988e87a4be85d`.
+
+Case15 snapshot-1 raw evidence:
+`docs/seo/evidence/m10c/M10C_CASE15_SNAPSHOT01_SEARCH_RESULT_V1.json`
+blob `0751f2b50dff4605851724158f3ce54d824c1e76`.
+
+Case15 snapshot-1 assessment:
+`docs/seo/M10C_CASE15_SNAPSHOT01_ASSESSMENT_2026-09-25_R1.md`
+blob `5e038754bab8dad018e02c53230a3e9eadd3f53c`.
+
+Cumulative paid GenSearch through Case15 snapshot-1:
+```text
+PAID_REQUESTS = 26
+ESTIMATED_COST_RUB = 132.08
+```
+
+Case15 snapshot-2 release:
+`docs/seo/M10C_CASE15_SNAPSHOT02_RELEASE_2026-09-25_R1.md`
+blob `6cdb8d443da694f0ca03e2197ec4e2c643019912`.
+
+Current authorized action:
+`SEARCH_API_V1 {"method":"genSearch","queryText":"отчет маркетплейса озон","confirmBillable":true}`
+
+Exactly one second Case15 snapshot is authorized. M10D remains blocked until Case15 terminal closure and M10C acquisition closure.
