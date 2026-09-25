@@ -1,0 +1,273 @@
+{
+  "schema": "OCTOPORT_M14_BOUNDED_SITE_IMPLEMENTATION_INPUT_MANIFEST_V1",
+  "work_id": "OCTOPORT_SEO_M14_BOUNDED_SITE_IMPLEMENTATION_2026-09-25_R1",
+  "repository": "MaksimUnimax/runtime-fixtures",
+  "seo_authority_branch": "seo/wordstat-batch-01-2026-09-16",
+  "preparation_parent_seo_head": "cfc5b718835f7c8cbec15370f3835e01e1fe6d48",
+  "preparation_commit": "1ae527a6aab872d7a049fb25f2f10b8e3d282a47",
+  "frozen_main_head": "891b89f198f89e52eef78d6da89a28641e7dcdce",
+  "step_preparation": {
+    "path": "docs/seo/M14_STEP_PREPARATION_2026-09-25_R1.md",
+    "blob": "7f57f615063a95c56d7fc6e8afb4db2b5903b7ca"
+  },
+  "governing_rules": [
+    {
+      "path": "docs/seo/LEVEL1/README.md",
+      "blob": "4c3a30644ac736b926ec82bba6b1a6e33434ac06"
+    },
+    {
+      "path": "docs/seo/EXECUTION_RULES.md",
+      "blob": "4e999af4826d6f72fd15f481a698f674c8ed2d5c"
+    },
+    {
+      "path": "docs/seo/QUALITY_FIRST_RESOURCE_RULE.md",
+      "blob": "9917a52b837bcb8ae50eb63cc53e7becd1671b39"
+    },
+    {
+      "path": "docs/seo/WORK_HANDOFF_RULE.md",
+      "blob": "71a031e74b921dade5998beb842fb3afcc4478e7"
+    },
+    {
+      "path": "docs/seo/LEVEL2/M13_M18_IMPLEMENTATION_LAUNCH_MEASUREMENT_RULES.md",
+      "blob": "fe11b327eefff20f6c807581ae947a78c6bcc6e8"
+    },
+    {
+      "path": "docs/seo/PRODUCT_TRUTH.md",
+      "blob": "6a469d5743142d3e476afa5d2cda653fd411ecb8"
+    },
+    {
+      "path": "docs/seo/FAILURE_LEDGER.md",
+      "blob": "2527cb7adb10a57795f0b80f16660b4475f6e825"
+    }
+  ],
+  "upstream_authority": [
+    {
+      "path": "docs/seo/M11_MAIN_CHAT_CORRECTION_ACCEPTANCE_2026-09-25_R2.md",
+      "blob": "0fd15af86ba93a6eaae73b43f4507522576f0df3"
+    },
+    {
+      "path": "docs/seo/M12_MAIN_CHAT_CORRECTION_ACCEPTANCE_2026-09-25_R2.md",
+      "blob": "782f182026172009a220e80a37b9c48e4017be11"
+    },
+    {
+      "path": "docs/seo/M13_MAIN_CHAT_CORRECTION_ACCEPTANCE_2026-09-25_R2.md",
+      "blob": "9ef006e6d3e75fde496bffde439eb97ea10df936"
+    },
+    {
+      "path": "docs/seo/M13_TECHNICAL_REQUIREMENTS_2026-09-25_R2.tsv",
+      "blob": "ce9debeb7a658d4baf192f6bef274ca2600ea575"
+    },
+    {
+      "path": "docs/seo/M13_ROUTE_HTTP_CANONICAL_MATRIX_2026-09-25_R2.tsv",
+      "blob": "2312fb97dd38093c85b9c9bb9577312dcf4146f1"
+    },
+    {
+      "path": "docs/seo/M13_ROBOTS_SITEMAP_INDEXING_SPEC_2026-09-25_R2.tsv",
+      "blob": "b25456f41b949ef17301ca2e4efb697738d588b0"
+    },
+    {
+      "path": "docs/seo/M13_METADATA_STRUCTURED_DATA_SPEC_2026-09-25_R2.tsv",
+      "blob": "d523708a1346f5c04c4ee4573f8995ec1b8bde06"
+    },
+    {
+      "path": "docs/seo/M13_PERFORMANCE_MOBILE_SPEC_2026-09-25_R2.tsv",
+      "blob": "924b61c84a381b95fe797bfe1cb522426497ec81"
+    },
+    {
+      "path": "docs/seo/M13_IMPLEMENTATION_FILE_MAP_2026-09-25_R2.tsv",
+      "blob": "c3e2b7f279ef2d7e5b122543ae2dc029c421a4a8"
+    },
+    {
+      "path": "docs/seo/M13_ADVERSARIAL_DIAGNOSTIC_2026-09-25_R2.tsv",
+      "blob": "cc5536019c0504385162124a2319e574528b7c79"
+    }
+  ],
+  "current_main_sources": [
+    {
+      "path": "apps/site/public/index.html",
+      "blob": "3123a714e2092fb156eebe498ef97bb5969567f6",
+      "policy": "MUTABLE"
+    },
+    {
+      "path": "apps/site/public/install.html",
+      "blob": "99bc456742375219779ae9c611580e389b81c7a1",
+      "policy": "MUTABLE"
+    },
+    {
+      "path": "apps/site/public/privacy.html",
+      "blob": "bb975f29e3fbe8e1cfeb1fa19f397f9e5dc1f101",
+      "policy": "MUTABLE_METADATA_ONLY"
+    },
+    {
+      "path": "apps/site/public/support.html",
+      "blob": "2ebb8fdab73c50d98a3af70198f98813cbab942b",
+      "policy": "MUTABLE_METADATA_ONLY"
+    },
+    {
+      "path": "apps/site/public/robots.txt",
+      "blob": "446df898e31b99b230e8a49a7c94a45e4df96228",
+      "policy": "VERIFY_ONLY"
+    },
+    {
+      "path": "apps/site/public/sitemap.xml",
+      "blob": "fdceb2ff477941104373850846c33bac2a5d3ced",
+      "policy": "MUTABLE"
+    },
+    {
+      "path": "apps/site/public/styles.css",
+      "blob": "cda70d351cb72332c70d7a32e5b31d3182e0a374",
+      "policy": "VERIFY_ONLY_STOP_IF_CHANGE_NEEDED"
+    },
+    {
+      "path": "apps/site/README.md",
+      "blob": "28442c9c361e64e2fa161281db768a3dc6ca8ecc",
+      "policy": "MUTABLE"
+    },
+    {
+      "path": "infra/production/nginx/octoport-site.conf",
+      "blob": "4efcf08a2c118986496298789bac2565b1067994",
+      "policy": "MUTABLE"
+    },
+    {
+      "path": "infra/production/nginx/octoport-apps.conf",
+      "blob": "adbea6c2d6af15c0ed7bb05af1a7a7e05029d49f",
+      "policy": "DO_NOT_CHANGE"
+    },
+    {
+      "path": "infra/production/scripts/deploy-octoport-site.sh",
+      "blob": "f35a27b084ddce4cb9342852e5e35579ef0bc6b6",
+      "policy": "MUTABLE"
+    },
+    {
+      "path": "infra/production/scripts/verify-octoport-site.sh",
+      "blob": "753782280daa59bd0def52232b23465937f1a880",
+      "policy": "MUTABLE"
+    },
+    {
+      "path": ".github/workflows/site-ci.yml",
+      "blob": "9c6320dff4f45bf50cc86c1afcdf4893613e374f",
+      "policy": "MUTABLE"
+    },
+    {
+      "path": "tests/regression/site/test_site_deployment.py",
+      "blob": "79d5dca16f5fbb26c70450d6b121d59d281ecc69",
+      "policy": "MUTABLE"
+    },
+    {
+      "path": "apps/extension/src/assets/octoport-128.png",
+      "blob": "23e8e957dacb1d40aa795c9ca1c265b55268b435",
+      "policy": "READ_ONLY_FAVICON_SOURCE"
+    },
+    {
+      "path": "apps/extension/src/assets/octoport-icon.svg",
+      "blob": "a0ba96d340e8ec7e661bffc1b2bed535f6d47e01",
+      "policy": "READ_ONLY_BRAND_IDENTITY_EVIDENCE"
+    }
+  ],
+  "created_source_paths": [
+    "apps/site/public/seller-analytics.html",
+    "apps/site/public/favicon.png"
+  ],
+  "mutable_allowlist": [
+    "apps/site/public/index.html",
+    "apps/site/public/seller-analytics.html",
+    "apps/site/public/privacy.html",
+    "apps/site/public/support.html",
+    "apps/site/public/install.html",
+    "apps/site/public/favicon.png",
+    "apps/site/public/sitemap.xml",
+    "apps/site/README.md",
+    "infra/production/nginx/octoport-site.conf",
+    "infra/production/scripts/deploy-octoport-site.sh",
+    "infra/production/scripts/verify-octoport-site.sh",
+    ".github/workflows/site-ci.yml",
+    "tests/regression/site/test_site_deployment.py"
+  ],
+  "parallel_reconciliation": {
+    "compared_from_main": "651e756fb0038a2895bf870855de21e990ca2b46",
+    "compared_to_main": "891b89f198f89e52eef78d6da89a28641e7dcdce",
+    "site_overlap": "NONE",
+    "changed_paths": [
+      "docs/development/coordination/receipts/C/C06_MERGE_AWARE_COORDINATION_GUARD_2026-09-25.md",
+      "tooling/coordination/control.py",
+      "tooling/coordination/test_control.py"
+    ]
+  },
+  "privacy_support_revalidation": {
+    "privacy_substantive_rewrite_required": false,
+    "support_substantive_rewrite_required": false,
+    "basis": "Recent Firefox privacy-neutral changes make automatic technical metadata optional/withheld; current public copy already uses conditional limited-metadata language and qualified browser availability."
+  },
+  "favicon_source": {
+    "path": "apps/extension/src/assets/octoport-128.png",
+    "git_blob": "23e8e957dacb1d40aa795c9ca1c265b55268b435",
+    "sha256": "c82e9037dd1c596d5402f6dfb251660ef16655296f19bcd79c8f93a2daa1d5d5",
+    "format": "PNG",
+    "width": 128,
+    "height": 128,
+    "mode": "RGBA",
+    "target_path": "apps/site/public/favicon.png",
+    "target_width": 120,
+    "target_height": 120,
+    "transform": "DETERMINISTIC_RESIZE_ONLY_NO_CROP_NO_RECOLOR_NO_REDRAW"
+  },
+  "analytics_proof_gate": {
+    "durable_real_sanitized_demo_found": false,
+    "source_implementation_allowed": true,
+    "unproven_specific_metrics_screenshots_customer_cases_allowed": false,
+    "live_deployment_allowed_from_m14": false,
+    "launch_allowed_while_gate_open": false
+  },
+  "target_indexability": {
+    "commercial_seo_owners": [
+      "https://octoport.ru/",
+      "https://octoport.ru/seller-analytics"
+    ],
+    "indexable_utilities": [
+      "https://octoport.ru/privacy",
+      "https://octoport.ru/support"
+    ],
+    "crawlable_noindex": [
+      "https://octoport.ru/install"
+    ],
+    "sitemap": [
+      "https://octoport.ru/",
+      "https://octoport.ru/seller-analytics",
+      "https://octoport.ru/privacy",
+      "https://octoport.ru/support"
+    ]
+  },
+  "execution": {
+    "work_trigger": false,
+    "executor": "MAIN_CHAT_REMOTE_DESKTOP",
+    "implementation_branch": "seo/m14-site-implementation-2026-09-25-r1",
+    "direct_main_edit": false,
+    "force_push": false,
+    "production_deploy": false
+  },
+  "external_sources": [
+    "https://developers.google.com/search/docs/appearance/favicon-in-search",
+    "https://developers.google.com/search/docs/appearance/site-names",
+    "https://developers.google.com/search/docs/crawling-indexing/robots-meta-tag",
+    "https://developers.google.com/search/docs/appearance/structured-data/organization",
+    "https://developers.google.com/search/docs/appearance/structured-data/software-app",
+    "https://yandex.com/support/webmaster/en/search-results/favicon",
+    "https://yandex.com/support/webmaster/en/controlling-robot/metatags",
+    "https://yandex.com/support/webmaster/en/robot-workings/canonical",
+    "https://yandex.com/support/webmaster/en/controlling-robot/sitemap"
+  ],
+  "hard_prohibitions": [
+    "production deployment in M14",
+    "direct main mutation",
+    "force push",
+    "octoport-apps.conf mutation",
+    "server/API/portal/extension source mutation",
+    "styles.css mutation without preparation amendment",
+    "robots.txt mutation unless a new verified requirement emerges and preparation is amended",
+    "invented favicon/logo",
+    "invented Organization facts",
+    "SoftwareApplication/review/rating/price fabrication",
+    "fake analytics demo/screenshot/ROI/customer case",
+    "new route or SEO owner outside M11/M12"
+  ]
+}
