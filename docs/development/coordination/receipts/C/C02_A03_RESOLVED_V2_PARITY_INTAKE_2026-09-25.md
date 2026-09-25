@@ -45,3 +45,30 @@ Evidence class remains REAL_BROWSER + DISPOSABLE_API, not LIVE_OWNER or DEPLOYME
 Generic standalone ESLint is not an acceptance gate for these harness files: the baseline already reports Node-global/no-unused placeholder errors in the same files. C did not alter the accepted A blobs merely to change lint context. The exact merged tree must pass the repository's five required branch workflows before any main publication.
 
 No live mutation, deployment, store submission or catalog mutation is represented by this receipt.
+
+## Remaining browser-delta intake
+
+Second exact A submission:
+`44ee420662dd7fe035247ee3d7e274c96e72fcbd`.
+
+C merge:
+`a79ada0d1892b23e572e7ffe807365b78a04d129`.
+
+The actual new tree delta over the prior C candidate is exactly:
+- `docs/development/coordination/receipts/A/A03_REMAINING_BROWSER_DELTA_2026-09-25.md`;
+- `tests/regression/extension-core/client-i1/api-harness.ts`;
+- `tests/regression/extension-core/client-i1/browser-resolved-v2-parity.py`.
+
+All three merged blobs are byte-identical to the submitted A candidate. Product runtime remains the accepted `e7d66152...` repair.
+
+Accepted A evidence:
+- Yandex Browser Beta `26.8.1.1101-1`, runtime family `yandex_chromium`: REAL_BROWSER + DISPOSABLE_API RESOLVED-v2 PASS, result SHA256 `7d7b6dafaecbc1988628361c68763ab1c98ca68bf5bd6f0ce6d6ad1bd413eff4`, `canWork=true`, live provider calls 0;
+- branded Google Chrome `147.0.7727.116`: `PASS_ENVIRONMENT_GATE`, not product PASS and not product FAIL. The supported automated unpacked flag is rejected by branded Chrome and no Seller Agents target was installed, so Chromium/Opera evidence is not relabeled as Chrome.
+
+C focused verification:
+- merged blob identity: PASS;
+- `git diff --check`: PASS;
+- Python parity harness `py_compile`: PASS;
+- Prettier on changed receipt/TS harness: PASS.
+
+The remaining branded-Chrome installed/store route stays an external release-specific gate. No browser policy, native picker, owner session, marketplace credential, live API, deployment or store action was bypassed or used.
