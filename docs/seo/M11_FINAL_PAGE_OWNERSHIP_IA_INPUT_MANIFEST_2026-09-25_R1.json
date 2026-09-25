@@ -4,10 +4,10 @@
   "roadmap_stage": "M11_FINAL_PAGE_OWNERSHIP_IA",
   "repository": "MaksimUnimax/runtime-fixtures",
   "branch": "seo/wordstat-batch-01-2026-09-16",
-  "manifest_parent_head": "7d54f8a3e9355d8f22bd1abf3b923cffb4a59618",
+  "manifest_parent_head": "f1d233d5e30b9cfbccd21f99637169ffea57cb01",
   "step_preparation": {
     "path": "docs/seo/M11_STEP_PREPARATION_2026-09-25_R1.md",
-    "blob": "dcd42d43ac6586cb5cfb1bff95b167602bac6ca5"
+    "blob": "298481fb24e05a4f62a08bee260f2fcc18bae478"
   },
   "governing_rules": [
     {
@@ -293,6 +293,7 @@
   "staging_path": "docs/seo/work_return/M11_FINAL_PAGE_OWNERSHIP_IA_2026-09-25_R1/",
   "claim_boundary": "M11 assigns final analytical page owners/IA and physical actions only. Planned owner IDs are not final URLs. H1/Title/content specifications begin in M12; site code changes begin later.",
   "schema_notes": [
-    "M11_MATERIAL_HOLD_RESOLUTION appends m11_evidence_refs to avoid duplicate evidence_refs header from M10A input."
+    "M11_MATERIAL_HOLD_RESOLUTION appends m11_evidence_refs to avoid duplicate evidence_refs header from M10A input.",
+    "IA edges may terminate at assigned page owners or fixed existing-surface IDs with non-HOLD surface decisions; orphan assigned indexable owners remain forbidden."
   ]
 }
