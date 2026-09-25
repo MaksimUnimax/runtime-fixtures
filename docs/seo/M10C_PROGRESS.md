@@ -1,7 +1,7 @@
 # Octoport SEO — M10C progress
 
 Date: 2026-09-24
-Status: **CASE01–CASE14 TERMINAL CLOSED / CASE15 SNAPSHOT02 RELEASED**
+Status: **M10C ACCEPTED / PROVIDER ACQUISITION CLOSED / M10D PREFLIGHT OPEN**
 Branch: `seo/wordstat-batch-01-2026-09-16`
 
 ## Accepted chain
@@ -618,3 +618,28 @@ Current authorized action:
 `SEARCH_API_V1 {"method":"genSearch","queryText":"отчет маркетплейса озон","confirmBillable":true}`
 
 Exactly one second Case15 snapshot is authorized. M10D remains blocked until Case15 terminal closure and M10C acquisition closure.
+
+
+## M10C stage closure
+
+Main Chat acceptance:
+`docs/seo/M10C_MAIN_CHAT_ACCEPTANCE_2026-09-25_R1.md`
+blob `179dd999133fba7eeeaad83e3d72876c79dcda90`.
+
+Accepted evidence manifest:
+`docs/seo/M10C_ACCEPTED_EVIDENCE_MANIFEST_2026-09-25_R1.json`
+blob `5a07366b653b7c0db6b49a791dfe739e900724f8`.
+
+```text
+M10C_CASES = 15/15 TERMINAL
+RAW_SEARCH_RESULT_V1 = 27
+UNIQUE_REQUEST_IDS = 27
+PROVIDER_FAILURES = 0
+ESTIMATED_TOTAL_RUB = 137.16
+M10C_PROVIDER_ACQUISITION = CLOSED
+NEW_GENSEARCH_CALLS = NOT_AUTHORIZED
+M10D_PREFLIGHT = OPEN
+```
+
+Large-file readback note:
+GitHub connector returned empty content for the 1.56 MB `M10A_CANNIBALIZATION_BOUNDARY.tsv`, but direct Git object verification on Easyscript at current remote branch proved `1557644 bytes / 1400 lines` with the expected header. This is a connector read-size limitation, not source-data loss. M10D Work must read the file from Git/GitHub checkout, not rely on connector text rendering for this large input.
