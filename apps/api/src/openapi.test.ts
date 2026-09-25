@@ -317,6 +317,64 @@ describe("OpenAPI foundation", () => {
     );
   });
 
+  it("documents identified and privacy-neutral control_plane_v2 bootstrap variants explicitly", async () => {
+    type JsonSchema = {
+      anyOf?: JsonSchema[];
+      enum?: string[];
+      properties?: Record<string, JsonSchema>;
+      required?: string[];
+    };
+    const document = JSON.parse(await generateOpenApiRepresentation()) as {
+      paths: Record<
+        string,
+        {
+          post: {
+            requestBody: {
+              content: Record<string, { schema: JsonSchema }>;
+            };
+          };
+        }
+      >;
+    };
+    const schema =
+      document.paths["/v1/bootstrap"]!.post.requestBody.content[
+        "application/json"
+      ]!.schema;
+    const v2 = (schema.anyOf ?? []).find((branch) =>
+      branch.anyOf?.some(
+        (candidate) =>
+          candidate.properties?.contractVersion?.enum?.[0] ===
+          "control_plane_v2",
+      ),
+    );
+    if (!v2?.anyOf) throw new Error("control_plane_v2 bootstrap union missing");
+    expect(v2.anyOf).toHaveLength(2);
+    const identified = v2.anyOf.find((branch) =>
+      branch.required?.includes("extensionVersion"),
+    );
+    const neutral = v2.anyOf.find(
+      (branch) => !branch.required?.includes("extensionVersion"),
+    );
+    if (!identified || !neutral)
+      throw new Error("identified/privacy-neutral bootstrap branches missing");
+    expect(identified.required).toEqual(
+      expect.arrayContaining([
+        "contractVersion",
+        "extensionVersion",
+        "browser",
+        "deviceId",
+        "lastConfigVersion",
+      ]),
+    );
+    expect(neutral.required).toEqual([
+      "contractVersion",
+      "deviceId",
+      "lastConfigVersion",
+    ]);
+    expect(neutral.properties).not.toHaveProperty("extensionVersion");
+    expect(neutral.properties).not.toHaveProperty("browser");
+  });
+
   it("accepts the tracked artifact when it is generated from the current routes", async () => {
     await expect(checkOpenApiArtifact()).resolves.toBe(true);
   });

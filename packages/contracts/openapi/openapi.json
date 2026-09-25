@@ -75120,61 +75120,93 @@
                     "type": "object"
                   },
                   {
-                    "additionalProperties": false,
-                    "properties": {
-                      "browser": {
+                    "anyOf": [
+                      {
                         "additionalProperties": false,
                         "properties": {
-                          "family": {
+                          "browser": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "family": {
+                                "enum": [
+                                  "chrome",
+                                  "opera",
+                                  "yandex_chromium",
+                                  "firefox",
+                                  "safari"
+                                ],
+                                "type": "string"
+                              },
+                              "version": {
+                                "maxLength": 64,
+                                "minLength": 1,
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "family",
+                              "version"
+                            ],
+                            "type": "object"
+                          },
+                          "contractVersion": {
                             "enum": [
-                              "chrome",
-                              "opera",
-                              "yandex_chromium",
-                              "firefox",
-                              "safari"
+                              "control_plane_v2"
                             ],
                             "type": "string"
                           },
-                          "version": {
-                            "maxLength": 64,
-                            "minLength": 1,
-                            "type": "string"
-                          }
-                        },
-                        "required": [
-                          "family",
-                          "version"
-                        ],
-                        "type": "object"
-                      },
-                      "contractVersion": {
-                        "enum": [
-                          "control_plane_v2"
-                        ],
-                        "type": "string"
-                      },
-                      "detectedAi": {
-                        "additionalProperties": false,
-                        "properties": {
-                          "family": {
-                            "maxLength": 64,
-                            "minLength": 1,
-                            "pattern": "^[a-z0-9][a-z0-9._-]*$",
-                            "type": "string"
-                          },
-                          "surface": {
-                            "maxLength": 64,
-                            "minLength": 1,
-                            "pattern": "^[a-z0-9][a-z0-9._-]*$",
-                            "type": "string"
-                          },
-                          "variant": {
-                            "anyOf": [
-                              {
+                          "detectedAi": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "family": {
                                 "maxLength": 64,
                                 "minLength": 1,
                                 "pattern": "^[a-z0-9][a-z0-9._-]*$",
                                 "type": "string"
+                              },
+                              "surface": {
+                                "maxLength": 64,
+                                "minLength": 1,
+                                "pattern": "^[a-z0-9][a-z0-9._-]*$",
+                                "type": "string"
+                              },
+                              "variant": {
+                                "anyOf": [
+                                  {
+                                    "maxLength": 64,
+                                    "minLength": 1,
+                                    "pattern": "^[a-z0-9][a-z0-9._-]*$",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "family",
+                              "surface"
+                            ],
+                            "type": "object"
+                          },
+                          "deviceId": {
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                            "type": "string"
+                          },
+                          "extensionVersion": {
+                            "maxLength": 64,
+                            "minLength": 1,
+                            "pattern": "^(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)(?:-(?:0|[1-9]\\d*|\\d*[A-Za-z-][0-9A-Za-z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$",
+                            "type": "string"
+                          },
+                          "lastConfigVersion": {
+                            "anyOf": [
+                              {
+                                "maximum": 9007199254740991,
+                                "minimum": 0,
+                                "type": "integer"
                               },
                               {
                                 "type": "null"
@@ -75183,43 +75215,84 @@
                           }
                         },
                         "required": [
-                          "family",
-                          "surface"
+                          "contractVersion",
+                          "extensionVersion",
+                          "browser",
+                          "deviceId",
+                          "lastConfigVersion"
                         ],
                         "type": "object"
                       },
-                      "deviceId": {
-                        "format": "uuid",
-                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                        "type": "string"
-                      },
-                      "extensionVersion": {
-                        "maxLength": 64,
-                        "minLength": 1,
-                        "pattern": "^(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)(?:-(?:0|[1-9]\\d*|\\d*[A-Za-z-][0-9A-Za-z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$",
-                        "type": "string"
-                      },
-                      "lastConfigVersion": {
-                        "anyOf": [
-                          {
-                            "maximum": 9007199254740991,
-                            "minimum": 0,
-                            "type": "integer"
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "contractVersion": {
+                            "enum": [
+                              "control_plane_v2"
+                            ],
+                            "type": "string"
                           },
-                          {
-                            "type": "null"
+                          "detectedAi": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "family": {
+                                "maxLength": 64,
+                                "minLength": 1,
+                                "pattern": "^[a-z0-9][a-z0-9._-]*$",
+                                "type": "string"
+                              },
+                              "surface": {
+                                "maxLength": 64,
+                                "minLength": 1,
+                                "pattern": "^[a-z0-9][a-z0-9._-]*$",
+                                "type": "string"
+                              },
+                              "variant": {
+                                "anyOf": [
+                                  {
+                                    "maxLength": 64,
+                                    "minLength": 1,
+                                    "pattern": "^[a-z0-9][a-z0-9._-]*$",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "family",
+                              "surface"
+                            ],
+                            "type": "object"
+                          },
+                          "deviceId": {
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                            "type": "string"
+                          },
+                          "lastConfigVersion": {
+                            "anyOf": [
+                              {
+                                "maximum": 9007199254740991,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
                           }
-                        ]
+                        },
+                        "required": [
+                          "contractVersion",
+                          "deviceId",
+                          "lastConfigVersion"
+                        ],
+                        "type": "object"
                       }
-                    },
-                    "required": [
-                      "contractVersion",
-                      "extensionVersion",
-                      "browser",
-                      "deviceId",
-                      "lastConfigVersion"
-                    ],
-                    "type": "object"
+                    ]
                   }
                 ]
               }
@@ -83670,61 +83743,93 @@
                 "additionalProperties": false,
                 "properties": {
                   "bootstrap": {
-                    "additionalProperties": false,
-                    "properties": {
-                      "browser": {
+                    "anyOf": [
+                      {
                         "additionalProperties": false,
                         "properties": {
-                          "family": {
+                          "browser": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "family": {
+                                "enum": [
+                                  "chrome",
+                                  "opera",
+                                  "yandex_chromium",
+                                  "firefox",
+                                  "safari"
+                                ],
+                                "type": "string"
+                              },
+                              "version": {
+                                "maxLength": 64,
+                                "minLength": 1,
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "family",
+                              "version"
+                            ],
+                            "type": "object"
+                          },
+                          "contractVersion": {
                             "enum": [
-                              "chrome",
-                              "opera",
-                              "yandex_chromium",
-                              "firefox",
-                              "safari"
+                              "control_plane_v2"
                             ],
                             "type": "string"
                           },
-                          "version": {
-                            "maxLength": 64,
-                            "minLength": 1,
-                            "type": "string"
-                          }
-                        },
-                        "required": [
-                          "family",
-                          "version"
-                        ],
-                        "type": "object"
-                      },
-                      "contractVersion": {
-                        "enum": [
-                          "control_plane_v2"
-                        ],
-                        "type": "string"
-                      },
-                      "detectedAi": {
-                        "additionalProperties": false,
-                        "properties": {
-                          "family": {
-                            "maxLength": 64,
-                            "minLength": 1,
-                            "pattern": "^[a-z0-9][a-z0-9._-]*$",
-                            "type": "string"
-                          },
-                          "surface": {
-                            "maxLength": 64,
-                            "minLength": 1,
-                            "pattern": "^[a-z0-9][a-z0-9._-]*$",
-                            "type": "string"
-                          },
-                          "variant": {
-                            "anyOf": [
-                              {
+                          "detectedAi": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "family": {
                                 "maxLength": 64,
                                 "minLength": 1,
                                 "pattern": "^[a-z0-9][a-z0-9._-]*$",
                                 "type": "string"
+                              },
+                              "surface": {
+                                "maxLength": 64,
+                                "minLength": 1,
+                                "pattern": "^[a-z0-9][a-z0-9._-]*$",
+                                "type": "string"
+                              },
+                              "variant": {
+                                "anyOf": [
+                                  {
+                                    "maxLength": 64,
+                                    "minLength": 1,
+                                    "pattern": "^[a-z0-9][a-z0-9._-]*$",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "family",
+                              "surface"
+                            ],
+                            "type": "object"
+                          },
+                          "deviceId": {
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                            "type": "string"
+                          },
+                          "extensionVersion": {
+                            "maxLength": 64,
+                            "minLength": 1,
+                            "pattern": "^(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)(?:-(?:0|[1-9]\\d*|\\d*[A-Za-z-][0-9A-Za-z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$",
+                            "type": "string"
+                          },
+                          "lastConfigVersion": {
+                            "anyOf": [
+                              {
+                                "maximum": 9007199254740991,
+                                "minimum": 0,
+                                "type": "integer"
                               },
                               {
                                 "type": "null"
@@ -83733,43 +83838,84 @@
                           }
                         },
                         "required": [
-                          "family",
-                          "surface"
+                          "contractVersion",
+                          "extensionVersion",
+                          "browser",
+                          "deviceId",
+                          "lastConfigVersion"
                         ],
                         "type": "object"
                       },
-                      "deviceId": {
-                        "format": "uuid",
-                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                        "type": "string"
-                      },
-                      "extensionVersion": {
-                        "maxLength": 64,
-                        "minLength": 1,
-                        "pattern": "^(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)(?:-(?:0|[1-9]\\d*|\\d*[A-Za-z-][0-9A-Za-z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$",
-                        "type": "string"
-                      },
-                      "lastConfigVersion": {
-                        "anyOf": [
-                          {
-                            "maximum": 9007199254740991,
-                            "minimum": 0,
-                            "type": "integer"
+                      {
+                        "additionalProperties": false,
+                        "properties": {
+                          "contractVersion": {
+                            "enum": [
+                              "control_plane_v2"
+                            ],
+                            "type": "string"
                           },
-                          {
-                            "type": "null"
+                          "detectedAi": {
+                            "additionalProperties": false,
+                            "properties": {
+                              "family": {
+                                "maxLength": 64,
+                                "minLength": 1,
+                                "pattern": "^[a-z0-9][a-z0-9._-]*$",
+                                "type": "string"
+                              },
+                              "surface": {
+                                "maxLength": 64,
+                                "minLength": 1,
+                                "pattern": "^[a-z0-9][a-z0-9._-]*$",
+                                "type": "string"
+                              },
+                              "variant": {
+                                "anyOf": [
+                                  {
+                                    "maxLength": 64,
+                                    "minLength": 1,
+                                    "pattern": "^[a-z0-9][a-z0-9._-]*$",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "required": [
+                              "family",
+                              "surface"
+                            ],
+                            "type": "object"
+                          },
+                          "deviceId": {
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                            "type": "string"
+                          },
+                          "lastConfigVersion": {
+                            "anyOf": [
+                              {
+                                "maximum": 9007199254740991,
+                                "minimum": 0,
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
                           }
-                        ]
+                        },
+                        "required": [
+                          "contractVersion",
+                          "deviceId",
+                          "lastConfigVersion"
+                        ],
+                        "type": "object"
                       }
-                    },
-                    "required": [
-                      "contractVersion",
-                      "extensionVersion",
-                      "browser",
-                      "deviceId",
-                      "lastConfigVersion"
-                    ],
-                    "type": "object"
+                    ]
                   },
                   "bootstrapEnvelope": {
                     "additionalProperties": false,

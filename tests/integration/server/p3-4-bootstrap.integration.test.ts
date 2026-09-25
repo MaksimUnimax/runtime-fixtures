@@ -24,6 +24,7 @@ import {
   selectRolloutCandidateV1,
   resolveP3BootstrapPolicy,
   verifyBootstrapEnvelope,
+  verifyBootstrapEnvelopeV2,
 } from "../../../packages/server/remote-config/src/index.js";
 import { LocalClientAuthorityMaterializer } from "../../../packages/server/bootstrap/src/local-client-authority.js";
 import { BootstrapAiResolutionService } from "../../../packages/server/bootstrap/src/ai-resolution.js";
@@ -344,6 +345,12 @@ describe.sequential("P3.4 real PostgreSQL authenticated bootstrap", () => {
       material,
       await catalog.findSigningKey(material.keyId),
     );
+    const localClientAuthority = new LocalClientAuthorityMaterializer(
+      catalog,
+      new BootstrapAiResolutionService(
+        createBootstrapAiResolutionRepository(db),
+      ),
+    );
     app = createApiApp({
       config,
       isInfrastructureReady: async () => true,
@@ -352,6 +359,13 @@ describe.sequential("P3.4 real PostgreSQL authenticated bootstrap", () => {
         { resolve: (input) => resolveP3BootstrapPolicy(input, catalog) },
         createConfigSigningService(material, catalog),
         { now: () => new Date("2026-09-04T00:00:00.000Z") },
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        localClientAuthority,
       ),
     });
   });
@@ -426,6 +440,43 @@ describe.sequential("P3.4 real PostgreSQL authenticated bootstrap", () => {
     });
     expect(response.statusCode).toBe(200);
     expect(response.json().payload).toBeDefined();
+  });
+
+  it("serves a verified privacy-neutral v2 snapshot without client software metadata", async () => {
+    const release = await localAuthorityGraph();
+    const response = await post({
+      contractVersion: "control_plane_v2",
+      deviceId: principal.deviceId,
+      lastConfigVersion: null,
+    });
+    expect(response.statusCode).toBe(200);
+    const verified = verifyBootstrapEnvelopeV2(
+      response.json(),
+      new Map([[material.keyId, material.publicKey]]),
+    );
+    expect(verified).toMatchObject({
+      ok: true,
+      payload: {
+        contractVersion: "control_plane_v2",
+        snapshotVersion: "bootstrap_snapshot_v2",
+        configVersion: release.configVersion,
+        account: { id: principal.accountId, status: "ACTIVE" },
+        localClientAuthority: {
+          schemaVersion: "local_client_authority_v1",
+          contractVersion: "control_plane_v2",
+          compatibility: {
+            releases: expect.arrayContaining([
+              expect.objectContaining({ extensionVersion: "2.0.0" }),
+            ]),
+          },
+        },
+      },
+    });
+    if (verified.ok) {
+      expect(verified.payload).not.toHaveProperty("compatibility");
+      expect(verified.payload).not.toHaveProperty("features");
+      expect(verified.payload).not.toHaveProperty("ai");
+    }
   });
 
   it("materializes bounded v2 compatibility and account-selected feature authority without software inputs", async () => {

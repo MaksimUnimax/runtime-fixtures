@@ -60,20 +60,20 @@ Independent Luna read-only review:
 - confirmed no separate auth/replay/session-clearing defect in the reviewed path.
 - found an OpenAPI documentation defect caused by runtime-only refinements; corrected by structural union schemas plus OpenAPI regression.
 - found portal PRESENT-only rendering; corrected through one shared formatter. WITHHELD renders as `Not shared`, with unit coverage.
-- known B admin projection blocker remained independently confirmed and is not claimed fixed here.
+- the then-open B admin projection blocker was independently confirmed.
 
 Post-main verification of base `7945d628...`: all five required workflows PASS:
 Server CI, Extension CI, Extension I1-C1 client, Documentation CI, Coordination and release safety.
-## Known deploy blocker
+## Follow-up status
 
-The B-owned admin device repository still projects nullable device software metadata using the legacy PRESENT-only shape (including `String(NULL)` for browser family). Once the new authenticated forget operation creates a legal WITHHELD device row, the current admin device-list response can fail its legacy schema.
+The B-owned admin projection issue identified by this Slice1 receipt was closed later by bounded candidate `892596c58f47c4a7e7faea5967d3f9fbb1cb57fc` and C integration. The repository now preserves authoritative PRESENT/WITHHELD metadata and fails closed on partial tuples instead of fabricating `String(NULL)`.
 
-Therefore this source slice is intentionally **NOT DEPLOYABLE** until a bounded B follow-up makes the admin device projection WITHHELD-aware without weakening account/admin authorization. C requested controller review/routing for that follow-up on 2026-09-25.
+This historical Slice1 receipt remains **NOT DEPLOYABLE BY ITSELF**. The combined signed-wire acceptance is recorded separately in `C02_FIREFOX_PRIVACY_NEUTRAL_SIGNED_WIRE_FINAL_2026-09-25.md`.
 
-Additional remaining Firefox gates:
-- B privacy-neutral signed bootstrap/local-authority Slice 2 and corruption/bounds tests;
-- A active request wiring and actual Firefox grant/decline/revoke proof;
-- final combined disposable PostgreSQL + packaged/actual-browser acceptance;
-- separate live migration/deploy authorization.
+Remaining release gates after the combined source work are:
+- exact-head five-workflow CI on the final C candidate;
+- fresh C05 immutable-artifact rehearsal on the final Firefox server candidate;
+- separate live migration/deploy authorization;
+- backend/reviewer/store evidence at the appropriate acceptance level.
 
 No live DB, production service, marketplace payload, owner secret, payment, or store dashboard was mutated by this slice.
