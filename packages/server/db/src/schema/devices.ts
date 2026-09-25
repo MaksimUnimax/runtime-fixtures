@@ -1,4 +1,6 @@
+import { sql } from "drizzle-orm";
 import {
+  check,
   index,
   pgEnum,
   pgTable,
@@ -42,7 +44,7 @@ export const deviceAuthorizations = pgTable(
     requestedClientType: varchar("requested_client_type", {
       length: 64,
     }).notNull(),
-    browserFamily: browserFamily("browser_family").notNull(),
+    browserFamily: browserFamily("browser_family"),
     browserVersion: varchar("browser_version", { length: 64 }),
     extensionVersion: varchar("extension_version", { length: 64 }),
     deviceLabel: varchar("device_label", { length: 256 }),
@@ -93,6 +95,10 @@ export const deviceAuthorizations = pgTable(
       table.status,
       table.expiresAt,
     ),
+    check(
+      "device_authorizations_client_metadata_shape",
+      sql`(${table.browserFamily} IS NULL AND ${table.browserVersion} IS NULL AND ${table.extensionVersion} IS NULL) OR (${table.browserFamily} IS NOT NULL AND ${table.extensionVersion} IS NOT NULL)`,
+    ),
   ],
 );
 
@@ -114,7 +120,7 @@ export const devices = pgTable(
       }),
     status: deviceStatus("status").notNull().default("ACTIVE"),
     label: varchar("label", { length: 256 }),
-    browserFamily: browserFamily("browser_family").notNull(),
+    browserFamily: browserFamily("browser_family"),
     browserVersionLastSeen: varchar("browser_version_last_seen", {
       length: 64,
     }),
@@ -132,6 +138,10 @@ export const devices = pgTable(
   (table) => [
     index("devices_account_id_index").on(table.accountId),
     index("devices_account_id_status_index").on(table.accountId, table.status),
+    check(
+      "devices_client_metadata_shape",
+      sql`(${table.browserFamily} IS NULL AND ${table.browserVersionLastSeen} IS NULL AND ${table.extensionVersionLastSeen} IS NULL) OR (${table.browserFamily} IS NOT NULL AND ${table.extensionVersionLastSeen} IS NOT NULL)`,
+    ),
   ],
 );
 

@@ -54,6 +54,38 @@ describe("P2.5 device-management policy", () => {
     }
   });
 
+  it("maps current-device metadata clearing without changing the principal identity", async () => {
+    const pair = generateKeyPairSync("ed25519");
+    const calls: unknown[] = [];
+    const service = new DeviceManagementService(
+      {
+        consumeExchangeRate: async () => ({ allowed: true }),
+        exchange: async () => ({ kind: "closed" as const }),
+        list: async () => ({ kind: "ok" as const, devices: [] }),
+        forgetCurrentClientMetadata: async (input) => {
+          calls.push(input);
+          return "cleared" as const;
+        },
+        revoke: async () => "not-found" as const,
+      },
+      Buffer.alloc(32, 2),
+      {
+        keyId: "test",
+        privateKey: pair.privateKey,
+        publicKey: pair.publicKey,
+      },
+    );
+    const principal = {
+      sessionId: "session-1",
+      deviceId: "device-1",
+      accountId: "account-1",
+    };
+    await expect(
+      service.forgetCurrentClientMetadata(principal, "corr-1"),
+    ).resolves.toEqual({ kind: "CLEARED", deviceId: "device-1" });
+    expect(calls).toEqual([{ ...principal, correlationId: "corr-1" }]);
+  });
+
   it("preserves the explicit beta unlimited policy without a numeric sentinel", async () => {
     let resolveLimit:
       | ((accountId: string, at: Date) => Promise<unknown>)
@@ -69,6 +101,7 @@ describe("P2.5 device-management policy", () => {
               return { kind: "closed" as const };
             },
             list: async () => ({ kind: "ok" as const, devices: [] }),
+            forgetCurrentClientMetadata: async () => "cleared" as const,
             revoke: async () => "not-found" as const,
           },
           Buffer.alloc(32, 1),

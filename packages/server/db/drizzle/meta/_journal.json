@@ -274,6 +274,13 @@
       "when": 1790071016000,
       "tag": "0049_s2_l5_no_session_persistence",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1790071018000,
+      "tag": "0051_firefox_privacy_neutral_device_metadata",
+      "breakpoints": true
     }
   ]
 }

@@ -165,7 +165,7 @@ describe.sequential("P2.1 PostgreSQL persistence integration", () => {
     const count = await runtime.db.execute<{ count: string }>(sql`
       SELECT count(*)::text AS "count" FROM drizzle."__drizzle_migrations"
     `);
-    expect(count.rows[0]?.count).toBe("39");
+    expect(count.rows[0]?.count).toBe("40");
     const browserFamilyRows = await runtime.db.execute<{
       enumlabel: string;
     }>(sql`
@@ -224,16 +224,16 @@ describe.sequential("P2.1 PostgreSQL persistence integration", () => {
       sql`INSERT INTO portal_sessions (user_id, session_token_hash, expires_at) VALUES ('00000000-0000-0000-0000-000000000001', 'portal-hash-a', now() + interval '1 day')`,
     );
     await runtime.db.execute(
-      sql`INSERT INTO device_authorizations (id, device_code_hash, user_code_hash, requested_client_type, browser_family, expires_at) VALUES ('00000000-0000-0000-0000-000000000005', 'device-hash-a', 'user-hash-a', 'browser_extension', 'chrome', now() + interval '1 day')`,
+      sql`INSERT INTO device_authorizations (id, device_code_hash, user_code_hash, requested_client_type, browser_family, extension_version, expires_at) VALUES ('00000000-0000-0000-0000-000000000005', 'device-hash-a', 'user-hash-a', 'browser_extension', 'chrome', '1', now() + interval '1 day')`,
     );
     await rejects(
-      sql`INSERT INTO device_authorizations (device_code_hash, user_code_hash, requested_client_type, browser_family, expires_at) VALUES ('device-hash-a', 'user-hash-b', 'browser_extension', 'chrome', now() + interval '1 day')`,
+      sql`INSERT INTO device_authorizations (device_code_hash, user_code_hash, requested_client_type, browser_family, extension_version, expires_at) VALUES ('device-hash-a', 'user-hash-b', 'browser_extension', 'chrome', '1', now() + interval '1 day')`,
     );
     await rejects(
       sql`INSERT INTO otp_challenges (purpose, normalized_identity_target, verification_hash, attempt_count, max_attempts, expires_at) VALUES ('LOGIN', 'person@example.test', 'otp-hash-a', 2, 1, now() + interval '1 day')`,
     );
     await runtime.db.execute(
-      sql`INSERT INTO devices (id, account_id, created_by_user_id, browser_family) VALUES ('00000000-0000-0000-0000-000000000006', '00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', 'chrome')`,
+      sql`INSERT INTO devices (id, account_id, created_by_user_id, browser_family, extension_version_last_seen) VALUES ('00000000-0000-0000-0000-000000000006', '00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', 'chrome', '1')`,
     );
     await runtime.db.execute(
       sql`INSERT INTO sessions (id, device_id, account_id, token_family_id) VALUES ('00000000-0000-0000-0000-000000000007', '00000000-0000-0000-0000-000000000006', '00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000008')`,
@@ -251,7 +251,7 @@ describe.sequential("P2.1 PostgreSQL persistence integration", () => {
       sql`INSERT INTO refresh_tokens (session_id, token_hash, generation, expires_at) VALUES ('00000000-0000-0000-0000-000000000007', 'refresh-hash-b', -1, now() + interval '1 day')`,
     );
     await rejects(
-      sql`INSERT INTO devices (account_id, created_by_user_id, browser_family) VALUES ('00000000-0000-0000-0000-000000000099', '00000000-0000-0000-0000-000000000001', 'chrome')`,
+      sql`INSERT INTO devices (account_id, created_by_user_id, browser_family, extension_version_last_seen) VALUES ('00000000-0000-0000-0000-000000000099', '00000000-0000-0000-0000-000000000001', 'chrome', '1')`,
     );
     await rejects(
       sql`INSERT INTO refresh_tokens (session_id, token_hash, generation, expires_at) VALUES ('00000000-0000-0000-0000-000000000099', 'refresh-hash-c', 1, now() + interval '1 day')`,
