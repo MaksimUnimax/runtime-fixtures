@@ -1,0 +1,14 @@
+check_id	scope	check_type	required_state	threshold_or_rule	measurement_stage	implementation_target	acceptance_check	claim_boundary
+M13PERF001	all_public_html	MOBILE_VIEWPORT	PASS	width=device-width, initial-scale=1	M14 source + M15	all public HTML	Parser confirms viewport	Technical presence only
+M13PERF002	all_public_pages	RESPONSIVE_URL	PASS	same canonical URL mobile/desktop; no m-dot	M13/M14/M15	nginx + HTML	No device-specific alternate canonical/redirect	Not identical visual layout claim
+M13PERF003	HOME+analytics	MOBILE_OVERFLOW	PASS	no horizontal overflow at 320 CSS px	M15 lab	styles.css + HTML	Browser/lab 320px check	Lab only
+M13PERF004	HOME+analytics	MOBILE_CONTENT_PARITY	PASS	accepted H1/main text/buttons/links usable without zoom and not removed	M15 lab	styles.css + HTML	DOM/content parity	Not field UX metric
+M13PERF005	HOME+analytics	INITIAL_HTML	PASS	critical SEO text/H1/canonical/metadata/links and WebSite JSON-LD are present in initial HTML; no client-render dependency	M14 source + M15	HTML	Source parser finds all critical content and static JSON-LD before JS execution	Rendering requirement
+M13PERF006	public_site	EXECUTABLE_JS	ZERO_BY_DEFAULT	0 executable public JavaScript in M14 SEO scope unless separately accepted; application/ld+json is allowed as non-executable structured data	M14 source + CI	HTML;site-ci.yml	Parser classifies script tags: executable count=0; exactly required static JSON-LD allowed	JSON-LD is data, not executable application runtime
+M13PERF007	public_site	THIRD_PARTY_BLOCKING	ZERO_BY_DEFAULT	no blocking third-party scripts in M14 SEO scope	M14 source + M15	HTML	No third-party script resources	Does not ban mailto links
+M13PERF008	styles.css	CRAWLABLE_CSS	PASS	200 text/css and not robots-blocked	M15 live	styles.css;robots;nginx	200 correct type and allowed	Asset availability only
+M13PERF009	HOME	LCP_FIELD	GOOD_IF_DATA_EXISTS	<=2.5s at p75 else FIELD_DATA_NOT_AVAILABLE	M17 field; M15 if available	measurement	Source/date/segment provenance	Field only
+M13PERF010	HOME	INP_FIELD	GOOD_IF_DATA_EXISTS	<=200ms at p75 else FIELD_DATA_NOT_AVAILABLE	M17 field; M15 if available	measurement	No lab TBT relabeled INP	Field only
+M13PERF011	HOME	CLS_FIELD	GOOD_IF_DATA_EXISTS	<=0.1 at p75 else FIELD_DATA_NOT_AVAILABLE	M17 field; M15 if available	measurement	Source/date/segment provenance	Field only
+M13PERF012	seller-analytics	CWV_FIELD	GOOD_IF_DATA_EXISTS	LCP<=2.5s; INP<=200ms; CLS<=0.1 at p75 else FIELD_DATA_NOT_AVAILABLE	M17 field; M15 if available	measurement	Source/date/segment provenance	No prelaunch field claim
+M13PERF013	HOME+analytics	LAB_REGRESSION	NO_MATERIAL_REGRESSION	preserve static baseline; TBT diagnostic only	M15 predeploy/live	HTML/CSS/media	Compare lab results; no arbitrary Lighthouse hard score	Diagnostic not field ranking claim
