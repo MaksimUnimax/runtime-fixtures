@@ -1,0 +1,254 @@
+{
+  "work_stage": "M10C",
+  "status": "ACCEPTED_AI_SEARCH_EVIDENCE_FREEZE",
+  "generated_date": "2026-09-25",
+  "repository": "MaksimUnimax/runtime-fixtures",
+  "branch": "seo/wordstat-batch-01-2026-09-16",
+  "frozen_head": "030ce4bb356208e9dd0cda21b860d769d56ec807",
+  "provider": "Yandex Search API GenSearch",
+  "bridge": "Yandex Marketing Bridge 0.1.9",
+  "cases": 15,
+  "paid_requests": 27,
+  "estimated_total_rub": 137.16,
+  "raw_count": 27,
+  "raw_total_bytes": 170783,
+  "raw_files": [
+    {
+      "path": "docs/seo/evidence/m10c/M10C_CASE01_SNAPSHOT01_SEARCH_RESULT_V1.json",
+      "blob": "43f02c8a9604df35fe2c31fe799fa35d8d84d914",
+      "bytes": 4850
+    },
+    {
+      "path": "docs/seo/evidence/m10c/M10C_CASE01_SNAPSHOT02_SEARCH_RESULT_V1.json",
+      "blob": "e369c154a995803aae1747649e36b0d1615525b2",
+      "bytes": 4779
+    },
+    {
+      "path": "docs/seo/evidence/m10c/M10C_CASE02_SNAPSHOT01_SEARCH_RESULT_V1.json",
+      "blob": "37e0dd99322b2d9a7761322bff91d43ddda16f48",
+      "bytes": 4861
+    },
+    {
+      "path": "docs/seo/evidence/m10c/M10C_CASE03_SNAPSHOT01_SEARCH_RESULT_V1.json",
+      "blob": "e2788be0fda63f91e999d8f81726b352a38f18ee",
+      "bytes": 4661
+    },
+    {
+      "path": "docs/seo/evidence/m10c/M10C_CASE04_SNAPSHOT01_SEARCH_RESULT_V1.json",
+      "blob": "57df01f760eaebe7ef02c4a8c5374c4bffcc51a9",
+      "bytes": 7669
+    },
+    {
+      "path": "docs/seo/evidence/m10c/M10C_CASE04_SNAPSHOT02_SEARCH_RESULT_V1.json",
+      "blob": "851c4040e0f8fab837c6726eb13165f0d35b3654",
+      "bytes": 7765
+    },
+    {
+      "path": "docs/seo/evidence/m10c/M10C_CASE05_SNAPSHOT01_SEARCH_RESULT_V1.json",
+      "blob": "84d4651a5f19133490c0b4bffee1a2d19fcd47bc",
+      "bytes": 5926
+    },
+    {
+      "path": "docs/seo/evidence/m10c/M10C_CASE05_SNAPSHOT02_SEARCH_RESULT_V1.json",
+      "blob": "f7e1d4502f20d9ac2f58b586a7369c869d9ef8f5",
+      "bytes": 5925
+    },
+    {
+      "path": "docs/seo/evidence/m10c/M10C_CASE06_SNAPSHOT01_SEARCH_RESULT_V1.json",
+      "blob": "1bcbd9b49744ea6b5b43f678989f0ec5f25c58c2",
+      "bytes": 5831
+    },
+    {
+      "path": "docs/seo/evidence/m10c/M10C_CASE06_SNAPSHOT02_SEARCH_RESULT_V1.json",
+      "blob": "f957720cb36deee1fa4584137c2d5eea73657bb4",
+      "bytes": 5503
+    },
+    {
+      "path": "docs/seo/evidence/m10c/M10C_CASE07_SNAPSHOT01_SEARCH_RESULT_V1.json",
+      "blob": "d7415cf1ebe6e1c0ee46caf2e1a26f77cd6c3294",
+      "bytes": 5766
+    },
+    {
+      "path": "docs/seo/evidence/m10c/M10C_CASE08_SNAPSHOT01_SEARCH_RESULT_V1.json",
+      "blob": "57cb5ac41bf5955edb9bc176faa52c5c02b3aa11",
+      "bytes": 8580
+    },
+    {
+      "path": "docs/seo/evidence/m10c/M10C_CASE08_SNAPSHOT02_SEARCH_RESULT_V1.json",
+      "blob": "bb1e0c425733ebb0991a3cd298dabe3676af940a",
+      "bytes": 8030
+    },
+    {
+      "path": "docs/seo/evidence/m10c/M10C_CASE09_SNAPSHOT01_SEARCH_RESULT_V1.json",
+      "blob": "a8951faaea116b17033b46fcad1bfa01b3d4d2d8",
+      "bytes": 5865
+    },
+    {
+      "path": "docs/seo/evidence/m10c/M10C_CASE09_SNAPSHOT02_SEARCH_RESULT_V1.json",
+      "blob": "8970605ac5dd0f35f8125cc4dbbf02abbdabe5da",
+      "bytes": 8242
+    },
+    {
+      "path": "docs/seo/evidence/m10c/M10C_CASE10_SNAPSHOT01_SEARCH_RESULT_V1.json",
+      "blob": "a53ad4ada73a15492daeb65af938928b20c7e26b",
+      "bytes": 4445
+    },
+    {
+      "path": "docs/seo/evidence/m10c/M10C_CASE10_SNAPSHOT02_SEARCH_RESULT_V1.json",
+      "blob": "dfa03c7fe3216bc1912c99e70cccb7f108b23af2",
+      "bytes": 4445
+    },
+    {
+      "path": "docs/seo/evidence/m10c/M10C_CASE11_SNAPSHOT01_SEARCH_RESULT_V1.json",
+      "blob": "288ca0f5235ec3646587da858fdc601f0b40e59c",
+      "bytes": 4563
+    },
+    {
+      "path": "docs/seo/evidence/m10c/M10C_CASE11_SNAPSHOT02_SEARCH_RESULT_V1.json",
+      "blob": "01c7fac78f0b3c2772e9f5e830ee636e629734cb",
+      "bytes": 4710
+    },
+    {
+      "path": "docs/seo/evidence/m10c/M10C_CASE12_SNAPSHOT01_SEARCH_RESULT_V1.json",
+      "blob": "707a4f63595a005469b3066005e578bc0f38a13e",
+      "bytes": 9223
+    },
+    {
+      "path": "docs/seo/evidence/m10c/M10C_CASE12_SNAPSHOT02_SEARCH_RESULT_V1.json",
+      "blob": "d2aa5879577077e7d72cf54d3b7e96427a143c2c",
+      "bytes": 8828
+    },
+    {
+      "path": "docs/seo/evidence/m10c/M10C_CASE13_SNAPSHOT01_SEARCH_RESULT_V1.json",
+      "blob": "ebffc843ea44fb2290bb85b3b5dc9fc0456ee8ce",
+      "bytes": 5382
+    },
+    {
+      "path": "docs/seo/evidence/m10c/M10C_CASE13_SNAPSHOT02_SEARCH_RESULT_V1.json",
+      "blob": "541eed3b5e5ccf6be5d00f27ec6d6d243100d717",
+      "bytes": 5153
+    },
+    {
+      "path": "docs/seo/evidence/m10c/M10C_CASE14_SNAPSHOT01_SEARCH_RESULT_V1.json",
+      "blob": "80f46164b9f6f48f8b41e22cf994ea7b69e95356",
+      "bytes": 8167
+    },
+    {
+      "path": "docs/seo/evidence/m10c/M10C_CASE14_SNAPSHOT02_SEARCH_RESULT_V1.json",
+      "blob": "e895cd51a74245aec5ba3e7bd11868465c21bdea",
+      "bytes": 8608
+    },
+    {
+      "path": "docs/seo/evidence/m10c/M10C_CASE15_SNAPSHOT01_SEARCH_RESULT_V1.json",
+      "blob": "0751f2b50dff4605851724158f3ce54d824c1e76",
+      "bytes": 5831
+    },
+    {
+      "path": "docs/seo/evidence/m10c/M10C_CASE15_SNAPSHOT02_SEARCH_RESULT_V1.json",
+      "blob": "8eccd4822e3cdc984db2f3d02b15c2f0f25b3dd6",
+      "bytes": 7175
+    }
+  ],
+  "terminal_closure_count": 15,
+  "terminal_closure_files": [
+    {
+      "path": "docs/seo/M10C_CASE01_TERMINAL_CLOSURE_2026-09-24_R1.md",
+      "blob": "607062e3913d8683942af82ceccbd77413fa2a27",
+      "bytes": 2583
+    },
+    {
+      "path": "docs/seo/M10C_CASE02_TERMINAL_CLOSURE_2026-09-24_R1.md",
+      "blob": "2b505708271f31cedc7591a829a1f85c812585a9",
+      "bytes": 2897
+    },
+    {
+      "path": "docs/seo/M10C_CASE03_TERMINAL_CLOSURE_2026-09-24_R1.md",
+      "blob": "34fbfeda446ed1ac1d7c108443f0b973f23ee8c5",
+      "bytes": 2792
+    },
+    {
+      "path": "docs/seo/M10C_CASE04_TERMINAL_CLOSURE_2026-09-24_R1.md",
+      "blob": "68ea695d36045406023b5300453c14f9a89ad18a",
+      "bytes": 2801
+    },
+    {
+      "path": "docs/seo/M10C_CASE05_TERMINAL_CLOSURE_2026-09-24_R1.md",
+      "blob": "299d03c54f92971ad68ea290c60f14345a2f6fef",
+      "bytes": 2682
+    },
+    {
+      "path": "docs/seo/M10C_CASE06_TERMINAL_CLOSURE_2026-09-24_R1.md",
+      "blob": "39954bd37a11917af9b0f8dbc47e12bc2f4edb2e",
+      "bytes": 3219
+    },
+    {
+      "path": "docs/seo/M10C_CASE07_TERMINAL_CLOSURE_2026-09-24_R1.md",
+      "blob": "e6de4bf06b0745a253edafd3acbf18294211d00f",
+      "bytes": 2762
+    },
+    {
+      "path": "docs/seo/M10C_CASE08_TERMINAL_CLOSURE_2026-09-24_R1.md",
+      "blob": "4b34f2b307328df405803f7f08506ece482f725d",
+      "bytes": 3256
+    },
+    {
+      "path": "docs/seo/M10C_CASE09_TERMINAL_CLOSURE_2026-09-24_R1.md",
+      "blob": "87aa9b11da42e7451119847c0181cd88752f9f40",
+      "bytes": 3305
+    },
+    {
+      "path": "docs/seo/M10C_CASE10_TERMINAL_CLOSURE_2026-09-24_R1.md",
+      "blob": "77181ac45e47757115fd1bd389964e58ba13523a",
+      "bytes": 2759
+    },
+    {
+      "path": "docs/seo/M10C_CASE11_TERMINAL_CLOSURE_2026-09-25_R1.md",
+      "blob": "03a1a1e840bb9057efb5b26bde174139470d415c",
+      "bytes": 3009
+    },
+    {
+      "path": "docs/seo/M10C_CASE12_TERMINAL_CLOSURE_2026-09-25_R1.md",
+      "blob": "13860e1de07cdefd339e03b3553bdb0deb64d294",
+      "bytes": 3378
+    },
+    {
+      "path": "docs/seo/M10C_CASE13_TERMINAL_CLOSURE_2026-09-25_R1.md",
+      "blob": "37ab3acbd51a641d25a4ce2d924d2ef2432503f1",
+      "bytes": 2768
+    },
+    {
+      "path": "docs/seo/M10C_CASE14_TERMINAL_CLOSURE_2026-09-25_R1.md",
+      "blob": "02439f7bf19176de0d54f136a5ec9e1c7fc7c8b1",
+      "bytes": 1799
+    },
+    {
+      "path": "docs/seo/M10C_CASE15_TERMINAL_CLOSURE_2026-09-25_R1.md",
+      "blob": "e5895d3e1ae1bba20f6ee4e2c76e8291ec739148",
+      "bytes": 2480
+    }
+  ],
+  "accounting_qa": {
+    "unique_request_ids": 27,
+    "duplicate_request_ids": 0,
+    "failures": 0,
+    "required_envelope_fields_pass": "27/27",
+    "case_snapshot_counts": {
+      "10": 2,
+      "11": 2,
+      "12": 2,
+      "13": 2,
+      "14": 2,
+      "15": 2,
+      "01": 2,
+      "02": 1,
+      "03": 1,
+      "04": 2,
+      "05": 2,
+      "06": 2,
+      "07": 1,
+      "08": 2,
+      "09": 2
+    }
+  },
+  "claim_boundary": "AI-search evidence only; not demand, not product truth, not final page ownership/IA, not consumer Alice equivalence."
+}
