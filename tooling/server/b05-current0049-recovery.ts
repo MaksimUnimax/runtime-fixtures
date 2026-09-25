@@ -71,6 +71,7 @@ function runContainerTool(
   args: string[],
   input?: NodeJS.ReadableStream,
   output?: NodeJS.WritableStream,
+  failureCode = "POSTGRES_TOOL_FAILED",
 ): Promise<string> {
   return new Promise((resolvePromise, reject) => {
     const child = spawn(
@@ -89,10 +90,10 @@ function runContainerTool(
         stdout += chunk;
       });
     }
-    child.once("error", () => reject(new Error("POSTGRES_TOOL_START_FAILED")));
+    child.once("error", () => reject(new Error(`${failureCode}_START_FAILED`)));
     child.once("close", (code) => {
       if (code === 0) resolvePromise(stdout);
-      else reject(new Error("POSTGRES_TOOL_FAILED"));
+      else reject(new Error(failureCode));
     });
     if (input && child.stdin) input.pipe(child.stdin);
   });
@@ -104,9 +105,19 @@ async function dumpDatabase(database: string): Promise<void> {
   const done = once(output, "close");
   try {
     await runContainerTool(
-      ["pg_dump", "-Fc", "-U", role, "-d", database],
+      [
+        "pg_dump",
+        "-Fc",
+        "--no-owner",
+        "--no-privileges",
+        "-U",
+        role,
+        "-d",
+        database,
+      ],
       undefined,
       output,
+      "PG_DUMP_FAILED",
     );
     output.end();
     await done;
@@ -122,6 +133,8 @@ async function runRestore(target: string): Promise<void> {
   await runContainerTool(
     ["pg_restore", "--exit-on-error", "--no-owner", "-U", role, "-d", target],
     createReadStream(archivePath),
+    undefined,
+    "PG_RESTORE_FAILED",
   );
 }
 
@@ -136,6 +149,8 @@ async function assertArchiveReadback(): Promise<{
   const listing = await runContainerTool(
     ["pg_restore", "--list"],
     (await import("node:fs")).createReadStream(archivePath),
+    undefined,
+    "PG_RESTORE_LIST_FAILED",
   );
   const tocEntries = listing
     .split("\n")
