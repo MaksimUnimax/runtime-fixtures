@@ -1,115 +1,194 @@
 # Octoport SEO — M13 progress
 
 Date: 2026-09-25
-Status: **ACCEPTED / M14 PREPARATION RELEASED / M14 IMPLEMENTATION NOT YET AUTHORIZED**
-Branch: seo/wordstat-batch-01-2026-09-16
+Status: **ACCEPTED / CURRENT AUTHORITY = R2 EXTERNAL-METHOD CORRECTION / M14 PREPARATION RELEASED / M14 IMPLEMENTATION NOT YET AUTHORIZED**
+Branch: `seo/wordstat-batch-01-2026-09-16`
 
 ## Cursor
 
+```text
 M0..M12 = ACCEPTED
 M11/M12 CURRENT AUTHORITY = R2 CORRECTION
-M13 = ACCEPTED
+M13 R1 = ACCEPTED HISTORICAL
+M13 R2 = ACCEPTED / CURRENT
 M14 = PREPARATION ALLOWED / IMPLEMENTATION NOT YET STARTED
 M15+ = BLOCKED
+```
 
-## Binding M13 authority
+## Current M13 authority
 
-Preparation:
-docs/seo/M13_STEP_PREPARATION_2026-09-25_R1.md
+Historical factual baseline retained:
+- `docs/seo/M13_SOURCE_MANIFEST.md`
+- original live HTTP observations from M13 R1.
 
-Input manifest:
-docs/seo/M13_TECHNICAL_SEO_INPUT_MANIFEST_2026-09-25_R1.json
+Current correction preparation:
+- `docs/seo/M13_CORRECTION_STEP_PREPARATION_2026-09-25_R2.md`
+  blob `531e17b209fb5bb5a20b49113a1b020e4969ed1e`.
 
-Execution outputs:
-1. docs/seo/M13_SOURCE_MANIFEST.md
-2. docs/seo/M13_TECHNICAL_REQUIREMENTS.tsv
-3. docs/seo/M13_ROUTE_HTTP_CANONICAL_MATRIX.tsv
-4. docs/seo/M13_ROBOTS_SITEMAP_INDEXING_SPEC.tsv
-5. docs/seo/M13_METADATA_STRUCTURED_DATA_SPEC.tsv
-6. docs/seo/M13_PERFORMANCE_MOBILE_SPEC.tsv
-7. docs/seo/M13_IMPLEMENTATION_FILE_MAP.tsv
-8. docs/seo/M13_ADVERSARIAL_DIAGNOSTIC.tsv
-9. docs/seo/M13_QA.md
+Current correction input manifest:
+- `docs/seo/M13_CORRECTION_INPUT_MANIFEST_2026-09-25_R2.json`
+  blob `4a805a8b984dcca523ad3e9e9e794f3549468fa6`.
+
+Current R2 matrices:
+1. `docs/seo/M13_TECHNICAL_REQUIREMENTS_2026-09-25_R2.tsv`
+   blob `ce9debeb7a658d4baf192f6bef274ca2600ea575`
+2. `docs/seo/M13_ROUTE_HTTP_CANONICAL_MATRIX_2026-09-25_R2.tsv`
+   blob `2312fb97dd38093c85b9c9bb9577312dcf4146f1`
+3. `docs/seo/M13_ROBOTS_SITEMAP_INDEXING_SPEC_2026-09-25_R2.tsv`
+   blob `b25456f41b949ef17301ca2e4efb697738d588b0`
+4. `docs/seo/M13_METADATA_STRUCTURED_DATA_SPEC_2026-09-25_R2.tsv`
+   blob `d523708a1346f5c04c4ee4573f8995ec1b8bde06`
+5. `docs/seo/M13_PERFORMANCE_MOBILE_SPEC_2026-09-25_R2.tsv`
+   blob `924b61c84a381b95fe797bfe1cb522426497ec81`
+6. `docs/seo/M13_IMPLEMENTATION_FILE_MAP_2026-09-25_R2.tsv`
+   blob `c3e2b7f279ef2d7e5b122543ae2dc029c421a4a8`
+7. `docs/seo/M13_ADVERSARIAL_DIAGNOSTIC_2026-09-25_R2.tsv`
+   blob `cc5536019c0504385162124a2319e574528b7c79`
+
+Current acceptance:
+- `docs/seo/M13_MAIN_CHAT_CORRECTION_ACCEPTANCE_2026-09-25_R2.md`
+  blob `9ef006e6d3e75fde496bffde439eb97ea10df936`.
 
 Applicable LEVEL 2:
-docs/seo/LEVEL2/M13_M18_IMPLEMENTATION_LAUNCH_MEASUREMENT_RULES.md
+- `docs/seo/LEVEL2/M13_M18_IMPLEMENTATION_LAUNCH_MEASUREMENT_RULES.md`.
 
-## Execution facts
+## R2 execution facts
 
-PREPARATION_SEO_HEAD = 15f3e4f69cb54a80b29f268d5da389ca4b1082e9
-FROZEN_MAIN_HEAD = 7945d62854e135421c3db003c603187b9f37866b
-POST_QA_OBSERVED_MAIN_HEAD = 6e442755c514803a8bc6e04ce40a58bed2883c77
-AUTHORITY_DRIFT_STATUS = NON_OVERLAPPING_MAIN_ADVANCE_RECONCILED
-FIRST_8_OUTPUT_REMOTE_HEAD = 0b6b894505268a44bf58c3225fbb6f8545fe146d
+```text
+R2_PREPARATION_PARENT_SEO_HEAD = 85f8e20fb455748564dedc91ab2084466601d4a9
+R2_OBSERVED_MAIN_HEAD = 651e756fb0038a2895bf870855de21e990ca2b46
 
 WORK_TRIGGER = false
 EXECUTOR = MAIN_CHAT
 PROVIDER_CALLS = 0
-SITE_MUTATIONS_IN_M13 = 0
-MAIN_MUTATIONS_IN_M13 = 0
+SITE_MUTATIONS_IN_M13_R2 = 0
+MAIN_MUTATIONS_IN_M13_R2 = 0
 
-M13_REQUIREMENTS = 28
-M13_ROUTE_CASES = 21
-M13_INDEXING_SURFACES = 9
+M13_REQUIREMENTS = 31
+M13_ROUTE_CASES = 22
+M13_INDEXING_SEARCH_APPEARANCE_SURFACES = 10
 M13_METADATA_SURFACES = 5
 M13_PERFORMANCE_CHECKS = 13
-M13_IMPLEMENTATION_FILE_ROWS = 15
-M13_ADVERSARIAL_TESTS = 18
+M13_IMPLEMENTATION_FILE_ROWS = 16
+M13_ADVERSARIAL_TESTS = 21
 
-OPEN_CRITICAL_SPEC_DEFECTS = 0
-QUALITY_SCORE = 9.8/10
-M13_ACCEPTED = true
+OPEN_CRITICAL_CORRECTION_DEFECTS = 0
+QUALITY_SCORE = 9.7/10
+M13_CURRENT_ACCEPTED = true
+```
 
-Post-QA main drift reconciliation:
-- frozen M13 public-site/ingress/deploy/verifier/CI/site-regression blobs = 14/14 unchanged;
-- changed main paths are outside the M13 implementation-source set;
-- M14 must still re-fetch current main and revalidate product/privacy proof before mutation.
+## Current indexability model
 
-## Frozen launch technical target
+Commercial SEO-owner pages:
 
-Indexable:
-- https://octoport.ru/
-- https://octoport.ru/seller-analytics
+- `https://octoport.ru/`
+- `https://octoport.ru/seller-analytics`
 
-Crawlable noindex,follow:
-- https://octoport.ru/privacy
-- https://octoport.ru/support
-- https://octoport.ru/install
+Indexable public utility pages:
 
-Sitemap:
-- HOME
-- seller-analytics
+- `https://octoport.ru/privacy`
+- `https://octoport.ru/support`
 
-Yandex AI:
-- no YandexAdditional/YandexAdditionalBot opt-out.
+Crawlable noindex status page:
 
-Structured data:
-- NONE at M14 launch unless later truthful authority explicitly reopens it.
+- `https://octoport.ru/install`
 
-## Confirmed current implementation deltas for M14
+Install indexability reopens when an official installation/catalog destination is actually available.
 
-- HTTP www has avoidable two-hop normalization.
-- current .html aliases return duplicate 200 bodies.
-- current service trailing-slash variants return 404 instead of canonical redirects.
-- seller-analytics is not implemented yet.
-- service pages lack noindex,follow.
-- HOME still carries historical pre-M12 R2 Title/H1.
-- sitemap is still pre-analytics.
-- Site CI/deploy/verifier/regression guards still know the old site surface.
+## Current Sitemap contract
 
-Preserve:
-- unknown route real 404;
-- static initial HTML architecture;
-- security/cache headers;
-- separate app/API ingress;
-- app/API X-Robots noindex behavior;
-- deployment rollback and application-ingress integrity guards.
+Exactly four canonical URLs:
 
-## Next step
+- `https://octoport.ru/`
+- `https://octoport.ru/seller-analytics`
+- `https://octoport.ru/privacy`
+- `https://octoport.ru/support`
 
-M14 does not start from this file alone.
+No aliases, no HTTP/www variants, no install while noindex, no app/API URLs.
 
-Next physical action:
-M14 STEP PREPARATION under live LEVEL 1 + M13-M18 LEVEL 2, with fresh current-main and parallel-work reconciliation.
+## Search appearance correction
 
-Only after M14 preparation is persisted and remote-read back may bounded public-site implementation be authorized.
+Favicon:
+
+```text
+URL = https://octoport.ru/favicon.png
+FORMAT = PNG
+SIZE = 120x120
+ASPECT = 1:1
+HTTP = direct 200
+REDIRECT = forbidden
+ROBOTS = crawlable
+HOME_LINK = <link rel="icon" href="/favicon.png" type="image/png">
+ASSET = approved Octoport brand mark only
+```
+
+If no approved brand asset is available in M14:
+`ASSET_REQUIRED / HOLD`.
+
+Google site-name structured data on HOME:
+
+```text
+@type = WebSite
+name = Octoport
+alternateName = [Октопорт, octoport.ru]
+url = https://octoport.ru/
+```
+
+Structured-data boundary:
+
+```text
+WebSite = REQUIRED_HOME
+Organization = DEFERRED_NOT_REQUIRED_M14
+SoftwareApplication = NONE_M14
+FAQ = NONE_UNLESS_REOPENED
+FAKE_REVIEW_RATING_PRICE = 0
+```
+
+Runtime boundary:
+
+```text
+EXECUTABLE_PUBLIC_JS = 0 by default
+application/ld+json = allowed non-executable structured data
+```
+
+## R1 conclusions superseded by R2
+
+Do not use these R1 conclusions as current:
+
+- privacy/support/install all noindex;
+- Sitemap target count = 2;
+- blanket structured-data NONE;
+- parser rule that counts every `<script>` tag as executable JavaScript.
+
+R1 redirect/canonical/404/mobile/CWV/rendering/live-baseline evidence remains valid unless later source/live drift reopens it.
+
+## M14 implementation boundary
+
+M14 must consume R2 as current M13 authority.
+
+M14 is not allowed to invent:
+- favicon/logo art;
+- organization legal facts;
+- public pricing;
+- reviews/ratings;
+- SoftwareApplication eligibility;
+- capabilities outside M11/M12/Product Truth.
+
+`infra/production/nginx/octoport-apps.conf` remains DO_NOT_CHANGE.
+
+## Next physical action
+
+```text
+M14 STEP PREPARATION
+-> fresh current main
+-> LEVEL 1 + M13-M18 LEVEL 2
+-> parallel-work reconciliation
+-> R2 current-authority read
+-> approved favicon asset availability check
+-> current Product Truth/privacy revalidation
+-> analytics real-proof gate
+-> exact implementation/test file contract
+-> GitHub persist
+-> remote readback
+-> only then bounded M14 implementation
+```
