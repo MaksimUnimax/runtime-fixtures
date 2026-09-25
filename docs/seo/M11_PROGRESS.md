@@ -1,7 +1,7 @@
 # Octoport SEO — M11 progress
 
 Date: 2026-09-25
-Status: **WORK PROMPT RELEASED / AWAITING CHATGPT WORK EXECUTION**
+Status: **M11 ACCEPTED / M12 PREFLIGHT OPEN**
 Branch: `seo/wordstat-batch-01-2026-09-16`
 
 ## Cursor
@@ -124,3 +124,28 @@ Method application remains:
 - no fake CREATE.
 
 The existing M11 R1 preparation / manifest / pre-handoff / canonical prompt remain executable without R2.
+
+
+## Main Chat acceptance
+
+`docs/seo/M11_MAIN_CHAT_ACCEPTANCE_2026-09-25_R1.md`
+blob `972f35818e3a7e39ca7cd2b690a13d6ddb1f7c06`.
+
+Owner upload head:
+`ce48daed4b1963af68cdb42b818495f6cdce9649`
+with exact parent handoff head
+`f781ff4a42a5f4f7b89dfbb19634be846eb29ec3`.
+
+```text
+M11 = ACCEPTED
+ASSIGNED_PAGE_OWNERS = 2
+HOLD_NO_FINAL_OWNER = 102
+PAIRWISE_ROWS = 5356/5356
+MATERIAL_HOLD_ROWS = 1399/1399
+IMPLICIT_HOLD_RESOLUTION = 0
+IA_EDGE_ROWS = 2
+ADVERSARIAL_PASS = 24/24
+QUALITY_SCORE = 9.8/10
+M12_PREFLIGHT = OPEN
+M12_EXECUTION = NOT_YET_RELEASED
+```
