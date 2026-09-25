@@ -7,6 +7,7 @@
   const localAuthority = globalThis.SellerAgentsLocalClientAuthority;
   const STORAGE_KEY = "seller_agents_control_auth_v2";
   const METADATA_CLEAR_KEY = "seller_agents_pending_metadata_clear_v1";
+  const METADATA_CLEAR_RECEIPT_KEY = "seller_agents_metadata_clear_receipt_v1";
   const consentApi = globalThis.SellerAgentsTechnicalDataConsent;
   const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   const MACHINE = /^[a-z0-9][a-z0-9._-]*$/;
@@ -26,6 +27,7 @@
   const transferVault = globalThis.SellerAgentsCredentialTransferVault;
   const transferRecipientFlights = new Map();
   let metadataForgetFlight = null;
+  let metadataForgetEpoch = 0, metadataForgetLastAttempt = null;
   async function clearTransferRecipientVault() {
     if (!transferVault) throw error("TRANSFER_VAULT_UNAVAILABLE");
     try { await transferVault.clear(); } catch (failure) { throw error("TRANSFER_VAULT_CLEAR_FAILED", safeError(failure)); }
@@ -224,6 +226,12 @@
       const projection = await consentApi.projectControlRequest(projectionKind, requestOptions.body);
       requestOptions.body = projection.body;
       if (typeof captureProjection === "function") captureProjection(projection);
+      if (projection.consent.applicable && projection.consent.granted) {
+        // A later identified send invalidates the prior clear acknowledgement.
+        metadataForgetEpoch += 1;
+        metadataForgetLastAttempt = null;
+        await chrome.storage.local.remove(METADATA_CLEAR_RECEIPT_KEY);
+      }
       if (projection.consent.applicable && !projection.consent.granted) {
         void scheduleMetadataForget();
         if (projectionKind === "health_authority") throw error("HEALTH_TECHNICAL_PERMISSION_REQUIRED");
@@ -280,17 +288,33 @@
   }
   async function scheduleMetadataForget() {
     if (metadataForgetFlight) return metadataForgetFlight;
+    const credentials = clone(state.credentials);
+    if (!credentials?.accessToken || !credentials.deviceId) return false;
+    const context = contextForState({ deviceId: credentials.deviceId, sessionId: credentials.sessionId });
+    const epoch = metadataForgetEpoch;
     metadataForgetFlight = (async () => {
-      const credentials = clone(state.credentials);
-      if (!credentials?.accessToken || !credentials.deviceId) return false;
-      const marker = { version: "pending_client_metadata_clear_v1", deviceId: credentials.deviceId };
-      try { await chrome.storage.local.set({ [METADATA_CLEAR_KEY]: marker }); } catch (_) { return false; }
       try {
-        const context = contextForState({ deviceId: credentials.deviceId, sessionId: credentials.sessionId });
+        const stored = await chrome.storage.local.get(METADATA_CLEAR_RECEIPT_KEY);
+        if (!isCurrent(context) || epoch !== metadataForgetEpoch) return false;
+        const receipt = stored?.[METADATA_CLEAR_RECEIPT_KEY];
+        if (receipt?.version === "client_metadata_cleared_v1" && receipt.deviceId === credentials.deviceId) return true;
+        const attemptAt = now();
+        if (metadataForgetLastAttempt?.deviceId === credentials.deviceId &&
+            attemptAt >= metadataForgetLastAttempt.at && attemptAt - metadataForgetLastAttempt.at < 60000) return false;
+        metadataForgetLastAttempt = { deviceId: credentials.deviceId, at: attemptAt };
+        const marker = { version: "pending_client_metadata_clear_v1", deviceId: credentials.deviceId };
+        await chrome.storage.local.set({ [METADATA_CLEAR_KEY]: marker });
+        if (!isCurrent(context) || epoch !== metadataForgetEpoch) return false;
         const result = await authenticatedRequest("/v1/devices/current/client-metadata/forget", { method: "POST" }, context);
-        if (result.body?.status !== "cleared" || result.body.deviceId !== credentials.deviceId) return false;
-        const stored = await chrome.storage.local.get(METADATA_CLEAR_KEY);
-        if (stored?.[METADATA_CLEAR_KEY]?.deviceId === credentials.deviceId) await chrome.storage.local.remove(METADATA_CLEAR_KEY);
+        if (result.body?.status !== "cleared" || result.body.deviceId !== credentials.deviceId ||
+            !isCurrent(context) || epoch !== metadataForgetEpoch) return false;
+        await chrome.storage.local.set({ [METADATA_CLEAR_RECEIPT_KEY]: { version: "client_metadata_cleared_v1", deviceId: credentials.deviceId } });
+        if (!isCurrent(context) || epoch !== metadataForgetEpoch) {
+          await chrome.storage.local.remove(METADATA_CLEAR_RECEIPT_KEY);
+          return false;
+        }
+        const pending = await chrome.storage.local.get(METADATA_CLEAR_KEY);
+        if (pending?.[METADATA_CLEAR_KEY]?.deviceId === credentials.deviceId) await chrome.storage.local.remove(METADATA_CLEAR_KEY);
         return true;
       } catch (_) { return false; }
     })().finally(() => { metadataForgetFlight = null; });
@@ -552,7 +576,8 @@
     if (!authorityStaticValid(payload) || requestedAi && !LOCAL_AI[requestedAi]) return null;
     if (payload.ai.status === "UNCONFIGURED") return requestedAi === null ? { workAllowed: false, requestedAi: null } : null;
     if (payload.ai.status === "UNAVAILABLE") return payload.localClientAuthority ? { workAllowed: false, requestedAi: requestedAi || null } : null;
-    const profileContractVersion = payload.localClientAuthority ? "control_plane_v2" : "control_plane_v1";
+    // Preserve legacy identified v1 profiles; current v2 profiles match the signed envelope.
+    const profileContractVersion = !payload.localClientAuthority && payload.ai.profile?.compatibility?.contractVersion === "control_plane_v1" ? "control_plane_v1" : payload.contractVersion;
     if (payload.ai.status !== "RESOLVED" || !validProfileShape(payload.ai.profile, enforceEnvironment, profileContractVersion)) return null;
     const expected = requestedAi ? LOCAL_AI[requestedAi] : LOCAL_AI[payload.ai.detected?.family], detected = payload.ai.detected;
     if (!expected || detected.family !== (requestedAi || detected.family) || detected.surface !== expected.surface || detected.variant !== null || payload.ai.profile.scopeVariant !== null) return null;
