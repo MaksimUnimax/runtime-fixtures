@@ -194,6 +194,7 @@ describe("version-scoped v2 config selection", () => {
         version === "control_plane_v2" ? latest : undefined,
       ),
       findRolloutByKey,
+      listLatestExtensionReleaseSupports: async () => [],
       listConfigCompatibilityPolicyRevisions: async () => [],
       listConfigFeatureRules: async () => [],
       listConfigFeatureRolloutRevisions: async () => [],

@@ -13,13 +13,25 @@ import {
   validateProfileContent,
   type AssignmentMode,
 } from "@product/adapter-registry";
-import { compareSemVerV1, type BrowserFamily } from "@product/shared";
+import {
+  BrowserFamilies,
+  compareSemVerV1,
+  type BrowserFamily,
+} from "@product/shared";
+export type { BootstrapAiResolutionV1 } from "@product/contracts";
 
 export type BootstrapAiResolutionInput = {
   detected: BootstrapDetectedAiV1;
   contractVersion: ContractVersion;
   extensionVersion: string;
   browser: { family: BrowserFamily; version: string };
+  accountId: string;
+  deviceId: string;
+};
+
+export type BootstrapLocalAiResolutionInput = {
+  detected: BootstrapDetectedAiV1;
+  contractVersion: ContractVersion;
   accountId: string;
   deviceId: string;
 };
@@ -132,11 +144,12 @@ function assertAssignmentRevision(
 
 function resolveSelectedRevision(
   assignment: BootstrapAiAssignmentSnapshot,
-  input: BootstrapAiResolutionInput,
+  input: BootstrapAiResolutionInput | BootstrapLocalAiResolutionInput,
+  browserFamily: BrowserFamily,
 ): string {
   if (assignment.cohortSeed.length !== 32)
     throw new BootstrapAiResolutionError();
-  if (assignment.browserFamily !== input.browser.family)
+  if (assignment.browserFamily !== browserFamily)
     throw new BootstrapAiResolutionError();
   if (
     assignment.subjectKind !== "ACCOUNT" &&
@@ -182,8 +195,9 @@ function checkCompatibility(
 }
 
 export function resolveBootstrapAiSnapshot(
-  input: BootstrapAiResolutionInput,
+  input: BootstrapAiResolutionInput | BootstrapLocalAiResolutionInput,
   snapshot: BootstrapAiResolutionSnapshot,
+  expectedBrowserFamily?: BrowserFamily,
 ): BootstrapAiResolutionV1 {
   const hierarchy = snapshot.hierarchy;
   if (!hierarchy) return unavailable(input.detected, "UNSUPPORTED_DETECTED_AI");
@@ -207,7 +221,14 @@ export function resolveBootstrapAiSnapshot(
         : snapshot.defaultAssignment
       : snapshot.defaultAssignment;
   if (!assignment) return unavailable(input.detected, "NO_PROFILE");
-  const selectedRevisionId = resolveSelectedRevision(assignment, input);
+  const selectedRevisionId = resolveSelectedRevision(
+    assignment,
+    input,
+    expectedBrowserFamily ??
+      ("browser" in input
+        ? input.browser.family
+        : (assignment.browserFamily as BrowserFamily)),
+  );
   const selected = snapshot.profiles.filter(
     (profile) => profile.revisionId === selectedRevisionId,
   );
@@ -242,7 +263,11 @@ export function resolveBootstrapAiSnapshot(
     validated.contentSha256 !== profile.contentSha256
   )
     throw new BootstrapAiResolutionError();
-  if (!checkCompatibility(validated.compatibility, input))
+  if (
+    "browser" in input &&
+    "extensionVersion" in input &&
+    !checkCompatibility(validated.compatibility, input)
+  )
     return unavailable(input.detected, "PROFILE_INCOMPATIBLE");
 
   return BootstrapAiResolutionV1Schema.parse({
@@ -273,5 +298,36 @@ export class BootstrapAiResolutionService {
       browserFamily: input.browser.family,
     });
     return resolveBootstrapAiSnapshot(input, snapshot);
+  }
+
+  async resolveLocalCandidates(
+    input: BootstrapLocalAiResolutionInput,
+  ): Promise<
+    Array<{ browserFamily: BrowserFamily; resolution: BootstrapAiResolutionV1 }>
+  > {
+    const candidates = await Promise.all(
+      BrowserFamilies.map(async (browserFamily) => {
+        const snapshot = await this.repository.resolve({
+          family: input.detected.family,
+          surface: input.detected.surface,
+          variant: input.detected.variant,
+          browserFamily,
+        });
+        if (!snapshot.exactAssignment && !snapshot.defaultAssignment)
+          return null;
+        return {
+          browserFamily,
+          resolution: resolveBootstrapAiSnapshot(
+            input,
+            snapshot,
+            browserFamily,
+          ),
+        };
+      }),
+    );
+    return candidates.filter(
+      (candidate): candidate is NonNullable<typeof candidate> =>
+        candidate !== null,
+    );
   }
 }
