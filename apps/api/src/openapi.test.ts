@@ -315,6 +315,33 @@ describe("OpenAPI foundation", () => {
         "extensionVersionLastSeen",
       ]),
     );
+
+    const adminItems =
+      document.paths["/v1/admin/accounts/{account_id}/devices"]!.get!.responses[
+        "200"
+      ]!.content["application/json"]!.schema.properties?.items?.items;
+    if (!adminItems) throw new Error("admin device item schema missing");
+    const adminBranches = adminItems.anyOf ?? [];
+    expect(adminBranches).toHaveLength(2);
+    const adminPresent = adminBranches.find((schema) =>
+      schema.required?.includes("browserFamily"),
+    );
+    const adminWithheld = adminBranches.find(
+      (schema) => !schema.required?.includes("browserFamily"),
+    );
+    if (!adminPresent || !adminWithheld)
+      throw new Error("admin PRESENT/WITHHELD branches missing");
+    expect(adminWithheld.properties).not.toHaveProperty("browserFamily");
+    expect(adminWithheld.properties).not.toHaveProperty(
+      "extensionVersionLastSeen",
+    );
+    expect(adminPresent.required).toEqual(
+      expect.arrayContaining([
+        "browserFamily",
+        "browserVersionLastSeen",
+        "extensionVersionLastSeen",
+      ]),
+    );
   });
 
   it("documents identified and privacy-neutral control_plane_v2 bootstrap variants explicitly", async () => {

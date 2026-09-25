@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  AdminDeviceItemV1Schema,
   BootstrapRequestV2Schema,
   BootstrapSnapshotPayloadV2Schema,
   LocalClientAuthorityV1Schema,
@@ -137,5 +138,45 @@ describe("Firefox privacy-neutral shared bootstrap contract", () => {
         localClientAuthority: localAuthority,
       }).success,
     ).toBe(false);
+  });
+});
+
+describe("admin device privacy-neutral projection contract", () => {
+  const base = {
+    id: deviceId,
+    status: "ACTIVE" as const,
+    label: "Work browser",
+    createdAt: "2026-09-25T00:00:00.000Z",
+    activatedAt: "2026-09-25T00:00:01.000Z",
+    lastSeenAt: "2026-09-25T00:00:02.000Z",
+    revokedAt: null,
+  };
+
+  it("accepts exact withheld and present admin device projections", () => {
+    expect(AdminDeviceItemV1Schema.safeParse(base).success).toBe(true);
+    expect(
+      AdminDeviceItemV1Schema.safeParse({
+        ...base,
+        browserFamily: "firefox",
+        browserVersionLastSeen: "155.0",
+        extensionVersionLastSeen: "0.2.4",
+      }).success,
+    ).toBe(true);
+  });
+
+  it("rejects partial legacy admin metadata instead of fabricating a present device", () => {
+    for (const partial of [
+      { ...base, browserFamily: "firefox" },
+      {
+        ...base,
+        browserFamily: "firefox",
+        browserVersionLastSeen: null,
+      },
+      {
+        ...base,
+        extensionVersionLastSeen: "0.2.4",
+      },
+    ])
+      expect(AdminDeviceItemV1Schema.safeParse(partial).success).toBe(false);
   });
 });

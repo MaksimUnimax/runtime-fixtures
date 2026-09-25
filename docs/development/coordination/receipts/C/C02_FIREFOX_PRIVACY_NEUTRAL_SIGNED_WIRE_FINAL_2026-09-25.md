@@ -94,6 +94,26 @@ Additional focused source evidence:
 - A code parent `extension_core`: 129/129 PASS.
 
 A installed evidence records Firefox 155.0.1 consent Deny -> Allow -> Revoke PASS and exact installed-synthetic wire neutral -> identified -> neutral after revoke. That evidence does not use a deployed privacy-neutral Octoport backend.
+
+## Independent Luna review and fix
+
+Read-only review `c02-firefox-signed-wire-review-r2` on exact checkpoint `36cc97f99f3a19e8de400916cc43002e9dba8fd2` exited 0 and found one Medium defect: the admin route omitted legacy metadata for a legal WITHHELD device but `AdminDeviceItemV1Schema` still required those legacy fields.
+
+C corrected the shared admin response contract to two strict branches:
+
+- WITHHELD projection: common safe device fields only;
+- PRESENT projection: common fields plus the complete browser-family/browser-version/extension-version tuple.
+
+Partial legacy tuples remain invalid. Regression evidence after the fix:
+
+- contracts privacy-neutral/admin projection suite: 30/30 PASS;
+- focused admin + OpenAPI API suite: 30/30 PASS, resource job `881246295605422aa69a67ce0af02563`;
+- tracked OpenAPI check: PASS;
+- Prettier/ESLint: PASS;
+- disposable PostgreSQL p6-2 admin operations rerun: PASS, resource job `2ded0053461740b38dad80a8295ee13a`, exit 0, OOM 0, cleanup verified.
+
+No other concrete defect was reported by that Luna review.
+
 ## Acceptance boundary
 
 This is not deployment acceptance.

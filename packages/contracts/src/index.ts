@@ -1765,20 +1765,26 @@ export const AdminUserItemV1Schema = z
   })
   .strict();
 export const AdminUsersResponseV1Schema = AdminPage(AdminUserItemV1Schema);
-export const AdminDeviceItemV1Schema = z
-  .object({
-    id: z.uuid(),
-    status: z.enum(["ACTIVE", "REVOKED"]),
-    label: z.string().nullable(),
-    browserFamily: z.enum(BrowserFamilies),
-    browserVersionLastSeen: z.string().nullable(),
-    extensionVersionLastSeen: z.string().nullable(),
-    createdAt: z.string().datetime(),
-    activatedAt: z.string().datetime().nullable(),
-    lastSeenAt: z.string().datetime().nullable(),
-    revokedAt: z.string().datetime().nullable(),
-  })
-  .strict();
+const AdminDeviceItemBaseV1Shape = {
+  id: z.uuid(),
+  status: z.enum(["ACTIVE", "REVOKED"]),
+  label: z.string().nullable(),
+  createdAt: z.string().datetime(),
+  activatedAt: z.string().datetime().nullable(),
+  lastSeenAt: z.string().datetime().nullable(),
+  revokedAt: z.string().datetime().nullable(),
+};
+export const AdminDeviceItemV1Schema = z.union([
+  z.object(AdminDeviceItemBaseV1Shape).strict(),
+  z
+    .object({
+      ...AdminDeviceItemBaseV1Shape,
+      browserFamily: z.enum(BrowserFamilies),
+      browserVersionLastSeen: z.string().nullable(),
+      extensionVersionLastSeen: z.string(),
+    })
+    .strict(),
+]);
 export const AdminDevicesResponseV1Schema = AdminPage(AdminDeviceItemV1Schema);
 export const AdminSubscriptionResponseV1Schema = z
   .object({

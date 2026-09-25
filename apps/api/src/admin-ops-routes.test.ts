@@ -583,6 +583,56 @@ describe("P6.2 admin API boundary", () => {
     );
   });
 
+  it("returns a withheld admin device without fabricated legacy metadata", async () => {
+    const { app } = makeApp({
+      repository: {
+        listDevices: async () => ({
+          items: [
+            {
+              id: deviceId,
+              status: "ACTIVE",
+              label: "Private Firefox",
+              clientMetadata: { state: "WITHHELD" },
+              createdAt,
+              activatedAt: createdAt,
+              lastSeenAt: updatedAt,
+              revokedAt: null,
+            },
+          ],
+          nextCursor: undefined,
+        }),
+      },
+    });
+    apps.push(app);
+    const response = await app.inject({
+      method: "GET",
+      url: `/v1/admin/accounts/${accountId}/devices`,
+      headers: { cookie: adminCookie },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({
+      items: [
+        {
+          id: deviceId,
+          status: "ACTIVE",
+          label: "Private Firefox",
+          createdAt: createdAt.toISOString(),
+          activatedAt: createdAt.toISOString(),
+          lastSeenAt: updatedAt.toISOString(),
+          revokedAt: null,
+        },
+      ],
+      nextCursor: null,
+    });
+    expect(response.json().items[0]).not.toHaveProperty("browserFamily");
+    expect(response.json().items[0]).not.toHaveProperty(
+      "browserVersionLastSeen",
+    );
+    expect(response.json().items[0]).not.toHaveProperty(
+      "extensionVersionLastSeen",
+    );
+  });
+
   it("returns non-empty audit events without reason or metadata", async () => {
     const { app } = makeApp({
       repository: {
