@@ -879,6 +879,8 @@ async function saSupportSnapshot(tabId) {
   const popup = await saPopupState(tabId);
   const observed = globalThis.SellerAgentsBrowserIdentity?.current?.() || {};
   const stores = Array.isArray(popup.stores) ? popup.stores : [];
+  const consent = await globalThis.SellerAgentsTechnicalDataConsent?.consent?.().catch(() => ({ applicable: true, granted: false }));
+  const includeTechnical = !consent?.applicable || consent.granted === true;
   const family = globalThis.SellerAgentsBrowserIdentity?.families?.includes(observed.family) ? observed.family : null;
   const version = typeof observed.version === "string" && /^\d+(?:\.\d+){0,3}$/.test(observed.version) ? observed.version : null;
   const workState = saSupportToken(popup.work?.state);
@@ -886,11 +888,11 @@ async function saSupportSnapshot(tabId) {
   return Object.freeze({
     snapshotVersion: "seller_agents_support_snapshot_v1",
     generatedAt: new Date().toISOString(),
-    extension: {
+    extension: includeTechnical ? {
       version: String(globalThis.SellerAgentsControlConfig?.extensionVersion || ""),
       environment: String(globalThis.SellerAgentsControlConfig?.environment || ""),
-    },
-    browser: { family, version, evidence: "OBSERVED_RUNTIME_ONLY" },
+    } : { environment: String(globalThis.SellerAgentsControlConfig?.environment || "") },
+    ...(includeTechnical ? { browser: { family, version, evidence: "OBSERVED_RUNTIME_ONLY" } } : {}),
     auth: {
       authenticated: popup.auth?.authenticated === true,
       workAllowed: popup.auth?.workAllowed === true,

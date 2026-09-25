@@ -2,6 +2,48 @@
 const $ = id => document.getElementById(id);
 let tabId, state, marketplace = "ozon", selectedId = "", editingId = null, busy = false, confirmAction = null;
 let backupText = "";
+const FIREFOX_TECHNICAL_CATEGORY = "technicalAndInteraction";
+function firefoxTechnicalPermissions() { return globalThis.browser?.permissions || null; }
+function firefoxTechnicalAvailable() { return /Firefox\/\d/i.test(navigator.userAgent || "") && typeof firefoxTechnicalPermissions()?.getAll === "function"; }
+async function refreshFirefoxTechnicalConsent() {
+  const section = $("firefox-technical-consent");
+  if (!section) return;
+  const permissions = firefoxTechnicalPermissions();
+  const available = firefoxTechnicalAvailable();
+  section.hidden = !available;
+  if (!available) return;
+  let granted = false, readable = true;
+  try {
+    const current = await permissions.getAll();
+    granted = Array.isArray(current?.data_collection) && current.data_collection.includes(FIREFOX_TECHNICAL_CATEGORY);
+  } catch (_) { readable = false; }
+  $("firefox-technical-status").textContent = !readable ? "Не удалось прочитать разрешение. Технические данные не передаются." : granted ? "Разрешено: версии Firefox и расширения могут передаваться для совместимости и диагностики." : "Не разрешено: версии Firefox и расширения не передаются; основная работа доступна.";
+  $("firefox-technical-grant").hidden = granted;
+  $("firefox-technical-revoke").hidden = !granted;
+}
+function requestFirefoxTechnicalConsentFromClick() {
+  const permissions = firefoxTechnicalPermissions();
+  if (!firefoxTechnicalAvailable() || typeof permissions?.request !== "function") return;
+  $("firefox-technical-grant").disabled = true;
+  let requested;
+  try { requested = permissions.request({ data_collection: [FIREFOX_TECHNICAL_CATEGORY] }); }
+  catch (_) { requested = Promise.reject(new Error("FIREFOX_TECHNICAL_PERMISSION_REQUEST_FAILED")); }
+  Promise.resolve(requested).then(granted => {
+    $("status").textContent = granted ? "Технические данные разрешены" : "Разрешение не выдано. Основная работа остаётся доступной";
+  }).catch(() => { $("status").textContent = "Не удалось запросить разрешение. Технические данные не передаются"; })
+    .finally(() => { $("firefox-technical-grant").disabled = false; refreshFirefoxTechnicalConsent().catch(() => null); });
+}
+function revokeFirefoxTechnicalConsentFromClick() {
+  const permissions = firefoxTechnicalPermissions();
+  if (!firefoxTechnicalAvailable() || typeof permissions?.remove !== "function") return;
+  $("firefox-technical-revoke").disabled = true;
+  let removed;
+  try { removed = permissions.remove({ data_collection: [FIREFOX_TECHNICAL_CATEGORY] }); }
+  catch (_) { removed = Promise.reject(new Error("FIREFOX_TECHNICAL_PERMISSION_REMOVE_FAILED")); }
+  Promise.resolve(removed).then(() => { $("status").textContent = "Технические данные больше не передаются"; })
+    .catch(() => { $("status").textContent = "Не удалось изменить разрешение"; })
+    .finally(() => { $("firefox-technical-revoke").disabled = false; refreshFirefoxTechnicalConsent().catch(() => null); });
+}
 const texts = { ACCESS_CONFIRMED: "Доступ подтверждён этой проверкой; кабинет и полный набор прав ещё не подтверждены",
   CREDENTIAL_REJECTED: "Ключ отклонён (401). Причина и срок действия не подтверждены", ACCESS_DENIED: "Недостаточно прав (403)",
   CHECK_FAILED: "Не удалось проверить: сеть, ответ площадки или формат запроса", STORE_CHANGE_CONFIRMATION_REQUIRED: "Подтвердите смену магазина",
@@ -85,6 +127,7 @@ async function refresh(first = false) {
   state = await request("SA_POPUP_STATE");
   if (first && state.context.store_id) { const current = state.stores.find(s => s.id === state.context.store_id); if (current) { selectedId = current.id; marketplace = current.marketplace; } }
   render();
+  await refreshFirefoxTechnicalConsent();
 }
 function closeCard() { $("card").reset(); $("card").hidden = true; editingId = null; }
 function openCard(store) {
@@ -131,6 +174,8 @@ $("support-generate").onclick = () => action(async () => {
   $("support-snapshot").value = JSON.stringify(result.snapshot, null, 2);
   $("support-snapshot").hidden = false;
 });
+$("firefox-technical-grant").onclick = requestFirefoxTechnicalConsentFromClick;
+$("firefox-technical-revoke").onclick = revokeFirefoxTechnicalConsentFromClick;
 $("auth-start").onclick = () => action(() => request("SA_AUTH_START"));
 $("auth-open").onclick = () => action(() => request("SA_AUTH_OPEN_PORTAL"));
 $("auth-cancel").onclick = () => action(() => request("SA_AUTH_CANCEL"));
@@ -169,6 +214,9 @@ $("backup-import").onclick = () => action(async () => {
   $("backup-status").textContent = `Импорт завершён: добавлено ${response.imported.length}; конфликты не перезаписаны.`;
   $("backup-preview-result").hidden = true; $("backup-file").value = ""; $("backup-import-password").value = ""; backupText = "";
 });
+const firefoxPermissionEvents = firefoxTechnicalPermissions();
+firefoxPermissionEvents?.onAdded?.addListener(() => refreshFirefoxTechnicalConsent().catch(() => null));
+firefoxPermissionEvents?.onRemoved?.addListener(() => refreshFirefoxTechnicalConsent().catch(() => null));
 chrome.tabs.query({ active: true, currentWindow: true }).then(tabs => { tabId = tabs[0]?.id; return refresh(true); }).catch(e => { $("status").textContent = e.message; });
 
 let refreshTimer;

@@ -64,13 +64,28 @@
     }
   }
 
+  function onWithdrawal(handler) {
+    if (family() !== "firefox" || typeof handler !== "function") return () => {};
+    const event = firefoxPermissions()?.onRemoved;
+    if (!event || typeof event.addListener !== "function") return () => {};
+    const listener = async () => {
+      const current = await consent();
+      if (current.applicable && !current.granted) await handler();
+    };
+    event.addListener(listener);
+    return () => event.removeListener?.(listener);
+  }
+
   function omitTechnicalFields(kind, body) {
     const projected = clone(body);
     if (kind === "device_authorization") {
+      const deviceLabel = projected.deviceLabel;
       delete projected.browserFamily;
       delete projected.browserVersion;
       delete projected.extensionVersion;
-      return projected;
+      return deviceLabel === undefined
+        ? { clientType: "browser_extension" }
+        : { clientType: "browser_extension", deviceLabel };
     }
     if (kind === "bootstrap") {
       delete projected.extensionVersion;
@@ -101,6 +116,7 @@
     consent,
     requestFromUserGesture,
     revoke,
+    onWithdrawal,
     projectControlRequest,
   });
 })();

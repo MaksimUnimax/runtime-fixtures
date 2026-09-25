@@ -30,6 +30,7 @@
     "packages/control-client/src/credential-transfer.js",
     "packages/control-client/src/browser-identity.js",
     "packages/control-client/src/technical-data-consent.js",
+    "packages/control-client/src/local-client-authority.js",
     "packages/bridge-core/src/stores/backup.js",
     "packages/control-client/src/packaged-capabilities.js",
     "packages/control-client/src/client.js",

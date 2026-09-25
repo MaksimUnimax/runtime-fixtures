@@ -113,7 +113,8 @@ with tempfile.TemporaryDirectory(prefix="octoport-store-contract-") as temp:
             "searchTerms",
             "financialAndPaymentInfo",
             "personalCommunications",
-        ]
+        ],
+        "optional": ["technicalAndInteraction"],
     }
     assert "https://api.octoport.ru/*" in firefox_manifest["host_permissions"]
     assert not any(value.startswith("http://127.0.0.1") for value in firefox_manifest["host_permissions"])
