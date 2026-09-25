@@ -85,3 +85,29 @@ Deploy script делает backup текущих Octoport nginx-конфигов
 Подготовка SITE-S1 в Git не означает, что публичный сайт уже переключён. Серверное выполнение и внешняя визуальная/HTTP приёмка фиксируются отдельно.
 
 Границы репозитория: [архитектура](../../docs/architecture/OVERVIEW.md), [размещение](../../docs/architecture/REPOSITORY.md), [текущий статус](../../docs/STATUS.md).
+
+## C04/C05 ops runtime preparation
+
+The Telegram monitoring operator and independent PostgreSQL backup path are prepared as source-only operations tooling. Preparation is not deployment authorization.
+
+Operational invariants:
+
+- build immutable ops releases with `scripts/prepare-octoport-ops-release.sh` from a clean accepted checkout into a non-home release root;
+- Telegram runs as a dedicated non-root identity from the immutable release, reads protected systemd EnvironmentFiles, and fails closed when required runtime configuration is absent;
+- installer scripts install/render units only; they do **not** enable or start Telegram or backup services;
+- the backup timer is daily with persistent catch-up and randomized delay, but remains disabled until an explicit deployment action;
+- backup destination must be an actual mount different from the PostgreSQL data mount by both mount source and device id;
+- host `pg_dump` and `pg_restore` are mandatory prerequisites; installers fail closed if they are missing and do not install OS packages;
+- backup publication is staged atomically, custom-format archive readability is checked with `pg_restore --list`, SHA-256/size are recorded, and retention considers only backups whose manifest, hash and archive listing revalidate;
+- secrets stay outside Git and release metadata. No token, DATABASE_URL password, OTP, cookies or marketplace payload may be recorded in release receipts.
+
+Required deployment inputs that are intentionally not invented by source preparation:
+
+- dedicated non-root service user/group;
+- protected Telegram environment file and owner-selected operator/chat ids;
+- a release root accessible under `ProtectHome=yes` (not `/root`, `/home` or `/run/user`);
+- PostgreSQL client tools on the host;
+- a genuinely independent/off-host or separately mounted backup destination plus its protected backup env file;
+- measured resource ceilings before any finite `MemoryMax`/`CPUQuota`/`TasksMax` values are introduced.
+
+Any enable/start, live Telegram delivery, live database backup schedule, restore acceptance or production RPO/RTO claim remains a separate authorized operation and evidence class.

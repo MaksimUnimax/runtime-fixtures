@@ -1,0 +1,44 @@
+[Unit]
+Description=Octoport Telegram monitoring operator
+Wants=network-online.target
+After=network-online.target
+ConditionPathIsDirectory=@RELEASE_DIR@
+ConditionFileNotEmpty=@RELEASE_DIR@/RELEASE_MANIFEST.json
+
+[Service]
+Type=simple
+User=@SERVICE_USER@
+Group=@SERVICE_GROUP@
+WorkingDirectory=@RELEASE_DIR@
+EnvironmentFile=/etc/seller-agents-owner-test/api.env
+EnvironmentFile=/root/octoport-owner-intake/telegram.env
+Environment=SWAGGER_QUARANTINE_DIR=/var/lib/octoport/api-watch/quarantine
+UMask=0077
+StateDirectory=octoport
+StateDirectoryMode=0700
+ExecStartPre=/usr/bin/python3 @RELEASE_DIR@/tooling/operations/verify_ops_release.py @RELEASE_DIR@
+ExecStartPre=/usr/bin/install -d -m 0700 /var/lib/octoport/api-watch /var/lib/octoport/api-watch/quarantine
+ExecStart=@RELEASE_DIR@/.runtime/node @RELEASE_DIR@/apps/telegram-operator/node_modules/tsx/dist/cli.mjs @RELEASE_DIR@/apps/telegram-operator/dist/main.js
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=45s
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+ReadWritePaths=/var/lib/octoport
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=octoport-telegram-operator
+
+# Finite MemoryMax/CPUQuota/TasksMax are intentionally not invented here.
+# Set them only after measured runtime evidence on the target service identity.
+
+[Install]
+WantedBy=multi-user.target
