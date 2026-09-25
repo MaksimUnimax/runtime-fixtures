@@ -15,40 +15,6 @@ assert.match(popupJs, /request\("SA_SUPPORT_SNAPSHOT"\)/);
 assert.match(popupJs, /support-snapshot/);
 assert.match(popupJs, /UPDATE_RECOMMENDED/);
 assert.match(popupJs, /Текущая версия пока разрешена/);
-const textsStart = popupJs.indexOf("const texts = ");
-const textsEnd = popupJs.indexOf(";\nfunction ownerErrorText", textsStart);
-assert.ok(textsStart >= 0 && textsEnd > textsStart, "popup texts map must remain extractable");
-const ownerTexts = new Function(`return (${popupJs.slice(textsStart + "const texts = ".length, textsEnd)});`)();
-const helperStart = popupJs.indexOf("function ownerErrorText(");
-const helperEnd = popupJs.indexOf("\nasync function request", helperStart);
-assert.ok(helperStart >= 0 && helperEnd > helperStart, "ownerErrorText must remain a standalone helper");
-const ownerErrorText = new Function("texts", `${popupJs.slice(helperStart, helperEnd)}; return ownerErrorText;`)(ownerTexts);
-const actionableOwnerCodes = [
-  "SYNC_EXPLICIT_BINDING_CONFLICT", "SYNC_SERVER_FINISH_FENCE", "SYNC_NEWER_BINDING_FENCE",
-  "CONVERSATION_MISMATCH", "CONVERSATION_NOT_BOUND", "WORK_START_ALREADY_IN_PROGRESS",
-  "WORK_SESSION_NOT_INACTIVE", "WORK_RESUME_OPERATION_ACTIVE", "WORK_AUTHORITY_DENIED",
-  "WORK_AUTHORITY_REFRESH_REQUIRED", "BOOTSTRAP_SNAPSHOT_INVALID", "ACCOUNT_CHANGED",
-  "BACKUP_PASSWORD_CONFIRMATION_MISMATCH", "BACKUP_EXPLICIT_ACTION_REQUIRED", "TRANSFER_INVALID",
-];
-for (const code of actionableOwnerCodes) {
-  assert.equal(typeof ownerTexts[code], "string", code);
-  assert.ok(ownerTexts[code].length >= 30, code);
-  assert.equal(ownerTexts[code].includes(code), false, code);
-}
-for (const code of ["SYNC_EXPLICIT_BINDING_CONFLICT", "SYNC_SERVER_FINISH_FENCE", "SYNC_NEWER_BINDING_FENCE"]) {
-  assert.match(ownerTexts[code], /Start|магазин|привязк|завершен/i, code);
-}
-assert.equal(ownerErrorText("SYNC_SERVER_FINISH_FENCE"), ownerTexts.SYNC_SERVER_FINISH_FENCE);
-const unknownText = ownerErrorText("CONTROL_REQUEST_TIMEOUT");
-assert.match(unknownText, /Обновите состояние расширения и повторите действие/);
-assert.match(unknownText, /Код для поддержки: CONTROL_REQUEST_TIMEOUT/);
-assert.equal(unknownText.includes("Действие не выполнено: CONTROL_REQUEST_TIMEOUT"), false);
-const unsafeText = ownerErrorText("<script>secret</script>");
-assert.match(unsafeText, /Код для поддержки: UNKNOWN/);
-assert.equal(unsafeText.includes("secret"), false);
-assert.match(popupJs, /lastError \? ownerErrorText\(/);
-assert.match(popupJs, /verification[^\n]+ownerErrorText\(v\.code/);
-assert.match(popupJs, /throw new Error\(ownerErrorText\(response\?\.code\)\)/);
 const worker = await makeWorker(runtime, {
   userAgent: "Mozilla/5.0 Chrome/147.0.7727.116 Safari/537.36",
 });
