@@ -141,6 +141,27 @@ A first local root-typecheck rerun exposed stale workspace links: the local `app
 
 The failed `a05d2f9...` Server CI remains historical evidence and is not counted as PASS. A new exact HEAD and fresh five-workflow gate are required after this consumer repair.
 
+The next branch candidate `370a9d7e71b81ef48c4a9450f01dca0985f28a3c` proved that the root typecheck regression was repaired: GitHub Server CI `36095239983` passed lint, format, root `pnpm typecheck`, and unit tests. It later failed at `pnpm test:integration`, so this candidate is also **NOT ready-main**.
+
+GitHub job `107946024544` localized that integration-only failure to test/static fixtures that predated migration 0051:
+
+- `p2-4-token-core.integration.test.ts` and `sync.integration.test.ts` inserted a PRESENT device with `browser_family='chrome'` but no `extension_version_last_seen`, which correctly violates the new all-or-none client metadata constraint;
+- P5.7 STATIC-71 still pinned the pre-forget-route OpenAPI fact of 138 operations and the previous artifact hash.
+
+C updated only those fixture/static facts:
+
+- PRESENT device fixtures now include `extension_version_last_seen='1.0.0'`;
+- STATIC-71 now requires 139 operations and SHA-256 `2d7fafc8bb5af97884da197acfd11725e7fece223f13a79cf6e8a69765291453`.
+
+Focused rerun of the three previously failing integration files passed on disposable C PostgreSQL. Full Server-CI-parity integration then passed:
+
+- resource job `52767cbb3c04476e8a3ccae5c78e42d9`;
+- test files: 54/54 PASS;
+- tests: 1673/1673 PASS;
+- exit 0, OOM 0, cleanup verified.
+
+The failed `370a9d7...` Server CI remains historical evidence and is not counted as PASS. A third fresh exact-head five-workflow gate is required after these fixture/static corrections.
+
 ## Acceptance boundary
 
 This is not deployment acceptance.

@@ -43,7 +43,7 @@ async function activeSession() {
   await query("INSERT INTO users(id) VALUES($1)", [userId]);
   await query("INSERT INTO accounts(id) VALUES($1)", [accountId]);
   await query(
-    "INSERT INTO devices(id,account_id,created_by_user_id,browser_family) VALUES($1,$2,$3,'chrome')",
+    "INSERT INTO devices(id,account_id,created_by_user_id,browser_family,extension_version_last_seen) VALUES($1,$2,$3,'chrome','1.0.0')",
     [deviceId, accountId, userId],
   );
   await query(
