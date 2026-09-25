@@ -2,7 +2,7 @@
 
 Date: 2026-09-25
 Role: B
-Status: B-owned disposable PostgreSQL recovery rehearsal PASS; C05 immutable-artifact rollback remains open
+Status: helper fixed; preliminary dirty-worktree rehearsal PASS; clean exact-source rerun pending
 Scope: current canonical schema source0049 plus synthetic no-session Health data
 
 ## Rerun command
@@ -66,10 +66,12 @@ revision/tree, migration identities, synthetic counts, archive metadata and
 PASS/FAIL only. It does not contain credentials, OTP material, session tokens or
 customer data.
 
-## Acceptance evidence
+## Preliminary rehearsal evidence — NOT final acceptance
 
 Tested source revision:
 `57b231b193bd752d9ea892a0432d6a4152759ff6`.
+
+This run exercised helper bytes that still had an uncommitted follow-up diff, so the recorded HEAD/tree do not identify the exact executed helper. Preserve the run as useful preliminary evidence only; a clean committed exact-source rerun is required before B05 handoff acceptance.
 
 Tested source tree:
 `9427633bac4f410102238118497e8a1c63e304e8`.
@@ -111,11 +113,7 @@ Resource receipt:
 
 ## Evidence state and limits
 
-This proves the current accepted source0049 schema can be backed up as a real
-PostgreSQL custom archive, restored into a fresh B-owned disposable database,
-and used by the actual application auth/readiness paths plus the existing
-no-session scheduler/incident/outbox repositories without duplicate
-reconciliation effects.
+This preliminary run shows the current source0049 recovery procedure can complete successfully on B's disposable PostgreSQL, but it is not the final exact-source acceptance because the helper worktree was dirty during execution.
 
 It does not prove immutable application-artifact rollback, live0049,
 production, Telegram delivery, production RPO/RTO, scheduled backup retention,
