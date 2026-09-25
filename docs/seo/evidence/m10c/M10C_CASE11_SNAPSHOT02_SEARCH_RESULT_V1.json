@@ -1,0 +1,81 @@
+{
+  "bridge": "yandex-marketing-bridge",
+  "version": "0.1.9",
+  "service": "search",
+  "operation": "genSearch",
+  "request_id": "search-bc72181c-5fc8-4633-a45d-a019ba97e141",
+  "run_id": null,
+  "status": "OK",
+  "reason": null,
+  "cost_estimate": {
+    "estimated_rub": 5.08,
+    "tariff_checked_at": "2026-08-19",
+    "tariff_source": "[https://aistudio.yandex.ru/docs/ru/search-api/pricing.html](https://aistudio.yandex.ru/docs/ru/search-api/pricing.html)"
+  },
+  "policy": {
+    "channel": "manual",
+    "active_service": "search"
+  },
+  "command": {
+    "method": "genSearch",
+    "queryText": "ии агент для wildberries",
+    "confirmBillable": true
+  },
+  "http_status": 200,
+  "elapsed_ms": 4633,
+  "result": {
+    "mode": "generative",
+    "message": {
+      "content": "Несколько ИИ-агентов для Wildberries:\n\n* **AI007**. [1] Работает 24/7, меняет цены, отвечает на отзывы, следит за рекламой, но только с разрешения продавца. [1] Агент сам подбирает нужные навыки и собирает задачу, а продавец только подтверждает. [1] \n* **«Промто»**. [2] ИИ-агент для кабинета продавца Wildberries. [2] Он собирает сводку, находит точки внимания и готовит изменения в кабинете только после проверки. [2] Агент умеет работать с товарами, заказами, остатками, ценами, отзывами и продажами. [2]\n* **«Зинаида Продаёт»**. [3] ИИ-агент для автоматизации и управления рекламой на Wildberries. [3] Он автономно ведёт рекламные кампании, настраивает показы, контролирует ставки и защищает бюджет. [3]\n* **JAFO**. [4] ИИ-ассистент для Wildberries и Ozon. [4] Он управляет каталогом, ценами, рекламой и аналитикой на двух маркетплейсах сразу. [4] Агент берёт на себя 80% рутины менеджера: мониторинг продаж и остатков, ответы на отзывы, обновление карточек, управление рекламой, отслеживание цен конкурентов. [4]\n* **MarketAut**. [5] Сервис позволяет подключить магазин к любой нейросети за 10 минут. [5] Агент импортирует товары, поставит цены, ответит покупателям, переоценит остатки и отчитается о результате. [5]",
+      "role": "ROLE_ASSISTANT"
+    },
+    "sources": [
+      {
+        "url": "[https://www.ai007.io/](https://www.ai007.io/)",
+        "title": "AI007 — ИИ-агент для продавца Wildberries: цены, отзывы, реклама",
+        "used": true
+      },
+      {
+        "url": "[https://promto.ai/apps/wildberries](https://promto.ai/apps/wildberries)",
+        "title": "ИИ для Wildberries — аналитика и управление кабинетом",
+        "used": true
+      },
+      {
+        "url": "[https://zinaida.pro/](https://zinaida.pro/)",
+        "title": "Зинаида Продаёт: AI-продавец на Wildberries",
+        "used": true
+      },
+      {
+        "url": "[https://jafo.ru/](https://jafo.ru/)",
+        "title": "JAFO — ИИ-ассистент для Wildberries и Ozon",
+        "used": true
+      },
+      {
+        "url": "[https://marketaut.ru/](https://marketaut.ru/)",
+        "title": "MarketAut - ИИ-агенты для Wildberries, Ozon",
+        "used": true
+      }
+    ],
+    "searchQueries": [
+      {
+        "text": "ии агент для wildberries",
+        "reqId": "1790300508118981-5919478859232589552-rud6gzpngjcdycpp-BAL"
+      }
+    ],
+    "fixedMisspellQuery": "",
+    "isAnswerRejected": false,
+    "isBulletAnswer": false,
+    "hints": [
+      "Какие преимущества у ИИ-агентов для продавцов на Wildberries?",
+      "Как выбрать подходящего ИИ-агента для Wildberries?",
+      "Какие недостатки у ИИ-агентов для маркетплейсов?"
+    ],
+    "problematicAnswer": false,
+    "transport": {
+      "wire_format": "json_array",
+      "frame_count": 1
+    }
+  },
+  "request_executed": true,
+  "automatic_retry": false
+}
