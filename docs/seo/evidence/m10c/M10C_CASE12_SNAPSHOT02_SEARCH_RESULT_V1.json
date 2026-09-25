@@ -1,0 +1,110 @@
+{
+  "bridge": "yandex-marketing-bridge",
+  "version": "0.1.9",
+  "service": "search",
+  "operation": "genSearch",
+  "request_id": "search-5eb2c0d4-0913-4080-b4ea-479e9b8e20e1",
+  "run_id": null,
+  "status": "OK",
+  "reason": null,
+  "cost_estimate": {
+    "estimated_rub": 5.08,
+    "tariff_checked_at": "2026-08-19",
+    "tariff_source": "[https://aistudio.yandex.ru/docs/ru/search-api/pricing.html](https://aistudio.yandex.ru/docs/ru/search-api/pricing.html)"
+  },
+  "policy": {
+    "channel": "manual",
+    "active_service": "search"
+  },
+  "command": {
+    "method": "genSearch",
+    "queryText": "отчет маркетплейса вайлдберриз",
+    "confirmBillable": true
+  },
+  "http_status": 200,
+  "elapsed_ms": 6445,
+  "result": {
+    "mode": "generative",
+    "message": {
+      "content": "**Отчёты Wildberries** включают в себя различные виды аналитики, которые помогают контролировать рентабельность и управлять складскими запасами. [4] \n\nНекоторые типы отчётов:\n\n* **Еженедельный отчёт реализации**. [7] В нём Wildberries сводит движение средств за прошедшую неделю: продажи, сумму к перечислению за товары, расходы на логистику и хранение, стоимость приёмки, штрафы, другие удержания и итог к оплате. [7] \n* **Ежедневный отчёт**. [7] С его помощью можно отслеживать свежие начисления и удержания, не дожидаясь окончания недели. [7] \n* **Сводный отчёт**. [3] Помогает контролировать размер дохода без разбивки по отдельным товарам, а также анализировать сумму заказов и продаж, процент выкупа и возвратов, динамику заказов и выручки за период. [3] \n* **Отчёт «Юнит-экономика»**. [7] Доступен продавцам с подпиской «Джем» в тарифах «Продвинутый» и «Премиальный». [7] Помогает оценивать маржинальность и ROI по позициям. [7] \n* **Отчёт «Доходы и расходы: показатели»**. [8] Показывает финансовые показатели магазина за выбранный период и содержит отдельную структуру доходов и расходов. [8] \n\nПо состоянию на 2 сентября 2026 года, отчёты формируются каждую неделю до среды. [5] \n\n**Посмотреть отчёты** можно в личном кабинете Wildberries или в мобильном приложении WB Partners. [1][5] \n\n**В личном кабинете**: [1]\n\n* Перейти к финансовому отчёту можно, кликнув по иконке справа от кнопки «Вывести» или нажав на три точки справа от кнопки «Продвижение». [1] \n* Другие отчёты («Аналитика продавца», «Аналитика развития бизнеса», «Аналитика поиска» и другие) можно найти, кликнув на вкладку «Аналитика». [1]\n\n**В мобильном приложении**: [1]\n\n* Зайти в приложение WB Partners, перейти в баланс и выбрать «Отчёты». [1] \n* Чтобы посмотреть другие сводки, нажать на три точки в правом нижнем углу и выбрать «Аналитика». [1]",
+      "role": "ROLE_ASSISTANT"
+    },
+    "sources": [
+      {
+        "url": "[https://tochka.com/knowledge/marketpleisy/kak-chitat-i-analizirovat-finansovye-otchyoty-wildberries/](https://tochka.com/knowledge/marketpleisy/kak-chitat-i-analizirovat-finansovye-otchyoty-wildberries/)",
+        "title": "Как читать финансовые отчёты Wildberries о продажах и реализации – Банк Точка",
+        "used": true
+      },
+      {
+        "url": "[https://sellermate.io/blog/tpost/1f6x1j3301-kak-razbirat-finansovii-otchyot-wildberr](https://sellermate.io/blog/tpost/1f6x1j3301-kak-razbirat-finansovii-otchyot-wildberr)",
+        "title": "Как читать финансовый отчет Wildberries – инструкция для селлеров",
+        "used": false
+      },
+      {
+        "url": "[https://www.insales.ru/blogs/university/kak-chitat-i-analizirovat-finansoviy-otchet-na-wb](https://www.insales.ru/blogs/university/kak-chitat-i-analizirovat-finansoviy-otchet-na-wb)",
+        "title": "Как читать и анализировать финансовый отчёт Wildberries",
+        "used": true
+      },
+      {
+        "url": "[https://a3-agency.ru/blog/tpost/lrync7m4m1-otchyoti-fundamentalnaya-analitika-dlya](https://a3-agency.ru/blog/tpost/lrync7m4m1-otchyoti-fundamentalnaya-analitika-dlya)",
+        "title": "Отчёты Wildberries 2026: полный гид по финансовой аналитике",
+        "used": true
+      },
+      {
+        "url": "[https://selsup.ru/blog/finansovy-otchet-wildberries/](https://selsup.ru/blog/finansovy-otchet-wildberries/)",
+        "title": "Отчёт о реализации Wildberries: как читать и сверять",
+        "used": true
+      },
+      {
+        "url": "[https://dzen.ru/a/alhOLzRgISluI5eg](https://dzen.ru/a/alhOLzRgISluI5eg)",
+        "title": "Как читать финансовый отчёт и детализацию Wildberries в 2026 | История Кападастра | Дзен",
+        "used": false
+      },
+      {
+        "url": "[https://planfact.io/blog/posts/finansovyj-otchet-wildberries-kak-chitat-rasshifrovat-i-poschitat-realnuyu-pribyl-na-vb](https://planfact.io/blog/posts/finansovyj-otchet-wildberries-kak-chitat-rasshifrovat-i-poschitat-realnuyu-pribyl-na-vb)",
+        "title": "Финансовый отчет Wildberries: как читать отчет ВБ и считать прибыль без ошибок",
+        "used": true
+      },
+      {
+        "url": "[https://sellermoon.ru/faq/wildberries/kak-chitat-finansovyj-otchet](https://sellermoon.ru/faq/wildberries/kak-chitat-finansovyj-otchet)",
+        "title": "Финансовый отчет Wildberries: как читать и расшифровывать данные еженедельного отчета — SELLER MOON",
+        "used": true
+      },
+      {
+        "url": "[https://totalcrm.ru/blog/2026/02/otchety-wildberries-kakie-byvayut-gde-smotret-i-kak-chitat-2026_178](https://totalcrm.ru/blog/2026/02/otchety-wildberries-kakie-byvayut-gde-smotret-i-kak-chitat-2026_178)",
+        "title": "Отчёты Wildberries для селлера в 2026: какие бывают, где найти и как читать финансовый отчёт, отчёт о реализации и сводные отчёты",
+        "used": false
+      },
+      {
+        "url": "[https://merkatys.ru/blog/article/kto-zarabotal-trilliony-finansovye-rezultaty-marketpleysov-rossii](https://merkatys.ru/blog/article/kto-zarabotal-trilliony-finansovye-rezultaty-marketpleysov-rossii)",
+        "title": "Кто заработал триллионы: финансовые результаты маркетплейсов России за 2025 год",
+        "used": false
+      }
+    ],
+    "searchQueries": [
+      {
+        "text": "отчет маркетплейса вайлдберриз",
+        "reqId": "1790301181417111-11687446508529106967-potw2dvfhhbj5s6t-BAL"
+      },
+      {
+        "text": "отчет маркетплейса wildberries за 2026 год",
+        "reqId": "1790301181795759-6185762899331940469-n5ikgyvfgwhfmclu-BAL"
+      }
+    ],
+    "fixedMisspellQuery": "",
+    "isAnswerRejected": false,
+    "isBulletAnswer": false,
+    "hints": [
+      "Как использовать сводный отчёт для анализа продаж?",
+      "Какие преимущества даёт подписка «Джем» на Wildberries?",
+      "Какие ещё виды аналитики доступны на Wildberries?"
+    ],
+    "problematicAnswer": false,
+    "transport": {
+      "wire_format": "json_array",
+      "frame_count": 1
+    }
+  },
+  "request_executed": true,
+  "automatic_retry": false
+}
