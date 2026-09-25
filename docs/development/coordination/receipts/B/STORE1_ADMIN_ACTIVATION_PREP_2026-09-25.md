@@ -6,15 +6,19 @@ Controller assignment: STREAMS-AUDIT-20260925-0726 / PREPROD_DEPLOYMENT_CORRECTI
 
 ## Exact package authority
 
-- source HEAD: 891b89f198f89e52eef78d6da89a28641e7dcdce
-- source tree: 1437625f4deda50df2cfc4c45842e422913ab0e3
+- source HEAD: e7d66152bdb77918b65115486c9829ef7a634e69
+- source tree: 01ae2c1d84a354a11d919a313f8d9909d1285b6a
 - product/extension version: 0.2.4
 - contract: control_plane_v2
 - browser family: opera
 - minimum Opera version: 136
-- current Chromium/Opera STORE ZIP SHA256: 6914b0193f16c0dbcdc5ca59e031f1e190dad6bda5ebb37d6b5d31d147efd5af
+- current Chromium/Opera STORE ZIP SHA256: 0c1fb4c9c81c600332dfb6dc2dcfb9c3221dafe9940eab3811112a4e9fc5d71c
+- release authority SHA256: 73ba767c24ed7bd365ccd83b30feb4544dae7a0950602330725ad0b583e8cbd7
+- B1 candidate manifest SHA256: 6b670838f285f3dbdfd1f471be78a83086c56fae192c83672a2d94179a7b28dd
 - current STORE ZIP filename: OCTOPORT_v0.2.4_CHROMIUM_STORE.zip
 - profile content SHA256: 878076e4e324dcc7feedebe9d55d7c96beb1a9eb2c3920cbc25f4d101e2d40bd
+Historical 891b/6914 activation evidence is superseded for package authority; its operator-path semantics remain useful only as historical evidence. This receipt is rebound to the repaired package authority handed off by C at current main.
+
 ## Source changes
 
 The ordinary admin surface now has bounded readback needed for idempotent activation:
@@ -89,10 +93,10 @@ PASS:
 Whole-sequence rehearsal uses real API/service routes for every STORE1 mutation. It starts with only a valid v2 signing/config baseline plus an already-admitted reviewer fixture, keeps global beta CLOSED, converges through release/policy/config/registry/profile/assignment, then a second complete planner pass produces zero mutations and no new audit writes.
 
 Real current package authority was also parsed from:
-- /root/octoport-control/logs/C/store-release-891b89f/candidate/B1_RC_MANIFEST.json
-- /root/octoport-control/logs/C/store-release-891b89f/candidate/OCTOPORT_v0.2.4_CHROMIUM_STORE.zip
+- /root/octoport-control/logs/C/store-release-e7d66152/candidate/B1_RC_MANIFEST.json
+- /root/octoport-control/logs/C/store-release-e7d66152/candidate/OCTOPORT_v0.2.4_CHROMIUM_STORE.zip
 
-The local bytes hash matched 6914b0193f16c0dbcdc5ca59e031f1e190dad6bda5ebb37d6b5d31d147efd5af.
+The local bytes hash matched 0c1fb4c9c81c600332dfb6dc2dcfb9c3221dafe9940eab3811112a4e9fc5d71c.
 
 ## Independent review
 

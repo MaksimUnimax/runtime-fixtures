@@ -11,11 +11,11 @@ export const STORE1_POLICY_KEY = "store1.opera.v2" as const;
 export const STORE1_PROFILE_KEY = "chatgpt-standard-opera-v1" as const;
 export const STORE1_REASON = "STORE-1 Opera reviewer catalog activation";
 export const STORE1_ACCEPTED_SOURCE_HEAD =
-  "891b89f198f89e52eef78d6da89a28641e7dcdce" as const;
+  "e7d66152bdb77918b65115486c9829ef7a634e69" as const;
 export const STORE1_ACCEPTED_SOURCE_TREE =
-  "1437625f4deda50df2cfc4c45842e422913ab0e3" as const;
+  "01ae2c1d84a354a11d919a313f8d9909d1285b6a" as const;
 export const STORE1_ACCEPTED_ARTIFACT_SHA256 =
-  "6914b0193f16c0dbcdc5ca59e031f1e190dad6bda5ebb37d6b5d31d147efd5af" as const;
+  "0c1fb4c9c81c600332dfb6dc2dcfb9c3221dafe9940eab3811112a4e9fc5d71c" as const;
 
 function selector(
   strategy:

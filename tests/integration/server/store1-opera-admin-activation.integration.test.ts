@@ -52,12 +52,12 @@ const ADMIN_USER = "30000000-0000-4000-8000-000000000003";
 const ADMIN_PRINCIPAL = "30000000-0000-4000-8000-000000000004";
 const ADMIN_PORTAL = "30000000-0000-4000-8000-000000000005";
 const authority: Store1PackageAuthority = {
-  sourceHead: "891b89f198f89e52eef78d6da89a28641e7dcdce",
-  sourceTree: "1437625f4deda50df2cfc4c45842e422913ab0e3",
+  sourceHead: "e7d66152bdb77918b65115486c9829ef7a634e69",
+  sourceTree: "01ae2c1d84a354a11d919a313f8d9909d1285b6a",
   version: STORE1_VERSION,
   contractVersion: STORE1_CONTRACT,
   artifactSha256:
-    "6914b0193f16c0dbcdc5ca59e031f1e190dad6bda5ebb37d6b5d31d147efd5af",
+    "0c1fb4c9c81c600332dfb6dc2dcfb9c3221dafe9940eab3811112a4e9fc5d71c",
   filename: "OCTOPORT_v0.2.4_CHROMIUM_STORE.zip",
 };
 const config: AppConfig = {
