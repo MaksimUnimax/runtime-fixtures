@@ -1,0 +1,118 @@
+{
+  "schema": "OCTOPORT_M13_EXTERNAL_METHOD_CORRECTION_INPUT_MANIFEST_V1",
+  "work_id": "OCTOPORT_SEO_M13_EXTERNAL_METHOD_CORRECTION_2026-09-25_R2",
+  "repository": "MaksimUnimax/runtime-fixtures",
+  "branch": "seo/wordstat-batch-01-2026-09-16",
+  "preparation_parent_head": "85f8e20fb455748564dedc91ab2084466601d4a9",
+  "preparation_commit": "77bba9b4d3774ac120f1c01c4e3b09228ccb263f",
+  "current_main_head": "651e756fb0038a2895bf870855de21e990ca2b46",
+  "preparation": {
+    "path": "docs/seo/M13_CORRECTION_STEP_PREPARATION_2026-09-25_R2.md",
+    "blob": "531e17b209fb5bb5a20b49113a1b020e4969ed1e"
+  },
+  "governing_rules": [
+    {
+      "path": "docs/seo/LEVEL1/README.md",
+      "blob": "4c3a30644ac736b926ec82bba6b1a6e33434ac06"
+    },
+    {
+      "path": "docs/seo/EXECUTION_RULES.md",
+      "blob": "4e999af4826d6f72fd15f481a698f674c8ed2d5c"
+    },
+    {
+      "path": "docs/seo/LEVEL2/M13_M18_IMPLEMENTATION_LAUNCH_MEASUREMENT_RULES.md",
+      "blob": "fe11b327eefff20f6c807581ae947a78c6bcc6e8"
+    },
+    {
+      "path": "docs/seo/PRODUCT_TRUTH.md",
+      "blob": "6a469d5743142d3e476afa5d2cda653fd411ecb8"
+    }
+  ],
+  "upstream_current": [
+    {
+      "path": "docs/seo/M11_MAIN_CHAT_CORRECTION_ACCEPTANCE_2026-09-25_R2.md",
+      "blob": "0fd15af86ba93a6eaae73b43f4507522576f0df3"
+    },
+    {
+      "path": "docs/seo/M12_MAIN_CHAT_CORRECTION_ACCEPTANCE_2026-09-25_R2.md",
+      "blob": "782f182026172009a220e80a37b9c48e4017be11"
+    }
+  ],
+  "m13_r1_authority": [
+    {
+      "path": "docs/seo/M13_SOURCE_MANIFEST.md",
+      "blob": "61e826069fbe8980f3f2a55379130c5ea79c9e20"
+    },
+    {
+      "path": "docs/seo/M13_TECHNICAL_REQUIREMENTS.tsv",
+      "blob": "c3a858e6b2497150a304fac2b150ebdca44af3cd"
+    },
+    {
+      "path": "docs/seo/M13_ROUTE_HTTP_CANONICAL_MATRIX.tsv",
+      "blob": "c78a1163fc8e0cab86a82ad7829dc3c6b3870f3f"
+    },
+    {
+      "path": "docs/seo/M13_ROBOTS_SITEMAP_INDEXING_SPEC.tsv",
+      "blob": "2c61cb5ce940f44f492965d686fc037f255d9659"
+    },
+    {
+      "path": "docs/seo/M13_METADATA_STRUCTURED_DATA_SPEC.tsv",
+      "blob": "b1bfe4de817d8f147fb74c99b95e52e440d07dd4"
+    },
+    {
+      "path": "docs/seo/M13_PERFORMANCE_MOBILE_SPEC.tsv",
+      "blob": "38d98f337ab4d784ff8642d7b83d85b33fac4348"
+    },
+    {
+      "path": "docs/seo/M13_IMPLEMENTATION_FILE_MAP.tsv",
+      "blob": "4590155b62c8c15c84474ba21f7eb199ad5ba948"
+    },
+    {
+      "path": "docs/seo/M13_ADVERSARIAL_DIAGNOSTIC.tsv",
+      "blob": "0fdd07524b8f20bba5c65047d409b2077cf145be"
+    },
+    {
+      "path": "docs/seo/M13_QA.md",
+      "blob": "3d3c392c9a56b2e4e04402067a2f47973d8bb5b2"
+    },
+    {
+      "path": "docs/seo/M13_PROGRESS.md",
+      "blob": "95691a2c1d2840d1accd14f776deb3ef34319c58"
+    }
+  ],
+  "external_sources": [
+    "https://developers.google.com/search/docs/crawling-indexing/block-indexing",
+    "https://developers.google.com/search/docs/crawling-indexing/robots-meta-tag",
+    "https://developers.google.com/search/docs/appearance/favicon-in-search",
+    "https://developers.google.com/search/docs/appearance/site-names",
+    "https://developers.google.com/search/docs/appearance/structured-data/organization",
+    "https://developers.google.com/search/docs/appearance/structured-data/software-app",
+    "https://yandex.com/support/webmaster/en/controlling-robot/metatags",
+    "https://yandex.com/support/webmaster/en/search-results/favicon",
+    "https://yandex.com/support/webmaster/en/robot-workings/vision"
+  ],
+  "correction_decisions": {
+    "privacy": "INDEXABLE_UTILITY",
+    "support": "INDEXABLE_UTILITY",
+    "install": "NOINDEX_FOLLOW_UNTIL_OFFICIAL_INSTALL_AVAILABLE",
+    "sitemap_canonical_targets": 4,
+    "favicon": "REQUIRED_120X120_PNG_APPROVED_BRAND_ASSET",
+    "website_structured_data": "REQUIRED_HOME",
+    "organization_structured_data": "DEFERRED_NOT_REQUIRED_M14",
+    "softwareapplication_structured_data": "NONE_M14",
+    "executable_javascript": "ZERO_BY_DEFAULT_JSON_LD_NON_EXECUTABLE_ALLOWED"
+  },
+  "work_trigger": {
+    "required": false,
+    "reason": "bounded deterministic full-matrix correction"
+  },
+  "publication_path": "docs/seo/**",
+  "prohibited": [
+    "site mutation",
+    "main mutation",
+    "M14 implementation",
+    "provider acquisition",
+    "invented favicon/logo",
+    "invented organization facts"
+  ]
+}
