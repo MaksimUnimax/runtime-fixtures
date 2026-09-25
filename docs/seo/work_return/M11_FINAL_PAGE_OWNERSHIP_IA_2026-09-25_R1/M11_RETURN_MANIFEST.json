@@ -1,0 +1,98 @@
+{
+  "schema": "M11_RETURN_MANIFEST_V1",
+  "work_id": "OCTOPORT_SEO_M11_FINAL_PAGE_OWNERSHIP_IA_2026-09-25_R1",
+  "start_head": "f781ff4a42a5f4f7b89dfbb19634be846eb29ec3",
+  "end_observed_head": "f781ff4a42a5f4f7b89dfbb19634be846eb29ec3",
+  "start_main_head": "7945d62854e135421c3db003c603187b9f37866b",
+  "end_main_head": "7945d62854e135421c3db003c603187b9f37866b",
+  "authority_drift_status": "NONE_FROZEN_INPUTS_AND_SITE_BLOBS_UNCHANGED",
+  "local_verdict": "PASS_LOCAL_M11_WITH_EXPLICIT_HOLDS / MAIN_CHAT_ACCEPTANCE_PENDING",
+  "files": [
+    {
+      "filename": "M11_ADVERSARIAL_DIAGNOSTIC.tsv",
+      "utf8_bytes": 14309,
+      "sha256": "bc78393eb3f2112a10f39db8b886e7fd982c6a96f01765adfd6d81233df466f6",
+      "line_count": 25,
+      "data_rows": 24,
+      "columns": 6
+    },
+    {
+      "filename": "M11_CANNIBALIZATION_GUARD.tsv",
+      "utf8_bytes": 1952,
+      "sha256": "3b20c5af3ad1f8275d7d9b5fd95de28fc35bf952b74dbf03d8b1d0b3d27ac6fc",
+      "line_count": 4,
+      "data_rows": 3,
+      "columns": 9
+    },
+    {
+      "filename": "M11_CLUSTER_FINAL_OWNERSHIP.tsv",
+      "utf8_bytes": 130322,
+      "sha256": "461c809479e6edcb6ed0e45d923f1c265d53ddbe8603362e4ca57d3caa1ce034",
+      "line_count": 105,
+      "data_rows": 104,
+      "columns": 24
+    },
+    {
+      "filename": "M11_EXISTING_SURFACE_DECISION.tsv",
+      "utf8_bytes": 4678,
+      "sha256": "7385e80cf459247aea44cd5f9ef6af2cb616b66f9ccf151df14e21a6d4850be5",
+      "line_count": 5,
+      "data_rows": 4,
+      "columns": 18
+    },
+    {
+      "filename": "M11_IA_EDGE_REGISTRY.tsv",
+      "utf8_bytes": 1404,
+      "sha256": "35a721126c81a0a6a75227c8e64f73f9fa824c12290cd00cc286299e87aad4cb",
+      "line_count": 3,
+      "data_rows": 2,
+      "columns": 9
+    },
+    {
+      "filename": "M11_MATERIAL_HOLD_RESOLUTION.tsv",
+      "utf8_bytes": 2146698,
+      "sha256": "6575180ca4d79fe4f5022f24144590dd29e6adfbace8fc9626cb960ca55ac127",
+      "line_count": 1400,
+      "data_rows": 1399,
+      "columns": 26
+    },
+    {
+      "filename": "M11_PAGE_OWNER_REGISTRY.tsv",
+      "utf8_bytes": 3056,
+      "sha256": "858b84f7e9a95bbcf749580349cf5a730151a478fb910a0c0d53ffc166c0c05d",
+      "line_count": 3,
+      "data_rows": 2,
+      "columns": 22
+    },
+    {
+      "filename": "M11_PAIRWISE_OWNER_COMPATIBILITY.tsv",
+      "utf8_bytes": 7348606,
+      "sha256": "e8cd642e967e922d83076e2d7c5282dd85abe83de5fefa5925d1c5b54b1fdb09",
+      "line_count": 5357,
+      "data_rows": 5356,
+      "columns": 37
+    },
+    {
+      "filename": "M11_QA.md",
+      "utf8_bytes": 41435,
+      "sha256": "fc5fd84f7e24e06c6910662f3cf2b91533390868759be514ab0c3d1340bd3d5c",
+      "line_count": 187
+    },
+    {
+      "filename": "M11_SOURCE_MANIFEST.md",
+      "utf8_bytes": 5780,
+      "sha256": "e48b8f9155769c8a0cd63b6717955ed5457ead99411a6a5582fb62ebbe6d751d",
+      "line_count": 60
+    }
+  ],
+  "dynamic_rows": {
+    "page_owner_registry": 2,
+    "ia_edges": 2,
+    "cannibalization_guard": 3
+  },
+  "provider_calls": 0,
+  "web_acquisition_by_work": 0,
+  "github_writes_by_work": 0,
+  "site_mutations": 0,
+  "zip_sha256_record_location": "Terminal delivery report: a ZIP cannot contain its own final SHA-256 without a circular dependency."
+}
