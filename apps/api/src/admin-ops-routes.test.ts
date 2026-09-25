@@ -773,7 +773,22 @@ describe("P6.2 admin API boundary", () => {
         (count, path) => count + Object.keys(path).length,
         0,
       ),
-    ).toBe(139);
+    ).toBe(142);
+    expect(
+      Object.keys(
+        document.paths["/v1/admin/compatibility/releases/{version}"] ?? {},
+      ),
+    ).toEqual(["get"]);
+    expect(
+      Object.keys(
+        document.paths["/v1/admin/compatibility/config-releases/latest"] ?? {},
+      ),
+    ).toEqual(["get"]);
+    expect(
+      Object.keys(
+        document.paths["/v1/admin/beta/admission/accounts/{account_id}"] ?? {},
+      ),
+    ).toEqual(["get"]);
     expect(
       Object.keys(
         document.paths["/v1/admin/compatibility/releases/{version}/publish"] ??
