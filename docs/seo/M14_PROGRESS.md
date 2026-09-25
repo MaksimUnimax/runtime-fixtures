@@ -1,22 +1,25 @@
 # Octoport SEO — M14 progress
 
 Date: 2026-09-25
-Status: **PREPARED / SOURCE IMPLEMENTATION READY / LIVE DEPLOYMENT FORBIDDEN**
-Branch: `seo/wordstat-batch-01-2026-09-16`
+Status: **SOURCE IMPLEMENTATION ACCEPTED / NOT MERGED TO MAIN / NOT DEPLOYED / M15 PREPARATION RELEASED**
+SEO branch: `seo/wordstat-batch-01-2026-09-16`
+Implementation branch: `seo/m14-site-implementation-2026-09-25-r1`
 
 ## Cursor
 
 ```text
 M0..M12 = ACCEPTED
 M13 R2 = ACCEPTED / CURRENT
-M14 = PREPARED / SOURCE IMPLEMENTATION READY
-M14 PRODUCTION DEPLOYMENT = FORBIDDEN
-M15+ = BLOCKED
+M14 = SOURCE IMPLEMENTATION ACCEPTED
+M14 MERGE TO MAIN = NOT PERFORMED
+M14 PRODUCTION DEPLOYMENT = NOT PERFORMED
+M15 = PREPARATION ALLOWED / NOT YET STARTED
+M16+ = BLOCKED
 ```
 
-## Binding M14 preparation authority
+## Binding M14 authority
 
-Step preparation:
+Preparation:
 - `docs/seo/M14_STEP_PREPARATION_2026-09-25_R1.md`
 - blob `7f57f615063a95c56d7fc6e8afb4db2b5903b7ca`
 
@@ -27,106 +30,72 @@ Input manifest:
 Implementation plan:
 - `docs/seo/M14_IMPLEMENTATION_PLAN_2026-09-25_R1.tsv`
 - blob `695393c77228dfaf72e504642b02d2f06c2e8f5a`
-- exact mutable rows = 13
 
-Pre-implementation main-drift reconciliation:
+Drift reconciliation:
 - `docs/seo/M14_PRE_IMPLEMENTATION_DRIFT_RECONCILIATION_2026-09-25_R1.md`
 - blob `8de51bdb243dd2f60abe9b6bdc8e7eb8b764259e`
 
-Current M13 authority:
-- `docs/seo/M13_MAIN_CHAT_CORRECTION_ACCEPTANCE_2026-09-25_R2.md`
-- blob `9ef006e6d3e75fde496bffde439eb97ea10df936`
+Source implementation acceptance:
+- `docs/seo/M14_SOURCE_IMPLEMENTATION_ACCEPTANCE_2026-09-25_R1.md`
+- blob `95984222a59a19bf6a97271e8496fc136bab9a09`
 
-## Preparation heads
-
-```text
-M14_PREPARATION_PARENT_SEO_HEAD = cfc5b718835f7c8cbec15370f3835e01e1fe6d48
-M14_INITIAL_FROZEN_MAIN_HEAD = 891b89f198f89e52eef78d6da89a28641e7dcdce
-M14_RECONCILED_IMPLEMENTATION_BASE = e7d66152bdb77918b65115486c9829ef7a634e69
-AUTHORITY_DRIFT_STATUS = NON_OVERLAPPING_MAIN_ADVANCE_RECONCILED
-```
-
-Before implementation branch creation, live main must be fetched once more. Any overlap with an M14 mutable/guard path reopens preparation.
-
-## Execution mode
+## Accepted source candidate
 
 ```text
-WORK_TRIGGER = false
-EXECUTOR = MAIN_CHAT_REMOTE_DESKTOP
-IMPLEMENTATION_BRANCH = seo/m14-site-implementation-2026-09-25-r1
-
-DIRECT_MAIN_EDIT = false
-FORCE_PUSH = false
-PRODUCTION_DEPLOYMENT = false
-WEBMASTER_MUTATION = false
-SEARCH_CONSOLE_MUTATION = false
-PROVIDER_CALLS = 0
+IMPLEMENTATION_BASE_MAIN = e7d66152bdb77918b65115486c9829ef7a634e69
+ACCEPTED_REMOTE_CANDIDATE = 020f351e1ddd862db4ded85622e2eeca02ea2181
+ACCEPTED_TREE = 68e8585aff942b46bf8bb38f68c577aa11390bc4
+CHANGED_PATHS = 13
+UNAUTHORIZED_CHANGED_PATHS = 0
+REMOTE_BLOB_MATCH = 13/13
 ```
 
-## Exact mutable path allowlist
-
-1. `apps/site/public/index.html`
-2. `apps/site/public/seller-analytics.html` — CREATE
-3. `apps/site/public/privacy.html`
-4. `apps/site/public/support.html`
-5. `apps/site/public/install.html`
-6. `apps/site/public/favicon.png` — CREATE
-7. `apps/site/public/sitemap.xml`
-8. `apps/site/README.md`
-9. `infra/production/nginx/octoport-site.conf`
-10. `infra/production/scripts/deploy-octoport-site.sh`
-11. `infra/production/scripts/verify-octoport-site.sh`
-12. `.github/workflows/site-ci.yml`
-13. `tests/regression/site/test_site_deployment.py`
-
-Any additional required source path = STOP / preparation amendment.
-
-## Explicit read-only / do-not-change boundaries
+## Exact-head GitHub Actions
 
 ```text
-apps/site/public/robots.txt = VERIFY_ONLY
-apps/site/public/styles.css = VERIFY_ONLY / STOP IF CHANGE NEEDED
-infra/production/nginx/octoport-apps.conf = DO_NOT_CHANGE
-apps/extension/src/assets/octoport-128.png = READ_ONLY FAVICON SOURCE
+Site CI
+RUN_ID = 36113860331
+JOB_ID = 108003228386
+RESULT = SUCCESS
 
-SERVER / API / PORTAL / EXTENSION SOURCE = DO_NOT_CHANGE
-DB / MIGRATIONS = DO_NOT_CHANGE
+Site Deploy CI
+RUN_ID = 36113860315
+JOB_ID = 108003228510
+RESULT = SUCCESS
 ```
 
-## Product/privacy reconciliation
+Both runs executed on:
+`020f351e1ddd862db4ded85622e2eeca02ea2181`.
+
+## Final source QA
 
 ```text
-PRIVACY_SUBSTANTIVE_REWRITE_REQUIRED = false
-SUPPORT_SUBSTANTIVE_REWRITE_REQUIRED = false
+git diff --check = PASS
+deploy bash syntax = PASS
+verifier bash syntax = PASS
+Site CI inline validation = PASS
+Site deployment source validation = PASS
+deploy assert_source = PASS
+site regression tests = 13/13 PASS
+favicon decode = PASS
+M13 R2 parity = PASS
+changed allowlist = 13/13 PASS
+protected blobs = 4/4 PASS
+OPEN_CRITICAL_SOURCE_DEFECTS = 0
+QUALITY_SCORE = 9.8/10
 ```
 
-Recent Firefox privacy-neutral changes do not widen the current public-site claims:
-- automatic technical metadata can be withheld;
-- current privacy wording already says limited technical metadata may be processed rather than always collected;
-- current support wording uses qualified browser availability and manual support information.
+Protected unchanged:
+- `apps/site/public/robots.txt`
+- `apps/site/public/styles.css`
+- `infra/production/nginx/octoport-apps.conf`
+- `apps/extension/src/assets/octoport-128.png`
 
-## Favicon authority
+Server/API/portal/extension implementation delta from M14 = 0.
 
-Current product mark:
+## Current implemented source contract
 
-`apps/extension/src/assets/octoport-128.png`
-- blob `23e8e957dacb1d40aa795c9ca1c265b55268b435`
-- SHA-256 `c82e9037dd1c596d5402f6dfb251660ef16655296f19bcd79c8f93a2daa1d5d5`
-- PNG 128x128 RGBA.
-
-M14 target:
-`apps/site/public/favicon.png`
-- deterministic resize to 120x120 only;
-- no crop;
-- no recolor;
-- no redraw;
-- no new logo design.
-
-`FAVICON_SOURCE_AUTHORITY = PASS`.
-
-## Current source target
-
-Commercial SEO owners:
+Commercial SEO-owner pages:
 - `https://octoport.ru/`
 - `https://octoport.ru/seller-analytics`
 
@@ -137,81 +106,62 @@ Indexable utilities:
 Crawlable noindex:
 - `https://octoport.ru/install`
 
-Sitemap:
+Sitemap target:
 - HOME
 - seller-analytics
 - privacy
 - support
 
-HOME:
-- M12 R2 Title/H1;
-- brand subheadline retained;
+HOME source includes:
+- accepted M12 R2 Title/H1;
+- retained brand subheadline;
 - favicon link;
-- WebSite JSON-LD;
-- analytics + utility HTML links;
-- executable JS = 0.
+- static WebSite JSON-LD;
+- analytics and utility crawlable HTML links;
+- zero executable public JS.
 
-## Analytics proof boundary
+Known aliases have explicit 308 canonical redirect source rules.
+Unknown route remains 404 by source contract.
+
+## Favicon lineage
+
+```text
+SOURCE = apps/extension/src/assets/octoport-128.png
+SOURCE_GIT_BLOB = 23e8e957dacb1d40aa795c9ca1c265b55268b435
+SOURCE_SHA256 = c82e9037dd1c596d5402f6dfb251660ef16655296f19bcd79c8f93a2daa1d5d5
+
+TARGET = apps/site/public/favicon.png
+TARGET_GIT_BLOB = 86cc59fca80371fc663f423845c834908951ecd9
+TARGET_SHA256 = e37c55c2f344d2f5eb08b8090939e1979f3e9e875b5d50bd5cee5e3289af5647
+TARGET_SIZE = 120x120 PNG
+```
+
+No crop/recolor/redraw/new logo design occurred.
+
+## Analytics proof / launch gate
 
 ```text
 REAL_SANITIZED_DEMO_GATE = OPEN
-SOURCE_IMPLEMENTATION_ALLOWED = true
 FAKE_ANALYTICS_PROOF = 0
-M14_LIVE_DEPLOYMENT_ALLOWED = false
-M16_LAUNCH_ALLOWED_WHILE_GATE_OPEN = false
+M14_SOURCE_IMPLEMENTATION_ACCEPTED = true
+PRODUCTION_DEPLOYMENT_ALLOWED_FROM_M14 = false
+M16_LAUNCH_ALLOWED_WHILE_PROOF_GATE_OPEN = false
 ```
 
-No durable accepted real sanitized seller-analytics demo suitable for public production was found during preparation.
-
-The M14 source page is therefore limited to verified mechanics, seller-owned permitted data/report language and generic bounded examples. No customer case, screenshot, ROI, ranking/savings metric or unverified endpoint/data category may be published.
-
-## Required source acceptance gates
-
-Before M14 may be accepted:
-
-1. `git diff --check`
-2. deploy script syntax PASS
-3. verifier script syntax PASS
-4. Site CI validation logic PASS locally
-5. `python3 -m unittest tests/regression/site/test_site_deployment.py` PASS
-6. exact changed-file allowlist = 13/13 maximum, unauthorized paths = 0
-7. `octoport-apps.conf` unchanged
-8. server/API/portal/extension source delta = 0
-9. favicon deterministic source lineage PASS
-10. M13 R2 parity PASS
-11. candidate branch remote readback PASS
-12. GitHub Site CI on exact candidate HEAD PASS
-
-## Hard preparation result
-
-```text
-M13_R2_CURRENT = PASS
-PARALLEL_SITE_OVERLAP = 0
-M14_MUTABLE_PATHS = 13
-FAVICON_SOURCE_AUTHORITY = PASS
-PRODUCT_TRUTH_REVALIDATED = PASS
-PRIVACY_REVALIDATED = PASS
-SUPPORT_REVALIDATED = PASS
-ANALYTICS_FAKE_PROOF_ALLOWED = 0
-PRODUCTION_DEPLOYMENT_ALLOWED = false
-OPEN_CRITICAL_PREPARATION_DEFECTS = 0
-
-M14_SOURCE_IMPLEMENTATION_READY = true
-```
+This does not invalidate M14 source acceptance. It remains a downstream launch gate.
 
 ## Next physical action
 
 ```text
-FRESH MAIN FETCH
--> verify no overlapping drift
--> create seo/m14-site-implementation-2026-09-25-r1 from current main
--> implement exactly the 13-path plan
--> local deterministic tests
--> changed-path / do-not-change QA
--> remote candidate publication
--> exact-head Site CI
--> Main Chat source acceptance
--> only then M15 preparation
+M15 STEP PREPARATION
+-> fresh main + SEO authority
+-> exact accepted M14 candidate readback
+-> applicable LEVEL 1 + M13-M18 LEVEL 2
+-> predeploy/live QA contract
+-> merge/deploy sequencing decision
+-> analytics proof gate treatment
+-> GitHub persist + remote readback
+-> only then M15 execution
 ```
 
-Production deployment is not part of M14.
+M14 itself did not merge to main and did not deploy production.
