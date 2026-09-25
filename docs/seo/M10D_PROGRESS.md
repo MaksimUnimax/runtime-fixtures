@@ -1,0 +1,65 @@
+# Octoport SEO — M10D progress
+
+Date: 2026-09-25
+Status: **WORK PROMPT RELEASED / AWAITING CHATGPT WORK EXECUTION**
+Branch: `seo/wordstat-batch-01-2026-09-16`
+
+## Cursor
+
+```text
+M0..M9 = ACCEPTED
+M10A = ACCEPTED / FROZEN SEARCH-ONLY BASELINE
+M10B = ACCEPTED / 15 FINAL AI CASES
+M10C = ACCEPTED / PROVIDER ACQUISITION CLOSED
+M10D = CURRENT / WORK HANDOFF RELEASED
+M11+ = BLOCKED
+```
+
+## Binding chain
+
+Step preparation:
+`docs/seo/M10D_STEP_PREPARATION_2026-09-25_R1.md`
+blob `04990733b31a943dc26213a9b622b5d7fb2b39d5`.
+
+Input manifest:
+`docs/seo/M10D_SEARCH_VS_AI_RECONCILIATION_INPUT_MANIFEST_2026-09-25_R1.json`
+blob `6b4139e7e715e6f23bd435f9a3864f882477139e`.
+
+Pre-handoff:
+`docs/seo/M10D_PRE_HANDOFF_2026-09-25_R1.md`
+blob `6bf1da935b2c6622fd6daa3e7a63821e5e3e57f7`.
+
+Canonical Work prompt:
+`docs/seo/M10D_WORK_PROMPT_2026-09-25_R1.md`
+blob `dd7695b4cc2bb61650f9855ad8c91663b7b4d1ce`.
+
+WORK_ID:
+`OCTOPORT_SEO_M10D_SEARCH_VS_AI_RECONCILIATION_2026-09-25_R1`.
+
+## Frozen accounting
+
+```text
+CASES = 15
+RAW_M10C_SNAPSHOTS = 27
+CASE_CLUSTER_XREF_ROWS = 184
+CASE_BOUNDARY_XREF_ROWS = 166
+UNIQUE_BOUNDARY_PAIR_IDS = 155
+M10A_CLUSTERS = 104
+M10A_BOUNDARIES = 1399
+SHARED_CLUSTER_TARGETS = 63
+SHARED_BOUNDARY_TARGETS = 11
+CROSS_CASE_TARGETS = 74
+```
+
+## Required Work return
+
+Exactly nine files staged under:
+`docs/seo/work_return/M10D_SEARCH_VS_AI_RECONCILIATION_2026-09-25_R1/`
+
+No provider calls.
+No web acquisition by Work.
+No GitHub writes by Work.
+No M11 execution.
+
+Owner action:
+relay the exact canonical Work prompt to ChatGPT Work.
