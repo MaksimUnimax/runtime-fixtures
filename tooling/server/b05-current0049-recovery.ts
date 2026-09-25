@@ -673,4 +673,11 @@ async function main() {
   }
 }
 
-await main();
+main().catch((error) => {
+  const code =
+    error instanceof Error && /^[A-Z0-9_]+$/.test(error.message)
+      ? error.message
+      : "B05_RECOVERY_REHEARSAL_FAILED";
+  process.stderr.write(`${code}\n`);
+  process.exitCode = 1;
+});
