@@ -85,6 +85,52 @@ class CoordinationTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "OWNERSHIP_VIOLATION"):
                 control.scope_guard("A")
 
+    def test_default_scope_base_prefers_merge_head_and_falls_back_to_head(self):
+        completed = control.subprocess.CompletedProcess(
+            ["git"], 0, stdout="c" * 40 + "\n", stderr=""
+        )
+        with patch.object(control.subprocess, "run", return_value=completed):
+            self.assertEqual(control.default_scope_base(), "c" * 40)
+        missing = control.subprocess.CompletedProcess(
+            ["git"], 1, stdout="", stderr=""
+        )
+        with patch.object(control.subprocess, "run", return_value=missing):
+            self.assertEqual(control.default_scope_base(), "HEAD")
+
+    def test_scope_guard_uses_merge_head_as_default_base(self):
+        rules = {"roles":{"A":{"allow":["apps/extension/**"],"deny":[]}}}
+        merge_head = "b" * 40
+        with (
+            patch.object(control, "policy", return_value=rules),
+            patch.object(control, "default_scope_base", return_value=merge_head),
+            patch.object(control, "git", side_effect=["apps/extension/runtime.js", ""]) as mocked_git,
+        ):
+            self.assertEqual(
+                control.scope_guard("A"),
+                ["apps/extension/runtime.js"],
+            )
+            self.assertEqual(
+                mocked_git.call_args_list[0].args,
+                ("diff", "--name-only", merge_head),
+            )
+
+    def test_explicit_scope_base_overrides_merge_detection(self):
+        rules = {"roles":{"A":{"allow":["apps/extension/**"],"deny":[]}}}
+        with (
+            patch.object(control, "policy", return_value=rules),
+            patch.object(control, "default_scope_base") as default_base,
+            patch.object(control, "git", side_effect=["apps/extension/runtime.js", ""]) as mocked_git,
+        ):
+            self.assertEqual(
+                control.scope_guard("A", "origin/main"),
+                ["apps/extension/runtime.js"],
+            )
+            default_base.assert_not_called()
+            self.assertEqual(
+                mocked_git.call_args_list[0].args,
+                ("diff", "--name-only", "origin/main"),
+            )
+
     def test_busy_heavy_slot_does_not_start_a_command(self):
         import fcntl
         with (self.root / "heavy.lock").open("a+") as lock:
