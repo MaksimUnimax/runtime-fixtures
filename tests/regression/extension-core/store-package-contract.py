@@ -104,6 +104,17 @@ with tempfile.TemporaryDirectory(prefix="octoport-store-contract-") as temp:
     assert firefox_receipt["build_mode"] == "store"
     assert firefox_receipt["package"]["name"] == "OCTOPORT_v0.2.4_FIREFOX_STORE.zip"
     assert firefox_manifest["browser_specific_settings"]["gecko"]["id"] == "octoport@octoport.ru"
+    assert firefox_manifest["browser_specific_settings"]["gecko"]["data_collection_permissions"] == {
+        "required": [
+            "authenticationInfo",
+            "personallyIdentifyingInfo",
+            "browsingActivity",
+            "websiteContent",
+            "searchTerms",
+            "financialAndPaymentInfo",
+            "personalCommunications",
+        ]
+    }
     assert "https://api.octoport.ru/*" in firefox_manifest["host_permissions"]
     assert not any(value.startswith("http://127.0.0.1") for value in firefox_manifest["host_permissions"])
 

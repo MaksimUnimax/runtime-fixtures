@@ -50,6 +50,7 @@ def main():
             runner.run(label + "-application", ["node", ROOT / "tests/regression/extension-core/application.mjs", runtime])
             runner.run(label + "-transfer-recipient-recovery", ["node", ROOT / "tests/regression/extension-core/client-i1/client-transfer-recipient-recovery.mjs", runtime])
             runner.run(label + "-support-snapshot", ["node", ROOT / "tests/regression/extension-core/client-i1/client-support-snapshot.mjs", runtime])
+            runner.run(label + "-firefox-technical-data-consent", ["node", ROOT / "tests/regression/extension-core/client-i1/firefox-technical-data-consent.mjs", runtime])
             runner.run(label + "-onboarding", ["node", ROOT / "tests/regression/extension-core/client-i1/client-onboarding.mjs", runtime])
             repo = work / label
             validation = repo / composed.baseline.OZON_REL / "validation"
