@@ -134,7 +134,7 @@ async function assertArchiveReadback(): Promise<{
   const metadata = await stat(archivePath);
   const archive = await readFile(archivePath);
   const listing = await runContainerTool(
-    ["pg_restore", "--list", "-"],
+    ["pg_restore", "--list"],
     (await import("node:fs")).createReadStream(archivePath),
   );
   const tocEntries = listing
@@ -432,6 +432,9 @@ async function main() {
     sourceRuntime = createDatabaseRuntime(sourceUrl);
     await sourceRuntime.ready();
     const sourceMigrations = await migrationFacts(sourceRuntime, journal);
+    await sourceRuntime.query(
+      "UPDATE beta_admission_state SET mode='OPEN',capacity=1,admitted=0,revision=revision+1,updated_at=now() WHERE id=1",
+    );
 
     const authKeys = deriveAuthKeys(Buffer.alloc(32, 0x49));
     const auth = new AuthService(
@@ -447,11 +450,13 @@ async function main() {
       `b05-${runId}-request`,
     );
     assert(requested.ok, "SYNTHETIC_OTP_REQUEST_FAILED");
+    const verifyIdempotencyKey = "b05-" + runId + "-verify-idempotency";
     const verified = await auth.verifyOtp(
       requested.value.challengeId,
       "490049",
       "198.51.100.49",
       `b05-${runId}-verify`,
+      verifyIdempotencyKey,
     );
     assert(verified.ok, "SYNTHETIC_OTP_VERIFY_FAILED");
     const identity = await auth.authenticate(verified.value.sessionToken);
@@ -472,6 +477,18 @@ async function main() {
     const restoredAuth = new AuthService(
       createAuthRepository(restoredRuntime),
       authKeys,
+    );
+    const restoredReplay = await restoredAuth.verifyOtp(
+      requested.value.challengeId,
+      "490049",
+      "198.51.100.49",
+      "b05-restored-verify-replay",
+      verifyIdempotencyKey,
+    );
+    assert(restoredReplay.ok, "RESTORED_AUTH_IDEMPOTENT_REPLAY_FAILED");
+    assert(
+      restoredReplay.value.sessionToken === verified.value.sessionToken,
+      "RESTORED_AUTH_REPLAY_TOKEN_MISMATCH",
     );
     const restoredIdentity = await restoredAuth.authenticate(
       verified.value.sessionToken,
