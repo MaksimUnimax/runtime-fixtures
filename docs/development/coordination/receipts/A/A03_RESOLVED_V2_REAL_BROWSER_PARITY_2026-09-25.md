@@ -19,7 +19,7 @@ C intake commit `e7d66152bdb77918b65115486c9829ef7a634e69` is not main at this r
 ## Real Opera + disposable API
 
 Accepted evidence:
-`/root/octoport-control/logs/A/A03_RESOLVED_V2_REAL_BROWSER_PARITY_20260925_R5_OPERA/result.json`.
+`/root/octoport-control/logs/A/A03_RESOLVED_V2_REAL_BROWSER_PARITY_20260925_R8_OPERA/result.json`.
 SHA-256: `4a86921003717786fecb87db62d53577de7d94bcf690ccf1f58701179c28e25e`.
 
 - real Opera binary; detected identity `opera 136.0.0.0`;
@@ -37,8 +37,8 @@ Acceptance class is real browser + disposable API. It is not LIVE_OWNER, DEPLOYM
 ## Real Firefox grant / deny / revoke + disposable API
 
 Accepted evidence:
-`/root/octoport-control/logs/A/A03_RESOLVED_V2_REAL_BROWSER_PARITY_20260925_R7_FIREFOX/result.json`.
-SHA-256: `62f54dc451f600f15f9e93e63d5068169ccc0a6eb5f03194d133185377da8137`.
+`/root/octoport-control/logs/A/A03_RESOLVED_V2_REAL_BROWSER_PARITY_20260925_R10_FIREFOX/result.json`.
+SHA-256: `edb20285512afbe0cb8e4d4298ecfe89f426ae77b630170f74c522bcdc1e1c52`.
 
 Browser: Firefox 155.0.1, temporary real add-on.
 
@@ -50,9 +50,16 @@ Observed with Firefox's real built-in data-collection permission:
 5. grant/identified bootstrap returned signed HTTP 200 `RESOLVED control_plane_v2`;
 6. real Revoke removed technical permission;
 7. revoke/privacy-neutral bootstrap again returned signed HTTP 200 `RESOLVED control_plane_v2`;
-8. five subsequent denied Health acquisitions returned local null and caused **zero additional metadata-forget requests**.
+8. revoke-triggered metadata clear reached a persisted acknowledgement before the repeated-check baseline;
+9. five subsequent denied Health acquisitions returned local null and caused **zero additional metadata-forget requests**.
 
-Safe network evidence recorded only method/path/status and request body field names. No token, session, OTP, email value, marketplace payload, or raw signed payload is persisted in the receipt.
+Safe network evidence recorded only method/path/status and request body field names. Authorization IDs are normalized out of paths; parity fixture evidence omits fixture email values. No token, session, OTP, email value, marketplace payload, or raw signed payload is persisted in the accepted evidence.
+
+## Independent review hardening
+
+Read-only Luna review of A commit `01d38a0a56ae124ee8b1f6a9bfeac77015222097` found three Medium harness gaps and one Low evidence-redaction gap: permission-query errors could masquerade as revocation, Health `allNull` was informational rather than a PASS gate, opt-out bootstrap request shape was recorded but not asserted, and synthetic fixture email values were persisted in fixture evidence.
+
+The follow-up hardening makes each item fail closed, normalizes fixture authorization IDs, redacts fixture email values in parity runs, and waits for the expected revoke-triggered metadata-clear receipt before measuring repeat Health deduplication. R8/R10 are the post-review accepted runs.
 
 ## Preservation regression
 
@@ -81,7 +88,9 @@ All new server behavior is opt-in to the parity harness. Existing fixture defaul
 
 - R1: cgroup 1536 MiB ceiling, exit 137, classified `ENVIRONMENT_RESOURCE_LIMIT`; cleanup verified.
 - R2/R3/R4/R6: harness/fixture diagnostic iterations only; not accepted as product verdicts.
-- R5 Opera and R7 Firefox are the accepted real-browser parity evidence.
+- R5 Opera and R7 Firefox were superseded after independent read-only review strengthened fail-closed assertions.
+- R9 Firefox exposed a harness timing error: the baseline was sampled before the expected grant→revoke metadata clear completed; no product verdict was taken from it.
+- R8 Opera and R10 Firefox are the accepted strengthened real-browser parity evidence.
 
 ## Remaining gates
 

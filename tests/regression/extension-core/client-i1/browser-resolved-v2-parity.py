@@ -136,7 +136,7 @@ def activate_playwright(context, popup, portal_port: str, email: str):
     portal.close()
 
 
-def opera_case(runtime: Path, email: str) -> dict:
+def opera_case(runtime: Path, email: str, network_evidence: Path) -> dict:
     result = {"status": "FAIL", "browser": "opera", "stage": "start"}
     with sync_playwright() as pw, tempfile.TemporaryDirectory(prefix="octoport-a-v2-opera-") as profile:
         ctx = pw.chromium.launch_persistent_context(
@@ -181,6 +181,14 @@ def opera_case(runtime: Path, email: str) -> dict:
             assert resolved["profileContract"] == "control_plane_v2"
             assert "opera" in resolved["profileFamilies"]
             assert resolved["browser"].get("family") == "opera"
+            opera_rows = json.loads(network_evidence.read_text()) if network_evidence.exists() else []
+            opera_bootstrap = [row for row in opera_rows if row["path"] == "/v1/bootstrap"]
+            expected_identified_keys = [
+                "browser", "contractVersion", "detectedAi", "deviceId",
+                "extensionVersion", "lastConfigVersion",
+            ]
+            if not opera_bootstrap or opera_bootstrap[-1].get("bodyKeys") != expected_identified_keys:
+                raise RuntimeError("OPERA_BOOTSTRAP_REQUEST_SHAPE_MISMATCH")
             result.update({
                 "status": "PASS",
                 "stage": "complete",
@@ -213,6 +221,27 @@ def ff_permissions(driver):
     """)
 
 
+def require_permission_list(value, phase: str):
+    if not isinstance(value, list):
+        raise RuntimeError(f"PERMISSION_QUERY_FAILED_{phase.upper()}")
+    return value
+
+
+def ff_technical_absent(driver):
+    value = ff_permissions(driver)
+    return isinstance(value, list) and TECH not in value
+
+
+def ff_technical_present(driver):
+    value = ff_permissions(driver)
+    return isinstance(value, list) and TECH in value
+
+
+def bootstrap_body_keys(network_evidence: Path):
+    rows = json.loads(network_evidence.read_text()) if network_evidence.exists() else []
+    return [row.get("bodyKeys") for row in rows if row.get("path") == "/v1/bootstrap"]
+
+
 def ff_click_prompt(driver, wait, selector: str):
     with driver.context(driver.CONTEXT_CHROME):
         wait.until(lambda d: d.find_element(By.CSS_SELECTOR, selector).is_displayed())
@@ -239,6 +268,15 @@ def ff_status(driver):
                        workAllowed:v?.workAllowed===true,
                        lastError:String(v?.lastError?.code||'')}),
               e=>done({authenticated:false,workAllowed:false,lastError:String(e?.code||e?.message||'UNAVAILABLE')}));
+    """)
+
+
+def ff_metadata_clear_acknowledged(driver):
+    return ff_async(driver, """
+      const done=arguments[arguments.length-1];
+      browser.storage.local.get('seller_agents_metadata_clear_receipt_v1')
+        .then(v=>done(v?.seller_agents_metadata_clear_receipt_v1?.version==='client_metadata_cleared_v1'),
+              ()=>done(false));
     """)
 
 
@@ -310,36 +348,64 @@ def firefox_case(addon: Path, email: str, network_evidence: Path) -> dict:
             )
         driver.get(popup_url)
         wait.until(lambda d: d.find_element(By.ID, "firefox-technical-consent").is_displayed())
-        result["stages"]["initialPermissions"] = ff_permissions(driver)
+        initial_permissions = require_permission_list(ff_permissions(driver), "initial")
+        result["stages"]["initialPermissions"] = initial_permissions
+        if TECH in initial_permissions:
+            raise RuntimeError("TECH_PERMISSION_UNEXPECTEDLY_PRESENT")
 
         # Real deny doorhanger.
         driver.find_element(By.ID, "firefox-technical-grant").click()
         time.sleep(0.4)
         ff_click_prompt(driver, wait, ".popup-notification-secondary-button")
-        wait.until(lambda d: TECH not in ff_permissions(d))
-        result["stages"]["deniedPermissions"] = ff_permissions(driver)
+        wait.until(ff_technical_absent)
+        denied_permissions = require_permission_list(ff_permissions(driver), "denied")
+        result["stages"]["deniedPermissions"] = denied_permissions
+        if TECH in denied_permissions:
+            raise RuntimeError("TECH_PERMISSION_DENY_FAILED")
 
         result["stages"]["activation"] = "STARTED"
         activate_firefox(driver, wait, popup_url, email)
         neutral = ff_bootstrap(driver)
         result["stages"]["denyNeutralBootstrap"] = neutral
+        neutral_keys = bootstrap_body_keys(network_evidence)
+        expected_neutral_keys = ["contractVersion", "detectedAi", "deviceId", "lastConfigVersion"]
+        if not neutral_keys or neutral_keys[-1] != expected_neutral_keys:
+            raise RuntimeError("DENY_BOOTSTRAP_REQUEST_NOT_NEUTRAL")
         # Real grant doorhanger, then identified bootstrap.
         wait.until(lambda d: d.find_element(By.ID, "firefox-technical-grant").is_displayed())
         driver.find_element(By.ID, "firefox-technical-grant").click()
         time.sleep(0.4)
         ff_click_prompt(driver, wait, ".popup-notification-primary-button")
-        wait.until(lambda d: TECH in ff_permissions(d))
-        result["stages"]["grantedPermissions"] = ff_permissions(driver)
+        wait.until(ff_technical_present)
+        granted_permissions = require_permission_list(ff_permissions(driver), "granted")
+        result["stages"]["grantedPermissions"] = granted_permissions
+        if TECH not in granted_permissions:
+            raise RuntimeError("TECH_PERMISSION_GRANT_FAILED")
         granted = ff_bootstrap(driver)
         result["stages"]["grantIdentifiedBootstrap"] = granted
+        grant_keys = bootstrap_body_keys(network_evidence)
+        expected_identified_keys = [
+            "browser", "contractVersion", "detectedAi", "deviceId",
+            "extensionVersion", "lastConfigVersion",
+        ]
+        if not grant_keys or grant_keys[-1] != expected_identified_keys:
+            raise RuntimeError("GRANT_BOOTSTRAP_REQUEST_NOT_IDENTIFIED")
 
         # Real revoke, then neutral bootstrap again.
         wait.until(lambda d: d.find_element(By.ID, "firefox-technical-revoke").is_displayed())
         driver.find_element(By.ID, "firefox-technical-revoke").click()
-        wait.until(lambda d: TECH not in ff_permissions(d))
-        result["stages"]["revokedPermissions"] = ff_permissions(driver)
+        wait.until(ff_technical_absent)
+        revoked_permissions = require_permission_list(ff_permissions(driver), "revoked")
+        result["stages"]["revokedPermissions"] = revoked_permissions
+        if TECH in revoked_permissions:
+            raise RuntimeError("TECH_PERMISSION_REVOKE_FAILED")
         revoked = ff_bootstrap(driver)
         result["stages"]["revokeNeutralBootstrap"] = revoked
+        revoke_keys = bootstrap_body_keys(network_evidence)
+        if not revoke_keys or revoke_keys[-1] != expected_neutral_keys:
+            raise RuntimeError("REVOKE_BOOTSTRAP_REQUEST_NOT_NEUTRAL")
+        wait.until(ff_metadata_clear_acknowledged)
+        result["stages"]["revokeMetadataClearAcknowledged"] = True
 
         before = json.loads(network_evidence.read_text()) if network_evidence.exists() else []
         before_forget = sum(1 for row in before if row["path"].endswith("/v1/devices/current/client-metadata/forget"))
@@ -367,8 +433,10 @@ def firefox_case(addon: Path, email: str, network_evidence: Path) -> dict:
             raise RuntimeError("RESOLVED_V2_BOOTSTRAP_REJECTED")
         if not all(row.get("aiStatus") == "RESOLVED" and row.get("profileContract") == "control_plane_v2" for row in expected):
             raise RuntimeError("RESOLVED_V2_PROFILE_MISMATCH")
-        if "firefox" not in neutral.get("profileFamilies", []) or "firefox" not in granted.get("profileFamilies", []):
+        if not all("firefox" in row.get("profileFamilies", []) for row in expected):
             raise RuntimeError("FIREFOX_PROFILE_FAMILY_MISMATCH")
+        if not result["stages"]["repeatedOptOutHealth"]["allNull"]:
+            raise RuntimeError("OPT_OUT_HEALTH_NOT_LOCAL_NULL")
         if result["stages"]["repeatedOptOutHealth"]["forgetDelta"] != 0:
             raise RuntimeError("METADATA_FORGET_NOT_DEDUPED")
         result["status"] = "PASS"
@@ -407,6 +475,7 @@ def main(output: Path):
         "SA_I1_PROFILE_BROWSER_FAMILIES": "opera,firefox",
         "SA_I1_FORCE_BETA_BOOTSTRAP": "1",
         "SA_I1_ENABLE_LOCAL_CLIENT_AUTHORITY": "1",
+        "SA_I1_REDACT_FIXTURE_IDENTITIES": "1",
     }
     processes = []
     logs = []
@@ -467,7 +536,7 @@ def main(output: Path):
         if selected not in {"all", "opera", "firefox"}:
             raise RuntimeError("INVALID_PARITY_BROWSER")
         if selected in {"all", "opera"}:
-            result["opera"] = opera_case(common / "runtime", fixture_email("one", namespace))
+            result["opera"] = opera_case(common / "runtime", fixture_email("one", namespace), network_evidence)
         if selected in {"all", "firefox"}:
             result["firefox"] = firefox_case(firefox_zip, fixture_email("two", namespace), network_evidence)
         result["fixture"] = {

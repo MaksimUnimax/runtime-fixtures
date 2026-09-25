@@ -407,8 +407,12 @@ const safeNetworkEvents: Array<{
 }> = [];
 if (networkEvidencePath)
   app.addHook("onResponse", async (request, reply) => {
-    const path = request.url.split("?", 1)[0];
-    if (!path.startsWith("/v1/")) return;
+    const rawPath = request.url.split("?", 1)[0];
+    if (!rawPath.startsWith("/v1/")) return;
+    const path = rawPath.replace(
+      /^\/v1\/device-authorizations\/[0-9a-f-]{36}(?=\/|$)/i,
+      "/v1/device-authorizations/{authorizationId}",
+    );
     const body = request.body;
     safeNetworkEvents.push({
       method: request.method,
@@ -600,7 +604,9 @@ async function prepareExistingFixtureAccounts(): Promise<void> {
         existing_fixture_accounts: 2,
         beta_unchanged: true,
         fixture_namespace: fixtureNamespace,
-        fixture_emails: emails,
+        ...(process.env.SA_I1_REDACT_FIXTURE_IDENTITIES === "1"
+          ? {}
+          : { fixture_emails: emails }),
         profile_contract_version: fixtureProfileContractVersion,
         profile_browser_families: fixtureProfileBrowserFamilies,
       }),
