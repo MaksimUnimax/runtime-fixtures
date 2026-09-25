@@ -23,6 +23,26 @@ function pageLimit(input: number): number {
 function date(value: unknown): Date {
   return new Date(String(value));
 }
+function deviceClientMetadata(
+  browserFamily: string | null,
+  browserVersion: string | null,
+  extensionVersion: string | null,
+): SafeDevice["clientMetadata"] {
+  if (
+    browserFamily === null &&
+    browserVersion === null &&
+    extensionVersion === null
+  )
+    return { state: "WITHHELD" };
+  if (browserFamily !== null && extensionVersion !== null)
+    return {
+      state: "PRESENT",
+      browserFamily,
+      browserVersion,
+      extensionVersion,
+    };
+  throw new Error("ADMIN_DEVICE_CLIENT_METADATA_CORRUPTED");
+}
 function jsonEmails(
   value: unknown,
 ): { email: string; verifiedAt: Date | null }[] {
@@ -321,24 +341,31 @@ export function createAdminOpsRepository(
         `SELECT id,status,label,browser_family,browser_version_last_seen,extension_version_last_seen,created_at,activated_at,last_seen_at,revoked_at FROM devices ${buildWhere(clauses)} ORDER BY created_at DESC,id DESC LIMIT $${values.length + 1}`,
         [...values, limit + 1],
       );
-      const items = result.rows.slice(0, limit).map(
-        (row): SafeDevice => ({
+      const items = result.rows.slice(0, limit).map((row): SafeDevice => {
+        const metadata = deviceClientMetadata(
+          row.browser_family as string | null,
+          row.browser_version_last_seen as string | null,
+          row.extension_version_last_seen as string | null,
+        );
+        const common = {
           id: String(row.id),
           status: String(row.status) as SafeDevice["status"],
           label: row.label as string | null,
-          browserFamily: String(row.browser_family),
-          browserVersionLastSeen: row.browser_version_last_seen as
-            | string
-            | null,
-          extensionVersionLastSeen: row.extension_version_last_seen as
-            | string
-            | null,
           createdAt: date(row.created_at),
           activatedAt: row.activated_at ? date(row.activated_at) : null,
           lastSeenAt: row.last_seen_at ? date(row.last_seen_at) : null,
           revokedAt: row.revoked_at ? date(row.revoked_at) : null,
-        }),
-      );
+        };
+        if (metadata.state === "WITHHELD")
+          return { ...common, clientMetadata: metadata };
+        return {
+          ...common,
+          clientMetadata: metadata,
+          browserFamily: metadata.browserFamily,
+          browserVersionLastSeen: metadata.browserVersion,
+          extensionVersionLastSeen: metadata.extensionVersion,
+        };
+      });
       return {
         items,
         ...(result.rows.length > limit && items.length
