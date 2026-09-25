@@ -82,3 +82,45 @@ No final planned URLs/H1/Title/content specs.
 
 Owner action:
 relay exact canonical M11 Work prompt to ChatGPT Work.
+
+
+## Main Chat two-level revalidation — 2026-09-25
+
+```text
+LIVE_SEO_HEAD = 27dd34a165fe5a84d73cc571012c65980f8b1734
+LIVE_MAIN_HEAD = 7945d62854e135421c3db003c603187b9f37866b
+
+ROADMAP_READ = PASS
+LEVEL1_READ = PASS
+APPLICABLE_LEVEL2_READ = PASS
+FAILURE_HISTORY_READ = PASS
+M10D_ACCEPTANCE_READ = PASS
+M11_AUTHORITY_CHAIN_READBACK = PASS
+
+FRESH_METHOD_CHECK = PASS
+SITE_STRUCTURE_GUIDANCE_CHECK = PASS
+CANONICAL_DUPLICATE_GUIDANCE_CHECK = PASS
+
+HOME_BLOB_MATCH = true
+INSTALL_BLOB_MATCH = true
+PRIVACY_BLOB_MATCH = true
+SUPPORT_BLOB_MATCH = true
+
+AUTHORITY_DRIFT = NONE
+M11_R1_REWORK_REQUIRED = false
+M11_WORK_RELEASE = VALID
+```
+
+Fresh official Yandex method sources checked:
+- https://www.yandex.com/support/webmaster/en/recommendations/site-structure
+- https://yandex.com/support/webmaster/en/robot-workings/canonical
+- https://yandex.com/support/webmaster/en/robot-workings/double
+
+Method application remains:
+- clear crawlable link hierarchy;
+- no orphan assigned indexable owner;
+- no duplicate-purpose owner pages;
+- canonical/duplicate risk must be prevented by architecture rather than hidden later;
+- no fake CREATE.
+
+The existing M11 R1 preparation / manifest / pre-handoff / canonical prompt remain executable without R2.
