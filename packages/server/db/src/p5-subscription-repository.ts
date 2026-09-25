@@ -16,6 +16,7 @@ import {
   type SubscriptionState,
 } from "@product/subscriptions";
 import type { DatabaseQuery, DatabaseRuntime } from "./index.js";
+import { materializeDueCurrentSubscriptionLocked } from "./p5-current-subscription-materializer.js";
 import { safeAuditReason } from "./safe-audit.js";
 
 type Query = Pick<DatabaseQuery, "query">;
@@ -213,8 +214,8 @@ export function createP5SubscriptionRepository(
   ): Promise<SubscriptionCommandResult> {
     const command = GrantSubscriptionCommandSchema.parse(rawCommand);
     const context = SubscriptionMutationContextSchema.parse(rawContext);
-    const capturedNow = now();
-    if (!(command.currentPeriodEnd > capturedNow))
+    const preflightNow = now();
+    if (!(command.currentPeriodEnd > preflightNow))
       return rejection("SUBSCRIPTION_PERIOD_INVALID");
     return runtime.transaction(async (q) => {
       await beforeMutation?.({
@@ -225,11 +226,18 @@ export function createP5SubscriptionRepository(
       });
       if (!(await accountLock(q, command.accountId)))
         return rejection("ACCOUNT_NOT_FOUND");
-      const existing = await q.query<{ id: string }>(
-        "SELECT id FROM subscriptions WHERE account_id=$1 AND state <> 'EXPIRED' LIMIT 1",
-        [command.accountId],
-      );
-      if (existing.rows[0]) return rejection("SUBSCRIPTION_ALREADY_EXISTS");
+      const lockedNow = now();
+      if (!(command.currentPeriodEnd > lockedNow))
+        return rejection("SUBSCRIPTION_PERIOD_INVALID");
+      const current = await materializeDueCurrentSubscriptionLocked(q, {
+        accountId: command.accountId,
+        at: lockedNow,
+        correlationId: context.correlationId,
+      });
+      if (current.kind === "CORRUPTED")
+        return rejection("SUBSCRIPTION_CORRUPTED");
+      if (current.kind === "CURRENT")
+        return rejection("SUBSCRIPTION_ALREADY_EXISTS");
       const plan = await q.query<{ id: string }>(
         "SELECT id FROM plan_revisions WHERE id=$1 AND state='PUBLISHED'",
         [command.planRevisionId],
@@ -255,13 +263,13 @@ export function createP5SubscriptionRepository(
         [
           command.accountId,
           command.planRevisionId,
-          capturedNow,
+          lockedNow,
           command.currentPeriodEnd,
           context.reason,
         ],
       );
       const value = snapshot(inserted.rows[0]!);
-      await insertTransition(q, value.id, null, "ACTIVE", context, capturedNow);
+      await insertTransition(q, value.id, null, "ACTIVE", context, lockedNow);
       await audit(q, context, "SUBSCRIPTION_GRANTED", value.id, {
         accountId: value.accountId,
         planRevisionId: value.currentPlanRevisionId,
@@ -284,7 +292,6 @@ export function createP5SubscriptionRepository(
     const context = SubscriptionMutationContextSchema.parse(rawContext);
     const accountId = await subscriptionAccountId(runtime, subscriptionId);
     if (!accountId) return rejection("SUBSCRIPTION_NOT_FOUND");
-    const capturedNow = now();
     return runtime.transaction(async (q) => {
       await beforeMutation?.({
         tx: q,
@@ -295,6 +302,16 @@ export function createP5SubscriptionRepository(
       });
       await advisoryLock(q, `p5-subscription-account:${accountId}`);
       await advisoryLock(q, `p5-subscription:${subscriptionId}`);
+      const lockedNow = now();
+      if (operation === "EXTEND") {
+        const materialized = await materializeDueCurrentSubscriptionLocked(q, {
+          accountId,
+          at: lockedNow,
+          correlationId: context.correlationId,
+        });
+        if (materialized.kind === "CORRUPTED")
+          return rejection("SUBSCRIPTION_CORRUPTED");
+      }
       const current = await loadSubscription(q, subscriptionId, true);
       if (!current) return rejection("SUBSCRIPTION_NOT_FOUND");
       const value = snapshot(current);
@@ -316,7 +333,7 @@ export function createP5SubscriptionRepository(
              started_at AS "startedAt",current_period_start AS "currentPeriodStart",current_period_end AS "currentPeriodEnd",
              grace_until AS "graceUntil",cancel_at_period_end AS "cancelAtPeriodEnd",canceled_at AS "canceledAt",
              suspended_at AS "suspendedAt",created_at AS "createdAt",updated_at AS "updatedAt"`,
-          [newEnd, capturedNow, subscriptionId],
+          [newEnd, lockedNow, subscriptionId],
         );
         const next = snapshot(updated.rows[0]!);
         await audit(q, context, "SUBSCRIPTION_EXTENDED", next.id, {
@@ -344,7 +361,7 @@ export function createP5SubscriptionRepository(
              started_at AS "startedAt",current_period_start AS "currentPeriodStart",current_period_end AS "currentPeriodEnd",
              grace_until AS "graceUntil",cancel_at_period_end AS "cancelAtPeriodEnd",canceled_at AS "canceledAt",
              suspended_at AS "suspendedAt",created_at AS "createdAt",updated_at AS "updatedAt"`,
-          [capturedNow, context.reason, subscriptionId],
+          [lockedNow, context.reason, subscriptionId],
         );
         const next = snapshot(updated.rows[0]!);
         const transitionRevision = await insertTransition(
@@ -353,7 +370,7 @@ export function createP5SubscriptionRepository(
           value.state,
           "SUSPENDED",
           context,
-          capturedNow,
+          lockedNow,
         );
         await audit(q, context, "SUBSCRIPTION_SUSPENDED", next.id, {
           accountId: next.accountId,
@@ -383,11 +400,11 @@ export function createP5SubscriptionRepository(
         origin.fromState === "ACTIVE" ||
         origin.fromState === "CANCELED"
       ) {
-        if (!(capturedNow < value.currentPeriodEnd))
+        if (!(lockedNow < value.currentPeriodEnd))
           return rejection("SUBSCRIPTION_PERIOD_ENDED");
       } else if (origin.fromState === "GRACE") {
         if (!value.graceUntil) return rejection("SUBSCRIPTION_CORRUPTED");
-        if (!(capturedNow < value.graceUntil))
+        if (!(lockedNow < value.graceUntil))
           return rejection("SUBSCRIPTION_GRACE_ENDED");
       }
       const updated = await q.query<Row>(
@@ -397,7 +414,7 @@ export function createP5SubscriptionRepository(
            started_at AS "startedAt",current_period_start AS "currentPeriodStart",current_period_end AS "currentPeriodEnd",
            grace_until AS "graceUntil",cancel_at_period_end AS "cancelAtPeriodEnd",canceled_at AS "canceledAt",
            suspended_at AS "suspendedAt",created_at AS "createdAt",updated_at AS "updatedAt"`,
-        [origin.fromState, context.reason, capturedNow, subscriptionId],
+        [origin.fromState, context.reason, lockedNow, subscriptionId],
       );
       const next = snapshot(updated.rows[0]!);
       const transitionRevision = await insertTransition(
@@ -406,7 +423,7 @@ export function createP5SubscriptionRepository(
         "SUSPENDED",
         origin.fromState,
         context,
-        capturedNow,
+        lockedNow,
       );
       await audit(q, context, "SUBSCRIPTION_RESTORED", next.id, {
         accountId: next.accountId,

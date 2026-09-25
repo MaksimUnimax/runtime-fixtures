@@ -14,6 +14,7 @@ import {
   createDatabaseRuntime,
   createP5BillingEventRepository,
   createP5CheckoutRepository,
+  createP5SubscriptionLifecycleRepository,
   type DatabaseRuntime,
 } from "../../../packages/server/db/src/index.js";
 import { runMigrations } from "../../../packages/server/db/src/migrations.js";
@@ -1396,6 +1397,151 @@ describe.sequential(
       );
       await deliver(f);
       expect(await rows("subscriptions")).toHaveLength(2);
+    });
+
+    it("94a materializes stale ACTIVE before webhook activation without waiting for lifecycle worker", async () => {
+      const f = await fixture();
+      const staleId = id();
+      const start = new Date("2030-09-06T00:00:00.000Z");
+      const due = new Date("2030-09-07T12:07:00.000Z");
+      await q(
+        "INSERT INTO subscriptions(id,account_id,state,state_revision,current_plan_revision_id,started_at,current_period_start,current_period_end,state_reason,created_at,updated_at) VALUES($1,$2,'ACTIVE',1,$3,$4,$4,$5,'stale active',$4,$4)",
+        [staleId, f.accountId, f.planRevisionId, start, due],
+      );
+      await q(
+        "INSERT INTO subscription_transitions(subscription_id,transition_revision,to_state,source,actor_type,reason,occurred_at) VALUES($1,1,'ACTIVE','ADMIN','SYSTEM','stale fixture',$2)",
+        [staleId, start],
+      );
+      const result = applied(await deliver(f));
+      expect(result.subscriptionId).not.toBe(staleId);
+      expect(
+        (
+          await q<{ state: string }>(
+            "SELECT state FROM subscriptions WHERE id=$1",
+            [staleId],
+          )
+        ).rows[0]?.state,
+      ).toBe("EXPIRED");
+      expect(
+        (
+          await q<{ count: string }>(
+            "SELECT count(*)::text AS count FROM subscriptions WHERE account_id=$1 AND state <> 'EXPIRED'",
+            [f.accountId],
+          )
+        ).rows[0]?.count,
+      ).toBe("1");
+      expect(
+        (
+          await q<{
+            from_state: string | null;
+            to_state: string;
+            occurred_at: Date;
+          }>(
+            "SELECT from_state,to_state,occurred_at FROM subscription_transitions WHERE subscription_id=$1 ORDER BY transition_revision",
+            [staleId],
+          )
+        ).rows.map((row) => ({
+          fromState: row.from_state,
+          toState: row.to_state,
+          occurredAt: new Date(row.occurred_at).toISOString(),
+        })),
+      ).toEqual([
+        { fromState: null, toState: "ACTIVE", occurredAt: start.toISOString() },
+        {
+          fromState: "ACTIVE",
+          toState: "EXPIRED",
+          occurredAt: due.toISOString(),
+        },
+      ]);
+    });
+
+    it("94b worker-first and inline-first produce the same stale-subscription semantic history", async () => {
+      const f = await fixture();
+      const staleId = id();
+      const start = new Date("2030-09-06T00:00:00.000Z");
+      const due = new Date("2030-09-07T12:07:00.000Z");
+      await q(
+        "INSERT INTO subscriptions(id,account_id,state,state_revision,current_plan_revision_id,started_at,current_period_start,current_period_end,state_reason,created_at,updated_at) VALUES($1,$2,'ACTIVE',1,$3,$4,$4,$5,'stale active',$4,$4)",
+        [staleId, f.accountId, f.planRevisionId, start, due],
+      );
+      await q(
+        "INSERT INTO subscription_transitions(subscription_id,transition_revision,to_state,source,actor_type,reason,occurred_at) VALUES($1,1,'ACTIVE','ADMIN','SYSTEM','stale fixture',$2)",
+        [staleId, start],
+      );
+      const worker = createP5SubscriptionLifecycleRepository(db);
+      expect(
+        await worker.processDue({
+          now: clock,
+          batchSize: 10,
+          correlationId: id(),
+        }),
+      ).toMatchObject({ transitioned: 1, corrupted: 0 });
+      const result = applied(await deliver(f));
+      expect(result.subscriptionId).not.toBe(staleId);
+      const semanticHistory = (
+        await q<{
+          from_state: string | null;
+          to_state: string;
+          occurred_at: Date;
+        }>(
+          "SELECT from_state,to_state,occurred_at FROM subscription_transitions WHERE subscription_id=$1 ORDER BY transition_revision",
+          [staleId],
+        )
+      ).rows.map((row) => ({
+        fromState: row.from_state,
+        toState: row.to_state,
+        occurredAt: new Date(row.occurred_at).toISOString(),
+      }));
+      expect(semanticHistory).toEqual([
+        { fromState: null, toState: "ACTIVE", occurredAt: start.toISOString() },
+        {
+          fromState: "ACTIVE",
+          toState: "EXPIRED",
+          occurredAt: due.toISOString(),
+        },
+      ]);
+      expect(
+        (
+          await q<{ count: string }>(
+            "SELECT count(*)::text AS count FROM subscriptions WHERE account_id=$1 AND state <> 'EXPIRED'",
+            [f.accountId],
+          )
+        ).rows[0]?.count,
+      ).toBe("1");
+    });
+
+    it("94c immediately expires a delayed-success subscription whose provider period already ended", async () => {
+      clock = new Date("2030-09-09T12:10:00.000Z");
+      const f = await fixture({ intervalUnit: "DAY", intervalCount: 1 });
+      const result = applied(await deliver(f));
+      const subscriptionId = result.subscriptionId!;
+      expect(
+        (
+          await q<{ state: string; current_period_end: Date }>(
+            "SELECT state,current_period_end FROM subscriptions WHERE id=$1",
+            [subscriptionId],
+          )
+        ).rows[0],
+      ).toMatchObject({ state: "EXPIRED" });
+      expect(
+        (
+          await q<{ from_state: string | null; to_state: string }>(
+            "SELECT from_state,to_state FROM subscription_transitions WHERE subscription_id=$1 ORDER BY transition_revision",
+            [subscriptionId],
+          )
+        ).rows.map((row) => [row.from_state, row.to_state]),
+      ).toEqual([
+        [null, "ACTIVE"],
+        ["ACTIVE", "EXPIRED"],
+      ]);
+      expect(
+        (
+          await q<{ count: string }>(
+            "SELECT count(*)::text AS count FROM subscriptions WHERE account_id=$1 AND state <> 'EXPIRED'",
+            [f.accountId],
+          )
+        ).rows[0]?.count,
+      ).toBe("0");
     });
 
     it("95 current EXPIRED history is not linked by new payment", async () => {

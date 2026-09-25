@@ -11,6 +11,7 @@ import {
   type VerifiedBillingEvent,
 } from "@product/billing";
 import type { DatabaseQuery, DatabaseRuntime } from "./index.js";
+import { materializeDueCurrentSubscriptionLocked } from "./p5-current-subscription-materializer.js";
 
 type Query = Pick<DatabaseQuery, "query">;
 type PaymentState =
@@ -481,11 +482,25 @@ export function createP5BillingEventRepository(
           return resultFromTerminal(failed, false);
         }
 
-        const current = await q.query<{ id: string }>(
-          "SELECT id FROM subscriptions WHERE account_id=$1 AND state <> 'EXPIRED' LIMIT 1 FOR UPDATE",
-          [payment.accountId],
-        );
-        if (current.rows[0]) {
+        const current = await materializeDueCurrentSubscriptionLocked(q, {
+          accountId: payment.accountId,
+          at: input.receivedAt,
+          correlationId: context.correlationId,
+        });
+        if (current.kind === "CORRUPTED") {
+          const failed = await terminalize(
+            q,
+            ledger.id,
+            "FAILED",
+            input.receivedAt,
+            {
+              paymentId: payment.id,
+              failureCode: "PAYMENT_SUBSCRIPTION_CORRUPTED",
+            },
+          );
+          return resultFromTerminal(failed, false);
+        }
+        if (current.kind === "CURRENT") {
           const failed = await terminalize(
             q,
             ledger.id,
@@ -550,6 +565,14 @@ export function createP5BillingEventRepository(
             transitionRevision: 1,
           },
         );
+        const activatedLifecycle =
+          await materializeDueCurrentSubscriptionLocked(q, {
+            accountId: payment.accountId,
+            at: input.receivedAt,
+            correlationId: context.correlationId,
+          });
+        if (activatedLifecycle.kind === "CORRUPTED")
+          throw new Error("SUBSCRIPTION_CORRUPTED");
         const applied = await terminalize(
           q,
           ledger.id,
