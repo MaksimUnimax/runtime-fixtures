@@ -61,12 +61,25 @@ Firefox development package manifest evidence:
 
 Mozilla Firefox built-in data-consent documentation and permissions API documentation were rechecked on 2026-09-25. The implementation follows the documented optional `data_collection` permission model and direct user-action requirement for permission requests.
 
+## Full extension_core evidence
+
+A clean-source merge rehearsal against fresh `origin/main=7945d62854e135421c3db003c603187b9f37866b` was resolved without changing accepted B05 content. The first heavy run correctly stopped on the stale store-package assertion that still required only the Firefox `required` disclosure object. The assertion was updated to require the exact new shape: unchanged required categories plus `optional: ["technicalAndInteraction"]`; the standalone store-package contract then PASSed.
+
+The repeated full run used the required runtime and runner:
+- `PATH=/root/.nvm/versions/node/v24.20.0/bin:$PATH`
+- `python3 tooling/coordination/control.py A heavy --profile browser -- python3 tooling/checks/extension_core.py --output /root/octoport-control/logs/A/A03_FIREFOX_PRIVACY_NEUTRAL_FINAL_R2/core`
+
+Result: `PASS`, 129/129 gates, Node `v24.20.0`, `live_provider_calls=0`, `installed_acceptance=false`.
+Evidence: `/root/octoport-control/logs/A/A03_FIREFOX_PRIVACY_NEUTRAL_FINAL_R2/core/summary.json` and `gates.json`.
+
+The merge commit itself was not manufactured: `A guard --base origin/main` accepted only A-owned delta, but the repository pre-commit hook re-runs default `A guard` and therefore rejects already-accepted B05 files introduced by the upstream merge. Hooks were not disabled or bypassed. The merge rehearsal was aborted after evidence collection; the A-only checkpoint remained intact.
+
 ## Remaining gates
 
-- Fresh `origin/main` is now `7945d62854e135421c3db003c603187b9f37866b`; this checkpoint must be merged/retested.
-- Full `python3 tooling/coordination/control.py A heavy -- python3 tooling/checks/extension_core.py` has not yet been run on the final merged tree.
+- A-only final candidate must include the exact store-package assertion update and be re-run on its exact SHA before submit.
 - Compatible privacy-neutral server/database/shared-schema implementation is not deployed; no privacy-neutral request was sent to old live/preprod.
 - No real Firefox installed grant/decline/revoke proof yet.
 - No AMO submission/readiness claim.
+- Coordination review is needed for the merge-aware pre-commit hook behavior; A will not bypass it.
 
-Verdict: SOURCE/FOCUSED/PACKAGE_CHECKPOINT_PASS_NOT_ACCEPTED.
+Verdict: SOURCE/FOCUSED/PACKAGE/FULL_EXTENSION_CORE_PASS_NOT_ACCEPTED.
