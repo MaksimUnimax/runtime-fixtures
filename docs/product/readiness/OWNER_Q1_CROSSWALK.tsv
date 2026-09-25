@@ -1,8 +1,8 @@
 ID	Требование	Исторический_статус_не_текущая_приёмка	Режим	Действие	Критерий	Статус_новой_сборки
 Q1C-OTP-01	Real OTP account login device activation Bootstrap	BLOCKED_REAL_MAIL	SHARED_READY_WINDOW	Открыть реальный ящик и ввести код в официальный портал; пароль/код не передавать чату	Mailbox arrival plus login device and Bootstrap pass	REVERIFY_EXACT_RC
-Q1C-EXT-03	Extension authorization/device binding	READY	SHARED_READY_WINDOW	Authorize unchanged extension for logged-in account	Account/device binds without secret exposure	REVERIFY_EXACT_RC
+Q1C-EXT-03	Extension authorization/device binding	READY	SHARED_READY_WINDOW	Authorize unchanged extension for logged-in account	Account/device binds without secret exposure	PASS_REAL_BROWSER_DISPOSABLE_DEVICE_AUTH__LIVE_OWNER_LOGIN_BINDING_OPEN
 Q1C-BS-04	Signed Bootstrap/account binding/reopen	READY	AUTO_FIRST	A/B/C готовят доказательство; владелец только для выбранного короткого UX-контроля	Preprod trust identity and beta permissions accepted	PASS_REAL_BROWSER_DISPOSABLE_SIGNED_BOOTSTRAP__LIVE_OWNER_BINDING_REOPEN_OPEN
-Q1C-AUTH-02	Logout and re-login invalidation	READY	SHARED_READY_WINDOW	Logout then re-login using real mailbox	Old session invalidated and new session valid	REVERIFY_EXACT_RC
+Q1C-AUTH-02	Logout and re-login invalidation	READY	SHARED_READY_WINDOW	Logout then re-login using real mailbox	Old session invalidated and new session valid	PASS_AUTOMATED_SESSION_INVALIDATION__LIVE_OWNER_RELOGIN_AND_NEW_SESSION_VALIDITY_OPEN
 Q1C-BETA-05	Free-beta non-commercial UX	READY	AUTO_FIRST	A/B/C готовят доказательство; владелец только для выбранного короткого UX-контроля	No checkout payment prompt or commercial denial	PASS_AUTOMATED_FREE_BETA_POLICY__LIVE_DEPLOYED_UX_OPEN
 Q1C-OZON-06	Ozon store add/validation	BLOCKED_OWNER_CREDENTIAL	SHARED_READY_WINDOW	Add one Ozon store in UI	Store validates or honest provider failure	REVERIFY_EXACT_RC
 Q1C-OZON-07	Ozon Start/read-only command	BLOCKED_OWNER_CREDENTIAL	SHARED_READY_WINDOW	Run one bounded read-only Ozon command	Correct binding and safe result	REVERIFY_EXACT_RC
@@ -23,7 +23,7 @@ Q1C-UNKNOWN-21	Provider UNKNOWN no replay	ALREADY_ACCEPTED_AUTOMATED	AUTO_FIRST	
 Q1C-429-22	429 retry safety	ALREADY_ACCEPTED_AUTOMATED	AUTO_FIRST	Не создавать искусственно на реальной площадке; только детерминированные проверки	Retry-After policy remains green	PASS_AUTOMATED_EXACT_RC
 Q1C-FINISH-23	Finish abort semantics	READY	AUTO_FIRST	A/B/C готовят доказательство; владелец только для выбранного короткого UX-контроля	Work terminates and stale command does not run	PASS_AUTOMATED_PRESERVATION__OWNER_UX_OPTIONAL
 Q1C-TRANSFER-24	Transfer owner UX	BLOCKED_OWNER_BROWSER	SHARED_READY_WINDOW	Initiate and confirm one safe transfer	UX completes without secret evidence	REVERIFY_EXACT_RC
-Q1C-EXPORT-25	Export/import owner UX	READY	SHARED_READY_WINDOW	Export then import through product UI	Local state restores without uploading artifact	REVERIFY_EXACT_RC
+Q1C-EXPORT-25	Export/import owner UX	READY	SHARED_READY_WINDOW	Export then import through product UI	Local state restores without uploading artifact	PASS_INSTALLED_SYNTHETIC_EXPORT_IMPORT__LIVE_OWNER_UX_OPEN
 Q1C-B2-26	Feedback/support UX	READY	AUTO_FIRST	A/B/C готовят доказательство; владелец только для выбранного короткого UX-контроля	Case ID and safe diagnostics only	PASS_AUTOMATED_SERVER_FOUNDATION__LIVE_OWNER_UX_OPEN
 Q1C-HEALTH-27	Live Work Health provenance	STREAM2_DEPENDENCY	SHARED_READY_WINDOW	Observe one live Work Health result	Authoritative passive provenance recorded by Stream-2 owner	REVERIFY_EXACT_RC
 Q1C-CHROME-28	Real Chrome manual smoke	BLOCKED_OWNER_BROWSER	SHARED_READY_WINDOW	Install/open popup/auth-state harmless smoke	Direct Chrome evidence only	ENVIRONMENT_GATE_REAL_CHROME_TARGET_UNAVAILABLE
