@@ -1,0 +1,105 @@
+{
+  "bridge": "yandex-marketing-bridge",
+  "version": "0.1.9",
+  "service": "search",
+  "operation": "genSearch",
+  "request_id": "search-3b34e519-963c-46e5-ba86-f05b49475994",
+  "run_id": null,
+  "status": "OK",
+  "reason": null,
+  "cost_estimate": {
+    "estimated_rub": 5.08,
+    "tariff_checked_at": "2026-08-19",
+    "tariff_source": "[https://aistudio.yandex.ru/docs/ru/search-api/pricing.html](https://aistudio.yandex.ru/docs/ru/search-api/pricing.html)"
+  },
+  "policy": {
+    "channel": "manual",
+    "active_service": "search"
+  },
+  "command": {
+    "method": "genSearch",
+    "queryText": "отчет маркетплейса озон",
+    "confirmBillable": true
+  },
+  "http_status": 200,
+  "elapsed_ms": 5181,
+  "result": {
+    "mode": "generative",
+    "message": {
+      "content": "Возможно, имелся в виду **отчёт о реализации Ozon** — официальный бухгалтерский документ, который предоставляет финальные данные продаж, возвратов, скидок и списаний на платформе. [2] \n\n**Отчёт формируется раз в месяц** и служит основой для налогового учёта и отчётности. [2] Документ включает детализацию по каждому заказу и итоговые суммы. [2] \n\n**Чтобы найти отчёт**, нужно: [2]\n\n1. Перейти в личный кабинет Ozon Seller. [2]\n2. Открыть раздел «Финансы». [2]\n3. Выбрать пункт «Отчёты о реализации». [2]\n4. Скачать нужный документ за интересующий месяц. [2] \n\n**В отчёте есть три блока**: [4]\n\n1. **Общие сведения**. [4] Название товара, артикул продавца, код Ozon, штрих-код. [4] \n2. **«Реализовано»**. [4] Реализовано на сумму (грязная выручка), количество единиц, цена реализации, доплата за счёт Ozon и баллы за скидки, вознаграждение за продажу по категории, цена продавца с учётом скидки, итого комиссия и вознаграждение Ozon, итого к начислению. [4]\n3. **«Возвращено клиентом»**. [4] Сумма возврата, использованные баллы за возврат, количество возвратов, базовая комиссия возврата. [4]\n\nПо итогам второго квартала 2026 года чистая прибыль Ozon составила 10,1 млрд рублей. [7]",
+      "role": "ROLE_ASSISTANT"
+    },
+    "sources": [
+      {
+        "url": "[https://www.tbank.ru/invest/social/profile/T-Investments/ozon-otchitalsya-za-vtoroj-kvartal/](https://www.tbank.ru/invest/social/profile/T-Investments/ozon-otchitalsya-za-vtoroj-kvartal/)",
+        "title": "Озон — финансовые итоги II квартала 2026: рост оборота и EBITDA - T-Investments",
+        "used": false
+      },
+      {
+        "url": "[https://www.cleverence.ru/articles/elektronnaya-kommertsiya/-kak-chitat-otchet-o-realizatsii-ozon-v-2026-godu-podrobnyy-razbor-dlya-buhgalterov-i-sellerov/](https://www.cleverence.ru/articles/elektronnaya-kommertsiya/-kak-chitat-otchet-o-realizatsii-ozon-v-2026-godu-podrobnyy-razbor-dlya-buhgalterov-i-sellerov/)",
+        "title": "Как читать отчет о реализации Ozon в 2026 году: подробный разбор для бухгалтеров и селлеров | Клеверенс",
+        "used": true
+      },
+      {
+        "url": "[https://brokerkf.ru/invest/analytics/ideas/ozon-ozon-rezultaty-1p-2026-goda/](https://brokerkf.ru/invest/analytics/ideas/ozon-ozon-rezultaty-1p-2026-goda/)",
+        "title": "Озон (OZON) — результаты 1П 2026 года",
+        "used": false
+      },
+      {
+        "url": "[https://skumind.ai/blog/komissii-uderzhaniya-ozon/](https://skumind.ai/blog/komissii-uderzhaniya-ozon/)",
+        "title": "Комиссии и удержания Ozon 2026: как читать отчёт о реализации",
+        "used": true
+      },
+      {
+        "url": "[https://rb.ru/news/ozon-vyshel-iz-ubytka-v-i-kvartale-2026-goda-chistaya-pribyl-kompanii-sostavila-45-mlrd/](https://rb.ru/news/ozon-vyshel-iz-ubytka-v-i-kvartale-2026-goda-chistaya-pribyl-kompanii-sostavila-45-mlrd/)",
+        "title": "Ozon опубликовал финансовый отчёт за I квартал 2026 года — компания вышла из убытка",
+        "used": false
+      },
+      {
+        "url": "[https://otveto.ru/blog/sales/kak-chitat-i-skachat-otchety-ozon-gayd-po-rabote-s-otchetnostyu/](https://otveto.ru/blog/sales/kak-chitat-i-skachat-otchety-ozon-gayd-po-rabote-s-otchetnostyu/)",
+        "title": "Как читать и скачать отчеты на Ozon: гайд по работе с отчетностью",
+        "used": false
+      },
+      {
+        "url": "[https://www.kommersant.ru/doc/8847989](https://www.kommersant.ru/doc/8847989)",
+        "title": "Чистая прибыль Ozon выросла вдвое в II кв. 2026 года до 10,1 млрд рублей",
+        "used": true
+      },
+      {
+        "url": "[https://tochka.com/knowledge/marketpleisy/kak-chitat-otchyoty-ozon-po-prodazham/](https://tochka.com/knowledge/marketpleisy/kak-chitat-otchyoty-ozon-po-prodazham/)",
+        "title": "Как читать отчёт о реализации Ozon: расшифровка финансового отчёта — Точка Банк",
+        "used": false
+      },
+      {
+        "url": "[https://uniseller.io/blog/kak-chitat-otchet-o-realizacii-ozon/](https://uniseller.io/blog/kak-chitat-otchet-o-realizacii-ozon/)",
+        "title": "Как читать отчёт о реализации Ozon: инструкция для селлеров",
+        "used": false
+      }
+    ],
+    "searchQueries": [
+      {
+        "text": "отчет маркетплейса озон 2026",
+        "reqId": "1790303413771373-4043811668071658533-tna5ser3simef2ah-BAL"
+      },
+      {
+        "text": "отчет маркетплейса озон",
+        "reqId": "1790303413417025-10439698890387601387-vpdqntfiflxipkmm-BAL"
+      }
+    ],
+    "fixedMisspellQuery": "",
+    "isAnswerRejected": false,
+    "isBulletAnswer": false,
+    "hints": [
+      "Какие ещё отчёты нужны продавцам на Ozon?",
+      "Как использовать данные из отчёта о реализации?",
+      "Какие штрафы могут быть за неправильное заполнение отчёта?"
+    ],
+    "problematicAnswer": false,
+    "transport": {
+      "wire_format": "json_array",
+      "frame_count": 1
+    }
+  },
+  "request_executed": true,
+  "automatic_retry": false
+}
