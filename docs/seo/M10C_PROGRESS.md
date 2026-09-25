@@ -1,7 +1,7 @@
 # Octoport SEO — M10C progress
 
 Date: 2026-09-24
-Status: **CASE01–CASE10 TERMINAL CLOSED / CASE11 SNAPSHOT01 RELEASED**
+Status: **CASE01–CASE10 TERMINAL CLOSED / CASE11 SNAPSHOT02 RELEASED**
 Branch: `seo/wordstat-batch-01-2026-09-16`
 
 ## Accepted chain
@@ -422,3 +422,20 @@ Current authorized action:
 `SEARCH_API_V1 {"method":"genSearch","queryText":"ии агент для wildberries","confirmBillable":true}`
 
 Exactly one Case11 provider request is authorized. Quality-priority rule remains active; Case12 remains closed.
+
+Case11 snapshot-1 raw evidence:
+`docs/seo/evidence/m10c/M10C_CASE11_SNAPSHOT01_SEARCH_RESULT_V1.json`
+blob `288ca0f5235ec3646587da858fdc601f0b40e59c`.
+
+Case11 snapshot-1 assessment:
+`docs/seo/M10C_CASE11_SNAPSHOT01_ASSESSMENT_2026-09-25_R1.md`
+blob `53d61cd6827ef5cba683289db18cb6121e75c22f`.
+
+Case11 snapshot-2 release:
+`docs/seo/M10C_CASE11_SNAPSHOT02_RELEASE_2026-09-25_R1.md`
+blob `68124cd690e8b978b0ce24f8643b876bc1aaaba1`.
+
+Current authorized action:
+`SEARCH_API_V1 {"method":"genSearch","queryText":"ии агент для wildberries","confirmBillable":true}`
+
+One second Case11 snapshot is authorized. If material doubt remains after it, Main Chat must amend the case before any third request. Case12 remains closed.
