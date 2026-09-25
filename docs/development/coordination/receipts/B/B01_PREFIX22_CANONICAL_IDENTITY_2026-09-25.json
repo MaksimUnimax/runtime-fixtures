@@ -1,0 +1,149 @@
+{
+  "schemaVersion": "octoport_b01_prefix22_lineage_v1",
+  "status": "READ_ONLY_OWNER_LEDGER_PLUS_DISPOSABLE_REHEARSAL",
+  "observedOwnerTest": {
+    "appliedCount": 22,
+    "classification": "CANONICAL_PREFIX",
+    "orderedIdentitySha256": "ab248aea9c8f708eabff6913c99e6970bba2d79f8911cf9c4c3a58d744a22b2a",
+    "mutationPerformed": false
+  },
+  "canonicalCurrent": {
+    "journalCount": 40,
+    "latestTag": "0051_firefox_privacy_neutral_device_metadata",
+    "latestWhen": 1790071018000
+  },
+  "entries": [
+    {
+      "position": 0,
+      "tag": "0000_p1_migration_probe",
+      "createdAt": 1770000000000,
+      "sha256": "9a7cde34d8b38667ccedd630cd2dc40697b2ee5c922927bb08f93f242bc5af56"
+    },
+    {
+      "position": 1,
+      "tag": "0001_sturdy_doctor_spectrum",
+      "createdAt": 1788427181509,
+      "sha256": "0544b377425ee3a6ebc9dc21ebb402febe27852c7bf93666f4154fbc0f723b2f"
+    },
+    {
+      "position": 2,
+      "tag": "0002_p2_2_otp_portal_auth",
+      "createdAt": 1788429000000,
+      "sha256": "f6f302d14574a7f9dff3675b8b330fbbf90a4d69387041b9fdf8fbe0454ce449"
+    },
+    {
+      "position": 3,
+      "tag": "0003_p2_3_device_authorization",
+      "createdAt": 1788430000000,
+      "sha256": "ffe1c20c37c92f1529251ff21921c5a3a1a946a09c661b162e8458c37c08c9b6"
+    },
+    {
+      "position": 4,
+      "tag": "0004_p2_4_token_core",
+      "createdAt": 1788431000000,
+      "sha256": "38774ebb870f9d233ddc51d2b8d24dd361ae2274920d0f7b0286eae333273e1d"
+    },
+    {
+      "position": 5,
+      "tag": "0005_p2_5_device_management",
+      "createdAt": 1788432000000,
+      "sha256": "6b95b4dae57e356804a83d1d34ff03286fb5465ff3d214a4b40ae70150283d21"
+    },
+    {
+      "position": 6,
+      "tag": "0006_p3_2_compatibility_config_signing",
+      "createdAt": 1788520000000,
+      "sha256": "37aa137364c9327108ea0db8ca25cba7cbc99c0d1649b959499a4fa87824dd1f"
+    },
+    {
+      "position": 7,
+      "tag": "0007_p3_3_features_rollouts",
+      "createdAt": 1788600000000,
+      "sha256": "1c8c32d6f9ea073788507736f06daaa67dee2f74465d2b990eb7fbcc67d0abe6"
+    },
+    {
+      "position": 8,
+      "tag": "0008_p4_1_commercial_catalog",
+      "createdAt": 1788700000000,
+      "sha256": "d661f98db6b18a2181fe2094f0715b11eb56eec7e96270d9634f4cd2fc8dc9f1"
+    },
+    {
+      "position": 9,
+      "tag": "0009_p5_1_subscription_billing_foundation",
+      "createdAt": 1788701000000,
+      "sha256": "d073221a237bdc867672b5e1e8223a0f62eacbb4670c1c19cfc346b64406e4ec"
+    },
+    {
+      "position": 10,
+      "tag": "0010_p5_3_checkout_intents",
+      "createdAt": 1788702000000,
+      "sha256": "28ec7583b9ad7497246580ce19a22ba82d72cc6ab223c6f9503f4b88ad1eef18"
+    },
+    {
+      "position": 11,
+      "tag": "0011_p5_5_billing_reconciliation_jobs",
+      "createdAt": 1788703000000,
+      "sha256": "5f55a0e69bdc49769cdb5e8796c0e8f4290372aeeaaca7a93792cab48bebef12"
+    },
+    {
+      "position": 12,
+      "tag": "0012_p6_1_admin_security_foundation",
+      "createdAt": 1788704000000,
+      "sha256": "9eafa0e106b55ccae61f8b4d254cdebdad45d490ede49c75cd6ca18700c7a679"
+    },
+    {
+      "position": 13,
+      "tag": "0013_p7_1_adapter_registry_profile_foundation",
+      "createdAt": 1788705000000,
+      "sha256": "9291008cb5cf6d42fe15b7c824f2048821680104b85a50639df716a014d4098b"
+    },
+    {
+      "position": 14,
+      "tag": "0014_p7_2_profile_assignments_lifecycle",
+      "createdAt": 1788706000000,
+      "sha256": "4a12aa34d6be16648fc6cd12b4f3de04f3cce0f3abd6938918905dfa2c471558"
+    },
+    {
+      "position": 15,
+      "tag": "0015_p8_2_health_persistence",
+      "createdAt": 1789224183674,
+      "sha256": "212888c0972c1905b5306add1cdd45a70f2152148cecf73c829cc8c0b11ebcb9"
+    },
+    {
+      "position": 16,
+      "tag": "0016_s1_1_beta_access",
+      "createdAt": 1789390000000,
+      "sha256": "122ea34e197fd551af290c243ec98720979d2f72121475f51be1a017ecd9f94b"
+    },
+    {
+      "position": 17,
+      "tag": "0017_i1_c3e_sync_journal",
+      "createdAt": 1789703141856,
+      "sha256": "6e0029e23eabc222b90344bfa068f51d3d2a714dd84850be7790197d87ce493a"
+    },
+    {
+      "position": 18,
+      "tag": "0018_d3s2_credential_transfer_foundation",
+      "createdAt": 1789704000000,
+      "sha256": "c35bce41371e5d618a5421f1b37477f64c9043b86b616334821b26e4797ab651"
+    },
+    {
+      "position": 19,
+      "tag": "0019_b2_feedback_support",
+      "createdAt": 1789705000000,
+      "sha256": "70811756db7a24cfebf1073fc14094223531e3e17dd3692979909eec64a6ce80"
+    },
+    {
+      "position": 20,
+      "tag": "0020_m1c_funnel_signals",
+      "createdAt": 1789706000000,
+      "sha256": "cebfca749803900ca09e0c978f894dd11f3c5715a0ca87e54e02503ce194c763"
+    },
+    {
+      "position": 21,
+      "tag": "0032_s1_signing_reason_contract_guard",
+      "createdAt": 1790070000000,
+      "sha256": "db234400eaa8f20a6a88c3520a4889e309c912d9da065630b7be900103103b2d"
+    }
+  ]
+}

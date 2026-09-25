@@ -149,6 +149,8 @@ export async function generateOpenApiRepresentation(): Promise<string> {
     listOverrides: async () => ({ items: [] }),
     resolveEffective: async () => ({ kind: "NO_PLAN_BINDING" }),
     listCompatibility: async () => ({ items: [] }),
+    getExtensionRelease: async () => null,
+    getLatestConfigRelease: async () => null,
     createPlan: async () => ({ kind: "REJECTED", code: "PLAN_CODE_CONFLICT" }),
     createPlanRevision: async () => ({
       kind: "REJECTED",

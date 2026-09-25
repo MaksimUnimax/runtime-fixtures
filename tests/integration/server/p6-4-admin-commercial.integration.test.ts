@@ -96,7 +96,11 @@ async function clean() {
     "DROP FUNCTION IF EXISTS p64_fail_plan(),p64_fail_price(),p64_fail_def(),p64_fail_override(),p64_fail_compat()",
   );
   await q(
-    "TRUNCATE extension_release_contracts,extension_release_browsers,extension_releases,billing_reconciliation_jobs,checkout_intents,billing_events,subscription_transitions,payments,subscriptions,price_sale_assignments,price_revisions,prices,plan_entitlements,plan_revisions,entitlement_definitions,plans,config_release_compatibility_policies,config_releases,compatibility_policy_blocked_versions,compatibility_policy_revisions,admin_sessions,admin_role_grants,admin_principals,audit_events,account_memberships,portal_sessions,user_identities,accounts,users CASCADE",
+    "TRUNCATE beta_admission_mutations,beta_admissions,beta_admission_state,extension_release_contracts,extension_release_browsers,extension_releases,billing_reconciliation_jobs,checkout_intents,billing_events,subscription_transitions,payments,subscriptions,price_sale_assignments,price_revisions,prices,plan_entitlements,plan_revisions,entitlement_definitions,plans,config_release_compatibility_policies,config_releases,compatibility_policy_blocked_versions,compatibility_policy_revisions,admin_sessions,admin_role_grants,admin_principals,audit_events,account_memberships,portal_sessions,user_identities,accounts,users CASCADE",
+  );
+  await q(
+    "INSERT INTO beta_admission_state(id,mode,capacity,admitted,revision,updated_at) VALUES(1,'CLOSED',0,0,1,$1)",
+    [NOW],
   );
 }
 async function n(table: string, where = "TRUE", args: unknown[] = []) {

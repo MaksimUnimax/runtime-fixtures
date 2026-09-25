@@ -13,6 +13,7 @@ import {
   BetaAdmissionResponseV1Schema,
 } from "@product/contracts";
 import { ControlledError } from "./app.js";
+import { z } from "zod";
 
 type Api = FastifyInstance<
   RawServerDefault,
@@ -45,6 +46,45 @@ export function registerBetaAdminRoutes(
         reply.header("cache-control", "no-store");
         return serialize(value);
       } catch {
+        throw new ControlledError(
+          "SERVICE_UNAVAILABLE",
+          "Service unavailable",
+          503,
+        );
+      }
+    },
+  );
+
+  app.get(
+    "/v1/admin/beta/admission/accounts/:account_id",
+    {
+      schema: {
+        params: z.object({ account_id: z.uuid() }).strict(),
+        response: {
+          200: z
+            .object({
+              accountId: z.uuid(),
+              admitted: z.boolean(),
+            })
+            .strict(),
+          401: ApiErrorEnvelopeV1Schema,
+          403: ApiErrorEnvelopeV1Schema,
+          503: ApiErrorEnvelopeV1Schema,
+        },
+      },
+    },
+    async (request, reply) => {
+      await guard.requireAdminPermission(request, "beta.admission.read");
+      try {
+        const { account_id: accountId } = z
+          .object({ account_id: z.uuid() })
+          .strict()
+          .parse(request.params);
+        const value = await service.resolve(accountId);
+        reply.header("cache-control", "no-store");
+        return { accountId, admitted: value.kind === "BETA" };
+      } catch (error) {
+        if (error instanceof z.ZodError) throw error;
         throw new ControlledError(
           "SERVICE_UNAVAILABLE",
           "Service unavailable",

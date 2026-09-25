@@ -13,6 +13,7 @@ import {
   type BillingPaymentStatusState,
 } from "@product/billing";
 import type { DatabaseQuery, DatabaseRuntime } from "./index.js";
+import { materializeDueCurrentSubscriptionLocked } from "./p5-current-subscription-materializer.js";
 
 type Query = Pick<DatabaseQuery, "query">;
 // SQL row shapes are deliberately local to this repository; PostgreSQL aliases are validated by the queries.
@@ -535,11 +536,28 @@ export function createP5ReconciliationRepository(
           );
           return terminalResult(ignored, claim.paymentId);
         }
-        const current = await q.query<Row>(
-          "SELECT id FROM subscriptions WHERE account_id=$1 AND state <> 'EXPIRED' LIMIT 1 FOR UPDATE",
-          [claim.accountId],
-        );
-        if (current.rows[0]) {
+        const current = await materializeDueCurrentSubscriptionLocked(q, {
+          accountId: claim.accountId,
+          at: processedAt,
+          correlationId,
+        });
+        if (current.kind === "CORRUPTED") {
+          const failed = await terminalize(q, event.id, "FAILED", processedAt, {
+            paymentId: claim.paymentId,
+            code: "PAYMENT_SUBSCRIPTION_CORRUPTED",
+          });
+          await finishJob(
+            q,
+            claim.paymentId,
+            claim.leaseToken,
+            "READY",
+            "PAYMENT_SUBSCRIPTION_CORRUPTED",
+            new Date(processedAt.getTime() + 60_000),
+            processedAt,
+          );
+          return terminalResult(failed, claim.paymentId);
+        }
+        if (current.kind === "CURRENT") {
           const failed = await terminalize(q, event.id, "FAILED", processedAt, {
             paymentId: claim.paymentId,
             code: "CURRENT_SUBSCRIPTION_CONFLICT",
@@ -609,6 +627,14 @@ export function createP5ReconciliationRepository(
             transitionRevision: 1,
           },
         );
+        const activatedLifecycle =
+          await materializeDueCurrentSubscriptionLocked(q, {
+            accountId: claim.accountId,
+            at: processedAt,
+            correlationId,
+          });
+        if (activatedLifecycle.kind === "CORRUPTED")
+          throw new Error("SUBSCRIPTION_CORRUPTED");
         const applied = await terminalize(q, event.id, "APPLIED", processedAt, {
           paymentId: claim.paymentId,
           subscriptionId,

@@ -323,6 +323,91 @@ describe.sequential("P5.2 subscription lifecycle on real PostgreSQL", () => {
     );
     expect(result.kind).toBe("OK");
   });
+  it("14a materializes a due ACTIVE subscription before replacement grant", async () => {
+    const fixture = await grantFixture({
+      end: date("2026-09-07T00:00:00.000Z"),
+    });
+    clock = date("2026-09-08T00:00:00.000Z");
+    const result = await repository().grantSubscription(
+      {
+        accountId: fixture.accountId,
+        planRevisionId: await planRevision(),
+        currentPeriodEnd: later,
+      },
+      context("replacement after due active"),
+    );
+    expect(result.kind).toBe("OK");
+    expect((await subscriptionRow(fixture.subscription.id))?.state).toBe(
+      "EXPIRED",
+    );
+    expect(await transitionRows(fixture.subscription.id)).toEqual([
+      { transition_revision: 1, from_state: null, to_state: "ACTIVE" },
+      {
+        transition_revision: 2,
+        from_state: "ACTIVE",
+        to_state: "EXPIRED",
+      },
+    ]);
+    expect(
+      (
+        await q<{ count: string }>(
+          "SELECT count(*)::text AS count FROM subscriptions WHERE account_id=$1 AND state <> 'EXPIRED'",
+          [fixture.accountId],
+        )
+      ).rows[0]?.count,
+    ).toBe("1");
+  });
+
+  it("14b materializes due GRACE to PAST_DUE and keeps replacement blocked", async () => {
+    const fixture = await grantFixture();
+    await seedState(fixture.subscription.id, "GRACE");
+    clock = date("2026-10-15T00:00:00.000Z");
+    const result = await repository().grantSubscription(
+      {
+        accountId: fixture.accountId,
+        planRevisionId: await planRevision(),
+        currentPeriodEnd: later,
+      },
+      context("replacement at grace boundary"),
+    );
+    expect(result).toEqual({
+      kind: "REJECTED",
+      code: "SUBSCRIPTION_ALREADY_EXISTS",
+    });
+    expect((await subscriptionRow(fixture.subscription.id))?.state).toBe(
+      "PAST_DUE",
+    );
+  });
+
+  it("14c rechecks grant time after the mutation boundary before creating state", async () => {
+    const accountId = await account();
+    const planRevisionId = await planRevision();
+    clock = date("2026-09-06T12:00:00.000Z");
+    const commandEnd = date("2026-09-06T12:00:30.000Z");
+    const repo = createP5SubscriptionRepository(db, {
+      now: () => clock,
+      beforeMutation: async ({ operation }) => {
+        if (operation === "GRANT") clock = date("2026-09-06T12:01:00.000Z");
+      },
+    });
+    const result = await repo.grantSubscription(
+      { accountId, planRevisionId, currentPeriodEnd: commandEnd },
+      context("grant crosses expiry while waiting"),
+    );
+    expect(result).toEqual({
+      kind: "REJECTED",
+      code: "SUBSCRIPTION_PERIOD_INVALID",
+    });
+    expect(
+      (
+        await q<{ count: string }>(
+          "SELECT count(*)::text AS count FROM subscriptions WHERE account_id=$1",
+          [accountId],
+        )
+      ).rows[0]?.count,
+    ).toBe("0");
+  });
+
   it("15 serializes concurrent grants per account", async () => {
     const accountId = await account();
     const a = await planRevision();
@@ -387,6 +472,40 @@ describe.sequential("P5.2 subscription lifecycle on real PostgreSQL", () => {
       changed: true,
       value: { stateRevision: 2, currentPeriodEnd: later },
     });
+  });
+
+  it("17a materializes a due ACTIVE before extension so worker timing cannot revive it", async () => {
+    const fixture = await grantFixture({
+      end: date("2026-09-07T00:00:00.000Z"),
+    });
+    clock = date("2026-09-08T00:00:00.000Z");
+    const result = await repository().extendSubscription(
+      {
+        subscriptionId: fixture.subscription.id,
+        expectedStateRevision: 1,
+        newCurrentPeriodEnd: later,
+      },
+      context("extend after due"),
+    );
+    expect(result).toEqual({
+      kind: "REJECTED",
+      code: "SUBSCRIPTION_STATE_STALE",
+    });
+    expect(await subscriptionRow(fixture.subscription.id)).toMatchObject({
+      state: "EXPIRED",
+      state_revision: 2,
+    });
+    expect(await transitionRows(fixture.subscription.id)).toEqual([
+      { transition_revision: 1, from_state: null, to_state: "ACTIVE" },
+      {
+        transition_revision: 2,
+        from_state: "ACTIVE",
+        to_state: "EXPIRED",
+      },
+    ]);
+    expect(
+      (await auditRows(fixture.subscription.id)).map((row) => row.action),
+    ).toEqual(["SUBSCRIPTION_GRANTED", "SUBSCRIPTION_EXPIRED"]);
   });
   it("18 preserves state on extension", async () => {
     const fixture = await grantFixture();

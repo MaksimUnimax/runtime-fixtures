@@ -13,6 +13,10 @@ import {
 } from "@product/billing";
 import type { BillingIntervalUnit } from "@product/billing";
 import type { DatabaseQuery, DatabaseRuntime } from "./index.js";
+import {
+  hasCurrentSubscriptionAt,
+  materializeDueCurrentSubscriptionLocked,
+} from "./p5-current-subscription-materializer.js";
 
 type Query = Pick<DatabaseQuery, "query">;
 type Row = {
@@ -122,6 +126,7 @@ async function accountPolicy(
   q: Query,
   accountId: string,
   actorId: string,
+  at: Date,
 ): Promise<CheckoutAccountObservation> {
   const account = await q.query<{ status: "ACTIVE" | "SUSPENDED" }>(
     "SELECT status FROM accounts WHERE id=$1",
@@ -138,15 +143,14 @@ async function accountPolicy(
     "SELECT user_id AS \"userId\" FROM account_memberships WHERE account_id=$1 AND user_id=$2 AND role='OWNER'",
     [accountId, actorId],
   );
-  const current = await q.query<{ id: string }>(
-    "SELECT id FROM subscriptions WHERE account_id=$1 AND state <> 'EXPIRED' LIMIT 1",
-    [accountId],
-  );
   return {
     accountExists: true,
     owner: Boolean(member.rows[0]),
     accountStatus: account.rows[0].status,
-    hasCurrentSubscription: Boolean(current.rows[0]),
+    hasCurrentSubscription: await hasCurrentSubscriptionAt(q, {
+      accountId,
+      at,
+    }),
   };
 }
 
@@ -272,7 +276,7 @@ export function createP5CheckoutRepository(
       idempotencyKeyHash,
     }): Promise<CheckoutInspection> {
       return runtime.transaction(async (q) => {
-        const account = await accountPolicy(q, accountId, actorId);
+        const account = await accountPolicy(q, accountId, actorId, now());
         const intent =
           account.accountExists && account.owner
             ? await loadIntent(q, accountId, idempotencyKeyHash)
@@ -288,7 +292,19 @@ export function createP5CheckoutRepository(
       return runtime.transaction(async (q) => {
         if (!(await lockAccount(q, input.accountId)))
           return { kind: "REJECTED", code: "ACCOUNT_NOT_FOUND" };
-        const account = await accountPolicy(q, input.accountId, input.actorId);
+        const materialized = await materializeDueCurrentSubscriptionLocked(q, {
+          accountId: input.accountId,
+          at: now(),
+          correlationId: context.correlationId,
+        });
+        if (materialized.kind === "CORRUPTED")
+          return { kind: "REJECTED", code: "CHECKOUT_CORRUPTED" };
+        const account = await accountPolicy(
+          q,
+          input.accountId,
+          input.actorId,
+          now(),
+        );
         const existing = await loadIntent(
           q,
           input.accountId,
@@ -416,11 +432,23 @@ export function createP5CheckoutRepository(
               context,
               now(),
             );
-          const subscription = await q.query<{ id: string }>(
-            "SELECT id FROM subscriptions WHERE account_id=$1 AND state <> 'EXPIRED' LIMIT 1",
-            [locked.accountId],
+          const materialized = await materializeDueCurrentSubscriptionLocked(
+            q,
+            {
+              accountId: locked.accountId,
+              at: now(),
+              correlationId: context.correlationId,
+            },
           );
-          if (subscription.rows[0])
+          if (materialized.kind === "CORRUPTED")
+            return await terminalFailure(
+              q,
+              locked,
+              "CHECKOUT_CORRUPTED",
+              context,
+              now(),
+            );
+          if (materialized.kind === "CURRENT")
             return await terminalFailure(
               q,
               locked,
