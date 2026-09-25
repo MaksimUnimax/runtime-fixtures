@@ -222,6 +222,28 @@ function harness(
       },
     ],
   }));
+  behavior.set("getExtensionRelease", () => ({
+    id: "00000000-0000-4000-8000-000000000011",
+    version: "0.2.4",
+    releaseChannel: "stable",
+    artifactSha256: "c".repeat(64),
+    releasedAt: new Date("2026-01-01T00:00:00.000Z"),
+    createdAt: new Date("2026-01-01T00:00:00.000Z"),
+    supportedContracts: ["control_plane_v2"],
+    supportedBrowsers: ["opera"],
+  }));
+  behavior.set("getLatestConfigRelease", () => ({
+    configVersion: 7,
+    contractVersion: "control_plane_v2",
+    snapshotVersion: "bootstrap_snapshot_v2",
+    envelopeVersion: "bootstrap_envelope_v2",
+    contentHashSha256: "a".repeat(64),
+    sourceFingerprintSha256: "b".repeat(64),
+    signingKeyId: "test-ed25519",
+    compatibilityPolicyRevisionIds: [revisionId],
+    publishedAt: new Date("2026-01-01T00:00:00.000Z"),
+    createdAt: new Date("2026-01-01T00:00:00.000Z"),
+  }));
   const result = { kind: "OK", changed: true, value: plan };
   const service = new Proxy({} as AdminCommercialService, {
     get:
@@ -432,6 +454,90 @@ describe("P6.4 admin-commercial controller", () => {
     expect(r.statusCode).toBe(200);
     expect(calls).toEqual(["listPlans"]);
     expect(r.headers["cache-control"]).toBe("no-store");
+  });
+  it("provides exact STORE-1 compatibility readback through ordinary admin GETs", async () => {
+    const { app, behavior, calls } = harness();
+    apps.push(app);
+    behavior.set("listCompatibility", (input) => {
+      expect(input).toMatchObject({
+        contractVersion: "control_plane_v2",
+        policyKey: "store1.opera.v2",
+        scope: "opera",
+      });
+      return {
+        items: [
+          {
+            id: revisionId,
+            policyKey: "store1.opera.v2",
+            revision: 2,
+            contractVersion: "control_plane_v2",
+            browserFamily: "opera",
+            minimumExtensionVersion: "0.2.4",
+            recommendedExtensionVersion: "0.2.4",
+            minimumBrowserVersion: "136",
+            maintenanceMode: false,
+            maintenanceCode: null,
+            blockedVersions: [],
+            publishedAt: new Date("2026-01-01T00:00:00.000Z"),
+            createdAt: new Date("2026-01-01T00:00:00.000Z"),
+            linkedConfigVersions: [7],
+          },
+        ],
+      };
+    });
+    const headers = { cookie: adminCookie };
+    const policy = await app.inject({
+      url: "/v1/admin/compatibility/policies?contractVersion=control_plane_v2&policyKey=store1.opera.v2&scope=opera",
+      headers,
+    });
+    const release = await app.inject({
+      url: "/v1/admin/compatibility/releases/0.2.4",
+      headers,
+    });
+    const configRelease = await app.inject({
+      url: "/v1/admin/compatibility/config-releases/latest?contractVersion=control_plane_v2",
+      headers,
+    });
+    expect(policy.statusCode).toBe(200);
+    expect(release.statusCode).toBe(200);
+    expect(configRelease.statusCode).toBe(200);
+    expect(policy.json().items[0]).toMatchObject({
+      contractVersion: "control_plane_v2",
+      linkedConfigVersions: [7],
+    });
+    expect(release.json()).toMatchObject({
+      version: "0.2.4",
+      artifactSha256: "c".repeat(64),
+      supportedContracts: ["control_plane_v2"],
+      supportedBrowsers: ["opera"],
+    });
+    expect(configRelease.json()).toMatchObject({
+      configVersion: 7,
+      contractVersion: "control_plane_v2",
+      compatibilityPolicyRevisionIds: [revisionId],
+    });
+    expect(calls).toEqual([
+      "listCompatibility",
+      "getExtensionRelease",
+      "getLatestConfigRelease",
+    ]);
+  });
+  it("returns safe 404 for missing release/config readback", async () => {
+    const { app, behavior } = harness();
+    apps.push(app);
+    behavior.set("getExtensionRelease", () => null);
+    behavior.set("getLatestConfigRelease", () => null);
+    const headers = { cookie: adminCookie };
+    for (const url of [
+      "/v1/admin/compatibility/releases/0.2.4",
+      "/v1/admin/compatibility/config-releases/latest?contractVersion=control_plane_v2",
+    ]) {
+      expectError(
+        await app.inject({ url, headers }),
+        404,
+        "ADMIN_RESOURCE_NOT_FOUND",
+      );
+    }
   });
   it("rejects a malformed plan cursor before calling the service", async () => {
     const { app, calls } = harness();

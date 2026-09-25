@@ -1,0 +1,116 @@
+{
+  "schemaVersion": "store1_opera_admin_activation_manifest_v1",
+  "status": "SOURCE_DISPOSABLE_ONLY",
+  "source": {
+    "head": "891b89f198f89e52eef78d6da89a28641e7dcdce",
+    "tree": "1437625f4deda50df2cfc4c45842e422913ab0e3"
+  },
+  "package": {
+    "version": "0.2.4",
+    "filename": "OCTOPORT_v0.2.4_CHROMIUM_STORE.zip",
+    "sha256": "6914b0193f16c0dbcdc5ca59e031f1e190dad6bda5ebb37d6b5d31d147efd5af",
+    "contractVersion": "control_plane_v2",
+    "browserFamily": "opera",
+    "minimumBrowserVersion": "136"
+  },
+  "profile": {
+    "adapterMachineKey": "chatgpt",
+    "surfaceMachineKey": "standard",
+    "variantMachineKey": "standard_composer_v1",
+    "profileMachineKey": "chatgpt-standard-opera-v1",
+    "contentSha256": "878076e4e324dcc7feedebe9d55d7c96beb1a9eb2c3920cbc25f4d101e2d40bd"
+  },  "compatibility": {
+    "policyKey": "store1.opera.v2",
+    "policyBody": {
+      "contractVersion": "control_plane_v2",
+      "browserFamily": "opera",
+      "minimumExtensionVersion": "0.2.4",
+      "recommendedExtensionVersion": "0.2.4",
+      "minimumBrowserVersion": "136",
+      "maintenanceMode": false,
+      "maintenanceCode": null,
+      "blockedVersions": [],
+      "reason": "STORE-1 Opera reviewer catalog activation"
+    },
+    "configLinkBodyTemplate": {
+      "contractVersion": "control_plane_v2",
+      "expectedLatestConfigVersion": "<READ_LATEST_V2_CONFIG_VERSION>",
+      "compatibilityPolicyRevisionIds": [
+        "<READ_EXACT_STORE1_POLICY_REVISION_ID>"
+      ],
+      "reason": "STORE-1 Opera reviewer catalog activation"
+    }
+  },
+  "releaseBody": {
+    "version": "0.2.4",
+    "releaseChannel": "stable",
+    "artifactSha256": "6914b0193f16c0dbcdc5ca59e031f1e190dad6bda5ebb37d6b5d31d147efd5af",
+    "supportedContracts": ["control_plane_v2"],
+    "supportedBrowsers": ["opera"],
+    "reason": "STORE-1 Opera reviewer catalog activation"
+  },  "readback": [
+    "GET /v1/admin/compatibility/releases/0.2.4",
+    "GET /v1/admin/compatibility/policies?contractVersion=control_plane_v2&policyKey=store1.opera.v2&scope=opera&limit=1 (latest revision only)",
+    "GET /v1/admin/compatibility/config-releases/latest?contractVersion=control_plane_v2",
+    "GET /v1/admin/ai/registry/adapters?limit=100 and continue with cursor until nextCursor=null",
+    "GET /v1/admin/ai/registry/adapters/<adapter_id>/surfaces?limit=100 and continue with cursor until nextCursor=null",
+    "GET /v1/admin/ai/registry/surfaces/<surface_id>/variants?limit=100 and continue with cursor until nextCursor=null",
+    "GET /v1/admin/ai/profiles?adapterId=<adapter_id>&surfaceId=<surface_id>&variantId=<variant_id>&limit=100 and continue with cursor until nextCursor=null",
+    "GET /v1/admin/ai/profiles/<profile_id>/revisions?limit=100 and continue with cursor until nextCursor=null",
+    "GET /v1/admin/ai/assignments?adapterId=<adapter_id>&surfaceId=<surface_id>&variantId=<variant_id>&browserFamily=opera&subjectKind=ACCOUNT&limit=100 and continue with cursor until nextCursor=null",
+    "GET /v1/admin/beta/admission",
+    "GET /v1/admin/users?email=<REVIEWER_EMAIL_PRIVATE>&limit=1",
+    "GET /v1/admin/accounts?ownerEmail=<REVIEWER_EMAIL_PRIVATE>&status=ACTIVE&limit=100 and continue with cursor until nextCursor=null",
+    "GET /v1/admin/beta/admission/accounts/<reviewer_account_id>"
+  ],
+  "preconditionsBeforeMutation": [
+    "GET /v1/admin/beta/admission => mode CLOSED",
+    "GET /v1/admin/users?email=<REVIEWER_EMAIL_PRIVATE>&limit=1 => one ACTIVE user whose matching queried email has verifiedAt != null",
+    "GET /v1/admin/accounts?ownerEmail=<REVIEWER_EMAIL_PRIVATE>&status=ACTIVE&limit=100 (+cursor until nextCursor=null) => exactly one ACTIVE owned account",
+    "GET /v1/admin/beta/admission/accounts/<reviewer_account_id> => admitted true",
+    "PACKAGE_AUTHORITY == exact accepted source HEAD/tree and STORE ZIP SHA256"
+  ],
+  "mutationOrder": [
+    "POST /v1/admin/compatibility/releases/0.2.4/publish",
+    "POST /v1/admin/compatibility/policies/store1.opera.v2/publish",
+    "POST /v1/admin/compatibility/config-releases/publish",
+    "POST /v1/admin/ai/registry/adapters",
+    "POST /v1/admin/ai/registry/surfaces",
+    "POST /v1/admin/ai/registry/variants",
+    "POST /v1/admin/ai/profiles",    "POST /v1/admin/ai/profiles/<profile_id>/revisions",
+    "POST /v1/admin/ai/profiles/<profile_id>/revisions/<revision>/candidate",
+    "POST /v1/admin/ai/profiles/<profile_id>/revisions/<revision>/publish",
+    "POST /v1/admin/ai/assignments",
+    "POST /v1/admin/ai/assignments/<assignment_id>/direct"
+  ],
+  "reviewerPrerequisite": {
+    "globalBetaMode": "CLOSED",
+    "identity": "PREEXISTING_VERIFIED_ACTIVE_USER",
+    "account": "ONE_PREEXISTING_ACTIVE_OWNED_ACCOUNT",
+    "betaAdmission": "PREEXISTING_FOR_REVIEWER_ACCOUNT",
+    "login": "NORMAL_OTP",
+    "forbidden": [
+      "OPEN_GENERAL_BETA",
+      "DIRECT_SQL_REVIEWER_INSERT",
+      "AUTH_BYPASS",
+      "OWNER_CREDENTIAL_REUSE",
+      "REVIEWER_ONLY_PRODUCT_SUBSTITUTE"
+    ]
+  },
+  "idempotency": {
+    "strategy": "READ_BEFORE_WRITE_ONE_STEP_AT_A_TIME",
+    "missing": "CREATE_EXACT_NEXT_AUTHORITY",
+    "exact": "REUSE",
+    "immutableMismatch": "CONFLICT_FAIL_CLOSED",
+    "config": "EXPECTED_LATEST_CONFIG_VERSION_CAS",
+    "catalogPagination": "ACCUMULATE_ALL_ADAPTER_SURFACE_VARIANT_PROFILE_PROFILE_REVISION_ASSIGNMENT_AND_REVIEWER_ACCOUNT_PAGES_UNTIL_NEXT_CURSOR_NULL_BEFORE_CREATE_OR_REUSE",
+    "secondCompletePass": "ZERO_MUTATIONS"
+  },
+  "rollback": [
+    "DO_NOT_DELETE_IMMUTABLE_AUTHORITY",
+    "PUBLISH_NEW_COMPATIBILITY_OR_CONFIG_REVISION_WITH_CAS",
+    "PUBLISH_NEW_PROFILE_REVISION",
+    "APPEND_NEW_ASSIGNMENT_REVISION"
+  ],
+  "liveExecutionAuthorized": false
+}
