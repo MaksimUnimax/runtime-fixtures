@@ -648,6 +648,7 @@ export async function makeWorker(directory, options = {}) {
     AbortController,
     Blob,
     navigator: { userAgent: fixtureUserAgent },
+    ...(options.firefoxPermissions ? { browser: { permissions: options.firefoxPermissions } } : {}),
     performance: { now: monotonicClock },
     indexedDB: fixtureIndexedDB(backing, options),
     __SELLER_AGENTS_PACKAGED_CONFIG__: JSON.stringify(fixtureConfig),

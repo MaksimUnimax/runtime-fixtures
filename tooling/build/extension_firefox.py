@@ -26,6 +26,7 @@ FIREFOX_REQUIRED_DATA_COLLECTION = [
     "financialAndPaymentInfo",
     "personalCommunications",
 ]
+FIREFOX_OPTIONAL_DATA_COLLECTION = ["technicalAndInteraction"]
 FIREFOX_LOOPBACK_WITH_PORT = re.compile(r"^http://127\.0\.0\.1:\d+/\*$")
 FIREFOX_LOOPBACK_PORTLESS = "http://127.0.0.1/*"
 
@@ -100,6 +101,7 @@ def build(input_runtime: Path, output: Path) -> dict:
             "strict_min_version": "140.0",
             "data_collection_permissions": {
                 "required": FIREFOX_REQUIRED_DATA_COLLECTION,
+                "optional": FIREFOX_OPTIONAL_DATA_COLLECTION,
             },
         }
     }
