@@ -1,0 +1,81 @@
+{
+  "bridge": "yandex-marketing-bridge",
+  "version": "0.1.9",
+  "service": "search",
+  "operation": "genSearch",
+  "request_id": "search-a551e612-36ac-4d34-861f-676b81bdd274",
+  "run_id": null,
+  "status": "OK",
+  "reason": null,
+  "cost_estimate": {
+    "estimated_rub": 5.08,
+    "tariff_checked_at": "2026-08-19",
+    "tariff_source": "[https://aistudio.yandex.ru/docs/ru/search-api/pricing.html](https://aistudio.yandex.ru/docs/ru/search-api/pricing.html)"
+  },
+  "policy": {
+    "channel": "manual",
+    "active_service": "search"
+  },
+  "command": {
+    "method": "genSearch",
+    "queryText": "отчет маркетплейса озон",
+    "confirmBillable": true
+  },
+  "http_status": 200,
+  "elapsed_ms": 3546,
+  "result": {
+    "mode": "generative",
+    "message": {
+      "content": "Возможно, имелся в виду **отчёт о реализации Ozon** — официальный бухгалтерский документ, который предоставляет финальные данные продаж, возвратов, скидок и списаний на платформе. [1] \n\n**Отчёт формируется раз в месяц** и служит основой для налогового учёта и отчётности. [1] Документ включает детализацию по каждому заказу и итоговые суммы. [1] \n\n**Чтобы найти отчёт**, нужно: [1]\n\n1. Перейти в личный кабинет Ozon Seller. [1]\n2. Открыть раздел «Финансы». [1]\n3. Выбрать пункт «Отчёты о реализации». [1]\n4. Скачать нужный документ за интересующий месяц. [1] \n\n**В отчёте есть три блока**: [2]\n\n1. **Общие сведения**. [2] Название товара, артикул продавца, код Ozon, штрих-код. [2] \n2. **«Реализовано»**. [2] Реализовано на сумму (грязная выручка), количество единиц, цена реализации, доплата за счёт Ozon и баллы за скидки, вознаграждение за продажу по категории, цена продавца с учётом скидки, итого комиссия и вознаграждение Ozon, итого к начислению. [2]\n3. **«Возвращено клиентом»**. [2] Сумма возврата, использованные баллы за возврат, количество возвратов, базовая комиссия возврата. [2]\n\nКроме того, существует **«показанный отчёт»** — аналитическая версия с детальной расшифровкой цен, скидок и баллов. [1] Он помогает анализировать маржу и эффективность акций, но не используется для налогового учёта. [1]",
+      "role": "ROLE_ASSISTANT"
+    },
+    "sources": [
+      {
+        "url": "[https://www.cleverence.ru/articles/elektronnaya-kommertsiya/-kak-chitat-otchet-o-realizatsii-ozon-v-2026-godu-podrobnyy-razbor-dlya-buhgalterov-i-sellerov/](https://www.cleverence.ru/articles/elektronnaya-kommertsiya/-kak-chitat-otchet-o-realizatsii-ozon-v-2026-godu-podrobnyy-razbor-dlya-buhgalterov-i-sellerov/)",
+        "title": "Как читать отчет о реализации Ozon в 2026 году: подробный разбор для бухгалтеров и селлеров | Клеверенс",
+        "used": true
+      },
+      {
+        "url": "[https://skumind.ai/blog/komissii-uderzhaniya-ozon/](https://skumind.ai/blog/komissii-uderzhaniya-ozon/)",
+        "title": "Комиссии и удержания Ozon 2026: как читать отчёт о реализации",
+        "used": true
+      },
+      {
+        "url": "[https://tochka.com/knowledge/marketpleisy/kak-chitat-otchyoty-ozon-po-prodazham/](https://tochka.com/knowledge/marketpleisy/kak-chitat-otchyoty-ozon-po-prodazham/)",
+        "title": "Как читать отчёт о реализации Ozon: расшифровка финансового отчёта — Точка Банк",
+        "used": false
+      },
+      {
+        "url": "[https://otveto.ru/blog/sales/kak-chitat-i-skachat-otchety-ozon-gayd-po-rabote-s-otchetnostyu/](https://otveto.ru/blog/sales/kak-chitat-i-skachat-otchety-ozon-gayd-po-rabote-s-otchetnostyu/)",
+        "title": "Как читать и скачать отчеты на Ozon: гайд по работе с отчетностью",
+        "used": false
+      },
+      {
+        "url": "[https://uniseller.io/blog/kak-chitat-otchet-o-realizacii-ozon/](https://uniseller.io/blog/kak-chitat-otchet-o-realizacii-ozon/)",
+        "title": "Как читать отчёт о реализации Ozon: инструкция для селлеров",
+        "used": false
+      }
+    ],
+    "searchQueries": [
+      {
+        "text": "отчет маркетплейса озон",
+        "reqId": "1790302849320253-8699438450123651301-gp5ysxfmu6lkluiw-BAL"
+      }
+    ],
+    "fixedMisspellQuery": "",
+    "isAnswerRejected": false,
+    "isBulletAnswer": false,
+    "hints": [
+      "Как использовать показанный отчёт Ozon?",
+      "Какие ещё отчёты нужны для работы на Ozon?",
+      "Какие штрафы за несвоевременную подачу отчёта Ozon?"
+    ],
+    "problematicAnswer": false,
+    "transport": {
+      "wire_format": "json_array",
+      "frame_count": 1
+    }
+  },
+  "request_executed": true,
+  "automatic_retry": false
+}
