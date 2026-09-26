@@ -1,0 +1,228 @@
+{
+  "schema": "OCTOPORT_M15_SOURCE_PREDEPLOY_LIVE_QA_INPUT_MANIFEST_V1",
+  "work_id": "OCTOPORT_SEO_M15_SOURCE_PREDEPLOY_LIVE_QA_2026-09-26_R1",
+  "repository": "MaksimUnimax/runtime-fixtures",
+  "seo_branch": "seo/wordstat-batch-01-2026-09-16",
+  "preparation_parent_seo_head": "2dab058c84d7c965660d4c12d863192f4c36cd52",
+  "preparation_commit": "fb20049b7018c1df376111066215f447603ab552",
+  "preparation": {
+    "path": "docs/seo/M15_STEP_PREPARATION_2026-09-26_R1.md",
+    "blob": "0072a3e71a1315555ca4207a9a93c3d94f5a74d0"
+  },
+  "observed_current_main_head": "a7097321410921f2fffa54fc3ecf1bc17963c0c2",
+  "accepted_m14": {
+    "branch": "seo/m14-site-implementation-2026-09-25-r1",
+    "candidate": "020f351e1ddd862db4ded85622e2eeca02ea2181",
+    "tree": "68e8585aff942b46bf8bb38f68c577aa11390bc4",
+    "acceptance_path": "docs/seo/M14_SOURCE_IMPLEMENTATION_ACCEPTANCE_2026-09-25_R1.md",
+    "acceptance_blob": "95984222a59a19bf6a97271e8496fc136bab9a09",
+    "progress_blob": "641a49dd257bd45497cfe9b345f8a2742c972ee5",
+    "changed_paths": 13
+  },
+  "seo_rules": [
+    {
+      "path": "docs/seo/LEVEL1/README.md",
+      "blob": "4c3a30644ac736b926ec82bba6b1a6e33434ac06"
+    },
+    {
+      "path": "docs/seo/EXECUTION_RULES.md",
+      "blob": "4e999af4826d6f72fd15f481a698f674c8ed2d5c"
+    },
+    {
+      "path": "docs/seo/QUALITY_FIRST_RESOURCE_RULE.md",
+      "blob": "9917a52b837bcb8ae50eb63cc53e7becd1671b39"
+    },
+    {
+      "path": "docs/seo/WORK_HANDOFF_RULE.md",
+      "blob": "71a031e74b921dade5998beb842fb3afcc4478e7"
+    },
+    {
+      "path": "docs/seo/PRODUCT_TRUTH.md",
+      "blob": "6a469d5743142d3e476afa5d2cda653fd411ecb8"
+    },
+    {
+      "path": "docs/seo/FAILURE_LEDGER.md",
+      "blob": "2527cb7adb10a57795f0b80f16660b4475f6e825"
+    },
+    {
+      "path": "docs/seo/LEVEL2/M13_M18_IMPLEMENTATION_LAUNCH_MEASUREMENT_RULES.md",
+      "blob": "fe11b327eefff20f6c807581ae947a78c6bcc6e8"
+    }
+  ],
+  "coordination_rules": [
+    {
+      "path": "AGENTS.md",
+      "blob": "c984291bba02e038de19e21f981dfbfb23cf85db"
+    },
+    {
+      "path": "docs/development/coordination/README.md",
+      "blob": "e6ffcf43142ccbbeaf6982b76ebb85bcb1d62f32"
+    },
+    {
+      "path": "docs/development/coordination/PROTOCOL.md",
+      "blob": "244b1bf7a0f353d235807622f93cffe6253c3aad"
+    },
+    {
+      "path": "docs/development/coordination/PLAN.md",
+      "blob": "f867cc97556df66a14063991ec390293f9dbd78f"
+    },
+    {
+      "path": "docs/development/coordination/OWNERSHIP.json",
+      "blob": "0b998325ed4f9e3fbc3656c08de0fec8b4743b4e"
+    },
+    {
+      "path": "docs/development/coordination/CONTINUOUS_ROADMAP_POLICY.md",
+      "blob": "2ae059ae2ea8293ca5cdfac8180f6440cac69c0e"
+    }
+  ],
+  "readiness_evidence": [
+    {
+      "path": "docs/development/coordination/receipts/A/A04_BUSINESS_COVERAGE_RECONCILIATION_2026-09-25.md",
+      "blob": "906b2a00e13c73601d5c016445f6dc75df4bc2e9"
+    },
+    {
+      "path": "docs/development/coordination/receipts/C/C06_READINESS_RECONCILIATION_2026-09-25.md",
+      "blob": "8e48ed598dd952a06519c83c3beb1a770f41ecdd"
+    },
+    {
+      "path": "docs/development/coordination/receipts/C/C06_RESIDUAL_GAPS_RECONCILIATION_2026-09-25.md",
+      "blob": "4e2eafd9327c2ff625db6fe9e3ea320e87461dc6"
+    },
+    {
+      "path": "docs/product/readiness/GAPS_AND_HANDOFF.md",
+      "blob": "7602f701e112dec00dff600495db94fb5d3d5121"
+    },
+    {
+      "path": "infra/production/README.md",
+      "blob": "aa77426ae471882ece49d750ec6ef256811ef30b"
+    },
+    {
+      "path": ".github/workflows/site-deploy-ci.yml",
+      "blob": "83895a010ec228866b84534dc06f23947a9c2cff"
+    }
+  ],
+  "current_main_site_guard_blobs": [
+    {
+      "path": "apps/site/public/index.html",
+      "blob": "3123a714e2092fb156eebe498ef97bb5969567f6"
+    },
+    {
+      "path": "apps/site/public/install.html",
+      "blob": "99bc456742375219779ae9c611580e389b81c7a1"
+    },
+    {
+      "path": "apps/site/public/privacy.html",
+      "blob": "bb975f29e3fbe8e1cfeb1fa19f397f9e5dc1f101"
+    },
+    {
+      "path": "apps/site/public/support.html",
+      "blob": "2ebb8fdab73c50d98a3af70198f98813cbab942b"
+    },
+    {
+      "path": "apps/site/public/robots.txt",
+      "blob": "446df898e31b99b230e8a49a7c94a45e4df96228"
+    },
+    {
+      "path": "apps/site/public/sitemap.xml",
+      "blob": "fdceb2ff477941104373850846c33bac2a5d3ced"
+    },
+    {
+      "path": "apps/site/public/styles.css",
+      "blob": "cda70d351cb72332c70d7a32e5b31d3182e0a374"
+    },
+    {
+      "path": "apps/site/README.md",
+      "blob": "28442c9c361e64e2fa161281db768a3dc6ca8ecc"
+    },
+    {
+      "path": "infra/production/nginx/octoport-site.conf",
+      "blob": "4efcf08a2c118986496298789bac2565b1067994"
+    },
+    {
+      "path": "infra/production/nginx/octoport-apps.conf",
+      "blob": "adbea6c2d6af15c0ed7bb05af1a7a7e05029d49f"
+    },
+    {
+      "path": "infra/production/scripts/deploy-octoport-site.sh",
+      "blob": "f35a27b084ddce4cb9342852e5e35579ef0bc6b6"
+    },
+    {
+      "path": "infra/production/scripts/verify-octoport-site.sh",
+      "blob": "753782280daa59bd0def52232b23465937f1a880"
+    },
+    {
+      "path": ".github/workflows/site-ci.yml",
+      "blob": "9c6320dff4f45bf50cc86c1afcdf4893613e374f"
+    },
+    {
+      "path": "tests/regression/site/test_site_deployment.py",
+      "blob": "79d5dca16f5fbb26c70450d6b121d59d281ecc69"
+    },
+    {
+      "path": "apps/extension/src/assets/octoport-128.png",
+      "blob": "23e8e957dacb1d40aa795c9ca1c265b55268b435"
+    },
+    {
+      "path": "apps/extension/src/assets/octoport-icon.svg",
+      "blob": "a0ba96d340e8ec7e661bffc1b2bed535f6d47e01"
+    }
+  ],
+  "accepted_m14_remote_blobs": {
+    ".github/workflows/site-ci.yml": "84c0bae2905b9ac1c3259429337c1cbd9cdaf50a",
+    "apps/site/README.md": "262e759c6dbc879bec2117795696552921782dc5",
+    "apps/site/public/favicon.png": "86cc59fca80371fc663f423845c834908951ecd9",
+    "apps/site/public/index.html": "7fcea92ec3b6c88a73c1590e28329bdc3bcfd05a",
+    "apps/site/public/install.html": "4c56c156002708f1a02151b1e048f4bb8b6880dc",
+    "apps/site/public/privacy.html": "327b7d29b1e3eb61bb044806fd5259adc99bdd52",
+    "apps/site/public/seller-analytics.html": "40f04651f97e5a08d750ed1d93a02a6007fb1c76",
+    "apps/site/public/sitemap.xml": "ca4aabccfc8db0d5a90db19fb52cc17ef902014d",
+    "apps/site/public/support.html": "741f7cfbc94c55362be37a3a61cbc6f6bee48879",
+    "infra/production/nginx/octoport-site.conf": "02a267f9ae3357ae9c3745264d482bb324366982",
+    "infra/production/scripts/deploy-octoport-site.sh": "7b5cb41b69af30dbfcd574d5d1dfefe830e68b5d",
+    "infra/production/scripts/verify-octoport-site.sh": "87bb055b741435ea891cbb1433ee914c2b1b914f",
+    "tests/regression/site/test_site_deployment.py": "a5a3ccd10beb44d86a6ba4ed879a5fb092cdcbba"
+  },
+  "external_sources": [
+    "https://developers.google.com/search/docs/crawling-indexing/consolidate-duplicate-urls",
+    "https://developers.google.com/search/docs/crawling-indexing/robots-meta-tag",
+    "https://developers.google.com/search/docs/crawling-indexing/javascript/javascript-seo-basics",
+    "https://developers.google.com/search/docs/appearance/site-names",
+    "https://developers.google.com/search/docs/appearance/favicon-in-search",
+    "https://developers.google.com/search/docs/appearance/page-experience",
+    "https://developers.google.com/search/docs/appearance/core-web-vitals",
+    "https://developers.google.com/search/docs/crawling-indexing/mobile/mobile-sites-mobile-first-indexing",
+    "https://yandex.com/support/webmaster/en/robot-workings/canonical",
+    "https://yandex.com/support/webmaster/en/robot-workings/double",
+    "https://yandex.com/support/webmaster/en/controlling-robot/robots-txt",
+    "https://yandex.com/support/webmaster/en/controlling-robot/sitemap",
+    "https://yandex.com/support/webmaster/en/robot-workings/vision",
+    "https://yandex.com/support/webmaster/en/recommendations/mobile-site",
+    "https://yandex.com/support/webmaster/en/search-results/favicon",
+    "https://web.dev/articles/vitals"
+  ],
+  "environment_capabilities": {
+    "unshare": true,
+    "mount_net_namespace": true,
+    "nginx": true,
+    "google_chrome": true,
+    "opera": true,
+    "yandex_browser": true,
+    "octoport_certificate_files_present": true,
+    "lighthouse_installed": false
+  },
+  "blocking_states": {
+    "real_sanitized_demo_gate": "OPEN",
+    "main_integration_governance": "HOLD_REQUIRES_EXPLICIT_RECONCILIATION",
+    "production_deployment_allowed": false,
+    "m16_allowed": false
+  },
+  "execution": {
+    "work_trigger": false,
+    "executor": "MAIN_CHAT_REMOTE_DESKTOP",
+    "planned_integration_branch": "seo/m15-predeploy-integration-2026-09-26-r1",
+    "host_production_mutation": false,
+    "main_merge": false,
+    "deployment": false,
+    "provider_calls": false
+  }
+}
