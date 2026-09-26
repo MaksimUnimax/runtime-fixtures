@@ -9,6 +9,7 @@ on:
       - "infra/production/scripts/deploy-octoport-site.sh"
       - "infra/production/scripts/verify-octoport-site.sh"
       - "infra/production/README.md"
+      - "tests/regression/site/test_site_deployment.py"
       - ".github/workflows/site-ci.yml"
   push:
     paths:
@@ -18,6 +19,7 @@ on:
       - "infra/production/scripts/deploy-octoport-site.sh"
       - "infra/production/scripts/verify-octoport-site.sh"
       - "infra/production/README.md"
+      - "tests/regression/site/test_site_deployment.py"
       - ".github/workflows/site-ci.yml"
   workflow_dispatch:
 
@@ -46,20 +48,27 @@ jobs:
           python3 - <<'PY'
           from html.parser import HTMLParser
           from pathlib import Path
+          import json
           import re
+          import struct
           import xml.etree.ElementTree as ET
 
           root = Path("apps/site/public")
-          index = (root / "index.html").read_text(encoding="utf-8")
+          index_path = root / "index.html"
+          seller_path = root / "seller-analytics.html"
+          favicon_path = root / "favicon.png"
+          index = index_path.read_text(encoding="utf-8")
           css = (root / "styles.css").read_text(encoding="utf-8")
           robots = (root / "robots.txt").read_text(encoding="utf-8")
           sitemap_path = root / "sitemap.xml"
 
           required_files = [
               root / "index.html",
+              seller_path,
               root / "privacy.html",
               root / "support.html",
               root / "install.html",
+              favicon_path,
               root / "styles.css",
               root / "robots.txt",
               sitemap_path,
@@ -75,8 +84,13 @@ jobs:
                   self.hrefs = []
                   self.canonical = []
                   self.html_lang = None
-                  self.scripts = 0
+                  self.executable_scripts = 0
+                  self.json_ld = []
+                  self._json_buffer = None
                   self.stylesheets = []
+                  self.icons = []
+                  self.descriptions = []
+                  self.robots = []
                   self.h1 = []
                   self.in_h1 = False
 
@@ -92,18 +106,32 @@ jobs:
                       self.canonical.append(attrs.get("href"))
                   if tag == "link" and attrs.get("rel") == "stylesheet":
                       self.stylesheets.append(attrs.get("href"))
+                  if tag == "link" and attrs.get("rel") == "icon":
+                      self.icons.append((attrs.get("href"), attrs.get("type")))
+                  if tag == "meta" and attrs.get("name") == "description":
+                      self.descriptions.append(attrs.get("content"))
+                  if tag == "meta" and attrs.get("name") == "robots":
+                      self.robots.append(attrs.get("content"))
                   if tag == "script":
-                      self.scripts += 1
+                      if attrs.get("type") == "application/ld+json":
+                          self._json_buffer = []
+                      else:
+                          self.executable_scripts += 1
                   if tag == "h1":
                       self.in_h1 = True
 
               def handle_endtag(self, tag):
                   if tag == "h1":
                       self.in_h1 = False
+                  if tag == "script" and self._json_buffer is not None:
+                      self.json_ld.append("".join(self._json_buffer))
+                      self._json_buffer = None
 
               def handle_data(self, data):
                   if self.in_h1:
                       self.h1.append(data)
+                  if self._json_buffer is not None:
+                      self._json_buffer.append(data)
 
           parser = PageParser()
           parser.feed(index)
@@ -111,14 +139,30 @@ jobs:
           assert parser.html_lang == "ru", f"html lang must be ru, got {parser.html_lang!r}"
           assert parser.canonical == ["https://octoport.ru/"], parser.canonical
           assert parser.stylesheets == ["/styles.css"], parser.stylesheets
-          assert parser.scripts == 0, "S0 must remain executable-JavaScript-free"
+          assert parser.icons == [("/favicon.png", "image/png")], parser.icons
+          assert parser.executable_scripts == 0, "M14 must remain executable-JavaScript-free"
+          assert len(parser.json_ld) == 1, parser.json_ld
+          website = json.loads(parser.json_ld[0])
+          assert website == {
+              "@context": "https://schema.org",
+              "@type": "WebSite",
+              "name": "Octoport",
+              "alternateName": ["Октопорт", "octoport.ru"],
+              "url": "https://octoport.ru/",
+          }, website
+          assert "<title>Подключите ваш ИИ к Ozon и Wildberries | Octoport</title>" in index
+          assert parser.h1 == ["Подключите ваш ИИ к Ozon и Wildberries"], parser.h1
+          assert parser.descriptions == [
+              "Octoport подключает выбранный вами ИИ к разрешённым данным Ozon и Wildberries через браузерное расширение. Read-only запуск; готовим закрытую бесплатную бету."
+          ], parser.descriptions
 
+          approved_home_paths = {"/seller-analytics", "/privacy", "/support", "/install"}
           for href in parser.hrefs:
               if href.startswith("#"):
                   target = href[1:]
                   assert target in parser.ids, f"broken internal anchor: {href}"
               else:
-                  assert href.startswith("https://octoport.ru/"), f"unexpected external link: {href}"
+                  assert href in approved_home_paths, f"unexpected HOME link: {href}"
 
           lowered = index.lower()
           for stale_domain in ("selleragents.ru", "openscript.ru"):
@@ -130,8 +174,12 @@ jobs:
           assert "набор ещё не открыт" in lowered, "site must not imply registration is already live"
           assert "read-only" in lowered, "initial read-only scope must be explicit"
           assert "локаль" in lowered and "ключ" in lowered, "local-key boundary must be visible"
+          assert "Ваш ИИ получает руки для работы с маркетплейсами." in index
+          assert "/seller-analytics" in parser.hrefs
+          for utility in ("/privacy", "/support", "/install"):
+              assert utility in parser.hrefs
 
-          required_sections = {"top", "how", "privacy", "beta", "principles-title"}
+          required_sections = {"top", "how", "privacy", "beta", "principles-title", "analytics", "analytics-title"}
           assert required_sections.issubset(parser.ids), f"missing sections: {required_sections - parser.ids}"
 
           assert "https://octoport.ru/sitemap.xml" in robots
@@ -140,18 +188,47 @@ jobs:
           tree = ET.parse(sitemap_path)
           ns = {"sm": "http://www.sitemaps.org/schemas/sitemap/0.9"}
           locations = [node.text for node in tree.findall("sm:url/sm:loc", ns)]
-          assert locations == ["https://octoport.ru/"], locations
+          assert locations == [
+              "https://octoport.ru/",
+              "https://octoport.ru/seller-analytics",
+              "https://octoport.ru/privacy",
+              "https://octoport.ru/support",
+          ], locations
+
+          with favicon_path.open("rb") as handle:
+              header = handle.read(24)
+          assert header[:8] == b"\x89PNG\r\n\x1a\n"
+          assert header[12:16] == b"IHDR"
+          width, height = struct.unpack(">II", header[16:24])
+          assert (width, height) == (120, 120), (width, height)
 
           assert len(index.encode("utf-8")) < 100_000, "homepage unexpectedly large"
           assert len(css.encode("utf-8")) < 100_000, "stylesheet unexpectedly large"
+          assert favicon_path.stat().st_size < 100_000, "favicon unexpectedly large"
 
-          print("SITE-S0 PASS: canonical, copy boundaries, anchors, robots and sitemap")
+          print("SITE-M14 HOME PASS: metadata, JSON-LD, links, robots, sitemap and favicon")
 
           page_specs = {
+              "seller-analytics": {
+                  "title": "ИИ для аналитики маркетплейсов — данные вашего магазина | Octoport",
+                  "h1": "Анализируйте данные магазина на Ozon и Wildberries с вашим ИИ",
+                  "canonical": "https://octoport.ru/seller-analytics",
+                  "description": "Octoport помогает выбранному вами ИИ разбирать разрешённые данные вашего магазина на Ozon и Wildberries — без внешней конкурентной аналитики и автоматических изменений.",
+                  "robots": [],
+                  "required": [
+                      "seller-owned",
+                      "Это read-only сценарий.",
+                      "У Octoport нет собственной языковой модели.",
+                      "вымышленными кейсами",
+                      "главной странице Octoport",
+                  ],
+              },
               "privacy": {
                   "title": "Octoport — Privacy",
                   "h1": "Privacy",
                   "canonical": "https://octoport.ru/privacy",
+                  "description": "Как Octoport обрабатывает данные: локальные реквизиты маркетплейсов, технический буфер результатов и ограниченная роль сервера.",
+                  "robots": [],
                   "required": [
                       "обычной работе",
                       "технический срок хранения один час",
@@ -172,6 +249,8 @@ jobs:
                   "title": "Octoport — Support",
                   "h1": "Support",
                   "canonical": "https://octoport.ru/support",
+                  "description": "Поддержка Octoport: границы ранней беты, безопасное обращение в поддержку и актуальные ограничения браузеров, установки и read-only режима.",
+                  "robots": [],
                   "required": [
                       "ранней бете",
                       "Safari в бету не входит",
@@ -192,6 +271,8 @@ jobs:
                   "title": "Install Octoport",
                   "h1": "Install Octoport",
                   "canonical": "https://octoport.ru/install",
+                  "description": None,
+                  "robots": ["noindex, follow"],
                   "required": [
                       "Официальная установка Octoport из каталога расширений готовится",
                       "не публикуем инструкции для ZIP-файла",
@@ -211,17 +292,24 @@ jobs:
                   f"{page_name}: unexpected canonical {page_parser.canonical}"
               assert page_parser.stylesheets == ["/styles.css"], \
                   f"{page_name}: shared stylesheet link is missing"
-              assert page_parser.scripts == 0, f"{page_name}: executable JavaScript is forbidden"
+              assert page_parser.executable_scripts == 0, f"{page_name}: executable JavaScript is forbidden"
+              assert page_parser.json_ld == [], f"{page_name}: unexpected page-level JSON-LD"
               assert f"<title>{spec['title']}</title>" in html, f"{page_name}: title is missing"
               assert len(page_parser.h1) == 1 and "".join(page_parser.h1) == spec["h1"], \
                   f"{page_name}: expected one H1 with text {spec['h1']!r}"
+              assert page_parser.robots == spec["robots"], f"{page_name}: unexpected robots {page_parser.robots}"
+              if spec["description"] is None:
+                  assert page_parser.descriptions == [], f"{page_name}: unexpected description"
+              else:
+                  assert page_parser.descriptions == [spec["description"]], \
+                      f"{page_name}: unexpected description {page_parser.descriptions}"
 
               for href in page_parser.hrefs:
                   if href.startswith("/"):
                       path, _, fragment = href.partition("#")
-                      targets = {"/": root / "index.html", "/privacy": root / "privacy.html",
-                                 "/support": root / "support.html", "/install": root / "install.html",
-                                 "/styles.css": root / "styles.css"}
+                      targets = {"/": root / "index.html", "/seller-analytics": seller_path,
+                                 "/privacy": root / "privacy.html", "/support": root / "support.html",
+                                 "/install": root / "install.html", "/styles.css": root / "styles.css"}
                       target = targets.get(path)
                       assert target and target.is_file(), f"{page_name}: broken or unapproved local link {href}"
                       if fragment:
@@ -270,7 +358,7 @@ jobs:
 
               assert len(html.encode("utf-8")) < 50_000, f"{page_name}: page is unexpectedly large"
 
-          print("STORE-0 PASS: public pages, links, required copy and claim boundaries")
+          print("STORE-M14 PASS: analytics and utility pages, links, metadata and claim boundaries")
           PY
 
       - name: Validate SITE-S1 deployment source
@@ -286,44 +374,55 @@ jobs:
           bash -n "${deploy_script}"
           bash -n "${verify_script}"
 
+          [[ "$(grep -Ec '^server[[:space:]]*\{' "${nginx_conf}")" == 3 ]]
           grep -Fq 'server_name octoport.ru;' "${nginx_conf}"
           grep -Fq 'server_name www.octoport.ru;' "${nginx_conf}"
           grep -Fq 'server_name app.octoport.ru;' "${apps_conf}"
           grep -Fq 'server_name api.octoport.ru;' "${apps_conf}"
           grep -Fq 'root /var/www/octoport-site/current;' "${nginx_conf}"
+          grep -Fq 'if ($host = www.octoport.ru)' "${nginx_conf}"
           grep -Fq 'return 308 https://octoport.ru$request_uri;' "${nginx_conf}"
-          grep -Fq 'expires -1;' "${nginx_conf}"
-          grep -Fq 'expires 5m;' "${nginx_conf}"
           grep -Fq 'Content-Security-Policy' "${nginx_conf}"
           grep -Fq 'default-src '\''none'\''' "${nginx_conf}"
-          grep -Fq 'location = /privacy {' "${nginx_conf}"
-          grep -Fq 'location = /support {' "${nginx_conf}"
-          grep -Fq 'location = /install {' "${nginx_conf}"
-          grep -Fq 'try_files /privacy.html =404;' "${nginx_conf}"
-          grep -Fq 'try_files /support.html =404;' "${nginx_conf}"
-          grep -Fq 'try_files /install.html =404;' "${nginx_conf}"
+          grep -Fq 'location = /seller-analytics {' "${nginx_conf}"
+          grep -Fq 'try_files /seller-analytics.html =404;' "${nginx_conf}"
+          grep -Fq 'location = /favicon.png {' "${nginx_conf}"
+          grep -Fq 'try_files /favicon.png =404;' "${nginx_conf}"
+          grep -Fq 'location = /index.html {' "${nginx_conf}"
+          grep -Fq 'return 308 https://octoport.ru/$is_args$args;' "${nginx_conf}"
+          grep -Fq 'return 308 https://octoport.ru/seller-analytics$is_args$args;' "${nginx_conf}"
+          grep -Fq 'return 308 https://octoport.ru/privacy$is_args$args;' "${nginx_conf}"
+          grep -Fq 'return 308 https://octoport.ru/support$is_args$args;' "${nginx_conf}"
+          grep -Fq 'return 308 https://octoport.ru/install$is_args$args;' "${nginx_conf}"
+          grep -Fq 'try_files $uri =404;' "${nginx_conf}"
 
+          if grep -Eq 'proxy_pass|service_not_deployed|portal is not deployed' "${nginx_conf}"; then
+            echo 'site ingress must not own application behavior' >&2
+            exit 1
+          fi
           if grep -Eq '^[[:space:]]*add_header[[:space:]]+Cache-Control([[:space:]]|;)' "${nginx_conf}"; then
             echo 'location-level add_header Cache-Control would break security-header inheritance' >&2
             exit 1
           fi
-
           if grep -Eq 'server_name[^;]*admin\.octoport\.ru' "${nginx_conf}" "${apps_conf}"; then
             echo 'admin.octoport.ru must remain disabled as an application hostname' >&2
             exit 1
           fi
 
-          grep -Fq 'systemctl reload nginx' "${deploy_script}"
+          grep -Fq 'seller-analytics.html' "${deploy_script}"
+          grep -Fq 'favicon.png' "${deploy_script}"
           grep -Fq 'verify-octoport-site.sh' "${deploy_script}"
+          grep -Fq 'seller-analytics' "${verify_script}"
+          grep -Fq 'favicon' "${verify_script}"
           grep -Fq 'styles.css lost the inherited CSP' "${verify_script}"
           grep -Fq 'styles.css lost X-Frame-Options' "${verify_script}"
-          grep -Fq "https://octoport.ru/privacy" "${verify_script}"
-          grep -Fq "https://octoport.ru/support" "${verify_script}"
-          grep -Fq "https://octoport.ru/install" "${verify_script}"
 
           if grep -Eq 'rm[[:space:]]+-rf' "${deploy_script}"; then
             echo 'recursive forced deletion is not allowed in the site deploy script' >&2
             exit 1
           fi
 
-          echo 'SITE-S1 PASS: deploy scripts parse and ingress safety invariants are present'
+          echo 'SITE-S1 PASS: M14 ingress/deploy/verifier safety invariants are present'
+
+      - name: Run site deployment regression tests
+        run: python3 -m unittest tests/regression/site/test_site_deployment.py
