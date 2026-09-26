@@ -1,0 +1,36 @@
+qa_id	phase	surface	check	required_state	evidence	blocking	hold_if_failed
+M15Q001	AUTHORITY	main	fresh main head	Re-fetch immediately before integration branch creation; classify all drift	Git compare + exact SHA	true	RECONCILE
+M15Q002	AUTHORITY	seo	SEO authority	M13 R2 + M14 acceptance + M15 prep unchanged	Git compare/readback	true	RECONCILE
+M15Q003	AUTHORITY	m14_candidate	accepted candidate identity	Branch exactly 020f351e1ddd862db4ded85622e2eeca02ea2181	Git compare	true	RECONCILE
+M15Q004	INTEGRATION	fresh_main	replay M14	Fresh-main integration branch inherits latest main and changes exactly 13 accepted paths	Git compare	true	REWORK
+M15Q005	INTEGRATION	13 paths	blob parity	Each integration blob equals accepted M14 blob	Git blob SHA	true	REWORK
+M15Q006	SOURCE	HOME	metadata/spec parity	Exact M12 R2 Title/H1/description, self canonical, brand subheadline	HTML parser	true	REWORK
+M15Q007	SOURCE	seller-analytics	metadata/spec parity	Exact M12 R2 Title/H1/description, self canonical	HTML parser	true	REWORK
+M15Q008	SOURCE	privacy	indexability	200-target source, self canonical, unique description, no noindex	HTML parser	true	REWORK
+M15Q009	SOURCE	support	indexability	200-target source, self canonical, unique description, no noindex	HTML parser	true	REWORK
+M15Q010	SOURCE	install	indexability	self canonical + robots noindex, follow; absent sitemap	HTML/XML parser	true	REWORK
+M15Q011	SOURCE	sitemap	canonical set	Exactly HOME, seller-analytics, privacy, support	XML parser	true	REWORK
+M15Q012	SOURCE	robots	crawler policy	200-target file allows public pages/assets; canonical Sitemap; no AI opt-out	source read	true	REWORK
+M15Q013	SOURCE	HOME	WebSite JSON-LD	One exact truthful WebSite node; executable JS=0	HTML+JSON parser	true	REWORK
+M15Q014	SOURCE	favicon	asset contract	Accepted lineage, PNG 120x120, stable /favicon.png link	blob/hash/PNG header	true	REWORK
+M15Q015	SOURCE	links	crawlable links	HOME->analytics, analytics->HOME, HOME utility links; no orphan indexable URL	HTML parser	true	REWORK
+M15Q016	SOURCE	nginx	canonical aliases	Known aliases 308 exact canonical targets; query preserved; unknown route remains 404	source parser	true	REWORK
+M15Q017	SOURCE	all HTML	claim boundary	No historical paid pricing, proprietary LLM, fake proof, external-intelligence/accounting/write-back promise	adversarial grep/review	true	REWORK
+M15Q018	CI	integration head	Site CI	Exact-head Site CI SUCCESS	GitHub Actions	true	REWORK
+M15Q019	CI	integration head	Site Deploy CI	Exact-head Site Deploy CI SUCCESS	GitHub Actions	true	REWORK
+M15Q020	PREDEPLOY	environment	namespace isolation	Private mount+net namespace; host production root/nginx/systemd untouched	namespace/process/mount evidence	true	HOLD
+M15Q021	PREDEPLOY	canonical pages	HTTP 200 matrix	/, analytics, privacy, support, install, robots, sitemap, favicon, CSS expected 200	curl no-follow	true	REWORK
+M15Q022	PREDEPLOY	hosts	scheme/host normalization	HTTP apex->HTTPS apex; HTTP www one-hop apex; HTTPS www apex	curl headers	true	REWORK
+M15Q023	PREDEPLOY	aliases	redirect matrix	All 9 known aliases 308 exact targets with query preservation	curl headers	true	REWORK
+M15Q024	PREDEPLOY	unknown URL	real 404	Representative unknown URL 404, no Location	curl headers	true	REWORK
+M15Q025	PREDEPLOY	headers	security/cache/types	CSP/XFO/nosniff inherited; expected content types/cache; favicon no redirect	curl headers	true	REWORK
+M15Q026	RENDER	Chrome desktop	HOME+analytics render	Critical text/links visible, no first-party load error	screenshot+DOM	true	REWORK
+M15Q027	RENDER	Opera desktop	HOME+analytics render	Critical text/links visible, no first-party load error	screenshot+DOM	true	REWORK
+M15Q028	RENDER	Yandex desktop	HOME+analytics render	Critical text/links visible, no first-party load error	screenshot+DOM	true	REWORK
+M15Q029	MOBILE	Chrome 320px	responsive usability	No horizontal clipping/overflow; accepted content and links retained	320px screenshot+DOM	true	REWORK
+M15Q030	PERFORMANCE	static runtime	material regression	Zero executable JS; no third-party runtime; bounded bytes/dependencies; lab diagnostics only	source/network diagnostics	true	REWORK
+M15Q031	PERFORMANCE	field CWV	truthful state	FIELD_DATA_NOT_AVAILABLE unless real p75 source exists; never fabricate INP/LCP/CLS	evidence provenance	true	REWORK
+M15Q032	LIVE_BASELINE	current production	pre-M14 baseline	Capture read-only existing live state and label PRE-M14; never call it candidate QA	curl/browser read-only	true	REWORK
+M15Q033	LIVE_HOLD	analytics proof	production gate	REAL_SANITIZED_DEMO_GATE remains OPEN => no candidate deployment/live QA	M12 proof authority	true	HOLD
+M15Q034	GOVERNANCE	main merge	integration owner	No main merge until AGENTS/OWNERSHIP site integration conflict explicitly reconciled	repo authority	true	HOLD
+M15Q035	FINAL	M15	predeploy verdict	PASS_SOURCE_PREDEPLOY_WITH_EXPLICIT_LIVE_HOLD only if Q001-Q032 pass and Q033-Q034 remain explicit	M15_QA.md	true	REWORK
