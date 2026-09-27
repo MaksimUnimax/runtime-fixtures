@@ -86,7 +86,9 @@ def main():
             for test_name, test in tests:
                 runner.run(label + "-" + test_name, [node, test, runtime])
             runner.run(label + "-i1-d3c-signed-readback", [os.environ.get("SA_PNPM_BIN", "pnpm"), "exec", "tsx", "../../tests/regression/extension-core/client-i1/client-d3c-signed-readback.ts", runtime], cwd=ROOT / "apps/api")
+            runner.run(label + "-i1-v3-passive-signed-readback", [os.environ.get("SA_PNPM_BIN", "pnpm"), "exec", "tsx", "../../tests/regression/extension-core/client-i1/client-v3-passive-signed-readback.ts", runtime], cwd=ROOT / "apps/api")
             runner.run(label + "-i1-verifier", [node, ROOT / "tests/regression/extension-core/client-i1/verifier.mjs", runtime / "shared/bootstrap_verifier.js"])
+            runner.run(label + "-i1-verifier-v3", [node, ROOT / "tests/regression/extension-core/client-i1/verifier-v3.mjs", runtime / "shared/bootstrap_verifier.js"])
         result["status"] = "PASS"
     except Exception as error:
         result["status"] = "FAIL"

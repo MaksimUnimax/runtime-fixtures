@@ -66,4 +66,85 @@ result = await materialize(payload, env); assert.equal(result.ai.status, "UNAVAI
 payload = base(); payload.localClientAuthority.contractVersion = "control_plane_v1";
 assert.equal(await materialize(payload, env), null);
 
-console.log(JSON.stringify({ status: "PASS", cases: ["feature_rule_filtering", "maintenance", "blocked_version", "minimum_version", "recommended_update", "missing_release_update_required", "wrong_family_ai", "profile_minimum_failure", "profile_hash_failure", "wrong_authority_contract"] }));
+const v3Policy = overrides => ({
+  policyKey: "global-v3",
+  revision: 1,
+  contractVersion: "control_plane_v3",
+  browserFamily: null,
+  minimumExtensionVersion: null,
+  recommendedExtensionVersion: null,
+  minimumBrowserVersion: null,
+  maintenanceMode: false,
+  maintenanceCode: null,
+  blockedVersions: [],
+  ...overrides,
+});
+const v3Rule = overrides => ({
+  featureKey: "feature_v3",
+  revision: 1,
+  contractVersion: "control_plane_v3",
+  enabled: true,
+  browserFamily: null,
+  minimumExtensionVersion: null,
+  ...overrides,
+});
+const v3Base = releaseContractVersions => ({
+  snapshotVersion: "bootstrap_snapshot_v3",
+  contractVersion: "control_plane_v3",
+  configVersion: 4,
+  localClientAuthority: {
+    schemaVersion: "local_client_authority_v2",
+    contractVersion: "control_plane_v3",
+    compatibility: {
+      releases: [{
+        extensionVersion: "1.0.0",
+        contractVersions: releaseContractVersions,
+        browserFamilies: ["firefox"],
+      }],
+      policies: [v3Policy({
+        policyKey: "firefox-v3",
+        browserFamily: "firefox",
+        minimumBrowserVersion: "140",
+      })],
+    },
+    featureRules: [v3Rule()],
+    ai: {
+      status: "CANDIDATES",
+      detected: { family: "chatgpt", surface: "web", variant: null },
+      candidates: [{
+        browserFamily: "firefox",
+        resolution: { status: "RESOLVED", profile },
+      }],
+    },
+  },
+});
+
+payload = v3Base(["control_plane_v3"]);
+result = await materialize(payload, env);
+assert.equal(result.compatibility.extension.status, "SUPPORTED");
+assert.equal(result.compatibility.browser.status, "SUPPORTED");
+assert.equal(result.features.feature_v3, true);
+assert.equal(result.ai.status, "RESOLVED");
+
+payload = v3Base(["control_plane_v2"]);
+result = await materialize(payload, env);
+assert.equal(result.compatibility.extension.status, "UPDATE_REQUIRED");
+assert.equal(result.compatibility.browser.status, "UNSUPPORTED_BROWSER");
+
+console.log(JSON.stringify({
+  status: "PASS",
+  cases: [
+    "feature_rule_filtering",
+    "maintenance",
+    "blocked_version",
+    "minimum_version",
+    "recommended_update",
+    "missing_release_update_required",
+    "wrong_family_ai",
+    "profile_minimum_failure",
+    "profile_hash_failure",
+    "wrong_authority_contract",
+    "v3_advertised_release_projection",
+    "v3_dormant_v2_only_release_not_supported",
+  ],
+}));
