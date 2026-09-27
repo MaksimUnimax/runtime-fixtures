@@ -2,6 +2,7 @@
 from pathlib import Path
 import os
 import shlex
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -44,6 +45,39 @@ class SiteDeploymentTests(unittest.TestCase):
     def test_static_source_accepted(self):
         result = self.run_deploy('assert_source')
         self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_m14_required_source_artifacts_are_enforced(self):
+        public = ROOT / 'apps/site/public'
+        for missing in ['seller-analytics.html', 'favicon.png']:
+            with self.subTest(missing=missing):
+                source = self.root / ('source-' + missing.replace('.', '-'))
+                shutil.copytree(public, source)
+                (source / missing).unlink()
+                result = self.run_deploy(
+                    'SOURCE_SITE=' + shlex.quote(str(source)) + '\nassert_source'
+                )
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn('site source is missing ' + missing, result.stderr)
+
+    def test_m14_public_ingress_contract_is_explicit(self):
+        nginx = (ROOT / 'infra/production/nginx/octoport-site.conf').read_text()
+        required = [
+            'if ($host = www.octoport.ru)',
+            'return 308 https://octoport.ru$request_uri;',
+            'location = /seller-analytics {',
+            'try_files /seller-analytics.html =404;',
+            'location = /seller-analytics.html {',
+            'return 308 https://octoport.ru/seller-analytics$is_args$args;',
+            'location = /seller-analytics/ {',
+            'location = /index.html {',
+            'return 308 https://octoport.ru/$is_args$args;',
+            'location = /favicon.png {',
+            'try_files /favicon.png =404;',
+            'location / {\n        try_files $uri =404;\n    }',
+        ]
+        for needle in required:
+            with self.subTest(needle=needle):
+                self.assertIn(needle, nginx)
 
     def test_historical_combined_ingress_rejected(self):
         bad = self.root / 'old.conf'
