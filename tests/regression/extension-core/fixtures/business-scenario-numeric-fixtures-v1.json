@@ -981,6 +981,58 @@
         "fbsErrorIndexKnown": false,
         "fbsErrorIndex": null
       }
+    },
+    {
+      "id": "causal_factors_complete",
+      "kind": "causal_factors",
+      "input": {
+        "signals": {
+          "content_error": true,
+          "orders_drop": true,
+          "stock_zero": false,
+          "ad_click_drop": true
+        }
+      },
+      "expected": {
+        "status": "COMPLETE",
+        "factors": ["ad_click_drop", "content_error", "orders_drop"],
+        "claim": "HYPOTHESIS_NOT_PROVEN_CAUSE",
+        "likelihoodKnown": false
+      }
+    },
+    {
+      "id": "causal_factors_missing",
+      "kind": "causal_factors",
+      "input": {
+        "signals": {
+          "content_error": true,
+          "orders_drop": null,
+          "stock_zero": false,
+          "ad_click_drop": true
+        }
+      },
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "EVIDENCE_SIGNAL_INCOMPLETE"
+      }
+    },
+    {
+      "id": "causal_factors_no_adverse",
+      "kind": "causal_factors",
+      "input": {
+        "signals": {
+          "content_error": false,
+          "orders_drop": false,
+          "stock_zero": false,
+          "ad_click_drop": false
+        }
+      },
+      "expected": {
+        "status": "COMPLETE",
+        "factors": [],
+        "claim": "HYPOTHESIS_NOT_PROVEN_CAUSE",
+        "likelihoodKnown": false
+      }
     }
   ]
 }

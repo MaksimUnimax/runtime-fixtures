@@ -28,6 +28,7 @@ import "./wb-search-query-field-schema-slice.mjs";
 import "./wb-search-position-share-field-schema-slice.mjs";
 import "./wb-visibility-mapping-refresh.mjs";
 import "./wb-rating-boundary-refresh.mjs";
+import "./wb-sales-decline-causal-factor-reuse.mjs";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
@@ -636,6 +637,27 @@ const calculators = {
       fbsErrorIndex: null,
     };
   },
+  causal_factors(input) {
+    const names = [
+      "content_error",
+      "orders_drop",
+      "stock_zero",
+      "ad_click_drop",
+    ];
+    if (
+      !input.signals ||
+      typeof input.signals !== "object" ||
+      names.some((name) => typeof input.signals[name] !== "boolean")
+    )
+      return { status: "INCOMPLETE", reason: "EVIDENCE_SIGNAL_INCOMPLETE" };
+
+    return {
+      status: "COMPLETE",
+      factors: names.filter((name) => input.signals[name]).sort(),
+      claim: "HYPOTHESIS_NOT_PROVEN_CAUSE",
+      likelihoodKnown: false,
+    };
+  },
   attention_rank(input) {
     if (!Array.isArray(input.rows)) return { status: "INCOMPLETE" };
     const products = new Set();
@@ -704,6 +726,7 @@ const requiredKinds = new Set([
   "restriction_boundary",
   "ad_content_join",
   "rating_boundary",
+  "causal_factors",
   "attention_rank",
   "causal_boundary",
 ]);
