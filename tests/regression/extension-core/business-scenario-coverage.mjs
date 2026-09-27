@@ -20,6 +20,7 @@ import "./wb-feedback-question-privacy-field-schema-slice.mjs";
 import "./wb-campaign-status-field-schema-slice.mjs";
 import "./wb-advertising-stats-grain-field-schema-slice.mjs";
 import "./wb-advertised-stock-reuse.mjs";
+import "./wb-paid-storage-contribution-field-schema-slice.mjs";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import fs from "node:fs";

@@ -1,0 +1,376 @@
+{
+  "schemaVersion": "wb_paid_storage_contribution_field_schema_slice_v1",
+  "capturedDate": "2026-09-27",
+  "scope": {
+    "scenarioIds": ["CAP-24"],
+    "boundary": "PAID_STORAGE_LIFECYCLE_IS_EXPLICIT_BUT_PLATFORM_CONTRIBUTION_GROUPING_REMAINS_FAIL_CLOSED",
+    "evidence": "CURRENT_UPSTREAM_OPENAPI_MIRROR_PLUS_REUSED_ACCEPTED_SLICES",
+    "liveValues": false,
+    "acceptedOperationMappingChanged": false
+  },
+  "authority": {
+    "mirrorRepository": "eslazarev/wildberries-sdk",
+    "mirrorCommit": "5057bdb9bf16dea24000e3ca79e1934f7761d7fe",
+    "specs": {
+      "12-reports.yaml": {
+        "blobSha": "22ff073c10a3cebe0dc7af647eb2b704fd35857c",
+        "upstreamUrl": "https://dev.wildberries.ru/api/swagger/yaml/ru/12-reports.yaml?region=ru"
+      },
+      "13-finances.yaml": {
+        "blobSha": "9b268d4f3edfc5912e3e7c8b9bc571523bd7a377",
+        "upstreamUrl": "https://dev.wildberries.ru/api/swagger/yaml/ru/13-finances.yaml?region=ru"
+      },
+      "08-promotion.yaml": {
+        "blobSha": "30ae48c8d1b67944b34cf51ac896ae4c2b2fa0d9"
+      }
+    },
+    "deductionsCurrencyPolicyReuse": {
+      "fixture": "tests/regression/extension-core/fixtures/wb-finance-reconciliation-field-schema-slice-v1.json",
+      "rule": "MONETARY_VALUES_USE_SELLER_REGISTRATION_COUNTRY_CURRENCY",
+      "scope": "DEDUCTIONS_ONLY_NOT_ASSUMED_FOR_PAID_STORAGE"
+    }
+  },
+  "paidStorage": {
+    "create": {
+      "operationAlias": "paid_storage_create",
+      "host": "analytics",
+      "method": "GET",
+      "path": "/api/v1/paid_storage",
+      "requiredQuery": ["dateFrom", "dateTo"],
+      "maxPeriodDays": 8,
+      "responseTaskIdPath": "data.taskId"
+    },
+    "status": {
+      "operationAlias": "paid_storage_status",
+      "host": "analytics",
+      "method": "GET",
+      "path": "/api/v1/paid_storage/tasks/{task_id}/status",
+      "responseTaskIdPath": "data.id",
+      "responseStatusPath": "data.status",
+      "statuses": {
+        "new": "PENDING",
+        "processing": "PENDING",
+        "done": "READY",
+        "purged": "TERMINAL_UNAVAILABLE",
+        "canceled": "TERMINAL_UNAVAILABLE"
+      }
+    },
+    "download": {
+      "operationAlias": "paid_storage_download",
+      "host": "analytics",
+      "method": "GET",
+      "path": "/api/v1/paid_storage/tasks/{task_id}/download",
+      "allowedOnlyAfterStatus": "done",
+      "http200": "ROW_ARRAY",
+      "http204": "EXPLICIT_NO_DATA",
+      "currencyCodeField": null,
+      "rowIdentity": "NO_DOCUMENTED_UNIQUE_ROW_KEY",
+      "fields": {
+        "date": {
+          "role": "calculation_or_recalculation_date",
+          "unit": "date"
+        },
+        "originalDate": {
+          "role": "original_calculation_date_or_same_as_date",
+          "unit": "date_optional"
+        },
+        "nmId": {
+          "role": "product_id",
+          "unit": "identifier"
+        },
+        "vendorCode": {
+          "role": "seller_article",
+          "unit": "text"
+        },
+        "warehouse": {
+          "role": "warehouse_label",
+          "unit": "text"
+        },
+        "warehouseCoef": {
+          "role": "storage_coefficient",
+          "unit": "provider_number"
+        },
+        "volume": {
+          "role": "product_volume",
+          "unit": "provider_number"
+        },
+        "calcType": {
+          "role": "storage_calculation_method",
+          "unit": "text"
+        },
+        "warehousePrice": {
+          "role": "storage_amount",
+          "unit": "provider_money_number_currency_code_absent"
+        },
+        "barcodesCount": {
+          "role": "tariffed_units_for_calculation_day",
+          "unit": "count"
+        },
+        "palletCount": {
+          "role": "pallet_count",
+          "unit": "count"
+        },
+        "loyaltyDiscount": {
+          "role": "loyalty_program_discount",
+          "unit": "money_number"
+        }
+      }
+    }
+  },
+  "reusedSources": {
+    "financeDetail": {
+      "operationAlias": "finance_sales_detail_period",
+      "fixture": "tests/regression/extension-core/fixtures/wb-finance-reconciliation-field-schema-slice-v1.json",
+      "currentOpenapiFields": {
+        "currency": "report_currency",
+        "retailAmount": "provider_retail_amount",
+        "forPay": "seller_payable_for_realized_goods",
+        "commissionPercent": "provider_commission_percent",
+        "ppvzSalesCommission": "sales_commission_before_agent_services",
+        "acquiringFee": "payment_services_compensation_or_commission",
+        "vw": "wildberries_reward_without_vat",
+        "vwNds": "vat_on_wildberries_reward",
+        "deliveryService": "delivery_service_amount",
+        "rebillLogisticCost": "movement_and_operational_handling_reimbursement",
+        "paidStorage": "storage_amount",
+        "penalty": "penalty_amount",
+        "additionalPayment": "wildberries_reward_adjustment",
+        "deduction": "provider_deduction_amount"
+      }
+    },
+    "deductions": {
+      "operationAlias": "deductions",
+      "fixture": "tests/regression/extension-core/fixtures/wb-finance-reconciliation-field-schema-slice-v1.json",
+      "currencyCodeField": null
+    },
+    "promotionSpend": {
+      "operationAlias": "promo_spend_history",
+      "fixture": "tests/regression/extension-core/fixtures/wb-advertising-field-schema-slice-v1.json",
+      "amountField": "updSum",
+      "currencyCodeField": null
+    },
+    "operationalSales": {
+      "operationAlias": "statistics_sales",
+      "fixture": "tests/regression/extension-core/fixtures/wb-operational-sales-field-schema-slice-v1.json",
+      "dataClass": "PRELIMINARY_OPERATIONAL",
+      "authoritativeRevenueField": null
+    }
+  },
+  "rules": {
+    "taskIdentity": "CREATE_TASK_ID_MUST_EQUAL_STATUS_ID_AND_DOWNLOAD_PATH_ID",
+    "downloadGate": "ONLY_DONE_STATUS_MAY_BE_TREATED_AS_READY_FOR_DOWNLOAD",
+    "terminalTask": "PURGED_OR_CANCELED_IS_TERMINAL_UNAVAILABLE_NOT_ZERO_STORAGE",
+    "pendingTask": "NEW_OR_PROCESSING_IS_INCOMPLETE_NOT_ZERO_STORAGE",
+    "noData204": "DONE_PLUS_HTTP_204_IS_EXPLICIT_COMPLETE_EMPTY_STORAGE_DATASET",
+    "storageRows": "DO_NOT_DEDUP_WITHOUT_DOCUMENTED_UNIQUE_ROW_KEY",
+    "recalculation": "PRESERVE_DATE_AND_ORIGINAL_DATE_DO_NOT_DISCARD_RECALCULATION_ROWS",
+    "storageSign": "PRESERVE_PROVIDER_WAREHOUSE_PRICE_SIGN",
+    "storageCurrency": "PAID_STORAGE_RESPONSE_HAS_NO_CURRENCY_CODE_REQUIRE_EXPLICIT_STORE_ACCOUNT_CURRENCY_BINDING",
+    "storageArithmetic": "WAREHOUSE_PRICE_IS_PROVIDER_JSON_NUMBER_REQUIRE_EXPLICIT_DECIMAL_NORMALIZATION_POLICY_FOR_EXACT_MONEY_SUM",
+    "revenue": "NO_OWNER_DEFINED_REVENUE_FIELD_IS_CURRENTLY_SELECTED",
+    "fees": "DO_NOT_DERIVE_PLATFORM_FEES_AS_RETAIL_AMOUNT_MINUS_FOR_PAY_OR_BY_IMPLICIT_FIELD_BUCKETING",
+    "logistics": "DO_NOT_AUTO_GROUP_DELIVERY_SERVICE_AND_REBILL_LOGISTIC_COST_WITHOUT_COMPONENT_POLICY",
+    "ads": "PROMO_SPEND_HISTORY_HAS_NO_CURRENCY_CODE_REQUIRE_EXPLICIT_ACCOUNT_CURRENCY_BINDING",
+    "operationalSales": "STATISTICS_SALES_IS_PRELIMINARY_NOT_FINAL_FINANCE_REVENUE",
+    "contribution": "PLATFORM_CONTRIBUTION_REQUIRES_COMPLETE_EXPLICIT_COMPONENT_POLICY_AND_COMMON_CURRENCY_BINDING",
+    "missing": "MISSING_NOT_ZERO",
+    "netProfit": false
+  },
+  "acceptedMappingSnapshot": {
+    "CAP-24": [
+      "finance_sales_detail_period",
+      "deductions",
+      "paid_storage_create",
+      "paid_storage_status",
+      "paid_storage_download",
+      "promo_spend_history",
+      "statistics_sales"
+    ]
+  },
+  "syntheticCases": {
+    "doneRows": {
+      "create": {
+        "dateFrom": "2026-09-20",
+        "dateTo": "2026-09-27",
+        "response": {
+          "data": { "taskId": "06e06887-9d9f-491f-b16a-bb1766fcb8d2" }
+        }
+      },
+      "status": {
+        "response": {
+          "data": {
+            "id": "06e06887-9d9f-491f-b16a-bb1766fcb8d2",
+            "status": "done"
+          }
+        }
+      },
+      "downloadHttpStatus": 200,
+      "rows": [
+        {
+          "date": "2026-09-24",
+          "originalDate": "2026-09-24",
+          "nmId": 1001,
+          "vendorCode": "sku-1001",
+          "warehousePrice": 7.65,
+          "barcodesCount": 1
+        },
+        {
+          "date": "2026-09-26",
+          "originalDate": "2026-09-24",
+          "nmId": 1001,
+          "vendorCode": "sku-1001",
+          "warehousePrice": -1.25,
+          "barcodesCount": 1
+        }
+      ],
+      "expected": {
+        "status": "PASS",
+        "complete": true,
+        "taskId": "06e06887-9d9f-491f-b16a-bb1766fcb8d2",
+        "rows": 2,
+        "productIds": [1001],
+        "storageAmounts": [7.65, -1.25],
+        "currencyCode": null,
+        "currencyPolicy": null,
+        "exactStorageAggregate": null
+      }
+    },
+    "doneNoData": {
+      "create": {
+        "dateFrom": "2026-09-20",
+        "dateTo": "2026-09-27",
+        "response": {
+          "data": { "taskId": "16e06887-9d9f-491f-b16a-bb1766fcb8d2" }
+        }
+      },
+      "status": {
+        "response": {
+          "data": {
+            "id": "16e06887-9d9f-491f-b16a-bb1766fcb8d2",
+            "status": "done"
+          }
+        }
+      },
+      "downloadHttpStatus": 204,
+      "rows": [],
+      "expected": {
+        "status": "PASS",
+        "complete": true,
+        "taskId": "16e06887-9d9f-491f-b16a-bb1766fcb8d2",
+        "rows": 0,
+        "productIds": [],
+        "storageAmounts": [],
+        "currencyCode": null,
+        "currencyPolicy": null,
+        "exactStorageAggregate": "0"
+      }
+    },
+    "processing": {
+      "create": {
+        "dateFrom": "2026-09-20",
+        "dateTo": "2026-09-27",
+        "response": {
+          "data": { "taskId": "26e06887-9d9f-491f-b16a-bb1766fcb8d2" }
+        }
+      },
+      "status": {
+        "response": {
+          "data": {
+            "id": "26e06887-9d9f-491f-b16a-bb1766fcb8d2",
+            "status": "processing"
+          }
+        }
+      },
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "PAID_STORAGE_TASK_PENDING"
+      }
+    },
+    "purged": {
+      "create": {
+        "dateFrom": "2026-09-20",
+        "dateTo": "2026-09-27",
+        "response": {
+          "data": { "taskId": "36e06887-9d9f-491f-b16a-bb1766fcb8d2" }
+        }
+      },
+      "status": {
+        "response": {
+          "data": {
+            "id": "36e06887-9d9f-491f-b16a-bb1766fcb8d2",
+            "status": "purged"
+          }
+        }
+      },
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "PAID_STORAGE_TASK_TERMINAL_UNAVAILABLE"
+      }
+    },
+    "taskMismatch": {
+      "create": {
+        "dateFrom": "2026-09-20",
+        "dateTo": "2026-09-27",
+        "response": {
+          "data": { "taskId": "46e06887-9d9f-491f-b16a-bb1766fcb8d2" }
+        }
+      },
+      "status": {
+        "response": {
+          "data": {
+            "id": "56e06887-9d9f-491f-b16a-bb1766fcb8d2",
+            "status": "done"
+          }
+        }
+      },
+      "downloadHttpStatus": 200,
+      "rows": [],
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "PAID_STORAGE_TASK_ID_MISMATCH"
+      }
+    },
+    "periodTooLong": {
+      "create": {
+        "dateFrom": "2026-09-19",
+        "dateTo": "2026-09-28",
+        "response": {
+          "data": { "taskId": "66e06887-9d9f-491f-b16a-bb1766fcb8d2" }
+        }
+      },
+      "status": {
+        "response": {
+          "data": {
+            "id": "66e06887-9d9f-491f-b16a-bb1766fcb8d2",
+            "status": "done"
+          }
+        }
+      },
+      "downloadHttpStatus": 204,
+      "rows": [],
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "PAID_STORAGE_PERIOD_INVALID"
+      }
+    },
+    "contributionWithoutPolicy": {
+      "completeSources": true,
+      "financeCurrency": "RUB",
+      "storageCurrencyCode": null,
+      "adsCurrencyCode": null,
+      "componentPolicy": null,
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "PLATFORM_CONTRIBUTION_COMPONENT_POLICY_REQUIRED"
+      }
+    }
+  },
+  "remainingOpen": [
+    "explicit CAP-24 business component policy for revenue, platform fees and logistics",
+    "explicit store/account currency-code binding shared by finance, paid-storage and promotion-spend sources",
+    "exact decimal normalization policy for paid-storage JSON-number money before cross-source arithmetic",
+    "live WB paid-storage task lifecycle and owner gold-set reconciliation",
+    "live cross-source period alignment across finance UTC+3, paid-storage report dates, advertising period and operational sales",
+    "controller review of whether accepted CAP-24 operation set needs finance_sales_reports metadata for explicit currency reconciliation"
+  ]
+}
