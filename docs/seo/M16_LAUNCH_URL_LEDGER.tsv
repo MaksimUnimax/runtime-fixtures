@@ -1,0 +1,8 @@
+url_id	url	role	live_status	canonical	robots_meta	in_sitemap	crawlable	technical_indexability	current_indexing_state	evidence_class	verdict
+M16URL001	https://octoport.ru/	SEO_OWNER_HOME	200	https://octoport.ru/	INDEX_FOLLOW_DEFAULT	true	true	PASS	UNKNOWN_DELAY	LIVE_TECHNICAL	PASS_TECHNICAL
+M16URL002	https://octoport.ru/seller-analytics	SEO_OWNER_ANALYTICS	200	https://octoport.ru/seller-analytics	INDEX_FOLLOW_DEFAULT	true	true	PASS	UNKNOWN_DELAY	LIVE_TECHNICAL	PASS_TECHNICAL
+M16URL003	https://octoport.ru/privacy	INDEXABLE_UTILITY	200	https://octoport.ru/privacy	INDEX_FOLLOW_DEFAULT	true	true	PASS	UNKNOWN_DELAY	LIVE_TECHNICAL	PASS_TECHNICAL
+M16URL004	https://octoport.ru/support	INDEXABLE_UTILITY	200	https://octoport.ru/support	INDEX_FOLLOW_DEFAULT	true	true	PASS	UNKNOWN_DELAY	LIVE_TECHNICAL	PASS_TECHNICAL
+M16URL005	https://octoport.ru/install	NOINDEX_STATUS	200	https://octoport.ru/install	NOINDEX_FOLLOW	false	true	INTENTIONAL_NOINDEX	NOT_EXPECTED_INDEXED	LIVE_TECHNICAL	PASS_INTENTIONAL_NOINDEX
+M16URL006	https://octoport.ru/robots.txt	CRAWLER_POLICY	200	N/A	N/A	false	true	PASS_ASSET	N/A	LIVE_TECHNICAL	PASS
+M16URL007	https://octoport.ru/sitemap.xml	SITEMAP	200	N/A	N/A	false	true	PASS_ASSET	PROCESSING_STATE_UNKNOWN	LIVE_TECHNICAL	PASS
