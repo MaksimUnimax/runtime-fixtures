@@ -9,12 +9,15 @@
   const MAX_DUE_PER_WAKE = 16;
   const CLAIM_MS = 30_000;
   const RETRY_MS = 60_000;
+  const SUBSCRIPTION_RETRY_BASE_MS = 15 * 60_000;
+  const SUBSCRIPTION_RETRY_MAX_MS = 6 * 60 * 60_000;
   const KINDS = Object.freeze({
     SYNC: "C3E_PENDING_SYNC_RETRY",
     QUOTA: "KNOWN_PROVIDER_QUOTA_WAIT",
     RESULT: "KNOWN_RESULT_RECOVERY",
     EXPIRY: "TECHNICAL_BUFFER_EXPIRY",
     WORK: "SAFE_WORKER_RESTART_RECONSTRUCTION",
+    SUBSCRIPTION: "SIGNED_ACCESS_REFRESH",
   });
   const allowedKinds = new Set(Object.values(KINDS));
   let readFlight = null;
@@ -37,9 +40,9 @@
     const source = value && typeof value === "object" ? value : {};
     const output = {};
     for (const key of [
-      "accountId", "installationId", "conversationKey", "bindingId", "bindingRevision",
+      "accountId", "installationId", "sessionId", "conversationKey", "bindingId", "bindingRevision",
       "workGeneration", "executionId", "providerAttemptId", "deliveryId", "requestId",
-      "retryGeneration", "ownerKind", "ownerId", "queueIndex", "artifactKey",
+      "retryGeneration", "serverTime", "ownerKind", "ownerId", "queueIndex", "artifactKey",
     ]) {
       const item = source[key];
       if (item === null || item === undefined || item === "") continue;
@@ -153,13 +156,30 @@
     });
   }
 
+  function subscriptionRetryGeneration(plan) {
+    const value = plan?.identity;
+    if (!value || !value.accountId || !value.deviceId || !Number.isSafeInteger(value.generation) || !Number.isSafeInteger(value.configVersion) || !value.serverTime) return null;
+    return `${value.generation}:${value.configVersion}:${value.serverTime}:${value.paidThrough || ""}`;
+  }
+
+  function subscriptionRetryDelay(entry) {
+    const attempt = Math.max(1, Math.floor(finite(entry?.attempts, 1)));
+    const exponent = Math.min(8, attempt - 1);
+    const base = Math.min(SUBSCRIPTION_RETRY_MAX_MS, SUBSCRIPTION_RETRY_BASE_MS * 2 ** exponent);
+    let hash = 2166136261;
+    const seed = `${entry?.taskId || ""}|${entry?.identity?.installationId || ""}|${attempt}`;
+    for (const character of seed) hash = Math.imul(hash ^ character.charCodeAt(0), 16777619) >>> 0;
+    const permille = 900 + hash % 201;
+    return Math.min(SUBSCRIPTION_RETRY_MAX_MS, Math.max(1_000, Math.floor(base * permille / 1000)));
+  }
+
   async function finish(entry, { failed = false } = {}) {
     const result = await mutate(async () => {
       const state = clone(await read());
       const current = state.entries[entry.taskId];
       if (!current || current.revision !== entry.revision) return state;
       if (failed) {
-        current.dueAt = Date.now() + RETRY_MS;
+        current.dueAt = Date.now() + (entry.kind === KINDS.SUBSCRIPTION ? subscriptionRetryDelay(current) : RETRY_MS);
         current.claimedUntil = 0;
         current.claimedBy = null;
       } else delete state.entries[entry.taskId];
@@ -225,6 +245,44 @@
       if (Object.keys(recoveries).length) await schedule(KINDS.WORK, { taskId: "work:recovery", dueAt: now, identity: { conversationKey: Object.keys(recoveries).sort()[0] } });
       else await cancelKind(KINDS.WORK);
     } catch (_) {}
+
+    try {
+      const taskId = "authority:refresh";
+      const plan = await globalThis.SellerAgentsControlClient?.getSubscriptionRefreshPlan?.();
+      const retryGeneration = subscriptionRetryGeneration(plan);
+      if (!plan?.active || !retryGeneration) await cancel(taskId);
+      else {
+        const scheduled = (await read()).entries[taskId];
+        const sameAuthority =
+          scheduled?.kind === KINDS.SUBSCRIPTION &&
+          scheduled?.identity?.retryGeneration === retryGeneration &&
+          scheduled?.identity?.installationId === plan.identity.deviceId &&
+          scheduled?.identity?.sessionId === plan.identity.sessionId &&
+          scheduled?.identity?.accountId === plan.identity.accountId;
+        const preserveBackoff =
+          sameAuthority &&
+          scheduled.attempts > 0 &&
+          scheduled.claimedUntil <= now &&
+          scheduled.dueAt > now;
+        const dueAt = preserveBackoff
+          ? scheduled.dueAt
+          : sameAuthority
+            ? Math.min(scheduled.dueAt, plan.dueAt)
+            : plan.dueAt;
+        if (scheduled && !sameAuthority) await cancel(taskId);
+        await schedule(KINDS.SUBSCRIPTION, {
+          taskId,
+          dueAt,
+          identity: {
+            accountId: plan.identity.accountId,
+            installationId: plan.identity.deviceId,
+            sessionId: plan.identity.sessionId,
+            retryGeneration,
+            serverTime: plan.identity.serverTime,
+          },
+        });
+      }
+    } catch (_) {}
   }
 
   async function dispatch(entry) {
@@ -233,6 +291,20 @@
     if (entry.kind === KINDS.RESULT) return globalThis.resumeKnownResultRecoveries?.();
     if (entry.kind === KINDS.EXPIRY) return globalThis.saCleanupExpiredPayloads?.();
     if (entry.kind === KINDS.WORK) return globalThis.resumeWorkSessionRecoveries?.();
+    if (entry.kind === KINDS.SUBSCRIPTION) {
+      const client = globalThis.SellerAgentsControlClient;
+      const plan = await client?.getSubscriptionRefreshPlan?.();
+      const retryGeneration = subscriptionRetryGeneration(plan);
+      if (!plan?.active || !retryGeneration) return { status: "INACTIVE" };
+      if (
+        entry.identity?.retryGeneration !== retryGeneration ||
+        entry.identity?.installationId !== plan.identity.deviceId ||
+        entry.identity?.sessionId !== plan.identity.sessionId ||
+        entry.identity?.accountId !== plan.identity.accountId
+      )
+        return { status: "STALE" };
+      return client?.runSubscriptionRefreshTask?.(plan.identity);
+    }
     return null;
   }
 

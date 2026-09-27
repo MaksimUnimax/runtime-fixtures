@@ -1,0 +1,141 @@
+{
+  "schemaVersion": "wb_sales_decline_evidence_reuse_v1",
+  "capturedDate": "2026-09-27",
+  "scope": {
+    "scenarioIds": ["STD-06"],
+    "boundary": "ATTENTION_RANK_IS_UNWEIGHTED_EVIDENCE_TRIAGE_NOT_CAUSAL_ATTRIBUTION",
+    "evidence": "REUSE_VALIDATED_A04_SOURCE_SLICES",
+    "liveValues": false,
+    "acceptedOperationMappingChanged": false
+  },
+  "reuse": {
+    "content": "tests/regression/extension-core/fixtures/wb-content-quality-field-schema-slice-v1.json",
+    "orders": "tests/regression/extension-core/fixtures/wb-operational-sales-field-schema-slice-v1.json",
+    "stock": "tests/regression/extension-core/fixtures/wb-turnover-field-schema-slice-v1.json",
+    "ads": "tests/regression/extension-core/fixtures/wb-advertising-stats-grain-field-schema-slice-v1.json"
+  },
+  "sources": {
+    "content": {
+      "operationAlias": "cards_errors",
+      "signal": "CONTENT_ERROR_PRESENT",
+      "identityBoundary": "REQUIRES_UNIQUE_VENDOR_CODE_TO_PRODUCT_JOIN"
+    },
+    "orders": {
+      "operationAlias": "statistics_orders",
+      "signal": "ORDER_COUNT_DOWN",
+      "comparisonBoundary": "EXPLICIT_COMPARABLE_PERIODS_AND_COMPLETE_ORDER_ROWS_REQUIRED"
+    },
+    "stock": {
+      "operationAlias": "stock_products",
+      "signal": "STOCK_ZERO",
+      "field": "metrics.stockCount",
+      "thresholdPolicy": "ONLY_EXACT_ZERO_IS_SOURCE_DEFINED_LOW_STOCK_THRESHOLD_NOT_ASSUMED"
+    },
+    "ads": {
+      "operationAlias": "promo_fullstats",
+      "signal": "AD_CLICK_COUNT_DOWN",
+      "field": "clicks",
+      "grain": ["campaign", "day", "product"],
+      "comparisonBoundary": "EXPLICIT_COMPARABLE_PERIODS_AND_COMPLETE_PRODUCT_STATS_REQUIRED"
+    }
+  },
+  "rules": {
+    "attentionScore": "COUNT_PRESENT_COMPLETE_SIGNALS_EQUAL_WEIGHT",
+    "ordinalOnly": "SCORE_IS_TRIAGE_ORDINAL_NOT_PROBABILITY_IMPACT_OR_CAUSAL_WEIGHT",
+    "missingSignal": "MISSING_OR_INCOMPLETE_SIGNAL_MAKES_PRODUCT_EVIDENCE_INCOMPLETE_NOT_FALSE",
+    "contentIdentity": "AMBIGUOUS_VENDOR_CODE_TO_PRODUCT_JOIN_IS_INCOMPLETE",
+    "orders": "ORDER_COUNT_DROP_IS_OPERATIONAL_EVIDENCE_NOT_FINAL_SALES_CAUSE",
+    "stock": "ZERO_STOCK_IS_OBSERVED_STATE_NOT_PROOF_IT_CAUSED_SALES_DECLINE",
+    "ads": "CLICK_DROP_IS CAMPAIGN_PRODUCT_EVIDENCE_NOT PROOF_OF_CAUSE",
+    "causality": "ALL_RANKED_FACTORS_REMAIN_HYPOTHESES_NOT_PROVEN_CAUSES",
+    "missing": "MISSING_NOT_ZERO"
+  },
+  "acceptedMappingSnapshot": {
+    "STD-06": [
+      "cards_errors",
+      "statistics_orders",
+      "stock_products",
+      "promo_fullstats"
+    ]
+  },
+  "syntheticCases": {
+    "complete": {
+      "products": [
+        {
+          "product": "A",
+          "signals": {
+            "content_error": true,
+            "orders_drop": true,
+            "stock_zero": false,
+            "ad_click_drop": true
+          }
+        },
+        {
+          "product": "B",
+          "signals": {
+            "content_error": false,
+            "orders_drop": true,
+            "stock_zero": false,
+            "ad_click_drop": false
+          }
+        },
+        {
+          "product": "C",
+          "signals": {
+            "content_error": true,
+            "orders_drop": false,
+            "stock_zero": true,
+            "ad_click_drop": true
+          }
+        }
+      ],
+      "expected": [
+        { "product": "A", "score": 3 },
+        { "product": "C", "score": 3 },
+        { "product": "B", "score": 1 }
+      ]
+    },
+    "missingSignal": {
+      "products": [
+        {
+          "product": "A",
+          "signals": {
+            "content_error": true,
+            "orders_drop": null,
+            "stock_zero": false,
+            "ad_click_drop": true
+          }
+        }
+      ],
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "EVIDENCE_SIGNAL_INCOMPLETE"
+      }
+    },
+    "ambiguousContentIdentity": {
+      "product": "A",
+      "vendorCodeMatches": [1001, 1002],
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "CONTENT_PRODUCT_IDENTITY_AMBIGUOUS"
+      }
+    },
+    "causalBoundary": {
+      "signals": [
+        { "name": "stock_zero", "delta": -1 },
+        { "name": "ad_click_drop", "delta": -30 }
+      ],
+      "expected": {
+        "claim": "HYPOTHESIS_NOT_PROVEN_CAUSE",
+        "factorCount": 2
+      }
+    }
+  },
+  "remainingOpen": [
+    "live WB values and owner gold-set reconciliation",
+    "business-approved weighting if an impact score beyond equal-weight attention count is ever required",
+    "causal evidence or experiment design before any factor is labelled the cause",
+    "unique content-error product identity where vendorCode is ambiguous",
+    "explicit comparable periods/timezone for order and advertising deltas"
+  ]
+}

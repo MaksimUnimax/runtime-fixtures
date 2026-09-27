@@ -16,12 +16,14 @@
   const EXCHANGE_PENDING = "DEVICE_AUTH_PENDING";
   const RETRYABLE_EXCHANGE_STATUS = new Set([429, 500, 502, 503, 504]);
   const CONTROL_REQUEST_DEADLINE_MS = 30000;
+  const SUBSCRIPTION_REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1000;
+  const SUBSCRIPTION_REFRESH_JITTER_MAX_MS = 30 * 60 * 1000;
   const TERMINAL_EXCHANGE_ERRORS = new Set(["DEVICE_AUTH_CLOSED", "DEVICE_AUTH_INVALID", "DEVICE_LIMIT_REACHED", "SUBSCRIPTION_REQUIRED"]);
   const LOCAL_AI = Object.freeze({ chatgpt: Object.freeze({ family: "chatgpt", surface: "web" }), alice: Object.freeze({ family: "alice", surface: "web" }) });
   const MAX_DATE_MS = 8640000000000000;
   let state = { generation: 0, credentials: null, pending: null, rotation: null, authority: null, cacheClock: null, lastError: null };
   let initialized = false, initFlight = null, mutationQueue = Promise.resolve();
-  let activationFlight = null, refreshFlight = null, pollingFlight = null, authorityChanged = null;
+  let activationFlight = null, refreshFlight = null, subscriptionRefreshFlight = null, pollingFlight = null, authorityChanged = null;
   let runtimeClockOwner = null, runtimeAnchor = null, runtimeEffectiveHighWatermark = null, runtimeFloorNeedsPersistence = false, runtimeLastCheckpointAllowed = null;
   let bootstrapAttemptSequence = 0;
   const transferVault = globalThis.SellerAgentsCredentialTransferVault;
@@ -134,8 +136,8 @@
     return { ok: false, error: "INVALID_ENVELOPE" };
   }
   function validRuntimeOwner(owner) { return typeof owner === "string" && owner.length > 0; }
-  function effectiveTime(clock) {
-    if (!validCacheClock(clock, state.credentials, state.authority?.payload || null)) throw error("CACHE_CLOCK_INVALID");
+  function effectiveTime(clock, payload = state.authority?.payload || null) {
+    if (!validCacheClock(clock, state.credentials, payload)) throw error("CACHE_CLOCK_INVALID");
     const wall = Date.now();
     if (!validMillis(wall)) throw error("CACHE_WALL_CLOCK_INVALID");
     const monotonic = monotonicNow();
@@ -367,6 +369,7 @@
     if (pollingFlight && !ownerCurrent(pollingFlight)) pollingFlight = null;
     if (activationFlight && !ownerCurrent(activationFlight)) activationFlight = null;
     if (refreshFlight && !ownerCurrent(refreshFlight)) refreshFlight = null;
+    if (subscriptionRefreshFlight && !ownerCurrent(subscriptionRefreshFlight)) subscriptionRefreshFlight = null;
   }
   function resetRuntimeClock() { runtimeClockOwner = null; runtimeAnchor = null; runtimeEffectiveHighWatermark = null; runtimeFloorNeedsPersistence = false; runtimeLastCheckpointAllowed = null; }
   function validAuthOwnership() { return Boolean(validCredentials(state.credentials) && validCacheClock(state.cacheClock, state.credentials, state.authority?.payload || null)); }
@@ -533,7 +536,8 @@
     })().catch(async failure => { if (failure.code === "AUTH_REFRESH_INVALID" && owner.context) await invalidateKnown(owner.context, failure, true); throw failure; }).finally(() => { if (refreshFlight === owner) refreshFlight = null; });
     refreshFlight = owner; return owner.promise;
   }
-  function bootstrapRequest(detectedAi, credentials, authority) { const body = { contractVersion: "control_plane_v2", extensionVersion: config.extensionVersion, browser: { family: browserFamily(), version: browserVersion() }, deviceId: credentials.deviceId, lastConfigVersion: authority?.payload?.configVersion || null }; if (detectedAi) body.detectedAi = detectedAi; return body; }
+  function bootstrapContractVersion() { if (!["control_plane_v2", "control_plane_v3"].includes(config.contractVersion)) throw error("PACKAGED_CONTRACT_UNSUPPORTED"); return config.contractVersion; }
+  function bootstrapRequest(detectedAi, credentials, authority) { const body = { contractVersion: bootstrapContractVersion(), extensionVersion: config.extensionVersion, browser: { family: browserFamily(), version: browserVersion() }, deviceId: credentials.deviceId, lastConfigVersion: authority?.payload?.configVersion || null }; if (detectedAi) body.detectedAi = detectedAi; return body; }
   const SEMVER = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
   function decimalCompare(left, right) { const a = left.replace(/^0+(?=\d)/, ""), b = right.replace(/^0+(?=\d)/, ""); return a.length === b.length ? (a === b ? 0 : a < b ? -1 : 1) : a.length < b.length ? -1 : 1; }
   function parseSemver(value) {
@@ -629,7 +633,7 @@
     if (!requestedAi || !LOCAL_AI[requestedAi] || options.detectedAi.surface !== LOCAL_AI[requestedAi].surface || options.detectedAi.variant !== null) throw error("HEALTH_CONTEXT_INVALID");
     const permission = consentApi?.consent ? await consentApi.consent() : { applicable: false, granted: true };
     if (permission.applicable && !permission.granted) { void scheduleMetadataForget(); return null; }
-    const authority = clone(state.authority), authorityIdentityBefore = authorityDecisionIdentity(authority, context.generation); if (!authority?.envelope) throw error("HEALTH_CONTEXT_INVALID"); let result; try { result = await authenticatedRequest("/v1/health-authority", { method: "POST", body: healthRequest(options.detectedAi, state.credentials, authority) }, context); } catch (failure) { if (failure.code === "HEALTH_TECHNICAL_PERMISSION_REQUIRED") return null; throw failure; }
+    const authority = clone(state.authority), authorityIdentityBefore = authorityDecisionIdentity(authority, context.generation); if (!authority?.envelope) throw error("HEALTH_CONTEXT_INVALID"); if (authority.payload?.contractVersion !== "control_plane_v2") return null; let result; try { result = await authenticatedRequest("/v1/health-authority", { method: "POST", body: healthRequest(options.detectedAi, state.credentials, authority) }, context); } catch (failure) { if (failure.code === "HEALTH_TECHNICAL_PERMISSION_REQUIRED") return null; throw failure; }
     if (!isCurrent(context) || authorityIdentityBefore !== authorityDecisionIdentity()) throw error("AUTH_GENERATION_CHANGED");
     const verified = await verifier.verifyHealthV1(result.body, config.trustBundle); if (!verified.ok) throw error(`HEALTH_${verified.error}`);
     if (verified.payload.status === "PASS") { const expected = await healthContextFromBootstrap(authority?.payload, authority, state.credentials); if (!expected || verifier.canonicalJson(expected) !== verifier.canonicalJson(verified.payload.context)) throw error("HEALTH_CONTEXT_MISMATCH"); }
@@ -734,12 +738,24 @@
       }
       if (!bootstrapAttemptCurrent(attempt)) throw error("AUTH_GENERATION_CHANGED");
       let verified;
-      try { verified = await verifier.verifyV2(result.body, config.trustBundle); }
+      try {
+        const verify = bootstrapContractVersion() === "control_plane_v3" ? verifier.verifyV3 : verifier.verifyV2;
+        if (typeof verify !== "function") throw error("BOOTSTRAP_VERIFIER_UNAVAILABLE");
+        verified = await verify(result.body, config.trustBundle);
+      }
       catch (verificationFailure) { const failure = error(`BOOTSTRAP_${verificationFailure?.code || "VERIFICATION_FAILED"}`); await invalidateBootstrapFailure(attempt, failure, false); throw failure; }
       if (!bootstrapAttemptCurrent(attempt)) throw error("AUTH_GENERATION_CHANGED");
       if (!verified.ok) { const failure = error(`BOOTSTRAP_${verified.error}`); await invalidateBootstrapFailure(attempt, failure, false); throw failure; }
-      const acceptedPayload = attempt.privacyNeutral === true ? await materializeLocalAuthority(verified.payload, requestedAi).catch(() => null) : verified.payload;
-      const validation = acceptedPayload ? await validateBootstrapAuthority(verified.payload, requestedAi, attempt.privacyNeutral === true).catch(() => null) : null;
+      const verifiedServerTimeMs = parsedMillis(verified.payload?.serverTime);
+      if (options.minimumServerTimeExclusive !== undefined && (verifiedServerTimeMs === null || verifiedServerTimeMs <= options.minimumServerTimeExclusive))
+        throw error("BOOTSTRAP_SERVER_TIME_NOT_ADVANCED");
+      const currentDeny = verified.payload?.contractVersion === "control_plane_v3" && verified.payload?.accessBasis === "NONE";
+      const privacyVariantMatches = attempt.privacyNeutral === true ? Boolean(verified.payload?.localClientAuthority) : !verified.payload?.localClientAuthority;
+      const acceptedPayload = currentDeny ? verified.payload : attempt.privacyNeutral === true ? await materializeLocalAuthority(verified.payload, requestedAi).catch(() => null) : verified.payload;
+      if (options.expectedAccountId && acceptedPayload?.account?.id !== options.expectedAccountId) {
+        const failure = error("BOOTSTRAP_ACCOUNT_MISMATCH"); await invalidateBootstrapFailure(attempt, failure, false); throw failure;
+      }
+      const validation = acceptedPayload ? currentDeny && privacyVariantMatches ? { workAllowed: false, requestedAi } : await validateBootstrapAuthority(verified.payload, requestedAi, attempt.privacyNeutral === true).catch(() => null) : null;
       if (!bootstrapAttemptCurrent(attempt)) throw error("AUTH_GENERATION_CHANGED");
       if (!validation) { const failure = error("BOOTSTRAP_PROFILE_INCOMPATIBLE"); await invalidateBootstrapFailure(attempt, failure, false); throw failure; }
       const cacheBinding = await expectedCacheBinding(acceptedPayload, validation.requestedAi);
@@ -749,14 +765,17 @@
       try {
         committed = await queueMutation(async () => {
           if (!bootstrapAttemptCurrent(attempt)) return false;
-          const current = clone(state), signedServerTimeMs = parsedMillis(verified.payload.serverTime), previousClock = current.cacheClock;
+          const current = clone(state), signedServerTimeMs = verifiedServerTimeMs, previousClock = current.cacheClock;
           if (signedServerTimeMs === null) throw error("BOOTSTRAP_SERVER_TIME_INVALID");
           if (previousClock && signedServerTimeMs < previousClock.trustedServerTimeMs) throw error("BOOTSTRAP_SERVER_TIME_REGRESSION");
           const owner = clockOwner(credentials), baseTrusted = Math.max(previousClock?.trustedServerTimeMs || 0, signedServerTimeMs), baseEffective = Math.max(previousClock?.effectiveTimeMs || 0, baseTrusted);
           const candidateClock = { cacheVersion: "control_cache_clock_v1", owner, trustedServerTimeMs: baseTrusted, effectiveTimeMs: baseEffective };
-          const effective = effectiveTime(candidateClock);
-          if (!authorityBaseValid(acceptedPayload, effective)) throw error("BOOTSTRAP_EXPIRED_OR_INCOMPATIBLE");
-          const authorityContextChanged = current.authority && current.authority.requestedAi !== nextAuthority.requestedAi;
+          const effective = effectiveTime(candidateClock, verified.payload);
+          if (currentDeny) {
+            const denyExpiresAt = parsedMillis(acceptedPayload.expiresAt);
+            if (denyExpiresAt === null || effective >= denyExpiresAt) throw error("BOOTSTRAP_EXPIRED_OR_INCOMPATIBLE");
+          } else if (!authorityBaseValid(acceptedPayload, effective)) throw error("BOOTSTRAP_EXPIRED_OR_INCOMPATIBLE");
+          const authorityContextChanged = currentDeny || current.authority && current.authority.requestedAi !== nextAuthority.requestedAi;
           const generation = authorityContextChanged ? current.generation + 1 : current.generation;
           const next = { ...current, generation, cacheClock: { ...candidateClock, effectiveTimeMs: Math.max(candidateClock.effectiveTimeMs, effective) }, authority: { ...nextAuthority, generation }, lastError: null };
           if (!bootstrapAttemptCurrent(attempt)) return false;
@@ -833,6 +852,97 @@
       return { source: "CACHE", freshness: resultFreshness, payload: clone(payload) };
     });
   }
+  function subscriptionRefreshJitter(deviceId) {
+    let hash = 2166136261;
+    for (const char of String(deviceId || "")) {
+      hash ^= char.charCodeAt(0);
+      hash = Math.imul(hash, 16777619);
+    }
+    return (hash >>> 0) % (SUBSCRIPTION_REFRESH_JITTER_MAX_MS + 1);
+  }
+  async function getSubscriptionRefreshPlan() {
+    await init();
+    if (bootstrapContractVersion() !== "control_plane_v3")
+      return Object.freeze({ active: false, reason: "NEGOTIATION_DORMANT" });
+    const authority = state.authority, payload = authority?.payload, credentials = state.credentials, clock = state.cacheClock;
+    if (!authority || !credentials || !clock || payload?.contractVersion !== "control_plane_v3")
+      return Object.freeze({ active: false, reason: "V3_AUTHORITY_MISSING" });
+    if (payload.accessBasis === "NONE" || authority.workAllowed !== true)
+      return Object.freeze({ active: false, reason: "V3_AUTHORITY_DENIED" });
+    let effectiveTimeMs;
+    try { effectiveTimeMs = effectiveTime(clock, payload); }
+    catch (_) { return Object.freeze({ active: false, reason: "V3_AUTHORITY_INVALID" }); }
+    const serverTimeMs = parsedMillis(payload.serverTime), expiresAt = parsedMillis(payload.expiresAt);
+    if (serverTimeMs === null || expiresAt === null)
+      return Object.freeze({ active: false, reason: "V3_AUTHORITY_INVALID" });
+    const cadenceDue = serverTimeMs + SUBSCRIPTION_REFRESH_INTERVAL_MS - subscriptionRefreshJitter(credentials.deviceId);
+    let effectiveDueAt = cadenceDue, reason = "CADENCE";
+    if (payload.accessBasis === "COMMERCIAL") {
+      const paidThrough = parsedMillis(payload.subscriptionAccess?.paidThrough);
+      if (paidThrough !== null && paidThrough > serverTimeMs && paidThrough <= effectiveDueAt) {
+        effectiveDueAt = paidThrough;
+        reason = "PAID_THROUGH";
+      } else if (payload.subscriptionAccess === null && expiresAt <= effectiveDueAt) {
+        effectiveDueAt = expiresAt;
+        reason = "TRIAL_EXPIRY";
+      }
+    } else if (payload.accessBasis === "BETA") {
+      const legacyGrace = parsedMillis(payload.offlineGraceUntil);
+      if (legacyGrace !== null && legacyGrace <= effectiveDueAt) {
+        effectiveDueAt = legacyGrace;
+        reason = "BETA_GRACE";
+      }
+    }
+    if (!validMillis(effectiveDueAt))
+      return Object.freeze({ active: false, reason: "V3_AUTHORITY_INVALID" });
+    const dueAt = now() + Math.max(0, effectiveDueAt - effectiveTimeMs);
+    if (!validMillis(dueAt))
+      return Object.freeze({ active: false, reason: "V3_REFRESH_DUE_INVALID" });
+    const identity = Object.freeze({
+      accountId: payload.account.id,
+      deviceId: credentials.deviceId,
+      sessionId: credentials.sessionId,
+      generation: state.generation,
+      contractVersion: payload.contractVersion,
+      configVersion: payload.configVersion,
+      serverTime: payload.serverTime,
+      paidThrough: payload.subscriptionAccess?.paidThrough || null,
+    });
+    return Object.freeze({ active: true, reason, dueAt, effectiveDueAt, identity });
+  }
+  async function runSubscriptionRefreshTask(expectedIdentity) {
+    await init();
+    const plan = await getSubscriptionRefreshPlan();
+    if (!plan.active) return { status: "INACTIVE", reason: plan.reason };
+    if (!expectedIdentity || verifier.canonicalJson(expectedIdentity) !== verifier.canonicalJson(plan.identity))
+      return { status: "STALE" };
+    const authority = state.authority, entryContext = contextForState();
+    if (subscriptionRefreshFlight && ownerCurrent(subscriptionRefreshFlight) && subscriptionRefreshFlight.context && isCurrent(subscriptionRefreshFlight.context) && subscriptionRefreshFlight.identity === verifier.canonicalJson(plan.identity))
+      return subscriptionRefreshFlight.promise;
+    const requestedAi = authority.requestedAi;
+    const detectedAi = requestedAi && LOCAL_AI[requestedAi] ? { family: requestedAi, surface: LOCAL_AI[requestedAi].surface, variant: null } : null;
+    const owner = { context: entryContext, identity: verifier.canonicalJson(plan.identity), promise: null };
+    owner.promise = (async () => {
+      const previousServerTimeMs = parsedMillis(authority.payload.serverTime);
+      if (previousServerTimeMs === null) throw error("SUBSCRIPTION_AUTHORITY_TIME_INVALID");
+      const payload = await bootstrap({
+        context: entryContext,
+        expectedAccountId: authority.payload.account.id,
+        minimumServerTimeExclusive: previousServerTimeMs,
+        ...(detectedAi ? { detectedAi } : {}),
+      });
+      const denied = payload?.contractVersion === "control_plane_v3" && payload?.accessBasis === "NONE";
+      return {
+        status: denied ? "DENY" : "REFRESHED",
+        contractVersion: payload?.contractVersion || null,
+        configVersion: payload?.configVersion || null,
+        serverTime: payload?.serverTime || null,
+      };
+    })().finally(() => { if (subscriptionRefreshFlight === owner) subscriptionRefreshFlight = null; });
+    subscriptionRefreshFlight = owner;
+    return owner.promise;
+  }
+
   async function bootstrapWithPolicy(options = {}) {
     if (!options || typeof options !== "object" || Array.isArray(options) || options.context !== undefined && !validContext(options.context)) throw error("AUTH_CONTEXT_INVALID");
     const sequence = ++bootstrapAttemptSequence, attempt = { sequence, context: null, observedBootstrap401: false, preflightRefresh: false, policy: true };
@@ -877,7 +987,7 @@
     }
   }
   async function bootstrap(options = {}) {
-    if (!options || typeof options !== "object" || Array.isArray(options) || options.context !== undefined && !validContext(options.context)) throw error("AUTH_CONTEXT_INVALID");
+    if (!options || typeof options !== "object" || Array.isArray(options) || options.context !== undefined && !validContext(options.context) || options.expectedAccountId !== undefined && !UUID.test(options.expectedAccountId) || options.minimumServerTimeExclusive !== undefined && !validMillis(options.minimumServerTimeExclusive)) throw error("AUTH_CONTEXT_INVALID");
     const sequence = ++bootstrapAttemptSequence, attempt = { sequence, context: options.context ? clone(options.context) : null, observedBootstrap401: false, preflightRefresh: false };
     await init(); if (!state.credentials) throw error("AUTH_REQUIRED"); await ensureAuthOwnership(); if (!attempt.context) attempt.context = contextForState(); if (!bootstrapAttemptCurrent(attempt)) throw error("AUTH_GENERATION_CHANGED");
     return bootstrapOnline(options, attempt);
@@ -916,13 +1026,14 @@
       else {
         try {
           const verified = await verifyCachedEnvelope(savedAuthority.envelope); if (!verified.ok) throw error(`STORED_AUTHORITY_${verified.error}`);
-          const verifiedPayload = verified.payload.localClientAuthority ? await materializeLocalAuthority(verified.payload, savedAuthority.requestedAi) : verified.payload;
+          const storedDeny = verified.payload?.contractVersion === "control_plane_v3" && verified.payload?.accessBasis === "NONE";
+          const verifiedPayload = storedDeny ? verified.payload : verified.payload.localClientAuthority ? await materializeLocalAuthority(verified.payload, savedAuthority.requestedAi) : verified.payload;
           if (!verifiedPayload || verifier.canonicalJson(verifiedPayload) !== verifier.canonicalJson(savedAuthority.payload)) throw error("STORED_AUTHORITY_PAYLOAD_MISMATCH");
-          const allowed = await validateAccountProfile(verifiedPayload, savedAuthority.requestedAi, false).catch(() => null); if (!allowed) throw error("STORED_AUTHORITY_POLICY_MISMATCH");
+          const allowed = storedDeny ? { workAllowed: false, requestedAi: savedAuthority.requestedAi ?? null } : await validateAccountProfile(verifiedPayload, savedAuthority.requestedAi, false).catch(() => null); if (!allowed) throw error("STORED_AUTHORITY_POLICY_MISMATCH");
           if (!validCacheClock(clock, state.credentials, verified.payload) || verified.payload.contractVersion === "control_plane_v3" && clock.owner.contractVersion !== "control_plane_v3") throw error("STORED_CACHE_CLOCK_INCONSISTENT");
           const expected = await expectedCacheBinding(verifiedPayload, allowed.requestedAi);
           if (verifier.canonicalJson(binding) !== verifier.canonicalJson(expected)) throw error("STORED_CACHE_CONTEXT_MISMATCH");
-          if (!await validateAccountProfile(verifiedPayload, savedAuthority.requestedAi, true).catch(() => null)) throw error("STORED_AUTHORITY_ENVIRONMENT_MISMATCH");
+          if (!storedDeny && !await validateAccountProfile(verifiedPayload, savedAuthority.requestedAi, true).catch(() => null)) throw error("STORED_AUTHORITY_ENVIRONMENT_MISMATCH");
           state.authority = { ...savedAuthority, payload: verifiedPayload, requestedAi: allowed.requestedAi, workAllowed: savedAuthority.workAllowed === true && allowed.workAllowed === true };
         } catch (failure) { authorityFailure = failure; }
       }
@@ -939,7 +1050,7 @@
   function init() { if (initialized) { void retryPendingMetadataForget(); return Promise.resolve(publicStatus()); } if (!initFlight) initFlight = restoreOnce().finally(() => { initFlight = null; }); return initFlight.then(status => { void retryPendingMetadataForget(); return status; }); }
   async function retryPendingMetadataForget() { try { const stored = await chrome.storage.local.get(METADATA_CLEAR_KEY); const marker = stored?.[METADATA_CLEAR_KEY]; if (marker?.version === "pending_client_metadata_clear_v1" && marker.deviceId === state.credentials?.deviceId) void scheduleMetadataForget(); } catch (_) {} }
   async function localReset() { await init(); await queueMutation(async () => {
-    activationFlight = null; pollingFlight = null; refreshFlight = null;
+    activationFlight = null; pollingFlight = null; refreshFlight = null; subscriptionRefreshFlight = null;
     const previous = state.authority, next = { generation: state.generation + 1, credentials: null, pending: null, rotation: null, authority: null, cacheClock: null, lastError: null };
     state = next; resetRuntimeClock();
     let cleanupFailure = null;
@@ -1107,7 +1218,7 @@
     await transferVault.remove(requestId);
     return result;
   }
-  const api = { restore: init, status: async () => { await init(); const decision = await cacheAuthorizationCheckpoint(); return publicStatus(decision); }, currentAccount: async () => { await init(); return state.authority?.payload?.account?.id || null; }, generation: async () => { await init(); return state.generation; }, hasAuthority: async () => { await init(); return Boolean(state.authority && state.credentials); }, canWork: async () => { await init(); const decision = await cacheAuthorizationCheckpoint(); return decision.identity === authorityDecisionIdentity() && decision.allowed === true; }, getAuthority: async () => { await init(); const decision = await cacheAuthorizationCheckpoint(); const authority = clone(state.authority); if (authority && !(decision.identity === authorityDecisionIdentity() && decision.allowed === true)) authority.workAllowed = false; return authority; }, getCachedContinuationState, getHealthAuthorityContext, getVerifiedAuthorityTime, acquireSignedHealthAuthority, synchronizeMetadata, createCredentialTransfer, listCredentialTransferRecipients, listCredentialTransfers, readCredentialTransfer, markCredentialTransferSourceSeen, submitCredentialTransferPacket, receiveCredentialTransfer, recordCredentialTransferImported, acknowledgeCredentialTransfer, discardCredentialTransfer, consumeCredentialTransferResult, startActivation, cancelActivation, refresh, bootstrap, bootstrapWithPolicy, ensureForIdentity, localReset, openPortal: async () => { await init(); const pending = state.pending; if (!pendingLive(state.pending) || !validAuthContext(pending.authContext)) throw error("NO_ACTIVATION_ATTEMPT"); return openPortal(pending.authorizationId); }, onAuthorityChanged: handler => { authorityChanged = handler; } };
+  const api = { restore: init, status: async () => { await init(); const decision = await cacheAuthorizationCheckpoint(); return publicStatus(decision); }, currentAccount: async () => { await init(); return state.authority?.payload?.account?.id || null; }, generation: async () => { await init(); return state.generation; }, hasAuthority: async () => { await init(); return Boolean(state.authority && state.credentials); }, canWork: async () => { await init(); const decision = await cacheAuthorizationCheckpoint(); return decision.identity === authorityDecisionIdentity() && decision.allowed === true; }, getAuthority: async () => { await init(); const decision = await cacheAuthorizationCheckpoint(); const authority = clone(state.authority); if (authority && !(decision.identity === authorityDecisionIdentity() && decision.allowed === true)) authority.workAllowed = false; return authority; }, getCachedContinuationState, getHealthAuthorityContext, getVerifiedAuthorityTime, getSubscriptionRefreshPlan, runSubscriptionRefreshTask, acquireSignedHealthAuthority, synchronizeMetadata, createCredentialTransfer, listCredentialTransferRecipients, listCredentialTransfers, readCredentialTransfer, markCredentialTransferSourceSeen, submitCredentialTransferPacket, receiveCredentialTransfer, recordCredentialTransferImported, acknowledgeCredentialTransfer, discardCredentialTransfer, consumeCredentialTransferResult, startActivation, cancelActivation, refresh, bootstrap, bootstrapWithPolicy, ensureForIdentity, localReset, openPortal: async () => { await init(); const pending = state.pending; if (!pendingLive(state.pending) || !validAuthContext(pending.authContext)) throw error("NO_ACTIVATION_ATTEMPT"); return openPortal(pending.authorizationId); }, onAuthorityChanged: handler => { authorityChanged = handler; } };
   consentApi?.onWithdrawal?.(handleTechnicalPermissionWithdrawal);
   globalThis.SellerAgentsControlClient = Object.freeze(api);
 })();
