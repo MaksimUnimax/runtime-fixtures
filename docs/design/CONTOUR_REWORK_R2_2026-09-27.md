@@ -1,6 +1,6 @@
 # Contour R2 — four owner-reported website defects
 
-Status: SOURCE_AND_PREDEPLOY_PASS / NOT_YET_DEPLOYED.
+Status: PRODUCTION_DEPLOYED / LIVE_ACCEPTANCE_PASS.
 Base: db7dd52d014924a1195b81d79e6fa4c16a33b022.
 
 The owner requested code changes on the live website, not an image/mockup:
@@ -44,3 +44,34 @@ Browser runner requires installed Chrome/Opera/Yandex and websocket-client; pixe
 - browser: `63f7e049119b2d488128816a99e2b56060717ac246f8772cbf19f4a35fb85598`
 - pixel: `59108149c5046c8e4af5a47ebec9413f1cd76c7f31af3bc3c608659208a7f352`
 - nginx-http: `0c72b0bfb11683644b35e147a223b9970bde9a669bff8d21cd5d399912bcc262`
+
+## Production acceptance — 2026-09-27
+
+**All four requested website fixes are deployed at https://octoport.ru/.**
+
+- Deployed source: `bf08e2e79cfd9a169a1b5e989944e3cda4feca82`.
+- Previous release: `db7dd52d014924a1195b81d79e6fa4c16a33b022`.
+- Fresh-main integration base: `d2acbb3e5600756b830804afeb3a3cfc1abbfb99`; intervening main changes did not touch site/test/design paths. Integration was non-force.
+- Exact deployed-head Site CI run `36317073409`: SUCCESS; Site Deploy CI run `36317073486`: SUCCESS.
+- Repository rollback-safe deploy: exit 0, post-deploy verifier PASS. Backup: `/var/backups/octoport-site/20260927T115303Z`.
+- Application ingress SHA before/after is identical: `2675ab2704977645c03cfd758e92c97429ecfd112ef3af1bb2d89f40d4738bdc`.
+- Live public-origin HTTP: 41/41 PASS, including exact source-byte parity for HTML/CSS/color assets, MIME, canonical redirects, query strings, unknown-path 404 and security headers.
+- Live Chrome/Opera/Yandex: 30/30 states PASS, plus 48/48 independent hover/focus pairs. Checks target actual https://octoport.ru, not a local host override.
+- Live 960px window: illustration is below the text and 780px wide, in both themes and all three browsers.
+- Live 320px: no horizontal overflow; illustration remains below the text.
+- Live: six AI marks retain color in both themes; WB/Ozon have equal circles, caption fonts/baselines and centered vector slots.
+- Live screenshot corners: 6/6 scene screenshots, all four corners match the page background. No light or dark rectangular backing remains.
+- Header logo/favicon retained and served; cache-safe stylesheet is `/styles.css?v=contour-20260927-r2`.
+- Tested browser binaries: Google Chrome 147.0.7727.116; Opera 136.0.6008.22; Yandex 26.8.1.1111, on the authorized Linux host.
+
+This is acceptance of the four owner-requested Contour corrections, not a new SEO/indexing, account, extension-store or product-feature acceptance.
+
+Maximum measured live marketplace caption horizontal centering error: 0.5000px.
+
+Live evidence hashes:
+- deploy: `52ac520e95994925efee8cb3bfa266473bb3ceb3e88262efefb2d21e06da60bb`
+- http: `b45ef50c672fd19757f59a4c1a90e066fb7581a189acf74f48e9b8db560bddf7`
+- chrome: `932aa0fc01c2965ec90835ca3e055e86d7b2e0af8f40f24d23286838da652852`
+- opera: `002b6d285c2465f9cb87bc57c7d20f22075272fe088d15c20cef9a4007acb6b0`
+- yandex: `bd77be1ad7a2d43180328268c2aa6751abb92d18aab723e128709e0f594940d3`
+- scene pixels: `e8e479668d2ab040129851013ee77cc1af5088cb26cd7b3d00c7ffeb4f473c47`
