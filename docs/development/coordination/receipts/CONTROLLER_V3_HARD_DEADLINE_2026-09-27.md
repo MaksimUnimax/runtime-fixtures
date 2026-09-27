@@ -13,3 +13,7 @@ Contract: cached commercial authority denies at its fixed hard deadline even whi
 Evidence: /root/octoport-control/incidents/streams-audit-20260927T1022Z/v3-hard-before-expiry-{repro.mjs,result.json}.
 
 Validation boundary: add signed hard-before-expiry and equal-boundary regressions; retain existing hard-after-expiry tests and ONLINE distinction. Run the focused VM harness on a private copy of the existing accepted assembled runtime with only the exact authority source replacement. This is source/assembled-fixture evidence, not a new packaged or installed acceptance. C runs normal candidate checks before main.
+
+## Verification result
+
+The one-line freshness ordering correction passes the focused signed v3 suite including hard before/equal/after expiresAt, exact/+1ms CACHE denial and preserved current ONLINE GRACE. Existing C3C autonomous authority regression also passes (24 reported cases). Both used a private copy of the accepted assembled runtime, with the original embedded source first checked for exact byte equality. No browser or network service was started. git diff --check PASS. Ordinary C source/package/CI intake remains required.
