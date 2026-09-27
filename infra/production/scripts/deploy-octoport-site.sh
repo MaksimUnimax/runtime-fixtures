@@ -85,7 +85,7 @@ assert_source() {
     || fail "site source canonical URL is not octoport.ru"
   grep -Fq '<title>Подключите ваш ИИ к Ozon и Wildberries | Octoport</title>' "${SOURCE_SITE}/index.html" \
     || fail "homepage M12 title is missing"
-  grep -Fq '<h1>Подключите ваш ИИ к Ozon и Wildberries</h1>' "${SOURCE_SITE}/index.html" \
+  grep -Fq '<h1>Подключите ваш ИИ к <span class="brand-ozon">Ozon</span> и <span class="brand-wildberries">Wildberries</span></h1>' "${SOURCE_SITE}/index.html" \
     || fail "homepage M12 H1 is missing"
   grep -Fq '<link rel="icon" href="/favicon.png" type="image/png" />' "${SOURCE_SITE}/index.html" \
     || fail "homepage favicon link is missing"
