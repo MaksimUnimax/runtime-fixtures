@@ -20,7 +20,7 @@
     "urgency": "FINITE_DAYS_COVER_SORT_ASCENDING_STABLE_BY_PRODUCT_ID",
     "unknownDemand": "ZERO_OR_UNKNOWN_DEMAND_STAYS_UNKNOWN_NOT_INFINITE_COVER",
     "slowMover": "REQUIRES_EXPLICIT_TURNOVER_THRESHOLD_DAYS",
-    "exactOrderQuantity": "REQUIRES_LEAD_TIME_AND_TARGET_STOCK_INPUTS",
+    "exactOrderQuantity": "REQUIRES_LEAD_TIME_TARGET_STOCK_AND_ACCEPTED_BUSINESS_FORMULA",
     "missing": "MISSING_NOT_ZERO"
   },
   "acceptedMappingSnapshot": {
@@ -70,13 +70,36 @@
         "status": "INCOMPLETE",
         "reason": "LEAD_TIME_AND_TARGET_STOCK_REQUIRED"
       }
+    },
+    "exactOrderWithoutAcceptedFormula": {
+      "productId": 1001,
+      "stockUnits": 3,
+      "averageDailyDemandUnits": 3,
+      "leadTimeDays": 4,
+      "targetStockDays": 10,
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "EXACT_ORDER_FORMULA_NOT_ACCEPTED"
+      }
+    },
+    "invalidStockPriority": {
+      "rows": [
+        { "productId": 1005, "stockUnits": -1, "averageDailyDemandUnits": 2 }
+      ],
+      "expected": { "status": "INCOMPLETE", "reason": "STOCK_INVALID" }
+    },
+    "negativeDemandPriority": {
+      "rows": [
+        { "productId": 1006, "stockUnits": 4, "averageDailyDemandUnits": -1 }
+      ],
+      "expected": { "status": "INCOMPLETE", "reason": "NEGATIVE_DEMAND" }
     }
   },
   "remainingOpen": [
     "live WB values and owner gold-set reconciliation",
     "sale-versus-return classification before operational sales becomes a business demand denominator",
     "owner/business threshold for calling stock a slow mover",
-    "lead time and target stock for exact replenishment quantity",
+    "lead time, target stock and accepted business formula for exact replenishment quantity",
     "provider stock pagination completeness on real account data"
   ]
 }

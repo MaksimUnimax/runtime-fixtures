@@ -36,16 +36,18 @@ assert.equal(std07.omissionPolicy, "MISSING_NOT_ZERO");
 assert.deepEqual(std07.numericFixtures, ["days_cover"]);
 
 function daysCover(stockUnits, averageDailyDemandUnits) {
+  if (!Number.isFinite(stockUnits) || stockUnits < 0)
+    return { status: "INCOMPLETE", reason: "STOCK_INVALID" };
   if (
-    !Number.isFinite(stockUnits) ||
-    stockUnits < 0 ||
     averageDailyDemandUnits === null ||
-    averageDailyDemandUnits === undefined
+    averageDailyDemandUnits === undefined ||
+    !Number.isFinite(averageDailyDemandUnits) ||
+    averageDailyDemandUnits === 0
   )
-    return null;
-  if (!Number.isFinite(averageDailyDemandUnits) || averageDailyDemandUnits <= 0)
-    return null;
-  return stockUnits / averageDailyDemandUnits;
+    return { status: "UNKNOWN_DEMAND" };
+  if (averageDailyDemandUnits < 0)
+    return { status: "INCOMPLETE", reason: "NEGATIVE_DEMAND" };
+  return { status: "FINITE", value: stockUnits / averageDailyDemandUnits };
 }
 
 function priority(rows) {
@@ -55,11 +57,12 @@ function priority(rows) {
     if (!Number.isInteger(row.productId))
       return { status: "INCOMPLETE", reason: "PRODUCT_ID_INVALID" };
     const cover = daysCover(row.stockUnits, row.averageDailyDemandUnits);
-    if (cover === null) {
+    if (cover.status === "INCOMPLETE") return cover;
+    if (cover.status === "UNKNOWN_DEMAND") {
       unknownDemandProductIds.push(row.productId);
       continue;
     }
-    finite.push({ productId: row.productId, cover });
+    finite.push({ productId: row.productId, cover: cover.value });
   }
   finite.sort((a, b) => a.cover - b.cover || a.productId - b.productId);
   return {
@@ -114,14 +117,8 @@ function exactOrderQuantity(row) {
       reason: "LEAD_TIME_AND_TARGET_STOCK_REQUIRED",
     };
   return {
-    status: "PASS",
-    units: Math.max(
-      0,
-      Math.ceil(
-        row.averageDailyDemandUnits * (row.leadTimeDays + row.targetStockDays) -
-          row.stockUnits,
-      ),
-    ),
+    status: "INCOMPLETE",
+    reason: "EXACT_ORDER_FORMULA_NOT_ACCEPTED",
   };
 }
 const c = slice.syntheticCases;
@@ -138,6 +135,18 @@ assert.deepEqual(
   exactOrderQuantity(c.exactOrderWithoutInputs),
   c.exactOrderWithoutInputs.expected,
 );
+assert.deepEqual(
+  exactOrderQuantity(c.exactOrderWithoutAcceptedFormula),
+  c.exactOrderWithoutAcceptedFormula.expected,
+);
+assert.deepEqual(
+  priority(c.invalidStockPriority.rows),
+  c.invalidStockPriority.expected,
+);
+assert.deepEqual(
+  priority(c.negativeDemandPriority.rows),
+  c.negativeDemandPriority.expected,
+);
 
 assert.equal(
   slice.rules.urgency,
@@ -145,7 +154,7 @@ assert.equal(
 );
 assert.equal(
   slice.rules.exactOrderQuantity,
-  "REQUIRES_LEAD_TIME_AND_TARGET_STOCK_INPUTS",
+  "REQUIRES_LEAD_TIME_TARGET_STOCK_AND_ACCEPTED_BUSINESS_FORMULA",
 );
 assert.equal(slice.rules.missing, "MISSING_NOT_ZERO");
 
