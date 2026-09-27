@@ -1,7 +1,7 @@
 (() => {
   "use strict";
   const TARGET = "fbs_order_statuses";
-  const MAX_ORDERS = 100;
+  const MAX_ORDERS = 1000;
   const base = globalThis.WBContract;
   if (!base || base.OPERATIONS?.[TARGET]?.body_required !== true)
     throw new Error(
@@ -42,7 +42,7 @@
     if (orders.length > MAX_ORDERS)
       fail(
         "FBS_ORDER_STATUSES_TOO_MANY_ORDERS",
-        "fbs_order_statuses accepts at most 100 IDs.",
+        "fbs_order_statuses accepts at most 1000 IDs.",
       );
     if (orders.some((id) => !Number.isSafeInteger(id)))
       fail(
