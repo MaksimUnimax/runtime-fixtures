@@ -172,9 +172,43 @@ async function fixture(
 function service() {
   return createBillingEventService({
     verifier: createBillingSimulator(),
-    repository: createP5BillingEventRepository(db),
+    repository: createP5BillingEventRepository(db, { now: () => clock }),
     now: () => clock,
   });
+}
+
+async function holdAccountLock(accountId: string) {
+  let ready!: () => void;
+  let release!: () => void;
+  const acquired = new Promise<void>((resolve) => (ready = resolve));
+  const released = new Promise<void>((resolve) => (release = resolve));
+  let backendPid = 0;
+  const transaction = db.transaction(async (tx) => {
+    const pid = await tx.query<{ pid: number }>(
+      "SELECT pg_backend_pid() AS pid",
+    );
+    backendPid = pid.rows[0]!.pid;
+    await tx.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [
+      `p5-subscription-account:${accountId}`,
+    ]);
+    ready();
+    await released;
+  });
+  await acquired;
+  return { backendPid, release, transaction };
+}
+
+async function waitUntilBlockedBy(backendPid: number) {
+  const deadline = Date.now() + 4_000;
+  while (Date.now() < deadline) {
+    const waiting = await q<{ pid: number }>(
+      "SELECT pid FROM pg_stat_activity WHERE $1 = ANY(pg_blocking_pids(pid)) LIMIT 1",
+      [backendPid],
+    );
+    if (waiting.rows[0]) return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error("billing transaction did not wait on held account lock");
 }
 
 function envelope(
@@ -596,6 +630,54 @@ describe.sequential(
       });
       expect((await rows("payments"))[0]!.state).toBe("SUCCEEDED");
       expect(await rows("subscriptions")).toHaveLength(1);
+    });
+
+    it("26a lock wait crossing expiry uses post-lock processing time", async () => {
+      const f = await fixture();
+      const periodEnd = new Date(clock.getTime() + 1_000);
+      const existingSubscriptionId = id();
+      await q(
+        "INSERT INTO subscriptions(id,account_id,state,state_revision,current_plan_revision_id,started_at,current_period_start,current_period_end,state_reason) VALUES($1,$2,'ACTIVE',1,$3,$4,$4,$5,'existing')",
+        [
+          existingSubscriptionId,
+          f.accountId,
+          f.planRevisionId,
+          occurredAt,
+          periodEnd,
+        ],
+      );
+      await q(
+        "INSERT INTO subscription_transitions(subscription_id,transition_revision,to_state,source,actor_type,reason,occurred_at) VALUES($1,1,'ACTIVE','ADMIN','SYSTEM','existing',$2)",
+        [existingSubscriptionId, occurredAt],
+      );
+      const receivedAt = new Date(clock);
+      const hold = await holdAccountLock(f.accountId);
+      const processing = service().processBillingEvent(envelope(f), {
+        correlationId: id(),
+      });
+      try {
+        await waitUntilBlockedBy(hold.backendPid);
+        clock = new Date(periodEnd.getTime() + 1);
+      } finally {
+        hold.release();
+        await hold.transaction;
+      }
+
+      expect((await processing).kind).toBe("APPLIED");
+      const subs = await rows("subscriptions");
+      expect(subs.map((row) => row.state).sort()).toEqual([
+        "ACTIVE",
+        "EXPIRED",
+      ]);
+      expect(
+        subs.find((row) => row.state === "EXPIRED")?.current_period_end,
+      ).toEqual(periodEnd);
+      const event = (await rows("billing_events"))[0]!;
+      expect(event.received_at).toEqual(receivedAt);
+      expect(event.verified_at).toEqual(receivedAt);
+      expect(event.processed_at).toEqual(clock);
+      const created = subs.find((row) => row.state === "ACTIVE")!;
+      expect(created.current_period_start).toEqual(occurredAt);
     });
 
     it("27 semantic success duplicate is IGNORED without extending the period", async () => {

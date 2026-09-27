@@ -170,7 +170,9 @@ function terminalResult(
 
 export function createP5ReconciliationRepository(
   runtime: DatabaseRuntime,
+  options: { now?: () => Date } = {},
 ): BillingReconciliationRepository {
+  const now = options.now ?? (() => new Date());
   return {
     async claimDue({ now, leaseMs, batchSize }) {
       if (!Number.isSafeInteger(leaseMs) || leaseMs <= 0)
@@ -270,7 +272,8 @@ export function createP5ReconciliationRepository(
           return { kind: "STALE_LEASE", paymentId: claim.paymentId };
         if (status.state === "PENDING") {
           // PENDING is an observation, not a commercial billing event.
-          const next = new Date(processedAt.getTime() + 60_000);
+          const observedAt = now();
+          const next = new Date(observedAt.getTime() + 60_000);
           const ok = await finishJob(
             q,
             claim.paymentId,
@@ -278,7 +281,7 @@ export function createP5ReconciliationRepository(
             "READY",
             "PROVIDER_PENDING",
             next,
-            processedAt,
+            observedAt,
           );
           return ok
             ? { kind: "RESCHEDULED", code: "PROVIDER_PENDING" }
@@ -366,12 +369,21 @@ export function createP5ReconciliationRepository(
         );
         const payment = paymentQuery.rows[0];
         if (!payment) throw new Error("PAYMENT_NOT_FOUND");
+        // processedAt is the provider snapshot/receipt chronology. Lifecycle
+        // classification and database processing timestamps follow lock wait.
+        let classifiedAt = now();
         const currentState = String(payment.state);
         if (currentState === "REFUNDED" || currentState === "CHARGEBACK") {
-          const failed = await terminalize(q, event.id, "FAILED", processedAt, {
-            paymentId: claim.paymentId,
-            code: "PAYMENT_STATE_CONFLICT",
-          });
+          const failed = await terminalize(
+            q,
+            event.id,
+            "FAILED",
+            classifiedAt,
+            {
+              paymentId: claim.paymentId,
+              code: "PAYMENT_STATE_CONFLICT",
+            },
+          );
           await finishJob(
             q,
             claim.paymentId,
@@ -379,15 +391,21 @@ export function createP5ReconciliationRepository(
             "BLOCKED",
             "UNSUPPORTED_PAYMENT_STATE",
             null,
-            processedAt,
+            classifiedAt,
           );
           return terminalResult(failed, claim.paymentId);
         }
         if (currentState === "SUCCEEDED" && status.state !== "SUCCEEDED") {
-          const failed = await terminalize(q, event.id, "FAILED", processedAt, {
-            paymentId: claim.paymentId,
-            code: "PAYMENT_STATE_CONFLICT",
-          });
+          const failed = await terminalize(
+            q,
+            event.id,
+            "FAILED",
+            classifiedAt,
+            {
+              paymentId: claim.paymentId,
+              code: "PAYMENT_STATE_CONFLICT",
+            },
+          );
           await finishJob(
             q,
             claim.paymentId,
@@ -395,7 +413,7 @@ export function createP5ReconciliationRepository(
             "BLOCKED",
             "PAYMENT_STATE_CONFLICT",
             null,
-            processedAt,
+            classifiedAt,
           );
           return terminalResult(failed, claim.paymentId);
         }
@@ -404,7 +422,7 @@ export function createP5ReconciliationRepository(
             q,
             event.id,
             "IGNORED",
-            processedAt,
+            classifiedAt,
             { paymentId: claim.paymentId },
           );
           await finishJob(
@@ -414,14 +432,14 @@ export function createP5ReconciliationRepository(
             "SETTLED",
             null,
             null,
-            processedAt,
+            classifiedAt,
           );
           return terminalResult(ignored, claim.paymentId);
         }
         if (status.state !== "SUCCEEDED") {
           await q.query(
             "UPDATE payments SET state=$1,updated_at=$2 WHERE id=$3",
-            [status.state, processedAt, claim.paymentId],
+            [status.state, classifiedAt, claim.paymentId],
           );
           await audit(
             q,
@@ -442,7 +460,7 @@ export function createP5ReconciliationRepository(
             q,
             event.id,
             "APPLIED",
-            processedAt,
+            classifiedAt,
             { paymentId: claim.paymentId },
           );
           await finishJob(
@@ -452,7 +470,7 @@ export function createP5ReconciliationRepository(
             "SETTLED",
             null,
             null,
-            processedAt,
+            classifiedAt,
           );
           return terminalResult(applied, claim.paymentId);
         }
@@ -473,10 +491,16 @@ export function createP5ReconciliationRepository(
             checkout.currency === claim.currency,
         );
         if (!checkout || !coherent) {
-          const failed = await terminalize(q, event.id, "FAILED", processedAt, {
-            paymentId: claim.paymentId,
-            code: checkout ? "CHECKOUT_CORRUPTED" : "CHECKOUT_NOT_FOUND",
-          });
+          const failed = await terminalize(
+            q,
+            event.id,
+            "FAILED",
+            classifiedAt,
+            {
+              paymentId: claim.paymentId,
+              code: checkout ? "CHECKOUT_CORRUPTED" : "CHECKOUT_NOT_FOUND",
+            },
+          );
           await finishJob(
             q,
             claim.paymentId,
@@ -484,7 +508,7 @@ export function createP5ReconciliationRepository(
             "BLOCKED",
             checkout ? "CHECKOUT_CORRUPTED" : "CHECKOUT_NOT_FOUND",
             null,
-            processedAt,
+            classifiedAt,
           );
           return terminalResult(failed, claim.paymentId);
         }
@@ -498,7 +522,7 @@ export function createP5ReconciliationRepository(
               q,
               event.id,
               "FAILED",
-              processedAt,
+              classifiedAt,
               {
                 paymentId: claim.paymentId,
                 code: "PAYMENT_SUBSCRIPTION_CORRUPTED",
@@ -510,8 +534,8 @@ export function createP5ReconciliationRepository(
               claim.leaseToken,
               "READY",
               "PAYMENT_SUBSCRIPTION_CORRUPTED",
-              new Date(processedAt.getTime() + 60_000),
-              processedAt,
+              new Date(classifiedAt.getTime() + 60_000),
+              classifiedAt,
             );
             return terminalResult(failed, claim.paymentId);
           }
@@ -519,7 +543,7 @@ export function createP5ReconciliationRepository(
             q,
             event.id,
             "IGNORED",
-            processedAt,
+            classifiedAt,
             {
               paymentId: claim.paymentId,
               subscriptionId: payment.subscriptionId,
@@ -532,44 +556,57 @@ export function createP5ReconciliationRepository(
             "SETTLED",
             null,
             null,
-            processedAt,
+            classifiedAt,
           );
           return terminalResult(ignored, claim.paymentId);
         }
         const current = await materializeDueCurrentSubscriptionLocked(q, {
           accountId: claim.accountId,
-          at: processedAt,
+          at: now,
           correlationId,
         });
+        classifiedAt = now();
         if (current.kind === "CORRUPTED") {
-          const failed = await terminalize(q, event.id, "FAILED", processedAt, {
-            paymentId: claim.paymentId,
-            code: "PAYMENT_SUBSCRIPTION_CORRUPTED",
-          });
+          const failed = await terminalize(
+            q,
+            event.id,
+            "FAILED",
+            classifiedAt,
+            {
+              paymentId: claim.paymentId,
+              code: "PAYMENT_SUBSCRIPTION_CORRUPTED",
+            },
+          );
           await finishJob(
             q,
             claim.paymentId,
             claim.leaseToken,
             "READY",
             "PAYMENT_SUBSCRIPTION_CORRUPTED",
-            new Date(processedAt.getTime() + 60_000),
-            processedAt,
+            new Date(classifiedAt.getTime() + 60_000),
+            classifiedAt,
           );
           return terminalResult(failed, claim.paymentId);
         }
         if (current.kind === "CURRENT") {
-          const failed = await terminalize(q, event.id, "FAILED", processedAt, {
-            paymentId: claim.paymentId,
-            code: "CURRENT_SUBSCRIPTION_CONFLICT",
-          });
+          const failed = await terminalize(
+            q,
+            event.id,
+            "FAILED",
+            classifiedAt,
+            {
+              paymentId: claim.paymentId,
+              code: "CURRENT_SUBSCRIPTION_CONFLICT",
+            },
+          );
           await finishJob(
             q,
             claim.paymentId,
             claim.leaseToken,
             "READY",
             "CURRENT_SUBSCRIPTION_CONFLICT",
-            new Date(processedAt.getTime() + 60_000),
-            processedAt,
+            new Date(classifiedAt.getTime() + 60_000),
+            classifiedAt,
           );
           return terminalResult(failed, claim.paymentId);
         }
@@ -586,7 +623,7 @@ export function createP5ReconciliationRepository(
             claim.priceRevisionId,
             status.statusAt,
             periodEnd,
-            processedAt,
+            classifiedAt,
           ],
         );
         const subscriptionId = inserted.rows[0]?.id;
@@ -597,7 +634,7 @@ export function createP5ReconciliationRepository(
         );
         await q.query(
           "UPDATE payments SET state='SUCCEEDED',confirmed_at=CASE WHEN state='SUCCEEDED' THEN confirmed_at ELSE $1 END,subscription_id=$2,updated_at=$3 WHERE id=$4",
-          [status.statusAt, subscriptionId, processedAt, claim.paymentId],
+          [status.statusAt, subscriptionId, classifiedAt, claim.paymentId],
         );
         await audit(
           q,
@@ -630,16 +667,23 @@ export function createP5ReconciliationRepository(
         const activatedLifecycle =
           await materializeDueCurrentSubscriptionLocked(q, {
             accountId: claim.accountId,
-            at: processedAt,
+            at: now,
             correlationId,
           });
+        classifiedAt = now();
         if (activatedLifecycle.kind === "CORRUPTED")
           throw new Error("SUBSCRIPTION_CORRUPTED");
-        const applied = await terminalize(q, event.id, "APPLIED", processedAt, {
-          paymentId: claim.paymentId,
-          subscriptionId,
-          transitionId: transition.rows[0]?.id,
-        });
+        const applied = await terminalize(
+          q,
+          event.id,
+          "APPLIED",
+          classifiedAt,
+          {
+            paymentId: claim.paymentId,
+            subscriptionId,
+            transitionId: transition.rows[0]?.id,
+          },
+        );
         await finishJob(
           q,
           claim.paymentId,
@@ -647,7 +691,7 @@ export function createP5ReconciliationRepository(
           "SETTLED",
           null,
           null,
-          processedAt,
+          classifiedAt,
         );
         return terminalResult(applied, claim.paymentId);
       });
