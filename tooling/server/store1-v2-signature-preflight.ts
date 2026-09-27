@@ -7,14 +7,14 @@ import type {
   Store1V2SignaturePreflightProof,
 } from "./store1-opera-admin-activation.js";
 
-const STORE1_VERSION = "0.2.4" as const;
+const STORE1_VERSION = "0.2.5" as const;
 const STORE1_CONTRACT = "control_plane_v2" as const;
 const STORE1_BROWSER = "opera" as const;
 const STORE1_BROWSER_MINIMUM = "136" as const;
-const STORE1_ACCEPTED_SOURCE_HEAD = "e7d66152bdb77918b65115486c9829ef7a634e69";
-const STORE1_ACCEPTED_SOURCE_TREE = "01ae2c1d84a354a11d919a313f8d9909d1285b6a";
+const STORE1_ACCEPTED_SOURCE_HEAD = "68f1621376be4d7aeeff44bc76cc326f8cc64954";
+const STORE1_ACCEPTED_SOURCE_TREE = "8eb20bbc19bbbaaa73ca1a9ba139efa90194ea9a";
 const STORE1_ACCEPTED_ARTIFACT_SHA256 =
-  "0c1fb4c9c81c600332dfb6dc2dcfb9c3221dafe9940eab3811112a4e9fc5d71c";
+  "33cbf1ad9ec4669abe3a65e24cfbaead4c7c3a1fa711261b2d186d107c33aea1";
 
 export const STORE1_V2_CONFIG_READ_PATH =
   "/v1/admin/compatibility/config-releases/latest?contractVersion=control_plane_v2" as const;

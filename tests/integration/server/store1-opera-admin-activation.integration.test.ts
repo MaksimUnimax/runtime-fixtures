@@ -94,13 +94,13 @@ const ADMIN_PORTAL = "30000000-0000-4000-8000-000000000005";
 const REVIEWER_DEVICE = "30000000-0000-4000-8000-000000000006";
 const REVIEWER_SESSION = "30000000-0000-4000-8000-000000000007";
 const authority: Store1PackageAuthority = {
-  sourceHead: "e7d66152bdb77918b65115486c9829ef7a634e69",
-  sourceTree: "01ae2c1d84a354a11d919a313f8d9909d1285b6a",
+  sourceHead: "68f1621376be4d7aeeff44bc76cc326f8cc64954",
+  sourceTree: "8eb20bbc19bbbaaa73ca1a9ba139efa90194ea9a",
   version: STORE1_VERSION,
   contractVersion: STORE1_CONTRACT,
   artifactSha256:
-    "0c1fb4c9c81c600332dfb6dc2dcfb9c3221dafe9940eab3811112a4e9fc5d71c",
-  filename: "OCTOPORT_v0.2.4_CHROMIUM_STORE.zip",
+    "33cbf1ad9ec4669abe3a65e24cfbaead4c7c3a1fa711261b2d186d107c33aea1",
+  filename: "OCTOPORT_v0.2.5_CHROMIUM_STORE.zip",
 };
 const STORE1_TEST_SIGNING_PAIR = generateKeyPairSync("ed25519");
 const STORE1_TEST_CONTROL_ORIGIN = "https://api.store1.test";
@@ -338,7 +338,7 @@ type JsonResponse = {
 
 function captureRead(path: string, response: JsonResponse) {
   const body = response.json();
-  if (path === "/v1/admin/compatibility/releases/0.2.4") {
+  if (path === "/v1/admin/compatibility/releases/0.2.5") {
     readback.release =
       response.statusCode === 404
         ? null
@@ -742,7 +742,7 @@ describe.sequential("STORE-1 ordinary-admin whole-sequence rehearsal", () => {
       signature: { verified: true },
       nextActionPreview: {
         method: "POST",
-        path: "/v1/admin/compatibility/releases/0.2.4/publish",
+        path: "/v1/admin/compatibility/releases/0.2.5/publish",
         executed: false,
       },
       bootstrapMayUpdateDeviceOrAuthState: true,
@@ -900,7 +900,7 @@ describe.sequential("STORE-1 ordinary-admin whole-sequence rehearsal", () => {
       status: "POST",
       next: {
         method: "POST",
-        path: "/v1/admin/compatibility/releases/0.2.4/publish",
+        path: "/v1/admin/compatibility/releases/0.2.5/publish",
       },
     });
 
@@ -916,7 +916,7 @@ describe.sequential("STORE-1 ordinary-admin whole-sequence rehearsal", () => {
     const first = await runPlanner(40, true);
     expect(first.plan).toMatchObject({ status: "READY" });
     expect(first.mutations.slice(0, 7)).toEqual([
-      "/v1/admin/compatibility/releases/0.2.4/publish",
+      "/v1/admin/compatibility/releases/0.2.5/publish",
       "/v1/admin/compatibility/policies/" + STORE1_POLICY_KEY + "/publish",
       "/v1/admin/compatibility/config-releases/publish",
       "/v1/admin/ai/registry/adapters",
