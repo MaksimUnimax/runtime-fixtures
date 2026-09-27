@@ -4,7 +4,7 @@ fixture AI tab, because Playwright does not operate the browser action toolbar.
 No live AI/provider or installed target-browser certification is claimed.
 """
 from pathlib import Path
-import argparse,base64,json,tempfile,time,os,traceback
+import argparse,base64,hashlib,json,tempfile,time,os,traceback
 from playwright.sync_api import sync_playwright
 ROOT=Path(__file__).resolve().parents[3]
 
@@ -161,17 +161,95 @@ def run(runtime,output,private_key):
             page.locator("section[data-turn='assistant'] .code").last.scroll_into_view_if_needed()
             button=page.locator('.ozon-bridge-block-action').last;button.click();page.wait_for_timeout(250)
             assert worker.evaluate('fixtureFetches.length')==1
+            # Current ChatGPT fenced-code DOM: li[data-message-role=assistant] + Copy code/data-code-copy-state.
+            current_assistant=page.evaluate("()=>fixtureCurrentChatGPTBlock('WB_HELP_V1 {\"operation\":\"describe\",\"params\":{\"alias\":\"seller_info\"}}','assistant')")
+            until(lambda:page.locator('.ozon-bridge-block-action').count()==2)
+            assert page.locator('.ozon-bridge-block-action').last.inner_text()=='WB'
+            current_user=page.evaluate("()=>fixtureCurrentChatGPTBlock('WB_API_V1 {\"operation\":\"seller_info\",\"params\":{}}','user')")
+            page.wait_for_timeout(250)
+            assert page.locator('.ozon-bridge-block-action').count()==2
+            page.evaluate('(ids)=>ids.forEach(id=>document.getElementById(id)?.remove())',[current_assistant,current_user])
+            until(lambda:page.locator('.ozon-bridge-block-action').count()==1)
+
+            # New DOM matrix: multiple assistant blocks/localized Copy are recognized,
+            # while user, ambiguous and unrelated Response-actions containers are rejected.
+            multi_id=page.evaluate("(spec)=>fixtureChatGPTMessage(spec)",{
+              'role':'assistant','id':'modern-multi',
+              'blocks':[
+                {'text':'WB_HELP_V1 {"operation":"describe","params":{"alias":"seller_info"}}','label':'Copy code'},
+                {'text':'WB_API_V1 {"operation":"seller_info","params":{}}','label':'Копировать код'}
+              ]
+            })
+            user_id=page.evaluate("(spec)=>fixtureChatGPTMessage(spec)",{
+              'role':'user','id':'modern-user',
+              'blocks':[{'text':'WB_API_V1 {"operation":"seller_info","params":{}}','label':'Copy code'}]
+            })
+            ambiguous_id=page.evaluate("(spec)=>fixtureChatGPTMessage(spec)",{
+              'explicitRole':False,'id':'ambiguous-response','responseActions':'Response actions','userDescendant':True,
+              'blocks':[{'text':'WB_API_V1 {"operation":"seller_info","params":{}}','label':'Copy code'}]
+            })
+            unrelated_id=page.evaluate("(spec)=>fixtureChatGPTMessage(spec)",{
+              'explicitRole':False,'assistantMarker':False,'id':'unrelated-response','responseActions':'Response actions',
+              'blocks':[{'text':'WB_API_V1 {"operation":"seller_info","params":{}}','plain':True,'label':'Copy code'}]
+            })
+            editor_id=page.evaluate("(spec)=>fixtureModernChatGPT(spec)",{
+              'editor':True,'id':'assistant-editor-negative',
+              'text':'WB_API_V1 {"operation":"seller_info","params":{}}','copyLabel':'Copy code'
+            })
+            until(lambda:page.locator('.ozon-bridge-block-action').count()==3)
+            page.wait_for_timeout(200)
+            assert page.locator('.ozon-bridge-block-action').count()==3
+            page.evaluate('(ids)=>ids.forEach(id=>document.getElementById(id)?.remove())',[multi_id,user_id,ambiguous_id,unrelated_id,editor_id])
+            until(lambda:page.locator('.ozon-bridge-block-action').count()==1)
+
+            # Unmarked project/desktop-style assistant ownership: Response actions +
+            # assistant content marker. Plain <code> (no <pre>) and text-only localized
+            # Copy are enough only inside that proven assistant container.
+            plain_command='WB_API_V1 {"operation":"seller_info","params":{}}'
+            plain_id=page.evaluate("(spec)=>fixtureChatGPTMessage(spec)",{
+              'explicitRole':False,'id':'unmarked-plain','tag':'article','responseActions':'Действия с ответом',
+              'blocks':[{'text':plain_command,'plain':True,'dataCodeCopy':False,'textLabel':'Копировать код'}]
+            })
+            until(lambda:page.locator('.ozon-bridge-block-action').count()==2)
+            plain_button=page.locator('.ozon-bridge-block-action').last
+            plain_fetches_before=worker.evaluate('fixtureFetches.length')
+            plain_sent_before=page.evaluate('sent.length')
+            plain_operation_before=worker.evaluate("async()=>Object.values((await chrome.storage.local.get('ozmb_manual_operations')).ozmb_manual_operations||{})[0]?.operation_id||null")
+            plain_button.click()
+            until(lambda:worker.evaluate("async(prev)=>{const row=Object.values((await chrome.storage.local.get('ozmb_manual_operations')).ozmb_manual_operations||{})[0];return row?.operation_id&&row.operation_id!==prev&&row.status==='completed'}",plain_operation_before))
+            manual_row=worker.evaluate("async()=>Object.values((await chrome.storage.local.get('ozmb_manual_operations')).ozmb_manual_operations||{})[0]")
+            assert manual_row['execution_context']['commandHash']==hashlib.sha256(plain_command.encode()).hexdigest()
+            assert manual_row['last_operation']=='seller_info' and manual_row['last_error'] is None
+            assert worker.evaluate('fixtureFetches.length')==plain_fetches_before+1
+            page.wait_for_function('(n)=>sent.length===n+1',arg=plain_sent_before,timeout=30000)
+            page.evaluate('(id)=>document.getElementById(id)?.remove()',plain_id)
+            until(lambda:page.locator('.ozon-bridge-block-action').count()==1)
+
+            # Rerender/replacement of the same message must replace the binding, not duplicate it.
+            rerender_id=page.evaluate("(spec)=>fixtureChatGPTMessage(spec)",{
+              'role':'assistant','id':'rerender-modern',
+              'blocks':[{'text':'WB_HELP_V1 {"operation":"describe","params":{"alias":"seller_info"}}','label':'Copy code'}]
+            })
+            until(lambda:page.locator('.ozon-bridge-block-action').count()==2)
+            page.evaluate("(id)=>{document.getElementById(id)?.remove();fixtureChatGPTMessage({role:'assistant',id,blocks:[{text:'WB_HELP_V1 {\\\"operation\\\":\\\"describe\\\",\\\"params\\\":{\\\"alias\\\":\\\"seller_info\\\"}}',plain:true,dataCodeCopy:false,textLabel:'Copy code'}]});}",rerender_id)
+            until(lambda:page.locator('.ozon-bridge-block-action').count()==2)
+            page.wait_for_timeout(200)
+            assert page.locator('.ozon-bridge-block-action').count()==2
+            page.evaluate('(id)=>document.getElementById(id)?.remove()',rerender_id)
+            until(lambda:page.locator('.ozon-bridge-block-action').count()==1)
+
             # Actual native File/IndexedDB/chunk/attachment/send path for a binary WB result.
             command=worker.evaluate("""()=>{fixtureBinary=true;const m=Object.values(SellerAgentsWBReference.contract.OPERATIONS).find(m=>m.response_mode==='binary'&&m.execution_enabled&&m.privacy==='standard');return 'WB_API_V1 '+JSON.stringify({operation:m.alias,params:{path:Object.fromEntries([...m.path.matchAll(/\\{([^}]+)\\}/g)].map(m=>[m[1],'fixture'])),query:Object.fromEntries(m.required_query_keys.map(k=>[k,'1'])),...(m.body_required?{body:{}}:{})}})}""")
             page.evaluate('(text)=>fixtureCommand(text)',command)
             page.locator("section[data-turn='assistant'] .code").last.scroll_into_view_if_needed()
-            button=page.locator('.ozon-bridge-block-action').last;button.wait_for();button.click()
+            button=page.locator('.ozon-bridge-block-action').last;button.wait_for()
+            binary_fetches_before=worker.evaluate('fixtureFetches.length');binary_sent_before=page.evaluate('sent.length');button.click()
             page.wait_for_function('files.length>=1',timeout=30000)
             actual=page.evaluate("files.find(f=>f.name==='native-report.pdf')")
             assert actual['bytes']==[37,80,68,70,45,49,10,0,255]
-            page.wait_for_function('sent.length===3',timeout=30000)
+            page.wait_for_function('(n)=>sent.length===n+1',arg=binary_sent_before,timeout=30000)
             until(lambda:worker.evaluate("async()=>Object.values((await chrome.storage.local.get('ozmb_manual_operations')).ozmb_manual_operations||{})[0]?.status==='completed'"))
-            assert worker.evaluate('fixtureFetches.length')==2
+            assert worker.evaluate('fixtureFetches.length')==binary_fetches_before+1
             popup.click('#finish');until(lambda:'Завершено' in popup.locator('#connection').inner_text())
             assert page.locator('.ozon-bridge-block-action').count()==0
             # Popup dimensions at normal and enlarged typography; no horizontal clipping.
@@ -183,7 +261,7 @@ def run(runtime,output,private_key):
                 popup.screenshot(path=str(output/f'popup-{width}-{scale}.png'),full_page=True)
                 popup.click('#cancel')
             assert not errors,errors
-            result.update(status='PASS',browser=context.browser.version,checks=['popup create/edit','real Work prompt','old-history baseline','WB mixed block text send','no replay','Show/Hide','native binary File/IDB/port send','Finish','320/380px and enlarged typography'])
+            result.update(status='PASS',browser=context.browser.version,checks=['popup create/edit','real Work prompt','old-history baseline','WB mixed block text send','no replay','Show/Hide','current li[data-message-role] fenced code','multi-block localized Copy','user/editor/ambiguous/unrelated action rejection','unmarked Response-actions plain code exact extraction','rerender no duplicates','native binary File/IDB/port send','Finish','320/380px and enlarged typography'])
         except Exception as error:
             result.update(status='FAIL',error=str(error),traceback=traceback.format_exc(),page_errors=errors)
             if popup:
