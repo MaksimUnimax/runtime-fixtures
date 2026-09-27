@@ -33,3 +33,20 @@ The same transformation is applied to the small foreground grip ink masks. New c
 - Yandex results SHA-256: `c8da327fdd30edc9acb1051b7280303466ac11d8ac3b6c68ad1edb65bcca378f`.
 
 Production deployment and live acceptance remain separate.
+
+## Production acceptance
+
+Status: PRODUCTION_DEPLOYED / LIVE_QA_PASS.
+
+Deployed source: `ee49f9c2f9546d718d4a970083649fbd987b0924`.
+Main Site CI run `36324343924`: SUCCESS.
+Main Site Deploy CI run `36324343903`: SUCCESS.
+Rollback backup: `/var/backups/octoport-site/20260927T140047Z`.
+
+Live Chrome / Opera / Yandex: 30/30 quick width/theme/utility states PASS and 48/48 independent hover/focus pairs PASS. The static illustration and grip layers remain stationary while controls move independently.
+
+Live result SHA-256:
+- Chrome: `28fb189fddbcf5dcbbd61f29b004ccbf2270655e25da7371b521e136d14d7d53`
+- Opera: `c723cda7f2036bde75ef1de7d192784dec8f3093bd4abdfc882ab31d69da0882`
+- Yandex: `00337f776221c4c3b22c4b52e4e74587ee741ecd32561563f8e1a89e54d48f83`
+- Deploy log: `805f1abedb16af8e49e7b7c44fd0464a6e1a89c017e072b55e8c1d71df341030`
