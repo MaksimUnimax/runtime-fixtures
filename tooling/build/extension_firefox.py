@@ -114,9 +114,9 @@ def build(input_runtime: Path, output: Path) -> dict:
         files.append({"path": relative, "sha256": sha256(data), "bytes": len(data)})
 
     archive = output.parent / (
-        "OCTOPORT_v0.2.4_FIREFOX_STORE.zip"
+        f"OCTOPORT_v{manifest['version']}_FIREFOX_STORE.zip"
         if store_package
-        else "SELLER_AGENTS_I1_C1_v0.2.4_FIREFOX_LOCAL_DEVELOPMENT.zip"
+        else f"SELLER_AGENTS_I1_C1_v{manifest['version']}_FIREFOX_LOCAL_DEVELOPMENT.zip"
     )
     repeat = output.parent / (archive.name + ".repeat")
     for target in (archive, repeat):

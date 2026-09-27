@@ -4,6 +4,37 @@
 <script>
 window.sent=[];window.files=[];let seq=0;
 window.fixtureCommand=(text,id='command-'+(++seq))=>{const s=document.createElement('section');s.dataset.turn='assistant';s.dataset.turnId=id;const d=document.createElement('div');d.className='code';const b=document.createElement('button');b.setAttribute('aria-label','Copy');b.textContent='Copy code';const pre=document.createElement('pre');const c=document.createElement('code');c.textContent=text;pre.append(c);d.append(b,pre);s.append(d);document.querySelector('#turns').append(s);return id;};
+window.fixtureCurrentChatGPTBlock=(text,role='assistant',id='current-'+role+'-'+(++seq))=>{const li=document.createElement('li');li.dataset.messageRole=role;li.id=id;if(role==='assistant')li.setAttribute('data-message-complete','');const markdown=document.createElement('div');markdown.dataset.assistantMarkdown='';const pre=document.createElement('pre');pre.dataset.assistantStreamBlock='';pre.dataset.assistantStreamBlockIndex='0';const code=document.createElement('code');code.className='language-text';code.textContent=text;const controls=document.createElement('span');controls.dataset.messageContentControls='';const copy=document.createElement('button');copy.type='button';copy.dataset.codeCopyState='idle';copy.setAttribute('aria-label','Copy code');controls.append(copy);pre.append(code,controls);markdown.append(pre);li.append(markdown);document.querySelector('#turns').append(li);return id;};
+window.fixtureChatGPTMessage=(spec={})=>{const role=spec.role||'assistant',id=spec.id||'modern-'+role+'-'+(++seq);const root=document.createElement(spec.tag||'li');root.id=id;if(spec.explicitRole!==false)root.dataset.messageRole=role;if(role==='assistant')root.setAttribute('data-message-complete','');const body=document.createElement('div');if(spec.assistantMarker!==false)body.dataset.assistantMarkdown='';for(const [index,item] of (spec.blocks||[]).entries()){const holder=document.createElement(item.plain?'div':'pre');if(!item.plain){holder.dataset.assistantStreamBlock='';holder.dataset.assistantStreamBlockIndex=String(index);}const code=document.createElement('code');code.textContent=item.text||'';holder.append(code);if(item.copy!==false){const copy=document.createElement('button');copy.type='button';if(item.dataCodeCopy!==false)copy.dataset.codeCopyState='idle';if(item.label)copy.setAttribute('aria-label',item.label);if(item.title)copy.setAttribute('title',item.title);if(item.textLabel)copy.textContent=item.textLabel;holder.append(copy);}body.append(holder);}root.append(body);if(spec.responseActions){const actions=document.createElement('div');actions.setAttribute('role','group');actions.setAttribute('data-message-actions','');actions.setAttribute('aria-label',spec.responseActions);if(spec.assistantResponseActions)actions.dataset.assistantMessageActions='';if(spec.responseActionCopy){const item=spec.responseActionCopy,copy=document.createElement('button');copy.type='button';if(item.dataCodeCopy)copy.dataset.codeCopyState=item.dataCodeCopy===true?'idle':String(item.dataCodeCopy);if(item.label)copy.setAttribute('aria-label',item.label);if(item.title)copy.setAttribute('title',item.title);if(item.textLabel)copy.textContent=item.textLabel;actions.append(copy);}root.append(actions);}if(spec.userDescendant){const user=document.createElement('div');user.dataset.messageRole='user';user.textContent='nested user';root.append(user);}document.querySelector('#turns').append(root);return id;};
+window.fixtureModernChatGPT=(options={})=>{
+  const id=options.id||'modern-'+(++seq);
+  const root=options.inferred?document.createElement('article'):options.editor?document.createElement('div'):document.createElement('li');
+  root.id=id;
+  if(options.editor)root.dataset.writingBlock='';
+  else if(!options.inferred)root.dataset.messageRole=options.role||'assistant';
+  if((options.role||'assistant')==='assistant'&&!options.editor)root.setAttribute('data-message-complete','');
+  const markdown=document.createElement('div');markdown.dataset.assistantMarkdown='';
+  const texts=options.texts||[options.text||''];
+  for(const [index,value] of texts.entries()){
+    const surface=options.directCode?document.createElement('div'):document.createElement('pre');
+    if(!options.directCode){surface.dataset.assistantStreamBlock='';surface.dataset.assistantStreamBlockIndex=String(index);}
+    const code=document.createElement('code');code.className='language-text';code.textContent=value;
+    const controls=document.createElement('span');controls.dataset.messageContentControls='';
+    const copy=document.createElement('button');copy.type='button';
+    const label=options.copyLabel||'Copy code';
+    if(options.textOnlyCopy)copy.textContent=label;
+    else{copy.dataset.codeCopyState='idle';copy.setAttribute('aria-label',label);}
+    controls.append(copy);surface.append(code,controls);markdown.append(surface);
+  }
+  root.append(markdown);
+  if(options.inferred){
+    const count=options.ambiguousActions?2:1;
+    for(let i=0;i<count;i++){const actions=document.createElement('div');actions.setAttribute('role','group');actions.setAttribute('aria-label',options.unrelatedActions?'More actions':'Response actions');if(!options.unrelatedActions){actions.dataset.assistantMessageActions='';actions.dataset.messageActions='';}root.append(actions);}
+    if(options.includeUserChild){const user=document.createElement('div');user.dataset.messageRole='user';user.textContent='explicit user descendant';root.append(user);}
+  }
+  document.querySelector('#turns').append(root);
+  return id;
+};
 const composer=document.querySelector('#prompt-textarea'),send=document.querySelector('[data-testid="send-button"]'),voice=document.querySelector('[data-testid="voice-mode-button"]');
 composer.addEventListener('input',()=>{send.hidden=!composer.textContent.trim();voice.hidden=!send.hidden;});
 send.onclick=()=>{const text=composer.innerText;window.sent.push(text);const u=document.createElement('section');u.dataset.turn='user';u.dataset.turnId='user-'+(++seq);u.textContent=text;document.querySelector('#turns').append(u);composer.textContent='';send.hidden=true;voice.hidden=false;setTimeout(()=>{const a=document.createElement('section');a.dataset.turn='assistant';a.dataset.turnId='reply-'+(++seq);a.textContent='Инструкция или результат получены';document.querySelector('#turns').append(a);},150);};

@@ -1,0 +1,207 @@
+{
+  "schemaVersion": "wb_sales_geography_field_schema_slice_v1",
+  "capturedDate": "2026-09-27",
+  "scope": {
+    "scenarioIds": ["STD-09"],
+    "boundary": "SALES_ROW_GEOGRAPHY_IS_DIRECT_OFFICE_DIRECTORY_IS_SUPPLEMENTAL_NOT_AN_ID_JOIN",
+    "evidence": "PINNED_UPSTREAM_OPENAPI_MIRROR_PLUS_EXISTING_OPERATIONAL_SALES_SLICE",
+    "liveValues": false,
+    "acceptedOperationMappingChanged": false
+  },
+  "authority": {
+    "mirrorRepository": "eslazarev/wildberries-sdk",
+    "mirrorCommit": "5057bdb9bf16dea24000e3ca79e1934f7761d7fe",
+    "reportsSpecBlobSha": "22ff073c10a3cebe0dc7af647eb2b704fd35857c",
+    "itemsSpecBlobSha": "54f6d7828f4188671ef68fde06922e609ef7e7a4",
+    "salesModelPath": "clients/npm/reports/src/models/SalesItem.ts",
+    "officeModelPath": "clients/npm/items/src/models/Office.ts"
+  },
+  "sources": {
+    "sales": {
+      "reuseFixture": "tests/regression/extension-core/fixtures/wb-operational-sales-field-schema-slice-v1.json",
+      "operationAlias": "statistics_sales",
+      "host": "statistics",
+      "method": "GET",
+      "path": "/api/v1/supplier/sales",
+      "rowGrain": ["saleID"],
+      "timezoneDefault": "Europe/Moscow",
+      "saleIdSemantics": {
+        "S": "SALE",
+        "R": "RETURN_TO_WB_WAREHOUSE"
+      },
+      "fields": {
+        "date": { "role": "sale_or_return_event_time", "unit": "datetime" },
+        "warehouseName": {
+          "role": "shipment_warehouse_label",
+          "unit": "text_optional"
+        },
+        "warehouseType": {
+          "role": "warehouse_scheme_label",
+          "unit": "provider_enum_optional"
+        },
+        "countryName": { "role": "country_label", "unit": "text_optional" },
+        "oblastOkrugName": {
+          "role": "federal_district_label",
+          "unit": "text_optional"
+        },
+        "regionName": { "role": "region_label", "unit": "text_optional" },
+        "finishedPrice": {
+          "role": "operational_buyer_price_async",
+          "unit": "provider_currency_number_optional"
+        },
+        "saleID": { "role": "sale_or_return_id", "unit": "identifier" }
+      },
+      "authoritativeRevenueField": null,
+      "moneyBoundary": "OPERATIONAL_PROVIDER_VALUE_NOT_FINAL_FINANCE_REVENUE"
+    },
+    "offices": {
+      "operationAlias": "marketplace_offices",
+      "host": "marketplace",
+      "method": "GET",
+      "path": "/api/v3/offices",
+      "rowGrain": ["id"],
+      "fields": {
+        "id": { "role": "wb_office_id", "unit": "identifier_optional" },
+        "name": { "role": "office_name", "unit": "text_optional" },
+        "address": { "role": "office_address", "unit": "text_optional" },
+        "city": { "role": "office_city", "unit": "text_optional" },
+        "longitude": { "role": "longitude", "unit": "number_optional" },
+        "latitude": { "role": "latitude", "unit": "number_optional" },
+        "federalDistrict": {
+          "role": "federal_district_label",
+          "unit": "text_or_null"
+        },
+        "selected": {
+          "role": "seller_selected_flag",
+          "unit": "boolean_optional"
+        }
+      },
+      "joinBoundary": "SALES_ROWS_EXPOSE_WAREHOUSE_NAME_NOT_OFFICE_ID_NO_AUTHORITATIVE_ID_JOIN"
+    }
+  },
+  "rules": {
+    "saleUnits": "COUNT_ONLY_S_PREFIX_ROWS_AS_SALES",
+    "returnUnits": "COUNT_R_PREFIX_ROWS_SEPARATELY_DO_NOT_NET_SILENTLY",
+    "duplicateSaleId": "DUPLICATE_SALE_ID_IS_INCOMPLETE_NOT_DOUBLE_COUNT",
+    "geography": "USE_SALES_ROW_WAREHOUSE_COUNTRY_DISTRICT_REGION_DIRECTLY",
+    "officeJoin": "DO_NOT_TREAT_NAME_MATCH_AS_AUTHORITATIVE_OFFICE_ID_LINK",
+    "money": "PRESERVE_OPERATIONAL_FINISHED_PRICE_VALUES_DO_NOT_LABEL_AS_FINAL_REVENUE",
+    "currency": "SALES_ROW_HAS_NO_EXPLICIT_CURRENCY_CODE_IN_THIS SOURCE_SLICE",
+    "missing": "MISSING_NOT_ZERO",
+    "sort": "WAREHOUSE_RANK_BY_SALE_UNITS_DESC_THEN_WAREHOUSE_ASC"
+  },
+  "acceptedMappingSnapshot": {
+    "STD-09": ["statistics_sales", "marketplace_offices"]
+  },
+  "syntheticCases": {
+    "warehouseDay": {
+      "day": "2026-09-26",
+      "rows": [
+        {
+          "saleID": "S-001",
+          "date": "2026-09-26T10:00:00",
+          "warehouseName": "North",
+          "countryName": "Россия",
+          "oblastOkrugName": "Центральный федеральный округ",
+          "regionName": "Московская",
+          "finishedPrice": 1000
+        },
+        {
+          "saleID": "S-002",
+          "date": "2026-09-26T11:00:00",
+          "warehouseName": "North",
+          "countryName": "Россия",
+          "oblastOkrugName": "Центральный федеральный округ",
+          "regionName": "Московская",
+          "finishedPrice": 900
+        },
+        {
+          "saleID": "R-003",
+          "date": "2026-09-26T12:00:00",
+          "warehouseName": "North",
+          "countryName": "Россия",
+          "oblastOkrugName": "Центральный федеральный округ",
+          "regionName": "Московская",
+          "finishedPrice": 900
+        },
+        {
+          "saleID": "S-004",
+          "date": "2026-09-26T13:00:00",
+          "warehouseName": "South",
+          "countryName": "Россия",
+          "oblastOkrugName": "Южный федеральный округ",
+          "regionName": "Ростовская",
+          "finishedPrice": 700
+        }
+      ],
+      "expected": [
+        {
+          "warehouse": "North",
+          "saleUnits": 2,
+          "returnUnits": 1,
+          "providerMoneyValues": [1000, 900],
+          "country": "Россия",
+          "district": "Центральный федеральный округ",
+          "region": "Московская"
+        },
+        {
+          "warehouse": "South",
+          "saleUnits": 1,
+          "returnUnits": 0,
+          "providerMoneyValues": [700],
+          "country": "Россия",
+          "district": "Южный федеральный округ",
+          "region": "Ростовская"
+        }
+      ]
+    },
+    "duplicateSale": {
+      "rows": [
+        {
+          "saleID": "S-dup",
+          "date": "2026-09-26T10:00:00",
+          "warehouseName": "North"
+        },
+        {
+          "saleID": "S-dup",
+          "date": "2026-09-26T10:00:00",
+          "warehouseName": "North"
+        }
+      ],
+      "expected": { "status": "INCOMPLETE", "reason": "DUPLICATE_SALE_ID" }
+    },
+    "missingWarehouse": {
+      "rows": [{ "saleID": "S-missing", "date": "2026-09-26T10:00:00" }],
+      "expected": { "status": "INCOMPLETE", "reason": "WAREHOUSE_NAME_MISSING" }
+    },
+    "officeReference": {
+      "salesWarehouseName": "North",
+      "offices": [
+        {
+          "id": 101,
+          "name": "North",
+          "city": "Москва",
+          "federalDistrict": "Центральный федеральный округ"
+        },
+        {
+          "id": 102,
+          "name": "North",
+          "city": "Химки",
+          "federalDistrict": "Центральный федеральный округ"
+        }
+      ],
+      "expected": {
+        "status": "REFERENCE_ONLY",
+        "authoritativeOfficeId": null,
+        "reason": "NO_DOCUMENTED_SALES_OFFICE_ID_JOIN"
+      }
+    }
+  },
+  "remainingOpen": [
+    "live WB values and owner gold-set reconciliation",
+    "explicit business timezone if different from provider Moscow default",
+    "currency binding for operational money values",
+    "authoritative final revenue requires finance realization details",
+    "authoritative warehouse-to-office ID relation if WB later exposes one"
+  ]
+}
