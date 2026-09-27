@@ -651,6 +651,10 @@ h3 {
     min-height: calc(100vh - 204px);
   }
 
+  .public-page h1 {
+    overflow-wrap: anywhere;
+  }
+
   .page-section {
     margin-top: 40px;
     padding-top: 24px;
