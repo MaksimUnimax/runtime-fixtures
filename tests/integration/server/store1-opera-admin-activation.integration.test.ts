@@ -383,7 +383,8 @@ async function runPlanner(maxSteps = 40, injectSignatureProof = false) {
     if (plan.status === "BLOCKED" || plan.status === "CONFLICT") {
       if (
         injectSignatureProof &&
-        plan.code === "STORE1_V2_SIGNATURE_PREFLIGHT_REQUIRED"
+        (plan.code === "STORE1_V2_SIGNATURE_PREFLIGHT_REQUIRED" ||
+          plan.code === "STORE1_V2_SIGNATURE_PREFLIGHT_STALE")
       ) {
         readback.signaturePreflight = signatureProofFixture();
         continue;
@@ -461,8 +462,8 @@ describe.sequential("STORE-1 ordinary-admin whole-sequence rehearsal", () => {
     };
     const mismatched = await runPlanner();
     expect(mismatched.plan).toMatchObject({
-      status: "CONFLICT",
-      code: "STORE1_V2_SIGNATURE_PREFLIGHT_CONFLICT",
+      status: "BLOCKED",
+      code: "STORE1_V2_SIGNATURE_PREFLIGHT_STALE",
     });
     expect(mismatched.mutations).toEqual([]);
     delete readback.signaturePreflight;

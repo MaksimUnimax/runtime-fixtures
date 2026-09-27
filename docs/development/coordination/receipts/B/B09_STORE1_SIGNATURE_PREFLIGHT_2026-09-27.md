@@ -6,7 +6,7 @@ Status: **SOURCE VALIDATED CANDIDATE / NO LIVE REQUESTS / NO CATALOG WRITES**
 
 Controller assignment: `STREAMS-AUDIT-20260927-0701`.
 
-B added a bounded STORE-1 v2 cryptographic preflight before the ordinary-admin activation planner can emit its first catalog POST. The implementation does not read signing private material and does not introduce a signing service.
+B added a bounded STORE-1 v2 cryptographic preflight before the ordinary-admin activation planner can emit catalog POSTs. The implementation does not read signing private material and does not introduce a signing service.
 
 ## Source behavior
 
@@ -16,8 +16,8 @@ B added a bounded STORE-1 v2 cryptographic preflight before the ordinary-admin a
 - The no-`detectedAi` request is fixed to v2 / extension 0.2.4 / Opera / authenticated device / `lastConfigVersion:null`.
 - Verification requires packaged Ed25519 signature, strict schema and canonical bytes, active expected key, matching config version, signed ACTIVE reviewer account and `ai.status=UNCONFIGURED`.
 - The safe proof binds package hash, canonical trust-bundle digest, config version/content/source hashes, signing key, reviewer account/device and browser context.
-- Planner requires this proof after CLOSED/verified/admitted reviewer + latest ACTIVE v2 config readback and before release/policy/catalog POSTs.
-- After the planner's own single CAS config publication, the proof is accepted only for the immediate successor config version containing exactly the STORE-1 policy on the same signing key. Unrelated/stale successors fail closed.
+- Planner requires this proof after CLOSED/verified/admitted reviewer + latest ACTIVE v2 config readback and before catalog POSTs.
+- The proof must match the current config version/content/source hashes before every catalog POST. If the planner's own CAS config publication advances config identity, the prior proof becomes `STORE1_V2_SIGNATURE_PREFLIGHT_STALE`; a fresh authenticated signed-bootstrap proof is required before any subsequent mutation.
 - Reviewer identity/admission remains an independent prerequisite. No reviewer is created, beta is not opened, and no SQL/live bypass is added.
 
 ## Verification
@@ -25,11 +25,11 @@ B added a bounded STORE-1 v2 cryptographic preflight before the ordinary-admin a
 Environment: Node 24.20.0, pnpm 10.34.5.
 
 - Focused planner + signature-preflight unit tests: **27/27 PASS**.
-  - supervisor: `octoport-test-b-bcd61f97ff8c4d7cbddfcc63be665df9.service`
+  - supervisor: `octoport-test-b-7590dd9ab6f745b6916d46e00975437d.service`
   - cleanup verified.
 - STORE-1 whole-sequence PostgreSQL integration: **2/2 PASS** on B disposable PostgreSQL.
-  - supervisor: `octoport-test-b-415734f3153745258789ca8772f0a8bb.service`
-  - proves missing proof => zero mutations; mismatched proof => zero mutations; valid proof => normal activation sequence; replay => zero new mutations.
+  - supervisor: `octoport-test-b-b40acc5abf1c4ad48c4c3cd5095c0951.service`
+  - proves missing proof => zero mutations; mismatched/stale proof => zero mutations; fresh valid proof => normal activation sequence; config CAS forces proof refresh; replay => zero new mutations.
   - cleanup verified.
 - Exact accepted local STORE package evidence read: PASS.
   - supervisor: `octoport-test-b-06cf695d3d8d411cb8cdd483390504dd.service`
@@ -37,14 +37,15 @@ Environment: Node 24.20.0, pnpm 10.34.5.
   - canonical packaged trust-bundle SHA-256: `c0bce660c6d6c2c1fa2f4cb57c336aa12c5b638ec74fcf56faf4615ca8e3d4c7`.
   - packaged active key id: `octoport-preprod-2026-09-19`.
 - Final ESLint: PASS.
-  - supervisor: `octoport-test-b-6a0df8aae17245c1939c449273e20325.service`
+  - supervisor: `octoport-test-b-c5b1f0a1d18146198f336fa142ac3280.service`
   - cleanup verified.
 - Prettier check: PASS.
+- Documentation check: PASS.
 - `git diff --check`: PASS.
 
 ## Negative coverage
 
-Focused tests reject bad signature, unknown packaged key, config/key/account mismatch, correctly signed non-canonical payload, development packaged config, and mismatched package bytes. Planner tests reject absent proof and mismatched proof before any POST instruction.
+Focused tests reject bad signature, unknown packaged key, config/key/account mismatch, correctly signed non-canonical payload, development packaged config, and mismatched package bytes. Planner tests reject absent proof, mismatched proof and stale config proof before a POST instruction.
 
 ## Boundary
 

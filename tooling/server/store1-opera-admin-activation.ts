@@ -453,30 +453,23 @@ export function planStore1Activation(
     signatureProof.extensionVersion === STORE1_VERSION &&
     signatureProof.browserFamily === STORE1_BROWSER &&
     signatureProof.aiStatus === "UNCONFIGURED";
+  if (!proofBindsPackageAndReviewer)
+    return conflict(
+      "STORE1_V2_SIGNATURE_PREFLIGHT_CONFLICT",
+      "Signature preflight does not bind the exact package, admitted reviewer, signing key, or expected STORE context.",
+    );
   const proofBindsCurrentConfig =
     signatureProof.configVersion === r.config.configVersion &&
     signatureProof.configContentHashSha256 === r.config.contentHashSha256 &&
     signatureProof.configSourceFingerprintSha256 ===
       r.config.sourceFingerprintSha256;
-  const exactStorePolicy =
-    r.policies?.length === 1 &&
-    r.policies[0]?.policyKey === STORE1_POLICY_KEY &&
-    r.policies[0]?.contractVersion === STORE1_CONTRACT &&
-    r.policies[0]?.browserFamily === STORE1_BROWSER
-      ? r.policies[0]
-      : null;
-  const proofAllowsPlannerSuccessor =
-    exactStorePolicy !== null &&
-    r.config.configVersion === signatureProof.configVersion + 1 &&
-    sameStrings(r.config.compatibilityPolicyRevisionIds, [exactStorePolicy.id]);
-  if (
-    !proofBindsPackageAndReviewer ||
-    (!proofBindsCurrentConfig && !proofAllowsPlannerSuccessor)
-  )
-    return conflict(
-      "STORE1_V2_SIGNATURE_PREFLIGHT_CONFLICT",
-      "Signature preflight does not bind the exact package, admitted reviewer and current pre-mutation v2 config (or its single CAS successor created by this STORE-1 plan).",
-    );
+  if (!proofBindsCurrentConfig)
+    return {
+      status: "BLOCKED",
+      code: "STORE1_V2_SIGNATURE_PREFLIGHT_STALE",
+      detail:
+        "Signature preflight does not bind the current v2 config metadata; obtain a fresh signed bootstrap proof before any further catalog POST.",
+    };
 
   if (r.release === undefined)
     return get(

@@ -237,8 +237,20 @@ describe("STORE-1 ordinary-admin activation planner", () => {
     });
   });
 
+  it("blocks a stale signature proof when current config identity changes", () => {
+    const r = exactReadback();
+    r.release = null;
+    r.signaturePreflight = {
+      ...r.signaturePreflight!,
+      configContentHashSha256: "d".repeat(64),
+    };
+    expect(planStore1Activation(authority, r)).toMatchObject({
+      status: "BLOCKED",
+      code: "STORE1_V2_SIGNATURE_PREFLIGHT_STALE",
+    });
+  });
+
   it.each([
-    ["config hash", { configContentHashSha256: "d".repeat(64) }],
     ["signing key", { signingKeyId: "other-active-key" }],
     ["reviewer account", { accountId: "00000000-0000-4000-8000-000000000099" }],
   ])("rejects mismatched signature proof: %s", (_label, change) => {
