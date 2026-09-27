@@ -424,8 +424,9 @@ export function createHealthSchedulerRepository(
         healthRunId: string;
         healthState: string;
         runKind: string;
+        probeLayer: string;
       }>(
-        `SELECT r.id AS "scheduledRunId",r.schedule_id AS "scheduleId",h.id AS "healthRunId",h.health_state AS "healthState",h.run_kind AS "runKind"
+        `SELECT r.id AS "scheduledRunId",r.schedule_id AS "scheduleId",h.id AS "healthRunId",h.health_state AS "healthState",h.run_kind AS "runKind",r.probe_layer AS "probeLayer"
          FROM health_scheduled_runs r
          JOIN health_runs h ON h.scheduled_run_id=r.id
          WHERE r.state IN ('CLAIMED','RUNNING','TIMED_OUT','FAILED_RETRYABLE')
@@ -435,7 +436,10 @@ export function createHealthSchedulerRepository(
       let recovered = 0;
       for (const candidate of candidates.rows) {
         const healthState = HealthStateSchema.parse(candidate.healthState);
-        if (candidate.runKind === "NO_SESSION_OBSERVATION") {
+        if (
+          candidate.runKind === "NO_SESSION_OBSERVATION" ||
+          candidate.probeLayer === "AUTHENTICATED_DEEP"
+        ) {
           await incidents.processCompletedHealthRun(candidate.healthRunId);
         }
         const updated = await runtime.transaction(async (q) => {
