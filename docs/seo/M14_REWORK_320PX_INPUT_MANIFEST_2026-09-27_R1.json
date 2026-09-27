@@ -1,0 +1,79 @@
+{
+  "schema": "OCTOPORT_M14_REWORK_320PX_INPUT_MANIFEST_V1",
+  "work_id": "OCTOPORT_SEO_M14_REWORK_320PX_2026-09-27_R1",
+  "repository": "MaksimUnimax/runtime-fixtures",
+  "seo_branch": "seo/wordstat-batch-01-2026-09-16",
+  "preparation_commit": "b0ee8534d727a0c251f8d619dbc2edaf1b24721d",
+  "preparation": {
+    "path": "docs/seo/M14_REWORK_320PX_STEP_PREPARATION_2026-09-27_R1.md",
+    "blob": "53e9762bf0d53a286a7e4532ba223da2795f843c"
+  },
+  "current_main": "a7097321410921f2fffa54fc3ecf1bc17963c0c2",
+  "rework_base": {
+    "branch": "seo/m15-predeploy-integration-2026-09-26-r1",
+    "commit": "50e344dcb9ddb93b177624168449e6642307ac3b"
+  },
+  "defect": {
+    "path": "docs/seo/M15_PREDEPLOY_DEFECT_320PX_2026-09-26_R1.md",
+    "blob": "5b0d2e0caa89cb01ba630a7d320881c78b3153cf",
+    "browser": "Chrome",
+    "requested_viewport_width": 320,
+    "client_width": 305,
+    "scroll_width": 311,
+    "overflow_px": 6,
+    "verdict": "FAIL"
+  },
+  "mutable_paths": [
+    {
+      "path": "apps/site/public/styles.css",
+      "base_blob": "cda70d351cb72332c70d7a32e5b31d3182e0a374",
+      "change": "Add only mobile privacy-panel min-width/overflow-wrap fix"
+    },
+    {
+      "path": ".github/workflows/site-ci.yml",
+      "base_blob": "84c0bae2905b9ac1c3259429337c1cbd9cdaf50a",
+      "change": "Add static regression assertion for mobile privacy-panel fix"
+    }
+  ],
+  "exact_css_contract": {
+    "media_max_width_px": 680,
+    "rules": [
+      ".privacy-panel > * { min-width: 0; }",
+      ".privacy-panel h2 { overflow-wrap: anywhere; }"
+    ],
+    "forbidden": [
+      "global h2 overflow-wrap change",
+      "desktop privacy-panel layout change",
+      "content or metadata change",
+      "padding reduction as substitute",
+      "hidden overflow that masks clipped content"
+    ]
+  },
+  "source_gates": [
+    "exact base commit",
+    "exact changed path set = 2",
+    "git diff --check",
+    "Site CI inline validator PASS",
+    "Site CI deployment block PASS",
+    "site regression 13/13 PASS",
+    "no non-authorized source changes"
+  ],
+  "browser_reacceptance": {
+    "required": true,
+    "source_ci_alone_closes_defect": false,
+    "required_checks": [
+      "Chrome HOME 320px scrollWidth <= clientWidth",
+      "Chrome seller-analytics 320px scrollWidth <= clientWidth",
+      "desktop Chrome HOME+analytics",
+      "desktop Opera HOME+analytics",
+      "desktop Yandex HOME+analytics"
+    ],
+    "executor_state": "RDC currently offline; if unavailable, HOLD browser reacceptance"
+  },
+  "prohibitions": [
+    "main merge",
+    "production deployment",
+    "M16 launch",
+    "third source path without preparation amendment"
+  ]
+}
