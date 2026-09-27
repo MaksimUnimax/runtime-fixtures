@@ -23,7 +23,30 @@
   async function digest(value) { return [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier.canonicalJson(value))))].map(item => item.toString(16).padStart(2, "0")).join(""); }
   function atLeast(actual, minimum) { const a = typeof actual === "string" && actual.split(".").map(Number), b = typeof minimum === "string" && minimum.split(".").map(Number); if (!a || !b || a.length < 3 || b.length < 3 || a.some(Number.isNaN) || b.some(Number.isNaN)) return false; for (let i = 0; i < 3; i += 1) if (a[i] !== b[i]) return a[i] > b[i]; return true; }
   function invalidation(current) { if (current.revoked === true || current.knownRevoke === true || current.knownRevoked === true || current.loggedOut === true || current.authReset === true || current.obsolete === true) return "DENY_AUTH_INVALIDATED"; if (current.storeDeleted === true) return "DENY_STORE_CONTEXT"; return null; }
-  function freshness(payload, clock, requestedTime) { const expires = parsed(payload?.expiresAt), grace = parsed(payload?.offlineGraceUntil), server = parsed(payload?.serverTime); const values = [clock?.effectiveTimeMs, clock?.trustedServerTimeMs, server, requestedTime].filter(Number.isSafeInteger); if (expires === null || grace === null || server === null || grace <= expires || values.length < 3 || values.some(value => value < 0 || value > maxDate)) return { state: null, effectiveTimeMs: null }; const effectiveTimeMs = Math.max(...values); return { state: effectiveTimeMs < expires ? "FRESH" : effectiveTimeMs < grace ? "STALE_BUT_OFFLINE_GRACE_ELIGIBLE" : "CACHE_EXPIRED", effectiveTimeMs }; }
+  function freshness(payload, clock, requestedTime, source) {
+    const expires = parsed(payload?.expiresAt), legacyGrace = parsed(payload?.offlineGraceUntil), server = parsed(payload?.serverTime);
+    const values = [clock?.effectiveTimeMs, clock?.trustedServerTimeMs, server, requestedTime].filter(Number.isSafeInteger);
+    if (expires === null || server === null || values.length < 3 || values.some(value => value < 0 || value > maxDate)) return { state: null, effectiveTimeMs: null };
+    let deadline = legacyGrace, offlineEligible = true;
+    if (payload?.contractVersion === "control_plane_v3") {
+      if (source === "ONLINE") { deadline = expires; offlineEligible = false; }
+      else if (payload.accessBasis === "COMMERCIAL") {
+        const access = payload.subscriptionAccess;
+        if (access === null) { deadline = expires; offlineEligible = false; }
+        else {
+          const paidThrough = parsed(access?.paidThrough), hard = parsed(access?.offlineHardUntil);
+          if (paidThrough === null || hard === null || hard - paidThrough !== 72 * 60 * 60 * 1000) return { state: null, effectiveTimeMs: null };
+          deadline = hard;
+        }
+      } else if (payload.accessBasis === "BETA") deadline = legacyGrace;
+      else { deadline = expires; offlineEligible = false; }
+    }
+    const requiresLegacyGrace = payload?.contractVersion !== "control_plane_v3" || payload?.accessBasis === "BETA";
+    if (deadline === null || requiresLegacyGrace && (legacyGrace === null || legacyGrace <= expires)) return { state: null, effectiveTimeMs: null };
+    const effectiveTimeMs = Math.max(...values);
+    const state = effectiveTimeMs < expires ? "FRESH" : offlineEligible && effectiveTimeMs < deadline ? "STALE_BUT_OFFLINE_GRACE_ELIGIBLE" : "CACHE_EXPIRED";
+    return { state, effectiveTimeMs };
+  }
   function capability(payload, state, source, marketplace, family) { const sourceKey = sourcePermission[marketplace], aiKey = aiPermission[family]; if (!sourceKey || !aiKey) return { source: null, ai: null, result: null }; try { const result = intersection.evaluateVerifiedMetadata({ metadataVersion: "signed_bootstrap_metadata_v1", source: source === "ONLINE" ? "ONLINE" : "CACHE", freshness: state, executionAuthority: false, configVersion: payload.configVersion, accessBasis: payload.accessBasis, signedEntitlements: payload.entitlements, signedFeatures: payload.features, ai: payload.ai }); const sourceRow = result.capabilities.find(row => row.entitlementKey === sourceKey && row.capabilityId === capabilityId[sourceKey]); const aiRow = result.capabilities.find(row => row.entitlementKey === aiKey && row.capabilityId === capabilityId[aiKey]); return { source: sourceRow || null, ai: aiRow || null, result }; } catch (_) { return { source: null, ai: null, result: null }; } }
   function signedPayloadProjection(payload) {
     if (!plain(payload?.localClientAuthority)) return payload;
@@ -64,17 +87,21 @@
     const operation = typeof rawOperation === "string" ? rawOperation.toUpperCase() : null, denied = [], gates = {};
     const invalid = invalidation(current); if (invalid) deny(denied, invalid);
     if (!authority || !plain(payload)) { deny(denied, "DENY_AUTH_INVALIDATED"); return freeze({ schemaVersion: "autonomous_work_authority_decision_v1", allowed: false, executionAuthority: false, operation, authorityState: "DENY_AUTH_INVALIDATED", freshness: null, effectiveTimeMs: null, deniedGates: denied, gates, provenanceUsed: false, healthRequired: options.requireHealth === true }); }
-    let signed = false; try { const verified = await verifier.verifyV2(authority.envelope, config.trustBundle); const expectedSignedPayload = signedPayloadProjection(payload); signed = authority.verified === true && verified.ok === true && verifier.canonicalJson(verified.payload) === verifier.canonicalJson(expectedSignedPayload); } catch (_) {}
+    let signed = false; try { const verified = authority.envelope?.envelopeVersion === "bootstrap_envelope_v3" && typeof verifier.verifyV3 === "function" ? await verifier.verifyV3(authority.envelope, config.trustBundle) : await verifier.verifyV2(authority.envelope, config.trustBundle); const expectedSignedPayload = signedPayloadProjection(payload); signed = authority.verified === true && verified.ok === true && verifier.canonicalJson(verified.payload) === verifier.canonicalJson(expectedSignedPayload); } catch (_) {}
     gates.signedBootstrap = signed; if (!signed) deny(denied, "DENY_AUTH_INVALIDATED");
-    const time = freshness(payload, value.cacheClock, value.effectiveTimeMs); gates.freshness = time.state !== null;
+    const time = freshness(payload, value.cacheClock, value.effectiveTimeMs, value.source); gates.freshness = time.state !== null;
     if (time.state === "CACHE_EXPIRED") deny(denied, "DENY_CACHE_EXPIRED"); else if (!gates.freshness) deny(denied, "DENY_AUTH_INVALIDATED");
     const clockOwner = value.cacheClock?.owner || {};
-    gates.cacheOwnership = value.cacheClock?.cacheVersion === "control_cache_clock_v1" && clockOwner.controlApiOrigin === config.controlApiOrigin && clockOwner.portalOrigin === config.portalOrigin && clockOwner.contractVersion === config.contractVersion && clockOwner.deviceId === authority.deviceId && clockOwner.sessionId === authority.sessionId && parsed(payload.serverTime) !== null && Number(value.cacheClock?.trustedServerTimeMs) >= parsed(payload.serverTime);
+    const payloadServerTime = parsed(payload.serverTime);
+    gates.cacheOwnership = value.cacheClock?.cacheVersion === "control_cache_clock_v1" && clockOwner.controlApiOrigin === config.controlApiOrigin && clockOwner.portalOrigin === config.portalOrigin && clockOwner.contractVersion === payload.contractVersion && clockOwner.deviceId === authority.deviceId && clockOwner.sessionId === authority.sessionId && payloadServerTime !== null && Number(value.cacheClock?.trustedServerTimeMs) >= payloadServerTime && (payload.contractVersion !== "control_plane_v3" || Number(value.cacheClock?.trustedServerTimeMs) === payloadServerTime);
     if (!gates.cacheOwnership) deny(denied, "DENY_AUTH_INVALIDATED");
-    gates.bootstrapCompatibility = payload.snapshotVersion === "bootstrap_snapshot_v2" && payload.contractVersion === config.contractVersion && Number.isSafeInteger(payload.configVersion) && payload.configVersion > 0 && payload.account?.status === "ACTIVE" && payload.devicePolicy?.status === "ACTIVE" && ["SUPPORTED", "UPDATE_RECOMMENDED"].includes(payload.compatibility?.extension?.status) && (payload.compatibility?.extension?.minimumVersion === null || atLeast(config.extensionVersion, payload.compatibility.extension.minimumVersion)) && payload.compatibility?.browser?.status === "SUPPORTED";
+    const wireCompatible = payload.snapshotVersion === "bootstrap_snapshot_v2" && payload.contractVersion === config.contractVersion || payload.snapshotVersion === "bootstrap_snapshot_v3" && payload.contractVersion === "control_plane_v3";
+    gates.bootstrapCompatibility = wireCompatible && Number.isSafeInteger(payload.configVersion) && payload.configVersion > 0 && payload.account?.status === "ACTIVE" && payload.devicePolicy?.status === "ACTIVE" && ["SUPPORTED", "UPDATE_RECOMMENDED"].includes(payload.compatibility?.extension?.status) && (payload.compatibility?.extension?.minimumVersion === null || atLeast(config.extensionVersion, payload.compatibility.extension.minimumVersion)) && payload.compatibility?.browser?.status === "SUPPORTED";
     if (!gates.bootstrapCompatibility) deny(denied, "DENY_AUTH_INVALIDATED");
+    gates.accessBasis = payload.contractVersion !== "control_plane_v3" || payload.accessBasis !== "NONE";
+    if (!gates.accessBasis) deny(denied, "DENY_AUTH_INVALIDATED");
     const trustBundleSha256 = await digest(config.trustBundle), expectedAi = payload.ai?.status === "RESOLVED" ? { family: payload.ai.detected.family, surface: payload.ai.detected.surface, variant: payload.ai.detected.variant } : null;
-    gates.cacheBinding = plain(authority.cacheBinding) && authority.cacheBinding.cacheVersion === "control_cache_binding_v1" && authority.cacheBinding.controlApiOrigin === config.controlApiOrigin && authority.cacheBinding.portalOrigin === config.portalOrigin && authority.cacheBinding.contractVersion === config.contractVersion && authority.cacheBinding.extensionVersion === config.extensionVersion && authority.cacheBinding.browser?.family === browserFamily() && authority.cacheBinding.browser?.version === browserVersion() && authority.cacheBinding.trustBundleSha256 === trustBundleSha256 && verifier.canonicalJson(authority.cacheBinding.detectedAi) === verifier.canonicalJson(expectedAi);
+    gates.cacheBinding = plain(authority.cacheBinding) && authority.cacheBinding.cacheVersion === "control_cache_binding_v1" && authority.cacheBinding.controlApiOrigin === config.controlApiOrigin && authority.cacheBinding.portalOrigin === config.portalOrigin && authority.cacheBinding.contractVersion === payload.contractVersion && authority.cacheBinding.extensionVersion === config.extensionVersion && authority.cacheBinding.browser?.family === browserFamily() && authority.cacheBinding.browser?.version === browserVersion() && authority.cacheBinding.trustBundleSha256 === trustBundleSha256 && verifier.canonicalJson(authority.cacheBinding.detectedAi) === verifier.canonicalJson(expectedAi);
     if (!gates.cacheBinding) deny(denied, "DENY_AUTH_INVALIDATED");
     const details = context(value, current, authority, payload, operation); Object.assign(gates, details.gates);
     if (!details.gates.account) deny(denied, "DENY_ACCOUNT_MISMATCH");
