@@ -1,0 +1,13 @@
+obs_id	surface	query	observed_state	octoport_result_seen	provider_access_state	interpretation	blocking	claim_boundary
+M16PUB001	UNIVERSAL_WEB_SEARCH	site:octoport.ru	No Octoport result observed in returned search set	false	OBSERVABLE	PUBLIC_NO_RESULT_OBSERVED	false	Not proof of Google/Yandex exclusion
+M16PUB002	UNIVERSAL_WEB_SEARCH	octoport.ru	No Octoport result observed in returned search set	false	OBSERVABLE	PUBLIC_NO_RESULT_OBSERVED	false	Same-day launch; absence can be delay
+M16PUB003	UNIVERSAL_WEB_SEARCH	"Подключите ваш ИИ к Ozon и Wildberries"	No Octoport result observed	false	OBSERVABLE	PUBLIC_NO_RESULT_OBSERVED	false	Exact-title absence is not URL Inspection
+M16PUB004	UNIVERSAL_WEB_SEARCH	"ИИ для аналитики маркетплейсов" Octoport	No Octoport result observed	false	OBSERVABLE	PUBLIC_NO_RESULT_OBSERVED	false	Exact-title absence is not index exclusion
+M16PUB005	GOOGLE_PUBLIC_SERP	site:octoport.ru	Google returned search-access/problem page; no normal result blocks	unknown	PROVIDER_RESPONSE_UNOBSERVABLE	UNOBSERVABLE	false	Do not classify as not indexed
+M16PUB006	GOOGLE_PUBLIC_SERP	octoport.ru	Google returned search-access/problem page	unknown	PROVIDER_RESPONSE_UNOBSERVABLE	UNOBSERVABLE	false	Executor access condition
+M16PUB007	GOOGLE_PUBLIC_SERP	HOME exact title	No usable result page due provider response state	unknown	PROVIDER_RESPONSE_UNOBSERVABLE	UNOBSERVABLE	false	No Google indexing inference
+M16PUB008	GOOGLE_PUBLIC_SERP	analytics exact title	No usable result page due provider response state	unknown	PROVIDER_RESPONSE_UNOBSERVABLE	UNOBSERVABLE	false	No Google indexing inference
+M16PUB009	YANDEX_PUBLIC_SERP	site:octoport.ru	Yandex returned CAPTCHA/robot check	unknown	PROVIDER_CAPTCHA	UNOBSERVABLE	false	Do not classify as not indexed
+M16PUB010	YANDEX_PUBLIC_SERP	octoport.ru	Yandex returned CAPTCHA/robot check	unknown	PROVIDER_CAPTCHA	UNOBSERVABLE	false	Executor access condition
+M16PUB011	YANDEX_PUBLIC_SERP	HOME exact title	Yandex returned CAPTCHA/robot check	unknown	PROVIDER_CAPTCHA	UNOBSERVABLE	false	No Yandex indexing inference
+M16PUB012	YANDEX_PUBLIC_SERP	analytics exact title	Yandex returned CAPTCHA/robot check	unknown	PROVIDER_CAPTCHA	UNOBSERVABLE	false	No Yandex indexing inference
