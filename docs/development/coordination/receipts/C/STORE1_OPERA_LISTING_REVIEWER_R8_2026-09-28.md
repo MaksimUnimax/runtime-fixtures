@@ -22,8 +22,11 @@ All three public pages return HTTP 200 in the current read-only check.
 Category candidate: **Productivity**. Verify the exact dashboard vocabulary before
 Submit.
 
-License/EULA: **UNRESOLVED DASHBOARD FIELD**. The repository has no declared
-root license. C must not invent a legal selection.
+License/EULA: **PUBLISHER/LEGAL DECISION REQUIRED**. Opera's current publishing
+guidance requires a distribution-license choice and states that, if no separate
+EULA is supplied, its Terms apply the CC BY-NC-ND 4.0 default. The repository
+has no declared root license or owner-approved EULA, so C records the rule but
+does not make that legal choice for the publisher.
 
 ## Listing text
 
