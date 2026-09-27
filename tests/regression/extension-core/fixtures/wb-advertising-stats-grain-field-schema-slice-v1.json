@@ -1,0 +1,190 @@
+{
+  "schemaVersion": "wb_advertising_stats_grain_field_schema_slice_v1",
+  "capturedDate": "2026-09-27",
+  "scope": {
+    "scenarioIds": ["CAP-18"],
+    "boundary": "PROMOTION_PRODUCT_STATS_AND_MEDIA_BANNER_STATS_KEEP_PROVIDER_FAMILY_GRAIN",
+    "evidence": "CURRENT_UPSTREAM_OPENAPI_MIRROR_FIELD_SCHEMA",
+    "liveValues": false,
+    "acceptedOperationMappingChanged": false
+  },
+  "authority": {
+    "mirrorRepository": "eslazarev/wildberries-sdk",
+    "mirrorCommit": "5057bdb9bf16dea24000e3ca79e1934f7761d7fe",
+    "specPath": "specs/08-promotion.yaml",
+    "blobSha": "30ae48c8d1b67944b34cf51ac896ae4c2b2fa0d9"
+  },
+  "sources": {
+    "promotion": {
+      "reuseFixture": "tests/regression/extension-core/fixtures/wb-advertising-field-schema-slice-v1.json",
+      "operationAlias": "promo_fullstats",
+      "host": "advert",
+      "method": "GET",
+      "path": "/adv/v3/fullstats",
+      "requiredQuery": ["ids", "beginDate", "endDate"],
+      "maxPeriodDays": 31,
+      "maxCampaignIds": 50,
+      "eligibleStatuses": [7, 9, 11],
+      "responseGrain": ["campaign", "day", "product"],
+      "fields": {
+        "advertId": { "role": "campaign_id", "unit": "identifier" },
+        "views": { "role": "views", "unit": "count" },
+        "clicks": { "role": "clicks", "unit": "count" },
+        "sum": {
+          "role": "promotion_statistics_spend",
+          "unit": "provider_money_amount"
+        },
+        "currency": {
+          "role": "promotion_statistics_currency",
+          "unit": "currency_code_iso_4217"
+        },
+        "days.date": { "role": "statistics_day", "unit": "date_time" },
+        "days.nms.nmId": { "role": "product_id", "unit": "identifier" }
+      },
+      "currencyFieldCurrentOpenapi": "currency"
+    },
+    "media": {
+      "operationAlias": "media_stats",
+      "host": "advert_media",
+      "method": "POST",
+      "path": "/adv/v1/stats",
+      "bodyRequired": true,
+      "body": {
+        "minItems": 1,
+        "maxItems": 100,
+        "variants": [
+          { "kind": "CAMPAIGN", "required": ["id"] },
+          { "kind": "DATES", "required": ["id", "dates"] },
+          { "kind": "INTERVAL", "required": ["id", "interval"] }
+        ]
+      },
+      "responseVariants": [
+        "Stat",
+        "StatDate",
+        "StatInterval",
+        "StatCampaignNotFound"
+      ],
+      "successfulResponseCampaignIdField": null,
+      "campaignNotFoundIdField": "advert_id",
+      "fields": {
+        "stats.item_id": {
+          "role": "banner_id",
+          "unit": "identifier_not_product_id"
+        },
+        "stats.advert_type": {
+          "role": "media_campaign_type",
+          "unit": "provider_enum_integer"
+        },
+        "stats.views": { "role": "views", "unit": "count" },
+        "stats.clicks": { "role": "clicks", "unit": "count" },
+        "stats.expenses": {
+          "role": "media_placement_cost",
+          "unit": "provider_money_amount_currency_code_absent"
+        },
+        "stats.daily_stats.date": {
+          "role": "statistics_day",
+          "unit": "date_time"
+        },
+        "dates": {
+          "role": "requested_dates_echo",
+          "unit": "date_array_variant"
+        },
+        "interval": {
+          "role": "requested_interval_echo",
+          "unit": "date_interval_variant"
+        }
+      },
+      "currencyField": null,
+      "responseCampaignJoinGuaranteeDocumented": false
+    }
+  },
+  "rules": {
+    "family": "KEEP_PROMOTION_AND_MEDIA_STATS_AS_SEPARATE_PROVIDER_FAMILIES",
+    "product": "MEDIA_ITEM_ID_IS_BANNER_ID_NOT_NMID",
+    "campaignJoin": "DO_NOT_JOIN_SUCCESSFUL_MEDIA_RESPONSE_TO_CAMPAIGN_BY_ARRAY_POSITION_WITHOUT_PROVIDER_GUARANTEE",
+    "currency": "MEDIA_EXPENSES_REQUIRE_EXPLICIT_ACCOUNT_CURRENCY_CODE_BEFORE_PROVIDER_CURRENCY_LABEL",
+    "promoCurrency": "USE_PROMO_FULLSTATS_RESPONSE_CURRENCY",
+    "grain": "DO_NOT_MERGE_PROMOTION_PRODUCT_GRAIN_WITH_MEDIA_BANNER_GRAIN",
+    "missing": "MISSING_NOT_ZERO"
+  },
+  "acceptedMappingSnapshot": {
+    "CAP-18": ["promo_fullstats", "media_stats"]
+  },
+  "syntheticCases": {
+    "promotion": {
+      "row": {
+        "advertId": 1001,
+        "views": 1000,
+        "clicks": 50,
+        "sum": 125.5,
+        "currency": "RUB",
+        "days": [
+          {
+            "date": "2026-09-26T00:00:00+03:00",
+            "nms": [{ "nmId": 90001, "views": 600, "clicks": 30 }]
+          }
+        ]
+      },
+      "expected": {
+        "status": "PASS",
+        "family": "PROMOTION",
+        "campaignId": 1001,
+        "currency": "RUB",
+        "spend": 125.5,
+        "views": 1000,
+        "clicks": 50,
+        "productIds": [90001]
+      }
+    },
+    "media": {
+      "request": [{ "id": 2001, "dates": ["2026-09-26"] }],
+      "response": [
+        {
+          "dates": ["2026-09-26"],
+          "stats": [
+            {
+              "item_id": 62237,
+              "advert_type": 1,
+              "views": 11849,
+              "clicks": 209,
+              "expenses": 175000,
+              "daily_stats": [{ "date": "2026-09-26T00:00:00+03:00" }]
+            }
+          ]
+        }
+      ],
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "MEDIA_CAMPAIGN_IDENTITY_NOT_PROVEN",
+        "bannerId": 62237,
+        "productId": null,
+        "currency": null
+      }
+    },
+    "mediaNotFound": {
+      "request": [{ "id": 2002 }],
+      "response": [
+        { "advert_id": 2002, "error": "fixture campaign not found" }
+      ],
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "MEDIA_CAMPAIGN_NOT_FOUND",
+        "campaignId": 2002
+      }
+    },
+    "mediaTooManyRequests": {
+      "count": 101,
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "MEDIA_STATS_REQUEST_LIMIT_EXCEEDED"
+      }
+    }
+  },
+  "remainingOpen": [
+    "live WB advertising-stat values and owner gold-set reconciliation",
+    "provider-guaranteed successful media response campaign correlation",
+    "explicit media-stat currency-code provenance for expenses",
+    "business policy for presenting promotion product stats beside media banner stats",
+    "current promo_fullstats currency field forward reconciliation with the earlier narrower advertising receipt"
+  ]
+}
