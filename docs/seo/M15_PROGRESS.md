@@ -1,7 +1,7 @@
 # Octoport SEO — M15 progress
 
 Date: 2026-09-27
-Status: **SOURCE/PREDEPLOY ACCEPTED WITH EXPLICIT LIVE HOLD / NOT MERGED / NOT DEPLOYED**
+Status: **SOURCE/PREDEPLOY ACCEPTED / ANALYTICS PROOF CLOSED / MAIN INTEGRATED / PRODUCTION LIVE QA PENDING**
 SEO branch: `seo/wordstat-batch-01-2026-09-16`
 
 ## Cursor
@@ -235,3 +235,23 @@ Only then:
 M15_FINAL_LIVE_ACCEPTED = true
 -> M16 launch/indexing verification may open
 ```
+
+
+## 2026-09-27 gate update
+
+Current checkpoint:
+- `docs/seo/M15_PROOF_AND_MAIN_INTEGRATION_CHECKPOINT_2026-09-27_R1.md`.
+
+Current facts:
+```text
+REAL_SANITIZED_DEMO_GATE = CLOSED
+MAIN_INTEGRATION = COMPLETE
+MAIN_HEAD = 6a0149c958423082a62d5cb84ac757eed2e785a2
+
+PRODUCTION_DEPLOYMENT = PENDING
+M15_FINAL_LIVE_ACCEPTED = false
+M16_ALLOWED = false
+```
+
+The earlier proof/governance HOLD text above is historical and superseded by this update.
+The only remaining M15 completion work is production deployment of the accepted main site source and deployed-candidate live HTTP/browser QA.
