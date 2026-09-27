@@ -391,3 +391,8 @@ p,li { line-height:1.65; }
 .hero-copy .brand-wildberries { color:#bd0ca5; }
 .theme-checkbox:checked + .page .brand-ozon { color:#4e93ff; }
 .theme-checkbox:checked + .page .brand-wildberries { color:#f15cdd; }
+
+/* R6: true path-based vector scene. Both static layers share the same theme tokens as the DOM controls. */
+.contour-vector { color:var(--scene-ink); shape-rendering:geometricPrecision; }
+.contour-grips .grip-paper { color:var(--scene-paper); }
+.contour-grips .grip-ink { color:var(--scene-ink); }

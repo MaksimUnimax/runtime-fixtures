@@ -87,3 +87,7 @@ Contour R4 follows the owner monochrome references, with independent discs and s
 ### Contour R5 ink match
 
 Contour R5 strengthens only the static illustration ink alpha so the reference-derived raster strokes visually match the exact CSS disc palette (#10243c light / #ebffff dark); button separation and R4 geometry remain unchanged.
+
+### Contour R6 vector scene
+
+The accepted Contour octopus is now rendered from real SVG path geometry rather than raster theme layers. The SVG shares the exact scene color token with the independent DOM controls; foreground WB/Ozon grips remain a separate static SVG layer. Rebuild and acceptance details: `docs/design/CONTOUR_VECTOR_R6_2026-09-27.md`.
