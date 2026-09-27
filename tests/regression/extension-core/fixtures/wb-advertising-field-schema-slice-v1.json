@@ -1,0 +1,292 @@
+{
+  "schemaVersion": "wb_advertising_field_schema_slice_v1",
+  "capturedDate": "2026-09-27",
+  "scope": {
+    "scenarioIds": [
+      "STD-16",
+      "STD-17",
+      "STD-20"
+    ],
+    "boundary": "ACTUAL_PROMOTION_SPEND_VS_ATTRIBUTION_VS_OWNER_SELECTED_REVENUE",
+    "evidence": "OFFICIAL_FIELD_SCHEMA_SOURCE_ONLY",
+    "liveValues": false,
+    "acceptedOperationMappingChanged": false
+  },
+  "sources": {
+    "campaigns": {
+      "url": "https://dev.wildberries.ru/en/docs/openapi/promotion",
+      "operationAlias": "promo_campaigns",
+      "host": "advert",
+      "method": "GET",
+      "path": "/api/advert/v2/adverts",
+      "fields": {
+        "advertId": {
+          "role": "campaign_id",
+          "unit": "identifier"
+        },
+        "status": {
+          "role": "campaign_status",
+          "unit": "enum"
+        },
+        "paymentType": {
+          "role": "payment_model",
+          "unit": "enum"
+        }
+      },
+      "paymentTypes": [
+        "cpm",
+        "cpc"
+      ]
+    },
+    "costHistory": {
+      "url": "https://dev.wildberries.ru/en/docs/openapi/promotion",
+      "operationAlias": "promo_spend_history",
+      "host": "advert",
+      "method": "GET",
+      "path": "/adv/v1/upd",
+      "requestFields": [
+        "from",
+        "to"
+      ],
+      "maxPeriodDays": 31,
+      "minPeriodDays": 1,
+      "rowMeaning": "ACTUAL_PROMOTION_COST_HISTORY_ENTRY",
+      "documentedStableUniqueRowId": null,
+      "fields": {
+        "updNum": {
+          "role": "provider_cost_entry_number_not_asserted_unique",
+          "unit": "provider_integer"
+        },
+        "updTime": {
+          "role": "cost_event_time_may_be_null",
+          "unit": "datetime_or_null"
+        },
+        "updSum": {
+          "role": "actual_promotion_cost_amount",
+          "unit": "provider_money_amount"
+        },
+        "advertId": {
+          "role": "campaign_id",
+          "unit": "identifier"
+        },
+        "campName": {
+          "role": "campaign_name",
+          "unit": "text"
+        },
+        "advertType": {
+          "role": "campaign_type",
+          "unit": "provider_enum"
+        },
+        "paymentType": {
+          "role": "cost_source_label",
+          "unit": "text"
+        },
+        "advertStatus": {
+          "role": "campaign_status",
+          "unit": "provider_enum"
+        }
+      },
+      "currencyField": null,
+      "currencyBoundary": "CURRENCY_NOT_RETURNED_REQUIRE_SEPARATE_PROVIDER_ACCOUNT_CONTEXT",
+      "pagination": "NO_PAGINATION_DOCUMENTED_FOR_PERIOD_RESPONSE"
+    },
+    "campaignStats": {
+      "url": "https://dev.wildberries.ru/en/docs/openapi/promotion",
+      "sellerInstructionUrl": "https://seller.wildberries.ru/instructions/en/ru/material/statistics-and-promotion-management",
+      "operationAlias": "promo_fullstats",
+      "host": "advert",
+      "method": "GET",
+      "path": "/adv/v3/fullstats",
+      "requestFields": [
+        "ids",
+        "beginDate",
+        "endDate"
+      ],
+      "maxPeriodDays": 31,
+      "maxCampaignIds": 50,
+      "eligibleStatuses": [
+        7,
+        9,
+        11
+      ],
+      "fields": {
+        "advertId": {
+          "role": "campaign_id",
+          "unit": "identifier"
+        },
+        "days.date": {
+          "role": "statistics_day",
+          "unit": "date_time"
+        },
+        "days.sum": {
+          "role": "promotion_statistics_spend_not_actual_cost_ledger",
+          "unit": "provider_money_amount"
+        },
+        "days.sum_price": {
+          "role": "campaign_attributed_order_value_not_store_revenue",
+          "unit": "provider_money_amount"
+        },
+        "days.clicks": {
+          "role": "clicks",
+          "unit": "count"
+        },
+        "days.orders": {
+          "role": "campaign_attributed_orders",
+          "unit": "count"
+        },
+        "days.shks": {
+          "role": "campaign_attributed_ordered_units",
+          "unit": "count"
+        },
+        "days.views": {
+          "role": "views",
+          "unit": "count"
+        },
+        "days.nms.nmId": {
+          "role": "product_id",
+          "unit": "identifier"
+        }
+      },
+      "currencyField": null,
+      "actualSpendBoundary": "USE_COST_HISTORY_UPD_SUM_FOR_ACTUAL_PROMOTION_SPEND",
+      "completeness": "COMPLETE_CAMPAIGN_ID_SET_CHUNKED_MAX_50_AND_ONLY_STATUSES_7_9_11"
+    },
+    "searchClusterDaily": {
+      "url": "https://dev.wildberries.ru/en/docs/openapi/promotion",
+      "releaseNotesUrl": "https://dev.wildberries.ru/en/release-notes",
+      "operationAlias": "promo_normquery_stats_daily",
+      "host": "advert",
+      "method": "POST",
+      "path": "/adv/v1/normquery/stats",
+      "paymentTypes": [
+        "cpm",
+        "cpc"
+      ],
+      "cpcUnavailableFields": [
+        "views",
+        "ctr",
+        "cpm"
+      ],
+      "requiredForSlice": [
+        "clicks",
+        "orders"
+      ],
+      "moneyBoundary": "NOT_SOURCE_OF_ACTUAL_PROMOTION_SPEND"
+    },
+    "revenueBoundary": {
+      "fixture": "tests/regression/extension-core/fixtures/wb-finance-sales-field-schema-slice-v1.json",
+      "ownerRevenueDefinition": "REQUIRED_BEFORE_LABEL_REVENUE",
+      "operationalStatisticsSales": "PRELIMINARY_NOT_FINAL_FINANCE"
+    }
+  },
+  "rules": {
+    "spend": "ACTUAL_SPEND_USES_COST_HISTORY_UPD_SUM_NOT_FULLSTATS_SUM",
+    "noDoubleCount": "DO_NOT_ADD_FULLSTATS_SUM_TO_COST_HISTORY_UPD_SUM",
+    "attributedOrderValue": "FULLSTATS_SUM_PRICE_IS_CAMPAIGN_ATTRIBUTION_NOT_STORE_REVENUE",
+    "drr": "ACTUAL_PROMOTION_SPEND_DIVIDED_BY_COMPARABLE_OWNER_SELECTED_REVENUE_TIMES_100",
+    "denominator": "ZERO_MISSING_UNSELECTED_OR_CURRENCY_MISMATCH_RETURNS_NULL",
+    "currency": "DO_NOT_ASSUME_RUB_WHEN_PROMOTION_RESPONSE_HAS_NO_CURRENCY_FIELD",
+    "period": "SPEND_AND_REVENUE_MUST_USE_EXPLICIT_COMPARABLE_PERIOD_AND_TIMEZONE_POLICY",
+    "missing": "MISSING_NOT_ZERO",
+    "cpc": "DO_NOT_REQUIRE_VIEWS_CTR_CPM_FROM_CPC_SEARCH_CLUSTER_STATS"
+  },
+  "acceptedMappingSnapshot": {
+    "STD-16": [
+      "promo_campaigns",
+      "promo_spend_history"
+    ],
+    "STD-17": [
+      "promo_fullstats",
+      "promo_normquery_stats_daily",
+      "statistics_sales"
+    ],
+    "STD-20": [
+      "promo_spend_history",
+      "statistics_sales"
+    ],
+    "knownGap": {
+      "STD-16": "PROMOTION_SPEND_RESPONSE_HAS_NO_CURRENCY_FIELD",
+      "STD-17": "FINAL_REVENUE_DENOMINATOR_AND_CURRENCY_ALIGNMENT_UNRESOLVED",
+      "STD-20": "STATISTICS_SALES_IS_PRELIMINARY_AND_OWNER_REVENUE_DEFINITION_UNRESOLVED"
+    }
+  },
+  "syntheticCases": {
+    "costRows": [
+      {
+        "advertId": 1001,
+        "updSum": 100,
+        "paymentType": "Баланс"
+      },
+      {
+        "advertId": 1002,
+        "updSum": 50,
+        "paymentType": "Счет"
+      },
+      {
+        "advertId": 1001,
+        "updSum": 25,
+        "paymentType": "Баланс"
+      }
+    ],
+    "expectedCampaignSpend": {
+      "1001": 125,
+      "1002": 50
+    },
+    "expectedRank": [
+      1001,
+      1002
+    ],
+    "fullStatsRow": {
+      "advertId": 1001,
+      "sum": 120.5,
+      "sum_price": 900,
+      "clicks": 80,
+      "orders": 9
+    },
+    "drr": [
+      {
+        "spend": 150,
+        "revenue": 1000,
+        "spendCurrency": "RUB",
+        "revenueCurrency": "RUB",
+        "expected": 15
+      },
+      {
+        "spend": 150,
+        "revenue": 0,
+        "spendCurrency": "RUB",
+        "revenueCurrency": "RUB",
+        "expected": null
+      },
+      {
+        "spend": 150,
+        "revenue": 1000,
+        "spendCurrency": null,
+        "revenueCurrency": "RUB",
+        "expected": null
+      },
+      {
+        "spend": 150,
+        "revenue": 1000,
+        "spendCurrency": "RUB",
+        "revenueCurrency": "USD",
+        "expected": null
+      },
+      {
+        "spend": null,
+        "revenue": 1000,
+        "spendCurrency": "RUB",
+        "revenueCurrency": "RUB",
+        "expected": null
+      }
+    ]
+  },
+  "remainingOpen": [
+    "promotion spend currency context because /adv/v1/upd response has no currency field",
+    "owner/business definition of comparable revenue denominator",
+    "live WB values and owner gold-set agreement",
+    "explicit comparable period/timezone across promotion and revenue sources",
+    "complete campaign universe for fullstats when campaign attribution is used",
+    "accepted operation-mapping review if final finance revenue becomes mandatory for STD-17 or STD-20"
+  ]
+}
