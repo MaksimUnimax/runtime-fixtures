@@ -31,7 +31,7 @@ def main():
     try:
         original.negative_control(output)
         source, extracted, receipt = composed.build(output / "package")
-        assert receipt["stage"] == "I1-C1" and receipt["version"] == "0.2.4"
+        assert receipt["stage"] == "I1-C1" and receipt["version"] == "0.2.5"
         result["composition"] = receipt
         for runtime, label in ((source, "i1-source"), (extracted, "i1-package")):
             browser_output = output / (label + "-browser-proof")
@@ -39,7 +39,7 @@ def main():
             runner.env["C3H_BROWSER_PROOF_FILE"] = str(browser_output / "result.json")
             runner.env.pop("C3H_BROWSER_PROOF", None)
             manifest = composed.baseline.read_json(runtime / "manifest.json")
-            assert manifest["version"] == "0.2.4"
+            assert manifest["version"] == "0.2.5"
             assert "http://127.0.0.1:43100/*" in manifest["host_permissions"]
             assert "http://127.0.0.1:43101/*" in manifest["host_permissions"]
             for file in sorted(runtime.rglob("*.js")):
