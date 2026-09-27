@@ -134,6 +134,27 @@ await test('APP-01-popup-sender-catalog-names-and-secret-isolation', async () =>
     assert.equal(s.worker.network.length, 0);
   } finally { s.worker.close(); }
 });
+await test('APP-01b-WB-personal-token-policy-fails-closed', async () => {
+  const s = await setup(); try {
+    const normalized = s.worker.call('SellerAgentsWBReference.credentials.normalizeSellerCredentials',
+      { token: fixtureToken, tokenType: 'personal' }, { required: true });
+    assert.equal(normalized.token, fixtureToken);
+    assert.equal(normalized.tokenType, 'personal');
+    assert.equal(normalized.clientSecret, '');
+    const headers = s.worker.call('SellerAgentsWBReference.credentials.sellerHeaders',
+      { token: fixtureToken, tokenType: 'personal' }, { hasBody: true });
+    assert.equal(headers.Authorization, 'Bearer '+fixtureToken);
+    assert.equal(headers['X-Client-Secret'], undefined);
+    assert.equal(headers['Content-Type'], 'application/json');
+    assert.throws(() => s.worker.call('SellerAgentsWBReference.credentials.normalizeSellerCredentials',
+      { token: fixtureToken, tokenType: 'service' }, { required: true }),
+      error => error?.code === 'UNSUPPORTED_TOKEN_TYPE');
+    assert.throws(() => s.worker.call('SellerAgentsWBReference.credentials.normalizeSellerCredentials',
+      { token: fixtureToken, tokenType: 'personal', clientSecret: 'FIXTURE_SERVICE_SECRET' }, { required: true }),
+      error => error?.code === 'CLIENT_SECRET_UNSUPPORTED_PERSONAL_BUILD');
+    assert.equal(s.worker.network.length, 0);
+  } finally { s.worker.close(); }
+});
 await test('APP-02-real-WB-Start-HELP-API-common-text-delivery-durable-send-no-replay', async () => {
   const s = await setup(); try {
     const store = await s.save(wb(fixtureToken)), started = await s.start(store);
