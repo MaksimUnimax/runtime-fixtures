@@ -1,0 +1,21 @@
+qa_id	scenario	required_guard	observed	verdict	evidence
+M15A001	Unknown URL soft-redirects to HOME	Unknown route must return real 404	Isolated candidate 404 with no Location	PASS	predeploy HTTP
+M15A002	Known aliases remain duplicate 200 pages	All known aliases permanent redirect to canonical	9/9 exact 308 + query preservation	PASS	predeploy HTTP
+M15A003	HTTP www keeps two-hop redirect	Direct one-hop to HTTPS apex	Direct exact Location PASS	PASS	predeploy HTTP
+M15A004	privacy/support accidentally noindexed	Both remain indexable utilities	No noindex in source/predeploy	PASS	source+HTTP
+M15A005	install accidentally indexable	Install remains crawlable noindex	noindex, follow present; absent sitemap	PASS	source+HTTP
+M15A006	WebSite JSON-LD treated as executable JS	Executable JS stays zero while JSON-LD retained	Exact node present; executable scripts 0	PASS	source parser
+M15A007	Fake SoftwareApplication/review/rating/pricing	Forbidden without truthful authority	No such schema/claims present	PASS	adversarial source review
+M15A008	Fake analytics screenshot/customer case/ROI	Forbidden while proof gate open	No fake case/screenshot/ROI/performance number published	PASS	seller-analytics source
+M15A009	External market intelligence/accounting/write-back overclaim	Explicitly excluded unless future authority	Page states seller-owned/read-only boundaries	PASS	seller-analytics source
+M15A010	Responsive defect hidden with overflow-x:hidden	Masking forbidden	No overflow-x:hidden; bounded wrap/shrink rules used	PASS	M14 R2 CSS
+M15A011	HOME privacy panel 320px overflow	No document horizontal overflow	305 clientWidth = 305 scrollWidth	PASS	browser probe
+M15A012	Analytics H1 320px overflow	No document horizontal overflow	305 clientWidth = 305 scrollWidth	PASS	browser probe
+M15A013	Broken favicon/search asset	Direct candidate 200 image/png; no redirect	PASS	PASS	predeploy HTTP + PNG validation
+M15A014	Orphan seller-analytics page	HOME↔analytics crawlable HTML links required	Both directions present	PASS	HTML parser/browser DOM
+M15A015	M14 candidate silently diverges from current main	Replay current M14 blobs on fresh main	Final candidate 6a0149c9 based 7600f3ce; 14/14 parity	PASS	integration reconciliation
+M15A016	Production quietly deployed during QA	Production must remain pre-M14 while gate open	Current release still 9e5f95b0; analytics/favicon live 404	PASS_PRESERVE_HOLD	existing live baseline
+M15A017	Field CWV invented from lab timing	Field unavailable must stay unavailable	FIELD_DATA_NOT_AVAILABLE	PASS	performance QA
+M15A018	Main merge performed despite governance conflict	No main merge until authority reconciled	Candidate remains branch-only	PASS_PRESERVE_HOLD	repo authority
+M15A019	Analytics proof gate silently waived	Production blocked until real sanitized/source-backed example	Gate remains OPEN	PASS_PRESERVE_HOLD	M12 proof authority
+M15A020	Concurrent WB token-policy doc drift invalidates copy	Reconcile material product impact	Direct-local Personal token clarification does not conflict with current generic site copy	PASS	current main readiness docs
