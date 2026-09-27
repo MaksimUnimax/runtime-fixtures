@@ -94,51 +94,94 @@ export async function chatGPTOwnedNativeCopyObservation(
 ): Promise<ChatGPTNativeCopyObservation> {
   return message.evaluate(
     (messageRoot, input) => {
-      const copyText = new Set([
+      const acceptedCopyText = [
         "copy",
         "copy code",
         "копировать",
         "копировать код",
-      ]);
-      const text = (node: Element) =>
-        String(
-          node instanceof HTMLElement
-            ? node.innerText || node.textContent || ""
-            : node.textContent || "",
-        );
-      const isCopy = (button: HTMLButtonElement) => {
-        if (button.closest(input.responseActions)) return false;
-        if (button.matches(input.copySelector)) return true;
-        return copyText.has(
-          text(button).replace(/\s+/g, " ").trim().toLowerCase(),
-        );
-      };
-      const canonicalSurfaces = (root: Element) => {
-        const raw = [...root.querySelectorAll(input.codeSurfaces)];
-        return raw.filter(
-          (surface) =>
-            !raw.some((other) => other !== surface && other.contains(surface)),
-        );
-      };
-      const targets = canonicalSurfaces(messageRoot).filter((surface) =>
-        text(surface).includes(input.expectedToken),
-      );
-      if (targets.length !== 1) return { present: false, actionable: false };
-      const target = targets[0]!;
-      for (const candidate of messageRoot.querySelectorAll("button")) {
-        if (!(candidate instanceof HTMLButtonElement) || !isCopy(candidate))
+      ];
+      const buttons = messageRoot.querySelectorAll("button");
+      for (
+        let buttonIndex = 0;
+        buttonIndex < buttons.length;
+        buttonIndex += 1
+      ) {
+        const candidate = buttons.item(buttonIndex);
+        if (!(candidate instanceof HTMLButtonElement)) continue;
+        if (candidate.closest(input.responseActions)) continue;
+        const candidateText = String(
+          candidate.innerText || candidate.textContent || "",
+        )
+          .replace(/\s+/g, " ")
+          .trim()
+          .toLowerCase();
+        if (
+          !candidate.matches(input.copySelector) &&
+          !acceptedCopyText.includes(candidateText)
+        )
           continue;
+
         let node: Element | null = candidate.parentElement;
         while (node && node !== messageRoot) {
-          const copies = [...node.querySelectorAll("button")].filter(
-            (button): button is HTMLButtonElement =>
-              button instanceof HTMLButtonElement && isCopy(button),
-          );
-          const surfaces = canonicalSurfaces(node);
+          const nodeButtons = node.querySelectorAll("button");
+          let copyCount = 0;
+          for (let index = 0; index < nodeButtons.length; index += 1) {
+            const button = nodeButtons.item(index);
+            if (!(button instanceof HTMLButtonElement)) continue;
+            if (button.closest(input.responseActions)) continue;
+            const buttonText = String(
+              button.innerText || button.textContent || "",
+            )
+              .replace(/\s+/g, " ")
+              .trim()
+              .toLowerCase();
+            if (
+              button.matches(input.copySelector) ||
+              acceptedCopyText.includes(buttonText)
+            )
+              copyCount += 1;
+          }
+
+          const rawSurfaces = node.querySelectorAll(input.codeSurfaces);
+          let canonicalCount = 0;
+          let canonicalSurface: Element | null = null;
+          for (
+            let surfaceIndex = 0;
+            surfaceIndex < rawSurfaces.length;
+            surfaceIndex += 1
+          ) {
+            const surface = rawSurfaces.item(surfaceIndex);
+            let nested = false;
+            for (
+              let otherIndex = 0;
+              otherIndex < rawSurfaces.length;
+              otherIndex += 1
+            ) {
+              const other = rawSurfaces.item(otherIndex);
+              if (other !== surface && other.contains(surface)) {
+                nested = true;
+                break;
+              }
+            }
+            if (!nested) {
+              canonicalCount += 1;
+              canonicalSurface = surface;
+            }
+          }
+
+          const surfaceText = canonicalSurface
+            ? String(
+                canonicalSurface instanceof HTMLElement
+                  ? canonicalSurface.innerText ||
+                      canonicalSurface.textContent ||
+                      ""
+                  : canonicalSurface.textContent || "",
+              )
+            : "";
           if (
-            copies.length === 1 &&
-            surfaces.length === 1 &&
-            surfaces[0] === target
+            copyCount === 1 &&
+            canonicalCount === 1 &&
+            surfaceText.includes(input.expectedToken)
           ) {
             const style = getComputedStyle(candidate);
             const visible =

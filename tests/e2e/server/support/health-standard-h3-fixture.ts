@@ -124,7 +124,7 @@ function newResponseMarkup(variant: HealthStandardH3FixtureVariant): string {
     variant === "FRESH_BOUND_IDENTITY_CHANGES" ||
     emptyResponse
       ? ""
-      : `<div data-writing-block-fullscreen-editor-region><button aria-label="${variant === "COPY_MISSING" ? "Copy unavailable" : "Copy"}" type="button">Copy</button><pre><code>${variant === "COPY_MISMATCHED" ? "UNEXPECTED_HEALTH_TOKEN" : "BRIDGE_HEALTHCHECK_V1"}</code></pre></div>`;
+      : `<div data-writing-block-fullscreen-editor-region><button aria-label="${variant === "COPY_MISSING" ? "Unavailable action" : "Copy"}" type="button">${variant === "COPY_MISSING" ? "Unavailable" : "Copy"}</button><pre><code>${variant === "COPY_MISMATCHED" ? "UNEXPECTED_HEALTH_TOKEN" : "BRIDGE_HEALTHCHECK_V1"}</code></pre></div>`;
   const busyMarker = otherBusyRemains
     ? '<div aria-busy="true" data-generation-marker="other"></div>'
     : "";
