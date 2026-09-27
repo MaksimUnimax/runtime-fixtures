@@ -201,3 +201,23 @@ No source/site change should be made merely to satisfy these account-setup holds
 M17 full measurement does not start until M16 provider-console state is sufficiently available to establish a durable indexing baseline.
 
 No STOP was received; continue working on the M16 console prerequisites whenever authority becomes available.
+
+
+## 2026-09-27 latest main drift reconciliation
+
+Fresh main advanced from:
+`3805f8b23655668556e1f1ef43d4ab3cef837413`
+
+to:
+`84c3ba00a2c7f60f17bda414e0292f285cfd734e`.
+
+Delta is server/commercial-readiness code, integration tests and coordination receipts only.
+
+No `apps/site/**`, site nginx, site deploy/verifier, Site CI or site regression path changed.
+
+```text
+M16_LATEST_MAIN_DRIFT =
+NON_OVERLAPPING_SERVER_COMMERCIAL_DRIFT_RECONCILED
+
+M16_SITE_REOPEN_REQUIRED = false
+```
