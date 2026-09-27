@@ -378,6 +378,7 @@ function reviewerPreflight(
       "Verify the reviewer account is already beta-admitted while global beta stays CLOSED.",
     );
   if (
+    r.reviewerAdmission === null ||
     r.reviewerAdmission.accountId !== reviewerAccount.id ||
     !r.reviewerAdmission.admitted
   )
