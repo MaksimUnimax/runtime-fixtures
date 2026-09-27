@@ -647,9 +647,18 @@ export async function main(): Promise<void> {
     await database.ready();
     const operation = process.argv[2];
     if (operation === "preflight") {
-      const result = await preflightMonitorPilotAuthority(database, {
-        expectedDatabaseRole,
-      });
+      const testDatabaseName =
+        process.env.VITEST === "true"
+          ? process.env.MONITOR_PILOT_TEST_DATABASE_NAME
+          : undefined;
+      const result = testDatabaseName
+        ? await preflightMonitorPilotAuthorityForTest(database, {
+            expectedDatabaseName: testDatabaseName,
+            expectedDatabaseRole,
+          })
+        : await preflightMonitorPilotAuthority(database, {
+            expectedDatabaseRole,
+          });
       console.log(
         `MONITOR_PILOT_PREFLIGHT=${result.kind}; issues=${
           result.issues
@@ -657,6 +666,7 @@ export async function main(): Promise<void> {
             .join(",") || "none"
         }`,
       );
+      if (result.kind !== "READY") process.exitCode = 2;
     } else if (operation === "init") {
       const result = await initializeMonitorPilotAuthority(database, {
         expectedDatabaseRole,

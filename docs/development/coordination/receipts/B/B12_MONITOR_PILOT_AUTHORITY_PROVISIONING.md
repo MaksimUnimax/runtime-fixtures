@@ -166,3 +166,22 @@ After normal C intake/acceptance, the controller owns the already-authorized iso
 5. verify nine persisted observations/classifications and notification state.
 
 The previous nine failed scheduled records remain historical evidence and must not be rewritten as successful.
+
+## Controller-audit correction — CLI preflight exit status
+
+The 2026-09-27 controller audit found one bounded gate defect in the candidate above: the production CLI printed a MISSING_AUTHORITY preflight result and then returned exit status 0 because no exception was raised.
+
+The correction preserves the existing read-only preflight and database hard-pin:
+
+- READY leaves exit status 0;
+- any non-READY preflight result keeps the safe target-key diagnostics and sets exit status 2;
+- operational/configuration exceptions still use the existing catch path and exit status 1;
+- a VITEST=true-only database-name override exists solely so the real CLI process can be exercised against the B disposable PostgreSQL database; the production path remains pinned to octoport_monitor_pilot.
+
+Fresh verification on Node 24.20.0 / pnpm 10.34.5:
+
+- manifest unit: **2/2 PASS**;
+- disposable PostgreSQL authority integration: **3/3 PASS**, supervisor octoport-test-b-0f89d411cfdb4c0f8dd6dc46296f8bc7.service, peak 644 MiB, cleanup verified;
+- the integration starts the actual TypeScript CLI process before provisioning and proves MISSING_AUTHORITY + exact NO_SESSION_PROVIDER_AUTHORITY_NOT_FOUND + exit 2, then starts the same CLI after provisioning and proves READY; issues=none + exit 0.
+
+No pilot/live database was accessed or mutated by this correction.
