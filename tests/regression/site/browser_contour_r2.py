@@ -1,4 +1,4 @@
-# Browser regression for Contour R2 plus owner R3 slogan/heading/rings; requires installed branded browsers and websocket-client.
+# Browser regression for owner R4 references, retaining R2 stacking and R3 slogan/heading; requires installed branded browsers and websocket-client.
 import argparse,base64,functools,http.server,json,os,signal,socket,subprocess,tempfile,threading,time,urllib.request,websocket
 from pathlib import Path
 
@@ -63,7 +63,7 @@ class Browser:
  def info(self):
   return self.ev('''(() => ({url:location.href,title:document.title,h1:document.querySelector('h1')?.innerText,canonical:document.querySelector('link[rel=canonical]')?.href,cw:document.documentElement.clientWidth,sw:document.documentElement.scrollWidth,font:document.fonts.check('400 16px Rubik','Октопорт'),images:[...document.images].map(i=>({src:i.getAttribute('src'),ok:i.complete&&i.naturalWidth>0,w:i.naturalWidth,h:i.naturalHeight})),badges:document.querySelectorAll('.ai-badge,.market-badge').length,offenders:[...document.body.querySelectorAll('*')].filter(e=>{const r=e.getBoundingClientRect();const s=getComputedStyle(e);return s.display!=='none'&&s.position!=='absolute'&&r.width>0&&(r.right>document.documentElement.clientWidth+1||r.left< -1)}).map(e=>e.tagName+'.'+e.className).slice(0,12)}))()''')
  def rects(self):
-  return self.ev('''[...document.querySelectorAll('.contour-underlay,.contour-orbit')].map(e=>{const r=e.getBoundingClientRect();return [r.x,r.y,r.width,r.height,getComputedStyle(e).transform]})''')
+  return self.ev('''[...document.querySelectorAll('.contour-underlay,.contour-grips')].map(e=>{const r=e.getBoundingClientRect();return [r.x,r.y,r.width,r.height,getComputedStyle(e).transform]})''')
  def close(self):
   if self.ws:
    try:self.ws.close()
@@ -79,10 +79,10 @@ CHECK = r'''(() => {
  const badges=[...document.querySelectorAll('.ai-badge,.market-badge')];
  const slogan=document.querySelector('.contour-slogan'),dark=document.querySelector('#theme-checkbox').checked;
  const r3={dark,slogan:slogan.innerText.replace(/\s+/g,' ').trim(),sloganRect:rect(slogan),sloganFont:getComputedStyle(slogan).fontSize,ozon:getComputedStyle(document.querySelector('h1 .brand-ozon')).color,wb:getComputedStyle(document.querySelector('h1 .brand-wildberries')).color,rings:[...document.querySelectorAll('.ai-badge')].map(e=>({color:getComputedStyle(e).borderTopColor,width:getComputedStyle(e).borderTopWidth,style:getComputedStyle(e).borderTopStyle}))};
- const marks=[...document.querySelectorAll('.ai-badge img')].map(i=>{
-  const c=document.createElement('canvas');c.width=c.height=64;const ctx=c.getContext('2d');ctx.drawImage(i,0,0,64,64);const data=ctx.getImageData(0,0,64,64).data;let total=0,color=0;
-  for(let k=0;k<data.length;k+=4)if(data[k+3]>64){total++;if(Math.max(data[k],data[k+1],data[k+2])-Math.min(data[k],data[k+1],data[k+2])>25)color++;}
-  return {src:i.getAttribute('src'),filter:getComputedStyle(i).filter,total,colored:color};
+ const marks=[...document.querySelectorAll('.ai-badge img')].filter(i=>getComputedStyle(i).display!=='none').map(i=>{
+  const c=document.createElement('canvas');c.width=c.height=64;const ctx=c.getContext('2d');ctx.drawImage(i,0,0,64,64);const data=ctx.getImageData(0,0,64,64).data;let total=0,color=0,wrong=0;const expected=dark?[235,255,255]:[16,36,60];
+  for(let k=0;k<data.length;k+=4)if(data[k+3]>64){total++;if(expected.some((v,j)=>Math.abs(data[k+j]-v)>3))wrong++;if(Math.max(data[k],data[k+1],data[k+2])-Math.min(data[k],data[k+1],data[k+2])>25)color++;}
+  return {src:i.getAttribute('src'),filter:getComputedStyle(i).filter,total,colored:color,wrong};
  });
  const markets=[...document.querySelectorAll('.market-badge')].map(e=>{
   const r=rect(e),slot=rect(e.querySelector('.market-logo-slot')),label=e.querySelector('.market-label'),l=rect(label),range=document.createRange();range.selectNodeContents(label);const text=range.getBoundingClientRect();
@@ -96,6 +96,7 @@ def checks(d):
  assert d['cw']==d['sw'],('overflow',d)
  assert d['sceneBackground']=='rgba(0, 0, 0, 0)',('rectangle background',d['sceneBackground'])
  assert all(v['alpha']==[0,0,0,0] for v in d['underlays']),('opaque asset corners',d['underlays'])
+ assert abs(d['scene']['w']/d['scene']['h']-559/419)<.001,('reference aspect ratio',d['scene'])
  assert d['images'] and d['font'],('loading',d)
  assert d['h1']=='Подключите ваш ИИ к Ozon и Wildberries'
  assert d['canonical']=='https://octoport.ru/'
@@ -105,8 +106,8 @@ def checks(d):
  assert float(r3['sloganFont'].replace('px',''))>=20,r3
  expected=('rgb(78, 147, 255)','rgb(241, 92, 221)') if r3['dark'] else ('rgb(0, 91, 255)','rgb(189, 12, 165)')
  assert (r3['ozon'],r3['wb'])==expected,('heading colors',r3)
- if r3['dark']:
-  assert len(r3['rings'])==6 and all(r['color']=='rgb(130, 149, 244)' and float(r['width'].replace('px',''))>=2 and r['style']=='solid' for r in r3['rings']),('missing dark rings',r3)
+ expected_ring='rgb(235, 255, 255)' if r3['dark'] else 'rgb(16, 36, 60)'
+ assert len(r3['rings'])==6 and all(r['color']==expected_ring and float(r['width'].replace('px',''))>=1 and r['style']=='solid' for r in r3['rings']),('reference rings',r3)
 
  assert len(d['marks'])==6 and len(d['markets'])==2 and len(d['badgeRects'])==8
  if d['width']<=1180:
@@ -115,13 +116,13 @@ def checks(d):
  else:
   assert not d['stacked'] and d['scene']['x']>d['copy']['x'],('desktop layout',d)
  for m in d['marks']:
-  assert m['filter']=='none' and m['colored']>40 and m['colored']>.6*m['total'],('color lost',m)
+  assert m['filter']=='none' and m['total']>40 and m['wrong']<.05*m['total'],('reference monochrome mark mismatch',m)
  for m in d['markets']:
   r=m['rect'];assert abs(r['w']-r['h'])<.2,('not circle',m)
   assert m['textCenterError']<.8,('uncentered label',m)
   assert abs(m['slot']['x']+m['slot']['w']/2-r['x']-r['w']/2)<.3,('uncentered logo',m)
   assert m['labelRect']['w']<r['w'] and m['labelRect']['bottom']<r['bottom'],('label outside circle',m)
-  assert m['bg']!='rgba(0, 0, 0, 0)' or m['bgImage']!='none',('no marketplace color',m)
+  assert m['bg']==d['pageBackground'] and m['bgImage']=='none',('reference disc fill mismatch',m)
  a,z=d['markets'];assert abs(a['rect']['w']-z['rect']['w'])<.2 and a['font']==z['font']
  assert abs(a['labelTop']-z['labelTop'])<.005 and abs(a['slotTop']-z['slotTop'])<.005,('marketplace alignment differs',a,z)
  for r in d['badgeRects']:
@@ -133,7 +134,7 @@ def scene_shot(browser,name):
  p=OUT/(browser.name+'-'+name+'.png');p.write_bytes(base64.b64decode(data['data']));return str(p)
 
 def stable_rects(browser):
- return browser.ev("[...document.querySelectorAll('.contour-underlay,.contour-orbit')].map(e=>{const r=e.getBoundingClientRect();return [r.x+scrollX,r.y+scrollY,r.width,r.height,getComputedStyle(e).transform]})")
+ return browser.ev("[...document.querySelectorAll('.contour-underlay,.contour-grips')].map(e=>{const r=e.getBoundingClientRect();return [r.x+scrollX,r.y+scrollY,r.width,r.height,getComputedStyle(e).transform]})")
 
 def stop_safely(signum,frame):
  raise SystemExit('Interrupted; closing owned browser and HTTP server')
@@ -158,6 +159,10 @@ try:
      d['fullShot']=b.shot(f'{width}-'+('dark' if dark else 'light'),full=True)
     results.append(d)
     if width==1232:
+     if name=='chrome':
+      b.ev("document.querySelectorAll('.ai-badge,.market-badge').forEach(e=>e.style.visibility='hidden')")
+      scene_shot(b,('dark' if dark else 'light')+'-static-only')
+      b.ev("document.querySelectorAll('.ai-badge,.market-badge').forEach(e=>e.style.visibility='')")
      for j in range(8):
       b.ev('document.activeElement.blur()');b.send('Input.dispatchMouseEvent',{'type':'mouseMoved','x':2,'y':2});time.sleep(.20)
       baseline=stable_rects(b)
@@ -194,7 +199,7 @@ try:
   b.close();b=None
   print('BROWSER_PASS',name,'states',len(results),flush=True)
  (OUT/'results.json').write_text(json.dumps({'status':'PASS','url':BASE,'results':results,'hover':hover,'pixel_samples':pixels},ensure_ascii=False,indent=2))
- print('CONTOUR_R2_R3_PASS',len(results),'states',len(hover),'hover/focus pairs',str(OUT),flush=True)
+ print('CONTOUR_INK_MATCH_R5_PASS',len(results),'states',len(hover),'hover/focus pairs',str(OUT),flush=True)
 except Exception:
  (OUT/'partial.json').write_text(json.dumps({'status':'FAIL','url':BASE,'results':results,'hover':hover},ensure_ascii=False,indent=2));raise
 finally:

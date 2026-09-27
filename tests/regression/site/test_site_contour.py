@@ -2,6 +2,10 @@
 from html.parser import HTMLParser
 from pathlib import Path
 import hashlib
+import base64
+import zlib
+import json
+import xml.etree.ElementTree as ET
 import re
 import struct
 import unittest
@@ -31,8 +35,9 @@ class ContourSourceTests(unittest.TestCase):
         self.assertNotIn('background-position',self.css)
         self.assertNotIn('engraving-3-underlay',self.html)
     def test_clean_source_and_two_static_theme_layers(self):
-        source=ROOT/'assets/contour-2-underlay.webp'
-        self.assertEqual(hashlib.sha256(source.read_bytes()).hexdigest(),'8b2e1c1783c48f5f8037205ea3dd93b25162017a40c463a1d5d9dd726659219e')
+        manifest=json.loads((ROOT.parent/'design-sources/contour-reference-r5.json').read_text())
+        for name,sha in manifest['assets'].items():
+            self.assertEqual(hashlib.sha256((ROOT/'assets'/name).read_bytes()).hexdigest(),sha,name)
         underlays=[a for t,a in self.tags if t=='img' and 'contour-underlay' in a.get('class','').split()]
         self.assertEqual(len(underlays),2)
         block=re.search(r'\.contour-underlay\s*\{([^}]+)\}',self.css).group(1)
@@ -40,6 +45,19 @@ class ContourSourceTests(unittest.TestCase):
         self.assertNotIn('transform',block)
         self.assertNotIn('transition',block)
         self.assertNotIn('animation',block)
+    def test_r5_ink_overprint_matches_disc_palette(self):
+        source=ROOT.parent/'design-sources'
+        m=json.loads((source/'contour-reference-r5.json').read_text())
+        self.assertEqual(m['palette'], {'light':'#10243c','dark':'#ebffff'})
+        self.assertEqual(m['ink_overprint_passes'], 3)
+        raw=zlib.decompress(base64.b64decode((source/'contour-reference-r4-alpha.b64').read_text()))
+        levels=sorted(set(raw)-{0})
+        boosted=[round(255*(1-(1-v/255)**m['ink_overprint_passes'])) for v in levels]
+        self.assertGreaterEqual(min(boosted), 90)
+        for theme in ('light','dark'):
+            self.assertIn('/assets/contour-reference-r5-'+theme+'.webp', self.html)
+            self.assertIn('/assets/contour-grips-r5-'+theme+'.webp', self.html)
+
     def test_marketplaces_are_lower_and_ordered(self):
         def pos(name):
             block=re.search(r'(?m)^\s*\.pos-'+name+r'\s*\{([^}]+)\}',self.css).group(1)
@@ -78,20 +96,45 @@ class ContourSourceTests(unittest.TestCase):
         self.assertNotIn('.pos-ozon b',self.css)
         self.assertIn('text-align:center',self.css)
         for name in ['wb','ozon']:
-            self.assertIn('/assets/color-'+name+'-r2.svg',self.html)
-            self.assertTrue((ROOT/('assets/color-'+name+'-r2.svg')).is_file())
+            self.assertIn('/assets/contour-mark-'+name+'-r4-light.svg',self.html)
+            self.assertTrue((ROOT/('assets/contour-mark-'+name+'-r4-light.svg')).is_file())
 
-    def test_all_ai_colors_are_preserved_in_both_themes(self):
-        self.assertNotIn('brightness(0) invert(1)',self.css)
-        for name in ['alice','gemini','chatgpt','deepseek','anthropic','qwen']:
-            src='/assets/color-'+name+'-r2.svg'
-            self.assertIn(src,self.html)
-            svg=(ROOT/src.lstrip('/')).read_text()
-            self.assertRegex(svg,r'#[0-9a-fA-F]{6}')
-            self.assertNotIn('currentColor',svg)
-            self.assertNotIn('<image',svg)
-        self.assertIn('#005bff',self.css)
-        self.assertIn('#e313bf',self.css)
+    def test_reference_monochrome_vectors_and_static_grips(self):
+        for name in ['alice','gemini','chatgpt','deepseek','anthropic','qwen','wb','ozon']:
+            for theme,ink in [('light','#10243c'),('dark','#ebffff')]:
+                src='/assets/contour-mark-'+name+'-r4-'+theme+'.svg'
+                self.assertIn(src,self.html)
+                svg=(ROOT/src.lstrip('/')).read_text()
+                self.assertEqual(set(re.findall(r'#[0-9a-fA-F]{6}',svg)),{ink})
+                self.assertNotIn('<image',svg)
+                self.assertNotIn('Gradient',svg)
+                self.assertNotIn('url(',svg)
+        self.assertNotIn('linear-gradient(145deg',self.css)
+        self.assertNotIn('class="contour-orbit"',self.html)
+        self.assertIn('background:var(--scene-paper)',self.css)
+        self.assertIn('--scene-paper:var(--bg)',self.css)
+        grips=[a for t,a in self.tags if t=='img' and 'contour-grips' in a.get('class','').split()]
+        self.assertEqual(len(grips),2)
+        for a in grips:self.assertEqual(a.get('aria-hidden'),'true')
+        for cls in ['contour-grips','contour-underlay']:
+            block=re.search(r'\.'+cls+r'\s*\{([^}]+)\}',self.css).group(1)
+            self.assertIn('pointer-events:none',block.replace(' ',''))
+            for forbidden in ['transform','transition','animation']:self.assertNotIn(forbidden,block)
+
+    def test_reference_static_layer_has_no_duplicate_discs(self):
+        source=ROOT.parent/'design-sources'
+        m=json.loads((source/'contour-reference-r4.json').read_text())
+        raw=zlib.decompress(base64.b64decode((source/'contour-reference-r4-alpha.b64').read_text()))
+        self.assertEqual(hashlib.sha256(raw).hexdigest(),m['alpha_sha256'])
+        self.assertEqual(len(raw),559*419)
+        for badge in m['badge_cutouts']:
+            cx,cy,r=badge['cx'],badge['cy'],badge['radius']
+            for y in range(max(0,int(cy-r)),min(419,int(cy+r)+1)):
+                for x in range(max(0,int(cx-r)),min(559,int(cx+r)+1)):
+                    if (x-cx)**2+(y-cy)**2<r*r:self.assertEqual(raw[y*559+x],0,badge['name'])
+        for fragment in re.findall(r'<a class="(?:ai-badge|market-badge)[^>]*>(.*?)</a>',self.html,re.S):
+            self.assertNotIn('underlay',fragment);self.assertNotIn('grips',fragment)
+            self.assertNotIn('.webp',fragment)
 
     def test_tablet_stacking_precedes_mobile_breakpoint(self):
         self.assertIn('@media (max-width:1180px)',self.css)
@@ -115,10 +158,13 @@ class ContourSourceTests(unittest.TestCase):
         self.assertIn('<span class="brand-ozon">Ozon</span>',fragment[0])
         self.assertIn('<span class="brand-wildberries">Wildberries</span>',fragment[0])
 
-    def test_r3_colored_dark_rings_on_buttons_only(self):
-        self.assertIn('.theme-checkbox:checked + .page .ai-badge { border-color:#8295f4;',self.css)
-        self.assertIn('.theme-checkbox:checked + .page .ai-badge:focus-visible',self.css)
-        self.assertNotIn('filter:grayscale',self.css)
+    def test_r4_theme_aware_rings_and_keyboard_controls(self):
+        self.assertIn('border:clamp(1.4px,.39cqi,3px) solid var(--scene-ink)',self.css)
+        self.assertIn('--scene-ink:#10243c',self.css)
+        self.assertIn('--scene-ink:#ebffff',self.css)
+        self.assertIn('.ai-badge:focus-visible,.market-badge:focus-visible',self.css)
+        self.assertIn('min-width:44px; min-height:44px',self.css)
+        self.assertNotIn('border-color:#8295f4',self.css)
 
     def test_local_images_resolve_and_no_executable_javascript(self):
         for tag,a in self.tags:

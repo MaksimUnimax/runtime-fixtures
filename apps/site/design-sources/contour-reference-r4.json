@@ -1,0 +1,202 @@
+{
+  "source": "Owner reference 2 (dark), image(20260927-123600).png; reference 1 light palette. Deterministic derivative, not generated replacement.",
+  "crop": [
+    30,
+    58,
+    589,
+    477
+  ],
+  "canvas": [
+    559,
+    419
+  ],
+  "alpha_extraction": "round(clamp((G-25)/230,0,1)*255); erase complete badge discs; 8 alpha levels",
+  "alpha_sha256": "904997e09f1cec29f56b80deef12ff773619cbf4ffdb760e3a5b51d08e6b6b05",
+  "badge_cutouts": [
+    {
+      "name": "alice",
+      "cx": 209,
+      "cy": 56.5,
+      "radius": 34
+    },
+    {
+      "name": "gemini",
+      "cx": 349,
+      "cy": 56.5,
+      "radius": 34
+    },
+    {
+      "name": "chatgpt",
+      "cx": 119.5,
+      "cy": 112.7,
+      "radius": 35
+    },
+    {
+      "name": "deepseek",
+      "cx": 439,
+      "cy": 112.7,
+      "radius": 35
+    },
+    {
+      "name": "anthropic",
+      "cx": 59.5,
+      "cy": 190.5,
+      "radius": 35
+    },
+    {
+      "name": "qwen",
+      "cx": 499,
+      "cy": 190.5,
+      "radius": 35
+    },
+    {
+      "name": "wb",
+      "cx": 164.5,
+      "cy": 330,
+      "radius": 51.5
+    },
+    {
+      "name": "ozon",
+      "cx": 393.5,
+      "cy": 330,
+      "radius": 51.5
+    }
+  ],
+  "palette": {
+    "light": "#10243c",
+    "dark": "#ebffff"
+  },
+  "assets": {
+    "contour-grips-r4-dark.webp": "4f7420d1743315a494a7ee3e28d9ad2ce1824f046c090f9cd41417dae06560e0",
+    "contour-grips-r4-light.webp": "191c6ff199faee0fa669c361b8df4293e669b11f88e2715e1704c53c597dc010",
+    "contour-mark-alice-r4-dark.svg": "4796f3c77e109da366625f6d0d83943b5b9284abe4512a83d416a0314be288f3",
+    "contour-mark-alice-r4-light.svg": "f84606fa5479345515a6108f69d84914786887e2b3b03fddea6da0522cb7be5a",
+    "contour-mark-anthropic-r4-dark.svg": "5c6d3d565e08e200a3fdf77fd0ea1a568162635266e1fc46e13f08445dcdac1b",
+    "contour-mark-anthropic-r4-light.svg": "28484e07c31644e7aa5c3a4efcbc4c5fc9eba1b17b5c6bca88d4ace343474f8f",
+    "contour-mark-chatgpt-r4-dark.svg": "228dd22b978c8ac8e05c370ca02aef13bfc6d9e86636e21d3cf5d6cabaf47f8f",
+    "contour-mark-chatgpt-r4-light.svg": "363c75330fdadfacb7a396a32fe6eb65c63fd4c1e885e4c67398ffa70daf8486",
+    "contour-mark-deepseek-r4-dark.svg": "cf9f9df9b349c40c2abf1d627b0b307526108d57a5d868291a4b416f598814f9",
+    "contour-mark-deepseek-r4-light.svg": "0e56144e2dc601c2dc3e7505f8a334542657562520d39c6617f477ab3a57a790",
+    "contour-mark-gemini-r4-dark.svg": "bf5c0766d107ce5309bfa5fef88513811fb1c9ebfe971e6664a0cee2b21bc3b1",
+    "contour-mark-gemini-r4-light.svg": "55ee8f3770ca137f8f6833c275da691c5f0363470978eff042201b6b5b878e6e",
+    "contour-mark-ozon-r4-dark.svg": "d9232ee2805222e7cb0287ed6f2ecec7656edd3e9d430ac45d4b65b287b5e976",
+    "contour-mark-ozon-r4-light.svg": "0ea5cae2082be4231d8f87ab98ec936e24c6c4bceb2fe524b2e2c018c872c254",
+    "contour-mark-qwen-r4-dark.svg": "95bb51328114e3f1836277018d5288b18f8efa10ff94ae2272e8d0c1f7f5c420",
+    "contour-mark-qwen-r4-light.svg": "4c3ec9cd94d7e284652bfcf50a695916c66e2a7f714107fbbc12a3ac01b16283",
+    "contour-mark-wb-r4-dark.svg": "0f819495e1613420bf72ecedf12277535e65394a947a8634417a9e2db92e1805",
+    "contour-mark-wb-r4-light.svg": "d422ab6ac6e343ac727907323518b7167a155c6d1dfafea13af1cceaa2f39479",
+    "contour-reference-r4-dark.webp": "df861e7cb4971f23c6faadb66bdd757c78d3d1ae4a932cdce43d6c1691422d1a",
+    "contour-reference-r4-light.webp": "d3b11a675afc893a221319d392e03dd73b26b6f5b2d220940a0b483abad53901"
+  },
+  "grip_alpha_sha256": "899e4d1bdd0ca3cae4eef34938b8923904ba6c2a573c60df5238ca4ec4171d91",
+  "grip_polygons": [
+    [
+      [
+        157,
+        264
+      ],
+      [
+        164,
+        259
+      ],
+      [
+        177,
+        259
+      ],
+      [
+        187,
+        264
+      ],
+      [
+        192,
+        271
+      ],
+      [
+        190,
+        279
+      ],
+      [
+        191,
+        286
+      ],
+      [
+        183,
+        291
+      ],
+      [
+        175,
+        293
+      ],
+      [
+        167,
+        291
+      ],
+      [
+        161,
+        287
+      ],
+      [
+        157,
+        282
+      ],
+      [
+        155,
+        273
+      ]
+    ],
+    [
+      [
+        401,
+        264
+      ],
+      [
+        394,
+        259
+      ],
+      [
+        381,
+        259
+      ],
+      [
+        371,
+        264
+      ],
+      [
+        366,
+        271
+      ],
+      [
+        368,
+        279
+      ],
+      [
+        367,
+        286
+      ],
+      [
+        375,
+        291
+      ],
+      [
+        383,
+        293
+      ],
+      [
+        391,
+        291
+      ],
+      [
+        397,
+        287
+      ],
+      [
+        401,
+        282
+      ],
+      [
+        403,
+        273
+      ]
+    ]
+  ]
+}
