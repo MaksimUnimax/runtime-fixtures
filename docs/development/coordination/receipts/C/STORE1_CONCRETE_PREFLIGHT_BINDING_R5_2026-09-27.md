@@ -23,12 +23,28 @@ The following source/disposable boundaries are now prepared:
 
 1. B09 cryptographic preflight uses the verifier and trust bundle shipped inside the exact STORE ZIP, verifies a fresh no-AI v2 bootstrap, binds package/config/key/account/device/browser/origin/freshness, rejects forged/deserialized proof and config drift, and gives planner authority only through a process-local trusted capability.
 2. B10 provides a runnable **read-only catalog** operator entry. It performs ordinary authenticated admin GET readback, executes only the existing reviewer no-AI bootstrap POST, verifies the returned signed envelope with the exact packaged verifier, continues planner GETs, re-reads config before returning a mutation/READY preview, and always reports `catalogMutationExecuted:false`.
-3. C05 r7 proves the exact three-service disposable sequence candidate `61bb49f3553fd217a9a2c8d8ff8d9f92419f0184` → rollback floor `d24838669c54f21dc161dc48a7e71e0e288384c2` → candidate on one restored forward-schema database, with API/worker/portal readiness, authenticated portal proxy, N2, signed v2 bootstrap and metadata-forget preservation. This is not live rollback acceptance.
+3. The latest C05 three-service disposable proof is `a7bf253839372a18f14a619e64093fa0e8c70b0e` → rollback floor `d24838669c54f21dc161dc48a7e71e0e288384c2` → `a7bf253839372a18f14a619e64093fa0e8c70b0e` on one restored forward-schema database. Evidence: `/root/octoport-control/logs/C/c05-three-service-rollback-a7bf2538-r2/c05-three-service-rollback-evidence.json`, SHA-256 `2424ddb0a08e020749f6528a89a254ef225ccfad12e1614e09cc0b25a797d58a`. All three phases passed API live/ready, worker readiness, portal login/authenticated proxy, PRESENT/WITHHELD N2 and both identified/privacy-neutral signed-v2 bootstrap checks; the dedicated synthetic metadata-forget returned 200 on the first candidate phase and remained withheld across floor/return. Cleanup dropped the disposable DB and removed transient private/work state. This is not live rollback acceptance.
 4. The planner/disposable STORE whole-sequence proves catalog mutation ordering and convergence under synthetic prerequisites. It does not prove the intended live reviewer or current live catalog state.
+
+## Current accepted backend source binding
+
+The accepted backend/source boundary for this R5 preparation is `22473b416949892d66e5d8e204805ea84347c329`.
+
+The rollback rehearsal does not need to be repeated merely to rename that SHA. Independent controller review and a parent git comparison found **zero runtime-path delta** from the proven `a7bf253839372a18f14a619e64093fa0e8c70b0e` candidate to accepted `22473b416949892d66e5d8e204805ea84347c329` across:
+- `apps/api`;
+- `apps/worker`;
+- `apps/portal`;
+- `packages/server`;
+- `packages/contracts/src`;
+- `packages/shared`;
+- `package.json`;
+- `pnpm-lock.yaml`.
+
+Therefore the exact a7bf-r2 disposable three-service rollback proof is the current runtime-equivalent rollback evidence for accepted backend source `22473b416949892d66e5d8e204805ea84347c329`. This equivalence is source/dependency evidence only; it does not turn the rehearsal into a live deployment/rollback proof.
 
 ## Protected operator input
 
-B10 accepts one mode-0600 JSON file containing paths and non-secret reviewer context only. Do not place token values in this JSON:
+B10 accepts one private regular JSON file containing paths and non-secret reviewer context only; no group/other permission bits are allowed and `0600` is recommended. Do not place token values in this JSON:
 
 ```json
 {
@@ -37,8 +53,8 @@ B10 accepts one mode-0600 JSON file containing paths and non-secret reviewer con
   "reviewerEmail": "<PRIVATE_DEDICATED_REVIEWER_EMAIL>",
   "deviceId": "<PRIVATE_DEDICATED_REVIEWER_DEVICE_UUID>",
   "browserVersion": "<ACTUAL_OPERA_CHROMIUM_VERSION_AT_LEAST_136>",
-  "adminSessionFile": "<MODE_0600_ADMIN_SESSION_TOKEN_FILE>",
-  "reviewerDeviceBearerFile": "<MODE_0600_REVIEWER_EXTENSION_BEARER_FILE>"
+  "adminSessionFile": "<PRIVATE_ADMIN_SESSION_TOKEN_FILE>",
+  "reviewerDeviceBearerFile": "<PRIVATE_REVIEWER_EXTENSION_BEARER_FILE>"
 }
 ```
 
@@ -55,7 +71,7 @@ B10 consumes no OTP, password, signing private key or marketplace credential.
 Run only after the intended backend is the separately authorized target and the protected inputs were produced through ordinary authentication:
 
 ```text
-pnpm exec tsx tooling/server/store1-preflight-cli.ts --input-file <MODE_0600_PROTECTED_JSON>
+pnpm exec tsx tooling/server/store1-preflight-cli.ts --input-file <PRIVATE_PROTECTED_JSON>
 ```
 
 The command may issue the ordinary no-AI bootstrap POST, which can update ordinary device/auth metadata. It executes **zero catalog POSTs**.
@@ -96,9 +112,11 @@ No direct SQL is permitted for catalog activation.
 
 ## Deployment and rollback boundary
 
-C05 r7 closes the **disposable** API+worker+portal application rollback rehearsal for the exercised forward schema and exact candidate/floor identities. It does not authorize or prove a live owner-test/preprod deployment.
+The a7bf-r2 C05 evidence closes the **disposable** API+worker+portal application rollback rehearsal for the exercised forward schema and exact a7bf/floor identities. Because accepted backend `22473b416949892d66e5d8e204805ea84347c329` has zero runtime/dependency delta across the compared service/contract paths, that proof is the current runtime-equivalent rollback evidence for this R5 source boundary. It does not authorize or prove a live owner-test/preprod deployment.
 
-Before B10 can be treated as a readback of the intended current backend, that backend must actually run an accepted runtime containing the B09/B10 routes/operator assumptions. If it does not, switching the intended backend is a separate bounded live deployment action requiring explicit owner authorization under the current runbook rules.
+The intended deployment/reviewer backend is the existing owner-test/preprod boundary documented by the accepted runbooks: public `https://api.octoport.ru` and `https://app.octoport.ru`, backed by `seller-agents-owner-test-api.service`, `seller-agents-owner-test-worker.service`, and `seller-agents-owner-test-portal.service`. This identifies the target from non-secret historical deployment metadata only; this R5 work does not inspect or assert its current live version/state.
+
+Before B10 can be treated as a readback of that intended backend, those services must actually run an accepted runtime containing the B09/B10 routes/operator assumptions. If they do not, switching only those owner-test/preprod services to the accepted target is a separate bounded live deployment action requiring explicit owner authorization under the current runbook rules.
 
 No down migration is part of application rollback. The tested application floor remains `d24838669c54f21dc161dc48a7e71e0e288384c2` on the compatible forward schema; restoring an older database snapshot after writes reopen remains a separate recovery/data-loss decision.
 
@@ -118,7 +136,7 @@ The existing early STORE Submit authorization does not authorize deployment, cat
 Before requesting either live action C may:
 - keep exact package/hash/manifest and command identities frozen;
 - maintain the mode-0600 protected-input template and sanitized operator checklist;
-- bind C05 rollback evidence to the exact accepted backend candidate;
+- bind the a7bf-r2 C05 rollback evidence and its exact SHA-256 to the runtime-equivalent accepted backend source `22473b416949892d66e5d8e204805ea84347c329`;
 - verify branch/main CI and current source ancestry;
 - integrate submitted A/B source candidates normally;
 - consume B10 source tests and disposable evidence;
@@ -128,7 +146,7 @@ C must not fabricate reviewer/account/admission state or a live signed-bootstrap
 
 ## Remaining independent stream work
 
-- B: B10 source work is complete at its submitted exact candidate; future changes remain B-owned only if a concrete source defect is found. No parallel C rewrite of the HTTP adapter.
+- B: B10 source work is accepted in main. B11 now independently owns the disposable real-API-handler composition proving the same B10 orchestration against actual route handlers/producer without handcrafted successful reviewer/config/bootstrap payloads. C does not duplicate that transport/API work and will intake only a submitted exact B11 candidate.
 - A: passive v3 verifier/cache authority remains separate from STORE 0.2.4 and does not gate the frozen v2 package. Ordinary reviewer E2E remains a later live acceptance.
 - C: accept the current integration batch through exact branch/post-main CI, preserve the package/preflight/rollback binding, and request owner action only when the intended backend/live prerequisite is the actual next unresolved step.
 
