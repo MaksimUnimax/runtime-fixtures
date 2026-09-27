@@ -79,3 +79,10 @@ The scheduler and NO_SESSION DB source used by the prior **17/17 + 4/4 PASS** co
 B merged this fresh main on a clean boundary. The repository tree SHA before and after the merge was exactly the same: `f137b2e68688d4944bfd7512587634bd90ec3910`. Therefore no B15 production or test bytes changed, and the existing B15 disposable PostgreSQL evidence remains directly applicable without redundant rerun.
 
 Merge HEAD before this receipt-only update: `50d203269024801644dd1297630d5e7a2371a2b3`.
+## Main acceptance — 2026-09-27
+
+C integrated exact B15 `2153b919a6a2ec398d21135f24a7219268ed5e68` into candidate `641bf3d2f6ec6c535afb335ae1af86ea8a5a84f8`. All five GitHub workflows for that exact combined SHA completed SUCCESS: Server CI, Extension CI, Documentation CI, Coordination and release safety, and Extension I1-C1 client.
+
+`origin/main` was then promoted non-force to exact `641bf3d2f6ec6c535afb335ae1af86ea8a5a84f8`, so B15 is now SOURCE-accepted in the canonical main line. This does not imply live authenticated-H3 acceptance or deployment.
+
+B reconciled the accepted main into `work/b-backend`. Before reconciliation, B HEAD `02689b027c84f8b6b5857a4291dee1da8065e622` and `origin/main` had the identical tree SHA `0ab8a7a34db73ee7dc391e9f4ce781774f080c22`; after merge the tree remained exactly the same. No product or test bytes changed, so no redundant test rerun was required. The latest post-main B-owned H3 disposable regression remained **4/4 PASS** under supervisor `octoport-test-b-1842050315e34bae8fa9955a7e0db992.service`, exit 0, peak 525 MiB, cleanup verified.
