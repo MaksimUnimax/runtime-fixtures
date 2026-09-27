@@ -60,6 +60,8 @@ function exactReadback(): Store1ActivationReadback {
       contractVersion: STORE1_CONTRACT,
       snapshotVersion: "bootstrap_snapshot_v2",
       envelopeVersion: "bootstrap_envelope_v2",
+      signingKeyId: "store1-preprod-base",
+      signingKeyState: "ACTIVE",
       compatibilityPolicyRevisionIds: [ids.policy],
     },
     adapters: [{ id: ids.adapter, machineKey: "chatgpt", status: "ACTIVE" }],
@@ -167,12 +169,35 @@ describe("STORE-1 ordinary-admin activation planner", () => {
     });
   });
 
-  it("reports a missing v2 base config instead of inventing signing authority", () => {
+  it("checks v2 base before a pending release mutation", () => {
     const r = exactReadback();
+    r.release = null;
+    delete r.config;
+    expect(planStore1Activation(authority, r)).toMatchObject({
+      status: "READ",
+      next: {
+        path: "/v1/admin/compatibility/config-releases/latest?contractVersion=control_plane_v2",
+      },
+    });
+  });
+
+  it("reports a missing v2 base before a pending release mutation", () => {
+    const r = exactReadback();
+    r.release = null;
     r.config = null;
     expect(planStore1Activation(authority, r)).toMatchObject({
       status: "BLOCKED",
       code: "STORE1_V2_BASE_CONFIG_MISSING",
+    });
+  });
+
+  it("blocks a non-active v2 signing key before any catalog mutation", () => {
+    const r = exactReadback();
+    r.release = null;
+    r.config = { ...r.config!, signingKeyState: "RETIRED" };
+    expect(planStore1Activation(authority, r)).toMatchObject({
+      status: "BLOCKED",
+      code: "STORE1_V2_BASE_SIGNING_KEY_NOT_ACTIVE",
     });
   });
 

@@ -198,6 +198,14 @@ export type Store1ActivationReadback = {
     contractVersion: string;
     snapshotVersion: string;
     envelopeVersion: string;
+    signingKeyId: string;
+    signingKeyState:
+      | "UNREGISTERED"
+      | "REGISTERED"
+      | "ACTIVE"
+      | "RETIRED"
+      | "REVOKED"
+      | "INVALID";
     compatibilityPolicyRevisionIds: string[];
   };
   adapters?: RegistryEntity[];
@@ -374,6 +382,34 @@ export function planStore1Activation(
   const reviewer = reviewerPreflight(r);
   if (reviewer) return reviewer;
 
+  if (r.config === undefined)
+    return get(
+      `/v1/admin/compatibility/config-releases/latest?contractVersion=${STORE1_CONTRACT}`,
+      "Read current v2 config baseline and signing-key lifecycle before any STORE-1 mutation.",
+    );
+  if (r.config === null)
+    return {
+      status: "BLOCKED",
+      code: "STORE1_V2_BASE_CONFIG_MISSING",
+      detail:
+        "No valid v2 base config exists. Initialize signing/config authority separately; this planner will not invent one.",
+    };
+  if (
+    r.config.contractVersion !== STORE1_CONTRACT ||
+    r.config.snapshotVersion !== "bootstrap_snapshot_v2" ||
+    r.config.envelopeVersion !== "bootstrap_envelope_v2"
+  )
+    return conflict(
+      "STORE1_V2_CONFIG_CONFLICT",
+      "Latest v2 config has an unexpected snapshot/envelope shape.",
+    );
+  if (r.config.signingKeyState !== "ACTIVE")
+    return {
+      status: "BLOCKED",
+      code: "STORE1_V2_BASE_SIGNING_KEY_NOT_ACTIVE",
+      detail: `Latest v2 config signing key ${r.config.signingKeyId} is ${r.config.signingKeyState}; STORE-1 catalog writes require an ACTIVE signed base.`,
+    };
+
   if (r.release === undefined)
     return get(
       `/v1/admin/compatibility/releases/${STORE1_VERSION}`,
@@ -442,27 +478,6 @@ export function planStore1Activation(
       "Latest STORE-1 policy does not equal the bounded Opera target.",
     );
 
-  if (r.config === undefined)
-    return get(
-      `/v1/admin/compatibility/config-releases/latest?contractVersion=${STORE1_CONTRACT}`,
-      "Read current v2 config baseline and linked compatibility authority.",
-    );
-  if (r.config === null)
-    return {
-      status: "BLOCKED",
-      code: "STORE1_V2_BASE_CONFIG_MISSING",
-      detail:
-        "No valid v2 base config exists. Initialize signing/config authority separately; this planner will not invent one.",
-    };
-  if (
-    r.config.contractVersion !== STORE1_CONTRACT ||
-    r.config.snapshotVersion !== "bootstrap_snapshot_v2" ||
-    r.config.envelopeVersion !== "bootstrap_envelope_v2"
-  )
-    return conflict(
-      "STORE1_V2_CONFIG_CONFLICT",
-      "Latest v2 config has an unexpected snapshot/envelope shape.",
-    );
   if (!r.config.compatibilityPolicyRevisionIds.includes(policy.id))
     return post(
       "/v1/admin/compatibility/config-releases/publish",

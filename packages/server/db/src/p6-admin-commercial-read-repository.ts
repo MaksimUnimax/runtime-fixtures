@@ -6,6 +6,10 @@ import type {
   CompatibilityAdminRevision,
 } from "@product/admin-commercial";
 import type { AccountEntitlementOverride } from "@product/entitlements";
+import {
+  resolveSigningKeyLifecycle,
+  SigningKeyEventSchema,
+} from "@product/remote-config";
 import type { DatabaseRuntime } from "./index.js";
 import { createP4CommercialCatalogRepository } from "./p4-commercial-catalog-repository.js";
 import { createP4EntitlementRepository } from "./p4-entitlement-repository.js";
@@ -272,9 +276,17 @@ export function createP6AdminCommercialReadRepository(
         [contractVersion],
       );
       if (!r.rows[0]) return null;
+      const signingEvents = await runtime.query<Record<string, unknown>>(
+        'SELECT id,key_id AS "keyId",event_type AS "eventType",occurred_at AS "occurredAt",reason_code AS "reasonCode",created_at AS "createdAt" FROM signing_key_events WHERE key_id=$1 ORDER BY occurred_at,id',
+        [r.rows[0].signingKeyId],
+      );
+      const signingKeyState = resolveSigningKeyLifecycle(
+        signingEvents.rows.map((row) => SigningKeyEventSchema.parse(row)),
+      ).state;
       return {
         ...r.rows[0],
         configVersion: Number(r.rows[0].configVersion),
+        signingKeyState,
         compatibilityPolicyRevisionIds: [
           ...(r.rows[0].compatibilityPolicyRevisionIds ?? []),
         ].map(String),
