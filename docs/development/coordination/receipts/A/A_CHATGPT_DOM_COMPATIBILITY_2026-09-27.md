@@ -1,5 +1,69 @@
 # A — urgent ChatGPT DOM compatibility — 2026-09-27
 
+## P2 correction — Response-actions Copy
+
+Status: **PASS — SOURCE + EXTRACTED ADAPTER / C REPRODUCER / NATIVE CHROMIUM USEFUL FLOW**
+
+Task: `A_CHATGPT_RESPONSE_COPY_P2`.
+
+Verified code commit: `13f09ef4ca6a72cacc7c4ca6541c21847dd115a7`.
+Preserved pre-transfer checkpoint: `6faaa9249580153c788a175f7fca5e129e558b8b`.
+Fresh `origin/main` was merged without rewriting A history at merge commit
+`3f9c30c6d02434717078ecdccdec19f8749de1cb`; the saved checkpoint remains an ancestor.
+
+C rejected the earlier `315b2a5e` compatibility candidate and its descendants after
+reproducing a false code block: a response-level `Copy` inside `Response actions`
+claimed a sibling plain `<code>`. That earlier acceptance is **superseded** by this
+P2 correction and must not be used for release/store intake.
+
+### Repair boundary
+
+The imported Ozon v0.1.22 baseline remains unchanged. In
+`apps/extension/application-patches.json` the ChatGPT adapter now:
+- rejects any Copy-like button whose nearest ancestor matches the existing exact
+  Response-actions selector before checking `data-code-copy-state`, aria/title, or text;
+- independently rejects such controls in `chatgptCopyOwnedBlock()`;
+- preserves ordinary code-toolbar Copy ownership, plain-code ownership, fenced
+  `pre > code` fallback, canonical assistant ordering, and composer exclusions.
+
+### Regression and package evidence
+
+Pre-fix reproduction on the current branch package returned:
+`[{"text":"WB_API_V1 {}","anchor":"response-copy","root":"shared"}]`
+and failed the expected empty result. The supervised pre-fix job was
+`1d25733295ee435eadd96ae5de6ffb53`.
+
+Final R2 evidence:
+`/root/octoport-control/logs/A/A_RESPONSE_COPY_P2_R2/summary.json`.
+
+- package SHA-256:
+  `c9ed546ffb71a61a5618e414fd4100d507b81c2c6d5071a3319c96e72cea1e3e`;
+- deterministic rebuild: `repeat_archive_match=true`;
+- runtime/extracted byte parity: `source_extracted_bytes_match=true`;
+- focused adapter regression: source **PASS**, extracted **PASS**;
+- exact C reproducer: source `[]`, extracted `[]`;
+- required cases cover response-copy-only plain code, misleading
+  `data-code-copy-state`, localized/text-only response Copy, fenced fallback,
+  real code-copy + response-copy anchor precedence, nested/order/user/editor/
+  ambiguity cases;
+- native useful flow: source **PASS**, extracted **PASS**, Chromium
+  `151.0.7922.34`, `live_provider_calls=0`, `installed_acceptance=false`;
+- native regression explicitly covers response-actions Copy exclusion,
+  response-copy rerender without stale action, fenced fallback, real code-copy
+  precedence, and the existing exact synthetic WB operation path.
+
+Supervised resource jobs:
+- focused source/extracted + C reproducer:
+  `5aa53a6d323e4994b67c399fd8a4b5e4`, PASS, cleanup verified;
+- native extracted:
+  `01d8bf714ddc4b02acbeca623e6afe05`, PASS, OOM 0, cleanup verified;
+- native source:
+  `cb0979118d424edf9c7a084184623f8d`, PASS, OOM 0, cleanup verified.
+
+This P2 receipt does **not** claim owner-authenticated ChatGPT Work, owner Opera,
+installed-store acceptance, live marketplace calls, store publication, or production
+acceptance.
+
 Status: **SOURCE/PACKAGE/NATIVE CHROMIUM FIXTURE PASS / REAL GUEST DOM CONFIRMED / OWNER AUTHENTICATED + OPERA NOT CLAIMED**
 
 Task: `A_URGENT_CHATGPT_DOM_COMPATIBILITY_20260927`.
