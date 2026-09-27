@@ -1,0 +1,225 @@
+{
+  "schemaVersion": "wb_search_query_field_schema_slice_v1",
+  "capturedDate": "2026-09-27",
+  "scope": {
+    "scenarioIds": ["CAP-21", "CAP-25"],
+    "boundary": "SEARCH_PRODUCT_REPORT_IS_BOUNDED_TOP_QUERY_EVIDENCE_NOT_A_COMPLETE_SEMANTIC_UNIVERSE",
+    "evidence": "PINNED_UPSTREAM_OPENAPI_MIRROR_PLUS_EXISTING_CATALOG_IDENTITY_SLICE",
+    "liveValues": false,
+    "acceptedOperationMappingChanged": false
+  },
+  "authority": {
+    "mirrorRepository": "eslazarev/wildberries-sdk",
+    "mirrorCommit": "5057bdb9bf16dea24000e3ca79e1934f7761d7fe",
+    "specPath": "specs/11-analytics.yaml",
+    "specBlobSha": "de25972f376a6804e34c6842830c45cfed644d61",
+    "itemSearchTextsRequestBlobSha": "db409c3a9fa78c063494f7e479f4f5db927695b3",
+    "itemSearchTextsResponseBlobSha": "cab23a32f01cff71f1fc805fc4b0ebb457127b49",
+    "tableSearchTextItemBlobSha": "7aab48bab75a6f9e2013bb99b692c4180b2ea6cb",
+    "tableDetailsRequestBlobSha": "b9b9ebea52275579564a88e53ba183f4f7d40d43",
+    "tableDetailsResponseBlobSha": "7b23d6638897c3af481f6c9dbadb6dfcc5129e91",
+    "tableItemItemBlobSha": "5e2a4f8b1799f2a15dcac4d5ec32572da86719a7",
+    "periodBlobSha": "dab87973f5e05c9bb3ef1db1f458daeebadab67f",
+    "textLimitBlobSha": "0ea515b516004a974bf3046f5163073f0ed69f85"
+  },
+  "sources": {
+    "searchTexts": {
+      "operationAlias": "search_report_product",
+      "host": "analytics",
+      "method": "POST",
+      "path": "/api/v2/search-report/product/search-texts",
+      "bodyRequired": true,
+      "request": {
+        "currentPeriodRequired": true,
+        "pastPeriodOptional": true,
+        "maxNmIds": 50,
+        "topOrderBy": [
+          "openCard",
+          "addToCart",
+          "openToCart",
+          "orders",
+          "cartToOrder"
+        ],
+        "includeSubstitutedSKUsDefault": true,
+        "includeSearchTextsDefault": true,
+        "standardTariffTextLimitMax": 30,
+        "advancedTariffTextLimitMax": 100
+      },
+      "response": {
+        "currencyRequired": true,
+        "rowGrain": ["text", "nmId"],
+        "fields": {
+          "text": { "role": "provider_search_query_text", "unit": "text" },
+          "nmId": { "role": "product_id", "unit": "identifier" },
+          "vendorCode": { "role": "seller_article", "unit": "text" },
+          "frequency.current": {
+            "role": "provider_query_frequency_current",
+            "unit": "count"
+          },
+          "weekFrequency": {
+            "role": "provider_week_query_frequency",
+            "unit": "count"
+          },
+          "medianPosition.current": {
+            "role": "provider_median_search_position",
+            "unit": "position"
+          },
+          "avgPosition.current": {
+            "role": "provider_average_search_position",
+            "unit": "position"
+          },
+          "visibility.current": {
+            "role": "provider_visibility_metric",
+            "unit": "provider_metric"
+          },
+          "currency": { "role": "report_currency", "unit": "currency_code" }
+        }
+      },
+      "continuation": null,
+      "completeness": "BOUNDED_TOP_QUERY_SET_ONLY__NO_CURSOR_OR_OFFSET_TO_PROVE_ALL_QUERY_UNIVERSE"
+    },
+    "details": {
+      "operationAlias": "search_report_details",
+      "host": "analytics",
+      "method": "POST",
+      "path": "/api/v2/search-report/table/details",
+      "bodyRequired": true,
+      "request": {
+        "currentPeriodRequired": true,
+        "pastPeriodOptional": true,
+        "maxNmIds": 50,
+        "positionCluster": ["all", "firstHundred", "secondHundred", "below"],
+        "limitMax": 1000,
+        "offsetRequired": true
+      },
+      "response": {
+        "currencyRequired": true,
+        "rowGrain": ["nmId"],
+        "fields": {
+          "nmId": { "role": "product_id", "unit": "identifier" },
+          "vendorCode": { "role": "seller_article", "unit": "text" },
+          "isAdvertised": {
+            "role": "search_promotion_flag",
+            "unit": "boolean"
+          },
+          "avgPosition.current": {
+            "role": "provider_average_search_position",
+            "unit": "position"
+          },
+          "currency": { "role": "report_currency", "unit": "currency_code" }
+        }
+      },
+      "completeness": "OFFSET_PAGINATION_MUST_BE_EXHAUSTED_FOR_SELECTED_FILTER_SCOPE"
+    },
+    "catalog": {
+      "operationAlias": "cards_list",
+      "reuseFixture": "tests/regression/extension-core/fixtures/wb-catalog-identity-field-schema-slice-v1.json",
+      "join": "search nmId -> cards_list nmID",
+      "fields": ["nmID", "vendorCode", "subjectName", "brand", "title"],
+      "completeness": "FULL_ACTIVE_CARD_EXPORT_REQUIRES_CATALOG_CURSOR_COMPLETION"
+    }
+  },
+  "rules": {
+    "providerFactsOnly": "QUERY_TEXT_FREQUENCY_AND_POSITION_MUST_COME_FROM_PROVIDER_RESPONSE_NOT_MODEL_INFERENCE",
+    "modelIdeas": "AI_SUGGESTIONS_MUST_REMAIN_SEPARATE_FROM_PROVIDER_SEARCH_FACTS",
+    "queryIdentity": "SEARCH_FACT_BUSINESS_KEY_IS_PERIOD_PLUS_NMID_PLUS_QUERY_TEXT",
+    "productJoin": "EXACT_NMID_ONLY__VENDOR_CODE_IS_CONTEXT_NOT_PRIMARY_JOIN_KEY",
+    "missing": "MISSING_OR_UNAVAILABLE_SEARCH_FACT_IS_UNKNOWN_NOT_ZERO",
+    "positions": "PROVIDER_POSITION_FIELDS_ARE_NOT_RANKING_PROMISES_OUTSIDE_THE_REQUESTED_PERIOD_AND_FILTER_SCOPE",
+    "currency": "REPORT_CURRENCY_IS_PRESERVED_WHERE_MONEY_METRICS_ARE_USED",
+    "topLimit": "TEXT_LIMIT_30_OR_100_IS_A_TARIFF_BOUNDED_TOP_SET_NOT_COMPLETENESS_PROOF",
+    "cap25History": "MONTHLY_ACCUMULATION_MAY_BE_SAVED_ONLY_IN_OWNER_MANAGED_LOCAL_FILES__PROVIDER_TOP_SET_DOES_NOT_PROVE_FULL_QUERY_UNIVERSE",
+    "pageCount": "PAGE_OR_REQUEST_COUNT_NEVER_PROVES_SEMANTIC_COMPLETENESS"
+  },
+  "acceptedMappingSnapshot": {
+    "CAP-21": ["search_report_product", "search_report_details", "cards_list"],
+    "CAP-25": ["search_report_product", "search_report_details", "cards_list"]
+  },
+  "syntheticCases": {
+    "providerFacts": {
+      "period": "2026-09-01/2026-09-27",
+      "rows": [
+        {
+          "text": "кружка большая",
+          "nmId": 1001,
+          "vendorCode": "SELLER-A",
+          "frequency": { "current": 140 },
+          "weekFrequency": 33,
+          "medianPosition": { "current": 5 },
+          "avgPosition": { "current": 7 }
+        },
+        {
+          "text": "кружка керамическая",
+          "nmId": 1001,
+          "vendorCode": "SELLER-A",
+          "frequency": { "current": 85 },
+          "weekFrequency": 19,
+          "medianPosition": { "current": 14 },
+          "avgPosition": { "current": 16 }
+        }
+      ],
+      "aiSuggestions": ["кружка для офиса"],
+      "expected": {
+        "status": "PASS",
+        "providerFactCount": 2,
+        "aiSuggestionCount": 1,
+        "aiSuggestionsAreProviderFacts": false
+      }
+    },
+    "duplicateFact": {
+      "period": "2026-09-01/2026-09-27",
+      "rows": [
+        {
+          "text": "кружка",
+          "nmId": 1001,
+          "frequency": { "current": 10 },
+          "medianPosition": { "current": 5 }
+        },
+        {
+          "text": "кружка",
+          "nmId": 1001,
+          "frequency": { "current": 10 },
+          "medianPosition": { "current": 5 }
+        }
+      ],
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "DUPLICATE_SEARCH_FACT_BUSINESS_KEY"
+      }
+    },
+    "missingMetric": {
+      "period": "2026-09-01/2026-09-27",
+      "rows": [
+        {
+          "text": "кружка",
+          "nmId": 1001,
+          "frequency": null,
+          "medianPosition": { "current": 5 }
+        }
+      ],
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "PROVIDER_SEARCH_METRIC_MISSING"
+      }
+    },
+    "monthlyHistory": {
+      "rows": [
+        { "period": "2026-08", "product": "1001", "query": "кружка" },
+        { "period": "2026-08", "product": "1001", "query": "кружка" },
+        { "period": "2026-09", "product": "1001", "query": "кружка" }
+      ],
+      "expected": {
+        "uniqueBusinessKeys": 2,
+        "providerTopSetProvesFullUniverse": false,
+        "ownerManagedLocalFilesRequired": true
+      }
+    }
+  },
+  "remainingOpen": [
+    "live search-analytics entitlement and actual tariff-dependent response limits",
+    "live WB query metrics and owner gold-set reconciliation",
+    "complete product/card export for the selected business scope",
+    "no provider endpoint in this slice proves a complete semantic query universe beyond its bounded top set",
+    "prior-month CAP-25 history remains owner-managed local files"
+  ]
+}

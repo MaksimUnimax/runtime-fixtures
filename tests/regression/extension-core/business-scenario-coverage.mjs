@@ -24,6 +24,7 @@ import "./wb-paid-storage-contribution-field-schema-slice.mjs";
 import "./wb-sales-geography-field-schema-slice.mjs";
 import "./wb-sales-decline-evidence-reuse.mjs";
 import "./wb-cross-source-join-field-schema-slice.mjs";
+import "./wb-search-query-field-schema-slice.mjs";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
@@ -460,6 +461,49 @@ const calculators = {
       pageCountProvesCompleteness: false,
     };
   },
+  search_fact_boundary(input) {
+    if (
+      typeof input.period !== "string" ||
+      !input.period ||
+      !Array.isArray(input.rows) ||
+      !Array.isArray(input.aiSuggestions)
+    )
+      return { status: "INCOMPLETE", reason: "PERIOD_OR_ROWS_MISSING" };
+
+    const keys = new Set();
+    for (const row of input.rows) {
+      if (
+        !row ||
+        typeof row.product !== "string" ||
+        !row.product ||
+        typeof row.query !== "string" ||
+        !row.query
+      )
+        return {
+          status: "INCOMPLETE",
+          reason: "PROVIDER_SEARCH_FACT_IDENTITY_MISSING",
+        };
+      if (!Number.isInteger(row.frequency) || !Number.isInteger(row.position))
+        return {
+          status: "INCOMPLETE",
+          reason: "PROVIDER_SEARCH_METRIC_MISSING",
+        };
+      const key = [input.period, row.product, row.query].join("\u0000");
+      if (keys.has(key))
+        return {
+          status: "INCOMPLETE",
+          reason: "DUPLICATE_SEARCH_FACT_BUSINESS_KEY",
+        };
+      keys.add(key);
+    }
+
+    return {
+      status: "COMPLETE",
+      providerFactCount: input.rows.length,
+      aiSuggestionCount: input.aiSuggestions.length,
+      aiSuggestionsAreProviderFacts: false,
+    };
+  },
   attention_rank(input) {
     if (!Array.isArray(input.rows)) return { status: "INCOMPLETE" };
     const products = new Set();
@@ -522,6 +566,7 @@ const requiredKinds = new Set([
   "join_unique",
   "cross_source_join",
   "search_dedup",
+  "search_fact_boundary",
   "attention_rank",
   "causal_boundary",
 ]);
