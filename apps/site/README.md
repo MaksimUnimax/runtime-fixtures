@@ -78,3 +78,6 @@ The analytics page must not be launched with fake proof. A real sanitized/source
 ## Current visual: Contour, owner selection 2026-09-27
 
 The former engraving hero is superseded by the existing working-design variant 2, Contour. Its clean original drawing, eight independent links, separate visible brand/favicon, native theme/menu and self-hosted Rubik are tracked in `docs/design/CONTOUR_INTEGRATION_2026-09-27.md`. SEO metadata, page ownership, beta/read-only copy and utility content are preserved. Contour source tests run in Site CI; source PASS is not production acceptance.
+
+### Contour R2 owner corrections
+Transparent scene in both themes, centered equally sized marketplace controls, six colored AI SVGs, magenta/blue marketplace circles, early 1180px stacking with up to 780px illustration below the copy. All eight controls remain independent. Evidence and source/live boundaries: `docs/design/CONTOUR_REWORK_R2_2026-09-27.md`.
