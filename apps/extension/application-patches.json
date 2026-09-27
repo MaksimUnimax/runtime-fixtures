@@ -418,5 +418,65 @@
     "target": "shared/ai_adapters.js",
     "old": "        CHATGPT_COPY_ANCHORS.set(root, copyButton);\n        roots.push(root);\n      }\n      return [...new Set(roots)];\n",
     "new": "        CHATGPT_COPY_ANCHORS.set(root, copyButton);\n        roots.push(root);\n      }\n      // Standard fenced code is authoritative inside a proven assistant message.\n      // It remains discoverable when Copy is localized, icon-only or mounted later.\n      for (const code of message.querySelectorAll(\"pre > code\")) {\n        const pre = code.parentElement;\n        if (!roots.some((root) => root.contains(pre))) roots.push(pre);\n      }\n      return [...new Set(roots)];\n"
+  },
+  {
+    "target": "content_script.js",
+    "old": "  function decorateBinding(binding) {\n    if (!manualEnabled || !binding?.root?.isConnected || OWN_BUTTONS.has(binding.root)) return false;\n",
+    "new": "  function decorateBinding(binding) {\n    if (!manualEnabled || !binding?.root?.isConnected) return false;\n    const existing = OWN_BUTTONS.get(binding.root);\n    if (existing) {\n      if (existing.button.isConnected && existing.binding.section === binding.section) return false;\n      // React may detach the overlay, or move a surviving code node to a new turn.\n      // A stale Map entry is not evidence that the actual button still exists.\n      removeOwnButton(binding.root);\n    }\n"
+  },
+  {
+    "target": "content_script.js",
+    "old": "      for (const binding of bindings) {\n        if (manualKnownBlocks.has(binding.root)) continue;\n        manualKnownBlocks.add(binding.root);\n        decorateBinding(binding);\n      }\n      scheduleOwnButtonPositioning();\n",
+    "new": "      for (const binding of bindings) {\n        manualKnownBlocks.add(binding.root);\n        decorateBinding(binding);\n      }\n      publishManualScanDiagnostic(bindings);\n      scheduleOwnButtonPositioning();\n"
+  },
+  {
+    "target": "content_script.js",
+    "old": "    const bindings = allStructuralBindings();\n    for (const binding of bindings) {\n",
+    "new": "    const bindings = allStructuralBindings();\n    const live = new Set(bindings.map((binding) => binding.root));\n    for (const block of [...OWN_BUTTONS.keys()]) if (!live.has(block)) removeOwnButton(block);\n    for (const binding of bindings) {\n"
+  },
+  {
+    "target": "content_script.js",
+    "old": "    scheduleOwnButtonPositioning();\n    return { roots: bindings.map((binding) => binding.root), visitedNodes: bindings.length, capped: false };\n",
+    "new": "    publishManualScanDiagnostic(bindings);\n    scheduleOwnButtonPositioning();\n    return { roots: bindings.map((binding) => binding.root), visitedNodes: bindings.length, capped: false };\n"
+  },
+  {
+    "target": "content_script.js",
+    "old": "    observer = new MutationObserver(() => {\n      if (!manualEnabled) return;\n",
+    "new": "    observer = new MutationObserver((mutations) => {\n      if (!manualEnabled || !current()) return;\n      // Ignore only mutations *inside* our UI. Removing its host from the document\n      // must still trigger repair. Shadow-button changes are observed separately.\n      if (mutations.every((mutation) => {\n        const target = mutation.target instanceof Element ? mutation.target : mutation.target.parentElement;\n        return Boolean(target?.closest?.(\"#ozon-bridge-own-button-host, #ozon-llm-api-bridge-toast-root\"));\n      })) return;\n"
+  },
+  {
+    "target": "content_script.js",
+    "old": "    const observerRoot = document.querySelector(\"main\") || document.body || document.documentElement;\n    observer.observe(observerRoot, { childList: true, subtree: true, characterData: true });\n",
+    "new": "    // The router can replace <main> (or <body>) without navigating the document.\n    // Watching that disposable node stranded the old observer and lost all buttons.\n    observer.observe(document.documentElement, {\n      childList: true, subtree: true, characterData: true, attributes: true,\n      attributeFilter: [\"data-turn\", \"data-message-author-role\", \"data-message-role\",\n        \"aria-label\", \"title\", \"data-code-copy-state\", \"data-message-id\", \"data-turn-id\",\n        \"id\", \"class\", \"hidden\", \"data-assistant-message-actions\", \"data-message-actions\"]\n    });\n"
+  },
+  {
+    "target": "content_script.js",
+    "old": "      if (manualEnabled && observer) return true;\n",
+    "new": "      if (manualEnabled && observer) { scheduleManualRescan(0); return true; }\n"
+  },
+  {
+    "target": "content_script.js",
+    "old": "  function ensureOwnButtonSurface() {\n",
+    "new": "  let ownSurfaceObserver = null;\n  let lastManualScanSignature = \"\";\n\n  function manualScanSnapshot(bindings = allStructuralBindings()) {\n    const adapter = currentAIAdapter();\n    return {\n      runtime_version: VERSION,\n      ai_adapter: adapter?.id || null,\n      manual_enabled: manualEnabled,\n      bridge_ready: manualBridgeReady,\n      assistant_message_count: adapter?.assistantMessages().length || 0,\n      structural_block_count: bindings.length,\n      own_button_count: OWN_BUTTONS.size,\n      connected_button_count: [...OWN_BUTTONS.values()].filter((record) => record.button.isConnected).length,\n      observer_scope: observer ? \"document\" : \"inactive\"\n    };\n  }\n\n  function publishManualScanDiagnostic(bindings) {\n    const snapshot = manualScanSnapshot(bindings);\n    const signature = JSON.stringify(snapshot);\n    if (signature === lastManualScanSignature) return;\n    lastManualScanSignature = signature;\n    recordContentDiagnostic(\"CODE_BLOCK_SCAN\", snapshot);\n  }\n\n  function ensureOwnButtonSurface() {\n"
+  },
+  {
+    "target": "content_script.js",
+    "old": "    ownButtonHost = host;\n    ownButtonShadow = shadow;\n    return shadow;\n",
+    "new": "    ownButtonHost = host;\n    ownButtonShadow = shadow;\n    ownSurfaceObserver?.disconnect();\n    ownSurfaceObserver = new MutationObserver(() => scheduleManualRescan());\n    ownSurfaceObserver.observe(shadow, { childList: true });\n    return shadow;\n"
+  },
+  {
+    "target": "content_script.js",
+    "old": "  function clearOwnButtons() {\n    for (const block",
+    "new": "  function clearOwnButtons() {\n    ownSurfaceObserver?.disconnect();\n    ownSurfaceObserver = null;\n    for (const block"
+  },
+  {
+    "target": "content_script.js",
+    "old": "      sendResponse({ ok: true, conversation_key: conversationKeyFromLocation(), identity: here, href: location.href, ai_mode: aiMode, adapter_id: currentAIAdapter()?.id || null });\n",
+    "new": "      sendResponse({ ok: true, conversation_key: conversationKeyFromLocation(), identity: here, href: location.href, ai_mode: aiMode, adapter_id: currentAIAdapter()?.id || null, runtime_version: VERSION, code_block_scan: manualScanSnapshot() });\n"
+  },
+  {
+    "target": "content_script.js",
+    "old": "  function chatgptWorkSubmitButton(context) {\n    if (!context?.form?.contains(context.composer)) return null;\n    const candidates = [...context.form.querySelectorAll('button#composer-submit-button[data-testid=\"send-button\"]')]\n      .filter((button) => button instanceof HTMLElement && visible(button) && !chatgptInsideAssistantEditor(button));\n    return candidates.length === 1 ? candidates[0] : null;\n  }\n",
+    "new": "  function chatgptWorkSubmitButton(context) {\n    if (!context?.form?.contains(context.composer)) return null;\n    const candidates = [...context.form.querySelectorAll('button#composer-submit-button[data-testid=\"send-button\"]')]\n      .filter((button) => button instanceof HTMLElement && visible(button) && !chatgptInsideAssistantEditor(button));\n    if (candidates.length) return candidates.length === 1 ? candidates[0] : null;\n    // The guest textarea uses the same active/disabled one-shot submit lifecycle,\n    // but has no microphone control. Keep the existing committed-click completion\n    // branch; recognize this exact native composer instead of waiting for a mic.\n    if (!(context.composer instanceof HTMLTextAreaElement) || context.composer.id !== \"mobile-composer-prompt\") return null;\n    if (chatgptStopButton(context)) return null;\n    const guest = [...context.form.querySelectorAll('button[aria-label=\"Send message\"], button[aria-label=\"Отправить сообщение\"]')]\n      .filter((button) => button instanceof HTMLButtonElement && visible(button) && !chatgptInsideAssistantEditor(button));\n    if (guest.length !== 1) return null;\n    if (controlDisabled(guest[0]) && canonicalText(composerText(context.composer))) return null;\n    return guest[0];\n  }\n"
   }
 ]

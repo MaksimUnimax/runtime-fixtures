@@ -170,6 +170,14 @@ def run(runtime,output,private_key):
             assert page.locator('.ozon-bridge-block-action').count()==2
             page.evaluate('(ids)=>ids.forEach(id=>document.getElementById(id)?.remove())',[current_assistant,current_user])
             until(lambda:page.locator('.ozon-bridge-block-action').count()==1)
+            # Keep controls on the actual document after SPA main replacement.
+            page.locator('main').evaluate('(n)=>n.replaceWith(n.cloneNode(true))')
+            until(lambda:page.locator('.ozon-bridge-block-action').count()==1)
+            page.locator('#ozon-bridge-own-button-host').evaluate('(n)=>n.remove()')
+            until(lambda:page.locator('.ozon-bridge-block-action').count()==1)
+            page.locator('.ozon-bridge-block-action').first.evaluate('(n)=>n.remove()')
+            until(lambda:page.locator('.ozon-bridge-block-action').count()==1)
+            assert worker.evaluate('fixtureFetches.length')==1
             # Actual native File/IndexedDB/chunk/attachment/send path for a binary WB result.
             command=worker.evaluate("""()=>{fixtureBinary=true;const m=Object.values(SellerAgentsWBReference.contract.OPERATIONS).find(m=>m.response_mode==='binary'&&m.execution_enabled&&m.privacy==='standard');return 'WB_API_V1 '+JSON.stringify({operation:m.alias,params:{path:Object.fromEntries([...m.path.matchAll(/\\{([^}]+)\\}/g)].map(m=>[m[1],'fixture'])),query:Object.fromEntries(m.required_query_keys.map(k=>[k,'1'])),...(m.body_required?{body:{}}:{})}})}""")
             page.evaluate('(text)=>fixtureCommand(text)',command)
@@ -192,7 +200,7 @@ def run(runtime,output,private_key):
                 popup.screenshot(path=str(output/f'popup-{width}-{scale}.png'),full_page=True)
                 popup.click('#cancel')
             assert not errors,errors
-            result.update(status='PASS',browser=context.browser.version,checks=['popup create/edit','real Work prompt','old-history baseline','WB mixed block text send','no replay','Show/Hide','current ChatGPT data-message-role fenced-code DOM','native binary File/IDB/port send','Finish','320/380px and enlarged typography'])
+            result.update(status='PASS',browser=context.browser.version,checks=['popup create/edit','real Work prompt','old-history baseline','WB mixed block text send','no replay','Show/Hide','current ChatGPT data-message-role fenced-code DOM','SPA main and overlay recovery','native binary File/IDB/port send','Finish','320/380px and enlarged typography'])
         except Exception as error:
             result.update(status='FAIL',error=str(error),traceback=traceback.format_exc(),page_errors=errors)
             if popup:
