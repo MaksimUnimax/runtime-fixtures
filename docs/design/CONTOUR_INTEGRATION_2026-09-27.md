@@ -34,3 +34,6 @@ Source CI and deployment regression; header/logo and fetched favicon visual chec
 Evidence SHA-256:
 - browser: `dce16874ffe2b321267e61e659363610488f7950930914eb9b41bfce390cf430`
 - isolated-http: `966b73534f29d5c4483c8f5dcf2a6f84756044f02c74e52a8a1258fc8c78a3aa`
+
+## Cache-safe cutover
+All pages reference `/styles.css?v=contour-20260927-r1`; the actual shared stylesheet and nginx route are unchanged. The new URL prevents a cached engraving stylesheet from being combined with new Contour HTML. The existing favicon link is retained, followed by the newly versioned icon URL.
