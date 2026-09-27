@@ -1,6 +1,6 @@
 # Octoport engraving integration R2
 
-Status: DESIGN CANDIDATE / BROWSER-QA PASS / NOT PRODUCTION.
+Status: PRODUCTION ACCEPTED / LIVE BROWSER-QA PASS.
 
 ## Scope
 - working-design visual system is integrated into the real site source;
@@ -34,11 +34,14 @@ The prior R1 underlay still contained black rectangular patches where Wildberrie
 - Yandex desktop source/render probe: PASS.
 - H1/Title/SEO canonical contract preserved.
 
-Evidence:
+Predeploy evidence:
 - /root/octoport-control/design/engraving-preview-r2/hover-mobile.json
 - /root/octoport-control/design/engraving-preview-r2/*.png
 - /root/octoport-control/design/engraving-preview/opera-r2-probe.json
 - /root/octoport-control/design/engraving-preview/yandex-r2-probe.json
+
+Live evidence:
+- /root/octoport-control/logs/site-design-acceptance-20260927-r2/
 
 ## Current SEO preserved
 - exact accepted HOME Title/H1/description/canonical;
@@ -47,5 +50,7 @@ Evidence:
 - sitemap/robots/indexability contract;
 - zero executable JavaScript.
 
-## Review boundary
-This branch is a reviewed design candidate. Production remains unchanged until branch publication, exact-head CI and integration acceptance.
+## Production acceptance
+Deployed source: 2000908334d0e77c7b19602bfb84294f9b11dafe.
+
+Production verifier, live Chrome/Opera/Yandex checks, light/dark hover checks, 320/390 responsive checks and utility-page browser checks all pass. The prior foundation visual is superseded by this engraving integration.
