@@ -1,0 +1,104 @@
+{
+  "schema": "OCTOPORT_M16_LAUNCH_INDEXING_INPUT_MANIFEST_V1",
+  "work_id": "OCTOPORT_SEO_M16_LAUNCH_INDEXING_VERIFICATION_2026-09-27_R1",
+  "repository": "MaksimUnimax/runtime-fixtures",
+  "seo_branch": "seo/wordstat-batch-01-2026-09-16",
+  "preparation_commit": "d7a9292d1858c493eeb11092f7309e998bd35ba2",
+  "preparation": {
+    "path": "docs/seo/M16_STEP_PREPARATION_2026-09-27_R1.md",
+    "blob": "cd19198ebc6fdb30f0ad29c94315ed98bded762b"
+  },
+  "current_main": "3805f8b23655668556e1f1ef43d4ab3cef837413",
+  "deployed_release": "6a0149c958423082a62d5cb84ac757eed2e785a2",
+  "upstream": {
+    "m15_acceptance": {
+      "path": "docs/seo/M15_FINAL_LIVE_ACCEPTANCE_2026-09-27_R1.md",
+      "blob": "5af8b321656554694555aecbdbf9f4a5659c01fe"
+    },
+    "m15_progress": {
+      "path": "docs/seo/M15_PROGRESS.md",
+      "blob": "f2e7f917d5764846cb93045bfa0ff0846a0f3f25"
+    },
+    "m13_current": {
+      "path": "docs/seo/M13_MAIN_CHAT_CORRECTION_ACCEPTANCE_2026-09-25_R2.md",
+      "blob": "9ef006e6d3e75fde496bffde439eb97ea10df936"
+    }
+  },
+  "main_drift": {
+    "from": "6a0149c958423082a62d5cb84ac757eed2e785a2",
+    "to": "3805f8b23655668556e1f1ef43d4ab3cef837413",
+    "commits_ahead": 14,
+    "site_guard_blobs_unchanged": "14/14",
+    "site_path_overlap": 0,
+    "classification": "NON_OVERLAPPING_MAIN_ADVANCE_RECONCILED"
+  },
+  "url_universe": {
+    "indexable": [
+      "https://octoport.ru/",
+      "https://octoport.ru/seller-analytics",
+      "https://octoport.ru/privacy",
+      "https://octoport.ru/support"
+    ],
+    "intentional_noindex": [
+      "https://octoport.ru/install"
+    ],
+    "assets": [
+      "https://octoport.ru/robots.txt",
+      "https://octoport.ru/sitemap.xml"
+    ]
+  },
+  "gsc": {
+    "google_account": "unymax2014@gmail.com",
+    "oauth_scopes": [
+      "https://www.googleapis.com/auth/webmasters.readonly"
+    ],
+    "list_sites_rows": 0,
+    "current_state": "PROPERTY_NOT_CONNECTED_TO_GSC_WIZARD",
+    "read_scope_sufficient_for_url_inspection": true,
+    "add_site_policy": "May register an already-existing verified GSC property in GSC Wizard; does not create or verify a Google property"
+  },
+  "yandex_webmaster": {
+    "durable_authority_found": false,
+    "dns_root_txt": [
+      "v=spf1 ip4:78.17.68.165 a mx ~all"
+    ],
+    "yandex_verification_txt_found": false,
+    "google_verification_txt_found": false,
+    "current_state": "CONSOLE_AUTHORITY_NOT_AVAILABLE_TO_EXECUTOR",
+    "boundary": "DNS absence does not exclude HTML/file-based verification"
+  },
+  "external_method_sources": [
+    "https://yandex.com/support/webmaster/en/service/searchable",
+    "https://yandex.com/support/webmaster/en/robot-workings/site-reindex",
+    "https://yandex.com/support/webmaster/en/recommendations/indexing",
+    "https://yandex.com/support/webmaster/en/indexing-options/sitemap",
+    "https://yandex.com/support/webmaster/en/controlling-robot/sitemap",
+    "https://yandex.com/support/webmaster/en/robot-workings/canonical",
+    "https://yandex.com/support/webmaster/en/yandex-indexing/site-indexing",
+    "https://yandex.com/support/webmaster/en/robot-workings/robot",
+    "https://developers.google.com/search/docs/crawling-indexing/ask-google-to-recrawl",
+    "https://developers.google.com/search/docs/crawling-indexing/sitemaps/overview",
+    "https://developers.google.com/search/docs/crawling-indexing/consolidate-duplicate-urls",
+    "https://developers.google.com/search/docs/crawling-indexing/robots-meta-tag"
+  ],
+  "evidence_classes": [
+    "LIVE_TECHNICAL",
+    "PUBLIC_SEARCH_OBSERVATION",
+    "GOOGLE_SEARCH_CONSOLE",
+    "YANDEX_WEBMASTER",
+    "UNKNOWN_DELAY",
+    "TECHNICAL_DEFECT"
+  ],
+  "work_trigger": false,
+  "provider_write_allowed": false,
+  "outputs": [
+    "docs/seo/M16_SOURCE_MANIFEST.md",
+    "docs/seo/M16_LAUNCH_URL_LEDGER.tsv",
+    "docs/seo/M16_PUBLIC_SEARCH_OBSERVATIONS.tsv",
+    "docs/seo/M16_GOOGLE_CONSOLE_EVIDENCE.tsv",
+    "docs/seo/M16_YANDEX_WEBMASTER_EVIDENCE.tsv",
+    "docs/seo/M16_INDEXING_BLOCKER_LEDGER.tsv",
+    "docs/seo/M16_QA.md",
+    "docs/seo/M16_PROGRESS.md"
+  ]
+}
