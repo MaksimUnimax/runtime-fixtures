@@ -10,6 +10,7 @@ on:
       - "infra/production/scripts/verify-octoport-site.sh"
       - "infra/production/README.md"
       - "tests/regression/site/test_site_deployment.py"
+      - "tests/regression/site/test_site_contour.py"
       - ".github/workflows/site-ci.yml"
   push:
     paths:
@@ -20,6 +21,7 @@ on:
       - "infra/production/scripts/verify-octoport-site.sh"
       - "infra/production/README.md"
       - "tests/regression/site/test_site_deployment.py"
+      - "tests/regression/site/test_site_contour.py"
       - ".github/workflows/site-ci.yml"
   workflow_dispatch:
 
@@ -70,13 +72,16 @@ jobs:
               root / "install.html",
               favicon_path,
               root / "styles.css",
-              root / "assets" / "engraving-3-underlay.webp",
-              root / "assets" / "chatgpt.png",
-              root / "assets" / "anthropic.png",
-              root / "assets" / "gemini.png",
-              root / "assets" / "deepseek.png",
-              root / "assets" / "alice.png",
-              root / "assets" / "qwen.png",
+              root / "assets" / "contour-2-underlay.webp",
+              root / "assets" / "contour-2-underlay-dark.webp",
+              root / "assets" / "octoport-brand.png",
+              root / "assets" / "favicon-contour-v1.png",
+              root / "assets" / "contour-chatgpt.svg",
+              root / "assets" / "contour-anthropic.svg",
+              root / "assets" / "contour-gemini.svg",
+              root / "assets" / "contour-deepseek.svg",
+              root / "assets" / "contour-alice.svg",
+              root / "assets" / "contour-qwen.svg",
               root / "robots.txt",
               sitemap_path,
               Path("apps/site/README.md"),
@@ -146,7 +151,7 @@ jobs:
           assert parser.html_lang == "ru", f"html lang must be ru, got {parser.html_lang!r}"
           assert parser.canonical == ["https://octoport.ru/"], parser.canonical
           assert parser.stylesheets == ["/styles.css"], parser.stylesheets
-          assert parser.icons == [("/favicon.png", "image/png")], parser.icons
+          assert parser.icons == [("/favicon.png", "image/png"), ("/assets/favicon-contour-v1.png", "image/png")], parser.icons
           assert parser.executable_scripts == 0, "M14 must remain executable-JavaScript-free"
           assert len(parser.json_ld) == 1, parser.json_ld
           website = json.loads(parser.json_ld[0])
@@ -193,18 +198,9 @@ jobs:
           for utility in ("/privacy", "/support", "/install"):
               assert utility in parser.hrefs
 
-          # Engraving architecture: one static underlay + eight independent badges.
-          assert index.count('class="ai-badge ') == 6, "expected six independent AI badges"
-          assert index.count('class="market-badge ') == 2, "expected two independent marketplace badges"
-          assert 'class="engraving-underlay"' in index
-          assert 'src="/assets/engraving-3-underlay.webp"' in index
-          assert ".engraving-underlay{position:absolute;z-index:1;inset:0;width:100%;height:100%;object-fit:contain;display:block;pointer-events:none}" in css, "engraving underlay must remain static/non-interactive"
-          assert ".ai-badge:hover,.ai-badge:focus-visible,.market-badge:hover,.market-badge:focus-visible" in css, "badge-only hover contract missing"
-          underlay = root / "assets" / "engraving-3-underlay.webp"
-          with underlay.open("rb") as handle:
-              webp_header = handle.read(12)
-          assert webp_header[:4] == b"RIFF" and webp_header[8:12] == b"WEBP", "engraving underlay must be WebP"
-          assert underlay.stat().st_size < 500_000, "engraving underlay unexpectedly large"
+          # Owner-selected variant 2 replaces engraving; retain the static-layer boundary.
+          import subprocess
+          subprocess.run(["python3", "tests/regression/site/test_site_contour.py"], check=True)
 
           required_sections = {"top", "how", "privacy", "beta", "principles-title", "analytics", "analytics-title"}
           assert required_sections.issubset(parser.ids), f"missing sections: {required_sections - parser.ids}"
