@@ -1,0 +1,156 @@
+{
+  "schemaVersion": "wb_turnover_field_schema_slice_v1",
+  "capturedDate": "2026-09-27",
+  "scope": {
+    "scenarioIds": ["CAP-05"],
+    "boundary": "PROVIDER_TURNOVER_AND_CUSTOM_DAYS_COVER_STAY_DISTINCT",
+    "evidence": "CURRENT_OFFICIAL_FIELD_SCHEMA_SOURCE_ONLY",
+    "liveValues": false,
+    "acceptedOperationMappingChanged": false
+  },
+  "sources": {
+    "stockProducts": {
+      "url": "https://dev.wildberries.ru/en/openapi/analytics",
+      "operationAlias": "stock_products",
+      "host": "analytics",
+      "method": "POST",
+      "path": "/api/v2/stocks-report/products/products",
+      "tokenCategory": "analytics",
+      "updateMinutes": 60,
+      "inventoryMeaning": "CURRENT_DAY",
+      "rowGrain": ["nmID"],
+      "requestFields": {
+        "nmIDs": "optional_product_filter",
+        "subjectID": "optional_subject_filter",
+        "brandName": "optional_brand_filter",
+        "tagID": "optional_tag_filter",
+        "currentPeriod": "required_period",
+        "stockType": "required_warehouse_type",
+        "limit": "page_limit",
+        "offset": "page_offset"
+      },
+      "stockTypes": ["", "wb", "mp"],
+      "metrics": {
+        "ordersCount": { "role": "provider_orders_count", "unit": "count" },
+        "ordersSum": {
+          "role": "provider_orders_value",
+          "unit": "response_currency"
+        },
+        "avgOrders": {
+          "role": "provider_average_orders_metric",
+          "unit": "provider_metric"
+        },
+        "buyoutCount": { "role": "provider_buyout_count", "unit": "count" },
+        "buyoutSum": {
+          "role": "provider_buyout_value",
+          "unit": "response_currency"
+        },
+        "stockCount": { "role": "current_stock_units", "unit": "count" },
+        "stockSum": {
+          "role": "current_stock_value",
+          "unit": "response_currency"
+        },
+        "saleRate": {
+          "role": "provider_sale_rate_duration",
+          "unit": "days_hours"
+        },
+        "avgStockTurnover": {
+          "role": "provider_average_stock_turnover_duration",
+          "unit": "days_hours"
+        },
+        "toClientCount": { "role": "units_to_client", "unit": "count" },
+        "fromClientCount": { "role": "units_from_client", "unit": "count" },
+        "availability": {
+          "role": "provider_availability_class",
+          "unit": "enum"
+        }
+      }
+    },
+    "statisticsSales": {
+      "url": "https://dev.wildberries.ru/en/openapi/reports",
+      "operationAlias": "statistics_sales",
+      "host": "statistics",
+      "method": "GET",
+      "path": "/api/v1/supplier/sales",
+      "tokenCategory": "statistics",
+      "updateMinutes": 30,
+      "storageGuaranteeDays": 90,
+      "dataClass": "PRELIMINARY_OPERATIONAL",
+      "rowMeaning": "ONE_SALE_OR_RETURN_ONE_ITEM",
+      "rowGrain": ["saleID"],
+      "orderLinkField": "srid",
+      "fields": {
+        "date": { "role": "sale_or_return_event_time", "unit": "datetime" },
+        "lastChangeDate": { "role": "continuation_cursor", "unit": "datetime" },
+        "saleID": { "role": "sale_or_return_id", "unit": "identifier" },
+        "srid": { "role": "order_link_id", "unit": "identifier" },
+        "nmId": { "role": "product_id", "unit": "identifier" }
+      },
+      "demandBoundary": "SALE_AND_RETURN_ROWS_REQUIRE_EXPLICIT_BUSINESS_CLASSIFICATION_BEFORE_CUSTOM_DEMAND_RATE"
+    }
+  },
+  "rules": {
+    "providerSaleRate": "USE_PROVIDER_DAYS_HOURS_AS_REPORTED_DO_NOT_RECOMPUTE_OR_RENAME",
+    "providerTurnover": "USE_PROVIDER_AVG_STOCK_TURNOVER_DAYS_HOURS_AS_REPORTED_DO_NOT_EQUATE_WITH_CUSTOM_DAYS_COVER",
+    "customDaysCover": "STOCK_UNITS_DIVIDED_BY_EXPLICIT_COMPARABLE_AVERAGE_DAILY_DEMAND_ONLY",
+    "zeroDemand": "ZERO_OR_UNKNOWN_DEMAND_RETURNS_NULL",
+    "negativeDemand": "NEGATIVE_DEMAND_IS_INCOMPLETE",
+    "salesBoundary": "PRELIMINARY_SALE_RETURN_ROWS_ARE_NOT_AUTOMATICALLY_NET_DEMAND",
+    "warehouseScope": "STOCK_TYPE_MUST_BE_EXPLICIT_FOR_COMPARABLE_RESULT",
+    "missing": "MISSING_NOT_ZERO"
+  },
+  "acceptedMappingSnapshot": {
+    "CAP-05": ["stock_products", "statistics_sales"]
+  },
+  "syntheticCases": {
+    "providerMetric": {
+      "row": {
+        "nmID": 1001,
+        "metrics": {
+          "ordersCount": 60,
+          "ordersSum": 60000,
+          "avgOrders": 2.5,
+          "buyoutCount": 45,
+          "buyoutSum": 45000,
+          "stockCount": 30,
+          "stockSum": 30000,
+          "saleRate": { "days": 12, "hours": 6 },
+          "avgStockTurnover": { "days": 10, "hours": 18 },
+          "toClientCount": 4,
+          "fromClientCount": 1,
+          "availability": "balanced"
+        }
+      },
+      "expected": {
+        "productId": 1001,
+        "stockUnits": 30,
+        "providerSaleRateHours": 294,
+        "providerAverageTurnoverHours": 258,
+        "availability": "balanced"
+      }
+    },
+    "customDaysCover": [
+      { "stockUnits": 30, "averageDailyDemandUnits": 3, "expected": 10 },
+      { "stockUnits": 5, "averageDailyDemandUnits": 2, "expected": 2.5 },
+      { "stockUnits": 0, "averageDailyDemandUnits": 2, "expected": 0 },
+      { "stockUnits": 30, "averageDailyDemandUnits": 0, "expected": null },
+      { "stockUnits": 30, "averageDailyDemandUnits": null, "expected": null }
+    ],
+    "negativeDemand": {
+      "stockUnits": 30,
+      "averageDailyDemandUnits": -1,
+      "expected": { "status": "INCOMPLETE", "reason": "NEGATIVE_DEMAND" }
+    },
+    "missingStock": {
+      "averageDailyDemandUnits": 3,
+      "expected": { "status": "INCOMPLETE", "reason": "STOCK_MISSING" }
+    }
+  },
+  "remainingOpen": [
+    "live WB values and owner gold-set reconciliation",
+    "business definition of demand denominator for custom days-cover",
+    "sale-versus-return classification before using preliminary sales rows as demand",
+    "full-catalog pagination completeness for stock_products",
+    "lead time and target stock remain external business inputs for reorder quantity"
+  ]
+}
