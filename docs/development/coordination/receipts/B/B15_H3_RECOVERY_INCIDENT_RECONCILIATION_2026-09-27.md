@@ -71,3 +71,11 @@ Because the accepted main changed H3 runtime/profile code used by the B15 integr
 - cleanup verified.
 
 The scheduler and NO_SESSION DB source used by the prior **17/17 + 4/4 PASS** compatibility evidence did not change in this main advance, so those successful sequential results remain applicable and were not redundantly rerun.
+
+## Main reconciliation after B14 promotion
+
+`origin/main` later advanced to `0208145336d75d10e2286fbcd8bd0c134215c815` by integrating exact B14 `0ca2566d0b37d01e6d2f8fcb12357e86295580b3`. B15 already contained the same B14 content in its history.
+
+B merged this fresh main on a clean boundary. The repository tree SHA before and after the merge was exactly the same: `f137b2e68688d4944bfd7512587634bd90ec3910`. Therefore no B15 production or test bytes changed, and the existing B15 disposable PostgreSQL evidence remains directly applicable without redundant rerun.
+
+Merge HEAD before this receipt-only update: `50d203269024801644dd1297630d5e7a2371a2b3`.
