@@ -4,7 +4,7 @@ import { basename } from "node:path";
 import { validateProfileContent } from "../../packages/server/adapter-registry/src/index.js";
 import { isTrustedStore1V2SignaturePreflightProof } from "./store1-v2-signature-preflight.js";
 
-export const STORE1_VERSION = "0.2.4" as const;
+export const STORE1_VERSION = "0.2.5" as const;
 export const STORE1_CONTRACT = "control_plane_v2" as const;
 export const STORE1_BROWSER = "opera" as const;
 export const STORE1_BROWSER_MINIMUM = "136" as const;
@@ -12,11 +12,11 @@ export const STORE1_POLICY_KEY = "store1.opera.v2" as const;
 export const STORE1_PROFILE_KEY = "chatgpt-standard-opera-v1" as const;
 export const STORE1_REASON = "STORE-1 Opera reviewer catalog activation";
 export const STORE1_ACCEPTED_SOURCE_HEAD =
-  "e7d66152bdb77918b65115486c9829ef7a634e69" as const;
+  "68f1621376be4d7aeeff44bc76cc326f8cc64954" as const;
 export const STORE1_ACCEPTED_SOURCE_TREE =
-  "01ae2c1d84a354a11d919a313f8d9909d1285b6a" as const;
+  "8eb20bbc19bbbaaa73ca1a9ba139efa90194ea9a" as const;
 export const STORE1_ACCEPTED_ARTIFACT_SHA256 =
-  "0c1fb4c9c81c600332dfb6dc2dcfb9c3221dafe9940eab3811112a4e9fc5d71c" as const;
+  "33cbf1ad9ec4669abe3a65e24cfbaead4c7c3a1fa711261b2d186d107c33aea1" as const;
 
 function selector(
   strategy:
@@ -525,7 +525,7 @@ export function planStore1Activation(
   )
     return conflict(
       "STORE1_RELEASE_CONFLICT",
-      "Version 0.2.4 already exists but does not bind the exact current Opera package.",
+      "Version 0.2.5 already exists but does not bind the exact current Opera package.",
     );
 
   if (r.policies === undefined)
