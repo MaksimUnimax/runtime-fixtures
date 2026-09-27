@@ -27,7 +27,7 @@ import {
   standardAssistantMessages,
   standardCodeSurfaces,
   standardComposerRoots,
-  standardCopyControls,
+  standardOwnedNativeCopyObservation,
   standardBusySignals,
   standardInputIsInsideAssistantEditor,
   standardPromptInputs,
@@ -578,12 +578,11 @@ class ChatGPTStandardH3Strategy implements H3SurfaceStrategy {
         codeSurface !== null &&
         (await codeSurface.getByText(HEALTH_TOKEN, { exact: true }).count()) ===
           1;
-      const copy = codeSurface ? standardCopyControls(codeSurface) : null;
-      const copyPresent =
-        copy !== null &&
-        (await copy.count()) === 1 &&
-        (await copy.isVisible({ timeout: 1_000 }).catch(() => false));
-      const copyPass = copyPresent && !(await isDisabled(copy!.first()));
+      const copy = codeSurface
+        ? await standardOwnedNativeCopyObservation(response, HEALTH_TOKEN)
+        : { present: false, actionable: false };
+      const copyPresent = copy.present;
+      const copyPass = copy.actionable;
       const identityPass = await this.#belongsToConversation(
         response,
         conversationId,

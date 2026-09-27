@@ -22,6 +22,12 @@ export { createP6AdminCommercialReadRepository } from "./p6-admin-commercial-rea
 export { createAdapterRegistryCatalogRepository } from "./adapter-registry-repository.js";
 export { createProfileLifecycleRepository } from "./p7-profile-lifecycle-repository.js";
 export { createHealthPersistenceRepository } from "./health-persistence-repository.js";
+export {
+  AUTHENTICATED_DEEP_HEALTH_CATALOG_AUTHORITY,
+  createHealthAuthenticatedDeepScopeRepository,
+  type AuthenticatedDeepHealthScopeResolutionInput,
+  type AuthenticatedDeepHealthSurface,
+} from "./health-authenticated-deep-scope-repository.js";
 export { createHealthNoSessionPersistenceRepository } from "./health-no-session-persistence-repository.js";
 export {
   createHealthNoSessionCompletionAdapter,

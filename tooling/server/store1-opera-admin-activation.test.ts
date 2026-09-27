@@ -20,7 +20,7 @@ const authority: Store1PackageAuthority = {
   version: STORE1_VERSION,
   contractVersion: STORE1_CONTRACT,
   artifactSha256: STORE1_ACCEPTED_ARTIFACT_SHA256,
-  filename: "OCTOPORT_v0.2.4_CHROMIUM_STORE.zip",
+  filename: "OCTOPORT_v0.2.5_CHROMIUM_STORE.zip",
 };
 const ids = {
   policy: "00000000-0000-4000-8000-000000000001",
@@ -180,9 +180,9 @@ describe("STORE-1 ordinary-admin activation planner", () => {
     expect(planStore1Activation(authority, r)).toMatchObject({
       status: "POST",
       next: {
-        path: "/v1/admin/compatibility/releases/0.2.4/publish",
+        path: "/v1/admin/compatibility/releases/0.2.5/publish",
         body: {
-          version: "0.2.4",
+          version: "0.2.5",
           artifactSha256: STORE1_ACCEPTED_ARTIFACT_SHA256,
           supportedContracts: ["control_plane_v2"],
           supportedBrowsers: ["opera"],

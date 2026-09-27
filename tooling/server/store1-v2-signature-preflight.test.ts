@@ -40,7 +40,7 @@ const authority: Store1PackageAuthority = {
   version: STORE1_VERSION,
   contractVersion: STORE1_CONTRACT,
   artifactSha256: STORE1_ACCEPTED_ARTIFACT_SHA256,
-  filename: "OCTOPORT_v0.2.4_CHROMIUM_STORE.zip",
+  filename: "OCTOPORT_v0.2.5_CHROMIUM_STORE.zip",
 };
 const verifierSource = readFileSync(
   new URL("../../packages/control-client/src/crypto.js", import.meta.url),
@@ -401,7 +401,7 @@ describe("STORE-1 v2 signature preflight", () => {
   it("rejects package bytes whose hash is not the accepted STORE artifact", async () => {
     const dir = mkdtempSync(join(tmpdir(), "store1-preflight-"));
     tempDirs.push(dir);
-    const zip = join(dir, "OCTOPORT_v0.2.4_CHROMIUM_STORE.zip");
+    const zip = join(dir, "OCTOPORT_v0.2.5_CHROMIUM_STORE.zip");
     const manifest = join(dir, "B1_RC_MANIFEST.json");
     writeFileSync(zip, "not-the-accepted-zip");
     writeFileSync(
@@ -418,7 +418,7 @@ describe("STORE-1 v2 signature preflight", () => {
             version: STORE1_VERSION,
             browser: "chromium",
             sha256: STORE1_ACCEPTED_ARTIFACT_SHA256,
-            filename: "OCTOPORT_v0.2.4_CHROMIUM_STORE.zip",
+            filename: "OCTOPORT_v0.2.5_CHROMIUM_STORE.zip",
           },
         },
       }),

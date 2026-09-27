@@ -1,6 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
-import type { HealthScheduledRun } from "@product/health";
-import { BASELINE_HEALTH_SUITE, classifyHealth } from "@product/health";
+import {
+  BASELINE_HEALTH_SUITE,
+  classifyFailure,
+  classifyHealth,
+  runDurableHealthSchedulerCycle,
+  type DurableHealthSchedulerRepository,
+  type HealthScheduledRun,
+} from "@product/health";
 import type {
   NoSessionObservationResult,
   NoSessionTarget,
@@ -17,6 +23,7 @@ import { H3ExecutionResultSchema } from "@product/health-runner";
 
 const startedAt = new Date("2026-09-24T12:00:00.000Z");
 const completedAt = new Date("2026-09-24T12:00:01.000Z");
+const deepCompletedAt = new Date("2026-09-24T12:00:05.000Z");
 
 function run(changes: Partial<HealthScheduledRun> = {}): HealthScheduledRun {
   return {
@@ -233,8 +240,6 @@ describe("scheduled authenticated-deep executor", () => {
         profile: { ...BASELINE_HEALTH_SUITE.scope.profile, revision: 2 },
       },
     },
-    startedAt: startedAt.toISOString(),
-    completedAt: completedAt.toISOString(),
     browserRuntime: {
       family: "chrome" as const,
       browserName: "chromium",
@@ -291,6 +296,7 @@ describe("scheduled authenticated-deep executor", () => {
     resolvePersistenceContext: vi.fn(async () => context),
     executeH3,
     persistence: { persistCompletedHealthRun },
+    clock: { now: () => deepCompletedAt },
   });
 
   it("rejects non-deep runs and fails closed when resolver or dedicated session is missing", async () => {
@@ -335,6 +341,8 @@ describe("scheduled authenticated-deep executor", () => {
       expect.objectContaining({
         scheduledRunId: deepRun.id,
         healthLevel: "H3",
+        startedAt,
+        completedAt: deepCompletedAt,
       }),
     );
     expect(result).toEqual({
@@ -391,6 +399,31 @@ describe("scheduled authenticated-deep executor", () => {
     },
   );
 
+  it("bounds post-send materialization failure without rerunning H3", async () => {
+    const configured = options();
+    const resolvePersistenceContext = vi.fn(async () => ({
+      ...context,
+      browserRuntime: {
+        ...context.browserRuntime,
+        browserVersion: "121.0.0.0",
+      },
+    }));
+    expect(
+      await executeScheduledAuthenticatedDeepHealthRun(deepRun, {
+        ...configured,
+        resolvePersistenceContext,
+      }),
+    ).toEqual({
+      outcome: "FAILED",
+      failureClass: "TRANSIENT_ENVIRONMENT",
+      failureCode: "AUTHENTICATED_DEEP_POST_SEND_MATERIALIZATION_REJECTED",
+    });
+    expect(configured.executeH3).toHaveBeenCalledTimes(1);
+    expect(
+      configured.persistence.persistCompletedHealthRun,
+    ).not.toHaveBeenCalled();
+  });
+
   it("bounds persistence rejection without rerunning H3", async () => {
     const persistRejected = vi.fn<
       AuthenticatedDeepPersistencePort["persistCompletedHealthRun"]
@@ -406,5 +439,109 @@ describe("scheduled authenticated-deep executor", () => {
       failureCode: "AUTHENTICATED_DEEP_PERSISTENCE_REJECTED",
     });
     expect(configured.executeH3).toHaveBeenCalledTimes(1);
+  });
+
+  it("terminalizes a post-send persistence rejection across later scheduler cycles", async () => {
+    let current = run({
+      id: "00000000-0000-4000-8000-000000000010",
+      monitorTarget: "authdeep_chatgpt_standard",
+      probeLayer: "AUTHENTICATED_DEEP",
+      provider: "chatgpt",
+      surface: "CHATGPT_STANDARD",
+      state: "PENDING",
+      ownerId: null,
+      leaseId: null,
+      claimedAt: null,
+      leaseExpiresAt: null,
+      timeoutAt: null,
+      startedAt: null,
+    });
+    const repository: DurableHealthSchedulerRepository = {
+      listDueSchedules: async () => [],
+      materializeDueSlot: async () => null,
+      claimNext: async ({ ownerId, now, leaseMs }) => {
+        if (current.state !== "PENDING") return null;
+        current = {
+          ...current,
+          state: "CLAIMED",
+          ownerId,
+          leaseId: "00000000-0000-4000-8000-000000000011",
+          claimedAt: now,
+          leaseExpiresAt: new Date(now.valueOf() + leaseMs),
+        };
+        return current;
+      },
+      startRun: async ({ now }) => {
+        current = {
+          ...current,
+          state: "RUNNING",
+          startedAt: now,
+          timeoutAt: new Date(now.valueOf() + 60_000),
+        };
+        return current;
+      },
+      finishSuccess: async ({ now, healthRunId, healthState }) => {
+        current = {
+          ...current,
+          state: "SUCCEEDED",
+          finishedAt: now,
+          healthRunId,
+          healthState,
+        };
+        return current;
+      },
+      finishFailure: async ({ now, failureClass, failureCode }) => {
+        current = {
+          ...current,
+          state: classifyFailure(failureClass, failureCode),
+          finishedAt: now,
+          failureClass,
+          failureCode,
+          ownerId: null,
+          leaseId: null,
+          leaseExpiresAt: null,
+        };
+        return current;
+      },
+      timeoutRun: async ({ now, failureCode }) => {
+        current = {
+          ...current,
+          state: "TIMED_OUT",
+          finishedAt: now,
+          failureClass: "TRANSIENT_ENVIRONMENT",
+          failureCode,
+        };
+        return current;
+      },
+      reconcilePersistedResults: async () => 0,
+    };
+    const executeH3 = vi.fn(async () => execution());
+    const persistence = vi.fn<
+      AuthenticatedDeepPersistencePort["persistCompletedHealthRun"]
+    >(async () => {
+      throw new Error("post-send persistence unavailable");
+    });
+    const configured = options(executeH3, persistence);
+    const schedulerOptions = {
+      repository,
+      clock: { now: () => startedAt },
+      ownerId: "deep-worker",
+      leaseMs: 120_000,
+      maxConcurrency: 1,
+      execute: (scheduled: HealthScheduledRun) =>
+        executeScheduledAuthenticatedDeepHealthRun(scheduled, configured),
+    };
+
+    const first = await runDurableHealthSchedulerCycle(schedulerOptions);
+    expect(first.terminalFailures).toBe(1);
+    expect(current.state).toBe("FAILED_TERMINAL");
+    expect(current.failureCode).toBe("AUTHENTICATED_DEEP_PERSISTENCE_REJECTED");
+    expect(executeH3).toHaveBeenCalledTimes(1);
+    expect(persistence).toHaveBeenCalledTimes(1);
+
+    const second = await runDurableHealthSchedulerCycle(schedulerOptions);
+    expect(second.claimed).toBe(0);
+    expect(executeH3).toHaveBeenCalledTimes(1);
+    expect(persistence).toHaveBeenCalledTimes(1);
   });
 });
