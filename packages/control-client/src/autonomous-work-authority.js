@@ -44,7 +44,7 @@
     const requiresLegacyGrace = payload?.contractVersion !== "control_plane_v3" || payload?.accessBasis === "BETA";
     if (deadline === null || requiresLegacyGrace && (legacyGrace === null || legacyGrace <= expires)) return { state: null, effectiveTimeMs: null };
     const effectiveTimeMs = Math.max(...values);
-    const state = effectiveTimeMs < expires ? "FRESH" : offlineEligible && effectiveTimeMs < deadline ? "STALE_BUT_OFFLINE_GRACE_ELIGIBLE" : "CACHE_EXPIRED";
+    const state = effectiveTimeMs >= deadline ? "CACHE_EXPIRED" : effectiveTimeMs < expires ? "FRESH" : offlineEligible ? "STALE_BUT_OFFLINE_GRACE_ELIGIBLE" : "CACHE_EXPIRED";
     return { state, effectiveTimeMs };
   }
   function capability(payload, state, source, marketplace, family) { const sourceKey = sourcePermission[marketplace], aiKey = aiPermission[family]; if (!sourceKey || !aiKey) return { source: null, ai: null, result: null }; try { const result = intersection.evaluateVerifiedMetadata({ metadataVersion: "signed_bootstrap_metadata_v1", source: source === "ONLINE" ? "ONLINE" : "CACHE", freshness: state, executionAuthority: false, configVersion: payload.configVersion, accessBasis: payload.accessBasis, signedEntitlements: payload.entitlements, signedFeatures: payload.features, ai: payload.ai }); const sourceRow = result.capabilities.find(row => row.entitlementKey === sourceKey && row.capabilityId === capabilityId[sourceKey]); const aiRow = result.capabilities.find(row => row.entitlementKey === aiKey && row.capabilityId === capabilityId[aiKey]); return { source: sourceRow || null, ai: aiRow || null, result }; } catch (_) { return { source: null, ai: null, result: null }; } }
