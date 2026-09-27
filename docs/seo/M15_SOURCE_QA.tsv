@@ -1,0 +1,21 @@
+qa_id	topic	surface	expected_state	observed_state	verdict	evidence	claim_boundary
+M15S001	current_authority	M14	Current accepted M14 source is responsive R2	2ebab969f65c071b5c6aa7f2fd2679e1f3ca8e95; tree 565d8af1...	PASS	M14_REWORK_320PX_ACCEPTANCE_2026-09-27_R2.md	Source acceptance only; not deployed
+M15S002	current_main_integration	integration	Current main + exact M14 blobs	6a0149c958423082a62d5cb84ac757eed2e785a2 based on 7600f3ce...	PASS	M15_INTEGRATION_RECONCILIATION.md	No main merge
+M15S003	changed_paths	integration	Exactly 14 current M14 source/guard paths	14 expected / 0 unauthorized	PASS	Git compare current main..6a0149c9	Responsive styles.css is the 14th path
+M15S004	blob_parity	integration	Final integration source equals accepted M14 bytes	14/14 current M14 blob parity	PASS	Git blob readback	Main-only docs inherited separately
+M15S005	HOME_metadata	HOME	Exact accepted Title/H1/description/self canonical	Exact M12 R2 Title/H1; M14 description; self canonical	PASS	source parser + browser probe	No ranking claim
+M15S006	HOME_brand	HOME	Brand subheadline retained	Ваш ИИ получает руки для работы с маркетплейсами. present	PASS	source/browser	Copy presence only
+M15S007	analytics_metadata	seller-analytics	Exact Title/H1/description/self canonical	All exact values present	PASS	source parser + browser probe	No live/indexing claim
+M15S008	utility_indexability	privacy	Indexable utility, no noindex	No robots noindex; self canonical; unique description	PASS	source parser	Indexable utility != commercial owner
+M15S009	utility_indexability	support	Indexable utility, no noindex	No robots noindex; self canonical; unique description	PASS	source parser	Indexable utility != commercial owner
+M15S010	install_indexability	install	Crawlable noindex, follow; absent sitemap	robots noindex, follow present; sitemap excluded	PASS	source/XML parser	Reopen when official install exists
+M15S011	sitemap	sitemap.xml	Exactly four canonical indexable URLs	HOME; seller-analytics; privacy; support	PASS	XML parser	Sitemap does not guarantee indexing
+M15S012	robots	robots.txt	Public crawl allowed; canonical Sitemap; no service/favicon/CSS/Yandex AI block	Current robots source unchanged and compatible	PASS	source read + M13 authority	Crawler policy only
+M15S013	structured_data	HOME	One truthful WebSite JSON-LD; no fake app/review/org facts	Exact WebSite node; executable JS zero	PASS	JSON parser	Site-name selection not guaranteed
+M15S014	favicon	/favicon.png	Approved derived 120x120 PNG; stable link	Accepted Octoport extension mark lineage; 120x120 PNG	PASS	PNG header + SHA256 lineage	Display in Search not guaranteed
+M15S015	crawlable_links	HOME+analytics	HOME↔analytics regular HTML links; utility links; no orphan	Required links present in initial HTML	PASS	HTML parser/browser DOM	Discovery aid only
+M15S016	redirect_source	nginx	Known aliases permanent redirect; unknown remains 404	All source rules present; no catch-all HOME redirect	PASS	nginx source + predeploy	Live production still old until deploy
+M15S017	claim_boundary	all HTML	No unsupported/fake product claims	No paid 199/299, proprietary LLM, fake ROI/case, auto-write, unsupported market-intelligence promise	PASS	adversarial source review	Does not prove all product features
+M15S018	mobile_source_guard	CSS+CI	320px HOME privacy and public-page H1 guards present	R2 CSS + CI guards present	PASS	M14 rework R2	Real browser evidence required separately
+M15S019	exact_head_ci	6a0149c9	Site CI + Site Deploy CI success	Runs 36294780674 and 36294780702 SUCCESS	PASS	GitHub Actions exact head	CI != live QA
+M15S020	source_regression	M14 R2	Existing site regression preserved	13/13 local site regression PASS	PASS	M14/M15 local source QA	Disposable source tests only
