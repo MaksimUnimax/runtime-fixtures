@@ -172,7 +172,27 @@ type Assignment = {
     percentageBps: number;
   };
 };
+export type Store1V2SignaturePreflightProof = {
+  schemaVersion: "store1_v2_signature_preflight_v1";
+  verified: true;
+  artifactSha256: string;
+  trustBundleSha256: string;
+  contractVersion: typeof STORE1_CONTRACT;
+  snapshotVersion: "bootstrap_snapshot_v2";
+  envelopeVersion: "bootstrap_envelope_v2";
+  configVersion: number;
+  configContentHashSha256: string;
+  configSourceFingerprintSha256: string;
+  signingKeyId: string;
+  accountId: string;
+  deviceId: string;
+  extensionVersion: typeof STORE1_VERSION;
+  browserFamily: typeof STORE1_BROWSER;
+  browserVersion: string;
+  aiStatus: "UNCONFIGURED";
+};
 export type Store1ActivationReadback = {
+  signaturePreflight?: Store1V2SignaturePreflightProof;
   release?: null | {
     version: string;
     releaseChannel: string;
@@ -198,6 +218,8 @@ export type Store1ActivationReadback = {
     contractVersion: string;
     snapshotVersion: string;
     envelopeVersion: string;
+    contentHashSha256: string;
+    sourceFingerprintSha256: string;
     signingKeyId: string;
     signingKeyState:
       | "UNREGISTERED"
@@ -409,6 +431,52 @@ export function planStore1Activation(
       code: "STORE1_V2_BASE_SIGNING_KEY_NOT_ACTIVE",
       detail: `Latest v2 config signing key ${r.config.signingKeyId} is ${r.config.signingKeyState}; STORE-1 catalog writes require an ACTIVE signed base.`,
     };
+
+  const signatureProof = r.signaturePreflight;
+  if (signatureProof === undefined)
+    return {
+      status: "BLOCKED",
+      code: "STORE1_V2_SIGNATURE_PREFLIGHT_REQUIRED",
+      detail:
+        "Verify a no-AI v2 bootstrap with the exact STORE package trust bundle before any catalog mutation.",
+    };
+  const proofBindsPackageAndReviewer =
+    signatureProof.schemaVersion === "store1_v2_signature_preflight_v1" &&
+    signatureProof.verified === true &&
+    signatureProof.artifactSha256 === authority.artifactSha256 &&
+    /^[0-9a-f]{64}$/.test(signatureProof.trustBundleSha256) &&
+    signatureProof.contractVersion === STORE1_CONTRACT &&
+    signatureProof.snapshotVersion === "bootstrap_snapshot_v2" &&
+    signatureProof.envelopeVersion === "bootstrap_envelope_v2" &&
+    signatureProof.signingKeyId === r.config.signingKeyId &&
+    signatureProof.accountId === r.reviewerAdmission?.accountId &&
+    signatureProof.extensionVersion === STORE1_VERSION &&
+    signatureProof.browserFamily === STORE1_BROWSER &&
+    signatureProof.aiStatus === "UNCONFIGURED";
+  const proofBindsCurrentConfig =
+    signatureProof.configVersion === r.config.configVersion &&
+    signatureProof.configContentHashSha256 === r.config.contentHashSha256 &&
+    signatureProof.configSourceFingerprintSha256 ===
+      r.config.sourceFingerprintSha256;
+  const exactStorePolicy =
+    r.policies?.length === 1 &&
+    r.policies[0]?.policyKey === STORE1_POLICY_KEY &&
+    r.policies[0]?.contractVersion === STORE1_CONTRACT &&
+    r.policies[0]?.browserFamily === STORE1_BROWSER
+      ? r.policies[0]
+      : null;
+  const proofAllowsPlannerSuccessor =
+    exactStorePolicy !== null &&
+    r.config.configVersion === signatureProof.configVersion + 1 &&
+    sameStrings(r.config.compatibilityPolicyRevisionIds, [exactStorePolicy.id]);
+  if (
+    !proofBindsPackageAndReviewer ||
+    (!proofBindsCurrentConfig && !proofAllowsPlannerSuccessor)
+  )
+    return conflict(
+      "STORE1_V2_SIGNATURE_PREFLIGHT_CONFLICT",
+      "Signature preflight does not bind the exact package, admitted reviewer and current pre-mutation v2 config (or its single CAS successor created by this STORE-1 plan).",
+    );
 
   if (r.release === undefined)
     return get(

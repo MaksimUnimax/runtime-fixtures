@@ -37,6 +37,7 @@ import {
   type Store1ActivationReadback,
   type Store1HttpInstruction,
   type Store1PackageAuthority,
+  type Store1V2SignaturePreflightProof,
 } from "../../../tooling/server/store1-opera-admin-activation.js";
 
 const connectionString = process.env.DATABASE_URL;
@@ -51,6 +52,7 @@ const REVIEWER_ACCOUNT = "30000000-0000-4000-8000-000000000002";
 const ADMIN_USER = "30000000-0000-4000-8000-000000000003";
 const ADMIN_PRINCIPAL = "30000000-0000-4000-8000-000000000004";
 const ADMIN_PORTAL = "30000000-0000-4000-8000-000000000005";
+const REVIEWER_DEVICE = "30000000-0000-4000-8000-000000000006";
 const authority: Store1PackageAuthority = {
   sourceHead: "e7d66152bdb77918b65115486c9829ef7a634e69",
   sourceTree: "01ae2c1d84a354a11d919a313f8d9909d1285b6a",
@@ -351,13 +353,43 @@ function captureRead(path: string, response: JsonResponse) {
   throw new Error("STORE1_TEST_UNHANDLED_READ " + path);
 }
 
-async function runPlanner(maxSteps = 40) {
+function signatureProofFixture(): Store1V2SignaturePreflightProof {
+  if (!readback.config) throw new Error("STORE1_TEST_CONFIG_REQUIRED");
+  return {
+    schemaVersion: "store1_v2_signature_preflight_v1",
+    verified: true,
+    artifactSha256: authority.artifactSha256,
+    trustBundleSha256: "c".repeat(64),
+    contractVersion: STORE1_CONTRACT,
+    snapshotVersion: "bootstrap_snapshot_v2",
+    envelopeVersion: "bootstrap_envelope_v2",
+    configVersion: readback.config.configVersion,
+    configContentHashSha256: readback.config.contentHashSha256,
+    configSourceFingerprintSha256: readback.config.sourceFingerprintSha256,
+    signingKeyId: readback.config.signingKeyId,
+    accountId: REVIEWER_ACCOUNT,
+    deviceId: REVIEWER_DEVICE,
+    extensionVersion: STORE1_VERSION,
+    browserFamily: "opera",
+    browserVersion: "136",
+    aiStatus: "UNCONFIGURED",
+  };
+}
+async function runPlanner(maxSteps = 40, injectSignatureProof = false) {
   const mutations: string[] = [];
   for (let step = 0; step < maxSteps; step += 1) {
     const plan = planStore1Activation(authority, readback);
     if (plan.status === "READY") return { plan, mutations };
-    if (plan.status === "BLOCKED" || plan.status === "CONFLICT")
-      throw new Error(plan.code + ": " + plan.detail);
+    if (plan.status === "BLOCKED" || plan.status === "CONFLICT") {
+      if (
+        injectSignatureProof &&
+        plan.code === "STORE1_V2_SIGNATURE_PREFLIGHT_REQUIRED"
+      ) {
+        readback.signaturePreflight = signatureProofFixture();
+        continue;
+      }
+      return { plan, mutations };
+    }
     const response = await call(plan.next);
     if (plan.status === "READ") {
       expect([200, 404]).toContain(response.statusCode);
@@ -415,8 +447,29 @@ describe.sequential("STORE-1 ordinary-admin whole-sequence rehearsal", () => {
     await db?.close();
   });
 
-  it("converges via authenticated HTTP and replay is mutation-free", async () => {
-    const first = await runPlanner();
+  it("blocks all catalog writes until signature proof and fails closed on mismatch", async () => {
+    const missing = await runPlanner();
+    expect(missing.plan).toMatchObject({
+      status: "BLOCKED",
+      code: "STORE1_V2_SIGNATURE_PREFLIGHT_REQUIRED",
+    });
+    expect(missing.mutations).toEqual([]);
+
+    readback.signaturePreflight = {
+      ...signatureProofFixture(),
+      configContentHashSha256: "d".repeat(64),
+    };
+    const mismatched = await runPlanner();
+    expect(mismatched.plan).toMatchObject({
+      status: "CONFLICT",
+      code: "STORE1_V2_SIGNATURE_PREFLIGHT_CONFLICT",
+    });
+    expect(mismatched.mutations).toEqual([]);
+    delete readback.signaturePreflight;
+  });
+
+  it("converges via authenticated HTTP only after signature proof and replay is mutation-free", async () => {
+    const first = await runPlanner(40, true);
     expect(first.plan).toMatchObject({ status: "READY" });
     expect(first.mutations.slice(0, 7)).toEqual([
       "/v1/admin/compatibility/releases/0.2.4/publish",
