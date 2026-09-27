@@ -18,7 +18,12 @@ def run(runtime: Path, output: Path):
       "user_reject": '<li data-message-role="user" id="user"><pre><code>WB_API_V1 {}</code><button aria-label="Copy code"></button></pre><div role="group" aria-label="Response actions"></div></li>',
       "ambiguous_nested_user": '<article id="ambiguous"><div data-assistant-markdown><code>BAD</code><button aria-label="Copy code"></button></div><div data-message-role="user">nested user</div><div role="group" aria-label="Response actions"></div></article>',
       "unrelated_actions": '<article id="unrelated"><code>BAD</code><button aria-label="Copy code"></button><div role="group" aria-label="Response actions"></div></article>',
-      "two_actions": '<article id="two"><div data-assistant-markdown><code>BAD</code><button aria-label="Copy code"></button></div><div role="group" aria-label="Response actions"></div><div role="group" aria-label="Response actions"></div></article>'
+      "two_actions": '<article id="two"><div data-assistant-markdown><code>BAD</code><button aria-label="Copy code"></button></div><div role="group" aria-label="Response actions"></div><div role="group" aria-label="Response actions"></div></article>',
+      "response_copy_only_plain": '<li data-message-role="assistant" id="response-only"><div id="shared"><code>WB_API_V1 {}</code><div data-assistant-message-actions data-message-actions role="group" aria-label="Response actions"><button id="response-copy" aria-label="Copy">Copy</button></div></div></li>',
+      "response_copy_data_state_plain": '<li data-message-role="assistant" id="response-data-state"><div><code>WB_API_V1 {}</code><div data-message-actions role="group" aria-label="Response actions"><button id="response-copy-state" data-code-copy-state="idle" aria-label="Copy">Copy</button></div></div></li>',
+      "fenced_response_copy": '<li data-message-role="assistant" id="fenced-response"><pre id="fenced-pre"><code>FENCED</code></pre><div data-message-actions role="group" aria-label="Response actions"><button id="response-copy-fenced" aria-label="Copy">Copy</button></div></li>',
+      "real_and_response_copy": '<li data-message-role="assistant" id="both"><div id="real-root"><code>REAL</code><button id="real-copy" data-code-copy-state="idle" aria-label="Copy code"></button></div><div data-assistant-message-actions role="group" aria-label="Response actions"><button id="response-copy-both" aria-label="Copy">Copy</button></div></li>',
+      "localized_response_copy": '<li data-message-role="assistant" id="localized-response"><div><code>BAD</code><div data-message-actions role="group" aria-label="Действия с ответом"><button id="localized-response-copy">Копировать</button></div></div></li>'
     }
     result={"status":"RUNNING","scope":"offline synthetic Chromium adapter-only","source_sha256":hashlib.sha256(source.encode()).hexdigest(),"cases":{}}
     with sync_playwright() as pw:
@@ -28,7 +33,7 @@ def run(runtime: Path, output: Path):
             for name,html in cases.items():
                 page.set_content(html)
                 page.evaluate(source)
-                result["cases"][name]=page.evaluate("""()=>{const a=OzonAIAdapters.ADAPTERS.chatgpt;return a.assistantMessages().map(m=>({id:a.messageId(m),blocks:a.findCodeBlocks(m).map(b=>a.readCodeText(b))}));}""")
+                result["cases"][name]=page.evaluate("""()=>{const a=OzonAIAdapters.ADAPTERS.chatgpt;return a.assistantMessages().map(m=>{const blocks=a.findCodeBlocks(m);return {id:a.messageId(m),blocks:blocks.map(b=>a.readCodeText(b)),anchors:blocks.map(b=>a.geometryAnchor(b)?.id||null)};});}""")
         finally:
             browser.close()
     assert [x["id"] for x in result["cases"]["nested_explicit_outer_actions"]]==["inner"]
@@ -41,6 +46,13 @@ def run(runtime: Path, output: Path):
     assert result["cases"]["legacy_viewer_cm"][0]["blocks"]==["LEGACY","CM"]
     for name in ["user_reject","ambiguous_nested_user","unrelated_actions","two_actions"]:
         assert result["cases"][name]==[], (name,result["cases"][name])
+    assert result["cases"]["response_copy_only_plain"][0]["blocks"]==[]
+    assert result["cases"]["response_copy_data_state_plain"][0]["blocks"]==[]
+    assert result["cases"]["localized_response_copy"][0]["blocks"]==[]
+    assert result["cases"]["fenced_response_copy"][0]["blocks"]==["FENCED"]
+    assert result["cases"]["fenced_response_copy"][0]["anchors"]==["fenced-pre"]
+    assert result["cases"]["real_and_response_copy"][0]["blocks"]==["REAL"]
+    assert result["cases"]["real_and_response_copy"][0]["anchors"]==["real-copy"]
     result["status"]="PASS"
     (output/"result.json").write_text(json.dumps(result,ensure_ascii=False,indent=2)+"\n")
     print(json.dumps(result,ensure_ascii=False))

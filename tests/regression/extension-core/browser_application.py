@@ -202,6 +202,43 @@ def run(runtime,output,private_key):
             page.evaluate('(ids)=>ids.forEach(id=>document.getElementById(id)?.remove())',[multi_id,user_id,ambiguous_id,unrelated_id,editor_id])
             until(lambda:page.locator('.ozon-bridge-block-action').count()==1)
 
+            # Response-actions Copy belongs to the whole assistant response, not code.
+            # Even a misleading data-code-copy-state must not create a bridge action.
+            response_only_id=page.evaluate("(spec)=>fixtureChatGPTMessage(spec)",{
+              'role':'assistant','id':'response-copy-only','assistantResponseActions':True,
+              'responseActions':'Response actions',
+              'blocks':[{'text':'WB_API_V1 {"operation":"seller_info","params":{}}','plain':True,'copy':False}],
+              'responseActionCopy':{'label':'Copy','dataCodeCopy':True}
+            })
+            page.wait_for_timeout(250)
+            assert page.locator('.ozon-bridge-block-action').count()==1
+            page.evaluate("""(id)=>{document.getElementById(id)?.remove();fixtureChatGPTMessage({role:'assistant',id,assistantResponseActions:true,responseActions:'Действия с ответом',blocks:[{text:'WB_API_V1 {"operation":"seller_info","params":{}}',plain:true,copy:false}],responseActionCopy:{textLabel:'Копировать'}});}""",response_only_id)
+            page.wait_for_timeout(250)
+            assert page.locator('.ozon-bridge-block-action').count()==1
+            page.evaluate('(id)=>document.getElementById(id)?.remove()',response_only_id)
+
+            # Fenced code remains authoritative without a code Copy button, while a
+            # real code-copy plus response-copy pair still creates only one action.
+            fenced_response_id=page.evaluate("(spec)=>fixtureChatGPTMessage(spec)",{
+              'role':'assistant','id':'fenced-with-response-copy','responseActions':'Response actions',
+              'blocks':[{'text':'WB_HELP_V1 {"operation":"describe","params":{"alias":"seller_info"}}','copy':False}],
+              'responseActionCopy':{'label':'Copy'}
+            })
+            until(lambda:page.locator('.ozon-bridge-block-action').count()==2)
+            page.evaluate('(id)=>document.getElementById(id)?.remove()',fenced_response_id)
+            until(lambda:page.locator('.ozon-bridge-block-action').count()==1)
+
+            both_copy_id=page.evaluate("(spec)=>fixtureChatGPTMessage(spec)",{
+              'role':'assistant','id':'real-and-response-copy','responseActions':'Response actions',
+              'blocks':[{'text':'WB_HELP_V1 {"operation":"describe","params":{"alias":"seller_info"}}','plain':True,'label':'Copy code'}],
+              'responseActionCopy':{'label':'Copy'}
+            })
+            until(lambda:page.locator('.ozon-bridge-block-action').count()==2)
+            page.wait_for_timeout(200)
+            assert page.locator('.ozon-bridge-block-action').count()==2
+            page.evaluate('(id)=>document.getElementById(id)?.remove()',both_copy_id)
+            until(lambda:page.locator('.ozon-bridge-block-action').count()==1)
+
             # Unmarked project/desktop-style assistant ownership: Response actions +
             # assistant content marker. Plain <code> (no <pre>) and text-only localized
             # Copy are enough only inside that proven assistant container.
@@ -261,7 +298,7 @@ def run(runtime,output,private_key):
                 popup.screenshot(path=str(output/f'popup-{width}-{scale}.png'),full_page=True)
                 popup.click('#cancel')
             assert not errors,errors
-            result.update(status='PASS',browser=context.browser.version,checks=['popup create/edit','real Work prompt','old-history baseline','WB mixed block text send','no replay','Show/Hide','current li[data-message-role] fenced code','multi-block localized Copy','user/editor/ambiguous/unrelated action rejection','unmarked Response-actions plain code exact extraction','rerender no duplicates','native binary File/IDB/port send','Finish','320/380px and enlarged typography'])
+            result.update(status='PASS',browser=context.browser.version,checks=['popup create/edit','real Work prompt','old-history baseline','WB mixed block text send','no replay','Show/Hide','current li[data-message-role] fenced code','multi-block localized Copy','response-actions Copy excluded from code ownership','response-copy rerender no stale action','fenced fallback and real code-copy precedence','user/editor/ambiguous/unrelated action rejection','unmarked Response-actions plain code exact extraction','rerender no duplicates','native binary File/IDB/port send','Finish','320/380px and enlarged typography'])
         except Exception as error:
             result.update(status='FAIL',error=str(error),traceback=traceback.format_exc(),page_errors=errors)
             if popup:
