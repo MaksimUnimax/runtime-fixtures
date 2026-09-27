@@ -23,6 +23,8 @@ Pinned specs:
 - `specs/12-reports.yaml` blob `22ff073c10a3cebe0dc7af647eb2b704fd35857c`;
 - `specs/13-finances.yaml` blob `9b268d4f3edfc5912e3e7c8b9bc571523bd7a377`.
 
+Provider currency policy is pinned separately to the official WB February 2026 release note: monetary values in Analytics/Data reports use the currency of the seller's registration country; `deductions` still does not return a currency-code field.
+
 The reports spec documents `GET /api/analytics/v1/deductions`: optional `dateFrom`, required `dateTo`, optional `sort` (`nmId | dtBonus | bonusSumm`), optional `order` (`desc | asc`), required `limit` up to 1000, optional `offset`, response `data.reports[]` plus `data.total`, and fields including `dtBonus`, `nmId`, `bonusSumm`, `bonusType`, before/after SKU/article fields and photo URLs.
 
 The finances spec documents `POST /api/finance/v1/sales-reports/detailed` rows with their own `currency`, `sellerOperName`, and signed decimal-string money fields including `retailAmount`, `forPay`, `penalty`, `additionalPayment`, and `deduction`.
@@ -34,22 +36,22 @@ No source snapshot is treated as live-account proof.
 - `bonusSumm` is preserved as the provider deduction amount and its provider sign is not rewritten;
 - no unique row key is invented, so rows are not deduplicated by a guessed composite key;
 - full-list evidence requires offset progression until collected row count reaches provider `total`;
-- the deductions response does not expose a currency field;
-- currency is therefore not assumed from the account or from another report;
-- deduction amounts are not netted into `retailAmount` / `forPay` without an explicit authoritative currency join and owner/business reconciliation rule;
+- the deductions response does not expose a currency-code field, while provider policy defines the money in the seller-registration-country currency;
+- an actual store/account currency code must still be bound explicitly before cross-source reconciliation;
+- deduction amounts are not netted into finance-detail money until store currency matches explicit finance-detail `currency` and an owner/business reconciliation rule exists;
 - missing data stays missing, never zero.
 
-Finance-detail rows preserve their own `currency`, `sellerOperName`, `retailAmount`, `forPay`, `penalty`, `additionalPayment`, and `deduction` values as returned. Their decimal-string signs are not rewritten. A mixed-currency finance-detail set fails closed. The deductions endpoint still has no currency field, so it remains a separate source family and cannot be netted into finance-detail money by account assumption.
+Finance-detail rows preserve their own `currency`, `sellerOperName`, `retailAmount`, `forPay`, `penalty`, `additionalPayment`, and `deduction` values as returned. Their decimal-string signs are not rewritten. A mixed-currency finance-detail set fails closed. The deductions endpoint has seller-registration-country currency semantics but no response currency code, so it remains a separate source family until that store/account currency code is explicitly matched.
 
 ## Machine-readable evidence
 
 Fixture:
 `tests/regression/extension-core/fixtures/wb-finance-reconciliation-field-schema-slice-v1.json`
-SHA-256: `e8903b5409e1d8f526c8c3bc01298080da9d69bf3ec7dda818459f225a795c29`.
+SHA-256: `2c46c3d2d1e722f5cb95101cec28aa27c7d99c85e8ca0ae97d2c9b20cb7fe0ad`.
 
 Validator:
 `tests/regression/extension-core/wb-finance-reconciliation-field-schema-slice.mjs`
-SHA-256: `d600776a23e36494fa236cc63548aaa4dc513f0e8b50b4bc937808df347ad1df`.
+SHA-256: `fb084a5bad5f1a8257f3d2146752c37aa2caeb41415dab8c774c1ce7ad278441`.
 
 Coverage importer:
 `tests/regression/extension-core/business-scenario-coverage.mjs`
@@ -63,7 +65,7 @@ Focused:
 - invalid offset sequence fails closed;
 - missing deduction amount fails closed;
 - provider deduction amount sign is preserved;
-- deductions response currency remains explicitly unknown;
+- deductions response currency code is absent while seller-registration-country currency policy is pinned;
 - finance-detail decimal-string signs are preserved;
 - finance-detail currency is required and mixed currency fails closed;
 - cross-source deductions/finance netting is explicitly disabled without an authoritative currency/business rule.
@@ -85,7 +87,7 @@ This is SOURCE field-schema evidence only. It is not LIVE_WB, LIVE_OWNER, instal
 Still open:
 - live WB deductions values and owner gold-set reconciliation;
 - direct official-portal retrievability from the execution environment;
-- authoritative currency source for deduction rows;
+- explicit store/account currency-code binding for actual deductions-to-finance reconciliation;
 - owner/business rule for how deductions affect reconciliation/contribution metrics;
 - documented unique row identity if deduplication is later required.
 

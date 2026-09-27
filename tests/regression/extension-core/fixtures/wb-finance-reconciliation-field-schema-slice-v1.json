@@ -23,7 +23,8 @@
       }
     },
     "analyticsCurrencyPolicy": {
-      "releaseNotesUrl": "https://dev.wildberries.ru/en/release-notes?id=474",
+      "releaseNotesUrl": "https://dev.wildberries.ru/en/release-notes",
+      "releaseNoteDate": "2026-02-05",
       "effectiveFrom": "2026-02-11",
       "rule": "MONETARY_VALUES_USE_SELLER_REGISTRATION_COUNTRY_CURRENCY",
       "currencyFieldInDeductionsResponse": false

@@ -90,7 +90,15 @@ assert.equal(
 );
 assert.equal(
   deductions.fields.bonusSumm.unit,
-  "money_number_currency_not_in_response",
+  "money_number_seller_registration_country_currency",
+);
+assert.equal(
+  slice.authority.analyticsCurrencyPolicy.rule,
+  "MONETARY_VALUES_USE_SELLER_REGISTRATION_COUNTRY_CURRENCY",
+);
+assert.equal(
+  slice.authority.analyticsCurrencyPolicy.currencyFieldInDeductionsResponse,
+  false,
 );
 assert.equal(
   deductions.rowIdentity,
@@ -192,7 +200,8 @@ function summarizeDeductionPages(pages) {
     complete: true,
     rows,
     providerAmounts,
-    currency: null,
+    currencyCode: null,
+    currencyPolicy: "SELLER_REGISTRATION_COUNTRY_CURRENCY",
   };
 }
 
@@ -270,15 +279,15 @@ assert.deepEqual(
 );
 assert.equal(
   slice.rules.currency,
-  "DEDUCTIONS_RESPONSE_HAS_NO_CURRENCY_DO_NOT_ASSUME_OR_JOIN_BY_ACCOUNT",
+  "DEDUCTION_MONEY_USES_SELLER_REGISTRATION_COUNTRY_CURRENCY_BUT_CODE_NOT_IN_RESPONSE",
 );
 assert.equal(
   slice.rules.reconciliation,
-  "DO_NOT_NET_DEDUCTIONS_WITH_FINANCE_REPORT_MONEY_WITHOUT_CURRENCY_AND_BUSINESS_RULE",
+  "DO_NOT_NET_DEDUCTIONS_WITH_FINANCE_REPORT_MONEY_UNTIL_STORE_CURRENCY_MATCH_AND_BUSINESS_RULE_ARE_EXPLICIT",
 );
 assert.equal(
   slice.financeDetailReuse.currencyBoundary,
-  "FINANCE_DETAIL_HAS_CURRENCY_DEDUCTIONS_REPORT_DOES_NOT",
+  "FINANCE_DETAIL_HAS_EXPLICIT_CURRENCY_DEDUCTIONS_CODE_IS_IMPLICIT_BY_SELLER_COUNTRY_POLICY",
 );
 assert.equal(
   slice.rules.rowIdentity,
@@ -295,7 +304,8 @@ console.log(
       slice.financeDetailReuse.operationAlias,
       deductions.operationAlias,
     ],
-    deductionCurrencyInResponse: false,
+    deductionCurrencyCodeInResponse: false,
+    deductionCurrencyPolicy: "SELLER_REGISTRATION_COUNTRY_CURRENCY",
     financeDetailCurrencyRequired: true,
     crossSourceNettingAllowed: false,
     acceptedOperationMappingChanged: false,
