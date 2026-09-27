@@ -1,4 +1,11 @@
 import type { Locator, Page } from "playwright";
+import {
+  CHATGPT_ASSISTANT_MESSAGE_SELECTOR,
+  CHATGPT_USER_DIRECT_SELECTOR,
+  chatGPTAssistantMessages,
+  chatGPTCodeSurfaces,
+  chatGPTOwnedNativeCopyObservation,
+} from "./chatgpt-h3-dom.js";
 
 /**
  * Versioned, code-owned authority for the authenticated ChatGPT Work surface.
@@ -28,9 +35,8 @@ export const CHATGPT_WORK_H3_PROFILE = Object.freeze({
       'button#composer-submit-button[data-testid="send-button"], button[data-testid="send-button"]',
     stopControl: 'button[data-testid="stop-button"]',
     busySignal: '[aria-busy="true"]',
-    assistantMessage:
-      'section[data-turn="assistant"], [data-message-author-role="assistant"]',
-    userMessage: 'section[data-turn="user"], [data-message-author-role="user"]',
+    assistantMessage: CHATGPT_ASSISTANT_MESSAGE_SELECTOR,
+    userMessage: CHATGPT_USER_DIRECT_SELECTOR,
     messageId: Object.freeze({
       primary: "data-turn-id",
       directFallback: "data-message-id",
@@ -41,10 +47,11 @@ export const CHATGPT_WORK_H3_PROFILE = Object.freeze({
       "#code-block-viewer",
       "pre > code",
       "pre",
+      "code",
     ]),
-    // These are code-local controls from mature shared ChatGPT semantics.
-    // Response-level and table-level actions are deliberately excluded.
-    nativeCopy: 'button[aria-label="Копировать"], button[aria-label="Copy"]',
+    // Response-level actions are excluded by the bounded ownership helper.
+    nativeCopy:
+      'button[data-code-copy-state], button[aria-label="Копировать"], button[aria-label="Копировать код"], button[aria-label="Copy"], button[aria-label="Copy code"]',
   }),
 });
 
@@ -115,17 +122,18 @@ export function workStopControls(composer: Locator): Locator {
 }
 
 export function workAssistantMessages(root: Locator): Locator {
-  return root.locator(CHATGPT_WORK_H3_PROFILE.selectors.assistantMessage);
+  return chatGPTAssistantMessages(root);
 }
 
 export function workCodeSurfaces(message: Locator): Locator {
-  return message.locator(
-    CHATGPT_WORK_H3_PROFILE.selectors.codeSurface.join(", "),
-  );
+  return chatGPTCodeSurfaces(message);
 }
 
-export function workCopyControls(message: Locator): Locator {
-  return message.locator(CHATGPT_WORK_H3_PROFILE.selectors.nativeCopy);
+export function workOwnedNativeCopyObservation(
+  message: Locator,
+  expectedToken: string,
+) {
+  return chatGPTOwnedNativeCopyObservation(message, expectedToken);
 }
 
 export function parseWorkRoute(url: string): WorkRouteIdentity | null {
@@ -180,7 +188,8 @@ export async function workMessageId(message: Locator): Promise<string | null> {
     CHATGPT_WORK_H3_PROFILE.selectors.messageId.primary,
   );
   if (direct) return direct;
-  return message.getAttribute(
+  const fallback = await message.getAttribute(
     CHATGPT_WORK_H3_PROFILE.selectors.messageId.directFallback,
   );
+  return fallback || (await message.getAttribute("id")) || null;
 }

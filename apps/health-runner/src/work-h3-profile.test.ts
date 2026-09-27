@@ -18,8 +18,16 @@ describe("packaged ChatGPT Work H3 profile", () => {
     expect(CHATGPT_WORK_H3_PROFILE.locale).toBe("ru-RU");
     expect(CHATGPT_WORK_H3_PROFILE.workMarker).toBe("Работа");
     expect(CHATGPT_WORK_H3_PROFILE).not.toHaveProperty("headerSelector");
-    expect(CHATGPT_WORK_H3_PROFILE.selectors.nativeCopy).toBe(
-      'button[aria-label="Копировать"], button[aria-label="Copy"]',
+    expect(CHATGPT_WORK_H3_PROFILE.selectors.assistantMessage).toContain(
+      'data-message-role="assistant"',
+    );
+    expect(CHATGPT_WORK_H3_PROFILE.selectors.codeSurface).toContain("code");
+    expect(CHATGPT_WORK_H3_PROFILE.selectors.nativeCopy).toContain(
+      "data-code-copy-state",
+    );
+    expect(CHATGPT_WORK_H3_PROFILE.selectors.nativeCopy).toContain("Copy code");
+    expect(CHATGPT_WORK_H3_PROFILE.selectors.nativeCopy).toContain(
+      "Копировать код",
     );
     for (const name of ["work-h3-profile.ts", "work-h3-strategy.ts"]) {
       const contents = source(name);
