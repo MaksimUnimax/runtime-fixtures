@@ -22,13 +22,26 @@ import { createPostgresDurableNoSessionHealthRuntime } from "./health-runtime.js
 import { parseTelegramOperatorConfig } from "./config.js";
 import { createTelegramTransport } from "./telegram-client.js";
 import { TelegramOperatorService } from "./telegram.js";
+import { preflightMonitorPilotAuthority } from "../../../tooling/server/monitor-pilot-authority.js";
 
 const { databaseUrl, token, operatorIds, notificationChatIds } =
   parseTelegramOperatorConfig(process.env);
 
 const database = createDatabaseRuntime(databaseUrl);
+const monitorPilotExpectedRole =
+  process.env.MONITOR_PILOT_EXPECTED_ROLE?.trim() || undefined;
+const monitorPilotAuthorityPreflight = monitorPilotExpectedRole
+  ? async () => {
+      const result = await preflightMonitorPilotAuthority(database, {
+        expectedDatabaseRole: monitorPilotExpectedRole,
+      });
+      if (result.kind !== "READY")
+        throw new Error("MONITOR_PILOT_AUTHORITY_NOT_READY");
+    }
+  : undefined;
 const monitoringStore = createPostgresMonitoringScheduleStore(database);
 const durableLlmHealth = createPostgresDurableNoSessionHealthRuntime(database, {
+  authorityPreflight: monitorPilotAuthorityPreflight,
   scheduleAuthority: async () => {
     const state = await monitoringStore.getState("LLM");
     return {
@@ -80,6 +93,9 @@ const scheduler = new IndependentMonitoringScheduler({
     LLM: createLlmMonitoringRunner(() => durableLlmHealth.runScheduledCycle()),
     SWAGGER_API: apiWatchRunner,
   },
+  // Cheap scheduler reconciliation wakes once per minute. Durable lane state
+  // still owns the actual provider cadence (LLM 90m / Swagger 6h by default).
+  tickMs: 60_000,
 });
 retrySchedulerRef.current = scheduler;
 const service = new TelegramOperatorService({

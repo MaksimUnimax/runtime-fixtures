@@ -7,6 +7,24 @@ import {
 import type { HealthSchedule } from "@product/health";
 import { NO_SESSION_TARGETS } from "./no-session-target-authority.js";
 
+export const AUTHENTICATED_DEEP_INTERVAL_SECONDS = 5_400;
+export const AUTHENTICATED_DEEP_TARGETS = Object.freeze({
+  CHATGPT_STANDARD: Object.freeze({
+    targetKey: "chatgpt_standard_health",
+    monitorTarget: "authdeep_chatgpt_standard",
+    provider: "chatgpt",
+    surface: "CHATGPT_STANDARD",
+  }),
+  CHATGPT_WORK: Object.freeze({
+    targetKey: "chatgpt_work_health",
+    monitorTarget: "authdeep_chatgpt_work",
+    provider: "chatgpt",
+    surface: "CHATGPT_WORK",
+  }),
+});
+
+export type AuthenticatedDeepSurface = keyof typeof AUTHENTICATED_DEEP_TARGETS;
+
 function stableScheduleId(targetKey: string): string {
   const hex = createHash("sha256")
     .update(`octoport-health:${targetKey}`)
@@ -22,6 +40,38 @@ function noSessionCadence(intervalSeconds: number): HealthSchedule["cadence"] {
   });
   if (!result.success) throw new Error("NO_SESSION_SCHEDULE_CADENCE_INVALID");
   return result.data;
+}
+
+function authenticatedDeepCadence(): HealthSchedule["cadence"] {
+  const result = HealthScheduleCadenceSchema.safeParse({
+    ...DEFAULT_NO_SESSION_CADENCE,
+    intervalSeconds: AUTHENTICATED_DEEP_INTERVAL_SECONDS,
+    timeoutSeconds: 180,
+  });
+  if (!result.success) throw new Error("AUTHENTICATED_DEEP_CADENCE_INVALID");
+  return result.data;
+}
+
+/** Creates deep schedules only for explicitly supplied packaged target keys. */
+export function createAuthenticatedDeepHealthSchedules(
+  firstDueAt: Date,
+  configuredTargetKeys: readonly string[],
+): readonly HealthScheduleInput[] {
+  const configured = new Set(configuredTargetKeys);
+  return (Object.keys(AUTHENTICATED_DEEP_TARGETS) as AuthenticatedDeepSurface[])
+    .map((surface) => AUTHENTICATED_DEEP_TARGETS[surface])
+    .filter((target) => configured.has(target.targetKey))
+    .map((target) => ({
+      scheduleId: stableScheduleId(target.monitorTarget),
+      monitorTarget: target.monitorTarget,
+      provider: target.provider,
+      surface: target.surface,
+      probeLayer: "AUTHENTICATED_DEEP" as const,
+      enabled: true,
+      cadence: authenticatedDeepCadence(),
+      nextDueAt: new Date(firstDueAt),
+      revision: 1,
+    }));
 }
 
 /**

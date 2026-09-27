@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { HealthSchedule, HealthScheduleInput } from "@product/health";
 import { NO_SESSION_TARGETS } from "./no-session-target-authority.js";
 import {
+  AUTHENTICATED_DEEP_INTERVAL_SECONDS,
+  createAuthenticatedDeepHealthSchedules,
   createNoSessionHealthSchedules,
   ensureNoSessionHealthSchedules,
 } from "./scheduler-targets.js";
@@ -34,6 +36,35 @@ describe("no-session durable schedule definitions", () => {
         (item) => item.probeLayer === "AUTHENTICATED_DEEP",
       ),
     ).toBe(false);
+  });
+
+  it("creates only explicitly configured, distinct deep schedules at 90 minutes", () => {
+    const schedules = createAuthenticatedDeepHealthSchedules(new Date(0), [
+      "chatgpt_standard_health",
+      "chatgpt_work_health",
+      "personal_chatgpt",
+    ]);
+    expect(schedules.map((item) => item.monitorTarget)).toEqual([
+      "authdeep_chatgpt_standard",
+      "authdeep_chatgpt_work",
+    ]);
+    expect(new Set(schedules.map((item) => item.scheduleId)).size).toBe(2);
+    expect(
+      schedules.every((item) => item.probeLayer === "AUTHENTICATED_DEEP"),
+    ).toBe(true);
+    expect(
+      schedules.every(
+        (item) =>
+          item.cadence.intervalSeconds === AUTHENTICATED_DEEP_INTERVAL_SECONDS,
+      ),
+    ).toBe(true);
+    expect(AUTHENTICATED_DEEP_INTERVAL_SECONDS).toBe(5_400);
+    expect(createAuthenticatedDeepHealthSchedules(new Date(0), [])).toEqual([]);
+    expect(
+      createNoSessionHealthSchedules(new Date(0)).every(
+        (item) => item.cadence.intervalSeconds === 21_600,
+      ),
+    ).toBe(true);
   });
 
   it("bootstraps idempotently and preserves independent provider/surface rows", async () => {
