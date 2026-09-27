@@ -1,0 +1,50 @@
+[
+  {
+    "source": "/var/www/octoport-design-stage/brands/alice.svg",
+    "file": "color-alice-r2.svg",
+    "sha256": "3c181204128b1f73916c0c21f57fba999d32cf02b3c303138fb48dfb70ac0109",
+    "change": "original multicolor fills and gradients retained"
+  },
+  {
+    "source": "/var/www/octoport-design-stage/brands/gemini.svg",
+    "file": "color-gemini-r2.svg",
+    "sha256": "4fb5af9c85ca246667d2376d06fc785325e37ce9c9ef3d6606f07ba18602868e",
+    "change": "original multicolor fills and gradients retained"
+  },
+  {
+    "source": "/var/www/octoport-design-stage/brands/chatgpt.svg",
+    "file": "color-chatgpt-r2.svg",
+    "sha256": "bc538b8b0b49a6aff438a1f817f134a26b732f967b205d1c2b703058a486ab11",
+    "change": "explicit colored glyph"
+  },
+  {
+    "source": "/var/www/octoport-design-stage/brands/deepseek.svg",
+    "file": "color-deepseek-r2.svg",
+    "sha256": "0a47d55e6449ef97fb2185020f8118d75ad1ffe5cd711bef6862699f50d5217b",
+    "change": "original multicolor fills and gradients retained"
+  },
+  {
+    "source": "/var/www/octoport-design-stage/brands/anthropic.svg",
+    "file": "color-anthropic-r2.svg",
+    "sha256": "9aeec7c777b252d75dab6b25e9c13d2e5cc251201f3658ab2615778206da8789",
+    "change": "explicit colored glyph"
+  },
+  {
+    "source": "/var/www/octoport-design-stage/brands/qwen.svg",
+    "file": "color-qwen-r2.svg",
+    "sha256": "8a0ffcf5e176d5424636617c360012f05e972ed5bfeb5dcfa8126439aa6a550f",
+    "change": "original multicolor fills and gradients retained"
+  },
+  {
+    "source": "/var/www/octoport-design-stage/brands/ozon.svg",
+    "file": "color-ozon-r2.svg",
+    "sha256": "04a16ae2dc0b698af60ef8c2eba779160b3af8abb7dbf51715c6f7e85a0fc2bd",
+    "change": "existing vector glyphs, white mark on brand-colored DOM circle"
+  },
+  {
+    "source": "/var/www/octoport-design-stage/brands/wildberries.svg",
+    "file": "color-wb-r2.svg",
+    "sha256": "1dca174f202d6acaf56e424e9cc9b7f720fbb2743ec2c89c8811e69f757eb2ec",
+    "change": "existing vector glyphs, white mark on brand-colored DOM circle"
+  }
+]
