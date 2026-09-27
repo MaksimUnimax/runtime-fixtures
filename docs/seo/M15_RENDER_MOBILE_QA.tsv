@@ -1,0 +1,13 @@
+qa_id	browser	surface	requested_width	client_width	scroll_width	critical_content	viewport_offenders	verdict	visual_evidence
+M15R001	Chrome	HOME	1280	1265	1265	Title/H1/canonical/resources present	0	PASS	chrome-1280 HOME PNG
+M15R002	Chrome	seller-analytics	1280	1265	1265	Title/H1/canonical/resources present	0	PASS	chrome-1280 analytics PNG
+M15R003	Chrome	HOME	320	305	305	Title/H1/canonical/resources present	0	PASS	chrome-mobile-320 HOME PNG
+M15R004	Chrome	seller-analytics	320	305	305	Title/H1/canonical/resources present	0	PASS	chrome-mobile-320 analytics PNG
+M15R005	Opera	HOME	1280	1265	1265	Title/H1/canonical/resources present	0	PASS	Opera Xvfb HOME PNG
+M15R006	Opera	seller-analytics	1280	1265	1265	Title/H1/canonical/resources present	0	PASS	Opera Xvfb analytics PNG
+M15R007	Yandex	HOME	1280	1265	1265	Title/H1/canonical/resources present	0	PASS	Yandex Xvfb HOME PNG
+M15R008	Yandex	seller-analytics	1280	1265	1265	Title/H1/canonical/resources present	0	PASS	Yandex Xvfb analytics PNG
+M15R009	mobile_defect_closure	HOME privacy-panel	320	305	305	Original 6px document overflow closed	0	PASS	M14 rework R2 + browser-probes.json
+M15R010	mobile_defect_closure	seller-analytics H1	320	305	305	Original 19px document overflow closed	0	PASS	M14 rework R2 + browser-probes.json
+M15R011	rendering	initial HTML	all	N/A	N/A	Critical SEO content present without client JS	N/A	PASS	source + browser DOM
+M15R012	visual_review	vendor screenshots	desktop	N/A	N/A	HOME renders coherent in Opera and Yandex	N/A	PASS	Xvfb/CDP screenshots reviewed
