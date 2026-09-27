@@ -17,11 +17,16 @@ if (!connectionString)
   throw new Error("DATABASE_URL is required for P5.5 PostgreSQL tests");
 let db: DatabaseRuntime;
 const now = new Date("2026-09-07T12:00:00.000Z");
+let processingClock = new Date(now);
 const id = () => randomUUID();
 const q = <T extends Record<string, unknown> = Record<string, unknown>>(
   text: string,
   values?: unknown[],
 ) => db.query<T>(text, values);
+
+function reconciliationRepository() {
+  return createP5ReconciliationRepository(db, { now: () => processingClock });
+}
 
 async function fixture(
   options: {
@@ -134,6 +139,43 @@ async function clean() {
   await q(
     "TRUNCATE billing_reconciliation_jobs,checkout_intents,billing_events,subscription_transitions,payments,subscriptions,price_sale_assignments,account_entitlement_overrides,price_revisions,plan_entitlements,prices,plan_revisions,entitlement_definitions,plans,audit_events,account_memberships,accounts,users CASCADE",
   );
+  processingClock = new Date(now);
+}
+
+async function holdAccountLock(accountId: string) {
+  let ready!: () => void;
+  let release!: () => void;
+  const acquired = new Promise<void>((resolve) => (ready = resolve));
+  const released = new Promise<void>((resolve) => (release = resolve));
+  let backendPid = 0;
+  const transaction = db.transaction(async (tx) => {
+    const pid = await tx.query<{ pid: number }>(
+      "SELECT pg_backend_pid() AS pid",
+    );
+    backendPid = pid.rows[0]!.pid;
+    await tx.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [
+      `p5-subscription-account:${accountId}`,
+    ]);
+    ready();
+    await released;
+  });
+  await acquired;
+  return { backendPid, release, transaction };
+}
+
+async function waitUntilBlockedBy(backendPid: number) {
+  const deadline = Date.now() + 4_000;
+  while (Date.now() < deadline) {
+    const waiting = await q<{ pid: number }>(
+      "SELECT pid FROM pg_stat_activity WHERE $1 = ANY(pg_blocking_pids(pid)) LIMIT 1",
+      [backendPid],
+    );
+    if (waiting.rows[0]) return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error(
+    "reconciliation transaction did not wait on held account lock",
+  );
 }
 
 describe("P5.5 real PostgreSQL reconciliation and lifecycle", () => {
@@ -237,7 +279,7 @@ describe("P5.5 real PostgreSQL reconciliation and lifecycle", () => {
       "INSERT INTO billing_reconciliation_jobs(payment_id,state,next_attempt_at,created_at,updated_at) VALUES($1,'READY',$2,$2,$2)",
       [f.paymentId, now],
     );
-    const c = await createP5ReconciliationRepository(db).claimDue({
+    const c = await reconciliationRepository().claimDue({
       now,
       leaseMs: 60_000,
       batchSize: 10,
@@ -258,7 +300,7 @@ describe("P5.5 real PostgreSQL reconciliation and lifecycle", () => {
       "INSERT INTO billing_reconciliation_jobs(payment_id,state,next_attempt_at,created_at,updated_at) VALUES($1,'READY',$2,$2,$2)",
       [f.paymentId, now],
     );
-    await createP5ReconciliationRepository(db).claimDue({
+    await reconciliationRepository().claimDue({
       now,
       leaseMs: 1,
       batchSize: 1,
@@ -279,7 +321,7 @@ describe("P5.5 real PostgreSQL reconciliation and lifecycle", () => {
       "INSERT INTO billing_reconciliation_jobs(payment_id,state,lease_token,lease_until,attempt_count,created_at,updated_at) VALUES($1,'LEASED',$2,$3,1,$4,$4)",
       [f.paymentId, id(), old, old],
     );
-    const c = await createP5ReconciliationRepository(db).claimDue({
+    const c = await reconciliationRepository().claimDue({
       now,
       leaseMs: 60_000,
       batchSize: 1,
@@ -294,7 +336,7 @@ describe("P5.5 real PostgreSQL reconciliation and lifecycle", () => {
       [f.paymentId, later, now],
     );
     expect(
-      await createP5ReconciliationRepository(db).claimDue({
+      await reconciliationRepository().claimDue({
         now,
         leaseMs: 60_000,
         batchSize: 1,
@@ -307,7 +349,7 @@ describe("P5.5 real PostgreSQL reconciliation and lifecycle", () => {
       "INSERT INTO billing_reconciliation_jobs(payment_id,state,lease_token,lease_until,created_at,updated_at) VALUES($1,'LEASED',$2,$3,$4,$4)",
       [f.paymentId, id(), now, now],
     );
-    const r = await createP5ReconciliationRepository(db).reschedule({
+    const r = await reconciliationRepository().reschedule({
       paymentId: f.paymentId,
       leaseToken: id(),
       nextAttemptAt: now,
@@ -321,7 +363,7 @@ describe("P5.5 real PostgreSQL reconciliation and lifecycle", () => {
       "INSERT INTO billing_reconciliation_jobs(payment_id,state,next_attempt_at,created_at,updated_at) VALUES($1,'READY',$2,$2,$2)",
       [f.paymentId, now],
     );
-    const repo = createP5ReconciliationRepository(db);
+    const repo = reconciliationRepository();
     const c = (await repo.claimDue({ now, leaseMs: 60_000, batchSize: 1 }))[0]!;
     const r = await repo.applyStatus({
       claim: c,
@@ -351,7 +393,7 @@ describe("P5.5 real PostgreSQL reconciliation and lifecycle", () => {
       [f.paymentId, now],
     );
     const r = createBillingReconciliationService({
-      repository: createP5ReconciliationRepository(db),
+      repository: reconciliationRepository(),
       statusPort: {
         providerKey: "simulator",
         fetchPaymentStatus: async () => ({ kind: "UNAVAILABLE" as const }),
@@ -359,7 +401,7 @@ describe("P5.5 real PostgreSQL reconciliation and lifecycle", () => {
       now: () => now,
     }).processClaim(
       (
-        await createP5ReconciliationRepository(db).claimDue({
+        await reconciliationRepository().claimDue({
           now,
           leaseMs: 60_000,
           batchSize: 1,
@@ -375,7 +417,7 @@ describe("P5.5 real PostgreSQL reconciliation and lifecycle", () => {
       "INSERT INTO billing_reconciliation_jobs(payment_id,state,next_attempt_at,created_at,updated_at) VALUES($1,'READY',$2,$2,$2)",
       [f.paymentId, now],
     );
-    const repo = createP5ReconciliationRepository(db);
+    const repo = reconciliationRepository();
     const r = await createBillingReconciliationService({
       repository: repo,
       statusPort: {
@@ -395,7 +437,7 @@ describe("P5.5 real PostgreSQL reconciliation and lifecycle", () => {
       "INSERT INTO billing_reconciliation_jobs(payment_id,state,next_attempt_at,created_at,updated_at) VALUES($1,'READY',$2,$2,$2)",
       [f.paymentId, now],
     );
-    const repo = createP5ReconciliationRepository(db);
+    const repo = reconciliationRepository();
     const c = (await repo.claimDue({ now, leaseMs: 60_000, batchSize: 1 }))[0]!;
     const r = await repo.applyStatus({
       claim: c,
@@ -426,6 +468,87 @@ describe("P5.5 real PostgreSQL reconciliation and lifecycle", () => {
       ).rows[0]?.source,
     ).toBe("RECONCILIATION");
   });
+  it("delayed success uses post-lock time but preserves provider period chronology", async () => {
+    const f = await fixture();
+    const periodEnd = new Date(now.getTime() + 1_000);
+    const oldSubscriptionId = id();
+    await q(
+      "INSERT INTO subscriptions(id,account_id,state,state_revision,current_plan_revision_id,started_at,current_period_start,current_period_end,state_reason,created_at,updated_at) VALUES($1,$2,'ACTIVE',1,$3,$4,$4,$5,'existing',$4,$4)",
+      [oldSubscriptionId, f.accountId, f.planRevisionId, now, periodEnd],
+    );
+    await q(
+      "INSERT INTO subscription_transitions(subscription_id,transition_revision,to_state,source,actor_type,reason,occurred_at) VALUES($1,1,'ACTIVE','ADMIN','SYSTEM','existing',$2)",
+      [oldSubscriptionId, now],
+    );
+    await q(
+      "INSERT INTO billing_reconciliation_jobs(payment_id,state,next_attempt_at,created_at,updated_at) VALUES($1,'READY',$2,$2,$2)",
+      [f.paymentId, now],
+    );
+    const claim = (
+      await reconciliationRepository().claimDue({
+        now,
+        leaseMs: 60_000,
+        batchSize: 1,
+      })
+    )[0]!;
+    const hold = await holdAccountLock(f.accountId);
+    const applying = reconciliationRepository().applyStatus({
+      claim,
+      status: {
+        kind: "FOUND",
+        state: "SUCCEEDED",
+        amountMinor: 1900,
+        currency: "RUB",
+        statusAt: now,
+      },
+      processedAt: now,
+      correlationId: id(),
+    });
+    try {
+      await waitUntilBlockedBy(hold.backendPid);
+      processingClock = new Date(periodEnd.getTime() + 1);
+    } finally {
+      hold.release();
+      await hold.transaction;
+    }
+
+    expect((await applying).kind).toBe("APPLIED");
+    const subscriptions = await q<{
+      id: string;
+      state: string;
+      current_period_start: Date;
+      current_period_end: Date;
+    }>(
+      "SELECT id,state,current_period_start,current_period_end FROM subscriptions WHERE account_id=$1 ORDER BY created_at,id",
+      [f.accountId],
+    );
+    expect(
+      subscriptions.rows.find((row) => row.id === oldSubscriptionId)?.state,
+    ).toBe("EXPIRED");
+    const created = subscriptions.rows.find(
+      (row) => row.id !== oldSubscriptionId,
+    )!;
+    expect(created.state).toBe("ACTIVE");
+    expect(created.current_period_start).toEqual(now);
+    expect(created.current_period_end.toISOString()).toBe(
+      "2026-10-07T12:00:00.000Z",
+    );
+    const event = (
+      await q<{ received_at: Date; processed_at: Date }>(
+        "SELECT received_at,processed_at FROM billing_events WHERE payment_id=$1",
+        [f.paymentId],
+      )
+    ).rows[0]!;
+    expect(event.received_at).toEqual(now);
+    expect(event.processed_at).toEqual(processingClock);
+    const payment = (
+      await q<{ confirmed_at: Date }>(
+        "SELECT confirmed_at FROM payments WHERE id=$1",
+        [f.paymentId],
+      )
+    ).rows[0]!;
+    expect(payment.confirmed_at).toEqual(now);
+  });
   it("success materializes stale ACTIVE before reconciliation activation", async () => {
     const f = await fixture();
     const staleId = id();
@@ -443,7 +566,7 @@ describe("P5.5 real PostgreSQL reconciliation and lifecycle", () => {
       "INSERT INTO billing_reconciliation_jobs(payment_id,state,next_attempt_at,created_at,updated_at) VALUES($1,'READY',$2,$2,$2)",
       [f.paymentId, now],
     );
-    const repo = createP5ReconciliationRepository(db);
+    const repo = reconciliationRepository();
     const claim = (
       await repo.claimDue({ now, leaseMs: 60_000, batchSize: 1 })
     )[0]!;
@@ -526,7 +649,7 @@ describe("P5.5 real PostgreSQL reconciliation and lifecycle", () => {
       "INSERT INTO billing_reconciliation_jobs(payment_id,state,next_attempt_at,created_at,updated_at) VALUES($1,'READY',$2,$2,$2)",
       [f.paymentId, now],
     );
-    const repo = createP5ReconciliationRepository(db);
+    const repo = reconciliationRepository();
     const claim = (
       await repo.claimDue({ now, leaseMs: 60_000, batchSize: 1 })
     )[0]!;
@@ -588,11 +711,12 @@ describe("P5.5 real PostgreSQL reconciliation and lifecycle", () => {
       "INSERT INTO billing_reconciliation_jobs(payment_id,state,next_attempt_at,created_at,updated_at) VALUES($1,'READY',$2,$2,$2)",
       [f.paymentId, now],
     );
-    const repo = createP5ReconciliationRepository(db);
+    const repo = reconciliationRepository();
     const claim = (
       await repo.claimDue({ now, leaseMs: 60_000, batchSize: 1 })
     )[0]!;
     const processedAt = new Date("2026-09-09T12:00:00.000Z");
+    processingClock = new Date(processedAt);
     expect(
       (
         await repo.applyStatus({
@@ -650,7 +774,7 @@ describe("P5.5 real PostgreSQL reconciliation and lifecycle", () => {
       "INSERT INTO billing_reconciliation_jobs(payment_id,state,next_attempt_at,created_at,updated_at) VALUES($1,'READY',$2,$2,$2)",
       [f.paymentId, now],
     );
-    const repo = createP5ReconciliationRepository(db);
+    const repo = reconciliationRepository();
     const c = (await repo.claimDue({ now, leaseMs: 60_000, batchSize: 1 }))[0]!;
     await repo.applyStatus({
       claim: c,
@@ -679,7 +803,7 @@ describe("P5.5 real PostgreSQL reconciliation and lifecycle", () => {
       "INSERT INTO billing_reconciliation_jobs(payment_id,state,next_attempt_at,created_at,updated_at) VALUES($1,'READY',$2,$2,$2)",
       [f.paymentId, now],
     );
-    const repo = createP5ReconciliationRepository(db);
+    const repo = reconciliationRepository();
     const c = (await repo.claimDue({ now, leaseMs: 60_000, batchSize: 1 }))[0]!;
     const r = await repo.applyStatus({
       claim: c,
@@ -705,7 +829,7 @@ describe("P5.5 real PostgreSQL reconciliation and lifecycle", () => {
       "INSERT INTO billing_reconciliation_jobs(payment_id,state,next_attempt_at,created_at,updated_at) VALUES($1,'READY',$2,$2,$2)",
       [f.paymentId, now],
     );
-    const repo = createP5ReconciliationRepository(db);
+    const repo = reconciliationRepository();
     const c = (await repo.claimDue({ now, leaseMs: 60_000, batchSize: 1 }))[0]!;
     const r = await repo.applyStatus({
       claim: c,
@@ -727,7 +851,7 @@ describe("P5.5 real PostgreSQL reconciliation and lifecycle", () => {
       "INSERT INTO billing_reconciliation_jobs(payment_id,state,next_attempt_at,created_at,updated_at) VALUES($1,'READY',$2,$2,$2)",
       [f.paymentId, now],
     );
-    const repo = createP5ReconciliationRepository(db);
+    const repo = reconciliationRepository();
     const c = (await repo.claimDue({ now, leaseMs: 60_000, batchSize: 1 }))[0]!;
     const r = await repo.applyStatus({
       claim: c,
@@ -749,7 +873,7 @@ describe("P5.5 real PostgreSQL reconciliation and lifecycle", () => {
       "INSERT INTO billing_reconciliation_jobs(payment_id,state,next_attempt_at,created_at,updated_at) VALUES($1,'READY',$2,$2,$2)",
       [f.paymentId, now],
     );
-    const repo = createP5ReconciliationRepository(db);
+    const repo = reconciliationRepository();
     const c = (await repo.claimDue({ now, leaseMs: 60_000, batchSize: 1 }))[0]!;
     await repo.applyStatus({
       claim: c,
@@ -774,7 +898,7 @@ describe("P5.5 real PostgreSQL reconciliation and lifecycle", () => {
       "INSERT INTO billing_reconciliation_jobs(payment_id,state,next_attempt_at,created_at,updated_at) VALUES($1,'READY',$2,$2,$2)",
       [f.paymentId, now],
     );
-    const repo = createP5ReconciliationRepository(db);
+    const repo = reconciliationRepository();
     const c = (await repo.claimDue({ now, leaseMs: 60_000, batchSize: 1 }))[0]!;
     const r = await repo.applyStatus({
       claim: c,
@@ -928,7 +1052,7 @@ describe("P5.5 real PostgreSQL reconciliation and lifecycle", () => {
         "INSERT INTO billing_reconciliation_jobs(payment_id,state,next_attempt_at,created_at,updated_at) VALUES($1,'READY',$2,$2,$2)",
         [f.paymentId, now],
       );
-      const claims = await createP5ReconciliationRepository(db).claimDue({
+      const claims = await reconciliationRepository().claimDue({
         now,
         leaseMs: 60_000,
         batchSize,
@@ -951,7 +1075,7 @@ describe("P5.5 real PostgreSQL reconciliation and lifecycle", () => {
         "INSERT INTO billing_reconciliation_jobs(payment_id,state,next_attempt_at,created_at,updated_at) VALUES($1,'READY',$2,$2,$2)",
         [f.paymentId, now],
       );
-      const repo = createP5ReconciliationRepository(db);
+      const repo = reconciliationRepository();
       const claim = (
         await repo.claimDue({ now, leaseMs: 60_000, batchSize: 1 })
       )[0]!;

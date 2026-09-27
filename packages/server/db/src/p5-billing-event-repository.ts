@@ -245,7 +245,9 @@ function eventState(type: BillingEventType): PaymentState {
 
 export function createP5BillingEventRepository(
   runtime: DatabaseRuntime,
+  options: { now?: () => Date } = {},
 ): BillingEventApplicationRepository {
+  const now = options.now ?? (() => new Date());
   return {
     async applyVerifiedBillingEvent(
       input,
@@ -341,6 +343,8 @@ export function createP5BillingEventRepository(
           throw new Error("ACCOUNT_NOT_FOUND");
         const payment = await findPayment(q, event, true);
         if (!payment) throw new Error("PAYMENT_NOT_FOUND");
+        // Keep receivedAt as webhook chronology; classify after transaction locks.
+        let processedAt = now();
         const desiredState = eventState(event.eventType);
 
         if (payment.state !== "PENDING") {
@@ -349,7 +353,7 @@ export function createP5BillingEventRepository(
               q,
               ledger.id,
               "IGNORED",
-              input.receivedAt,
+              processedAt,
               {
                 paymentId: payment.id,
               },
@@ -362,7 +366,7 @@ export function createP5BillingEventRepository(
                 q,
                 ledger.id,
                 "FAILED",
-                input.receivedAt,
+                processedAt,
                 {
                   paymentId: payment.id,
                   failureCode: "PAYMENT_SUBSCRIPTION_CORRUPTED",
@@ -379,7 +383,7 @@ export function createP5BillingEventRepository(
                 q,
                 ledger.id,
                 "FAILED",
-                input.receivedAt,
+                processedAt,
                 {
                   paymentId: payment.id,
                   failureCode: "PAYMENT_SUBSCRIPTION_CORRUPTED",
@@ -391,7 +395,7 @@ export function createP5BillingEventRepository(
               q,
               ledger.id,
               "IGNORED",
-              input.receivedAt,
+              processedAt,
               {
                 paymentId: payment.id,
                 subscriptionId: payment.subscriptionId,
@@ -403,7 +407,7 @@ export function createP5BillingEventRepository(
             q,
             ledger.id,
             "FAILED",
-            input.receivedAt,
+            processedAt,
             {
               paymentId: payment.id,
               failureCode: "PAYMENT_STATE_CONFLICT",
@@ -415,7 +419,7 @@ export function createP5BillingEventRepository(
         if (desiredState !== "SUCCEEDED") {
           const updated = await q.query<{ stateRevision: number }>(
             'UPDATE payments SET state=$1,updated_at=$2 WHERE id=$3 RETURNING 1 AS "stateRevision"',
-            [desiredState, input.receivedAt, payment.id],
+            [desiredState, processedAt, payment.id],
           );
           if (!updated.rows[0]) throw new Error("PAYMENT_NOT_FOUND");
           await audit(
@@ -435,7 +439,7 @@ export function createP5BillingEventRepository(
             q,
             ledger.id,
             "APPLIED",
-            input.receivedAt,
+            processedAt,
             {
               paymentId: payment.id,
             },
@@ -445,7 +449,7 @@ export function createP5BillingEventRepository(
 
         await q.query(
           "UPDATE payments SET state='SUCCEEDED',confirmed_at=$1,updated_at=$2 WHERE id=$3",
-          [event.occurredAt, input.receivedAt, payment.id],
+          [event.occurredAt, processedAt, payment.id],
         );
         await audit(q, context, "PAYMENT_SUCCEEDED", "PAYMENT", payment.id, {
           provider: event.provider,
@@ -471,7 +475,7 @@ export function createP5BillingEventRepository(
             q,
             ledger.id,
             "FAILED",
-            input.receivedAt,
+            processedAt,
             {
               paymentId: payment.id,
               failureCode: checkout
@@ -484,15 +488,16 @@ export function createP5BillingEventRepository(
 
         const current = await materializeDueCurrentSubscriptionLocked(q, {
           accountId: payment.accountId,
-          at: input.receivedAt,
+          at: now,
           correlationId: context.correlationId,
         });
+        processedAt = now();
         if (current.kind === "CORRUPTED") {
           const failed = await terminalize(
             q,
             ledger.id,
             "FAILED",
-            input.receivedAt,
+            processedAt,
             {
               paymentId: payment.id,
               failureCode: "PAYMENT_SUBSCRIPTION_CORRUPTED",
@@ -505,7 +510,7 @@ export function createP5BillingEventRepository(
             q,
             ledger.id,
             "FAILED",
-            input.receivedAt,
+            processedAt,
             {
               paymentId: payment.id,
               failureCode: "CURRENT_SUBSCRIPTION_CONFLICT",
@@ -532,7 +537,7 @@ export function createP5BillingEventRepository(
             payment.priceRevisionId,
             event.occurredAt,
             periodEnd,
-            input.receivedAt,
+            processedAt,
           ],
         );
         const subscriptionId = subscription.rows[0]?.id;
@@ -549,7 +554,7 @@ export function createP5BillingEventRepository(
         if (!transitionId) throw new Error("SUBSCRIPTION_CORRUPTED");
         await q.query(
           "UPDATE payments SET subscription_id=$1,updated_at=$2 WHERE id=$3 AND subscription_id IS NULL",
-          [subscriptionId, input.receivedAt, payment.id],
+          [subscriptionId, processedAt, payment.id],
         );
         await audit(
           q,
@@ -568,16 +573,17 @@ export function createP5BillingEventRepository(
         const activatedLifecycle =
           await materializeDueCurrentSubscriptionLocked(q, {
             accountId: payment.accountId,
-            at: input.receivedAt,
+            at: now,
             correlationId: context.correlationId,
           });
+        processedAt = now();
         if (activatedLifecycle.kind === "CORRUPTED")
           throw new Error("SUBSCRIPTION_CORRUPTED");
         const applied = await terminalize(
           q,
           ledger.id,
           "APPLIED",
-          input.receivedAt,
+          processedAt,
           {
             paymentId: payment.id,
             subscriptionId,
