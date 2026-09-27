@@ -24,9 +24,11 @@ import {
   selectRolloutCandidateV1,
   signBootstrapSnapshot,
   signBootstrapSnapshotV2,
+  signBootstrapSnapshotV3,
   serializePublicTrustBundle,
   verifyBootstrapEnvelope,
   verifyBootstrapEnvelopeV2,
+  verifyBootstrapEnvelopeV3,
   resolveSigningKeyLifecycle,
   resolveP3BootstrapPolicy,
   type TrustedConfigSigningKeyRing,
@@ -911,6 +913,85 @@ describe("signed bootstrap envelope", () => {
         new Map([["config-current", access.publicKey]]),
       ),
     ).toEqual({ ok: false, error: "INVALID_SIGNATURE" });
+  });
+
+  it("signs and verifies dormant v3 with signature, key, canonicality and schema checks", () => {
+    const { config, ring } = keyMaterial();
+    const v3Payload = {
+      ...payload,
+      snapshotVersion: "bootstrap_snapshot_v3" as const,
+      contractVersion: "control_plane_v3" as const,
+      account: {
+        id: "11111111-1111-4111-8111-111111111111",
+        status: "ACTIVE" as const,
+      },
+      accessBasis: "COMMERCIAL" as const,
+      subscription: { state: "ACTIVE" as const, planRevision: "plan-r1" },
+      subscriptionAccess: {
+        schemaVersion: "subscription_access_v1" as const,
+        paidThrough: "2026-09-25T00:00:00.000Z",
+        offlineHardUntil: "2026-09-28T00:00:00.000Z",
+      },
+    };
+    const envelope = signBootstrapSnapshotV3(
+      v3Payload,
+      "config-current",
+      config.privateKey,
+    );
+    expect(verifyBootstrapEnvelopeV3(envelope, ring)).toEqual({
+      ok: true,
+      payload: v3Payload,
+    });
+    expect(
+      verifyBootstrapEnvelopeV3(
+        { ...envelope, signature: flipBase64Url(envelope.signature) },
+        ring,
+      ),
+    ).toEqual({ ok: false, error: "INVALID_SIGNATURE" });
+    expect(
+      verifyBootstrapEnvelopeV3({ ...envelope, keyId: "unknown-key" }, ring),
+    ).toEqual({ ok: false, error: "UNKNOWN_SIGNING_KEY" });
+    const bytes = Buffer.from(envelope.payload, "base64url").toString("utf8");
+    const spaced = JSON.stringify(JSON.parse(bytes), null, 2);
+    const signature = sign(
+      null,
+      Buffer.concat([
+        BOOTSTRAP_SIGNATURE_DOMAIN,
+        Buffer.from("config-current"),
+        Buffer.from([0]),
+        Buffer.from(spaced),
+      ]),
+      config.privateKey,
+    ).toString("base64url");
+    expect(
+      verifyBootstrapEnvelopeV3(
+        {
+          ...envelope,
+          payload: Buffer.from(spaced).toString("base64url"),
+          signature,
+        },
+        ring,
+      ),
+    ).toEqual({ ok: false, error: "NON_CANONICAL_PAYLOAD" });
+    const malformed = Buffer.from(
+      '{"snapshotVersion":"bootstrap_snapshot_v3"}',
+    ).toString("base64url");
+    const malformedSignature = sign(
+      null,
+      Buffer.concat([
+        BOOTSTRAP_SIGNATURE_DOMAIN,
+        Buffer.from("config-current"),
+        Buffer.from([0]),
+        Buffer.from('{"snapshotVersion":"bootstrap_snapshot_v3"}'),
+      ]),
+      config.privateKey,
+    ).toString("base64url");
+    expect(
+      verifyBootstrapEnvelopeV3(
+        { ...envelope, payload: malformed, signature: malformedSignature },
+        ring,
+      ),
+    ).toEqual({ ok: false, error: "INVALID_PAYLOAD_SCHEMA" });
   });
 });
 
