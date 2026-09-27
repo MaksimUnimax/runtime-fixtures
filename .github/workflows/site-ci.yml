@@ -202,19 +202,18 @@ jobs:
           width, height = struct.unpack(">II", header[16:24])
           assert (width, height) == (120, 120), (width, height)
 
-          mobile_privacy_guard = """  .privacy-panel {
-    border-radius: 24px;
-  }
-
-  .privacy-panel > * {
-    min-width: 0;
-  }
-
-  .privacy-panel h2 {
-    overflow-wrap: anywhere;
-  }
-
-  .site-footer {"""
+          mobile_privacy_guard = (
+              "  .privacy-panel {\n"
+              "    border-radius: 24px;\n"
+              "  }\n\n"
+              "  .privacy-panel > * {\n"
+              "    min-width: 0;\n"
+              "  }\n\n"
+              "  .privacy-panel h2 {\n"
+              "    overflow-wrap: anywhere;\n"
+              "  }\n\n"
+              "  .site-footer {"
+          )
           assert mobile_privacy_guard in css, "320px privacy-panel shrink/wrap regression guard is missing"
 
           assert len(index.encode("utf-8")) < 100_000, "homepage unexpectedly large"
