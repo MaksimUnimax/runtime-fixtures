@@ -1,7 +1,7 @@
 # Octoport SEO — M15 progress
 
-Date: 2026-09-26
-Status: **PREPARED / SOURCE+ISOLATED PREDEPLOY EXECUTION READY / PRODUCTION DEPLOYMENT HOLD**
+Date: 2026-09-27
+Status: **SOURCE/PREDEPLOY ACCEPTED WITH EXPLICIT LIVE HOLD / NOT MERGED / NOT DEPLOYED**
 SEO branch: `seo/wordstat-batch-01-2026-09-16`
 
 ## Cursor
@@ -9,15 +9,15 @@ SEO branch: `seo/wordstat-batch-01-2026-09-16`
 ```text
 M0..M12 = ACCEPTED
 M13 R2 = ACCEPTED / CURRENT
-M14 SOURCE IMPLEMENTATION = ACCEPTED
-M15 = PREPARED / PREDEPLOY EXECUTION READY
-M15 PRODUCTION DEPLOYMENT = HOLD
+M14 responsive rework R2 = ACCEPTED / CURRENT
+M15 source/predeploy = ACCEPTED
+M15 final live QA = HOLD
 M16+ = BLOCKED
 ```
 
-## Binding M15 preparation authority
+## Binding M15 authority
 
-Step preparation:
+Preparation:
 - `docs/seo/M15_STEP_PREPARATION_2026-09-26_R1.md`
 - blob `0072a3e71a1315555ca4207a9a93c3d94f5a74d0`
 
@@ -30,190 +30,208 @@ QA plan:
 - blob `6f59850d4da6455463e2ff4266fee57152befdd1`
 - rows = 35
 
-## Preparation authority state
+Current M14 acceptance:
+- `docs/seo/M14_REWORK_320PX_ACCEPTANCE_2026-09-27_R2.md`
+- blob `edf16bc2506c33aca863ac4d2664bad6aa684455`
+
+M15 execution outputs:
+- `docs/seo/M15_SOURCE_MANIFEST.md`
+- `docs/seo/M15_INTEGRATION_RECONCILIATION.md`
+- `docs/seo/M15_SOURCE_QA.tsv`
+- `docs/seo/M15_PREDEPLOY_HTTP_QA.tsv`
+- `docs/seo/M15_RENDER_MOBILE_QA.tsv`
+- `docs/seo/M15_PERFORMANCE_QA.tsv`
+- `docs/seo/M15_ADVERSARIAL_QA.tsv`
+- `docs/seo/M15_EXISTING_LIVE_BASELINE.tsv`
+- `docs/seo/M15_QA.md`
+
+## Current accepted source
 
 ```text
-M15_PREPARATION_PARENT_SEO_HEAD = 2dab058c84d7c965660d4c12d863192f4c36cd52
-M15_PREPARATION_COMMIT = fb20049b7018c1df376111066215f447603ab552
-M15_OBSERVED_MAIN_HEAD = a7097321410921f2fffa54fc3ecf1bc17963c0c2
+M14_CURRENT_ACCEPTED_CANDIDATE =
+2ebab969f65c071b5c6aa7f2fd2679e1f3ca8e95
 
-M14_ACCEPTED_CANDIDATE = 020f351e1ddd862db4ded85622e2eeca02ea2181
-M14_ACCEPTED_TREE = 68e8585aff942b46bf8bb38f68c577aa11390bc4
+M14_CURRENT_TREE =
+565d8af1da92ec39f044717a04786c456fe0c1b2
 
-CURRENT_MAIN_SITE_GUARD_BLOBS_UNCHANGED = 16/16
-CURRENT_MAIN_SITE_PATH_OVERLAP = 0
+M14_CURRENT_CHANGED_PATHS = 14
+M14_320PX_DEFECTS_OPEN = 0
 ```
 
-Current main advanced 116 commits since the M14 implementation base, but none of the frozen site/guard/favicon-source paths changed.
+## Final current-main integration
 
-## Current Product/readiness reconciliation
+Fresh main used for final replay:
 
-Fresh main evidence still keeps these boundaries open:
-- live Ozon/WB business values;
-- full WB field/schema semantics;
-- owner gold-set agreement;
-- store/reviewer/deployment acceptance.
+`7600f3ceb555c32ff798aac48f6c9613e8124ab2`
 
-M14 public analytics copy remains compatible because it is generic, seller-owned and read-only and names no unsupported metric/category.
+Branch:
+
+`seo/m15-predeploy-integration-2026-09-27-r2`
+
+Candidate:
+
+`6a0149c958423082a62d5cb84ac757eed2e785a2`
+
+Tree:
+
+`08bbfa4591afaaf04fa31c2938d7adf2d9634857`
 
 ```text
-M14_COPY_PRODUCT_DRIFT = NONE_MATERIAL
+CHANGED_PATHS = 14
+UNAUTHORIZED_PATHS = 0
+CURRENT_M14_BLOB_PARITY = 14/14
+
+Site CI 36294780674 = SUCCESS
+Site Deploy CI 36294780702 = SUCCESS
 ```
 
-## Current M15 execution design
+The one intervening main update was WB token-policy/readiness documentation only and is reconciled as non-overlapping/non-material for the current site copy.
 
-Planned predeploy integration branch:
-
-`seo/m15-predeploy-integration-2026-09-26-r1`
-
-Execution:
-1. fresh main fetch;
-2. fresh M14 candidate readback;
-3. overlap classification;
-4. create integration branch from then-current main;
-5. replay exact accepted M14 13 remote blobs;
-6. exact 13-path compare/blob parity;
-7. exact-head Site CI + Site Deploy CI;
-8. independent source QA;
-9. isolated mount+network namespace nginx predeploy;
-10. HTTP matrix;
-11. Chrome/Opera/Yandex desktop render;
-12. Chrome 320px mobile render;
-13. performance/adversarial QA;
-14. read-only current-production PRE-M14 baseline;
-15. M15 QA.
-
-## Isolated predeploy capability
-
-Preparation environment check:
+## Source/predeploy result
 
 ```text
-unshare = AVAILABLE
-nginx = AVAILABLE
-google-chrome = AVAILABLE
-opera = AVAILABLE
-yandex_browser = AVAILABLE
-mount+network namespace = PASS
-Octoport certificate files = PRESENT
-lighthouse = NOT INSTALLED / NOT REQUIRED
+SOURCE_QA = PASS
+ISOLATED_PREDEPLOY_HTTP = PASS
+BROWSER_RENDER_QA = PASS
+MOBILE_320_QA = PASS
+PERFORMANCE_MATERIAL_DEFECT_QA = PASS
+ADVERSARIAL_QA = PASS
+EXISTING_LIVE_BASELINE = PASS
+
+OPEN_SOURCE_PREDEPLOY_CRITICAL_DEFECTS = 0
 ```
 
-The predeploy harness must:
-- run in private mount + network namespace;
-- use exact candidate static bytes;
-- include exact candidate `octoport-site.conf`;
-- bind 80/443 only inside the private network namespace;
-- never reload/signal production nginx;
-- never change host current release, systemd, DNS or certificates.
+HTTP predeploy:
+- canonical/page/assets 200 = 9/9;
+- host/scheme normalization PASS;
+- aliases = 9/9 exact 308;
+- query preservation PASS;
+- unknown URL real 404;
+- security/cache/types PASS.
 
-## Required QA
+Browser:
+- Chrome desktop HOME + analytics PASS;
+- Chrome 320 HOME + analytics PASS;
+- Opera desktop HOME + analytics PASS;
+- Yandex desktop HOME + analytics PASS;
+- viewport offenders = 0.
+
+Critical mobile closure:
 
 ```text
-SOURCE_QA_PLAN_ROWS = 35
-SOURCE_QA_REQUIRED = true
-ISOLATED_PREDEPLOY_HTTP_REQUIRED = true
-BROWSER_RENDER_QA_REQUIRED = true
-MOBILE_320_QA_REQUIRED = true
-PERFORMANCE_MATERIAL_DEFECT_QA_REQUIRED = true
-ADVERSARIAL_CLAIM_QA_REQUIRED = true
-EXISTING_LIVE_BASELINE_REQUIRED = true
+HOME 320 requested:
+clientWidth=305
+scrollWidth=305
+
+seller-analytics 320 requested:
+clientWidth=305
+scrollWidth=305
 ```
 
-Fresh official Google/Yandex/web.dev technical guidance was rechecked on 2026-09-26. No method drift invalidating M13 R2/M14 was found.
+## Existing production state
 
-## Explicit launch holds
+Production was not switched.
 
-### Analytics production proof
+Current release remains:
 
-M12 remains binding:
+`/var/www/octoport-site/releases/9e5f95b0db9ccbae4d2d0704f828748d21945acc`
+
+Current production is still pre-M14:
+- old HOME Title/H1;
+- seller-analytics 404;
+- favicon.png 404;
+- old alias behavior.
+
+This baseline is not candidate live QA.
+
+## Performance truth
+
+```text
+EXECUTABLE_PUBLIC_JS = 0
+THIRD_PARTY_RUNTIME = 0
+
+HOME_FIELD_CWV = FIELD_DATA_NOT_AVAILABLE
+ANALYTICS_FIELD_CWV = FIELD_DATA_NOT_AVAILABLE
+FIELD_CWV_FABRICATION = 0
+```
+
+## Remaining HOLD 1 — analytics proof
+
+M12 binding requirement is still open:
 
 ```text
 REAL_SANITIZED_DEMO_GATE = OPEN
 FAKE_ANALYTICS_PROOF = 0
 ```
 
+No real sanitized/source-backed seller-analytics demonstration suitable for production has been accepted.
+
 Therefore:
 
 ```text
-M15_SOURCE_QA_ALLOWED = true
-M15_ISOLATED_PREDEPLOY_QA_ALLOWED = true
-EXISTING_LIVE_READ_ONLY_BASELINE_ALLOWED = true
-
-M15_PRODUCTION_DEPLOYMENT_ALLOWED = false
+PRODUCTION_DEPLOYMENT_ALLOWED = false
 M15_CANDIDATE_LIVE_QA_ALLOWED = false
 M16_ALLOWED = false
 ```
 
-### Main-integration governance
+## Remaining HOLD 2 — main integration governance
 
-Current repo authority is internally inconsistent for site integration:
-- AGENTS says only C integrates main;
+Current repo authority remains inconsistent for site integration:
+
+- AGENTS: only C integrates main;
 - C OWNERSHIP denies `apps/site/**`;
-- coordination README says SEO/apps/site are outside A/B/C.
+- coordination README: SEO/apps/site outside A/B/C.
 
 ```text
-MAIN_INTEGRATION_GOVERNANCE = HOLD_REQUIRES_EXPLICIT_RECONCILIATION
+MAIN_INTEGRATION_GOVERNANCE =
+HOLD_REQUIRES_EXPLICIT_RECONCILIATION
 ```
 
-This does not block isolated predeploy QA.
+M15 does not merge to main while this remains unresolved.
 
-## Allowed M15 predeploy result
-
-If all independent QA rows except the explicit external holds pass:
+## Current M15 verdict
 
 ```text
+M15_QA_PLAN_ROWS = 35
+
+Q001-Q032 = PASS
+Q033 = HOLD_EXTERNAL_ANALYTICS_PROOF
+Q034 = HOLD_GOVERNANCE
+Q035 = PASS_SOURCE_PREDEPLOY_WITH_EXPLICIT_LIVE_HOLD
+
+M15_SOURCE_PREDEPLOY_ACCEPTED = true
+M15_FINAL_LIVE_ACCEPTED = false
 M15_STATE =
 PASS_SOURCE_PREDEPLOY_WITH_EXPLICIT_LIVE_HOLD
+
+QUALITY_SCORE_SOURCE_PREDEPLOY = 9.3/10
 ```
 
-This is NOT final M15 live acceptance.
-
-Final M15 live PASS requires:
-- proof gate closed;
-- main integration authority resolved;
-- fresh current-main revalidation;
-- production deployment authorization/path;
-- deployed candidate live HTTP + browser QA.
-
-## Execution outputs required
-
-1. `M15_SOURCE_MANIFEST.md`
-2. `M15_INTEGRATION_RECONCILIATION.md`
-3. `M15_SOURCE_QA.tsv`
-4. `M15_PREDEPLOY_HTTP_QA.tsv`
-5. `M15_RENDER_MOBILE_QA.tsv`
-6. `M15_PERFORMANCE_QA.tsv`
-7. `M15_ADVERSARIAL_QA.tsv`
-8. `M15_EXISTING_LIVE_BASELINE.tsv`
-9. `M15_QA.md`
-10. `M15_PROGRESS.md` update
-
-## Hard preparation result
+## No mutations outside allowed evidence
 
 ```text
-M14_CURRENT_ACCEPTED = PASS
-MAIN_SITE_OVERLAP = 0
-M15_PREDEPLOY_ENVIRONMENT = READY
-OPEN_CRITICAL_PREPARATION_DEFECTS = 0
-
-M15_PREDEPLOY_EXECUTION_READY = true
-M15_PRODUCTION_DEPLOYMENT_ALLOWED = false
-M16_ALLOWED = false
+MAIN_MERGE = false
+PRODUCTION_DEPLOYMENT = false
+HOST_PRODUCTION_NGINX_MUTATION = 0
+WEBMASTER_MUTATION = 0
+SEARCH_CONSOLE_MUTATION = 0
+PROVIDER_CALLS = 0
 ```
 
-## Next physical action
+## Reopen condition / next physical action
+
+M15 live phase reopens only after:
+
+1. real sanitized/source-backed analytics proof is accepted;
+2. main-integration governance is explicitly reconciled;
+3. fresh current main and current M14 authority are read;
+4. current source blobs are replayed/revalidated;
+5. authorized merge/deploy occurs;
+6. deployed-candidate HTTP/browser live QA passes.
+
+Only then:
 
 ```text
-fresh main/candidate
--> create fresh-main M15 integration branch
--> replay exact 13 M14 blobs
--> exact-head CI
--> source QA
--> isolated namespace nginx predeploy
--> HTTP/render/mobile/performance/adversarial QA
--> read-only existing-live PRE-M14 baseline
--> M15 QA
--> explicit LIVE HOLD
+M15_FINAL_LIVE_ACCEPTED = true
+-> M16 launch/indexing verification may open
 ```
-
-No main merge and no production deployment occurred during M15 preparation.
