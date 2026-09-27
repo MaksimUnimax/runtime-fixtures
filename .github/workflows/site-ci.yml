@@ -70,6 +70,13 @@ jobs:
               root / "install.html",
               favicon_path,
               root / "styles.css",
+              root / "assets" / "engraving-3-underlay.webp",
+              root / "assets" / "chatgpt.png",
+              root / "assets" / "anthropic.png",
+              root / "assets" / "gemini.png",
+              root / "assets" / "deepseek.png",
+              root / "assets" / "alice.png",
+              root / "assets" / "qwen.png",
               root / "robots.txt",
               sitemap_path,
               Path("apps/site/README.md"),
@@ -157,12 +164,19 @@ jobs:
           ], parser.descriptions
 
           approved_home_paths = {"/seller-analytics", "/privacy", "/support", "/install"}
+          approved_external_links = {
+              "https://app.octoport.ru/login", "https://chatgpt.com/", "https://alice.yandex.ru/",
+              "https://chat.deepseek.com/", "https://gemini.google.com/", "https://claude.ai/",
+              "https://chat.qwen.ai/",
+          }
           for href in parser.hrefs:
               if href.startswith("#"):
                   target = href[1:]
                   assert target in parser.ids, f"broken internal anchor: {href}"
-              else:
+              elif href.startswith("/"):
                   assert href in approved_home_paths, f"unexpected HOME link: {href}"
+              else:
+                  assert href in approved_external_links, f"unexpected external HOME link: {href}"
 
           lowered = index.lower()
           for stale_domain in ("selleragents.ru", "openscript.ru"):
