@@ -1,4 +1,12 @@
 import type { Locator, Page } from "playwright";
+import {
+  CHATGPT_ASSISTANT_MESSAGE_SELECTOR,
+  CHATGPT_USER_DIRECT_SELECTOR,
+  chatGPTAssistantMessages,
+  chatGPTCodeSurfaces,
+  chatGPTElementInsideAssistantContext,
+  chatGPTOwnedNativeCopyObservation,
+} from "./chatgpt-h3-dom.js";
 
 /**
  * Versioned, code-owned knowledge of the ChatGPT Standard surface.
@@ -38,9 +46,8 @@ export const CHATGPT_STANDARD_H3_PROFILE = Object.freeze({
       primary: 'button[data-testid="stop-button"]',
     }),
     busySignal: '[aria-busy="true"]',
-    assistantMessage:
-      'section[data-turn="assistant"], [data-message-author-role="assistant"]',
-    userMessage: 'section[data-turn="user"], [data-message-author-role="user"]',
+    assistantMessage: CHATGPT_ASSISTANT_MESSAGE_SELECTOR,
+    userMessage: CHATGPT_USER_DIRECT_SELECTOR,
     messageId: Object.freeze({
       primary: "data-turn-id",
       directFallback: "data-message-id",
@@ -55,8 +62,10 @@ export const CHATGPT_STANDARD_H3_PROFILE = Object.freeze({
       "#code-block-viewer",
       "pre > code",
       "pre",
+      "code",
     ]),
-    nativeCopy: 'button[aria-label="Copy"], button[aria-label="Копировать"]',
+    nativeCopy:
+      'button[data-code-copy-state], button[aria-label="Copy"], button[aria-label="Copy code"], button[aria-label="Копировать"], button[aria-label="Копировать код"]',
   }),
 });
 
@@ -66,8 +75,6 @@ const PROMPT_INPUT_SELECTOR = [
   CHATGPT_STANDARD_H3_PROFILE.selectors.promptInput.primary,
   ...CHATGPT_STANDARD_H3_PROFILE.selectors.promptInput.fallbacks,
 ].join(", ");
-const ASSISTANT_EDITOR_ANCESTOR =
-  'ancestor::*[self::section[@data-turn="assistant"] or @data-message-author-role="assistant"]';
 
 export function standardSurfaceRoot(page: Page): Locator {
   return page.locator(CHATGPT_STANDARD_H3_PROFILE.selectors.surfaceRoot);
@@ -84,14 +91,11 @@ export function standardComposerRoots(root: Locator): Locator {
 export function standardInputIsInsideAssistantEditor(
   input: Locator,
 ): Promise<boolean> {
-  return input
-    .locator(`xpath=${ASSISTANT_EDITOR_ANCESTOR}`)
-    .count()
-    .then((count) => count > 0);
+  return chatGPTElementInsideAssistantContext(input);
 }
 
 export function standardAssistantMessages(root: Locator): Locator {
-  return root.locator(CHATGPT_STANDARD_H3_PROFILE.selectors.assistantMessage);
+  return chatGPTAssistantMessages(root);
 }
 
 export async function standardMessageId(
@@ -113,7 +117,7 @@ export async function standardMessageId(
       .getAttribute("data-message-id");
     if (value) return value;
   }
-  return null;
+  return (await message.getAttribute("id")) || null;
 }
 
 export function standardSendControls(composer: Locator): Locator {
@@ -133,13 +137,14 @@ export function standardBusySignals(root: Locator): Locator {
 }
 
 export function standardCodeSurfaces(message: Locator): Locator {
-  return message.locator(
-    CHATGPT_STANDARD_H3_PROFILE.selectors.codeSurface.join(", "),
-  );
+  return chatGPTCodeSurfaces(message);
 }
 
-export function standardCopyControls(message: Locator): Locator {
-  return message.locator(CHATGPT_STANDARD_H3_PROFILE.selectors.nativeCopy);
+export function standardOwnedNativeCopyObservation(
+  message: Locator,
+  expectedToken: string,
+) {
+  return chatGPTOwnedNativeCopyObservation(message, expectedToken);
 }
 
 const CHATGPT_CONVERSATION_PATH =
