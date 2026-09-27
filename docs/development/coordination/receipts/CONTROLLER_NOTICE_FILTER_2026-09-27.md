@@ -15,3 +15,5 @@ Fix boundary: exclude CLOSED and SUPERSEDED from active notices, preserve existi
 Validation: execute only the extracted pure reader against temporary notices; demonstrate the old implementation includes SUPERSEDED and the new implementation excludes it, while OPEN and the pre-existing treatment of unknown status remain unchanged and other roles remain excluded. No full suite or resource inspection in this audit.
 
 Handoff: C reviews and integrates this bounded candidate with its current intake, then runs its normal required CI on the integrated candidate. The controller does not publish main.
+
+Validation result: reproduced SUPERSEDED leakage in the old reader; corrected reader passed OPEN retention, CLOSED/SUPERSEDED exclusion, unchanged other-status behavior, filename order, role mismatch rejection and empty-role output. Only the extracted function was executed. Runtime metadata archive: 15 already-superseded records closed, 0 files removed; two active notices per role preserved.
