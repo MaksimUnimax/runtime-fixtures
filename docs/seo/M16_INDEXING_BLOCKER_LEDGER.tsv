@@ -1,0 +1,7 @@
+blocker_id	area	state	severity	blocks_full_m16	blocks_technical_launch_pass	owner_or_external_action	reopen_condition
+M16B001	Google Search Console property	No Octoport property exists in connected Google Search Console account	EXTERNAL_SETUP_REQUIRED	true	false	Create and verify sc-domain:octoport.ru or accepted URL-prefix property; then connect/register in GSC Wizard	Property available for URL Inspection
+M16B002	Yandex Webmaster authority	No authenticated Webmaster authority available to executor	EXTERNAL_SETUP_REQUIRED	true	false	Connect/authorize Yandex Webmaster site access	Searchable Pages/Sitemap/URL status readable
+M16B003	Public search discovery	No Octoport result observed in universal web search immediately after launch	EXPECTED_DELAY	false	false	No immediate action required	Recheck after crawl/indexing window or console evidence
+M16B004	Google direct public SERP	Provider returned access/problem page	EXECUTOR_OBSERVABILITY	false	false	Use Search Console property instead	Property/URL Inspection available
+M16B005	Yandex direct public SERP	Provider CAPTCHA	EXECUTOR_OBSERVABILITY	false	false	Use Yandex Webmaster instead	Authenticated console authority available
+M16B006	Technical crawl/indexability	No critical defect found	NONE	false	false	None	Reopen only on new live defect
