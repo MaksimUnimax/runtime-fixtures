@@ -217,7 +217,9 @@ describe("dormant bootstrap v3 contract", () => {
     expect(
       BootstrapSnapshotPayloadV3Schema.safeParse(neutralPaid).success,
     ).toBe(true);
-    const { accessBasis: _accessBasis, ...withoutAccessBasis } = identifiedPaid;
+    const withoutAccessBasis = Object.fromEntries(
+      Object.entries(identifiedPaid).filter(([key]) => key !== "accessBasis"),
+    );
     expect(
       BootstrapSnapshotPayloadV3Schema.safeParse(withoutAccessBasis).success,
     ).toBe(false);
