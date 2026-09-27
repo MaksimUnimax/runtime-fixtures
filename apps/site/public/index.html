@@ -3,14 +3,15 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Octoport — ИИ-сотрудник для Ozon и Wildberries</title>
+    <title>Подключите ваш ИИ к Ozon и Wildberries | Octoport</title>
     <meta
       name="description"
-      content="Octoport соединяет выбранный вами ИИ с Ozon и Wildberries через браузерное расширение. Готовим бесплатную закрытую бету."
+      content="Octoport подключает выбранный вами ИИ к разрешённым данным Ozon и Wildberries через браузерное расширение. Read-only запуск; готовим закрытую бесплатную бету."
     />
     <meta name="theme-color" content="#f4f1ea" />
     <meta name="color-scheme" content="light" />
     <link rel="canonical" href="https://octoport.ru/" />
+    <link rel="icon" href="/favicon.png" type="image/png" />
     <link rel="stylesheet" href="/styles.css" />
     <meta property="og:type" content="website" />
     <meta property="og:locale" content="ru_RU" />
@@ -21,6 +22,15 @@
       content="Работа с Ozon и Wildberries из привычного диалога с ИИ — через локальное браузерное расширение."
     />
     <meta property="og:url" content="https://octoport.ru/" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "Octoport",
+        "alternateName": ["Октопорт", "octoport.ru"],
+        "url": "https://octoport.ru/"
+      }
+    </script>
   </head>
   <body>
     <header class="site-header">
@@ -32,7 +42,7 @@
       </a>
       <nav class="nav" aria-label="Основная навигация">
         <a href="#how">Как работает</a>
-        <a href="#privacy">Данные</a>
+        <a href="/seller-analytics">Аналитика</a>
         <a class="nav-cta" href="#beta">Бета</a>
       </nav>
     </header>
@@ -41,9 +51,10 @@
       <section class="hero section-shell">
         <div class="hero-copy">
           <p class="eyebrow">Ozon + Wildberries · один инструмент</p>
-          <h1>Ваш ИИ получает руки для работы с маркетплейсами.</h1>
-          <p class="lead">
-            Octoport соединяет выбранный вами ИИ с кабинетами Ozon и Wildberries через браузерное расширение. ИИ помогает получать данные и готовить отчёты, а вы сохраняете контроль над запуском действий.
+          <h1>Подключите ваш ИИ к Ozon и Wildberries</h1>
+          <p class="lead">Ваш ИИ получает руки для работы с маркетплейсами.</p>
+          <p>
+            Octoport соединяет выбранный вами ИИ с кабинетами Ozon и Wildberries через браузерное расширение. ИИ помогает получать разрешённые данные и готовить отчёты, а вы сохраняете контроль над запуском действий.
           </p>
           <div class="hero-actions">
             <a class="button button-primary" href="#beta">Узнать о бете</a>
@@ -125,6 +136,18 @@
         </ol>
       </section>
 
+
+      <section class="beta section-shell" id="analytics" aria-labelledby="analytics-title">
+        <div class="beta-panel">
+          <p class="eyebrow">Данные вашего магазина</p>
+          <h2 id="analytics-title">Разбирайте данные Ozon и Wildberries в выбранном вами ИИ.</h2>
+          <p class="beta-copy">
+            Для задач аналитики Octoport передаёт выбранному вами ИИ только разрешённые данные и отчёты вашего собственного магазина. Это не внешняя конкурентная аналитика и не автоматическое изменение состояния кабинета.
+          </p>
+          <a class="button button-secondary" href="/seller-analytics">Как работает аналитика своего магазина</a>
+        </div>
+      </section>
+
       <section class="privacy section-shell" id="privacy" aria-labelledby="privacy-title">
         <div class="privacy-panel">
           <div>
@@ -156,7 +179,11 @@
 
     <footer class="site-footer">
       <span>© 2026 Octoport</span>
-      <span>octoport.ru</span>
+      <nav class="footer-nav" aria-label="Служебные страницы">
+        <a href="/privacy">Конфиденциальность</a>
+        <a href="/support">Поддержка</a>
+        <a href="/install">Установка</a>
+      </nav>
     </footer>
   </body>
 </html>
