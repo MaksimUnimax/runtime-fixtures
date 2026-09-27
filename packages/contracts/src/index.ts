@@ -1001,6 +1001,11 @@ export const ControlPlaneContractVersionV1Schema =
 /** I1-SRV.1 is a breaking signed-payload change and uses an explicit v2. */
 export const ControlPlaneContractVersionV2Schema =
   z.literal("control_plane_v2");
+export const ControlPlaneContractVersionV3Schema =
+  z.literal("control_plane_v3");
+export type ControlPlaneContractVersionV3 = z.infer<
+  typeof ControlPlaneContractVersionV3Schema
+>;
 export const ControlPlaneContractVersionSchema = z.union([
   ControlPlaneContractVersionV1Schema,
   ControlPlaneContractVersionV2Schema,
@@ -1011,12 +1016,24 @@ export const BootstrapSnapshotVersionV1Schema = z.literal(
 export const BootstrapSnapshotVersionV2Schema = z.literal(
   "bootstrap_snapshot_v2",
 );
+export const BootstrapSnapshotVersionV3Schema = z.literal(
+  "bootstrap_snapshot_v3",
+);
+export type BootstrapSnapshotVersionV3 = z.infer<
+  typeof BootstrapSnapshotVersionV3Schema
+>;
 export const BootstrapEnvelopeVersionV1Schema = z.literal(
   "bootstrap_envelope_v1",
 );
 export const BootstrapEnvelopeVersionV2Schema = z.literal(
   "bootstrap_envelope_v2",
 );
+export const BootstrapEnvelopeVersionV3Schema = z.literal(
+  "bootstrap_envelope_v3",
+);
+export type BootstrapEnvelopeVersionV3 = z.infer<
+  typeof BootstrapEnvelopeVersionV3Schema
+>;
 
 const IsoTimestampV1Schema = z.string().datetime({ offset: true });
 
@@ -1067,6 +1084,30 @@ export const BootstrapRequestV2Schema = z.union([
   BootstrapPrivacyNeutralRequestV2Schema,
 ]);
 export type BootstrapRequestV2 = z.infer<typeof BootstrapRequestV2Schema>;
+export const BootstrapIdentifiedRequestV3Schema = z
+  .object({
+    contractVersion: ControlPlaneContractVersionV3Schema,
+    ...BootstrapIdentifiedClientShape,
+    ...BootstrapRequestCommonShape,
+  })
+  .strict();
+export type BootstrapIdentifiedRequestV3 = z.infer<
+  typeof BootstrapIdentifiedRequestV3Schema
+>;
+export const BootstrapPrivacyNeutralRequestV3Schema = z
+  .object({
+    contractVersion: ControlPlaneContractVersionV3Schema,
+    ...BootstrapRequestCommonShape,
+  })
+  .strict();
+export type BootstrapPrivacyNeutralRequestV3 = z.infer<
+  typeof BootstrapPrivacyNeutralRequestV3Schema
+>;
+export const BootstrapRequestV3Schema = z.union([
+  BootstrapIdentifiedRequestV3Schema,
+  BootstrapPrivacyNeutralRequestV3Schema,
+]);
+export type BootstrapRequestV3 = z.infer<typeof BootstrapRequestV3Schema>;
 export const BootstrapRequestSchema = z.union([
   BootstrapRequestV1Schema,
   BootstrapRequestV2Schema,
@@ -1304,6 +1345,127 @@ export type LocalClientAuthorityV1 = z.infer<
   typeof LocalClientAuthorityV1Schema
 >;
 
+const LocalClientAuthorityReleaseSupportV3Schema = z
+  .object({
+    extensionVersion: SemVerV1Schema,
+    contractVersions: z
+      .array(
+        z.union([
+          ControlPlaneContractVersionV1Schema,
+          ControlPlaneContractVersionV2Schema,
+          ControlPlaneContractVersionV3Schema,
+        ]),
+      )
+      .min(1)
+      .max(8)
+      .refine(
+        (value) => new Set(value).size === value.length,
+        "duplicate contract version",
+      ),
+    browserFamilies: z
+      .array(z.enum(BrowserFamilies))
+      .min(1)
+      .max(BrowserFamilies.length)
+      .refine(
+        (value) => new Set(value).size === value.length,
+        "duplicate browser family",
+      ),
+  })
+  .strict();
+
+const LocalClientAuthorityPolicyV3Schema = z
+  .object({
+    policyKey: StableMachineIdentifierV1Schema,
+    revision: z.number().int().positive().safe(),
+    contractVersion: ControlPlaneContractVersionV3Schema,
+    browserFamily: z.enum(BrowserFamilies).nullable(),
+    minimumExtensionVersion: SemVerV1Schema.nullable(),
+    recommendedExtensionVersion: SemVerV1Schema.nullable(),
+    minimumBrowserVersion: z
+      .string()
+      .min(1)
+      .max(64)
+      .regex(/^\d+(?:\.\d+){0,3}$/)
+      .nullable(),
+    maintenanceMode: z.boolean(),
+    maintenanceCode: StableMachineIdentifierV1Schema.nullable(),
+    blockedVersions: z
+      .array(SemVerV1Schema)
+      .max(128)
+      .refine(
+        (value) => new Set(value).size === value.length,
+        "duplicate blocked version",
+      ),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (value.maintenanceMode !== (value.maintenanceCode !== null))
+      context.addIssue({
+        code: "custom",
+        path: ["maintenanceCode"],
+        message: "maintenance code must match maintenance mode",
+      });
+    if (value.browserFamily === null && value.minimumBrowserVersion !== null)
+      context.addIssue({
+        code: "custom",
+        path: ["minimumBrowserVersion"],
+        message: "global policy cannot set a browser minimum",
+      });
+  });
+
+const LocalClientAuthorityFeatureRuleV3Schema = z
+  .object({
+    featureKey: StableMachineIdentifierV1Schema,
+    revision: z.number().int().positive().safe(),
+    contractVersion: ControlPlaneContractVersionV3Schema,
+    enabled: z.boolean(),
+    browserFamily: z.enum(BrowserFamilies).nullable(),
+    minimumExtensionVersion: SemVerV1Schema.nullable(),
+  })
+  .strict();
+
+export const LocalClientAuthorityV2Schema = z
+  .object({
+    schemaVersion: z.literal("local_client_authority_v2"),
+    contractVersion: ControlPlaneContractVersionV3Schema,
+    compatibility: z
+      .object({
+        releases: z
+          .array(LocalClientAuthorityReleaseSupportV3Schema)
+          .max(64)
+          .refine(
+            (value) =>
+              new Set(value.map((release) => release.extensionVersion)).size ===
+              value.length,
+            "duplicate release version",
+          ),
+        policies: z
+          .array(LocalClientAuthorityPolicyV3Schema)
+          .max(32)
+          .refine(
+            (value) =>
+              new Set(
+                value.map((policy) => `${policy.policyKey}:${policy.revision}`),
+              ).size === value.length,
+            "duplicate policy revision",
+          ),
+      })
+      .strict(),
+    featureRules: z
+      .array(LocalClientAuthorityFeatureRuleV3Schema)
+      .max(128)
+      .refine(
+        (value) =>
+          new Set(value.map((rule) => rule.featureKey)).size === value.length,
+        "duplicate feature key",
+      ),
+    ai: LocalClientAuthorityAiV1Schema,
+  })
+  .strict();
+export type LocalClientAuthorityV2 = z.infer<
+  typeof LocalClientAuthorityV2Schema
+>;
+
 const SubscriptionV1Schema = z.discriminatedUnion("state", [
   z.object({ state: z.literal("NONE"), planRevision: z.null() }).strict(),
   z
@@ -1438,6 +1600,103 @@ export const BootstrapSnapshotPayloadV2Schema = z.union([
 export type BootstrapSnapshotPayloadV2 = z.infer<
   typeof BootstrapSnapshotPayloadV2Schema
 >;
+
+export const SubscriptionAccessV1Schema = z
+  .discriminatedUnion("schemaVersion", [
+    z
+      .object({
+        schemaVersion: z.literal("subscription_access_v1"),
+        paidThrough: IsoTimestampV1Schema,
+        offlineHardUntil: IsoTimestampV1Schema,
+      })
+      .strict(),
+  ])
+  .nullable();
+export type SubscriptionAccessV1 = z.infer<typeof SubscriptionAccessV1Schema>;
+
+const BootstrapSnapshotV3CommonShape = {
+  ...BootstrapSnapshotCommonShape,
+  accessBasis: AccessBasisV1Schema,
+  subscriptionAccess: SubscriptionAccessV1Schema,
+};
+const validateV3Snapshot = (
+  value: {
+    issuedAt: string;
+    expiresAt: string;
+    offlineGraceUntil: string;
+    serverTime: string;
+    accessBasis: "BETA" | "COMMERCIAL" | "NONE";
+    subscription: { state: string };
+    subscriptionAccess: SubscriptionAccessV1 | null;
+  },
+  context: z.RefinementCtx,
+) => {
+  validateBootstrapSnapshotTimes(value, context);
+  // V3 keeps offlineGraceUntil for staged wire compatibility, but the signed
+  // commercial offline entitlement is subscriptionAccess.offlineHardUntil.
+  // The producer mapping paidThrough=currentPeriodEnd is enforced by B tests
+  // because currentPeriodEnd is deliberately not duplicated in this payload.
+  const access = value.subscriptionAccess;
+  const paidCommercialState =
+    value.accessBasis === "COMMERCIAL" &&
+    ["ACTIVE", "GRACE", "CANCELED"].includes(value.subscription.state);
+  if (access) {
+    if (
+      Date.parse(access.offlineHardUntil) - Date.parse(access.paidThrough) !==
+      72 * 60 * 60 * 1000
+    )
+      context.addIssue({
+        code: "custom",
+        path: ["subscriptionAccess", "offlineHardUntil"],
+        message: "must equal paidThrough plus exactly 72 hours",
+      });
+    if (!paidCommercialState)
+      context.addIssue({
+        code: "custom",
+        path: ["subscriptionAccess"],
+        message:
+          "must be present only for paid COMMERCIAL ACTIVE/GRACE/CANCELED access",
+      });
+  } else if (paidCommercialState)
+    context.addIssue({
+      code: "custom",
+      path: ["subscriptionAccess"],
+      message: "is required for paid COMMERCIAL ACTIVE/GRACE/CANCELED access",
+    });
+};
+export const BootstrapIdentifiedSnapshotPayloadV3Schema = z
+  .object({
+    snapshotVersion: BootstrapSnapshotVersionV3Schema,
+    contractVersion: ControlPlaneContractVersionV3Schema,
+    account: z.object({ id: z.uuid(), status: z.literal("ACTIVE") }).strict(),
+    ...BootstrapSnapshotV3CommonShape,
+    ...BootstrapIdentifiedAuthorityShape,
+  })
+  .strict()
+  .superRefine(validateV3Snapshot);
+export type BootstrapIdentifiedSnapshotPayloadV3 = z.infer<
+  typeof BootstrapIdentifiedSnapshotPayloadV3Schema
+>;
+export const BootstrapPrivacyNeutralSnapshotPayloadV3Schema = z
+  .object({
+    snapshotVersion: BootstrapSnapshotVersionV3Schema,
+    contractVersion: ControlPlaneContractVersionV3Schema,
+    account: z.object({ id: z.uuid(), status: z.literal("ACTIVE") }).strict(),
+    ...BootstrapSnapshotV3CommonShape,
+    localClientAuthority: LocalClientAuthorityV2Schema,
+  })
+  .strict()
+  .superRefine(validateV3Snapshot);
+export type BootstrapPrivacyNeutralSnapshotPayloadV3 = z.infer<
+  typeof BootstrapPrivacyNeutralSnapshotPayloadV3Schema
+>;
+export const BootstrapSnapshotPayloadV3Schema = z.union([
+  BootstrapIdentifiedSnapshotPayloadV3Schema,
+  BootstrapPrivacyNeutralSnapshotPayloadV3Schema,
+]);
+export type BootstrapSnapshotPayloadV3 = z.infer<
+  typeof BootstrapSnapshotPayloadV3Schema
+>;
 export const BootstrapSnapshotPayloadSchema = z.union([
   BootstrapSnapshotPayloadV1Schema,
   BootstrapSnapshotPayloadV2Schema,
@@ -1488,6 +1747,26 @@ export const SignedBootstrapEnvelopeV2Schema = z
   .strict();
 export type SignedBootstrapEnvelopeV2 = z.infer<
   typeof SignedBootstrapEnvelopeV2Schema
+>;
+export const SignedBootstrapEnvelopeV3Schema = z
+  .object({
+    envelopeVersion: BootstrapEnvelopeVersionV3Schema,
+    algorithm: z.literal("Ed25519"),
+    keyId: StableMachineIdentifierV1Schema,
+    payload: z
+      .string()
+      .min(1)
+      .max(32_768)
+      .regex(/^[A-Za-z0-9_-]+$/),
+    signature: z
+      .string()
+      .min(1)
+      .max(256)
+      .regex(/^[A-Za-z0-9_-]+$/),
+  })
+  .strict();
+export type SignedBootstrapEnvelopeV3 = z.infer<
+  typeof SignedBootstrapEnvelopeV3Schema
 >;
 export const SignedBootstrapEnvelopeSchema = z.union([
   SignedBootstrapEnvelopeV1Schema,
