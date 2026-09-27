@@ -1,6 +1,6 @@
 # A — passive v3 shared refresh scheduler — 2026-09-27
 
-Status: **SOURCE/PACKAGE FOCUSED PASS / CURRENT STORE V2 DORMANT / LIVE NOT RUN**
+Status: **SOURCE/PACKAGE FULL I1 PASS / CURRENT STORE V2 DORMANT / LIVE NOT RUN**
 
 Task: `A_V3_PASSIVE_CLIENT_REFRESH_SCHEDULER`.
 Parent A head: `49cd4d41c66ff6465d2ea1c384b53fb07006b113`.
@@ -134,6 +134,43 @@ File SHA-256 at this focused boundary:
 - `client-v3-refresh-online.mjs`: `56d7a6ab4f6b4b49ab26a0653ddaa61d591f0c41a89b0b889708bdca7b18b6c5`.
 
 These hashes are rechecked before commit; if any file changes, this receipt must be updated before handoff.
+
+## Merged exact validation
+
+Scheduler implementation commit:
+- `91b87d7a` — `feat(A): add passive v3 refresh scheduler`.
+
+After that commit, A merged the then-current accepted `origin/main=db7dd52d014924a1195b81d79e6fa4c16a33b022` with no scheduler-path conflict.
+
+Merged validation head:
+- `30e4f1893d0451285e1359f89085787c4e96595a`.
+
+Focused r6 source/extracted validation on the same scheduler bytes:
+- `client-v3-refresh-online.mjs` — PASS on source and extracted;
+- `client-v3-refresh-scheduler.mjs` — PASS on source and extracted;
+- `client-cache-time.mjs` — PASS on source and extracted;
+- `client-v3-passive-cache.mjs` — PASS on source and extracted;
+- `client-p3-technical-scheduler.mjs` — PASS on source and extracted;
+- GRACE with already-past `paidThrough` uses cadence rather than an immediate refresh loop;
+- a signed non-advancing scheduled response is rejected without replacing the current authority.
+
+Full supervised merged I1:
+- output: `/tmp/octoport-a-v3-refresh-i1-merged30e4-r1`;
+- resource job: `75a393dc2e7a41b2b03909a38d5d3879`;
+- result: **PASS**;
+- gate processes: **160**;
+- command exit: **0**;
+- systemd result: **success**;
+- cleanup verified: **true**;
+- OOM kills: **0**;
+- peak bytes: **355467264**;
+- archive SHA-256: `2ef4552c2bf7cfef17d02b9d76264c8128b1e0bd47fd8764dfed528b14e6321e`;
+- repeat archive match: **true**;
+- source/extracted bytes match: **true**;
+- `installed_acceptance=false`.
+
+The full I1 run does not itself activate v3 negotiation: checked-in package config remains v2. The synthetic v3 path is exercised only by focused future-config fixtures.
+
 ## Controller hard-boundary correction
 
 Controller notice `STREAMS-AUDIT-20260927-1022` separately identified a cache-vs-current-online hard-boundary defect in `autonomous-work-authority.js` and prepared exact candidate:
@@ -163,3 +200,40 @@ Next safe step:
 4. rerun focused checks on the merged exact bytes;
 5. run full `extension_i1` on the final merged candidate;
 6. consume controller hard-boundary correction only after it appears through normal main/C intake.
+
+## Post-merge acceptance
+
+The scheduler implementation commit is:
+
+`91b87d7a68e533962a49ec5ea5a76448a70bb209`.
+
+Fresh `origin/main=db7dd52d014924a1195b81d79e6fa4c16a33b022` was merged normally without rebase. The resulting tested code head is:
+
+`30e4f1893d0451285e1359f89085787c4e96595a`.
+
+The main merge changed site/server-preflight files only. A product/test paths under control-client, extension, bridge-core and extension regressions are byte-identical to the scheduler commit.
+
+Full merged-candidate I1:
+
+`python3 tooling/coordination/control.py A heavy --profile browser --timeout-seconds 3600 -- ... python3 tooling/checks/extension_i1.py --output /tmp/octoport-a-v3-refresh-i1-merged30e4-r1`
+
+Result:
+- stage `I1-C1`;
+- status `PASS`;
+- gate processes: `160`;
+- Node: `v24.20.0`;
+- installed acceptance: false;
+- package SHA-256: `2ef4552c2bf7cfef17d02b9d76264c8128b1e0bd47fd8764dfed528b14e6321e`;
+- repeat archive match: true;
+- source/extracted bytes match: true;
+- resource job: `75a393dc2e7a41b2b03909a38d5d3879`;
+- resource command exit: 0;
+- cleanup verified: true;
+- OOM kills: 0;
+- peak bytes: 355467264.
+
+The same package SHA as focused r5 confirms the site/server-only main merge did not alter extension package bytes.
+
+Final handoff may contain a documentation-only receipt commit above `30e4f189...`; no product/test byte change after this full I1 is permitted without rerunning the relevant acceptance.
+
+As of the post-I1 fetch, controller candidate `951b99d24ab2d129a738056b781fb015f3793036` is still **not** an ancestor of `origin/main`. Its separate hard-deadline correction therefore remains pending normal C intake and is not claimed as part of this candidate.
