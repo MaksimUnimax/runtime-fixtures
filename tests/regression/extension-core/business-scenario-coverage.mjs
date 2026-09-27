@@ -1,3 +1,4 @@
+import "./wb-stock-field-schema-slice.mjs";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import fs from "node:fs";

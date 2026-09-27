@@ -1,0 +1,213 @@
+{
+  "schemaVersion": "wb_stock_field_schema_slice_v1",
+  "capturedDate": "2026-09-27",
+  "scope": {
+    "scenarioIds": ["STD-08", "CAP-04"],
+    "boundary": "CURRENT_STOCK_BY_WAREHOUSE",
+    "evidence": "OFFICIAL_FIELD_SCHEMA_SOURCE_ONLY",
+    "liveValues": false
+  },
+  "sources": {
+    "wbWarehouses": {
+      "url": "https://dev.wildberries.ru/en/openapi/analytics",
+      "operationAlias": "wb_warehouse_stocks",
+      "host": "analytics",
+      "method": "POST",
+      "path": "/api/analytics/v1/stocks-report/wb-warehouses",
+      "tokenCategory": "analytics",
+      "officialTokenTypes": ["personal", "service"],
+      "freshnessMinutes": 30,
+      "replacesDeprecated": {
+        "path": "/api/v1/supplier/stocks",
+        "disableDate": "2026-06-23"
+      },
+      "rowGrain": ["nmId", "chrtId", "warehouseId"],
+      "pagination": {
+        "kind": "offset",
+        "limitDefault": 250000,
+        "limitMax": 250000
+      },
+      "fields": {
+        "nmId": {
+          "role": "product_id",
+          "unit": "identifier"
+        },
+        "chrtId": {
+          "role": "size_id",
+          "unit": "identifier"
+        },
+        "warehouseId": {
+          "role": "warehouse_id",
+          "unit": "identifier"
+        },
+        "warehouseName": {
+          "role": "warehouse_label",
+          "unit": "text"
+        },
+        "regionName": {
+          "role": "shipping_region_label",
+          "unit": "text"
+        },
+        "quantity": {
+          "role": "current_on_hand_stock",
+          "unit": "product_units"
+        },
+        "inWayToClient": {
+          "role": "transit_to_client",
+          "unit": "product_units"
+        },
+        "inWayFromClient": {
+          "role": "transit_from_client",
+          "unit": "product_units"
+        }
+      }
+    },
+    "sellerWarehouses": {
+      "url": "https://dev.wildberries.ru/en/openapi/work-with-products",
+      "warehouseListAlias": "seller_warehouses",
+      "warehouseList": {
+        "host": "marketplace",
+        "method": "GET",
+        "path": "/api/v3/warehouses",
+        "fields": {
+          "id": {
+            "role": "seller_warehouse_id",
+            "unit": "identifier"
+          },
+          "name": {
+            "role": "seller_warehouse_label",
+            "unit": "text"
+          },
+          "officeId": {
+            "role": "linked_office_id",
+            "unit": "identifier"
+          }
+        }
+      },
+      "stockAlias": "fbs_stocks",
+      "stockFreshnessSla": null,
+      "stockFreshnessBoundary": "NOT_DOCUMENTED_IN_METHOD",
+      "stock": {
+        "host": "marketplace",
+        "method": "POST",
+        "path": "/api/v3/stocks/{warehouseId}",
+        "pathWarehouseField": "id",
+        "requestSizeField": "chrtIds",
+        "responseArray": "stocks",
+        "fields": {
+          "chrtId": {
+            "role": "size_id",
+            "unit": "identifier"
+          },
+          "amount": {
+            "role": "current_on_hand_stock",
+            "unit": "product_units"
+          }
+        }
+      }
+    }
+  },
+  "rules": {
+    "missing": "MISSING_NOT_ZERO",
+    "wbWarehouseAggregation": "SUM_QUANTITY_BY_WAREHOUSE_ID_AFTER_COMPLETE_PAGINATION",
+    "transitExcludedFromOnHand": ["inWayToClient", "inWayFromClient"],
+    "sellerWarehouseJoin": "seller_warehouses.id -> fbs_stocks path warehouseId",
+    "sellerWarehouseAggregation": "SUM_AMOUNT_BY_WAREHOUSE_ID",
+    "wbWarehouseCompleteness": "REQUIRES_COMPLETE_OFFSET_PAGINATION",
+    "sellerWarehouseCompleteness": "REQUIRES_COMPLETE_CHRT_ID_INPUT_SET_PER_WAREHOUSE",
+    "doNotMergeSchemes": true
+  },
+  "syntheticCases": {
+    "wbWarehouses": {
+      "rows": [
+        {
+          "nmId": 101,
+          "chrtId": 1001,
+          "warehouseId": 507,
+          "warehouseName": "Fixture A",
+          "regionName": "Fixture Region",
+          "quantity": 43,
+          "inWayToClient": 14,
+          "inWayFromClient": 11
+        },
+        {
+          "nmId": 102,
+          "chrtId": 1002,
+          "warehouseId": 507,
+          "warehouseName": "Fixture A",
+          "regionName": "Fixture Region",
+          "quantity": 7,
+          "inWayToClient": 2,
+          "inWayFromClient": 3
+        },
+        {
+          "nmId": 103,
+          "chrtId": 1003,
+          "warehouseId": 901,
+          "warehouseName": "Fixture B",
+          "regionName": "Fixture Region",
+          "quantity": 61,
+          "inWayToClient": 0,
+          "inWayFromClient": 0
+        }
+      ],
+      "expected": [
+        {
+          "warehouseId": 901,
+          "warehouseName": "Fixture B",
+          "onHandUnits": 61
+        },
+        {
+          "warehouseId": 507,
+          "warehouseName": "Fixture A",
+          "onHandUnits": 50
+        }
+      ]
+    },
+    "sellerWarehouses": {
+      "warehouses": [
+        {
+          "id": 10,
+          "name": "Seller Fixture A",
+          "officeId": 15
+        },
+        {
+          "id": 20,
+          "name": "Seller Fixture B",
+          "officeId": 25
+        }
+      ],
+      "responses": [
+        {
+          "warehouseId": 10,
+          "stocks": [
+            { "chrtId": 1001, "amount": 4 },
+            { "chrtId": 1002, "amount": 6 }
+          ]
+        },
+        {
+          "warehouseId": 20,
+          "stocks": [{ "chrtId": 1003, "amount": 3 }]
+        }
+      ],
+      "expected": [
+        {
+          "warehouseId": 10,
+          "warehouseName": "Seller Fixture A",
+          "onHandUnits": 10
+        },
+        {
+          "warehouseId": 20,
+          "warehouseName": "Seller Fixture B",
+          "onHandUnits": 3
+        }
+      ]
+    }
+  },
+  "remainingOpen": [
+    "live WB values and owner gold-set agreement",
+    "historical stock movement causality",
+    "other 43 business scenarios field-level schemas",
+    "buyer-specific delivery availability"
+  ]
+}
