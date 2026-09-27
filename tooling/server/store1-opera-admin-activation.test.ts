@@ -10,7 +10,9 @@ import {
   planStore1Activation,
   type Store1ActivationReadback,
   type Store1PackageAuthority,
+  type Store1V2SignaturePreflightProof,
 } from "./store1-opera-admin-activation.js";
+import { trustStore1V2SignaturePreflightProofForTest } from "./store1-v2-signature-preflight.js";
 
 const authority: Store1PackageAuthority = {
   sourceHead: STORE1_ACCEPTED_SOURCE_HEAD,
@@ -30,9 +32,35 @@ const ids = {
   assignment: "00000000-0000-4000-8000-000000000007",
   user: "00000000-0000-4000-8000-000000000008",
   account: "00000000-0000-4000-8000-000000000009",
+  device: "00000000-0000-4000-8000-000000000010",
 };
+function exactSignatureProof(): Store1V2SignaturePreflightProof {
+  return trustStore1V2SignaturePreflightProofForTest({
+    schemaVersion: "store1_v2_signature_preflight_v1",
+    verified: true,
+    artifactSha256: STORE1_ACCEPTED_ARTIFACT_SHA256,
+    trustBundleSha256: "c".repeat(64),
+    contractVersion: STORE1_CONTRACT,
+    snapshotVersion: "bootstrap_snapshot_v2",
+    envelopeVersion: "bootstrap_envelope_v2",
+    configVersion: 8,
+    configContentHashSha256: "a".repeat(64),
+    configSourceFingerprintSha256: "b".repeat(64),
+    signingKeyId: "store1-preprod-base",
+    accountId: ids.account,
+    deviceId: ids.device,
+    extensionVersion: STORE1_VERSION,
+    browserFamily: "opera",
+    browserVersion: "136",
+    controlApiOrigin: "https://api.octoport.test",
+    serverTime: "2030-01-01T00:00:00.000Z",
+    expiresAt: "2030-01-01T00:15:00.000Z",
+    aiStatus: "UNCONFIGURED",
+  });
+}
 function exactReadback(): Store1ActivationReadback {
   return {
+    signaturePreflight: exactSignatureProof(),
     release: {
       version: STORE1_VERSION,
       releaseChannel: "stable",
@@ -60,6 +88,8 @@ function exactReadback(): Store1ActivationReadback {
       contractVersion: STORE1_CONTRACT,
       snapshotVersion: "bootstrap_snapshot_v2",
       envelopeVersion: "bootstrap_envelope_v2",
+      contentHashSha256: "a".repeat(64),
+      sourceFingerprintSha256: "b".repeat(64),
       signingKeyId: "store1-preprod-base",
       signingKeyState: "ACTIVE",
       compatibilityPolicyRevisionIds: [ids.policy],
@@ -198,6 +228,71 @@ describe("STORE-1 ordinary-admin activation planner", () => {
     expect(planStore1Activation(authority, r)).toMatchObject({
       status: "BLOCKED",
       code: "STORE1_V2_BASE_SIGNING_KEY_NOT_ACTIVE",
+    });
+  });
+
+  it("requires cryptographic v2 proof before a pending catalog mutation", () => {
+    const r = exactReadback();
+    r.release = null;
+    delete r.signaturePreflight;
+    expect(planStore1Activation(authority, r)).toMatchObject({
+      status: "BLOCKED",
+      code: "STORE1_V2_SIGNATURE_PREFLIGHT_REQUIRED",
+    });
+  });
+
+  it("rejects caller-controlled serialized proof before any catalog mutation", () => {
+    const r = exactReadback();
+    r.release = null;
+    r.signaturePreflight = JSON.parse(
+      JSON.stringify(r.signaturePreflight),
+    ) as Store1V2SignaturePreflightProof;
+    expect(planStore1Activation(authority, r)).toMatchObject({
+      status: "BLOCKED",
+      code: "STORE1_V2_SIGNATURE_PREFLIGHT_UNTRUSTED",
+    });
+  });
+
+  it("blocks an expired trusted signature proof before any catalog mutation", () => {
+    const r = exactReadback();
+    r.release = null;
+    r.signaturePreflight = trustStore1V2SignaturePreflightProofForTest({
+      ...r.signaturePreflight!,
+      serverTime: "2020-01-01T00:00:00.000Z",
+      expiresAt: "2020-01-01T00:15:00.000Z",
+    });
+    expect(planStore1Activation(authority, r)).toMatchObject({
+      status: "BLOCKED",
+      code: "STORE1_V2_SIGNATURE_PREFLIGHT_EXPIRED",
+    });
+  });
+
+  it("blocks a stale signature proof when current config identity changes", () => {
+    const r = exactReadback();
+    r.release = null;
+    r.signaturePreflight = trustStore1V2SignaturePreflightProofForTest({
+      ...r.signaturePreflight!,
+      configContentHashSha256: "d".repeat(64),
+    });
+    expect(planStore1Activation(authority, r)).toMatchObject({
+      status: "BLOCKED",
+      code: "STORE1_V2_SIGNATURE_PREFLIGHT_STALE",
+    });
+  });
+
+  it.each([
+    ["signing key", { signingKeyId: "other-active-key" }],
+    ["reviewer account", { accountId: "00000000-0000-4000-8000-000000000099" }],
+  ])("rejects mismatched signature proof: %s", (_label, change) => {
+    const r = exactReadback();
+    r.release = null;
+    r.signaturePreflight = trustStore1V2SignaturePreflightProofForTest({
+      ...r.signaturePreflight!,
+      ...change,
+    });
+    expect(planStore1Activation(authority, r)).toMatchObject({
+      status: "CONFLICT",
+      code: "STORE1_V2_SIGNATURE_PREFLIGHT_CONFLICT",
     });
   });
 

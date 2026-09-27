@@ -108,7 +108,7 @@ def controller_notices(role):
     notices = []
     for path in sorted((CONTROL / "controller-notices").glob(role + "-*.json")):
         item = json.loads(path.read_text())
-        if item.get("role") == role and item.get("status") != "CLOSED":
+        if item.get("role") == role and item.get("status") not in ("CLOSED", "SUPERSEDED"):
             notices.append(item)
     return notices
 

@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { basename } from "node:path";
 import { validateProfileContent } from "../../packages/server/adapter-registry/src/index.js";
+import { isTrustedStore1V2SignaturePreflightProof } from "./store1-v2-signature-preflight.js";
 
 export const STORE1_VERSION = "0.2.4" as const;
 export const STORE1_CONTRACT = "control_plane_v2" as const;
@@ -172,7 +173,30 @@ type Assignment = {
     percentageBps: number;
   };
 };
+export type Store1V2SignaturePreflightProof = {
+  schemaVersion: "store1_v2_signature_preflight_v1";
+  verified: true;
+  artifactSha256: string;
+  trustBundleSha256: string;
+  contractVersion: typeof STORE1_CONTRACT;
+  snapshotVersion: "bootstrap_snapshot_v2";
+  envelopeVersion: "bootstrap_envelope_v2";
+  configVersion: number;
+  configContentHashSha256: string;
+  configSourceFingerprintSha256: string;
+  signingKeyId: string;
+  accountId: string;
+  deviceId: string;
+  extensionVersion: typeof STORE1_VERSION;
+  browserFamily: typeof STORE1_BROWSER;
+  browserVersion: string;
+  controlApiOrigin: string;
+  serverTime: string;
+  expiresAt: string;
+  aiStatus: "UNCONFIGURED";
+};
 export type Store1ActivationReadback = {
+  signaturePreflight?: Store1V2SignaturePreflightProof;
   release?: null | {
     version: string;
     releaseChannel: string;
@@ -198,6 +222,8 @@ export type Store1ActivationReadback = {
     contractVersion: string;
     snapshotVersion: string;
     envelopeVersion: string;
+    contentHashSha256: string;
+    sourceFingerprintSha256: string;
     signingKeyId: string;
     signingKeyState:
       | "UNREGISTERED"
@@ -408,6 +434,67 @@ export function planStore1Activation(
       status: "BLOCKED",
       code: "STORE1_V2_BASE_SIGNING_KEY_NOT_ACTIVE",
       detail: `Latest v2 config signing key ${r.config.signingKeyId} is ${r.config.signingKeyState}; STORE-1 catalog writes require an ACTIVE signed base.`,
+    };
+
+  const signatureProof = r.signaturePreflight;
+  if (signatureProof === undefined)
+    return {
+      status: "BLOCKED",
+      code: "STORE1_V2_SIGNATURE_PREFLIGHT_REQUIRED",
+      detail:
+        "Verify a no-AI v2 bootstrap with the exact STORE package trust bundle before any catalog mutation.",
+    };
+  if (!isTrustedStore1V2SignaturePreflightProof(signatureProof))
+    return {
+      status: "BLOCKED",
+      code: "STORE1_V2_SIGNATURE_PREFLIGHT_UNTRUSTED",
+      detail:
+        "Serialized or caller-constructed signature proof is not trusted. Run cryptographic preflight in this process before any catalog mutation.",
+    };
+  const proofBindsPackageAndReviewer =
+    signatureProof.schemaVersion === "store1_v2_signature_preflight_v1" &&
+    signatureProof.verified === true &&
+    signatureProof.artifactSha256 === authority.artifactSha256 &&
+    /^[0-9a-f]{64}$/.test(signatureProof.trustBundleSha256) &&
+    signatureProof.contractVersion === STORE1_CONTRACT &&
+    signatureProof.snapshotVersion === "bootstrap_snapshot_v2" &&
+    signatureProof.envelopeVersion === "bootstrap_envelope_v2" &&
+    signatureProof.signingKeyId === r.config.signingKeyId &&
+    signatureProof.accountId === r.reviewerAdmission?.accountId &&
+    signatureProof.extensionVersion === STORE1_VERSION &&
+    signatureProof.browserFamily === STORE1_BROWSER &&
+    /^https:\/\//.test(signatureProof.controlApiOrigin) &&
+    signatureProof.aiStatus === "UNCONFIGURED";
+  if (!proofBindsPackageAndReviewer)
+    return conflict(
+      "STORE1_V2_SIGNATURE_PREFLIGHT_CONFLICT",
+      "Signature preflight does not bind the exact package, admitted reviewer, signing key, or expected STORE context.",
+    );
+  const proofServerTime = Date.parse(signatureProof.serverTime);
+  const proofExpiresAt = Date.parse(signatureProof.expiresAt);
+  if (
+    !Number.isFinite(proofServerTime) ||
+    !Number.isFinite(proofExpiresAt) ||
+    Math.max(Date.now(), proofServerTime) >= proofExpiresAt
+  )
+    return {
+      status: "BLOCKED",
+      code: "STORE1_V2_SIGNATURE_PREFLIGHT_EXPIRED",
+      detail:
+        "Signature preflight is no longer fresh enough to authorize a catalog POST; obtain a fresh signed bootstrap proof.",
+    };
+
+  const proofBindsCurrentConfig =
+    signatureProof.configVersion === r.config.configVersion &&
+    signatureProof.configContentHashSha256 === r.config.contentHashSha256 &&
+    signatureProof.configSourceFingerprintSha256 ===
+      r.config.sourceFingerprintSha256;
+  if (!proofBindsCurrentConfig)
+    return {
+      status: "BLOCKED",
+      code: "STORE1_V2_SIGNATURE_PREFLIGHT_STALE",
+      detail:
+        "Signature preflight does not bind the current v2 config metadata; obtain a fresh signed bootstrap proof before any further catalog POST.",
     };
 
   if (r.release === undefined)
@@ -818,6 +905,7 @@ function main(): void {
     `${JSON.stringify(
       {
         schemaVersion: "store1_opera_admin_activation_plan_v1",
+        executionAuthority: false,
         authority,
         target: {
           browserFamily: STORE1_BROWSER,

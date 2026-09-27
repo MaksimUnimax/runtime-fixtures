@@ -3,8 +3,10 @@ import { describe, expect, it, vi } from "vitest";
 import {
   signBootstrapSnapshot,
   signBootstrapSnapshotV2,
+  signBootstrapSnapshotV3,
   verifyBootstrapEnvelope,
   verifyBootstrapEnvelopeV2,
+  verifyBootstrapEnvelopeV3,
 } from "@product/remote-config";
 import type { BootstrapSnapshotPayloadV1 } from "@product/contracts";
 import {
@@ -58,6 +60,8 @@ describe("BootstrapService", () => {
             signBootstrapSnapshot(payload, "config-key", pair.privateKey),
           signV2: async (_keyId, payload) =>
             signBootstrapSnapshotV2(payload, "config-key", pair.privateKey),
+          signV3: async (_keyId, payload) =>
+            signBootstrapSnapshotV3(payload, "config-key", pair.privateKey),
         },
         { now: () => new Date(now) },
         { resolve: async () => commercial },
@@ -154,6 +158,208 @@ describe("BootstrapService", () => {
     };
   }
 
+  it("uses paid currentPeriodEnd for v3 and keeps GRACE separate from the fixed hard boundary", async () => {
+    const paidThrough = new Date("2026-02-01T00:00:00.000Z");
+    const graceUntil = new Date("2026-02-10T00:00:00.000Z");
+    const base = eligibleCommercial(graceUntil);
+    if (base.kind !== "OK" || base.value.access.kind !== "ELIGIBLE")
+      throw new Error("expected commercial access");
+    const commercial: CommercialAccessResolution = {
+      kind: "OK",
+      value: {
+        ...base.value,
+        currentSubscription: {
+          ...commercialSubscription,
+          state: "GRACE",
+          currentPeriodEnd: paidThrough,
+          graceUntil,
+        },
+        access: {
+          ...base.value.access,
+          state: "GRACE" as const,
+          currentPeriodEnd: paidThrough,
+          graceUntil,
+        },
+      },
+    };
+    const { service, pair } = signedService(commercial);
+    const verified = verifyBootstrapEnvelopeV3(
+      await service.issueV3(subject, {
+        ...request,
+        contractVersion: "control_plane_v3",
+      }),
+      new Map([["config-key", pair.publicKey]]),
+    );
+    expect(verified).toMatchObject({
+      ok: true,
+      payload: {
+        snapshotVersion: "bootstrap_snapshot_v3",
+        contractVersion: "control_plane_v3",
+        accessBasis: "COMMERCIAL",
+        subscription: { state: "GRACE" },
+        subscriptionAccess: {
+          schemaVersion: "subscription_access_v1",
+          paidThrough: "2026-02-01T00:00:00.000Z",
+          offlineHardUntil: "2026-02-04T00:00:00.000Z",
+        },
+      },
+    });
+    if (verified.ok) {
+      expect(
+        Date.parse(verified.payload.subscriptionAccess!.offlineHardUntil) -
+          Date.parse(verified.payload.subscriptionAccess!.paidThrough),
+      ).toBe(72 * 60 * 60 * 1000);
+      expect(verified.payload.offlineGraceUntil).not.toBe(
+        verified.payload.subscriptionAccess!.offlineHardUntil,
+      );
+    }
+  });
+
+  it("maps ACTIVE currentPeriodEnd instead of accessUntil and leaves a non-paid TRIAL null", async () => {
+    const paidThrough = new Date("2026-02-01T00:00:00.000Z");
+    const active = eligibleCommercial(new Date("2026-02-15T00:00:00.000Z"));
+    if (active.kind !== "OK" || active.value.access.kind !== "ELIGIBLE")
+      throw new Error("expected commercial access");
+    const activeCommercial: CommercialAccessResolution = {
+      kind: "OK",
+      value: {
+        ...active.value,
+        currentSubscription: {
+          ...commercialSubscription,
+          currentPeriodEnd: paidThrough,
+        },
+        access: { ...active.value.access, currentPeriodEnd: paidThrough },
+      },
+    };
+    const { service, pair } = signedService(activeCommercial);
+    const activeSnapshot = verifyBootstrapEnvelopeV3(
+      await service.issueV3(subject, {
+        ...request,
+        contractVersion: "control_plane_v3",
+      }),
+      new Map([["config-key", pair.publicKey]]),
+    );
+    expect(
+      activeSnapshot.ok && activeSnapshot.payload.subscriptionAccess,
+    ).toEqual({
+      schemaVersion: "subscription_access_v1",
+      paidThrough: "2026-02-01T00:00:00.000Z",
+      offlineHardUntil: "2026-02-04T00:00:00.000Z",
+    });
+
+    const noAccess = eligibleCommercial();
+    if (noAccess.kind !== "OK" || noAccess.value.access.kind !== "ELIGIBLE")
+      throw new Error("expected commercial trial");
+    const trial: CommercialAccessResolution = {
+      kind: "OK",
+      value: {
+        ...noAccess.value,
+        currentSubscription: {
+          ...commercialSubscription,
+          state: "TRIAL" as const,
+        },
+        access: { ...noAccess.value.access, state: "TRIAL" as const },
+      },
+    };
+    const trialResult = signedService(trial);
+    const trialSnapshot = verifyBootstrapEnvelopeV3(
+      await trialResult.service.issueV3(subject, {
+        ...request,
+        contractVersion: "control_plane_v3",
+      }),
+      new Map([["config-key", trialResult.pair.publicKey]]),
+    );
+    expect(trialSnapshot).toMatchObject({
+      ok: true,
+      payload: {
+        accessBasis: "COMMERCIAL",
+        subscription: { state: "TRIAL" },
+        subscriptionAccess: null,
+      },
+    });
+  });
+
+  it("issues v3 for a period-preserving cancellation and replaces the boundary on renewal", async () => {
+    const pair = generateKeyPairSync("ed25519");
+    let paidThrough = new Date("2026-02-01T00:00:00.000Z");
+    const service = new BootstrapService(
+      policy,
+      {
+        sign: async (_keyId, payload) =>
+          signBootstrapSnapshot(payload, "config-key", pair.privateKey),
+        signV2: async (_keyId, payload) =>
+          signBootstrapSnapshotV2(payload, "config-key", pair.privateKey),
+        signV3: async (_keyId, payload) =>
+          signBootstrapSnapshotV3(payload, "config-key", pair.privateKey),
+      },
+      { now: () => new Date("2026-01-01T00:00:00.000Z") },
+      {
+        resolve: async () => {
+          const base = eligibleCommercial();
+          if (base.kind !== "OK") return base;
+          return {
+            kind: "OK",
+            value: {
+              ...base.value,
+              currentSubscription: {
+                ...commercialSubscription,
+                state: "CANCELED" as const,
+                currentPeriodEnd: paidThrough,
+              },
+              access: {
+                ...base.value.access,
+                state: "CANCELED" as const,
+                currentPeriodEnd: paidThrough,
+              },
+              accessUntil: paidThrough,
+            },
+          };
+        },
+      },
+    );
+    const requestV3 = {
+      ...request,
+      contractVersion: "control_plane_v3" as const,
+    };
+    const first = verifyBootstrapEnvelopeV3(
+      await service.issueV3(subject, requestV3),
+      new Map([["config-key", pair.publicKey]]),
+    );
+    expect(first.ok && first.payload.subscriptionAccess?.paidThrough).toBe(
+      "2026-02-01T00:00:00.000Z",
+    );
+    paidThrough = new Date("2026-03-01T00:00:00.000Z");
+    const renewed = verifyBootstrapEnvelopeV3(
+      await service.issueV3(subject, requestV3),
+      new Map([["config-key", pair.publicKey]]),
+    );
+    expect(renewed.ok && renewed.payload.subscriptionAccess).toEqual({
+      schemaVersion: "subscription_access_v1",
+      paidThrough: "2026-03-01T00:00:00.000Z",
+      offlineHardUntil: "2026-03-04T00:00:00.000Z",
+    });
+  });
+
+  it("keeps v3 subscription access null for BETA and NONE", async () => {
+    for (const [commercial, beta, accessBasis] of [
+      [eligibleCommercial(), true, "BETA"],
+      [ineligibleCommercial(), false, "NONE"],
+    ] as const) {
+      const { service, pair } = signedService(commercial, undefined, beta);
+      const verified = verifyBootstrapEnvelopeV3(
+        await service.issueV3(subject, {
+          ...request,
+          contractVersion: "control_plane_v3",
+        }),
+        new Map([["config-key", pair.publicKey]]),
+      );
+      expect(verified).toMatchObject({
+        ok: true,
+        payload: { accessBasis, subscriptionAccess: null },
+      });
+    }
+  });
+
   it("signs privacy-neutral v2 authority without invoking the identified resolver", async () => {
     const pair = generateKeyPairSync("ed25519");
     const resolve = vi.fn(async () => policy.resolve({}));
@@ -238,6 +444,114 @@ describe("BootstrapService", () => {
       expect(verified.payload).not.toHaveProperty("features");
       expect(verified.payload).not.toHaveProperty("ai");
     }
+  });
+
+  it("projects the existing privacy-neutral v2 catalog into the standalone v3 authority wire", async () => {
+    const pair = generateKeyPairSync("ed25519");
+    const resolve = vi.fn(async () => policy.resolve({}));
+    const materialize = vi.fn(async (input: { detectedAi?: unknown }) => ({
+      configVersion: 9,
+      signingKeyId: "config-key",
+      sourceFingerprintSha256: "b".repeat(64),
+      localClientAuthority: {
+        schemaVersion: "local_client_authority_v1" as const,
+        contractVersion: "control_plane_v2" as const,
+        compatibility: {
+          releases: [
+            {
+              extensionVersion: "1.2.3",
+              contractVersions: ["control_plane_v2" as const],
+              browserFamilies: ["firefox" as const],
+            },
+          ],
+          policies: [
+            {
+              policyKey: "firefox-v2",
+              revision: 1,
+              contractVersion: "control_plane_v2" as const,
+              browserFamily: "firefox" as const,
+              minimumExtensionVersion: "1.2.3",
+              recommendedExtensionVersion: "1.2.3",
+              minimumBrowserVersion: "120",
+              maintenanceMode: false,
+              maintenanceCode: null,
+              blockedVersions: [],
+            },
+          ],
+        },
+        featureRules: [
+          {
+            featureKey: "store-read",
+            revision: 1,
+            contractVersion: "control_plane_v2" as const,
+            enabled: true,
+            browserFamily: null,
+            minimumExtensionVersion: null,
+          },
+        ],
+        ai: input.detectedAi
+          ? {
+              status: "CANDIDATES" as const,
+              detected: {
+                family: "alpha",
+                surface: "page",
+                variant: null,
+              },
+              candidates: [],
+            }
+          : { status: "UNCONFIGURED" as const },
+      },
+    }));
+    const service = new BootstrapService(
+      { resolve },
+      {
+        sign: async (_keyId, payload) =>
+          signBootstrapSnapshot(payload, "config-key", pair.privateKey),
+        signV2: async (_keyId, payload) =>
+          signBootstrapSnapshotV2(payload, "config-key", pair.privateKey),
+        signV3: async (_keyId, payload) =>
+          signBootstrapSnapshotV3(payload, "config-key", pair.privateKey),
+      },
+      { now: () => new Date("2026-01-01T00:00:00.000Z") },
+      { resolve: async () => eligibleCommercial() },
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { materialize } as unknown as LocalClientAuthorityMaterializer,
+    );
+    const verified = verifyBootstrapEnvelopeV3(
+      await service.issueV3(subject, {
+        contractVersion: "control_plane_v3",
+        deviceId: subject.deviceId,
+        lastConfigVersion: null,
+        detectedAi: { family: "alpha", surface: "page" },
+      }),
+      new Map([["config-key", pair.publicKey]]),
+    );
+    expect(resolve).not.toHaveBeenCalled();
+    expect(materialize).toHaveBeenCalledWith({
+      contractVersion: "control_plane_v2",
+      accountId: subject.accountId,
+      deviceId: subject.deviceId,
+      detectedAi: { family: "alpha", surface: "page", variant: null },
+    });
+    expect(verified).toMatchObject({
+      ok: true,
+      payload: {
+        contractVersion: "control_plane_v3",
+        localClientAuthority: {
+          schemaVersion: "local_client_authority_v2",
+          contractVersion: "control_plane_v3",
+          compatibility: {
+            releases: [{ contractVersions: ["control_plane_v2"] }],
+            policies: [{ contractVersion: "control_plane_v3" }],
+          },
+          featureRules: [{ contractVersion: "control_plane_v3" }],
+        },
+      },
+    });
   });
 
   it("does not expose detected-AI profile candidates for ineligible privacy-neutral access", async () => {
@@ -454,13 +768,13 @@ describe("BootstrapService", () => {
     if (value.kind === "OK") {
       value.value.currentSubscription = {
         ...commercialSubscription,
-        state: "GRACE",
+        state: "GRACE" as const,
         graceUntil: deadline,
       };
       value.value.access = {
         kind: "ELIGIBLE",
         subscriptionId: commercialSubscription.id,
-        state: "GRACE",
+        state: "GRACE" as const,
         stateRevision: 2,
         planRevisionId: commercialSubscription.currentPlanRevisionId,
         boundPriceRevisionId: null,

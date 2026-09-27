@@ -22,6 +22,15 @@ export const WB_PRODUCT_REGISTRY_PATH = resolve(
     import.meta.url,
   ).pathname,
 );
+export const WB_PRODUCT_REGISTRY_OVERLAY_PATH = resolve(
+  new URL(
+    "../../../packages/marketplaces/wildberries/src/fbs-order-statuses-registry-overlay.js",
+    import.meta.url,
+  ).pathname,
+);
+export const EXTENSION_COMPOSITION_PATH = resolve(
+  new URL("../../../apps/extension/composition.json", import.meta.url).pathname,
+);
 
 function propertyName(node: ts.PropertyName | undefined): string | undefined {
   if (!node) return undefined;
@@ -76,6 +85,21 @@ function collectObjectLiterals(node: ts.Node): ts.ObjectLiteralExpression[] {
   };
   visit(node);
   return found;
+}
+
+function findVariableInitializer(
+  file: ts.SourceFile,
+  name: string,
+): ts.Expression | undefined {
+  let result: ts.Expression | undefined;
+  const visit = (node: ts.Node) => {
+    if (result) return;
+    if (ts.isVariableDeclaration(node) && node.name.getText(file) === name)
+      result = node.initializer;
+    node.forEachChild(visit);
+  };
+  visit(file);
+  return result;
 }
 
 function normalizePath(value: string): string {
@@ -150,20 +174,9 @@ function parseEntries(
     true,
     ts.ScriptKind.JS,
   );
-  const findVariable = (name: string): ts.Expression | undefined => {
-    let result: ts.Expression | undefined;
-    const visit = (node: ts.Node) => {
-      if (result) return;
-      if (ts.isVariableDeclaration(node) && node.name.getText(file) === name)
-        result = node.initializer;
-      node.forEachChild(visit);
-    };
-    visit(file);
-    return result;
-  };
   const objects: ts.ObjectLiteralExpression[] = [];
   if (sourceFamily === "OZON_SELLER" || sourceFamily === "OZON_PERFORMANCE") {
-    const initializer = findVariable("OPERATIONS");
+    const initializer = findVariableInitializer(file, "OPERATIONS");
     if (!initializer || !ts.isCallExpression(initializer))
       throw new Error(PRODUCT_REGISTRY_PARSE_UNSUPPORTED);
     const callee = initializer.expression.getText(file);
@@ -174,7 +187,7 @@ function parseEntries(
       throw new Error(PRODUCT_REGISTRY_PARSE_UNSUPPORTED);
     objects.push(...collectObjectLiterals(operations));
   } else {
-    const raw = findVariable("raw");
+    const raw = findVariableInitializer(file, "raw");
     if (!raw || !ts.isArrayLiteralExpression(raw))
       throw new Error(PRODUCT_REGISTRY_PARSE_UNSUPPORTED);
     for (const element of raw.elements) {
@@ -196,6 +209,83 @@ function parseEntries(
   return entries;
 }
 
+function applyWildberriesEffectiveRegistryOverlay(input: {
+  entries: ProductRegistryEntry[];
+  overlaySource: string;
+  compositionSource: string;
+}): ProductRegistryEntry[] {
+  const composition = JSON.parse(input.compositionSource) as {
+    isolated_bundles?: Record<string, { reference_sources?: unknown }>;
+  };
+  const references =
+    composition.isolated_bundles?.["shared/wb_adapter.js"]?.reference_sources;
+  if (!Array.isArray(references))
+    throw new Error(PRODUCT_REGISTRY_PARSE_UNSUPPORTED);
+  const donor =
+      "migration/reference/wildberries-v0.3.0/runtime/shared/wb_operations.js",
+    overlay =
+      "packages/marketplaces/wildberries/src/fbs-order-statuses-registry-overlay.js",
+    contract =
+      "migration/reference/wildberries-v0.3.0/runtime/shared/wb_contract.js",
+    donorIndex = references.indexOf(donor),
+    overlayIndex = references.indexOf(overlay),
+    contractIndex = references.indexOf(contract);
+  if (
+    donorIndex < 0 ||
+    overlayIndex !== donorIndex + 1 ||
+    contractIndex < 0 ||
+    overlayIndex >= contractIndex
+  )
+    throw new Error(PRODUCT_REGISTRY_PARSE_UNSUPPORTED);
+
+  const file = ts.createSourceFile(
+      "wb-registry-overlay.js",
+      input.overlaySource,
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.JS,
+    ),
+    target = findVariableInitializer(file, "TARGET"),
+    patched = findVariableInitializer(file, "patched");
+  if (
+    !target ||
+    !ts.isStringLiteral(target) ||
+    target.text !== "fbs_order_statuses"
+  )
+    throw new Error(PRODUCT_REGISTRY_PARSE_UNSUPPORTED);
+  if (
+    !patched ||
+    !ts.isCallExpression(patched) ||
+    patched.expression.getText(file) !== "Object.freeze" ||
+    patched.arguments.length !== 1
+  )
+    throw new Error(PRODUCT_REGISTRY_PARSE_UNSUPPORTED);
+  const patchedObject = patched.arguments[0];
+  if (!patchedObject || !ts.isObjectLiteralExpression(patchedObject))
+    throw new Error(PRODUCT_REGISTRY_PARSE_UNSUPPORTED);
+  if (objectProperties(patchedObject).body_required !== true)
+    throw new Error(PRODUCT_REGISTRY_PARSE_UNSUPPORTED);
+
+  let matched = false;
+  const output = input.entries.map((entry) => {
+    if (entry.runtimeAlias !== target.text) return entry;
+    if (
+      matched ||
+      entry.method !== "POST" ||
+      entry.normalizedPath !== "/api/v3/orders/status" ||
+      entry.providerMetadata.body_required !== false
+    )
+      throw new Error(PRODUCT_REGISTRY_PARSE_UNSUPPORTED);
+    matched = true;
+    return {
+      ...entry,
+      providerMetadata: { ...entry.providerMetadata, body_required: true },
+    };
+  });
+  if (!matched) throw new Error(PRODUCT_REGISTRY_PARSE_UNSUPPORTED);
+  return output;
+}
+
 export async function extractProductRegistry(input: {
   sourceFamily: SwaggerSourceFamily;
   filePath?: string;
@@ -205,7 +295,17 @@ export async function extractProductRegistry(input: {
       ? WB_PRODUCT_REGISTRY_PATH
       : OZON_PRODUCT_REGISTRY_PATH;
   const source = await readFile(input.filePath ?? defaultPath, "utf8");
-  return parseEntries(input.sourceFamily, source);
+  const entries = parseEntries(input.sourceFamily, source);
+  if (input.sourceFamily !== "WILDBERRIES" || input.filePath) return entries;
+  const [overlaySource, compositionSource] = await Promise.all([
+    readFile(WB_PRODUCT_REGISTRY_OVERLAY_PATH, "utf8"),
+    readFile(EXTENSION_COMPOSITION_PATH, "utf8"),
+  ]);
+  return applyWildberriesEffectiveRegistryOverlay({
+    entries,
+    overlaySource,
+    compositionSource,
+  });
 }
 
 export function productIdentity(

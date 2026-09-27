@@ -2,8 +2,10 @@ import { generateKeyPairSync } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import {
   bindConfigSigningMaterial,
+  createConfigSigningService,
   loadConfigSigningMaterial,
 } from "./bootstrap-signing.js";
+import { verifyBootstrapEnvelopeV3 } from "@product/remote-config";
 
 function environment(pem?: string, keyId = "config-key"): NodeJS.ProcessEnv {
   return {
@@ -199,5 +201,67 @@ describe("API config-signing material", () => {
         publicKeySha256: "0".repeat(64),
       }),
     ).toThrow();
+  });
+
+  it("signs a standalone v3 envelope through the existing active key lifecycle", async () => {
+    const material = loadConfigSigningMaterial(environment(ed25519Pem()));
+    const key = material.keys.get("config-key")!;
+    const catalog = {
+      findSigningKey: async () => ({
+        keyId: key.keyId,
+        algorithm: "Ed25519" as const,
+        publicKeySpkiDer: key.publicKeySpkiDer,
+        publicKeySha256: key.publicKeySha256,
+        createdAt: new Date("2026-01-01T00:00:00.000Z"),
+      }),
+      listSigningKeyEvents: async () => [
+        {
+          id: "11111111-1111-4111-8111-111111111111",
+          keyId: key.keyId,
+          eventType: "REGISTERED" as const,
+          occurredAt: new Date("2026-01-01T00:00:00.000Z"),
+          reasonCode: null,
+          createdAt: new Date("2026-01-01T00:00:00.000Z"),
+        },
+        {
+          id: "22222222-2222-4222-8222-222222222222",
+          keyId: key.keyId,
+          eventType: "ACTIVATED" as const,
+          occurredAt: new Date("2026-01-01T00:00:01.000Z"),
+          reasonCode: null,
+          createdAt: new Date("2026-01-01T00:00:01.000Z"),
+        },
+      ],
+    };
+    const signer = createConfigSigningService(material, catalog);
+    const timestamp = "2026-01-01T00:00:00.000Z";
+    const signed = await signer.signV3!("config-key", {
+      snapshotVersion: "bootstrap_snapshot_v3",
+      contractVersion: "control_plane_v3",
+      configVersion: 1,
+      serverTime: timestamp,
+      issuedAt: timestamp,
+      expiresAt: "2026-01-01T00:15:00.000Z",
+      offlineGraceUntil: "2026-01-02T00:15:00.000Z",
+      account: {
+        id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        status: "ACTIVE",
+      },
+      accessBasis: "NONE",
+      subscription: { state: "NONE", planRevision: null },
+      devicePolicy: { status: "ACTIVE" },
+      entitlements: {},
+      subscriptionAccess: null,
+      compatibility: {
+        extension: { status: "SUPPORTED", minimumVersion: null },
+        browser: { status: "SUPPORTED" },
+      },
+      features: {},
+      ai: { status: "UNCONFIGURED" },
+    });
+    expect(signed.envelopeVersion).toBe("bootstrap_envelope_v3");
+    expect(
+      verifyBootstrapEnvelopeV3(signed, new Map([[key.keyId, key.publicKey]])),
+    ).toMatchObject({ ok: true });
   });
 });
