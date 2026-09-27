@@ -105,7 +105,7 @@ try {
       [command("fbs_order_statuses", { body: { orders: [1.5] } }), "FBS_ORDER_STATUSES_ORDER_ID_INVALID"],
       [
         command("fbs_order_statuses", {
-          body: { orders: Array.from({ length: 1001 }, (_, i) => i) },
+          body: { orders: Array.from({ length: 101 }, (_, i) => i) },
         }),
         "FBS_ORDER_STATUSES_TOO_MANY_ORDERS",
       ],
