@@ -930,6 +930,57 @@
         "status": "INCOMPLETE",
         "reason": "DUPLICATE_ACTIVE_PRODUCT"
       }
+    },
+    {
+      "id": "rating_boundary_known",
+      "kind": "rating_boundary",
+      "input": {
+        "sellerRating": 4.72,
+        "productRating": 4.6,
+        "measurementPenalty": 449.83
+      },
+      "expected": {
+        "status": "BOUNDARY",
+        "sellerRating": 4.72,
+        "productRating": 4.6,
+        "measurementPenalty": 449.83,
+        "fbsErrorIndexKnown": false,
+        "fbsErrorIndex": null
+      }
+    },
+    {
+      "id": "rating_boundary_missing_penalty",
+      "kind": "rating_boundary",
+      "input": {
+        "sellerRating": 4.72,
+        "productRating": 4.6,
+        "measurementPenalty": null
+      },
+      "expected": {
+        "status": "BOUNDARY",
+        "sellerRating": 4.72,
+        "productRating": 4.6,
+        "measurementPenalty": null,
+        "fbsErrorIndexKnown": false,
+        "fbsErrorIndex": null
+      }
+    },
+    {
+      "id": "rating_boundary_missing_rating",
+      "kind": "rating_boundary",
+      "input": {
+        "sellerRating": null,
+        "productRating": null,
+        "measurementPenalty": 100
+      },
+      "expected": {
+        "status": "BOUNDARY",
+        "sellerRating": null,
+        "productRating": null,
+        "measurementPenalty": 100,
+        "fbsErrorIndexKnown": false,
+        "fbsErrorIndex": null
+      }
     }
   ]
 }

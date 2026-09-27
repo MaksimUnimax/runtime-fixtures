@@ -27,6 +27,7 @@ import "./wb-cross-source-join-field-schema-slice.mjs";
 import "./wb-search-query-field-schema-slice.mjs";
 import "./wb-search-position-share-field-schema-slice.mjs";
 import "./wb-visibility-mapping-refresh.mjs";
+import "./wb-rating-boundary-refresh.mjs";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
@@ -611,6 +612,30 @@ const calculators = {
       }));
     return { status: "COMPLETE", rows };
   },
+  rating_boundary(input) {
+    for (const value of [input.sellerRating, input.productRating]) {
+      if (
+        value !== null &&
+        (typeof value !== "number" || !Number.isFinite(value))
+      )
+        return { status: "INCOMPLETE", reason: "RATING_INVALID" };
+    }
+    if (
+      input.measurementPenalty !== null &&
+      (typeof input.measurementPenalty !== "number" ||
+        !Number.isFinite(input.measurementPenalty))
+    )
+      return { status: "INCOMPLETE", reason: "PENALTY_INVALID" };
+
+    return {
+      status: "BOUNDARY",
+      sellerRating: input.sellerRating,
+      productRating: input.productRating,
+      measurementPenalty: input.measurementPenalty,
+      fbsErrorIndexKnown: false,
+      fbsErrorIndex: null,
+    };
+  },
   attention_rank(input) {
     if (!Array.isArray(input.rows)) return { status: "INCOMPLETE" };
     const products = new Set();
@@ -678,6 +703,7 @@ const requiredKinds = new Set([
   "visibility_boundary",
   "restriction_boundary",
   "ad_content_join",
+  "rating_boundary",
   "attention_rank",
   "causal_boundary",
 ]);
