@@ -110,7 +110,7 @@ def compose(directory, mode="development", release_authority=None):
     directory.mkdir(parents=True, exist_ok=False)
     baseline.verify_import()
     recipe = baseline.read_json(RECIPE)
-    assert recipe["version"] == "0.2.4" and recipe["stage"] == "I1-C1"
+    assert recipe["version"] == "0.2.5" and recipe["stage"] == "I1-C1"
     inputs = {}
     read_input("apps/extension/composition.json", inputs)
     output = {}
@@ -270,9 +270,9 @@ def build(output, mode="development", release_authority=None):
     second = output / "repeat-runtime"
     assert compose(second, mode=mode, release_authority=release_authority) == receipt
     name = (
-        "OCTOPORT_v0.2.4_CHROMIUM_STORE.zip"
+        f"OCTOPORT_v{receipt['version']}_CHROMIUM_STORE.zip"
         if mode == "store"
-        else "SELLER_AGENTS_I1_C1_v0.2.4_LOCAL_DEVELOPMENT.zip"
+        else f"SELLER_AGENTS_I1_C1_v{receipt['version']}_LOCAL_DEVELOPMENT.zip"
     )
     archive = output / name
     repeat = output / "repeat.zip"
