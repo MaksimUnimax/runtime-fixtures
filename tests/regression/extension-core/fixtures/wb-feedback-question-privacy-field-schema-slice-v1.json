@@ -1,0 +1,256 @@
+{
+  "schemaVersion": "wb_feedback_question_privacy_field_schema_slice_v1",
+  "capturedDate": "2026-09-27",
+  "scope": {
+    "scenarioIds": ["CAP-16"],
+    "boundary": "PROVIDER_COUNTS_TEXT_AND_CUSTOMER_IDENTITY_REQUIRE_EXPLICIT_PRIVACY_PROJECTION",
+    "evidence": "PINNED_09_COMMUNICATIONS_PLUS_ACTUAL_CUSTOMER_SAFE_V1_CONTRACT",
+    "liveValues": false,
+    "acceptedOperationMappingChanged": false
+  },
+  "authority": {
+    "mirrorRepository": "eslazarev/wildberries-sdk",
+    "mirrorCommit": "5057bdb9bf16dea24000e3ca79e1934f7761d7fe",
+    "specPath": "specs/09-communications.yaml",
+    "blobSha": "b59903fe6f5e9efef76d433b8f6430781b44c0b8",
+    "frozenContract": "migration/reference/wildberries-v0.3.0/runtime/shared/wb_contract.js",
+    "privacyProfile": "customer_safe_v1"
+  },
+  "sources": {
+    "feedbacks": {
+      "operationAlias": "feedbacks_list",
+      "host": "feedbacks",
+      "method": "GET",
+      "path": "/api/v1/feedbacks",
+      "requiredQuery": ["isAnswered", "take", "skip"],
+      "optionalQuery": ["nmId", "order", "dateFrom", "dateTo"],
+      "pagination": {
+        "takeMax": 5000,
+        "skipMax": 199990,
+        "kind": "TAKE_SKIP",
+        "completion": "COMPARE_COLLECTED_ROWS_TO_RELEVANT_PROVIDER_COUNT"
+      },
+      "counts": {
+        "countUnanswered": "UNPROCESSED_FEEDBACKS",
+        "countArchive": "PROCESSED_FEEDBACKS",
+        "processedMeaning": "ANSWERED_OR_RATING_ONLY_WITHOUT_TEXT_AND_PHOTO"
+      },
+      "fields": {
+        "id": { "role": "feedback_id", "unit": "identifier" },
+        "text": { "role": "customer_free_text", "unit": "privacy_gated_text" },
+        "pros": {
+          "role": "customer_free_text_pros",
+          "unit": "privacy_gated_text"
+        },
+        "cons": {
+          "role": "customer_free_text_cons",
+          "unit": "privacy_gated_text"
+        },
+        "productValuation": {
+          "role": "customer_product_rating",
+          "unit": "provider_rating"
+        },
+        "createdDate": { "role": "created_time", "unit": "datetime" },
+        "state": { "role": "feedback_state", "unit": "provider_enum" },
+        "productDetails.nmId": { "role": "product_id", "unit": "identifier" },
+        "userName": {
+          "role": "customer_display_name",
+          "unit": "pii_redacted_field"
+        },
+        "orderStatus": {
+          "role": "order_status_signal",
+          "unit": "provider_enum"
+        },
+        "matchingSize": { "role": "size_match_signal", "unit": "provider_enum" }
+      }
+    },
+    "questions": {
+      "operationAlias": "questions_list",
+      "host": "feedbacks",
+      "method": "GET",
+      "path": "/api/v1/questions",
+      "requiredQuery": ["isAnswered", "take", "skip"],
+      "optionalQuery": ["nmId", "order", "dateFrom", "dateTo"],
+      "pagination": {
+        "takeMax": 10000,
+        "skipMax": 10000,
+        "takePlusSkipMax": 10000,
+        "kind": "TAKE_SKIP",
+        "completion": "COMPARE_COLLECTED_ROWS_TO_RELEVANT_PROVIDER_COUNT_WITH_10000_WINDOW"
+      },
+      "counts": {
+        "countUnanswered": "UNANSWERED_QUESTIONS",
+        "countArchive": "ANSWERED_QUESTIONS"
+      },
+      "fields": {
+        "id": { "role": "question_id", "unit": "identifier" },
+        "text": { "role": "customer_free_text", "unit": "privacy_gated_text" },
+        "createdDate": { "role": "created_time", "unit": "datetime" },
+        "state": { "role": "question_state", "unit": "provider_enum" },
+        "answer.text": {
+          "role": "seller_answer_text",
+          "unit": "privacy_gated_text"
+        },
+        "answer.editable": { "role": "answer_editable", "unit": "boolean" },
+        "productDetails.nmId": { "role": "product_id", "unit": "identifier" },
+        "wasViewed": { "role": "seller_viewed_flag", "unit": "boolean" },
+        "isWarned": {
+          "role": "provider_suspicious_question_flag",
+          "unit": "boolean"
+        }
+      }
+    }
+  },
+  "privacy": {
+    "profile": "customer_safe_v1",
+    "keyRedaction": {
+      "userName": "[REDACTED]"
+    },
+    "textRedaction": {
+      "email": "[REDACTED_EMAIL]",
+      "phone": "[REDACTED_PHONE]"
+    },
+    "boundary": "FREE_TEXT_REMAINS_AFTER_EMAIL_PHONE_REDACTION_DO_NOT_CALL_ANONYMOUS_OR_PUBLIC",
+    "rawCustomerTextAllowedInFixture": false,
+    "syntheticOnly": true
+  },
+  "rules": {
+    "count": "PRESERVE_COUNT_UNANSWERED_AND_COUNT_ARCHIVE_SEPARATELY",
+    "feedbackArchive": "PROCESSED_IS_NOT_IDENTICAL_TO_ANSWERED_FOR_RATING_ONLY_FEEDBACK",
+    "questionArchive": "COUNT_ARCHIVE_MEANS_ANSWERED_QUESTIONS",
+    "text": "USE_ACTUAL_CUSTOMER_SAFE_V1_SANITIZATION_BEFORE_REPORTING",
+    "identity": "PRODUCT_JOIN_USES_PRODUCT_DETAILS_NM_ID_WHEN_PRESENT",
+    "pagination": "FULL_LIST_CLAIM_REQUIRES_COLLECTED_ROWS_TO_MATCH_RELEVANT_PROVIDER_COUNT_WITHIN_API_WINDOW",
+    "missing": "MISSING_NOT_ZERO"
+  },
+  "acceptedMappingSnapshot": {
+    "CAP-16": ["feedbacks_list", "questions_list"]
+  },
+  "syntheticCases": {
+    "feedback": {
+      "query": { "isAnswered": false, "take": 2, "skip": 0 },
+      "raw": {
+        "data": {
+          "countUnanswered": 2,
+          "countArchive": 7,
+          "feedbacks": [
+            {
+              "id": "fixture-feedback-1",
+              "text": "Write fixture.person@example.test or call +1 202 555 0199",
+              "pros": "Contact fixture.pros@example.test",
+              "cons": "Phone +1 (202) 555-0188",
+              "productValuation": 5,
+              "createdDate": "2026-09-26T10:00:00Z",
+              "state": "wbRu",
+              "productDetails": {
+                "nmId": 1001,
+                "productName": "Fixture product"
+              },
+              "userName": "Synthetic Buyer",
+              "orderStatus": "buyout",
+              "matchingSize": "ok"
+            },
+            {
+              "id": "fixture-feedback-2",
+              "text": "No contact data here",
+              "pros": "",
+              "cons": "",
+              "productValuation": 4,
+              "createdDate": "2026-09-26T11:00:00Z",
+              "state": "wbRu",
+              "productDetails": {
+                "nmId": 1002,
+                "productName": "Fixture product 2"
+              },
+              "userName": "Synthetic Buyer Two",
+              "orderStatus": "buyout",
+              "matchingSize": "ok"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "relevantCount": 2,
+        "rowCount": 2,
+        "complete": true,
+        "firstUserName": "[REDACTED]",
+        "firstText": "Write [REDACTED_EMAIL] or call [REDACTED_PHONE]",
+        "firstPros": "Contact [REDACTED_EMAIL]",
+        "firstCons": "Phone [REDACTED_PHONE]"
+      }
+    },
+    "question": {
+      "query": { "isAnswered": true, "take": 1, "skip": 0 },
+      "raw": {
+        "data": {
+          "countUnanswered": 3,
+          "countArchive": 1,
+          "questions": [
+            {
+              "id": "fixture-question-1",
+              "text": "Reply to question@example.test or +1 303 555 0144",
+              "createdDate": "2026-09-26T12:00:00Z",
+              "state": "wbRu",
+              "answer": {
+                "text": "Seller reply to +1 404 555 0166",
+                "editable": true,
+                "createDate": "2026-09-26T12:30:00Z"
+              },
+              "productDetails": { "nmId": 1001, "productName": "Fixture" },
+              "wasViewed": true,
+              "isWarned": false
+            }
+          ]
+        }
+      },
+      "expected": {
+        "relevantCount": 1,
+        "rowCount": 1,
+        "complete": true,
+        "text": "Reply to [REDACTED_EMAIL] or [REDACTED_PHONE]",
+        "answerText": "Seller reply to [REDACTED_PHONE]"
+      }
+    },
+    "feedbackIncomplete": {
+      "query": { "isAnswered": false, "take": 1, "skip": 0 },
+      "raw": {
+        "data": {
+          "countUnanswered": 3,
+          "countArchive": 0,
+          "feedbacks": [
+            {
+              "id": "fixture-only",
+              "text": "safe",
+              "productDetails": { "nmId": 1 }
+            }
+          ]
+        }
+      },
+      "expected": {
+        "complete": false,
+        "reason": "PROVIDER_COUNT_NOT_FULLY_ENUMERATED"
+      }
+    },
+    "questionWindowExceeded": {
+      "query": { "isAnswered": false, "take": 10000, "skip": 0 },
+      "raw": {
+        "data": {
+          "countUnanswered": 10001,
+          "countArchive": 0,
+          "questions": []
+        }
+      },
+      "expected": {
+        "complete": false,
+        "reason": "QUESTION_PROVIDER_WINDOW_LIMIT"
+      }
+    }
+  },
+  "remainingOpen": [
+    "live WB feedback/question values and owner gold-set reconciliation",
+    "human/business policy for when sanitized free text should be sent to an AI surface",
+    "full pagination on a real account including provider counts changing during traversal",
+    "privacy review for media URLs and any provider fields added after the pinned 09-communications blob",
+    "processed feedback count is provider-defined and must not be relabeled as answered count"
+  ]
+}

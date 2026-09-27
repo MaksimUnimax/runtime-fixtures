@@ -1,0 +1,307 @@
+{
+  "schemaVersion": "wb_supply_acceptance_field_schema_slice_v1",
+  "capturedDate": "2026-09-27",
+  "scope": {
+    "scenarioIds": ["CAP-08"],
+    "boundary": "SUPPLY_STATUS_PRODUCT_ACCEPTED_QUANTITY_AND_REPORT_LIFECYCLE",
+    "evidence": "CURRENT_UPSTREAM_OPENAPI_MIRROR_FIELD_SCHEMA",
+    "liveValues": false,
+    "acceptedOperationMappingChanged": true
+  },
+  "authority": {
+    "mirrorRepository": "eslazarev/wildberries-sdk",
+    "generationBlobSha": "43ac4287e0afe98f273fd00f1a89bdf6c6229565",
+    "observedAt": "2026-09-27T07:59:10Z",
+    "directPortalFetch": "HTTP_498_BROWSER_CHECK",
+    "specs": {
+      "03-orders-fbs.yaml": {
+        "blobSha": "7965dedd6851edf0e37b3109149d9d323e32e710",
+        "sha256": "9b86cf918ef7456644319577ba303acf8208e8c53d36d3001d402a5acf7103df",
+        "upstreamUrl": "https://dev.wildberries.ru/api/swagger/yaml/ru/03-orders-fbs.yaml?region=ru",
+        "anchors": {
+          "fbsSupply": 2809,
+          "fbsSupplyOrderIds": 2958,
+          "orderIdsSchema": 5421
+        }
+      },
+      "07-orders-fbw.yaml": {
+        "blobSha": "7ae91e4101c9a2c0f74d2c34c6dbf743d8ef5f45",
+        "sha256": "486d5d77b4987ceaab96b9a378fd489504c8ae8eb9599b3067b02e7b8ef6bada",
+        "upstreamUrl": "https://dev.wildberries.ru/api/swagger/yaml/ru/07-orders-fbw.yaml?region=ru",
+        "anchors": {
+          "fbwSupply": 335,
+          "fbwSupplyGoods": 415,
+          "goodInSupplySchema": 1594,
+          "supplyDetailsSchema": 1684
+        }
+      },
+      "12-reports.yaml": {
+        "blobSha": "22ff073c10a3cebe0dc7af647eb2b704fd35857c",
+        "sha256": "f7eb3bd284905044142f9b53bd160f3c6993b1773330fafcdb03bca00985311b",
+        "upstreamUrl": "https://dev.wildberries.ru/api/swagger/yaml/ru/12-reports.yaml?region=ru",
+        "anchors": {
+          "acceptanceCreate": 1144,
+          "acceptanceStatus": 1213,
+          "acceptanceDownload": 1287,
+          "taskStatusSchema": 3084,
+          "createTaskSchema": 3104
+        }
+      }
+    }
+  },
+  "sources": {
+    "fbwSupply": {
+      "operationAlias": "fbw_supply",
+      "host": "supplies",
+      "method": "GET",
+      "path": "/api/v1/supplies/{supplyId}",
+      "upstreamPath": "/api/v1/supplies/{ID}",
+      "rowGrain": ["supplyId"],
+      "statusIDs": [1, 2, 3, 4, 5, 6],
+      "fields": {
+        "statusID": {
+          "role": "supply_status",
+          "unit": "provider_enum_integer"
+        },
+        "warehouseID": { "role": "planned_warehouse_id", "unit": "identifier" },
+        "actualWarehouseID": {
+          "role": "actual_warehouse_id",
+          "unit": "identifier_or_null"
+        },
+        "quantity": { "role": "declared_supply_units", "unit": "count" },
+        "readyForSaleQuantity": {
+          "role": "ready_for_sale_units",
+          "unit": "count"
+        },
+        "acceptedQuantity": { "role": "accepted_units", "unit": "count" },
+        "unloadingQuantity": { "role": "unloading_units", "unit": "count" },
+        "depersonalizedQuantity": {
+          "role": "depersonalized_units",
+          "unit": "count_or_null"
+        },
+        "discrepancies": {
+          "role": "supply_discrepancy_units_when_status_5",
+          "unit": "count"
+        }
+      }
+    },
+    "fbwSupplyGoods": {
+      "operationAlias": "fbw_supply_goods",
+      "host": "supplies",
+      "method": "GET",
+      "path": "/api/v1/supplies/{supplyId}/goods",
+      "upstreamPath": "/api/v1/supplies/{ID}/goods",
+      "pagination": {
+        "kind": "OFFSET_LIMIT",
+        "limitDefault": 100,
+        "limitMin": 1,
+        "limitMax": 1000
+      },
+      "rowGrain": ["barcode"],
+      "fields": {
+        "barcode": { "role": "sku_barcode", "unit": "identifier" },
+        "vendorCode": { "role": "seller_article", "unit": "text" },
+        "nmID": { "role": "product_id", "unit": "identifier" },
+        "quantity": { "role": "declared_units", "unit": "count" },
+        "readyForSaleQuantity": {
+          "role": "ready_for_sale_units",
+          "unit": "count_or_null"
+        },
+        "acceptedQuantity": {
+          "role": "accepted_units",
+          "unit": "count_or_null"
+        },
+        "unloadingQuantity": {
+          "role": "unloading_units",
+          "unit": "count_or_null"
+        }
+      }
+    },
+    "fbsSupply": {
+      "operationAlias": "fbs_supply",
+      "host": "marketplace",
+      "method": "GET",
+      "path": "/api/v3/supplies/{supplyId}",
+      "rowGrain": ["id"],
+      "fields": {
+        "id": { "role": "fbs_supply_id", "unit": "identifier" },
+        "done": { "role": "supply_closed_flag", "unit": "boolean" },
+        "createdAt": { "role": "created_time", "unit": "datetime" },
+        "closedAt": { "role": "closed_time", "unit": "datetime_or_null" },
+        "scanDt": { "role": "scan_time", "unit": "datetime_or_null" },
+        "destinationOfficeId": {
+          "role": "destination_office_id",
+          "unit": "identifier_or_null"
+        },
+        "spotAvailable": { "role": "spot_available_flag", "unit": "boolean" }
+      }
+    },
+    "fbsSupplyOrderIds": {
+      "operationAlias": "fbs_supply_order_ids",
+      "host": "marketplace",
+      "method": "GET",
+      "path": "/api/marketplace/v3/supplies/{supplyId}/order-ids",
+      "rowGrain": ["supplyId"],
+      "fields": {
+        "orderIds": { "role": "assembly_order_ids", "unit": "identifier_array" }
+      }
+    },
+    "acceptanceCreate": {
+      "operationAlias": "acceptance_report_create",
+      "host": "analytics",
+      "method": "GET",
+      "path": "/api/v1/acceptance_report",
+      "readKind": "derived",
+      "maxPeriodDays": 31,
+      "requiredQuery": ["dateFrom", "dateTo"],
+      "fields": {
+        "data.taskId": {
+          "role": "report_generation_task_id",
+          "unit": "identifier"
+        }
+      }
+    },
+    "acceptanceStatus": {
+      "operationAlias": "acceptance_report_status",
+      "host": "analytics",
+      "method": "GET",
+      "path": "/api/v1/acceptance_report/tasks/{task_id}/status",
+      "statuses": ["new", "processing", "done", "purged", "canceled"],
+      "fields": {
+        "data.id": { "role": "report_task_id", "unit": "identifier" },
+        "data.status": { "role": "report_task_status", "unit": "provider_enum" }
+      }
+    },
+    "acceptanceDownload": {
+      "operationAlias": "acceptance_report_download",
+      "host": "analytics",
+      "method": "GET",
+      "path": "/api/v1/acceptance_report/tasks/{task_id}/download",
+      "rowGrain": ["incomeId", "nmID", "shkCreateDate"],
+      "emptyHttpStatus": 204,
+      "fields": {
+        "count": { "role": "accepted_report_units", "unit": "count" },
+        "incomeId": { "role": "supply_number", "unit": "identifier" },
+        "nmID": { "role": "product_id", "unit": "identifier" },
+        "shkCreateDate": { "role": "acceptance_date", "unit": "date" },
+        "total": { "role": "acceptance_cost", "unit": "provider_currency" }
+      }
+    }
+  },
+  "rules": {
+    "fbwAccepted": "ACCEPTED_QUANTITY_IS_DISTINCT_FROM_DECLARED_READY_FOR_SALE_AND_UNLOADING",
+    "fbsStatus": "DONE_IS_SUPPLY_CLOSED_FLAG_NOT_ACCEPTED_UNIT_COUNT",
+    "fbsComposition": "ORDER_IDS_PROVE_SUPPLY_MEMBERSHIP_NOT_ACCEPTED_UNITS",
+    "reportLifecycle": "CREATE_TASK_THEN_WAIT_FOR_DONE_THEN_DOWNLOAD",
+    "reportTerminalFailure": "PURGED_OR_CANCELED_IS_INCOMPLETE_NOT_ZERO",
+    "reportUnits": "SUM_DOWNLOAD_COUNT_ONLY_AFTER_DONE_AND_SUCCESSFUL_DOWNLOAD",
+    "mappingRepair": "CAP08_ACCEPTED_UNITS_REQUIRES_STATUS_AND_DOWNLOAD_NOT_CREATE_ONLY",
+    "missing": "MISSING_NOT_ZERO"
+  },
+  "acceptedMappingBefore": [
+    "fbw_supply",
+    "fbw_supply_goods",
+    "fbs_supply",
+    "fbs_supply_order_ids",
+    "acceptance_report_create"
+  ],
+  "acceptedMappingAfter": [
+    "fbw_supply",
+    "fbw_supply_goods",
+    "fbs_supply",
+    "fbs_supply_order_ids",
+    "acceptance_report_create",
+    "acceptance_report_status",
+    "acceptance_report_download"
+  ],
+  "syntheticCases": {
+    "fbw": {
+      "supply": {
+        "statusID": 5,
+        "quantity": 12,
+        "readyForSaleQuantity": 8,
+        "acceptedQuantity": 10,
+        "unloadingQuantity": 2,
+        "depersonalizedQuantity": 0,
+        "discrepancies": 2
+      },
+      "goods": [
+        {
+          "barcode": "sku-a",
+          "nmID": 1001,
+          "quantity": 7,
+          "acceptedQuantity": 6
+        },
+        {
+          "barcode": "sku-b",
+          "nmID": 1002,
+          "quantity": 5,
+          "acceptedQuantity": 4
+        }
+      ],
+      "expected": {
+        "status": "PASS",
+        "acceptedUnits": 10,
+        "matchesSupply": true
+      }
+    },
+    "fbs": {
+      "supply": { "id": "WB-GI-1", "done": true, "spotAvailable": true },
+      "orderIds": [501, 502, 503],
+      "expected": {
+        "status": "PASS",
+        "closed": true,
+        "orderCount": 3,
+        "acceptedUnits": null
+      }
+    },
+    "report": {
+      "taskId": "task-1",
+      "statuses": ["new", "processing", "done"],
+      "rows": [
+        {
+          "incomeId": 11834106,
+          "nmID": 1001,
+          "shkCreateDate": "2026-09-26",
+          "count": 6,
+          "total": 120.5
+        },
+        {
+          "incomeId": 11834106,
+          "nmID": 1002,
+          "shkCreateDate": "2026-09-26",
+          "count": 4,
+          "total": 80.25
+        }
+      ],
+      "expected": { "status": "PASS", "acceptedUnits": 10 }
+    },
+    "canceledReport": {
+      "taskId": "task-2",
+      "statuses": ["new", "processing", "canceled"],
+      "rows": [],
+      "expected": { "status": "INCOMPLETE", "reason": "REPORT_TASK_CANCELED" }
+    },
+    "prematureDownload": {
+      "taskId": "task-3",
+      "statuses": ["new", "processing"],
+      "rows": [
+        {
+          "incomeId": 1,
+          "nmID": 1,
+          "shkCreateDate": "2026-09-26",
+          "count": 1,
+          "total": 1
+        }
+      ],
+      "expected": { "status": "INCOMPLETE", "reason": "REPORT_NOT_DONE" }
+    }
+  },
+  "remainingOpen": [
+    "live WB supply/report values and owner gold-set reconciliation",
+    "provider account-specific report latency",
+    "business reconciliation when FBW acceptedQuantity differs from acceptance-report count by period or grain",
+    "FBS closed supply does not itself expose accepted-unit count",
+    "204 report-download business interpretation requires explicit requested-period context"
+  ]
+}
