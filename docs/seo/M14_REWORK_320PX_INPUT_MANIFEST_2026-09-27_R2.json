@@ -1,0 +1,92 @@
+{
+  "schema": "OCTOPORT_M14_REWORK_320PX_INPUT_MANIFEST_V2",
+  "work_id": "OCTOPORT_SEO_M14_REWORK_320PX_2026-09-27_R2",
+  "repository": "MaksimUnimax/runtime-fixtures",
+  "seo_branch": "seo/wordstat-batch-01-2026-09-16",
+  "preparation": {
+    "path": "docs/seo/M14_REWORK_320PX_STEP_PREPARATION_2026-09-27_R2.md",
+    "blob": "f42ca71ea1fb0aa6e8efcb1e8d8edcd03039e44d"
+  },
+  "current_main": "a7097321410921f2fffa54fc3ecf1bc17963c0c2",
+  "source_branch": "seo/m14-responsive-rework-2026-09-27-r1",
+  "current_source_candidate": "339d9c2d65038743cb610f114d0a8edd3fb80a34",
+  "base_candidate": "50e344dcb9ddb93b177624168449e6642307ac3b",
+  "defects": [
+    {
+      "path": "docs/seo/M15_PREDEPLOY_DEFECT_320PX_2026-09-26_R1.md",
+      "blob": "5b0d2e0caa89cb01ba630a7d320881c78b3153cf",
+      "surface": "HOME privacy panel",
+      "observed": {
+        "requested_width": 320,
+        "client_width": 305,
+        "scroll_width": 311,
+        "overflow_px": 6
+      }
+    },
+    {
+      "path": "docs/seo/M15_PREDEPLOY_DEFECT_320PX_ANALYTICS_H1_2026-09-27_R1.md",
+      "surface": "seller-analytics H1",
+      "observed": {
+        "requested_width": 320,
+        "document_client_width": 305,
+        "document_scroll_width": 324,
+        "h1_client_width": 265,
+        "h1_scroll_width": 304,
+        "font_size": "48px",
+        "overflow_wrap": "normal"
+      }
+    }
+  ],
+  "mutable_paths": [
+    "apps/site/public/styles.css",
+    ".github/workflows/site-ci.yml"
+  ],
+  "exact_css_contract": [
+    {
+      "media": "max-width: 680px",
+      "selector": ".public-page h1",
+      "declarations": {
+        "overflow-wrap": "anywhere"
+      }
+    },
+    {
+      "media": "max-width: 680px",
+      "selector": ".privacy-panel > *",
+      "declarations": {
+        "min-width": "0"
+      }
+    },
+    {
+      "media": "max-width: 680px",
+      "selector": ".privacy-panel h2",
+      "declarations": {
+        "overflow-wrap": "anywhere"
+      }
+    }
+  ],
+  "source_gates": [
+    "diff from base candidate limited to exactly 2 paths",
+    "git diff --check PASS",
+    "Site CI inline validator PASS",
+    "site regression 13/13 PASS",
+    "deploy assert_source PASS",
+    "GitHub Site CI exact-head PASS",
+    "GitHub Site Deploy CI exact-head PASS"
+  ],
+  "browser_reacceptance": [
+    "Chrome HOME 320px scrollWidth <= clientWidth",
+    "Chrome seller-analytics 320px scrollWidth <= clientWidth",
+    "Chrome desktop HOME+analytics",
+    "Opera desktop HOME+analytics",
+    "Yandex desktop HOME+analytics",
+    "expected Title/H1/canonical and stylesheet resources present"
+  ],
+  "prohibitions": [
+    "overflow-x hidden masking",
+    "font-size reduction substitute unless this preparation is amended",
+    "third source path",
+    "main merge",
+    "production deployment",
+    "M16 launch"
+  ]
+}
