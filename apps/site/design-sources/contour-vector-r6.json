@@ -1,0 +1,33 @@
+{
+  "source_alpha_sha256": "904997e09f1cec29f56b80deef12ff773619cbf4ffdb760e3a5b51d08e6b6b05",
+  "grip_alpha_sha256": "899e4d1bdd0ca3cae4eef34938b8923904ba6c2a573c60df5238ca4ec4171d91",
+  "vectorization": {
+    "scale": 2,
+    "threshold": 72,
+    "source_overprint_passes": 3,
+    "fill_rule": "evenodd"
+  },
+  "palette": {
+    "light": "#10243c",
+    "dark": "#ebffff"
+  },
+  "layers": {
+    "underlay": {
+      "loops": 227,
+      "points": 14384,
+      "bytes": 140443
+    },
+    "grip-paper": {
+      "loops": 2,
+      "points": 312,
+      "bytes": 3074
+    },
+    "grip-ink": {
+      "loops": 23,
+      "points": 1050,
+      "bytes": 10319
+    }
+  },
+  "asset_sha256": "9baef26cb7eef9eb3d40a3acfbf7562a725d6798b00a17796887a4448b286295",
+  "asset_bytes": 154225
+}
