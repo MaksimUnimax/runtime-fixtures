@@ -1,0 +1,82 @@
+{
+  "schemaVersion": "wb_replenishment_field_schema_slice_v1",
+  "capturedDate": "2026-09-27",
+  "scope": {
+    "scenarioIds": ["STD-07"],
+    "boundary": "REPLENISHMENT_PRIORITY_REUSES_STOCK_AND_DEMAND_WITHOUT_INVENTED_ORDER_QUANTITY",
+    "evidence": "REUSE_VALIDATED_TURNOVER_SCHEMA_PLUS_DETERMINISTIC_POLICY_BOUNDARY",
+    "liveValues": false,
+    "acceptedOperationMappingChanged": false
+  },
+  "reuse": {
+    "fixture": "tests/regression/extension-core/fixtures/wb-turnover-field-schema-slice-v1.json",
+    "requiredSchemaVersion": "wb_turnover_field_schema_slice_v1",
+    "operations": ["stock_products", "statistics_sales"],
+    "providerStockField": "stockCount",
+    "providerTurnoverField": "avgStockTurnover",
+    "customDaysCoverRule": "STOCK_UNITS_DIVIDED_BY_EXPLICIT_COMPARABLE_AVERAGE_DAILY_DEMAND_ONLY"
+  },
+  "rules": {
+    "urgency": "FINITE_DAYS_COVER_SORT_ASCENDING_STABLE_BY_PRODUCT_ID",
+    "unknownDemand": "ZERO_OR_UNKNOWN_DEMAND_STAYS_UNKNOWN_NOT_INFINITE_COVER",
+    "slowMover": "REQUIRES_EXPLICIT_TURNOVER_THRESHOLD_DAYS",
+    "exactOrderQuantity": "REQUIRES_LEAD_TIME_AND_TARGET_STOCK_INPUTS",
+    "missing": "MISSING_NOT_ZERO"
+  },
+  "acceptedMappingSnapshot": {
+    "STD-07": ["stock_products", "statistics_sales"]
+  },
+  "syntheticCases": {
+    "priority": {
+      "rows": [
+        { "productId": 1001, "stockUnits": 3, "averageDailyDemandUnits": 3 },
+        { "productId": 1002, "stockUnits": 20, "averageDailyDemandUnits": 2 },
+        { "productId": 1003, "stockUnits": 30, "averageDailyDemandUnits": 0 },
+        { "productId": 1004, "stockUnits": 0, "averageDailyDemandUnits": 2 }
+      ],
+      "expected": {
+        "urgentProductIds": [1004, 1001, 1002],
+        "daysCover": { "1004": 0, "1001": 1, "1002": 10 },
+        "unknownDemandProductIds": [1003],
+        "exactOrderQuantities": null
+      }
+    },
+    "slowMover": {
+      "thresholdDays": 30,
+      "rows": [
+        { "productId": 1001, "avgStockTurnover": { "days": 10, "hours": 0 } },
+        { "productId": 1002, "avgStockTurnover": { "days": 45, "hours": 12 } },
+        { "productId": 1003, "avgStockTurnover": { "days": 30, "hours": 0 } }
+      ],
+      "expected": { "slowMoverIds": [1002] }
+    },
+    "missingSlowThreshold": {
+      "thresholdDays": null,
+      "rows": [
+        { "productId": 1002, "avgStockTurnover": { "days": 45, "hours": 12 } }
+      ],
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "SLOW_MOVER_THRESHOLD_REQUIRED"
+      }
+    },
+    "exactOrderWithoutInputs": {
+      "productId": 1001,
+      "stockUnits": 3,
+      "averageDailyDemandUnits": 3,
+      "leadTimeDays": null,
+      "targetStockDays": null,
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "LEAD_TIME_AND_TARGET_STOCK_REQUIRED"
+      }
+    }
+  },
+  "remainingOpen": [
+    "live WB values and owner gold-set reconciliation",
+    "sale-versus-return classification before operational sales becomes a business demand denominator",
+    "owner/business threshold for calling stock a slow mover",
+    "lead time and target stock for exact replenishment quantity",
+    "provider stock pagination completeness on real account data"
+  ]
+}
