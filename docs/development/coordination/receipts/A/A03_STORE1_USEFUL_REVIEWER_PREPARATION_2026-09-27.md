@@ -1,6 +1,6 @@
 # A03 / STORE-1 — useful reviewer scenario preparation — 2026-09-27
 
-Status: **EXACT STORE LOGGED-OUT PACKAGE PASS + REAL OPERA SYNTHETIC USEFUL SCENARIO PASS / ORDINARY STORE INSTALL + PORTAL AUTH + REVIEWER E2E OPEN**
+Status: **EXACT STORE LOGGED-OUT PACKAGE PASS + REAL OPERA SYNTHETIC USEFUL SCENARIO PASS / PRE-SUBMISSION PORTAL AUTH + REAL REVIEWER E2E OPEN / POST-PUBLICATION STORE INSTALL OPEN**
 
 Role: A
 Current A HEAD before this receipt: `d1bf6af5249e43ddf2fe74cdbfb1bf700b7bb363`
@@ -128,12 +128,14 @@ Final state:
 - `ActiveState=inactive`
 - `SubState=dead`
 
-## Reviewer instructions for the ordinary STORE path
+## Reviewer instructions: pre-submission proof and later catalogue installation
 
 These steps are for C/reviewer once the current B/C prerequisites are genuinely populated. They do not authorize a live mutation by A.
 
-1. Verify the candidate is the exact Opera item/package for version `0.2.4`, with expected package identity `0c1fb4c9...`.
-2. Install Octoport through the ordinary Opera Add-ons path with Developer Mode **off**. Record item ID, installed version and installation provenance. A load-unpacked run is not store-install evidence.
+Before the first Submit, a published Opera Add-ons item may not exist. Use the legitimate pre-submission developer/review installation route for the exact STORE archive, preserving its bytes, trust bundle and normal authentication. This is pre-submission evidence, not catalogue-install evidence. Do not require publication before submission. After approval/distribution, separately prove ordinary Add-ons installation with Developer Mode off and the same-item N-to-N+1 update under STORE-3.
+
+1. Verify the candidate is the exact Opera STORE package for version `0.2.4`, with expected package digest `0c1fb4c9...`. Record a store item ID only if the publisher workflow has actually assigned one.
+2. For pre-submission verification, install the exact extracted candidate through the browser's legitimate developer/review route. Record archive digest, installed version, actual extension identity and installation provenance; verify supported normal auth/origin handling without forged identity, relaxed trust or bypass. If an approved catalogue item already exists, its ordinary installation can be checked separately. A developer installation never counts as catalogue installation.
 3. Open the popup. Expected initial state: Octoport, signed out, no marketplace data, normal “Войти через портал” action.
 4. Click the normal portal-login action. Authenticate only on the public portal. Password/OTP must never be supplied to the extension or copied into evidence.
 5. Require normal signed `control_plane_v2` bootstrap/compatibility success for the same reviewer account/device/current Opera version. Do not continue if the profile/config is absent, invalid or incompatible.
@@ -152,11 +154,11 @@ The automated A boundary is now prepared. Ordinary reviewer acceptance still req
 - B/C normal reviewer identity/admission under the closed-beta policy;
 - a valid signed v2 config/release/browser/compatibility assignment;
 - the intended reachable reviewer backend/deployment;
-- an ordinary Opera Add-ons installation of the exact candidate;
+- a legitimate pre-submission installation of the exact candidate with unchanged trust and normal authentication;
 - dedicated reviewer marketplace credentials;
 - the real reviewer run above.
 
-These are not reasons to weaken trust or auth.
+These are not reasons to weaken trust or auth. Ordinary Opera Add-ons installation and same-item update remain POST-SUBMISSION/POST-APPROVAL checks; they are not prerequisites for the first Submit.
 
 No owner action is requested by this receipt. Ask the owner only when C has staged a concrete publisher-dashboard/login/OTP or short Windows verification step that cannot be performed by the team.
 
