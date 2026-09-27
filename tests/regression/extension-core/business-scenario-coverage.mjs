@@ -26,6 +26,7 @@ import "./wb-sales-decline-evidence-reuse.mjs";
 import "./wb-cross-source-join-field-schema-slice.mjs";
 import "./wb-search-query-field-schema-slice.mjs";
 import "./wb-search-position-share-field-schema-slice.mjs";
+import "./wb-visibility-mapping-refresh.mjs";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
@@ -535,6 +536,81 @@ const calculators = {
       nullMeansZero: false,
     };
   },
+  visibility_boundary(input) {
+    if (
+      input.stockUnits !== null &&
+      (!Number.isInteger(input.stockUnits) || input.stockUnits < 0)
+    )
+      return { status: "INCOMPLETE", reason: "STOCK_INVALID" };
+    if (
+      typeof input.contentIssue !== "boolean" ||
+      typeof input.blocked !== "boolean"
+    )
+      return { status: "INCOMPLETE", reason: "VISIBILITY_SIGNAL_INVALID" };
+    return {
+      status: "BOUNDARY",
+      stockUnits: input.stockUnits,
+      contentIssue: input.contentIssue,
+      blocked: input.blocked,
+      buyerVisibilityKnown: false,
+      buyerVisibility: null,
+      missingNotZero: true,
+    };
+  },
+  restriction_boundary(input) {
+    if (input.blockedReason !== null && typeof input.blockedReason !== "string")
+      return { status: "INCOMPLETE", reason: "BLOCK_REASON_INVALID" };
+    if (typeof input.warehouseKnown !== "boolean")
+      return { status: "INCOMPLETE", reason: "WAREHOUSE_SIGNAL_INVALID" };
+    return {
+      status: "BOUNDARY",
+      providerRestrictionKnown: Boolean(input.blockedReason),
+      blockedReason: input.blockedReason,
+      warehouseKnown: input.warehouseKnown,
+      buyerDeliveryKnown: false,
+      buyerDelivery: null,
+    };
+  },
+  ad_content_join(input) {
+    if (
+      !Array.isArray(input.active) ||
+      !Array.isArray(input.contentIssueProducts) ||
+      !Array.isArray(input.blockedProducts)
+    )
+      return { status: "INCOMPLETE", reason: "JOIN_INPUT_MISSING" };
+
+    const active = new Map();
+    for (const row of input.active) {
+      if (
+        !row ||
+        typeof row.product !== "string" ||
+        !row.product ||
+        !Array.isArray(row.campaignIds) ||
+        row.campaignIds.some((id) => !Number.isInteger(id))
+      )
+        return { status: "INCOMPLETE", reason: "ACTIVE_PRODUCT_INVALID" };
+      if (active.has(row.product))
+        return { status: "INCOMPLETE", reason: "DUPLICATE_ACTIVE_PRODUCT" };
+      active.set(
+        row.product,
+        [...row.campaignIds].sort((a, b) => a - b),
+      );
+    }
+
+    const content = new Set(input.contentIssueProducts);
+    const blocked = new Set(input.blockedProducts);
+    const rows = [...active.entries()]
+      .filter(([product]) => content.has(product) || blocked.has(product))
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([product, campaignIds]) => ({
+        product,
+        campaignIds,
+        contentIssue: content.has(product),
+        blocked: blocked.has(product),
+        buyerVisibilityKnown: false,
+      }));
+    return { status: "COMPLETE", rows };
+  },
   attention_rank(input) {
     if (!Array.isArray(input.rows)) return { status: "INCOMPLETE" };
     const products = new Set();
@@ -599,6 +675,9 @@ const requiredKinds = new Set([
   "search_dedup",
   "search_fact_boundary",
   "search_position_boundary",
+  "visibility_boundary",
+  "restriction_boundary",
+  "ad_content_join",
   "attention_rank",
   "causal_boundary",
 ]);

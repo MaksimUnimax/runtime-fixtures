@@ -830,6 +830,106 @@
         "status": "INCOMPLETE",
         "reason": "REGION_FILTER_UNSUPPORTED"
       }
+    },
+    {
+      "id": "visibility_boundary_signals",
+      "kind": "visibility_boundary",
+      "input": {
+        "stockUnits": 5,
+        "contentIssue": false,
+        "blocked": true
+      },
+      "expected": {
+        "status": "BOUNDARY",
+        "stockUnits": 5,
+        "contentIssue": false,
+        "blocked": true,
+        "buyerVisibilityKnown": false,
+        "buyerVisibility": null,
+        "missingNotZero": true
+      }
+    },
+    {
+      "id": "visibility_boundary_missing_stock",
+      "kind": "visibility_boundary",
+      "input": {
+        "stockUnits": null,
+        "contentIssue": false,
+        "blocked": false
+      },
+      "expected": {
+        "status": "BOUNDARY",
+        "stockUnits": null,
+        "contentIssue": false,
+        "blocked": false,
+        "buyerVisibilityKnown": false,
+        "buyerVisibility": null,
+        "missingNotZero": true
+      }
+    },
+    {
+      "id": "restriction_boundary_blocked",
+      "kind": "restriction_boundary",
+      "input": {
+        "blockedReason": "Provider block reason",
+        "warehouseKnown": true
+      },
+      "expected": {
+        "status": "BOUNDARY",
+        "providerRestrictionKnown": true,
+        "blockedReason": "Provider block reason",
+        "warehouseKnown": true,
+        "buyerDeliveryKnown": false,
+        "buyerDelivery": null
+      }
+    },
+    {
+      "id": "ad_content_join_complete",
+      "kind": "ad_content_join",
+      "input": {
+        "active": [
+          {
+            "product": "1001",
+            "campaignIds": [10]
+          }
+        ],
+        "contentIssueProducts": ["1001"],
+        "blockedProducts": ["1001"]
+      },
+      "expected": {
+        "status": "COMPLETE",
+        "rows": [
+          {
+            "product": "1001",
+            "campaignIds": [10],
+            "contentIssue": true,
+            "blocked": true,
+            "buyerVisibilityKnown": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "ad_content_join_duplicate_active_rejected",
+      "kind": "ad_content_join",
+      "input": {
+        "active": [
+          {
+            "product": "1001",
+            "campaignIds": [10]
+          },
+          {
+            "product": "1001",
+            "campaignIds": [11]
+          }
+        ],
+        "contentIssueProducts": [],
+        "blockedProducts": []
+      },
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "DUPLICATE_ACTIVE_PRODUCT"
+      }
     }
   ]
 }

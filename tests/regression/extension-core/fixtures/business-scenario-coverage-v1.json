@@ -428,7 +428,6 @@
       "wbOperations": [
         "cards_errors",
         "banned_products_blocked",
-        "banned_products_shadowed",
         "stock_products"
       ],
       "identifiers": [
@@ -457,7 +456,6 @@
       ],
       "wbOperations": [
         "banned_products_blocked",
-        "banned_products_shadowed",
         "seller_warehouses",
         "marketplace_offices"
       ],
@@ -574,10 +572,10 @@
         "product_visibility_info"
       ],
       "wbOperations": [
-        "promo_nms",
+        "promo_campaigns",
         "cards_errors",
-        "banned_products_blocked",
-        "banned_products_shadowed"
+        "cards_list",
+        "banned_products_blocked"
       ],
       "identifiers": [
         "campaign",
@@ -658,7 +656,6 @@
       "wbOperations": [
         "cards_errors",
         "banned_products_blocked",
-        "banned_products_shadowed",
         "stock_products"
       ],
       "identifiers": [
