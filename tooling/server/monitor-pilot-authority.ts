@@ -377,6 +377,23 @@ export async function preflightMonitorPilotAuthorityForTest(
   return preflightWithIdentity(database, identity);
 }
 
+export function reportMonitorPilotPreflightResult(
+  result: Readonly<{
+    kind: "READY" | "MISSING_AUTHORITY";
+    issues: readonly MonitorPilotAuthorityIssue[];
+  }>,
+  writeLine: (line: string) => void = console.log,
+): number {
+  writeLine(
+    `MONITOR_PILOT_PREFLIGHT=${result.kind}; issues=${
+      result.issues
+        .map((issue) => `${issue.targetKey}:${issue.code}`)
+        .join(",") || "none"
+    }`,
+  );
+  return result.kind === "READY" ? 0 : 2;
+}
+
 async function catalogState(
   database: Pick<DatabaseRuntime, "query">,
   identity: DatabaseIdentity,
@@ -647,26 +664,10 @@ export async function main(): Promise<void> {
     await database.ready();
     const operation = process.argv[2];
     if (operation === "preflight") {
-      const testDatabaseName =
-        process.env.VITEST === "true"
-          ? process.env.MONITOR_PILOT_TEST_DATABASE_NAME
-          : undefined;
-      const result = testDatabaseName
-        ? await preflightMonitorPilotAuthorityForTest(database, {
-            expectedDatabaseName: testDatabaseName,
-            expectedDatabaseRole,
-          })
-        : await preflightMonitorPilotAuthority(database, {
-            expectedDatabaseRole,
-          });
-      console.log(
-        `MONITOR_PILOT_PREFLIGHT=${result.kind}; issues=${
-          result.issues
-            .map((issue) => `${issue.targetKey}:${issue.code}`)
-            .join(",") || "none"
-        }`,
-      );
-      if (result.kind !== "READY") process.exitCode = 2;
+      const result = await preflightMonitorPilotAuthority(database, {
+        expectedDatabaseRole,
+      });
+      process.exitCode = reportMonitorPilotPreflightResult(result);
     } else if (operation === "init") {
       const result = await initializeMonitorPilotAuthority(database, {
         expectedDatabaseRole,

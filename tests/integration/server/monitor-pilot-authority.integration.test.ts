@@ -146,8 +146,7 @@ function runAuthorityPreflightCli(identity: {
     [
       "--import",
       "tsx",
-      "tooling/server/monitor-pilot-authority.ts",
-      "preflight",
+      "tests/integration/server/fixtures/monitor-pilot-authority-cli.ts",
     ],
     {
       cwd: process.cwd(),
@@ -155,7 +154,7 @@ function runAuthorityPreflightCli(identity: {
         ...process.env,
         VITEST: "true",
         DATABASE_URL: connectionString,
-        MONITOR_PILOT_EXPECTED_ROLE: identity.expectedDatabaseRole,
+        MONITOR_PILOT_TEST_DATABASE_ROLE: identity.expectedDatabaseRole,
         MONITOR_PILOT_TEST_DATABASE_NAME: identity.expectedDatabaseName,
       },
       encoding: "utf8",
@@ -284,7 +283,10 @@ describe.sequential("isolated monitor pilot authority provisioning", () => {
     expect(probe).not.toHaveBeenCalled();
 
     const missingAuthorityCli = runAuthorityPreflightCli(identity);
-    expect(missingAuthorityCli.status).toBe(2);
+    expect(
+      missingAuthorityCli.status,
+      missingAuthorityCli.stderr || missingAuthorityCli.stdout,
+    ).toBe(2);
     expect(missingAuthorityCli.stderr).toBe("");
     expect(missingAuthorityCli.stdout).toContain(
       "MONITOR_PILOT_PREFLIGHT=MISSING_AUTHORITY",
@@ -315,7 +317,7 @@ describe.sequential("isolated monitor pilot authority provisioning", () => {
       (await preflightMonitorPilotAuthorityForTest(runtime, identity)).kind,
     ).toBe("READY");
     const readyCli = runAuthorityPreflightCli(identity);
-    expect(readyCli.status).toBe(0);
+    expect(readyCli.status, readyCli.stderr || readyCli.stdout).toBe(0);
     expect(readyCli.stderr).toBe("");
     expect(readyCli.stdout).toContain(
       "MONITOR_PILOT_PREFLIGHT=READY; issues=none",
