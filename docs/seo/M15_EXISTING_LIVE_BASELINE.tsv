@@ -1,0 +1,29 @@
+qa_id	request	status	location	title_or_type	canonical_or_robots	classification	verdict
+M15L001	http://octoport.ru/	308	https://octoport.ru/	text/html	—	EXISTING_LIVE_PRE_M14	PASS_BASELINE
+M15L002	http://www.octoport.ru/	308	https://www.octoport.ru/	text/html	—	EXISTING_LIVE_PRE_M14_TWO_HOP	OBSERVED_DEFECT_PREDEPLOY_TARGET_DIFFERS
+M15L003	https://www.octoport.ru/	308	https://octoport.ru/	text/html	—	EXISTING_LIVE_PRE_M14	PASS_BASELINE
+M15L004	https://octoport.ru/	200	—	Octoport — ИИ-сотрудник для Ozon и Wildberries	https://octoport.ru/	EXISTING_LIVE_PRE_M14_OLD_HOME	OBSERVED
+M15L005	https://octoport.ru/seller-analytics	404	—	404 Not Found	—	EXISTING_LIVE_PRE_M14_NOT_DEPLOYED	OBSERVED
+M15L006	https://octoport.ru/privacy	200	—	Octoport — Privacy	https://octoport.ru/privacy; no robots meta	EXISTING_LIVE_PRE_M14	OBSERVED
+M15L007	https://octoport.ru/support	200	—	Octoport — Support	https://octoport.ru/support; no robots meta	EXISTING_LIVE_PRE_M14	OBSERVED
+M15L008	https://octoport.ru/install	200	—	Install Octoport	https://octoport.ru/install; no robots meta	EXISTING_LIVE_PRE_M14	OBSERVED
+M15L009	https://octoport.ru/robots.txt	200	—	text/plain	Sitemap present	EXISTING_LIVE_PRE_M14	OBSERVED
+M15L010	https://octoport.ru/sitemap.xml	200	—	text/xml	pre-M14 sitemap	EXISTING_LIVE_PRE_M14	OBSERVED
+M15L011	https://octoport.ru/favicon.png	404	—	404 Not Found	—	EXISTING_LIVE_PRE_M14_NOT_DEPLOYED	OBSERVED
+M15L012	https://octoport.ru/styles.css	200	—	text/css	max-age=300	EXISTING_LIVE_PRE_M14	OBSERVED
+M15L013	https://octoport.ru/index.html	200	—	old HOME duplicate	canonical HOME	EXISTING_LIVE_PRE_M14_DUPLICATE	OBSERVED_DEFECT_PREDEPLOY_TARGET_DIFFERS
+M15L014	https://octoport.ru/seller-analytics.html	404	—	404 Not Found	—	EXISTING_LIVE_PRE_M14	OBSERVED
+M15L015	https://octoport.ru/seller-analytics/	404	—	404 Not Found	—	EXISTING_LIVE_PRE_M14	OBSERVED
+M15L016	https://octoport.ru/privacy.html	200	—	Octoport — Privacy	canonical /privacy	EXISTING_LIVE_PRE_M14_DUPLICATE	OBSERVED_DEFECT_PREDEPLOY_TARGET_DIFFERS
+M15L017	https://octoport.ru/privacy/	404	—	404 Not Found	—	EXISTING_LIVE_PRE_M14	OBSERVED
+M15L018	https://octoport.ru/support.html	200	—	Octoport — Support	canonical /support	EXISTING_LIVE_PRE_M14_DUPLICATE	OBSERVED_DEFECT_PREDEPLOY_TARGET_DIFFERS
+M15L019	https://octoport.ru/support/	404	—	404 Not Found	—	EXISTING_LIVE_PRE_M14	OBSERVED
+M15L020	https://octoport.ru/install.html	200	—	Install Octoport	canonical /install	EXISTING_LIVE_PRE_M14_DUPLICATE	OBSERVED_DEFECT_PREDEPLOY_TARGET_DIFFERS
+M15L021	https://octoport.ru/install/	404	—	404 Not Found	—	EXISTING_LIVE_PRE_M14	OBSERVED
+M15L022	https://octoport.ru/m15-existing-live-missing	404	—	404 Not Found	—	EXISTING_LIVE_REAL_404	PASS_BASELINE
+M15L023	https://app.octoport.ru/	200	—	portal HTML	X-Robots-Tag noindex,nofollow,noarchive	EXISTING_APPLICATION_SAFETY	PASS_BASELINE
+M15L024	https://app.octoport.ru/login	200	—	portal login HTML	X-Robots-Tag noindex,nofollow,noarchive	EXISTING_APPLICATION_SAFETY	PASS_BASELINE
+M15L025	https://api.octoport.ru/health/live	200	—	application/json	X-Robots-Tag noindex,nofollow,noarchive	EXISTING_APPLICATION_SAFETY	PASS_BASELINE
+M15L026	https://api.octoport.ru/health/ready	200	—	application/json	X-Robots-Tag noindex,nofollow,noarchive	EXISTING_APPLICATION_SAFETY	PASS_BASELINE
+M15L027	https://app.octoport.ru/api/control-plane/v1/accounts	401	—	AUTH_SESSION_INVALID JSON	X-Robots-Tag noindex,nofollow,noarchive	EXISTING_AUTH_GUARD	PASS_BASELINE
+M15L028	production release symlink	N/A	/var/www/octoport-site/releases/9e5f95b0db9ccbae4d2d0704f828748d21945acc	pre-M14 release	—	NO_HIDDEN_DEPLOY	PASS
