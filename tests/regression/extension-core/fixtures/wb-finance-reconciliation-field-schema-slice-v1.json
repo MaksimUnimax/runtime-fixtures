@@ -1,0 +1,301 @@
+{
+  "schemaVersion": "wb_finance_reconciliation_field_schema_slice_v1",
+  "capturedDate": "2026-09-27",
+  "scope": {
+    "scenarioIds": ["CAP-14"],
+    "boundary": "DEDUCTION_ROWS_STAY_DISTINCT_FROM_FINANCE_REPORT_MONEY",
+    "evidence": "CURRENT_UPSTREAM_OPENAPI_MIRROR_PLUS_FROZEN_REGISTRY",
+    "liveValues": false,
+    "acceptedOperationMappingChanged": false
+  },
+  "authority": {
+    "mirrorRepository": "eslazarev/wildberries-sdk",
+    "mirrorCommit": "5057bdb9bf16dea24000e3ca79e1934f7761d7fe",
+    "directPortalFetch": "HTTP_498_BROWSER_CHECK",
+    "specs": {
+      "12-reports.yaml": {
+        "blobSha": "22ff073c10a3cebe0dc7af647eb2b704fd35857c",
+        "upstreamUrl": "https://dev.wildberries.ru/api/swagger/yaml/ru/12-reports.yaml?region=ru"
+      },
+      "13-finances.yaml": {
+        "blobSha": "9b268d4f3edfc5912e3e7c8b9bc571523bd7a377",
+        "upstreamUrl": "https://dev.wildberries.ru/api/swagger/yaml/ru/13-finances.yaml?region=ru"
+      }
+    },
+    "analyticsCurrencyPolicy": {
+      "releaseNotesUrl": "https://dev.wildberries.ru/en/release-notes?id=474",
+      "effectiveFrom": "2026-02-11",
+      "rule": "MONETARY_VALUES_USE_SELLER_REGISTRATION_COUNTRY_CURRENCY",
+      "currencyFieldInDeductionsResponse": false
+    }
+  },
+  "source": {
+    "url": "https://dev.wildberries.ru/en/openapi/reports",
+    "operationAlias": "deductions",
+    "host": "analytics",
+    "method": "GET",
+    "path": "/api/analytics/v1/deductions",
+    "tokenCategory": "analytics",
+    "documentationFreshness": "PINNED_MIRROR_COMMIT_2026_09_27",
+    "directLiveFetchVerified": false,
+    "query": {
+      "dateFrom": { "required": false, "unit": "datetime" },
+      "dateTo": { "required": true, "unit": "datetime" },
+      "sort": {
+        "required": false,
+        "default": "dtBonus",
+        "enum": ["nmId", "dtBonus", "bonusSumm"]
+      },
+      "order": {
+        "required": false,
+        "default": "desc",
+        "enum": ["desc", "asc"]
+      },
+      "limit": { "required": true, "max": 1000 },
+      "offset": { "required": false, "default": 0 }
+    },
+    "response": {
+      "reportsPath": "data.reports",
+      "totalPath": "data.total",
+      "totalMeaning": "TOTAL_ROWS_WITHOUT_LIMIT_OFFSET"
+    },
+    "fields": {
+      "dtBonus": {
+        "role": "deduction_event_time",
+        "unit": "datetime"
+      },
+      "nmId": {
+        "role": "product_id",
+        "unit": "identifier"
+      },
+      "oldShkId": {
+        "role": "old_barcode_or_shk_id",
+        "unit": "identifier_optional"
+      },
+      "newShkId": {
+        "role": "new_barcode_or_shk_id",
+        "unit": "identifier_optional"
+      },
+      "oldVendorCode": {
+        "role": "old_seller_article",
+        "unit": "text_optional"
+      },
+      "newVendorCode": {
+        "role": "new_seller_article",
+        "unit": "text_optional"
+      },
+      "bonusSumm": {
+        "role": "provider_deduction_amount",
+        "unit": "money_number_seller_registration_country_currency"
+      },
+      "bonusType": {
+        "role": "provider_deduction_type",
+        "unit": "text"
+      },
+      "photoUrls": {
+        "role": "provider_evidence_images",
+        "unit": "url_array_optional"
+      }
+    },
+    "rowIdentity": "NO_UNIQUE_ROW_KEY_DOCUMENTED_DO_NOT_DEDUP_BY_GUESS"
+  },
+  "financeDetailReuse": {
+    "fixture": "tests/regression/extension-core/fixtures/wb-finance-sales-field-schema-slice-v1.json",
+    "operationAlias": "finance_sales_detail_period",
+    "rowGrain": ["rrdId"],
+    "fields": {
+      "currency": { "role": "row_report_currency", "unit": "currency_code" },
+      "sellerOperName": { "role": "payment_basis_label", "unit": "text" },
+      "retailAmount": {
+        "role": "provider_retail_amount",
+        "unit": "money_decimal_string"
+      },
+      "forPay": {
+        "role": "seller_payable_for_realized_goods",
+        "unit": "money_decimal_string"
+      },
+      "penalty": {
+        "role": "provider_penalty_amount",
+        "unit": "money_decimal_string"
+      },
+      "additionalPayment": {
+        "role": "wb_reward_adjustment",
+        "unit": "money_decimal_string"
+      },
+      "deduction": {
+        "role": "provider_deduction_amount",
+        "unit": "money_decimal_string"
+      }
+    },
+    "currencyBoundary": "FINANCE_DETAIL_HAS_EXPLICIT_CURRENCY_DEDUCTIONS_CODE_IS_IMPLICIT_BY_SELLER_COUNTRY_POLICY",
+    "signBoundary": "PRESERVE_SIGN_OF_FINANCE_DETAIL_DECIMAL_STRINGS_AND_DEDUCTION_PROVIDER_NUMBER"
+  },
+  "rules": {
+    "pagination": "COMPLETE_ONLY_WHEN_OFFSET_PLUS_PAGE_ROWS_REACHES_PROVIDER_TOTAL",
+    "deductionAmount": "PRESERVE_BONUS_SUMM_PROVIDER_NUMBER_AND_SIGN",
+    "currency": "DEDUCTION_MONEY_USES_SELLER_REGISTRATION_COUNTRY_CURRENCY_BUT_CODE_NOT_IN_RESPONSE",
+    "reconciliation": "DO_NOT_NET_DEDUCTIONS_WITH_FINANCE_REPORT_MONEY_UNTIL_STORE_CURRENCY_MATCH_AND_BUSINESS_RULE_ARE_EXPLICIT",
+    "rowIdentity": "DO_NOT_DEDUP_WITHOUT_DOCUMENTED_UNIQUE_KEY",
+    "missing": "MISSING_NOT_ZERO"
+  },
+  "acceptedMappingSnapshot": {
+    "CAP-14": ["finance_sales_detail_period", "deductions"]
+  },
+  "syntheticCases": {
+    "completePages": [
+      {
+        "request": {
+          "dateTo": "2026-09-26T23:59:59Z",
+          "limit": 2,
+          "offset": 0
+        },
+        "reports": [
+          {
+            "dtBonus": "2026-09-26T10:00:00Z",
+            "nmId": 1001,
+            "bonusSumm": 247.5,
+            "bonusType": "Fixture deduction A"
+          },
+          {
+            "dtBonus": "2026-09-26T11:00:00Z",
+            "nmId": 1002,
+            "bonusSumm": -10.25,
+            "bonusType": "Fixture signed provider value"
+          }
+        ],
+        "total": 3
+      },
+      {
+        "request": {
+          "dateTo": "2026-09-26T23:59:59Z",
+          "limit": 2,
+          "offset": 2
+        },
+        "reports": [
+          {
+            "dtBonus": "2026-09-26T12:00:00Z",
+            "nmId": 1003,
+            "bonusSumm": 100,
+            "bonusType": "Fixture deduction B"
+          }
+        ],
+        "total": 3
+      }
+    ],
+    "completeExpected": {
+      "status": "PASS",
+      "complete": true,
+      "rows": 3,
+      "providerAmounts": [247.5, -10.25, 100],
+      "currencyCode": null,
+      "currencyPolicy": "SELLER_REGISTRATION_COUNTRY_CURRENCY"
+    },
+    "incompletePages": [
+      {
+        "request": {
+          "dateTo": "2026-09-26T23:59:59Z",
+          "limit": 2,
+          "offset": 0
+        },
+        "reports": [
+          {
+            "dtBonus": "2026-09-26T10:00:00Z",
+            "nmId": 1001,
+            "bonusSumm": 247.5,
+            "bonusType": "Fixture deduction A"
+          }
+        ],
+        "total": 3
+      }
+    ],
+    "incompleteExpected": {
+      "status": "INCOMPLETE",
+      "reason": "DEDUCTION_PAGINATION_INCOMPLETE"
+    },
+    "badOffset": [
+      {
+        "request": {
+          "dateTo": "2026-09-26T23:59:59Z",
+          "limit": 1,
+          "offset": 1
+        },
+        "reports": [],
+        "total": 1
+      }
+    ],
+    "badOffsetExpected": {
+      "status": "INCOMPLETE",
+      "reason": "DEDUCTION_OFFSET_SEQUENCE_INVALID"
+    },
+    "missingAmount": {
+      "dtBonus": "2026-09-26T10:00:00Z",
+      "nmId": 1001,
+      "bonusType": "Fixture",
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "DEDUCTION_AMOUNT_MISSING"
+      }
+    },
+    "financeDetailRows": [
+      {
+        "rrdId": 1,
+        "currency": "RUB",
+        "sellerOperName": "Fixture sale",
+        "retailAmount": "367.00",
+        "forPay": "376.99",
+        "penalty": "0",
+        "additionalPayment": "-3.00",
+        "deduction": "25.50"
+      },
+      {
+        "rrdId": 2,
+        "currency": "RUB",
+        "sellerOperName": "Fixture adjustment",
+        "retailAmount": "-10.00",
+        "forPay": "-8.50",
+        "penalty": "5.00",
+        "additionalPayment": "2.00",
+        "deduction": "0"
+      }
+    ],
+    "financeDetailExpected": {
+      "status": "PASS",
+      "rows": 2,
+      "currency": "RUB",
+      "signedFieldsPreserved": true
+    },
+    "financeDetailCurrencyMismatch": [
+      {
+        "rrdId": 3,
+        "currency": "RUB",
+        "sellerOperName": "Fixture",
+        "retailAmount": "1",
+        "forPay": "1",
+        "penalty": "0",
+        "additionalPayment": "0",
+        "deduction": "0"
+      },
+      {
+        "rrdId": 4,
+        "currency": "USD",
+        "sellerOperName": "Fixture",
+        "retailAmount": "1",
+        "forPay": "1",
+        "penalty": "0",
+        "additionalPayment": "0",
+        "deduction": "0"
+      }
+    ],
+    "financeDetailCurrencyMismatchExpected": {
+      "status": "INCOMPLETE",
+      "reason": "FINANCE_DETAIL_CURRENCY_MISMATCH"
+    }
+  },
+  "remainingOpen": [
+    "live WB deductions values and owner gold-set reconciliation",
+    "current-live provider documentation freshness beyond the available official page snapshot",
+    "store/account currency-code binding for actual deductions-to-finance reconciliation",
+    "owner/business rule for how deduction rows affect reconciliation or contribution metrics",
+    "documented unique row identity if deduplication is later required"
+  ]
+}
