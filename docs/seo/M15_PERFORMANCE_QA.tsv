@@ -1,0 +1,19 @@
+qa_id	metric_class	surface	measurement	observed	verdict	evidence	claim_boundary
+M15P001	static_bytes	HOME HTML	bytes	11177	PASS	performance-source.log	Source size only
+M15P002	static_bytes	seller-analytics HTML	bytes	7234	PASS	performance-source.log	Source size only
+M15P003	static_bytes	privacy HTML	bytes	6850	PASS	performance-source.log	Source size only
+M15P004	static_bytes	support HTML	bytes	4805	PASS	performance-source.log	Source size only
+M15P005	static_bytes	install HTML	bytes	2808	PASS	performance-source.log	Source size only
+M15P006	static_bytes	styles.css	bytes	12185	PASS	performance-source.log	Candidate stylesheet after responsive rework
+M15P007	static_bytes	favicon.png	bytes	1892	PASS	performance-source.log	Asset size only
+M15P008	runtime	public site	executable JavaScript	0	PASS	source parser	JSON-LD is non-executable data
+M15P009	runtime	public site	third-party runtime	0	PASS	source/network diagnostics	External mailto links are not runtime
+M15P010	navigation_lab	Chrome HOME desktop	load diagnostic ms	32.1	PASS_DIAGNOSTIC	browser-probes.json	Not field CWV; environment-specific lab diagnostic
+M15P011	navigation_lab	Chrome analytics desktop	load diagnostic ms	46.3	PASS_DIAGNOSTIC	browser-probes.json	Not field CWV
+M15P012	navigation_lab	Chrome HOME requested 320	load diagnostic ms	36.5	PASS_DIAGNOSTIC	browser-probes.json	Not field CWV
+M15P013	navigation_lab	Chrome analytics requested 320	load diagnostic ms	22.1	PASS_DIAGNOSTIC	browser-probes.json	Not field CWV
+M15P014	navigation_lab	Opera HOME desktop	load diagnostic ms	85.0	PASS_DIAGNOSTIC	browser-probes.json	Not field CWV
+M15P015	navigation_lab	Yandex HOME desktop	load diagnostic ms	269.7	PASS_DIAGNOSTIC	browser-probes.json	Not field CWV; headless/vendor environment
+M15P016	field_cwv	HOME	LCP/INP/CLS p75	FIELD_DATA_NOT_AVAILABLE	PASS_TRUTHFUL_STATE	M15 authority	No fabricated field metric
+M15P017	field_cwv	seller-analytics	LCP/INP/CLS p75	FIELD_DATA_NOT_AVAILABLE	PASS_TRUTHFUL_STATE	M15 authority	Page not production-deployed
+M15P018	material_regression	candidate	blocking third-party/executable runtime	none observed	PASS	source + browser network	No arbitrary Lighthouse score gate
