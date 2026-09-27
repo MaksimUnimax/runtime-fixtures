@@ -1,0 +1,110 @@
+{
+  "schemaVersion": "wb_finance_balance_field_schema_slice_v1",
+  "capturedDate": "2026-09-27",
+  "scope": {
+    "scenarioIds": ["CAP-13"],
+    "boundary": "CURRENT_BALANCE_WITHDRAWABLE_AND_REPORT_TOTALS_STAY_DISTINCT",
+    "evidence": "CURRENT_OFFICIAL_FIELD_SCHEMA_SOURCE_ONLY",
+    "liveValues": false,
+    "acceptedOperationMappingChanged": false
+  },
+  "source": {
+    "url": "https://dev.wildberries.ru/en/openapi/financial-reports-and-accounting",
+    "operationAlias": "finance_balance",
+    "host": "finance",
+    "method": "GET",
+    "path": "/api/v1/account/balance",
+    "tokenCategory": "finance",
+    "rowGrain": ["account_snapshot"],
+    "fields": {
+      "currency": {
+        "role": "balance_currency",
+        "unit": "currency_code"
+      },
+      "current": {
+        "role": "provider_current_balance",
+        "unit": "money_number_provider_currency"
+      },
+      "for_withdraw": {
+        "role": "provider_available_for_withdrawal",
+        "unit": "money_number_provider_currency"
+      }
+    },
+    "period": "NONE_CURRENT_SNAPSHOT"
+  },
+  "reportMetadataReuse": {
+    "fixture": "tests/regression/extension-core/fixtures/wb-finance-sales-field-schema-slice-v1.json",
+    "operationAlias": "finance_sales_reports",
+    "fields": {
+      "retailAmountSum": "provider_retail_amount_total_not_owner_defined_revenue",
+      "forPaySum": "provider_for_pay_total_not_retail_amount"
+    }
+  },
+  "rules": {
+    "currentVsWithdraw": "DISTINCT_PROVIDER_BALANCE_FIELDS",
+    "balanceVsReport": "CURRENT_ACCOUNT_SNAPSHOT_IS_NOT_PERIOD_REPORT_TOTAL",
+    "revenue": "DO_NOT_LABEL_BALANCE_CURRENT_OR_FOR_WITHDRAW_AS_REVENUE",
+    "profit": "DO_NOT_DERIVE_PROFIT_FROM_BALANCE_FIELDS",
+    "currency": "REQUIRE_PROVIDER_CURRENCY_DO_NOT_ASSUME_RUB",
+    "missing": "MISSING_NOT_ZERO",
+    "numeric": "REQUIRE_FINITE_PROVIDER_NUMBER_PRESERVE_SIGN"
+  },
+  "acceptedMappingSnapshot": {
+    "CAP-13": ["finance_balance", "finance_sales_reports"]
+  },
+  "syntheticCases": {
+    "snapshot": {
+      "currency": "RUB",
+      "current": 10196.21,
+      "for_withdraw": 6395.8,
+      "expected": {
+        "status": "PASS",
+        "currency": "RUB",
+        "current": 10196.21,
+        "forWithdraw": 6395.8
+      }
+    },
+    "negativeCurrent": {
+      "currency": "RUB",
+      "current": -100.5,
+      "for_withdraw": 0,
+      "expected": {
+        "status": "PASS",
+        "currency": "RUB",
+        "current": -100.5,
+        "forWithdraw": 0
+      }
+    },
+    "missingCurrency": {
+      "current": 100,
+      "for_withdraw": 50,
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "BALANCE_CURRENCY_MISSING"
+      }
+    },
+    "missingWithdraw": {
+      "currency": "RUB",
+      "current": 100,
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "BALANCE_AMOUNT_MISSING"
+      }
+    },
+    "invalidAmount": {
+      "currency": "RUB",
+      "current": "100.00",
+      "for_withdraw": 50,
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "BALANCE_AMOUNT_INVALID"
+      }
+    }
+  },
+  "remainingOpen": [
+    "live WB balance values and owner gold-set reconciliation",
+    "owner/business naming for balance versus payout/revenue/profit",
+    "cross-period reconciliation between balance snapshot and sales-report totals",
+    "precision policy if arithmetic over provider numeric balance fields is later required"
+  ]
+}

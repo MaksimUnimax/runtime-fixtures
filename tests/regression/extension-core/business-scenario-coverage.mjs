@@ -14,6 +14,7 @@ import "./wb-replenishment-field-schema-slice.mjs";
 import "./wb-standard-supply-status-reuse.mjs";
 import "./wb-standard-supply-acceptance-stock-reuse.mjs";
 import "./wb-promotion-calendar-field-schema-slice.mjs";
+import "./wb-finance-balance-field-schema-slice.mjs";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
