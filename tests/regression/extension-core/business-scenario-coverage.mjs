@@ -22,6 +22,7 @@ import "./wb-advertising-stats-grain-field-schema-slice.mjs";
 import "./wb-advertised-stock-reuse.mjs";
 import "./wb-paid-storage-contribution-field-schema-slice.mjs";
 import "./wb-sales-geography-field-schema-slice.mjs";
+import "./wb-sales-decline-evidence-reuse.mjs";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
@@ -401,6 +402,36 @@ const calculators = {
       pageCountProvesCompleteness: false,
     };
   },
+  attention_rank(input) {
+    if (!Array.isArray(input.rows)) return { status: "INCOMPLETE" };
+    const products = new Set();
+    const ranked = [];
+    for (const row of input.rows) {
+      if (
+        !row ||
+        typeof row.product !== "string" ||
+        !row.product ||
+        products.has(row.product) ||
+        !Array.isArray(row.signals) ||
+        row.signals.some(
+          (signal) =>
+            !signal ||
+            typeof signal.name !== "string" ||
+            !signal.name ||
+            typeof signal.present !== "boolean",
+        )
+      )
+        return { status: "INCOMPLETE" };
+      products.add(row.product);
+      ranked.push({
+        product: row.product,
+        score: row.signals.filter((signal) => signal.present).length,
+      });
+    }
+    return ranked.sort(
+      (a, b) => b.score - a.score || a.product.localeCompare(b.product),
+    );
+  },
   causal_boundary(input) {
     return {
       claim: "HYPOTHESIS_NOT_PROVEN_CAUSE",
@@ -432,6 +463,7 @@ const requiredKinds = new Set([
   "top_n_join",
   "join_unique",
   "search_dedup",
+  "attention_rank",
   "causal_boundary",
 ]);
 assert.deepEqual(
