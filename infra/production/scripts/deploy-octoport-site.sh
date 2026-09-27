@@ -73,7 +73,7 @@ assert_source() {
   fi
 
   local required
-  for required in index.html privacy.html support.html install.html styles.css robots.txt sitemap.xml; do
+  for required in index.html seller-analytics.html privacy.html support.html install.html favicon.png styles.css robots.txt sitemap.xml; do
     [[ -f "${SOURCE_SITE}/${required}" ]] || fail "site source is missing ${required}"
   done
 
@@ -83,8 +83,44 @@ assert_source() {
 
   grep -Fq '<link rel="canonical" href="https://octoport.ru/"' "${SOURCE_SITE}/index.html" \
     || fail "site source canonical URL is not octoport.ru"
+  grep -Fq '<title>Подключите ваш ИИ к Ozon и Wildberries | Octoport</title>' "${SOURCE_SITE}/index.html" \
+    || fail "homepage M12 title is missing"
+  grep -Fq '<h1>Подключите ваш ИИ к Ozon и Wildberries</h1>' "${SOURCE_SITE}/index.html" \
+    || fail "homepage M12 H1 is missing"
+  grep -Fq '<link rel="icon" href="/favicon.png" type="image/png" />' "${SOURCE_SITE}/index.html" \
+    || fail "homepage favicon link is missing"
+  grep -Fq '"@type": "WebSite"' "${SOURCE_SITE}/index.html" \
+    || fail "homepage WebSite structured data is missing"
+  grep -Fq '"name": "Octoport"' "${SOURCE_SITE}/index.html" \
+    || fail "homepage WebSite site name is missing"
+  grep -Fq '"alternateName": ["Октопорт", "octoport.ru"]' "${SOURCE_SITE}/index.html" \
+    || fail "homepage WebSite alternate names are missing"
+  grep -Fq '"url": "https://octoport.ru/"' "${SOURCE_SITE}/index.html" \
+    || fail "homepage WebSite URL is missing"
   grep -Fq 'Набор ещё не открыт' "${SOURCE_SITE}/index.html" \
     || fail "site source does not preserve the closed-beta state"
+
+  grep -Fq '<title>ИИ для аналитики маркетплейсов — данные вашего магазина | Octoport</title>' \
+    "${SOURCE_SITE}/seller-analytics.html" || fail "seller analytics M12 title is missing"
+  grep -Fq '<h1>Анализируйте данные магазина на Ozon и Wildberries с вашим ИИ</h1>' \
+    "${SOURCE_SITE}/seller-analytics.html" || fail "seller analytics M12 H1 is missing"
+  grep -Fq '<link rel="canonical" href="https://octoport.ru/seller-analytics" />' \
+    "${SOURCE_SITE}/seller-analytics.html" || fail "seller analytics canonical is missing"
+  grep -Fq '<meta name="robots" content="noindex, follow" />' "${SOURCE_SITE}/install.html" \
+    || fail "install noindex directive is missing"
+
+  python3 - "${SOURCE_SITE}/favicon.png" <<'PY'
+import struct
+import sys
+
+path = sys.argv[1]
+with open(path, "rb") as handle:
+    header = handle.read(24)
+assert header[:8] == b"\x89PNG\r\n\x1a\n", "favicon is not a PNG"
+assert header[12:16] == b"IHDR", "favicon IHDR is missing"
+width, height = struct.unpack(">II", header[16:24])
+assert (width, height) == (120, 120), (width, height)
+PY
 }
 
 assert_server_ipv4() {
@@ -248,7 +284,7 @@ install_live_ingress() {
 
 main() {
   require_root
-  for command_name in awk cat chmod cmp cp cut find getent git grep install ip ln ls mv nginx openssl readlink rm sleep sort systemctl tr wc curl bash flock sha256sum; do
+  for command_name in awk cat chmod cmp cp cut find getent git grep install ip ln ls mv nginx openssl python3 readlink rm sleep sort systemctl tr wc curl bash flock sha256sum; do
     require_command "${command_name}"
   done
 

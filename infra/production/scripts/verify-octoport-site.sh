@@ -61,6 +61,17 @@ header_value() {
   ' <<<"${headers}"
 }
 
+expect_redirect() {
+  local expected_location=$1 url=$2 host=$3 port=$4
+  local headers location
+
+  expect_status_with_retry 308 "${url}" "${host}" "${port}"
+  headers="$(curl --silent --show-error --head --resolve "${host}:${port}:127.0.0.1" "${url}")"
+  location="$(header_value "${headers}" 'location')"
+  [[ "${location}" == "${expected_location}" ]] \
+    || fail "${url} redirect location is ${location:-<missing>}, expected ${expected_location}"
+}
+
 check_release() {
   [[ -L "${CURRENT_LINK}" ]] || fail "${CURRENT_LINK} is not a symlink"
   local target
@@ -68,7 +79,7 @@ check_release() {
   [[ -d "${target}" ]] || fail "current release target does not exist: ${target}"
 
   local required
-  for required in index.html privacy.html support.html install.html styles.css robots.txt sitemap.xml; do
+  for required in index.html seller-analytics.html privacy.html support.html install.html favicon.png styles.css robots.txt sitemap.xml; do
     [[ -f "${target}/${required}" ]] || fail "current release is missing ${required}"
   done
 
@@ -115,24 +126,47 @@ check_served_certificates() {
 
 check_site_content() {
   expect_status_with_retry 200 'https://octoport.ru/' octoport.ru 443
+  expect_status_with_retry 200 'https://octoport.ru/seller-analytics' octoport.ru 443
   expect_status_with_retry 200 'https://octoport.ru/privacy' octoport.ru 443
   expect_status_with_retry 200 'https://octoport.ru/support' octoport.ru 443
   expect_status_with_retry 200 'https://octoport.ru/install' octoport.ru 443
+  expect_status_with_retry 200 'https://octoport.ru/favicon.png' octoport.ru 443
   expect_status_with_retry 200 'https://octoport.ru/styles.css' octoport.ru 443
   expect_status_with_retry 200 'https://octoport.ru/robots.txt' octoport.ru 443
   expect_status_with_retry 200 'https://octoport.ru/sitemap.xml' octoport.ru 443
 
-  local homepage homepage_headers css_headers content_type homepage_csp css_csp
-  local privacy support install
-  local homepage_cache css_cache css_frame_options css_nosniff
+  local homepage homepage_headers css_headers favicon_headers content_type homepage_csp css_csp
+  local seller privacy support install sitemap
+  local homepage_cache css_cache css_frame_options css_nosniff favicon_type favicon_location
 
   homepage="$(curl --silent --show-error --resolve 'octoport.ru:443:127.0.0.1' 'https://octoport.ru/')"
-  grep -Fq '<title>Octoport' <<<"${homepage}" || fail "homepage does not contain the Octoport title"
+  grep -Fq '<title>Подключите ваш ИИ к Ozon и Wildberries | Octoport</title>' <<<"${homepage}" \
+    || fail "homepage M12 title is missing"
+  grep -Fq '<h1>Подключите ваш ИИ к Ozon и Wildberries</h1>' <<<"${homepage}" \
+    || fail "homepage M12 H1 is missing"
+  grep -Fq 'Ваш ИИ получает руки для работы с маркетплейсами.' <<<"${homepage}" \
+    || fail "homepage brand subheadline is missing"
+  grep -Fq '<link rel="icon" href="/favicon.png" type="image/png" />' <<<"${homepage}" \
+    || fail "homepage favicon link is missing"
   grep -Fq 'Набор ещё не открыт' <<<"${homepage}" || fail "homepage beta-state copy is missing"
 
+  python3 -c 'import json,re,sys; h=sys.stdin.read(); nodes=[json.loads(x) for x in re.findall(r"<script[^>]+type=[\"'"'"']application/ld\+json[\"'"'"'][^>]*>(.*?)</script>",h,re.I|re.S)]; w=[x for x in nodes if x.get("@type")=="WebSite"]; assert len(w)==1; x=w[0]; assert x.get("name")=="Octoport"; assert x.get("alternateName")==["Октопорт","octoport.ru"]; assert x.get("url")=="https://octoport.ru/"' \
+    <<<"${homepage}" || fail "homepage WebSite structured data is invalid"
+
+  seller="$(curl --silent --show-error --resolve 'octoport.ru:443:127.0.0.1' 'https://octoport.ru/seller-analytics')"
   privacy="$(curl --silent --show-error --resolve 'octoport.ru:443:127.0.0.1' 'https://octoport.ru/privacy')"
   support="$(curl --silent --show-error --resolve 'octoport.ru:443:127.0.0.1' 'https://octoport.ru/support')"
   install="$(curl --silent --show-error --resolve 'octoport.ru:443:127.0.0.1' 'https://octoport.ru/install')"
+  sitemap="$(curl --silent --show-error --resolve 'octoport.ru:443:127.0.0.1' 'https://octoport.ru/sitemap.xml')"
+
+  grep -Fq '<title>ИИ для аналитики маркетплейсов — данные вашего магазина | Octoport</title>' <<<"${seller}" \
+    || fail "seller analytics M12 title is missing"
+  grep -Fq '<h1>Анализируйте данные магазина на Ozon и Wildberries с вашим ИИ</h1>' <<<"${seller}" \
+    || fail "seller analytics M12 H1 is missing"
+  grep -Fq '<link rel="canonical" href="https://octoport.ru/seller-analytics" />' <<<"${seller}" \
+    || fail "seller analytics canonical is missing"
+  grep -Fq 'Это read-only сценарий.' <<<"${seller}" || fail "seller analytics read-only boundary is missing"
+  grep -Fq 'главной странице Octoport' <<<"${seller}" || fail "seller analytics HOME link is missing"
 
   grep -Fq '<title>Octoport — Privacy</title>' <<<"${privacy}" || fail "privacy page title is missing"
   grep -Fq 'не сохраняет Ozon/Wildberries реквизиты' <<<"${privacy}" || fail "privacy page credential boundary is missing"
@@ -172,6 +206,28 @@ check_site_content() {
     fi
   done
 
+  grep -Fq 'name="description" content="Как Octoport обрабатывает данные:' <<<"${privacy}" \
+    || fail "privacy meta description is missing"
+  ! grep -Eiq '<meta[^>]+name=["'"'"']robots["'"'"'][^>]+noindex' <<<"${privacy}" \
+    || fail "privacy must remain indexable"
+
+  grep -Fq 'name="description" content="Поддержка Octoport:' <<<"${support}" \
+    || fail "support meta description is missing"
+  ! grep -Eiq '<meta[^>]+name=["'"'"']robots["'"'"'][^>]+noindex' <<<"${support}" \
+    || fail "support must remain indexable"
+
+  grep -Fq '<meta name="robots" content="noindex, follow" />' <<<"${install}" \
+    || fail "install noindex directive is missing"
+
+  python3 -c 'import sys,xml.etree.ElementTree as ET; root=ET.fromstring(sys.stdin.read()); ns={"s":"http://www.sitemaps.org/schemas/sitemap/0.9"}; loc=[x.text for x in root.findall("s:url/s:loc",ns)]; assert loc==["https://octoport.ru/","https://octoport.ru/seller-analytics","https://octoport.ru/privacy","https://octoport.ru/support"],loc' \
+    <<<"${sitemap}" || fail "sitemap canonical URL set is invalid"
+
+  favicon_headers="$(curl --silent --show-error --head --resolve 'octoport.ru:443:127.0.0.1' 'https://octoport.ru/favicon.png')"
+  favicon_type="$(header_value "${favicon_headers}" 'content-type')"
+  [[ "${favicon_type}" == image/png* ]] || fail "favicon content-type is ${favicon_type:-<missing>}"
+  favicon_location="$(header_value "${favicon_headers}" 'location')"
+  [[ -z "${favicon_location}" ]] || fail "favicon must not redirect: ${favicon_location}"
+
   homepage_headers="$(curl --silent --show-error --head --resolve 'octoport.ru:443:127.0.0.1' 'https://octoport.ru/')"
   homepage_csp="$(header_value "${homepage_headers}" 'content-security-policy')"
   grep -Fq "default-src 'none'" <<<"${homepage_csp}" || fail "homepage CSP is missing the restrictive default-src"
@@ -195,19 +251,34 @@ check_site_content() {
 }
 
 check_redirects() {
-  local host location
+  local host src target expected
+
   for host in "${DOMAINS[@]}"; do
     expect_status_with_retry 308 "http://${host}/" "${host}" 80
   done
 
-  expect_status_with_retry 308 'https://www.octoport.ru/site-s1-check?probe=1' www.octoport.ru 443
-  location="$(curl --silent --show-error --head \
-    --resolve 'www.octoport.ru:443:127.0.0.1' \
-    'https://www.octoport.ru/site-s1-check?probe=1' \
-    | awk 'BEGIN{IGNORECASE=1} /^location:/ {sub(/\r$/, ""); print $2; exit}')"
-  [[ "${location}" == 'https://octoport.ru/site-s1-check?probe=1' ]] \
-    || fail "www redirect location is ${location:-<missing>}"
+  expect_redirect 'https://octoport.ru/site-s1-check?probe=1' \
+    'http://www.octoport.ru/site-s1-check?probe=1' www.octoport.ru 80
+  expect_redirect 'https://octoport.ru/site-s1-check?probe=1' \
+    'https://www.octoport.ru/site-s1-check?probe=1' www.octoport.ru 443
 
+  while IFS='|' read -r src target; do
+    [[ -n "${src}" ]] || continue
+    expected="https://octoport.ru${target}?probe=1"
+    expect_redirect "${expected}" "https://octoport.ru${src}?probe=1" octoport.ru 443
+  done <<'EOF'
+/index.html|/
+/seller-analytics.html|/seller-analytics
+/seller-analytics/|/seller-analytics
+/privacy.html|/privacy
+/privacy/|/privacy
+/support.html|/support
+/support/|/support
+/install.html|/install
+/install/|/install
+EOF
+
+  expect_status_with_retry 404 'https://octoport.ru/m14-verifier-unknown' octoport.ru 443
 }
 
 check_application_routes() {

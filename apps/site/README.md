@@ -1,62 +1,75 @@
 # Octoport public site
 
-Status: SITE-S0 foundation candidate.
+Status: M14 bounded SEO source implementation candidate / NOT DEPLOYED / NOT INDEXING-ACCEPTED.
 
 ## Purpose
 
-`apps/site/public/` is the independent public marketing surface for `https://octoport.ru/`.
-It is intentionally separate from:
+apps/site/public/ is the independent public marketing surface for https://octoport.ru/.
+It remains separate from apps/portal, apps/admin, apps/api and apps/extension.
 
-- `apps/portal` — authenticated user portal;
-- `apps/admin` — admin application, future same-origin route under `app.octoport.ru/admin/`;
-- `apps/api` — Control Plane API;
-- `apps/extension` — browser extension.
+The public site remains dependency-free static HTML/CSS. M14 adds no client-side application runtime.
 
-The first public-site foundation is dependency-free static HTML/CSS. This is deliberate: the marketing surface currently has no accepted dynamic runtime requirement, so S0 does not add a second Node production process, package dependencies, workspace lockfile churn, or coupling to the active server/I1 streams.
+## Canonical and indexability contract
 
-A framework may be introduced later only when a concrete site requirement needs it.
+Canonical public origin: https://octoport.ru.
 
-## Canonical domain
+Commercial SEO-owner pages:
+- / — connector/category HOME;
+- /seller-analytics — bounded seller-owned analytics use case.
 
-- canonical public origin: `https://octoport.ru/`;
-- `https://www.octoport.ru/` remains redirect-only at nginx;
-- authenticated portal is not served by this directory;
-- API is not served by this directory.
+Indexable public utility pages:
+- /privacy;
+- /support.
 
-DOMAIN-D2 currently returns an intentional `503` for the apex until a separate site-deployment step replaces that pre-deployment response with a static root.
+Crawlable current-status page:
+- /install — noindex, follow until an official installation/catalog destination is actually available.
+
+Known .html and non-root trailing-slash aliases are redirect-only. Unknown public URLs remain real 404.
+
+## Search appearance
+
+- HOME carries one static WebSite JSON-LD node for the preferred site name.
+- SoftwareApplication, review/rating and invented Organization facts are not published.
+- /favicon.png is a 120×120 PNG derived only by deterministic resize from the current accepted Octoport extension mark.
+- application/ld+json is non-executable structured data; executable public JavaScript remains zero in this M14 scope.
+
+## Sitemap
+
+public/sitemap.xml contains exactly:
+1. https://octoport.ru/
+2. https://octoport.ru/seller-analytics
+3. https://octoport.ru/privacy
+4. https://octoport.ru/support
+
+/install, aliases, assets, portal and API routes are excluded.
 
 ## Truth boundary for public copy
 
-Current S0 copy may state:
+Current public copy may state:
+- one browser extension connects a user-selected supported AI to Ozon/Wildberries;
+- launch scope is read-only data/report analysis and explanation;
+- marketplace credentials remain local during ordinary work;
+- server still handles account/device/auth and limited service metadata/synchronization;
+- closed free beta is being prepared and public access is not yet open.
 
-- Octoport is being prepared as one browser extension for Ozon and Wildberries;
-- product positioning is an «ИИ-сотрудник» working through the user's chosen AI dialogue;
-- beta is planned as a limited free beta;
-- initial product scope is read-only data/report work rather than business-state editing;
-- marketplace API keys remain local during ordinary work;
-- Octoport does not provide a server archive of raw reports or chat history;
-- the server is still used for account/device/auth and limited service metadata/synchronization.
-
-S0 must NOT claim:
-
-- that public registration is already open;
-- that portal/API/admin are already deployed;
-- public paid pricing such as historical `199/299` figures;
-- that every target browser/provider combination has completed installed/live acceptance;
-- that Octoport stores no server data at all;
-- capabilities not supported by accepted marketplace APIs.
+The site must not claim public paid pricing, automatic business-state mutation, universal browser/provider acceptance, a proprietary Octoport LLM, external market-intelligence coverage without source authority, or a server that stores no data at all.
 
 ## Files
 
-- `public/index.html` — public homepage source;
-- `public/styles.css` — dependency-free responsive styling;
-- `public/robots.txt` — crawler policy;
-- `public/sitemap.xml` — initial canonical sitemap.
+- public/index.html — HOME source;
+- public/seller-analytics.html — seller-owned analytics use-case source;
+- public/privacy.html — indexable privacy utility;
+- public/support.html — indexable support utility;
+- public/install.html — crawlable noindex installation-status page;
+- public/favicon.png — search/browser icon;
+- public/styles.css — shared responsive styling;
+- public/robots.txt — crawler policy;
+- public/sitemap.xml — canonical indexable URL set.
 
-There is no build step in S0. Deployment copies the contents of `public/` byte-for-byte into a versioned/releasable static web root and changes nginx only in a separate accepted deployment step.
+There is no build step. Deployment copies public/ byte-for-byte into a versioned static release and changes only the separately owned public-site nginx config.
 
-## Acceptance
+## Acceptance boundary
 
-`.github/workflows/site-ci.yml` validates the static source without PostgreSQL or server E2E. It checks canonical domain authority, required content boundaries, internal anchors, sitemap/robots consistency, absence of executable JavaScript, and accidental stale-domain / historical-price publication.
+M14 source acceptance is not production deployment. Production deployment, live-route QA and indexing verification belong to later roadmap stages.
 
-SITE-S0 source acceptance is not production deployment.
+The analytics page must not be launched with fake proof. A real sanitized/source-backed product demonstration remains a downstream launch gate.
