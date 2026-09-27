@@ -54,8 +54,34 @@ function assertOperation(source) {
 
 assert.equal(slice.schemaVersion, "wb_supply_acceptance_field_schema_slice_v1");
 assert.deepEqual(slice.scope.scenarioIds, ["CAP-08"]);
+assert.equal(
+  slice.scope.evidence,
+  "CURRENT_UPSTREAM_OPENAPI_MIRROR_FIELD_SCHEMA",
+);
 assert.equal(slice.scope.liveValues, false);
 assert.equal(slice.scope.acceptedOperationMappingChanged, true);
+assert.equal(slice.authority.mirrorRepository, "eslazarev/wildberries-sdk");
+assert.equal(
+  slice.authority.generationBlobSha,
+  "43ac4287e0afe98f273fd00f1a89bdf6c6229565",
+);
+assert.equal(slice.authority.directPortalFetch, "HTTP_498_BROWSER_CHECK");
+assert.equal(
+  slice.authority.specs["12-reports.yaml"].blobSha,
+  "22ff073c10a3cebe0dc7af647eb2b704fd35857c",
+);
+assert.equal(
+  slice.authority.specs["12-reports.yaml"].anchors.acceptanceCreate,
+  1144,
+);
+assert.equal(
+  slice.authority.specs["12-reports.yaml"].anchors.acceptanceStatus,
+  1213,
+);
+assert.equal(
+  slice.authority.specs["12-reports.yaml"].anchors.acceptanceDownload,
+  1287,
+);
 
 for (const source of Object.values(slice.sources)) assertOperation(source);
 

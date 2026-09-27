@@ -4,10 +4,50 @@
   "scope": {
     "scenarioIds": ["CAP-08"],
     "boundary": "SUPPLY_STATUS_PRODUCT_ACCEPTED_QUANTITY_AND_REPORT_LIFECYCLE",
-    "evidence": "CURRENT_MACHINE_READABLE_UPSTREAM_SCHEMA",
-    "upstreamMirrorCommit": "5057bdb9bf16dea24000e3ca79e1934f7761d7fe",
+    "evidence": "CURRENT_UPSTREAM_OPENAPI_MIRROR_FIELD_SCHEMA",
     "liveValues": false,
     "acceptedOperationMappingChanged": true
+  },
+  "authority": {
+    "mirrorRepository": "eslazarev/wildberries-sdk",
+    "generationBlobSha": "43ac4287e0afe98f273fd00f1a89bdf6c6229565",
+    "observedAt": "2026-09-27T07:59:10Z",
+    "directPortalFetch": "HTTP_498_BROWSER_CHECK",
+    "specs": {
+      "03-orders-fbs.yaml": {
+        "blobSha": "7965dedd6851edf0e37b3109149d9d323e32e710",
+        "sha256": "9b86cf918ef7456644319577ba303acf8208e8c53d36d3001d402a5acf7103df",
+        "upstreamUrl": "https://dev.wildberries.ru/api/swagger/yaml/ru/03-orders-fbs.yaml?region=ru",
+        "anchors": {
+          "fbsSupply": 2809,
+          "fbsSupplyOrderIds": 2958,
+          "orderIdsSchema": 5421
+        }
+      },
+      "07-orders-fbw.yaml": {
+        "blobSha": "7ae91e4101c9a2c0f74d2c34c6dbf743d8ef5f45",
+        "sha256": "486d5d77b4987ceaab96b9a378fd489504c8ae8eb9599b3067b02e7b8ef6bada",
+        "upstreamUrl": "https://dev.wildberries.ru/api/swagger/yaml/ru/07-orders-fbw.yaml?region=ru",
+        "anchors": {
+          "fbwSupply": 335,
+          "fbwSupplyGoods": 415,
+          "goodInSupplySchema": 1594,
+          "supplyDetailsSchema": 1684
+        }
+      },
+      "12-reports.yaml": {
+        "blobSha": "22ff073c10a3cebe0dc7af647eb2b704fd35857c",
+        "sha256": "f7eb3bd284905044142f9b53bd160f3c6993b1773330fafcdb03bca00985311b",
+        "upstreamUrl": "https://dev.wildberries.ru/api/swagger/yaml/ru/12-reports.yaml?region=ru",
+        "anchors": {
+          "acceptanceCreate": 1144,
+          "acceptanceStatus": 1213,
+          "acceptanceDownload": 1287,
+          "taskStatusSchema": 3084,
+          "createTaskSchema": 3104
+        }
+      }
+    }
   },
   "sources": {
     "fbwSupply": {
