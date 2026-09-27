@@ -202,11 +202,26 @@ jobs:
           width, height = struct.unpack(">II", header[16:24])
           assert (width, height) == (120, 120), (width, height)
 
+          mobile_privacy_guard = """  .privacy-panel {
+    border-radius: 24px;
+  }
+
+  .privacy-panel > * {
+    min-width: 0;
+  }
+
+  .privacy-panel h2 {
+    overflow-wrap: anywhere;
+  }
+
+  .site-footer {"""
+          assert mobile_privacy_guard in css, "320px privacy-panel shrink/wrap regression guard is missing"
+
           assert len(index.encode("utf-8")) < 100_000, "homepage unexpectedly large"
           assert len(css.encode("utf-8")) < 100_000, "stylesheet unexpectedly large"
           assert favicon_path.stat().st_size < 100_000, "favicon unexpectedly large"
 
-          print("SITE-M14 HOME PASS: metadata, JSON-LD, links, robots, sitemap and favicon")
+          print("SITE-M14 HOME PASS: metadata, JSON-LD, links, robots, sitemap, favicon and 320px privacy guard")
 
           page_specs = {
               "seller-analytics": {
