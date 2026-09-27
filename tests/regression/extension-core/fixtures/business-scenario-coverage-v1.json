@@ -827,7 +827,9 @@
         "fbw_supply_goods",
         "fbs_supply",
         "fbs_supply_order_ids",
-        "acceptance_report_create"
+        "acceptance_report_create",
+        "acceptance_report_status",
+        "acceptance_report_download"
       ],
       "identifiers": [
         "supply_id",
@@ -838,7 +840,7 @@
         "accepted_units:count"
       ],
       "periodPolicy": "EXPLICIT_WHERE_APPLICABLE",
-      "continuationPolicy": "EXPLICIT_NEXT_READ",
+      "continuationPolicy": "EXPLICIT_REPORT_LIFECYCLE",
       "omissionPolicy": "MISSING_NOT_ZERO",
       "externalDependency": null,
       "numericFixtures": [
