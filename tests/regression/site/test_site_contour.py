@@ -12,6 +12,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[3] / 'apps/site/public'
 
+# R6 scene contract: the octopus/grips are path-only SVG layers; live acceptance remains separate.
 class Tags(HTMLParser):
     def __init__(self, html):
         super().__init__(); self.tags=[]; self.feed(html)
@@ -34,29 +35,38 @@ class ContourSourceTests(unittest.TestCase):
         self.assertNotIn('reference-art.js',self.html)
         self.assertNotIn('background-position',self.css)
         self.assertNotIn('engraving-3-underlay',self.html)
-    def test_clean_source_and_two_static_theme_layers(self):
-        manifest=json.loads((ROOT.parent/'design-sources/contour-reference-r5.json').read_text())
-        for name,sha in manifest['assets'].items():
-            self.assertEqual(hashlib.sha256((ROOT/'assets'/name).read_bytes()).hexdigest(),sha,name)
-        underlays=[a for t,a in self.tags if t=='img' and 'contour-underlay' in a.get('class','').split()]
-        self.assertEqual(len(underlays),2)
-        block=re.search(r'\.contour-underlay\s*\{([^}]+)\}',self.css).group(1)
-        self.assertIn('pointer-events:none',block.replace(' ',''))
-        self.assertNotIn('transform',block)
-        self.assertNotIn('transition',block)
-        self.assertNotIn('animation',block)
-    def test_r5_ink_overprint_matches_disc_palette(self):
+    def test_r6_true_vector_static_layers_and_asset_integrity(self):
         source=ROOT.parent/'design-sources'
-        m=json.loads((source/'contour-reference-r5.json').read_text())
-        self.assertEqual(m['palette'], {'light':'#10243c','dark':'#ebffff'})
-        self.assertEqual(m['ink_overprint_passes'], 3)
-        raw=zlib.decompress(base64.b64decode((source/'contour-reference-r4-alpha.b64').read_text()))
-        levels=sorted(set(raw)-{0})
-        boosted=[round(255*(1-(1-v/255)**m['ink_overprint_passes'])) for v in levels]
-        self.assertGreaterEqual(min(boosted), 90)
-        for theme in ('light','dark'):
-            self.assertIn('/assets/contour-reference-r5-'+theme+'.webp', self.html)
-            self.assertIn('/assets/contour-grips-r5-'+theme+'.webp', self.html)
+        manifest=json.loads((source/'contour-vector-r6.json').read_text())
+        asset=ROOT/'assets/contour-vector-r6.svg'
+        self.assertEqual(hashlib.sha256(asset.read_bytes()).hexdigest(),manifest['asset_sha256'])
+        svg=asset.read_text()
+        self.assertIn('<symbol id="underlay"',svg)
+        self.assertIn('<symbol id="grip-paper"',svg)
+        self.assertIn('<symbol id="grip-ink"',svg)
+        self.assertGreater(svg.count('<path '),2)
+        self.assertNotIn('<image',svg)
+        self.assertNotIn('data:image',svg)
+        self.assertNotIn('.png',svg)
+        self.assertNotIn('.webp',svg)
+        underlays=[a for t,a in self.tags if t=='svg' and 'contour-underlay' in a.get('class','').split()]
+        grips=[a for t,a in self.tags if t=='svg' and 'contour-grips' in a.get('class','').split()]
+        self.assertEqual(len(underlays),1); self.assertEqual(len(grips),1)
+        self.assertEqual(self.html.count('/assets/contour-vector-r6.svg#underlay'),1)
+        self.assertEqual(self.html.count('/assets/contour-vector-r6.svg#grip-paper'),1)
+        self.assertEqual(self.html.count('/assets/contour-vector-r6.svg#grip-ink'),1)
+        self.assertNotIn('contour-reference-r5-',self.html)
+        self.assertNotIn('contour-grips-r5-',self.html)
+
+    def test_r6_vector_palette_matches_css_controls(self):
+        m=json.loads((ROOT.parent/'design-sources/contour-vector-r6.json').read_text())
+        self.assertEqual(m['palette'],{'light':'#10243c','dark':'#ebffff'})
+        self.assertEqual(m['vectorization']['scale'],2)
+        self.assertEqual(m['vectorization']['threshold'],72)
+        self.assertEqual(m['vectorization']['fill_rule'],'evenodd')
+        self.assertIn('.contour-vector { color:var(--scene-ink);',self.css)
+        self.assertIn('.contour-grips .grip-paper { color:var(--scene-paper);',self.css)
+        self.assertIn('.contour-grips .grip-ink { color:var(--scene-ink);',self.css)
 
     def test_marketplaces_are_lower_and_ordered(self):
         def pos(name):
@@ -113,9 +123,9 @@ class ContourSourceTests(unittest.TestCase):
         self.assertNotIn('class="contour-orbit"',self.html)
         self.assertIn('background:var(--scene-paper)',self.css)
         self.assertIn('--scene-paper:var(--bg)',self.css)
-        grips=[a for t,a in self.tags if t=='img' and 'contour-grips' in a.get('class','').split()]
-        self.assertEqual(len(grips),2)
-        for a in grips:self.assertEqual(a.get('aria-hidden'),'true')
+        grips=[a for t,a in self.tags if t=='svg' and 'contour-grips' in a.get('class','').split()]
+        self.assertEqual(len(grips),1)
+        self.assertEqual(grips[0].get('aria-hidden'),'true')
         for cls in ['contour-grips','contour-underlay']:
             block=re.search(r'\.'+cls+r'\s*\{([^}]+)\}',self.css).group(1)
             self.assertIn('pointer-events:none',block.replace(' ',''))
