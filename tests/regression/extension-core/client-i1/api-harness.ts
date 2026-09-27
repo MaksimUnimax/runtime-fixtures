@@ -246,6 +246,10 @@ const fixtureProfileContractVersion =
   process.env.SA_I1_PROFILE_CONTRACT_VERSION === "control_plane_v2"
     ? "control_plane_v2"
     : "control_plane_v1";
+const fixtureExtensionVersion =
+  process.env.SA_I1_EXTENSION_VERSION?.trim() || "0.2.4";
+if (!fixtureExtensionVersion.match(/^\d+\.\d+\.\d+$/))
+  throw new Error("INVALID_FIXTURE_EXTENSION_VERSION");
 const fixtureProfileBrowserFamilies = (
   process.env.SA_I1_PROFILE_BROWSER_FAMILIES ?? "chrome"
 )
@@ -318,7 +322,7 @@ const fixtureLocalAuthorityCatalog = {
   listLatestExtensionReleaseSupports: async () => [
     {
       id: "11111111-1111-4111-8111-111111111111",
-      version: "0.2.4",
+      version: fixtureExtensionVersion,
       contractVersions: ["control_plane_v2"] as const,
       browserFamilies: fixtureProfileBrowserFamilies,
     },
