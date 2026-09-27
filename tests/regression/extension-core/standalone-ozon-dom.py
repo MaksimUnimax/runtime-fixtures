@@ -13,7 +13,14 @@ def msg(inner,attrs='data-turn="assistant"',tag='section'):
 FORM='''<form><textarea id="prompt-textarea" style="width:700px;height:80px"></textarea><button data-testid="send-button" aria-label="Send message" type="submit">Send</button></form><script>window.submissions=[];document.querySelector('form').addEventListener('submit',e=>{e.preventDefault();const t=document.querySelector('textarea');submissions.push(t.value);const d=document.createElement('section');d.dataset.turn='user';d.textContent=t.value;document.querySelector('main').append(d);t.value='';});</script>'''
 GUEST_FORM=FORM.replace('id="prompt-textarea"','id="mobile-composer-prompt"')+'<script>(()=>{const t=document.querySelector("textarea"),b=document.querySelector("form button");b.disabled=true;t.addEventListener("input",()=>{b.disabled=t.dataset.testBlocked==="1"||!t.value.trim()});document.querySelector("form").addEventListener("submit",()=>{b.disabled=true})})()</script>'
 CURRENT_WB='<div data-writing-block data-testid="writing-block-container" id="writing-block-msg-current"><div data-testid="writing-block-header-surface"><span>Обычный текст</span><button type="button" aria-label="Копировать">Copy</button></div><div class="ProseMirror writing-block-editor-disabled" aria-disabled="true"><p>OZON_HELP_V2</p><p>{&quot;cluster&quot;:&quot;supplies_fbo&quot;}</p></div></div>'
+
+SPLIT_PROJECT='<div data-conversation-transcript><div class="content-branch"><div data-assistant-markdown><div class="codeblock"><button aria-label="Копировать">Copy</button><div class="cm-content"><div class="cm-line">OZON_HELP_V2</div><div class="cm-line">{&quot;cluster&quot;:&quot;supplies_fbo&quot;}</div></div></div></div></div><div class="toolbar-branch"><div role="group" aria-label="Действия с ответом"><button aria-label="Копировать ответ">R</button></div></div><div class="other-turn"><div role="group" aria-label="Действия с ответом"><button aria-label="Копировать ответ">R2</button></div></div></div>'
+SPLIT_PROJECT_USER='<div data-turn="user"><div data-assistant-markdown><div class="codeblock"><button aria-label="Копировать">Copy</button><div class="cm-content"><div class="cm-line">OZON_HELP_V2</div><div class="cm-line">{&quot;cluster&quot;:&quot;supplies_fbo&quot;}</div></div></div></div></div>'
+STREAM_ONLY='<div data-conversation-transcript><pre data-assistant-stream-block><code>OZON_HELP_V2\n{&quot;cluster&quot;:&quot;supplies_fbo&quot;}</code></pre><div role="group" aria-label="Действия с ответом"></div><div role="group" aria-label="Действия с ответом"></div></div>'
 cases=[
+ ('project_split_content_actions',SPLIT_PROJECT,1),
+ ('project_split_content_inside_user',SPLIT_PROJECT_USER,0),
+ ('project_stream_marker_without_turn',STREAM_ONLY,1),
  ('current_writing_block_standalone',CURRENT_WB,1),
  ('current_writing_block_inside_user',msg(CURRENT_WB,'data-turn="user"'),0),
  ('native_guest_cycle',msg(block()),1),
@@ -121,7 +128,7 @@ with sync_playwright() as p:
 
     if name=='reload_binding':
      page.reload();page.wait_for_timeout(600);assert buttons.count()==1 and buttons.first.is_enabled()
-    if name in ('current_writing_block_standalone','project_labelledby_response_actions_generic','project_unlabelled_response_actions_generic') or name.endswith('_cycle') or name in ('copy_code_en','guest_role','rapid_double_click','two_independent_blocks','streamed_code','desktop_plain_code_copy_ru','project_action_inferred_plain_code'):
+    if name in ('project_split_content_actions','project_stream_marker_without_turn','current_writing_block_standalone','project_labelledby_response_actions_generic','project_unlabelled_response_actions_generic') or name.endswith('_cycle') or name in ('copy_code_en','guest_role','rapid_double_click','two_independent_blocks','streamed_code','desktop_plain_code_copy_ru','project_action_inferred_plain_code'):
      target=buttons.nth(1) if name=='two_independent_blocks' else buttons.first
      if name in ('rapid_double_click','native_guest_double_cycle'):target.evaluate('(b)=>{b.click();b.click();}')
      else:target.click()
@@ -151,7 +158,7 @@ with sync_playwright() as p:
    except Exception as e:
     row.update({'result':'FAIL','error':str(e),'trace':traceback.format_exc()})
    results.append(row);print(name,row['result'],row.get('error',''),flush=True)
-   if name in ('current_writing_block_standalone','project_labelledby_response_actions_generic','project_unlabelled_response_actions_generic') or name.endswith('_cycle') or name in ('copy_code_en','guest_role','two_independent_blocks'):page.screenshot(path=str(O/(name+'.png')))
+   if name in ('project_split_content_actions','project_stream_marker_without_turn','current_writing_block_standalone','project_labelledby_response_actions_generic','project_unlabelled_response_actions_generic') or name.endswith('_cycle') or name in ('copy_code_en','guest_role','two_independent_blocks'):page.screenshot(path=str(O/(name+'.png')))
    page.close()
    (O/'regression.json').write_text(json.dumps({'environment':'native Chromium extension, original service worker; synthetic page only; no credentials','version':sw.evaluate('chrome.runtime.getManifest().version'),'cases':results,'page_errors':errors,'ozon_requests':[u for u in network if 'ozon.' in u]},ensure_ascii=False,indent=2))
  finally:ctx.close()
