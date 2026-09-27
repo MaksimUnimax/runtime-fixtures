@@ -1,0 +1,185 @@
+{
+  "schemaVersion": "wb_catalog_identity_field_schema_slice_v1",
+  "capturedDate": "2026-09-27",
+  "scope": {
+    "scenarioIds": ["CAP-01"],
+    "boundary": "PRODUCT_CARD_SIZE_AND_SKU_IDENTITIES_ARE_DISTINCT",
+    "evidence": "CURRENT_OFFICIAL_FIELD_SCHEMA_SOURCE_ONLY",
+    "liveValues": false,
+    "acceptedOperationMappingChanged": false
+  },
+  "source": {
+    "url": "https://dev.wildberries.ru/en/openapi/work-with-products",
+    "operationAlias": "cards_list",
+    "host": "content",
+    "method": "POST",
+    "path": "/content/v2/get/cards/list",
+    "bodyRequired": true,
+    "trashIncluded": false,
+    "rowGrain": ["nmID"],
+    "request": {
+      "settingsRequired": true,
+      "recommendedFullExportSortAscending": true,
+      "cursorLimit": 100,
+      "filterWithPhotoAll": -1
+    },
+    "pagination": {
+      "cursorFields": ["updatedAt", "nmID"],
+      "nextRequest": "COPY_RESPONSE_CURSOR_UPDATED_AT_AND_NM_ID",
+      "terminal": "RESPONSE_CURSOR_TOTAL_LESS_THAN_REQUEST_LIMIT",
+      "incrementalExport": "PERSIST_LAST_CURSOR_AND_KEEP_ASCENDING_SORT"
+    },
+    "fields": {
+      "nmID": { "role": "product_card_id", "unit": "identifier" },
+      "vendorCode": { "role": "seller_article", "unit": "text" },
+      "subjectID": { "role": "subject_id", "unit": "identifier" },
+      "subjectName": { "role": "subject_label", "unit": "text" },
+      "brand": { "role": "brand_label", "unit": "text" },
+      "title": { "role": "product_title", "unit": "text" },
+      "needKiz": { "role": "marking_code_required_flag", "unit": "boolean" },
+      "kizMarked": { "role": "marking_code_confirmed_flag", "unit": "boolean" },
+      "createdAt": { "role": "card_created_time", "unit": "datetime" },
+      "updatedAt": { "role": "card_updated_time", "unit": "datetime" }
+    },
+    "sizeFields": {
+      "chrtID": { "role": "size_characteristic_id", "unit": "identifier" },
+      "techSize": { "role": "technical_size_label", "unit": "text" },
+      "wbSize": { "role": "wb_size_label", "unit": "text_optional" },
+      "skus": { "role": "size_sku_barcodes", "unit": "identifier_array" }
+    }
+  },
+  "rules": {
+    "catalogRow": "ONE_PRODUCT_CARD_PER_NM_ID",
+    "sizeRow": "ONE_SIZE_PER_CHRT_ID_WITHIN_PRODUCT_CARD",
+    "sku": "SKU_BARCODE_BELONGS_TO_SIZE_DO_NOT_REPLACE_NM_ID_OR_CHRT_ID",
+    "vendorCode": "SELLER_ARTICLE_IS_A_SEPARATE_JOIN_LABEL_NOT_PROVIDER_PRIMARY_ID",
+    "count": "CATALOG_ROWS_COUNT_PRODUCT_CARDS_NOT_SIZES_OR_SKUS",
+    "trash": "CARDS_LIST_EXCLUDES_TRASH_DO_NOT_CALL_IT_ALL_CREATED_CARDS_WITHOUT_BOUNDARY",
+    "pagination": "FULL_ACTIVE_CARD_EXPORT_REQUIRES_CURSOR_CONTINUATION_TO_TOTAL_BELOW_LIMIT",
+    "incremental": "ASCENDING_EXPORT_CURSOR_UPDATED_AT_PLUS_NM_ID_MUST_BE_PERSISTED_TO_AVOID_REPLAY_OR_SKIP",
+    "missing": "MISSING_NOT_ZERO"
+  },
+  "acceptedMappingSnapshot": {
+    "CAP-01": ["cards_list"]
+  },
+  "syntheticCases": {
+    "pages": [
+      {
+        "request": { "limit": 2, "cursor": null },
+        "cards": [
+          {
+            "nmID": 1001,
+            "vendorCode": "SELLER-A",
+            "subjectID": 10,
+            "subjectName": "Example",
+            "brand": "Brand",
+            "title": "Product A",
+            "needKiz": false,
+            "kizMarked": false,
+            "createdAt": "2026-09-01T09:00:00Z",
+            "updatedAt": "2026-09-02T10:00:00Z",
+            "sizes": [
+              {
+                "chrtID": 501,
+                "techSize": "S",
+                "wbSize": "42",
+                "skus": ["sku-a-s"]
+              },
+              {
+                "chrtID": 502,
+                "techSize": "M",
+                "wbSize": "44",
+                "skus": ["sku-a-m-1", "sku-a-m-2"]
+              }
+            ]
+          },
+          {
+            "nmID": 1002,
+            "vendorCode": "SELLER-B",
+            "subjectID": 10,
+            "subjectName": "Example",
+            "brand": "Brand",
+            "title": "Product B",
+            "needKiz": true,
+            "kizMarked": true,
+            "createdAt": "2026-09-01T10:00:00Z",
+            "updatedAt": "2026-09-02T11:00:00Z",
+            "sizes": [{ "chrtID": 601, "techSize": "0", "skus": ["sku-b"] }]
+          }
+        ],
+        "cursor": {
+          "updatedAt": "2026-09-02T11:00:00Z",
+          "nmID": 1002,
+          "total": 2
+        }
+      },
+      {
+        "request": {
+          "limit": 2,
+          "cursor": { "updatedAt": "2026-09-02T11:00:00Z", "nmID": 1002 }
+        },
+        "cards": [
+          {
+            "nmID": 1003,
+            "vendorCode": "SELLER-C",
+            "subjectID": 11,
+            "subjectName": "Example 2",
+            "brand": "",
+            "title": "Product C",
+            "needKiz": false,
+            "kizMarked": false,
+            "createdAt": "2026-09-01T12:00:00Z",
+            "updatedAt": "2026-09-02T12:00:00Z",
+            "sizes": [
+              { "chrtID": 701, "techSize": "ONE SIZE", "skus": ["sku-c"] }
+            ]
+          }
+        ],
+        "cursor": {
+          "updatedAt": "2026-09-02T12:00:00Z",
+          "nmID": 1003,
+          "total": 1
+        }
+      }
+    ],
+    "expected": {
+      "catalogRows": 3,
+      "sizeRows": 4,
+      "skuRows": 5,
+      "productIds": [1001, 1002, 1003],
+      "terminal": true
+    },
+    "duplicateProduct": {
+      "cards": [
+        { "nmID": 1001, "sizes": [] },
+        { "nmID": 1001, "sizes": [] }
+      ],
+      "expected": { "status": "INCOMPLETE", "reason": "DUPLICATE_NM_ID" }
+    },
+    "duplicateSize": {
+      "cards": [
+        {
+          "nmID": 1001,
+          "sizes": [
+            { "chrtID": 501, "skus": ["a"] },
+            { "chrtID": 501, "skus": ["b"] }
+          ]
+        }
+      ],
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "DUPLICATE_CHRT_ID_WITHIN_PRODUCT"
+      }
+    },
+    "missingSku": {
+      "cards": [{ "nmID": 1001, "sizes": [{ "chrtID": 501, "skus": [] }] }],
+      "expected": { "status": "INCOMPLETE", "reason": "SIZE_SKU_MISSING" }
+    }
+  },
+  "remainingOpen": [
+    "live WB catalog values and owner gold-set reconciliation",
+    "trash cards require the separate trash-list method when business scope needs them",
+    "seller article uniqueness is not assumed from this field schema",
+    "cross-marketplace catalog identity still requires explicit Ozon-to-WB join policy"
+  ]
+}
