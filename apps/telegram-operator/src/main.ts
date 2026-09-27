@@ -80,6 +80,9 @@ const scheduler = new IndependentMonitoringScheduler({
     LLM: createLlmMonitoringRunner(() => durableLlmHealth.runScheduledCycle()),
     SWAGGER_API: apiWatchRunner,
   },
+  // Cheap scheduler reconciliation wakes once per minute. Durable lane state
+  // still owns the actual provider cadence (LLM 90m / Swagger 6h by default).
+  tickMs: 60_000,
 });
 retrySchedulerRef.current = scheduler;
 const service = new TelegramOperatorService({
