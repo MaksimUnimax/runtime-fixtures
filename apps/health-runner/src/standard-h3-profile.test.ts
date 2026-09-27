@@ -44,6 +44,16 @@ describe("packaged ChatGPT Standard H3 profile", () => {
     expect(CHATGPT_STANDARD_H3_PROFILE.selectors.assistantMessage).toContain(
       'data-turn="assistant"',
     );
+    expect(CHATGPT_STANDARD_H3_PROFILE.selectors.assistantMessage).toContain(
+      'data-message-role="assistant"',
+    );
+    expect(CHATGPT_STANDARD_H3_PROFILE.selectors.codeSurface).toContain("code");
+    expect(CHATGPT_STANDARD_H3_PROFILE.selectors.nativeCopy).toContain(
+      "Copy code",
+    );
+    expect(CHATGPT_STANDARD_H3_PROFILE.selectors.nativeCopy).toContain(
+      "Копировать код",
+    );
     expect(CHATGPT_STANDARD_H3_PROFILE.selectors.messageId.fallbacks).toEqual([
       "[data-message-author-role][data-message-id]",
       "[data-message-id]",
