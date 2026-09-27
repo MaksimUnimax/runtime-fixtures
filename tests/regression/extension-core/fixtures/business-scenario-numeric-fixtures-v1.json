@@ -1177,6 +1177,48 @@
         "status": "INCOMPLETE",
         "reason": "COMPETITOR_PRIVATE_METRIC_FORBIDDEN"
       }
+    },
+    {
+      "id": "content_quality_boundary_known_errors",
+      "kind": "content_quality_boundary",
+      "input": {
+        "officialErrors": 4,
+        "recommendedProductCount": 2
+      },
+      "expected": {
+        "status": "BOUNDARY",
+        "officialErrors": 4,
+        "expertQualityKnown": false,
+        "expertQuality": null,
+        "recommendationsAreQualitySignal": false
+      }
+    },
+    {
+      "id": "content_quality_boundary_zero_errors",
+      "kind": "content_quality_boundary",
+      "input": {
+        "officialErrors": 0,
+        "recommendedProductCount": 5
+      },
+      "expected": {
+        "status": "BOUNDARY",
+        "officialErrors": 0,
+        "expertQualityKnown": false,
+        "expertQuality": null,
+        "recommendationsAreQualitySignal": false
+      }
+    },
+    {
+      "id": "content_quality_boundary_missing_errors",
+      "kind": "content_quality_boundary",
+      "input": {
+        "officialErrors": null,
+        "recommendedProductCount": 2
+      },
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "OFFICIAL_ERROR_COUNT_MISSING"
+      }
     }
   ]
 }

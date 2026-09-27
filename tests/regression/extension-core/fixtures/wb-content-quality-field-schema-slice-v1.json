@@ -3,10 +3,10 @@
   "capturedDate": "2026-09-27",
   "scope": {
     "scenarioIds": ["CAP-03"],
-    "boundary": "OFFICIAL_CARD_ERRORS_AND_EXPERT_QUALITY_ARE_DISTINCT",
-    "evidence": "CURRENT_OFFICIAL_ERROR_SCHEMA_PLUS_EXPLICIT_RECOMMENDATION_HOLD",
+    "boundary": "OFFICIAL_CARD_ERRORS_AND_PRODUCT_RECOMMENDATION_LIST_ARE_DISTINCT_FROM_EXPERT_QUALITY",
+    "evidence": "CURRENT_PINNED_ERROR_SCHEMA_PLUS_RESOLVED_RECOMMENDATION_LIST_SCHEMA",
     "liveValues": false,
-    "acceptedOperationMappingChanged": false
+    "acceptedOperationMappingChanged": true
   },
   "sources": {
     "cardsErrors": {
@@ -62,23 +62,80 @@
       "host": "content",
       "method": "POST",
       "path": "/api/content/v1/recommendations/list",
-      "frozenRegistrySource": "02-items.yaml",
-      "currentOfficialFieldSchema": "UNRESOLVED_IN_CURRENT_DOCUMENTATION_SEARCH",
-      "fieldDerivedMetricsAllowed": false,
-      "boundary": "DO_NOT_INFER_EXPERT_QUALITY_OR_SCORE_FROM_OPERATION_NAME"
+      "bodyRequired": false,
+      "tokenTypes": ["personal", "service"],
+      "currentOfficialFieldSchema": "RESOLVED_PRODUCT_RECOMMENDATION_LIST",
+      "meaning": "PRODUCT_TO_PRODUCT_RECOMMENDATION_LIST",
+      "request": {
+        "filters": ["brandNames", "subjectIds", "search"],
+        "limitOptional": true,
+        "cursorField": "next",
+        "searchSemantics": "NMID_EXACT_OR_VENDOR_CODE_PARTIAL"
+      },
+      "response": {
+        "cursorField": "next",
+        "rowGrain": ["nmId"],
+        "fields": {
+          "nmId": {
+            "role": "source_product_id",
+            "unit": "identifier"
+          },
+          "imtId": {
+            "role": "combined_card_id",
+            "unit": "identifier"
+          },
+          "vendorCode": {
+            "role": "seller_article",
+            "unit": "text"
+          },
+          "brandName": {
+            "role": "brand_label",
+            "unit": "text"
+          },
+          "updatedAt": {
+            "role": "recommendations_updated_time",
+            "unit": "datetime_optional"
+          },
+          "picsCount": {
+            "role": "source_card_image_count",
+            "unit": "count"
+          },
+          "title": {
+            "role": "source_product_title",
+            "unit": "text"
+          },
+          "subjectName": {
+            "role": "subject_label",
+            "unit": "text"
+          },
+          "recomCount": {
+            "role": "recommended_product_count",
+            "unit": "count"
+          },
+          "recomNms": {
+            "role": "recommended_product_ids",
+            "unit": "identifier_array"
+          },
+          "recomPics": {
+            "role": "recommended_product_image_urls",
+            "unit": "url_array"
+          }
+        }
+      },
+      "qualitySignalAllowed": false,
+      "expertQualityScoreAllowed": false,
+      "acceptedMappingUse": "EXCLUDED_FROM_CAP03_QUALITY_MAPPING"
     }
   },
   "rules": {
     "officialErrors": "COUNT_PROVIDER_ERROR_MESSAGE_OCCURRENCES_ONLY_AFTER_COMPLETE_BATCH_PAGINATION",
     "batchIdentity": "DUPLICATE_BATCH_UUID_IS_INCOMPLETE_NO_DOUBLE_COUNT",
     "vendorCode": "ERRORS_ATTACH_TO_SELLER_ARTICLE_DO_NOT_INVENT_NM_ID_JOIN",
-    "expertQuality": "SEPARATE_FROM_PROVIDER_ERROR_COUNT_AND_UNVERIFIED_RECOMMENDATION_FIELDS",
-    "recommendations": "NO_FIELD_SEMANTICS_WITHOUT_CURRENT_OFFICIAL_SOURCE",
+    "expertQuality": "SEPARATE_FROM_PROVIDER_ERROR_COUNT_AND_PRODUCT_RECOMMENDATION_LIST",
+    "recommendations": "PRODUCT_TO_PRODUCT_RECOMMENDATION_LIST_NOT_CONTENT_QUALITY_ADVICE_OR_SCORE",
     "pagination": "CURSOR_NEXT_FALSE_REQUIRED_FOR_COMPLETE_ERROR_EXPORT",
-    "missing": "MISSING_NOT_ZERO"
-  },
-  "acceptedMappingSnapshot": {
-    "CAP-03": ["cards_errors", "content_recommendations", "cards_list"]
+    "missing": "MISSING_NOT_ZERO",
+    "recommendationCount": "RECOM_COUNT_COUNTS_RECOMMENDED_PRODUCTS_NOT_QUALITY_ISSUES"
   },
   "syntheticCases": {
     "completeBatches": {
@@ -136,13 +193,17 @@
             {
               "batchUUID": "same",
               "vendorCodes": ["SELLER-A"],
-              "errors": { "SELLER-A": ["Error one"] },
+              "errors": {
+                "SELLER-A": ["Error one"]
+              },
               "updatedAt": "2026-09-20T10:00:00Z"
             },
             {
               "batchUUID": "same",
               "vendorCodes": ["SELLER-A"],
-              "errors": { "SELLER-A": ["Error one"] },
+              "errors": {
+                "SELLER-A": ["Error one"]
+              },
               "updatedAt": "2026-09-20T10:01:00Z"
             }
           ],
@@ -177,20 +238,57 @@
     "ambiguousVendorJoin": {
       "vendorCode": "SELLER-DUPLICATE",
       "activeCards": [
-        { "nmID": 1001, "vendorCode": "SELLER-DUPLICATE" },
-        { "nmID": 1002, "vendorCode": "SELLER-DUPLICATE" }
+        {
+          "nmID": 1001,
+          "vendorCode": "SELLER-DUPLICATE"
+        },
+        {
+          "nmID": 1002,
+          "vendorCode": "SELLER-DUPLICATE"
+        }
       ],
       "expected": {
         "status": "INCOMPLETE",
         "reason": "VENDOR_CODE_TO_NM_ID_NOT_UNIQUE"
       }
+    },
+    "recommendationsNotQuality": {
+      "row": {
+        "nmId": 1001,
+        "vendorCode": "SELLER-A",
+        "picsCount": 4,
+        "title": "Product A",
+        "subjectName": "Example",
+        "recomCount": 2,
+        "recomNms": [2001, 2002],
+        "recomPics": ["https://example.invalid/1", "https://example.invalid/2"]
+      },
+      "expected": {
+        "recommendedProductCount": 2,
+        "expertQualityKnown": false,
+        "expertQuality": null,
+        "contentIssueCountFromRecommendations": 0
+      }
     }
   },
   "remainingOpen": [
-    "current official field schema for content_recommendations",
-    "live WB values and owner gold-set reconciliation",
+    "live WB card-error/catalog values and owner gold-set reconciliation",
     "owner/business definition of expert content quality beyond provider errors",
     "unambiguous vendorCode-to-nmID join when a business answer requires product-card identity",
-    "provider recommendations must not be relabeled as an AI expert score without an accepted semantic contract"
-  ]
+    "product recommendation lists must not be relabelled as content-quality advice or score"
+  ],
+  "authority": {
+    "mirrorRepository": "eslazarev/wildberries-sdk",
+    "mirrorCommit": "5057bdb9bf16dea24000e3ca79e1934f7761d7fe",
+    "itemsSpecBlobSha": "54f6d7828f4188671ef68fde06922e609ef7e7a4",
+    "recommendationRequestBlobSha": "aa1819d746def85df3ad482aff7ef4e99f583a43",
+    "recommendationResponseBlobSha": "fc213bc30a1116637492cd0a314af22728a61542",
+    "recommendationRowBlobSha": "d078ff780224a9cf443f82f927699fc31bc31c57"
+  },
+  "acceptedMappingBefore": {
+    "CAP-03": ["cards_errors", "content_recommendations", "cards_list"]
+  },
+  "acceptedMappingAfter": {
+    "CAP-03": ["cards_errors", "cards_list"]
+  }
 }

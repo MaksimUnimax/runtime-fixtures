@@ -467,7 +467,7 @@
       "ozonCoverage": "COMPOSITE",
       "wbCoverage": "COMPOSITE",
       "ozonOperations": ["product_content_rating", "seller_product_attributes"],
-      "wbOperations": ["cards_errors", "content_recommendations", "cards_list"],
+      "wbOperations": ["cards_errors", "cards_list"],
       "identifiers": ["product"],
       "metrics": ["official_errors:count", "expert_quality:separate"],
       "periodPolicy": "EXPLICIT_WHERE_APPLICABLE",

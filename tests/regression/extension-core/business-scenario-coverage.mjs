@@ -539,6 +539,25 @@ const calculators = {
       nullMeansZero: false,
     };
   },
+  content_quality_boundary(input) {
+    if (!Number.isInteger(input.officialErrors) || input.officialErrors < 0)
+      return { status: "INCOMPLETE", reason: "OFFICIAL_ERROR_COUNT_MISSING" };
+    if (
+      !Number.isInteger(input.recommendedProductCount) ||
+      input.recommendedProductCount < 0
+    )
+      return {
+        status: "INCOMPLETE",
+        reason: "RECOMMENDED_PRODUCT_COUNT_INVALID",
+      };
+    return {
+      status: "BOUNDARY",
+      officialErrors: input.officialErrors,
+      expertQualityKnown: false,
+      expertQuality: null,
+      recommendationsAreQualitySignal: false,
+    };
+  },
   visibility_boundary(input) {
     if (
       input.stockUnits !== null &&
@@ -802,6 +821,7 @@ const requiredKinds = new Set([
   "search_dedup",
   "search_fact_boundary",
   "search_position_boundary",
+  "content_quality_boundary",
   "visibility_boundary",
   "restriction_boundary",
   "ad_content_join",
