@@ -3,14 +3,15 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { validateProfileContent } from "../../../packages/server/adapter-registry/src/index.js";
 import {
   BASELINE_HEALTH_SUITE,
+  DEFAULT_NO_SESSION_CADENCE,
   HealthSuiteDefinitionSchema,
   type HealthSuiteDefinition,
 } from "../../../packages/server/health/src/index.js";
 import {
   createDatabaseRuntime,
   createHealthAuthenticatedDeepScopeRepository,
-  createHealthIncidentRepository,
   createHealthPersistenceRepository,
+  createHealthSchedulerRepository,
   createProfileLifecycleRepository,
 } from "@product/db";
 import { runMigrations } from "@product/db/migrations";
@@ -37,13 +38,13 @@ const IDS = {
   workProfile: "b1300000-0000-4000-8000-000000000005",
   standardRevision: "b1300000-0000-4000-8000-000000000006",
   workRevision: "b1300000-0000-4000-8000-000000000007",
-  scheduledRun: "b1300000-0000-4000-8000-000000000009",
+  recoverySchedule: "b1300000-0000-4000-8000-00000000000c",
 } as const;
 
 const runtime = createDatabaseRuntime(connectionString);
 const resolver = createHealthAuthenticatedDeepScopeRepository(runtime);
 const persistence = createHealthPersistenceRepository(runtime);
-const incidents = createHealthIncidentRepository(runtime);
+const scheduler = createHealthSchedulerRepository(runtime);
 const lifecycle = createProfileLifecycleRepository(runtime);
 
 function profileDefinition(
@@ -515,7 +516,38 @@ describe.sequential(
       );
     });
 
-    it("carries a synthetic H3 scheduled run through persistence, incident, and notification intent", async () => {
+    it("recovers a persisted H3 run through incident processing before scheduler success after a crash", async () => {
+      const scheduledAt = new Date("2026-09-27T12:00:00.000Z");
+      await scheduler.createSchedule({
+        scheduleId: IDS.recoverySchedule,
+        monitorTarget: "chatgpt_standard_health",
+        provider: "chatgpt",
+        surface: "CHATGPT_STANDARD",
+        probeLayer: "AUTHENTICATED_DEEP",
+        enabled: true,
+        cadence: DEFAULT_NO_SESSION_CADENCE,
+        nextDueAt: scheduledAt,
+        revision: 1,
+      });
+      const scheduled = await scheduler.materializeDueSlot(
+        IDS.recoverySchedule,
+        scheduledAt,
+      );
+      expect(scheduled).not.toBeNull();
+      const claimed = await scheduler.claimNext({
+        ownerId: "b15-crash-fixture",
+        now: scheduledAt,
+        leaseMs: 60_000,
+      });
+      expect(claimed?.id).toBe(scheduled!.id);
+      const started = await scheduler.startRun({
+        runId: scheduled!.id,
+        ownerId: "b15-crash-fixture",
+        leaseId: claimed!.leaseId!,
+        now: scheduledAt,
+      });
+      expect(started.state).toBe("RUNNING");
+
       const scope = await resolver.resolveAuthenticatedDeepHealthScope(
         resolutionInput("CHATGPT_STANDARD", "b13-authdeep-standard-synthetic"),
       );
@@ -533,7 +565,7 @@ describe.sequential(
         },
         operatorMaintenance: false,
         operatorMaintenanceAuthority: null,
-        classifierVersion: "b13-synthetic-authdeep-v1",
+        classifierVersion: "b15-synthetic-authdeep-recovery-v1",
       };
 
       const command = createH3HealthPersistenceCommand(
@@ -542,18 +574,44 @@ describe.sequential(
       );
       const run = await persistence.persistCompletedHealthRun({
         ...command,
-        scheduledRunId: IDS.scheduledRun,
+        scheduledRunId: scheduled!.id,
       });
 
-      expect(run.scheduledRunId).toBe(IDS.scheduledRun);
+      expect(run.scheduledRunId).toBe(scheduled!.id);
       expect(run.healthLevel).toBe("H3");
       expect(run.healthState).toBe("BROKEN");
       expect(run.profileId).toBe(IDS.standardProfile);
       expect(run.profileRevision).toBe(2);
+      expect((await scheduler.getScheduledRun(scheduled!.id))?.state).toBe(
+        "RUNNING",
+      );
 
-      const processed = await incidents.processCompletedHealthRun(run.id);
-      expect(processed.action).toBe("OPENED");
-      expect(processed.incidentIds).toHaveLength(1);
+      const before = await runtime.query<{
+        incidents: string;
+        intents: string;
+      }>(
+        `SELECT
+          (SELECT count(*)::text FROM health_incidents WHERE latest_seen_run_id=$1) AS incidents,
+          (SELECT count(*)::text FROM health_notification_intents WHERE health_run_id=$1) AS intents`,
+        [run.id],
+      );
+      expect(before.rows[0]).toEqual({ incidents: "0", intents: "0" });
+
+      const recovered = await scheduler.reconcilePersistedResults(
+        new Date("2026-09-27T12:00:02.000Z"),
+      );
+      expect(recovered).toBe(1);
+
+      const final = await scheduler.getScheduledRun(scheduled!.id);
+      expect(final?.state).toBe("SUCCEEDED");
+      expect(final?.healthRunId).toBe(run.id);
+      expect(final?.healthState).toBe("BROKEN");
+
+      const incidentRows = await runtime.query<{ id: string }>(
+        "SELECT id FROM health_incidents WHERE latest_seen_run_id=$1",
+        [run.id],
+      );
+      expect(incidentRows.rows).toHaveLength(1);
 
       const intents = await runtime.query<{
         sourceDomain: string;
@@ -561,7 +619,7 @@ describe.sequential(
         healthRunId: string;
       }>(
         'SELECT source_domain AS "sourceDomain",event_kind AS "eventKind",health_run_id AS "healthRunId" FROM health_notification_intents WHERE incident_id=$1',
-        [processed.incidentIds[0]],
+        [incidentRows.rows[0]!.id],
       );
       expect(intents.rows).toEqual([
         {
@@ -570,6 +628,12 @@ describe.sequential(
           healthRunId: run.id,
         },
       ]);
+
+      expect(
+        await scheduler.reconcilePersistedResults(
+          new Date("2026-09-27T12:00:03.000Z"),
+        ),
+      ).toBe(0);
     });
   },
 );
