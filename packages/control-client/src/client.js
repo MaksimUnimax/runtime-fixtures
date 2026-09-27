@@ -86,9 +86,26 @@
   function publicStatus(decision = null) { const authority = state.authority, accountId = authority?.payload?.account?.id || null, snapshot = authority?.payload || null, matching = decision && decision.identity && sameAuthorityRuntimeIdentity(decision.identity, authorityDecisionIdentity()); const compatibility = snapshot?.compatibility ? { extension: { status: snapshot.compatibility.extension.status, minimumVersion: snapshot.compatibility.extension.minimumVersion }, browser: { status: snapshot.compatibility.browser.status } } : null; return Object.freeze({ authenticated: Boolean(state.credentials && authority && accountId), accountId, account: accountId ? { kind: "control_account", label: `Аккаунт · ${accountId.slice(0, 8)}` } : null, pending: pendingLive(state.pending) ? publicPending(state.pending) : null, lastError: state.lastError, generation: state.generation, workAllowed: Boolean(accountId && matching && decision.allowed === true), authority: authority ? { configVersion: snapshot.configVersion, expiresAt: snapshot.expiresAt, aiStatus: snapshot.ai.status } : null, compatibility }); }
   function authorityStaticValid(snapshot) {
     const extension = snapshot?.compatibility?.extension;
-    return Boolean(snapshot && snapshot.account?.status === "ACTIVE" && snapshot.devicePolicy?.status === "ACTIVE" && ["SUPPORTED", "UPDATE_RECOMMENDED"].includes(extension?.status) && snapshot.compatibility?.browser?.status === "SUPPORTED" && (extension.minimumVersion === null || (parseSemver(extension.minimumVersion) && versionAtLeast(config.extensionVersion, extension.minimumVersion))));
+    const accessAllowed = snapshot?.contractVersion !== "control_plane_v3" || snapshot?.accessBasis !== "NONE";
+    return Boolean(snapshot && accessAllowed && snapshot.account?.status === "ACTIVE" && snapshot.devicePolicy?.status === "ACTIVE" && ["SUPPORTED", "UPDATE_RECOMMENDED"].includes(extension?.status) && snapshot.compatibility?.browser?.status === "SUPPORTED" && (extension.minimumVersion === null || (parseSemver(extension.minimumVersion) && versionAtLeast(config.extensionVersion, extension.minimumVersion))));
   }
-  function authorityBaseValid(snapshot, effectiveTimeMs) { const expiresAt = parsedMillis(snapshot?.expiresAt), grace = parsedMillis(snapshot?.offlineGraceUntil); return Boolean(authorityStaticValid(snapshot) && validMillis(effectiveTimeMs) && expiresAt !== null && grace !== null && grace > expiresAt && effectiveTimeMs < grace); }
+  function cacheAuthorityDeadline(snapshot) {
+    const expiresAt = parsedMillis(snapshot?.expiresAt);
+    if (expiresAt === null) return null;
+    if (snapshot?.contractVersion !== "control_plane_v3") return parsedMillis(snapshot?.offlineGraceUntil);
+    if (snapshot.accessBasis === "COMMERCIAL") {
+      const access = snapshot.subscriptionAccess;
+      if (access === null) return expiresAt;
+      const paidThrough = parsedMillis(access?.paidThrough), offlineHardUntil = parsedMillis(access?.offlineHardUntil);
+      return paidThrough !== null && offlineHardUntil !== null && offlineHardUntil - paidThrough === 72 * 60 * 60 * 1000 ? offlineHardUntil : null;
+    }
+    return snapshot.accessBasis === "BETA" ? parsedMillis(snapshot.offlineGraceUntil) : expiresAt;
+  }
+  function authorityBaseValid(snapshot, effectiveTimeMs) {
+    const expiresAt = parsedMillis(snapshot?.expiresAt), deadline = cacheAuthorityDeadline(snapshot);
+    const legacyGraceRequired = snapshot?.contractVersion !== "control_plane_v3" || snapshot?.accessBasis === "BETA";
+    return Boolean(authorityStaticValid(snapshot) && validMillis(effectiveTimeMs) && expiresAt !== null && deadline !== null && (!legacyGraceRequired || deadline > expiresAt) && effectiveTimeMs < deadline);
+  }
   function staticCanWork(snapshot) { return Boolean(authorityStaticValid(snapshot) && snapshot.ai?.status === "RESOLVED" && ["chatgpt", "alice"].includes(snapshot.ai.detected?.family)); }
   function canWork(snapshot, effectiveTimeMs) { return Boolean(authorityBaseValid(snapshot, effectiveTimeMs) && snapshot.ai?.status === "RESOLVED" && ["chatgpt", "alice"].includes(snapshot.ai.detected?.family)); }
   function currentBrowserIdentity() { const detected = browserIdentity?.current?.(); if (!detected?.family || !detected?.version || !browserIdentity.families.includes(detected.family)) throw error("UNSUPPORTED_BROWSER"); return detected; }
@@ -104,12 +121,18 @@
   }
   function validCacheClockShape(value, payload = null) {
     if (!exactKeys(value, ["cacheVersion", "owner", "trustedServerTimeMs", "effectiveTimeMs"]) || value.cacheVersion !== "control_cache_clock_v1" || !exactKeys(value.owner, ["controlApiOrigin", "portalOrigin", "contractVersion", "deviceId", "sessionId"]) || !origin(value.owner.controlApiOrigin) || !origin(value.owner.portalOrigin) || typeof value.owner.contractVersion !== "string" || value.owner.contractVersion.length < 1 || !UUID.test(value.owner.deviceId) || !UUID.test(value.owner.sessionId) || !validMillis(value.trustedServerTimeMs) || !validMillis(value.effectiveTimeMs) || value.effectiveTimeMs < value.trustedServerTimeMs) return false;
-    if (payload && (parsedMillis(payload.serverTime) === null || value.trustedServerTimeMs < parsedMillis(payload.serverTime))) return false;
+    if (payload) { const serverTimeMs = parsedMillis(payload.serverTime); if (serverTimeMs === null || value.trustedServerTimeMs < serverTimeMs || payload.contractVersion === "control_plane_v3" && value.trustedServerTimeMs !== serverTimeMs) return false; }
     return true;
   }
   function validCacheClock(value, credentials, payload = null) { if (!validCacheClockShape(value, payload) || !credentials) return false; const owner = value.owner; return owner.controlApiOrigin === config.controlApiOrigin && owner.portalOrigin === config.portalOrigin && owner.deviceId === credentials.deviceId && owner.sessionId === credentials.sessionId; }
+  function expectedCacheContract(payload = null) { return payload?.contractVersion === "control_plane_v3" ? "control_plane_v3" : config.contractVersion; }
   async function trustBundleDigest() { return [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier.canonicalJson(config.trustBundle))))].map(value => value.toString(16).padStart(2, "0")).join(""); }
-  async function expectedCacheBinding(payload, requestedAi = null) { const detectedAi = payload?.ai?.status === "RESOLVED" ? { family: payload.ai.detected.family, surface: payload.ai.detected.surface, variant: payload.ai.detected.variant } : null; return { cacheVersion: "control_cache_binding_v1", controlApiOrigin: config.controlApiOrigin, portalOrigin: config.portalOrigin, contractVersion: config.contractVersion, extensionVersion: config.extensionVersion, browser: { family: browserFamily(), version: browserVersion() }, detectedAi, trustBundleSha256: await trustBundleDigest() }; }
+  async function expectedCacheBinding(payload, requestedAi = null) { const detectedAi = payload?.ai?.status === "RESOLVED" ? { family: payload.ai.detected.family, surface: payload.ai.detected.surface, variant: payload.ai.detected.variant } : null; return { cacheVersion: "control_cache_binding_v1", controlApiOrigin: config.controlApiOrigin, portalOrigin: config.portalOrigin, contractVersion: expectedCacheContract(payload), extensionVersion: config.extensionVersion, browser: { family: browserFamily(), version: browserVersion() }, detectedAi, trustBundleSha256: await trustBundleDigest() }; }
+  async function verifyCachedEnvelope(envelope) {
+    if (envelope?.envelopeVersion === "bootstrap_envelope_v3" && typeof verifier.verifyV3 === "function") return verifier.verifyV3(envelope, config.trustBundle);
+    if (envelope?.envelopeVersion === "bootstrap_envelope_v2") return verifier.verifyV2(envelope, config.trustBundle);
+    return { ok: false, error: "INVALID_ENVELOPE" };
+  }
   function validRuntimeOwner(owner) { return typeof owner === "string" && owner.length > 0; }
   function effectiveTime(clock) {
     if (!validCacheClock(clock, state.credentials, state.authority?.payload || null)) throw error("CACHE_CLOCK_INVALID");
@@ -346,7 +369,7 @@
     if (refreshFlight && !ownerCurrent(refreshFlight)) refreshFlight = null;
   }
   function resetRuntimeClock() { runtimeClockOwner = null; runtimeAnchor = null; runtimeEffectiveHighWatermark = null; runtimeFloorNeedsPersistence = false; runtimeLastCheckpointAllowed = null; }
-  function validAuthOwnership() { return Boolean(validCredentials(state.credentials) && validCacheClock(state.cacheClock, state.credentials)); }
+  function validAuthOwnership() { return Boolean(validCredentials(state.credentials) && validCacheClock(state.cacheClock, state.credentials, state.authority?.payload || null)); }
   async function ensureAuthOwnership() {
     if (validAuthOwnership()) return true;
     const failure = error("AUTH_CONTEXT_INVALID");
@@ -576,8 +599,8 @@
     if (!authorityStaticValid(payload) || requestedAi && !LOCAL_AI[requestedAi]) return null;
     if (payload.ai.status === "UNCONFIGURED") return requestedAi === null ? { workAllowed: false, requestedAi: null } : null;
     if (payload.ai.status === "UNAVAILABLE") return payload.localClientAuthority ? { workAllowed: false, requestedAi: requestedAi || null } : null;
-    // Preserve legacy identified v1 profiles; current v2 profiles match the signed envelope.
-    const profileContractVersion = !payload.localClientAuthority && payload.ai.profile?.compatibility?.contractVersion === "control_plane_v1" ? "control_plane_v1" : payload.contractVersion;
+    // Adapter profile bytes remain v1/v2 material even when a dormant v3 bootstrap carries them.
+    const profileContractVersion = payload.ai.profile?.compatibility?.contractVersion === "control_plane_v1" ? "control_plane_v1" : "control_plane_v2";
     if (payload.ai.status !== "RESOLVED" || !validProfileShape(payload.ai.profile, enforceEnvironment, profileContractVersion)) return null;
     const expected = requestedAi ? LOCAL_AI[requestedAi] : LOCAL_AI[payload.ai.detected?.family], detected = payload.ai.detected;
     if (!expected || detected.family !== (requestedAi || detected.family) || detected.surface !== expected.surface || detected.variant !== null || payload.ai.profile.scopeVariant !== null) return null;
@@ -771,15 +794,16 @@
     return queueMutation(async () => {
       if (!policyCurrent(capture)) throw cacheFailure("CACHE_ACQUISITION_OBSOLETED");
       const authority = state.authority, clock = state.cacheClock;
-      if (!authority || !validCacheClock(clock, state.credentials, payload) || clock.owner.contractVersion !== config.contractVersion) throw cacheFailure("CACHE_CLOCK_INVALID");
-      const expiresAt = parsedMillis(payload.expiresAt), grace = parsedMillis(payload.offlineGraceUntil);
-      if (expiresAt === null || grace === null || grace <= expiresAt) throw cacheFailure("CACHE_EXPIRY_INVALID");
+      if (!authority || !validCacheClock(clock, state.credentials, payload) || clock.owner.contractVersion !== expectedCacheContract(payload)) throw cacheFailure("CACHE_CLOCK_INVALID");
+      const expiresAt = parsedMillis(payload.expiresAt), deadline = cacheAuthorityDeadline(payload);
+      const legacyGraceRequired = payload?.contractVersion !== "control_plane_v3" || payload?.accessBasis === "BETA";
+      if (expiresAt === null || deadline === null || legacyGraceRequired && deadline <= expiresAt) throw cacheFailure("CACHE_EXPIRY_INVALID");
       let effective;
       try { effective = effectiveTime(clock); } catch (_) { throw cacheFailure("CACHE_EFFECTIVE_TIME_INVALID"); }
       if (!policyCurrent(capture)) throw cacheFailure("CACHE_ACQUISITION_OBSOLETED");
       const floor = Math.max(clock.effectiveTimeMs, effective);
       if (!validMillis(floor)) throw cacheFailure("CACHE_EFFECTIVE_TIME_INVALID");
-      const freshness = effective < expiresAt ? "FRESH" : effective < grace ? "STALE_BUT_OFFLINE_GRACE_ELIGIBLE" : null;
+      const freshness = effective < deadline ? (effective < expiresAt ? "FRESH" : "STALE_BUT_OFFLINE_GRACE_ELIGIBLE") : null;
       const next = floor === clock.effectiveTimeMs && !runtimeFloorNeedsPersistence ? state : { ...state, cacheClock: { ...clock, effectiveTimeMs: floor } };
       if (next !== state) {
         state = next;
@@ -798,7 +822,7 @@
       let completion;
       try { completion = effectiveTime(state.cacheClock); } catch (_) { throw cacheFailure("CACHE_EFFECTIVE_TIME_INVALID"); }
       if (!policyCurrent(capture)) throw cacheFailure("CACHE_ACQUISITION_OBSOLETED");
-      if (completion >= grace) {
+      if (completion >= deadline) {
         const denialFloor = Math.max(state.cacheClock.effectiveTimeMs, completion);
         await persistCacheDenial({ ...state, cacheClock: { ...state.cacheClock, effectiveTimeMs: denialFloor }, authority: { ...authority, workAllowed: false } }, capture);
         throw cacheFailure("CACHE_EXPIRED");
@@ -830,7 +854,7 @@
       if (!authority || authority.requestedAi !== requestedAi || !capture.clock || !validCacheBinding(authority.cacheBinding)) throw onlineFailure;
       let verified;
       try {
-        verified = await verifier.verifyV2(authority.envelope, config.trustBundle);
+        verified = await verifyCachedEnvelope(authority.envelope);
         if (!policyCurrent(capture)) throw cacheFailure("CACHE_ACQUISITION_OBSOLETED");
         if (!verified.ok) throw cacheFailure("CACHE_VERIFICATION_FAILED");
         const verifiedPayload = verified.payload.localClientAuthority ? await materializeLocalAuthority(verified.payload, requestedAi) : verified.payload;
@@ -840,7 +864,7 @@
         if (!validation || validation.requestedAi !== requestedAi) throw cacheFailure("CACHE_CONTEXT_MISMATCH");
         const expected = await expectedCacheBinding(verifiedPayload, validation.requestedAi);
         if (!policyCurrent(capture)) throw cacheFailure("CACHE_ACQUISITION_OBSOLETED");
-        if (verifier.canonicalJson(authority.cacheBinding) !== verifier.canonicalJson(expected) || !validCacheClock(capture.clock, state.credentials, verified.payload) || capture.clock.owner.contractVersion !== config.contractVersion) throw cacheFailure("CACHE_CONTEXT_MISMATCH");
+        if (verifier.canonicalJson(authority.cacheBinding) !== verifier.canonicalJson(expected) || !validCacheClock(capture.clock, state.credentials, verified.payload) || capture.clock.owner.contractVersion !== expectedCacheContract(verified.payload)) throw cacheFailure("CACHE_CONTEXT_MISMATCH");
         const currentAuthority = state.authority;
         if (!currentAuthority || cacheIdentity(currentAuthority, state.generation) !== capture.authorityIdentity) throw cacheFailure("CACHE_ACQUISITION_OBSOLETED");
         const result = await cachedBootstrapCheckpoint(capture, verifiedPayload);
@@ -891,11 +915,11 @@
       else if (binding.controlApiOrigin !== config.controlApiOrigin || binding.portalOrigin !== config.portalOrigin) authorityFailure = error("STORED_CACHE_CONTEXT_MISMATCH");
       else {
         try {
-          const verified = await verifier.verifyV2(savedAuthority.envelope, config.trustBundle); if (!verified.ok) throw error(`STORED_AUTHORITY_${verified.error}`);
+          const verified = await verifyCachedEnvelope(savedAuthority.envelope); if (!verified.ok) throw error(`STORED_AUTHORITY_${verified.error}`);
           const verifiedPayload = verified.payload.localClientAuthority ? await materializeLocalAuthority(verified.payload, savedAuthority.requestedAi) : verified.payload;
           if (!verifiedPayload || verifier.canonicalJson(verifiedPayload) !== verifier.canonicalJson(savedAuthority.payload)) throw error("STORED_AUTHORITY_PAYLOAD_MISMATCH");
           const allowed = await validateAccountProfile(verifiedPayload, savedAuthority.requestedAi, false).catch(() => null); if (!allowed) throw error("STORED_AUTHORITY_POLICY_MISMATCH");
-          if (!validCacheClock(clock, state.credentials, verified.payload)) throw error("STORED_CACHE_CLOCK_INCONSISTENT");
+          if (!validCacheClock(clock, state.credentials, verified.payload) || verified.payload.contractVersion === "control_plane_v3" && clock.owner.contractVersion !== "control_plane_v3") throw error("STORED_CACHE_CLOCK_INCONSISTENT");
           const expected = await expectedCacheBinding(verifiedPayload, allowed.requestedAi);
           if (verifier.canonicalJson(binding) !== verifier.canonicalJson(expected)) throw error("STORED_CACHE_CONTEXT_MISMATCH");
           if (!await validateAccountProfile(verifiedPayload, savedAuthority.requestedAi, true).catch(() => null)) throw error("STORED_AUTHORITY_ENVIRONMENT_MISMATCH");

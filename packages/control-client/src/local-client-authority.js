@@ -1,4 +1,4 @@
-/* Local projection of a verified local_client_authority_v1 bootstrap bundle. */
+/* Local projection of verified privacy-neutral v2/v3 bootstrap bundles. */
 (() => {
   "use strict";
 
@@ -8,7 +8,9 @@
     const browserVersion = environment?.browserVersion;
     const extensionVersion = environment?.extensionVersion;
     const contractVersion = payload?.contractVersion;
-    if (!local || local.schemaVersion !== "local_client_authority_v1" || local.contractVersion !== "control_plane_v2" || contractVersion !== "control_plane_v2" || !browserFamily || !browserVersion || !extensionVersion) return null;
+    const v2 = local?.schemaVersion === "local_client_authority_v1" && local?.contractVersion === "control_plane_v2" && contractVersion === "control_plane_v2";
+    const v3 = local?.schemaVersion === "local_client_authority_v2" && local?.contractVersion === "control_plane_v3" && contractVersion === "control_plane_v3";
+    if ((!v2 && !v3) || !browserFamily || !browserVersion || !extensionVersion) return null;
     const release = local.compatibility.releases.find(row => row.extensionVersion === extensionVersion && row.contractVersions.includes(contractVersion));
     const applicable = local.compatibility.policies.filter(row => row.contractVersion === contractVersion && (row.browserFamily === null || row.browserFamily === browserFamily));
     const globals = applicable.filter(row => row.browserFamily === null), exact = applicable.filter(row => row.browserFamily === browserFamily);

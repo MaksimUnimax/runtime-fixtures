@@ -63,12 +63,14 @@ def main():
                 ("i1-r4", ROOT / "tests/regression/extension-core/client-i1/client-r4.mjs"),
                 ("i1-r5", ROOT / "tests/regression/extension-core/client-i1/client-r5.mjs"),
                 ("i1-cache-time", ROOT / "tests/regression/extension-core/client-i1/client-cache-time.mjs"),
+                ("i1-v3-passive-cache", ROOT / "tests/regression/extension-core/client-i1/client-v3-passive-cache.mjs"),
                 ("i1-offline-policy", ROOT / "tests/regression/extension-core/client-i1/client-offline-policy.mjs"),
                 ("i1-signed-metadata", ROOT / "tests/regression/extension-core/client-i1/client-signed-metadata.mjs"),
                 ("i1-packaged-capabilities", ROOT / "tests/regression/extension-core/client-i1/client-packaged-capabilities.mjs"),
                 ("i1-capability-intersection", ROOT / "tests/regression/extension-core/client-i1/client-capability-intersection.mjs"),
                 ("i1-c2-3a-online-work-authority", ROOT / "tests/regression/extension-core/client-i1/client-c2-3a-online-work-authority.mjs"),
                 ("i1-c3c-autonomous-authority", ROOT / "tests/regression/extension-core/client-i1/client-c3c-autonomous-authority.mjs"),
+                ("i1-v3-passive-autonomous-authority", ROOT / "tests/regression/extension-core/client-i1/client-v3-passive-autonomous-authority.mjs"),
                 ("i1-c2-3c2-offline-lifecycle", ROOT / "tests/regression/extension-core/client-i1/client-c2-3c2-offline-lifecycle.mjs"),
                 ("i1-c2-3c2-offline-continuation", ROOT / "tests/regression/extension-core/client-i1/client-c2-3c2-offline-continuation.mjs"),
                 ("i1-c2-3b1-health-transport", ROOT / "tests/regression/extension-core/client-i1/client-c2-3b1-health-transport.mjs"),
@@ -86,7 +88,9 @@ def main():
             for test_name, test in tests:
                 runner.run(label + "-" + test_name, [node, test, runtime])
             runner.run(label + "-i1-d3c-signed-readback", [os.environ.get("SA_PNPM_BIN", "pnpm"), "exec", "tsx", "../../tests/regression/extension-core/client-i1/client-d3c-signed-readback.ts", runtime], cwd=ROOT / "apps/api")
+            runner.run(label + "-i1-v3-passive-signed-readback", [os.environ.get("SA_PNPM_BIN", "pnpm"), "exec", "tsx", "../../tests/regression/extension-core/client-i1/client-v3-passive-signed-readback.ts", runtime], cwd=ROOT / "apps/api")
             runner.run(label + "-i1-verifier", [node, ROOT / "tests/regression/extension-core/client-i1/verifier.mjs", runtime / "shared/bootstrap_verifier.js"])
+            runner.run(label + "-i1-verifier-v3", [node, ROOT / "tests/regression/extension-core/client-i1/verifier-v3.mjs", runtime / "shared/bootstrap_verifier.js"])
         result["status"] = "PASS"
     except Exception as error:
         result["status"] = "FAIL"

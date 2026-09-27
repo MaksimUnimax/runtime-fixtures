@@ -150,6 +150,49 @@
     if (!value.featureRules.every(rule => exact(rule, ["featureKey", "revision", "contractVersion", "enabled", "browserFamily", "minimumExtensionVersion"]) && machine(rule.featureKey) && !keys.has(rule.featureKey) && (keys.add(rule.featureKey), true) && Number.isSafeInteger(rule.revision) && rule.revision > 0 && rule.contractVersion === "control_plane_v2" && typeof rule.enabled === "boolean" && (rule.browserFamily === null || BROWSER_FAMILIES.includes(rule.browserFamily)) && (rule.minimumExtensionVersion === null || semver(rule.minimumExtensionVersion)))) return false;
     return localAi(value.ai);
   }
+  function localAuthorityV3(value) {
+    if (!exact(value, ["schemaVersion", "contractVersion", "compatibility", "featureRules", "ai"]) || value.schemaVersion !== "local_client_authority_v2" || value.contractVersion !== "control_plane_v3") return false;
+    const compatibility = value.compatibility;
+    if (!exact(compatibility, ["releases", "policies"]) || !Array.isArray(compatibility.releases) || compatibility.releases.length > 64 || !Array.isArray(compatibility.policies) || compatibility.policies.length > 32) return false;
+    const releaseVersions = new Set();
+    if (!compatibility.releases.every(row => {
+      if (!exact(row, ["extensionVersion", "contractVersions", "browserFamilies"]) || !semver(row.extensionVersion) || releaseVersions.has(row.extensionVersion) || !Array.isArray(row.contractVersions) || row.contractVersions.length === 0 || row.contractVersions.length > 8 || row.contractVersions.some(x => !["control_plane_v1", "control_plane_v2", "control_plane_v3"].includes(x)) || new Set(row.contractVersions).size !== row.contractVersions.length || !Array.isArray(row.browserFamilies) || row.browserFamilies.length === 0 || row.browserFamilies.length > BROWSER_FAMILIES.length || row.browserFamilies.some(x => !BROWSER_FAMILIES.includes(x)) || new Set(row.browserFamilies).size !== row.browserFamilies.length) return false;
+      releaseVersions.add(row.extensionVersion); return true;
+    })) return false;
+    const policyIds = new Set();
+    if (!compatibility.policies.every(policy => {
+      const id = `${policy?.policyKey}:${policy?.revision}`;
+      if (!exact(policy, ["policyKey", "revision", "contractVersion", "browserFamily", "minimumExtensionVersion", "recommendedExtensionVersion", "minimumBrowserVersion", "maintenanceMode", "maintenanceCode", "blockedVersions"]) || !machine(policy.policyKey) || !Number.isSafeInteger(policy.revision) || policy.revision <= 0 || policyIds.has(id) || policy.contractVersion !== "control_plane_v3" || !(policy.browserFamily === null || BROWSER_FAMILIES.includes(policy.browserFamily)) || !(policy.minimumExtensionVersion === null || semver(policy.minimumExtensionVersion)) || !(policy.recommendedExtensionVersion === null || semver(policy.recommendedExtensionVersion)) || !(policy.minimumBrowserVersion === null || (policy.browserFamily !== null && typeof policy.minimumBrowserVersion === "string" && policy.minimumBrowserVersion.length <= 64 && /^\d+(?:\.\d+){0,3}$/.test(policy.minimumBrowserVersion))) || typeof policy.maintenanceMode !== "boolean" || !(policy.maintenanceCode === null || machine(policy.maintenanceCode)) || policy.maintenanceMode !== (policy.maintenanceCode !== null) || !Array.isArray(policy.blockedVersions) || policy.blockedVersions.length > 128 || !policy.blockedVersions.every(semver) || new Set(policy.blockedVersions).size !== policy.blockedVersions.length) return false;
+      policyIds.add(id); return true;
+    })) return false;
+    if (!Array.isArray(value.featureRules) || value.featureRules.length > 128) return false;
+    const keys = new Set();
+    if (!value.featureRules.every(rule => exact(rule, ["featureKey", "revision", "contractVersion", "enabled", "browserFamily", "minimumExtensionVersion"]) && machine(rule.featureKey) && !keys.has(rule.featureKey) && (keys.add(rule.featureKey), true) && Number.isSafeInteger(rule.revision) && rule.revision > 0 && rule.contractVersion === "control_plane_v3" && typeof rule.enabled === "boolean" && (rule.browserFamily === null || BROWSER_FAMILIES.includes(rule.browserFamily)) && (rule.minimumExtensionVersion === null || semver(rule.minimumExtensionVersion)))) return false;
+    return localAi(value.ai);
+  }
+  function subscriptionAccessV3(value, accessBasis, subscriptionState) {
+    const paidCommercial = accessBasis === "COMMERCIAL" && ["ACTIVE", "GRACE", "CANCELED"].includes(subscriptionState);
+    if (value === null) return !paidCommercial;
+    if (!exact(value, ["schemaVersion", "paidThrough", "offlineHardUntil"]) || value.schemaVersion !== "subscription_access_v1" || !iso(value.paidThrough) || !iso(value.offlineHardUntil) || !paidCommercial) return false;
+    return Date.parse(value.offlineHardUntil) - Date.parse(value.paidThrough) === 72 * 60 * 60 * 1000;
+  }
+  function payloadV3(value) {
+    const common = ["snapshotVersion", "contractVersion", "configVersion", "issuedAt", "expiresAt", "offlineGraceUntil", "serverTime", "accessBasis", "account", "subscription", "devicePolicy", "entitlements", "subscriptionAccess"];
+    const neutral = Object.hasOwn(value || {}, "localClientAuthority");
+    const keys = neutral ? [...common, "localClientAuthority"] : [...common, "compatibility", "features", "ai"];
+    if (!exact(value, keys) || value.snapshotVersion !== "bootstrap_snapshot_v3" || value.contractVersion !== "control_plane_v3" || !exact(value.account, ["id", "status"]) || !UUID.test(value.account.id) || value.account.status !== "ACTIVE") return false;
+    if (!Number.isSafeInteger(value.configVersion) || value.configVersion <= 0 || !["BETA", "COMMERCIAL", "NONE"].includes(value.accessBasis) || !iso(value.issuedAt) || !iso(value.expiresAt) || !iso(value.offlineGraceUntil) || !iso(value.serverTime)) return false;
+    const issued = Date.parse(value.issuedAt), expires = Date.parse(value.expiresAt), grace = Date.parse(value.offlineGraceUntil), server = Date.parse(value.serverTime);
+    if (issued > server || issued >= expires || expires >= grace) return false;
+    if (!exact(value.subscription, ["state", "planRevision"]) || !["NONE", "TRIAL", "ACTIVE", "GRACE", "PAST_DUE", "CANCELED", "EXPIRED", "SUSPENDED"].includes(value.subscription.state) || (value.subscription.state === "NONE" ? value.subscription.planRevision !== null : !machine(value.subscription.planRevision))) return false;
+    if (!subscriptionAccessV3(value.subscriptionAccess, value.accessBasis, value.subscription.state)) return false;
+    if (!exact(value.devicePolicy, ["status"]) || value.devicePolicy.status !== "ACTIVE") return false;
+    if (!record(value.entitlements) || Object.keys(value.entitlements).length > 128 || !Object.entries(value.entitlements).every(([k, v]) => machine(k) && (typeof v === "boolean" || (Number.isSafeInteger(v) && !Object.is(v, -0)) || machine(v)))) return false;
+    if (neutral) return localAuthorityV3(value.localClientAuthority);
+    if (!exact(value.compatibility, ["extension", "browser"]) || !exact(value.compatibility.extension, ["status", "minimumVersion"]) || !["SUPPORTED", "UPDATE_RECOMMENDED", "UPDATE_REQUIRED"].includes(value.compatibility.extension.status) || (value.compatibility.extension.minimumVersion !== null && !semver(value.compatibility.extension.minimumVersion)) || !exact(value.compatibility.browser, ["status"]) || !["SUPPORTED", "UNSUPPORTED_BROWSER", "MAINTENANCE"].includes(value.compatibility.browser.status)) return false;
+    if (!record(value.features) || Object.keys(value.features).length > 128 || !Object.entries(value.features).every(([k, v]) => machine(k) && typeof v === "boolean")) return false;
+    return ai(value.ai);
+  }
   function payload(value) {
     const common = ["snapshotVersion", "contractVersion", "configVersion", "issuedAt", "expiresAt", "offlineGraceUntil", "serverTime", "accessBasis", "account", "subscription", "devicePolicy", "entitlements"];
     const neutral = Object.hasOwn(value || {}, "localClientAuthority");
@@ -196,6 +239,17 @@
     try { if (new TextEncoder().encode(canonical(json)).byteLength !== payloadBytes.byteLength || !cryptoEqual(new TextEncoder().encode(canonical(json)), payloadBytes)) return fail("NON_CANONICAL_PAYLOAD"); } catch (_) { return fail("INVALID_PAYLOAD_SCHEMA"); }
     return { ok: true, payload: json, envelope: input };
   }
+  async function verifyBootstrapV3(input, bundle) {
+    if (!exact(input, ["envelopeVersion", "algorithm", "keyId", "payload", "signature"]) || input.envelopeVersion !== "bootstrap_envelope_v3" || input.algorithm !== "Ed25519" || !machine(input.keyId) || typeof input.payload !== "string" || !input.payload || input.payload.length > 32768 || !B64URL.test(input.payload) || typeof input.signature !== "string" || !input.signature || input.signature.length > 256 || !B64URL.test(input.signature)) return fail("INVALID_ENVELOPE");
+    const keyRing = await makeKeyRing(bundle), key = keyRing.get(input.keyId); if (!key) return fail("UNKNOWN_SIGNING_KEY");
+    const payloadBytes = b64url(input.payload), signature = b64url(input.signature); if (!payloadBytes || !signature) return fail("INVALID_PAYLOAD_ENCODING");
+    let valid = false; try { const data = new Uint8Array(DOMAIN.length + input.keyId.length + 1 + payloadBytes.length); data.set(DOMAIN); data.set(textEncoder.encode(input.keyId), DOMAIN.length); data[DOMAIN.length + input.keyId.length] = 0; data.set(payloadBytes, DOMAIN.length + input.keyId.length + 1); valid = await crypto.subtle.verify("Ed25519", key, signature, data); } catch (_) { return fail("INVALID_SIGNATURE"); }
+    if (!valid) return fail("INVALID_SIGNATURE");
+    let json; try { json = parseStrictJson(new TextDecoder("utf-8", { fatal: true }).decode(payloadBytes)); } catch (_) { return fail("INVALID_PAYLOAD_JSON"); }
+    if (!payloadV3(json)) return fail("INVALID_PAYLOAD_SCHEMA");
+    try { const canonicalBytes = new TextEncoder().encode(canonical(json)); if (canonicalBytes.byteLength !== payloadBytes.byteLength || !cryptoEqual(canonicalBytes, payloadBytes)) return fail("NON_CANONICAL_PAYLOAD"); } catch (_) { return fail("INVALID_PAYLOAD_SCHEMA"); }
+    return { ok: true, payload: json, envelope: input };
+  }
   const HEALTH_DOMAIN = textEncoder.encode("product-control-plane/health-authority/v1\0");
   const HEALTH_REASONS = ["PRODUCER_UNAVAILABLE", "PRODUCER_DENIED", "PROVENANCE_MISSING", "STALE_OBSERVATION", "INVALID_CONTEXT", "AI_UNAVAILABLE"];
   function healthAi(value) { return exact(value, ["family", "surface", "variant", "profileKey", "revision", "scopeVariant", "contentSha256"]) && machine(value.family) && machine(value.surface) && (value.variant === null || machine(value.variant)) && machine(value.profileKey) && Number.isSafeInteger(value.revision) && value.revision > 0 && (value.scopeVariant === null || machine(value.scopeVariant)) && /^[0-9a-f]{64}$/.test(value.contentSha256); }
@@ -217,5 +271,5 @@
     return { ok: true, payload: json, envelope: input };
   }
   function cryptoEqual(a, b) { if (a.length !== b.length) return false; let result = 0; for (let i = 0; i < a.length; i++) result |= a[i] ^ b[i]; return result === 0; }
-  globalThis.SellerAgentsBootstrapVerifier = Object.freeze({ verifyV2: verifyBootstrapV2, verifyHealthV1, validateBundle, canonicalJson: value => canonical(value), base64urlEncode: b64urlEncode });
+  globalThis.SellerAgentsBootstrapVerifier = Object.freeze({ verifyV2: verifyBootstrapV2, verifyV3: verifyBootstrapV3, verifyHealthV1, validateBundle, canonicalJson: value => canonical(value), base64urlEncode: b64urlEncode });
 })();
