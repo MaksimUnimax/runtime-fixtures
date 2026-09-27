@@ -190,6 +190,9 @@ export type Store1V2SignaturePreflightProof = {
   extensionVersion: typeof STORE1_VERSION;
   browserFamily: typeof STORE1_BROWSER;
   browserVersion: string;
+  controlApiOrigin: string;
+  serverTime: string;
+  expiresAt: string;
   aiStatus: "UNCONFIGURED";
 };
 export type Store1ActivationReadback = {
@@ -460,12 +463,27 @@ export function planStore1Activation(
     signatureProof.accountId === r.reviewerAdmission?.accountId &&
     signatureProof.extensionVersion === STORE1_VERSION &&
     signatureProof.browserFamily === STORE1_BROWSER &&
+    /^https:\/\//.test(signatureProof.controlApiOrigin) &&
     signatureProof.aiStatus === "UNCONFIGURED";
   if (!proofBindsPackageAndReviewer)
     return conflict(
       "STORE1_V2_SIGNATURE_PREFLIGHT_CONFLICT",
       "Signature preflight does not bind the exact package, admitted reviewer, signing key, or expected STORE context.",
     );
+  const proofServerTime = Date.parse(signatureProof.serverTime);
+  const proofExpiresAt = Date.parse(signatureProof.expiresAt);
+  if (
+    !Number.isFinite(proofServerTime) ||
+    !Number.isFinite(proofExpiresAt) ||
+    Math.max(Date.now(), proofServerTime) >= proofExpiresAt
+  )
+    return {
+      status: "BLOCKED",
+      code: "STORE1_V2_SIGNATURE_PREFLIGHT_EXPIRED",
+      detail:
+        "Signature preflight is no longer fresh enough to authorize a catalog POST; obtain a fresh signed bootstrap proof.",
+    };
+
   const proofBindsCurrentConfig =
     signatureProof.configVersion === r.config.configVersion &&
     signatureProof.configContentHashSha256 === r.config.contentHashSha256 &&
@@ -887,6 +905,7 @@ function main(): void {
     `${JSON.stringify(
       {
         schemaVersion: "store1_opera_admin_activation_plan_v1",
+        executionAuthority: false,
         authority,
         target: {
           browserFamily: STORE1_BROWSER,

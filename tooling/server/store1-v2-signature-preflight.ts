@@ -50,6 +50,7 @@ export type Store1PackagedBootstrapVerifier = {
 };
 export type Store1PackageSignatureEvidence = {
   authority: Store1PackageAuthority;
+  controlApiOrigin: string;
   trustBundle: Store1TrustBundle;
   trustBundleSha256: string;
   verifier: Store1PackagedBootstrapVerifier;
@@ -76,6 +77,7 @@ export type Store1V2SignaturePreflightTransport = {
       deviceId: string;
       browserFamily: typeof STORE1_BROWSER;
       browserVersion: string;
+      controlApiOrigin: string;
     };
   }>;
 };
@@ -232,7 +234,13 @@ export function extractStore1PackageSignatureEvidenceFromEntries(
   const trustBundleSha256 = createHash("sha256")
     .update(verifier.canonicalJson(trustBundle))
     .digest("hex");
-  return { authority, trustBundle, trustBundleSha256, verifier };
+  return {
+    authority,
+    controlApiOrigin: config.controlApiOrigin,
+    trustBundle,
+    trustBundleSha256,
+    verifier,
+  };
 }
 
 export async function readStore1PackageSignatureEvidence(
@@ -296,6 +304,7 @@ export async function runStore1V2SignaturePreflightWithEvidence(input: {
   deviceId: string;
   browserVersion: string;
   transport: Store1V2SignaturePreflightTransport;
+  now?: () => Date;
 }): Promise<Store1V2SignaturePreflightProof> {
   if (!UUID.test(input.expectedAccountId))
     throw new Error("STORE1_PREFLIGHT_ACCOUNT_ID_INVALID");
@@ -325,7 +334,9 @@ export async function runStore1V2SignaturePreflightWithEvidence(input: {
     response.authenticatedContext.accountId !== input.expectedAccountId ||
     response.authenticatedContext.deviceId !== input.deviceId ||
     response.authenticatedContext.browserFamily !== STORE1_BROWSER ||
-    response.authenticatedContext.browserVersion !== input.browserVersion
+    response.authenticatedContext.browserVersion !== input.browserVersion ||
+    response.authenticatedContext.controlApiOrigin !==
+      input.packageEvidence.controlApiOrigin
   )
     throw new Error("STORE1_V2_AUTHENTICATED_CONTEXT_MISMATCH");
   const envelope = response.envelope;
@@ -357,6 +368,17 @@ export async function runStore1V2SignaturePreflightWithEvidence(input: {
   )
     throw new Error("STORE1_V2_SIGNATURE_CONTEXT_MISMATCH");
 
+  const serverTime = Date.parse(String(payload.serverTime));
+  const expiresAt = Date.parse(String(payload.expiresAt));
+  const now = (input.now ?? (() => new Date()))().getTime();
+  if (
+    !Number.isFinite(serverTime) ||
+    !Number.isFinite(expiresAt) ||
+    !Number.isFinite(now) ||
+    Math.max(now, serverTime) >= expiresAt
+  )
+    throw new Error("STORE1_V2_SIGNATURE_EXPIRED");
+
   const trustKey = input.packageEvidence.trustBundle.keys.find(
     (key) => key.keyId === config.signingKeyId,
   );
@@ -384,6 +406,9 @@ export async function runStore1V2SignaturePreflightWithEvidence(input: {
     extensionVersion: STORE1_VERSION,
     browserFamily: STORE1_BROWSER,
     browserVersion: input.browserVersion,
+    controlApiOrigin: input.packageEvidence.controlApiOrigin,
+    serverTime: String(payload.serverTime),
+    expiresAt: String(payload.expiresAt),
     aiStatus: "UNCONFIGURED",
   };
 }
@@ -395,6 +420,7 @@ export async function runStore1V2SignaturePreflight(input: {
   deviceId: string;
   browserVersion: string;
   transport: Store1V2SignaturePreflightTransport;
+  now?: () => Date;
 }): Promise<Store1V2SignaturePreflightProof> {
   const packageEvidence = await readStore1PackageSignatureEvidence(
     input.manifestPath,
@@ -406,6 +432,81 @@ export async function runStore1V2SignaturePreflight(input: {
     deviceId: input.deviceId,
     browserVersion: input.browserVersion,
     transport: input.transport,
+    now: input.now,
   });
   return trustSignatureProof(proof);
+}
+
+export async function runStore1V2SignaturePreflightWithEvidenceForTest(
+  input: Parameters<typeof runStore1V2SignaturePreflightWithEvidence>[0],
+): Promise<Store1V2SignaturePreflightProof> {
+  if (process.env.VITEST !== "true")
+    throw new Error("STORE1_TEST_ONLY_SIGNATURE_PROOF");
+  return trustSignatureProof(
+    await runStore1V2SignaturePreflightWithEvidence(input),
+  );
+}
+
+async function planWithVerifiedPackageEvidence(input: {
+  packageEvidence: Store1PackageSignatureEvidence;
+  expectedAccountId: string;
+  deviceId: string;
+  browserVersion: string;
+  readback: Store1ActivationReadback;
+  transport: Store1V2SignaturePreflightTransport;
+  now?: () => Date;
+}) {
+  const signaturePreflight = trustSignatureProof(
+    await runStore1V2SignaturePreflightWithEvidence({
+      packageEvidence: input.packageEvidence,
+      expectedAccountId: input.expectedAccountId,
+      deviceId: input.deviceId,
+      browserVersion: input.browserVersion,
+      transport: input.transport,
+      now: input.now,
+    }),
+  );
+  const { planStore1Activation } = await import(
+    "./store1-opera-admin-activation.js"
+  );
+  return {
+    signaturePreflight,
+    plan: planStore1Activation(input.packageEvidence.authority, {
+      ...input.readback,
+      signaturePreflight,
+    }),
+  };
+}
+
+export async function planStore1ActivationWithVerifiedPreflightForTest(
+  input: Parameters<typeof planWithVerifiedPackageEvidence>[0],
+) {
+  if (process.env.VITEST !== "true")
+    throw new Error("STORE1_TEST_ONLY_VERIFIED_PLANNER");
+  return planWithVerifiedPackageEvidence(input);
+}
+
+export async function planStore1ActivationWithVerifiedPreflight(input: {
+  manifestPath: string;
+  zipPath: string;
+  expectedAccountId: string;
+  deviceId: string;
+  browserVersion: string;
+  readback: Store1ActivationReadback;
+  transport: Store1V2SignaturePreflightTransport;
+  now?: () => Date;
+}) {
+  const packageEvidence = await readStore1PackageSignatureEvidence(
+    input.manifestPath,
+    input.zipPath,
+  );
+  return planWithVerifiedPackageEvidence({
+    packageEvidence,
+    expectedAccountId: input.expectedAccountId,
+    deviceId: input.deviceId,
+    browserVersion: input.browserVersion,
+    readback: input.readback,
+    transport: input.transport,
+    now: input.now,
+  });
 }

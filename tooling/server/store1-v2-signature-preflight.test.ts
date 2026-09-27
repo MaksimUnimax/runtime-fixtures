@@ -76,6 +76,7 @@ function fixture() {
   verifier.validateBundle(trustBundle);
   const packageEvidence: Store1PackageSignatureEvidence = {
     authority,
+    controlApiOrigin: "https://api.octoport.test",
     trustBundle,
     trustBundleSha256: createHash("sha256")
       .update(verifier.canonicalJson(trustBundle))
@@ -132,6 +133,7 @@ function fakeTransport(
     deviceId: string;
     browserFamily: "opera";
     browserVersion: string;
+    controlApiOrigin: string;
   },
 ) {
   const calls: Array<{ kind: "config" | "bootstrap"; value: unknown }> = [];
@@ -149,6 +151,7 @@ function fakeTransport(
           deviceId: request.deviceId,
           browserFamily: request.browser.family,
           browserVersion: request.browser.version,
+          controlApiOrigin: "https://api.octoport.test",
         },
       };
     },
@@ -214,6 +217,7 @@ describe("STORE-1 v2 signature preflight", () => {
           deviceId: "40000000-0000-4000-8000-000000000099",
           browserFamily: "opera",
           browserVersion: "136",
+          controlApiOrigin: "https://api.octoport.test",
         }).transport,
       }),
     ).rejects.toThrow("STORE1_V2_AUTHENTICATED_CONTEXT_MISMATCH");
@@ -229,9 +233,43 @@ describe("STORE-1 v2 signature preflight", () => {
           deviceId: DEVICE,
           browserFamily: "opera",
           browserVersion: "137",
+          controlApiOrigin: "https://api.octoport.test",
         }).transport,
       }),
     ).rejects.toThrow("STORE1_V2_AUTHENTICATED_CONTEXT_MISMATCH");
+  });
+
+  it("rejects mismatched packaged control origin", async () => {
+    const f = fixture();
+    await expect(
+      runStore1V2SignaturePreflightWithEvidence({
+        packageEvidence: f.packageEvidence,
+        expectedAccountId: ACCOUNT,
+        deviceId: DEVICE,
+        browserVersion: "136",
+        transport: fakeTransport(f.config, f.envelope, {
+          accountId: ACCOUNT,
+          deviceId: DEVICE,
+          browserFamily: "opera",
+          browserVersion: "136",
+          controlApiOrigin: "https://other.example.test",
+        }).transport,
+      }),
+    ).rejects.toThrow("STORE1_V2_AUTHENTICATED_CONTEXT_MISMATCH");
+  });
+
+  it("rejects an expired signed bootstrap at the exact expiry boundary", async () => {
+    const f = fixture();
+    await expect(
+      runStore1V2SignaturePreflightWithEvidence({
+        packageEvidence: f.packageEvidence,
+        expectedAccountId: ACCOUNT,
+        deviceId: DEVICE,
+        browserVersion: "136",
+        transport: fakeTransport(f.config, f.envelope).transport,
+        now: () => new Date("2030-01-01T00:15:00.000Z"),
+      }),
+    ).rejects.toThrow("STORE1_V2_SIGNATURE_EXPIRED");
   });
 
   it("rejects bad signatures and unknown packaged trust keys", async () => {
@@ -283,6 +321,7 @@ describe("STORE-1 v2 signature preflight", () => {
           deviceId: DEVICE,
           browserFamily: "opera",
           browserVersion: "136",
+          controlApiOrigin: "https://api.octoport.test",
         }).transport,
       }),
     ).rejects.toThrow("STORE1_V2_SIGNATURE_CONTEXT_MISMATCH");

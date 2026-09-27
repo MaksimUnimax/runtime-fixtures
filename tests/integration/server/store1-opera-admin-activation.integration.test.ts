@@ -1,5 +1,8 @@
-import { generateKeyPairSync, randomUUID } from "node:crypto";
+import { createHash, generateKeyPairSync, randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import type { BootstrapIdentifiedSnapshotPayloadV2 } from "../../../packages/contracts/src/index.js";
+import { signBootstrapSnapshotV2 } from "../../../packages/server/remote-config/src/index.js";
 import {
   AdminAuthService,
   deriveAdminAuthKeys,
@@ -39,7 +42,14 @@ import {
   type Store1PackageAuthority,
   type Store1V2SignaturePreflightProof,
 } from "../../../tooling/server/store1-opera-admin-activation.js";
-import { trustStore1V2SignaturePreflightProofForTest } from "../../../tooling/server/store1-v2-signature-preflight.js";
+import {
+  extractStore1PackageSignatureEvidenceFromEntries,
+  planStore1ActivationWithVerifiedPreflightForTest,
+  runStore1V2SignaturePreflightWithEvidenceForTest,
+  type Store1PackageSignatureEvidence,
+  type Store1TrustBundle,
+  type Store1V2SignaturePreflightTransport,
+} from "../../../tooling/server/store1-v2-signature-preflight.js";
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString)
@@ -63,6 +73,57 @@ const authority: Store1PackageAuthority = {
     "0c1fb4c9c81c600332dfb6dc2dcfb9c3221dafe9940eab3811112a4e9fc5d71c",
   filename: "OCTOPORT_v0.2.4_CHROMIUM_STORE.zip",
 };
+const STORE1_TEST_SIGNING_PAIR = generateKeyPairSync("ed25519");
+const STORE1_TEST_CONTROL_ORIGIN = "https://api.store1.test";
+const VERIFIER_SOURCE = readFileSync(
+  new URL("../../../packages/control-client/src/crypto.js", import.meta.url),
+  "utf8",
+);
+
+function store1PackageEvidence(): Store1PackageSignatureEvidence {
+  const der = STORE1_TEST_SIGNING_PAIR.publicKey.export({
+    format: "der",
+    type: "spki",
+  });
+  const trustBundle: Store1TrustBundle = {
+    trustBundleVersion: "bootstrap_trust_bundle_v1",
+    algorithm: "Ed25519",
+    publicKeyFormat: "spki_der",
+    publicKeyEncoding: "base64",
+    fingerprintAlgorithm: "sha256",
+    fingerprintEncoding: "lowercase_hex",
+    keys: [
+      {
+        keyId: "store1-preprod-base",
+        publicKey: der.toString("base64"),
+        fingerprintSha256: createHash("sha256").update(der).digest("hex"),
+        lifecycle: "ACTIVE",
+        trustEligibility: "SIGNING_AND_VERIFICATION",
+      },
+    ],
+  };
+  const packagedConfig = {
+    environment: "PREPRODUCTION",
+    controlApiOrigin: STORE1_TEST_CONTROL_ORIGIN,
+    portalOrigin: "https://app.store1.test",
+    extensionVersion: STORE1_VERSION,
+    contractVersion: STORE1_CONTRACT,
+    trustBundle,
+  };
+  const serviceWorker = Buffer.from(
+    "globalThis.__SELLER_AGENTS_PACKAGED_CONFIG__=" +
+      JSON.stringify(JSON.stringify(packagedConfig)) +
+      ";",
+  );
+  return extractStore1PackageSignatureEvidenceFromEntries(
+    authority,
+    new Map([
+      ["service_worker.js", serviceWorker],
+      ["shared/bootstrap_verifier.js", Buffer.from(VERIFIER_SOURCE)],
+    ]),
+  );
+}
+
 const config: AppConfig = {
   environment: "test",
   databaseUrl: connectionString,
@@ -86,7 +147,7 @@ async function q<T extends Record<string, unknown> = Record<string, unknown>>(
 async function seedV2BaseConfig() {
   const publication = createP3PolicyPublicationRepository(db);
   const keyId = "store1-preprod-base";
-  const publicKeySpkiDer = generateKeyPairSync("ed25519").publicKey.export({
+  const publicKeySpkiDer = STORE1_TEST_SIGNING_PAIR.publicKey.export({
     format: "der",
     type: "spki",
   });
@@ -354,26 +415,88 @@ function captureRead(path: string, response: JsonResponse) {
   throw new Error("STORE1_TEST_UNHANDLED_READ " + path);
 }
 
-function signatureProofFixture(): Store1V2SignaturePreflightProof {
+type VerifiedEntryOptions = {
+  authenticatedAccountId?: string;
+  authenticatedDeviceId?: string;
+  authenticatedBrowserVersion?: string;
+  authenticatedOrigin?: string;
+  now?: Date;
+  tamperSignature?: boolean;
+};
+
+function verifiedPreflightInput(options?: VerifiedEntryOptions) {
   if (!readback.config) throw new Error("STORE1_TEST_CONFIG_REQUIRED");
-  return trustStore1V2SignaturePreflightProofForTest({
-    schemaVersion: "store1_v2_signature_preflight_v1",
-    verified: true,
-    artifactSha256: authority.artifactSha256,
-    trustBundleSha256: "c".repeat(64),
-    contractVersion: STORE1_CONTRACT,
+  const issuedAt = NOW.toISOString();
+  const payload: BootstrapIdentifiedSnapshotPayloadV2 = {
     snapshotVersion: "bootstrap_snapshot_v2",
-    envelopeVersion: "bootstrap_envelope_v2",
+    contractVersion: STORE1_CONTRACT,
     configVersion: readback.config.configVersion,
-    configContentHashSha256: readback.config.contentHashSha256,
-    configSourceFingerprintSha256: readback.config.sourceFingerprintSha256,
-    signingKeyId: readback.config.signingKeyId,
-    accountId: REVIEWER_ACCOUNT,
+    issuedAt,
+    expiresAt: new Date(NOW.getTime() + 15 * 60_000).toISOString(),
+    offlineGraceUntil: new Date(NOW.getTime() + 24 * 60 * 60_000).toISOString(),
+    serverTime: issuedAt,
+    accessBasis: "BETA",
+    account: { id: REVIEWER_ACCOUNT, status: "ACTIVE" },
+    subscription: { state: "NONE", planRevision: null },
+    devicePolicy: { status: "ACTIVE" },
+    entitlements: {},
+    compatibility: {
+      extension: { status: "SUPPORTED", minimumVersion: null },
+      browser: { status: "SUPPORTED" },
+    },
+    features: {},
+    ai: { status: "UNCONFIGURED" },
+  };
+  const signed = signBootstrapSnapshotV2(
+    payload,
+    readback.config.signingKeyId,
+    STORE1_TEST_SIGNING_PAIR.privateKey,
+  );
+  const envelope = options?.tamperSignature
+    ? { ...signed, signature: "AA" }
+    : signed;
+  const packageEvidence = store1PackageEvidence();
+  const transport: Store1V2SignaturePreflightTransport = {
+    async readLatestConfig() {
+      return readback.config!;
+    },
+    async issueBootstrap(_path, request) {
+      return {
+        envelope,
+        authenticatedContext: {
+          accountId: options?.authenticatedAccountId ?? REVIEWER_ACCOUNT,
+          deviceId: options?.authenticatedDeviceId ?? request.deviceId,
+          browserFamily: "opera",
+          browserVersion:
+            options?.authenticatedBrowserVersion ?? request.browser.version,
+          controlApiOrigin:
+            options?.authenticatedOrigin ?? STORE1_TEST_CONTROL_ORIGIN,
+        },
+      };
+    },
+  };
+  return {
+    packageEvidence,
+    expectedAccountId: REVIEWER_ACCOUNT,
     deviceId: REVIEWER_DEVICE,
-    extensionVersion: STORE1_VERSION,
-    browserFamily: "opera",
     browserVersion: "136",
-    aiStatus: "UNCONFIGURED",
+    transport,
+    now: () => options?.now ?? NOW,
+  };
+}
+
+async function signatureProofFixture(
+  options?: VerifiedEntryOptions,
+): Promise<Store1V2SignaturePreflightProof> {
+  return runStore1V2SignaturePreflightWithEvidenceForTest(
+    verifiedPreflightInput(options),
+  );
+}
+
+async function verifiedPlanFixture(options?: VerifiedEntryOptions) {
+  return planStore1ActivationWithVerifiedPreflightForTest({
+    ...verifiedPreflightInput(options),
+    readback,
   });
 }
 async function runPlanner(maxSteps = 40, injectSignatureProof = false) {
@@ -387,7 +510,7 @@ async function runPlanner(maxSteps = 40, injectSignatureProof = false) {
         (plan.code === "STORE1_V2_SIGNATURE_PREFLIGHT_REQUIRED" ||
           plan.code === "STORE1_V2_SIGNATURE_PREFLIGHT_STALE")
       ) {
-        readback.signaturePreflight = signatureProofFixture();
+        readback.signaturePreflight = await signatureProofFixture();
         continue;
       }
       return { plan, mutations };
@@ -458,7 +581,7 @@ describe.sequential("STORE-1 ordinary-admin whole-sequence rehearsal", () => {
     expect(missing.mutations).toEqual([]);
 
     readback.signaturePreflight = JSON.parse(
-      JSON.stringify(signatureProofFixture()),
+      JSON.stringify(await signatureProofFixture()),
     ) as Store1V2SignaturePreflightProof;
     const untrusted = await runPlanner();
     expect(untrusted.plan).toMatchObject({
@@ -467,16 +590,73 @@ describe.sequential("STORE-1 ordinary-admin whole-sequence rehearsal", () => {
     });
     expect(untrusted.mutations).toEqual([]);
 
-    readback.signaturePreflight = trustStore1V2SignaturePreflightProofForTest({
-      ...signatureProofFixture(),
-      configContentHashSha256: "d".repeat(64),
-    });
+    readback.signaturePreflight = await signatureProofFixture();
+    readback.config = {
+      ...readback.config!,
+      contentHashSha256: "d".repeat(64),
+    };
     const mismatched = await runPlanner();
     expect(mismatched.plan).toMatchObject({
       status: "BLOCKED",
       code: "STORE1_V2_SIGNATURE_PREFLIGHT_STALE",
     });
     expect(mismatched.mutations).toEqual([]);
+    delete readback.config;
+    delete readback.signaturePreflight;
+  });
+
+  it("production planning entry verifies envelope/context/freshness before returning a POST", async () => {
+    const primed = await runPlanner();
+    expect(primed.plan).toMatchObject({
+      status: "BLOCKED",
+      code: "STORE1_V2_SIGNATURE_PREFLIGHT_REQUIRED",
+    });
+    expect(primed.mutations).toEqual([]);
+    readback.release = null;
+
+    readback.signaturePreflight = JSON.parse(
+      JSON.stringify(await signatureProofFixture()),
+    ) as Store1V2SignaturePreflightProof;
+    const forged = planStore1Activation(authority, readback);
+    expect(forged).toMatchObject({
+      status: "BLOCKED",
+      code: "STORE1_V2_SIGNATURE_PREFLIGHT_UNTRUSTED",
+    });
+    delete readback.signaturePreflight;
+
+    await expect(
+      verifiedPlanFixture({ tamperSignature: true }),
+    ).rejects.toThrow("STORE1_V2_SIGNATURE_INVALID_SIGNATURE");
+    await expect(
+      verifiedPlanFixture({
+        authenticatedAccountId: "30000000-0000-4000-8000-000000000099",
+      }),
+    ).rejects.toThrow("STORE1_V2_AUTHENTICATED_CONTEXT_MISMATCH");
+    await expect(
+      verifiedPlanFixture({
+        authenticatedOrigin: "https://wrong-origin.example.test",
+      }),
+    ).rejects.toThrow("STORE1_V2_AUTHENTICATED_CONTEXT_MISMATCH");
+    await expect(
+      verifiedPlanFixture({
+        now: new Date(NOW.getTime() + 15 * 60_000),
+      }),
+    ).rejects.toThrow("STORE1_V2_SIGNATURE_EXPIRED");
+
+    const verified = await verifiedPlanFixture();
+    expect(verified.plan).toMatchObject({
+      status: "POST",
+      next: {
+        method: "POST",
+        path: "/v1/admin/compatibility/releases/0.2.4/publish",
+      },
+    });
+
+    const releases = await q<{ count: string }>(
+      "SELECT count(*)::text AS count FROM extension_releases",
+    );
+    expect(releases.rows[0]?.count).toBe("0");
+    delete readback.release;
     delete readback.signaturePreflight;
   });
 

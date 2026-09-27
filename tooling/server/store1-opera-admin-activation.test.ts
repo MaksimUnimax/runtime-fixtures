@@ -52,6 +52,9 @@ function exactSignatureProof(): Store1V2SignaturePreflightProof {
     extensionVersion: STORE1_VERSION,
     browserFamily: "opera",
     browserVersion: "136",
+    controlApiOrigin: "https://api.octoport.test",
+    serverTime: "2030-01-01T00:00:00.000Z",
+    expiresAt: "2030-01-01T00:15:00.000Z",
     aiStatus: "UNCONFIGURED",
   });
 }
@@ -247,6 +250,20 @@ describe("STORE-1 ordinary-admin activation planner", () => {
     expect(planStore1Activation(authority, r)).toMatchObject({
       status: "BLOCKED",
       code: "STORE1_V2_SIGNATURE_PREFLIGHT_UNTRUSTED",
+    });
+  });
+
+  it("blocks an expired trusted signature proof before any catalog mutation", () => {
+    const r = exactReadback();
+    r.release = null;
+    r.signaturePreflight = trustStore1V2SignaturePreflightProofForTest({
+      ...r.signaturePreflight!,
+      serverTime: "2020-01-01T00:00:00.000Z",
+      expiresAt: "2020-01-01T00:15:00.000Z",
+    });
+    expect(planStore1Activation(authority, r)).toMatchObject({
+      status: "BLOCKED",
+      code: "STORE1_V2_SIGNATURE_PREFLIGHT_EXPIRED",
     });
   });
 
