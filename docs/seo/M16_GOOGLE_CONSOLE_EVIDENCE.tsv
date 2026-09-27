@@ -1,0 +1,7 @@
+evidence_id	scope	action	result	status	blocking	next_action	claim_boundary
+M16G001	OAuth	Connected Google account	unymax2014@gmail.com with webmasters.readonly	PASS_CONNECTION	false	None for read access	Does not imply a site property exists
+M16G002	Property list	GSC Wizard list_sites	0 properties connected	PROPERTY_LIST_EMPTY	true	Find/register existing property or create/verify one	Not an indexing verdict
+M16G003	sc-domain:octoport.ru	GSC Wizard add_site probe	not_found: property not found in Google Search Console account	PROPERTY_NOT_PRESENT	true	Create/verify domain property in Google Search Console	add_site probe does not create property
+M16G004	https://octoport.ru/	GSC Wizard add_site probe	not_found: property not found in Google Search Console account	PROPERTY_NOT_PRESENT	true	Create/verify URL-prefix property or domain property	Not indexed/not-indexed cannot be inferred
+M16G005	4 canonical URLs	URL Inspection	Not runnable because no property is available	HOLD_PROPERTY_NOT_CONNECTED	true	After property verification run URL Inspection on all four URLs	Read-only OAuth is sufficient once property exists
+M16G006	Sitemap	Search Console submitted sitemap list	Not runnable because no property is available	HOLD_PROPERTY_NOT_CONNECTED	true	After property verification inspect sitemap state	Live sitemap itself is technically PASS
