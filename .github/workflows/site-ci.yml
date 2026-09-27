@@ -70,6 +70,13 @@ jobs:
               root / "install.html",
               favicon_path,
               root / "styles.css",
+              root / "assets" / "engraving-3-underlay.webp",
+              root / "assets" / "chatgpt.png",
+              root / "assets" / "anthropic.png",
+              root / "assets" / "gemini.png",
+              root / "assets" / "deepseek.png",
+              root / "assets" / "alice.png",
+              root / "assets" / "qwen.png",
               root / "robots.txt",
               sitemap_path,
               Path("apps/site/README.md"),
@@ -157,12 +164,19 @@ jobs:
           ], parser.descriptions
 
           approved_home_paths = {"/seller-analytics", "/privacy", "/support", "/install"}
+          approved_external_links = {
+              "https://app.octoport.ru/login", "https://chatgpt.com/", "https://alice.yandex.ru/",
+              "https://chat.deepseek.com/", "https://gemini.google.com/", "https://claude.ai/",
+              "https://chat.qwen.ai/",
+          }
           for href in parser.hrefs:
               if href.startswith("#"):
                   target = href[1:]
                   assert target in parser.ids, f"broken internal anchor: {href}"
-              else:
+              elif href.startswith("/"):
                   assert href in approved_home_paths, f"unexpected HOME link: {href}"
+              else:
+                  assert href in approved_external_links, f"unexpected external HOME link: {href}"
 
           lowered = index.lower()
           for stale_domain in ("selleragents.ru", "openscript.ru"):
@@ -178,6 +192,19 @@ jobs:
           assert "/seller-analytics" in parser.hrefs
           for utility in ("/privacy", "/support", "/install"):
               assert utility in parser.hrefs
+
+          # Engraving architecture: one static underlay + eight independent badges.
+          assert index.count('class="ai-badge ') == 6, "expected six independent AI badges"
+          assert index.count('class="market-badge ') == 2, "expected two independent marketplace badges"
+          assert 'class="engraving-underlay"' in index
+          assert 'src="/assets/engraving-3-underlay.webp"' in index
+          assert ".engraving-underlay{position:absolute;z-index:1;inset:0;width:100%;height:100%;object-fit:contain;display:block;pointer-events:none}" in css, "engraving underlay must remain static/non-interactive"
+          assert ".ai-badge:hover,.ai-badge:focus-visible,.market-badge:hover,.market-badge:focus-visible" in css, "badge-only hover contract missing"
+          underlay = root / "assets" / "engraving-3-underlay.webp"
+          with underlay.open("rb") as handle:
+              webp_header = handle.read(12)
+          assert webp_header[:4] == b"RIFF" and webp_header[8:12] == b"WEBP", "engraving underlay must be WebP"
+          assert underlay.stat().st_size < 500_000, "engraving underlay unexpectedly large"
 
           required_sections = {"top", "how", "privacy", "beta", "principles-title", "analytics", "analytics-title"}
           assert required_sections.issubset(parser.ids), f"missing sections: {required_sections - parser.ids}"
