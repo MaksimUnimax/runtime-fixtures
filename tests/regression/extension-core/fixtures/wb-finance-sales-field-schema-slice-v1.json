@@ -1,0 +1,236 @@
+{
+  "schemaVersion": "wb_finance_sales_field_schema_slice_v1",
+  "capturedDate": "2026-09-27",
+  "scope": {
+    "scenarioIds": [
+      "STD-01",
+      "STD-03",
+      "CAP-13"
+    ],
+    "boundary": "FINAL_FINANCE_FIELDS_WITHOUT_OWNER_REVENUE_SELECTION",
+    "evidence": "OFFICIAL_FIELD_SCHEMA_SOURCE_ONLY",
+    "liveValues": false,
+    "acceptedOperationMappingChanged": false
+  },
+  "sources": {
+    "salesReportList": {
+      "url": "https://dev.wildberries.ru/en/openapi/financial-reports-and-accounting",
+      "operationAlias": "finance_sales_reports",
+      "host": "finance",
+      "method": "POST",
+      "path": "/api/finance/v1/sales-reports/list",
+      "tokenTypes": [
+        "personal",
+        "service"
+      ],
+      "rowGrain": [
+        "reportId"
+      ],
+      "periodEnum": [
+        "daily",
+        "weekly"
+      ],
+      "fields": {
+        "reportId": {
+          "role": "report_id",
+          "unit": "identifier"
+        },
+        "currency": {
+          "role": "report_currency",
+          "unit": "currency_code"
+        },
+        "retailAmountSum": {
+          "role": "provider_retail_amount_total_not_owner_defined_revenue",
+          "unit": "money_decimal_string"
+        },
+        "forPaySum": {
+          "role": "provider_for_pay_total_not_retail_amount",
+          "unit": "money_decimal_string"
+        }
+      }
+    },
+    "salesDetailPeriod": {
+      "url": "https://dev.wildberries.ru/en/openapi/financial-reports-and-accounting",
+      "releaseNotesUrl": "https://dev.wildberries.ru/en/release-notes",
+      "operationAlias": "finance_sales_detail_period",
+      "host": "finance",
+      "method": "POST",
+      "path": "/api/finance/v1/sales-reports/detailed",
+      "tokenTypes": [
+        "personal",
+        "service"
+      ],
+      "availableSince": "2024-01-29",
+      "requestTimezone": "Europe/Moscow",
+      "requestUtcOffset": "+03:00",
+      "limitMax": 100000,
+      "requestFields": [
+        "dateFrom",
+        "dateTo",
+        "limit",
+        "rrdId",
+        "period",
+        "fields"
+      ],
+      "periodEnum": [
+        "daily",
+        "weekly"
+      ],
+      "pagination": {
+        "initialRrdId": 0,
+        "nextCursor": "LAST_ROW_RRD_ID",
+        "terminalHttpStatus": 204
+      },
+      "rowGrain": [
+        "rrdId"
+      ],
+      "currencyJoin": "reportId -> finance_sales_reports.reportId -> currency",
+      "fields": {
+        "reportId": {
+          "role": "report_id",
+          "unit": "identifier"
+        },
+        "rrdId": {
+          "role": "pagination_row_id",
+          "unit": "identifier"
+        },
+        "nmId": {
+          "role": "product_id",
+          "unit": "identifier"
+        },
+        "vendorCode": {
+          "role": "seller_article",
+          "unit": "text"
+        },
+        "title": {
+          "role": "product_title",
+          "unit": "text"
+        },
+        "docTypeName": {
+          "role": "document_type_label",
+          "unit": "text"
+        },
+        "sellerOperName": {
+          "role": "seller_operation_label",
+          "unit": "text"
+        },
+        "quantity": {
+          "role": "report_row_quantity",
+          "unit": "count"
+        },
+        "retailAmount": {
+          "role": "provider_retail_amount_not_owner_defined_revenue",
+          "unit": "money_decimal_string"
+        },
+        "forPay": {
+          "role": "provider_for_pay_not_retail_amount",
+          "unit": "money_decimal_string"
+        },
+        "saleDt": {
+          "role": "sale_event_time",
+          "unit": "datetime"
+        },
+        "rrDate": {
+          "role": "report_event_date",
+          "unit": "date"
+        }
+      }
+    }
+  },
+  "rules": {
+    "retailAmountAndForPay": "DISTINCT_PROVIDER_METRICS",
+    "ownerRevenueDefinition": "REQUIRED_BEFORE_LABEL_REVENUE",
+    "operationalSalesBoundary": "PRELIMINARY_STATISTICS_SALES_NOT_FINAL_FINANCE",
+    "productRankingMetric": "UNSELECTED_UNTIL_OWNER_DEFINITION",
+    "missing": "MISSING_NOT_ZERO",
+    "decimalMath": "EXACT_DECIMAL_STRING_NO_BINARY_FLOAT",
+    "currency": "JOIN_REPORT_METADATA_DO_NOT_ASSUME_RUB",
+    "completeness": "ALL_RRD_PAGES_UNTIL_HTTP_204",
+    "timezone": "FINANCE_REQUEST_PERIOD_IS_MOSCOW_UTC_PLUS_3"
+  },
+  "acceptedMappingSnapshot": {
+    "STD-01": [
+      "statistics_orders",
+      "statistics_sales"
+    ],
+    "STD-03": [
+      "statistics_sales",
+      "cards_list"
+    ],
+    "CAP-13": [
+      "finance_balance",
+      "finance_sales_reports"
+    ],
+    "knownGap": {
+      "STD-01": "FINAL_FINANCE_METRIC_NOT_IN_ACCEPTED_OPERATION_SET",
+      "STD-03": "AUTHORITATIVE_PRODUCT_MONEY_REQUIRES_FINANCE_DETAIL_REVIEW",
+      "CAP-13": "LIST_TOTALS_DISTINGUISH_RETAIL_AMOUNT_FROM_FOR_PAY"
+    }
+  },
+  "syntheticCases": {
+    "reportMetadata": {
+      "reportId": 901,
+      "currency": "RUB",
+      "retailAmountSum": "171.00",
+      "forPaySum": "124.75"
+    },
+    "detailRows": [
+      {
+        "reportId": 901,
+        "rrdId": 1,
+        "nmId": 1001,
+        "retailAmount": "100.10",
+        "forPay": "70.05"
+      },
+      {
+        "reportId": 901,
+        "rrdId": 2,
+        "nmId": 1001,
+        "retailAmount": "20.90",
+        "forPay": "14.70"
+      },
+      {
+        "reportId": 901,
+        "rrdId": 3,
+        "nmId": 1002,
+        "retailAmount": "50",
+        "forPay": "40.00"
+      }
+    ],
+    "paginationComplete": true,
+    "expected": {
+      "currency": "RUB",
+      "retailAmount": "171.00",
+      "forPay": "124.75",
+      "byProduct": {
+        "1001": {
+          "retailAmount": "121.00",
+          "forPay": "84.75"
+        },
+        "1002": {
+          "retailAmount": "50.00",
+          "forPay": "40.00"
+        }
+      }
+    },
+    "invalidMoneyRow": {
+      "reportId": 901,
+      "rrdId": 4,
+      "nmId": 1003,
+      "retailAmount": 10.5,
+      "forPay": "8.00",
+      "expectedReason": "MONEY_NOT_DECIMAL_STRING"
+    },
+    "missingCurrency": {
+      "reportId": 902,
+      "expectedReason": "REPORT_CURRENCY_MISSING"
+    }
+  },
+  "remainingOpen": [
+    "owner/business definition of revenue versus retail amount versus seller payout",
+    "live WB values and owner gold-set agreement",
+    "accepted operation mapping review for financially authoritative STD-01 and STD-03",
+    "business timezone policy when owner period differs from finance request UTC+3",
+    "full live product ranking and finance reconciliation"
+  ]
+}

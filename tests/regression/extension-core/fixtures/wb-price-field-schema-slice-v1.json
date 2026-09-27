@@ -1,0 +1,258 @@
+{
+  "schemaVersion": "wb_price_field_schema_slice_v1",
+  "capturedDate": "2026-09-27",
+  "scope": {
+    "scenarioIds": ["CAP-10"],
+    "boundary": "BASE_GENERAL_DISCOUNT_AND_WB_CLUB_PRICE_FIELDS_STAY_DISTINCT",
+    "evidence": "CURRENT_OFFICIAL_FIELD_SCHEMA_SOURCE_ONLY",
+    "liveValues": false,
+    "acceptedOperationMappingChanged": false
+  },
+  "sources": {
+    "allProducts": {
+      "url": "https://dev.wildberries.ru/en/openapi/work-with-products",
+      "operationAlias": "prices_all",
+      "host": "prices",
+      "method": "GET",
+      "path": "/api/v2/list/goods/filter",
+      "tokenCategory": "prices",
+      "request": {
+        "requiredQuery": ["limit"],
+        "optionalQuery": ["offset", "filterNmID"],
+        "limitMax": 1000,
+        "offsetMin": 0,
+        "allProducts": "OMIT_FILTER_NM_ID",
+        "oneProduct": "SET_FILTER_NM_ID"
+      },
+      "fullCatalogPagination": {
+        "initialOffset": 0,
+        "nextOffset": "PREVIOUS_OFFSET_PLUS_LIMIT",
+        "terminal": "EMPTY_LIST_GOODS"
+      },
+      "rowGrain": ["nmID"],
+      "fields": {
+        "nmID": { "role": "product_id", "unit": "identifier" },
+        "vendorCode": { "role": "seller_article", "unit": "text" },
+        "currencyIsoCode4217": {
+          "role": "price_currency",
+          "unit": "currency_code"
+        },
+        "discount": {
+          "role": "general_product_discount",
+          "unit": "percent_provider_field"
+        },
+        "clubDiscount": {
+          "role": "wb_club_discount",
+          "unit": "percent_provider_field"
+        },
+        "editableSizePrice": {
+          "role": "size_price_mode_flag",
+          "unit": "boolean"
+        },
+        "isBadTurnover": {
+          "role": "provider_bad_turnover_flag",
+          "unit": "boolean"
+        }
+      },
+      "sizeFields": {
+        "sizeID": { "role": "size_id", "unit": "identifier" },
+        "techSizeName": { "role": "size_label", "unit": "text" },
+        "price": {
+          "role": "base_provider_price",
+          "unit": "response_currency_number"
+        },
+        "discountedPrice": {
+          "role": "provider_price_after_general_discount",
+          "unit": "response_currency_number"
+        },
+        "clubDiscountedPrice": {
+          "role": "provider_price_including_wb_club_discount",
+          "unit": "response_currency_number"
+        }
+      }
+    },
+    "byArticles": {
+      "url": "https://dev.wildberries.ru/en/openapi/work-with-products",
+      "operationAlias": "prices_by_nm",
+      "host": "prices",
+      "method": "POST",
+      "path": "/api/v2/list/goods/filter",
+      "tokenCategory": "prices",
+      "request": {
+        "bodyRequired": true,
+        "bodyField": "nmList",
+        "minArticles": 1,
+        "maxArticles": 1000
+      },
+      "responseShape": "SAME_LIST_GOODS_PRICE_FIELDS"
+    },
+    "sizePrices": {
+      "url": "https://dev.wildberries.ru/en/openapi/work-with-products",
+      "operationAlias": "size_prices",
+      "host": "prices",
+      "method": "GET",
+      "path": "/api/v2/list/goods/size/nm",
+      "tokenCategory": "prices",
+      "availability": "ONLY_WHEN_PRODUCT_EDITABLE_SIZE_PRICE_TRUE",
+      "request": {
+        "requiredQuery": ["limit", "nmID"],
+        "optionalQuery": ["offset"],
+        "limitMax": 1000,
+        "offsetMin": 0
+      },
+      "rowGrain": ["nmID", "sizeID"],
+      "fields": {
+        "nmID": { "role": "product_id", "unit": "identifier" },
+        "sizeID": { "role": "size_id", "unit": "identifier" },
+        "vendorCode": { "role": "seller_article", "unit": "text" },
+        "techSizeName": { "role": "size_label", "unit": "text" },
+        "currencyIsoCode4217": {
+          "role": "price_currency",
+          "unit": "currency_code"
+        },
+        "price": {
+          "role": "base_provider_price",
+          "unit": "response_currency_number"
+        },
+        "discountedPrice": {
+          "role": "provider_price_after_general_discount",
+          "unit": "response_currency_number"
+        },
+        "clubDiscountedPrice": {
+          "role": "provider_price_including_wb_club_discount",
+          "unit": "response_currency_number"
+        },
+        "discount": {
+          "role": "general_product_discount",
+          "unit": "percent_provider_field"
+        },
+        "clubDiscount": {
+          "role": "wb_club_discount",
+          "unit": "percent_provider_field"
+        },
+        "editableSizePrice": {
+          "role": "size_price_mode_flag",
+          "unit": "boolean"
+        },
+        "isBadTurnover": {
+          "role": "provider_bad_turnover_flag",
+          "unit": "boolean"
+        }
+      }
+    }
+  },
+  "rules": {
+    "basePrice": "PRICE_IS_BASE_PROVIDER_PRICE_NOT_UNIVERSAL_BUYER_CHECKOUT_PRICE",
+    "generalDiscountPrice": "DISCOUNTED_PRICE_STAYS_DISTINCT_FROM_BASE_AND_CLUB_PRICE",
+    "clubPrice": "CLUB_DISCOUNTED_PRICE_APPLIES_WB_CLUB_CONTEXT_AND_STAYS_DISTINCT",
+    "buyerPrice": "SELECT_CONTEXT_SPECIFIC_PROVIDER_FIELD_DO_NOT_COLLAPSE_TO_ONE_UNIVERSAL_PRICE",
+    "currency": "REQUIRE_PROVIDER_CURRENCY_DO_NOT_ASSUME_RUB",
+    "sizePrice": "USE_SIZE_LEVEL_PRICE_ONLY_WHEN_EDITABLE_SIZE_PRICE_TRUE",
+    "discount": "GENERAL_DISCOUNT_AND_CLUB_DISCOUNT_STAY_DISTINCT",
+    "missing": "MISSING_NOT_ZERO",
+    "pagination": "FULL_CATALOG_REQUIRES_OFFSET_PLUS_LIMIT_UNTIL_EMPTY_LIST_GOODS"
+  },
+  "acceptedMappingSnapshot": {
+    "CAP-10": ["prices_all", "prices_by_nm", "size_prices"]
+  },
+  "syntheticCases": {
+    "product": {
+      "nmID": 98486,
+      "vendorCode": "07326060",
+      "currencyIsoCode4217": "RUB",
+      "discount": 30,
+      "clubDiscount": 5,
+      "editableSizePrice": true,
+      "isBadTurnover": true,
+      "sizes": [
+        {
+          "sizeID": 3123515574,
+          "techSizeName": "42",
+          "price": 500,
+          "discountedPrice": 350,
+          "clubDiscountedPrice": 332.5
+        }
+      ]
+    },
+    "expectedProjection": {
+      "productId": 98486,
+      "currency": "RUB",
+      "generalDiscount": 30,
+      "clubDiscount": 5,
+      "sizePriceMode": true,
+      "sizes": [
+        {
+          "sizeId": 3123515574,
+          "basePrice": 500,
+          "generalDiscountedPrice": 350,
+          "clubDiscountedPrice": 332.5
+        }
+      ]
+    },
+    "contextSelection": [
+      {
+        "context": "GENERAL",
+        "expectedField": "discountedPrice",
+        "expectedValue": 350
+      },
+      {
+        "context": "WB_CLUB",
+        "expectedField": "clubDiscountedPrice",
+        "expectedValue": 332.5
+      },
+      {
+        "context": "BASE_REFERENCE",
+        "expectedField": "price",
+        "expectedValue": 500
+      }
+    ],
+    "missingCurrency": {
+      "product": {
+        "nmID": 100,
+        "discount": 0,
+        "clubDiscount": 0,
+        "editableSizePrice": false,
+        "sizes": [
+          {
+            "sizeID": 1,
+            "price": 100,
+            "discountedPrice": 100,
+            "clubDiscountedPrice": 100
+          }
+        ]
+      },
+      "expected": { "status": "INCOMPLETE", "reason": "CURRENCY_MISSING" }
+    },
+    "invalidPrice": {
+      "product": {
+        "nmID": 101,
+        "currencyIsoCode4217": "RUB",
+        "discount": 0,
+        "clubDiscount": 0,
+        "editableSizePrice": false,
+        "sizes": [
+          {
+            "sizeID": 1,
+            "price": null,
+            "discountedPrice": 100,
+            "clubDiscountedPrice": 100
+          }
+        ]
+      },
+      "expected": { "status": "INCOMPLETE", "reason": "PRICE_FIELD_INVALID" }
+    },
+    "catalogPages": [
+      { "offset": 0, "limit": 2, "ids": [10, 20] },
+      { "offset": 2, "limit": 2, "ids": [30] },
+      { "offset": 4, "limit": 2, "ids": [] }
+    ],
+    "expectedCatalogIds": [10, 20, 30]
+  },
+  "remainingOpen": [
+    "live WB price values and owner gold-set reconciliation",
+    "customer checkout price can differ due to context outside these provider fields",
+    "full size-level pagination proof on a real editable-size catalog",
+    "real catalog missing/duplicate article handling",
+    "cross-marketplace price comparison requires explicit currency and commercial definition"
+  ]
+}

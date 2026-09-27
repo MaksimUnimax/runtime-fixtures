@@ -1,0 +1,231 @@
+{
+  "schemaVersion": "wb_operational_sales_field_schema_slice_v1",
+  "capturedDate": "2026-09-27",
+  "scope": {
+    "scenarioIds": ["STD-01", "STD-02", "STD-04"],
+    "boundary": "OPERATIONAL_ORDERS_AND_SALES_NOT_FINAL_FINANCE",
+    "evidence": "OFFICIAL_FIELD_SCHEMA_SOURCE_ONLY",
+    "liveValues": false,
+    "acceptedOperationMappingChanged": false
+  },
+  "sources": {
+    "orders": {
+      "url": "https://dev.wildberries.ru/en/openapi/reports",
+      "operationAlias": "statistics_orders",
+      "host": "statistics",
+      "method": "GET",
+      "path": "/api/v1/supplier/orders",
+      "tokenCategory": "statistics",
+      "updateMinutes": 30,
+      "storageGuaranteeDays": 90,
+      "dataClass": "PRELIMINARY_OPERATIONAL",
+      "rowGrain": ["srid"],
+      "rowMeaning": "ONE_ORDER_ONE_ITEM",
+      "requestFields": ["dateFrom", "flag"],
+      "completeness": {
+        "flag0": "CONTINUE_FROM_LAST_FULL_LAST_CHANGE_DATE_UNTIL_EMPTY",
+        "conditionalRowsPerResponseApprox": 80000,
+        "flag1": "ALL_ROWS_WITH_ORDER_DATE_EQUAL_TO_DATE_FROM"
+      },
+      "fields": {
+        "date": {
+          "role": "order_event_time",
+          "unit": "datetime"
+        },
+        "lastChangeDate": {
+          "role": "continuation_cursor",
+          "unit": "datetime"
+        },
+        "srid": {
+          "role": "order_id",
+          "unit": "identifier"
+        },
+        "nmId": {
+          "role": "product_id",
+          "unit": "identifier"
+        },
+        "warehouseName": {
+          "role": "warehouse_label",
+          "unit": "text"
+        },
+        "warehouseType": {
+          "role": "warehouse_scheme_label",
+          "unit": "text"
+        },
+        "totalPrice": {
+          "role": "price_field_not_final_revenue",
+          "unit": "provider_currency"
+        },
+        "finishedPrice": {
+          "role": "price_field_not_final_revenue",
+          "unit": "provider_currency"
+        },
+        "priceWithDisc": {
+          "role": "price_field_not_final_revenue",
+          "unit": "provider_currency"
+        },
+        "isCancel": {
+          "role": "order_cancelled_flag",
+          "unit": "boolean"
+        },
+        "cancelDate": {
+          "role": "order_cancelled_date",
+          "unit": "datetime"
+        }
+      },
+      "authoritativeRevenueField": null,
+      "moneyBoundary": "BUSINESS_DEFINITION_AND_GOLD_SET_REQUIRED"
+    },
+    "sales": {
+      "url": "https://dev.wildberries.ru/en/openapi/reports",
+      "operationAlias": "statistics_sales",
+      "host": "statistics",
+      "method": "GET",
+      "path": "/api/v1/supplier/sales",
+      "tokenCategory": "statistics",
+      "updateMinutes": 30,
+      "storageGuaranteeDays": 90,
+      "dataClass": "PRELIMINARY_OPERATIONAL",
+      "rowGrain": ["saleID"],
+      "rowMeaning": "ONE_SALE_OR_RETURN_ONE_ITEM",
+      "orderLinkField": "srid",
+      "requestFields": ["dateFrom", "flag"],
+      "completeness": {
+        "flag0": "CONTINUE_FROM_LAST_FULL_LAST_CHANGE_DATE_UNTIL_EMPTY",
+        "conditionalRowsPerResponseApprox": 80000,
+        "flag1": "ALL_ROWS_WITH_SALE_DATE_EQUAL_TO_DATE_FROM"
+      },
+      "fields": {
+        "date": {
+          "role": "sale_or_return_event_time",
+          "unit": "datetime"
+        },
+        "lastChangeDate": {
+          "role": "continuation_cursor",
+          "unit": "datetime"
+        },
+        "saleID": {
+          "role": "sale_or_return_id",
+          "unit": "identifier"
+        },
+        "srid": {
+          "role": "order_link_id",
+          "unit": "identifier"
+        },
+        "finishedPrice": {
+          "role": "operational_price_may_be_async_zero",
+          "unit": "provider_currency"
+        },
+        "priceWithDisc": {
+          "role": "simplified_operational_price_may_be_async_zero",
+          "unit": "provider_currency"
+        },
+        "forPay": {
+          "role": "simplified_operational_payout_may_be_async_zero",
+          "unit": "provider_currency"
+        },
+        "paymentSaleAmount": {
+          "role": "operational_payment_amount",
+          "unit": "provider_currency"
+        }
+      },
+      "asyncMoneyFillHoursMax": 24,
+      "authoritativeRevenueField": null,
+      "accurateFinancialBoundary": {
+        "operationAlias": "finance_sales_detail_period",
+        "host": "finance",
+        "method": "POST",
+        "path": "/api/finance/v1/sales-reports/detailed",
+        "tokenCategory": "finance",
+        "purpose": "ACCURATE_FINANCIAL_RECONCILIATION_NOT_OPERATIONAL_SALES"
+      }
+    },
+    "salesFunnelHistory": {
+      "url": "https://dev.wildberries.ru/en/openapi/analytics",
+      "operationAlias": "sales_funnel_history",
+      "host": "analytics",
+      "method": "POST",
+      "path": "/api/analytics/v3/sales-funnel/products/history",
+      "tokenCategory": "analytics",
+      "updateMinutes": 60,
+      "maxHistoryDays": 7,
+      "rowGrain": ["product.nmId", "history.date"],
+      "fields": {
+        "history.date": {
+          "role": "order_attribution_day",
+          "unit": "date"
+        },
+        "history.orderCount": {
+          "role": "orders_placed",
+          "unit": "count"
+        },
+        "history.orderSum": {
+          "role": "order_value",
+          "unit": "response_currency"
+        },
+        "history.buyoutCount": {
+          "role": "buyouts",
+          "unit": "count"
+        },
+        "history.buyoutSum": {
+          "role": "buyout_value",
+          "unit": "response_currency"
+        },
+        "currency": {
+          "role": "money_currency",
+          "unit": "currency_code"
+        }
+      },
+      "attributionBoundary": "BUYOUTS_CANCELLATIONS_RETURNS_ARE_ATTRIBUTED_TO_ORDER_DAY",
+      "finalSalesBoundary": "USE_REALIZATION_REPORT_DETAILS",
+      "fourteenDayCompleteness": "NOT_SUFFICIENT_ALONE"
+    }
+  },
+  "rules": {
+    "ordersPlacedUnit": "COUNT_UNIQUE_ORDER_ROWS_BY_SRID_PER_EXPLICIT_DAY",
+    "cancelledOrders": "REPORT_SEPARATELY_DO_NOT_SILENTLY_RECLASSIFY_AS_SALES",
+    "saleAndReturn": "KEEP_DISTINCT_FROM_ORDER_AND_BUYOUT",
+    "money": "DO_NOT_LABEL_OPERATIONAL_PRICE_FIELDS_AS_FINAL_REVENUE",
+    "missing": "MISSING_NOT_ZERO",
+    "percentChange": "ZERO_OR_UNKNOWN_BASE_RETURNS_NULL",
+    "timezone": "EXPLICIT_PERIOD_TIMEZONE_REQUIRED",
+    "finance": "FINAL_FINANCIAL_CLAIMS_REQUIRE_REALIZATION_REPORT_DETAILS",
+    "fourteenDayTrend": "SALES_FUNNEL_HISTORY_REQUIRES_ANOTHER_COMPLETE_SOURCE_FOR_DAYS_BEYOND_LAST_7"
+  },
+  "syntheticCases": {
+    "orders": {
+      "rows": [
+        { "srid": "o-1", "date": "2026-09-26T09:00:00", "isCancel": false },
+        { "srid": "o-2", "date": "2026-09-26T11:00:00", "isCancel": true },
+        { "srid": "o-3", "date": "2026-09-26T15:00:00", "isCancel": false }
+      ],
+      "expected": {
+        "ordersPlacedUnits": 3,
+        "cancelledUnits": 1,
+        "activeAfterCancellationUnits": 2
+      }
+    },
+    "duplicateOrder": {
+      "rows": [
+        { "srid": "o-1", "date": "2026-09-26T09:00:00", "isCancel": false },
+        { "srid": "o-1", "date": "2026-09-26T09:00:00", "isCancel": false }
+      ],
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "DUPLICATE_ORDER_ID"
+      }
+    },
+    "percentChange": [
+      { "current": 120, "previous": 100, "expected": 20 },
+      { "current": 120, "previous": 0, "expected": null },
+      { "current": 120, "previous": null, "expected": null }
+    ]
+  },
+  "remainingOpen": [
+    "owner/business definition of revenue versus order value, sale value, buyout value, and payout",
+    "live WB values and owner gold-set agreement",
+    "explicit business timezone for relative periods when it differs from provider/report timezone",
+    "authoritative financial-field mapping for realization report details",
+    "full 14-day daily money metric without conflating preliminary operational price fields with final revenue"
+  ]
+}
