@@ -370,7 +370,10 @@ describe("OpenAPI foundation", () => {
       document.paths["/v1/bootstrap"]!.post.requestBody.content[
         "application/json"
       ]!.schema;
-    const v2 = (schema.anyOf ?? []).find((branch) =>
+    const nestedBranches = (schema.anyOf ?? []).flatMap(
+      (branch) => branch.anyOf ?? [],
+    );
+    const v2 = nestedBranches.find((branch) =>
       branch.anyOf?.some(
         (candidate) =>
           candidate.properties?.contractVersion?.enum?.[0] ===
