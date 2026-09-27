@@ -84,6 +84,10 @@ jobs:
               root / "assets" / "color-deepseek-r2.svg",
               root / "assets" / "color-alice-r2.svg",
               root / "assets" / "color-qwen-r2.svg",
+              root / "assets" / "contour-reference-r4-light.webp",
+              root / "assets" / "contour-reference-r4-dark.webp",
+              root / "assets" / "contour-grips-r4-light.webp",
+              root / "assets" / "contour-grips-r4-dark.webp",
               root / "robots.txt",
               sitemap_path,
               Path("apps/site/README.md"),
@@ -152,7 +156,7 @@ jobs:
 
           assert parser.html_lang == "ru", f"html lang must be ru, got {parser.html_lang!r}"
           assert parser.canonical == ["https://octoport.ru/"], parser.canonical
-          assert parser.stylesheets == ["/styles.css?v=contour-20260927-r3"], parser.stylesheets
+          assert parser.stylesheets == ["/styles.css?v=contour-20260927-r4"], parser.stylesheets
           assert parser.icons == [("/favicon.png", "image/png"), ("/assets/favicon-contour-v1.png", "image/png")], parser.icons
           assert parser.executable_scripts == 0, "M14 must remain executable-JavaScript-free"
           assert len(parser.json_ld) == 1, parser.json_ld
@@ -336,7 +340,7 @@ jobs:
               assert page_parser.html_lang == "ru", f"{page_name}: html lang must be ru"
               assert page_parser.canonical == [spec["canonical"]], \
                   f"{page_name}: unexpected canonical {page_parser.canonical}"
-              assert page_parser.stylesheets == ["/styles.css?v=contour-20260927-r3"], \
+              assert page_parser.stylesheets == ["/styles.css?v=contour-20260927-r4"], \
                   f"{page_name}: shared stylesheet link is missing"
               assert page_parser.executable_scripts == 0, f"{page_name}: executable JavaScript is forbidden"
               assert page_parser.json_ld == [], f"{page_name}: unexpected page-level JSON-LD"

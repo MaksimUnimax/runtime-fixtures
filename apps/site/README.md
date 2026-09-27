@@ -81,3 +81,5 @@ The former engraving hero is superseded by the existing working-design variant 2
 
 ### Contour R2 owner corrections
 Transparent scene in both themes, centered equally sized marketplace controls, six colored AI SVGs, magenta/blue marketplace circles, early 1180px stacking with up to 780px illustration below the copy. All eight controls remain independent. Evidence and source/live boundaries: `docs/design/CONTOUR_REWORK_R2_2026-09-27.md`.
+
+Contour R4 follows the owner monochrome references, with independent discs and static foreground grips. R2 stacking and the R3 slogan/heading are retained. Contract and verification: `docs/design/CONTOUR_REFERENCE_R4_2026-09-27.md`; reproducible theme layers: `apps/site/design-sources/build_contour_r4.py`.
