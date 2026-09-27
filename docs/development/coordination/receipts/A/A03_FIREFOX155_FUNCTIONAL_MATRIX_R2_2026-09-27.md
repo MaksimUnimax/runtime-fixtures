@@ -168,3 +168,44 @@ It is not:
 
 Those remaining items require their own real environment/store/owner evidence and
 must not be inferred from this Firefox result.
+
+
+## Post-merge exact acceptance
+
+After the test-only implementation commit, A merged fresh
+`origin/main=0208145336d75d10e2286fbcd8bd0c134215c815` normally, without rebase.
+Incoming changes were server/health/monitoring paths and did not overlap extension
+runtime or the Firefox harness.
+
+Merged exact HEAD:
+`683db3758435f81bc02236d10fc86a073be83b43`.
+
+Final merged evidence root:
+`/root/octoport-control/logs/A/A03_FIREFOX_FUNCTIONAL_MATRIX_R2_RUN15_MERGED/`.
+
+RUN15 result: **PASS** with the same accepted functional boundary:
+- Firefox 155.0.1;
+- real action popup opened with active ChatGPT tab preserved;
+- exact `https://chatgpt.com` origin;
+- disposable signed `control_plane_v2` authorization;
+- optional technical permission remained absent;
+- WB one read-only `seller_info` request, one delivery, no replay, explicit Finish;
+- Ozon one read-only `roles` request, one delivery, no replay, explicit Finish;
+- `liveProviderCalls=0`;
+- proxy upstream connections: `0`.
+
+Final merged local-development carrier SHA-256:
+`676b26152574be69a55568c0859783a83d001d5bae3732fa0b689ebae424f12e`.
+
+RUN15 summary SHA-256:
+`a2993344163f9784ab4fd0f87de3b1f5bac72241925b6fd1e8dd7cd0b8ecfcfe`.
+
+RUN15 functional result SHA-256:
+`68f965fa9bf52a99e82e2cab09bd890a5008c430e7221b542ff068d6849b9634`.
+
+Resource receipt:
+`/root/octoport-control/resource-jobs/2b8af29015f54ab3a71c71137651c4ac/receipt.json`.
+Supervisor exit 0, cleanup verified, peak about 1835 MiB, OOM kills 0.
+
+The three test/source file SHA-256 values are unchanged across the main merge, so
+RUN15 verifies the exact bytes being handed off.
