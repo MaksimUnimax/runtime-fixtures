@@ -12,6 +12,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[3] / 'apps/site/public'
 
+# R6 scene contract: the octopus/grips are path-only SVG layers; live acceptance remains separate.
 class Tags(HTMLParser):
     def __init__(self, html):
         super().__init__(); self.tags=[]; self.feed(html)
