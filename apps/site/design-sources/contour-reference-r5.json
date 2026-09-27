@@ -1,0 +1,17 @@
+{
+  "source_manifest": "contour-reference-r4.json",
+  "source_alpha_sha256": "904997e09f1cec29f56b80deef12ff773619cbf4ffdb760e3a5b51d08e6b6b05",
+  "grip_alpha_sha256": "899e4d1bdd0ca3cae4eef34938b8923904ba6c2a573c60df5238ca4ec4171d91",
+  "palette": {
+    "light": "#10243c",
+    "dark": "#ebffff"
+  },
+  "ink_overprint_passes": 3,
+  "alpha_formula": "round(255*(1-(1-a/255)^passes))",
+  "assets": {
+    "contour-reference-r5-light.webp": "adf1411d47d3c75586c2a14ecc5a1129555d6433a742032cbe41420de5f557e5",
+    "contour-grips-r5-light.webp": "038a2d96221d770e111f4474a7c22da72568764df9c3fd857846f3bab3207286",
+    "contour-reference-r5-dark.webp": "b87177d6d9d260c54b54ad09ef437f6255a443f07c7855440f9cb13698ce70b0",
+    "contour-grips-r5-dark.webp": "d0dec644f3c09050dd09e34186775e5d16dfc74bdbea3f7d7144a19623d6e63a"
+  }
+}
