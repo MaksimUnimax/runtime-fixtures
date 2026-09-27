@@ -114,9 +114,11 @@ No direct SQL is permitted for catalog activation.
 
 The a7bf-r2 C05 evidence closes the **disposable** API+worker+portal application rollback rehearsal for the exercised forward schema and exact a7bf/floor identities. Because accepted backend `22473b416949892d66e5d8e204805ea84347c329` has zero runtime/dependency delta across the compared service/contract paths, that proof is the current runtime-equivalent rollback evidence for this R5 source boundary. It does not authorize or prove a live owner-test/preprod deployment.
 
-The intended deployment/reviewer backend is the existing owner-test/preprod boundary documented by the accepted runbooks: public `https://api.octoport.ru` and `https://app.octoport.ru`, backed by `seller-agents-owner-test-api.service`, `seller-agents-owner-test-worker.service`, and `seller-agents-owner-test-portal.service`. This identifies the target from non-secret historical deployment metadata only; this R5 work does not inspect or assert its current live version/state.
+The intended deployment/reviewer backend is the existing owner-test/preprod boundary documented by the accepted runbooks: public `https://api.octoport.ru` and `https://app.octoport.ru`, backed by `seller-agents-owner-test-api.service`, `seller-agents-owner-test-worker.service`, and `seller-agents-owner-test-portal.service`. The target identity comes from non-secret historical deployment metadata; its current service/source identity is evaluated separately below using read-only local systemd/Git metadata only.
 
-Before B10 can be treated as a readback of that intended backend, those services must actually run an accepted runtime containing the B09/B10 routes/operator assumptions. If they do not, switching only those owner-test/preprod services to the accepted target is a separate bounded live deployment action requiring explicit owner authorization under the current runbook rules.
+Read-only systemd/source metadata was then checked without inspecting environment values, credentials, DB state or HTTP endpoints. All three owner-test/preprod services are active from `/root/runtime-fixtures-preprod-r1`; that checkout reports Git HEAD `d31a59a95cf9fa908b3410db200cf9dbadaa3209` and currently has local modifications in `packages/server/email/src/index.ts` and `packages/server/remote-config/src/index.ts`. The service processes were started from that checkout, so this observation does not assert the exact in-memory contents of later dirty-file edits.
+
+The committed d31 baseline is not B10-capable: it lacks `/v1/admin/compatibility/config-releases/latest`, the compatibility-release admin routes used by STORE planning, `tooling/server/store1-preflight-cli.ts`, and `tooling/server/store1-v2-signature-preflight.ts`. Its API/worker/portal/server/contracts/shared dependency delta to accepted `22473b416949892d66e5d8e204805ea84347c329` is substantial. Therefore the current owner-test/preprod deployment cannot be used as the intended B10 read-only reviewer backend without a separately authorized bounded deployment to an accepted STORE-preflight-capable runtime.
 
 No down migration is part of application rollback. The tested application floor remains `d24838669c54f21dc161dc48a7e71e0e288384c2` on the compatible forward schema; restoring an older database snapshot after writes reopen remains a separate recovery/data-loss decision.
 
@@ -124,10 +126,10 @@ No down migration is part of application rollback. The tested application floor 
 
 Do **not** request credentials or OTP in chat.
 
-The first owner-controlled live action depends on the current intended-backend state:
+The current read-only source metadata resolves the ordering:
 
-- If the intended reviewer backend does **not** yet run the accepted STORE-preflight-capable runtime, the first owner action is explicit authorization for the bounded owner-test/preprod deployment. Source/disposable preparation alone cannot perform that live switch.
-- Once the intended backend is reachable on the accepted runtime, the next genuine human factor is the dedicated reviewer's ordinary login/OTP flow needed to create the protected admin/reviewer authentication inputs through supported product paths. Return only safe status (message arrived, approximate delay, accepted/not accepted, safe visible error/request ID). Never return OTP, token, cookie or credential content.
+1. **First genuine owner action: authorize the bounded owner-test/preprod deployment.** The observed owner-test service checkout is d31-based and is not B10-capable, so source/disposable preparation alone cannot make it the intended reviewer backend. This authorization must cover only the already documented owner-test API/worker/portal switch and its backup/forward-schema/readiness/rollback controls; it is not catalog-mutation or production authorization.
+2. **After that deployment is verified:** the next genuine human factor is the dedicated reviewer's ordinary login/OTP flow needed to create the protected admin/reviewer authentication inputs through supported product paths. Return only safe status (message arrived, approximate delay, accepted/not accepted, safe visible error/request ID). Never return OTP, token, cookie or credential content.
 
 The existing early STORE Submit authorization does not authorize deployment, catalog mutation, beta changes, commercial activation or sharing owner credentials.
 
@@ -137,6 +139,7 @@ Before requesting either live action C may:
 - keep exact package/hash/manifest and command identities frozen;
 - maintain the mode-0600 protected-input template and sanitized operator checklist;
 - bind the a7bf-r2 C05 rollback evidence and its exact SHA-256 to the runtime-equivalent accepted backend source `22473b416949892d66e5d8e204805ea84347c329`;
+- preserve the read-only owner-test deployment finding (`/root/runtime-fixtures-preprod-r1`, d31 baseline, B10-required route/tooling gaps) without reading secret environment values;
 - verify branch/main CI and current source ancestry;
 - integrate submitted A/B source candidates normally;
 - consume B10/B11 source tests and disposable evidence;
