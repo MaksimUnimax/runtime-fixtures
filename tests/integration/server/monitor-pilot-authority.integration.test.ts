@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
@@ -136,6 +137,31 @@ async function counts() {
   return result.rows[0]!;
 }
 
+function runAuthorityPreflightCli(identity: {
+  expectedDatabaseName: string;
+  expectedDatabaseRole: string;
+}) {
+  return spawnSync(
+    process.execPath,
+    [
+      "--import",
+      "tsx",
+      "tests/integration/server/fixtures/monitor-pilot-authority-cli.ts",
+    ],
+    {
+      cwd: process.cwd(),
+      env: {
+        ...process.env,
+        VITEST: "true",
+        DATABASE_URL: connectionString,
+        MONITOR_PILOT_TEST_DATABASE_ROLE: identity.expectedDatabaseRole,
+        MONITOR_PILOT_TEST_DATABASE_NAME: identity.expectedDatabaseName,
+      },
+      encoding: "utf8",
+    },
+  );
+}
+
 async function temporaryOpsPrincipal() {
   const userId = randomUUID();
   const principalId = randomUUID();
@@ -256,6 +282,19 @@ describe.sequential("isolated monitor pilot authority provisioning", () => {
     if (empty.kind === "READY") await probe();
     expect(probe).not.toHaveBeenCalled();
 
+    const missingAuthorityCli = runAuthorityPreflightCli(identity);
+    expect(
+      missingAuthorityCli.status,
+      missingAuthorityCli.stderr || missingAuthorityCli.stdout,
+    ).toBe(2);
+    expect(missingAuthorityCli.stderr).toBe("");
+    expect(missingAuthorityCli.stdout).toContain(
+      "MONITOR_PILOT_PREFLIGHT=MISSING_AUTHORITY",
+    );
+    expect(missingAuthorityCli.stdout).toContain(
+      "NO_SESSION_PROVIDER_AUTHORITY_NOT_FOUND",
+    );
+
     const beforeWrongRole = await counts();
     await expect(
       preflightMonitorPilotAuthorityForTest(runtime, {
@@ -277,6 +316,12 @@ describe.sequential("isolated monitor pilot authority provisioning", () => {
     expect(
       (await preflightMonitorPilotAuthorityForTest(runtime, identity)).kind,
     ).toBe("READY");
+    const readyCli = runAuthorityPreflightCli(identity);
+    expect(readyCli.status, readyCli.stderr || readyCli.stdout).toBe(0);
+    expect(readyCli.stderr).toBe("");
+    expect(readyCli.stdout).toContain(
+      "MONITOR_PILOT_PREFLIGHT=READY; issues=none",
+    );
 
     const afterInit = await counts();
     expect(afterInit).toMatchObject({

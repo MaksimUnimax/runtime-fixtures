@@ -166,3 +166,25 @@ After normal C intake/acceptance, the controller owns the already-authorized iso
 5. verify nine persisted observations/classifications and notification state.
 
 The previous nine failed scheduled records remain historical evidence and must not be rewritten as successful.
+
+## Controller-audit correction — CLI preflight exit status
+
+The 2026-09-27 controller audit found one bounded gate defect in the candidate above: the production CLI printed a MISSING_AUTHORITY preflight result and then returned exit status 0 because no exception was raised.
+
+The correction preserves the existing read-only preflight and database hard-pin:
+
+- READY leaves exit status 0;
+- any non-READY preflight result keeps the safe target-key diagnostics and sets exit status 2;
+- operational/configuration exceptions still use the existing catch path and exit status 1;
+- production CLI preflight is hard-pinned to octoport_monitor_pilot in every environment; no environment variable can replace that database name;
+- the disposable PostgreSQL subprocess proof uses a separate integration-only entrypoint under tests/integration/server/fixtures, which calls the same production preflight-result reporting/exit-code seam with the existing VITEST-gated test preflight identity.
+
+Fresh verification on Node 24.20.0 / pnpm 10.34.5:
+
+- manifest unit: **2/2 PASS**;
+- disposable PostgreSQL authority integration: **3/3 PASS**, supervisor octoport-test-b-6b2c8e852a0f49b0af7943f02908ace5.service, peak 593 MiB, cleanup verified;
+- the integration starts a separate test-only TypeScript subprocess before provisioning and proves MISSING_AUTHORITY + exact NO_SESSION_PROVIDER_AUTHORITY_NOT_FOUND + exit 2, then starts it after provisioning and proves READY; issues=none + exit 0; both paths use the same production result-reporting/exit-code function;
+- controller notice B-CLI-PREFLIGHT-PIN-20260927-1345 is addressed by removing the environment-controlled database-name override from the production CLI.
+- intermediate candidate cc9d9070bdef9f8cb4266d59ba9aa91ffef9474f is superseded by this hard-pin correction and must not be integrated.
+
+No pilot/live database was accessed or mutated by this correction.
