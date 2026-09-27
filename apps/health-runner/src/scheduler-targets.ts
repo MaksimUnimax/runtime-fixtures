@@ -96,6 +96,108 @@ export function createNoSessionHealthSchedules(
   }));
 }
 
+export type AuthenticatedDeepScheduleSyncResult = Readonly<{
+  created: number;
+  enabled: number;
+  disabled: number;
+}>;
+
+function sameCadence(
+  left: HealthSchedule["cadence"],
+  right: HealthSchedule["cadence"],
+): boolean {
+  return (
+    left.intervalSeconds === right.intervalSeconds &&
+    left.timeoutSeconds === right.timeoutSeconds &&
+    left.maxAttempts === right.maxAttempts &&
+    left.retryPolicyVersion === right.retryPolicyVersion
+  );
+}
+
+function assertAuthenticatedDeepScheduleIdentity(
+  existing: HealthSchedule,
+  expected: HealthScheduleInput,
+): void {
+  if (
+    existing.monitorTarget !== expected.monitorTarget ||
+    existing.provider !== expected.provider ||
+    existing.surface !== expected.surface ||
+    existing.probeLayer !== "AUTHENTICATED_DEEP"
+  ) {
+    throw new Error("AUTHENTICATED_DEEP_SCHEDULE_IDENTITY_CONFLICT");
+  }
+}
+
+/**
+ * Reconciles the two packaged deep schedules against currently trusted
+ * dedicated-session targets. Missing targets are disabled before the shared
+ * durable scheduler can materialize work, so a removed session cannot Send.
+ */
+export async function ensureAuthenticatedDeepHealthSchedules(
+  repository: NoSessionScheduleBootstrapRepository,
+  firstDueAt: Date,
+  configuredTargetKeys: readonly string[],
+): Promise<AuthenticatedDeepScheduleSyncResult> {
+  const desired = createAuthenticatedDeepHealthSchedules(
+    firstDueAt,
+    configuredTargetKeys,
+  );
+  const desiredById = new Map(
+    desired.map((schedule) => [schedule.scheduleId, schedule] as const),
+  );
+  const canonical = createAuthenticatedDeepHealthSchedules(
+    firstDueAt,
+    Object.values(AUTHENTICATED_DEEP_TARGETS).map((target) => target.targetKey),
+  );
+  let created = 0;
+  let enabled = 0;
+  let disabled = 0;
+
+  for (const expected of canonical) {
+    const existing = await repository.getSchedule(expected.scheduleId);
+    const wanted = desiredById.get(expected.scheduleId);
+    if (!existing) {
+      if (!wanted) continue;
+      try {
+        await repository.createSchedule(wanted);
+        created += 1;
+      } catch {
+        const raced = await repository.getSchedule(wanted.scheduleId);
+        if (!raced)
+          throw new Error("AUTHENTICATED_DEEP_SCHEDULE_BOOTSTRAP_FAILED");
+        assertAuthenticatedDeepScheduleIdentity(raced, wanted);
+      }
+      continue;
+    }
+
+    assertAuthenticatedDeepScheduleIdentity(existing, expected);
+    if (!wanted) {
+      if (existing.enabled) {
+        await repository.updateSchedule({
+          scheduleId: existing.scheduleId,
+          enabled: false,
+          cadence: existing.cadence,
+          nextDueAt: existing.nextDueAt,
+        });
+        disabled += 1;
+      }
+      continue;
+    }
+
+    if (!existing.enabled || !sameCadence(existing.cadence, wanted.cadence)) {
+      await repository.updateSchedule({
+        scheduleId: existing.scheduleId,
+        enabled: true,
+        cadence: wanted.cadence,
+        nextDueAt: firstDueAt,
+      });
+      enabled += 1;
+    }
+  }
+
+  return Object.freeze({ created, enabled, disabled });
+}
+
 export interface NoSessionScheduleBootstrapRepository {
   getSchedule(scheduleId: string): Promise<HealthSchedule | undefined>;
   createSchedule(input: unknown): Promise<HealthSchedule>;

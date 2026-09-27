@@ -88,16 +88,33 @@ export function createTrustedDedicatedHealthSessionRegistry(
   return registry;
 }
 
-export function resolveTrustedDedicatedHealthSessionBinding(
+function trustedBindings(
   registry: DedicatedHealthSessionRegistry,
-  targetKey: string,
-): TrustedDedicatedHealthSessionBinding {
+): ReadonlyMap<
+  DedicatedHealthSessionTargetKey,
+  TrustedDedicatedHealthSessionBinding
+> {
   if (
     (typeof registry !== "object" && typeof registry !== "function") ||
     registry === null
   ) {
     fail("UNTRUSTED_SESSION_REGISTRY");
   }
+  const bindings = registryBindings.get(registry);
+  if (!bindings) fail("UNTRUSTED_SESSION_REGISTRY");
+  return bindings;
+}
+
+export function listTrustedDedicatedHealthSessionTargetKeys(
+  registry: DedicatedHealthSessionRegistry,
+): readonly DedicatedHealthSessionTargetKey[] {
+  return Object.freeze([...trustedBindings(registry).keys()]);
+}
+
+export function resolveTrustedDedicatedHealthSessionBinding(
+  registry: DedicatedHealthSessionRegistry,
+  targetKey: string,
+): TrustedDedicatedHealthSessionBinding {
   if (
     targetKey !== "chatgpt_standard_health" &&
     targetKey !== "chatgpt_work_health" &&
@@ -105,9 +122,7 @@ export function resolveTrustedDedicatedHealthSessionBinding(
   ) {
     fail("TARGET_NOT_CONFIGURED");
   }
-  const bindings = registryBindings.get(registry);
-  if (!bindings) fail("UNTRUSTED_SESSION_REGISTRY");
-  const binding = bindings.get(targetKey);
+  const binding = trustedBindings(registry).get(targetKey);
   if (!binding) fail("TARGET_NOT_CONFIGURED");
   return binding;
 }

@@ -5,6 +5,8 @@ import {
   classifyHealth,
   runDurableHealthSchedulerCycle,
   type DurableHealthSchedulerRepository,
+  type HealthSchedule,
+  type HealthScheduleInput,
   type HealthScheduledRun,
 } from "@product/health";
 import type {
@@ -19,7 +21,10 @@ import {
   NO_SESSION_HEALTH_WAKE_MS,
   type AuthenticatedDeepPersistencePort,
 } from "./health-runtime.js";
-import { H3ExecutionResultSchema } from "@product/health-runner";
+import {
+  createAuthenticatedDeepHealthSchedules,
+  H3ExecutionResultSchema,
+} from "@product/health-runner";
 
 const startedAt = new Date("2026-09-24T12:00:00.000Z");
 const completedAt = new Date("2026-09-24T12:00:01.000Z");
@@ -214,6 +219,233 @@ describe("C04 monitor-pilot authority gate", () => {
     expect(getSchedule).not.toHaveBeenCalled();
     expect(listDueSchedules).not.toHaveBeenCalled();
     expect(probe).not.toHaveBeenCalled();
+  });
+});
+
+describe("C04 authenticated-deep shared scheduler gate", () => {
+  function row(input: HealthScheduleInput): HealthSchedule {
+    return {
+      ...input,
+      lastAttemptAt: null,
+      lastSuccessAt: null,
+      createdAt: new Date(0),
+      updatedAt: new Date(0),
+    };
+  }
+
+  function repositoryWithRows(rows: Map<string, HealthSchedule>) {
+    const claimNext = vi.fn<DurableHealthSchedulerRepository["claimNext"]>(
+      async () => null,
+    );
+    const startRun = vi.fn<DurableHealthSchedulerRepository["startRun"]>(
+      async () => {
+        throw new Error("START_RUN_NOT_CONFIGURED");
+      },
+    );
+    const finishSuccess = vi.fn<
+      DurableHealthSchedulerRepository["finishSuccess"]
+    >(async () => {
+      throw new Error("FINISH_SUCCESS_NOT_CONFIGURED");
+    });
+    const finishFailure = vi.fn<
+      DurableHealthSchedulerRepository["finishFailure"]
+    >(async () => {
+      throw new Error("FINISH_FAILURE_NOT_CONFIGURED");
+    });
+    const timeoutRun = vi.fn<DurableHealthSchedulerRepository["timeoutRun"]>(
+      async () => {
+        throw new Error("TIMEOUT_RUN_NOT_CONFIGURED");
+      },
+    );
+    return {
+      getSchedule: vi.fn(async (id: string) => rows.get(id)),
+      createSchedule: vi.fn(async (input: unknown) => {
+        const schedule = input as HealthScheduleInput;
+        const created = row(schedule);
+        rows.set(schedule.scheduleId, created);
+        return created;
+      }),
+      updateSchedule: vi.fn(
+        async (input: {
+          scheduleId: string;
+          enabled: boolean;
+          cadence: HealthSchedule["cadence"];
+          nextDueAt: Date;
+        }) => {
+          const existing = rows.get(input.scheduleId);
+          if (!existing) throw new Error("missing");
+          const updated: HealthSchedule = {
+            ...existing,
+            enabled: input.enabled,
+            cadence: input.cadence,
+            nextDueAt: input.nextDueAt,
+            revision: existing.revision + 1,
+            updatedAt: completedAt,
+          };
+          rows.set(input.scheduleId, updated);
+          return updated;
+        },
+      ),
+      listDueSchedules: vi.fn(async () => []),
+      materializeDueSlot: vi.fn(async () => null),
+      claimNext,
+      startRun,
+      finishSuccess,
+      finishFailure,
+      timeoutRun,
+      reconcilePersistedResults: vi.fn(async () => 0),
+    };
+  }
+
+  it("keeps public bootstrap active while unavailable deep authority disables stale schedules", async () => {
+    const rows = new Map<string, HealthSchedule>();
+    for (const schedule of createAuthenticatedDeepHealthSchedules(completedAt, [
+      "chatgpt_standard_health",
+      "chatgpt_work_health",
+    ])) {
+      rows.set(schedule.scheduleId, row(schedule));
+    }
+    const repository = repositoryWithRows(rows);
+    const unavailable = vi.fn();
+    const prepareAuthenticatedDeep = vi.fn(async () => {
+      throw new Error("SESSION_CONFIG_UNAVAILABLE");
+    });
+    const runtime = createDurableNoSessionHealthRuntime({
+      repository: repository as unknown as Parameters<
+        typeof createDurableNoSessionHealthRuntime
+      >[0]["repository"],
+      completion: { completeScheduledNoSessionHealthRun: vi.fn() },
+      clock: { now: () => completedAt },
+      ownerId: "shared-gate-test",
+      prepareAuthenticatedDeep,
+      onAuthenticatedDeepUnavailable: unavailable,
+    });
+
+    await runtime.runScheduledCycle();
+
+    expect(prepareAuthenticatedDeep).toHaveBeenCalledTimes(1);
+    expect(unavailable).toHaveBeenCalledTimes(1);
+    expect(
+      [...rows.values()].filter((item) => item.probeLayer === "NO_SESSION"),
+    ).toHaveLength(9);
+    expect(
+      [...rows.values()]
+        .filter((item) => item.probeLayer === "AUTHENTICATED_DEEP")
+        .every((item) => item.enabled === false),
+    ).toBe(true);
+
+    const executeDeep = vi.fn();
+    const configured = createDurableNoSessionHealthRuntime({
+      repository: repository as unknown as Parameters<
+        typeof createDurableNoSessionHealthRuntime
+      >[0]["repository"],
+      completion: { completeScheduledNoSessionHealthRun: vi.fn() },
+      clock: { now: () => completedAt },
+      ownerId: "shared-gate-test",
+      prepareAuthenticatedDeep: async () => ({
+        configuredTargetKeys: ["chatgpt_standard_health"],
+        execute: executeDeep,
+      }),
+    });
+    await configured.runScheduledCycle();
+
+    const deep = [...rows.values()].filter(
+      (item) => item.probeLayer === "AUTHENTICATED_DEEP",
+    );
+    expect(
+      deep.find((item) => item.monitorTarget === "authdeep_chatgpt_standard")
+        ?.enabled,
+    ).toBe(true);
+    expect(
+      deep.find((item) => item.monitorTarget === "authdeep_chatgpt_work")
+        ?.enabled,
+    ).toBe(false);
+    expect(executeDeep).not.toHaveBeenCalled();
+  });
+
+  it("terminalizes an already-materialized deep run when current session authority is unavailable", async () => {
+    const rows = new Map<string, HealthSchedule>();
+    const repository = repositoryWithRows(rows);
+    const pending = run({
+      id: "00000000-0000-4000-8000-000000000020",
+      scheduleId: "00000000-0000-4000-8000-000000000021",
+      monitorTarget: "authdeep_chatgpt_standard",
+      provider: "chatgpt",
+      surface: "CHATGPT_STANDARD",
+      probeLayer: "AUTHENTICATED_DEEP",
+      state: "PENDING",
+      ownerId: null,
+      leaseId: null,
+      claimedAt: null,
+      leaseExpiresAt: null,
+      timeoutAt: null,
+      startedAt: null,
+    });
+    let claimed = false;
+    repository.claimNext.mockImplementation(
+      async ({ ownerId, now, leaseMs }) => {
+        if (claimed) return null;
+        claimed = true;
+        return {
+          ...pending,
+          state: "CLAIMED",
+          ownerId,
+          leaseId: "00000000-0000-4000-8000-000000000022",
+          claimedAt: now,
+          leaseExpiresAt: new Date(now.valueOf() + leaseMs),
+        };
+      },
+    );
+    repository.startRun.mockImplementation(async ({ now }) => ({
+      ...pending,
+      state: "RUNNING",
+      ownerId: "shared-gate-test",
+      leaseId: "00000000-0000-4000-8000-000000000022",
+      claimedAt: now,
+      leaseExpiresAt: new Date(now.valueOf() + 120_000),
+      timeoutAt: new Date(now.valueOf() + 60_000),
+      startedAt: now,
+    }));
+    repository.finishFailure.mockImplementation(
+      async ({ now, failureClass, failureCode }) => ({
+        ...pending,
+        state: "FAILED_TERMINAL",
+        ownerId: null,
+        leaseId: null,
+        claimedAt: completedAt,
+        leaseExpiresAt: null,
+        timeoutAt: new Date(completedAt.valueOf() + 60_000),
+        startedAt: completedAt,
+        finishedAt: now,
+        failureClass,
+        failureCode,
+      }),
+    );
+    const unavailable = vi.fn();
+    const runtime = createDurableNoSessionHealthRuntime({
+      repository: repository as unknown as Parameters<
+        typeof createDurableNoSessionHealthRuntime
+      >[0]["repository"],
+      completion: { completeScheduledNoSessionHealthRun: vi.fn() },
+      clock: { now: () => completedAt },
+      ownerId: "shared-gate-test",
+      prepareAuthenticatedDeep: async () => {
+        throw new Error("SESSION_CONFIG_UNAVAILABLE");
+      },
+      onAuthenticatedDeepUnavailable: unavailable,
+    });
+
+    const summary = await runtime.runScheduledCycle();
+
+    expect(summary.terminalFailures).toBe(1);
+    expect(unavailable).toHaveBeenCalledTimes(1);
+    expect(repository.finishFailure).toHaveBeenCalledWith(
+      expect.objectContaining({
+        failureClass: "TERMINAL_CONFIGURATION",
+        failureCode: "AUTHENTICATED_DEEP_DEPENDENCY_UNAVAILABLE",
+      }),
+    );
+    expect(repository.finishSuccess).not.toHaveBeenCalled();
   });
 });
 
