@@ -35,7 +35,7 @@ class ContourSourceTests(unittest.TestCase):
         self.assertNotIn('background-position',self.css)
         self.assertNotIn('engraving-3-underlay',self.html)
     def test_clean_source_and_two_static_theme_layers(self):
-        manifest=json.loads((ROOT.parent/'design-sources/contour-reference-r4.json').read_text())
+        manifest=json.loads((ROOT.parent/'design-sources/contour-reference-r5.json').read_text())
         for name,sha in manifest['assets'].items():
             self.assertEqual(hashlib.sha256((ROOT/'assets'/name).read_bytes()).hexdigest(),sha,name)
         underlays=[a for t,a in self.tags if t=='img' and 'contour-underlay' in a.get('class','').split()]
@@ -45,6 +45,19 @@ class ContourSourceTests(unittest.TestCase):
         self.assertNotIn('transform',block)
         self.assertNotIn('transition',block)
         self.assertNotIn('animation',block)
+    def test_r5_ink_overprint_matches_disc_palette(self):
+        source=ROOT.parent/'design-sources'
+        m=json.loads((source/'contour-reference-r5.json').read_text())
+        self.assertEqual(m['palette'], {'light':'#10243c','dark':'#ebffff'})
+        self.assertEqual(m['ink_overprint_passes'], 3)
+        raw=zlib.decompress(base64.b64decode((source/'contour-reference-r4-alpha.b64').read_text()))
+        levels=sorted(set(raw)-{0})
+        boosted=[round(255*(1-(1-v/255)**m['ink_overprint_passes'])) for v in levels]
+        self.assertGreaterEqual(min(boosted), 90)
+        for theme in ('light','dark'):
+            self.assertIn('/assets/contour-reference-r5-'+theme+'.webp', self.html)
+            self.assertIn('/assets/contour-grips-r5-'+theme+'.webp', self.html)
+
     def test_marketplaces_are_lower_and_ordered(self):
         def pos(name):
             block=re.search(r'(?m)^\s*\.pos-'+name+r'\s*\{([^}]+)\}',self.css).group(1)
