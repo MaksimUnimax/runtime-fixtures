@@ -24,16 +24,20 @@ import { z } from "zod";
 import {
   BootstrapSnapshotPayloadV1Schema,
   BootstrapSnapshotPayloadV2Schema,
+  BootstrapSnapshotPayloadV3Schema,
   SignedBootstrapEnvelopeV1Schema,
   SignedBootstrapEnvelopeV2Schema,
+  SignedBootstrapEnvelopeV3Schema,
   HealthClaimV1Schema,
   SignedHealthEnvelopeV1Schema,
   type BootstrapSnapshotPayloadV1,
   type BootstrapSnapshotPayloadV2,
+  type BootstrapSnapshotPayloadV3,
   type HealthClaimV1,
   type SignedHealthEnvelopeV1,
   type SignedBootstrapEnvelopeV1,
   type SignedBootstrapEnvelopeV2,
+  type SignedBootstrapEnvelopeV3,
 } from "@product/contracts";
 
 const HashSchema = z.string().regex(/^[0-9a-f]{64}$/);
@@ -1092,6 +1096,27 @@ export function signBootstrapSnapshotV2(
   });
 }
 
+/** Standalone dormant v3 signer; intentionally not wired into producer services. */
+export function signBootstrapSnapshotV3(
+  payload: BootstrapSnapshotPayloadV3,
+  keyId: string,
+  privateKey: KeyObject,
+): SignedBootstrapEnvelopeV3 {
+  const parsed = BootstrapSnapshotPayloadV3Schema.parse(payload);
+  const payloadBytes = canonicalizeJson(parsed);
+  return SignedBootstrapEnvelopeV3Schema.parse({
+    envelopeVersion: "bootstrap_envelope_v3",
+    algorithm: "Ed25519",
+    keyId,
+    payload: payloadBytes.toString("base64url"),
+    signature: sign(
+      null,
+      bootstrapSigningBytes(keyId, payloadBytes),
+      privateKey,
+    ).toString("base64url"),
+  });
+}
+
 export function signHealthClaimV1(
   claim: HealthClaimV1,
   keyId: string,
@@ -1251,6 +1276,53 @@ export function verifyBootstrapEnvelopeV2(
     return { ok: false, error: "INVALID_PAYLOAD_JSON" };
   }
   const payload = BootstrapSnapshotPayloadV2Schema.safeParse(json);
+  if (!payload.success) return { ok: false, error: "INVALID_PAYLOAD_SCHEMA" };
+  try {
+    if (!canonicalizeJson(payload.data).equals(payloadBytes))
+      return { ok: false, error: "NON_CANONICAL_PAYLOAD" };
+  } catch {
+    return { ok: false, error: "INVALID_PAYLOAD_SCHEMA" };
+  }
+  return { ok: true, payload: payload.data };
+}
+
+export type VerifyBootstrapEnvelopeV3Result =
+  | { ok: true; payload: BootstrapSnapshotPayloadV3 }
+  | { ok: false; error: BootstrapVerificationFailure };
+
+/** Standalone dormant v3 verifier using the existing key binding and domain. */
+export function verifyBootstrapEnvelopeV3(
+  input: unknown,
+  ring: TrustedConfigSigningKeyRing,
+): VerifyBootstrapEnvelopeV3Result {
+  const envelope = SignedBootstrapEnvelopeV3Schema.safeParse(input);
+  if (!envelope.success) return { ok: false, error: "INVALID_ENVELOPE" };
+  const publicKey = ring.get(envelope.data.keyId);
+  if (!publicKey) return { ok: false, error: "UNKNOWN_SIGNING_KEY" };
+  const payloadBytes = decodeBase64Url(envelope.data.payload);
+  const signature = decodeBase64Url(envelope.data.signature);
+  if (!payloadBytes || !signature)
+    return { ok: false, error: "INVALID_PAYLOAD_ENCODING" };
+  try {
+    if (
+      !verify(
+        null,
+        bootstrapSigningBytes(envelope.data.keyId, payloadBytes),
+        publicKey,
+        signature,
+      )
+    )
+      return { ok: false, error: "INVALID_SIGNATURE" };
+  } catch {
+    return { ok: false, error: "INVALID_SIGNATURE" };
+  }
+  let json: unknown;
+  try {
+    json = JSON.parse(payloadBytes.toString("utf8"));
+  } catch {
+    return { ok: false, error: "INVALID_PAYLOAD_JSON" };
+  }
+  const payload = BootstrapSnapshotPayloadV3Schema.safeParse(json);
   if (!payload.success) return { ok: false, error: "INVALID_PAYLOAD_SCHEMA" };
   try {
     if (!canonicalizeJson(payload.data).equals(payloadBytes))
