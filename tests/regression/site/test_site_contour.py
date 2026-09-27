@@ -42,7 +42,7 @@ class ContourSourceTests(unittest.TestCase):
         self.assertNotIn('animation',block)
     def test_marketplaces_are_lower_and_ordered(self):
         def pos(name):
-            block=re.search(r'\.pos-'+name+r'\s*\{([^}]+)\}',self.css).group(1)
+            block=re.search(r'(?m)^\s*\.pos-'+name+r'\s*\{([^}]+)\}',self.css).group(1)
             return tuple(float(re.search(key+r':\s*([\d.]+)%',block).group(1)) for key in ('left','top'))
         self.assertLess(pos('wb')[0],50); self.assertGreater(pos('ozon')[0],50)
         self.assertGreater(pos('wb')[1],70); self.assertGreater(pos('ozon')[1],70)
@@ -65,6 +65,61 @@ class ContourSourceTests(unittest.TestCase):
         fonts=re.findall(r'url\((/assets/fonts/[^)]+)\)',self.css)
         self.assertTrue(fonts)
         for name in fonts: self.assertTrue((ROOT/name.lstrip('/')).is_file(),name)
+    def test_no_rectangular_scene_background(self):
+        block=re.search(r'\.contour-scene\s*\{([^}]+)\}',self.css).group(1)
+        self.assertIn('background:transparent',block.replace(' ',''))
+        self.assertNotIn('box-shadow',block)
+        self.assertNotIn('background:var(--art-paper)',self.css)
+
+    def test_marketplace_controls_share_centered_slots(self):
+        self.assertEqual(self.html.count('class="market-logo-slot"'),2)
+        self.assertEqual(self.html.count('class="market-label"'),2)
+        self.assertNotIn('.market-badge b',self.css)
+        self.assertNotIn('.pos-ozon b',self.css)
+        self.assertIn('text-align:center',self.css)
+        for name in ['wb','ozon']:
+            self.assertIn('/assets/color-'+name+'-r2.svg',self.html)
+            self.assertTrue((ROOT/('assets/color-'+name+'-r2.svg')).is_file())
+
+    def test_all_ai_colors_are_preserved_in_both_themes(self):
+        self.assertNotIn('brightness(0) invert(1)',self.css)
+        for name in ['alice','gemini','chatgpt','deepseek','anthropic','qwen']:
+            src='/assets/color-'+name+'-r2.svg'
+            self.assertIn(src,self.html)
+            svg=(ROOT/src.lstrip('/')).read_text()
+            self.assertRegex(svg,r'#[0-9a-fA-F]{6}')
+            self.assertNotIn('currentColor',svg)
+            self.assertNotIn('<image',svg)
+        self.assertIn('#005bff',self.css)
+        self.assertIn('#e313bf',self.css)
+
+    def test_tablet_stacking_precedes_mobile_breakpoint(self):
+        self.assertIn('@media (max-width:1180px)',self.css)
+        block=self.css.split('@media (max-width:1180px)',1)[1].split('@media',1)[0]
+        self.assertIn('grid-template-columns:minmax(0,1fr)',block)
+        self.assertIn('max-width:780px',block)
+        self.assertIn('width:100%',block)
+
+    def test_r3_slogan_below_scene_not_inside_art(self):
+        self.assertEqual(self.html.count('class="contour-slogan"'),1)
+        scene_end=self.html.index('          </div>',self.html.index('class="contour-scene"'))
+        slogan=self.html.index('class="contour-slogan"')
+        self.assertLess(scene_end,slogan)
+        self.assertIn('Сложные технологии.<br />Простые решения.',self.html)
+        self.assertIn('.contour-slogan',self.css)
+
+    def test_r3_single_h1_preserves_words_with_color_spans(self):
+        fragment=re.findall(r'<h1>(.*?)</h1>',self.html,re.S)
+        self.assertEqual(len(fragment),1)
+        self.assertEqual(re.sub(r'<[^>]+>','',fragment[0]),'Подключите ваш ИИ к Ozon и Wildberries')
+        self.assertIn('<span class="brand-ozon">Ozon</span>',fragment[0])
+        self.assertIn('<span class="brand-wildberries">Wildberries</span>',fragment[0])
+
+    def test_r3_colored_dark_rings_on_buttons_only(self):
+        self.assertIn('.theme-checkbox:checked + .page .ai-badge { border-color:#8295f4;',self.css)
+        self.assertIn('.theme-checkbox:checked + .page .ai-badge:focus-visible',self.css)
+        self.assertNotIn('filter:grayscale',self.css)
+
     def test_local_images_resolve_and_no_executable_javascript(self):
         for tag,a in self.tags:
             if tag=='img': self.assertTrue((ROOT/a['src'].lstrip('/')).is_file(),a['src'])

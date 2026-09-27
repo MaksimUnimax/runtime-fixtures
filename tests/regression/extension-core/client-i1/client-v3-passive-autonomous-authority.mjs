@@ -167,6 +167,39 @@ try {
     "fixture legacy grace must be later than the v3 hard boundary",
   );
 
+
+  // Server business GRACE can outlive the fixed commercial offline window.
+  // CACHE must honor hard even while this signed response is still fresh;
+  // a current permitting ONLINE response retains its own short expiry.
+  for (const hardInstant of [t0 + 10 * 60 * 1000, expires]) {
+    const overlapping = await makeV3({
+      subscription: { state: "GRACE", planRevision: "paid-plan-v3" },
+      subscriptionAccess: {
+        schemaVersion: "subscription_access_v1",
+        paidThrough: new Date(hardInstant - 72 * 60 * 60 * 1000).toISOString(),
+        offlineHardUntil: new Date(hardInstant).toISOString(),
+      },
+    });
+    for (const instant of [hardInstant - 1, hardInstant, hardInstant + 1]) {
+      const cached = await evaluateAt(overlapping, instant, "CACHE");
+      assert.equal(
+        cached.allowed,
+        instant < hardInstant,
+        JSON.stringify(cached),
+      );
+      if (instant >= hardInstant) {
+        assert.equal(cached.freshness, "CACHE_EXPIRED");
+        assert.ok(cached.deniedGates.includes("DENY_CACHE_EXPIRED"));
+      }
+      const current = await evaluateAt(overlapping, instant, "ONLINE");
+      assert.equal(
+        current.allowed,
+        instant < expires,
+        JSON.stringify(current),
+      );
+    }
+  }
+
   const trial = await makeV3({
     subscription: { state: "TRIAL", planRevision: "trial-v3" },
     subscriptionAccess: null,
@@ -242,6 +275,8 @@ try {
       status: "PASS",
       paid_through_refresh_fallback_to_hard: true,
       hard_exact_denied: true,
+      hard_before_or_equal_expiry_denied: true,
+      current_online_grace_preserved: true,
       legacy_grace_does_not_extend_paid_cache: true,
       trial_has_no_offline_grace: true,
       beta_legacy_grace_preserved: true,
