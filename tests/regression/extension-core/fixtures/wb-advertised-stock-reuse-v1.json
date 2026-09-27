@@ -1,0 +1,208 @@
+{
+  "schemaVersion": "wb_advertised_stock_reuse_v1",
+  "capturedDate": "2026-09-27",
+  "scope": {
+    "scenarioIds": ["STD-18"],
+    "boundary": "ACTIVE_CAMPAIGN_MEMBERSHIP_NOT_PROMO_ELIGIBILITY_JOINS_CURRENT_STOCK",
+    "evidence": "CURRENT_UPSTREAM_OPENAPI_MIRROR_PLUS_REUSED_STOCK_SCHEMA",
+    "liveValues": false,
+    "acceptedOperationMappingChanged": true
+  },
+  "authority": {
+    "mirrorRepository": "eslazarev/wildberries-sdk",
+    "mirrorCommit": "5057bdb9bf16dea24000e3ca79e1934f7761d7fe",
+    "specPath": "specs/08-promotion.yaml",
+    "blobSha": "30ae48c8d1b67944b34cf51ac896ae4c2b2fa0d9"
+  },
+  "sources": {
+    "eligibleCards": {
+      "operationAlias": "promo_nms",
+      "host": "advert",
+      "method": "POST",
+      "path": "/adv/v2/supplier/nms",
+      "meaning": "CARDS_ELIGIBLE_TO_ADD_TO_A_CAMPAIGN",
+      "request": "OPTIONAL_ARRAY_OF_SUBJECT_IDS",
+      "fields": {
+        "nm": { "role": "product_id", "unit": "identifier" },
+        "title": { "role": "product_title", "unit": "text" },
+        "subjectId": { "role": "subject_id", "unit": "identifier" }
+      },
+      "advertisedSignal": false,
+      "acceptedMappingUse": "EXCLUDED_NOT_A_MEMBERSHIP_SOURCE"
+    },
+    "campaigns": {
+      "operationAlias": "promo_campaigns",
+      "host": "advert",
+      "method": "GET",
+      "path": "/api/advert/v2/adverts",
+      "reuseFixture": "tests/regression/extension-core/fixtures/wb-campaign-status-field-schema-slice-v1.json",
+      "activeStatus": 9,
+      "fields": {
+        "id": { "role": "campaign_id", "unit": "identifier" },
+        "status": {
+          "role": "campaign_status",
+          "unit": "provider_enum_integer"
+        },
+        "nm_settings.nm_id": {
+          "role": "campaign_product_id",
+          "unit": "identifier"
+        },
+        "currency": { "role": "campaign_currency", "unit": "currency_code" }
+      },
+      "advertisedSignal": "ACTIVE_STATUS_9_AND_NM_SETTINGS_MEMBERSHIP"
+    },
+    "currentStock": {
+      "operationAlias": "stock_products",
+      "host": "analytics",
+      "method": "POST",
+      "path": "/api/v2/stocks-report/products/products",
+      "reuseFixture": "tests/regression/extension-core/fixtures/wb-turnover-field-schema-slice-v1.json",
+      "identity": "nmID",
+      "stockMetric": "stockCount",
+      "stockMetricUnit": "count",
+      "completeness": "REQUIRE_COMPLETE_CURRENT_STOCK_PAGE_SET_FOR_ADVERTISED_NM_IDS"
+    }
+  },
+  "rules": {
+    "eligibility": "PROMO_NMS_ELIGIBILITY_DOES_NOT_MEAN_CURRENTLY_ADVERTISED",
+    "activeMembership": "ADVERTISED_TRUE_ONLY_IF_NM_ID_BELONGS_TO_AT_LEAST_ONE_STATUS_9_CAMPAIGN",
+    "paused": "PAUSED_OR_FINISHED_CAMPAIGN_MEMBERSHIP_IS_NOT_CURRENTLY_ADVERTISED",
+    "stock": "JOIN_CURRENT_STOCK_BY_EXACT_NMID_AND_REQUIRE_UNIQUE_ROW",
+    "zero": "EXPLICIT_STOCK_COUNT_ZERO_MEANS_NO_CURRENT_STOCK_UNITS",
+    "lowStock": "NO_UNIVERSAL_LOW_STOCK_THRESHOLD_IN_PROVIDER_SCHEMA_OWNER_RULE_REQUIRED",
+    "missing": "MISSING_NOT_ZERO",
+    "dedup": "DEDUP_ACTIVE_CAMPAIGN_MEMBERSHIP_BY_NMID_BUT_PRESERVE_CAMPAIGN_IDS"
+  },
+  "acceptedMappingBefore": {
+    "STD-18": ["promo_nms", "promo_campaigns", "stock_products"]
+  },
+  "acceptedMappingAfter": {
+    "STD-18": ["promo_campaigns", "stock_products"]
+  },
+  "syntheticCases": {
+    "eligibleCards": [
+      { "nm": 90001, "title": "Fixture A", "subjectId": 51 },
+      { "nm": 90003, "title": "Eligible only", "subjectId": 51 }
+    ],
+    "campaigns": [
+      {
+        "id": 1001,
+        "status": 9,
+        "currency": "RUB",
+        "nm_settings": [{ "nm_id": 90001 }, { "nm_id": 90002 }]
+      },
+      {
+        "id": 1002,
+        "status": 9,
+        "currency": "RUB",
+        "nm_settings": [{ "nm_id": 90001 }]
+      },
+      {
+        "id": 1003,
+        "status": 11,
+        "currency": "RUB",
+        "nm_settings": [{ "nm_id": 90004 }]
+      },
+      {
+        "id": 1004,
+        "status": 7,
+        "currency": "RUB",
+        "nm_settings": [{ "nm_id": 90005 }]
+      }
+    ],
+    "stockRows": [
+      { "nmID": 90001, "metrics": { "stockCount": 3 } },
+      { "nmID": 90002, "metrics": { "stockCount": 0 } },
+      { "nmID": 90004, "metrics": { "stockCount": 1 } },
+      { "nmID": 90005, "metrics": { "stockCount": 9 } }
+    ],
+    "stockPagesComplete": true,
+    "expected": {
+      "status": "PASS",
+      "rows": [
+        {
+          "nmID": 90001,
+          "advertised": true,
+          "campaignIds": [1001, 1002],
+          "stockCount": 3,
+          "outOfStock": false,
+          "lowStock": null
+        },
+        {
+          "nmID": 90002,
+          "advertised": true,
+          "campaignIds": [1001],
+          "stockCount": 0,
+          "outOfStock": true,
+          "lowStock": null
+        }
+      ],
+      "inactiveOnlyNmIds": [90004, 90005]
+    },
+    "missingStock": {
+      "campaigns": [
+        {
+          "id": 2001,
+          "status": 9,
+          "currency": "RUB",
+          "nm_settings": [{ "nm_id": 90100 }]
+        }
+      ],
+      "stockRows": [],
+      "stockPagesComplete": true,
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "ADVERTISED_STOCK_ROW_MISSING"
+      }
+    },
+    "incompleteStock": {
+      "campaigns": [
+        {
+          "id": 2002,
+          "status": 9,
+          "currency": "RUB",
+          "nm_settings": [{ "nm_id": 90101 }]
+        }
+      ],
+      "stockRows": [{ "nmID": 90101, "metrics": { "stockCount": 1 } }],
+      "stockPagesComplete": false,
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "CURRENT_STOCK_PAGINATION_INCOMPLETE"
+      }
+    },
+    "duplicateStock": {
+      "campaigns": [
+        {
+          "id": 2003,
+          "status": 9,
+          "currency": "RUB",
+          "nm_settings": [{ "nm_id": 90102 }]
+        }
+      ],
+      "stockRows": [
+        { "nmID": 90102, "metrics": { "stockCount": 1 } },
+        { "nmID": 90102, "metrics": { "stockCount": 2 } }
+      ],
+      "stockPagesComplete": true,
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "CURRENT_STOCK_PRODUCT_DUPLICATE"
+      }
+    },
+    "eligibleNotAdvertised": {
+      "eligibleCard": { "nm": 90200, "title": "Eligible", "subjectId": 77 },
+      "expected": {
+        "productId": 90200,
+        "advertisedSignal": false,
+        "reason": "ELIGIBLE_TO_ADD_IS_NOT_CAMPAIGN_MEMBERSHIP"
+      }
+    }
+  },
+  "remainingOpen": [
+    "live WB campaign membership/current-stock values and owner gold-set reconciliation",
+    "owner/business low-stock threshold or days-cover rule for the phrase running out",
+    "real stock pagination completeness for active advertised nmIDs",
+    "business decision whether paused campaigns should be shown separately as attention context"
+  ]
+}
