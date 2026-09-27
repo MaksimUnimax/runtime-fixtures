@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { AUTHENTICATED_DEEP_HEALTH_CATALOG_AUTHORITY } from "@product/db";
+import { AUTHENTICATED_DEEP_TARGETS } from "../../apps/health-runner/src/scheduler-targets.js";
 import {
   assertMonitorPilotAuthenticatedDeepSourceFingerprint,
   MONITOR_PILOT_AUTHENTICATED_DEEP_MANIFEST_SHA256,
@@ -12,6 +14,21 @@ describe("monitor pilot authenticated-deep source manifest", () => {
     );
     expect(monitorPilotAuthenticatedDeepManifestFingerprint()).toBe(
       MONITOR_PILOT_AUTHENTICATED_DEEP_MANIFEST_SHA256,
+    );
+  });
+
+  it("matches accepted C04 authenticated-deep scheduler identities", () => {
+    expect(
+      AUTHENTICATED_DEEP_HEALTH_CATALOG_AUTHORITY.CHATGPT_STANDARD.targetKey,
+    ).toBe(AUTHENTICATED_DEEP_TARGETS.CHATGPT_STANDARD.targetKey);
+    expect(
+      AUTHENTICATED_DEEP_HEALTH_CATALOG_AUTHORITY.CHATGPT_WORK.targetKey,
+    ).toBe(AUTHENTICATED_DEEP_TARGETS.CHATGPT_WORK.targetKey);
+    expect(AUTHENTICATED_DEEP_TARGETS.CHATGPT_STANDARD.surface).toBe(
+      "CHATGPT_STANDARD",
+    );
+    expect(AUTHENTICATED_DEEP_TARGETS.CHATGPT_WORK.surface).toBe(
+      "CHATGPT_WORK",
     );
   });
 

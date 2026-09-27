@@ -138,3 +138,15 @@ No protected pilot DB, production DB, browser/session, provider network or Teleg
 B only prepares source/disposable evidence. After C accepts the exact source candidate, C owns the already-authorized isolated pilot apply and runtime verification. The controller remains read-only and must not be a concurrent pilot writer.
 
 C should apply in order: B12 authority if the protected pilot still has the expected empty B12 state, verify B12 `READY`, then B13 H3 initializer, verify H3 `READY`, then compose actual authenticated-deep schedules/session/browser runtime. Historical failed pilot scheduled rows remain immutable evidence.
+## Fresh-main C04 reconciliation
+
+Before final B13 publication, B fetched and merged accepted `origin/main` `2a734899810c540e9597e56c531be247f7065fb4`; resulting B merge HEAD before the final receipt/test-only commit was `909dc42107034af95cbbe1ceea552781333d85ef`.
+
+That main contains the accepted C04 authenticated-deep scheduler/runtime. On the merged tree:
+
+- B13 manifest + C04 scheduler + C04 runtime focused unit set: **19/19 PASS** across 3 files;
+- B13 unit explicitly verifies DB target identities match accepted C04 `AUTHENTICATED_DEEP_TARGETS` for ChatGPT Standard and Work;
+- combined disposable PostgreSQL B13 scope + pilot provisioning run completed with exit 0 under `octoport-test-b-747965c4af824b46afce123e31419d56.service`;
+- that run covers the 4 scope tests plus 3 provisioning tests; OOM 0, cleanup verified, peak 447741952 bytes.
+
+No B13 production code imports C04 scheduler/runtime. The cross-stream identity check is test-only; C can compose the resolver without a reverse runtime dependency.
