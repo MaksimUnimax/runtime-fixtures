@@ -306,6 +306,16 @@ describe("STORE-1 ordinary-admin activation planner", () => {
     });
   });
 
+  it("blocks a null reviewer admission readback instead of throwing", () => {
+    const r = exactReadback();
+    r.release = null;
+    r.reviewerAdmission = null;
+    expect(planStore1Activation(authority, r)).toMatchObject({
+      status: "BLOCKED",
+      code: "STORE1_REVIEWER_BETA_ADMISSION_REQUIRED",
+    });
+  });
+
   it("blocks an unverified queried reviewer email before any catalog mutation", () => {
     const r = exactReadback();
     r.release = null;
