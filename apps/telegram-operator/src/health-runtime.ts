@@ -16,6 +16,7 @@ import {
   type NoSessionHealthCompletionResult,
 } from "@product/db";
 import {
+  ensureAuthenticatedDeepHealthSchedules,
   ensureNoSessionHealthSchedules,
   getNoSessionTarget,
   runNoSessionAutomaticProbe,
@@ -199,6 +200,11 @@ export type NoSessionProbe = (
   observedAt: string,
 ) => Promise<NoSessionObservationResult>;
 
+export type AuthenticatedDeepCycleRuntime = Readonly<{
+  configuredTargetKeys: readonly string[];
+  execute(run: HealthScheduledRun): Promise<ScheduledExecutionResult>;
+}>;
+
 export type DurableNoSessionHealthRuntimeOptions = {
   repository: SchedulerBootstrapRepository;
   completion: NoSessionCompletionPort;
@@ -209,6 +215,8 @@ export type DurableNoSessionHealthRuntimeOptions = {
     nextDueAt: Date;
   }>;
   authorityPreflight?: () => Promise<void>;
+  prepareAuthenticatedDeep?: () => Promise<AuthenticatedDeepCycleRuntime | null>;
+  onAuthenticatedDeepUnavailable?: () => void;
   probe?: NoSessionProbe;
   classifierVersion?: string;
   leaseMs?: number;
@@ -310,6 +318,21 @@ export function createDurableNoSessionHealthRuntime(
       authority?.nextDueAt ?? now,
       authority?.intervalSeconds,
     );
+
+    let authenticatedDeep: AuthenticatedDeepCycleRuntime | null = null;
+    if (options.prepareAuthenticatedDeep) {
+      try {
+        authenticatedDeep = await options.prepareAuthenticatedDeep();
+      } catch {
+        options.onAuthenticatedDeepUnavailable?.();
+      }
+    }
+    await ensureAuthenticatedDeepHealthSchedules(
+      options.repository,
+      now,
+      authenticatedDeep?.configuredTargetKeys ?? [],
+    );
+
     return runDurableHealthSchedulerCycle({
       repository: options.repository,
       clock: options.clock,
@@ -317,7 +340,19 @@ export function createDurableNoSessionHealthRuntime(
       leaseMs: options.leaseMs ?? NO_SESSION_HEALTH_LEASE_MS,
       maxConcurrency:
         options.maxConcurrency ?? NO_SESSION_HEALTH_MAX_CONCURRENCY,
-      execute: (run) => executeScheduledNoSessionHealthRun(run, options),
+      execute: (run) => {
+        if (run.probeLayer === "AUTHENTICATED_DEEP") {
+          if (!authenticatedDeep) {
+            return Promise.resolve({
+              outcome: "FAILED",
+              failureClass: "TERMINAL_CONFIGURATION",
+              failureCode: "AUTHENTICATED_DEEP_DEPENDENCY_UNAVAILABLE",
+            } satisfies ScheduledExecutionResult);
+          }
+          return authenticatedDeep.execute(run);
+        }
+        return executeScheduledNoSessionHealthRun(run, options);
+      },
     });
   };
 
@@ -360,6 +395,8 @@ export function createPostgresDurableNoSessionHealthRuntime(
       nextDueAt: Date;
     }>;
     authorityPreflight?: () => Promise<void>;
+    prepareAuthenticatedDeep?: () => Promise<AuthenticatedDeepCycleRuntime | null>;
+    onAuthenticatedDeepUnavailable?: () => void;
     probe?: NoSessionProbe;
     classifierVersion?: string;
     wakeMs?: number;
@@ -374,6 +411,8 @@ export function createPostgresDurableNoSessionHealthRuntime(
       options.ownerId ?? `telegram-health:${process.pid}:${randomUUID()}`,
     scheduleAuthority: options.scheduleAuthority,
     authorityPreflight: options.authorityPreflight,
+    prepareAuthenticatedDeep: options.prepareAuthenticatedDeep,
+    onAuthenticatedDeepUnavailable: options.onAuthenticatedDeepUnavailable,
     probe: options.probe,
     classifierVersion: options.classifierVersion,
     wakeMs: options.wakeMs,
