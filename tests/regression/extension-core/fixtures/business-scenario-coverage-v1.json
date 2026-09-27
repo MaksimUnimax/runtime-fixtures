@@ -545,7 +545,6 @@
         "stocks_current"
       ],
       "wbOperations": [
-        "promo_nms",
         "promo_campaigns",
         "stock_products"
       ],
