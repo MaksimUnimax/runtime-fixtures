@@ -1,0 +1,78 @@
+{
+  "schemaVersion": "wb_standard_supply_status_reuse_v1",
+  "capturedDate": "2026-09-27",
+  "scope": {
+    "scenarioIds": ["STD-12"],
+    "boundary": "UNIFIED_SUPPLY_LIST_PRESERVES_SCHEME_SPECIFIC_STATUS_SEMANTICS",
+    "evidence": "REUSE_VALIDATED_SUPPLY_STATUS_SCHEMA",
+    "liveValues": false,
+    "acceptedOperationMappingChanged": false
+  },
+  "reuse": {
+    "fixture": "tests/regression/extension-core/fixtures/wb-supply-status-field-schema-slice-v1.json",
+    "requiredSchemaVersion": "wb_supply_status_field_schema_slice_v1",
+    "operations": ["fbw_supplies", "fbs_supplies"]
+  },
+  "rules": {
+    "fbw": "PRESERVE_STATUS_ID_1_TO_6_AND_PROVIDER_LABEL",
+    "fbs": "PRESERVE_DONE_BOOLEAN_AS_OPEN_OR_DONE_ONLY",
+    "unified": "ADD_SCHEME_TAG_DO_NOT_COLLAPSE_TO_SHARED_PROVIDER_ENUM",
+    "identity": "FBW_SUPPLY_OR_PREORDER_ID_AND_FBS_STRING_SUPPLY_ID_STAY_SCHEME_SCOPED",
+    "pagination": "COMPLETE_EACH_SCHEME_WITH_ITS_OWN_PAGINATION_BEFORE_FULL_LIST_CLAIM",
+    "missing": "MISSING_NOT_ZERO"
+  },
+  "acceptedMappingSnapshot": {
+    "STD-12": ["fbw_supplies", "fbs_supplies"]
+  },
+  "syntheticCases": {
+    "rows": {
+      "fbw": [
+        { "supplyID": 26596368, "preorderID": 34601223, "statusID": 2 },
+        { "supplyID": 22677736, "preorderID": 27363170, "statusID": 6 }
+      ],
+      "fbs": [
+        { "id": "WB-GI-OPEN", "done": false },
+        { "id": "WB-GI-DONE", "done": true }
+      ],
+      "expected": [
+        {
+          "scheme": "FBS",
+          "supplyId": "WB-GI-DONE",
+          "status": "DONE",
+          "providerStatusId": null
+        },
+        {
+          "scheme": "FBS",
+          "supplyId": "WB-GI-OPEN",
+          "status": "OPEN",
+          "providerStatusId": null
+        },
+        {
+          "scheme": "FBW",
+          "supplyId": "22677736",
+          "status": "SHIPPED_AT_GATE",
+          "providerStatusId": 6
+        },
+        {
+          "scheme": "FBW",
+          "supplyId": "26596368",
+          "status": "PLANNED",
+          "providerStatusId": 2
+        }
+      ]
+    },
+    "unknownFbwStatus": {
+      "row": { "supplyID": 1, "preorderID": 2, "statusID": 99 },
+      "expected": { "status": "INCOMPLETE", "reason": "UNKNOWN_FBW_STATUS_ID" }
+    },
+    "missingFbsDone": {
+      "row": { "id": "WB-GI-X" },
+      "expected": { "status": "INCOMPLETE", "reason": "FBS_DONE_MISSING" }
+    }
+  },
+  "remainingOpen": [
+    "live WB supply values and owner gold-set reconciliation",
+    "cross-scheme business vocabulary beyond scheme-tagged provider state requires an accepted semantic contract",
+    "full-list pagination terminal proof on real provider responses"
+  ]
+}
