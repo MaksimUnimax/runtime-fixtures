@@ -219,7 +219,7 @@ async function billingEvent(
   });
   return createBillingEventService({
     verifier: createBillingSimulator(),
-    repository: createP5BillingEventRepository(db),
+    repository: createP5BillingEventRepository(db, { now: () => clock }),
     now: () => clock,
   }).processBillingEvent(envelope, { correlationId: id() });
 }
@@ -550,7 +550,9 @@ describe.sequential(
         "UPDATE billing_reconciliation_jobs SET state='LEASED',next_attempt_at=NULL,lease_token=$2,lease_until=$3,attempt_count=1 WHERE payment_id=$1",
         [c.paymentId, id(), new Date(clock.getTime() - 1)],
       );
-      const claims = await createP5ReconciliationRepository(db).claimDue({
+      const claims = await createP5ReconciliationRepository(db, {
+        now: () => clock,
+      }).claimDue({
         now: clock,
         leaseMs: 60_000,
         batchSize: 1,
@@ -565,7 +567,7 @@ describe.sequential(
         "UPDATE billing_reconciliation_jobs SET state='READY',next_attempt_at=$2,lease_token=NULL,lease_until=NULL WHERE payment_id=$1",
         [c.paymentId, clock],
       );
-      const repo = createP5ReconciliationRepository(db);
+      const repo = createP5ReconciliationRepository(db, { now: () => clock });
       const claim = (
         await repo.claimDue({ now: clock, leaseMs: 60_000, batchSize: 1 })
       )[0]!;
@@ -817,7 +819,7 @@ describe.sequential(
       forged.proof = `${forged.proof}tampered`;
       const result = await createBillingEventService({
         verifier: createBillingSimulator(),
-        repository: createP5BillingEventRepository(db),
+        repository: createP5BillingEventRepository(db, { now: () => clock }),
         now: () => clock,
       }).processBillingEvent(forged, { correlationId: id() });
       expect(result).toMatchObject({
@@ -874,7 +876,7 @@ describe.sequential(
       );
       let called = false;
       const runner = createBillingReconciliationService({
-        repository: createP5ReconciliationRepository(db),
+        repository: createP5ReconciliationRepository(db, { now: () => clock }),
         statusPort: {
           providerKey: "simulator",
           fetchPaymentStatus: async () => {
@@ -892,7 +894,9 @@ describe.sequential(
         now: () => clock,
       });
       const claim = (
-        await createP5ReconciliationRepository(db).claimDue({
+        await createP5ReconciliationRepository(db, {
+          now: () => clock,
+        }).claimDue({
           now: clock,
           leaseMs: 60_000,
           batchSize: 1,
@@ -919,7 +923,7 @@ describe.sequential(
         currency: "RUB",
         statusAt: clock,
       });
-      const repo = createP5ReconciliationRepository(db);
+      const repo = createP5ReconciliationRepository(db, { now: () => clock });
       const claim = (
         await repo.claimDue({ now: clock, leaseMs: 60_000, batchSize: 1 })
       )[0]!;
@@ -952,7 +956,7 @@ describe.sequential(
         currency: "RUB",
         statusAt: clock,
       });
-      const repo = createP5ReconciliationRepository(db);
+      const repo = createP5ReconciliationRepository(db, { now: () => clock });
       const claim = (
         await repo.claimDue({ now: clock, leaseMs: 60_000, batchSize: 1 })
       )[0]!;
@@ -987,7 +991,7 @@ describe.sequential(
         currency: "RUB",
         statusAt: clock,
       });
-      const repo = createP5ReconciliationRepository(db);
+      const repo = createP5ReconciliationRepository(db, { now: () => clock });
       const claim = (
         await repo.claimDue({ now: clock, leaseMs: 60_000, batchSize: 1 })
       )[0]!;
