@@ -1,0 +1,7 @@
+evidence_id	scope	observation	status	blocking	next_action	claim_boundary
+M16Y001	Repository/runtime	No durable authenticated Yandex Webmaster authority found	CONSOLE_AUTHORITY_UNAVAILABLE	true	Connect authenticated Yandex Webmaster authority	Does not mean site absent from Yandex
+M16Y002	DNS	No _yandex-verification.octoport.ru TXT observed	NO_DNS_VERIFICATION_TXT	false	Check console/HTML/file verification once authority available	DNS absence does not exclude other verification methods
+M16Y003	Public Yandex search	CAPTCHA/robot check from executor	PUBLIC_SERP_UNOBSERVABLE	false	Use Webmaster Searchable Pages/URL status once connected	No indexing inference
+M16Y004	Live robots	Allow / + Sitemap directive	TECHNICAL_PASS	false	None	Live technical evidence
+M16Y005	Live sitemap	200 exact four canonical URLs	TECHNICAL_PASS	false	Once console connected inspect processing state	Sitemap inclusion is not search inclusion
+M16Y006	4 canonical URLs	Searchable Pages / URL status	Not available to executor	HOLD_CONSOLE_AUTHORITY_UNAVAILABLE	true	Connect Yandex Webmaster account/site and read statuses	Do not map public-search absence to NOT_SEARCHABLE
