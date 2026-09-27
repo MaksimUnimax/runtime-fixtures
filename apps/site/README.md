@@ -73,3 +73,8 @@ There is no build step. Deployment copies public/ byte-for-byte into a versioned
 M14 source acceptance is not production deployment. Production deployment, live-route QA and indexing verification belong to later roadmap stages.
 
 The analytics page must not be launched with fake proof. A real sanitized/source-backed product demonstration remains a downstream launch gate.
+
+
+## Current visual: Contour, owner selection 2026-09-27
+
+The former engraving hero is superseded by the existing working-design variant 2, Contour. Its clean original drawing, eight independent links, separate visible brand/favicon, native theme/menu and self-hosted Rubik are tracked in `docs/design/CONTOUR_INTEGRATION_2026-09-27.md`. SEO metadata, page ownership, beta/read-only copy and utility content are preserved. Contour source tests run in Site CI; source PASS is not production acceptance.
