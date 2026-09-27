@@ -8,6 +8,7 @@ import { z } from "zod";
 import {
   type BootstrapSnapshotPayloadV1,
   type BootstrapSnapshotPayloadV2,
+  type BootstrapSnapshotPayloadV3,
   type HealthClaimV1,
 } from "@product/contracts";
 import { StableMachineIdentifierV1Schema } from "@product/shared";
@@ -15,6 +16,7 @@ import {
   resolveSigningKeyLifecycle,
   signBootstrapSnapshot,
   signBootstrapSnapshotV2,
+  signBootstrapSnapshotV3,
   signHealthClaimV1,
   type P3BootstrapPolicyCatalog,
   type SigningKeyMetadata,
@@ -218,6 +220,19 @@ export function createConfigSigningService(
       if (lifecycle.state !== "ACTIVE")
         throw new Error("signing key is not active");
       return signBootstrapSnapshotV2(payload, keyId, entry.privateKey);
+    },
+    async signV3(keyId, payload: BootstrapSnapshotPayloadV3) {
+      const entry = material.keys.get(keyId);
+      const metadata = await catalog.findSigningKey(keyId);
+      if (!entry || !metadata)
+        throw new Error("bootstrap signing key unavailable");
+      bindConfigSigningKeyMaterial(entry, metadata);
+      const lifecycle = resolveSigningKeyLifecycle(
+        await catalog.listSigningKeyEvents(keyId),
+      );
+      if (lifecycle.state !== "ACTIVE")
+        throw new Error("bootstrap signing key is not active");
+      return signBootstrapSnapshotV3(payload, keyId, entry.privateKey);
     },
     async signHealth(keyId: string, claim: HealthClaimV1) {
       const entry = material.keys.get(keyId);

@@ -1,11 +1,14 @@
 import type {
   BootstrapRequestV1,
   BootstrapRequestV2,
+  BootstrapRequestV3,
   BootstrapSnapshotPayloadV1,
   BootstrapSnapshotPayloadV2,
+  BootstrapSnapshotPayloadV3,
   BootstrapIdentifiedSnapshotPayloadV2,
   SignedBootstrapEnvelopeV1,
   SignedBootstrapEnvelopeV2,
+  SignedBootstrapEnvelopeV3,
   HealthAuthorityRequestV1,
   HealthClaimV1,
   HealthContextBindingV1,
@@ -28,6 +31,7 @@ import {
 import {
   BootstrapSnapshotPayloadV1Schema,
   BootstrapSnapshotPayloadV2Schema,
+  BootstrapSnapshotPayloadV3Schema,
   BootstrapRequestV2Schema,
   HealthClaimV1Schema,
 } from "@product/contracts";
@@ -57,6 +61,10 @@ export type BootstrapSnapshotSigningService = {
     keyId: string,
     payload: BootstrapSnapshotPayloadV2,
   ): Promise<SignedBootstrapEnvelopeV2>;
+  signV3?(
+    keyId: string,
+    payload: BootstrapSnapshotPayloadV3,
+  ): Promise<SignedBootstrapEnvelopeV3>;
   signHealth?(
     keyId: string,
     claim: HealthClaimV1,
@@ -688,6 +696,211 @@ export class BootstrapService {
     }
     try {
       const envelope = await this.signer.signV2(signingKeyId, payload);
+      if (envelope.keyId !== signingKeyId)
+        throw new Error("signing key mismatch");
+      return envelope;
+    } catch {
+      throw new BootstrapError("UNAVAILABLE");
+    }
+  }
+
+  async issueV3(
+    subject: BootstrapSubject,
+    request: BootstrapRequestV3,
+  ): Promise<SignedBootstrapEnvelopeV3> {
+    if (request.deviceId !== subject.deviceId)
+      throw new BootstrapError("DEVICE_MISMATCH");
+    if (!this.signer.signV3) throw new BootstrapError("UNAVAILABLE");
+    const now = new Date(this.clock.now().getTime());
+    const commercial = this.commercialAccess
+      ? await this.commercialAccess.resolve(subject.accountId, now)
+      : undefined;
+    if (commercial && commercial.kind !== "OK")
+      throw new BootstrapError("UNAVAILABLE");
+    const currentSubscription = commercial?.value.currentSubscription ?? null;
+    const commercialEligible = commercial?.value.access.kind === "ELIGIBLE";
+    const beta = this.betaAccess
+      ? await this.betaAccess.resolve(subject.accountId)
+      : { kind: "NONE" as const };
+    const betaEligible = beta.kind === "BETA";
+    const eligible = betaEligible || commercialEligible;
+    const accessBasis = betaEligible
+      ? "BETA"
+      : commercialEligible
+        ? "COMMERCIAL"
+        : "NONE";
+
+    const issuedAt = now.toISOString();
+    let expiresAt = new Date(now.getTime() + 15 * 60_000);
+    let offlineGraceUntil = new Date(expiresAt.getTime() + 24 * 60 * 60_000);
+    if (accessBasis === "COMMERCIAL") {
+      const deadline = commercial!.value.accessUntil!;
+      offlineGraceUntil = new Date(
+        Math.min(offlineGraceUntil.getTime(), deadline.getTime()),
+      );
+      expiresAt = new Date(
+        Math.min(expiresAt.getTime(), offlineGraceUntil.getTime() - 1),
+      );
+      if (!(now < expiresAt && expiresAt < offlineGraceUntil))
+        throw new BootstrapError("UNAVAILABLE");
+    }
+    let subscriptionAccess: BootstrapSnapshotPayloadV3["subscriptionAccess"] =
+      null;
+    if (accessBasis === "COMMERCIAL") {
+      const access = commercial?.value.access;
+      if (
+        !currentSubscription ||
+        !access ||
+        access.kind !== "ELIGIBLE" ||
+        !["TRIAL", "ACTIVE", "GRACE", "CANCELED"].includes(access.state) ||
+        currentSubscription.state !== access.state ||
+        !validDate(currentSubscription.currentPeriodEnd) ||
+        !validDate(access.currentPeriodEnd) ||
+        currentSubscription.currentPeriodEnd.getTime() !==
+          access.currentPeriodEnd.getTime()
+      )
+        throw new BootstrapError("UNAVAILABLE");
+      if (["ACTIVE", "GRACE", "CANCELED"].includes(access.state)) {
+        const paidThrough = currentSubscription.currentPeriodEnd;
+        subscriptionAccess = {
+          schemaVersion: "subscription_access_v1",
+          paidThrough: paidThrough.toISOString(),
+          offlineHardUntil: new Date(
+            paidThrough.getTime() + 72 * 60 * 60 * 1000,
+          ).toISOString(),
+        };
+      }
+    }
+    const entitlements = this.signedEntitlements({
+      betaEligible,
+      commercialEligible,
+      commercialEntitlements: commercial?.value.entitlements,
+    });
+    const common = {
+      snapshotVersion: "bootstrap_snapshot_v3" as const,
+      contractVersion: "control_plane_v3" as const,
+      serverTime: issuedAt,
+      issuedAt,
+      expiresAt: expiresAt.toISOString(),
+      offlineGraceUntil: offlineGraceUntil.toISOString(),
+      account: { id: subject.accountId, status: "ACTIVE" as const },
+      accessBasis,
+      subscription: currentSubscription
+        ? {
+            state: currentSubscription.state,
+            planRevision: currentSubscription.currentPlanRevisionId,
+          }
+        : { state: "NONE" as const, planRevision: null },
+      devicePolicy: { status: "ACTIVE" as const },
+      entitlements,
+      subscriptionAccess,
+    };
+
+    let payload: BootstrapSnapshotPayloadV3;
+    let signingKeyId: string;
+    if (!("extensionVersion" in request)) {
+      if (!this.localClientAuthority) throw new BootstrapError("UNAVAILABLE");
+      const detected = request.detectedAi
+        ? {
+            family: request.detectedAi.family,
+            surface: request.detectedAi.surface,
+            variant: request.detectedAi.variant ?? null,
+          }
+        : undefined;
+      const authority = await this.localClientAuthority.materialize({
+        contractVersion: "control_plane_v2",
+        accountId: subject.accountId,
+        deviceId: subject.deviceId,
+        ...(eligible && detected ? { detectedAi: detected } : {}),
+      });
+      if ("failure" in authority) throw new BootstrapError("UNAVAILABLE");
+      const sourceLocalAuthority = authority.localClientAuthority;
+      const localClientAuthority = {
+        schemaVersion: "local_client_authority_v2" as const,
+        contractVersion: "control_plane_v3" as const,
+        compatibility: {
+          releases: sourceLocalAuthority.compatibility.releases.map(
+            (release) => ({
+              ...release,
+              contractVersions: [...release.contractVersions],
+              browserFamilies: [...release.browserFamilies],
+            }),
+          ),
+          policies: sourceLocalAuthority.compatibility.policies.map(
+            (policy) => ({
+              ...policy,
+              contractVersion: "control_plane_v3" as const,
+              blockedVersions: [...policy.blockedVersions],
+            }),
+          ),
+        },
+        featureRules: sourceLocalAuthority.featureRules.map((rule) => ({
+          ...rule,
+          contractVersion: "control_plane_v3" as const,
+        })),
+        ai:
+          !eligible && detected
+            ? {
+                status: "CANDIDATES" as const,
+                detected,
+                candidates: [],
+              }
+            : sourceLocalAuthority.ai,
+      };
+      signingKeyId = authority.signingKeyId;
+      payload = BootstrapSnapshotPayloadV3Schema.parse({
+        ...common,
+        configVersion: authority.configVersion,
+        localClientAuthority,
+      });
+    } else {
+      // V3 is not advertised in active compatibility catalogs. Resolve policy
+      // through the existing v2 selection while signing the standalone v3 wire.
+      const result = await this.policy.resolve({
+        contractVersion: "control_plane_v2",
+        extensionVersion: request.extensionVersion,
+        browser: request.browser,
+        accountId: subject.accountId,
+        deviceId: subject.deviceId,
+      });
+      if ("failure" in result) throw new BootstrapError("UNAVAILABLE");
+      let ai: BootstrapIdentifiedSnapshotPayloadV2["ai"] = {
+        status: "UNCONFIGURED",
+      };
+      if (request.detectedAi) {
+        const detected = {
+          family: request.detectedAi.family,
+          surface: request.detectedAi.surface,
+          variant: request.detectedAi.variant ?? null,
+        };
+        if (!eligible)
+          ai = { status: "UNAVAILABLE", detected, reason: "NO_PROFILE" };
+        else if (this.aiResolution) {
+          try {
+            ai = await this.aiResolution.resolve({
+              detected,
+              contractVersion: "control_plane_v2",
+              extensionVersion: request.extensionVersion,
+              browser: request.browser,
+              accountId: subject.accountId,
+              deviceId: subject.deviceId,
+            });
+          } catch {
+            throw new BootstrapError("UNAVAILABLE");
+          }
+        } else ai = { status: "UNAVAILABLE", detected, reason: "NO_PROFILE" };
+      }
+      signingKeyId = result.signingKeyId;
+      payload = BootstrapSnapshotPayloadV3Schema.parse({
+        ...common,
+        configVersion: result.configVersion,
+        compatibility: result.compatibility,
+        features: result.features,
+        ai,
+      });
+    }
+    try {
+      const envelope = await this.signer.signV3(signingKeyId, payload);
       if (envelope.keyId !== signingKeyId)
         throw new Error("signing key mismatch");
       return envelope;
