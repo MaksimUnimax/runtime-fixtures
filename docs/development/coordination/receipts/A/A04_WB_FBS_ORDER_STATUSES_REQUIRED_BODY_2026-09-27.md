@@ -21,6 +21,23 @@ Its `generation.yaml` points `03-orders-fbs.yaml` directly at the official upstr
 For `POST /api/v3/orders/status`, that current mirrored upstream schema requires `orders`: an array of integer order IDs with `minItems: 1` and `maxItems: 1000`. The provider example uses `{"orders":[5632423]}`.
 
 Direct automated retrieval of the official WB page/raw YAML returned HTTP 498 on this server, including through real Opera, so this receipt does not mislabel the mirror as a live official-page fetch. No live marketplace request was used to infer this schema.
+
+### Authority reconciliation required by controller review 0743
+
+Retrieval observation: `2026-09-27T07:51:37Z`.
+Official upstream URL: `https://dev.wildberries.ru/api/swagger/yaml/ru/03-orders-fbs.yaml?region=ru`.
+Direct server/Opera result: HTTP 498; the browser body was `Проверяем браузер`; supervised browser resource job `1cd250fd1c1a40d6a2ff1c455482209d` exited 0 with cleanup verified and no credentials.
+
+Current upstream mirror source:
+- repository/path: `eslazarev/wildberries-sdk/specs/03-orders-fbs.yaml`;
+- Git blob SHA: `7965dedd6851edf0e37b3109149d9d323e32e710`;
+- downloaded mirror SHA-256: `9b86cf918ef7456644319577ba303acf8208e8c53d36d3001d402a5acf7103df`;
+- exact endpoint anchor: line 661, `/api/v3/orders/status:`;
+- request-body anchor: lines 723–739;
+- anchored schema: object body, required field `orders`, array `minItems: 1`, `maxItems: 1000`, integer `int64` items, example ID `5632423`.
+
+The discarded 100-ID value came from an unanchored match elsewhere in the large FBS specification/search results. It was not the request body under the exact `/api/v3/orders/status` anchor. The exact anchored endpoint resolves the discrepancy to 1000; intermediate commit `78e96213` is corrected forward by `fcfd6e76`. This is the settled cardinality unless a later exact upstream endpoint schema changes.
+
 ## Correction
 
 Composition now loads a narrow registry overlay immediately after frozen `wb_operations.js`, before `WBContract` captures the registry:
