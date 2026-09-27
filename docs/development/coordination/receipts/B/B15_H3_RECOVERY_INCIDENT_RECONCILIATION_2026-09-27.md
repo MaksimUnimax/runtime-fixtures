@@ -58,3 +58,16 @@ Quality gates:
 ## Boundary
 
 This fixes source/disposable recovery ordering only. It does not authorize live H3 sessions, live DB mutation, monitor runtime changes, deployment, store/admin mutation, or production acceptance. C remains owner of monitoring/runtime integration and main promotion.
+
+## Fresh-main reconciliation
+
+While B15 was being completed, `origin/main` advanced to `64656567d0b9855dd7ef63f2b3918421539a0310` with the accepted C04/A117 H3 browser regression closure. The B15 file set had zero direct overlap with that main drift. B merged the fresh main on a clean boundary; merge HEAD before this receipt-only update is `b610857ddada9f2f6a200125c0f1569b99a968ea`.
+
+Because the accepted main changed H3 runtime/profile code used by the B15 integration fixture, the authenticated-deep disposable test was rerun after the merge:
+- `tests/integration/server/health-authenticated-deep-scope.integration.test.ts`: **4/4 PASS**;
+- supervisor: `octoport-test-b-f4ba333c81634748b9c6ff4ffc507c19.service`;
+- exit code: 0;
+- peak memory: 585 MiB;
+- cleanup verified.
+
+The scheduler and NO_SESSION DB source used by the prior **17/17 + 4/4 PASS** compatibility evidence did not change in this main advance, so those successful sequential results remain applicable and were not redundantly rerun.
