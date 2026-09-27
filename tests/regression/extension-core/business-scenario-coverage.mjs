@@ -29,6 +29,7 @@ import "./wb-search-position-share-field-schema-slice.mjs";
 import "./wb-visibility-mapping-refresh.mjs";
 import "./wb-rating-boundary-refresh.mjs";
 import "./wb-sales-decline-causal-factor-reuse.mjs";
+import "./wb-external-context-boundary.mjs";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
@@ -658,6 +659,85 @@ const calculators = {
       likelihoodKnown: false,
     };
   },
+  incident_boundary(input) {
+    if (
+      !input.incident ||
+      typeof input.incident.url !== "string" ||
+      !input.incident.url ||
+      typeof input.incident.date !== "string" ||
+      !input.incident.date
+    )
+      return { status: "INCOMPLETE", reason: "PUBLIC_INCIDENT_SOURCE_MISSING" };
+    if (
+      !input.currentPrivate ||
+      typeof input.currentPrivate.product !== "string" ||
+      typeof input.currentPrivate.warehouse !== "string" ||
+      !Number.isInteger(input.currentPrivate.stockUnits)
+    )
+      return { status: "INCOMPLETE", reason: "CURRENT_PRIVATE_FACT_MISSING" };
+    return {
+      status: "BOUNDARY",
+      publicIncidentCited: true,
+      currentPrivateFactKnown: true,
+      historicalPresenceKnown: false,
+      historicalPresence: null,
+    };
+  },
+  external_fact_boundary(input) {
+    if (
+      !Array.isArray(input.privateFacts) ||
+      !Array.isArray(input.publicFacts) ||
+      !Array.isArray(input.hypotheses)
+    )
+      return { status: "INCOMPLETE", reason: "FACT_CLASSES_MISSING" };
+    if (
+      input.publicFacts.some(
+        (row) => !row || typeof row.url !== "string" || !row.url,
+      )
+    )
+      return { status: "INCOMPLETE", reason: "PUBLIC_FACT_SOURCE_MISSING" };
+    return {
+      status: "COMPLETE",
+      privateFactCount: input.privateFacts.length,
+      publicFactCount: input.publicFacts.length,
+      hypothesisCount: input.hypotheses.length,
+      classesSeparated: true,
+    };
+  },
+  competitor_boundary(input) {
+    if (!input.ownCard || !Array.isArray(input.competitors))
+      return { status: "INCOMPLETE", reason: "COMPETITOR_CONTEXT_MISSING" };
+    if (
+      input.competitors.some(
+        (row) =>
+          row && row.privateSales !== null && row.privateSales !== undefined,
+      )
+    )
+      return {
+        status: "INCOMPLETE",
+        reason: "COMPETITOR_PRIVATE_METRIC_FORBIDDEN",
+      };
+    const comparable = input.competitors.filter(
+      (row) =>
+        row &&
+        row.comparable === true &&
+        typeof row.url === "string" &&
+        row.url &&
+        typeof row.publicTitle === "string" &&
+        row.publicTitle,
+    );
+    if (comparable.length === 0)
+      return {
+        status: "INCOMPLETE",
+        reason: "COMPARABLE_PUBLIC_COMPETITOR_MISSING",
+      };
+    return {
+      status: "BOUNDARY",
+      comparablePublicCompetitors: comparable.length,
+      privateCompetitorSalesKnown: false,
+      privateCompetitorSales: null,
+    };
+  },
   attention_rank(input) {
     if (!Array.isArray(input.rows)) return { status: "INCOMPLETE" };
     const products = new Set();
@@ -727,6 +807,9 @@ const requiredKinds = new Set([
   "ad_content_join",
   "rating_boundary",
   "causal_factors",
+  "incident_boundary",
+  "external_fact_boundary",
+  "competitor_boundary",
   "attention_rank",
   "causal_boundary",
 ]);

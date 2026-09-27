@@ -1033,6 +1033,150 @@
         "claim": "HYPOTHESIS_NOT_PROVEN_CAUSE",
         "likelihoodKnown": false
       }
+    },
+    {
+      "id": "incident_boundary_known",
+      "kind": "incident_boundary",
+      "input": {
+        "incident": {
+          "url": "https://example.invalid/public-incident",
+          "date": "2026-09-01"
+        },
+        "currentPrivate": {
+          "product": "1001",
+          "warehouse": "Example warehouse",
+          "stockUnits": 3
+        }
+      },
+      "expected": {
+        "status": "BOUNDARY",
+        "publicIncidentCited": true,
+        "currentPrivateFactKnown": true,
+        "historicalPresenceKnown": false,
+        "historicalPresence": null
+      }
+    },
+    {
+      "id": "incident_boundary_missing_source",
+      "kind": "incident_boundary",
+      "input": {
+        "incident": {
+          "url": null,
+          "date": "2026-09-01"
+        },
+        "currentPrivate": {
+          "product": "1001",
+          "warehouse": "Example warehouse",
+          "stockUnits": 3
+        }
+      },
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "PUBLIC_INCIDENT_SOURCE_MISSING"
+      }
+    },
+    {
+      "id": "external_fact_boundary_separated",
+      "kind": "external_fact_boundary",
+      "input": {
+        "privateFacts": [
+          {
+            "name": "own_card"
+          }
+        ],
+        "publicFacts": [
+          {
+            "name": "public_event",
+            "url": "https://example.invalid/source"
+          }
+        ],
+        "hypotheses": [
+          {
+            "name": "possible_effect"
+          }
+        ]
+      },
+      "expected": {
+        "status": "COMPLETE",
+        "privateFactCount": 1,
+        "publicFactCount": 1,
+        "hypothesisCount": 1,
+        "classesSeparated": true
+      }
+    },
+    {
+      "id": "external_fact_boundary_missing_citation",
+      "kind": "external_fact_boundary",
+      "input": {
+        "privateFacts": [],
+        "publicFacts": [
+          {
+            "name": "public_event",
+            "url": null
+          }
+        ],
+        "hypotheses": []
+      },
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "PUBLIC_FACT_SOURCE_MISSING"
+      }
+    },
+    {
+      "id": "competitor_boundary_public_only",
+      "kind": "competitor_boundary",
+      "input": {
+        "ownCard": {
+          "id": "1001"
+        },
+        "competitors": [
+          {
+            "url": "https://example.invalid/c1",
+            "comparable": true,
+            "publicTitle": "C1",
+            "privateSales": null
+          },
+          {
+            "url": "https://example.invalid/c2",
+            "comparable": true,
+            "publicTitle": "C2",
+            "privateSales": null
+          },
+          {
+            "url": "https://example.invalid/c3",
+            "comparable": true,
+            "publicTitle": "C3",
+            "privateSales": null
+          }
+        ]
+      },
+      "expected": {
+        "status": "BOUNDARY",
+        "comparablePublicCompetitors": 3,
+        "privateCompetitorSalesKnown": false,
+        "privateCompetitorSales": null
+      }
+    },
+    {
+      "id": "competitor_boundary_private_metric_forbidden",
+      "kind": "competitor_boundary",
+      "input": {
+        "ownCard": {
+          "id": "1001"
+        },
+        "competitors": [
+          {
+            "url": "https://example.invalid/c1",
+            "comparable": true,
+            "publicTitle": "C1",
+            "privateSales": 100
+          }
+        ]
+      },
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "COMPETITOR_PRIVATE_METRIC_FORBIDDEN"
+      }
     }
   ]
 }
