@@ -199,7 +199,7 @@ try:
   b.close();b=None
   print('BROWSER_PASS',name,'states',len(results),flush=True)
  (OUT/'results.json').write_text(json.dumps({'status':'PASS','url':BASE,'results':results,'hover':hover,'pixel_samples':pixels},ensure_ascii=False,indent=2))
- print('CONTOUR_REFERENCE_R4_PASS',len(results),'states',len(hover),'hover/focus pairs',str(OUT),flush=True)
+ print('CONTOUR_INK_MATCH_R5_PASS',len(results),'states',len(hover),'hover/focus pairs',str(OUT),flush=True)
 except Exception:
  (OUT/'partial.json').write_text(json.dumps({'status':'FAIL','url':BASE,'results':results,'hover':hover},ensure_ascii=False,indent=2));raise
 finally:
