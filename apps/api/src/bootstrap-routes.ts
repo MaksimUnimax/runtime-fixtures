@@ -8,10 +8,13 @@ import type { Logger } from "pino";
 import {
   ApiErrorEnvelopeV1Schema,
   BootstrapRequestSchema,
+  BootstrapRequestV3Schema,
   SignedBootstrapEnvelopeSchema,
+  SignedBootstrapEnvelopeV3Schema,
   HealthAuthorityRequestV1Schema,
   SignedHealthEnvelopeV1Schema,
 } from "@product/contracts";
+import { z } from "zod";
 import type { BootstrapService } from "@product/bootstrap";
 import type {
   ExtensionAuthService,
@@ -20,6 +23,17 @@ import type {
 import { authenticateExtensionBearer } from "./extension-access-auth.js";
 import { BootstrapError } from "@product/bootstrap";
 import { ControlledError } from "./app.js";
+
+// Keep the active shared v1/v2 unions dormant-compatible while negotiating
+// the standalone v3 request/envelope at this API boundary.
+const BootstrapApiRequestSchema = z.union([
+  BootstrapRequestSchema,
+  BootstrapRequestV3Schema,
+]);
+const BootstrapApiEnvelopeSchema = z.union([
+  SignedBootstrapEnvelopeSchema,
+  SignedBootstrapEnvelopeV3Schema,
+]);
 
 declare module "fastify" {
   interface FastifyRequest {
@@ -40,9 +54,9 @@ export function registerBootstrapRoutes(
     "/v1/bootstrap",
     {
       schema: {
-        body: BootstrapRequestSchema,
+        body: BootstrapApiRequestSchema,
         response: {
-          200: SignedBootstrapEnvelopeSchema,
+          200: BootstrapApiEnvelopeSchema,
           400: ApiErrorEnvelopeV1Schema,
           401: ApiErrorEnvelopeV1Schema,
           403: ApiErrorEnvelopeV1Schema,
@@ -60,13 +74,15 @@ export function registerBootstrapRoutes(
       },
     },
     async (request) => {
-      const parsed = BootstrapRequestSchema.safeParse(request.body);
+      const parsed = BootstrapApiRequestSchema.safeParse(request.body);
       if (!parsed.success)
         throw new ControlledError("INVALID_REQUEST", "Invalid request", 400);
       try {
-        return parsed.data.contractVersion === "control_plane_v2"
-          ? await service.issueV2(request.extensionPrincipal!, parsed.data)
-          : await service.issue(request.extensionPrincipal!, parsed.data);
+        return parsed.data.contractVersion === "control_plane_v3"
+          ? await service.issueV3(request.extensionPrincipal!, parsed.data)
+          : parsed.data.contractVersion === "control_plane_v2"
+            ? await service.issueV2(request.extensionPrincipal!, parsed.data)
+            : await service.issue(request.extensionPrincipal!, parsed.data);
       } catch (error) {
         if (error instanceof BootstrapError && error.code === "DEVICE_MISMATCH")
           throw new ControlledError("DEVICE_MISMATCH", "Device mismatch", 403);
