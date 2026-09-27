@@ -13,6 +13,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   DedicatedHealthSessionConfigError,
+  listDedicatedHealthSessionTargetKeys,
   loadDedicatedHealthSessionRegistry,
 } from "./dedicated-health-session.js";
 import {
@@ -225,6 +226,26 @@ describe("dedicated Standard Health session capability", () => {
       );
       expect(Object.isFrozen(registry)).toBe(true);
       expect(JSON.stringify(registry)).toBe("{}");
+    });
+  });
+
+  it("DS-01A exposes only safe configured target keys", async () => {
+    await withTempDirectory(async (directory) => {
+      const standardState = await createState(directory, "standard.json");
+      const workState = await createState(directory, "work.json");
+      const registry = await loadDedicatedHealthSessionRegistry(
+        await createConfig(
+          directory,
+          twoTargetConfig(standardState, workState),
+        ),
+      );
+      expect(listDedicatedHealthSessionTargetKeys(registry)).toEqual([
+        "chatgpt_standard_health",
+        "chatgpt_work_health",
+      ]);
+      expect(() =>
+        listDedicatedHealthSessionTargetKeys({} as never),
+      ).toThrowError("UNTRUSTED_SESSION_REGISTRY");
     });
   });
 
