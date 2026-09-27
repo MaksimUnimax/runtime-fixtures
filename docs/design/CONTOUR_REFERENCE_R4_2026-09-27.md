@@ -1,6 +1,6 @@
 # Contour R4 — owner reference matching, independent controls
 
-Status: SOURCE_QA_PASS; production acceptance pending.
+Status: PRODUCTION_DEPLOYED / LIVE_QA_PASS.
 Base: 24571c392b0c01359887019e6d23f3363d830f69.
 
 ## Owner scope
@@ -29,3 +29,27 @@ Real Chrome/Opera/Yandex source browser run: 102 render/theme/utility states PAS
 16 screenshot corner checks PASS. Visual inspection includes light/dark, the lower grip junctions and the scene with every button hidden. Source evidence: /root/octoport-control/design/contour-r4-source/.
 
 Source acceptance does not stand in for exact-head CI or live deployment. Record the deployed SHA and live checks below after publication.
+
+## Production acceptance — 2026-09-27
+
+Deployed source: `917d47ea85516b992c96ab17242698419c539dc5`.
+Previous live source: `714f674dc269ea115d6e6d2233b8740f36847367`.
+Fresh remote main before integration: `24571c392b0c01359887019e6d23f3363d830f69`; no intervening main change. Non-force integration and exact remote readback completed.
+Exact-head Site CI `36321956165` and Site Deploy CI `36321956121`: SUCCESS.
+Rollback-safe repository deployment PASS; public-site verifier PASS including TLS, inherited security headers, redirects and unchanged application/API boundaries. Backup: `/var/backups/octoport-site/20260927T132003Z`.
+
+Live HTTP: 30/30 no-redirect resource checks and exact source-byte comparisons PASS, including all five pages, CSS, favicon, robots/sitemap and all 20 R4 assets.
+Live Chrome/Opera/Yandex: 30/30 render/theme/utility states and 48/48 independent hover/focus pairs PASS. Full 102-state source run covers the breakpoint edges. Browser resource group peak 597 MiB, exit 0 and cleanup verified.
+
+Live visual review: desktop both themes, 960px full-width scene and 320px complete viewport captures. Both mobile themes show the complete illustration below the text and the slogan below the illustration. Some CDP clipped scene captures at phone width are misframed; mobile visual acceptance uses the separate full viewport screenshots, not those crops. There is no corresponding clipping in the actual page.
+No source copy, metadata, beta/install state or other subsystem was changed by deployment.
+
+Evidence directory: `/root/octoport-control/design/contour-r4-live/`.
+Evidence SHA-256:
+- `deploy.log`: `4e767650788695ac9365a79f4833c546f11a2e456c70547b44a87618a5fe3cd5`.
+- `http.json`: `12d7c4b6bcc0e0eb4bb72bfab394d20caaa603e2b7ef1001bb11e839099d66b1`.
+- `chrome/results.json`: `0ded7a1547e699aa8296f7240e03b8bef0118f80e51d78f4d0bdad18947a6cbe`.
+- `opera/results.json`: `d132094feaaa8b6f5fd68acef612bd2683a07ded987a98e2d3a9157709919d5e`.
+- `yandex/results.json`: `b8cda2355e5c816d80e59860a4c5562d12e63aa8029e4cc2507343d558b096c5`.
+- `visual/chrome-phone-viewport-True.png`: `a0f05b5de40f42f6689501dce8a3f30b288cd5143d33cd6659a1324702365f4a`.
+- `visual/chrome-phone-viewport-False.png`: `722d3be18fb6380d7dcd4e142a5472663efc2d2edf96f04826aaf5a534b9f6c5`.
