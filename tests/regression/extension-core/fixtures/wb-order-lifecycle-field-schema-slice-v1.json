@@ -1,0 +1,242 @@
+{
+  "schemaVersion": "wb_order_lifecycle_field_schema_slice_v1",
+  "capturedDate": "2026-09-27",
+  "scope": {
+    "scenarioIds": ["STD-11", "CAP-09", "CAP-12"],
+    "boundary": "ORDER_STATUS_CANCELLATION_RETURN_CLAIM_AND_RETURN_MOVEMENT_ARE_DISTINCT",
+    "evidence": "CURRENT_OFFICIAL_FIELD_SCHEMA_SOURCE_ONLY",
+    "liveValues": false,
+    "acceptedOperationMappingChanged": false
+  },
+  "sources": {
+    "statisticsOrders": {
+      "url": "https://dev.wildberries.ru/en/openapi/reports",
+      "operationAlias": "statistics_orders",
+      "host": "statistics",
+      "method": "GET",
+      "path": "/api/v1/supplier/orders",
+      "freshness": "PRELIMINARY_OPERATIONAL_30_MINUTES",
+      "storageGuaranteeDays": 90,
+      "requestTimezone": "Europe/Moscow",
+      "requestUtcOffset": "+03:00",
+      "rowGrain": ["srid"],
+      "oneRow": "ONE_ORDER_ONE_ITEM",
+      "fields": {
+        "srid": { "role": "order_item_identifier", "unit": "identifier" },
+        "date": { "role": "order_event_time", "unit": "datetime" },
+        "lastChangeDate": { "role": "change_cursor_time", "unit": "datetime" },
+        "nmId": { "role": "product_id", "unit": "identifier" },
+        "isCancel": { "role": "operational_cancel_flag", "unit": "boolean" },
+        "cancelDate": { "role": "operational_cancel_time", "unit": "datetime" }
+      },
+      "pagination": {
+        "flag0ApproxMaxRows": 80000,
+        "nextCursor": "LAST_ROW_LAST_CHANGE_DATE",
+        "terminal": "EMPTY_ARRAY"
+      }
+    },
+    "fbsOrders": {
+      "url": "https://dev.wildberries.ru/en/docs/openapi/orders-fbs",
+      "operationAlias": "fbs_orders",
+      "host": "marketplace",
+      "method": "GET",
+      "path": "/api/v3/orders",
+      "maxPeriodDays": 30,
+      "returnsCurrentStatus": false,
+      "rowGrain": ["id"]
+    },
+    "fbsStatuses": {
+      "url": "https://dev.wildberries.ru/en/docs/openapi/orders-fbs",
+      "operationAlias": "fbs_order_statuses",
+      "host": "marketplace",
+      "method": "POST",
+      "path": "/api/v3/orders/status",
+      "requestIdField": "orders",
+      "requestMaxIds": 1000,
+      "rowGrain": ["id"],
+      "fields": {
+        "supplierStatus": {
+          "role": "seller_side_current_status",
+          "unit": "enum"
+        },
+        "wbStatus": { "role": "wb_side_current_status", "unit": "enum" }
+      }
+    },
+    "dbsOrders": {
+      "url": "https://dev.wildberries.ru/en/openapi/orders-dbs",
+      "operationAlias": "dbs_orders",
+      "host": "marketplace",
+      "method": "GET",
+      "path": "/api/v3/dbs/orders",
+      "completedOnly": true,
+      "maxPeriodDays": 30,
+      "rowGrain": ["id"]
+    },
+    "dbsStatuses": {
+      "url": "https://dev.wildberries.ru/en/openapi/orders-dbs",
+      "operationAlias": "dbs_order_statuses",
+      "host": "marketplace",
+      "method": "POST",
+      "path": "/api/marketplace/v3/dbs/orders/status/info",
+      "requestIdField": "ordersIds",
+      "requestMaxIds": 1000,
+      "rowGrain": ["orderId"],
+      "fields": {
+        "supplierStatus": {
+          "role": "seller_side_current_status",
+          "unit": "enum"
+        },
+        "wbStatus": { "role": "wb_side_current_status", "unit": "enum" },
+        "errors": { "role": "per_order_lookup_error", "unit": "array" }
+      }
+    },
+    "dbwOrders": {
+      "url": "https://dev.wildberries.ru/en/openapi/orders-dbw",
+      "operationAlias": "dbw_orders",
+      "host": "marketplace",
+      "method": "GET",
+      "path": "/api/v3/dbw/orders",
+      "rowGrain": ["id"]
+    },
+    "dbwStatuses": {
+      "url": "https://dev.wildberries.ru/en/openapi/orders-dbw",
+      "operationAlias": "dbw_order_statuses",
+      "host": "marketplace",
+      "method": "POST",
+      "path": "/api/v3/dbw/orders/status",
+      "rowGrain": ["id"],
+      "fields": {
+        "supplierStatus": {
+          "role": "seller_side_current_status",
+          "unit": "enum"
+        },
+        "wbStatus": { "role": "wb_side_current_status", "unit": "enum" }
+      }
+    },
+    "goodsReturn": {
+      "url": "https://dev.wildberries.ru/en/openapi/reports",
+      "operationAlias": "goods_return",
+      "host": "analytics",
+      "method": "GET",
+      "path": "/api/v1/analytics/goods-return",
+      "maxPeriodDays": 31,
+      "rowGrain": ["shkId"],
+      "fields": {
+        "srid": { "role": "order_link_identifier", "unit": "identifier" },
+        "orderId": { "role": "order_identifier", "unit": "identifier" },
+        "nmId": { "role": "product_id", "unit": "identifier" },
+        "returnType": {
+          "role": "return_movement_type",
+          "unit": "provider_enum_text"
+        },
+        "status": {
+          "role": "return_movement_status",
+          "unit": "provider_enum_text"
+        },
+        "readyToReturnDt": {
+          "role": "ready_to_return_time",
+          "unit": "datetime"
+        },
+        "completedDt": { "role": "return_completed_time", "unit": "datetime" }
+      }
+    },
+    "buyerReturnClaims": {
+      "url": "https://dev.wildberries.ru/en/openapi/user-communication",
+      "releaseNotesUrl": "https://dev.wildberries.ru/news/146",
+      "operationAlias": "buyer_return_claims",
+      "host": "returns",
+      "method": "GET",
+      "path": "/api/v1/claims",
+      "requiredQuery": ["is_archive"],
+      "isArchiveWireType": "string_boolean",
+      "pagination": { "limit": "limit", "offset": "offset" },
+      "rowGrain": ["id"],
+      "fields": {
+        "id": { "role": "buyer_return_claim_id", "unit": "identifier" },
+        "claim_type": { "role": "claim_type", "unit": "provider_enum" },
+        "status": { "role": "claim_status", "unit": "provider_enum" },
+        "nm_id": { "role": "product_id", "unit": "identifier" }
+      }
+    }
+  },
+  "rules": {
+    "currentStatus": "ORDER_LIST_ROWS_DO_NOT_REPLACE_CURRENT_STATUS_ENDPOINTS",
+    "fbsStatus": "SUPPLIER_STATUS_AND_WB_STATUS_ARE_DISTINCT",
+    "dbsStatus": "SUPPLIER_STATUS_AND_WB_STATUS_ARE_DISTINCT",
+    "returns": "BUYER_RETURN_CLAIM_AND_GOODS_RETURN_MOVEMENT_ARE_DISTINCT_EVENT_FAMILIES",
+    "statisticsCancel": "ISCANCEL_IS_OPERATIONAL_ORDER_SIGNAL_NOT_BUYER_RETURN_CLAIM",
+    "writeBoundary": "NO_STATUS_MUTATION_METHODS_IN_THIS_READ_ONLY_SLICE",
+    "missing": "MISSING_NOT_ZERO",
+    "causality": "MOVEMENT_OR_RETURN_STATUS_DOES_NOT_PROVE_INVENTORY_WRITEOFF_CAUSE"
+  },
+  "knownRegistryGaps": [
+    {
+      "operationAlias": "fbs_order_statuses",
+      "field": "body_required",
+      "currentFrozenValue": false,
+      "officialRequirement": "REQUEST_BODY_ORDERS_REQUIRED",
+      "ownership": "SHARED_FROZEN_REFERENCE_REQUIRES_CONTROLLER_C_ASSIGNMENT"
+    }
+  ],
+  "acceptedMappingSnapshot": {
+    "STD-11": [
+      "stock_products",
+      "statistics_sales",
+      "finance_sales_detail_period",
+      "goods_return",
+      "buyer_return_claims"
+    ],
+    "CAP-09": [
+      "statistics_orders",
+      "statistics_sales",
+      "fbs_orders",
+      "dbs_orders",
+      "dbw_orders"
+    ],
+    "CAP-12": [
+      "buyer_return_claims",
+      "goods_return",
+      "statistics_sales",
+      "fbs_order_statuses",
+      "dbs_order_statuses",
+      "dbw_order_statuses"
+    ]
+  },
+  "syntheticCases": {
+    "orderStatus": {
+      "order": { "id": 501, "nmId": 1001 },
+      "status": {
+        "id": 501,
+        "supplierStatus": "confirm",
+        "wbStatus": "waiting"
+      },
+      "expected": {
+        "id": 501,
+        "supplierStatus": "confirm",
+        "wbStatus": "waiting"
+      }
+    },
+    "missingStatus": {
+      "order": { "id": 502, "nmId": 1002 },
+      "expected": { "status": "INCOMPLETE", "reason": "CURRENT_STATUS_MISSING" }
+    },
+    "returnEvents": {
+      "claim": { "id": "claim-1", "nm_id": 1001, "claim_type": 1, "status": 2 },
+      "movement": {
+        "shkId": 9001,
+        "nmId": 1001,
+        "orderId": 501,
+        "status": "IN_TRANSIT",
+        "returnType": "BLOCKED_GOODS"
+      },
+      "expectedKinds": ["BUYER_RETURN_CLAIM", "GOODS_RETURN_MOVEMENT"]
+    }
+  },
+  "remainingOpen": [
+    "live WB values and owner gold-set reconciliation",
+    "inventory movement/write-off causality beyond return movement status",
+    "provider enum label reconciliation against live account values",
+    "full historical order lifecycle across all fulfillment schemes",
+    "buyer-return claim to concrete order linkage when provider payload does not expose an order identifier"
+  ]
+}

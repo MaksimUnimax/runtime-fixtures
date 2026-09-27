@@ -113,6 +113,16 @@ def selected_popup(popup, store_id: str) -> None:
     popup.select_option("#stores", store_id)
 
 
+def watch_transfer_responses(context, responses) -> None:
+    context.on(
+        "response",
+        lambda response: responses.append(response)
+        if response.request.method == "POST"
+        and "/v1/credential-transfers" in urlparse(response.url).path
+        else None,
+    )
+
+
 def run_runtime(runtime: Path, label: str, package_root: Path, api_log: list[str]) -> dict:
     store_id = f"r1-{label}-ozon"
     marker = f"D3S2_R1_{label.upper()}_SELLER_MARKER_20260918"
@@ -130,7 +140,7 @@ def run_runtime(runtime: Path, label: str, package_root: Path, api_log: list[str
         recipient = pw.chromium.launch_persistent_context(recipient_profile.name, **options)
         for context in (source, recipient):
             context.on("request", lambda request: captures.append({"method": request.method, "url": request.url, "body_sha256": hashlib.sha256((request.post_data or "").encode()).hexdigest() if request.post_data else None, "body_has_ciphertext": "ciphertext" in (request.post_data or "")}))
-        recipient.on("response", lambda response: transfer_responses.append(response) if response.request.method == "POST" and response.url.endswith("/v1/credential-transfers") else None)
+        watch_transfer_responses(recipient, transfer_responses)
         try:
             source_worker = source.service_workers[0] if source.service_workers else source.wait_for_event("serviceworker")
             recipient_worker = recipient.service_workers[0] if recipient.service_workers else recipient.wait_for_event("serviceworker")
@@ -142,8 +152,16 @@ def run_runtime(runtime: Path, label: str, package_root: Path, api_log: list[str
             account_email = fixture_email("one" if label == "source-generated" else "two")
             activate(source, source_popup, os.environ.get("D3S2_SOURCE_EMAIL", account_email))
             activate(recipient, recipient_popup, os.environ.get("D3S2_RECIPIENT_EMAIL", account_email))
+            source_identity = source_worker.evaluate("async()=>({accountId:await SellerAgentsControlClient.currentAccount(),deviceId:(await SellerAgentsControlClient.getAuthority())?.deviceId})")
+            recipient_identity = recipient_worker.evaluate("async()=>({accountId:await SellerAgentsControlClient.currentAccount(),deviceId:(await SellerAgentsControlClient.getAuthority())?.deviceId})")
+            assert source_identity["accountId"] == recipient_identity["accountId"]
+            assert source_identity["deviceId"] and recipient_identity["deviceId"] and source_identity["deviceId"] != recipient_identity["deviceId"]
             seed_store(source_worker, store_id, {"seller": {"clientId": "100001", "apiKey": marker}, "performance": {"clientId": "perf-client", "clientSecret": "D3S2_R1_PERFORMANCE_MARKER_20260918"}}, "r1-source-revision")
             seed_store(recipient_worker, store_id, {}, None)
+            unselected_store_id = f"{store_id}-unselected"
+            seed_store(source_worker, unselected_store_id, {"seller": {"clientId": "100002", "apiKey": f"{marker}_UNSELECTED"}}, "r1-unselected-source-revision")
+            seed_store(recipient_worker, unselected_store_id, {}, None)
+            unselected_before = recipient_worker.evaluate("async ({id}) => { const s=await SellerAgentsActiveStoreCatalog.get(id); return {revision:s.credentialRevision,seller:s.credentials.seller ?? null}; }", {"id": unselected_store_id})
             selected_popup(source_popup, store_id)
             selected_popup(recipient_popup, store_id)
             recipient_popup.locator("#transfer-consent").check()
@@ -154,7 +172,10 @@ def run_runtime(runtime: Path, label: str, package_root: Path, api_log: list[str
                 raise AssertionError({"transfer_responses": [(response.status, response.url) for response in transfer_responses]})
             request_body = json.loads(created.request.post_data)
             request_record = created.json()
-            assert request_body["consent"] is True and request_body["recipientDeviceId"] != request_record.get("sourceDeviceId")
+            assert request_body["consent"] is True
+            assert request_body["recipientDeviceId"] == recipient_identity["deviceId"]
+            assert request_record["accountId"] == recipient_identity["accountId"]
+            assert request_body["selectedStores"] == [{"storeId": store_id}]
             assert "ciphertext" not in json.dumps(request_record)
             restarted = os.environ.get("D3S2_R1_RESTART_RECIPIENT") == "1"
             if restarted:
@@ -163,25 +184,68 @@ def run_runtime(runtime: Path, label: str, package_root: Path, api_log: list[str
                 recipient.close()
                 recipient = pw.chromium.launch_persistent_context(recipient_profile.name, **options)
                 recipient.on("request", lambda request: captures.append({"method": request.method, "url": request.url, "body_sha256": hashlib.sha256((request.post_data or "").encode()).hexdigest() if request.post_data else None, "body_has_ciphertext": "ciphertext" in (request.post_data or "")}))
+                watch_transfer_responses(recipient, transfer_responses)
                 recipient_worker = recipient.service_workers[0] if recipient.service_workers else recipient.wait_for_event("serviceworker")
                 recipient_popup = recipient.new_page()
                 recipient_popup.goto(recipient_worker.url.rsplit("/", 1)[0] + "/popup.html")
                 selected_popup(recipient_popup, store_id)
+                restored = recipient_worker.evaluate(
+                    """async ({requestId}) => {
+                      const record=await SellerAgentsCredentialTransferVault.get(requestId);
+                      let exportRejected=false;
+                      try { await crypto.subtle.exportKey('jwk',record.privateKey); } catch (_) { exportRejected=true; }
+                      return {phase:record.phase,accountId:record.accountId,recipientDeviceId:record.recipientDeviceId,requestId:record.requestId,selectedStoreIds:record.selectedStoreIds,keyType:record.privateKey.type,keyExtractable:record.privateKey.extractable,exportRejected};
+                    }""",
+                    {"requestId": request_record["requestId"]},
+                )
+                assert restored == {"phase": "ACTIVE", "accountId": recipient_identity["accountId"], "recipientDeviceId": recipient_identity["deviceId"], "requestId": request_record["requestId"], "selectedStoreIds": [store_id], "keyType": "private", "keyExtractable": False, "exportRejected": True}, restored
             source_popup.click("#transfer-discover")
             source_popup.wait_for_function("() => /Найдено запросов: 1/.test(document.querySelector('#transfer-status')?.textContent || '')")
             source_popup.wait_for_timeout(250)
-            recipient_popup.click("#transfer-receive")
-            try:
-                recipient_popup.wait_for_function("() => /Передача принята/.test(document.querySelector('#transfer-status')?.textContent || '')", timeout=15000)
-            except Exception as error:
-                retry = recipient_popup.evaluate("async()=>chrome.runtime.sendMessage({type:'SA_TRANSFER_RECEIVE_PENDING'})")
-                local = recipient_worker.evaluate("async ({id}) => { try { return await SellerAgentsActiveStoreCatalog.get(id); } catch (error) { return {error: error.code}; } }", {"id": store_id})
-                print(json.dumps({"receive_error": str(error), "retry": retry, "local": local, "transfer_status": recipient_popup.locator("#transfer-status").inner_text(), "popup_status": recipient_popup.locator("#status").inner_text(), "worker": recipient_worker.evaluate("async()=>SellerAgentsControlClient.status()")}), flush=True)
-                raise
+            if restarted:
+                # Drive the production receive message without the popup's
+                # immediate RESULT_CONSUME so the recovery boundary is observable.
+                received = recipient_popup.evaluate("async()=>chrome.runtime.sendMessage({type:'SA_TRANSFER_RECEIVE_PENDING'})")
+                assert received["ok"] is True and received["importState"] == "IMPORTED", received
+            else:
+                recipient_popup.click("#transfer-receive")
+                try:
+                    recipient_popup.wait_for_function("() => /Передача принята/.test(document.querySelector('#transfer-status')?.textContent || '')", timeout=15000)
+                except Exception as error:
+                    retry = recipient_popup.evaluate("async()=>chrome.runtime.sendMessage({type:'SA_TRANSFER_RECEIVE_PENDING'})")
+                    local = recipient_worker.evaluate("async ({id}) => { try { return await SellerAgentsActiveStoreCatalog.get(id); } catch (error) { return {error: error.code}; } }", {"id": store_id})
+                    print(json.dumps({"receive_error": str(error), "retry": retry, "local": local, "transfer_status": recipient_popup.locator("#transfer-status").inner_text(), "popup_status": recipient_popup.locator("#status").inner_text(), "worker": recipient_worker.evaluate("async()=>SellerAgentsControlClient.status()")}), flush=True)
+                    raise
             target = recipient_worker.evaluate("async ({id}) => { const s = await SellerAgentsActiveStoreCatalog.get(id); return {marketplace:s.marketplace, seller:s.credentials.seller, performance:s.credentials.performance, revision:s.credentialRevision}; }", {"id": store_id})
             assert target["seller"]["apiKey"] == marker
             assert target["performance"]["clientSecret"] == "D3S2_R1_PERFORMANCE_MARKER_20260918"
-            return {"status": "PASS", "recipient_restarted": restarted, "browser": recipient.browser.version, "request_id": request_record["requestId"], "store_id": store_id, "source_device": request_record.get("sourceDeviceId"), "recipient_device": request_record["recipientDeviceId"], "ciphertext_request_hashes": [x["body_sha256"] for x in captures if x["body_has_ciphertext"]], "provider_requests": [x for x in captures if "ozon.ru" in x["url"] or "wildberries.ru" in x["url"]], "ai_requests": [x for x in captures if "chatgpt.com" in x["url"] and x["method"] == "POST"]}
+            result = {"status": "PASS", "recipient_restarted": restarted, "browser": recipient.browser.version, "request_id": request_record["requestId"], "store_id": store_id, "source_device": source_identity["deviceId"], "recipient_device": recipient_identity["deviceId"], "ciphertext_request_hashes": [x["body_sha256"] for x in captures if x["body_has_ciphertext"]], "provider_requests": [x for x in captures if "ozon.ru" in x["url"] or "wildberries.ru" in x["url"]], "ai_requests": [x for x in captures if "chatgpt.com" in x["url"] and x["method"] == "POST"]}
+            if restarted:
+                unselected = recipient_worker.evaluate("async ({id}) => { const s = await SellerAgentsActiveStoreCatalog.get(id); return {revision:s.credentialRevision, seller:s.credentials.seller ?? null}; }", {"id": unselected_store_id})
+                assert unselected == unselected_before, unselected
+                acked = recipient_worker.evaluate("async ({id}) => { const r=await SellerAgentsCredentialTransferVault.get(id); const server=await SellerAgentsControlClient.readCredentialTransfer(id); return {phase:r.phase,privateKey:r.privateKey,result:r.result,serverState:server.state,sourceDeviceId:server.sourceDeviceId}; }", {"id": request_record["requestId"]})
+                assert acked["phase"] == "ACKED_RESULT" and acked["privateKey"] is None, acked
+                assert acked["serverState"] == "COMPLETED" and acked["sourceDeviceId"] == source_identity["deviceId"], acked
+                selected_revision = target["revision"]
+                ack_posts_before = sum(urlparse(response.url).path.endswith("/ack") for response in transfer_responses)
+                packet_gets_before = sum(item["method"] == "GET" and urlparse(item["url"]).path.endswith("/packet") for item in captures)
+                replay = recipient_popup.evaluate("async()=>chrome.runtime.sendMessage({type:'SA_TRANSFER_RECEIVE_PENDING'})")
+                assert replay["ok"] is True and replay["recovered"] is True and replay["requestId"] == request_record["requestId"], replay
+                after_replay = recipient_worker.evaluate("async ({id,storeId}) => ({record:await SellerAgentsCredentialTransferVault.get(id),store:await SellerAgentsActiveStoreCatalog.get(storeId),server:await SellerAgentsControlClient.readCredentialTransfer(id)})", {"id": request_record["requestId"], "storeId": store_id})
+                assert after_replay["record"]["phase"] == "ACKED_RESULT" and after_replay["record"]["privateKey"] is None, after_replay
+                assert after_replay["store"]["credentialRevision"] == selected_revision, after_replay
+                assert after_replay["server"]["state"] == "COMPLETED", after_replay
+                assert sum(urlparse(response.url).path.endswith("/ack") for response in transfer_responses) == ack_posts_before == 1
+                assert sum(item["method"] == "GET" and urlparse(item["url"]).path.endswith("/packet") for item in captures) == packet_gets_before == 1
+                consumed = recipient_popup.evaluate("async ({id})=>chrome.runtime.sendMessage({type:'SA_TRANSFER_RESULT_CONSUME',requestId:id})", {"id": request_record["requestId"]})
+                assert consumed["ok"] is True, consumed
+                assert recipient_worker.evaluate("async ({id})=>SellerAgentsCredentialTransferVault.get(id)", {"id": request_record["requestId"]}) is None
+                after_consume = recipient_popup.evaluate("async()=>chrome.runtime.sendMessage({type:'SA_TRANSFER_RECEIVE_PENDING'})")
+                assert after_consume["ok"] is False and after_consume["importState"] == "PENDING", after_consume
+                assert sum(urlparse(response.url).path.endswith("/ack") for response in transfer_responses) == 1
+                assert sum(item["method"] == "GET" and urlparse(item["url"]).path.endswith("/packet") for item in captures) == 1
+                result["restart_recovery"] = {"nonExtractableKeyRecovered": True, "serverState": "COMPLETED", "ackPosts": 1, "packetReads": 1, "replayRecoveredCachedResult": True, "selectedStoreRevisionUnchangedOnReplay": True, "unselectedStoreUntouched": True}
+            return result
         finally:
             source.close(); recipient.close(); source_profile.cleanup(); recipient_profile.cleanup()
 
