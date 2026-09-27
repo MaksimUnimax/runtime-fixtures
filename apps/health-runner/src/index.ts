@@ -11,6 +11,7 @@ export {
   ensureNoSessionHealthSchedules,
 } from "./scheduler-targets.js";
 export type { AuthenticatedDeepSurface } from "./scheduler-targets.js";
+export { AUTHENTICATED_DEEP_RUNTIME_AUTHORITY } from "./authenticated-deep-runtime-authority.js";
 export type {
   BrowserDriver,
   BrowserDriverErrorCode,
