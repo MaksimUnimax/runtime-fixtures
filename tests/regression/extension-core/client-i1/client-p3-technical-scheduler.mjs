@@ -17,6 +17,8 @@ const persisted = {};
 const makeContext = () => {
   const alarms = new Map();
   const listeners = [];
+  const startupListeners = [];
+  const installedListeners = [];
   const context = {
     console, Date, JSON, Object, Number, String, Boolean, Array, Map, Set, WeakSet,
     structuredClone, TextEncoder, Promise, crypto: globalThis.crypto,
@@ -33,13 +35,13 @@ const makeContext = () => {
         async create(name, details) { alarms.set(name, details); },
         async clear(name) { alarms.delete(name); return true; },
       },
-      runtime: { onStartup: { addListener() {} }, onInstalled: { addListener() {} } },
+      runtime: { onStartup: { addListener(listener) { startupListeners.push(listener); } }, onInstalled: { addListener(listener) { installedListeners.push(listener); } } },
     },
     OzonRuntime: { STORAGE_KEYS: { MANUAL_OPERATIONS: "manual", AUTO_RUNS: "autoruns", WORK_SESSION_RECOVERIES: "recoveries" } },
   };
   context.globalThis = context;
   vm.runInNewContext(source, context, { filename: "technical-scheduler.js" });
-  return { context, alarms, listeners };
+  return { context, alarms, listeners, startupListeners, installedListeners };
 };
 
 const first = makeContext();
@@ -75,4 +77,29 @@ assert.equal(expiryRuns, 20, "late wake drains remaining durable work without du
 for (let index = 0; index < 100; index += 1) await second.context.SellerAgentsTechnicalScheduler.wake(`soak-${index}`);
 assert.equal(expiryRuns, 20, "100 duplicate/late wake deliveries remain side-effect free after drain");
 
-console.log(JSON.stringify({ status: "PASS", scenarios: 7, wake_deliveries: 100, duplicate_wake_runs: 0, payload_leak: false, max_due_per_wake: 16 }));
+// Source/package preflight: an extension update wake reconstructs technical state without clearing other local state.
+persisted.seller_agents_stores_v1 = { marker: "stores-survive-update" };
+persisted.seller_agents_control_auth_v2 = { marker: "auth-survives-update" };
+persisted.seller_agents_sync_journal_v1 = { marker: "sync-survives-update" };
+await second.context.SellerAgentsTechnicalScheduler.schedule(
+  second.context.SellerAgentsTechnicalScheduler.KINDS.EXPIRY,
+  { taskId: "expiry:update-future", dueAt: Date.now() + 60_000, identity: { artifactKey: "future-artifact" } },
+);
+const preservedBefore = structuredClone({ stores: persisted.seller_agents_stores_v1, auth: persisted.seller_agents_control_auth_v2, sync: persisted.seller_agents_sync_journal_v1 });
+const beforeUpdateTask = (await second.context.SellerAgentsTechnicalScheduler.state()).entries["expiry:update-future"];
+const afterUpdate = makeContext();
+assert.equal(afterUpdate.installedListeners.length, 1, "one onInstalled wake listener");
+afterUpdate.installedListeners[0]({ reason: "update", previousVersion: "0.2.4" });
+await afterUpdate.context.SellerAgentsTechnicalScheduler.wake("join-installed-update");
+assert.deepEqual(
+  { stores: persisted.seller_agents_stores_v1, auth: persisted.seller_agents_control_auth_v2, sync: persisted.seller_agents_sync_journal_v1 },
+  preservedBefore,
+  "update wake must not clear unrelated installation-local state",
+);
+assert.deepEqual(
+  (await afterUpdate.context.SellerAgentsTechnicalScheduler.state()).entries["expiry:update-future"],
+  beforeUpdateTask,
+  "future durable technical task survives update reconstruction",
+);
+
+console.log(JSON.stringify({ status: "PASS", scenarios: 8, wake_deliveries: 100, duplicate_wake_runs: 0, payload_leak: false, max_due_per_wake: 16, update_storage_preserved: true }));
