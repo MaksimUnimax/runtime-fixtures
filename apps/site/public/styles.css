@@ -265,35 +265,39 @@ h1 { font-size:clamp(34px,3.45vw,46px); line-height:1.13; letter-spacing:-.025em
 .button:hover,.button:focus-visible { transform:translateY(-2px); }
 .microcopy { color:var(--muted); font-size:13px; line-height:1.6; margin:16px 0 0; }
 .contour-wrap { width:100%; min-width:0; }
-.contour-scene { position:relative; width:100%; aspect-ratio:1448/1086; isolation:isolate; container-type:inline-size; background:transparent; }
-.contour-underlay { position:absolute; z-index:1; left:10%; top:-4%; width:80%; height:auto; object-fit:contain; display:block; pointer-events:none; }
-.dark-art { display:none; }
+.contour-scene { position:relative; width:100%; aspect-ratio:559/419; isolation:isolate; container-type:inline-size; background:transparent; }
+/* R4: static reference linework; buttons contain only independent vector marks. */
+.contour-underlay { position:absolute; z-index:1; inset:0; width:100%; height:100%; object-fit:contain; display:block; pointer-events:none; }
+.contour-grips { position:absolute; z-index:3; inset:0; width:100%; height:100%; display:block; pointer-events:none; }
+.dark-art,.mark-dark { display:none; }
 .theme-checkbox:checked + .page .light-art { display:none; }
 .theme-checkbox:checked + .page .dark-art { display:block; }
-.contour-orbit { position:absolute; inset:0; z-index:0; width:100%; height:100%; fill:none; stroke:var(--art-ink); stroke-width:2; opacity:.8; pointer-events:none; }
-.orbit-star { fill:var(--art-ink); stroke:none; }
-/* The illustration is transparent. Only the independent circular controls have fills. */
-.ai-badge,.market-badge { position:absolute; z-index:3; transform:translate(-50%,-50%); display:flex; flex-direction:column; align-items:center; justify-content:center; aspect-ratio:1; border:2px solid var(--art-ink); border-radius:50%; text-decoration:none; transition:transform .18s ease,box-shadow .18s ease; text-align:center; }
-.ai-badge { width:12.7%; min-width:44px; padding:0; gap:4%; background:#ffffff; color:#14243b; }
-.ai-badge img { display:block; width:48%; height:46%; flex:0 0 46%; object-fit:contain; filter:none; }
-.ai-badge span { display:block; max-width:96%; font-size:clamp(8px,1.65cqi,13px); font-weight:500; line-height:1.15; white-space:nowrap; }
-.market-badge { width:18.5%; padding:0; gap:7%; color:#ffffff; border-color:transparent; }
-.market-badge.pos-wb { background:linear-gradient(145deg,#e313bf,#9211c3); }
-.market-badge.pos-ozon { background:#005bff; }
+.contour-scene { --scene-ink:#10243c; --scene-paper:var(--bg); aspect-ratio:559/419; }
+.theme-checkbox:checked + .page .contour-scene { --scene-ink:#ebffff; }
+.ai-badge,.market-badge { position:absolute; z-index:2; transform:translate(-50%,-50%); display:flex; flex-direction:column; align-items:center; justify-content:center; aspect-ratio:1; padding:0; border:clamp(1.4px,.39cqi,3px) solid var(--scene-ink); border-radius:50%; color:var(--scene-ink); background:var(--scene-paper); text-decoration:none; text-align:center; transition:transform .18s ease,box-shadow .18s ease; }
+.ai-badge { width:12.52%; gap:4%; }
+.ai-badge.pos-alice,.ai-badge.pos-gemini { width:12.16%; }
+.ai-badge img { display:block; width:48%; height:46%; flex:0 0 46%; object-fit:contain; }
+.ai-badge .mark-dark,.market-badge .mark-dark { display:none; }
+.theme-checkbox:checked + .page .ai-badge .mark-light,.theme-checkbox:checked + .page .market-badge .mark-light { display:none; }
+.theme-checkbox:checked + .page .ai-badge .mark-dark,.theme-checkbox:checked + .page .market-badge .mark-dark { display:block; }
+.ai-badge span { display:block; max-width:96%; font-family:Arial,Helvetica,sans-serif; font-size:clamp(6px,1.8cqi,14px); font-weight:600; line-height:1.15; white-space:nowrap; }
+.market-badge { width:18.43%; gap:7%; }
 .market-logo-slot { display:grid; place-items:center; width:72%; height:30%; flex:0 0 30%; line-height:0; }
-.market-logo-slot img { display:block; width:100%; height:100%; object-fit:contain; filter:none; }
-/* Optical sizing of the compact WB glyph; the slots and label baseline are identical. */
-.pos-wb .market-logo-slot img { width:82%; height:78%; }
-.market-label { display:block; width:90%; margin:0; font-size:clamp(8px,1.9cqi,14px); line-height:1.2; font-weight:500; letter-spacing:normal; text-align:center; white-space:nowrap; }
-.ai-badge:hover,.ai-badge:focus-visible,.market-badge:hover,.market-badge:focus-visible { transform:translate(-50%,-56%) scale(1.06); box-shadow:0 8px 18px #07182e22; }
-.pos-alice { left:37.6%; top:13.45%; }
-.pos-gemini { left:62.32%; top:13.45%; }
-.pos-chatgpt { left:21.41%; top:27.11%; }
-.pos-deepseek { left:78.59%; top:27.11%; }
-.pos-anthropic { left:11.12%; top:45.58%; }
-.pos-qwen { left:89.16%; top:45.58%; }
-.pos-wb { left:29.66%; top:79.74%; }
-.pos-ozon { left:70.27%; top:79.74%; }
+.market-logo-slot img { display:block; width:100%; height:100%; object-fit:contain; }
+.pos-wb .market-logo-slot img { width:82%; height:100%; }
+.market-label { display:block; width:90%; margin:0; font-family:Arial,Helvetica,sans-serif; font-size:clamp(7px,2.2cqi,17px); line-height:1.2; font-weight:500; letter-spacing:normal; text-align:center; white-space:nowrap; }
+.ai-badge::after { content:""; position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:100%; height:100%; min-width:44px; min-height:44px; border-radius:50%; }
+.ai-badge:hover,.ai-badge:focus-visible,.market-badge:hover,.market-badge:focus-visible { transform:translate(-50%,-50%) scale(1.035); box-shadow:0 0 0 2px var(--scene-paper),0 0 0 3px var(--scene-ink); }
+.ai-badge:focus-visible,.market-badge:focus-visible { outline:2px solid var(--scene-ink); outline-offset:4px; }
+.pos-alice { left:37.388193%; top:13.484487%; }
+.pos-gemini { left:62.432916%; top:13.484487%; }
+.pos-chatgpt { left:21.377460%; top:26.897375%; }
+.pos-deepseek { left:78.533095%; top:26.897375%; }
+.pos-anthropic { left:10.644007%; top:45.465394%; }
+.pos-qwen { left:89.266547%; top:45.465394%; }
+.pos-wb { left:29.427549%; top:78.758950%; }
+.pos-ozon { left:70.393560%; top:78.758950%; }
 h2 { font-size:clamp(28px,3.1vw,40px); font-weight:600; line-height:1.2; letter-spacing:-.025em; margin-bottom:24px; }
 h3 { font-size:20px; font-weight:600; line-height:1.3; }
 p,li { line-height:1.65; }
@@ -387,7 +391,3 @@ p,li { line-height:1.65; }
 .hero-copy .brand-wildberries { color:#bd0ca5; }
 .theme-checkbox:checked + .page .brand-ozon { color:#4e93ff; }
 .theme-checkbox:checked + .page .brand-wildberries { color:#f15cdd; }
-/* The colored ring belongs to the independent moving control, not the static art. */
-.theme-checkbox:checked + .page .ai-badge { border-color:#8295f4; box-shadow:0 0 0 2px #5365c23d; }
-.theme-checkbox:checked + .page .ai-badge:hover,
-.theme-checkbox:checked + .page .ai-badge:focus-visible { border-color:#a9b8ff; box-shadow:0 0 0 2px #8295f466,0 8px 18px #07182e22; }
