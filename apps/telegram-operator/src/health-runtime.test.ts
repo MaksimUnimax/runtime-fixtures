@@ -6,6 +6,7 @@ import type {
   NoSessionTarget,
 } from "@product/health-runner";
 import {
+  createDurableNoSessionHealthRuntime,
   executeScheduledAuthenticatedDeepHealthRun,
   executeScheduledNoSessionHealthRun,
   NO_SESSION_CLASSIFIER_VERSION,
@@ -160,6 +161,52 @@ describe("C04 scheduled no-session executor", () => {
         probe: async () => observation,
       }),
     ).rejects.toThrow("database unavailable");
+  });
+});
+
+describe("C04 monitor-pilot authority gate", () => {
+  it("blocks startup and later cycles before schedule bootstrap or browser work", async () => {
+    const authorityPreflight = vi.fn(async () => {
+      throw new Error("MONITOR_PILOT_AUTHORITY_NOT_READY");
+    });
+    const getSchedule = vi.fn();
+    const listDueSchedules = vi.fn();
+    const probe = vi.fn();
+    const repository = {
+      getSchedule,
+      createSchedule: vi.fn(),
+      updateSchedule: vi.fn(),
+      listDueSchedules,
+      materializeDueSlot: vi.fn(),
+      claimNext: vi.fn(),
+      startRun: vi.fn(),
+      finishSuccess: vi.fn(),
+      finishFailure: vi.fn(),
+      timeoutRun: vi.fn(),
+      reconcilePersistedResults: vi.fn(),
+    } as unknown as Parameters<
+      typeof createDurableNoSessionHealthRuntime
+    >[0]["repository"];
+    const runtime = createDurableNoSessionHealthRuntime({
+      repository,
+      completion: { completeScheduledNoSessionHealthRun: vi.fn() },
+      clock: { now: () => completedAt },
+      ownerId: "authority-gate-test",
+      authorityPreflight,
+      probe,
+    });
+
+    await expect(runtime.start()).rejects.toThrow(
+      "MONITOR_PILOT_AUTHORITY_NOT_READY",
+    );
+    await expect(runtime.runScheduledCycle()).rejects.toThrow(
+      "MONITOR_PILOT_AUTHORITY_NOT_READY",
+    );
+
+    expect(authorityPreflight).toHaveBeenCalledTimes(2);
+    expect(getSchedule).not.toHaveBeenCalled();
+    expect(listDueSchedules).not.toHaveBeenCalled();
+    expect(probe).not.toHaveBeenCalled();
   });
 });
 

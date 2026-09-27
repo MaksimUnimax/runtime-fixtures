@@ -190,6 +190,7 @@ export type DurableNoSessionHealthRuntimeOptions = {
     intervalSeconds: number;
     nextDueAt: Date;
   }>;
+  authorityPreflight?: () => Promise<void>;
   probe?: NoSessionProbe;
   classifierVersion?: string;
   leaseMs?: number;
@@ -281,6 +282,7 @@ export function createDurableNoSessionHealthRuntime(
   let active: Promise<SchedulerCycleSummary> | undefined;
 
   const executeCycle = async (): Promise<SchedulerCycleSummary> => {
+    await options.authorityPreflight?.();
     const now = options.clock.now();
     const authority = options.scheduleAuthority
       ? await options.scheduleAuthority()
@@ -339,6 +341,7 @@ export function createPostgresDurableNoSessionHealthRuntime(
       intervalSeconds: number;
       nextDueAt: Date;
     }>;
+    authorityPreflight?: () => Promise<void>;
     probe?: NoSessionProbe;
     classifierVersion?: string;
     wakeMs?: number;
@@ -352,6 +355,7 @@ export function createPostgresDurableNoSessionHealthRuntime(
     ownerId:
       options.ownerId ?? `telegram-health:${process.pid}:${randomUUID()}`,
     scheduleAuthority: options.scheduleAuthority,
+    authorityPreflight: options.authorityPreflight,
     probe: options.probe,
     classifierVersion: options.classifierVersion,
     wakeMs: options.wakeMs,
