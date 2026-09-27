@@ -1,5 +1,13 @@
 import { createHash, generateKeyPairSync, randomUUID } from "node:crypto";
-import { readFileSync } from "node:fs";
+import {
+  chmodSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { BootstrapIdentifiedSnapshotPayloadV2 } from "../../../packages/contracts/src/index.js";
 import { signBootstrapSnapshotV2 } from "../../../packages/server/remote-config/src/index.js";
@@ -11,12 +19,31 @@ import { AdminAiService } from "../../../packages/server/admin-ai/src/index.js";
 import { AdminOpsService } from "../../../packages/server/admin-ops/src/index.js";
 import { BetaAdmissionService } from "../../../packages/server/beta-access/src/index.js";
 import { createAdminCommercialService } from "../../../packages/server/admin-commercial/src/index.js";
+import {
+  BootstrapAiResolutionService,
+  BootstrapService,
+  LocalClientAuthorityMaterializer,
+} from "../../../packages/server/bootstrap/src/index.js";
+import {
+  ExtensionAuthService,
+  createEphemeralAccessTokenSigningKey,
+  deriveExtensionAuthKeys,
+} from "../../../packages/server/extension-auth/src/index.js";
+import {
+  bindConfigSigningRing,
+  createConfigSigningService,
+  loadConfigSigningMaterial,
+} from "../../../apps/api/src/bootstrap-signing.js";
+import { resolveP3BootstrapPolicy } from "../../../packages/server/remote-config/src/index.js";
 import type { AppConfig } from "../../../packages/shared/src/index.js";
 import {
   authorizeAdminMutationInTransaction,
   createAdminAuthRepository,
   createAdminOpsRepository,
   createBetaAdmissionRepository,
+  createBootstrapAiResolutionRepository,
+  createExtensionAuthRepository,
+  createP3BootstrapPolicyCatalogRepository,
   createDatabaseRuntime,
   createP3PolicyPublicationRepository,
   createP6AdminCommercialReadRepository,
@@ -50,6 +77,7 @@ import {
   type Store1TrustBundle,
   type Store1V2SignaturePreflightTransport,
 } from "../../../tooling/server/store1-v2-signature-preflight.js";
+import { runStore1ReadOnlyPreflightWithEvidenceForTest } from "../../../tooling/server/store1-preflight-cli.js";
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString)
@@ -64,6 +92,7 @@ const ADMIN_USER = "30000000-0000-4000-8000-000000000003";
 const ADMIN_PRINCIPAL = "30000000-0000-4000-8000-000000000004";
 const ADMIN_PORTAL = "30000000-0000-4000-8000-000000000005";
 const REVIEWER_DEVICE = "30000000-0000-4000-8000-000000000006";
+const REVIEWER_SESSION = "30000000-0000-4000-8000-000000000007";
 const authority: Store1PackageAuthority = {
   sourceHead: "e7d66152bdb77918b65115486c9829ef7a634e69",
   sourceTree: "01ae2c1d84a354a11d919a313f8d9909d1285b6a",
@@ -136,6 +165,8 @@ let db: DatabaseRuntime;
 let app: ReturnType<typeof createApiApp>;
 let cookie = "";
 let csrf = "";
+let adminSessionCredential = "";
+let reviewerBearer = "";
 const readback: Store1ActivationReadback = {};
 
 async function q<T extends Record<string, unknown> = Record<string, unknown>>(
@@ -215,7 +246,7 @@ async function seedAdminSession() {
     createAdminAuthRepository(db),
     deriveAdminAuthKeys(Buffer.alloc(32, 91)),
     () => NOW,
-    () => "store1-admin-" + randomUUID(),
+    () => Buffer.alloc(32, 93).toString("base64url"),
   );
   const elevated = await auth.createAdminSession(
     { sessionId: ADMIN_PORTAL, userId: ADMIN_USER, createdAt: NOW },
@@ -223,12 +254,33 @@ async function seedAdminSession() {
   );
   if (!elevated.ok) throw new Error("admin fixture failed: " + elevated.code);
   csrf = auth.csrf(elevated.value.sessionToken);
+  adminSessionCredential = elevated.value.sessionToken;
   cookie =
     "pcp_admin_session=" +
     elevated.value.sessionToken +
     "; pcp_admin_csrf=" +
     csrf;
   return auth;
+}
+async function seedReviewerExtensionCredential() {
+  await q(
+    "INSERT INTO devices(id,account_id,created_by_user_id,browser_family,extension_version_last_seen) VALUES($1,$2,$3,'opera',$4)",
+    [REVIEWER_DEVICE, REVIEWER_ACCOUNT, REVIEWER_USER, STORE1_VERSION],
+  );
+  await q(
+    "INSERT INTO sessions(id,device_id,account_id,token_family_id) VALUES($1,$2,$3,$4)",
+    [REVIEWER_SESSION, REVIEWER_DEVICE, REVIEWER_ACCOUNT, randomUUID()],
+  );
+  const extensionAuth = new ExtensionAuthService(
+    createExtensionAuthRepository(db),
+    deriveExtensionAuthKeys(Buffer.alloc(32, 74)),
+    undefined,
+    createEphemeralAccessTokenSigningKey("store1-preflight-test"),
+  );
+  const issued = await extensionAuth.issue(REVIEWER_SESSION);
+  if (!issued.ok) throw new Error("reviewer extension credential failed");
+  reviewerBearer = issued.value.accessToken;
+  return extensionAuth;
 }
 async function call(instruction: Store1HttpInstruction) {
   const path = instruction.path.replace(
@@ -527,6 +579,80 @@ async function runPlanner(maxSteps = 40, injectSignatureProof = false) {
   }
   throw new Error("STORE1_TEST_PLAN_DID_NOT_CONVERGE");
 }
+
+type RoutedFetchCall = {
+  method: string;
+  path: string;
+  cookie: string | null;
+  authorization: string | null;
+  status?: number;
+  body?: unknown;
+};
+
+function routeBackedFetch(calls: RoutedFetchCall[]): typeof fetch {
+  return (async (input: URL | RequestInfo, init?: RequestInit) => {
+    const url = input instanceof URL ? input : new URL(String(input));
+    if (url.origin !== STORE1_TEST_CONTROL_ORIGIN)
+      throw new Error("STORE1_TEST_ORIGIN_MISMATCH");
+    const headers = new Headers(init?.headers);
+    const method = init?.method ?? "GET";
+    const call: RoutedFetchCall = {
+      method,
+      path: url.pathname + url.search,
+      cookie: headers.get("cookie"),
+      authorization: headers.get("authorization"),
+      ...(typeof init?.body === "string"
+        ? { body: JSON.parse(init.body) as unknown }
+        : {}),
+    };
+    calls.push(call);
+    const response = await app.inject({
+      method: method as "GET" | "POST",
+      url: url.pathname + url.search,
+      headers: Object.fromEntries(headers.entries()),
+      ...(typeof init?.body === "string" ? { payload: init.body } : {}),
+    });
+    call.status = response.statusCode;
+    return new Response(response.body, {
+      status: response.statusCode,
+      headers: {
+        "content-type": String(
+          response.headers["content-type"] ?? "application/json",
+        ),
+      },
+    });
+  }) as typeof fetch;
+}
+
+async function runHttpPreflight(reviewerCredential = reviewerBearer) {
+  const directory = mkdtempSync(join(tmpdir(), "store1-http-preflight-"));
+  const adminPath = join(directory, "admin-session");
+  const reviewerPath = join(directory, "reviewer-bearer");
+  try {
+    writeFileSync(adminPath, adminSessionCredential, { mode: 0o600 });
+    writeFileSync(reviewerPath, reviewerCredential, { mode: 0o600 });
+    chmodSync(adminPath, 0o600);
+    chmodSync(reviewerPath, 0o600);
+    const calls: RoutedFetchCall[] = [];
+    const result = await runStore1ReadOnlyPreflightWithEvidenceForTest(
+      {
+        manifestPath: "/test/manifest.json",
+        packagePath: "/test/package.zip",
+        reviewerEmail: REVIEWER_EMAIL,
+        deviceId: REVIEWER_DEVICE,
+        browserVersion: "136",
+        adminSessionFile: adminPath,
+        reviewerDeviceBearerFile: reviewerPath,
+      },
+      store1PackageEvidence(),
+      { fetchImpl: routeBackedFetch(calls), now: () => NOW },
+    );
+    return { result, calls };
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+}
+
 describe.sequential("STORE-1 ordinary-admin whole-sequence rehearsal", () => {
   beforeAll(async () => {
     db = createDatabaseRuntime(connectionString!);
@@ -538,10 +664,44 @@ describe.sequential("STORE-1 ordinary-admin whole-sequence rehearsal", () => {
     await seedV2BaseConfig();
     await seedClosedReviewer();
     const adminAuth = await seedAdminSession();
+    const extensionAuth = await seedReviewerExtensionCredential();
     const beta = new BetaAdmissionService(createBetaAdmissionRepository(db));
+    const p3Catalog = createP3BootstrapPolicyCatalogRepository(db);
+    const signingMaterial = loadConfigSigningMaterial({
+      CONFIG_SIGNING_KEY_ID: "store1-preprod-base",
+      CONFIG_SIGNING_PRIVATE_KEY_PEM_B64: Buffer.from(
+        STORE1_TEST_SIGNING_PAIR.privateKey.export({
+          format: "pem",
+          type: "pkcs8",
+        }),
+      ).toString("base64"),
+    });
+    await bindConfigSigningRing(signingMaterial, (keyId) =>
+      p3Catalog.findSigningKey(keyId),
+    );
+    const bootstrapAi = new BootstrapAiResolutionService(
+      createBootstrapAiResolutionRepository(db),
+    );
+    const localClientAuthority = new LocalClientAuthorityMaterializer(
+      p3Catalog,
+      bootstrapAi,
+    );
     app = createApiApp({
       config,
       isInfrastructureReady: async () => true,
+      extensionAuthService: extensionAuth,
+      bootstrapService: new BootstrapService(
+        { resolve: (input) => resolveP3BootstrapPolicy(input, p3Catalog) },
+        createConfigSigningService(signingMaterial, p3Catalog),
+        { now: () => NOW },
+        undefined,
+        bootstrapAi,
+        beta,
+        undefined,
+        undefined,
+        undefined,
+        localClientAuthority,
+      ),
       adminAuthService: adminAuth,
       adminOpsService: new AdminOpsService(
         createAdminOpsRepository(db),
@@ -570,6 +730,98 @@ describe.sequential("STORE-1 ordinary-admin whole-sequence rehearsal", () => {
   afterAll(async () => {
     await app?.close();
     await db?.close();
+  });
+
+  it("runs B10 against real admin and signed bootstrap handlers without catalog writes", async () => {
+    const before = await q<{ releases: string; configReleases: string }>(
+      'SELECT (SELECT count(*)::text FROM extension_releases) AS releases, (SELECT count(*)::text FROM config_releases) AS "configReleases"',
+    );
+    const { result, calls } = await runHttpPreflight();
+    expect(result).toMatchObject({
+      status: "POST",
+      signature: { verified: true },
+      nextActionPreview: {
+        method: "POST",
+        path: "/v1/admin/compatibility/releases/0.2.4/publish",
+        executed: false,
+      },
+      bootstrapMayUpdateDeviceOrAuthState: true,
+      catalogMutationExecuted: false,
+    });
+    expect(
+      calls.filter((call) => call.method === "POST").map((call) => call.path),
+    ).toEqual(["/v1/bootstrap"]);
+    expect(calls.find((call) => call.path === "/v1/bootstrap")).toMatchObject({
+      method: "POST",
+      status: 200,
+      body: {
+        contractVersion: "control_plane_v2",
+        extensionVersion: STORE1_VERSION,
+        browser: { family: "opera", version: "136" },
+        deviceId: REVIEWER_DEVICE,
+        lastConfigVersion: null,
+      },
+    });
+    expect(
+      calls
+        .filter((call) => call.method === "GET")
+        .every((call) => [200, 404].includes(call.status ?? 0)),
+    ).toBe(true);
+    expect(
+      calls.some(
+        (call) => call.cookie === `pcp_admin_session=${adminSessionCredential}`,
+      ),
+    ).toBe(true);
+    expect(
+      calls.some((call) => call.authorization === `Bearer ${reviewerBearer}`),
+    ).toBe(true);
+    expect(
+      calls.every(
+        (call) => call.cookie !== `pcp_admin_session=${reviewerBearer}`,
+      ),
+    ).toBe(true);
+    expect(
+      calls.every(
+        (call) => call.authorization !== `Bearer ${adminSessionCredential}`,
+      ),
+    ).toBe(true);
+    const after = await q<{ releases: string; configReleases: string }>(
+      'SELECT (SELECT count(*)::text FROM extension_releases) AS releases, (SELECT count(*)::text FROM config_releases) AS "configReleases"',
+    );
+    expect(after.rows[0]).toEqual(before.rows[0]);
+  });
+
+  it("rejects invalid or revoked reviewer credentials and stops before bootstrap for unadmitted accounts", async () => {
+    await expect(
+      runHttpPreflight("not-a-reviewer-token-123456"),
+    ).rejects.toThrow("STORE1_AUTHENTICATION_FAILED");
+
+    await q("UPDATE devices SET status='REVOKED',revoked_at=$2 WHERE id=$1", [
+      REVIEWER_DEVICE,
+      NOW,
+    ]);
+    await expect(runHttpPreflight()).rejects.toThrow(
+      "STORE1_AUTHENTICATION_FAILED",
+    );
+    await q("UPDATE devices SET status='ACTIVE',revoked_at=NULL WHERE id=$1", [
+      REVIEWER_DEVICE,
+    ]);
+
+    await q("DELETE FROM beta_admissions WHERE account_id=$1", [
+      REVIEWER_ACCOUNT,
+    ]);
+    const unadmitted = await runHttpPreflight();
+    expect(unadmitted.result).toMatchObject({
+      status: "BLOCKED",
+      catalogMutationExecuted: false,
+    });
+    expect(unadmitted.calls.some((call) => call.path === "/v1/bootstrap")).toBe(
+      false,
+    );
+    await q(
+      "INSERT INTO beta_admissions(account_id,user_id,admitted_at) VALUES($1,$2,$3)",
+      [REVIEWER_ACCOUNT, REVIEWER_USER, NOW],
+    );
   });
 
   it("blocks all catalog writes until signature proof and fails closed on mismatch", async () => {
