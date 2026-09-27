@@ -23,6 +23,7 @@ import "./wb-advertised-stock-reuse.mjs";
 import "./wb-paid-storage-contribution-field-schema-slice.mjs";
 import "./wb-sales-geography-field-schema-slice.mjs";
 import "./wb-sales-decline-evidence-reuse.mjs";
+import "./wb-cross-source-join-field-schema-slice.mjs";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
@@ -393,6 +394,63 @@ const calculators = {
       return { status: "DUPLICATE_KEY", side: "right" };
     return { status: "UNIQUE" };
   },
+  cross_source_join(input) {
+    if (
+      typeof input.period !== "string" ||
+      !input.period ||
+      !Array.isArray(input.left) ||
+      !Array.isArray(input.right)
+    )
+      return { status: "INCOMPLETE", reason: "PERIOD_OR_SOURCE_MISSING" };
+
+    const project = (rows, side) => {
+      const ids = new Set();
+      const products = new Map();
+      for (const row of rows) {
+        if (
+          !row ||
+          typeof row.rowId !== "string" ||
+          !row.rowId ||
+          typeof row.product !== "string" ||
+          !row.product ||
+          row.period !== input.period
+        )
+          return {
+            status: "INCOMPLETE",
+            reason: side === "left" ? "LEFT_ROW_INVALID" : "RIGHT_ROW_INVALID",
+          };
+        if (ids.has(row.rowId))
+          return {
+            status: "INCOMPLETE",
+            reason:
+              side === "left"
+                ? "DUPLICATE_LEFT_ROW_ID"
+                : "DUPLICATE_RIGHT_ROW_ID",
+          };
+        ids.add(row.rowId);
+        products.set(row.product, (products.get(row.product) ?? 0) + 1);
+      }
+      return { status: "COMPLETE", products };
+    };
+
+    const left = project(input.left, "left");
+    if (left.status !== "COMPLETE") return left;
+    const right = project(input.right, "right");
+    if (right.status !== "COMPLETE") return right;
+    const leftProducts = [...left.products.keys()].sort();
+    const rightProducts = [...right.products.keys()].sort();
+    if (JSON.stringify(leftProducts) !== JSON.stringify(rightProducts))
+      return { status: "INCOMPLETE", reason: "PRODUCT_SET_MISMATCH" };
+
+    return {
+      status: "COMPLETE",
+      rows: leftProducts.map((product) => ({
+        product,
+        leftRows: left.products.get(product),
+        rightRows: right.products.get(product),
+      })),
+    };
+  },
   search_dedup(input) {
     const keys = input.rows.map(
       (row) => `${row.period}\u0000${row.product}\u0000${row.query}`,
@@ -462,6 +520,7 @@ const requiredKinds = new Set([
   "platform_contribution",
   "top_n_join",
   "join_unique",
+  "cross_source_join",
   "search_dedup",
   "attention_rank",
   "causal_boundary",

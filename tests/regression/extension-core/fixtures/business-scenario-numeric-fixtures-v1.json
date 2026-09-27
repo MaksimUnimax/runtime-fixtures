@@ -532,6 +532,104 @@
         "status": "DUPLICATE_KEY",
         "side": "left"
       }
+    },
+    {
+      "id": "cross_source_join_complete",
+      "kind": "cross_source_join",
+      "input": {
+        "period": "2026-09-20/2026-09-26",
+        "left": [
+          {
+            "rowId": "S-1",
+            "product": "1001",
+            "period": "2026-09-20/2026-09-26"
+          },
+          {
+            "rowId": "S-2",
+            "product": "1001",
+            "period": "2026-09-20/2026-09-26"
+          },
+          {
+            "rowId": "S-3",
+            "product": "1002",
+            "period": "2026-09-20/2026-09-26"
+          }
+        ],
+        "right": [
+          {
+            "rowId": "R-1",
+            "product": "1001",
+            "period": "2026-09-20/2026-09-26"
+          },
+          {
+            "rowId": "R-2",
+            "product": "1002",
+            "period": "2026-09-20/2026-09-26"
+          }
+        ]
+      },
+      "expected": {
+        "status": "COMPLETE",
+        "rows": [
+          { "product": "1001", "leftRows": 2, "rightRows": 1 },
+          { "product": "1002", "leftRows": 1, "rightRows": 1 }
+        ]
+      }
+    },
+    {
+      "id": "cross_source_join_duplicate_rejected",
+      "kind": "cross_source_join",
+      "input": {
+        "period": "2026-09-20/2026-09-26",
+        "left": [
+          {
+            "rowId": "S-dup",
+            "product": "1001",
+            "period": "2026-09-20/2026-09-26"
+          },
+          {
+            "rowId": "S-dup",
+            "product": "1001",
+            "period": "2026-09-20/2026-09-26"
+          }
+        ],
+        "right": [
+          {
+            "rowId": "R-1",
+            "product": "1001",
+            "period": "2026-09-20/2026-09-26"
+          }
+        ]
+      },
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "DUPLICATE_LEFT_ROW_ID"
+      }
+    },
+    {
+      "id": "cross_source_join_missing_product_rejected",
+      "kind": "cross_source_join",
+      "input": {
+        "period": "2026-09-20/2026-09-26",
+        "left": [
+          {
+            "rowId": "S-1",
+            "product": "1001",
+            "period": "2026-09-20/2026-09-26"
+          }
+        ],
+        "right": [
+          {
+            "rowId": "R-1",
+            "product": "1002",
+            "period": "2026-09-20/2026-09-26"
+          }
+        ]
+      },
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "PRODUCT_SET_MISMATCH"
+      }
     }
   ]
 }
