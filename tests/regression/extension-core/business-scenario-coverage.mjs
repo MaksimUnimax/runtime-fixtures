@@ -2,6 +2,7 @@ import "./wb-stock-field-schema-slice.mjs";
 import "./wb-operational-sales-field-schema-slice.mjs";
 import "./wb-finance-sales-field-schema-slice.mjs";
 import "./wb-advertising-field-schema-slice.mjs";
+import "./wb-order-lifecycle-field-schema-slice.mjs";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
