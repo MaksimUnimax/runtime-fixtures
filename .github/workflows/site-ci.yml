@@ -202,6 +202,13 @@ jobs:
           width, height = struct.unpack(">II", header[16:24])
           assert (width, height) == (120, 120), (width, height)
 
+          mobile_public_h1_guard = (
+              "  .public-page h1 {\n"
+              "    overflow-wrap: anywhere;\n"
+              "  }"
+          )
+          assert mobile_public_h1_guard in css, "320px public-page H1 wrap guard is missing"
+
           mobile_privacy_guard = (
               "  .privacy-panel {\n"
               "    border-radius: 24px;\n"
