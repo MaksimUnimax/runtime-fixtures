@@ -1,0 +1,187 @@
+{
+  "schemaVersion": "wb_rating_boundary_refresh_v1",
+  "capturedDate": "2026-09-27",
+  "scope": {
+    "scenarioIds": ["CAP-15"],
+    "boundary": "CURRENT_ITEM_RATING_AND_MEASUREMENT_PENALTY_SIGNALS_DO_NOT_EQUAL_OZON_FBS_ERROR_INDEX",
+    "evidence": "PINNED_CURRENT_MIRROR_CHANGELOG_PLUS_GENERATED_MODELS",
+    "liveValues": false,
+    "acceptedOperationMappingChanged": true
+  },
+  "authority": {
+    "mirrorRepository": "eslazarev/wildberries-sdk",
+    "mirrorCommit": "5057bdb9bf16dea24000e3ca79e1934f7761d7fe",
+    "analyticsSpecBlobSha": "de25972f376a6804e34c6842830c45cfed644d61",
+    "reportsSpecBlobSha": "22ff073c10a3cebe0dc7af647eb2b704fd35857c",
+    "changelogBlobSha": "7a9395c29abff969d072f95587fdb0094497b6cd",
+    "itemRatingV1RemovedDate": "2026-08-15",
+    "itemRatingRequestBlobSha": "e03022848c961f85edfd465d652ce5843bb0a5eb",
+    "itemRatingOuterResponseBlobSha": "35dec395bef8f38bcbf5f947e4e2eda75f2294dc",
+    "itemRatingResponseBlobSha": "8d2aea493efc66fa844e64374bc222b6400caa0c",
+    "distributionRowBlobSha": "bb596327a819f18a192b351ce9a013336c8321ac",
+    "sellerRatingBlobSha": "0e25ede17fe64cbe483f7b91c9d2587187f111f2",
+    "feedbackIncreaseBlobSha": "9ccb9c5b8bee6897a62192bbea2b7272c20ebcc8",
+    "measurementPenaltiesBlobSha": "af90cb7a19d5f722a0a7cc823e41745c78d4d901",
+    "measurementPenaltiesDataBlobSha": "2fa5ccb271f496924cdad9575b5de509a5961cc1",
+    "measurementPenaltyRowBlobSha": "935729455353513d5e15ff370ac46adf02f975c2"
+  },
+  "sources": {
+    "deletedRatingV1": {
+      "operationAlias": "analytics_item_rating_v1",
+      "frozenRegistryPath": "/api/analytics/v1/item-rating",
+      "currentMirrorOpenApiPresent": false,
+      "removalReason": "UPSTREAM_CHANGELOG_REMOVED_OBSOLETE_ENDPOINT",
+      "replacement": "analytics_item_rating_v2"
+    },
+    "ratingV2": {
+      "operationAlias": "analytics_item_rating_v2",
+      "host": "analytics",
+      "method": "POST",
+      "path": "/api/analytics/v2/item-rating",
+      "tokenTypes": ["personal", "service"],
+      "updateCadence": "HOURLY",
+      "request": {
+        "currentPeriodRequired": true,
+        "pastPeriodOptional": true,
+        "maxNmIds": 50,
+        "maxSubjectIds": 50,
+        "maxBrandNames": 50,
+        "maxTagIds": 50,
+        "onlyShadowedNmsDefault": false,
+        "limitMax": 1000,
+        "offsetRequired": true
+      },
+      "response": {
+        "sellerRating": {
+          "current": {
+            "role": "seller_rating_current",
+            "unit": "provider_rating"
+          },
+          "dynamics": {
+            "role": "seller_rating_change",
+            "unit": "percent_optional"
+          }
+        },
+        "productFields": {
+          "nmId": { "role": "product_id", "unit": "identifier" },
+          "rating": {
+            "role": "product_card_rating",
+            "unit": "provider_rating"
+          },
+          "feedbackRating": {
+            "role": "feedback_rating",
+            "unit": "provider_metric"
+          },
+          "feedbackCount": {
+            "role": "feedback_count",
+            "unit": "provider_metric"
+          },
+          "disqualified": {
+            "role": "feedbacks_excluded_from_rating",
+            "unit": "count"
+          },
+          "isShadowed": {
+            "role": "provider_hidden_from_catalog_flag",
+            "unit": "boolean"
+          }
+        }
+      }
+    },
+    "measurementPenalties": {
+      "operationAlias": "measurement_penalties",
+      "host": "analytics",
+      "method": "GET",
+      "path": "/api/analytics/v1/measurement-penalties",
+      "requiredQuery": ["dateTo", "limit"],
+      "optionalQuery": ["dateFrom", "offset"],
+      "pagination": "OFFSET_WITH_RESPONSE_TOTAL",
+      "rowGrain": ["dimId"],
+      "fields": {
+        "nmId": { "role": "product_id", "unit": "identifier" },
+        "dimId": { "role": "measurement_id", "unit": "identifier" },
+        "prcOver": {
+          "role": "dimension_difference_percent",
+          "unit": "percent"
+        },
+        "penaltyAmount": {
+          "role": "measurement_penalty_amount_optional",
+          "unit": "provider_money_optional"
+        },
+        "reversalAmount": {
+          "role": "measurement_reversal_amount_optional",
+          "unit": "provider_money_optional"
+        },
+        "isValid": {
+          "role": "measurement_status_optional",
+          "unit": "boolean_optional"
+        }
+      },
+      "meaning": "DIMENSION_MEASUREMENT_PENALTIES_NOT_ORDER_FULFILLMENT_ERROR_INDEX"
+    }
+  },
+  "rules": {
+    "v1": "DELETED_ITEM_RATING_V1_MUST_NOT_REMAIN_IN_CURRENT_CAP15_MAPPING",
+    "rating": "PRESERVE_SELLER_AND_PRODUCT_RATING_AS_PROVIDER_METRICS",
+    "shadowedFlag": "ITEM_RATING_V2_ISSHADOWED_IS_A_PROVIDER_PRODUCT_FLAG_NOT_A_BUYER_DELIVERY_OR_FBS_ERROR_INDEX",
+    "penalty": "MEASUREMENT_PENALTY_IS_DIMENSION_MEASUREMENT_EVIDENCE_NOT_FBS_FULFILLMENT_ERROR_INDEX",
+    "noEquivalent": "NO_EXACT_WB_EQUIVALENT_TO_OZON_SELLER_FBS_ERROR_INDEX_IS_INVENTED",
+    "missing": "MISSING_RATING_OR_PENALTY_IS_UNKNOWN_NOT_ZERO"
+  },
+  "acceptedMappingBefore": {
+    "CAP-15": [
+      "analytics_item_rating_v2",
+      "analytics_item_rating_v1",
+      "measurement_penalties"
+    ]
+  },
+  "acceptedMappingAfter": {
+    "CAP-15": ["analytics_item_rating_v2", "measurement_penalties"]
+  },
+  "syntheticCases": {
+    "known": {
+      "sellerRating": 4.72,
+      "productRating": 4.6,
+      "measurementPenalty": 449.83,
+      "expected": {
+        "status": "BOUNDARY",
+        "sellerRating": 4.72,
+        "productRating": 4.6,
+        "measurementPenalty": 449.83,
+        "fbsErrorIndexKnown": false,
+        "fbsErrorIndex": null
+      }
+    },
+    "missingPenalty": {
+      "sellerRating": 4.72,
+      "productRating": 4.6,
+      "measurementPenalty": null,
+      "expected": {
+        "status": "BOUNDARY",
+        "sellerRating": 4.72,
+        "productRating": 4.6,
+        "measurementPenalty": null,
+        "fbsErrorIndexKnown": false,
+        "fbsErrorIndex": null
+      }
+    },
+    "missingRating": {
+      "sellerRating": null,
+      "productRating": null,
+      "measurementPenalty": 100,
+      "expected": {
+        "status": "BOUNDARY",
+        "sellerRating": null,
+        "productRating": null,
+        "measurementPenalty": 100,
+        "fbsErrorIndexKnown": false,
+        "fbsErrorIndex": null
+      }
+    }
+  },
+  "remainingOpen": [
+    "live WB rating and measurement-penalty values plus owner gold-set reconciliation",
+    "no exact WB analogue for Ozon seller FBS error index is identified by this source family",
+    "complete offset pagination for measurement penalties when used",
+    "frozen WB registry still contains deleted analytics_item_rating_v1 and requires separate shared-authority regeneration ownership"
+  ]
+}

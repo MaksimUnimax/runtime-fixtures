@@ -58,7 +58,7 @@ function assertOperation(source) {
 assert.equal(slice.schemaVersion, "wb_content_quality_field_schema_slice_v1");
 assert.deepEqual(slice.scope.scenarioIds, ["CAP-03"]);
 assert.equal(slice.scope.liveValues, false);
-assert.equal(slice.scope.acceptedOperationMappingChanged, false);
+assert.equal(slice.scope.acceptedOperationMappingChanged, true);
 
 const errors = slice.sources.cardsErrors;
 const cards = slice.sources.cardsList;
@@ -78,13 +78,35 @@ assert.equal(catalogIdentity.source.fields.nmID.role, "product_card_id");
 assert.equal(catalogIdentity.source.fields.vendorCode.role, "seller_article");
 assert.equal(
   recommendations.currentOfficialFieldSchema,
-  "UNRESOLVED_IN_CURRENT_DOCUMENTATION_SEARCH",
+  "RESOLVED_PRODUCT_RECOMMENDATION_LIST",
 );
-assert.equal(recommendations.fieldDerivedMetricsAllowed, false);
+assert.deepEqual(recommendations.tokenTypes, ["personal", "service"]);
+assert.equal(recommendations.bodyRequired, false);
+assert.equal(recommendations.response.rowGrain[0], "nmId");
+assert.equal(
+  recommendations.response.fields.recomCount.role,
+  "recommended_product_count",
+);
+assert.equal(
+  recommendations.response.fields.recomNms.role,
+  "recommended_product_ids",
+);
+assert.equal(recommendations.qualitySignalAllowed, false);
+assert.equal(recommendations.expertQualityScoreAllowed, false);
+assert.equal(
+  recommendations.acceptedMappingUse,
+  "EXCLUDED_FROM_CAP03_QUALITY_MAPPING",
+);
 assert.equal(recMeta.source_path, recommendations.path);
 const cap03 = scenarios.get("CAP-03");
 assert.ok(cap03, "CAP-03 missing");
-assert.deepEqual(cap03.wbOperations, slice.acceptedMappingSnapshot["CAP-03"]);
+assert.deepEqual(slice.acceptedMappingBefore["CAP-03"], [
+  "cards_errors",
+  "content_recommendations",
+  "cards_list",
+]);
+assert.deepEqual(cap03.wbOperations, slice.acceptedMappingAfter["CAP-03"]);
+assert.deepEqual(cap03.wbOperations, ["cards_errors", "cards_list"]);
 assert.equal(cap03.omissionPolicy, "MISSING_NOT_ZERO");
 
 function summarizeErrorPages(pages) {
@@ -170,6 +192,29 @@ assert.deepEqual(
   c.ambiguousVendorJoin.expected,
 );
 
+function projectRecommendations(row) {
+  if (
+    !row ||
+    !Number.isInteger(row.nmId) ||
+    !Number.isInteger(row.recomCount) ||
+    row.recomCount < 0 ||
+    !Array.isArray(row.recomNms) ||
+    !Array.isArray(row.recomPics) ||
+    row.recomCount !== row.recomNms.length
+  )
+    return { status: "INCOMPLETE", reason: "RECOMMENDATION_ROW_INVALID" };
+  return {
+    recommendedProductCount: row.recomCount,
+    expertQualityKnown: false,
+    expertQuality: null,
+    contentIssueCountFromRecommendations: 0,
+  };
+}
+assert.deepEqual(
+  projectRecommendations(c.recommendationsNotQuality.row),
+  c.recommendationsNotQuality.expected,
+);
+
 assert.equal(
   slice.rules.officialErrors,
   "COUNT_PROVIDER_ERROR_MESSAGE_OCCURRENCES_ONLY_AFTER_COMPLETE_BATCH_PAGINATION",
@@ -180,25 +225,27 @@ assert.equal(
 );
 assert.equal(
   slice.rules.expertQuality,
-  "SEPARATE_FROM_PROVIDER_ERROR_COUNT_AND_UNVERIFIED_RECOMMENDATION_FIELDS",
+  "SEPARATE_FROM_PROVIDER_ERROR_COUNT_AND_PRODUCT_RECOMMENDATION_LIST",
 );
 assert.equal(
   slice.rules.recommendations,
-  "NO_FIELD_SEMANTICS_WITHOUT_CURRENT_OFFICIAL_SOURCE",
+  "PRODUCT_TO_PRODUCT_RECOMMENDATION_LIST_NOT_CONTENT_QUALITY_ADVICE_OR_SCORE",
+);
+assert.equal(
+  slice.rules.recommendationCount,
+  "RECOM_COUNT_COUNTS_RECOMMENDED_PRODUCTS_NOT_QUALITY_ISSUES",
 );
 console.log(
   JSON.stringify({
     status: "PASS",
     schemaVersion: slice.schemaVersion,
     scenarios: slice.scope.scenarioIds,
-    operations: [
-      errors.operationAlias,
-      recommendations.operationAlias,
-      cards.operationAlias,
-    ],
+    currentQualityOperations: cap03.wbOperations,
+    excludedValidReadOperation: recommendations.operationAlias,
     officialErrorPagination: errors.pagination.terminal,
-    recommendationFieldSchemaResolved: false,
-    acceptedOperationMappingChanged: false,
+    recommendationFieldSchemaResolved: true,
+    recommendationIsQualitySignal: false,
+    acceptedOperationMappingChanged: true,
     liveValues: false,
   }),
 );

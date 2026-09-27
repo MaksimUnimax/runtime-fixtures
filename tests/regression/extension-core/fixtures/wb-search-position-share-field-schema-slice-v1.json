@@ -1,0 +1,200 @@
+{
+  "schemaVersion": "wb_search_position_share_field_schema_slice_v1",
+  "capturedDate": "2026-09-27",
+  "scope": {
+    "scenarioIds": ["CAP-23"],
+    "boundary": "SEARCH_POSITION_AND_CATEGORY_SHARE_ARE_PROVIDER_SCOPED__REGION_FILTER_UNSUPPORTED",
+    "evidence": "PINNED_UPSTREAM_OPENAPI_MIRROR",
+    "liveValues": false,
+    "acceptedOperationMappingChanged": false
+  },
+  "authority": {
+    "mirrorRepository": "eslazarev/wildberries-sdk",
+    "mirrorCommit": "5057bdb9bf16dea24000e3ca79e1934f7761d7fe",
+    "analyticsSpecBlobSha": "de25972f376a6804e34c6842830c45cfed644d61",
+    "reportsSpecBlobSha": "22ff073c10a3cebe0dc7af647eb2b704fd35857c",
+    "mainRequestBlobSha": "d5205b264f4a440fcd536cb659382b199cd6a235",
+    "mainResponseBlobSha": "0566c51ed5af99f47403edd558fa29346b4a660f",
+    "positionInfoBlobSha": "072da396600edea880b78a893efdb36929d511bc",
+    "positionAverageBlobSha": "69926ca620d0e41342fe778d9563c827dcc1bda1",
+    "positionMedianBlobSha": "aab9d4bbad17eb15cb8e2f61c68b1fa59f61d551",
+    "positionClusterBlobSha": "a1abee450e4b2c6f88acab476832e58e2b4118ec",
+    "tableGroupRequestBlobSha": "a4c0a468478da1d583ab4dd7806cbca4a9b918e8",
+    "tableGroupResponseBlobSha": "c4ac4509a362ca7b7688ae60b1a2ad317a57a3ba",
+    "tableGroupItemBlobSha": "9f8975138eca9dc0e678794a98a5acf0e62a81c5",
+    "brandShareResponseBlobSha": "319776ee9192a82dda3b05c6d0b03a45839c7ce2",
+    "brandShareRowBlobSha": "a8fcfd372be5424a32bb933a06d863c5e778eca7"
+  },
+  "sources": {
+    "main": {
+      "operationAlias": "search_report_main",
+      "host": "analytics",
+      "method": "POST",
+      "path": "/api/v2/search-report/report",
+      "updateCadence": "HOURLY",
+      "request": {
+        "currentPeriodRequired": true,
+        "pastPeriodOptional": true,
+        "filters": ["nmIds", "subjectIds", "brandNames", "tagIds"],
+        "positionCluster": ["all", "firstHundred", "secondHundred", "below"],
+        "includeSubstitutedSKUsDefault": true,
+        "includeSearchTextsDefault": true,
+        "limitMax": 1000,
+        "offsetRequired": true,
+        "regionField": null
+      },
+      "response": {
+        "currencyRequired": true,
+        "positionFields": {
+          "average.current": {
+            "role": "provider_average_search_position",
+            "unit": "position"
+          },
+          "average.dynamics": {
+            "role": "provider_average_position_change",
+            "unit": "percent_optional"
+          },
+          "median.current": {
+            "role": "provider_median_search_position",
+            "unit": "position"
+          },
+          "median.dynamics": {
+            "role": "provider_median_position_change",
+            "unit": "percent_optional"
+          }
+        },
+        "groupsOptional": true
+      }
+    },
+    "groups": {
+      "operationAlias": "search_report_groups",
+      "host": "analytics",
+      "method": "POST",
+      "path": "/api/v2/search-report/table/groups",
+      "request": {
+        "filters": ["nmIds", "subjectIds", "brandNames", "tagIds"],
+        "positionCluster": ["all", "firstHundred", "secondHundred", "below"],
+        "limitMax": 1000,
+        "offsetRequired": true,
+        "groupPaginationRequiresFilter": ["brand", "subject", "tag"],
+        "regionField": null
+      },
+      "response": {
+        "currencyRequired": true,
+        "groupIdentityFields": ["subjectId", "brandName", "tagId"],
+        "productRowsField": "items"
+      }
+    },
+    "details": {
+      "operationAlias": "search_report_details",
+      "reuseFixture": "tests/regression/extension-core/fixtures/wb-search-query-field-schema-slice-v1.json",
+      "regionField": null
+    },
+    "brandShare": {
+      "operationAlias": "brand_share",
+      "host": "analytics",
+      "method": "GET",
+      "path": "/api/v1/analytics/brand-share",
+      "requiredQuery": ["parentId", "brand", "dateFrom", "dateTo"],
+      "maxPeriodDays": 365,
+      "availableSince": "2022-11-01",
+      "regionField": null,
+      "responseFields": {
+        "applyDate": { "role": "report_date", "unit": "date_optional" },
+        "brandRating": {
+          "role": "brand_rank_in_parent_category",
+          "unit": "rank_optional"
+        },
+        "pricePercent": {
+          "role": "sales_value_share_in_parent_category",
+          "unit": "percent_optional"
+        },
+        "qtyPercent": {
+          "role": "sales_quantity_share_in_parent_category",
+          "unit": "percent_optional"
+        }
+      }
+    }
+  },
+  "rules": {
+    "positionDefinition": "USE_EXPLICIT_PROVIDER_AVERAGE_OR_MEDIAN_POSITION_FIELD__DO_NOT_MIX",
+    "positionCluster": "FIRST_HUNDRED_1_100__SECOND_HUNDRED_101_200__BELOW_201_PLUS__ALL_UNFILTERED",
+    "region": "NO_REGION_PARAMETER_IN_PINNED_SEARCH_REPORT_OR_BRAND_SHARE_REQUESTS__REGION_SPECIFIC_CLAIM_UNSUPPORTED",
+    "period": "CURRENT_PERIOD_REQUIRED__PAST_PERIOD_ONLY_WHEN_COMPARISON_REQUESTED",
+    "tariff": "SEARCH_ANALYTICS_AVAILABILITY_AND_REQUEST_LIMITS_REMAIN_EXTERNAL_ACCOUNT_CAPABILITY",
+    "brandShare": "PRICE_PERCENT_AND_QTY_PERCENT_ARE_SALES_SHARE_IN_PARENT_CATEGORY_NOT_SEARCH_VISIBILITY_SHARE",
+    "null": "OPTIONAL_MISSING_SHARE_OR_POSITION_EVIDENCE_IS_UNKNOWN_NOT_ZERO",
+    "missing": "MISSING_NOT_ZERO",
+    "pagination": "OFFSET_PAGINATION_MUST_BE_EXHAUSTED_FOR_SELECTED_GROUP_PRODUCT_SCOPE"
+  },
+  "acceptedMappingSnapshot": {
+    "CAP-23": [
+      "search_report_main",
+      "search_report_groups",
+      "search_report_details",
+      "brand_share"
+    ]
+  },
+  "syntheticCases": {
+    "known": {
+      "period": "2026-09-01/2026-09-27",
+      "positionKind": "average",
+      "position": 42,
+      "region": null,
+      "brandShare": { "pricePercent": 7.5, "qtyPercent": 6.25 },
+      "expected": {
+        "status": "COMPLETE",
+        "positionKind": "average",
+        "position": 42,
+        "pricePercent": 7.5,
+        "qtyPercent": 6.25,
+        "nullMeansZero": false
+      }
+    },
+    "nullShare": {
+      "period": "2026-09-01/2026-09-27",
+      "positionKind": "median",
+      "position": 18,
+      "region": null,
+      "brandShare": { "pricePercent": null, "qtyPercent": null },
+      "expected": {
+        "status": "COMPLETE",
+        "positionKind": "median",
+        "position": 18,
+        "pricePercent": null,
+        "qtyPercent": null,
+        "nullMeansZero": false
+      }
+    },
+    "missingPosition": {
+      "period": "2026-09-01/2026-09-27",
+      "positionKind": "average",
+      "position": null,
+      "region": null,
+      "brandShare": { "pricePercent": 4, "qtyPercent": 3 },
+      "expected": {
+        "status": "UNKNOWN",
+        "reason": "POSITION_MISSING",
+        "position": null
+      }
+    },
+    "unsupportedRegion": {
+      "period": "2026-09-01/2026-09-27",
+      "positionKind": "average",
+      "position": 12,
+      "region": "Moscow",
+      "brandShare": { "pricePercent": 4, "qtyPercent": 3 },
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "REGION_FILTER_UNSUPPORTED"
+      }
+    }
+  },
+  "remainingOpen": [
+    "live search-analytics entitlement and actual account tariff behavior",
+    "live WB position/category-share values and owner gold-set reconciliation",
+    "region-specific search position requires another authoritative source because this source family exposes no region parameter",
+    "brand share is sales share, not search visibility share",
+    "complete selected-scope offset pagination"
+  ]
+}

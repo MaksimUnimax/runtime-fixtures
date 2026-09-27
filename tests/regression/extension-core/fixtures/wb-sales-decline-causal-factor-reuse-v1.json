@@ -1,0 +1,89 @@
+{
+  "schemaVersion": "wb_sales_decline_causal_factor_reuse_v1",
+  "capturedDate": "2026-09-27",
+  "scope": {
+    "scenarioIds": ["STD-05"],
+    "boundary": "OBSERVED_ADVERSE_SIGNALS_SUPPORT_INVESTIGATION_HYPOTHESES_NOT_CAUSAL_LIKELIHOOD",
+    "evidence": "REUSE_STD06_VALIDATED_SOURCE_SIGNALS",
+    "liveValues": false,
+    "acceptedOperationMappingChanged": false
+  },
+  "reuse": {
+    "salesDeclineEvidence": "tests/regression/extension-core/fixtures/wb-sales-decline-evidence-reuse-v1.json"
+  },
+  "sources": {
+    "content": { "operationAlias": "cards_errors", "signal": "content_error" },
+    "orders": {
+      "operationAlias": "statistics_orders",
+      "signal": "orders_drop"
+    },
+    "stock": { "operationAlias": "stock_products", "signal": "stock_zero" },
+    "ads": { "operationAlias": "promo_fullstats", "signal": "ad_click_drop" }
+  },
+  "rules": {
+    "factorSet": "ONLY_COMPLETE_OBSERVED_ADVERSE_SIGNALS_BECOME_INVESTIGATION_FACTORS",
+    "causality": "EVERY_FACTOR_IS_HYPOTHESIS_NOT_PROVEN_CAUSE",
+    "likelihood": "NO_CAUSAL_PROBABILITY_OR_LIKELIHOOD_SCORE_FROM_CORRELATIONAL_SOURCE_SIGNALS",
+    "weighting": "NO_BUSINESS_WEIGHTING_WITHOUT_EXPLICIT_APPROVED_POLICY",
+    "missing": "ANY_REQUIRED_SIGNAL_MISSING_MAKES_FACTOR_SET_INCOMPLETE_NOT_FALSE",
+    "businessContext": "OPTIONAL_OWNER_CONTEXT_MAY_QUALIFY_INTERPRETATION_BUT_IS_NOT_INVENTED",
+    "ordering": "DETERMINISTIC_SIGNAL_NAME_ORDER_ONLY_NOT_LIKELIHOOD_ORDER"
+  },
+  "acceptedMappingSnapshot": {
+    "STD-05": [
+      "statistics_orders",
+      "stock_products",
+      "cards_errors",
+      "promo_fullstats"
+    ]
+  },
+  "syntheticCases": {
+    "complete": {
+      "signals": {
+        "content_error": true,
+        "orders_drop": true,
+        "stock_zero": false,
+        "ad_click_drop": true
+      },
+      "expected": {
+        "status": "COMPLETE",
+        "factors": ["ad_click_drop", "content_error", "orders_drop"],
+        "claim": "HYPOTHESIS_NOT_PROVEN_CAUSE",
+        "likelihoodKnown": false
+      }
+    },
+    "missing": {
+      "signals": {
+        "content_error": true,
+        "orders_drop": null,
+        "stock_zero": false,
+        "ad_click_drop": true
+      },
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "EVIDENCE_SIGNAL_INCOMPLETE"
+      }
+    },
+    "noAdverse": {
+      "signals": {
+        "content_error": false,
+        "orders_drop": false,
+        "stock_zero": false,
+        "ad_click_drop": false
+      },
+      "expected": {
+        "status": "COMPLETE",
+        "factors": [],
+        "claim": "HYPOTHESIS_NOT_PROVEN_CAUSE",
+        "likelihoodKnown": false
+      }
+    }
+  },
+  "remainingOpen": [
+    "live WB values and owner gold-set reconciliation",
+    "explicit comparable periods/timezone for order and advertising deltas",
+    "unique content-error product identity where vendorCode is ambiguous",
+    "business-approved weighting if prioritization beyond deterministic evidence listing is required",
+    "causal claims require separate evidence or experiment design"
+  ]
+}

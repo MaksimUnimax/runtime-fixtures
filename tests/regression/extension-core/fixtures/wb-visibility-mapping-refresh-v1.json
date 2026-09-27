@@ -1,0 +1,182 @@
+{
+  "schemaVersion": "wb_visibility_mapping_refresh_v1",
+  "capturedDate": "2026-09-27",
+  "scope": {
+    "scenarioIds": ["STD-14", "STD-15", "STD-19", "CAP-02"],
+    "boundary": "REMOVE_DELETED_SHADOWED_ENDPOINT_AND_FALSE_PROMO_ELIGIBILITY_ADVERTISED_SIGNAL",
+    "evidence": "PINNED_CURRENT_MIRROR_CHANGELOG_PLUS_REUSED_A04_FIELD_SCHEMAS",
+    "liveValues": false,
+    "acceptedOperationMappingChanged": true
+  },
+  "authority": {
+    "mirrorRepository": "eslazarev/wildberries-sdk",
+    "mirrorCommit": "5057bdb9bf16dea24000e3ca79e1934f7761d7fe",
+    "reportsSpecBlobSha": "22ff073c10a3cebe0dc7af647eb2b704fd35857c",
+    "promotionSpecBlobSha": "30ae48c8d1b67944b34cf51ac896ae4c2b2fa0d9",
+    "changelogBlobSha": "7a9395c29abff969d072f95587fdb0094497b6cd",
+    "shadowedEndpointRemovedDate": "2026-08-15",
+    "blockedResponseBlobSha": "c3033252c6982783b0b77a5b56b6d426215ad053",
+    "blockedRowBlobSha": "5494cb177f096d5e4c8860d7a84a78a8ba9b0daf"
+  },
+  "sources": {
+    "deletedShadowed": {
+      "operationAlias": "banned_products_shadowed",
+      "frozenRegistryPath": "/api/v1/analytics/banned-products/shadowed",
+      "currentMirrorOpenApiPresent": false,
+      "removalReason": "UPSTREAM_CHANGELOG_REMOVED_OBSOLETE_ENDPOINT",
+      "replacementInvented": false
+    },
+    "blocked": {
+      "operationAlias": "banned_products_blocked",
+      "host": "analytics",
+      "method": "GET",
+      "path": "/api/v1/analytics/banned-products/blocked",
+      "requiredQuery": ["sort", "order"],
+      "meaning": "SELLER_PRODUCT_CARDS_BLOCKED_WITH_PROVIDER_REASON",
+      "fields": {
+        "nmId": {
+          "role": "product_id_optional",
+          "unit": "identifier_optional"
+        },
+        "vendorCode": {
+          "role": "seller_article_optional",
+          "unit": "text_optional"
+        },
+        "reason": {
+          "role": "provider_block_reason_optional",
+          "unit": "text_optional"
+        }
+      }
+    },
+    "campaignMembership": {
+      "operationAlias": "promo_campaigns",
+      "reuseFixture": "tests/regression/extension-core/fixtures/wb-advertised-stock-reuse-v1.json",
+      "activeStatus": 9,
+      "productField": "nm_settings.nm_id",
+      "meaning": "ACTIVE_CAMPAIGN_MEMBERSHIP"
+    },
+    "eligibilityOnly": {
+      "operationAlias": "promo_nms",
+      "reuseFixture": "tests/regression/extension-core/fixtures/wb-advertised-stock-reuse-v1.json",
+      "meaning": "CARDS_ELIGIBLE_TO_ADD_TO_A_CAMPAIGN",
+      "advertisedSignal": false
+    },
+    "contentErrors": {
+      "operationAlias": "cards_errors",
+      "reuseFixture": "tests/regression/extension-core/fixtures/wb-content-quality-field-schema-slice-v1.json",
+      "rowIdentity": "batchUUID",
+      "sellerArticleField": "vendorCodes",
+      "directNmIdField": null
+    },
+    "catalogIdentity": {
+      "operationAlias": "cards_list",
+      "reuseFixture": "tests/regression/extension-core/fixtures/wb-catalog-identity-field-schema-slice-v1.json",
+      "join": "cards_errors vendorCode -> unique cards_list vendorCode -> nmID"
+    }
+  },
+  "rules": {
+    "shadowed": "DELETED_ENDPOINT_MUST_NOT_REMAIN_IN_CURRENT_SCENARIO_MAPPING",
+    "noReplacementHeuristic": "REMOVING_SHADOWED_DOES_NOT_CREATE_A_NEW_VISIBILITY_SIGNAL",
+    "advertised": "CURRENTLY_ADVERTISED_REQUIRES_STATUS_9_PROMO_CAMPAIGN_NM_MEMBERSHIP",
+    "promoNms": "ELIGIBILITY_TO_ADD_IS_NOT_CURRENT_ADVERTISING",
+    "contentJoin": "CARDS_ERROR_VENDOR_CODE_REQUIRES_UNIQUE_ACTIVE_CARD_VENDOR_CODE_TO_NMID_JOIN",
+    "blockedJoin": "BLOCKED_NMID_MAY_JOIN_EXACTLY_WHEN_PRESENT__MISSING_ID_IS_UNKNOWN",
+    "buyerVisibility": "BLOCKED_CONTENT_STOCK_AND_CAMPAIGN_SIGNALS_DO_NOT_PROVE_BUYER_SPECIFIC_DELIVERY_OR_VISIBILITY",
+    "missing": "MISSING_NOT_ZERO"
+  },
+  "acceptedMappingBefore": {
+    "STD-14": [
+      "cards_errors",
+      "banned_products_blocked",
+      "banned_products_shadowed",
+      "stock_products"
+    ],
+    "STD-15": [
+      "banned_products_blocked",
+      "banned_products_shadowed",
+      "seller_warehouses",
+      "marketplace_offices"
+    ],
+    "STD-19": [
+      "promo_nms",
+      "cards_errors",
+      "banned_products_blocked",
+      "banned_products_shadowed"
+    ],
+    "CAP-02": [
+      "cards_errors",
+      "banned_products_blocked",
+      "banned_products_shadowed",
+      "stock_products"
+    ]
+  },
+  "acceptedMappingAfter": {
+    "STD-14": ["cards_errors", "banned_products_blocked", "stock_products"],
+    "STD-15": [
+      "banned_products_blocked",
+      "seller_warehouses",
+      "marketplace_offices"
+    ],
+    "STD-19": [
+      "promo_campaigns",
+      "cards_errors",
+      "cards_list",
+      "banned_products_blocked"
+    ],
+    "CAP-02": ["cards_errors", "banned_products_blocked", "stock_products"]
+  },
+  "syntheticCases": {
+    "std19": {
+      "campaigns": [
+        { "id": 10, "status": 9, "nm_settings": [{ "nm_id": 1001 }] },
+        { "id": 11, "status": 11, "nm_settings": [{ "nm_id": 1002 }] }
+      ],
+      "cards": [
+        { "nmID": 1001, "vendorCode": "SELLER-A" },
+        { "nmID": 1002, "vendorCode": "SELLER-B" }
+      ],
+      "contentErrorVendorCodes": ["SELLER-A"],
+      "blockedRows": [{ "nmId": 1001, "reason": "Provider block reason" }],
+      "expected": {
+        "status": "PASS",
+        "rows": [
+          {
+            "nmId": 1001,
+            "campaignIds": [10],
+            "contentIssue": true,
+            "blocked": true,
+            "buyerVisibilityKnown": false
+          }
+        ]
+      }
+    },
+    "ambiguousContentJoin": {
+      "campaigns": [
+        { "id": 20, "status": 9, "nm_settings": [{ "nm_id": 2001 }] }
+      ],
+      "cards": [
+        { "nmID": 2001, "vendorCode": "DUP" },
+        { "nmID": 2002, "vendorCode": "DUP" }
+      ],
+      "contentErrorVendorCodes": ["DUP"],
+      "blockedRows": [],
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "VENDOR_CODE_TO_NM_ID_NOT_UNIQUE"
+      }
+    },
+    "eligibilityOnly": {
+      "promoNm": { "nm": 3001 },
+      "expected": {
+        "advertisedSignal": false,
+        "reason": "ELIGIBLE_TO_ADD_IS_NOT_CAMPAIGN_MEMBERSHIP"
+      }
+    }
+  },
+  "remainingOpen": [
+    "live WB blocked/content/campaign values and owner gold-set reconciliation",
+    "buyer-specific delivery and visibility remain unavailable from these provider signals",
+    "complete cards_errors and catalog pagination before product-level content joins",
+    "frozen WB registry still contains the deleted shadowed alias and requires separate registry-source refresh ownership if that registry itself is regenerated"
+  ]
+}

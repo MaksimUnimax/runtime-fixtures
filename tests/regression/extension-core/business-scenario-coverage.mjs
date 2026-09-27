@@ -23,6 +23,13 @@ import "./wb-advertised-stock-reuse.mjs";
 import "./wb-paid-storage-contribution-field-schema-slice.mjs";
 import "./wb-sales-geography-field-schema-slice.mjs";
 import "./wb-sales-decline-evidence-reuse.mjs";
+import "./wb-cross-source-join-field-schema-slice.mjs";
+import "./wb-search-query-field-schema-slice.mjs";
+import "./wb-search-position-share-field-schema-slice.mjs";
+import "./wb-visibility-mapping-refresh.mjs";
+import "./wb-rating-boundary-refresh.mjs";
+import "./wb-sales-decline-causal-factor-reuse.mjs";
+import "./wb-external-context-boundary.mjs";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
@@ -393,6 +400,63 @@ const calculators = {
       return { status: "DUPLICATE_KEY", side: "right" };
     return { status: "UNIQUE" };
   },
+  cross_source_join(input) {
+    if (
+      typeof input.period !== "string" ||
+      !input.period ||
+      !Array.isArray(input.left) ||
+      !Array.isArray(input.right)
+    )
+      return { status: "INCOMPLETE", reason: "PERIOD_OR_SOURCE_MISSING" };
+
+    const project = (rows, side) => {
+      const ids = new Set();
+      const products = new Map();
+      for (const row of rows) {
+        if (
+          !row ||
+          typeof row.rowId !== "string" ||
+          !row.rowId ||
+          typeof row.product !== "string" ||
+          !row.product ||
+          row.period !== input.period
+        )
+          return {
+            status: "INCOMPLETE",
+            reason: side === "left" ? "LEFT_ROW_INVALID" : "RIGHT_ROW_INVALID",
+          };
+        if (ids.has(row.rowId))
+          return {
+            status: "INCOMPLETE",
+            reason:
+              side === "left"
+                ? "DUPLICATE_LEFT_ROW_ID"
+                : "DUPLICATE_RIGHT_ROW_ID",
+          };
+        ids.add(row.rowId);
+        products.set(row.product, (products.get(row.product) ?? 0) + 1);
+      }
+      return { status: "COMPLETE", products };
+    };
+
+    const left = project(input.left, "left");
+    if (left.status !== "COMPLETE") return left;
+    const right = project(input.right, "right");
+    if (right.status !== "COMPLETE") return right;
+    const leftProducts = [...left.products.keys()].sort();
+    const rightProducts = [...right.products.keys()].sort();
+    if (JSON.stringify(leftProducts) !== JSON.stringify(rightProducts))
+      return { status: "INCOMPLETE", reason: "PRODUCT_SET_MISMATCH" };
+
+    return {
+      status: "COMPLETE",
+      rows: leftProducts.map((product) => ({
+        product,
+        leftRows: left.products.get(product),
+        rightRows: right.products.get(product),
+      })),
+    };
+  },
   search_dedup(input) {
     const keys = input.rows.map(
       (row) => `${row.period}\u0000${row.product}\u0000${row.query}`,
@@ -400,6 +464,297 @@ const calculators = {
     return {
       uniqueCount: new Set(keys).size,
       pageCountProvesCompleteness: false,
+    };
+  },
+  search_fact_boundary(input) {
+    if (
+      typeof input.period !== "string" ||
+      !input.period ||
+      !Array.isArray(input.rows) ||
+      !Array.isArray(input.aiSuggestions)
+    )
+      return { status: "INCOMPLETE", reason: "PERIOD_OR_ROWS_MISSING" };
+
+    const keys = new Set();
+    for (const row of input.rows) {
+      if (
+        !row ||
+        typeof row.product !== "string" ||
+        !row.product ||
+        typeof row.query !== "string" ||
+        !row.query
+      )
+        return {
+          status: "INCOMPLETE",
+          reason: "PROVIDER_SEARCH_FACT_IDENTITY_MISSING",
+        };
+      if (!Number.isInteger(row.frequency) || !Number.isInteger(row.position))
+        return {
+          status: "INCOMPLETE",
+          reason: "PROVIDER_SEARCH_METRIC_MISSING",
+        };
+      const key = [input.period, row.product, row.query].join("\u0000");
+      if (keys.has(key))
+        return {
+          status: "INCOMPLETE",
+          reason: "DUPLICATE_SEARCH_FACT_BUSINESS_KEY",
+        };
+      keys.add(key);
+    }
+
+    return {
+      status: "COMPLETE",
+      providerFactCount: input.rows.length,
+      aiSuggestionCount: input.aiSuggestions.length,
+      aiSuggestionsAreProviderFacts: false,
+    };
+  },
+  search_position_boundary(input) {
+    if (typeof input.period !== "string" || !input.period)
+      return { status: "INCOMPLETE", reason: "PERIOD_MISSING" };
+    if (input.region !== null && input.region !== undefined)
+      return { status: "INCOMPLETE", reason: "REGION_FILTER_UNSUPPORTED" };
+    if (!["average", "median"].includes(input.positionKind))
+      return { status: "INCOMPLETE", reason: "POSITION_DEFINITION_MISSING" };
+    if (input.position === null || input.position === undefined)
+      return { status: "UNKNOWN", reason: "POSITION_MISSING", position: null };
+    if (!Number.isInteger(input.position) || input.position < 1)
+      return { status: "INCOMPLETE", reason: "POSITION_INVALID" };
+
+    for (const value of [input.pricePercent, input.qtyPercent]) {
+      if (
+        value !== null &&
+        value !== undefined &&
+        (typeof value !== "number" || !Number.isFinite(value))
+      )
+        return { status: "INCOMPLETE", reason: "BRAND_SHARE_INVALID" };
+    }
+
+    return {
+      status: "COMPLETE",
+      positionKind: input.positionKind,
+      position: input.position,
+      pricePercent: input.pricePercent ?? null,
+      qtyPercent: input.qtyPercent ?? null,
+      nullMeansZero: false,
+    };
+  },
+  content_quality_boundary(input) {
+    if (!Number.isInteger(input.officialErrors) || input.officialErrors < 0)
+      return { status: "INCOMPLETE", reason: "OFFICIAL_ERROR_COUNT_MISSING" };
+    if (
+      !Number.isInteger(input.recommendedProductCount) ||
+      input.recommendedProductCount < 0
+    )
+      return {
+        status: "INCOMPLETE",
+        reason: "RECOMMENDED_PRODUCT_COUNT_INVALID",
+      };
+    return {
+      status: "BOUNDARY",
+      officialErrors: input.officialErrors,
+      expertQualityKnown: false,
+      expertQuality: null,
+      recommendationsAreQualitySignal: false,
+    };
+  },
+  visibility_boundary(input) {
+    if (
+      input.stockUnits !== null &&
+      (!Number.isInteger(input.stockUnits) || input.stockUnits < 0)
+    )
+      return { status: "INCOMPLETE", reason: "STOCK_INVALID" };
+    if (
+      typeof input.contentIssue !== "boolean" ||
+      typeof input.blocked !== "boolean"
+    )
+      return { status: "INCOMPLETE", reason: "VISIBILITY_SIGNAL_INVALID" };
+    return {
+      status: "BOUNDARY",
+      stockUnits: input.stockUnits,
+      contentIssue: input.contentIssue,
+      blocked: input.blocked,
+      buyerVisibilityKnown: false,
+      buyerVisibility: null,
+      missingNotZero: true,
+    };
+  },
+  restriction_boundary(input) {
+    if (input.blockedReason !== null && typeof input.blockedReason !== "string")
+      return { status: "INCOMPLETE", reason: "BLOCK_REASON_INVALID" };
+    if (typeof input.warehouseKnown !== "boolean")
+      return { status: "INCOMPLETE", reason: "WAREHOUSE_SIGNAL_INVALID" };
+    return {
+      status: "BOUNDARY",
+      providerRestrictionKnown: Boolean(input.blockedReason),
+      blockedReason: input.blockedReason,
+      warehouseKnown: input.warehouseKnown,
+      buyerDeliveryKnown: false,
+      buyerDelivery: null,
+    };
+  },
+  ad_content_join(input) {
+    if (
+      !Array.isArray(input.active) ||
+      !Array.isArray(input.contentIssueProducts) ||
+      !Array.isArray(input.blockedProducts)
+    )
+      return { status: "INCOMPLETE", reason: "JOIN_INPUT_MISSING" };
+
+    const active = new Map();
+    for (const row of input.active) {
+      if (
+        !row ||
+        typeof row.product !== "string" ||
+        !row.product ||
+        !Array.isArray(row.campaignIds) ||
+        row.campaignIds.some((id) => !Number.isInteger(id))
+      )
+        return { status: "INCOMPLETE", reason: "ACTIVE_PRODUCT_INVALID" };
+      if (active.has(row.product))
+        return { status: "INCOMPLETE", reason: "DUPLICATE_ACTIVE_PRODUCT" };
+      active.set(
+        row.product,
+        [...row.campaignIds].sort((a, b) => a - b),
+      );
+    }
+
+    const content = new Set(input.contentIssueProducts);
+    const blocked = new Set(input.blockedProducts);
+    const rows = [...active.entries()]
+      .filter(([product]) => content.has(product) || blocked.has(product))
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([product, campaignIds]) => ({
+        product,
+        campaignIds,
+        contentIssue: content.has(product),
+        blocked: blocked.has(product),
+        buyerVisibilityKnown: false,
+      }));
+    return { status: "COMPLETE", rows };
+  },
+  rating_boundary(input) {
+    for (const value of [input.sellerRating, input.productRating]) {
+      if (
+        value !== null &&
+        (typeof value !== "number" || !Number.isFinite(value))
+      )
+        return { status: "INCOMPLETE", reason: "RATING_INVALID" };
+    }
+    if (
+      input.measurementPenalty !== null &&
+      (typeof input.measurementPenalty !== "number" ||
+        !Number.isFinite(input.measurementPenalty))
+    )
+      return { status: "INCOMPLETE", reason: "PENALTY_INVALID" };
+
+    return {
+      status: "BOUNDARY",
+      sellerRating: input.sellerRating,
+      productRating: input.productRating,
+      measurementPenalty: input.measurementPenalty,
+      fbsErrorIndexKnown: false,
+      fbsErrorIndex: null,
+    };
+  },
+  causal_factors(input) {
+    const names = [
+      "content_error",
+      "orders_drop",
+      "stock_zero",
+      "ad_click_drop",
+    ];
+    if (
+      !input.signals ||
+      typeof input.signals !== "object" ||
+      names.some((name) => typeof input.signals[name] !== "boolean")
+    )
+      return { status: "INCOMPLETE", reason: "EVIDENCE_SIGNAL_INCOMPLETE" };
+
+    return {
+      status: "COMPLETE",
+      factors: names.filter((name) => input.signals[name]).sort(),
+      claim: "HYPOTHESIS_NOT_PROVEN_CAUSE",
+      likelihoodKnown: false,
+    };
+  },
+  incident_boundary(input) {
+    if (
+      !input.incident ||
+      typeof input.incident.url !== "string" ||
+      !input.incident.url ||
+      typeof input.incident.date !== "string" ||
+      !input.incident.date
+    )
+      return { status: "INCOMPLETE", reason: "PUBLIC_INCIDENT_SOURCE_MISSING" };
+    if (
+      !input.currentPrivate ||
+      typeof input.currentPrivate.product !== "string" ||
+      typeof input.currentPrivate.warehouse !== "string" ||
+      !Number.isInteger(input.currentPrivate.stockUnits)
+    )
+      return { status: "INCOMPLETE", reason: "CURRENT_PRIVATE_FACT_MISSING" };
+    return {
+      status: "BOUNDARY",
+      publicIncidentCited: true,
+      currentPrivateFactKnown: true,
+      historicalPresenceKnown: false,
+      historicalPresence: null,
+    };
+  },
+  external_fact_boundary(input) {
+    if (
+      !Array.isArray(input.privateFacts) ||
+      !Array.isArray(input.publicFacts) ||
+      !Array.isArray(input.hypotheses)
+    )
+      return { status: "INCOMPLETE", reason: "FACT_CLASSES_MISSING" };
+    if (
+      input.publicFacts.some(
+        (row) => !row || typeof row.url !== "string" || !row.url,
+      )
+    )
+      return { status: "INCOMPLETE", reason: "PUBLIC_FACT_SOURCE_MISSING" };
+    return {
+      status: "COMPLETE",
+      privateFactCount: input.privateFacts.length,
+      publicFactCount: input.publicFacts.length,
+      hypothesisCount: input.hypotheses.length,
+      classesSeparated: true,
+    };
+  },
+  competitor_boundary(input) {
+    if (!input.ownCard || !Array.isArray(input.competitors))
+      return { status: "INCOMPLETE", reason: "COMPETITOR_CONTEXT_MISSING" };
+    if (
+      input.competitors.some(
+        (row) =>
+          row && row.privateSales !== null && row.privateSales !== undefined,
+      )
+    )
+      return {
+        status: "INCOMPLETE",
+        reason: "COMPETITOR_PRIVATE_METRIC_FORBIDDEN",
+      };
+    const comparable = input.competitors.filter(
+      (row) =>
+        row &&
+        row.comparable === true &&
+        typeof row.url === "string" &&
+        row.url &&
+        typeof row.publicTitle === "string" &&
+        row.publicTitle,
+    );
+    if (comparable.length === 0)
+      return {
+        status: "INCOMPLETE",
+        reason: "COMPARABLE_PUBLIC_COMPETITOR_MISSING",
+      };
+    return {
+      status: "BOUNDARY",
+      comparablePublicCompetitors: comparable.length,
+      privateCompetitorSalesKnown: false,
+      privateCompetitorSales: null,
     };
   },
   attention_rank(input) {
@@ -462,7 +817,19 @@ const requiredKinds = new Set([
   "platform_contribution",
   "top_n_join",
   "join_unique",
+  "cross_source_join",
   "search_dedup",
+  "search_fact_boundary",
+  "search_position_boundary",
+  "content_quality_boundary",
+  "visibility_boundary",
+  "restriction_boundary",
+  "ad_content_join",
+  "rating_boundary",
+  "causal_factors",
+  "incident_boundary",
+  "external_fact_boundary",
+  "competitor_boundary",
   "attention_rank",
   "causal_boundary",
 ]);

@@ -1,0 +1,155 @@
+{
+  "schemaVersion": "wb_cross_source_join_field_schema_slice_v1",
+  "capturedDate": "2026-09-27",
+  "scope": {
+    "scenarioIds": ["CAP-19"],
+    "boundary": "SALES_X_FINANCE_PRODUCT_PERIOD_JOIN_SOURCE_PASS__AD_SPEND_X_STOCK_PRODUCT_ALLOCATION_OPEN",
+    "evidence": "PINNED_SOURCE_FIXTURE_REUSE_PLUS_SALESITEM_MODEL",
+    "liveValues": false,
+    "acceptedOperationMappingChanged": false
+  },
+  "authority": {
+    "mirrorRepository": "eslazarev/wildberries-sdk",
+    "mirrorCommit": "5057bdb9bf16dea24000e3ca79e1934f7761d7fe",
+    "salesItemModelPath": "clients/npm/reports/src/models/SalesItem.ts"
+  },
+  "sources": {
+    "operationalSales": {
+      "operationAlias": "statistics_sales",
+      "reuseFixture": "tests/regression/extension-core/fixtures/wb-operational-sales-field-schema-slice-v1.json",
+      "rowId": "saleID",
+      "productId": "nmId",
+      "periodField": "date",
+      "dataClass": "PRELIMINARY_OPERATIONAL"
+    },
+    "finance": {
+      "operationAlias": "finance_sales_detail_period",
+      "reuseFixture": "tests/regression/extension-core/fixtures/wb-finance-sales-field-schema-slice-v1.json",
+      "rowId": "rrdId",
+      "productId": "nmId",
+      "periodRequest": ["dateFrom", "dateTo"],
+      "currencyJoin": "reportId -> finance_sales_reports.reportId -> currency"
+    },
+    "promotionSpend": {
+      "operationAlias": "promo_spend_history",
+      "reuseFixture": "tests/regression/extension-core/fixtures/wb-advertising-field-schema-slice-v1.json",
+      "rowProductId": null,
+      "campaignId": "advertId",
+      "amountField": "updSum",
+      "currencyField": null
+    },
+    "currentStock": {
+      "operationAlias": "stock_products",
+      "reuseFixture": "tests/regression/extension-core/fixtures/wb-turnover-field-schema-slice-v1.json",
+      "productId": "nmID",
+      "stockField": "metrics.stockCount"
+    }
+  },
+  "rules": {
+    "selectedJoin": "STATISTICS_SALES_X_FINANCE_DETAIL_BY_EXACT_NMID_AND_EXPLICIT_COMPARABLE_PERIOD",
+    "saleIdentity": "SALEID_MUST_BE_PRESENT_AND_UNIQUE",
+    "financeIdentity": "RRDID_MUST_BE_PRESENT_AND_UNIQUE",
+    "productIdentity": "NMID_MUST_BE_PRESENT_ON_BOTH_SIDES",
+    "period": "CALLER_MUST_PROVIDE_EXPLICIT_COMPARABLE_PERIOD_AND_TIMEZONE_POLICY",
+    "completeness": "BOTH_SOURCE_READS_MUST_BE_COMPLETE",
+    "missing": "MISSING_PRODUCT_ON_EITHER_SIDE_IS_INCOMPLETE_NOT_ZERO",
+    "money": "OPERATIONAL_SALES_MONEY_IS_NOT_RELABELLED_AS_FINAL_FINANCE_REVENUE",
+    "financeMetric": "RETAIL_AMOUNT_AND_FOR_PAY_REMAIN_SEPARATE",
+    "currency": "FINANCE_CURRENCY_REQUIRED_FROM_REPORT_METADATA",
+    "advertisingStockBoundary": "PROMO_SPEND_HISTORY_HAS_CAMPAIGN_ID_BUT_NO_PRODUCT_ID_SO_PRODUCT_LEVEL_SPEND_ALLOCATION_IS_NOT_PERMITTED",
+    "expenseDuplication": "DO_NOT_COPY_FULL_CAMPAIGN_SPEND_TO_EACH_PRODUCT"
+  },
+  "acceptedMappingSnapshot": {
+    "CAP-19": [
+      "promo_spend_history",
+      "stock_products",
+      "statistics_sales",
+      "finance_sales_detail_period"
+    ]
+  },
+  "syntheticCases": {
+    "salesFinance": {
+      "period": "2026-09-20/2026-09-26",
+      "timezone": "Europe/Moscow",
+      "salesComplete": true,
+      "financeComplete": true,
+      "financeCurrency": "RUB",
+      "salesRows": [
+        {
+          "saleID": "S-001",
+          "nmId": 1001,
+          "date": "2026-09-21T10:00:00+03:00"
+        },
+        {
+          "saleID": "S-002",
+          "nmId": 1001,
+          "date": "2026-09-22T11:00:00+03:00"
+        },
+        { "saleID": "S-003", "nmId": 1002, "date": "2026-09-23T12:00:00+03:00" }
+      ],
+      "financeRows": [
+        {
+          "rrdId": 1,
+          "reportId": 901,
+          "nmId": 1001,
+          "retailAmount": "120.00",
+          "forPay": "80.00"
+        },
+        {
+          "rrdId": 2,
+          "reportId": 901,
+          "nmId": 1002,
+          "retailAmount": "50.00",
+          "forPay": "35.00"
+        }
+      ],
+      "expected": {
+        "status": "PASS",
+        "currency": "RUB",
+        "rows": [
+          { "nmId": 1001, "saleEvents": 2, "financeRows": 1 },
+          { "nmId": 1002, "saleEvents": 1, "financeRows": 1 }
+        ]
+      }
+    },
+    "duplicateSale": {
+      "salesRows": [
+        { "saleID": "S-dup", "nmId": 1001 },
+        { "saleID": "S-dup", "nmId": 1001 }
+      ],
+      "expected": { "status": "INCOMPLETE", "reason": "DUPLICATE_SALE_ID" }
+    },
+    "duplicateFinance": {
+      "financeRows": [
+        { "rrdId": 7, "nmId": 1001 },
+        { "rrdId": 7, "nmId": 1001 }
+      ],
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "DUPLICATE_FINANCE_RRD_ID"
+      }
+    },
+    "missingProduct": {
+      "salesRows": [{ "saleID": "S-missing", "nmId": 1003 }],
+      "financeRows": [{ "rrdId": 9, "nmId": 1004 }],
+      "expected": { "status": "INCOMPLETE", "reason": "PRODUCT_SET_MISMATCH" }
+    },
+    "advertisingStock": {
+      "spendRows": [{ "advertId": 77, "updSum": 100 }],
+      "stockRows": [{ "nmID": 1001, "metrics": { "stockCount": 3 } }],
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "CAMPAIGN_SPEND_PRODUCT_ALLOCATION_UNDEFINED",
+        "campaignSpend": 100,
+        "productSpend": null
+      }
+    }
+  },
+  "remainingOpen": [
+    "live WB sales and finance values plus owner gold-set reconciliation",
+    "business period/timezone policy when it differs from Moscow source defaults",
+    "owner business meaning of final revenue versus retailAmount/forPay",
+    "advertising spend x stock product allocation or a product-grain actual-spend source",
+    "promotion spend currency binding"
+  ]
+}
