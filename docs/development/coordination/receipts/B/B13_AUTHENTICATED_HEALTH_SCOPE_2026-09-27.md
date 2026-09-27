@@ -80,3 +80,61 @@ B12 provisions only the nine NO_SESSION authorities. It must not be broadened in
 If the isolated monitor-pilot DB lacks `standard-h3@2` / `work-h3@1`, B must provide a separate explicit idempotent pilot-only initializer using existing P7 registry/profile lifecycle authority. It must preserve all nine NO_SESSION identities/history, reject conflicts, and must not fabricate a Standard revision 1 merely to obtain revision 2.
 
 No protected pilot DB, production DB, browser session, Telegram delivery, provider network, or live catalog was accessed or mutated by this slice.
+
+## Pilot-only H3 authority provisioning
+
+A second B13 slice adds `tooling/server/monitor-pilot-authenticated-deep-authority.ts` for the existing isolated `octoport_monitor_pilot` database only.
+
+The initializer is source/DB/role pinned and requires the B12 nine-target NO_SESSION preflight to be `READY` before any H3 write. Its manifest fingerprint is:
+
+`9f06770d0ae20f682f695729ac482b068cc94d9ecb551dd7d55a8e9d84eb6e94`
+
+Expected expanded pilot catalog after success is exactly:
+
+- 8 adapters;
+- 9 surfaces;
+- 0 variants;
+- 11 profiles;
+- 11 profile revisions.
+
+The two additions are only `standard-h3@2` and `work-h3@1`; all nine B12 NO_SESSION profiles/revisions remain unchanged.
+### Standard revision 2 without fake revision 1
+
+The packaged Standard H3 authority starts at revision 2. B13 does **not** create a synthetic revision 1 to advance an auto-incrementing lifecycle.
+
+Inside the same transaction and temporary technical-admin boundary already used by the isolated pilot pattern:
+
+1. P7 admin command creates the `standard-h3` profile identity.
+2. A bounded bootstrap insert creates the validated Standard revision **2** as an unpublished `DRAFT`, with the normal P7 schema/fingerprint fields and an audit event explaining the explicit revision.
+3. The existing profile lifecycle repository performs `DRAFT -> CANDIDATE -> PUBLISHED`.
+4. Work uses the ordinary lifecycle draft creation and produces revision **1**.
+5. Post-write preflight must be exact before the temporary grant is revoked and the technical principal/user are suspended.
+
+Any failure rolls back profiles, revisions, audit changes, temporary authority and grants together.
+### Provisioning verification
+
+Pinned toolchain: Node 24.20.0 / pnpm 10.34.5.
+
+- manifest unit: **2/2 PASS**;
+- disposable PostgreSQL provisioning integration: **3/3 PASS**;
+- supervisor: `octoport-test-b-bbca56c529664a32a8eef63e6ba76f4c.service`;
+- peak: 367 MiB;
+- cgroup cleanup verified.
+
+The integration proves:
+
+- production initializer rejects the disposable DB identity;
+- H3 initializer refuses an empty catalog until the exact B12 baseline exists;
+- a forced Work-profile insertion failure atomically restores the exact B12 counts and leaves zero active technical grants/principals/users;
+- successful initialization yields only Standard rev2 and Work rev1 as PUBLISHED authority;
+- exact rerun returns `ALREADY_EXACT` without new catalog/audit growth;
+- the B12 NO_SESSION preflight remains `READY`;
+- both B13 DB resolvers resolve the provisioned Standard/Work identities;
+- a disabled H3 profile is rejected as catalog conflict without rewriting B12 authority.
+
+No protected pilot DB, production DB, browser/session, provider network or Telegram action was used by B.
+### Live ownership
+
+B only prepares source/disposable evidence. After C accepts the exact source candidate, C owns the already-authorized isolated pilot apply and runtime verification. The controller remains read-only and must not be a concurrent pilot writer.
+
+C should apply in order: B12 authority if the protected pilot still has the expected empty B12 state, verify B12 `READY`, then B13 H3 initializer, verify H3 `READY`, then compose actual authenticated-deep schedules/session/browser runtime. Historical failed pilot scheduled rows remain immutable evidence.

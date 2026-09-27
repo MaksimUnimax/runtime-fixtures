@@ -157,7 +157,7 @@ One earlier PostgreSQL run exposed an invalid synthetic observation fixture; the
 
 This commit does **not** initialize the protected pilot database and does **not** rerun the live monitor.
 
-After normal C intake/acceptance, the controller owns the already-authorized isolated runtime action:
+After normal C intake/acceptance, C owns the already-authorized isolated runtime action. The controller remains read-only and must not be a concurrent pilot writer:
 
 1. run the B12 read-only preflight against the protected `octoport_monitor_pilot` connection while supplying the exact intended DB role without logging it;
 2. if the catalog is the expected empty state, run the explicit B12 initializer;
