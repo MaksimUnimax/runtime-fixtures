@@ -1,0 +1,162 @@
+{
+  "schemaVersion": "wb_supply_status_field_schema_slice_v1",
+  "capturedDate": "2026-09-27",
+  "scope": {
+    "scenarioIds": ["CAP-07"],
+    "boundary": "FBW_STATUS_ID_AND_FBS_DONE_FLAG_ARE_DISTINCT_PROVIDER_SEMANTICS",
+    "evidence": "CURRENT_OFFICIAL_FIELD_SCHEMA_SOURCE_ONLY",
+    "liveValues": false,
+    "acceptedOperationMappingChanged": false
+  },
+  "sources": {
+    "fbwSupplies": {
+      "url": "https://dev.wildberries.ru/en/openapi/orders-fbw",
+      "releaseNotesUrl": "https://dev.wildberries.ru/en/release-notes",
+      "operationAlias": "fbw_supplies",
+      "host": "supplies",
+      "method": "POST",
+      "path": "/api/v1/supplies",
+      "tokenCategory": "supplies",
+      "query": {
+        "limit": { "required": false, "default": 1000, "min": 1, "max": 1000 },
+        "offset": { "required": false, "default": 0 }
+      },
+      "bodyRequired": true,
+      "bodyFields": {
+        "dates": "date_filter_array",
+        "statusIDs": "optional_status_filter"
+      },
+      "statusIDs": {
+        "1": "NOT_PLANNED",
+        "2": "PLANNED",
+        "3": "SHIPMENT_ALLOWED",
+        "4": "ACCEPTANCE_IN_PROGRESS",
+        "5": "ACCEPTED",
+        "6": "SHIPPED_AT_GATE"
+      },
+      "rowGrain": ["supplyID_or_preorderID"],
+      "fields": {
+        "supplyID": {
+          "role": "supply_id_nullable_before_supply_exists",
+          "unit": "identifier_or_null"
+        },
+        "preorderID": { "role": "preorder_id", "unit": "identifier" },
+        "statusID": {
+          "role": "fbw_supply_status_id",
+          "unit": "provider_enum_integer"
+        },
+        "createDate": { "role": "created_time", "unit": "datetime" },
+        "supplyDate": {
+          "role": "planned_supply_time",
+          "unit": "datetime_or_null"
+        },
+        "factDate": {
+          "role": "actual_supply_time",
+          "unit": "datetime_or_null"
+        },
+        "updatedDate": { "role": "updated_time", "unit": "datetime_or_null" },
+        "boxTypeID": {
+          "role": "supply_package_type_id",
+          "unit": "provider_enum_integer"
+        },
+        "isBoxOnPallet": {
+          "role": "box_on_pallet_flag",
+          "unit": "boolean_optional"
+        }
+      },
+      "pagination": {
+        "kind": "OFFSET_LIMIT",
+        "completeness": "CONSUME_ALL_PAGES_WITHOUT_TREATING_MISSING_ROWS_AS_ZERO"
+      }
+    },
+    "fbsSupplies": {
+      "url": "https://dev.wildberries.ru/en/docs/openapi/orders-fbs",
+      "operationAlias": "fbs_supplies",
+      "host": "marketplace",
+      "method": "GET",
+      "path": "/api/v3/supplies",
+      "tokenCategory": "marketplace",
+      "query": {
+        "limit": { "required": true, "min": 1, "max": 1000 },
+        "next": { "required": true, "initial": 0 }
+      },
+      "rowGrain": ["id"],
+      "fields": {
+        "id": { "role": "fbs_supply_id", "unit": "identifier" },
+        "done": { "role": "fbs_supply_closed_or_done_flag", "unit": "boolean" },
+        "createdAt": { "role": "created_time", "unit": "datetime" },
+        "closedAt": { "role": "closed_time", "unit": "datetime" },
+        "scanDt": { "role": "scan_time", "unit": "datetime" },
+        "isB2b": { "role": "business_sale_flag", "unit": "boolean_optional" },
+        "cargoType": { "role": "cargo_type", "unit": "provider_enum_integer" },
+        "crossBorderType": {
+          "role": "cross_border_type",
+          "unit": "provider_enum_integer"
+        },
+        "destinationOfficeId": {
+          "role": "destination_office_id",
+          "unit": "identifier"
+        }
+      },
+      "pagination": {
+        "kind": "NEXT_CURSOR",
+        "initialNext": 0,
+        "nextCursor": "RESPONSE_NEXT",
+        "terminal": "NOT_EXPLICIT_IN_SURFACED_DOCS_FAIL_CLOSED_ON_NO_PROGRESS"
+      }
+    }
+  },
+  "rules": {
+    "status": "DO_NOT_MAP_FBW_STATUS_ID_TO_FBS_DONE_BOOLEAN",
+    "fbw": "STATUS_ID_IS_PROVIDER_ENUM_1_TO_6",
+    "fbs": "DONE_IS_BOOLEAN_SUPPLY_STATE_SIGNAL_NOT_FBW_STATUS_ENUM",
+    "identity": "FBW_SUPPLY_ID_AND_PREORDER_ID_STAY_DISTINCT_FBS_STRING_ID_STAYS_SCHEME_SCOPED",
+    "pagination": "SCHEME_SPECIFIC_PAGINATION_MUST_COMPLETE_BEFORE_FULL_LIST_CLAIM",
+    "missing": "MISSING_NOT_ZERO"
+  },
+  "acceptedMappingSnapshot": {
+    "CAP-07": ["fbw_supplies", "fbs_supplies"]
+  },
+  "syntheticCases": {
+    "fbw": [
+      {
+        "supplyID": null,
+        "preorderID": 34597755,
+        "statusID": 1,
+        "expected": "NOT_PLANNED"
+      },
+      {
+        "supplyID": 26596368,
+        "preorderID": 34601223,
+        "statusID": 2,
+        "expected": "PLANNED"
+      },
+      {
+        "supplyID": 22677736,
+        "preorderID": 27363170,
+        "statusID": 6,
+        "expected": "SHIPPED_AT_GATE"
+      }
+    ],
+    "fbs": [
+      { "id": "WB-GI-OPEN", "done": false, "expected": "OPEN" },
+      { "id": "WB-GI-DONE", "done": true, "expected": "DONE" }
+    ],
+    "invalidFbw": {
+      "supplyID": 1,
+      "preorderID": 2,
+      "statusID": 99,
+      "expected": { "status": "INCOMPLETE", "reason": "UNKNOWN_FBW_STATUS_ID" }
+    },
+    "missingFbsDone": {
+      "id": "WB-GI-UNKNOWN",
+      "expected": { "status": "INCOMPLETE", "reason": "FBS_DONE_MISSING" }
+    }
+  },
+  "remainingOpen": [
+    "live WB values and owner gold-set reconciliation",
+    "full-list pagination terminal proof on real provider responses",
+    "cross-scheme business normalization if the owner needs one combined supply status vocabulary",
+    "FBW/FBS supply-detail field reconciliation beyond the list use case"
+  ]
+}
