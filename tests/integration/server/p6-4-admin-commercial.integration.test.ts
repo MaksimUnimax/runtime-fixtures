@@ -697,6 +697,17 @@ describe.sequential("P6.4 behavioral real PostgreSQL acceptance matrix", () => {
             reason: "integration fixture revoke",
           },
         );
+        const revokedReadback = await call(
+          f,
+          "GET",
+          "/v1/admin/compatibility/config-releases/latest?contractVersion=control_plane_v2",
+        );
+        expect(revokedReadback.statusCode).toBe(200);
+        expect(revokedReadback.json()).toMatchObject({
+          signingKeyId: baseline.signingKeyId,
+          signingKeyState: "REVOKED",
+        });
+
         const revokedSigningKey = await call(
           f,
           "POST",

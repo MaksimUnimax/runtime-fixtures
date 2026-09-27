@@ -21,6 +21,7 @@ type Row = {
 type Classified = {
   row: Row;
   decision: SubscriptionLifecycleDecision;
+  at: Date;
 };
 
 export type CurrentSubscriptionMaterialization =
@@ -37,7 +38,11 @@ function revision(value: number | string): number {
 
 async function classify(
   q: Query,
-  input: { accountId: string; at: Date; lockRow: boolean },
+  input: {
+    accountId: string;
+    at: Date | (() => Date);
+    lockRow: boolean;
+  },
 ): Promise<Classified | null> {
   const found = await q.query<Row>(
     `SELECT id,account_id AS "accountId",state,state_revision AS "stateRevision",
@@ -62,16 +67,19 @@ async function classify(
     );
     suspendedOrigin = history.rows[0]?.fromState ?? null;
   }
+  // Invoke injected clocks only after the relevant row lock has been acquired.
+  const at = typeof input.at === "function" ? input.at() : input.at;
 
   return {
     row,
+    at,
     decision: decideSubscriptionLifecycle({
       state: row.state,
       cancelAtPeriodEnd: row.cancelAtPeriodEnd,
       currentPeriodEnd: new Date(row.currentPeriodEnd),
       graceUntil: row.graceUntil ? new Date(row.graceUntil) : null,
       suspendedOrigin,
-      now: input.at,
+      now: at,
     }),
   };
 }
@@ -100,11 +108,15 @@ export async function hasCurrentSubscriptionAt(
  */
 export async function materializeDueCurrentSubscriptionLocked(
   q: Query,
-  input: { accountId: string; at: Date; correlationId: string },
+  input: {
+    accountId: string;
+    at: Date | (() => Date);
+    correlationId: string;
+  },
 ): Promise<CurrentSubscriptionMaterialization> {
   const classified = await classify(q, { ...input, lockRow: true });
   if (!classified) return { kind: "NONE" };
-  const { row, decision } = classified;
+  const { row, decision, at } = classified;
 
   if (decision.kind === "CORRUPTED")
     return { kind: "CORRUPTED", subscriptionId: row.id };
@@ -118,7 +130,7 @@ export async function materializeDueCurrentSubscriptionLocked(
             updated_at=GREATEST(updated_at,$3,created_at)
       WHERE id=$4
       RETURNING state_revision AS "stateRevision"`,
-    [decision.toState, decision.reason, input.at, row.id],
+    [decision.toState, decision.reason, at, row.id],
   );
   const newRevision = revision(updated.rows[0]?.stateRevision ?? 0);
   const next = await q.query<{ revision: number | string }>(
@@ -167,7 +179,7 @@ export async function materializeDueCurrentSubscriptionLocked(
         newStateRevision: newRevision,
         transitionRevision,
         dueAt: decision.dueAt.toISOString(),
-        processedAt: input.at.toISOString(),
+        processedAt: at.toISOString(),
         planRevisionId: row.currentPlanRevisionId,
         materialization: "INLINE_BEFORE_MUTATION",
       }),

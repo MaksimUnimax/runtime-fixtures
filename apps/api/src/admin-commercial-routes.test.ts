@@ -240,6 +240,7 @@ function harness(
     contentHashSha256: "a".repeat(64),
     sourceFingerprintSha256: "b".repeat(64),
     signingKeyId: "test-ed25519",
+    signingKeyState: "ACTIVE",
     compatibilityPolicyRevisionIds: [revisionId],
     publishedAt: new Date("2026-01-01T00:00:00.000Z"),
     createdAt: new Date("2026-01-01T00:00:00.000Z"),
@@ -514,6 +515,8 @@ describe("P6.4 admin-commercial controller", () => {
     expect(configRelease.json()).toMatchObject({
       configVersion: 7,
       contractVersion: "control_plane_v2",
+      signingKeyId: "test-ed25519",
+      signingKeyState: "ACTIVE",
       compatibilityPolicyRevisionIds: [revisionId],
     });
     expect(calls).toEqual([

@@ -412,6 +412,13 @@ export type AdminConfigReleaseRead = {
   contentHashSha256: string;
   sourceFingerprintSha256: string;
   signingKeyId: string;
+  signingKeyState:
+    | "UNREGISTERED"
+    | "REGISTERED"
+    | "ACTIVE"
+    | "RETIRED"
+    | "REVOKED"
+    | "INVALID";
   compatibilityPolicyRevisionIds: string[];
   publishedAt: Date;
   createdAt: Date;
