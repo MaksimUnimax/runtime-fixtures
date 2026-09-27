@@ -332,36 +332,81 @@
           {
             "product": "A",
             "signals": [
-              { "name": "content_error", "present": true },
-              { "name": "orders_drop", "present": true },
-              { "name": "stock_zero", "present": false },
-              { "name": "ad_click_drop", "present": true }
+              {
+                "name": "content_error",
+                "present": true
+              },
+              {
+                "name": "orders_drop",
+                "present": true
+              },
+              {
+                "name": "stock_zero",
+                "present": false
+              },
+              {
+                "name": "ad_click_drop",
+                "present": true
+              }
             ]
           },
           {
             "product": "B",
             "signals": [
-              { "name": "content_error", "present": false },
-              { "name": "orders_drop", "present": true },
-              { "name": "stock_zero", "present": false },
-              { "name": "ad_click_drop", "present": false }
+              {
+                "name": "content_error",
+                "present": false
+              },
+              {
+                "name": "orders_drop",
+                "present": true
+              },
+              {
+                "name": "stock_zero",
+                "present": false
+              },
+              {
+                "name": "ad_click_drop",
+                "present": false
+              }
             ]
           },
           {
             "product": "C",
             "signals": [
-              { "name": "content_error", "present": true },
-              { "name": "orders_drop", "present": false },
-              { "name": "stock_zero", "present": true },
-              { "name": "ad_click_drop", "present": true }
+              {
+                "name": "content_error",
+                "present": true
+              },
+              {
+                "name": "orders_drop",
+                "present": false
+              },
+              {
+                "name": "stock_zero",
+                "present": true
+              },
+              {
+                "name": "ad_click_drop",
+                "present": true
+              }
             ]
           }
         ]
       },
       "expected": [
-        { "product": "A", "score": 3 },
-        { "product": "C", "score": 3 },
-        { "product": "B", "score": 1 }
+        {
+          "product": "A",
+          "score": 3
+        },
+        {
+          "product": "C",
+          "score": 3
+        },
+        {
+          "product": "B",
+          "score": 1
+        }
       ]
     },
     {
@@ -531,6 +576,648 @@
       "expected": {
         "status": "DUPLICATE_KEY",
         "side": "left"
+      }
+    },
+    {
+      "id": "cross_source_join_complete",
+      "kind": "cross_source_join",
+      "input": {
+        "period": "2026-09-20/2026-09-26",
+        "left": [
+          {
+            "rowId": "S-1",
+            "product": "1001",
+            "period": "2026-09-20/2026-09-26"
+          },
+          {
+            "rowId": "S-2",
+            "product": "1001",
+            "period": "2026-09-20/2026-09-26"
+          },
+          {
+            "rowId": "S-3",
+            "product": "1002",
+            "period": "2026-09-20/2026-09-26"
+          }
+        ],
+        "right": [
+          {
+            "rowId": "R-1",
+            "product": "1001",
+            "period": "2026-09-20/2026-09-26"
+          },
+          {
+            "rowId": "R-2",
+            "product": "1002",
+            "period": "2026-09-20/2026-09-26"
+          }
+        ]
+      },
+      "expected": {
+        "status": "COMPLETE",
+        "rows": [
+          {
+            "product": "1001",
+            "leftRows": 2,
+            "rightRows": 1
+          },
+          {
+            "product": "1002",
+            "leftRows": 1,
+            "rightRows": 1
+          }
+        ]
+      }
+    },
+    {
+      "id": "cross_source_join_duplicate_rejected",
+      "kind": "cross_source_join",
+      "input": {
+        "period": "2026-09-20/2026-09-26",
+        "left": [
+          {
+            "rowId": "S-dup",
+            "product": "1001",
+            "period": "2026-09-20/2026-09-26"
+          },
+          {
+            "rowId": "S-dup",
+            "product": "1001",
+            "period": "2026-09-20/2026-09-26"
+          }
+        ],
+        "right": [
+          {
+            "rowId": "R-1",
+            "product": "1001",
+            "period": "2026-09-20/2026-09-26"
+          }
+        ]
+      },
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "DUPLICATE_LEFT_ROW_ID"
+      }
+    },
+    {
+      "id": "cross_source_join_missing_product_rejected",
+      "kind": "cross_source_join",
+      "input": {
+        "period": "2026-09-20/2026-09-26",
+        "left": [
+          {
+            "rowId": "S-1",
+            "product": "1001",
+            "period": "2026-09-20/2026-09-26"
+          }
+        ],
+        "right": [
+          {
+            "rowId": "R-1",
+            "product": "1002",
+            "period": "2026-09-20/2026-09-26"
+          }
+        ]
+      },
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "PRODUCT_SET_MISMATCH"
+      }
+    },
+    {
+      "id": "search_fact_boundary_complete",
+      "kind": "search_fact_boundary",
+      "input": {
+        "period": "2026-09-01/2026-09-27",
+        "rows": [
+          {
+            "product": "1001",
+            "query": "кружка большая",
+            "frequency": 140,
+            "position": 5
+          },
+          {
+            "product": "1001",
+            "query": "кружка керамическая",
+            "frequency": 85,
+            "position": 14
+          }
+        ],
+        "aiSuggestions": ["кружка для офиса"]
+      },
+      "expected": {
+        "status": "COMPLETE",
+        "providerFactCount": 2,
+        "aiSuggestionCount": 1,
+        "aiSuggestionsAreProviderFacts": false
+      }
+    },
+    {
+      "id": "search_fact_boundary_missing_metric",
+      "kind": "search_fact_boundary",
+      "input": {
+        "period": "2026-09-01/2026-09-27",
+        "rows": [
+          {
+            "product": "1001",
+            "query": "кружка",
+            "frequency": null,
+            "position": 5
+          }
+        ],
+        "aiSuggestions": []
+      },
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "PROVIDER_SEARCH_METRIC_MISSING"
+      }
+    },
+    {
+      "id": "search_fact_boundary_duplicate",
+      "kind": "search_fact_boundary",
+      "input": {
+        "period": "2026-09-01/2026-09-27",
+        "rows": [
+          {
+            "product": "1001",
+            "query": "кружка",
+            "frequency": 10,
+            "position": 5
+          },
+          {
+            "product": "1001",
+            "query": "кружка",
+            "frequency": 10,
+            "position": 5
+          }
+        ],
+        "aiSuggestions": []
+      },
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "DUPLICATE_SEARCH_FACT_BUSINESS_KEY"
+      }
+    },
+    {
+      "id": "search_position_boundary_known",
+      "kind": "search_position_boundary",
+      "input": {
+        "period": "2026-09-01/2026-09-27",
+        "positionKind": "average",
+        "position": 42,
+        "region": null,
+        "pricePercent": 7.5,
+        "qtyPercent": 6.25
+      },
+      "expected": {
+        "status": "COMPLETE",
+        "positionKind": "average",
+        "position": 42,
+        "pricePercent": 7.5,
+        "qtyPercent": 6.25,
+        "nullMeansZero": false
+      }
+    },
+    {
+      "id": "search_position_boundary_null_share",
+      "kind": "search_position_boundary",
+      "input": {
+        "period": "2026-09-01/2026-09-27",
+        "positionKind": "median",
+        "position": 18,
+        "region": null,
+        "pricePercent": null,
+        "qtyPercent": null
+      },
+      "expected": {
+        "status": "COMPLETE",
+        "positionKind": "median",
+        "position": 18,
+        "pricePercent": null,
+        "qtyPercent": null,
+        "nullMeansZero": false
+      }
+    },
+    {
+      "id": "search_position_boundary_missing_position",
+      "kind": "search_position_boundary",
+      "input": {
+        "period": "2026-09-01/2026-09-27",
+        "positionKind": "average",
+        "position": null,
+        "region": null,
+        "pricePercent": 4,
+        "qtyPercent": 3
+      },
+      "expected": {
+        "status": "UNKNOWN",
+        "reason": "POSITION_MISSING",
+        "position": null
+      }
+    },
+    {
+      "id": "search_position_boundary_region_unsupported",
+      "kind": "search_position_boundary",
+      "input": {
+        "period": "2026-09-01/2026-09-27",
+        "positionKind": "average",
+        "position": 12,
+        "region": "Moscow",
+        "pricePercent": 4,
+        "qtyPercent": 3
+      },
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "REGION_FILTER_UNSUPPORTED"
+      }
+    },
+    {
+      "id": "visibility_boundary_signals",
+      "kind": "visibility_boundary",
+      "input": {
+        "stockUnits": 5,
+        "contentIssue": false,
+        "blocked": true
+      },
+      "expected": {
+        "status": "BOUNDARY",
+        "stockUnits": 5,
+        "contentIssue": false,
+        "blocked": true,
+        "buyerVisibilityKnown": false,
+        "buyerVisibility": null,
+        "missingNotZero": true
+      }
+    },
+    {
+      "id": "visibility_boundary_missing_stock",
+      "kind": "visibility_boundary",
+      "input": {
+        "stockUnits": null,
+        "contentIssue": false,
+        "blocked": false
+      },
+      "expected": {
+        "status": "BOUNDARY",
+        "stockUnits": null,
+        "contentIssue": false,
+        "blocked": false,
+        "buyerVisibilityKnown": false,
+        "buyerVisibility": null,
+        "missingNotZero": true
+      }
+    },
+    {
+      "id": "restriction_boundary_blocked",
+      "kind": "restriction_boundary",
+      "input": {
+        "blockedReason": "Provider block reason",
+        "warehouseKnown": true
+      },
+      "expected": {
+        "status": "BOUNDARY",
+        "providerRestrictionKnown": true,
+        "blockedReason": "Provider block reason",
+        "warehouseKnown": true,
+        "buyerDeliveryKnown": false,
+        "buyerDelivery": null
+      }
+    },
+    {
+      "id": "ad_content_join_complete",
+      "kind": "ad_content_join",
+      "input": {
+        "active": [
+          {
+            "product": "1001",
+            "campaignIds": [10]
+          }
+        ],
+        "contentIssueProducts": ["1001"],
+        "blockedProducts": ["1001"]
+      },
+      "expected": {
+        "status": "COMPLETE",
+        "rows": [
+          {
+            "product": "1001",
+            "campaignIds": [10],
+            "contentIssue": true,
+            "blocked": true,
+            "buyerVisibilityKnown": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "ad_content_join_duplicate_active_rejected",
+      "kind": "ad_content_join",
+      "input": {
+        "active": [
+          {
+            "product": "1001",
+            "campaignIds": [10]
+          },
+          {
+            "product": "1001",
+            "campaignIds": [11]
+          }
+        ],
+        "contentIssueProducts": [],
+        "blockedProducts": []
+      },
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "DUPLICATE_ACTIVE_PRODUCT"
+      }
+    },
+    {
+      "id": "rating_boundary_known",
+      "kind": "rating_boundary",
+      "input": {
+        "sellerRating": 4.72,
+        "productRating": 4.6,
+        "measurementPenalty": 449.83
+      },
+      "expected": {
+        "status": "BOUNDARY",
+        "sellerRating": 4.72,
+        "productRating": 4.6,
+        "measurementPenalty": 449.83,
+        "fbsErrorIndexKnown": false,
+        "fbsErrorIndex": null
+      }
+    },
+    {
+      "id": "rating_boundary_missing_penalty",
+      "kind": "rating_boundary",
+      "input": {
+        "sellerRating": 4.72,
+        "productRating": 4.6,
+        "measurementPenalty": null
+      },
+      "expected": {
+        "status": "BOUNDARY",
+        "sellerRating": 4.72,
+        "productRating": 4.6,
+        "measurementPenalty": null,
+        "fbsErrorIndexKnown": false,
+        "fbsErrorIndex": null
+      }
+    },
+    {
+      "id": "rating_boundary_missing_rating",
+      "kind": "rating_boundary",
+      "input": {
+        "sellerRating": null,
+        "productRating": null,
+        "measurementPenalty": 100
+      },
+      "expected": {
+        "status": "BOUNDARY",
+        "sellerRating": null,
+        "productRating": null,
+        "measurementPenalty": 100,
+        "fbsErrorIndexKnown": false,
+        "fbsErrorIndex": null
+      }
+    },
+    {
+      "id": "causal_factors_complete",
+      "kind": "causal_factors",
+      "input": {
+        "signals": {
+          "content_error": true,
+          "orders_drop": true,
+          "stock_zero": false,
+          "ad_click_drop": true
+        }
+      },
+      "expected": {
+        "status": "COMPLETE",
+        "factors": ["ad_click_drop", "content_error", "orders_drop"],
+        "claim": "HYPOTHESIS_NOT_PROVEN_CAUSE",
+        "likelihoodKnown": false
+      }
+    },
+    {
+      "id": "causal_factors_missing",
+      "kind": "causal_factors",
+      "input": {
+        "signals": {
+          "content_error": true,
+          "orders_drop": null,
+          "stock_zero": false,
+          "ad_click_drop": true
+        }
+      },
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "EVIDENCE_SIGNAL_INCOMPLETE"
+      }
+    },
+    {
+      "id": "causal_factors_no_adverse",
+      "kind": "causal_factors",
+      "input": {
+        "signals": {
+          "content_error": false,
+          "orders_drop": false,
+          "stock_zero": false,
+          "ad_click_drop": false
+        }
+      },
+      "expected": {
+        "status": "COMPLETE",
+        "factors": [],
+        "claim": "HYPOTHESIS_NOT_PROVEN_CAUSE",
+        "likelihoodKnown": false
+      }
+    },
+    {
+      "id": "incident_boundary_known",
+      "kind": "incident_boundary",
+      "input": {
+        "incident": {
+          "url": "https://example.invalid/public-incident",
+          "date": "2026-09-01"
+        },
+        "currentPrivate": {
+          "product": "1001",
+          "warehouse": "Example warehouse",
+          "stockUnits": 3
+        }
+      },
+      "expected": {
+        "status": "BOUNDARY",
+        "publicIncidentCited": true,
+        "currentPrivateFactKnown": true,
+        "historicalPresenceKnown": false,
+        "historicalPresence": null
+      }
+    },
+    {
+      "id": "incident_boundary_missing_source",
+      "kind": "incident_boundary",
+      "input": {
+        "incident": {
+          "url": null,
+          "date": "2026-09-01"
+        },
+        "currentPrivate": {
+          "product": "1001",
+          "warehouse": "Example warehouse",
+          "stockUnits": 3
+        }
+      },
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "PUBLIC_INCIDENT_SOURCE_MISSING"
+      }
+    },
+    {
+      "id": "external_fact_boundary_separated",
+      "kind": "external_fact_boundary",
+      "input": {
+        "privateFacts": [
+          {
+            "name": "own_card"
+          }
+        ],
+        "publicFacts": [
+          {
+            "name": "public_event",
+            "url": "https://example.invalid/source"
+          }
+        ],
+        "hypotheses": [
+          {
+            "name": "possible_effect"
+          }
+        ]
+      },
+      "expected": {
+        "status": "COMPLETE",
+        "privateFactCount": 1,
+        "publicFactCount": 1,
+        "hypothesisCount": 1,
+        "classesSeparated": true
+      }
+    },
+    {
+      "id": "external_fact_boundary_missing_citation",
+      "kind": "external_fact_boundary",
+      "input": {
+        "privateFacts": [],
+        "publicFacts": [
+          {
+            "name": "public_event",
+            "url": null
+          }
+        ],
+        "hypotheses": []
+      },
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "PUBLIC_FACT_SOURCE_MISSING"
+      }
+    },
+    {
+      "id": "competitor_boundary_public_only",
+      "kind": "competitor_boundary",
+      "input": {
+        "ownCard": {
+          "id": "1001"
+        },
+        "competitors": [
+          {
+            "url": "https://example.invalid/c1",
+            "comparable": true,
+            "publicTitle": "C1",
+            "privateSales": null
+          },
+          {
+            "url": "https://example.invalid/c2",
+            "comparable": true,
+            "publicTitle": "C2",
+            "privateSales": null
+          },
+          {
+            "url": "https://example.invalid/c3",
+            "comparable": true,
+            "publicTitle": "C3",
+            "privateSales": null
+          }
+        ]
+      },
+      "expected": {
+        "status": "BOUNDARY",
+        "comparablePublicCompetitors": 3,
+        "privateCompetitorSalesKnown": false,
+        "privateCompetitorSales": null
+      }
+    },
+    {
+      "id": "competitor_boundary_private_metric_forbidden",
+      "kind": "competitor_boundary",
+      "input": {
+        "ownCard": {
+          "id": "1001"
+        },
+        "competitors": [
+          {
+            "url": "https://example.invalid/c1",
+            "comparable": true,
+            "publicTitle": "C1",
+            "privateSales": 100
+          }
+        ]
+      },
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "COMPETITOR_PRIVATE_METRIC_FORBIDDEN"
+      }
+    },
+    {
+      "id": "content_quality_boundary_known_errors",
+      "kind": "content_quality_boundary",
+      "input": {
+        "officialErrors": 4,
+        "recommendedProductCount": 2
+      },
+      "expected": {
+        "status": "BOUNDARY",
+        "officialErrors": 4,
+        "expertQualityKnown": false,
+        "expertQuality": null,
+        "recommendationsAreQualitySignal": false
+      }
+    },
+    {
+      "id": "content_quality_boundary_zero_errors",
+      "kind": "content_quality_boundary",
+      "input": {
+        "officialErrors": 0,
+        "recommendedProductCount": 5
+      },
+      "expected": {
+        "status": "BOUNDARY",
+        "officialErrors": 0,
+        "expertQualityKnown": false,
+        "expertQuality": null,
+        "recommendationsAreQualitySignal": false
+      }
+    },
+    {
+      "id": "content_quality_boundary_missing_errors",
+      "kind": "content_quality_boundary",
+      "input": {
+        "officialErrors": null,
+        "recommendedProductCount": 2
+      },
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "OFFICIAL_ERROR_COUNT_MISSING"
       }
     }
   ]

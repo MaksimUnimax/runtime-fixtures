@@ -1,0 +1,161 @@
+{
+  "schemaVersion": "wb_external_context_boundary_v1",
+  "capturedDate": "2026-09-27",
+  "scope": {
+    "scenarioIds": ["STD-10", "CAP-20", "CAP-22"],
+    "boundary": "PRIVATE_MARKETPLACE_FACTS_PUBLIC_CITED_FACTS_AND_HYPOTHESES_STAY_SEPARATE",
+    "evidence": "REUSE_CURRENT_WB_SOURCE_SLICES_PLUS_EXPLICIT_EXTERNAL_CONTEXT_CONTRACT",
+    "liveValues": false,
+    "acceptedOperationMappingChanged": false
+  },
+  "reuse": {
+    "stock": "tests/regression/extension-core/fixtures/wb-stock-field-schema-slice-v1.json",
+    "warehouse": "tests/regression/extension-core/fixtures/wb-warehouse-logistics-field-schema-slice-v1.json",
+    "catalog": "tests/regression/extension-core/fixtures/wb-catalog-identity-field-schema-slice-v1.json"
+  },
+  "sources": {
+    "incidentPrivate": {
+      "scenarioId": "STD-10",
+      "operations": [
+        "wb_warehouse_stocks",
+        "stock_offices",
+        "marketplace_offices"
+      ],
+      "meaning": "CURRENT_PRIVATE_STOCK_AND_WAREHOUSE_CONTEXT_ONLY",
+      "historicalIncidentPresence": false
+    },
+    "externalResearch": {
+      "scenarioId": "CAP-20",
+      "operations": ["cards_list"],
+      "meaning": "OWN_PRIVATE_CARD_FACTS_ONLY__PUBLIC_WORLD_FACTS_REQUIRE_CITED_EXTERNAL_SOURCE"
+    },
+    "competitor": {
+      "scenarioId": "CAP-22",
+      "operations": ["cards_list"],
+      "meaning": "OWN_PRIVATE_CARD_FACTS_ONLY__COMPETITOR_FACTS_PUBLIC_OR_OWNER_LINK_ONLY"
+    }
+  },
+  "rules": {
+    "classes": "PRIVATE_MARKETPLACE_FACT_PUBLIC_CITED_FACT_AND_MODEL_HYPOTHESIS_ARE_SEPARATE",
+    "incidentCitation": "INCIDENT_FACT_REQUIRES_PUBLIC_SOURCE_URL_AND_EVENT_DATE",
+    "historicalStock": "CURRENT_STOCK_DOES_NOT_PROVE_PRODUCT_WAS_PRESENT_AT_HISTORICAL_INCIDENT_TIME",
+    "publicFact": "PUBLIC_FACT_REQUIRES_SOURCE_URL",
+    "hypothesis": "MODEL_INFERENCE_IS_LABELLED_HYPOTHESIS_NOT_PUBLIC_OR_PRIVATE_FACT",
+    "competitor": "COMPETITOR_FACTS_REQUIRE_PUBLIC_PAGE_OR_OWNER_LINK_AND_COMPARABILITY_CONTEXT",
+    "competitorPrivateMetrics": "DO_NOT_INVENT_COMPETITOR_SALES_CONVERSION_STOCK_OR_PRIVATE_ANALYTICS",
+    "missing": "MISSING_EXTERNAL_CONTEXT_IS_UNKNOWN_OR_INCOMPLETE_NOT_ZERO"
+  },
+  "acceptedMappingSnapshot": {
+    "STD-10": ["wb_warehouse_stocks", "stock_offices", "marketplace_offices"],
+    "CAP-20": ["cards_list"],
+    "CAP-22": ["cards_list"]
+  },
+  "syntheticCases": {
+    "incidentKnown": {
+      "incident": {
+        "url": "https://example.invalid/public-incident",
+        "date": "2026-09-01",
+        "warehouse": "Example warehouse"
+      },
+      "currentPrivate": {
+        "product": "1001",
+        "warehouse": "Example warehouse",
+        "stockUnits": 3
+      },
+      "expected": {
+        "status": "BOUNDARY",
+        "publicIncidentCited": true,
+        "currentPrivateFactKnown": true,
+        "historicalPresenceKnown": false,
+        "historicalPresence": null
+      }
+    },
+    "incidentMissingCitation": {
+      "incident": {
+        "url": null,
+        "date": "2026-09-01",
+        "warehouse": "Example warehouse"
+      },
+      "currentPrivate": {
+        "product": "1001",
+        "warehouse": "Example warehouse",
+        "stockUnits": 3
+      },
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "PUBLIC_INCIDENT_SOURCE_MISSING"
+      }
+    },
+    "externalFacts": {
+      "privateFacts": [{ "name": "own_card_title", "value": "Own title" }],
+      "publicFacts": [
+        {
+          "name": "public_event",
+          "value": "Published fact",
+          "url": "https://example.invalid/source"
+        }
+      ],
+      "hypotheses": [
+        { "name": "possible_effect", "value": "May affect demand" }
+      ],
+      "expected": {
+        "status": "COMPLETE",
+        "privateFactCount": 1,
+        "publicFactCount": 1,
+        "hypothesisCount": 1,
+        "classesSeparated": true
+      }
+    },
+    "competitors": {
+      "ownCard": { "nmId": 1001, "title": "Own card" },
+      "competitors": [
+        {
+          "url": "https://example.invalid/c1",
+          "comparable": true,
+          "publicTitle": "Competitor 1",
+          "privateSales": null
+        },
+        {
+          "url": "https://example.invalid/c2",
+          "comparable": true,
+          "publicTitle": "Competitor 2",
+          "privateSales": null
+        },
+        {
+          "url": "https://example.invalid/c3",
+          "comparable": true,
+          "publicTitle": "Competitor 3",
+          "privateSales": null
+        }
+      ],
+      "expected": {
+        "status": "BOUNDARY",
+        "comparablePublicCompetitors": 3,
+        "privateCompetitorSalesKnown": false,
+        "privateCompetitorSales": null
+      }
+    },
+    "competitorPrivateMetricInvented": {
+      "ownCard": { "nmId": 1001, "title": "Own card" },
+      "competitors": [
+        {
+          "url": "https://example.invalid/c1",
+          "comparable": true,
+          "publicTitle": "Competitor 1",
+          "privateSales": 100
+        }
+      ],
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "COMPETITOR_PRIVATE_METRIC_FORBIDDEN"
+      }
+    }
+  },
+  "remainingOpen": [
+    "actual public incident/date/source supplied by AI web research or owner context for STD-10",
+    "live current WB stock/warehouse values and owner gold-set reconciliation",
+    "actual public-world research for CAP-20 remains AI/web-layer work",
+    "actual comparable competitor public pages or owner links for CAP-22",
+    "buyer/competitor private metrics remain unavailable and must not be inferred"
+  ]
+}
