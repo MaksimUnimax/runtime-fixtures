@@ -7,6 +7,7 @@ import {
   type SchedulerClock,
   type SchedulerCycleSummary,
   type ScheduledExecutionResult,
+  type HealthState,
 } from "@product/health";
 import {
   createHealthNoSessionCompletionAdapter,
@@ -20,12 +21,143 @@ import {
   runNoSessionAutomaticProbe,
   type NoSessionObservationResult,
   type NoSessionTarget,
+  AUTHENTICATED_DEEP_TARGETS,
+  createH3HealthEvidencePackage,
+  materializeH3HealthPersistenceCommand,
+  type H3ExecutionResult,
+  type H3HealthPersistenceContext,
+  type H3HealthPersistenceCommand,
+  type H3PromptId,
+  type H3Surface,
 } from "@product/health-runner";
 
 export const NO_SESSION_CLASSIFIER_VERSION = "no-session-runtime-v1";
 export const NO_SESSION_HEALTH_LEASE_MS = 5 * 60_000;
 export const NO_SESSION_HEALTH_MAX_CONCURRENCY = 9;
 export const NO_SESSION_HEALTH_WAKE_MS = 60_000;
+export const AUTHENTICATED_DEEP_CLASSIFIER_VERSION = "authenticated-deep-v1";
+
+export type AuthenticatedDeepPersistenceContextResolver = (
+  run: HealthScheduledRun,
+  surface: H3Surface,
+) => Promise<H3HealthPersistenceContext | null>;
+
+export type AuthenticatedDeepH3Runner = (input: {
+  targetKey: string;
+  surface: H3Surface;
+  promptId: H3PromptId;
+}) => Promise<H3ExecutionResult>;
+
+export type AuthenticatedDeepPersistencePort = {
+  persistCompletedHealthRun(
+    input: H3HealthPersistenceCommand & {
+      scheduledRunId: string;
+    },
+  ): Promise<{ healthRunId: string; healthState: HealthState }>;
+};
+
+export type DedicatedDeepSession = Readonly<{
+  targetKey: string;
+}>;
+
+/** One scheduled deep run: one H3 invocation, safe package, one persistence call. */
+export async function executeScheduledAuthenticatedDeepHealthRun(
+  run: HealthScheduledRun,
+  options: {
+    session?: DedicatedDeepSession;
+    resolvePersistenceContext?: AuthenticatedDeepPersistenceContextResolver;
+    executeH3?: AuthenticatedDeepH3Runner;
+    persistence?: AuthenticatedDeepPersistencePort;
+    classifierVersion?: string;
+  },
+): Promise<ScheduledExecutionResult> {
+  if (run.probeLayer !== "AUTHENTICATED_DEEP") {
+    return {
+      outcome: "FAILED",
+      failureClass: "TERMINAL_CONFIGURATION",
+      failureCode: "AUTHENTICATED_DEEP_PROBE_LAYER_INVALID",
+    };
+  }
+  const target = Object.values(AUTHENTICATED_DEEP_TARGETS).find(
+    (candidate) => candidate.monitorTarget === run.monitorTarget,
+  );
+  if (
+    !target ||
+    target.provider !== run.provider ||
+    target.surface !== run.surface
+  ) {
+    return {
+      outcome: "FAILED",
+      failureClass: "TERMINAL_CONFIGURATION",
+      failureCode: "AUTHENTICATED_DEEP_TARGET_AUTHORITY_INVALID",
+    };
+  }
+  if (
+    options.session?.targetKey !== target.targetKey ||
+    !options.resolvePersistenceContext ||
+    !options.executeH3 ||
+    !options.persistence ||
+    !run.startedAt
+  ) {
+    return {
+      outcome: "FAILED",
+      failureClass: "TERMINAL_CONFIGURATION",
+      failureCode: "AUTHENTICATED_DEEP_DEPENDENCY_UNAVAILABLE",
+    };
+  }
+  const context = await options.resolvePersistenceContext(
+    run,
+    target.surface as H3Surface,
+  );
+  if (!context) {
+    return {
+      outcome: "FAILED",
+      failureClass: "TERMINAL_CONFIGURATION",
+      failureCode: "AUTHENTICATED_DEEP_SCOPE_UNAVAILABLE",
+    };
+  }
+  // The packaged target key and surface are fixed by authority, never by input data.
+  const rawExecution = await options.executeH3({
+    targetKey: target.targetKey,
+    surface: target.surface as H3Surface,
+    promptId: "BRIDGE_COMMAND_SMOKE_V1",
+  });
+  const failureUncertainty =
+    rawExecution.failureCode === "LOGIN_REQUIRED"
+      ? "LOGIN_EXPIRED"
+      : rawExecution.failureCode === "VERIFICATION_CHECKPOINT"
+        ? "VERIFICATION_CHECKPOINT"
+        : rawExecution.failureCode === "CONTROLLED_BROWSER_UNAVAILABLE"
+          ? "CONTROLLED_BROWSER_UNAVAILABLE"
+          : null;
+  const execution =
+    failureUncertainty && !rawExecution.environmentUncertainty
+      ? { ...rawExecution, environmentUncertainty: failureUncertainty }
+      : rawExecution;
+  const evidencePackage = createH3HealthEvidencePackage(execution, {
+    ...context,
+    classifierVersion:
+      options.classifierVersion ?? AUTHENTICATED_DEEP_CLASSIFIER_VERSION,
+  });
+  const command = materializeH3HealthPersistenceCommand(evidencePackage);
+  try {
+    const persisted = await options.persistence.persistCompletedHealthRun({
+      ...command,
+      scheduledRunId: run.id,
+    });
+    return {
+      outcome: "SUCCEEDED",
+      healthRunId: persisted.healthRunId,
+      healthState: persisted.healthState,
+    };
+  } catch {
+    return {
+      outcome: "FAILED",
+      failureClass: "TRANSIENT_ENVIRONMENT",
+      failureCode: "AUTHENTICATED_DEEP_PERSISTENCE_REJECTED",
+    };
+  }
+}
 
 type SchedulerBootstrapRepository = DurableHealthSchedulerRepository & {
   getSchedule(scheduleId: string): Promise<HealthSchedule | undefined>;
@@ -58,6 +190,7 @@ export type DurableNoSessionHealthRuntimeOptions = {
     intervalSeconds: number;
     nextDueAt: Date;
   }>;
+  authorityPreflight?: () => Promise<void>;
   probe?: NoSessionProbe;
   classifierVersion?: string;
   leaseMs?: number;
@@ -149,6 +282,7 @@ export function createDurableNoSessionHealthRuntime(
   let active: Promise<SchedulerCycleSummary> | undefined;
 
   const executeCycle = async (): Promise<SchedulerCycleSummary> => {
+    await options.authorityPreflight?.();
     const now = options.clock.now();
     const authority = options.scheduleAuthority
       ? await options.scheduleAuthority()
@@ -207,6 +341,7 @@ export function createPostgresDurableNoSessionHealthRuntime(
       intervalSeconds: number;
       nextDueAt: Date;
     }>;
+    authorityPreflight?: () => Promise<void>;
     probe?: NoSessionProbe;
     classifierVersion?: string;
     wakeMs?: number;
@@ -220,6 +355,7 @@ export function createPostgresDurableNoSessionHealthRuntime(
     ownerId:
       options.ownerId ?? `telegram-health:${process.pid}:${randomUUID()}`,
     scheduleAuthority: options.scheduleAuthority,
+    authorityPreflight: options.authorityPreflight,
     probe: options.probe,
     classifierVersion: options.classifierVersion,
     wakeMs: options.wakeMs,

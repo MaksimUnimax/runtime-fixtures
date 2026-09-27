@@ -4,8 +4,12 @@ import type { BrowserDriver } from "./browser-driver.js";
 export type { BrowserFamily } from "@product/shared";
 export {
   createNoSessionHealthSchedules,
+  createAuthenticatedDeepHealthSchedules,
+  AUTHENTICATED_DEEP_INTERVAL_SECONDS,
+  AUTHENTICATED_DEEP_TARGETS,
   ensureNoSessionHealthSchedules,
 } from "./scheduler-targets.js";
+export type { AuthenticatedDeepSurface } from "./scheduler-targets.js";
 export type {
   BrowserDriver,
   BrowserDriverErrorCode,
