@@ -1,13 +1,19 @@
 import { describe, expect, it, vi } from "vitest";
 import type { HealthScheduledRun } from "@product/health";
+import { BASELINE_HEALTH_SUITE, classifyHealth } from "@product/health";
 import type {
   NoSessionObservationResult,
   NoSessionTarget,
 } from "@product/health-runner";
 import {
+  createDurableNoSessionHealthRuntime,
+  executeScheduledAuthenticatedDeepHealthRun,
   executeScheduledNoSessionHealthRun,
   NO_SESSION_CLASSIFIER_VERSION,
+  NO_SESSION_HEALTH_WAKE_MS,
+  type AuthenticatedDeepPersistencePort,
 } from "./health-runtime.js";
+import { H3ExecutionResultSchema } from "@product/health-runner";
 
 const startedAt = new Date("2026-09-24T12:00:00.000Z");
 const completedAt = new Date("2026-09-24T12:00:01.000Z");
@@ -155,5 +161,250 @@ describe("C04 scheduled no-session executor", () => {
         probe: async () => observation,
       }),
     ).rejects.toThrow("database unavailable");
+  });
+});
+
+describe("C04 monitor-pilot authority gate", () => {
+  it("blocks startup and later cycles before schedule bootstrap or browser work", async () => {
+    const authorityPreflight = vi.fn(async () => {
+      throw new Error("MONITOR_PILOT_AUTHORITY_NOT_READY");
+    });
+    const getSchedule = vi.fn();
+    const listDueSchedules = vi.fn();
+    const probe = vi.fn();
+    const repository = {
+      getSchedule,
+      createSchedule: vi.fn(),
+      updateSchedule: vi.fn(),
+      listDueSchedules,
+      materializeDueSlot: vi.fn(),
+      claimNext: vi.fn(),
+      startRun: vi.fn(),
+      finishSuccess: vi.fn(),
+      finishFailure: vi.fn(),
+      timeoutRun: vi.fn(),
+      reconcilePersistedResults: vi.fn(),
+    } as unknown as Parameters<
+      typeof createDurableNoSessionHealthRuntime
+    >[0]["repository"];
+    const runtime = createDurableNoSessionHealthRuntime({
+      repository,
+      completion: { completeScheduledNoSessionHealthRun: vi.fn() },
+      clock: { now: () => completedAt },
+      ownerId: "authority-gate-test",
+      authorityPreflight,
+      probe,
+    });
+
+    await expect(runtime.start()).rejects.toThrow(
+      "MONITOR_PILOT_AUTHORITY_NOT_READY",
+    );
+    await expect(runtime.runScheduledCycle()).rejects.toThrow(
+      "MONITOR_PILOT_AUTHORITY_NOT_READY",
+    );
+
+    expect(authorityPreflight).toHaveBeenCalledTimes(2);
+    expect(getSchedule).not.toHaveBeenCalled();
+    expect(listDueSchedules).not.toHaveBeenCalled();
+    expect(probe).not.toHaveBeenCalled();
+  });
+});
+
+describe("scheduled authenticated-deep executor", () => {
+  it("keeps the durable wake cadence separate from the deep schedule interval", async () => {
+    const { AUTHENTICATED_DEEP_INTERVAL_SECONDS } = await import(
+      "@product/health-runner"
+    );
+    expect(AUTHENTICATED_DEEP_INTERVAL_SECONDS).toBe(5_400);
+    expect(NO_SESSION_HEALTH_WAKE_MS).toBe(60_000);
+  });
+  const deepRun = run({
+    monitorTarget: "authdeep_chatgpt_standard",
+    probeLayer: "AUTHENTICATED_DEEP",
+    provider: "chatgpt",
+    surface: "CHATGPT_STANDARD",
+  });
+  const context = {
+    suite: {
+      ...BASELINE_HEALTH_SUITE,
+      scope: {
+        ...BASELINE_HEALTH_SUITE.scope,
+        surfaceKey: "standard",
+        profile: { ...BASELINE_HEALTH_SUITE.scope.profile, revision: 2 },
+      },
+    },
+    startedAt: startedAt.toISOString(),
+    completedAt: completedAt.toISOString(),
+    browserRuntime: {
+      family: "chrome" as const,
+      browserName: "chromium",
+      browserVersion: "120.0.0.0",
+      headless: true,
+      sessionKind: "EPHEMERAL_CONTROLLED" as const,
+    },
+    operatorMaintenance: false,
+    operatorMaintenanceAuthority: null,
+    classifierVersion: "test-v1",
+  };
+  const execution = (
+    uncertainty:
+      | "LOGIN_EXPIRED"
+      | "VERIFICATION_CHECKPOINT"
+      | "CONTROLLED_BROWSER_UNAVAILABLE"
+      | null = null,
+  ) =>
+    H3ExecutionResultSchema.parse({
+      level: "H3",
+      targetKey: "chatgpt_standard_health",
+      surfaceProfile: {
+        surface: "CHATGPT_STANDARD",
+        profileId: "CHATGPT_STANDARD_H3_V2",
+        profileRevision: 2,
+      },
+      outcome: uncertainty ? "UNCERTAIN" : "PASS",
+      completedSteps: [],
+      events: [],
+      durationMs: 100,
+      failureCode:
+        uncertainty === "LOGIN_EXPIRED"
+          ? "LOGIN_REQUIRED"
+          : uncertainty === "VERIFICATION_CHECKPOINT"
+            ? "VERIFICATION_CHECKPOINT"
+            : uncertainty
+              ? "CONTROLLED_BROWSER_UNAVAILABLE"
+              : null,
+      failureStep: null,
+      cleanupOutcome: "PASS",
+      cleanupFailureCode: null,
+      environmentUncertainty: uncertainty,
+    });
+  const options = (
+    executeH3 = vi.fn(async () => execution()),
+    persistCompletedHealthRun = vi.fn<
+      AuthenticatedDeepPersistencePort["persistCompletedHealthRun"]
+    >(async () => ({
+      healthRunId: "health-1",
+      healthState: "HEALTHY",
+    })),
+  ) => ({
+    session: { targetKey: "chatgpt_standard_health" },
+    resolvePersistenceContext: vi.fn(async () => context),
+    executeH3,
+    persistence: { persistCompletedHealthRun },
+  });
+
+  it("rejects non-deep runs and fails closed when resolver or dedicated session is missing", async () => {
+    const invalid = options();
+    expect(
+      (await executeScheduledAuthenticatedDeepHealthRun(run(), invalid))
+        .outcome,
+    ).toBe("FAILED");
+    expect(invalid.executeH3).not.toHaveBeenCalled();
+    const missing = options();
+    expect(
+      (
+        await executeScheduledAuthenticatedDeepHealthRun(deepRun, {
+          ...missing,
+          session: undefined,
+        })
+      ).outcome,
+    ).toBe("FAILED");
+    expect(missing.executeH3).not.toHaveBeenCalled();
+    const noResolver = options();
+    expect(
+      (
+        await executeScheduledAuthenticatedDeepHealthRun(deepRun, {
+          ...noResolver,
+          resolvePersistenceContext: undefined,
+        })
+      ).outcome,
+    ).toBe("FAILED");
+    expect(noResolver.executeH3).not.toHaveBeenCalled();
+  });
+
+  it("persists the safe materialized command once with scheduledRunId", async () => {
+    const configured = options();
+    const persist = configured.persistence.persistCompletedHealthRun;
+    const result = await executeScheduledAuthenticatedDeepHealthRun(
+      deepRun,
+      configured,
+    );
+    expect(configured.executeH3).toHaveBeenCalledTimes(1);
+    expect(persist).toHaveBeenCalledTimes(1);
+    expect(persist).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scheduledRunId: deepRun.id,
+        healthLevel: "H3",
+      }),
+    );
+    expect(result).toEqual({
+      outcome: "SUCCEEDED",
+      healthRunId: "health-1",
+      healthState: "HEALTHY",
+    });
+  });
+
+  it.each([
+    "LOGIN_EXPIRED",
+    "VERIFICATION_CHECKPOINT",
+    "CONTROLLED_BROWSER_UNAVAILABLE",
+  ] as const)(
+    "retains %s as Health UNKNOWN uncertainty rather than scheduler product drift",
+    async (reason) => {
+      let command: unknown;
+      const persistUnknown = vi.fn<
+        AuthenticatedDeepPersistencePort["persistCompletedHealthRun"]
+      >(async (input) => {
+        const { scheduledRunId, ...healthCommand } = input;
+        command = { scheduledRunId, healthCommand };
+        return {
+          healthRunId: "health-unknown",
+          healthState: "UNKNOWN",
+        };
+      });
+      const configured = options(
+        vi.fn(async () => execution(reason)),
+        persistUnknown,
+      );
+      const result = await executeScheduledAuthenticatedDeepHealthRun(
+        deepRun,
+        configured,
+      );
+      expect(result).toMatchObject({
+        outcome: "SUCCEEDED",
+        healthState: "UNKNOWN",
+      });
+      expect(command).toMatchObject({ scheduledRunId: deepRun.id });
+      const { suite, results, operatorMaintenance } = (
+        command as {
+          healthCommand: {
+            suite: unknown;
+            results: unknown[];
+            operatorMaintenance: boolean;
+          };
+        }
+      ).healthCommand;
+      expect(classifyHealth({ suite, results, operatorMaintenance })).toBe(
+        "UNKNOWN",
+      );
+      expect(configured.executeH3).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it("bounds persistence rejection without rerunning H3", async () => {
+    const persistRejected = vi.fn<
+      AuthenticatedDeepPersistencePort["persistCompletedHealthRun"]
+    >(async () => {
+      throw new Error("rejected");
+    });
+    const configured = options(undefined, persistRejected);
+    expect(
+      await executeScheduledAuthenticatedDeepHealthRun(deepRun, configured),
+    ).toEqual({
+      outcome: "FAILED",
+      failureClass: "TRANSIENT_ENVIRONMENT",
+      failureCode: "AUTHENTICATED_DEEP_PERSISTENCE_REJECTED",
+    });
+    expect(configured.executeH3).toHaveBeenCalledTimes(1);
   });
 });
