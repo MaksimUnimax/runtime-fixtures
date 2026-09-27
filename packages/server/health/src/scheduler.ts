@@ -193,7 +193,11 @@ export function classifyFailure(
   failureClass: HealthFailureClass,
   failureCode?: string,
 ): "FAILED_RETRYABLE" | "FAILED_TERMINAL" {
-  return failureCode === "SEND_UNCERTAIN" ||
+  const terminalPostSendFailure =
+    failureCode === "SEND_UNCERTAIN" ||
+    failureCode === "AUTHENTICATED_DEEP_PERSISTENCE_REJECTED" ||
+    failureCode === "AUTHENTICATED_DEEP_POST_SEND_MATERIALIZATION_REJECTED";
+  return terminalPostSendFailure ||
     failureClass === "TERMINAL_CONFIGURATION" ||
     failureClass === "PROVEN_PRODUCT_DRIFT"
     ? "FAILED_TERMINAL"
@@ -356,14 +360,27 @@ export async function runDurableHealthSchedulerCycle(
       continue;
     }
     if (!result) {
-      await options.repository.timeoutRun({
-        runId: started.id,
-        ownerId: options.ownerId,
-        leaseId: claim.leaseId,
-        now: options.clock.now(),
-        failureCode: "SCHEDULER_TIMEOUT",
-      });
-      timedOut += 1;
+      if (started.probeLayer === "AUTHENTICATED_DEEP") {
+        const finished = await options.repository.finishFailure({
+          runId: started.id,
+          ownerId: options.ownerId,
+          leaseId: claim.leaseId,
+          now: options.clock.now(),
+          failureClass: "TRANSIENT_ENVIRONMENT",
+          failureCode: "SEND_UNCERTAIN",
+        });
+        if (finished.state === "FAILED_TERMINAL") terminalFailures += 1;
+        else retryableFailures += 1;
+      } else {
+        await options.repository.timeoutRun({
+          runId: started.id,
+          ownerId: options.ownerId,
+          leaseId: claim.leaseId,
+          now: options.clock.now(),
+          failureCode: "SCHEDULER_TIMEOUT",
+        });
+        timedOut += 1;
+      }
       continue;
     }
     if (result.outcome === "SUCCEEDED") {

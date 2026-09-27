@@ -385,6 +385,123 @@ describe("durable Health scheduler contract", () => {
     expect(classifyFailure("TRANSIENT_ENVIRONMENT", "SEND_UNCERTAIN")).toBe(
       "FAILED_TERMINAL",
     );
+    expect(
+      classifyFailure(
+        "TRANSIENT_ENVIRONMENT",
+        "AUTHENTICATED_DEEP_PERSISTENCE_REJECTED",
+      ),
+    ).toBe("FAILED_TERMINAL");
+    expect(
+      classifyFailure(
+        "TRANSIENT_ENVIRONMENT",
+        "AUTHENTICATED_DEEP_POST_SEND_MATERIALIZATION_REJECTED",
+      ),
+    ).toBe("FAILED_TERMINAL");
+  });
+
+  it("does not reclaim an authenticated-deep slot after a post-send failure", async () => {
+    const repo = new MemoryScheduler();
+    repo.schedules.set(
+      ID,
+      schedule({
+        monitorTarget: "authdeep_chatgpt_standard",
+        probeLayer: "AUTHENTICATED_DEEP",
+      }),
+    );
+    let executions = 0;
+    const execute = async () => {
+      executions += 1;
+      return {
+        outcome: "FAILED" as const,
+        failureClass: "TRANSIENT_ENVIRONMENT" as const,
+        failureCode: "AUTHENTICATED_DEEP_PERSISTENCE_REJECTED",
+      };
+    };
+
+    const first = await runDurableHealthSchedulerCycle({
+      repository: repo,
+      clock: { now: () => NOW },
+      ownerId: "worker-a",
+      leaseMs: 10 * 60_000,
+      maxConcurrency: 1,
+      execute,
+    });
+    expect(first.terminalFailures).toBe(1);
+    expect(first.retryableFailures).toBe(0);
+    expect(executions).toBe(1);
+    expect([...repo.runs.values()][0]).toMatchObject({
+      state: "FAILED_TERMINAL",
+      failureCode: "AUTHENTICATED_DEEP_PERSISTENCE_REJECTED",
+      nextAttemptAt: null,
+    });
+
+    const later = new Date(NOW.valueOf() + 10 * 60_000);
+    const second = await runDurableHealthSchedulerCycle({
+      repository: repo,
+      clock: { now: () => later },
+      ownerId: "worker-b",
+      leaseMs: 10 * 60_000,
+      maxConcurrency: 1,
+      execute,
+    });
+    expect(second.claimed).toBe(0);
+    expect(executions).toBe(1);
+  });
+
+  it("terminalizes an authenticated-deep execution timeout as send-uncertain", async () => {
+    const repo = new MemoryScheduler();
+    repo.schedules.set(
+      ID,
+      schedule({
+        monitorTarget: "authdeep_chatgpt_standard",
+        probeLayer: "AUTHENTICATED_DEEP",
+      }),
+    );
+    let clockCalls = 0;
+    const afterExecutionTimeout = new Date(
+      NOW.valueOf() + DEFAULT_NO_SESSION_CADENCE.timeoutSeconds * 1_000 + 1,
+    );
+    const clock = {
+      now: () => (clockCalls++ === 0 ? NOW : afterExecutionTimeout),
+    };
+    let executions = 0;
+    const first = await runDurableHealthSchedulerCycle({
+      repository: repo,
+      clock,
+      ownerId: "worker-a",
+      leaseMs: 10 * 60_000,
+      maxConcurrency: 1,
+      execute: async () => {
+        executions += 1;
+        return await new Promise<never>(() => undefined);
+      },
+    });
+    expect(first.terminalFailures).toBe(1);
+    expect(first.timedOut).toBe(0);
+    expect(executions).toBe(1);
+    expect([...repo.runs.values()][0]).toMatchObject({
+      state: "FAILED_TERMINAL",
+      failureCode: "SEND_UNCERTAIN",
+      nextAttemptAt: null,
+    });
+
+    const second = await runDurableHealthSchedulerCycle({
+      repository: repo,
+      clock: { now: () => afterExecutionTimeout },
+      ownerId: "worker-b",
+      leaseMs: 10 * 60_000,
+      maxConcurrency: 1,
+      execute: async () => {
+        executions += 1;
+        return {
+          outcome: "SUCCEEDED" as const,
+          healthRunId: "must-not-run",
+          healthState: "HEALTHY" as const,
+        };
+      },
+    });
+    expect(second.claimed).toBe(0);
+    expect(executions).toBe(1);
   });
 
   it("keeps execution success separate from BROKEN and MAINTENANCE health", async () => {

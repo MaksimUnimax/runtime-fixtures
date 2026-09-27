@@ -37,10 +37,15 @@ export const NO_SESSION_HEALTH_MAX_CONCURRENCY = 9;
 export const NO_SESSION_HEALTH_WAKE_MS = 60_000;
 export const AUTHENTICATED_DEEP_CLASSIFIER_VERSION = "authenticated-deep-v1";
 
+export type AuthenticatedDeepPersistenceContext = Omit<
+  H3HealthPersistenceContext,
+  "startedAt" | "completedAt"
+>;
+
 export type AuthenticatedDeepPersistenceContextResolver = (
   run: HealthScheduledRun,
   surface: H3Surface,
-) => Promise<H3HealthPersistenceContext | null>;
+) => Promise<AuthenticatedDeepPersistenceContext | null>;
 
 export type AuthenticatedDeepH3Runner = (input: {
   targetKey: string;
@@ -69,6 +74,7 @@ export async function executeScheduledAuthenticatedDeepHealthRun(
     executeH3?: AuthenticatedDeepH3Runner;
     persistence?: AuthenticatedDeepPersistencePort;
     classifierVersion?: string;
+    clock?: SchedulerClock;
   },
 ): Promise<ScheduledExecutionResult> {
   if (run.probeLayer !== "AUTHENTICATED_DEEP") {
@@ -134,12 +140,24 @@ export async function executeScheduledAuthenticatedDeepHealthRun(
     failureUncertainty && !rawExecution.environmentUncertainty
       ? { ...rawExecution, environmentUncertainty: failureUncertainty }
       : rawExecution;
-  const evidencePackage = createH3HealthEvidencePackage(execution, {
-    ...context,
-    classifierVersion:
-      options.classifierVersion ?? AUTHENTICATED_DEEP_CLASSIFIER_VERSION,
-  });
-  const command = materializeH3HealthPersistenceCommand(evidencePackage);
+  const completedAt = (options.clock ?? { now: () => new Date() }).now();
+  let command: H3HealthPersistenceCommand;
+  try {
+    const evidencePackage = createH3HealthEvidencePackage(execution, {
+      ...context,
+      startedAt: run.startedAt.toISOString(),
+      completedAt: completedAt.toISOString(),
+      classifierVersion:
+        options.classifierVersion ?? AUTHENTICATED_DEEP_CLASSIFIER_VERSION,
+    });
+    command = materializeH3HealthPersistenceCommand(evidencePackage);
+  } catch {
+    return {
+      outcome: "FAILED",
+      failureClass: "TRANSIENT_ENVIRONMENT",
+      failureCode: "AUTHENTICATED_DEEP_POST_SEND_MATERIALIZATION_REJECTED",
+    };
+  }
   try {
     const persisted = await options.persistence.persistCompletedHealthRun({
       ...command,
