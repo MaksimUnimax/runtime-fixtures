@@ -683,7 +683,18 @@ export async function main(): Promise<void> {
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href)
+export function isMonitorPilotAuthorityCliEntry(
+  argv1: string | undefined,
+  moduleUrl: string,
+): boolean {
+  if (!argv1) return false;
+  const normalized = argv1.replaceAll("\\", "/");
+  if (!/(?:^|\/)monitor-pilot-authority\.(?:[cm]?[jt]s)$/.test(normalized))
+    return false;
+  return moduleUrl === pathToFileURL(argv1).href;
+}
+
+if (isMonitorPilotAuthorityCliEntry(process.argv[1], import.meta.url))
   void main().catch((error: unknown) => {
     const code =
       error instanceof Error && /^MONITOR_PILOT_[A-Z_]+$/.test(error.message)
