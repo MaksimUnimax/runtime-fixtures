@@ -24,7 +24,7 @@ The following source/disposable boundaries are now prepared:
 1. B09 cryptographic preflight uses the verifier and trust bundle shipped inside the exact STORE ZIP, verifies a fresh no-AI v2 bootstrap, binds package/config/key/account/device/browser/origin/freshness, rejects forged/deserialized proof and config drift, and gives planner authority only through a process-local trusted capability.
 2. B10 provides a runnable **read-only catalog** operator entry. It performs ordinary authenticated admin GET readback, executes only the existing reviewer no-AI bootstrap POST, verifies the returned signed envelope with the exact packaged verifier, continues planner GETs, re-reads config before returning a mutation/READY preview, and always reports `catalogMutationExecuted:false`.
 3. The latest C05 three-service disposable proof is `a7bf253839372a18f14a619e64093fa0e8c70b0e` → rollback floor `d24838669c54f21dc161dc48a7e71e0e288384c2` → `a7bf253839372a18f14a619e64093fa0e8c70b0e` on one restored forward-schema database. Evidence: `/root/octoport-control/logs/C/c05-three-service-rollback-a7bf2538-r2/c05-three-service-rollback-evidence.json`, SHA-256 `2424ddb0a08e020749f6528a89a254ef225ccfad12e1614e09cc0b25a797d58a`. All three phases passed API live/ready, worker readiness, portal login/authenticated proxy, PRESENT/WITHHELD N2 and both identified/privacy-neutral signed-v2 bootstrap checks; the dedicated synthetic metadata-forget returned 200 on the first candidate phase and remained withheld across floor/return. Cleanup dropped the disposable DB and removed transient private/work state. This is not live rollback acceptance.
-4. The planner/disposable STORE whole-sequence proves catalog mutation ordering and convergence under synthetic prerequisites. It does not prove the intended live reviewer or current live catalog state.
+4. B11 exact `2fa293d3971a7123a84d718e43aa7dd235f2c8f7` composes B10 through actual disposable DB-backed admin routes, real `ExtensionAuthService` bearer authentication and the real signed-v2 `BootstrapService` producer. The valid CLOSED-beta/admitted-reviewer path returns the exact unexecuted first catalog POST preview while the only executed POST remains `/v1/bootstrap`; wrong bearer, revoked device and removed admission fail closed. C repeated the merged-tree STORE1 disposable PostgreSQL suite: **5/5 PASS**. B11 is source/disposable evidence only and does not prove the intended live reviewer or current live catalog state.
 
 ## Current accepted backend source binding
 
@@ -139,14 +139,14 @@ Before requesting either live action C may:
 - bind the a7bf-r2 C05 rollback evidence and its exact SHA-256 to the runtime-equivalent accepted backend source `22473b416949892d66e5d8e204805ea84347c329`;
 - verify branch/main CI and current source ancestry;
 - integrate submitted A/B source candidates normally;
-- consume B10 source tests and disposable evidence;
+- consume B10/B11 source tests and disposable evidence;
 - prepare truthful store listing/reviewer instructions that do not claim live acceptance.
 
 C must not fabricate reviewer/account/admission state or a live signed-bootstrap result.
 
 ## Remaining independent stream work
 
-- B: B10 source work is accepted in main. B11 now independently owns the disposable real-API-handler composition proving the same B10 orchestration against actual route handlers/producer without handcrafted successful reviewer/config/bootstrap payloads. C does not duplicate that transport/API work and will intake only a submitted exact B11 candidate.
+- B: B10 source work is accepted in main. B11 exact `2fa293d3...` is integrated in the current C candidate and closes the disposable real-API-handler composition gap without production-code changes. No independent B-owned STORE source/DB task remains unless integration review finds a concrete defect or a later controller assignment opens one.
 - A: passive v3 verifier/cache authority remains separate from STORE 0.2.4 and does not gate the frozen v2 package. Ordinary reviewer E2E remains a later live acceptance.
 - C: accept the current integration batch through exact branch/post-main CI, preserve the package/preflight/rollback binding, and request owner action only when the intended backend/live prerequisite is the actual next unresolved step.
 
