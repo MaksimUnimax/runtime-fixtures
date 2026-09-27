@@ -150,3 +150,17 @@ That main contains the accepted C04 authenticated-deep scheduler/runtime. On the
 - that run covers the 4 scope tests plus 3 provisioning tests; OOM 0, cleanup verified, peak 447741952 bytes.
 
 No B13 production code imports C04 scheduler/runtime. The cross-stream identity check is test-only; C can compose the resolver without a reverse runtime dependency.
+
+## Fresh-main reconciliation — 2026-09-27 19:01 UTC
+
+B fetched accepted `origin/main` `834a32f2c7a2586487a9e4e995c5dd1e7b2869e6` and merged it on the clean B13 branch, producing merge HEAD `71b283fffb6a8521cbb50c17aac6a576493930a4` before this receipt-only commit.
+
+There was no overlap between the B13 candidate files and the new main drift. Main did update the already-accepted B12 pilot CLI entry guard; that change does not alter B13 DB resolver/provisioning semantics.
+
+Post-merge focused verification on Node 24.20.0 / pnpm 10.34.5:
+
+- B12 authority CLI guard + B13 initializer + accepted C04 scheduler/runtime focused unit set: **22/22 PASS** across 4 files;
+- `@product/db` typecheck: PASS;
+- `git diff --check origin/main...HEAD`: PASS.
+
+No B13 DB source changed during this merge, so the existing combined disposable PostgreSQL B13 evidence remains the applicable DB proof; no redundant protected/live or disposable DB mutation was performed for this reconciliation.
