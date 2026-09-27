@@ -7,6 +7,7 @@ export type TelegramOperatorRuntimeConfig = {
   token: string;
   operatorIds: ReadonlySet<string>;
   notificationChatIds: readonly string[];
+  healthDedicatedSessionConfigPath?: string;
 };
 
 function csvValues(raw: string | undefined): string[] {
@@ -37,10 +38,14 @@ export function parseTelegramOperatorConfig(
     throw new Error("TELEGRAM_NOTIFICATION_DESTINATION_INVALID");
   }
 
+  const healthDedicatedSessionConfigPath =
+    environment.HEALTH_DEDICATED_SESSION_CONFIG_PATH?.trim() || undefined;
+
   return {
     databaseUrl,
     token,
     operatorIds: new Set(operatorIds),
     notificationChatIds,
+    healthDedicatedSessionConfigPath,
   };
 }

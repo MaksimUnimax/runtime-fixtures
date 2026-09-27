@@ -395,6 +395,8 @@ export function createPostgresDurableNoSessionHealthRuntime(
       nextDueAt: Date;
     }>;
     authorityPreflight?: () => Promise<void>;
+    prepareAuthenticatedDeep?: () => Promise<AuthenticatedDeepCycleRuntime | null>;
+    onAuthenticatedDeepUnavailable?: () => void;
     probe?: NoSessionProbe;
     classifierVersion?: string;
     wakeMs?: number;
@@ -409,6 +411,8 @@ export function createPostgresDurableNoSessionHealthRuntime(
       options.ownerId ?? `telegram-health:${process.pid}:${randomUUID()}`,
     scheduleAuthority: options.scheduleAuthority,
     authorityPreflight: options.authorityPreflight,
+    prepareAuthenticatedDeep: options.prepareAuthenticatedDeep,
+    onAuthenticatedDeepUnavailable: options.onAuthenticatedDeepUnavailable,
     probe: options.probe,
     classifierVersion: options.classifierVersion,
     wakeMs: options.wakeMs,

@@ -18,14 +18,20 @@ import {
   createLlmMonitoringRunner,
   shouldSendMonitoringNotification,
 } from "./runners.js";
+import { createPostgresAuthenticatedDeepCycleRuntimeProvider } from "./authenticated-deep-runtime.js";
 import { createPostgresDurableNoSessionHealthRuntime } from "./health-runtime.js";
 import { parseTelegramOperatorConfig } from "./config.js";
 import { createTelegramTransport } from "./telegram-client.js";
 import { TelegramOperatorService } from "./telegram.js";
 import { preflightMonitorPilotAuthority } from "../../../tooling/server/monitor-pilot-authority.js";
 
-const { databaseUrl, token, operatorIds, notificationChatIds } =
-  parseTelegramOperatorConfig(process.env);
+const {
+  databaseUrl,
+  token,
+  operatorIds,
+  notificationChatIds,
+  healthDedicatedSessionConfigPath,
+} = parseTelegramOperatorConfig(process.env);
 
 const database = createDatabaseRuntime(databaseUrl);
 const monitorPilotExpectedRole =
@@ -40,8 +46,16 @@ const monitorPilotAuthorityPreflight = monitorPilotExpectedRole
     }
   : undefined;
 const monitoringStore = createPostgresMonitoringScheduleStore(database);
+const prepareAuthenticatedDeep =
+  createPostgresAuthenticatedDeepCycleRuntimeProvider(
+    database,
+    healthDedicatedSessionConfigPath,
+  );
 const durableLlmHealth = createPostgresDurableNoSessionHealthRuntime(database, {
   authorityPreflight: monitorPilotAuthorityPreflight,
+  prepareAuthenticatedDeep,
+  onAuthenticatedDeepUnavailable: () =>
+    console.error("HEALTH_AUTHENTICATED_DEEP_UNAVAILABLE"),
   scheduleAuthority: async () => {
     const state = await monitoringStore.getState("LLM");
     return {
