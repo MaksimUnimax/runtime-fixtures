@@ -4,6 +4,7 @@ import {
   buildProductCrosswalk,
   extractProductRegistry,
   productIdentity,
+  WB_PRODUCT_REGISTRY_PATH,
 } from "./product-registry.js";
 import type { OperationInventory } from "./types.js";
 
@@ -38,6 +39,32 @@ describe("A7 product registry crosswalk", () => {
       "utf8",
     );
     expect(source).not.toMatch(/\beval\s*\(|\bFunction\s*\(|vm\.runIn/);
+  });
+
+  it("projects the composed WB FBS body requirement while preserving the frozen donor", async () => {
+    const donor = await extractProductRegistry({
+      sourceFamily: "WILDBERRIES",
+      filePath: WB_PRODUCT_REGISTRY_PATH,
+    });
+    const effective = await extractProductRegistry({
+      sourceFamily: "WILDBERRIES",
+    });
+    const donorStatus = donor.find(
+      (row) => row.runtimeAlias === "fbs_order_statuses",
+    );
+    const effectiveStatus = effective.find(
+      (row) => row.runtimeAlias === "fbs_order_statuses",
+    );
+    expect(donorStatus).toMatchObject({
+      method: "POST",
+      normalizedPath: "/api/v3/orders/status",
+    });
+    expect(donorStatus?.providerMetadata.body_required).toBe(false);
+    expect(effectiveStatus).toMatchObject({
+      method: "POST",
+      normalizedPath: "/api/v3/orders/status",
+    });
+    expect(effectiveStatus?.providerMetadata.body_required).toBe(true);
   });
 
   it("uses source family + method + path rather than alias", () => {
