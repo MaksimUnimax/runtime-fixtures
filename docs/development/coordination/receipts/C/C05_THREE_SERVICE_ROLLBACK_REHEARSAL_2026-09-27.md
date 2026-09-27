@@ -6,34 +6,38 @@ Status: **DISPOSABLE API + WORKER + PORTAL ROLLBACK PASS / NOT LIVE / NOT DEPLOY
 
 This closes the worker/portal gap left by the earlier API-only C05 rollback proof.
 
-Canonical rehearsal evidence:
-- evidence: `/root/octoport-control/logs/C/c05-three-service-rollback-61bb49f3-r7/c05-three-service-rollback-evidence.json`;
-- evidence SHA-256: `90f6da9e5067da7e3f5cfcc80a6801f081458b79049a793e949de6267ef0f55f`;
+Latest canonical rehearsal evidence:
+- evidence: `/root/octoport-control/logs/C/c05-three-service-rollback-a7bf2538-r2/c05-three-service-rollback-evidence.json`;
+- evidence SHA-256: `2424ddb0a08e020749f6528a89a254ef225ccfad12e1614e09cc0b25a797d58a`;
 - reviewed runner: `tooling/coordination/c05-three-service-rollback-rehearsal.mts`;
 - runner SHA-256: `42774711b0d61ded8114c7dde9ca4ab3e72a610cfec4443c0692bf825e3f7aed`;
 - accepted restore dump SHA-256: `5a95e34431baa6d64159ea5cf912a719ad0e35fe78807c15d9380ea6dc175fc9`, mode 0600.
 
 Three phases used one freshly restored C-only forward-schema database, with no down migration and no migration between source switches:
 
-1. candidate `61bb49f3553fd217a9a2c8d8ff8d9f92419f0184`;
+1. candidate `a7bf253839372a18f14a619e64093fa0e8c70b0e`;
 2. rollback floor `d24838669c54f21dc161dc48a7e71e0e288384c2`;
-3. candidate `61bb49f3553fd217a9a2c8d8ff8d9f92419f0184` again.
+3. candidate `a7bf253839372a18f14a619e64093fa0e8c70b0e` again.
 
 Candidate source identity:
-- tree: `8cf42d1e755ccadcc2b9fc119ad19ef370048ce0`;
-- source archive SHA-256: `707938196e25af6f1b2bf4cc2ab8e20fc5862165fd664fcba658230d7d97c627`;
-- lockfile SHA-256: `e947b55bf62341da18963663545d5fe91e243d83560d40e709a3361350ac34e5`.
+- tree: `c93a7c21a77e212b5d50545fe6d3354f162d651a`;
+- source archive SHA-256: `aaf372d380aefb58dc991f0acded73c37881bcaa529630298a49cdbbcef53e08`;
+- lockfile SHA-256: `e947b55bf62341da18963663545d5fe91e243d83560d40e709a3361350ac34e5`;
+- portal build SHA-256: `652e2dc891791644d8473252604aa0dc7f651014ec4ae48f0525775929d63cce`.
 
 Rollback-floor source identity:
 - tree: `5e3530ca38970a6487aa73b7297aa1953012eb7e`;
 - source archive SHA-256: `a5c314d139ef26320a70c9a3ccc25d0d7830ef5f19c832b9fd2dd9010942ff9e`;
-- lockfile SHA-256: `f80c6e6a3d90d43536d71269ab68f4a6326fcc39f32f68ada69f445bf34f5fdc`.
+- lockfile SHA-256: `f80c6e6a3d90d43536d71269ab68f4a6326fcc39f32f68ada69f445bf34f5fdc`;
+- portal build SHA-256: `fba5c1935aa32c4b8703da18b593f2bcfc16d5a44e1858e9fa3e3ec9bd7267c1`.
 
-Both revisions used Node `24.20.0`, pnpm `10.34.5`, tsx `4.20.5`, Next `15.5.21`, and React `19.1.1`. Each revision received its own frozen offline install and its own portal build. The tested launch forms remain source/tsx and Next-start, not substituted dist server entrypoints.
+Both revisions used Node `24.20.0`, pnpm `10.34.5`, tsx `4.20.5`, Next `15.5.21`, and React `19.1.1`. Each revision received its own frozen offline install and portal build. The tested launch forms remain source/tsx and Next-start, not substituted dist server entrypoints.
+
+The earlier `61bb49f3 → d248386 → 61bb49f3` r7 rehearsal remains valid historical disposable evidence. It is superseded as the **canonical current rollback binding** by the later a7bf-r2 rehearsal above; both used the same reviewed runner and rollback floor.
 
 ## Rehearsal result
 
-Every phase passed:
+Every a7bf-r2 phase passed:
 - API `/health/live` = 200;
 - API `/health/ready` = 200;
 - worker emitted `Worker ready` and remained live;
@@ -77,6 +81,20 @@ Successful cleanup is part of the acceptance:
 
 No production service, live DB, store dashboard, marketplace API, payment provider, SMTP server, Telegram destination, or owner credential was used or changed.
 
+## Current accepted runtime binding
+
+Controller review and parent C independently compared the proven a7bf candidate with accepted backend source `22473b416949892d66e5d8e204805ea84347c329` and found **zero delta** across:
+- `apps/api`;
+- `apps/worker`;
+- `apps/portal`;
+- `packages/server`;
+- `packages/contracts/src`;
+- `packages/shared`;
+- `package.json`;
+- `pnpm-lock.yaml`.
+
+Therefore the exact a7bf-r2 rehearsal is the current runtime-equivalent disposable rollback evidence for accepted backend source `22473b416949892d66e5d8e204805ea84347c329`. This equivalence is limited to the compared runtime/dependency paths. It does not turn the rehearsal into live deployment/rollback evidence, and later runtime-affecting changes require normal release-specific revalidation.
+
 ## Private-state provenance disposition
 
 The historical C05 runtime-state file remains mode 0600. Existing C05 receipts establish that its auth/signing material and device/session state were generated for the C-only disposable C05 database and synthetic authority flow. It is not evidence of a live or owner credential.
@@ -85,7 +103,9 @@ A child source-review process previously reported that a read-only search accide
 
 ## Acceptance boundary
 
-This proves the exact candidate/floor/candidate three-service sequence above on one restored forward-schema disposable database. It does **not** prove:
+This proves the exact a7bf/floor/a7bf three-service sequence above on one restored forward-schema disposable database and binds it, by zero runtime/dependency delta, to accepted backend source `22473b416949892d66e5d8e204805ea84347c329`.
+
+It does **not** prove:
 - production or live deployment/rollback;
 - future arbitrary source revisions;
 - live backup/RPO/RTO;
@@ -93,5 +113,3 @@ This proves the exact candidate/floor/candidate three-service sequence above on 
 - live commercial enablement.
 
 After this proof, `d24838669c54f21dc161dc48a7e71e0e288384c2` is a tested rollback floor for the exercised API + worker + portal paths on the proven forward schema. Any later runtime-affecting candidate requires normal release-specific revalidation.
-
-At the time this receipt is integrated, `origin/main` has advanced beyond `61bb49f3...` only through site/design/nginx-site changes. Those changes were preserved by normal merge and are outside this C05 runtime proof.
