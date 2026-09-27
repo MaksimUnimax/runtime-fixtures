@@ -1,0 +1,177 @@
+{
+  "schemaVersion": "wb_campaign_status_field_schema_slice_v1",
+  "capturedDate": "2026-09-27",
+  "scope": {
+    "scenarioIds": ["CAP-17"],
+    "boundary": "PROMOTION_AND_MEDIA_CAMPAIGN_STATUS_ENUMS_ARE_PROVIDER_FAMILY_SCOPED",
+    "evidence": "CURRENT_UPSTREAM_OPENAPI_MIRROR_FIELD_SCHEMA",
+    "liveValues": false,
+    "acceptedOperationMappingChanged": false
+  },
+  "authority": {
+    "mirrorRepository": "eslazarev/wildberries-sdk",
+    "mirrorCommit": "5057bdb9bf16dea24000e3ca79e1934f7761d7fe",
+    "specPath": "specs/08-promotion.yaml",
+    "blobSha": "30ae48c8d1b67944b34cf51ac896ae4c2b2fa0d9"
+  },
+  "sources": {
+    "promotion": {
+      "reuseFixture": "tests/regression/extension-core/fixtures/wb-advertising-field-schema-slice-v1.json",
+      "operationAlias": "promo_campaigns",
+      "host": "advert",
+      "method": "GET",
+      "path": "/api/advert/v2/adverts",
+      "queryFields": ["ids", "statuses", "payment_type"],
+      "pagination": "NO_OFFSET_PAGINATION_DOCUMENTED",
+      "fields": {
+        "advertId": { "role": "campaign_id", "unit": "identifier" },
+        "status": {
+          "role": "promotion_campaign_status",
+          "unit": "provider_enum_integer"
+        },
+        "paymentType": { "role": "payment_model", "unit": "provider_enum" }
+      },
+      "statuses": {
+        "-1": "DELETED",
+        "4": "READY_TO_START",
+        "7": "FINISHED",
+        "8": "CANCELED",
+        "9": "ACTIVE",
+        "11": "PAUSED"
+      }
+    },
+    "media": {
+      "operationAlias": "media_campaigns",
+      "host": "advert_media",
+      "method": "GET",
+      "path": "/adv/v1/adverts",
+      "queryFields": [
+        "status",
+        "type",
+        "limit",
+        "offset",
+        "order",
+        "direction"
+      ],
+      "pagination": "EXPLICIT_OFFSET_LIMIT",
+      "fields": {
+        "advertId": { "role": "media_campaign_id", "unit": "identifier" },
+        "name": { "role": "media_campaign_name", "unit": "text" },
+        "brand": { "role": "brand_name", "unit": "text" },
+        "type": {
+          "role": "media_campaign_type",
+          "unit": "provider_enum_integer"
+        },
+        "status": {
+          "role": "media_campaign_status",
+          "unit": "provider_enum_integer"
+        },
+        "createTime": { "role": "created_time", "unit": "datetime" },
+        "endTime": { "role": "ended_time", "unit": "datetime_optional" }
+      },
+      "types": {
+        "1": "PLACEMENT_BY_DAY",
+        "2": "PLACEMENT_BY_VIEWS"
+      },
+      "statuses": {
+        "1": "DRAFT",
+        "2": "MODERATION",
+        "3": "REJECTED_CAN_RESUBMIT",
+        "4": "READY_TO_START",
+        "5": "SCHEDULED",
+        "6": "SHOWING",
+        "7": "FINISHED",
+        "8": "CANCELED",
+        "9": "PAUSED_BY_SELLER",
+        "10": "PAUSED_DAILY_LIMIT",
+        "11": "PAUSED"
+      }
+    }
+  },
+  "rules": {
+    "family": "ALWAYS_KEEP_PROMOTION_OR_MEDIA_FAMILY_TAG",
+    "status": "STATUS_INTEGER_MUST_BE_INTERPRETED_WITHIN_ITS_PROVIDER_FAMILY",
+    "overlap": "SAME_NUMERIC_STATUS_DOES_NOT_IMPLY_SAME_CROSS_FAMILY_MEANING",
+    "mediaPagination": "FULL_MEDIA_LIST_REQUIRES_EXPLICIT_OFFSET_LIMIT_COMPLETION",
+    "promoPagination": "DO_NOT_INVENT_OFFSET_PAGINATION_FOR_PROMO_CAMPAIGNS",
+    "missing": "MISSING_NOT_ZERO"
+  },
+  "acceptedMappingSnapshot": {
+    "CAP-17": ["promo_campaigns", "media_campaigns"]
+  },
+  "syntheticCases": {
+    "rows": {
+      "promotion": [
+        { "advertId": 1001, "status": 9, "paymentType": "cpm" },
+        { "advertId": 1002, "status": 11, "paymentType": "cpc" }
+      ],
+      "media": [
+        {
+          "advertId": 2001,
+          "type": 1,
+          "status": 6,
+          "name": "Fixture media A",
+          "brand": "Fixture"
+        },
+        {
+          "advertId": 2002,
+          "type": 2,
+          "status": 9,
+          "name": "Fixture media B",
+          "brand": "Fixture"
+        }
+      ],
+      "expected": [
+        {
+          "family": "MEDIA",
+          "campaignId": 2001,
+          "statusId": 6,
+          "status": "SHOWING"
+        },
+        {
+          "family": "MEDIA",
+          "campaignId": 2002,
+          "statusId": 9,
+          "status": "PAUSED_BY_SELLER"
+        },
+        {
+          "family": "PROMOTION",
+          "campaignId": 1001,
+          "statusId": 9,
+          "status": "ACTIVE"
+        },
+        {
+          "family": "PROMOTION",
+          "campaignId": 1002,
+          "statusId": 11,
+          "status": "PAUSED"
+        }
+      ]
+    },
+    "unknownPromotionStatus": {
+      "row": { "advertId": 1003, "status": 5 },
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "UNKNOWN_PROMOTION_STATUS"
+      }
+    },
+    "unknownMediaStatus": {
+      "row": { "advertId": 2003, "type": 1, "status": 12 },
+      "expected": { "status": "INCOMPLETE", "reason": "UNKNOWN_MEDIA_STATUS" }
+    },
+    "sameNumericNine": {
+      "promotion": { "advertId": 1010, "status": 9 },
+      "media": { "advertId": 2010, "type": 1, "status": 9 },
+      "expected": {
+        "promotion": "ACTIVE",
+        "media": "PAUSED_BY_SELLER"
+      }
+    }
+  },
+  "remainingOpen": [
+    "live WB campaign values and owner gold-set reconciliation",
+    "real media pagination terminal behavior and stable ordering under concurrent changes",
+    "cross-marketplace campaign status normalization requires an explicit business vocabulary if requested",
+    "campaign types/payment models remain provider-specific and must not be inferred from status alone"
+  ]
+}

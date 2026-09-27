@@ -1,0 +1,206 @@
+{
+  "schemaVersion": "wb_promotion_calendar_field_schema_slice_v1",
+  "capturedDate": "2026-09-27",
+  "scope": {
+    "scenarioIds": ["CAP-11"],
+    "boundary": "PROMOTION_AVAILABILITY_PRODUCT_PARTICIPATION_AND_PRICE_FIELDS_STAY_DISTINCT",
+    "evidence": "CURRENT_OFFICIAL_WB_DOCUMENTATION",
+    "liveValues": false,
+    "acceptedOperationMappingChanged": false
+  },
+  "source": {
+    "url": "https://dev.wildberries.ru/en/docs/openapi/promotion",
+    "category": "prices_and_discounts",
+    "rateLimit": {
+      "periodSeconds": 6,
+      "requests": 10,
+      "intervalMs": 600,
+      "burst": 5
+    }
+  },
+  "operations": {
+    "promotions": {
+      "operationAlias": "calendar_promotions",
+      "host": "calendar",
+      "method": "GET",
+      "path": "/api/v1/calendar/promotions",
+      "requiredQuery": ["startDateTime", "endDateTime", "allPromo"],
+      "pagination": { "limitMin": 1, "limitMax": 1000, "offsetMin": 0 },
+      "fields": {
+        "id": { "role": "promotion_id", "unit": "identifier" },
+        "name": { "role": "promotion_name", "unit": "text" },
+        "startDateTime": { "role": "promotion_start", "unit": "datetime" },
+        "endDateTime": { "role": "promotion_end", "unit": "datetime" },
+        "type": { "role": "promotion_type", "unit": "provider_enum_text" }
+      },
+      "allPromoMeaning": {
+        "false": "PROMOTIONS_AVAILABLE_FOR_PARTICIPATION",
+        "true": "ALL_PROMOTIONS"
+      }
+    },
+    "details": {
+      "operationAlias": "calendar_promotion_details",
+      "host": "calendar",
+      "method": "GET",
+      "path": "/api/v1/calendar/promotions/details",
+      "requiredQuery": ["promotionIDs"],
+      "promotionIds": { "minItems": 1, "maxItems": 100, "unique": true },
+      "fields": {
+        "id": { "role": "promotion_id", "unit": "identifier" },
+        "name": { "role": "promotion_name", "unit": "text" },
+        "description": { "role": "provider_description", "unit": "text" }
+      }
+    },
+    "nomenclatures": {
+      "operationAlias": "calendar_promotion_nomenclatures",
+      "host": "calendar",
+      "method": "GET",
+      "path": "/api/v1/calendar/promotions/nomenclatures",
+      "requiredQuery": ["promotionID", "inAction"],
+      "pagination": { "limitMin": 1, "limitMax": 1000, "offsetMin": 0 },
+      "notApplicablePromotionType": "auto",
+      "fields": {
+        "id": { "role": "product_id", "unit": "identifier" },
+        "inAction": {
+          "role": "product_participates_in_promotion",
+          "unit": "boolean"
+        },
+        "price": { "role": "provider_price", "unit": "response_currency" },
+        "currencyCode": { "role": "price_currency", "unit": "currency_code" },
+        "planPrice": {
+          "role": "provider_planned_price",
+          "unit": "response_currency"
+        },
+        "discount": { "role": "provider_discount", "unit": "percent" },
+        "planDiscount": {
+          "role": "provider_planned_discount",
+          "unit": "percent"
+        }
+      }
+    }
+  },
+  "rules": {
+    "availability": "PROMOTION_LIST_AVAILABILITY_IS_NOT_PRODUCT_PARTICIPATION",
+    "participation": "USE_NOMENCLATURE_IN_ACTION_BOOLEAN_FOR_PRODUCT_PARTICIPATION",
+    "auto": "NOMENCLATURES_NOT_APPLICABLE_TO_AUTO_PROMOTIONS_FAILS_CLOSED",
+    "price": "PRESERVE_PRICE_AND_PLAN_PRICE_AS_DISTINCT_PROVIDER_FIELDS",
+    "currency": "REQUIRE_RESPONSE_CURRENCY_DO_NOT_ASSUME_RUB",
+    "discount": "PRESERVE_DISCOUNT_AND_PLAN_DISCOUNT_AS_DISTINCT_PROVIDER_PERCENT_FIELDS",
+    "pagination": "FULL_LIST_CLAIM_REQUIRES_EXPLICIT_COMPLETION_OF_OFFSET_PAGES",
+    "missing": "MISSING_NOT_ZERO"
+  },
+  "acceptedMappingSnapshot": {
+    "CAP-11": [
+      "calendar_promotions",
+      "calendar_promotion_details",
+      "calendar_promotion_nomenclatures"
+    ]
+  },
+  "syntheticCases": {
+    "regularPromotion": {
+      "promotion": {
+        "id": 123,
+        "name": "Fixture regular promotion",
+        "startDateTime": "2026-09-20T00:00:00Z",
+        "endDateTime": "2026-09-30T23:59:59Z",
+        "type": "regular"
+      },
+      "details": {
+        "id": 123,
+        "name": "Fixture regular promotion",
+        "description": "Fixture provider description"
+      },
+      "nomenclaturePagesComplete": true,
+      "nomenclatures": [
+        {
+          "id": 1001,
+          "inAction": true,
+          "price": 1500,
+          "currencyCode": "RUB",
+          "planPrice": 1000,
+          "discount": 15,
+          "planDiscount": 34
+        },
+        {
+          "id": 1002,
+          "inAction": false,
+          "price": 2100,
+          "currencyCode": "RUB",
+          "planPrice": 1800,
+          "discount": 10,
+          "planDiscount": 20
+        }
+      ],
+      "expected": {
+        "status": "PASS",
+        "promotionId": 123,
+        "promotionType": "regular",
+        "products": [
+          {
+            "productId": 1001,
+            "participates": true,
+            "price": 1500,
+            "planPrice": 1000,
+            "currency": "RUB",
+            "discount": 15,
+            "planDiscount": 34
+          },
+          {
+            "productId": 1002,
+            "participates": false,
+            "price": 2100,
+            "planPrice": 1800,
+            "currency": "RUB",
+            "discount": 10,
+            "planDiscount": 20
+          }
+        ]
+      }
+    },
+    "autoPromotion": {
+      "promotion": { "id": 555, "name": "Auto", "type": "auto" },
+      "details": { "id": 555, "name": "Auto", "description": "Auto fixture" },
+      "nomenclaturePagesComplete": true,
+      "nomenclatures": [],
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "NOMENCLATURES_NOT_APPLICABLE_TO_AUTO_PROMOTION"
+      }
+    },
+    "incompletePagination": {
+      "promotion": { "id": 123, "name": "Regular", "type": "regular" },
+      "details": { "id": 123, "name": "Regular", "description": "Fixture" },
+      "nomenclaturePagesComplete": false,
+      "nomenclatures": [],
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "NOMENCLATURE_PAGINATION_INCOMPLETE"
+      }
+    },
+    "missingCurrency": {
+      "promotion": { "id": 123, "name": "Regular", "type": "regular" },
+      "details": { "id": 123, "name": "Regular", "description": "Fixture" },
+      "nomenclaturePagesComplete": true,
+      "nomenclatures": [
+        {
+          "id": 1001,
+          "inAction": true,
+          "price": 1500,
+          "planPrice": 1000,
+          "discount": 15,
+          "planDiscount": 34
+        }
+      ],
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "PROMOTION_PRICE_CURRENCY_MISSING"
+      }
+    }
+  },
+  "remainingOpen": [
+    "live WB promotion/product values and owner gold-set reconciliation",
+    "real offset-pagination terminal behavior",
+    "auto-promotion product participation requires a different provider-supported source when applicable",
+    "business interpretation of whether planned price/discount is desirable remains owner context"
+  ]
+}

@@ -35,7 +35,7 @@ async function setup(source = basic, options = {}) {
   const quota = options.quota || quotaApi.create({ read, write, namespace: "fixture-quota", now: () => options.clock?.value ?? 1000 });
   const provider = api.createProvider({ timeoutMs: options.timeoutMs || 1000, maxBytes: options.maxBytes || 3000000,
     fetchImpl: async (url, init) => {
-      network.push({ url, method: init.method, authorization: init.headers.Authorization });
+      network.push({ url, method: init.method, authorization: init.headers.Authorization, body: init.body });
       assert.equal(init.redirect, "error"); assert.equal(init.credentials, "omit");
       assert.match(url, /^https:\/\/[a-z-]+\.wildberries\.ru\//);
       return options.fetch ? options.fetch(url, init, { live, network }) : new Response('{"result":{"id":42}}',
@@ -54,8 +54,9 @@ try {
   await test("WB-01-isolated-authority-all-188-rows", async () => {
     let enabled = 0, disabled = 0;
     for (const [alias, meta] of Object.entries(reference.contract.OPERATIONS)) {
+      const requiredBody = alias === "fbs_order_statuses" ? { orders: [5632423] } : {};
       const params = { path: Object.fromEntries([...meta.path.matchAll(/\{([^}]+)\}/g)].map((m) => [m[1], "fixture-id"])),
-        query: Object.fromEntries(meta.required_query_keys.map((key) => [key, "1"])), ...(meta.body_required ? { body: {} } : {}) };
+        query: Object.fromEntries(meta.required_query_keys.map((key) => [key, "1"])), ...(meta.body_required ? { body: requiredBody } : {}) };
       if (!meta.execution_enabled) {
         assert.throws(() => reference.contract.parseCommand(command(alias, params)), /заблокирована/); disabled++; continue;
       }
@@ -68,6 +69,75 @@ try {
     assert.equal(await worker.call("(() => typeof WBContract)"), "undefined");
     assert.ok(await worker.call("(() => typeof OzonContract.parseCommand === 'function')"));
     assert.equal(worker.network.length, 0, "loading adapter does not issue requests");
+  });
+  await test("WB-01b-fbs-statuses-required-body-help-and-predispatch", async () => {
+    const meta = reference.contract.OPERATIONS.fbs_order_statuses;
+    assert.equal(meta.body_required, true);
+    const card = await worker.call(`(() => {
+      const parsed = SellerAgentsWBReference.guidance.parseHelp('WB_HELP_V2 {"cluster":"marketplace","section":"direct"}');
+      const payload = SellerAgentsWBReference.guidance.result({ ...parsed, status: "operations" });
+      return payload.choices.find((row) => row.operation === "fbs_order_statuses");
+    })`);
+    assert.ok(card, "fbs_order_statuses guidance card");
+    assert.equal(card.template_runnable, false);
+    assert.equal(card.template, null);
+    assert.deepEqual(Array.from(card.required_parameters), ["body"]);
+
+    assert.throws(
+      () =>
+        reference.contract.normalizeCommand({
+          operation: "fbs_order_statuses",
+          params: {},
+        }),
+      { code: "FBS_ORDER_STATUSES_ORDERS_REQUIRED" },
+    );
+    const normalizedValid = reference.contract.normalizeCommand({
+      operation: "fbs_order_statuses",
+      params: { body: { orders: [5632423] } },
+    });
+    assert.deepEqual(clone(normalizedValid.body), { orders: [5632423] });
+
+    const invalid = [
+      [command("fbs_order_statuses"), "FBS_ORDER_STATUSES_ORDERS_REQUIRED"],
+      [command("fbs_order_statuses", { body: {} }), "FBS_ORDER_STATUSES_ORDERS_REQUIRED"],
+      [command("fbs_order_statuses", { body: { orders: [] } }), "FBS_ORDER_STATUSES_ORDERS_REQUIRED"],
+      [command("fbs_order_statuses", { body: { orders: ["5632423"] } }), "FBS_ORDER_STATUSES_ORDER_ID_INVALID"],
+      [command("fbs_order_statuses", { body: { orders: [1.5] } }), "FBS_ORDER_STATUSES_ORDER_ID_INVALID"],
+      [
+        command("fbs_order_statuses", {
+          body: { orders: Array.from({ length: 1001 }, (_, i) => i) },
+        }),
+        "FBS_ORDER_STATUSES_TOO_MANY_ORDERS",
+      ],
+      [
+        command("fbs_order_statuses", {
+          body: { orders: [5632423], extra: true },
+        }),
+        "FBS_ORDER_STATUSES_BODY_INVALID",
+      ],
+    ];
+    for (const [source, code] of invalid) {
+      assert.throws(() => reference.contract.parseCommand(source), { code });
+      const s = await setup(source);
+      await s.run();
+      assert.equal(s.network.length, 0, code);
+      assert.match((await s.state()).batch.entries[0].report_text, new RegExp(code));
+    }
+
+    const valid = command("fbs_order_statuses", {
+      body: { orders: [5632423, 5632424] },
+    });
+    const parsed = reference.contract.parseCommand(valid);
+    assert.deepEqual(clone(parsed.body), { orders: [5632423, 5632424] });
+    const request = reference.contract.buildRequest(parsed);
+    assert.equal(request.method, "POST");
+    assert.deepEqual(JSON.parse(request.body), { orders: [5632423, 5632424] });
+    const s = await setup(valid);
+    assert.equal((await s.run()).ok, true);
+    assert.equal(s.network.length, 1);
+    assert.deepEqual(JSON.parse(s.network[0].body), {
+      orders: [5632423, 5632424],
+    });
   });
   await test("WB-02-mixed-help-errors-and-api-order", async () => {
     const s = await setup(['WB_HELP_V2 {"cluster":"common","section":"direct"}',

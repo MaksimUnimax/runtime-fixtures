@@ -1,0 +1,167 @@
+{
+  "schemaVersion": "wb_standard_supply_acceptance_stock_reuse_v1",
+  "capturedDate": "2026-09-27",
+  "scope": {
+    "scenarioIds": ["STD-13"],
+    "boundary": "SUPPLY_STATUS_ACCEPTED_UNITS_REPORT_UNITS_AND_CURRENT_STOCK_STAY_DISTINCT",
+    "evidence": "REUSE_VALIDATED_CAP08_AND_CAP05_FIELD_SCHEMAS",
+    "liveValues": false,
+    "acceptedOperationMappingChanged": false
+  },
+  "reuse": {
+    "acceptanceFixture": "tests/regression/extension-core/fixtures/wb-supply-acceptance-field-schema-slice-v1.json",
+    "acceptanceSchemaVersion": "wb_supply_acceptance_field_schema_slice_v1",
+    "stockFixture": "tests/regression/extension-core/fixtures/wb-turnover-field-schema-slice-v1.json",
+    "stockSchemaVersion": "wb_turnover_field_schema_slice_v1"
+  },
+  "rules": {
+    "status": "PRESERVE_FBW_STATUS_ID_DO_NOT_INVENT_SHARED_LABEL",
+    "directAcceptedUnits": "SUM_FBW_SUPPLY_GOODS_ACCEPTED_QUANTITY_BY_NM_ID_AFTER_COMPLETE_GOODS_PAGINATION",
+    "reportAcceptedUnits": "SUM_ACCEPTANCE_REPORT_COUNT_BY_NM_ID_ONLY_AFTER_TASK_DONE",
+    "stock": "USE_STOCK_PRODUCTS_STOCK_COUNT_AS_CURRENT_DAY_STOCK_UNITS",
+    "distinct": "DIRECT_ACCEPTED_REPORT_ACCEPTED_AND_CURRENT_STOCK_ARE_DISTINCT_METRICS",
+    "difference": "METRIC_DIFFERENCE_DOES_NOT_PROVE_LOSS_WRITEOFF_OR_CAUSALITY",
+    "missing": "MISSING_NOT_ZERO"
+  },
+  "acceptedMappingSnapshot": {
+    "STD-13": [
+      "fbw_supply",
+      "fbw_supply_goods",
+      "acceptance_report_create",
+      "acceptance_report_status",
+      "acceptance_report_download",
+      "stock_products"
+    ]
+  },
+  "syntheticCases": {
+    "complete": {
+      "supply": {
+        "statusID": 5,
+        "quantity": 12,
+        "readyForSaleQuantity": 8,
+        "acceptedQuantity": 10,
+        "unloadingQuantity": 2
+      },
+      "goodsPagesComplete": true,
+      "goods": [
+        { "nmID": 1001, "barcode": "sku-a", "acceptedQuantity": 6 },
+        { "nmID": 1002, "barcode": "sku-b", "acceptedQuantity": 4 }
+      ],
+      "reportStatuses": ["new", "processing", "done"],
+      "reportRows": [
+        {
+          "incomeId": 11834106,
+          "nmID": 1001,
+          "shkCreateDate": "2026-09-26",
+          "count": 6
+        },
+        {
+          "incomeId": 11834106,
+          "nmID": 1002,
+          "shkCreateDate": "2026-09-26",
+          "count": 4
+        }
+      ],
+      "stockRows": [
+        { "nmID": 1001, "metrics": { "stockCount": 3 } },
+        { "nmID": 1002, "metrics": { "stockCount": 9 } }
+      ],
+      "expected": {
+        "status": "PASS",
+        "providerSupplyStatusId": 5,
+        "supplyAcceptedUnits": 10,
+        "products": [
+          {
+            "nmID": 1001,
+            "directAcceptedUnits": 6,
+            "reportAcceptedUnits": 6,
+            "currentStockUnits": 3
+          },
+          {
+            "nmID": 1002,
+            "directAcceptedUnits": 4,
+            "reportAcceptedUnits": 4,
+            "currentStockUnits": 9
+          }
+        ]
+      }
+    },
+    "reportNotDone": {
+      "supply": { "statusID": 4, "acceptedQuantity": 4 },
+      "goodsPagesComplete": true,
+      "goods": [{ "nmID": 1001, "barcode": "sku-a", "acceptedQuantity": 4 }],
+      "reportStatuses": ["new", "processing"],
+      "reportRows": [
+        {
+          "incomeId": 1,
+          "nmID": 1001,
+          "shkCreateDate": "2026-09-26",
+          "count": 4
+        }
+      ],
+      "stockRows": [{ "nmID": 1001, "metrics": { "stockCount": 5 } }],
+      "expected": { "status": "INCOMPLETE", "reason": "REPORT_NOT_DONE" }
+    },
+    "goodsPaginationIncomplete": {
+      "supply": { "statusID": 5, "acceptedQuantity": 4 },
+      "goodsPagesComplete": false,
+      "goods": [{ "nmID": 1001, "barcode": "sku-a", "acceptedQuantity": 4 }],
+      "reportStatuses": ["done"],
+      "reportRows": [
+        {
+          "incomeId": 1,
+          "nmID": 1001,
+          "shkCreateDate": "2026-09-26",
+          "count": 4
+        }
+      ],
+      "stockRows": [{ "nmID": 1001, "metrics": { "stockCount": 5 } }],
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "SUPPLY_GOODS_PAGINATION_INCOMPLETE"
+      }
+    },
+    "missingStock": {
+      "supply": { "statusID": 5, "acceptedQuantity": 4 },
+      "goodsPagesComplete": true,
+      "goods": [{ "nmID": 1001, "barcode": "sku-a", "acceptedQuantity": 4 }],
+      "reportStatuses": ["done"],
+      "reportRows": [
+        {
+          "incomeId": 1,
+          "nmID": 1001,
+          "shkCreateDate": "2026-09-26",
+          "count": 4
+        }
+      ],
+      "stockRows": [],
+      "expected": { "status": "INCOMPLETE", "reason": "CURRENT_STOCK_MISSING" }
+    },
+    "unknownSupplyStatus": {
+      "supply": { "statusID": 99, "acceptedQuantity": 4 },
+      "goodsPagesComplete": true,
+      "goods": [{ "nmID": 1001, "barcode": "sku-a", "acceptedQuantity": 4 }],
+      "reportStatuses": ["done"],
+      "reportRows": [
+        {
+          "incomeId": 1,
+          "nmID": 1001,
+          "shkCreateDate": "2026-09-26",
+          "count": 4
+        }
+      ],
+      "stockRows": [{ "nmID": 1001, "metrics": { "stockCount": 5 } }],
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "UNKNOWN_SUPPLY_STATUS_ID"
+      }
+    }
+  },
+  "remainingOpen": [
+    "live WB supply/report/stock values and owner gold-set reconciliation",
+    "real-account supply-goods pagination completeness",
+    "acceptance-report latency and period alignment",
+    "reconciliation when direct acceptedQuantity and report count differ by period or grain",
+    "business interpretation of accepted-versus-current-stock differences"
+  ]
+}
