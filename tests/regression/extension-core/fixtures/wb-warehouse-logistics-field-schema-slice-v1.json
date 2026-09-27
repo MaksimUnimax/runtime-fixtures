@@ -1,0 +1,191 @@
+{
+  "schemaVersion": "wb_warehouse_logistics_field_schema_slice_v1",
+  "capturedDate": "2026-09-27",
+  "scope": {
+    "scenarioIds": ["CAP-06"],
+    "boundary": "SELLER_WAREHOUSE_OFFICE_JOIN_AND_FBW_WAREHOUSE_GEOGRAPHY_WITHOUT_INVENTED_CLUSTER",
+    "evidence": "CURRENT_UPSTREAM_OPENAPI_MIRROR_FIELD_SCHEMA",
+    "liveValues": false,
+    "acceptedOperationMappingChanged": false
+  },
+  "authority": {
+    "mirrorRepository": "eslazarev/wildberries-sdk",
+    "generationBlobSha": "43ac4287e0afe98f273fd00f1a89bdf6c6229565",
+    "directPortalFetch": "HTTP_498_BROWSER_CHECK",
+    "specs": {
+      "02-items.yaml": {
+        "blobSha": "54f6d7828f4188671ef68fde06922e609ef7e7a4",
+        "upstreamUrl": "https://dev.wildberries.ru/api/swagger/yaml/ru/02-items.yaml?region=ru"
+      },
+      "07-orders-fbw.yaml": {
+        "blobSha": "7ae91e4101c9a2c0f74d2c34c6dbf743d8ef5f45",
+        "upstreamUrl": "https://dev.wildberries.ru/api/swagger/yaml/ru/07-orders-fbw.yaml?region=ru"
+      }
+    }
+  },
+  "sources": {
+    "marketplaceOffices": {
+      "url": "https://dev.wildberries.ru/en/openapi/work-with-products",
+      "operationAlias": "marketplace_offices",
+      "host": "marketplace",
+      "method": "GET",
+      "path": "/api/v3/offices",
+      "tokenCategory": "marketplace",
+      "rowGrain": ["id"],
+      "fields": {
+        "id": { "role": "wb_office_id", "unit": "identifier" },
+        "name": { "role": "wb_office_name", "unit": "text" },
+        "address": { "role": "wb_office_address", "unit": "text" },
+        "city": { "role": "wb_office_city", "unit": "text" },
+        "longitude": {
+          "role": "wb_office_longitude",
+          "unit": "decimal_degrees"
+        },
+        "latitude": { "role": "wb_office_latitude", "unit": "decimal_degrees" },
+        "cargoType": {
+          "role": "office_cargo_type",
+          "unit": "provider_enum_integer"
+        },
+        "deliveryType": {
+          "role": "office_delivery_type",
+          "unit": "provider_enum_integer"
+        },
+        "federalDistrict": { "role": "federal_district", "unit": "text" },
+        "selected": { "role": "office_selected_flag", "unit": "boolean" }
+      }
+    },
+    "sellerWarehouses": {
+      "url": "https://dev.wildberries.ru/en/openapi/work-with-products",
+      "operationAlias": "seller_warehouses",
+      "host": "marketplace",
+      "method": "GET",
+      "path": "/api/v3/warehouses",
+      "tokenCategory": "marketplace",
+      "rowGrain": ["id"],
+      "fields": {
+        "id": { "role": "seller_warehouse_id", "unit": "identifier" },
+        "name": { "role": "seller_warehouse_name", "unit": "text" },
+        "officeId": { "role": "linked_wb_office_id", "unit": "identifier" },
+        "cargoType": {
+          "role": "warehouse_cargo_type",
+          "unit": "provider_enum_integer"
+        },
+        "deliveryType": {
+          "role": "warehouse_delivery_type",
+          "unit": "provider_enum_integer"
+        },
+        "isDeleting": {
+          "role": "deletion_in_progress_flag",
+          "unit": "boolean"
+        },
+        "isProcessing": { "role": "processing_flag", "unit": "boolean" }
+      },
+      "geographyJoin": "officeId -> marketplace_offices.id"
+    },
+    "fbwWarehouses": {
+      "url": "https://dev.wildberries.ru/openapi/orders-fbw",
+      "operationAlias": "fbw_warehouses",
+      "host": "supplies",
+      "method": "GET",
+      "path": "/api/v1/warehouses",
+      "tokenCategory": "supplies",
+      "rowGrain": ["ID"],
+      "fields": {
+        "ID": { "role": "fbw_warehouse_id", "unit": "identifier" },
+        "name": { "role": "fbw_warehouse_name", "unit": "text" },
+        "address": { "role": "fbw_warehouse_address", "unit": "text" },
+        "workTime": { "role": "warehouse_work_time", "unit": "provider_text" },
+        "isActive": { "role": "warehouse_active_flag", "unit": "boolean" },
+        "isTransitActive": { "role": "transit_active_flag", "unit": "boolean" }
+      },
+      "clusterIdField": null,
+      "clusterBoundary": "NO_CLUSTER_ID_FIELD_IN_CURRENT_WAREHOUSE_SCHEMA_DO_NOT_INFER_FROM_NAME_OR_ADDRESS"
+    }
+  },
+  "rules": {
+    "sellerJoin": "SELLER_WAREHOUSE_OFFICE_ID_MUST_JOIN_EXACTLY_TO_OFFICE_ID_FOR_OFFICE_GEOGRAPHY",
+    "missingOffice": "MISSING_OFFICE_JOIN_IS_INCOMPLETE_NOT_UNKNOWN_GEOGRAPHY_ZERO",
+    "coordinates": "LATITUDE_AND_LONGITUDE_ARE_OFFICE_COORDINATES_NOT_SELLER_WAREHOUSE_PRIMARY_IDENTITY",
+    "fbwIdentity": "FBW_WAREHOUSE_ID_NAMESPACE_STAYS_DISTINCT_FROM_MARKETPLACE_OFFICE_AND_SELLER_WAREHOUSE_IDS",
+    "cluster": "DO_NOT_DERIVE_CLUSTER_FROM_WAREHOUSE_NAME_CITY_DISTRICT_OR_ADDRESS",
+    "activity": "IS_ACTIVE_AND_IS_TRANSIT_ACTIVE_ARE_DISTINCT_FLAGS",
+    "missing": "MISSING_NOT_ZERO"
+  },
+  "acceptedMappingSnapshot": {
+    "CAP-06": ["marketplace_offices", "seller_warehouses", "fbw_warehouses"]
+  },
+  "syntheticCases": {
+    "sellerWarehouseJoin": {
+      "offices": [
+        {
+          "id": 15,
+          "name": "Koledino",
+          "address": "Example address",
+          "city": "Moscow",
+          "longitude": 37.588898,
+          "latitude": 55.386871,
+          "federalDistrict": "Central",
+          "cargoType": 1,
+          "deliveryType": 1,
+          "selected": true
+        }
+      ],
+      "warehouses": [
+        {
+          "id": 1,
+          "name": "Seller Warehouse",
+          "officeId": 15,
+          "cargoType": 1,
+          "deliveryType": 1,
+          "isDeleting": false,
+          "isProcessing": true
+        }
+      ],
+      "expected": {
+        "status": "PASS",
+        "warehouseId": 1,
+        "officeId": 15,
+        "city": "Moscow",
+        "federalDistrict": "Central",
+        "latitude": 55.386871,
+        "longitude": 37.588898
+      }
+    },
+    "missingOffice": {
+      "offices": [],
+      "warehouse": {
+        "id": 2,
+        "name": "Orphaned Fixture",
+        "officeId": 999,
+        "cargoType": 1,
+        "deliveryType": 1,
+        "isDeleting": false,
+        "isProcessing": false
+      },
+      "expected": { "status": "INCOMPLETE", "reason": "LINKED_OFFICE_MISSING" }
+    },
+    "fbw": {
+      "row": {
+        "ID": 300461,
+        "name": "Gomel 2",
+        "address": "Example FBW address",
+        "workTime": "24/7",
+        "isActive": false,
+        "isTransitActive": true
+      },
+      "expected": {
+        "warehouseId": 300461,
+        "active": false,
+        "transitActive": true,
+        "clusterId": null
+      }
+    }
+  },
+  "remainingOpen": [
+    "live WB warehouse values and owner gold-set reconciliation",
+    "provider-defined cluster identity for WB if a current official API exposes it",
+    "cross-scheme warehouse equivalence beyond explicit provider IDs",
+    "delivery/cargo enum business labels when needed for a user-facing explanation",
+    "geographic distance or service-area calculations are outside this field-only slice"
+  ]
+}

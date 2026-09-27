@@ -8,6 +8,7 @@ import "./wb-catalog-identity-field-schema-slice.mjs";
 import "./wb-turnover-field-schema-slice.mjs";
 import "./wb-supply-status-field-schema-slice.mjs";
 import "./wb-content-quality-field-schema-slice.mjs";
+import "./wb-warehouse-logistics-field-schema-slice.mjs";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
