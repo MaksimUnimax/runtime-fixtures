@@ -19,6 +19,20 @@ describe("Telegram operator runtime config", () => {
     expect(parsed.notificationChatIds).toEqual(["42", "43"]);
   });
 
+  it("keeps dedicated Health session config optional and trims only its path", () => {
+    const without = parseTelegramOperatorConfig(valid);
+    expect(without.healthDedicatedSessionConfigPath).toBeUndefined();
+
+    const withPath = parseTelegramOperatorConfig({
+      ...valid,
+      HEALTH_DEDICATED_SESSION_CONFIG_PATH:
+        "  /etc/octoport-monitor/dedicated-health.json  ",
+    });
+    expect(withPath.healthDedicatedSessionConfigPath).toBe(
+      "/etc/octoport-monitor/dedicated-health.json",
+    );
+  });
+
   it.each([
     ["DATABASE_URL", undefined, "TELEGRAM_OPERATOR_CONFIGURATION_MISSING"],
     [

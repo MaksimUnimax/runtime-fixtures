@@ -5,6 +5,7 @@ import { CHATGPT_WORK_H3_PROFILE, parseWorkRoute } from "./work-h3-profile.js";
 import { ALICE_H3_PROFILE } from "./alice-h3-profile.js";
 import {
   createTrustedDedicatedHealthSessionRegistry,
+  listTrustedDedicatedHealthSessionTargetKeys,
   DedicatedHealthSessionConfigError,
   type DedicatedHealthSessionConfigErrorCode,
   type DedicatedHealthSessionRegistry,
@@ -273,6 +274,12 @@ function parseConfig(value: unknown): ParsedTarget[] {
   return ([STANDARD_TARGET_KEY, WORK_TARGET_KEY, ALICE_TARGET_KEY] as const)
     .filter((targetKey) => targetKey in targets)
     .map((targetKey) => parseTarget(targetKey, targets[targetKey]));
+}
+
+export function listDedicatedHealthSessionTargetKeys(
+  registry: DedicatedHealthSessionRegistry,
+): readonly DedicatedHealthSessionTargetKey[] {
+  return listTrustedDedicatedHealthSessionTargetKeys(registry);
 }
 
 export async function loadDedicatedHealthSessionRegistry(
