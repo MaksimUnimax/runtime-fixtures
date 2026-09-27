@@ -1,0 +1,29 @@
+qa_id	class	request	expected_status	expected_location_or_property	observed	verdict	evidence
+M15H001	canonical	https://octoport.ru/	200	HOME	200	PASS	isolated predeploy nginx
+M15H002	canonical	https://octoport.ru/seller-analytics	200	analytics page	200	PASS	isolated predeploy nginx
+M15H003	canonical	https://octoport.ru/privacy	200	indexable utility	200	PASS	isolated predeploy nginx
+M15H004	canonical	https://octoport.ru/support	200	indexable utility	200	PASS	isolated predeploy nginx
+M15H005	canonical	https://octoport.ru/install	200	noindex status page	200	PASS	isolated predeploy nginx
+M15H006	asset	https://octoport.ru/robots.txt	200	text/plain	200	PASS	isolated predeploy nginx
+M15H007	asset	https://octoport.ru/sitemap.xml	200	XML exact set	200	PASS	isolated predeploy nginx
+M15H008	asset	https://octoport.ru/favicon.png	200	image/png; no Location	200 direct image/png	PASS	isolated predeploy nginx
+M15H009	asset	https://octoport.ru/styles.css	200	text/css; cache max-age=300	200 text/css	PASS	isolated predeploy nginx
+M15H010	host_redirect	http://octoport.ru/seller-analytics?probe=1	308	https://octoport.ru/seller-analytics?probe=1	exact	PASS	predeploy-http.log
+M15H011	host_redirect	http://www.octoport.ru/seller-analytics?probe=1	308	https://octoport.ru/seller-analytics?probe=1	exact one-hop	PASS	predeploy-http.log
+M15H012	host_redirect	https://www.octoport.ru/seller-analytics?probe=1	308	https://octoport.ru/seller-analytics?probe=1	exact	PASS	predeploy-http.log
+M15H013	alias	/index.html?probe=1	308	https://octoport.ru/?probe=1	exact	PASS	predeploy-http.log
+M15H014	alias	/seller-analytics.html?probe=1	308	https://octoport.ru/seller-analytics?probe=1	exact	PASS	predeploy-http.log
+M15H015	alias	/seller-analytics/?probe=1	308	https://octoport.ru/seller-analytics?probe=1	exact	PASS	predeploy-http.log
+M15H016	alias	/privacy.html?probe=1	308	https://octoport.ru/privacy?probe=1	exact	PASS	predeploy-http.log
+M15H017	alias	/privacy/?probe=1	308	https://octoport.ru/privacy?probe=1	exact	PASS	predeploy-http.log
+M15H018	alias	/support.html?probe=1	308	https://octoport.ru/support?probe=1	exact	PASS	predeploy-http.log
+M15H019	alias	/support/?probe=1	308	https://octoport.ru/support?probe=1	exact	PASS	predeploy-http.log
+M15H020	alias	/install.html?probe=1	308	https://octoport.ru/install?probe=1	exact	PASS	predeploy-http.log
+M15H021	alias	/install/?probe=1	308	https://octoport.ru/install?probe=1	exact	PASS	predeploy-http.log
+M15H022	unknown	https://octoport.ru/m15-definitely-missing	404	no Location	404 no redirect	PASS	predeploy-http.log
+M15H023	headers	HOME	200	CSP + X-Frame-Options DENY + nosniff + no-cache	present	PASS	predeploy headers
+M15H024	headers	styles.css	200	text/css + max-age=300 + inherited security headers	present	PASS	predeploy headers
+M15H025	indexability	privacy/support	200	no noindex	confirmed	PASS	predeploy content
+M15H026	indexability	install	200	robots noindex, follow	confirmed	PASS	predeploy content
+M15H027	sitemap	sitemap.xml	200	exact four URL order/set	confirmed	PASS	XML parse
+M15H028	isolation	predeploy harness	N/A	private mount+net namespace; host untouched	confirmed	PASS	unshare/nginx harness
