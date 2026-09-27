@@ -142,7 +142,7 @@ check_site_content() {
   homepage="$(curl --silent --show-error --resolve 'octoport.ru:443:127.0.0.1' 'https://octoport.ru/')"
   grep -Fq '<title>Подключите ваш ИИ к Ozon и Wildberries | Octoport</title>' <<<"${homepage}" \
     || fail "homepage M12 title is missing"
-  grep -Fq '<h1>Подключите ваш ИИ к Ozon и Wildberries</h1>' <<<"${homepage}" \
+  grep -Fq '<h1>Подключите ваш ИИ к <span class="brand-ozon">Ozon</span> и <span class="brand-wildberries">Wildberries</span></h1>' <<<"${homepage}" \
     || fail "homepage M12 H1 is missing"
   grep -Fq 'Ваш ИИ получает руки для работы с маркетплейсами.' <<<"${homepage}" \
     || fail "homepage brand subheadline is missing"

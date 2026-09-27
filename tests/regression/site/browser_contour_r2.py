@@ -1,4 +1,4 @@
-# Browser regression for the four Contour R2 fixes; requires installed branded browsers and websocket-client.
+# Browser regression for Contour R2 plus owner R3 slogan/heading/rings; requires installed branded browsers and websocket-client.
 import argparse,base64,functools,http.server,json,os,signal,socket,subprocess,tempfile,threading,time,urllib.request,websocket
 from pathlib import Path
 
@@ -77,6 +77,8 @@ CHECK = r'''(() => {
  const rect=e=>{const r=e.getBoundingClientRect();return {x:r.x+scrollX,y:r.y+scrollY,w:r.width,h:r.height,right:r.right+scrollX,bottom:r.bottom+scrollY}};
  const scene=document.querySelector('.contour-scene'),copy=document.querySelector('.hero-copy'),hero=document.querySelector('.hero'),page=document.querySelector('.page');
  const badges=[...document.querySelectorAll('.ai-badge,.market-badge')];
+ const slogan=document.querySelector('.contour-slogan'),dark=document.querySelector('#theme-checkbox').checked;
+ const r3={dark,slogan:slogan.innerText.replace(/\s+/g,' ').trim(),sloganRect:rect(slogan),sloganFont:getComputedStyle(slogan).fontSize,ozon:getComputedStyle(document.querySelector('h1 .brand-ozon')).color,wb:getComputedStyle(document.querySelector('h1 .brand-wildberries')).color,rings:[...document.querySelectorAll('.ai-badge')].map(e=>({color:getComputedStyle(e).borderTopColor,width:getComputedStyle(e).borderTopWidth,style:getComputedStyle(e).borderTopStyle}))};
  const marks=[...document.querySelectorAll('.ai-badge img')].map(i=>{
   const c=document.createElement('canvas');c.width=c.height=64;const ctx=c.getContext('2d');ctx.drawImage(i,0,0,64,64);const data=ctx.getImageData(0,0,64,64).data;let total=0,color=0;
   for(let k=0;k<data.length;k+=4)if(data[k+3]>64){total++;if(Math.max(data[k],data[k+1],data[k+2])-Math.min(data[k],data[k+1],data[k+2])>25)color++;}
@@ -87,7 +89,7 @@ CHECK = r'''(() => {
   return {name:label.innerText,rect:r,slot,labelRect:l,textCenterError:Math.abs(text.x+text.width/2+scrollX-r.x-r.w/2),labelTop:(l.y-r.y)/r.h,slotTop:(slot.y-r.y)/r.h,font:getComputedStyle(label).fontSize,color:getComputedStyle(e).color,bg:getComputedStyle(e).backgroundColor,bgImage:getComputedStyle(e).backgroundImage};
  });
  const underlays=[...document.querySelectorAll('.contour-underlay')].map(i=>{const c=document.createElement('canvas');c.width=c.height=16;const ctx=c.getContext('2d');ctx.drawImage(i,0,0,16,16);return {src:i.src,alpha:[[0,0],[15,0],[0,15],[15,15]].map(p=>ctx.getImageData(p[0],p[1],1,1).data[3]),filter:getComputedStyle(i).filter,transform:getComputedStyle(i).transform}});
- return {width:innerWidth,cw:document.documentElement.clientWidth,sw:document.documentElement.scrollWidth,scene:rect(scene),copy:rect(copy),hero:rect(hero),stacked:rect(scene).y>=rect(copy).bottom,sceneBackground:getComputedStyle(scene).backgroundColor,pageBackground:getComputedStyle(page).backgroundColor,marks,markets,underlays,badgeRects:badges.map(rect),h1:document.querySelector('h1').innerText,canonical:document.querySelector('link[rel=canonical]').href,font:document.fonts.check('400 16px Rubik','Октопорт'),images:[...document.images].every(i=>i.complete&&i.naturalWidth>0)};
+ return {r3,width:innerWidth,cw:document.documentElement.clientWidth,sw:document.documentElement.scrollWidth,scene:rect(scene),copy:rect(copy),hero:rect(hero),stacked:rect(scene).y>=rect(copy).bottom,sceneBackground:getComputedStyle(scene).backgroundColor,pageBackground:getComputedStyle(page).backgroundColor,marks,markets,underlays,badgeRects:badges.map(rect),h1:document.querySelector('h1').innerText,canonical:document.querySelector('link[rel=canonical]').href,font:document.fonts.check('400 16px Rubik','Октопорт'),images:[...document.images].every(i=>i.complete&&i.naturalWidth>0)};
 })()'''
 
 def checks(d):
@@ -97,6 +99,15 @@ def checks(d):
  assert d['images'] and d['font'],('loading',d)
  assert d['h1']=='Подключите ваш ИИ к Ozon и Wildberries'
  assert d['canonical']=='https://octoport.ru/'
+ r3=d['r3']; assert r3['slogan']=='Сложные технологии. Простые решения.',r3
+ assert r3['sloganRect']['y']>=d['scene']['bottom']-1,('slogan overlays drawing',r3,d['scene'])
+ assert r3['sloganRect']['right']<=d['cw']+.5 and r3['sloganRect']['x']>=0,r3
+ assert float(r3['sloganFont'].replace('px',''))>=20,r3
+ expected=('rgb(78, 147, 255)','rgb(241, 92, 221)') if r3['dark'] else ('rgb(0, 91, 255)','rgb(189, 12, 165)')
+ assert (r3['ozon'],r3['wb'])==expected,('heading colors',r3)
+ if r3['dark']:
+  assert len(r3['rings'])==6 and all(r['color']=='rgb(130, 149, 244)' and float(r['width'].replace('px',''))>=2 and r['style']=='solid' for r in r3['rings']),('missing dark rings',r3)
+
  assert len(d['marks'])==6 and len(d['markets'])==2 and len(d['badgeRects'])==8
  if d['width']<=1180:
   assert d['stacked'],('illustration must be below text',d)
@@ -183,7 +194,7 @@ try:
   b.close();b=None
   print('BROWSER_PASS',name,'states',len(results),flush=True)
  (OUT/'results.json').write_text(json.dumps({'status':'PASS','url':BASE,'results':results,'hover':hover,'pixel_samples':pixels},ensure_ascii=False,indent=2))
- print('CONTOUR_R2_PASS',len(results),'states',len(hover),'hover/focus pairs',str(OUT),flush=True)
+ print('CONTOUR_R2_R3_PASS',len(results),'states',len(hover),'hover/focus pairs',str(OUT),flush=True)
 except Exception:
  (OUT/'partial.json').write_text(json.dumps({'status':'FAIL','url':BASE,'results':results,'hover':hover},ensure_ascii=False,indent=2));raise
 finally:

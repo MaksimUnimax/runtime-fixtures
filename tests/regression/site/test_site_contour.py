@@ -100,6 +100,26 @@ class ContourSourceTests(unittest.TestCase):
         self.assertIn('max-width:780px',block)
         self.assertIn('width:100%',block)
 
+    def test_r3_slogan_below_scene_not_inside_art(self):
+        self.assertEqual(self.html.count('class="contour-slogan"'),1)
+        scene_end=self.html.index('          </div>',self.html.index('class="contour-scene"'))
+        slogan=self.html.index('class="contour-slogan"')
+        self.assertLess(scene_end,slogan)
+        self.assertIn('Сложные технологии.<br />Простые решения.',self.html)
+        self.assertIn('.contour-slogan',self.css)
+
+    def test_r3_single_h1_preserves_words_with_color_spans(self):
+        fragment=re.findall(r'<h1>(.*?)</h1>',self.html,re.S)
+        self.assertEqual(len(fragment),1)
+        self.assertEqual(re.sub(r'<[^>]+>','',fragment[0]),'Подключите ваш ИИ к Ozon и Wildberries')
+        self.assertIn('<span class="brand-ozon">Ozon</span>',fragment[0])
+        self.assertIn('<span class="brand-wildberries">Wildberries</span>',fragment[0])
+
+    def test_r3_colored_dark_rings_on_buttons_only(self):
+        self.assertIn('.theme-checkbox:checked + .page .ai-badge { border-color:#8295f4;',self.css)
+        self.assertIn('.theme-checkbox:checked + .page .ai-badge:focus-visible',self.css)
+        self.assertNotIn('filter:grayscale',self.css)
+
     def test_local_images_resolve_and_no_executable_javascript(self):
         for tag,a in self.tags:
             if tag=='img': self.assertTrue((ROOT/a['src'].lstrip('/')).is_file(),a['src'])
