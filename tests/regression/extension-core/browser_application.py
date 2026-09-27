@@ -161,6 +161,15 @@ def run(runtime,output,private_key):
             page.locator("section[data-turn='assistant'] .code").last.scroll_into_view_if_needed()
             button=page.locator('.ozon-bridge-block-action').last;button.click();page.wait_for_timeout(250)
             assert worker.evaluate('fixtureFetches.length')==1
+            # Current ChatGPT fenced-code DOM: li[data-message-role=assistant] + Copy code/data-code-copy-state.
+            current_assistant=page.evaluate("()=>fixtureCurrentChatGPTBlock('WB_HELP_V1 {\"operation\":\"describe\",\"params\":{\"alias\":\"seller_info\"}}','assistant')")
+            until(lambda:page.locator('.ozon-bridge-block-action').count()==2)
+            assert page.locator('.ozon-bridge-block-action').last.inner_text()=='WB'
+            current_user=page.evaluate("()=>fixtureCurrentChatGPTBlock('WB_API_V1 {\"operation\":\"seller_info\",\"params\":{}}','user')")
+            page.wait_for_timeout(250)
+            assert page.locator('.ozon-bridge-block-action').count()==2
+            page.evaluate('(ids)=>ids.forEach(id=>document.getElementById(id)?.remove())',[current_assistant,current_user])
+            until(lambda:page.locator('.ozon-bridge-block-action').count()==1)
             # Actual native File/IndexedDB/chunk/attachment/send path for a binary WB result.
             command=worker.evaluate("""()=>{fixtureBinary=true;const m=Object.values(SellerAgentsWBReference.contract.OPERATIONS).find(m=>m.response_mode==='binary'&&m.execution_enabled&&m.privacy==='standard');return 'WB_API_V1 '+JSON.stringify({operation:m.alias,params:{path:Object.fromEntries([...m.path.matchAll(/\\{([^}]+)\\}/g)].map(m=>[m[1],'fixture'])),query:Object.fromEntries(m.required_query_keys.map(k=>[k,'1'])),...(m.body_required?{body:{}}:{})}})}""")
             page.evaluate('(text)=>fixtureCommand(text)',command)
@@ -183,7 +192,7 @@ def run(runtime,output,private_key):
                 popup.screenshot(path=str(output/f'popup-{width}-{scale}.png'),full_page=True)
                 popup.click('#cancel')
             assert not errors,errors
-            result.update(status='PASS',browser=context.browser.version,checks=['popup create/edit','real Work prompt','old-history baseline','WB mixed block text send','no replay','Show/Hide','native binary File/IDB/port send','Finish','320/380px and enlarged typography'])
+            result.update(status='PASS',browser=context.browser.version,checks=['popup create/edit','real Work prompt','old-history baseline','WB mixed block text send','no replay','Show/Hide','current ChatGPT data-message-role fenced-code DOM','native binary File/IDB/port send','Finish','320/380px and enlarged typography'])
         except Exception as error:
             result.update(status='FAIL',error=str(error),traceback=traceback.format_exc(),page_errors=errors)
             if popup:
