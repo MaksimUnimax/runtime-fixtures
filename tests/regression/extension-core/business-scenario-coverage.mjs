@@ -25,6 +25,7 @@ import "./wb-sales-geography-field-schema-slice.mjs";
 import "./wb-sales-decline-evidence-reuse.mjs";
 import "./wb-cross-source-join-field-schema-slice.mjs";
 import "./wb-search-query-field-schema-slice.mjs";
+import "./wb-search-position-share-field-schema-slice.mjs";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
@@ -504,6 +505,36 @@ const calculators = {
       aiSuggestionsAreProviderFacts: false,
     };
   },
+  search_position_boundary(input) {
+    if (typeof input.period !== "string" || !input.period)
+      return { status: "INCOMPLETE", reason: "PERIOD_MISSING" };
+    if (input.region !== null && input.region !== undefined)
+      return { status: "INCOMPLETE", reason: "REGION_FILTER_UNSUPPORTED" };
+    if (!["average", "median"].includes(input.positionKind))
+      return { status: "INCOMPLETE", reason: "POSITION_DEFINITION_MISSING" };
+    if (input.position === null || input.position === undefined)
+      return { status: "UNKNOWN", reason: "POSITION_MISSING", position: null };
+    if (!Number.isInteger(input.position) || input.position < 1)
+      return { status: "INCOMPLETE", reason: "POSITION_INVALID" };
+
+    for (const value of [input.pricePercent, input.qtyPercent]) {
+      if (
+        value !== null &&
+        value !== undefined &&
+        (typeof value !== "number" || !Number.isFinite(value))
+      )
+        return { status: "INCOMPLETE", reason: "BRAND_SHARE_INVALID" };
+    }
+
+    return {
+      status: "COMPLETE",
+      positionKind: input.positionKind,
+      position: input.position,
+      pricePercent: input.pricePercent ?? null,
+      qtyPercent: input.qtyPercent ?? null,
+      nullMeansZero: false,
+    };
+  },
   attention_rank(input) {
     if (!Array.isArray(input.rows)) return { status: "INCOMPLETE" };
     const products = new Set();
@@ -567,6 +598,7 @@ const requiredKinds = new Set([
   "cross_source_join",
   "search_dedup",
   "search_fact_boundary",
+  "search_position_boundary",
   "attention_rank",
   "causal_boundary",
 ]);

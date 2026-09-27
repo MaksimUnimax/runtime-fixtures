@@ -757,6 +757,79 @@
         "status": "INCOMPLETE",
         "reason": "DUPLICATE_SEARCH_FACT_BUSINESS_KEY"
       }
+    },
+    {
+      "id": "search_position_boundary_known",
+      "kind": "search_position_boundary",
+      "input": {
+        "period": "2026-09-01/2026-09-27",
+        "positionKind": "average",
+        "position": 42,
+        "region": null,
+        "pricePercent": 7.5,
+        "qtyPercent": 6.25
+      },
+      "expected": {
+        "status": "COMPLETE",
+        "positionKind": "average",
+        "position": 42,
+        "pricePercent": 7.5,
+        "qtyPercent": 6.25,
+        "nullMeansZero": false
+      }
+    },
+    {
+      "id": "search_position_boundary_null_share",
+      "kind": "search_position_boundary",
+      "input": {
+        "period": "2026-09-01/2026-09-27",
+        "positionKind": "median",
+        "position": 18,
+        "region": null,
+        "pricePercent": null,
+        "qtyPercent": null
+      },
+      "expected": {
+        "status": "COMPLETE",
+        "positionKind": "median",
+        "position": 18,
+        "pricePercent": null,
+        "qtyPercent": null,
+        "nullMeansZero": false
+      }
+    },
+    {
+      "id": "search_position_boundary_missing_position",
+      "kind": "search_position_boundary",
+      "input": {
+        "period": "2026-09-01/2026-09-27",
+        "positionKind": "average",
+        "position": null,
+        "region": null,
+        "pricePercent": 4,
+        "qtyPercent": 3
+      },
+      "expected": {
+        "status": "UNKNOWN",
+        "reason": "POSITION_MISSING",
+        "position": null
+      }
+    },
+    {
+      "id": "search_position_boundary_region_unsupported",
+      "kind": "search_position_boundary",
+      "input": {
+        "period": "2026-09-01/2026-09-27",
+        "positionKind": "average",
+        "position": 12,
+        "region": "Moscow",
+        "pricePercent": 4,
+        "qtyPercent": 3
+      },
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "REGION_FILTER_UNSUPPORTED"
+      }
     }
   ]
 }
