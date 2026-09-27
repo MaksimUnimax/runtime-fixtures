@@ -39,6 +39,7 @@ import {
   type Store1PackageAuthority,
   type Store1V2SignaturePreflightProof,
 } from "../../../tooling/server/store1-opera-admin-activation.js";
+import { trustStore1V2SignaturePreflightProofForTest } from "../../../tooling/server/store1-v2-signature-preflight.js";
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString)
@@ -355,7 +356,7 @@ function captureRead(path: string, response: JsonResponse) {
 
 function signatureProofFixture(): Store1V2SignaturePreflightProof {
   if (!readback.config) throw new Error("STORE1_TEST_CONFIG_REQUIRED");
-  return {
+  return trustStore1V2SignaturePreflightProofForTest({
     schemaVersion: "store1_v2_signature_preflight_v1",
     verified: true,
     artifactSha256: authority.artifactSha256,
@@ -373,7 +374,7 @@ function signatureProofFixture(): Store1V2SignaturePreflightProof {
     browserFamily: "opera",
     browserVersion: "136",
     aiStatus: "UNCONFIGURED",
-  };
+  });
 }
 async function runPlanner(maxSteps = 40, injectSignatureProof = false) {
   const mutations: string[] = [];
@@ -456,10 +457,20 @@ describe.sequential("STORE-1 ordinary-admin whole-sequence rehearsal", () => {
     });
     expect(missing.mutations).toEqual([]);
 
-    readback.signaturePreflight = {
+    readback.signaturePreflight = JSON.parse(
+      JSON.stringify(signatureProofFixture()),
+    ) as Store1V2SignaturePreflightProof;
+    const untrusted = await runPlanner();
+    expect(untrusted.plan).toMatchObject({
+      status: "BLOCKED",
+      code: "STORE1_V2_SIGNATURE_PREFLIGHT_UNTRUSTED",
+    });
+    expect(untrusted.mutations).toEqual([]);
+
+    readback.signaturePreflight = trustStore1V2SignaturePreflightProofForTest({
       ...signatureProofFixture(),
       configContentHashSha256: "d".repeat(64),
-    };
+    });
     const mismatched = await runPlanner();
     expect(mismatched.plan).toMatchObject({
       status: "BLOCKED",

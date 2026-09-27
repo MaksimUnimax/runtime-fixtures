@@ -1,16 +1,20 @@
 import { createHash, webcrypto } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { createContext, runInContext } from "node:vm";
-import {
-  STORE1_BROWSER,
-  STORE1_BROWSER_MINIMUM,
-  STORE1_CONTRACT,
-  STORE1_VERSION,
-  readStore1PackageAuthority,
-  type Store1ActivationReadback,
-  type Store1PackageAuthority,
-  type Store1V2SignaturePreflightProof,
+import type {
+  Store1ActivationReadback,
+  Store1PackageAuthority,
+  Store1V2SignaturePreflightProof,
 } from "./store1-opera-admin-activation.js";
+
+const STORE1_VERSION = "0.2.4" as const;
+const STORE1_CONTRACT = "control_plane_v2" as const;
+const STORE1_BROWSER = "opera" as const;
+const STORE1_BROWSER_MINIMUM = "136" as const;
+const STORE1_ACCEPTED_SOURCE_HEAD = "e7d66152bdb77918b65115486c9829ef7a634e69";
+const STORE1_ACCEPTED_SOURCE_TREE = "01ae2c1d84a354a11d919a313f8d9909d1285b6a";
+const STORE1_ACCEPTED_ARTIFACT_SHA256 =
+  "0c1fb4c9c81c600332dfb6dc2dcfb9c3221dafe9940eab3811112a4e9fc5d71c";
 
 export const STORE1_V2_CONFIG_READ_PATH =
   "/v1/admin/compatibility/config-releases/latest?contractVersion=control_plane_v2" as const;
@@ -65,7 +69,15 @@ export type Store1V2SignaturePreflightTransport = {
   issueBootstrap(
     path: typeof STORE1_BOOTSTRAP_PATH,
     request: Store1V2BootstrapPreflightRequest,
-  ): Promise<unknown>;
+  ): Promise<{
+    envelope: unknown;
+    authenticatedContext: {
+      accountId: string;
+      deviceId: string;
+      browserFamily: typeof STORE1_BROWSER;
+      browserVersion: string;
+    };
+  }>;
 };
 
 const PACKAGED_CONFIG_MARKER = "globalThis.__SELLER_AGENTS_PACKAGED_CONFIG__=";
@@ -73,10 +85,33 @@ const HASH = /^[0-9a-f]{64}$/;
 const UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const BROWSER_VERSION = /^\d+(?:\.\d+){0,3}$/;
+const TRUSTED_SIGNATURE_PROOFS = new WeakSet<object>();
 
 function record(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
+export function isTrustedStore1V2SignaturePreflightProof(
+  value: unknown,
+): value is Store1V2SignaturePreflightProof {
+  return record(value) && TRUSTED_SIGNATURE_PROOFS.has(value);
+}
+
+function trustSignatureProof(
+  proof: Store1V2SignaturePreflightProof,
+): Store1V2SignaturePreflightProof {
+  const capability = Object.freeze({ ...proof });
+  TRUSTED_SIGNATURE_PROOFS.add(capability);
+  return capability;
+}
+
+export function trustStore1V2SignaturePreflightProofForTest(
+  proof: Store1V2SignaturePreflightProof,
+): Store1V2SignaturePreflightProof {
+  if (process.env.VITEST !== "true")
+    throw new Error("STORE1_TEST_ONLY_SIGNATURE_PROOF");
+  return trustSignatureProof(proof);
+}
+
 function parsePackagedConfig(source: string): Record<string, unknown> {
   const first = source.indexOf(PACKAGED_CONFIG_MARKER);
   if (first < 0) throw new Error("STORE1_PACKAGE_RUNTIME_CONFIG_MISSING");
@@ -204,6 +239,9 @@ export async function readStore1PackageSignatureEvidence(
   manifestPath: string,
   zipPath: string,
 ): Promise<Store1PackageSignatureEvidence> {
+  const { readStore1PackageAuthority } = await import(
+    "./store1-opera-admin-activation.js"
+  );
   const authority = readStore1PackageAuthority(manifestPath, zipPath);
   const releaseLibUrl = new URL("../b1/release-lib.mjs", import.meta.url).href;
   const releaseLib = (await import(releaseLibUrl)) as {
@@ -263,8 +301,11 @@ export async function runStore1V2SignaturePreflightWithEvidence(input: {
     throw new Error("STORE1_PREFLIGHT_ACCOUNT_ID_INVALID");
   const authority = input.packageEvidence.authority;
   if (
+    authority.sourceHead !== STORE1_ACCEPTED_SOURCE_HEAD ||
+    authority.sourceTree !== STORE1_ACCEPTED_SOURCE_TREE ||
     authority.version !== STORE1_VERSION ||
-    authority.contractVersion !== STORE1_CONTRACT
+    authority.contractVersion !== STORE1_CONTRACT ||
+    authority.artifactSha256 !== STORE1_ACCEPTED_ARTIFACT_SHA256
   )
     throw new Error("STORE1_PACKAGE_AUTHORITY_CONFLICT");
 
@@ -276,10 +317,18 @@ export async function runStore1V2SignaturePreflightWithEvidence(input: {
     input.deviceId,
     input.browserVersion,
   );
-  const envelope = await input.transport.issueBootstrap(
+  const response = await input.transport.issueBootstrap(
     STORE1_BOOTSTRAP_PATH,
     request,
   );
+  if (
+    response.authenticatedContext.accountId !== input.expectedAccountId ||
+    response.authenticatedContext.deviceId !== input.deviceId ||
+    response.authenticatedContext.browserFamily !== STORE1_BROWSER ||
+    response.authenticatedContext.browserVersion !== input.browserVersion
+  )
+    throw new Error("STORE1_V2_AUTHENTICATED_CONTEXT_MISMATCH");
+  const envelope = response.envelope;
 
   let verified: VerifiedV2;
   try {
@@ -351,11 +400,12 @@ export async function runStore1V2SignaturePreflight(input: {
     input.manifestPath,
     input.zipPath,
   );
-  return runStore1V2SignaturePreflightWithEvidence({
+  const proof = await runStore1V2SignaturePreflightWithEvidence({
     packageEvidence,
     expectedAccountId: input.expectedAccountId,
     deviceId: input.deviceId,
     browserVersion: input.browserVersion,
     transport: input.transport,
   });
+  return trustSignatureProof(proof);
 }

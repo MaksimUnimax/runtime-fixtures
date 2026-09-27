@@ -12,6 +12,7 @@ import {
   type Store1PackageAuthority,
   type Store1V2SignaturePreflightProof,
 } from "./store1-opera-admin-activation.js";
+import { trustStore1V2SignaturePreflightProofForTest } from "./store1-v2-signature-preflight.js";
 
 const authority: Store1PackageAuthority = {
   sourceHead: STORE1_ACCEPTED_SOURCE_HEAD,
@@ -34,7 +35,7 @@ const ids = {
   device: "00000000-0000-4000-8000-000000000010",
 };
 function exactSignatureProof(): Store1V2SignaturePreflightProof {
-  return {
+  return trustStore1V2SignaturePreflightProofForTest({
     schemaVersion: "store1_v2_signature_preflight_v1",
     verified: true,
     artifactSha256: STORE1_ACCEPTED_ARTIFACT_SHA256,
@@ -52,7 +53,7 @@ function exactSignatureProof(): Store1V2SignaturePreflightProof {
     browserFamily: "opera",
     browserVersion: "136",
     aiStatus: "UNCONFIGURED",
-  };
+  });
 }
 function exactReadback(): Store1ActivationReadback {
   return {
@@ -237,13 +238,25 @@ describe("STORE-1 ordinary-admin activation planner", () => {
     });
   });
 
+  it("rejects caller-controlled serialized proof before any catalog mutation", () => {
+    const r = exactReadback();
+    r.release = null;
+    r.signaturePreflight = JSON.parse(
+      JSON.stringify(r.signaturePreflight),
+    ) as Store1V2SignaturePreflightProof;
+    expect(planStore1Activation(authority, r)).toMatchObject({
+      status: "BLOCKED",
+      code: "STORE1_V2_SIGNATURE_PREFLIGHT_UNTRUSTED",
+    });
+  });
+
   it("blocks a stale signature proof when current config identity changes", () => {
     const r = exactReadback();
     r.release = null;
-    r.signaturePreflight = {
+    r.signaturePreflight = trustStore1V2SignaturePreflightProofForTest({
       ...r.signaturePreflight!,
       configContentHashSha256: "d".repeat(64),
-    };
+    });
     expect(planStore1Activation(authority, r)).toMatchObject({
       status: "BLOCKED",
       code: "STORE1_V2_SIGNATURE_PREFLIGHT_STALE",
@@ -256,7 +269,10 @@ describe("STORE-1 ordinary-admin activation planner", () => {
   ])("rejects mismatched signature proof: %s", (_label, change) => {
     const r = exactReadback();
     r.release = null;
-    r.signaturePreflight = { ...r.signaturePreflight!, ...change };
+    r.signaturePreflight = trustStore1V2SignaturePreflightProofForTest({
+      ...r.signaturePreflight!,
+      ...change,
+    });
     expect(planStore1Activation(authority, r)).toMatchObject({
       status: "CONFLICT",
       code: "STORE1_V2_SIGNATURE_PREFLIGHT_CONFLICT",

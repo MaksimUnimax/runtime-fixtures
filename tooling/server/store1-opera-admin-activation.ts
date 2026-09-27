@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { basename } from "node:path";
 import { validateProfileContent } from "../../packages/server/adapter-registry/src/index.js";
+import { isTrustedStore1V2SignaturePreflightProof } from "./store1-v2-signature-preflight.js";
 
 export const STORE1_VERSION = "0.2.4" as const;
 export const STORE1_CONTRACT = "control_plane_v2" as const;
@@ -439,6 +440,13 @@ export function planStore1Activation(
       code: "STORE1_V2_SIGNATURE_PREFLIGHT_REQUIRED",
       detail:
         "Verify a no-AI v2 bootstrap with the exact STORE package trust bundle before any catalog mutation.",
+    };
+  if (!isTrustedStore1V2SignaturePreflightProof(signatureProof))
+    return {
+      status: "BLOCKED",
+      code: "STORE1_V2_SIGNATURE_PREFLIGHT_UNTRUSTED",
+      detail:
+        "Serialized or caller-constructed signature proof is not trusted. Run cryptographic preflight in this process before any catalog mutation.",
     };
   const proofBindsPackageAndReviewer =
     signatureProof.schemaVersion === "store1_v2_signature_preflight_v1" &&

@@ -20,6 +20,7 @@ import {
 import {
   createStore1PackagedBootstrapVerifier,
   extractStore1PackageSignatureEvidenceFromEntries,
+  isTrustedStore1V2SignaturePreflightProof,
   readStore1PackageSignatureEvidence,
   runStore1V2SignaturePreflightWithEvidence,
   STORE1_BOOTSTRAP_PATH,
@@ -126,6 +127,12 @@ function fixture() {
 function fakeTransport(
   config: NonNullable<Store1ActivationReadback["config"]> | null,
   envelope: unknown,
+  authenticatedContext?: {
+    accountId: string;
+    deviceId: string;
+    browserFamily: "opera";
+    browserVersion: string;
+  },
 ) {
   const calls: Array<{ kind: "config" | "bootstrap"; value: unknown }> = [];
   const transport: Store1V2SignaturePreflightTransport = {
@@ -135,7 +142,15 @@ function fakeTransport(
     },
     async issueBootstrap(path, request) {
       calls.push({ kind: "bootstrap", value: { path, request } });
-      return envelope;
+      return {
+        envelope,
+        authenticatedContext: authenticatedContext ?? {
+          accountId: ACCOUNT,
+          deviceId: request.deviceId,
+          browserFamily: request.browser.family,
+          browserVersion: request.browser.version,
+        },
+      };
     },
   };
   return { calls, transport };
@@ -162,6 +177,7 @@ describe("STORE-1 v2 signature preflight", () => {
       deviceId: DEVICE,
       aiStatus: "UNCONFIGURED",
     });
+    expect(isTrustedStore1V2SignaturePreflightProof(proof)).toBe(false);
     expect(fake.calls[0]).toEqual({
       kind: "config",
       value: STORE1_V2_CONFIG_READ_PATH,
@@ -183,6 +199,39 @@ describe("STORE-1 v2 signature preflight", () => {
       fake.calls[1]!.value as { request: Record<string, unknown> }
     ).request;
     expect(request).not.toHaveProperty("detectedAi");
+  });
+
+  it("rejects mismatched authenticated device/browser context", async () => {
+    const f = fixture();
+    await expect(
+      runStore1V2SignaturePreflightWithEvidence({
+        packageEvidence: f.packageEvidence,
+        expectedAccountId: ACCOUNT,
+        deviceId: DEVICE,
+        browserVersion: "136",
+        transport: fakeTransport(f.config, f.envelope, {
+          accountId: ACCOUNT,
+          deviceId: "40000000-0000-4000-8000-000000000099",
+          browserFamily: "opera",
+          browserVersion: "136",
+        }).transport,
+      }),
+    ).rejects.toThrow("STORE1_V2_AUTHENTICATED_CONTEXT_MISMATCH");
+
+    await expect(
+      runStore1V2SignaturePreflightWithEvidence({
+        packageEvidence: f.packageEvidence,
+        expectedAccountId: ACCOUNT,
+        deviceId: DEVICE,
+        browserVersion: "136",
+        transport: fakeTransport(f.config, f.envelope, {
+          accountId: ACCOUNT,
+          deviceId: DEVICE,
+          browserFamily: "opera",
+          browserVersion: "137",
+        }).transport,
+      }),
+    ).rejects.toThrow("STORE1_V2_AUTHENTICATED_CONTEXT_MISMATCH");
   });
 
   it("rejects bad signatures and unknown packaged trust keys", async () => {
@@ -229,7 +278,12 @@ describe("STORE-1 v2 signature preflight", () => {
         expectedAccountId: OTHER_ACCOUNT,
         deviceId: DEVICE,
         browserVersion: "136",
-        transport: fakeTransport(f.config, f.envelope).transport,
+        transport: fakeTransport(f.config, f.envelope, {
+          accountId: OTHER_ACCOUNT,
+          deviceId: DEVICE,
+          browserFamily: "opera",
+          browserVersion: "136",
+        }).transport,
       }),
     ).rejects.toThrow("STORE1_V2_SIGNATURE_CONTEXT_MISMATCH");
 
