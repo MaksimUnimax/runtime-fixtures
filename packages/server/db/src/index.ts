@@ -31,6 +31,15 @@ export {
   type MonitorProfileRepairEvidenceResolver,
   type MonitorProfileRepairTrustedEvidence,
 } from "./monitor-profile-repair-admission-repository.js";
+export {
+  createMonitorProfileRepairReadRepository,
+  type MonitorProfileRepairCaseState,
+  type MonitorProfileRepairDecisionState,
+  type MonitorProfileRepairReadCursor,
+  type MonitorProfileRepairReadItem,
+  type MonitorProfileRepairReadPage,
+  type MonitorProfileRepairReadStaleReason,
+} from "./monitor-profile-repair-read-repository.js";
 export { createHealthPersistenceRepository } from "./health-persistence-repository.js";
 export {
   AUTHENTICATED_DEEP_HEALTH_CATALOG_AUTHORITY,
