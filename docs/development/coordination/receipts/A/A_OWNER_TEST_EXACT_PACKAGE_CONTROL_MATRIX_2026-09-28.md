@@ -62,6 +62,7 @@ Exit 0, OOM 0, cleanup verified, peak 473956352 bytes.
 
 Observed signed-out exact STORE state:
 - visible/enabled: `auth-start`, `support-generate`;
+- `auth-start` visibility/enabled state is **not** functional auth acceptance; no auth action was executed;
 - hidden because no signed auth: marketplace/store CRUD, credential checks, Work, transfer, backup and confirmation controls;
 - `auth-open`, `auth-cancel`, `auth-reset` are not applicable until a pending/authenticated state exists;
 - Firefox technical consent is correctly not visible in Opera.
@@ -78,7 +79,7 @@ does not belong to the signed-out synthetic boundary.
 
 | Group | Controls / behavior | Current evidence | R1 disposition |
 |---|---|---|---|
-| Auth | auth-start | Exact STORE Opera visible/enabled | **EXACT_STORE_INSTALLED_SYNTHETIC PASS** |
+| Auth | auth-start | Exact STORE Opera visible/enabled; action was intentionally not clicked | **VISIBLE_ENABLED_ONLY / ACTION_NOT_VERIFIED** |
 | Auth | auth-open, auth-cancel, auth-reset | Existing synthetic auth flows only; require pending/auth state | **NOT_VERIFIED_EXACT_STORE_AUTH** |
 | Diagnostics | support-generate / support-snapshot | Exact STORE Opera click; privacy-safe result; network0/errors0 | **EXACT_STORE_INSTALLED_SYNTHETIC PASS** |
 
