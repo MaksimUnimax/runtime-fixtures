@@ -265,6 +265,35 @@ describe("authenticated deep production composition", () => {
     expect(session.runH3).toHaveBeenCalledTimes(1);
     expect(configured.value.persistCompletedHealthRun).toHaveBeenCalledTimes(1);
   });
+  it("keeps exactly one H3 when the production persistence port fails after its commit boundary", async () => {
+    const committedHealthRunId = "00000000-0000-4000-8000-000000000105";
+    let committed: string | null = null;
+    let incidentAttempts = 0;
+    const configured = ports({
+      persistCompletedHealthRun: vi.fn(async () => {
+        committed = committedHealthRunId;
+        incidentAttempts += 1;
+        throw new Error("incident processor unavailable after health commit");
+      }),
+    });
+    const runtime = await createAuthenticatedDeepCycleRuntimeProvider(
+      "/private/dedicated.json",
+      configured.value,
+      { now: () => completedAt },
+    )();
+
+    expect(await runtime!.execute(deepRun())).toEqual({
+      outcome: "FAILED",
+      failureClass: "TRANSIENT_ENVIRONMENT",
+      failureCode: "AUTHENTICATED_DEEP_PERSISTENCE_REJECTED",
+    });
+    expect(committed).toBe(committedHealthRunId);
+    expect(incidentAttempts).toBe(1);
+    expect(configured.session.runH3).toHaveBeenCalledTimes(1);
+    expect(configured.value.persistCompletedHealthRun).toHaveBeenCalledTimes(1);
+    expect(configured.session.close).toHaveBeenCalledTimes(1);
+  });
+
   it("returns browser-unavailable before scope or H3 when dedicated launch fails", async () => {
     const session: AuthenticatedDeepBrowserSession = {
       start: vi.fn(async () => {
