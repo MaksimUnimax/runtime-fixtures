@@ -432,7 +432,7 @@
   {
     "target": "content_script.js",
     "old": "  function diagnosticForControlKind(kind) {\n    return {\n      send_active: \"BUTTON_SEND_ACTIVE\",\n      work_send_active: \"BUTTON_WORK_SEND_ACTIVE\",\n      work_send_disabled: \"BUTTON_WORK_SEND_DISABLED\",\n      send_disabled: \"BUTTON_SEND_DISABLED\",\n      stop: \"BUTTON_STOP\",\n      microphone: \"BUTTON_MICROPHONE\",\n      alice_ready: \"BUTTON_ALICE_READY\",\n      unknown: \"BUTTON_UNKNOWN\"\n    }[kind] || \"BUTTON_UNKNOWN\";\n  }\n\n  function stopDeliveryWatch(reason = \"stopped\") {",
-    "new": "  function diagnosticForControlKind(kind) {\n    return {\n      send_active: \"BUTTON_SEND_ACTIVE\",\n      work_send_active: \"BUTTON_WORK_SEND_ACTIVE\",\n      work_send_disabled: \"BUTTON_WORK_SEND_DISABLED\",\n      send_disabled: \"BUTTON_SEND_DISABLED\",\n      stop: \"BUTTON_STOP\",\n      microphone: \"BUTTON_MICROPHONE\",\n      alice_ready: \"BUTTON_ALICE_READY\",\n      unknown: \"BUTTON_UNKNOWN\"\n    }[kind] || \"BUTTON_UNKNOWN\";\n  }\n\n  globalThis.SellerAgentsSignedProfileDomBridge = Object.freeze({\n    scope() {\n      const adapter = currentAIAdapter();\n      return adapter ? { family: adapter.id, surface: \"web\", variant: null } : null;\n    },\n    adapter: () => currentAIAdapter(),\n    workInFlight() {\n      return Boolean(\n        (typeof saContentContext !== \"undefined\" && saContentContext?.work_active) ||\n        activeDeliveryWatch || activeManualComposerWait || activeAutoWatch ||\n        workStartWatches.size > 0\n      );\n    }\n  });\n\n  function stopDeliveryWatch(reason = \"stopped\") {"
+    "new": "  function diagnosticForControlKind(kind) {\n    return {\n      send_active: \"BUTTON_SEND_ACTIVE\",\n      work_send_active: \"BUTTON_WORK_SEND_ACTIVE\",\n      work_send_disabled: \"BUTTON_WORK_SEND_DISABLED\",\n      send_disabled: \"BUTTON_SEND_DISABLED\",\n      stop: \"BUTTON_STOP\",\n      microphone: \"BUTTON_MICROPHONE\",\n      alice_ready: \"BUTTON_ALICE_READY\",\n      unknown: \"BUTTON_UNKNOWN\"\n    }[kind] || \"BUTTON_UNKNOWN\";\n  }\n\n  globalThis.SellerAgentsSignedProfileDomBridge = Object.freeze({\n    scope() {\n      const adapter = currentAIAdapter();\n      return adapter ? { family: adapter.id, surface: \"web\", variant: null } : null;\n    },\n    adapter: () => currentAIAdapter(),\n    conversationRoot() {\n      return document.querySelector(\"main\") || document.body || document.documentElement;\n    },\n    workInFlight() {\n      return Boolean(\n        (typeof saContentContext !== \"undefined\" && saContentContext?.work_active) ||\n        activeDeliveryWatch || activeManualComposerWait || activeAutoWatch ||\n        workStartWatches.size > 0\n      );\n    }\n  });\n\n  function stopDeliveryWatch(reason = \"stopped\") {"
   },
   {
     "target": "content_script.js",
@@ -448,5 +448,10 @@
     "target": "content_script.js",
     "old": "  runtime.dispose = () => {\n    if (runtime.disposed) return;\n    runtime.disposed = true;",
     "new": "  runtime.dispose = () => {\n    if (runtime.disposed) return;\n    runtime.disposed = true;\n    try { globalThis.SellerAgentsSignedProfileRuntime?.dispose?.(); } catch (_) {}"
+  },
+  {
+    "target": "content_script.js",
+    "old": "  function userMessages() {\n    const adapter = currentAIAdapter();\n    return adapter ? adapter.userMessages() : [];\n  }",
+    "new": "  function userMessages() {\n    const adapter = currentAIAdapter();\n    const baseline = adapter ? adapter.userMessages() : [];\n    const profileRuntime = globalThis.SellerAgentsSignedProfileRuntime;\n    return profileRuntime ? profileRuntime.resolveUserMessages(adapter, baseline) : baseline;\n  }"
   }
 ]

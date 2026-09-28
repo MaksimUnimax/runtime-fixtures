@@ -552,12 +552,16 @@ export async function makeWorker(directory, options = {}) {
       sendMessage(id, message, callback) {
         messages.push(structuredClone(message));
         if (message.type === "OZ_SIGNED_AI_PROFILE_ENSURE") {
-          queueMicrotask(() => callback?.({
+          const configured = typeof options.profileEnsureResponse === "function"
+            ? options.profileEnsureResponse(structuredClone(message), id)
+            : options.profileEnsureResponse;
+          const response = configured || {
             ok: true,
             applied: true,
             authority: structuredClone(message.expected?.authority || null),
             profile: structuredClone(message.expected?.profile || null),
-          }));
+          };
+          queueMicrotask(() => callback?.(structuredClone(response)));
           return;
         }
         if (message.type === "OZ_WORK_SEND_INITIAL_PROMPT") {

@@ -64,13 +64,22 @@
   function roleAllows(element, primitive) {
     return primitive?.kind !== "accessibility_role_name" || semanticRole(element) === primitive.role;
   }
-  function resolveAssistantMessages(_adapter, baseline) {
+  function scopedConversationMessages(baseline) {
     const rows = Array.isArray(baseline) ? baseline.filter((node) => node instanceof Element) : [];
+    if (!plan("conversation")) return rows;
+    const root = resolveConversationRoot();
+    return root instanceof Element ? rows.filter((node) => root.contains(node)) : [];
+  }
+  function resolveAssistantMessages(_adapter, baseline) {
+    const rows = scopedConversationMessages(baseline);
     const p = plan("assistantResponse");
     if (!p) return rows;
     return firstResolved(p, (primitive) => primitive?.kind === "packaged_selector_reference"
       ? rows
       : rows.filter((node) => roleAllows(node, primitive)));
+  }
+  function resolveUserMessages(_adapter, baseline) {
+    return scopedConversationMessages(baseline);
   }
   function resolveComposerContext(_adapter, baseline) {
     if (!baseline) return null;
@@ -91,7 +100,7 @@
   function resolveConversationRoot() {
     const adapter = bridge.adapter?.();
     const context = adapter?.composerContext?.() || null;
-    const baseline = context?.root || context?.form || null;
+    const baseline = bridge.conversationRoot?.() || context?.root || context?.form || null;
     const p = plan("conversation");
     if (!p) return baseline;
     return firstResolved(p, (primitive) => {
@@ -254,6 +263,7 @@
     refresh,
     ensure,
     resolveAssistantMessages,
+    resolveUserMessages,
     resolveComposerContext,
     resolveSendButton,
     resolveConversationRoot,

@@ -328,6 +328,70 @@ await test("PROFILE-07-authority-loss-during-receipt-validation-rejects-stale-ac
   }
 });
 
+
+await test("PROFILE-08-failed-ensure-blocks-Start-and-Resume-before-legacy-action", async () => {
+  let allowEnsure = true;
+  const worker = await makeWorker(runtime, {
+    profileEnsureResponse: (message) => allowEnsure
+      ? {
+          ok: true,
+          applied: true,
+          authority: plain(message.expected?.authority || null),
+          profile: plain(message.expected?.profile || null),
+        }
+      : { ok: false, applied: false, code: "PROFILE_FENCE_MISMATCH" },
+  });
+  try {
+    await worker.settings();
+    const popup = await worker.popup({ type: "SA_POPUP_STATE", tab_id: worker.tabId });
+    assert.equal(popup.ok, true, JSON.stringify(popup));
+    const storeId = popup.stores[0].id;
+
+    allowEnsure = false;
+    const beforeStartMessages = worker.messages.length;
+    const deniedStart = await worker.popup({
+      type: "SA_WORK_START",
+      tab_id: worker.tabId,
+      store_id: storeId,
+      confirm_change: true,
+      start_intent_id: crypto.randomUUID(),
+    });
+    assert.equal(deniedStart.ok, false, JSON.stringify(deniedStart));
+    assert.equal(deniedStart.code, "SIGNED_PROFILE_NOT_APPLIED");
+    assert.deepEqual(plain(await worker.call("getPendingWorkStarts")), {});
+    const deniedStartMessages = worker.messages.slice(beforeStartMessages);
+    assert.equal(deniedStartMessages.filter((m) => m.type === "OZ_SIGNED_AI_PROFILE_ENSURE").length, 1);
+    assert.equal(deniedStartMessages.some((m) => m.type === "OZ_WORK_SEND_INITIAL_PROMPT"), false);
+
+    allowEnsure = true;
+    const key = await worker.start();
+    const finish = await worker.popup({
+      type: "OZ_WORK_FINISH",
+      tab_id: worker.tabId,
+      conversation_key: key,
+    });
+    assert.equal(finish.ok, true, JSON.stringify(finish));
+    assert.equal((await worker.call("workSessionFor", key)).state, "inactive");
+
+    allowEnsure = false;
+    const beforeResumeMessages = worker.messages.length;
+    const deniedResume = await worker.popup({
+      type: "SA_WORK_RESUME",
+      tab_id: worker.tabId,
+      conversation_key: key,
+    });
+    assert.equal(deniedResume.ok, false, JSON.stringify(deniedResume));
+    assert.equal(deniedResume.code, "SIGNED_PROFILE_NOT_APPLIED");
+    assert.equal((await worker.call("workSessionFor", key)).state, "inactive");
+    const deniedResumeMessages = worker.messages.slice(beforeResumeMessages);
+    assert.equal(deniedResumeMessages.filter((m) => m.type === "OZ_SIGNED_AI_PROFILE_ENSURE").length, 1);
+    assert.equal(deniedResumeMessages.some((m) => m.type === "OZ_WORK_APPLY_VISIBILITY"), false);
+    assert.equal(worker.network.length, 0);
+  } finally {
+    worker.close();
+  }
+});
+
 console.log(JSON.stringify({
   status: "PASS",
   scenarios: results.length,

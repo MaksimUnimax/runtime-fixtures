@@ -10,7 +10,10 @@ const results = [];
 async function test(id, fn) { await fn(); results.push({ id, status: "PASS" }); }
 const clone = (v) => v == null ? v : structuredClone(v);
 
-function baseContent(composerPrimary = { kind: "packaged_selector_reference", reference: "composer-root" }) {
+function baseContent(
+  composerPrimary = { kind: "packaged_selector_reference", reference: "composer-root" },
+  conversationPrimary = { kind: "packaged_selector_reference", reference: "conversation-root" },
+) {
   return {
     schemaVersion: "adapter_profile_v1",
     page: {
@@ -19,7 +22,7 @@ function baseContent(composerPrimary = { kind: "packaged_selector_reference", re
       composerStrategy: "composer_root",
     },
     selectors: {
-      conversation: { strategy: "conversation_root", primary: { kind: "packaged_selector_reference", reference: "conversation-root" }, fallbacks: [], timeoutMs: 1000, observationMode: "polling" },
+      conversation: { strategy: "conversation_root", primary: conversationPrimary, fallbacks: [], timeoutMs: 1000, observationMode: "polling" },
       composer: { strategy: "composer_root", primary: composerPrimary, fallbacks: [], timeoutMs: 1000, observationMode: "polling" },
       send: { strategy: "send_control", primary: { kind: "packaged_selector_reference", reference: "send-control" }, fallbacks: [], timeoutMs: 1000, observationMode: "polling" },
       assistantResponse: { strategy: "assistant_response", primary: { kind: "packaged_selector_reference", reference: "assistant-response" }, fallbacks: [], timeoutMs: 1000, observationMode: "polling" },
@@ -47,6 +50,7 @@ async function fixture() {
   let work = false;
   let manual = false;
   let scopeFamily = "chatgpt";
+  let conversationRoot = null;
   let digestGate = null;
   let receiptGate = null;
   const pending = [];
@@ -127,6 +131,7 @@ async function fixture() {
     SellerAgentsSignedProfileDomBridge: {
       scope: () => ({ family: scopeFamily, surface: "web", variant: null }),
       adapter: () => null,
+      conversationRoot: () => conversationRoot,
       workInFlight: () => work,
     },
   };
@@ -135,14 +140,18 @@ async function fixture() {
   const cloneInRealm = vm.runInContext("(value) => JSON.parse(JSON.stringify(value))", context);
   realmClone = (value) => cloneInRealm(value);
   vm.runInContext(fs.readFileSync(path.join(runtime, "shared/signed_ai_profile_consumer.js"), "utf8"), context);
-  async function makeProfile(revision, composerPrimary = { kind: "packaged_selector_reference", reference: "composer-root" }) {
+  async function makeProfile(
+    revision,
+    composerPrimary = { kind: "packaged_selector_reference", reference: "composer-root" },
+    conversationPrimary = { kind: "packaged_selector_reference", reference: "conversation-root" },
+  ) {
     const profile = realmClone({
       profileKey: "fixture-profile",
       revision,
       scopeVariant: null,
       contentSha256: "0".repeat(64),
       schemaVersion: "adapter_profile_v1",
-      content: baseContent(composerPrimary),
+      content: baseContent(composerPrimary, conversationPrimary),
       compatibility: clone(compatibility),
     });
     profile.contentSha256 = await sandbox.SellerAgentsSignedAiProfileConsumer.profileFingerprint(profile);
@@ -192,6 +201,7 @@ async function fixture() {
     setWork(value) { work = value; },
     setManual(value) { manual = value; },
     setScope(family) { scopeFamily = family; },
+    setConversationRoot(value) { conversationRoot = value; },
     pauseNextDigest() {
       let enteredResolve;
       let releaseResolve;
@@ -524,6 +534,40 @@ await test("RUNTIME-09-revocation-during-old-APPLIED-ack-keeps-cleared-state", a
     assert.equal(f.runtime.debugState().applied, null);
   } finally {
     gate?.release?.();
+    f.runtime.dispose();
+  }
+});
+
+
+await test("RUNTIME-10-conversation-slot-scopes-packaged-message-region", async () => {
+  const f = await fixture();
+  try {
+    const root = new f.sandbox.Element();
+    const inside = new f.sandbox.Element();
+    const outside = new f.sandbox.Element();
+    root.tagName = "MAIN";
+    root.getAttribute = (name) => name === "role" ? "main" : null;
+    root.contains = (node) => node === inside;
+    f.setConversationRoot(root);
+
+    let assistant = f.runtime.resolveAssistantMessages(null, [inside, outside]);
+    let users = f.runtime.resolveUserMessages(null, [outside, inside]);
+    assert.equal(assistant.length, 1);
+    assert.equal(assistant[0], inside);
+    assert.equal(users.length, 1);
+    assert.equal(users[0], inside);
+
+    f.state.profile = await f.makeProfile(
+      10,
+      undefined,
+      { kind: "accessibility_role_name", role: "status", reference: "conversation-root" },
+    );
+    const changed = await f.runtime.refresh("conversation_role_change");
+    assert.equal(changed.status, "APPLIED");
+    assert.equal(f.runtime.resolveConversationRoot(), null);
+    assert.equal(f.runtime.resolveAssistantMessages(null, [inside, outside]).length, 0);
+    assert.equal(f.runtime.resolveUserMessages(null, [inside, outside]).length, 0);
+  } finally {
     f.runtime.dispose();
   }
 });
