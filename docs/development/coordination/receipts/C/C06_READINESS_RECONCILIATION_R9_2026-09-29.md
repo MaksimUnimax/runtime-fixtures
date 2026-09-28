@@ -14,9 +14,10 @@ or source CI into LIVE_OWNER, STORE, DEPLOYMENT or PRODUCTION acceptance.
 - previous exact main `21fecf30cfa58d64d7b60984e508f2acfae8ecc3`
   passed required post-main workflows 5/5;
 - C05 receipt-only successor `62da374e3e5e2b1383325473ece79445535f1655`
-  passed branch workflows 5/5 and was fast-forwarded to main;
-- R9 may be finalized only after the five post-main workflows for exact
-  `62da374e...` are terminal SUCCESS. Missing/in-progress is not PASS.
+  passed branch workflows 5/5, was fast-forwarded to main and then passed
+  required post-main workflows 5/5;
+- R9 is therefore reconciled against an exact accepted main boundary, not an
+  in-progress or branch-only candidate.
 
 ## Automated/source boundaries now closed or bounded
 
@@ -98,6 +99,20 @@ Current-schema rehearsal supersedes the older 0051-only readiness evidence:
 - resource cleanup verified.
 This is disposable recovery evidence, not live 0054/deployment authorization.
 
+### C06 exact deployment plan
+PLAN C06's deployment-planning requirement is now closed by:
+`C06_CURRENT_MAIN_DEPLOYMENT_PLAN_2026-09-29.md`.
+
+The plan pins the accepted current-main/runtime identities, frozen 0.2.6 client
+artifacts, tested rollback floor and a fail-closed sequence for fresh backup,
+isolated restore/migration proof, stale-preflight fencing, forward 0054
+migration, API/worker/portal switch, protected smoke, forward-schema rollback
+and rollback-floor failure handling.
+
+The existing owner-test deploy helper is explicitly not repurposed as a generic
+current-main deploy tool. Actual live 0054 application or service switch remains
+a C07/explicit-live action and is not implied by having a precise C06 plan.
+
 ### Exact STORE 0.2.6 browser/package evidence
 - real Opera 136 exact-package signed-out smoke PASS;
 - exact installed Firefox 155 signed-out technical-consent Deny/Allow/Revoke PASS;
@@ -128,7 +143,7 @@ R9 interprets them as follows until the crosswalk itself is safely refreshed:
 
 - Q1C-OTP-01: technical normal OTP/session+device+Bootstrap PASS; human mailbox UX open;
 - Q1C-EXT-03: exact STORE technical device binding PASS; human reviewer binding open;
-- Q1C-BS-04: exact STORE signed Bootstrap/profile/workAllowed PASS; human reviewer reopen open;
+- Q1C-BS-04: owner-test technical signed Bootstrap/profile/workAllowed PASS; preprod/beta release acceptance remains open and is not inferred from owner-test;
 - Q1C-OZON-06 / Q1C-WB-09: exact installed read-only credential validation PASS;
   human add/edit UX with reviewer identity and useful flow remain open;
 - Q1C-OZON-07/08 and Q1C-WB-10/11: live Start/result/dialogue flow remains open;
@@ -188,12 +203,12 @@ partition behavior:
 - destructive logout/reset/re-auth lifecycle;
 - owner-visible Windows install/update preservation.
 
-### 6. Latest-source live deployment boundary
+## C07 live deployment boundary — not a C06 planning blocker
+
 Current main contains source/schema through 0054, but no live product database
-0054 apply or full-beta current-main deployment is claimed.
-C05 supplies the verified deployment/backup/rollback evidence needed to prepare
-that operation. Actual release remains C07 and requires its exact separate
-authorization/plan.
+0054 apply or full-beta current-main deployment is claimed. The exact C06
+deployment plan is prepared; execution remains C07 and requires its separate
+live authorization. No source/readiness PASS is relabeled as deployment.
 
 ## Browser-specific explicit limitations
 
