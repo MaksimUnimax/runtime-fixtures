@@ -39,6 +39,7 @@ const callbackSha256 = "c".repeat(64);
 
 let runtime: DatabaseRuntime;
 let prefixDirectory = "";
+let retention0052Directory = "";
 
 function legacyObservation(
   input: {
@@ -160,6 +161,23 @@ async function makePrefixDirectory() {
     entries: unknown[];
   };
   journal.entries = journal.entries.slice(0, 40);
+  await writeFile(journalPath, JSON.stringify(journal, null, 2) + "\n");
+}
+
+async function makeRetention0052Directory() {
+  retention0052Directory = await mkdtemp(
+    join(tmpdir(), "health-retention-0052-"),
+  );
+  await cp(migrationsFolder, retention0052Directory, { recursive: true });
+  await rm(
+    join(retention0052Directory, "0053_monitor_profile_repair_admission.sql"),
+    { force: true },
+  );
+  const journalPath = join(retention0052Directory, "meta", "_journal.json");
+  const journal = JSON.parse(await readFile(journalPath, "utf8")) as {
+    entries: unknown[];
+  };
+  journal.entries = journal.entries.slice(0, 41);
   await writeFile(journalPath, JSON.stringify(journal, null, 2) + "\n");
 }
 
@@ -424,12 +442,69 @@ describe.sequential("monitoring retention 0051 -> 0052 upgrade", () => {
     runtime = createDatabaseRuntime(connectionString);
     await runtime.ready();
     await makePrefixDirectory();
+    await makeRetention0052Directory();
   });
 
   afterAll(async () => {
     await runtime.close();
     if (prefixDirectory)
       await rm(prefixDirectory, { recursive: true, force: true });
+    if (retention0052Directory)
+      await rm(retention0052Directory, { recursive: true, force: true });
+  });
+
+  it("inspects a real 0052-only retention schema before repair admission exists", async () => {
+    await runtime.query("DROP SCHEMA IF EXISTS public CASCADE");
+    await runtime.query("DROP SCHEMA IF EXISTS drizzle CASCADE");
+    await runtime.query("CREATE SCHEMA public");
+
+    await runMigrations({
+      connectionString,
+      migrationsDirectory: prefixDirectory,
+    });
+    await seedLegacyNoSessionRun();
+    await runMigrations({
+      connectionString,
+      migrationsDirectory: retention0052Directory,
+    });
+
+    const migrationCount = await runtime.query<{ count: string }>(
+      'SELECT count(*)::text AS count FROM drizzle."__drizzle_migrations"',
+    );
+    expect(migrationCount.rows[0]?.count).toBe("41");
+    expect(
+      (
+        await runtime.query<{ relation: string | null }>(
+          "SELECT to_regclass('monitor_profile_repair_bindings')::text AS relation",
+        )
+      ).rows[0]?.relation,
+    ).toBeNull();
+
+    const inspected = await runMonitorPilotRetentionMaintenance(
+      runtime,
+      { mode: "inspect", limits: { maxInventory: 10 } },
+      {
+        preflight: async () => ({
+          kind: "READY" as const,
+          issues: [] as const,
+        }),
+        clock: () => new Date("2026-09-28T18:00:00.000Z"),
+        nowMs: () => 0,
+      },
+    );
+
+    expect(inspected.kind).toBe("INSPECTED");
+    expect(inspected.inventory).toMatchObject({
+      scanned: 1,
+      reasons: { PROJECTION_MISSING: 1 },
+    });
+    expect(inspected.actions).toEqual({
+      projected: 0,
+      reconciled: 0,
+      pruned: 0,
+      receiptRetired: 0,
+      terminalRetired: 0,
+    });
   });
 
   it("backfills durable receipts and compact projection from a real 0051 legacy row", async () => {

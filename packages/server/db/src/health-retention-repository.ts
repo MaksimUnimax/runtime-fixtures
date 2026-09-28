@@ -464,7 +464,24 @@ export async function recordNoSessionCompactStateInTransaction(
   }
   return normalizedResultSha256;
 }
-const gcInventorySql = `
+async function hasRepairApprovalBindings(q: DatabaseQuery): Promise<boolean> {
+  const result = await q.query<{ available: boolean }>(
+    `SELECT to_regclass('public.monitor_profile_repair_bindings') IS NOT NULL AS available`,
+  );
+  return result.rows[0]?.available === true;
+}
+
+function gcInventorySql(includeRepairApprovalPins: boolean): string {
+  const repairApprovalPin = includeRepairApprovalPins
+    ? `
+      WHEN EXISTS (
+        SELECT 1 FROM monitor_profile_repair_bindings binding
+        WHERE binding.observation_run_id=receipt.run_id
+           OR binding.accepted_baseline_run_id=receipt.run_id
+           OR binding.rollback_run_id=receipt.run_id
+      ) THEN 'REPAIR_APPROVAL_PINNED'`
+    : "";
+  return `
   SELECT receipt.run_id AS "runId",receipt.scheduled_run_id AS "scheduledRunId",
     receipt.scope_sha256 AS "scopeSha256",receipt.completed_at AS "completedAt",
     receipt.payload_pruned_at AS "payloadPrunedAt",
@@ -475,13 +492,7 @@ const gcInventorySql = `
       WHEN run.id IS NULL OR observation.run_id IS NULL THEN 'PAYLOAD_MISSING'
       WHEN scheduled.id IS NULL THEN 'SCHEDULER_MISSING'
       WHEN scheduled.state <> 'SUCCEEDED' THEN 'SCHEDULER_NOT_SUCCEEDED'
-      WHEN scheduled.health_run_id IS DISTINCT FROM receipt.run_id THEN 'SCHEDULER_LINK_MISMATCH'
-      WHEN EXISTS (
-        SELECT 1 FROM monitor_profile_repair_bindings binding
-        WHERE binding.observation_run_id=receipt.run_id
-           OR binding.accepted_baseline_run_id=receipt.run_id
-           OR binding.rollback_run_id=receipt.run_id
-      ) THEN 'REPAIR_APPROVAL_PINNED'
+      WHEN scheduled.health_run_id IS DISTINCT FROM receipt.run_id THEN 'SCHEDULER_LINK_MISMATCH'${repairApprovalPin}
       WHEN EXISTS (
         SELECT 1 FROM health_incidents incident
         WHERE incident.first_seen_run_id=receipt.run_id
@@ -511,6 +522,7 @@ const gcInventorySql = `
   LEFT JOIN health_no_session_observations observation ON observation.run_id=receipt.run_id
   LEFT JOIN health_scheduled_runs scheduled ON scheduled.id=receipt.scheduled_run_id
 `;
+}
 
 async function oneGcInventory(
   q: DatabaseQuery,
@@ -518,7 +530,7 @@ async function oneGcInventory(
   before: Date,
 ): Promise<RoutineNoSessionGcInventoryItem | undefined> {
   const result = await q.query<RoutineNoSessionGcInventoryItem>(
-    `${gcInventorySql}
+    `${gcInventorySql(await hasRepairApprovalBindings(q))}
      WHERE receipt.run_id=$1 AND receipt.completed_at <= $2`,
     [runId, before],
   );
@@ -617,16 +629,19 @@ export function createHealthRetentionRepository(
       ) {
         throw new Error("HEALTH_RETENTION_CURSOR_INVALID");
       }
+      const inventorySql = gcInventorySql(
+        await hasRepairApprovalBindings(runtime),
+      );
       const result = input.cursor
         ? await runtime.query<RoutineNoSessionGcInventoryItem>(
-            `${gcInventorySql}
+            `${inventorySql}
              WHERE receipt.completed_at <= $1
                AND (receipt.completed_at,receipt.run_id) > ($2::timestamptz,$3::uuid)
              ORDER BY receipt.completed_at,receipt.run_id LIMIT $4`,
             [input.before, input.cursor.completedAt, input.cursor.runId, limit],
           )
         : await runtime.query<RoutineNoSessionGcInventoryItem>(
-            `${gcInventorySql}
+            `${inventorySql}
              WHERE receipt.completed_at <= $1
              ORDER BY receipt.completed_at,receipt.run_id LIMIT $2`,
             [input.before, limit],
