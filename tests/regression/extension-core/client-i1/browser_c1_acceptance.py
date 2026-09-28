@@ -49,10 +49,10 @@ def wait_for(fn, description: str, timeout: float = 10):
     raise AssertionError(f"Timed out: {description}")
 
 
-def seed_authority(worker, private_key: Path, device_id: str = DEVICE, session_id: str = SESSION):
+def seed_authority(worker, private_key: Path, device_id: str = DEVICE, session_id: str = SESSION, *, profile_revision: int = 1, composer_reference: str = "composer-root"):
     encoded = base64.b64encode(private_key.read_bytes()).decode("ascii")
-    worker.evaluate(
-        """async ({pkcs8, fixtureDeviceId, fixtureSessionId, fixtureKeyId}) => {
+    return worker.evaluate(
+        """async ({pkcs8, fixtureDeviceId, fixtureSessionId, fixtureKeyId, profileRevision, composerReference}) => {
           const v = SellerAgentsBootstrapVerifier;
           const fromB64 = value => Uint8Array.from(atob(value), c => c.charCodeAt(0));
           const hex = bytes => [...bytes].map(x => x.toString(16).padStart(2, '0')).join('');
@@ -67,7 +67,7 @@ def seed_authority(worker, private_key: Path, device_id: str = DEVICE, session_i
             page:{identityStrategy:'page_identity',conversationStrategy:'conversation_root',composerStrategy:'composer_root'},
             selectors:{
               conversation:{strategy:'conversation_root',primary:{kind:'packaged_selector_reference',reference:'conversation-root'},fallbacks:[],timeoutMs:1000,observationMode:'polling'},
-              composer:{strategy:'composer_root',primary:{kind:'packaged_selector_reference',reference:'composer-root'},fallbacks:[],timeoutMs:1000,observationMode:'polling'},
+              composer:{strategy:'composer_root',primary:{kind:'packaged_selector_reference',reference:composerReference},fallbacks:[],timeoutMs:1000,observationMode:'polling'},
               send:{strategy:'send_control',primary:{kind:'packaged_selector_reference',reference:'send-control'},fallbacks:[],timeoutMs:1000,observationMode:'polling'},
               assistantResponse:{strategy:'assistant_response',primary:{kind:'packaged_selector_reference',reference:'assistant-response'},fallbacks:[],timeoutMs:1000,observationMode:'polling'}},
             observation:{mode:'polling',intervalMs:500},
@@ -85,7 +85,7 @@ def seed_authority(worker, private_key: Path, device_id: str = DEVICE, session_i
             accessBasis:'BETA',account:{id:accountId,status:'ACTIVE'},subscription:{state:'NONE',planRevision:null},devicePolicy:{status:'ACTIVE'},
             compatibility:{extension:{status:'SUPPORTED',minimumVersion:null},browser:{status:'SUPPORTED'}},
             entitlements:{'source.ozon':true,'source.wildberries':true,'ai.chatgpt':true,'ai.alice':true},features:{},
-            ai:{status:'RESOLVED',detected:{family:'chatgpt',surface:'web',variant:null},profile:{profileKey:'browser-fixture-profile',revision:1,scopeVariant:null,schemaVersion:'adapter_profile_v1',contentSha256,content,compatibility}}};
+            ai:{status:'RESOLVED',detected:{family:'chatgpt',surface:'web',variant:null},profile:{profileKey:'browser-fixture-profile',revision:profileRevision,scopeVariant:null,schemaVersion:'adapter_profile_v1',contentSha256,content,compatibility}}};
           const payloadBytes = new TextEncoder().encode(v.canonicalJson(payload));
           const key = await crypto.subtle.importKey('pkcs8',fromB64(pkcs8),{name:'Ed25519'},false,['sign']);
           const prefix = new TextEncoder().encode('product-control-plane/bootstrap-snapshot/v1\\0'+keyId+'\\0');
@@ -93,13 +93,16 @@ def seed_authority(worker, private_key: Path, device_id: str = DEVICE, session_i
           const signature = new Uint8Array(await crypto.subtle.sign('Ed25519',key,signed));
           const envelope = {envelopeVersion:'bootstrap_envelope_v2',algorithm:'Ed25519',keyId,payload:v.base64urlEncode(payloadBytes),signature:v.base64urlEncode(signature)};
           const cfg = SellerAgentsControlConfig;
+          const verified = await v.verifyV2(envelope, cfg.trustBundle);
+          if (!verified.ok) throw new Error('fixture signed authority verification failed: '+verified.error);
           const trustBundleSha256 = hex(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(v.canonicalJson(cfg.trustBundle)))));
           const cacheBinding = {cacheVersion:'control_cache_binding_v1',controlApiOrigin:cfg.controlApiOrigin,portalOrigin:cfg.portalOrigin,contractVersion:cfg.contractVersion,extensionVersion:cfg.extensionVersion,browser,detectedAi:{family:'chatgpt',surface:'web',variant:null},trustBundleSha256};
           const cacheClock = {cacheVersion:'control_cache_clock_v1',owner:{controlApiOrigin:cfg.controlApiOrigin,portalOrigin:cfg.portalOrigin,contractVersion:cfg.contractVersion,deviceId,sessionId},trustedServerTimeMs:now,effectiveTimeMs:now};
           const credentials = {deviceId,sessionId,tokenType:'Bearer',accessToken:'BROWSER_FIXTURE_ACCESS_TOKEN_20260918_'+deviceId,accessTokenExpiresAt:new Date(now+3600000).toISOString(),refreshToken:'R'.repeat(43),refreshTokenExpiresAt:new Date(now+7200000).toISOString()};
           await chrome.storage.local.set({seller_agents_control_auth_v2:{generation:1,credentials,pending:null,rotation:null,authority:{verified:true,workAllowed:true,requestedAi:'chatgpt',generation:1,payload,envelope,deviceId,sessionId,cacheBinding},cacheClock,lastError:null}});
+          return {verified:true, revision:profileRevision, contentSha256, composerReference};
         }""",
-        {"pkcs8": encoded, "fixtureDeviceId": device_id, "fixtureSessionId": session_id, "fixtureKeyId": os.environ.get("SA_TEST_TRUST_KEY_ID", "browser-fixture-key")},
+        {"pkcs8": encoded, "fixtureDeviceId": device_id, "fixtureSessionId": session_id, "fixtureKeyId": os.environ.get("SA_TEST_TRUST_KEY_ID", "browser-fixture-key"), "profileRevision": profile_revision, "composerReference": composer_reference},
     )
 
 

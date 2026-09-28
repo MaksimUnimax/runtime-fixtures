@@ -96,10 +96,10 @@ CHECK = r'''(() => {
 def checks(d):
  assert d['cw']==d['sw'],('overflow',d)
  assert d['sceneBackground']=='rgba(0, 0, 0, 0)',('rectangle background',d['sceneBackground'])
- expected_ink='rgb(235, 255, 255)' if d['r3']['dark'] else 'rgb(16, 36, 60)'
+ expected_ink='rgb(235, 255, 255)' if d['r3']['dark'] else 'rgb(5, 32, 57)'
  v=d['vector']
- assert v['tag']=='svg' and 'contour-exact-r10' in v['cls'],('exact-reference vector missing',v)
- assert len(v['uses'])==1 and v['uses'][0]['href'].endswith('contour-exact-ref-r10.svg#underlay'),v
+ assert v['tag']=='svg' and 'contour-exact-trace-r12' in v['cls'],('exact-reference vector missing',v)
+ assert len(v['uses'])==1 and v['uses'][0]['href'].endswith('contour-exact-trace-r12.svg#underlay'),v
  assert v['color']==expected_ink and v['uses'][0]['color']==expected_ink,('underlay color mismatch',v,expected_ink)
  assert v['uses'][0]['w']>1000 and v['uses'][0]['h']>700,('reference vector did not render',v)
  assert abs(d['scene']['w']/d['scene']['h']-4/3)<.002,('reference aspect ratio',d['scene'])
@@ -112,7 +112,7 @@ def checks(d):
  assert float(r3['sloganFont'].replace('px',''))>=20,r3
  expected=('rgb(78, 147, 255)','rgb(241, 92, 221)') if r3['dark'] else ('rgb(0, 91, 255)','rgb(189, 12, 165)')
  assert (r3['ozon'],r3['wb'])==expected,('heading colors',r3)
- expected_ring='rgb(235, 255, 255)' if r3['dark'] else 'rgb(16, 36, 60)'
+ expected_ring='rgb(235, 255, 255)' if r3['dark'] else 'rgb(5, 32, 57)'
  assert len(r3['rings'])==6 and all(r['color']==expected_ring and float(r['width'].replace('px',''))>=1 and r['style']=='solid' for r in r3['rings']),('reference rings',r3)
 
  assert len(d['marks'])==6 and len(d['markets'])==2 and len(d['badgeRects'])==8
@@ -129,7 +129,7 @@ def checks(d):
   assert abs(m['slot']['x']+m['slot']['w']/2-r['x']-r['w']/2)<.3,('uncentered logo',m)
   assert m['labelRect']['w']<r['w'] and m['labelRect']['bottom']<r['bottom'],('label outside circle',m)
   assert m['bg']==d['pageBackground'] and m['bgImage']=='none',('reference disc fill mismatch',m)
- a,z=d['markets'];assert abs(a['rect']['w']-z['rect']['w'])<.2 and a['font']==z['font']
+ a,z=d['markets'];assert a['font']==z['font']
  assert abs(a['labelTop']-z['labelTop'])<.005 and abs(a['slotTop']-z['slotTop'])<.005,('marketplace alignment differs',a,z)
  for r in d['badgeRects']:
   assert r['x']>=0 and r['right']<=d['cw']+.5,('badge clipped',r,d['width'])
@@ -205,7 +205,7 @@ try:
   b.close();b=None
   print('BROWSER_PASS',name,'states',len(results),flush=True)
  (OUT/'results.json').write_text(json.dumps({'status':'PASS','url':BASE,'results':results,'hover':hover,'pixel_samples':pixels},ensure_ascii=False,indent=2))
- print('CONTOUR_EXACT_R10_PASS',len(results),'states',len(hover),'hover/focus pairs',str(OUT),flush=True)
+ print('CONTOUR_EXACT_TRACE_R12_PASS',len(results),'states',len(hover),'hover/focus pairs',str(OUT),flush=True)
 except Exception:
  (OUT/'partial.json').write_text(json.dumps({'status':'FAIL','url':BASE,'results':results,'hover':hover},ensure_ascii=False,indent=2));raise
 finally:

@@ -66,7 +66,7 @@ function resolvedScope(surfaceKey = "standard", revision = 2): HealthScope {
     surfaceKey,
     browserFamily: "chrome",
     browserVersion: browserRuntime.browserVersion,
-    extensionVersion: "0.2.5",
+    extensionVersion: "0.2.6",
     adapterEngineVersion: "0.1.0",
     profile: {
       ...BASELINE_HEALTH_SUITE.scope.profile,
@@ -220,7 +220,7 @@ describe("authenticated deep production composition", () => {
           surface: "CHATGPT_STANDARD",
           browserFamily: "chrome",
           browserVersion: "154.0.0.0",
-          extensionVersion: "0.2.5",
+          extensionVersion: "0.2.6",
           adapterEngineVersion: "0.1.0",
           healthSuite: {
             machineKey: BASELINE_HEALTH_SUITE.machineKey,
