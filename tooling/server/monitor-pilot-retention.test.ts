@@ -4,6 +4,7 @@ import type { DatabaseRuntime } from "@product/db";
 import {
   isMonitorPilotRetentionCliEntry,
   MONITOR_PILOT_RETENTION_APPLY_CONFIRM,
+  MONITOR_PILOT_RETENTION_DEADLINE_SEMANTICS,
   parseMonitorPilotRetentionArgs,
   reportMonitorPilotRetentionResult,
   runMonitorPilotRetentionMaintenance,
@@ -41,6 +42,8 @@ function result(
     inventory: { scanned: 0, reasons: {}, nextCursor: null },
     blocked: {},
     deadlineReached: false,
+    deadlineSemantics: MONITOR_PILOT_RETENTION_DEADLINE_SEMANTICS,
+    supervisorHardTimeoutRequired: true,
     authorityIssues: [],
   };
 }
@@ -104,6 +107,10 @@ describe("monitor pilot retention CLI contract", () => {
       3,
     );
     expect(writes[0]).toContain("MONITOR_PILOT_RETENTION_RESULT=");
+    expect(result("INSPECTED")).toMatchObject({
+      deadlineSemantics: "COOPERATIVE_BETWEEN_AWAITS",
+      supervisorHardTimeoutRequired: true,
+    });
   });
 
   it("does not touch retention tables when authority is missing", async () => {

@@ -14,6 +14,7 @@ import {
   createDatabaseRuntime,
   createHealthRetentionRepository,
   createMonitorProfileRepairAdmissionRepository,
+  createMonitorProfileRepairReadRepository,
   createProfileLifecycleRepository,
   noSessionRetentionScopeSha256,
   normalizedNoSessionResultSha256,
@@ -1576,6 +1577,316 @@ describe.sequential(
         [IDS.assignment],
       );
       expect(assignment.rows[0]?.count).toBe("1");
+    });
+
+    it("reads pending cases with stable pagination and strict scope isolation", async () => {
+      const fixture = await setupFixture();
+      await fixture.repository.registerCandidate({ binding: fixture.binding });
+      const secondBinding: MonitorProfileRepairBindingV1 = {
+        ...fixture.binding,
+        repairCaseId: randomUUID(),
+      };
+      await fixture.repository.registerCandidate({ binding: secondBinding });
+
+      const reads = createMonitorProfileRepairReadRepository(runtime, {
+        clock: () => new Date(fixture.clockBox.value),
+      });
+      const firstPage = await reads.listCases({
+        scopeSha256: fixture.binding.scopeSha256,
+        limit: 1,
+      });
+      expect(firstPage.items).toHaveLength(1);
+      expect(firstPage.nextCursor).not.toBeNull();
+      const cursor = firstPage.nextCursor!;
+      const secondPage = await reads.listCases({
+        scopeSha256: fixture.binding.scopeSha256,
+        limit: 1,
+        cursor: {
+          createdAt: new Date(cursor.createdAt),
+          repairCaseId: cursor.repairCaseId,
+          caseRevision: cursor.caseRevision,
+        },
+      });
+      expect(secondPage.items).toHaveLength(1);
+      expect(secondPage.nextCursor).toBeNull();
+      expect(
+        new Set([
+          firstPage.items[0]!.repairCaseId,
+          secondPage.items[0]!.repairCaseId,
+        ]),
+      ).toEqual(
+        new Set([fixture.binding.repairCaseId, secondBinding.repairCaseId]),
+      );
+
+      const detail = await reads.getCase({
+        scopeSha256: fixture.binding.scopeSha256,
+        repairCaseId: fixture.binding.repairCaseId,
+        caseRevision: fixture.binding.caseRevision,
+      });
+      expect(detail).toMatchObject({
+        repairCaseId: fixture.binding.repairCaseId,
+        caseRevision: 1,
+        bindingSha256: monitorProfileRepairBindingSha256(fixture.binding),
+        caseState: "PENDING_APPROVAL",
+        staleReasons: [],
+        executionAuthority: false,
+        candidate: {
+          profileRevisionId: fixture.binding.candidate.profileRevisionId,
+          revision: fixture.binding.candidate.revision,
+          contentSha256: fixture.binding.candidate.contentSha256,
+          state: "CANDIDATE",
+        },
+        decision: null,
+        operation: null,
+      });
+      expect(detail?.testEvidence).toMatchObject({
+        suiteMachineKey: fixture.binding.suite.machineKey,
+        suiteRevision: fixture.binding.suite.revision,
+        suiteDefinitionSha256: fixture.binding.suite.definitionSha256,
+        h4EvaluationKey: fixture.binding.validation.h4EvaluationKey,
+        installedBehaviorEvidenceSha256:
+          fixture.binding.validation.installedBehaviorEvidenceSha256,
+        matrixSha256: fixture.binding.validation.matrixSha256,
+        resultsSha256: fixture.binding.validation.resultsSha256,
+      });
+      expect(
+        await reads.getCase({
+          scopeSha256: sha("d"),
+          repairCaseId: fixture.binding.repairCaseId,
+          caseRevision: 1,
+        }),
+      ).toBeNull();
+      expect(
+        (
+          await reads.listCases({
+            scopeSha256: sha("d"),
+            limit: 10,
+          })
+        ).items,
+      ).toEqual([]);
+
+      const serialized = JSON.stringify(detail);
+      expect(serialized).not.toContain('"binding":');
+      expect(serialized).not.toContain('"request":');
+      expect(serialized).not.toContain('"result":');
+    });
+
+    it("shows current approval without treating the read model as execution authority", async () => {
+      const fixture = await setupFixture();
+      const { approval } = await registerAndApprove(fixture);
+      const reads = createMonitorProfileRepairReadRepository(runtime, {
+        clock: () => new Date(fixture.clockBox.value),
+      });
+
+      const current = await reads.getCase({
+        scopeSha256: fixture.binding.scopeSha256,
+        repairCaseId: fixture.binding.repairCaseId,
+        caseRevision: 1,
+      });
+      expect(current).toMatchObject({
+        caseState: "APPROVAL_CURRENT",
+        staleReasons: [],
+        executionAuthority: false,
+        decision: {
+          id: approval.id,
+          decision: "APPROVED",
+          state: "CURRENT_APPROVED",
+        },
+      });
+
+      const newerRunId = randomUUID();
+      await runtime.query(
+        `UPDATE health_no_session_scope_states SET
+          latest_run_id=$2,
+          latest_normalized_result_sha256=$3,
+          latest_health_state='BROKEN',
+          latest_observed_at=$4,
+          last_attempt_at=$4,
+          last_verified_at=$4
+         WHERE scope_sha256=$1`,
+        [
+          fixture.retentionScope,
+          newerRunId,
+          fixture.normalized,
+          new Date(BASE.valueOf() + 30_000),
+        ],
+      );
+      const sameSemanticState = await reads.getCase({
+        scopeSha256: fixture.binding.scopeSha256,
+        repairCaseId: fixture.binding.repairCaseId,
+        caseRevision: 1,
+      });
+      expect(sameSemanticState).toMatchObject({
+        caseState: "APPROVAL_CURRENT",
+        staleReasons: [],
+        executionAuthority: false,
+        observation: {
+          currentRunId: newerRunId,
+          currentNormalizedStateSha256: fixture.normalized,
+          currentHealthState: "BROKEN",
+        },
+        decision: { state: "CURRENT_APPROVED" },
+      });
+    });
+
+    it("surfaces expired, revoked and rejected decisions explicitly", async () => {
+      const expiredFixture = await setupFixture();
+      const expired = await registerAndApprove(expiredFixture);
+      const expiredReads = createMonitorProfileRepairReadRepository(runtime, {
+        clock: () => new Date(Date.parse(expired.approval.expiresAt)),
+      });
+      expect(
+        await expiredReads.getCase({
+          scopeSha256: expiredFixture.binding.scopeSha256,
+          repairCaseId: expiredFixture.binding.repairCaseId,
+          caseRevision: 1,
+        }),
+      ).toMatchObject({
+        caseState: "APPROVAL_EXPIRED",
+        decision: { state: "EXPIRED" },
+        executionAuthority: false,
+      });
+
+      const revokedFixture = await setupFixture();
+      const revoked = await registerAndApprove(revokedFixture);
+      await revokedFixture.repository.revokeDecision({
+        approvalId: revoked.approval.id,
+        actorPrincipalId: IDS.principal,
+      });
+      const revokedReads = createMonitorProfileRepairReadRepository(runtime, {
+        clock: () => new Date(revokedFixture.clockBox.value),
+      });
+      expect(
+        await revokedReads.getCase({
+          scopeSha256: revokedFixture.binding.scopeSha256,
+          repairCaseId: revokedFixture.binding.repairCaseId,
+          caseRevision: 1,
+        }),
+      ).toMatchObject({
+        caseState: "APPROVAL_REVOKED",
+        decision: { state: "REVOKED" },
+        executionAuthority: false,
+      });
+
+      const rejectedFixture = await setupFixture();
+      const registered = await rejectedFixture.repository.registerCandidate({
+        binding: rejectedFixture.binding,
+      });
+      const rejectedRequest: MonitorProfileRepairDecisionRequestV1 = {
+        idempotencyKey: randomUUID(),
+        repairCaseId: rejectedFixture.binding.repairCaseId,
+        expectedCaseRevision: 1,
+        expectedBindingSha256: registered.bindingSha256,
+        decision: "REJECTED",
+        manualCheck: {
+          checkedBindingSha256: registered.bindingSha256,
+          checklistSha256: sha("0"),
+          result: "PASS",
+        },
+      };
+      await rejectedFixture.repository.recordDecision({
+        request: rejectedRequest,
+        operatorPrincipalId: IDS.principal,
+      });
+      const rejectedReads = createMonitorProfileRepairReadRepository(runtime, {
+        clock: () => new Date(rejectedFixture.clockBox.value),
+      });
+      expect(
+        await rejectedReads.getCase({
+          scopeSha256: rejectedFixture.binding.scopeSha256,
+          repairCaseId: rejectedFixture.binding.repairCaseId,
+          caseRevision: 1,
+        }),
+      ).toMatchObject({
+        caseState: "REJECTED",
+        decision: { decision: "REJECTED", state: "REJECTED" },
+        executionAuthority: false,
+      });
+    });
+
+    it("marks an approved case stale when authoritative observation changes", async () => {
+      const fixture = await setupFixture();
+      await registerAndApprove(fixture);
+      await runtime.query(
+        `UPDATE health_no_session_scope_states
+         SET latest_health_state='UNKNOWN'
+         WHERE scope_sha256=$1`,
+        [fixture.retentionScope],
+      );
+      const reads = createMonitorProfileRepairReadRepository(runtime, {
+        clock: () => new Date(fixture.clockBox.value),
+      });
+      const detail = await reads.getCase({
+        scopeSha256: fixture.binding.scopeSha256,
+        repairCaseId: fixture.binding.repairCaseId,
+        caseRevision: 1,
+      });
+      expect(detail).toMatchObject({
+        caseState: "APPROVAL_STALE",
+        executionAuthority: false,
+        decision: { state: "STALE_APPROVED" },
+      });
+      expect(detail?.staleReasons).toContain("CURRENT_OBSERVATION_CHANGED");
+    });
+
+    it("shows committed rollout identity as applied while keeping execution authority false", async () => {
+      const fixture = await setupFixture();
+      const { approval } = await registerAndApprove(fixture);
+      const applied = await fixture.repository.applyInitialRollout({
+        repairCaseId: fixture.binding.repairCaseId,
+        caseRevision: 1,
+        approvalId: approval.id,
+        actorPrincipalId: IDS.principal,
+      });
+      fixture.clockBox.value = new Date(
+        fixture.clockBox.value.valueOf() + 60 * 1_000,
+      );
+      await fixture.repository.recordDecision({
+        request: {
+          idempotencyKey: randomUUID(),
+          repairCaseId: fixture.binding.repairCaseId,
+          expectedCaseRevision: 1,
+          expectedBindingSha256: approval.bindingSha256,
+          decision: "REJECTED",
+          manualCheck: {
+            checkedBindingSha256: approval.bindingSha256,
+            checklistSha256: sha("1"),
+            result: "PASS",
+          },
+        },
+        operatorPrincipalId: IDS.principal,
+      });
+      const reads = createMonitorProfileRepairReadRepository(runtime, {
+        clock: () => new Date(fixture.clockBox.value),
+      });
+      const detail = await reads.getCase({
+        scopeSha256: fixture.binding.scopeSha256,
+        repairCaseId: fixture.binding.repairCaseId,
+        caseRevision: 1,
+      });
+      expect(detail).toMatchObject({
+        caseState: "APPLIED",
+        staleReasons: [],
+        executionAuthority: false,
+        candidate: { state: "PUBLISHED" },
+        decision: { id: approval.id, state: "CURRENT_APPROVED" },
+        operation: {
+          id: applied.operationId,
+          approvalId: approval.id,
+          kind: "INITIAL_ROLLOUT",
+          state: "COMMITTED",
+          publishedProfileRevisionId: applied.publishedProfileRevisionId,
+          assignmentRevisionId: applied.assignmentRevisionId,
+        },
+        assignment: {
+          currentRevision: applied.assignmentRevision,
+          currentRevisionId: applied.assignmentRevisionId,
+          currentMode: "ROLLOUT",
+          currentCandidateProfileRevisionId:
+            fixture.binding.candidate.profileRevisionId,
+          currentPercentageBps: fixture.binding.assignment.initialPercentageBps,
+        },
+      });
     });
 
     it("pins repair evidence during GC while pruning unrelated evicted routine payload", async () => {
