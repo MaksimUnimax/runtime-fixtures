@@ -68,15 +68,21 @@ Pinned toolchain: Node 24.20.0 / pnpm 10.34.5.
 
 Final disposable PostgreSQL evidence:
 
-- fresh migration/schema/idempotency after the final FK/delete-guard change: **3/3 PASS**, supervisor `octoport-test-b-a6caed95b1d842a7b3b6df0027069344.service`;
-- final NO_SESSION persistence/retention/GC/no-replay matrix: **7/7 PASS**, supervisor `octoport-test-b-53255f34c3d240cca13595e044d42da5.service`;
-- 0051 -> 0052 upgrade + receipt backfill + restart-idempotent compact projection: **1/1 PASS**, and durable scheduler regression: **17/17 PASS**, supervisor `octoport-test-b-8db00b3271734c31ac749e9cfa43490b.service`.
+One final sequential disposable-PostgreSQL supervisor `octoport-test-b-a304672938c145ac9e5dd689144c5544.service` proves the final migration/guard set end to end:
+
+- fresh migration/schema/idempotency: **3/3 PASS**;
+- NO_SESSION persistence/retention/GC/no-replay matrix: **7/7 PASS**;
+- 0051 -> 0052 upgrade + receipt backfill + restart-idempotent compact projection: **1/1 PASS**;
+- durable scheduler regression: **17/17 PASS**;
+- exit 0, cleanup verified.
 
 The 7/7 matrix proves concurrent identical saves coalesce, max-three ring, UNKNOWN/baseline separation, direct unsafe mutation rejection, persist-to-incident crash protection, incident and pending-notification pins, explicit raw payload GC, exact late callback replay from receipt, duplicate callback vs prune, duplicate callback vs receipt retirement, retire-vs-materialize serialization, old-revision no-replay, higher-revision admission, persisted-terminal recovery protection and SEND_UNCERTAIN no-replay after terminal metadata retirement.
 
-A read-only exact review of source commit `8ca5ac2a61d92ed5c29051bf01f1f8ad0e3546ef` with pinned `gpt-6-luna` found one HIGH: direct SQL could delete `health_scheduled_runs` after payload GC while its replay receipt still existed. The follow-up closes this with `health_no_session_run_receipts.scheduled_run_id -> health_scheduled_runs.id ON DELETE RESTRICT` plus a DB `BEFORE DELETE` guard on scheduler rows requiring a covering watermark and absence of persisted payload/replay authority. The final 7/7 matrix proves direct scheduler DELETE fails both while a pruned receipt exists and for terminal `SEND_UNCERTAIN` before watermark retirement.
+A read-only exact review of source commit `8ca5ac2a61d92ed5c29051bf01f1f8ad0e3546ef` with pinned `gpt-6-luna` found one HIGH: direct SQL could delete `health_scheduled_runs` after payload GC while its replay receipt still existed. The follow-up closed direct deletion with `health_no_session_run_receipts.scheduled_run_id -> health_scheduled_runs.id ON DELETE RESTRICT` plus a DB `BEFORE DELETE` guard on scheduler rows requiring a covering watermark and absence of persisted payload/replay authority.
 
-Final local quality supervisor `octoport-test-b-2fe8d81d20da43128fd0e7ca5f21ade0.service`:
+A second read-only exact review of follow-up commit `3ed0cab5ba48ee50563752dbbb19878edd78804d` confirmed the delete HIGH was closed but found another HIGH: direct SQL could mutate scheduler identity (`schedule_id`/revision/due slot/target identity), free the old unique tuple, then rematerialize it before retirement. The final follow-up adds a DB `BEFORE UPDATE` identity guard that freezes scheduler identity while leaving lifecycle/lease/result fields mutable. The 7/7 matrix now proves direct scheduler DELETE and direct identity UPDATE both fail for receipt-backed rows and terminal `SEND_UNCERTAIN`, while higher legitimate schedule revisions remain materializable.
+
+Final local quality supervisor `octoport-test-b-ce0234e59dc1484dac4d525f7a0b48f9.service`:
 
 - DB unit: **31/31 PASS**;
 - DB typecheck PASS;

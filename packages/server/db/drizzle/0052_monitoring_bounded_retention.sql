@@ -270,6 +270,29 @@ CREATE TRIGGER health_schedule_retention_watermark_guard
 BEFORE INSERT OR UPDATE OR DELETE ON "health_schedule_retention_watermarks"
 FOR EACH ROW EXECUTE FUNCTION health_schedule_retention_watermark_guard();
 --> statement-breakpoint
+CREATE FUNCTION health_scheduled_run_identity_guard() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.id=OLD.id
+     AND NEW.schedule_id=OLD.schedule_id
+     AND NEW.monitor_target=OLD.monitor_target
+     AND NEW.provider=OLD.provider
+     AND NEW.surface=OLD.surface
+     AND NEW.probe_layer=OLD.probe_layer
+     AND NEW.schedule_revision=OLD.schedule_revision
+     AND NEW.due_slot_at=OLD.due_slot_at
+     AND NEW.idempotency_key=OLD.idempotency_key
+     AND NEW.created_at=OLD.created_at
+  THEN
+    RETURN NEW;
+  END IF;
+  RAISE EXCEPTION 'health scheduled run identity is immutable' USING ERRCODE='55000';
+END;
+$$;
+--> statement-breakpoint
+CREATE TRIGGER health_scheduled_run_identity_guard
+BEFORE UPDATE ON "health_scheduled_runs"
+FOR EACH ROW EXECUTE FUNCTION health_scheduled_run_identity_guard();
+--> statement-breakpoint
 CREATE FUNCTION health_scheduled_run_retention_delete_guard() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
   IF EXISTS (

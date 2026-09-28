@@ -1260,6 +1260,12 @@ describe.sequential("C04 no-session persistence PostgreSQL acceptance", () => {
     ).rejects.toBeInstanceOf(Error);
     await expect(
       runtime.query(
+        "UPDATE health_scheduled_runs SET due_slot_at=due_slot_at + interval '1 second' WHERE id=$1",
+        [repeatedSchedules[1]!.id],
+      ),
+    ).rejects.toBeInstanceOf(Error);
+    await expect(
+      runtime.query(
         "DELETE FROM health_no_session_run_receipts WHERE run_id=$1",
         [secondRepeated.healthRunId],
       ),
@@ -1713,6 +1719,12 @@ describe.sequential("C04 no-session persistence PostgreSQL acceptance", () => {
       runtime.query("DELETE FROM health_scheduled_runs WHERE id=$1", [
         uncertainSchedule.id,
       ]),
+    ).rejects.toBeInstanceOf(Error);
+    await expect(
+      runtime.query(
+        "UPDATE health_scheduled_runs SET schedule_revision=schedule_revision+1 WHERE id=$1",
+        [uncertainSchedule.id],
+      ),
     ).rejects.toBeInstanceOf(Error);
 
     const terminalRetired = await retention.retireTerminalScheduledRun({
