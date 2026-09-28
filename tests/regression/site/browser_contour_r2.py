@@ -89,7 +89,7 @@ CHECK = r'''(() => {
   return {name:label.innerText,rect:r,slot,labelRect:l,textCenterError:Math.abs(text.x+text.width/2+scrollX-r.x-r.w/2),labelTop:(l.y-r.y)/r.h,slotTop:(slot.y-r.y)/r.h,font:getComputedStyle(label).fontSize,color:getComputedStyle(e).color,bg:getComputedStyle(e).backgroundColor,bgImage:getComputedStyle(e).backgroundImage};
  });
  const under=document.querySelector('.contour-underlay'),grip=document.querySelector('.contour-grips');
- const manual={count:document.querySelectorAll('.contour-manual-r7').length,underTag:under?.tagName.toLowerCase(),gripTag:grip?.tagName.toLowerCase(),underColor:getComputedStyle(under).color,gripColor:getComputedStyle(grip).color,outline:getComputedStyle(document.querySelector('.r7-arm-outline')).stroke,core:getComputedStyle(document.querySelector('.r7-arm-core')).stroke,head:getComputedStyle(document.querySelector('.r7-head')).stroke,cup:getComputedStyle(document.querySelector('.r7-cups ellipse')).stroke,gripOutline:getComputedStyle(document.querySelector('.r7-grip-outline')).stroke,gripCore:getComputedStyle(document.querySelector('.r7-grip-core')).stroke,paths:under.querySelectorAll('path').length,ellipses:under.querySelectorAll('ellipse').length,images:under.querySelectorAll('image').length+grip.querySelectorAll('image').length,externalUses:[...under.querySelectorAll('use'),...grip.querySelectorAll('use')].filter(u=>(u.getAttribute('href')||'').startsWith('/')).length};
+ const manual={count:document.querySelectorAll('.contour-manual-r8').length,underTag:under?.tagName.toLowerCase(),gripTag:grip?.tagName.toLowerCase(),underColor:getComputedStyle(under).color,gripColor:getComputedStyle(grip).color,outline:getComputedStyle(document.querySelector('.r8-arm-shape')).stroke,core:getComputedStyle(document.querySelector('.r8-undersides path')).stroke,head:getComputedStyle(document.querySelector('.r8-head')).stroke,cup:getComputedStyle(document.querySelector('.r8-cups ellipse')).stroke,gripOutline:getComputedStyle(document.querySelector('.r8-grip-outline')).stroke,gripCore:getComputedStyle(document.querySelector('.r8-grip-core')).stroke,paths:under.querySelectorAll('path').length,ellipses:under.querySelectorAll('ellipse').length,images:under.querySelectorAll('image').length+grip.querySelectorAll('image').length,externalUses:[...under.querySelectorAll('use'),...grip.querySelectorAll('use')].filter(u=>(u.getAttribute('href')||'').startsWith('/')).length};
  return {r3,width:innerWidth,cw:document.documentElement.clientWidth,sw:document.documentElement.scrollWidth,scene:rect(scene),copy:rect(copy),hero:rect(hero),stacked:rect(scene).y>=rect(copy).bottom,sceneBackground:getComputedStyle(scene).backgroundColor,pageBackground:getComputedStyle(page).backgroundColor,marks,markets,manual,badgeRects:badges.map(rect),h1:document.querySelector('h1').innerText,canonical:document.querySelector('link[rel=canonical]').href,font:document.fonts.check('400 16px Rubik','Октопорт'),images:[...document.images].every(i=>i.complete&&i.naturalWidth>0)};
 })()'''
 
@@ -101,7 +101,7 @@ def checks(d):
  assert m['count']==2 and m['underTag']=='svg' and m['gripTag']=='svg',('manual vector layers missing',m)
  assert m['underColor']==expected_ink and m['gripColor']==expected_ink,('manual svg color mismatch',m,expected_ink)
  assert m['outline']==expected_ink and m['head']==expected_ink and m['cup']==expected_ink and m['gripOutline']==expected_ink,('ink token mismatch',m)
- assert m['core']==d['pageBackground'] and m['gripCore']==d['pageBackground'],('paper token mismatch',m,d['pageBackground'])
+ assert m['core']==expected_ink and m['gripCore']==d['pageBackground'],('manual layer token mismatch',m,d['pageBackground'],expected_ink)
  assert m['paths']>=15 and m['ellipses']>=35,('manual geometry incomplete',m)
  assert m['images']==0 and m['externalUses']==0,('raster/external art leaked into manual SVG',m)
  assert abs(d['scene']['w']/d['scene']['h']-559/419)<.001,('reference aspect ratio',d['scene'])
@@ -207,7 +207,7 @@ try:
   b.close();b=None
   print('BROWSER_PASS',name,'states',len(results),flush=True)
  (OUT/'results.json').write_text(json.dumps({'status':'PASS','url':BASE,'results':results,'hover':hover,'pixel_samples':pixels},ensure_ascii=False,indent=2))
- print('CONTOUR_MANUAL_R7_PASS',len(results),'states',len(hover),'hover/focus pairs',str(OUT),flush=True)
+ print('CONTOUR_MANUAL_R8_PASS',len(results),'states',len(hover),'hover/focus pairs',str(OUT),flush=True)
 except Exception:
  (OUT/'partial.json').write_text(json.dumps({'status':'FAIL','url':BASE,'results':results,'hover':hover},ensure_ascii=False,indent=2));raise
 finally:

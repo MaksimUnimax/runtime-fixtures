@@ -392,16 +392,17 @@ p,li { line-height:1.65; }
 .theme-checkbox:checked + .page .brand-ozon { color:#4e93ff; }
 .theme-checkbox:checked + .page .brand-wildberries { color:#f15cdd; }
 
-/* R7: manually redrawn smooth SVG mascot. No raster tracing; controls remain independent DOM links. */
-.contour-manual-r7 { color:var(--scene-ink); shape-rendering:geometricPrecision; }
-.r7-orbit path { fill:none; stroke:var(--scene-ink); stroke-width:1.55; stroke-linecap:round; }
-.r7-orbit circle,.r7-star,.r7-eye { fill:var(--scene-ink); }
-.r7-star.small { opacity:.96; }
-.r7-arm-outline,.r7-grip-outline { fill:none; stroke:var(--scene-ink); stroke-width:29; stroke-linecap:round; stroke-linejoin:round; }
-.r7-arm-core,.r7-grip-core { fill:none; stroke:var(--scene-paper); stroke-width:20; stroke-linecap:round; stroke-linejoin:round; }
-.r7-arm.lower .r7-arm-outline { stroke-width:32; }
-.r7-arm.lower .r7-arm-core { stroke-width:23; }
-.r7-cups ellipse,.r7-grip-cup { fill:var(--scene-paper); stroke:var(--scene-ink); stroke-width:2.25; }
-.r7-head { fill:var(--scene-paper); stroke:var(--scene-ink); stroke-width:3.6; stroke-linejoin:round; }
-.r7-head-detail { fill:none; stroke:var(--scene-ink); stroke-width:1.45; stroke-linecap:round; }
-.r7-eye-glint { fill:var(--scene-paper); }
+
+/* R8: manually redrawn smooth SVG mascot; broad Bezier tentacles, no raster trace. */
+.contour-manual-r8 { color:var(--scene-ink); shape-rendering:geometricPrecision; }
+.r8-orbit path { fill:none; stroke:var(--scene-ink); stroke-width:1.55; stroke-linecap:round; }
+.r8-orbit circle,.r8-star,.r8-eye { fill:var(--scene-ink); }
+.r8-star.small { opacity:.96; }
+.r8-arm-shape { fill:var(--scene-paper); stroke:var(--scene-ink); stroke-width:3.15; stroke-linejoin:round; }
+.r8-undersides path { fill:none; stroke:var(--scene-ink); stroke-width:7; stroke-linecap:round; }
+.r8-cups ellipse,.r8-grip-cup { fill:var(--scene-paper); stroke:var(--scene-ink); stroke-width:1.75; }
+.r8-head { fill:var(--scene-paper); stroke:var(--scene-ink); stroke-width:3.5; stroke-linejoin:round; }
+.r8-head-detail { fill:none; stroke:var(--scene-ink); stroke-width:1.4; stroke-linecap:round; }
+.r8-eye-glint { fill:var(--scene-paper); }
+.r8-grip-outline { fill:none; stroke:var(--scene-ink); stroke-width:24; stroke-linecap:round; stroke-linejoin:round; }
+.r8-grip-core { fill:none; stroke:var(--scene-paper); stroke-width:16.5; stroke-linecap:round; stroke-linejoin:round; }

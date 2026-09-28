@@ -93,3 +93,7 @@ Contour R5 strengthens only the static illustration ink alpha so the reference-d
 The accepted Contour octopus is now rendered from real SVG path geometry rather than raster theme layers. The SVG shares the exact scene color token with the independent DOM controls; foreground WB/Ozon grips remain a separate static SVG layer. Rebuild and acceptance details: `docs/design/CONTOUR_VECTOR_R6_2026-09-27.md`.
 
 R6 fresh-main reconciliation: public tree 4894605f58e35077ba50279b1826f145d68d6d09 remained unchanged while syncing server/monitoring main drift.
+
+### Contour Manual R8
+
+The homepage mascot is hand-authored inline SVG geometry rather than a traced raster. Smooth Bézier tentacles and vector suction cups share the same scene color tokens as the independent DOM controls. Acceptance: `docs/design/CONTOUR_MANUAL_R8_2026-09-28.md`.

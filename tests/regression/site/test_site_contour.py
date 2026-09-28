@@ -35,9 +35,9 @@ class ContourSourceTests(unittest.TestCase):
         self.assertNotIn('reference-art.js',self.html)
         self.assertNotIn('background-position',self.css)
         self.assertNotIn('engraving-3-underlay',self.html)
-    def test_r7_manual_svg_redraw_and_integrity(self):
-        under=re.search(r'(<svg class="contour-underlay contour-manual-r7".*?</svg>)',self.html,re.S)
-        grips=re.search(r'(<svg class="contour-grips contour-manual-r7".*?</svg>)',self.html,re.S)
+    def test_r8_manual_svg_redraw_and_integrity(self):
+        under=re.search(r'(<svg class="contour-underlay contour-manual-r8".*?</svg>)',self.html,re.S)
+        grips=re.search(r'(<svg class="contour-grips contour-manual-r8".*?</svg>)',self.html,re.S)
         self.assertIsNotNone(under); self.assertIsNotNone(grips)
         u=under.group(1); g=grips.group(1)
         for svg in (u,g):
@@ -47,19 +47,19 @@ class ContourSourceTests(unittest.TestCase):
             self.assertNotIn('.webp',svg)
         self.assertGreaterEqual(u.count(' C'),16)
         self.assertGreaterEqual(u.count('<ellipse '),30)
-        self.assertIn('r7-arm-upper-left',u)
+        self.assertIn('r8-arm-top-l',u)
         self.assertIn('translate(559 0) scale(-1 1)',u)
-        self.assertIn('r7-wb-grip',g)
+        self.assertIn('r8-wb-grip',g)
         self.assertNotIn('contour-vector-r6.svg',self.html)
         self.assertNotIn('contour-reference-r5-',self.html)
         self.assertNotIn('contour-grips-r5-',self.html)
 
-    def test_r7_palette_is_shared_with_dom_controls(self):
-        self.assertIn('.contour-manual-r7 { color:var(--scene-ink);',self.css)
-        self.assertIn('.r7-arm-outline,.r7-grip-outline',self.css)
+    def test_r8_palette_is_shared_with_dom_controls(self):
+        self.assertIn('.contour-manual-r8 { color:var(--scene-ink);',self.css)
+        self.assertIn('.r8-arm-shape',self.css)
         self.assertIn('stroke:var(--scene-ink)',self.css)
-        self.assertIn('.r7-arm-core,.r7-grip-core',self.css)
-        self.assertIn('stroke:var(--scene-paper)',self.css)
+        self.assertIn('.r8-undersides path',self.css)
+        self.assertIn('stroke:var(--scene-ink)',self.css)
         self.assertIn('--scene-ink:#10243c',self.css)
         self.assertIn('--scene-ink:#ebffff',self.css)
 
