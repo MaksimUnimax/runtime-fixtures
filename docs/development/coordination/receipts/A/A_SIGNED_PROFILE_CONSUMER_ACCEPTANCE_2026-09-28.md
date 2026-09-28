@@ -286,3 +286,48 @@ It does **not** establish:
 
 Alice remains `PROFILE_UNSUPPORTED` by design for this boundary.
 Installed owner/authenticated validation remains on the separate owner-test roadmap.
+
+## Post-merge exact-head revalidation
+
+After the acceptance receipt was first committed, A independently revalidated the
+current merged product bytes before final handoff.
+
+Focused source/extracted lifecycle gates on the current tree:
+- worker signed-profile contract: 8/8 PASS on SOURCE and EXTRACTED;
+- content signed-profile lifecycle: 10/10 PASS on SOURCE and EXTRACTED;
+- live provider calls: 0;
+- installed acceptance: false.
+
+A fresh controlled real-MV3 run rebuilt the current tree with one ephemeral Ed25519
+LOCAL_DEVELOPMENT trust key and ran `profile-dom-consumer.py` on SOURCE and EXTRACTED:
+- both returned `WIRED`;
+- baseline signed profile allowed packaged ChatGPT composer behavior;
+- second valid signed accessibility-role profile changed the packaged behavior and
+  failed closed without sending;
+- provider calls: 0;
+- private key removed by job cleanup.
+
+Resource job:
+`/root/octoport-control/resource-jobs/8fef18514172490ca1fac0ac4263aadf/receipt.json`.
+Exit 0, OOM 0, cleanup verified, peak 390070272 bytes.
+
+Result SHA-256:
+- SOURCE: `b0cf22800c6e08493d08598ad8d2f090f2d4127fb88148b7962a88937a14a40d`;
+- EXTRACTED: `1abcd9d48232fee6b548e355f63930aa0dad52eb79db0c5b69f3fc6667f54e76`.
+
+A also reran the full `extension_core` suite on the current merged product bytes:
+- D2.4 PASS;
+- 139 gate processes;
+- live provider calls 0;
+- installed acceptance false;
+- repeat archive identity PASS;
+- SOURCE/EXTRACTED byte identity PASS;
+- package SHA-256 `d1fe63e67bc2c8c380c66a7739c9b35b45ff70933fa18dfbd12be02da0e8d58a`;
+- summary SHA-256 `e7168019d0a16a2bec45a7b04690dac4b0f99e267deb2216603174d7d69ff8de`.
+
+Resource job:
+`/root/octoport-control/resource-jobs/47480bc0964441a3a504548c8df1175d/receipt.json`.
+Exit 0, OOM 0, cleanup verified, peak 173015040 bytes.
+
+This revalidation does not upgrade SOURCE/PACKAGE/controlled-MV3 evidence to
+installed STORE, LIVE_OWNER or DEPLOYMENT acceptance.
