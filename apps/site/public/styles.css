@@ -572,3 +572,9 @@ p,li { line-height:1.65; }
 .analysis-flow dd { margin:0; color:var(--muted); }
 .result-note { padding:18px; border-left:3px solid var(--accent); background:var(--soft); border-radius:0 10px 10px 0; }
 @media (max-width:620px) { .capability-group > summary { padding:18px; } .capability-group > summary h3 { font-size:18px; } .capability-group .capability-grid { grid-template-columns:minmax(0,1fr); padding:14px; } .analytics-case { padding:20px; } .analysis-flow { grid-template-columns:minmax(0,1fr); gap:6px; } .analysis-flow dd { margin-bottom:14px; } .page-actions { align-items:stretch; } .page-actions .button { width:100%; } }
+
+/* Accepted meditating Octoport logo: keep the navy mark readable in dark theme. */
+.theme-checkbox:checked + .page .brand-logo,
+.theme-checkbox:checked + .page .browser-icons .octo-mini {
+  filter: brightness(0) invert(1);
+}

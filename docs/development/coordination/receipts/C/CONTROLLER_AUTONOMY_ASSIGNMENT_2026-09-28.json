@@ -1,0 +1,235 @@
+{
+  "version": 1,
+  "authority": "Owner direct instruction 2026-09-28 17:23+05: unattended A/B/C continuation; future direct new-dialogue bootstrap starts each role once; later STOP prevails.",
+  "effective_policy": "/root/octoport-control/incidents/autonomy-handoff-20260928T1224Z/UNATTENDED_CONTINUATION_POLICY.md",
+  "not_a_resume": true,
+  "preserve_stops": true,
+  "common": [
+    "Each task may be deferred individually; no owner/controller response is a prerequisite for another READY task.",
+    "Normal C technical intake and compatible assignments continue without controller attendance; explicit safety holds, ordinary human auth and manual production approval remain.",
+    "Use canonical owner advance authority0932; B02 statement that catalog needs a new separate permission is superseded. Actual ordinary-admin/auth preflight remains necessary.",
+    "Keep frozen STORE026/backend620 stable unless the newly authorized technical-auth capability requires a narrowly reviewed compatible successor; do not combine unrelated live changes.",
+    "Latest authority OWNER-AUTONOMOUS-OCTOPORT-TEST-AUTH-20260928-1244 supersedes owner-visible GUI/manual OTP prerequisite for technical checks. Manual user-login acceptance remains separate. No invented authenticated state.",
+    "Controller12:53Z obtained REAL_PORTAL_SESSION_READY via normal OTP API for exact verified owner identity from protected intake. No new account/auth capability is needed for current technical run; do not build one merely to replace available session."
+  ],
+  "A": {
+    "first": "A_AUTO_REAL_TEST_SESSION_026",
+    "tasks": [
+      {
+        "id": "A_AUTO_REAL_TEST_SESSION_026",
+        "plan": "A06",
+        "state": "READY_AFTER_RESUME",
+        "outcome": "Bind exact installed STORE026 to the already-issued real technical portal session without owner GUI, then authenticated controls and permitted read-only marketplace/useful scenario.",
+        "acceptance": [
+          "Ready session reference /root/octoport-control/profiles/A/owner-test-opera-026-technical/portal-session.json (0600), evidence incident/technical-auth-receipt.json; expires2026-10-05T12:53:27Z. This is the specifically authorized verified owner account with separate non-admin session, not a new reviewer identity. Do not print or paste cookies/tokens. Preserve runtime path and use a separate persistent technical browser profile0700.",
+          "First prepare isolated protected profile and bounded virtual-display helper; coordinate exact protected session handoff with C. Change the existing helper's blanket OWNER_MANUAL_ONLY assumption only for this explicit technical mode, preserving separate evidence labels.",
+          "Real portal/session, account membership, device approval, token exchange, signed config and client state must come from supported backend code. Never set authenticated/workAllowed directly or replace STORE trust.",
+          "Receipt must say AUTOMATED_TECHNICAL_AUTH with actual environment, account reference, source/package/browser, tested controls and untested email delivery/human login/ChatGPT login.",
+          "Marketplace keys are read from protected owner-provided files with established account/store provenance; no values in reports. If a provider session is unavailable, continue remaining controls and read-only API tests."
+        ]
+      },
+      {
+        "id": "A_AUTO_PROFILE_INSTALLED_LIFECYCLE",
+        "plan": "A04",
+        "roadmap": "S1/S2",
+        "state": "READY_AFTER_RESUME",
+        "outcome": "Close the currently explicit INSTALLED gap for the accepted signed-profile consumer, using a real installed LOCAL_DEVELOPMENT extension in isolated Opera/Firefox with lawful local fixture authority; provider calls0.",
+        "basis": "A_SIGNED_PROFILE_CONSUMER_ACCEPTANCE_2026-09-28 explicitly says installed acceptance false after SOURCE/EXTRACTED/controlled real-MV3. This is a different unproven boundary, not rerunning139gates.",
+        "paths": [
+          "apps/extension/**",
+          "packages/control-client/**",
+          "packages/ai-adapters/**",
+          "tests/regression/extension-core/**",
+          "docs/development/coordination/receipts/A/**"
+        ],
+        "acceptance": [
+          "Use exact pinned candidate c683a0d3 and relevant accepted descendants; read actual pending intake/new main before selecting a compatible base. Freeze source/tree/build/hash/browser and assert actual extension installation/worker/content bridge.",
+          "Valid profile affects packaged DOM behavior; active Work defers new profile until Finish and obtains fresh authority; stale response/revocation/navigation/worker restart cannot resurrect it; signed permitted rollback works.",
+          "Use supervised virtual display for synthetic tests; it need not be visible to owner. Never substitute it for actual owner login. Test key only LOCAL_DEVELOPMENT, external network denied, no production session/STORE trust modification.",
+          "Record missing browser-only behaviors and implement a minimal correct fix if reproduced; exact source/package delta handed directly to C. Do not claim STORE/live approval."
+        ]
+      },
+      {
+        "id": "A_AUTO_REPAIR_BEHAVIOR_MATRIX",
+        "plan": "A04",
+        "roadmap": "S1/S2",
+        "state": "READY_AFTER_RESUME",
+        "outcome": "Provide C a reproducible behavior matrix for profile-based repair versus harmless DOM changes, on the existing ChatGPT packaged adapter and exact test candidate.",
+        "basis": "Approved monitoring architecture requires baseline/change/behavior/tested candidate/manual approval, while current acceptance is separate source tests rather than one consumable installed behavior proof.",
+        "paths": [
+          "packages/ai-adapters/**",
+          "tests/regression/extension-core/**",
+          "docs/development/coordination/receipts/A/**"
+        ],
+        "acceptance": [
+          "Reuse existing accepted sanitized DOM fixtures/reproducer; no new invented provider facts. Exercise unchanged baseline, cosmetic change, important DOM break, valid candidate, invalid/stale/scope-mismatched profile, rollback.",
+          "Include regression that whole-response Copy must not become Copy-code and preserve no-replay/explicit Finish. Distinguish what packaged symbolic profiles can repair from cases requiring a new extension build.",
+          "Agree machine-readable evidence identity with C using existing accepted contracts; if a shared field is missing, send exact peer request and complete independent browser/test work.",
+          "No live ChatGPT account, owner GUI, store submission, or controller response required for this bounded fixture+installed-test work. Keep original ordinary-auth manual gate OPEN."
+        ]
+      }
+    ],
+    "deferred": [
+      {
+        "id": "A_MANUAL_EMAIL_LOGIN",
+        "blocked_action": "Human acceptance of ordinary email login UX/delivery only",
+        "owner": "OWNER_LATER",
+        "unblock_when": "Owner returns to inspect ordinary email login",
+        "note": "Not a prerequisite for automated technical authenticated tests under1244 authority; C supplies supported technical account/session."
+      }
+    ]
+  },
+  "B": {
+    "first": "B_AUTO_RETENTION_MAINTENANCE",
+    "tasks": [
+      {
+        "id": "B_AUTO_RETENTION_MAINTENANCE",
+        "plan": "B06",
+        "roadmap": "S0",
+        "state": "READY_AFTER_RESUME",
+        "outcome": "Implement a bounded operational entry point for already accepted B18 retention APIs, for C to wire into the isolated monitoring pilot.",
+        "basis": "Controller git grep on B found no callers of createHealthRetentionRepository/backfillNoSessionCompactProjection/reconcileLegacyNoSessionIncidentProcessing in tooling or apps. Live pilot still has raw observations and no compact scope table.",
+        "paths": [
+          "tooling/server/**",
+          "packages/server/db/**",
+          "tests/integration/server/**",
+          "docs/development/coordination/receipts/B/**"
+        ],
+        "acceptance": [
+          "Reuse existing B18 repositories, scheduling locks, keyset inventory,1h raw-payload grace and8d anti-replay receipt boundary. No new storage architecture or blind SQL deletion.",
+          "One finite run: inspect/preflight, bounded idempotent backfill, bounded silent historical incident reconciliation, eligibility inventory, approved finite prune/retire batches; respect active incident/approval/late callback pins and schedule watermarks.",
+          "Dry-run is genuinely read-only. Apply has existing authority/DB identity checks hard-pinned to isolated pilot, caps/deadline/cursor/result. Errors/MISSING_AUTHORITY return nonzero; no production test-env override.",
+          "Disposable PostgreSQL proof:0051→0052 legacy history, >3 identical observations compact, important incident/repair evidence preserved, failures/restart/retry no duplicate notifications/provider sends, pinned-first pages do not starve later eligible records.",
+          "Send exact API/CLI contract and candidate to C early. B does not mutate live DB or add a second daemon/poller; C alone activates after technical acceptance."
+        ]
+      },
+      {
+        "id": "B_AUTO_REPAIR_OPERATOR_READ_MODEL",
+        "plan": "B06",
+        "roadmap": "S2",
+        "state": "READY_AFTER_RESUME",
+        "outcome": "Add the missing DB-backed read projection needed for an operator to inspect a repair case and approval before existing B19 commands are invoked.",
+        "basis": "Current admission repository exposes registerCandidate/recordDecision/revokeDecision/applyInitialRollout but no bounded case list/detail read path. Existing S2 requires reviewable exact candidate/evidence/manual decision; C will own operator integration.",
+        "paths": [
+          "packages/server/db/**",
+          "tooling/server/**",
+          "tests/integration/server/**",
+          "docs/development/coordination/receipts/B/**"
+        ],
+        "acceptance": [
+          "First reuse any equivalent existing query elsewhere; if already complete, identify exact consumer and hand it to C without rewriting.",
+          "Read-only bounded pagination, stable ordering, exact candidate/binding/incident/test-evidence/decision/operation identity, explicit expiry/staleness/revocation state. Reuse existing current authorization/scoping patterns; never expose unrelated accounts or raw secrets.",
+          "Commands and authoritative decision/apply validation stay separate; a displayed READY is not permission to bypass server recheck. No migration unless a concrete need is established; B remains sole schema author.",
+          "C owns HTTP/operator DTO/UI and shared-contract assignment if needed. Send a minimal peer contract request and continue the independent DB part; real operator approval remains deferred, not fabricated.",
+          "Disposable tests for pagination, scope isolation, pending/expired/revoked/applied reads and identical-observation stability; no real approval/publish."
+        ]
+      }
+    ],
+    "deferred": [
+      {
+        "id": "B02_LIVE_CATALOG",
+        "blocked_action": "Live catalog activation by C through ordinary admin preflight",
+        "owner": "C_OWNER_AUTH_CONTEXT",
+        "unblock_when": "Required authenticated context and preflight proven",
+        "note": "0932 catalog and1244 technical provisioning/session authority already granted. C executes accepted scoped path, no owner GUI dependency for technical checks."
+      }
+    ]
+  },
+  "C": {
+    "first": "C_AUTO_TECHNICAL_AUTH_HANDOFF",
+    "tasks": [
+      {
+        "id": "C_AUTO_TECHNICAL_AUTH_HANDOFF",
+        "plan": "C04",
+        "state": "READY_AFTER_RESUME",
+        "outcome": "Consume controller's REAL_PORTAL_SESSION_READY receipt, coordinate A normal device binding, execute already-authorized technical owner-test catalog preflight/activation through existing normal admin APIs; no new auth deployment required.",
+        "acceptance": [
+          "Read technical-auth-receipt.json: portal session exists for exact verified owner identity; no dedicated new account needed now. Current backend620 remains ready, no auth redeployment assigned.",
+          "Provide A protected session-file reference and independently complete existing owner-test catalog/config/profile preflight. If admin elevation is required for accepted activation, use C's separate session context via normal endpoint; never return admin cookies to extension.",
+          "Do not label existing owner technical account as store-reviewer identity. Actual manual email login/store-reviewer usability stays unproven. Closed beta, audience/account scope, valid config signature and exact STORE026 restrictions remain.",
+          "If source helper assumes OWNER_MANUAL_ONLY, ask A to add explicitly authorized automated technical mode; no authenticated-state flags or trust replacement. Controller's normal OTP/session and account-read proof does not prove installed extension binding.",
+          "While blocked on actual code, intake coordination candidate and continue S0/S2 without waiting owner/controller."
+        ]
+      },
+      {
+        "id": "C_AUTO_COORDINATION_AND_INTAKE",
+        "plan": "C02",
+        "state": "READY_AFTER_RESUME",
+        "outcome": "Independently review/intake this controller coordination candidate and pending exact A/B changes; keep main advancing safely while owner login is deferred.",
+        "paths": [
+          "tooling/coordination/**",
+          "docs/development/coordination/**",
+          "AGENTS.md"
+        ],
+        "acceptance": [
+          "Read actual fresh state: owner-test620 already recovered,prefix40. Do not follow stale stop text that says no apply or rerun22→40.",
+          "Review waiting/resume guard and run focused tests; integrate docs/prompts/policy by ordinary exact5CI ready-main non-force workflow; A/B may follow current durable assignment before code is in main.",
+          "B19 exact03cd/source1136 has controller5-focused real-PG PASS; A2242 SOURCE accepted plus pending c683 profile lineage. Read exact diff and reject stale superseded candidates; no need controller return for routine technical intake.",
+          "Keep frozen026/backend620 separate; do not ship a new product backend or0053 to live merely from merging source. Keep controller architectural review requests visible.",
+          "Give A/B precise file/interface assignments and peer responses instead of waiting for a controller."
+        ]
+      },
+      {
+        "id": "C_AUTO_PILOT_RETENTION_ACTIVATION",
+        "plan": "C04",
+        "roadmap": "S0",
+        "state": "PREPARE_NOW_APPLY_AFTER_B_ACCEPTANCE",
+        "outcome": "Finish the already-authorized isolated pilot retention rollout so routine public observations no longer grow without a bound.",
+        "paths": [
+          "apps/health-runner/**",
+          "apps/telegram-operator/**",
+          "apps/worker/src/health-notification*",
+          "packages/server/health/**",
+          "tooling/operations/**",
+          "docs/development/coordination/receipts/C/**"
+        ],
+        "acceptance": [
+          "Read current pilot data/runtime, preserve backup and accepted schema lineage. Prepare current runbook/activation checks while B writes bounded entry point.",
+          "After B candidate acceptance, run existing authorized pilot-only migration/maintenance path with finite batches and durable before/after counts. Keep product_control_plane and product3units unchanged; one Telegram poller.",
+          "Prove actual routine payload compaction/pruning with active incident/anti-replay/manual decision proof preserved; do not equate SOURCE or three ring rows with actual legacy cleanup.",
+          "Wire finite periodic maintenance into existing runtime lifecycle, with measured caps and nonoverlap. No unbounded loops or second service duplicating the poller.",
+          "Human ChatGPT H3 session remains separately deferred; public S0 maintenance does not depend on it."
+        ]
+      },
+      {
+        "id": "C_AUTO_REPAIR_OPERATOR_INTEGRATION",
+        "plan": "C04",
+        "roadmap": "S2",
+        "state": "READY_PREPARATION_AFTER_RESUME",
+        "outcome": "Integrate accepted repair-admission contract into an operator test path: inspect exact candidate and tests, manual decision, guarded initial release and rollback.",
+        "paths": [
+          "packages/server/monitoring-control/**",
+          "packages/server/health/**",
+          "apps/admin/app/health/**",
+          "apps/admin/lib/health*",
+          "apps/api/src/health-admin*",
+          "apps/telegram-operator/**",
+          "tests/e2e/server/health*",
+          "docs/development/coordination/receipts/C/**"
+        ],
+        "acceptance": [
+          "Use already accepted architecture/contracts and B19 exact binding; do not create a new arbitrary patch channel. Ask B for DB read/write needs and A for exact browser behavior evidence.",
+          "User-facing messages in plain Russian: what changed, what was tested/not tested, which exact candidate would be applied, whether operator approval is missing; no technical JSON dump.",
+          "Automated/disposable operator-path tests may use explicit test principals; never call them actual human approval. Production publish remains gated by real required approval and exact evidence.",
+          "At any dependency on B/A or owner, prepare independent UI/router/contract tests or return to intake/C03; preserve all security/permission/expiry/replay checks."
+        ]
+      }
+    ],
+    "deferred": [
+      {
+        "id": "C_HUMAN_STORE_REVIEWER",
+        "blocked_action": "Human email-login acceptance or actual store account action requiring human",
+        "owner": "OWNER_LATER",
+        "unblock_when": "Owner returns/required store access available",
+        "note": "Technical Octoport login/catalog path now autonomous under1244authority; no repeat permission."
+      },
+      {
+        "id": "C_H3_HUMAN_SESSION",
+        "blocked_action": "Dedicated legitimate ChatGPT Standard login/2FA",
+        "owner": "OWNER",
+        "unblock_when": "Trusted graphical session available and human performs login",
+        "note": "No public VNC or seeding private sessions; no dependency for S0/no-session checks."
+      }
+    ]
+  }
+}

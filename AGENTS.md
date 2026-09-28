@@ -67,3 +67,7 @@ At every controller review inspect disk/inodes, MemAvailable, swap/PSI/OOM and p
 ## Owner early store publication priority
 
 At EVERY controller review assess and report extension store readiness alongside resources. Follow docs/development/coordination/STORE_POLICY.md. Owner confirms publisher registration for chosen stores except Safari and authorizes early submission/publication as soon as each channel meets its minimum working, security, privacy and reviewer requirements. Do not wait for full roadmap completion, all browsers or C06. Report exact submission blockers, next action/owner, real store state and needed owner input; promptly fix small independent blockers in an isolated assigned scope while A/B/C continue. Preserve quality, existing audience limits, integration rules and separate production authority. Early approval does not guarantee zero review delay on updates.
+
+## Уточнение владельца: самостоятельная работа без ожидания — 2026-09-28
+
+Применять [UNATTENDED_CONTINUATION_POLICY.md](docs/development/coordination/UNATTENDED_CONTINUATION_POLICY.md). Недоступность владельца/контроллера блокирует только зависимое действие: сохранить точный запрос, перейти к следующему доступному результату; A/B/C координируются напрямую. Общий WAITING_INPUT требует полного свежего обоснования, а повтор старого transfer/resume не снимает более поздний STOP. Текущие кандидаты и принятые требования сохраняются.
