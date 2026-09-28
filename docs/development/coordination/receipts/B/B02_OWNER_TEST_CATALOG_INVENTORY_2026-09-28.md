@@ -78,4 +78,3 @@ There is no further independent B source task that can be executed honestly unde
 2. a separately authorized owner-test catalog activation operation;
 3. a precise B-owned server/DB/API blocker from the owner-test/reviewer path;
 4. a measured B07 beta regression.
-
