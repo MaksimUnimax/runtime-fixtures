@@ -31,6 +31,7 @@
     "packages/control-client/src/browser-identity.js",
     "packages/control-client/src/technical-data-consent.js",
     "packages/control-client/src/local-client-authority.js",
+    "packages/control-client/src/signed-ai-profile-consumer.js",
     "packages/bridge-core/src/stores/backup.js",
     "packages/control-client/src/packaged-capabilities.js",
     "packages/control-client/src/client.js",
@@ -181,6 +182,8 @@
   },
   "application_files": {
     "shared/bootstrap_verifier.js": ["packages/control-client/src/crypto.js"],
+    "shared/signed_ai_profile_consumer.js": ["packages/control-client/src/signed-ai-profile-consumer.js"],
+    "shared/signed_ai_profile_runtime.js": ["apps/extension/src/content/signed-profile-runtime.js"],
     "shared/application.js": [
       "packages/bridge-core/src/stores/catalog.js",
       "packages/bridge-core/src/sync/reconciliation.js",

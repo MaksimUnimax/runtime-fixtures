@@ -826,6 +826,185 @@ async function saGuard(owner) {
   await guard.assertCurrent();
   return Object.freeze({ ...guard, async assertDispatchAuthority() { return saEvaluateDispatchAuthority(owner); }, async settings() { await guard.assertCurrent(); return settings; } });
 }
+const SA_SIGNED_PROFILE_ORIGINS = new Set(["https://chatgpt.com", "https://chat.openai.com"]);
+function saProfileClone(value) { return value == null ? value : JSON.parse(JSON.stringify(value)); }
+function saSignedProfileUnavailable(request, reason) {
+  return {
+    messageType: "OZ_SIGNED_AI_PROFILE",
+    protocolVersion: SellerAgentsSignedAiProfileConsumer.PROTOCOL_VERSION,
+    requestId: request.requestId,
+    ai: saProfileClone(request.ai),
+    status: "UNAVAILABLE",
+    reason
+  };
+}
+function saSignedProfileSender(sender) {
+  if (sender?.id !== chrome.runtime.id || sender?.frameId !== 0 || !Number.isSafeInteger(sender?.tab?.id)) return null;
+  if (typeof sender.documentId !== "string" || !/^[A-Za-z0-9._:-]{1,256}$/.test(sender.documentId)) return null;
+  try {
+    const url = new URL(sender.url || sender.tab.url || "");
+    if (!SA_SIGNED_PROFILE_ORIGINS.has(url.origin.toLowerCase())) return null;
+    return { tabId: Number(sender.tab.id), documentId: sender.documentId, origin: url.origin.toLowerCase() };
+  } catch (_) { return null; }
+}
+function saSignedProfileIdentity(profile) {
+  return {
+    profileKey: profile?.profileKey || null,
+    revision: profile?.revision ?? null,
+    scopeVariant: profile?.scopeVariant ?? null,
+    contentSha256: profile?.contentSha256 || null
+  };
+}
+function saSignedProfileAuthorityIdentity(generation, authority) {
+  return {
+    authGeneration: generation,
+    bootstrapSnapshotSha256: null,
+    authorityIdentity: saAuthorityIdentity(authority)
+  };
+}
+function saSameSignedProfileAuthority(left, right) {
+  return Boolean(left && right &&
+    left.authGeneration === right.authGeneration &&
+    left.bootstrapSnapshotSha256 === right.bootstrapSnapshotSha256);
+}
+function saSameSignedProfileIdentity(left, right) {
+  return Boolean(left && right &&
+    left.profileKey === right.profileKey &&
+    left.revision === right.revision &&
+    left.scopeVariant === right.scopeVariant &&
+    left.contentSha256 === right.contentSha256);
+}
+async function saSignedProfileSnapshot() {
+  const generation = await SellerAgentsControlClient.generation();
+  const authority = await SellerAgentsControlClient.getAuthority();
+  if (!authority) return null;
+  const snapshot = saSignedProfileAuthorityIdentity(generation, authority);
+  snapshot.bootstrapSnapshotSha256 = await saSnapshotDigest(authority.envelope);
+  return { generation, authority, snapshot };
+}
+async function saSignedProfileSnapshotStillCurrent(captured) {
+  if (!captured) return false;
+  const current = await saSignedProfileSnapshot().catch(() => null);
+  return Boolean(current &&
+    current.generation === captured.generation &&
+    current.snapshot.authorityIdentity === captured.snapshot.authorityIdentity &&
+    current.snapshot.bootstrapSnapshotSha256 === captured.snapshot.bootstrapSnapshotSha256);
+}
+async function saSignedProfileRequest(message, sender) {
+  const consumer = globalThis.SellerAgentsSignedAiProfileConsumer;
+  if (!consumer?.validRequest?.(message)) throw saError("SIGNED_PROFILE_REQUEST_INVALID");
+  const trusted = saSignedProfileSender(sender);
+  if (!trusted) throw saError("SIGNED_PROFILE_SENDER_UNTRUSTED");
+  if (message.ai.family !== "chatgpt") return saSignedProfileUnavailable(message, "PROFILE_UNSUPPORTED");
+
+  let identity;
+  try { identity = await tabIdentity(trusted.tabId); }
+  catch (_) { return saSignedProfileUnavailable(message, "AI_SCOPE_MISMATCH"); }
+  if (identity?.ai_id !== "chatgpt" || String(identity.origin || "").toLowerCase() !== trusted.origin)
+    return saSignedProfileUnavailable(message, "AI_SCOPE_MISMATCH");
+
+  const captured = await saSignedProfileSnapshot().catch(() => null);
+  if (!captured) return saSignedProfileUnavailable(message, "NO_VERIFIED_AUTHORITY");
+  if (!await SellerAgentsControlClient.canWork()) return saSignedProfileUnavailable(message, "WORK_NOT_ALLOWED");
+
+  const payload = captured.authority?.payload;
+  const detected = payload?.ai?.detected;
+  const profile = payload?.ai?.profile;
+  if (payload?.ai?.status !== "RESOLVED" || !detected || !profile)
+    return saSignedProfileUnavailable(message, "NO_VERIFIED_AUTHORITY");
+  if (captured.authority?.requestedAi !== "chatgpt" ||
+      detected.family !== "chatgpt" || detected.surface !== "web" || detected.variant !== null ||
+      message.ai.family !== detected.family || message.ai.surface !== detected.surface || message.ai.variant !== detected.variant)
+    return saSignedProfileUnavailable(message, "AI_SCOPE_MISMATCH");
+  if (!await consumer.validMaterial(profile)) return saSignedProfileUnavailable(message, "PROFILE_UNSUPPORTED");
+  if (!await saSignedProfileSnapshotStillCurrent(captured))
+    return saSignedProfileUnavailable(message, "AUTHORITY_CHANGED");
+
+  const response = {
+    messageType: "OZ_SIGNED_AI_PROFILE",
+    protocolVersion: consumer.PROTOCOL_VERSION,
+    requestId: message.requestId,
+    ai: saProfileClone(message.ai),
+    status: "AVAILABLE",
+    authority: {
+      authGeneration: captured.generation,
+      bootstrapSnapshotSha256: captured.snapshot.bootstrapSnapshotSha256
+    },
+    profile: saProfileClone(profile)
+  };
+  if (!await consumer.validResponse(response)) return saSignedProfileUnavailable(message, "PROFILE_UNSUPPORTED");
+  return response;
+}
+async function saSignedProfileReceipt(message, sender) {
+  const consumer = globalThis.SellerAgentsSignedAiProfileConsumer;
+  if (!consumer?.validReceipt?.(message)) throw saError("SIGNED_PROFILE_RECEIPT_INVALID");
+  const trusted = saSignedProfileSender(sender);
+  if (!trusted) throw saError("SIGNED_PROFILE_SENDER_UNTRUSTED");
+  let identity;
+  try { identity = await tabIdentity(trusted.tabId); }
+  catch (_) { return { ok: false, accepted: false, code: "AI_SCOPE_MISMATCH" }; }
+  if (identity?.ai_id !== message.ai.family || String(identity.origin || "").toLowerCase() !== trusted.origin)
+    return { ok: false, accepted: false, code: "AI_SCOPE_MISMATCH" };
+
+  if (message.status === "REJECTED") return { ok: true, accepted: true };
+  const captured = await saSignedProfileSnapshot().catch(() => null);
+  const canWork = captured ? await SellerAgentsControlClient.canWork() : false;
+  const payload = captured?.authority?.payload;
+  const detected = payload?.ai?.detected;
+  const profile = payload?.ai?.profile;
+  const scopeMatches = Boolean(detected &&
+    detected.family === message.ai.family && detected.surface === message.ai.surface && detected.variant === message.ai.variant &&
+    captured?.authority?.requestedAi === message.ai.family);
+
+  if (message.status === "CLEARED") {
+    if (canWork && scopeMatches && payload?.ai?.status === "RESOLVED" && profile &&
+        await consumer.validMaterial(profile)) return { ok: false, accepted: false, code: "STALE_REQUEST" };
+    return { ok: true, accepted: true };
+  }
+  if (!captured || !canWork || !scopeMatches || payload?.ai?.status !== "RESOLVED" || !profile ||
+      !await consumer.validMaterial(profile)) return { ok: false, accepted: false, code: "STALE_REQUEST" };
+
+  const currentAuthority = {
+    authGeneration: captured.generation,
+    bootstrapSnapshotSha256: captured.snapshot.bootstrapSnapshotSha256
+  };
+  if (!saSameSignedProfileAuthority(message.authority, currentAuthority) ||
+      !saSameSignedProfileIdentity(message.profile, saSignedProfileIdentity(profile)))
+    return { ok: false, accepted: false, code: "STALE_REQUEST" };
+  return { ok: true, accepted: true };
+}
+async function saBroadcastSignedProfileRefresh(reason = "authority_changed") {
+  const boundedReason = reason === "profile_changed" ? "profile_changed" : "authority_changed";
+  const tabs = await chrome.tabs.query({ url: ["https://chatgpt.com/*", "https://chat.openai.com/*"] }).catch(() => []);
+  await Promise.allSettled(tabs.filter(tab => Number.isSafeInteger(tab?.id))
+    .map(tab => tabMessage(tab.id, { type: "OZ_SIGNED_AI_PROFILE_REFRESH", reason: boundedReason })));
+}
+
+async function saEnsureTabSignedProfile(tabId, fence) {
+  if (fence?.aiId !== "chatgpt") return true;
+  const expected = {
+    authority: {
+      authGeneration: fence.generation,
+      bootstrapSnapshotSha256: fence.bootstrapSnapshotSha256
+    },
+    profile: {
+      profileKey: fence.aiProfileKey,
+      revision: fence.aiProfileRevision,
+      scopeVariant: fence.aiProfileScopeVariant,
+      contentSha256: fence.aiProfileContentSha256
+    }
+  };
+  const response = await tabMessage(normalizeTabId(tabId), {
+    type: "OZ_SIGNED_AI_PROFILE_ENSURE",
+    expected
+  }).catch(() => null);
+  if (!response?.ok || response.applied !== true ||
+      !saSameSignedProfileAuthority(response.authority, expected.authority) ||
+      !saSameSignedProfileIdentity(response.profile, expected.profile))
+    throw saAdmissionError("SIGNED_PROFILE_NOT_APPLIED");
+  return true;
+}
+
 async function saPublicContext(key) {
   const binding = key ? await bindingForConversationKey(key) : null;
   const work = key ? await workSessionFor(key) : null;
@@ -866,7 +1045,10 @@ async function saInvalidateAuthority() {
     try { await clearPendingWorkStart(Number(tab), start.intent_id, start.revision, "authority_changed"); } catch (_) { /* stale pending state is harmless */ }
   }
 }
-SellerAgentsControlClient.onAuthorityChanged(() => saInvalidateAuthority());
+SellerAgentsControlClient.onAuthorityChanged(async (_authority, reason) => {
+  if (reason !== "profile_changed") await saInvalidateAuthority();
+  queueMicrotask(() => { void saBroadcastSignedProfileRefresh(reason); });
+});
 function saSupportCode(value) {
   const code = typeof value === "string" ? value : "";
   return /^[A-Z][A-Z0-9_]{0,79}$/.test(code) ? code : null;
@@ -1005,6 +1187,8 @@ async function saWorkStart(message, sender) {
           await saRebindAfterFinishGuard(admission.token);
         }
         await saAdmissionMutationGuard({ operation: "start", tabId: message.tab_id, conversationKey: admission.snapshot.key, intentId });
+        await saEnsureTabSignedProfile(message.tab_id, admission.snapshot.fence);
+        await saAdmissionMutationGuard({ operation: "start", tabId: message.tab_id, conversationKey: admission.snapshot.key, intentId });
         return saLegacyMessage({ type: "OZ_WORK_START", tab_id: message.tab_id, start_intent_id: intentId, admission_provenance: provenance }, sender);
       });
     } finally { saReleaseAdmission(admission.token); saStarts.delete(Number(message.tab_id)); }
@@ -1029,12 +1213,16 @@ async function saWorkResume(message, sender) {
     const provenance = await saAdmissionProvenanceSeed(admission, "resume", intentId);
     try {
       await saAdmissionMutationGuard({ operation: "resume", tabId: tab, conversationKey: key });
+      await saEnsureTabSignedProfile(tab, admission.snapshot.fence);
+      await saAdmissionMutationGuard({ operation: "resume", tabId: tab, conversationKey: key });
       return await saRunAdmissionMutation(admission.token, () => saLegacyMessage({ type: "OZ_WORK_RESUME", tab_id: tab, conversation_key: key, admission_provenance: provenance }, sender));
     } finally { saReleaseAdmission(admission.token); }
   });
 }
 async function saHandleMessage(message, sender) {
   const enabled = await saEnabled();
+  if (message?.messageType === "OZ_REQUEST_SIGNED_AI_PROFILE") return saSignedProfileRequest(message, sender);
+  if (message?.messageType === "OZ_SIGNED_AI_PROFILE_RECEIPT") return saSignedProfileReceipt(message, sender);
   if (enabled && ["OZ_WORK_RESUME", "OZ_WORK_START"].includes(message?.type)) throw saError("LEGACY_ACTION_DISABLED");
   if (/^OZ_(?:SAVE_|RESET_|CLEAR_|SET_|GET_SETTINGS_STATE|GET_GLOBAL_SETTINGS_STATE|GET_DIAGNOSTICS|BIND_CONVERSATION|TEST_CONNECTION|REFRESH_SELLER_API_METADATA|WORK_START$|WORK_SHOW$|WORK_HIDE$|WORK_FINISH$|WORK_REFRESH$|WORK_RESUME$)/.test(message?.type || "") && !saPopupSender(sender)) throw saError("POPUP_SENDER_REQUIRED");
   if (/^OZ_AUTO_/.test(message?.type || "")) throw saError("LEGACY_ACTION_DISABLED");

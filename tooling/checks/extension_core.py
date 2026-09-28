@@ -54,6 +54,8 @@ def main():
             runner.run(label + "-firefox-local-authority", ["node", ROOT / "tests/regression/extension-core/client-i1/firefox-local-authority.mjs"])
             runner.run(label + "-firefox-privacy-neutral-client", ["node", ROOT / "tests/regression/extension-core/client-i1/firefox-privacy-neutral-client.mjs", runtime])
             runner.run(label + "-client-profile-contract-and-forget", ["node", ROOT / "tests/regression/extension-core/client-i1/client-profile-contract-and-forget.mjs", runtime])
+            runner.run(label + "-signed-profile-consumer", ["node", ROOT / "tests/regression/extension-core/client-i1/signed-profile-consumer.mjs", runtime])
+            runner.run(label + "-signed-profile-runtime", ["node", ROOT / "tests/regression/extension-core/client-i1/signed-profile-runtime.mjs", runtime])
             runner.run(label + "-firefox-popup-consent-source", ["node", ROOT / "tests/regression/extension-core/client-i1/firefox-popup-consent-source.mjs", runtime])
             runner.run(label + "-onboarding", ["node", ROOT / "tests/regression/extension-core/client-i1/client-onboarding.mjs", runtime])
             repo = work / label

@@ -522,6 +522,7 @@ export async function makeWorker(directory, options = {}) {
       },
     },
     runtime: {
+      id: "core-fixture",
       lastError: null,
       getURL: (name) => "chrome-extension://core-fixture/" + name,
       onMessage: {
@@ -550,6 +551,15 @@ export async function makeWorker(directory, options = {}) {
       onRemoved: { addListener() {} },
       sendMessage(id, message, callback) {
         messages.push(structuredClone(message));
+        if (message.type === "OZ_SIGNED_AI_PROFILE_ENSURE") {
+          queueMicrotask(() => callback?.({
+            ok: true,
+            applied: true,
+            authority: structuredClone(message.expected?.authority || null),
+            profile: structuredClone(message.expected?.profile || null),
+          }));
+          return;
+        }
         if (message.type === "OZ_WORK_SEND_INITIAL_PROMPT") {
           void (async () => {
             const fields = {
