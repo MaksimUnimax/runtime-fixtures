@@ -35,35 +35,41 @@ class ContourSourceTests(unittest.TestCase):
         self.assertNotIn('reference-art.js',self.html)
         self.assertNotIn('background-position',self.css)
         self.assertNotIn('engraving-3-underlay',self.html)
-    def test_r9_spline_vector_matches_reference_contract(self):
+    def test_r10_exact_reference_vector_contract(self):
         source=ROOT.parent/'design-sources'
-        m=json.loads((source/'contour-spline-r9.json').read_text())
-        asset=ROOT/'assets/contour-spline-r9.svg'
+        m=json.loads((source/'contour-exact-ref-r10.json').read_text())
+        asset=ROOT/'assets/contour-exact-ref-r10.svg'
         self.assertEqual(hashlib.sha256(asset.read_bytes()).hexdigest(),m['asset_sha256'])
         svg=asset.read_text()
         self.assertIn('<symbol id="underlay"',svg)
-        self.assertIn('<symbol id="grip-paper"',svg)
-        self.assertIn('<symbol id="grip-ink"',svg)
-        self.assertGreater(svg.count('C'),100)
         self.assertNotIn('<image',svg)
         self.assertNotIn('data:image',svg)
         self.assertNotIn('.png',svg)
         self.assertNotIn('.webp',svg)
-        self.assertGreaterEqual(m['underlay_loops'],120)
-        self.assertLessEqual(m['underlay_loops'],180)
-        self.assertLess(m['asset_bytes'],100000)
-        self.assertIn('/assets/contour-spline-r9.svg#underlay',self.html)
-        self.assertIn('/assets/contour-spline-r9.svg#grip-paper',self.html)
-        self.assertIn('/assets/contour-spline-r9.svg#grip-ink',self.html)
-        self.assertNotIn('contour-manual-r8',self.html)
-        self.assertNotIn('contour-vector-r6.svg',self.html)
+        self.assertGreater(svg.count('Q'),100)
+        self.assertLess(len(svg.encode()),100000)
+        self.assertIn('/assets/contour-exact-ref-r10.svg#underlay',self.html)
+        self.assertNotIn('contour-spline-r9.svg',self.html)
+        self.assertNotIn('contour-grips',self.html)
+        self.assertEqual(m['source_reference_size'],[1448,1086])
+        self.assertEqual(m['source_reference_sha256'],'d3ead9dbba9794c57a3ff2b1267b15c36045eadd9922e7d6a8788a071e73c246')
 
-    def test_r9_palette_is_shared_with_dom_controls(self):
-        m=json.loads((ROOT.parent/'design-sources/contour-spline-r9.json').read_text())
+    def test_r10_reference_geometry_and_palette(self):
+        m=json.loads((ROOT.parent/'design-sources/contour-exact-ref-r10.json').read_text())
         self.assertEqual(m['palette'],{'light':'#10243c','dark':'#ebffff'})
-        self.assertIn('.contour-spline-r9 { color:var(--scene-ink);',self.css)
-        self.assertIn('.r9-grip-paper { color:var(--scene-paper);',self.css)
-        self.assertIn('.r9-grip-ink { color:var(--scene-ink);',self.css)
+        self.assertIn('.contour-exact-r10 { color:var(--scene-ink);',self.css)
+        self.assertIn('aspect-ratio:4/3',self.css)
+        expected=m['button_geometry']
+        for name,(left,top,width) in expected.items():
+            block=re.search(r'(?m)^\s*\.pos-'+name+r'\s*\{([^}]+)\}',self.css).group(1)
+            self.assertAlmostEqual(float(re.search(r'left:\s*([\d.]+)%',block).group(1)),left,places=5)
+            self.assertAlmostEqual(float(re.search(r'top:\s*([\d.]+)%',block).group(1)),top,places=5)
+            if name in ('wb','ozon'):
+                self.assertIn('width:18.922652%',self.css)
+            elif name in ('alice','gemini'):
+                self.assertIn('width:12.154696%',self.css)
+            else:
+                self.assertIn('width:12.430939%',self.css)
         self.assertIn('--scene-ink:#10243c',self.css)
         self.assertIn('--scene-ink:#ebffff',self.css)
 
@@ -123,12 +129,10 @@ class ContourSourceTests(unittest.TestCase):
         self.assertIn('background:var(--scene-paper)',self.css)
         self.assertIn('--scene-paper:var(--bg)',self.css)
         grips=[a for t,a in self.tags if t=='svg' and 'contour-grips' in a.get('class','').split()]
-        self.assertEqual(len(grips),1)
-        self.assertEqual(grips[0].get('aria-hidden'),'true')
-        for cls in ['contour-grips','contour-underlay']:
-            block=re.search(r'\.'+cls+r'\s*\{([^}]+)\}',self.css).group(1)
-            self.assertIn('pointer-events:none',block.replace(' ',''))
-            for forbidden in ['transform','transition','animation']:self.assertNotIn(forbidden,block)
+        self.assertEqual(len(grips),0)
+        block=re.search(r'\.contour-underlay\s*\{([^}]+)\}',self.css).group(1)
+        self.assertIn('pointer-events:none',block.replace(' ',''))
+        for forbidden in ['transform','transition','animation']:self.assertNotIn(forbidden,block)
 
     def test_reference_static_layer_has_no_duplicate_discs(self):
         source=ROOT.parent/'design-sources'
@@ -168,7 +172,7 @@ class ContourSourceTests(unittest.TestCase):
         self.assertIn('<span class="brand-wildberries">Wildberries</span>',fragment[0])
 
     def test_r4_theme_aware_rings_and_keyboard_controls(self):
-        self.assertIn('border:clamp(1.4px,.39cqi,3px) solid var(--scene-ink)',self.css)
+        self.assertIn('border:clamp(1.2px,.30cqi,2.1px) solid var(--scene-ink)',self.css)
         self.assertIn('--scene-ink:#10243c',self.css)
         self.assertIn('--scene-ink:#ebffff',self.css)
         self.assertIn('.ai-badge:focus-visible,.market-badge:focus-visible',self.css)
