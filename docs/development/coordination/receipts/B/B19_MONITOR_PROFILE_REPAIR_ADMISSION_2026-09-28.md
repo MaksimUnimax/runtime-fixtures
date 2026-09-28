@@ -184,3 +184,27 @@ Final primary admission PostgreSQL acceptance:
 
 R2 review result is preserved at
 `/root/octoport-control/logs/B/b19-final-review-20260928-r2-result.md`.
+
+
+### R3 exact lock-order delta review
+
+Read-only Codex B review `b19-lock-order-review-20260928-r3` inspected only
+`44aa9e0e61201cae04b743e6d037259c4c8cd2e2..c882321b38a58e43dcedab648728df69c714f59a`.
+
+Verdict: **REVIEW_PASS**, BLOCKING none.
+
+The reviewer independently confirmed:
+- APPLY and REVOKE now both acquire current admin authority before the approval row;
+- permission loss is serialized by the principal-row authority lock;
+- revocation either wins before APPLY's permission check or follows the admitted APPLY transaction;
+- committed operation replay stays read-only/idempotent and performs no new mutation;
+- no new lock cycle with `recordDecision` was identified.
+
+Nonblocking limitation: the concurrent APPLY/REVOKE PostgreSQL case uses
+`Promise.allSettled` and therefore does not force a contested-lock overlap on
+every run. It validates legal outcomes and rejects observed deadlock errors, while
+the lock-order proof itself remains source-backed. No claim of deterministic
+lock-scheduler coverage is made.
+
+Review result:
+`/root/octoport-control/logs/B/b19-lock-order-review-20260928-r3-result.md`.
