@@ -286,13 +286,13 @@ export async function evaluateApiWatchIncidents(input: {
         (open.sourceFamily === null || !acceptedFamilies.has(open.sourceFamily))
       )
         continue;
+      // A repeated source snapshot produces no fresh diff even while the
+      // extension is still incompatible. Only acquisition failures recover
+      // from an acquisition report; operation incidents need accepted repair
+      // evidence from the separate operator/release path.
       if (
         open.incidentType === "WATCH_RUN_FAILED" ||
-        open.incidentType === "SOURCE_AUTHORITY_BLOCKED" ||
-        open.incidentType === "API_CHANGE_BLOCKING" ||
-        open.incidentType === "API_CHANGE_REVIEW_REQUIRED" ||
-        open.incidentType === "RUNTIME_OPERATION_STALE" ||
-        open.incidentType === "RUNTIME_MAPPING_AMBIGUOUS"
+        open.incidentType === "SOURCE_AUTHORITY_BLOCKED"
       ) {
         const resolved = await input.store.resolve(open.incidentKey, now);
         if (resolved && input.notifier)
