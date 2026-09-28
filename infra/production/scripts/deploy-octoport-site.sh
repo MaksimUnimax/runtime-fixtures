@@ -102,7 +102,7 @@ assert_source() {
 
   grep -Fq '<title>ИИ для аналитики маркетплейсов — данные вашего магазина | Octoport</title>' \
     "${SOURCE_SITE}/seller-analytics.html" || fail "seller analytics M12 title is missing"
-  grep -Fq '<h1>Анализируйте данные магазина на Ozon и Wildberries с вашим ИИ</h1>' \
+  grep -Fq '<h1>Анализируйте данные магазина на <span class="brand-ozon" data-marketplace="name">Ozon</span> и <span class="brand-wildberries" data-marketplace="name">Wildberries</span> с вашим ИИ</h1>' \
     "${SOURCE_SITE}/seller-analytics.html" || fail "seller analytics M12 H1 is missing"
   grep -Fq '<link rel="canonical" href="https://octoport.ru/seller-analytics" />' \
     "${SOURCE_SITE}/seller-analytics.html" || fail "seller analytics canonical is missing"

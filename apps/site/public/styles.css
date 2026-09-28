@@ -391,8 +391,8 @@ p,li { line-height:1.65; }
 
 /* Owner R3: slogan is HTML below the unchanged illustration, never baked into it. */
 .contour-slogan { margin:6px 0 0; color:var(--ink); font-size:clamp(20px,2.1vw,28px); font-weight:500; line-height:1.35; text-align:center; text-wrap:balance; }
-.hero-copy .brand-ozon { color:#005bff; }
-.hero-copy .brand-wildberries { color:#bd0ca5; }
+.brand-ozon { color:#005bff; }
+.brand-wildberries { color:#bd0ca5; }
 .theme-checkbox:checked + .page .brand-ozon { color:#4e93ff; }
 .theme-checkbox:checked + .page .brand-wildberries { color:#f15cdd; }
 
