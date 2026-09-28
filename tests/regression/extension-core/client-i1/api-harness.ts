@@ -92,7 +92,7 @@ if (fixtureKeysPath) {
       root: string;
       privateKey: string;
     };
-  } catch (_) {
+  } catch {
     persistedKeys = null;
   }
 }
@@ -275,7 +275,9 @@ function resolvedFixtureProfile() {
   let revision = 1;
   let composerMode: "packaged" | "status_role" = "packaged";
   if (fixtureProfileControlPath) {
-    const value = JSON.parse(readFileSync(fixtureProfileControlPath, "utf8")) as {
+    const value = JSON.parse(
+      readFileSync(fixtureProfileControlPath, "utf8"),
+    ) as {
       revision?: unknown;
       composerMode?: unknown;
     };
@@ -285,25 +287,31 @@ function resolvedFixtureProfile() {
       value.revision < 1
     )
       throw new Error("INVALID_FIXTURE_PROFILE_REVISION");
-    if (value.composerMode !== "packaged" && value.composerMode !== "status_role")
+    if (
+      value.composerMode !== "packaged" &&
+      value.composerMode !== "status_role"
+    )
       throw new Error("INVALID_FIXTURE_PROFILE_MODE");
     revision = value.revision;
     composerMode = value.composerMode;
   }
-  const content = composerMode === "packaged" ? r5bProfileContent : {
-    ...r5bProfileContent,
-    selectors: {
-      ...r5bProfileContent.selectors,
-      composer: {
-        ...r5bProfileContent.selectors.composer,
-        primary: {
-          kind: "accessibility_role_name" as const,
-          role: "status" as const,
-          reference: "composer-root" as const,
-        },
-      },
-    },
-  };
+  const content =
+    composerMode === "packaged"
+      ? r5bProfileContent
+      : {
+          ...r5bProfileContent,
+          selectors: {
+            ...r5bProfileContent.selectors,
+            composer: {
+              ...r5bProfileContent.selectors.composer,
+              primary: {
+                kind: "accessibility_role_name" as const,
+                role: "status" as const,
+                reference: "composer-root" as const,
+              },
+            },
+          },
+        };
   return {
     profileKey: "r5b-chatgpt-profile",
     revision,

@@ -316,3 +316,49 @@ Current classification:
 EXACT STORE AUTOMATED TECHNICAL AUTH + SIGNED CHATGPT PROFILE + AUTHENTICATED LOCAL
 CONTROLS + REAL INSTALLED READ-ONLY PROVIDER CHECK BUTTONS PASS. LIVE AI WORK/H3 AND
 HUMAN/STORE-CHANNEL BOUNDARIES REMAIN OPEN.
+
+## C static-acceptance rework closure
+
+C handoff:
+C-A-A06-CANDIDATE-STATIC-REWORK-20260928-2147.
+
+C rejected the prior candidate only on canonical static acceptance in the A-owned
+tests/regression/extension-core/client-i1/api-harness.ts:
+- Prettier style drift;
+- ESLint no-unused-vars for the catch binding at line 95.
+
+A made the minimal non-semantic repair:
+- replaced the unused catch binding with a bindingless catch;
+- applied canonical Prettier formatting to the existing fixture-profile expression.
+
+Validation used explicitly pinned Node v24.20.0 and pnpm 10.34.5:
+- Prettier --check: PASS;
+- ESLint on api-harness.ts: PASS;
+- py_compile on firefox-functional-harness.py, firefox-functional-run.py,
+  firefox_profile_lifecycle.py and profile-repair-behavior-matrix.py: PASS;
+- git diff --check: PASS.
+
+Focused changed-boundary acceptance:
+firefox-functional-run.py --profile-lifecycle-only with PRODUCT_CONTROL_PLANE_E2E=1
+and the disposable A test database.
+
+Result:
+- PASS;
+- acceptance class INSTALLED_SYNTHETIC_FIREFOX_SIGNED_PROFILE_LIFECYCLE;
+- Firefox 155.0.1;
+- baseline rev1, changed rev2, active-Work deferred rev3, rollback rev1;
+- stale fence rejected;
+- navigation no resurrection;
+- worker restart restored only current profile;
+- revocation no resurrection;
+- provider request count 0;
+- liveProviderCalls 0.
+
+Resource job:
+9a3131031f544f3597e44a89823bf443;
+exit 0, peak 2031 MiB, cleanup verified.
+
+Two earlier focused attempts stopped before test execution on explicit environment
+prerequisites (PRODUCT_CONTROL_PLANE_E2E opt-in, then disposable DB requirement);
+both resource jobs cleaned up successfully. They are environment preflight evidence,
+not product failures.
