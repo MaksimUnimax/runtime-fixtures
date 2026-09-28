@@ -137,27 +137,80 @@ async function analyzeAcceptedOutcome(input: {
 }): Promise<ApiWatchReportSourceOutcome> {
   const { dependencies, outcome, record, previousSnapshots } = input;
   const now = currentTime(dependencies);
+  const documentKey = outcome.documentKey ?? null;
   const snapshot = await promoteAcceptedSnapshot({
     record,
     bytes: outcome.bytes,
     store: dependencies.store,
     snapshotRoot: dependencies.snapshotRoot,
+    documentKey,
     now: () => now,
   });
   const filename = `accepted${extensionFor(outcome)}`;
   const inventory = buildCompleteOperationInventory({
     sourceFamily: outcome.sourceFamily,
+    documentKey,
     snapshotSha256: snapshot.sha256,
     bytes: outcome.bytes,
     filename,
   });
   await dependencies.store.saveInventory(inventory);
-  const previous = previousSnapshots
-    .filter((candidate) => candidate.sourceFamily === outcome.sourceFamily)
-    .sort((a, b) => b.createdAt.valueOf() - a.createdAt.valueOf())[0];
+  const baseline = dependencies.productBaselineRepository
+    ? await dependencies.productBaselineRepository.read({
+        sourceFamily: outcome.sourceFamily,
+        documentKey,
+      })
+    : undefined;
+  const baselineUncertainty = baseline
+    ? null
+    : dependencies.productBaselineRepository
+      ? "PRODUCT_BASELINE_MISSING"
+      : "PRODUCT_BASELINE_REPOSITORY_UNAVAILABLE";
+  const previous = baseline
+    ? previousSnapshots.find(
+        (candidate) => candidate.snapshotId === baseline.snapshotId,
+      )
+    : previousSnapshots
+        .filter(
+          (candidate) =>
+            candidate.sourceFamily === outcome.sourceFamily &&
+            (candidate.documentKey ?? null) === documentKey,
+        )
+        .sort((a, b) => b.createdAt.valueOf() - a.createdAt.valueOf())[0];
+  if (
+    baseline &&
+    (!previous ||
+      previous.sourceFamily !== baseline.sourceFamily ||
+      (previous.documentKey ?? null) !== baseline.documentKey ||
+      previous.sha256 !== baseline.snapshotSha256 ||
+      previous.specVersion !== baseline.snapshotSpecVersion)
+  )
+    return {
+      sourceFamily: outcome.sourceFamily,
+      documentKey,
+      acquisitionOutcome: outcome.kind,
+      authorityStatus: record.authorityStatus,
+      snapshotSha256: snapshot.sha256,
+      inventoryOperationCount: inventory.operationCount,
+      baseSnapshotSha256: baseline.snapshotSha256,
+      diffSha256: null,
+      impactSeverity: "UNKNOWN",
+      blockerCode: null,
+      errorCode: "PRODUCT_BASELINE_REFERENCE_INVALID",
+      changeMode: null,
+      addedCount: null,
+      removedCount: null,
+      changedCount: null,
+      unchangedCount: null,
+      blockingRiskCount: 0,
+      reviewRequiredCount: 0,
+      unknownCount: 1,
+      noPolicyImpactCount: 0,
+    };
   if (!previous)
     return {
       sourceFamily: outcome.sourceFamily,
+      documentKey,
       acquisitionOutcome: outcome.kind,
       authorityStatus: record.authorityStatus,
       snapshotSha256: snapshot.sha256,
@@ -166,7 +219,7 @@ async function analyzeAcceptedOutcome(input: {
       diffSha256: null,
       impactSeverity: null,
       blockerCode: null,
-      errorCode: null,
+      errorCode: baselineUncertainty,
       changeMode: "FIRST_SNAPSHOT",
       addedCount: null,
       removedCount: null,
@@ -180,6 +233,7 @@ async function analyzeAcceptedOutcome(input: {
   if (previous.sha256 === snapshot.sha256)
     return {
       sourceFamily: outcome.sourceFamily,
+      documentKey,
       acquisitionOutcome: outcome.kind,
       authorityStatus: record.authorityStatus,
       snapshotSha256: snapshot.sha256,
@@ -188,7 +242,7 @@ async function analyzeAcceptedOutcome(input: {
       diffSha256: null,
       impactSeverity: null,
       blockerCode: null,
-      errorCode: null,
+      errorCode: baselineUncertainty,
       changeMode: "NO_CHANGE",
       addedCount: 0,
       removedCount: 0,
@@ -204,6 +258,7 @@ async function analyzeAcceptedOutcome(input: {
   // inventories may have been produced before a semantic fingerprint repair.
   const previousInventory = buildCompleteOperationInventory({
     sourceFamily: previous.sourceFamily,
+    documentKey: previous.documentKey ?? null,
     snapshotSha256: previous.sha256,
     bytes: previousBytes,
     filename: previous.artifactPath.endsWith(".yaml")
@@ -222,6 +277,7 @@ async function analyzeAcceptedOutcome(input: {
   const impact = classifyApiImpact(diff);
   return {
     sourceFamily: outcome.sourceFamily,
+    documentKey,
     acquisitionOutcome: outcome.kind,
     authorityStatus: record.authorityStatus,
     snapshotSha256: snapshot.sha256,
@@ -230,7 +286,7 @@ async function analyzeAcceptedOutcome(input: {
     diffSha256: diff.diffSha256,
     impactSeverity: impact.overallSeverity,
     blockerCode: null,
-    errorCode: null,
+    errorCode: baselineUncertainty,
     changeMode: "CHANGED",
     addedCount: diff.addedCount,
     removedCount: diff.removedCount,
@@ -249,6 +305,7 @@ function blockedOutcome(
 ): ApiWatchReportSourceOutcome {
   return {
     sourceFamily: outcome.sourceFamily,
+    documentKey: outcome.documentKey ?? null,
     acquisitionOutcome: outcome.kind,
     authorityStatus: record?.authorityStatus ?? null,
     snapshotSha256: null,
@@ -352,7 +409,9 @@ export async function runApiWatchReport(input: {
       }
     }
     const usable = sources.filter(
-      (sourceOutcome) => sourceOutcome.snapshotSha256 !== null,
+      (sourceOutcome) =>
+        sourceOutcome.snapshotSha256 !== null &&
+        sourceOutcome.errorCode !== "PRODUCT_BASELINE_REFERENCE_INVALID",
     ).length;
     const state =
       usable === pass.outcomes.length

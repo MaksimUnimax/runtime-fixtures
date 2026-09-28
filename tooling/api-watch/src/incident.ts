@@ -279,6 +279,32 @@ export async function evaluateApiWatchIncidents(input: {
         )
         .map((source) => source.sourceFamily),
     );
+    const familyRows = new Map<
+      SwaggerSourceFamily,
+      ApiWatchReport["sources"]
+    >();
+    for (const source of input.report.sources) {
+      const rows = familyRows.get(source.sourceFamily) ?? [];
+      rows.push(source);
+      familyRows.set(source.sourceFamily, rows);
+    }
+    const verifiedProductRecoveryFamilies = new Set<SwaggerSourceFamily>();
+    for (const [family, rows] of familyRows) {
+      if (
+        rows.length > 0 &&
+        rows.every(
+          (source) =>
+            source.authorityStatus === "AUTHORITY_ACCEPTED" &&
+            source.blockerCode === null &&
+            source.errorCode === null &&
+            source.snapshotSha256 !== null &&
+            source.baseSnapshotSha256 !== null &&
+            source.snapshotSha256 === source.baseSnapshotSha256 &&
+            source.changeMode === "NO_CHANGE",
+        )
+      )
+        verifiedProductRecoveryFamilies.add(family);
+    }
     for (const open of await input.store.listOpen()) {
       if (activeKeys.has(open.incidentKey)) continue;
       if (
@@ -286,14 +312,17 @@ export async function evaluateApiWatchIncidents(input: {
         (open.sourceFamily === null || !acceptedFamilies.has(open.sourceFamily))
       )
         continue;
-      // A repeated source snapshot produces no fresh diff even while the
-      // extension is still incompatible. Only acquisition failures recover
-      // from an acquisition report; operation incidents need accepted repair
-      // evidence from the separate operator/release path.
-      if (
+      const acquisitionRecovered =
         open.incidentType === "WATCH_RUN_FAILED" ||
-        open.incidentType === "SOURCE_AUTHORITY_BLOCKED"
-      ) {
+        open.incidentType === "SOURCE_AUTHORITY_BLOCKED";
+      const productRecovered =
+        open.sourceFamily !== null &&
+        verifiedProductRecoveryFamilies.has(open.sourceFamily) &&
+        (open.incidentType === "API_CHANGE_BLOCKING" ||
+          open.incidentType === "API_CHANGE_REVIEW_REQUIRED" ||
+          open.incidentType === "RUNTIME_OPERATION_STALE" ||
+          open.incidentType === "RUNTIME_MAPPING_AMBIGUOUS");
+      if (acquisitionRecovered || productRecovered) {
         const resolved = await input.store.resolve(open.incidentKey, now);
         if (resolved && input.notifier)
           await input.notifier({ kind: "RESOLVED", incident: resolved });

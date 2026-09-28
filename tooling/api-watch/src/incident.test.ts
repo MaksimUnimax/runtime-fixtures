@@ -160,6 +160,7 @@ function comparableReport(): ApiWatchReport {
     snapshotSha256: "a".repeat(64),
     baseSnapshotSha256: "a".repeat(64),
     blockerCode: null,
+    errorCode: "PRODUCT_BASELINE_REPOSITORY_UNAVAILABLE",
     changeMode: "NO_CHANGE",
     inventoryOperationCount: 1,
     addedCount: 0,
@@ -240,6 +241,89 @@ describe("operation recovery requires accepted compatibility evidence", () => {
       ]);
     },
   );
+
+  it("resolves product incidents after a verified return to the accepted baseline", async () => {
+    const store = new InMemoryApiWatchIncidentStore();
+    const notify = vi.fn().mockResolvedValue(undefined);
+    const changed = comparableReport();
+    changed.reportId = "changed";
+    changed.sources[0]!.changeMode = "CHANGED";
+    await evaluateApiWatchIncidents({
+      report: changed,
+      store,
+      notifier: notify,
+      crosswalkRows: [
+        {
+          crosswalkId: "return-row",
+          reportId: "changed",
+          sourceFamily: "OZON_SELLER",
+          sourceIdentity: "OZON_SELLER:GET:/x",
+          runtimeAlias: "seller_info",
+          crosswalkState: "MAPPED_ENABLED",
+          reviewState: "BLOCKING_RISK",
+          executionEnabled: true,
+          impactSeverity: "BLOCKING_RISK",
+          diffSha256: "d".repeat(64),
+          createdAt: new Date(1),
+        },
+      ],
+      now: new Date(1),
+    });
+    expect(await store.listOpen()).toHaveLength(1);
+
+    const recovered = comparableReport();
+    recovered.reportId = "restored";
+    recovered.sources[0]!.errorCode = null;
+    await evaluateApiWatchIncidents({
+      report: recovered,
+      store,
+      notifier: notify,
+      now: new Date(2),
+    });
+
+    expect(await store.listOpen()).toHaveLength(0);
+    expect(notify.mock.calls.map(([event]) => event.kind)).toEqual([
+      "OPENED",
+      "RESOLVED",
+    ]);
+  });
+
+  it("does not resolve a product incident when one document in the family is uncertain", async () => {
+    const store = new InMemoryApiWatchIncidentStore();
+    const changed = comparableReport();
+    changed.reportId = "changed";
+    changed.sources[0]!.changeMode = "CHANGED";
+    await evaluateApiWatchIncidents({
+      report: changed,
+      store,
+      crosswalkRows: [
+        {
+          crosswalkId: "multi-doc-row",
+          reportId: "changed",
+          sourceFamily: "OZON_SELLER",
+          sourceIdentity: "OZON_SELLER:GET:/x",
+          runtimeAlias: "seller_info",
+          crosswalkState: "MAPPED_ENABLED",
+          reviewState: "BLOCKING_RISK",
+          executionEnabled: true,
+          impactSeverity: "BLOCKING_RISK",
+          diffSha256: "d".repeat(64),
+          createdAt: new Date(1),
+        },
+      ],
+    });
+
+    const recovered = comparableReport();
+    recovered.sources[0]!.documentKey = "public";
+    recovered.sources[0]!.errorCode = null;
+    recovered.sources.push({
+      ...recovered.sources[0]!,
+      documentKey: "private",
+      errorCode: "PRODUCT_BASELINE_MISSING",
+    });
+    await evaluateApiWatchIncidents({ report: recovered, store });
+    expect(await store.listOpen()).toHaveLength(1);
+  });
 
   it("does not use a completed report for another family as operation recovery", async () => {
     const store = new InMemoryApiWatchIncidentStore();

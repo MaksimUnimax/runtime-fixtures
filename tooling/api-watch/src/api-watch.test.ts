@@ -888,6 +888,33 @@ describe("A2 immutable API specification snapshots", () => {
     }
   });
 
+  it("C03 keeps identical snapshot bytes distinct across document scopes", async () => {
+    const { record, store, pathRoot } = await acceptedRecord();
+    try {
+      const first = await promoteAcceptedSnapshot({
+        record,
+        bytes: OPENAPI_3,
+        store,
+        snapshotRoot: pathRoot,
+        documentKey: "seller-public",
+      });
+      const second = await promoteAcceptedSnapshot({
+        record,
+        bytes: OPENAPI_3,
+        store,
+        snapshotRoot: pathRoot,
+        documentKey: "seller-private",
+      });
+      expect(first.sha256).toBe(second.sha256);
+      expect(first.snapshotId).not.toBe(second.snapshotId);
+      expect(first.documentKey).toBe("seller-public");
+      expect(second.documentKey).toBe("seller-private");
+      expect(await store.listSnapshots()).toHaveLength(2);
+    } finally {
+      await rm(pathRoot, { recursive: true, force: true });
+    }
+  });
+
   it("A2-05 generates family and SHA filename", async () => {
     const { record, store, pathRoot } = await acceptedRecord();
     try {
