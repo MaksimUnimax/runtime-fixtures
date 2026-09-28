@@ -97,3 +97,7 @@ R6 fresh-main reconciliation: public tree 4894605f58e35077ba50279b1826f145d68d6d
 ### Contour Manual R8
 
 The homepage mascot is hand-authored inline SVG geometry rather than a traced raster. Smooth Bézier tentacles and vector suction cups share the same scene color tokens as the independent DOM controls. Acceptance: `docs/design/CONTOUR_MANUAL_R8_2026-09-28.md`.
+
+### Contour R9
+
+The hero mascot uses a smooth spline SVG reconstructed from the accepted reference silhouette. It preserves the established octopus geometry while removing polygonal raster-edge noise. The eight controls remain independent DOM links. See `docs/design/CONTOUR_SPLINE_R9_2026-09-28.md`.
