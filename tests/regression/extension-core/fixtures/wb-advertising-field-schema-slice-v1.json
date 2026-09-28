@@ -122,6 +122,10 @@
           "role": "promotion_statistics_spend_not_actual_cost_ledger",
           "unit": "provider_money_amount"
         },
+        "currency": {
+          "role": "promotion_statistics_currency",
+          "unit": "currency_code_iso_4217"
+        },
         "days.sum_price": {
           "role": "campaign_attributed_order_value_not_store_revenue",
           "unit": "provider_money_amount"
@@ -147,7 +151,7 @@
           "unit": "identifier"
         }
       },
-      "currencyField": null,
+      "currencyField": "currency",
       "actualSpendBoundary": "USE_COST_HISTORY_UPD_SUM_FOR_ACTUAL_PROMOTION_SPEND",
       "completeness": "COMPLETE_CAMPAIGN_ID_SET_CHUNKED_MAX_50_AND_ONLY_STATUSES_7_9_11"
     },
@@ -185,7 +189,7 @@
     "attributedOrderValue": "FULLSTATS_SUM_PRICE_IS_CAMPAIGN_ATTRIBUTION_NOT_STORE_REVENUE",
     "drr": "ACTUAL_PROMOTION_SPEND_DIVIDED_BY_COMPARABLE_OWNER_SELECTED_REVENUE_TIMES_100",
     "denominator": "ZERO_MISSING_UNSELECTED_OR_CURRENCY_MISMATCH_RETURNS_NULL",
-    "currency": "DO_NOT_ASSUME_RUB_WHEN_PROMOTION_RESPONSE_HAS_NO_CURRENCY_FIELD",
+    "currency": "FULLSTATS_USES_RESPONSE_CURRENCY__ACTUAL_COST_HISTORY_REQUIRES_SEPARATE_CURRENCY_CONTEXT",
     "period": "SPEND_AND_REVENUE_MUST_USE_EXPLICIT_COMPARABLE_PERIOD_AND_TIMEZONE_POLICY",
     "missing": "MISSING_NOT_ZERO",
     "cpc": "DO_NOT_REQUIRE_VIEWS_CTR_CPM_FROM_CPC_SEARCH_CLUSTER_STATS"
@@ -241,7 +245,8 @@
       "sum": 120.5,
       "sum_price": 900,
       "clicks": 80,
-      "orders": 9
+      "orders": 9,
+      "currency": "RUB"
     },
     "drr": [
       {

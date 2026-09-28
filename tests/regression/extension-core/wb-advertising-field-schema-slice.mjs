@@ -15,6 +15,11 @@ const coverage = JSON.parse(
 const finance = JSON.parse(
   read("tests/regression/extension-core/fixtures/wb-finance-sales-field-schema-slice-v1.json"),
 );
+const statsGrain = JSON.parse(
+  read(
+    "tests/regression/extension-core/fixtures/wb-advertising-stats-grain-field-schema-slice-v1.json",
+  ),
+);
 
 function loadGlobal(relative, name) {
   const context = {};
@@ -71,7 +76,14 @@ assert.equal(
   stats.fields["days.sum_price"].role,
   "campaign_attributed_order_value_not_store_revenue",
 );
-assert.equal(stats.currencyField, null);
+assert.equal(stats.fields.currency.role, "promotion_statistics_currency");
+assert.equal(stats.fields.currency.unit, "currency_code_iso_4217");
+assert.equal(stats.currencyField, "currency");
+assert.equal(
+  stats.currencyField,
+  statsGrain.sources.promotion.currencyFieldCurrentOpenapi,
+  "promo_fullstats currency must follow the newer pinned current OpenAPI evidence",
+);
 assert.equal(
   stats.actualSpendBoundary,
   "USE_COST_HISTORY_UPD_SUM_FOR_ACTUAL_PROMOTION_SPEND",
@@ -124,6 +136,7 @@ const rank = Object.entries(spend)
 assert.deepEqual(rank, slice.syntheticCases.expectedRank);
 
 const statsRow = slice.syntheticCases.fullStatsRow;
+assert.equal(statsRow.currency, "RUB", "fullstats fixture must carry explicit response currency");
 assert.notEqual(
   statsRow.sum,
   statsRow.sum_price,
@@ -175,7 +188,7 @@ assert.equal(
 );
 assert.equal(
   slice.rules.currency,
-  "DO_NOT_ASSUME_RUB_WHEN_PROMOTION_RESPONSE_HAS_NO_CURRENCY_FIELD",
+  "FULLSTATS_USES_RESPONSE_CURRENCY__ACTUAL_COST_HISTORY_REQUIRES_SEPARATE_CURRENCY_CONTEXT",
 );
 assert.equal(slice.rules.missing, "MISSING_NOT_ZERO");
 
@@ -191,7 +204,7 @@ console.log(
       clusters.operationAlias,
     ],
     actualSpendSource: costs.operationAlias,
-    promotionCurrencyInResponse: false,
+    promotionCurrencyInResponse: true,
     finalRevenueSelected: false,
     acceptedOperationMappingChanged: false,
     liveValues: false,
