@@ -35,3 +35,18 @@ There is no foreground tentacle layer attached to a control. The static referenc
   - Opera: `540ff38e2193c2225d34a079cfda0643dab61422a516cff8d899da4fb61e27eb`
   - Yandex: `ef8f46b3bc90289cb39cfb6c9a0a5de51be9236eabb568e88634604c5a9896d3`
 - SVG SHA-256: `52b811c918bb0bc411093af241229885626488c037e858c78e80552c4fafc217`.
+
+## Production acceptance
+
+Status: PRODUCTION_DEPLOYED / LIVE_QA_PASS.
+
+Production release: `d56ea9603eda2c248ffb78c6a2dfaf0f11cec1ad`.
+Rollback backup: `/var/backups/octoport-site/20260928T033152Z`.
+
+Live Chrome / Opera / Yandex quick QA: 30 states PASS.
+Live independent hover/focus checks: 48/48 PASS.
+
+Live result SHA-256:
+- Chrome: `bed75fb94a5687fa0e672d78a3cc50b06cc3ae9153149f705eb12cee9b4afbd0`
+- Opera: `1571fe40f9d538f56922881bd69d50c081befdc45a8eb6afea2d8cce754d653c`
+- Yandex: `5af118738c0c801a054c48113f0162f5b02388cc82a3f23d81a79fa492cbec52`
