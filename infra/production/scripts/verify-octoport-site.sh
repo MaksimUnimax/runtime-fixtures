@@ -144,8 +144,8 @@ check_site_content() {
     || fail "homepage owner-approved title is missing"
   grep -Fq '<h1 class="hero-heading">Подключите <span class="hero-ai-list">Алису, ChatGPT,<br />DeepSeek</span></h1>' <<<"${homepage}" \
     || fail "homepage owner-approved H1 is missing"
-  grep -Fq 'Ваш ИИ получает руки для работы с маркетплейсами.' <<<"${homepage}" \
-    || fail "homepage brand subheadline is missing"
+  grep -Fq 'Можно использовать бесплатные аккаунты нейросетей.' <<<"${homepage}" \
+    || fail "homepage owner-approved free-account copy is missing"
   grep -Fq '<link rel="icon" href="/favicon.png" type="image/png" />' <<<"${homepage}" \
     || fail "homepage favicon link is missing"
   grep -Fq 'Набор ещё не открыт' <<<"${homepage}" || fail "homepage beta-state copy is missing"
