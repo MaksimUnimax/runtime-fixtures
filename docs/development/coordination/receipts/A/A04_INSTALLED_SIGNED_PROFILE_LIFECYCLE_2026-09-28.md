@@ -36,6 +36,13 @@ Resource receipt:
 `/root/octoport-control/resource-jobs/b8fb4ba19a2947ca9c98528a0ba0b88c/receipt.json`.
 Supervisor exit `0`, OOM kills `0`, cleanup verified, peak `1795162112` bytes.
 
+The unchanged ordinary installed Firefox functional matrix was also rerun on the same merged HEAD:
+`/root/octoport-control/logs/A/profile-installed-firefox-normal-ab27fb10-r1-wrapper.log`.
+It PASSed with the real extension action popup, active ChatGPT-tab binding, one synthetic WB
+`seller_info` execution and one synthetic Ozon `roles` execution, no replay, and explicit Finish.
+Those marketplace responses were local fixture responses; upstream connections and live provider calls remained `0`.
+Resource job `70fab755bfa246d39645c8c078d4ae05`: exit `0`, OOM `0`, cleanup verified.
+
 The implementation is test-only:
 `api-harness.ts`, `firefox-functional-harness.py`,
 `firefox-functional-run.py`, and `firefox_profile_lifecycle.py`.
