@@ -11,6 +11,7 @@ on:
       - "infra/production/README.md"
       - "tests/regression/site/test_site_deployment.py"
       - "tests/regression/site/test_site_contour.py"
+      - "tests/regression/site/test_site_brand_names.py"
       - ".github/workflows/site-ci.yml"
   push:
     paths:
@@ -22,6 +23,7 @@ on:
       - "infra/production/README.md"
       - "tests/regression/site/test_site_deployment.py"
       - "tests/regression/site/test_site_contour.py"
+      - "tests/regression/site/test_site_brand_names.py"
       - ".github/workflows/site-ci.yml"
   workflow_dispatch:
 
@@ -161,7 +163,7 @@ jobs:
 
           assert parser.html_lang == "ru", f"html lang must be ru, got {parser.html_lang!r}"
           assert parser.canonical == ["https://octoport.ru/"], parser.canonical
-          assert parser.stylesheets == ["/styles.css?v=home-funnel-20260928-r2"], parser.stylesheets
+          assert parser.stylesheets == ["/styles.css?v=brand-names-20260928-r1"], parser.stylesheets
           assert parser.icons == [("/favicon.png", "image/png"), ("/assets/favicon-contour-v1.png", "image/png")], parser.icons
           assert parser.executable_scripts == 0, "M14 must remain executable-JavaScript-free"
           assert len(parser.json_ld) == 1, parser.json_ld
@@ -215,7 +217,7 @@ jobs:
           assert "набор ещё не открыт" in lowered, "site must not imply registration is already live"
           assert "read-only" in lowered, "initial read-only scope must be explicit"
           assert "локаль" in lowered and "ключ" in lowered, "local-key boundary must be visible"
-          assert "Октопорт соединяет ваш кабинет продавца на Ozon или Wildberries с любой нейросетью на ваш выбор." in index
+          assert 'Октопорт соединяет ваш кабинет продавца на <span class="brand-ozon" data-marketplace="name">Ozon</span> или <span class="brand-wildberries" data-marketplace="name">Wildberries</span> с любой нейросетью на ваш выбор.' in index
           assert "/install#api-keys" in parser.hrefs
           assert "Рекламные кампании" in index
           assert "Поисковые запросы" in index
@@ -231,6 +233,7 @@ jobs:
           # Owner-selected variant 2 replaces engraving; retain the static-layer boundary.
           import subprocess
           subprocess.run(["python3", "tests/regression/site/test_site_contour.py"], check=True)
+          subprocess.run(["python3", "tests/regression/site/test_site_brand_names.py"], check=True)
 
           required_sections = {"top", "features", "how", "employee", "privacy", "beta"}
           assert required_sections.issubset(parser.ids), f"missing sections: {required_sections - parser.ids}"
@@ -307,7 +310,7 @@ jobs:
                       "обычной работе",
                       "технический срок хранения один час",
                       "Просроченный результат уже нельзя использовать",
-                      "Backend Octoport не сохраняет Ozon/Wildberries реквизиты",
+                      'Backend Octoport не сохраняет <span class="brand-ozon" data-marketplace="name">Ozon</span>/<span class="brand-wildberries" data-marketplace="name">Wildberries</span> реквизиты',
                       "необработанные деловые отчёты или файлы",
                       "архив AI-разговоров",
                       "DOM-данные или снимки страниц, просматриваемых пользователем, включая страницы с данными покупателей",
@@ -368,12 +371,12 @@ jobs:
               assert page_parser.html_lang == "ru", f"{page_name}: html lang must be ru"
               assert page_parser.canonical == [spec["canonical"]], \
                   f"{page_name}: unexpected canonical {page_parser.canonical}"
-              assert page_parser.stylesheets == ["/styles.css?v=home-funnel-20260928-r2"], \
+              assert page_parser.stylesheets == ["/styles.css?v=brand-names-20260928-r1"], \
                   f"{page_name}: shared stylesheet link is missing"
               assert page_parser.executable_scripts == 0, f"{page_name}: executable JavaScript is forbidden"
               assert page_parser.json_ld == [], f"{page_name}: unexpected page-level JSON-LD"
               assert f"<title>{spec['title']}</title>" in html, f"{page_name}: title is missing"
-              assert len(page_parser.h1) == 1 and "".join(page_parser.h1) == spec["h1"], \
+              assert len(re.findall(r"<h1(?:\s|>)", html)) == 1 and "".join(page_parser.h1) == spec["h1"], \
                   f"{page_name}: expected one H1 with text {spec['h1']!r}"
               assert page_parser.robots == spec["robots"], f"{page_name}: unexpected robots {page_parser.robots}"
               if spec["description"] is None:
