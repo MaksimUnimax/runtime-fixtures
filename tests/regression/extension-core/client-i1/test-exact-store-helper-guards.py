@@ -120,6 +120,56 @@ class HelperGuardTests(unittest.TestCase):
             self.assertNotIn(private, stdout.getvalue() + stderr.getvalue() + output.read_text())
         fake_api.sync_playwright.assert_not_called()
 
+    def test_technical_session_requires_owner_authority_unexpired_non_admin_and_0600(self):
+        receipt = self.root / "technical-session.json"
+        value = {
+            "authority": "OWNER-AUTONOMOUS-OCTOPORT-TEST-AUTH-20260928-1244",
+            "apiOrigin": "http://127.0.0.1:4100",
+            "accountId": "account-private",
+            "expiresAt": "2099-01-01T00:00:00Z",
+            "adminSessionIssued": False,
+            "cookies": {"pcp_portal_session": "PRIVATE_SESSION", "pcp_csrf": "PRIVATE_CSRF"},
+        }
+        receipt.write_text(json.dumps(value))
+        receipt.chmod(0o600)
+        loaded = helper.load_technical_session(receipt)
+        self.assertEqual(loaded["authority"], value["authority"])
+        receipt.chmod(0o644)
+        with self.assertRaisesRegex(AssertionError, "^TECHNICAL_SESSION_PERMISSIONS_UNSAFE$"):
+            helper.load_technical_session(receipt)
+        receipt.chmod(0o600)
+        value["adminSessionIssued"] = True
+        receipt.write_text(json.dumps(value))
+        with self.assertRaisesRegex(AssertionError, "^TECHNICAL_SESSION_RECEIPT_INVALID$"):
+            helper.load_technical_session(receipt)
+
+    def test_technical_approval_verifies_active_membership_and_normal_approve_contract(self):
+        session = {"accountId": "private-account"}
+        pending = {"authorizationId": "123e4567-e89b-42d3-a456-426614174001", "userCode": "ABCD-EFGH"}
+        calls = [
+            {"accounts": [{"id": "private-account", "status": "ACTIVE"}]},
+            {"status": "approved", "authorizationId": pending["authorizationId"], "expiresAt": "2099-01-01T00:00:00Z"},
+        ]
+        with mock.patch.object(helper, "technical_api", side_effect=calls) as api:
+            result = helper.approve_technical_activation(session, pending)
+        self.assertTrue(result["technicalSessionAuthorityVerified"])
+        self.assertTrue(result["accountMembershipVerified"])
+        self.assertTrue(result["deviceApprovalSubmitted"])
+        self.assertFalse(result["authStateInjected"])
+        self.assertFalse(result["manualEmailLoginTested"])
+        self.assertEqual(api.call_count, 2)
+
+    def test_technical_approval_rejects_wrong_account_before_approve(self):
+        session = {"accountId": "expected-private-account"}
+        pending = {"authorizationId": "123e4567-e89b-42d3-a456-426614174001", "userCode": "ABCD-EFGH"}
+        with mock.patch.object(
+            helper, "technical_api",
+            return_value={"accounts": [{"id": "other-private-account", "status": "ACTIVE"}]},
+        ) as api:
+            with self.assertRaisesRegex(AssertionError, "^TECHNICAL_AUTH_ACCOUNT_MEMBERSHIP_MISMATCH$"):
+                helper.approve_technical_activation(session, pending)
+        api.assert_called_once()
+
 
 if __name__ == "__main__":
     unittest.main()
