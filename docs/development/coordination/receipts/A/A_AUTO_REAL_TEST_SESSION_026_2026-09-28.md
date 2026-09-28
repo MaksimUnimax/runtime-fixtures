@@ -129,3 +129,132 @@ Evidence:
 `/root/octoport-control/logs/A/owner-authenticated-026-controls-r3/local-matrix.json`.
 
 Still open: real provider checks, AI Work, transfer, destructive auth reset, human email/login UX, H3 and store-reviewer acceptance.
+
+## Post web/null catalog correction retry
+
+C handoff: C-A-STORE026-WEB-NULL-CATALOG-READY-20260928-1755.
+
+A used a fresh dedicated technical Opera profile and the already-authorized protected
+technical portal session. No extension auth/work flag was injected and no STORE bytes,
+trust bundle or backend state were changed by A.
+
+Frozen carrier SHA-256:
+579dc15aaf692fc9e96ad650e660ac0190bb7e136c949b7ad401e5bc82a909b5.
+
+Observed browser: Opera 136.0.6008.22.
+
+### Normal technical device flow
+
+Evidence:
+/root/octoport-control/logs/A/owner-authenticated-026-web-null-r4/technical-auth.json
+
+Result:
+- AUTOMATED_TECHNICAL_AUTH;
+- protected portal authority verified;
+- account membership verified;
+- normal device approval submitted;
+- authStateInjected=false;
+- authenticatedObserved=true;
+- manual email login and human portal-login UX remain untested.
+
+Supervised resource job 4e3f848f6c344be78481368642208b0e:
+exit 0, cleanup verified.
+
+### Signed packaged ChatGPT bootstrap
+
+A then invoked the frozen package control client through its own MV3 service worker
+with the supported detected identity chatgpt/web/null. Only a privacy-safe projection
+was persisted; access tokens, account/device/session IDs and raw signed payloads were
+not written to evidence.
+
+Evidence:
+/root/octoport-control/logs/A/owner-authenticated-026-web-null-r4/bootstrap-capture.json
+
+Observed result:
+- client PASS, no bootstrap failure code;
+- Bootstrap HTTP status 200;
+- contract control_plane_v2;
+- config version 2;
+- extension compatibility SUPPORTED, minimum 0.2.6;
+- browser compatibility SUPPORTED;
+- AI status RESOLVED;
+- detected identity chatgpt/web/null;
+- profile present true;
+- profile key chatgpt-web-opera-v1;
+- profile revision 1;
+- scope variant null;
+- schema adapter_profile_v1;
+- signed content SHA-256 24b03fc9b89c3ec849e96bbc10ce8138382e29807e0e7251aca41ec2de357985;
+- public client state authenticated=true, workAllowed=true, pending=false, no last error.
+
+This supersedes the earlier owner-account ai.status=UNAVAILABLE /
+BOOTSTRAP_PROFILE_INCOMPATIBLE finding for this exact chatgpt/web/null technical path.
+
+Supervised resource job effb967bb37a44b89325b6e461a3fac3:
+exit 0, cleanup verified.
+
+### Same-profile authenticated controls
+
+The same r4 profile was reopened through the existing reversible local matrix.
+
+Evidence:
+/root/octoport-control/logs/A/owner-authenticated-026-web-null-r4/local-matrix.json
+
+Result:
+- PASS_TEMP_STORE_MATRIX;
+- authenticated=true, workAllowed=true;
+- Ozon/WB add/save, edit/cancel, edit/save, clear option, remove reject/confirm,
+  support snapshot and encrypted backup preview/import all PASS;
+- initial/final store count 0 / 0;
+- pre-existing store fingerprint restored;
+- marketplace provider-host request count 0;
+- page errors 0.
+
+Supervised resource job a054b80475c64b1284f0da144f5b47a2:
+exit 0, cleanup verified.
+
+### Exact installed provider-error presentation
+
+A also closed the non-secret installed-synthetic part of the credential-check gap on
+the same frozen STORE runtime. A temporary synthetic Ozon store was created through
+the real popup, the real Проверить Seller button was pressed, and only the provider
+transport was replaced with bounded synthetic outcomes.
+
+Evidence:
+/root/octoport-control/logs/A/owner-authenticated-026-web-null-r4/provider-negative-ui.json
+
+PASS rows:
+- HTTP 401 -> CREDENTIAL_REJECTED and safe 401 UI text;
+- HTTP 403 -> ACCESS_DENIED and safe 403 UI text;
+- network failure -> CHECK_FAILED and generic network/provider/format UI text.
+
+The temporary store was removed through the product path; final store count is 0.
+No live provider call and no owner credential was used in this synthetic negative
+presentation proof.
+
+Supervised resource job e029c1e9e19b4611a6931b00b8472708:
+exit 0, cleanup verified.
+
+### Remaining external gates
+
+Real installed credential-check success is still OPEN. The protected owner inputs
+remain present with the existing independent direct API receipt showing Ozon Seller,
+Ozon Performance and Wildberries HTTP 200 with no business mutations:
+/root/octoport-owner-intake/marketplace-json/api-check-receipt.json
+That direct receipt does not substitute for clicking the exact installed UI buttons.
+
+A attempted to use the protected marketplace files only by reference through browser
+file-input automation. The execution environment rejected that protected-input action
+before the browser operation ran. A did not bypass the restriction and did not read,
+copy or expose the secret values. A supported protected import/pre-seeded-profile route
+is therefore still required for an automated real installed UI success check.
+
+Exact live AI Work/useful-flow remains separately OPEN because this technical
+Octoport authentication does not establish a legitimate authenticated ChatGPT session.
+Manual email-login UX, human portal login, H3/ChatGPT login, store-reviewer/catalog
+installation, transfer and destructive auth reset also remain separate gates.
+
+Current classification:
+EXACT STORE AUTOMATED TECHNICAL AUTH + SIGNED CHATGPT PROFILE + AUTHENTICATED LOCAL
+CONTROLS PASS; INSTALLED-SYNTHETIC PROVIDER ERROR PRESENTATION PASS; REAL PROVIDER UI
+SUCCESS / LIVE AI WORK / HUMAN AUTH-REVIEWER GATES OPEN.
