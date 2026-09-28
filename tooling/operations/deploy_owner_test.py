@@ -88,6 +88,34 @@ def unit_prop(unit: str, prop: str) -> str:
     p=run(['systemctl','show','-p',prop,'--value',unit])
     return p.stdout.decode().strip()
 
+
+def stable_exec_identity(value: str) -> str:
+    """Drop systemd runtime fields while preserving configured path/argv identity."""
+    body=value.strip()
+    if body.startswith('{') and body.endswith('}'):
+        body=body[1:-1]
+    volatile={'start_time','stop_time','pid','code','status'}
+    stable=[]
+    for raw in body.split(';'):
+        part=raw.strip()
+        if not part:
+            continue
+        key=part.split('=',1)[0].strip()
+        if key in volatile:
+            continue
+        stable.append(part)
+    return '; '.join(stable)
+
+
+def monitor_unit_snapshot(unit: str) -> dict:
+    return {
+        'active': unit_prop(unit,'ActiveState'),
+        'sub': unit_prop(unit,'SubState'),
+        'exec': stable_exec_identity(unit_prop(unit,'ExecStart')),
+        'restarts': unit_prop(unit,'NRestarts'),
+    }
+
+
 def check_migration_prefix(url: str, expected_count: int) -> dict:
     env = os.environ.copy()
     env['DATABASE_URL'] = url
@@ -109,7 +137,9 @@ def preflight():
     prefix = check_migration_prefix(database_url(), 22)
     current={unit:{'active':unit_prop(unit,'ActiveState'),'sub':unit_prop(unit,'SubState'),'restarts':unit_prop(unit,'NRestarts'),'workingDirectory':unit_prop(unit,'WorkingDirectory')} for unit in UNITS}
     if any(v['active']!='active' or v['sub']!='running' for v in current.values()): raise RuntimeError('OWNER_TEST_UNIT_NOT_HEALTHY')
-    monitor={unit:{'active':unit_prop(unit,'ActiveState'),'sub':unit_prop(unit,'SubState'),'exec':unit_prop(unit,'ExecStart')} for unit in MONITOR_UNITS}
+    monitor={unit:monitor_unit_snapshot(unit) for unit in MONITOR_UNITS}
+    if any(v['active']!='active' or v['sub']!='running' for v in monitor.values()):
+        raise RuntimeError('MONITOR_UNIT_NOT_HEALTHY')
     api_port=int(env_value(API_ENV,'API_PORT'))
     live=http_status(f'http://127.0.0.1:{api_port}/health/live')
     ready=http_status(f'http://127.0.0.1:{api_port}/health/ready')
@@ -261,6 +291,81 @@ def deployment_guard():
         os.close(fd)
 
 
+@contextmanager
+def recovery_guard():
+    """Serialize explicit recovery without treating the durable fence as replayable."""
+    EVID.mkdir(parents=True, exist_ok=True)
+    os.chmod(EVID, 0o700)
+    fd = os.open(EVID / 'apply.lock', os.O_CREAT | os.O_RDWR, 0o600)
+    try:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise RuntimeError('OWNER_DEPLOY_ALREADY_RUNNING') from None
+        journal = EVID / 'deployment-state.json'
+        if not journal.is_file():
+            raise RuntimeError('OWNER_DEPLOY_RECOVERY_STATE_MISSING')
+        try:
+            state = json.loads(journal.read_text())
+        except (ValueError, OSError):
+            raise RuntimeError('OWNER_DEPLOY_RECOVERY_REQUIRED') from None
+        if not isinstance(state, dict) or state.get('recoveryRequired') is not True:
+            raise RuntimeError('OWNER_DEPLOY_RECOVERY_NOT_REQUIRED')
+        yield journal,state
+    finally:
+        os.close(fd)
+
+
+def recovery_source_receipt(state: dict) -> tuple[Path,dict]:
+    raw=state.get('receipt')
+    if not isinstance(raw,str): raise RuntimeError('OWNER_DEPLOY_RECOVERY_RECEIPT_INVALID')
+    path=Path(raw)
+    try:
+        resolved=path.resolve(strict=True)
+    except OSError:
+        raise RuntimeError('OWNER_DEPLOY_RECOVERY_RECEIPT_INVALID') from None
+    if path.is_symlink() or not resolved.is_relative_to(EVID.resolve()):
+        raise RuntimeError('OWNER_DEPLOY_RECOVERY_RECEIPT_INVALID')
+    try:
+        value=json.loads(resolved.read_text())
+    except (ValueError,OSError):
+        raise RuntimeError('OWNER_DEPLOY_RECOVERY_RECEIPT_INVALID') from None
+    if not isinstance(value,dict): raise RuntimeError('OWNER_DEPLOY_RECOVERY_RECEIPT_INVALID')
+    return resolved,value
+
+
+def verify_candidate_dropins():
+    for unit,path in DROPINS.items():
+        if not path.is_file() or path.is_symlink():
+            raise RuntimeError('FORWARD_RECOVERY_DROPIN_INVALID:'+unit)
+        if path.read_text()!=unit_dropin(unit,CANDIDATE_REL):
+            raise RuntimeError('FORWARD_RECOVERY_DROPIN_MISMATCH:'+unit)
+
+
+def verify_monitor_preflight(baseline: object) -> dict:
+    if not isinstance(baseline,dict) or set(baseline)!=set(MONITOR_UNITS):
+        raise RuntimeError('MONITOR_BASELINE_INVALID')
+    current={}
+    for unit in MONITOR_UNITS:
+        expected=baseline.get(unit)
+        if not isinstance(expected,dict): raise RuntimeError('MONITOR_BASELINE_INVALID')
+        observed=monitor_unit_snapshot(unit)
+        if observed['active']!='active' or observed['sub']!='running':
+            raise RuntimeError('MONITOR_UNIT_NOT_HEALTHY')
+        if expected.get('active')!='active' or expected.get('sub')!='running':
+            raise RuntimeError('MONITOR_BASELINE_INVALID')
+        if observed['exec']!=stable_exec_identity(str(expected.get('exec',''))):
+            raise RuntimeError('MONITOR_UNIT_CHANGED')
+        expected_restarts=expected.get('restarts')
+        if expected_restarts is not None:
+            if observed['restarts']!=str(expected_restarts):
+                raise RuntimeError('MONITOR_UNIT_CHANGED')
+        elif observed['restarts']!='0':
+            raise RuntimeError('MONITOR_RESTART_UNPROVEN')
+        current[unit]=observed
+    return current
+
+
 def write_json_durable(path: Path, value: dict):
     """Publish evidence atomically before crossing the database write boundary."""
     fd, temporary = tempfile.mkstemp(prefix=path.name + '.', dir=path.parent)
@@ -304,10 +409,7 @@ def apply_locked(journal: Path):
     os.chmod(evidence_dir, 0o700)
     dropin_backup = evidence_dir / 'dropins-before'
     snapshot_dropins(dropin_backup)
-    monitor_before = {
-        unit: {'exec': unit_prop(unit, 'ExecStart'), 'restarts': unit_prop(unit, 'NRestarts')}
-        for unit in MONITOR_UNITS
-    }
+    monitor_before = {unit: monitor_unit_snapshot(unit) for unit in MONITOR_UNITS}
     db_meta = database_creation_meta(user, db)
     schema = 'LEGACY_VERIFIED'
     phase = 'PRE'
@@ -372,10 +474,7 @@ def apply_locked(journal: Path):
             result['status'] = 'APP_ROLLBACK_FLOOR_PASS'
             phase = 'FLOOR_PASS'
 
-        monitor_after = {
-            unit: {'exec': unit_prop(unit, 'ExecStart'), 'restarts': unit_prop(unit, 'NRestarts')}
-            for unit in MONITOR_UNITS
-        }
+        monitor_after = {unit: monitor_unit_snapshot(unit) for unit in MONITOR_UNITS}
         if monitor_after != monitor_before:
             raise RuntimeError('MONITOR_UNIT_CHANGED')
         result['monitorUnchanged'] = True
@@ -408,12 +507,74 @@ def apply_locked(journal: Path):
     return result
 
 
+def recover_forward():
+    """Resume only the proven candidate-pass/forward-schema monitor false-positive state."""
+    if os.environ.get('OCTOPORT_OWNER_DEPLOY_AUTHORIZATION') != AUTH:
+        raise RuntimeError('OWNER_DEPLOY_AUTHORIZATION_REQUIRED')
+    with recovery_guard() as guarded:
+        journal,state=guarded
+        source_path,source=recovery_source_receipt(state)
+        if (state.get('candidate')!=CANDIDATE or state.get('schemaState')!='FORWARD_VERIFIED'
+                or state.get('phase')!='CANDIDATE_PASS'):
+            raise RuntimeError('FORWARD_RECOVERY_STATE_NOT_ELIGIBLE')
+        health=source.get('candidateHealth')
+        if (source.get('status')!='FAILED' or source.get('error')!='MONITOR_UNIT_CHANGED'
+                or source.get('candidate')!=CANDIDATE or source.get('schemaState')!='FORWARD_VERIFIED'
+                or source.get('phase')!='CANDIDATE_PASS' or source.get('recoveryRequired') is not True
+                or source.get('liveMigrationCount')!=40 or not isinstance(health,dict)
+                or health.get('live')!=200 or health.get('ready')!=200
+                or health.get('portal')!=200 or health.get('workerReady') is not True):
+            raise RuntimeError('FORWARD_RECOVERY_RECEIPT_NOT_ELIGIBLE')
+        preflight_data=source.get('preflight')
+        if not isinstance(preflight_data,dict): raise RuntimeError('FORWARD_RECOVERY_RECEIPT_NOT_ELIGIBLE')
+        verify_release(CANDIDATE_REL,CANDIDATE); verify_release(FLOOR_REL,FLOOR)
+        prefix_before=check_migration_prefix(database_url(),40)
+        verify_candidate_dropins()
+        if any(unit_prop(unit,'ActiveState')!='inactive' for unit in UNITS):
+            raise RuntimeError('FORWARD_RECOVERY_PRODUCT_NOT_QUIESCED')
+        monitor_before=verify_monitor_preflight(preflight_data.get('monitorUnits'))
+        stamp=dt.datetime.now(dt.timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
+        recovery_path=EVID/f'recovery-{stamp}.json'
+        result={'status':'FORWARD_RECOVERY_STARTED','stamp':stamp,'candidate':CANDIDATE,
+                'schemaState':'FORWARD_VERIFIED','recoveryRequired':True,
+                'sourceReceipt':str(source_path),'prefixBefore':prefix_before,
+                'monitorBefore':monitor_before}
+        write_json_durable(recovery_path,result)
+        write_json_durable(journal,{'candidate':CANDIDATE,'phase':'FORWARD_RECOVERY_START',
+            'schemaState':'FORWARD_VERIFIED','recoveryRequired':True,'receipt':str(recovery_path),
+            'recoveredFromReceipt':str(source_path)})
+        try:
+            started=dt.datetime.now(dt.timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
+            start_product_units()
+            result['candidateHealth']=wait_runtime(started)
+            result['prefixAfter']=check_migration_prefix(database_url(),40)
+            result['monitorAfter']=verify_monitor_preflight(preflight_data.get('monitorUnits'))
+            result.update(status='FORWARD_RECOVERY_PASS',recoveryRequired=False,monitorUnchanged=True)
+            write_json_durable(recovery_path,result)
+            write_json_durable(journal,{'candidate':CANDIDATE,'phase':'FORWARD_RECOVERY_PASS',
+                'schemaState':'FORWARD_VERIFIED','recoveryRequired':False,'receipt':str(recovery_path),
+                'recoveredFromReceipt':str(source_path)})
+            return result
+        except BaseException as error:
+            result.update(status='FAILED',error=error_code(error),recoveryRequired=True)
+            try:
+                stop_product_units(); result['productQuiesced']=True
+            except BaseException as stop_error:
+                result['quiesceError']=error_code(stop_error)
+            write_json_durable(recovery_path,result)
+            write_json_durable(journal,{'candidate':CANDIDATE,'phase':'FORWARD_RECOVERY_FAILED',
+                'schemaState':'FORWARD_VERIFIED','recoveryRequired':True,'receipt':str(recovery_path),
+                'recoveredFromReceipt':str(source_path)})
+            raise
+
+
 def main():
     EVID.mkdir(parents=True,exist_ok=True); BACKUPS.mkdir(parents=True,exist_ok=True); os.chmod(EVID,0o700); os.chmod(BACKUPS,0o700)
     mode=sys.argv[1] if len(sys.argv)>1 else 'preflight'
     if mode=='preflight': result=preflight()
     elif mode=='apply': result=apply()
-    else: raise RuntimeError('USAGE: preflight|apply')
+    elif mode=='recover-forward': result=recover_forward()
+    else: raise RuntimeError('USAGE: preflight|apply|recover-forward')
     print(json.dumps(result,sort_keys=True))
     if mode == 'apply' and result.get('status') != 'APPLY_PASS':
         raise SystemExit(2)

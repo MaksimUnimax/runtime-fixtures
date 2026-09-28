@@ -37,6 +37,8 @@ class DeploymentFailures(unittest.TestCase):
         replacements = {
             "EVID": self.root / "evidence", "BACKUPS": self.root / "backups",
             "preflight": lambda: {"status": "PREFLIGHT_PASS"},
+            "verify_release": lambda path, expected: {"status": "PASS", "sourceSha": expected},
+            "verify_candidate_dropins": lambda: None,
             "database_url": lambda: "postgres://fixture@localhost/fixture",
             "snapshot_dropins": lambda path: path.mkdir(),
             "database_creation_meta": lambda *_: {"encoding": "UTF8", "collate": "C", "ctype": "C"},
@@ -66,6 +68,12 @@ class DeploymentFailures(unittest.TestCase):
         raise AssertionError("UNMOCKED_EXTERNAL_IO")
 
     def unit_prop(self, unit, prop):
+        if unit in deploy.MONITOR_UNITS:
+            if prop == "ActiveState": return "active"
+            if prop == "SubState": return "running"
+            if prop == "NRestarts": return "0"
+            if prop == "ExecStart":
+                return "{ path=/monitor ; argv[]=/monitor --run ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }"
         if prop == "ActiveState":
             return "active" if self.started else "inactive"
         if prop == "SubState":
@@ -134,6 +142,43 @@ class DeploymentFailures(unittest.TestCase):
 
     def assert_no_unsafe_start(self):
         self.assertNotIn(("start", "old", "new"), self.events)
+
+    def seed_forward_monitor_failure(self, error="MONITOR_UNIT_CHANGED"):
+        self.schema = "new"
+        self.app = "candidate"
+        self.started = False
+        deploy.EVID.mkdir(parents=True, exist_ok=True)
+        apply_dir = deploy.EVID / "apply-fixture"
+        apply_dir.mkdir()
+        receipt_path = apply_dir / "receipt.json"
+        monitor = {
+            unit: {
+                "active": "active",
+                "sub": "running",
+                "exec": "{ path=/monitor ; argv[]=/monitor --run ; ignore_errors=no ; start_time=[Mon 2026-09-28 10:48:08 MSK] ; stop_time=[n/a] ; pid=1234 ; code=(null) ; status=0/0 }",
+            }
+            for unit in deploy.MONITOR_UNITS
+        }
+        receipt = {
+            "status": "FAILED",
+            "error": error,
+            "candidate": deploy.CANDIDATE,
+            "phase": "CANDIDATE_PASS",
+            "schemaState": "FORWARD_VERIFIED",
+            "recoveryRequired": True,
+            "liveMigrationCount": 40,
+            "candidateHealth": {"live": 200, "ready": 200, "portal": 200, "workerReady": True},
+            "preflight": {"monitorUnits": monitor},
+        }
+        receipt_path.write_text(json.dumps(receipt))
+        (deploy.EVID / "deployment-state.json").write_text(json.dumps({
+            "candidate": deploy.CANDIDATE,
+            "phase": "CANDIDATE_PASS",
+            "schemaState": "FORWARD_VERIFIED",
+            "recoveryRequired": True,
+            "receipt": str(receipt_path),
+        }))
+        return receipt_path
 
     def test_readback_loss_after_migration_never_restarts_old_app(self):
         self.fail_readback = True
@@ -282,6 +327,94 @@ class DeploymentFailures(unittest.TestCase):
                     deploy.main()
         self.assertEqual(exit_result.exception.code, 2)
 
+    def test_monitor_runtime_exec_metadata_change_is_not_configuration_change(self):
+        reads = {unit: 0 for unit in deploy.MONITOR_UNITS}
+
+        def state(unit, prop):
+            if unit in deploy.MONITOR_UNITS:
+                if prop == "ActiveState": return "active"
+                if prop == "SubState": return "running"
+                if prop == "NRestarts": return "0"
+                if prop == "ExecStart":
+                    reads[unit] += 1
+                    runtime = (
+                        "start_time=[Mon 2026-09-28 10:48:08 MSK] ; pid=1234"
+                        if reads[unit] == 1
+                        else "start_time=[n/a] ; pid=0"
+                    )
+                    return (
+                        "{ path=/monitor ; argv[]=/monitor --run ; ignore_errors=no ; "
+                        + runtime
+                        + " ; stop_time=[n/a] ; code=(null) ; status=0/0 }"
+                    )
+            return self.unit_prop(unit, prop)
+
+        with patch.object(deploy, "unit_prop", side_effect=state):
+            result = deploy.apply()
+        self.assertEqual(result["status"], "APPLY_PASS")
+        self.assertFalse(result["recoveryRequired"])
+        self.assertTrue(result["monitorUnchanged"])
+
+    def test_monitor_command_change_still_fails_closed(self):
+        reads = {unit: 0 for unit in deploy.MONITOR_UNITS}
+
+        def state(unit, prop):
+            if unit in deploy.MONITOR_UNITS:
+                if prop == "ActiveState": return "active"
+                if prop == "SubState": return "running"
+                if prop == "NRestarts": return "0"
+                if prop == "ExecStart":
+                    reads[unit] += 1
+                    command = "/monitor --run" if reads[unit] == 1 else "/monitor --changed"
+                    return (
+                        "{ path=/monitor ; argv[]=" + command
+                        + " ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; "
+                        "pid=0 ; code=(null) ; status=0/0 }"
+                    )
+            return self.unit_prop(unit, prop)
+
+        with patch.object(deploy, "unit_prop", side_effect=state):
+            result = self.apply_failure()
+        self.assertEqual(result["error"], "MONITOR_UNIT_CHANGED")
+        self.assertTrue(result["recoveryRequired"])
+        self.assertTrue(result["productQuiesced"])
+        self.assertFalse(self.started)
+
+    def test_forward_recovery_restarts_only_proven_candidate_and_clears_fence(self):
+        source = self.seed_forward_monitor_failure()
+        result = deploy.recover_forward()
+        self.assertEqual(result["status"], "FORWARD_RECOVERY_PASS")
+        self.assertFalse(result["recoveryRequired"])
+        self.assertTrue(result["monitorUnchanged"])
+        self.assertTrue(self.started)
+        self.assertEqual(self.app, "candidate")
+        self.assertEqual(self.schema, "new")
+        self.assertEqual(result["sourceReceipt"], str(source.resolve()))
+        state = json.loads((deploy.EVID / "deployment-state.json").read_text())
+        self.assertFalse(state["recoveryRequired"])
+        self.assertEqual(state["phase"], "FORWARD_RECOVERY_PASS")
+
+    def test_forward_recovery_rejects_non_monitor_failure_without_start(self):
+        self.seed_forward_monitor_failure(error="POST_SWITCH_HEALTH_FAILED")
+        with self.assertRaisesRegex(RuntimeError, "FORWARD_RECOVERY_RECEIPT_NOT_ELIGIBLE"):
+            deploy.recover_forward()
+        self.assertFalse(self.started)
+        self.assertEqual(self.events, [])
+        state = json.loads((deploy.EVID / "deployment-state.json").read_text())
+        self.assertTrue(state["recoveryRequired"])
+
+    def test_forward_recovery_health_failure_requiesces_and_keeps_fence(self):
+        self.seed_forward_monitor_failure()
+        self.fail_candidate = True
+        with self.assertRaisesRegex(RuntimeError, "HEALTH_FAILED"):
+            deploy.recover_forward()
+        self.assertFalse(self.started)
+        state = json.loads((deploy.EVID / "deployment-state.json").read_text())
+        self.assertTrue(state["recoveryRequired"])
+        self.assertEqual(state["phase"], "FORWARD_RECOVERY_FAILED")
+        receipt = json.loads(Path(state["receipt"]).read_text())
+        self.assertTrue(receipt["productQuiesced"])
+        self.assertEqual(receipt["error"], "HEALTH_FAILED")
 
     def test_process_death_leaves_durable_fence_after_lock_is_released(self):
         import signal
