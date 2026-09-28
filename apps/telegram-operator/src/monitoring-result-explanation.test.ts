@@ -53,6 +53,31 @@ describe("bounded Russian monitoring explanations", () => {
 
   it.each([
     [
+      "API_SOURCE_CANDIDATE_ACQUIRED",
+      "SUCCEEDED",
+      "ещё не означает, что версия API сравнена",
+    ],
+    [
+      "OPERATOR_SOURCE_REQUIRED",
+      "SOURCE_UNAVAILABLE",
+      "нужен разрешённый операторский источник",
+    ],
+    [
+      "API_SOURCE_TEMPORARILY_UNAVAILABLE",
+      "NOT_OBSERVABLE",
+      "временно недоступен",
+    ],
+    [
+      "SOURCE_URL_AUTHORITY_MISSING",
+      "NOT_OBSERVABLE",
+      "нет принятой официальной адресной основы",
+    ],
+    [
+      "INVALID_OFFICIAL_SOURCE_RESPONSE",
+      "FAILED",
+      "отклонён проверкой формата или происхождения",
+    ],
+    [
       "API_SOURCE_UNAVAILABLE",
       "SOURCE_UNAVAILABLE",
       "Не удалось получить официальный документ",
@@ -67,7 +92,11 @@ describe("bounded Russian monitoring explanations", () => {
       "NOT_OBSERVABLE",
       "Часть источников осталась непроверенной",
     ],
-    ["API_WATCH_REPORT_COMPLETED", "SUCCEEDED", "прежняя проблема исправлена"],
+    [
+      "API_WATCH_REPORT_COMPLETED",
+      "SUCCEEDED",
+      "не подтверждает работу расширения",
+    ],
     ["API_WATCH_REPORT_FAILED", "FAILED", "Точная причина"],
   ] as const)(
     "explains %s without assuming unchanged or repaired APIs",
@@ -126,6 +155,71 @@ describe("bounded Russian monitoring explanations", () => {
     const text = explainMonitoringResult(input);
     expect(text).toContain("нет сведений о полноте проверки");
     expect(text).not.toContain("Цикл автоматических");
+  });
+
+  it("uses structured LLM coverage without upgrading public checks to authenticated acceptance", () => {
+    const input = notification("PROVIDER_SURFACE_DRIFT", "FAILED");
+    input.result.coverage = {
+      observedAt: "2026-09-28T10:00:02.000Z",
+      checkDepth: "PUBLIC_NO_SESSION",
+      testedTargets: ["CHATGPT_STANDARD", "GEMINI"],
+      unverifiedTargets: ["CHATGPT_WORK", "DEEPSEEK"],
+      comparisonState: "NOT_APPLICABLE",
+      changeSeverity: "REVIEW_REQUIRED",
+    };
+    const text = explainMonitoringResult(input);
+    expect(text).toContain("Время наблюдения: 28.09.2026 15:00 +05");
+    expect(text).toContain("Проверено: ChatGPT Standard, Gemini");
+    expect(text).toContain("Не проверено: ChatGPT Work, DeepSeek");
+    expect(text).toContain("публичная проверка без входа");
+    expect(text).toContain("Найдены изменения, требующие проверки");
+    expect(text).toContain("Работа кнопок расширения");
+  });
+
+  it("reports completed API comparison only from structured coverage", () => {
+    const input = notification(
+      "API_WATCH_REPORT_COMPLETED",
+      "SUCCEEDED",
+      "SWAGGER_API",
+    );
+    input.result.coverage = {
+      observedAt: "2026-09-28T11:30:00.000Z",
+      checkDepth: "API_DOCUMENT_COMPARISON",
+      testedTargets: ["OZON_SELLER:seller-public", "WILDBERRIES:products"],
+      unverifiedTargets: [],
+      comparisonState: "COMPLETED",
+      changeSeverity: "NO_POLICY_IMPACT",
+    };
+    const text = explainMonitoringResult(input);
+    expect(text).toContain("Проверено: Ozon Seller, Wildberries");
+    expect(text).toContain(
+      "Сравнение документов API выполнено по всем указанным целям",
+    );
+    expect(text).toContain(
+      "изменений, влияющих на текущие правила, не найдено",
+    );
+    expect(text).not.toContain("сравнение не выполнялось");
+  });
+
+  it("keeps acquisition-only API coverage distinct from version comparison", () => {
+    const input = notification(
+      "API_SOURCE_CANDIDATE_ACQUIRED",
+      "SUCCEEDED",
+      "SWAGGER_API",
+    );
+    input.result.coverage = {
+      observedAt: "2026-09-28T11:30:00.000Z",
+      checkDepth: "API_SOURCE_ACQUISITION",
+      testedTargets: ["OZON_SELLER"],
+      unverifiedTargets: ["WILDBERRIES"],
+      comparisonState: "NOT_RUN",
+      changeSeverity: null,
+    };
+    const text = explainMonitoringResult(input);
+    expect(text).toContain("Проверено: Ozon Seller");
+    expect(text).toContain("Не проверено: Wildberries");
+    expect(text).toContain("сравнение версий API не выполнялось");
+    expect(text).not.toContain("изменений нет");
   });
 
   it("never reproduces upstream summary, identifiers, tokens or raw codes", () => {
