@@ -26,6 +26,10 @@ def now_text():
     return datetime.now(timezone.utc).isoformat()
 
 
+def display_review_reason(state):
+    return state.get("review_reason") or "review pending"
+
+
 def git(*args):
     return subprocess.check_output(["git", *args], cwd=ROOT, text=True).strip()
 
@@ -309,7 +313,7 @@ def main():
         state = update_state(args.role, args.action, args)
         print(json.dumps(state, ensure_ascii=False, indent=2))
         if state["review_pending"]:
-            print("НУЖЕН КОНТРОЛЬ [" + args.role + "]: " + state.get("review_reason", "review pending") + "; независимая работа разрешена")
+            print("НУЖЕН КОНТРОЛЬ [" + args.role + "]: " + display_review_reason(state) + "; независимая работа разрешена")
         for notice in state.get("controller_notices", []):
             print("КОНТРОЛЛЕР [" + args.role + "]: " + json.dumps(notice, ensure_ascii=False))
         for item in state["owner_requests"]:

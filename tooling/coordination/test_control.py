@@ -60,6 +60,16 @@ class CoordinationTests(unittest.TestCase):
         self.assertEqual(state["status"], "RUNNING")
         control.require_running("A")
 
+    def test_null_review_reason_has_safe_display_fallback(self):
+        self.assertEqual(
+            control.display_review_reason({"review_reason": None}),
+            "review pending",
+        )
+        self.assertEqual(
+            control.display_review_reason({"review_reason": "specific review"}),
+            "specific review",
+        )
+
     def test_owner_request_survives_checkpoint(self):
         self.args.summary = "Access to a test mailbox"
         control.update_state("B", "request-owner", self.args)
