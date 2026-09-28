@@ -109,3 +109,7 @@ The homepage mascot is reconstructed directly from the owner-provided 1448×1086
 ### Contour R11 full reference
 
 The homepage scene now preserves the full canonical owner reference as a static SVG underlay, including the original circle/tentacle junctions. Eight independent DOM controls overlay the blank reference circles. See `docs/design/CONTOUR_FULL_REF_R11_2026-09-28.md`.
+
+### Contour R12 exact trace
+
+The homepage reference art now uses the canonical owner reference mask directly, without RDP or spline smoothing. The eight interactive circles remain independent DOM links fitted to the same reference geometry. See `docs/design/CONTOUR_EXACT_TRACE_R12_2026-09-28.md`.
