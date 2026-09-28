@@ -678,6 +678,176 @@ async function setupFixture() {
   };
 }
 
+async function appendIdenticalBrokenObservation(
+  fixture: Fixture,
+  input: {
+    observedAt: Date;
+    idempotencyChar: string;
+    processIncident: boolean;
+  },
+): Promise<string> {
+  if (input.idempotencyChar.length !== 1)
+    throw new Error("B19_TEST_IDEMPOTENCY_CHAR_REQUIRED");
+  const runId = randomUUID();
+  const scheduledRunId = randomUUID();
+  const completedAt = new Date(input.observedAt.valueOf() + 1_000);
+  const idempotencyKey = sha(input.idempotencyChar);
+  const nextObservation = NoSessionObservationResultSchema.parse({
+    ...observation(),
+    observedAt: input.observedAt.toISOString(),
+  });
+
+  await runtime.query(
+    `INSERT INTO health_scheduled_runs
+     SELECT (
+       jsonb_populate_record(
+         NULL::health_scheduled_runs,
+         to_jsonb(source)
+         || jsonb_build_object(
+           'id',$2::text,
+           'due_slot_at',$3::text,
+           'idempotency_key',$4::text,
+           'health_run_id',NULL,
+           'started_at',$3::text,
+           'finished_at',$5::text
+         )
+       )
+     ).*
+     FROM health_scheduled_runs source WHERE id=$1`,
+    [
+      IDS.scheduledRun,
+      scheduledRunId,
+      input.observedAt,
+      idempotencyKey,
+      completedAt,
+    ],
+  );
+  await runtime.query(
+    `INSERT INTO health_runs
+     SELECT (
+       jsonb_populate_record(
+         NULL::health_runs,
+         to_jsonb(source)
+         || jsonb_build_object(
+           'id',$2::text,
+           'scheduled_run_id',$3::text,
+           'started_at',$4::text,
+           'completed_at',$5::text
+         )
+       )
+     ).*
+     FROM health_runs source WHERE id=$1`,
+    [IDS.observationRun, runId, scheduledRunId, input.observedAt, completedAt],
+  );
+  await runtime.query(
+    "UPDATE health_scheduled_runs SET health_run_id=$2 WHERE id=$1",
+    [scheduledRunId, runId],
+  );
+  await runtime.query(
+    `INSERT INTO health_no_session_observations
+     SELECT (
+       jsonb_populate_record(
+         NULL::health_no_session_observations,
+         to_jsonb(source)
+         || jsonb_build_object(
+           'run_id',$2::text,
+           'observed_at',$3::text,
+           'observation',$4::jsonb
+         )
+       )
+     ).*
+     FROM health_no_session_observations source WHERE run_id=$1`,
+    [
+      IDS.observationRun,
+      runId,
+      input.observedAt,
+      JSON.stringify(nextObservation),
+    ],
+  );
+  await runtime.query(
+    `INSERT INTO health_no_session_run_receipts
+     SELECT (
+       jsonb_populate_record(
+         NULL::health_no_session_run_receipts,
+         to_jsonb(source)
+         || jsonb_build_object(
+           'run_id',$2::text,
+           'scheduled_run_id',$3::text,
+           'due_slot_at',$4::text,
+           'idempotency_key',$5::text,
+           'completed_at',$6::text,
+           'incident_processed_at',NULL
+         )
+       )
+     ).*
+     FROM health_no_session_run_receipts source WHERE run_id=$1`,
+    [
+      IDS.observationRun,
+      runId,
+      scheduledRunId,
+      input.observedAt,
+      idempotencyKey,
+      completedAt,
+    ],
+  );
+  await runtime.query(
+    `UPDATE health_no_session_scope_states SET
+      latest_run_id=$2,
+      latest_normalized_result_sha256=$3,
+      latest_health_state='BROKEN',
+      latest_observed_at=$4,
+      last_attempt_at=$5,
+      last_verified_at=$4,
+      updated_at=$5
+     WHERE scope_sha256=$1`,
+    [
+      fixture.retentionScope,
+      runId,
+      fixture.normalized,
+      input.observedAt,
+      completedAt,
+    ],
+  );
+  await runtime.query(
+    `UPDATE health_no_session_recent_states SET
+      latest_run_id=$3,
+      last_seen_at=$4,
+      repeat_count=repeat_count+1,
+      updated_at=$5
+     WHERE scope_sha256=$1 AND normalized_result_sha256=$2`,
+    [
+      fixture.retentionScope,
+      fixture.normalized,
+      runId,
+      input.observedAt,
+      completedAt,
+    ],
+  );
+
+  if (input.processIncident) {
+    await runtime.query(
+      `UPDATE health_incidents SET
+        latest_seen_run_id=$2,
+        last_seen_at=$3,
+        last_observed_run_id=$2,
+        last_observed_at=$3,
+        updated_at=GREATEST(updated_at,$3)
+       WHERE id=$1 AND status IN (
+         'OPEN','INVESTIGATING','CANDIDATE_FIX','CANDIDATE_PASS',
+         'CANARY_ROLLOUT','ROLLOUT','MAINTENANCE'
+       )`,
+      [IDS.incident, runId, completedAt],
+    );
+    await runtime.query(
+      `UPDATE health_no_session_run_receipts
+       SET incident_processed_at=$2 WHERE run_id=$1`,
+      [runId, completedAt],
+    );
+  }
+
+  return runId;
+}
+
 async function revokeFixtureOwnerPermission(): Promise<void> {
   const backupUserId = randomUUID();
   const backupPrincipalId = randomUUID();
@@ -714,14 +884,17 @@ async function revokeFixtureOwnerPermission(): Promise<void> {
     throw new Error(`B19_PERMISSION_REVOKE_FIXTURE_FAILED_${result.kind}`);
 }
 
-async function registerAndApprove(fixture: Fixture) {
+async function registerAndApprove(
+  fixture: Fixture,
+  binding: MonitorProfileRepairBindingV1 = fixture.binding,
+) {
   const registered = await fixture.repository.registerCandidate({
-    binding: fixture.binding,
+    binding,
   });
   const request: MonitorProfileRepairDecisionRequestV1 = {
     idempotencyKey: randomUUID(),
-    repairCaseId: fixture.binding.repairCaseId,
-    expectedCaseRevision: fixture.binding.caseRevision,
+    repairCaseId: binding.repairCaseId,
+    expectedCaseRevision: binding.caseRevision,
     expectedBindingSha256: registered.bindingSha256,
     decision: "APPROVED",
     manualCheck: {
@@ -1099,6 +1272,125 @@ describe.sequential(
           binding: probeLayerFixture.binding,
         }),
       ).rejects.toThrow("MONITOR_PROFILE_REPAIR_H4_AUTHORITY_CHANGED");
+    });
+
+    it("rejects registration when the pinned observation is not part of the incident", async () => {
+      const fixture = await setupFixture();
+      const unrelatedRunId = await appendIdenticalBrokenObservation(fixture, {
+        observedAt: new Date(BASE.valueOf() + 15_000),
+        idempotencyChar: "1",
+        processIncident: false,
+      });
+      const unrelatedBinding: MonitorProfileRepairBindingV1 = {
+        ...fixture.binding,
+        observation: {
+          ...fixture.binding.observation,
+          runId: unrelatedRunId,
+        },
+      };
+
+      await expect(
+        fixture.repository.registerCandidate({ binding: unrelatedBinding }),
+      ).rejects.toThrow("MONITOR_PROFILE_REPAIR_INCIDENT_OBSERVATION_MISMATCH");
+    });
+
+    it("keeps a registered mid-incident trigger valid after an identical later incident observation", async () => {
+      const fixture = await setupFixture();
+      const triggerRunId = await appendIdenticalBrokenObservation(fixture, {
+        observedAt: new Date(BASE.valueOf() + 30_000),
+        idempotencyChar: "2",
+        processIncident: true,
+      });
+      const triggerBinding: MonitorProfileRepairBindingV1 = {
+        ...fixture.binding,
+        observation: {
+          ...fixture.binding.observation,
+          runId: triggerRunId,
+        },
+      };
+      const { approval } = await registerAndApprove(fixture, triggerBinding);
+
+      const laterRunId = await appendIdenticalBrokenObservation(fixture, {
+        observedAt: new Date(BASE.valueOf() + 60_000),
+        idempotencyChar: "3",
+        processIncident: true,
+      });
+      const incident = await runtime.query<{
+        firstSeenRunId: string;
+        latestSeenRunId: string;
+        lastObservedRunId: string;
+      }>(
+        `SELECT first_seen_run_id AS "firstSeenRunId",
+          latest_seen_run_id AS "latestSeenRunId",
+          last_observed_run_id AS "lastObservedRunId"
+         FROM health_incidents WHERE id=$1`,
+        [IDS.incident],
+      );
+      expect(incident.rows[0]).toMatchObject({
+        firstSeenRunId: IDS.observationRun,
+        latestSeenRunId: laterRunId,
+        lastObservedRunId: laterRunId,
+      });
+      expect(triggerRunId).not.toBe(incident.rows[0]?.firstSeenRunId);
+      expect(triggerRunId).not.toBe(incident.rows[0]?.latestSeenRunId);
+      expect(triggerRunId).not.toBe(incident.rows[0]?.lastObservedRunId);
+
+      fixture.clockBox.value = new Date("2026-09-28T09:11:00.000Z");
+      const command = {
+        repairCaseId: triggerBinding.repairCaseId,
+        caseRevision: triggerBinding.caseRevision,
+        approvalId: approval.id,
+        actorPrincipalId: IDS.principal,
+      };
+      const first = await fixture.repository.applyInitialRollout(command);
+      const replay = await fixture.repository.applyInitialRollout(command);
+      expect(replay).toEqual(first);
+      expect(first).toMatchObject({
+        repairCaseId: triggerBinding.repairCaseId,
+        caseRevision: triggerBinding.caseRevision,
+        approvalId: approval.id,
+        percentageBps: triggerBinding.assignment.initialPercentageBps,
+      });
+
+      const counts = await runtime.query<{
+        operations: string;
+        assignmentRevisions: string;
+      }>(
+        `SELECT
+          (SELECT count(*)::text FROM monitor_profile_repair_operations)
+            AS operations,
+          (SELECT count(*)::text FROM adapter_profile_assignment_revisions
+           WHERE assignment_id=$1) AS "assignmentRevisions"`,
+        [IDS.assignment],
+      );
+      expect(counts.rows[0]).toEqual({
+        operations: "1",
+        assignmentRevisions: "2",
+      });
+    });
+
+    it("rejects apply when the registered incident has resolved", async () => {
+      const fixture = await setupFixture();
+      const { approval } = await registerAndApprove(fixture);
+      const resolvedAt = new Date();
+      await runtime.query(
+        `UPDATE health_incidents SET
+          status='RESOLVED',
+          resolved_by_run_id=last_observed_run_id,
+          resolved_at=$2,
+          updated_at=$2
+         WHERE id=$1`,
+        [IDS.incident, resolvedAt],
+      );
+
+      await expect(
+        fixture.repository.applyInitialRollout({
+          repairCaseId: fixture.binding.repairCaseId,
+          caseRevision: fixture.binding.caseRevision,
+          approvalId: approval.id,
+          actorPrincipalId: IDS.principal,
+        }),
+      ).rejects.toThrow("MONITOR_PROFILE_REPAIR_INCIDENT_NOT_ACTIVE");
     });
 
     it("keeps approval current across a newer identical semantic observation", async () => {

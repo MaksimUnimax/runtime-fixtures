@@ -93,6 +93,7 @@ type HealthRunRow = {
 
 type IncidentRow = {
   id: string;
+  scopeSha256: string;
   status: string;
   firstSeenRunId: string;
   latestSeenRunId: string;
@@ -280,7 +281,10 @@ async function rebuildAndValidateBinding(
   q: DatabaseQuery,
   binding: MonitorProfileRepairBindingV1,
   evidence: MonitorProfileRepairTrustedEvidence,
-  options: { candidateState: "CANDIDATE" | "PUBLISHED" },
+  options: {
+    candidateState: "CANDIDATE" | "PUBLISHED";
+    phase: "REGISTER" | "APPLY";
+  },
 ): Promise<{
   currentBinding: MonitorProfileRepairBindingV1;
   suiteRevisionId: string;
@@ -422,7 +426,8 @@ async function rebuildAndValidateBinding(
   }
 
   const incident = await q.query<IncidentRow>(
-    `SELECT id,status,first_seen_run_id AS "firstSeenRunId",
+    `SELECT id,scope_sha256 AS "scopeSha256",status,
+      first_seen_run_id AS "firstSeenRunId",
       latest_seen_run_id AS "latestSeenRunId",
       last_observed_run_id AS "lastObservedRunId",
       resolved_by_run_id AS "resolvedByRunId"
@@ -437,7 +442,10 @@ async function rebuildAndValidateBinding(
     currentIncident.status === "FALSE_POSITIVE"
   )
     throw new Error("MONITOR_PROFILE_REPAIR_INCIDENT_NOT_ACTIVE");
+  if (currentIncident.scopeSha256 !== binding.scopeSha256)
+    throw new Error("MONITOR_PROFILE_REPAIR_INCIDENT_SCOPE_CHANGED");
   if (
+    options.phase === "REGISTER" &&
     ![
       currentIncident.firstSeenRunId,
       currentIncident.latestSeenRunId,
@@ -672,6 +680,7 @@ export function createMonitorProfileRepairAdmissionRepository(
         const evidence = await trustedEvidence(binding, "REGISTER");
         const rebuilt = await rebuildAndValidateBinding(q, binding, evidence, {
           candidateState: "CANDIDATE",
+          phase: "REGISTER",
         });
         if (
           monitorProfileRepairBindingSha256(rebuilt.currentBinding) !==
@@ -988,6 +997,7 @@ export function createMonitorProfileRepairAdmissionRepository(
         const evidence = await trustedEvidence(binding, "APPLY");
         const rebuilt = await rebuildAndValidateBinding(q, binding, evidence, {
           candidateState: "CANDIDATE",
+          phase: "APPLY",
         });
         const currentBindingSha256 = monitorProfileRepairBindingSha256(
           rebuilt.currentBinding,

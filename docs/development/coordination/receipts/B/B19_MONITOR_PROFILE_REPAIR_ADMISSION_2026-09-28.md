@@ -208,3 +208,44 @@ lock-scheduler coverage is made.
 
 Review result:
 `/root/octoport-control/logs/B/b19-lock-order-review-20260928-r3-result.md`.
+
+
+## Corrective R4 — pinned mid-incident trigger survives identical cursor advance
+
+Controller notice: `B-B19-PINNED-INCIDENT-PROOF-20260928-1102`.
+
+Prior activation candidate `9ffd17b147cfb21a3beb92c076ecba0b41962145` is **SUPERSEDED / NOT_ACCEPTED FOR REPAIR ACTIVATION** by this corrective descendant.
+
+Independent controller disposable PostgreSQL reproduction proved that a valid repair registered against a middle observation of an existing OPEN incident could later fail APPLY after an identical BROKEN observation advanced `latest_seen_run_id` / `last_observed_run_id`. The immutable pinned trigger, current semantic fingerprint, approval, permissions and other evidence were unchanged; APPLY incorrectly required the pinned run to remain a moving incident cursor.
+
+Corrective semantics:
+
+- REGISTER still proves that the pinned observation run belongs to the specified active incident at registration time.
+- APPLY no longer requires that already-registered pinned run to remain first/latest/last/resolved incident cursor.
+- APPLY still requires the exact incident id to exist, remain active, and retain the exact bound `scope_sha256`.
+- pinned observation bytes/fingerprint remain immutable proof and are rebuilt from DB authority;
+- latest semantic NO_SESSION state must still match the bound normalized fingerprint and must not be UNKNOWN;
+- trusted installed/matrix/results/package evidence, H4/suite authority, baseline/rollback health, current dual permissions, revocation/expiry and assignment CAS remain unchanged and fail closed.
+- resolved or false-positive incident still blocks APPLY.
+
+Disposable PostgreSQL corrective acceptance:
+
+- `packages/server/db/src/monitor-profile-repair-admission.integration.test.ts`: **15/15 PASS**;
+- supervisor `octoport-test-b-474dcd8a45be4373883f638811637117.service`;
+- exit 0, peak ~542 MiB, cleanup verified.
+
+New focused regressions prove:
+
+1. a valid NO_SESSION run not related to the incident is rejected at REGISTER with `MONITOR_PROFILE_REPAIR_INCIDENT_OBSERVATION_MISMATCH`;
+2. first BROKEN r0 -> valid same-incident trigger r1 -> REGISTER+APPROVE -> later identical BROKEN r2 advances incident latest/last pointers -> APPLY with pinned r1 succeeds exactly once and replay returns the committed operation without another assignment revision;
+3. RESOLVED incident blocks APPLY;
+4. existing UNKNOWN/current-state drift, exact results hash drift, permission loss, revocation, expiry, old P7 bypass closure, rollback, concurrent APPLY/revoke, GC pinning and evidence checks remain green.
+
+The first two corrective test iterations were fixture-only failures: one test clock preceded approval issuance; another helper initially used a different synthetic incident identity than the fixed B19 incident fixture. They were corrected without changing production admission semantics.
+
+Corrective quality:
+
+- DB typecheck + targeted Prettier + `git diff --check`: PASS, supervisor `octoport-test-b-efed1f7510284834be0c01392e2c2dcb.service`, exit 0, cleanup verified;
+- DB unit tests: **31/31 PASS**; targeted ESLint/Prettier/diff PASS, supervisor `octoport-test-b-dae17466533a45d6b3030995bec26ddb.service`, exit 0, cleanup verified.
+
+No live DB migration, repair rollout, browser/provider action, owner-test mutation or deployment was performed.
