@@ -108,6 +108,15 @@ export {
 } from "./audit-retention-repository.js";
 export { retentionConfig as loadFeedbackRetentionConfig } from "@product/feedback-support";
 export { createBootstrapAiResolutionRepository } from "./bootstrap-ai-resolution-repository.js";
+export {
+  API_WATCH_PRODUCT_BASELINE_SOURCE_FAMILIES,
+  createApiWatchProductBaselineRepository,
+  type AcceptApiWatchProductBaselineInput,
+  type ApiWatchProductBaseline,
+  type ApiWatchProductBaselineRepository,
+  type ApiWatchProductBaselineScope,
+  type ApiWatchProductBaselineSourceFamily,
+} from "./api-watch-product-baseline-repository.js";
 export { createP7AdminAiReadRepository } from "./p7-admin-ai-read-repository.js";
 export { createP7AdminAiCommandRepository } from "./p7-admin-ai-command-repository.js";
 export { authorizeAdminMutationInTransaction } from "./admin-mutation-authorization.js";
