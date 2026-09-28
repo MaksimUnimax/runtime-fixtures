@@ -392,6 +392,42 @@ describe.sequential("monitor pilot retention maintenance command", () => {
       [terminal!.id, new Date("2026-09-19T12:10:00.000Z")],
     );
 
+    const zeroTerminalCap = await runMonitorPilotRetentionMaintenance(
+      runtime,
+      {
+        mode: "apply",
+        limits: {
+          maxBackfill: 0,
+          maxReconcile: 0,
+          maxPrune: 0,
+          maxReceiptRetire: 10,
+          maxTerminalRetire: 0,
+        },
+      },
+      {
+        preflight,
+        clock: () => lateMaintenance,
+        nowMs: () => 0,
+      },
+    );
+    expect(zeroTerminalCap.kind).toBe("PARTIAL");
+    expect(zeroTerminalCap.actions).toMatchObject({
+      pruned: 0,
+      receiptRetired: 3,
+      terminalRetired: 0,
+    });
+    expect(zeroTerminalCap.pendingAfter?.terminal).toBe(1);
+    expect(probeCalls).toBe(5);
+    expect(await snapshot()).toMatchObject({
+      runs: "2",
+      observations: "2",
+      receipts: "2",
+      incidents: "0",
+      notifications: "0",
+      scheduled: "3",
+      watermarks: "3",
+    });
+
     const late = await runMonitorPilotRetentionMaintenance(
       runtime,
       {
@@ -413,7 +449,7 @@ describe.sequential("monitor pilot retention maintenance command", () => {
     expect(late.kind).toBe("APPLIED");
     expect(late.actions).toMatchObject({
       pruned: 0,
-      receiptRetired: 3,
+      receiptRetired: 0,
       terminalRetired: 1,
     });
     expect(probeCalls).toBe(5);

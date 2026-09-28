@@ -15,6 +15,8 @@ import {
 
 export const MONITOR_PILOT_RETENTION_APPLY_CONFIRM =
   "ISOLATED_MONITOR_PILOT_RETENTION" as const;
+export const MONITOR_PILOT_RETENTION_DEADLINE_SEMANTICS =
+  "COOPERATIVE_BETWEEN_AWAITS" as const;
 
 export type MonitorPilotRetentionMode = "inspect" | "apply";
 
@@ -27,6 +29,10 @@ export type MonitorPilotRetentionLimits = Readonly<{
   maxTerminalRetire: number;
   deadlineMs: number;
 }>;
+
+type MutableMonitorPilotRetentionLimits = {
+  -readonly [Key in keyof MonitorPilotRetentionLimits]: MonitorPilotRetentionLimits[Key];
+};
 
 export const DEFAULT_MONITOR_PILOT_RETENTION_LIMITS: MonitorPilotRetentionLimits =
   {
@@ -77,6 +83,8 @@ export type MonitorPilotRetentionResult = Readonly<{
   };
   blocked: Readonly<Record<string, number>>;
   deadlineReached: boolean;
+  deadlineSemantics: typeof MONITOR_PILOT_RETENTION_DEADLINE_SEMANTICS;
+  supervisorHardTimeoutRequired: true;
   authorityIssues: readonly MonitorPilotAuthorityIssue[];
 }>;
 
@@ -249,6 +257,8 @@ export async function runMonitorPilotRetentionMaintenance(
       inventory: { scanned: 0, reasons: {}, nextCursor: null },
       blocked: {},
       deadlineReached: false,
+      deadlineSemantics: MONITOR_PILOT_RETENTION_DEADLINE_SEMANTICS,
+      supervisorHardTimeoutRequired: true,
       authorityIssues: preflight.issues,
     };
   }
@@ -416,6 +426,8 @@ export async function runMonitorPilotRetentionMaintenance(
     },
     blocked,
     deadlineReached,
+    deadlineSemantics: MONITOR_PILOT_RETENTION_DEADLINE_SEMANTICS,
+    supervisorHardTimeoutRequired: true,
     authorityIssues: [],
   };
 }
@@ -477,7 +489,7 @@ export function parseMonitorPilotRetentionArgs(argv: readonly string[]): {
     inventoryCursor = { completedAt, runId: cursorRunId };
   }
 
-  const limits: Partial<MonitorPilotRetentionLimits> = {};
+  const limits: Partial<MutableMonitorPilotRetentionLimits> = {};
   const limitFlags: readonly [string, keyof MonitorPilotRetentionLimits][] = [
     ["max-backfill", "maxBackfill"],
     ["max-reconcile", "maxReconcile"],
