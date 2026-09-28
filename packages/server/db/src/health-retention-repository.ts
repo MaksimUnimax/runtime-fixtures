@@ -73,6 +73,7 @@ export type RoutineNoSessionGcReason =
   | "SCHEDULER_LINK_MISMATCH"
   | "INCIDENT_PINNED"
   | "NOTIFICATION_PINNED"
+  | "REPAIR_APPROVAL_PINNED"
   | "ACCEPTED_BASELINE_PINNED"
   | "RECENT_STATE_PINNED";
 
@@ -475,6 +476,12 @@ const gcInventorySql = `
       WHEN scheduled.id IS NULL THEN 'SCHEDULER_MISSING'
       WHEN scheduled.state <> 'SUCCEEDED' THEN 'SCHEDULER_NOT_SUCCEEDED'
       WHEN scheduled.health_run_id IS DISTINCT FROM receipt.run_id THEN 'SCHEDULER_LINK_MISMATCH'
+      WHEN EXISTS (
+        SELECT 1 FROM monitor_profile_repair_bindings binding
+        WHERE binding.observation_run_id=receipt.run_id
+           OR binding.accepted_baseline_run_id=receipt.run_id
+           OR binding.rollback_run_id=receipt.run_id
+      ) THEN 'REPAIR_APPROVAL_PINNED'
       WHEN EXISTS (
         SELECT 1 FROM health_incidents incident
         WHERE incident.first_seen_run_id=receipt.run_id

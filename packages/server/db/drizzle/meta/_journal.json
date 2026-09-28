@@ -288,6 +288,13 @@
       "when": 1790071019000,
       "tag": "0052_monitoring_bounded_retention",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1790071020000,
+      "tag": "0053_monitor_profile_repair_admission",
+      "breakpoints": true
     }
   ]
 }

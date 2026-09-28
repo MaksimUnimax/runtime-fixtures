@@ -20,7 +20,17 @@ export { createP4EntitlementRepository } from "./p4-entitlement-repository.js";
 export { createP4CommercialCatalogRepository } from "./p4-commercial-catalog-repository.js";
 export { createP6AdminCommercialReadRepository } from "./p6-admin-commercial-read-repository.js";
 export { createAdapterRegistryCatalogRepository } from "./adapter-registry-repository.js";
-export { createProfileLifecycleRepository } from "./p7-profile-lifecycle-repository.js";
+export {
+  createProfileLifecycleRepository,
+  publishProfileRevisionInTransaction,
+  startProfileRolloutInTransaction,
+  type P7AssignmentRevision,
+} from "./p7-profile-lifecycle-repository.js";
+export {
+  createMonitorProfileRepairAdmissionRepository,
+  type MonitorProfileRepairEvidenceResolver,
+  type MonitorProfileRepairTrustedEvidence,
+} from "./monitor-profile-repair-admission-repository.js";
 export { createHealthPersistenceRepository } from "./health-persistence-repository.js";
 export {
   AUTHENTICATED_DEEP_HEALTH_CATALOG_AUTHORITY,

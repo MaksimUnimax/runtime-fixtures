@@ -41,7 +41,7 @@ type RevisionRow = {
   createdByAdminPrincipalId: string | null;
   publishedByAdminPrincipalId: string | null;
 };
-type AssignmentRevision = {
+export type P7AssignmentRevision = {
   id: string;
   assignmentId: string;
   revision: number;
@@ -128,15 +128,15 @@ async function loadAssignment(
 async function latestAssignmentRevision(
   q: DatabaseQuery,
   assignmentId: string,
-): Promise<AssignmentRevision | undefined> {
-  const result = await q.query<AssignmentRevision>(
+): Promise<P7AssignmentRevision | undefined> {
+  const result = await q.query<P7AssignmentRevision>(
     `SELECT id,assignment_id AS "assignmentId",revision,mode,baseline_profile_revision_id AS "baselineProfileRevisionId",candidate_profile_revision_id AS "candidateProfileRevisionId",percentage_bps AS "percentageBps",created_at AS "createdAt",created_by_admin_principal_id AS "createdByAdminPrincipalId",reason FROM adapter_profile_assignment_revisions WHERE assignment_id=$1 ORDER BY revision DESC LIMIT 1`,
     [assignmentId],
   );
   return result.rows[0];
 }
 function checkExpected(
-  actual: AssignmentRevision | undefined,
+  actual: P7AssignmentRevision | undefined,
   expected: number | null,
 ): void {
   if ((actual?.revision ?? null) !== expected)
@@ -164,10 +164,10 @@ async function insertAssignmentRevision(
   percentageBps: number,
   c: ProfileMutationContext,
   reason: string,
-): Promise<AssignmentRevision> {
+): Promise<P7AssignmentRevision> {
   const latest = await latestAssignmentRevision(q, assignmentId);
   const revision = (latest?.revision ?? 0) + 1;
-  const result = await q.query<AssignmentRevision>(
+  const result = await q.query<P7AssignmentRevision>(
     `INSERT INTO adapter_profile_assignment_revisions(id,assignment_id,revision,mode,baseline_profile_revision_id,candidate_profile_revision_id,percentage_bps,created_by_admin_principal_id,reason) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id,assignment_id AS "assignmentId",revision,mode,baseline_profile_revision_id AS "baselineProfileRevisionId",candidate_profile_revision_id AS "candidateProfileRevisionId",percentage_bps AS "percentageBps",created_at AS "createdAt",created_by_admin_principal_id AS "createdByAdminPrincipalId",reason`,
     [
       randomUUID(),
@@ -185,6 +185,92 @@ async function insertAssignmentRevision(
   if (!row) throw new Error("P7_ASSIGNMENT_REVISION_INSERT_FAILED");
   return row;
 }
+export async function publishProfileRevisionInTransaction(
+  q: DatabaseQuery,
+  input: {
+    profileId: string;
+    revision: number;
+    context: ProfileMutationContext;
+  },
+) {
+  const ctx = context(input.context);
+  const row = await loadRevision(q, input.profileId, input.revision, true);
+  assertProfileRevisionTransition(row.state, "PUBLISHED");
+  const result = await q.query<RevisionRow>(
+    `UPDATE adapter_profile_revisions
+     SET state='PUBLISHED',published_at=now(),published_by_admin_principal_id=$1
+     WHERE id=$2
+     RETURNING id,profile_id AS "profileId",adapter_id AS "adapterId",surface_id AS "surfaceId",variant_id AS "variantId",revision,schema_version AS "schemaVersion",state,content,compatibility_constraints AS compatibility,content_sha256 AS "contentSha256",created_at AS "createdAt",published_at AS "publishedAt",created_by_admin_principal_id AS "createdByAdminPrincipalId",published_by_admin_principal_id AS "publishedByAdminPrincipalId"`,
+    [ctx.actorId ?? null, row.id],
+  );
+  const updated = result.rows[0];
+  if (!updated) throw new Error("P7_PROFILE_REVISION_TRANSITION_FAILED");
+  await audit(
+    q,
+    ctx,
+    "P7_PROFILE_PUBLISHED",
+    "ADAPTER_PROFILE_REVISION",
+    row.id,
+    {
+      profileId: input.profileId,
+      revision: input.revision,
+      contentSha256: row.contentSha256,
+    },
+  );
+  return mapRevision(updated);
+}
+
+export async function startProfileRolloutInTransaction(
+  q: DatabaseQuery,
+  input: {
+    assignmentId: string;
+    baselineProfileRevisionId: string;
+    candidateProfileRevisionId: string;
+    percentageBps: number;
+    expectedLatestAssignmentRevision: number | null;
+    context: ProfileMutationContext;
+  },
+): Promise<P7AssignmentRevision> {
+  const ctx = context(input.context);
+  if (input.baselineProfileRevisionId === input.candidateProfileRevisionId)
+    throw new Error("P7_ROLLOUT_TARGETS_MUST_DIFFER");
+  if (
+    !Number.isInteger(input.percentageBps) ||
+    input.percentageBps < 0 ||
+    input.percentageBps > 10_000
+  )
+    throw new Error("P7_INVALID_ROLLOUT_PERCENTAGE");
+  const assignment = await loadAssignment(q, input.assignmentId);
+  const latest = await latestAssignmentRevision(q, input.assignmentId);
+  checkExpected(latest, input.expectedLatestAssignmentRevision);
+  await assertTargets(q, assignment.id, [
+    input.baselineProfileRevisionId,
+    input.candidateProfileRevisionId,
+  ]);
+  const row = await insertAssignmentRevision(
+    q,
+    assignment.id,
+    "ROLLOUT",
+    input.baselineProfileRevisionId,
+    input.candidateProfileRevisionId,
+    input.percentageBps,
+    ctx,
+    ctx.reason,
+  );
+  await audit(
+    q,
+    ctx,
+    "P7_ASSIGNMENT_ROLLOUT_STARTED",
+    "ADAPTER_PROFILE_ASSIGNMENT",
+    assignment.id,
+    {
+      assignmentRevision: row.revision,
+      percentageBps: row.percentageBps,
+    },
+  );
+  return row;
+}
+
 async function mutateAssignment<T>(
   runtime: DatabaseRuntime,
   assignmentId: string,
@@ -192,7 +278,7 @@ async function mutateAssignment<T>(
   action: (
     q: DatabaseQuery,
     assignment: Awaited<ReturnType<typeof loadAssignment>>,
-    latest: AssignmentRevision | undefined,
+    latest: P7AssignmentRevision | undefined,
     c: ProfileMutationContext,
   ) => Promise<T>,
   c: ProfileMutationContext,
@@ -326,15 +412,16 @@ export function createProfileLifecycleRepository(
       );
     },
     async publishProfileRevision(input) {
-      return transition(
-        runtime,
-        input.profileId,
-        input.revision,
-        "PUBLISHED",
-        c(input.context),
-        "P7_PROFILE_PUBLISHED",
-        beforeMutation,
-      );
+      const ctx = c(input.context);
+      return runtime.transaction(async (q) => {
+        if (ctx.actorType === "ADMIN" && ctx.actorId)
+          await beforeMutation?.(q, ctx.actorId, "ai.profile.manage");
+        return publishProfileRevisionInTransaction(q, {
+          profileId: input.profileId,
+          revision: input.revision,
+          context: ctx,
+        });
+      });
     },
     async retireProfileRevision(input) {
       return transition(
@@ -426,44 +513,20 @@ export function createProfileLifecycleRepository(
     async startRollout(input) {
       const { context: rawContext, ...commandInput } = input;
       const cmd = RolloutCommandSchema.parse(commandInput);
-      const c = context(rawContext);
-      if (cmd.baselineProfileRevisionId === cmd.candidateProfileRevisionId)
-        throw new Error("P7_ROLLOUT_TARGETS_MUST_DIFFER");
-      return mutateAssignment(
-        runtime,
-        cmd.assignmentId,
-        cmd.expectedLatestAssignmentRevision,
-        async (q, a) => {
-          await assertTargets(q, a.id, [
-            cmd.baselineProfileRevisionId,
-            cmd.candidateProfileRevisionId,
-          ]);
-          const row = await insertAssignmentRevision(
-            q,
-            a.id,
-            "ROLLOUT",
-            cmd.baselineProfileRevisionId,
-            cmd.candidateProfileRevisionId,
-            cmd.percentageBps,
-            c,
-            c.reason,
-          );
-          await audit(
-            q,
-            c,
-            "P7_ASSIGNMENT_ROLLOUT_STARTED",
-            "ADAPTER_PROFILE_ASSIGNMENT",
-            a.id,
-            {
-              assignmentRevision: row.revision,
-              percentageBps: row.percentageBps,
-            },
-          );
-          return row;
-        },
-        c,
-        beforeMutation,
-      );
+      const ctx = context(rawContext);
+      return runtime.transaction(async (q) => {
+        if (ctx.actorType === "ADMIN" && ctx.actorId)
+          await beforeMutation?.(q, ctx.actorId, "ai.assignment.manage");
+        return startProfileRolloutInTransaction(q, {
+          assignmentId: cmd.assignmentId,
+          baselineProfileRevisionId: cmd.baselineProfileRevisionId,
+          candidateProfileRevisionId: cmd.candidateProfileRevisionId,
+          percentageBps: cmd.percentageBps,
+          expectedLatestAssignmentRevision:
+            cmd.expectedLatestAssignmentRevision,
+          context: ctx,
+        });
+      });
     },
     async changeRolloutPercentage(input) {
       const { context: rawContext, ...commandInput } = input;
