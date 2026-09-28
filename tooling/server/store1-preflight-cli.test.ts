@@ -38,7 +38,7 @@ const accountId = "40000000-0000-4000-8000-000000000001";
 const deviceId = "40000000-0000-4000-8000-000000000002";
 const bootstrapRequest = {
   contractVersion: "control_plane_v2" as const,
-  extensionVersion: "0.2.5" as const,
+  extensionVersion: STORE1_VERSION,
   browser: { family: "opera" as const, version: "136" },
   deviceId,
   lastConfigVersion: null,
@@ -82,7 +82,7 @@ function signedFixture(configVersion = 8) {
       version: STORE1_VERSION,
       contractVersion: STORE1_CONTRACT,
       artifactSha256: STORE1_ACCEPTED_ARTIFACT_SHA256,
-      filename: "OCTOPORT_v0.2.5_CHROMIUM_STORE.zip",
+      filename: `OCTOPORT_v${STORE1_VERSION}_CHROMIUM_STORE.zip`,
     },
     controlApiOrigin: origin,
     trustBundle,
@@ -530,7 +530,7 @@ describe("STORE-1 read-only authenticated entry", () => {
         signature: { verified: true, configVersion: 8 },
         nextActionPreview: {
           method: "POST",
-          path: "/v1/admin/compatibility/releases/0.2.5/publish",
+          path: `/v1/admin/compatibility/releases/${STORE1_VERSION}/publish`,
           executed: false,
         },
         bootstrapMayUpdateDeviceOrAuthState: true,

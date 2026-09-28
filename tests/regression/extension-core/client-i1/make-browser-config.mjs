@@ -42,7 +42,7 @@ process.stdout.write(
     environment: "LOCAL DEVELOPMENT",
     controlApiOrigin: `http://127.0.0.1:${apiPort}`,
     portalOrigin: `http://127.0.0.1:${portalPort}`,
-    extensionVersion: "0.2.5",
+    extensionVersion: "0.2.6",
     contractVersion: "control_plane_v2",
     trustBundle,
   }),
