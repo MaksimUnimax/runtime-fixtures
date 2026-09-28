@@ -25,8 +25,9 @@ import argparse
 import hashlib
 import json
 import os
-import shutil
+import re
 import stat
+import shutil
 import subprocess
 import tempfile
 import time
@@ -63,9 +64,6 @@ CONTROL_IDS = [
 PROVIDER_HOST_SUFFIXES = (
     "ozon.ru", "wildberries.ru", "advert-api.ozon.ru", "performance.ozon.ru",
 )
-TECHNICAL_API_ORIGIN = "https://api.octoport.ru"
-MAX_TECHNICAL_RECEIPT_BYTES = 64 * 1024
-MAX_TECHNICAL_RESPONSE_BYTES = 64 * 1024
 PLAN = [
     {"phase": 0, "group": "identity", "controls": [],
      "outcome": "exact ZIP SHA + actual browser product + stable runtime/profile boundary"},
@@ -161,6 +159,7 @@ def safe_failure_code(failure: Exception) -> str:
         "TECHNICAL_AUTH_API_INVALID_RESPONSE", "TECHNICAL_AUTH_ACCOUNT_MEMBERSHIP_MISMATCH",
         "TECHNICAL_AUTH_PENDING_INVALID", "TECHNICAL_AUTH_APPROVAL_INVALID",
         "TECHNICAL_AUTH_PROFILE_NOT_FRESH", "TECHNICAL_AUTH_TIMEOUT",
+        "TECHNICAL_AUTH_REDIRECT_REJECTED", "TECHNICAL_AUTH_ORIGIN_REJECTED",
     }
     if isinstance(failure, AssertionError) and str(failure) in known:
         return str(failure)
@@ -329,82 +328,51 @@ def provider_host(host: str) -> bool:
     return any(host == suffix or host.endswith("." + suffix) for suffix in PROVIDER_HOST_SUFFIXES)
 
 
-class NoTechnicalRedirect(HTTPRedirectHandler):
-    def redirect_request(self, req, fp, code, msg, headers, newurl):
-        return None
-
-
-def exact_technical_origin(value: object) -> bool:
-    if value != TECHNICAL_API_ORIGIN:
-        return False
-    parsed = urlparse(str(value))
-    return (
-        parsed.scheme == "https"
-        and parsed.netloc == "api.octoport.ru"
-        and parsed.hostname == "api.octoport.ru"
-        and parsed.port is None
-        and parsed.username is None
-        and parsed.password is None
-        and parsed.path == ""
-        and parsed.params == ""
-        and parsed.query == ""
-        and parsed.fragment == ""
-    )
+TECHNICAL_API_ORIGIN = "https://api.octoport.ru"
+TECHNICAL_SESSION_MAX_BYTES = 65536
+TECHNICAL_RESPONSE_MAX_BYTES = 1048576
 
 
 def load_technical_session(path: Path) -> dict:
-    if not path.is_absolute():
-        raise AssertionError("TECHNICAL_SESSION_PERMISSIONS_UNSAFE")
+    # Open the protected directory, then the file relative to that descriptor.
+    # Do not resolve symlinks before these nofollow checks.
     try:
-        parent_stat = os.lstat(path.parent)
-    except OSError:
-        raise AssertionError("TECHNICAL_SESSION_PERMISSIONS_UNSAFE") from None
-    if (
-        stat.S_ISLNK(parent_stat.st_mode)
-        or not stat.S_ISDIR(parent_stat.st_mode)
-        or parent_stat.st_uid != os.geteuid()
-        or parent_stat.st_mode & 0o077
-    ):
-        raise AssertionError("TECHNICAL_SESSION_PERMISSIONS_UNSAFE")
-    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
-    try:
-        fd = os.open(path, flags)
+        parent_fd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
     except OSError:
         raise AssertionError("TECHNICAL_SESSION_PERMISSIONS_UNSAFE") from None
     try:
-        file_stat = os.fstat(fd)
-        if (
-            not stat.S_ISREG(file_stat.st_mode)
-            or file_stat.st_uid != os.geteuid()
-            or (file_stat.st_mode & 0o777) != 0o600
-        ):
+        parent = os.fstat(parent_fd)
+        if parent.st_uid != os.geteuid() or parent.st_mode & 0o077:
             raise AssertionError("TECHNICAL_SESSION_PERMISSIONS_UNSAFE")
-        raw = os.read(fd, MAX_TECHNICAL_RECEIPT_BYTES + 1)
+        descriptor = os.open(path.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=parent_fd)
+        with os.fdopen(descriptor, "rb") as source:
+            info = os.fstat(source.fileno())
+            if not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid() or stat.S_IMODE(info.st_mode) != 0o600:
+                raise AssertionError("TECHNICAL_SESSION_PERMISSIONS_UNSAFE")
+            raw = source.read(TECHNICAL_SESSION_MAX_BYTES + 1)
+    except OSError:
+        raise AssertionError("TECHNICAL_SESSION_PERMISSIONS_UNSAFE") from None
     finally:
-        os.close(fd)
-    if len(raw) > MAX_TECHNICAL_RECEIPT_BYTES:
+        os.close(parent_fd)
+    if len(raw) > TECHNICAL_SESSION_MAX_BYTES:
         raise AssertionError("TECHNICAL_SESSION_RECEIPT_INVALID")
     try:
-        value = json.loads(raw.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError):
+        value = json.loads(raw)
+        if not isinstance(value, dict):
+            raise ValueError("object required")
+        expires = datetime.fromisoformat(str(value.get("expiresAt")).replace("Z", "+00:00"))
+    except (ValueError, UnicodeError):
         raise AssertionError("TECHNICAL_SESSION_RECEIPT_INVALID") from None
-    if not isinstance(value, dict):
-        raise AssertionError("TECHNICAL_SESSION_RECEIPT_INVALID")
     cookies = value.get("cookies")
-    expires_at = value.get("expiresAt")
-    try:
-        expires = datetime.fromisoformat(str(expires_at).replace("Z", "+00:00"))
-    except ValueError:
-        raise AssertionError("TECHNICAL_SESSION_RECEIPT_INVALID") from None
     if (
         value.get("authority") != "OWNER-AUTONOMOUS-OCTOPORT-TEST-AUTH-20260928-1244"
         or value.get("adminSessionIssued") is not False
         or not isinstance(value.get("accountId"), str)
         or not value["accountId"]
-        or not exact_technical_origin(value.get("apiOrigin"))
+        or value.get("apiOrigin") != TECHNICAL_API_ORIGIN
         or not isinstance(cookies, dict)
         or set(cookies) != {"pcp_portal_session", "pcp_csrf"}
-        or not all(isinstance(cookies[name], str) and cookies[name] for name in cookies)
+        or not all(isinstance(v, str) and re.fullmatch(r"[A-Za-z0-9._:-]{1,512}", v) for v in cookies.values())
         or expires.tzinfo is None
         or expires <= datetime.now(timezone.utc)
     ):
@@ -412,14 +380,23 @@ def load_technical_session(path: Path) -> dict:
     return value
 
 
-def technical_api(session: dict, method: str, path: str, body: dict | None = None, opener=None) -> dict:
-    if not exact_technical_origin(session.get("apiOrigin")):
-        raise AssertionError("TECHNICAL_SESSION_RECEIPT_INVALID")
-    if method not in {"GET", "POST"} or not path.startswith("/v1/") or "://" in path:
+class RejectTechnicalRedirects(HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise AssertionError("TECHNICAL_AUTH_REDIRECT_REJECTED")
+
+
+def technical_api(session: dict, method: str, path: str, body: dict | None = None) -> dict:
+    if session.get("apiOrigin") != TECHNICAL_API_ORIGIN:
+        raise AssertionError("TECHNICAL_AUTH_ORIGIN_REJECTED")
+    allowed = (method == "GET" and path == "/v1/accounts") or (
+        method == "POST" and re.fullmatch(r"/v1/device-authorizations/[0-9a-fA-F-]{36}/approve", path)
+    )
+    if not allowed:
         raise AssertionError("TECHNICAL_AUTH_API_REJECTED")
     payload = None if body is None else json.dumps(body, separators=(",", ":")).encode()
     headers = {
         "Accept": "application/json",
+        "Origin": TECHNICAL_API_ORIGIN,
         "Cookie": (
             f"pcp_portal_session={session['cookies']['pcp_portal_session']}; "
             f"pcp_csrf={session['cookies']['pcp_csrf']}"
@@ -429,13 +406,12 @@ def technical_api(session: dict, method: str, path: str, body: dict | None = Non
         headers["Content-Type"] = "application/json"
         headers["x-csrf-token"] = session["cookies"]["pcp_csrf"]
     request = Request(TECHNICAL_API_ORIGIN + path, method=method, data=payload, headers=headers)
-    transport = opener or build_opener(NoTechnicalRedirect())
     try:
-        with transport.open(request, timeout=15) as response:
+        with build_opener(RejectTechnicalRedirects()).open(request, timeout=15) as response:
             if response.status < 200 or response.status >= 300:
                 raise AssertionError("TECHNICAL_AUTH_API_REJECTED")
-            raw = response.read(MAX_TECHNICAL_RESPONSE_BYTES + 1)
-            if len(raw) > MAX_TECHNICAL_RESPONSE_BYTES:
+            raw = response.read(TECHNICAL_RESPONSE_MAX_BYTES + 1)
+            if len(raw) > TECHNICAL_RESPONSE_MAX_BYTES:
                 raise AssertionError("TECHNICAL_AUTH_API_INVALID_RESPONSE")
             value = json.loads(raw)
             if not isinstance(value, dict):
@@ -445,7 +421,7 @@ def technical_api(session: dict, method: str, path: str, body: dict | None = Non
         raise AssertionError("TECHNICAL_AUTH_API_REJECTED") from None
     except (URLError, TimeoutError):
         raise AssertionError("TECHNICAL_AUTH_API_UNAVAILABLE") from None
-    except (UnicodeDecodeError, json.JSONDecodeError):
+    except (ValueError, UnicodeError):
         raise AssertionError("TECHNICAL_AUTH_API_INVALID_RESPONSE") from None
 
 
@@ -867,8 +843,8 @@ def main() -> int:
     args.profile_dir = args.profile_dir.resolve()
     args.browser_executable = args.browser_executable.resolve()
     args.output = args.output.resolve()
-    if args.technical_session_file is not None and not args.technical_session_file.is_absolute():
-        parser.error("--technical-session-file must be an absolute protected path")
+    if args.technical_session_file is not None:
+        args.technical_session_file = Path(os.path.abspath(args.technical_session_file))
 
     try:
         result = prepare(args) if args.mode == "prepare" else launch_browser_phase(args)

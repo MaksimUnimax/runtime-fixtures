@@ -124,7 +124,7 @@ class HelperGuardTests(unittest.TestCase):
         receipt = self.root / "technical-session.json"
         value = {
             "authority": "OWNER-AUTONOMOUS-OCTOPORT-TEST-AUTH-20260928-1244",
-            "apiOrigin": helper.TECHNICAL_API_ORIGIN,
+            "apiOrigin": "https://api.octoport.ru",
             "accountId": "account-private",
             "expiresAt": "2099-01-01T00:00:00Z",
             "adminSessionIssued": False,
@@ -142,95 +142,6 @@ class HelperGuardTests(unittest.TestCase):
         receipt.write_text(json.dumps(value))
         with self.assertRaisesRegex(AssertionError, "^TECHNICAL_SESSION_RECEIPT_INVALID$"):
             helper.load_technical_session(receipt)
-
-    def test_technical_session_rejects_wrong_plaintext_origin_symlink_and_malformed_json(self):
-        receipt = self.root / "technical-session-negative.json"
-        base = {
-            "authority": "OWNER-AUTONOMOUS-OCTOPORT-TEST-AUTH-20260928-1244",
-            "apiOrigin": helper.TECHNICAL_API_ORIGIN,
-            "accountId": "synthetic-account",
-            "expiresAt": "2099-01-01T00:00:00Z",
-            "adminSessionIssued": False,
-            "cookies": {"pcp_portal_session": "SYNTHETIC_SESSION", "pcp_csrf": "SYNTHETIC_CSRF"},
-        }
-        for origin in [
-            "https://untrusted.invalid", "http://api.octoport.ru", "https://api.octoport.ru/path",
-            "https://api.octoport.ru?query=1", "https://user@api.octoport.ru",
-        ]:
-            value = dict(base, apiOrigin=origin)
-            receipt.write_text(json.dumps(value))
-            receipt.chmod(0o600)
-            with self.assertRaisesRegex(AssertionError, "^TECHNICAL_SESSION_RECEIPT_INVALID$"):
-                helper.load_technical_session(receipt)
-        receipt.write_text("{not-json")
-        receipt.chmod(0o600)
-        with self.assertRaisesRegex(AssertionError, "^TECHNICAL_SESSION_RECEIPT_INVALID$"):
-            helper.load_technical_session(receipt)
-        receipt.write_text(json.dumps(base))
-        receipt.chmod(0o600)
-        link = self.root / "technical-session-link.json"
-        link.symlink_to(receipt)
-        with self.assertRaisesRegex(AssertionError, "^TECHNICAL_SESSION_PERMISSIONS_UNSAFE$"):
-            helper.load_technical_session(link)
-
-    def test_technical_session_rejects_unprotected_parent(self):
-        parent = self.root / "unsafe-parent"
-        parent.mkdir(mode=0o755)
-        parent.chmod(0o755)
-        receipt = parent / "session.json"
-        receipt.write_text(json.dumps({
-            "authority": "OWNER-AUTONOMOUS-OCTOPORT-TEST-AUTH-20260928-1244",
-            "apiOrigin": helper.TECHNICAL_API_ORIGIN,
-            "accountId": "synthetic-account",
-            "expiresAt": "2099-01-01T00:00:00Z",
-            "adminSessionIssued": False,
-            "cookies": {"pcp_portal_session": "SYNTHETIC_SESSION", "pcp_csrf": "SYNTHETIC_CSRF"},
-        }))
-        receipt.chmod(0o600)
-        with self.assertRaisesRegex(AssertionError, "^TECHNICAL_SESSION_PERMISSIONS_UNSAFE$"):
-            helper.load_technical_session(receipt)
-
-    def test_technical_redirect_handler_never_forwards_cookie(self):
-        request = helper.Request(
-            helper.TECHNICAL_API_ORIGIN + "/v1/accounts",
-            headers={"Cookie": "pcp_portal_session=SYNTHETIC_NON_SECRET"},
-        )
-        redirected = helper.NoTechnicalRedirect().redirect_request(
-            request, None, 302, "Found", {}, "https://untrusted.invalid/collect"
-        )
-        self.assertIsNone(redirected)
-
-    def test_technical_api_exact_origin_with_injected_no_network_transport(self):
-        session = {
-            "apiOrigin": helper.TECHNICAL_API_ORIGIN,
-            "cookies": {"pcp_portal_session": "SYNTHETIC_SESSION", "pcp_csrf": "SYNTHETIC_CSRF"},
-        }
-
-        class Response:
-            status = 200
-            def __enter__(self): return self
-            def __exit__(self, *_args): return False
-            def read(self, limit):
-                self.limit = limit
-                return b'{"accounts":[]}'
-
-        class Opener:
-            def __init__(self):
-                self.request = None
-                self.timeout = None
-                self.response = Response()
-            def open(self, request, timeout):
-                self.request = request
-                self.timeout = timeout
-                return self.response
-
-        opener = Opener()
-        value = helper.technical_api(session, "GET", "/v1/accounts", opener=opener)
-        self.assertEqual(value, {"accounts": []})
-        self.assertEqual(opener.request.full_url, helper.TECHNICAL_API_ORIGIN + "/v1/accounts")
-        self.assertIn("SYNTHETIC_SESSION", opener.request.get_header("Cookie"))
-        self.assertEqual(opener.timeout, 15)
-        self.assertEqual(opener.response.limit, helper.MAX_TECHNICAL_RESPONSE_BYTES + 1)
 
     def test_technical_approval_verifies_active_membership_and_normal_approve_contract(self):
         session = {"accountId": "private-account"}
@@ -258,6 +169,100 @@ class HelperGuardTests(unittest.TestCase):
             with self.assertRaisesRegex(AssertionError, "^TECHNICAL_AUTH_ACCOUNT_MEMBERSHIP_MISMATCH$"):
                 helper.approve_technical_activation(session, pending)
         api.assert_called_once()
+
+
+    def valid_technical_receipt(self):
+        return {
+            "authority": "OWNER-AUTONOMOUS-OCTOPORT-TEST-AUTH-20260928-1244",
+            "apiOrigin": "https://api.octoport.ru", "accountId": "synthetic-account",
+            "expiresAt": "2099-01-01T00:00:00Z", "adminSessionIssued": False,
+            "cookies": {"pcp_portal_session": "SYNTHETIC_SESSION", "pcp_csrf": "SYNTHETIC_CSRF"},
+        }
+
+    def write_technical_receipt(self, value):
+        path = self.root / "technical.json"
+        path.write_text(json.dumps(value))
+        path.chmod(0o600)
+        return path
+
+    def test_technical_session_rejects_untrusted_origins_before_transport(self):
+        for origin in ["http://api.octoport.ru", "https://untrusted.invalid",
+                       "https://api.octoport.ru.evil.invalid", "https://api.octoport.ru/",
+                       "https://api.octoport.ru?next=elsewhere", "https://user@api.octoport.ru",
+                       "https://api.octoport.ru#fragment", "http://127.0.0.1:4100"]:
+            with self.subTest(origin=origin):
+                value = self.valid_technical_receipt()
+                value["apiOrigin"] = origin
+                with self.assertRaisesRegex(AssertionError, "^TECHNICAL_SESSION_RECEIPT_INVALID$"):
+                    helper.load_technical_session(self.write_technical_receipt(value))
+                with mock.patch.object(helper, "build_opener") as opener:
+                    with self.assertRaisesRegex(AssertionError, "^TECHNICAL_AUTH_ORIGIN_REJECTED$"):
+                        helper.technical_api(value, "GET", "/v1/accounts")
+                    opener.assert_not_called()
+
+    def test_technical_session_rejects_symlink_file_and_parent(self):
+        path = self.write_technical_receipt(self.valid_technical_receipt())
+        link = self.root / "linked.json"
+        link.symlink_to(path)
+        with self.assertRaisesRegex(AssertionError, "^TECHNICAL_SESSION_PERMISSIONS_UNSAFE$"):
+            helper.load_technical_session(link)
+        directory_link = self.root / "linked-directory"
+        directory_link.symlink_to(self.root, target_is_directory=True)
+        with self.assertRaisesRegex(AssertionError, "^TECHNICAL_SESSION_PERMISSIONS_UNSAFE$"):
+            helper.load_technical_session(directory_link / path.name)
+
+    def test_technical_session_rejects_exposed_parent_and_wrong_owner(self):
+        path = self.write_technical_receipt(self.valid_technical_receipt())
+        self.root.chmod(0o755)
+        with self.assertRaisesRegex(AssertionError, "^TECHNICAL_SESSION_PERMISSIONS_UNSAFE$"):
+            helper.load_technical_session(path)
+        self.root.chmod(0o700)
+        with mock.patch.object(helper.os, "geteuid", return_value=path.stat().st_uid + 1):
+            with self.assertRaisesRegex(AssertionError, "^TECHNICAL_SESSION_PERMISSIONS_UNSAFE$"):
+                helper.load_technical_session(path)
+
+    def test_technical_session_rejects_malformed_large_and_expired_receipts(self):
+        for value in [[], None, "text", {}, {**self.valid_technical_receipt(), "expiresAt": "2000-01-01T00:00:00Z"},
+                      {**self.valid_technical_receipt(), "cookies": {"pcp_portal_session": "line\r\ninjection", "pcp_csrf": "test"}}]:
+            with self.subTest(kind=type(value).__name__):
+                with self.assertRaisesRegex(AssertionError, "^TECHNICAL_SESSION_RECEIPT_INVALID$"):
+                    helper.load_technical_session(self.write_technical_receipt(value))
+        path = self.write_technical_receipt(self.valid_technical_receipt())
+        path.write_bytes(b" " * (helper.TECHNICAL_SESSION_MAX_BYTES + 1))
+        with self.assertRaisesRegex(AssertionError, "^TECHNICAL_SESSION_RECEIPT_INVALID$"):
+            helper.load_technical_session(path)
+
+    def test_technical_transport_rejects_every_redirect_before_forwarding_cookie(self):
+        request = helper.Request("https://api.octoport.ru/v1/accounts", headers={"Cookie": "SYNTHETIC_SESSION"})
+        for code in [301, 302, 303, 307, 308]:
+            with self.subTest(code=code):
+                with self.assertRaisesRegex(AssertionError, "^TECHNICAL_AUTH_REDIRECT_REJECTED$"):
+                    helper.RejectTechnicalRedirects().redirect_request(
+                        request, None, code, "redirect", {}, "https://untrusted.invalid/collect")
+
+    def test_technical_transport_uses_exact_origin_no_redirect_handler_and_bounded_read(self):
+        response = mock.MagicMock()
+        response.__enter__.return_value = response
+        response.status = 200
+        response.read.return_value = b'{"accounts":[]}'
+        opener = mock.Mock()
+        opener.open.return_value = response
+        with mock.patch.object(helper, "build_opener", return_value=opener) as factory:
+            result = helper.technical_api(self.valid_technical_receipt(), "GET", "/v1/accounts")
+        self.assertEqual(result, {"accounts": []})
+        self.assertIsInstance(factory.call_args.args[0], helper.RejectTechnicalRedirects)
+        self.assertEqual(opener.open.call_args.args[0].full_url, "https://api.octoport.ru/v1/accounts")
+        response.read.assert_called_once_with(helper.TECHNICAL_RESPONSE_MAX_BYTES + 1)
+        response.read.return_value = b"x" * (helper.TECHNICAL_RESPONSE_MAX_BYTES + 1)
+        with mock.patch.object(helper, "build_opener", return_value=opener):
+            with self.assertRaisesRegex(AssertionError, "^TECHNICAL_AUTH_API_INVALID_RESPONSE$"):
+                helper.technical_api(self.valid_technical_receipt(), "GET", "/v1/accounts")
+
+    def test_technical_transport_rejects_unassigned_endpoint_before_network(self):
+        with mock.patch.object(helper, "build_opener") as opener:
+            with self.assertRaisesRegex(AssertionError, "^TECHNICAL_AUTH_API_REJECTED$"):
+                helper.technical_api(self.valid_technical_receipt(), "POST", "/v1/admin/session", {})
+            opener.assert_not_called()
 
 
 if __name__ == "__main__":
