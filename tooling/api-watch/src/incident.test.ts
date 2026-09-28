@@ -109,7 +109,7 @@ describe("A8 durable incidents", () => {
     await evaluateApiWatchIncidents({ report: report("BLOCKED"), store });
     expect((await store.find(open[0]!.incidentKey))?.state).toBe("OPEN");
   });
-  it("resolves stale incidents only on complete comparable evidence", async () => {
+  it("keeps operation incidents open without accepted repair evidence", async () => {
     const store = new InMemoryApiWatchIncidentStore();
     const row = {
       crosswalkId: "x",
@@ -147,6 +147,179 @@ describe("A8 durable incidents", () => {
       (await store.listOpen()).filter(
         (item) => item.incidentType === "RUNTIME_OPERATION_STALE",
       ),
-    ).toHaveLength(0);
+    ).toHaveLength(1);
+  });
+});
+
+function comparableReport(): ApiWatchReport {
+  const value = report("COMPLETED", "ACQUIRED_OFFICIAL_SOURCE_CANDIDATE");
+  value.reportId = "comparable";
+  value.sources[0] = {
+    ...value.sources[0]!,
+    authorityStatus: "AUTHORITY_ACCEPTED",
+    snapshotSha256: "a".repeat(64),
+    baseSnapshotSha256: "a".repeat(64),
+    blockerCode: null,
+    changeMode: "NO_CHANGE",
+    inventoryOperationCount: 1,
+    addedCount: 0,
+    removedCount: 0,
+    changedCount: 0,
+    unchangedCount: 1,
+  };
+  return value;
+}
+
+describe("operation recovery requires accepted compatibility evidence", () => {
+  const cases = [
+    ["MAPPED_ENABLED", "BLOCKING_RISK", "API_CHANGE_BLOCKING"],
+    ["MAPPED_ENABLED", "REVIEW_REQUIRED", "API_CHANGE_REVIEW_REQUIRED"],
+    ["SOURCE_ONLY", "REVIEW_REQUIRED", "RUNTIME_OPERATION_STALE"],
+    [
+      "AMBIGUOUS_RUNTIME_MAPPING",
+      "REVIEW_REQUIRED",
+      "RUNTIME_MAPPING_AMBIGUOUS",
+    ],
+  ] as const;
+
+  it.each(cases)(
+    "keeps %s/%s open after a repeated snapshot and a NO_ACTION mapping",
+    async (crosswalkState, reviewState, incidentType) => {
+      const store = new InMemoryApiWatchIncidentStore();
+      const notify = vi.fn().mockResolvedValue(undefined);
+      const row = {
+        crosswalkId: "operation-row",
+        reportId: "changed",
+        sourceFamily: "OZON_SELLER" as const,
+        sourceIdentity: "OZON_SELLER:GET:/x",
+        runtimeAlias: "seller_info",
+        crosswalkState,
+        reviewState,
+        executionEnabled: true,
+        impactSeverity: reviewState,
+        diffSha256: "d".repeat(64),
+        createdAt: new Date(1),
+      };
+      const changed = comparableReport();
+      changed.reportId = "changed";
+      changed.sources[0]!.changeMode = "CHANGED";
+      await evaluateApiWatchIncidents({
+        report: changed,
+        crosswalkRows: [row],
+        store,
+        notifier: notify,
+        now: new Date(1),
+      });
+      const original = (await store.listOpen())[0]!;
+      expect(original.incidentType).toBe(incidentType);
+
+      // After the first acquisition, the same still-breaking document produces
+      // no fresh diff. Neither this nor a mapping row proves deployed recovery.
+      for (const crosswalkRows of [
+        [],
+        [
+          {
+            ...row,
+            crosswalkState: "MAPPED_ENABLED" as const,
+            reviewState: "NO_ACTION" as const,
+          },
+        ],
+      ]) {
+        await evaluateApiWatchIncidents({
+          report: comparableReport(),
+          crosswalkRows,
+          store,
+          notifier: notify,
+          now: new Date(2),
+        });
+        expect(await store.find(original.incidentKey)).toEqual(original);
+      }
+      expect(await store.listOpen()).toHaveLength(1);
+      expect(notify.mock.calls.map(([event]) => event.kind)).toEqual([
+        "OPENED",
+      ]);
+    },
+  );
+
+  it("does not use a completed report for another family as operation recovery", async () => {
+    const store = new InMemoryApiWatchIncidentStore();
+    await evaluateApiWatchIncidents({
+      report: comparableReport(),
+      store,
+      crosswalkRows: [
+        {
+          crosswalkId: "x",
+          reportId: "r",
+          sourceFamily: "OZON_SELLER",
+          sourceIdentity: "OZON_SELLER:GET:/x",
+          runtimeAlias: null,
+          crosswalkState: "SOURCE_ONLY",
+          reviewState: "REVIEW_REQUIRED",
+          executionEnabled: null,
+          impactSeverity: null,
+          diffSha256: "d".repeat(64),
+          createdAt: new Date(1),
+        },
+      ],
+    });
+    const otherFamily = comparableReport();
+    otherFamily.sources[0]!.sourceFamily = "WILDBERRIES";
+    await evaluateApiWatchIncidents({ report: otherFamily, store });
+    expect(await store.listOpen()).toHaveLength(1);
+  });
+});
+
+describe("acquisition recovery remains automatic", () => {
+  it("closes only the actually recovered source family and notifies once", async () => {
+    const store = new InMemoryApiWatchIncidentStore();
+    const notify = vi.fn().mockResolvedValue(undefined);
+    const blocked = report("BLOCKED");
+    blocked.sources.push({
+      ...blocked.sources[0]!,
+      sourceFamily: "WILDBERRIES",
+    });
+    await evaluateApiWatchIncidents({
+      report: blocked,
+      store,
+      notifier: notify,
+    });
+    await evaluateApiWatchIncidents({
+      report: comparableReport(),
+      store,
+      notifier: notify,
+    });
+    await evaluateApiWatchIncidents({
+      report: comparableReport(),
+      store,
+      notifier: notify,
+    });
+    expect((await store.listOpen()).map((x) => x.sourceFamily)).toEqual([
+      "WILDBERRIES",
+    ]);
+    expect(
+      notify.mock.calls.filter(([event]) => event.kind === "RESOLVED"),
+    ).toHaveLength(1);
+  });
+
+  it("does not treat an unaccepted snapshot as source recovery", async () => {
+    const store = new InMemoryApiWatchIncidentStore();
+    await evaluateApiWatchIncidents({ report: report("BLOCKED"), store });
+    const unaccepted = comparableReport();
+    unaccepted.sources[0]!.authorityStatus = null;
+    await evaluateApiWatchIncidents({ report: unaccepted, store });
+    expect(await store.listOpen()).toHaveLength(1);
+  });
+
+  it("closes a failed watch only after a completed report", async () => {
+    const store = new InMemoryApiWatchIncidentStore();
+    const failed = comparableReport();
+    failed.state = "FAILED";
+    await evaluateApiWatchIncidents({ report: failed, store });
+    const partial = comparableReport();
+    partial.state = "PARTIAL";
+    await evaluateApiWatchIncidents({ report: partial, store });
+    expect((await store.listOpen())[0]?.incidentType).toBe("WATCH_RUN_FAILED");
+    await evaluateApiWatchIncidents({ report: comparableReport(), store });
+    expect(await store.listOpen()).toHaveLength(0);
   });
 });
