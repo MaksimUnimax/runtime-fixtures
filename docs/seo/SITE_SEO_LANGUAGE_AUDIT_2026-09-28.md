@@ -81,3 +81,16 @@ Existing contour tests: 15 PASS. New brand tests: 3 PASS. Deployment regressions
 The complete inline Site CI validator and shell syntax checks pass locally.
 Source evidence: `/root/octoport-control/site/brand-audit-source-final-20260928/audit.json`.
 Production acceptance must be read from the subsequent deployment and live verification, not inferred from these source checks.
+
+## Production verification
+
+Deployed site release: `3ca9210ffc634df4fd7bd083b926057c1921ee96`.
+The intervening main changes concerned server/WB implementation, not public site content; they were preserved before publishing the colour change.
+All five live HTML responses match the deployed source exactly. Removing only the new colour spans and reverting the CSS version yields the original baseline HTML on every page.
+No public wording, English instruction term, metadata wording or link target was changed.
+All 41 visible textual Ozon/WB/Wildberries mentions have the intended colour classes.
+Chrome, Opera and Yandex: 18 states each, 54 states total PASS, including computed brand colours, no horizontal overflow and the API-guide anchor.
+Main light and dark themes were checked; the four utility pages retain their existing light-only presentation.
+Live receipt: `/root/octoport-control/site/brand-audit-live-20260928/receipt.json`.
+Deploy receipt: `/root/octoport-control/site/brand-audit-20260928-deploy.log`.
+Translation and broader copy/funnel recommendations remain awaiting owner approval.
