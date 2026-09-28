@@ -30,3 +30,15 @@ Supervisor `octoport-test-c-7624ad8b34c042f2baeb80aeca62adf3.service` ran under 
 B exact `400c713c08a6ecfc7be8f531447c5e0cdfe804bf` is intentionally **not** batched into this candidate. Controller finding `B18-LEGACY-ACTIVATION-GAP-20260928-0625` shows the migration/repositories still need a bounded idempotent reconciliation path for already-SUCCEEDED legacy NO_SESSION results plus actual prune coverage. Source review may continue independently, but live retention acceptance remains open.
 
 Evidence boundary: SOURCE/LOCAL_TEST only. No immutable STORE bytes changed, no owner-test deployment/catalog/auth action, no monitoring pilot mutation and no production action occurred.
+
+## Repair-binding semantic follow-up
+
+C integrated exact controller follow-up `019cc489c6651b80b2fb8bea3ab0b25e07669db7`. The profile-repair binding now includes trusted `deploymentEnvironment` (`MONITOR_PILOT` / `OWNER_TEST` / `PRODUCTION`) and the actual tested browser version. Either change alters the binding hash and invalidates a prior approval. The pinned observation run remains the triggering proof for the repair case; current semantic state/freshness must be revalidated separately, so routine identical observations do not churn approval identity while changed/UNKNOWN state remains blocking.
+
+C reran contracts/health tests and typechecks plus root lint/format/docs/diff under supervisor `octoport-test-c-2c26dd1737cf4e12863948cda83fd973.service`: exit 0, OOM 0, cleanup verified, peak 1,025,507,328 bytes. The previous `9c1500aa` branch CI is superseded by this follow-up and is not a promotion authority.
+
+## Owner-test deployment preparation final readback
+
+The fail-closed deployment wrapper `/root/octoport-control/logs/C/owner-test-deploy-62024d19/deploy-owner-test-62024d19.py` was revalidated after its final migration-failure restore logic. `py_compile` PASS; read-only preflight PASS with exact candidate and immutable rollback floor verified, owner-test DB canonical prefix 22, API `/health/live` and `/health/ready` 200, portal `/login` 200, DB size 53,409,471 bytes and sufficient disk. `mutationPerformed=false`.
+
+A negative `apply` without the exact authorization guard returned `OWNER_DEPLOY_AUTHORIZATION_REQUIRED`; owner-test unit state hashes were unchanged and the protected backup directory still contained zero backup files. Therefore no quiesce, backup, migration, service switch or catalog mutation occurred during preparation.
