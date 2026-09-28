@@ -46,6 +46,9 @@ async function fixture() {
   const sent = [];
   let work = false;
   let manual = false;
+  let scopeFamily = "chatgpt";
+  let digestGate = null;
+  let receiptGate = null;
   const pending = [];
   const state = {
     authority: { authGeneration: 1, bootstrapSnapshotSha256: "a".repeat(64) },
@@ -55,7 +58,28 @@ async function fixture() {
   let realmClone = clone;
   const sandbox = {
     console,
-    crypto: webcrypto,
+    crypto: {
+      ...webcrypto,
+      randomUUID: webcrypto.randomUUID.bind(webcrypto),
+      getRandomValues: webcrypto.getRandomValues.bind(webcrypto),
+      subtle: new Proxy(webcrypto.subtle, {
+        get(target, property) {
+          const method = Reflect.get(target, property, target);
+          if (property === "digest") {
+            return async (...args) => {
+              const gate = digestGate;
+              if (gate) {
+                digestGate = null;
+                gate.entered();
+                await gate.release;
+              }
+              return Reflect.apply(method, target, args);
+            };
+          }
+          return typeof method === "function" ? method.bind(target) : method;
+        },
+      }),
+    },
     TextEncoder,
     TextDecoder,
     structuredClone,
@@ -85,6 +109,14 @@ async function fixture() {
             return;
           }
           if (message?.messageType === "OZ_SIGNED_AI_PROFILE_RECEIPT") {
+            const gate = receiptGate;
+            if (gate) {
+              receiptGate = null;
+              gate.entered(message);
+              void Promise.resolve(gate.release).then(() =>
+                callback(realmClone({ ok: true, accepted: true })));
+              return;
+            }
             queueMicrotask(() => callback(realmClone({ ok: true, accepted: true })));
             return;
           }
@@ -93,7 +125,7 @@ async function fixture() {
       },
     },
     SellerAgentsSignedProfileDomBridge: {
-      scope: () => ({ family: "chatgpt", surface: "web", variant: null }),
+      scope: () => ({ family: scopeFamily, surface: "web", variant: null }),
       adapter: () => null,
       workInFlight: () => work,
     },
@@ -159,6 +191,23 @@ async function fixture() {
     runtime: sandbox.SellerAgentsSignedProfileRuntime,
     setWork(value) { work = value; },
     setManual(value) { manual = value; },
+    setScope(family) { scopeFamily = family; },
+    pauseNextDigest() {
+      let enteredResolve;
+      let releaseResolve;
+      const entered = new Promise((resolve) => { enteredResolve = resolve; });
+      const release = new Promise((resolve) => { releaseResolve = resolve; });
+      digestGate = { entered: enteredResolve, release };
+      return { entered, release: releaseResolve };
+    },
+    pauseNextReceipt() {
+      let enteredResolve;
+      let releaseResolve;
+      const entered = new Promise((resolve) => { enteredResolve = resolve; });
+      const release = new Promise((resolve) => { releaseResolve = resolve; });
+      receiptGate = { entered: enteredResolve, release };
+      return { entered, release: releaseResolve };
+    },
     pending,
     resolvePending,
     responseFor,
@@ -311,6 +360,171 @@ await test("RUNTIME-04-document-reload-does-not-carry-applied-profile", async ()
     assert.equal(applied.pending, null);
   } finally {
     fresh?.dispose();
+  }
+});
+
+
+await test("RUNTIME-05-scope-change-stops-old-ChatGPT-profile-before-response", async () => {
+  const f = await fixture();
+  try {
+    f.state.profile = await f.makeProfile(2, {
+      kind: "accessibility_role_name",
+      role: "status",
+      reference: "composer-root",
+    });
+    assert.equal((await f.runtime.refresh("chatgpt_role_profile")).status, "APPLIED");
+    const baseline = { composer: {}, root: {}, form: {} };
+    assert.equal(f.runtime.resolveComposerContext(null, baseline), null);
+
+    f.setScope("alice");
+    assert.equal(
+      f.runtime.resolveComposerContext(null, baseline),
+      baseline,
+      "scope change must stop using old ChatGPT profile before Alice response arrives",
+    );
+    f.state.unavailable = "PROFILE_UNSUPPORTED";
+    const cleared = await f.runtime.refresh("alice_scope_change");
+    assert.equal(cleared.status, "CLEARED");
+    assert.equal(cleared.reason, "PROFILE_UNSUPPORTED");
+    assert.equal(f.runtime.debugState().applied, null);
+  } finally {
+    f.runtime.dispose();
+  }
+});
+
+await test("RUNTIME-06-newer-refresh-wins-while-old-fingerprint-validation-is-paused", async () => {
+  const f = await fixture();
+  let gate;
+  try {
+    f.state.profile = await f.makeProfile(2);
+    gate = f.pauseNextDigest();
+    const oldRefresh = f.runtime.refresh("old_validation");
+    await Promise.race([
+      gate.entered,
+      new Promise((_, reject) => setTimeout(() => reject(new Error("old fingerprint validation not reached")), 5000)),
+    ]);
+
+    f.state.profile = await f.makeProfile(3, {
+      kind: "accessibility_role_name",
+      role: "status",
+      reference: "composer-root",
+    });
+    const newer = await f.runtime.refresh("newer_validation");
+    assert.equal(newer.status, "APPLIED");
+    assert.equal(f.runtime.debugState().applied.profile.revision, 3);
+
+    gate.release();
+    gate = null;
+    const oldResult = await oldRefresh;
+    assert.equal(oldResult.code, "STALE_REQUEST");
+    assert.equal(f.runtime.debugState().applied.profile.revision, 3);
+  } finally {
+    gate?.release?.();
+    f.runtime.dispose();
+  }
+});
+
+
+await test("RUNTIME-07-delayed-old-ensure-ack-cannot-clear-newer-bootstrap-profile", async () => {
+  const f = await fixture();
+  let gate;
+  try {
+    f.state.profile = await f.makeProfile(2);
+    const oldExpected = {
+      authority: clone(f.state.authority),
+      profile: {
+        profileKey: f.state.profile.profileKey,
+        revision: f.state.profile.revision,
+        scopeVariant: f.state.profile.scopeVariant,
+        contentSha256: f.state.profile.contentSha256,
+      },
+    };
+    gate = f.pauseNextReceipt();
+    const oldEnsure = f.runtime.ensure(oldExpected);
+    const oldReceipt = await Promise.race([
+      gate.entered,
+      new Promise((_, reject) => setTimeout(() => reject(new Error("old APPLIED receipt not reached")), 5000)),
+    ]);
+    assert.equal(oldReceipt.status, "APPLIED");
+    assert.equal(f.runtime.debugState().applied.profile.revision, 2);
+
+    f.state.authority = { authGeneration: 1, bootstrapSnapshotSha256: "b".repeat(64) };
+    f.state.profile = await f.makeProfile(3, {
+      kind: "accessibility_role_name",
+      role: "status",
+      reference: "composer-root",
+    });
+    const newer = await f.runtime.refresh("newer_bootstrap_before_old_ack");
+    assert.equal(newer.status, "APPLIED");
+    assert.equal(f.runtime.debugState().applied.profile.revision, 3);
+    assert.equal(f.runtime.debugState().applied.authority.bootstrapSnapshotSha256, "b".repeat(64));
+
+    gate.release();
+    gate = null;
+    const stale = await oldEnsure;
+    assert.equal(stale.applied, false);
+    assert.equal(stale.code, "STALE_REQUEST");
+    assert.equal(f.runtime.debugState().applied.profile.revision, 3);
+    assert.equal(f.runtime.debugState().applied.authority.bootstrapSnapshotSha256, "b".repeat(64));
+  } finally {
+    gate?.release?.();
+    f.runtime.dispose();
+  }
+});
+
+await test("RUNTIME-08-dispose-during-APPLIED-receipt-ack-cannot-resurrect-profile", async () => {
+  const f = await fixture();
+  let gate;
+  try {
+    f.state.profile = await f.makeProfile(2);
+    gate = f.pauseNextReceipt();
+    const oldRefresh = f.runtime.refresh("dispose_during_receipt");
+    await Promise.race([
+      gate.entered,
+      new Promise((_, reject) => setTimeout(() => reject(new Error("APPLIED receipt not reached before dispose")), 5000)),
+    ]);
+    assert.equal(f.runtime.debugState().applied.profile.revision, 2);
+    f.runtime.dispose();
+    assert.equal(f.runtime.debugState().applied, null);
+
+    gate.release();
+    gate = null;
+    const result = await oldRefresh;
+    assert.equal(result.code, "STALE_REQUEST");
+    assert.equal(f.runtime.debugState().applied, null);
+  } finally {
+    gate?.release?.();
+    f.runtime.dispose();
+  }
+});
+
+await test("RUNTIME-09-revocation-during-old-APPLIED-ack-keeps-cleared-state", async () => {
+  const f = await fixture();
+  let gate;
+  try {
+    f.state.profile = await f.makeProfile(2);
+    gate = f.pauseNextReceipt();
+    const oldRefresh = f.runtime.refresh("old_profile_before_revoke");
+    await Promise.race([
+      gate.entered,
+      new Promise((_, reject) => setTimeout(() => reject(new Error("old APPLIED receipt not reached before revoke")), 5000)),
+    ]);
+    assert.equal(f.runtime.debugState().applied.profile.revision, 2);
+
+    f.state.authority = { authGeneration: 1, bootstrapSnapshotSha256: "c".repeat(64) };
+    f.state.unavailable = "WORK_NOT_ALLOWED";
+    const revoked = await f.runtime.refresh("authority_revoked");
+    assert.equal(revoked.status, "CLEARED");
+    assert.equal(f.runtime.debugState().applied, null);
+
+    gate.release();
+    gate = null;
+    const stale = await oldRefresh;
+    assert.equal(stale.code, "STALE_REQUEST");
+    assert.equal(f.runtime.debugState().applied, null);
+  } finally {
+    gate?.release?.();
+    f.runtime.dispose();
   }
 });
 

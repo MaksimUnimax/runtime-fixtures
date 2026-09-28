@@ -18,7 +18,10 @@
     if (!value || !["chatgpt", "alice"].includes(value.family) || value.surface !== "web" || value.variant !== null) return null;
     return { family: value.family, surface: "web", variant: null };
   }
-  function currentProfile() { return applied?.profile || null; }
+  function currentProfile() {
+    const key = scopeKey(currentScope());
+    return applied && applied.scopeKey === key ? applied.profile : null;
+  }
   function sameAuthority(left, right) {
     return Boolean(left && right &&
       left.authGeneration === right.authGeneration &&
@@ -128,8 +131,11 @@
     pending = null;
   }
   function clearApplied() { applied = null; }
+  function tokenCurrent(token) {
+    return !disposed && token?.epoch === epoch && scopeKey(currentScope()) === token.scopeKey;
+  }
   function responseCurrent(token) {
-    return !disposed && pending === token && token.epoch === epoch && scopeKey(currentScope()) === token.scopeKey;
+    return tokenCurrent(token) && pending === token;
   }
   async function refresh(reason = "refresh") {
     if (disposed) return { ok: false, code: "DISPOSED" };
@@ -137,6 +143,7 @@
     if (!ai) { invalidatePending(); clearApplied(); return { ok: false, code: "AI_SCOPE_UNAVAILABLE" }; }
 
     const token = { epoch: ++epoch, requestId: crypto.randomUUID(), scopeKey: scopeKey(ai), reason };
+    if (applied && applied.scopeKey !== token.scopeKey) clearApplied();
     pending = token;
     const request = {
       messageType: "OZ_REQUEST_SIGNED_AI_PROFILE",
@@ -151,39 +158,53 @@
       return { ok: false, code: "PROFILE_REQUEST_FAILED" };
     }
     if (!responseCurrent(token)) return { ok: false, code: "STALE_REQUEST" };
-    pending = null;
+    const responseValid = await consumer.validResponse(response);
+    if (!responseCurrent(token)) return { ok: false, code: "STALE_REQUEST" };
 
-    if (!await consumer.validResponse(response)) {
-      clearApplied();
-      await sendReceipt(request, { status: "REJECTED", reason: "INVALID_PROFILE" });
-      return { ok: false, code: "INVALID_PROFILE" };
+    if (!responseValid) {
+      if (applied && applied.scopeKey === token.scopeKey) clearApplied();
+      const receipt = await sendReceipt(request, { status: "REJECTED", reason: "INVALID_PROFILE" });
+      if (!tokenCurrent(token)) return { ok: false, code: "STALE_REQUEST" };
+      if (pending === token) pending = null;
+      return { ok: false, code: receipt?.code || "INVALID_PROFILE" };
     }
     if (response.requestId !== request.requestId || scopeKey(response.ai) !== token.scopeKey) {
-      await sendReceipt(request, { status: "REJECTED", reason: "STALE_REQUEST" });
-      return { ok: false, code: "STALE_REQUEST" };
+      const receipt = await sendReceipt(request, { status: "REJECTED", reason: "STALE_REQUEST" });
+      if (!tokenCurrent(token)) return { ok: false, code: "STALE_REQUEST" };
+      if (pending === token) pending = null;
+      return { ok: false, code: receipt?.code || "STALE_REQUEST" };
     }
     if (response.status === "UNAVAILABLE") {
-      clearApplied();
-      await sendReceipt(request, { status: "CLEARED", reason: response.reason });
+      if (applied && applied.scopeKey === token.scopeKey) clearApplied();
+      const receipt = await sendReceipt(request, { status: "CLEARED", reason: response.reason });
+      if (!tokenCurrent(token)) return { ok: false, code: "STALE_REQUEST" };
+      if (pending === token) pending = null;
+      if (!receipt?.ok || receipt.accepted !== true) return { ok: false, code: receipt?.code || "STALE_REQUEST" };
       return { ok: true, status: "CLEARED", reason: response.reason };
     }
     if (ai.family !== "chatgpt") {
-      clearApplied();
-      await sendReceipt(request, { status: "REJECTED", reason: "AI_SCOPE_MISMATCH" });
-      return { ok: false, code: "AI_SCOPE_MISMATCH" };
+      if (applied && applied.scopeKey === token.scopeKey) clearApplied();
+      const receipt = await sendReceipt(request, { status: "REJECTED", reason: "AI_SCOPE_MISMATCH" });
+      if (!tokenCurrent(token)) return { ok: false, code: "STALE_REQUEST" };
+      if (pending === token) pending = null;
+      return { ok: false, code: receipt?.code || "AI_SCOPE_MISMATCH" };
     }
     if (workInFlight()) {
-      await sendReceipt(request, {
+      const receipt = await sendReceipt(request, {
         status: "DEFERRED",
         authority: clone(response.authority),
         profile: identity(response.profile),
         reason: "WORK_IN_FLIGHT",
       });
+      if (!tokenCurrent(token)) return { ok: false, code: "STALE_REQUEST" };
+      if (pending === token) pending = null;
+      if (!receipt?.ok || receipt.accepted !== true) return { ok: false, code: receipt?.code || "STALE_REQUEST" };
       return { ok: true, status: "DEFERRED" };
     }
 
     const next = {
       requestId: request.requestId,
+      epoch: token.epoch,
       scopeKey: token.scopeKey,
       authority: clone(response.authority),
       profile: clone(response.profile),
@@ -194,18 +215,22 @@
       authority: clone(response.authority),
       profile: identity(response.profile),
     });
+    if (!tokenCurrent(token) || applied !== next) return { ok: false, code: "STALE_REQUEST" };
+    if (pending === token) pending = null;
     if (!receipt?.ok || receipt.accepted !== true) {
       if (applied === next) clearApplied();
       queueMicrotask(() => { if (!disposed) void refresh("receipt_rejected"); });
       return { ok: false, code: receipt?.code || "STALE_REQUEST" };
     }
-    return { ok: true, status: "APPLIED", authority: clone(next.authority), profile: identity(next.profile) };
+    return { ok: true, status: "APPLIED", requestId: next.requestId, authority: clone(next.authority), profile: identity(next.profile) };
   }
   async function ensure(expected) {
     const refreshed = await refresh("work_start_ensure");
     if (!refreshed?.ok || refreshed.status !== "APPLIED" || !applied) return { ok: false, applied: false, code: refreshed?.code || refreshed?.status || "PROFILE_NOT_APPLIED" };
+    if (applied.requestId !== refreshed.requestId) return { ok: false, applied: false, code: "STALE_REQUEST" };
     if (!sameAuthority(applied.authority, expected?.authority) || !sameIdentity(identity(applied.profile), expected?.profile)) {
-      clearApplied();
+      const current = applied;
+      if (current.requestId === refreshed.requestId) clearApplied();
       return { ok: false, applied: false, code: "PROFILE_FENCE_MISMATCH" };
     }
     return { ok: true, applied: true, authority: clone(applied.authority), profile: identity(applied.profile) };

@@ -186,6 +186,148 @@ await test("PROFILE-04-worker-restart-requires-fresh-request", async () => {
   }
 });
 
+
+await test("PROFILE-05-authority-loss-during-final-validation-never-returns-AVAILABLE", async () => {
+  let armed = false;
+  let profileDigests = 0;
+  let enteredResolve;
+  let releaseResolve;
+  const entered = new Promise((resolve) => { enteredResolve = resolve; });
+  const release = new Promise((resolve) => { releaseResolve = resolve; });
+  const worker = await makeWorker(runtime, {
+    beforeCryptoDigest: async (_algorithm, data) => {
+      if (!armed) return;
+      const bytes = data instanceof ArrayBuffer
+        ? Buffer.from(data)
+        : Buffer.from(data.buffer, data.byteOffset, data.byteLength);
+      const text = bytes.toString("utf8");
+      if (!text.startsWith('{"compatibility":')) return;
+      profileDigests += 1;
+      if (profileDigests === 2) {
+        enteredResolve();
+        await release;
+      }
+    },
+  });
+  try {
+    armed = true;
+    const pending = worker.request(requestFor(), trustedSender(worker));
+    await Promise.race([
+      entered,
+      new Promise((_, reject) => setTimeout(() => reject(new Error("final validation digest not reached")), 5000)),
+    ]);
+    await worker.call("SellerAgentsControlClient.localReset");
+    releaseResolve();
+    const result = await pending;
+    assert.equal(result.status, "UNAVAILABLE", JSON.stringify(result));
+    assert.equal(result.reason, "AUTHORITY_CHANGED");
+    assert.equal(worker.network.length, 0);
+  } finally {
+    releaseResolve?.();
+    worker.close();
+  }
+});
+
+
+await test("PROFILE-06-pending-start-provenance-rechecks-exact-profile-before-send", async () => {
+  const worker = await makeWorker(runtime);
+  try {
+    await worker.settings();
+    const popup = await worker.popup({ type: "SA_POPUP_STATE", tab_id: worker.tabId });
+    assert.equal(popup.ok, true, JSON.stringify(popup));
+    assert.equal(popup.stores.length, 1, JSON.stringify(popup.stores));
+    const store = await worker.call("saCatalog.get", popup.stores[0].id);
+    const storeContext = await worker.call("saAuthorityStoreContext", store);
+    const authority = await worker.call("SellerAgentsControlClient.getAuthority");
+    const generation = await worker.call("SellerAgentsControlClient.generation");
+    const bootstrapSnapshotSha256 = await worker.call("saSnapshotDigest", authority.envelope);
+    const profile = authority.payload.ai.profile;
+    const detected = authority.payload.ai.detected;
+    const pending = {
+      store_context: plain(storeContext),
+      admission_provenance: {
+        accountGeneration: generation,
+        bootstrapSnapshotSha256,
+        aiFamily: detected.family,
+        aiSurface: detected.surface,
+        aiVariant: detected.variant,
+        aiProfileKey: profile.profileKey,
+        aiProfileRevision: profile.revision,
+        aiProfileScopeVariant: profile.scopeVariant,
+        aiProfileContentSha256: profile.contentSha256,
+      },
+    };
+    await worker.call("saPendingGuard", pending);
+
+    const stale = plain(pending);
+    stale.admission_provenance.aiProfileContentSha256 = "f".repeat(64);
+    await assert.rejects(
+      async () => worker.call("saPendingGuard", stale),
+      (error) => error?.code === "WORK_ADMISSION_CONTEXT_CHANGED",
+    );
+    assert.equal(worker.network.length, 0);
+  } finally {
+    worker.close();
+  }
+});
+
+
+await test("PROFILE-07-authority-loss-during-receipt-validation-rejects-stale-ack", async () => {
+  let armed = false;
+  let enteredResolve;
+  let releaseResolve;
+  const entered = new Promise((resolve) => { enteredResolve = resolve; });
+  const release = new Promise((resolve) => { releaseResolve = resolve; });
+  const worker = await makeWorker(runtime, {
+    beforeCryptoDigest: async (_algorithm, data) => {
+      if (!armed) return;
+      const bytes = data instanceof ArrayBuffer
+        ? Buffer.from(data)
+        : Buffer.from(data.buffer, data.byteOffset, data.byteLength);
+      if (!bytes.toString("utf8").startsWith('{"compatibility":')) return;
+      armed = false;
+      enteredResolve();
+      await release;
+    },
+  });
+  try {
+    const sender = trustedSender(worker);
+    const request = requestFor();
+    const response = await worker.request(request, sender);
+    assert.equal(response.status, "AVAILABLE", JSON.stringify(response));
+    const receipt = {
+      messageType: "OZ_SIGNED_AI_PROFILE_RECEIPT",
+      protocolVersion: request.protocolVersion,
+      requestId: request.requestId,
+      ai: request.ai,
+      status: "APPLIED",
+      authority: response.authority,
+      profile: {
+        profileKey: response.profile.profileKey,
+        revision: response.profile.revision,
+        scopeVariant: response.profile.scopeVariant,
+        contentSha256: response.profile.contentSha256,
+      },
+    };
+
+    armed = true;
+    const pendingReceipt = worker.request(receipt, sender);
+    await Promise.race([
+      entered,
+      new Promise((_, reject) => setTimeout(() => reject(new Error("receipt material digest not reached")), 5000)),
+    ]);
+    await worker.call("SellerAgentsControlClient.localReset");
+    releaseResolve();
+    const result = await pendingReceipt;
+    assert.equal(result.accepted, false, JSON.stringify(result));
+    assert.equal(result.code, "STALE_REQUEST");
+    assert.equal(worker.network.length, 0);
+  } finally {
+    releaseResolve?.();
+    worker.close();
+  }
+});
+
 console.log(JSON.stringify({
   status: "PASS",
   scenarios: results.length,

@@ -164,6 +164,23 @@ async function saPendingGuard(pending) {
   await saAssertLocalAuthorityAdmission();
   if (pending?.store_context) await saAssertStore(pending.store_context);
   else throw SellerAgentsExecutionContext.error();
+
+  const provenance = pending?.admission_provenance;
+  if (!provenance) throw saAdmissionError("WORK_ADMISSION_CONTEXT_CHANGED");
+  const captured = await saSignedProfileSnapshot().catch(() => null);
+  const profile = captured?.authority?.payload?.ai?.profile || null;
+  const detected = captured?.authority?.payload?.ai?.detected || null;
+  if (!captured || !profile || !detected ||
+      provenance.accountGeneration !== captured.generation ||
+      provenance.bootstrapSnapshotSha256 !== captured.snapshot.bootstrapSnapshotSha256 ||
+      provenance.aiFamily !== detected.family ||
+      provenance.aiSurface !== detected.surface ||
+      (provenance.aiVariant ?? null) !== (detected.variant ?? null) ||
+      provenance.aiProfileKey !== profile.profileKey ||
+      provenance.aiProfileRevision !== profile.revision ||
+      (provenance.aiProfileScopeVariant ?? null) !== (profile.scopeVariant ?? null) ||
+      provenance.aiProfileContentSha256 !== profile.contentSha256)
+    throw saAdmissionError("WORK_ADMISSION_CONTEXT_CHANGED");
 }
 function saAdmissionError(code, deniedGates = []) {
   const error = saError(code);
@@ -933,6 +950,8 @@ async function saSignedProfileRequest(message, sender) {
     profile: saProfileClone(profile)
   };
   if (!await consumer.validResponse(response)) return saSignedProfileUnavailable(message, "PROFILE_UNSUPPORTED");
+  if (!await SellerAgentsControlClient.canWork() || !await saSignedProfileSnapshotStillCurrent(captured))
+    return saSignedProfileUnavailable(message, "AUTHORITY_CHANGED");
   return response;
 }
 async function saSignedProfileReceipt(message, sender) {
@@ -957,12 +976,26 @@ async function saSignedProfileReceipt(message, sender) {
     captured?.authority?.requestedAi === message.ai.family);
 
   if (message.status === "CLEARED") {
-    if (canWork && scopeMatches && payload?.ai?.status === "RESOLVED" && profile &&
-        await consumer.validMaterial(profile)) return { ok: false, accepted: false, code: "STALE_REQUEST" };
+    const latest = await saSignedProfileSnapshot().catch(() => null);
+    if (!latest) return { ok: true, accepted: true };
+    const latestCanWork = await SellerAgentsControlClient.canWork();
+    const latestPayload = latest.authority?.payload;
+    const latestDetected = latestPayload?.ai?.detected;
+    const latestProfile = latestPayload?.ai?.profile;
+    const latestScopeMatches = Boolean(latestDetected &&
+      latestDetected.family === message.ai.family && latestDetected.surface === message.ai.surface &&
+      latestDetected.variant === message.ai.variant && latest.authority?.requestedAi === message.ai.family);
+    const latestMaterialValid = Boolean(latestCanWork && latestScopeMatches &&
+      latestPayload?.ai?.status === "RESOLVED" && latestProfile && await consumer.validMaterial(latestProfile));
+    if (!await saSignedProfileSnapshotStillCurrent(latest))
+      return { ok: false, accepted: false, code: "STALE_REQUEST" };
+    if (latestMaterialValid) return { ok: false, accepted: false, code: "STALE_REQUEST" };
     return { ok: true, accepted: true };
   }
   if (!captured || !canWork || !scopeMatches || payload?.ai?.status !== "RESOLVED" || !profile ||
       !await consumer.validMaterial(profile)) return { ok: false, accepted: false, code: "STALE_REQUEST" };
+  if (!await SellerAgentsControlClient.canWork() || !await saSignedProfileSnapshotStillCurrent(captured))
+    return { ok: false, accepted: false, code: "STALE_REQUEST" };
 
   const currentAuthority = {
     authGeneration: captured.generation,

@@ -628,7 +628,7 @@ export async function makeWorker(directory, options = {}) {
   const sandbox = {
     console,
     chrome,
-    crypto: options.beforeCryptoVerify
+    crypto: options.beforeCryptoVerify || options.beforeCryptoDigest
       ? {
           ...webcrypto,
           randomUUID: webcrypto.randomUUID.bind(webcrypto),
@@ -636,9 +636,14 @@ export async function makeWorker(directory, options = {}) {
           subtle: new Proxy(webcrypto.subtle, {
             get(target, property) {
               const method = Reflect.get(target, property, target);
-              if (property === "verify")
+              if (property === "verify" && options.beforeCryptoVerify)
                 return (...args) =>
                   Promise.resolve(options.beforeCryptoVerify(...args)).then(
+                    () => Reflect.apply(method, target, args),
+                  );
+              if (property === "digest" && options.beforeCryptoDigest)
+                return (...args) =>
+                  Promise.resolve(options.beforeCryptoDigest(...args)).then(
                     () => Reflect.apply(method, target, args),
                   );
               return typeof method === "function"
