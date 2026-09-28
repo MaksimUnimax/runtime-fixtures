@@ -40,7 +40,7 @@ const authority: Store1PackageAuthority = {
   version: STORE1_VERSION,
   contractVersion: STORE1_CONTRACT,
   artifactSha256: STORE1_ACCEPTED_ARTIFACT_SHA256,
-  filename: "OCTOPORT_v0.2.5_CHROMIUM_STORE.zip",
+  filename: `OCTOPORT_v${STORE1_VERSION}_CHROMIUM_STORE.zip`,
 };
 const verifierSource = readFileSync(
   new URL("../../packages/control-client/src/crypto.js", import.meta.url),
@@ -398,10 +398,41 @@ describe("STORE-1 v2 signature preflight", () => {
     ).toThrow("STORE1_PACKAGE_RUNTIME_NOT_STORE");
   });
 
+  it("rejects the superseded 0.2.5 package manifest before reading package trust", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "store1-preflight-stale-"));
+    tempDirs.push(dir);
+    const zip = join(dir, "OCTOPORT_v0.2.5_CHROMIUM_STORE.zip");
+    const manifest = join(dir, "B1_RC_MANIFEST.json");
+    writeFileSync(zip, "historical-0.2.5-bytes-not-current-authority");
+    writeFileSync(
+      manifest,
+      JSON.stringify({
+        productVersion: "0.2.5",
+        contractVersion: STORE1_CONTRACT,
+        source: {
+          head: "68f1621376be4d7aeeff44bc76cc326f8cc64954",
+          tree: "8eb20bbc19bbbaaa73ca1a9ba139efa90194ea9a",
+        },
+        packages: {
+          chromium: {
+            version: "0.2.5",
+            browser: "chromium",
+            sha256:
+              "33cbf1ad9ec4669abe3a65e24cfbaead4c7c3a1fa711261b2d186d107c33aea1",
+            filename: "OCTOPORT_v0.2.5_CHROMIUM_STORE.zip",
+          },
+        },
+      }),
+    );
+    await expect(
+      readStore1PackageSignatureEvidence(manifest, zip),
+    ).rejects.toThrow("STORE1_PACKAGE_MANIFEST_MISMATCH");
+  });
+
   it("rejects package bytes whose hash is not the accepted STORE artifact", async () => {
     const dir = mkdtempSync(join(tmpdir(), "store1-preflight-"));
     tempDirs.push(dir);
-    const zip = join(dir, "OCTOPORT_v0.2.5_CHROMIUM_STORE.zip");
+    const zip = join(dir, `OCTOPORT_v${STORE1_VERSION}_CHROMIUM_STORE.zip`);
     const manifest = join(dir, "B1_RC_MANIFEST.json");
     writeFileSync(zip, "not-the-accepted-zip");
     writeFileSync(
@@ -418,7 +449,7 @@ describe("STORE-1 v2 signature preflight", () => {
             version: STORE1_VERSION,
             browser: "chromium",
             sha256: STORE1_ACCEPTED_ARTIFACT_SHA256,
-            filename: "OCTOPORT_v0.2.5_CHROMIUM_STORE.zip",
+            filename: `OCTOPORT_v${STORE1_VERSION}_CHROMIUM_STORE.zip`,
           },
         },
       }),
