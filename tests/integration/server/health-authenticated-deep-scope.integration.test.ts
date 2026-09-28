@@ -5,11 +5,13 @@ import {
   BASELINE_HEALTH_SUITE,
   DEFAULT_NO_SESSION_CADENCE,
   HealthSuiteDefinitionSchema,
+  runDurableHealthSchedulerCycle,
   type HealthSuiteDefinition,
 } from "../../../packages/server/health/src/index.js";
 import {
   createDatabaseRuntime,
   createHealthAuthenticatedDeepScopeRepository,
+  createHealthIncidentRepository,
   createHealthPersistenceRepository,
   createHealthSchedulerRepository,
   createProfileLifecycleRepository,
@@ -39,6 +41,7 @@ const IDS = {
   standardRevision: "b1300000-0000-4000-8000-000000000006",
   workRevision: "b1300000-0000-4000-8000-000000000007",
   recoverySchedule: "b1300000-0000-4000-8000-00000000000c",
+  terminalRecoverySchedule: "b1300000-0000-4000-8000-00000000000d",
 } as const;
 
 const runtime = createDatabaseRuntime(connectionString);
@@ -634,6 +637,149 @@ describe.sequential(
           new Date("2026-09-27T12:00:03.000Z"),
         ),
       ).toBe(0);
+    });
+
+    it("recovers a terminal H3 result after incident failure without replaying H3", async () => {
+      const scheduledAt = new Date("2026-09-28T02:30:00.000Z");
+      await runtime.query("UPDATE health_schedules SET enabled=false");
+      const realIncidents = createHealthIncidentRepository(runtime);
+      let incidentCalls = 0;
+      const incidentProcessor = {
+        async processCompletedHealthRun(runId: string) {
+          incidentCalls += 1;
+          if (incidentCalls <= 2) {
+            throw new Error("B16_SYNTHETIC_POST_PERSIST_INCIDENT_FAILURE");
+          }
+          return realIncidents.processCompletedHealthRun(runId);
+        },
+      };
+      const recoveryScheduler = createHealthSchedulerRepository(runtime, {
+        incidentProcessor,
+      });
+
+      await recoveryScheduler.createSchedule({
+        scheduleId: IDS.terminalRecoverySchedule,
+        monitorTarget: "chatgpt_standard_health",
+        provider: "chatgpt",
+        surface: "CHATGPT_STANDARD",
+        probeLayer: "AUTHENTICATED_DEEP",
+        enabled: true,
+        cadence: DEFAULT_NO_SESSION_CADENCE,
+        nextDueAt: scheduledAt,
+        revision: 2,
+      });
+
+      let h3Calls = 0;
+      let scheduledRunId: string | undefined;
+      let healthRunId: string | undefined;
+      const execute = async (scheduledRun: { id: string }) => {
+        h3Calls += 1;
+        scheduledRunId = scheduledRun.id;
+        const scope = await resolver.resolveAuthenticatedDeepHealthScope(
+          resolutionInput(
+            "CHATGPT_STANDARD",
+            "b13-authdeep-standard-synthetic",
+          ),
+        );
+        const persisted = await persistence.persistCompletedHealthRun({
+          ...createH3HealthPersistenceCommand(failedStandardExecution(), {
+            suite: syntheticSuite(scope),
+            startedAt: "2026-09-28T02:30:00.000Z",
+            completedAt: "2026-09-28T02:30:01.000Z",
+            browserRuntime: {
+              family: "chrome",
+              browserName: "chromium",
+              browserVersion: scope.browserVersion,
+              headless: true,
+              sessionKind: "EPHEMERAL_CONTROLLED",
+            },
+            operatorMaintenance: false,
+            operatorMaintenanceAuthority: null,
+            classifierVersion: "b16-terminal-recovery-synthetic-v1",
+          }),
+          scheduledRunId: scheduledRun.id,
+        });
+        healthRunId = persisted.id;
+        try {
+          await incidentProcessor.processCompletedHealthRun(persisted.id);
+        } catch {
+          return {
+            outcome: "FAILED" as const,
+            failureClass: "TRANSIENT_ENVIRONMENT" as const,
+            failureCode: "AUTHENTICATED_DEEP_PERSISTENCE_REJECTED",
+          };
+        }
+        return {
+          outcome: "SUCCEEDED" as const,
+          healthRunId: persisted.id,
+          healthState: "BROKEN" as const,
+        };
+      };
+
+      await expect(
+        runDurableHealthSchedulerCycle({
+          repository: recoveryScheduler,
+          clock: { now: () => scheduledAt },
+          ownerId: "b16-terminal-recovery",
+          leaseMs: 60_000,
+          maxConcurrency: 1,
+          execute,
+        }),
+      ).rejects.toThrow("B16_SYNTHETIC_POST_PERSIST_INCIDENT_FAILURE");
+
+      expect(h3Calls).toBe(1);
+      expect(incidentCalls).toBe(2);
+      expect(scheduledRunId).toBeDefined();
+      expect(healthRunId).toBeDefined();
+      const terminal = await recoveryScheduler.getScheduledRun(scheduledRunId!);
+      expect(terminal?.state).toBe("FAILED_TERMINAL");
+      expect(terminal?.failureCode).toBe(
+        "AUTHENTICATED_DEEP_PERSISTENCE_REJECTED",
+      );
+      expect(terminal?.healthRunId).toBeNull();
+
+      const afterFailedRecovery = await runtime.query<{ count: string }>(
+        "SELECT count(*)::text AS count FROM health_notification_intents WHERE health_run_id=$1",
+        [healthRunId],
+      );
+      expect(afterFailedRecovery.rows[0]?.count).toBe("0");
+
+      const second = await runDurableHealthSchedulerCycle({
+        repository: recoveryScheduler,
+        clock: { now: () => new Date("2026-09-28T02:30:02.500Z") },
+        ownerId: "b16-terminal-recovery-2",
+        leaseMs: 60_000,
+        maxConcurrency: 1,
+        execute,
+      });
+      expect(second.reconciled).toBe(1);
+      expect(second.claimed).toBe(0);
+      expect(h3Calls).toBe(1);
+      expect(incidentCalls).toBe(3);
+
+      const final = await recoveryScheduler.getScheduledRun(scheduledRunId!);
+      expect(final?.state).toBe("SUCCEEDED");
+      expect(final?.healthRunId).toBe(healthRunId);
+      expect(final?.healthState).toBe("BROKEN");
+
+      const intents = await runtime.query<{ count: string }>(
+        "SELECT count(*)::text AS count FROM health_notification_intents WHERE health_run_id=$1",
+        [healthRunId],
+      );
+      expect(intents.rows[0]?.count).toBe("1");
+
+      const third = await runDurableHealthSchedulerCycle({
+        repository: recoveryScheduler,
+        clock: { now: () => new Date("2026-09-28T02:30:03.000Z") },
+        ownerId: "b16-terminal-recovery-3",
+        leaseMs: 60_000,
+        maxConcurrency: 1,
+        execute,
+      });
+      expect(third.reconciled).toBe(0);
+      expect(third.claimed).toBe(0);
+      expect(h3Calls).toBe(1);
+      expect(incidentCalls).toBe(3);
     });
   },
 );

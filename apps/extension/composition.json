@@ -157,6 +157,7 @@
     "shared/wb_adapter.js": {
       "reference_sources": [
         "migration/reference/wildberries-v0.3.0/runtime/shared/wb_operations.js",
+        "packages/marketplaces/wildberries/src/retired-analytics-registry-overlay.js",
         "packages/marketplaces/wildberries/src/fbs-order-statuses-registry-overlay.js",
         "migration/reference/wildberries-v0.3.0/runtime/shared/wb_credentials.js",
         "migration/reference/wildberries-v0.3.0/runtime/shared/wb_contract.js",

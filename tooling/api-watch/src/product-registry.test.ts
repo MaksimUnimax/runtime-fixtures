@@ -41,6 +41,47 @@ describe("A7 product registry crosswalk", () => {
     expect(source).not.toMatch(/\beval\s*\(|\bFunction\s*\(|vm\.runIn/);
   });
 
+  it("retires disabled WB analytics aliases from the effective registry while preserving the donor", async () => {
+    const donor = await extractProductRegistry({
+      sourceFamily: "WILDBERRIES",
+      filePath: WB_PRODUCT_REGISTRY_PATH,
+    });
+    const effective = await extractProductRegistry({
+      sourceFamily: "WILDBERRIES",
+    });
+
+    expect(
+      donor.find((row) => row.runtimeAlias === "banned_products_shadowed"),
+    ).toMatchObject({
+      method: "GET",
+      normalizedPath: "/api/v1/analytics/banned-products/shadowed",
+      executionEnabled: true,
+      currentness: "current",
+    });
+    expect(
+      donor.find((row) => row.runtimeAlias === "analytics_item_rating_v1"),
+    ).toMatchObject({
+      method: "POST",
+      normalizedPath: "/api/analytics/v1/item-rating",
+      executionEnabled: true,
+      currentness: "current",
+    });
+
+    expect(
+      effective.find((row) => row.runtimeAlias === "banned_products_shadowed"),
+    ).toBeUndefined();
+    expect(
+      effective.find((row) => row.runtimeAlias === "analytics_item_rating_v1"),
+    ).toBeUndefined();
+    expect(
+      effective.find((row) => row.runtimeAlias === "banned_products_blocked"),
+    ).toBeDefined();
+    expect(
+      effective.find((row) => row.runtimeAlias === "analytics_item_rating_v2"),
+    ).toBeDefined();
+    expect(effective).toHaveLength(donor.length - 2);
+  });
+
   it("projects the composed WB FBS body requirement while preserving the frozen donor", async () => {
     const donor = await extractProductRegistry({
       sourceFamily: "WILDBERRIES",

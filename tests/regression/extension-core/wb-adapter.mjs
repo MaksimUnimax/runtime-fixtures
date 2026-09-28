@@ -51,7 +51,7 @@ async function setup(source = basic, options = {}) {
     async run() { await queue.admit({ source, context }); return queue.process({ context }); } };
 }
 try {
-  await test("WB-01-isolated-authority-all-188-rows", async () => {
+  await test("WB-01-isolated-authority-current-effective-rows", async () => {
     let enabled = 0, disabled = 0;
     for (const [alias, meta] of Object.entries(reference.contract.OPERATIONS)) {
       const requiredBody = alias === "fbs_order_statuses" ? { orders: [5632423] } : {};
@@ -65,7 +65,11 @@ try {
       assert.equal(new URL(request.url).origin, reference.contract.HOSTS[meta.host]);
       assert.equal(request.method, meta.method); assert.equal(request.effect, "READ"); enabled++;
     }
-    assert.equal(enabled, 172); assert.equal(disabled, 16);
+    assert.equal(enabled, 170); assert.equal(disabled, 16);
+    assert.equal(reference.contract.OPERATIONS.banned_products_shadowed, undefined);
+    assert.equal(reference.contract.OPERATIONS.analytics_item_rating_v1, undefined);
+    assert.ok(reference.contract.OPERATIONS.banned_products_blocked);
+    assert.ok(reference.contract.OPERATIONS.analytics_item_rating_v2);
     assert.equal(await worker.call("(() => typeof WBContract)"), "undefined");
     assert.ok(await worker.call("(() => typeof OzonContract.parseCommand === 'function')"));
     assert.equal(worker.network.length, 0, "loading adapter does not issue requests");
