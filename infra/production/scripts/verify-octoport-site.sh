@@ -199,7 +199,7 @@ check_site_content() {
   grep -Fq 'Как получить API-ключи магазина' <<<"${install}" || fail "install API-key guide is missing"
   grep -Fq 'Admin read only' <<<"${install}" || fail "install Ozon read-only role guidance is missing"
   grep -Fq 'Personal token' <<<"${install}" || fail "install WB Personal-token guidance is missing"
-  grep -Fq 'Официальная установка Octoport из каталога расширений готовится' <<<"${install}" \
+  grep -Fq 'Официальные карточки расширения готовятся' <<<"${install}" \
     || fail "install page does not state that catalog installation is being prepared"
   if grep -Eiq 'официальн.{0,30}(одобрен(а|о|ы)?|опубликован(а|о|ы)?)\b|магазин.{0,30}(одобрил|одобрен(а|о|ы)?|опубликован(а|о|ы)?|approved|published)\b|каталог.{0,30}(одобрен(а|о|ы)?|опубликован(а|о|ы)?|approved|published)\b|карточк.{0,30}(одобрена|опубликована|approved|published)\b|store.{0,20}(approved|published)\b|Safari.{0,30}(поддерживается|входит в бету|supported)' \
     <<<"${support}${install}"; then
