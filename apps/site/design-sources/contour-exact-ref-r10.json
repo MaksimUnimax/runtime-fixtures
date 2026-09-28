@@ -1,0 +1,18 @@
+{
+  "source_reference_sha256": "d3ead9dbba9794c57a3ff2b1267b15c36045eadd9922e7d6a8788a071e73c246",
+  "source_reference_size": [1448, 1086],
+  "asset_sha256": "52b811c918bb0bc411093af241229885626488c037e858c78e80552c4fafc217",
+  "asset": "assets/contour-exact-ref-r10.svg",
+  "method": "direct reference mask, button-hole removal, contour simplification, quadratic smoothing",
+  "palette": {"light": "#10243c", "dark": "#ebffff"},
+  "button_geometry": {
+    "alice": [36.395028, 13.627993, 12.154696],
+    "gemini": [63.328729, 13.627993, 12.154696],
+    "chatgpt": [19.958564, 29.005525, 12.430939],
+    "deepseek": [79.765193, 29.005525, 12.430939],
+    "anthropic": [10.013812, 49.263352, 12.430939],
+    "qwen": [89.986188, 48.987109, 12.430939],
+    "wb": [28.660221, 81.583794, 18.922652],
+    "ozon": [70.994475, 81.952118, 18.922652]
+  }
+}

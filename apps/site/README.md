@@ -101,3 +101,7 @@ The homepage mascot is hand-authored inline SVG geometry rather than a traced ra
 ### Contour R9
 
 The hero mascot uses a smooth spline SVG reconstructed from the accepted reference silhouette. It preserves the established octopus geometry while removing polygonal raster-edge noise. The eight controls remain independent DOM links. See `docs/design/CONTOUR_SPLINE_R9_2026-09-28.md`.
+
+### Contour R10 exact reference
+
+The homepage mascot is reconstructed directly from the owner-provided 1448×1086 canonical reference, not from the earlier site silhouette. Button holes, positions, diameters, and scene ratio are measured from that reference while all eight controls remain independent DOM links. See `docs/design/CONTOUR_EXACT_REF_R10_2026-09-28.md`.

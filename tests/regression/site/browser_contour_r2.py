@@ -63,7 +63,7 @@ class Browser:
  def info(self):
   return self.ev('''(() => ({url:location.href,title:document.title,h1:document.querySelector('h1')?.innerText,canonical:document.querySelector('link[rel=canonical]')?.href,cw:document.documentElement.clientWidth,sw:document.documentElement.scrollWidth,font:document.fonts.check('400 16px Rubik','Октопорт'),images:[...document.images].map(i=>({src:i.getAttribute('src'),ok:i.complete&&i.naturalWidth>0,w:i.naturalWidth,h:i.naturalHeight})),badges:document.querySelectorAll('.ai-badge,.market-badge').length,offenders:[...document.body.querySelectorAll('*')].filter(e=>{const r=e.getBoundingClientRect();const s=getComputedStyle(e);return s.display!=='none'&&s.position!=='absolute'&&r.width>0&&(r.right>document.documentElement.clientWidth+1||r.left< -1)}).map(e=>e.tagName+'.'+e.className).slice(0,12)}))()''')
  def rects(self):
-  return self.ev('''[...document.querySelectorAll('.contour-underlay,.contour-grips')].map(e=>{const r=e.getBoundingClientRect();return [r.x,r.y,r.width,r.height,getComputedStyle(e).transform]})''')
+  return self.ev('''[...document.querySelectorAll('.contour-underlay')].map(e=>{const r=e.getBoundingClientRect();return [r.x,r.y,r.width,r.height,getComputedStyle(e).transform]})''')
  def close(self):
   if self.ws:
    try:self.ws.close()
@@ -88,24 +88,21 @@ CHECK = r'''(() => {
   const r=rect(e),slot=rect(e.querySelector('.market-logo-slot')),label=e.querySelector('.market-label'),l=rect(label),range=document.createRange();range.selectNodeContents(label);const text=range.getBoundingClientRect();
   return {name:label.innerText,rect:r,slot,labelRect:l,textCenterError:Math.abs(text.x+text.width/2+scrollX-r.x-r.w/2),labelTop:(l.y-r.y)/r.h,slotTop:(slot.y-r.y)/r.h,font:getComputedStyle(label).fontSize,color:getComputedStyle(e).color,bg:getComputedStyle(e).backgroundColor,bgImage:getComputedStyle(e).backgroundImage};
  });
- const under=document.querySelector('.contour-underlay'),grip=document.querySelector('.contour-grips');
- const vectors=[under,grip].map(e=>({tag:e.tagName.toLowerCase(),cls:e.getAttribute('class'),color:getComputedStyle(e).color,transform:getComputedStyle(e).transform,uses:[...e.querySelectorAll('use')].map(u=>{const b=u.getBBox();return {href:u.getAttribute('href'),color:getComputedStyle(u).color,w:b.width,h:b.height}})}));
- return {r3,width:innerWidth,cw:document.documentElement.clientWidth,sw:document.documentElement.scrollWidth,scene:rect(scene),copy:rect(copy),hero:rect(hero),stacked:rect(scene).y>=rect(copy).bottom,sceneBackground:getComputedStyle(scene).backgroundColor,pageBackground:getComputedStyle(page).backgroundColor,marks,markets,vectors,badgeRects:badges.map(rect),h1:document.querySelector('h1').innerText,canonical:document.querySelector('link[rel=canonical]').href,font:document.fonts.check('400 16px Rubik','Октопорт'),images:[...document.images].every(i=>i.complete&&i.naturalWidth>0)};
+ const under=document.querySelector('.contour-underlay');
+ const vector={tag:under.tagName.toLowerCase(),cls:under.getAttribute('class'),color:getComputedStyle(under).color,transform:getComputedStyle(under).transform,uses:[...under.querySelectorAll('use')].map(u=>{const b=u.getBBox();return {href:u.getAttribute('href'),color:getComputedStyle(u).color,w:b.width,h:b.height}})};
+ return {r3,width:innerWidth,cw:document.documentElement.clientWidth,sw:document.documentElement.scrollWidth,scene:rect(scene),copy:rect(copy),hero:rect(hero),stacked:rect(scene).y>=rect(copy).bottom,sceneBackground:getComputedStyle(scene).backgroundColor,pageBackground:getComputedStyle(page).backgroundColor,marks,markets,vector,badgeRects:badges.map(rect),h1:document.querySelector('h1').innerText,canonical:document.querySelector('link[rel=canonical]').href,font:document.fonts.check('400 16px Rubik','Октопорт'),images:[...document.images].every(i=>i.complete&&i.naturalWidth>0)};
 })()'''
 
 def checks(d):
  assert d['cw']==d['sw'],('overflow',d)
  assert d['sceneBackground']=='rgba(0, 0, 0, 0)',('rectangle background',d['sceneBackground'])
  expected_ink='rgb(235, 255, 255)' if d['r3']['dark'] else 'rgb(16, 36, 60)'
- assert len(d['vectors'])==2 and all(v['tag']=='svg' for v in d['vectors']),('spline vector layers missing',d['vectors'])
- under,grip=d['vectors']
- assert len(under['uses'])==1 and under['uses'][0]['href'].endswith('contour-spline-r9.svg#underlay'),under
- assert under['color']==expected_ink and under['uses'][0]['color']==expected_ink,('underlay color mismatch',under,expected_ink)
- assert under['uses'][0]['w']>400 and under['uses'][0]['h']>250,('spline vector did not render',under)
- assert len(grip['uses'])==2,grip
- assert grip['uses'][0]['href'].endswith('contour-spline-r9.svg#grip-paper') and grip['uses'][0]['color']==d['pageBackground'],('grip paper mismatch',grip)
- assert grip['uses'][1]['href'].endswith('contour-spline-r9.svg#grip-ink') and grip['uses'][1]['color']==expected_ink,('grip ink mismatch',grip)
- assert abs(d['scene']['w']/d['scene']['h']-559/419)<.001,('reference aspect ratio',d['scene'])
+ v=d['vector']
+ assert v['tag']=='svg' and 'contour-exact-r10' in v['cls'],('exact-reference vector missing',v)
+ assert len(v['uses'])==1 and v['uses'][0]['href'].endswith('contour-exact-ref-r10.svg#underlay'),v
+ assert v['color']==expected_ink and v['uses'][0]['color']==expected_ink,('underlay color mismatch',v,expected_ink)
+ assert v['uses'][0]['w']>1000 and v['uses'][0]['h']>700,('reference vector did not render',v)
+ assert abs(d['scene']['w']/d['scene']['h']-4/3)<.002,('reference aspect ratio',d['scene'])
  assert d['images'] and d['font'],('loading',d)
  assert d['h1']=='Подключите ваш ИИ к Ozon и Wildberries'
  assert d['canonical']=='https://octoport.ru/'
@@ -143,7 +140,7 @@ def scene_shot(browser,name):
  p=OUT/(browser.name+'-'+name+'.png');p.write_bytes(base64.b64decode(data['data']));return str(p)
 
 def stable_rects(browser):
- return browser.ev("[...document.querySelectorAll('.contour-underlay,.contour-grips')].map(e=>{const r=e.getBoundingClientRect();return [r.x+scrollX,r.y+scrollY,r.width,r.height,getComputedStyle(e).transform]})")
+ return browser.ev("[...document.querySelectorAll('.contour-underlay')].map(e=>{const r=e.getBoundingClientRect();return [r.x+scrollX,r.y+scrollY,r.width,r.height,getComputedStyle(e).transform]})")
 
 def stop_safely(signum,frame):
  raise SystemExit('Interrupted; closing owned browser and HTTP server')
@@ -208,7 +205,7 @@ try:
   b.close();b=None
   print('BROWSER_PASS',name,'states',len(results),flush=True)
  (OUT/'results.json').write_text(json.dumps({'status':'PASS','url':BASE,'results':results,'hover':hover,'pixel_samples':pixels},ensure_ascii=False,indent=2))
- print('CONTOUR_SPLINE_R9_PASS',len(results),'states',len(hover),'hover/focus pairs',str(OUT),flush=True)
+ print('CONTOUR_EXACT_R10_PASS',len(results),'states',len(hover),'hover/focus pairs',str(OUT),flush=True)
 except Exception:
  (OUT/'partial.json').write_text(json.dumps({'status':'FAIL','url':BASE,'results':results,'hover':hover},ensure_ascii=False,indent=2));raise
 finally:
