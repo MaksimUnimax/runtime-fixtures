@@ -416,6 +416,20 @@ class DeploymentFailures(unittest.TestCase):
         self.assertTrue(receipt["productQuiesced"])
         self.assertEqual(receipt["error"], "HEALTH_FAILED")
 
+    def test_forward_recovery_prestart_proof_failure_requiesces_active_units(self):
+        self.seed_forward_monitor_failure()
+        self.started = True
+        with patch.object(deploy, "check_migration_prefix", side_effect=RuntimeError("PREFIX_PROOF_FAILED")):
+            with self.assertRaisesRegex(RuntimeError, "PREFIX_PROOF_FAILED"):
+                deploy.recover_forward()
+        self.assertFalse(self.started)
+        state = json.loads((deploy.EVID / "deployment-state.json").read_text())
+        self.assertTrue(state["recoveryRequired"])
+        self.assertEqual(state["phase"], "FORWARD_RECOVERY_FAILED")
+        receipt = json.loads(Path(state["receipt"]).read_text())
+        self.assertTrue(receipt["productQuiesced"])
+        self.assertEqual(receipt["error"], "PREFIX_PROOF_FAILED")
+
     def test_process_death_leaves_durable_fence_after_lock_is_released(self):
         import signal
         child = os.fork()

@@ -29,7 +29,9 @@ Before starting product units it re-verifies immutable candidate/floor, canonica
 
 - Existing failure matrix remained 20/20 PASS after stable monitor identity change.
 - Added runtime-metadata and real-command-change regressions: 22/22 PASS.
-- Added forward recovery success / non-eligible failure / health-failure requiesce cases: 25/25 PASS.
+- Added forward recovery success / non-eligible failure / health-failure requiesce cases: 25/25 PASS on the first source candidate.
+- Independent Luna review blocked that candidate because pre-start recovery proof failures were outside the common requiesce handler.
+- Follow-up moves every post-eligibility release/prefix/drop-in/quiescence/monitor proof under one fail-closed handler and adds an active-unit + pre-start proof-failure regression.
 - No recovery command has yet been executed against owner-test by this source candidate.
 
-Next: exact C guard/commit, independent read-only review and five branch workflows. Only after that candidate is promoted to main may C execute the already-authorized forward recovery and record DEPLOYMENT evidence.
+Next: rerun the exact safety matrix, exact C guard/commit, second independent read-only review and five branch workflows. Only after the corrected candidate is promoted to main may C execute the already-authorized forward recovery and record DEPLOYMENT evidence.

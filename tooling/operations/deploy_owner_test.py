@@ -527,23 +527,23 @@ def recover_forward():
             raise RuntimeError('FORWARD_RECOVERY_RECEIPT_NOT_ELIGIBLE')
         preflight_data=source.get('preflight')
         if not isinstance(preflight_data,dict): raise RuntimeError('FORWARD_RECOVERY_RECEIPT_NOT_ELIGIBLE')
-        verify_release(CANDIDATE_REL,CANDIDATE); verify_release(FLOOR_REL,FLOOR)
-        prefix_before=check_migration_prefix(database_url(),40)
-        verify_candidate_dropins()
-        if any(unit_prop(unit,'ActiveState')!='inactive' for unit in UNITS):
-            raise RuntimeError('FORWARD_RECOVERY_PRODUCT_NOT_QUIESCED')
-        monitor_before=verify_monitor_preflight(preflight_data.get('monitorUnits'))
         stamp=dt.datetime.now(dt.timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
         recovery_path=EVID/f'recovery-{stamp}.json'
         result={'status':'FORWARD_RECOVERY_STARTED','stamp':stamp,'candidate':CANDIDATE,
                 'schemaState':'FORWARD_VERIFIED','recoveryRequired':True,
-                'sourceReceipt':str(source_path),'prefixBefore':prefix_before,
-                'monitorBefore':monitor_before}
+                'sourceReceipt':str(source_path)}
         write_json_durable(recovery_path,result)
         write_json_durable(journal,{'candidate':CANDIDATE,'phase':'FORWARD_RECOVERY_START',
             'schemaState':'FORWARD_VERIFIED','recoveryRequired':True,'receipt':str(recovery_path),
             'recoveredFromReceipt':str(source_path)})
         try:
+            verify_release(CANDIDATE_REL,CANDIDATE); verify_release(FLOOR_REL,FLOOR)
+            result['prefixBefore']=check_migration_prefix(database_url(),40)
+            verify_candidate_dropins()
+            if any(unit_prop(unit,'ActiveState')!='inactive' for unit in UNITS):
+                raise RuntimeError('FORWARD_RECOVERY_PRODUCT_NOT_QUIESCED')
+            result['monitorBefore']=verify_monitor_preflight(preflight_data.get('monitorUnits'))
+            write_json_durable(recovery_path,result)
             started=dt.datetime.now(dt.timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
             start_product_units()
             result['candidateHealth']=wait_runtime(started)
