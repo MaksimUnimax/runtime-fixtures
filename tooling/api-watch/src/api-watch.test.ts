@@ -374,6 +374,77 @@ describe("A1 runtime API source authority", () => {
     }
   });
 
+  it("A1-14a classifies the exact Ozon __rr access-control loop as operator-assisted", async () => {
+    const server = await fixtureServer((request, response) => {
+      const current = new URL(request.url);
+      const rr = Number(current.searchParams.get("__rr") ?? 0);
+      response
+        .writeHead(307, { location: `/swagger.json?__rr=${rr + 1}` })
+        .end();
+    });
+    try {
+      const result = await acquireOfficialSource({
+        entry: entry(`${server.url}/swagger.json`, "OZON_SELLER"),
+      });
+      expect(result.kind).toBe("OPERATOR_SOURCE_REQUIRED");
+      if (result.kind !== "OPERATOR_SOURCE_REQUIRED") return;
+      expect(result.httpStatus).toBe(307);
+      expect(result.blockerReason).toContain("access-control redirect loop");
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("A1-14b keeps a non-Ozon __rr redirect loop invalid", async () => {
+    const server = await fixtureServer((request, response) => {
+      const current = new URL(request.url);
+      const rr = Number(current.searchParams.get("__rr") ?? 0);
+      response
+        .writeHead(307, { location: `/swagger.json?__rr=${rr + 1}` })
+        .end();
+    });
+    try {
+      expect(
+        (
+          await acquireOfficialSource({
+            entry: entry(`${server.url}/swagger.json`, "WILDBERRIES"),
+          })
+        ).kind,
+      ).toBe("INVALID_OFFICIAL_SOURCE_RESPONSE");
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("A1-14c does not infer an Ozon access-control loop from only the final redirect hop", async () => {
+    const server = await fixtureServer((request, response) => {
+      const current = new URL(request.url);
+      if (current.pathname === "/r0")
+        return response.writeHead(307, { location: "/r1" }).end();
+      if (current.pathname === "/r1")
+        return response.writeHead(307, { location: "/r2" }).end();
+      if (current.pathname === "/r2")
+        return response
+          .writeHead(307, { location: "/swagger.json?__rr=3" })
+          .end();
+      const rr = Number(current.searchParams.get("__rr") ?? 0);
+      return response
+        .writeHead(307, { location: `/swagger.json?__rr=${rr + 1}` })
+        .end();
+    });
+    try {
+      expect(
+        (
+          await acquireOfficialSource({
+            entry: entry(`${server.url}/r0`, "OZON_SELLER"),
+          })
+        ).kind,
+      ).toBe("INVALID_OFFICIAL_SOURCE_RESPONSE");
+    } finally {
+      await server.close();
+    }
+  });
+
   it("A1-15 rejects artifacts over 25 MiB", async () => {
     const server = await fixtureServer((_request, response) => {
       response.writeHead(200, {

@@ -200,33 +200,19 @@ async function analyzeAcceptedOutcome(input: {
       noPolicyImpactCount: 0,
     };
   const previousBytes = await readAcceptedSnapshot(previous);
-  const savedPreviousInventory = await dependencies.store.findInventory(
-    previous.sourceFamily,
-    previous.sha256,
-  );
-  const previousInventory =
-    savedPreviousInventory &&
-    savedPreviousInventory.operations.every(
-      (operation) =>
-        typeof operation.parameterSchemaSha256 === "string" &&
-        typeof operation.responseSchemaSha256 === "string" &&
-        typeof operation.securityRequirementsSha256 === "string" &&
-        (operation.requestSchemaSha256 === null ||
-          typeof operation.requestSchemaSha256 === "string"),
-    )
-      ? savedPreviousInventory
-      : buildCompleteOperationInventory({
-          sourceFamily: previous.sourceFamily,
-          snapshotSha256: previous.sha256,
-          bytes: previousBytes,
-          filename: previous.artifactPath.endsWith(".yaml")
-            ? "previous.yaml"
-            : previous.artifactPath.endsWith(".yml")
-              ? "previous.yml"
-              : "previous.json",
-        });
-  if (previousInventory !== savedPreviousInventory)
-    await dependencies.store.saveInventory(previousInventory);
+  // Compare both accepted byte sets with the same normalization rules. Cached
+  // inventories may have been produced before a semantic fingerprint repair.
+  const previousInventory = buildCompleteOperationInventory({
+    sourceFamily: previous.sourceFamily,
+    snapshotSha256: previous.sha256,
+    bytes: previousBytes,
+    filename: previous.artifactPath.endsWith(".yaml")
+      ? "previous.yaml"
+      : previous.artifactPath.endsWith(".yml")
+        ? "previous.yml"
+        : "previous.json",
+  });
+  await dependencies.store.saveInventory(previousInventory);
   const diff: SemanticDiff = diffInventories({
     base: previousInventory,
     target: inventory,

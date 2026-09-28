@@ -115,6 +115,48 @@ describe("production source authority model", () => {
       "CANCELLED",
     );
   });
+  it("SRC-06a creates an Ozon operator request for the bounded __rr access-control loop", async () => {
+    const officialUrl = "https://docs.ozon.ru/api/seller/swagger.json";
+    const registry = createSourceRegistry({
+      OZON_SELLER: {
+        officialUrl,
+        documents: [
+          {
+            documentKey: "OZON_SELLER",
+            officialUrl,
+            expectedArtifactTypes: ["JSON"],
+          },
+        ],
+      },
+      OZON_PERFORMANCE: { officialUrl: null, documents: [] },
+      WILDBERRIES: { officialUrl: null, documents: [] },
+    });
+    const pendingStore = new InMemorySwaggerSourceStore();
+    const result = await runDocumentAuthorityPass({
+      registry,
+      store: new InMemoryApiWatchStore(),
+      pendingStore,
+      fetcher: async (value) => {
+        const current = new URL(String(value));
+        const rr = Number(current.searchParams.get("__rr") ?? 0);
+        return new Response(null, {
+          status: 307,
+          headers: {
+            location: `${current.origin}${current.pathname}?__rr=${rr + 1}`,
+          },
+        });
+      },
+      now: () => new Date(0),
+    });
+    expect(result.outcomes[0]?.kind).toBe("OPERATOR_SOURCE_REQUIRED");
+    expect(result.records[0]?.authorityStatus).toBe("AUTHORITY_BLOCKED");
+    const pending = await pendingStore.listPending(new Date(0));
+    expect(pending).toHaveLength(1);
+    expect(pending[0]?.sourceFamily).toBe("OZON_SELLER");
+    expect(pending[0]?.officialUrl).toBe(officialUrl);
+    expect(pending[0]?.documentKey).toBe("OZON_SELLER");
+  });
+
   it("SRC-07..SRC-10 classify partial, complete, and blocked families", () => {
     const accepted = (key: string) => ({
       sourceFamily: "WILDBERRIES" as const,
