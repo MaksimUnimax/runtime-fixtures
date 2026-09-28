@@ -122,6 +122,13 @@ describe("verified profile consumer wire boundary", () => {
     ["profile.content.selectors.send.primary.reference", "remote-selector"],
     ["profile.content.selectors.send.primary.kind", "javascript"],
     ["profile.content.selectors.send.strategy", "composer_root"],
+    ["profile.content.selectors.send.primary.reference", "copy-control"],
+    ["profile.content.selectors.composer.primary.reference", "busy-control"],
+    [
+      "profile.content.selectors.send.fallbacks",
+      [{ kind: "packaged_selector_reference", reference: "copy-control" }],
+    ],
+    ["profile.content.contours.3.strategy", "assistant_response"],
     ["profile.content.selectors.send.timeoutMs", 30_001],
     ["profile.content.selectors.send.timeoutMs", 250],
     [

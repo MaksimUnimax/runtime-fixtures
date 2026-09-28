@@ -31,9 +31,16 @@ runtime channel; never accept a matching-looking page postMessage or external
 extension message. Verify sender extension, frame, document, and supported origin
 using browser-provided sender metadata, not a claimed URL in the payload.
 
-The shared consumer schema additionally requires each selector strategy to match
-its slot, preserving the existing control-client restriction. It does not tighten
-the historical server schema or change previously signed bytes.
+The shared consumer schema requires each selector strategy and every primary or
+fallback reference to match its slot: conversation_root/conversation-root,
+composer_root/composer-root, send_control/send-control and
+assistant_response/assistant-response. Each contour strategy must equal its key.
+A mirrors these semantic restrictions in the browser validator. The consumer
+rejects incompatible historical material as PROFILE_UNSUPPORTED; it never rewrites
+signed content to make it fit. This does not tighten the historical registry v1
+schema or change previously signed bytes. The old registry golden fixture uses
+composer-root references in several slots, so changing that server schema would
+silently invalidate previously accepted material.
 
 ## Request and response
 
@@ -120,3 +127,16 @@ with descendant cleanup verified. Initial setup-path and unused test-variable
 failures were corrected before this run; neither was product acceptance.
 Logs: /root/octoport-control/logs/controller/manual-profile-contract-20260928/.
 No browser, private login, DB migration, live deployment, or new store ZIP executed.
+
+### A semantic review follow-up
+
+A review b844f3cd6c554d3a9df95e6a1f7b6c841c7e9b8d identified crossed
+slot/reference and contour/strategy combinations. Four new negative cases first
+failed against candidate62da3d71 (63 passed / 4 failed), then passed after the
+consumer-only constraints above. The unchanged registry golden fixture still passes.
+Final total: contracts67 + remote-config54 + adapter-registry11 + bootstrap70 +
+admin-ai6 = **208/208 tests**, all five typechecks, lint and docs PASS.
+Supervised job e098f93f72184ec6b3b8c61dcb910e71 exited0, peak869 MiB,
+cleanup verified. This follow-up is required together with62da3d71 before A
+implements activation. Alice may return PROFILE_UNSUPPORTED until separately
+accepted; ChatGPT is the first behaviorally tested consumer boundary.
