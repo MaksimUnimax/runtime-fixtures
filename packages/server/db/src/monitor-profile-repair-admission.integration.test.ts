@@ -1184,6 +1184,60 @@ describe.sequential(
       ).rejects.toThrow("ADMIN_FORBIDDEN");
     });
 
+    it("serializes concurrent apply and revoke without lock-order deadlock", async () => {
+      const fixture = await setupFixture();
+      const { approval } = await registerAndApprove(fixture);
+      const command = {
+        repairCaseId: fixture.binding.repairCaseId,
+        caseRevision: 1,
+        approvalId: approval.id,
+        actorPrincipalId: IDS.principal,
+      };
+
+      const [apply, revoke] = await Promise.allSettled([
+        fixture.repository.applyInitialRollout(command),
+        fixture.repository.revokeDecision({
+          approvalId: approval.id,
+          actorPrincipalId: IDS.principal,
+        }),
+      ]);
+
+      for (const outcome of [apply, revoke]) {
+        if (outcome.status === "rejected") {
+          const message =
+            outcome.reason instanceof Error
+              ? outcome.reason.message
+              : String(outcome.reason);
+          expect(message).not.toMatch(/deadlock detected/i);
+          expect(message).toMatch(/APPROVAL_REVOKED/);
+        }
+      }
+      expect(revoke.status).toBe("fulfilled");
+
+      const state = await runtime.query<{
+        operations: string;
+        assignmentRevisions: string;
+      }>(
+        `SELECT
+          (SELECT count(*)::text FROM monitor_profile_repair_operations)
+            AS operations,
+          (SELECT count(*)::text FROM adapter_profile_assignment_revisions
+           WHERE assignment_id=$1) AS "assignmentRevisions"`,
+        [IDS.assignment],
+      );
+      if (apply.status === "fulfilled") {
+        expect(state.rows[0]).toEqual({
+          operations: "1",
+          assignmentRevisions: "2",
+        });
+      } else {
+        expect(state.rows[0]).toEqual({
+          operations: "0",
+          assignmentRevisions: "1",
+        });
+      }
+    });
+
     it("uses post-lock server time so approval can expire while apply waits", async () => {
       const fixture = await setupFixture();
       const { approval } = await registerAndApprove(fixture);

@@ -154,3 +154,33 @@ The first read-only review result is preserved at
 `/root/octoport-control/logs/B/b19-final-review-20260928-r1-result.md`;
 its proposed findings are not silently discarded. Their parent disposition above
 is grounded in the frozen contract rather than a relaxed local interpretation.
+
+
+## Final read-only review and lock-order hardening
+
+Second read-only Codex B review `b19-final-review-20260928-r2` inspected exact
+candidate `44aa9e0e61201cae04b743e6d037259c4c8cd2e2` with the frozen contract
+semantics stated explicitly. Verdict: **REVIEW_PASS**, no blocking findings.
+
+Its only nonblocking finding was an APPLY/REVOKE lock-order inversion:
+APPLY locked the approval decision before current admin authority, while REVOKE
+locked current admin authority before the decision. Although PostgreSQL would
+abort one transaction rather than permit an unsafe mutation, B closed the
+availability/retry hazard before handoff.
+
+Final hardening:
+- new APPLY mutations lock current admin authority before the decision row,
+  matching REVOKE;
+- already-COMMITTED operation replay remains read-only/idempotent and returns the
+  stored result without creating a new mutation;
+- a concurrent APPLY/REVOKE regression accepts either legal serialization
+  (apply commits before revoke, or revoke wins and apply blocks) but rejects any
+  deadlock outcome.
+
+Final primary admission PostgreSQL acceptance:
+- **12/12 PASS**;
+- supervisor `octoport-test-b-e5ffe12a07c94b3aa43183a51639097b.service`;
+- exit 0, peak ~530 MiB, cleanup verified.
+
+R2 review result is preserved at
+`/root/octoport-control/logs/B/b19-final-review-20260928-r2-result.md`.

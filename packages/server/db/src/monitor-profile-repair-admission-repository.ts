@@ -951,6 +951,20 @@ export function createMonitorProfileRepairAdmissionRepository(
           };
         }
 
+        // Keep the mutable admin-principal lock order consistent with revokeDecision:
+        // principal authority first, then the decision row. The binding row is already
+        // locked above and is immutable after registration.
+        await authorizeAdminMutationInTransaction(
+          q,
+          input.actorPrincipalId,
+          "ai.profile.manage",
+        );
+        await authorizeAdminMutationInTransaction(
+          q,
+          input.actorPrincipalId,
+          "ai.assignment.manage",
+        );
+
         const approvalResult = await q.query<DecisionRow>(
           `SELECT id,operator_principal_id AS "operatorPrincipalId",
             idempotency_key AS "idempotencyKey",repair_case_id AS "repairCaseId",
@@ -970,17 +984,6 @@ export function createMonitorProfileRepairAdmissionRepository(
           decision.caseRevision !== input.caseRevision
         )
           throw new Error("MONITOR_PROFILE_REPAIR_APPROVAL_CASE_MISMATCH");
-
-        await authorizeAdminMutationInTransaction(
-          q,
-          input.actorPrincipalId,
-          "ai.profile.manage",
-        );
-        await authorizeAdminMutationInTransaction(
-          q,
-          input.actorPrincipalId,
-          "ai.assignment.manage",
-        );
 
         const evidence = await trustedEvidence(binding, "APPLY");
         const rebuilt = await rebuildAndValidateBinding(q, binding, evidence, {
