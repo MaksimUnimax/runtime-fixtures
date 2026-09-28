@@ -1,6 +1,6 @@
 # A — automated technical auth for exact STORE 0.2.6 — 2026-09-28
 
-Status: **PARTIAL PASS / SERVER CATALOG DEPENDENCY**
+Status: **AUTH + LOCAL CONTROLS PASS / SERVER AI ASSIGNMENT RESOLUTION DEPENDENCY**
 
 Task: `A_AUTO_REAL_TEST_SESSION_026` (A06).
 Resume authority: `OWNER_TRANSFER_AUTONOMY_20260928T1224Z_A`.
@@ -81,3 +81,51 @@ The superseding implementation now:
 Synthetic no-network regression now covers wrong origin, plaintext origin, path/query/userinfo variants, cross-origin redirect refusal, symlink receipt, unsafe parent, malformed JSON and the exact-origin injected transport path.
 
 Focused guards after hardening: **19/19 PASS**; Python compile and `git diff --check`: PASS. No real portal session or real network was reused after the controller notice while this hardening was uncommitted.
+
+## Post-catalog retry
+
+After C reported the exact STORE0.2.6 catalog/profile/assignment activated, A retried with a new protected technical browser profile while preserving the original failed profile as evidence.
+
+The normal technical flow passed:
+- exact package SHA and Opera 136.0.6008.22 matched;
+- protected portal authority and account membership were verified;
+- a new device authorization was approved through the normal server path;
+- no auth state was injected;
+- public extension state reached `authenticated=true`;
+- ordinary human email login and human portal login remain untested.
+
+Evidence:
+`/root/octoport-control/logs/A/owner-authenticated-026-technical-r2/technical-auth.json`.
+
+A then requested the normal signed Bootstrap for detected ChatGPT through the authenticated extension.
+The server response was HTTP 200 with config version 2 and both extension/browser compatibility `SUPPORTED`.
+However the signed payload resolved detected ChatGPT as `ai.status=UNAVAILABLE` and contained no profile.
+The frozen client therefore correctly returned `BOOTSTRAP_PROFILE_INCOMPATIBLE` and did not grant Work.
+
+This is no longer a package/browser compatibility finding. It is an owner-test server resolution finding: the real technical account does not receive the published DIRECT profile assignment in Bootstrap.
+
+Sanitized evidence:
+`/root/octoport-control/logs/A/technical-bootstrap-worker-capture.log`.
+
+The finding was returned directly to C in:
+`/root/octoport-control/peer-handoffs/A/C-A-STORE026-CATALOG-READY-20260928-1544.response.json`.
+
+## Authenticated local control matrix
+
+A separate fresh technical profile was authorized normally and used only for reversible local controls, without first invoking the known failing detected-AI Bootstrap.
+
+Result: `PASS_TEMP_STORE_MATRIX`.
+Passed controls:
+- Ozon and WB temporary add/save;
+- edit/cancel and edit/save with secret-presence preservation;
+- clear Performance / personal-data option;
+- remove reject and remove confirm;
+- privacy-safe support snapshot;
+- ephemeral encrypted backup export/preview/import;
+- cleanup.
+
+Initial and final store count were both zero, the pre-existing-store fingerprint was restored, and marketplace provider-host request count was zero.
+Evidence:
+`/root/octoport-control/logs/A/owner-authenticated-026-controls-r3/local-matrix.json`.
+
+Still open: real provider checks, AI Work, transfer, destructive auth reset, human email/login UX, H3 and store-reviewer acceptance.
