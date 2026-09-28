@@ -250,7 +250,7 @@
       "periodPolicy": "EXPLICIT_WHERE_APPLICABLE",
       "continuationPolicy": "EXPLICIT_ONLY",
       "omissionPolicy": "MISSING_NOT_ZERO",
-      "externalDependency": "WB_ITEM_RETURNS_REPLACEMENT_NOT_IN_ACCEPTED_REGISTRY__GENERIC_WRITEOFF_TRANSFER_CAUSALITY_UNVERIFIED",
+      "externalDependency": "WB_ITEM_RETURNS_REPLACEMENT_NOT_IN_ACCEPTED_EFFECTIVE_REGISTRY__GENERIC_WRITEOFF_TRANSFER_CAUSALITY_UNVERIFIED",
       "numericFixtures": ["movement_evidence"]
     },
     {

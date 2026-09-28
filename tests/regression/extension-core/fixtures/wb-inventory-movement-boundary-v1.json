@@ -3,7 +3,7 @@
   "capturedDate": "2026-09-28",
   "scope": {
     "scenarioId": "STD-11",
-    "evidence": "CURRENT_OFFICIAL_SOURCE_PLUS_ACCEPTED_REGISTRY_SOURCE_ONLY",
+    "evidence": "CURRENT_OFFICIAL_SOURCE_PLUS_ACCEPTED_EFFECTIVE_REGISTRY_SOURCE_ONLY",
     "liveValues": false,
     "runtimeChanged": false,
     "sharedRegistryChanged": false
@@ -62,10 +62,23 @@
     }
   },
   "registryGap": {
-    "code": "WB_ITEM_RETURNS_REPLACEMENT_NOT_IN_ACCEPTED_REGISTRY__GENERIC_WRITEOFF_TRANSFER_CAUSALITY_UNVERIFIED",
+    "code": "WB_ITEM_RETURNS_REPLACEMENT_NOT_IN_ACCEPTED_EFFECTIVE_REGISTRY__GENERIC_WRITEOFF_TRANSFER_CAUSALITY_UNVERIFIED",
     "owner": "C_SHARED_WB_AUTHORITY_HANDOFF",
-    "goodsReturnExpectedCurrent": true,
-    "replacementExpectedPresent": false
+    "goodsReturnExpectedCurrent": true
+  },
+  "registryEvidence": {
+    "compositionPath": "apps/extension/composition.json",
+    "bundle": "shared/wb_adapter.js",
+    "frozenDonorExpectedReplacementPresent": false,
+    "acceptedEffectiveExpectedReplacementPresent": false,
+    "analyticsOverlayPath": "packages/marketplaces/wildberries/src/retired-analytics-registry-overlay.js",
+    "pinnedCandidate": {
+      "commit": "bac8cc88bb58298b07d2235390363aa706abe43a",
+      "overlaySha256": "c0b20ab4c81dd8b398bbd171114dcb1518d3fe8ef83ad18e3fb16d1af115a2de",
+      "replacementExpectedPresent": true,
+      "alias": "analytics_item_returns",
+      "requiredQuery": ["dateFrom", "dateTo", "status", "limit", "offset"]
+    }
   },
   "rules": {
     "movementEvidence": "GOODS_RETURN_ROW_IS_PROVIDER_RETURN_MOVEMENT_EVIDENCE",
