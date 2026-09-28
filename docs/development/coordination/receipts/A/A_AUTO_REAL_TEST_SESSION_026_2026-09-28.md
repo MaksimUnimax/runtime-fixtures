@@ -23,7 +23,11 @@ No STORE bytes, signatures, `authenticated`, `workAllowed`, portal roles, or bac
 
 The protected session's cookie/token values and raw account identifier are never serialized to Git, evidence, stdout, screenshots, or extension storage. Guard tests additionally reject unsafe session-file permissions and admin sessions.
 
-Focused source guards after the change: **15/15 PASS**; Python compile and `git diff --check`: PASS.
+Initial helper guards before the controller transport review: **15/15 PASS**; Python compile and `git diff --check`: PASS.
+
+Controller P2 `A-CONTROLLER-TECHNICAL-AUTH-20260928-1402` then reproduced an unsafe helper-only transport boundary in the WIP: arbitrary/plaintext origins and redirect forwarding were possible. The initial helper commit `aed03254e02d5a35fb8d99d6f644b628d0de1a7b` is therefore **superseded for intake**.
+
+A accepted the independently reviewed hardening on the current lineage as `9dbc97b95863d88d977da1b7e27918fea065f549`. The helper now pins the exact `https://api.octoport.ru` origin, rejects redirects, allow-lists only the assigned account/device-approval endpoints, bounds response/session reads, validates cookie syntax, and reads the protected session through owner/0600/nofollow/protected-parent checks. Focused guards: **22/22 PASS**; Python compile and `git diff --check`: PASS. No real session, browser or network reuse was performed after the P2 finding.
 
 ## Real run
 
