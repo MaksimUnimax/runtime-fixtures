@@ -16,6 +16,7 @@ import {
 } from "./index.js";
 import { recordNoSessionCompactStateInTransaction } from "./health-retention-repository.js";
 import { migrationsFolder, runMigrations } from "./migrations.js";
+import { runMonitorPilotRetentionMaintenance } from "../../../../tooling/server/monitor-pilot-retention.js";
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) throw new Error("DATABASE_URL is required");
@@ -524,6 +525,163 @@ describe.sequential("monitoring retention 0051 -> 0052 upgrade", () => {
       'SELECT count(*)::text AS count FROM drizzle."__drizzle_migrations"',
     );
     expect(migrationCount.rows[0]?.count).toBe("41");
+  });
+
+  it("runs the maintenance command across bounded 0051 legacy continuation without replay side effects", async () => {
+    await runtime.query("DROP SCHEMA IF EXISTS public CASCADE");
+    await runtime.query("DROP SCHEMA IF EXISTS drizzle CASCADE");
+    await runtime.query("CREATE SCHEMA public");
+    await runMigrations({
+      connectionString,
+      migrationsDirectory: prefixDirectory,
+    });
+
+    await seedLegacyNoSessionRun();
+    const brokenRun = "d4000000-0000-4000-8000-000000000087";
+    const brokenScheduled = "d4000000-0000-4000-8000-000000000086";
+    const recoveredRun = "d4000000-0000-4000-8000-000000000097";
+    const recoveredScheduled = "d4000000-0000-4000-8000-000000000096";
+    await seedAdditionalLegacyRun({
+      scheduledRunId: brokenScheduled,
+      healthRunId: brokenRun,
+      dueSlotAt: new Date("2026-09-27T06:00:00.000Z"),
+      observation: legacyObservation({
+        observedAt: new Date("2026-09-27T06:00:01.000Z"),
+        classification: "BROKEN",
+      }),
+      idempotencyHex: "8",
+      callbackHex: "8",
+    });
+    await seedAdditionalLegacyRun({
+      scheduledRunId: recoveredScheduled,
+      healthRunId: recoveredRun,
+      dueSlotAt: new Date("2026-09-27T12:00:00.000Z"),
+      observation: legacyObservation({
+        observedAt: new Date("2026-09-27T12:00:01.000Z"),
+      }),
+      idempotencyHex: "9",
+      callbackHex: "9",
+    });
+
+    await runMigrations({ connectionString });
+    const maintenanceNow = new Date("2026-09-28T18:00:00.000Z");
+    const preflight = async () => ({
+      kind: "READY" as const,
+      issues: [] as const,
+    });
+
+    const first = await runMonitorPilotRetentionMaintenance(
+      runtime,
+      {
+        mode: "apply",
+        limits: {
+          maxBackfill: 1,
+          maxReconcile: 1,
+          maxInventory: 1,
+          maxPrune: 0,
+          maxReceiptRetire: 0,
+          maxTerminalRetire: 0,
+        },
+      },
+      {
+        preflight,
+        clock: () => maintenanceNow,
+        nowMs: () => 0,
+      },
+    );
+    expect(first.kind).toBe("PARTIAL");
+    expect(first.actions).toMatchObject({
+      projected: 1,
+      reconciled: 1,
+      pruned: 0,
+      receiptRetired: 0,
+      terminalRetired: 0,
+    });
+    expect(first.pendingAfter?.projection).toBe(2);
+
+    const second = await runMonitorPilotRetentionMaintenance(
+      runtime,
+      {
+        mode: "apply",
+        limits: {
+          maxBackfill: 10,
+          maxReconcile: 10,
+          maxInventory: 20,
+          maxPrune: 10,
+          maxReceiptRetire: 10,
+          maxTerminalRetire: 10,
+        },
+      },
+      {
+        preflight,
+        clock: () => maintenanceNow,
+        nowMs: () => 0,
+      },
+    );
+    expect(second.kind).toBe("APPLIED");
+    expect(second.actions).toMatchObject({
+      projected: 2,
+      reconciled: 2,
+      pruned: 1,
+      receiptRetired: 0,
+      terminalRetired: 0,
+    });
+    expect(second.pendingAfter).toMatchObject({
+      projection: 0,
+      incident: 0,
+    });
+
+    const beforeRetry = await runtime.query<{
+      notifications: string;
+      incidents: string;
+      receipts: string;
+      runs: string;
+    }>(
+      `SELECT
+        (SELECT count(*)::text FROM health_notification_intents) AS notifications,
+        (SELECT count(*)::text FROM health_incidents) AS incidents,
+        (SELECT count(*)::text FROM health_no_session_run_receipts) AS receipts,
+        (SELECT count(*)::text FROM health_runs) AS runs`,
+    );
+    expect(beforeRetry.rows[0]).toMatchObject({
+      notifications: "0",
+      incidents: "0",
+      receipts: "3",
+      runs: "2",
+    });
+
+    const retry = await runMonitorPilotRetentionMaintenance(
+      runtime,
+      {
+        mode: "apply",
+        limits: {
+          maxBackfill: 10,
+          maxReconcile: 10,
+          maxInventory: 20,
+          maxPrune: 10,
+          maxReceiptRetire: 10,
+          maxTerminalRetire: 10,
+        },
+      },
+      {
+        preflight,
+        clock: () => maintenanceNow,
+        nowMs: () => 0,
+      },
+    );
+    expect(retry.kind).toBe("APPLIED");
+    expect(retry.actions).toEqual({
+      projected: 0,
+      reconciled: 0,
+      pruned: 0,
+      receiptRetired: 0,
+      terminalRetired: 0,
+    });
+    expect(
+      await runtime.query(
+        "SELECT count(*)::text AS count FROM health_notification_intents",
+      ),
+    ).toMatchObject({ rows: [{ count: "0" }] });
   });
 
   it("reconciles legacy incidents silently, pages past pins, and prunes eligible old payload", async () => {
