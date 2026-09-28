@@ -5,7 +5,6 @@ import {
   STORE1_ACCEPTED_SOURCE_TREE,
   STORE1_CONTRACT,
   STORE1_POLICY_KEY,
-  STORE1_PROFILE_KEY,
   STORE1_PROFILE_SHA256,
   STORE1_VERSION,
   planStore1Activation,
@@ -110,11 +109,11 @@ function exactReadback(): Store1ActivationReadback {
     profiles: [
       {
         id: ids.profile,
-        machineKey: STORE1_PROFILE_KEY,
+        machineKey: "chatgpt-standard-opera-v1",
         status: "ACTIVE",
         adapterId: ids.adapter,
         surfaceId: ids.surface,
-        variantId: null,
+        variantId: ids.variant,
       },
     ],
     profileNextCursor: null,
@@ -130,7 +129,6 @@ function exactReadback(): Store1ActivationReadback {
     assignments: [
       {
         id: ids.assignment,
-        variantId: null,
         latest: {
           revision: 1,
           mode: "DIRECT",
@@ -461,64 +459,6 @@ describe("STORE-1 ordinary-admin activation planner", () => {
     expect(planStore1Activation(authority, r)).toMatchObject({
       status: "CONFLICT",
       code: "STORE1_PROFILE_REVISION_CONFLICT",
-    });
-  });
-
-  it("treats the legacy variant-scoped profile as history and creates a default profile", () => {
-    const r = exactReadback();
-    r.profiles = [
-      {
-        id: ids.profile,
-        machineKey: "chatgpt-standard-opera-v1",
-        status: "ACTIVE",
-        adapterId: ids.adapter,
-        surfaceId: ids.surface,
-        variantId: ids.variant,
-      },
-    ];
-    r.profileNextCursor = null;
-    expect(planStore1Activation(authority, r)).toMatchObject({
-      status: "POST",
-      next: {
-        path: "/v1/admin/ai/profiles",
-        body: {
-          adapterId: ids.adapter,
-          surfaceId: ids.surface,
-          variantId: null,
-          machineKey: STORE1_PROFILE_KEY,
-        },
-      },
-    });
-  });
-
-  it("ignores a legacy exact assignment when the default account assignment is absent", () => {
-    const r = exactReadback();
-    r.assignments = [
-      {
-        id: ids.assignment,
-        variantId: ids.variant,
-        latest: {
-          revision: 1,
-          mode: "DIRECT",
-          baselineProfileRevisionId: ids.revision,
-          candidateProfileRevisionId: null,
-          percentageBps: 0,
-        },
-      },
-    ];
-    r.assignmentNextCursor = null;
-    expect(planStore1Activation(authority, r)).toMatchObject({
-      status: "POST",
-      next: {
-        path: "/v1/admin/ai/assignments",
-        body: {
-          adapterId: ids.adapter,
-          surfaceId: ids.surface,
-          variantId: null,
-          browserFamily: "opera",
-          subjectKind: "ACCOUNT",
-        },
-      },
     });
   });
 

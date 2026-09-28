@@ -9,7 +9,7 @@ export const STORE1_CONTRACT = "control_plane_v2" as const;
 export const STORE1_BROWSER = "opera" as const;
 export const STORE1_BROWSER_MINIMUM = "136" as const;
 export const STORE1_POLICY_KEY = "store1.opera.v2" as const;
-export const STORE1_PROFILE_KEY = "chatgpt-standard-opera-default-v1" as const;
+export const STORE1_PROFILE_KEY = "chatgpt-standard-opera-v1" as const;
 export const STORE1_REASON = "STORE-1 Opera reviewer catalog activation";
 export const STORE1_ACCEPTED_SOURCE_HEAD =
   "028d5dd56341719e2061a47b5e82e216256619f7" as const;
@@ -165,7 +165,6 @@ type ProfileRevision = {
 };
 type Assignment = {
   id: string;
-  variantId: string | null;
   latest: null | {
     revision: number;
     mode: "DIRECT" | "ROLLOUT" | "PAUSED";
@@ -711,8 +710,8 @@ export function planStore1Activation(
 
   if (r.profiles === undefined)
     return get(
-      `/v1/admin/ai/profiles?adapterId=${adapter.id}&surfaceId=${surface.id}&limit=100`,
-      "Read Standard-surface profiles before selecting the default scope.",
+      `/v1/admin/ai/profiles?adapterId=${adapter.id}&surfaceId=${surface.id}&variantId=${variant.id}&limit=100`,
+      "Read exact scoped profiles before create/reuse.",
     );
   if (r.profileNextCursor === undefined)
     return {
@@ -723,13 +722,12 @@ export function planStore1Activation(
     };
   if (r.profileNextCursor !== null)
     return get(
-      `/v1/admin/ai/profiles?adapterId=${adapter.id}&surfaceId=${surface.id}&limit=100&cursor=${encodeURIComponent(r.profileNextCursor)}`,
-      "Continue profile pagination before deciding default-scope create/reuse.",
+      `/v1/admin/ai/profiles?adapterId=${adapter.id}&surfaceId=${surface.id}&variantId=${variant.id}&limit=100&cursor=${encodeURIComponent(r.profileNextCursor)}`,
+      "Continue profile pagination before deciding create/reuse.",
     );
   const profile = exactOne(
     r.profiles,
-    (value) =>
-      value.machineKey === STORE1_PROFILE_KEY && value.variantId === null,
+    (value) => value.machineKey === STORE1_PROFILE_KEY,
   );
   if (profile === "CONFLICT")
     return conflict(
@@ -742,7 +740,7 @@ export function planStore1Activation(
       {
         adapterId: adapter.id,
         surfaceId: surface.id,
-        variantId: null,
+        variantId: variant.id,
         machineKey: STORE1_PROFILE_KEY,
         displayName: "ChatGPT Standard Opera",
         reason: STORE1_REASON,
@@ -753,11 +751,11 @@ export function planStore1Activation(
     profile.status !== "ACTIVE" ||
     profile.adapterId !== adapter.id ||
     profile.surfaceId !== surface.id ||
-    profile.variantId !== null
+    profile.variantId !== variant.id
   )
     return conflict(
       "STORE1_PROFILE_SCOPE_CONFLICT",
-      "Existing default target profile is disabled or bound to another hierarchy.",
+      "Existing target profile is disabled or bound to another hierarchy.",
     );
 
   if (r.profileRevisions === undefined)
@@ -816,8 +814,8 @@ export function planStore1Activation(
 
   if (r.assignments === undefined)
     return get(
-      `/v1/admin/ai/assignments?adapterId=${adapter.id}&surfaceId=${surface.id}&browserFamily=${STORE1_BROWSER}&subjectKind=ACCOUNT&limit=100`,
-      "Read Opera account assignments before selecting the default scope.",
+      `/v1/admin/ai/assignments?adapterId=${adapter.id}&surfaceId=${surface.id}&variantId=${variant.id}&browserFamily=${STORE1_BROWSER}&subjectKind=ACCOUNT&limit=100`,
+      "Read exact Opera account assignment scope.",
     );
   if (r.assignmentNextCursor === undefined)
     return {
@@ -828,30 +826,27 @@ export function planStore1Activation(
     };
   if (r.assignmentNextCursor !== null)
     return get(
-      `/v1/admin/ai/assignments?adapterId=${adapter.id}&surfaceId=${surface.id}&browserFamily=${STORE1_BROWSER}&subjectKind=ACCOUNT&limit=100&cursor=${encodeURIComponent(r.assignmentNextCursor)}`,
-      "Continue assignment pagination before deciding default-scope create/reuse.",
+      `/v1/admin/ai/assignments?adapterId=${adapter.id}&surfaceId=${surface.id}&variantId=${variant.id}&browserFamily=${STORE1_BROWSER}&subjectKind=ACCOUNT&limit=100&cursor=${encodeURIComponent(r.assignmentNextCursor)}`,
+      "Continue assignment pagination before deciding create/reuse.",
     );
-  const defaultAssignments = r.assignments.filter(
-    (value) => value.variantId === null,
-  );
-  if (defaultAssignments.length > 1)
+  if (r.assignments.length > 1)
     return conflict(
       "STORE1_ASSIGNMENT_CONFLICT",
-      "Multiple assignments exist for the default Opera account scope.",
+      "Multiple assignments exist for the exact Opera account scope.",
     );
-  const assignment = defaultAssignments[0] ?? null;
+  const assignment = r.assignments[0] ?? null;
   if (!assignment)
     return post(
       "/v1/admin/ai/assignments",
       {
         adapterId: adapter.id,
         surfaceId: surface.id,
-        variantId: null,
+        variantId: variant.id,
         browserFamily: STORE1_BROWSER,
         subjectKind: "ACCOUNT",
         reason: STORE1_REASON,
       },
-      "Create bounded default Opera account assignment scope.",
+      "Create bounded Opera account assignment scope.",
     );
   if (!assignment.latest)
     return post(
