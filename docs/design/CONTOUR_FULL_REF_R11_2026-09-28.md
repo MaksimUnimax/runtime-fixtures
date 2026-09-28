@@ -31,3 +31,19 @@ No foreground grip/tentacle layer belongs to a control.
 - Chrome result SHA-256: `a987c83925de0bd10f0defa24ee175a2ea97a5881ae6461ec889191cb2fd7d02`.
 - Opera result SHA-256: `68a767f688ca379a081ce706105b3eef9b3ddb0ea804502e322f21f8d0c72607`.
 - Yandex result SHA-256: `cb4018a2adda1dc85323b54f922e75ebd986fc3b21d069b067f943aeaa3b9891`.
+
+## Production acceptance
+
+Status: PRODUCTION_DEPLOYED / LIVE_QA_PASS.
+
+Production release: `249a6ed2638fcdfa16460cb19025faf60139948d`.
+Rollback backup: `/var/backups/octoport-site/20260928T042741Z`.
+
+Live Chrome / Opera / Yandex quick QA: 30 states PASS.
+Live independent hover/focus checks: 48/48 PASS.
+
+Live result SHA-256:
+- Chrome: `a60849d05ca933bc2a687325ea1d171c916c6c7354049a4e6b4cd9e54b302b88`
+- Opera: `aac05b844398653f5d1b3f0be04e2e6a03ed049d800b368723ea8e808d646339`
+- Yandex: `6b6e10f979f2ce6fa0b9b49e7faa7e5c35bb741204cc57d86c0b1901f168977e`
+- Deploy log: `78bb06707c605b82df57b5616bcebc9b6d6c2ff804047bf06f4d43a2b90fd6ac`
