@@ -63,3 +63,7 @@
 ## Latest controller review — 2026-09-26
 
 [Scoped review and findings](receipts/CONTROLLER_STREAMS_REVIEW_2026-09-26.md), [next independent assignments](CONTROLLER_NEXT_WORK_2026-09-26.md), and [R4 preprod preparation corrections](PREPROD_PREPARATION_CORRECTIONS_R4_2026-09-26.md). Existing permanent prompts remain current; source/disposable work continues while concrete live gates remain separate.
+
+## Уточнение владельца: самостоятельная работа без ожидания — 2026-09-28
+
+Применять [UNATTENDED_CONTINUATION_POLICY.md](UNATTENDED_CONTINUATION_POLICY.md). Недоступность владельца/контроллера блокирует только зависимое действие: сохранить точный запрос, перейти к следующему доступному результату; A/B/C координируются напрямую. Общий WAITING_INPUT требует полного свежего обоснования, а повтор старого transfer/resume не снимает более поздний STOP. Текущие кандидаты и принятые требования сохраняются.

@@ -13,6 +13,7 @@ import subprocess
 import sys
 import time
 import resource_runner
+from waiting_gate import validate_waiting_receipt
 from datetime import datetime, timezone
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -64,15 +65,24 @@ def update_state(role, action, args):
             state.setdefault("review_clock", now)
         elif action == "pause":
             state["status"] = "STOPPED"
+            state["stopped_at"] = now_text()
+            state["stop_reason"] = args.summary
         elif action == "resume":
             if not args.receipt:
                 raise RuntimeError("A direct owner/controller instruction receipt is required")
+            consumed = state.setdefault("consumed_resume_receipts", [])
+            if args.receipt in consumed or args.receipt == state.get("resume_receipt"):
+                raise RuntimeError("RESUME_RECEIPT_ALREADY_USED: a later STOP needs a new direct instruction")
             state["status"] = "RUNNING"
             state["resume_receipt"] = args.receipt
+            consumed.append(args.receipt)
             state.setdefault("review_clock", now)
         elif action == "waiting":
             if state["status"] == "STOPPED":
                 raise RuntimeError("STOPPED: waiting cannot clear an explicit pause")
+            state["waiting_review"] = validate_waiting_receipt(
+                role, args.receipt, git("rev-parse", "HEAD")
+            )
             state["status"] = "WAITING_INPUT"
         elif action == "checkpoint":
             state.update(task=args.task or state.get("task"), result=args.summary, next=args.next)
