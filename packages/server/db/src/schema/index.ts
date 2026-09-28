@@ -13,6 +13,7 @@ export * from "./reconciliation";
 export * from "./adapter-registry";
 export * from "./assignments";
 export * from "./health";
+export * from "./repair-admission";
 export * from "./beta";
 export * from "./sync";
 export * from "./credential-transfer";

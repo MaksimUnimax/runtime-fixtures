@@ -427,7 +427,12 @@ function protectedEntryInput() {
 
 function entryFetch(
   fixture: ReturnType<typeof signedFixture>,
-  options: { tamper?: boolean; driftFinalConfig?: boolean } = {},
+  options: {
+    tamper?: boolean;
+    driftFinalConfig?: boolean;
+    releaseExists?: boolean;
+    terminalPolicyWithoutCursor?: boolean;
+  } = {},
 ) {
   const calls: Array<{ method: string; path: string; headers: Headers }> = [];
   let configReads = 0;
@@ -502,7 +507,20 @@ function entryFetch(
             : fixture.envelope,
         );
       if (url.pathname === `/v1/admin/compatibility/releases/${STORE1_VERSION}`)
-        return response(404, { code: "NOT_FOUND" });
+        return options.releaseExists
+          ? response(200, {
+              version: STORE1_VERSION,
+              releaseChannel: "stable",
+              artifactSha256: STORE1_ACCEPTED_ARTIFACT_SHA256,
+              supportedContracts: [STORE1_CONTRACT],
+              supportedBrowsers: ["opera"],
+            })
+          : response(404, { code: "NOT_FOUND" });
+      if (
+        options.terminalPolicyWithoutCursor &&
+        url.pathname === "/v1/admin/compatibility/policies"
+      )
+        return response(200, { items: [] });
       throw new Error(
         `unexpected fake HTTP path ${method} ${url.pathname}${url.search}`,
       );
@@ -560,6 +578,42 @@ describe("STORE-1 read-only authenticated entry", () => {
       expect(bootstrapCall.headers.get("authorization")).toBe(
         "Bearer header.payload.signature",
       );
+    } finally {
+      rmSync(protectedInput.directory, { recursive: true, force: true });
+    }
+  });
+
+  it("accepts a terminal collection page that omits nextCursor", async () => {
+    const fixture = signedFixture();
+    const protectedInput = protectedEntryInput();
+    try {
+      const http = entryFetch(fixture, {
+        releaseExists: true,
+        terminalPolicyWithoutCursor: true,
+      });
+      const result = await runStore1ReadOnlyPreflightWithEvidenceForTest(
+        protectedInput.input,
+        fixture.packageEvidence,
+        {
+          fetchImpl: http.fetchImpl,
+          now: () => new Date("2030-01-01T00:01:00.000Z"),
+        },
+      );
+      expect(result).toMatchObject({
+        status: "POST",
+        signature: { verified: true, configVersion: 8 },
+        nextActionPreview: {
+          method: "POST",
+          path: "/v1/admin/compatibility/policies/store1.opera.v2/publish",
+          executed: false,
+        },
+        catalogMutationExecuted: false,
+      });
+      expect(
+        http.calls.some((call) =>
+          call.path.startsWith("/v1/admin/compatibility/policies?"),
+        ),
+      ).toBe(true);
     } finally {
       rmSync(protectedInput.directory, { recursive: true, force: true });
     }

@@ -515,10 +515,14 @@ function collectionPage(
   if (
     !object(value) ||
     !Array.isArray(value.items) ||
-    !(value.nextCursor === null || typeof value.nextCursor === "string")
+    !(
+      value.nextCursor === undefined ||
+      value.nextCursor === null ||
+      typeof value.nextCursor === "string"
+    )
   )
     return fail(code);
-  return { items: value.items, nextCursor: value.nextCursor };
+  return { items: value.items, nextCursor: value.nextCursor ?? null };
 }
 
 function capturePlannerRead(
