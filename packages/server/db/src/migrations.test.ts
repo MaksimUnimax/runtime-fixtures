@@ -226,6 +226,30 @@ describe("Stream-2 migration receipts", () => {
         ?.tag,
     ).toBe("0047_s2_wb_bundle_handoff");
   });
+
+  it("receipts the forward-only product-compatible API-watch baseline migration", async () => {
+    const sql = await readFile(
+      join(migrationsFolder, "0054_api_watch_product_baselines.sql"),
+      "utf8",
+    );
+    const journal = JSON.parse(
+      await readFile(join(migrationsFolder, "meta", "_journal.json"), "utf8"),
+    ) as { entries: Array<{ tag: string }> };
+    expect(sql).toContain('CREATE TABLE "api_watch_product_baselines"');
+    expect(sql).toContain(
+      'CREATE TABLE "api_watch_product_baseline_revisions"',
+    );
+    expect(sql).toContain('REFERENCES "api_watch_snapshots"("snapshot_id")');
+    expect(sql).toContain('WHERE "document_key" IS NULL');
+    expect(sql).toContain('WHERE "document_key" IS NOT NULL');
+    expect(sql).toContain("append-only");
+    expect(sql).not.toContain("authority_status");
+    expect(
+      journal.entries.find(
+        (entry) => entry.tag === "0054_api_watch_product_baselines",
+      )?.tag,
+    ).toBe("0054_api_watch_product_baselines");
+  });
 });
 
 describe("migration lineage guard", () => {

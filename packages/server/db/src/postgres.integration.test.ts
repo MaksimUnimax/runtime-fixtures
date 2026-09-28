@@ -89,6 +89,8 @@ describe.sequential("P2.1 PostgreSQL persistence integration", () => {
       "api_watch_authority_records",
       "api_watch_incidents",
       "api_watch_inventories",
+      "api_watch_product_baseline_revisions",
+      "api_watch_product_baselines",
       "api_watch_product_crosswalk",
       "api_watch_report_sources",
       "api_watch_reports",
@@ -172,7 +174,7 @@ describe.sequential("P2.1 PostgreSQL persistence integration", () => {
     const count = await runtime.db.execute<{ count: string }>(sql`
       SELECT count(*)::text AS "count" FROM drizzle."__drizzle_migrations"
     `);
-    expect(count.rows[0]?.count).toBe("42");
+    expect(count.rows[0]?.count).toBe("43");
     const browserFamilyRows = await runtime.db.execute<{
       enumlabel: string;
     }>(sql`
