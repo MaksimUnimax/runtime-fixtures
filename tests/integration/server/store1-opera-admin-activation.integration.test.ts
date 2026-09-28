@@ -923,9 +923,12 @@ describe.sequential("STORE-1 ordinary-admin whole-sequence rehearsal", () => {
       "/v1/admin/compatibility/config-releases/publish",
       "/v1/admin/ai/registry/adapters",
       "/v1/admin/ai/registry/surfaces",
-      "/v1/admin/ai/registry/variants",
       "/v1/admin/ai/profiles",
+      expect.stringMatching(/^\/v1\/admin\/ai\/profiles\/[^/]+\/revisions$/),
     ]);
+    expect(
+      first.mutations.some((path) => path.includes("/registry/variants")),
+    ).toBe(false);
     expect(
       first.mutations.some(
         (path) => path.includes("/profiles/") && path.includes("/revisions"),
