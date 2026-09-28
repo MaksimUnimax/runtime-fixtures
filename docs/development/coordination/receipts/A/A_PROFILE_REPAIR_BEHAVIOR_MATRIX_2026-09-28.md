@@ -105,3 +105,17 @@ The ephemeral Ed25519 private key was removed after the run.
 
 No live ChatGPT account, marketplace provider, owner GUI, store submission, rollout,
 operator approval, production assignment or recovery declaration was performed.
+
+## Fresh-main reconciliation
+
+After the matrix PASS, A fetched and merged `origin/main=f6bcd1ce99740b67a2e17056e9350131b624f725`
+normally on a clean boundary. Merge checkpoint:
+`5c037d6241d263750c58bde0ea4124e11c477694`.
+
+The main-only delta from the prior merge base changes API/DB/integration receipts only.
+It does not change `apps/extension/**`, `packages/control-client/**`,
+`packages/ai-adapters/**`, extension composition/build inputs, or any existing
+extension-core runtime test used by the matrix.
+
+Therefore the product/runtime bytes exercised by the matrix are unchanged by this main merge;
+repeating the same browser matrix would not exercise different A product bytes.
