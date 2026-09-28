@@ -1,0 +1,13 @@
+{
+  "source": "accepted contour-reference-r4 alpha",
+  "method": "closed RDP + Catmull-Rom cubic spline; tiny contour filtering",
+  "palette": {
+    "light": "#10243c",
+    "dark": "#ebffff"
+  },
+  "underlay_loops": 148,
+  "grip_paper_loops": 2,
+  "grip_ink_loops": 16,
+  "asset_sha256": "6a9957bf1325e926be85e8a47d22220308f114bc7fbb77915ca4118564328bb4",
+  "asset_bytes": 72864
+}
