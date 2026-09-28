@@ -48,7 +48,7 @@ def run_checked(command, *, env):
     )
 
 
-def main(output: Path, api_port: int, portal_port: int, allow_technical: bool) -> int:
+def main(output: Path, api_port: int, portal_port: int, allow_technical: bool, profile_lifecycle_only: bool = False) -> int:
     if os.environ.get("PRODUCT_CONTROL_PLANE_E2E") != "1":
         raise RuntimeError("PRODUCT_CONTROL_PLANE_E2E=1_REQUIRED")
     if not os.environ.get("DATABASE_URL"):
@@ -63,6 +63,9 @@ def main(output: Path, api_port: int, portal_port: int, allow_technical: bool) -
     fixture_evidence = output / "fixture-evidence.json"
     network_evidence = output / "safe-network-evidence.json"
     private_placeholder = output / "unused-private-key.der"
+    profile_control = output / "profile-control.json"
+    if profile_lifecycle_only:
+        profile_control.write_text('{"revision":1,"composerMode":"packaged"}\n')
     common = output / "common"
     firefox_runtime = output / "firefox-runtime"
     functional = output / "functional"
@@ -82,11 +85,17 @@ def main(output: Path, api_port: int, portal_port: int, allow_technical: bool) -
         "SA_I1_ENABLE_LOCAL_CLIENT_AUTHORITY": "1",
         "SA_I1_REDACT_FIXTURE_IDENTITIES": "1",
     }
+    if profile_lifecycle_only:
+        env["SA_I1_PROFILE_CONTROL_PATH"] = str(profile_control)
     processes = []
     logs = []
     result = {
         "status": "FAIL",
-        "acceptanceClass": "REAL_FIREFOX_INSTALLED_SYNTHETIC_FUNCTIONAL",
+        "acceptanceClass": (
+            "INSTALLED_SYNTHETIC_FIREFOX_SIGNED_PROFILE_LIFECYCLE"
+            if profile_lifecycle_only
+            else "REAL_FIREFOX_INSTALLED_SYNTHETIC_FUNCTIONAL"
+        ),
         "liveProviderCalls": 0,
         "productHead": subprocess.check_output(
             ["git", "-C", str(ROOT), "rev-parse", "HEAD"], text=True
@@ -219,6 +228,8 @@ def main(output: Path, api_port: int, portal_port: int, allow_technical: bool) -
         ]
         if allow_technical:
             command.append("--allow-technical")
+        if profile_lifecycle_only:
+            command.extend(["--profile-lifecycle-only", "--profile-control", str(profile_control)])
         harness = subprocess.run(
             command,
             cwd=ROOT,
@@ -279,7 +290,14 @@ if __name__ == "__main__":
     parser.add_argument("--api-port", type=int, default=18201)
     parser.add_argument("--portal-port", type=int, default=18211)
     parser.add_argument("--allow-technical", action="store_true")
+    parser.add_argument("--profile-lifecycle-only", action="store_true")
     args = parser.parse_args()
     raise SystemExit(
-        main(args.output.resolve(), args.api_port, args.portal_port, args.allow_technical)
+        main(
+            args.output.resolve(),
+            args.api_port,
+            args.portal_port,
+            args.allow_technical,
+            args.profile_lifecycle_only,
+        )
     )

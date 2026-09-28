@@ -38,6 +38,8 @@ from selenium.webdriver.firefox.options import Options
 from selenium.webdriver.firefox.service import Service
 from selenium.webdriver.support.ui import Select, WebDriverWait
 
+from firefox_profile_lifecycle import run as run_profile_lifecycle
+
 ROOT = Path(__file__).resolve().parents[4]
 CHAT_FIXTURE = ROOT / "tests/regression/extension-core/fixtures/application-chat.html"
 TECHNICAL_PERMISSION = "technicalAndInteraction"
@@ -49,6 +51,10 @@ PROVIDER_HOSTS = {
     "marketplace-api.wildberries.ru", "common-api.wildberries.ru",
 }
 SAFE_PATH = re.compile(r"^/[A-Za-z0-9_./{}-]{0,180}$")
+
+
+class ProfileLifecycleComplete(Exception):
+    pass
 
 
 def make_ca(directory: Path):
@@ -341,9 +347,17 @@ def run(args):
         if parsed.scheme != "http" or parsed.hostname not in {"127.0.0.1", "localhost"}:
             raise RuntimeError(f"{label.upper()}_MUST_BE_LOOPBACK_HTTP")
     args.output.mkdir(parents=True, exist_ok=False)
-    result = {"status": "FAIL", "acceptanceClass": "INSTALLED_SYNTHETIC_FIREFOX",
-              "browserRequirement": "155.0.1", "liveProviderCalls": 0,
-              "upstreamConnections": 0, "technicalPermissionMode": "neutral"}
+    result = {
+        "status": "FAIL",
+        "acceptanceClass": (
+            "INSTALLED_SYNTHETIC_FIREFOX_SIGNED_PROFILE_LIFECYCLE"
+            if args.profile_lifecycle_only else "INSTALLED_SYNTHETIC_FIREFOX"
+        ),
+        "browserRequirement": "155.0.1",
+        "liveProviderCalls": 0,
+        "upstreamConnections": 0,
+        "technicalPermissionMode": "neutral",
+    }
     state = None
     proxy = None
     thread = None
@@ -416,16 +430,57 @@ def run(args):
             if not isinstance(popup_tab_id, int):
                 raise RuntimeError("POPUP_TAB_ID_UNAVAILABLE")
 
-            stage = "chat_fixture"
+            stage = "chat_fixture_new_tab"
             driver.switch_to.new_window("tab")
             chat_handle = driver.current_window_handle
+            stage = "chat_fixture_navigation"
             driver.get(f"https://chatgpt.com/c/{WB_CONVERSATION}")
+            stage = "chat_fixture_hostname"
             wait.until(lambda d: d.execute_script("return location.hostname") == "chatgpt.com")
+            stage = "chat_fixture_origin"
             if driver.execute_script("return location.origin") != "https://chatgpt.com":
                 raise RuntimeError("CHATGPT_ORIGIN_MISMATCH")
-            wait.until(lambda d: d.execute_script(
-                "return typeof fixtureCurrentChatGPTBlock==='function' && Array.isArray(sent)"
-            ))
+            stage = "chat_fixture_js"
+            chat_ready_started = time.monotonic()
+            wait_until(
+                lambda: driver.execute_script(
+                    "return typeof window.fixtureCurrentChatGPTBlock==='function' && "
+                    "window.sent && typeof window.sent.push==='function' && "
+                    "typeof window.sent.length==='number'"
+                ),
+                timeout=60,
+            )
+            result["chatFixtureReadySeconds"] = round(time.monotonic() - chat_ready_started, 3)
+
+            if args.profile_lifecycle_only:
+                if args.profile_control is None:
+                    raise RuntimeError("PROFILE_CONTROL_REQUIRED")
+                stage = "profile_lifecycle_tab_query"
+                driver.switch_to.window(popup_handle)
+                chat_tab_id = driver.execute_async_script(
+                    "const done=arguments[arguments.length-1];"
+                    "browser.tabs.query({url:'https://chatgpt.com/c/*'}).then(rows=>done(rows[0]?.id||null),()=>done(null));"
+                )
+                if not isinstance(chat_tab_id, int):
+                    raise RuntimeError("CHATGPT_TAB_ID_UNAVAILABLE")
+                stage = "profile_lifecycle_run"
+                lifecycle = run_profile_lifecycle(
+                    driver,
+                    popup_handle,
+                    chat_handle,
+                    chat_tab_id,
+                    popup_url,
+                    args.profile_control,
+                    state,
+                )
+                result.update(
+                    status="PASS",
+                    installedAcceptance=True,
+                    profileLifecycle=lifecycle,
+                    providerRequests=[],
+                    proxyUpstreamConnections=0,
+                )
+                raise ProfileLifecycleComplete()
 
             stage = "store_add"
             driver.switch_to.window(popup_handle)
@@ -778,6 +833,8 @@ def run(args):
                 blockedExternalConnectAttempts=state.denied_connects,
                 proxyUpstreamConnections=0,
             )
+    except ProfileLifecycleComplete:
+        pass
     except Exception as error:
         result["stage"] = stage
         result["errorCode"] = str(error) if re.fullmatch(r"[A-Z0-9_]+", str(error) or "") else type(error).__name__.upper()
@@ -806,7 +863,13 @@ def run(args):
                     result["failureChat"] = {
                         "actionCount": action_count(driver),
                         "actionText": action_text(driver),
-                        "sentCount": driver.execute_script("return Array.isArray(sent)?sent.length:null"),
+                        "sentCount": driver.execute_script("return Array.isArray(window.sent)?window.sent.length:null"),
+                        "readyState": driver.execute_script("return document.readyState"),
+                        "scriptCount": driver.execute_script("return document.scripts.length"),
+                        "blockWindowType": driver.execute_script("return typeof window.fixtureCurrentChatGPTBlock"),
+                        "blockGlobalType": driver.execute_script("return typeof fixtureCurrentChatGPTBlock"),
+                        "sentWindowType": driver.execute_script("return typeof window.sent"),
+                        "htmlHasFixtureBlock": driver.execute_script("return document.documentElement.outerHTML.includes('fixtureCurrentChatGPTBlock')"),
                     }
             except Exception:
                 result["failureDiagnosticUnavailable"] = True
@@ -843,6 +906,8 @@ def main():
     parser.add_argument("--email", help="pre-created disposable fixture email")
     parser.add_argument("--allow-technical", action="store_true", help="grant optional technical data through Firefox doorhanger")
     parser.add_argument("--certutil", type=Path, help="NSS certutil executable used to trust the local CA in the temporary Firefox profile")
+    parser.add_argument("--profile-lifecycle-only", action="store_true")
+    parser.add_argument("--profile-control", type=Path)
     args = parser.parse_args()
     raise SystemExit(run(args))
 
