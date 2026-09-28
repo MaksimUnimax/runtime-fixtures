@@ -356,10 +356,12 @@ export async function recordNoSessionCompactStateInTransaction(
   } else {
     const slots = await q.query<{
       slot: number;
+      healthState: string;
       lastSeenAt: Date;
       latestRunId: string;
     }>(
-      `SELECT slot,last_seen_at AS "lastSeenAt",latest_run_id AS "latestRunId"
+      `SELECT slot,health_state AS "healthState",
+        last_seen_at AS "lastSeenAt",latest_run_id AS "latestRunId"
        FROM health_no_session_recent_states
        WHERE scope_sha256=$1 ORDER BY last_seen_at,latest_run_id,slot FOR UPDATE`,
       [retentionScopeSha256],
@@ -386,16 +388,39 @@ export async function recordNoSessionCompactStateInTransaction(
         ],
       );
     } else {
-      const oldest = slots.rows[0];
-      if (
-        oldest &&
-        isAfter(
-          observedAt,
-          receipt.runId,
-          oldest.lastSeenAt,
-          oldest.latestRunId,
-        )
-      ) {
+      const oldestUnknown = slots.rows.find(
+        (row) => row.healthState === "UNKNOWN",
+      );
+      const decisiveRows = slots.rows.filter(
+        (row) => row.healthState !== "UNKNOWN",
+      );
+      const latestDecisive = decisiveRows.at(-1);
+      const incomingIsDecisive = observation.classification !== "UNKNOWN";
+      const advancesDecisive =
+        incomingIsDecisive &&
+        (!latestDecisive ||
+          isAfter(
+            observedAt,
+            receipt.runId,
+            latestDecisive.lastSeenAt,
+            latestDecisive.latestRunId,
+          ));
+      const replacement = incomingIsDecisive
+        ? advancesDecisive
+          ? (oldestUnknown ?? slots.rows[0])
+          : undefined
+        : (oldestUnknown ?? slots.rows[0]);
+      const mayReplace =
+        replacement !== undefined &&
+        (incomingIsDecisive && oldestUnknown === replacement
+          ? true
+          : isAfter(
+              observedAt,
+              receipt.runId,
+              replacement.lastSeenAt,
+              replacement.latestRunId,
+            ));
+      if (replacement && mayReplace) {
         await q.query(
           `UPDATE health_no_session_recent_states SET
             normalized_result_sha256=$3,health_state=$4,classification_basis=$5,
@@ -404,7 +429,7 @@ export async function recordNoSessionCompactStateInTransaction(
             WHERE scope_sha256=$1 AND slot=$2`,
           [
             retentionScopeSha256,
-            oldest.slot,
+            replacement.slot,
             normalizedResultSha256,
             observation.classification,
             observation.classificationBasis,
@@ -805,6 +830,7 @@ export function createHealthRetentionRepository(
         | "ALREADY_RETIRED"
         | "TOO_NEW"
         | "PAYLOAD_NOT_PRUNED"
+        | "INCIDENT_PROCESSING_PENDING"
         | "SCHEDULER_NOT_SUCCEEDED"
         | "SCHEDULER_LINK_PRESENT";
     }> {
@@ -853,6 +879,16 @@ export function createHealthRetentionRepository(
           throw new Error("HEALTH_RETENTION_RECEIPT_IDENTITY_CHANGED");
         if (receipt.payloadPrunedAt === null)
           return { status: "BLOCKED", reason: "PAYLOAD_NOT_PRUNED" };
+        const pendingIncidentProcessing = await q.query<{ present: boolean }>(
+          `SELECT EXISTS(
+             SELECT 1 FROM health_no_session_run_receipts pending
+             WHERE pending.schedule_id=$1
+               AND pending.incident_processed_at IS NULL
+           ) AS present`,
+          [receipt.scheduleId],
+        );
+        if (pendingIncidentProcessing.rows[0]?.present)
+          return { status: "BLOCKED", reason: "INCIDENT_PROCESSING_PENDING" };
         if (
           receipt.completedAt > input.before ||
           receipt.payloadPrunedAt > input.before

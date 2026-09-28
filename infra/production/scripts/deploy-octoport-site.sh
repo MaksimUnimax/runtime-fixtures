@@ -73,7 +73,7 @@ assert_source() {
   fi
 
   local required
-  for required in index.html seller-analytics.html privacy.html support.html install.html favicon.png styles.css robots.txt sitemap.xml; do
+  for required in index.html seller-analytics.html privacy.html support.html install.html favicon.png styles.css robots.txt sitemap.xml assets/browser-icons/chrome.svg assets/browser-icons/opera.svg assets/browser-icons/firefox.svg assets/browser-icons/yandex.svg assets/browser-icons/octoport.svg; do
     [[ -f "${SOURCE_SITE}/${required}" ]] || fail "site source is missing ${required}"
   done
 
@@ -83,10 +83,10 @@ assert_source() {
 
   grep -Fq '<link rel="canonical" href="https://octoport.ru/"' "${SOURCE_SITE}/index.html" \
     || fail "site source canonical URL is not octoport.ru"
-  grep -Fq '<title>Подключите ваш ИИ к Ozon и Wildberries | Octoport</title>' "${SOURCE_SITE}/index.html" \
-    || fail "homepage M12 title is missing"
-  grep -Fq '<h1>Подключите ваш ИИ к <span class="brand-ozon">Ozon</span> и <span class="brand-wildberries">Wildberries</span></h1>' "${SOURCE_SITE}/index.html" \
-    || fail "homepage M12 H1 is missing"
+  grep -Fq '<title>Подключите Алису, ChatGPT и DeepSeek к Ozon и Wildberries | Октопорт</title>' "${SOURCE_SITE}/index.html" \
+    || fail "homepage owner-approved title is missing"
+  grep -Fq '<h1 class="hero-heading">Подключите <span class="hero-ai-list">Алису, ChatGPT,<br />DeepSeek</span></h1>' "${SOURCE_SITE}/index.html" \
+    || fail "homepage owner-approved H1 is missing"
   grep -Fq '<link rel="icon" href="/favicon.png" type="image/png" />' "${SOURCE_SITE}/index.html" \
     || fail "homepage favicon link is missing"
   grep -Fq '"@type": "WebSite"' "${SOURCE_SITE}/index.html" \
@@ -108,6 +108,12 @@ assert_source() {
     "${SOURCE_SITE}/seller-analytics.html" || fail "seller analytics canonical is missing"
   grep -Fq '<meta name="robots" content="noindex, follow" />' "${SOURCE_SITE}/install.html" \
     || fail "install noindex directive is missing"
+  grep -Fq 'Как получить API-ключи магазина' "${SOURCE_SITE}/install.html" \
+    || fail "install API-key guide is missing"
+  grep -Fq 'Admin read only' "${SOURCE_SITE}/install.html" \
+    || fail "install Ozon read-only guidance is missing"
+  grep -Fq 'Personal token' "${SOURCE_SITE}/install.html" \
+    || fail "install WB Personal-token guidance is missing"
 
   python3 - "${SOURCE_SITE}/favicon.png" <<'PY'
 import struct

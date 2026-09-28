@@ -78,7 +78,7 @@ CHECK = r'''(() => {
  const scene=document.querySelector('.contour-scene'),copy=document.querySelector('.hero-copy'),hero=document.querySelector('.hero'),page=document.querySelector('.page');
  const badges=[...document.querySelectorAll('.ai-badge,.market-badge')];
  const slogan=document.querySelector('.contour-slogan'),dark=document.querySelector('#theme-checkbox').checked;
- const r3={dark,slogan:slogan.innerText.replace(/\s+/g,' ').trim(),sloganRect:rect(slogan),sloganFont:getComputedStyle(slogan).fontSize,ozon:getComputedStyle(document.querySelector('h1 .brand-ozon')).color,wb:getComputedStyle(document.querySelector('h1 .brand-wildberries')).color,rings:[...document.querySelectorAll('.ai-badge')].map(e=>({color:getComputedStyle(e).borderTopColor,width:getComputedStyle(e).borderTopWidth,style:getComputedStyle(e).borderTopStyle}))};
+ const r3={dark,slogan:slogan.innerText.replace(/\s+/g,' ').trim(),sloganRect:rect(slogan),sloganFont:getComputedStyle(slogan).fontSize,rings:[...document.querySelectorAll('.ai-badge')].map(e=>({color:getComputedStyle(e).borderTopColor,width:getComputedStyle(e).borderTopWidth,style:getComputedStyle(e).borderTopStyle}))};
  const marks=[...document.querySelectorAll('.ai-badge img')].filter(i=>getComputedStyle(i).display!=='none').map(i=>{
   const c=document.createElement('canvas');c.width=c.height=64;const ctx=c.getContext('2d');ctx.drawImage(i,0,0,64,64);const data=ctx.getImageData(0,0,64,64).data;let total=0,color=0,wrong=0;const expected=dark?[235,255,255]:[16,36,60];
   for(let k=0;k<data.length;k+=4)if(data[k+3]>64){total++;if(expected.some((v,j)=>Math.abs(data[k+j]-v)>3))wrong++;if(Math.max(data[k],data[k+1],data[k+2])-Math.min(data[k],data[k+1],data[k+2])>25)color++;}
@@ -104,14 +104,12 @@ def checks(d):
  assert v['uses'][0]['w']>1000 and v['uses'][0]['h']>700,('reference vector did not render',v)
  assert abs(d['scene']['w']/d['scene']['h']-4/3)<.002,('reference aspect ratio',d['scene'])
  assert d['images'] and d['font'],('loading',d)
- assert d['h1']=='Подключите ваш ИИ к Ozon и Wildberries'
+ assert d['h1']=='Подключите\nАлису, ChatGPT,\nDeepSeek'
  assert d['canonical']=='https://octoport.ru/'
  r3=d['r3']; assert r3['slogan']=='Сложные технологии. Простые решения.',r3
  assert r3['sloganRect']['y']>=d['scene']['bottom']-1,('slogan overlays drawing',r3,d['scene'])
  assert r3['sloganRect']['right']<=d['cw']+.5 and r3['sloganRect']['x']>=0,r3
  assert float(r3['sloganFont'].replace('px',''))>=20,r3
- expected=('rgb(78, 147, 255)','rgb(241, 92, 221)') if r3['dark'] else ('rgb(0, 91, 255)','rgb(189, 12, 165)')
- assert (r3['ozon'],r3['wb'])==expected,('heading colors',r3)
  expected_ring='rgb(235, 255, 255)' if r3['dark'] else 'rgb(5, 32, 57)'
  assert len(r3['rings'])==6 and all(r['color']==expected_ring and float(r['width'].replace('px',''))>=1 and r['style']=='solid' for r in r3['rings']),('reference rings',r3)
 
