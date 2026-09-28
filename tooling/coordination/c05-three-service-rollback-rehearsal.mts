@@ -15,8 +15,10 @@ import { fileURLToPath } from "node:url";
 import { openSync, closeSync } from "node:fs";
 import { createServer } from "node:net";
 
-// C05 is intentionally a source rehearsal. It keeps the restored schema forward
-// at journal 40 and changes only which exact source snapshot serves it.
+// C05 is intentionally a source rehearsal. It restores the accepted journal-40
+// seed, migrates it forward with the exact candidate, proves a post-upgrade
+// backup/restore, and then changes only which exact source snapshot serves that
+// restored forward schema.
 const FLOOR = "d24838669c54f21dc161dc48a7e71e0e288384c2";
 const NODE = "/root/.nvm/versions/node/v24.20.0/bin/node";
 const PNPM = "pnpm";
@@ -268,18 +270,34 @@ await import("node:fs/promises").then((fs) =>
   fs.mkdir(evidenceDir, { recursive: true }),
 );
 const phases: unknown[] = [];
+const migrationEvidence: {
+  sourceJournal: number;
+  targetJournal: number | null;
+  upgradedBackupSha256: string | null;
+  upgradedBackupBytes: number | null;
+  upgradedBackupFile: string | null;
+} = {
+  sourceJournal: 40,
+  targetJournal: null,
+  upgradedBackupSha256: null,
+  upgradedBackupBytes: null,
+  upgradedBackupFile: null,
+};
 const evidence = {
-  schema: "c05-three-service-rollback-v1",
+  schema: "c05-three-service-rollback-v2",
   candidate,
   rollbackFloor: FLOOR,
   databaseName: dbName,
   createdAt: new Date().toISOString(),
+  migration: migrationEvidence,
   phases,
 };
+let expectedJournalCount = migrationEvidence.sourceJournal;
 const privatePath = join(evidenceDir, `.c05-private-${randomUUID()}.json`);
 let privateState: RehearsalRuntimeState;
 const services: Child[] = [];
 let forgottenSyntheticMetadataSha256: string | undefined;
+let upgradedBackup: Buffer | undefined;
 let disposableDbCreated = false;
 type SetupRuntime = {
   ready(): Promise<void>;
@@ -683,7 +701,7 @@ async function runPhase(
   }
   const post = await phaseSnapshot();
   check(
-    post.journal === 40 &&
+    post.journal === expectedJournalCount &&
       JSON.stringify(pre.journal) === JSON.stringify(post.journal) &&
       pre.journalStateSha256 === post.journalStateSha256,
     "MIGRATION_JOURNAL_CHANGED",
@@ -792,12 +810,83 @@ try {
     { input: await readFile(RESTORE), timeout: 120_000 },
   );
   check(
-    (await psql("SELECT count(*) FROM drizzle.__drizzle_migrations")) === "40",
-    "RESTORE_JOURNAL_NOT_40",
+    (await psql("SELECT count(*) FROM drizzle.__drizzle_migrations")) ===
+      String(migrationEvidence.sourceJournal),
+    "RESTORE_JOURNAL_NOT_SOURCE",
   );
   mark("RESTORE_READY");
   const candidateSource = await source(candidate, "candidate");
   mark("CANDIDATE_SOURCE_READY");
+  const candidateJournal = JSON.parse(
+    await readFile(
+      join(
+        candidateSource.dir,
+        "packages/server/db/drizzle/meta/_journal.json",
+      ),
+      "utf8",
+    ),
+  ) as { entries?: unknown[] };
+  const targetJournal = candidateJournal.entries?.length;
+  check(
+    Number.isSafeInteger(targetJournal) &&
+      targetJournal! > migrationEvidence.sourceJournal,
+    "CANDIDATE_JOURNAL_NOT_FORWARD",
+  );
+  await command(PNPM, ["--filter", "@product/db", "db:migrate"], {
+    cwd: candidateSource.dir,
+    env: safeEnv(process.env, {
+      NODE_ENV: "test",
+      DATABASE_URL: dbUrl.toString(),
+    }),
+    timeout: 120_000,
+  });
+  expectedJournalCount = targetJournal!;
+  migrationEvidence.targetJournal = expectedJournalCount;
+  check(
+    (await psql("SELECT count(*) FROM drizzle.__drizzle_migrations")) ===
+      String(expectedJournalCount),
+    "FORWARD_MIGRATION_JOURNAL_MISMATCH",
+  );
+  mark("FORWARD_MIGRATION_PASS");
+  upgradedBackup = (
+    await dockerDb(
+      [
+        "pg_dump",
+        "--format=custom",
+        "--no-owner",
+        "--no-privileges",
+        "-U",
+        "octoport_test",
+        dbName,
+      ],
+      { timeout: 120_000 },
+    )
+  ).stdout;
+  check(upgradedBackup.length > 0, "UPGRADED_BACKUP_EMPTY");
+  migrationEvidence.upgradedBackupSha256 = hash(upgradedBackup);
+  migrationEvidence.upgradedBackupBytes = upgradedBackup.length;
+  await dropDisposableDatabase();
+  await dockerDb(["createdb", "-U", "octoport_test", dbName]);
+  disposableDbCreated = true;
+  await dockerDb(
+    [
+      "pg_restore",
+      "--exit-on-error",
+      "--no-owner",
+      "--no-privileges",
+      "-U",
+      "octoport_test",
+      "-d",
+      dbName,
+    ],
+    { input: upgradedBackup, timeout: 120_000 },
+  );
+  check(
+    (await psql("SELECT count(*) FROM drizzle.__drizzle_migrations")) ===
+      String(expectedJournalCount),
+    "UPGRADED_BACKUP_RESTORE_JOURNAL_MISMATCH",
+  );
+  mark("UPGRADED_BACKUP_RESTORE_PASS");
   const floorSource = await source(FLOOR, "floor");
   mark("FLOOR_SOURCE_READY");
   check(
@@ -965,6 +1054,17 @@ try {
   await runPhase(candidateSource, 2);
   mark("CANDIDATE_PHASE_2_PASS");
   check(phases.length === 3, "PHASE_COUNT_INVALID");
+  check(upgradedBackup, "UPGRADED_BACKUP_NOT_CAPTURED");
+  const upgradedBackupPath = join(
+    evidenceDir,
+    "c05-current-schema-backup.dump",
+  );
+  await writeFile(upgradedBackupPath, upgradedBackup, {
+    mode: 0o600,
+    flag: "wx",
+  });
+  await chmod(upgradedBackupPath, 0o600);
+  migrationEvidence.upgradedBackupFile = upgradedBackupPath;
   const evidencePath = join(
     evidenceDir,
     "c05-three-service-rollback-evidence.json",
