@@ -24,3 +24,17 @@ Deployment regressions: 13/13 PASS.
 Chrome / Opera / Yandex full source QA: 102 states PASS.
 Independent hover/focus checks: 48/48 PASS.
 Widths cover desktop, tablet and mobile down to 320 px, in light and dark themes.
+
+## Production acceptance
+
+Status: PRODUCTION_DEPLOYED / LIVE_QA_PASS.
+
+Production release: `bf4751cd790a10ff72137b931acf8b2763824e5f`.
+Rollback backup: `/var/backups/octoport-site/20260928T022345Z`.
+
+Live Chrome / Opera / Yandex quick QA: 30 states PASS.
+Live independent hover/focus checks: 48/48 PASS.
+Live result SHA-256:
+- Chrome: `911dbc60b940f1b522f3da0bd615f7e376becdf8f14a2d16ad5bab9d189dd13e`
+- Opera: `2fdc7e2620a7d5d88d34afb736633a4263716112d3772258ddd5a03a2fa0a631`
+- Yandex: `2daeec05dfb8dad8e704a6983fa2f0ccdfd33295ecc126c5e58d0d72e4bf6467`
