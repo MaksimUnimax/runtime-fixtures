@@ -69,7 +69,6 @@ type RunRow = {
   completedAt: Date;
   browserFamily: string;
   profileId: string;
-  profileRevisionId: string;
 };
 
 type SuiteRow = { definition: unknown };
@@ -131,7 +130,7 @@ function isAfter(
 
 async function getRun(q: DatabaseQuery, runId: string): Promise<RunRow> {
   const result = await q.query<RunRow>(
-    `SELECT id,run_kind AS "runKind",suite_revision_id AS "suiteRevisionId",health_level AS "healthLevel",health_state AS "healthState",scope,scope_sha256 AS "scopeSha256",operator_maintenance AS "operatorMaintenance",completed_at AS "completedAt",browser_family AS "browserFamily",profile_id AS "profileId",profile_revision_id AS "profileRevisionId" FROM health_runs WHERE id=$1 FOR SHARE`,
+    `SELECT id,run_kind AS "runKind",suite_revision_id AS "suiteRevisionId",health_level AS "healthLevel",health_state AS "healthState",scope,scope_sha256 AS "scopeSha256",operator_maintenance AS "operatorMaintenance",completed_at AS "completedAt",browser_family AS "browserFamily",profile_id AS "profileId" FROM health_runs WHERE id=$1 FOR SHARE`,
     [runId],
   );
   const row = result.rows[0];
@@ -195,28 +194,30 @@ async function noSessionRunIsSuperseded(
     latestRunId: string;
     latestObservedAt: Date;
   }>(
-    `SELECT state.latest_run_id AS "latestRunId",
-      state.latest_observed_at AS "latestObservedAt"
-     FROM health_no_session_scope_states state
-     JOIN health_runs latest ON latest.id=state.latest_run_id
+    `SELECT recent.latest_run_id AS "latestRunId",
+      recent.last_seen_at AS "latestObservedAt"
+     FROM health_no_session_recent_states recent
+     JOIN health_no_session_scope_states state
+       ON state.scope_sha256=recent.scope_sha256
+     JOIN health_no_session_run_receipts receipt
+       ON receipt.run_id=recent.latest_run_id
      WHERE state.provider_id=$1
        AND state.observation_surface_id=$2
        AND state.target_key=$3
        AND state.strategy_id=$4
-       AND state.strategy_revision=$5
-       AND state.browser_family=$6
-       AND latest.profile_revision_id=$7
-     ORDER BY state.latest_observed_at DESC,state.latest_run_id DESC
+       AND state.browser_family=$5
+       AND receipt.profile_id=$6
+       AND recent.health_state<>'UNKNOWN'
+     ORDER BY recent.last_seen_at DESC,recent.latest_run_id DESC
      LIMIT 1
-     FOR UPDATE OF state`,
+     FOR SHARE OF state,receipt`,
     [
       observation.providerId,
       observation.surfaceId,
       observation.targetKey,
       observation.strategyId,
-      observation.strategyRevision,
       run.browserFamily,
-      run.profileRevisionId,
+      run.profileId,
     ],
   );
   const authoritative = current.rows[0];

@@ -41,11 +41,13 @@ let prefixDirectory = "";
 function legacyObservation(
   input: {
     observedAt?: Date;
-    classification?: "HEALTHY" | "BROKEN";
+    classification?: "HEALTHY" | "BROKEN" | "UNKNOWN";
     composerCount?: number;
   } = {},
 ) {
   const classification = input.classification ?? "HEALTHY";
+  const broken = classification === "BROKEN";
+  const unknown = classification === "UNKNOWN";
   const currentObservedAt = input.observedAt ?? observedAt;
   return NoSessionObservationResultSchema.parse({
     providerId: "chatgpt",
@@ -70,42 +72,55 @@ function legacyObservation(
       environmentLimited: false,
       canonicalObservation: {
         mode: "HEADLESS_DIAGNOSTIC",
-        identity: "PROVEN",
-        blocker: classification === "BROKEN" ? "BROWSER_UNAVAILABLE" : "NONE",
+        identity: unknown ? "NOT_PROVEN" : "PROVEN",
+        blocker: broken
+          ? "BROWSER_UNAVAILABLE"
+          : unknown
+            ? "NETWORK_FAILURE"
+            : "NONE",
         classification,
-        surfaceOutcome:
-          classification === "BROKEN"
-            ? "BROWSER_FAILURE"
+        surfaceOutcome: broken
+          ? "BROWSER_FAILURE"
+          : unknown
+            ? "NETWORK_FAILURE"
             : "PUBLIC_INTERACTIVE",
       },
       diagnosticObservation: null,
     },
-    navigation: "LOADED",
+    navigation: unknown ? "FAILED" : "LOADED",
     navigationEvidence: {
       requestedStartUrl: "https://chatgpt.com",
-      finalUrl: "https://chatgpt.com",
-      finalOrigin: "https://chatgpt.com",
-      mainDocumentHttpStatus: 200,
+      finalUrl: unknown ? null : "https://chatgpt.com",
+      finalOrigin: unknown ? null : "https://chatgpt.com",
+      mainDocumentHttpStatus: unknown ? null : 200,
       redirectCount: 0,
-      outcome: "LOADED",
+      outcome: unknown ? "NETWORK_FAILURE" : "LOADED",
     },
-    finalOrigin: "https://chatgpt.com",
-    expectedOriginValid: true,
-    identity: "PROVEN",
-    publicSurface: "REACHABLE",
-    composer: "OBSERVED",
-    editableInput: "OBSERVED",
-    sendControl: "OBSERVED",
-    authentication: "NOT_REQUIRED",
-    blocker: classification === "BROKEN" ? "BROWSER_UNAVAILABLE" : "NONE",
+    finalOrigin: unknown ? null : "https://chatgpt.com",
+    expectedOriginValid: !unknown,
+    identity: unknown ? "NOT_PROVEN" : "PROVEN",
+    publicSurface: unknown ? "NOT_PROVABLE" : "REACHABLE",
+    composer: unknown ? "NOT_PROVABLE" : "OBSERVED",
+    editableInput: unknown ? "NOT_PROVABLE" : "OBSERVED",
+    sendControl: unknown ? "NOT_PROVABLE" : "OBSERVED",
+    authentication: unknown ? "NOT_PROVABLE" : "NOT_REQUIRED",
+    blocker: broken
+      ? "BROWSER_UNAVAILABLE"
+      : unknown
+        ? "NETWORK_FAILURE"
+        : "NONE",
     classification,
-    classificationBasis:
-      classification === "BROKEN"
-        ? "BROWSER_FAILURE"
+    classificationBasis: broken
+      ? "BROWSER_FAILURE"
+      : unknown
+        ? "NETWORK_FAILURE"
         : "PUBLIC_SURFACE_PRIMARY",
-    surfaceOutcome:
-      classification === "BROKEN" ? "BROWSER_FAILURE" : "PUBLIC_INTERACTIVE",
-    readiness: "APP_HYDRATED",
+    surfaceOutcome: broken
+      ? "BROWSER_FAILURE"
+      : unknown
+        ? "NETWORK_FAILURE"
+        : "PUBLIC_INTERACTIVE",
+    readiness: unknown ? "NOT_OBSERVED" : "APP_HYDRATED",
     elementMetadata: {
       composer: {
         elementCount: input.composerCount ?? 1,
@@ -826,6 +841,246 @@ describe.sequential("monitoring retention 0051 -> 0052 upgrade", () => {
       incidents: "0",
       notifications: "0",
       marked: "3",
+    });
+  });
+
+  it("resolves the last decisive HEALTHY behind a newer projected UNKNOWN", async () => {
+    await runtime.query("DROP SCHEMA IF EXISTS public CASCADE");
+    await runtime.query("DROP SCHEMA IF EXISTS drizzle CASCADE");
+    await runtime.query("CREATE SCHEMA public");
+    await runMigrations({
+      connectionString,
+      migrationsDirectory: prefixDirectory,
+    });
+
+    await seedLegacyNoSessionRun();
+    const brokenRun = "d4000000-0000-4000-8000-000000000077";
+    const brokenScheduled = "d4000000-0000-4000-8000-000000000076";
+    const healthyRun = "d4000000-0000-4000-8000-000000000087";
+    const healthyScheduled = "d4000000-0000-4000-8000-000000000086";
+    const unknownRun = "d4000000-0000-4000-8000-000000000097";
+    const unknownScheduled = "d4000000-0000-4000-8000-000000000096";
+
+    await seedAdditionalLegacyRun({
+      scheduledRunId: brokenScheduled,
+      healthRunId: brokenRun,
+      dueSlotAt: new Date("2026-09-27T06:00:00.000Z"),
+      observation: legacyObservation({
+        observedAt: new Date("2026-09-27T06:00:01.000Z"),
+        classification: "BROKEN",
+      }),
+      idempotencyHex: "b",
+      callbackHex: "c",
+    });
+    await seedAdditionalLegacyRun({
+      scheduledRunId: healthyScheduled,
+      healthRunId: healthyRun,
+      dueSlotAt: new Date("2026-09-27T12:00:00.000Z"),
+      observation: legacyObservation({
+        observedAt: new Date("2026-09-27T12:00:01.000Z"),
+      }),
+      idempotencyHex: "0",
+      callbackHex: "e",
+    });
+    await seedAdditionalLegacyRun({
+      scheduledRunId: unknownScheduled,
+      healthRunId: unknownRun,
+      dueSlotAt: new Date("2026-09-27T18:00:00.000Z"),
+      observation: legacyObservation({
+        observedAt: new Date("2026-09-27T18:00:01.000Z"),
+        classification: "UNKNOWN",
+      }),
+      idempotencyHex: "f",
+      callbackHex: "1",
+    });
+
+    await runMigrations({ connectionString });
+    const silentIncidents = createHealthIncidentRepository(runtime, {
+      emitNotifications: false,
+    });
+    expect(
+      await silentIncidents.processCompletedHealthRun(brokenRun),
+    ).toMatchObject({
+      action: "OPENED",
+    });
+    await markNoSessionIncidentProcessed(
+      runtime,
+      brokenRun,
+      new Date("2026-09-28T03:00:00.500Z"),
+    );
+
+    const retention = createHealthRetentionRepository(runtime);
+    expect(
+      await retention.backfillNoSessionCompactProjection({
+        limit: 20,
+        projectedAt: new Date("2026-09-28T03:00:01.000Z"),
+      }),
+    ).toBe(4);
+
+    const latestState = await runtime.query<{
+      latestHealthState: string;
+      latestRunId: string;
+    }>(
+      `SELECT latest_health_state AS "latestHealthState",
+        latest_run_id AS "latestRunId"
+       FROM health_no_session_scope_states
+       LIMIT 1`,
+    );
+    expect(latestState.rows[0]).toEqual({
+      latestHealthState: "UNKNOWN",
+      latestRunId: unknownRun,
+    });
+
+    expect(
+      (
+        await retention.reconcileLegacyNoSessionIncidentProcessing({
+          limit: 20,
+          processedAt: new Date("2026-09-28T03:00:02.000Z"),
+        })
+      ).processed,
+    ).toBe(3);
+
+    const outcome = await runtime.query<{
+      status: string;
+      resolvedByRunId: string | null;
+      notifications: string;
+      marked: string;
+    }>(
+      `SELECT
+        (SELECT status::text FROM health_incidents LIMIT 1) AS status,
+        (SELECT resolved_by_run_id FROM health_incidents LIMIT 1) AS "resolvedByRunId",
+        (SELECT count(*)::text FROM health_notification_intents) AS notifications,
+        (SELECT count(incident_processed_at)::text FROM health_no_session_run_receipts)
+          AS marked`,
+    );
+    expect(outcome.rows[0]).toEqual({
+      status: "RESOLVED",
+      resolvedByRunId: healthyRun,
+      notifications: "0",
+      marked: "4",
+    });
+  });
+
+  it("preserves the last decisive BROKEN behind repeated projected UNKNOWN states", async () => {
+    await runtime.query("DROP SCHEMA IF EXISTS public CASCADE");
+    await runtime.query("DROP SCHEMA IF EXISTS drizzle CASCADE");
+    await runtime.query("CREATE SCHEMA public");
+    await runMigrations({
+      connectionString,
+      migrationsDirectory: prefixDirectory,
+    });
+
+    await seedLegacyNoSessionRun();
+    const brokenRun = "d4000000-0000-4000-8000-000000000107";
+    const brokenScheduled = "d4000000-0000-4000-8000-000000000106";
+    await seedAdditionalLegacyRun({
+      scheduledRunId: brokenScheduled,
+      healthRunId: brokenRun,
+      dueSlotAt: new Date("2026-09-27T06:00:00.000Z"),
+      observation: legacyObservation({
+        observedAt: new Date("2026-09-27T06:00:01.000Z"),
+        classification: "BROKEN",
+      }),
+      idempotencyHex: "2",
+      callbackHex: "3",
+    });
+
+    const unknownRuns = [
+      {
+        scheduledRunId: "d4000000-0000-4000-8000-000000000116",
+        healthRunId: "d4000000-0000-4000-8000-000000000117",
+        dueSlotAt: new Date("2026-09-27T12:00:00.000Z"),
+        observedAt: new Date("2026-09-27T12:00:01.000Z"),
+        composerCount: 2,
+        idempotencyHex: "4",
+        callbackHex: "5",
+      },
+      {
+        scheduledRunId: "d4000000-0000-4000-8000-000000000126",
+        healthRunId: "d4000000-0000-4000-8000-000000000127",
+        dueSlotAt: new Date("2026-09-27T18:00:00.000Z"),
+        observedAt: new Date("2026-09-27T18:00:01.000Z"),
+        composerCount: 3,
+        idempotencyHex: "6",
+        callbackHex: "7",
+      },
+      {
+        scheduledRunId: "d4000000-0000-4000-8000-000000000136",
+        healthRunId: "d4000000-0000-4000-8000-000000000137",
+        dueSlotAt: new Date("2026-09-27T23:00:00.000Z"),
+        observedAt: new Date("2026-09-27T23:00:01.000Z"),
+        composerCount: 4,
+        idempotencyHex: "8",
+        callbackHex: "9",
+      },
+    ] as const;
+    for (const item of unknownRuns) {
+      await seedAdditionalLegacyRun({
+        scheduledRunId: item.scheduledRunId,
+        healthRunId: item.healthRunId,
+        dueSlotAt: item.dueSlotAt,
+        observation: legacyObservation({
+          observedAt: item.observedAt,
+          classification: "UNKNOWN",
+          composerCount: item.composerCount,
+        }),
+        idempotencyHex: item.idempotencyHex,
+        callbackHex: item.callbackHex,
+      });
+    }
+
+    await runMigrations({ connectionString });
+    const retention = createHealthRetentionRepository(runtime);
+    expect(
+      await retention.backfillNoSessionCompactProjection({
+        limit: 20,
+        projectedAt: new Date("2026-09-28T04:00:00.000Z"),
+      }),
+    ).toBe(5);
+
+    const decisive = await runtime.query<{
+      healthState: string;
+      latestRunId: string;
+    }>(
+      `SELECT recent.health_state AS "healthState",
+        recent.latest_run_id AS "latestRunId"
+       FROM health_no_session_recent_states recent
+       WHERE recent.health_state<>'UNKNOWN'
+       ORDER BY recent.last_seen_at DESC,recent.latest_run_id DESC
+       LIMIT 1`,
+    );
+    expect(decisive.rows[0]).toEqual({
+      healthState: "BROKEN",
+      latestRunId: brokenRun,
+    });
+
+    expect(
+      (
+        await retention.reconcileLegacyNoSessionIncidentProcessing({
+          limit: 20,
+          processedAt: new Date("2026-09-28T04:00:01.000Z"),
+        })
+      ).processed,
+    ).toBe(5);
+
+    const outcome = await runtime.query<{
+      status: string;
+      latestSeenRunId: string;
+      notifications: string;
+      marked: string;
+    }>(
+      `SELECT
+        (SELECT status::text FROM health_incidents LIMIT 1) AS status,
+        (SELECT latest_seen_run_id FROM health_incidents LIMIT 1) AS "latestSeenRunId",
+        (SELECT count(*)::text FROM health_notification_intents) AS notifications,
+        (SELECT count(incident_processed_at)::text FROM health_no_session_run_receipts)
+          AS marked`,
+    );
+    expect(outcome.rows[0]).toEqual({
+      status: "OPEN",
+      latestSeenRunId: brokenRun,
+      notifications: "0",
+      marked: "5",
     });
   });
 

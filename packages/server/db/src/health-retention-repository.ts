@@ -356,10 +356,12 @@ export async function recordNoSessionCompactStateInTransaction(
   } else {
     const slots = await q.query<{
       slot: number;
+      healthState: string;
       lastSeenAt: Date;
       latestRunId: string;
     }>(
-      `SELECT slot,last_seen_at AS "lastSeenAt",latest_run_id AS "latestRunId"
+      `SELECT slot,health_state AS "healthState",
+        last_seen_at AS "lastSeenAt",latest_run_id AS "latestRunId"
        FROM health_no_session_recent_states
        WHERE scope_sha256=$1 ORDER BY last_seen_at,latest_run_id,slot FOR UPDATE`,
       [retentionScopeSha256],
@@ -386,7 +388,11 @@ export async function recordNoSessionCompactStateInTransaction(
         ],
       );
     } else {
-      const oldest = slots.rows[0];
+      const oldest =
+        observation.classification === "UNKNOWN"
+          ? (slots.rows.find((row) => row.healthState === "UNKNOWN") ??
+            slots.rows[0])
+          : slots.rows[0];
       if (
         oldest &&
         isAfter(
@@ -805,6 +811,7 @@ export function createHealthRetentionRepository(
         | "ALREADY_RETIRED"
         | "TOO_NEW"
         | "PAYLOAD_NOT_PRUNED"
+        | "INCIDENT_PROCESSING_PENDING"
         | "SCHEDULER_NOT_SUCCEEDED"
         | "SCHEDULER_LINK_PRESENT";
     }> {
@@ -853,6 +860,16 @@ export function createHealthRetentionRepository(
           throw new Error("HEALTH_RETENTION_RECEIPT_IDENTITY_CHANGED");
         if (receipt.payloadPrunedAt === null)
           return { status: "BLOCKED", reason: "PAYLOAD_NOT_PRUNED" };
+        const pendingIncidentProcessing = await q.query<{ present: boolean }>(
+          `SELECT EXISTS(
+             SELECT 1 FROM health_no_session_run_receipts pending
+             WHERE pending.schedule_id=$1
+               AND pending.incident_processed_at IS NULL
+           ) AS present`,
+          [receipt.scheduleId],
+        );
+        if (pendingIncidentProcessing.rows[0]?.present)
+          return { status: "BLOCKED", reason: "INCIDENT_PROCESSING_PENDING" };
         if (
           receipt.completedAt > input.before ||
           receipt.payloadPrunedAt > input.before
