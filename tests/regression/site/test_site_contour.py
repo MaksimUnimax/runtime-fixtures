@@ -159,12 +159,14 @@ class ContourSourceTests(unittest.TestCase):
         self.assertIn('Сложные технологии.<br />Простые решения.',self.html)
         self.assertIn('.contour-slogan',self.css)
 
-    def test_r3_single_h1_preserves_words_with_color_spans(self):
-        fragment=re.findall(r'<h1>(.*?)</h1>',self.html,re.S)
+    def test_home_funnel_r1_single_h1_uses_agreed_ai_brand_copy(self):
+        fragment=re.findall(r'<h1[^>]*>(.*?)</h1>',self.html,re.S)
         self.assertEqual(len(fragment),1)
-        self.assertEqual(re.sub(r'<[^>]+>','',fragment[0]),'Подключите ваш ИИ к Ozon и Wildberries')
-        self.assertIn('<span class="brand-ozon">Ozon</span>',fragment[0])
-        self.assertIn('<span class="brand-wildberries">Wildberries</span>',fragment[0])
+        self.assertEqual(re.sub(r'<[^>]+>','',fragment[0]),'Подключите Алису, ChatGPT,DeepSeek')
+        self.assertIn('<span class="hero-ai-list">Алису, ChatGPT,<br />DeepSeek</span>',fragment[0])
+        self.assertIn('или другую нейросеть<br />к своему магазину<br />на WB и Ozon.',self.html)
+        self.assertIn('Октопорт соединяет ваш кабинет продавца на Ozon или Wildberries с любой нейросетью на ваш выбор.',self.html)
+        self.assertIn('Можно использовать бесплатные аккаунты нейросетей.',self.html)
 
     def test_r4_theme_aware_rings_and_keyboard_controls(self):
         self.assertIn('border:clamp(1.4px,.4cqi,3px) solid var(--scene-ink)',self.css)

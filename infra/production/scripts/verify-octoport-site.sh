@@ -140,10 +140,10 @@ check_site_content() {
   local homepage_cache css_cache css_frame_options css_nosniff favicon_type favicon_location
 
   homepage="$(curl --silent --show-error --resolve 'octoport.ru:443:127.0.0.1' 'https://octoport.ru/')"
-  grep -Fq '<title>Подключите ваш ИИ к Ozon и Wildberries | Octoport</title>' <<<"${homepage}" \
-    || fail "homepage M12 title is missing"
-  grep -Fq '<h1>Подключите ваш ИИ к <span class="brand-ozon">Ozon</span> и <span class="brand-wildberries">Wildberries</span></h1>' <<<"${homepage}" \
-    || fail "homepage M12 H1 is missing"
+  grep -Fq '<title>Подключите Алису, ChatGPT и DeepSeek к Ozon и Wildberries | Октопорт</title>' <<<"${homepage}" \
+    || fail "homepage owner-approved title is missing"
+  grep -Fq '<h1 class="hero-heading">Подключите <span class="hero-ai-list">Алису, ChatGPT,<br />DeepSeek</span></h1>' <<<"${homepage}" \
+    || fail "homepage owner-approved H1 is missing"
   grep -Fq 'Ваш ИИ получает руки для работы с маркетплейсами.' <<<"${homepage}" \
     || fail "homepage brand subheadline is missing"
   grep -Fq '<link rel="icon" href="/favicon.png" type="image/png" />' <<<"${homepage}" \
