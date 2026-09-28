@@ -7,7 +7,6 @@ import {
   type DatabaseRuntime,
   type RoutineNoSessionGcCursor,
 } from "@product/db";
-import { loadConfig } from "@product/shared";
 import {
   preflightMonitorPilotAuthority,
   type MonitorPilotAuthorityIssue,
@@ -17,6 +16,22 @@ export const MONITOR_PILOT_RETENTION_APPLY_CONFIRM =
   "ISOLATED_MONITOR_PILOT_RETENTION" as const;
 export const MONITOR_PILOT_RETENTION_DEADLINE_SEMANTICS =
   "COOPERATIVE_BETWEEN_AWAITS" as const;
+
+export type MonitorPilotRetentionCliEnvironment = Readonly<{
+  databaseUrl: string;
+  expectedDatabaseRole: string;
+}>;
+
+export function resolveMonitorPilotRetentionCliEnvironment(
+  environment: NodeJS.ProcessEnv,
+): MonitorPilotRetentionCliEnvironment {
+  const databaseUrl = environment.DATABASE_URL?.trim();
+  if (!databaseUrl) throw new Error("MONITOR_PILOT_DATABASE_URL_REQUIRED");
+  const expectedDatabaseRole = environment.MONITOR_PILOT_EXPECTED_ROLE?.trim();
+  if (!expectedDatabaseRole)
+    throw new Error("MONITOR_PILOT_EXPECTED_DATABASE_ROLE_REQUIRED");
+  return { databaseUrl, expectedDatabaseRole };
+}
 
 export type MonitorPilotRetentionMode = "inspect" | "apply";
 
@@ -528,11 +543,9 @@ export async function main(): Promise<void> {
   const parsed = parseMonitorPilotRetentionArgs(process.argv.slice(2));
   if (!parsed.confirm)
     throw new Error("MONITOR_PILOT_RETENTION_APPLY_CONFIRM_REQUIRED");
-  const expectedDatabaseRole = process.env.MONITOR_PILOT_EXPECTED_ROLE;
-  if (!expectedDatabaseRole)
-    throw new Error("MONITOR_PILOT_EXPECTED_DATABASE_ROLE_REQUIRED");
-  const config = loadConfig(process.env);
-  const database = createDatabaseRuntime(config.databaseUrl);
+  const { databaseUrl, expectedDatabaseRole } =
+    resolveMonitorPilotRetentionCliEnvironment(process.env);
+  const database = createDatabaseRuntime(databaseUrl);
   try {
     await database.ready();
     const result = await runMonitorPilotRetentionMaintenance(

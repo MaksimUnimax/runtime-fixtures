@@ -7,6 +7,7 @@ import {
   MONITOR_PILOT_RETENTION_DEADLINE_SEMANTICS,
   parseMonitorPilotRetentionArgs,
   reportMonitorPilotRetentionResult,
+  resolveMonitorPilotRetentionCliEnvironment,
   runMonitorPilotRetentionMaintenance,
   type MonitorPilotRetentionResult,
 } from "./monitor-pilot-retention.js";
@@ -49,6 +50,43 @@ function result(
 }
 
 describe("monitor pilot retention CLI contract", () => {
+  it("loads only pilot database authority and ignores unrelated AppConfig fields", () => {
+    expect(
+      resolveMonitorPilotRetentionCliEnvironment({
+        DATABASE_URL:
+          "postgresql://pilot:fixture@127.0.0.1:5432/octoport_monitor_pilot",
+        MONITOR_PILOT_EXPECTED_ROLE: " monitor_pilot_role ",
+        NODE_ENV: "not-a-product-environment",
+        LOG_LEVEL: "not-a-log-level",
+        API_PORT: "not-a-port",
+        WORKER_READY_DELAY_MS: "not-a-delay",
+      }),
+    ).toEqual({
+      databaseUrl:
+        "postgresql://pilot:fixture@127.0.0.1:5432/octoport_monitor_pilot",
+      expectedDatabaseRole: "monitor_pilot_role",
+    });
+  });
+
+  it("fails closed when pilot database URL or expected role is missing", () => {
+    expect(() =>
+      resolveMonitorPilotRetentionCliEnvironment({
+        MONITOR_PILOT_EXPECTED_ROLE: "monitor_pilot_role",
+      }),
+    ).toThrow("MONITOR_PILOT_DATABASE_URL_REQUIRED");
+    expect(() =>
+      resolveMonitorPilotRetentionCliEnvironment({
+        DATABASE_URL: "postgresql://127.0.0.1/octoport_monitor_pilot",
+      }),
+    ).toThrow("MONITOR_PILOT_EXPECTED_DATABASE_ROLE_REQUIRED");
+    expect(() =>
+      resolveMonitorPilotRetentionCliEnvironment({
+        DATABASE_URL: "   ",
+        MONITOR_PILOT_EXPECTED_ROLE: "   ",
+      }),
+    ).toThrow("MONITOR_PILOT_DATABASE_URL_REQUIRED");
+  });
+
   it("requires explicit apply confirmation and accepts inspect without it", () => {
     expect(parseMonitorPilotRetentionArgs(["inspect"]).confirm).toBe(true);
     expect(parseMonitorPilotRetentionArgs(["apply"]).confirm).toBe(false);
