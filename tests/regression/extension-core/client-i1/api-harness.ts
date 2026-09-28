@@ -270,26 +270,60 @@ const r5bProfileCompatibility = {
   minimumBrowserVersions: [],
   minimumExtensionVersion: null,
 } as const;
-const r5bProfileSha256 = profileRevisionFingerprint({
-  content: r5bProfileContent,
-  compatibility: r5bProfileCompatibility,
-});
-const resolvedFixtureProfile = {
-  profileKey: "r5b-chatgpt-profile",
-  revision: 1,
-  scopeVariant: null,
-  schemaVersion: "adapter_profile_v1" as const,
-  contentSha256: r5bProfileSha256,
-  content: r5bProfileContent,
-  compatibility: r5bProfileCompatibility,
-};
+const fixtureProfileControlPath = process.env.SA_I1_PROFILE_CONTROL_PATH;
+function resolvedFixtureProfile() {
+  let revision = 1;
+  let composerMode: "packaged" | "status_role" = "packaged";
+  if (fixtureProfileControlPath) {
+    const value = JSON.parse(readFileSync(fixtureProfileControlPath, "utf8")) as {
+      revision?: unknown;
+      composerMode?: unknown;
+    };
+    if (
+      typeof value.revision !== "number" ||
+      !Number.isSafeInteger(value.revision) ||
+      value.revision < 1
+    )
+      throw new Error("INVALID_FIXTURE_PROFILE_REVISION");
+    if (value.composerMode !== "packaged" && value.composerMode !== "status_role")
+      throw new Error("INVALID_FIXTURE_PROFILE_MODE");
+    revision = value.revision;
+    composerMode = value.composerMode;
+  }
+  const content = composerMode === "packaged" ? r5bProfileContent : {
+    ...r5bProfileContent,
+    selectors: {
+      ...r5bProfileContent.selectors,
+      composer: {
+        ...r5bProfileContent.selectors.composer,
+        primary: {
+          kind: "accessibility_role_name" as const,
+          role: "status" as const,
+          reference: "composer-root" as const,
+        },
+      },
+    },
+  };
+  return {
+    profileKey: "r5b-chatgpt-profile",
+    revision,
+    scopeVariant: null,
+    schemaVersion: "adapter_profile_v1" as const,
+    contentSha256: profileRevisionFingerprint({
+      content,
+      compatibility: r5bProfileCompatibility,
+    }),
+    content,
+    compatibility: r5bProfileCompatibility,
+  };
+}
 const r5bAiResolution = {
   resolve: async (input: {
     detected: { family: string; surface: string; variant: string | null };
   }) => ({
     status: "RESOLVED" as const,
     detected: input.detected,
-    profile: resolvedFixtureProfile,
+    profile: resolvedFixtureProfile(),
   }),
   resolveLocalCandidates: async (input: {
     detected: { family: string; surface: string; variant: string | null };
@@ -299,7 +333,7 @@ const r5bAiResolution = {
       resolution: {
         status: "RESOLVED" as const,
         detected: input.detected,
-        profile: resolvedFixtureProfile,
+        profile: resolvedFixtureProfile(),
       },
     })),
 } as unknown as BootstrapAiResolutionService;
