@@ -77,6 +77,10 @@ import { registerFeedbackRoutes } from "./feedback-routes.js";
 import { registerAdminFeedbackRoutes } from "./admin-feedback-routes.js";
 import type { FeedbackSupportService } from "@product/feedback-support";
 import { registerHealthAdminRoutes } from "./health-admin-routes.js";
+import {
+  registerHealthRepairAdminRoutes,
+  type HealthRepairReadRepository,
+} from "./health-repair-admin.js";
 import type {
   HealthAdminReadRepository,
   HealthNotificationAdminReadRepository,
@@ -116,6 +120,7 @@ export interface ApiDependencies {
   readonly healthAdminService?: HealthAdminReadRepository;
   readonly healthNotificationAdminService?: HealthNotificationAdminReadRepository;
   readonly healthDiagnosticsService?: HealthDiagnosticsReadRepository;
+  readonly healthRepairAdminService?: HealthRepairReadRepository;
 }
 
 function correlationId(request: FastifyRequest): string {
@@ -398,6 +403,14 @@ export function createApiApp(
         dependencies.healthAdminService,
         dependencies.healthNotificationAdminService,
         dependencies.healthDiagnosticsService,
+      );
+    if (dependencies.healthRepairAdminService)
+      registerHealthRepairAdminRoutes(
+        app,
+        createAdminRouteGuard(
+          dependencies.adminAuthService ?? unavailableAdmin,
+        ),
+        dependencies.healthRepairAdminService,
       );
   });
   return app;
