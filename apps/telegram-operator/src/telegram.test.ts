@@ -46,7 +46,7 @@ async function fixture() {
       }),
       SWAGGER_API: async () => ({
         status: "SOURCE_UNAVAILABLE",
-        code: "SOURCE_UNAVAILABLE",
+        code: "API_SOURCE_UNAVAILABLE",
         summary: "Safe source result.",
       }),
     },
@@ -226,7 +226,7 @@ describe("TG4 Telegram operator integration hardening", () => {
     });
     expect(
       messages.some((message) =>
-        /^LLM run started:|^LLM forced result /.test(message.text),
+        /^LLM run started:|^Сайты ИИ:/.test(message.text),
       ),
     ).toBe(true);
     await scheduler.stop();
@@ -241,9 +241,7 @@ describe("TG4 Telegram operator integration hardening", () => {
     });
     expect(
       messages.some((message) =>
-        /^Swagger\/API run started:|^Swagger\/API forced result /.test(
-          message.text,
-        ),
+        /^Swagger\/API run started:|^API маркетплейсов:/.test(message.text),
       ),
     ).toBe(true);
     await scheduler.stop();
@@ -532,7 +530,11 @@ describe("TG4 Telegram operator integration hardening", () => {
     await f.scheduler.start();
     await f.scheduler.runNowAndWait("SWAGGER_API");
     expect(
-      f.messages.some((m) => m.text.includes("Swagger/API forced result")),
+      f.messages.some((m) =>
+        m.text.includes(
+          "API маркетплейсов: Не удалось получить официальный документ",
+        ),
+      ),
     ).toBe(true);
     await f.scheduler.stop();
   });

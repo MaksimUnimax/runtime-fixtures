@@ -1,3 +1,7 @@
+import {
+  AdapterProfileContentV1Schema as SharedContentSchema,
+  ProfileCompatibilityConstraintsV1Schema as SharedCompatibilitySchema,
+} from "@product/contracts";
 import { describe, expect, it } from "vitest";
 import {
   AdapterKeySchema,
@@ -101,6 +105,13 @@ function validRevision() {
 }
 
 describe("adapter registry identifiers and profile schema", () => {
+  it("reexports the canonical browser-safe profile schemas without a second validator", () => {
+    expect(AdapterProfileContentV1Schema).toBe(SharedContentSchema);
+    expect(ProfileCompatibilityConstraintsV1Schema).toBe(
+      SharedCompatibilitySchema,
+    );
+  });
+
   it("accepts normalized bounded identity keys and rejects unsafe keys", () => {
     expect(AdapterKeySchema.parse("chatgpt")).toBe("chatgpt");
     expect(SurfaceKeySchema.parse("standard")).toBe("standard");

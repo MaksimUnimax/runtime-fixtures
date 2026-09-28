@@ -100,15 +100,55 @@ def browser_product(executable: Path) -> str:
     return subprocess.check_output([str(executable), "--version"], text=True).strip()
 
 
-def profile_in_use(path: Path) -> bool:
+def profile_in_use(path: Path, proc_root: Path = Path("/proc")) -> bool:
+    """Inspect exact argv entries; an inspection failure never means unused.
+
+    This is an advisory preflight. Chromium's own profile lock still arbitrates
+    another launch between inspection and launch_persistent_context.
+    """
+    expected = path.resolve()
     try:
-        out = subprocess.run(
-            ["pgrep", "-af", f"--user-data-dir={path}"],
-            capture_output=True, text=True, timeout=2, check=False,
-        ).stdout
-    except Exception:
-        out = ""
-    return any(line.strip() for line in out.splitlines())
+        processes = list(proc_root.iterdir())
+        for process in processes:
+            if not process.name.isdecimal():
+                continue
+            try:
+                argv = process.joinpath("cmdline").read_bytes().split(b"\0")
+                for index, argument in enumerate(argv):
+                    if argument.startswith(b"--user-data-dir="):
+                        value = argument.split(b"=", 1)[1]
+                    elif argument == b"--user-data-dir" and index + 1 < len(argv):
+                        value = argv[index + 1]
+                    else:
+                        continue
+                    if not value:
+                        continue
+                    candidate = Path(value.decode("utf-8", errors="surrogateescape"))
+                    if not candidate.is_absolute():
+                        candidate = process.joinpath("cwd").resolve(strict=True) / candidate
+                    if candidate.resolve() == expected:
+                        return True
+            except (FileNotFoundError, ProcessLookupError):
+                # Normal /proc race: the inspected process has already exited.
+                continue
+    except OSError:
+        raise AssertionError("PROFILE_USAGE_INSPECTION_FAILED") from None
+    return False
+
+
+def safe_failure_code(failure: Exception) -> str:
+    known = {
+        "STORE_ZIP_SHA256_MISMATCH", "BROWSER_PRODUCT_VERSION_MISMATCH",
+        "DEDICATED_PROFILE_ALREADY_IN_USE", "PROFILE_USAGE_INSPECTION_FAILED",
+        "UNSAFE_ZIP_MEMBER", "ZIP_SYMLINK_REJECTED", "RUNTIME_SYMLINK_REJECTED",
+        "STABLE_RUNTIME_BYTES_MISMATCH", "RUNTIME_EXTRACTION_MISMATCH",
+        "EXTENSION_VERSION_MISMATCH", "ORDINARY_AUTH_REQUIRED",
+        "LOCAL_TEST_STORES_EXPLICIT_FLAG_REQUIRED", "POPUP_PAGE_ERROR",
+        "PREEXISTING_STORE_STATE_NOT_RESTORED", "LOCAL_PHASE_EXECUTED_PROVIDER_REQUEST",
+    }
+    if isinstance(failure, AssertionError) and str(failure) in known:
+        return str(failure)
+    return "OWNER_CONTROL_HELPER_FAILED"
 
 
 def safe_member(name: str) -> bool:
@@ -450,7 +490,7 @@ def prepare(args) -> dict:
 def launch_browser_phase(args) -> dict:
     preflight = prepare(args)
     host_counts: Counter = Counter()
-    page_errors: list[str] = []
+    page_errors: Counter = Counter()
     with sync_playwright() as playwright:
         context = playwright.chromium.launch_persistent_context(
             str(args.profile_dir),
@@ -474,7 +514,7 @@ def launch_browser_phase(args) -> dict:
             if manifest.get("version") != args.expected_version:
                 raise AssertionError("EXTENSION_VERSION_MISMATCH")
             popup = context.new_page()
-            popup.on("pageerror", lambda error: page_errors.append(str(error)))
+            popup.on("pageerror", lambda _error: page_errors.update(["POPUP_PAGE_ERROR"]))
             popup.goto(worker.url.rsplit("/", 1)[0] + "/popup.html", wait_until="load")
             popup.bring_to_front()
             started = time.monotonic()
@@ -493,7 +533,7 @@ def launch_browser_phase(args) -> dict:
                             "packageSha256": args.expected_sha256,
                             "browserProduct": preflight["browserProduct"],
                             "authActionExecutedByHelper": False,
-                            "pageErrors": page_errors,
+                            "pageErrors": dict(page_errors),
                             "plan": PLAN,
                         }
                         args.output.parent.mkdir(parents=True, exist_ok=True)
@@ -509,7 +549,7 @@ def launch_browser_phase(args) -> dict:
                     "packageSha256": args.expected_sha256,
                     "browserProduct": preflight["browserProduct"],
                     "authActionExecutedByHelper": False,
-                    "pageErrors": page_errors,
+                    "pageErrors": dict(page_errors),
                     "plan": PLAN,
                 }
                 args.output.parent.mkdir(parents=True, exist_ok=True)
@@ -535,7 +575,7 @@ def launch_browser_phase(args) -> dict:
                 "safeInitialState": before,
                 "controlStates": safe_states,
                 "externalHostCounts": dict(sorted(host_counts.items())),
-                "pageErrors": page_errors,
+                "pageErrors": dict(page_errors),
             }
             if args.mode == "wait-auth":
                 result = {
@@ -601,7 +641,17 @@ def main() -> int:
     args.browser_executable = args.browser_executable.resolve()
     args.output = args.output.resolve()
 
-    result = prepare(args) if args.mode == "prepare" else launch_browser_phase(args)
+    try:
+        result = prepare(args) if args.mode == "prepare" else launch_browser_phase(args)
+    except Exception as failure:
+        # Browser/transport exceptions can contain URLs, tokens or field values.
+        # Emit only a fixed code, never the exception text or traceback.
+        result = {"status": "FAILED", "phase": args.mode,
+                  "evidenceLevel": "NOT_ACCEPTED", "failureCode": safe_failure_code(failure)}
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return 1
     if args.mode == "prepare":
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
