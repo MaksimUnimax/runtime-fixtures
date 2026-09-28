@@ -11,6 +11,7 @@ import {
 } from "@product/adapter-registry";
 import { canonicalizeJson } from "@product/remote-config";
 import type { DatabaseQuery, DatabaseRuntime } from "./index.js";
+import { recordNoSessionCompactStateInTransaction } from "./health-retention-repository.js";
 
 type NoSessionAuthorityKeys = Readonly<{
   adapterMachineKey: string;
@@ -183,6 +184,23 @@ type ExistingNoSessionRunRow = NoSessionRunRow & {
   resultSha256: string;
 };
 
+type NoSessionReceiptRow = {
+  runId: string;
+  scheduledRunId: string;
+  callbackResultSha256: string;
+  healthState: string;
+  scopeSha256: string;
+  adapterId: string;
+  surfaceId: string;
+  variantId: string | null;
+  profileId: string;
+  profileRevisionId: string;
+  profileRevision: number;
+  browserFamily: string;
+  incidentProcessedAt: Date | null;
+  payloadPrunedAt: Date | null;
+};
+
 function authorityKeysFor(
   observation: NoSessionObservationResult,
 ): NoSessionAuthorityKeys {
@@ -278,6 +296,26 @@ function resultShape(row: NoSessionRunRow, scheduledRunId: string) {
     profileRevision: row.profileRevision,
     browserFamily: row.browserFamily,
     scheduledRunId,
+    incidentProcessed: false,
+    payloadPruned: false,
+  };
+}
+
+function receiptResultShape(row: NoSessionReceiptRow) {
+  return {
+    healthRunId: row.runId,
+    healthState: HealthStateSchema.parse(row.healthState),
+    scopeSha256: row.scopeSha256,
+    adapterId: row.adapterId,
+    surfaceId: row.surfaceId,
+    variantId: row.variantId,
+    profileId: row.profileId,
+    profileRevisionId: row.profileRevisionId,
+    profileRevision: row.profileRevision,
+    browserFamily: row.browserFamily,
+    scheduledRunId: row.scheduledRunId,
+    incidentProcessed: row.incidentProcessedAt !== null,
+    payloadPruned: row.payloadPrunedAt !== null,
   };
 }
 
@@ -322,13 +360,19 @@ export function createHealthNoSessionPersistenceRepository(
       return runtime.transaction(async (q) => {
         const scheduled = await q.query<{
           id: string;
+          scheduleId: string;
+          scheduleRevision: number;
+          dueSlotAt: Date;
+          idempotencyKey: string;
           probeLayer: string;
           monitorTarget: string;
           provider: string;
           surface: string;
           state: string;
         }>(
-          `SELECT id,probe_layer AS "probeLayer",monitor_target AS "monitorTarget",provider,surface,state
+          `SELECT id,schedule_id AS "scheduleId",schedule_revision AS "scheduleRevision",
+             due_slot_at AS "dueSlotAt",idempotency_key AS "idempotencyKey",
+             probe_layer AS "probeLayer",monitor_target AS "monitorTarget",provider,surface,state
              FROM health_scheduled_runs WHERE id=$1 FOR UPDATE`,
           [input.scheduledRunId],
         );
@@ -342,6 +386,25 @@ export function createHealthNoSessionPersistenceRepository(
           scheduledRun.surface !== observation.surfaceId
         ) {
           throw new Error("NO_SESSION_SCHEDULE_SCOPE_MISMATCH");
+        }
+
+        const receipt = await q.query<NoSessionReceiptRow>(
+          `SELECT run_id AS "runId",scheduled_run_id AS "scheduledRunId",
+             callback_result_sha256 AS "callbackResultSha256",health_state AS "healthState",
+             scope_sha256 AS "scopeSha256",adapter_id AS "adapterId",surface_id AS "surfaceId",
+             variant_id AS "variantId",profile_id AS "profileId",
+             profile_revision_id AS "profileRevisionId",profile_revision AS "profileRevision",
+             browser_family AS "browserFamily",incident_processed_at AS "incidentProcessedAt",
+             payload_pruned_at AS "payloadPrunedAt"
+             FROM health_no_session_run_receipts
+             WHERE scheduled_run_id=$1 FOR SHARE`,
+          [input.scheduledRunId],
+        );
+        const priorReceipt = receipt.rows[0];
+        if (priorReceipt) {
+          if (priorReceipt.callbackResultSha256 !== resultSha256)
+            throw new Error("NO_SESSION_SCHEDULED_RUN_CONFLICT");
+          return receiptResultShape(priorReceipt);
         }
 
         const existing = await q.query<ExistingNoSessionRunRow>(
@@ -445,6 +508,47 @@ export function createHealthNoSessionPersistenceRepository(
             ],
           );
         }
+        await q.query(
+          `INSERT INTO health_no_session_run_receipts(
+            run_id,scheduled_run_id,schedule_id,schedule_revision,due_slot_at,idempotency_key,
+            monitor_target,health_state,scope_sha256,callback_result_sha256,adapter_id,surface_id,
+            variant_id,profile_id,profile_revision_id,profile_revision,browser_family,completed_at
+          ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
+          [
+            run.id,
+            input.scheduledRunId,
+            scheduledRun.scheduleId,
+            scheduledRun.scheduleRevision,
+            scheduledRun.dueSlotAt,
+            scheduledRun.idempotencyKey,
+            scheduledRun.monitorTarget,
+            observation.classification,
+            scopeSha256,
+            resultSha256,
+            authority.adapterId,
+            authority.surfaceId,
+            authority.variantId,
+            authority.profileId,
+            authority.profileRevisionId,
+            authority.profileRevision,
+            observation.browserRuntime.family,
+            input.completedAt,
+          ],
+        );
+        await recordNoSessionCompactStateInTransaction(q, {
+          receipt: {
+            runId: run.id,
+            scheduledRunId: input.scheduledRunId,
+            scopeSha256,
+            healthState: observation.classification,
+            browserFamily: observation.browserRuntime.family,
+            profileRevisionId: authority.profileRevisionId,
+            profileRevision: authority.profileRevision,
+            completedAt: input.completedAt,
+          },
+          observation,
+          projectedAt: input.completedAt,
+        });
         return resultShape(run, input.scheduledRunId);
       });
     },

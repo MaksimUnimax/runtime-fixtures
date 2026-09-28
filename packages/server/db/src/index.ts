@@ -30,6 +30,16 @@ export {
 } from "./health-authenticated-deep-scope-repository.js";
 export { createHealthNoSessionPersistenceRepository } from "./health-no-session-persistence-repository.js";
 export {
+  createHealthRetentionRepository,
+  markNoSessionIncidentProcessed,
+  NO_SESSION_RETENTION_MIN_AGE_MS,
+  noSessionRetentionScopeSha256,
+  normalizedNoSessionResultSha256,
+  type RoutineNoSessionGcCursor,
+  type RoutineNoSessionGcInventoryItem,
+  type RoutineNoSessionGcReason,
+} from "./health-retention-repository.js";
+export {
   createHealthNoSessionCompletionAdapter,
   type NoSessionHealthCompletionResult,
 } from "./health-no-session-completion-adapter.js";
