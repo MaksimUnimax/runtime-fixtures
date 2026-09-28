@@ -56,12 +56,30 @@
   function queueMutation(fn) { const run = mutationQueue.then(fn); mutationQueue = run.catch(() => {}); return run; }
   async function persist(next) { await chrome.storage.local.set({ [STORAGE_KEY]: clone(next) }); }
   function sameAuthorityIdentity(left, right) { return Boolean(left && right && left.deviceId === right.deviceId && left.sessionId === right.sessionId && left.generation === right.generation && left.requestedAi === right.requestedAi && left.payload?.account?.id === right.payload?.account?.id); }
+  function authorityProfileIdentity(authority) {
+    const ai = authority?.payload?.ai;
+    if (ai?.status !== "RESOLVED" || !ai.profile) return null;
+    return verifier.canonicalJson({
+      requestedAi: authority?.requestedAi ?? null,
+      detected: ai.detected || null,
+      profile: {
+        profileKey: ai.profile.profileKey || null,
+        revision: ai.profile.revision ?? null,
+        scopeVariant: ai.profile.scopeVariant ?? null,
+        contentSha256: ai.profile.contentSha256 || null
+      }
+    });
+  }
   function authorityNeedsInvalidation(previous, next, reason) { if (!previous || !next) return Boolean(previous || next); if (!sameAuthorityIdentity(previous, next)) return true; if (["refresh_invalid", "bootstrap_unauthorized", "authority_invalid", "local_reset"].includes(reason)) return true; if (previous.workAllowed && !next.workAllowed) return true; return staticCanWork(previous.payload) && !staticCanWork(next.payload); }
   async function commit(next, previous = state.authority, reason = "state_changed") {
     const changed = authorityNeedsInvalidation(previous, next.authority, reason);
+    const profileChanged = authorityProfileIdentity(previous) !== authorityProfileIdentity(next.authority);
     await persist(next);
     state = next;
-    if (changed && typeof authorityChanged === "function") { try { await authorityChanged(clone(state.authority), reason, state.generation); } catch (_) { /* guards remain authoritative */ } }
+    if ((changed || profileChanged) && typeof authorityChanged === "function") {
+      const notificationReason = changed ? reason : "profile_changed";
+      try { await authorityChanged(clone(state.authority), notificationReason, state.generation); } catch (_) { /* guards remain authoritative */ }
+    }
     return true;
   }
   function isCurrent(context) {

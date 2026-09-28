@@ -1,0 +1,90 @@
+{
+  "schemaVersion": "wb_inventory_movement_boundary_v1",
+  "capturedDate": "2026-09-28",
+  "scope": {
+    "scenarioId": "STD-11",
+    "evidence": "CURRENT_OFFICIAL_SOURCE_PLUS_ACCEPTED_EFFECTIVE_REGISTRY_SOURCE_ONLY",
+    "liveValues": false,
+    "runtimeChanged": false,
+    "sharedRegistryChanged": false
+  },
+  "officialSource": {
+    "url": "https://dev.wildberries.cn/docs/openapi/reports",
+    "deprecatedOperation": {
+      "title": "Returns and Item Movement Report",
+      "operationAlias": "goods_return",
+      "method": "GET",
+      "path": "/api/v1/analytics/goods-return",
+      "disableDate": "2026-10-26",
+      "maxPeriodDays": 31,
+      "rowGrain": [
+        "shkId"
+      ],
+      "movementFields": [
+        "nmId",
+        "orderId",
+        "srid",
+        "returnType",
+        "status",
+        "dstOfficeId",
+        "dstOfficeAddress",
+        "readyToReturnDt",
+        "completedDt"
+      ]
+    },
+    "replacementOperation": {
+      "method": "GET",
+      "path": "/api/analytics/v1/item-returns",
+      "requiredQuery": [
+        "dateFrom",
+        "dateTo",
+        "status",
+        "limit",
+        "offset"
+      ],
+      "statusEnum": [
+        "active",
+        "archive"
+      ],
+      "limitMax": 1000,
+      "countField": "count",
+      "movementFields": [
+        "nmId",
+        "orderId",
+        "srid",
+        "returnType",
+        "returnStatus",
+        "dstOfficeId",
+        "dstOfficeAddress",
+        "readyToReturnDt",
+        "completedDt"
+      ]
+    }
+  },
+  "coverageBoundary": {
+    "code": "GENERIC_WRITEOFF_TRANSFER_CAUSALITY_UNVERIFIED",
+    "owner": "A04_SOURCE_BOUNDARY",
+    "goodsReturnExpectedCurrent": true
+  },
+  "registryEvidence": {
+    "compositionPath": "apps/extension/composition.json",
+    "bundle": "shared/wb_adapter.js",
+    "frozenDonorExpectedReplacementPresent": false,
+    "acceptedEffectiveExpectedReplacementPresent": true,
+    "analyticsOverlayPath": "packages/marketplaces/wildberries/src/retired-analytics-registry-overlay.js",
+    "pinnedCandidate": {
+      "commit": "bac8cc88bb58298b07d2235390363aa706abe43a",
+      "overlaySha256": "c0b20ab4c81dd8b398bbd171114dcb1518d3fe8ef83ad18e3fb16d1af115a2de",
+      "replacementExpectedPresent": true,
+      "alias": "analytics_item_returns",
+      "requiredQuery": ["dateFrom", "dateTo", "status", "limit", "offset"]
+    }
+  },
+  "rules": {
+    "movementEvidence": "GOODS_RETURN_OR_ITEM_RETURNS_ROW_IS_PROVIDER_RETURN_MOVEMENT_EVIDENCE",
+    "snapshotBoundary": "STOCK_DECLINE_WITHOUT_PROVIDER_EVENT_DOES_NOT_PROVE_MOVEMENT",
+    "causalityBoundary": "RETURN_MOVEMENT_EVENT_DOES_NOT_PROVE_WRITEOFF_OR_GENERIC_TRANSFER_CAUSE",
+    "missing": "MISSING_NOT_ZERO",
+    "replacement": "DEPRECATED_ALIAS_MUST_NOT_BE_TREATED_AS_LONG_TERM_AUTHORITY_AFTER_DISABLE_DATE"
+  }
+}

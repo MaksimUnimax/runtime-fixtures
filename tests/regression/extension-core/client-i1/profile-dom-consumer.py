@@ -63,7 +63,7 @@ def maybe_tab_message(worker, tab_id: int, message: dict):
         return None
 
 
-def run_case(playwright, runtime: Path, private_key: Path, revision: int, reference: str):
+def run_case(playwright, runtime: Path, private_key: Path, revision: int, reference: str, *, primitive_kind: str = "packaged_selector_reference", primitive_role: str | None = None):
     with tempfile.TemporaryDirectory(prefix=f"octoport-profile-{revision}-") as profile:
         options = {
             "headless": True,
@@ -85,6 +85,8 @@ def run_case(playwright, runtime: Path, private_key: Path, revision: int, refere
             private_key,
             profile_revision=revision,
             composer_reference=reference,
+            composer_kind=primitive_kind,
+            composer_role=primitive_role,
         )
         context.close()
 
@@ -127,29 +129,52 @@ def run_case(playwright, runtime: Path, private_key: Path, revision: int, refere
             assert page_context["ok"] is True
             assert page_context["adapter_id"] == "chatgpt"
 
+            expected_profile = worker.evaluate(
+                """async()=>{const s=await saSignedProfileSnapshot(); const p=s.authority.payload.ai.profile;
+                return {authority:{authGeneration:s.generation,bootstrapSnapshotSha256:s.snapshot.bootstrapSnapshotSha256},
+                profile:{profileKey:p.profileKey,revision:p.revision,scopeVariant:p.scopeVariant,contentSha256:p.contentSha256}}}"""
+            )
+            ensured = tab_message(
+                worker,
+                tab_id,
+                {"type": "OZ_SIGNED_AI_PROFILE_ENSURE", "expected": expected_profile},
+            )
+            assert ensured["ok"] is True and ensured["applied"] is True, ensured
+
             picker = tab_message(worker, tab_id, {"type": "OZ_START_SEND_BUTTON_PICKER"})
-            assert picker["ok"] is True, picker
             expected = "BRIDGE_BUTTON_TEST — это тест, сообщение не будет отправлено."
             composer_text = page.locator("#prompt-textarea").inner_text()
-            assert composer_text == expected
-            assert page.evaluate("sent.length") == 0
-            page.keyboard.press("Escape")
-            until(
-                lambda: page.locator("#prompt-textarea").inner_text() == "",
-                "picker composer restoration",
-            )
+            sent_count = page.evaluate("sent.length")
+            if primitive_kind == "packaged_selector_reference":
+                assert picker["ok"] is True, picker
+                assert composer_text == expected
+                assert sent_count == 0
+                page.keyboard.press("Escape")
+                until(
+                    lambda: page.locator("#prompt-textarea").inner_text() == "",
+                    "picker composer restoration",
+                )
+            else:
+                assert picker["ok"] is False, picker
+                assert picker.get("code") == "CONTENT_ADAPTER_ERROR", picker
+                assert composer_text == ""
+                assert sent_count == 0
 
             return {
                 "revision": revision,
                 "composerReference": reference,
+                "composerKind": primitive_kind,
+                "composerRole": primitive_role,
                 "contentSha256": profile_value["contentSha256"],
                 "signedVerified": seeded["verified"],
                 "controlClientAuthenticated": status["authenticated"],
                 "controlClientWorkAllowed": status["workAllowed"],
                 "adapterId": page_context["adapter_id"],
+                "profileEnsureApplied": ensured["applied"],
                 "pickerOk": picker["ok"],
+                "pickerCode": picker.get("code"),
                 "composerText": composer_text,
-                "sentCount": page.evaluate("sent.length"),
+                "sentCount": sent_count,
             }
         finally:
             context.close()
@@ -178,30 +203,34 @@ def run(runtime: Path, private_key: Path, output: Path):
             runtime,
             private_key,
             revision=2,
-            reference="page-root",
+            reference="composer-root",
+            primitive_kind="accessibility_role_name",
+            primitive_role="status",
         )
 
     assert baseline["contentSha256"] != changed["contentSha256"]
     assert baseline["revision"] != changed["revision"]
-    assert baseline["composerReference"] != changed["composerReference"]
-    behavior_keys = ["adapterId", "pickerOk", "composerText", "sentCount"]
-    assert {key: baseline[key] for key in behavior_keys} == {
-        key: changed[key] for key in behavior_keys
-    }
+    assert baseline["composerKind"] != changed["composerKind"]
+    assert baseline["pickerOk"] is True
+    assert changed["pickerOk"] is False
+    assert baseline["composerText"] != changed["composerText"]
+    assert baseline["profileEnsureApplied"] is True
+    assert changed["profileEnsureApplied"] is True
 
     result.update(
         status="PASS",
-        disposition="NOT_WIRED",
+        disposition="WIRED",
         baseline=baseline,
         changed=changed,
         finding=(
-            "Signed adapter_profile_v1 revision/hash/reference changed, "
-            "but packaged ChatGPT composer behavior did not change."
+            "Two valid signed adapter_profile_v1 profiles produce different packaged "
+            "ChatGPT composer behavior; the changed accessibility-role profile is "
+            "applied but rejects a composer whose packaged element role is not status."
         ),
         limits=[
             "No live AI, marketplace, provider, store, or owner credentials used.",
-            "This proves current profile selector content is not consumed by this DOM path.",
-            "It does not prove a future profile consumer or installed-store rollout.",
+            "This is controlled synthetic real-MV3 SOURCE/PACKAGE behavior evidence.",
+            "It is not installed-store, LIVE_OWNER, monitoring recovery, or deployment acceptance.",
         ],
     )
     (output / "result.json").write_text(

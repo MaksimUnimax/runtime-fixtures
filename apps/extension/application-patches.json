@@ -408,5 +408,50 @@
     "target": "content_script.js",
     "old": "  function chatgptInsideAssistantEditor(node) {\n    return Boolean(node?.closest?.('section[data-turn=\"assistant\"], [data-message-author-role=\"assistant\"], [data-writing-block], [data-writing-block-id], #code-block-viewer'));\n  }",
     "new": "  const CHATGPT_ASSISTANT_EDITOR_DIRECT_SELECTOR = '[data-turn=\"assistant\"], [data-message-author-role=\"assistant\"], [data-message-role=\"assistant\"], [data-writing-block], [data-writing-block-id], #code-block-viewer';\n  const CHATGPT_ASSISTANT_CONTENT_SELECTOR = '[data-assistant-markdown], [data-assistant-stream-block], [data-message-content-controls], [data-assistant-content-started]';\n  const CHATGPT_RESPONSE_ACTION_SELECTOR = '[data-assistant-message-actions], [data-message-actions][aria-label=\"Response actions\"], [data-message-actions][aria-label=\"Действия с ответом\"], [role=\"group\"][aria-label=\"Response actions\"], [role=\"group\"][aria-label=\"Действия с ответом\"]';\n  const CHATGPT_USER_TURN_SELECTOR = '[data-turn=\"user\"], [data-message-author-role=\"user\"], [data-message-role=\"user\"]';\n\n  function chatgptInsideAssistantEditor(node) {\n    if (node?.closest?.(CHATGPT_ASSISTANT_EDITOR_DIRECT_SELECTOR)) return true;\n    const content = node?.closest?.(CHATGPT_ASSISTANT_CONTENT_SELECTOR);\n    if (!(content instanceof Element)) return false;\n    let root = content;\n    while (root && root !== document.body && root !== document.documentElement) {\n      if (root.matches?.(CHATGPT_USER_TURN_SELECTOR)) return false;\n      const structural = root.matches?.('article, li, section, [data-testid^=\"conversation-turn\"]');\n      if (structural && root.querySelectorAll(CHATGPT_RESPONSE_ACTION_SELECTOR).length === 1 && !root.querySelector(CHATGPT_USER_TURN_SELECTOR)) return true;\n      root = root.parentElement;\n    }\n    return false;\n  }"
+  },
+  {
+    "target": "manifest.json",
+    "old": "        \"shared/web_file_attachment.js\",\n        \"content_script.js\",",
+    "new": "        \"shared/web_file_attachment.js\",\n        \"shared/signed_ai_profile_consumer.js\",\n        \"content_script.js\",\n        \"shared/signed_ai_profile_runtime.js\","
+  },
+  {
+    "target": "content_script.js",
+    "old": "  function assistantMessages() {\n    const adapter = currentAIAdapter();\n    return adapter ? adapter.assistantMessages() : [];\n  }",
+    "new": "  function assistantMessages() {\n    const adapter = currentAIAdapter();\n    const baseline = adapter ? adapter.assistantMessages() : [];\n    const profileRuntime = globalThis.SellerAgentsSignedProfileRuntime;\n    return profileRuntime ? profileRuntime.resolveAssistantMessages(adapter, baseline) : baseline;\n  }"
+  },
+  {
+    "target": "content_script.js",
+    "old": "  function primaryComposerContext() {\n    const adapter = currentAIAdapter();\n    if (!adapter) return null;\n    return adapter.id === \"alice\" ? alicePrimaryComposerContext() : chatgptPrimaryComposerContext();\n  }",
+    "new": "  function primaryComposerContext() {\n    const adapter = currentAIAdapter();\n    if (!adapter) return null;\n    const baseline = adapter.id === \"alice\" ? alicePrimaryComposerContext() : chatgptPrimaryComposerContext();\n    const profileRuntime = globalThis.SellerAgentsSignedProfileRuntime;\n    return profileRuntime ? profileRuntime.resolveComposerContext(adapter, baseline) : baseline;\n  }"
+  },
+  {
+    "target": "content_script.js",
+    "old": "  function sendButton(context) {\n    const adapter = currentAIAdapter();\n    if (!adapter) return null;\n    return adapter.id === \"alice\" ? aliceSendButton(context) : chatgptSendButton(context);\n  }",
+    "new": "  function sendButton(context) {\n    const adapter = currentAIAdapter();\n    if (!adapter) return null;\n    const baseline = adapter.id === \"alice\" ? aliceSendButton(context) : chatgptSendButton(context);\n    const profileRuntime = globalThis.SellerAgentsSignedProfileRuntime;\n    return profileRuntime ? profileRuntime.resolveSendButton(adapter, context, baseline) : baseline;\n  }"
+  },
+  {
+    "target": "content_script.js",
+    "old": "  function diagnosticForControlKind(kind) {\n    return {\n      send_active: \"BUTTON_SEND_ACTIVE\",\n      work_send_active: \"BUTTON_WORK_SEND_ACTIVE\",\n      work_send_disabled: \"BUTTON_WORK_SEND_DISABLED\",\n      send_disabled: \"BUTTON_SEND_DISABLED\",\n      stop: \"BUTTON_STOP\",\n      microphone: \"BUTTON_MICROPHONE\",\n      alice_ready: \"BUTTON_ALICE_READY\",\n      unknown: \"BUTTON_UNKNOWN\"\n    }[kind] || \"BUTTON_UNKNOWN\";\n  }\n\n  function stopDeliveryWatch(reason = \"stopped\") {",
+    "new": "  function diagnosticForControlKind(kind) {\n    return {\n      send_active: \"BUTTON_SEND_ACTIVE\",\n      work_send_active: \"BUTTON_WORK_SEND_ACTIVE\",\n      work_send_disabled: \"BUTTON_WORK_SEND_DISABLED\",\n      send_disabled: \"BUTTON_SEND_DISABLED\",\n      stop: \"BUTTON_STOP\",\n      microphone: \"BUTTON_MICROPHONE\",\n      alice_ready: \"BUTTON_ALICE_READY\",\n      unknown: \"BUTTON_UNKNOWN\"\n    }[kind] || \"BUTTON_UNKNOWN\";\n  }\n\n  globalThis.SellerAgentsSignedProfileDomBridge = Object.freeze({\n    scope() {\n      const adapter = currentAIAdapter();\n      return adapter ? { family: adapter.id, surface: \"web\", variant: null } : null;\n    },\n    adapter: () => currentAIAdapter(),\n    conversationRoot() {\n      return document.querySelector(\"main\") || document.body || document.documentElement;\n    },\n    workInFlight() {\n      return Boolean(\n        (typeof saContentContext !== \"undefined\" && saContentContext?.work_active) ||\n        activeDeliveryWatch || activeManualComposerWait || activeAutoWatch ||\n        workStartWatches.size > 0\n      );\n    }\n  });\n\n  function stopDeliveryWatch(reason = \"stopped\") {"
+  },
+  {
+    "target": "content_script.js",
+    "old": "  async function syncAllState() {\n    const here = conversationIdentity();",
+    "new": "  async function syncAllState() {\n    queueMicrotask(() => { void globalThis.SellerAgentsSignedProfileRuntime?.refresh?.(\"content_state_sync\"); });\n    const here = conversationIdentity();"
+  },
+  {
+    "target": "content_script.js",
+    "old": "      sendResponse({ ok: true, applied, conversation_key: currentKey, identity: conversationIdentity() });\n      return false;\n    }\n    if (message?.type === \"OZ_APPLY_MANUAL_MODE\") {",
+    "new": "      if (applied && message.visible !== true && message.work_active !== true) {\n        queueMicrotask(() => { void globalThis.SellerAgentsSignedProfileRuntime?.refresh?.(\"work_finished\"); });\n      }\n      sendResponse({ ok: true, applied, conversation_key: currentKey, identity: conversationIdentity() });\n      return false;\n    }\n    if (message?.type === \"OZ_APPLY_MANUAL_MODE\") {"
+  },
+  {
+    "target": "content_script.js",
+    "old": "  runtime.dispose = () => {\n    if (runtime.disposed) return;\n    runtime.disposed = true;",
+    "new": "  runtime.dispose = () => {\n    if (runtime.disposed) return;\n    runtime.disposed = true;\n    try { globalThis.SellerAgentsSignedProfileRuntime?.dispose?.(); } catch (_) {}"
+  },
+  {
+    "target": "content_script.js",
+    "old": "  function userMessages() {\n    const adapter = currentAIAdapter();\n    return adapter ? adapter.userMessages() : [];\n  }",
+    "new": "  function userMessages() {\n    const adapter = currentAIAdapter();\n    const baseline = adapter ? adapter.userMessages() : [];\n    const profileRuntime = globalThis.SellerAgentsSignedProfileRuntime;\n    return profileRuntime ? profileRuntime.resolveUserMessages(adapter, baseline) : baseline;\n  }"
   }
 ]

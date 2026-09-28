@@ -107,8 +107,8 @@ assert.equal(
 );
 assert.equal(
   advertising.sources.campaignStats.currencyField,
-  null,
-  "older advertising receipt must remain an explicit narrower historical boundary",
+  promotion.currencyFieldCurrentOpenapi,
+  "active advertising fixture must reconcile to the newer pinned promo_fullstats currency field",
 );
 const cap18 = scenarios.get("CAP-18");
 assert.ok(cap18, "CAP-18 missing");

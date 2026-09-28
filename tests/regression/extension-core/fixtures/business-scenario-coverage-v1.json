@@ -244,12 +244,13 @@
       "metrics": [
         "stock_snapshot:units",
         "sale_return_finance:provider_signals",
-        "movement_writeoff:event_unverified"
+        "return_movement:provider_event",
+        "writeoff_transfer_cause:unverified"
       ],
       "periodPolicy": "EXPLICIT_WHERE_APPLICABLE",
       "continuationPolicy": "EXPLICIT_ONLY",
       "omissionPolicy": "MISSING_NOT_ZERO",
-      "externalDependency": "WB_INVENTORY_MOVEMENT_EVENT_SOURCE_AND_SEMANTICS_NOT_VERIFIED",
+      "externalDependency": "GENERIC_WRITEOFF_TRANSFER_CAUSALITY_UNVERIFIED",
       "numericFixtures": ["movement_evidence"]
     },
     {

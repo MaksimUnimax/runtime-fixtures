@@ -522,6 +522,7 @@ export async function makeWorker(directory, options = {}) {
       },
     },
     runtime: {
+      id: "core-fixture",
       lastError: null,
       getURL: (name) => "chrome-extension://core-fixture/" + name,
       onMessage: {
@@ -550,6 +551,19 @@ export async function makeWorker(directory, options = {}) {
       onRemoved: { addListener() {} },
       sendMessage(id, message, callback) {
         messages.push(structuredClone(message));
+        if (message.type === "OZ_SIGNED_AI_PROFILE_ENSURE") {
+          const configured = typeof options.profileEnsureResponse === "function"
+            ? options.profileEnsureResponse(structuredClone(message), id)
+            : options.profileEnsureResponse;
+          const response = configured || {
+            ok: true,
+            applied: true,
+            authority: structuredClone(message.expected?.authority || null),
+            profile: structuredClone(message.expected?.profile || null),
+          };
+          queueMicrotask(() => callback?.(structuredClone(response)));
+          return;
+        }
         if (message.type === "OZ_WORK_SEND_INITIAL_PROMPT") {
           void (async () => {
             const fields = {
@@ -618,7 +632,7 @@ export async function makeWorker(directory, options = {}) {
   const sandbox = {
     console,
     chrome,
-    crypto: options.beforeCryptoVerify
+    crypto: options.beforeCryptoVerify || options.beforeCryptoDigest
       ? {
           ...webcrypto,
           randomUUID: webcrypto.randomUUID.bind(webcrypto),
@@ -626,9 +640,14 @@ export async function makeWorker(directory, options = {}) {
           subtle: new Proxy(webcrypto.subtle, {
             get(target, property) {
               const method = Reflect.get(target, property, target);
-              if (property === "verify")
+              if (property === "verify" && options.beforeCryptoVerify)
                 return (...args) =>
                   Promise.resolve(options.beforeCryptoVerify(...args)).then(
+                    () => Reflect.apply(method, target, args),
+                  );
+              if (property === "digest" && options.beforeCryptoDigest)
+                return (...args) =>
+                  Promise.resolve(options.beforeCryptoDigest(...args)).then(
                     () => Reflect.apply(method, target, args),
                   );
               return typeof method === "function"

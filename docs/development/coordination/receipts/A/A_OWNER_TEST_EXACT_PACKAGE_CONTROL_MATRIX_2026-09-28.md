@@ -33,7 +33,7 @@ Current 0.2.6 accepted automation:
 - C-integrated core: D2.4 PASS, 131 gates;
 - C-integrated I1: PASS, 160 gates;
 - WB exact current boundary: source/package PASS;
-- profile→DOM proof: PASS with disposition `NOT_WIRED`.
+- profile→DOM proof: current signed-profile consumer SOURCE/EXTRACTED + controlled real-MV3 `WIRED` PASS; installed STORE/LIVE remains open.
 
 For the exact Chromium STORE signed-out browser boundary A adds:
 `tests/regression/extension-core/client-i1/exact-store-signedout-controls.py`.
@@ -96,12 +96,12 @@ does not belong to the signed-out synthetic boundary.
 
 | Transfer | transfer-consent/create/discover/receive | Two real browser workers + real local HTTP relay; recipient restart/key recovery/exact-once ACK/replay fences PASS; provider0/AI0 | **HISTORICAL INSTALLED_SYNTHETIC PASS / EXACT_STORE_AUTH OPEN** |
 | Backup | export/preview/import/password/file fields | Current exact 0.2.6 I1 source+package A24: EX-01..74 PASS including wrong password/tamper/conflict/non-overwrite/privacy | **CURRENT_026_SOURCE_PACKAGE_PASS / EXACT_STORE_AUTH OPEN** |
-| Firefox | consent section initial neutral state | Exact STORE ZIP installs far enough to display real Firefox permission doorhanger; 0.2.6 popup.html/js are byte-identical to 0.2.5 | **PARTIAL EXACT STORE EVIDENCE** |
-| Firefox | grant/revoke technicalAndInteraction | Two bounded Marionette attempts reached doorhanger but chrome-UI click returned ElementNotInteractable; no product failure established | **NOT_VERIFIED_EXACT_STORE** |
+| Firefox | consent section initial neutral state | Exact STORE Firefox 155.0.1 temporary install on ZIP `b5de9b4f…`: initial permission set excludes `technicalAndInteraction`; fresh support snapshot withholds optional technical metadata; signed-out UI/auth/work state enforced | **INSTALLED_SYNTHETIC EXACT STORE PASS** |
+| Firefox | grant/revoke technicalAndInteraction | Controller `f448e058…` + independent A rerun `c88da8e1…`: real visible Firefox browser-chrome Deny/Allow; extension Revoke; only `technicalAndInteraction` added/removed; fresh diagnostics include technical metadata only while consent is granted | **INSTALLED_SYNTHETIC EXACT STORE PASS** |
 | Dialog | owned code-block action | Current 0.2.6 content_script.js is byte-identical between exact STORE and accepted I1 extracted package; current browser regressions PASS | **CURRENT_026 PACKAGE CODE PASS / AUTHENTICATED INSTALLED OPEN** |
 | Dialog | Response-actions Copy exclusion | Current regressions explicitly reject response-level Copy, misleading data-code-copy-state, user/editor/ambiguous/unrelated blocks | **CURRENT_026 PACKAGE CODE PASS / AUTHENTICATED INSTALLED OPEN** |
 | Dialog | composer/send/Work Start readiness | Current tests cover Standard send, Work submit, microphone/stop/disabled ambiguity, delayed composer and bounded fail-closed wait | **CURRENT_026 PACKAGE CODE PASS / AUTHENTICATED INSTALLED OPEN** |
-| Profile | signed P7 selector content | Source+extracted controlled real MV3 proof shows profile revision/hash changes do not change DOM behavior | **PASS finding: NOT_WIRED** |
+| Profile | signed P7 selector content | Exact `c683a0d3…` acceptance: strict signed consumer SOURCE/EXTRACTED PASS plus controlled real-MV3 WIRED behavior; profile identity fenced before Start/Resume; provider0 | **CURRENT SOURCE_PACKAGE_MV3 WIRED PASS / INSTALLED_STORE_LIVE OPEN** |
 | Portal | login/approve/cancel/expiry/logout/errors | C-owned backend/portal boundary | **NOT_VERIFIED BY A / C+OWNER** |
 
 ## Reused evidence without relabeling
@@ -143,8 +143,8 @@ This supports package-code reuse only; it does not manufacture authenticated ins
 4. **Exact installed useful flow** — A after gap 1 and C owner-test compatibility.
    One bounded read-only Ozon flow and one WB flow in real supported AI context; require one provider request, one result, no replay, visibility and explicit Finish.
 
-5. **Firefox exact STORE technical consent** — A/browser harness.
-   Initial exact package install/permission prompt is observable, but grant/revoke remains NOT_VERIFIED because Marionette could not interact with browser-chrome doorhanger. Do not call this a product failure.
+5. **Firefox exact STORE technical consent — CLOSED at INSTALLED_SYNTHETIC.**
+   Exact Firefox 155.0.1 on frozen ZIP `b5de9b4f…` now has controller-captured real visible permission UI Deny/Allow plus extension Revoke and an independent A rerun with identical result SHA `a46cc5c6…`. AMO/catalog installation, ordinary login/authenticated actions and backend/live acceptance remain separate.
 
 6. **Same-item signed N→N+1 and Windows UX/preservation** — owner/store environment.
    Linux development-flag installation does not prove store update identity or Windows UX.
@@ -170,8 +170,9 @@ to continue immediately after login.
 Once that prerequisite exists, one ordinary authenticated session can close most Opera
 R1 rows in a single bounded run. Marketplace secrets/OTP remain outside chat/evidence.
 
-Firefox exact STORE grant/revoke is an independent browser-specific gap and should not
-delay an Opera-first hand-test build unless Firefox is part of that handoff.
+Firefox exact STORE signed-out technical consent is now closed at INSTALLED_SYNTHETIC.
+AMO/catalog installation, ordinary authenticated Firefox actions and backend/live
+acceptance remain separate and do not block the Opera-first hand-test sequence.
 
 No production deployment, live DB mutation, provider request, auth intent, catalog
 mutation, store upload or Submit was performed in this A block.
@@ -217,3 +218,68 @@ method and records exact STORE grant/revoke as `NOT_VERIFIED`.
 The 0.2.6 Firefox `popup.html` and `popup.js` bytes are identical to 0.2.5,
 but that byte identity does not upgrade older non-STORE or neutral-permission evidence
 into exact STORE doorhanger acceptance.
+
+## Firefox exact-STORE consent final superseding evidence
+
+The historical Marionette `ElementNotInteractableException` attempts above remain
+preserved as evidence of the abandoned interaction method. They are superseded for this
+specific signed-out consent boundary by a different browser-chrome UI method; they are
+not deleted or relabelled as product failures.
+
+Controller final candidate:
+`f448e058db917c3f64e1a710066bd76f5b21deae`.
+
+Controller evidence:
+`/root/octoport-control/logs/controller/manual-firefox-consent-20260928/result-final.json`.
+
+A independently reviewed the candidate test and reran the same exact boundary with:
+- exact frozen package
+  `OCTOPORT_v0.2.6_FIREFOX_STORE.zip`;
+- SHA-256
+  `b5de9b4f0773c08a705fbad050e77d382f265aa34fd2ca8d3657553bad577305`;
+- Firefox `155.0.1`;
+- geckodriver `0.37.1`;
+- fresh disposable Firefox profile;
+- temporary installation with real add-on ID `octoport@octoport.ru`;
+- fresh network namespace containing loopback only;
+- no ordinary login, backend/provider request, token/session seeding or permission-state
+  injection.
+
+A resource receipt:
+`/root/octoport-control/resource-jobs/c88da8e1ce3f4959af19608d2850ead7/receipt.json`.
+
+A rerun result:
+`/tmp/a-firefox-consent-review/result.json`.
+
+The A result SHA-256 is exactly the controller result SHA-256:
+`a46cc5c6eea14a0921aa34a11a25d8f64a3624fc4bf834c8ecbeef114293d520`.
+
+Observed exact permission/UI sequence:
+1. Initial: `technicalAndInteraction` absent; optional technical metadata WITHHELD.
+2. Real visible Firefox browser-chrome **Deny**: permission set unchanged; metadata remains
+   WITHHELD.
+3. Real visible Firefox browser-chrome **Allow**: exactly
+   `technicalAndInteraction` is added; fresh support output includes the expected
+   Firefox/extension technical metadata.
+4. Extension **Revoke**: the original permission set is restored; fresh support output
+   again withholds optional technical metadata.
+
+Across all four support snapshots:
+- `authenticated=false`;
+- `workAllowed=false`;
+- signed-out catalog remains hidden;
+- ordinary login remains visible;
+- all six sensitive-data privacy flags remain false.
+
+Independent A supervisor:
+- exit 0;
+- OOM 0;
+- cleanup verified;
+- peak 531,628,032 bytes.
+
+Evidence level:
+**INSTALLED_SYNTHETIC_EXACT_FIREFOX_STORE_SIGNED_OUT PASS**.
+
+This closes the exact STORE Firefox signed-out technical-consent Deny/Allow/Revoke gap.
+It does not establish AMO installation/publication, ordinary authenticated Firefox
+actions, owner/provider acceptance, deployed backend compatibility or LIVE_OWNER evidence.

@@ -1219,6 +1219,44 @@
         "status": "INCOMPLETE",
         "reason": "OFFICIAL_ERROR_COUNT_MISSING"
       }
+    },
+    {
+      "id": "movement_evidence_provider_event",
+      "kind": "movement_evidence",
+      "input": {
+        "stockBeforeUnits": 10,
+        "stockAfterUnits": 7,
+        "salesUnits": 0,
+        "providerEvents": [
+          {
+            "family": "GOODS_RETURN_MOVEMENT"
+          }
+        ]
+      },
+      "expected": {
+        "status": "BOUNDARY",
+        "stockDeltaUnits": -3,
+        "salesUnitsObserved": 0,
+        "providerMovementEvents": 1,
+        "writeoffOrTransferCauseProven": false
+      }
+    },
+    {
+      "id": "movement_evidence_missing_event",
+      "kind": "movement_evidence",
+      "input": {
+        "stockBeforeUnits": 10,
+        "stockAfterUnits": 7,
+        "salesUnits": 0,
+        "providerEvents": []
+      },
+      "expected": {
+        "status": "UNKNOWN_CAUSE",
+        "stockDeltaUnits": -3,
+        "salesUnitsObserved": 0,
+        "providerMovementEvents": 0,
+        "writeoffOrTransferCauseProven": false
+      }
     }
   ]
 }

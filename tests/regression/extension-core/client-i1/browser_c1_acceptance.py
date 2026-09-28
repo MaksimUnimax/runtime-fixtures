@@ -49,10 +49,10 @@ def wait_for(fn, description: str, timeout: float = 10):
     raise AssertionError(f"Timed out: {description}")
 
 
-def seed_authority(worker, private_key: Path, device_id: str = DEVICE, session_id: str = SESSION, *, profile_revision: int = 1, composer_reference: str = "composer-root"):
+def seed_authority(worker, private_key: Path, device_id: str = DEVICE, session_id: str = SESSION, *, profile_revision: int = 1, composer_reference: str = "composer-root", composer_kind: str = "packaged_selector_reference", composer_role: str | None = None):
     encoded = base64.b64encode(private_key.read_bytes()).decode("ascii")
     return worker.evaluate(
-        """async ({pkcs8, fixtureDeviceId, fixtureSessionId, fixtureKeyId, profileRevision, composerReference}) => {
+        """async ({pkcs8, fixtureDeviceId, fixtureSessionId, fixtureKeyId, profileRevision, composerReference, composerKind, composerRole}) => {
           const v = SellerAgentsBootstrapVerifier;
           const fromB64 = value => Uint8Array.from(atob(value), c => c.charCodeAt(0));
           const hex = bytes => [...bytes].map(x => x.toString(16).padStart(2, '0')).join('');
@@ -62,12 +62,15 @@ def seed_authority(worker, private_key: Path, device_id: str = DEVICE, session_i
           const keyId = fixtureKeyId || 'browser-fixture-key';
           const browser = SellerAgentsBrowserIdentity.current();
           if (!browser?.family || !browser?.version) throw new Error('fixture browser identity unavailable');
+          const composerPrimary = composerKind === 'accessibility_role_name'
+            ? {kind:'accessibility_role_name',role:composerRole,reference:composerReference}
+            : {kind:'packaged_selector_reference',reference:composerReference};
           const content = {
             schemaVersion:'adapter_profile_v1',
             page:{identityStrategy:'page_identity',conversationStrategy:'conversation_root',composerStrategy:'composer_root'},
             selectors:{
               conversation:{strategy:'conversation_root',primary:{kind:'packaged_selector_reference',reference:'conversation-root'},fallbacks:[],timeoutMs:1000,observationMode:'polling'},
-              composer:{strategy:'composer_root',primary:{kind:'packaged_selector_reference',reference:composerReference},fallbacks:[],timeoutMs:1000,observationMode:'polling'},
+              composer:{strategy:'composer_root',primary:composerPrimary,fallbacks:[],timeoutMs:1000,observationMode:'polling'},
               send:{strategy:'send_control',primary:{kind:'packaged_selector_reference',reference:'send-control'},fallbacks:[],timeoutMs:1000,observationMode:'polling'},
               assistantResponse:{strategy:'assistant_response',primary:{kind:'packaged_selector_reference',reference:'assistant-response'},fallbacks:[],timeoutMs:1000,observationMode:'polling'}},
             observation:{mode:'polling',intervalMs:500},
@@ -100,9 +103,9 @@ def seed_authority(worker, private_key: Path, device_id: str = DEVICE, session_i
           const cacheClock = {cacheVersion:'control_cache_clock_v1',owner:{controlApiOrigin:cfg.controlApiOrigin,portalOrigin:cfg.portalOrigin,contractVersion:cfg.contractVersion,deviceId,sessionId},trustedServerTimeMs:now,effectiveTimeMs:now};
           const credentials = {deviceId,sessionId,tokenType:'Bearer',accessToken:'BROWSER_FIXTURE_ACCESS_TOKEN_20260918_'+deviceId,accessTokenExpiresAt:new Date(now+3600000).toISOString(),refreshToken:'R'.repeat(43),refreshTokenExpiresAt:new Date(now+7200000).toISOString()};
           await chrome.storage.local.set({seller_agents_control_auth_v2:{generation:1,credentials,pending:null,rotation:null,authority:{verified:true,workAllowed:true,requestedAi:'chatgpt',generation:1,payload,envelope,deviceId,sessionId,cacheBinding},cacheClock,lastError:null}});
-          return {verified:true, revision:profileRevision, contentSha256, composerReference};
+          return {verified:true, revision:profileRevision, contentSha256, composerReference, composerKind, composerRole};
         }""",
-        {"pkcs8": encoded, "fixtureDeviceId": device_id, "fixtureSessionId": session_id, "fixtureKeyId": os.environ.get("SA_TEST_TRUST_KEY_ID", "browser-fixture-key"), "profileRevision": profile_revision, "composerReference": composer_reference},
+        {"pkcs8": encoded, "fixtureDeviceId": device_id, "fixtureSessionId": session_id, "fixtureKeyId": os.environ.get("SA_TEST_TRUST_KEY_ID", "browser-fixture-key"), "profileRevision": profile_revision, "composerReference": composer_reference, "composerKind": composer_kind, "composerRole": composer_role},
     )
 
 
