@@ -297,6 +297,9 @@ importers:
 
   packages/server/adapter-registry:
     dependencies:
+      '@product/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
       '@product/remote-config':
         specifier: workspace:*
         version: link:../remote-config
@@ -652,6 +655,9 @@ importers:
       '@product/adapter-registry':
         specifier: workspace:*
         version: link:../adapter-registry
+      '@product/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
       '@product/remote-config':
         specifier: workspace:*
         version: link:../remote-config
