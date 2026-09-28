@@ -56,4 +56,14 @@ describe("TG4 Stream-2 upload security review", () => {
     expect(client).not.toMatch(/console\.(log|info|warn|error).*token/i);
     expect(client).not.toMatch(/logger.*token/i);
   });
+
+  it("wires the durable product baseline as read authority without automatic acceptance", async () => {
+    const main = await source("main.ts");
+    const apiWatch = await source("../../../tooling/api-watch/src/run.ts");
+    expect(main).toContain(
+      "productBaselineRepository: createApiWatchProductBaselineRepository(database)",
+    );
+    expect(apiWatch).toContain("productBaselineRepository.read");
+    expect(apiWatch).not.toMatch(/productBaselineRepository\.accept\s*\(/);
+  });
 });
