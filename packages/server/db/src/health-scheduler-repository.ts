@@ -429,7 +429,14 @@ export function createHealthSchedulerRepository(
         `SELECT r.id AS "scheduledRunId",r.schedule_id AS "scheduleId",h.id AS "healthRunId",h.health_state AS "healthState",h.run_kind AS "runKind",r.probe_layer AS "probeLayer"
          FROM health_scheduled_runs r
          JOIN health_runs h ON h.scheduled_run_id=r.id
-         WHERE r.state IN ('CLAIMED','RUNNING','TIMED_OUT','FAILED_RETRYABLE')
+         WHERE (
+           r.state IN ('CLAIMED','RUNNING','TIMED_OUT','FAILED_RETRYABLE')
+           OR (
+             r.state='FAILED_TERMINAL'
+             AND r.probe_layer='AUTHENTICATED_DEEP'
+             AND r.failure_code='AUTHENTICATED_DEEP_PERSISTENCE_REJECTED'
+           )
+         )
            AND r.health_run_id IS NULL
          ORDER BY r.due_slot_at,r.created_at,r.id`,
       );
@@ -448,7 +455,14 @@ export function createHealthSchedulerRepository(
              SET state='SUCCEEDED',finished_at=$2,lease_id=NULL,owner_id=NULL,lease_expires_at=NULL,
                  health_run_id=$3,health_state=$4,updated_at=$2
              WHERE id=$1
-               AND state IN ('CLAIMED','RUNNING','TIMED_OUT','FAILED_RETRYABLE')
+               AND (
+                 state IN ('CLAIMED','RUNNING','TIMED_OUT','FAILED_RETRYABLE')
+                 OR (
+                   state='FAILED_TERMINAL'
+                   AND probe_layer='AUTHENTICATED_DEEP'
+                   AND failure_code='AUTHENTICATED_DEEP_PERSISTENCE_REJECTED'
+                 )
+               )
                AND health_run_id IS NULL
              RETURNING schedule_id AS "scheduleId"`,
             [candidate.scheduledRunId, now, candidate.healthRunId, healthState],
