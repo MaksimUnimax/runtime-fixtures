@@ -273,15 +273,20 @@ h1 { font-size:clamp(34px,3.45vw,46px); line-height:1.13; letter-spacing:-.025em
 .theme-checkbox:checked + .page .dark-art { display:block; }
 .contour-scene { --scene-ink:#10243c; --scene-paper:var(--bg); aspect-ratio:4/3; }
 .theme-checkbox:checked + .page .contour-scene { --scene-ink:#ebffff; }
-.ai-badge,.market-badge { position:absolute; z-index:2; transform:translate(-50%,-50%); display:flex; flex-direction:column; align-items:center; justify-content:center; aspect-ratio:1; padding:0; border:clamp(1.2px,.30cqi,2.1px) solid var(--scene-ink); border-radius:50%; color:var(--scene-ink); background:var(--scene-paper); text-decoration:none; text-align:center; transition:transform .18s ease,box-shadow .18s ease; }
+.ai-badge,.market-badge { position:absolute; z-index:2; transform:translate(-50%,-50%); display:flex; flex-direction:column; align-items:center; justify-content:center; aspect-ratio:1; padding:0; border:clamp(1.4px,.4cqi,3px) solid var(--scene-ink); border-radius:50%; color:var(--scene-ink); background:var(--scene-paper); text-decoration:none; text-align:center; transition:transform .18s ease,box-shadow .18s ease; }
 .ai-badge { width:12.430939%; gap:4%; }
-.ai-badge.pos-alice,.ai-badge.pos-gemini { width:12.154696%; }
+.ai-badge.pos-alice { width:12.106354%; }
+.ai-badge.pos-gemini { width:12.251381%; }
+.ai-badge.pos-chatgpt { width:12.506906%; }
+.ai-badge.pos-deepseek { width:12.368785%; }
+.ai-badge.pos-anthropic { width:12.279006%; }
+.ai-badge.pos-qwen { width:12.230663%; }
 .ai-badge img { display:block; width:48%; height:46%; flex:0 0 46%; object-fit:contain; }
 .ai-badge .mark-dark,.market-badge .mark-dark { display:none; }
 .theme-checkbox:checked + .page .ai-badge .mark-light,.theme-checkbox:checked + .page .market-badge .mark-light { display:none; }
 .theme-checkbox:checked + .page .ai-badge .mark-dark,.theme-checkbox:checked + .page .market-badge .mark-dark { display:block; }
 .ai-badge span { display:block; max-width:96%; font-family:Arial,Helvetica,sans-serif; font-size:clamp(6px,1.8cqi,14px); font-weight:600; line-height:1.15; white-space:nowrap; }
-.market-badge { width:18.922652%; gap:7%; }
+.market-badge { gap:7%; }
 .market-logo-slot { display:grid; place-items:center; width:72%; height:30%; flex:0 0 30%; line-height:0; }
 .market-logo-slot img { display:block; width:100%; height:100%; object-fit:contain; }
 .pos-wb .market-logo-slot img { width:82%; height:100%; }
@@ -289,14 +294,14 @@ h1 { font-size:clamp(34px,3.45vw,46px); line-height:1.13; letter-spacing:-.025em
 .ai-badge::after { content:""; position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:100%; height:100%; min-width:44px; min-height:44px; border-radius:50%; }
 .ai-badge:hover,.ai-badge:focus-visible,.market-badge:hover,.market-badge:focus-visible { transform:translate(-50%,-50%) scale(1.035); box-shadow:0 0 0 2px var(--scene-paper),0 0 0 3px var(--scene-ink); }
 .ai-badge:focus-visible,.market-badge:focus-visible { outline:2px solid var(--scene-ink); outline-offset:4px; }
-.pos-alice { left:36.395028%; top:13.627993%; }
-.pos-gemini { left:63.328729%; top:13.627993%; }
-.pos-chatgpt { left:19.958564%; top:29.005525%; }
-.pos-deepseek { left:79.765193%; top:29.005525%; }
-.pos-anthropic { left:10.013812%; top:49.263352%; }
-.pos-qwen { left:89.986188%; top:48.987109%; }
-.pos-wb { left:28.660221%; top:81.583794%; }
-.pos-ozon { left:70.994475%; top:81.952118%; }
+.pos-alice { left:36.422652%; top:13.646409%; }
+.pos-gemini { left:63.356354%; top:13.646409%; }
+.pos-chatgpt { left:20.096685%; top:29.116022%; }
+.pos-deepseek { left:79.848066%; top:29.005525%; }
+.pos-anthropic { left:9.903315%; top:49.116022%; }
+.pos-qwen { left:89.958564%; top:49.005525%; }
+.pos-wb { left:28.632597%; top:81.602210%; width:18.895028%; }
+.pos-ozon { left:70.980663%; top:81.933702%; width:18.591160%; }
 h2 { font-size:clamp(28px,3.1vw,40px); font-weight:600; line-height:1.2; letter-spacing:-.025em; margin-bottom:24px; }
 h3 { font-size:20px; font-weight:600; line-height:1.3; }
 p,li { line-height:1.65; }
@@ -391,5 +396,5 @@ p,li { line-height:1.65; }
 .theme-checkbox:checked + .page .brand-ozon { color:#4e93ff; }
 .theme-checkbox:checked + .page .brand-wildberries { color:#f15cdd; }
 
-/* R10: exact user-reference vector underlay; button geometry measured from the canonical reference. */
-.contour-exact-r10 { color:var(--scene-ink); shape-rendering:geometricPrecision; }
+/* R11: full canonical owner-reference vector, including untouched circle/tentacle joins. */
+.contour-full-ref-r11 { color:var(--scene-ink); shape-rendering:geometricPrecision; }
