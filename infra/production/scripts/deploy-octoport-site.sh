@@ -83,10 +83,10 @@ assert_source() {
 
   grep -Fq '<link rel="canonical" href="https://octoport.ru/"' "${SOURCE_SITE}/index.html" \
     || fail "site source canonical URL is not octoport.ru"
-  grep -Fq '<title>Подключите ваш ИИ к Ozon и Wildberries | Octoport</title>' "${SOURCE_SITE}/index.html" \
-    || fail "homepage M12 title is missing"
-  grep -Fq '<h1>Подключите ваш ИИ к <span class="brand-ozon">Ozon</span> и <span class="brand-wildberries">Wildberries</span></h1>' "${SOURCE_SITE}/index.html" \
-    || fail "homepage M12 H1 is missing"
+  grep -Fq '<title>Подключите Алису, ChatGPT и DeepSeek к Ozon и Wildberries | Октопорт</title>' "${SOURCE_SITE}/index.html" \
+    || fail "homepage owner-approved title is missing"
+  grep -Fq '<h1 class="hero-heading">Подключите <span class="hero-ai-list">Алису, ChatGPT,<br />DeepSeek</span></h1>' "${SOURCE_SITE}/index.html" \
+    || fail "homepage owner-approved H1 is missing"
   grep -Fq '<link rel="icon" href="/favicon.png" type="image/png" />' "${SOURCE_SITE}/index.html" \
     || fail "homepage favicon link is missing"
   grep -Fq '"@type": "WebSite"' "${SOURCE_SITE}/index.html" \

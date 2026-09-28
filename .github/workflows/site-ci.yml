@@ -156,7 +156,7 @@ jobs:
 
           assert parser.html_lang == "ru", f"html lang must be ru, got {parser.html_lang!r}"
           assert parser.canonical == ["https://octoport.ru/"], parser.canonical
-          assert parser.stylesheets == ["/styles.css?v=contour-20260928-r12"], parser.stylesheets
+          assert parser.stylesheets == ["/styles.css?v=home-funnel-20260928-r1"], parser.stylesheets
           assert parser.icons == [("/favicon.png", "image/png"), ("/assets/favicon-contour-v1.png", "image/png")], parser.icons
           assert parser.executable_scripts == 0, "M14 must remain executable-JavaScript-free"
           assert len(parser.json_ld) == 1, parser.json_ld
@@ -168,17 +168,17 @@ jobs:
               "alternateName": ["Октопорт", "octoport.ru"],
               "url": "https://octoport.ru/",
           }, website
-          assert "<title>Подключите ваш ИИ к Ozon и Wildberries | Octoport</title>" in index
-          assert "".join(parser.h1) == "Подключите ваш ИИ к Ozon и Wildberries" and index.count("<h1>") == 1, parser.h1
+          assert "<title>Подключите Алису, ChatGPT и DeepSeek к Ozon и Wildberries | Октопорт</title>" in index
+          assert "".join(parser.h1) == "Подключите Алису, ChatGPT,DeepSeek" and index.count("<h1") == 1, parser.h1
           assert parser.descriptions == [
-              "Octoport подключает выбранный вами ИИ к разрешённым данным Ozon и Wildberries через браузерное расширение. Read-only запуск; готовим закрытую бесплатную бету."
+              "Октопорт соединяет Алису, ChatGPT, DeepSeek и другие нейросети с данными вашего магазина на Ozon и Wildberries через браузерное расширение. Готовим закрытую бесплатную бету."
           ], parser.descriptions
 
           approved_home_paths = {"/seller-analytics", "/privacy", "/support", "/install"}
           approved_external_links = {
               "https://app.octoport.ru/login", "https://chatgpt.com/", "https://alice.yandex.ru/",
               "https://chat.deepseek.com/", "https://gemini.google.com/", "https://claude.ai/",
-              "https://chat.qwen.ai/",
+              "https://chat.qwen.ai/", "mailto:support@octoport.ru?subject=Бета%20Октопорт", "mailto:support@octoport.ru",
           }
           for href in parser.hrefs:
               if href.startswith("#"):
@@ -199,7 +199,7 @@ jobs:
           assert "набор ещё не открыт" in lowered, "site must not imply registration is already live"
           assert "read-only" in lowered, "initial read-only scope must be explicit"
           assert "локаль" in lowered and "ключ" in lowered, "local-key boundary must be visible"
-          assert "Ваш ИИ получает руки для работы с маркетплейсами." in index
+          assert "Октопорт соединяет ваш кабинет продавца на Ozon или Wildberries с любой нейросетью на ваш выбор." in index
           assert "/seller-analytics" in parser.hrefs
           for utility in ("/privacy", "/support", "/install"):
               assert utility in parser.hrefs
@@ -208,7 +208,7 @@ jobs:
           import subprocess
           subprocess.run(["python3", "tests/regression/site/test_site_contour.py"], check=True)
 
-          required_sections = {"top", "how", "privacy", "beta", "principles-title", "analytics", "analytics-title"}
+          required_sections = {"top", "proof", "features", "how", "compatibility", "privacy", "beta"}
           assert required_sections.issubset(parser.ids), f"missing sections: {required_sections - parser.ids}"
 
           assert "https://octoport.ru/sitemap.xml" in robots
