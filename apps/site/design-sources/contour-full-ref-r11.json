@@ -1,0 +1,59 @@
+{
+  "source_reference_size": [
+    1448,
+    1086
+  ],
+  "source_mask_packed_sha256": "0ae0daac07ecce159ee385bda713f185dc7d53532ad401360fa4dba910c77445",
+  "method": "full canonical reference; no button cutouts; cleaned mask -> OpenCV contours -> low-epsilon polygon simplification -> quadratic midpoint smoothing",
+  "asset": "assets/contour-full-ref-r11.svg",
+  "asset_sha256": "9ddd493540c55f3eadbc6e08bd2b3107be2acf1dde46d8b8664bd0a6dfe2d1f5",
+  "asset_bytes": 175739,
+  "contours": 338,
+  "palette": {
+    "light": "#10243c",
+    "dark": "#ebffff"
+  },
+  "source_reference_sha256": "d3ead9dbba9794c57a3ff2b1267b15c36045eadd9922e7d6a8788a071e73c246",
+  "button_geometry": {
+    "alice": [
+      36.422652,
+      13.646409,
+      12.106354
+    ],
+    "gemini": [
+      63.356354,
+      13.646409,
+      12.251381
+    ],
+    "chatgpt": [
+      20.096685,
+      29.116022,
+      12.506906
+    ],
+    "deepseek": [
+      79.848066,
+      29.005525,
+      12.368785
+    ],
+    "anthropic": [
+      9.903315,
+      49.116022,
+      12.279006
+    ],
+    "qwen": [
+      89.958564,
+      49.005525,
+      12.230663
+    ],
+    "wb": [
+      28.632597,
+      81.60221,
+      18.895028
+    ],
+    "ozon": [
+      70.980663,
+      81.933702,
+      18.59116
+    ]
+  }
+}
