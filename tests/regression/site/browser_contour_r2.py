@@ -88,22 +88,22 @@ CHECK = r'''(() => {
   const r=rect(e),slot=rect(e.querySelector('.market-logo-slot')),label=e.querySelector('.market-label'),l=rect(label),range=document.createRange();range.selectNodeContents(label);const text=range.getBoundingClientRect();
   return {name:label.innerText,rect:r,slot,labelRect:l,textCenterError:Math.abs(text.x+text.width/2+scrollX-r.x-r.w/2),labelTop:(l.y-r.y)/r.h,slotTop:(slot.y-r.y)/r.h,font:getComputedStyle(label).fontSize,color:getComputedStyle(e).color,bg:getComputedStyle(e).backgroundColor,bgImage:getComputedStyle(e).backgroundImage};
  });
- const vectors=[...document.querySelectorAll('.contour-underlay,.contour-grips')].map(e=>({tag:e.tagName.toLowerCase(),cls:e.getAttribute('class'),color:getComputedStyle(e).color,transform:getComputedStyle(e).transform,uses:[...e.querySelectorAll('use')].map(u=>{const b=u.getBBox();return {href:u.getAttribute('href'),color:getComputedStyle(u).color,w:b.width,h:b.height}})}));
- return {r3,width:innerWidth,cw:document.documentElement.clientWidth,sw:document.documentElement.scrollWidth,scene:rect(scene),copy:rect(copy),hero:rect(hero),stacked:rect(scene).y>=rect(copy).bottom,sceneBackground:getComputedStyle(scene).backgroundColor,pageBackground:getComputedStyle(page).backgroundColor,marks,markets,vectors,badgeRects:badges.map(rect),h1:document.querySelector('h1').innerText,canonical:document.querySelector('link[rel=canonical]').href,font:document.fonts.check('400 16px Rubik','Октопорт'),images:[...document.images].every(i=>i.complete&&i.naturalWidth>0)};
+ const under=document.querySelector('.contour-underlay'),grip=document.querySelector('.contour-grips');
+ const manual={count:document.querySelectorAll('.contour-manual-r8').length,underTag:under?.tagName.toLowerCase(),gripTag:grip?.tagName.toLowerCase(),underColor:getComputedStyle(under).color,gripColor:getComputedStyle(grip).color,outline:getComputedStyle(document.querySelector('.r8-arm-shape')).stroke,core:getComputedStyle(document.querySelector('.r8-undersides path')).stroke,head:getComputedStyle(document.querySelector('.r8-head')).stroke,cup:getComputedStyle(document.querySelector('.r8-cups ellipse')).stroke,gripOutline:getComputedStyle(document.querySelector('.r8-grip-outline')).stroke,gripCore:getComputedStyle(document.querySelector('.r8-grip-core')).stroke,paths:under.querySelectorAll('path').length,ellipses:under.querySelectorAll('ellipse').length,images:under.querySelectorAll('image').length+grip.querySelectorAll('image').length,externalUses:[...under.querySelectorAll('use'),...grip.querySelectorAll('use')].filter(u=>(u.getAttribute('href')||'').startsWith('/')).length};
+ return {r3,width:innerWidth,cw:document.documentElement.clientWidth,sw:document.documentElement.scrollWidth,scene:rect(scene),copy:rect(copy),hero:rect(hero),stacked:rect(scene).y>=rect(copy).bottom,sceneBackground:getComputedStyle(scene).backgroundColor,pageBackground:getComputedStyle(page).backgroundColor,marks,markets,manual,badgeRects:badges.map(rect),h1:document.querySelector('h1').innerText,canonical:document.querySelector('link[rel=canonical]').href,font:document.fonts.check('400 16px Rubik','Октопорт'),images:[...document.images].every(i=>i.complete&&i.naturalWidth>0)};
 })()'''
 
 def checks(d):
  assert d['cw']==d['sw'],('overflow',d)
  assert d['sceneBackground']=='rgba(0, 0, 0, 0)',('rectangle background',d['sceneBackground'])
- assert len(d['vectors'])==2 and all(v['tag']=='svg' for v in d['vectors']),('vector layers missing',d['vectors'])
  expected_ink='rgb(235, 255, 255)' if d['r3']['dark'] else 'rgb(16, 36, 60)'
- under,grip=d['vectors']
- assert len(under['uses'])==1 and under['uses'][0]['href'].endswith('#underlay'),under
- assert under['color']==expected_ink and under['uses'][0]['color']==expected_ink,('underlay color mismatch',under,expected_ink)
- assert under['uses'][0]['w']>400 and under['uses'][0]['h']>250,('external vector did not render',under)
- assert len(grip['uses'])==2,grip
- assert grip['uses'][0]['href'].endswith('#grip-paper') and grip['uses'][0]['color']==d['pageBackground'],('grip paper mismatch',grip)
- assert grip['uses'][1]['href'].endswith('#grip-ink') and grip['uses'][1]['color']==expected_ink,('grip ink mismatch',grip)
+ m=d['manual']
+ assert m['count']==2 and m['underTag']=='svg' and m['gripTag']=='svg',('manual vector layers missing',m)
+ assert m['underColor']==expected_ink and m['gripColor']==expected_ink,('manual svg color mismatch',m,expected_ink)
+ assert m['outline']==expected_ink and m['head']==expected_ink and m['cup']==expected_ink and m['gripOutline']==expected_ink,('ink token mismatch',m)
+ assert m['core']==expected_ink and m['gripCore']==d['pageBackground'],('manual layer token mismatch',m,d['pageBackground'],expected_ink)
+ assert m['paths']>=15 and m['ellipses']>=35,('manual geometry incomplete',m)
+ assert m['images']==0 and m['externalUses']==0,('raster/external art leaked into manual SVG',m)
  assert abs(d['scene']['w']/d['scene']['h']-559/419)<.001,('reference aspect ratio',d['scene'])
  assert d['images'] and d['font'],('loading',d)
  assert d['h1']=='Подключите ваш ИИ к Ozon и Wildberries'
@@ -207,7 +207,7 @@ try:
   b.close();b=None
   print('BROWSER_PASS',name,'states',len(results),flush=True)
  (OUT/'results.json').write_text(json.dumps({'status':'PASS','url':BASE,'results':results,'hover':hover,'pixel_samples':pixels},ensure_ascii=False,indent=2))
- print('CONTOUR_VECTOR_R6_PASS',len(results),'states',len(hover),'hover/focus pairs',str(OUT),flush=True)
+ print('CONTOUR_MANUAL_R8_PASS',len(results),'states',len(hover),'hover/focus pairs',str(OUT),flush=True)
 except Exception:
  (OUT/'partial.json').write_text(json.dumps({'status':'FAIL','url':BASE,'results':results,'hover':hover},ensure_ascii=False,indent=2));raise
 finally:
