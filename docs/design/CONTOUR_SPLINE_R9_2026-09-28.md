@@ -35,3 +35,17 @@ Source browser result SHA-256:
 - Chrome: `84772354bb38df4c578b9f71a35b57a31a12419bf85663cd5469f1917b3a2768`
 - Opera: `5bffe76b1f0d7627e17be4b0463e85ede1fa94bebf976665a3e25025079211d0`
 - Yandex: `71d73ab76c24fce976aa004a270bbd493ba4e0ee723e05b7500b1ccfb5797d73`
+
+## Production acceptance
+
+Status: PRODUCTION_DEPLOYED / LIVE_QA_PASS.
+
+Production release: `685f6b3b88800d406d5aee553a22324b8ae46883`.
+Rollback backup: `/var/backups/octoport-site/20260928T024926Z`.
+
+Live Chrome / Opera / Yandex quick QA: 30 states PASS.
+Live independent hover/focus checks: 48/48 PASS.
+Live result SHA-256:
+- Chrome: `c631b6994a362cbcc821a0950cb7fe55f56bc8f97c75d1687f3b0d2283fc2196`
+- Opera: `c750068ee49dee1f4a956a6eee112c6e64f220829bbe7487c095ff50c42bad1d`
+- Yandex: `52a782ac27d5c5898418307998958dc28fb54c8211e1f96b0c962a3aa3d8238a`
