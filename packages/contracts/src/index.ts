@@ -2587,3 +2587,6 @@ export type FeedbackFunnelQueryV1 = z.infer<typeof FeedbackFunnelQueryV1Schema>;
 export type FeedbackFunnelResponseV1 = z.infer<
   typeof FeedbackFunnelResponseV1Schema
 >;
+
+export * from "./adapter-profile.js";
+export * from "./signed-ai-profile.js";
