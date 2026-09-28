@@ -413,6 +413,107 @@ describe.sequential("API-watch product baseline durability", () => {
     ).toBe(0);
   });
 
+  it("distinguishes identical snapshot bytes by exact nullable document scope", async () => {
+    await seedSnapshot({
+      snapshotId: "snapshot-wb-family",
+      sourceFamily: "WILDBERRIES",
+      documentKey: null,
+      shaChar: "f",
+    });
+    await seedSnapshot({
+      snapshotId: "snapshot-wb-doc-a",
+      sourceFamily: "WILDBERRIES",
+      documentKey: "doc-a",
+      shaChar: "f",
+    });
+    await seedSnapshot({
+      snapshotId: "snapshot-wb-doc-b",
+      sourceFamily: "WILDBERRIES",
+      documentKey: "doc-b",
+      shaChar: "f",
+    });
+
+    const rows = await runtime.query<{
+      snapshot_id: string;
+      document_key: string | null;
+    }>(
+      `SELECT snapshot_id,document_key
+         FROM api_watch_snapshots
+        WHERE source_family='WILDBERRIES' AND sha256=$1
+        ORDER BY document_key NULLS FIRST,snapshot_id`,
+      ["f".repeat(64)],
+    );
+    expect(rows.rows).toEqual([
+      { snapshot_id: "snapshot-wb-family", document_key: null },
+      { snapshot_id: "snapshot-wb-doc-a", document_key: "doc-a" },
+      { snapshot_id: "snapshot-wb-doc-b", document_key: "doc-b" },
+    ]);
+
+    await expect(
+      seedSnapshot({
+        snapshotId: "snapshot-wb-family-duplicate",
+        sourceFamily: "WILDBERRIES",
+        documentKey: null,
+        shaChar: "f",
+      }),
+    ).rejects.toThrow();
+    await expect(
+      seedSnapshot({
+        snapshotId: "snapshot-wb-doc-a-duplicate",
+        sourceFamily: "WILDBERRIES",
+        documentKey: "doc-a",
+        shaChar: "f",
+      }),
+    ).rejects.toThrow();
+  });
+
+  it("stores report outcomes independently by nullable document scope", async () => {
+    await runtime.query(
+      `INSERT INTO api_watch_reports(
+         report_id,run_source,created_at,state
+       ) VALUES('report-document-scope','SCHEDULED',$1,'COMPLETED')`,
+      [BASE],
+    );
+    await runtime.query(
+      `INSERT INTO api_watch_report_sources(
+         report_id,source_family,document_key,acquisition_outcome
+       ) VALUES
+         ('report-document-scope','WILDBERRIES',NULL,'FAMILY_OUTCOME'),
+         ('report-document-scope','WILDBERRIES','doc-a','DOCUMENT_A_OUTCOME'),
+         ('report-document-scope','WILDBERRIES','doc-b','DOCUMENT_B_OUTCOME')`,
+    );
+
+    const rows = await runtime.query<{
+      document_key: string | null;
+      acquisition_outcome: string;
+    }>(
+      `SELECT document_key,acquisition_outcome
+         FROM api_watch_report_sources
+        WHERE report_id='report-document-scope' AND source_family='WILDBERRIES'
+        ORDER BY document_key NULLS FIRST`,
+    );
+    expect(rows.rows).toEqual([
+      { document_key: null, acquisition_outcome: "FAMILY_OUTCOME" },
+      { document_key: "doc-a", acquisition_outcome: "DOCUMENT_A_OUTCOME" },
+      { document_key: "doc-b", acquisition_outcome: "DOCUMENT_B_OUTCOME" },
+    ]);
+
+    await expect(
+      runtime.query(
+        `INSERT INTO api_watch_report_sources(
+           report_id,source_family,document_key,acquisition_outcome
+         ) VALUES('report-document-scope','WILDBERRIES',NULL,'DUPLICATE_FAMILY')`,
+      ),
+    ).rejects.toThrow();
+    await expect(
+      runtime.query(
+        `INSERT INTO api_watch_report_sources(
+           report_id,source_family,document_key,acquisition_outcome
+         ) VALUES('report-document-scope','WILDBERRIES','doc-a','DUPLICATE_DOCUMENT')`,
+      ),
+    ).rejects.toThrow();
+  });
+
   it("serializes a direct baseline insert against concurrent snapshot scope drift", async () => {
     await seedSnapshot({
       snapshotId: "snapshot-race-v1",

@@ -64,17 +64,18 @@ Static:
 - `git diff --check` plus new-file whitespace checks: PASS.
 
 Final disposable PostgreSQL run, sequential under B DB supervisor:
-- `api-watch-product-baseline.integration.test.ts`: 7/7 PASS, including
+- `api-watch-product-baseline.integration.test.ts`: 9/9 PASS, including
   explicit no-auto-advance, create, CAS update, stale CAS, missing snapshot,
   direct/repository scope mismatch, two-connection concurrency, uniqueness,
-  append-only/history integrity.
+  append-only/history integrity, identical-byte snapshot document scopes and
+  independent family/document report-source scopes.
 - `canonical-lineage.integration.test.ts`: 7/7 PASS.
 - `postgres.integration.test.ts`: 3/3 PASS.
 - `adapter-registry.integration.test.ts`: 7/7 PASS.
 - `health-retention-upgrade.integration.test.ts`: 10/10 PASS.
-- Total targeted PostgreSQL assertions: 34/34 PASS.
+- Total targeted PostgreSQL assertions: 36/36 PASS.
 - Supervisor:
-  `octoport-test-b-ed66dcb2cd05493c8846b5cb1bc93ead.service`,
+  `octoport-test-b-7feccb0715f742f18fffa318c7f7ede2.service`,
   exit 0, peak 520 MiB, cleanup verified.
 
 An earlier attempt launched multiple schema-resetting integration suites in one
@@ -101,3 +102,28 @@ logic, live database, deployment, production unit, package publication or
 artifact payload was changed. C must explicitly decide when compatibility
 evidence is sufficient and wire the repository; no automatic baseline
 advancement is introduced.
+
+## Document-scope follow-up
+
+C follow-ups `C-B-API-WATCH-SNAPSHOT-DOCUMENT-SCOPE-20260928-2000` and
+`C-B-API-WATCH-REPORT-DOCUMENT-SCOPE-20260928-2005` were folded into the same
+unapplied migration `0054` before C intake. No `0055` was created.
+
+`api_watch_snapshots` now replaces the old `(source_family,sha256)` unique index
+with two null-safe scope indexes: one family-level row where `document_key IS
+NULL`, and exact `(source_family,sha256,document_key)` rows for document scopes.
+This permits identical WB bytes in multiple configured document scopes without
+collapsing their baseline identity.
+
+`api_watch_report_sources` now has nullable `document_key`; the old
+`(report_id,source_family)` primary key is replaced by family-level and
+document-level partial unique indexes. Existing rows upgrade as `NULL` and
+remain unique. One report can therefore retain family-level plus sibling WB
+document outcomes independently.
+
+Final Luna review:
+`/root/octoport-control/logs/B/api_watch_document_scope_final_20260928-result.md`
+returned `NO BLOCKING DEFECTS`. It identified one coordinated deployment caveat:
+C must update `tooling/api-watch/src/report.ts` reader/writer before applying
+`0054`, because the pre-migration `ON CONFLICT(report_id,source_family)` no
+longer matches a unique constraint. C already owns that wiring by the request.
