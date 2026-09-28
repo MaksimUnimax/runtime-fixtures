@@ -237,19 +237,14 @@ describe("Stream-2 migration receipts", () => {
     ) as { entries: Array<{ tag: string }> };
     expect(sql).toContain('DROP INDEX "api_watch_snapshots_family_sha_unique"');
     expect(sql).toContain(
-      'CREATE UNIQUE INDEX "api_watch_snapshots_family_sha_family_scope_unique"',
-    );
-    expect(sql).toContain(
       'CREATE UNIQUE INDEX "api_watch_snapshots_family_sha_document_scope_unique"',
     );
+    expect(sql).toContain("NULLS NOT DISTINCT");
     expect(sql).toContain(
       'ALTER TABLE "api_watch_report_sources" ADD COLUMN "document_key"',
     );
     expect(sql).toContain(
       'ALTER TABLE "api_watch_report_sources" DROP CONSTRAINT "api_watch_report_sources_pk"',
-    );
-    expect(sql).toContain(
-      'CREATE UNIQUE INDEX "api_watch_report_sources_family_scope_unique"',
     );
     expect(sql).toContain(
       'CREATE UNIQUE INDEX "api_watch_report_sources_document_scope_unique"',

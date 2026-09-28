@@ -1,12 +1,7 @@
 DROP INDEX "api_watch_snapshots_family_sha_unique";
 --> statement-breakpoint
-CREATE UNIQUE INDEX "api_watch_snapshots_family_sha_family_scope_unique"
-  ON "api_watch_snapshots" ("source_family","sha256")
-  WHERE "document_key" IS NULL;
---> statement-breakpoint
 CREATE UNIQUE INDEX "api_watch_snapshots_family_sha_document_scope_unique"
-  ON "api_watch_snapshots" ("source_family","sha256","document_key")
-  WHERE "document_key" IS NOT NULL;
+  ON "api_watch_snapshots" ("source_family","sha256","document_key") NULLS NOT DISTINCT;
 --> statement-breakpoint
 ALTER TABLE "api_watch_report_sources" ADD COLUMN "document_key" varchar(128);
 --> statement-breakpoint
@@ -16,13 +11,8 @@ ALTER TABLE "api_watch_report_sources"
   ADD CONSTRAINT "api_watch_report_sources_document_key_nonempty"
   CHECK ("document_key" IS NULL OR length(btrim("document_key")) > 0);
 --> statement-breakpoint
-CREATE UNIQUE INDEX "api_watch_report_sources_family_scope_unique"
-  ON "api_watch_report_sources" ("report_id","source_family")
-  WHERE "document_key" IS NULL;
---> statement-breakpoint
 CREATE UNIQUE INDEX "api_watch_report_sources_document_scope_unique"
-  ON "api_watch_report_sources" ("report_id","source_family","document_key")
-  WHERE "document_key" IS NOT NULL;
+  ON "api_watch_report_sources" ("report_id","source_family","document_key") NULLS NOT DISTINCT;
 --> statement-breakpoint
 CREATE INDEX "api_watch_report_sources_scope_index"
   ON "api_watch_report_sources" ("report_id","source_family","document_key");

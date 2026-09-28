@@ -465,6 +465,40 @@ describe.sequential("API-watch product baseline durability", () => {
         shaChar: "f",
       }),
     ).rejects.toThrow();
+
+    const authority = await runtime.query<{ authority_record_id: string }>(
+      `SELECT authority_record_id
+         FROM api_watch_snapshots
+        WHERE snapshot_id='snapshot-wb-family'`,
+    );
+    const authorityRecordId = authority.rows[0]?.authority_record_id;
+    if (!authorityRecordId) throw new Error("TEST_AUTHORITY_RECORD_MISSING");
+
+    const familyConflict = await runtime.query<{ snapshot_id: string }>(
+      `INSERT INTO api_watch_snapshots(
+         snapshot_id,source_family,sha256,size_bytes,spec_version,official_url,
+         acquisition_mode,created_at,authority_record_id,artifact_path,document_key
+       ) VALUES('snapshot-wb-family-on-conflict','WILDBERRIES',$1,128,'v1',
+                'https://example.invalid/family-conflict','AUTOMATIC',$2,$3,
+                '/safe/family-conflict.json',NULL)
+       ON CONFLICT (source_family,sha256,document_key) DO NOTHING
+       RETURNING snapshot_id`,
+      ["f".repeat(64), BASE, authorityRecordId],
+    );
+    expect(familyConflict.rows).toEqual([]);
+
+    const documentConflict = await runtime.query<{ snapshot_id: string }>(
+      `INSERT INTO api_watch_snapshots(
+         snapshot_id,source_family,sha256,size_bytes,spec_version,official_url,
+         acquisition_mode,created_at,authority_record_id,artifact_path,document_key
+       ) VALUES('snapshot-wb-doc-a-on-conflict','WILDBERRIES',$1,128,'v1',
+                'https://example.invalid/doc-conflict','AUTOMATIC',$2,$3,
+                '/safe/doc-conflict.json','doc-a')
+       ON CONFLICT (source_family,sha256,document_key) DO NOTHING
+       RETURNING snapshot_id`,
+      ["f".repeat(64), BASE, authorityRecordId],
+    );
+    expect(documentConflict.rows).toEqual([]);
   });
 
   it("stores report outcomes independently by nullable document scope", async () => {
@@ -512,6 +546,36 @@ describe.sequential("API-watch product baseline durability", () => {
          ) VALUES('report-document-scope','WILDBERRIES','doc-a','DUPLICATE_DOCUMENT')`,
       ),
     ).rejects.toThrow();
+
+    await runtime.query(
+      `INSERT INTO api_watch_report_sources(
+         report_id,source_family,document_key,acquisition_outcome
+       ) VALUES('report-document-scope','WILDBERRIES',NULL,'FAMILY_UPDATED')
+       ON CONFLICT (report_id,source_family,document_key) DO UPDATE
+       SET acquisition_outcome=EXCLUDED.acquisition_outcome`,
+    );
+    await runtime.query(
+      `INSERT INTO api_watch_report_sources(
+         report_id,source_family,document_key,acquisition_outcome
+       ) VALUES('report-document-scope','WILDBERRIES','doc-a','DOCUMENT_A_UPDATED')
+       ON CONFLICT (report_id,source_family,document_key) DO UPDATE
+       SET acquisition_outcome=EXCLUDED.acquisition_outcome`,
+    );
+
+    const updated = await runtime.query<{
+      document_key: string | null;
+      acquisition_outcome: string;
+    }>(
+      `SELECT document_key,acquisition_outcome
+         FROM api_watch_report_sources
+        WHERE report_id='report-document-scope' AND source_family='WILDBERRIES'
+        ORDER BY document_key NULLS FIRST`,
+    );
+    expect(updated.rows).toEqual([
+      { document_key: null, acquisition_outcome: "FAMILY_UPDATED" },
+      { document_key: "doc-a", acquisition_outcome: "DOCUMENT_A_UPDATED" },
+      { document_key: "doc-b", acquisition_outcome: "DOCUMENT_B_OUTCOME" },
+    ]);
   });
 
   it("serializes a direct baseline insert against concurrent snapshot scope drift", async () => {
