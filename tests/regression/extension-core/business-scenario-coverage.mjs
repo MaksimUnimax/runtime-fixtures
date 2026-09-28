@@ -68,6 +68,26 @@ function loadGlobal(relative, name) {
   return context[name];
 }
 
+function loadEffectiveWildberriesRegistry() {
+  const composition = JSON.parse(read("apps/extension/composition.json"));
+  const sources =
+    composition.isolated_bundles?.["shared/wb_adapter.js"]?.reference_sources;
+  assert.ok(Array.isArray(sources), "WB effective registry composition missing");
+  const donorIndex = sources.indexOf(coverage.authorities.wildberries.registryPath);
+  const credentialsIndex = sources.findIndex((value) =>
+    value.endsWith("/wb_credentials.js"),
+  );
+  assert.equal(donorIndex, 0, "frozen WB donor must remain first in bundle");
+  assert.ok(credentialsIndex > donorIndex, "WB registry overlay boundary missing");
+  const context = {};
+  context.globalThis = context;
+  vm.createContext(context);
+  for (const relative of sources.slice(donorIndex, credentialsIndex))
+    vm.runInContext(read(relative), context, { filename: relative });
+  assert.ok(context.WBOperations?.OPERATIONS, "effective WB registry missing");
+  return context.WBOperations;
+}
+
 function parseTsv(relative) {
   const lines = read(relative).trimEnd().split("\n");
   const headers = lines.shift().split("\t");
@@ -120,10 +140,7 @@ assert.equal(
   "scenario IDs must be unique",
 );
 
-const wb = loadGlobal(
-  coverage.authorities.wildberries.registryPath,
-  "WBOperations",
-);
+const wb = loadEffectiveWildberriesRegistry();
 const ozon = loadGlobal(
   coverage.authorities.ozon.registryPath,
   "OzonOperationRegistry",
@@ -878,5 +895,6 @@ console.log(
     semanticProjectionSha256: coverage.readiness.semanticProjectionSha256,
     ozonRegistrySha256: coverage.authorities.ozon.registrySha256,
     wbRegistrySha256: coverage.authorities.wildberries.registrySha256,
+    wbEffectiveOperationCount: Object.keys(wb.OPERATIONS).length,
   }),
 );

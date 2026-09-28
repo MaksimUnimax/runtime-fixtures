@@ -120,7 +120,7 @@ for (const [label, current] of [
   assert.equal(current.path, deprecated.path);
   assert.equal(current.effect, "READ");
   assert.equal(current.execution_enabled, true);
-  assert.equal(current.current, fixture.registryGap.goodsReturnExpectedCurrent);
+  assert.equal(current.current, fixture.coverageBoundary.goodsReturnExpectedCurrent);
 }
 assert.equal(deprecated.disableDate, "2026-10-26");
 assert.ok(deprecated.movementFields.includes("returnType"));
@@ -164,7 +164,7 @@ if (overlayOverridePath) {
   );
   assert.equal(
     combined.OPERATIONS[deprecated.operationAlias].current,
-    fixture.registryGap.goodsReturnExpectedCurrent,
+    fixture.coverageBoundary.goodsReturnExpectedCurrent,
     "deprecated goods_return currentness changed before its retirement boundary",
   );
   const driftedOverlay = overlaySource.replaceAll(
@@ -187,9 +187,9 @@ if (overlayOverridePath) {
 
 assert.equal(std11.wbCoverage, "BOUNDARY");
 assert.ok(std11.wbOperations.includes("goods_return"));
-assert.ok(std11.metrics.includes("goods_return_movement:provider_event"));
+assert.ok(std11.metrics.includes("return_movement:provider_event"));
 assert.ok(std11.metrics.includes("writeoff_transfer_cause:unverified"));
-assert.equal(std11.externalDependency, fixture.registryGap.code);
+assert.equal(std11.externalDependency, fixture.coverageBoundary.code);
 assert.deepEqual(std11.numericFixtures, ["movement_evidence"]);
 assert.equal(fixture.rules.missing, "MISSING_NOT_ZERO");
 assert.match(fixture.rules.causalityBoundary, /DOES_NOT_PROVE/);

@@ -61,16 +61,16 @@
       ]
     }
   },
-  "registryGap": {
-    "code": "WB_ITEM_RETURNS_REPLACEMENT_NOT_IN_ACCEPTED_EFFECTIVE_REGISTRY__GENERIC_WRITEOFF_TRANSFER_CAUSALITY_UNVERIFIED",
-    "owner": "C_SHARED_WB_AUTHORITY_HANDOFF",
+  "coverageBoundary": {
+    "code": "GENERIC_WRITEOFF_TRANSFER_CAUSALITY_UNVERIFIED",
+    "owner": "A04_SOURCE_BOUNDARY",
     "goodsReturnExpectedCurrent": true
   },
   "registryEvidence": {
     "compositionPath": "apps/extension/composition.json",
     "bundle": "shared/wb_adapter.js",
     "frozenDonorExpectedReplacementPresent": false,
-    "acceptedEffectiveExpectedReplacementPresent": false,
+    "acceptedEffectiveExpectedReplacementPresent": true,
     "analyticsOverlayPath": "packages/marketplaces/wildberries/src/retired-analytics-registry-overlay.js",
     "pinnedCandidate": {
       "commit": "bac8cc88bb58298b07d2235390363aa706abe43a",
@@ -81,7 +81,7 @@
     }
   },
   "rules": {
-    "movementEvidence": "GOODS_RETURN_ROW_IS_PROVIDER_RETURN_MOVEMENT_EVIDENCE",
+    "movementEvidence": "GOODS_RETURN_OR_ITEM_RETURNS_ROW_IS_PROVIDER_RETURN_MOVEMENT_EVIDENCE",
     "snapshotBoundary": "STOCK_DECLINE_WITHOUT_PROVIDER_EVENT_DOES_NOT_PROVE_MOVEMENT",
     "causalityBoundary": "RETURN_MOVEMENT_EVENT_DOES_NOT_PROVE_WRITEOFF_OR_GENERIC_TRANSFER_CAUSE",
     "missing": "MISSING_NOT_ZERO",
