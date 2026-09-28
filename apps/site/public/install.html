@@ -3,12 +3,12 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Install Octoport</title>
+    <title>Установка и API-ключи Октопорта</title>
     <meta name="robots" content="noindex, follow" />
     <meta name="theme-color" content="#f5f7f9" />
     <meta name="color-scheme" content="light" />
     <link rel="canonical" href="https://octoport.ru/install" />
-    <link rel="stylesheet" href="/styles.css?v=contour-20260928-r12" />
+    <link rel="stylesheet" href="/styles.css?v=home-funnel-20260928-r2" />
     <link rel="icon" href="/assets/favicon-contour-v1.png" type="image/png" sizes="120x120" />
   </head>
   <body>
@@ -25,21 +25,74 @@
 
     <main class="public-page section-shell">
       <p class="eyebrow">Начало работы</p>
-      <h1>Install Octoport</h1>
-      <p class="page-lead">Официальная установка Octoport из каталога расширений готовится. На этой странице появится ссылка на конкретную карточку после того, как она будет доступна.</p>
+      <h1>Установка и API-ключи Октопорта</h1>
+      <p class="page-lead">Сначала установите расширение из официального каталога браузера, затем добавьте в Октопорт ключи доступа своего магазина. Ключи вводятся в расширение — не в чат с нейросетью.</p>
+
       <section class="page-section install-status" role="status">
-        <h2>Пока нет ссылки для установки</h2>
-        <p>Мы не публикуем инструкции для ZIP-файла или локальной установки. Не устанавливайте сборки из неофициальных источников и не передавайте данные маркетплейса в AI-чат.</p>
+        <h2>Официальные карточки расширения готовятся</h2>
+        <p>Пока публичные ссылки на каталоги не опубликованы. Не устанавливайте случайные ZIP-сборки и не передавайте API-ключи третьим лицам. Когда карточки станут доступны, ссылки появятся здесь.</p>
       </section>
-      <section class="page-section">
-        <h2>До установки</h2>
-        <p>Первая бета ограничена чтением данных и отчётов Ozon и Wildberries. Для ответов на вопросы о данных и их обработке см. <a href="/privacy">политику конфиденциальности</a>. За помощью обращайтесь на страницу <a href="/support">поддержки</a>.</p>
+
+      <section class="page-section" id="api-keys">
+        <p class="eyebrow">Шаг 2</p>
+        <h2>Как получить API-ключи магазина</h2>
+        <p>Для первой беты используйте доступ только на чтение. Названия пунктов в кабинетах маркетплейсов могут меняться — ориентируйтесь на разделы API/интеграций и проверяйте выбранный уровень доступа перед созданием ключа.</p>
+
+        <div class="key-guide-grid">
+          <article class="key-guide-card">
+            <p class="key-market ozon-text">Ozon Seller API</p>
+            <h3>Client ID + API key</h3>
+            <ol>
+              <li>Откройте кабинет Ozon Seller и перейдите в <strong>Настройки → Seller API</strong>.</li>
+              <li>Скопируйте <strong>Client ID</strong>.</li>
+              <li>Нажмите «Сгенерировать ключ» и выберите роль <strong>Admin read only</strong>.</li>
+              <li>Сохраните API key: секретный ключ показывается при создании, не отправляйте его в чат.</li>
+              <li>В Октопорте откройте «Магазины» → Ozon и вставьте Client ID и API key в карточку Seller API.</li>
+            </ol>
+            <a class="text-link" href="https://seller.ozon.ru/app/settings/api-keys" target="_blank" rel="noopener noreferrer">Открыть Seller API в Ozon ↗</a>
+          </article>
+
+          <article class="key-guide-card">
+            <p class="key-market ozon-text">Ozon Performance API</p>
+            <h3>Для рекламной аналитики</h3>
+            <ol>
+              <li>Performance-доступ нужен отдельно, если вы хотите разбирать рекламные кампании и расходы.</li>
+              <li>Создайте API-клиент в кабинете Ozon Performance и получите его credentials.</li>
+              <li>В Октопорте добавьте их в отдельную Performance-секцию того же магазина.</li>
+              <li>Если Performance-доступ не добавлен, Seller API продолжает работать для остальных доступных данных.</li>
+            </ol>
+            <p class="guide-note">Не выдавайте права на изменение кампаний: Октопорт в первой версии использует рекламные данные только для чтения и анализа.</p>
+          </article>
+
+          <article class="key-guide-card">
+            <p class="key-market wb-text">Wildberries</p>
+            <h3>Personal token · Только чтение</h3>
+            <ol>
+              <li>В WB Partners откройте раздел <strong>Интеграции по API</strong> и создайте <strong>Personal token</strong> для своего магазина.</li>
+              <li>Выберите только нужные категории данных. Для аналитики начните с «Аналитика»; «Статистика» и «Продвижение» добавляйте, если нужны соответствующие отчёты и реклама.</li>
+              <li>Установите уровень доступа <strong>«Только чтение»</strong>.</li>
+              <li>Скопируйте токен и вставьте его в карточку Wildberries в Октопорте.</li>
+            </ol>
+            <div class="guide-links"><a class="text-link" href="https://seller.wildberries.ru/instructions/ru/ru/category/integration" target="_blank" rel="noopener noreferrer">Инструкции WB API ↗</a><a class="text-link" href="https://seller.wildberries.ru/instructions/ru/ru/material/how-to-create-update-or-delete-a-wb-api-token" target="_blank" rel="noopener noreferrer">Создание токена ↗</a></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="page-section safety-panel">
+        <h2>Как ввести ключи в Октопорт</h2>
+        <ol>
+          <li>Откройте расширение и раздел магазинов.</li>
+          <li>Выберите Ozon или Wildberries и создайте карточку магазина.</li>
+          <li>Вставьте реквизиты в соответствующие поля и сохраните.</li>
+          <li>Проверьте подключение. После успешной проверки вернитесь в диалог с нейросетью и нажмите «Начать».</li>
+        </ol>
+        <p><strong>Не вставляйте API-ключи в сообщения нейросети.</strong> Они предназначены только для формы подключения внутри расширения.</p>
       </section>
     </main>
 
     <footer class="site-footer">
-      <span>© 2026 Octoport</span>
-      <nav class="footer-nav" aria-label="Служебные страницы"><a href="/privacy">Privacy</a><a href="/support">Поддержка</a><a href="/install">Установка</a></nav>
+      <span>© 2026 Октопорт</span>
+      <nav class="footer-nav" aria-label="Служебные страницы"><a href="/privacy">Конфиденциальность</a><a href="/support">Поддержка</a><a href="/install">Установка</a></nav>
     </footer>
   </body>
 </html>

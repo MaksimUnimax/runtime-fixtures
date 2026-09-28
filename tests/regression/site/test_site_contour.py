@@ -164,7 +164,9 @@ class ContourSourceTests(unittest.TestCase):
         self.assertEqual(len(fragment),1)
         self.assertEqual(re.sub(r'<[^>]+>','',fragment[0]),'Подключите Алису, ChatGPT,DeepSeek')
         self.assertIn('<span class="hero-ai-list">Алису, ChatGPT,<br />DeepSeek</span>',fragment[0])
-        self.assertIn('или другую нейросеть<br />к своему магазину<br />на WB и Ozon.',self.html)
+        self.assertIn('или другую нейросеть<br />к своему магазину<br />на <span class="brand-wildberries">WB</span> и <span class="brand-ozon">Ozon</span>.',self.html)
+        self.assertIn('.brand-wildberries',self.css)
+        self.assertIn('.brand-ozon',self.css)
         self.assertIn('Октопорт соединяет ваш кабинет продавца на Ozon или Wildberries с любой нейросетью на ваш выбор.',self.html)
         self.assertIn('Можно использовать бесплатные аккаунты нейросетей.',self.html)
 
