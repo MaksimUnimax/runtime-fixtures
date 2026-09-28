@@ -20,7 +20,7 @@ const authority: Store1PackageAuthority = {
   version: STORE1_VERSION,
   contractVersion: STORE1_CONTRACT,
   artifactSha256: STORE1_ACCEPTED_ARTIFACT_SHA256,
-  filename: "OCTOPORT_v0.2.5_CHROMIUM_STORE.zip",
+  filename: `OCTOPORT_v${STORE1_VERSION}_CHROMIUM_STORE.zip`,
 };
 const ids = {
   policy: "00000000-0000-4000-8000-000000000001",
@@ -174,15 +174,31 @@ describe("STORE-1 ordinary-admin activation planner", () => {
     });
   });
 
+  it("rejects the superseded 0.2.5 package authority before any read or mutation", () => {
+    const stale = {
+      sourceHead: "68f1621376be4d7aeeff44bc76cc326f8cc64954",
+      sourceTree: "8eb20bbc19bbbaaa73ca1a9ba139efa90194ea9a",
+      version: "0.2.5",
+      contractVersion: STORE1_CONTRACT,
+      artifactSha256:
+        "33cbf1ad9ec4669abe3a65e24cfbaead4c7c3a1fa711261b2d186d107c33aea1",
+      filename: "OCTOPORT_v0.2.5_CHROMIUM_STORE.zip",
+    } as unknown as Store1PackageAuthority;
+    expect(planStore1Activation(stale, exactReadback())).toMatchObject({
+      status: "CONFLICT",
+      code: "STORE1_PACKAGE_AUTHORITY_CONFLICT",
+    });
+  });
+
   it("publishes only the exact accepted package after reviewer preflight", () => {
     const r = exactReadback();
     r.release = null;
     expect(planStore1Activation(authority, r)).toMatchObject({
       status: "POST",
       next: {
-        path: "/v1/admin/compatibility/releases/0.2.5/publish",
+        path: `/v1/admin/compatibility/releases/${STORE1_VERSION}/publish`,
         body: {
-          version: "0.2.5",
+          version: STORE1_VERSION,
           artifactSha256: STORE1_ACCEPTED_ARTIFACT_SHA256,
           supportedContracts: ["control_plane_v2"],
           supportedBrowsers: ["opera"],
