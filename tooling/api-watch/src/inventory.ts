@@ -28,32 +28,70 @@ function asObject(value: unknown): Record<string, unknown> {
     : {};
 }
 
-function canonical(value: unknown, seen = new Set<object>()): unknown {
+type CanonicalMode = "node" | "named-fields" | "literal";
+const NAMED_FIELD_MAPS = new Set([
+  "properties",
+  "patternProperties",
+  "definitions",
+  "$defs",
+  "dependentSchemas",
+  "dependentRequired",
+  "dependencies",
+  "content",
+  "headers",
+  "mapping",
+  "scopes",
+]);
+
+function canonical(
+  value: unknown,
+  seen = new Set<object>(),
+  mode: CanonicalMode = "node",
+): unknown {
   if (value === null || typeof value !== "object") return value;
+  if (seen.has(value)) return { $cycle: true };
+  seen.add(value);
   if (Array.isArray(value)) {
-    if (seen.has(value)) return { $cycle: true };
-    seen.add(value);
-    const result = value.map((item) => canonical(item, seen));
+    const result = value.map((item) =>
+      canonical(item, seen, mode === "literal" ? "literal" : "node"),
+    );
     seen.delete(value);
     return result;
   }
-  if (seen.has(value)) return { $cycle: true };
-  seen.add(value);
   const object = value as Record<string, unknown>;
-  const result: Record<string, unknown> = {};
+  const entries: [string, unknown][] = [];
   for (const key of Object.keys(object).sort()) {
-    if (key === "description" || key === "example" || key === "examples")
+    // Annotation names are ordinary business field names inside a field map
+    // and ordinary keys inside literal defaults/enum members.
+    if (
+      mode === "node" &&
+      (key === "description" || key === "example" || key === "examples")
+    )
       continue;
+    const childMode: CanonicalMode =
+      mode === "literal"
+        ? "literal"
+        : mode === "named-fields"
+          ? "node"
+          : ["default", "const", "enum"].includes(key)
+            ? "literal"
+            : NAMED_FIELD_MAPS.has(key)
+              ? "named-fields"
+              : "node";
     const field = object[key];
-    result[key] =
-      (key === "enum" || key === "required") && Array.isArray(field)
-        ? [...field]
-            .map((item) => canonical(item, seen))
+    const projected =
+      mode === "node" &&
+      (key === "enum" || key === "required") &&
+      Array.isArray(field)
+        ? field
+            .map((item) => canonical(item, seen, childMode))
             .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)))
-        : canonical(field, seen);
+        : canonical(field, seen, childMode);
+    entries.push([key, projected]);
   }
   seen.delete(value);
-  return result;
+  // Object assignment would treat __proto__ as a setter and lose that field.
+  return Object.fromEntries(entries);
 }
 
 function localRef(
@@ -84,17 +122,18 @@ function localRef(
   );
 }
 
-function fingerprint(value: unknown): string {
+function fingerprint(value: unknown, mode: CanonicalMode = "node"): string {
   return createHash("sha256")
-    .update(JSON.stringify(canonical(value)))
+    .update(JSON.stringify(canonical(value, new Set(), mode)))
     .digest("hex");
 }
 
 function schemaFingerprint(
   value: unknown,
   root: Record<string, unknown>,
+  mode: CanonicalMode = "node",
 ): string {
-  return fingerprint(localRef(value ?? null, root));
+  return fingerprint(localRef(value ?? null, root), mode);
 }
 
 function securityFingerprint(
@@ -136,9 +175,13 @@ function securityFingerprint(
   const schemes = Object.fromEntries(
     [...used]
       .sort()
-      .map((name) => [name, localRef(definitions[name] ?? null, root)]),
+      .map((name) => [
+        name,
+        canonical(localRef(definitions[name] ?? null, root)),
+      ]),
   );
-  return fingerprint({ requirements, schemes });
+  // Scheme names and requirement keys are names, never annotations.
+  return fingerprint({ requirements, schemes }, "literal");
 }
 
 function parametersFingerprint(
@@ -194,6 +237,7 @@ function responseFingerprint(
       }),
     ),
     root,
+    "named-fields",
   );
 }
 

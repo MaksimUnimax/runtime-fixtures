@@ -10,7 +10,14 @@ import {
   createHealthIncidentRepository,
   createHealthNoSessionCompletionAdapter,
   createHealthNoSessionPersistenceRepository,
+  createHealthRetentionRepository,
   createHealthSchedulerRepository,
+  NO_SESSION_RAW_PAYLOAD_GRACE_MS,
+  NO_SESSION_REPLAY_RECEIPT_MIN_AGE_MS,
+  noSessionRetentionScopeSha256,
+  normalizedNoSessionResultSha256,
+  type DatabaseQuery,
+  type DatabaseRuntime,
 } from "./index.js";
 import { runMigrations } from "./migrations.js";
 
@@ -24,6 +31,10 @@ const IDS = {
   revision: "c4000000-0000-4000-8000-000000000004",
   recoveryProfile: "c4000000-0000-4000-8000-000000000005",
   recoveryRevision: "c4000000-0000-4000-8000-000000000006",
+  retentionProfile: "c4000000-0000-4000-8000-000000000007",
+  retentionRevision: "c4000000-0000-4000-8000-000000000008",
+  crashProfile: "c4000000-0000-4000-8000-000000000009",
+  crashRevision: "c4000000-0000-4000-8000-000000000010",
 };
 const runtime = createDatabaseRuntime(connectionString);
 const scheduler = createHealthSchedulerRepository(runtime);
@@ -31,7 +42,92 @@ const persistence = createHealthNoSessionPersistenceRepository(runtime);
 const completion = createHealthNoSessionCompletionAdapter(runtime);
 const incidents = createHealthIncidentRepository(runtime);
 const admin = createHealthAdminReadRepository(runtime);
+
+type Deferred<T> = Readonly<{
+  promise: Promise<T>;
+  resolve(value: T): void;
+}>;
+
+function deferred<T>(): Deferred<T> {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
+function hookRuntimeTransactions(
+  base: DatabaseRuntime,
+  afterQuery: (text: string) => Promise<void>,
+): DatabaseRuntime {
+  return {
+    db: base.db,
+    ready: () => base.ready(),
+    close: async () => undefined,
+    query: <T extends Record<string, unknown> = Record<string, unknown>>(
+      text: string,
+      values?: unknown[],
+    ) => base.query<T>(text, values),
+    transaction: <T>(operation: (transaction: DatabaseQuery) => Promise<T>) =>
+      base.transaction((q) =>
+        operation({
+          query: async <
+            Row extends Record<string, unknown> = Record<string, unknown>,
+          >(
+            text: string,
+            values?: unknown[],
+          ) => {
+            const result = await q.query<Row>(text, values);
+            await afterQuery(text);
+            return result;
+          },
+        }),
+      ),
+  };
+}
+
+function pauseAfterScheduledRunLock(base: DatabaseRuntime) {
+  const locked = deferred<void>();
+  const release = deferred<void>();
+  let paused = false;
+  const runtime = hookRuntimeTransactions(base, async (text) => {
+    if (
+      !paused &&
+      text.includes("FROM health_scheduled_runs WHERE id=$1 FOR UPDATE")
+    ) {
+      paused = true;
+      locked.resolve(undefined);
+      await release.promise;
+    }
+  });
+  return {
+    runtime,
+    locked: locked.promise,
+    release: () => release.resolve(undefined),
+  };
+}
+
+const settleTick = () =>
+  new Promise<void>((resolve) => setTimeout(resolve, 50));
+
 const baseTime = new Date("2026-09-23T12:00:00.000Z");
+const RETENTION_TEST_NOW = new Date(
+  baseTime.valueOf() + NO_SESSION_RAW_PAYLOAD_GRACE_MS + 24 * 60 * 60 * 1_000,
+);
+const RETENTION_METADATA_BEFORE = new Date(
+  RETENTION_TEST_NOW.valueOf() + 1_000,
+);
+const RETENTION_METADATA_NOW = new Date(
+  RETENTION_METADATA_BEFORE.valueOf() +
+    NO_SESSION_REPLAY_RECEIPT_MIN_AGE_MS +
+    1_000,
+);
+const retention = createHealthRetentionRepository(runtime, {
+  clock: () => RETENTION_TEST_NOW,
+});
+const metadataRetention = createHealthRetentionRepository(runtime, {
+  clock: () => RETENTION_METADATA_NOW,
+});
 
 type PersistedRunRow = {
   id: string;
@@ -280,6 +376,12 @@ describe.sequential("C04 no-session persistence PostgreSQL acceptance", () => {
     ]);
     await seedProfile(IDS.recoveryProfile, "chatgpt-standard-recovery-v1", [
       IDS.recoveryRevision,
+    ]);
+    await seedProfile(IDS.retentionProfile, "chatgpt-standard-retention-v1", [
+      IDS.retentionRevision,
+    ]);
+    await seedProfile(IDS.crashProfile, "chatgpt-standard-crash-v1", [
+      IDS.crashRevision,
     ]);
     await seedProfile(
       uuid(30),
@@ -751,8 +853,10 @@ describe.sequential("C04 no-session persistence PostgreSQL acceptance", () => {
     );
     expect(replay.healthRunId).toBe(first.healthRunId);
     expect(replay.healthState).toBe(first.healthState);
-    expect(replay.incident.incidentIds).toEqual(first.incident.incidentIds);
-    expect(["IGNORED", "NOOP"]).toContain(replay.incident.action);
+    expect(replay.incident).toMatchObject({
+      action: "NOOP",
+      incidentIds: [],
+    });
 
     const counts = await runtime.query<{
       runCount: string;
@@ -928,5 +1032,785 @@ describe.sequential("C04 no-session persistence PostgreSQL acceptance", () => {
       }),
       "NO_SESSION_URL_ORIGIN_INVALID",
     );
+  });
+
+  it("bounds routine state, preserves baseline, prunes only unpinned payload, and replays from receipt", async () => {
+    const variant = (
+      sequence: number,
+      composerCount: number,
+      changes: Partial<NoSessionObservationResult> = {},
+    ) => {
+      const seed = observation(sequence);
+      return observation(sequence, {
+        strategyId: "chatgpt-standard-retention-v1",
+        elementMetadata: {
+          ...seed.elementMetadata,
+          composer: {
+            ...seed.elementMetadata.composer,
+            elementCount: composerCount,
+          },
+        },
+        ...changes,
+      });
+    };
+
+    const repeatedA = variant(70, 2);
+    const repeatedB = variant(71, 2);
+    const repeatedHash = normalizedNoSessionResultSha256(repeatedA);
+    expect(normalizedNoSessionResultSha256(repeatedB)).toBe(repeatedHash);
+
+    const repeatedSchedules = await Promise.all([
+      makeScheduledRun({ started: true }),
+      makeScheduledRun({ started: true }),
+    ]);
+    const [firstRepeated, secondRepeated] = await Promise.all([
+      persistence.persistCompletedNoSessionHealthRun(
+        persistenceInput(repeatedSchedules[0]!.id, repeatedA),
+      ),
+      persistence.persistCompletedNoSessionHealthRun(
+        persistenceInput(repeatedSchedules[1]!.id, repeatedB),
+      ),
+    ]);
+    expect(firstRepeated.scopeSha256).toBe(secondRepeated.scopeSha256);
+    const receiptAuthority = await runtime.query<{
+      browserFamily: string;
+      profileRevisionId: string;
+      profileRevision: number;
+    }>(
+      `SELECT browser_family AS "browserFamily",profile_revision_id AS "profileRevisionId",
+        profile_revision AS "profileRevision"
+       FROM health_no_session_run_receipts WHERE run_id=$1`,
+      [firstRepeated.healthRunId],
+    );
+    const receipt = receiptAuthority.rows[0];
+    if (!receipt) throw new Error("RETENTION_TEST_RECEIPT_MISSING");
+    const retentionScopeSha256 = noSessionRetentionScopeSha256(
+      receipt,
+      repeatedA,
+    );
+
+    const coalescedRows = await runtime.query<{
+      scopeSha256: string;
+      repeatCount: number;
+    }>(
+      `SELECT scope_sha256 AS "scopeSha256",repeat_count AS "repeatCount"
+       FROM health_no_session_recent_states
+       WHERE normalized_result_sha256=$1`,
+      [repeatedHash],
+    );
+    expect(coalescedRows.rows).toHaveLength(1);
+    expect(coalescedRows.rows[0]).toEqual({
+      scopeSha256: retentionScopeSha256,
+      repeatCount: 2,
+    });
+
+    await runtime.query(
+      `UPDATE health_no_session_scope_states SET
+        accepted_baseline_run_id=$2,accepted_baseline_result_sha256=$3,
+        accepted_baseline_health_state='HEALTHY',accepted_baseline_at=$4
+       WHERE scope_sha256=$1`,
+      [
+        retentionScopeSha256,
+        firstRepeated.healthRunId,
+        repeatedHash,
+        new Date(repeatedA.observedAt),
+      ],
+    );
+
+    const distinct = [
+      variant(72, 3),
+      variant(73, 4),
+      variant(74, 5),
+      variant(75, 6, { classification: "UNKNOWN" }),
+    ];
+    const distinctSchedules: Array<
+      Awaited<ReturnType<typeof makeScheduledRun>>
+    > = [];
+    for (let index = 0; index < distinct.length; index += 1) {
+      distinctSchedules.push(await makeScheduledRun({ started: true }));
+    }
+    const distinctRuns = await Promise.all(
+      distinct.map((item, index) =>
+        persistence.persistCompletedNoSessionHealthRun(
+          persistenceInput(distinctSchedules[index]!.id, item),
+        ),
+      ),
+    );
+
+    await scheduler.reconcilePersistedResults(
+      new Date(baseTime.valueOf() + 2_000_000),
+    );
+
+    const scopeState = await runtime.query<{
+      latestHealthState: string;
+      lastVerifiedAt: Date | null;
+      acceptedBaselineRunId: string | null;
+      acceptedBaselineHealthState: string | null;
+      acceptedBaselineResultSha256: string | null;
+    }>(
+      `SELECT latest_health_state AS "latestHealthState",
+        last_verified_at AS "lastVerifiedAt",
+        accepted_baseline_run_id AS "acceptedBaselineRunId",
+        accepted_baseline_health_state AS "acceptedBaselineHealthState",
+        accepted_baseline_result_sha256 AS "acceptedBaselineResultSha256"
+       FROM health_no_session_scope_states WHERE scope_sha256=$1`,
+      [retentionScopeSha256],
+    );
+    expect(scopeState.rows[0]).toMatchObject({
+      latestHealthState: "UNKNOWN",
+      acceptedBaselineRunId: firstRepeated.healthRunId,
+      acceptedBaselineHealthState: "HEALTHY",
+      acceptedBaselineResultSha256: repeatedHash,
+    });
+    expect(scopeState.rows[0]?.lastVerifiedAt?.toISOString()).toBe(
+      distinct[2]!.observedAt,
+    );
+
+    const recent = await runtime.query<{
+      count: string;
+      maxRepeat: number;
+    }>(
+      `SELECT count(*)::text AS count,max(repeat_count)::int AS "maxRepeat"
+       FROM health_no_session_recent_states WHERE scope_sha256=$1`,
+      [retentionScopeSha256],
+    );
+    expect(recent.rows[0]?.count).toBe("3");
+
+    const cutoff = new Date(baseTime.valueOf() + 3_000_000);
+    const inventory = await retention.listRoutineNoSessionGcInventory({
+      before: cutoff,
+      limit: 5_000,
+    });
+    const byRun = new Map(inventory.map((item) => [item.runId, item.reason]));
+    expect(byRun.get(firstRepeated.healthRunId)).toBe(
+      "ACCEPTED_BASELINE_PINNED",
+    );
+    expect(byRun.get(secondRepeated.healthRunId)).toBe("ELIGIBLE");
+    expect(byRun.get(distinctRuns[3]!.healthRunId)).toBe("RECENT_STATE_PINNED");
+
+    await expect(
+      runtime.query(
+        "UPDATE health_no_session_run_receipts SET payload_pruned_at=$2 WHERE run_id=$1",
+        [firstRepeated.healthRunId, new Date(baseTime.valueOf() + 2_500_000)],
+      ),
+    ).rejects.toBeInstanceOf(Error);
+    await expect(
+      runtime.query(
+        `INSERT INTO health_schedule_retention_watermarks(
+          schedule_id,retired_through_revision,retired_through_due_slot_at,retired_at
+        ) VALUES($1,$2,$3,$4)`,
+        [
+          repeatedSchedules[0]!.scheduleId,
+          repeatedSchedules[0]!.scheduleRevision,
+          repeatedSchedules[0]!.dueSlotAt,
+          new Date(baseTime.valueOf() + 2_500_001),
+        ],
+      ),
+    ).rejects.toBeInstanceOf(Error);
+
+    await expect(
+      runtime.query("DELETE FROM health_runs WHERE id=$1", [
+        secondRepeated.healthRunId,
+      ]),
+    ).rejects.toBeInstanceOf(Error);
+
+    const prunePause = pauseAfterScheduledRunLock(runtime);
+    const racingCompletion = createHealthNoSessionCompletionAdapter(
+      prunePause.runtime,
+    );
+    const duplicateDuringPrune =
+      racingCompletion.completeScheduledNoSessionHealthRun(
+        persistenceInput(repeatedSchedules[1]!.id, repeatedB),
+      );
+    await prunePause.locked;
+    let pruneSettled = false;
+    const prunePromise = retention
+      .pruneRoutineNoSessionPayload({
+        runId: secondRepeated.healthRunId,
+        before: cutoff,
+      })
+      .finally(() => {
+        pruneSettled = true;
+      });
+    await settleTick();
+    expect(pruneSettled).toBe(false);
+    prunePause.release();
+    const [duplicatePruneResult, pruned] = await Promise.all([
+      duplicateDuringPrune,
+      prunePromise,
+    ]);
+    expect(duplicatePruneResult).toMatchObject({
+      healthRunId: secondRepeated.healthRunId,
+      incident: { action: "NOOP", incidentIds: [] },
+    });
+    expect(pruned).toEqual({ status: "PRUNED", reason: "ELIGIBLE" });
+
+    const removed = await runtime.query<{
+      runs: string;
+      observations: string;
+      evidence: string;
+      receiptPrunedAt: Date | null;
+      scheduledState: string;
+      scheduledHealthRunId: string | null;
+    }>(
+      `SELECT
+        (SELECT count(*)::text FROM health_runs WHERE id=$1) AS runs,
+        (SELECT count(*)::text FROM health_no_session_observations WHERE run_id=$1) AS observations,
+        (SELECT count(*)::text FROM health_no_session_evidence_references WHERE run_id=$1) AS evidence,
+        (SELECT payload_pruned_at FROM health_no_session_run_receipts WHERE run_id=$1) AS "receiptPrunedAt",
+        (SELECT state::text FROM health_scheduled_runs WHERE id=$2) AS "scheduledState",
+        (SELECT health_run_id FROM health_scheduled_runs WHERE id=$2) AS "scheduledHealthRunId"`,
+      [secondRepeated.healthRunId, repeatedSchedules[1]!.id],
+    );
+    expect(removed.rows[0]).toMatchObject({
+      runs: "0",
+      observations: "0",
+      evidence: "0",
+      scheduledState: "SUCCEEDED",
+      scheduledHealthRunId: null,
+    });
+    expect(removed.rows[0]?.receiptPrunedAt).toBeInstanceOf(Date);
+    await expect(
+      runtime.query("DELETE FROM health_scheduled_runs WHERE id=$1", [
+        repeatedSchedules[1]!.id,
+      ]),
+    ).rejects.toBeInstanceOf(Error);
+    await expect(
+      runtime.query(
+        "UPDATE health_scheduled_runs SET due_slot_at=due_slot_at + interval '1 second' WHERE id=$1",
+        [repeatedSchedules[1]!.id],
+      ),
+    ).rejects.toBeInstanceOf(Error);
+    await expect(
+      runtime.query(
+        "DELETE FROM health_no_session_run_receipts WHERE run_id=$1",
+        [secondRepeated.healthRunId],
+      ),
+    ).rejects.toBeInstanceOf(Error);
+
+    const restartedRetention = createHealthRetentionRepository(runtime, {
+      clock: () => RETENTION_TEST_NOW,
+    });
+    const afterRestart =
+      await restartedRetention.listRoutineNoSessionGcInventory({
+        before: cutoff,
+        limit: 5_000,
+      });
+    expect(
+      afterRestart.find((item) => item.runId === secondRepeated.healthRunId)
+        ?.reason,
+    ).toBe("ALREADY_PRUNED");
+
+    const lateReplay = await completion.completeScheduledNoSessionHealthRun(
+      persistenceInput(repeatedSchedules[1]!.id, repeatedB),
+    );
+    expect(lateReplay).toMatchObject({
+      healthRunId: secondRepeated.healthRunId,
+      healthState: "HEALTHY",
+      incident: { action: "NOOP", incidentIds: [] },
+    });
+    expect(
+      await runtime.query<{ count: string }>(
+        "SELECT count(*)::text AS count FROM health_runs WHERE id=$1",
+        [secondRepeated.healthRunId],
+      ),
+    ).toMatchObject({ rows: [{ count: "0" }] });
+
+    await expect(
+      completion.completeScheduledNoSessionHealthRun(
+        persistenceInput(
+          repeatedSchedules[1]!.id,
+          variant(71, 2, { classification: "BROKEN" }),
+        ),
+      ),
+    ).rejects.toThrow("NO_SESSION_SCHEDULED_RUN_CONFLICT");
+
+    const tooYoungReceiptRetention = createHealthRetentionRepository(runtime, {
+      clock: () =>
+        new Date(
+          RETENTION_METADATA_BEFORE.valueOf() +
+            NO_SESSION_REPLAY_RECEIPT_MIN_AGE_MS -
+            1,
+        ),
+    });
+    await expect(
+      tooYoungReceiptRetention.retireRoutineNoSessionReceipt({
+        runId: secondRepeated.healthRunId,
+        before: RETENTION_METADATA_BEFORE,
+      }),
+    ).rejects.toThrow("HEALTH_RETENTION_REPLAY_RECEIPT_CUTOFF_TOO_RECENT");
+    expect(
+      (
+        await runtime.query<{ count: string }>(
+          "SELECT count(*)::text AS count FROM health_no_session_run_receipts WHERE run_id=$1",
+          [secondRepeated.healthRunId],
+        )
+      ).rows[0]?.count,
+    ).toBe("1");
+
+    await runtime.query(
+      "UPDATE health_schedules SET next_due_at=$2 WHERE id=$1",
+      [repeatedSchedules[1]!.scheduleId, repeatedSchedules[1]!.dueSlotAt],
+    );
+    const retirePause = pauseAfterScheduledRunLock(runtime);
+    const completionDuringRetire = createHealthNoSessionCompletionAdapter(
+      retirePause.runtime,
+    );
+    const duplicateDuringRetire =
+      completionDuringRetire.completeScheduledNoSessionHealthRun(
+        persistenceInput(repeatedSchedules[1]!.id, repeatedB),
+      );
+    await retirePause.locked;
+    let retireSettled = false;
+    const retirePromise = metadataRetention
+      .retireRoutineNoSessionReceipt({
+        runId: secondRepeated.healthRunId,
+        before: RETENTION_METADATA_BEFORE,
+      })
+      .finally(() => {
+        retireSettled = true;
+      });
+    const materializeDuringRetire = scheduler.materializeDueSlot(
+      repeatedSchedules[1]!.scheduleId,
+      new Date(repeatedSchedules[1]!.dueSlotAt.valueOf() + 1),
+    );
+    await settleTick();
+    expect(retireSettled).toBe(false);
+    retirePause.release();
+    const [duplicateRetireResult, retired, racedMaterialization] =
+      await Promise.all([
+        duplicateDuringRetire,
+        retirePromise,
+        materializeDuringRetire,
+      ]);
+    expect(duplicateRetireResult).toMatchObject({
+      healthRunId: secondRepeated.healthRunId,
+      incident: { action: "NOOP", incidentIds: [] },
+    });
+    expect(retired).toEqual({ status: "RETIRED", reason: "RETIRED" });
+    expect(racedMaterialization).toBeNull();
+    expect(
+      await scheduler.getScheduledRun(repeatedSchedules[1]!.id),
+    ).toBeUndefined();
+    const retiredReceipt = await runtime.query<{ count: string }>(
+      `SELECT count(*)::text AS count FROM health_no_session_run_receipts
+       WHERE run_id=$1`,
+      [secondRepeated.healthRunId],
+    );
+    expect(retiredReceipt.rows[0]?.count).toBe("0");
+    const watermark = await runtime.query<{
+      revision: number;
+      dueSlotAt: Date;
+    }>(
+      `SELECT retired_through_revision AS revision,
+        retired_through_due_slot_at AS "dueSlotAt"
+       FROM health_schedule_retention_watermarks WHERE schedule_id=$1`,
+      [repeatedSchedules[1]!.scheduleId],
+    );
+    expect(watermark.rows[0]).toEqual({
+      revision: repeatedSchedules[1]!.scheduleRevision,
+      dueSlotAt: repeatedSchedules[1]!.dueSlotAt,
+    });
+
+    await runtime.query(
+      "UPDATE health_schedules SET next_due_at=$2 WHERE id=$1",
+      [repeatedSchedules[1]!.scheduleId, repeatedSchedules[1]!.dueSlotAt],
+    );
+    expect(
+      await scheduler.materializeDueSlot(
+        repeatedSchedules[1]!.scheduleId,
+        new Date(repeatedSchedules[1]!.dueSlotAt.valueOf() + 1),
+      ),
+    ).toBeNull();
+    const replayedSlot = await runtime.query<{ count: string }>(
+      `SELECT count(*)::text AS count FROM health_scheduled_runs
+       WHERE schedule_id=$1 AND schedule_revision=$2 AND due_slot_at=$3`,
+      [
+        repeatedSchedules[1]!.scheduleId,
+        repeatedSchedules[1]!.scheduleRevision,
+        repeatedSchedules[1]!.dueSlotAt,
+      ],
+    );
+    expect(replayedSlot.rows[0]?.count).toBe("0");
+    await expect(
+      persistence.persistCompletedNoSessionHealthRun(
+        persistenceInput(repeatedSchedules[1]!.id, repeatedB),
+      ),
+    ).rejects.toThrow("NO_SESSION_SCHEDULED_RUN_NOT_FOUND");
+    await expect(
+      runtime.query(
+        "DELETE FROM health_schedule_retention_watermarks WHERE schedule_id=$1",
+        [repeatedSchedules[1]!.scheduleId],
+      ),
+    ).rejects.toBeInstanceOf(Error);
+
+    const nextRevision = repeatedSchedules[1]!.scheduleRevision + 10_000;
+    await runtime.query(
+      `UPDATE health_schedules SET revision=$2,next_due_at=$3,updated_at=$4
+       WHERE id=$1`,
+      [
+        repeatedSchedules[1]!.scheduleId,
+        nextRevision,
+        repeatedSchedules[1]!.dueSlotAt,
+        new Date(repeatedSchedules[1]!.dueSlotAt.valueOf() + 1),
+      ],
+    );
+    const revisedSlot = await scheduler.materializeDueSlot(
+      repeatedSchedules[1]!.scheduleId,
+      new Date(repeatedSchedules[1]!.dueSlotAt.valueOf() + 1),
+    );
+    expect(revisedSlot).toMatchObject({
+      scheduleRevision: nextRevision,
+      dueSlotAt: repeatedSchedules[1]!.dueSlotAt,
+    });
+    if (!revisedSlot)
+      throw new Error("RETENTION_TEST_REVISED_SLOT_NOT_MATERIALIZED");
+    const revisedCancelledAt = new Date(baseTime.valueOf() + 4_100_000);
+    await runtime.query(
+      `UPDATE health_scheduled_runs
+       SET state='CANCELLED',finished_at=$2,next_attempt_at=NULL,updated_at=$2
+       WHERE id=$1`,
+      [revisedSlot.id, revisedCancelledAt],
+    );
+    const terminalBefore = new Date(revisedCancelledAt.valueOf() + 1);
+    const tooYoungTerminalRetention = createHealthRetentionRepository(runtime, {
+      clock: () =>
+        new Date(
+          terminalBefore.valueOf() + NO_SESSION_REPLAY_RECEIPT_MIN_AGE_MS - 1,
+        ),
+    });
+    await expect(
+      tooYoungTerminalRetention.retireTerminalScheduledRun({
+        scheduledRunId: revisedSlot.id,
+        before: terminalBefore,
+      }),
+    ).rejects.toThrow("HEALTH_RETENTION_REPLAY_RECEIPT_CUTOFF_TOO_RECENT");
+    expect(
+      await metadataRetention.retireTerminalScheduledRun({
+        scheduledRunId: revisedSlot.id,
+        before: terminalBefore,
+      }),
+    ).toEqual({ status: "RETIRED", reason: "RETIRED" });
+  });
+
+  it("blocks GC across persist-to-incident crash until duplicate completion processes the run", async () => {
+    const failedSchedule = await makeScheduledRun({ started: true });
+    const failedObservation = observation(79, {
+      strategyId: "chatgpt-standard-crash-v1",
+      classification: "BROKEN",
+      classificationBasis: "BROWSER_FAILURE",
+      surfaceOutcome: "BROWSER_FAILURE",
+      blocker: "BROWSER_UNAVAILABLE",
+    });
+    const failedRun = await persistence.persistCompletedNoSessionHealthRun(
+      persistenceInput(failedSchedule.id, failedObservation),
+    );
+    const failingScheduler = createHealthSchedulerRepository(runtime, {
+      incidentProcessor: {
+        async processCompletedHealthRun(runId) {
+          if (runId === failedRun.healthRunId)
+            throw new Error("TEST_RETENTION_INCIDENT_CRASH");
+          return incidents.processCompletedHealthRun(runId);
+        },
+      },
+    });
+    await expect(
+      failingScheduler.reconcilePersistedResults(
+        new Date(baseTime.valueOf() + 4_100_000),
+      ),
+    ).rejects.toThrow("TEST_RETENTION_INCIDENT_CRASH");
+
+    const unprocessedReceipt = await runtime.query<{
+      incidentProcessedAt: Date | null;
+    }>(
+      `SELECT incident_processed_at AS "incidentProcessedAt"
+       FROM health_no_session_run_receipts WHERE run_id=$1`,
+      [failedRun.healthRunId],
+    );
+    expect(unprocessedReceipt.rows[0]?.incidentProcessedAt).toBeNull();
+
+    const stillRunning = await scheduler.getScheduledRun(failedSchedule.id);
+    if (!stillRunning?.ownerId || !stillRunning.leaseId)
+      throw new Error("RETENTION_CRASH_TEST_RUN_NOT_OWNED");
+    await scheduler.finishSuccess({
+      runId: failedSchedule.id,
+      ownerId: stillRunning.ownerId,
+      leaseId: stillRunning.leaseId,
+      now: new Date(Date.parse(failedObservation.observedAt) + 2_000),
+      healthRunId: failedRun.healthRunId,
+      healthState: failedRun.healthState,
+    });
+
+    const newer = async (sequence: number, composerCount: number) => {
+      const seed = observation(sequence);
+      const value = observation(sequence, {
+        elementMetadata: {
+          ...seed.elementMetadata,
+          composer: {
+            ...seed.elementMetadata.composer,
+            elementCount: composerCount,
+          },
+        },
+      });
+      const scheduled = await makeScheduledRun({ started: true });
+      const completed = await completion.completeScheduledNoSessionHealthRun(
+        persistenceInput(scheduled.id, value),
+      );
+      const running = await scheduler.getScheduledRun(scheduled.id);
+      if (!running?.ownerId || !running.leaseId)
+        throw new Error("RETENTION_CRASH_NEWER_RUN_NOT_OWNED");
+      await scheduler.finishSuccess({
+        runId: scheduled.id,
+        ownerId: running.ownerId,
+        leaseId: running.leaseId,
+        now: new Date(Date.parse(value.observedAt) + 2_000),
+        healthRunId: completed.healthRunId,
+        healthState: completed.healthState,
+      });
+    };
+    await newer(80, 10);
+    await newer(81, 11);
+    await newer(82, 12);
+    await newer(83, 13);
+
+    const beforeRecovery = await retention.listRoutineNoSessionGcInventory({
+      before: new Date(baseTime.valueOf() + 5_000_000),
+      limit: 5_000,
+    });
+    expect(
+      beforeRecovery.find((item) => item.runId === failedRun.healthRunId)
+        ?.reason,
+    ).toBe("INCIDENT_PROCESSING_PENDING");
+    expect(
+      await retention.pruneRoutineNoSessionPayload({
+        runId: failedRun.healthRunId,
+        before: new Date(baseTime.valueOf() + 5_000_000),
+      }),
+    ).toEqual({
+      status: "BLOCKED",
+      reason: "INCIDENT_PROCESSING_PENDING",
+    });
+
+    const duplicate = await completion.completeScheduledNoSessionHealthRun(
+      persistenceInput(failedSchedule.id, failedObservation),
+    );
+    expect(duplicate.healthRunId).toBe(failedRun.healthRunId);
+    expect(duplicate.incident.action).toBe("OPENED");
+
+    const processedReceipt = await runtime.query<{
+      incidentProcessedAt: Date | null;
+    }>(
+      `SELECT incident_processed_at AS "incidentProcessedAt"
+       FROM health_no_session_run_receipts WHERE run_id=$1`,
+      [failedRun.healthRunId],
+    );
+    expect(processedReceipt.rows[0]?.incidentProcessedAt).toBeInstanceOf(Date);
+
+    const afterRecovery = await retention.listRoutineNoSessionGcInventory({
+      before: new Date(baseTime.valueOf() + 5_000_000),
+      limit: 5_000,
+    });
+    expect(
+      afterRecovery.find((item) => item.runId === failedRun.healthRunId)
+        ?.reason,
+    ).toBe("INCIDENT_PINNED");
+  });
+
+  it("keeps incident/notification evidence and terminal no-replay state outside routine GC", async () => {
+    const brokenSchedule = await makeScheduledRun({ started: true });
+    const broken = observation(76, {
+      strategyId: "chatgpt-standard-retention-v1",
+      classification: "BROKEN",
+      classificationBasis: "BROWSER_FAILURE",
+      surfaceOutcome: "BROWSER_FAILURE",
+      blocker: "BROWSER_UNAVAILABLE",
+    });
+    const completed = await completion.completeScheduledNoSessionHealthRun(
+      persistenceInput(brokenSchedule.id, broken),
+    );
+    expect(completed.incident.action).toBe("OPENED");
+    await scheduler.reconcilePersistedResults(
+      new Date(baseTime.valueOf() + 3_100_000),
+    );
+
+    const notification = await runtime.query<{
+      count: string;
+      state: string;
+    }>(
+      `SELECT count(*)::text AS count,min(state::text) AS state
+       FROM health_notification_intents WHERE health_run_id=$1`,
+      [completed.healthRunId],
+    );
+    expect(notification.rows[0]).toEqual({ count: "1", state: "PENDING" });
+
+    const inventory = await retention.listRoutineNoSessionGcInventory({
+      before: new Date(baseTime.valueOf() + 4_000_000),
+      limit: 5_000,
+    });
+    expect(
+      inventory.find((item) => item.runId === completed.healthRunId)?.reason,
+    ).toBe("INCIDENT_PINNED");
+    expect(
+      await retention.pruneRoutineNoSessionPayload({
+        runId: completed.healthRunId,
+        before: new Date(baseTime.valueOf() + 4_000_000),
+      }),
+    ).toEqual({ status: "BLOCKED", reason: "INCIDENT_PINNED" });
+
+    const notificationSchedule = await makeScheduledRun({ started: true });
+    const notificationObservation = observation(77, {
+      classification: "UNKNOWN",
+    });
+    const notificationRun =
+      await completion.completeScheduledNoSessionHealthRun(
+        persistenceInput(notificationSchedule.id, notificationObservation),
+      );
+    expect(notificationRun.incident.action).toBe("IGNORED");
+    const notificationRunning = await scheduler.getScheduledRun(
+      notificationSchedule.id,
+    );
+    if (!notificationRunning?.ownerId || !notificationRunning.leaseId)
+      throw new Error("RETENTION_NOTIFICATION_TEST_RUN_NOT_OWNED");
+    await scheduler.finishSuccess({
+      runId: notificationSchedule.id,
+      ownerId: notificationRunning.ownerId,
+      leaseId: notificationRunning.leaseId,
+      now: new Date(Date.parse(notificationObservation.observedAt) + 2_000),
+      healthRunId: notificationRun.healthRunId,
+      healthState: notificationRun.healthState,
+    });
+    await runtime.query(
+      `INSERT INTO health_notification_intents(
+        dedup_key,source_domain,incident_id,health_run_id,event_kind,severity,route_key,state,
+        group_count,first_observed_at,latest_observed_at,cooldown_until,next_attempt_at,payload
+      ) VALUES($1,'LLM_HEALTH',$2,$3,'INCIDENT_ESCALATED','WARNING','TELEGRAM','PENDING',
+        1,$4,$4,$4,$4,'{}'::jsonb)`,
+      [
+        `retention-notification-${notificationRun.healthRunId}`,
+        completed.incident.incidentIds[0]!,
+        notificationRun.healthRunId,
+        new Date(notificationObservation.observedAt),
+      ],
+    );
+    const notificationInventory =
+      await retention.listRoutineNoSessionGcInventory({
+        before: new Date(baseTime.valueOf() + 4_000_000),
+        limit: 5_000,
+      });
+    expect(
+      notificationInventory.find(
+        (item) => item.runId === notificationRun.healthRunId,
+      )?.reason,
+    ).toBe("NOTIFICATION_PINNED");
+
+    const persistedTerminalSchedule = await makeScheduledRun({ started: true });
+    const persistedTerminalObservation = observation(78);
+    const persistedTerminalRun =
+      await persistence.persistCompletedNoSessionHealthRun(
+        persistenceInput(
+          persistedTerminalSchedule.id,
+          persistedTerminalObservation,
+        ),
+      );
+    await runtime.query(
+      `UPDATE health_scheduled_runs SET
+        state='FAILED_TERMINAL',finished_at=$2,owner_id=NULL,lease_id=NULL,
+        lease_expires_at=NULL,next_attempt_at=NULL,health_run_id=NULL,
+        failure_class='TRANSIENT_ENVIRONMENT',
+        failure_code='AUTHENTICATED_DEEP_PERSISTENCE_REJECTED'
+       WHERE id=$1`,
+      [
+        persistedTerminalSchedule.id,
+        new Date(Date.parse(persistedTerminalObservation.observedAt) + 2_000),
+      ],
+    );
+    expect(
+      await metadataRetention.retireTerminalScheduledRun({
+        scheduledRunId: persistedTerminalSchedule.id,
+        before: new Date(
+          Date.parse(persistedTerminalObservation.observedAt) + 10_000,
+        ),
+      }),
+    ).toEqual({
+      status: "BLOCKED",
+      reason: "PERSISTED_RESULT_PRESENT",
+    });
+    expect(
+      await runtime.query<{ count: string }>(
+        "SELECT count(*)::text AS count FROM health_runs WHERE id=$1",
+        [persistedTerminalRun.healthRunId],
+      ),
+    ).toMatchObject({ rows: [{ count: "1" }] });
+
+    const uncertainSchedule = await makeScheduledRun({ started: true });
+    const running = await scheduler.getScheduledRun(uncertainSchedule.id);
+    if (!running?.ownerId || !running.leaseId)
+      throw new Error("RETENTION_SEND_UNCERTAIN_TEST_RUN_NOT_OWNED");
+    const uncertain = await scheduler.finishFailure({
+      runId: uncertainSchedule.id,
+      ownerId: running.ownerId,
+      leaseId: running.leaseId,
+      now: new Date(uncertainSchedule.dueSlotAt.valueOf() + 60_000),
+      failureClass: "TRANSIENT_ENVIRONMENT",
+      failureCode: "SEND_UNCERTAIN",
+    });
+    expect(uncertain).toMatchObject({
+      state: "FAILED_TERMINAL",
+      failureCode: "SEND_UNCERTAIN",
+      healthRunId: null,
+    });
+    const uncertainReceipt = await runtime.query<{ count: string }>(
+      `SELECT count(*)::text AS count FROM health_no_session_run_receipts
+       WHERE scheduled_run_id=$1`,
+      [uncertainSchedule.id],
+    );
+    expect(uncertainReceipt.rows[0]?.count).toBe("0");
+    expect((await scheduler.getScheduledRun(uncertainSchedule.id))?.state).toBe(
+      "FAILED_TERMINAL",
+    );
+    await expect(
+      runtime.query("DELETE FROM health_scheduled_runs WHERE id=$1", [
+        uncertainSchedule.id,
+      ]),
+    ).rejects.toBeInstanceOf(Error);
+    await expect(
+      runtime.query(
+        "UPDATE health_scheduled_runs SET schedule_revision=schedule_revision+1 WHERE id=$1",
+        [uncertainSchedule.id],
+      ),
+    ).rejects.toBeInstanceOf(Error);
+
+    const terminalRetired = await metadataRetention.retireTerminalScheduledRun({
+      scheduledRunId: uncertainSchedule.id,
+      before: new Date(uncertain.finishedAt!.valueOf() + 1),
+    });
+    expect(terminalRetired).toEqual({
+      status: "RETIRED",
+      reason: "RETIRED",
+    });
+    expect(
+      await scheduler.getScheduledRun(uncertainSchedule.id),
+    ).toBeUndefined();
+
+    await runtime.query(
+      "UPDATE health_schedules SET next_due_at=$2 WHERE id=$1",
+      [uncertainSchedule.scheduleId, uncertainSchedule.dueSlotAt],
+    );
+    expect(
+      await scheduler.materializeDueSlot(
+        uncertainSchedule.scheduleId,
+        new Date(uncertainSchedule.dueSlotAt.valueOf() + 1),
+      ),
+    ).toBeNull();
+    const uncertainReplay = await runtime.query<{ count: string }>(
+      `SELECT count(*)::text AS count FROM health_scheduled_runs
+       WHERE schedule_id=$1 AND schedule_revision=$2 AND due_slot_at=$3`,
+      [
+        uncertainSchedule.scheduleId,
+        uncertainSchedule.scheduleRevision,
+        uncertainSchedule.dueSlotAt,
+      ],
+    );
+    expect(uncertainReplay.rows[0]?.count).toBe("0");
   });
 });

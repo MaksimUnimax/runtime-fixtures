@@ -5,6 +5,7 @@ import {
   type HealthIncidentProcessingResult,
 } from "./health-incident-repository.js";
 import { createHealthNoSessionPersistenceRepository } from "./health-no-session-persistence-repository.js";
+import { markNoSessionIncidentProcessed } from "./health-retention-repository.js";
 
 export type NoSessionHealthCompletionResult = Readonly<{
   scheduledRunId: string;
@@ -26,9 +27,22 @@ export function createHealthNoSessionCompletionAdapter(
     ): Promise<NoSessionHealthCompletionResult> {
       const persisted =
         await persistence.persistCompletedNoSessionHealthRun(input);
-      const incident = await incidents.processCompletedHealthRun(
-        persisted.healthRunId,
-      );
+      const alreadyProcessed =
+        persisted.payloadPruned || persisted.incidentProcessed;
+      const incident = alreadyProcessed
+        ? ({
+            runId: persisted.healthRunId,
+            action: "NOOP",
+            incidentIds: [],
+          } satisfies HealthIncidentProcessingResult)
+        : await incidents.processCompletedHealthRun(persisted.healthRunId);
+      if (!alreadyProcessed) {
+        await markNoSessionIncidentProcessed(
+          runtime,
+          persisted.healthRunId,
+          new Date(),
+        );
+      }
       return {
         scheduledRunId: persisted.scheduledRunId,
         healthRunId: persisted.healthRunId,

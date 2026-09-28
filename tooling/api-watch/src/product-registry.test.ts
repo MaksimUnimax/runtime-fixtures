@@ -66,6 +66,17 @@ describe("A7 product registry crosswalk", () => {
       executionEnabled: true,
       currentness: "current",
     });
+    expect(
+      donor.find((row) => row.runtimeAlias === "goods_return"),
+    ).toMatchObject({
+      method: "GET",
+      normalizedPath: "/api/v1/analytics/goods-return",
+      executionEnabled: true,
+      currentness: "current",
+    });
+    expect(
+      donor.find((row) => row.runtimeAlias === "analytics_item_returns"),
+    ).toBeUndefined();
 
     expect(
       effective.find((row) => row.runtimeAlias === "banned_products_shadowed"),
@@ -74,12 +85,40 @@ describe("A7 product registry crosswalk", () => {
       effective.find((row) => row.runtimeAlias === "analytics_item_rating_v1"),
     ).toBeUndefined();
     expect(
+      effective.find((row) => row.runtimeAlias === "analytics_item_returns"),
+    ).toMatchObject({
+      method: "GET",
+      normalizedPath: "/api/analytics/v1/item-returns",
+      executionEnabled: true,
+      currentness: "current",
+      providerMetadata: {
+        host: "analytics",
+        category: "analytics",
+        body_required: false,
+        privacy: "standard",
+        response_mode: "json",
+        read_kind: "direct",
+        effect: "READ",
+        source_openapi: "12-reports.yaml",
+        source_path: "/api/analytics/v1/item-returns",
+        source_readonly: true,
+        query_keys: ["dateFrom", "dateTo", "status", "limit", "offset"],
+        required_query_keys: [
+          "dateFrom",
+          "dateTo",
+          "status",
+          "limit",
+          "offset",
+        ],
+      },
+    });
+    expect(
       effective.find((row) => row.runtimeAlias === "banned_products_blocked"),
     ).toBeDefined();
     expect(
       effective.find((row) => row.runtimeAlias === "analytics_item_rating_v2"),
     ).toBeDefined();
-    expect(effective).toHaveLength(donor.length - 2);
+    expect(effective).toHaveLength(donor.length - 1);
   });
 
   it("projects the composed WB FBS body requirement while preserving the frozen donor", async () => {

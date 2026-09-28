@@ -185,6 +185,52 @@ function noSessionIncidentIdentity(
   return { identity, digest };
 }
 
+async function noSessionRunIsSuperseded(
+  q: DatabaseQuery,
+  run: RunRow,
+  observation: ReturnType<typeof NoSessionObservationResultSchema.parse>,
+): Promise<boolean> {
+  const current = await q.query<{
+    latestRunId: string;
+    latestObservedAt: Date;
+  }>(
+    `SELECT recent.latest_run_id AS "latestRunId",
+      recent.last_seen_at AS "latestObservedAt"
+     FROM health_no_session_recent_states recent
+     JOIN health_no_session_scope_states state
+       ON state.scope_sha256=recent.scope_sha256
+     JOIN health_no_session_run_receipts receipt
+       ON receipt.run_id=recent.latest_run_id
+     WHERE state.provider_id=$1
+       AND state.observation_surface_id=$2
+       AND state.target_key=$3
+       AND state.strategy_id=$4
+       AND state.browser_family=$5
+       AND receipt.profile_id=$6
+       AND recent.health_state<>'UNKNOWN'
+     ORDER BY recent.last_seen_at DESC,recent.latest_run_id DESC
+     LIMIT 1
+     FOR SHARE OF state,receipt`,
+    [
+      observation.providerId,
+      observation.surfaceId,
+      observation.targetKey,
+      observation.strategyId,
+      run.browserFamily,
+      run.profileId,
+    ],
+  );
+  const authoritative = current.rows[0];
+  if (!authoritative) return false;
+  const observedAt = new Date(observation.observedAt);
+  return isAfter(
+    authoritative.latestObservedAt,
+    authoritative.latestRunId,
+    observedAt,
+    run.id,
+  );
+}
+
 async function activeByKey(
   q: DatabaseQuery,
   incidentKeySha256: string,
@@ -194,6 +240,25 @@ async function activeByKey(
     [incidentKeySha256],
   );
   return result.rows[0];
+}
+
+async function incidentHasNotificationHistory(
+  q: DatabaseQuery,
+  incidentId: string,
+): Promise<boolean> {
+  const result = await q.query<{ present: boolean }>(
+    `SELECT EXISTS(
+       SELECT 1 FROM health_notification_intents
+       WHERE incident_id=$1
+         AND event_kind IN (
+           'INCIDENT_OPENED',
+           'INCIDENT_ESCALATED',
+           'MAINTENANCE_ENTERED'
+         )
+     ) AS present`,
+    [incidentId],
+  );
+  return result.rows[0]?.present === true;
 }
 
 async function activeByScope(
@@ -306,9 +371,13 @@ async function updateIncidentObservation(
 
 export function createHealthIncidentRepository(
   runtime: DatabaseRuntime,
-  options: { notificationPolicy?: LlmHealthNotificationPolicy } = {},
+  options: {
+    notificationPolicy?: LlmHealthNotificationPolicy;
+    emitNotifications?: boolean;
+  } = {},
 ) {
   const notificationPolicy = options.notificationPolicy;
+  const emitNotifications = options.emitNotifications ?? true;
   return {
     async processCompletedHealthRun(
       runId: string,
@@ -340,6 +409,9 @@ export function createHealthIncidentRepository(
             adapterFamilyKey: observation.providerId,
             surfaceKey: observation.surfaceId,
           };
+          if (await noSessionRunIsSuperseded(q, run, observation)) {
+            return { runId, action: "IGNORED", incidentIds: [] };
+          }
           rootContourKey = null;
           const identity = noSessionIncidentIdentity(
             run,
@@ -375,20 +447,22 @@ export function createHealthIncidentRepository(
           healthState: typeof persistedState,
           eventRootContourKey = rootContourKey,
         ) =>
-          deriveLlmHealthNotificationEvent(
-            {
-              incidentId,
-              healthRunId: run.id,
-              eventKind,
-              healthState,
-              provider: scope.adapterFamilyKey,
-              surface: scope.surfaceKey,
-              healthLevel,
-              rootContourKey: eventRootContourKey,
-              observedAt: run.completedAt,
-            },
-            notificationPolicy,
-          );
+          emitNotifications
+            ? deriveLlmHealthNotificationEvent(
+                {
+                  incidentId,
+                  healthRunId: run.id,
+                  eventKind,
+                  healthState,
+                  provider: scope.adapterFamilyKey,
+                  surface: scope.surfaceKey,
+                  healthLevel,
+                  rootContourKey: eventRootContourKey,
+                  observedAt: run.completedAt,
+                },
+                notificationPolicy,
+              )
+            : null;
         if (persistedState === "UNKNOWN") {
           return { runId, action: "NOOP", incidentIds: [] };
         }
@@ -404,7 +478,10 @@ export function createHealthIncidentRepository(
               "HEALTHY",
             );
             if (action === "RESOLVED") {
-              if (incident.status === "MAINTENANCE") {
+              const notificationHistory = emitNotifications
+                ? await incidentHasNotificationHistory(q, incident.id)
+                : false;
+              if (notificationHistory && incident.status === "MAINTENANCE") {
                 const exited = notificationInput(
                   incident.id,
                   "MAINTENANCE_EXITED",
@@ -414,14 +491,16 @@ export function createHealthIncidentRepository(
                 if (exited)
                   await recordLlmHealthNotificationInTransaction(q, exited);
               }
-              const recovered = notificationInput(
-                incident.id,
-                "INCIDENT_RECOVERED",
-                "HEALTHY",
-                incident.rootContourKey,
-              );
-              if (recovered)
-                await recordLlmHealthNotificationInTransaction(q, recovered);
+              if (notificationHistory) {
+                const recovered = notificationInput(
+                  incident.id,
+                  "INCIDENT_RECOVERED",
+                  "HEALTHY",
+                  incident.rootContourKey,
+                );
+                if (recovered)
+                  await recordLlmHealthNotificationInTransaction(q, recovered);
+              }
               resolved.push(incident.id);
             }
           }
@@ -452,10 +531,12 @@ export function createHealthIncidentRepository(
                 );
                 if (entered)
                   await recordLlmHealthNotificationInTransaction(q, entered);
-                await suppressLlmHealthProductNotificationsInTransaction(
-                  q,
-                  incident.id,
-                );
+                if (emitNotifications) {
+                  await suppressLlmHealthProductNotificationsInTransaction(
+                    q,
+                    incident.id,
+                  );
+                }
               }
               changed.push(incident.id);
             }
@@ -481,11 +562,13 @@ export function createHealthIncidentRepository(
           );
           if (action === "UPDATED") {
             if (active.status === "MAINTENANCE") {
-              await resumeLlmHealthProductNotificationInTransaction(
-                q,
-                active.id,
-                run.completedAt,
-              );
+              if (emitNotifications) {
+                await resumeLlmHealthProductNotificationInTransaction(
+                  q,
+                  active.id,
+                  run.completedAt,
+                );
+              }
               const exited = notificationInput(
                 active.id,
                 "MAINTENANCE_EXITED",
@@ -495,21 +578,23 @@ export function createHealthIncidentRepository(
               if (exited)
                 await recordLlmHealthNotificationInTransaction(q, exited);
             }
-            await observeLlmHealthFailureInTransaction(
-              q,
-              {
-                incidentId: active.id,
-                healthRunId: run.id,
-                eventKind: "INCIDENT_OPENED",
-                healthState: persistedState,
-                provider: scope.adapterFamilyKey,
-                surface: scope.surfaceKey,
-                healthLevel,
-                rootContourKey: active.rootContourKey,
-                observedAt: run.completedAt,
-              },
-              notificationPolicy,
-            );
+            if (emitNotifications) {
+              await observeLlmHealthFailureInTransaction(
+                q,
+                {
+                  incidentId: active.id,
+                  healthRunId: run.id,
+                  eventKind: "INCIDENT_OPENED",
+                  healthState: persistedState,
+                  provider: scope.adapterFamilyKey,
+                  surface: scope.surfaceKey,
+                  healthLevel,
+                  rootContourKey: active.rootContourKey,
+                  observedAt: run.completedAt,
+                },
+                notificationPolicy,
+              );
+            }
           }
           return { runId, action, incidentIds: [active.id] };
         }
@@ -554,21 +639,23 @@ export function createHealthIncidentRepository(
           "FAILURE",
         );
         if (action === "UPDATED") {
-          await observeLlmHealthFailureInTransaction(
-            q,
-            {
-              incidentId: raced.id,
-              healthRunId: run.id,
-              eventKind: "INCIDENT_OPENED",
-              healthState: persistedState,
-              provider: scope.adapterFamilyKey,
-              surface: scope.surfaceKey,
-              healthLevel,
-              rootContourKey: raced.rootContourKey,
-              observedAt: run.completedAt,
-            },
-            notificationPolicy,
-          );
+          if (emitNotifications) {
+            await observeLlmHealthFailureInTransaction(
+              q,
+              {
+                incidentId: raced.id,
+                healthRunId: run.id,
+                eventKind: "INCIDENT_OPENED",
+                healthState: persistedState,
+                provider: scope.adapterFamilyKey,
+                surface: scope.surfaceKey,
+                healthLevel,
+                rootContourKey: raced.rootContourKey,
+                observedAt: run.completedAt,
+              },
+              notificationPolicy,
+            );
+          }
         }
         return { runId, action, incidentIds: [raced.id] };
       });

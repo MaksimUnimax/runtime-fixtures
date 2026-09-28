@@ -639,6 +639,212 @@ describe.sequential(
       ).toBe(0);
     });
 
+    it("keeps persisted authenticated-deep evidence ahead of expired RUNNING reclaim", async () => {
+      await runtime.query(
+        "UPDATE health_scheduled_runs SET state='CANCELLED',owner_id=NULL,lease_id=NULL,lease_expires_at=NULL,next_attempt_at=NULL WHERE state NOT IN ('SUCCEEDED','FAILED_TERMINAL','CANCELLED')",
+      );
+      const scheduledAt = new Date("2026-09-28T03:40:00.000Z");
+      const scheduleId = randomUUID();
+      await scheduler.createSchedule({
+        scheduleId,
+        monitorTarget: "chatgpt_standard_health_b20_persisted_crash",
+        provider: "chatgpt",
+        surface: "CHATGPT_STANDARD",
+        probeLayer: "AUTHENTICATED_DEEP",
+        enabled: true,
+        cadence: DEFAULT_NO_SESSION_CADENCE,
+        nextDueAt: scheduledAt,
+        revision: 1,
+      });
+      const scheduled = await scheduler.materializeDueSlot(
+        scheduleId,
+        scheduledAt,
+      );
+      const claim = await scheduler.claimNext({
+        ownerId: "b20-persist-before-crash",
+        now: scheduledAt,
+        leaseMs: 1_000,
+      });
+      await scheduler.startRun({
+        runId: scheduled!.id,
+        ownerId: "b20-persist-before-crash",
+        leaseId: claim!.leaseId!,
+        now: scheduledAt,
+      });
+
+      const scope = await resolver.resolveAuthenticatedDeepHealthScope(
+        resolutionInput("CHATGPT_STANDARD", "b13-authdeep-standard-synthetic"),
+      );
+      const run = await persistence.persistCompletedHealthRun({
+        ...createH3HealthPersistenceCommand(failedStandardExecution(), {
+          suite: syntheticSuite(scope),
+          startedAt: "2026-09-28T03:40:00.000Z",
+          completedAt: "2026-09-28T03:40:00.500Z",
+          browserRuntime: {
+            family: "chrome",
+            browserName: "chromium",
+            browserVersion: scope.browserVersion,
+            headless: true,
+            sessionKind: "EPHEMERAL_CONTROLLED",
+          },
+          operatorMaintenance: false,
+          operatorMaintenanceAuthority: null,
+          classifierVersion: "b20-persist-before-crash-v1",
+        }),
+        scheduledRunId: scheduled!.id,
+      });
+
+      expect(
+        await scheduler.claimNext({
+          ownerId: "b20-reclaimer",
+          now: new Date("2026-09-28T03:40:02.000Z"),
+          leaseMs: 60_000,
+        }),
+      ).toBeNull();
+      expect(await scheduler.getScheduledRun(scheduled!.id)).toMatchObject({
+        state: "RUNNING",
+        healthRunId: null,
+        failureCode: null,
+      });
+
+      expect(
+        await scheduler.reconcilePersistedResults(
+          new Date("2026-09-28T03:40:02.100Z"),
+        ),
+      ).toBe(1);
+      expect(await scheduler.getScheduledRun(scheduled!.id)).toMatchObject({
+        state: "SUCCEEDED",
+        healthRunId: run.id,
+        healthState: "BROKEN",
+      });
+      const incidents = await runtime.query<{ count: string }>(
+        "SELECT count(*)::text AS count FROM health_incidents WHERE latest_seen_run_id=$1",
+        [run.id],
+      );
+      expect(incidents.rows[0]?.count).toBe("1");
+      await runtime.query("DELETE FROM health_notification_intents");
+      await runtime.query("DELETE FROM health_incidents");
+    });
+
+    it("accepts one late authenticated-deep result after crash fencing without a second execution", async () => {
+      await runtime.query(
+        "UPDATE health_scheduled_runs SET state='CANCELLED',owner_id=NULL,lease_id=NULL,lease_expires_at=NULL,next_attempt_at=NULL WHERE state NOT IN ('SUCCEEDED','FAILED_TERMINAL','CANCELLED')",
+      );
+      const scheduledAt = new Date("2026-09-28T03:50:00.000Z");
+      const scheduleId = randomUUID();
+      await scheduler.createSchedule({
+        scheduleId,
+        monitorTarget: "chatgpt_standard_health_b20_late_callback",
+        provider: "chatgpt",
+        surface: "CHATGPT_STANDARD",
+        probeLayer: "AUTHENTICATED_DEEP",
+        enabled: true,
+        cadence: DEFAULT_NO_SESSION_CADENCE,
+        nextDueAt: scheduledAt,
+        revision: 1,
+      });
+      const scheduled = await scheduler.materializeDueSlot(
+        scheduleId,
+        scheduledAt,
+      );
+      const claim = await scheduler.claimNext({
+        ownerId: "b20-crashed-after-send",
+        now: scheduledAt,
+        leaseMs: 1_000,
+      });
+      await scheduler.startRun({
+        runId: scheduled!.id,
+        ownerId: "b20-crashed-after-send",
+        leaseId: claim!.leaseId!,
+        now: scheduledAt,
+      });
+
+      let secondExecutionCount = 0;
+      const reclaimed = await scheduler.claimNext({
+        ownerId: "b20-would-repeat",
+        now: new Date("2026-09-28T03:50:02.000Z"),
+        leaseMs: 60_000,
+      });
+      if (reclaimed) secondExecutionCount += 1;
+      expect(reclaimed).toBeNull();
+      expect(secondExecutionCount).toBe(0);
+      expect(await scheduler.getScheduledRun(scheduled!.id)).toMatchObject({
+        state: "FAILED_TERMINAL",
+        failureCode: "SEND_UNCERTAIN",
+        healthRunId: null,
+      });
+
+      const scope = await resolver.resolveAuthenticatedDeepHealthScope(
+        resolutionInput("CHATGPT_STANDARD", "b13-authdeep-standard-synthetic"),
+      );
+      const run = await persistence.persistCompletedHealthRun({
+        ...createH3HealthPersistenceCommand(failedStandardExecution(), {
+          suite: syntheticSuite(scope),
+          startedAt: "2026-09-28T03:50:00.000Z",
+          completedAt: "2026-09-28T03:50:02.500Z",
+          browserRuntime: {
+            family: "chrome",
+            browserName: "chromium",
+            browserVersion: scope.browserVersion,
+            headless: true,
+            sessionKind: "EPHEMERAL_CONTROLLED",
+          },
+          operatorMaintenance: false,
+          operatorMaintenanceAuthority: null,
+          classifierVersion: "b20-late-authdeep-result-v1",
+        }),
+        scheduledRunId: scheduled!.id,
+      });
+
+      expect(
+        await scheduler.reconcilePersistedResults(
+          new Date("2026-09-28T03:50:03.000Z"),
+        ),
+      ).toBe(1);
+      expect(await scheduler.getScheduledRun(scheduled!.id)).toMatchObject({
+        state: "SUCCEEDED",
+        healthRunId: run.id,
+        healthState: "BROKEN",
+      });
+
+      const firstCounts = await runtime.query<{
+        incidents: string;
+        intents: string;
+      }>(
+        `SELECT
+          (SELECT count(*)::text FROM health_incidents WHERE latest_seen_run_id=$1) AS incidents,
+          (SELECT count(*)::text FROM health_notification_intents WHERE health_run_id=$1) AS intents`,
+        [run.id],
+      );
+      expect(firstCounts.rows[0]).toEqual({ incidents: "1", intents: "1" });
+
+      expect(
+        await scheduler.reconcilePersistedResults(
+          new Date("2026-09-28T03:50:04.000Z"),
+        ),
+      ).toBe(0);
+      expect(
+        await scheduler.claimNext({
+          ownerId: "b20-no-repeat-after-late-result",
+          now: new Date("2026-09-28T03:50:05.000Z"),
+          leaseMs: 60_000,
+        }),
+      ).toBeNull();
+
+      const finalCounts = await runtime.query<{
+        incidents: string;
+        intents: string;
+      }>(
+        `SELECT
+          (SELECT count(*)::text FROM health_incidents WHERE latest_seen_run_id=$1) AS incidents,
+          (SELECT count(*)::text FROM health_notification_intents WHERE health_run_id=$1) AS intents`,
+        [run.id],
+      );
+      expect(finalCounts.rows[0]).toEqual(firstCounts.rows[0]);
+      await runtime.query("DELETE FROM health_notification_intents");
+      await runtime.query("DELETE FROM health_incidents");
+    });
+
     it("recovers a terminal H3 result after incident failure without replaying H3", async () => {
       const scheduledAt = new Date("2026-09-28T02:30:00.000Z");
       await runtime.query("UPDATE health_schedules SET enabled=false");

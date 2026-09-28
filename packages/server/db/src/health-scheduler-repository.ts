@@ -18,6 +18,7 @@ import {
 } from "@product/health";
 import type { DatabaseQuery, DatabaseRuntime } from "./index.js";
 import { createHealthIncidentRepository } from "./health-incident-repository.js";
+import { markNoSessionIncidentProcessed } from "./health-retention-repository.js";
 
 type ScheduleRow = {
   id: string;
@@ -251,19 +252,37 @@ export function createHealthSchedulerRepository(
           dueSlotAt,
           monitorTarget: schedule.monitorTarget,
         });
-        const inserted = await q.query<ScheduledRunRow>(
-          `INSERT INTO health_scheduled_runs(schedule_id,monitor_target,provider,surface,probe_layer,schedule_revision,due_slot_at,idempotency_key,state,attempt) VALUES($1,$2,$3,$4,$5,$6,$7,$8,'PENDING',1) ON CONFLICT (schedule_id,schedule_revision,due_slot_at,monitor_target) DO NOTHING RETURNING id,schedule_id AS "scheduleId",monitor_target AS "monitorTarget",provider,surface,probe_layer AS "probeLayer",schedule_revision AS "scheduleRevision",due_slot_at AS "dueSlotAt",idempotency_key AS "idempotencyKey",state,owner_id AS "ownerId",lease_id AS "leaseId",claimed_at AS "claimedAt",lease_expires_at AS "leaseExpiresAt",attempt,started_at AS "startedAt",finished_at AS "finishedAt",next_attempt_at AS "nextAttemptAt",failure_class AS "failureClass",failure_code AS "failureCode",health_run_id AS "healthRunId",health_state AS "healthState"`,
-          [
-            schedule.scheduleId,
-            schedule.monitorTarget,
-            schedule.provider,
-            schedule.surface,
-            schedule.probeLayer,
-            schedule.revision,
-            dueSlotAt,
-            idempotencyKey,
-          ],
+        const watermark = await q.query<{
+          retiredThroughRevision: number;
+          retiredThroughDueSlotAt: Date;
+        }>(
+          `SELECT retired_through_revision AS "retiredThroughRevision",
+             retired_through_due_slot_at AS "retiredThroughDueSlotAt"
+             FROM health_schedule_retention_watermarks
+             WHERE schedule_id=$1 FOR SHARE`,
+          [schedule.scheduleId],
         );
+        const retired = watermark.rows.some(
+          (value) =>
+            value.retiredThroughRevision > schedule.revision ||
+            (value.retiredThroughRevision === schedule.revision &&
+              value.retiredThroughDueSlotAt >= dueSlotAt),
+        );
+        const inserted = retired
+          ? { rows: [] as ScheduledRunRow[] }
+          : await q.query<ScheduledRunRow>(
+              `INSERT INTO health_scheduled_runs(schedule_id,monitor_target,provider,surface,probe_layer,schedule_revision,due_slot_at,idempotency_key,state,attempt) VALUES($1,$2,$3,$4,$5,$6,$7,$8,'PENDING',1) ON CONFLICT (schedule_id,schedule_revision,due_slot_at,monitor_target) DO NOTHING RETURNING id,schedule_id AS "scheduleId",monitor_target AS "monitorTarget",provider,surface,probe_layer AS "probeLayer",schedule_revision AS "scheduleRevision",due_slot_at AS "dueSlotAt",idempotency_key AS "idempotencyKey",state,owner_id AS "ownerId",lease_id AS "leaseId",claimed_at AS "claimedAt",lease_expires_at AS "leaseExpiresAt",attempt,started_at AS "startedAt",finished_at AS "finishedAt",next_attempt_at AS "nextAttemptAt",failure_class AS "failureClass",failure_code AS "failureCode",health_run_id AS "healthRunId",health_state AS "healthState"`,
+              [
+                schedule.scheduleId,
+                schedule.monitorTarget,
+                schedule.provider,
+                schedule.surface,
+                schedule.probeLayer,
+                schedule.revision,
+                dueSlotAt,
+                idempotencyKey,
+              ],
+            );
         const nextDueAt = nextDueAfterMaterialization(schedule, now);
         await q.query(
           `UPDATE health_schedules SET next_due_at=$2,updated_at=$3 WHERE id=$1 AND revision=$4`,
@@ -277,11 +296,25 @@ export function createHealthSchedulerRepository(
     async claimNext({ ownerId, now, leaseMs }) {
       return runtime.transaction(async (q) => {
         await q.query(
-          `UPDATE health_scheduled_runs r SET state='TIMED_OUT',finished_at=$1,updated_at=$1,lease_id=NULL,owner_id=NULL,lease_expires_at=NULL,failure_class='TRANSIENT_ENVIRONMENT',failure_code='LEASE_EXPIRED_MAX_ATTEMPTS' FROM health_schedules s WHERE r.schedule_id=s.id AND r.state IN ('CLAIMED','RUNNING') AND r.lease_expires_at <= $1 AND r.attempt >= (s.cadence->>'maxAttempts')::integer`,
+          `UPDATE health_scheduled_runs r
+           SET state='FAILED_TERMINAL',finished_at=$1,updated_at=$1,
+               lease_id=NULL,owner_id=NULL,lease_expires_at=NULL,next_attempt_at=NULL,
+               failure_class='TRANSIENT_ENVIRONMENT',failure_code='SEND_UNCERTAIN'
+           WHERE r.state='RUNNING'
+             AND r.probe_layer='AUTHENTICATED_DEEP'
+             AND r.lease_expires_at <= $1
+             AND r.health_run_id IS NULL
+             AND NOT EXISTS (
+               SELECT 1 FROM health_runs h WHERE h.scheduled_run_id=r.id
+             )`,
+          [now],
+        );
+        await q.query(
+          `UPDATE health_scheduled_runs r SET state='TIMED_OUT',finished_at=$1,updated_at=$1,lease_id=NULL,owner_id=NULL,lease_expires_at=NULL,failure_class='TRANSIENT_ENVIRONMENT',failure_code='LEASE_EXPIRED_MAX_ATTEMPTS' FROM health_schedules s WHERE r.schedule_id=s.id AND (r.state='CLAIMED' OR (r.state='RUNNING' AND r.probe_layer<>'AUTHENTICATED_DEEP')) AND r.lease_expires_at <= $1 AND r.attempt >= (s.cadence->>'maxAttempts')::integer`,
           [now],
         );
         const candidate = await q.query<ScheduledRunRow>(
-          `SELECT r.id,r.schedule_id AS "scheduleId",r.monitor_target AS "monitorTarget",r.provider,r.surface,r.probe_layer AS "probeLayer",r.schedule_revision AS "scheduleRevision",r.due_slot_at AS "dueSlotAt",r.idempotency_key AS "idempotencyKey",r.state,r.owner_id AS "ownerId",r.lease_id AS "leaseId",r.claimed_at AS "claimedAt",r.lease_expires_at AS "leaseExpiresAt",r.attempt,r.started_at AS "startedAt",r.finished_at AS "finishedAt",r.next_attempt_at AS "nextAttemptAt",r.failure_class AS "failureClass",r.failure_code AS "failureCode",r.health_run_id AS "healthRunId",r.health_state AS "healthState" FROM health_scheduled_runs r JOIN health_schedules s ON s.id=r.schedule_id WHERE (r.state='PENDING' AND r.attempt <= (s.cadence->>'maxAttempts')::integer) OR (r.state IN ('FAILED_RETRYABLE','TIMED_OUT') AND r.next_attempt_at <= $1 AND r.attempt < (s.cadence->>'maxAttempts')::integer) OR (r.state IN ('CLAIMED','RUNNING') AND r.lease_expires_at <= $1 AND r.attempt < (s.cadence->>'maxAttempts')::integer) ORDER BY r.due_slot_at,r.created_at FOR UPDATE SKIP LOCKED LIMIT 1`,
+          `SELECT r.id,r.schedule_id AS "scheduleId",r.monitor_target AS "monitorTarget",r.provider,r.surface,r.probe_layer AS "probeLayer",r.schedule_revision AS "scheduleRevision",r.due_slot_at AS "dueSlotAt",r.idempotency_key AS "idempotencyKey",r.state,r.owner_id AS "ownerId",r.lease_id AS "leaseId",r.claimed_at AS "claimedAt",r.lease_expires_at AS "leaseExpiresAt",r.attempt,r.started_at AS "startedAt",r.finished_at AS "finishedAt",r.next_attempt_at AS "nextAttemptAt",r.failure_class AS "failureClass",r.failure_code AS "failureCode",r.health_run_id AS "healthRunId",r.health_state AS "healthState" FROM health_scheduled_runs r JOIN health_schedules s ON s.id=r.schedule_id WHERE (r.state='PENDING' AND r.attempt <= (s.cadence->>'maxAttempts')::integer) OR (r.state IN ('FAILED_RETRYABLE','TIMED_OUT') AND r.next_attempt_at <= $1 AND r.attempt < (s.cadence->>'maxAttempts')::integer) OR (r.state='CLAIMED' AND r.lease_expires_at <= $1 AND r.attempt < (s.cadence->>'maxAttempts')::integer) OR (r.state='RUNNING' AND r.probe_layer<>'AUTHENTICATED_DEEP' AND r.lease_expires_at <= $1 AND r.attempt < (s.cadence->>'maxAttempts')::integer) ORDER BY r.due_slot_at,r.created_at FOR UPDATE SKIP LOCKED LIMIT 1`,
           [now],
         );
         const row = candidate.rows[0];
@@ -434,7 +467,7 @@ export function createHealthSchedulerRepository(
            OR (
              r.state='FAILED_TERMINAL'
              AND r.probe_layer='AUTHENTICATED_DEEP'
-             AND r.failure_code='AUTHENTICATED_DEEP_PERSISTENCE_REJECTED'
+             AND r.failure_code IN ('AUTHENTICATED_DEEP_PERSISTENCE_REJECTED','SEND_UNCERTAIN')
            )
          )
            AND r.health_run_id IS NULL
@@ -448,6 +481,13 @@ export function createHealthSchedulerRepository(
           candidate.probeLayer === "AUTHENTICATED_DEEP"
         ) {
           await incidents.processCompletedHealthRun(candidate.healthRunId);
+          if (candidate.runKind === "NO_SESSION_OBSERVATION") {
+            await markNoSessionIncidentProcessed(
+              runtime,
+              candidate.healthRunId,
+              now,
+            );
+          }
         }
         const updated = await runtime.transaction(async (q) => {
           const result = await q.query<{ scheduleId: string }>(
@@ -460,7 +500,7 @@ export function createHealthSchedulerRepository(
                  OR (
                    state='FAILED_TERMINAL'
                    AND probe_layer='AUTHENTICATED_DEEP'
-                   AND failure_code='AUTHENTICATED_DEEP_PERSISTENCE_REJECTED'
+                   AND failure_code IN ('AUTHENTICATED_DEEP_PERSISTENCE_REJECTED','SEND_UNCERTAIN')
                  )
                )
                AND health_run_id IS NULL
