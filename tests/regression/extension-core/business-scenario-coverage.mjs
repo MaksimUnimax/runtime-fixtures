@@ -3,6 +3,7 @@ import "./wb-operational-sales-field-schema-slice.mjs";
 import "./wb-finance-sales-field-schema-slice.mjs";
 import "./wb-advertising-field-schema-slice.mjs";
 import "./wb-order-lifecycle-field-schema-slice.mjs";
+import "./wb-inventory-movement-boundary.mjs";
 import "./wb-price-field-schema-slice.mjs";
 import "./wb-catalog-identity-field-schema-slice.mjs";
 import "./wb-turnover-field-schema-slice.mjs";
@@ -678,6 +679,32 @@ const calculators = {
       likelihoodKnown: false,
     };
   },
+  movement_evidence(input) {
+    if (
+      !Number.isInteger(input.stockBeforeUnits) ||
+      input.stockBeforeUnits < 0 ||
+      !Number.isInteger(input.stockAfterUnits) ||
+      input.stockAfterUnits < 0 ||
+      !Number.isInteger(input.salesUnits) ||
+      input.salesUnits < 0 ||
+      !Array.isArray(input.providerEvents) ||
+      input.providerEvents.some(
+        (row) => !row || typeof row.family !== "string" || !row.family,
+      )
+    )
+      return { status: "INCOMPLETE", reason: "MOVEMENT_EVIDENCE_INVALID" };
+
+    const providerMovementEvents = input.providerEvents.filter(
+      (row) => row.family === "GOODS_RETURN_MOVEMENT",
+    ).length;
+    return {
+      status: providerMovementEvents > 0 ? "BOUNDARY" : "UNKNOWN_CAUSE",
+      stockDeltaUnits: input.stockAfterUnits - input.stockBeforeUnits,
+      salesUnitsObserved: input.salesUnits,
+      providerMovementEvents,
+      writeoffOrTransferCauseProven: false,
+    };
+  },
   incident_boundary(input) {
     if (
       !input.incident ||
@@ -827,6 +854,7 @@ const requiredKinds = new Set([
   "ad_content_join",
   "rating_boundary",
   "causal_factors",
+  "movement_evidence",
   "incident_boundary",
   "external_fact_boundary",
   "competitor_boundary",
