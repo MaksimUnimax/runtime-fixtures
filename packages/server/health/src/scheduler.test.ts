@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_NO_SESSION_CADENCE,
   HealthScheduleInputSchema,
@@ -721,4 +721,84 @@ describe("durable Health scheduler contract", () => {
       "HEALTH_EXECUTOR_ERROR",
     );
   });
+  it.each(["sync", "async"] as const)(
+    "does not resend an authenticated probe after an unclassified %s executor exception",
+    async (mode) => {
+      const repo = new MemoryScheduler();
+      repo.schedules.set(
+        ID,
+        schedule({
+          monitorTarget: "authdeep_chatgpt_standard",
+          probeLayer: "AUTHENTICATED_DEEP",
+        }),
+      );
+      let sends = 0;
+      const execute = () => {
+        sends += 1;
+        if (mode === "sync") throw new Error("unknown post-send exception");
+        return Promise.reject(new Error("unknown post-send exception"));
+      };
+      const options = {
+        repository: repo,
+        ownerId: "worker-a",
+        leaseMs: 10 * 60_000,
+        maxConcurrency: 1,
+        execute,
+      };
+      const first = await runDurableHealthSchedulerCycle({
+        ...options,
+        clock: { now: () => NOW },
+      });
+      const later = new Date(NOW.valueOf() + 10 * 60_000);
+      const second = await runDurableHealthSchedulerCycle({
+        ...options,
+        ownerId: "worker-b",
+        clock: { now: () => later },
+      });
+      expect(sends).toBe(1);
+      expect(first.terminalFailures).toBe(1);
+      expect(first.retryableFailures).toBe(0);
+      expect(second.claimed).toBe(0);
+      expect([...repo.runs.values()][0]).toMatchObject({
+        state: "FAILED_TERMINAL",
+        failureCode: "SEND_UNCERTAIN",
+        nextAttemptAt: null,
+      });
+    },
+  );
+
+  it.each(["success", "failure", "exception"] as const)(
+    "releases the deadline timer after %s",
+    async (outcome) => {
+      vi.useFakeTimers();
+      try {
+        const repo = new MemoryScheduler();
+        await runDurableHealthSchedulerCycle({
+          repository: repo,
+          clock: { now: () => NOW },
+          ownerId: "worker",
+          leaseMs: 10_000,
+          maxConcurrency: 1,
+          execute: async () => {
+            if (outcome === "exception")
+              throw new Error("bounded executor failure");
+            if (outcome === "failure")
+              return {
+                outcome: "FAILED",
+                failureClass: "TERMINAL_CONFIGURATION",
+                failureCode: "NO_SESSION_PERSISTENCE_REJECTED",
+              };
+            return {
+              outcome: "SUCCEEDED",
+              healthRunId: "saved-health",
+              healthState: "HEALTHY",
+            };
+          },
+        });
+        expect(vi.getTimerCount()).toBe(0);
+      } finally {
+        vi.useRealTimers();
+      }
+    },
+  );
 });

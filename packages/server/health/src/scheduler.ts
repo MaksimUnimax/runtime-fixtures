@@ -322,6 +322,7 @@ export async function runDurableHealthSchedulerCycle(
       continue;
     }
     let result: ScheduledExecutionResult | null;
+    let deadlineTimer: ReturnType<typeof setTimeout> | undefined;
     try {
       result = timeoutAt
         ? await Promise.race([
@@ -331,20 +332,25 @@ export async function runDurableHealthSchedulerCycle(
                 0,
                 timeoutAt.valueOf() - options.clock.now().valueOf(),
               );
-              setTimeout(
+              deadlineTimer = setTimeout(
                 () => reject(new Error("HEALTH_SCHEDULED_RUN_TIMEOUT")),
                 delay,
-              ).unref?.();
+              );
+              deadlineTimer.unref?.();
             }),
-          ]).catch((error: unknown) => {
-            if (
-              error instanceof Error &&
-              error.message === "HEALTH_SCHEDULED_RUN_TIMEOUT"
-            ) {
-              return null;
-            }
-            throw error;
-          })
+          ])
+            .catch((error: unknown) => {
+              if (
+                error instanceof Error &&
+                error.message === "HEALTH_SCHEDULED_RUN_TIMEOUT"
+              ) {
+                return null;
+              }
+              throw error;
+            })
+            .finally(() => {
+              if (deadlineTimer !== undefined) clearTimeout(deadlineTimer);
+            })
         : await options.execute(started);
     } catch {
       const failed = await options.repository.finishFailure({
@@ -353,7 +359,12 @@ export async function runDurableHealthSchedulerCycle(
         leaseId: claim.leaseId,
         now: options.clock.now(),
         failureClass: "TRANSIENT_ENVIRONMENT",
-        failureCode: "HEALTH_EXECUTOR_ERROR",
+        // An unclassified rejection gives no proof that an authenticated
+        // executor failed before sending. Do not automatically send again.
+        failureCode:
+          started.probeLayer === "AUTHENTICATED_DEEP"
+            ? "SEND_UNCERTAIN"
+            : "HEALTH_EXECUTOR_ERROR",
       });
       if (failed.state === "FAILED_TERMINAL") terminalFailures += 1;
       else retryableFailures += 1;
