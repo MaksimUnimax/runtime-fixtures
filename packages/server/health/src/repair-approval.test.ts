@@ -17,6 +17,7 @@ const binding: MonitorProfileRepairBindingV1 = {
   caseRevision: 1,
   incidentId: id(2),
   scopeSha256: hash("a"),
+  deploymentEnvironment: "MONITOR_PILOT",
   observation: { runId: id(3), normalizedStateSha256: hash("b") },
   acceptedBaseline: {
     acceptedRunId: id(4),
@@ -36,6 +37,7 @@ const binding: MonitorProfileRepairBindingV1 = {
   testedExtension: {
     version: "0.2.6",
     browserFamily: "chrome",
+    browserVersion: "153.0.0.0",
     sourceCommitSha: "a".repeat(40),
     sourceTreeSha: "b".repeat(40),
     packageSha256: hash("e"),
@@ -119,6 +121,7 @@ describe("profile repair approval binding check", () => {
   it.each([
     ["incidentId", id(22)],
     ["scopeSha256", hash("0")],
+    ["deploymentEnvironment", "PRODUCTION"],
     ["observation.runId", id(23)],
     ["observation.normalizedStateSha256", hash("0")],
     ["acceptedBaseline.acceptedRunId", id(24)],
@@ -128,6 +131,7 @@ describe("profile repair approval binding check", () => {
     ["candidate.contentSha256", hash("0")],
     ["testedExtension.version", "0.2.7"],
     ["testedExtension.browserFamily", "firefox"],
+    ["testedExtension.browserVersion", "154.0.0.0"],
     ["testedExtension.sourceCommitSha", "c".repeat(40)],
     ["testedExtension.sourceTreeSha", "c".repeat(40)],
     ["testedExtension.packageSha256", hash("0")],

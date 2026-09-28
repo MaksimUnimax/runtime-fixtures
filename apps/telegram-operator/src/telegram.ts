@@ -12,6 +12,7 @@ import {
   type SwaggerHandoffService,
   type SwaggerSourceFamily,
 } from "@product/monitoring-control";
+import { explainMonitoringResult } from "./monitoring-result-explanation.js";
 
 export type TelegramButton = { text: string; callback_data: string };
 export type TelegramKeyboard = { inline_keyboard: TelegramButton[][] };
@@ -404,7 +405,7 @@ export class TelegramOperatorService {
   }
 
   async notify(notification: MonitoringNotification): Promise<void> {
-    const text = `${laneLabel(notification.lane)} ${notification.source.toLowerCase()} result ${notification.runId}: ${notification.result.status}${notification.result.code ? `/${notification.result.code}` : ""} — ${notification.result.summary}`;
+    const text = explainMonitoringResult(notification);
     for (const chatId of this.options.notificationChatIds ?? [])
       await this.options.transport.sendMessage(
         chatId,

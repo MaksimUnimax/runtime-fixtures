@@ -36,8 +36,13 @@ function request() {
 describe("Telegram Health notification delivery", () => {
   it("formats only allowlisted bounded fields", () => {
     const text = formatHealthNotification(payload);
-    expect(text).toContain("Health CRITICAL: BROKEN");
-    expect(text).toContain(payload.incidentId);
+    expect(text).toContain("ChatGPT — обычный чат");
+    expect(text).toContain(
+      "Обязательная часть проверяемого сценария не прошла проверку",
+    );
+    expect(text).not.toContain(payload.incidentId);
+    expect(text).not.toContain(payload.healthRunId);
+    expect(text).toContain("23.09.2026 05:00 (+05)");
     expect(text).not.toContain("rawEvidence");
     expect(text).not.toContain("private conversation");
     expect(text).not.toContain("token must");
@@ -161,5 +166,142 @@ describe("Telegram Health notification delivery", () => {
           vi.fn<typeof fetch>(),
         ),
     ).toThrow("CONFIGURATION_ERROR");
+  });
+  it.each([
+    ["H0", "без открытия сайта"],
+    ["H1", "сохранённый пример страницы"],
+    ["H2", "Получение ответа ИИ этим уровнем не подтверждается"],
+    ["H3", "контрольный сценарий общения с ИИ"],
+    ["H4", "Ручное одобрение и выпуск"],
+    ["H5", "Работа у всех пользователей"],
+  ] as const)(
+    "describes the %s evidence boundary in Russian",
+    (healthLevel, expected) => {
+      const text = formatHealthNotification({ ...payload, healthLevel });
+      expect(text).toContain(expected);
+      expect(text).toContain(
+        "не полная проверка всех функций установленного расширения",
+      );
+      expect(text).not.toContain("Level/event");
+    },
+  );
+
+  it.each([
+    ["DRIFT", "Структура страницы изменилась"],
+    ["DEGRADED", "работает хуже или недоступна"],
+    ["BROKEN", "не прошла проверку"],
+  ] as const)(
+    "explains %s without announcing a delivered fix",
+    (healthState, expected) => {
+      const text = formatHealthNotification({
+        ...payload,
+        healthState,
+        rootContourKey: "C10_NATIVE_COPY_CONTROL",
+      });
+      expect(text).toContain(expected);
+      expect(text).toContain("Участок проверки: копирование кода");
+      expect(text).toContain(
+        "Сведения об одобрении и доставке исправления пользователям",
+      );
+      expect(text).not.toContain("C10_NATIVE_COPY_CONTROL");
+    },
+  );
+
+  it("reports recovery of the checked scope without claiming a released patch", () => {
+    const text = formatHealthNotification({
+      ...payload,
+      eventKind: "INCIDENT_RECOVERED",
+      healthState: "HEALTHY",
+    });
+    expect(text).toContain("больше не воспроизводится в этой проверке");
+    expect(text).toContain("Сведения об одобрении и доставке");
+    expect(text).not.toContain("исправление выпущено");
+  });
+
+  it.each([
+    ["INCIDENT_RECOVERED", "BROKEN"],
+    ["INCIDENT_OPENED", "HEALTHY"],
+    ["MAINTENANCE_ENTERED", "HEALTHY"],
+    ["MAINTENANCE_EXITED", "MAINTENANCE"],
+  ] as const)(
+    "does not overclaim for contradictory %s/%s",
+    (eventKind, healthState) => {
+      const text = formatHealthNotification({
+        ...payload,
+        eventKind,
+        healthState,
+      });
+      expect(text).toContain("противоречивые данные");
+      expect(text).not.toContain("больше не воспроизводится");
+      expect(text).not.toContain("ошибок не обнаружено");
+    },
+  );
+
+  it("explains escalation and maintenance transitions", () => {
+    expect(
+      formatHealthNotification({ ...payload, eventKind: "INCIDENT_ESCALATED" }),
+    ).toContain("Проблема усилилась");
+    expect(
+      formatHealthNotification({
+        ...payload,
+        eventKind: "MAINTENANCE_ENTERED",
+        healthState: "MAINTENANCE",
+      }),
+    ).toContain("временно отключён оператором");
+    expect(
+      formatHealthNotification({
+        ...payload,
+        eventKind: "MAINTENANCE_EXITED",
+        healthState: "UNKNOWN",
+      }),
+    ).toContain("Работоспособность определить не удалось");
+  });
+
+  it("keeps the +05 date correct across a UTC day boundary", () => {
+    expect(
+      formatHealthNotification({
+        ...payload,
+        observedAt: "2026-09-28T22:45:00.000Z",
+      }),
+    ).toContain("29.09.2026 03:45 (+05)");
+    expect(
+      formatHealthNotification({
+        ...payload,
+        observedAt: "2026-02-30T00:00:00.000Z",
+      }),
+    ).toContain("Время проверки не распознано");
+  });
+
+  it("does not forward unknown labels or prototype property names", () => {
+    const text = formatHealthNotification({
+      ...payload,
+      provider: "constructor",
+      surface: "private-surface",
+      healthLevel: "XX",
+      eventKind: "private-event",
+      rootContourKey: "private-contour",
+      observedAt: "private-time",
+    });
+    expect(text).toContain("название не распознано");
+    expect(text).toContain("режим не распознан");
+    expect(text).toContain("не распознан; её полнота неизвестна");
+    for (const secret of [
+      "private",
+      "constructor",
+      "XX",
+      payload.incidentId,
+      payload.healthRunId,
+    ])
+      expect(text).not.toContain(secret);
+  });
+
+  it("does not assign a known mode from another provider", () => {
+    const text = formatHealthNotification({
+      ...payload,
+      provider: "alice",
+      surface: "CHATGPT_WORK",
+    });
+    expect(text).toContain("Алиса — режим не распознан");
+    expect(text).not.toContain("рабочий режим");
   });
 });

@@ -14,11 +14,23 @@ SHA-256. No new signing service, keys, endpoint, permission, database or rollout
 engine is introduced by this candidate.
 
 A binding is the compact immutable manifest: repair case/revision, incident,
-scope, observed state/run, accepted baseline, exact candidate profile revision
-and content hash, tested extension source/tree/package/version/browser, suite
+scope and explicit deployment environment, observed state/run, accepted baseline, exact candidate profile revision
+and content hash, tested extension source/tree/package/version/browser family and actual browser version, suite
 definition/revision, H4 key, installed-behavior evidence, matrix/result hashes,
 current assignment revision, one exact initial rollout percentage and an accepted
 rollback reference. Referenced proofs are retained separately and pinned.
+
+The deploymentEnvironment is derived from trusted deployment configuration, never
+from a request body. MONITOR_PILOT or OWNER_TEST approval cannot authorize
+PRODUCTION. Match the actual browser version and H4 environment to the registered
+target as well; an opaque incident scope hash alone does not bind environment.
+
+observation.runId is the pinned triggering proof of this repair case, not a cursor
+that changes on every identical routine check. Preserve that reference while
+revalidating the newest normalized semantic state and its freshness. A fresh
+identical observation updates last-seen metadata without invalidating approval;
+a changed semantic fingerprint, missing/failing freshness authority or UNKNOWN
+still blocks application. Do not compare only the old pinned observation.
 
 The helper returns CURRENT only when the exact current binding matches a
 non-revoked APPROVED receipt within its validity interval. CURRENT proves identity
@@ -131,3 +143,13 @@ synthetic immutable fixtures; no real approval, actor session or publication ran
 Supervisor9f44906823824bf5b166b699310ded0a exited0, peak695 MiB, OOM0,
 cleanup verified. Logs: /root/octoport-control/logs/controller/manual-repair-admission-20260928/.
 B's atomic DB enforcement and C's protected/manual/real-evidence wiring are next.
+
+### Environment and browser binding follow-up
+
+The binding now requires the actual deployment environment and tested browser
+version; changing either invalidates the old approval. Routine identical
+observations keep the triggering proof pinned while current semantic state and
+freshness are rechecked independently. Contracts78/78 + Health179/179 =257/257
+source tests passed; typechecks, lint, format and docs passed. Supervisor
+071cd646605d4bb78867f7175b41968f exited0, peak548 MiB, OOM0, cleanup verified.
+No live approval or DB mutation was performed.

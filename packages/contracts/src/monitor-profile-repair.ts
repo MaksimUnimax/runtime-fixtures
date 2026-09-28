@@ -35,6 +35,11 @@ export const MonitorProfileRepairBindingV1Schema = z
     caseRevision: Positive,
     incidentId: z.uuid(),
     scopeSha256: Sha256,
+    deploymentEnvironment: z.enum([
+      "MONITOR_PILOT",
+      "OWNER_TEST",
+      "PRODUCTION",
+    ]),
     observation: z
       .object({ runId: z.uuid(), normalizedStateSha256: Sha256 })
       .strict(),
@@ -44,6 +49,11 @@ export const MonitorProfileRepairBindingV1Schema = z
       .object({
         version: SemVerV1Schema,
         browserFamily: z.enum(BrowserFamilies),
+        browserVersion: z
+          .string()
+          .min(1)
+          .max(64)
+          .regex(/^(?:0|[1-9][0-9]*)(?:\.(?:0|[1-9][0-9]*)){0,3}$/),
         sourceCommitSha: GitSha,
         sourceTreeSha: GitSha,
         packageSha256: Sha256,
