@@ -388,20 +388,39 @@ export async function recordNoSessionCompactStateInTransaction(
         ],
       );
     } else {
-      const oldest =
-        observation.classification === "UNKNOWN"
-          ? (slots.rows.find((row) => row.healthState === "UNKNOWN") ??
-            slots.rows[0])
-          : slots.rows[0];
-      if (
-        oldest &&
-        isAfter(
-          observedAt,
-          receipt.runId,
-          oldest.lastSeenAt,
-          oldest.latestRunId,
-        )
-      ) {
+      const oldestUnknown = slots.rows.find(
+        (row) => row.healthState === "UNKNOWN",
+      );
+      const decisiveRows = slots.rows.filter(
+        (row) => row.healthState !== "UNKNOWN",
+      );
+      const latestDecisive = decisiveRows.at(-1);
+      const incomingIsDecisive = observation.classification !== "UNKNOWN";
+      const advancesDecisive =
+        incomingIsDecisive &&
+        (!latestDecisive ||
+          isAfter(
+            observedAt,
+            receipt.runId,
+            latestDecisive.lastSeenAt,
+            latestDecisive.latestRunId,
+          ));
+      const replacement = incomingIsDecisive
+        ? advancesDecisive
+          ? (oldestUnknown ?? slots.rows[0])
+          : undefined
+        : (oldestUnknown ?? slots.rows[0]);
+      const mayReplace =
+        replacement !== undefined &&
+        (incomingIsDecisive && oldestUnknown === replacement
+          ? true
+          : isAfter(
+              observedAt,
+              receipt.runId,
+              replacement.lastSeenAt,
+              replacement.latestRunId,
+            ));
+      if (replacement && mayReplace) {
         await q.query(
           `UPDATE health_no_session_recent_states SET
             normalized_result_sha256=$3,health_state=$4,classification_basis=$5,
@@ -410,7 +429,7 @@ export async function recordNoSessionCompactStateInTransaction(
             WHERE scope_sha256=$1 AND slot=$2`,
           [
             retentionScopeSha256,
-            oldest.slot,
+            replacement.slot,
             normalizedResultSha256,
             observation.classification,
             observation.classificationBasis,

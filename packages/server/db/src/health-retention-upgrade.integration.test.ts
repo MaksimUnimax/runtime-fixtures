@@ -14,6 +14,7 @@ import {
   type DatabaseQuery,
   type DatabaseRuntime,
 } from "./index.js";
+import { recordNoSessionCompactStateInTransaction } from "./health-retention-repository.js";
 import { migrationsFolder, runMigrations } from "./migrations.js";
 
 const connectionString = process.env.DATABASE_URL;
@@ -362,6 +363,59 @@ async function seedAdditionalLegacyRun(input: {
     [input.scheduledRunId, input.healthRunId],
   );
   return { runStartedAt, runCompletedAt };
+}
+
+async function createAndProjectReceipt(
+  runId: string,
+  projectedAt: Date,
+): Promise<void> {
+  await runtime.query(
+    `INSERT INTO health_no_session_run_receipts(
+      run_id,scheduled_run_id,schedule_id,schedule_revision,due_slot_at,idempotency_key,
+      monitor_target,health_state,scope_sha256,callback_result_sha256,adapter_id,surface_id,
+      variant_id,profile_id,profile_revision_id,profile_revision,browser_family,completed_at
+    )
+    SELECT h.id,h.scheduled_run_id,s.schedule_id,s.schedule_revision,s.due_slot_at,s.idempotency_key,
+      s.monitor_target,h.health_state,h.scope_sha256,o.result_sha256,h.adapter_id,h.surface_id,
+      h.variant_id,h.profile_id,h.profile_revision_id,h.profile_revision,h.browser_family,h.completed_at
+    FROM health_runs h
+    JOIN health_no_session_observations o ON o.run_id=h.id
+    JOIN health_scheduled_runs s ON s.id=h.scheduled_run_id
+    WHERE h.id=$1
+    ON CONFLICT (run_id) DO NOTHING`,
+    [runId],
+  );
+  const authority = await runtime.query<{
+    runId: string;
+    scheduledRunId: string;
+    scopeSha256: string;
+    healthState: string;
+    browserFamily: string;
+    profileRevisionId: string;
+    profileRevision: number;
+    completedAt: Date;
+    observation: unknown;
+  }>(
+    `SELECT receipt.run_id AS "runId",receipt.scheduled_run_id AS "scheduledRunId",
+      receipt.scope_sha256 AS "scopeSha256",receipt.health_state AS "healthState",
+      receipt.browser_family AS "browserFamily",
+      receipt.profile_revision_id AS "profileRevisionId",
+      receipt.profile_revision AS "profileRevision",
+      receipt.completed_at AS "completedAt",observation.observation
+     FROM health_no_session_run_receipts receipt
+     JOIN health_no_session_observations observation ON observation.run_id=receipt.run_id
+     WHERE receipt.run_id=$1`,
+    [runId],
+  );
+  const row = authority.rows[0];
+  if (!row) throw new Error("RETENTION_LATE_DECISIVE_RECEIPT_MISSING");
+  await runtime.transaction((q) =>
+    recordNoSessionCompactStateInTransaction(q, {
+      receipt: row,
+      observation: NoSessionObservationResultSchema.parse(row.observation),
+      projectedAt,
+    }),
+  );
 }
 
 describe.sequential("monitoring retention 0051 -> 0052 upgrade", () => {
@@ -1083,6 +1137,197 @@ describe.sequential("monitoring retention 0051 -> 0052 upgrade", () => {
       marked: "5",
     });
   });
+
+  it.each(["HEALTHY", "BROKEN"] as const)(
+    "preserves a late older decisive %s after three newer UNKNOWN compact states",
+    async (decisiveState) => {
+      await runtime.query("DROP SCHEMA IF EXISTS public CASCADE");
+      await runtime.query("DROP SCHEMA IF EXISTS drizzle CASCADE");
+      await runtime.query("CREATE SCHEMA public");
+      await runMigrations({ connectionString });
+      await seedLegacyNoSessionRun();
+
+      const unknowns = [
+        {
+          scheduledRunId: "d4000000-0000-4000-8000-000000000146",
+          healthRunId: "d4000000-0000-4000-8000-000000000147",
+          dueSlotAt: new Date("2026-09-27T12:00:00.000Z"),
+          observedAt: new Date("2026-09-27T12:00:01.000Z"),
+          composerCount: 2,
+          idempotencyHex: "2",
+          callbackHex: "3",
+        },
+        {
+          scheduledRunId: "d4000000-0000-4000-8000-000000000156",
+          healthRunId: "d4000000-0000-4000-8000-000000000157",
+          dueSlotAt: new Date("2026-09-27T18:00:00.000Z"),
+          observedAt: new Date("2026-09-27T18:00:01.000Z"),
+          composerCount: 3,
+          idempotencyHex: "4",
+          callbackHex: "5",
+        },
+        {
+          scheduledRunId: "d4000000-0000-4000-8000-000000000166",
+          healthRunId: "d4000000-0000-4000-8000-000000000167",
+          dueSlotAt: new Date("2026-09-27T23:00:00.000Z"),
+          observedAt: new Date("2026-09-27T23:00:01.000Z"),
+          composerCount: 4,
+          idempotencyHex: "6",
+          callbackHex: "7",
+        },
+      ] as const;
+      for (const item of unknowns) {
+        await seedAdditionalLegacyRun({
+          scheduledRunId: item.scheduledRunId,
+          healthRunId: item.healthRunId,
+          dueSlotAt: item.dueSlotAt,
+          observation: legacyObservation({
+            observedAt: item.observedAt,
+            classification: "UNKNOWN",
+            composerCount: item.composerCount,
+          }),
+          idempotencyHex: item.idempotencyHex,
+          callbackHex: item.callbackHex,
+        });
+        await createAndProjectReceipt(
+          item.healthRunId,
+          new Date(item.observedAt.valueOf() + 60_000),
+        );
+      }
+
+      const beforeDecisive = await runtime.query<{
+        count: string;
+        decisiveCount: string;
+      }>(
+        `SELECT count(*)::text AS count,
+          count(*) FILTER (WHERE health_state<>'UNKNOWN')::text AS "decisiveCount"
+         FROM health_no_session_recent_states`,
+      );
+      expect(beforeDecisive.rows[0]).toEqual({
+        count: "3",
+        decisiveCount: "0",
+      });
+
+      const decisiveRun = "d4000000-0000-4000-8000-000000000177";
+      const decisiveScheduled = "d4000000-0000-4000-8000-000000000176";
+      const decisiveObservation = legacyObservation({
+        observedAt: new Date("2026-09-27T06:00:01.000Z"),
+        classification: decisiveState,
+      });
+      await seedAdditionalLegacyRun({
+        scheduledRunId: decisiveScheduled,
+        healthRunId: decisiveRun,
+        dueSlotAt: new Date("2026-09-27T06:00:00.000Z"),
+        observation: decisiveObservation,
+        idempotencyHex: "8",
+        callbackHex: "9",
+      });
+      await createAndProjectReceipt(
+        decisiveRun,
+        new Date("2026-09-28T05:00:00.000Z"),
+      );
+
+      const retentionScope = noSessionRetentionScopeSha256(
+        {
+          browserFamily: "chrome",
+          profileRevisionId: IDS.revision,
+          profileRevision: 1,
+        },
+        decisiveObservation,
+      );
+      const state = await runtime.query<{
+        latestHealthState: string;
+        latestRunId: string;
+      }>(
+        `SELECT latest_health_state AS "latestHealthState",
+          latest_run_id AS "latestRunId"
+         FROM health_no_session_scope_states WHERE scope_sha256=$1`,
+        [retentionScope],
+      );
+      expect(state.rows[0]).toEqual({
+        latestHealthState: "UNKNOWN",
+        latestRunId: unknowns[2]!.healthRunId,
+      });
+
+      const ring = await runtime.query<{
+        count: string;
+        decisiveCount: string;
+        decisiveRunId: string | null;
+        decisiveState: string | null;
+      }>(
+        `SELECT count(*)::text AS count,
+          count(*) FILTER (WHERE health_state<>'UNKNOWN')::text AS "decisiveCount",
+          max(latest_run_id::text) FILTER (WHERE health_state<>'UNKNOWN') AS "decisiveRunId",
+          max(health_state::text) FILTER (WHERE health_state<>'UNKNOWN') AS "decisiveState"
+         FROM health_no_session_recent_states
+         WHERE scope_sha256=$1`,
+        [retentionScope],
+      );
+      expect(ring.rows[0]).toEqual({
+        count: "3",
+        decisiveCount: "1",
+        decisiveRunId: decisiveRun,
+        decisiveState,
+      });
+
+      if (decisiveState === "HEALTHY") {
+        const incidents = createHealthIncidentRepository(runtime, {
+          emitNotifications: false,
+        });
+        expect(
+          await incidents.processCompletedHealthRun(decisiveRun),
+        ).toMatchObject({ action: "NOOP", incidentIds: [] });
+        await markNoSessionIncidentProcessed(
+          runtime,
+          decisiveRun,
+          new Date("2026-09-28T05:00:01.000Z"),
+        );
+
+        const olderBrokenRun = "d4000000-0000-4000-8000-000000000187";
+        const olderBrokenScheduled = "d4000000-0000-4000-8000-000000000186";
+        await seedAdditionalLegacyRun({
+          scheduledRunId: olderBrokenScheduled,
+          healthRunId: olderBrokenRun,
+          dueSlotAt: new Date("2026-09-27T01:00:00.000Z"),
+          observation: legacyObservation({
+            observedAt: new Date("2026-09-27T01:00:01.000Z"),
+            classification: "BROKEN",
+          }),
+          idempotencyHex: "c",
+          callbackHex: "b",
+        });
+        await createAndProjectReceipt(
+          olderBrokenRun,
+          new Date("2026-09-28T05:00:02.000Z"),
+        );
+        const retention = createHealthRetentionRepository(runtime);
+        await retention.reconcileLegacyNoSessionIncidentProcessing({
+          limit: 20,
+          processedAt: new Date("2026-09-28T05:00:03.000Z"),
+        });
+
+        const outcome = await runtime.query<{
+          incidents: string;
+          notifications: string;
+          brokenMarked: boolean;
+        }>(
+          `SELECT
+            (SELECT count(*)::text FROM health_incidents) AS incidents,
+            (SELECT count(*)::text FROM health_notification_intents) AS notifications,
+            EXISTS(
+              SELECT 1 FROM health_no_session_run_receipts
+              WHERE run_id=$1 AND incident_processed_at IS NOT NULL
+            ) AS "brokenMarked"`,
+          [olderBrokenRun],
+        );
+        expect(outcome.rows[0]).toEqual({
+          incidents: "0",
+          notifications: "0",
+          brokenMarked: true,
+        });
+      }
+    },
+  );
 
   it("resolves a silent legacy incident without emitting a recovery-only notification", async () => {
     await runtime.query("DROP SCHEMA IF EXISTS public CASCADE");
