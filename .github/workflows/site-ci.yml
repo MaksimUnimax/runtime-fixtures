@@ -84,6 +84,11 @@ jobs:
               root / "assets" / "color-deepseek-r2.svg",
               root / "assets" / "color-alice-r2.svg",
               root / "assets" / "color-qwen-r2.svg",
+              root / "assets" / "browser-icons" / "chrome.svg",
+              root / "assets" / "browser-icons" / "opera.svg",
+              root / "assets" / "browser-icons" / "firefox.svg",
+              root / "assets" / "browser-icons" / "yandex.svg",
+              root / "assets" / "browser-icons" / "octoport.svg",
               root / "assets" / "contour-exact-trace-r12.svg",
               Path("apps/site/design-sources/contour-exact-trace-r12.json"),
               Path("apps/site/design-sources/contour-exact-ref-r12-mask.b64"),
@@ -156,7 +161,7 @@ jobs:
 
           assert parser.html_lang == "ru", f"html lang must be ru, got {parser.html_lang!r}"
           assert parser.canonical == ["https://octoport.ru/"], parser.canonical
-          assert parser.stylesheets == ["/styles.css?v=home-funnel-20260928-r1"], parser.stylesheets
+          assert parser.stylesheets == ["/styles.css?v=home-funnel-20260928-r2"], parser.stylesheets
           assert parser.icons == [("/favicon.png", "image/png"), ("/assets/favicon-contour-v1.png", "image/png")], parser.icons
           assert parser.executable_scripts == 0, "M14 must remain executable-JavaScript-free"
           assert len(parser.json_ld) == 1, parser.json_ld
@@ -185,7 +190,18 @@ jobs:
                   target = href[1:]
                   assert target in parser.ids, f"broken internal anchor: {href}"
               elif href.startswith("/"):
-                  assert href in approved_home_paths, f"unexpected HOME link: {href}"
+                  path, _, fragment = href.partition("#")
+                  assert path in approved_home_paths, f"unexpected HOME link: {href}"
+                  if fragment:
+                      targets = {
+                          "/seller-analytics": seller_path,
+                          "/privacy": root / "privacy.html",
+                          "/support": root / "support.html",
+                          "/install": root / "install.html",
+                      }
+                      linked_page = PageParser()
+                      linked_page.feed(targets[path].read_text(encoding="utf-8"))
+                      assert fragment in linked_page.ids, f"broken HOME fragment link: {href}"
               else:
                   assert href in approved_external_links, f"unexpected external HOME link: {href}"
 
@@ -200,6 +216,14 @@ jobs:
           assert "read-only" in lowered, "initial read-only scope must be explicit"
           assert "локаль" in lowered and "ключ" in lowered, "local-key boundary must be visible"
           assert "Октопорт соединяет ваш кабинет продавца на Ozon или Wildberries с любой нейросетью на ваш выбор." in index
+          assert "/install#api-keys" in parser.hrefs
+          assert "Рекламные кампании" in index
+          assert "Поисковые запросы" in index
+          assert "Таблицы и графики" in index
+          assert "Отчёты и документы" in index
+          assert "Работаете в привычном вам браузере." in index
+          assert "Нейросеть не сможет случайно что-то поменять." in index
+          assert 'class="proof shell"' not in index and 'class="compatibility shell"' not in index
           assert "/seller-analytics" in parser.hrefs
           for utility in ("/privacy", "/support", "/install"):
               assert utility in parser.hrefs
@@ -208,7 +232,7 @@ jobs:
           import subprocess
           subprocess.run(["python3", "tests/regression/site/test_site_contour.py"], check=True)
 
-          required_sections = {"top", "proof", "features", "how", "compatibility", "privacy", "beta"}
+          required_sections = {"top", "features", "how", "employee", "privacy", "beta"}
           assert required_sections.issubset(parser.ids), f"missing sections: {required_sections - parser.ids}"
 
           assert "https://octoport.ru/sitemap.xml" in robots
@@ -318,14 +342,18 @@ jobs:
                   ],
               },
               "install": {
-                  "title": "Install Octoport",
-                  "h1": "Install Octoport",
+                  "title": "Установка и API-ключи Октопорта",
+                  "h1": "Установка и API-ключи Октопорта",
                   "canonical": "https://octoport.ru/install",
                   "description": None,
                   "robots": ["noindex, follow"],
                   "required": [
-                      "Официальная установка Octoport из каталога расширений готовится",
-                      "не публикуем инструкции для ZIP-файла",
+                      "Официальные карточки расширения готовятся",
+                      "Как получить API-ключи магазина",
+                      "Admin read only",
+                      "Personal token",
+                      "Только чтение",
+                      "Не вставляйте API-ключи в сообщения нейросети",
                       "/privacy",
                       "/support",
                   ],
@@ -340,7 +368,7 @@ jobs:
               assert page_parser.html_lang == "ru", f"{page_name}: html lang must be ru"
               assert page_parser.canonical == [spec["canonical"]], \
                   f"{page_name}: unexpected canonical {page_parser.canonical}"
-              assert page_parser.stylesheets == ["/styles.css?v=contour-20260928-r12"], \
+              assert page_parser.stylesheets == ["/styles.css?v=home-funnel-20260928-r2"], \
                   f"{page_name}: shared stylesheet link is missing"
               assert page_parser.executable_scripts == 0, f"{page_name}: executable JavaScript is forbidden"
               assert page_parser.json_ld == [], f"{page_name}: unexpected page-level JSON-LD"
@@ -369,6 +397,12 @@ jobs:
                   elif href.startswith("mailto:"):
                       assert href == "mailto:support@octoport.ru", \
                           f"{page_name}: unexpected support email {href}"
+                  elif page_name == "install" and href in {
+                      "https://seller.ozon.ru/app/settings/api-keys",
+                      "https://seller.wildberries.ru/instructions/ru/ru/category/integration",
+                      "https://seller.wildberries.ru/instructions/ru/ru/material/how-to-create-update-or-delete-a-wb-api-token",
+                  }:
+                      pass
                   else:
                       raise AssertionError(f"{page_name}: unsafe or unapproved link {href}")
 

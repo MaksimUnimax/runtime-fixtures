@@ -149,6 +149,9 @@ check_site_content() {
   grep -Fq '<link rel="icon" href="/favicon.png" type="image/png" />' <<<"${homepage}" \
     || fail "homepage favicon link is missing"
   grep -Fq 'Набор ещё не открыт' <<<"${homepage}" || fail "homepage beta-state copy is missing"
+  grep -Fq 'Работаете в привычном вам браузере.' <<<"${homepage}" || fail "homepage browser workflow is missing"
+  grep -Fq 'Нейросеть не сможет случайно что-то поменять.' <<<"${homepage}" || fail "homepage read-only safety copy is missing"
+  grep -Fq 'Рекламные кампании' <<<"${homepage}" || fail "homepage capability map is missing"
 
   python3 -c 'import json,re,sys; h=sys.stdin.read(); nodes=[json.loads(x) for x in re.findall(r"<script[^>]+type=[\"'"'"']application/ld\+json[\"'"'"'][^>]*>(.*?)</script>",h,re.I|re.S)]; w=[x for x in nodes if x.get("@type")=="WebSite"]; assert len(w)==1; x=w[0]; assert x.get("name")=="Octoport"; assert x.get("alternateName")==["Октопорт","octoport.ru"]; assert x.get("url")=="https://octoport.ru/"' \
     <<<"${homepage}" || fail "homepage WebSite structured data is invalid"
@@ -192,8 +195,11 @@ check_site_content() {
   grep -Fq 'Одобрение магазина и готовность продукта — разные этапы.' <<<"${support}" \
     || fail "support page must distinguish store approval from product readiness"
 
-  grep -Fq '<title>Install Octoport</title>' <<<"${install}" || fail "install page title is missing"
-  grep -Fq 'Официальная установка Octoport из каталога расширений готовится' <<<"${install}" \
+  grep -Fq '<title>Установка и API-ключи Октопорта</title>' <<<"${install}" || fail "install page title is missing"
+  grep -Fq 'Как получить API-ключи магазина' <<<"${install}" || fail "install API-key guide is missing"
+  grep -Fq 'Admin read only' <<<"${install}" || fail "install Ozon read-only role guidance is missing"
+  grep -Fq 'Personal token' <<<"${install}" || fail "install WB Personal-token guidance is missing"
+  grep -Fq 'Официальные карточки расширения готовятся' <<<"${install}" \
     || fail "install page does not state that catalog installation is being prepared"
   if grep -Eiq 'официальн.{0,30}(одобрен(а|о|ы)?|опубликован(а|о|ы)?)\b|магазин.{0,30}(одобрил|одобрен(а|о|ы)?|опубликован(а|о|ы)?|approved|published)\b|каталог.{0,30}(одобрен(а|о|ы)?|опубликован(а|о|ы)?|approved|published)\b|карточк.{0,30}(одобрена|опубликована|approved|published)\b|store.{0,20}(approved|published)\b|Safari.{0,30}(поддерживается|входит в бету|supported)' \
     <<<"${support}${install}"; then

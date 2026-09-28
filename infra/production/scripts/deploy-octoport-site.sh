@@ -73,7 +73,7 @@ assert_source() {
   fi
 
   local required
-  for required in index.html seller-analytics.html privacy.html support.html install.html favicon.png styles.css robots.txt sitemap.xml; do
+  for required in index.html seller-analytics.html privacy.html support.html install.html favicon.png styles.css robots.txt sitemap.xml assets/browser-icons/chrome.svg assets/browser-icons/opera.svg assets/browser-icons/firefox.svg assets/browser-icons/yandex.svg assets/browser-icons/octoport.svg; do
     [[ -f "${SOURCE_SITE}/${required}" ]] || fail "site source is missing ${required}"
   done
 
@@ -108,6 +108,12 @@ assert_source() {
     "${SOURCE_SITE}/seller-analytics.html" || fail "seller analytics canonical is missing"
   grep -Fq '<meta name="robots" content="noindex, follow" />' "${SOURCE_SITE}/install.html" \
     || fail "install noindex directive is missing"
+  grep -Fq 'Как получить API-ключи магазина' "${SOURCE_SITE}/install.html" \
+    || fail "install API-key guide is missing"
+  grep -Fq 'Admin read only' "${SOURCE_SITE}/install.html" \
+    || fail "install Ozon read-only guidance is missing"
+  grep -Fq 'Personal token' "${SOURCE_SITE}/install.html" \
+    || fail "install WB Personal-token guidance is missing"
 
   python3 - "${SOURCE_SITE}/favicon.png" <<'PY'
 import struct
