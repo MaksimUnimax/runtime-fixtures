@@ -563,6 +563,19 @@ describe("A6 API-watch report lifecycle", () => {
     }
   });
 
+  it("C03 uses the PostgreSQL18 inferable document-scope conflict target", async () => {
+    const reportSource = await readFile(
+      new URL("./report.ts", import.meta.url),
+      "utf8",
+    );
+    expect(reportSource).toContain(
+      "ON CONFLICT (report_id,source_family,document_key) DO UPDATE",
+    );
+    expect(reportSource).not.toMatch(
+      /ON CONFLICT[^\n]+WHERE document_key IS (?:NULL|NOT NULL)/,
+    );
+  });
+
   it("C03 scopes product baseline reads to the exact source document", async () => {
     const server = await fixtureServer(DOCUMENT_A);
     const root = await mkdtemp(join(tmpdir(), "s2-c03-document-scope-"));

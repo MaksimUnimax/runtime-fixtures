@@ -9,7 +9,9 @@ Integrated source checkpoints:
 - C03 source policy checkpoint: `d5774b05672d0ebbab7849b7e27ba7abfe0440cc`.
 - C04 structured monitoring coverage checkpoint: `8094d4cf340a4fba9b7f851be35cb3569485a895`.
 - B baseline durability original: `9939144986f3f5b91747b88edaf4d0219135210f`, cherry-picked as `89959821`.
-- B document-scope superseding follow-up: `5fc3ad669fca0f4c97c222c111acf22f36e11aa9`, cherry-picked as `720039c8`.
+- B document-scope follow-up: `5fc3ad669fca0f4c97c222c111acf22f36e11aa9`, cherry-picked as `720039c8`.
+- B final conflict-authority superseding rework: `a5dc6084efeda5b42a878b34b9337f643212ef53`, cherry-picked as `fe4cf3b7`. It replaces predicate-specific partial indexes with PostgreSQL 18 inferable `UNIQUE ... NULLS NOT DISTINCT` constraints for exact nullable document scope.
+- Published candidate `3d6cd9e547986b96d1533e544c6fee5b41498d8d` is superseded and MUST NOT be promoted.
 
 Behavior:
 - latest authority/acquisition observation is separated from accepted product-compatible baseline;
@@ -53,6 +55,13 @@ C validation on combined candidate:
   - P5 final acceptance: 80/80 PASS;
   - P6 admin security: 77/77 PASS;
   - all supervised jobs exit 0 with cleanup verified.
+- final conflict-authority C revalidation after `a5dc6084`:
+  - API-watch source suite: 11 files / 209 tests PASS;
+  - @product/api-watch typecheck PASS;
+  - @product/db non-integration suite: 32/32 PASS;
+  - corrected product-baseline PostgreSQL suite: 9/9 PASS, including no-predicate conflict inference for family-null and document scopes;
+  - corrected canonical-lineage PostgreSQL suite: 7/7 PASS.
+- C report writer uses exact `ON CONFLICT (report_id,source_family,document_key)` with no predicate; source regression forbids returning to predicate-specific targets.
 - targeted Prettier/ESLint and git diff --check PASS before final checkpoint.
 
 Open boundaries:
