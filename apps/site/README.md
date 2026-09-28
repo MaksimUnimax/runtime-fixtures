@@ -113,3 +113,7 @@ The homepage scene now preserves the full canonical owner reference as a static 
 ### Contour R12 exact trace
 
 The homepage reference art now uses the canonical owner reference mask directly, without RDP or spline smoothing. The eight interactive circles remain independent DOM links fitted to the same reference geometry. See `docs/design/CONTOUR_EXACT_TRACE_R12_2026-09-28.md`.
+
+### Approved public copy R5
+
+Current copy authority: `docs/seo/SITE_APPROVED_EDITS_2026-09-28_R5.md`. The owner approved native capability disclosure groups, a complete branded HOME H1, Russian product copy and revised analytics/privacy/support pages. The installation instructions remain unchanged. SEO page ownership and indexing directives are unchanged.

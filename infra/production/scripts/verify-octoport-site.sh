@@ -142,7 +142,7 @@ check_site_content() {
   homepage="$(curl --silent --show-error --resolve 'octoport.ru:443:127.0.0.1' 'https://octoport.ru/')"
   grep -Fq '<title>Подключите Алису, ChatGPT и DeepSeek к Ozon и Wildberries | Октопорт</title>' <<<"${homepage}" \
     || fail "homepage owner-approved title is missing"
-  grep -Fq '<h1 class="hero-heading">Подключите <span class="hero-ai-list">Алису, ChatGPT,<br />DeepSeek</span></h1>' <<<"${homepage}" \
+  grep -Fq '<h1 class="hero-heading">Подключите <span class="hero-ai-list">Алису, ChatGPT,<br />DeepSeek</span> <span class="hero-choice">или другую нейросеть<br />к своему магазину<br />на <span class="brand-wildberries">WB</span> и <span class="brand-ozon">Ozon</span>.</span></h1>' <<<"${homepage}" \
     || fail "homepage owner-approved H1 is missing"
   grep -Fq 'Можно использовать бесплатные аккаунты нейросетей.' <<<"${homepage}" \
     || fail "homepage owner-approved free-account copy is missing"
@@ -153,7 +153,7 @@ check_site_content() {
   grep -Fq 'Нейросеть не сможет случайно что-то поменять.' <<<"${homepage}" || fail "homepage read-only safety copy is missing"
   grep -Fq 'Рекламные кампании' <<<"${homepage}" || fail "homepage capability map is missing"
 
-  python3 -c 'import json,re,sys; h=sys.stdin.read(); nodes=[json.loads(x) for x in re.findall(r"<script[^>]+type=[\"'"'"']application/ld\+json[\"'"'"'][^>]*>(.*?)</script>",h,re.I|re.S)]; w=[x for x in nodes if x.get("@type")=="WebSite"]; assert len(w)==1; x=w[0]; assert x.get("name")=="Octoport"; assert x.get("alternateName")==["Октопорт","octoport.ru"]; assert x.get("url")=="https://octoport.ru/"' \
+  python3 -c 'import json,re,sys; h=sys.stdin.read(); nodes=[json.loads(x) for x in re.findall(r"<script[^>]+type=[\"'"'"']application/ld\+json[\"'"'"'][^>]*>(.*?)</script>",h,re.I|re.S)]; w=[x for x in nodes if x.get("@type")=="WebSite"]; assert len(w)==1; x=w[0]; assert x.get("name")=="Октопорт"; assert x.get("alternateName")==["Octoport","octoport.ru"]; assert x.get("url")=="https://octoport.ru/"' \
     <<<"${homepage}" || fail "homepage WebSite structured data is invalid"
 
   seller="$(curl --silent --show-error --resolve 'octoport.ru:443:127.0.0.1' 'https://octoport.ru/seller-analytics')"
@@ -162,33 +162,33 @@ check_site_content() {
   install="$(curl --silent --show-error --resolve 'octoport.ru:443:127.0.0.1' 'https://octoport.ru/install')"
   sitemap="$(curl --silent --show-error --resolve 'octoport.ru:443:127.0.0.1' 'https://octoport.ru/sitemap.xml')"
 
-  grep -Fq '<title>ИИ для аналитики маркетплейсов — данные вашего магазина | Octoport</title>' <<<"${seller}" \
+  grep -Fq '<title>ИИ для аналитики маркетплейсов — данные магазина | Октопорт</title>' <<<"${seller}" \
     || fail "seller analytics M12 title is missing"
-  grep -Fq '<h1>Анализируйте данные магазина на <span class="brand-ozon" data-marketplace="name">Ozon</span> и <span class="brand-wildberries" data-marketplace="name">Wildberries</span> с вашим ИИ</h1>' <<<"${seller}" \
+  grep -Fq '<h1>Аналитика магазина на <span class="brand-wildberries" data-marketplace="name">WB</span> и <span class="brand-ozon" data-marketplace="name">Ozon</span> с Октопортом</h1>' <<<"${seller}" \
     || fail "seller analytics M12 H1 is missing"
   grep -Fq '<link rel="canonical" href="https://octoport.ru/seller-analytics" />' <<<"${seller}" \
     || fail "seller analytics canonical is missing"
-  grep -Fq 'Это read-only сценарий.' <<<"${seller}" || fail "seller analytics read-only boundary is missing"
-  grep -Fq 'главной странице Octoport' <<<"${seller}" || fail "seller analytics HOME link is missing"
+  grep -Fq 'Это сценарий только для чтения.' <<<"${seller}" || fail "seller analytics read-only boundary is missing"
+  grep -Fq 'Как подключить магазин' <<<"${seller}" || fail "seller analytics HOME link is missing"
 
-  grep -Fq '<title>Octoport — Privacy</title>' <<<"${privacy}" || fail "privacy page title is missing"
-  grep -Fq 'не сохраняет <span class="brand-ozon" data-marketplace="name">Ozon</span>/<span class="brand-wildberries" data-marketplace="name">Wildberries</span> реквизиты' <<<"${privacy}" || fail "privacy page credential boundary is missing"
+  grep -Fq '<title>Конфиденциальность и обработка данных | Октопорт</title>' <<<"${privacy}" || fail "privacy page title is missing"
+  grep -Fq 'не сохраняет реквизиты <span class="brand-ozon" data-marketplace="name">Ozon</span>/<span class="brand-wildberries" data-marketplace="name">Wildberries</span>' <<<"${privacy}" || fail "privacy page credential boundary is missing"
   grep -Fq 'технический срок хранения один час' <<<"${privacy}" || fail "privacy page one-hour local buffer statement is missing"
   grep -Fq 'support@octoport.ru' <<<"${privacy}" || fail "privacy page support contact is missing"
-  grep -Fq 'DOM-данные или снимки страниц, просматриваемых пользователем, включая страницы с данными покупателей' <<<"${privacy}" \
+  grep -Fq 'содержимое и структуру открытых страниц или их снимки, включая страницы с данными покупателей' <<<"${privacy}" \
     || fail "privacy page customer/user page DOM and screenshot boundary is missing"
-  if grep -Eiq 'мы не храним данные|Octoport ничего не хранит|не хранит никаких данных|we store no data|no data stored' \
+  if grep -Eiq 'мы не храним данные|(Octoport|Октопорт) ничего не хранит|не хранит никаких данных|we store no data|no data stored' \
     <<<"${privacy}"; then
     fail "privacy page contains an unsupported claim that Octoport stores no data"
   fi
 
-  grep -Fq '<title>Octoport — Support</title>' <<<"${support}" || fail "support page title is missing"
+  grep -Fq '<title>Поддержка Октопорта</title>' <<<"${support}" || fail "support page title is missing"
   grep -Fq 'support@octoport.ru' <<<"${support}" || fail "support page contact is missing"
   grep -Fq 'Safari в бету не входит' <<<"${support}" || fail "support page Safari beta boundary is missing"
   grep -Fq 'Не отправляйте секреты' <<<"${support}" || fail "support page sensitive-data warning is missing"
   grep -Fq 'Редактирование цен, карточек товаров и ставок не поддерживается' <<<"${support}" \
     || fail "support page read-only boundary is missing"
-  grep -Fq 'не отправляйте полные экспорты AI-разговоров' <<<"${support}" \
+  grep -Fq 'Не отправляйте полные экспорты переписки с нейросетью' <<<"${support}" \
     || fail "support page AI conversation export warning is missing"
   grep -Fq 'более поздний безопасный для конфиденциальности канал поддержки прямо их не запросит' <<<"${support}" \
     || fail "support page AI conversation export exception is missing"
@@ -206,18 +206,18 @@ check_site_content() {
     fail "support/install page contains an unsupported store or Safari claim"
   fi
   for page in "${privacy}" "${support}" "${install}"; do
-    grep -Fq 'Octoport' <<<"${page}" || fail "public page is missing Octoport branding"
+    grep -Fq 'Октопорт' <<<"${page}" || fail "public page is missing Octoport branding"
     if grep -Eiq 'localhost|chrome://extensions|file://' <<<"${page}"; then
       fail "public page contains a development installation route"
     fi
   done
 
-  grep -Fq 'name="description" content="Как Octoport обрабатывает данные:' <<<"${privacy}" \
+  grep -Fq 'name="description" content="Как Октопорт обрабатывает данные:' <<<"${privacy}" \
     || fail "privacy meta description is missing"
   ! grep -Eiq '<meta[^>]+name=["'"'"']robots["'"'"'][^>]+noindex' <<<"${privacy}" \
     || fail "privacy must remain indexable"
 
-  grep -Fq 'name="description" content="Поддержка Octoport:' <<<"${support}" \
+  grep -Fq 'name="description" content="Поддержка Октопорта:' <<<"${support}" \
     || fail "support meta description is missing"
   ! grep -Eiq '<meta[^>]+name=["'"'"']robots["'"'"'][^>]+noindex' <<<"${support}" \
     || fail "support must remain indexable"

@@ -85,24 +85,24 @@ assert_source() {
     || fail "site source canonical URL is not octoport.ru"
   grep -Fq '<title>Подключите Алису, ChatGPT и DeepSeek к Ozon и Wildberries | Октопорт</title>' "${SOURCE_SITE}/index.html" \
     || fail "homepage owner-approved title is missing"
-  grep -Fq '<h1 class="hero-heading">Подключите <span class="hero-ai-list">Алису, ChatGPT,<br />DeepSeek</span></h1>' "${SOURCE_SITE}/index.html" \
+  grep -Fq '<h1 class="hero-heading">Подключите <span class="hero-ai-list">Алису, ChatGPT,<br />DeepSeek</span> <span class="hero-choice">или другую нейросеть<br />к своему магазину<br />на <span class="brand-wildberries">WB</span> и <span class="brand-ozon">Ozon</span>.</span></h1>' "${SOURCE_SITE}/index.html" \
     || fail "homepage owner-approved H1 is missing"
   grep -Fq '<link rel="icon" href="/favicon.png" type="image/png" />' "${SOURCE_SITE}/index.html" \
     || fail "homepage favicon link is missing"
   grep -Fq '"@type": "WebSite"' "${SOURCE_SITE}/index.html" \
     || fail "homepage WebSite structured data is missing"
-  grep -Fq '"name": "Octoport"' "${SOURCE_SITE}/index.html" \
+  grep -Fq '"name": "Октопорт"' "${SOURCE_SITE}/index.html" \
     || fail "homepage WebSite site name is missing"
-  grep -Fq '"alternateName": ["Октопорт", "octoport.ru"]' "${SOURCE_SITE}/index.html" \
+  grep -Fq '"alternateName": ["Octoport", "octoport.ru"]' "${SOURCE_SITE}/index.html" \
     || fail "homepage WebSite alternate names are missing"
   grep -Fq '"url": "https://octoport.ru/"' "${SOURCE_SITE}/index.html" \
     || fail "homepage WebSite URL is missing"
   grep -Fq 'Набор ещё не открыт' "${SOURCE_SITE}/index.html" \
     || fail "site source does not preserve the closed-beta state"
 
-  grep -Fq '<title>ИИ для аналитики маркетплейсов — данные вашего магазина | Octoport</title>' \
+  grep -Fq '<title>ИИ для аналитики маркетплейсов — данные магазина | Октопорт</title>' \
     "${SOURCE_SITE}/seller-analytics.html" || fail "seller analytics M12 title is missing"
-  grep -Fq '<h1>Анализируйте данные магазина на <span class="brand-ozon" data-marketplace="name">Ozon</span> и <span class="brand-wildberries" data-marketplace="name">Wildberries</span> с вашим ИИ</h1>' \
+  grep -Fq '<h1>Аналитика магазина на <span class="brand-wildberries" data-marketplace="name">WB</span> и <span class="brand-ozon" data-marketplace="name">Ozon</span> с Октопортом</h1>' \
     "${SOURCE_SITE}/seller-analytics.html" || fail "seller analytics M12 H1 is missing"
   grep -Fq '<link rel="canonical" href="https://octoport.ru/seller-analytics" />' \
     "${SOURCE_SITE}/seller-analytics.html" || fail "seller analytics canonical is missing"
