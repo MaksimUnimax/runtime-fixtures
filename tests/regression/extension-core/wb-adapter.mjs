@@ -74,6 +74,42 @@ try {
     assert.ok(await worker.call("(() => typeof OzonContract.parseCommand === 'function')"));
     assert.equal(worker.network.length, 0, "loading adapter does not issue requests");
   });
+  await test("WB-01a-retired-analytics-aliases-fail-before-fetch-and-help", async () => {
+    const retired = [
+      ["banned_products_shadowed", { query: { sort: "name", order: "asc" } }],
+      ["analytics_item_rating_v1", { body: { nmIds: [123456] } }],
+    ];
+    for (const [alias, params] of retired) {
+      const source = command(alias, params);
+      assert.throws(() => reference.contract.parseCommand(source), { code: "UNSUPPORTED_OPERATION" });
+      const s = await setup(source);
+      await s.run();
+      assert.equal(s.network.length, 0, alias + " must fail before provider fetch");
+      const entry = (await s.state()).batch.entries[0];
+      assert.equal(entry.kind, "pre_execution_error");
+      assert.match(entry.report_text, /UNSUPPORTED_OPERATION/);
+      const legacy = await worker.call(`(() => {
+        const row = SellerAgentsWBAdapter.discover('WB_HELP_V1 ' + JSON.stringify({operation:"describe",params:{alias:"${alias}"}}))[0];
+        return SellerAgentsWBAdapter.localResult(row).report_text;
+      })`);
+      const card = JSON.parse(legacy.split("\n").slice(1).join("\n")).operation_card;
+      assert.equal(card.known, false);
+      assert.equal(card.operation, null);
+    }
+    const analyticsChoices = await worker.call(`(() => {
+      const parsed = SellerAgentsWBReference.guidance.parseHelp('WB_HELP_V2 {"cluster":"analytics","section":"direct"}');
+      const payload = SellerAgentsWBReference.guidance.result({ ...parsed, status: "operations" });
+      return payload.choices.map((row) => row.operation);
+    })`);
+    assert.equal(analyticsChoices.includes("banned_products_shadowed"), false);
+    assert.equal(analyticsChoices.includes("analytics_item_rating_v1"), false);
+    assert.ok(analyticsChoices.includes("banned_products_blocked"));
+    assert.ok(analyticsChoices.includes("analytics_item_rating_v2"));
+    const useful = await setup(basic);
+    assert.equal((await useful.run()).ok, true);
+    assert.equal(useful.network.length, 1);
+    assert.match(useful.network[0].url, /common-api\.wildberries\.ru\/api\/v1\/seller-info/);
+  });
   await test("WB-01b-fbs-statuses-required-body-help-and-predispatch", async () => {
     const meta = reference.contract.OPERATIONS.fbs_order_statuses;
     assert.equal(meta.body_required, true);
