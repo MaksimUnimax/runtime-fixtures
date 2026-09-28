@@ -5,8 +5,10 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { NoSessionObservationResultSchema } from "@product/health";
 import {
   createDatabaseRuntime,
+  createHealthIncidentRepository,
   createHealthRetentionRepository,
-  NO_SESSION_RETENTION_MIN_AGE_MS,
+  markNoSessionIncidentProcessed,
+  NO_SESSION_RAW_PAYLOAD_GRACE_MS,
   noSessionRetentionScopeSha256,
   normalizedNoSessionResultSha256,
   type DatabaseQuery,
@@ -481,6 +483,7 @@ describe.sequential("monitoring retention 0051 -> 0052 upgrade", () => {
     });
     const healthy3Observation = legacyObservation({
       observedAt: new Date("2026-09-27T18:00:01.000Z"),
+      classification: "BROKEN",
     });
 
     await seedAdditionalLegacyRun({
@@ -577,7 +580,7 @@ describe.sequential("monitoring retention 0051 -> 0052 upgrade", () => {
         if (
           !injectedCrash &&
           text.includes("SET incident_processed_at=COALESCE") &&
-          values?.[0] === brokenRun
+          values?.[0] === healthy3Run
         ) {
           injectedCrash = true;
           throw new Error("TEST_LEGACY_INCIDENT_MARKER_CRASH");
@@ -605,7 +608,7 @@ describe.sequential("monitoring retention 0051 -> 0052 upgrade", () => {
           AS "incidentProcessedAt",
         (SELECT count(*)::text FROM health_incidents) AS "incidentCount",
         (SELECT count(*)::text FROM health_notification_intents) AS "notificationCount"`,
-      [brokenRun],
+      [healthy3Run],
     );
     expect(crashBoundary.rows[0]).toEqual({
       incidentProcessedAt: null,
@@ -621,7 +624,7 @@ describe.sequential("monitoring retention 0051 -> 0052 upgrade", () => {
           processedAt: new Date("2026-09-28T01:00:01.000Z"),
         })
       ).processed,
-    ).toBe(2);
+    ).toBe(1);
     expect(
       (
         await restartedRetention.reconcileLegacyNoSessionIncidentProcessing({
@@ -648,19 +651,19 @@ describe.sequential("monitoring retention 0051 -> 0052 upgrade", () => {
     );
     expect(historicalOutcome.rows[0]).toEqual({
       incidentCount: "1",
-      status: "RESOLVED",
-      resolvedByRunId: healthy3Run,
+      status: "OPEN",
+      resolvedByRunId: null,
       notificationCount: "0",
       markedCount: "4",
     });
 
     const before = new Date("2026-09-28T00:00:00.000Z");
     const safeNow = new Date(
-      before.valueOf() + NO_SESSION_RETENTION_MIN_AGE_MS + 1_000,
+      before.valueOf() + NO_SESSION_RAW_PAYLOAD_GRACE_MS + 1_000,
     );
     const tooRecentRetention = createHealthRetentionRepository(runtime, {
       clock: () =>
-        new Date(before.valueOf() + NO_SESSION_RETENTION_MIN_AGE_MS - 1),
+        new Date(before.valueOf() + NO_SESSION_RAW_PAYLOAD_GRACE_MS - 1),
     });
     const cleanupRetention = createHealthRetentionRepository(runtime, {
       clock: () => safeNow,
@@ -670,7 +673,7 @@ describe.sequential("monitoring retention 0051 -> 0052 upgrade", () => {
         before,
         limit: 1,
       }),
-    ).rejects.toThrow("HEALTH_RETENTION_CUTOFF_TOO_RECENT");
+    ).rejects.toThrow("HEALTH_RETENTION_RAW_PAYLOAD_CUTOFF_TOO_RECENT");
 
     const firstPage = await cleanupRetention.listRoutineNoSessionGcInventory({
       before,
@@ -692,12 +695,25 @@ describe.sequential("monitoring retention 0051 -> 0052 upgrade", () => {
     expect(secondPage).toHaveLength(1);
     expect(secondPage[0]).toMatchObject({
       runId: healthy2Run,
+      reason: "RECENT_STATE_PINNED",
+    });
+    const thirdPage = await cleanupRetention.listRoutineNoSessionGcInventory({
+      before,
+      cursor: {
+        completedAt: secondPage[0]!.completedAt,
+        runId: secondPage[0]!.runId,
+      },
+      limit: 1,
+    });
+    expect(thirdPage).toHaveLength(1);
+    expect(thirdPage[0]).toMatchObject({
+      runId: brokenRun,
       reason: "ELIGIBLE",
     });
 
     expect(
       await cleanupRetention.pruneRoutineNoSessionPayload({
-        runId: healthy2Run,
+        runId: brokenRun,
         before,
       }),
     ).toEqual({ status: "PRUNED", reason: "ELIGIBLE" });
@@ -712,12 +728,196 @@ describe.sequential("monitoring retention 0051 -> 0052 upgrade", () => {
           AS "observationCount",
         (SELECT count(*)::text FROM health_no_session_run_receipts WHERE run_id=$1)
           AS "receiptCount"`,
-      [healthy2Run],
+      [brokenRun],
     );
     expect(pruned.rows[0]).toEqual({
       runCount: "0",
       observationCount: "0",
       receiptCount: "1",
+    });
+  });
+
+  it("does not reopen an older legacy BROKEN incident behind a newer processed HEALTHY state", async () => {
+    await runtime.query("DROP SCHEMA IF EXISTS public CASCADE");
+    await runtime.query("DROP SCHEMA IF EXISTS drizzle CASCADE");
+    await runtime.query("CREATE SCHEMA public");
+    await runMigrations({
+      connectionString,
+      migrationsDirectory: prefixDirectory,
+    });
+
+    await seedLegacyNoSessionRun();
+    const oldBrokenRun = "d4000000-0000-4000-8000-000000000047";
+    const oldBrokenScheduled = "d4000000-0000-4000-8000-000000000046";
+    const newerHealthyRun = "d4000000-0000-4000-8000-000000000057";
+    const newerHealthyScheduled = "d4000000-0000-4000-8000-000000000056";
+    const oldBrokenObservation = legacyObservation({
+      observedAt: new Date("2026-09-27T06:00:01.000Z"),
+      classification: "BROKEN",
+    });
+    const newerHealthyObservation = legacyObservation({
+      observedAt: new Date("2026-09-27T12:00:01.000Z"),
+    });
+    await seedAdditionalLegacyRun({
+      scheduledRunId: oldBrokenScheduled,
+      healthRunId: oldBrokenRun,
+      dueSlotAt: new Date("2026-09-27T06:00:00.000Z"),
+      observation: oldBrokenObservation,
+      idempotencyHex: "5",
+      callbackHex: "6",
+    });
+    await seedAdditionalLegacyRun({
+      scheduledRunId: newerHealthyScheduled,
+      healthRunId: newerHealthyRun,
+      dueSlotAt: new Date("2026-09-27T12:00:00.000Z"),
+      observation: newerHealthyObservation,
+      idempotencyHex: "7",
+      callbackHex: "8",
+    });
+
+    await runMigrations({ connectionString });
+    const retention = createHealthRetentionRepository(runtime);
+    expect(
+      await retention.backfillNoSessionCompactProjection({
+        limit: 10,
+        projectedAt: new Date("2026-09-28T02:00:00.000Z"),
+      }),
+    ).toBe(3);
+
+    const normalIncidents = createHealthIncidentRepository(runtime);
+    expect(
+      await normalIncidents.processCompletedHealthRun(newerHealthyRun),
+    ).toMatchObject({ action: "NOOP", incidentIds: [] });
+    await markNoSessionIncidentProcessed(
+      runtime,
+      newerHealthyRun,
+      new Date("2026-09-28T02:00:01.000Z"),
+    );
+
+    expect(
+      (
+        await retention.reconcileLegacyNoSessionIncidentProcessing({
+          limit: 10,
+          processedAt: new Date("2026-09-28T02:00:02.000Z"),
+        })
+      ).processed,
+    ).toBe(2);
+    expect(
+      (
+        await retention.reconcileLegacyNoSessionIncidentProcessing({
+          limit: 10,
+          processedAt: new Date("2026-09-28T02:00:03.000Z"),
+        })
+      ).processed,
+    ).toBe(0);
+
+    const result = await runtime.query<{
+      incidents: string;
+      notifications: string;
+      marked: string;
+    }>(
+      `SELECT
+        (SELECT count(*)::text FROM health_incidents) AS incidents,
+        (SELECT count(*)::text FROM health_notification_intents) AS notifications,
+        (SELECT count(incident_processed_at)::text FROM health_no_session_run_receipts)
+          AS marked`,
+    );
+    expect(result.rows[0]).toEqual({
+      incidents: "0",
+      notifications: "0",
+      marked: "3",
+    });
+  });
+
+  it("resolves a silent legacy incident without emitting a recovery-only notification", async () => {
+    await runtime.query("DROP SCHEMA IF EXISTS public CASCADE");
+    await runtime.query("DROP SCHEMA IF EXISTS drizzle CASCADE");
+    await runtime.query("CREATE SCHEMA public");
+    await runMigrations({
+      connectionString,
+      migrationsDirectory: prefixDirectory,
+    });
+
+    await seedLegacyNoSessionRun();
+    const legacyBrokenRun = "d4000000-0000-4000-8000-000000000067";
+    const legacyBrokenScheduled = "d4000000-0000-4000-8000-000000000066";
+    const legacyBrokenObservation = legacyObservation({
+      observedAt: new Date("2026-09-27T06:00:01.000Z"),
+      classification: "BROKEN",
+    });
+    await seedAdditionalLegacyRun({
+      scheduledRunId: legacyBrokenScheduled,
+      healthRunId: legacyBrokenRun,
+      dueSlotAt: new Date("2026-09-27T06:00:00.000Z"),
+      observation: legacyBrokenObservation,
+      idempotencyHex: "9",
+      callbackHex: "a",
+    });
+
+    await runMigrations({ connectionString });
+    const retention = createHealthRetentionRepository(runtime);
+    expect(
+      await retention.backfillNoSessionCompactProjection({
+        limit: 10,
+        projectedAt: new Date("2026-09-28T03:00:00.000Z"),
+      }),
+    ).toBe(2);
+    expect(
+      (
+        await retention.reconcileLegacyNoSessionIncidentProcessing({
+          limit: 10,
+          processedAt: new Date("2026-09-28T03:00:01.000Z"),
+        })
+      ).processed,
+    ).toBe(2);
+
+    const opened = await runtime.query<{
+      id: string;
+      status: string;
+      notifications: string;
+    }>(
+      `SELECT incident.id,incident.status::text AS status,
+        (SELECT count(*)::text FROM health_notification_intents n
+         WHERE n.incident_id=incident.id) AS notifications
+       FROM health_incidents incident`,
+    );
+    expect(opened.rows).toHaveLength(1);
+    expect(opened.rows[0]).toMatchObject({
+      status: "OPEN",
+      notifications: "0",
+    });
+
+    const newerHealthyRun = "d4000000-0000-4000-8000-000000000077";
+    const newerHealthyScheduled = "d4000000-0000-4000-8000-000000000076";
+    await seedAdditionalLegacyRun({
+      scheduledRunId: newerHealthyScheduled,
+      healthRunId: newerHealthyRun,
+      dueSlotAt: new Date("2026-09-27T12:00:00.000Z"),
+      observation: legacyObservation({
+        observedAt: new Date("2026-09-27T12:00:01.000Z"),
+      }),
+      idempotencyHex: "b",
+      callbackHex: "c",
+    });
+    const normalIncidents = createHealthIncidentRepository(runtime);
+    expect(
+      await normalIncidents.processCompletedHealthRun(newerHealthyRun),
+    ).toMatchObject({ action: "RESOLVED" });
+
+    const resolved = await runtime.query<{
+      status: string;
+      resolvedByRunId: string | null;
+      notifications: string;
+    }>(
+      `SELECT status::text AS status,resolved_by_run_id AS "resolvedByRunId",
+        (SELECT count(*)::text FROM health_notification_intents n
+         WHERE n.incident_id=health_incidents.id) AS notifications
+       FROM health_incidents`,
+    );
+    expect(resolved.rows[0]).toEqual({
+      status: "RESOLVED",
+      resolvedByRunId: newerHealthyRun,
+      notifications: "0",
     });
   });
 });
