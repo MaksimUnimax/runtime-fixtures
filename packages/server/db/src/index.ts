@@ -32,8 +32,10 @@ export { createHealthNoSessionPersistenceRepository } from "./health-no-session-
 export {
   createHealthRetentionRepository,
   markNoSessionIncidentProcessed,
+  NO_SESSION_RETENTION_MIN_AGE_MS,
   noSessionRetentionScopeSha256,
   normalizedNoSessionResultSha256,
+  type RoutineNoSessionGcCursor,
   type RoutineNoSessionGcInventoryItem,
   type RoutineNoSessionGcReason,
 } from "./health-retention-repository.js";

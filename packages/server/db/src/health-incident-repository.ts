@@ -306,9 +306,13 @@ async function updateIncidentObservation(
 
 export function createHealthIncidentRepository(
   runtime: DatabaseRuntime,
-  options: { notificationPolicy?: LlmHealthNotificationPolicy } = {},
+  options: {
+    notificationPolicy?: LlmHealthNotificationPolicy;
+    emitNotifications?: boolean;
+  } = {},
 ) {
   const notificationPolicy = options.notificationPolicy;
+  const emitNotifications = options.emitNotifications ?? true;
   return {
     async processCompletedHealthRun(
       runId: string,
@@ -375,20 +379,22 @@ export function createHealthIncidentRepository(
           healthState: typeof persistedState,
           eventRootContourKey = rootContourKey,
         ) =>
-          deriveLlmHealthNotificationEvent(
-            {
-              incidentId,
-              healthRunId: run.id,
-              eventKind,
-              healthState,
-              provider: scope.adapterFamilyKey,
-              surface: scope.surfaceKey,
-              healthLevel,
-              rootContourKey: eventRootContourKey,
-              observedAt: run.completedAt,
-            },
-            notificationPolicy,
-          );
+          emitNotifications
+            ? deriveLlmHealthNotificationEvent(
+                {
+                  incidentId,
+                  healthRunId: run.id,
+                  eventKind,
+                  healthState,
+                  provider: scope.adapterFamilyKey,
+                  surface: scope.surfaceKey,
+                  healthLevel,
+                  rootContourKey: eventRootContourKey,
+                  observedAt: run.completedAt,
+                },
+                notificationPolicy,
+              )
+            : null;
         if (persistedState === "UNKNOWN") {
           return { runId, action: "NOOP", incidentIds: [] };
         }
@@ -452,10 +458,12 @@ export function createHealthIncidentRepository(
                 );
                 if (entered)
                   await recordLlmHealthNotificationInTransaction(q, entered);
-                await suppressLlmHealthProductNotificationsInTransaction(
-                  q,
-                  incident.id,
-                );
+                if (emitNotifications) {
+                  await suppressLlmHealthProductNotificationsInTransaction(
+                    q,
+                    incident.id,
+                  );
+                }
               }
               changed.push(incident.id);
             }
@@ -481,11 +489,13 @@ export function createHealthIncidentRepository(
           );
           if (action === "UPDATED") {
             if (active.status === "MAINTENANCE") {
-              await resumeLlmHealthProductNotificationInTransaction(
-                q,
-                active.id,
-                run.completedAt,
-              );
+              if (emitNotifications) {
+                await resumeLlmHealthProductNotificationInTransaction(
+                  q,
+                  active.id,
+                  run.completedAt,
+                );
+              }
               const exited = notificationInput(
                 active.id,
                 "MAINTENANCE_EXITED",
@@ -495,21 +505,23 @@ export function createHealthIncidentRepository(
               if (exited)
                 await recordLlmHealthNotificationInTransaction(q, exited);
             }
-            await observeLlmHealthFailureInTransaction(
-              q,
-              {
-                incidentId: active.id,
-                healthRunId: run.id,
-                eventKind: "INCIDENT_OPENED",
-                healthState: persistedState,
-                provider: scope.adapterFamilyKey,
-                surface: scope.surfaceKey,
-                healthLevel,
-                rootContourKey: active.rootContourKey,
-                observedAt: run.completedAt,
-              },
-              notificationPolicy,
-            );
+            if (emitNotifications) {
+              await observeLlmHealthFailureInTransaction(
+                q,
+                {
+                  incidentId: active.id,
+                  healthRunId: run.id,
+                  eventKind: "INCIDENT_OPENED",
+                  healthState: persistedState,
+                  provider: scope.adapterFamilyKey,
+                  surface: scope.surfaceKey,
+                  healthLevel,
+                  rootContourKey: active.rootContourKey,
+                  observedAt: run.completedAt,
+                },
+                notificationPolicy,
+              );
+            }
           }
           return { runId, action, incidentIds: [active.id] };
         }
@@ -554,21 +566,23 @@ export function createHealthIncidentRepository(
           "FAILURE",
         );
         if (action === "UPDATED") {
-          await observeLlmHealthFailureInTransaction(
-            q,
-            {
-              incidentId: raced.id,
-              healthRunId: run.id,
-              eventKind: "INCIDENT_OPENED",
-              healthState: persistedState,
-              provider: scope.adapterFamilyKey,
-              surface: scope.surfaceKey,
-              healthLevel,
-              rootContourKey: raced.rootContourKey,
-              observedAt: run.completedAt,
-            },
-            notificationPolicy,
-          );
+          if (emitNotifications) {
+            await observeLlmHealthFailureInTransaction(
+              q,
+              {
+                incidentId: raced.id,
+                healthRunId: run.id,
+                eventKind: "INCIDENT_OPENED",
+                healthState: persistedState,
+                provider: scope.adapterFamilyKey,
+                surface: scope.surfaceKey,
+                healthLevel,
+                rootContourKey: raced.rootContourKey,
+                observedAt: run.completedAt,
+              },
+              notificationPolicy,
+            );
+          }
         }
         return { runId, action, incidentIds: [raced.id] };
       });

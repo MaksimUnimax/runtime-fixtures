@@ -12,6 +12,7 @@ import {
   createHealthNoSessionPersistenceRepository,
   createHealthRetentionRepository,
   createHealthSchedulerRepository,
+  NO_SESSION_RETENTION_MIN_AGE_MS,
   noSessionRetentionScopeSha256,
   normalizedNoSessionResultSha256,
   type DatabaseQuery,
@@ -38,7 +39,6 @@ const runtime = createDatabaseRuntime(connectionString);
 const scheduler = createHealthSchedulerRepository(runtime);
 const persistence = createHealthNoSessionPersistenceRepository(runtime);
 const completion = createHealthNoSessionCompletionAdapter(runtime);
-const retention = createHealthRetentionRepository(runtime);
 const incidents = createHealthIncidentRepository(runtime);
 const admin = createHealthAdminReadRepository(runtime);
 
@@ -110,6 +110,23 @@ const settleTick = () =>
   new Promise<void>((resolve) => setTimeout(resolve, 50));
 
 const baseTime = new Date("2026-09-23T12:00:00.000Z");
+const RETENTION_TEST_NOW = new Date(
+  baseTime.valueOf() +
+    NO_SESSION_RETENTION_MIN_AGE_MS +
+    7 * 24 * 60 * 60 * 1_000,
+);
+const RETENTION_METADATA_BEFORE = new Date(
+  RETENTION_TEST_NOW.valueOf() + 1_000,
+);
+const RETENTION_METADATA_NOW = new Date(
+  RETENTION_METADATA_BEFORE.valueOf() + NO_SESSION_RETENTION_MIN_AGE_MS + 1_000,
+);
+const retention = createHealthRetentionRepository(runtime, {
+  clock: () => RETENTION_TEST_NOW,
+});
+const metadataRetention = createHealthRetentionRepository(runtime, {
+  clock: () => RETENTION_METADATA_NOW,
+});
 
 type PersistedRunRow = {
   id: string;
@@ -1210,7 +1227,6 @@ describe.sequential("C04 no-session persistence PostgreSQL acceptance", () => {
       .pruneRoutineNoSessionPayload({
         runId: secondRepeated.healthRunId,
         before: cutoff,
-        now: new Date(baseTime.valueOf() + 3_000_001),
       })
       .finally(() => {
         pruneSettled = true;
@@ -1271,7 +1287,9 @@ describe.sequential("C04 no-session persistence PostgreSQL acceptance", () => {
       ),
     ).rejects.toBeInstanceOf(Error);
 
-    const restartedRetention = createHealthRetentionRepository(runtime);
+    const restartedRetention = createHealthRetentionRepository(runtime, {
+      clock: () => RETENTION_TEST_NOW,
+    });
     const afterRestart =
       await restartedRetention.listRoutineNoSessionGcInventory({
         before: cutoff,
@@ -1320,11 +1338,10 @@ describe.sequential("C04 no-session persistence PostgreSQL acceptance", () => {
       );
     await retirePause.locked;
     let retireSettled = false;
-    const retirePromise = retention
+    const retirePromise = metadataRetention
       .retireRoutineNoSessionReceipt({
         runId: secondRepeated.healthRunId,
-        before: new Date(baseTime.valueOf() + 4_000_000),
-        now: new Date(baseTime.valueOf() + 4_000_001),
+        before: RETENTION_METADATA_BEFORE,
       })
       .finally(() => {
         retireSettled = true;
@@ -1432,10 +1449,9 @@ describe.sequential("C04 no-session persistence PostgreSQL acceptance", () => {
       [revisedSlot.id, revisedCancelledAt],
     );
     expect(
-      await retention.retireTerminalScheduledRun({
+      await metadataRetention.retireTerminalScheduledRun({
         scheduledRunId: revisedSlot.id,
         before: new Date(revisedCancelledAt.valueOf() + 1),
-        now: new Date(revisedCancelledAt.valueOf() + 2),
       }),
     ).toEqual({ status: "RETIRED", reason: "RETIRED" });
   });
@@ -1730,7 +1746,6 @@ describe.sequential("C04 no-session persistence PostgreSQL acceptance", () => {
     const terminalRetired = await retention.retireTerminalScheduledRun({
       scheduledRunId: uncertainSchedule.id,
       before: new Date(uncertain.finishedAt!.valueOf() + 1),
-      now: new Date(uncertain.finishedAt!.valueOf() + 2),
     });
     expect(terminalRetired).toEqual({
       status: "RETIRED",

@@ -4,7 +4,29 @@ import {
   type NoSessionObservationResult,
 } from "@product/health";
 import { canonicalizeJson } from "@product/remote-config";
+import { createHealthIncidentRepository } from "./health-incident-repository.js";
 import type { DatabaseQuery, DatabaseRuntime } from "./index.js";
+
+// Scheduler max: 8 one-hour attempts plus at most 7 inter-attempt delays
+// capped at 24 hours each => <= 176 hours. Eight days leaves a bounded margin.
+export const NO_SESSION_RETENTION_MIN_AGE_MS = 8 * 24 * 60 * 60 * 1_000;
+
+export type RoutineNoSessionGcCursor = Readonly<{
+  completedAt: Date;
+  runId: string;
+}>;
+
+function assertRetentionCutoff(before: Date, now: Date): void {
+  if (
+    !(before instanceof Date) ||
+    !(now instanceof Date) ||
+    !Number.isFinite(before.getTime()) ||
+    !Number.isFinite(now.getTime()) ||
+    before.getTime() > now.getTime() - NO_SESSION_RETENTION_MIN_AGE_MS
+  ) {
+    throw new Error("HEALTH_RETENTION_CUTOFF_TOO_RECENT");
+  }
+}
 
 export type RoutineNoSessionGcReason =
   | "ELIGIBLE"
@@ -500,21 +522,49 @@ async function advanceScheduleWatermark(
   }
 }
 
-export function createHealthRetentionRepository(runtime: DatabaseRuntime) {
+export function createHealthRetentionRepository(
+  runtime: DatabaseRuntime,
+  options: {
+    clock?: () => Date;
+  } = {},
+) {
+  const legacyIncidentProcessor = createHealthIncidentRepository(runtime, {
+    emitNotifications: false,
+  });
+  const clock = options.clock ?? (() => new Date());
   return {
     async listRoutineNoSessionGcInventory(input: {
       before: Date;
+      cursor?: RoutineNoSessionGcCursor;
       limit?: number;
     }): Promise<readonly RoutineNoSessionGcInventoryItem[]> {
       const limit = input.limit ?? 500;
       if (!Number.isInteger(limit) || limit < 1 || limit > 5_000)
         throw new Error("HEALTH_RETENTION_LIMIT_INVALID");
-      const result = await runtime.query<RoutineNoSessionGcInventoryItem>(
-        `${gcInventorySql}
-         WHERE receipt.completed_at <= $1
-         ORDER BY receipt.completed_at,receipt.run_id LIMIT $2`,
-        [input.before, limit],
-      );
+      const now = clock();
+      assertRetentionCutoff(input.before, now);
+      if (
+        input.cursor &&
+        (!(input.cursor.completedAt instanceof Date) ||
+          !Number.isFinite(input.cursor.completedAt.getTime()) ||
+          typeof input.cursor.runId !== "string")
+      ) {
+        throw new Error("HEALTH_RETENTION_CURSOR_INVALID");
+      }
+      const result = input.cursor
+        ? await runtime.query<RoutineNoSessionGcInventoryItem>(
+            `${gcInventorySql}
+             WHERE receipt.completed_at <= $1
+               AND (receipt.completed_at,receipt.run_id) > ($2::timestamptz,$3::uuid)
+             ORDER BY receipt.completed_at,receipt.run_id LIMIT $4`,
+            [input.before, input.cursor.completedAt, input.cursor.runId, limit],
+          )
+        : await runtime.query<RoutineNoSessionGcInventoryItem>(
+            `${gcInventorySql}
+             WHERE receipt.completed_at <= $1
+             ORDER BY receipt.completed_at,receipt.run_id LIMIT $2`,
+            [input.before, limit],
+          );
       return result.rows;
     },
     async backfillNoSessionCompactProjection(
@@ -570,14 +620,84 @@ export function createHealthRetentionRepository(runtime: DatabaseRuntime) {
       return applied;
     },
 
+    async reconcileLegacyNoSessionIncidentProcessing(
+      input: {
+        limit?: number;
+        cursor?: RoutineNoSessionGcCursor;
+        processedAt?: Date;
+      } = {},
+    ): Promise<{
+      processed: number;
+      cursor: RoutineNoSessionGcCursor | null;
+    }> {
+      const limit = input.limit ?? 100;
+      if (!Number.isInteger(limit) || limit < 1 || limit > 1_000)
+        throw new Error("HEALTH_RETENTION_LIMIT_INVALID");
+      const values: unknown[] = [];
+      let cursorPredicate = "";
+      if (input.cursor) {
+        if (
+          !(input.cursor.completedAt instanceof Date) ||
+          !Number.isFinite(input.cursor.completedAt.getTime()) ||
+          typeof input.cursor.runId !== "string"
+        ) {
+          throw new Error("HEALTH_RETENTION_CURSOR_INVALID");
+        }
+        values.push(input.cursor.completedAt, input.cursor.runId);
+        cursorPredicate =
+          "AND (receipt.completed_at,receipt.run_id) > ($1::timestamptz,$2::uuid)";
+      }
+      values.push(limit);
+      const limitIndex = values.length;
+      const candidates = await runtime.query<{
+        runId: string;
+        completedAt: Date;
+      }>(
+        `SELECT receipt.run_id AS "runId",receipt.completed_at AS "completedAt"
+         FROM health_no_session_run_receipts receipt
+         JOIN health_runs run ON run.id=receipt.run_id
+         JOIN health_no_session_observations observation ON observation.run_id=receipt.run_id
+         JOIN health_scheduled_runs scheduled ON scheduled.id=receipt.scheduled_run_id
+         WHERE receipt.incident_processed_at IS NULL
+           AND receipt.projection_applied_at IS NOT NULL
+           AND receipt.payload_pruned_at IS NULL
+           AND run.run_kind='NO_SESSION_OBSERVATION'
+           AND scheduled.state='SUCCEEDED'
+           AND scheduled.health_run_id=receipt.run_id
+           ${cursorPredicate}
+         ORDER BY receipt.completed_at,receipt.run_id
+         LIMIT $${limitIndex}`,
+        values,
+      );
+      let processed = 0;
+      let cursor: RoutineNoSessionGcCursor | null = input.cursor ?? null;
+      for (const candidate of candidates.rows) {
+        await legacyIncidentProcessor.processCompletedHealthRun(
+          candidate.runId,
+        );
+        await markNoSessionIncidentProcessed(
+          runtime,
+          candidate.runId,
+          input.processedAt ?? new Date(),
+        );
+        processed += 1;
+        cursor = {
+          completedAt: candidate.completedAt,
+          runId: candidate.runId,
+        };
+      }
+      return { processed, cursor };
+    },
+
     async pruneRoutineNoSessionPayload(input: {
       runId: string;
       before: Date;
-      now?: Date;
     }): Promise<{
       status: "PRUNED" | "BLOCKED";
       reason: RoutineNoSessionGcReason;
     }> {
+      const retentionNow = clock();
+      assertRetentionCutoff(input.before, retentionNow);
       return runtime.transaction(async (q) => {
         const identity = await q.query<{ scheduledRunId: string }>(
           `SELECT scheduled_run_id AS "scheduledRunId"
@@ -605,7 +725,7 @@ export function createHealthRetentionRepository(runtime: DatabaseRuntime) {
         if (!inventory) return { status: "BLOCKED", reason: "PAYLOAD_MISSING" };
         if (inventory.reason !== "ELIGIBLE")
           return { status: "BLOCKED", reason: inventory.reason };
-        const now = input.now ?? new Date();
+        const now = retentionNow;
         const marked = await q.query<{ runId: string }>(
           `UPDATE health_no_session_run_receipts SET payload_pruned_at=$2
            WHERE run_id=$1 AND payload_pruned_at IS NULL RETURNING run_id AS "runId"`,
@@ -644,7 +764,6 @@ export function createHealthRetentionRepository(runtime: DatabaseRuntime) {
     async retireRoutineNoSessionReceipt(input: {
       runId: string;
       before: Date;
-      now?: Date;
     }): Promise<{
       status: "RETIRED" | "BLOCKED";
       reason:
@@ -655,6 +774,8 @@ export function createHealthRetentionRepository(runtime: DatabaseRuntime) {
         | "SCHEDULER_NOT_SUCCEEDED"
         | "SCHEDULER_LINK_PRESENT";
     }> {
+      const retentionNow = clock();
+      assertRetentionCutoff(input.before, retentionNow);
       return runtime.transaction(async (q) => {
         const identity = await q.query<{
           scheduledRunId: string;
@@ -708,7 +829,7 @@ export function createHealthRetentionRepository(runtime: DatabaseRuntime) {
           return { status: "BLOCKED", reason: "SCHEDULER_NOT_SUCCEEDED" };
         if (scheduledRun.healthRunId !== null)
           return { status: "BLOCKED", reason: "SCHEDULER_LINK_PRESENT" };
-        const now = input.now ?? new Date();
+        const now = retentionNow;
         await advanceScheduleWatermark(q, {
           scheduleId: receipt.scheduleId,
           scheduleRevision: receipt.scheduleRevision,
@@ -737,7 +858,6 @@ export function createHealthRetentionRepository(runtime: DatabaseRuntime) {
     async retireTerminalScheduledRun(input: {
       scheduledRunId: string;
       before: Date;
-      now?: Date;
     }): Promise<{
       status: "RETIRED" | "BLOCKED";
       reason:
@@ -748,6 +868,8 @@ export function createHealthRetentionRepository(runtime: DatabaseRuntime) {
         | "PERSISTED_RESULT_PRESENT"
         | "RETRY_PENDING";
     }> {
+      const retentionNow = clock();
+      assertRetentionCutoff(input.before, retentionNow);
       return runtime.transaction(async (q) => {
         const identity = await q.query<{ scheduleId: string }>(
           `SELECT schedule_id AS "scheduleId"
@@ -796,7 +918,7 @@ export function createHealthRetentionRepository(runtime: DatabaseRuntime) {
         );
         if (receipt.rows[0]?.count !== "0")
           return { status: "BLOCKED", reason: "PERSISTED_RESULT_PRESENT" };
-        const now = input.now ?? new Date();
+        const now = retentionNow;
         await advanceScheduleWatermark(q, {
           scheduleId: row.scheduleId,
           scheduleRevision: row.scheduleRevision,

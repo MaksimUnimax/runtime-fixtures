@@ -97,8 +97,92 @@ Earlier discarded integration attempts are not acceptance evidence: one ran sche
 
 No automatic GC loop is enabled here. No live row was deleted.
 
-C must integrate the exact candidate, run the legacy compact-projection backfill after migration, inspect dry-run inventory, and only then wire bounded cleanup under accepted rollout policy. Cutoff age remains a caller policy; B deliberately does not invent a shorter TTL than the scheduler/reconciliation/late-callback contract.
+C must integrate the exact candidate, run legacy compact-projection plus silent incident reconciliation after migration, inspect the keyset dry-run inventory, and only then wire bounded cleanup under accepted rollout policy. The repository enforces a minimum eight-day cleanup age from trusted server time; rollout policy may choose a longer retention period but cannot choose a shorter one.
 
 This candidate prunes only routine NO_SESSION payload. Baseline contour runs, authenticated H3, H4/H5 evaluations, incident/notification evidence and future operator/release approval evidence are not cleanup targets.
 
 Durable exact-candidate operator approval/admission is the next B task after C publishes the owning contract/path boundary.
+
+
+## Legacy activation follow-up
+
+Controller review of exact `400c713c08a6ecfc7be8f531447c5e0cdfe804bf` found one rollout gap for the already-existing NO_SESSION history: migration 0052 could backfill receipts and compact projection, but legacy scheduler rows were already `SUCCEEDED`, so ordinary scheduler reconciliation would never set their `incident_processed_at` marker. Those rows would remain permanently `INCIDENT_PROCESSING_PENDING` and could not become GC-eligible.
+
+The follow-up keeps 0052 additive and does **not** rerun any provider/browser action.
+
+- `reconcileLegacyNoSessionIncidentProcessing()` pages only already-persisted, already-projected, `SUCCEEDED` NO_SESSION rows whose marker is still null.
+- It reuses the existing incident state-machine with notification emission disabled for historical catch-up. Incident OPEN/UPDATE/RESOLVE semantics stay the same; historical catch-up creates no Telegram/outbox notification intents and never calls a provider/browser executor.
+- `incident_processed_at` is written only after the incident transaction succeeds. A crash after incident mutation but before the marker is safe to retry: the same incident state-machine is replayed idempotently, then the marker is set.
+- The normal completion adapter is unchanged in behavior: new completions still process incidents with ordinary notification behavior and only then set the marker.
+
+### Finite cutoff and complete scan
+
+The repository now owns the cleanup clock. Cleanup callers no longer pass a `now` value.
+
+`NO_SESSION_RETENTION_MIN_AGE_MS` is fixed at **8 days**. The accepted scheduler contract permits at most eight attempts, one-hour attempt timeout and bounded retry delays up to 24 hours; eight days is a conservative lower bound beyond that retry/reconciliation window. Repository construction may inject a clock for tests; production uses server time. Inventory, raw-payload prune, receipt retirement and terminal scheduler retirement all reject a cutoff younger than this minimum.
+
+Exact-slot no-replay remains durable beyond metadata deletion through the monotonic schedule watermark.
+
+`listRoutineNoSessionGcInventory()` now supports keyset pagination by `(completed_at, run_id)`, so permanently pinned oldest rows cannot prevent scanning later eligible rows.
+
+### Upgrade / legacy acceptance
+
+Final sequential disposable PostgreSQL supervisor `octoport-test-b-13e3026f0add4f9eaeb24beb78d94342.service`:
+
+- fresh migration/schema/idempotency: **3/3 PASS**;
+- real 0051 -> 0052 upgrade: **2/2 PASS**;
+- current NO_SESSION persistence/retention/no-replay: **7/7 PASS**;
+- scheduler regression: **17/17 PASS**;
+- exit 0, peak 567 MiB, cleanup verified.
+
+The second upgrade scenario seeds four real 0051 `SUCCEEDED` rows in one scope: two identical HEALTHY observations, a BROKEN boundary and a newer HEALTHY recovery. It proves:
+
+- migration backfills all four receipts with incident markers still null;
+- projection is restart-idempotent and coalesces identical routine state;
+- a forced crash after BROKEN incident mutation but before marker leaves one incident, no notification intent and a null marker;
+- a fresh repository retries successfully, resolves that same incident with the newer HEALTHY row, leaves exactly one resolved incident and **zero historical notification intents**, and a further retry is a no-op;
+- accepted baseline remains pinned;
+- keyset page 1 can be pinned while page 2 reaches an eligible older repeated HEALTHY row;
+- a cutoff shorter than eight days is rejected by repository policy;
+- the eligible legacy raw run/observation is actually pruned while its replay receipt remains.
+
+Local quality supervisor `octoport-test-b-36fc0dab0e3346cea9e0935d5acc7a4a.service`:
+- DB unit **31/31 PASS**;
+- targeted ESLint PASS;
+- targeted Prettier PASS;
+- `git diff --check` PASS;
+- exit 0, peak 598 MiB, cleanup verified.
+
+Pinned dependency/typecheck supervisor `octoport-test-b-e825bc6616214e53912c3e915a99588e.service`:
+- frozen workspace dependency state already synchronized;
+- DB typecheck PASS;
+- targeted Prettier PASS;
+- `git diff --check` PASS;
+- exit 0, cleanup verified.
+
+No live database, Docker volume, provider/browser execution or notification delivery was performed by this follow-up.
+
+
+### Final follow-up review and acceptance
+
+Pinned `gpt-6-luna` read-only review of the legacy-activation diff found one MEDIUM: the first draft exposed a `legacyIncidentProcessor` repository option, which could have been populated with the ordinary notification-emitting incident repository. That test seam was removed.
+
+The accepted follow-up always constructs the historical processor internally with `emitNotifications: false`. The crash regression now injects failure only at the DB-runtime marker write, after the real incident transaction commits. It cannot substitute notification behavior.
+
+The same review confirmed:
+- legacy incident ordering uses existing `(completedAt, runId)` guards, so an older replay cannot resolve or reopen a newer observation;
+- keyset parameter ordering is consistent;
+- the eight-day bound covers the scheduler retry/timeout envelope;
+- the normal completion adapter retains ordinary notification behavior;
+- no new lock-order or pruned-payload replay path was found.
+
+Final all-in-one acceptance supervisor `octoport-test-b-3caedbcbe218476a8165d1bcef0081e4.service` completed exit 0, peak 720 MiB, OOM 0, cleanup verified. The sequential command required every stage to succeed:
+- fresh PostgreSQL **3/3**;
+- 0051 -> 0052 upgrade/legacy activation **2/2**;
+- NO_SESSION retention/no-replay **7/7**;
+- durable scheduler **17/17**;
+- DB unit **31/31**;
+- DB typecheck PASS;
+- targeted ESLint PASS;
+- targeted Prettier PASS;
+- `git diff --check` PASS.
