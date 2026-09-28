@@ -102,3 +102,52 @@ C owns the cross-cutting authority/generator decision and api-watch reconciliati
 This receipt is SOURCE + exact PACKAGE inspection and ownership handoff only.
 It makes no LIVE_WB, LIVE_OWNER, installed-store, deployment, store-submit or production claim.
 No cleanup, live provider call, DB mutation, deployment or store action was performed.
+
+## Post-main closure verification — 2026-09-28
+
+C integrated the shared WB authority repair into accepted `origin/main=4f3aa29b8954eff19b20df2930524be805b3c882` via `23f3d9707ce249637aa2ec0ea66de4439dfd65c7`.
+
+A merged that current main normally. Exact A verification base before this receipt update:
+`9fb9b92becfb673b0ca997f28ea06cf6a79c888f`.
+
+The current composition order is now:
+`frozen wb_operations.js` → `retired-analytics-registry-overlay.js` → `fbs-order-statuses-registry-overlay.js` → WB credentials/contract/guidance.
+
+The new overlay removes exactly:
+- `banned_products_shadowed`;
+- `analytics_item_rating_v1`.
+
+It fails closed on alias/method/path/current/execution-enabled donor drift. The frozen donor remains unchanged at SHA-256
+`08e8a2ad1f325a4bdc0a909b37220b7abaa0be1d94d6b53192666ed5f22c2c75`.
+Overlay SHA-256:
+`cf47ee37b324f08752081a9fc1dc02e4d66a2972421df896780e183ca25fdde6`.
+
+Independent A source+extracted verification:
+- command: `python3 tooling/coordination/control.py A heavy --profile browser --timeout-seconds 3600 -- env PATH=/root/.nvm/versions/node/v24.20.0/bin:/usr/bin:/bin python3 tooling/checks/extension_core.py --output /tmp/a-wb-retired-authority-20260928`;
+- result: `D2.4 PASS`;
+- gate processes: `131`;
+- WB source adapter: 23/23 scenarios PASS;
+- WB extracted-package adapter: 23/23 scenarios PASS;
+- source/extracted byte identity: PASS;
+- repeat archive identity: PASS;
+- live provider calls: 0;
+- installed acceptance: false;
+- local-development package SHA-256: `076ddeb72da0917517e7197155cb94a3c5c7bf4313b25a8d589dd2d87fd00090`;
+- resource receipt: `/root/octoport-control/resource-jobs/1848d56d4c90455e9727bbc0698b5c1b/receipt.json`;
+- supervisor exit 0, OOM 0, cleanup verified, peak 190840832 bytes.
+
+Therefore the original shared-authority blocker is closed at SOURCE/PACKAGE on current main.
+
+### Store candidate consequence
+
+The previously prepared Chromium/Opera STORE 0.2.5 ZIP
+`/root/octoport-control/logs/C/store-release-68f16213/candidate/OCTOPORT_v0.2.5_CHROMIUM_STORE.zip`
+still has SHA-256
+`33cbf1ad9ec4669abe3a65e24cfbaead4c7c3a1fa711261b2d186d107c33aea1`
+and still contains both retired aliases as `current=true`, `execution_enabled=true`.
+
+Current main differs from its authoritative source `68f1621376be4d7aeeff44bc76cc326f8cc64954` in package inputs:
+- `apps/extension/composition.json`;
+- `packages/marketplaces/wildberries/src/retired-analytics-registry-overlay.js`.
+
+Accordingly that old `33cbf1ad…` ZIP is historical evidence only and must not be treated as the current STORE Submit candidate after this repair. C owns rebuilding/re-identifying the exact STORE package and its reviewer/store evidence from the repaired source. This A verification does not itself create or publish a STORE artifact.
