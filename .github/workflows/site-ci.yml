@@ -12,6 +12,9 @@ on:
       - "tests/regression/site/test_site_deployment.py"
       - "tests/regression/site/test_site_contour.py"
       - "tests/regression/site/test_site_brand_names.py"
+      - "tests/regression/site/test_site_approved_copy.py"
+      - "tests/regression/site/browser_approved_copy.py"
+      - "tests/regression/site/fixtures/**"
       - ".github/workflows/site-ci.yml"
   push:
     paths:
@@ -24,6 +27,9 @@ on:
       - "tests/regression/site/test_site_deployment.py"
       - "tests/regression/site/test_site_contour.py"
       - "tests/regression/site/test_site_brand_names.py"
+      - "tests/regression/site/test_site_approved_copy.py"
+      - "tests/regression/site/browser_approved_copy.py"
+      - "tests/regression/site/fixtures/**"
       - ".github/workflows/site-ci.yml"
   workflow_dispatch:
 
@@ -142,6 +148,8 @@ jobs:
                           self._json_buffer = []
                       else:
                           self.executable_scripts += 1
+                  if tag == "br" and self.in_h1:
+                      self.h1.append(" ")
                   if tag == "h1":
                       self.in_h1 = True
 
@@ -163,7 +171,7 @@ jobs:
 
           assert parser.html_lang == "ru", f"html lang must be ru, got {parser.html_lang!r}"
           assert parser.canonical == ["https://octoport.ru/"], parser.canonical
-          assert parser.stylesheets == ["/styles.css?v=brand-names-20260928-r1"], parser.stylesheets
+          assert parser.stylesheets == ["/styles.css?v=approved-language-20260928-r5"], parser.stylesheets
           assert parser.icons == [("/favicon.png", "image/png"), ("/assets/favicon-contour-v1.png", "image/png")], parser.icons
           assert parser.executable_scripts == 0, "M14 must remain executable-JavaScript-free"
           assert len(parser.json_ld) == 1, parser.json_ld
@@ -171,12 +179,12 @@ jobs:
           assert website == {
               "@context": "https://schema.org",
               "@type": "WebSite",
-              "name": "Octoport",
-              "alternateName": ["Октопорт", "octoport.ru"],
+              "name": "Октопорт",
+              "alternateName": ["Octoport", "octoport.ru"],
               "url": "https://octoport.ru/",
           }, website
           assert "<title>Подключите Алису, ChatGPT и DeepSeek к Ozon и Wildberries | Октопорт</title>" in index
-          assert "".join(parser.h1) == "Подключите Алису, ChatGPT,DeepSeek" and index.count("<h1") == 1, parser.h1
+          assert ' '.join(''.join(parser.h1).split()) == 'Подключите Алису, ChatGPT, DeepSeek или другую нейросеть к своему магазину на WB и Ozon.' and index.count("<h1") == 1, parser.h1
           assert parser.descriptions == [
               "Октопорт соединяет Алису, ChatGPT, DeepSeek и другие нейросети с данными вашего магазина на Ozon и Wildberries через браузерное расширение. Готовим закрытую бесплатную бету."
           ], parser.descriptions
@@ -215,7 +223,7 @@ jobs:
               "historical pricing leaked into public page"
           assert "бесплат" in lowered and "бета" in lowered, "current free-beta state must be explicit"
           assert "набор ещё не открыт" in lowered, "site must not imply registration is already live"
-          assert "read-only" in lowered, "initial read-only scope must be explicit"
+          assert "только для чтения" in lowered, "initial read-only scope must be explicit"
           assert "локаль" in lowered and "ключ" in lowered, "local-key boundary must be visible"
           assert 'Октопорт соединяет ваш кабинет продавца на <span class="brand-ozon" data-marketplace="name">Ozon</span> или <span class="brand-wildberries" data-marketplace="name">Wildberries</span> с любой нейросетью на ваш выбор.' in index
           assert "/install#api-keys" in parser.hrefs
@@ -234,6 +242,8 @@ jobs:
           import subprocess
           subprocess.run(["python3", "tests/regression/site/test_site_contour.py"], check=True)
           subprocess.run(["python3", "tests/regression/site/test_site_brand_names.py"], check=True)
+          subprocess.run(["python3", "tests/regression/site/test_site_approved_copy.py"], check=True)
+          subprocess.run(["python3", "-m", "py_compile", "tests/regression/site/browser_approved_copy.py"], check=True)
 
           required_sections = {"top", "features", "how", "employee", "privacy", "beta"}
           assert required_sections.issubset(parser.ids), f"missing sections: {required_sections - parser.ids}"
@@ -285,83 +295,79 @@ jobs:
 
           print("SITE-M14 HOME PASS: metadata, JSON-LD, links, robots, sitemap, favicon and 320px privacy guard")
 
-          page_specs = {
-              "seller-analytics": {
-                  "title": "ИИ для аналитики маркетплейсов — данные вашего магазина | Octoport",
-                  "h1": "Анализируйте данные магазина на Ozon и Wildberries с вашим ИИ",
-                  "canonical": "https://octoport.ru/seller-analytics",
-                  "description": "Octoport помогает выбранному вами ИИ разбирать разрешённые данные вашего магазина на Ozon и Wildberries — без внешней конкурентной аналитики и автоматических изменений.",
-                  "robots": [],
-                  "required": [
-                      "seller-owned",
-                      "Это read-only сценарий.",
-                      "У Octoport нет собственной языковой модели.",
-                      "вымышленными кейсами",
-                      "главной странице Octoport",
-                  ],
-              },
-              "privacy": {
-                  "title": "Octoport — Privacy",
-                  "h1": "Privacy",
-                  "canonical": "https://octoport.ru/privacy",
-                  "description": "Как Octoport обрабатывает данные: локальные реквизиты маркетплейсов, технический буфер результатов и ограниченная роль сервера.",
-                  "robots": [],
-                  "required": [
-                      "обычной работе",
-                      "технический срок хранения один час",
-                      "Просроченный результат уже нельзя использовать",
-                      'Backend Octoport не сохраняет <span class="brand-ozon" data-marketplace="name">Ozon</span>/<span class="brand-wildberries" data-marketplace="name">Wildberries</span> реквизиты',
-                      "необработанные деловые отчёты или файлы",
-                      "архив AI-разговоров",
-                      "DOM-данные или снимки страниц, просматриваемых пользователем, включая страницы с данными покупателей",
-                      "зашифрованные реквизиты могут пройти через ограниченную серверную память",
-                      "Сервер их не расшифровывает",
-                      "не сохраняет зашифрованное тело реквизитов в постоянной базе",
-                      "Только по запросу пользователя выбранный результат может быть передан",
-                      "записи аккаунта и сессий",
-                      "support@octoport.ru",
-                  ],
-              },
-              "support": {
-                  "title": "Octoport — Support",
-                  "h1": "Support",
-                  "canonical": "https://octoport.ru/support",
-                  "description": "Поддержка Octoport: границы ранней беты, безопасное обращение в поддержку и актуальные ограничения браузеров, установки и read-only режима.",
-                  "robots": [],
-                  "required": [
-                      "ранней бете",
-                      "Safari в бету не входит",
-                      "read-only",
-                      "редактирование цен, карточек товаров и ставок не поддерживается",
-                      "support@octoport.ru",
-                      "одноразовые коды (OTP), пароли",
-                      "cookies и токены сессий",
-                      "сырые отчёты продавца",
-                      "не отправляйте полные экспорты AI-разговоров",
-                      "более поздний безопасный для конфиденциальности канал поддержки прямо их не запросит",
-                      "Одобрение магазина и готовность продукта — разные этапы.",
-                      "/privacy",
-                      "/install",
-                  ],
-              },
-              "install": {
-                  "title": "Установка и API-ключи Октопорта",
-                  "h1": "Установка и API-ключи Октопорта",
-                  "canonical": "https://octoport.ru/install",
-                  "description": None,
-                  "robots": ["noindex, follow"],
-                  "required": [
-                      "Официальные карточки расширения готовятся",
-                      "Как получить API-ключи магазина",
-                      "Admin read only",
-                      "Personal token",
-                      "Только чтение",
-                      "Не вставляйте API-ключи в сообщения нейросети",
-                      "/privacy",
-                      "/support",
-                  ],
-              },
-          }
+          page_specs = {'seller-analytics': {'title': 'ИИ для аналитики маркетплейсов — данные магазина | Октопорт',
+                                'h1': 'Аналитика магазина на WB и Ozon с Октопортом',
+                                'canonical': 'https://octoport.ru/seller-analytics',
+                                'description': 'Разбирайте продажи, рекламу и остатки своего магазина на WB и Ozon в '
+                                               'привычной нейросети. Октопорт подключает данные для анализа, сравнений '
+                                               'и отчётов.',
+                                'robots': [],
+                                'required': ['данными вашего магазина',
+                                             'Это сценарий только для чтения.',
+                                             'у Октопорта нет собственной языковой модели',
+                                             'выручка',
+                                             'количество заказанных единиц',
+                                             'остаток неизвестен',
+                                             'не означает, что товар закончился',
+                                             'не публикуются',
+                                             'Запросить доступ',
+                                             '/#how']},
+           'privacy': {'title': 'Конфиденциальность и обработка данных | Октопорт',
+                       'h1': 'Как Октопорт обрабатывает данные',
+                       'canonical': 'https://octoport.ru/privacy',
+                       'description': 'Как Октопорт обрабатывает данные: где хранятся ключи, что получает нейросеть, '
+                                      'какие сведения остаются на сервере и как долго хранятся результаты.',
+                       'robots': [],
+                       'required': ['обычной работе',
+                                    'ревизии реквизитов',
+                                    'технический срок хранения один час',
+                                    'просроченный результат уже нельзя использовать',
+                                    'очистка выполняется при следующем доступном пробуждении',
+                                    'не сохраняет реквизиты',
+                                    'необработанные деловые отчёты или файлы',
+                                    'архив переписки с нейросетью',
+                                    'содержимое и структуру открытых страниц',
+                                    'включая страницы с данными покупателей',
+                                    'зашифрованные реквизиты могут пройти через ограниченную серверную память',
+                                    'Сервер их не расшифровывает',
+                                    'не сохраняет зашифрованное тело реквизитов в постоянной базе',
+                                    'Только по запросу пользователя выбранный результат может быть передан',
+                                    'записи аккаунта и сессий',
+                                    'финансовых переходов',
+                                    'не подпадает под единое обещание удаления через 90 дней']},
+           'support': {'title': 'Поддержка Октопорта',
+                       'h1': 'Поддержка Октопорта',
+                       'canonical': 'https://octoport.ru/support',
+                       'description': 'Поддержка Октопорта: вопросы подключения, доступа к бете и работы расширения. '
+                                      'Как описать проблему и безопасно обратиться за помощью.',
+                       'robots': [],
+                       'required': ['ранней бете',
+                                    'Safari в бету не входит',
+                                    'только для чтения',
+                                    'Редактирование цен, карточек товаров и ставок не поддерживается',
+                                    'API-токены',
+                                    'одноразовые коды и пароли',
+                                    'служебные файлы браузера и токены сессий',
+                                    'сырые отчёты продавца',
+                                    'Не отправляйте полные экспорты переписки с нейросетью',
+                                    'более поздний безопасный для конфиденциальности канал поддержки прямо их не '
+                                    'запросит',
+                                    'Одобрение магазина и готовность продукта — разные этапы.',
+                                    'идентификатор запроса',
+                                    'Запросить доступ']},
+           'install': {'title': 'Установка и API-ключи Октопорта',
+                       'h1': 'Установка и API-ключи Октопорта',
+                       'canonical': 'https://octoport.ru/install',
+                       'description': None,
+                       'robots': ['noindex, follow'],
+                       'required': ['Официальные карточки расширения готовятся',
+                                    'Как получить API-ключи магазина',
+                                    'Admin read only',
+                                    'Personal token',
+                                    'Только чтение',
+                                    'Не вставляйте API-ключи в сообщения нейросети',
+                                    '/privacy',
+                                    '/support']}}
 
           for page_name, spec in page_specs.items():
               page_path = root / f"{page_name}.html"
@@ -371,7 +377,7 @@ jobs:
               assert page_parser.html_lang == "ru", f"{page_name}: html lang must be ru"
               assert page_parser.canonical == [spec["canonical"]], \
                   f"{page_name}: unexpected canonical {page_parser.canonical}"
-              assert page_parser.stylesheets == ["/styles.css?v=brand-names-20260928-r1"], \
+              assert page_parser.stylesheets == ["/styles.css?v=approved-language-20260928-r5"], \
                   f"{page_name}: shared stylesheet link is missing"
               assert page_parser.executable_scripts == 0, f"{page_name}: executable JavaScript is forbidden"
               assert page_parser.json_ld == [], f"{page_name}: unexpected page-level JSON-LD"
@@ -386,7 +392,9 @@ jobs:
                       f"{page_name}: unexpected description {page_parser.descriptions}"
 
               for href in page_parser.hrefs:
-                  if href.startswith("/"):
+                  if href.startswith("#"):
+                      assert href[1:] in page_parser.ids, f"{page_name}: broken same-page anchor {href}"
+                  elif href.startswith("/"):
                       path, _, fragment = href.partition("#")
                       targets = {"/": root / "index.html", "/seller-analytics": seller_path,
                                  "/privacy": root / "privacy.html", "/support": root / "support.html",
@@ -398,7 +406,7 @@ jobs:
                           linked_page.feed(target.read_text(encoding="utf-8"))
                           assert fragment in linked_page.ids, f"{page_name}: broken fragment link {href}"
                   elif href.startswith("mailto:"):
-                      assert href == "mailto:support@octoport.ru", \
+                      assert href in {"mailto:support@octoport.ru", "mailto:support@octoport.ru?subject=Бета%20Октопорт"}, \
                           f"{page_name}: unexpected support email {href}"
                   elif page_name == "install" and href in {
                       "https://seller.ozon.ru/app/settings/api-keys",
@@ -413,7 +421,7 @@ jobs:
               for required_text in spec["required"]:
                   assert required_text.lower() in lowered_page, \
                       f"{page_name}: required content is missing: {required_text}"
-              assert "octoport" in lowered_page, f"{page_name}: Octoport branding is missing"
+              assert "октопорт" in lowered_page, f"{page_name}: Octoport branding is missing"
               for stale_domain in ("selleragents.ru", "openscript.ru"):
                   assert stale_domain not in lowered_page, \
                       f"{page_name}: stale domain leaked into public page: {stale_domain}"
@@ -424,7 +432,7 @@ jobs:
               if page_name == "privacy":
                   no_data_claims = [
                       r"мы не храним данные",
-                      r"octoport ничего не хранит",
+                      r"(?:octoport|октопорт) ничего не хранит",
                       r"не хранит никаких данных",
                       r"we store no data",
                       r"no data stored",

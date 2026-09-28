@@ -104,7 +104,7 @@ def checks(d):
  assert v['uses'][0]['w']>1000 and v['uses'][0]['h']>700,('reference vector did not render',v)
  assert abs(d['scene']['w']/d['scene']['h']-4/3)<.002,('reference aspect ratio',d['scene'])
  assert d['images'] and d['font'],('loading',d)
- assert d['h1']=='Подключите\nАлису, ChatGPT,\nDeepSeek'
+ assert ' '.join(d['h1'].split())=='Подключите Алису, ChatGPT, DeepSeek или другую нейросеть к своему магазину на WB и Ozon.'
  assert d['canonical']=='https://octoport.ru/'
  r3=d['r3']; assert r3['slogan']=='Сложные технологии. Простые решения.',r3
  assert r3['sloganRect']['y']>=d['scene']['bottom']-1,('slogan overlays drawing',r3,d['scene'])

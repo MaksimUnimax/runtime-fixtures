@@ -162,7 +162,7 @@ class ContourSourceTests(unittest.TestCase):
     def test_home_funnel_r1_single_h1_uses_agreed_ai_brand_copy(self):
         fragment=re.findall(r'<h1[^>]*>(.*?)</h1>',self.html,re.S)
         self.assertEqual(len(fragment),1)
-        self.assertEqual(re.sub(r'<[^>]+>','',fragment[0]),'Подключите Алису, ChatGPT,DeepSeek')
+        self.assertEqual(' '.join(re.sub(r'<[^>]+>', '', re.sub(r'<br\s*/?>', ' ', fragment[0])).split()), 'Подключите Алису, ChatGPT, DeepSeek или другую нейросеть к своему магазину на WB и Ozon.')
         self.assertIn('<span class="hero-ai-list">Алису, ChatGPT,<br />DeepSeek</span>',fragment[0])
         self.assertIn('или другую нейросеть<br />к своему магазину<br />на <span class="brand-wildberries">WB</span> и <span class="brand-ozon">Ozon</span>.',self.html)
         self.assertIn('.brand-wildberries',self.css)
