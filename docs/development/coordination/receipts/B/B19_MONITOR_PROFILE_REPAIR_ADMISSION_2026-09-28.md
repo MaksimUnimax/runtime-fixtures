@@ -113,3 +113,44 @@ Quality:
 - It does not authorize intermediate rollout percentage changes under the initial approval.
 - It does not mutate a live/product DB or activate monitoring repair in owner-test/production.
 - Owner preauthorization for prepared owner-test flow remains a separate deployment/execution authority; C/controller must still integrate and accept this exact source boundary before using it.
+
+
+## Adversarial review and contract disposition
+
+Read-only Codex B review `b19-final-review-20260928-r1` inspected exact code commit
+`483d8b513ef1efa834ae8c4a2a5f77ea0f229c7f` and reported two proposed
+blocking findings. Parent B independently checked both against the frozen shared
+contract and source:
+
+1. **Latest observation run id must not replace the pinned triggering run.**
+   The architecture explicitly states that `observation.runId` is the pinned
+   triggering proof, not a cursor, and that a newer identical normalized semantic
+   observation must not invalidate approval. Therefore requiring
+   `health_no_session_scope_states.latest_run_id === binding.observation.runId`
+   would violate the accepted contract. B19 already rechecks the newest normalized
+   semantic fingerprint, rejects UNKNOWN, and requires trusted freshness.
+   A dedicated PostgreSQL case now proves a newer run with the same normalized
+   state remains admissible.
+
+2. **H4 identity and exact validation-result proof are separate authorities.**
+   The frozen binding contains `h4EvaluationKey` plus separate immutable
+   `installedBehaviorEvidenceSha256`, `matrixSha256`, and `resultsSha256`.
+   It does not define an H4 execution-id/evaluated-at/result-payload hash field.
+   B19 rechecks the current DB H4 row under the bound identity and requires it to
+   remain H4_CANDIDATE / COMPLETED / PASS with exact provider/surface/target,
+   candidate/baseline, suite, browser and environment. Separately, the mandatory
+   trusted evidence resolver must reproduce the bound installed/matrix/results
+   hashes on every APPLY. B must not invent an additional shared-contract field.
+   A dedicated PostgreSQL case now proves that changing exact
+   `resultsSha256` fails closed.
+
+Follow-up admission acceptance after these explicit contract cases:
+- `packages/server/db/src/monitor-profile-repair-admission.integration.test.ts`:
+  **11/11 PASS**;
+- supervisor `octoport-test-b-3119cefaee5042f483f370993432cbc3.service`;
+- exit 0, peak ~516 MiB, cleanup verified.
+
+The first read-only review result is preserved at
+`/root/octoport-control/logs/B/b19-final-review-20260928-r1-result.md`;
+its proposed findings are not silently discarded. Their parent disposition above
+is grounded in the frozen contract rather than a relaxed local interpretation.

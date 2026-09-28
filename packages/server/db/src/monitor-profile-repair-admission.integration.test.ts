@@ -1101,6 +1101,59 @@ describe.sequential(
       ).rejects.toThrow("MONITOR_PROFILE_REPAIR_H4_AUTHORITY_CHANGED");
     });
 
+    it("keeps approval current across a newer identical semantic observation", async () => {
+      const fixture = await setupFixture();
+      const { approval } = await registerAndApprove(fixture);
+      const newerRunId = randomUUID();
+      const newerObservedAt = new Date(BASE.valueOf() + 30_000);
+      await runtime.query(
+        `UPDATE health_no_session_scope_states SET
+          latest_run_id=$2,
+          latest_normalized_result_sha256=$3,
+          latest_health_state='BROKEN',
+          latest_observed_at=$4,
+          last_attempt_at=$4,
+          last_verified_at=$4
+         WHERE scope_sha256=$1`,
+        [
+          fixture.retentionScope,
+          newerRunId,
+          fixture.normalized,
+          newerObservedAt,
+        ],
+      );
+
+      const applied = await fixture.repository.applyInitialRollout({
+        repairCaseId: fixture.binding.repairCaseId,
+        caseRevision: 1,
+        approvalId: approval.id,
+        actorPrincipalId: IDS.principal,
+      });
+      expect(applied).toMatchObject({
+        repairCaseId: fixture.binding.repairCaseId,
+        caseRevision: 1,
+        approvalId: approval.id,
+        percentageBps: fixture.binding.assignment.initialPercentageBps,
+      });
+    });
+
+    it("fails closed when exact validation results hash drifts", async () => {
+      const fixture = await setupFixture();
+      const { approval } = await registerAndApprove(fixture);
+      fixture.evidenceBox.value = {
+        ...fixture.evidenceBox.value,
+        resultsSha256: sha("e"),
+      };
+      await expect(
+        fixture.repository.applyInitialRollout({
+          repairCaseId: fixture.binding.repairCaseId,
+          caseRevision: 1,
+          approvalId: approval.id,
+          actorPrincipalId: IDS.principal,
+        }),
+      ).rejects.toThrow("MONITOR_PROFILE_REPAIR_EXTERNAL_EVIDENCE_CHANGED");
+    });
+
     it("blocks revoked approval and current operator permission loss", async () => {
       const revokedFixture = await setupFixture();
       const revoked = await registerAndApprove(revokedFixture);
