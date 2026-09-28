@@ -148,7 +148,8 @@ class DeploymentFailures(unittest.TestCase):
         self.app = "candidate"
         self.started = False
         deploy.EVID.mkdir(parents=True, exist_ok=True)
-        apply_dir = deploy.EVID / "apply-fixture"
+        stamp = "20260928T111855095131Z"
+        apply_dir = deploy.EVID / ("apply-" + stamp)
         apply_dir.mkdir()
         receipt_path = apply_dir / "receipt.json"
         monitor = {
@@ -161,6 +162,7 @@ class DeploymentFailures(unittest.TestCase):
         }
         receipt = {
             "status": "FAILED",
+            "stamp": stamp,
             "error": error,
             "candidate": deploy.CANDIDATE,
             "phase": "CANDIDATE_PASS",
@@ -171,6 +173,7 @@ class DeploymentFailures(unittest.TestCase):
             "preflight": {"monitorUnits": monitor},
         }
         receipt_path.write_text(json.dumps(receipt))
+        deploy.FORWARD_RECOVERY_SOURCE_RECEIPT_SHA256 = deploy.sha256(receipt_path)
         (deploy.EVID / "deployment-state.json").write_text(json.dumps({
             "candidate": deploy.CANDIDATE,
             "phase": "CANDIDATE_PASS",
@@ -397,6 +400,30 @@ class DeploymentFailures(unittest.TestCase):
     def test_forward_recovery_rejects_non_monitor_failure_without_start(self):
         self.seed_forward_monitor_failure(error="POST_SWITCH_HEALTH_FAILED")
         with self.assertRaisesRegex(RuntimeError, "FORWARD_RECOVERY_RECEIPT_NOT_ELIGIBLE"):
+            deploy.recover_forward()
+        self.assertFalse(self.started)
+        self.assertEqual(self.events, [])
+        state = json.loads((deploy.EVID / "deployment-state.json").read_text())
+        self.assertTrue(state["recoveryRequired"])
+
+    def test_forward_recovery_rejects_fabricated_evidence_receipt(self):
+        source = self.seed_forward_monitor_failure()
+        fabricated = deploy.EVID / "fabricated-receipt.json"
+        fabricated.write_text(source.read_text())
+        state_path = deploy.EVID / "deployment-state.json"
+        state = json.loads(state_path.read_text())
+        state["receipt"] = str(fabricated)
+        state_path.write_text(json.dumps(state))
+        with self.assertRaisesRegex(RuntimeError, "OWNER_DEPLOY_RECOVERY_RECEIPT_INVALID"):
+            deploy.recover_forward()
+        self.assertFalse(self.started)
+        self.assertEqual(self.events, [])
+        self.assertTrue(json.loads(state_path.read_text())["recoveryRequired"])
+
+    def test_forward_recovery_rejects_modified_canonical_receipt(self):
+        source = self.seed_forward_monitor_failure()
+        source.write_text(source.read_text() + "\n")
+        with self.assertRaisesRegex(RuntimeError, "OWNER_DEPLOY_RECOVERY_RECEIPT_INVALID"):
             deploy.recover_forward()
         self.assertFalse(self.started)
         self.assertEqual(self.events, [])

@@ -24,6 +24,8 @@ MONITOR_UNITS=['octoport-telegram-operator.service','octoport-health-notificatio
 EVID=Path('/root/octoport-control/logs/C/owner-test-deploy-62024d19')
 BACKUPS=Path('/root/octoport-control/backups/C/owner-test-predeploy')
 AUTH='OWNER_AUTHORIZE_BOUNDED_OWNER_TEST_DEPLOYMENT_62024D19'
+FORWARD_RECOVERY_SOURCE_RECEIPT=Path('apply-20260928T111855095131Z')/'receipt.json'
+FORWARD_RECOVERY_SOURCE_RECEIPT_SHA256='619e0c6f86b2a4128e7f5ab2f9e8db8c9a6115acb12d5904e02137bc7db7222c'
 NODE='/root/.nvm/versions/node/v24.20.0/bin/node'
 TSX='packages/server/db/node_modules/tsx/dist/cli.mjs'
 MIGRATE='packages/server/db/src/migrate.ts'
@@ -320,18 +322,24 @@ def recovery_source_receipt(state: dict) -> tuple[Path,dict]:
     raw=state.get('receipt')
     if not isinstance(raw,str): raise RuntimeError('OWNER_DEPLOY_RECOVERY_RECEIPT_INVALID')
     path=Path(raw)
-    try:
-        resolved=path.resolve(strict=True)
-    except OSError:
-        raise RuntimeError('OWNER_DEPLOY_RECOVERY_RECEIPT_INVALID') from None
-    if path.is_symlink() or not resolved.is_relative_to(EVID.resolve()):
+    expected=EVID/FORWARD_RECOVERY_SOURCE_RECEIPT
+    if path!=expected or EVID.is_symlink() or expected.parent.is_symlink() or expected.is_symlink():
         raise RuntimeError('OWNER_DEPLOY_RECOVERY_RECEIPT_INVALID')
     try:
-        value=json.loads(resolved.read_text())
-    except (ValueError,OSError):
+        fd=os.open(expected,os.O_RDONLY|getattr(os,'O_NOFOLLOW',0))
+        with os.fdopen(fd,'rb') as source_file:
+            source_bytes=source_file.read()
+    except OSError:
         raise RuntimeError('OWNER_DEPLOY_RECOVERY_RECEIPT_INVALID') from None
-    if not isinstance(value,dict): raise RuntimeError('OWNER_DEPLOY_RECOVERY_RECEIPT_INVALID')
-    return resolved,value
+    if hashlib.sha256(source_bytes).hexdigest()!=FORWARD_RECOVERY_SOURCE_RECEIPT_SHA256:
+        raise RuntimeError('OWNER_DEPLOY_RECOVERY_RECEIPT_INVALID')
+    try:
+        value=json.loads(source_bytes)
+    except (ValueError,UnicodeDecodeError):
+        raise RuntimeError('OWNER_DEPLOY_RECOVERY_RECEIPT_INVALID') from None
+    if not isinstance(value,dict) or value.get('stamp')!='20260928T111855095131Z':
+        raise RuntimeError('OWNER_DEPLOY_RECOVERY_RECEIPT_INVALID')
+    return expected.resolve(),value
 
 
 def verify_candidate_dropins():
