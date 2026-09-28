@@ -36,3 +36,7 @@ Local parent-tree API-watch acceptance after the B merge:
 Live-public pre-intake verification used no cookies, login or credentials. Both canonical Ozon Seller and Ozon Performance docs URLs returned HTTP 307 and were classified by the patched production acquisition code as `OPERATOR_SOURCE_REQUIRED` with the bounded access-control-loop reason. This does not claim authority acceptance or a successful Swagger comparison; it enables the existing durable operator-source handoff instead of falsely marking official authority rejected.
 
 No DB/schema change belongs to the API-watch portion. No operator upload, provider mutation, snapshot acceptance, baseline promotion, Telegram send or live service restart occurred in this intake.
+
+## Branch Coordination release-safety pin
+
+First branch CI on `00c31b425a96d4c986e5387a464a93433a5347e7` failed only the current-repository facts assertion in `tooling/b1/release-safety.test.mjs`: `_journal.json` now correctly ends at migration `0052`, while the test still hard-coded `51`. `productFacts()` intentionally derives the latest repository migration tag; it does not read or rewrite the immutable STORE 0.2.6 authority. C updated only this assertion from 51 to 52. Historical/frozen STORE authority remains migration level 51 and its exact package/backend identities are unchanged. Full release-safety rerun: 42/42 PASS.
