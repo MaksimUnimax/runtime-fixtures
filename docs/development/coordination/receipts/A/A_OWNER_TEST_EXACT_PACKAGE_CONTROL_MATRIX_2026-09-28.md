@@ -33,7 +33,7 @@ Current 0.2.6 accepted automation:
 - C-integrated core: D2.4 PASS, 131 gates;
 - C-integrated I1: PASS, 160 gates;
 - WB exact current boundary: source/package PASS;
-- profile→DOM proof: PASS with disposition `NOT_WIRED`.
+- profile→DOM proof: current signed-profile consumer SOURCE/EXTRACTED + controlled real-MV3 `WIRED` PASS; installed STORE/LIVE remains open.
 
 For the exact Chromium STORE signed-out browser boundary A adds:
 `tests/regression/extension-core/client-i1/exact-store-signedout-controls.py`.
@@ -101,7 +101,7 @@ does not belong to the signed-out synthetic boundary.
 | Dialog | owned code-block action | Current 0.2.6 content_script.js is byte-identical between exact STORE and accepted I1 extracted package; current browser regressions PASS | **CURRENT_026 PACKAGE CODE PASS / AUTHENTICATED INSTALLED OPEN** |
 | Dialog | Response-actions Copy exclusion | Current regressions explicitly reject response-level Copy, misleading data-code-copy-state, user/editor/ambiguous/unrelated blocks | **CURRENT_026 PACKAGE CODE PASS / AUTHENTICATED INSTALLED OPEN** |
 | Dialog | composer/send/Work Start readiness | Current tests cover Standard send, Work submit, microphone/stop/disabled ambiguity, delayed composer and bounded fail-closed wait | **CURRENT_026 PACKAGE CODE PASS / AUTHENTICATED INSTALLED OPEN** |
-| Profile | signed P7 selector content | Source+extracted controlled real MV3 proof shows profile revision/hash changes do not change DOM behavior | **PASS finding: NOT_WIRED** |
+| Profile | signed P7 selector content | Exact `c683a0d3…` acceptance: strict signed consumer SOURCE/EXTRACTED PASS plus controlled real-MV3 WIRED behavior; profile identity fenced before Start/Resume; provider0 | **CURRENT SOURCE_PACKAGE_MV3 WIRED PASS / INSTALLED_STORE_LIVE OPEN** |
 | Portal | login/approve/cancel/expiry/logout/errors | C-owned backend/portal boundary | **NOT_VERIFIED BY A / C+OWNER** |
 
 ## Reused evidence without relabeling
@@ -144,7 +144,7 @@ This supports package-code reuse only; it does not manufacture authenticated ins
    One bounded read-only Ozon flow and one WB flow in real supported AI context; require one provider request, one result, no replay, visibility and explicit Finish.
 
 5. **Firefox exact STORE technical consent — CLOSED at INSTALLED_SYNTHETIC.**
-   Exact Firefox 155.0.1 on frozen ZIP `b5de9b4f…` now has real visible permission UI Deny/Allow plus extension Revoke independently rerun by A. AMO/catalog installation, ordinary login/authenticated actions and backend/live acceptance remain separate.
+   Exact Firefox 155.0.1 on frozen ZIP `b5de9b4f…` now has controller-captured real visible permission UI Deny/Allow plus extension Revoke and an independent A rerun with identical result SHA `a46cc5c6…`. AMO/catalog installation, ordinary login/authenticated actions and backend/live acceptance remain separate.
 
 6. **Same-item signed N→N+1 and Windows UX/preservation** — owner/store environment.
    Linux development-flag installation does not prove store update identity or Windows UX.
