@@ -4,7 +4,9 @@ import {
   STORE1_ACCEPTED_SOURCE_HEAD,
   STORE1_ACCEPTED_SOURCE_TREE,
   STORE1_CONTRACT,
+  STORE1_AI_SURFACE,
   STORE1_POLICY_KEY,
+  STORE1_PROFILE_KEY,
   STORE1_PROFILE_SHA256,
   STORE1_VERSION,
   planStore1Activation,
@@ -96,7 +98,9 @@ function exactReadback(): Store1ActivationReadback {
     },
     adapters: [{ id: ids.adapter, machineKey: "chatgpt", status: "ACTIVE" }],
     adapterNextCursor: null,
-    surfaces: [{ id: ids.surface, machineKey: "standard", status: "ACTIVE" }],
+    surfaces: [
+      { id: ids.surface, machineKey: STORE1_AI_SURFACE, status: "ACTIVE" },
+    ],
     surfaceNextCursor: null,
     variants: [
       {
@@ -109,11 +113,11 @@ function exactReadback(): Store1ActivationReadback {
     profiles: [
       {
         id: ids.profile,
-        machineKey: "chatgpt-standard-opera-v1",
+        machineKey: STORE1_PROFILE_KEY,
         status: "ACTIVE",
         adapterId: ids.adapter,
         surfaceId: ids.surface,
-        variantId: ids.variant,
+        variantId: null,
       },
     ],
     profileNextCursor: null,
@@ -129,6 +133,11 @@ function exactReadback(): Store1ActivationReadback {
     assignments: [
       {
         id: ids.assignment,
+        adapterId: ids.adapter,
+        surfaceId: ids.surface,
+        variantId: null,
+        browserFamily: "opera",
+        subjectKind: "ACCOUNT",
         latest: {
           revision: 1,
           mode: "DIRECT",
@@ -346,11 +355,96 @@ describe("STORE-1 ordinary-admin activation planner", () => {
     });
   });
 
+  it("targets the packaged ChatGPT web surface instead of legacy Standard", () => {
+    const r = exactReadback();
+    r.surfaces = [
+      {
+        id: "00000000-0000-4000-8000-000000000011",
+        machineKey: "standard",
+        status: "ACTIVE",
+      },
+    ];
+    r.surfaceNextCursor = null;
+    expect(planStore1Activation(authority, r)).toMatchObject({
+      status: "POST",
+      next: {
+        path: "/v1/admin/ai/registry/surfaces",
+        body: {
+          adapterId: ids.adapter,
+          machineKey: "web",
+          displayName: "Web",
+        },
+      },
+    });
+  });
+
+  it("creates a distinct web/null profile and never reuses legacy variant scope", () => {
+    const r = exactReadback();
+    r.profiles = [
+      {
+        id: "00000000-0000-4000-8000-000000000012",
+        machineKey: "chatgpt-standard-opera-v1",
+        status: "ACTIVE",
+        adapterId: ids.adapter,
+        surfaceId: ids.surface,
+        variantId: ids.variant,
+      },
+    ];
+    r.profileNextCursor = null;
+    expect(planStore1Activation(authority, r)).toMatchObject({
+      status: "POST",
+      next: {
+        path: "/v1/admin/ai/profiles",
+        body: {
+          adapterId: ids.adapter,
+          surfaceId: ids.surface,
+          variantId: null,
+          machineKey: STORE1_PROFILE_KEY,
+          displayName: "ChatGPT Web Opera",
+        },
+      },
+    });
+  });
+
+  it("creates a null-variant Opera assignment when only a legacy variant assignment exists", () => {
+    const r = exactReadback();
+    r.assignments = [
+      {
+        id: "00000000-0000-4000-8000-000000000013",
+        adapterId: ids.adapter,
+        surfaceId: ids.surface,
+        variantId: ids.variant,
+        browserFamily: "opera",
+        subjectKind: "ACCOUNT",
+        latest: {
+          revision: 1,
+          mode: "DIRECT",
+          baselineProfileRevisionId: ids.revision,
+          candidateProfileRevisionId: null,
+          percentageBps: 0,
+        },
+      },
+    ];
+    r.assignmentNextCursor = null;
+    expect(planStore1Activation(authority, r)).toMatchObject({
+      status: "POST",
+      next: {
+        path: "/v1/admin/ai/assignments",
+        body: {
+          adapterId: ids.adapter,
+          surfaceId: ids.surface,
+          variantId: null,
+          browserFamily: "opera",
+          subjectKind: "ACCOUNT",
+        },
+      },
+    });
+  });
+
   it("continues every paginated catalog collection before absence decisions", () => {
     const cases = [
       ["adapters", "adapterNextCursor", ids.adapter],
       ["surfaces", "surfaceNextCursor", ids.surface],
-      ["variants", "variantNextCursor", ids.variant],
       ["profiles", "profileNextCursor", ids.profile],
       ["assignments", "assignmentNextCursor", ids.assignment],
     ] as const;
@@ -370,7 +464,6 @@ describe("STORE-1 ordinary-admin activation planner", () => {
     const cases = [
       ["adapters", "adapterNextCursor", "STORE1_ADAPTER_PAGINATION_UNKNOWN"],
       ["surfaces", "surfaceNextCursor", "STORE1_SURFACE_PAGINATION_UNKNOWN"],
-      ["variants", "variantNextCursor", "STORE1_VARIANT_PAGINATION_UNKNOWN"],
       ["profiles", "profileNextCursor", "STORE1_PROFILE_PAGINATION_UNKNOWN"],
       [
         "assignments",

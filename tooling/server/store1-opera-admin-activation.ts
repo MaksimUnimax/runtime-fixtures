@@ -9,7 +9,8 @@ export const STORE1_CONTRACT = "control_plane_v2" as const;
 export const STORE1_BROWSER = "opera" as const;
 export const STORE1_BROWSER_MINIMUM = "136" as const;
 export const STORE1_POLICY_KEY = "store1.opera.v2" as const;
-export const STORE1_PROFILE_KEY = "chatgpt-standard-opera-v1" as const;
+export const STORE1_AI_SURFACE = "web" as const;
+export const STORE1_PROFILE_KEY = "chatgpt-web-opera-v1" as const;
 export const STORE1_REASON = "STORE-1 Opera reviewer catalog activation";
 export const STORE1_ACCEPTED_SOURCE_HEAD =
   "028d5dd56341719e2061a47b5e82e216256619f7" as const;
@@ -165,6 +166,11 @@ type ProfileRevision = {
 };
 type Assignment = {
   id: string;
+  adapterId: string;
+  surfaceId: string;
+  variantId: string | null;
+  browserFamily: string;
+  subjectKind: "ACCOUNT" | "DEVICE";
   latest: null | {
     revision: number;
     mode: "DIRECT" | "ROLLOUT" | "PAUSED";
@@ -641,77 +647,34 @@ export function planStore1Activation(
     );
   const surface = exactOne(
     r.surfaces,
-    (value) => value.machineKey === "standard",
+    (value) => value.machineKey === STORE1_AI_SURFACE,
   );
   if (surface === "CONFLICT")
     return conflict(
       "STORE1_SURFACE_CONFLICT",
-      "Multiple standard surfaces exist.",
+      "Multiple packaged ChatGPT web surfaces exist.",
     );
   if (!surface)
     return post(
       "/v1/admin/ai/registry/surfaces",
       {
         adapterId: adapter.id,
-        machineKey: "standard",
-        displayName: "Standard",
+        machineKey: STORE1_AI_SURFACE,
+        displayName: "Web",
         reason: STORE1_REASON,
       },
-      "Create ChatGPT Standard surface.",
+      "Create packaged ChatGPT web surface.",
     );
   if (surface.status !== "ACTIVE")
     return conflict(
       "STORE1_SURFACE_DISABLED",
-      "Standard surface is not ACTIVE.",
-    );
-
-  if (r.variants === undefined)
-    return get(
-      `/v1/admin/ai/registry/surfaces/${surface.id}/variants?limit=100`,
-      "Read Standard variants before create/reuse.",
-    );
-  if (r.variantNextCursor === undefined)
-    return {
-      status: "BLOCKED",
-      code: "STORE1_VARIANT_PAGINATION_UNKNOWN",
-      detail:
-        "Variant readback is incomplete because nextCursor was not recorded.",
-    };
-  if (r.variantNextCursor !== null)
-    return get(
-      `/v1/admin/ai/registry/surfaces/${surface.id}/variants?limit=100&cursor=${encodeURIComponent(r.variantNextCursor)}`,
-      "Continue variant pagination before deciding create/reuse.",
-    );
-  const variant = exactOne(
-    r.variants,
-    (value) => value.machineKey === "standard_composer_v1",
-  );
-  if (variant === "CONFLICT")
-    return conflict(
-      "STORE1_VARIANT_CONFLICT",
-      "Multiple standard_composer_v1 variants exist.",
-    );
-  if (!variant)
-    return post(
-      "/v1/admin/ai/registry/variants",
-      {
-        surfaceId: surface.id,
-        machineKey: "standard_composer_v1",
-        displayName: "Standard Composer v1",
-        reason: STORE1_REASON,
-      },
-      "Create bounded Standard composer variant.",
-    );
-  if (variant.status !== "ACTIVE")
-    return conflict(
-      "STORE1_VARIANT_DISABLED",
-      "Composer variant is not ACTIVE.",
+      "Packaged ChatGPT web surface is not ACTIVE.",
     );
 
   if (r.profiles === undefined)
     return get(
-      `/v1/admin/ai/profiles?adapterId=${adapter.id}&surfaceId=${surface.id}&variantId=${variant.id}&limit=100`,
-      "Read exact scoped profiles before create/reuse.",
+      `/v1/admin/ai/profiles?adapterId=${adapter.id}&surfaceId=${surface.id}&limit=100`,
+      "Read packaged web/null profiles before create/reuse.",
     );
   if (r.profileNextCursor === undefined)
     return {
@@ -722,12 +685,16 @@ export function planStore1Activation(
     };
   if (r.profileNextCursor !== null)
     return get(
-      `/v1/admin/ai/profiles?adapterId=${adapter.id}&surfaceId=${surface.id}&variantId=${variant.id}&limit=100&cursor=${encodeURIComponent(r.profileNextCursor)}`,
+      `/v1/admin/ai/profiles?adapterId=${adapter.id}&surfaceId=${surface.id}&limit=100&cursor=${encodeURIComponent(r.profileNextCursor)}`,
       "Continue profile pagination before deciding create/reuse.",
     );
   const profile = exactOne(
     r.profiles,
-    (value) => value.machineKey === STORE1_PROFILE_KEY,
+    (value) =>
+      value.machineKey === STORE1_PROFILE_KEY &&
+      value.adapterId === adapter.id &&
+      value.surfaceId === surface.id &&
+      value.variantId === null,
   );
   if (profile === "CONFLICT")
     return conflict(
@@ -740,9 +707,9 @@ export function planStore1Activation(
       {
         adapterId: adapter.id,
         surfaceId: surface.id,
-        variantId: variant.id,
+        variantId: null,
         machineKey: STORE1_PROFILE_KEY,
-        displayName: "ChatGPT Standard Opera",
+        displayName: "ChatGPT Web Opera",
         reason: STORE1_REASON,
       },
       "Create immutable target profile identity.",
@@ -751,7 +718,7 @@ export function planStore1Activation(
     profile.status !== "ACTIVE" ||
     profile.adapterId !== adapter.id ||
     profile.surfaceId !== surface.id ||
-    profile.variantId !== variant.id
+    profile.variantId !== null
   )
     return conflict(
       "STORE1_PROFILE_SCOPE_CONFLICT",
@@ -814,7 +781,7 @@ export function planStore1Activation(
 
   if (r.assignments === undefined)
     return get(
-      `/v1/admin/ai/assignments?adapterId=${adapter.id}&surfaceId=${surface.id}&variantId=${variant.id}&browserFamily=${STORE1_BROWSER}&subjectKind=ACCOUNT&limit=100`,
+      `/v1/admin/ai/assignments?adapterId=${adapter.id}&surfaceId=${surface.id}&browserFamily=${STORE1_BROWSER}&subjectKind=ACCOUNT&limit=100`,
       "Read exact Opera account assignment scope.",
     );
   if (r.assignmentNextCursor === undefined)
@@ -826,22 +793,30 @@ export function planStore1Activation(
     };
   if (r.assignmentNextCursor !== null)
     return get(
-      `/v1/admin/ai/assignments?adapterId=${adapter.id}&surfaceId=${surface.id}&variantId=${variant.id}&browserFamily=${STORE1_BROWSER}&subjectKind=ACCOUNT&limit=100&cursor=${encodeURIComponent(r.assignmentNextCursor)}`,
+      `/v1/admin/ai/assignments?adapterId=${adapter.id}&surfaceId=${surface.id}&browserFamily=${STORE1_BROWSER}&subjectKind=ACCOUNT&limit=100&cursor=${encodeURIComponent(r.assignmentNextCursor)}`,
       "Continue assignment pagination before deciding create/reuse.",
     );
-  if (r.assignments.length > 1)
+  const assignment = exactOne(
+    r.assignments,
+    (value) =>
+      value.adapterId === adapter.id &&
+      value.surfaceId === surface.id &&
+      value.variantId === null &&
+      value.browserFamily === STORE1_BROWSER &&
+      value.subjectKind === "ACCOUNT",
+  );
+  if (assignment === "CONFLICT")
     return conflict(
       "STORE1_ASSIGNMENT_CONFLICT",
-      "Multiple assignments exist for the exact Opera account scope.",
+      "Multiple assignments exist for the exact packaged web/null Opera account scope.",
     );
-  const assignment = r.assignments[0] ?? null;
   if (!assignment)
     return post(
       "/v1/admin/ai/assignments",
       {
         adapterId: adapter.id,
         surfaceId: surface.id,
-        variantId: variant.id,
+        variantId: null,
         browserFamily: STORE1_BROWSER,
         subjectKind: "ACCOUNT",
         reason: STORE1_REASON,
