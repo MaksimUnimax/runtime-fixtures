@@ -1254,6 +1254,11 @@ describe.sequential("C04 no-session persistence PostgreSQL acceptance", () => {
     });
     expect(removed.rows[0]?.receiptPrunedAt).toBeInstanceOf(Date);
     await expect(
+      runtime.query("DELETE FROM health_scheduled_runs WHERE id=$1", [
+        repeatedSchedules[1]!.id,
+      ]),
+    ).rejects.toBeInstanceOf(Error);
+    await expect(
       runtime.query(
         "DELETE FROM health_no_session_run_receipts WHERE run_id=$1",
         [secondRepeated.healthRunId],
@@ -1299,17 +1304,42 @@ describe.sequential("C04 no-session persistence PostgreSQL acceptance", () => {
       "UPDATE health_schedules SET next_due_at=$2 WHERE id=$1",
       [repeatedSchedules[1]!.scheduleId, repeatedSchedules[1]!.dueSlotAt],
     );
-    const [retired, racedMaterialization] = await Promise.all([
-      retention.retireRoutineNoSessionReceipt({
+    const retirePause = pauseAfterScheduledRunLock(runtime);
+    const completionDuringRetire = createHealthNoSessionCompletionAdapter(
+      retirePause.runtime,
+    );
+    const duplicateDuringRetire =
+      completionDuringRetire.completeScheduledNoSessionHealthRun(
+        persistenceInput(repeatedSchedules[1]!.id, repeatedB),
+      );
+    await retirePause.locked;
+    let retireSettled = false;
+    const retirePromise = retention
+      .retireRoutineNoSessionReceipt({
         runId: secondRepeated.healthRunId,
         before: new Date(baseTime.valueOf() + 4_000_000),
         now: new Date(baseTime.valueOf() + 4_000_001),
-      }),
-      scheduler.materializeDueSlot(
-        repeatedSchedules[1]!.scheduleId,
-        new Date(repeatedSchedules[1]!.dueSlotAt.valueOf() + 1),
-      ),
-    ]);
+      })
+      .finally(() => {
+        retireSettled = true;
+      });
+    const materializeDuringRetire = scheduler.materializeDueSlot(
+      repeatedSchedules[1]!.scheduleId,
+      new Date(repeatedSchedules[1]!.dueSlotAt.valueOf() + 1),
+    );
+    await settleTick();
+    expect(retireSettled).toBe(false);
+    retirePause.release();
+    const [duplicateRetireResult, retired, racedMaterialization] =
+      await Promise.all([
+        duplicateDuringRetire,
+        retirePromise,
+        materializeDuringRetire,
+      ]);
+    expect(duplicateRetireResult).toMatchObject({
+      healthRunId: secondRepeated.healthRunId,
+      incident: { action: "NOOP", incidentIds: [] },
+    });
     expect(retired).toEqual({ status: "RETIRED", reason: "RETIRED" });
     expect(racedMaterialization).toBeNull();
     expect(
@@ -1388,9 +1418,20 @@ describe.sequential("C04 no-session persistence PostgreSQL acceptance", () => {
     });
     if (!revisedSlot)
       throw new Error("RETENTION_TEST_REVISED_SLOT_NOT_MATERIALIZED");
-    await runtime.query("DELETE FROM health_scheduled_runs WHERE id=$1", [
-      revisedSlot.id,
-    ]);
+    const revisedCancelledAt = new Date(baseTime.valueOf() + 4_100_000);
+    await runtime.query(
+      `UPDATE health_scheduled_runs
+       SET state='CANCELLED',finished_at=$2,next_attempt_at=NULL,updated_at=$2
+       WHERE id=$1`,
+      [revisedSlot.id, revisedCancelledAt],
+    );
+    expect(
+      await retention.retireTerminalScheduledRun({
+        scheduledRunId: revisedSlot.id,
+        before: new Date(revisedCancelledAt.valueOf() + 1),
+        now: new Date(revisedCancelledAt.valueOf() + 2),
+      }),
+    ).toEqual({ status: "RETIRED", reason: "RETIRED" });
   });
 
   it("blocks GC across persist-to-incident crash until duplicate completion processes the run", async () => {
@@ -1668,6 +1709,11 @@ describe.sequential("C04 no-session persistence PostgreSQL acceptance", () => {
     expect((await scheduler.getScheduledRun(uncertainSchedule.id))?.state).toBe(
       "FAILED_TERMINAL",
     );
+    await expect(
+      runtime.query("DELETE FROM health_scheduled_runs WHERE id=$1", [
+        uncertainSchedule.id,
+      ]),
+    ).rejects.toBeInstanceOf(Error);
 
     const terminalRetired = await retention.retireTerminalScheduledRun({
       scheduledRunId: uncertainSchedule.id,

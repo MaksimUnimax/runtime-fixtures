@@ -68,12 +68,15 @@ Pinned toolchain: Node 24.20.0 / pnpm 10.34.5.
 
 Final disposable PostgreSQL evidence:
 
-- fresh migration/schema/idempotency: **3/3 PASS**, supervisor `octoport-test-b-482faa5705f2475eb2c25e3085a9a5ea.service`;
-- NO_SESSION persistence/retention/GC/no-replay matrix: **7/7 PASS**, and 0051 -> 0052 upgrade + receipt backfill + restart-idempotent compact projection: **1/1 PASS**, supervisor `octoport-test-b-e9696b1329e34d6c81edd69d57936d60.service`;
-- durable scheduler regression: **17/17 PASS**, supervisor `octoport-test-b-3ff411313308495899a4b48732ef0592.service`.
+- fresh migration/schema/idempotency after the final FK/delete-guard change: **3/3 PASS**, supervisor `octoport-test-b-a6caed95b1d842a7b3b6df0027069344.service`;
+- final NO_SESSION persistence/retention/GC/no-replay matrix: **7/7 PASS**, supervisor `octoport-test-b-53255f34c3d240cca13595e044d42da5.service`;
+- 0051 -> 0052 upgrade + receipt backfill + restart-idempotent compact projection: **1/1 PASS**, and durable scheduler regression: **17/17 PASS**, supervisor `octoport-test-b-8db00b3271734c31ac749e9cfa43490b.service`.
 
-The 7/7 matrix proves concurrent identical saves coalesce, max-three ring, UNKNOWN/baseline separation, direct unsafe mutation rejection, persist-to-incident crash protection, incident and pending-notification pins, explicit raw payload GC, late callback replay from receipt, receipt retirement, retire-vs-materialize race, old-revision no-replay, higher-revision admission, persisted-terminal recovery protection and SEND_UNCERTAIN no-replay after terminal metadata retirement.
-Final local quality supervisor `octoport-test-b-7aa4792b61a847b4a00b0df2a8bae615.service`:
+The 7/7 matrix proves concurrent identical saves coalesce, max-three ring, UNKNOWN/baseline separation, direct unsafe mutation rejection, persist-to-incident crash protection, incident and pending-notification pins, explicit raw payload GC, exact late callback replay from receipt, duplicate callback vs prune, duplicate callback vs receipt retirement, retire-vs-materialize serialization, old-revision no-replay, higher-revision admission, persisted-terminal recovery protection and SEND_UNCERTAIN no-replay after terminal metadata retirement.
+
+A read-only exact review of source commit `8ca5ac2a61d92ed5c29051bf01f1f8ad0e3546ef` with pinned `gpt-6-luna` found one HIGH: direct SQL could delete `health_scheduled_runs` after payload GC while its replay receipt still existed. The follow-up closes this with `health_no_session_run_receipts.scheduled_run_id -> health_scheduled_runs.id ON DELETE RESTRICT` plus a DB `BEFORE DELETE` guard on scheduler rows requiring a covering watermark and absence of persisted payload/replay authority. The final 7/7 matrix proves direct scheduler DELETE fails both while a pruned receipt exists and for terminal `SEND_UNCERTAIN` before watermark retirement.
+
+Final local quality supervisor `octoport-test-b-2fe8d81d20da43128fd0e7ca5f21ade0.service`:
 
 - DB unit: **31/31 PASS**;
 - DB typecheck PASS;
@@ -82,7 +85,7 @@ Final local quality supervisor `octoport-test-b-7aa4792b61a847b4a00b0df2a8bae615
 - `git diff --check` PASS;
 - exit 0, OOM 0, cleanup verified.
 
-Earlier discarded integration attempts are not acceptance evidence: one ran schema-resetting PostgreSQL files concurrently on one disposable DB and failed from test-schema races; another crash-recovery assertion reused an existing incident scope and therefore correctly received `IGNORED` instead of `OPENED`. The crash fixture was isolated to its own published profile scope, and the final sequential matrix passed 7/7.
+Earlier discarded integration attempts are not acceptance evidence: one ran schema-resetting PostgreSQL files concurrently on one disposable DB and failed from test-schema races; one higher-revision cleanup used a retirement timestamp older than the existing watermark and was correctly rejected as non-monotonic; another crash-recovery assertion reused an existing incident scope and therefore correctly received `IGNORED` instead of `OPENED`. The fixtures were corrected without weakening production guards, and the final sequential matrix passed 7/7.
 
 ## Handoff / limitations
 

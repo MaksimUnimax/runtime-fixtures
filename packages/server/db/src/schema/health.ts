@@ -551,7 +551,12 @@ export const healthNoSessionRunReceipts = pgTable(
   "health_no_session_run_receipts",
   {
     runId: uuid("run_id").primaryKey(),
-    scheduledRunId: uuid("scheduled_run_id").notNull(),
+    scheduledRunId: uuid("scheduled_run_id")
+      .notNull()
+      .references(() => healthScheduledRuns.id, {
+        onDelete: "restrict",
+        onUpdate: "restrict",
+      }),
     scheduleId: uuid("schedule_id")
       .notNull()
       .references(() => healthSchedules.id, {

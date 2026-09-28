@@ -23,6 +23,7 @@ CREATE TABLE "health_no_session_run_receipts" (
   "payload_pruned_at" timestamp with time zone,
   "created_at" timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT "health_no_session_run_receipts_schedule_fk" FOREIGN KEY ("schedule_id") REFERENCES "health_schedules"("id") ON DELETE RESTRICT ON UPDATE RESTRICT,
+  CONSTRAINT "health_no_session_run_receipts_scheduled_fk" FOREIGN KEY ("scheduled_run_id") REFERENCES "health_scheduled_runs"("id") ON DELETE RESTRICT ON UPDATE RESTRICT,
   CONSTRAINT "health_no_session_run_receipts_scheduled_unique" UNIQUE("scheduled_run_id"),
   CONSTRAINT "health_no_session_run_receipts_idempotency_unique" UNIQUE("idempotency_key"),
   CONSTRAINT "health_no_session_run_receipts_schedule_revision_positive" CHECK ("schedule_revision" > 0),
@@ -268,6 +269,42 @@ $$;
 CREATE TRIGGER health_schedule_retention_watermark_guard
 BEFORE INSERT OR UPDATE OR DELETE ON "health_schedule_retention_watermarks"
 FOR EACH ROW EXECUTE FUNCTION health_schedule_retention_watermark_guard();
+--> statement-breakpoint
+CREATE FUNCTION health_scheduled_run_retention_delete_guard() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM health_schedule_retention_watermarks watermark
+    WHERE watermark.schedule_id=OLD.schedule_id
+      AND (
+        watermark.retired_through_revision > OLD.schedule_revision
+        OR (
+          watermark.retired_through_revision=OLD.schedule_revision
+          AND watermark.retired_through_due_slot_at >= OLD.due_slot_at
+        )
+      )
+  )
+  AND OLD.state IN ('SUCCEEDED','FAILED_TERMINAL','CANCELLED')
+  AND OLD.health_run_id IS NULL
+  AND OLD.next_attempt_at IS NULL
+  AND NOT EXISTS (
+    SELECT 1 FROM health_runs persisted
+    WHERE persisted.scheduled_run_id=OLD.id
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM health_no_session_run_receipts receipt
+    WHERE receipt.scheduled_run_id=OLD.id
+  )
+  THEN
+    RETURN OLD;
+  END IF;
+  RAISE EXCEPTION 'health scheduled run deletion requires retired watermark and no persisted replay authority' USING ERRCODE='55000';
+END;
+$$;
+--> statement-breakpoint
+CREATE TRIGGER health_scheduled_run_retention_delete_guard
+BEFORE DELETE ON "health_scheduled_runs"
+FOR EACH ROW EXECUTE FUNCTION health_scheduled_run_retention_delete_guard();
 --> statement-breakpoint
 CREATE FUNCTION health_no_session_payload_mark_allowed(candidate_run_id uuid) RETURNS boolean LANGUAGE sql STABLE AS $$
   SELECT EXISTS (
