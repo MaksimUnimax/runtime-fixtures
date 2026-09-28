@@ -25,7 +25,7 @@ def authority(control="https://api.octoport.ru", portal="https://app.octoport.ru
     return {
         "schemaVersion": "octoport_release_authority_v1",
         "source": {"head": "0" * 40, "tree": "1" * 40},
-        "productVersion": "0.2.5",
+        "productVersion": "0.2.6",
         "contractVersion": "control_plane_v2",
         "migrationLevel": 48,
         "environment": "PREPRODUCTION",
@@ -93,7 +93,7 @@ with tempfile.TemporaryDirectory(prefix="octoport-store-contract-") as temp:
     assert "BETA · результаты сразу в ИИ · буфер до 1 часа" in popup
     assert receipt["build_mode"] == "store"
     assert receipt["environment"] == "PREPRODUCTION"
-    assert receipt["package"]["name"] == "OCTOPORT_v0.2.5_CHROMIUM_STORE.zip"
+    assert receipt["package"]["name"] == "OCTOPORT_v0.2.6_CHROMIUM_STORE.zip"
     assert receipt["package"]["repeat_archive_match"] is True
     assert receipt["release_authority_sha256"] == composed.baseline.sha256(auth.read_bytes())
 
@@ -102,7 +102,7 @@ with tempfile.TemporaryDirectory(prefix="octoport-store-contract-") as temp:
         (root / "firefox-runtime" / "manifest.json").read_text(encoding="utf-8")
     )
     assert firefox_receipt["build_mode"] == "store"
-    assert firefox_receipt["package"]["name"] == "OCTOPORT_v0.2.5_FIREFOX_STORE.zip"
+    assert firefox_receipt["package"]["name"] == "OCTOPORT_v0.2.6_FIREFOX_STORE.zip"
     assert firefox_manifest["browser_specific_settings"]["gecko"]["id"] == "octoport@octoport.ru"
     assert firefox_manifest["browser_specific_settings"]["gecko"]["data_collection_permissions"] == {
         "required": [
