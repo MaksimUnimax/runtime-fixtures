@@ -190,7 +190,18 @@ jobs:
                   target = href[1:]
                   assert target in parser.ids, f"broken internal anchor: {href}"
               elif href.startswith("/"):
-                  assert href in approved_home_paths, f"unexpected HOME link: {href}"
+                  path, _, fragment = href.partition("#")
+                  assert path in approved_home_paths, f"unexpected HOME link: {href}"
+                  if fragment:
+                      targets = {
+                          "/seller-analytics": seller_path,
+                          "/privacy": root / "privacy.html",
+                          "/support": root / "support.html",
+                          "/install": root / "install.html",
+                      }
+                      linked_page = PageParser()
+                      linked_page.feed(targets[path].read_text(encoding="utf-8"))
+                      assert fragment in linked_page.ids, f"broken HOME fragment link: {href}"
               else:
                   assert href in approved_external_links, f"unexpected external HOME link: {href}"
 
