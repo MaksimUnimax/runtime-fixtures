@@ -60,3 +60,20 @@ Evidence:
 Still explicitly untested here: ordinary human email delivery/login UX, human portal login, ChatGPT login/2FA, read-only Ozon/WB provider checks, live AI Work, transfer, destructive auth reset and store submission/reviewer acceptance.
 
 The human email-login item remains separately deferred; it is not treated as the cause of this technical bootstrap incompatibility.
+
+## Security hardening follow-up
+
+Controller notice `A-CONTROLLER-TECHNICAL-AUTH-20260928-1402` found that the first WIP technical transport accepted arbitrary/plaintext origins, followed default urllib redirects, and followed a symlink receipt. Candidate `aed03254` was immediately marked **SUPERSEDED / DO NOT INTEGRATE** to C before any further real-session use.
+
+The superseding implementation now:
+
+- accepts only exact `https://api.octoport.ru` with no credentials, path, query, fragment, alternate port or HTTP downgrade;
+- uses an explicit no-redirect opener, so 3xx cannot carry Cookie/CSRF to another origin;
+- bounds API response and receipt reads to 64 KiB;
+- opens the protected receipt with `O_NOFOLLOW`, validates regular-file/current-owner/exact `0600`, and requires its immediate parent to be current-owner and inaccessible to group/other;
+- validates JSON object/type/expiry/account/cookie shape before use;
+- keeps all transport failures mapped to fixed privacy-safe codes.
+
+Synthetic no-network regression now covers wrong origin, plaintext origin, path/query/userinfo variants, cross-origin redirect refusal, symlink receipt, unsafe parent, malformed JSON and the exact-origin injected transport path.
+
+Focused guards after hardening: **19/19 PASS**; Python compile and `git diff --check`: PASS. No real portal session or real network was reused after the controller notice while this hardening was uncommitted.
