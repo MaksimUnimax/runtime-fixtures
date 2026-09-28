@@ -35,37 +35,37 @@ class ContourSourceTests(unittest.TestCase):
         self.assertNotIn('reference-art.js',self.html)
         self.assertNotIn('background-position',self.css)
         self.assertNotIn('engraving-3-underlay',self.html)
-    def test_r11_full_reference_vector_contract(self):
+    def test_r12_exact_trace_vector_contract(self):
         source=ROOT.parent/'design-sources'
-        m=json.loads((source/'contour-full-ref-r11.json').read_text())
-        asset=ROOT/'assets/contour-full-ref-r11.svg'
+        m=json.loads((source/'contour-exact-trace-r12.json').read_text())
+        asset=ROOT/'assets/contour-exact-trace-r12.svg'
         self.assertEqual(hashlib.sha256(asset.read_bytes()).hexdigest(),m['asset_sha256'])
-        packed=zlib.decompress(base64.b64decode((source/'contour-full-ref-r11-mask.b64').read_bytes()))
+        packed=zlib.decompress(base64.b64decode((source/'contour-exact-ref-r12-mask.b64').read_bytes()))
         self.assertEqual(hashlib.sha256(packed).hexdigest(),m['source_mask_packed_sha256'])
         svg=asset.read_text()
         self.assertIn('<symbol id="underlay"',svg)
         self.assertNotIn('<image',svg); self.assertNotIn('data:image',svg)
         self.assertNotIn('.png',svg); self.assertNotIn('.webp',svg)
-        self.assertGreater(svg.count('Q'),100)
-        self.assertLess(len(svg.encode()),220000)
-        self.assertIn('/assets/contour-full-ref-r11.svg#underlay',self.html)
-        self.assertNotIn('contour-exact-ref-r10.svg',self.html)
+        self.assertGreater(svg.count(' L'),1000)
+        self.assertLess(len(svg.encode()),250000)
+        self.assertIn('/assets/contour-exact-trace-r12.svg#underlay',self.html)
+        self.assertNotIn('contour-full-ref-r11.svg',self.html)
         self.assertNotIn('contour-grips',self.html)
         self.assertEqual(m['source_reference_size'],[1448,1086])
         self.assertEqual(m['source_reference_sha256'],'d3ead9dbba9794c57a3ff2b1267b15c36045eadd9922e7d6a8788a071e73c246')
-        self.assertIn('no button cutouts',m['method'])
+        self.assertIn('no RDP, no spline smoothing, no button cutouts',m['method'])
 
-    def test_r11_reference_geometry_and_palette(self):
-        m=json.loads((ROOT.parent/'design-sources/contour-full-ref-r11.json').read_text())
-        self.assertEqual(m['palette'],{'light':'#10243c','dark':'#ebffff'})
-        self.assertIn('.contour-full-ref-r11 { color:var(--scene-ink);',self.css)
+    def test_r12_reference_geometry_and_palette(self):
+        m=json.loads((ROOT.parent/'design-sources/contour-exact-trace-r12.json').read_text())
+        self.assertEqual(m['palette'],{'light':'#052039','dark':'#ebffff'})
+        self.assertIn('.contour-exact-trace-r12 { color:var(--scene-ink);',self.css)
         self.assertIn('aspect-ratio:4/3',self.css)
         for name,(left,top,width) in m['button_geometry'].items():
             pos=re.search(r'(?m)^\s*\.pos-'+name+r'\s*\{([^}]+)\}',self.css).group(1)
             self.assertAlmostEqual(float(re.search(r'left:\s*([\d.]+)%',pos).group(1)),left,places=5)
             self.assertAlmostEqual(float(re.search(r'top:\s*([\d.]+)%',pos).group(1)),top,places=5)
             self.assertIn(f'width:{width:.6f}%',self.css)
-        self.assertIn('--scene-ink:#10243c',self.css)
+        self.assertIn('--scene-ink:#052039',self.css)
         self.assertIn('--scene-ink:#ebffff',self.css)
 
     def test_marketplaces_are_lower_and_ordered(self):
@@ -168,7 +168,7 @@ class ContourSourceTests(unittest.TestCase):
 
     def test_r4_theme_aware_rings_and_keyboard_controls(self):
         self.assertIn('border:clamp(1.4px,.4cqi,3px) solid var(--scene-ink)',self.css)
-        self.assertIn('--scene-ink:#10243c',self.css)
+        self.assertIn('--scene-ink:#052039',self.css)
         self.assertIn('--scene-ink:#ebffff',self.css)
         self.assertIn('.ai-badge:focus-visible,.market-badge:focus-visible',self.css)
         self.assertIn('min-width:44px; min-height:44px',self.css)

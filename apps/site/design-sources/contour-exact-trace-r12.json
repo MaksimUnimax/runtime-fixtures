@@ -1,0 +1,60 @@
+{
+  "source_reference_size": [
+    1448,
+    1086
+  ],
+  "source_reference_sha256": "d3ead9dbba9794c57a3ff2b1267b15c36045eadd9922e7d6a8788a071e73c246",
+  "source_mask_packed_sha256": "5c3dc4259d3bc47754f8683026922731270ae603c362a9ec2a3ea1fd2e1f2833",
+  "method": "canonical reference mask -> OpenCV CHAIN_APPROX_SIMPLE; no RDP, no spline smoothing, no button cutouts",
+  "asset": "assets/contour-exact-trace-r12.svg",
+  "asset_sha256": "b8fbdfa3dac6b4a8267bde7f57d813d8de7fb6a484e373ca39b30ee84e9bef82",
+  "asset_bytes": 202407,
+  "contours": 734,
+  "points": 21901,
+  "palette": {
+    "light": "#052039",
+    "dark": "#ebffff"
+  },
+  "button_geometry": {
+    "alice": [
+      36.422381,
+      13.64039,
+      11.633995
+    ],
+    "gemini": [
+      63.364342,
+      13.612448,
+      11.754898
+    ],
+    "chatgpt": [
+      20.015734,
+      29.066161,
+      11.964758
+    ],
+    "deepseek": [
+      79.856648,
+      29.04453,
+      11.904357
+    ],
+    "anthropic": [
+      9.936594,
+      49.139845,
+      11.882735
+    ],
+    "qwen": [
+      89.962294,
+      49.040361,
+      11.81679
+    ],
+    "wb": [
+      28.719707,
+      81.923208,
+      18.139409
+    ],
+    "ozon": [
+      70.986295,
+      81.808657,
+      18.170768
+    ]
+  }
+}
