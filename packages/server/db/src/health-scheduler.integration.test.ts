@@ -534,6 +534,113 @@ describe.sequential(
       ).toBe(false);
     });
 
+    it("keeps expired AUTHENTICATED_DEEP CLAIMED work reclaimable before execution starts", async () => {
+      const run = await materialize(19, {
+        probeLayer: "AUTHENTICATED_DEEP",
+      });
+      const first = await repositoryA.claimNext({
+        ownerId: "auth-claimed-dead",
+        now,
+        leaseMs: 1_000,
+      });
+      expect(first?.id).toBe(run.id);
+      expect(first?.state).toBe("CLAIMED");
+
+      const reclaimed = await repositoryB.claimNext({
+        ownerId: "auth-claimed-recovery",
+        now: new Date(now.valueOf() + 2_000),
+        leaseMs: 10_000,
+      });
+      expect(reclaimed).toMatchObject({
+        id: run.id,
+        state: "CLAIMED",
+        ownerId: "auth-claimed-recovery",
+        attempt: 2,
+      });
+    });
+
+    it("terminalizes expired AUTHENTICATED_DEEP RUNNING without persisted evidence as SEND_UNCERTAIN", async () => {
+      const run = await materialize(20, {
+        probeLayer: "AUTHENTICATED_DEEP",
+      });
+      const claim = await repositoryA.claimNext({
+        ownerId: "auth-running-dead",
+        now,
+        leaseMs: 1_000,
+      });
+      const started = await repositoryA.startRun({
+        runId: run.id,
+        ownerId: "auth-running-dead",
+        leaseId: claim!.leaseId!,
+        now,
+      });
+      expect(started.state).toBe("RUNNING");
+
+      expect(
+        await repositoryB.claimNext({
+          ownerId: "auth-running-recovery",
+          now: new Date(now.valueOf() + 2_000),
+          leaseMs: 10_000,
+        }),
+      ).toBeNull();
+
+      const terminal = await repository.getScheduledRun(run.id);
+      expect(terminal).toMatchObject({
+        state: "FAILED_TERMINAL",
+        attempt: 1,
+        failureClass: "TRANSIENT_ENVIRONMENT",
+        failureCode: "SEND_UNCERTAIN",
+        healthRunId: null,
+        ownerId: null,
+        leaseId: null,
+      });
+      expect(
+        await repositoryB.claimNext({
+          ownerId: "auth-running-recovery-2",
+          now: new Date(now.valueOf() + 86_400_000),
+          leaseMs: 10_000,
+        }),
+      ).toBeNull();
+    });
+
+    it("does not reclaim expired AUTHENTICATED_DEEP RUNNING after result persistence commits", async () => {
+      const run = await materialize(21, {
+        probeLayer: "AUTHENTICATED_DEEP",
+      });
+      const claim = await repositoryA.claimNext({
+        ownerId: "auth-persisted-dead",
+        now,
+        leaseMs: 1_000,
+      });
+      await repositoryA.startRun({
+        runId: run.id,
+        ownerId: "auth-persisted-dead",
+        leaseId: claim!.leaseId!,
+        now,
+      });
+      await insertHealthResult(id(521), run.id, "BROKEN");
+
+      expect(
+        await repositoryB.claimNext({
+          ownerId: "auth-persisted-recovery",
+          now: new Date(now.valueOf() + 2_000),
+          leaseMs: 10_000,
+        }),
+      ).toBeNull();
+
+      expect(await repository.getScheduledRun(run.id)).toMatchObject({
+        state: "RUNNING",
+        attempt: 1,
+        healthRunId: null,
+        failureCode: null,
+      });
+      const persisted = await runtime.query<{ count: string }>(
+        "SELECT count(*)::text AS count FROM health_runs WHERE scheduled_run_id=$1",
+        [run.id],
+      );
+      expect(persisted.rows[0]?.count).toBe("1");
+    });
+
     it("does not retry SEND_UNCERTAIN after an execution may have sent an external side effect", async () => {
       const run = await materialize(18);
       const claim = await repositoryA.claimNext({
