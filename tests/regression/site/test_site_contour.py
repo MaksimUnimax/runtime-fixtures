@@ -35,38 +35,33 @@ class ContourSourceTests(unittest.TestCase):
         self.assertNotIn('reference-art.js',self.html)
         self.assertNotIn('background-position',self.css)
         self.assertNotIn('engraving-3-underlay',self.html)
-    def test_r6_true_vector_static_layers_and_asset_integrity(self):
-        source=ROOT.parent/'design-sources'
-        manifest=json.loads((source/'contour-vector-r6.json').read_text())
-        asset=ROOT/'assets/contour-vector-r6.svg'
-        self.assertEqual(hashlib.sha256(asset.read_bytes()).hexdigest(),manifest['asset_sha256'])
-        svg=asset.read_text()
-        self.assertIn('<symbol id="underlay"',svg)
-        self.assertIn('<symbol id="grip-paper"',svg)
-        self.assertIn('<symbol id="grip-ink"',svg)
-        self.assertGreater(svg.count('<path '),2)
-        self.assertNotIn('<image',svg)
-        self.assertNotIn('data:image',svg)
-        self.assertNotIn('.png',svg)
-        self.assertNotIn('.webp',svg)
-        underlays=[a for t,a in self.tags if t=='svg' and 'contour-underlay' in a.get('class','').split()]
-        grips=[a for t,a in self.tags if t=='svg' and 'contour-grips' in a.get('class','').split()]
-        self.assertEqual(len(underlays),1); self.assertEqual(len(grips),1)
-        self.assertEqual(self.html.count('/assets/contour-vector-r6.svg#underlay'),1)
-        self.assertEqual(self.html.count('/assets/contour-vector-r6.svg#grip-paper'),1)
-        self.assertEqual(self.html.count('/assets/contour-vector-r6.svg#grip-ink'),1)
+    def test_r7_manual_svg_redraw_and_integrity(self):
+        under=re.search(r'(<svg class="contour-underlay contour-manual-r7".*?</svg>)',self.html,re.S)
+        grips=re.search(r'(<svg class="contour-grips contour-manual-r7".*?</svg>)',self.html,re.S)
+        self.assertIsNotNone(under); self.assertIsNotNone(grips)
+        u=under.group(1); g=grips.group(1)
+        for svg in (u,g):
+            self.assertNotIn('<image',svg)
+            self.assertNotIn('data:image',svg)
+            self.assertNotIn('.png',svg)
+            self.assertNotIn('.webp',svg)
+        self.assertGreaterEqual(u.count(' C'),16)
+        self.assertGreaterEqual(u.count('<ellipse '),30)
+        self.assertIn('r7-arm-upper-left',u)
+        self.assertIn('translate(559 0) scale(-1 1)',u)
+        self.assertIn('r7-wb-grip',g)
+        self.assertNotIn('contour-vector-r6.svg',self.html)
         self.assertNotIn('contour-reference-r5-',self.html)
         self.assertNotIn('contour-grips-r5-',self.html)
 
-    def test_r6_vector_palette_matches_css_controls(self):
-        m=json.loads((ROOT.parent/'design-sources/contour-vector-r6.json').read_text())
-        self.assertEqual(m['palette'],{'light':'#10243c','dark':'#ebffff'})
-        self.assertEqual(m['vectorization']['scale'],2)
-        self.assertEqual(m['vectorization']['threshold'],72)
-        self.assertEqual(m['vectorization']['fill_rule'],'evenodd')
-        self.assertIn('.contour-vector { color:var(--scene-ink);',self.css)
-        self.assertIn('.contour-grips .grip-paper { color:var(--scene-paper);',self.css)
-        self.assertIn('.contour-grips .grip-ink { color:var(--scene-ink);',self.css)
+    def test_r7_palette_is_shared_with_dom_controls(self):
+        self.assertIn('.contour-manual-r7 { color:var(--scene-ink);',self.css)
+        self.assertIn('.r7-arm-outline,.r7-grip-outline',self.css)
+        self.assertIn('stroke:var(--scene-ink)',self.css)
+        self.assertIn('.r7-arm-core,.r7-grip-core',self.css)
+        self.assertIn('stroke:var(--scene-paper)',self.css)
+        self.assertIn('--scene-ink:#10243c',self.css)
+        self.assertIn('--scene-ink:#ebffff',self.css)
 
     def test_marketplaces_are_lower_and_ordered(self):
         def pos(name):
