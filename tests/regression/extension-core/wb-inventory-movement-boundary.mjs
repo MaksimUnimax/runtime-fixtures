@@ -142,7 +142,10 @@ assertCurrentReplacement(
 
 let pinnedCandidateDetected = false;
 let driftNegativeRejected = false;
-const overlayOverridePath = process.argv[2];
+const directCliInvocation =
+  typeof process.argv[1] === "string" &&
+  path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+const overlayOverridePath = directCliInvocation ? process.argv[2] : undefined;
 if (overlayOverridePath) {
   const overlaySource = fs.readFileSync(path.resolve(overlayOverridePath), "utf8");
   const overlaySha256 = crypto.createHash("sha256").update(overlaySource).digest("hex");
