@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import {
   MONITORING_DEFAULT_INTERVAL_SECONDS,
   MONITORING_LANES,
+  MonitoringCoverageSchema,
   MonitoringLaneSchema,
   MonitoringResultStatusSchema,
   MonitoringRunSourceSchema,
@@ -236,6 +237,7 @@ function mapState(row: StateRow): MonitoringLaneState {
           status: string;
           code: string | null;
           summary: string;
+          coverage?: unknown;
         })
       : null;
   return {
@@ -262,6 +264,11 @@ function mapState(row: StateRow): MonitoringLaneState {
             status: MonitoringResultStatusSchema.parse(lastResult.status),
             code: lastResult.code,
             summary: lastResult.summary,
+            ...(lastResult.coverage === undefined
+              ? {}
+              : {
+                  coverage: MonitoringCoverageSchema.parse(lastResult.coverage),
+                }),
           }),
           runId: lastResult.runId,
           finishedAt: new Date(lastResult.finishedAt),

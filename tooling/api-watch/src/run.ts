@@ -1,4 +1,5 @@
 import type {
+  MonitoringCoverage,
   MonitoringLaneRunner,
   MonitoringRunResult,
 } from "@product/monitoring-control";
@@ -16,9 +17,89 @@ import type {
   SemanticDiff,
 } from "./types.js";
 
+function sourceTarget(
+  sourceFamily: string,
+  documentKey: string | null | undefined,
+): string {
+  return documentKey ? `${sourceFamily}:${documentKey}` : sourceFamily;
+}
+
+function maxChangeSeverity(
+  sources: readonly ApiWatchReportSourceOutcome[],
+): MonitoringCoverage["changeSeverity"] {
+  const severities = sources.map((source) => source.impactSeverity);
+  if (severities.includes("BLOCKING_RISK")) return "BLOCKING_RISK";
+  if (severities.includes("REVIEW_REQUIRED")) return "REVIEW_REQUIRED";
+  if (severities.includes("UNKNOWN")) return "UNKNOWN";
+  if (severities.includes("NO_POLICY_IMPACT")) return "NO_POLICY_IMPACT";
+  return null;
+}
+
+function coverageFromReportSources(
+  sources: readonly ApiWatchReportSourceOutcome[],
+  observedAt: Date,
+): MonitoringCoverage {
+  const testedTargets: string[] = [];
+  const unverifiedTargets: string[] = [];
+  for (const source of sources) {
+    const target = sourceTarget(source.sourceFamily, source.documentKey);
+    const productCompared =
+      source.authorityStatus === "AUTHORITY_ACCEPTED" &&
+      source.errorCode === null &&
+      source.snapshotSha256 !== null &&
+      source.baseSnapshotSha256 !== null &&
+      (source.changeMode === "CHANGED" || source.changeMode === "NO_CHANGE");
+    (productCompared ? testedTargets : unverifiedTargets).push(target);
+  }
+  const uniqueTested = [...new Set(testedTargets)].sort();
+  const uniqueUnverified = [...new Set(unverifiedTargets)]
+    .filter((target) => !uniqueTested.includes(target))
+    .sort();
+  return {
+    observedAt: observedAt.toISOString(),
+    checkDepth: "API_DOCUMENT_COMPARISON",
+    testedTargets: uniqueTested,
+    unverifiedTargets: uniqueUnverified,
+    comparisonState:
+      uniqueTested.length > 0 && uniqueUnverified.length === 0
+        ? "COMPLETED"
+        : uniqueTested.length > 0
+          ? "PARTIAL"
+          : "NOT_RUN",
+    changeSeverity: maxChangeSeverity(sources),
+  };
+}
+
+function coverageFromAuthorityPass(
+  pass: AuthorityPassResult,
+): MonitoringCoverage {
+  const testedTargets: string[] = [];
+  const unverifiedTargets: string[] = [];
+  for (const outcome of pass.outcomes) {
+    const target = sourceTarget(outcome.sourceFamily, outcome.documentKey);
+    (outcome.kind === "ACQUIRED_OFFICIAL_SOURCE_CANDIDATE"
+      ? testedTargets
+      : unverifiedTargets
+    ).push(target);
+  }
+  const observedAt = pass.records.reduce<Date | null>((latest, record) => {
+    const current = new Date(record.validatedAt);
+    return !latest || current.valueOf() > latest.valueOf() ? current : latest;
+  }, null);
+  return {
+    observedAt: observedAt?.toISOString() ?? null,
+    checkDepth: "API_SOURCE_ACQUISITION",
+    testedTargets: [...new Set(testedTargets)].sort(),
+    unverifiedTargets: [...new Set(unverifiedTargets)].sort(),
+    comparisonState: "NOT_RUN",
+    changeSeverity: null,
+  };
+}
+
 function resultFromAuthorityPass(
   pass: AuthorityPassResult,
 ): MonitoringRunResult {
+  const coverage = coverageFromAuthorityPass(pass);
   if (
     pass.outcomes.some(
       (outcome) => outcome.kind === "ACQUIRED_OFFICIAL_SOURCE_CANDIDATE",
@@ -28,6 +109,7 @@ function resultFromAuthorityPass(
       status: "SUCCEEDED",
       code: "API_SOURCE_CANDIDATE_ACQUIRED",
       summary: `API-watch completed ${pass.outcomes.length} source-family checks.`,
+      coverage,
     };
   if (
     pass.outcomes.some((outcome) => outcome.kind === "OPERATOR_SOURCE_REQUIRED")
@@ -37,6 +119,7 @@ function resultFromAuthorityPass(
       code: "OPERATOR_SOURCE_REQUIRED",
       summary:
         "API-watch created or retained a bounded operator source request.",
+      coverage,
     };
   if (
     pass.outcomes.some(
@@ -47,6 +130,7 @@ function resultFromAuthorityPass(
       status: "NOT_OBSERVABLE",
       code: "API_SOURCE_TEMPORARILY_UNAVAILABLE",
       summary: "API-watch encountered a bounded transient source condition.",
+      coverage,
     };
   if (
     pass.outcomes.every(
@@ -58,11 +142,13 @@ function resultFromAuthorityPass(
       code: "SOURCE_URL_AUTHORITY_MISSING",
       summary:
         "API-watch has no accepted official URL authority for the monitored families.",
+      coverage,
     };
   return {
     status: "FAILED",
     code: "INVALID_OFFICIAL_SOURCE_RESPONSE",
     summary: "API-watch rejected one or more official source responses safely.",
+    coverage,
   };
 }
 
@@ -98,29 +184,34 @@ function extensionFor(
 
 function reportResult(
   state: "COMPLETED" | "PARTIAL" | "BLOCKED" | "FAILED",
+  coverage?: MonitoringCoverage,
 ): MonitoringRunResult {
   if (state === "COMPLETED")
     return {
       status: "SUCCEEDED",
       code: "API_WATCH_REPORT_COMPLETED",
       summary: "API-watch report completed.",
+      ...(coverage ? { coverage } : {}),
     };
   if (state === "PARTIAL")
     return {
       status: "NOT_OBSERVABLE",
       code: "API_WATCH_REPORT_PARTIAL",
       summary: "API-watch report completed with blocked source families.",
+      ...(coverage ? { coverage } : {}),
     };
   if (state === "BLOCKED")
     return {
       status: "NOT_OBSERVABLE",
       code: "API_WATCH_REPORT_BLOCKED",
       summary: "API-watch report was blocked by source authority conditions.",
+      ...(coverage ? { coverage } : {}),
     };
   return {
     status: "FAILED",
     code: "API_WATCH_REPORT_FAILED",
     summary: "API-watch report failed safely.",
+    ...(coverage ? { coverage } : {}),
   };
 }
 
@@ -419,10 +510,11 @@ export async function runApiWatchReport(input: {
         : usable > 0
           ? "PARTIAL"
           : "BLOCKED";
+    const completedAt = currentTime(dependencies);
     await reportStore.transitionReport({
       reportId: report.reportId,
       state,
-      at: currentTime(dependencies),
+      at: completedAt,
       sources,
       counts: reportCounts(sources),
     });
@@ -443,7 +535,7 @@ export async function runApiWatchReport(input: {
           scheduleEarlier: dependencies.scheduleEarlier,
           now: currentTime(dependencies),
         });
-    return reportResult(state);
+    return reportResult(state, coverageFromReportSources(sources, completedAt));
   } catch {
     await reportStore.transitionReport({
       reportId: report.reportId,

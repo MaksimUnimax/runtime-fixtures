@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
+import type { NoSessionObservationResult } from "@product/health-runner";
 import type { MonitoringNotification } from "@product/monitoring-control";
 import {
   createLlmMonitoringRunner,
   resultFromDurableHealthCycle,
+  resultFromNoSessionBatch,
   shouldSendMonitoringNotification,
 } from "./runners.js";
 
@@ -67,6 +69,54 @@ describe("C04 durable LLM lane composition", () => {
     ).toMatchObject({
       status: "FAILED",
       code: "HEALTH_SCHEDULER_EXECUTION_FAILED",
+      coverage: {
+        observedAt: null,
+        checkDepth: "SCHEDULED_EXECUTION",
+        testedTargets: [],
+        unverifiedTargets: [],
+        comparisonState: "NOT_APPLICABLE",
+        changeSeverity: null,
+      },
+    });
+  });
+
+  it("records exact public no-session coverage without treating auth-limited surfaces as tested", () => {
+    const observation = (
+      surfaceId: string,
+      surfaceOutcome: "PUBLIC_INTERACTIVE" | "AUTH_REQUIRED" | "DRIFT",
+      observedAt: string,
+    ) =>
+      ({
+        surfaceId,
+        surfaceOutcome,
+        observedAt,
+      }) as unknown as NoSessionObservationResult;
+
+    expect(
+      resultFromNoSessionBatch([
+        observation(
+          "chatgpt-standard",
+          "PUBLIC_INTERACTIVE",
+          "2026-09-28T10:00:00.000Z",
+        ),
+        observation(
+          "chatgpt-work",
+          "AUTH_REQUIRED",
+          "2026-09-28T10:00:01.000Z",
+        ),
+        observation("gemini", "DRIFT", "2026-09-28T10:00:02.000Z"),
+      ]),
+    ).toMatchObject({
+      status: "FAILED",
+      code: "PROVIDER_SURFACE_DRIFT",
+      coverage: {
+        observedAt: "2026-09-28T10:00:02.000Z",
+        checkDepth: "PUBLIC_NO_SESSION",
+        testedTargets: ["chatgpt-standard", "gemini"],
+        unverifiedTargets: ["chatgpt-work"],
+        comparisonState: "NOT_APPLICABLE",
+        changeSeverity: "REVIEW_REQUIRED",
+      },
     });
   });
 

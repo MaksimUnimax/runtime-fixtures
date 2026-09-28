@@ -310,6 +310,12 @@ describe("A6 API-watch report lifecycle", () => {
       });
       const report = await setup.reportStore.getReport("api-watch:complete");
       expect(result.code).toBe("API_WATCH_REPORT_COMPLETED");
+      expect(result.coverage).toMatchObject({
+        checkDepth: "API_DOCUMENT_COMPARISON",
+        testedTargets: [],
+        comparisonState: "NOT_RUN",
+      });
+      expect(result.coverage?.unverifiedTargets).toHaveLength(3);
       expect(report?.state).toBe("COMPLETED");
     } finally {
       await server.close();
@@ -461,10 +467,15 @@ describe("A6 API-watch report lifecycle", () => {
 
       server.setBody(DOCUMENT_B);
       for (const runId of ["breaking-b-one", "breaking-b-two"]) {
-        await runApiWatchReport({
+        const runResult = await runApiWatchReport({
           ...setup,
           runId,
           source: "FORCED",
+        });
+        expect(runResult.coverage).toMatchObject({
+          checkDepth: "API_DOCUMENT_COMPARISON",
+          testedTargets: ["OZON_SELLER:OZON_SELLER"],
+          comparisonState: "PARTIAL",
         });
         const source = (
           await setup.reportStore.getReport(`api-watch:${runId}`)
