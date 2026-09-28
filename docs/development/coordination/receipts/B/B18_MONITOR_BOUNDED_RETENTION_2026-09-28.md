@@ -186,3 +186,12 @@ Final all-in-one acceptance supervisor `octoport-test-b-3caedbcbe218476a8165d1bc
 - targeted ESLint PASS;
 - targeted Prettier PASS;
 - `git diff --check` PASS.
+
+
+### Final source / main reconciliation
+
+B18 legacy-activation follow-up source commit: `78955b89d5e0c5009ad22c8c5cf4df2916f279e9`.
+
+Fresh `origin/main` was merged normally on the clean boundary. The only merge conflicts were controller/C-owned shared repair-contract files already present from the earlier exact controller merge; they were resolved to the newer authoritative `origin/main` versions. All B18 DB/receipt bytes remained unchanged.
+
+Post-merge supervisor `octoport-test-b-c85a266fd5ec4460ab382dd73f996434.service`: frozen install, DB typecheck, scheduler **17/17 PASS**, and `git diff --check origin/main...HEAD` PASS; exit 0, OOM 0, cleanup verified.
