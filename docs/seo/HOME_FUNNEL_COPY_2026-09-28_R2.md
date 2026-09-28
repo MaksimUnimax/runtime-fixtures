@@ -1,6 +1,6 @@
 # Octoport HOME — capabilities + browser workflow R2
 
-Date: 2026-09-28  
+Date: 2026-09-28
 Status: OWNER-DIRECTED / IMPLEMENTED IN SOURCE
 
 ## Owner decisions implemented
