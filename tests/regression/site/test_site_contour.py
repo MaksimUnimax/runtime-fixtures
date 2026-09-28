@@ -167,7 +167,7 @@ class ContourSourceTests(unittest.TestCase):
         self.assertIn('или другую нейросеть<br />к своему магазину<br />на <span class="brand-wildberries">WB</span> и <span class="brand-ozon">Ozon</span>.',self.html)
         self.assertIn('.brand-wildberries',self.css)
         self.assertIn('.brand-ozon',self.css)
-        self.assertIn('Октопорт соединяет ваш кабинет продавца на Ozon или Wildberries с любой нейросетью на ваш выбор.',self.html)
+        self.assertIn('Октопорт соединяет ваш кабинет продавца на <span class="brand-ozon" data-marketplace="name">Ozon</span> или <span class="brand-wildberries" data-marketplace="name">Wildberries</span> с любой нейросетью на ваш выбор.',self.html)
         self.assertIn('Можно использовать бесплатные аккаунты нейросетей.',self.html)
 
     def test_r4_theme_aware_rings_and_keyboard_controls(self):

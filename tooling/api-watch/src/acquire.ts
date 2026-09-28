@@ -52,6 +52,40 @@ function acceptedHosts(entry: SourceRegistryEntry): Set<string> {
   );
 }
 
+function isOzonAccessControlRedirect(
+  entry: SourceRegistryEntry,
+  currentUrl: string,
+  nextUrl: URL,
+): boolean {
+  if (
+    entry.sourceFamily !== "OZON_SELLER" &&
+    entry.sourceFamily !== "OZON_PERFORMANCE"
+  )
+    return false;
+  const current = new URL(currentUrl);
+  if (
+    current.origin !== nextUrl.origin ||
+    current.pathname !== nextUrl.pathname ||
+    current.hash ||
+    nextUrl.hash
+  )
+    return false;
+  const nextKeys = [...nextUrl.searchParams.keys()];
+  if (nextKeys.length !== 1 || nextKeys[0] !== "__rr") return false;
+  const nextRaw = nextUrl.searchParams.get("__rr");
+  if (!nextRaw || !/^[1-9]\d*$/.test(nextRaw)) return false;
+  const next = Number(nextRaw);
+  const currentKeys = [...current.searchParams.keys()];
+  if (currentKeys.length === 0) return next === 1;
+  if (currentKeys.length !== 1 || currentKeys[0] !== "__rr") return false;
+  const currentRaw = current.searchParams.get("__rr");
+  return Boolean(
+    currentRaw &&
+      /^[1-9]\d*$/.test(currentRaw) &&
+      next === Number(currentRaw) + 1,
+  );
+}
+
 function artifactTypeFor(url: string): ExpectedArtifactType {
   const pathname = new URL(url).pathname.toLowerCase();
   if (pathname.endsWith(".yaml")) return "YAML";
@@ -139,6 +173,7 @@ export async function acquireOfficialSource(input: {
   const hosts = acceptedHosts(entry);
   let currentUrl = officialUrl;
   let redirects = 0;
+  let consecutiveOzonAccessControlRedirects = 0;
   let response: Response;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -151,7 +186,7 @@ export async function acquireOfficialSource(input: {
       });
       if (![301, 302, 303, 307, 308].includes(response.status)) break;
       const location = response.headers.get("location");
-      if (!location || redirects >= maxRedirects) {
+      if (!location) {
         clearTimeout(timer);
         return failure(
           entry,
@@ -169,6 +204,30 @@ export async function acquireOfficialSource(input: {
           "Redirect left the accepted official host set.",
           response.status,
         );
+      }
+      const ozonAccessControlRedirect = isOzonAccessControlRedirect(
+        entry,
+        currentUrl,
+        nextUrl,
+      );
+      consecutiveOzonAccessControlRedirects = ozonAccessControlRedirect
+        ? consecutiveOzonAccessControlRedirects + 1
+        : 0;
+      if (redirects >= maxRedirects) {
+        clearTimeout(timer);
+        return consecutiveOzonAccessControlRedirects >= maxRedirects + 1
+          ? failure(
+              entry,
+              "OPERATOR_SOURCE_REQUIRED",
+              "Official Ozon documentation is behind an access-control redirect loop; an official operator-supplied source is required.",
+              response.status,
+            )
+          : failure(
+              entry,
+              "INVALID_OFFICIAL_SOURCE_RESPONSE",
+              "Redirect policy rejected the response.",
+              response.status,
+            );
       }
       redirects += 1;
       await response.body?.cancel().catch(() => undefined);

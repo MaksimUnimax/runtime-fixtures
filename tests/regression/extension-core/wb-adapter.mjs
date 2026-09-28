@@ -155,7 +155,7 @@ try {
       assert.equal(request.effect, "READ");
       enabled++;
     }
-    assert.equal(enabled, 170);
+    assert.equal(enabled, 171);
     assert.equal(disabled, 16);
     assert.equal(
       reference.contract.OPERATIONS.banned_products_shadowed,
@@ -167,6 +167,49 @@ try {
     );
     assert.ok(reference.contract.OPERATIONS.banned_products_blocked);
     assert.ok(reference.contract.OPERATIONS.analytics_item_rating_v2);
+    const returns = reference.contract.OPERATIONS.analytics_item_returns;
+    assert.equal(returns.method, "GET");
+    assert.equal(returns.path, "/api/analytics/v1/item-returns");
+    assert.equal(returns.current, true);
+    assert.equal(returns.execution_enabled, true);
+    assert.deepEqual(Array.from(returns.required_query_keys), [
+      "dateFrom",
+      "dateTo",
+      "status",
+      "limit",
+      "offset",
+    ]);
+    const validReturns = {
+      query: {
+        dateFrom: "2026-09-01",
+        dateTo: "2026-09-28",
+        status: "active",
+        limit: "100",
+        offset: "0",
+      },
+    };
+    const parsedReturns = reference.contract.parseCommand(
+      command("analytics_item_returns", validReturns),
+    );
+    const returnsRequest = reference.contract.buildRequest(parsedReturns);
+    assert.equal(
+      new URL(returnsRequest.url).origin,
+      reference.contract.HOSTS.analytics,
+    );
+    for (const key of returns.required_query_keys) {
+      const query = { ...validReturns.query };
+      delete query[key];
+      assert.throws(
+        () =>
+          reference.contract.parseCommand(
+            command("analytics_item_returns", { query }),
+          ),
+        (error) =>
+          error?.code === "MISSING_QUERY_PARAM" &&
+          error.message.includes(`query.${key}`),
+        `missing ${key}`,
+      );
+    }
     assert.equal(await worker.call("(() => typeof WBContract)"), "undefined");
     assert.ok(
       await worker.call(
@@ -177,6 +220,17 @@ try {
       worker.network.length,
       0,
       "loading adapter does not issue requests",
+    );
+    const analyticsHelp = await worker.call(`(() => {
+      const parsed = SellerAgentsWBReference.guidance.parseHelp('WB_HELP_V2 {"cluster":"analytics","section":"direct"}');
+      const payload = SellerAgentsWBReference.guidance.result({ ...parsed, status: "operations" });
+      return payload.choices.map((row) => row.operation);
+    })`);
+    assert.ok(analyticsHelp.includes("analytics_item_returns"));
+    assert.equal(
+      worker.network.length,
+      0,
+      "help remains local and performs no fetch",
     );
   });
   await test("WB-01a-retired-analytics-aliases-fail-before-fetch-and-help", async () => {

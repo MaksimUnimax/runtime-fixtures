@@ -164,7 +164,7 @@ check_site_content() {
 
   grep -Fq '<title>ИИ для аналитики маркетплейсов — данные вашего магазина | Octoport</title>' <<<"${seller}" \
     || fail "seller analytics M12 title is missing"
-  grep -Fq '<h1>Анализируйте данные магазина на Ozon и Wildberries с вашим ИИ</h1>' <<<"${seller}" \
+  grep -Fq '<h1>Анализируйте данные магазина на <span class="brand-ozon" data-marketplace="name">Ozon</span> и <span class="brand-wildberries" data-marketplace="name">Wildberries</span> с вашим ИИ</h1>' <<<"${seller}" \
     || fail "seller analytics M12 H1 is missing"
   grep -Fq '<link rel="canonical" href="https://octoport.ru/seller-analytics" />' <<<"${seller}" \
     || fail "seller analytics canonical is missing"
@@ -172,7 +172,7 @@ check_site_content() {
   grep -Fq 'главной странице Octoport' <<<"${seller}" || fail "seller analytics HOME link is missing"
 
   grep -Fq '<title>Octoport — Privacy</title>' <<<"${privacy}" || fail "privacy page title is missing"
-  grep -Fq 'не сохраняет Ozon/Wildberries реквизиты' <<<"${privacy}" || fail "privacy page credential boundary is missing"
+  grep -Fq 'не сохраняет <span class="brand-ozon" data-marketplace="name">Ozon</span>/<span class="brand-wildberries" data-marketplace="name">Wildberries</span> реквизиты' <<<"${privacy}" || fail "privacy page credential boundary is missing"
   grep -Fq 'технический срок хранения один час' <<<"${privacy}" || fail "privacy page one-hour local buffer statement is missing"
   grep -Fq 'support@octoport.ru' <<<"${privacy}" || fail "privacy page support contact is missing"
   grep -Fq 'DOM-данные или снимки страниц, просматриваемых пользователем, включая страницы с данными покупателей' <<<"${privacy}" \

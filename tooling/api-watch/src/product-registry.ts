@@ -263,9 +263,86 @@ function parseWildberriesRetirements(source: string) {
   return targets;
 }
 
+function parseWildberriesAddition(source: string): ProductRegistryEntry {
+  const file = ts.createSourceFile(
+    "wb-registry-overlay.js",
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.JS,
+  );
+  const initializer = findVariableInitializer(file, "ADDITION");
+  const frozen = initializer ? objectFreezeArgument(initializer) : undefined;
+  if (!frozen || !ts.isObjectLiteralExpression(frozen))
+    throw new Error(PRODUCT_REGISTRY_PARSE_UNSUPPORTED);
+  const names = frozen.properties.map((property) =>
+    ts.isPropertyAssignment(property) ? propertyName(property.name) : undefined,
+  );
+  if (names.some((name) => !name) || new Set(names).size !== names.length)
+    throw new Error(PRODUCT_REGISTRY_PARSE_UNSUPPORTED);
+  const properties = objectProperties(frozen);
+  for (const key of ["query_keys", "required_query_keys"] as const) {
+    const value = findPropertyInitializer(frozen, key);
+    const array = value ? objectFreezeArgument(value) : undefined;
+    if (!array || !ts.isArrayLiteralExpression(array))
+      throw new Error(PRODUCT_REGISTRY_PARSE_UNSUPPORTED);
+    const items = array.elements.map((item) => literalValue(item));
+    if (items.some((item) => typeof item !== "string"))
+      throw new Error(PRODUCT_REGISTRY_PARSE_UNSUPPORTED);
+    properties[key] = items;
+  }
+  const expected: Record<string, unknown> = {
+    alias: "analytics_item_returns",
+    host: "analytics",
+    method: "GET",
+    path: "/api/analytics/v1/item-returns",
+    category: "analytics",
+    query_keys: ["dateFrom", "dateTo", "status", "limit", "offset"],
+    required_query_keys: ["dateFrom", "dateTo", "status", "limit", "offset"],
+    body_required: false,
+    privacy: "standard",
+    response_mode: "json",
+    read_kind: "direct",
+    effect: "READ",
+    execution_enabled: true,
+    current: true,
+    source_openapi: "12-reports.yaml",
+    source_path: "/api/analytics/v1/item-returns",
+    source_readonly: true,
+  };
+  const expectedNames = Object.keys(expected);
+  if (
+    names.length !== expectedNames.length ||
+    expectedNames.some((name) => !names.includes(name)) ||
+    expectedNames.some(
+      (name) =>
+        JSON.stringify(properties[name]) !== JSON.stringify(expected[name]),
+    )
+  )
+    throw new Error(PRODUCT_REGISTRY_PARSE_UNSUPPORTED);
+  const entry = entryFromObject("WILDBERRIES", properties);
+  if (!entry) throw new Error(PRODUCT_REGISTRY_PARSE_UNSUPPORTED);
+  return entry;
+}
+
+function findPropertyInitializer(
+  object: ts.ObjectLiteralExpression,
+  name: string,
+): ts.Expression | undefined {
+  const property = object.properties.find(
+    (candidate) =>
+      ts.isPropertyAssignment(candidate) &&
+      propertyName(candidate.name) === name,
+  );
+  return property && ts.isPropertyAssignment(property)
+    ? property.initializer
+    : undefined;
+}
+
 function applyWildberriesEffectiveRegistryOverlays(input: {
   entries: ProductRegistryEntry[];
   retirementsOverlaySource: string;
+  additionOverlaySource: string;
   fbsOverlaySource: string;
   compositionSource: string;
 }): ProductRegistryEntry[] {
@@ -298,6 +375,26 @@ function applyWildberriesEffectiveRegistryOverlays(input: {
     throw new Error(PRODUCT_REGISTRY_PARSE_UNSUPPORTED);
 
   let output = [...input.entries];
+  const goodsReturn = output.filter(
+    (entry) => entry.runtimeAlias === "goods_return",
+  );
+  if (
+    goodsReturn.length !== 1 ||
+    goodsReturn[0]?.method !== "GET" ||
+    goodsReturn[0]?.normalizedPath !== "/api/v1/analytics/goods-return" ||
+    goodsReturn[0]?.currentness !== "current" ||
+    !goodsReturn[0]?.executionEnabled
+  )
+    throw new Error(PRODUCT_REGISTRY_PARSE_UNSUPPORTED);
+  const parsedAddition = parseWildberriesAddition(input.additionOverlaySource);
+  if (
+    output.some(
+      (entry) =>
+        entry.runtimeAlias === parsedAddition.runtimeAlias ||
+        entry.normalizedPath === parsedAddition.normalizedPath,
+    )
+  )
+    throw new Error(PRODUCT_REGISTRY_PARSE_UNSUPPORTED);
   for (const target of parseWildberriesRetirements(
     input.retirementsOverlaySource,
   )) {
@@ -317,6 +414,17 @@ function applyWildberriesEffectiveRegistryOverlays(input: {
     });
     if (matches !== 1) throw new Error(PRODUCT_REGISTRY_PARSE_UNSUPPORTED);
   }
+
+  const addition = parsedAddition;
+  if (
+    output.some(
+      (entry) =>
+        entry.runtimeAlias === addition.runtimeAlias ||
+        entry.normalizedPath === addition.normalizedPath,
+    )
+  )
+    throw new Error(PRODUCT_REGISTRY_PARSE_UNSUPPORTED);
+  output.push(addition);
 
   const file = ts.createSourceFile(
       "wb-fbs-registry-overlay.js",
@@ -386,6 +494,7 @@ export async function extractProductRegistry(input: {
   return applyWildberriesEffectiveRegistryOverlays({
     entries,
     retirementsOverlaySource,
+    additionOverlaySource: retirementsOverlaySource,
     fbsOverlaySource,
     compositionSource,
   });

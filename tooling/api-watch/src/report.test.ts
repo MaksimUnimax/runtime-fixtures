@@ -514,4 +514,62 @@ describe("A6 API-watch report lifecycle", () => {
       /executionAuthority|bootstrapAuthority|offlineGrace/,
     );
   });
+  it("recomputes cached baseline semantics with the current normalizer", async () => {
+    const server = await fixtureServer(DOCUMENT_A);
+    const root = await mkdtemp(join(tmpdir(), "api-normalizer-upgrade-"));
+    try {
+      const setup = reportDependencies(
+        createSourceRegistry({
+          OZON_SELLER: {
+            officialUrl: server.url,
+            requiredServerIdentity: undefined,
+            titlePattern: undefined,
+          },
+          OZON_PERFORMANCE: { officialUrl: null, documents: [] },
+          WILDBERRIES: { officialUrl: null, documents: [] },
+        }),
+        root,
+      );
+      await runApiWatchReport({
+        ...setup,
+        runId: "cached-base",
+        source: "FORCED",
+      });
+      expect(setup.apiState.inventories.size).toBe(1);
+      for (const [key, value] of setup.apiState.inventories) {
+        setup.apiState.inventories.set(key, {
+          ...value,
+          operations: value.operations.map((operation) => ({
+            ...operation,
+            parameterSchemaSha256: "0".repeat(64),
+            responseSchemaSha256: "0".repeat(64),
+            securityRequirementsSha256: "0".repeat(64),
+          })),
+        });
+      }
+      const documented = JSON.parse(DOCUMENT_A.toString()) as Record<
+        string,
+        unknown
+      >;
+      documented.info = { title: "Updated documentation only", version: "1" };
+      server.setBody(Buffer.from(JSON.stringify(documented)));
+      await runApiWatchReport({
+        ...setup,
+        runId: "new-normalizer",
+        source: "FORCED",
+      });
+      const report = await setup.reportStore.getReport(
+        "api-watch:new-normalizer",
+      );
+      const source = report?.sources.find(
+        (row) => row.sourceFamily === "OZON_SELLER",
+      );
+      expect(source?.diffSha256).toMatch(/^[a-f0-9]{64}$/);
+      expect(source?.changedCount).toBe(0);
+      expect(source?.unchangedCount).toBe(1);
+    } finally {
+      await server.close();
+      await rm(root, { recursive: true, force: true });
+    }
+  });
 });
