@@ -62,19 +62,146 @@ function safePayload(value: Readonly<Record<string, unknown>>): SafePayload {
   return result;
 }
 
+const PROVIDER_LABELS: Readonly<Record<string, string>> = {
+  chatgpt: "ChatGPT",
+  alice: "Алиса",
+  claude: "Claude",
+  gemini: "Gemini",
+  grok: "Grok",
+  kimi: "Kimi",
+  deepseek: "DeepSeek",
+  qwen: "Qwen",
+};
+
+const SURFACE_LABELS: Readonly<Record<string, string>> = {
+  "chatgpt:standard": "обычный чат",
+  "chatgpt:CHATGPT_STANDARD": "обычный чат",
+  "chatgpt:work": "рабочий режим",
+  "chatgpt:CHATGPT_WORK": "рабочий режим",
+  "alice:ALICE": "страница чата",
+  "deepseek:DEEPSEEK": "страница чата",
+  "grok:GROK": "страница чата",
+  "claude:CLAUDE": "страница чата",
+  "gemini:GEMINI": "страница чата",
+  "qwen:QWEN": "страница чата",
+  "kimi:KIMI": "страница чата",
+};
+
+const CONTOUR_LABELS: Readonly<Record<string, string>> = {
+  C01_PAGE_IDENTITY: "распознавание страницы",
+  C02_CONVERSATION_ROOT: "область текущего диалога",
+  C03_COMPOSER_ROOT: "область ввода",
+  C04_COMPOSER_INPUT: "ввод текста",
+  C05_SEND_CONTROL: "кнопка отправки",
+  C06_BUSY_STOP_STATE: "начало и остановка ответа",
+  C07_ASSISTANT_MESSAGE: "распознавание ответа ИИ",
+  C08_MESSAGE_COMPLETION: "завершение ответа",
+  C09_COMMAND_CODE_BLOCK_SURFACE: "блок кода в ответе",
+  C10_NATIVE_COPY_CONTROL: "копирование кода",
+  C11_CONVERSATION_IDENTITY: "принадлежность ответа текущему диалогу",
+  C12_DELIVERY_INSERTION_PATH: "вставка результата в нужный диалог",
+  C13_BLOCKING_STATE: "состояние, мешающее проверке",
+};
+
+const LEVEL_LABELS: Readonly<Record<string, string>> = {
+  H0: "Проверялись настройки без открытия сайта.",
+  H1: "Проверялся сохранённый пример страницы, а не текущий сайт.",
+  H2: "Проверялись элементы страницы. Получение ответа ИИ этим уровнем не подтверждается.",
+  H3: "Проверялся контрольный сценарий общения с ИИ.",
+  H4: "Проверялся кандидат исправления. Ручное одобрение и выпуск этим результатом не подтверждаются.",
+  H5: "Проверялось поведение после ограниченного выпуска. Работа у всех пользователей этим результатом не подтверждается.",
+};
+
+const STATE_LABELS: Readonly<Record<string, string>> = {
+  HEALTHY: "В проверенном сценарии ошибок не обнаружено.",
+  DRIFT:
+    "Структура страницы изменилась; проверка прошла с запасным способом распознавания.",
+  DEGRADED: "Часть проверенных возможностей работает хуже или недоступна.",
+  BROKEN: "Обязательная часть проверяемого сценария не прошла проверку.",
+  UNKNOWN:
+    "Работоспособность определить не удалось. Точная причина в этом сообщении не указана.",
+  MAINTENANCE: "Проверяемый сценарий временно отключён оператором.",
+};
+
+function knownLabel(
+  labels: Readonly<Record<string, string>>,
+  key: string,
+): string | undefined {
+  return Object.hasOwn(labels, key) ? labels[key] : undefined;
+}
+
+function observedTime(value: string): string {
+  const date = new Date(value);
+  if (!Number.isFinite(date.valueOf()) || date.toISOString() !== value)
+    return "Время проверки не распознано.";
+  const local = new Date(date.valueOf() + 5 * 60 * 60 * 1_000);
+  const iso = local.toISOString();
+  return `Время проверки: ${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)} ${iso.slice(11, 16)} (+05).`;
+}
+
+function eventExplanation(safe: SafePayload): string {
+  const state = knownLabel(STATE_LABELS, safe.healthState);
+  if (safe.eventKind === "INCIDENT_RECOVERED") {
+    return safe.healthState === "HEALTHY"
+      ? "Ранее обнаруженная проблема больше не воспроизводится в этой проверке."
+      : "В отчёте противоречивые данные: восстановление не подтверждено.";
+  }
+  if (safe.eventKind === "MAINTENANCE_ENTERED")
+    return safe.healthState === "MAINTENANCE"
+      ? STATE_LABELS.MAINTENANCE!
+      : "В отчёте противоречивые данные о режиме обслуживания.";
+  if (safe.eventKind === "MAINTENANCE_EXITED")
+    return safe.healthState === "MAINTENANCE"
+      ? "В отчёте противоречивые данные о завершении обслуживания."
+      : `Режим обслуживания завершён. ${state ?? "Текущее состояние не распознано."}`;
+  if (
+    safe.eventKind === "INCIDENT_OPENED" ||
+    safe.eventKind === "INCIDENT_ESCALATED"
+  ) {
+    if (!["BROKEN", "DRIFT", "DEGRADED"].includes(safe.healthState))
+      return "В отчёте противоречивые данные: наличие поломки не подтверждено.";
+    const event =
+      safe.eventKind === "INCIDENT_ESCALATED"
+        ? "Проблема усилилась."
+        : "Обнаружена проблема, требующая проверки.";
+    return `${event} ${state}`;
+  }
+  return "Получен нераспознанный отчёт мониторинга. По нему нельзя сделать вывод об исправности.";
+}
+
 export function formatHealthNotification(
   payload: Readonly<Record<string, unknown>>,
 ): string {
   const safe = safePayload(payload);
-  const text = [
-    `Health ${safe.severity}: ${safe.healthState}`,
-    `Provider/surface: ${safe.provider} / ${safe.surface}`,
-    `Level/event: ${safe.healthLevel} / ${safe.eventKind}`,
-    `Observed: ${safe.observedAt}`,
-    `Incident: ${safe.incidentId}`,
-    `Run: ${safe.healthRunId}`,
-  ].join("\n");
-  return text.slice(0, MAX_MESSAGE_LENGTH);
+  const provider =
+    knownLabel(PROVIDER_LABELS, safe.provider) ??
+    "Сайт ИИ (название не распознано)";
+  const surface =
+    knownLabel(SURFACE_LABELS, `${safe.provider}:${safe.surface}`) ??
+    "режим не распознан";
+  const contourKey = boundedText(payload.rootContourKey, 64);
+  const contour = contourKey
+    ? knownLabel(CONTOUR_LABELS, contourKey)
+    : undefined;
+  const lines = [
+    `${provider}${surface ? ` — ${surface}` : ""}.`,
+    eventExplanation(safe),
+    knownLabel(LEVEL_LABELS, safe.healthLevel) ??
+      "Вид проверки не распознан; её полнота неизвестна.",
+    contour
+      ? `Участок проверки: ${contour}.`
+      : "Конкретный элемент в этом сообщении не указан.",
+    "Это не полная проверка всех функций установленного расширения.",
+  ];
+  if (["BROKEN", "DRIFT", "DEGRADED"].includes(safe.healthState))
+    lines.push(
+      "Следующий шаг разработки: проверить затронутый сценарий и определить, нужно ли исправление.",
+    );
+  lines.push(
+    "Сведения об одобрении и доставке исправления пользователям в этом сообщении отсутствуют.",
+  );
+  lines.push(observedTime(safe.observedAt));
+  return lines.join("\n").slice(0, MAX_MESSAGE_LENGTH);
 }
 
 async function readBoundedTelegramResponse(
