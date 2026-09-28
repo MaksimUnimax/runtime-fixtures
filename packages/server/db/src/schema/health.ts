@@ -8,6 +8,7 @@ import {
   jsonb,
   pgEnum,
   pgTable,
+  primaryKey,
   timestamp,
   unique,
   uuid,
@@ -300,6 +301,32 @@ export const healthSchedules = pgTable(
   ],
 );
 
+export const healthScheduleRetentionWatermarks = pgTable(
+  "health_schedule_retention_watermarks",
+  {
+    scheduleId: uuid("schedule_id")
+      .primaryKey()
+      .references(() => healthSchedules.id, {
+        onDelete: "restrict",
+        onUpdate: "restrict",
+      }),
+    retiredThroughRevision: integer("retired_through_revision").notNull(),
+    retiredThroughDueSlotAt: timestamp("retired_through_due_slot_at", {
+      withTimezone: true,
+    }).notNull(),
+    retiredAt: timestamp("retired_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    check(
+      "health_schedule_retention_watermarks_revision_positive",
+      sql`${table.retiredThroughRevision} > 0`,
+    ),
+  ],
+);
+
 export const healthScheduledRuns = pgTable(
   "health_scheduled_runs",
   {
@@ -516,6 +543,239 @@ export const healthNoSessionEvidenceReferences = pgTable(
     check(
       "health_no_session_evidence_size",
       sql`${table.sizeBytes} BETWEEN 0 AND 4096`,
+    ),
+  ],
+);
+
+export const healthNoSessionRunReceipts = pgTable(
+  "health_no_session_run_receipts",
+  {
+    runId: uuid("run_id").primaryKey(),
+    scheduledRunId: uuid("scheduled_run_id").notNull(),
+    scheduleId: uuid("schedule_id")
+      .notNull()
+      .references(() => healthSchedules.id, {
+        onDelete: "restrict",
+        onUpdate: "restrict",
+      }),
+    scheduleRevision: integer("schedule_revision").notNull(),
+    dueSlotAt: timestamp("due_slot_at", { withTimezone: true }).notNull(),
+    idempotencyKey: varchar("idempotency_key", { length: 64 }).notNull(),
+    monitorTarget: varchar("monitor_target", { length: 128 }).notNull(),
+    healthState: varchar("health_state", { length: 16 }).notNull(),
+    scopeSha256: varchar("scope_sha256", { length: 64 }).notNull(),
+    callbackResultSha256: varchar("callback_result_sha256", {
+      length: 64,
+    }).notNull(),
+    normalizedResultSha256: varchar("normalized_result_sha256", {
+      length: 64,
+    }),
+    adapterId: uuid("adapter_id").notNull(),
+    surfaceId: uuid("surface_id").notNull(),
+    variantId: uuid("variant_id"),
+    profileId: uuid("profile_id").notNull(),
+    profileRevisionId: uuid("profile_revision_id").notNull(),
+    profileRevision: integer("profile_revision").notNull(),
+    browserFamily: varchar("browser_family", { length: 32 }).notNull(),
+    completedAt: timestamp("completed_at", { withTimezone: true }).notNull(),
+    projectionAppliedAt: timestamp("projection_applied_at", {
+      withTimezone: true,
+    }),
+    incidentProcessedAt: timestamp("incident_processed_at", {
+      withTimezone: true,
+    }),
+    payloadPrunedAt: timestamp("payload_pruned_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    unique("health_no_session_run_receipts_scheduled_unique").on(
+      table.scheduledRunId,
+    ),
+    unique("health_no_session_run_receipts_idempotency_unique").on(
+      table.idempotencyKey,
+    ),
+    check(
+      "health_no_session_run_receipts_schedule_revision_positive",
+      sql`${table.scheduleRevision} > 0`,
+    ),
+    check(
+      "health_no_session_run_receipts_profile_revision_positive",
+      sql`${table.profileRevision} > 0`,
+    ),
+    check(
+      "health_no_session_run_receipts_health_state",
+      sql`${table.healthState} IN ('HEALTHY','DRIFT','DEGRADED','BROKEN','UNKNOWN','MAINTENANCE')`,
+    ),
+    check(
+      "health_no_session_run_receipts_scope_sha256",
+      sql`${table.scopeSha256} ~ '^[0-9a-f]{64}$'`,
+    ),
+    check(
+      "health_no_session_run_receipts_callback_sha256",
+      sql`${table.callbackResultSha256} ~ '^[0-9a-f]{64}$'`,
+    ),
+    check(
+      "health_no_session_run_receipts_normalized_sha256",
+      sql`${table.normalizedResultSha256} IS NULL OR ${table.normalizedResultSha256} ~ '^[0-9a-f]{64}$'`,
+    ),
+    check(
+      "health_no_session_run_receipts_projection_pair",
+      sql`(${table.normalizedResultSha256} IS NULL AND ${table.projectionAppliedAt} IS NULL) OR (${table.normalizedResultSha256} IS NOT NULL AND ${table.projectionAppliedAt} IS NOT NULL)`,
+    ),
+    index("health_no_session_run_receipts_scope_completed_index").on(
+      table.scopeSha256,
+      table.completedAt,
+    ),
+  ],
+);
+
+export const healthNoSessionScopeStates = pgTable(
+  "health_no_session_scope_states",
+  {
+    scopeSha256: varchar("scope_sha256", { length: 64 }).primaryKey(),
+    providerId: varchar("provider_id", { length: 32 }).notNull(),
+    observationSurfaceId: varchar("observation_surface_id", {
+      length: 64,
+    }).notNull(),
+    targetKey: varchar("target_key", { length: 64 }).notNull(),
+    strategyId: varchar("strategy_id", { length: 64 }).notNull(),
+    strategyRevision: integer("strategy_revision").notNull(),
+    browserFamily: varchar("browser_family", { length: 32 }).notNull(),
+    latestRunId: uuid("latest_run_id").notNull(),
+    latestNormalizedResultSha256: varchar("latest_normalized_result_sha256", {
+      length: 64,
+    }).notNull(),
+    latestHealthState: varchar("latest_health_state", { length: 16 }).notNull(),
+    latestClassificationBasis: varchar("latest_classification_basis", {
+      length: 64,
+    }).notNull(),
+    latestSurfaceOutcome: varchar("latest_surface_outcome", {
+      length: 64,
+    }).notNull(),
+    latestBlocker: varchar("latest_blocker", { length: 64 }).notNull(),
+    latestObservedAt: timestamp("latest_observed_at", {
+      withTimezone: true,
+    }).notNull(),
+    lastAttemptAt: timestamp("last_attempt_at", {
+      withTimezone: true,
+    }).notNull(),
+    lastVerifiedAt: timestamp("last_verified_at", { withTimezone: true }),
+    acceptedBaselineRunId: uuid("accepted_baseline_run_id"),
+    acceptedBaselineResultSha256: varchar("accepted_baseline_result_sha256", {
+      length: 64,
+    }),
+    acceptedBaselineHealthState: varchar("accepted_baseline_health_state", {
+      length: 16,
+    }),
+    acceptedBaselineAt: timestamp("accepted_baseline_at", {
+      withTimezone: true,
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    check(
+      "health_no_session_scope_states_scope_sha256",
+      sql`${table.scopeSha256} ~ '^[0-9a-f]{64}$'`,
+    ),
+    check(
+      "health_no_session_scope_states_strategy_revision_positive",
+      sql`${table.strategyRevision} > 0`,
+    ),
+    check(
+      "health_no_session_scope_states_latest_sha256",
+      sql`${table.latestNormalizedResultSha256} ~ '^[0-9a-f]{64}$'`,
+    ),
+    check(
+      "health_no_session_scope_states_latest_health_state",
+      sql`${table.latestHealthState} IN ('HEALTHY','DRIFT','DEGRADED','BROKEN','UNKNOWN','MAINTENANCE')`,
+    ),
+    check(
+      "health_no_session_scope_states_baseline_shape",
+      sql`(${table.acceptedBaselineRunId} IS NULL AND ${table.acceptedBaselineResultSha256} IS NULL AND ${table.acceptedBaselineHealthState} IS NULL AND ${table.acceptedBaselineAt} IS NULL) OR (${table.acceptedBaselineRunId} IS NOT NULL AND ${table.acceptedBaselineResultSha256} ~ '^[0-9a-f]{64}$' AND ${table.acceptedBaselineHealthState}='HEALTHY' AND ${table.acceptedBaselineAt} IS NOT NULL)`,
+    ),
+    index("health_no_session_scope_states_target_index").on(
+      table.providerId,
+      table.observationSurfaceId,
+      table.targetKey,
+    ),
+  ],
+);
+
+export const healthNoSessionRecentStates = pgTable(
+  "health_no_session_recent_states",
+  {
+    scopeSha256: varchar("scope_sha256", { length: 64 })
+      .notNull()
+      .references(() => healthNoSessionScopeStates.scopeSha256, {
+        onDelete: "restrict",
+        onUpdate: "restrict",
+      }),
+    slot: integer("slot").notNull(),
+    normalizedResultSha256: varchar("normalized_result_sha256", {
+      length: 64,
+    }).notNull(),
+    healthState: varchar("health_state", { length: 16 }).notNull(),
+    classificationBasis: varchar("classification_basis", {
+      length: 64,
+    }).notNull(),
+    surfaceOutcome: varchar("surface_outcome", { length: 64 }).notNull(),
+    blocker: varchar("blocker", { length: 64 }).notNull(),
+    summary: jsonb("summary").notNull(),
+    firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull(),
+    repeatCount: integer("repeat_count").notNull().default(1),
+    latestRunId: uuid("latest_run_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.scopeSha256, table.slot],
+      name: "health_no_session_recent_states_pk",
+    }),
+    unique("health_no_session_recent_states_fingerprint_unique").on(
+      table.scopeSha256,
+      table.normalizedResultSha256,
+    ),
+    check(
+      "health_no_session_recent_states_slot",
+      sql`${table.slot} BETWEEN 1 AND 3`,
+    ),
+    check(
+      "health_no_session_recent_states_sha256",
+      sql`${table.normalizedResultSha256} ~ '^[0-9a-f]{64}$'`,
+    ),
+    check(
+      "health_no_session_recent_states_health_state",
+      sql`${table.healthState} IN ('HEALTHY','DRIFT','DEGRADED','BROKEN','UNKNOWN','MAINTENANCE')`,
+    ),
+    check(
+      "health_no_session_recent_states_summary",
+      sql`jsonb_typeof(${table.summary})='object' AND pg_column_size(${table.summary}) <= 4096`,
+    ),
+    check(
+      "health_no_session_recent_states_repeat_positive",
+      sql`${table.repeatCount} > 0`,
+    ),
+    check(
+      "health_no_session_recent_states_seen_order",
+      sql`${table.lastSeenAt} >= ${table.firstSeenAt}`,
+    ),
+    index("health_no_session_recent_states_recent_index").on(
+      table.scopeSha256,
+      table.lastSeenAt,
+      table.slot,
     ),
   ],
 );

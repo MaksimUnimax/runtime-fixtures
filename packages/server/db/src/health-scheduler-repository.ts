@@ -18,6 +18,7 @@ import {
 } from "@product/health";
 import type { DatabaseQuery, DatabaseRuntime } from "./index.js";
 import { createHealthIncidentRepository } from "./health-incident-repository.js";
+import { markNoSessionIncidentProcessed } from "./health-retention-repository.js";
 
 type ScheduleRow = {
   id: string;
@@ -251,19 +252,37 @@ export function createHealthSchedulerRepository(
           dueSlotAt,
           monitorTarget: schedule.monitorTarget,
         });
-        const inserted = await q.query<ScheduledRunRow>(
-          `INSERT INTO health_scheduled_runs(schedule_id,monitor_target,provider,surface,probe_layer,schedule_revision,due_slot_at,idempotency_key,state,attempt) VALUES($1,$2,$3,$4,$5,$6,$7,$8,'PENDING',1) ON CONFLICT (schedule_id,schedule_revision,due_slot_at,monitor_target) DO NOTHING RETURNING id,schedule_id AS "scheduleId",monitor_target AS "monitorTarget",provider,surface,probe_layer AS "probeLayer",schedule_revision AS "scheduleRevision",due_slot_at AS "dueSlotAt",idempotency_key AS "idempotencyKey",state,owner_id AS "ownerId",lease_id AS "leaseId",claimed_at AS "claimedAt",lease_expires_at AS "leaseExpiresAt",attempt,started_at AS "startedAt",finished_at AS "finishedAt",next_attempt_at AS "nextAttemptAt",failure_class AS "failureClass",failure_code AS "failureCode",health_run_id AS "healthRunId",health_state AS "healthState"`,
-          [
-            schedule.scheduleId,
-            schedule.monitorTarget,
-            schedule.provider,
-            schedule.surface,
-            schedule.probeLayer,
-            schedule.revision,
-            dueSlotAt,
-            idempotencyKey,
-          ],
+        const watermark = await q.query<{
+          retiredThroughRevision: number;
+          retiredThroughDueSlotAt: Date;
+        }>(
+          `SELECT retired_through_revision AS "retiredThroughRevision",
+             retired_through_due_slot_at AS "retiredThroughDueSlotAt"
+             FROM health_schedule_retention_watermarks
+             WHERE schedule_id=$1 FOR SHARE`,
+          [schedule.scheduleId],
         );
+        const retired = watermark.rows.some(
+          (value) =>
+            value.retiredThroughRevision > schedule.revision ||
+            (value.retiredThroughRevision === schedule.revision &&
+              value.retiredThroughDueSlotAt >= dueSlotAt),
+        );
+        const inserted = retired
+          ? { rows: [] as ScheduledRunRow[] }
+          : await q.query<ScheduledRunRow>(
+              `INSERT INTO health_scheduled_runs(schedule_id,monitor_target,provider,surface,probe_layer,schedule_revision,due_slot_at,idempotency_key,state,attempt) VALUES($1,$2,$3,$4,$5,$6,$7,$8,'PENDING',1) ON CONFLICT (schedule_id,schedule_revision,due_slot_at,monitor_target) DO NOTHING RETURNING id,schedule_id AS "scheduleId",monitor_target AS "monitorTarget",provider,surface,probe_layer AS "probeLayer",schedule_revision AS "scheduleRevision",due_slot_at AS "dueSlotAt",idempotency_key AS "idempotencyKey",state,owner_id AS "ownerId",lease_id AS "leaseId",claimed_at AS "claimedAt",lease_expires_at AS "leaseExpiresAt",attempt,started_at AS "startedAt",finished_at AS "finishedAt",next_attempt_at AS "nextAttemptAt",failure_class AS "failureClass",failure_code AS "failureCode",health_run_id AS "healthRunId",health_state AS "healthState"`,
+              [
+                schedule.scheduleId,
+                schedule.monitorTarget,
+                schedule.provider,
+                schedule.surface,
+                schedule.probeLayer,
+                schedule.revision,
+                dueSlotAt,
+                idempotencyKey,
+              ],
+            );
         const nextDueAt = nextDueAfterMaterialization(schedule, now);
         await q.query(
           `UPDATE health_schedules SET next_due_at=$2,updated_at=$3 WHERE id=$1 AND revision=$4`,
@@ -448,6 +467,13 @@ export function createHealthSchedulerRepository(
           candidate.probeLayer === "AUTHENTICATED_DEEP"
         ) {
           await incidents.processCompletedHealthRun(candidate.healthRunId);
+          if (candidate.runKind === "NO_SESSION_OBSERVATION") {
+            await markNoSessionIncidentProcessed(
+              runtime,
+              candidate.healthRunId,
+              now,
+            );
+          }
         }
         const updated = await runtime.transaction(async (q) => {
           const result = await q.query<{ scheduleId: string }>(
