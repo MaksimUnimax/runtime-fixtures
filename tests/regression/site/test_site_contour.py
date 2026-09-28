@@ -35,41 +35,36 @@ class ContourSourceTests(unittest.TestCase):
         self.assertNotIn('reference-art.js',self.html)
         self.assertNotIn('background-position',self.css)
         self.assertNotIn('engraving-3-underlay',self.html)
-    def test_r10_exact_reference_vector_contract(self):
+    def test_r11_full_reference_vector_contract(self):
         source=ROOT.parent/'design-sources'
-        m=json.loads((source/'contour-exact-ref-r10.json').read_text())
-        asset=ROOT/'assets/contour-exact-ref-r10.svg'
+        m=json.loads((source/'contour-full-ref-r11.json').read_text())
+        asset=ROOT/'assets/contour-full-ref-r11.svg'
         self.assertEqual(hashlib.sha256(asset.read_bytes()).hexdigest(),m['asset_sha256'])
+        packed=zlib.decompress(base64.b64decode((source/'contour-full-ref-r11-mask.b64').read_bytes()))
+        self.assertEqual(hashlib.sha256(packed).hexdigest(),m['source_mask_packed_sha256'])
         svg=asset.read_text()
         self.assertIn('<symbol id="underlay"',svg)
-        self.assertNotIn('<image',svg)
-        self.assertNotIn('data:image',svg)
-        self.assertNotIn('.png',svg)
-        self.assertNotIn('.webp',svg)
+        self.assertNotIn('<image',svg); self.assertNotIn('data:image',svg)
+        self.assertNotIn('.png',svg); self.assertNotIn('.webp',svg)
         self.assertGreater(svg.count('Q'),100)
-        self.assertLess(len(svg.encode()),100000)
-        self.assertIn('/assets/contour-exact-ref-r10.svg#underlay',self.html)
-        self.assertNotIn('contour-spline-r9.svg',self.html)
+        self.assertLess(len(svg.encode()),220000)
+        self.assertIn('/assets/contour-full-ref-r11.svg#underlay',self.html)
+        self.assertNotIn('contour-exact-ref-r10.svg',self.html)
         self.assertNotIn('contour-grips',self.html)
         self.assertEqual(m['source_reference_size'],[1448,1086])
         self.assertEqual(m['source_reference_sha256'],'d3ead9dbba9794c57a3ff2b1267b15c36045eadd9922e7d6a8788a071e73c246')
+        self.assertIn('no button cutouts',m['method'])
 
-    def test_r10_reference_geometry_and_palette(self):
-        m=json.loads((ROOT.parent/'design-sources/contour-exact-ref-r10.json').read_text())
+    def test_r11_reference_geometry_and_palette(self):
+        m=json.loads((ROOT.parent/'design-sources/contour-full-ref-r11.json').read_text())
         self.assertEqual(m['palette'],{'light':'#10243c','dark':'#ebffff'})
-        self.assertIn('.contour-exact-r10 { color:var(--scene-ink);',self.css)
+        self.assertIn('.contour-full-ref-r11 { color:var(--scene-ink);',self.css)
         self.assertIn('aspect-ratio:4/3',self.css)
-        expected=m['button_geometry']
-        for name,(left,top,width) in expected.items():
-            block=re.search(r'(?m)^\s*\.pos-'+name+r'\s*\{([^}]+)\}',self.css).group(1)
-            self.assertAlmostEqual(float(re.search(r'left:\s*([\d.]+)%',block).group(1)),left,places=5)
-            self.assertAlmostEqual(float(re.search(r'top:\s*([\d.]+)%',block).group(1)),top,places=5)
-            if name in ('wb','ozon'):
-                self.assertIn('width:18.922652%',self.css)
-            elif name in ('alice','gemini'):
-                self.assertIn('width:12.154696%',self.css)
-            else:
-                self.assertIn('width:12.430939%',self.css)
+        for name,(left,top,width) in m['button_geometry'].items():
+            pos=re.search(r'(?m)^\s*\.pos-'+name+r'\s*\{([^}]+)\}',self.css).group(1)
+            self.assertAlmostEqual(float(re.search(r'left:\s*([\d.]+)%',pos).group(1)),left,places=5)
+            self.assertAlmostEqual(float(re.search(r'top:\s*([\d.]+)%',pos).group(1)),top,places=5)
+            self.assertIn(f'width:{width:.6f}%',self.css)
         self.assertIn('--scene-ink:#10243c',self.css)
         self.assertIn('--scene-ink:#ebffff',self.css)
 
@@ -172,7 +167,7 @@ class ContourSourceTests(unittest.TestCase):
         self.assertIn('<span class="brand-wildberries">Wildberries</span>',fragment[0])
 
     def test_r4_theme_aware_rings_and_keyboard_controls(self):
-        self.assertIn('border:clamp(1.2px,.30cqi,2.1px) solid var(--scene-ink)',self.css)
+        self.assertIn('border:clamp(1.4px,.4cqi,3px) solid var(--scene-ink)',self.css)
         self.assertIn('--scene-ink:#10243c',self.css)
         self.assertIn('--scene-ink:#ebffff',self.css)
         self.assertIn('.ai-badge:focus-visible,.market-badge:focus-visible',self.css)
