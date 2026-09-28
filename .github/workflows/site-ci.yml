@@ -171,7 +171,7 @@ jobs:
 
           assert parser.html_lang == "ru", f"html lang must be ru, got {parser.html_lang!r}"
           assert parser.canonical == ["https://octoport.ru/"], parser.canonical
-          assert parser.stylesheets == ["/styles.css?v=approved-language-20260928-r5"], parser.stylesheets
+          assert parser.stylesheets == ["/styles.css?v=logo-meditation-20260928-r1"], parser.stylesheets
           assert parser.icons == [("/favicon.png", "image/png"), ("/assets/favicon-contour-v1.png", "image/png")], parser.icons
           assert parser.executable_scripts == 0, "M14 must remain executable-JavaScript-free"
           assert len(parser.json_ld) == 1, parser.json_ld
@@ -377,7 +377,7 @@ jobs:
               assert page_parser.html_lang == "ru", f"{page_name}: html lang must be ru"
               assert page_parser.canonical == [spec["canonical"]], \
                   f"{page_name}: unexpected canonical {page_parser.canonical}"
-              assert page_parser.stylesheets == ["/styles.css?v=approved-language-20260928-r5"], \
+              assert page_parser.stylesheets == ["/styles.css?v=logo-meditation-20260928-r1"], \
                   f"{page_name}: shared stylesheet link is missing"
               assert page_parser.executable_scripts == 0, f"{page_name}: executable JavaScript is forbidden"
               assert page_parser.json_ld == [], f"{page_name}: unexpected page-level JSON-LD"
