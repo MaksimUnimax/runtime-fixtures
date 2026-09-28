@@ -267,6 +267,7 @@ export type ApiWatchReportSource = "SCHEDULED" | "FORCED";
 
 export type ApiWatchReportSourceOutcome = {
   sourceFamily: SwaggerSourceFamily;
+  documentKey?: string | null;
   acquisitionOutcome: string;
   authorityStatus: AuthorityStatus | null;
   snapshotSha256: string | null;
@@ -386,6 +387,28 @@ export type AuthorityPassResult = {
 
 export type ApiWatchRunner = () => Promise<AuthorityPassResult>;
 
+export type ApiWatchProductBaselineScope = {
+  sourceFamily: SwaggerSourceFamily;
+  documentKey: string | null;
+};
+
+export type ApiWatchProductBaseline = ApiWatchProductBaselineScope & {
+  baselineId: string;
+  snapshotId: string;
+  snapshotSha256: string;
+  snapshotSpecVersion: string;
+  revision: number;
+  acceptedAt: Date;
+  acceptedBy: string;
+  acceptanceReference: string;
+};
+
+export interface ApiWatchProductBaselineReader {
+  read(
+    scope: ApiWatchProductBaselineScope,
+  ): Promise<ApiWatchProductBaseline | undefined>;
+}
+
 export type ApiWatchDependencies = {
   registry: SourceRegistry;
   store: ApiWatchStore;
@@ -395,6 +418,7 @@ export type ApiWatchDependencies = {
   quarantineDir?: string;
   snapshotRoot?: string;
   reportStore?: ApiWatchReportStore;
+  productBaselineRepository?: ApiWatchProductBaselineReader;
   crosswalkStore?: ProductCrosswalkStore;
   incidentStore?: ApiWatchIncidentStore;
   incidentNotifier?: ApiWatchIncidentNotifier;

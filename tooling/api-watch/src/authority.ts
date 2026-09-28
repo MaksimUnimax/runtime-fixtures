@@ -99,7 +99,11 @@ export class InMemoryApiWatchStore implements ApiWatchStore {
   }
 
   async saveSnapshot(metadata: import("./types.js").SnapshotMetadata) {
-    const key = `${metadata.sourceFamily}:${metadata.sha256}`;
+    const key = JSON.stringify([
+      metadata.sourceFamily,
+      metadata.documentKey ?? null,
+      metadata.sha256,
+    ]);
     const existing = this.state.snapshots.get(key);
     if (existing) return cloneSnapshot(existing);
     this.state.snapshots.set(key, { ...metadata });
@@ -230,8 +234,8 @@ export function createPostgresApiWatchStore(
     },
     async saveSnapshot(metadata) {
       const existing = await runtime.query<Record<string, unknown>>(
-        `SELECT snapshot_id AS "snapshotId",source_family AS "sourceFamily",sha256,size_bytes AS "sizeBytes",spec_version AS "specVersion",official_url AS "officialUrl",acquisition_mode AS "acquisitionMode",created_at AS "createdAt",authority_record_id AS "authorityRecordId",artifact_path AS "artifactPath",document_key AS "documentKey" FROM api_watch_snapshots WHERE source_family=$1 AND sha256=$2`,
-        [metadata.sourceFamily, metadata.sha256],
+        `SELECT snapshot_id AS "snapshotId",source_family AS "sourceFamily",sha256,size_bytes AS "sizeBytes",spec_version AS "specVersion",official_url AS "officialUrl",acquisition_mode AS "acquisitionMode",created_at AS "createdAt",authority_record_id AS "authorityRecordId",artifact_path AS "artifactPath",document_key AS "documentKey" FROM api_watch_snapshots WHERE source_family=$1 AND document_key IS NOT DISTINCT FROM $2 AND sha256=$3`,
+        [metadata.sourceFamily, metadata.documentKey ?? null, metadata.sha256],
       );
       if (existing.rows[0]) return existing.rows[0] as never as typeof metadata;
       const result = await runtime.query<Record<string, unknown>>(

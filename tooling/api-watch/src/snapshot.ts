@@ -101,8 +101,15 @@ export async function promoteAcceptedSnapshot(input: {
     }
     await rename(temporaryPath, artifactPath);
   }
+  const documentKey = input.documentKey ?? null;
+  const snapshotId =
+    documentKey === null
+      ? `${record.sourceFamily}:${sha256}`
+      : `${record.sourceFamily}:${sha256}:${createHash("sha256")
+          .update(documentKey)
+          .digest("hex")}`;
   const metadata: SnapshotMetadata = {
-    snapshotId: `${record.sourceFamily}:${sha256}`,
+    snapshotId,
     sourceFamily: record.sourceFamily,
     sha256,
     sizeBytes: bytes.byteLength,

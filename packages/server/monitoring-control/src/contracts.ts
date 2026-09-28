@@ -25,6 +25,50 @@ export type MonitoringResultStatus = z.infer<
   typeof MonitoringResultStatusSchema
 >;
 
+export const MonitoringCheckDepthSchema = z.enum([
+  "PUBLIC_NO_SESSION",
+  "SCHEDULED_EXECUTION",
+  "API_SOURCE_ACQUISITION",
+  "API_DOCUMENT_COMPARISON",
+]);
+export type MonitoringCheckDepth = z.infer<typeof MonitoringCheckDepthSchema>;
+
+export const MonitoringComparisonStateSchema = z.enum([
+  "NOT_APPLICABLE",
+  "NOT_RUN",
+  "PARTIAL",
+  "COMPLETED",
+]);
+export type MonitoringComparisonState = z.infer<
+  typeof MonitoringComparisonStateSchema
+>;
+
+export const MonitoringChangeSeveritySchema = z.enum([
+  "NO_POLICY_IMPACT",
+  "REVIEW_REQUIRED",
+  "BLOCKING_RISK",
+  "UNKNOWN",
+]);
+export type MonitoringChangeSeverity = z.infer<
+  typeof MonitoringChangeSeveritySchema
+>;
+
+const MonitoringCoverageTargetSchema = z
+  .string()
+  .regex(/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,191}$/);
+
+export const MonitoringCoverageSchema = z
+  .object({
+    observedAt: z.string().datetime({ offset: true }).nullable(),
+    checkDepth: MonitoringCheckDepthSchema,
+    testedTargets: z.array(MonitoringCoverageTargetSchema).max(32),
+    unverifiedTargets: z.array(MonitoringCoverageTargetSchema).max(32),
+    comparisonState: MonitoringComparisonStateSchema,
+    changeSeverity: MonitoringChangeSeveritySchema.nullable(),
+  })
+  .strict();
+export type MonitoringCoverage = z.infer<typeof MonitoringCoverageSchema>;
+
 export const MonitoringRunResultSchema = z
   .object({
     status: MonitoringResultStatusSchema,
@@ -33,6 +77,7 @@ export const MonitoringRunResultSchema = z
       .regex(/^[A-Z][A-Z0-9_]{0,63}$/)
       .nullable(),
     summary: z.string().max(240),
+    coverage: MonitoringCoverageSchema.optional(),
   })
   .strict();
 export type MonitoringRunResult = z.infer<typeof MonitoringRunResultSchema>;
@@ -123,5 +168,6 @@ export function safeMonitoringResult(
     status: value.status,
     code: value.code,
     summary: value.summary.slice(0, 240),
+    ...(value.coverage ? { coverage: value.coverage } : {}),
   });
 }

@@ -1,4 +1,5 @@
 import type {
+  MonitoringCoverage,
   MonitoringLaneRunner,
   MonitoringRunResult,
 } from "@product/monitoring-control";
@@ -16,9 +17,89 @@ import type {
   SemanticDiff,
 } from "./types.js";
 
+function sourceTarget(
+  sourceFamily: string,
+  documentKey: string | null | undefined,
+): string {
+  return documentKey ? `${sourceFamily}:${documentKey}` : sourceFamily;
+}
+
+function maxChangeSeverity(
+  sources: readonly ApiWatchReportSourceOutcome[],
+): MonitoringCoverage["changeSeverity"] {
+  const severities = sources.map((source) => source.impactSeverity);
+  if (severities.includes("BLOCKING_RISK")) return "BLOCKING_RISK";
+  if (severities.includes("REVIEW_REQUIRED")) return "REVIEW_REQUIRED";
+  if (severities.includes("UNKNOWN")) return "UNKNOWN";
+  if (severities.includes("NO_POLICY_IMPACT")) return "NO_POLICY_IMPACT";
+  return null;
+}
+
+function coverageFromReportSources(
+  sources: readonly ApiWatchReportSourceOutcome[],
+  observedAt: Date,
+): MonitoringCoverage {
+  const testedTargets: string[] = [];
+  const unverifiedTargets: string[] = [];
+  for (const source of sources) {
+    const target = sourceTarget(source.sourceFamily, source.documentKey);
+    const productCompared =
+      source.authorityStatus === "AUTHORITY_ACCEPTED" &&
+      source.errorCode === null &&
+      source.snapshotSha256 !== null &&
+      source.baseSnapshotSha256 !== null &&
+      (source.changeMode === "CHANGED" || source.changeMode === "NO_CHANGE");
+    (productCompared ? testedTargets : unverifiedTargets).push(target);
+  }
+  const uniqueTested = [...new Set(testedTargets)].sort();
+  const uniqueUnverified = [...new Set(unverifiedTargets)]
+    .filter((target) => !uniqueTested.includes(target))
+    .sort();
+  return {
+    observedAt: observedAt.toISOString(),
+    checkDepth: "API_DOCUMENT_COMPARISON",
+    testedTargets: uniqueTested,
+    unverifiedTargets: uniqueUnverified,
+    comparisonState:
+      uniqueTested.length > 0 && uniqueUnverified.length === 0
+        ? "COMPLETED"
+        : uniqueTested.length > 0
+          ? "PARTIAL"
+          : "NOT_RUN",
+    changeSeverity: maxChangeSeverity(sources),
+  };
+}
+
+function coverageFromAuthorityPass(
+  pass: AuthorityPassResult,
+): MonitoringCoverage {
+  const testedTargets: string[] = [];
+  const unverifiedTargets: string[] = [];
+  for (const outcome of pass.outcomes) {
+    const target = sourceTarget(outcome.sourceFamily, outcome.documentKey);
+    (outcome.kind === "ACQUIRED_OFFICIAL_SOURCE_CANDIDATE"
+      ? testedTargets
+      : unverifiedTargets
+    ).push(target);
+  }
+  const observedAt = pass.records.reduce<Date | null>((latest, record) => {
+    const current = new Date(record.validatedAt);
+    return !latest || current.valueOf() > latest.valueOf() ? current : latest;
+  }, null);
+  return {
+    observedAt: observedAt?.toISOString() ?? null,
+    checkDepth: "API_SOURCE_ACQUISITION",
+    testedTargets: [...new Set(testedTargets)].sort(),
+    unverifiedTargets: [...new Set(unverifiedTargets)].sort(),
+    comparisonState: "NOT_RUN",
+    changeSeverity: null,
+  };
+}
+
 function resultFromAuthorityPass(
   pass: AuthorityPassResult,
 ): MonitoringRunResult {
+  const coverage = coverageFromAuthorityPass(pass);
   if (
     pass.outcomes.some(
       (outcome) => outcome.kind === "ACQUIRED_OFFICIAL_SOURCE_CANDIDATE",
@@ -28,6 +109,7 @@ function resultFromAuthorityPass(
       status: "SUCCEEDED",
       code: "API_SOURCE_CANDIDATE_ACQUIRED",
       summary: `API-watch completed ${pass.outcomes.length} source-family checks.`,
+      coverage,
     };
   if (
     pass.outcomes.some((outcome) => outcome.kind === "OPERATOR_SOURCE_REQUIRED")
@@ -37,6 +119,7 @@ function resultFromAuthorityPass(
       code: "OPERATOR_SOURCE_REQUIRED",
       summary:
         "API-watch created or retained a bounded operator source request.",
+      coverage,
     };
   if (
     pass.outcomes.some(
@@ -47,6 +130,7 @@ function resultFromAuthorityPass(
       status: "NOT_OBSERVABLE",
       code: "API_SOURCE_TEMPORARILY_UNAVAILABLE",
       summary: "API-watch encountered a bounded transient source condition.",
+      coverage,
     };
   if (
     pass.outcomes.every(
@@ -58,11 +142,13 @@ function resultFromAuthorityPass(
       code: "SOURCE_URL_AUTHORITY_MISSING",
       summary:
         "API-watch has no accepted official URL authority for the monitored families.",
+      coverage,
     };
   return {
     status: "FAILED",
     code: "INVALID_OFFICIAL_SOURCE_RESPONSE",
     summary: "API-watch rejected one or more official source responses safely.",
+    coverage,
   };
 }
 
@@ -98,29 +184,34 @@ function extensionFor(
 
 function reportResult(
   state: "COMPLETED" | "PARTIAL" | "BLOCKED" | "FAILED",
+  coverage?: MonitoringCoverage,
 ): MonitoringRunResult {
   if (state === "COMPLETED")
     return {
       status: "SUCCEEDED",
       code: "API_WATCH_REPORT_COMPLETED",
       summary: "API-watch report completed.",
+      ...(coverage ? { coverage } : {}),
     };
   if (state === "PARTIAL")
     return {
       status: "NOT_OBSERVABLE",
       code: "API_WATCH_REPORT_PARTIAL",
       summary: "API-watch report completed with blocked source families.",
+      ...(coverage ? { coverage } : {}),
     };
   if (state === "BLOCKED")
     return {
       status: "NOT_OBSERVABLE",
       code: "API_WATCH_REPORT_BLOCKED",
       summary: "API-watch report was blocked by source authority conditions.",
+      ...(coverage ? { coverage } : {}),
     };
   return {
     status: "FAILED",
     code: "API_WATCH_REPORT_FAILED",
     summary: "API-watch report failed safely.",
+    ...(coverage ? { coverage } : {}),
   };
 }
 
@@ -137,27 +228,80 @@ async function analyzeAcceptedOutcome(input: {
 }): Promise<ApiWatchReportSourceOutcome> {
   const { dependencies, outcome, record, previousSnapshots } = input;
   const now = currentTime(dependencies);
+  const documentKey = outcome.documentKey ?? null;
   const snapshot = await promoteAcceptedSnapshot({
     record,
     bytes: outcome.bytes,
     store: dependencies.store,
     snapshotRoot: dependencies.snapshotRoot,
+    documentKey,
     now: () => now,
   });
   const filename = `accepted${extensionFor(outcome)}`;
   const inventory = buildCompleteOperationInventory({
     sourceFamily: outcome.sourceFamily,
+    documentKey,
     snapshotSha256: snapshot.sha256,
     bytes: outcome.bytes,
     filename,
   });
   await dependencies.store.saveInventory(inventory);
-  const previous = previousSnapshots
-    .filter((candidate) => candidate.sourceFamily === outcome.sourceFamily)
-    .sort((a, b) => b.createdAt.valueOf() - a.createdAt.valueOf())[0];
+  const baseline = dependencies.productBaselineRepository
+    ? await dependencies.productBaselineRepository.read({
+        sourceFamily: outcome.sourceFamily,
+        documentKey,
+      })
+    : undefined;
+  const baselineUncertainty = baseline
+    ? null
+    : dependencies.productBaselineRepository
+      ? "PRODUCT_BASELINE_MISSING"
+      : "PRODUCT_BASELINE_REPOSITORY_UNAVAILABLE";
+  const previous = baseline
+    ? previousSnapshots.find(
+        (candidate) => candidate.snapshotId === baseline.snapshotId,
+      )
+    : previousSnapshots
+        .filter(
+          (candidate) =>
+            candidate.sourceFamily === outcome.sourceFamily &&
+            (candidate.documentKey ?? null) === documentKey,
+        )
+        .sort((a, b) => b.createdAt.valueOf() - a.createdAt.valueOf())[0];
+  if (
+    baseline &&
+    (!previous ||
+      previous.sourceFamily !== baseline.sourceFamily ||
+      (previous.documentKey ?? null) !== baseline.documentKey ||
+      previous.sha256 !== baseline.snapshotSha256 ||
+      previous.specVersion !== baseline.snapshotSpecVersion)
+  )
+    return {
+      sourceFamily: outcome.sourceFamily,
+      documentKey,
+      acquisitionOutcome: outcome.kind,
+      authorityStatus: record.authorityStatus,
+      snapshotSha256: snapshot.sha256,
+      inventoryOperationCount: inventory.operationCount,
+      baseSnapshotSha256: baseline.snapshotSha256,
+      diffSha256: null,
+      impactSeverity: "UNKNOWN",
+      blockerCode: null,
+      errorCode: "PRODUCT_BASELINE_REFERENCE_INVALID",
+      changeMode: null,
+      addedCount: null,
+      removedCount: null,
+      changedCount: null,
+      unchangedCount: null,
+      blockingRiskCount: 0,
+      reviewRequiredCount: 0,
+      unknownCount: 1,
+      noPolicyImpactCount: 0,
+    };
   if (!previous)
     return {
       sourceFamily: outcome.sourceFamily,
+      documentKey,
       acquisitionOutcome: outcome.kind,
       authorityStatus: record.authorityStatus,
       snapshotSha256: snapshot.sha256,
@@ -166,7 +310,7 @@ async function analyzeAcceptedOutcome(input: {
       diffSha256: null,
       impactSeverity: null,
       blockerCode: null,
-      errorCode: null,
+      errorCode: baselineUncertainty,
       changeMode: "FIRST_SNAPSHOT",
       addedCount: null,
       removedCount: null,
@@ -180,6 +324,7 @@ async function analyzeAcceptedOutcome(input: {
   if (previous.sha256 === snapshot.sha256)
     return {
       sourceFamily: outcome.sourceFamily,
+      documentKey,
       acquisitionOutcome: outcome.kind,
       authorityStatus: record.authorityStatus,
       snapshotSha256: snapshot.sha256,
@@ -188,7 +333,7 @@ async function analyzeAcceptedOutcome(input: {
       diffSha256: null,
       impactSeverity: null,
       blockerCode: null,
-      errorCode: null,
+      errorCode: baselineUncertainty,
       changeMode: "NO_CHANGE",
       addedCount: 0,
       removedCount: 0,
@@ -204,6 +349,7 @@ async function analyzeAcceptedOutcome(input: {
   // inventories may have been produced before a semantic fingerprint repair.
   const previousInventory = buildCompleteOperationInventory({
     sourceFamily: previous.sourceFamily,
+    documentKey: previous.documentKey ?? null,
     snapshotSha256: previous.sha256,
     bytes: previousBytes,
     filename: previous.artifactPath.endsWith(".yaml")
@@ -222,6 +368,7 @@ async function analyzeAcceptedOutcome(input: {
   const impact = classifyApiImpact(diff);
   return {
     sourceFamily: outcome.sourceFamily,
+    documentKey,
     acquisitionOutcome: outcome.kind,
     authorityStatus: record.authorityStatus,
     snapshotSha256: snapshot.sha256,
@@ -230,7 +377,7 @@ async function analyzeAcceptedOutcome(input: {
     diffSha256: diff.diffSha256,
     impactSeverity: impact.overallSeverity,
     blockerCode: null,
-    errorCode: null,
+    errorCode: baselineUncertainty,
     changeMode: "CHANGED",
     addedCount: diff.addedCount,
     removedCount: diff.removedCount,
@@ -249,6 +396,7 @@ function blockedOutcome(
 ): ApiWatchReportSourceOutcome {
   return {
     sourceFamily: outcome.sourceFamily,
+    documentKey: outcome.documentKey ?? null,
     acquisitionOutcome: outcome.kind,
     authorityStatus: record?.authorityStatus ?? null,
     snapshotSha256: null,
@@ -352,7 +500,9 @@ export async function runApiWatchReport(input: {
       }
     }
     const usable = sources.filter(
-      (sourceOutcome) => sourceOutcome.snapshotSha256 !== null,
+      (sourceOutcome) =>
+        sourceOutcome.snapshotSha256 !== null &&
+        sourceOutcome.errorCode !== "PRODUCT_BASELINE_REFERENCE_INVALID",
     ).length;
     const state =
       usable === pass.outcomes.length
@@ -360,10 +510,11 @@ export async function runApiWatchReport(input: {
         : usable > 0
           ? "PARTIAL"
           : "BLOCKED";
+    const completedAt = currentTime(dependencies);
     await reportStore.transitionReport({
       reportId: report.reportId,
       state,
-      at: currentTime(dependencies),
+      at: completedAt,
       sources,
       counts: reportCounts(sources),
     });
@@ -384,7 +535,7 @@ export async function runApiWatchReport(input: {
           scheduleEarlier: dependencies.scheduleEarlier,
           now: currentTime(dependencies),
         });
-    return reportResult(state);
+    return reportResult(state, coverageFromReportSources(sources, completedAt));
   } catch {
     await reportStore.transitionReport({
       reportId: report.reportId,

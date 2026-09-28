@@ -1,4 +1,7 @@
-import { createDatabaseRuntime } from "@product/db";
+import {
+  createApiWatchProductBaselineRepository,
+  createDatabaseRuntime,
+} from "@product/db";
 import {
   createApiWatchRunner,
   createPostgresApiWatchStore,
@@ -89,6 +92,7 @@ const apiWatchRunner = createApiWatchRunner({
   store: createPostgresApiWatchStore(database),
   pendingStore: createPostgresSwaggerSourceStore(database),
   reportStore: createPostgresApiWatchReportStore(database),
+  productBaselineRepository: createApiWatchProductBaselineRepository(database),
   incidentStore,
   incidentNotifier: async (event) => serviceRef.current?.notifyIncident(event),
   retryStore: createPostgresApiWatchRetryStore(database),

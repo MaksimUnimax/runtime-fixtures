@@ -4,6 +4,7 @@ import {
   MONITORING_INTERVAL_MAX_SECONDS,
   MONITORING_INTERVAL_MIN_SECONDS,
   parseMonitoringDuration,
+  safeMonitoringResult,
 } from "./contracts.js";
 import { IndependentMonitoringScheduler } from "./scheduler.js";
 import {
@@ -60,6 +61,32 @@ function scheduler(
 }
 
 describe("TG2 independent monitoring scheduler", () => {
+  it("preserves structured coverage and accepts exact document-scoped targets", () => {
+    const longDocumentTarget = `WILDBERRIES:${"d".repeat(128)}`;
+    expect(
+      safeMonitoringResult({
+        status: "SUCCEEDED",
+        code: null,
+        summary: "safe",
+        coverage: {
+          observedAt: "2026-09-28T10:00:00.000Z",
+          checkDepth: "API_DOCUMENT_COMPARISON",
+          testedTargets: [longDocumentTarget],
+          unverifiedTargets: [],
+          comparisonState: "COMPLETED",
+          changeSeverity: "NO_POLICY_IMPACT",
+        },
+      }).coverage,
+    ).toEqual({
+      observedAt: "2026-09-28T10:00:00.000Z",
+      checkDepth: "API_DOCUMENT_COMPARISON",
+      testedTargets: [longDocumentTarget],
+      unverifiedTargets: [],
+      comparisonState: "COMPLETED",
+      changeSeverity: "NO_POLICY_IMPACT",
+    });
+  });
+
   it("A9 schedules a retry earlier without changing the configured interval", async () => {
     const { store, implementation } = scheduler();
     await store.ensureDefaults(clock.now());

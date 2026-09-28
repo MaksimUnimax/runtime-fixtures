@@ -14,6 +14,10 @@ import {
   InMemoryApiWatchReportStore,
 } from "./report.js";
 import { runApiWatchReport } from "./run.js";
+import type {
+  ApiWatchProductBaseline,
+  ApiWatchProductBaselineReader,
+} from "./types.js";
 
 const DOCUMENT_A = Buffer.from(
   JSON.stringify({
@@ -87,11 +91,34 @@ function missingAuthorityRegistry() {
   });
 }
 
+function mutableBaselineReader() {
+  let baseline: ApiWatchProductBaseline | undefined;
+  const reader: ApiWatchProductBaselineReader = {
+    async read(scope) {
+      if (
+        !baseline ||
+        baseline.sourceFamily !== scope.sourceFamily ||
+        baseline.documentKey !== scope.documentKey
+      )
+        return undefined;
+      return baseline;
+    },
+  };
+  return {
+    reader,
+    set(value: ApiWatchProductBaseline | undefined) {
+      baseline = value;
+    },
+  };
+}
+
 function reportDependencies(
   registry: ReturnType<typeof allFamilyRegistry>,
   urlRoot: string,
   reportStore = new InMemoryApiWatchReportStore(),
   apiState = createInMemoryApiWatchState(),
+  productBaselineRepository?: ApiWatchProductBaselineReader,
+  clock: () => Date = () => new Date("2026-09-22T00:00:00Z"),
 ) {
   for (const entry of registry.list()) {
     for (const document of entry.documents ?? []) {
@@ -106,8 +133,9 @@ function reportDependencies(
       store: new InMemoryApiWatchStore(apiState),
       pendingStore: new InMemorySwaggerSourceStore(),
       reportStore,
+      productBaselineRepository,
       snapshotRoot: urlRoot,
-      clock: () => new Date("2026-09-22T00:00:00Z"),
+      clock,
     },
     reportStore,
     apiState,
@@ -282,6 +310,12 @@ describe("A6 API-watch report lifecycle", () => {
       });
       const report = await setup.reportStore.getReport("api-watch:complete");
       expect(result.code).toBe("API_WATCH_REPORT_COMPLETED");
+      expect(result.coverage).toMatchObject({
+        checkDepth: "API_DOCUMENT_COMPARISON",
+        testedTargets: [],
+        comparisonState: "NOT_RUN",
+      });
+      expect(result.coverage?.unverifiedTargets).toHaveLength(3);
       expect(report?.state).toBe("COMPLETED");
     } finally {
       await server.close();
@@ -383,6 +417,275 @@ describe("A6 API-watch report lifecycle", () => {
       )?.sources.find((item) => item.sourceFamily === "OZON_SELLER");
       expect(source?.changeMode).toBe("NO_CHANGE");
       expect(apiState.diffs.size).toBe(0);
+    } finally {
+      await server.close();
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("C03 keeps repeated breaking acquisitions compared to the accepted product baseline", async () => {
+    const server = await fixtureServer(DOCUMENT_A);
+    const root = await mkdtemp(join(tmpdir(), "s2-c03-product-base-"));
+    const baseline = mutableBaselineReader();
+    try {
+      const registry = createSourceRegistry({
+        OZON_SELLER: {
+          officialUrl: server.url,
+          requiredServerIdentity: undefined,
+          titlePattern: undefined,
+        },
+        OZON_PERFORMANCE: { officialUrl: null, documents: [] },
+        WILDBERRIES: { officialUrl: null, documents: [] },
+      });
+      const setup = reportDependencies(
+        registry,
+        root,
+        new InMemoryApiWatchReportStore(),
+        createInMemoryApiWatchState(),
+        baseline.reader,
+      );
+      await runApiWatchReport({
+        ...setup,
+        runId: "baseline-a",
+        source: "FORCED",
+      });
+      const accepted = (await setup.dependencies.store.listSnapshots()).find(
+        (snapshot) => snapshot.sourceFamily === "OZON_SELLER",
+      )!;
+      baseline.set({
+        baselineId: "baseline-1",
+        sourceFamily: accepted.sourceFamily,
+        documentKey: accepted.documentKey ?? null,
+        snapshotId: accepted.snapshotId,
+        snapshotSha256: accepted.sha256,
+        snapshotSpecVersion: accepted.specVersion,
+        revision: 1,
+        acceptedAt: new Date("2026-09-22T00:00:00Z"),
+        acceptedBy: "fixture",
+        acceptanceReference: "fixture:accepted-a",
+      });
+
+      server.setBody(DOCUMENT_B);
+      for (const runId of ["breaking-b-one", "breaking-b-two"]) {
+        const runResult = await runApiWatchReport({
+          ...setup,
+          runId,
+          source: "FORCED",
+        });
+        expect(runResult.coverage).toMatchObject({
+          checkDepth: "API_DOCUMENT_COMPARISON",
+          testedTargets: ["OZON_SELLER:OZON_SELLER"],
+          comparisonState: "PARTIAL",
+        });
+        const source = (
+          await setup.reportStore.getReport(`api-watch:${runId}`)
+        )?.sources.find((row) => row.sourceFamily === "OZON_SELLER");
+        expect(source?.baseSnapshotSha256).toBe(accepted.sha256);
+        expect(source?.changeMode).toBe("CHANGED");
+        expect(source?.errorCode).toBeNull();
+        expect(source?.diffSha256).toMatch(/^[a-f0-9]{64}$/);
+      }
+
+      server.setBody(DOCUMENT_A);
+      await runApiWatchReport({
+        ...setup,
+        runId: "restored-a",
+        source: "FORCED",
+      });
+      const restored = (
+        await setup.reportStore.getReport("api-watch:restored-a")
+      )?.sources.find((row) => row.sourceFamily === "OZON_SELLER");
+      expect(restored?.baseSnapshotSha256).toBe(accepted.sha256);
+      expect(restored?.snapshotSha256).toBe(accepted.sha256);
+      expect(restored?.changeMode).toBe("NO_CHANGE");
+      expect(restored?.errorCode).toBeNull();
+    } finally {
+      await server.close();
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("C03 marks latest-observed comparison as uncertain when no product baseline exists", async () => {
+    const server = await fixtureServer(DOCUMENT_A);
+    const root = await mkdtemp(join(tmpdir(), "s2-c03-no-product-base-"));
+    const baseline = mutableBaselineReader();
+    let clockTick = 0;
+    const clock = () =>
+      new Date(Date.parse("2026-09-22T00:00:00Z") + clockTick++ * 1000);
+    try {
+      const registry = createSourceRegistry({
+        OZON_SELLER: {
+          officialUrl: server.url,
+          requiredServerIdentity: undefined,
+          titlePattern: undefined,
+        },
+        OZON_PERFORMANCE: { officialUrl: null, documents: [] },
+        WILDBERRIES: { officialUrl: null, documents: [] },
+      });
+      const setup = reportDependencies(
+        registry,
+        root,
+        new InMemoryApiWatchReportStore(),
+        createInMemoryApiWatchState(),
+        baseline.reader,
+        clock,
+      );
+      await runApiWatchReport({
+        ...setup,
+        runId: "unaccepted-a",
+        source: "FORCED",
+      });
+      server.setBody(DOCUMENT_B);
+      await runApiWatchReport({
+        ...setup,
+        runId: "unaccepted-b-one",
+        source: "FORCED",
+      });
+      await runApiWatchReport({
+        ...setup,
+        runId: "unaccepted-b-two",
+        source: "FORCED",
+      });
+
+      const changed = (
+        await setup.reportStore.getReport("api-watch:unaccepted-b-one")
+      )?.sources.find((row) => row.sourceFamily === "OZON_SELLER");
+      const repeated = (
+        await setup.reportStore.getReport("api-watch:unaccepted-b-two")
+      )?.sources.find((row) => row.sourceFamily === "OZON_SELLER");
+      expect(changed?.changeMode).toBe("CHANGED");
+      expect(changed?.errorCode).toBe("PRODUCT_BASELINE_MISSING");
+      expect(repeated?.changeMode).toBe("NO_CHANGE");
+      expect(repeated?.errorCode).toBe("PRODUCT_BASELINE_MISSING");
+    } finally {
+      await server.close();
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("C03 uses the PostgreSQL18 inferable document-scope conflict target", async () => {
+    const reportSource = await readFile(
+      new URL("./report.ts", import.meta.url),
+      "utf8",
+    );
+    expect(reportSource).toContain(
+      "ON CONFLICT (report_id,source_family,document_key) DO UPDATE",
+    );
+    expect(reportSource).not.toMatch(
+      /ON CONFLICT[^\n]+WHERE document_key IS (?:NULL|NOT NULL)/,
+    );
+  });
+
+  it("C03 scopes product baseline reads to the exact source document", async () => {
+    const server = await fixtureServer(DOCUMENT_A);
+    const root = await mkdtemp(join(tmpdir(), "s2-c03-document-scope-"));
+    const seen: Array<{ sourceFamily: string; documentKey: string | null }> =
+      [];
+    const reader: ApiWatchProductBaselineReader = {
+      async read(scope) {
+        seen.push(scope);
+        return undefined;
+      },
+    };
+    try {
+      const registry = createSourceRegistry({
+        OZON_SELLER: {
+          officialUrl: null,
+          requiredServerIdentity: undefined,
+          titlePattern: undefined,
+          documents: [
+            {
+              documentKey: "seller-public",
+              officialUrl: server.url,
+              expectedArtifactTypes: ["JSON"],
+            },
+          ],
+        },
+        OZON_PERFORMANCE: { officialUrl: null, documents: [] },
+        WILDBERRIES: { officialUrl: null, documents: [] },
+      });
+      const setup = reportDependencies(
+        registry,
+        root,
+        new InMemoryApiWatchReportStore(),
+        createInMemoryApiWatchState(),
+        reader,
+      );
+      await runApiWatchReport({
+        ...setup,
+        runId: "document-scope",
+        source: "FORCED",
+      });
+      expect(seen).toContainEqual({
+        sourceFamily: "OZON_SELLER",
+        documentKey: "seller-public",
+      });
+      const source = (
+        await setup.reportStore.getReport("api-watch:document-scope")
+      )?.sources.find((row) => row.sourceFamily === "OZON_SELLER");
+      expect(source?.documentKey).toBe("seller-public");
+      expect(source?.errorCode).toBe("PRODUCT_BASELINE_MISSING");
+    } finally {
+      await server.close();
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("C03 fails one scope closed when the accepted baseline reference is invalid", async () => {
+    const server = await fixtureServer(DOCUMENT_A);
+    const root = await mkdtemp(join(tmpdir(), "s2-c03-invalid-product-base-"));
+    const reader: ApiWatchProductBaselineReader = {
+      async read(scope) {
+        if (scope.sourceFamily !== "OZON_SELLER") return undefined;
+        return {
+          baselineId: "missing-baseline",
+          sourceFamily: scope.sourceFamily,
+          documentKey: scope.documentKey,
+          snapshotId: "missing-snapshot",
+          snapshotSha256: "f".repeat(64),
+          snapshotSpecVersion: "3.0.3",
+          revision: 1,
+          acceptedAt: new Date("2026-09-22T00:00:00Z"),
+          acceptedBy: "fixture",
+          acceptanceReference: "fixture:missing",
+        };
+      },
+    };
+    try {
+      const registry = createSourceRegistry({
+        OZON_SELLER: {
+          officialUrl: server.url,
+          requiredServerIdentity: undefined,
+          titlePattern: undefined,
+        },
+        OZON_PERFORMANCE: { officialUrl: null, documents: [] },
+        WILDBERRIES: { officialUrl: null, documents: [] },
+      });
+      const setup = reportDependencies(
+        registry,
+        root,
+        new InMemoryApiWatchReportStore(),
+        createInMemoryApiWatchState(),
+        reader,
+      );
+      const result = await runApiWatchReport({
+        ...setup,
+        runId: "invalid-product-base",
+        source: "FORCED",
+      });
+      expect(result.code).toBe("API_WATCH_REPORT_BLOCKED");
+      const report = await setup.reportStore.getReport(
+        "api-watch:invalid-product-base",
+      );
+      expect(report?.state).toBe("BLOCKED");
+      const source = report?.sources.find(
+        (row) => row.sourceFamily === "OZON_SELLER",
+      );
+      expect(source?.snapshotSha256).toMatch(/^[a-f0-9]{64}$/);
+      expect(source?.baseSnapshotSha256).toBe("f".repeat(64));
+      expect(source?.diffSha256).toBeNull();
+      expect(source?.impactSeverity).toBe("UNKNOWN");
+      expect(source?.errorCode).toBe("PRODUCT_BASELINE_REFERENCE_INVALID");
     } finally {
       await server.close();
       await rm(root, { recursive: true, force: true });
