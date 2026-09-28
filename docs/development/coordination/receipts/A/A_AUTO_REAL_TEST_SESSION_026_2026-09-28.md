@@ -258,3 +258,61 @@ Current classification:
 EXACT STORE AUTOMATED TECHNICAL AUTH + SIGNED CHATGPT PROFILE + AUTHENTICATED LOCAL
 CONTROLS PASS; INSTALLED-SYNTHETIC PROVIDER ERROR PRESENTATION PASS; REAL PROVIDER UI
 SUCCESS / LIVE AI WORK / HUMAN AUTH-REVIEWER GATES OPEN.
+
+## Protected pre-seed real provider UI acceptance
+
+C handoff:
+C-A-STORE026-PROTECTED-PROVIDER-PRESEED-READY-20260928-1846.
+
+C prepared the existing exact technical Opera profile only through the supported
+SA_BACKUP_PREVIEW / SA_BACKUP_IMPORT product contract. The pre-seed receipt reported:
+authenticated=true, workAllowed=true, storeCount=2, marketplaces Ozon + Wildberries,
+conflicts=0, providerCalls=0 and secretExposure=false. No LevelDB editing or raw
+credential transport through chat/tool arguments was used.
+
+A then reopened the same exact STORE0.2.6 technical profile and exercised only the
+real installed read-only credential-check buttons.
+
+Evidence:
+/root/octoport-control/logs/A/owner-authenticated-026-web-null-r4/provider-real-ui-check.json
+
+Result:
+- package SHA-256 remained
+  579dc15aaf692fc9e96ad650e660ac0190bb7e136c949b7ad401e5bc82a909b5;
+- Opera package manifest remained version 0.2.6, MV3;
+- initial state: authenticated=true, workAllowed=true, storeCount=2;
+- Ozon Seller: ACCESS_CONFIRMED, HTTP 200;
+- Ozon Performance: ACCESS_CONFIRMED, HTTP 200;
+- Wildberries token: ACCESS_CONFIRMED, HTTP 200;
+- safe UI success text was observed for all three checks;
+- observed provider responses were exactly one each from
+  api-seller.ozon.ru, api-performance.ozon.ru and common-api.wildberries.ru;
+- all three observed provider responses were HTTP 200;
+- final state remained authenticated=true, workAllowed=true, storeCount=2,
+  marketplaces Ozon + Wildberries;
+- businessMutationExecuted=false;
+- rawResponsesSaved=false;
+- credentialValuesSaved=false.
+
+Supervised resource job:
+6c7763f252614693bc756b73955b8115;
+exit 0, peak 611 MiB, cleanup verified.
+
+This closes the previously open real installed Seller / Performance / WB
+credential-check success row for the automated technical exact-STORE acceptance.
+
+This does not prove or authorize live AI Work. A legitimate authenticated ChatGPT/H3
+boundary is still required before a real Start -> provider result -> dialogue delivery
+-> no-replay -> visibility -> explicit Finish useful flow can be claimed.
+
+Remaining separate external boundaries:
+- legitimate ChatGPT/H3 live Work/useful-flow acceptance;
+- genuine persistent Opera/store-channel installation or reviewer/catalog acceptance;
+- manual email-login/human portal UX;
+- transfer requiring the separately qualified second installation;
+- destructive auth-reset/re-auth acceptance.
+
+Current classification:
+EXACT STORE AUTOMATED TECHNICAL AUTH + SIGNED CHATGPT PROFILE + AUTHENTICATED LOCAL
+CONTROLS + REAL INSTALLED READ-ONLY PROVIDER CHECK BUTTONS PASS. LIVE AI WORK/H3 AND
+HUMAN/STORE-CHANNEL BOUNDARIES REMAIN OPEN.
