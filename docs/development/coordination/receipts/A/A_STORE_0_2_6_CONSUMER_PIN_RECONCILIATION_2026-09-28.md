@@ -66,8 +66,8 @@ bump only.
 
 A did not edit this shared file in the active worktree.
 
-Exact proposed shared patch:
-`/tmp/a-store026-extension-import-shared.patch`.
+Exact proposed shared patch is persisted as A evidence (not applied to the shared file):
+`docs/development/coordination/receipts/A/A_STORE_0_2_6_EXTENSION_IMPORT_SHARED_PROPOSAL.patch`.
 
 SHA-256:
 `4e31d247beaf4b98ca8bd27f20147191bdc1f236cdb9a220be71930291913048`.
