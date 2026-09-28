@@ -556,6 +556,15 @@ describe.sequential(
         failureCode: "SEND_UNCERTAIN",
       });
       expect(finished.state).toBe("FAILED_TERMINAL");
+      await insertHealthResult(id(518), run.id, "BROKEN");
+      expect(
+        await repositoryB.reconcilePersistedResults(
+          new Date(now.valueOf() + 1_000),
+        ),
+      ).toBe(0);
+      const stillTerminal = await repository.getScheduledRun(run.id);
+      expect(stillTerminal?.state).toBe("FAILED_TERMINAL");
+      expect(stillTerminal?.healthRunId).toBeNull();
       expect(
         await repositoryB.claimNext({
           ownerId: "worker-b",
