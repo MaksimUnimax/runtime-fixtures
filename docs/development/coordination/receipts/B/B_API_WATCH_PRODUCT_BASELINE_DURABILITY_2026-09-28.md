@@ -75,7 +75,7 @@ Final disposable PostgreSQL run, sequential under B DB supervisor:
 - `health-retention-upgrade.integration.test.ts`: 10/10 PASS.
 - Total targeted PostgreSQL assertions: 36/36 PASS.
 - Supervisor:
-  `octoport-test-b-7feccb0715f742f18fffa318c7f7ede2.service`,
+  `octoport-test-b-078354803b9f405dbf56d49f448e48ef.service`,
   exit 0, peak 520 MiB, cleanup verified.
 
 An earlier attempt launched multiple schema-resetting integration suites in one
@@ -105,25 +105,39 @@ advancement is introduced.
 
 ## Document-scope follow-up
 
-C follow-ups `C-B-API-WATCH-SNAPSHOT-DOCUMENT-SCOPE-20260928-2000` and
-`C-B-API-WATCH-REPORT-DOCUMENT-SCOPE-20260928-2005` were folded into the same
-unapplied migration `0054` before C intake. No `0055` was created.
+C follow-ups `C-B-API-WATCH-SNAPSHOT-DOCUMENT-SCOPE-20260928-2000`,
+`C-B-API-WATCH-REPORT-DOCUMENT-SCOPE-20260928-2005`,
+`C-B-API-WATCH-PRODUCT-BASELINE-REWORK-20260928-2012` and
+`C-B-API-WATCH-DOCUMENT-SCOPE-CONSTRAINT-DETAIL-20260928-2015` are folded into
+the same unapplied migration `0054` before C intake. No `0055` was created.
 
 `api_watch_snapshots` now replaces the old `(source_family,sha256)` unique index
-with two null-safe scope indexes: one family-level row where `document_key IS
-NULL`, and exact `(source_family,sha256,document_key)` rows for document scopes.
-This permits identical WB bytes in multiple configured document scopes without
-collapsing their baseline identity.
+with one inferable `UNIQUE ... NULLS NOT DISTINCT` index on
+`(source_family,sha256,document_key)`. Family-level `NULL` and distinct
+document keys therefore coexist for identical bytes while duplicate exact
+nullable scopes conflict. PostgreSQL integration explicitly proves
+`ON CONFLICT (source_family,sha256,document_key)` inference for the family-null
+and document cases.
 
 `api_watch_report_sources` now has nullable `document_key`; the old
-`(report_id,source_family)` primary key is replaced by family-level and
-document-level partial unique indexes. Existing rows upgrade as `NULL` and
-remain unique. One report can therefore retain family-level plus sibling WB
-document outcomes independently.
+`(report_id,source_family)` primary key is replaced by one inferable
+`UNIQUE ... NULLS NOT DISTINCT` index on
+`(report_id,source_family,document_key)`. Existing rows upgrade as `NULL` and
+remain unique. One report can retain family-level plus sibling WB document
+outcomes independently. PostgreSQL integration explicitly runs C's exact
+`ON CONFLICT (report_id,source_family,document_key)` target for both `NULL` and
+non-null document scopes.
 
-Final Luna review:
-`/root/octoport-control/logs/B/api_watch_document_scope_final_20260928-result.md`
-returned `NO BLOCKING DEFECTS`. It identified one coordinated deployment caveat:
-C must update `tooling/api-watch/src/report.ts` reader/writer before applying
-`0054`, because the pre-migration `ON CONFLICT(report_id,source_family)` no
-longer matches a unique constraint. C already owns that wiring by the request.
+The canonical project platform is PostgreSQL 18 (`postgres:18.0` in Server CI,
+coordination disposable DBs and current A/B/C/owner-test containers), so the
+PostgreSQL >=15 requirement of `NULLS NOT DISTINCT` is within the supported
+platform.
+
+Final Luna reviews:
+- `/root/octoport-control/logs/B/api_watch_document_scope_final_20260928-result.md`: `NO BLOCKING DEFECTS`;
+- `/root/octoport-control/logs/B/api_watch_conflict_authority_final_20260928-result.md`: `NO BLOCKING DEFECTS`.
+
+Coordinated deployment requirement: C must deploy its updated report/snapshot
+reader-writer wiring together with migration `0054`; the old two-column report
+conflict target must not be used after the migration. C owns that source wiring
+by the handoff contract.
