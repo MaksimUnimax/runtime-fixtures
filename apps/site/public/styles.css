@@ -392,7 +392,17 @@ p,li { line-height:1.65; }
 .theme-checkbox:checked + .page .brand-ozon { color:#4e93ff; }
 .theme-checkbox:checked + .page .brand-wildberries { color:#f15cdd; }
 
-/* R6: true path-based vector scene. Both static layers share the same theme tokens as the DOM controls. */
-.contour-vector { color:var(--scene-ink); shape-rendering:geometricPrecision; }
-.contour-grips .grip-paper { color:var(--scene-paper); }
-.contour-grips .grip-ink { color:var(--scene-ink); }
+
+/* R8: manually redrawn smooth SVG mascot; broad Bezier tentacles, no raster trace. */
+.contour-manual-r8 { color:var(--scene-ink); shape-rendering:geometricPrecision; }
+.r8-orbit path { fill:none; stroke:var(--scene-ink); stroke-width:1.55; stroke-linecap:round; }
+.r8-orbit circle,.r8-star,.r8-eye { fill:var(--scene-ink); }
+.r8-star.small { opacity:.96; }
+.r8-arm-shape { fill:var(--scene-paper); stroke:var(--scene-ink); stroke-width:3.15; stroke-linejoin:round; }
+.r8-undersides path { fill:none; stroke:var(--scene-ink); stroke-width:7; stroke-linecap:round; }
+.r8-cups ellipse,.r8-grip-cup { fill:var(--scene-paper); stroke:var(--scene-ink); stroke-width:1.75; }
+.r8-head { fill:var(--scene-paper); stroke:var(--scene-ink); stroke-width:3.5; stroke-linejoin:round; }
+.r8-head-detail { fill:none; stroke:var(--scene-ink); stroke-width:1.4; stroke-linecap:round; }
+.r8-eye-glint { fill:var(--scene-paper); }
+.r8-grip-outline { fill:none; stroke:var(--scene-ink); stroke-width:24; stroke-linecap:round; stroke-linejoin:round; }
+.r8-grip-core { fill:none; stroke:var(--scene-paper); stroke-width:16.5; stroke-linecap:round; stroke-linejoin:round; }
