@@ -1,8 +1,9 @@
 """Prepared exact STORE 0.2.6 post-login owner-control acceptance helper.
 
-This helper never creates or injects authentication. For an authenticated run the owner
-must complete ordinary portal login in the same dedicated persistent browser profile and
-the same stable extracted runtime directory. Output is privacy-safe: no credential field
+This helper never fabricates or injects extension authentication. Manual wait-auth still
+requires ordinary portal login in the same dedicated persistent browser profile; the explicit
+technical-auth mode instead uses only the owner-authorized real portal session to approve the
+normal server device flow. Output is privacy-safe: no credential field
 values, OTPs, account/store IDs, store names, file paths from file inputs, dialogue text,
 request URLs, headers or bodies are serialized.
 
@@ -10,6 +11,8 @@ Modes:
 - describe: print the deterministic control plan only.
 - prepare: verify the exact carrier/browser and create/verify stable runtime + profile dirs.
 - wait-auth: launch the dedicated profile and wait for ordinary owner login; read-only.
+- technical-auth: use one explicitly authorized protected portal-session receipt to approve
+  the extension's normal device flow, then wait for the extension's own token/bootstrap.
 - local-matrix: on an already ordinarily authenticated **owner-test** profile, exercise the
   explicitly authorized temporary-store UI boundary. It requires --allow-local-test-stores.
   Normal product metadata/tombstone sync may occur on that owner-test control plane.
@@ -21,6 +24,9 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
+import re
+import stat
 import shutil
 import subprocess
 import tempfile
@@ -28,8 +34,11 @@ import time
 import uuid
 import zipfile
 from collections import Counter
+from datetime import datetime, timezone
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.error import HTTPError, URLError
+from urllib.parse import quote, urlparse
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from playwright.sync_api import sync_playwright
 
@@ -60,7 +69,7 @@ PLAN = [
      "outcome": "exact ZIP SHA + actual browser product + stable runtime/profile boundary"},
     {"phase": 1, "group": "ordinary_auth",
      "controls": ["auth-start", "auth-open", "auth-cancel"],
-     "outcome": "OWNER_MANUAL_ONLY; helper waits for authenticated signed state and does not click auth controls"},
+     "outcome": "MANUAL_WAIT_AUTH_OR_EXPLICIT_AUTOMATED_TECHNICAL_AUTH; technical mode uses normal server device approval and never injects extension auth state"},
     {"phase": 2, "group": "safe_state",
      "controls": ["ozon", "wildberries", "stores", "add", "edit", "remove", "save", "cancel", "confirm", "reject"],
      "outcome": "OWNER_TEST_TEMP_STORES; pre-existing stores protected by before/after fingerprint; provider requests forbidden"},
@@ -139,12 +148,18 @@ def profile_in_use(path: Path, proc_root: Path = Path("/proc")) -> bool:
 def safe_failure_code(failure: Exception) -> str:
     known = {
         "STORE_ZIP_SHA256_MISMATCH", "BROWSER_PRODUCT_VERSION_MISMATCH",
-        "DEDICATED_PROFILE_ALREADY_IN_USE", "PROFILE_USAGE_INSPECTION_FAILED",
+        "DEDICATED_PROFILE_ALREADY_IN_USE", "DEDICATED_PROFILE_PERMISSIONS_UNSAFE", "PROFILE_USAGE_INSPECTION_FAILED",
         "UNSAFE_ZIP_MEMBER", "ZIP_SYMLINK_REJECTED", "RUNTIME_SYMLINK_REJECTED",
         "STABLE_RUNTIME_BYTES_MISMATCH", "RUNTIME_EXTRACTION_MISMATCH",
         "EXTENSION_VERSION_MISMATCH", "ORDINARY_AUTH_REQUIRED",
         "LOCAL_TEST_STORES_EXPLICIT_FLAG_REQUIRED", "POPUP_PAGE_ERROR",
         "PREEXISTING_STORE_STATE_NOT_RESTORED", "LOCAL_PHASE_EXECUTED_PROVIDER_REQUEST",
+        "TECHNICAL_SESSION_PERMISSIONS_UNSAFE", "TECHNICAL_SESSION_RECEIPT_INVALID",
+        "TECHNICAL_AUTH_API_REJECTED", "TECHNICAL_AUTH_API_UNAVAILABLE",
+        "TECHNICAL_AUTH_API_INVALID_RESPONSE", "TECHNICAL_AUTH_ACCOUNT_MEMBERSHIP_MISMATCH",
+        "TECHNICAL_AUTH_PENDING_INVALID", "TECHNICAL_AUTH_APPROVAL_INVALID",
+        "TECHNICAL_AUTH_PROFILE_NOT_FRESH", "TECHNICAL_AUTH_TIMEOUT",
+        "TECHNICAL_AUTH_REDIRECT_REJECTED", "TECHNICAL_AUTH_ORIGIN_REJECTED",
     }
     if isinstance(failure, AssertionError) and str(failure) in known:
         return str(failure)
@@ -280,9 +295,23 @@ def wait_for(fn, description: str, timeout: float = 10):
 def auth_status(worker) -> dict:
     value = worker.evaluate(
         """async()=>{const s=await SellerAgentsControlClient.status();
-        return {authenticated:s?.authenticated===true,workAllowed:s?.workAllowed===true};}"""
+        const code=typeof s?.lastError?.code==='string'&&/^[A-Z0-9_]{1,64}$/.test(s.lastError.code)
+          ? s.lastError.code : null;
+        return {
+          authenticated:s?.authenticated===true,
+          workAllowed:s?.workAllowed===true,
+          pending:Boolean(s?.pending),
+          authorityPresent:Boolean(s?.authority),
+          lastErrorCode:code,
+        };}"""
     )
-    return {"authenticated": bool(value.get("authenticated")), "workAllowed": bool(value.get("workAllowed"))}
+    return {
+        "authenticated": bool(value.get("authenticated")),
+        "workAllowed": bool(value.get("workAllowed")),
+        "pending": bool(value.get("pending")),
+        "authorityPresent": bool(value.get("authorityPresent")),
+        "lastErrorCode": value.get("lastErrorCode"),
+    }
 
 
 def visible_option(page, text: str) -> bool:
@@ -297,6 +326,140 @@ def select_store_label(page, label: str):
 def provider_host(host: str) -> bool:
     host = host.lower()
     return any(host == suffix or host.endswith("." + suffix) for suffix in PROVIDER_HOST_SUFFIXES)
+
+
+TECHNICAL_API_ORIGIN = "https://api.octoport.ru"
+TECHNICAL_SESSION_MAX_BYTES = 65536
+TECHNICAL_RESPONSE_MAX_BYTES = 1048576
+
+
+def load_technical_session(path: Path) -> dict:
+    # Open the protected directory, then the file relative to that descriptor.
+    # Do not resolve symlinks before these nofollow checks.
+    try:
+        parent_fd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    except OSError:
+        raise AssertionError("TECHNICAL_SESSION_PERMISSIONS_UNSAFE") from None
+    try:
+        parent = os.fstat(parent_fd)
+        if parent.st_uid != os.geteuid() or parent.st_mode & 0o077:
+            raise AssertionError("TECHNICAL_SESSION_PERMISSIONS_UNSAFE")
+        descriptor = os.open(path.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=parent_fd)
+        with os.fdopen(descriptor, "rb") as source:
+            info = os.fstat(source.fileno())
+            if not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid() or stat.S_IMODE(info.st_mode) != 0o600:
+                raise AssertionError("TECHNICAL_SESSION_PERMISSIONS_UNSAFE")
+            raw = source.read(TECHNICAL_SESSION_MAX_BYTES + 1)
+    except OSError:
+        raise AssertionError("TECHNICAL_SESSION_PERMISSIONS_UNSAFE") from None
+    finally:
+        os.close(parent_fd)
+    if len(raw) > TECHNICAL_SESSION_MAX_BYTES:
+        raise AssertionError("TECHNICAL_SESSION_RECEIPT_INVALID")
+    try:
+        value = json.loads(raw)
+        if not isinstance(value, dict):
+            raise ValueError("object required")
+        expires = datetime.fromisoformat(str(value.get("expiresAt")).replace("Z", "+00:00"))
+    except (ValueError, UnicodeError):
+        raise AssertionError("TECHNICAL_SESSION_RECEIPT_INVALID") from None
+    cookies = value.get("cookies")
+    if (
+        value.get("authority") != "OWNER-AUTONOMOUS-OCTOPORT-TEST-AUTH-20260928-1244"
+        or value.get("adminSessionIssued") is not False
+        or not isinstance(value.get("accountId"), str)
+        or not value["accountId"]
+        or value.get("apiOrigin") != TECHNICAL_API_ORIGIN
+        or not isinstance(cookies, dict)
+        or set(cookies) != {"pcp_portal_session", "pcp_csrf"}
+        or not all(isinstance(v, str) and re.fullmatch(r"[A-Za-z0-9._:-]{1,512}", v) for v in cookies.values())
+        or expires.tzinfo is None
+        or expires <= datetime.now(timezone.utc)
+    ):
+        raise AssertionError("TECHNICAL_SESSION_RECEIPT_INVALID")
+    return value
+
+
+class RejectTechnicalRedirects(HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise AssertionError("TECHNICAL_AUTH_REDIRECT_REJECTED")
+
+
+def technical_api(session: dict, method: str, path: str, body: dict | None = None) -> dict:
+    if session.get("apiOrigin") != TECHNICAL_API_ORIGIN:
+        raise AssertionError("TECHNICAL_AUTH_ORIGIN_REJECTED")
+    allowed = (method == "GET" and path == "/v1/accounts") or (
+        method == "POST" and re.fullmatch(r"/v1/device-authorizations/[0-9a-fA-F-]{36}/approve", path)
+    )
+    if not allowed:
+        raise AssertionError("TECHNICAL_AUTH_API_REJECTED")
+    payload = None if body is None else json.dumps(body, separators=(",", ":")).encode()
+    headers = {
+        "Accept": "application/json",
+        "Origin": TECHNICAL_API_ORIGIN,
+        "Cookie": (
+            f"pcp_portal_session={session['cookies']['pcp_portal_session']}; "
+            f"pcp_csrf={session['cookies']['pcp_csrf']}"
+        ),
+    }
+    if payload is not None:
+        headers["Content-Type"] = "application/json"
+        headers["x-csrf-token"] = session["cookies"]["pcp_csrf"]
+    request = Request(TECHNICAL_API_ORIGIN + path, method=method, data=payload, headers=headers)
+    try:
+        with build_opener(RejectTechnicalRedirects()).open(request, timeout=15) as response:
+            if response.status < 200 or response.status >= 300:
+                raise AssertionError("TECHNICAL_AUTH_API_REJECTED")
+            raw = response.read(TECHNICAL_RESPONSE_MAX_BYTES + 1)
+            if len(raw) > TECHNICAL_RESPONSE_MAX_BYTES:
+                raise AssertionError("TECHNICAL_AUTH_API_INVALID_RESPONSE")
+            value = json.loads(raw)
+            if not isinstance(value, dict):
+                raise AssertionError("TECHNICAL_AUTH_API_INVALID_RESPONSE")
+            return value
+    except HTTPError:
+        raise AssertionError("TECHNICAL_AUTH_API_REJECTED") from None
+    except (URLError, TimeoutError):
+        raise AssertionError("TECHNICAL_AUTH_API_UNAVAILABLE") from None
+    except (ValueError, UnicodeError):
+        raise AssertionError("TECHNICAL_AUTH_API_INVALID_RESPONSE") from None
+
+
+def approve_technical_activation(session: dict, pending: dict) -> dict:
+    if (
+        not isinstance(pending, dict)
+        or not isinstance(pending.get("authorizationId"), str)
+        or not pending["authorizationId"]
+        or not isinstance(pending.get("userCode"), str)
+        or not pending["userCode"]
+    ):
+        raise AssertionError("TECHNICAL_AUTH_PENDING_INVALID")
+    accounts = technical_api(session, "GET", "/v1/accounts").get("accounts")
+    matches = [
+        account for account in accounts or []
+        if isinstance(account, dict)
+        and account.get("id") == session["accountId"]
+        and account.get("status") == "ACTIVE"
+    ]
+    if len(matches) != 1:
+        raise AssertionError("TECHNICAL_AUTH_ACCOUNT_MEMBERSHIP_MISMATCH")
+    authorization_id = quote(pending["authorizationId"], safe="")
+    approved = technical_api(
+        session,
+        "POST",
+        f"/v1/device-authorizations/{authorization_id}/approve",
+        {"accountId": session["accountId"], "userCode": pending["userCode"]},
+    )
+    if approved.get("status") != "approved" or approved.get("authorizationId") != pending["authorizationId"]:
+        raise AssertionError("TECHNICAL_AUTH_APPROVAL_INVALID")
+    return {
+        "technicalSessionAuthorityVerified": True,
+        "accountMembershipVerified": True,
+        "deviceApprovalSubmitted": True,
+        "authStateInjected": False,
+        "manualEmailLoginTested": False,
+        "humanPortalLoginTested": False,
+    }
 
 
 def run_local_reversible(page, output_dir: Path, network_hosts: Counter) -> tuple[list[dict], dict]:
@@ -473,7 +636,9 @@ def prepare(args) -> dict:
     if profile_in_use(args.profile_dir):
         raise AssertionError("DEDICATED_PROFILE_ALREADY_IN_USE")
     runtime = ensure_exact_runtime(args.carrier, args.runtime_dir)
-    args.profile_dir.mkdir(parents=True, exist_ok=True)
+    args.profile_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+    if args.profile_dir.stat().st_mode & 0o077:
+        raise AssertionError("DEDICATED_PROFILE_PERMISSIONS_UNSAFE")
     return {
         "status": "PREPARED",
         "carrier": args.carrier.name,
@@ -519,7 +684,24 @@ def launch_browser_phase(args) -> dict:
             popup.bring_to_front()
             started = time.monotonic()
             observed = auth_status(worker)
-            if args.mode == "wait-auth" and not observed["authenticated"]:
+            technical_evidence = {}
+            if args.mode == "technical-auth":
+                if observed["authenticated"]:
+                    raise AssertionError("TECHNICAL_AUTH_PROFILE_NOT_FRESH")
+                session = load_technical_session(args.technical_session_file)
+                activation = worker.evaluate(
+                    """async()=>{const s=await SellerAgentsControlClient.startActivation();
+                    return {pending:s?.pending||null,authenticated:s?.authenticated===true};}"""
+                )
+                if activation.get("authenticated"):
+                    raise AssertionError("TECHNICAL_AUTH_PROFILE_NOT_FRESH")
+                technical_evidence = approve_technical_activation(session, activation.get("pending"))
+                while not auth_status(worker)["authenticated"]:
+                    if time.monotonic() - started >= args.auth_timeout_seconds:
+                        raise AssertionError("TECHNICAL_AUTH_TIMEOUT")
+                    time.sleep(0.25)
+                observed = auth_status(worker)
+            elif args.mode == "wait-auth" and not observed["authenticated"]:
                 print(json.dumps({
                     "status": "WAITING_OWNER_LOGIN",
                     "action": "Complete ordinary portal login manually in this same browser/profile; do not send OTP or credentials to the helper.",
@@ -533,6 +715,7 @@ def launch_browser_phase(args) -> dict:
                             "packageSha256": args.expected_sha256,
                             "browserProduct": preflight["browserProduct"],
                             "authActionExecutedByHelper": False,
+                            "authDiagnostic": auth_status(worker),
                             "pageErrors": dict(page_errors),
                             "plan": PLAN,
                         }
@@ -549,6 +732,7 @@ def launch_browser_phase(args) -> dict:
                     "packageSha256": args.expected_sha256,
                     "browserProduct": preflight["browserProduct"],
                     "authActionExecutedByHelper": False,
+                    "authDiagnostic": auth_status(worker),
                     "pageErrors": dict(page_errors),
                     "plan": PLAN,
                 }
@@ -569,7 +753,10 @@ def launch_browser_phase(args) -> dict:
                     "manifestVersion": manifest.get("manifest_version"),
                     "name": manifest.get("name"),
                 },
-                "authActionExecutedByHelper": False,
+                "authActionExecutedByHelper": args.mode == "technical-auth",
+                "authMode": ("AUTOMATED_TECHNICAL_AUTH" if args.mode == "technical-auth" else
+                             "ORDINARY_HUMAN_AUTH" if args.mode == "wait-auth" else "PREEXISTING_AUTHENTICATED_PROFILE"),
+                **technical_evidence,
                 "authenticatedObserved": True,
                 "workAllowedObserved": before["auth"]["workAllowed"],
                 "safeInitialState": before,
@@ -583,6 +770,19 @@ def launch_browser_phase(args) -> dict:
                     "status": "READY_AFTER_ORDINARY_AUTH",
                     "evidenceLevel": "EXACT_STORE_ORDINARY_AUTH_READ_ONLY_READY",
                     "next": "Run local-matrix with --allow-local-test-stores on this same closed/reopened dedicated profile.",
+                }
+            elif args.mode == "technical-auth":
+                result = {
+                    **base,
+                    "status": "READY_AFTER_TECHNICAL_AUTH",
+                    "evidenceLevel": "EXACT_STORE_AUTOMATED_TECHNICAL_AUTH_READ_ONLY_READY",
+                    "next": "Close cleanly; reopen this same technical extension profile/runtime for local-matrix or separately gated read-only checks.",
+                    "untested": {
+                        "manualEmailLogin": True,
+                        "humanPortalLoginUx": True,
+                        "providerChecks": True,
+                        "liveAiWork": True,
+                    },
                 }
             else:
                 if not args.allow_local_test_stores:
@@ -616,7 +816,7 @@ def launch_browser_phase(args) -> dict:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--mode", choices=["describe", "prepare", "wait-auth", "local-matrix"], required=True)
+    parser.add_argument("--mode", choices=["describe", "prepare", "wait-auth", "technical-auth", "local-matrix"], required=True)
     parser.add_argument("--carrier", type=Path)
     parser.add_argument("--runtime-dir", type=Path)
     parser.add_argument("--profile-dir", type=Path)
@@ -625,6 +825,7 @@ def main() -> int:
     parser.add_argument("--expected-version", default="0.2.6")
     parser.add_argument("--expected-sha256", default="579dc15aaf692fc9e96ad650e660ac0190bb7e136c949b7ad401e5bc82a909b5")
     parser.add_argument("--auth-timeout-seconds", type=int, default=900)
+    parser.add_argument("--technical-session-file", type=Path)
     parser.add_argument("--allow-local-test-stores", action="store_true")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
@@ -635,11 +836,15 @@ def main() -> int:
     for name in ("carrier", "runtime_dir", "profile_dir", "browser_executable", "output"):
         if getattr(args, name) is None:
             parser.error(f"--{name.replace('_','-')} is required for {args.mode}")
+    if args.mode == "technical-auth" and args.technical_session_file is None:
+        parser.error("--technical-session-file is required for technical-auth")
     args.carrier = args.carrier.resolve()
     args.runtime_dir = args.runtime_dir.resolve()
     args.profile_dir = args.profile_dir.resolve()
     args.browser_executable = args.browser_executable.resolve()
     args.output = args.output.resolve()
+    if args.technical_session_file is not None:
+        args.technical_session_file = Path(os.path.abspath(args.technical_session_file))
 
     try:
         result = prepare(args) if args.mode == "prepare" else launch_browser_phase(args)

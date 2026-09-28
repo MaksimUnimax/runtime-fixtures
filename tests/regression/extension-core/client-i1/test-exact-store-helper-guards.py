@@ -120,6 +120,150 @@ class HelperGuardTests(unittest.TestCase):
             self.assertNotIn(private, stdout.getvalue() + stderr.getvalue() + output.read_text())
         fake_api.sync_playwright.assert_not_called()
 
+    def test_technical_session_requires_owner_authority_unexpired_non_admin_and_0600(self):
+        receipt = self.root / "technical-session.json"
+        value = {
+            "authority": "OWNER-AUTONOMOUS-OCTOPORT-TEST-AUTH-20260928-1244",
+            "apiOrigin": "https://api.octoport.ru",
+            "accountId": "account-private",
+            "expiresAt": "2099-01-01T00:00:00Z",
+            "adminSessionIssued": False,
+            "cookies": {"pcp_portal_session": "PRIVATE_SESSION", "pcp_csrf": "PRIVATE_CSRF"},
+        }
+        receipt.write_text(json.dumps(value))
+        receipt.chmod(0o600)
+        loaded = helper.load_technical_session(receipt)
+        self.assertEqual(loaded["authority"], value["authority"])
+        receipt.chmod(0o644)
+        with self.assertRaisesRegex(AssertionError, "^TECHNICAL_SESSION_PERMISSIONS_UNSAFE$"):
+            helper.load_technical_session(receipt)
+        receipt.chmod(0o600)
+        value["adminSessionIssued"] = True
+        receipt.write_text(json.dumps(value))
+        with self.assertRaisesRegex(AssertionError, "^TECHNICAL_SESSION_RECEIPT_INVALID$"):
+            helper.load_technical_session(receipt)
+
+    def test_technical_approval_verifies_active_membership_and_normal_approve_contract(self):
+        session = {"accountId": "private-account"}
+        pending = {"authorizationId": "123e4567-e89b-42d3-a456-426614174001", "userCode": "ABCD-EFGH"}
+        calls = [
+            {"accounts": [{"id": "private-account", "status": "ACTIVE"}]},
+            {"status": "approved", "authorizationId": pending["authorizationId"], "expiresAt": "2099-01-01T00:00:00Z"},
+        ]
+        with mock.patch.object(helper, "technical_api", side_effect=calls) as api:
+            result = helper.approve_technical_activation(session, pending)
+        self.assertTrue(result["technicalSessionAuthorityVerified"])
+        self.assertTrue(result["accountMembershipVerified"])
+        self.assertTrue(result["deviceApprovalSubmitted"])
+        self.assertFalse(result["authStateInjected"])
+        self.assertFalse(result["manualEmailLoginTested"])
+        self.assertEqual(api.call_count, 2)
+
+    def test_technical_approval_rejects_wrong_account_before_approve(self):
+        session = {"accountId": "expected-private-account"}
+        pending = {"authorizationId": "123e4567-e89b-42d3-a456-426614174001", "userCode": "ABCD-EFGH"}
+        with mock.patch.object(
+            helper, "technical_api",
+            return_value={"accounts": [{"id": "other-private-account", "status": "ACTIVE"}]},
+        ) as api:
+            with self.assertRaisesRegex(AssertionError, "^TECHNICAL_AUTH_ACCOUNT_MEMBERSHIP_MISMATCH$"):
+                helper.approve_technical_activation(session, pending)
+        api.assert_called_once()
+
+
+    def valid_technical_receipt(self):
+        return {
+            "authority": "OWNER-AUTONOMOUS-OCTOPORT-TEST-AUTH-20260928-1244",
+            "apiOrigin": "https://api.octoport.ru", "accountId": "synthetic-account",
+            "expiresAt": "2099-01-01T00:00:00Z", "adminSessionIssued": False,
+            "cookies": {"pcp_portal_session": "SYNTHETIC_SESSION", "pcp_csrf": "SYNTHETIC_CSRF"},
+        }
+
+    def write_technical_receipt(self, value):
+        path = self.root / "technical.json"
+        path.write_text(json.dumps(value))
+        path.chmod(0o600)
+        return path
+
+    def test_technical_session_rejects_untrusted_origins_before_transport(self):
+        for origin in ["http://api.octoport.ru", "https://untrusted.invalid",
+                       "https://api.octoport.ru.evil.invalid", "https://api.octoport.ru/",
+                       "https://api.octoport.ru?next=elsewhere", "https://user@api.octoport.ru",
+                       "https://api.octoport.ru#fragment", "http://127.0.0.1:4100"]:
+            with self.subTest(origin=origin):
+                value = self.valid_technical_receipt()
+                value["apiOrigin"] = origin
+                with self.assertRaisesRegex(AssertionError, "^TECHNICAL_SESSION_RECEIPT_INVALID$"):
+                    helper.load_technical_session(self.write_technical_receipt(value))
+                with mock.patch.object(helper, "build_opener") as opener:
+                    with self.assertRaisesRegex(AssertionError, "^TECHNICAL_AUTH_ORIGIN_REJECTED$"):
+                        helper.technical_api(value, "GET", "/v1/accounts")
+                    opener.assert_not_called()
+
+    def test_technical_session_rejects_symlink_file_and_parent(self):
+        path = self.write_technical_receipt(self.valid_technical_receipt())
+        link = self.root / "linked.json"
+        link.symlink_to(path)
+        with self.assertRaisesRegex(AssertionError, "^TECHNICAL_SESSION_PERMISSIONS_UNSAFE$"):
+            helper.load_technical_session(link)
+        directory_link = self.root / "linked-directory"
+        directory_link.symlink_to(self.root, target_is_directory=True)
+        with self.assertRaisesRegex(AssertionError, "^TECHNICAL_SESSION_PERMISSIONS_UNSAFE$"):
+            helper.load_technical_session(directory_link / path.name)
+
+    def test_technical_session_rejects_exposed_parent_and_wrong_owner(self):
+        path = self.write_technical_receipt(self.valid_technical_receipt())
+        self.root.chmod(0o755)
+        with self.assertRaisesRegex(AssertionError, "^TECHNICAL_SESSION_PERMISSIONS_UNSAFE$"):
+            helper.load_technical_session(path)
+        self.root.chmod(0o700)
+        with mock.patch.object(helper.os, "geteuid", return_value=path.stat().st_uid + 1):
+            with self.assertRaisesRegex(AssertionError, "^TECHNICAL_SESSION_PERMISSIONS_UNSAFE$"):
+                helper.load_technical_session(path)
+
+    def test_technical_session_rejects_malformed_large_and_expired_receipts(self):
+        for value in [[], None, "text", {}, {**self.valid_technical_receipt(), "expiresAt": "2000-01-01T00:00:00Z"},
+                      {**self.valid_technical_receipt(), "cookies": {"pcp_portal_session": "line\r\ninjection", "pcp_csrf": "test"}}]:
+            with self.subTest(kind=type(value).__name__):
+                with self.assertRaisesRegex(AssertionError, "^TECHNICAL_SESSION_RECEIPT_INVALID$"):
+                    helper.load_technical_session(self.write_technical_receipt(value))
+        path = self.write_technical_receipt(self.valid_technical_receipt())
+        path.write_bytes(b" " * (helper.TECHNICAL_SESSION_MAX_BYTES + 1))
+        with self.assertRaisesRegex(AssertionError, "^TECHNICAL_SESSION_RECEIPT_INVALID$"):
+            helper.load_technical_session(path)
+
+    def test_technical_transport_rejects_every_redirect_before_forwarding_cookie(self):
+        request = helper.Request("https://api.octoport.ru/v1/accounts", headers={"Cookie": "SYNTHETIC_SESSION"})
+        for code in [301, 302, 303, 307, 308]:
+            with self.subTest(code=code):
+                with self.assertRaisesRegex(AssertionError, "^TECHNICAL_AUTH_REDIRECT_REJECTED$"):
+                    helper.RejectTechnicalRedirects().redirect_request(
+                        request, None, code, "redirect", {}, "https://untrusted.invalid/collect")
+
+    def test_technical_transport_uses_exact_origin_no_redirect_handler_and_bounded_read(self):
+        response = mock.MagicMock()
+        response.__enter__.return_value = response
+        response.status = 200
+        response.read.return_value = b'{"accounts":[]}'
+        opener = mock.Mock()
+        opener.open.return_value = response
+        with mock.patch.object(helper, "build_opener", return_value=opener) as factory:
+            result = helper.technical_api(self.valid_technical_receipt(), "GET", "/v1/accounts")
+        self.assertEqual(result, {"accounts": []})
+        self.assertIsInstance(factory.call_args.args[0], helper.RejectTechnicalRedirects)
+        self.assertEqual(opener.open.call_args.args[0].full_url, "https://api.octoport.ru/v1/accounts")
+        response.read.assert_called_once_with(helper.TECHNICAL_RESPONSE_MAX_BYTES + 1)
+        response.read.return_value = b"x" * (helper.TECHNICAL_RESPONSE_MAX_BYTES + 1)
+        with mock.patch.object(helper, "build_opener", return_value=opener):
+            with self.assertRaisesRegex(AssertionError, "^TECHNICAL_AUTH_API_INVALID_RESPONSE$"):
+                helper.technical_api(self.valid_technical_receipt(), "GET", "/v1/accounts")
+
+    def test_technical_transport_rejects_unassigned_endpoint_before_network(self):
+        with mock.patch.object(helper, "build_opener") as opener:
+            with self.assertRaisesRegex(AssertionError, "^TECHNICAL_AUTH_API_REJECTED$"):
+                helper.technical_api(self.valid_technical_receipt(), "POST", "/v1/admin/session", {})
+            opener.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()
