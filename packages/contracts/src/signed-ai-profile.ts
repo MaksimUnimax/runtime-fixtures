@@ -35,20 +35,52 @@ export const SignedAiProfileAuthorityV1Schema = z
 const ConsumerContentSchema = AdapterProfileContentV1Schema.superRefine(
   (content, context) => {
     const expected = {
-      conversation: "conversation_root",
-      composer: "composer_root",
-      send: "send_control",
-      assistantResponse: "assistant_response",
+      conversation: {
+        strategy: "conversation_root",
+        reference: "conversation-root",
+      },
+      composer: { strategy: "composer_root", reference: "composer-root" },
+      send: { strategy: "send_control", reference: "send-control" },
+      assistantResponse: {
+        strategy: "assistant_response",
+        reference: "assistant-response",
+      },
     } as const;
     for (const slot of Object.keys(expected) as (keyof typeof expected)[]) {
-      if (content.selectors[slot].strategy !== expected[slot]) {
+      const plan = content.selectors[slot];
+      if (plan.strategy !== expected[slot].strategy) {
         context.addIssue({
           code: "custom",
           path: ["selectors", slot, "strategy"],
           message: "selector strategy does not match its consumer slot",
         });
       }
+      if (plan.primary.reference !== expected[slot].reference) {
+        context.addIssue({
+          code: "custom",
+          path: ["selectors", slot, "primary", "reference"],
+          message: "selector reference does not match its consumer slot",
+        });
+      }
+      plan.fallbacks.forEach((primitive, index) => {
+        if (primitive.reference !== expected[slot].reference) {
+          context.addIssue({
+            code: "custom",
+            path: ["selectors", slot, "fallbacks", index, "reference"],
+            message: "fallback reference does not match its consumer slot",
+          });
+        }
+      });
     }
+    content.contours.forEach((contour, index) => {
+      if (contour.key !== contour.strategy) {
+        context.addIssue({
+          code: "custom",
+          path: ["contours", index, "strategy"],
+          message: "contour strategy does not match its key",
+        });
+      }
+    });
   },
 );
 
