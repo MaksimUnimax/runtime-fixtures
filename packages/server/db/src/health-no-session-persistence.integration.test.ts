@@ -12,7 +12,8 @@ import {
   createHealthNoSessionPersistenceRepository,
   createHealthRetentionRepository,
   createHealthSchedulerRepository,
-  NO_SESSION_RETENTION_MIN_AGE_MS,
+  NO_SESSION_RAW_PAYLOAD_GRACE_MS,
+  NO_SESSION_REPLAY_RECEIPT_MIN_AGE_MS,
   noSessionRetentionScopeSha256,
   normalizedNoSessionResultSha256,
   type DatabaseQuery,
@@ -111,15 +112,15 @@ const settleTick = () =>
 
 const baseTime = new Date("2026-09-23T12:00:00.000Z");
 const RETENTION_TEST_NOW = new Date(
-  baseTime.valueOf() +
-    NO_SESSION_RETENTION_MIN_AGE_MS +
-    7 * 24 * 60 * 60 * 1_000,
+  baseTime.valueOf() + NO_SESSION_RAW_PAYLOAD_GRACE_MS + 24 * 60 * 60 * 1_000,
 );
 const RETENTION_METADATA_BEFORE = new Date(
   RETENTION_TEST_NOW.valueOf() + 1_000,
 );
 const RETENTION_METADATA_NOW = new Date(
-  RETENTION_METADATA_BEFORE.valueOf() + NO_SESSION_RETENTION_MIN_AGE_MS + 1_000,
+  RETENTION_METADATA_BEFORE.valueOf() +
+    NO_SESSION_REPLAY_RECEIPT_MIN_AGE_MS +
+    1_000,
 );
 const retention = createHealthRetentionRepository(runtime, {
   clock: () => RETENTION_TEST_NOW,
@@ -1324,6 +1325,29 @@ describe.sequential("C04 no-session persistence PostgreSQL acceptance", () => {
       ),
     ).rejects.toThrow("NO_SESSION_SCHEDULED_RUN_CONFLICT");
 
+    const tooYoungReceiptRetention = createHealthRetentionRepository(runtime, {
+      clock: () =>
+        new Date(
+          RETENTION_METADATA_BEFORE.valueOf() +
+            NO_SESSION_REPLAY_RECEIPT_MIN_AGE_MS -
+            1,
+        ),
+    });
+    await expect(
+      tooYoungReceiptRetention.retireRoutineNoSessionReceipt({
+        runId: secondRepeated.healthRunId,
+        before: RETENTION_METADATA_BEFORE,
+      }),
+    ).rejects.toThrow("HEALTH_RETENTION_REPLAY_RECEIPT_CUTOFF_TOO_RECENT");
+    expect(
+      (
+        await runtime.query<{ count: string }>(
+          "SELECT count(*)::text AS count FROM health_no_session_run_receipts WHERE run_id=$1",
+          [secondRepeated.healthRunId],
+        )
+      ).rows[0]?.count,
+    ).toBe("1");
+
     await runtime.query(
       "UPDATE health_schedules SET next_due_at=$2 WHERE id=$1",
       [repeatedSchedules[1]!.scheduleId, repeatedSchedules[1]!.dueSlotAt],
@@ -1448,10 +1472,23 @@ describe.sequential("C04 no-session persistence PostgreSQL acceptance", () => {
        WHERE id=$1`,
       [revisedSlot.id, revisedCancelledAt],
     );
+    const terminalBefore = new Date(revisedCancelledAt.valueOf() + 1);
+    const tooYoungTerminalRetention = createHealthRetentionRepository(runtime, {
+      clock: () =>
+        new Date(
+          terminalBefore.valueOf() + NO_SESSION_REPLAY_RECEIPT_MIN_AGE_MS - 1,
+        ),
+    });
+    await expect(
+      tooYoungTerminalRetention.retireTerminalScheduledRun({
+        scheduledRunId: revisedSlot.id,
+        before: terminalBefore,
+      }),
+    ).rejects.toThrow("HEALTH_RETENTION_REPLAY_RECEIPT_CUTOFF_TOO_RECENT");
     expect(
       await metadataRetention.retireTerminalScheduledRun({
         scheduledRunId: revisedSlot.id,
-        before: new Date(revisedCancelledAt.valueOf() + 1),
+        before: terminalBefore,
       }),
     ).toEqual({ status: "RETIRED", reason: "RETIRED" });
   });
@@ -1628,7 +1665,7 @@ describe.sequential("C04 no-session persistence PostgreSQL acceptance", () => {
       await completion.completeScheduledNoSessionHealthRun(
         persistenceInput(notificationSchedule.id, notificationObservation),
       );
-    expect(notificationRun.incident.action).toBe("NOOP");
+    expect(notificationRun.incident.action).toBe("IGNORED");
     const notificationRunning = await scheduler.getScheduledRun(
       notificationSchedule.id,
     );
@@ -1688,7 +1725,7 @@ describe.sequential("C04 no-session persistence PostgreSQL acceptance", () => {
       ],
     );
     expect(
-      await retention.retireTerminalScheduledRun({
+      await metadataRetention.retireTerminalScheduledRun({
         scheduledRunId: persistedTerminalSchedule.id,
         before: new Date(
           Date.parse(persistedTerminalObservation.observedAt) + 10_000,
@@ -1743,7 +1780,7 @@ describe.sequential("C04 no-session persistence PostgreSQL acceptance", () => {
       ),
     ).rejects.toBeInstanceOf(Error);
 
-    const terminalRetired = await retention.retireTerminalScheduledRun({
+    const terminalRetired = await metadataRetention.retireTerminalScheduledRun({
       scheduledRunId: uncertainSchedule.id,
       before: new Date(uncertain.finishedAt!.valueOf() + 1),
     });

@@ -195,3 +195,82 @@ B18 legacy-activation follow-up source commit: `78955b89d5e0c5009ad22c8c5cf4df29
 Fresh `origin/main` was merged normally on the clean boundary. The only merge conflicts were controller/C-owned shared repair-contract files already present from the earlier exact controller merge; they were resolved to the newer authoritative `origin/main` versions. All B18 DB/receipt bytes remained unchanged.
 
 Post-merge supervisor `octoport-test-b-c85a266fd5ec4460ab382dd73f996434.service`: frozen install, DB typecheck, scheduler **17/17 PASS**, and `git diff --check origin/main...HEAD` PASS; exit 0, OOM 0, cleanup verified.
+
+## Ordering / retention-policy / current-journal follow-up
+
+This section supersedes the earlier statement that all retention operations use the same eight-day cutoff.
+
+Controller reviews of the accepted B18 source identified two rollout concerns:
+1. an older marker-null legacy BROKEN observation could be replayed after a newer same-scope HEALTHY observation had already become authoritative, reopening stale current incident state;
+2. the eight-day anti-replay horizon belongs to the compact receipt/scheduler authority, not duplicate routine observation JSON.
+
+The final follow-up keeps one incident state machine and separates the two lifetimes.
+
+### Cross-boundary legacy ordering
+
+NO_SESSION incident processing now checks the locked bounded scope state before mutating incident state. A run strictly older than the authoritative latest observation for the same provider/surface/target/strategy/browser-family/profile-revision scope is IGNORED; it can have its legacy processing marker set without reopening a stale incident.
+
+Historical catch-up still uses the real incident state machine with notification side effects disabled. Normal processing keeps notification behavior enabled.
+
+For a normal HEALTHY recovery, a recovery/maintenance-exit notification is emitted only when the incident has prior presented notification history: INCIDENT_OPENED, INCIDENT_ESCALATED, or MAINTENANCE_ENTERED. A silent legacy incident therefore cannot later produce a recovery-only message that was never preceded by a presented incident.
+
+Disposable PostgreSQL upgrade acceptance octoport-test-b-4ccf4a739a77482d954b582fce94e0bf.service:
+- real 0051 -> 0052 upgrade: 4/4 PASS;
+- includes restart/idempotent legacy projection, crash/retry, keyset prune, old BROKEN behind newer processed HEALTHY, and silent incident resolution without recovery-only notification;
+- exit 0, peak 538 MiB, cleanup verified.
+
+The cross-boundary case proves: old BROKEN marker-null + newer authoritative HEALTHY already processed => legacy reconciliation marks the old row without leaving an active incident and with zero notification intents.
+
+### Split retention lifetimes
+
+Two explicit repository constants now apply:
+- NO_SESSION_RAW_PAYLOAD_GRACE_MS = 1 hour;
+- NO_SESSION_REPLAY_RECEIPT_MIN_AGE_MS = 8 days.
+
+Raw routine payload is eligible only after compact projection, real incident processing and all existing baseline/recent/incident/notification graph guards are durable. One maximum scheduler attempt timeout is the bounded reconciliation grace before deleting duplicate observation JSON.
+
+The compact receipt/scheduler identity remains anti-replay authority and cannot retire before the eight-day retry/late-callback horizon. Monotonic schedule watermark behavior is unchanged.
+
+The compatibility export NO_SESSION_RETENTION_MIN_AGE_MS remains an alias of the eight-day replay-receipt horizon for already-integrated consumers; new retention code uses the explicit constants.
+
+Current NO_SESSION disposable PostgreSQL acceptance octoport-test-b-cd89d9c6be944632bbcf2d1ef84af447.service:
+- 7/7 PASS;
+- raw eligible duplicate payload is pruned while its compact receipt remains and exact duplicate callback replays from that receipt;
+- too-young receipt retirement is rejected;
+- too-young terminal scheduler retirement is rejected;
+- watermark no-replay, higher revision admission, incident/notification/baseline pins and persist-to-incident crash handling remain PASS;
+- exit 0, cleanup verified.
+
+Incident/notification regression chain octoport-test-b-1609eec53b1c4a859ea690656b52ec80.service:
+- health incidents 7/7 PASS;
+- health notification integration 7/7 PASS;
+- health incident migration integration PASS;
+- exit 0, cleanup verified.
+
+### Migration 0052 CI assertion correction
+
+C branch CI on exact d2790087fd848cd11408f434e8fa42f6533850d5 exposed stale current-repository assertions that still expected 40 migrations / latest 0051 after accepted migration 0052.
+
+Only current-fact assertions were updated:
+- canonical count 41;
+- latest tag 0052_monitoring_bounded_retention;
+- latest journal timestamp 1790071019000.
+
+Intentional historical/prefix fixtures and immutable STORE 0.2.6 migration51 authority were not changed.
+
+Focused disposable PostgreSQL evidence:
+- p2-auth.integration.test.ts: 14/14 PASS, supervisor octoport-test-b-1b3b8da611f345dfa6772bb2a29e738a.service, exit 0;
+- p5-7-p5-final-acceptance.integration.test.ts: PASS, supervisor octoport-test-b-f61af381048f4c2eab8b3d1157ccf7e5.service, exit 0;
+- p6-1-admin-security.integration.test.ts: PASS, supervisor octoport-test-b-22ec4f1d236d4ce68a1c163a4a8ee3f4.service, exit 0;
+- adapter-registry.integration.test.ts: 7/7 PASS, supervisor octoport-test-b-941314c94a6b4ec4a1f18284bfe1cbcc.service, exit 0;
+- canonical-lineage.integration.test.ts: 7/7 PASS, supervisor octoport-test-b-f6dcc217184c4e438afa344a1565be52.service, exit 0.
+
+Final quality supervisor octoport-test-b-3acd8df7264a4ef9b4d4d5e195609192.service:
+- DB typecheck PASS;
+- DB unit 31/31 PASS;
+- targeted ESLint PASS;
+- targeted Prettier PASS;
+- git diff --check PASS;
+- exit 0, peak 728 MiB, cleanup verified.
+
+No live database row, Docker volume, provider/browser execution, Telegram delivery or production configuration was changed by this follow-up.

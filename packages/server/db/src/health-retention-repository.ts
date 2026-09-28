@@ -7,25 +7,59 @@ import { canonicalizeJson } from "@product/remote-config";
 import { createHealthIncidentRepository } from "./health-incident-repository.js";
 import type { DatabaseQuery, DatabaseRuntime } from "./index.js";
 
-// Scheduler max: 8 one-hour attempts plus at most 7 inter-attempt delays
-// capped at 24 hours each => <= 176 hours. Eight days leaves a bounded margin.
-export const NO_SESSION_RETENTION_MIN_AGE_MS = 8 * 24 * 60 * 60 * 1_000;
+// Raw routine payload is no longer replay authority once compact projection,
+// real incident processing and graph pins are durable. One maximum scheduler
+// attempt timeout is the bounded reconciliation grace for duplicate JSON bytes.
+export const NO_SESSION_RAW_PAYLOAD_GRACE_MS = 60 * 60 * 1_000;
+
+// Compact receipt/scheduler identity remains the durable no-replay authority.
+// Scheduler max: 8 one-hour attempts plus at most 7 inter-attempt delays capped
+// at 24 hours each => <= 176 hours. Eight days leaves a bounded margin.
+export const NO_SESSION_REPLAY_RECEIPT_MIN_AGE_MS = 8 * 24 * 60 * 60 * 1_000;
+
+// Compatibility alias for already submitted B18 consumers. New code should use
+// the explicit raw-payload or replay-receipt constant.
+export const NO_SESSION_RETENTION_MIN_AGE_MS =
+  NO_SESSION_REPLAY_RECEIPT_MIN_AGE_MS;
 
 export type RoutineNoSessionGcCursor = Readonly<{
   completedAt: Date;
   runId: string;
 }>;
 
-function assertRetentionCutoff(before: Date, now: Date): void {
+function assertCutoff(
+  before: Date,
+  now: Date,
+  minimumAgeMs: number,
+  errorCode: string,
+): void {
   if (
     !(before instanceof Date) ||
     !(now instanceof Date) ||
     !Number.isFinite(before.getTime()) ||
     !Number.isFinite(now.getTime()) ||
-    before.getTime() > now.getTime() - NO_SESSION_RETENTION_MIN_AGE_MS
+    before.getTime() > now.getTime() - minimumAgeMs
   ) {
-    throw new Error("HEALTH_RETENTION_CUTOFF_TOO_RECENT");
+    throw new Error(errorCode);
   }
+}
+
+function assertRawPayloadCutoff(before: Date, now: Date): void {
+  assertCutoff(
+    before,
+    now,
+    NO_SESSION_RAW_PAYLOAD_GRACE_MS,
+    "HEALTH_RETENTION_RAW_PAYLOAD_CUTOFF_TOO_RECENT",
+  );
+}
+
+function assertReplayReceiptCutoff(before: Date, now: Date): void {
+  assertCutoff(
+    before,
+    now,
+    NO_SESSION_REPLAY_RECEIPT_MIN_AGE_MS,
+    "HEALTH_RETENTION_REPLAY_RECEIPT_CUTOFF_TOO_RECENT",
+  );
 }
 
 export type RoutineNoSessionGcReason =
@@ -542,7 +576,7 @@ export function createHealthRetentionRepository(
       if (!Number.isInteger(limit) || limit < 1 || limit > 5_000)
         throw new Error("HEALTH_RETENTION_LIMIT_INVALID");
       const now = clock();
-      assertRetentionCutoff(input.before, now);
+      assertRawPayloadCutoff(input.before, now);
       if (
         input.cursor &&
         (!(input.cursor.completedAt instanceof Date) ||
@@ -678,7 +712,7 @@ export function createHealthRetentionRepository(
         await markNoSessionIncidentProcessed(
           runtime,
           candidate.runId,
-          input.processedAt ?? new Date(),
+          input.processedAt ?? clock(),
         );
         processed += 1;
         cursor = {
@@ -697,7 +731,7 @@ export function createHealthRetentionRepository(
       reason: RoutineNoSessionGcReason;
     }> {
       const retentionNow = clock();
-      assertRetentionCutoff(input.before, retentionNow);
+      assertRawPayloadCutoff(input.before, retentionNow);
       return runtime.transaction(async (q) => {
         const identity = await q.query<{ scheduledRunId: string }>(
           `SELECT scheduled_run_id AS "scheduledRunId"
@@ -775,7 +809,7 @@ export function createHealthRetentionRepository(
         | "SCHEDULER_LINK_PRESENT";
     }> {
       const retentionNow = clock();
-      assertRetentionCutoff(input.before, retentionNow);
+      assertReplayReceiptCutoff(input.before, retentionNow);
       return runtime.transaction(async (q) => {
         const identity = await q.query<{
           scheduledRunId: string;
@@ -869,7 +903,7 @@ export function createHealthRetentionRepository(
         | "RETRY_PENDING";
     }> {
       const retentionNow = clock();
-      assertRetentionCutoff(input.before, retentionNow);
+      assertReplayReceiptCutoff(input.before, retentionNow);
       return runtime.transaction(async (q) => {
         const identity = await q.query<{ scheduleId: string }>(
           `SELECT schedule_id AS "scheduleId"
