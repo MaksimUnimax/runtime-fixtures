@@ -12,6 +12,9 @@ import time
 import unittest
 from pathlib import Path
 
+# This test is intentionally safe to run from an immutable deployed release.
+# The local runner import must never create __pycache__ inside that release.
+sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import monitor_pilot_retention_runner as runner
 
@@ -52,6 +55,17 @@ def maintenance_result(kind: str, cursor: dict[str, str] | None = None) -> dict:
 
 
 class RetentionRunnerTests(unittest.TestCase):
+    def test_deployed_test_disables_bytecode_before_local_runner_import(self) -> None:
+        self.assertTrue(
+            sys.dont_write_bytecode,
+            "deployed immutable-release tests must not create local __pycache__",
+        )
+        source = Path(__file__).read_text()
+        self.assertLess(
+            source.index("sys.dont_write_bytecode = True"),
+            source.index("import monitor_pilot_retention_runner as runner"),
+        )
+
     def test_build_apply_command_pins_confirmation_and_cursor(self) -> None:
         root = Path("/opt/octoport/ops-releases/test")
         cursor = {
