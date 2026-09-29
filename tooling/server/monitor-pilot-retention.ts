@@ -175,8 +175,13 @@ async function pendingCounts(
   database: DatabaseRuntime,
 ): Promise<PendingCounts> {
   const result = await database.query<Record<string, string>>(`SELECT
-    (SELECT count(*)::text FROM health_no_session_run_receipts
-      WHERE projection_applied_at IS NULL) AS projection,
+    (SELECT count(*)::text
+       FROM health_runs run
+       JOIN health_no_session_observations observation ON observation.run_id=run.id
+       JOIN health_scheduled_runs scheduled ON scheduled.id=run.scheduled_run_id
+       LEFT JOIN health_no_session_run_receipts receipt ON receipt.run_id=run.id
+      WHERE run.run_kind='NO_SESSION_OBSERVATION'
+        AND receipt.projection_applied_at IS NULL) AS projection,
     (SELECT count(*)::text FROM health_no_session_run_receipts
       WHERE projection_applied_at IS NOT NULL
         AND incident_processed_at IS NULL
