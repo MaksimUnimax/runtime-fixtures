@@ -72,8 +72,13 @@ Unexpected failures, including TRANSFER_REPLAY, still fail closed through the
 existing error mapping.
 
 Focused source regression `client-transfer-popup-receive.mjs`: 5/5 cases PASS.
+L1 independent exact popup entrypoint test: 10/10 cases PASS through the real
+`onclick -> action -> transport` path; the frozen 0.2.7 baseline fails the expected
+idle/offline/double-click cases and commit `eecc2364206b5275d7897d483ddb579486d26d8c`
+passes all of them.
 I1 source/package regression: 164/164 gates PASS.
-Package-identity tests: 4/4 PASS. Python compile and diff-check PASS.
+Package/reset identity tests after L1 follow-up: 7/7 PASS. Python compile and
+diff-check PASS.
 
 For installed proof A created a synthetic copy of the exact STORE 0.2.7 archive,
 changing only `popup.js`. It is not a release candidate and not a store artifact.
@@ -97,15 +102,25 @@ This is **INSTALLED_SYNTHETIC_PATCHED**, not STORE acceptance.
 
 The unchanged official STORE 0.2.7 bytes separately PASS the one-device reset/re-auth
 boundary. Recipient signed out locally and reauthorized normally with device
-rotation; source stayed authenticated/workAllowed. The preserved r4 main profile was
-opened with its original frozen 0.2.6 runtime (required to preserve extension origin)
-and remained authenticated/workAllowed with exactly two stores.
-Provider requests, AI POSTs and page errors were all zero.
+rotation; source stayed authenticated/workAllowed.
 
-The reset harness was corrected so source/recipient must match candidate bytes while
-the preserved main profile is validated with its own stable runtime. Helper auth
-assertions now keep a safe explicit failure code instead of collapsing to
-UNEXPECTED_RESET_FAILURE.
+Controller follow-up found that the first PASS used only the preserved runtime
+version as its old-profile identity. That observation is retained but is not used as
+the final exact-byte proof. Follow-up commit
+`b409bcbb6969ae2ca3cb835fee3e3a9ea39016c0` binds the two sides independently:
+- source/recipient: official STORE 0.2.7 SHA `1c11bf6008b923af050f44bdaa97ab6b5197fda744c4a10aef5209f3efc95dc7`, 44 files;
+- preserved main: frozen STORE 0.2.6 SHA `579dc15aaf692fc9e96ad650e660ac0190bb7e136c949b7ad401e5bc82a909b5`, 42 files.
+
+The corrected exact run PASS: the preserved r4 main profile remained
+authenticated/workAllowed with exactly two stores, recipient rotated device after
+normal reauth, source remained admitted, and provider requests, AI POSTs and page
+errors were zero. Evidence:
+`/root/octoport-control/logs/A/owner-test-opera-027-lifecycle-20260929-r2/reset-reauth-r3-exact-main.json`.
+
+Negative preflight regressions prove that changed or missing preserved runtime bytes
+fail even with an unchanged `0.2.6` manifest, and a wrong preserved carrier/SHA
+fails before browser/auth operations. Helper auth assertions also retain a safe
+explicit failure code instead of collapsing to UNEXPECTED_RESET_FAILURE.
 ## Next disposition
 
 C must integrate A source commit `eecc2364206b5275d7897d483ddb579486d26d8c`
