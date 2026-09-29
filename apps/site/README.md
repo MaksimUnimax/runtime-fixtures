@@ -129,3 +129,7 @@ The R13 mascot/orbit geometry remains unchanged. R14 normalizes the visible AI m
 ### Contour R15 — canonical badge fit
 
 R15 supersedes the R14 badge-layout attempt. Icon/label positions and marketplace proportions are measured from the canonical 2026-09-29 owner reference instead of using one guessed shared offset. The accepted octopus/orbit/circle geometry remains unchanged; the final owner HOME H1 is a single line of meaning, with the provider list moved into the first explanatory paragraph. See `docs/design/CONTOUR_CANONICAL_BADGE_FIT_R15_2026-09-29.md`.
+
+### HERO R16 — cosmic text-first owner reference
+
+The HOME hero now follows the owner-selected cosmic text-first composition: centered live HTML copy, individually colored marketplace/provider names, a CSS-only orbital/horizon background and two live CTA links. The prior R15 octopus/circle hero is no longer rendered on HOME. See `docs/design/HERO_SPACE_R16_2026-09-29.md`.
