@@ -5,7 +5,7 @@ P = Path(__file__).with_name('browser_contour_r2.py')
 exec(P.read_text().split('CHECK =')[0])
 name=args.browser or 'chrome'
 binary={'chrome':'/usr/bin/google-chrome','opera':'/usr/bin/opera','yandex':'/opt/yandex/browser/yandex_browser'}[name]
-expected_h1={'/':'Личный помощник на базе любимой Нейросети. Алиса, ChatGPT, DeepSeek, Gemini, Qwen и т.д.', '/seller-analytics':'Аналитика магазина на WB и Ozon с Октопортом', '/privacy':'Как Октопорт обрабатывает данные', '/support':'Поддержка Октопорта', '/install':'Установка и API-ключи Октопорта'}
+expected_h1={'/':'Личный помощник на базе любимой Нейросети.', '/seller-analytics':'Аналитика магазина на WB и Ozon с Октопортом', '/privacy':'Как Октопорт обрабатывает данные', '/support':'Поддержка Октопорта', '/install':'Установка и API-ключи Октопорта'}
 results=[]; interactions=0; b=None
 
 def tap(selector):
@@ -35,7 +35,7 @@ try:
                 assert d['font'] and all(i['ok'] for i in d['images']),('assets',route,width)
                 names=b.ev('[...document.querySelectorAll(".brand-ozon,.brand-wildberries")].map(e=>({color:getComputedStyle(e).color,type:e.classList.contains("brand-ozon")?"ozon":"wb",badge:!!e.closest(".market-badge")}))')
                 palette={'ozon':'rgb(78, 147, 255)','wb':'rgb(241, 92, 221)'}
-                badge_palette={'ozon':'rgb(1, 135, 237)','wb':'rgb(225, 30, 232)'}
+                badge_palette={'ozon':'rgb(0, 140, 243)','wb':'rgb(238, 32, 245)'}
                 assert names and all(n['color']==(badge_palette if n['badge'] else palette)[n['type']] for n in names),(route,names)
                 assert d['canonical']=='https://octoport.ru'+route
                 # Source serves canonical production URLs too.

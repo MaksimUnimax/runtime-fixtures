@@ -85,7 +85,7 @@ assert_source() {
     || fail "site source canonical URL is not octoport.ru"
   grep -Fq '<title>Подключите Алису, ChatGPT и DeepSeek к Ozon и Wildberries | Октопорт</title>' "${SOURCE_SITE}/index.html" \
     || fail "homepage owner-approved title is missing"
-  grep -Fq '<h1 class="hero-heading"><span class="hero-title-main">Личный помощник на базе любимой Нейросети.</span> <span class="hero-ai-list">Алиса, ChatGPT, DeepSeek, Gemini, Qwen и т.д.</span></h1>' "${SOURCE_SITE}/index.html" \
+  grep -Fq '<h1 class="hero-heading">Личный помощник на базе любимой Нейросети.</h1>' "${SOURCE_SITE}/index.html" \
     || fail "homepage owner-approved H1 is missing"
   grep -Fq '<link rel="icon" href="/favicon.png" type="image/png" />' "${SOURCE_SITE}/index.html" \
     || fail "homepage favicon link is missing"
