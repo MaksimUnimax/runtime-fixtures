@@ -239,6 +239,62 @@ class RetentionRunnerTests(unittest.TestCase):
             )
             self.assertFalse((state / "cursor.json").exists())
 
+    def test_safe_child_error_is_whitelisted(self) -> None:
+        self.assertEqual(
+            runner._safe_child_error(
+                "detail\nMONITOR_PILOT_EXPECTED_DATABASE_ROLE_REQUIRED\n"
+            ),
+            "MONITOR_PILOT_EXPECTED_DATABASE_ROLE_REQUIRED",
+        )
+        self.assertEqual(
+            runner._safe_child_error("HEALTH_RETENTION_LIMIT_INVALID\n"),
+            "HEALTH_RETENTION_LIMIT_INVALID",
+        )
+        self.assertIsNone(
+            runner._safe_child_error(
+                "password=must-not-surface\n"
+                "MONITOR PILOT malformed detail\n"
+            )
+        )
+
+    def test_invoke_cli_surfaces_only_safe_child_error_code(self) -> None:
+        original = runner._run_command_group
+
+        def fake_run(_command, _cwd, _env, _timeout):
+            return (
+                1,
+                "",
+                "private detail must stay hidden\n"
+                "MONITOR_PILOT_EXPECTED_DATABASE_ROLE_REQUIRED\n",
+            )
+
+        runner._run_command_group = fake_run
+        try:
+            with self.assertRaisesRegex(
+                runner.RetentionRunnerError,
+                "^RETENTION_CLI_MONITOR_PILOT_EXPECTED_DATABASE_ROLE_REQUIRED$",
+            ):
+                runner.invoke_cli(
+                    Path("/release"),
+                    "inspect",
+                    None,
+                    60,
+                )
+        finally:
+            runner._run_command_group = original
+
+    def test_service_templates_pin_expected_pilot_role(self) -> None:
+        unit_dir = Path(__file__).resolve().parent / "systemd"
+        for name in (
+            "octoport-monitor-retention.service.in",
+            "octoport-monitor-retention-inspect.service.in",
+        ):
+            text = (unit_dir / name).read_text()
+            self.assertIn(
+                "Environment=MONITOR_PILOT_EXPECTED_ROLE=octoport_monitor_pilot",
+                text,
+            )
+
     def test_hard_timeout_kills_entire_child_process_group(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
