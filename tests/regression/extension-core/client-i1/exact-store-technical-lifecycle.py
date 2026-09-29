@@ -269,6 +269,11 @@ def run(args) -> dict:
             source_popup.locator("#seller-key").fill(marker)
             source_popup.click("#save")
             wait_for(lambda: catalog_count(source_worker) == 1, "SOURCE_TEMP_STORE_SAVE_FAILED")
+            wait_for(
+                lambda: source_popup.locator("#stores option").count() == 1
+                and bool(source_popup.locator("#stores").input_value()),
+                "SOURCE_TEMP_STORE_UI_REFRESH_FAILED",
+            )
             store_id = source_popup.locator("#stores").input_value()
             require(bool(store_id), "SOURCE_TEMP_STORE_ID_MISSING")
             temporary["source"] = True
