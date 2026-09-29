@@ -2,7 +2,7 @@
 
 Date: 2026-09-29
 
-Status: SOURCE_ACCEPTED / PRODUCTION_PENDING.
+Status: PRODUCTION_DEPLOYED / LIVE_QA_PASS.
 
 R15 supersedes the R14 badge-layout attempt. The octopus, orbit, dots, stars, circle centers/diameters and transparent scene remain unchanged from the accepted R13 owner reference.
 
@@ -33,3 +33,18 @@ All eight circles remain independent DOM links. Hover/focus transforms only the 
 - Chrome approved-copy/public-page run: 15 states / 48 disclosure interactions PASS;
 - local visual review confirms the WB/Ozon logo-label separation and corrected Anthropic/ChatGPT/DeepSeek optical alignment;
 - no separate hero background was reintroduced.
+
+## Production acceptance
+
+Production source commit: `c335ca3647de3aa82673f491f4c713b8d1a33fa1`.
+
+Deployment result: PASS. Immutable release: `/var/www/octoport-site/releases/c335ca3647de3aa82673f491f4c713b8d1a33fa1`.
+Rollback backup: `/var/backups/octoport-site/20260929T091803Z`.
+
+Live browser acceptance on `https://octoport.ru`:
+- Chrome: 8 hero states, 8/8 hover-focus pairs PASS;
+- Opera: 8 hero states, 8/8 hover-focus pairs PASS;
+- Yandex Browser: 8 hero states, 8/8 hover-focus pairs PASS;
+- Chrome approved-copy/public-page run: 15 states, 48 disclosure interactions PASS;
+- 1440, 960, 390 and 320 layouts remain overflow-free;
+- live screenshots confirm provider list is in the first paragraph, not the H1, and WB/Ozon plus the AI marks follow the canonical reference fit.
