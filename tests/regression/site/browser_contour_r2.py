@@ -75,63 +75,47 @@ class Browser:
 
 CHECK = r'''(() => {
  const rect=e=>{const r=e.getBoundingClientRect();return {x:r.x+scrollX,y:r.y+scrollY,w:r.width,h:r.height,right:r.right+scrollX,bottom:r.bottom+scrollY}};
- const scene=document.querySelector('.contour-scene'),copy=document.querySelector('.hero-copy'),hero=document.querySelector('.hero');
- const badges=[...document.querySelectorAll('.ai-badge,.market-badge')];
- const under=document.querySelector('.contour-underlay');
- const marks=[...document.querySelectorAll('.ai-badge img,.market-badge img')].map(i=>({src:i.getAttribute('src'),display:getComputedStyle(i).display,ok:i.complete&&i.naturalWidth>0}));
+ const hero=document.querySelector('.hero'),copy=document.querySelector('.hero-copy'),space=document.querySelector('.hero-space');
+ const colors={}; for (const c of ['brand-ozon','brand-wildberries','brand-alice','brand-chatgpt','brand-deepseek','brand-gemini','brand-qwen']) { const e=document.querySelector('.'+c); colors[c]=e?getComputedStyle(e).color:null; }
  return {
-   width:innerWidth,cw:document.documentElement.clientWidth,sw:document.documentElement.scrollWidth,
-   scene:rect(scene),copy:rect(copy),hero:rect(hero),stacked:rect(scene).y>=rect(copy).bottom,
-   sceneBackground:getComputedStyle(scene).backgroundImage,
-   under:{tag:under.tagName.toLowerCase(),cls:under.className,src:under.getAttribute('src'),rect:rect(under),transform:getComputedStyle(under).transform,ok:under.complete&&under.naturalWidth>0},
-   badges:badges.map(e=>({cls:e.className,rect:rect(e),border:getComputedStyle(e).borderTopColor,bg:getComputedStyle(e).backgroundColor,transform:getComputedStyle(e).transform})),
-   marks,themeControls:document.querySelectorAll('#theme-checkbox,.theme-switch').length,
-   colorScheme:document.querySelector('meta[name="color-scheme"]')?.content,
-   themeColor:document.querySelector('meta[name="theme-color"]')?.content,
-   slogan:document.querySelector('.contour-slogan')?.innerText.replace(/\s+/g,' ').trim(),
-   h1:document.querySelector('h1').innerText,
-   canonical:document.querySelector('link[rel=canonical]').href,
-   font:document.fonts.check('400 16px Rubik','Октопорт'),
-   images:[...document.images].every(i=>i.complete&&i.naturalWidth>0)
+  width:innerWidth,cw:document.documentElement.clientWidth,sw:document.documentElement.scrollWidth,
+  hero:rect(hero),copy:rect(copy),space:rect(space),
+  h1:document.querySelector('h1').innerText.replace(/\s+/g,' ').trim(),
+  kicker:document.querySelector('.hero-kicker')?.innerText.replace(/\s+/g,' ').trim(),
+  divider:!!document.querySelector('.hero-divider'),horizon:!!document.querySelector('.hero-horizon'),
+  orbitCount:document.querySelectorAll('.hero-orbit').length,buttons:document.querySelectorAll('.hero-actions .button').length,
+  oldContour:document.querySelectorAll('.contour-wrap,.contour-scene,.ai-badge,.market-badge').length,
+  headerNav:getComputedStyle(document.querySelector('.header-nav')).display,
+  colors,themeControls:document.querySelectorAll('#theme-checkbox,.theme-switch').length,
+  colorScheme:document.querySelector('meta[name="color-scheme"]')?.content,
+  themeColor:document.querySelector('meta[name="theme-color"]')?.content,
+  canonical:document.querySelector('link[rel=canonical]').href,
+  font:document.fonts.check('400 16px Rubik','Октопорт'),images:[...document.images].every(i=>i.complete&&i.naturalWidth>0)
  };
 })()'''
 
 def checks(d):
  assert d['cw']==d['sw'],('overflow',d)
- assert d['themeControls']==0,d
- assert d['colorScheme']=='dark' and d['themeColor']=='#0d1929',d
- assert d['sceneBackground']=='none',d['sceneBackground']
- assert abs(d['scene']['w']/d['scene']['h']-4/3)<.002,('reference aspect ratio',d['scene'])
- assert d['under']['tag']=='img' and 'contour-owner-static-r13' in d['under']['cls'],d['under']
- assert d['under']['src'].endswith('/assets/contour-owner-static-r13.svg') and d['under']['ok'],d['under']
- assert d['under']['transform']=='none',d['under']
- assert d['images'] and d['font'],('loading',d)
- assert len(d['badges'])==8 and len(d['marks'])==8,(d['badges'],d['marks'])
- assert all(m['display']!='none' and m['ok'] and m['src'].endswith('-r4-dark.svg') for m in d['marks']),d['marks']
- assert all(b['border']=='rgb(244, 247, 251)' and b['bg']=='rgba(0, 0, 0, 0)' for b in d['badges']),d['badges']
- assert ' '.join(d['h1'].split())=='Личный помощник на базе любимой Нейросети.'
- assert d['canonical']=='https://octoport.ru/'
- assert d['slogan']=='Сложные технологии. Простые решения.'
- if d['width']<=1180:
-  assert d['stacked'],('illustration must be below text',d)
-  assert d['scene']['w']>=min(780,d['hero']['w'])-.75,('shrunken stacked illustration',d)
- else:
-  assert not d['stacked'] and d['scene']['x']>d['copy']['x'],('desktop layout',d)
- for b in d['badges']:
-  r=b['rect']; assert r['x']>=0 and r['right']<=d['cw']+.5,('badge clipped',r,d['width'])
+ assert d['themeControls']==0 and d['colorScheme']=='dark' and d['themeColor']=='#0d1929',d
+ assert d['h1']=='Личный помощник на базе любимой Нейросети.',d['h1']
+ assert d['kicker']=='✦ ВАШ ИИ. ВАШИ ПРОДАЖИ.',d['kicker']
+ assert d['divider'] and d['horizon'] and d['orbitCount']==2,d
+ assert d['buttons']==2 and d['oldContour']==0,d
+ assert d['headerNav']=='none',d['headerNav']
+ assert d['canonical']=='https://octoport.ru/' and d['font'] and d['images'],d
+ assert d['hero']['w']<=d['cw']+.5 and d['hero']['x']>=0,d['hero']
+ assert len({v for v in d['colors'].values() if v})>=5,d['colors']
 
-def scene_shot(browser,name):
- r=browser.ev("(() => {const r=document.querySelector('.contour-scene').getBoundingClientRect();return {x:r.x+scrollX,y:r.y+scrollY,width:r.width,height:r.height,scale:1}})()")
+def hero_shot(browser,name):
+ r=browser.ev("(() => {const r=document.querySelector('.hero').getBoundingClientRect();return {x:r.x+scrollX,y:r.y+scrollY,width:r.width,height:r.height,scale:1}})()")
  data=browser.send('Page.captureScreenshot',{'format':'png','captureBeyondViewport':True,'clip':r})
  p=OUT/(browser.name+'-'+name+'.png');p.write_bytes(base64.b64decode(data['data']));return str(p)
 
-def stable_underlay(browser):
- return browser.ev("(() => {const e=document.querySelector('.contour-underlay'),r=e.getBoundingClientRect();return [r.x+scrollX,r.y+scrollY,r.width,r.height,getComputedStyle(e).transform]})()")
+def stable_space(browser):
+ return browser.ev("(() => {const e=document.querySelector('.hero-space'),r=e.getBoundingClientRect();return [r.width,r.height,getComputedStyle(e).transform]})()")
 
-def stop_safely(signum,frame):
- raise SystemExit('Interrupted; closing owned browser and HTTP server')
+def stop_safely(signum,frame): raise SystemExit('Interrupted; closing owned browser and HTTP server')
 signal.signal(signal.SIGTERM,stop_safely)
-
 results=[];hover=[];b=None
 try:
  browsers=[('chrome','/usr/bin/google-chrome')]
@@ -139,44 +123,26 @@ try:
  if args.browser:browsers=[item for item in browsers if item[0]==args.browser]
  for name,binary in browsers:
   b=Browser(name,binary)
-  widths=[1440,960,390,320] if args.quick else [1778,1440,1232,1180,960,768,390,320]
+  widths=[1440,960,390,320] if args.quick else [1778,1440,1180,960,768,390,320]
   for width in widths:
-   b.nav('/',width,1000)
-   b.ev('Promise.all([...document.images].map(i=>i.decode().catch(()=>false))).then(()=>true)')
-   d=b.ev(CHECK);d.update(browser=name);checks(d)
-   if name=='chrome' and width in [1440,960,390,320]:
-    d['sceneShot']=scene_shot(b,f'{width}-scene')
-    d['fullShot']=b.shot(f'{width}-full',full=True)
+   b.nav('/',width,1000);d=b.ev(CHECK);d.update(browser=name);checks(d)
+   if name=='chrome' and width in [1440,960,390,320]: d['heroShot']=hero_shot(b,f'{width}-hero');d['fullShot']=b.shot(f'{width}-full',full=True)
    results.append(d)
-   if width in [1440,1232]:
-    for j in range(8):
-     b.ev('document.activeElement.blur()');b.send('Input.dispatchMouseEvent',{'type':'mouseMoved','x':2,'y':2});time.sleep(.12)
-     baseline=stable_underlay(b)
-     r=b.ev(f"(() => {{const e=document.querySelectorAll('.ai-badge,.market-badge')[{j}];e.scrollIntoView({{block:'center',behavior:'instant'}});const r=e.getBoundingClientRect();return {{x:r.x,y:r.y,w:r.width,h:r.height,transform:getComputedStyle(e).transform}}}})()")
-     baseline=stable_underlay(b)
+   if width==1440:
+    for sel in ['.hero-actions .primary','.hero-actions .secondary']:
+     baseline=stable_space(b);r=b.ev(f"(() => {{const e=document.querySelector('{sel}');const r=e.getBoundingClientRect();return {{x:r.x,y:r.y,w:r.width,h:r.height,transform:getComputedStyle(e).transform}}}})()")
      b.send('Input.dispatchMouseEvent',{'type':'mouseMoved','x':r['x']+r['w']/2,'y':r['y']+r['h']/2});time.sleep(.18)
-     assert baseline==stable_underlay(b),('background moved on hover',name,j,baseline,stable_underlay(b))
-     after=b.ev(f"getComputedStyle(document.querySelectorAll('.ai-badge,.market-badge')[{j}]).transform")
-     hovered=after!=r['transform']
-     if name=='chrome': assert hovered,('hover not activated',name,j,r,after)
-     focused=b.ev(f"(() => {{const e=document.querySelectorAll('.ai-badge,.market-badge')[{j}];e.focus({{preventScroll:true}});return document.activeElement===e}})()")
-     assert focused,('focus failed',name,j)
-     assert baseline==stable_underlay(b),('background moved on focus',name,j)
-     hover.append({'browser':name,'badge':j,'background_static':True,'button_hovered':hovered,'button_focused':focused})
+     assert baseline==stable_space(b),('hero background moved',name,sel)
+     after=b.ev(f"getComputedStyle(document.querySelector('{sel}')).transform");focused=b.ev(f"(() => {{const e=document.querySelector('{sel}');e.focus({{preventScroll:true}});return document.activeElement===e}})()")
+     assert focused and baseline==stable_space(b);hover.append({'browser':name,'control':sel,'background_static':True,'hovered':after!=r['transform'],'focused':focused})
   for path in ['/seller-analytics','/privacy','/support','/install']:
-   b.nav(path,320,900);d=b.info()
-   meta=b.ev("({scheme:document.querySelector('meta[name=color-scheme]')?.content,color:document.querySelector('meta[name=theme-color]')?.content,toggles:document.querySelectorAll('#theme-checkbox,.theme-switch').length})")
-   assert d['cw']==d['sw'] and d['font'] and all(i['ok'] for i in d['images']),('utility regression',name,path,d)
-   assert meta=={'scheme':'dark','color':'#0d1929','toggles':0},(path,meta)
-   results.append({'browser':name,'url':BASE+path,'utility':True,'cw':d['cw'],'sw':d['sw']})
-  b.nav('/',320,900)
-  clickpos=b.ev("(() => {const e=document.querySelector('.ai-badge');e.scrollIntoView({block:'center',behavior:'instant'});const r=e.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()")
-  b.send('Input.dispatchMouseEvent',{'type':'mousePressed','button':'left','clickCount':1,**clickpos});b.send('Input.dispatchMouseEvent',{'type':'mouseReleased','button':'left','clickCount':1,**clickpos})
-  assert b.ev('location.hash')=='#how',name+' badge pointer click'
-  b.ev("history.replaceState(null,'',location.pathname);window.scrollTo({top:0,behavior:'instant'})")
-  b.ev("document.querySelector('.site-menu summary').focus()")
-  for typ in ['keyDown','keyUp']:b.send('Input.dispatchKeyEvent',{'type':typ,'key':'Enter','code':'Enter','windowsVirtualKeyCode':13,'text':'\r' if typ=='keyDown' else ''})
-  assert b.ev("document.querySelector('.site-menu').open"),name+' menu keyboard'
+   b.nav(path,320,900);d=b.info();meta=b.ev("({scheme:document.querySelector('meta[name=color-scheme]')?.content,color:document.querySelector('meta[name=theme-color]')?.content,toggles:document.querySelectorAll('#theme-checkbox,.theme-switch').length})")
+   assert d['cw']==d['sw'] and d['font'] and all(i['ok'] for i in d['images']);assert meta=={'scheme':'dark','color':'#0d1929','toggles':0};results.append({'browser':name,'url':BASE+path,'utility':True,'cw':d['cw'],'sw':d['sw']})
+  b.nav('/',320,900);pos=b.ev("(() => {const e=document.querySelector('.hero-actions .primary');const r=e.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()")
+  b.send('Input.dispatchMouseEvent',{'type':'mousePressed','button':'left','clickCount':1,**pos});b.send('Input.dispatchMouseEvent',{'type':'mouseReleased','button':'left','clickCount':1,**pos});assert b.ev('location.hash')=='#beta'
+  b.ev("history.replaceState(null,'',location.pathname);window.scrollTo({top:0,behavior:'instant'});document.querySelector('.site-menu summary').focus()")
+  for typ in ['keyDown','keyUp']: b.send('Input.dispatchKeyEvent',{'type':typ,'key':'Enter','code':'Enter','windowsVirtualKeyCode':13,'text':'\r' if typ=='keyDown' else ''})
+  assert b.ev("document.querySelector('.site-menu').open")
   errors=[]
   for e in b.events:
    if e.get('method')=='Network.responseReceived':
@@ -184,10 +150,9 @@ try:
     if rr['url'].startswith(BASE) and rr['status']>=400:errors.append({'url':rr['url'],'status':rr['status']})
    if e.get('method')=='Runtime.exceptionThrown':errors.append(e)
   assert not errors,errors
-  b.close();b=None
-  print('BROWSER_PASS',name,'states',len(results),flush=True)
+  b.close();b=None;print('BROWSER_PASS',name,'states',len(results),flush=True)
  (OUT/'results.json').write_text(json.dumps({'status':'PASS','url':BASE,'results':results,'hover':hover},ensure_ascii=False,indent=2))
- print('CONTOUR_OWNER_DARK_R13_PASS',len(results),'states',len(hover),'hover/focus pairs',str(OUT),flush=True)
+ print('HERO_SPACE_R16_PASS',len(results),'states',len(hover),'control pairs',str(OUT),flush=True)
 except Exception:
  (OUT/'partial.json').write_text(json.dumps({'status':'FAIL','url':BASE,'results':results,'hover':hover},ensure_ascii=False,indent=2));raise
 finally:
