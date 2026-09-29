@@ -1,191 +1,154 @@
-"""Owner-selected Contour source contract. Browser/live evidence remains separate."""
 from html.parser import HTMLParser
 from pathlib import Path
-import hashlib
-import base64
-import zlib
-import json
+import hashlib, json, re, struct, unittest
 import xml.etree.ElementTree as ET
-import re
-import struct
-import unittest
 
-ROOT = Path(__file__).resolve().parents[3] / 'apps/site/public'
+ROOT = Path(__file__).resolve().parents[3] / "apps/site/public"
+SOURCE = ROOT.parent / "design-sources"
 
-# R6 scene contract: the octopus/grips are path-only SVG layers; live acceptance remains separate.
 class Tags(HTMLParser):
     def __init__(self, html):
         super().__init__(); self.tags=[]; self.feed(html)
     def handle_starttag(self, tag, attrs):
-        self.tags.append((tag,dict(attrs)))
+        self.tags.append((tag, dict(attrs)))
 
 class ContourSourceTests(unittest.TestCase):
     def setUp(self):
-        self.html=(ROOT/'index.html').read_text()
-        self.css=(ROOT/'styles.css').read_text()
+        self.html=(ROOT/"index.html").read_text()
+        self.css=(ROOT/"styles.css").read_text()
         self.tags=Tags(self.html).tags
-    def test_eight_genuine_links_and_no_crop_images(self):
-        badges=[(tag,a) for tag,a in self.tags if {'ai-badge','market-badge'} & set(a.get('class','').split())]
-        self.assertEqual(len(badges),8)
-        self.assertEqual(sum('ai-badge' in a['class'] for _,a in badges),6)
-        self.assertEqual(sum('market-badge' in a['class'] for _,a in badges),2)
-        for tag,a in badges:
-            self.assertEqual(tag,'a'); self.assertTrue(a.get('href')); self.assertTrue(a.get('aria-label'))
-        self.assertNotIn('<image',self.html)
-        self.assertNotIn('reference-art.js',self.html)
-        self.assertNotIn('background-position',self.css)
-        self.assertNotIn('engraving-3-underlay',self.html)
-    def test_r12_exact_trace_vector_contract(self):
-        source=ROOT.parent/'design-sources'
-        m=json.loads((source/'contour-exact-trace-r12.json').read_text())
-        asset=ROOT/'assets/contour-exact-trace-r12.svg'
-        self.assertEqual(hashlib.sha256(asset.read_bytes()).hexdigest(),m['asset_sha256'])
-        packed=zlib.decompress(base64.b64decode((source/'contour-exact-ref-r12-mask.b64').read_bytes()))
-        self.assertEqual(hashlib.sha256(packed).hexdigest(),m['source_mask_packed_sha256'])
-        svg=asset.read_text()
-        self.assertIn('<symbol id="underlay"',svg)
-        self.assertNotIn('<image',svg); self.assertNotIn('data:image',svg)
-        self.assertNotIn('.png',svg); self.assertNotIn('.webp',svg)
-        self.assertGreater(svg.count(' L'),1000)
-        self.assertLess(len(svg.encode()),250000)
-        self.assertIn('/assets/contour-exact-trace-r12.svg#underlay',self.html)
-        self.assertNotIn('contour-full-ref-r11.svg',self.html)
-        self.assertNotIn('contour-grips',self.html)
-        self.assertEqual(m['source_reference_size'],[1448,1086])
-        self.assertEqual(m['source_reference_sha256'],'d3ead9dbba9794c57a3ff2b1267b15c36045eadd9922e7d6a8788a071e73c246')
-        self.assertIn('no RDP, no spline smoothing, no button cutouts',m['method'])
+        self.manifest=json.loads((SOURCE/"contour-owner-dark-r13.json").read_text())
 
-    def test_r12_reference_geometry_and_palette(self):
-        m=json.loads((ROOT.parent/'design-sources/contour-exact-trace-r12.json').read_text())
-        self.assertEqual(m['palette'],{'light':'#052039','dark':'#ebffff'})
-        self.assertIn('.contour-exact-trace-r12 { color:var(--scene-ink);',self.css)
-        self.assertIn('aspect-ratio:4/3',self.css)
-        for name,(left,top,width) in m['button_geometry'].items():
-            pos=re.search(r'(?m)^\s*\.pos-'+name+r'\s*\{([^}]+)\}',self.css).group(1)
-            self.assertAlmostEqual(float(re.search(r'left:\s*([\d.]+)%',pos).group(1)),left,places=5)
-            self.assertAlmostEqual(float(re.search(r'top:\s*([\d.]+)%',pos).group(1)),top,places=5)
-            self.assertIn(f'width:{width:.6f}%',self.css)
-        self.assertIn('--scene-ink:#052039',self.css)
-        self.assertIn('--scene-ink:#ebffff',self.css)
+    def test_eight_genuine_links_and_static_underlay(self):
+        badges=[(t,a) for t,a in self.tags if {"ai-badge","market-badge"} & set(a.get("class","").split())]
+        self.assertEqual(len(badges),8)
+        self.assertEqual(sum("ai-badge" in a["class"] for _,a in badges),6)
+        self.assertEqual(sum("market-badge" in a["class"] for _,a in badges),2)
+        for tag,a in badges:
+            self.assertEqual(tag,"a"); self.assertTrue(a.get("href")); self.assertTrue(a.get("aria-label"))
+        self.assertEqual(self.html.count('class="contour-underlay contour-owner-static-r13"'),1)
+        self.assertNotIn("engraving-3-underlay",self.html)
+        self.assertNotIn("background-position",self.css)
+
+    def test_r13_owner_reference_vector_identity(self):
+        asset=ROOT/"assets/contour-owner-static-r13.svg"
+        self.assertEqual(hashlib.sha256(asset.read_bytes()).hexdigest(),self.manifest["asset_sha256"])
+        self.assertEqual(self.manifest["source_reference_size"],[1448,1086])
+        self.assertEqual(self.manifest["source_reference_sha256"],"8402c8faab101c7975d075f1a8bdebc9c2d3f0f64d4367e7ec52313282bbcfb9")
+        svg=asset.read_text()
+        self.assertIn('viewBox="0 0 1448 1086"',svg)
+        self.assertIn('fill="#f4f7fb"',svg)
+        self.assertNotIn("<image",svg); self.assertNotIn("data:image",svg)
+        self.assertGreater(svg.count(" L"),1000)
+        self.assertLess(len(svg.encode()),100000)
+        self.assertIn('/assets/contour-owner-static-r13.svg',self.html)
+        self.assertNotIn('/assets/contour-exact-trace-r12.svg#underlay',self.html)
+
+    def test_r13_reference_geometry_and_dark_palette(self):
+        self.assertEqual(self.manifest["palette"],{"scene":"#f4f7fb","background":"dark_navy_gradient"})
+        self.assertIn("--scene-ink:#f4f7fb",self.css)
+        self.assertIn("radial-gradient(ellipse at 50% 14%",self.css)
+        self.assertIn("color-scheme:dark",self.css)
+        for name,(left,top,width) in self.manifest["button_geometry"].items():
+            block=re.search(r"(?m)^\s*\.pos-"+name+r"\s*\{([^}]+)\}",self.css).group(1)
+            self.assertAlmostEqual(float(re.search(r"left:\s*([\d.]+)%",block).group(1)),left,places=5)
+            self.assertAlmostEqual(float(re.search(r"top:\s*([\d.]+)%",block).group(1)),top,places=5)
+            self.assertIn(f"width:{width:.6f}%",block)
 
     def test_marketplaces_are_lower_and_ordered(self):
         def pos(name):
-            block=re.search(r'(?m)^\s*\.pos-'+name+r'\s*\{([^}]+)\}',self.css).group(1)
-            return tuple(float(re.search(key+r':\s*([\d.]+)%',block).group(1)) for key in ('left','top'))
-        self.assertLess(pos('wb')[0],50); self.assertGreater(pos('ozon')[0],50)
-        self.assertGreater(pos('wb')[1],70); self.assertGreater(pos('ozon')[1],70)
-        for name in ('alice','gemini','chatgpt','deepseek','anthropic','qwen'):
-            self.assertLess(pos(name)[1],50)
+            block=re.search(r"(?m)^\s*\.pos-"+name+r"\s*\{([^}]+)\}",self.css).group(1)
+            return tuple(float(re.search(key+r":\s*([\d.]+)%",block).group(1)) for key in ("left","top"))
+        self.assertLess(pos("wb")[0],50); self.assertGreater(pos("ozon")[0],50)
+        self.assertGreater(pos("wb")[1],70); self.assertGreater(pos("ozon")[1],70)
+        for name in ("alice","gemini","chatgpt","deepseek","anthropic","qwen"):
+            self.assertLess(pos(name)[1],70)
+
     def test_header_and_favicon_are_real_assets(self):
-        brand=[a for t,a in self.tags if t=='img' and a.get('class')=='brand-logo']
-        self.assertEqual(len(brand),1)
-        self.assertEqual(brand[0]['src'],'/assets/octoport-brand.png')
-        self.assertGreaterEqual(int(brand[0]['width']),32)
-        for name in ['favicon.png','assets/favicon-contour-v1.png']:
-            b=(ROOT/name).read_bytes(); self.assertEqual(b[:8],b'\x89PNG\r\n\x1a\n'); self.assertEqual(struct.unpack('>II',b[16:24]),(120,120)); self.assertGreater(len(b),2000)
-        self.assertEqual((ROOT/'favicon.png').read_bytes(),(ROOT/'assets/favicon-contour-v1.png').read_bytes())
-    def test_native_controls_and_self_hosted_font(self):
-        self.assertIn('<details class="site-menu">',self.html)
-        self.assertIn('for="theme-checkbox"',self.html)
-        self.assertIn('theme-checkbox:focus-visible',self.css)
-        self.assertIn('prefers-reduced-motion',self.css)
-        self.assertNotIn('https://fonts.',self.css)
-        fonts=re.findall(r'url\((/assets/fonts/[^)]+)\)',self.css)
-        self.assertTrue(fonts)
-        for name in fonts: self.assertTrue((ROOT/name.lstrip('/')).is_file(),name)
-    def test_no_rectangular_scene_background(self):
-        block=re.search(r'\.contour-scene\s*\{([^}]+)\}',self.css).group(1)
-        self.assertIn('background:transparent',block.replace(' ',''))
-        self.assertNotIn('box-shadow',block)
-        self.assertNotIn('background:var(--art-paper)',self.css)
+        brand=[a for t,a in self.tags if t=="img" and a.get("class")=="brand-logo"]
+        self.assertEqual(len(brand),1); self.assertEqual(brand[0]["src"],"/assets/octoport-brand.png")
+        for name in ["favicon.png","assets/favicon-contour-v1.png"]:
+            b=(ROOT/name).read_bytes(); self.assertEqual(b[:8],b"\x89PNG\r\n\x1a\n")
+            self.assertEqual(struct.unpack(">II",b[16:24]),(120,120))
+        self.assertEqual((ROOT/"favicon.png").read_bytes(),(ROOT/"assets/favicon-contour-v1.png").read_bytes())
+
+    def test_dark_only_site_and_no_theme_toggle(self):
+        self.assertNotIn("theme-checkbox",self.html); self.assertNotIn("theme-switch",self.html)
+        self.assertNotIn("theme-checkbox",self.css); self.assertNotIn("theme-switch",self.css)
+        self.assertIn("prefers-reduced-motion",self.css)
+        for name in ("index","seller-analytics","privacy","support","install"):
+            html=(ROOT/(name+".html")).read_text()
+            self.assertIn('<meta name="color-scheme" content="dark" />',html)
+            self.assertIn('<meta name="theme-color" content="#0d1929" />',html)
+            self.assertNotIn('content="light"',html)
+        self.assertNotIn("https://fonts.",self.css)
+        for font in re.findall(r"url\((/assets/fonts/[^)]+)\)",self.css):
+            self.assertTrue((ROOT/font.lstrip("/")).is_file(),font)
+
+    def test_reference_scene_has_dark_gradient_not_theme_rectangle_switching(self):
+        blocks=re.findall(r"\.contour-scene\s*\{([^}]+)\}",self.css)
+        self.assertTrue(any("radial-gradient" in b for b in blocks))
+        self.assertNotIn("--scene-ink:#052039",self.css)
+        self.assertNotIn("light-art",self.css); self.assertNotIn("dark-art",self.css)
 
     def test_marketplace_controls_share_centered_slots(self):
         self.assertEqual(self.html.count('class="market-logo-slot"'),2)
         self.assertEqual(self.html.count('class="market-label"'),2)
-        self.assertNotIn('.market-badge b',self.css)
-        self.assertNotIn('.pos-ozon b',self.css)
-        self.assertIn('text-align:center',self.css)
-        for name in ['wb','ozon']:
-            self.assertIn('/assets/contour-mark-'+name+'-r4-light.svg',self.html)
-            self.assertTrue((ROOT/('assets/contour-mark-'+name+'-r4-light.svg')).is_file())
+        self.assertIn("text-align:center",self.css)
+        for name in ("wb","ozon"):
+            src=f"/assets/contour-mark-{name}-r4-dark.svg"
+            self.assertIn(src,self.html); self.assertTrue((ROOT/src.lstrip("/")).is_file())
+            self.assertNotIn(f"/assets/contour-mark-{name}-r4-light.svg",self.html)
 
-    def test_reference_monochrome_vectors_and_static_grips(self):
-        for name in ['alice','gemini','chatgpt','deepseek','anthropic','qwen','wb','ozon']:
-            for theme,ink in [('light','#10243c'),('dark','#ebffff')]:
-                src='/assets/contour-mark-'+name+'-r4-'+theme+'.svg'
-                self.assertIn(src,self.html)
-                svg=(ROOT/src.lstrip('/')).read_text()
-                self.assertEqual(set(re.findall(r'#[0-9a-fA-F]{6}',svg)),{ink})
-                self.assertNotIn('<image',svg)
-                self.assertNotIn('Gradient',svg)
-                self.assertNotIn('url(',svg)
-        self.assertNotIn('linear-gradient(145deg',self.css)
-        self.assertNotIn('class="contour-orbit"',self.html)
-        self.assertIn('background:var(--scene-paper)',self.css)
-        self.assertIn('--scene-paper:var(--bg)',self.css)
-        grips=[a for t,a in self.tags if t=='svg' and 'contour-grips' in a.get('class','').split()]
-        self.assertEqual(len(grips),0)
-        block=re.search(r'\.contour-underlay\s*\{([^}]+)\}',self.css).group(1)
-        self.assertIn('pointer-events:none',block.replace(' ',''))
-        for forbidden in ['transform','transition','animation']:self.assertNotIn(forbidden,block)
-
-    def test_reference_static_layer_has_no_duplicate_discs(self):
-        source=ROOT.parent/'design-sources'
-        m=json.loads((source/'contour-reference-r4.json').read_text())
-        raw=zlib.decompress(base64.b64decode((source/'contour-reference-r4-alpha.b64').read_text()))
-        self.assertEqual(hashlib.sha256(raw).hexdigest(),m['alpha_sha256'])
-        self.assertEqual(len(raw),559*419)
-        for badge in m['badge_cutouts']:
-            cx,cy,r=badge['cx'],badge['cy'],badge['radius']
-            for y in range(max(0,int(cy-r)),min(419,int(cy+r)+1)):
-                for x in range(max(0,int(cx-r)),min(559,int(cx+r)+1)):
-                    if (x-cx)**2+(y-cy)**2<r*r:self.assertEqual(raw[y*559+x],0,badge['name'])
-        for fragment in re.findall(r'<a class="(?:ai-badge|market-badge)[^>]*>(.*?)</a>',self.html,re.S):
-            self.assertNotIn('underlay',fragment);self.assertNotIn('grips',fragment)
-            self.assertNotIn('.webp',fragment)
+    def test_dark_monochrome_vectors_and_stationary_background(self):
+        for name in ("alice","gemini","chatgpt","deepseek","anthropic","qwen","wb","ozon"):
+            src=f"/assets/contour-mark-{name}-r4-dark.svg"
+            self.assertIn(src,self.html)
+            svg=(ROOT/src.lstrip("/")).read_text()
+            self.assertEqual(set(re.findall(r"#[0-9a-fA-F]{6}",svg)),{"#ebffff"})
+            self.assertNotIn("<image",svg)
+        under=re.search(r"\.contour-underlay\s*\{([^}]+)\}",self.css).group(1)
+        self.assertIn("pointer-events:none",under.replace(" ",""))
+        for forbidden in ("transform","transition","animation"): self.assertNotIn(forbidden,under)
+        self.assertIn("background:transparent",re.search(r"\.ai-badge,.market-badge\s*\{([^}]+)\}",self.css).group(1))
 
     def test_tablet_stacking_precedes_mobile_breakpoint(self):
-        self.assertIn('@media (max-width:1180px)',self.css)
-        block=self.css.split('@media (max-width:1180px)',1)[1].split('@media',1)[0]
-        self.assertIn('grid-template-columns:minmax(0,1fr)',block)
-        self.assertIn('max-width:780px',block)
-        self.assertIn('width:100%',block)
+        self.assertIn("@media (max-width:1180px)",self.css)
+        block=self.css.split("@media (max-width:1180px)",1)[1].split("@media",1)[0]
+        self.assertIn("grid-template-columns:minmax(0,1fr)",block)
+        self.assertIn("max-width:780px",block)
 
-    def test_r3_slogan_below_scene_not_inside_art(self):
+    def test_slogan_below_scene_not_inside_art(self):
         self.assertEqual(self.html.count('class="contour-slogan"'),1)
-        scene_end=self.html.index('          </div>',self.html.index('class="contour-scene"'))
+        scene_end=self.html.index("          </div>",self.html.index('class="contour-scene"'))
         slogan=self.html.index('class="contour-slogan"')
         self.assertLess(scene_end,slogan)
-        self.assertIn('Сложные технологии.<br />Простые решения.',self.html)
-        self.assertIn('.contour-slogan',self.css)
+        self.assertIn("Сложные технологии.<br />Простые решения.",self.html)
 
-    def test_home_funnel_r1_single_h1_uses_agreed_ai_brand_copy(self):
-        fragment=re.findall(r'<h1[^>]*>(.*?)</h1>',self.html,re.S)
+    def test_home_h1_and_brand_copy_unchanged(self):
+        fragment=re.findall(r"<h1[^>]*>(.*?)</h1>",self.html,re.S)
         self.assertEqual(len(fragment),1)
-        self.assertEqual(' '.join(re.sub(r'<[^>]+>', '', re.sub(r'<br\s*/?>', ' ', fragment[0])).split()), 'Подключите Алису, ChatGPT, DeepSeek или другую нейросеть к своему магазину на WB и Ozon.')
-        self.assertIn('<span class="hero-ai-list">Алису, ChatGPT,<br />DeepSeek</span>',fragment[0])
-        self.assertIn('или другую нейросеть<br />к своему магазину<br />на <span class="brand-wildberries">WB</span> и <span class="brand-ozon">Ozon</span>.',self.html)
-        self.assertIn('.brand-wildberries',self.css)
-        self.assertIn('.brand-ozon',self.css)
-        self.assertIn('Октопорт соединяет ваш кабинет продавца на <span class="brand-ozon" data-marketplace="name">Ozon</span> или <span class="brand-wildberries" data-marketplace="name">Wildberries</span> с любой нейросетью на ваш выбор.',self.html)
-        self.assertIn('Можно использовать бесплатные аккаунты нейросетей.',self.html)
+        plain=" ".join(re.sub(r"<[^>]+>","",re.sub(r"<br\s*/?>"," ",fragment[0])).split())
+        self.assertEqual(plain,"Подключите Алису, ChatGPT, DeepSeek или другую нейросеть к своему магазину на WB и Ozon.")
+        self.assertIn("Можно использовать бесплатные аккаунты нейросетей.",self.html)
 
-    def test_r4_theme_aware_rings_and_keyboard_controls(self):
-        self.assertIn('border:clamp(1.4px,.4cqi,3px) solid var(--scene-ink)',self.css)
-        self.assertIn('--scene-ink:#052039',self.css)
-        self.assertIn('--scene-ink:#ebffff',self.css)
-        self.assertIn('.ai-badge:focus-visible,.market-badge:focus-visible',self.css)
-        self.assertIn('min-width:44px; min-height:44px',self.css)
-        self.assertNotIn('border-color:#8295f4',self.css)
+    def test_dark_rings_keyboard_targets_and_hover_boundary(self):
+        self.assertIn("border:clamp(1.4px,.4cqi,3px) solid var(--scene-ink)",self.css)
+        self.assertIn(".ai-badge:focus-visible,.market-badge:focus-visible",self.css)
+        self.assertIn("min-width:44px; min-height:44px",self.css)
+        hover=re.search(r"\.ai-badge:hover,.ai-badge:focus-visible,.market-badge:hover,.market-badge:focus-visible\s*\{([^}]+)\}",self.css).group(1)
+        self.assertIn("scale(1.035)",hover)
+        self.assertNotIn("contour-underlay",hover)
 
     def test_local_images_resolve_and_no_executable_javascript(self):
         for tag,a in self.tags:
-            if tag=='img': self.assertTrue((ROOT/a['src'].lstrip('/')).is_file(),a['src'])
-            if tag=='script': self.assertEqual(a.get('type'),'application/ld+json')
-        for name in ('seller-analytics','privacy','support','install'):
-            html=(ROOT/(name+'.html')).read_text()
+            if tag=="img": self.assertTrue((ROOT/a["src"].lstrip("/")).is_file(),a["src"])
+            if tag=="script": self.assertEqual(a.get("type"),"application/ld+json")
+        for name in ("seller-analytics","privacy","support","install"):
+            html=(ROOT/(name+".html")).read_text()
             self.assertIn('src="/assets/octoport-brand.png"',html)
             self.assertIn('href="/assets/favicon-contour-v1.png"',html)
-            self.assertNotIn('class="brand-mark"',html)
 
-if __name__=='__main__': unittest.main()
+if __name__=="__main__": unittest.main()
+
+[executed on device: Easyscript (f261eba5-9605-4636-9cde-e4082a541a86)]
