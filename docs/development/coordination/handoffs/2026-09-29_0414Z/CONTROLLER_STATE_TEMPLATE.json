@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "role": "CONTROLLER_L1",
+  "status": "PREPARED_NOT_STARTED",
+  "updated_at": "2026-09-29T04:33:05.057122+00:00",
+  "initial_start_receipt": "OWNER_L1_DELEGATION_20260929T041408Z",
+  "initial_start_consumed": false,
+  "current_task": "FIRST_FRESH_AUDIT_AND_READY_WORK",
+  "next_tasks": [
+    "VERIFY_EXACT_STORE027_COMPATIBILITY_AND_INSTALLED_FLOW",
+    "RECONCILE_CANDIDATE_INTAKE_AND_CURRENT_READINESS"
+  ],
+  "last_audit": null,
+  "last_reviewed_main": null,
+  "external_baseline": "/root/octoport-control/incidents/controller-delegation-20260929T0414Z",
+  "external_baseline_main": "fe3b4aeb9bcd41a038f79d7c233a6866b314a0fc",
+  "open_findings": [
+    "STORE027_COMPATIBILITY_AND_FIXTURE",
+    "INSTALLED_NEW_PACKAGE_ACCEPTANCE",
+    "LIVE_AI_REVIEWER_AND_STORE_BOUNDARIES"
+  ],
+  "pending_owner_actions": [],
+  "external_review_requests": [],
+  "stop": null,
+  "read_first": "/root/octoport-control/controllers/L1/START_HERE.md"
+}

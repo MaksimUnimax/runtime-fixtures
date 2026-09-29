@@ -1,0 +1,48 @@
+{
+  "at": "2026-09-29T04:16:26.956Z",
+  "journal": [
+    {
+      "count": 41
+    }
+  ],
+  "runs": [
+    {
+      "state": "FAILED_TERMINAL",
+      "count": 18,
+      "latest": "2026-09-27T13:13:33.769Z"
+    },
+    {
+      "state": "SUCCEEDED",
+      "count": 234,
+      "latest": "2026-09-29T04:14:10.804Z"
+    }
+  ],
+  "raw": [
+    {
+      "raw_observations": 15,
+      "missing_receipt": 0,
+      "latest": "2026-09-29T04:13:50.618Z"
+    }
+  ],
+  "compact": [
+    {
+      "scopes": 9,
+      "latest": "2026-09-29T04:13:48.078Z",
+      "accepted_baselines": 0
+    }
+  ],
+  "recent": [
+    {
+      "scopes": 9,
+      "recent_states": 15,
+      "max_per_scope": 3
+    }
+  ],
+  "receipts": [
+    {
+      "receipts": 234,
+      "projected": 234,
+      "pruned": 219
+    }
+  ]
+}

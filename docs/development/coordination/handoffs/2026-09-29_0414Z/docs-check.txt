@@ -1,0 +1,2 @@
+Documentation check PASS: {"errors":[],"files":1083,"markdownFiles":671,"relativeLinks":512,"requirements":26,"acceptanceScenarios":32}
+Scope: structure, relative file links and requirement coverage. No product tests executed.
