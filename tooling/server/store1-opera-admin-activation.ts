@@ -88,6 +88,8 @@ export const STORE1_PROFILE_SHA256 = validateProfileContent({
   content: STORE1_PROFILE_CONTENT,
   compatibility: STORE1_PROFILE_COMPATIBILITY,
 }).contentSha256;
+const STORE1_PREVIOUS_PROFILE_SHA256 =
+  "24b03fc9b89c3ec849e96bbc10ce8138382e29807e0e7251aca41ec2de357985" as const;
 
 export type Store1PackageAuthority = {
   sourceHead: string;
@@ -842,11 +844,35 @@ export function planStore1Activation(
     assignment.latest.baselineProfileRevisionId !== revision.id ||
     assignment.latest.candidateProfileRevisionId !== null ||
     assignment.latest.percentageBps !== 0
-  )
+  ) {
+    const predecessorRevision = exactOne(
+      r.profileRevisions,
+      (value) =>
+        value.state === "PUBLISHED" &&
+        value.contentSha256 === STORE1_PREVIOUS_PROFILE_SHA256,
+    );
+    if (
+      predecessorRevision !== "CONFLICT" &&
+      predecessorRevision &&
+      assignment.latest.mode === "DIRECT" &&
+      assignment.latest.baselineProfileRevisionId === predecessorRevision.id &&
+      assignment.latest.candidateProfileRevisionId === null &&
+      assignment.latest.percentageBps === 0
+    )
+      return post(
+        `/v1/admin/ai/assignments/${assignment.id}/direct`,
+        {
+          baselineProfileRevisionId: revision.id,
+          expectedLatestAssignmentRevision: assignment.latest.revision,
+          reason: STORE1_REASON,
+        },
+        "Advance the exact accepted 0.2.6 predecessor assignment to the 0.2.7 profile using CAS.",
+      );
     return conflict(
       "STORE1_ASSIGNMENT_TARGET_CONFLICT",
       "Existing Opera assignment points at another profile or rollout state.",
     );
+  }
 
   return {
     status: "READY",

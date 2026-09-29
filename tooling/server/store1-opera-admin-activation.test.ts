@@ -24,6 +24,8 @@ const authority: Store1PackageAuthority = {
   artifactSha256: STORE1_ACCEPTED_ARTIFACT_SHA256,
   filename: `OCTOPORT_v${STORE1_VERSION}_CHROMIUM_STORE.zip`,
 };
+const previousProfileSha256 =
+  "24b03fc9b89c3ec849e96bbc10ce8138382e29807e0e7251aca41ec2de357985";
 const ids = {
   policy: "00000000-0000-4000-8000-000000000001",
   adapter: "00000000-0000-4000-8000-000000000002",
@@ -481,6 +483,102 @@ describe("STORE-1 ordinary-admin activation planner", () => {
           subjectKind: "ACCOUNT",
         },
       },
+    });
+  });
+
+  it("advances the exact accepted 0.2.6 assignment predecessor with CAS", () => {
+    const r = exactReadback();
+    const previousRevisionId = "00000000-0000-4000-8000-000000000014";
+    r.profileRevisions = [
+      {
+        id: previousRevisionId,
+        revision: 1,
+        state: "PUBLISHED",
+        contentSha256: previousProfileSha256,
+      },
+      {
+        id: ids.revision,
+        revision: 2,
+        state: "PUBLISHED",
+        contentSha256: STORE1_PROFILE_SHA256,
+      },
+    ];
+    r.assignments![0]!.latest = {
+      revision: 1,
+      mode: "DIRECT",
+      baselineProfileRevisionId: previousRevisionId,
+      candidateProfileRevisionId: null,
+      percentageBps: 0,
+    };
+    expect(planStore1Activation(authority, r)).toMatchObject({
+      status: "POST",
+      next: {
+        path: `/v1/admin/ai/assignments/${ids.assignment}/direct`,
+        body: {
+          baselineProfileRevisionId: ids.revision,
+          expectedLatestAssignmentRevision: 1,
+        },
+      },
+    });
+  });
+
+  it("keeps a non-exact predecessor assignment fail-closed", () => {
+    const r = exactReadback();
+    const previousRevisionId = "00000000-0000-4000-8000-000000000014";
+    r.profileRevisions = [
+      {
+        id: previousRevisionId,
+        revision: 1,
+        state: "PUBLISHED",
+        contentSha256: "e".repeat(64),
+      },
+      {
+        id: ids.revision,
+        revision: 2,
+        state: "PUBLISHED",
+        contentSha256: STORE1_PROFILE_SHA256,
+      },
+    ];
+    r.assignments![0]!.latest = {
+      revision: 1,
+      mode: "DIRECT",
+      baselineProfileRevisionId: previousRevisionId,
+      candidateProfileRevisionId: null,
+      percentageBps: 0,
+    };
+    expect(planStore1Activation(authority, r)).toMatchObject({
+      status: "CONFLICT",
+      code: "STORE1_ASSIGNMENT_TARGET_CONFLICT",
+    });
+  });
+
+  it("does not upgrade a predecessor assignment with rollout state", () => {
+    const r = exactReadback();
+    const previousRevisionId = "00000000-0000-4000-8000-000000000014";
+    r.profileRevisions = [
+      {
+        id: previousRevisionId,
+        revision: 1,
+        state: "PUBLISHED",
+        contentSha256: previousProfileSha256,
+      },
+      {
+        id: ids.revision,
+        revision: 2,
+        state: "PUBLISHED",
+        contentSha256: STORE1_PROFILE_SHA256,
+      },
+    ];
+    r.assignments![0]!.latest = {
+      revision: 3,
+      mode: "ROLLOUT",
+      baselineProfileRevisionId: previousRevisionId,
+      candidateProfileRevisionId: ids.revision,
+      percentageBps: 5000,
+    };
+    expect(planStore1Activation(authority, r)).toMatchObject({
+      status: "CONFLICT",
+      code: "STORE1_ASSIGNMENT_TARGET_CONFLICT",
     });
   });
 
