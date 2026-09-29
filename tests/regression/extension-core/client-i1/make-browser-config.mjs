@@ -4,6 +4,12 @@ import { readFileSync, writeFileSync } from "node:fs";
 
 const apiPort = process.env.SA_I1_API_PORT ?? "43100";
 const portalPort = process.env.SA_I1_PORTAL_PORT ?? "43101";
+const composition = JSON.parse(
+  readFileSync(new URL("../../../../apps/extension/composition.json", import.meta.url), "utf8"),
+);
+if (typeof composition.version !== "string" || !composition.version) {
+  throw new Error("composition version is missing");
+}
 
 const output = process.argv[2];
 const trustPath = process.argv[3];
@@ -42,7 +48,7 @@ process.stdout.write(
     environment: "LOCAL DEVELOPMENT",
     controlApiOrigin: `http://127.0.0.1:${apiPort}`,
     portalOrigin: `http://127.0.0.1:${portalPort}`,
-    extensionVersion: "0.2.7",
+    extensionVersion: composition.version,
     contractVersion: "control_plane_v2",
     trustBundle,
   }),
