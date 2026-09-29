@@ -1,0 +1,358 @@
+{
+  "schema_version": 1,
+  "revision": 1,
+  "created_at": "2026-09-29T07:58:52.568Z",
+  "updated_at": "2026-09-29T07:58:52.568Z",
+  "owner_instruction_at": "2026-09-29T12:54:33+05:00",
+  "canonical": false,
+  "snapshot_not_product_acceptance": true,
+  "records": [
+    {
+      "last_reviewed_at": "2026-09-29T07:58:52.568Z",
+      "closure_evidence": [],
+      "independent_reviewer": null,
+      "recurrences_after_prior_fix": 0,
+      "status": "FIX_PLANNED",
+      "implementation": {
+        "written": false,
+        "integrated": false,
+        "applied": false,
+        "effect_verified": false
+      },
+      "occurrences": [
+        {
+          "id": "0eb8eaff",
+          "at": "2026-09-28T13:41:17Z",
+          "kind": "OBSERVATION",
+          "detail": "EOF одного отчёта,10 workflow"
+        },
+        {
+          "id": "9580f48c",
+          "at": "2026-09-28T11:59:38Z",
+          "kind": "OBSERVATION",
+          "detail": "EOF одного отчёта,10 workflow"
+        },
+        {
+          "id": "c1e7d2c5",
+          "at": "2026-09-29T04:35:13Z",
+          "kind": "OBSERVATION",
+          "detail": "Документы контроллера, полные product suites"
+        }
+      ],
+      "id": "ORG-001",
+      "class": "UNSCOPED_FULL_CI",
+      "title": "Полные проверки продукта для изменений только отчётов",
+      "root": "Push workflow не учитывает область изменения; общий протокол требует весь набор для любого опубликованного кандидата.",
+      "cause_confidence": "VERIFIED_CODE_AND_RUNS",
+      "accountable": "L1",
+      "executor": "L1 implementation; C integration",
+      "evidence": [
+        "/root/octoport-control/controllers/L2/audits/flow-audit-20260929T0730Z/github-runs-24h.json",
+        "/root/octoport-control/controllers/L2/audits/flow-audit-20260929T0730Z/ci-change-classification.json"
+      ],
+      "prior_solution": "0730: назначен выбор проверок по влиянию; код ещё не был внедрён.",
+      "next": "Консервативный always-running impact gate; docs/receipt scope отдельно, UNKNOWN и runtime inputs требуют нужных полных gates.",
+      "first_seen_at": "2026-09-28T11:59:38Z",
+      "last_observed_at": "2026-09-29T04:35:13Z",
+      "closure_criteria": [
+        "Проверенный classifier и отрицательные случаи",
+        "Интеграция без pending required checks",
+        "Настоящее изменение только отчёта не запускает ненужный продуктовый suite"
+      ],
+      "observed_occurrence_count": 3,
+      "reviewer": "CONTROLLER_L2"
+    },
+    {
+      "last_reviewed_at": "2026-09-29T07:58:52.568Z",
+      "closure_evidence": [],
+      "independent_reviewer": null,
+      "recurrences_after_prior_fix": 0,
+      "status": "FIX_PLANNED",
+      "implementation": {
+        "written": false,
+        "integrated": false,
+        "applied": false,
+        "effect_verified": false
+      },
+      "occurrences": [
+        {
+          "id": "24h-23-sha-pairs",
+          "at": "2026-09-29T07:30:00Z",
+          "kind": "AGGREGATE_OBSERVATION",
+          "detail": "23SHA в обеих ветках; не23повтора после исправления"
+        }
+      ],
+      "id": "ORG-002",
+      "class": "DUPLICATE_IDENTICAL_CI",
+      "title": "Повтор полной приёмки того же коммита при переходе C→main",
+      "root": "Workflow и ci_gate связывают приёмку с веткой/стадией, не переиспользуют проверенное evidence идентичных входов.",
+      "cause_confidence": "VERIFIED_POLICY_AND_RUNS",
+      "accountable": "L1",
+      "executor": "L1 implementation; C integration",
+      "evidence": [
+        "/root/octoport-control/controllers/L2/audits/flow-audit-20260929T0730Z/github-runs-24h.json"
+      ],
+      "prior_solution": "0730: назначен отдельный анализ exact evidence reuse; действующие gates пока обязательны.",
+      "next": "Проверить все входы и доверие evidence, затем обновить workflow/gate contract; после main и deploy сохранить необходимые readback/smoke.",
+      "first_seen_at": "2026-09-29T07:30:00Z",
+      "last_observed_at": "2026-09-29T07:30:00Z",
+      "closure_criteria": [
+        "Код и проверки доказанного переиспользования",
+        "Изменение любого существенного входа не наследует старый PASS",
+        "Реальное продвижение одинакового candidate без лишнего полного повтора"
+      ],
+      "observed_occurrence_count": 1,
+      "reviewer": "CONTROLLER_L2"
+    },
+    {
+      "last_reviewed_at": "2026-09-29T07:58:52.568Z",
+      "closure_evidence": [],
+      "independent_reviewer": null,
+      "recurrences_after_prior_fix": 0,
+      "status": "FIX_PARTIAL",
+      "implementation": {
+        "written": true,
+        "integrated": null,
+        "applied": "ASSIGNMENTS_VISIBLE; end-to-end result pending",
+        "effect_verified": false
+      },
+      "occurrences": [
+        {
+          "id": "A-C-027-request-to-done",
+          "at": "2026-09-29T06:26:55Z",
+          "kind": "OBSERVATION",
+          "detail": "03:49:40→06:26:55UTC,2ч37м15с включая работу иCI; не чистый простой"
+        }
+      ],
+      "id": "ORG-003",
+      "class": "DELIVERY_BOTTLENECK_C",
+      "title": "Готовая работа ждёт перегруженного интегратора",
+      "root": "На C сходятся интеграция, выпуск, окружение и собственная разработка; назначение по компонентам не обеспечивает завершение общей выдачи.",
+      "cause_confidence": "SUPPORTED_BY_TIMELINE_AND_ASSIGNMENTS",
+      "accountable": "L1 and L2",
+      "executor": "C delivery; B preflight; A installed verification",
+      "evidence": [
+        "/root/octoport-control/controllers/L2/audits/flow-audit-20260929T0730Z/REPORT.md",
+        "/root/octoport-control/peer-handoffs/A/A-C-STORE027-BOOTSTRAP-COMPAT-20260929-0349-R2.response.json"
+      ],
+      "prior_solution": "Приоритет выдачи уже был в PLAN;0730 добавлены конкретное перераспределение и delivery-focus.",
+      "next": "Довести пакет до выдачи, измерить переходы и ожидания; не подменять уменьшение очереди новыми статусами.",
+      "first_seen_at": "2026-09-29T06:26:55Z",
+      "last_observed_at": "2026-09-29T06:26:55Z",
+      "closure_criteria": [
+        "Готовый проверенный файл и инструкция реально выданы",
+        "Следующий сопоставимый путь измерен",
+        "Причины ожиданий устранены или конкретно обоснованы"
+      ],
+      "observed_occurrence_count": 1,
+      "reviewer": "CONTROLLER_L2"
+    },
+    {
+      "last_reviewed_at": "2026-09-29T07:58:52.568Z",
+      "closure_evidence": [],
+      "independent_reviewer": null,
+      "recurrences_after_prior_fix": 1,
+      "status": "FIX_PARTIAL",
+      "implementation": {
+        "written": "d406 partial preventive change read",
+        "integrated": "NOT_VERIFIED_CURRENT_D406",
+        "applied": "NOT_VERIFIED",
+        "effect_verified": false
+      },
+      "occurrences": [
+        {
+          "id": "f0bad-prior-fix",
+          "at": "2026-09-29T04:28:46Z",
+          "kind": "PRIOR_FIX",
+          "detail": "Точный027 синхронизирован"
+        },
+        {
+          "id": "9e8-health-ci",
+          "at": "2026-09-29T07:33:38Z",
+          "kind": "RECURRENCE_AFTER_PRIOR_FIX",
+          "detail": "Server expected028/actual027; verified log"
+        },
+        {
+          "id": "d406-partial-prevention",
+          "at": "2026-09-29T07:58:52.568Z",
+          "kind": "PARTIAL_FIX_OBSERVED",
+          "detail": "Проверен diff, не весьCI или live"
+        }
+      ],
+      "id": "ORG-004",
+      "class": "RELEASE_AUTHORITY_DRIFT_RECURS",
+      "title": "Повтор несогласованности при следующем выпуске",
+      "root": "Текущая версия дублировалась вручную в нескольких потребителях; прежнее исправлениеf0bad синхронизировало значения, но не устранило все независимые источники и раннюю проверку.",
+      "cause_confidence": "VERIFIED_DIFF_AND_FAILURE_LOGS",
+      "accountable": "C; prevention review L1",
+      "executor": "C release inputs; B transition preflight",
+      "evidence": [
+        "/root/octoport-control/controllers/L2/audits/flow-audit-20260929T0730Z/recurring-release-class.json",
+        "github:commit:f0badfe80d8c536733759cefc4f1e345b5f791c3",
+        "github:commit:041505ab5b85700c388e4224e998b3236f9e9d41",
+        "github:job:109303483248",
+        "github:commit:d406e84e1f43d8424e70f700164c1a64b2d09c3d"
+      ],
+      "prior_solution": "f0bad исправил027 в трёх местах; предотвращение всего класса не было доказано.",
+      "recurrence_reason": {
+        "category": "SYMPTOM_FIXED_AND_INCOMPLETE_CLASS_COVERAGE",
+        "confirmed": true,
+        "detail": "028 поменял8файлов, оставив независимый health authority027; существующий тест выявил повтор только в полномCI. Новыйd406 уже получает browser config version изcomposition, но health authority остаётся литералом028. Это частичное улучшение, не полное закрытие."
+      },
+      "next": "Проверить целый класс release inputs и превентивный preflight; не закрывать по очередному совпавшему номеру.",
+      "first_seen_at": "2026-09-29T04:28:46Z",
+      "last_observed_at": "2026-09-29T07:58:52.568Z",
+      "closure_criteria": [
+        "Нет необоснованных вручную дублируемых current version inputs",
+        "Полный перечень потребителей проверяется до дорогого цикла",
+        "Репетиция следующего допустимого bump выявляет несовпадение дешёво",
+        "Реальная интеграция/приёмка подтверждена"
+      ],
+      "observed_occurrence_count": 3,
+      "reviewer": "CONTROLLER_L2"
+    },
+    {
+      "last_reviewed_at": "2026-09-29T07:58:52.568Z",
+      "closure_evidence": [],
+      "independent_reviewer": null,
+      "recurrences_after_prior_fix": 0,
+      "status": "FIX_PARTIAL",
+      "implementation": {
+        "written": true,
+        "integrated": "IN_C_CANDIDATE; fresh main acceptance required",
+        "applied": "PATCHED_INSTALLED_SYNTHETIC_ONLY",
+        "effect_verified": "SOURCE_ENTRYPOINT; official package pending"
+      },
+      "occurrences": [
+        {
+          "id": "STORE027-popup-lifecycle",
+          "at": "2026-09-29",
+          "kind": "OBSERVATION",
+          "detail": "Передача отдельно проверена, официальный UI repeat/offline rejected"
+        }
+      ],
+      "id": "ORG-005",
+      "class": "LATE_INSTALLED_USER_PATH_FEEDBACK",
+      "title": "Отдельные проверки проходят, пользовательский путь выявляет проблему поздно",
+      "root": "Покрытие отдельных механизмов недостаточно связывало UI entrypoint с их реальными исходами; обнаружение отложено до официального installed lifecycle.",
+      "cause_confidence": "VERIFIED_A_RECEIPT_AND_L1_REPRO",
+      "accountable": "A; review L1",
+      "executor": "A",
+      "evidence": [
+        "/root/octoport-main/docs/development/coordination/receipts/A/A_STORE027_INSTALLED_TRANSFER_REWORK_2026-09-29.md",
+        "/root/octoport-control/controllers/L1/audits/L1-AUDIT-20260929T064526Z/AUDIT_REPORT.md"
+      ],
+      "prior_solution": "A eecc source + L1 real entrypoint regressions; patched installed proof. Final new official package acceptance pending.",
+      "next": "Проверить точный028 и встроить раннюю короткую пользовательскую проверку в changed-boundary этап.",
+      "first_seen_at": "2026-09-29",
+      "last_observed_at": "2026-09-29",
+      "closure_criteria": [
+        "Официальный пакет проходит заявленный lifecycle",
+        "Регрессия вызывает реальный пользовательский entrypoint",
+        "Следующий релевантный change использует раннюю проверку"
+      ],
+      "observed_occurrence_count": 1,
+      "reviewer": "CONTROLLER_L2"
+    },
+    {
+      "last_reviewed_at": "2026-09-29T07:58:52.568Z",
+      "closure_evidence": [],
+      "independent_reviewer": null,
+      "recurrences_after_prior_fix": 0,
+      "status": "FIX_PARTIAL",
+      "implementation": {
+        "written": true,
+        "integrated": "RUNTIME_OWNER_POLICY",
+        "applied": "METADATA_AND_RULES",
+        "effect_verified": false
+      },
+      "occurrences": [
+        {
+          "id": "flow-audit-0730",
+          "at": "2026-09-29T07:30:00Z",
+          "kind": "OBSERVATION",
+          "detail": "Подтверждён аудитом процесса"
+        }
+      ],
+      "id": "ORG-006",
+      "class": "CONTROLLER_OUTPUT_NOT_DELIVERY_FOCUS",
+      "title": "Контроллеры лучше отслеживали замечания, чем получение владельцем версии",
+      "root": "Отчётность и очереди сформированы вокруг компонентных приёмок; нет достаточного контроля времени и зависимостей общей выдачи.",
+      "cause_confidence": "SUPPORTED_BY_AUDIT; NO_IDLE_PERCENTAGE_CLAIM",
+      "accountable": "L1 and L2",
+      "executor": "L1 and L2",
+      "evidence": [
+        "/root/octoport-control/controllers/L2/audits/flow-audit-20260929T0730Z/REPORT.md",
+        "/root/octoport-control/controllers/delivery-focus.json"
+      ],
+      "prior_solution": "0730 введена компактная карточка и метрики;0754 вводится обязательный организационный аудит и общая база.",
+      "next": "Следующий аудит сопоставляет базу и реальную выдачу, измеряет ожидания, проверяет исправления; не считать написание правил эффектом.",
+      "first_seen_at": "2026-09-29T07:30:00Z",
+      "last_observed_at": "2026-09-29T07:30:00Z",
+      "closure_criteria": [
+        "Оба контроллера реально включают обязательную часть в следующий свой отчёт",
+        "Записи обновляются по фактам без ложных закрытий",
+        "Прогресс выдачи и ожидания подтверждаются"
+      ],
+      "observed_occurrence_count": 1,
+      "reviewer": "CONTROLLER_L2"
+    },
+    {
+      "last_reviewed_at": "2026-09-29T07:58:52.568Z",
+      "closure_evidence": [],
+      "independent_reviewer": null,
+      "recurrences_after_prior_fix": 0,
+      "status": "EFFECT_VERIFIED",
+      "implementation": {
+        "written": "CORRECT_CALL_USAGE",
+        "integrated": null,
+        "applied": true,
+        "effect_verified": true
+      },
+      "occurrences": [
+        {
+          "id": "L1-0512",
+          "at": "2026-09-29T05:12:31Z",
+          "kind": "OBSERVATION",
+          "detail": "Уведомления не доставлены; ошибочный внешний диагноз"
+        },
+        {
+          "id": "L1-0623",
+          "at": "2026-09-29T06:23:20Z",
+          "kind": "CORRECTION",
+          "detail": "Диагноз исправлен"
+        },
+        {
+          "id": "L1-0709",
+          "at": "2026-09-29T07:09:18Z",
+          "kind": "EFFECT_VERIFIED",
+          "detail": "Адресные notices записаны и прочитаны"
+        }
+      ],
+      "id": "ORG-007",
+      "class": "FALSE_EXTERNAL_TOOL_BLOCKER",
+      "title": "Ошибка вызова инструмента ошибочно названа внешней блокировкой",
+      "root": "L1 принял неудачную групповую запись за недоступность операций; отдельные поддерживаемые записи были доступны.",
+      "cause_confidence": "L1_OWN_CORRECTION_AND_LATER_DELIVERY",
+      "accountable": "L1",
+      "executor": "L1; both controllers apply lesson",
+      "evidence": [
+        "/root/octoport-control/controllers/L1/decisions.jsonl",
+        "/root/octoport-control/controllers/L1/audits/L1-AUDIT-20260929T064526Z/AUDIT_REPORT.md"
+      ],
+      "prior_solution": "06:23 L1 исправил диагноз;06:50–07:08 сообщения записаны и проверены обратно.",
+      "next": "Сохранять факт поддержки/отказа вызова; перед внешним ACCESS_BLOCKED проверять корректный безопасный интерфейс без обхода реального запрета.",
+      "first_seen_at": "2026-09-29T05:12:31Z",
+      "last_observed_at": "2026-09-29T07:09:18Z",
+      "closure_criteria": [
+        "Причина диагностики подтверждена",
+        "Корректная запись иreadback доказаны",
+        "Независимое следующее ревью не находит повторного ложногоACCESS_BLOCKED"
+      ],
+      "observed_occurrence_count": 3,
+      "reviewer": "CONTROLLER_L2"
+    }
+  ],
+  "snapshot_of": "/root/octoport-control/controllers/organization/errors.json",
+  "snapshot_purpose": "Historical initial findings; update only the canonical server registry, never this snapshot"
+}
