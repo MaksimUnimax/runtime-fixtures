@@ -16,7 +16,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: extension-i1-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.ref == 'refs/heads/main' && github.sha || 'latest' }}
   cancel-in-progress: true
 
 jobs:

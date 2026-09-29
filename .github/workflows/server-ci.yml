@@ -35,7 +35,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: server-ci-${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.ref == 'refs/heads/main' && github.sha || 'latest' }}
   cancel-in-progress: true
 
 jobs:
