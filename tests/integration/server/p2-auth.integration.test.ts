@@ -508,12 +508,12 @@ describe.sequential("P2.2 real PostgreSQL authentication matrix", () => {
     const a = new OtpEmailRunner(db, keys, provider),
       b = new OtpEmailRunner(db, keys, provider);
     const ticks = [a.tick(), b.tick(), a.tick()];
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    expect(calls).toBe(1);
+    await expect.poll(() => calls, { timeout: 5000, interval: 10 }).toBe(1);
     const active = await jobFor(id);
     expect(active.lease_id).toBeTruthy();
     release();
     await Promise.all(ticks);
+    expect(calls).toBe(1);
     await clear();
     const valid = await fixture(email);
     await fixtureJob(
