@@ -142,9 +142,9 @@ check_site_content() {
   homepage="$(curl --silent --show-error --resolve 'octoport.ru:443:127.0.0.1' 'https://octoport.ru/')"
   grep -Fq '<title>Подключите Алису, ChatGPT и DeepSeek к Ozon и Wildberries | Октопорт</title>' <<<"${homepage}" \
     || fail "homepage owner-approved title is missing"
-  grep -Fq '<h1 class="hero-heading" id="hero-title">Личный помощник на <br />базе любимой <span>Нейросети.</span></h1>' <<<"${homepage}" \
+  grep -Fq '<h1 class="hero-heading" id="hero-title"><span>Личный помощник</span> на <br />базе любимой <span>Нейросети.</span></h1>' <<<"${homepage}" \
     || fail "homepage owner-approved H1 is missing"
-  grep -Fq 'Можно использовать бесплатные аккаунты нейросетей.' <<<"${homepage}" \
+  grep -Fq 'Можно использовать с бесплатными нейросетями.' <<<"${homepage}" \
     || fail "homepage owner-approved free-account copy is missing"
   grep -Fq '<link rel="icon" href="/favicon.png" type="image/png" />' <<<"${homepage}" \
     || fail "homepage favicon link is missing"

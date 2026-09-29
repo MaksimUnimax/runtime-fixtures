@@ -66,14 +66,81 @@ class ApprovedCopyTests(unittest.TestCase):
         data = json.loads(re.search(r'<script[^>]+application/ld\+json[^>]*>(.*?)</script>', self.home, re.S).group(1))
         self.assertEqual(data['name'], 'Октопорт')
         self.assertEqual(data['alternateName'], ['Octoport', 'octoport.ru'])
-    def test_analytics_has_concrete_examples_and_real_result_boundaries(self):
+    def test_analytics_removes_superseded_verified_examples_block(self):
         html = (ROOT / 'seller-analytics.html').read_text()
-        self.assertEqual(html.count('class="analytics-case verified-example"'), 2)
-        for term in ('сентябре 2026 года','остаток неизвестен','не означает, что товар закончился','Суммы, названия товаров и идентификаторы продавца не публикуются','выручка','количество заказанных единиц'):
-            self.assertIn(term, html)
-        self.assertNotIn('Публичные демонстрации, конкретные категории данных', html)
+        self.assertNotIn('id="analytics-proof"', html)
+        self.assertNotIn('class="analytics-case verified-example"', html)
+        self.assertNotIn('Проверенные примеры на данных', html)
+        self.assertNotIn('сентябре 2026 года', html)
         for target in ('/#how', 'mailto:support@octoport.ru?subject=Бета%20Октопорт'):
             self.assertIn('href="' + target + '"', html)
+    def test_analytics_and_home_show_selected_business_cases(self):
+        analytics = (ROOT / 'seller-analytics.html').read_text()
+        self.assertEqual(analytics.count('class="analytics-case"'), 3)
+        for term in (
+            'Сравнить продажи за два периода',
+            'Проверить позиции товаров в поиске',
+            'Посчитать юнит-экономику товара за месяц',
+            'поисковым запросам мои товары находятся выше или ниже',
+            'маржинальный вклад после расходов маркетплейса',
+        ):
+            self.assertIn(term, analytics)
+        for removed in (
+            'Если по запросу данных нет, это отмечается отдельно',
+            'Это не называется чистой прибылью',
+            'неразносимое хранение показывается отдельно',
+        ):
+            self.assertNotIn(removed, analytics)
+        for removed in ('Сопоставить рекламу с остатками', 'Подготовить отчёт для себя или команды'):
+            self.assertNotIn(removed, analytics)
+        self.assertIn('Ниже — три примера задач', analytics)
+        for term in (
+            '«Как изменились продажи?»',
+            '«Где просели позиции в поиске?»',
+            '«Какие SKU съедают маржу?»',
+            'юнит-экономику по SKU',
+        ):
+            self.assertIn(term, self.home)
+
+    def test_owner_copy_corrections_and_crossed_text_removals(self):
+        analytics = (ROOT / 'seller-analytics.html').read_text()
+        self.assertIn('Октопорт позволяет получить нейросети доступ к данным вашего кабинета селлера.', analytics)
+        self.assertIn('Просто задайте вопрос в диалоге. Нейросеть запросит нужные ей для ответа данные через Октопорт', analytics)
+        self.assertIn('Вы продолжаете общаться в режиме диалога с привычной вам Нейросетью, но при этом у неё появляется доступ к данным вашего кабинета селлера', self.home)
+        self.assertIn('Модель анализирует, сравнивает, объясняет и помогает принимать решения на основе реальных данных вашего магазина.', self.home)
+        self.assertNotIn('Нейросеть + данные вашего магазина.', self.home)
+        self.assertNotIn('а доступ к кабинету остаётся только на чтение.', self.home)
+        self.assertIn('<a class="button primary" href="#features">Возможности</a>', self.home)
+        self.assertNotIn('<a class="button primary" href="#beta">Попробовать</a>', self.home)
+
+    def test_owner_centered_sections_layout(self):
+        css = (ROOT / 'styles.css').read_text()
+        for term in (
+            '.features > .section-intro,',
+            '.workflow-heading {',
+            'text-align:center;',
+            '.employee-copy {',
+            '.data {',
+            '.public-page {',
+            '.page-section {',
+            '.analytics-case > h3,',
+            '#analytics-access .page-actions { justify-content:center; }',
+        ):
+            self.assertIn(term, css)
+        self.assertIn('/styles.css?v=capability-dropdown-r27-20260929', self.home)
+        analytics = (ROOT / 'seller-analytics.html').read_text()
+        self.assertIn('/styles.css?v=capability-dropdown-r27-20260929', analytics)
+
+    def test_capability_grid_is_two_columns_except_phone(self):
+        css = (ROOT / 'styles.css').read_text()
+        self.assertIn('.capability-groups { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; align-items:start; }', css)
+        self.assertIn('.capability-group[open] { grid-column:auto; }', css)
+        self.assertIn('justify-content:flex-start', css)
+        self.assertIn('min-height:58px', css)
+        self.assertIn('font-size:17px', css)
+        self.assertIn('.capability-group .capability-grid { grid-template-columns:minmax(0,1fr); padding:16px; }', css)
+        self.assertIn('@media (max-width:620px) { .capability-groups { grid-template-columns:minmax(0,1fr); } .capability-group[open] { grid-column:auto; }', css)
+
     def test_support_prioritises_contact_before_limits(self):
         html = (ROOT / 'support.html').read_text()
         self.assertLess(html.index('Написать в поддержку'), html.index('id="beta-status"'))
