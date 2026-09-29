@@ -113,6 +113,24 @@ class ApprovedCopyTests(unittest.TestCase):
         self.assertIn('<a class="button primary" href="#features">Возможности</a>', self.home)
         self.assertNotIn('<a class="button primary" href="#beta">Попробовать</a>', self.home)
 
+    def test_owner_centered_sections_layout(self):
+        css = (ROOT / 'styles.css').read_text()
+        for term in (
+            '.features > .section-intro,',
+            '.workflow-heading {',
+            'text-align:center;',
+            '.employee-copy {',
+            '.data {',
+            '.public-page {',
+            '.page-section {',
+            '.analytics-case > h3,',
+            '#analytics-access .page-actions { justify-content:center; }',
+        ):
+            self.assertIn(term, css)
+        self.assertIn('/styles.css?v=centered-sections-r25-20260929', self.home)
+        analytics = (ROOT / 'seller-analytics.html').read_text()
+        self.assertIn('/styles.css?v=centered-sections-r25-20260929', analytics)
+
     def test_support_prioritises_contact_before_limits(self):
         html = (ROOT / 'support.html').read_text()
         self.assertLess(html.index('Написать в поддержку'), html.index('id="beta-status"'))
