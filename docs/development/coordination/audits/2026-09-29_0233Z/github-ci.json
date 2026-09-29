@@ -1,0 +1,102 @@
+[
+  {
+    "id": 36513626661,
+    "name": "Coordination and release safety",
+    "head_branch": "main",
+    "head_sha": "af2d2119722a29a33ff25ac9c465d95605a1015d",
+    "status": "completed",
+    "conclusion": "success",
+    "created_at": "2026-09-29T02:39:37Z",
+    "html_url": "https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/36513626661"
+  },
+  {
+    "id": 36513626857,
+    "name": "Documentation CI",
+    "head_branch": "main",
+    "head_sha": "af2d2119722a29a33ff25ac9c465d95605a1015d",
+    "status": "completed",
+    "conclusion": "success",
+    "created_at": "2026-09-29T02:39:37Z",
+    "html_url": "https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/36513626857"
+  },
+  {
+    "id": 36513626702,
+    "name": "Extension CI",
+    "head_branch": "main",
+    "head_sha": "af2d2119722a29a33ff25ac9c465d95605a1015d",
+    "status": "in_progress",
+    "conclusion": null,
+    "created_at": "2026-09-29T02:39:37Z",
+    "html_url": "https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/36513626702"
+  },
+  {
+    "id": 36513626773,
+    "name": "Extension I1-C1 client",
+    "head_branch": "main",
+    "head_sha": "af2d2119722a29a33ff25ac9c465d95605a1015d",
+    "status": "completed",
+    "conclusion": "success",
+    "created_at": "2026-09-29T02:39:37Z",
+    "html_url": "https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/36513626773"
+  },
+  {
+    "id": 36513626651,
+    "name": "Server CI",
+    "head_branch": "main",
+    "head_sha": "af2d2119722a29a33ff25ac9c465d95605a1015d",
+    "status": "in_progress",
+    "conclusion": null,
+    "created_at": "2026-09-29T02:39:36Z",
+    "html_url": "https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/36513626651"
+  },
+  {
+    "id": 36511744832,
+    "name": "Documentation CI",
+    "head_branch": "work/c-integration",
+    "head_sha": "af2d2119722a29a33ff25ac9c465d95605a1015d",
+    "status": "completed",
+    "conclusion": "success",
+    "created_at": "2026-09-29T02:15:29Z",
+    "html_url": "https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/36511744832"
+  },
+  {
+    "id": 36511744841,
+    "name": "Coordination and release safety",
+    "head_branch": "work/c-integration",
+    "head_sha": "af2d2119722a29a33ff25ac9c465d95605a1015d",
+    "status": "completed",
+    "conclusion": "success",
+    "created_at": "2026-09-29T02:15:29Z",
+    "html_url": "https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/36511744841"
+  },
+  {
+    "id": 36511744873,
+    "name": "Extension I1-C1 client",
+    "head_branch": "work/c-integration",
+    "head_sha": "af2d2119722a29a33ff25ac9c465d95605a1015d",
+    "status": "completed",
+    "conclusion": "success",
+    "created_at": "2026-09-29T02:15:29Z",
+    "html_url": "https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/36511744873"
+  },
+  {
+    "id": 36511744921,
+    "name": "Extension CI",
+    "head_branch": "work/c-integration",
+    "head_sha": "af2d2119722a29a33ff25ac9c465d95605a1015d",
+    "status": "completed",
+    "conclusion": "success",
+    "created_at": "2026-09-29T02:15:29Z",
+    "html_url": "https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/36511744921"
+  },
+  {
+    "id": 36511744918,
+    "name": "Server CI",
+    "head_branch": "work/c-integration",
+    "head_sha": "af2d2119722a29a33ff25ac9c465d95605a1015d",
+    "status": "completed",
+    "conclusion": "success",
+    "created_at": "2026-09-29T02:15:29Z",
+    "html_url": "https://github.com/MaksimUnimax/runtime-fixtures/actions/runs/36511744918"
+  }
+]

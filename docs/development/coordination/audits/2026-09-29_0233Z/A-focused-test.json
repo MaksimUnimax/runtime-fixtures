@@ -1,0 +1,8 @@
+{
+  "command": [
+    "/opt/octoport/ops-releases/62024d192a8572c11aafab91653330d1f996699f/.runtime/node",
+    "tests/regression/extension-core/client-i1/client-d3s2-store-metadata-state.mjs"
+  ],
+  "exit": 0,
+  "output": "{\n  \"total\": 60,\n  \"passed\": 60,\n  \"failed\": 0,\n  \"failures\": []\n}\n"
+}
