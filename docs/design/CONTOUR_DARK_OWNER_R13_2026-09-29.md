@@ -42,7 +42,7 @@ The normalized geometry is also recorded in `apps/site/design-sources/contour-ow
 
 All five public pages declare `color-scheme=dark` and theme color `#0d1929`. The HOME theme checkbox/label and all light/dark switching CSS are removed. The header logo and browser-card Octoport mark use a fixed dark-site treatment.
 
-The hero scene uses the owner-reference dark navy gradient. DOM badge backgrounds are transparent so the same scene background remains visible inside each circle.
+The hero scene has no separate rectangular or gradient background. It is transparent and sits directly on the site dark background. DOM badge backgrounds are also transparent, so no box is visible around the illustration.
 
 ## Source/browser evidence
 
