@@ -10,7 +10,7 @@
   "asset_bytes": 51369,
   "palette": {
     "scene": "#f4f7fb",
-    "background": "dark_navy_gradient"
+    "background": "transparent_on_site_dark"
   },
   "button_geometry": {
     "alice": [

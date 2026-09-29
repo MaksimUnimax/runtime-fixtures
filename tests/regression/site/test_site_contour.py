@@ -45,9 +45,9 @@ class ContourSourceTests(unittest.TestCase):
         self.assertNotIn('/assets/contour-exact-trace-r12.svg#underlay',self.html)
 
     def test_r13_reference_geometry_and_dark_palette(self):
-        self.assertEqual(self.manifest["palette"],{"scene":"#f4f7fb","background":"dark_navy_gradient"})
+        self.assertEqual(self.manifest["palette"],{"scene":"#f4f7fb","background":"transparent_on_site_dark"})
         self.assertIn("--scene-ink:#f4f7fb",self.css)
-        self.assertIn("radial-gradient(ellipse at 50% 14%",self.css)
+        self.assertNotIn("radial-gradient(ellipse at 50% 14%",self.css)
         self.assertIn("color-scheme:dark",self.css)
         for name,(left,top,width) in self.manifest["button_geometry"].items():
             block=re.search(r"(?m)^\s*\.pos-"+name+r"\s*\{([^}]+)\}",self.css).group(1)
@@ -85,9 +85,11 @@ class ContourSourceTests(unittest.TestCase):
         for font in re.findall(r"url\((/assets/fonts/[^)]+)\)",self.css):
             self.assertTrue((ROOT/font.lstrip("/")).is_file(),font)
 
-    def test_reference_scene_has_dark_gradient_not_theme_rectangle_switching(self):
+    def test_reference_scene_has_no_separate_background(self):
         blocks=re.findall(r"\.contour-scene\s*\{([^}]+)\}",self.css)
-        self.assertTrue(any("radial-gradient" in b for b in blocks))
+        self.assertTrue(blocks)
+        self.assertTrue(all("radial-gradient" not in b and "linear-gradient" not in b for b in blocks))
+        self.assertTrue(any("background:transparent" in b.replace(" ","") for b in blocks))
         self.assertNotIn("--scene-ink:#052039",self.css)
         self.assertNotIn("light-art",self.css); self.assertNotIn("dark-art",self.css)
 
