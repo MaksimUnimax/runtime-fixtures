@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   evaluateApiWatchIncidents,
+  incidentKey,
   InMemoryApiWatchIncidentStore,
 } from "./incident.js";
 import type { ApiWatchReport } from "./types.js";
@@ -91,6 +92,7 @@ describe("A8 durable incidents", () => {
           crosswalkId: "x",
           reportId: "r",
           sourceFamily: "OZON_SELLER",
+          documentKey: null,
           sourceIdentity: "OZON_SELLER:GET:/x",
           runtimeAlias: null,
           crosswalkState: "SOURCE_ONLY",
@@ -115,6 +117,7 @@ describe("A8 durable incidents", () => {
       crosswalkId: "x",
       reportId: "r",
       sourceFamily: "OZON_SELLER" as const,
+      documentKey: null,
       sourceIdentity: "OZON_SELLER:GET:/x",
       runtimeAlias: null,
       crosswalkState: "SOURCE_ONLY" as const,
@@ -192,6 +195,7 @@ describe("operation recovery requires accepted compatibility evidence", () => {
         crosswalkId: "operation-row",
         reportId: "changed",
         sourceFamily: "OZON_SELLER" as const,
+        documentKey: null,
         sourceIdentity: "OZON_SELLER:GET:/x",
         runtimeAlias: "seller_info",
         crosswalkState,
@@ -247,6 +251,7 @@ describe("operation recovery requires accepted compatibility evidence", () => {
     const notify = vi.fn().mockResolvedValue(undefined);
     const changed = comparableReport();
     changed.reportId = "changed";
+    changed.sources[0]!.documentKey = "public";
     changed.sources[0]!.changeMode = "CHANGED";
     await evaluateApiWatchIncidents({
       report: changed,
@@ -257,6 +262,7 @@ describe("operation recovery requires accepted compatibility evidence", () => {
           crosswalkId: "return-row",
           reportId: "changed",
           sourceFamily: "OZON_SELLER",
+          documentKey: "public",
           sourceIdentity: "OZON_SELLER:GET:/x",
           runtimeAlias: "seller_info",
           crosswalkState: "MAPPED_ENABLED",
@@ -273,6 +279,7 @@ describe("operation recovery requires accepted compatibility evidence", () => {
 
     const recovered = comparableReport();
     recovered.reportId = "restored";
+    recovered.sources[0]!.documentKey = "public";
     recovered.sources[0]!.errorCode = null;
     await evaluateApiWatchIncidents({
       report: recovered,
@@ -301,6 +308,7 @@ describe("operation recovery requires accepted compatibility evidence", () => {
           crosswalkId: "multi-doc-row",
           reportId: "changed",
           sourceFamily: "OZON_SELLER",
+          documentKey: null,
           sourceIdentity: "OZON_SELLER:GET:/x",
           runtimeAlias: "seller_info",
           crosswalkState: "MAPPED_ENABLED",
@@ -335,6 +343,7 @@ describe("operation recovery requires accepted compatibility evidence", () => {
           crosswalkId: "x",
           reportId: "r",
           sourceFamily: "OZON_SELLER",
+          documentKey: null,
           sourceIdentity: "OZON_SELLER:GET:/x",
           runtimeAlias: null,
           crosswalkState: "SOURCE_ONLY",
@@ -350,6 +359,93 @@ describe("operation recovery requires accepted compatibility evidence", () => {
     otherFamily.sources[0]!.sourceFamily = "WILDBERRIES";
     await evaluateApiWatchIncidents({ report: otherFamily, store });
     expect(await store.listOpen()).toHaveLength(1);
+  });
+});
+
+describe("document-scoped product incidents", () => {
+  const row = (documentKey: string | null) => ({
+    crosswalkId: `row-${documentKey}`,
+    reportId: "changed",
+    sourceFamily: "OZON_SELLER" as const,
+    documentKey,
+    sourceIdentity: "OZON_SELLER:GET:/same",
+    runtimeAlias: null,
+    crosswalkState: "SOURCE_ONLY" as const,
+    reviewState: "REVIEW_REQUIRED" as const,
+    executionEnabled: null,
+    impactSeverity: null,
+    diffSha256: null,
+    createdAt: new Date(1),
+  });
+
+  it("opens distinct same-operation incidents and recovers only the matching document", async () => {
+    const store = new InMemoryApiWatchIncidentStore();
+    const changed = comparableReport();
+    changed.reportId = "changed";
+    changed.sources[0]!.changeMode = "CHANGED";
+    await evaluateApiWatchIncidents({
+      report: changed,
+      crosswalkRows: [row("seller"), row("performance")],
+      store,
+    });
+    const opened = await store.listOpen();
+    expect(opened).toHaveLength(2);
+    expect(opened[0]!.incidentKey).not.toBe(opened[1]!.incidentKey);
+    const recovered = comparableReport();
+    recovered.sources[0]!.documentKey = "seller";
+    recovered.sources[0]!.errorCode = null;
+    await evaluateApiWatchIncidents({ report: recovered, store });
+    expect((await store.listOpen()).map((item) => item.documentKey)).toEqual([
+      "performance",
+    ]);
+  });
+
+  it("keeps scoped incident keys bounded and hides the raw document key", () => {
+    const key = incidentKey(
+      "API_CHANGE_BLOCKING",
+      "WILDBERRIES",
+      "x".repeat(512),
+      "ключ".repeat(128),
+    );
+    expect(key.length).toBeLessThanOrEqual(700);
+    expect(key).toMatch(/:DOCUMENT_SHA256:[0-9a-f]{64}$/);
+    expect(key).not.toContain("ключ");
+  });
+
+  it("requires every matching document source to prove recovery", async () => {
+    const store = new InMemoryApiWatchIncidentStore();
+    const changed = comparableReport();
+    changed.sources[0]!.documentKey = "seller";
+    changed.sources[0]!.changeMode = "CHANGED";
+    await evaluateApiWatchIncidents({
+      report: changed,
+      crosswalkRows: [row("seller")],
+      store,
+    });
+    const recovered = comparableReport();
+    recovered.sources[0]!.documentKey = "seller";
+    recovered.sources[0]!.errorCode = null;
+    recovered.sources.push({
+      ...recovered.sources[0]!,
+      errorCode: "PRODUCT_BASELINE_MISSING",
+    });
+    await evaluateApiWatchIncidents({ report: recovered, store });
+    expect(await store.listOpen()).toHaveLength(1);
+  });
+
+  it("never recovers a null-scoped product incident", async () => {
+    const store = new InMemoryApiWatchIncidentStore();
+    const changed = comparableReport();
+    changed.sources[0]!.changeMode = "CHANGED";
+    await evaluateApiWatchIncidents({
+      report: changed,
+      crosswalkRows: [row(null)],
+      store,
+    });
+    const recovered = comparableReport();
+    recovered.sources[0]!.errorCode = null;
+    await evaluateApiWatchIncidents({ report: recovered, store });
+    expect((await store.listOpen())[0]?.documentKey).toBeNull();
   });
 });
 

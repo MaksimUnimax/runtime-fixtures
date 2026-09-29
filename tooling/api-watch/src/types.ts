@@ -483,6 +483,7 @@ export type ProductCrosswalkRow = {
   crosswalkId: string;
   reportId: string;
   sourceFamily: SwaggerSourceFamily;
+  documentKey: string | null;
   sourceIdentity: string;
   runtimeAlias: string | null;
   crosswalkState: CrosswalkState;
@@ -511,6 +512,7 @@ export type ApiWatchIncident = {
   incidentKey: string;
   incidentType: ApiWatchIncidentType;
   sourceFamily: SwaggerSourceFamily | null;
+  documentKey: string | null;
   operationIdentity: string | null;
   firstSeenAt: Date;
   lastSeenAt: Date;
