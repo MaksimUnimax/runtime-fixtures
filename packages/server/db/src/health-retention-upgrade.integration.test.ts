@@ -507,6 +507,122 @@ describe.sequential("monitoring retention 0051 -> 0052 upgrade", () => {
     });
   });
 
+  it("backfills post-0052 rows emitted without retention receipts", async () => {
+    await runtime.query("DROP SCHEMA IF EXISTS public CASCADE");
+    await runtime.query("DROP SCHEMA IF EXISTS drizzle CASCADE");
+    await runtime.query("CREATE SCHEMA public");
+    await runMigrations({
+      connectionString,
+      migrationsDirectory: prefixDirectory,
+    });
+    await seedLegacyNoSessionRun();
+    await runMigrations({
+      connectionString,
+      migrationsDirectory: retention0052Directory,
+    });
+
+    const ready = async () => ({
+      kind: "READY" as const,
+      issues: [] as const,
+    });
+    const maintenanceNow = new Date("2026-09-28T18:00:00.000Z");
+    await runMonitorPilotRetentionMaintenance(
+      runtime,
+      {
+        mode: "apply",
+        limits: {
+          maxBackfill: 10,
+          maxReconcile: 10,
+          maxInventory: 10,
+          maxPrune: 0,
+          maxReceiptRetire: 0,
+          maxTerminalRetire: 0,
+        },
+      },
+      { preflight: ready, clock: () => maintenanceNow, nowMs: () => 0 },
+    );
+
+    const legacyRun = "d4000000-0000-4000-8000-000000000117";
+    await seedAdditionalLegacyRun({
+      scheduledRunId: "d4000000-0000-4000-8000-000000000116",
+      healthRunId: legacyRun,
+      dueSlotAt: new Date("2026-09-27T12:00:00.000Z"),
+      observation: legacyObservation({
+        observedAt: new Date("2026-09-27T12:00:01.000Z"),
+      }),
+      idempotencyHex: "1",
+      callbackHex: "2",
+    });
+
+    const before = await runtime.query<{
+      runs: string;
+      receipts: string;
+      repair: string | null;
+      apiBaseline: string | null;
+    }>(`SELECT
+      (SELECT count(*)::text FROM health_runs) AS runs,
+      (SELECT count(*)::text FROM health_no_session_run_receipts) AS receipts,
+      to_regclass('monitor_profile_repair_bindings')::text AS repair,
+      to_regclass('api_watch_product_baselines')::text AS "apiBaseline"`);
+    expect(before.rows[0]).toEqual({
+      runs: "2",
+      receipts: "1",
+      repair: null,
+      apiBaseline: null,
+    });
+
+    const inspected = await runMonitorPilotRetentionMaintenance(
+      runtime,
+      { mode: "inspect", limits: { maxInventory: 10 } },
+      { preflight: ready, clock: () => maintenanceNow, nowMs: () => 0 },
+    );
+    expect(inspected.pendingBefore?.projection).toBe(1);
+
+    const applied = await runMonitorPilotRetentionMaintenance(
+      runtime,
+      {
+        mode: "apply",
+        limits: {
+          maxBackfill: 1,
+          maxReconcile: 1,
+          maxInventory: 10,
+          maxPrune: 0,
+          maxReceiptRetire: 0,
+          maxTerminalRetire: 0,
+        },
+      },
+      { preflight: ready, clock: () => maintenanceNow, nowMs: () => 0 },
+    );
+    expect(applied.actions).toMatchObject({ projected: 1, reconciled: 1 });
+    expect(applied.pendingAfter?.projection).toBe(0);
+
+    const after = await runtime.query<{
+      receipts: string;
+      projected: string;
+      incidentProcessed: string;
+      recent: string;
+      repeats: string;
+      latestRunId: string;
+      notifications: string;
+    }>(`SELECT
+      (SELECT count(*)::text FROM health_no_session_run_receipts) AS receipts,
+      (SELECT count(projection_applied_at)::text FROM health_no_session_run_receipts) AS projected,
+      (SELECT count(incident_processed_at)::text FROM health_no_session_run_receipts) AS "incidentProcessed",
+      (SELECT count(*)::text FROM health_no_session_recent_states) AS recent,
+      (SELECT COALESCE(sum(repeat_count),0)::text FROM health_no_session_recent_states) AS repeats,
+      (SELECT latest_run_id::text FROM health_no_session_scope_states LIMIT 1) AS "latestRunId",
+      (SELECT count(*)::text FROM health_notification_intents) AS notifications`);
+    expect(after.rows[0]).toEqual({
+      receipts: "2",
+      projected: "2",
+      incidentProcessed: "2",
+      recent: "1",
+      repeats: "2",
+      latestRunId: legacyRun,
+      notifications: "0",
+    });
+  });
+
   it("backfills durable receipts and compact projection from a real 0051 legacy row", async () => {
     await runtime.query("DROP SCHEMA IF EXISTS public CASCADE");
     await runtime.query("DROP SCHEMA IF EXISTS drizzle CASCADE");
