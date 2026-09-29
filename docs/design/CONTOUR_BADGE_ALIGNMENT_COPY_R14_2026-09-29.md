@@ -2,7 +2,7 @@
 
 Date: 2026-09-29
 
-Status: SOURCE_ACCEPTED / PRODUCTION_PENDING.
+Status: PRODUCTION_DEPLOYED / LIVE_QA_PASS.
 
 ## Owner correction
 
@@ -25,3 +25,18 @@ All eight circles remain real DOM links. Only a hovered/focused circle transform
 - site regression suite includes a dedicated badge-alignment contract;
 - Chrome local hero check: 8 states / 8 hover-focus pairs PASS at 1440, 960, 390 and 320;
 - visual captures confirm the revised owner heading and reference-aligned badge contents with no separate hero background.
+
+## Production acceptance
+
+Production source commit: `d00099ce81f8ca2f74999c6bf8131fbd39b3f44b`.
+
+Deployment result: PASS. Immutable release: `/var/www/octoport-site/releases/d00099ce81f8ca2f74999c6bf8131fbd39b3f44b`.
+Rollback backup: `/var/backups/octoport-site/20260929T085642Z`.
+
+Live checks on `https://octoport.ru`:
+- Chrome: 8 hero states, 8/8 hover-focus pairs PASS;
+- Opera: 8 hero states, 8/8 hover-focus pairs PASS;
+- Yandex Browser: 8 hero states, 8/8 hover-focus pairs PASS;
+- Chrome approved-copy/public-page run: 15 states, 48 disclosure interactions PASS;
+- 1440, 960, 390 and 320 layouts remain overflow-free;
+- live screenshot review confirms centered AI marks/labels and the revised WB/Ozon proportions.
