@@ -89,6 +89,7 @@ async function fixture(options = {}) {
     if (gate) await gate;
     if (mode === "network") throw new Error("network unavailable");
     if (mode === "unauthorized") return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401, headers: { "content-type": "application/json" } });
+    if (mode === "bootstrap-unavailable") return new Response(JSON.stringify({ error: { code: "BOOTSTRAP_UNAVAILABLE", message: "Health authority unavailable" } }), { status: 503, headers: { "content-type": "application/json" } });
     if (mode === "unavailable") return new Response(JSON.stringify(await healthEnvelope(backing, { status: "UNAVAILABLE", reason: "PRODUCER_UNAVAILABLE" })), { status: 200, headers: { "content-type": "application/json" } });
     return new Response(JSON.stringify(signedHealth), { status: 200, headers: { "content-type": "application/json" } });
   } });
@@ -168,6 +169,7 @@ await run("C1-14", "malformed Health UNAVAILABLE remains fail-closed", async () 
 await run("C1-15", "expired Health does not truncate signed local authority", async () => { const f = await fixture({ healthOverrides: { observedAt: new Date(Date.now() - 16 * 60_000).toISOString(), expiresAt: new Date(Date.now() - 1000).toISOString() } }); try { const r = await start(f); assert.equal(r.ok, true, JSON.stringify(r)); } finally { await close(f); } });
 await run("C1-16", "wrong Health snapshot/context denied", async () => { const f = await fixture({ healthOverrides: { context: { bootstrapSnapshotSha256: "f".repeat(64) } } }); try { await deniedStart(f); } finally { await close(f); } });
 await run("C1-17", "Health network failure does not block local autonomous Start", async () => { const f = await fixture({ health: "network" }); try { const r = await start(f); assert.equal(r.ok, true, JSON.stringify(r)); } finally { await close(f); } });
+await run("C1-17B", "Health 503 BOOTSTRAP_UNAVAILABLE does not block local autonomous Start", async () => { const f = await fixture({ health: "bootstrap-unavailable" }); try { const r = await start(f); assert.equal(r.ok, true, JSON.stringify(r)); } finally { await close(f); } });
 await run("C1-18", "401 terminal control auth failure remains denial", async () => { const f = await fixture({ health: "unauthorized" }); try { await deniedStart(f); } finally { await close(f); } });
 
 for (const [id, field, mutate] of [
