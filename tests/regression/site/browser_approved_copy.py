@@ -33,10 +33,10 @@ try:
                 d=b.info();assert d['cw']==d['sw'],('overflow',route,width,d)
                 assert ' '.join(d['h1'].split())==expected_h1[route],(route,d['h1'])
                 assert d['font'] and all(i['ok'] for i in d['images']),('assets',route,width)
-                names=b.ev('[...document.querySelectorAll(".brand-ozon,.brand-wildberries")].map(e=>({color:getComputedStyle(e).color,type:e.classList.contains("brand-ozon")?"ozon":"wb",badge:!!e.closest(".market-badge")}))')
+                names=b.ev('[...document.querySelectorAll(".brand-ozon,.brand-wildberries")].map(e=>({color:getComputedStyle(e).color,type:e.classList.contains("brand-ozon")?"ozon":"wb",hero:!!e.closest(".hero-text")}))')
                 palette={'ozon':'rgb(78, 147, 255)','wb':'rgb(241, 92, 221)'}
-                badge_palette={'ozon':'rgb(0, 140, 243)','wb':'rgb(238, 32, 245)'}
-                assert names and all(n['color']==(badge_palette if n['badge'] else palette)[n['type']] for n in names),(route,names)
+                hero_palette={'ozon':'rgb(61, 156, 255)','wb':'rgb(240, 73, 215)'}
+                assert names and all(n['color']==(hero_palette if n['hero'] else palette)[n['type']] for n in names),(route,names)
                 assert d['canonical']=='https://octoport.ru'+route
                 # Source serves canonical production URLs too.
                 d.update(route=route,width=width,theme=theme)
