@@ -100,7 +100,7 @@ def checks(d):
  assert d['cw']==d['sw'],('overflow',d)
  assert d['themeControls']==0,d
  assert d['colorScheme']=='dark' and d['themeColor']=='#0d1929',d
- assert 'radial-gradient' in d['sceneBackground'],d['sceneBackground']
+ assert d['sceneBackground']=='none',d['sceneBackground']
  assert abs(d['scene']['w']/d['scene']['h']-4/3)<.002,('reference aspect ratio',d['scene'])
  assert d['under']['tag']=='img' and 'contour-owner-static-r13' in d['under']['cls'],d['under']
  assert d['under']['src'].endswith('/assets/contour-owner-static-r13.svg') and d['under']['ok'],d['under']
