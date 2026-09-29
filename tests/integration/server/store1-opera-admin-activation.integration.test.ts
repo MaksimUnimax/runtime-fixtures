@@ -64,6 +64,7 @@ import {
   STORE1_ACCEPTED_SOURCE_TREE,
   STORE1_CONTRACT,
   STORE1_POLICY_KEY,
+  STORE1_PREVIOUS_VERSION,
   STORE1_PROFILE_SHA256,
   STORE1_VERSION,
   planStore1Activation,
@@ -914,7 +915,7 @@ describe.sequential("STORE-1 ordinary-admin whole-sequence rehearsal", () => {
     delete readback.signaturePreflight;
   });
 
-  it("seeds the exact 0.2.7 predecessor through normal admin APIs for the upgrade rehearsal", async () => {
+  it("seeds the exact predecessor through normal admin APIs for the upgrade rehearsal", async () => {
     const predecessor = await call({
       method: "POST",
       path:
@@ -922,8 +923,8 @@ describe.sequential("STORE-1 ordinary-admin whole-sequence rehearsal", () => {
       body: {
         contractVersion: STORE1_CONTRACT,
         browserFamily: "opera",
-        minimumExtensionVersion: "0.2.7",
-        recommendedExtensionVersion: "0.2.7",
+        minimumExtensionVersion: STORE1_PREVIOUS_VERSION,
+        recommendedExtensionVersion: STORE1_PREVIOUS_VERSION,
         minimumBrowserVersion: "136",
         maintenanceMode: false,
         maintenanceCode: null,
@@ -973,8 +974,8 @@ describe.sequential("STORE-1 ordinary-admin whole-sequence rehearsal", () => {
       [predecessorBody.id],
     );
     expect(linked.rows[0]).toEqual({
-      minimum: "0.2.7",
-      recommended: "0.2.7",
+      minimum: STORE1_PREVIOUS_VERSION,
+      recommended: STORE1_PREVIOUS_VERSION,
       linked: 1,
     });
     delete readback.release;
