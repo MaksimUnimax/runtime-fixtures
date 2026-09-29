@@ -5,6 +5,7 @@ import { validateProfileContent } from "../../packages/server/adapter-registry/s
 import { isTrustedStore1V2SignaturePreflightProof } from "./store1-v2-signature-preflight.js";
 
 export const STORE1_VERSION = "0.2.7" as const;
+const STORE1_PREVIOUS_VERSION = "0.2.6" as const;
 export const STORE1_CONTRACT = "control_plane_v2" as const;
 export const STORE1_BROWSER = "opera" as const;
 export const STORE1_BROWSER_MINIMUM = "136" as const;
@@ -540,7 +541,18 @@ export function planStore1Activation(
       "Read STORE-1 v2 Opera policy revisions.",
     );
   const policy = r.policies[0] ?? null;
-  if (policy === null)
+  const policyMatchesVersion = (version: string) =>
+    policy !== null &&
+    policy.policyKey === STORE1_POLICY_KEY &&
+    policy.contractVersion === STORE1_CONTRACT &&
+    policy.browserFamily === STORE1_BROWSER &&
+    policy.minimumExtensionVersion === version &&
+    policy.recommendedExtensionVersion === version &&
+    policy.minimumBrowserVersion === STORE1_BROWSER_MINIMUM &&
+    !policy.maintenanceMode &&
+    policy.maintenanceCode === null &&
+    policy.blockedVersions.length === 0;
+  if (policy === null || policyMatchesVersion(STORE1_PREVIOUS_VERSION))
     return post(
       `/v1/admin/compatibility/policies/${STORE1_POLICY_KEY}/publish`,
       {
@@ -554,22 +566,14 @@ export function planStore1Activation(
         blockedVersions: [],
         reason: STORE1_REASON,
       },
-      "Publish exact Opera compatibility policy.",
+      policy === null
+        ? "Publish exact Opera compatibility policy."
+        : "Append the exact STORE-1 0.2.7 policy revision over the accepted 0.2.6 predecessor.",
     );
-  if (
-    policy.policyKey !== STORE1_POLICY_KEY ||
-    policy.contractVersion !== STORE1_CONTRACT ||
-    policy.browserFamily !== STORE1_BROWSER ||
-    policy.minimumExtensionVersion !== STORE1_VERSION ||
-    policy.recommendedExtensionVersion !== STORE1_VERSION ||
-    policy.minimumBrowserVersion !== STORE1_BROWSER_MINIMUM ||
-    policy.maintenanceMode ||
-    policy.maintenanceCode !== null ||
-    policy.blockedVersions.length !== 0
-  )
+  if (!policyMatchesVersion(STORE1_VERSION))
     return conflict(
       "STORE1_POLICY_CONFLICT",
-      "Latest STORE-1 policy does not equal the bounded Opera target.",
+      "Latest STORE-1 policy is neither the bounded Opera target nor its exact accepted predecessor.",
     );
 
   if (!r.config.compatibilityPolicyRevisionIds.includes(policy.id))
