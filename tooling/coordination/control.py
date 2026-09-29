@@ -77,8 +77,27 @@ def update_state(role, action, args):
             consumed = state.setdefault("consumed_resume_receipts", [])
             if args.receipt in consumed or args.receipt == state.get("resume_receipt"):
                 raise RuntimeError("RESUME_RECEIPT_ALREADY_USED: a later STOP needs a new direct instruction")
-            state["status"] = "RUNNING"
-            state["resume_receipt"] = args.receipt
+            resumed_at = now_text()
+            previous_checkpoint = {
+                key: state.get(key) for key in (
+                    "status", "task", "result", "next", "head", "updated_at",
+                    "stopped_at", "stop_reason", "resume_receipt",
+                )
+            }
+            state.setdefault("resume_history", []).append({
+                "at": resumed_at,
+                "receipt": args.receipt,
+                "previous_checkpoint": previous_checkpoint,
+            })
+            state.update(
+                status="RUNNING", resume_receipt=args.receipt, resumed_at=resumed_at,
+                checkpoint_status="RECONCILIATION_REQUIRED",
+                task="RECONCILE_AFTER_RESUME",
+                result="Resume accepted; prior progress is preserved in resume_history, not a fresh result.",
+                next="Read current code, notices, inbox and peer handoffs; preserve prior progress and checkpoint the actual task. No additional resume is required.",
+            )
+            state.pop("stopped_at", None)
+            state.pop("stop_reason", None)
             consumed.append(args.receipt)
             state.setdefault("review_clock", now)
         elif action == "waiting":
@@ -89,7 +108,8 @@ def update_state(role, action, args):
             )
             state["status"] = "WAITING_INPUT"
         elif action == "checkpoint":
-            state.update(task=args.task or state.get("task"), result=args.summary, next=args.next)
+            state.update(task=args.task or state.get("task"), result=args.summary, next=args.next,
+                         checkpoint_status="CURRENT")
         elif action == "request-review":
             state.update(review_pending=True, review_reason=args.summary)
             state.setdefault("review_requested_at", now_text())
