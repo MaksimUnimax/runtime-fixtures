@@ -5,6 +5,7 @@ import argparse
 import fcntl
 import json
 import os
+import signal
 import subprocess
 import sys
 from pathlib import Path
@@ -68,6 +69,8 @@ def parse_cli_result(stdout: str) -> dict[str, Any]:
         result = json.loads(payload)
     except json.JSONDecodeError as exc:
         raise RetentionRunnerError("RETENTION_RESULT_INVALID") from exc
+    if not isinstance(result, dict):
+        raise RetentionRunnerError("RETENTION_RESULT_INVALID")
     if result.get("schemaVersion") != "monitor_pilot_retention_maintenance_v1":
         raise RetentionRunnerError("RETENTION_RESULT_SCHEMA_INVALID")
     if result.get("kind") not in {
@@ -140,6 +143,33 @@ def _safe_snapshot(result: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _run_command_group(
+    command: list[str],
+    cwd: Path,
+    env: dict[str, str],
+    timeout_seconds: float,
+) -> tuple[int, str, str]:
+    process = subprocess.Popen(
+        command,
+        cwd=cwd,
+        env=env,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        start_new_session=True,
+    )
+    try:
+        stdout, stderr = process.communicate(timeout=timeout_seconds)
+    except subprocess.TimeoutExpired as exc:
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        process.communicate()
+        raise RetentionRunnerError("RETENTION_CLI_HARD_TIMEOUT") from exc
+    return process.returncode, stdout, stderr
+
+
 def invoke_cli(
     release_root: Path,
     mode: str,
@@ -151,20 +181,14 @@ def invoke_cli(
         "NODE_PATH",
         str(release_root / "apps/telegram-operator/node_modules"),
     )
-    try:
-        completed = subprocess.run(
-            build_cli_command(release_root, mode, cursor),
-            cwd=release_root,
-            env=env,
-            text=True,
-            capture_output=True,
-            timeout=timeout_seconds,
-            check=False,
-        )
-    except subprocess.TimeoutExpired as exc:
-        raise RetentionRunnerError("RETENTION_CLI_HARD_TIMEOUT") from exc
-    result = parse_cli_result(completed.stdout)
-    return completed.returncode, result
+    return_code, stdout, _stderr = _run_command_group(
+        build_cli_command(release_root, mode, cursor),
+        release_root,
+        env,
+        timeout_seconds,
+    )
+    result = parse_cli_result(stdout)
+    return return_code, result
 
 
 def run_once(
@@ -185,7 +209,13 @@ def run_once(
         cursor_path = state_dir / "cursor.json"
         cursor = _read_cursor(cursor_path) if mode == "apply" else None
         exit_code, result = invoker(release_root, mode, cursor, timeout_seconds)
-        kind = result["kind"]
+        kind = result.get("kind") if isinstance(result, dict) else None
+        allowed_kinds = {
+            "inspect": {"INSPECTED", "MISSING_AUTHORITY"},
+            "apply": {"APPLIED", "PARTIAL", "MISSING_AUTHORITY"},
+        }
+        if kind not in allowed_kinds[mode]:
+            raise RetentionRunnerError("RETENTION_RESULT_MODE_MISMATCH")
         expected = {
             "INSPECTED": 0,
             "APPLIED": 0,
