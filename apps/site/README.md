@@ -137,3 +137,11 @@ The HOME hero now follows the owner-selected cosmic text-first composition: cent
 ### HERO R18 — text left, full contour right
 
 R18 restores the complete accepted R15 contour composition (octopus plus eight clickable brand circles) to the right side of the HOME hero while preserving the newer approved text styling on the left. The temporary standalone R17 mascot is removed; the R16 cosmic arcs/pill remain absent. See `docs/design/HERO_R18_TEXT_LEFT_CONTOUR_RIGHT_2026-09-29.md`.
+
+### Browser cards R19 — full-color centered catalogue
+
+The HOME browser catalogue now uses full-color Chrome/Opera/Yandex/Firefox artwork, equal 78×78 browser and Octoport icon boxes, and fully centered 2×2 desktop cards with a centered one-column mobile fallback. See `docs/design/BROWSER_CARDS_R19_2026-09-29.md`.
+
+### Browser cards R20 — original footprint restored
+
+R20 keeps the full-color browser icons, equal 42×42 browser/Octoport icon boxes and centered card content, but restores the exact pre-R19 card footprint and responsive grid. See `docs/design/BROWSER_CARDS_R20_ORIGINAL_FOOTPRINT_2026-09-29.md`.

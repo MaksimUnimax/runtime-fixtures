@@ -175,6 +175,34 @@ class ContourSourceTests(unittest.TestCase):
         self.assertIn("scale(1.035)",hover)
         self.assertNotIn("contour-underlay",hover)
 
+    def test_browser_cards_are_centered_and_use_full_color_icons(self):
+        expected={
+            "chrome":"/assets/browser-icons/chrome.png",
+            "opera":"/assets/browser-icons/opera.png",
+            "yandex":"/assets/browser-icons/yandex.png",
+            "firefox":"/assets/browser-icons/firefox-color.svg",
+        }
+        for src in expected.values():
+            self.assertIn(f'src="{src}"',self.html)
+            self.assertTrue((ROOT/src.lstrip("/")).is_file(),src)
+        for old in ("chrome.svg","opera.svg","yandex.svg","firefox.svg"):
+            self.assertNotIn(f'/assets/browser-icons/{old}',self.html)
+        self.assertEqual(self.html.count('class="octo-mini"'),4)
+        self.assertIn("grid-template-columns:repeat(4,minmax(0,1fr))",self.css)
+        self.assertIn("align-items:center",self.css)
+        self.assertIn("justify-content:center",self.css)
+        self.assertIn("text-align:center",self.css)
+        self.assertIn("width:42px",self.css)
+        self.assertIn("height:42px",self.css)
+        self.assertIn("flex:0 0 42px",self.css)
+        for name in ("chrome","opera","yandex"):
+            b=(ROOT/f"assets/browser-icons/{name}.png").read_bytes()
+            self.assertEqual(b[:8],b"\x89PNG\r\n\x1a\n")
+            self.assertEqual(struct.unpack(">II",b[16:24]),(256,256))
+        firefox=(ROOT/"assets/browser-icons/firefox-color.svg").read_text()
+        self.assertIn('width="512" height="512"',firefox)
+        self.assertIn("radialGradient",firefox)
+
     def test_local_images_resolve_and_no_executable_javascript(self):
         for tag,a in self.tags:
             if tag=="img": self.assertTrue((ROOT/a["src"].lstrip("/")).is_file(),a["src"])

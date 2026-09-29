@@ -796,3 +796,77 @@ p,li { line-height:1.65; }
   .hero-actions .button { width:100%; }
   .contour-slogan { font-size:18px; }
 }
+
+/* R20 — restore original browser-card footprint; center content; equal browser/Octoport icon size. */
+.browser-catalog {
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:16px;
+  max-width:none;
+  margin:0 0 44px;
+}
+.browser-catalog article {
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  min-height:0;
+  padding:22px;
+  text-align:center;
+}
+.browser-icons {
+  justify-content:center;
+  gap:10px;
+  min-height:48px;
+  width:100%;
+  margin:0;
+}
+.browser-icons img,
+.browser-icons .octo-mini {
+  width:42px;
+  height:42px;
+  object-fit:contain;
+  flex:0 0 42px;
+}
+.browser-icons .octo-mini { filter:brightness(0) invert(1); }
+.browser-icons span {
+  display:grid;
+  place-items:center;
+  min-width:20px;
+  color:var(--ink);
+  font-size:20px;
+  line-height:1;
+}
+.browser-catalog h3 {
+  margin:16px 0 6px;
+  width:100%;
+  text-align:center;
+  font-size:20px;
+}
+.browser-catalog p {
+  margin:0 0 4px;
+  width:100%;
+  text-align:center;
+  font-size:inherit;
+  font-weight:600;
+}
+.browser-catalog small {
+  display:block;
+  width:100%;
+  max-width:none;
+  margin:0 auto;
+  color:var(--muted);
+  text-align:center;
+  line-height:1.45;
+}
+@media (max-width:1020px) {
+  .browser-catalog { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+@media (max-width:620px) {
+  .browser-catalog { grid-template-columns:1fr; gap:12px; }
+  .browser-catalog article { display:flex; padding:22px; min-height:0; }
+  .browser-icons { min-height:48px; gap:10px; }
+  .browser-icons img,.browser-icons .octo-mini { width:42px; height:42px; flex-basis:42px; }
+  .browser-icons span { font-size:20px; }
+  .browser-catalog h3 { margin:16px 0 6px; font-size:20px; }
+  .browser-catalog p,.browser-catalog small { grid-column:auto; }
+}
