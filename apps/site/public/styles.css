@@ -797,73 +797,76 @@ p,li { line-height:1.65; }
   .contour-slogan { font-size:18px; }
 }
 
-/* R19 — owner-approved browser cards: official browser artwork, equal-size Octoport mark, centered card content. */
+/* R20 — restore original browser-card footprint; center content; equal browser/Octoport icon size. */
 .browser-catalog {
-  grid-template-columns:repeat(2,minmax(0,1fr));
-  gap:22px;
-  max-width:1040px;
-  margin:0 auto 44px;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:16px;
+  max-width:none;
+  margin:0 0 44px;
 }
 .browser-catalog article {
   display:flex;
   flex-direction:column;
   align-items:center;
   justify-content:center;
-  min-height:286px;
-  padding:32px 30px;
+  min-height:0;
+  padding:22px;
   text-align:center;
 }
 .browser-icons {
   justify-content:center;
-  gap:18px;
-  min-height:82px;
+  gap:10px;
+  min-height:48px;
   width:100%;
-  margin:0 0 22px;
+  margin:0;
 }
 .browser-icons img,
 .browser-icons .octo-mini {
-  width:78px;
-  height:78px;
+  width:42px;
+  height:42px;
   object-fit:contain;
-  flex:0 0 78px;
+  flex:0 0 42px;
 }
 .browser-icons .octo-mini { filter:brightness(0) invert(1); }
 .browser-icons span {
   display:grid;
   place-items:center;
-  min-width:26px;
+  min-width:20px;
   color:var(--ink);
-  font-size:30px;
+  font-size:20px;
   line-height:1;
 }
 .browser-catalog h3 {
-  margin:0 0 10px;
+  margin:16px 0 6px;
   width:100%;
   text-align:center;
-  font-size:22px;
+  font-size:20px;
 }
 .browser-catalog p {
-  margin:0 0 8px;
+  margin:0 0 4px;
   width:100%;
   text-align:center;
-  font-size:17px;
+  font-size:inherit;
   font-weight:600;
 }
 .browser-catalog small {
   display:block;
   width:100%;
-  max-width:360px;
+  max-width:none;
   margin:0 auto;
   color:var(--muted);
   text-align:center;
   line-height:1.45;
 }
-@media (max-width:760px) {
-  .browser-catalog { grid-template-columns:1fr; max-width:560px; gap:16px; }
-  .browser-catalog article { min-height:250px; padding:28px 22px; }
-  .browser-icons { min-height:70px; margin-bottom:18px; gap:14px; }
-  .browser-icons img,.browser-icons .octo-mini { width:66px; height:66px; flex-basis:66px; }
-  .browser-icons span { font-size:26px; }
-  .browser-catalog h3 { font-size:21px; }
-  .browser-catalog p { font-size:16px; }
+@media (max-width:1020px) {
+  .browser-catalog { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+@media (max-width:620px) {
+  .browser-catalog { grid-template-columns:1fr; gap:12px; }
+  .browser-catalog article { display:flex; padding:22px; min-height:0; }
+  .browser-icons { min-height:48px; gap:10px; }
+  .browser-icons img,.browser-icons .octo-mini { width:42px; height:42px; flex-basis:42px; }
+  .browser-icons span { font-size:20px; }
+  .browser-catalog h3 { margin:16px 0 6px; font-size:20px; }
+  .browser-catalog p,.browser-catalog small { grid-column:auto; }
 }
