@@ -44,17 +44,17 @@ class PackageIdentityTests(unittest.TestCase):
             runtime = root / "runtime"
             runtime.mkdir()
             (runtime / "manifest.json").write_text(
-                json.dumps({"version": "0.2.7"}), encoding="utf-8"
+                json.dumps({"version": "0.2.8"}), encoding="utf-8"
             )
             expected_sha = hashlib.sha256(carrier.read_bytes()).hexdigest()
 
             for name, module in self.modules:
                 with self.subTest(module=name):
                     actual_sha, actual_version = module.validate_package_identity(
-                        HashHelper, carrier, runtime, expected_sha, "0.2.7"
+                        HashHelper, carrier, runtime, expected_sha, "0.2.8"
                     )
                     self.assertEqual(actual_sha, expected_sha)
-                    self.assertEqual(actual_version, "0.2.7")
+                    self.assertEqual(actual_version, "0.2.8")
 
     def test_rejects_sha_mismatch_before_browser_run(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -65,14 +65,14 @@ class PackageIdentityTests(unittest.TestCase):
             runtime = root / "runtime"
             runtime.mkdir()
             (runtime / "manifest.json").write_text(
-                json.dumps({"version": "0.2.7"}), encoding="utf-8"
+                json.dumps({"version": "0.2.8"}), encoding="utf-8"
             )
 
             for name, module in self.modules:
                 with self.subTest(module=name):
                     with self.assertRaises(Exception) as caught:
                         module.validate_package_identity(
-                            HashHelper, carrier, runtime, "0" * 64, "0.2.7"
+                            HashHelper, carrier, runtime, "0" * 64, "0.2.8"
                         )
                     self.assertEqual(str(caught.exception), "STORE_ZIP_SHA256_MISMATCH")
 
@@ -84,7 +84,7 @@ class PackageIdentityTests(unittest.TestCase):
             runtime = root / "runtime"
             runtime.mkdir()
             (runtime / "manifest.json").write_text(
-                json.dumps({"version": "0.2.8"}), encoding="utf-8"
+                json.dumps({"version": "0.2.7"}), encoding="utf-8"
             )
             expected_sha = hashlib.sha256(carrier.read_bytes()).hexdigest()
 
@@ -92,7 +92,7 @@ class PackageIdentityTests(unittest.TestCase):
                 with self.subTest(module=name):
                     with self.assertRaises(Exception) as caught:
                         module.validate_package_identity(
-                            HashHelper, carrier, runtime, expected_sha, "0.2.7"
+                            HashHelper, carrier, runtime, expected_sha, "0.2.8"
                         )
                     self.assertEqual(
                         str(caught.exception), "PACKAGE_MANIFEST_VERSION_MISMATCH"
