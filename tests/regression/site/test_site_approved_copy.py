@@ -127,14 +127,18 @@ class ApprovedCopyTests(unittest.TestCase):
             '#analytics-access .page-actions { justify-content:center; }',
         ):
             self.assertIn(term, css)
-        self.assertIn('/styles.css?v=capability-grid-r26-20260929', self.home)
+        self.assertIn('/styles.css?v=capability-dropdown-r27-20260929', self.home)
         analytics = (ROOT / 'seller-analytics.html').read_text()
-        self.assertIn('/styles.css?v=capability-grid-r26-20260929', analytics)
+        self.assertIn('/styles.css?v=capability-dropdown-r27-20260929', analytics)
 
     def test_capability_grid_is_two_columns_except_phone(self):
         css = (ROOT / 'styles.css').read_text()
         self.assertIn('.capability-groups { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; align-items:start; }', css)
-        self.assertIn('.capability-group[open] { grid-column:1 / -1; }', css)
+        self.assertIn('.capability-group[open] { grid-column:auto; }', css)
+        self.assertIn('justify-content:flex-start', css)
+        self.assertIn('min-height:58px', css)
+        self.assertIn('font-size:17px', css)
+        self.assertIn('.capability-group .capability-grid { grid-template-columns:minmax(0,1fr); padding:16px; }', css)
         self.assertIn('@media (max-width:620px) { .capability-groups { grid-template-columns:minmax(0,1fr); } .capability-group[open] { grid-column:auto; }', css)
 
     def test_support_prioritises_contact_before_limits(self):
