@@ -2,7 +2,7 @@
 
 Date: 2026-09-29
 
-Status: SOURCE_ACCEPTED / PRODUCTION_PENDING.
+Status: PRODUCTION_DEPLOYED / LIVE_QA_PASS.
 
 R20 corrects R19. The owner asked to replace the poor browser artwork, make the Octoport mark the same size as the browser icon, and center each card's content. The owner did **not** ask to enlarge the cards.
 
@@ -38,3 +38,16 @@ Thus the card dimensions were restored; the visual changes are limited to icon a
 - local screenshots checked at 1440, 900 and 390;
 - all browser/Octoport icon boxes are 42×42px;
 - no horizontal overflow.
+
+## Production acceptance
+
+Production source commit: `d734239f76960b013a688ee4866e4eaf88685168`.
+Live release: `/var/www/octoport-site/releases/d734239f76960b013a688ee4866e4eaf88685168`.
+Rollback backup: `/var/backups/octoport-site/20260929T104017Z`.
+
+Live measurements on `https://octoport.ru`:
+- 1440: cards 298 × 237.40625 px, equal browser/Octoport icons 42 × 42 px;
+- 900: cards 418 × 191.703125 px, equal browser/Octoport icons 42 × 42 px;
+- 390: cards 358 × 191.703125 px, equal browser/Octoport icons 42 × 42 px;
+- Chrome approved-copy/public-page run: 15 states / 48 disclosure interactions PASS;
+- production TLS/redirect/security-header/app/API verification PASS.
