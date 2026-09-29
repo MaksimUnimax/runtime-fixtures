@@ -2,7 +2,7 @@
 
 Date: 2026-09-29
 
-Status: SOURCE_ACCEPTED / PRODUCTION_PENDING.
+Status: PRODUCTION_DEPLOYED / LIVE_QA_PASS.
 
 Canonical owner reference: 1448×1086 PNG, SHA-256 `8402c8faab101c7975d075f1a8bdebc9c2d3f0f64d4367e7ec52313282bbcfb9`.
 
@@ -52,3 +52,21 @@ The hero scene uses the owner-reference dark navy gradient. DOM badge background
 - Yandex quick hero run: 8 states; 8/8 hover + focus; pointer click PASS; underlay stationary;
 - Chrome approved-copy/public-page run: 15 states and 48 disclosure interactions PASS;
 - 1440, 960, 390 and 320 viewport checks have no horizontal overflow.
+
+## Production acceptance
+
+Production source commit: `4aad6e30a186ec635a9e2841697f5cdf3cb0c7ad`.
+
+Deployment result: PASS. Immutable release: `/var/www/octoport-site/releases/4aad6e30a186ec635a9e2841697f5cdf3cb0c7ad`.
+Rollback backup: `/var/backups/octoport-site/20260929T080234Z`.
+
+Live post-deploy verification confirms TLS, redirects, security headers, unchanged app/API ingress, anonymous authentication guard and legacy docs service.
+
+Live browser acceptance on `https://octoport.ru`:
+- Chrome: 8 states, 8/8 hover/focus checks, pointer click PASS;
+- Opera: 8 states, 8/8 interaction checks PASS;
+- Yandex Browser: 8 states, 8/8 interaction checks PASS;
+- 1440, 960, 390 and 320 viewport checks show no horizontal overflow;
+- the static underlay remains stationary while badge controls interact independently.
+
+Live static SVG SHA-256: `39b40b0333c40be7a1ee16ca232f11ed158fc45694ee33fbf93278f03f70aae2`, byte-identical to the accepted source asset.
