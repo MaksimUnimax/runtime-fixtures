@@ -5,6 +5,7 @@ import argparse
 import fcntl
 import json
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -15,6 +16,9 @@ APPLY_CONFIRM = "ISOLATED_MONITOR_PILOT_RETENTION"
 RESULT_PREFIX = "MONITOR_PILOT_RETENTION_RESULT="
 DEFAULT_STATE_DIR = Path("/var/lib/octoport-monitor/retention-maintenance")
 DEFAULT_HARD_TIMEOUT_SECONDS = 60
+SAFE_CHILD_ERROR = re.compile(
+    r"^(?:MONITOR_PILOT|HEALTH_RETENTION)_[A-Z0-9_]+$"
+)
 
 
 class RetentionRunnerError(RuntimeError):
@@ -170,6 +174,14 @@ def _run_command_group(
     return process.returncode, stdout, stderr
 
 
+def _safe_child_error(stderr: str) -> str | None:
+    for line in reversed(stderr.splitlines()):
+        candidate = line.strip()
+        if SAFE_CHILD_ERROR.fullmatch(candidate):
+            return candidate
+    return None
+
+
 def invoke_cli(
     release_root: Path,
     mode: str,
@@ -181,13 +193,22 @@ def invoke_cli(
         "NODE_PATH",
         str(release_root / "apps/telegram-operator/node_modules"),
     )
-    return_code, stdout, _stderr = _run_command_group(
+    return_code, stdout, stderr = _run_command_group(
         build_cli_command(release_root, mode, cursor),
         release_root,
         env,
         timeout_seconds,
     )
-    result = parse_cli_result(stdout)
+    try:
+        result = parse_cli_result(stdout)
+    except RetentionRunnerError as exc:
+        if str(exc) == "RETENTION_RESULT_MISSING":
+            safe_error = _safe_child_error(stderr)
+            if safe_error is not None:
+                raise RetentionRunnerError(
+                    f"RETENTION_CLI_{safe_error}"
+                ) from exc
+        raise
     return return_code, result
 
 

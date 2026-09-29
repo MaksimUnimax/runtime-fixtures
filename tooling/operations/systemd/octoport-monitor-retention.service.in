@@ -11,6 +11,7 @@ Group=octoport-monitor
 WorkingDirectory=@RELEASE_DIR@
 EnvironmentFile=/etc/octoport-monitor/pilot.env
 Environment=NODE_PATH=@RELEASE_DIR@/apps/telegram-operator/node_modules
+Environment=MONITOR_PILOT_EXPECTED_ROLE=octoport_monitor_pilot
 UMask=0077
 StateDirectory=octoport-monitor-retention
 StateDirectoryMode=0700
