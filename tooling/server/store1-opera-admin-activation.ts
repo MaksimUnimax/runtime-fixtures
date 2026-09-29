@@ -582,7 +582,7 @@ export function planStore1Activation(
       },
       policy === null
         ? "Publish exact Opera compatibility policy."
-        : "Append the exact STORE-1 0.2.8 policy revision over the accepted 0.2.7 predecessor.",
+        : `Append the exact STORE-1 ${STORE1_VERSION} policy revision over the accepted ${STORE1_PREVIOUS_VERSION} predecessor.`,
     );
   if (!policyMatchesVersion(STORE1_VERSION))
     return conflict(

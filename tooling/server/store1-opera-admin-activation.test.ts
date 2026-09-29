@@ -257,6 +257,7 @@ describe("STORE-1 ordinary-admin activation planner", () => {
       status: "POST",
       next: {
         path: `/v1/admin/compatibility/policies/${STORE1_POLICY_KEY}/publish`,
+        purpose: `Append the exact STORE-1 ${STORE1_VERSION} policy revision over the accepted ${STORE1_PREVIOUS_VERSION} predecessor.`,
         body: {
           contractVersion: STORE1_CONTRACT,
           browserFamily: "opera",
