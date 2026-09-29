@@ -1,20 +1,20 @@
 import { createHash, webcrypto } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { createContext, runInContext } from "node:vm";
+import {
+  STORE1_ACCEPTED_ARTIFACT_SHA256,
+  STORE1_ACCEPTED_SOURCE_HEAD,
+  STORE1_ACCEPTED_SOURCE_TREE,
+  STORE1_BROWSER,
+  STORE1_BROWSER_MINIMUM,
+  STORE1_CONTRACT,
+  STORE1_VERSION,
+} from "./store1-operator-authority.js";
 import type {
   Store1ActivationReadback,
   Store1PackageAuthority,
   Store1V2SignaturePreflightProof,
 } from "./store1-opera-admin-activation.js";
-
-const STORE1_VERSION = "0.2.7" as const;
-const STORE1_CONTRACT = "control_plane_v2" as const;
-const STORE1_BROWSER = "opera" as const;
-const STORE1_BROWSER_MINIMUM = "136" as const;
-const STORE1_ACCEPTED_SOURCE_HEAD = "ce7685b7a534015923116576262e41958915afbb";
-const STORE1_ACCEPTED_SOURCE_TREE = "d95d93ae044b10668f0f1dce526d473867495e99";
-const STORE1_ACCEPTED_ARTIFACT_SHA256 =
-  "1c11bf6008b923af050f44bdaa97ab6b5197fda744c4a10aef5209f3efc95dc7";
 
 export const STORE1_V2_CONFIG_READ_PATH =
   "/v1/admin/compatibility/config-releases/latest?contractVersion=control_plane_v2" as const;

@@ -914,7 +914,7 @@ describe.sequential("STORE-1 ordinary-admin whole-sequence rehearsal", () => {
     delete readback.signaturePreflight;
   });
 
-  it("seeds the exact 0.2.6 predecessor through normal admin APIs for the upgrade rehearsal", async () => {
+  it("seeds the exact 0.2.7 predecessor through normal admin APIs for the upgrade rehearsal", async () => {
     const predecessor = await call({
       method: "POST",
       path:
@@ -922,8 +922,8 @@ describe.sequential("STORE-1 ordinary-admin whole-sequence rehearsal", () => {
       body: {
         contractVersion: STORE1_CONTRACT,
         browserFamily: "opera",
-        minimumExtensionVersion: "0.2.6",
-        recommendedExtensionVersion: "0.2.6",
+        minimumExtensionVersion: "0.2.7",
+        recommendedExtensionVersion: "0.2.7",
         minimumBrowserVersion: "136",
         maintenanceMode: false,
         maintenanceCode: null,
@@ -973,8 +973,8 @@ describe.sequential("STORE-1 ordinary-admin whole-sequence rehearsal", () => {
       [predecessorBody.id],
     );
     expect(linked.rows[0]).toEqual({
-      minimum: "0.2.6",
-      recommended: "0.2.6",
+      minimum: "0.2.7",
+      recommended: "0.2.7",
       linked: 1,
     });
     delete readback.release;
