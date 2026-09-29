@@ -141,7 +141,24 @@ def default_scope_base():
         text=True,
         capture_output=True,
     )
-    return merge.stdout.strip() if merge.returncode == 0 else "HEAD"
+    if merge.returncode == 1:
+        return "HEAD"
+    if merge.returncode != 0:
+        raise RuntimeError("MERGE_STATE_UNVERIFIED: cannot determine scope")
+    merge_head = merge.stdout.strip()
+    accepted = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", merge_head, "origin/main"],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+    )
+    if accepted.returncode == 0:
+        # Importing accepted main: only the role's remaining local delta is new.
+        return merge_head
+    if accepted.returncode == 1:
+        # Reviewing a new candidate: accepted first-parent changes are not new.
+        return "HEAD"
+    raise RuntimeError("MERGE_ANCESTRY_UNVERIFIED: refresh valid origin/main before retry")
 
 
 def scope_guard(role, base=None):
