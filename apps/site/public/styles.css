@@ -274,26 +274,33 @@ h1 { font-size:clamp(34px,3.45vw,46px); line-height:1.13; letter-spacing:-.025em
 .ai-badge img {
   position:absolute;
   left:50%;
-  top:38.5%;
   display:block;
-  width:42%;
-  height:42%;
   object-fit:contain;
   transform:translate(-50%,-50%);
 }
+.pos-alice img { top:40.09%; width:45.77%; height:45.77%; }
+.pos-gemini img { top:39.55%; width:39.49%; height:39.49%; }
+.pos-chatgpt img { top:40.57%; width:46.29%; height:46.29%; }
+.pos-deepseek img { top:40.34%; width:44.97%; height:44.97%; }
+.pos-anthropic img { top:39.56%; width:45.36%; height:45.36%; }
+.pos-qwen img { top:40.00%; width:46.57%; height:46.57%; }
 .ai-badge span {
   position:absolute;
   left:50%;
-  top:74%;
   display:block;
   max-width:94%;
   transform:translate(-50%,-50%);
   font-family:Arial,Helvetica,sans-serif;
-  font-size:clamp(6px,1.9cqi,14px);
   font-weight:600;
   line-height:1;
   white-space:nowrap;
 }
+.pos-alice > span { top:74.28%; font-size:clamp(5px,1.806cqi,14px); }
+.pos-gemini > span { top:72.85%; font-size:clamp(5px,1.813cqi,14px); }
+.pos-chatgpt > span { top:73.89%; font-size:clamp(5px,1.824cqi,14px); }
+.pos-deepseek > span { top:74.04%; font-size:clamp(5px,1.690cqi,14px); }
+.pos-anthropic > span { top:71.38%; font-size:clamp(5px,1.814cqi,14px); }
+.pos-qwen > span { top:74.50%; font-size:clamp(5px,1.852cqi,14px); }
 .market-badge { position:absolute; }
 .market-logo-slot {
   position:absolute;
@@ -304,26 +311,26 @@ h1 { font-size:clamp(34px,3.45vw,46px); line-height:1.13; letter-spacing:-.025em
   line-height:0;
 }
 .market-logo-slot img { display:block; width:100%; height:100%; object-fit:contain; }
-.pos-wb .market-logo-slot { top:42.5%; width:82%; height:36%; }
-.pos-ozon .market-logo-slot { top:47.5%; width:78%; height:22%; }
+.pos-wb .market-logo-slot { top:42.60%; width:63.0%; height:35.0%; }
+.pos-ozon .market-logo-slot { top:47.67%; width:73.5%; height:16.5%; }
 .market-label {
   position:absolute;
   left:50%;
-  top:73%;
   display:block;
   width:94%;
   margin:0;
   transform:translate(-50%,-50%);
   font-family:Arial,Helvetica,sans-serif;
-  font-size:clamp(8px,2.35cqi,18px);
   line-height:1;
   font-weight:600;
   letter-spacing:normal;
   text-align:center;
   white-space:nowrap;
 }
-.market-badge .brand-wildberries { color:#e11ee8; }
-.market-badge .brand-ozon { color:#0187ed; }
+.pos-wb .market-label { top:71.59%; font-size:clamp(6px,2.045cqi,16px); }
+.pos-ozon .market-label { top:71.66%; font-size:clamp(6px,2.100cqi,16px); }
+.market-badge .brand-wildberries { color:#ee20f5; }
+.market-badge .brand-ozon { color:#008cf3; }
 .ai-badge::after { content:""; position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:100%; height:100%; min-width:44px; min-height:44px; border-radius:50%; }
 .ai-badge:hover,.ai-badge:focus-visible,.market-badge:hover,.market-badge:focus-visible { transform:translate(-50%,-50%) scale(1.035); }
 .ai-badge:focus-visible,.market-badge:focus-visible { outline:2px solid var(--scene-ink); outline-offset:4px; }
