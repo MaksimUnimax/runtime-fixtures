@@ -133,3 +133,7 @@ R15 supersedes the R14 badge-layout attempt. Icon/label positions and marketplac
 ### HERO R16 — cosmic text-first owner reference
 
 The HOME hero now follows the owner-selected cosmic text-first composition: centered live HTML copy, individually colored marketplace/provider names, a CSS-only orbital/horizon background and two live CTA links. The prior R15 octopus/circle hero is no longer rendered on HOME. See `docs/design/HERO_SPACE_R16_2026-09-29.md`.
+
+### HERO R18 — text left, full contour right
+
+R18 restores the complete accepted R15 contour composition (octopus plus eight clickable brand circles) to the right side of the HOME hero while preserving the newer approved text styling on the left. The temporary standalone R17 mascot is removed; the R16 cosmic arcs/pill remain absent. See `docs/design/HERO_R18_TEXT_LEFT_CONTOUR_RIGHT_2026-09-29.md`.
