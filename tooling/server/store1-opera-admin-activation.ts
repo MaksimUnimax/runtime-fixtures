@@ -4,7 +4,7 @@ import { basename } from "node:path";
 import { validateProfileContent } from "../../packages/server/adapter-registry/src/index.js";
 import { isTrustedStore1V2SignaturePreflightProof } from "./store1-v2-signature-preflight.js";
 
-export const STORE1_VERSION = "0.2.6" as const;
+export const STORE1_VERSION = "0.2.7" as const;
 export const STORE1_CONTRACT = "control_plane_v2" as const;
 export const STORE1_BROWSER = "opera" as const;
 export const STORE1_BROWSER_MINIMUM = "136" as const;
@@ -13,11 +13,11 @@ export const STORE1_AI_SURFACE = "web" as const;
 export const STORE1_PROFILE_KEY = "chatgpt-web-opera-v1" as const;
 export const STORE1_REASON = "STORE-1 Opera reviewer catalog activation";
 export const STORE1_ACCEPTED_SOURCE_HEAD =
-  "028d5dd56341719e2061a47b5e82e216256619f7" as const;
+  "ce7685b7a534015923116576262e41958915afbb" as const;
 export const STORE1_ACCEPTED_SOURCE_TREE =
-  "99e12233864a592510032e30bb96668b41682204" as const;
+  "d95d93ae044b10668f0f1dce526d473867495e99" as const;
 export const STORE1_ACCEPTED_ARTIFACT_SHA256 =
-  "579dc15aaf692fc9e96ad650e660ac0190bb7e136c949b7ad401e5bc82a909b5" as const;
+  "1c11bf6008b923af050f44bdaa97ab6b5197fda744c4a10aef5209f3efc95dc7" as const;
 
 function selector(
   strategy:
