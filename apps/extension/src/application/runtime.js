@@ -556,7 +556,8 @@ async function saRebindAfterFinishGuard(token) {
   return token;
 }
 function saIsHealthTransportUnavailable(error) {
-  return error?.code === "CONTROL_TRANSPORT_UNAVAILABLE" || error?.status === 503 && error?.code === "PRODUCER_UNAVAILABLE";
+  return error?.code === "CONTROL_TRANSPORT_UNAVAILABLE" ||
+    error?.status === 503 && ["PRODUCER_UNAVAILABLE", "BOOTSTRAP_UNAVAILABLE"].includes(error?.code);
 }
 async function saObserveHealth(initial) {
   try {

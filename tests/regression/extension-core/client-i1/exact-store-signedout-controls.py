@@ -11,6 +11,7 @@ import hashlib
 import json
 import subprocess
 import tempfile
+import time
 import zipfile
 from pathlib import Path
 
@@ -52,6 +53,41 @@ def element_states(page):
     )
 
 
+def resolve_install_method(browser_product: str, requested: str) -> str:
+    if requested != "auto":
+        return requested
+    normalized = browser_product.casefold()
+    if "google chrome" in normalized or "yandex" in normalized:
+        return "cdp"
+    return "cli"
+
+
+def load_unpacked_via_cdp(context, runtime: Path) -> str:
+    session = context.browser.new_browser_cdp_session()
+    reply = session.send("Extensions.loadUnpacked", {"path": str(runtime)})
+    extension_id = reply.get("id")
+    if not extension_id:
+        raise AssertionError("CDP_EXTENSION_ID_MISSING")
+    return extension_id
+
+
+def wait_for_exact_extension_worker(context, expected_version: str, timeout_ms=30000):
+    deadline = time.monotonic() + timeout_ms / 1000
+    while time.monotonic() < deadline:
+        for worker in context.service_workers:
+            try:
+                manifest = worker.evaluate("()=>chrome.runtime.getManifest()")
+            except Exception:
+                continue
+            if (
+                manifest.get("version") == expected_version
+                and manifest.get("name") == "Octoport — Ozon + Wildberries"
+            ):
+                return worker
+        time.sleep(0.1)
+    raise AssertionError("EXTENSION_SERVICE_WORKER_NOT_OBSERVED")
+
+
 def run(args):
     if sha256(args.carrier) != args.expected_sha256:
         raise AssertionError("STORE_ZIP_SHA256_MISMATCH")
@@ -60,6 +96,7 @@ def run(args):
     ).strip()
     if args.expected_browser_product not in browser_product:
         raise AssertionError("BROWSER_PRODUCT_VERSION_MISMATCH")
+    install_method = resolve_install_method(browser_product, args.install_method)
     external_requests = []
     page_errors = []
     with tempfile.TemporaryDirectory(prefix="octoport-store-signedout-") as temporary:
@@ -70,15 +107,22 @@ def run(args):
 
         with sync_playwright() as playwright:
             with tempfile.TemporaryDirectory(prefix="octoport-browser-profile-") as profile:
+                launch_args = ["--no-sandbox"]
+                launch_kwargs = {}
+                if install_method == "cdp":
+                    launch_args.append("--enable-unsafe-extension-debugging")
+                    launch_kwargs["ignore_default_args"] = ["--disable-extensions"]
+                else:
+                    launch_args.extend([
+                        f"--disable-extensions-except={runtime}",
+                        f"--load-extension={runtime}",
+                    ])
                 context = playwright.chromium.launch_persistent_context(
                     profile,
                     executable_path=str(args.browser_executable),
                     headless=False,
-                    args=[
-                        "--no-sandbox",
-                        f"--disable-extensions-except={runtime}",
-                        f"--load-extension={runtime}",
-                    ],
+                    args=launch_args,
+                    **launch_kwargs,
                 )
                 try:
                     context.on(
@@ -87,23 +131,27 @@ def run(args):
                         if request.url.startswith(("http://", "https://"))
                         else None,
                     )
-                    worker = (
-                        context.service_workers[0]
-                        if context.service_workers
-                        else context.wait_for_event("serviceworker", timeout=30000)
-                    )
+                    if install_method == "cdp":
+                        extension_id = load_unpacked_via_cdp(context, runtime)
+                        popup_url = f"chrome-extension://{extension_id}/popup.html"
+                    else:
+                        worker = wait_for_exact_extension_worker(
+                            context, args.expected_version
+                        )
+                        extension_id = worker.url.split("://", 1)[1].split("/", 1)[0]
+                        popup_url = worker.url.rsplit("/", 1)[0] + "/popup.html"
                     popup = context.new_page()
                     popup.on("pageerror", lambda error: page_errors.append(str(error)))
-                    popup.goto(
-                        worker.url.rsplit("/", 1)[0] + "/popup.html",
-                        wait_until="load",
-                    )
+                    popup.goto(popup_url, wait_until="load")
                     popup.wait_for_function(
-                        """() =>
-                          document.getElementById("catalog").hidden === true &&
-                          /Вход не выполнен/.test(
-                            document.getElementById("account").textContent || ""
-                          )"""
+                        """() => {
+                          const catalog = document.getElementById("catalog");
+                          const account = document.getElementById("account");
+                          return Boolean(
+                            catalog && account && catalog.hidden === true &&
+                            /Вход не выполнен/.test(account.textContent || "")
+                          );
+                        }"""
                     )
                     states = element_states(popup)
                     assert states["auth-start"]["visible"]
@@ -123,8 +171,21 @@ def run(args):
                     snapshot = json.loads(
                         popup.locator("#support-snapshot").input_value()
                     )
-                    manifest = worker.evaluate("()=>chrome.runtime.getManifest()")
+                    manifest = popup.evaluate("()=>chrome.runtime.getManifest()")
                     assert manifest["version"] == args.expected_version
+                    deadline = time.monotonic() + 5
+                    while time.monotonic() < deadline:
+                        if any(
+                            item.url.startswith(f"chrome-extension://{extension_id}/")
+                            for item in context.service_workers
+                        ):
+                            break
+                        popup.wait_for_timeout(100)
+                    extension_workers = [
+                        item.url for item in context.service_workers
+                        if item.url.startswith(f"chrome-extension://{extension_id}/")
+                    ]
+                    assert extension_workers, "EXTENSION_SERVICE_WORKER_NOT_OBSERVED"
                     assert snapshot["extension"]["version"] == args.expected_version
                     assert snapshot["auth"]["authenticated"] is False
                     assert snapshot["auth"]["workAllowed"] is False
@@ -142,6 +203,9 @@ def run(args):
                         "packageSha256": args.expected_sha256,
                         "browserProduct": browser_product,
                         "browserEngine": context.browser.version,
+                        "installMethod": install_method,
+                        "extensionId": extension_id,
+                        "serviceWorkerUrl": extension_workers[0],
                         "manifest": {
                             "name": manifest["name"],
                             "version": manifest["version"],
@@ -175,6 +239,7 @@ def main():
     parser.add_argument("--expected-browser-product", required=True)
     parser.add_argument("--expected-version", required=True)
     parser.add_argument("--expected-sha256", required=True)
+    parser.add_argument("--install-method", choices=("auto", "cli", "cdp"), default="auto")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     run(args)
