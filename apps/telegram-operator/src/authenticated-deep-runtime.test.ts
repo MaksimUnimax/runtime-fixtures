@@ -5,6 +5,7 @@ import {
   type HealthScope,
 } from "@product/health";
 import {
+  AUTHENTICATED_DEEP_RUNTIME_AUTHORITY,
   H3ExecutionResultSchema,
   type BrowserRuntimeMetadata,
   type DedicatedHealthSessionRegistry,
@@ -66,7 +67,7 @@ function resolvedScope(surfaceKey = "standard", revision = 2): HealthScope {
     surfaceKey,
     browserFamily: "chrome",
     browserVersion: browserRuntime.browserVersion,
-    extensionVersion: "0.2.7",
+    extensionVersion: AUTHENTICATED_DEEP_RUNTIME_AUTHORITY.extensionVersion,
     adapterEngineVersion: "0.1.0",
     profile: {
       ...BASELINE_HEALTH_SUITE.scope.profile,
@@ -220,7 +221,8 @@ describe("authenticated deep production composition", () => {
           surface: "CHATGPT_STANDARD",
           browserFamily: "chrome",
           browserVersion: "154.0.0.0",
-          extensionVersion: "0.2.7",
+          extensionVersion:
+            AUTHENTICATED_DEEP_RUNTIME_AUTHORITY.extensionVersion,
           adapterEngineVersion: "0.1.0",
           healthSuite: {
             machineKey: BASELINE_HEALTH_SUITE.machineKey,
