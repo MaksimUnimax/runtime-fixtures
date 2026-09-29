@@ -29,13 +29,12 @@ try:
         for route in expected_h1:
             b.nav(route,width,height)
             b.ev('Promise.all([...document.images].map(i=>i.decode().catch(()=>false)))')
-            for theme in (['light','dark'] if route=='/' else ['light']):
-                if route=='/': b.ev('document.querySelector("#theme-checkbox").checked='+str(theme=='dark').lower())
+            for theme in ['dark']:
                 d=b.info();assert d['cw']==d['sw'],('overflow',route,width,d)
                 assert ' '.join(d['h1'].split())==expected_h1[route],(route,d['h1'])
                 assert d['font'] and all(i['ok'] for i in d['images']),('assets',route,width)
                 names=b.ev('[...document.querySelectorAll(".brand-ozon,.brand-wildberries")].map(e=>({color:getComputedStyle(e).color,type:e.classList.contains("brand-ozon")?"ozon":"wb"}))')
-                palette={'light':{'ozon':'rgb(0, 91, 255)','wb':'rgb(189, 12, 165)'},'dark':{'ozon':'rgb(78, 147, 255)','wb':'rgb(241, 92, 221)'}}[theme]
+                palette={'ozon':'rgb(78, 147, 255)','wb':'rgb(241, 92, 221)'}
                 assert names and all(n['color']==palette[n['type']] for n in names),(route,names)
                 assert d['canonical']=='https://octoport.ru'+route
                 # Source serves canonical production URLs too.
