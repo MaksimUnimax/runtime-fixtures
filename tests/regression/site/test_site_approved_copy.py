@@ -83,9 +83,14 @@ class ApprovedCopyTests(unittest.TestCase):
             'Посчитать юнит-экономику товара за месяц',
             'поисковым запросам мои товары находятся выше или ниже',
             'маржинальный вклад после расходов маркетплейса',
-            'Это не называется чистой прибылью',
         ):
             self.assertIn(term, analytics)
+        for removed in (
+            'Если по запросу данных нет, это отмечается отдельно',
+            'Это не называется чистой прибылью',
+            'неразносимое хранение показывается отдельно',
+        ):
+            self.assertNotIn(removed, analytics)
         for removed in ('Сопоставить рекламу с остатками', 'Подготовить отчёт для себя или команды'):
             self.assertNotIn(removed, analytics)
         self.assertIn('Ниже — три примера задач', analytics)
@@ -96,6 +101,15 @@ class ApprovedCopyTests(unittest.TestCase):
             'юнит-экономику по SKU',
         ):
             self.assertIn(term, self.home)
+
+    def test_owner_copy_corrections_and_crossed_text_removals(self):
+        analytics = (ROOT / 'seller-analytics.html').read_text()
+        self.assertIn('Октопорт позволяет получить нейросети доступ к данным вашего кабинета селлера.', analytics)
+        self.assertIn('Просто задайте вопрос в диалоге. Нейросеть запросит нужные ей для ответа данные через Октопорт', analytics)
+        self.assertIn('Вы продолжаете общаться в режиме диалога с привычной вам Нейросетью, но при этом у неё появляется доступ к данным вашего кабинета селлера', self.home)
+        self.assertIn('Модель анализирует, сравнивает, объясняет и помогает принимать решения на основе реальных данных вашего магазина.', self.home)
+        self.assertNotIn('Нейросеть + данные вашего магазина.', self.home)
+        self.assertNotIn('а доступ к кабинету остаётся только на чтение.', self.home)
 
     def test_support_prioritises_contact_before_limits(self):
         html = (ROOT / 'support.html').read_text()
