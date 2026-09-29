@@ -206,6 +206,65 @@ describe("A7 product registry crosswalk", () => {
     ).toBe("OZON_SELLER:GET:/x");
   });
 
+  it("preserves source document scope and leaves runtime-only rows unscoped", () => {
+    const inventory: OperationInventory = {
+      sourceFamily: "OZON_SELLER",
+      snapshotSha256: "a",
+      pathCount: 1,
+      operationCount: 1,
+      operationsByMethod: { GET: 1 },
+      deprecatedCount: 0,
+      operationIdPresentCount: 0,
+      operationIdMissingCount: 1,
+      operations: [
+        {
+          sourceFamily: "OZON_SELLER",
+          documentKey: "seller-v2",
+          snapshotSha256: "a",
+          identity: "OZON_SELLER:GET:/x",
+          method: "GET",
+          path: "/x",
+          operationId: null,
+          tags: [],
+          deprecated: false,
+          summaryHash: null,
+          securitySchemeReferences: [],
+          requestBodyPresent: false,
+          parameterCount: 0,
+          responseStatusKeys: [],
+        },
+      ],
+    };
+    const runtime = {
+      sourceFamily: "OZON_SELLER" as const,
+      runtimeAlias: "runtime",
+      method: "GET",
+      normalizedPath: "/runtime-only",
+      executionEnabled: false,
+      effect: "READ",
+      privacyClass: "safe",
+      runtimeSafetyClass: null,
+      workflowRole: null,
+      entitlementKey: null,
+      currentness: null,
+      blockedReason: null,
+      providerMetadata: {},
+    };
+    const result = buildProductCrosswalk({
+      reportId: "r",
+      inventory,
+      runtimeEntries: [runtime],
+    });
+    const scoped = result.rows.find((row) => row.sourceIdentity.endsWith("/x"));
+    expect(scoped?.documentKey).toBe("seller-v2");
+    expect(scoped?.crosswalkId).toMatch(/:DOCUMENT_SCOPE:[0-9a-f]{64}$/);
+    expect(scoped!.crosswalkId.length).toBeLessThanOrEqual(520);
+    expect(
+      result.rows.find((row) => row.crosswalkState === "RUNTIME_ONLY")
+        ?.documentKey,
+    ).toBeNull();
+  });
+
   it("marks duplicate identities ambiguous and never auto-enables them", () => {
     const inventory = {
       sourceFamily: "WILDBERRIES",

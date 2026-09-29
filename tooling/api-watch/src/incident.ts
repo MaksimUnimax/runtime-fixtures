@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type {
   ApiWatchIncident,
   ApiWatchIncidentEvent,
@@ -23,8 +23,23 @@ export function incidentKey(
   type: ApiWatchIncident["incidentType"],
   sourceFamily: SwaggerSourceFamily | null,
   operationIdentity: string | null,
+  documentKey: string | null = null,
 ): string {
-  return `${type}:${sourceFamily ?? "GLOBAL"}:${operationIdentity ?? "SOURCE"}`;
+  const base = `${type}:${sourceFamily ?? "GLOBAL"}:${operationIdentity ?? "SOURCE"}`;
+  if (documentKey === null || !isProductIncidentType(type)) return base;
+  const scopeSha256 = createHash("sha256").update(documentKey).digest("hex");
+  return `${base}:DOCUMENT_SHA256:${scopeSha256}`;
+}
+
+function isProductIncidentType(
+  type: ApiWatchIncident["incidentType"],
+): boolean {
+  return (
+    type === "API_CHANGE_BLOCKING" ||
+    type === "API_CHANGE_REVIEW_REQUIRED" ||
+    type === "RUNTIME_OPERATION_STALE" ||
+    type === "RUNTIME_MAPPING_AMBIGUOUS"
+  );
 }
 
 export class InMemoryApiWatchIncidentStore implements ApiWatchIncidentStore {
@@ -85,7 +100,7 @@ export class InMemoryApiWatchIncidentStore implements ApiWatchIncidentStore {
 export function createPostgresApiWatchIncidentStore(
   runtime: ApiWatchSqlRuntime,
 ): ApiWatchIncidentStore {
-  const projection = `SELECT incident_id AS "incidentId",incident_key AS "incidentKey",incident_type AS "incidentType",source_family AS "sourceFamily",operation_identity AS "operationIdentity",first_seen_at AS "firstSeenAt",last_seen_at AS "lastSeenAt",resolved_at AS "resolvedAt",occurrence_count AS "occurrenceCount",severity,latest_report_id AS "latestReportId",latest_diff_sha256 AS "latestDiffSha256",safe_summary_code AS "safeSummaryCode",state FROM api_watch_incidents`;
+  const projection = `SELECT incident_id AS "incidentId",incident_key AS "incidentKey",incident_type AS "incidentType",source_family AS "sourceFamily",document_key AS "documentKey",operation_identity AS "operationIdentity",first_seen_at AS "firstSeenAt",last_seen_at AS "lastSeenAt",resolved_at AS "resolvedAt",occurrence_count AS "occurrenceCount",severity,latest_report_id AS "latestReportId",latest_diff_sha256 AS "latestDiffSha256",safe_summary_code AS "safeSummaryCode",state FROM api_watch_incidents`;
   const map = (row: Record<string, unknown>) =>
     ({
       ...row,
@@ -105,12 +120,13 @@ export function createPostgresApiWatchIncidentStore(
       const opened = !row || row.state !== "OPEN";
       const incidentId = row?.incidentId ?? randomUUID();
       await runtime.query(
-        `INSERT INTO api_watch_incidents(incident_id,incident_key,incident_type,source_family,operation_identity,first_seen_at,last_seen_at,resolved_at,occurrence_count,severity,latest_report_id,latest_diff_sha256,safe_summary_code,state) VALUES($1,$2,$3,$4,$5,$6,$7,NULL,$8,$9,$10,$11,$12,'OPEN') ON CONFLICT (incident_key) DO UPDATE SET last_seen_at=EXCLUDED.last_seen_at,resolved_at=NULL,occurrence_count=api_watch_incidents.occurrence_count+1,severity=EXCLUDED.severity,latest_report_id=EXCLUDED.latest_report_id,latest_diff_sha256=EXCLUDED.latest_diff_sha256,safe_summary_code=EXCLUDED.safe_summary_code,state='OPEN'`,
+        `INSERT INTO api_watch_incidents(incident_id,incident_key,incident_type,source_family,document_key,operation_identity,first_seen_at,last_seen_at,resolved_at,occurrence_count,severity,latest_report_id,latest_diff_sha256,safe_summary_code,state) VALUES($1,$2,$3,$4,$5,$6,$7,$8,NULL,$9,$10,$11,$12,$13,'OPEN') ON CONFLICT (incident_key) DO UPDATE SET document_key=EXCLUDED.document_key,last_seen_at=EXCLUDED.last_seen_at,resolved_at=NULL,occurrence_count=api_watch_incidents.occurrence_count+1,severity=EXCLUDED.severity,latest_report_id=EXCLUDED.latest_report_id,latest_diff_sha256=EXCLUDED.latest_diff_sha256,safe_summary_code=EXCLUDED.safe_summary_code,state='OPEN'`,
         [
           incidentId,
           input.incidentKey,
           input.incidentType,
           input.sourceFamily,
+          input.documentKey,
           input.operationIdentity,
           input.firstSeenAt,
           input.lastSeenAt,
@@ -177,11 +193,13 @@ function incidentInput(
   summary: string,
   now: Date,
   diff: string | null,
+  documentKey: string | null = null,
 ) {
   return {
-    incidentKey: incidentKey(type, family, operationIdentity),
+    incidentKey: incidentKey(type, family, operationIdentity, documentKey),
     incidentType: type,
     sourceFamily: family,
+    documentKey,
     operationIdentity,
     firstSeenAt: now,
     lastSeenAt: now,
@@ -264,6 +282,7 @@ export async function evaluateApiWatchIncidents(input: {
         type,
         now,
         row.diffSha256,
+        row.documentKey,
       ),
     );
     activeKeys.add(value.incidentKey);
@@ -279,32 +298,6 @@ export async function evaluateApiWatchIncidents(input: {
         )
         .map((source) => source.sourceFamily),
     );
-    const familyRows = new Map<
-      SwaggerSourceFamily,
-      ApiWatchReport["sources"]
-    >();
-    for (const source of input.report.sources) {
-      const rows = familyRows.get(source.sourceFamily) ?? [];
-      rows.push(source);
-      familyRows.set(source.sourceFamily, rows);
-    }
-    const verifiedProductRecoveryFamilies = new Set<SwaggerSourceFamily>();
-    for (const [family, rows] of familyRows) {
-      if (
-        rows.length > 0 &&
-        rows.every(
-          (source) =>
-            source.authorityStatus === "AUTHORITY_ACCEPTED" &&
-            source.blockerCode === null &&
-            source.errorCode === null &&
-            source.snapshotSha256 !== null &&
-            source.baseSnapshotSha256 !== null &&
-            source.snapshotSha256 === source.baseSnapshotSha256 &&
-            source.changeMode === "NO_CHANGE",
-        )
-      )
-        verifiedProductRecoveryFamilies.add(family);
-    }
     for (const open of await input.store.listOpen()) {
       if (activeKeys.has(open.incidentKey)) continue;
       if (
@@ -315,13 +308,27 @@ export async function evaluateApiWatchIncidents(input: {
       const acquisitionRecovered =
         open.incidentType === "WATCH_RUN_FAILED" ||
         open.incidentType === "SOURCE_AUTHORITY_BLOCKED";
+      const matchingDocumentSources =
+        open.sourceFamily !== null && open.documentKey !== null
+          ? input.report.sources.filter(
+              (source) =>
+                source.sourceFamily === open.sourceFamily &&
+                source.documentKey === open.documentKey,
+            )
+          : [];
       const productRecovered =
-        open.sourceFamily !== null &&
-        verifiedProductRecoveryFamilies.has(open.sourceFamily) &&
-        (open.incidentType === "API_CHANGE_BLOCKING" ||
-          open.incidentType === "API_CHANGE_REVIEW_REQUIRED" ||
-          open.incidentType === "RUNTIME_OPERATION_STALE" ||
-          open.incidentType === "RUNTIME_MAPPING_AMBIGUOUS");
+        isProductIncidentType(open.incidentType) &&
+        matchingDocumentSources.length > 0 &&
+        matchingDocumentSources.every(
+          (source) =>
+            source.authorityStatus === "AUTHORITY_ACCEPTED" &&
+            source.blockerCode === null &&
+            source.errorCode === null &&
+            source.snapshotSha256 !== null &&
+            source.baseSnapshotSha256 !== null &&
+            source.snapshotSha256 === source.baseSnapshotSha256 &&
+            source.changeMode === "NO_CHANGE",
+        );
       if (acquisitionRecovered || productRecovered) {
         const resolved = await input.store.resolve(open.incidentKey, now);
         if (resolved && input.notifier)
