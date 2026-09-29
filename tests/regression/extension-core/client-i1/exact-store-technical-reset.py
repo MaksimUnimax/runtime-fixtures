@@ -1,4 +1,4 @@
-"""Exact frozen STORE 0.2.6 one-device reset/re-auth technical acceptance."""
+"""Exact versioned STORE one-device reset/re-auth technical acceptance."""
 from __future__ import annotations
 
 import argparse
@@ -11,8 +11,9 @@ from urllib.parse import urlparse
 
 from playwright.sync_api import sync_playwright
 
-EXPECTED_SHA256 = "579dc15aaf692fc9e96ad650e660ac0190bb7e136c949b7ad401e5bc82a909b5"
+DEFAULT_PACKAGE_SHA256 = "579dc15aaf692fc9e96ad650e660ac0190bb7e136c949b7ad401e5bc82a909b5"
 EXPECTED_BROWSER = "136.0.6008.22"
+DEFAULT_MANIFEST_VERSION = "0.2.6"
 
 
 class ResetFailure(Exception):
@@ -22,6 +23,18 @@ class ResetFailure(Exception):
 def require(value, code):
     if not value:
         raise ResetFailure(code)
+
+
+def validate_package_identity(helper, carrier: Path, runtime: Path, expected_sha256: str, expected_version: str):
+    actual_sha256 = helper.sha256(carrier)
+    require(actual_sha256 == expected_sha256, "STORE_ZIP_SHA256_MISMATCH")
+    try:
+        manifest = json.loads((runtime / "manifest.json").read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        raise ResetFailure("PACKAGE_MANIFEST_READ_FAILED") from None
+    actual_version = manifest.get("version") if isinstance(manifest, dict) else None
+    require(actual_version == expected_version, "PACKAGE_MANIFEST_VERSION_MISMATCH")
+    return actual_sha256, actual_version
 
 
 def wait_for(fn, code, timeout=20.0):
@@ -107,7 +120,13 @@ def reauthorize(helper, worker, session_path):
 def run(args):
     root = Path(__file__).resolve().parents[4]
     helper = load_helper(root)
-    require(helper.sha256(args.carrier) == EXPECTED_SHA256, "STORE_ZIP_SHA256_MISMATCH")
+    package_sha256, manifest_version = validate_package_identity(
+        helper,
+        args.carrier,
+        args.source_runtime,
+        args.expected_package_sha256,
+        args.expected_manifest_version,
+    )
     require(EXPECTED_BROWSER in helper.browser_product(args.browser_executable), "BROWSER_PRODUCT_VERSION_MISMATCH")
     expected = helper.carrier_inventory(args.carrier)
     for runtime, label in (
@@ -198,8 +217,9 @@ def run(args):
 
             return {
                 "status": "PASS",
-                "evidenceLevel": "EXACT_FROZEN_STORE_BYTES_DEVELOPMENT_FLAG_TECHNICAL_RESET_REAUTH",
-                "packageSha256": EXPECTED_SHA256,
+                "evidenceLevel": "EXACT_VERSIONED_PACKAGE_DEVELOPMENT_FLAG_TECHNICAL_RESET_REAUTH",
+                "packageSha256": package_sha256,
+                "manifestVersion": manifest_version,
                 "browserProduct": helper.browser_product(args.browser_executable),
                 "runtimeFileCount": len(expected),
                 "twoFreshInstallationsAuthenticatedNormally": True,
@@ -246,9 +266,12 @@ def main():
         "output",
     ):
         parser.add_argument("--" + name, type=Path, required=True)
+    parser.add_argument("--expected-package-sha256", default=DEFAULT_PACKAGE_SHA256)
+    parser.add_argument("--expected-manifest-version", default=DEFAULT_MANIFEST_VERSION)
     args = parser.parse_args()
     for key, value in vars(args).items():
-        setattr(args, key, value.resolve())
+        if isinstance(value, Path):
+            setattr(args, key, value.resolve())
     try:
         result = run(args)
         code = 0

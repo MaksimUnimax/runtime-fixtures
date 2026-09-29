@@ -73,9 +73,11 @@ For the exact authorized target environment, C must:
 4. Read current API/worker/portal unit/drop-in identity and monitor unit identity.
    Monitoring pollers are independent and must not be replaced/restarted by the
    product deployment.
-5. Create a fresh protected PostgreSQL custom-format backup before mutation.
-   Record path, SHA-256, size, mode0600 and server/DB identity.
-6. Restore that fresh backup into an isolated disposable database and run the
+5. Create a fresh protected PostgreSQL custom-format **preflight/rehearsal**
+   backup before mutation. Record path, SHA-256, size, mode0600 and server/DB
+   identity. This proves the backup path but is **not** the final live recovery
+   point because product writes have not yet been quiesced.
+6. Restore that rehearsal backup into an isolated disposable database and run the
    exact final candidate's own migration command. Require canonical journal43,
    expected tables/indexes/guards and no raw business/evidence leakage.
 7. Verify the exact rollback-floor source/artifact remains available and its
@@ -90,25 +92,35 @@ For the exact authorized target environment, C must:
    runner/procedure. Do not stop or duplicate monitoring pollers.
 2. Re-check that the live DB is still the preflight DB and still has the exact
    pre-apply journal prefix. This is the final stale-preflight fence.
-3. Run the final candidate's own migration command against the target DB.
+3. **After writes are quiesced and before any migration**, create a new protected
+   PostgreSQL custom-format backup. This post-quiesce backup is the authoritative
+   final recovery point. Record DB/server identity, path, SHA-256, byte size and
+   mode0600; require `pg_restore --list` (or equivalent format verification) to
+   succeed. Bind its hash to the exact pre-apply journal and service identities.
+   If this final backup cannot be created or verified, keep product units
+   quiesced and abort before migration.
+4. Persist a durable `FINAL_PRE_MIGRATION_BACKUP` receipt before the first schema
+   write. The earlier rehearsal backup remains evidence only and must never be
+   substituted for this final recovery point.
+5. Run the final candidate's own migration command against the target DB.
    No direct SQL shortcut. Require the exact ordered journal through 0054.
-4. Switch API/worker/portal service/drop-in source to the exact immutable release
+6. Switch API/worker/portal service/drop-in source to the exact immutable release
    directory. Do not mix independent live-service changes into this transaction.
-5. Start API and require:
+7. Start API and require:
    - `/health/live` = 200;
    - `/health/ready` = 200.
-6. Start worker and require its normal ready state without restart loop.
-7. Start portal and require `/login` = 200.
-8. Run bounded protected readbacks:
+8. Start worker and require its normal ready state without restart loop.
+9. Start portal and require `/login` = 200.
+10. Run bounded protected readbacks:
    - account/device authority read;
    - current config release/signing authority;
    - exact `chatgpt/web/null` catalog/profile/assignment;
    - signed `control_plane_v2` Bootstrap verification.
-9. Require product service `NRestarts` stability and unchanged monitor
+11. Require product service `NRestarts` stability and unchanged monitor
    executable/argv + restart counts.
-10. Require no unexpected `sync_entities` creation and no protected authority
+12. Require no unexpected `sync_entities` creation and no protected authority
     hash drift outside the planned migration.
-11. Persist the deployment receipt before calling the operation successful.
+13. Persist the deployment receipt before calling the operation successful.
 
 No provider business mutation, payment, Telegram send, store upload or audience
 expansion belongs in this deployment smoke.
@@ -122,7 +134,10 @@ Retain the fresh backup/evidence.
 ### Migration failure or uncertain DB state
 Keep product services quiesced. Do not start old or new application code against
 an uncertain partial schema. Record exact migration/journal state and require an
-explicit recovery decision. A destructive live DB restore is not automatic.
+explicit recovery decision. The only DB restore source for this rollout is the
+verified **post-quiesce `FINAL_PRE_MIGRATION_BACKUP`** captured immediately before
+migration; the earlier rehearsal backup is not an equivalent recovery point.
+A destructive live DB restore is not automatic.
 
 ### Migration succeeded, candidate application fails
 Use the tested **forward-schema rollback**:
