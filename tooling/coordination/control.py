@@ -85,7 +85,7 @@ def update_state(role, action, args):
             if state["status"] == "STOPPED":
                 raise RuntimeError("STOPPED: waiting cannot clear an explicit pause")
             state["waiting_review"] = validate_waiting_receipt(
-                role, args.receipt, git("rev-parse", "HEAD")
+                role, args.receipt, git("rev-parse", "HEAD"), inputs_root=CONTROL
             )
             state["status"] = "WAITING_INPUT"
         elif action == "checkpoint":

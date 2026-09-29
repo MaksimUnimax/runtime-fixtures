@@ -16,7 +16,7 @@ def text(value):
     return isinstance(value, str) and bool(value.strip())
 
 
-def validate_waiting_receipt(role, receipt, head, now=None):
+def validate_waiting_receipt(role, receipt, head, now=None, inputs_root=None):
     if not receipt:
         raise RuntimeError("WAITING_REQUIRES_QUEUE_RECEIPT: scan all PLAN tasks")
     path = Path(receipt)
@@ -70,7 +70,32 @@ def validate_waiting_receipt(role, receipt, head, now=None):
         raise RuntimeError("WAITING_QUEUE_INCOMPLETE: " + ",".join(sorted(PLAN_IDS[role] - covered)))
     if ready:
         raise RuntimeError("WAITING_READY_TASKS_REMAIN: " + ",".join(ready))
+    input_count = validate_input_freshness(role, checked, inputs_root) if inputs_root is not None else None
     return {
+        "input_files_checked": input_count,
         "path": str(path.resolve()), "sha256": hashlib.sha256(raw).hexdigest(),
         "head": head, "checked_at": data["checked_at"], "entry_count": len(entries),
     }
+
+def validate_input_freshness(role, checked, control_root):
+    root = Path(control_root)
+    groups = [
+        (root / "controller-notices", role + "-*.json"),
+        (root / "peer-handoffs" / role, "*.json"),
+        (root / "inbox", "*.json" if role == "C" else role + "-*.json"),
+    ]
+    changed = []
+    checked_count = 0
+    try:
+        for directory, pattern in groups:
+            for path in directory.glob(pattern):
+                stat = path.stat()
+                checked_count += 1
+                if stat.st_mtime > checked.timestamp():
+                    changed.append(str(path.relative_to(root)))
+    except OSError:
+        raise RuntimeError("WAITING_QUEUE_INPUT_SCAN_FAILED: cannot prove unchanged inputs") from None
+    if changed:
+        raise RuntimeError("WAITING_QUEUE_INPUT_CHANGED: rescan current inputs: " +
+                           ",".join(sorted(changed)[:5]))
+    return checked_count
