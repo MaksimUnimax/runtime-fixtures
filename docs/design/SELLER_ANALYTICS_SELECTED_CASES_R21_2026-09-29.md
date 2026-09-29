@@ -2,7 +2,7 @@
 
 Date: 2026-09-29
 
-Status: SOURCE_ACCEPTED / PRODUCTION_PENDING.
+Status: PRODUCTION_DEPLOYED / LIVE_QA_PASS.
 
 ## Owner selection
 
@@ -27,3 +27,16 @@ The three cards in the `Сильная модель + Октопорт` example 
 - `Какие SKU съедают маржу?`
 
 The third short card explicitly says that unit economics includes revenue, commissions, logistics, storage and advertising, and reports marginal contribution after marketplace expenses.
+
+## Production acceptance
+
+Production source commit: `a59fb62716b0c6922ce59c82851723de4d88d500`.
+Live release: `/var/www/octoport-site/releases/a59fb62716b0c6922ce59c82851723de4d88d500`.
+Rollback backup: `/var/backups/octoport-site/20260929T110345Z`.
+
+Live acceptance on `https://octoport.ru`:
+- Chrome: 15 states / 48 disclosure interactions PASS;
+- Opera: 15 states / 48 disclosure interactions PASS;
+- Yandex Browser: 15 states / 48 disclosure interactions PASS;
+- `/seller-analytics` contains the search-position and monthly unit-economics cards and no longer contains the replaced advertising-vs-stock/report cards;
+- HOME contains the three short selected examples, including search positions and SKU unit economics.
