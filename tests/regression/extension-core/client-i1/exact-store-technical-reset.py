@@ -112,7 +112,11 @@ def reauthorize(helper, worker, session_path):
         return {pending:s?.pending||null,authenticated:s?.authenticated===true};}"""
     )
     require(not activation["authenticated"], "RESET_DID_NOT_CLEAR_AUTH")
-    helper.approve_technical_activation(session, activation["pending"])
+    try:
+        helper.approve_technical_activation(session, activation["pending"])
+    except AssertionError as failure:
+        code = str(failure)
+        raise ResetFailure(code if code.startswith("TECHNICAL_AUTH_") else "TECHNICAL_AUTH_REAUTH_FAILED") from None
     wait_for(lambda: status(worker)["authenticated"], "REAUTH_TIMEOUT", 120)
     return bootstrap(worker)
 
@@ -132,9 +136,14 @@ def run(args):
     for runtime, label in (
         (args.source_runtime, "SOURCE"),
         (args.recipient_runtime, "RECIPIENT"),
-        (args.main_runtime, "MAIN"),
     ):
         require(helper.runtime_inventory(runtime) == expected, label + "_RUNTIME_BYTES_MISMATCH")
+    try:
+        main_manifest = json.loads((args.main_runtime / "manifest.json").read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        raise ResetFailure("MAIN_RUNTIME_MANIFEST_READ_FAILED") from None
+    main_runtime_version = main_manifest.get("version") if isinstance(main_manifest, dict) else None
+    require(isinstance(main_runtime_version, str) and bool(main_runtime_version), "MAIN_RUNTIME_VERSION_INVALID")
     for profile, label in (
         (args.source_profile, "SOURCE"),
         (args.recipient_profile, "RECIPIENT"),
@@ -222,6 +231,7 @@ def run(args):
                 "manifestVersion": manifest_version,
                 "browserProduct": helper.browser_product(args.browser_executable),
                 "runtimeFileCount": len(expected),
+                "preservedMainRuntimeVersion": main_runtime_version,
                 "twoFreshInstallationsAuthenticatedNormally": True,
                 "freshProfileStoreCountBeforeReset": 0,
                 "signedWorkAdmissionBeforeReset": True,

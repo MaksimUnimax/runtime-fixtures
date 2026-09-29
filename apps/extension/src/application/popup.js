@@ -59,6 +59,19 @@ async function request(type, fields = {}) {
   if (!response?.ok) throw new Error(texts[response?.code] || `Действие не выполнено: ${response?.code || "нет ответа расширения"}`);
   return response;
 }
+function transferReceivePresentation(result) {
+  if (result?.ok === true && result?.importState === "IMPORTED") return { text: "Передача принята и магазин импортирован.", consume: Boolean(result.requestId) };
+  if (result?.ok === true && result?.importState === "CONFLICT") return { text: "Передача получена, но импорт остановлен из-за конфликта магазина.", consume: false };
+  if (result?.ok === false && result?.code === "SOURCE_OFFLINE" && result?.importState === "SOURCE_OFFLINE") return { text: "Источник ещё не доставил передачу.", consume: false };
+  if (result?.ok === false && !result?.code && result?.importState === "PENDING") return { text: "Активной передачи для получения нет.", consume: false };
+  return null;
+}
+async function requestTransferReceivePending() {
+  const response = await chrome.runtime.sendMessage({ type: "SA_TRANSFER_RECEIVE_PENDING", tab_id: tabId });
+  const presentation = transferReceivePresentation(response);
+  if (!presentation) throw new Error(texts[response?.code] || `Действие не выполнено: ${response?.code || "нет ответа расширения"}`);
+  return { response, presentation };
+}
 async function action(fn) { if (busy) return; busy = true; $("status").textContent = "Выполняем…"; try { await fn(); await refresh(); $("status").textContent = "Готово"; } catch (e) { $("status").textContent = e.message; } finally { busy = false; } }
 function selected() { return state?.stores.find(x => x.id === selectedId); }
 function onboardingModel(value) {
@@ -165,9 +178,9 @@ $("transfer-discover").onclick = () => action(async () => {
   $("transfer-status").textContent = result.requests.length ? `Найдено запросов: ${result.requests.length}. Передача выполняется только после явного действия источника.` : "Активных запросов нет. Если источник спит, он не будет обещанно найден немедленно.";
 });
 $("transfer-receive").onclick = () => action(async () => {
-  const result = await request("SA_TRANSFER_RECEIVE_PENDING");
-  $("transfer-status").textContent = result.importState === "IMPORTED" ? "Передача принята и магазин импортирован." : result.importState === "CONFLICT" ? "Передача получена, но импорт остановлен из-за конфликта магазина." : result.code === "SOURCE_OFFLINE" ? "Источник ещё не доставил передачу." : "Активной передачи для получения нет.";
-  if (result.importState === "IMPORTED" && result.requestId) void request("SA_TRANSFER_RESULT_CONSUME", { requestId: result.requestId }).catch(() => null);
+  const { response: result, presentation } = await requestTransferReceivePending();
+  $("transfer-status").textContent = presentation.text;
+  if (presentation.consume) void request("SA_TRANSFER_RESULT_CONSUME", { requestId: result.requestId }).catch(() => null);
 });
 $("support-generate").onclick = () => action(async () => {
   const result = await request("SA_SUPPORT_SNAPSHOT");

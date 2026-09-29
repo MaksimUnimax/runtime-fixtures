@@ -143,3 +143,43 @@ After C reports compatible 0.2.7 bootstrap/profile authority, A will:
 5. keep provider and AI POST business phases at zero for this lifecycle-only proof.
 
 Until that succeeds, STORE 0.2.7 transfer remains **NOT ACCEPTED**.
+
+
+## Authoritative release identity update — ce7685b7 / 282cc79c
+
+After the initial bootstrap-gate reproduction, C materialized the authoritative
+PREPRODUCTION STORE 0.2.7 release candidate:
+
+- source HEAD: `ce7685b7a534015923116576262e41958915afbb`;
+- source tree: `d95d93ae044b10668f0f1dce526d473867495e99`;
+- product version: `0.2.7`;
+- contract: `control_plane_v2`;
+- migration level: `54`;
+- Chromium STORE candidate:
+  `/root/octoport-control/logs/C/store-release-027-ce7685b7/candidate/OCTOPORT_v0.2.7_CHROMIUM_STORE.zip`;
+- Chromium SHA-256:
+  `1c11bf6008b923af050f44bdaa97ab6b5197fda744c4a10aef5209f3efc95dc7`;
+- B1 prepare: `PREPARED`;
+- B1 preflight: `PASS`.
+
+The archive SHA is identical to the earlier 83035523-bound STORE candidate, so the
+tested extension bytes are unchanged. What changed is the authoritative release
+provenance/migration binding.
+
+C commit `282cc79c4825033a3b2c6aefe596794aeb13fa4c` rebinds the existing
+STORE1 Opera activation/signature-preflight tooling from frozen 0.2.6 to this exact
+0.2.7 source/tree/artifact identity.
+
+This source change is **not** itself evidence that the owner-test compatibility
+catalog/profile assignment has been activated. At this boundary A has not found a
+completed 0.2.7 activation/readback receipt and therefore does not repeat device
+approval while `BOOTSTRAP_PROFILE_INCOMPATIBLE` remains the last observed signed
+bootstrap result.
+
+A sent the superseding provenance request:
+
+`/root/octoport-control/peer-handoffs/C/A-C-STORE027-BOOTSTRAP-COMPAT-20260929-0349-R2.request.json`.
+
+The next A browser run requires C's safe activation/readback result for the exact
+0.2.7 identity above, or a concrete C response explaining why that technical
+activation is still gated.
