@@ -23,12 +23,17 @@ class BrandNamesTests(unittest.TestCase):
   for p in sorted(ROOT.glob('*.html')):
    with self.subTest(page=p.name):
     parsed=Names(p.read_text());self.assertTrue(parsed.names);self.assertEqual(parsed.bad,[])
- def test_global_light_and_existing_dark_rules(self):
+ def test_global_dark_only_brand_rules(self):
   css=(ROOT/'styles.css').read_text()
-  for expected in ['.brand-ozon { color:#005bff; }','.brand-wildberries { color:#bd0ca5; }','.theme-checkbox:checked + .page .brand-ozon { color:#4e93ff; }','.theme-checkbox:checked + .page .brand-wildberries { color:#f15cdd; }']:self.assertIn(expected,css)
+  for expected in ['.brand-ozon { color:#4e93ff; }','.brand-wildberries { color:#f15cdd; }']:self.assertIn(expected,css)
+  self.assertNotIn('theme-checkbox',css)
+  self.assertNotIn('.brand-ozon { color:#005bff; }',css)
+  self.assertNotIn('.brand-wildberries { color:#bd0ca5; }',css)
  def test_metadata_and_instruction_terms_are_unchanged(self):
   for p in ROOT.glob('*.html'):
    head=p.read_text().split('</head>',1)[0];self.assertNotIn('data-marketplace',head)
   html=(ROOT/'install.html').read_text()
   for term in ['Client ID + API key','Admin read only','Personal token','credentials','noindex, follow']:self.assertIn(term,html)
 if __name__=='__main__':unittest.main()
+
+[executed on device: Easyscript (f261eba5-9605-4636-9cde-e4082a541a86)]
