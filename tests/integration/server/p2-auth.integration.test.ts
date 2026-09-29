@@ -497,10 +497,22 @@ describe.sequential("P2.2 real PostgreSQL authentication matrix", () => {
     const held = new Promise<void>((resolve) => {
       release = resolve;
     });
+    let providerStarted!: () => void;
+    const started = new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(
+        () => reject(new Error("OTP_PROVIDER_START_TIMEOUT")),
+        2_000,
+      );
+      providerStarted = () => {
+        clearTimeout(timeout);
+        resolve();
+      };
+    });
     let calls = 0;
     const provider = {
       sendLoginOtp: async () => {
         calls++;
+        providerStarted();
         await held;
         return { providerMessageId: "safe-id" };
       },
@@ -508,7 +520,8 @@ describe.sequential("P2.2 real PostgreSQL authentication matrix", () => {
     const a = new OtpEmailRunner(db, keys, provider),
       b = new OtpEmailRunner(db, keys, provider);
     const ticks = [a.tick(), b.tick(), a.tick()];
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await started;
+    await b.tick();
     expect(calls).toBe(1);
     const active = await jobFor(id);
     expect(active.lease_id).toBeTruthy();

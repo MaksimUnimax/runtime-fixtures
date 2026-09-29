@@ -658,14 +658,36 @@ export function createHealthRetentionRepository(
       if (!Number.isInteger(limit) || limit < 1 || limit > 5_000)
         throw new Error("HEALTH_RETENTION_LIMIT_INVALID");
       const candidates = await runtime.query<{ runId: string }>(
-        `SELECT run_id AS "runId" FROM health_no_session_run_receipts
-         WHERE projection_applied_at IS NULL
-         ORDER BY completed_at,run_id LIMIT $1`,
+        `SELECT run.id AS "runId"
+         FROM health_runs run
+         JOIN health_no_session_observations observation ON observation.run_id=run.id
+         JOIN health_scheduled_runs scheduled ON scheduled.id=run.scheduled_run_id
+         LEFT JOIN health_no_session_run_receipts receipt ON receipt.run_id=run.id
+         WHERE run.run_kind='NO_SESSION_OBSERVATION'
+           AND receipt.projection_applied_at IS NULL
+         ORDER BY run.completed_at,run.id LIMIT $1`,
         [limit],
       );
       let applied = 0;
       for (const candidate of candidates.rows) {
         const didApply = await runtime.transaction(async (q) => {
+          await q.query(
+            `INSERT INTO health_no_session_run_receipts(
+              run_id,scheduled_run_id,schedule_id,schedule_revision,due_slot_at,idempotency_key,
+              monitor_target,health_state,scope_sha256,callback_result_sha256,adapter_id,surface_id,
+              variant_id,profile_id,profile_revision_id,profile_revision,browser_family,completed_at
+            )
+            SELECT run.id,run.scheduled_run_id,scheduled.schedule_id,scheduled.schedule_revision,
+              scheduled.due_slot_at,scheduled.idempotency_key,scheduled.monitor_target,run.health_state,
+              run.scope_sha256,observation.result_sha256,run.adapter_id,run.surface_id,run.variant_id,
+              run.profile_id,run.profile_revision_id,run.profile_revision,run.browser_family,run.completed_at
+            FROM health_runs run
+            JOIN health_no_session_observations observation ON observation.run_id=run.id
+            JOIN health_scheduled_runs scheduled ON scheduled.id=run.scheduled_run_id
+            WHERE run.id=$1 AND run.run_kind='NO_SESSION_OBSERVATION'
+            ON CONFLICT (run_id) DO NOTHING`,
+            [candidate.runId],
+          );
           const locked = await q.query<
             ProjectionReceipt & {
               observation: unknown;
