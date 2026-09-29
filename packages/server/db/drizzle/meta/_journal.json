@@ -302,6 +302,13 @@
       "when": 1790622000000,
       "tag": "0054_api_watch_product_baselines",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1790674500000,
+      "tag": "0055_api_watch_document_scope_persistence",
+      "breakpoints": true
     }
   ]
 }
