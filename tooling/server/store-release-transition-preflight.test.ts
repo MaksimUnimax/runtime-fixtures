@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { STORE1_PROFILE_SHA256 } from "./store1-opera-admin-activation.js";
 import {
   analyzeStoreReleaseTransition,
   collectStoreReleaseTransitionCatalog,
@@ -148,7 +149,7 @@ function codes(report: ReturnType<typeof analyzeStoreReleaseTransition>) {
 }
 
 describe("STORE release transition preflight", () => {
-  it("derives target version, package identity and profile fingerprint from B1 manifest", () => {
+  it("derives package target from B1 manifest while keeping canonical STORE profile authority independent", () => {
     const a = target("0.2.8");
     const b = target("0.2.9");
     expect(a.value).toMatchObject({
@@ -157,7 +158,11 @@ describe("STORE release transition preflight", () => {
       source: { head: "1".repeat(40), tree: "2".repeat(40) },
     });
     expect(b.value.productVersion).toBe("0.2.9");
-    expect(a.value.profileContentSha256).not.toBe(b.value.profileContentSha256);
+    expect(a.value.profileContentSha256).toBe(STORE1_PROFILE_SHA256);
+    expect(b.value.profileContentSha256).toBe(STORE1_PROFILE_SHA256);
+    expect(a.value.profileContentSha256).toBe(
+      "cab55851bd2d571c19de5d44f3f8b3c40ff0ba3eb44e346307a2578894b1b2c1",
+    );
   });
 
   it("rejects package bytes that do not match the candidate manifest", () => {
@@ -212,27 +217,6 @@ describe("STORE release transition preflight", () => {
       ...catalog.config!,
       compatibilityPolicyRevisionIds: ["policy-previous"],
     };
-    catalog.profileRevisions = [
-      {
-        id: "previous-revision",
-        revision: 1,
-        state: "PUBLISHED",
-        contentSha256: "f".repeat(64),
-      },
-    ];
-    catalog.assignments = [
-      {
-        ...catalog.assignments![0]!,
-        latest: {
-          revision: 3,
-          mode: "DIRECT",
-          baselineProfileRevisionId: "previous-revision",
-          candidateProfileRevisionId: null,
-          percentageBps: 0,
-        },
-      },
-    ];
-
     const report = analyzeStoreReleaseTransition(t, catalog);
     expect(report.status).toBe("MISMATCH");
     expect(codes(report)).toEqual(
@@ -240,15 +224,22 @@ describe("STORE release transition preflight", () => {
         "RELEASE_MISSING",
         "POLICY_TARGET_MISMATCH",
         "CONFIG_TARGET_POLICY_UNAVAILABLE",
-        "PROFILE_TARGET_REVISION_MISSING",
-        "ASSIGNMENT_DEPENDENCY_UNAVAILABLE",
       ]),
     );
+    expect(
+      report.checks.find((item) => item.component === "profileRevision"),
+    ).toMatchObject({ status: "READY", code: "PROFILE_REVISION_READY" });
+    expect(
+      report.checks.find((item) => item.component === "assignment"),
+    ).toMatchObject({ status: "READY", code: "ASSIGNMENT_READY" });
   });
 
-  it("returns READY when release, policy, config, profile and assignment are exact", () => {
-    const t = target().value;
+  it("returns READY when 0.2.8 release/policy/config use the canonical published 0.2.7-floor profile and DIRECT assignment", () => {
+    const t = target("0.2.8").value;
     const report = analyzeStoreReleaseTransition(t, exactCatalog(t));
+    expect(t.profileContentSha256).toBe(
+      "cab55851bd2d571c19de5d44f3f8b3c40ff0ba3eb44e346307a2578894b1b2c1",
+    );
     expect(report.status).toBe("READY");
     expect(report.mismatches).toEqual([]);
     expect(report.checks).toHaveLength(8);
@@ -257,6 +248,20 @@ describe("STORE release transition preflight", () => {
       readOnly: true,
       catalogMutationExecuted: false,
     });
+  });
+
+  it("fails closed when the published profile SHA does not match canonical STORE profile authority", () => {
+    const t = target("0.2.8").value;
+    const catalog = exactCatalog(t);
+    catalog.profileRevisions = [
+      {
+        ...catalog.profileRevisions![0]!,
+        contentSha256: "0".repeat(64),
+      },
+    ];
+    const report = analyzeStoreReleaseTransition(t, catalog);
+    expect(report.status).toBe("MISMATCH");
+    expect(codes(report)).toContain("PROFILE_TARGET_REVISION_MISSING");
   });
 
   it("keeps UNKNOWN terminal while preserving independent incompatibilities", () => {

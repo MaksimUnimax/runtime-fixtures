@@ -31,6 +31,7 @@ import {
   STORE1_BROWSER,
   STORE1_BROWSER_MINIMUM,
   STORE1_POLICY_KEY,
+  STORE1_PROFILE_COMPATIBILITY,
   STORE1_PROFILE_CONTENT,
   STORE1_PROFILE_KEY,
 } from "../../../tooling/server/store1-opera-admin-activation.js";
@@ -214,18 +215,7 @@ async function seedStoreCatalog(version: string, artifactSha256: string) {
   const draft = await lifecycle.createDraftProfileRevision({
     profileId: profile.id,
     content: STORE1_PROFILE_CONTENT,
-    compatibility: {
-      schemaVersion: "profile_compatibility_v1",
-      contractVersion: "control_plane_v2",
-      browserFamilies: [STORE1_BROWSER],
-      minimumBrowserVersions: [
-        {
-          browserFamily: STORE1_BROWSER,
-          minimumVersion: STORE1_BROWSER_MINIMUM,
-        },
-      ],
-      minimumExtensionVersion: version,
-    },
+    compatibility: STORE1_PROFILE_COMPATIBILITY,
     context: adminContext("profile-draft-" + version),
   });
   await lifecycle.markProfileRevisionCandidate({
@@ -471,10 +461,14 @@ describe.sequential("STORE release transition read-only preflight", () => {
         "RELEASE_MISSING",
         "POLICY_TARGET_MISMATCH",
         "CONFIG_TARGET_POLICY_UNAVAILABLE",
-        "PROFILE_TARGET_REVISION_MISSING",
-        "ASSIGNMENT_DEPENDENCY_UNAVAILABLE",
       ]),
     );
+    expect(
+      report.checks.find((item) => item.component === "profileRevision"),
+    ).toMatchObject({ status: "READY", code: "PROFILE_REVISION_READY" });
+    expect(
+      report.checks.find((item) => item.component === "assignment"),
+    ).toMatchObject({ status: "READY", code: "ASSIGNMENT_READY" });
   });
 
   it("returns READY for an exact target catalog through real admin GET handlers", async () => {

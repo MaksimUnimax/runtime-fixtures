@@ -91,3 +91,48 @@ A branch-only `static-site` workflow on that merge fails because the workflow as
 ## Boundary
 
 This is a preflight/read-model helper only. It does not authorize release publication, policy/config publication, profile/assignment mutation, production deploy, live DB changes, package publication, or STORE submission. C remains sole main/live integrator.
+
+## C intake rework — profile floor independence
+
+C rejected the first submitted candidate f21ba467dc318ef4e28bf650cc21f114718d8d5d with exact handoff:
+
+/root/octoport-control/peer-handoffs/B/C-B-B02-RELEASE-PREFLIGHT-PROFILE-FLOOR-REWORK-20260929-0827.request.json
+
+The finding was correct: the first helper rebuilt the profile compatibility fingerprint with minimumExtensionVersion=manifest.productVersion. That incorrectly coupled package release identity to AI profile compatibility.
+
+Accepted STORE 0.2.8 semantics keep:
+
+- package / compatibility policy / config target at 0.2.8;
+- canonical AI profile compatibility floor at 0.2.7;
+- canonical published profile SHA-256 cab55851bd2d571c19de5d44f3f8b3c40ff0ba3eb44e346307a2578894b1b2c1;
+- existing DIRECT assignment to that published profile revision.
+
+### Correction
+
+The transition helper now imports and uses canonical STORE1_PROFILE_SHA256 from the existing Store1 planner authority. It no longer computes a profile fingerprint from manifest.productVersion.
+
+The B1 manifest remains authoritative for release transition identity: source head/tree, package product version, contract, migration level, package filename/bytes/SHA. Profile compatibility authority is intentionally independent.
+
+### Corrected verification
+
+Focused unit: 8/8 PASS.
+- B1 target 0.2.8 and 0.2.9 both retain canonical Store1 profile SHA.
+- Target 0.2.8 plus published canonical profile SHA and DIRECT assignment reports profileRevision/assignment READY.
+- Wrong published profile SHA reports PROFILE_TARGET_REVISION_MISSING / MISMATCH.
+
+Disposable PostgreSQL + real admin GET integration: 4/4 PASS.
+- Known previous release 0.2.7 leaves profileRevision + assignment READY while release/policy/config show the transition gap.
+- Exact 0.2.8 release/policy/config with canonical 0.2.7-floor profile is READY.
+- Wrong/incomplete catalog authority remains fail-closed.
+- All preflight requests remain GET-only and the transition DB snapshot is unchanged.
+
+Resource receipt: /root/octoport-control/resource-jobs/2f951c44122146989a567243a0fa7996/receipt.json
+- command exit 0; OOM kill 0; cleanup verified; peak 736100352 bytes.
+
+Workspace typecheck after rework:
+/root/octoport-control/resource-jobs/9a3dc76a126c4745adf36ffa62bf9049/receipt.json
+- command exit 0; OOM kill 0; cleanup verified; peak 2111832064 bytes.
+
+Focused ESLint, Prettier and git diff --check all exit 0.
+
+The current protected live catalog read remains a separate C-owned session/readback boundary. No live write, direct SQL, auth bypass, package publication or deployment was performed by B.

@@ -2,14 +2,13 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { basename } from "node:path";
 import { SemVerV1Schema } from "../../packages/shared/src/index.js";
-import { validateProfileContent } from "../../packages/server/adapter-registry/src/index.js";
 import {
   STORE1_AI_SURFACE,
   STORE1_BROWSER,
   STORE1_BROWSER_MINIMUM,
   STORE1_POLICY_KEY,
-  STORE1_PROFILE_CONTENT,
   STORE1_PROFILE_KEY,
+  STORE1_PROFILE_SHA256,
 } from "./store1-opera-admin-activation.js";
 
 const HASH = /^[0-9a-f]{64}$/;
@@ -167,24 +166,6 @@ function requiredString(value: unknown, code: string): string {
   return value;
 }
 
-function targetProfileSha(productVersion: string): string {
-  return validateProfileContent({
-    content: STORE1_PROFILE_CONTENT,
-    compatibility: {
-      schemaVersion: "profile_compatibility_v1",
-      contractVersion: "control_plane_v2",
-      browserFamilies: [STORE1_BROWSER],
-      minimumBrowserVersions: [
-        {
-          browserFamily: STORE1_BROWSER,
-          minimumVersion: STORE1_BROWSER_MINIMUM,
-        },
-      ],
-      minimumExtensionVersion: productVersion,
-    },
-  }).contentSha256;
-}
-
 export function readStoreReleaseTransitionTarget(
   manifestPath: string,
   zipPath?: string,
@@ -247,7 +228,7 @@ export function readStoreReleaseTransitionTarget(
     adapterKey: ADAPTER_KEY,
     surfaceKey: STORE1_AI_SURFACE,
     profileKey: STORE1_PROFILE_KEY,
-    profileContentSha256: targetProfileSha(productVersion),
+    profileContentSha256: STORE1_PROFILE_SHA256,
   };
 }
 
