@@ -1,9 +1,11 @@
-"""Exact frozen STORE 0.2.6 technical lifecycle remainder.
+"""Exact versioned STORE technical lifecycle remainder.
 
 This is owner-authorized technical evidence only. It uses two fresh protected Opera
-profiles, the exact frozen STORE ZIP bytes, normal device authorization, synthetic
-temporary store credentials, real popup transfer controls, and one-device local
-reset/re-auth. It never exercises marketplace providers or an AI send surface.
+profiles, an explicitly pinned package SHA/version, normal device authorization,
+synthetic temporary store credentials, real popup transfer controls, and one-device
+local reset/re-auth. Frozen 0.2.6 remains the default identity for historical reruns;
+later candidates must pass their exact expected SHA/version explicitly. It never
+exercises marketplace providers or an AI send surface.
 """
 from __future__ import annotations
 
@@ -18,9 +20,9 @@ from urllib.parse import urlparse
 from playwright.sync_api import sync_playwright
 
 
-EXPECTED_SHA256 = "579dc15aaf692fc9e96ad650e660ac0190bb7e136c949b7ad401e5bc82a909b5"
+DEFAULT_PACKAGE_SHA256 = "579dc15aaf692fc9e96ad650e660ac0190bb7e136c949b7ad401e5bc82a909b5"
 EXPECTED_BROWSER = "136.0.6008.22"
-EXPECTED_VERSION = "0.2.6"
+DEFAULT_MANIFEST_VERSION = "0.2.6"
 
 
 class LifecycleFailure(Exception):
@@ -30,6 +32,18 @@ class LifecycleFailure(Exception):
 def require(value, code: str):
     if not value:
         raise LifecycleFailure(code)
+
+
+def validate_package_identity(helper, carrier: Path, runtime: Path, expected_sha256: str, expected_version: str):
+    actual_sha256 = helper.sha256(carrier)
+    require(actual_sha256 == expected_sha256, "STORE_ZIP_SHA256_MISMATCH")
+    try:
+        manifest = json.loads((runtime / "manifest.json").read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        raise LifecycleFailure("PACKAGE_MANIFEST_READ_FAILED") from None
+    actual_version = manifest.get("version") if isinstance(manifest, dict) else None
+    require(actual_version == expected_version, "PACKAGE_MANIFEST_VERSION_MISMATCH")
+    return actual_sha256, actual_version
 
 
 def wait_for(fn, code: str, timeout: float = 20.0):
@@ -188,7 +202,13 @@ def reauthorize(helper, worker, session_path: Path):
 def run(args) -> dict:
     root = Path(__file__).resolve().parents[4]
     helper = load_helper(root)
-    require(helper.sha256(args.carrier) == EXPECTED_SHA256, "STORE_ZIP_SHA256_MISMATCH")
+    package_sha256, manifest_version = validate_package_identity(
+        helper,
+        args.carrier,
+        args.source_runtime,
+        args.expected_package_sha256,
+        args.expected_manifest_version,
+    )
     require(EXPECTED_BROWSER in helper.browser_product(args.browser_executable), "BROWSER_PRODUCT_VERSION_MISMATCH")
     expected_inventory = helper.carrier_inventory(args.carrier)
     require(helper.runtime_inventory(args.source_runtime) == expected_inventory, "SOURCE_RUNTIME_BYTES_MISMATCH")
@@ -353,10 +373,10 @@ def run(args) -> dict:
 
             evidence = {
                 "status": "PASS",
-                "evidenceLevel": "EXACT_FROZEN_STORE_BYTES_DEVELOPMENT_FLAG_TECHNICAL_LIFECYCLE",
-                "packageSha256": EXPECTED_SHA256,
+                "evidenceLevel": "EXACT_VERSIONED_PACKAGE_DEVELOPMENT_FLAG_TECHNICAL_LIFECYCLE",
+                "packageSha256": package_sha256,
                 "browserProduct": helper.browser_product(args.browser_executable),
-                "manifestVersion": EXPECTED_VERSION,
+                "manifestVersion": manifest_version,
                 "runtimeFileCount": len(expected_inventory),
                 "twoFreshDeviceFlows": True,
                 "sameAccount": True,
@@ -438,6 +458,8 @@ def main() -> int:
     parser.add_argument("--browser-executable", type=Path, required=True)
     parser.add_argument("--technical-session-file", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--expected-package-sha256", default=DEFAULT_PACKAGE_SHA256)
+    parser.add_argument("--expected-manifest-version", default=DEFAULT_MANIFEST_VERSION)
     args = parser.parse_args()
     for name in ("carrier", "source_runtime", "recipient_runtime", "source_profile", "recipient_profile", "browser_executable", "technical_session_file", "output"):
         setattr(args, name, getattr(args, name).resolve())
