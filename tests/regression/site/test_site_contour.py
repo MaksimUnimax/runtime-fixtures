@@ -14,7 +14,7 @@ class HeroSourceTests(unittest.TestCase):
 
     def test_owner_selected_text_first_hero(self):
         self.assertIn('class="hero shell" aria-labelledby="hero-title"',self.html)
-        self.assertIn('<p class="hero-kicker"><span aria-hidden="true">✦</span> ВАШ ИИ. ВАШИ ПРОДАЖИ.</p>',self.html)
+        self.assertNotIn('class="hero-kicker"',self.html)
         self.assertIn('id="hero-title">Личный помощник на <br />базе любимой <span>Нейросети.</span></h1>',self.html)
         self.assertNotIn('class="contour-wrap"',self.html)
         self.assertNotIn('class="contour-scene"',self.html)
@@ -33,13 +33,14 @@ class HeroSourceTests(unittest.TestCase):
         self.assertIn('Так привычный вам ИИ становится <strong>вашим сотрудником.</strong>',self.html)
         self.assertIn('Можно использовать бесплатные аккаунты нейросетей.',self.html)
 
-    def test_cosmic_structure_is_real_html_css_not_baked_text_image(self):
-        for cls in ('hero-space','hero-orbit hero-orbit-a','hero-orbit hero-orbit-b','hero-horizon','hero-divider'):
-            self.assertIn(cls,self.html)
-        self.assertIn('.hero-horizon {',self.css)
-        self.assertIn('.hero-orbit {',self.css)
-        self.assertIn('linear-gradient(180deg,#d6efff',self.css)
-        self.assertIn('radial-gradient(ellipse at 50% 0%',self.css)
+    def test_owner_correction_removes_outer_lines_and_restores_octopus(self):
+        self.assertNotIn('class="hero-space"',self.html)
+        self.assertNotIn('class="hero-orbit',self.html)
+        self.assertNotIn('class="hero-horizon"',self.html)
+        self.assertIn('class="hero-divider"',self.html)
+        self.assertIn('class="hero-mascot"',self.html)
+        self.assertIn('src="/assets/contour-owner-static-r13.svg"',self.html)
+        self.assertIn('.hero-mascot {',self.css)
 
     def test_two_real_cta_links(self):
         self.assertIn('<a class="button primary" href="#beta">Попробовать</a>',self.html)

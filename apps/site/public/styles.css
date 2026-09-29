@@ -742,3 +742,11 @@ p,li { line-height:1.65; }
   .hero-actions { flex-direction:column; align-items:stretch; width:min(100%,300px); margin-inline:auto; }
   .hero-actions .button { width:100%; }
 }
+/* R17 — owner correction: no outer orbit lines/kicker; restore accepted R13 octopus. */
+.hero { min-height:auto; padding-top:64px; padding-bottom:70px; overflow:visible; }
+.hero-space,.hero-kicker { display:none !important; }
+.hero-copy { width:min(100%,980px); }
+.hero-mascot { position:relative; width:360px; height:290px; margin:28px auto 0; overflow:hidden; pointer-events:none; }
+.hero-mascot img { position:absolute; width:840px; max-width:none; left:50%; top:50%; transform:translate(-50%,-44%); display:block; }
+@media (max-width:760px) { .hero { padding-top:38px; padding-bottom:58px; } .hero-mascot { width:280px; height:225px; margin-top:22px; } .hero-mascot img { width:655px; } }
+@media (max-width:480px) { .hero-mascot { width:250px; height:202px; } .hero-mascot img { width:585px; } }

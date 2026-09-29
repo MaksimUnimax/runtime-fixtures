@@ -75,15 +75,14 @@ class Browser:
 
 CHECK = r'''(() => {
  const rect=e=>{const r=e.getBoundingClientRect();return {x:r.x+scrollX,y:r.y+scrollY,w:r.width,h:r.height,right:r.right+scrollX,bottom:r.bottom+scrollY}};
- const hero=document.querySelector('.hero'),copy=document.querySelector('.hero-copy'),space=document.querySelector('.hero-space');
+ const hero=document.querySelector('.hero'),copy=document.querySelector('.hero-copy'),mascot=document.querySelector('.hero-mascot img');
  const colors={}; for (const c of ['brand-ozon','brand-wildberries','brand-alice','brand-chatgpt','brand-deepseek','brand-gemini','brand-qwen']) { const e=document.querySelector('.'+c); colors[c]=e?getComputedStyle(e).color:null; }
  return {
   width:innerWidth,cw:document.documentElement.clientWidth,sw:document.documentElement.scrollWidth,
-  hero:rect(hero),copy:rect(copy),space:rect(space),
+  hero:rect(hero),copy:rect(copy),mascot:rect(mascot),
   h1:document.querySelector('h1').innerText.replace(/\s+/g,' ').trim(),
-  kicker:document.querySelector('.hero-kicker')?.innerText.replace(/\s+/g,' ').trim(),
-  divider:!!document.querySelector('.hero-divider'),horizon:!!document.querySelector('.hero-horizon'),
-  orbitCount:document.querySelectorAll('.hero-orbit').length,buttons:document.querySelectorAll('.hero-actions .button').length,
+  divider:!!document.querySelector('.hero-divider'),kicker:!!document.querySelector('.hero-kicker'),heroSpace:!!document.querySelector('.hero-space'),
+  buttons:document.querySelectorAll('.hero-actions .button').length,
   oldContour:document.querySelectorAll('.contour-wrap,.contour-scene,.ai-badge,.market-badge').length,
   headerNav:getComputedStyle(document.querySelector('.header-nav')).display,
   colors,themeControls:document.querySelectorAll('#theme-checkbox,.theme-switch').length,
@@ -98,8 +97,8 @@ def checks(d):
  assert d['cw']==d['sw'],('overflow',d)
  assert d['themeControls']==0 and d['colorScheme']=='dark' and d['themeColor']=='#0d1929',d
  assert d['h1']=='Личный помощник на базе любимой Нейросети.',d['h1']
- assert d['kicker']=='✦ ВАШ ИИ. ВАШИ ПРОДАЖИ.',d['kicker']
- assert d['divider'] and d['horizon'] and d['orbitCount']==2,d
+ assert not d['kicker'] and not d['heroSpace'],d
+ assert d['divider'] and d['mascot']['w']>0 and d['mascot']['h']>0,d
  assert d['buttons']==2 and d['oldContour']==0,d
  assert d['headerNav']=='none',d['headerNav']
  assert d['canonical']=='https://octoport.ru/' and d['font'] and d['images'],d
@@ -112,7 +111,7 @@ def hero_shot(browser,name):
  p=OUT/(browser.name+'-'+name+'.png');p.write_bytes(base64.b64decode(data['data']));return str(p)
 
 def stable_space(browser):
- return browser.ev("(() => {const e=document.querySelector('.hero-space'),r=e.getBoundingClientRect();return [r.width,r.height,getComputedStyle(e).transform]})()")
+ return browser.ev("(() => {const e=document.querySelector('.hero-mascot img'),r=e.getBoundingClientRect();return [r.width,r.height,getComputedStyle(e).transform]})()")
 
 def stop_safely(signum,frame): raise SystemExit('Interrupted; closing owned browser and HTTP server')
 signal.signal(signal.SIGTERM,stop_safely)
