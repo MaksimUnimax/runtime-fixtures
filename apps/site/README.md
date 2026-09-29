@@ -117,3 +117,7 @@ The homepage reference art now uses the canonical owner reference mask directly,
 ### Approved public copy R5
 
 Current copy authority: `docs/seo/SITE_APPROVED_EDITS_2026-09-28_R5.md`. The owner approved native capability disclosure groups, a complete branded HOME H1, Russian product copy and revised analytics/privacy/support pages. The installation instructions remain unchanged. SEO page ownership and indexing directives are unchanged.
+
+### Contour R13 — dark-only owner reference
+
+The 2026-09-29 owner reference supersedes the prior R12 visual for the HOME hero. The public site is now dark-only and the theme toggle is removed. The central octopus/orbit/stars are a static SVG derived from the canonical owner reference, while all eight brand circles remain independent clickable DOM controls fitted to the same reference geometry. See `docs/design/CONTOUR_DARK_OWNER_R13_2026-09-29.md` and `apps/site/design-sources/contour-owner-dark-r13.json`.
