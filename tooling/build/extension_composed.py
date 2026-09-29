@@ -110,7 +110,7 @@ def compose(directory, mode="development", release_authority=None):
     directory.mkdir(parents=True, exist_ok=False)
     baseline.verify_import()
     recipe = baseline.read_json(RECIPE)
-    assert recipe["version"] == "0.2.8" and recipe["stage"] == "I1-C1"
+    assert recipe["version"] == "0.2.9" and recipe["stage"] == "I1-C1"
     inputs = {}
     read_input("apps/extension/composition.json", inputs)
     output = {}
