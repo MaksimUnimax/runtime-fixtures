@@ -264,20 +264,66 @@ h1 { font-size:clamp(34px,3.45vw,46px); line-height:1.13; letter-spacing:-.025em
 .contour-scene { --scene-ink:#f4f7fb; --scene-paper:transparent; aspect-ratio:4/3; background:transparent; }
 .contour-owner-static-r13 { color:#f4f7fb; shape-rendering:geometricPrecision; }
 .ai-badge,.market-badge { position:absolute; z-index:2; transform:translate(-50%,-50%); display:flex; flex-direction:column; align-items:center; justify-content:center; aspect-ratio:1; padding:0; border:clamp(1.4px,.4cqi,3px) solid var(--scene-ink); border-radius:50%; color:var(--scene-ink); background:transparent; text-decoration:none; text-align:center; transition:transform .18s ease,box-shadow .18s ease; }
-.ai-badge { width:12.430939%; gap:4%; }
+.ai-badge { width:12.430939%; }
 .ai-badge.pos-alice { width:11.714492%; }
 .ai-badge.pos-gemini { width:11.715736%; }
 .ai-badge.pos-chatgpt { width:11.637252%; }
 .ai-badge.pos-deepseek { width:11.672000%; }
 .ai-badge.pos-anthropic { width:11.874733%; }
 .ai-badge.pos-qwen { width:11.810259%; }
-.ai-badge img { display:block; width:48%; height:46%; flex:0 0 46%; object-fit:contain; }
-.ai-badge span { display:block; max-width:96%; font-family:Arial,Helvetica,sans-serif; font-size:clamp(6px,1.8cqi,14px); font-weight:600; line-height:1.15; white-space:nowrap; }
-.market-badge { gap:7%; }
-.market-logo-slot { display:grid; place-items:center; width:72%; height:30%; flex:0 0 30%; line-height:0; }
+.ai-badge img {
+  position:absolute;
+  left:50%;
+  top:38.5%;
+  display:block;
+  width:42%;
+  height:42%;
+  object-fit:contain;
+  transform:translate(-50%,-50%);
+}
+.ai-badge span {
+  position:absolute;
+  left:50%;
+  top:74%;
+  display:block;
+  max-width:94%;
+  transform:translate(-50%,-50%);
+  font-family:Arial,Helvetica,sans-serif;
+  font-size:clamp(6px,1.9cqi,14px);
+  font-weight:600;
+  line-height:1;
+  white-space:nowrap;
+}
+.market-badge { position:absolute; }
+.market-logo-slot {
+  position:absolute;
+  left:50%;
+  display:grid;
+  place-items:center;
+  transform:translate(-50%,-50%);
+  line-height:0;
+}
 .market-logo-slot img { display:block; width:100%; height:100%; object-fit:contain; }
-.pos-wb .market-logo-slot img { width:82%; height:100%; }
-.market-label { display:block; width:90%; margin:0; font-family:Arial,Helvetica,sans-serif; font-size:clamp(7px,2.2cqi,17px); line-height:1.2; font-weight:500; letter-spacing:normal; text-align:center; white-space:nowrap; }
+.pos-wb .market-logo-slot { top:42.5%; width:82%; height:36%; }
+.pos-ozon .market-logo-slot { top:47.5%; width:78%; height:22%; }
+.market-label {
+  position:absolute;
+  left:50%;
+  top:73%;
+  display:block;
+  width:94%;
+  margin:0;
+  transform:translate(-50%,-50%);
+  font-family:Arial,Helvetica,sans-serif;
+  font-size:clamp(8px,2.35cqi,18px);
+  line-height:1;
+  font-weight:600;
+  letter-spacing:normal;
+  text-align:center;
+  white-space:nowrap;
+}
+.market-badge .brand-wildberries { color:#e11ee8; }
+.market-badge .brand-ozon { color:#0187ed; }
 .ai-badge::after { content:""; position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:100%; height:100%; min-width:44px; min-height:44px; border-radius:50%; }
 .ai-badge:hover,.ai-badge:focus-visible,.market-badge:hover,.market-badge:focus-visible { transform:translate(-50%,-50%) scale(1.035); }
 .ai-badge:focus-visible,.market-badge:focus-visible { outline:2px solid var(--scene-ink); outline-offset:4px; }
