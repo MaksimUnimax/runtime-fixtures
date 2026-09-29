@@ -125,3 +125,7 @@ The 2026-09-29 owner reference supersedes the prior R12 visual for the HOME hero
 ### Contour R14 — badge alignment and owner hero copy
 
 The R13 mascot/orbit geometry remains unchanged. R14 normalizes the visible AI mark/label positions, fits Wildberries and Ozon logo/label proportions to the owner reference crops, and applies the 2026-09-29 owner HOME heading/copy correction. All eight circles remain independent links and the scene remains transparent. See `docs/design/CONTOUR_BADGE_ALIGNMENT_COPY_R14_2026-09-29.md`.
+
+### Contour R15 — canonical badge fit
+
+R15 supersedes the R14 badge-layout attempt. Icon/label positions and marketplace proportions are measured from the canonical 2026-09-29 owner reference instead of using one guessed shared offset. The accepted octopus/orbit/circle geometry remains unchanged; the final owner HOME H1 is a single line of meaning, with the provider list moved into the first explanatory paragraph. See `docs/design/CONTOUR_CANONICAL_BADGE_FIT_R15_2026-09-29.md`.
