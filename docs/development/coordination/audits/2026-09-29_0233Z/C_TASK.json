@@ -17,5 +17,12 @@
     "Обновить task/result/next в C.json: есть действительный новый resume и работающий C test-group, а result/next до сих пор говорят STOP и HEAD06dad. Не менять/обходить более поздний STOP.",
     "Live receipt отдельно: фактический unit/timer, initial inspect, backup/recovery boundary, первый apply, повтор после новых old-writer rows, свежая compact latest/<=3 per scope, остаток очереди, один poller, продукт620/0053/0054 неизменны. Уже выданную ограниченную авторизацию повторно не спрашивать.",
     "После этих текущих границ продолжать READY-очередь, сохранять отдельные H3/reviewer/store ограничения; не объявлять весь сценарий готовым по публичным наблюдениям."
-  ]
+  ],
+  "source_findings": {
+    "status": "CLOSED_SOURCE_ONLY",
+    "head": "2ef41b105d672d06ac0d050dc168270deb55693a",
+    "evidence": "/root/octoport-control/incidents/streams-audit-20260929T0233Z/C-fix-review.json",
+    "at": "2026-09-29T02:49:37.489077+00:00",
+    "details": "Non-object/mode mismatch controlled; cursor and last-result preserved. Live scheduler and new A artifact still OPEN."
+  }
 }

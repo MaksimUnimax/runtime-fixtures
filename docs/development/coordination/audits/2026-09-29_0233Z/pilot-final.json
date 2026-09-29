@@ -1,0 +1,13 @@
+{
+  "at": "2026-09-29T02:47:06.751Z",
+  "rows": [
+    {
+      "raw_observations": 87,
+      "successful": 225,
+      "failed": 18,
+      "last_success": "2026-09-29T02:43:51.249Z",
+      "compact_latest": "2026-09-28T14:43:51.828Z",
+      "accepted_baselines": 0
+    }
+  ]
+}

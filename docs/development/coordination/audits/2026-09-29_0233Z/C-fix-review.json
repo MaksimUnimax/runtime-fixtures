@@ -1,0 +1,18 @@
+{
+  "head": "2ef41b105d672d06ac0d050dc168270deb55693a",
+  "at": "2026-09-29T02:49:37.489077+00:00",
+  "[]": {
+    "error": "RetentionRunnerError",
+    "code": "RETENTION_RESULT_INVALID"
+  },
+  "null": {
+    "error": "RetentionRunnerError",
+    "code": "RETENTION_RESULT_INVALID"
+  },
+  "mismatch": {
+    "error": "RetentionRunnerError",
+    "code": "RETENTION_RESULT_MODE_MISMATCH",
+    "cursor_preserved": true,
+    "last_result_preserved": true
+  }
+}
