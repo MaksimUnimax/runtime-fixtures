@@ -66,12 +66,12 @@ class ApprovedCopyTests(unittest.TestCase):
         data = json.loads(re.search(r'<script[^>]+application/ld\+json[^>]*>(.*?)</script>', self.home, re.S).group(1))
         self.assertEqual(data['name'], 'Октопорт')
         self.assertEqual(data['alternateName'], ['Octoport', 'octoport.ru'])
-    def test_analytics_has_concrete_examples_and_real_result_boundaries(self):
+    def test_analytics_removes_superseded_verified_examples_block(self):
         html = (ROOT / 'seller-analytics.html').read_text()
-        self.assertEqual(html.count('class="analytics-case verified-example"'), 2)
-        for term in ('сентябре 2026 года','остаток неизвестен','не означает, что товар закончился','Суммы, названия товаров и идентификаторы продавца не публикуются','выручка','количество заказанных единиц'):
-            self.assertIn(term, html)
-        self.assertNotIn('Публичные демонстрации, конкретные категории данных', html)
+        self.assertNotIn('id="analytics-proof"', html)
+        self.assertNotIn('class="analytics-case verified-example"', html)
+        self.assertNotIn('Проверенные примеры на данных', html)
+        self.assertNotIn('сентябре 2026 года', html)
         for target in ('/#how', 'mailto:support@octoport.ru?subject=Бета%20Октопорт'):
             self.assertIn('href="' + target + '"', html)
     def test_support_prioritises_contact_before_limits(self):
