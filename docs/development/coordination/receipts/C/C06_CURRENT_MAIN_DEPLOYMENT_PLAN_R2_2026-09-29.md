@@ -48,7 +48,10 @@ Firefox:
 - file: `OCTOPORT_v0.2.9_FIREFOX_STORE.zip`;
 - SHA-256:
   `be2d603f34c43c5c95aa4e7e83b5c842d39b5ac7590ebb49464fec46f2396542`;
-- bytes: 4214684.
+- bytes: 4214684;
+- independent A package-identity evidence:
+  `/root/octoport-control/logs/A/store029-firefox-package-identity-evidence-20260929.json`
+  (`PASS_PACKAGE_IDENTITY_ONLY`; no store-install/live/deployment claim).
 
 Backend/main movement must not silently rebuild or replace these package bytes.
 
