@@ -229,8 +229,9 @@ describe("STORE-1 ordinary-admin activation planner", () => {
     });
   });
 
-  it("keeps the accepted profile revision while the package advances to 0.2.8", () => {
-    expect(STORE1_VERSION).toBe("0.2.8");
+  it("keeps the accepted profile revision while the package advances to 0.2.9", () => {
+    expect(STORE1_VERSION).toBe("0.2.9");
+    expect(STORE1_PREVIOUS_VERSION).toBe("0.2.8");
     expect(STORE1_PROFILE_MINIMUM_EXTENSION_VERSION).toBe("0.2.7");
     expect(STORE1_PROFILE_COMPATIBILITY.minimumExtensionVersion).toBe("0.2.7");
     expect(STORE1_PROFILE_SHA256).toBe(
@@ -243,7 +244,7 @@ describe("STORE-1 ordinary-admin activation planner", () => {
     });
   });
 
-  it("appends the 0.2.8 policy only over the exact accepted 0.2.7 predecessor", () => {
+  it("appends the 0.2.9 policy only over the exact accepted 0.2.8 predecessor", () => {
     const r = exactReadback();
     r.policies = [
       {
@@ -256,6 +257,7 @@ describe("STORE-1 ordinary-admin activation planner", () => {
       status: "POST",
       next: {
         path: `/v1/admin/compatibility/policies/${STORE1_POLICY_KEY}/publish`,
+        purpose: `Append the exact STORE-1 ${STORE1_VERSION} policy revision over the accepted ${STORE1_PREVIOUS_VERSION} predecessor.`,
         body: {
           contractVersion: STORE1_CONTRACT,
           browserFamily: "opera",
