@@ -2,7 +2,7 @@
 
 Date: 2026-09-29
 
-Status: SOURCE_ACCEPTED / PRODUCTION_PENDING.
+Status: PRODUCTION_DEPLOYED / LIVE_QA_PASS.
 
 R18 corrects R17. The owner explicitly required the octopus to be restored **as it was before the text-first redesign**, not as a standalone mascot below the CTA buttons.
 
@@ -33,3 +33,16 @@ At <=1180px the whole contour composition moves below the text as one unit, pres
 - Chrome: 8 hero states, 8/8 contour hover-focus pairs PASS at 1440/960/390/320;
 - Chrome approved-copy/public-page run: 15 states, 48 disclosure interactions PASS;
 - visual review confirms the right-side contour matches the pre-R16 arrangement and the complete mobile contour remains intact.
+
+## Production acceptance
+
+Production source commit: `c3e0fd366346e3a4502154560ecf00dca51b868b`.
+Live release: `/var/www/octoport-site/releases/c3e0fd366346e3a4502154560ecf00dca51b868b`.
+Rollback backup: `/var/backups/octoport-site/20260929T100727Z`.
+
+Live browser acceptance on `https://octoport.ru`:
+- Chrome: 8 states, 8/8 contour hover-focus pairs PASS;
+- Opera: 8 states, 8/8 contour hover-focus pairs PASS;
+- Yandex Browser: 8 states, 8/8 contour hover-focus pairs PASS;
+- Chrome approved-copy/public-page run: 15 states, 48 disclosure interactions PASS;
+- production ingress/TLS/redirect/security-header verification PASS.
