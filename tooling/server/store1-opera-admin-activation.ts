@@ -2,23 +2,35 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { basename } from "node:path";
 import { validateProfileContent } from "../../packages/server/adapter-registry/src/index.js";
+import {
+  STORE1_ACCEPTED_ARTIFACT_SHA256,
+  STORE1_ACCEPTED_SOURCE_HEAD,
+  STORE1_ACCEPTED_SOURCE_TREE,
+  STORE1_BROWSER,
+  STORE1_BROWSER_MINIMUM,
+  STORE1_CONTRACT,
+  STORE1_PREVIOUS_VERSION,
+  STORE1_PROFILE_MINIMUM_EXTENSION_VERSION,
+  STORE1_VERSION,
+} from "./store1-operator-authority.js";
 import { isTrustedStore1V2SignaturePreflightProof } from "./store1-v2-signature-preflight.js";
 
-export const STORE1_VERSION = "0.2.7" as const;
-const STORE1_PREVIOUS_VERSION = "0.2.6" as const;
-export const STORE1_CONTRACT = "control_plane_v2" as const;
-export const STORE1_BROWSER = "opera" as const;
-export const STORE1_BROWSER_MINIMUM = "136" as const;
+export {
+  STORE1_ACCEPTED_ARTIFACT_SHA256,
+  STORE1_ACCEPTED_SOURCE_HEAD,
+  STORE1_ACCEPTED_SOURCE_TREE,
+  STORE1_BROWSER,
+  STORE1_BROWSER_MINIMUM,
+  STORE1_CONTRACT,
+  STORE1_PREVIOUS_VERSION,
+  STORE1_PROFILE_MINIMUM_EXTENSION_VERSION,
+  STORE1_VERSION,
+} from "./store1-operator-authority.js";
+
 export const STORE1_POLICY_KEY = "store1.opera.v2" as const;
 export const STORE1_AI_SURFACE = "web" as const;
 export const STORE1_PROFILE_KEY = "chatgpt-web-opera-v1" as const;
 export const STORE1_REASON = "STORE-1 Opera reviewer catalog activation";
-export const STORE1_ACCEPTED_SOURCE_HEAD =
-  "ce7685b7a534015923116576262e41958915afbb" as const;
-export const STORE1_ACCEPTED_SOURCE_TREE =
-  "d95d93ae044b10668f0f1dce526d473867495e99" as const;
-export const STORE1_ACCEPTED_ARTIFACT_SHA256 =
-  "1c11bf6008b923af050f44bdaa97ab6b5197fda744c4a10aef5209f3efc95dc7" as const;
 
 function selector(
   strategy:
@@ -81,7 +93,7 @@ export const STORE1_PROFILE_COMPATIBILITY = {
   minimumBrowserVersions: [
     { browserFamily: STORE1_BROWSER, minimumVersion: STORE1_BROWSER_MINIMUM },
   ],
-  minimumExtensionVersion: STORE1_VERSION,
+  minimumExtensionVersion: STORE1_PROFILE_MINIMUM_EXTENSION_VERSION,
 };
 
 export const STORE1_PROFILE_SHA256 = validateProfileContent({
@@ -570,7 +582,7 @@ export function planStore1Activation(
       },
       policy === null
         ? "Publish exact Opera compatibility policy."
-        : "Append the exact STORE-1 0.2.7 policy revision over the accepted 0.2.6 predecessor.",
+        : "Append the exact STORE-1 0.2.8 policy revision over the accepted 0.2.7 predecessor.",
     );
   if (!policyMatchesVersion(STORE1_VERSION))
     return conflict(
@@ -866,7 +878,7 @@ export function planStore1Activation(
           expectedLatestAssignmentRevision: assignment.latest.revision,
           reason: STORE1_REASON,
         },
-        "Advance the exact accepted 0.2.6 predecessor assignment to the 0.2.7 profile using CAS.",
+        "Recover the exact accepted predecessor assignment to the already-approved profile using CAS.",
       );
     return conflict(
       "STORE1_ASSIGNMENT_TARGET_CONFLICT",

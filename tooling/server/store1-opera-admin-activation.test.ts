@@ -6,7 +6,10 @@ import {
   STORE1_CONTRACT,
   STORE1_AI_SURFACE,
   STORE1_POLICY_KEY,
+  STORE1_PREVIOUS_VERSION,
+  STORE1_PROFILE_COMPATIBILITY,
   STORE1_PROFILE_KEY,
+  STORE1_PROFILE_MINIMUM_EXTENSION_VERSION,
   STORE1_PROFILE_SHA256,
   STORE1_VERSION,
   planStore1Activation,
@@ -185,15 +188,15 @@ describe("STORE-1 ordinary-admin activation planner", () => {
     });
   });
 
-  it("rejects the superseded 0.2.5 package authority before any read or mutation", () => {
+  it("rejects the superseded 0.2.7 package authority before any read or mutation", () => {
     const stale = {
-      sourceHead: "68f1621376be4d7aeeff44bc76cc326f8cc64954",
-      sourceTree: "8eb20bbc19bbbaaa73ca1a9ba139efa90194ea9a",
-      version: "0.2.5",
+      sourceHead: "ce7685b7a534015923116576262e41958915afbb",
+      sourceTree: "d95d93ae044b10668f0f1dce526d473867495e99",
+      version: "0.2.7",
       contractVersion: STORE1_CONTRACT,
       artifactSha256:
-        "33cbf1ad9ec4669abe3a65e24cfbaead4c7c3a1fa711261b2d186d107c33aea1",
-      filename: "OCTOPORT_v0.2.5_CHROMIUM_STORE.zip",
+        "1c11bf6008b923af050f44bdaa97ab6b5197fda744c4a10aef5209f3efc95dc7",
+      filename: "OCTOPORT_v0.2.7_CHROMIUM_STORE.zip",
     } as unknown as Store1PackageAuthority;
     expect(planStore1Activation(stale, exactReadback())).toMatchObject({
       status: "CONFLICT",
@@ -226,13 +229,27 @@ describe("STORE-1 ordinary-admin activation planner", () => {
     });
   });
 
-  it("appends the 0.2.7 policy only over the exact accepted 0.2.6 predecessor", () => {
+  it("keeps the accepted profile revision while the package advances to 0.2.8", () => {
+    expect(STORE1_VERSION).toBe("0.2.8");
+    expect(STORE1_PROFILE_MINIMUM_EXTENSION_VERSION).toBe("0.2.7");
+    expect(STORE1_PROFILE_COMPATIBILITY.minimumExtensionVersion).toBe("0.2.7");
+    expect(STORE1_PROFILE_SHA256).toBe(
+      "cab55851bd2d571c19de5d44f3f8b3c40ff0ba3eb44e346307a2578894b1b2c1",
+    );
+    expect(planStore1Activation(authority, exactReadback())).toMatchObject({
+      status: "READY",
+      profileRevisionId: ids.revision,
+      assignmentId: ids.assignment,
+    });
+  });
+
+  it("appends the 0.2.8 policy only over the exact accepted 0.2.7 predecessor", () => {
     const r = exactReadback();
     r.policies = [
       {
         ...r.policies![0]!,
-        minimumExtensionVersion: "0.2.6",
-        recommendedExtensionVersion: "0.2.6",
+        minimumExtensionVersion: STORE1_PREVIOUS_VERSION,
+        recommendedExtensionVersion: STORE1_PREVIOUS_VERSION,
       },
     ];
     expect(planStore1Activation(authority, r)).toMatchObject({
@@ -258,8 +275,8 @@ describe("STORE-1 ordinary-admin activation planner", () => {
     r.policies = [
       {
         ...r.policies![0]!,
-        minimumExtensionVersion: "0.2.6",
-        recommendedExtensionVersion: "0.2.6",
+        minimumExtensionVersion: STORE1_PREVIOUS_VERSION,
+        recommendedExtensionVersion: STORE1_PREVIOUS_VERSION,
         minimumBrowserVersion: "135",
       },
     ];

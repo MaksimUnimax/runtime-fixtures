@@ -12,8 +12,10 @@ from urllib.parse import urlparse
 from playwright.sync_api import sync_playwright
 
 DEFAULT_PACKAGE_SHA256 = "579dc15aaf692fc9e96ad650e660ac0190bb7e136c949b7ad401e5bc82a909b5"
+DEFAULT_MAIN_PACKAGE_SHA256 = "579dc15aaf692fc9e96ad650e660ac0190bb7e136c949b7ad401e5bc82a909b5"
 EXPECTED_BROWSER = "136.0.6008.22"
 DEFAULT_MANIFEST_VERSION = "0.2.6"
+DEFAULT_MAIN_MANIFEST_VERSION = "0.2.6"
 
 
 class ResetFailure(Exception):
@@ -35,6 +37,20 @@ def validate_package_identity(helper, carrier: Path, runtime: Path, expected_sha
     actual_version = manifest.get("version") if isinstance(manifest, dict) else None
     require(actual_version == expected_version, "PACKAGE_MANIFEST_VERSION_MISMATCH")
     return actual_sha256, actual_version
+
+
+def validate_preserved_main_identity(helper, carrier: Path, runtime: Path, expected_sha256: str, expected_version: str):
+    actual_sha256 = helper.sha256(carrier)
+    require(actual_sha256 == expected_sha256, "MAIN_STORE_ZIP_SHA256_MISMATCH")
+    try:
+        manifest = json.loads((runtime / "manifest.json").read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        raise ResetFailure("MAIN_PACKAGE_MANIFEST_READ_FAILED") from None
+    actual_version = manifest.get("version") if isinstance(manifest, dict) else None
+    require(actual_version == expected_version, "MAIN_PACKAGE_MANIFEST_VERSION_MISMATCH")
+    expected_inventory = helper.carrier_inventory(carrier)
+    require(helper.runtime_inventory(runtime) == expected_inventory, "MAIN_RUNTIME_BYTES_MISMATCH")
+    return actual_sha256, actual_version, len(expected_inventory)
 
 
 def wait_for(fn, code, timeout=20.0):
@@ -112,7 +128,11 @@ def reauthorize(helper, worker, session_path):
         return {pending:s?.pending||null,authenticated:s?.authenticated===true};}"""
     )
     require(not activation["authenticated"], "RESET_DID_NOT_CLEAR_AUTH")
-    helper.approve_technical_activation(session, activation["pending"])
+    try:
+        helper.approve_technical_activation(session, activation["pending"])
+    except AssertionError as failure:
+        code = str(failure)
+        raise ResetFailure(code if code.startswith("TECHNICAL_AUTH_") else "TECHNICAL_AUTH_REAUTH_FAILED") from None
     wait_for(lambda: status(worker)["authenticated"], "REAUTH_TIMEOUT", 120)
     return bootstrap(worker)
 
@@ -132,9 +152,15 @@ def run(args):
     for runtime, label in (
         (args.source_runtime, "SOURCE"),
         (args.recipient_runtime, "RECIPIENT"),
-        (args.main_runtime, "MAIN"),
     ):
         require(helper.runtime_inventory(runtime) == expected, label + "_RUNTIME_BYTES_MISMATCH")
+    main_package_sha256, main_runtime_version, main_runtime_file_count = validate_preserved_main_identity(
+        helper,
+        args.main_carrier,
+        args.main_runtime,
+        args.expected_main_package_sha256,
+        args.expected_main_manifest_version,
+    )
     for profile, label in (
         (args.source_profile, "SOURCE"),
         (args.recipient_profile, "RECIPIENT"),
@@ -222,6 +248,9 @@ def run(args):
                 "manifestVersion": manifest_version,
                 "browserProduct": helper.browser_product(args.browser_executable),
                 "runtimeFileCount": len(expected),
+                "preservedMainPackageSha256": main_package_sha256,
+                "preservedMainRuntimeVersion": main_runtime_version,
+                "preservedMainRuntimeFileCount": main_runtime_file_count,
                 "twoFreshInstallationsAuthenticatedNormally": True,
                 "freshProfileStoreCountBeforeReset": 0,
                 "signedWorkAdmissionBeforeReset": True,
@@ -259,6 +288,7 @@ def main():
         "recipient-runtime",
         "source-profile",
         "recipient-profile",
+        "main-carrier",
         "main-runtime",
         "main-profile",
         "browser-executable",
@@ -268,6 +298,8 @@ def main():
         parser.add_argument("--" + name, type=Path, required=True)
     parser.add_argument("--expected-package-sha256", default=DEFAULT_PACKAGE_SHA256)
     parser.add_argument("--expected-manifest-version", default=DEFAULT_MANIFEST_VERSION)
+    parser.add_argument("--expected-main-package-sha256", default=DEFAULT_MAIN_PACKAGE_SHA256)
+    parser.add_argument("--expected-main-manifest-version", default=DEFAULT_MAIN_MANIFEST_VERSION)
     args = parser.parse_args()
     for key, value in vars(args).items():
         if isinstance(value, Path):
