@@ -914,6 +914,75 @@ describe.sequential("STORE-1 ordinary-admin whole-sequence rehearsal", () => {
     delete readback.signaturePreflight;
   });
 
+  it("seeds the exact 0.2.6 predecessor through normal admin APIs for the upgrade rehearsal", async () => {
+    const predecessor = await call({
+      method: "POST",
+      path:
+        "/v1/admin/compatibility/policies/" + STORE1_POLICY_KEY + "/publish",
+      body: {
+        contractVersion: STORE1_CONTRACT,
+        browserFamily: "opera",
+        minimumExtensionVersion: "0.2.6",
+        recommendedExtensionVersion: "0.2.6",
+        minimumBrowserVersion: "136",
+        maintenanceMode: false,
+        maintenanceCode: null,
+        blockedVersions: [],
+        reason: "STORE1 exact predecessor fixture",
+      },
+      purpose:
+        "Seed the exact accepted predecessor policy through ordinary admin.",
+    });
+    expect(predecessor.statusCode).toBe(200);
+    const predecessorBody = predecessor.json() as {
+      id: string;
+      revision: number;
+    };
+    expect(predecessorBody.revision).toBe(1);
+
+    const latest = await q<{ version: number }>(
+      "SELECT max(config_version)::int AS version FROM config_releases WHERE contract_version=$1",
+      [STORE1_CONTRACT],
+    );
+    const config = await call({
+      method: "POST",
+      path: "/v1/admin/compatibility/config-releases/publish",
+      body: {
+        contractVersion: STORE1_CONTRACT,
+        expectedLatestConfigVersion: latest.rows[0]!.version,
+        compatibilityPolicyRevisionIds: [predecessorBody.id],
+        reason: "STORE1 predecessor config fixture",
+      },
+      purpose:
+        "Link the accepted predecessor policy through ordinary admin CAS.",
+    });
+    expect(config.statusCode).toBe(200);
+
+    const linked = await q<{
+      minimum: string;
+      recommended: string;
+      linked: number;
+    }>(
+      `SELECT p.minimum_extension_version AS minimum,
+              p.recommended_extension_version AS recommended,
+              count(c.config_version)::int AS linked
+         FROM compatibility_policy_revisions p
+         LEFT JOIN config_release_compatibility_policies c ON c.policy_revision_id=p.id
+        WHERE p.id=$1
+        GROUP BY p.id`,
+      [predecessorBody.id],
+    );
+    expect(linked.rows[0]).toEqual({
+      minimum: "0.2.6",
+      recommended: "0.2.6",
+      linked: 1,
+    });
+    delete readback.release;
+    delete readback.policies;
+    delete readback.config;
+    delete readback.signaturePreflight;
+  });
+
   it("converges via authenticated HTTP only after signature proof and replay is mutation-free", async () => {
     const first = await runPlanner(40, true);
     expect(first.plan).toMatchObject({ status: "READY" });

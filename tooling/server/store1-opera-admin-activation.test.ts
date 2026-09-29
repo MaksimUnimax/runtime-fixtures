@@ -224,6 +224,49 @@ describe("STORE-1 ordinary-admin activation planner", () => {
     });
   });
 
+  it("appends the 0.2.7 policy only over the exact accepted 0.2.6 predecessor", () => {
+    const r = exactReadback();
+    r.policies = [
+      {
+        ...r.policies![0]!,
+        minimumExtensionVersion: "0.2.6",
+        recommendedExtensionVersion: "0.2.6",
+      },
+    ];
+    expect(planStore1Activation(authority, r)).toMatchObject({
+      status: "POST",
+      next: {
+        path: `/v1/admin/compatibility/policies/${STORE1_POLICY_KEY}/publish`,
+        body: {
+          contractVersion: STORE1_CONTRACT,
+          browserFamily: "opera",
+          minimumExtensionVersion: STORE1_VERSION,
+          recommendedExtensionVersion: STORE1_VERSION,
+          minimumBrowserVersion: "136",
+          maintenanceMode: false,
+          maintenanceCode: null,
+          blockedVersions: [],
+        },
+      },
+    });
+  });
+
+  it("keeps a near-miss predecessor policy fail-closed", () => {
+    const r = exactReadback();
+    r.policies = [
+      {
+        ...r.policies![0]!,
+        minimumExtensionVersion: "0.2.6",
+        recommendedExtensionVersion: "0.2.6",
+        minimumBrowserVersion: "135",
+      },
+    ];
+    expect(planStore1Activation(authority, r)).toMatchObject({
+      status: "CONFLICT",
+      code: "STORE1_POLICY_CONFLICT",
+    });
+  });
+
   it("checks v2 base before a pending release mutation", () => {
     const r = exactReadback();
     r.release = null;

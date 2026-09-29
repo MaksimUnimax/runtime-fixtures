@@ -780,10 +780,52 @@ export function createP3PolicyPublicationRepository(
           base.envelopeVersion !== expectedEnvelope
         )
           throw new Error("P3_CONFIG_BASE_INVALID");
-        const policyLinks = await q.query<{ id: string }>(
-          "SELECT policy_revision_id AS id FROM config_release_compatibility_policies WHERE config_version=$1 ORDER BY policy_revision_id",
+        const policyLinks = await q.query<{
+          id: string;
+          browserFamily: BrowserFamily | null;
+        }>(
+          'SELECT p.id,p.browser_family AS "browserFamily" FROM config_release_compatibility_policies l JOIN compatibility_policy_revisions p ON p.id=l.policy_revision_id WHERE l.config_version=$1 ORDER BY p.id',
           [base.configVersion],
         );
+        const incomingPolicies = await q.query<{
+          id: string;
+          contractVersion: string;
+          browserFamily: BrowserFamily | null;
+        }>(
+          'SELECT id,contract_version AS "contractVersion",browser_family AS "browserFamily" FROM compatibility_policy_revisions WHERE id=ANY($1::uuid[])',
+          [command.compatibilityPolicyRevisionIds],
+        );
+        if (
+          incomingPolicies.rows.length !==
+          command.compatibilityPolicyRevisionIds.length
+        )
+          throw new Error("P3_POLICY_SOURCE_MISSING");
+        const incomingScopes = new Set<string>();
+        for (const policy of incomingPolicies.rows) {
+          const scope = policy.browserFamily ?? "global";
+          if (
+            policy.contractVersion !== command.contractVersion ||
+            incomingScopes.has(scope)
+          )
+            throw new Error("P3_POLICY_SOURCE_INVALID");
+          incomingScopes.add(scope);
+        }
+        const nextPolicyIds = [
+          ...policyLinks.rows
+            .filter(
+              (policy) => !incomingScopes.has(policy.browserFamily ?? "global"),
+            )
+            .map((policy) => policy.id),
+          ...command.compatibilityPolicyRevisionIds,
+        ];
+        const existingPolicyIds = new Set(
+          policyLinks.rows.map((policy) => policy.id),
+        );
+        if (
+          nextPolicyIds.length === existingPolicyIds.size &&
+          nextPolicyIds.every((id) => existingPolicyIds.has(id))
+        )
+          throw new Error("P3_CONFIG_LINK_NO_CHANGE");
         const featureLinks = await q.query<{ id: string }>(
           "SELECT feature_rule_revision_id AS id FROM config_release_feature_rules WHERE config_version=$1 ORDER BY feature_rule_revision_id",
           [base.configVersion],
@@ -792,21 +834,12 @@ export function createP3PolicyPublicationRepository(
           "SELECT rollout_revision_id AS id FROM config_release_rollout_revisions WHERE config_version=$1 ORDER BY rollout_revision_id",
           [base.configVersion],
         );
-        const existingPolicies = new Set(policyLinks.rows.map((row) => row.id));
-        const addedPolicies = command.compatibilityPolicyRevisionIds.filter(
-          (id) => !existingPolicies.has(id),
-        );
-        if (addedPolicies.length === 0)
-          throw new Error("P3_CONFIG_LINK_NO_CHANGE");
         const value = PublishConfigReleaseCommandSchema.parse({
           contractVersion: command.contractVersion,
           snapshotVersion: base.snapshotVersion,
           envelopeVersion: base.envelopeVersion,
           signingKeyId: base.signingKeyId,
-          compatibilityPolicyRevisionIds: [
-            ...existingPolicies,
-            ...addedPolicies,
-          ],
+          compatibilityPolicyRevisionIds: nextPolicyIds,
           featureRuleRevisionIds: featureLinks.rows.map((row) => row.id),
           featureRolloutRevisionIds: rolloutLinks.rows.map((row) => row.id),
           publishedAt: clock(),
