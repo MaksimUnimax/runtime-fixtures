@@ -1,0 +1,58 @@
+{
+  "version": 1,
+  "created_at": "2026-09-29T01:22:00Z",
+  "baseline_main": "06dadcb160a05c59df83695b88f1b7158c754907",
+  "verdict": "AUDITED_WITH_READY_FOLLOWUPS",
+  "stream_status_preserved": true,
+  "findings": [
+    {
+      "id": "C_RETENTION_NOT_PERIODIC",
+      "severity": "P2",
+      "owner": "C",
+      "evidence": "pilot-backlog.json",
+      "facts": {
+        "successful_runs": 216,
+        "raw_observations": 78,
+        "missing_receipts": 63,
+        "older_than_1h": 54
+      },
+      "action": "Implement bounded scheduled maintenance with B0052compatibility proof."
+    },
+    {
+      "id": "C_SOURCE_RUNTIME_GAP",
+      "severity": "P2",
+      "owner": "C",
+      "action": "Track latest Russian formatter as SOURCE only until compatible pilot deployment."
+    },
+    {
+      "id": "C_DEPLOY_FINAL_BACKUP",
+      "severity": "P2_PLAN",
+      "owner": "C",
+      "action": "Define final backup after quiesce before migration; no live apply."
+    },
+    {
+      "id": "STALE_COORDINATION",
+      "severity": "P2_COORDINATION",
+      "owner": "CONTROLLER",
+      "action": "Supersede historical intake cards and replace stale queues with current tasks; preserveSTOP."
+    }
+  ],
+  "independent_tests": [
+    {
+      "name": "exact-store-helper-guards",
+      "passed": 22,
+      "failed": 0,
+      "network": false,
+      "browser": false,
+      "level": "SOURCE_HELPER"
+    }
+  ],
+  "main_ci": "POST_MAIN_5_OF_5_SUCCESS",
+  "auth": "AUTOMATED_TECHNICAL_AUTH_AND_REAL_PROVIDER_UI_PROVEN_BY_PINNED_EVIDENCE",
+  "full_useful_flow": "NOT_ACCEPTED",
+  "pilot": "PUBLIC_RUNS_WORKING_PERIODIC_RETENTION_NOT_WIRED",
+  "store": "NOT_SUBMITTED",
+  "live_mutations_this_audit": 0,
+  "cleanup_this_audit": false,
+  "report": "/root/octoport-control/incidents/streams-handoff-20260929T0111Z/REPORT.md"
+}
