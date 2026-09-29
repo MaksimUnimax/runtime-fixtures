@@ -32,7 +32,11 @@ Current frozen STORE successor:
   `74882ec31433ef1840cdea111f2ac6246d5ce3bb`;
 - package tree:
   `63c4e76e4d1bb2f8b29a585ca2d46b105b5dd19e`;
-- package migration authority: 54.
+- package migration authority: 54;
+- safe package authority evidence:
+  `/root/octoport-control/logs/C/store-release-029-74882ec3/candidate/B1_RC_MANIFEST.json`.
+  The source/tree, version, migration authority and both browser package
+  filename/SHA-256/byte identities below are read directly from that manifest.
 
 Chromium/Opera:
 - file: `OCTOPORT_v0.2.9_CHROMIUM_STORE.zip`;
