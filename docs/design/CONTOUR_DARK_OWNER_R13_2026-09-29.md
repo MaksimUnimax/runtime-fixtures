@@ -55,10 +55,10 @@ The hero scene has no separate rectangular or gradient background. It is transpa
 
 ## Production acceptance
 
-Production source commit: `4aad6e30a186ec635a9e2841697f5cdf3cb0c7ad`.
+Production source commit: `332347de087ecf8d46a3700543ce162fd6d7a0ab`.
 
-Deployment result: PASS. Immutable release: `/var/www/octoport-site/releases/4aad6e30a186ec635a9e2841697f5cdf3cb0c7ad`.
-Rollback backup: `/var/backups/octoport-site/20260929T080234Z`.
+Deployment result: PASS. Immutable release: `/var/www/octoport-site/releases/332347de087ecf8d46a3700543ce162fd6d7a0ab`.
+Rollback backup: `/var/backups/octoport-site/20260929T082523Z`.
 
 Live post-deploy verification confirms TLS, redirects, security headers, unchanged app/API ingress, anonymous authentication guard and legacy docs service.
 
@@ -67,6 +67,7 @@ Live browser acceptance on `https://octoport.ru`:
 - Opera: 8 states, 8/8 interaction checks PASS;
 - Yandex Browser: 8 states, 8/8 interaction checks PASS;
 - 1440, 960, 390 and 320 viewport checks show no horizontal overflow;
-- the static underlay remains stationary while badge controls interact independently.
+- the static underlay remains stationary while badge controls interact independently;
+- hero scene computed background is `none` at 1440 and 320 in Chrome, Opera and Yandex, so no separate rectangular/gradient panel remains.
 
 Live static SVG SHA-256: `39b40b0333c40be7a1ee16ca232f11ed158fc45694ee33fbf93278f03f70aae2`, byte-identical to the accepted source asset.
