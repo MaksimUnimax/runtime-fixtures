@@ -188,13 +188,13 @@ class ContourSourceTests(unittest.TestCase):
         for old in ("chrome.svg","opera.svg","yandex.svg","firefox.svg"):
             self.assertNotIn(f'/assets/browser-icons/{old}',self.html)
         self.assertEqual(self.html.count('class="octo-mini"'),4)
-        self.assertIn("grid-template-columns:repeat(2,minmax(0,1fr))",self.css)
+        self.assertIn("grid-template-columns:repeat(4,minmax(0,1fr))",self.css)
         self.assertIn("align-items:center",self.css)
         self.assertIn("justify-content:center",self.css)
         self.assertIn("text-align:center",self.css)
-        self.assertIn("width:78px",self.css)
-        self.assertIn("height:78px",self.css)
-        self.assertIn("flex:0 0 78px",self.css)
+        self.assertIn("width:42px",self.css)
+        self.assertIn("height:42px",self.css)
+        self.assertIn("flex:0 0 42px",self.css)
         for name in ("chrome","opera","yandex"):
             b=(ROOT/f"assets/browser-icons/{name}.png").read_bytes()
             self.assertEqual(b[:8],b"\x89PNG\r\n\x1a\n")
