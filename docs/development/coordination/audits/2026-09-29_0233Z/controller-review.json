@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "reviewer": "controller",
+  "at": "2026-09-29T02:46:16.007252+00:00",
+  "status": "AUDITED_WITH_OPEN_FINDINGS",
+  "report": "/root/octoport-control/incidents/streams-audit-20260929T0233Z/REPORT.md",
+  "A": {
+    "head": "7f8357a6ba27cd5f70d724254602ac642e51afa8",
+    "source_tests": "60/60 PASS independently",
+    "installed_fixed_artifact": "NOT_YET_PROVEN"
+  },
+  "B": {
+    "head": "2175f5b01ffe7358ebd2a09cea1d978ca6d04a62",
+    "review": "source and submitted disposable evidence reviewed; no independent DB rerun",
+    "followup": "durable reproducibility"
+  },
+  "C": {
+    "reviewed_head": "af2d2119722a29a33ff25ac9c465d95605a1015d",
+    "source_tests": "6/6 PASS independently",
+    "open": "mode/result mismatch loses cursor; malformed payload failure handling; live retention deployment pending"
+  },
+  "notices": [
+    "/root/octoport-control/controller-notices/A-AUDIT-20260929-0233.json",
+    "/root/octoport-control/controller-notices/B-AUDIT-20260929-0233.json",
+    "/root/octoport-control/controller-notices/C-AUDIT-20260929-0233.json"
+  ],
+  "not_a_resume": true,
+  "preserve_later_stop": true,
+  "no_live_write": true
+}

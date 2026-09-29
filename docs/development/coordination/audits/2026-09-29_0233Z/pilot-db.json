@@ -1,0 +1,50 @@
+{
+  "at": "2026-09-29T02:40:10.849Z",
+  "migrations": [
+    {
+      "count": 41
+    }
+  ],
+  "runs": [
+    {
+      "state": "FAILED_TERMINAL",
+      "count": 18,
+      "latest": "2026-09-27T13:13:33.769Z"
+    },
+    {
+      "state": "SUCCEEDED",
+      "count": 216,
+      "latest": "2026-09-29T01:13:56.133Z"
+    }
+  ],
+  "raw": [
+    {
+      "raw_observations": 78,
+      "missing_receipt": 63,
+      "old_missing_receipt": 63,
+      "oldest_unprojected": "2026-09-28T16:13:21.853Z",
+      "latest": "2026-09-29T01:13:56.133Z"
+    }
+  ],
+  "compact": [
+    {
+      "scopes": 9,
+      "latest": "2026-09-28T14:43:51.828Z",
+      "accepted_baselines": 0
+    }
+  ],
+  "recent": [
+    {
+      "scopes": 9,
+      "recent_states": 15,
+      "max_per_scope": 3
+    }
+  ],
+  "receipts": [
+    {
+      "receipts": 153,
+      "projected": 153,
+      "pruned": 138
+    }
+  ]
+}

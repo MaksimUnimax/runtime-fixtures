@@ -1,0 +1,33 @@
+{
+  "at": "2026-09-29T02:48:27.317789+00:00",
+  "A": {
+    "status": "WAITING_INPUT",
+    "task": "A_EXACT_TECHNICAL_LIFECYCLE_REMAINDER_20260929",
+    "result": "Controller audit A-AUDIT-20260929-0233 independently verified 7f8357a6 SOURCE repair 60/60. Frozen0.2.6 transfer remains NOT_ACCEPTED. Accepted main af2d2119 merged locally as cb7d9928 with no A-product overlap; exact submitted candidate remains 7f8357a6.",
+    "next": "Wait for C exact new versioned package containing 7f8357a6 or concrete rework; then run supported two-install metadata-only-recipient transfer/no-replay plus reset/re-auth on those exact bytes. Do not repeat frozen0.2.6 repro.",
+    "head": "cb7d99283bbcc92efe3ba965e8d6ca129a6e03a2",
+    "updated_at": "2026-09-29T02:47:45.785169+00:00",
+    "actual_head": "cb7d99283bbcc92efe3ba965e8d6ca129a6e03a2 Merge remote-tracking branch 'origin/main' into work/a-extension",
+    "worktree": ""
+  },
+  "B": {
+    "status": "WAITING_INPUT",
+    "task": "B_RETENTION_COMPAT_DURABLE_EVIDENCE_20260929",
+    "result": "Controller 20260929-0233 bounded follow-up accepted: preserve exact c2->0052 recurring/prune/retire/replay compatibility as versioned reproducible evidence; update B04 technical-vs-manual queue boundary; no live apply/new DB scope.",
+    "next": "Read exact notice and existing tmp harness; implement minimal B-owned test/fixture/receipt, validate targeted disposable PostgreSQL once, submit exact candidate to C.",
+    "head": "ba8ea2b7fc687daf3e8e95b560ffa0402c14aad3",
+    "updated_at": "2026-09-29T02:46:16.137608+00:00",
+    "actual_head": "ba8ea2b7fc687daf3e8e95b560ffa0402c14aad3 merge(main): align retention scheduler compatibility",
+    "worktree": "?? tooling/server/retention-compat-c2/"
+  },
+  "C": {
+    "status": "RUNNING",
+    "task": "C_PILOT_PERIODIC_MAINTENANCE_AND_RELEASE_GAPS_20260929",
+    "result": "B2175 integrated; controller P2 runner mismatch/non-object fixed in 2ef41b10; 9/9 runner tests incl real process-group timeout PASS under supervised job9c021b1b cleanup; systemd verify PASS; no live mutation",
+    "next": "Wait exact2ef41b10 five CI then promote main; in parallel review A7f8357 exact STORE0.2.6 transfer defect candidate; live timer remains blocked until accepted source",
+    "head": "2ef41b105d672d06ac0d050dc168270deb55693a",
+    "updated_at": "2026-09-29T02:46:50.924144+00:00",
+    "actual_head": "2ef41b105d672d06ac0d050dc168270deb55693a fix(monitoring): fail closed on retention runner mismatch",
+    "worktree": ""
+  }
+}

@@ -1,0 +1,112 @@
+{
+  "at": "2026-09-29T02:39:20.056500+00:00",
+  "units": {
+    "seller-agents-owner-test-api.service": {
+      "rc": 0,
+      "out": "Result=success\nNRestarts=0\nMemoryCurrent=118095872\nWorkingDirectory=/opt/octoport/ops-releases/62024d192a8572c11aafab91653330d1f996699f\nKillMode=control-group\nLoadState=loaded\nActiveState=active\nSubState=running",
+      "err": ""
+    },
+    "seller-agents-owner-test-worker.service": {
+      "rc": 0,
+      "out": "Result=success\nNRestarts=0\nMemoryCurrent=108670976\nWorkingDirectory=/opt/octoport/ops-releases/62024d192a8572c11aafab91653330d1f996699f\nKillMode=control-group\nLoadState=loaded\nActiveState=active\nSubState=running",
+      "err": ""
+    },
+    "seller-agents-owner-test-portal.service": {
+      "rc": 0,
+      "out": "Result=success\nNRestarts=0\nMemoryCurrent=98201600\nWorkingDirectory=/opt/octoport/ops-releases/62024d192a8572c11aafab91653330d1f996699f/apps/portal\nKillMode=control-group\nLoadState=loaded\nActiveState=active\nSubState=running",
+      "err": ""
+    },
+    "octoport-health-notifications.service": {
+      "rc": 0,
+      "out": "Result=success\nNRestarts=0\nMemoryCurrent=90624000\nWorkingDirectory=/opt/octoport/ops-releases/c2e715501161d421b1641bb697c7ee7786d84960\nKillMode=control-group\nLoadState=loaded\nActiveState=active\nSubState=running",
+      "err": ""
+    },
+    "octoport-telegram-operator.service": {
+      "rc": 0,
+      "out": "Result=success\nNRestarts=0\nMemoryCurrent=336105472\nWorkingDirectory=/opt/octoport/ops-releases/c2e715501161d421b1641bb697c7ee7786d84960\nKillMode=control-group\nLoadState=loaded\nActiveState=active\nSubState=running",
+      "err": ""
+    },
+    "octoport-monitor-retention.service": {
+      "rc": 0,
+      "out": "Result=success\nNRestarts=0\nMemoryCurrent=[not set]\nWorkingDirectory=\nKillMode=control-group\nLoadState=not-found\nActiveState=inactive\nSubState=dead",
+      "err": ""
+    },
+    "octoport-monitor-retention.timer": {
+      "rc": 0,
+      "out": "NextElapseUSecRealtime=\nResult=success\nLoadState=not-found\nActiveState=inactive\nSubState=dead",
+      "err": ""
+    }
+  },
+  "resources": {
+    "MemTotal": 16372028,
+    "MemAvailable": 13819440,
+    "SwapTotal": 1128444,
+    "SwapFree": 31012,
+    "disk_available_bytes": 12667621376,
+    "disk_total_bytes": 105566638080,
+    "inodes_available": 2802732,
+    "pressure": "some avg10=0.08 avg60=0.02 avg300=0.08 total=334052761\nfull avg10=0.08 avg60=0.02 avg300=0.07 total=311472398\n"
+  },
+  "roles": {
+    "A": {
+      "status": "RUNNING",
+      "updated_at": "2026-09-29T02:39:17.633002+00:00",
+      "updatedAt": null,
+      "current_task": null,
+      "task": "A_EXACT_TECHNICAL_LIFECYCLE_REMAINDER_20260929",
+      "head": "7f8357a6ba27cd5f70d724254602ac642e51afa8",
+      "result": "7f8357a6 submitted: exact frozen STORE0.2.6 reset/re-auth PASS; real two-install transfer reproduced metadata-only same-revision stale-credential defect; minimal bridge-core fix + TRANSFER-33 60/60 PASS; browser reruns preserved, frozen ZIP unchanged.",
+      "next": "C intake 7f8357a6 is pending; do not rerun unchanged heavy browser evidence. Scan fresh A01-A06/notices/peers for independent READY work; if C returns rework address it, otherwise rerun exact transfer only on an integrated/new candidate artifact.",
+      "git": {
+        "rc": 0,
+        "out": "",
+        "err": ""
+      },
+      "head_actual": {
+        "rc": 0,
+        "out": "7f8357a6ba27cd5f70d724254602ac642e51afa8 2026-09-29T05:29:16+03:00 fix transfer import for metadata-only store markers",
+        "err": ""
+      }
+    },
+    "B": {
+      "status": "WAITING_INPUT",
+      "updated_at": "2026-09-29T02:35:33.383571+00:00",
+      "updatedAt": null,
+      "current_task": null,
+      "task": "B_WAITING_POST_RETENTION_COMPAT_20260929",
+      "head": "2175f5b01ffe7358ebd2a09cea1d978ca6d04a62",
+      "result": "B_RETENTION_RECURRING_COMPATIBILITY_20260929 completed and submitted at exact 2175f5b01ffe7358ebd2a09cea1d978ca6d04a62; direct C handoff B-C-RETENTION-RECURRING-COMPAT-20260929-0223.request.json written. Full B01-B07 fresh queue scan is recorded in /root/octoport-control/queue-receipts/B-20260929T022938Z.json; no READY/IN_PROGRESS B task remains, no live DB/catalog operation was performed.",
+      "next": "Wait for exact C rework/new B-owned request, measured B07 regression, or explicit live-operation authority. Do not repeat B20 live retention apply; C owns integration/scheduler wiring.",
+      "git": {
+        "rc": 0,
+        "out": "",
+        "err": ""
+      },
+      "head_actual": {
+        "rc": 0,
+        "out": "2175f5b01ffe7358ebd2a09cea1d978ca6d04a62 2026-09-29T05:22:55+03:00 fix(monitoring): backfill legacy writer retention receipts",
+        "err": ""
+      }
+    },
+    "C": {
+      "status": "RUNNING",
+      "updated_at": "2026-09-29T02:39:11.279366+00:00",
+      "updatedAt": null,
+      "current_task": null,
+      "task": "C06_READINESS_RECONCILIATION_R9",
+      "head": "af2d2119722a29a33ff25ac9c465d95605a1015d",
+      "result": "Owner STOP checkpoint: accepted main06dadcb160a05c59df83695b88f1b7158c754907 remains clean with exact post-main5/5; C06 R9 accepted; no live0054/deploy/store mutation; open external H3/reviewer/store/LIVE_OWNER gates preserved.",
+      "next": "STOPPED by direct owner instruction 2026-09-29: do not start new work or resume from automatic governor repeat. Resume only on a new direct owner/controller instruction with a fresh receipt.",
+      "git": {
+        "rc": 0,
+        "out": "",
+        "err": ""
+      },
+      "head_actual": {
+        "rc": 0,
+        "out": "af2d2119722a29a33ff25ac9c465d95605a1015d 2026-09-29T05:15:17+03:00 feat(monitoring): schedule bounded pilot retention",
+        "err": ""
+      }
+    }
+  }
+}

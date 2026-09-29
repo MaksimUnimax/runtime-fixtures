@@ -1,0 +1,26 @@
+{
+  "at": "2026-09-29T04:19:57.937Z",
+  "releases": [
+    {
+      "version": "0.2.6",
+      "release_channel": "stable",
+      "artifact_sha256": "579dc15aaf692fc9e96ad650e660ac0190bb7e136c949b7ad401e5bc82a909b5",
+      "contracts": [
+        "control_plane_v2"
+      ],
+      "browsers": "{opera}"
+    }
+  ],
+  "policy": [
+    {
+      "policy_key": "store1.opera.v2",
+      "revision": 1,
+      "contract_version": "control_plane_v2",
+      "browser_family": "opera",
+      "minimum_extension_version": "0.2.6",
+      "recommended_extension_version": "0.2.6",
+      "minimum_browser_version": "136",
+      "maintenance_mode": false
+    }
+  ]
+}
