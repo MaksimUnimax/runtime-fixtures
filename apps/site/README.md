@@ -121,3 +121,7 @@ Current copy authority: `docs/seo/SITE_APPROVED_EDITS_2026-09-28_R5.md`. The own
 ### Contour R13 — dark-only owner reference
 
 The 2026-09-29 owner reference supersedes the prior R12 visual for the HOME hero. The public site is now dark-only and the theme toggle is removed. The central octopus/orbit/stars are a static SVG derived from the canonical owner reference, while all eight brand circles remain independent clickable DOM controls fitted to the same reference geometry. See `docs/design/CONTOUR_DARK_OWNER_R13_2026-09-29.md` and `apps/site/design-sources/contour-owner-dark-r13.json`.
+
+### Contour R14 — badge alignment and owner hero copy
+
+The R13 mascot/orbit geometry remains unchanged. R14 normalizes the visible AI mark/label positions, fits Wildberries and Ozon logo/label proportions to the owner reference crops, and applies the 2026-09-29 owner HOME heading/copy correction. All eight circles remain independent links and the scene remains transparent. See `docs/design/CONTOUR_BADGE_ALIGNMENT_COPY_R14_2026-09-29.md`.

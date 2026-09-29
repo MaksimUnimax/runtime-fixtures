@@ -184,7 +184,7 @@ jobs:
               "url": "https://octoport.ru/",
           }, website
           assert "<title>Подключите Алису, ChatGPT и DeepSeek к Ozon и Wildberries | Октопорт</title>" in index
-          assert ' '.join(''.join(parser.h1).split()) == 'Подключите Алису, ChatGPT, DeepSeek или другую нейросеть к своему магазину на WB и Ozon.' and index.count("<h1") == 1, parser.h1
+          assert ' '.join(''.join(parser.h1).split()) == 'Личный помощник на базе любимой Нейросети. Алиса, ChatGPT, DeepSeek, Gemini, Qwen и т.д.' and index.count("<h1") == 1, parser.h1
           assert parser.descriptions == [
               "Октопорт соединяет Алису, ChatGPT, DeepSeek и другие нейросети с данными вашего магазина на Ozon и Wildberries через браузерное расширение. Готовим закрытую бесплатную бету."
           ], parser.descriptions

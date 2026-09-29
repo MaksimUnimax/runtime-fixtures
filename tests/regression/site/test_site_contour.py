@@ -102,6 +102,22 @@ class ContourSourceTests(unittest.TestCase):
             self.assertIn(src,self.html); self.assertTrue((ROOT/src.lstrip("/")).is_file())
             self.assertNotIn(f"/assets/contour-mark-{name}-r4-light.svg",self.html)
 
+    def test_badge_content_alignment_matches_owner_reference(self):
+        ai_img=re.search(r"\.ai-badge img\s*\{([^}]+)\}",self.css,re.S).group(1).replace(" ","")
+        self.assertIn("left:50%",ai_img); self.assertIn("top:38.5%",ai_img)
+        self.assertIn("width:42%",ai_img); self.assertIn("height:42%",ai_img)
+        self.assertIn("translate(-50%,-50%)",ai_img)
+        ai_text=re.search(r"\.ai-badge span\s*\{([^}]+)\}",self.css,re.S).group(1).replace(" ","")
+        self.assertIn("left:50%",ai_text); self.assertIn("top:74%",ai_text)
+        wb=re.search(r"\.pos-wb \.market-logo-slot\s*\{([^}]+)\}",self.css,re.S).group(1).replace(" ","")
+        ozon=re.search(r"\.pos-ozon \.market-logo-slot\s*\{([^}]+)\}",self.css,re.S).group(1).replace(" ","")
+        self.assertIn("top:42.5%",wb); self.assertIn("width:82%",wb); self.assertIn("height:36%",wb)
+        self.assertIn("top:47.5%",ozon); self.assertIn("width:78%",ozon); self.assertIn("height:22%",ozon)
+        label=re.search(r"\.market-label\s*\{([^}]+)\}",self.css,re.S).group(1).replace(" ","")
+        self.assertIn("top:73%",label); self.assertIn("font-size:clamp(8px,2.35cqi,18px)",label)
+        self.assertIn(".market-badge .brand-wildberries { color:#e11ee8; }",self.css)
+        self.assertIn(".market-badge .brand-ozon { color:#0187ed; }",self.css)
+
     def test_dark_monochrome_vectors_and_stationary_background(self):
         for name in ("alice","gemini","chatgpt","deepseek","anthropic","qwen","wb","ozon"):
             src=f"/assets/contour-mark-{name}-r4-dark.svg"
@@ -131,7 +147,8 @@ class ContourSourceTests(unittest.TestCase):
         fragment=re.findall(r"<h1[^>]*>(.*?)</h1>",self.html,re.S)
         self.assertEqual(len(fragment),1)
         plain=" ".join(re.sub(r"<[^>]+>","",re.sub(r"<br\s*/?>"," ",fragment[0])).split())
-        self.assertEqual(plain,"Подключите Алису, ChatGPT, DeepSeek или другую нейросеть к своему магазину на WB и Ozon.")
+        self.assertEqual(plain,"Личный помощник на базе любимой Нейросети. Алиса, ChatGPT, DeepSeek, Gemini, Qwen и т.д.")
+        self.assertIn("Так привычный вам ИИ становится <strong>вашим сотрудником.</strong>",self.html)
         self.assertIn("Можно использовать бесплатные аккаунты нейросетей.",self.html)
 
     def test_dark_rings_keyboard_targets_and_hover_boundary(self):
