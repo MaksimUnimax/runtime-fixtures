@@ -57,7 +57,7 @@ class ApprovedCopyTests(unittest.TestCase):
     def test_full_home_heading(self):
         headings = re.findall(r'<h1\b[^>]*>.*?</h1>', self.home, re.S)
         self.assertEqual(len(headings), 1)
-        self.assertEqual(visible(headings[0]), 'Подключите Алису, ChatGPT, DeepSeek или другую нейросеть к своему магазину на WB и Ozon.')
+        self.assertEqual(visible(headings[0]), 'Личный помощник на базе любимой Нейросети. Алиса, ChatGPT, DeepSeek, Gemini, Qwen и т.д.')
     def test_unapproved_english_is_absent_outside_instructions(self):
         forbidden = re.compile(r'\bread-only\b|\bseller-owned\b|\bBackend\b|\bPrivacy\b|\bSupport\b|\bAI[- ]|\bDOM-|\brequest ID\b|\bclient secrets\b|\bOTP\b|\bcookies\b|\bSeller Client ID\b|\bAPI key\b|\bPerformance credentials\b|\bPersonal token\b|\bCTR\b|\bCPC\b|\bOctoport\b')
         for name in ('index.html','seller-analytics.html','privacy.html','support.html'):

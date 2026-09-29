@@ -109,7 +109,7 @@ def checks(d):
  assert len(d['badges'])==8 and len(d['marks'])==8,(d['badges'],d['marks'])
  assert all(m['display']!='none' and m['ok'] and m['src'].endswith('-r4-dark.svg') for m in d['marks']),d['marks']
  assert all(b['border']=='rgb(244, 247, 251)' and b['bg']=='rgba(0, 0, 0, 0)' for b in d['badges']),d['badges']
- assert ' '.join(d['h1'].split())=='Подключите Алису, ChatGPT, DeepSeek или другую нейросеть к своему магазину на WB и Ozon.'
+ assert ' '.join(d['h1'].split())=='Личный помощник на базе любимой Нейросети. Алиса, ChatGPT, DeepSeek, Gemini, Qwen и т.д.'
  assert d['canonical']=='https://octoport.ru/'
  assert d['slogan']=='Сложные технологии. Простые решения.'
  if d['width']<=1180:
