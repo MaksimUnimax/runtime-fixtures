@@ -110,6 +110,8 @@ class ApprovedCopyTests(unittest.TestCase):
         self.assertIn('Модель анализирует, сравнивает, объясняет и помогает принимать решения на основе реальных данных вашего магазина.', self.home)
         self.assertNotIn('Нейросеть + данные вашего магазина.', self.home)
         self.assertNotIn('а доступ к кабинету остаётся только на чтение.', self.home)
+        self.assertIn('<a class="button primary" href="#features">Возможности</a>', self.home)
+        self.assertNotIn('<a class="button primary" href="#beta">Попробовать</a>', self.home)
 
     def test_support_prioritises_contact_before_limits(self):
         html = (ROOT / 'support.html').read_text()

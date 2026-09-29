@@ -165,7 +165,7 @@ class ContourSourceTests(unittest.TestCase):
             self.assertIn(f'class="{cls}"',paragraph)
         self.assertNotIn("hero-ai-list",fragment[0])
         self.assertIn("Так привычный вам ИИ становится <strong>вашим сотрудником.</strong>",self.html)
-        self.assertIn("Можно использовать бесплатные аккаунты нейросетей.",self.html)
+        self.assertIn("Можно использовать с бесплатными нейросетями.",self.html)
 
     def test_dark_rings_keyboard_targets_and_hover_boundary(self):
         self.assertIn("border:clamp(1.4px,.4cqi,3px) solid var(--scene-ink)",self.css)
