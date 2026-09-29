@@ -15,12 +15,39 @@ on:
       - ".github/workflows/extension-i1-ci.yml"
   workflow_dispatch:
 
+permissions:
+  contents: read
+  actions: read
+
 concurrency:
-  group: extension-i1-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.ref == 'refs/heads/main' && github.sha || 'latest' }}
   cancel-in-progress: true
 
 jobs:
+  ci-plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    outputs:
+      full_tests: ${{ steps.proof.outputs.full_tests }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 2
+      - name: Resolve exact full-test proof or run all tests
+        id: proof
+        run: python3 tooling/coordination/ci_proof.py --workflow extension-i1-ci.yml --output "$RUNNER_TEMP/ci-proof.json"
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - name: Preserve test selection and original proof identity
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ci-proof-extension-i1-ci.yml-${{ github.run_id }}
+          path: ${{ runner.temp }}/ci-proof.json
+          if-no-files-found: error
+          retention-days: 14
   client-i1:
+    needs: ci-plan
+    if: needs.ci-plan.outputs.full_tests == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -50,6 +77,8 @@ jobs:
           path: build/ci-extension-i1
 
   installed-local-integration:
+    needs: ci-plan
+    if: needs.ci-plan.outputs.full_tests == 'true'
     name: Installed local API / portal / PostgreSQL acceptance
     runs-on: ubuntu-latest
     timeout-minutes: 25

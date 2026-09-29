@@ -21,6 +21,7 @@ This directory contains implementation-oriented technical notes, contracts, vali
 ## Development and validation
 
 - [Development workflow](development/WORKFLOW.md)
+- [Организационные исправления и проверка отчётов контроллеров](development/coordination/ORGANIZATIONAL_FIX_EXECUTION.md)
 - [Quality rules](development/QUALITY.md)
 - [Acceptance matrix](development/ACCEPTANCE_MATRIX.md)
 - [Failure ledger](development/FAILURE_LEDGER.md)

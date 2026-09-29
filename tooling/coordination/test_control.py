@@ -95,11 +95,11 @@ class CoordinationTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "OWNERSHIP_VIOLATION"):
                 control.scope_guard("A")
 
-    def test_default_scope_base_prefers_merge_head_and_falls_back_to_head(self):
+    def test_default_scope_base_prefers_accepted_merge_head_and_falls_back_to_head(self):
         completed = control.subprocess.CompletedProcess(
             ["git"], 0, stdout="c" * 40 + "\n", stderr=""
         )
-        with patch.object(control.subprocess, "run", return_value=completed):
+        with patch.object(control.subprocess, "run", side_effect=[completed, completed]):
             self.assertEqual(control.default_scope_base(), "c" * 40)
         missing = control.subprocess.CompletedProcess(
             ["git"], 1, stdout="", stderr=""
