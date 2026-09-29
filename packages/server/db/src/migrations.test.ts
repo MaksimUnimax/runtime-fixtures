@@ -264,6 +264,33 @@ describe("Stream-2 migration receipts", () => {
       )?.tag,
     ).toBe("0054_api_watch_product_baselines");
   });
+
+  it("receipts the forward-only API-watch document scope persistence migration", async () => {
+    const sql = await readFile(
+      join(migrationsFolder, "0055_api_watch_document_scope_persistence.sql"),
+      "utf8",
+    );
+    const journal = JSON.parse(
+      await readFile(join(migrationsFolder, "meta", "_journal.json"), "utf8"),
+    ) as { entries: Array<{ tag: string }> };
+    expect(sql).toContain(
+      'ALTER TABLE "api_watch_product_crosswalk"\n  ADD COLUMN "document_key" varchar(128)',
+    );
+    expect(sql).toContain(
+      'ALTER TABLE "api_watch_incidents"\n  ADD COLUMN "document_key" varchar(128)',
+    );
+    expect(sql).toContain(
+      'CHECK ("document_key" IS NULL OR length(btrim("document_key")) > 0)',
+    );
+    expect(sql).not.toContain("UPDATE api_watch_product_crosswalk");
+    expect(sql).not.toContain("UPDATE api_watch_incidents");
+    expect(sql).not.toContain("incident_key");
+    expect(
+      journal.entries.find(
+        (entry) => entry.tag === "0055_api_watch_document_scope_persistence",
+      )?.tag,
+    ).toBe("0055_api_watch_document_scope_persistence");
+  });
 });
 
 describe("migration lineage guard", () => {

@@ -287,9 +287,9 @@ function expectPrepareFailure(name, browserMode) {
 
 test("repository release facts use current contract/version/migration tag", () => {
   const facts = productFacts();
-  assert.equal(facts.productVersion, "0.2.8");
+  assert.equal(facts.productVersion, "0.2.9");
   assert.equal(facts.contractVersion, "control_plane_v2");
-  assert.equal(facts.migrationLevel, 54);
+  assert.equal(facts.migrationLevel, 55);
 });
 
 test("correct synthetic Chromium and Firefox candidate prepares and passes", () => {
