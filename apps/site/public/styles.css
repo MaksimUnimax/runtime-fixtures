@@ -583,7 +583,8 @@ p,li { line-height:1.65; }
 /* Owner-approved full heading and native disclosure groups. */
 .hero-heading { margin-bottom:34px; }
 .hero-heading .hero-choice { display:block; margin:18px 0 0; letter-spacing:normal; }
-.capability-groups { display:grid; grid-template-columns:minmax(0,1fr); gap:12px; }
+.capability-groups { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; align-items:start; }
+.capability-group[open] { grid-column:1 / -1; }
 .capability-group { min-width:0; border:1px solid var(--line); border-radius:16px; background:var(--panel); }
 .capability-group > summary { display:flex; align-items:center; justify-content:space-between; gap:20px; min-height:72px; padding:20px 24px; cursor:pointer; list-style:none; border-radius:15px; }
 .capability-group > summary::-webkit-details-marker { display:none; }
@@ -608,7 +609,7 @@ p,li { line-height:1.65; }
 .analysis-flow dt { font-weight:600; }
 .analysis-flow dd { margin:0; color:var(--muted); }
 .result-note { padding:18px; border-left:3px solid var(--accent); background:var(--soft); border-radius:0 10px 10px 0; }
-@media (max-width:620px) { .capability-group > summary { padding:18px; } .capability-group > summary h3 { font-size:18px; } .capability-group .capability-grid { grid-template-columns:minmax(0,1fr); padding:14px; } .analytics-case { padding:20px; } .analysis-flow { grid-template-columns:minmax(0,1fr); gap:6px; } .analysis-flow dd { margin-bottom:14px; } .page-actions { align-items:stretch; } .page-actions .button { width:100%; } }
+@media (max-width:620px) { .capability-groups { grid-template-columns:minmax(0,1fr); } .capability-group[open] { grid-column:auto; } .capability-group > summary { padding:18px; } .capability-group > summary h3 { font-size:18px; } .capability-group .capability-grid { grid-template-columns:minmax(0,1fr); padding:14px; } .analytics-case { padding:20px; } .analysis-flow { grid-template-columns:minmax(0,1fr); gap:6px; } .analysis-flow dd { margin-bottom:14px; } .page-actions { align-items:stretch; } .page-actions .button { width:100%; } }
 
 /* Dark-only site: keep the navy Octoport mark readable. */
 .brand-logo,
