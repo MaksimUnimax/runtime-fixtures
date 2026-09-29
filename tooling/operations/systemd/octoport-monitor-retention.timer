@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Octoport isolated monitor pilot retention maintenance periodically
+
+[Timer]
+OnActiveSec=15s
+OnUnitActiveSec=30min
+AccuracySec=1s
+Unit=octoport-monitor-retention.service
+
+[Install]
+WantedBy=timers.target

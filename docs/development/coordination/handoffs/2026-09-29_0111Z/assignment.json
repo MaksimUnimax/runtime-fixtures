@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "created_at": "2026-09-29T01:20:00Z",
+  "incident": "/root/octoport-control/incidents/streams-handoff-20260929T0111Z",
+  "baseline_main": "06dadcb160a05c59df83695b88f1b7158c754907",
+  "authority": "Owner requested audit and three new-dialogue transfer prompts; continuation through first owner paste only; preserve laterSTOP.",
+  "preserve_stop": true,
+  "observed_states": {
+    "A": "STOPPED",
+    "B": "WAITING_INPUT",
+    "C": "STOPPED"
+  },
+  "closed_do_not_repeat": [
+    "technical transport guard:9dbc97b9 + current22/22 independentlyPASS",
+    "STORE026 technical Octoport login/device/signedbootstrap chatgpt/web/null",
+    "Reversible authenticatedlocalcontrols",
+    "Real installed OzonSeller/OzonPerformance/WB credentialcheckbuttons",
+    "B20 initialCLI gaps and one-shot liveprune138",
+    "BAPIbaseline0054source+disposableintake",
+    "main06dad5/5postmainCI"
+  ],
+  "not_closed": [
+    "Exactinstalled realAIStart→report→delivery→Finish usefulflow",
+    "Regular automaticpilotretention; compactscopefreshness",
+    "Latest structuredRussianmessages live deployment",
+    "Humanreviewer/mail/store route; sameitemupgrade/WindowsUX",
+    "Live0053/0054/currentmainproductdeployment"
+  ],
+  "tasks": {
+    "A": "A_EXACT_TECHNICAL_LIFECYCLE_REMAINDER_20260929",
+    "B": "B_RETENTION_RECURRING_COMPATIBILITY_20260929",
+    "C": "C_PILOT_PERIODIC_MAINTENANCE_AND_RELEASE_GAPS_20260929"
+  },
+  "coordination": "Currentassignment supersedes stale ready queues/result-next scheduling; persistent product/securityrules and laterSTOP remain.",
+  "store": {
+    "version": "0.2.6",
+    "chromium_sha256": "579dc15aaf692fc9e96ad650e660ac0190bb7e136c949b7ad401e5bc82a909b5",
+    "firefox_sha256": "b5de9b4f0773c08a705fbad050e77d382f265aa34fd2ca8d3657553bad577305",
+    "status": "Opera PREPARING/BLOCKED; Chrome/Firefox/Yandex separateUNVERIFIED_CHANNEL; SafariDEFERRED"
+  }
+}
