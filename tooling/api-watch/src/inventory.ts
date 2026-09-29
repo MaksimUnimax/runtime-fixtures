@@ -94,30 +94,98 @@ function canonical(
   return Object.fromEntries(entries);
 }
 
+type RefContext = "openapi" | "schema" | "schema-map" | "literal";
+const SCHEMA_MAP_KEYS = new Set([
+  "properties",
+  "patternProperties",
+  "definitions",
+  "$defs",
+  "dependentSchemas",
+  "dependencies",
+]);
+const SCHEMA_VALUE_KEYS = new Set([
+  "items",
+  "additionalItems",
+  "additionalProperties",
+  "unevaluatedItems",
+  "unevaluatedProperties",
+  "propertyNames",
+  "contains",
+  "not",
+  "if",
+  "then",
+  "else",
+  "contentSchema",
+  "allOf",
+  "anyOf",
+  "oneOf",
+  "prefixItems",
+]);
+
+function refChildContext(context: RefContext, key: string): RefContext {
+  if (context === "schema-map") return "schema";
+  if (context === "schema") {
+    if (SCHEMA_MAP_KEYS.has(key)) return "schema-map";
+    return SCHEMA_VALUE_KEYS.has(key) ? "schema" : "literal";
+  }
+  return key === "schema" ? "schema" : "openapi";
+}
+
 function localRef(
   value: unknown,
   root: Record<string, unknown>,
   seen = new Set<string>(),
+  context: RefContext = "openapi",
 ): unknown {
+  if (context === "literal") return value;
   if (Array.isArray(value))
-    return value.map((item) => localRef(item, root, seen));
+    return value.map((item) => localRef(item, root, seen, context));
   if (!value || typeof value !== "object") return value;
   const object = value as Record<string, unknown>;
-  if (typeof object.$ref === "string" && object.$ref.startsWith("#/")) {
+  if (
+    context !== "schema-map" &&
+    typeof object.$ref === "string" &&
+    object.$ref.startsWith("#/")
+  ) {
     const ref = object.$ref;
-    if (seen.has(ref)) return { $recursiveRef: ref };
-    const target = ref
-      .slice(2)
-      .split("/")
-      .map((part) => part.replace(/~1/g, "/").replace(/~0/g, "~"))
-      .reduce<unknown>((at, key) => asObject(at)[key], root);
-    if (target === undefined) return { $unresolvedRef: ref };
-    return localRef(target, root, new Set([...seen, ref]));
+    let resolved: unknown;
+    if (seen.has(ref)) {
+      resolved = { $recursiveRef: ref };
+    } else {
+      const target = ref
+        .slice(2)
+        .split("/")
+        .map((part) => part.replace(/~1/g, "/").replace(/~0/g, "~"))
+        .reduce<unknown>((at, key) => asObject(at)[key], root);
+      resolved =
+        target === undefined
+          ? { $unresolvedRef: ref }
+          : localRef(target, root, new Set([...seen, ref]), context);
+    }
+    // OpenAPI3.1 Schema Object $ref is a JSON Schema applicator. Sibling
+    // constraints also apply; a non-schema Reference Object keeps its own rule.
+    if (
+      context === "schema" &&
+      typeof root.openapi === "string" &&
+      /^3\.1(?:\.|$)/.test(root.openapi)
+    ) {
+      const siblings = localRef(
+        Object.fromEntries(
+          Object.entries(object).filter(([key]) => key !== "$ref"),
+        ),
+        root,
+        seen,
+        "schema",
+      );
+      if (Object.keys(asObject(canonical(siblings))).length > 0)
+        return { allOf: [resolved, siblings] };
+    }
+    return resolved;
   }
   return Object.fromEntries(
     Object.entries(object).map(([key, item]) => [
       key,
-      localRef(item, root, seen),
+      localRef(item, root, seen, refChildContext(context, key)),
     ]),
   );
 }
@@ -132,8 +200,9 @@ function schemaFingerprint(
   value: unknown,
   root: Record<string, unknown>,
   mode: CanonicalMode = "node",
+  context: RefContext = "openapi",
 ): string {
-  return fingerprint(localRef(value ?? null, root), mode);
+  return fingerprint(localRef(value ?? null, root, new Set(), context), mode);
 }
 
 function securityFingerprint(
@@ -222,21 +291,22 @@ function requestFingerprint(
   ]
     .filter((raw) => asObject(raw).in === "body")
     .map((raw) => asObject(raw).schema ?? null);
-  return bodies.length ? schemaFingerprint(bodies, root) : null;
+  return bodies.length
+    ? schemaFingerprint(bodies, root, "node", "schema")
+    : null;
 }
 
 function responseFingerprint(
   responses: Record<string, unknown>,
   root: Record<string, unknown>,
 ): string {
-  return schemaFingerprint(
+  return fingerprint(
     Object.fromEntries(
       Object.entries(responses).map(([status, raw]) => {
         const response = asObject(localRef(raw, root));
         return [status, response.schema ?? response.content ?? null];
       }),
     ),
-    root,
     "named-fields",
   );
 }
