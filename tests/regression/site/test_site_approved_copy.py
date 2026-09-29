@@ -74,6 +74,29 @@ class ApprovedCopyTests(unittest.TestCase):
         self.assertNotIn('сентябре 2026 года', html)
         for target in ('/#how', 'mailto:support@octoport.ru?subject=Бета%20Октопорт'):
             self.assertIn('href="' + target + '"', html)
+    def test_analytics_and_home_show_selected_business_cases(self):
+        analytics = (ROOT / 'seller-analytics.html').read_text()
+        self.assertEqual(analytics.count('class="analytics-case"'), 3)
+        for term in (
+            'Сравнить продажи за два периода',
+            'Проверить позиции товаров в поиске',
+            'Посчитать юнит-экономику товара за месяц',
+            'поисковым запросам мои товары находятся выше или ниже',
+            'маржинальный вклад после расходов маркетплейса',
+            'Это не называется чистой прибылью',
+        ):
+            self.assertIn(term, analytics)
+        for removed in ('Сопоставить рекламу с остатками', 'Подготовить отчёт для себя или команды'):
+            self.assertNotIn(removed, analytics)
+        self.assertIn('Ниже — три примера задач', analytics)
+        for term in (
+            '«Как изменились продажи?»',
+            '«Где просели позиции в поиске?»',
+            '«Какие SKU съедают маржу?»',
+            'юнит-экономику по SKU',
+        ):
+            self.assertIn(term, self.home)
+
     def test_support_prioritises_contact_before_limits(self):
         html = (ROOT / 'support.html').read_text()
         self.assertLess(html.index('Написать в поддержку'), html.index('id="beta-status"'))
