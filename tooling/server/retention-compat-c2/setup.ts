@@ -7,10 +7,12 @@ import {
   runMigrations,
 } from "../../../packages/server/db/src/migrations.ts";
 import { initializeMonitorPilotAuthorityForTest } from "../monitor-pilot-authority.ts";
+import { assertBRetentionCompatDisposableDatabaseUrl } from "./disposable-db-guard.ts";
 
 async function main() {
-  const connectionString = process.env.DATABASE_URL;
-  if (!connectionString) throw new Error("DATABASE_URL_REQUIRED");
+  const connectionString = assertBRetentionCompatDisposableDatabaseUrl(
+    process.env.DATABASE_URL,
+  );
   process.env.VITEST = "true";
   const runtime = createDatabaseRuntime(connectionString);
   await runtime.ready();

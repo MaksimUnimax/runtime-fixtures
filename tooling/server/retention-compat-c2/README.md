@@ -27,6 +27,13 @@ python3 tooling/coordination/control.py B ensure-db
 Every database-touching command below must run through
 `python3 tooling/coordination/control.py B heavy --db -- ...`.
 
+`setup.ts` also enforces this boundary in executable code before creating a
+database runtime or issuing `DROP SCHEMA`. It accepts only B's role-owned
+disposable identity: loopback host, port `15542`, role `octoport_test`,
+database `octoport_b_test`, with no URL query/fragment. Monitor-pilot,
+product-shaped, non-loopback, wrong-role, wrong-port and otherwise unmarked
+URLs fail closed.
+
 ## Reproduction sequence
 
 Run `setup.ts` once. It recreates the disposable database at the exact 0052 prefix
