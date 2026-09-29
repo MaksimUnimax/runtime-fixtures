@@ -1,0 +1,57 @@
+{
+  "at": "2026-09-29T04:15:28.510737+00:00",
+  "units": {
+    "seller-agents-owner-test-api.service": "Result=success\nNRestarts=0\nMemoryCurrent=114884608\nWorkingDirectory=/opt/octoport/ops-releases/62024d192a8572c11aafab91653330d1f996699f\nKillMode=control-group\nLoadState=loaded\nActiveState=active\nSubState=running\n",
+    "seller-agents-owner-test-worker.service": "Result=success\nNRestarts=0\nMemoryCurrent=105213952\nWorkingDirectory=/opt/octoport/ops-releases/62024d192a8572c11aafab91653330d1f996699f\nKillMode=control-group\nLoadState=loaded\nActiveState=active\nSubState=running\n",
+    "seller-agents-owner-test-portal.service": "Result=success\nNRestarts=0\nMemoryCurrent=95043584\nWorkingDirectory=/opt/octoport/ops-releases/62024d192a8572c11aafab91653330d1f996699f/apps/portal\nKillMode=control-group\nLoadState=loaded\nActiveState=active\nSubState=running\n",
+    "octoport-health-notifications.service": "Result=success\nNRestarts=0\nMemoryCurrent=88731648\nWorkingDirectory=/opt/octoport/ops-releases/c2e715501161d421b1641bb697c7ee7786d84960\nKillMode=control-group\nLoadState=loaded\nActiveState=active\nSubState=running\n",
+    "octoport-telegram-operator.service": "Result=success\nNRestarts=0\nMemoryCurrent=541138944\nWorkingDirectory=/opt/octoport/ops-releases/c2e715501161d421b1641bb697c7ee7786d84960\nKillMode=control-group\nLoadState=loaded\nActiveState=active\nSubState=running\n",
+    "octoport-monitor-retention.service": "Result=success\nNRestarts=0\nMemoryCurrent=[not set]\nWorkingDirectory=/opt/octoport/ops-releases/fe3b4aeb9bcd41a038f79d7c233a6866b314a0fc\nKillMode=control-group\nLoadState=loaded\nActiveState=inactive\nSubState=dead\n",
+    "octoport-monitor-retention-inspect.service": "Result=success\nNRestarts=0\nMemoryCurrent=[not set]\nWorkingDirectory=/opt/octoport/ops-releases/fe3b4aeb9bcd41a038f79d7c233a6866b314a0fc\nKillMode=control-group\nLoadState=loaded\nActiveState=inactive\nSubState=dead\n",
+    "octoport-monitor-retention.timer": "NextElapseUSecMonotonic=5d 17h 34min 12.619062s\nLastTriggerUSec=Tue 2026-09-29 07:14:05 MSK\nResult=success\nLoadState=loaded\nActiveState=active\nSubState=waiting\n"
+  },
+  "resources": {
+    "MemTotal": 16372028,
+    "MemAvailable": 13733576,
+    "SwapTotal": 1128444,
+    "SwapFree": 2832,
+    "disk_available_bytes": 12020559872,
+    "inodes_available": 2760070,
+    "pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=347029800\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=324345675\n"
+  },
+  "recent_logs_C": [
+    "/root/octoport-control/logs/C/monitor-retention-periodic-fe3b4aeb",
+    "/root/octoport-control/logs/C/store027-prep-i1-r1",
+    "/root/octoport-control/logs/C/store027-prep-core-r2",
+    "/root/octoport-control/logs/C/store027-prep-version-bump.patch",
+    "/root/octoport-control/logs/C/store027-prep-i1-r2",
+    "/root/octoport-control/logs/C/store027-prep-core-r1",
+    "/root/octoport-control/logs/C/monitor-retention-periodic-83035523",
+    "/root/octoport-control/logs/C/monitor-pilot-periodic-83035523",
+    "/root/octoport-control/logs/C/store-release-prep-027-83035523",
+    "/root/octoport-control/logs/C/c06-r9-review-r2-process.json",
+    "/root/octoport-control/logs/C/c06-r9-review-r2-exec.log",
+    "/root/octoport-control/logs/C/c06-r9-review-r2-result.md",
+    "/root/octoport-control/logs/C/c06-r9-review-r2-boundary.json",
+    "/root/octoport-control/logs/C/c06-r9-review-r2-effective.md",
+    "/root/octoport-control/logs/C/c06-r9-review-r2.md",
+    "/root/octoport-control/logs/C/c06-r9-review-r1-process.json",
+    "/root/octoport-control/logs/C/c06-r9-review-r1-result.md",
+    "/root/octoport-control/logs/C/c06-r9-review-r1-exec.log",
+    "/root/octoport-control/logs/C/c06-r9-review-r1-effective.md",
+    "/root/octoport-control/logs/C/c06-r9-review-r1-boundary.json"
+  ],
+  "recent_peer_C": [
+    "/root/octoport-control/peer-handoffs/C/A-C-STORE027-BOOTSTRAP-COMPAT-20260929-0349.request.json",
+    "/root/octoport-control/peer-handoffs/C/B-C-RETENTION-DURABLE-EVIDENCE-20260929T025155Z.response.json",
+    "/root/octoport-control/peer-handoffs/C/B-C-P2-AUTH-CI-TIMING-20260929T030042Z.response.json",
+    "/root/octoport-control/peer-handoffs/C/B-C-RETENTION-RECURRING-COMPAT-20260929-0223.response.json",
+    "/root/octoport-control/peer-handoffs/C/B-C-P2-AUTH-CI-TIMING-20260929T030042Z.request.json",
+    "/root/octoport-control/peer-handoffs/C/B-C-RETENTION-DURABLE-EVIDENCE-20260929T025155Z.request.json",
+    "/root/octoport-control/peer-handoffs/C/B-C-RETENTION-RECURRING-COMPAT-20260929-0223.request.json",
+    "/root/octoport-control/peer-handoffs/C/CONTROLLER-C-AUDIT-TRANSFER-20260929-0111.request.json",
+    "/root/octoport-control/peer-handoffs/C/B-C-API-WATCH-CONFLICT-AUTHORITY-FINAL-20260928-2049.response.json",
+    "/root/octoport-control/peer-handoffs/C/B-C-API-WATCH-CONFLICT-AUTHORITY-FINAL-20260928-2049.request.json"
+  ],
+  "recent_commits": "0f3ac66e Merge A versioned lifecycle harness b9f0f94e\nb9f0f94e docs(A): record store027 bootstrap compatibility gate\nc48ecf69 Merge remote-tracking branch 'origin/main' into work/a-extension\nfe3b4aeb fix(monitoring): pin pilot retention runtime role\nf30923ce Merge remote-tracking branch 'origin/main' into work/a-extension\n20a03a1a test(extension): parameterize exact lifecycle candidate identity\n83035523 Merge A exact transfer repair 7f8357a6\ndabe5e75 test(auth): remove lease timing race\n2ef41b10 fix(monitoring): fail closed on retention runner mismatch\ncb7d9928 Merge remote-tracking branch 'origin/main' into work/a-extension\nbd792d29 Merge B recurring retention compatibility 2175f5b0\n7f8357a6 fix transfer import for metadata-only store markers\n2175f5b0 fix(monitoring): backfill legacy writer retention receipts\naf2d2119 feat(monitoring): schedule bounded pilot retention\nc8dbc8b4 docs(coordination): audit streams and prepare September 29 handoff\na7ec742c merge: sync accepted main 06dadcb1 into B\n06dadcb1 docs(readiness): close C06 plan review gaps\n0c4943ec merge: sync accepted main 62da374e into B\n"
+}

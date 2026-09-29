@@ -1,0 +1,18 @@
+{
+  "status": "OPEN",
+  "created_at": "2026-09-29T02:43:51.195911+00:00",
+  "audit": "/root/octoport-control/incidents/streams-audit-20260929T0233Z",
+  "not_a_resume": true,
+  "preserve_later_stop": true,
+  "owner_action_required": false,
+  "id": "A-AUDIT-20260929-0233",
+  "role": "A",
+  "priority": "EXACT_NEW_PACKAGE_RETEST",
+  "summary": "Фикс переноса7f8357a6 проверен контроллером на SOURCE, установленный фикс ещё не принят.",
+  "required": [
+    "Независимый SOURCE запуск client-d3s2-store-metadata-state:60/60 PASS. Подтверждённый дефект frozen0.2.6 сохраняет NOT_ACCEPTED для transfer.",
+    "После exact нового пакета от C выполнить поддерживаемый двухустановочный сценарий с metadata-only recipient, проверить фактическое получение ключа, повтор без потери актуального ключа и reset/re-auth. Не заменять frozen0.2.6 и не повторять прежний repro без нового artifact.",
+    "В новом evidence явно разделить техническую авторизацию, установленный transfer/reset, настоящий ответ ChatGPT и ручной email-login. Не ждать владельца для разрешённой технической сессии.",
+    "Во время ожидания C проверять READY независимые задачи; общий WAITING только после актуальной полной очереди."
+  ]
+}

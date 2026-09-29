@@ -1,0 +1,19 @@
+{
+  "status": "OPEN",
+  "created_at": "2026-09-29T02:43:51.195911+00:00",
+  "audit": "/root/octoport-control/incidents/streams-audit-20260929T0233Z",
+  "not_a_resume": true,
+  "preserve_later_stop": true,
+  "owner_action_required": false,
+  "id": "B-AUDIT-20260929-0233",
+  "role": "B",
+  "priority": "BOUNDED_EVIDENCE_FOLLOWUP",
+  "summary": "2175f5b0 устраняет подтверждённый live-пробел; сохранить воспроизводимость совместимости версий.",
+  "required": [
+    "Контроллер прочёл source diff2175, SQL discovery/backfill, новый DB regression и фактический c2 legacy-writer.ts/maintenance.ts. Не повторять live apply; интеграция/обслуживание C.",
+    "Небольшой доступный B-owned follow-up: durable receipt с exact SHA старого writer, кандидата, командами последовательности, resource-job/log references и сводкой результатов. Важный полный recurring/replay/retirement harness сейчас только /root/octoport-control/tmp/B-retention-compat-20260929; сохранить его в версионируемом воспроизводимом тесте/fixture либо bounded test tooling, без абсолютных private путей/секретов.",
+    "Сохранить действительный проверенный сценарий: старый writer после0052 -> partial -> continuation -> новые writes после prune -> maintenance -> duplicate after prune/retire -> no resurrection/notification. Не запускать заново неизменные тяжёлые проверки только ради документации.",
+    "В B queue B04 разделить уже доступную техническую авторизацию и будущую ручную проверку почты; OWNER не блокирует техническую приёмку, разрешение уже есть.",
+    "На ближайшей безопасной границе обновить evidence и передать C; не придумывать новый DB scope."
+  ]
+}

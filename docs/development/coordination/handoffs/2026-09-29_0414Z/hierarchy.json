@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "owner_decision": "2026-09-29T09:14:08+05:00",
+  "owner_clarification": "2026-09-29T09:28:18+05:00",
+  "effective_at": "2026-09-29T04:33:05.057122+00:00",
+  "operational_controller": "L1",
+  "periodic_auditor": "L2",
+  "equal_controller_functions": true,
+  "additional_L2_approval_required": false,
+  "authority_policy": "/root/octoport-control/incidents/controller-delegation-20260929T0414Z/CONTROLLER_HIERARCHY.md",
+  "current_handoff": "/root/octoport-control/incidents/controller-delegation-20260929T0414Z",
+  "main_integrator": "C",
+  "db_schema_author": "B",
+  "preserve_later_stop": true,
+  "creates_background_service": false
+}

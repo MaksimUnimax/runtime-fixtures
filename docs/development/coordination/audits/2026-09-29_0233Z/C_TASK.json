@@ -1,0 +1,28 @@
+{
+  "status": "OPEN",
+  "created_at": "2026-09-29T02:43:51.195911+00:00",
+  "audit": "/root/octoport-control/incidents/streams-audit-20260929T0233Z",
+  "not_a_resume": true,
+  "preserve_later_stop": true,
+  "owner_action_required": false,
+  "id": "C-AUDIT-20260929-0233",
+  "role": "C",
+  "priority": "CURRENT_CANDIDATE_REWORK_AND_INTAKE",
+  "summary": "Приёмка A/B, затем безопасное подключение регулярного обслуживания; исправить устаревший checkpoint.",
+  "required": [
+    "af2d содержит scheduler, но НЕ fix2175f5b0. Перед live включением принять B2175f5b01ffe7358ebd2a09cea1d978ca6d04a62: без него 63 старых writer-результата остаются без receipt и не попадут в обслуживание.",
+    "Точно воспроизведён P2 в run_once: mode=apply + CLI kind=INSPECTED/exit0 => успех и удаление существующего cursor. Валидировать соответствие mode/kind ДО изменения cursor/last-result; при mismatch вернуть управляемую ошибку и сохранить состояние. parse_cli_result([]/null) сейчас AttributeError; проверить dict и вернуть штатную ошибку. Evidence runner-contract-review.json.",
+    "Добавить негативные проверки указанной границы и доказательство жёсткого timeout/уборки группы для фактического unit; шесть текущих unit PASS контроллером, но используют fake invoker.",
+    "Принять A7f8357a6ba27cd5f70d724254602ac642e51afa8; точный frozen STORE0.2.6 имеет подтверждённый дефект переноса ключа в metadata-only store. Сохранить старый ZIP; собрать новый версионированный кандидат, передать A exact source/hash/artifact для установленной повторной проверки.",
+    "Обновить task/result/next в C.json: есть действительный новый resume и работающий C test-group, а result/next до сих пор говорят STOP и HEAD06dad. Не менять/обходить более поздний STOP.",
+    "Live receipt отдельно: фактический unit/timer, initial inspect, backup/recovery boundary, первый apply, повтор после новых old-writer rows, свежая compact latest/<=3 per scope, остаток очереди, один poller, продукт620/0053/0054 неизменны. Уже выданную ограниченную авторизацию повторно не спрашивать.",
+    "После этих текущих границ продолжать READY-очередь, сохранять отдельные H3/reviewer/store ограничения; не объявлять весь сценарий готовым по публичным наблюдениям."
+  ],
+  "source_findings": {
+    "status": "CLOSED_SOURCE_ONLY",
+    "head": "2ef41b105d672d06ac0d050dc168270deb55693a",
+    "evidence": "/root/octoport-control/incidents/streams-audit-20260929T0233Z/C-fix-review.json",
+    "at": "2026-09-29T02:49:37.489077+00:00",
+    "details": "Non-object/mode mismatch controlled; cursor and last-result preserved. Live scheduler and new A artifact still OPEN."
+  }
+}

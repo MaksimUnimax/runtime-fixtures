@@ -1,5 +1,9 @@
 # Repository Maintenance Rules
 
+## Controller hierarchy — owner decision 2026-09-29
+
+Read docs/development/coordination/CONTROLLER_HIERARCHY.md. Delegated L1 now handles routine project/controller reviews; senior L2 in Work audits both L1 and A/B/C periodically. Existing main/DB ownership, evidence gates, authority scopes and later STOP remain unchanged. This owner-authorized clarification supersedes older descriptions requiring the Work controller for every routine review; it does not create a new execution stream or background service.
+
 ## Current authorized program
 
 Octoport uses one canonical main and three scoped worktrees. Read docs/development/coordination/README.md, PROTOCOL.md, PLAN.md and OWNERSHIP.json before work. This owner-authorized program supersedes older single-executor/Stream-1/Stream-2 scheduling instructions, without changing product/security requirements or historical evidence. Each stream may select the next ready task within its assigned PLAN queue; it must not invent adjacent scope. Only C integrates main; only B authors DB/migration changes after the baseline. Explicit STOP always wins over an automatic governor repeat. Review requests are durable and do not block independent permitted work. Owner decision 2026-09-25: continue the approved roadmap until explicit STOP; a publication candidate, submission, moderation or deployment wait never ends the development queue. Follow docs/development/coordination/CONTINUOUS_ROADMAP_POLICY.md and prove that every remaining authorized task is blocked before whole-stream WAITING_INPUT.

@@ -1,0 +1,23 @@
+{
+  "[]": {
+    "exception": "AttributeError",
+    "code": "'list' object has no attribute 'get'"
+  },
+  "null": {
+    "exception": "AttributeError",
+    "code": "'NoneType' object has no attribute 'get'"
+  },
+  "inspect_returned_to_apply": {
+    "exit": 0,
+    "cursor_exists": false,
+    "last_result_kind": "INSPECTED"
+  },
+  "existing_tests": {
+    "exit": 1,
+    "output": "E\n======================================================================\nERROR: test_monitor_pilot_retention_runner (unittest.loader._FailedTest.test_monitor_pilot_retention_runner)\n----------------------------------------------------------------------\nImportError: Failed to import test module: test_monitor_pilot_retention_runner\nTraceback (most recent call last):\n  File \"/usr/lib/python3.11/unittest/loader.py\", line 154, in loadTestsFromName\n    module = __import__(module_name)\n             ^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/root/octoport-main/tooling/operations/test_monitor_pilot_retention_runner.py\", line 12, in <module>\n    import monitor_pilot_retention_runner as runner\nModuleNotFoundError: No module named 'monitor_pilot_retention_runner'\n\n\n----------------------------------------------------------------------\nRan 1 test in 0.000s\n\nFAILED (errors=1)\n"
+  },
+  "existing_tests_correct_invocation": {
+    "exit": 0,
+    "output": "MONITOR_PILOT_RETENTION_RUNNER={\"actions\":{\"projected\":1,\"pruned\":1,\"receiptRetired\":0,\"reconciled\":0,\"terminalRetired\":0},\"blocked\":{},\"deadlineReached\":false,\"finishedAt\":\"2026-09-29T00:00:01.000Z\",\"inventory\":{\"nextCursor\":{\"completedAt\":\"2026-09-29T00:00:00.000Z\",\"runId\":\"00000000-0000-4000-8000-000000000001\"},\"reasons\":{\"ELIGIBLE\":1},\"scanned\":2},\"kind\":\"PARTIAL\",\"pendingAfter\":{\"incident\":0,\"projection\":0,\"prunedReceipts\":2,\"terminal\":0},\"pendingBefore\":{\"incident\":0,\"projection\":1,\"prunedReceipts\":1,\"terminal\":0},\"startedAt\":\"2026-09-29T00:00:00.000Z\",\"version\":1}\nMONITOR_PILOT_RETENTION_RUNNER={\"actions\":{\"projected\":1,\"pruned\":1,\"receiptRetired\":0,\"reconciled\":0,\"terminalRetired\":0},\"blocked\":{},\"deadlineReached\":false,\"finishedAt\":\"2026-09-29T00:00:01.000Z\",\"inventory\":{\"nextCursor\":null,\"reasons\":{\"ELIGIBLE\":1},\"scanned\":2},\"kind\":\"APPLIED\",\"pendingAfter\":{\"incident\":0,\"projection\":0,\"prunedReceipts\":2,\"terminal\":0},\"pendingBefore\":{\"incident\":0,\"projection\":1,\"prunedReceipts\":1,\"terminal\":0},\"startedAt\":\"2026-09-29T00:00:00.000Z\",\"version\":1}\nMONITOR_PILOT_RETENTION_RUNNER={\"actions\":{\"projected\":1,\"pruned\":1,\"receiptRetired\":0,\"reconciled\":0,\"terminalRetired\":0},\"blocked\":{},\"deadlineReached\":false,\"finishedAt\":\"2026-09-29T00:00:01.000Z\",\"inventory\":{\"nextCursor\":null,\"reasons\":{\"ELIGIBLE\":1},\"scanned\":2},\"kind\":\"PARTIAL\",\"pendingAfter\":{\"incident\":0,\"projection\":0,\"prunedReceipts\":2,\"terminal\":0},\"pendingBefore\":{\"incident\":0,\"projection\":1,\"prunedReceipts\":1,\"terminal\":0},\"startedAt\":\"2026-09-29T00:00:00.000Z\",\"version\":1}\n......\n----------------------------------------------------------------------\nRan 6 tests in 0.016s\n\nOK\n"
+  }
+}
