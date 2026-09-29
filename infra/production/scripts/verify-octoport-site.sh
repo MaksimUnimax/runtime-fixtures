@@ -144,7 +144,7 @@ check_site_content() {
     || fail "homepage owner-approved title is missing"
   grep -Fq '<h1 class="hero-heading" id="hero-title"><span>Личный помощник</span> на <br />базе любимой <span>Нейросети.</span></h1>' <<<"${homepage}" \
     || fail "homepage owner-approved H1 is missing"
-  grep -Fq 'Можно использовать бесплатные аккаунты нейросетей.' <<<"${homepage}" \
+  grep -Fq 'Можно использовать с бесплатными нейросетями.' <<<"${homepage}" \
     || fail "homepage owner-approved free-account copy is missing"
   grep -Fq '<link rel="icon" href="/favicon.png" type="image/png" />' <<<"${homepage}" \
     || fail "homepage favicon link is missing"
