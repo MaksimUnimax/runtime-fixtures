@@ -1,0 +1,61 @@
+{
+  "source_reference_size": [
+    1448,
+    1086
+  ],
+  "source_reference_sha256": "8402c8faab101c7975d075f1a8bdebc9c2d3f0f64d4367e7ec52313282bbcfb9",
+  "method": "owner reference -> thresholded light linework -> remove eight fitted badge discs -> OpenCV CHAIN_APPROX_SIMPLE; no generative redraw; buttons remain independent DOM controls",
+  "asset": "assets/contour-owner-static-r13.svg",
+  "asset_sha256": "39b40b0333c40be7a1ee16ca232f11ed158fc45694ee33fbf93278f03f70aae2",
+  "asset_bytes": 51369,
+  "palette": {
+    "scene": "#f4f7fb",
+    "background": "dark_navy_gradient"
+  },
+  "button_geometry": {
+    "alice": [
+      35.789023,
+      15.72891,
+      11.714492
+    ],
+    "gemini": [
+      64.106944,
+      15.721128,
+      11.715736
+    ],
+    "chatgpt": [
+      22.838506,
+      33.12485,
+      11.637252
+    ],
+    "deepseek": [
+      77.080688,
+      33.136609,
+      11.672
+    ],
+    "anthropic": [
+      22.120675,
+      59.920163,
+      11.874733
+    ],
+    "qwen": [
+      77.776983,
+      59.954784,
+      11.810259
+    ],
+    "wb": [
+      34.32546,
+      78.933766,
+      15.599677
+    ],
+    "ozon": [
+      65.547265,
+      78.941405,
+      15.687104
+    ]
+  },
+  "interaction_contract": "underlay pointer-events none and stationary; only eight DOM badges transform on hover/focus",
+  "theme_contract": "dark only; no theme toggle or light palette"
+}
+
+[executed on device: Easyscript (f261eba5-9605-4636-9cde-e4082a541a86)]
