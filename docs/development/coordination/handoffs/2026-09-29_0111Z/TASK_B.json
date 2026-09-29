@@ -1,0 +1,35 @@
+{
+  "role": "B",
+  "plan": [
+    "B01",
+    "B06"
+  ],
+  "id": "B_RETENTION_RECURRING_COMPATIBILITY_20260929",
+  "state": "READY_ON_OWNER_TRANSFER",
+  "priority": 1,
+  "outcome": "Дать C проверенную DB-границу регулярного обслуживания пилота0052 со старым writer, без новых live migrations.",
+  "basis": [
+    "Пилот: журнал из 41 миграции, схема 0052, действующий runtime c2e71550. Из 216 успешных запусков 63 новых наблюдения ещё не вошли в компактную историю.",
+    "Разовый B20 apply сработал. Нужно проверить именно повторные циклы обслуживания одновременно с дальнейшей записью старой версией сервиса."
+  ],
+  "steps": [
+    "Согласуй с C единственного владельца operational scheduler/oneshot: C пишет wiring; B владеет repository/DB tests и необходимыми исправлениями.",
+    "На своей disposable DB создай реальный prefix0052 без repair0053/APIbaseline0054. Используй принятый legacy writer contract действующегоc2 runtime; не копируй SQL поведения в тест вместо исполнения repository.",
+    "Композиционный сценарий: новые наблюдения → bounded maintenance partial/continuation → новые записи старого writer ПОСЛЕ prune → следующий maintenance → повторный callback/повторmaintenance. Если точный существующий тест это доказывает, предоставь его вместо дублирования.",
+    "Докажи обновлениеlatest/compact, не более3различных recentstate наscope, repeat_count, отсутствие нового probe/notification, pins/8daywatermarks/no-replay, отсутствие обращения к0053/0054таблицам.",
+    "Проверь orchestration contract при блокировке/timeout/restart/overlap на выбранном C scheduler: B обеспечивает DB корректность, C hardtimeout/non-overlap. Не обещать30swall-clock для cooperativeawait.",
+    "Только при выявленном дефекте внеси минимальную B-owned правку. После передачи продолжай B01–B07 и адресные серверные ошибки A/C, без повторного liveapply."
+  ],
+  "paths": [
+    "packages/server/db/**",
+    "tooling/server/monitor-pilot-retention*",
+    "tests/integration/server/monitor-pilot-retention*",
+    "docs/development/coordination/receipts/B/**"
+  ],
+  "acceptance": [
+    "Real disposable0052; old writer/new maintenance compatibility evidence.",
+    "No live DB writes; no new migration merely to make pilot matchmain.",
+    "Exact source candidate or exact reused evidence directly to C; no waiting for owner/controller."
+  ],
+  "owner_action_required_now": false
+}

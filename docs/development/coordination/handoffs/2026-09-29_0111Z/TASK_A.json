@@ -1,0 +1,42 @@
+{
+  "role": "A",
+  "plan": [
+    "A02",
+    "A06"
+  ],
+  "id": "A_EXACT_TECHNICAL_LIFECYCLE_REMAINDER_20260929",
+  "state": "READY_ON_OWNER_TRANSFER",
+  "priority": 1,
+  "outcome": "Закрыть доступные автоматические границы точного STORE0.2.6: две отдельные технические установки/перенос и logout/re-auth только выделенного тестового устройства; не выдавать их за ручную/магазинную приёмку.",
+  "basis": [
+    "Технический вход, подписанный bootstrap chatgpt/web/null, локальные controls и три real provider checks уже PASS.",
+    "Helper PLAN phases8/9 остаются GATED_NOT_RUN; один лишь отсутствующий человек не блокирует разрешённый технический lifecycle."
+  ],
+  "steps": [
+    "Сначала обнови конечную матрицу кнопок из новых фактических receipts: старый A_OWNER_TEST_EXACT_PACKAGE_CONTROL_MATRIX содержит уже закрытые auth/provider gaps. Не повторяй эти тесты без изменения входов.",
+    "Подготовь два НОВЫХ защищённых тестовых профиля, exact ZIP, обычную отдельную device authorization того же разрешённого test account. Оригинальный r4 профиль с двумя реальными магазинами/его сессию сохраняй.",
+    "Проверь техническую квалификацию каждой установки и backend quotas/admission. С поддержанными синтетическими временными store markers без реальных токенов выполни реальный UI transfer consent/create/discover/receive, отказ/отзыв/повтор и отсутствие повторного применения. Рискованный дополнительный случай бери только если не покрыт текущим exact evidence.",
+    "В одном новом disposable профиле выполни обычный logout/reset именно этого устройства и повторную нормальную авторизацию; проверь, что другая установка/основной технический профиль не отозваны. Не выполнять account-wide reset и не читать/переносить токены владельца для этой проверки.",
+    "Если реальный browser install route объективно мешает, сохрани конкретный browser/step/failure и полностью готовый безопасный harness; пропусти только его. Не рисовать store/LIVE_OWNER PASS из запуска с development flags.",
+    "При доступной легитимной AI-сессии вернись к уже разрешённому полезному Ozon/WB сценарию. H3 мониторинг не является самостоятельным gate ручного сценария; без AI-сессии не имитируй отправку."
+  ],
+  "paths": [
+    "tests/regression/extension-core/**",
+    "apps/extension/**",
+    "packages/control-client/**",
+    "packages/bridge-core/**",
+    "docs/development/coordination/receipts/A/**"
+  ],
+  "acceptance": [
+    "Exact package/browser/backend identity; normal device flow, no injected auth flags.",
+    "No change to existing owner stores/session; no real marketplace request needed for lifecycle-only tests; temporary metadata cleanup verified.",
+    "Each matrix row names exact technical vs human/store level; no new version unless product bytes actually need change.",
+    "Focused regression for any reproduced product defect; exact clean candidate to C."
+  ],
+  "continue": [
+    "A01–A06 remaining real READY work after fresh full scan",
+    "Addressed C rework",
+    "AI useful flow when legitimate session exists"
+  ],
+  "owner_action_required_now": false
+}
