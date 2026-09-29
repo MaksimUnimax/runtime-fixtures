@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import ts from "typescript";
@@ -531,9 +532,15 @@ export function buildProductCrosswalk(input: {
   createdAt?: Date;
 }): ProductCrosswalkResult {
   const now = input.createdAt ?? new Date();
-  const sourceById = new Map(
-    input.inventory.operations.map((item) => [inventoryIdentity(item), item]),
-  );
+  const sourceById = new Map<
+    string,
+    OperationInventory["operations"][number]
+  >();
+  for (const item of input.inventory.operations) {
+    const identity = inventoryIdentity(item);
+    const key = `${identity}\u0000${item.documentKey ?? ""}`;
+    sourceById.set(key, item);
+  }
   const runtimeById = new Map<string, ProductRegistryEntry[]>();
   for (const entry of input.runtimeEntries) {
     const key = productIdentity(entry);
@@ -541,12 +548,21 @@ export function buildProductCrosswalk(input: {
     list.push(entry);
     runtimeById.set(key, list);
   }
-  const all = new Set([...sourceById.keys(), ...runtimeById.keys()]);
+  const sourceIdentities = new Set(
+    [...sourceById.values()].map((item) => inventoryIdentity(item)),
+  );
+  const all = new Set([
+    ...sourceById.keys(),
+    ...[...runtimeById.keys()].filter(
+      (identity) => !sourceIdentities.has(identity),
+    ),
+  ]);
   const impactById = new Map(
     (input.impact?.operations ?? []).map((item) => [item.identity, item]),
   );
-  const rows = [...all].sort().map((identity) => {
-    const source = sourceById.get(identity);
+  const rows = [...all].sort().map((rowKey) => {
+    const source = sourceById.get(rowKey);
+    const identity = source ? inventoryIdentity(source) : rowKey;
     const runtimes = runtimeById.get(identity) ?? [];
     let state: import("./types.js").CrosswalkState;
     let executionEnabled: boolean | null = null;
@@ -577,10 +593,20 @@ export function buildProductCrosswalk(input: {
     else if (impact?.severity === "BLOCKING_RISK")
       reviewState = "BLOCKING_RISK";
     else reviewState = "NO_ACTION";
+    const documentKey = source?.documentKey ?? null;
+    const crosswalkId =
+      documentKey === null
+        ? `${input.reportId}:${identity}`
+        : `${input.reportId}:DOCUMENT_SCOPE:${createHash("sha256")
+            .update(identity)
+            .update("\0")
+            .update(documentKey)
+            .digest("hex")}`;
     return {
-      crosswalkId: `${input.reportId}:${identity}`,
+      crosswalkId,
       reportId: input.reportId,
       sourceFamily: source?.sourceFamily ?? runtimes[0]!.sourceFamily,
+      documentKey,
       sourceIdentity: identity,
       runtimeAlias: alias,
       crosswalkState: state,

@@ -22,7 +22,11 @@ export class InMemoryProductCrosswalkStore implements ProductCrosswalkStore {
   async listRows(reportId: string) {
     return [...this.rows.values()]
       .filter((row) => row.reportId === reportId)
-      .sort((a, b) => a.sourceIdentity.localeCompare(b.sourceIdentity))
+      .sort(
+        (a, b) =>
+          a.sourceIdentity.localeCompare(b.sourceIdentity) ||
+          (a.documentKey ?? "").localeCompare(b.documentKey ?? ""),
+      )
       .map(clone);
   }
 }
@@ -34,11 +38,12 @@ export function createPostgresProductCrosswalkStore(
     async saveRows(rows) {
       for (const row of rows)
         await runtime.query(
-          `INSERT INTO api_watch_product_crosswalk(crosswalk_id,report_id,source_family,source_identity,runtime_alias,crosswalk_state,review_state,execution_enabled,impact_severity,diff_sha256,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT (crosswalk_id) DO UPDATE SET review_state=EXCLUDED.review_state,execution_enabled=EXCLUDED.execution_enabled,impact_severity=EXCLUDED.impact_severity,diff_sha256=EXCLUDED.diff_sha256`,
+          `INSERT INTO api_watch_product_crosswalk(crosswalk_id,report_id,source_family,document_key,source_identity,runtime_alias,crosswalk_state,review_state,execution_enabled,impact_severity,diff_sha256,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) ON CONFLICT (crosswalk_id) DO UPDATE SET document_key=EXCLUDED.document_key,review_state=EXCLUDED.review_state,execution_enabled=EXCLUDED.execution_enabled,impact_severity=EXCLUDED.impact_severity,diff_sha256=EXCLUDED.diff_sha256`,
           [
             row.crosswalkId,
             row.reportId,
             row.sourceFamily,
+            row.documentKey,
             row.sourceIdentity,
             row.runtimeAlias,
             row.crosswalkState,
@@ -53,7 +58,7 @@ export function createPostgresProductCrosswalkStore(
     },
     async listRows(reportId) {
       const result = await runtime.query<Record<string, unknown>>(
-        `SELECT crosswalk_id AS "crosswalkId",report_id AS "reportId",source_family AS "sourceFamily",source_identity AS "sourceIdentity",runtime_alias AS "runtimeAlias",crosswalk_state AS "crosswalkState",review_state AS "reviewState",execution_enabled AS "executionEnabled",impact_severity AS "impactSeverity",diff_sha256 AS "diffSha256",created_at AS "createdAt" FROM api_watch_product_crosswalk WHERE report_id=$1 ORDER BY source_family,source_identity`,
+        `SELECT crosswalk_id AS "crosswalkId",report_id AS "reportId",source_family AS "sourceFamily",document_key AS "documentKey",source_identity AS "sourceIdentity",runtime_alias AS "runtimeAlias",crosswalk_state AS "crosswalkState",review_state AS "reviewState",execution_enabled AS "executionEnabled",impact_severity AS "impactSeverity",diff_sha256 AS "diffSha256",created_at AS "createdAt" FROM api_watch_product_crosswalk WHERE report_id=$1 ORDER BY source_family,source_identity,document_key NULLS FIRST`,
         [reportId],
       );
       return result.rows.map(
