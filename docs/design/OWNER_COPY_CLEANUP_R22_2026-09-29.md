@@ -2,7 +2,7 @@
 
 Date: 2026-09-29
 
-Status: SOURCE_ACCEPTED / PRODUCTION_PENDING.
+Status: PRODUCTION_DEPLOYED / LIVE_QA_PASS.
 
 ## Owner changes
 
@@ -25,3 +25,15 @@ Obvious typing slips from the owner's message were normalized only for readabili
 
 - site regression suite: 43/43 PASS;
 - local Chrome, Opera and Yandex approved-copy/public-page runs: 15 states / 48 disclosure interactions PASS each.
+
+## Production acceptance
+
+Production source commit: `615160f573fbffb055a0a1610fb3c006b60d72d3`.
+Live release: `/var/www/octoport-site/releases/615160f573fbffb055a0a1610fb3c006b60d72d3`.
+Rollback backup: `/var/backups/octoport-site/20260929T112016Z`.
+
+Live acceptance on `https://octoport.ru`:
+- Chrome: 15 states / 48 disclosure interactions PASS;
+- Opera: 15 states / 48 disclosure interactions PASS;
+- Yandex Browser: 15 states / 48 disclosure interactions PASS;
+- live HTML checks confirm all four owner copy replacements and removal of the crossed-out footer/search/unit-economics text.
