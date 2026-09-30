@@ -46,6 +46,37 @@ const verifierSource = readFileSync(
   new URL("../../packages/control-client/src/crypto.js", import.meta.url),
   "utf8",
 );
+function packagedConfig(
+  trustBundle: Store1TrustBundle,
+  environment = "PREPRODUCTION",
+) {
+  return {
+    environment,
+    controlApiOrigin: "https://api.octoport.test",
+    portalOrigin: "https://app.octoport.test",
+    extensionVersion: STORE1_VERSION,
+    contractVersion: STORE1_CONTRACT,
+    trustBundle,
+  };
+}
+function packageEntries(
+  config: Record<string, unknown>,
+  embeddedVerifier = verifierSource,
+  includeStandalone = false,
+) {
+  const serviceWorker = Buffer.from(
+    "globalThis.__SELLER_AGENTS_PACKAGED_CONFIG__=" +
+      JSON.stringify(JSON.stringify(config)) +
+      ";\n" +
+      embeddedVerifier,
+  );
+  const entries = new Map<string, Buffer>([
+    ["service_worker.js", serviceWorker],
+  ]);
+  if (includeStandalone)
+    entries.set("shared/bootstrap_verifier.js", Buffer.from(verifierSource));
+  return entries;
+}
 const tempDirs: string[] = [];
 afterEach(() => {
   for (const dir of tempDirs.splice(0))
@@ -372,28 +403,60 @@ describe("STORE-1 v2 signature preflight", () => {
     ).rejects.toThrow("STORE1_V2_SIGNATURE_NON_CANONICAL_PAYLOAD");
   });
 
-  it("rejects development packaged config before signature verification", () => {
+  it("uses the exact trusted verifier embedded once in service_worker.js", () => {
     const f = fixture();
-    const config = {
-      environment: "LOCAL DEVELOPMENT",
-      controlApiOrigin: "https://api.octoport.ru",
-      portalOrigin: "https://app.octoport.ru",
-      extensionVersion: STORE1_VERSION,
-      contractVersion: STORE1_CONTRACT,
-      trustBundle: f.trustBundle,
-    };
-    const serviceWorker = Buffer.from(
-      "globalThis.__SELLER_AGENTS_PACKAGED_CONFIG__=" +
-        JSON.stringify(JSON.stringify(config)) +
-        ";",
+    const evidence = extractStore1PackageSignatureEvidenceFromEntries(
+      authority,
+      packageEntries(packagedConfig(f.trustBundle)),
     );
+    expect(evidence.controlApiOrigin).toBe("https://api.octoport.test");
+    expect(evidence.trustBundleSha256).toBe(
+      f.packageEvidence.trustBundleSha256,
+    );
+    expect(() => evidence.verifier.validateBundle(f.trustBundle)).not.toThrow();
+  });
+
+  it("rejects a package with no embedded trusted verifier", () => {
+    const f = fixture();
     expect(() =>
       extractStore1PackageSignatureEvidenceFromEntries(
         authority,
-        new Map([
-          ["service_worker.js", serviceWorker],
-          ["shared/bootstrap_verifier.js", Buffer.from(verifierSource)],
-        ]),
+        packageEntries(packagedConfig(f.trustBundle), ""),
+      ),
+    ).toThrow("STORE1_PACKAGE_VERIFIER_MISSING");
+  });
+
+  it("rejects a mutated embedded verifier", () => {
+    const f = fixture();
+    const mutatedVerifier = verifierSource.replace(
+      "Browser-only strict verifier",
+      "Browser-only mutated verifier",
+    );
+    expect(mutatedVerifier).not.toBe(verifierSource);
+    expect(() =>
+      extractStore1PackageSignatureEvidenceFromEntries(
+        authority,
+        packageEntries(packagedConfig(f.trustBundle), mutatedVerifier),
+      ),
+    ).toThrow("STORE1_PACKAGE_VERIFIER_MISSING");
+  });
+
+  it("rejects a redundant standalone verifier entry", () => {
+    const f = fixture();
+    expect(() =>
+      extractStore1PackageSignatureEvidenceFromEntries(
+        authority,
+        packageEntries(packagedConfig(f.trustBundle), verifierSource, true),
+      ),
+    ).toThrow("STORE1_PACKAGE_REDUNDANT_VERIFIER_ENTRY");
+  });
+
+  it("rejects development packaged config before signature verification", () => {
+    const f = fixture();
+    expect(() =>
+      extractStore1PackageSignatureEvidenceFromEntries(
+        authority,
+        packageEntries(packagedConfig(f.trustBundle, "LOCAL DEVELOPMENT")),
       ),
     ).toThrow("STORE1_PACKAGE_RUNTIME_NOT_STORE");
   });
