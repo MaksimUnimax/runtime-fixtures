@@ -21,6 +21,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
+    expected_version = original.current_composed_version()
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=False)
     node = os.environ.get("SA_NODE_BIN", "node")
@@ -31,7 +32,7 @@ def main():
     try:
         original.negative_control(output)
         source, extracted, receipt = composed.build(output / "package")
-        assert receipt["stage"] == "I1-C1" and receipt["version"] == "0.2.10"
+        assert receipt["stage"] == "I1-C1" and receipt["version"] == expected_version
         result["composition"] = receipt
         for runtime, label in ((source, "i1-source"), (extracted, "i1-package")):
             browser_output = output / (label + "-browser-proof")
@@ -39,7 +40,7 @@ def main():
             runner.env["C3H_BROWSER_PROOF_FILE"] = str(browser_output / "result.json")
             runner.env.pop("C3H_BROWSER_PROOF", None)
             manifest = composed.baseline.read_json(runtime / "manifest.json")
-            assert manifest["version"] == "0.2.10"
+            assert manifest["version"] == expected_version
             assert "http://127.0.0.1:43100/*" in manifest["host_permissions"]
             assert "http://127.0.0.1:43101/*" in manifest["host_permissions"]
             for file in sorted(runtime.rglob("*.js")):
