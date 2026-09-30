@@ -90,6 +90,13 @@ class ProofTests(unittest.TestCase):
         self.assertEqual(check.safe_error(AssertionError("token=private")), "AssertionError")
         self.assertEqual(check.safe_error(AssertionError("SAFE_FAILURE")), "SAFE_FAILURE")
 
+    def test_browser_build_token_is_exact(self):
+        for good in ("136.0.6008.22", "Opera 136.0.6008.22"):
+            self.assertTrue(check.exact_browser_product(good))
+        for bad in ("Opera 136.0.6008.220", "Chrome 136.0.6008.22", "x136.0.6008.22", "136.0.6008.22.1", "Opera 136.0.6008.22 extra"):
+            with self.subTest(value=bad):
+                self.assertFalse(check.exact_browser_product(bad))
+
     def test_no_auth_injection_or_direct_start_call(self):
         text = Path(check.__file__).read_text()
         self.assertNotIn("startActivation()", text)

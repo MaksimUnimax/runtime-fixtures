@@ -59,6 +59,10 @@ def archive_files(path, expected_sha=PACKAGE_SHA):
         return result
 
 
+def exact_browser_product(value):
+    return re.fullmatch(r"(?:Opera\s+)?" + re.escape(BROWSER_VERSION), value.strip()) is not None
+
+
 def safe_error(error):
     value = str(error)
     return value if isinstance(error, AssertionError) and re.fullmatch(r"[A-Z0-9_]+", value) else type(error).__name__
@@ -87,7 +91,7 @@ def run(args):
             "PACKAGE_IDENTITY_MISMATCH")
     require(manifest.get("manifest_version") == 3, "MANIFEST_VERSION_MISMATCH")
     product = subprocess.check_output([str(args.browser), "--version"], text=True).strip()
-    require(BROWSER_VERSION in product, "BROWSER_VERSION_MISMATCH")
+    require(exact_browser_product(product), "BROWSER_VERSION_MISMATCH")
     evidence = Path(os.environ["OCTOPORT_EVIDENCE_DIR"])
     require(evidence.is_dir() and not (evidence / "result.json").exists(), "FRESH_EVIDENCE_REQUIRED")
     from playwright.sync_api import sync_playwright
