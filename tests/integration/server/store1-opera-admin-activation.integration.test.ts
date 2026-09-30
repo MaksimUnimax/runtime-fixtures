@@ -143,16 +143,15 @@ function store1PackageEvidence(): Store1PackageSignatureEvidence {
     trustBundle,
   };
   const serviceWorker = Buffer.from(
-    "globalThis.__SELLER_AGENTS_PACKAGED_CONFIG__=" +
+    VERIFIER_SOURCE +
+      "\n" +
+      "globalThis.__SELLER_AGENTS_PACKAGED_CONFIG__=" +
       JSON.stringify(JSON.stringify(packagedConfig)) +
       ";",
   );
   return extractStore1PackageSignatureEvidenceFromEntries(
     authority,
-    new Map([
-      ["service_worker.js", serviceWorker],
-      ["shared/bootstrap_verifier.js", Buffer.from(VERIFIER_SOURCE)],
-    ]),
+    new Map([["service_worker.js", serviceWorker]]),
   );
 }
 
