@@ -39,7 +39,11 @@ class WaitingInputTests(unittest.TestCase):
     def input(self, relative, old=False):
         path = self.root / relative
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text("{}")
+        if relative.startswith("controller-notices/"):
+            role = path.name.split("-", 1)[0]
+            path.write_text(json.dumps({"role": role, "status": "OPEN"}))
+        else:
+            path.write_text("{}")
         if old:
             stamp = self.checked.timestamp() - 1
             os.utime(path, (stamp, stamp))
