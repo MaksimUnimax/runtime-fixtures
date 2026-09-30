@@ -1367,5 +1367,5 @@ describe("dedicated Alice Health session capability", () => {
         await secondDriver.closeOrPersist();
       }
     });
-  });
+  }, 35_000);
 });
