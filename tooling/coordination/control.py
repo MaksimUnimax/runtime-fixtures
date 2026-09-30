@@ -81,7 +81,7 @@ def update_state(role, action, args):
             previous_checkpoint = {
                 key: state.get(key) for key in (
                     "status", "task", "result", "next", "head", "updated_at",
-                    "stopped_at", "stop_reason", "resume_receipt",
+                    "stopped_at", "stop_reason", "resume_receipt", "checkpoint_id",
                 )
             }
             state.setdefault("resume_history", []).append({
@@ -98,6 +98,7 @@ def update_state(role, action, args):
             )
             state.pop("stopped_at", None)
             state.pop("stop_reason", None)
+            state.pop("checkpoint_id", None)
             consumed.append(args.receipt)
             state.setdefault("review_clock", now)
         elif action == "waiting":
@@ -109,7 +110,7 @@ def update_state(role, action, args):
             state["status"] = "WAITING_INPUT"
         elif action == "checkpoint":
             state.update(task=args.task or state.get("task"), result=args.summary, next=args.next,
-                         checkpoint_status="CURRENT")
+                         checkpoint_status="CURRENT", checkpoint_id=secrets.token_hex(16))
         elif action == "request-review":
             state.update(review_pending=True, review_reason=args.summary)
             state.setdefault("review_requested_at", now_text())
