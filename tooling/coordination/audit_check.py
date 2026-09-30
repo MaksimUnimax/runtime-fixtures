@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Bounded current audit view and complete per-record owner report."""
 import argparse
+from datetime import datetime
+import math
 import json
 from pathlib import Path
 
@@ -54,6 +56,49 @@ def validate(registry, comparison):
     return rows
 
 
+def review_clock_issues(root):
+    """Read-only check: a recorded review must update the operative timer too."""
+    issues = {}
+    for role in ("A", "B", "C"):
+        try:
+            state = json.loads((root / (role + ".json")).read_text())
+            closed = state.get("last_closed_controller_review") or {}
+            if not isinstance(closed, dict):
+                raise ValueError("INVALID_REVIEW_MARKER")
+            values = [state.get("controller_reviewed_at"), closed.get("at")]
+            timestamps = []
+            for value in values:
+                if value is None:
+                    continue
+                parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+                if parsed.tzinfo is None:
+                    raise ValueError("REVIEW_TIME_WITHOUT_TIMEZONE")
+                timestamps.append(parsed.timestamp())
+            if not timestamps:
+                continue
+            clock = state.get("review_clock")
+            if isinstance(clock, bool) or not isinstance(clock, (int, float)) or not math.isfinite(clock):
+                raise ValueError("INVALID_REVIEW_CLOCK")
+            # Timestamp serializations made in the same completion may differ slightly.
+            if clock < max(timestamps) - 1:
+                issues[role] = "COMPLETED_REVIEW_DID_NOT_RESET_CLOCK"
+        except (OSError, ValueError, TypeError, AttributeError):
+            issues[role] = "REVIEW_STATE_UNVERIFIED"
+    return issues
+
+
+def check_review_clock_holds(root, comparison):
+    """An unresolved issue must be explicit, never silently called complete."""
+    issues = review_clock_issues(root)
+    holds = comparison.get("review_clock_holds", {})
+    if not isinstance(holds, dict) or set(holds) != set(issues):
+        raise ValueError("REVIEW_CLOCK_NOT_RECONCILED: " + ",".join(sorted(issues)))
+    for role, why in holds.items():
+        if not isinstance(why, str) or not why.strip():
+            raise ValueError("REVIEW_CLOCK_HOLD_REASON_REQUIRED: " + role)
+    return issues
+
+
 def render(registry, comparison):
     rows = validate(registry, comparison)
     titles = {r["id"]: r["title"] for r in registry["records"]}
@@ -94,9 +139,15 @@ def main():
         parser.error("report requires --comparison and --output")
     registry = json.loads((args.root / "controllers/organization/errors.json").read_text())
     comparison = json.loads(args.comparison.read_text())
+    issues = check_review_clock_holds(args.root, comparison)
     text = render(registry, comparison)
+    if issues:
+        text += "\n\n## Незавершённая сверка контроля\n" + "\n".join(
+            role + ": " + comparison["review_clock_holds"][role] for role in sorted(issues)
+        )
     args.output.write_text(text)
-    print(json.dumps({"result": "REPORT_COMPLETE", "record_count": len(registry["records"]),
+    print(json.dumps({"result": "REPORT_COMPLETE_WITH_REVIEW_HOLDS" if issues else "REPORT_COMPLETE",
+                      "review_clock_issues": issues, "record_count": len(registry["records"]),
                       "registry_revision": registry["revision"], "output": str(args.output)}))
 
 
