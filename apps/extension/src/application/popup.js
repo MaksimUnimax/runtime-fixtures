@@ -49,6 +49,7 @@ const texts = { ACCESS_CONFIRMED: "Доступ подтверждён этой 
   CHECK_FAILED: "Не удалось проверить: сеть, ответ площадки или формат запроса", STORE_CHANGE_CONFIRMATION_REQUIRED: "Подтвердите смену магазина",
   WORK_SESSION_ALREADY_ACTIVE: "Этот магазин уже подключён", STORE_NOT_FOUND: "Магазин удалён. Откройте список заново",
   POPUP_CONTEXT_STALE: "Диалог изменился. Откройте расширение в нужной вкладке", WORK_START_UNSUPPORTED_PAGE: "Откройте поддерживаемый ИИ: ChatGPT или Алису",
+  WORK_START_ALREADY_PENDING: "Запуск уже выполняется. Повторная инструкция не отправлена", WORK_START_ALREADY_IN_PROGRESS: "Запуск уже выполняется. Дождитесь результата или завершите текущую работу",
   EXECUTION_CONTEXT_CHANGED: "Магазин или рабочая сессия изменились. Нажмите «Начать работу»", RESULT_EXPIRED: "Часовой срок результата истёк", NO_QUOTA_WAIT: "Нет пакета, ожидающего продолжения",
   AUTH_REQUIRED: "Выполните вход через портал", WORK_POLICY_BLOCKED: "Работа недоступна: подписанная политика не разрешила этот профиль ИИ", DEVICE_AUTH_CLOSED: "Попытка входа закрыта. Начните новую попытку", BOOTSTRAP_EXPIRED: "Проверенная сессия истекла. Выполните вход заново",
   UNSUPPORTED_BROWSER: "Текущий браузер или его версия не подтверждены подписанной совместимостью. Доказательства другого браузера не переносятся сюда", BOOTSTRAP_PROFILE_INCOMPATIBLE: "Подписанная конфигурация не разрешает текущую версию расширения или браузера", WORK_UNSUPPORTED_AI: "Откройте поддерживаемый ИИ: ChatGPT или Алису",
@@ -58,6 +59,30 @@ async function request(type, fields = {}) {
   const response = await chrome.runtime.sendMessage({ type, tab_id: tabId, ...fields });
   if (!response?.ok) throw new Error(texts[response?.code] || `Действие не выполнено: ${response?.code || "нет ответа расширения"}`);
   return response;
+}
+async function requestStart(fields = {}) {
+  const response = await request("SA_WORK_START", fields);
+  if (response?.accepted !== true) {
+    throw new Error(texts[response?.code] || `Запуск не подтверждён: ${response?.code || "расширение не подтвердило принятие"}`);
+  }
+  return response;
+}
+function startStatusText(lastStart) {
+  if (!lastStart || lastStart.outcome === "active") return null;
+  if (lastStart.outcome === "sent_acknowledged") return "Последний запуск: инструкция отправлена. Ожидаем создание и подтверждение диалога ИИ.";
+  if (lastStart.outcome === "unknown_no_retry") return "Последний запуск: исход отправки не подтверждён. Автоматический повтор заблокирован.";
+  if (lastStart.outcome === "pending") return "Последний запуск ещё ожидает подтверждения диалога ИИ.";
+  if (["failed", "blocked"].includes(lastStart.outcome)) {
+    const code = typeof lastStart.code === "string" && /^[A-Z][A-Z0-9_]{0,79}$/.test(lastStart.code) ? lastStart.code : null;
+    const reason = code ? (texts[code] || `Код для поддержки: ${code}`) : "Причина сохранена в безопасной диагностике.";
+    return `Последний запуск не завершён. ${reason}`;
+  }
+  return null;
+}
+function actionSuccessText(result) {
+  if (result?.popupAction !== "WORK_START_ACCEPTED") return "Готово";
+  if (state?.context?.work_active === true && ["active_visible", "active_hidden"].includes(state?.work?.state)) return "Работа запущена";
+  return startStatusText(state?.lastStart) || "Запуск принят. Ожидаем подтверждение инструкции и ответа ИИ";
 }
 function transferReceivePresentation(result) {
   if (result?.ok === true && result?.importState === "IMPORTED") return { text: "Передача принята и магазин импортирован.", consume: Boolean(result.requestId) };
@@ -72,7 +97,7 @@ async function requestTransferReceivePending() {
   if (!presentation) throw new Error(texts[response?.code] || `Действие не выполнено: ${response?.code || "нет ответа расширения"}`);
   return { response, presentation };
 }
-async function action(fn) { if (busy) return; busy = true; $("status").textContent = "Выполняем…"; try { await fn(); await refresh(); $("status").textContent = "Готово"; } catch (e) { $("status").textContent = e.message; } finally { busy = false; } }
+async function action(fn) { if (busy) return; busy = true; $("status").textContent = "Выполняем…"; try { const result = await fn(); await refresh(); $("status").textContent = actionSuccessText(result); } catch (e) { $("status").textContent = e.message; } finally { busy = false; } }
 function selected() { return state?.stores.find(x => x.id === selectedId); }
 function onboardingModel(value) {
   const authenticated = value?.auth?.authenticated === true;
@@ -128,6 +153,8 @@ function render() {
   const labels = { active_visible: "Работаем", active_hidden: "Работаем · кнопка скрыта", recovering: "Восстанавливаем", binding: "Подключаем", error: "Ошибка запуска", inactive: "Завершено" };
   $("connection").textContent = state.identity.ai_id ? connected ? `${labels[state.work?.state] || "Диалог подключён"}: ${connected.name} · ${connected.marketplace === "ozon" ? "Ozon" : "WB"}` : "Диалог не подключён" : "Откройте ChatGPT или Алису в текущей вкладке";
   $("selection").textContent = connected && selectedId !== connected.id ? "Выбран следующий магазин. Текущее подключение изменится только после подтверждения и нового Start." : "";
+  const lastStartText = !connected ? startStatusText(state.lastStart) : null;
+  if (lastStartText) $("connection").textContent = lastStartText;
   if (state.pending) $("connection").textContent = state.pending.send_outcome === "outcome_unknown_no_retry" ? "Исход отправки инструкции неизвестен. Повторная отправка заблокирована" : "Запускаем: ожидаем подтверждение инструкции и ответа ИИ";
   $("start").disabled = Boolean(state.pending) || !s || !state.identity.ai_id || ["binding", "recovering", "finishing"].includes(state.work?.state);
   $("work-resume").hidden = !(state.context.store_id && state.work?.state === "inactive" && state.context.work_active !== true);
@@ -159,7 +186,7 @@ $("card").onsubmit = e => { e.preventDefault(); action(async () => {
   selectedId = response.store.id; closeCard();
 }); };
 $("remove").onclick = () => { const id = selectedId; confirm(`Удалить магазин «${selected()?.name}» и его ключи? Все связанные с ним локальные рабочие сессии будут завершены.`, () => request("SA_STORE_DELETE", { store_id: id, confirm: true })); };
-$("start").onclick = () => { const id = selectedId; const run = confirm_change => request("SA_WORK_START", { store_id: id, confirm_change, start_intent_id: crypto.randomUUID() });
+$("start").onclick = () => { const id = selectedId; const run = async confirm_change => { await requestStart({ store_id: id, confirm_change, start_intent_id: crypto.randomUUID() }); return { popupAction: "WORK_START_ACCEPTED" }; };
   if (state.context.store_id && state.context.store_id !== id) confirm("В диалоге останутся данные предыдущего магазина. ИИ может смешать их в ответах. Старую работу завершим и отправим новую инструкцию для выбранного магазина.", () => run(true)); else action(() => run(false)); };
 $("confirm").onclick = () => { const fn = confirmAction; confirmAction = null; $("confirmation").hidden = true; if (fn) action(fn); };
 $("reject").onclick = () => { confirmAction = null; $("confirmation").hidden = true; };

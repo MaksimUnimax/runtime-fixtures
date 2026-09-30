@@ -51,6 +51,7 @@ def main():
             runner.run(label + "-application", ["node", ROOT / "tests/regression/extension-core/application.mjs", runtime])
             runner.run(label + "-transfer-recipient-recovery", ["node", ROOT / "tests/regression/extension-core/client-i1/client-transfer-recipient-recovery.mjs", runtime])
             runner.run(label + "-support-snapshot", ["node", ROOT / "tests/regression/extension-core/client-i1/client-support-snapshot.mjs", runtime])
+            runner.run(label + "-start-diagnostics", ["node", ROOT / "tests/regression/extension-core/client-i1/client-start-diagnostics.mjs", runtime])
             runner.run(label + "-firefox-technical-data-consent", ["node", ROOT / "tests/regression/extension-core/client-i1/firefox-technical-data-consent.mjs", runtime])
             runner.run(label + "-firefox-local-authority", ["node", ROOT / "tests/regression/extension-core/client-i1/firefox-local-authority.mjs"])
             runner.run(label + "-firefox-privacy-neutral-client", ["node", ROOT / "tests/regression/extension-core/client-i1/firefox-privacy-neutral-client.mjs", runtime])

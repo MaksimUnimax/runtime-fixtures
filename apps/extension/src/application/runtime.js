@@ -1091,6 +1091,46 @@ function saSupportToken(value) {
   const token = typeof value === "string" ? value : "";
   return /^[a-z][a-z0-9_]{0,39}$/.test(token) ? token : null;
 }
+async function saLastStartDiagnostic(tabId = null) {
+  const requestedTab = tabId == null ? null : Number(tabId);
+  const targetTab = Number.isInteger(requestedTab) && requestedTab > 0 ? requestedTab : null;
+  if (tabId != null && targetTab == null) return null;
+  let rows = [];
+  try {
+    const data = await storageGet(KEYS.DIAGNOSTICS);
+    rows = Array.isArray(data[KEYS.DIAGNOSTICS]) ? data[KEYS.DIAGNOSTICS] : [];
+  } catch (_) { return null; }
+  for (let index = rows.length - 1; index >= 0; index -= 1) {
+    const row = rows[index] || {};
+    if (targetTab != null && Number(row.tab_id) !== targetTab) continue;
+    const event = String(row.event || "");
+    if (event === "WORK_PENDING_START_TERMINAL") {
+      return { stage: "terminal", code: saSupportCode(row.reason) || saSupportCode(row.code), outcome: "failed" };
+    }
+    if (event === "WORK_START_ACTIVE_VISIBLE") return { stage: "active", code: null, outcome: "active" };
+    if (event === "WORK_START_ACTION_RESULT") {
+      return {
+        stage: saSupportToken(row.stage) || "request",
+        code: saSupportCode(row.code),
+        outcome: saSupportToken(row.outcome) || "unknown",
+      };
+    }
+    if (event === "WORK_START_ASYNC_DISPATCH_FAILED" || event === "WORK_START_SEND_FAILED") {
+      return { stage: event === "WORK_START_SEND_FAILED" ? "send" : "dispatch", code: saSupportCode(row.code), outcome: "failed" };
+    }
+    if (event === "WORK_START_CONTENT_RESPONSE_LOST_NO_RETRY") {
+      return { stage: "send", code: saSupportCode(row.code), outcome: "unknown_no_retry" };
+    }
+    if (event === "WORK_START_SEND_OUTCOME" && saSupportToken(row.send_outcome)) {
+      return { stage: "send", code: saSupportCode(row.code), outcome: saSupportToken(row.send_outcome) };
+    }
+    if (event === "WORK_START_CORRELATION_ACCEPTED") return { stage: "correlation", code: null, outcome: "pending" };
+    if (event === "WORK_START_BINDING") return { stage: "binding", code: null, outcome: "pending" };
+    if (event === "WORK_START_PENDING_CREATED") return { stage: "pending", code: null, outcome: "pending" };
+    if (event === "WORK_START_REQUESTED") return { stage: "requested", code: null, outcome: "pending" };
+  }
+  return null;
+}
 async function saSupportSnapshot(tabId) {
   const popup = await saPopupState(tabId);
   const observed = globalThis.SellerAgentsBrowserIdentity?.current?.() || {};
@@ -1101,6 +1141,7 @@ async function saSupportSnapshot(tabId) {
   const version = typeof observed.version === "string" && /^\d+(?:\.\d+){0,3}$/.test(observed.version) ? observed.version : null;
   const workState = saSupportToken(popup.work?.state);
   const aiFamily = ["chatgpt", "alice"].includes(popup.identity?.ai_id) ? popup.identity.ai_id : null;
+  const lastStart = popup.lastStart || null;
   return Object.freeze({
     snapshotVersion: "seller_agents_support_snapshot_v1",
     generatedAt: new Date().toISOString(),
@@ -1125,6 +1166,7 @@ async function saSupportSnapshot(tabId) {
       state: workState,
       pending: Boolean(popup.pending),
       pendingOutcome: saSupportToken(popup.pending?.send_outcome),
+      lastStart,
     },
     stores: {
       total: stores.length,
@@ -1169,6 +1211,7 @@ async function saPopupState(tabId) {
   } catch (_) {}
   const key = usableIdentity && live.conversation_id ? conversationKeyFromIdentity(live) : null;
   const pending = usableIdentity ? (await getPendingWorkStarts())[String(tabId)] || null : null;
+  const lastStart = await saLastStartDiagnostic(tabId);
   const auth = await SellerAgentsControlClient.status();
   const work = key ? await workSessionFor(key) : null;
   if (auth.authenticated && key) void saRefreshConversationSnapshot(key);
@@ -1178,11 +1221,12 @@ async function saPopupState(tabId) {
   if (auth.authenticated) stores = await saCatalog.list();
   return { ok: true, auth, pending: pending ? { intent_id: pending.intent_id, send_outcome: pending.send_outcome, expires_at: pending.expires_at } : null, stores,
     account: auth.account || { kind: "signed_out", label: "Вход не выполнен" },
-    identity: live, conversation_key: key, context, work: publicWork,
+    identity: live, conversation_key: key, context, work: publicWork, lastStart,
     operation: key ? publicManualOperation(await getManualOperation(key)) : null };
 }
 async function saWorkStart(message, sender) {
-  return singleFlight(saWorkFlights, String(message.tab_id), async () => {
+  try {
+    const result = await singleFlight(saWorkFlights, String(message.tab_id), async () => {
     const identity = await tabIdentity(normalizeTabId(message.tab_id));
     await SellerAgentsControlClient.ensureForIdentity(identity);
     if (!await SellerAgentsControlClient.canWork()) throw saError("WORK_POLICY_BLOCKED");
@@ -1226,7 +1270,27 @@ async function saWorkStart(message, sender) {
         return saLegacyMessage({ type: "OZ_WORK_START", tab_id: message.tab_id, start_intent_id: intentId, admission_provenance: provenance }, sender);
       });
     } finally { saReleaseAdmission(admission.token); saStarts.delete(Number(message.tab_id)); }
-  });
+    });
+    const accepted = result?.accepted === true;
+    const code = saSupportCode(result?.code);
+    await diagnostic("WORK_START_ACTION_RESULT", {
+      tab_id: Number(message.tab_id),
+      stage: accepted ? "accepted" : result?.accepted === false ? "not_accepted" : "request",
+      code,
+      outcome: accepted ? "pending" : result?.accepted === false ? "blocked" : result?.ok === false ? "failed" : "unknown",
+      external_request_executed: false,
+    });
+    return result;
+  } catch (error) {
+    await diagnostic("WORK_START_ACTION_RESULT", {
+      tab_id: Number.isInteger(Number(message?.tab_id)) ? Number(message.tab_id) : null,
+      stage: "rejected",
+      code: saSupportCode(error?.code) || "WORK_START_FAILED",
+      outcome: "failed",
+      external_request_executed: false,
+    });
+    throw error;
+  }
 }
 async function saWorkResume(message, sender) {
   return singleFlight(saWorkFlights, String(message.tab_id), async () => {
