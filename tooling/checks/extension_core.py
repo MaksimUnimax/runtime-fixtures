@@ -33,6 +33,7 @@ def main():
               "python": platform.python_version(), "node": subprocess.check_output(["node", "--version"], text=True).strip(),
               "live_provider_calls": 0, "installed_acceptance": False}
     try:
+        runner.run("core-composed-version-policy", [sys.executable, "-B", ROOT / "tests/regression/extension-core/test-composed-version-policy.py"])
         original.negative_control(output)
         runner.run("core-store-package-contract", [sys.executable, ROOT / "tests/regression/extension-core/store-package-contract.py"])
         runner.run("core-build-create-pending-extraction", ["node", ROOT / "tests/regression/extension-core/client-i1/create-pending-work-start-extraction.mjs"])
@@ -41,7 +42,7 @@ def main():
         work = output / "work"
         work.mkdir()
         for runtime, label, source_route in [(source, "core-source", True), (extracted, "core-package", False)]:
-            original.ozon_route(runner, work, runtime, label, source_route, expected_version="0.2.10")
+            original.ozon_route(runner, work, runtime, label, source_route, expected_version=original.current_composed_version())
             runner.run(label + "-contracts", ["node", ROOT / "tests/regression/extension-core/core-contracts.mjs", runtime])
             runner.run(label + "-worker", ["node", ROOT / "tests/regression/extension-core/worker-lifecycle.mjs", runtime])
             runner.run(label + "-context", ["node", ROOT / "tests/regression/extension-core/batch-context.mjs", runtime])
