@@ -156,6 +156,8 @@ jobs:
           node tests/regression/extension-core/client-i1/make-browser-config.mjs "$RUNNER_TEMP/seller-agents-browser-fixture-private.der" > "$RUNNER_TEMP/seller-agents-browser-fixture-config.json"
           export SA_PACKAGED_CONFIG_JSON="$(cat "$RUNNER_TEMP/seller-agents-browser-fixture-config.json")"
           python tooling/build/extension_composed.py --output build/application-browser/package
+          xvfb-run -a python tests/regression/extension-core/browser_popup_sizing.py --runtime build/application-browser/package/runtime --output build/application-browser/native-popup-source
+          xvfb-run -a python tests/regression/extension-core/browser_popup_sizing.py --runtime build/application-browser/package/extracted --output build/application-browser/native-popup-extracted
           python tests/regression/extension-core/browser_application.py --runtime build/application-browser/package/runtime --output build/application-browser/source --fixture-private-key "$RUNNER_TEMP/seller-agents-browser-fixture-private.der"
           python tests/regression/extension-core/browser_application.py --runtime build/application-browser/package/extracted --output build/application-browser/extracted --fixture-private-key "$RUNNER_TEMP/seller-agents-browser-fixture-private.der"
       - name: Preserve application fixture evidence
