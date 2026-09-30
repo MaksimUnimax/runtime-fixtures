@@ -29,6 +29,55 @@ class ReachedPreservedBehavior(Exception):
 
 
 class VersionPolicyTests(unittest.TestCase):
+    def test_historical_entrypoints_never_validate_current_composition(self):
+        for version in ["0.1.22"] + [f"0.2.{n}" for n in range(11)]:
+            with self.subTest(version=version):
+                with (
+                    mock.patch.object(
+                        route.baseline,
+                        "read_json",
+                        side_effect=AssertionError("CURRENT_RECIPE_READ"),
+                    ) as read,
+                    mock.patch.object(
+                        route.baseline,
+                        "prepare_ozon_layout",
+                        side_effect=ReachedPreservedBehavior(),
+                    ) as layout,
+                ):
+                    with self.assertRaises(ReachedPreservedBehavior):
+                        route.ozon_route(
+                            mock.Mock(),
+                            Path("/unused"),
+                            Path("/unused"),
+                            "probe",
+                            False,
+                            version,
+                        )
+                    read.assert_not_called()
+                    layout.assert_called_once()
+
+    def test_new_route_with_invalid_recipe_is_still_rejected_before_setup(self):
+        for key, value in [("schema_version", True), ("stage", "UNRECOGNIZED")]:
+            item = recipe("0.2.11")
+            item[key] = value
+            with self.subTest(key=key):
+                with (
+                    mock.patch.object(route.baseline, "read_json", return_value=item),
+                    mock.patch.object(route.baseline, "prepare_ozon_layout") as layout,
+                ):
+                    runner = mock.Mock()
+                    with self.assertRaises(ValueError):
+                        route.ozon_route(
+                            runner,
+                            Path("/unused"),
+                            Path("/unused"),
+                            "probe",
+                            False,
+                            "0.2.11",
+                        )
+                    layout.assert_not_called()
+                    runner.run.assert_not_called()
+
     def test_every_historical_version_preserves_existing_flags(self):
         for version in ["0.1.22"] + [f"0.2.{n}" for n in range(11)]:
             with self.subTest(version=version):

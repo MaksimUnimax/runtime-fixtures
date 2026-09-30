@@ -95,11 +95,16 @@ def current_composed_version():
     return version
 
 
-def version_route_profile(version, current_version):
-    _composed_patch(current_version)
-    if (not isinstance(version, str)
-            or (version not in HISTORICAL_ROUTE_VERSIONS and version != current_version)):
+def version_route_profile(version, current_version=None):
+    if not isinstance(version, str):
         raise ValueError("UNAPPROVED_ROUTE_VERSION")
+    # Preserved historical routes never depend on the current recipe's schema.
+    if version not in HISTORICAL_ROUTE_VERSIONS:
+        if current_version is None:
+            current_version = current_composed_version()
+        _composed_patch(current_version)
+        if version != current_version:
+            raise ValueError("UNAPPROVED_ROUTE_VERSION")
     patch = -1 if version == "0.1.22" else _composed_patch(version)
     return {"marketplace_hosts": patch >= 3, "control_hosts": patch >= 4,
             "corrective_ports": patch >= 1, "application_worker": patch >= 4,
@@ -107,7 +112,7 @@ def version_route_profile(version, current_version):
 
 
 def ozon_route(runner, work, runtime, label, source_route, expected_version="0.1.22"):
-    version_profile = version_route_profile(expected_version, current_composed_version())
+    version_profile = version_route_profile(expected_version)
     repo = work / label
     ozon = baseline.prepare_ozon_layout(repo, runtime)
     prod = ozon / "dist-step7-candidate"
