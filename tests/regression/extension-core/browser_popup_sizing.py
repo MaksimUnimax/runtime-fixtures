@@ -151,4 +151,3 @@ if __name__ == "__main__":
     parser.add_argument("--browser-executable")
     args = parser.parse_args()
     run(args.runtime.resolve(), args.output.resolve(), args.browser_executable)
-

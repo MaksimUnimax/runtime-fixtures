@@ -17,4 +17,3 @@ def read_controller_notices(directory, role):
         # only; history on disk and explicit STOP state remain unchanged.
         notices.append({**item, "role": role})
     return notices
-
