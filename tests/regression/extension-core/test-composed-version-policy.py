@@ -15,7 +15,7 @@ route = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(route)
 
 
-def recipe(version="0.2.10"):
+def recipe(version="0.2.11"):
     return {
         "schema_version": 1,
         "stage": "I1-C1",
@@ -58,7 +58,7 @@ class VersionPolicyTests(unittest.TestCase):
 
     def test_new_route_with_invalid_recipe_is_still_rejected_before_setup(self):
         for key, value in [("schema_version", True), ("stage", "UNRECOGNIZED")]:
-            item = recipe("0.2.11")
+            item = recipe("0.2.12")
             item[key] = value
             with self.subTest(key=key):
                 with (
@@ -73,7 +73,7 @@ class VersionPolicyTests(unittest.TestCase):
                             Path("/unused"),
                             "probe",
                             False,
-                            "0.2.11",
+                            "0.2.12",
                         )
                     layout.assert_not_called()
                     runner.run.assert_not_called()
@@ -98,18 +98,18 @@ class VersionPolicyTests(unittest.TestCase):
                     "version_files": 8 if patch >= 4 else (9 if patch == 3 else 10),
                 }
                 self.assertEqual(
-                    route.version_route_profile(version, "0.2.10"), expected
+                    route.version_route_profile(version, "0.2.11"), expected
                 )
 
     def test_next_current_recipe_keeps_same_route_contract(self):
         self.assertEqual(
+            route.version_route_profile("0.2.12", "0.2.12"),
             route.version_route_profile("0.2.11", "0.2.11"),
-            route.version_route_profile("0.2.10", "0.2.10"),
         )
 
     def test_unknown_and_future_not_in_recipe_rejected(self):
         for version in (
-            "0.2.11",
+            "0.2.12",
             "0.2.65536",
             "0.3.0",
             "1.2.3",
@@ -119,7 +119,7 @@ class VersionPolicyTests(unittest.TestCase):
             True,
         ):
             with self.subTest(version=version), self.assertRaises(ValueError):
-                route.version_route_profile(version, "0.2.10")
+                route.version_route_profile(version, "0.2.11")
 
     def test_recipe_validation_and_stage_are_required(self):
         for key, value in [
@@ -195,7 +195,7 @@ class VersionPolicyTests(unittest.TestCase):
 
     def test_next_recipe_reaches_existing_behavior_after_exact_manifest_checks(self):
         with self.assertRaises(ReachedPreservedBehavior):
-            self.exercise_actual_entry("0.2.11", "0.2.11")
+            self.exercise_actual_entry("0.2.12", "0.2.12")
         self.assertEqual(self.last_child_calls, 1)
 
     def test_wrong_manifest_still_rejected_before_first_child(self):
@@ -205,7 +205,7 @@ class VersionPolicyTests(unittest.TestCase):
 
     def test_unknown_route_rejected_before_layout_and_child(self):
         with self.assertRaises(ValueError):
-            self.exercise_actual_entry("0.2.10", "0.2.11")
+            self.exercise_actual_entry("0.2.11", "0.2.12")
         self.assertEqual(self.last_child_calls, 0)
         self.assertEqual(self.last_setup_calls, 0)
 
@@ -217,7 +217,7 @@ class VersionPolicyTests(unittest.TestCase):
             with self.subTest(rel=rel):
                 text = (ROOT / rel).read_text()
                 self.assertIn("original.current_composed_version()", text)
-                self.assertNotIn('"0.2.10"', text)
+                self.assertNotIn('"0.2.11"', text)
 
 
 if __name__ == "__main__":
