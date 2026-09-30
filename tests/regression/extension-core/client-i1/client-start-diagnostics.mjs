@@ -63,6 +63,97 @@ assert.match(
   /WORK_START_SEND_TARGET_UNAVAILABLE/,
 );
 
+const actionSuccessSource = extract(
+  popupJs,
+  "function actionSuccessText(result)",
+  "\nfunction transferReceivePresentation",
+);
+const actionSource = extract(
+  popupJs,
+  "async function action(fn)",
+  "\nfunction selected",
+);
+assert.match(popupJs, /popupAction: "WORK_START_ACCEPTED"/);
+
+const createActionHarness = new Function(
+  "requestImpl",
+  "texts",
+  "initialState",
+  `
+    let busy = false;
+    let state = initialState;
+    let refreshState = initialState;
+    const statusNode = { textContent: "" };
+    const $ = () => statusNode;
+    const request = requestImpl;
+    async function refresh() { state = refreshState; }
+    ${requestStartSource}
+    ${startStatusSource}
+    ${actionSuccessSource}
+    ${actionSource}
+    return {
+      statusNode,
+      setRefreshState(value) { refreshState = value; },
+      async runStart(response) {
+        await action(async () => {
+          await requestStart({ response });
+          return { popupAction: "WORK_START_ACCEPTED" };
+        });
+        return statusNode.textContent;
+      },
+      async runGeneric() {
+        await action(async () => ({ ok: true }));
+        return statusNode.textContent;
+      },
+    };
+  `,
+);
+
+const pendingHarness = createActionHarness(
+  async (_type, fields) => fields.response,
+  { WORK_START_ALREADY_PENDING: "Запуск уже выполняется. Повторная инструкция не отправлена" },
+  {
+    context: { work_active: false },
+    work: { state: null },
+    lastStart: { outcome: "pending", code: null },
+  },
+);
+assert.match(
+  await pendingHarness.runStart({ ok: true, accepted: true, start_intent_id: "intent-1" }),
+  /ожидает подтверждения|Ожидаем подтверждение/,
+);
+assert.notEqual(pendingHarness.statusNode.textContent, "Готово");
+
+const activeHarness = createActionHarness(
+  async (_type, fields) => fields.response,
+  {},
+  { context: { work_active: false }, work: { state: null }, lastStart: null },
+);
+activeHarness.setRefreshState({
+  context: { work_active: true },
+  work: { state: "active_visible" },
+  lastStart: { outcome: "active", code: null },
+});
+assert.equal(
+  await activeHarness.runStart({ ok: true, accepted: true, start_intent_id: "intent-2" }),
+  "Работа запущена",
+);
+
+const rejectedHarness = createActionHarness(
+  async (_type, fields) => fields.response,
+  { WORK_START_ALREADY_PENDING: "Запуск уже выполняется. Повторная инструкция не отправлена" },
+  { context: { work_active: false }, work: { state: null }, lastStart: null },
+);
+assert.match(
+  await rejectedHarness.runStart({ ok: true, accepted: false, code: "WORK_START_ALREADY_PENDING" }),
+  /Повторная инструкция не отправлена/,
+);
+assert.match(
+  await rejectedHarness.runStart({ ok: true }),
+  /Запуск не подтверждён/,
+);
+assert.equal(await rejectedHarness.runGeneric(), "Готово");
+
 const backing = {
   local: {
     ozmb_diagnostics: [
