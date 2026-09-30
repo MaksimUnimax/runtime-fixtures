@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "stage": "I1-C1",
-  "version": "0.2.9",
+  "version": "0.2.10",
   "purpose": "LOCAL_DEVELOPMENT_CANDIDATE_DEVICE_AUTH_SIGNED_ACCOUNT_BINDING",
   "control_api_origin": "http://127.0.0.1:43100",
   "portal_origin": "http://127.0.0.1:43101",
@@ -195,6 +195,7 @@
     "popup.js": ["apps/extension/src/application/popup.js"],
     "popup.css": ["apps/extension/src/application/popup.css"]
   },
+  "store_excluded_application_files": ["shared/bootstrap_verifier.js"],
   "marketplace_hosts": [
     "https://content-api.wildberries.ru/*",
     "https://discounts-prices-api.wildberries.ru/*",
