@@ -78,6 +78,14 @@ class VersionPolicyTests(unittest.TestCase):
                     layout.assert_not_called()
                     runner.run.assert_not_called()
 
+    def test_version_policy_regression_is_wired_before_core_package_build(self):
+        text = (ROOT / "tooling/checks/extension_core.py").read_text()
+        self.assertIn('runner.run("core-composed-version-policy",', text)
+        self.assertLess(
+            text.index('runner.run("core-composed-version-policy",'),
+            text.index("source, extracted, receipt = composed.build("),
+        )
+
     def test_every_historical_version_preserves_existing_flags(self):
         for version in ["0.1.22"] + [f"0.2.{n}" for n in range(11)]:
             with self.subTest(version=version):
