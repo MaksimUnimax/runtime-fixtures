@@ -229,17 +229,17 @@ describe("STORE-1 ordinary-admin activation planner", () => {
     });
   });
 
-  it("keeps the accepted profile revision while the package advances to frozen 0.2.10", () => {
-    expect(STORE1_VERSION).toBe("0.2.10");
+  it("keeps the accepted profile revision while the package advances to frozen 0.2.11", () => {
+    expect(STORE1_VERSION).toBe("0.2.11");
     expect(STORE1_PREVIOUS_VERSION).toBe("0.2.9");
     expect(STORE1_ACCEPTED_SOURCE_HEAD).toBe(
-      "fc05b958e9bb8a2e8b9c7d67fd4f91cdd3a790d5",
+      "7353c996fb72b62196d57ef2dbcd5c8339057dba",
     );
     expect(STORE1_ACCEPTED_SOURCE_TREE).toBe(
-      "ca80a8affa2ed217c388f954ab633886a4c4f1f5",
+      "a1f5b3616dba28473ce7275e5994af89001a4532",
     );
     expect(STORE1_ACCEPTED_ARTIFACT_SHA256).toBe(
-      "22e6507881bb790ca3b6b7d9fa11ee3177eebe4016e99994462414a383273edc",
+      "66c8b34e533f0e716cc3b7d214127a8443e89a241682d2307487c96a373f07c9",
     );
     expect(STORE1_PROFILE_MINIMUM_EXTENSION_VERSION).toBe("0.2.7");
     expect(STORE1_PROFILE_COMPATIBILITY.minimumExtensionVersion).toBe("0.2.7");
@@ -253,7 +253,7 @@ describe("STORE-1 ordinary-admin activation planner", () => {
     });
   });
 
-  it("appends the 0.2.10 policy only over the exact accepted 0.2.9 predecessor", () => {
+  it("appends the 0.2.11 policy only over the exact accepted 0.2.9 live predecessor", () => {
     const r = exactReadback();
     r.policies = [
       {
