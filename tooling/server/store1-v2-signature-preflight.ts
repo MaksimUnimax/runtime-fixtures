@@ -83,6 +83,10 @@ export type Store1V2SignaturePreflightTransport = {
 };
 
 const PACKAGED_CONFIG_MARKER = "globalThis.__SELLER_AGENTS_PACKAGED_CONFIG__=";
+const TRUSTED_BOOTSTRAP_VERIFIER_SOURCE = readFileSync(
+  new URL("../../packages/control-client/src/crypto.js", import.meta.url),
+  "utf8",
+);
 const HASH = /^[0-9a-f]{64}$/;
 const UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -206,12 +210,23 @@ export function extractStore1PackageSignatureEvidenceFromEntries(
   entries: Map<string, Buffer>,
 ): Store1PackageSignatureEvidence {
   const configBytes = entries.get("service_worker.js");
-  const verifierBytes = entries.get("shared/bootstrap_verifier.js");
   if (!configBytes?.length)
     throw new Error("STORE1_PACKAGE_RUNTIME_CONFIG_MISSING");
-  if (!verifierBytes?.length)
-    throw new Error("STORE1_PACKAGE_VERIFIER_MISSING");
-  const config = parsePackagedConfig(configBytes.toString("utf8"));
+  if (entries.has("shared/bootstrap_verifier.js"))
+    throw new Error("STORE1_PACKAGE_REDUNDANT_VERIFIER_ENTRY");
+  const serviceWorkerSource = configBytes.toString("utf8");
+  const verifierOffset = serviceWorkerSource.indexOf(
+    TRUSTED_BOOTSTRAP_VERIFIER_SOURCE,
+  );
+  if (verifierOffset < 0) throw new Error("STORE1_PACKAGE_VERIFIER_MISSING");
+  if (
+    serviceWorkerSource.indexOf(
+      TRUSTED_BOOTSTRAP_VERIFIER_SOURCE,
+      verifierOffset + TRUSTED_BOOTSTRAP_VERIFIER_SOURCE.length,
+    ) >= 0
+  )
+    throw new Error("STORE1_PACKAGE_VERIFIER_CONFLICT");
+  const config = parsePackagedConfig(serviceWorkerSource);
   if (
     config.environment !== "PREPRODUCTION" ||
     config.extensionVersion !== STORE1_VERSION ||
@@ -223,7 +238,7 @@ export function extractStore1PackageSignatureEvidenceFromEntries(
   )
     throw new Error("STORE1_PACKAGE_RUNTIME_NOT_STORE");
   const verifier = createStore1PackagedBootstrapVerifier(
-    verifierBytes.toString("utf8"),
+    TRUSTED_BOOTSTRAP_VERIFIER_SOURCE,
   );
   const trustBundle = config.trustBundle as Store1TrustBundle;
   try {

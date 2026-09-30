@@ -149,18 +149,24 @@ function codes(report: ReturnType<typeof analyzeStoreReleaseTransition>) {
 }
 
 describe("STORE release transition preflight", () => {
-  it("derives package target from B1 manifest while keeping canonical STORE profile authority independent", () => {
-    const a = target("0.2.8");
-    const b = target("0.2.9");
-    expect(a.value).toMatchObject({
-      productVersion: "0.2.8",
+  it("derives the 0.2.10 successor target without changing migration or profile authority", () => {
+    const accepted = target("0.2.9");
+    const successor = target("0.2.10");
+    expect(accepted.value).toMatchObject({
+      productVersion: "0.2.9",
       contractVersion: "control_plane_v2",
+      migrationLevel: 54,
       source: { head: "1".repeat(40), tree: "2".repeat(40) },
     });
-    expect(b.value.productVersion).toBe("0.2.9");
-    expect(a.value.profileContentSha256).toBe(STORE1_PROFILE_SHA256);
-    expect(b.value.profileContentSha256).toBe(STORE1_PROFILE_SHA256);
-    expect(a.value.profileContentSha256).toBe(
+    expect(successor.value).toMatchObject({
+      productVersion: "0.2.10",
+      contractVersion: "control_plane_v2",
+      migrationLevel: 54,
+      source: { head: "1".repeat(40), tree: "2".repeat(40) },
+    });
+    expect(accepted.value.profileContentSha256).toBe(STORE1_PROFILE_SHA256);
+    expect(successor.value.profileContentSha256).toBe(STORE1_PROFILE_SHA256);
+    expect(successor.value.profileContentSha256).toBe(
       "cab55851bd2d571c19de5d44f3f8b3c40ff0ba3eb44e346307a2578894b1b2c1",
     );
   });
