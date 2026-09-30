@@ -92,6 +92,40 @@ class CheckpointGenerationTests(unittest.TestCase):
         digest, _ = check.read_checkpoint(self.root, "A")
         self.assertEqual(self.run_expected(digest)["execution_status"], "EXIT_ZERO")
 
+    def test_waiting_start_cannot_resurrect_old_checkpoint(self):
+        self.checkpoint()
+        old, _ = check.read_checkpoint(self.root, "A")
+        with patch.object(control, "validate_waiting_receipt", return_value={"validated": True}):
+            control.update_state("A", "waiting", self.args)
+        control.update_state("A", "start", self.args)
+        with self.assertRaisesRegex(ValueError, "CHECKPOINT_ID_REQUIRED"):
+            self.run_expected(old)
+        self.assertFalse(self.bundle.exists())
+        self.assertFalse((self.root / "controllers/execution-claims").exists())
+        self.checkpoint()
+        current, _ = check.read_checkpoint(self.root, "A")
+        self.assertNotEqual(old, current)
+        self.assertEqual(self.run_expected(current)["execution_status"], "EXIT_ZERO")
+
+    def test_start_from_every_nonrunning_permitted_state_invalidates_identity(self):
+        for status in ["READY", "WAITING_INPUT"]:
+            self.checkpoint()
+            state = json.loads((self.root / "A.json").read_text())
+            state["status"] = status
+            (self.root / "A.json").write_text(json.dumps(state))
+            changed = control.update_state("A", "start", self.args)
+            with self.subTest(status=status):
+                self.assertEqual(changed["status"], "RUNNING")
+                self.assertEqual(changed["checkpoint_status"], "RECONCILIATION_REQUIRED")
+                self.assertNotIn("checkpoint_id", changed)
+
+    def test_repeated_start_while_running_preserves_current_checkpoint(self):
+        self.checkpoint()
+        old, _ = check.read_checkpoint(self.root, "A")
+        for _ in range(2):
+            control.update_state("A", "start", self.args)
+        self.assertEqual(check.read_checkpoint(self.root, "A")[0], old)
+
     def test_newer_stop_survives_repeated_resume_receipt(self):
         self.checkpoint()
         self.args.receipt = "new-owner-once"

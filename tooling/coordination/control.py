@@ -65,6 +65,9 @@ def update_state(role, action, args):
         if action == "start":
             if state["status"] == "STOPPED":
                 raise RuntimeError("STOPPED: an automatic prompt cannot resume this stream")
+            if state["status"] != "RUNNING":
+                state.pop("checkpoint_id", None)
+                state["checkpoint_status"] = "RECONCILIATION_REQUIRED"
             state["status"] = "RUNNING"
             state.setdefault("review_clock", now)
         elif action == "pause":
