@@ -14,6 +14,7 @@ import sys
 import time
 import resource_runner
 from waiting_gate import validate_waiting_receipt
+from notice_delivery import read_controller_notices
 from datetime import datetime, timezone
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -143,12 +144,7 @@ def update_state(role, action, args):
 
 
 def controller_notices(role):
-    notices = []
-    for path in sorted((CONTROL / "controller-notices").glob(role + "-*.json")):
-        item = json.loads(path.read_text())
-        if item.get("role") == role and item.get("status") not in ("CLOSED", "SUPERSEDED"):
-            notices.append(item)
-    return notices
+    return read_controller_notices(CONTROL / "controller-notices", role)
 
 
 def require_running(role):
