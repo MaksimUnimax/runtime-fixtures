@@ -25,7 +25,7 @@ def authority(control="https://api.octoport.ru", portal="https://app.octoport.ru
     return {
         "schemaVersion": "octoport_release_authority_v1",
         "source": {"head": "0" * 40, "tree": "1" * 40},
-        "productVersion": "0.2.9",
+        "productVersion": "0.2.10",
         "contractVersion": "control_plane_v2",
         "migrationLevel": 48,
         "environment": "PREPRODUCTION",
@@ -54,8 +54,36 @@ def write_authority(root, value):
     return path
 
 
+def declared_resources(manifest):
+    resources = set()
+    background = manifest.get("background", {})
+    if background.get("service_worker"):
+        resources.add(background["service_worker"])
+    action = manifest.get("action", {})
+    if action.get("default_popup"):
+        resources.add(action["default_popup"])
+    resources.update((manifest.get("icons") or {}).values())
+    default_icon = action.get("default_icon") or {}
+    if isinstance(default_icon, dict):
+        resources.update(default_icon.values())
+    for content in manifest.get("content_scripts", []):
+        resources.update(content.get("js", []))
+        resources.update(content.get("css", []))
+    for row in manifest.get("web_accessible_resources", []):
+        resources.update(row.get("resources", []))
+    return resources
+
+
 with tempfile.TemporaryDirectory(prefix="octoport-store-contract-") as temp:
     root = Path(temp)
+    verifier_source = (ROOT / "packages/control-client/src/crypto.js").read_bytes()
+    development_runtime, development_extracted, development_receipt = composed.build(
+        root / "development"
+    )
+    assert development_receipt["version"] == "0.2.10"
+    assert (development_runtime / "shared/bootstrap_verifier.js").read_bytes() == verifier_source
+    assert (development_extracted / "shared/bootstrap_verifier.js").read_bytes() == verifier_source
+
     auth = write_authority(root, authority())
     runtime, extracted, receipt = composed.build(
         root / "chromium", mode="store", release_authority=auth
@@ -75,7 +103,15 @@ with tempfile.TemporaryDirectory(prefix="octoport-store-contract-") as temp:
     assert "https://api.octoport.ru/*" in manifest["host_permissions"]
     assert "https://app.octoport.ru/*" in manifest["host_permissions"]
     assert not any(value.startswith("http://127.0.0.1") for value in manifest["host_permissions"])
-    worker = (runtime / "service_worker.js").read_text(encoding="utf-8")
+    worker_bytes = (runtime / "service_worker.js").read_bytes()
+    worker = worker_bytes.decode("utf-8")
+    assert not (runtime / "shared/bootstrap_verifier.js").exists()
+    assert not (extracted / "shared/bootstrap_verifier.js").exists()
+    assert "shared/bootstrap_verifier.js" not in {row["path"] for row in receipt["files"]}
+    assert worker_bytes.count(verifier_source) == 1
+    for resource in declared_resources(manifest):
+        assert (runtime / resource).is_file(), resource
+        assert (extracted / resource).is_file(), resource
     assert "globalThis.__SELLER_AGENTS_PACKAGED_CONFIG__=" in worker
     assert "control_plane_v2" in worker and "PREPRODUCTION" in worker
     assert "PACKAGED_CONFIG_REQUIRED" in worker
@@ -93,7 +129,7 @@ with tempfile.TemporaryDirectory(prefix="octoport-store-contract-") as temp:
     assert "BETA · результаты сразу в ИИ · буфер до 1 часа" in popup
     assert receipt["build_mode"] == "store"
     assert receipt["environment"] == "PREPRODUCTION"
-    assert receipt["package"]["name"] == "OCTOPORT_v0.2.9_CHROMIUM_STORE.zip"
+    assert receipt["package"]["name"] == "OCTOPORT_v0.2.10_CHROMIUM_STORE.zip"
     assert receipt["package"]["repeat_archive_match"] is True
     assert receipt["release_authority_sha256"] == composed.baseline.sha256(auth.read_bytes())
 
@@ -102,7 +138,7 @@ with tempfile.TemporaryDirectory(prefix="octoport-store-contract-") as temp:
         (root / "firefox-runtime" / "manifest.json").read_text(encoding="utf-8")
     )
     assert firefox_receipt["build_mode"] == "store"
-    assert firefox_receipt["package"]["name"] == "OCTOPORT_v0.2.9_FIREFOX_STORE.zip"
+    assert firefox_receipt["package"]["name"] == "OCTOPORT_v0.2.10_FIREFOX_STORE.zip"
     assert firefox_manifest["browser_specific_settings"]["gecko"]["id"] == "octoport@octoport.ru"
     assert firefox_manifest["browser_specific_settings"]["gecko"]["data_collection_permissions"] == {
         "required": [
@@ -143,4 +179,4 @@ with tempfile.TemporaryDirectory(prefix="octoport-store-negative-") as temp:
     duplicate_fingerprint["trustBundle"]["keys"].append(duplicate)
     rejected(root, duplicate_fingerprint, "duplicate-fingerprint")
 
-print(json.dumps({"status": "PASS", "checks": ["store HTTPS/v2 config", "Octoport icons", "deterministic Chromium ZIP", "Firefox store derivative", "HTTP authority rejected", "PRODUCTION authority rejected", "duplicate trust keys rejected"]}))
+print(json.dumps({"status": "PASS", "checks": ["development verifier retained", "store standalone verifier absent", "worker verifier embedded exactly once", "all declared resources present", "store HTTPS/v2 config", "Octoport icons", "deterministic Chromium ZIP", "Firefox store derivative", "HTTP authority rejected", "PRODUCTION authority rejected", "duplicate trust keys rejected"]}))

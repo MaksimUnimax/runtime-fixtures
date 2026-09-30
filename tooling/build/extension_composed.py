@@ -110,7 +110,7 @@ def compose(directory, mode="development", release_authority=None):
     directory.mkdir(parents=True, exist_ok=False)
     baseline.verify_import()
     recipe = baseline.read_json(RECIPE)
-    assert recipe["version"] == "0.2.9" and recipe["stage"] == "I1-C1"
+    assert recipe["version"] == "0.2.10" and recipe["stage"] == "I1-C1"
     inputs = {}
     read_input("apps/extension/composition.json", inputs)
     output = {}
@@ -127,7 +127,14 @@ def compose(directory, mode="development", release_authority=None):
         suffix = b"\n})(scope); globalThis.SellerAgentsWBReference = Object.freeze({contract: scope.WBContract, credentials: scope.WBCredentials, guidance: scope.WBGuidance, transport: scope.ProviderTransportCore}); })();\n"
         output[target] = prefix + b"\n;\n".join(read_input(p, inputs) for p in bundle["reference_sources"]) + suffix
         output[target] += b"\n;\n".join(read_input(p, inputs) for p in bundle["sources"])
-    for target, sources in recipe.get("application_files", {}).items():
+    application_files = recipe.get("application_files", {})
+    store_excluded_application_files = recipe.get("store_excluded_application_files", [])
+    assert isinstance(store_excluded_application_files, list)
+    assert len(store_excluded_application_files) == len(set(store_excluded_application_files))
+    assert set(store_excluded_application_files) <= set(application_files)
+    for target, sources in application_files.items():
+        if mode == "store" and target in store_excluded_application_files:
+            continue
         output[target] = b"\n;\n".join(read_input(source, inputs) for source in sources)
     if mode == "store":
         for target, source in recipe.get("static_files", {}).items():
