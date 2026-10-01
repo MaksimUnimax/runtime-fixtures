@@ -323,6 +323,9 @@ export async function generateOpenApiRepresentation(): Promise<string> {
         updatedAt: new Date(),
       }),
       mutate: async () => ({ kind: "CONFLICT" }),
+      readIdentityInvitation: async () => null,
+      inviteIdentity: async () => ({ kind: "CONFLICT" }),
+      revokeIdentityInvitation: async () => ({ kind: "NOT_FOUND" }),
     }),
     syncService: new SyncService({
       apply: async ({ entry }) => ({

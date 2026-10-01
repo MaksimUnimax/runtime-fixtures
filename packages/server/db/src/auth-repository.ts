@@ -179,13 +179,52 @@ export function createAuthRepository(runtime: DatabaseRuntime): AuthRepository {
           const betaState = beta.rows[0];
           if (!betaState)
             throw new Error("beta admission state is not initialized");
-          if (betaState.mode !== "OPEN")
+
+          const invitations = await tx.query<{ id: string }>(
+            `SELECT id
+               FROM beta_identity_invitations
+              WHERE normalized_identity_target=$1
+                AND consumed_at IS NULL
+                AND revoked_at IS NULL
+                AND expires_at>$2
+              ORDER BY created_at ASC,id ASC
+              FOR UPDATE`,
+            [c.normalized_identity_target, now],
+          );
+          if (invitations.rows.length > 1)
+            throw new Error("multiple active beta identity invitations");
+          const invited = invitations.rows[0];
+
+          if (
+            betaState.mode === "PAUSED" ||
+            (betaState.mode === "CLOSED" && !invited)
+          )
             return { ok: false, code: "BETA_CLOSED" } as AuthResult<never>;
-          if (Number(betaState.admitted) >= Number(betaState.capacity))
-            return {
-              ok: false,
-              code: "BETA_CAPACITY_REACHED",
-            } as AuthResult<never>;
+
+          const capacity = Number(betaState.capacity);
+          const admitted = Number(betaState.admitted);
+          if (invited) {
+            if (admitted >= capacity)
+              return {
+                ok: false,
+                code: "BETA_CAPACITY_REACHED",
+              } as AuthResult<never>;
+          } else {
+            const reservations = await tx.query<{ count: number | string }>(
+              `SELECT count(*)::bigint AS count
+                 FROM beta_identity_invitations
+                WHERE consumed_at IS NULL
+                  AND revoked_at IS NULL
+                  AND expires_at>$1`,
+              [now],
+            );
+            if (admitted + Number(reservations.rows[0]?.count ?? 0) >= capacity)
+              return {
+                ok: false,
+                code: "BETA_CAPACITY_REACHED",
+              } as AuthResult<never>;
+          }
+
           userId = randomUUID();
           const accountId = randomUUID();
           await tx.query(`INSERT INTO users(id) VALUES($1)`, [userId]);
@@ -202,19 +241,47 @@ export function createAuthRepository(runtime: DatabaseRuntime): AuthRepository {
             `INSERT INTO beta_admissions(account_id,user_id,admitted_at) VALUES($1,$2,$3)`,
             [accountId, userId, now],
           );
-          const admitted = await tx.query<{ admitted: number | string }>(
-            `UPDATE beta_admission_state SET admitted=admitted+1,updated_at=$1 WHERE id=1 AND mode='OPEN' AND admitted<capacity RETURNING admitted`,
+          const admittedRow = await tx.query<{ admitted: number | string }>(
+            `UPDATE beta_admission_state
+                SET admitted=admitted+1,updated_at=$1
+              WHERE id=1 AND admitted<capacity
+              RETURNING admitted`,
             [now],
           );
-          if (!admitted.rows[0])
+          if (!admittedRow.rows[0])
             throw new Error("beta admission state changed unexpectedly");
+
+          if (invited) {
+            const consumed = await tx.query(
+              `UPDATE beta_identity_invitations
+                  SET consumed_at=$2,consumed_user_id=$3
+                WHERE id=$1
+                  AND consumed_at IS NULL
+                  AND revoked_at IS NULL
+                  AND expires_at>$2
+                RETURNING id`,
+              [invited.id, now, userId],
+            );
+            if (!consumed.rows[0])
+              throw new Error("beta identity invitation changed unexpectedly");
+            await tx.query(
+              `INSERT INTO audit_events(actor_type,actor_id,action,target_type,target_id,correlation_id,safe_metadata)
+               VALUES('USER',$1,'BETA_IDENTITY_INVITATION_CONSUMED','BETA_IDENTITY_INVITATION',$2,$3,jsonb_build_object('accessBasis','TARGETED_INVITATION'))`,
+              [userId, invited.id, input.correlationId],
+            );
+          }
+
           await tx.query(
             `INSERT INTO audit_events(actor_type,actor_id,action,target_type,target_id,correlation_id) VALUES('SYSTEM',$1,'AUTH_IDENTITY_CREATED','USER',$1,$2)`,
             [userId, input.correlationId],
           );
           await tx.query(
-            `INSERT INTO audit_events(actor_type,action,target_type,target_id,correlation_id,safe_metadata) VALUES('SYSTEM','BETA_ACCOUNT_ADMITTED','ACCOUNT',$1,$2,jsonb_build_object('accessBasis','BETA'))`,
-            [accountId, input.correlationId],
+            `INSERT INTO audit_events(actor_type,action,target_type,target_id,correlation_id,safe_metadata) VALUES('SYSTEM','BETA_ACCOUNT_ADMITTED','ACCOUNT',$1,$2,jsonb_build_object('accessBasis',$3::text))`,
+            [
+              accountId,
+              input.correlationId,
+              invited ? "TARGETED_INVITATION" : "BETA",
+            ],
           );
         } else {
           userId = identity.rows[0].user_id;

@@ -9,10 +9,12 @@ import {
 } from "../../../packages/server/auth/src/index.js";
 import {
   createAuthRepository,
+  createBetaAdmissionRepository,
   createDatabaseRuntime,
   type DatabaseRuntime,
 } from "../../../packages/server/db/src/index.js";
 import { OtpEmailRunner } from "../../../apps/worker/src/otp-runner.js";
+import { BetaAdmissionService } from "../../../packages/server/beta-access/src/index.js";
 import { runMigrations } from "../../../packages/server/db/src/migrations.js";
 
 const url = process.env.DATABASE_URL;
@@ -75,6 +77,44 @@ async function challenge(id: string) {
     }>("SELECT * FROM otp_challenges WHERE id=$1", [id])
   ).rows[0]!;
 }
+async function betaAdmin() {
+  const userId = randomUUID();
+  const principalId = randomUUID();
+  await q("INSERT INTO users(id) VALUES($1)", [userId]);
+  await q("INSERT INTO admin_principals(id,user_id) VALUES($1,$2)", [
+    principalId,
+    userId,
+  ]);
+  await q(
+    "INSERT INTO admin_role_grants(admin_principal_id,role) VALUES($1,'ADMIN_BETA_OPERATOR')",
+    [principalId],
+  );
+  return principalId;
+}
+
+function betaService() {
+  return new BetaAdmissionService(createBetaAdmissionRepository(db));
+}
+
+async function createInvitation(email: string, capacity = 1) {
+  await q(
+    "UPDATE beta_admission_state SET mode='CLOSED',capacity=$1,admitted=0,revision=1 WHERE id=1",
+    [capacity],
+  );
+  const actorPrincipalId = await betaAdmin();
+  const result = await betaService().createIdentityInvitation({
+    actorPrincipalId,
+    requestId: `invite-${randomUUID()}`,
+    correlationId: `invite-correlation-${randomUUID()}`,
+    expectedRevision: 1,
+    normalizedIdentityTarget: email,
+    reason: "targeted reviewer integration",
+  });
+  expect(result.kind).toBe("APPLIED");
+  if (result.kind !== "APPLIED") throw new Error("invitation setup failed");
+  return { actorPrincipalId, invitation: result.invitation };
+}
+
 async function fixture(
   email: string,
   id = randomUUID(),
@@ -458,6 +498,224 @@ describe.sequential("P2.2 real PostgreSQL authentication matrix", () => {
     ).toBe(1);
   });
 
+  it("targeted CLOSED invitation redeems through ordinary OTP and creates one admitted identity atomically", async () => {
+    const email = "invited-closed@example.test";
+    const { actorPrincipalId, invitation } = await createInvitation(email, 1);
+    const challengeId = await request(email, "accepted-request-id-invited");
+    const first = await auth().verifyOtp(
+      challengeId,
+      code,
+      "198.51.108.1",
+      "accepted-request-id-invited-verify",
+      "invited-replay-key-1234",
+    );
+    expect(first.ok).toBe(true);
+
+    const invitationRow = (
+      await q<{ consumed_at: Date | null; consumed_user_id: string | null }>(
+        "SELECT consumed_at,consumed_user_id FROM beta_identity_invitations WHERE id=$1",
+        [invitation.id],
+      )
+    ).rows[0]!;
+    expect(invitationRow.consumed_at).toBeTruthy();
+    expect(invitationRow.consumed_user_id).toBeTruthy();
+
+    for (const table of [
+      "users",
+      "accounts",
+      "account_memberships",
+      "user_identities",
+      "beta_admissions",
+      "portal_sessions",
+    ]) {
+      const count = (
+        await q<{ count: string }>(`SELECT count(*)::text count FROM ${table}`)
+      ).rows[0]!.count;
+      const expected = table === "users" ? "2" : "1";
+      expect(count).toBe(expected);
+    }
+    expect(
+      (
+        await q<{ admitted: number }>(
+          "SELECT admitted FROM beta_admission_state WHERE id=1",
+        )
+      ).rows[0]!.admitted,
+    ).toBe(1);
+
+    await expect(
+      betaService().revokeIdentityInvitation({
+        actorPrincipalId,
+        invitationId: invitation.id,
+        requestId: "revoke-consumed-invitation",
+        correlationId: "revoke-consumed-invitation-correlation",
+        reason: "consumed invitations are terminal",
+      }),
+    ).resolves.toEqual({ kind: "CONFLICT" });
+
+    const replay = await auth().verifyOtp(
+      challengeId,
+      code,
+      "198.51.108.2",
+      "accepted-request-id-invited-replay",
+      "invited-replay-key-1234",
+    );
+    expect(replay).toEqual({
+      ok: true,
+      value: first.ok ? first.value : undefined,
+    });
+    expect(
+      (
+        await q<{ count: string }>(
+          "SELECT count(*)::text count FROM beta_admissions",
+        )
+      ).rows[0]!.count,
+    ).toBe("1");
+  });
+
+  it("CLOSED uninvited and PAUSED invited first login fail with zero partial identity rows", async () => {
+    await q(
+      "UPDATE beta_admission_state SET mode='CLOSED',capacity=2,admitted=0,revision=1 WHERE id=1",
+    );
+    const uninvitedEmail = "uninvited-closed@example.test";
+    const uninvitedChallenge = await request(
+      uninvitedEmail,
+      "accepted-request-id-uninvited",
+    );
+    const denied = await auth().verifyOtp(
+      uninvitedChallenge,
+      code,
+      "198.51.109.1",
+      "accepted-request-id-uninvited-verify",
+    );
+    expect(denied).toEqual({ ok: false, code: "BETA_CLOSED" });
+    expect(
+      (
+        await q<{ count: string }>(
+          "SELECT count(*)::text count FROM user_identities WHERE normalized_identifier=$1",
+          [uninvitedEmail],
+        )
+      ).rows[0]!.count,
+    ).toBe("0");
+
+    const invitedEmail = "invited-paused@example.test";
+    const { invitation } = await createInvitation(invitedEmail, 2);
+    await q("UPDATE beta_admission_state SET mode='PAUSED' WHERE id=1");
+    const pausedChallenge = await request(
+      invitedEmail,
+      "accepted-request-id-paused",
+    );
+    const paused = await auth().verifyOtp(
+      pausedChallenge,
+      code,
+      "198.51.109.2",
+      "accepted-request-id-paused-verify",
+    );
+    expect(paused).toEqual({ ok: false, code: "BETA_CLOSED" });
+    expect(
+      (
+        await q<{ count: string }>(
+          "SELECT count(*)::text count FROM user_identities WHERE normalized_identifier=$1",
+          [invitedEmail],
+        )
+      ).rows[0]!.count,
+    ).toBe("0");
+    await expect(
+      betaService().readIdentityInvitation(invitation.id),
+    ).resolves.toMatchObject({
+      status: "PENDING",
+    });
+  });
+
+  it("revoked or expired targeted invitation cannot bootstrap a CLOSED identity", async () => {
+    for (const [kind, email] of [
+      ["REVOKED", "revoked-invite@example.test"],
+      ["EXPIRED", "expired-invite@example.test"],
+    ] as const) {
+      const { actorPrincipalId, invitation } = await createInvitation(email, 1);
+      if (kind === "REVOKED") {
+        const revoked = await betaService().revokeIdentityInvitation({
+          actorPrincipalId,
+          invitationId: invitation.id,
+          requestId: `revoke-${randomUUID()}`,
+          correlationId: `revoke-correlation-${randomUUID()}`,
+          reason: "integration revoke",
+        });
+        expect(revoked.kind).toBe("APPLIED");
+      } else {
+        await q(
+          "UPDATE beta_identity_invitations SET created_at=now()-interval '2 days',expires_at=now()-interval '1 day' WHERE id=$1",
+          [invitation.id],
+        );
+      }
+      const challengeId = await request(
+        email,
+        `accepted-request-id-${kind.toLowerCase()}`,
+      );
+      const result = await auth().verifyOtp(
+        challengeId,
+        code,
+        "198.51.110.1",
+        `accepted-request-id-${kind.toLowerCase()}-verify`,
+      );
+      expect(result).toEqual({ ok: false, code: "BETA_CLOSED" });
+      expect(
+        (
+          await q<{ count: string }>(
+            "SELECT count(*)::text count FROM user_identities WHERE normalized_identifier=$1",
+            [email],
+          )
+        ).rows[0]!.count,
+      ).toBe("0");
+      await clear();
+    }
+  });
+
+  it("OPEN registration cannot consume a slot reserved by a targeted invitation", async () => {
+    const invitedEmail = "reserved-invite@example.test";
+    await createInvitation(invitedEmail, 1);
+    await q("UPDATE beta_admission_state SET mode='OPEN' WHERE id=1");
+
+    const uninvitedEmail = "unreserved-open@example.test";
+    const [invitedChallenge, uninvitedChallenge] = await Promise.all([
+      fixture(invitedEmail),
+      fixture(uninvitedEmail),
+    ]);
+    const [invitedResult, uninvitedResult] = await Promise.all([
+      auth().verifyOtp(
+        invitedChallenge,
+        code,
+        "198.51.111.1",
+        "accepted-request-id-reserved-winner",
+      ),
+      auth().verifyOtp(
+        uninvitedChallenge,
+        code,
+        "198.51.111.2",
+        "accepted-request-id-unreserved-loser",
+      ),
+    ]);
+
+    expect(invitedResult.ok).toBe(true);
+    expect(uninvitedResult).toEqual({
+      ok: false,
+      code: "BETA_CAPACITY_REACHED",
+    });
+    expect(
+      (
+        await q<{ normalized_identifier: string }>(
+          "SELECT normalized_identifier FROM user_identities WHERE provider='EMAIL'",
+        )
+      ).rows.map((row) => row.normalized_identifier),
+    ).toContain(invitedEmail);
+    expect(
+      (
+        await q<{ normalized_identifier: string }>(
+          "SELECT normalized_identifier FROM user_identities WHERE provider='EMAIL'",
+        )
+      ).rows.map((row) => row.normalized_identifier),
+    ).not.toContain(uninvitedEmail);
+  });
+
   it("T2-11/T2-12/T2-13 stores only session hash, OTP artifact, and encrypted delivery", async () => {
     const email = "storage@example.test",
       id = await request(email);
@@ -691,6 +949,6 @@ describe.sequential("P2.2 real PostgreSQL authentication matrix", () => {
           "SELECT count(*)::text count FROM drizzle.__drizzle_migrations",
         )
       ).rows[0]!.count,
-    ).toBe("44");
+    ).toBe("45");
   });
 });

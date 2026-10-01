@@ -48884,6 +48884,1951 @@
         }
       }
     },
+    "/v1/admin/beta/invitations": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "email": {
+                    "maxLength": 320,
+                    "minLength": 3,
+                    "type": "string"
+                  },
+                  "expectedRevision": {
+                    "maximum": 9007199254740991,
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  "reason": {
+                    "maxLength": 512,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "requestId": {
+                    "maxLength": 128,
+                    "minLength": 16,
+                    "pattern": "^[A-Za-z0-9._:-]+$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "requestId",
+                  "expectedRevision",
+                  "email",
+                  "reason"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "consumedAt": {
+                      "anyOf": [
+                        {
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "createdAt": {
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                      "type": "string"
+                    },
+                    "expiresAt": {
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                      "type": "string"
+                    },
+                    "invitationId": {
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "type": "string"
+                    },
+                    "replay": {
+                      "type": "boolean"
+                    },
+                    "revokedAt": {
+                      "anyOf": [
+                        {
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "status": {
+                      "enum": [
+                        "PENDING",
+                        "CONSUMED",
+                        "REVOKED",
+                        "EXPIRED"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "invitationId",
+                    "status",
+                    "createdAt",
+                    "expiresAt",
+                    "consumedAt",
+                    "revokedAt",
+                    "replay"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "INTERNAL_ERROR",
+                            "INVALID_REQUEST",
+                            "SERVICE_UNAVAILABLE",
+                            "AUTH_RATE_LIMITED",
+                            "AUTH_OTP_INVALID",
+                            "AUTH_LOGIN_DENIED",
+                            "AUTH_SESSION_INVALID",
+                            "AUTH_CSRF_INVALID",
+                            "BETA_CLOSED",
+                            "BETA_CAPACITY_REACHED",
+                            "AUTH_REFRESH_INVALID",
+                            "DEVICE_AUTH_RATE_LIMITED",
+                            "DEVICE_AUTH_INVALID",
+                            "DEVICE_AUTH_FORBIDDEN",
+                            "DEVICE_AUTH_STATE_CONFLICT",
+                            "DEVICE_AUTH_IDEMPOTENCY_CONFLICT",
+                            "DEVICE_AUTH_CLOSED",
+                            "DEVICE_AUTH_PENDING",
+                            "DEVICE_LIMIT_REACHED",
+                            "DEVICE_FORBIDDEN",
+                            "DEVICE_NOT_FOUND",
+                            "UNAUTHORIZED",
+                            "DEVICE_MISMATCH",
+                            "BOOTSTRAP_UNAVAILABLE",
+                            "SUBSCRIPTION_REQUIRED",
+                            "ACCOUNT_FORBIDDEN",
+                            "ADMIN_UNAUTHORIZED",
+                            "ADMIN_FORBIDDEN",
+                            "ADMIN_REAUTH_REQUIRED",
+                            "ADMIN_CSRF_INVALID",
+                            "ADMIN_RESOURCE_NOT_FOUND",
+                            "ADMIN_CONFLICT",
+                            "ADMIN_STATE_STALE",
+                            "ADMIN_LAST_OWNER_REQUIRED",
+                            "ADMIN_INVALID_LIFECYCLE",
+                            "ADMIN_ASSIGNMENT_TARGET_INELIGIBLE",
+                            "ADMIN_INVALID_HIERARCHY_BINDING",
+                            "SUBSCRIPTION_ALREADY_EXISTS",
+                            "PLAN_REVISION_NOT_PUBLISHED",
+                            "SUBSCRIPTION_PERIOD_INVALID",
+                            "SUBSCRIPTION_PERIOD_NOT_EXTENDED",
+                            "SUBSCRIPTION_GRACE_WINDOW_CONFLICT",
+                            "SUBSCRIPTION_STATE_TRANSITION_INVALID",
+                            "SUBSCRIPTION_ALREADY_SUSPENDED",
+                            "SUBSCRIPTION_NOT_SUSPENDED",
+                            "SUBSCRIPTION_RESTORE_ORIGIN_NOT_FOUND",
+                            "SUBSCRIPTION_PERIOD_ENDED",
+                            "SUBSCRIPTION_GRACE_ENDED",
+                            "SUBSCRIPTION_CORRUPTED",
+                            "SYNC_CONFLICT",
+                            "SYNC_REQUEST_ID_CONFLICT",
+                            "SYNC_REQUEST_INVALID",
+                            "ACCOUNT_IDENTITY_MISMATCH",
+                            "CLIENT_UPDATE_REQUIRED",
+                            "SOURCE_OFFLINE",
+                            "TRANSFER_EXPIRED",
+                            "TRANSFER_INVALID",
+                            "TRANSFER_REPLAY",
+                            "TRANSFER_CONFLICT",
+                            "TRANSFER_DEVICE_REVOKED",
+                            "TRANSFER_ACCOUNT_MISMATCH",
+                            "TRANSFER_PACKET_TOO_LARGE",
+                            "SUPPORT_CASE_NOT_FOUND",
+                            "SUPPORT_CASE_FORBIDDEN",
+                            "SUPPORT_CASE_RATE_LIMITED",
+                            "SUPPORT_CASE_INVALID_TRANSITION"
+                          ],
+                          "type": "string"
+                        },
+                        "correlationId": {
+                          "maxLength": 128,
+                          "minLength": 1,
+                          "pattern": "^[A-Za-z0-9._:-]+$",
+                          "type": "string"
+                        },
+                        "message": {
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "correlationId"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "INTERNAL_ERROR",
+                            "INVALID_REQUEST",
+                            "SERVICE_UNAVAILABLE",
+                            "AUTH_RATE_LIMITED",
+                            "AUTH_OTP_INVALID",
+                            "AUTH_LOGIN_DENIED",
+                            "AUTH_SESSION_INVALID",
+                            "AUTH_CSRF_INVALID",
+                            "BETA_CLOSED",
+                            "BETA_CAPACITY_REACHED",
+                            "AUTH_REFRESH_INVALID",
+                            "DEVICE_AUTH_RATE_LIMITED",
+                            "DEVICE_AUTH_INVALID",
+                            "DEVICE_AUTH_FORBIDDEN",
+                            "DEVICE_AUTH_STATE_CONFLICT",
+                            "DEVICE_AUTH_IDEMPOTENCY_CONFLICT",
+                            "DEVICE_AUTH_CLOSED",
+                            "DEVICE_AUTH_PENDING",
+                            "DEVICE_LIMIT_REACHED",
+                            "DEVICE_FORBIDDEN",
+                            "DEVICE_NOT_FOUND",
+                            "UNAUTHORIZED",
+                            "DEVICE_MISMATCH",
+                            "BOOTSTRAP_UNAVAILABLE",
+                            "SUBSCRIPTION_REQUIRED",
+                            "ACCOUNT_FORBIDDEN",
+                            "ADMIN_UNAUTHORIZED",
+                            "ADMIN_FORBIDDEN",
+                            "ADMIN_REAUTH_REQUIRED",
+                            "ADMIN_CSRF_INVALID",
+                            "ADMIN_RESOURCE_NOT_FOUND",
+                            "ADMIN_CONFLICT",
+                            "ADMIN_STATE_STALE",
+                            "ADMIN_LAST_OWNER_REQUIRED",
+                            "ADMIN_INVALID_LIFECYCLE",
+                            "ADMIN_ASSIGNMENT_TARGET_INELIGIBLE",
+                            "ADMIN_INVALID_HIERARCHY_BINDING",
+                            "SUBSCRIPTION_ALREADY_EXISTS",
+                            "PLAN_REVISION_NOT_PUBLISHED",
+                            "SUBSCRIPTION_PERIOD_INVALID",
+                            "SUBSCRIPTION_PERIOD_NOT_EXTENDED",
+                            "SUBSCRIPTION_GRACE_WINDOW_CONFLICT",
+                            "SUBSCRIPTION_STATE_TRANSITION_INVALID",
+                            "SUBSCRIPTION_ALREADY_SUSPENDED",
+                            "SUBSCRIPTION_NOT_SUSPENDED",
+                            "SUBSCRIPTION_RESTORE_ORIGIN_NOT_FOUND",
+                            "SUBSCRIPTION_PERIOD_ENDED",
+                            "SUBSCRIPTION_GRACE_ENDED",
+                            "SUBSCRIPTION_CORRUPTED",
+                            "SYNC_CONFLICT",
+                            "SYNC_REQUEST_ID_CONFLICT",
+                            "SYNC_REQUEST_INVALID",
+                            "ACCOUNT_IDENTITY_MISMATCH",
+                            "CLIENT_UPDATE_REQUIRED",
+                            "SOURCE_OFFLINE",
+                            "TRANSFER_EXPIRED",
+                            "TRANSFER_INVALID",
+                            "TRANSFER_REPLAY",
+                            "TRANSFER_CONFLICT",
+                            "TRANSFER_DEVICE_REVOKED",
+                            "TRANSFER_ACCOUNT_MISMATCH",
+                            "TRANSFER_PACKET_TOO_LARGE",
+                            "SUPPORT_CASE_NOT_FOUND",
+                            "SUPPORT_CASE_FORBIDDEN",
+                            "SUPPORT_CASE_RATE_LIMITED",
+                            "SUPPORT_CASE_INVALID_TRANSITION"
+                          ],
+                          "type": "string"
+                        },
+                        "correlationId": {
+                          "maxLength": 128,
+                          "minLength": 1,
+                          "pattern": "^[A-Za-z0-9._:-]+$",
+                          "type": "string"
+                        },
+                        "message": {
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "correlationId"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "INTERNAL_ERROR",
+                            "INVALID_REQUEST",
+                            "SERVICE_UNAVAILABLE",
+                            "AUTH_RATE_LIMITED",
+                            "AUTH_OTP_INVALID",
+                            "AUTH_LOGIN_DENIED",
+                            "AUTH_SESSION_INVALID",
+                            "AUTH_CSRF_INVALID",
+                            "BETA_CLOSED",
+                            "BETA_CAPACITY_REACHED",
+                            "AUTH_REFRESH_INVALID",
+                            "DEVICE_AUTH_RATE_LIMITED",
+                            "DEVICE_AUTH_INVALID",
+                            "DEVICE_AUTH_FORBIDDEN",
+                            "DEVICE_AUTH_STATE_CONFLICT",
+                            "DEVICE_AUTH_IDEMPOTENCY_CONFLICT",
+                            "DEVICE_AUTH_CLOSED",
+                            "DEVICE_AUTH_PENDING",
+                            "DEVICE_LIMIT_REACHED",
+                            "DEVICE_FORBIDDEN",
+                            "DEVICE_NOT_FOUND",
+                            "UNAUTHORIZED",
+                            "DEVICE_MISMATCH",
+                            "BOOTSTRAP_UNAVAILABLE",
+                            "SUBSCRIPTION_REQUIRED",
+                            "ACCOUNT_FORBIDDEN",
+                            "ADMIN_UNAUTHORIZED",
+                            "ADMIN_FORBIDDEN",
+                            "ADMIN_REAUTH_REQUIRED",
+                            "ADMIN_CSRF_INVALID",
+                            "ADMIN_RESOURCE_NOT_FOUND",
+                            "ADMIN_CONFLICT",
+                            "ADMIN_STATE_STALE",
+                            "ADMIN_LAST_OWNER_REQUIRED",
+                            "ADMIN_INVALID_LIFECYCLE",
+                            "ADMIN_ASSIGNMENT_TARGET_INELIGIBLE",
+                            "ADMIN_INVALID_HIERARCHY_BINDING",
+                            "SUBSCRIPTION_ALREADY_EXISTS",
+                            "PLAN_REVISION_NOT_PUBLISHED",
+                            "SUBSCRIPTION_PERIOD_INVALID",
+                            "SUBSCRIPTION_PERIOD_NOT_EXTENDED",
+                            "SUBSCRIPTION_GRACE_WINDOW_CONFLICT",
+                            "SUBSCRIPTION_STATE_TRANSITION_INVALID",
+                            "SUBSCRIPTION_ALREADY_SUSPENDED",
+                            "SUBSCRIPTION_NOT_SUSPENDED",
+                            "SUBSCRIPTION_RESTORE_ORIGIN_NOT_FOUND",
+                            "SUBSCRIPTION_PERIOD_ENDED",
+                            "SUBSCRIPTION_GRACE_ENDED",
+                            "SUBSCRIPTION_CORRUPTED",
+                            "SYNC_CONFLICT",
+                            "SYNC_REQUEST_ID_CONFLICT",
+                            "SYNC_REQUEST_INVALID",
+                            "ACCOUNT_IDENTITY_MISMATCH",
+                            "CLIENT_UPDATE_REQUIRED",
+                            "SOURCE_OFFLINE",
+                            "TRANSFER_EXPIRED",
+                            "TRANSFER_INVALID",
+                            "TRANSFER_REPLAY",
+                            "TRANSFER_CONFLICT",
+                            "TRANSFER_DEVICE_REVOKED",
+                            "TRANSFER_ACCOUNT_MISMATCH",
+                            "TRANSFER_PACKET_TOO_LARGE",
+                            "SUPPORT_CASE_NOT_FOUND",
+                            "SUPPORT_CASE_FORBIDDEN",
+                            "SUPPORT_CASE_RATE_LIMITED",
+                            "SUPPORT_CASE_INVALID_TRANSITION"
+                          ],
+                          "type": "string"
+                        },
+                        "correlationId": {
+                          "maxLength": 128,
+                          "minLength": 1,
+                          "pattern": "^[A-Za-z0-9._:-]+$",
+                          "type": "string"
+                        },
+                        "message": {
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "correlationId"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "INTERNAL_ERROR",
+                            "INVALID_REQUEST",
+                            "SERVICE_UNAVAILABLE",
+                            "AUTH_RATE_LIMITED",
+                            "AUTH_OTP_INVALID",
+                            "AUTH_LOGIN_DENIED",
+                            "AUTH_SESSION_INVALID",
+                            "AUTH_CSRF_INVALID",
+                            "BETA_CLOSED",
+                            "BETA_CAPACITY_REACHED",
+                            "AUTH_REFRESH_INVALID",
+                            "DEVICE_AUTH_RATE_LIMITED",
+                            "DEVICE_AUTH_INVALID",
+                            "DEVICE_AUTH_FORBIDDEN",
+                            "DEVICE_AUTH_STATE_CONFLICT",
+                            "DEVICE_AUTH_IDEMPOTENCY_CONFLICT",
+                            "DEVICE_AUTH_CLOSED",
+                            "DEVICE_AUTH_PENDING",
+                            "DEVICE_LIMIT_REACHED",
+                            "DEVICE_FORBIDDEN",
+                            "DEVICE_NOT_FOUND",
+                            "UNAUTHORIZED",
+                            "DEVICE_MISMATCH",
+                            "BOOTSTRAP_UNAVAILABLE",
+                            "SUBSCRIPTION_REQUIRED",
+                            "ACCOUNT_FORBIDDEN",
+                            "ADMIN_UNAUTHORIZED",
+                            "ADMIN_FORBIDDEN",
+                            "ADMIN_REAUTH_REQUIRED",
+                            "ADMIN_CSRF_INVALID",
+                            "ADMIN_RESOURCE_NOT_FOUND",
+                            "ADMIN_CONFLICT",
+                            "ADMIN_STATE_STALE",
+                            "ADMIN_LAST_OWNER_REQUIRED",
+                            "ADMIN_INVALID_LIFECYCLE",
+                            "ADMIN_ASSIGNMENT_TARGET_INELIGIBLE",
+                            "ADMIN_INVALID_HIERARCHY_BINDING",
+                            "SUBSCRIPTION_ALREADY_EXISTS",
+                            "PLAN_REVISION_NOT_PUBLISHED",
+                            "SUBSCRIPTION_PERIOD_INVALID",
+                            "SUBSCRIPTION_PERIOD_NOT_EXTENDED",
+                            "SUBSCRIPTION_GRACE_WINDOW_CONFLICT",
+                            "SUBSCRIPTION_STATE_TRANSITION_INVALID",
+                            "SUBSCRIPTION_ALREADY_SUSPENDED",
+                            "SUBSCRIPTION_NOT_SUSPENDED",
+                            "SUBSCRIPTION_RESTORE_ORIGIN_NOT_FOUND",
+                            "SUBSCRIPTION_PERIOD_ENDED",
+                            "SUBSCRIPTION_GRACE_ENDED",
+                            "SUBSCRIPTION_CORRUPTED",
+                            "SYNC_CONFLICT",
+                            "SYNC_REQUEST_ID_CONFLICT",
+                            "SYNC_REQUEST_INVALID",
+                            "ACCOUNT_IDENTITY_MISMATCH",
+                            "CLIENT_UPDATE_REQUIRED",
+                            "SOURCE_OFFLINE",
+                            "TRANSFER_EXPIRED",
+                            "TRANSFER_INVALID",
+                            "TRANSFER_REPLAY",
+                            "TRANSFER_CONFLICT",
+                            "TRANSFER_DEVICE_REVOKED",
+                            "TRANSFER_ACCOUNT_MISMATCH",
+                            "TRANSFER_PACKET_TOO_LARGE",
+                            "SUPPORT_CASE_NOT_FOUND",
+                            "SUPPORT_CASE_FORBIDDEN",
+                            "SUPPORT_CASE_RATE_LIMITED",
+                            "SUPPORT_CASE_INVALID_TRANSITION"
+                          ],
+                          "type": "string"
+                        },
+                        "correlationId": {
+                          "maxLength": 128,
+                          "minLength": 1,
+                          "pattern": "^[A-Za-z0-9._:-]+$",
+                          "type": "string"
+                        },
+                        "message": {
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "correlationId"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "INTERNAL_ERROR",
+                            "INVALID_REQUEST",
+                            "SERVICE_UNAVAILABLE",
+                            "AUTH_RATE_LIMITED",
+                            "AUTH_OTP_INVALID",
+                            "AUTH_LOGIN_DENIED",
+                            "AUTH_SESSION_INVALID",
+                            "AUTH_CSRF_INVALID",
+                            "BETA_CLOSED",
+                            "BETA_CAPACITY_REACHED",
+                            "AUTH_REFRESH_INVALID",
+                            "DEVICE_AUTH_RATE_LIMITED",
+                            "DEVICE_AUTH_INVALID",
+                            "DEVICE_AUTH_FORBIDDEN",
+                            "DEVICE_AUTH_STATE_CONFLICT",
+                            "DEVICE_AUTH_IDEMPOTENCY_CONFLICT",
+                            "DEVICE_AUTH_CLOSED",
+                            "DEVICE_AUTH_PENDING",
+                            "DEVICE_LIMIT_REACHED",
+                            "DEVICE_FORBIDDEN",
+                            "DEVICE_NOT_FOUND",
+                            "UNAUTHORIZED",
+                            "DEVICE_MISMATCH",
+                            "BOOTSTRAP_UNAVAILABLE",
+                            "SUBSCRIPTION_REQUIRED",
+                            "ACCOUNT_FORBIDDEN",
+                            "ADMIN_UNAUTHORIZED",
+                            "ADMIN_FORBIDDEN",
+                            "ADMIN_REAUTH_REQUIRED",
+                            "ADMIN_CSRF_INVALID",
+                            "ADMIN_RESOURCE_NOT_FOUND",
+                            "ADMIN_CONFLICT",
+                            "ADMIN_STATE_STALE",
+                            "ADMIN_LAST_OWNER_REQUIRED",
+                            "ADMIN_INVALID_LIFECYCLE",
+                            "ADMIN_ASSIGNMENT_TARGET_INELIGIBLE",
+                            "ADMIN_INVALID_HIERARCHY_BINDING",
+                            "SUBSCRIPTION_ALREADY_EXISTS",
+                            "PLAN_REVISION_NOT_PUBLISHED",
+                            "SUBSCRIPTION_PERIOD_INVALID",
+                            "SUBSCRIPTION_PERIOD_NOT_EXTENDED",
+                            "SUBSCRIPTION_GRACE_WINDOW_CONFLICT",
+                            "SUBSCRIPTION_STATE_TRANSITION_INVALID",
+                            "SUBSCRIPTION_ALREADY_SUSPENDED",
+                            "SUBSCRIPTION_NOT_SUSPENDED",
+                            "SUBSCRIPTION_RESTORE_ORIGIN_NOT_FOUND",
+                            "SUBSCRIPTION_PERIOD_ENDED",
+                            "SUBSCRIPTION_GRACE_ENDED",
+                            "SUBSCRIPTION_CORRUPTED",
+                            "SYNC_CONFLICT",
+                            "SYNC_REQUEST_ID_CONFLICT",
+                            "SYNC_REQUEST_INVALID",
+                            "ACCOUNT_IDENTITY_MISMATCH",
+                            "CLIENT_UPDATE_REQUIRED",
+                            "SOURCE_OFFLINE",
+                            "TRANSFER_EXPIRED",
+                            "TRANSFER_INVALID",
+                            "TRANSFER_REPLAY",
+                            "TRANSFER_CONFLICT",
+                            "TRANSFER_DEVICE_REVOKED",
+                            "TRANSFER_ACCOUNT_MISMATCH",
+                            "TRANSFER_PACKET_TOO_LARGE",
+                            "SUPPORT_CASE_NOT_FOUND",
+                            "SUPPORT_CASE_FORBIDDEN",
+                            "SUPPORT_CASE_RATE_LIMITED",
+                            "SUPPORT_CASE_INVALID_TRANSITION"
+                          ],
+                          "type": "string"
+                        },
+                        "correlationId": {
+                          "maxLength": 128,
+                          "minLength": 1,
+                          "pattern": "^[A-Za-z0-9._:-]+$",
+                          "type": "string"
+                        },
+                        "message": {
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "correlationId"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/v1/admin/beta/invitations/{invitation_id}": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "invitation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "consumedAt": {
+                      "anyOf": [
+                        {
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "createdAt": {
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                      "type": "string"
+                    },
+                    "expiresAt": {
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                      "type": "string"
+                    },
+                    "invitationId": {
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "type": "string"
+                    },
+                    "revokedAt": {
+                      "anyOf": [
+                        {
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "status": {
+                      "enum": [
+                        "PENDING",
+                        "CONSUMED",
+                        "REVOKED",
+                        "EXPIRED"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "invitationId",
+                    "status",
+                    "createdAt",
+                    "expiresAt",
+                    "consumedAt",
+                    "revokedAt"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "INTERNAL_ERROR",
+                            "INVALID_REQUEST",
+                            "SERVICE_UNAVAILABLE",
+                            "AUTH_RATE_LIMITED",
+                            "AUTH_OTP_INVALID",
+                            "AUTH_LOGIN_DENIED",
+                            "AUTH_SESSION_INVALID",
+                            "AUTH_CSRF_INVALID",
+                            "BETA_CLOSED",
+                            "BETA_CAPACITY_REACHED",
+                            "AUTH_REFRESH_INVALID",
+                            "DEVICE_AUTH_RATE_LIMITED",
+                            "DEVICE_AUTH_INVALID",
+                            "DEVICE_AUTH_FORBIDDEN",
+                            "DEVICE_AUTH_STATE_CONFLICT",
+                            "DEVICE_AUTH_IDEMPOTENCY_CONFLICT",
+                            "DEVICE_AUTH_CLOSED",
+                            "DEVICE_AUTH_PENDING",
+                            "DEVICE_LIMIT_REACHED",
+                            "DEVICE_FORBIDDEN",
+                            "DEVICE_NOT_FOUND",
+                            "UNAUTHORIZED",
+                            "DEVICE_MISMATCH",
+                            "BOOTSTRAP_UNAVAILABLE",
+                            "SUBSCRIPTION_REQUIRED",
+                            "ACCOUNT_FORBIDDEN",
+                            "ADMIN_UNAUTHORIZED",
+                            "ADMIN_FORBIDDEN",
+                            "ADMIN_REAUTH_REQUIRED",
+                            "ADMIN_CSRF_INVALID",
+                            "ADMIN_RESOURCE_NOT_FOUND",
+                            "ADMIN_CONFLICT",
+                            "ADMIN_STATE_STALE",
+                            "ADMIN_LAST_OWNER_REQUIRED",
+                            "ADMIN_INVALID_LIFECYCLE",
+                            "ADMIN_ASSIGNMENT_TARGET_INELIGIBLE",
+                            "ADMIN_INVALID_HIERARCHY_BINDING",
+                            "SUBSCRIPTION_ALREADY_EXISTS",
+                            "PLAN_REVISION_NOT_PUBLISHED",
+                            "SUBSCRIPTION_PERIOD_INVALID",
+                            "SUBSCRIPTION_PERIOD_NOT_EXTENDED",
+                            "SUBSCRIPTION_GRACE_WINDOW_CONFLICT",
+                            "SUBSCRIPTION_STATE_TRANSITION_INVALID",
+                            "SUBSCRIPTION_ALREADY_SUSPENDED",
+                            "SUBSCRIPTION_NOT_SUSPENDED",
+                            "SUBSCRIPTION_RESTORE_ORIGIN_NOT_FOUND",
+                            "SUBSCRIPTION_PERIOD_ENDED",
+                            "SUBSCRIPTION_GRACE_ENDED",
+                            "SUBSCRIPTION_CORRUPTED",
+                            "SYNC_CONFLICT",
+                            "SYNC_REQUEST_ID_CONFLICT",
+                            "SYNC_REQUEST_INVALID",
+                            "ACCOUNT_IDENTITY_MISMATCH",
+                            "CLIENT_UPDATE_REQUIRED",
+                            "SOURCE_OFFLINE",
+                            "TRANSFER_EXPIRED",
+                            "TRANSFER_INVALID",
+                            "TRANSFER_REPLAY",
+                            "TRANSFER_CONFLICT",
+                            "TRANSFER_DEVICE_REVOKED",
+                            "TRANSFER_ACCOUNT_MISMATCH",
+                            "TRANSFER_PACKET_TOO_LARGE",
+                            "SUPPORT_CASE_NOT_FOUND",
+                            "SUPPORT_CASE_FORBIDDEN",
+                            "SUPPORT_CASE_RATE_LIMITED",
+                            "SUPPORT_CASE_INVALID_TRANSITION"
+                          ],
+                          "type": "string"
+                        },
+                        "correlationId": {
+                          "maxLength": 128,
+                          "minLength": 1,
+                          "pattern": "^[A-Za-z0-9._:-]+$",
+                          "type": "string"
+                        },
+                        "message": {
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "correlationId"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "INTERNAL_ERROR",
+                            "INVALID_REQUEST",
+                            "SERVICE_UNAVAILABLE",
+                            "AUTH_RATE_LIMITED",
+                            "AUTH_OTP_INVALID",
+                            "AUTH_LOGIN_DENIED",
+                            "AUTH_SESSION_INVALID",
+                            "AUTH_CSRF_INVALID",
+                            "BETA_CLOSED",
+                            "BETA_CAPACITY_REACHED",
+                            "AUTH_REFRESH_INVALID",
+                            "DEVICE_AUTH_RATE_LIMITED",
+                            "DEVICE_AUTH_INVALID",
+                            "DEVICE_AUTH_FORBIDDEN",
+                            "DEVICE_AUTH_STATE_CONFLICT",
+                            "DEVICE_AUTH_IDEMPOTENCY_CONFLICT",
+                            "DEVICE_AUTH_CLOSED",
+                            "DEVICE_AUTH_PENDING",
+                            "DEVICE_LIMIT_REACHED",
+                            "DEVICE_FORBIDDEN",
+                            "DEVICE_NOT_FOUND",
+                            "UNAUTHORIZED",
+                            "DEVICE_MISMATCH",
+                            "BOOTSTRAP_UNAVAILABLE",
+                            "SUBSCRIPTION_REQUIRED",
+                            "ACCOUNT_FORBIDDEN",
+                            "ADMIN_UNAUTHORIZED",
+                            "ADMIN_FORBIDDEN",
+                            "ADMIN_REAUTH_REQUIRED",
+                            "ADMIN_CSRF_INVALID",
+                            "ADMIN_RESOURCE_NOT_FOUND",
+                            "ADMIN_CONFLICT",
+                            "ADMIN_STATE_STALE",
+                            "ADMIN_LAST_OWNER_REQUIRED",
+                            "ADMIN_INVALID_LIFECYCLE",
+                            "ADMIN_ASSIGNMENT_TARGET_INELIGIBLE",
+                            "ADMIN_INVALID_HIERARCHY_BINDING",
+                            "SUBSCRIPTION_ALREADY_EXISTS",
+                            "PLAN_REVISION_NOT_PUBLISHED",
+                            "SUBSCRIPTION_PERIOD_INVALID",
+                            "SUBSCRIPTION_PERIOD_NOT_EXTENDED",
+                            "SUBSCRIPTION_GRACE_WINDOW_CONFLICT",
+                            "SUBSCRIPTION_STATE_TRANSITION_INVALID",
+                            "SUBSCRIPTION_ALREADY_SUSPENDED",
+                            "SUBSCRIPTION_NOT_SUSPENDED",
+                            "SUBSCRIPTION_RESTORE_ORIGIN_NOT_FOUND",
+                            "SUBSCRIPTION_PERIOD_ENDED",
+                            "SUBSCRIPTION_GRACE_ENDED",
+                            "SUBSCRIPTION_CORRUPTED",
+                            "SYNC_CONFLICT",
+                            "SYNC_REQUEST_ID_CONFLICT",
+                            "SYNC_REQUEST_INVALID",
+                            "ACCOUNT_IDENTITY_MISMATCH",
+                            "CLIENT_UPDATE_REQUIRED",
+                            "SOURCE_OFFLINE",
+                            "TRANSFER_EXPIRED",
+                            "TRANSFER_INVALID",
+                            "TRANSFER_REPLAY",
+                            "TRANSFER_CONFLICT",
+                            "TRANSFER_DEVICE_REVOKED",
+                            "TRANSFER_ACCOUNT_MISMATCH",
+                            "TRANSFER_PACKET_TOO_LARGE",
+                            "SUPPORT_CASE_NOT_FOUND",
+                            "SUPPORT_CASE_FORBIDDEN",
+                            "SUPPORT_CASE_RATE_LIMITED",
+                            "SUPPORT_CASE_INVALID_TRANSITION"
+                          ],
+                          "type": "string"
+                        },
+                        "correlationId": {
+                          "maxLength": 128,
+                          "minLength": 1,
+                          "pattern": "^[A-Za-z0-9._:-]+$",
+                          "type": "string"
+                        },
+                        "message": {
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "correlationId"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "INTERNAL_ERROR",
+                            "INVALID_REQUEST",
+                            "SERVICE_UNAVAILABLE",
+                            "AUTH_RATE_LIMITED",
+                            "AUTH_OTP_INVALID",
+                            "AUTH_LOGIN_DENIED",
+                            "AUTH_SESSION_INVALID",
+                            "AUTH_CSRF_INVALID",
+                            "BETA_CLOSED",
+                            "BETA_CAPACITY_REACHED",
+                            "AUTH_REFRESH_INVALID",
+                            "DEVICE_AUTH_RATE_LIMITED",
+                            "DEVICE_AUTH_INVALID",
+                            "DEVICE_AUTH_FORBIDDEN",
+                            "DEVICE_AUTH_STATE_CONFLICT",
+                            "DEVICE_AUTH_IDEMPOTENCY_CONFLICT",
+                            "DEVICE_AUTH_CLOSED",
+                            "DEVICE_AUTH_PENDING",
+                            "DEVICE_LIMIT_REACHED",
+                            "DEVICE_FORBIDDEN",
+                            "DEVICE_NOT_FOUND",
+                            "UNAUTHORIZED",
+                            "DEVICE_MISMATCH",
+                            "BOOTSTRAP_UNAVAILABLE",
+                            "SUBSCRIPTION_REQUIRED",
+                            "ACCOUNT_FORBIDDEN",
+                            "ADMIN_UNAUTHORIZED",
+                            "ADMIN_FORBIDDEN",
+                            "ADMIN_REAUTH_REQUIRED",
+                            "ADMIN_CSRF_INVALID",
+                            "ADMIN_RESOURCE_NOT_FOUND",
+                            "ADMIN_CONFLICT",
+                            "ADMIN_STATE_STALE",
+                            "ADMIN_LAST_OWNER_REQUIRED",
+                            "ADMIN_INVALID_LIFECYCLE",
+                            "ADMIN_ASSIGNMENT_TARGET_INELIGIBLE",
+                            "ADMIN_INVALID_HIERARCHY_BINDING",
+                            "SUBSCRIPTION_ALREADY_EXISTS",
+                            "PLAN_REVISION_NOT_PUBLISHED",
+                            "SUBSCRIPTION_PERIOD_INVALID",
+                            "SUBSCRIPTION_PERIOD_NOT_EXTENDED",
+                            "SUBSCRIPTION_GRACE_WINDOW_CONFLICT",
+                            "SUBSCRIPTION_STATE_TRANSITION_INVALID",
+                            "SUBSCRIPTION_ALREADY_SUSPENDED",
+                            "SUBSCRIPTION_NOT_SUSPENDED",
+                            "SUBSCRIPTION_RESTORE_ORIGIN_NOT_FOUND",
+                            "SUBSCRIPTION_PERIOD_ENDED",
+                            "SUBSCRIPTION_GRACE_ENDED",
+                            "SUBSCRIPTION_CORRUPTED",
+                            "SYNC_CONFLICT",
+                            "SYNC_REQUEST_ID_CONFLICT",
+                            "SYNC_REQUEST_INVALID",
+                            "ACCOUNT_IDENTITY_MISMATCH",
+                            "CLIENT_UPDATE_REQUIRED",
+                            "SOURCE_OFFLINE",
+                            "TRANSFER_EXPIRED",
+                            "TRANSFER_INVALID",
+                            "TRANSFER_REPLAY",
+                            "TRANSFER_CONFLICT",
+                            "TRANSFER_DEVICE_REVOKED",
+                            "TRANSFER_ACCOUNT_MISMATCH",
+                            "TRANSFER_PACKET_TOO_LARGE",
+                            "SUPPORT_CASE_NOT_FOUND",
+                            "SUPPORT_CASE_FORBIDDEN",
+                            "SUPPORT_CASE_RATE_LIMITED",
+                            "SUPPORT_CASE_INVALID_TRANSITION"
+                          ],
+                          "type": "string"
+                        },
+                        "correlationId": {
+                          "maxLength": 128,
+                          "minLength": 1,
+                          "pattern": "^[A-Za-z0-9._:-]+$",
+                          "type": "string"
+                        },
+                        "message": {
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "correlationId"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "INTERNAL_ERROR",
+                            "INVALID_REQUEST",
+                            "SERVICE_UNAVAILABLE",
+                            "AUTH_RATE_LIMITED",
+                            "AUTH_OTP_INVALID",
+                            "AUTH_LOGIN_DENIED",
+                            "AUTH_SESSION_INVALID",
+                            "AUTH_CSRF_INVALID",
+                            "BETA_CLOSED",
+                            "BETA_CAPACITY_REACHED",
+                            "AUTH_REFRESH_INVALID",
+                            "DEVICE_AUTH_RATE_LIMITED",
+                            "DEVICE_AUTH_INVALID",
+                            "DEVICE_AUTH_FORBIDDEN",
+                            "DEVICE_AUTH_STATE_CONFLICT",
+                            "DEVICE_AUTH_IDEMPOTENCY_CONFLICT",
+                            "DEVICE_AUTH_CLOSED",
+                            "DEVICE_AUTH_PENDING",
+                            "DEVICE_LIMIT_REACHED",
+                            "DEVICE_FORBIDDEN",
+                            "DEVICE_NOT_FOUND",
+                            "UNAUTHORIZED",
+                            "DEVICE_MISMATCH",
+                            "BOOTSTRAP_UNAVAILABLE",
+                            "SUBSCRIPTION_REQUIRED",
+                            "ACCOUNT_FORBIDDEN",
+                            "ADMIN_UNAUTHORIZED",
+                            "ADMIN_FORBIDDEN",
+                            "ADMIN_REAUTH_REQUIRED",
+                            "ADMIN_CSRF_INVALID",
+                            "ADMIN_RESOURCE_NOT_FOUND",
+                            "ADMIN_CONFLICT",
+                            "ADMIN_STATE_STALE",
+                            "ADMIN_LAST_OWNER_REQUIRED",
+                            "ADMIN_INVALID_LIFECYCLE",
+                            "ADMIN_ASSIGNMENT_TARGET_INELIGIBLE",
+                            "ADMIN_INVALID_HIERARCHY_BINDING",
+                            "SUBSCRIPTION_ALREADY_EXISTS",
+                            "PLAN_REVISION_NOT_PUBLISHED",
+                            "SUBSCRIPTION_PERIOD_INVALID",
+                            "SUBSCRIPTION_PERIOD_NOT_EXTENDED",
+                            "SUBSCRIPTION_GRACE_WINDOW_CONFLICT",
+                            "SUBSCRIPTION_STATE_TRANSITION_INVALID",
+                            "SUBSCRIPTION_ALREADY_SUSPENDED",
+                            "SUBSCRIPTION_NOT_SUSPENDED",
+                            "SUBSCRIPTION_RESTORE_ORIGIN_NOT_FOUND",
+                            "SUBSCRIPTION_PERIOD_ENDED",
+                            "SUBSCRIPTION_GRACE_ENDED",
+                            "SUBSCRIPTION_CORRUPTED",
+                            "SYNC_CONFLICT",
+                            "SYNC_REQUEST_ID_CONFLICT",
+                            "SYNC_REQUEST_INVALID",
+                            "ACCOUNT_IDENTITY_MISMATCH",
+                            "CLIENT_UPDATE_REQUIRED",
+                            "SOURCE_OFFLINE",
+                            "TRANSFER_EXPIRED",
+                            "TRANSFER_INVALID",
+                            "TRANSFER_REPLAY",
+                            "TRANSFER_CONFLICT",
+                            "TRANSFER_DEVICE_REVOKED",
+                            "TRANSFER_ACCOUNT_MISMATCH",
+                            "TRANSFER_PACKET_TOO_LARGE",
+                            "SUPPORT_CASE_NOT_FOUND",
+                            "SUPPORT_CASE_FORBIDDEN",
+                            "SUPPORT_CASE_RATE_LIMITED",
+                            "SUPPORT_CASE_INVALID_TRANSITION"
+                          ],
+                          "type": "string"
+                        },
+                        "correlationId": {
+                          "maxLength": 128,
+                          "minLength": 1,
+                          "pattern": "^[A-Za-z0-9._:-]+$",
+                          "type": "string"
+                        },
+                        "message": {
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "correlationId"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/v1/admin/beta/invitations/{invitation_id}/revoke": {
+      "post": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "invitation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "reason": {
+                    "maxLength": 512,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "requestId": {
+                    "maxLength": 128,
+                    "minLength": 16,
+                    "pattern": "^[A-Za-z0-9._:-]+$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "requestId",
+                  "reason"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "consumedAt": {
+                      "anyOf": [
+                        {
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "createdAt": {
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                      "type": "string"
+                    },
+                    "expiresAt": {
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                      "type": "string"
+                    },
+                    "invitationId": {
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "type": "string"
+                    },
+                    "replay": {
+                      "type": "boolean"
+                    },
+                    "revokedAt": {
+                      "anyOf": [
+                        {
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "status": {
+                      "enum": [
+                        "PENDING",
+                        "CONSUMED",
+                        "REVOKED",
+                        "EXPIRED"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "invitationId",
+                    "status",
+                    "createdAt",
+                    "expiresAt",
+                    "consumedAt",
+                    "revokedAt",
+                    "replay"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "INTERNAL_ERROR",
+                            "INVALID_REQUEST",
+                            "SERVICE_UNAVAILABLE",
+                            "AUTH_RATE_LIMITED",
+                            "AUTH_OTP_INVALID",
+                            "AUTH_LOGIN_DENIED",
+                            "AUTH_SESSION_INVALID",
+                            "AUTH_CSRF_INVALID",
+                            "BETA_CLOSED",
+                            "BETA_CAPACITY_REACHED",
+                            "AUTH_REFRESH_INVALID",
+                            "DEVICE_AUTH_RATE_LIMITED",
+                            "DEVICE_AUTH_INVALID",
+                            "DEVICE_AUTH_FORBIDDEN",
+                            "DEVICE_AUTH_STATE_CONFLICT",
+                            "DEVICE_AUTH_IDEMPOTENCY_CONFLICT",
+                            "DEVICE_AUTH_CLOSED",
+                            "DEVICE_AUTH_PENDING",
+                            "DEVICE_LIMIT_REACHED",
+                            "DEVICE_FORBIDDEN",
+                            "DEVICE_NOT_FOUND",
+                            "UNAUTHORIZED",
+                            "DEVICE_MISMATCH",
+                            "BOOTSTRAP_UNAVAILABLE",
+                            "SUBSCRIPTION_REQUIRED",
+                            "ACCOUNT_FORBIDDEN",
+                            "ADMIN_UNAUTHORIZED",
+                            "ADMIN_FORBIDDEN",
+                            "ADMIN_REAUTH_REQUIRED",
+                            "ADMIN_CSRF_INVALID",
+                            "ADMIN_RESOURCE_NOT_FOUND",
+                            "ADMIN_CONFLICT",
+                            "ADMIN_STATE_STALE",
+                            "ADMIN_LAST_OWNER_REQUIRED",
+                            "ADMIN_INVALID_LIFECYCLE",
+                            "ADMIN_ASSIGNMENT_TARGET_INELIGIBLE",
+                            "ADMIN_INVALID_HIERARCHY_BINDING",
+                            "SUBSCRIPTION_ALREADY_EXISTS",
+                            "PLAN_REVISION_NOT_PUBLISHED",
+                            "SUBSCRIPTION_PERIOD_INVALID",
+                            "SUBSCRIPTION_PERIOD_NOT_EXTENDED",
+                            "SUBSCRIPTION_GRACE_WINDOW_CONFLICT",
+                            "SUBSCRIPTION_STATE_TRANSITION_INVALID",
+                            "SUBSCRIPTION_ALREADY_SUSPENDED",
+                            "SUBSCRIPTION_NOT_SUSPENDED",
+                            "SUBSCRIPTION_RESTORE_ORIGIN_NOT_FOUND",
+                            "SUBSCRIPTION_PERIOD_ENDED",
+                            "SUBSCRIPTION_GRACE_ENDED",
+                            "SUBSCRIPTION_CORRUPTED",
+                            "SYNC_CONFLICT",
+                            "SYNC_REQUEST_ID_CONFLICT",
+                            "SYNC_REQUEST_INVALID",
+                            "ACCOUNT_IDENTITY_MISMATCH",
+                            "CLIENT_UPDATE_REQUIRED",
+                            "SOURCE_OFFLINE",
+                            "TRANSFER_EXPIRED",
+                            "TRANSFER_INVALID",
+                            "TRANSFER_REPLAY",
+                            "TRANSFER_CONFLICT",
+                            "TRANSFER_DEVICE_REVOKED",
+                            "TRANSFER_ACCOUNT_MISMATCH",
+                            "TRANSFER_PACKET_TOO_LARGE",
+                            "SUPPORT_CASE_NOT_FOUND",
+                            "SUPPORT_CASE_FORBIDDEN",
+                            "SUPPORT_CASE_RATE_LIMITED",
+                            "SUPPORT_CASE_INVALID_TRANSITION"
+                          ],
+                          "type": "string"
+                        },
+                        "correlationId": {
+                          "maxLength": 128,
+                          "minLength": 1,
+                          "pattern": "^[A-Za-z0-9._:-]+$",
+                          "type": "string"
+                        },
+                        "message": {
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "correlationId"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "INTERNAL_ERROR",
+                            "INVALID_REQUEST",
+                            "SERVICE_UNAVAILABLE",
+                            "AUTH_RATE_LIMITED",
+                            "AUTH_OTP_INVALID",
+                            "AUTH_LOGIN_DENIED",
+                            "AUTH_SESSION_INVALID",
+                            "AUTH_CSRF_INVALID",
+                            "BETA_CLOSED",
+                            "BETA_CAPACITY_REACHED",
+                            "AUTH_REFRESH_INVALID",
+                            "DEVICE_AUTH_RATE_LIMITED",
+                            "DEVICE_AUTH_INVALID",
+                            "DEVICE_AUTH_FORBIDDEN",
+                            "DEVICE_AUTH_STATE_CONFLICT",
+                            "DEVICE_AUTH_IDEMPOTENCY_CONFLICT",
+                            "DEVICE_AUTH_CLOSED",
+                            "DEVICE_AUTH_PENDING",
+                            "DEVICE_LIMIT_REACHED",
+                            "DEVICE_FORBIDDEN",
+                            "DEVICE_NOT_FOUND",
+                            "UNAUTHORIZED",
+                            "DEVICE_MISMATCH",
+                            "BOOTSTRAP_UNAVAILABLE",
+                            "SUBSCRIPTION_REQUIRED",
+                            "ACCOUNT_FORBIDDEN",
+                            "ADMIN_UNAUTHORIZED",
+                            "ADMIN_FORBIDDEN",
+                            "ADMIN_REAUTH_REQUIRED",
+                            "ADMIN_CSRF_INVALID",
+                            "ADMIN_RESOURCE_NOT_FOUND",
+                            "ADMIN_CONFLICT",
+                            "ADMIN_STATE_STALE",
+                            "ADMIN_LAST_OWNER_REQUIRED",
+                            "ADMIN_INVALID_LIFECYCLE",
+                            "ADMIN_ASSIGNMENT_TARGET_INELIGIBLE",
+                            "ADMIN_INVALID_HIERARCHY_BINDING",
+                            "SUBSCRIPTION_ALREADY_EXISTS",
+                            "PLAN_REVISION_NOT_PUBLISHED",
+                            "SUBSCRIPTION_PERIOD_INVALID",
+                            "SUBSCRIPTION_PERIOD_NOT_EXTENDED",
+                            "SUBSCRIPTION_GRACE_WINDOW_CONFLICT",
+                            "SUBSCRIPTION_STATE_TRANSITION_INVALID",
+                            "SUBSCRIPTION_ALREADY_SUSPENDED",
+                            "SUBSCRIPTION_NOT_SUSPENDED",
+                            "SUBSCRIPTION_RESTORE_ORIGIN_NOT_FOUND",
+                            "SUBSCRIPTION_PERIOD_ENDED",
+                            "SUBSCRIPTION_GRACE_ENDED",
+                            "SUBSCRIPTION_CORRUPTED",
+                            "SYNC_CONFLICT",
+                            "SYNC_REQUEST_ID_CONFLICT",
+                            "SYNC_REQUEST_INVALID",
+                            "ACCOUNT_IDENTITY_MISMATCH",
+                            "CLIENT_UPDATE_REQUIRED",
+                            "SOURCE_OFFLINE",
+                            "TRANSFER_EXPIRED",
+                            "TRANSFER_INVALID",
+                            "TRANSFER_REPLAY",
+                            "TRANSFER_CONFLICT",
+                            "TRANSFER_DEVICE_REVOKED",
+                            "TRANSFER_ACCOUNT_MISMATCH",
+                            "TRANSFER_PACKET_TOO_LARGE",
+                            "SUPPORT_CASE_NOT_FOUND",
+                            "SUPPORT_CASE_FORBIDDEN",
+                            "SUPPORT_CASE_RATE_LIMITED",
+                            "SUPPORT_CASE_INVALID_TRANSITION"
+                          ],
+                          "type": "string"
+                        },
+                        "correlationId": {
+                          "maxLength": 128,
+                          "minLength": 1,
+                          "pattern": "^[A-Za-z0-9._:-]+$",
+                          "type": "string"
+                        },
+                        "message": {
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "correlationId"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "INTERNAL_ERROR",
+                            "INVALID_REQUEST",
+                            "SERVICE_UNAVAILABLE",
+                            "AUTH_RATE_LIMITED",
+                            "AUTH_OTP_INVALID",
+                            "AUTH_LOGIN_DENIED",
+                            "AUTH_SESSION_INVALID",
+                            "AUTH_CSRF_INVALID",
+                            "BETA_CLOSED",
+                            "BETA_CAPACITY_REACHED",
+                            "AUTH_REFRESH_INVALID",
+                            "DEVICE_AUTH_RATE_LIMITED",
+                            "DEVICE_AUTH_INVALID",
+                            "DEVICE_AUTH_FORBIDDEN",
+                            "DEVICE_AUTH_STATE_CONFLICT",
+                            "DEVICE_AUTH_IDEMPOTENCY_CONFLICT",
+                            "DEVICE_AUTH_CLOSED",
+                            "DEVICE_AUTH_PENDING",
+                            "DEVICE_LIMIT_REACHED",
+                            "DEVICE_FORBIDDEN",
+                            "DEVICE_NOT_FOUND",
+                            "UNAUTHORIZED",
+                            "DEVICE_MISMATCH",
+                            "BOOTSTRAP_UNAVAILABLE",
+                            "SUBSCRIPTION_REQUIRED",
+                            "ACCOUNT_FORBIDDEN",
+                            "ADMIN_UNAUTHORIZED",
+                            "ADMIN_FORBIDDEN",
+                            "ADMIN_REAUTH_REQUIRED",
+                            "ADMIN_CSRF_INVALID",
+                            "ADMIN_RESOURCE_NOT_FOUND",
+                            "ADMIN_CONFLICT",
+                            "ADMIN_STATE_STALE",
+                            "ADMIN_LAST_OWNER_REQUIRED",
+                            "ADMIN_INVALID_LIFECYCLE",
+                            "ADMIN_ASSIGNMENT_TARGET_INELIGIBLE",
+                            "ADMIN_INVALID_HIERARCHY_BINDING",
+                            "SUBSCRIPTION_ALREADY_EXISTS",
+                            "PLAN_REVISION_NOT_PUBLISHED",
+                            "SUBSCRIPTION_PERIOD_INVALID",
+                            "SUBSCRIPTION_PERIOD_NOT_EXTENDED",
+                            "SUBSCRIPTION_GRACE_WINDOW_CONFLICT",
+                            "SUBSCRIPTION_STATE_TRANSITION_INVALID",
+                            "SUBSCRIPTION_ALREADY_SUSPENDED",
+                            "SUBSCRIPTION_NOT_SUSPENDED",
+                            "SUBSCRIPTION_RESTORE_ORIGIN_NOT_FOUND",
+                            "SUBSCRIPTION_PERIOD_ENDED",
+                            "SUBSCRIPTION_GRACE_ENDED",
+                            "SUBSCRIPTION_CORRUPTED",
+                            "SYNC_CONFLICT",
+                            "SYNC_REQUEST_ID_CONFLICT",
+                            "SYNC_REQUEST_INVALID",
+                            "ACCOUNT_IDENTITY_MISMATCH",
+                            "CLIENT_UPDATE_REQUIRED",
+                            "SOURCE_OFFLINE",
+                            "TRANSFER_EXPIRED",
+                            "TRANSFER_INVALID",
+                            "TRANSFER_REPLAY",
+                            "TRANSFER_CONFLICT",
+                            "TRANSFER_DEVICE_REVOKED",
+                            "TRANSFER_ACCOUNT_MISMATCH",
+                            "TRANSFER_PACKET_TOO_LARGE",
+                            "SUPPORT_CASE_NOT_FOUND",
+                            "SUPPORT_CASE_FORBIDDEN",
+                            "SUPPORT_CASE_RATE_LIMITED",
+                            "SUPPORT_CASE_INVALID_TRANSITION"
+                          ],
+                          "type": "string"
+                        },
+                        "correlationId": {
+                          "maxLength": 128,
+                          "minLength": 1,
+                          "pattern": "^[A-Za-z0-9._:-]+$",
+                          "type": "string"
+                        },
+                        "message": {
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "correlationId"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "INTERNAL_ERROR",
+                            "INVALID_REQUEST",
+                            "SERVICE_UNAVAILABLE",
+                            "AUTH_RATE_LIMITED",
+                            "AUTH_OTP_INVALID",
+                            "AUTH_LOGIN_DENIED",
+                            "AUTH_SESSION_INVALID",
+                            "AUTH_CSRF_INVALID",
+                            "BETA_CLOSED",
+                            "BETA_CAPACITY_REACHED",
+                            "AUTH_REFRESH_INVALID",
+                            "DEVICE_AUTH_RATE_LIMITED",
+                            "DEVICE_AUTH_INVALID",
+                            "DEVICE_AUTH_FORBIDDEN",
+                            "DEVICE_AUTH_STATE_CONFLICT",
+                            "DEVICE_AUTH_IDEMPOTENCY_CONFLICT",
+                            "DEVICE_AUTH_CLOSED",
+                            "DEVICE_AUTH_PENDING",
+                            "DEVICE_LIMIT_REACHED",
+                            "DEVICE_FORBIDDEN",
+                            "DEVICE_NOT_FOUND",
+                            "UNAUTHORIZED",
+                            "DEVICE_MISMATCH",
+                            "BOOTSTRAP_UNAVAILABLE",
+                            "SUBSCRIPTION_REQUIRED",
+                            "ACCOUNT_FORBIDDEN",
+                            "ADMIN_UNAUTHORIZED",
+                            "ADMIN_FORBIDDEN",
+                            "ADMIN_REAUTH_REQUIRED",
+                            "ADMIN_CSRF_INVALID",
+                            "ADMIN_RESOURCE_NOT_FOUND",
+                            "ADMIN_CONFLICT",
+                            "ADMIN_STATE_STALE",
+                            "ADMIN_LAST_OWNER_REQUIRED",
+                            "ADMIN_INVALID_LIFECYCLE",
+                            "ADMIN_ASSIGNMENT_TARGET_INELIGIBLE",
+                            "ADMIN_INVALID_HIERARCHY_BINDING",
+                            "SUBSCRIPTION_ALREADY_EXISTS",
+                            "PLAN_REVISION_NOT_PUBLISHED",
+                            "SUBSCRIPTION_PERIOD_INVALID",
+                            "SUBSCRIPTION_PERIOD_NOT_EXTENDED",
+                            "SUBSCRIPTION_GRACE_WINDOW_CONFLICT",
+                            "SUBSCRIPTION_STATE_TRANSITION_INVALID",
+                            "SUBSCRIPTION_ALREADY_SUSPENDED",
+                            "SUBSCRIPTION_NOT_SUSPENDED",
+                            "SUBSCRIPTION_RESTORE_ORIGIN_NOT_FOUND",
+                            "SUBSCRIPTION_PERIOD_ENDED",
+                            "SUBSCRIPTION_GRACE_ENDED",
+                            "SUBSCRIPTION_CORRUPTED",
+                            "SYNC_CONFLICT",
+                            "SYNC_REQUEST_ID_CONFLICT",
+                            "SYNC_REQUEST_INVALID",
+                            "ACCOUNT_IDENTITY_MISMATCH",
+                            "CLIENT_UPDATE_REQUIRED",
+                            "SOURCE_OFFLINE",
+                            "TRANSFER_EXPIRED",
+                            "TRANSFER_INVALID",
+                            "TRANSFER_REPLAY",
+                            "TRANSFER_CONFLICT",
+                            "TRANSFER_DEVICE_REVOKED",
+                            "TRANSFER_ACCOUNT_MISMATCH",
+                            "TRANSFER_PACKET_TOO_LARGE",
+                            "SUPPORT_CASE_NOT_FOUND",
+                            "SUPPORT_CASE_FORBIDDEN",
+                            "SUPPORT_CASE_RATE_LIMITED",
+                            "SUPPORT_CASE_INVALID_TRANSITION"
+                          ],
+                          "type": "string"
+                        },
+                        "correlationId": {
+                          "maxLength": 128,
+                          "minLength": 1,
+                          "pattern": "^[A-Za-z0-9._:-]+$",
+                          "type": "string"
+                        },
+                        "message": {
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "correlationId"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "INTERNAL_ERROR",
+                            "INVALID_REQUEST",
+                            "SERVICE_UNAVAILABLE",
+                            "AUTH_RATE_LIMITED",
+                            "AUTH_OTP_INVALID",
+                            "AUTH_LOGIN_DENIED",
+                            "AUTH_SESSION_INVALID",
+                            "AUTH_CSRF_INVALID",
+                            "BETA_CLOSED",
+                            "BETA_CAPACITY_REACHED",
+                            "AUTH_REFRESH_INVALID",
+                            "DEVICE_AUTH_RATE_LIMITED",
+                            "DEVICE_AUTH_INVALID",
+                            "DEVICE_AUTH_FORBIDDEN",
+                            "DEVICE_AUTH_STATE_CONFLICT",
+                            "DEVICE_AUTH_IDEMPOTENCY_CONFLICT",
+                            "DEVICE_AUTH_CLOSED",
+                            "DEVICE_AUTH_PENDING",
+                            "DEVICE_LIMIT_REACHED",
+                            "DEVICE_FORBIDDEN",
+                            "DEVICE_NOT_FOUND",
+                            "UNAUTHORIZED",
+                            "DEVICE_MISMATCH",
+                            "BOOTSTRAP_UNAVAILABLE",
+                            "SUBSCRIPTION_REQUIRED",
+                            "ACCOUNT_FORBIDDEN",
+                            "ADMIN_UNAUTHORIZED",
+                            "ADMIN_FORBIDDEN",
+                            "ADMIN_REAUTH_REQUIRED",
+                            "ADMIN_CSRF_INVALID",
+                            "ADMIN_RESOURCE_NOT_FOUND",
+                            "ADMIN_CONFLICT",
+                            "ADMIN_STATE_STALE",
+                            "ADMIN_LAST_OWNER_REQUIRED",
+                            "ADMIN_INVALID_LIFECYCLE",
+                            "ADMIN_ASSIGNMENT_TARGET_INELIGIBLE",
+                            "ADMIN_INVALID_HIERARCHY_BINDING",
+                            "SUBSCRIPTION_ALREADY_EXISTS",
+                            "PLAN_REVISION_NOT_PUBLISHED",
+                            "SUBSCRIPTION_PERIOD_INVALID",
+                            "SUBSCRIPTION_PERIOD_NOT_EXTENDED",
+                            "SUBSCRIPTION_GRACE_WINDOW_CONFLICT",
+                            "SUBSCRIPTION_STATE_TRANSITION_INVALID",
+                            "SUBSCRIPTION_ALREADY_SUSPENDED",
+                            "SUBSCRIPTION_NOT_SUSPENDED",
+                            "SUBSCRIPTION_RESTORE_ORIGIN_NOT_FOUND",
+                            "SUBSCRIPTION_PERIOD_ENDED",
+                            "SUBSCRIPTION_GRACE_ENDED",
+                            "SUBSCRIPTION_CORRUPTED",
+                            "SYNC_CONFLICT",
+                            "SYNC_REQUEST_ID_CONFLICT",
+                            "SYNC_REQUEST_INVALID",
+                            "ACCOUNT_IDENTITY_MISMATCH",
+                            "CLIENT_UPDATE_REQUIRED",
+                            "SOURCE_OFFLINE",
+                            "TRANSFER_EXPIRED",
+                            "TRANSFER_INVALID",
+                            "TRANSFER_REPLAY",
+                            "TRANSFER_CONFLICT",
+                            "TRANSFER_DEVICE_REVOKED",
+                            "TRANSFER_ACCOUNT_MISMATCH",
+                            "TRANSFER_PACKET_TOO_LARGE",
+                            "SUPPORT_CASE_NOT_FOUND",
+                            "SUPPORT_CASE_FORBIDDEN",
+                            "SUPPORT_CASE_RATE_LIMITED",
+                            "SUPPORT_CASE_INVALID_TRANSITION"
+                          ],
+                          "type": "string"
+                        },
+                        "correlationId": {
+                          "maxLength": 128,
+                          "minLength": 1,
+                          "pattern": "^[A-Za-z0-9._:-]+$",
+                          "type": "string"
+                        },
+                        "message": {
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "correlationId"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "error": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "code": {
+                          "enum": [
+                            "INTERNAL_ERROR",
+                            "INVALID_REQUEST",
+                            "SERVICE_UNAVAILABLE",
+                            "AUTH_RATE_LIMITED",
+                            "AUTH_OTP_INVALID",
+                            "AUTH_LOGIN_DENIED",
+                            "AUTH_SESSION_INVALID",
+                            "AUTH_CSRF_INVALID",
+                            "BETA_CLOSED",
+                            "BETA_CAPACITY_REACHED",
+                            "AUTH_REFRESH_INVALID",
+                            "DEVICE_AUTH_RATE_LIMITED",
+                            "DEVICE_AUTH_INVALID",
+                            "DEVICE_AUTH_FORBIDDEN",
+                            "DEVICE_AUTH_STATE_CONFLICT",
+                            "DEVICE_AUTH_IDEMPOTENCY_CONFLICT",
+                            "DEVICE_AUTH_CLOSED",
+                            "DEVICE_AUTH_PENDING",
+                            "DEVICE_LIMIT_REACHED",
+                            "DEVICE_FORBIDDEN",
+                            "DEVICE_NOT_FOUND",
+                            "UNAUTHORIZED",
+                            "DEVICE_MISMATCH",
+                            "BOOTSTRAP_UNAVAILABLE",
+                            "SUBSCRIPTION_REQUIRED",
+                            "ACCOUNT_FORBIDDEN",
+                            "ADMIN_UNAUTHORIZED",
+                            "ADMIN_FORBIDDEN",
+                            "ADMIN_REAUTH_REQUIRED",
+                            "ADMIN_CSRF_INVALID",
+                            "ADMIN_RESOURCE_NOT_FOUND",
+                            "ADMIN_CONFLICT",
+                            "ADMIN_STATE_STALE",
+                            "ADMIN_LAST_OWNER_REQUIRED",
+                            "ADMIN_INVALID_LIFECYCLE",
+                            "ADMIN_ASSIGNMENT_TARGET_INELIGIBLE",
+                            "ADMIN_INVALID_HIERARCHY_BINDING",
+                            "SUBSCRIPTION_ALREADY_EXISTS",
+                            "PLAN_REVISION_NOT_PUBLISHED",
+                            "SUBSCRIPTION_PERIOD_INVALID",
+                            "SUBSCRIPTION_PERIOD_NOT_EXTENDED",
+                            "SUBSCRIPTION_GRACE_WINDOW_CONFLICT",
+                            "SUBSCRIPTION_STATE_TRANSITION_INVALID",
+                            "SUBSCRIPTION_ALREADY_SUSPENDED",
+                            "SUBSCRIPTION_NOT_SUSPENDED",
+                            "SUBSCRIPTION_RESTORE_ORIGIN_NOT_FOUND",
+                            "SUBSCRIPTION_PERIOD_ENDED",
+                            "SUBSCRIPTION_GRACE_ENDED",
+                            "SUBSCRIPTION_CORRUPTED",
+                            "SYNC_CONFLICT",
+                            "SYNC_REQUEST_ID_CONFLICT",
+                            "SYNC_REQUEST_INVALID",
+                            "ACCOUNT_IDENTITY_MISMATCH",
+                            "CLIENT_UPDATE_REQUIRED",
+                            "SOURCE_OFFLINE",
+                            "TRANSFER_EXPIRED",
+                            "TRANSFER_INVALID",
+                            "TRANSFER_REPLAY",
+                            "TRANSFER_CONFLICT",
+                            "TRANSFER_DEVICE_REVOKED",
+                            "TRANSFER_ACCOUNT_MISMATCH",
+                            "TRANSFER_PACKET_TOO_LARGE",
+                            "SUPPORT_CASE_NOT_FOUND",
+                            "SUPPORT_CASE_FORBIDDEN",
+                            "SUPPORT_CASE_RATE_LIMITED",
+                            "SUPPORT_CASE_INVALID_TRANSITION"
+                          ],
+                          "type": "string"
+                        },
+                        "correlationId": {
+                          "maxLength": 128,
+                          "minLength": 1,
+                          "pattern": "^[A-Za-z0-9._:-]+$",
+                          "type": "string"
+                        },
+                        "message": {
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "correlationId"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/v1/admin/commercial/entitlements/definitions": {
       "get": {
         "parameters": [

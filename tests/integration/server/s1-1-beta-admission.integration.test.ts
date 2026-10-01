@@ -27,7 +27,7 @@ async function reset() {
   await q("DROP TRIGGER IF EXISTS s11_fail_beta_audit ON audit_events");
   await q("DROP FUNCTION IF EXISTS s11_fail_beta_audit()");
   await q(
-    "TRUNCATE beta_admission_mutations,beta_admission_state,audit_events,admin_role_grants,admin_principals,users CASCADE",
+    "TRUNCATE beta_identity_invitations,beta_admission_mutations,beta_admission_state,audit_events,admin_role_grants,admin_principals,users CASCADE",
   );
   await q(
     "INSERT INTO beta_admission_state(id,mode,capacity,admitted,revision,updated_at) VALUES(1,'CLOSED',0,0,1,$1)",
@@ -144,6 +144,147 @@ describe.sequential("S1.1 beta admission on real PostgreSQL", () => {
     expect(await auditCount()).toBe(1);
   });
 
+  it("binds revoke requestId globally and conflicts instead of surfacing a unique violation", async () => {
+    const actor = await admin();
+    const capacity = await service.mutate(
+      input(actor, "request-invite-capacity", { amount: 2 }),
+    );
+    expect(capacity.kind).toBe("APPLIED");
+    if (capacity.kind !== "APPLIED") throw new Error("capacity setup failed");
+
+    const first = await service.createIdentityInvitation({
+      actorPrincipalId: actor,
+      requestId: "invite-first-request",
+      correlationId: "invite-first-correlation",
+      expectedRevision: capacity.state.revision,
+      normalizedIdentityTarget: "first-reviewer@example.test",
+      reason: "first reviewer",
+    });
+    const second = await service.createIdentityInvitation({
+      actorPrincipalId: actor,
+      requestId: "invite-second-request",
+      correlationId: "invite-second-correlation",
+      expectedRevision: capacity.state.revision,
+      normalizedIdentityTarget: "second-reviewer@example.test",
+      reason: "second reviewer",
+    });
+    expect(first.kind).toBe("APPLIED");
+    expect(second.kind).toBe("APPLIED");
+    if (first.kind !== "APPLIED" || second.kind !== "APPLIED")
+      throw new Error("invitation setup failed");
+
+    const revoked = await service.revokeIdentityInvitation({
+      actorPrincipalId: actor,
+      invitationId: first.invitation.id,
+      requestId: "revoke-shared-request",
+      correlationId: "revoke-first-correlation",
+      reason: "revoke first",
+    });
+    expect(revoked).toMatchObject({
+      kind: "APPLIED",
+      replay: false,
+      invitation: { id: first.invitation.id, status: "REVOKED" },
+    });
+
+    await expect(
+      service.revokeIdentityInvitation({
+        actorPrincipalId: actor,
+        invitationId: second.invitation.id,
+        requestId: "revoke-shared-request",
+        correlationId: "revoke-second-correlation",
+        reason: "revoke second",
+      }),
+    ).resolves.toEqual({ kind: "CONFLICT" });
+
+    await expect(
+      service.readIdentityInvitation(second.invitation.id),
+    ).resolves.toMatchObject({ id: second.invitation.id, status: "PENDING" });
+  });
+
+  it("rejects invitation creation for an already-existing email identity", async () => {
+    const actor = await admin();
+    const capacity = await service.mutate(
+      input(actor, "request-existing-identity-capacity", { amount: 1 }),
+    );
+    expect(capacity.kind).toBe("APPLIED");
+    if (capacity.kind !== "APPLIED") throw new Error("capacity setup failed");
+
+    const existingUserId = randomUUID();
+    await q("INSERT INTO users(id) VALUES($1)", [existingUserId]);
+    await q(
+      "INSERT INTO user_identities(user_id,provider,normalized_identifier,verified_at) VALUES($1,'EMAIL',$2,now())",
+      [existingUserId, "existing-reviewer@example.test"],
+    );
+
+    await expect(
+      service.createIdentityInvitation({
+        actorPrincipalId: actor,
+        requestId: "invite-existing-identity",
+        correlationId: "invite-existing-identity-correlation",
+        expectedRevision: capacity.state.revision,
+        normalizedIdentityTarget: "existing-reviewer@example.test",
+        reason: "must conflict",
+      }),
+    ).resolves.toEqual({ kind: "CONFLICT" });
+
+    expect(
+      (
+        await q<{ count: string }>(
+          "SELECT count(*)::text count FROM beta_identity_invitations",
+        )
+      ).rows[0]!.count,
+    ).toBe("0");
+  });
+
+  it("replays one revoke idempotently without duplicate audit", async () => {
+    const actor = await admin();
+    const capacity = await service.mutate(
+      input(actor, "request-revoke-replay-capacity", { amount: 1 }),
+    );
+    expect(capacity.kind).toBe("APPLIED");
+    if (capacity.kind !== "APPLIED") throw new Error("capacity setup failed");
+
+    const created = await service.createIdentityInvitation({
+      actorPrincipalId: actor,
+      requestId: "invite-revoke-replay",
+      correlationId: "invite-revoke-replay-correlation",
+      expectedRevision: capacity.state.revision,
+      normalizedIdentityTarget: "revoke-replay@example.test",
+      reason: "revoke replay",
+    });
+    expect(created.kind).toBe("APPLIED");
+    if (created.kind !== "APPLIED") throw new Error("invitation setup failed");
+
+    const request = {
+      actorPrincipalId: actor,
+      invitationId: created.invitation.id,
+      requestId: "revoke-idempotent-request",
+      correlationId: "revoke-idempotent-correlation",
+      reason: "idempotent revoke",
+    };
+    const first = await service.revokeIdentityInvitation(request);
+    const replay = await service.revokeIdentityInvitation(request);
+    expect(first).toMatchObject({
+      kind: "APPLIED",
+      replay: false,
+      invitation: { status: "REVOKED" },
+    });
+    expect(replay).toMatchObject({
+      kind: "APPLIED",
+      replay: true,
+      invitation: { status: "REVOKED" },
+    });
+    expect(
+      Number(
+        (
+          await q<{ count: string }>(
+            "SELECT count(*)::text count FROM audit_events WHERE action='BETA_IDENTITY_INVITATION_REVOKED'",
+          )
+        ).rows[0]!.count,
+      ),
+    ).toBe(1);
+  });
+
   it("rejects a stale expected revision without state or audit changes", async () => {
     const actor = await admin();
     await service.mutate(input(actor, "request-stale"));
@@ -173,6 +314,152 @@ describe.sequential("S1.1 beta admission on real PostgreSQL", () => {
       revision: 1,
     });
     expect(await auditCount()).toBe(0);
+  });
+
+  it("reserves CLOSED beta capacity for invitations and protects SET_CAPACITY", async () => {
+    const actor = await admin();
+    const capacity = await service.mutate(
+      input(actor, "request-reservation-capacity", { amount: 2 }),
+    );
+    expect(capacity.kind).toBe("APPLIED");
+    if (capacity.kind !== "APPLIED") throw new Error("capacity setup failed");
+
+    const first = await service.createIdentityInvitation({
+      actorPrincipalId: actor,
+      requestId: "invite-reservation-first",
+      correlationId: "invite-reservation-correlation-1",
+      expectedRevision: capacity.state.revision,
+      normalizedIdentityTarget: "reservation-one@example.test",
+      reason: "reserve reviewer one",
+    });
+    const second = await service.createIdentityInvitation({
+      actorPrincipalId: actor,
+      requestId: "invite-reservation-second",
+      correlationId: "invite-reservation-correlation-2",
+      expectedRevision: capacity.state.revision,
+      normalizedIdentityTarget: "reservation-two@example.test",
+      reason: "reserve reviewer two",
+    });
+    expect(first.kind).toBe("APPLIED");
+    expect(second.kind).toBe("APPLIED");
+
+    await expect(
+      service.mutate(
+        input(actor, "request-capacity-below-reservations", {
+          expectedRevision: capacity.state.revision,
+          action: "SET_CAPACITY",
+          capacity: 1,
+          amount: undefined,
+        }),
+      ),
+    ).resolves.toEqual({ kind: "CONFLICT" });
+
+    expect(await service.read()).toMatchObject({
+      mode: "CLOSED",
+      capacity: 2,
+      admitted: 0,
+      revision: capacity.state.revision,
+    });
+  });
+
+  it("serializes invitation reservations so two reviewers cannot reserve the last slot", async () => {
+    const actor = await admin();
+    const capacity = await service.mutate(
+      input(actor, "request-single-reservation-capacity", { amount: 1 }),
+    );
+    expect(capacity.kind).toBe("APPLIED");
+    if (capacity.kind !== "APPLIED") throw new Error("capacity setup failed");
+
+    const [left, right] = await Promise.all([
+      service.createIdentityInvitation({
+        actorPrincipalId: actor,
+        requestId: "invite-last-slot-left",
+        correlationId: "invite-last-slot-correlation-left",
+        expectedRevision: capacity.state.revision,
+        normalizedIdentityTarget: "last-slot-left@example.test",
+        reason: "reserve left",
+      }),
+      service.createIdentityInvitation({
+        actorPrincipalId: actor,
+        requestId: "invite-last-slot-right",
+        correlationId: "invite-last-slot-correlation-right",
+        expectedRevision: capacity.state.revision,
+        normalizedIdentityTarget: "last-slot-right@example.test",
+        reason: "reserve right",
+      }),
+    ]);
+
+    expect([left.kind, right.kind].sort()).toEqual([
+      "APPLIED",
+      "CAPACITY_REACHED",
+    ]);
+    expect(
+      Number(
+        (
+          await q<{ count: string }>(
+            "SELECT count(*)::text count FROM beta_identity_invitations WHERE consumed_at IS NULL AND revoked_at IS NULL AND expires_at>now()",
+          )
+        ).rows[0]!.count,
+      ),
+    ).toBe(1);
+  });
+
+  it("revoke and expiry release reserved capacity", async () => {
+    const actor = await admin();
+    const capacity = await service.mutate(
+      input(actor, "request-release-reservation-capacity", { amount: 2 }),
+    );
+    expect(capacity.kind).toBe("APPLIED");
+    if (capacity.kind !== "APPLIED") throw new Error("capacity setup failed");
+
+    const first = await service.createIdentityInvitation({
+      actorPrincipalId: actor,
+      requestId: "invite-release-first",
+      correlationId: "invite-release-correlation-1",
+      expectedRevision: capacity.state.revision,
+      normalizedIdentityTarget: "release-one@example.test",
+      reason: "release first",
+    });
+    const second = await service.createIdentityInvitation({
+      actorPrincipalId: actor,
+      requestId: "invite-release-second",
+      correlationId: "invite-release-correlation-2",
+      expectedRevision: capacity.state.revision,
+      normalizedIdentityTarget: "release-two@example.test",
+      reason: "release second",
+    });
+    expect(first.kind).toBe("APPLIED");
+    expect(second.kind).toBe("APPLIED");
+    if (first.kind !== "APPLIED" || second.kind !== "APPLIED")
+      throw new Error("invitation setup failed");
+
+    await expect(
+      service.revokeIdentityInvitation({
+        actorPrincipalId: actor,
+        invitationId: first.invitation.id,
+        requestId: "revoke-release-first",
+        correlationId: "revoke-release-correlation",
+        reason: "release reservation",
+      }),
+    ).resolves.toMatchObject({ kind: "APPLIED", replay: false });
+
+    await q(
+      "UPDATE beta_identity_invitations SET created_at=now()-interval '2 days',expires_at=now()-interval '1 day' WHERE id=$1",
+      [second.invitation.id],
+    );
+
+    const shrunk = await service.mutate(
+      input(actor, "request-capacity-after-release", {
+        expectedRevision: capacity.state.revision,
+        action: "SET_CAPACITY",
+        capacity: 0,
+        amount: undefined,
+      }),
+    );
+    expect(shrunk).toMatchObject({
+      kind: "APPLIED",
+      state: { capacity: 0, admitted: 0 },
+    });
   });
 
   it("accepts OPEN, PAUSE, and CLOSE with one revision per command", async () => {

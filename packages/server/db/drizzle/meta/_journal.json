@@ -309,6 +309,13 @@
       "when": 1790674500000,
       "tag": "0055_api_watch_document_scope_persistence",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1790882827000,
+      "tag": "0056_beta_targeted_identity_invitations",
+      "breakpoints": true
     }
   ]
 }

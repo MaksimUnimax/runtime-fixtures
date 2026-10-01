@@ -12,6 +12,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { accounts, users, otpChallenges } from "./identity";
 import { portalSessions } from "./auth";
+import { adminPrincipals } from "./admin";
 
 export const betaMode = pgEnum("beta_mode", ["CLOSED", "OPEN", "PAUSED"]);
 
@@ -42,6 +43,69 @@ export const betaAdmissionState = pgTable(
       sql`${table.admitted} <= ${table.capacity}`,
     ),
     check("beta_admission_state_revision_positive", sql`${table.revision} > 0`),
+  ],
+);
+
+export const betaIdentityInvitations = pgTable(
+  "beta_identity_invitations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    normalizedIdentityTarget: varchar("normalized_identity_target", {
+      length: 320,
+    }).notNull(),
+    createRequestIdHash: varchar("create_request_id_hash", { length: 128 })
+      .notNull()
+      .unique(),
+    createPayloadHash: varchar("create_payload_hash", {
+      length: 128,
+    }).notNull(),
+    createdByAdminPrincipalId: uuid("created_by_admin_principal_id")
+      .notNull()
+      .references(() => adminPrincipals.id, {
+        onDelete: "restrict",
+        onUpdate: "restrict",
+      }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    consumedAt: timestamp("consumed_at", { withTimezone: true }),
+    consumedUserId: uuid("consumed_user_id").references(() => users.id, {
+      onDelete: "restrict",
+      onUpdate: "restrict",
+    }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    revokedByAdminPrincipalId: uuid("revoked_by_admin_principal_id").references(
+      () => adminPrincipals.id,
+      { onDelete: "restrict", onUpdate: "restrict" },
+    ),
+    revokeRequestIdHash: varchar("revoke_request_id_hash", {
+      length: 128,
+    }).unique(),
+    revokePayloadHash: varchar("revoke_payload_hash", { length: 128 }),
+  },
+  (table) => [
+    index("beta_identity_invitations_target_index").on(
+      table.normalizedIdentityTarget,
+      table.createdAt,
+    ),
+    index("beta_identity_invitations_expiry_index").on(table.expiresAt),
+    check(
+      "beta_identity_invitations_expiry_after_creation",
+      sql`${table.expiresAt} > ${table.createdAt}`,
+    ),
+    check(
+      "beta_identity_invitations_consumed_shape",
+      sql`(${table.consumedAt} IS NULL AND ${table.consumedUserId} IS NULL) OR (${table.consumedAt} IS NOT NULL AND ${table.consumedUserId} IS NOT NULL)`,
+    ),
+    check(
+      "beta_identity_invitations_revoked_shape",
+      sql`(${table.revokedAt} IS NULL AND ${table.revokedByAdminPrincipalId} IS NULL AND ${table.revokeRequestIdHash} IS NULL AND ${table.revokePayloadHash} IS NULL) OR (${table.revokedAt} IS NOT NULL AND ${table.revokedByAdminPrincipalId} IS NOT NULL AND ${table.revokeRequestIdHash} IS NOT NULL AND ${table.revokePayloadHash} IS NOT NULL)`,
+    ),
+    check(
+      "beta_identity_invitations_terminal_exclusive",
+      sql`NOT (${table.consumedAt} IS NOT NULL AND ${table.revokedAt} IS NOT NULL)`,
+    ),
   ],
 );
 
