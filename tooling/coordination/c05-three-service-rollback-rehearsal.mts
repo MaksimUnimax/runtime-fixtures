@@ -3,6 +3,9 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { once } from "node:events";
 import {
   chmod,
+  chown,
+  copyFile,
+  mkdir,
   mkdtemp,
   readFile,
   rm,
@@ -14,6 +17,13 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { openSync, closeSync } from "node:fs";
 import { createServer } from "node:net";
+import {
+  parseServiceRuntimeIdentity,
+  publicServiceRuntimeIdentity,
+  verifyServiceRuntimeIdentity,
+  verifyServiceRuntimeTreeReadOnly,
+  type ServiceRuntimeIdentity,
+} from "./c05-service-runtime-identity.mts";
 
 // C05 is intentionally a source rehearsal. It restores the accepted journal-40
 // seed, migrates it forward with the exact candidate, proves a post-upgrade
@@ -130,6 +140,7 @@ function spawnService(
   cwd: string,
   env: NodeJS.ProcessEnv,
   logPath: string,
+  identity: ServiceRuntimeIdentity | null,
 ): Promise<Child> {
   return new Promise((resolvePromise, reject) => {
     const fd = openSync(logPath, "w", 0o600);
@@ -137,9 +148,24 @@ function spawnService(
       cwd,
       env,
       stdio: ["ignore", fd, fd],
+      ...(identity ? { uid: identity.uid, gid: identity.gid } : {}),
     }) as Child;
     c.once("close", () => closeSync(fd));
-    c.once("spawn", () => resolvePromise(c));
+    c.once("spawn", async () => {
+      try {
+        if (identity) {
+          check(c.pid, "C05_SERVICE_PID_MISSING");
+          verifyServiceRuntimeIdentity(
+            await readFile(`/proc/${c.pid}/status`, "utf8"),
+            identity,
+          );
+        }
+        resolvePromise(c);
+      } catch (error) {
+        c.kill("SIGTERM");
+        reject(error);
+      }
+    });
     c.once("error", reject);
   });
 }
@@ -247,6 +273,11 @@ check(
     ].some((root) => resolve(evidenceDir).startsWith(root)),
   "C05_EVIDENCE_DIR_MUST_BE_C_ONLY",
 );
+const serviceRuntimeIdentity = parseServiceRuntimeIdentity(process.env);
+const publicRuntimeIdentity = publicServiceRuntimeIdentity(
+  serviceRuntimeIdentity,
+);
+
 const envNames = Object.keys(process.env);
 for (const k of envNames)
   if (
@@ -258,6 +289,29 @@ for (const k of envNames)
     throw new Error(`UNSAFE_OUTBOUND_ENV_PRESENT:${k}`);
 
 const work = await mkdtemp(join(tmpdir(), "c05-three-service-"));
+let serviceNode = NODE;
+let serviceRuntimeEnv: NodeJS.ProcessEnv = {};
+if (serviceRuntimeIdentity) {
+  await chmod(work, 0o755);
+  const serviceHome = join(work, "service-home");
+  const serviceTmp = join(work, "service-tmp");
+  await mkdir(serviceHome, { mode: 0o700 });
+  await mkdir(serviceTmp, { mode: 0o700 });
+  await chown(
+    serviceHome,
+    serviceRuntimeIdentity.uid,
+    serviceRuntimeIdentity.gid,
+  );
+  await chown(
+    serviceTmp,
+    serviceRuntimeIdentity.uid,
+    serviceRuntimeIdentity.gid,
+  );
+  serviceNode = join(work, "node-v24.20.0");
+  await copyFile(NODE, serviceNode);
+  await chmod(serviceNode, 0o755);
+  serviceRuntimeEnv = { HOME: serviceHome, TMPDIR: serviceTmp };
+}
 const dbName = `c05_rehearsal_${randomBytes(6).toString("hex")}`;
 check(/^[a-z][a-z0-9_]{4,62}$/.test(dbName), "INVALID_DB_NAME");
 const dbUrl = new URL(dbBase);
@@ -289,6 +343,7 @@ const evidence = {
   rollbackFloor: FLOOR,
   databaseName: dbName,
   createdAt: new Date().toISOString(),
+  ...(serviceRuntimeIdentity ? { runtimeIdentity: publicRuntimeIdentity } : {}),
   migration: migrationEvidence,
   phases,
 };
@@ -424,6 +479,10 @@ async function source(rev: string, label: string) {
     }),
     timeout: 180000,
   });
+  if (serviceRuntimeIdentity) {
+    await command("chmod", ["-R", "a+rX", dir], { timeout: 60_000 });
+    await verifyServiceRuntimeTreeReadOnly(dir, serviceRuntimeIdentity);
+  }
   const pkg = JSON.parse(
     await readFile(join(dir, "apps/portal/package.json"), "utf8"),
   );
@@ -478,6 +537,7 @@ async function runPhase(
       "FORGOTTEN_METADATA_NOT_PRESERVED_FROM_PRIOR_PHASE",
     );
   const apiEnv = safeEnv(process.env, {
+    ...serviceRuntimeEnv,
     NODE_ENV: "production",
     LOG_LEVEL: "fatal",
     DATABASE_URL: dbUrl.toString(),
@@ -489,6 +549,7 @@ async function runPhase(
     CONFIG_SIGNING_PRIVATE_KEY_PEM_B64: privateState.configPrivateB64,
   });
   const workerEnv = safeEnv(process.env, {
+    ...serviceRuntimeEnv,
     NODE_ENV: "production",
     LOG_LEVEL: "info",
     DATABASE_URL: dbUrl.toString(),
@@ -499,6 +560,7 @@ async function runPhase(
     SMTP_REQUIRE_TLS: "false",
   });
   const portalEnv = safeEnv(process.env, {
+    ...serviceRuntimeEnv,
     NODE_ENV: "production",
     NEXT_TELEMETRY_DISABLED: "1",
     CONTROL_PLANE_API_ORIGIN: origin,
@@ -525,23 +587,25 @@ async function runPhase(
   const logs = join(work, `phase-${index}`);
   await import("node:fs/promises").then((fs) => fs.mkdir(logs));
   const api = await spawnService(
-    NODE,
+    serviceNode,
     ["apps/api/node_modules/tsx/dist/cli.mjs", "apps/api/src/main.ts"],
     src.dir,
     apiEnv,
     join(logs, "api.log"),
+    serviceRuntimeIdentity,
   );
   services.push(api);
   const worker = await spawnService(
-    NODE,
+    serviceNode,
     ["apps/worker/node_modules/tsx/dist/cli.mjs", "apps/worker/src/main.ts"],
     src.dir,
     workerEnv,
     join(logs, "worker.log"),
+    serviceRuntimeIdentity,
   );
   services.push(worker);
   const portal = await spawnService(
-    NODE,
+    serviceNode,
     [
       join(src.dir, "apps/portal/node_modules/next/dist/bin/next"),
       "start",
@@ -553,6 +617,7 @@ async function runPhase(
     join(src.dir, "apps/portal"),
     portalEnv,
     join(logs, "portal.log"),
+    serviceRuntimeIdentity,
   );
   services.push(portal);
   const alive = [api, worker, portal];
@@ -733,6 +798,9 @@ async function runPhase(
     sourceArchiveSha256: src.sourceArchiveSha256,
     lockfileSha256: src.lockfileSha256,
     versions: src.versions,
+    ...(serviceRuntimeIdentity
+      ? { runtimeIdentity: publicRuntimeIdentity }
+      : {}),
     ports: { api: apiPort, portal: portalPort, smtpDisabledLoopback: smtpPort },
     checks: {
       apiLive: 200,
