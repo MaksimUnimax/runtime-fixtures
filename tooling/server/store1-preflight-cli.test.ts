@@ -432,6 +432,9 @@ function entryFetch(
     driftFinalConfig?: boolean;
     releaseExists?: boolean;
     terminalPolicyWithoutCursor?: boolean;
+    reviewerState?: "missing" | "suspended" | "unverified";
+    reviewerAccountState?: "missing" | "ambiguous";
+    reviewerAdmitted?: boolean;
   } = {},
 ) {
   const calls: Array<{ method: string; path: string; headers: Headers }> = [];
@@ -456,37 +459,63 @@ function entryFetch(
         });
       if (url.pathname === "/v1/admin/users")
         return response(200, {
-          items: [
-            {
-              id: "40000000-0000-4000-8000-000000000003",
-              status: "ACTIVE",
-              emails: [
-                {
-                  email: "reviewer@example.test",
-                  verifiedAt: "2030-01-01T00:00:00.000Z",
-                },
-              ],
-              createdAt: "2030-01-01T00:00:00.000Z",
-              updatedAt: "2030-01-01T00:00:00.000Z",
-            },
-          ],
+          items:
+            options.reviewerState === "missing"
+              ? []
+              : [
+                  {
+                    id: "40000000-0000-4000-8000-000000000003",
+                    status:
+                      options.reviewerState === "suspended"
+                        ? "SUSPENDED"
+                        : "ACTIVE",
+                    emails: [
+                      {
+                        email: "reviewer@example.test",
+                        verifiedAt:
+                          options.reviewerState === "unverified"
+                            ? null
+                            : "2030-01-01T00:00:00.000Z",
+                      },
+                    ],
+                    createdAt: "2030-01-01T00:00:00.000Z",
+                    updatedAt: "2030-01-01T00:00:00.000Z",
+                  },
+                ],
           nextCursor: null,
         });
       if (url.pathname === "/v1/admin/accounts")
         return response(200, {
-          items: [
-            {
-              id: accountId,
-              status: "ACTIVE",
-              displayName: "Reviewer",
-              createdAt: "2030-01-01T00:00:00.000Z",
-              updatedAt: "2030-01-01T00:00:00.000Z",
-            },
-          ],
+          items:
+            options.reviewerAccountState === "missing"
+              ? []
+              : [
+                  {
+                    id: accountId,
+                    status: "ACTIVE",
+                    displayName: "Reviewer",
+                    createdAt: "2030-01-01T00:00:00.000Z",
+                    updatedAt: "2030-01-01T00:00:00.000Z",
+                  },
+                  ...(options.reviewerAccountState === "ambiguous"
+                    ? [
+                        {
+                          id: "40000000-0000-4000-8000-000000000099",
+                          status: "ACTIVE",
+                          displayName: "Reviewer 2",
+                          createdAt: "2030-01-01T00:00:00.000Z",
+                          updatedAt: "2030-01-01T00:00:00.000Z",
+                        },
+                      ]
+                    : []),
+                ],
           nextCursor: null,
         });
       if (url.pathname === `/v1/admin/beta/admission/accounts/${accountId}`)
-        return response(200, { accountId, admitted: true });
+        return response(200, {
+          accountId,
+          admitted: options.reviewerAdmitted !== false,
+        });
       if (url.pathname === "/v1/admin/compatibility/config-releases/latest") {
         configReads += 1;
         return response(
@@ -530,6 +559,90 @@ function entryFetch(
 }
 
 describe("STORE-1 read-only authenticated entry", () => {
+  it.each([
+    [
+      "missing reviewer",
+      { reviewerState: "missing" as const },
+      "STORE1_REVIEWER_IDENTITY_PREEXISTING_REQUIRED",
+    ],
+    [
+      "suspended reviewer",
+      { reviewerState: "suspended" as const },
+      "STORE1_REVIEWER_SUSPENDED",
+    ],
+    [
+      "unverified reviewer",
+      { reviewerState: "unverified" as const },
+      "STORE1_REVIEWER_EMAIL_VERIFIED_REQUIRED",
+    ],
+    [
+      "missing reviewer account",
+      { reviewerAccountState: "missing" as const },
+      "STORE1_REVIEWER_ACCOUNT_REQUIRED",
+    ],
+    [
+      "ambiguous reviewer account",
+      { reviewerAccountState: "ambiguous" as const },
+      "STORE1_REVIEWER_ACCOUNT_AMBIGUOUS",
+    ],
+    [
+      "missing reviewer admission",
+      { reviewerAdmitted: false },
+      "STORE1_REVIEWER_BETA_ADMISSION_REQUIRED",
+    ],
+  ])(
+    "diagnoses %s through admin-only reads before requiring a reviewer bearer",
+    async (_name, options, expectedCode) => {
+      const fixture = signedFixture();
+      const protectedInput = protectedEntryInput();
+      try {
+        rmSync(protectedInput.input.reviewerDeviceBearerFile);
+        const http = entryFetch(fixture, options);
+        const result = await runStore1ReadOnlyPreflightWithEvidenceForTest(
+          protectedInput.input,
+          fixture.packageEvidence,
+          { fetchImpl: http.fetchImpl },
+        );
+        expect(result).toMatchObject({
+          status: expect.stringMatching(/BLOCKED|CONFLICT/),
+          code: expectedCode,
+          catalogMutationExecuted: false,
+          bootstrapMayUpdateDeviceOrAuthState: false,
+        });
+        expect(http.calls.length).toBeGreaterThan(0);
+        expect(http.calls.every((call) => call.method === "GET")).toBe(true);
+        expect(http.calls.some((call) => call.path === "/v1/bootstrap")).toBe(
+          false,
+        );
+      } finally {
+        rmSync(protectedInput.directory, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it("requires the reviewer bearer only after reviewer prerequisites pass", async () => {
+    const fixture = signedFixture();
+    const protectedInput = protectedEntryInput();
+    try {
+      rmSync(protectedInput.input.reviewerDeviceBearerFile);
+      const http = entryFetch(fixture);
+      await expect(
+        runStore1ReadOnlyPreflightWithEvidenceForTest(
+          protectedInput.input,
+          fixture.packageEvidence,
+          { fetchImpl: http.fetchImpl },
+        ),
+      ).rejects.toThrow("STORE1_REVIEWER_INPUT_INVALID");
+      expect(http.calls.length).toBeGreaterThan(0);
+      expect(http.calls.every((call) => call.method === "GET")).toBe(true);
+      expect(http.calls.some((call) => call.path === "/v1/bootstrap")).toBe(
+        false,
+      );
+    } finally {
+      rmSync(protectedInput.directory, { recursive: true, force: true });
+    }
+  });
+
   it("verifies a signed bootstrap, follows GET reads, and previews but never executes the first catalog POST", async () => {
     const fixture = signedFixture();
     const protectedInput = protectedEntryInput();

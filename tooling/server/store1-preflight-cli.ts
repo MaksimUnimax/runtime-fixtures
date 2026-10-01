@@ -45,7 +45,8 @@ export type Store1PreflightOperatorInput = {
   reviewerDeviceBearerFile: string;
 };
 
-type Credentials = { adminSession: string; reviewerBearer: string };
+type AdminCredentials = { adminSession: string };
+type Credentials = AdminCredentials & { reviewerBearer: string };
 type JsonRecord = Record<string, unknown>;
 
 function object(value: unknown): value is JsonRecord {
@@ -85,23 +86,31 @@ function secureTextFile(
   }
 }
 
-function readCredentials(input: Store1PreflightOperatorInput): Credentials {
+function readAdminCredentials(
+  input: Store1PreflightOperatorInput,
+): AdminCredentials {
   const adminSession = secureTextFile(
     input.adminSessionFile,
     "STORE1_ADMIN_INPUT_INVALID",
     { singleLine: true },
   );
+  if (!/^[A-Za-z0-9_-]{43}$/.test(adminSession))
+    return fail("STORE1_PROTECTED_INPUT_INVALID");
+  return { adminSession };
+}
+
+function readReviewerCredentials(
+  input: Store1PreflightOperatorInput,
+  admin: AdminCredentials,
+): Credentials {
   const reviewerBearer = secureTextFile(
     input.reviewerDeviceBearerFile,
     "STORE1_REVIEWER_INPUT_INVALID",
     { singleLine: true },
   );
-  if (
-    !/^[A-Za-z0-9_-]{43}$/.test(adminSession) ||
-    !/^[A-Za-z0-9._~-]{16,8192}$/.test(reviewerBearer)
-  )
+  if (!/^[A-Za-z0-9._~-]{16,8192}$/.test(reviewerBearer))
     return fail("STORE1_PROTECTED_INPUT_INVALID");
-  return { adminSession, reviewerBearer };
+  return { ...admin, reviewerBearer };
 }
 
 function parseStore1Config(
@@ -304,7 +313,7 @@ export function createStore1NativeFetchTransportForTest(
 
 async function fetchAdminJson(
   origin: string,
-  credentials: Credentials,
+  credentials: AdminCredentials,
   path: string,
   fetchImpl?: typeof fetch,
 ): Promise<unknown> {
@@ -376,7 +385,7 @@ function validateInput(value: unknown): Store1PreflightOperatorInput {
 async function readReviewerState(
   input: Store1PreflightOperatorInput,
   origin: string,
-  credentials: Credentials,
+  credentials: AdminCredentials,
   fetchImpl?: typeof fetch,
 ): Promise<Store1ActivationReadback> {
   const beta = await fetchAdminJson(
@@ -659,7 +668,7 @@ function safeOutput(
 async function runReadOnlyPlanner(
   input: Store1PreflightOperatorInput,
   evidence: Store1PackageSignatureEvidence,
-  credentials: Credentials,
+  adminCredentials: AdminCredentials,
   options: RunOptions,
   verifiedPlanner: VerifiedPlanner,
 ) {
@@ -667,18 +676,22 @@ async function runReadOnlyPlanner(
   const readback = await readReviewerState(
     input,
     origin,
-    credentials,
+    adminCredentials,
     options.fetchImpl,
   );
-  if (
-    readback.reviewerAccounts?.length !== 1 ||
-    readback.reviewerAccountNextCursor !== null ||
-    !readback.reviewerAdmission?.admitted ||
-    readback.reviewerAdmission.accountId !== readback.reviewerAccounts[0]!.id
-  )
+  const reviewerPrerequisitesSatisfied =
+    readback.betaState?.mode === "CLOSED" &&
+    readback.reviewerUser?.status === "ACTIVE" &&
+    readback.reviewerUser.queriedEmailVerified &&
+    readback.reviewerAccounts?.length === 1 &&
+    readback.reviewerAccountNextCursor === null &&
+    readback.reviewerAdmission?.admitted === true &&
+    readback.reviewerAdmission.accountId === readback.reviewerAccounts[0]!.id;
+  if (!reviewerPrerequisitesSatisfied)
     return safeOutput(planStore1Activation(evidence.authority, readback));
 
-  const expectedAccountId = readback.reviewerAdmission.accountId;
+  const credentials = readReviewerCredentials(input, adminCredentials);
+  const expectedAccountId = readback.reviewerAdmission!.accountId;
   const transport = createStore1FetchTransport(
     {
       controlApiOrigin: origin,
@@ -739,7 +752,7 @@ async function runReadOnlyPlanner(
 
 export async function runStore1ReadOnlyPreflight(inputValue: unknown) {
   const input = validateInput(inputValue);
-  const credentials = readCredentials(input);
+  const adminCredentials = readAdminCredentials(input);
   const evidence = await readStore1PackageSignatureEvidence(
     input.manifestPath,
     input.packagePath,
@@ -747,7 +760,7 @@ export async function runStore1ReadOnlyPreflight(inputValue: unknown) {
   return runReadOnlyPlanner(
     input,
     evidence,
-    credentials,
+    adminCredentials,
     {},
     async (verifiedInput) =>
       planStore1ActivationWithVerifiedPreflight({
@@ -766,11 +779,11 @@ export async function runStore1ReadOnlyPreflightWithEvidenceForTest(
   if (process.env.VITEST !== "true")
     return fail("STORE1_TEST_ONLY_PACKAGE_EVIDENCE");
   const input = validateInput(inputValue);
-  const credentials = readCredentials(input);
+  const adminCredentials = readAdminCredentials(input);
   return runReadOnlyPlanner(
     input,
     packageEvidence,
-    credentials,
+    adminCredentials,
     options,
     async (verifiedInput) =>
       planStore1ActivationWithVerifiedPreflightForTest({
