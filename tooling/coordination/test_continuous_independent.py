@@ -279,6 +279,83 @@ class RuntimeIndependent(unittest.TestCase):
                 runtime.complete_task(self.cfg, self.conn, {"role": "B"},
                                       {"author_job": author["id"]}, {})
 
+    def test_recovery_does_not_steal_live_entry(self):
+        self.add(current="RUNNING", token=1)
+        self.conn.execute("UPDATE jobs SET entry_pid=?,entry_birth=? WHERE id='job-A'",
+                          (os.getpid(), state.birth(os.getpid())))
+        self.conn.commit()
+        runtime.recover(self.cfg, self.conn)
+        self.assertEqual("RUNNING", self.current()["state"])
+
+    def test_recovery_respects_physical_profile_lock(self):
+        self.add(current="RUNNING", token=1)
+        with state.lock(self.control / "codex-A.lock"):
+            runtime.recover(self.cfg, self.conn)
+        self.assertEqual("RUNNING", self.current()["state"])
+
+    def test_recovery_respects_physical_job_lock(self):
+        self.add(current="RUNNING", token=1)
+        with state.lock(state.root(self.cfg) / "locks" / "job-A.lock"):
+            runtime.recover(self.cfg, self.conn)
+        self.assertEqual("RUNNING", self.current()["state"])
+
+    def test_ambiguous_writer_not_replayed_and_block_is_local(self):
+        self.add(current="RUNNING", token=1)
+        self.add("job-B", role="B")
+        state.event(self.conn, "codex_launch_intent", "job-A", token=1)
+        with mock.patch.object(runtime, "freeze_candidate",
+                               side_effect=RuntimeError("preserved unknown")) as freeze:
+            with mock.patch.object(runtime.subprocess, "Popen") as launch:
+                runtime.recover(self.cfg, self.conn)
+                runtime.recover(self.cfg, self.conn)
+                launch.assert_not_called()
+                self.assertEqual(1, freeze.call_count)
+        self.assertEqual("UNKNOWN", self.current()["state"])
+        self.assertEqual("READY", self.current("job-B")["state"])
+        self.assertEqual(1, self.conn.execute(
+            "SELECT COUNT(*) FROM jobs WHERE kind='reconcile_review'").fetchone()[0])
+
+    def review_receipt_fixture(self, role="B", author="A", adapter_changes=None):
+        result = self.result()
+        spec = self.review_spec()
+        spec.update(author=author, epoch=self.cfg["epoch"])
+        row = self.add("review-A", role=role, kind="review", spec=spec,
+                       current="RESULT", token=1)
+        self.conn.execute("UPDATE jobs SET result=? WHERE id='review-A'", (state.encode(result),))
+        self.conn.commit()
+        receipt = {"job": "review-A", "role": role, "model": state.MODEL,
+                   "token": 1, "adapter_status": "RESULT_VALIDATED",
+                   "result_sha256": state.digest(state.encode(result))}
+        receipt.update(adapter_changes or {})
+        state.atomic_json(state.root(self.cfg) / "jobs/review-A/adapter-receipt.json", receipt)
+        return {"candidate": {"sha": result["candidate_sha"], "tree": result["candidate_tree"],
+                              "diff_sha256": result["diff_sha256"]}}
+
+    def test_self_peer_receipt_cannot_accept(self):
+        payload = self.review_receipt_fixture(role="A", author="A")
+        with self.assertRaises(RuntimeError):
+            runtime.accepted_verifier(self.cfg, self.conn, "review-A")(self.task(), payload, "fixture")
+
+    def test_review_adapter_wrong_token_rejected(self):
+        payload = self.review_receipt_fixture(adapter_changes={"token": 0})
+        with self.assertRaises(RuntimeError):
+            runtime.accepted_verifier(self.cfg, self.conn, "review-A")(self.task(), payload, "fixture")
+
+    def test_review_adapter_wrong_job_rejected(self):
+        payload = self.review_receipt_fixture(adapter_changes={"job": "different-job"})
+        with self.assertRaises(RuntimeError):
+            runtime.accepted_verifier(self.cfg, self.conn, "review-A")(self.task(), payload, "fixture")
+
+    def test_review_adapter_changed_result_rejected(self):
+        payload = self.review_receipt_fixture(adapter_changes={"result_sha256": "0"*64})
+        with self.assertRaises(RuntimeError):
+            runtime.accepted_verifier(self.cfg, self.conn, "review-A")(self.task(), payload, "fixture")
+
+    def test_exact_independent_peer_receipt_accepts(self):
+        payload = self.review_receipt_fixture()
+        result = runtime.accepted_verifier(self.cfg, self.conn, "review-A")(self.task(), payload, "fixture")
+        self.assertEqual("B", result["reviewer"])
+
 
 if __name__ == "__main__":
     unittest.main()
