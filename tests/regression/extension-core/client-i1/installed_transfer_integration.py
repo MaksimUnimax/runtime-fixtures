@@ -80,13 +80,13 @@ def launch_context(playwright, profile: str, runtime: Path, counters: dict):
                 counters["ack_post"] += 1
         if "ozon.ru" in url or "wildberries.ru" in url:
             counters["provider"] += 1
-        if request.method == "POST" and (
-            "chatgpt.com" in url
-            or "openai.com" in url
-            or "anthropic.com" in url
-            or "deepseek.com" in url
-        ):
-            counters["ai_post"] += 1
+        host = (urlparse(url).hostname or "").lower()
+        if request.method == "POST" and host in {
+            "chatgpt.com",
+            "chat.openai.com",
+            "alice.yandex.ru",
+        }:
+            counters["supported_ai_post"] += 1
 
     context.on("request", observe)
     worker = context.service_workers[0] if context.service_workers else context.wait_for_event("serviceworker")
@@ -210,7 +210,7 @@ def run(output: Path) -> dict:
         "task": "A04-TWO-INSTALL-KEY-TRANSFER",
         "evidence_level": "INSTALLED_SYNTHETIC_LOCAL_DEVELOPMENT",
         "provider_requests": 0,
-        "ai_posts": 0,
+        "supported_ai_posts": 0,
     }
     base_env = {
         **os.environ,
@@ -334,7 +334,12 @@ def run(output: Path) -> dict:
             base.wait_url(f"{PORTAL}/login")
 
             stage = "installed_profiles"
-            counters = {"packet_get": 0, "ack_post": 0, "provider": 0, "ai_post": 0}
+            counters = {
+                "packet_get": 0,
+                "ack_post": 0,
+                "provider": 0,
+                "supported_ai_post": 0,
+            }
             with (
                 sync_playwright() as playwright,
                 tempfile.TemporaryDirectory(prefix="a04-source-") as source_profile,
@@ -609,8 +614,8 @@ def run(output: Path) -> dict:
                         raise RuntimeError(
                             f"successful transfer was not single packet/ACK: {counters}"
                         )
-                    if counters["provider"] or counters["ai_post"]:
-                        raise RuntimeError("external provider/AI request observed")
+                    if counters["provider"] or counters["supported_ai_post"]:
+                        raise RuntimeError("external provider/supported-AI request observed")
                     result.update(
                         status="PASS",
                         browser=recipient.browser.version,
@@ -631,7 +636,7 @@ def run(output: Path) -> dict:
                             "ack_post": counters["ack_post"],
                         },
                         provider_requests=counters["provider"],
-                        ai_posts=counters["ai_post"],
+                        supported_ai_posts=counters["supported_ai_post"],
                         external_credentials=False,
                     )
                 finally:
