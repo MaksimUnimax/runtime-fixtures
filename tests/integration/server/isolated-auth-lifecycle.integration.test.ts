@@ -26,25 +26,19 @@ import {
 import type { AppConfig } from "../../../packages/shared/src/index.js";
 import {
   createIsolatedAuthLifecycleDriver,
+  validateIsolatedDatabaseUrl,
 } from "../../../tooling/server/isolated-auth-lifecycle.js";
 
 const identity = { email: "isolated-auth@example.test", disposable: true } as const;
 const otpFixture = "123456";
 const root = Buffer.alloc(32, 7);
 const signingKey = createEphemeralAccessTokenSigningKey("isolated-auth-test");
-const loopbackHosts = new Set(["127.0.0.1", "localhost", "::1"]);
 
 function disposableDatabaseUrl(): string {
   const raw = process.env.DATABASE_URL;
   if (!raw) throw new Error("DATABASE_URL must be supplied by the supervised test runner");
-  const url = new URL(raw);
-  if (
-    !["postgres:", "postgresql:"].includes(url.protocol) ||
-    !loopbackHosts.has(url.hostname.toLowerCase().replace(/^\[|\]$/g, "")) ||
-    !/(?:test|e2e|disposable)/i.test(url.pathname)
-  )
-    throw new Error("auth lifecycle integration requires a named loopback disposable database");
-  return url.toString();
+  // Validate the exact registry target before DB connection, migrations or TRUNCATE.
+  return validateIsolatedDatabaseUrl(raw);
 }
 
 const connectionString = disposableDatabaseUrl();
