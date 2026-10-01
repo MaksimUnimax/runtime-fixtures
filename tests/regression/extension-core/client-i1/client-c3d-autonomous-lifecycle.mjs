@@ -190,6 +190,25 @@ await test("C3D-15", "START_UNKNOWN remains durable and is not resent after rest
     assert.equal(f.worker.messages.filter(message => message.type === "OZ_WORK_SEND_INITIAL_PROMPT").length, 0);
   } finally { await close(f); }
 });
+await test("C3D-19", "authority invalidation fences a late Start identity callback without replay", async () => {
+  const f = await autonomousFixture();
+  try {
+    const result = await start(f); assert.equal(result.ok, true, JSON.stringify(result));
+    const row = await pending(f);
+    const promptSends = f.worker.messages.filter(message => message.type === "OZ_WORK_SEND_INITIAL_PROMPT").length;
+    assert.equal(promptSends, 1);
+
+    await f.worker.call("SellerAgentsControlClient.localReset");
+    const stale = await f.worker.request({ type: "OZ_WORK_PENDING_IDENTITY", intent_id: row.intent_id, revision: row.revision, identity: f.identity, first_response_complete: true }, { tab: { id: f.worker.tabId } });
+
+    assert.equal(stale.ok, false);
+    assert.equal((await f.worker.call("SellerAgentsControlClient.status")).authenticated, false);
+    assert.equal((await f.worker.call("workSessionFor", f.key)).state, "inactive");
+    assert.equal(f.worker.messages.filter(message => message.type === "OZ_WORK_SEND_INITIAL_PROMPT").length, promptSends);
+    assert.equal(f.worker.messages.some(message => message.type === "OZ_EXECUTE_COMMAND"), false);
+    assert.equal(f.worker.network.length, 0);
+  } finally { await close(f); }
+});
 await test("C3D-16", "Finish is local and fences the old Work without server ACK", async () => {
   const f = await autonomousFixture({ bound: true, state: "active_visible" });
   try { const before = f.backing.local[SESSIONS][f.key].revision; const result = await f.worker.popup({ type: "OZ_WORK_FINISH", tab_id: f.worker.tabId, conversation_key: f.key }); assert.equal(result.ok, true, JSON.stringify(result)); assert.equal(f.backing.local[SESSIONS][f.key].state, "inactive"); assert.equal(f.backing.local[SESSIONS][f.key].revision, before + 2); assert.equal(f.worker.controlNetwork.length, 0); }
