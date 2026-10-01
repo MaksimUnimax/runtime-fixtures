@@ -104,6 +104,14 @@ class WorkQueueTests(unittest.TestCase):
             "{",  # malformed JSON
             json.dumps({"status": "PASS", "result": "contains PASS"}),
         ]
+        for bad_version in (True, 1.0, "1"):
+            candidates.append(json.dumps({
+                "kind": "octoport.work-queue-completion", "version": bad_version,
+                "task_id": "b-auth", "candidate_sha": current_worktree_head(),
+                "verdict": "PASS",
+                "review": {"verdict": "PASS", "evidence": ["review"]},
+                "checks": [{"name": "unit", "verdict": "PASS", "evidence": ["run"]}],
+            }))
         for verdict, review, check in [("FAIL", "PASS", "PASS"),
                                        ("REWORK_REQUIRED", "PASS", "PASS"),
                                        ("PASS", "PASSING", "PASS"),
@@ -126,6 +134,25 @@ class WorkQueueTests(unittest.TestCase):
                 self.board = json.loads(before)
                 self.board["tasks"][0]["state"] = "READY"
                 self.save()
+
+
+    def test_strict_done_rejects_non_integer_format_marker(self):
+        self.completion()
+        receipt = str(self.receipt.resolve())
+        for marker in (True, 1.0, "1"):
+            with self.subTest(marker=marker):
+                board = copy.deepcopy(self.board)
+                board["tasks"][0].update(
+                    state="DONE", completion_receipt=receipt,
+                    completion_receipt_format=marker,
+                    completion_candidate_sha=current_worktree_head(),
+                )
+                self.path.write_text(json.dumps(board))
+                consumer = next(t for t in role_work(self.root, "A")["tasks"] if t["id"] == "a-client")
+                self.assertEqual(consumer["state"], "BLOCKED")
+                own = next(t for t in role_work(self.root, "B")["tasks"] if t["id"] == "b-auth")
+                self.assertTrue(own["completion_invalidated"])
+        self.save()
 
     def test_completion_receipt_is_bound_to_task_and_candidate(self):
         for task_id, candidate in [("other-task", current_worktree_head()),

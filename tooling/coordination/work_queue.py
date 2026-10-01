@@ -55,7 +55,8 @@ def _completion_receipt(path, identifier, candidate_sha):
         receipt = _strict_json_object(raw)
         if set(receipt) != {"kind", "version", "task_id", "candidate_sha", "verdict", "review", "checks"}:
             return None
-        if (receipt["kind"] != COMPLETION_KIND or receipt["version"] != COMPLETION_VERSION
+        if (receipt["kind"] != COMPLETION_KIND or type(receipt["version"]) is not int
+                or receipt["version"] != COMPLETION_VERSION
                 or receipt["task_id"] != identifier or receipt["candidate_sha"] != candidate_sha
                 or not re.fullmatch(r"(?:[0-9a-f]{40}|[0-9a-f]{64})", str(receipt["candidate_sha"]))
                 or receipt["verdict"] not in COMPLETION_VERDICTS):
@@ -91,7 +92,8 @@ def _strict_completion_valid(task):
     if "completion_receipt_format" not in task:
         # Pre-gate board rows are historical until explicitly reopened.
         return True
-    if task.get("completion_receipt_format") != COMPLETION_VERSION:
+    if (type(task.get("completion_receipt_format")) is not int
+            or task.get("completion_receipt_format") != COMPLETION_VERSION):
         return False
     receipt = _completion_receipt(task.get("completion_receipt", ""), task["id"],
                                   task.get("completion_candidate_sha", ""))
