@@ -218,6 +218,33 @@ class HelperGuardTests(unittest.TestCase):
                 helper.prepare(args)
             extract.assert_not_called()
 
+    def test_prepare_rejects_externally_writable_existing_parent(self):
+        self.profile.chmod(0o700)
+        unsafe_parent = self.root / "unsafe-parent"
+        unsafe_parent.mkdir()
+        unsafe_parent.chmod(0o777)
+        args = types.SimpleNamespace(
+            carrier=self.root / "carrier",
+            expected_sha256="expected",
+            browser_executable=Path("/unused/opera"),
+            expected_browser_product="136.0.6008.22",
+            profile_dir=self.profile,
+            runtime_dir=unsafe_parent / "runtime",
+        )
+        with (
+            mock.patch.object(helper, "sha256", return_value="expected"),
+            mock.patch.object(
+                helper, "browser_product", return_value="136.0.6008.22"
+            ),
+            mock.patch.object(helper, "profile_in_use", return_value=False),
+            mock.patch.object(helper, "ensure_exact_runtime") as extract,
+        ):
+            with self.assertRaisesRegex(
+                AssertionError, "^RUNTIME_ROOT_PERMISSIONS_UNSAFE$"
+            ):
+                helper.prepare(args)
+            extract.assert_not_called()
+
     def test_main_preserves_runtime_and_profile_paths_for_nofollow_validation(self):
         runtime_target = self.root / "runtime-target"
         runtime_target.mkdir()
@@ -285,6 +312,10 @@ class HelperGuardTests(unittest.TestCase):
                          "RUNTIME_ROOT_SYMLINK_REJECTED")
         self.assertEqual(helper.safe_failure_code(AssertionError("PROFILE_ROOT_SYMLINK_REJECTED")),
                          "PROFILE_ROOT_SYMLINK_REJECTED")
+        self.assertEqual(helper.safe_failure_code(AssertionError("RUNTIME_ROOT_PERMISSIONS_UNSAFE")),
+                         "RUNTIME_ROOT_PERMISSIONS_UNSAFE")
+        self.assertEqual(helper.safe_failure_code(AssertionError("PROFILE_ROOT_PERMISSIONS_UNSAFE")),
+                         "PROFILE_ROOT_PERMISSIONS_UNSAFE")
         for failure in [RuntimeError("OTP=PRIVATE_VALUE"), AssertionError("TOKEN=PRIVATE_VALUE")]:
             self.assertEqual(helper.safe_failure_code(failure), "OWNER_CONTROL_HELPER_FAILED")
 
