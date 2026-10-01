@@ -60,7 +60,20 @@ def parse_working_directory(value: str) -> tuple[Path, str, Path]:
     return Path(match.group(1)), match.group(2), Path(value.strip())
 
 def parse_environment_files(value: str) -> list[Path]:
-    paths = [Path(item) for item in re.findall(r"/[^\s;{}()]+\.env", value)]
+    text = value.strip()
+    if not text:
+        fail("ENVIRONMENT_FILE_PATH_MISSING")
+    paths: list[Path] = []
+    entry = re.compile(
+        r"\s*(/[^\s;{}()]+)\s+\(ignore_errors=(?:yes|no)\)"
+    )
+    position = 0
+    while position < len(text):
+        match = entry.match(text, position)
+        if not match:
+            fail("ENVIRONMENT_FILE_ENTRY_INVALID")
+        paths.append(Path(match.group(1)))
+        position = match.end()
     if not paths:
         fail("ENVIRONMENT_FILE_PATH_MISSING")
     return paths

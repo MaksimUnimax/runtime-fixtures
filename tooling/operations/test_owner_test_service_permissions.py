@@ -29,14 +29,24 @@ class PermissionHelpersTest(unittest.TestCase):
         with self.assertRaisesRegex(p.ProbeError, "WORKING_DIRECTORY_NOT_PINNED_RELEASE"):
             p.parse_working_directory("/srv/current")
 
-    def test_environment_files_extract_only_paths(self):
-        value = "/etc/seller-agents-owner-test/api.env (ignore_errors=no)"
+    def test_environment_files_consume_every_entry(self):
+        value = (
+            "/etc/seller-agents-owner-test/api.env (ignore_errors=no) "
+            "/unexpected/extra-config (ignore_errors=yes)"
+        )
         self.assertEqual(
             p.parse_environment_files(value),
-            [Path("/etc/seller-agents-owner-test/api.env")],
+            [
+                Path("/etc/seller-agents-owner-test/api.env"),
+                Path("/unexpected/extra-config"),
+            ],
         )
         with self.assertRaisesRegex(p.ProbeError, "ENVIRONMENT_FILE_PATH_MISSING"):
             p.parse_environment_files("")
+        with self.assertRaisesRegex(p.ProbeError, "ENVIRONMENT_FILE_ENTRY_INVALID"):
+            p.parse_environment_files(
+                "/etc/seller-agents-owner-test/api.env (ignore_errors=no) trailing-junk"
+            )
 
     def test_execstart_is_bound_to_expected_release(self):
         value = (
