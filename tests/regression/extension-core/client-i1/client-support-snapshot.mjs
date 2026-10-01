@@ -15,6 +15,10 @@ assert.match(popupJs, /request\("SA_SUPPORT_SNAPSHOT"\)/);
 assert.match(popupJs, /support-snapshot/);
 assert.match(popupJs, /UPDATE_RECOMMENDED/);
 assert.match(popupJs, /Текущая версия пока разрешена/);
+assert.match(popupJs, /async function requestStart/);
+assert.match(popupJs, /response\?\.accepted !== true/);
+assert.match(popupJs, /WORK_START_ALREADY_PENDING: "Запуск уже выполняется\. Повторная инструкция не отправлена"/);
+assert.match(popupJs, /const run = async confirm_change => \{ await requestStart\(/);
 const worker = await makeWorker(runtime, {
   userAgent: "Mozilla/5.0 Chrome/147.0.7727.116 Safari/537.36",
 });
@@ -66,6 +70,7 @@ try {
   assert.equal(snapshot.page.identityStatus, "confirmed");
   assert.deepEqual(snapshot.stores, { total: 2, ozon: 1, wildberries: 1 });
   assert.equal(snapshot.work.pending, false);
+  assert.equal(snapshot.work.lastStart, null);
   assert.deepEqual(snapshot.privacy, {
     accountIdentifiersIncluded: false,
     deviceSessionIdentifiersIncluded: false,
@@ -133,6 +138,103 @@ try {
   });
 } finally {
   recommendedWorker.close();
+}
+
+const startDiagnosticBacking = {
+  local: {
+    ozmb_diagnostics: [
+      {
+        sequence: 90,
+        event: "WORK_START_ACTION_RESULT",
+        tab_id: 77,
+        stage: "accepted",
+        outcome: "pending",
+        conversation_id: "PRIVATE_CONVERSATION_SHOULD_NOT_LEAK",
+      },
+      {
+        sequence: 91,
+        event: "WORK_PENDING_START_TERMINAL",
+        tab_id: 77,
+        reason: "WORK_START_SEND_TARGET_UNAVAILABLE",
+        conversation_id: "PRIVATE_CONVERSATION_SHOULD_NOT_LEAK",
+        prompt_text: "PRIVATE_PROMPT_SHOULD_NOT_LEAK",
+      },
+    ],
+  },
+  session: {},
+};
+const pendingStartBacking = {
+  local: {
+    ozmb_diagnostics: [
+      {
+        sequence: 90,
+        event: "WORK_START_ACTION_RESULT",
+        tab_id: 77,
+        stage: "accepted",
+        outcome: "pending",
+        conversation_id: "PRIVATE_PENDING_CONVERSATION_SHOULD_NOT_LEAK",
+        prompt_text: "PRIVATE_PENDING_PROMPT_SHOULD_NOT_LEAK",
+      },
+    ],
+  },
+  session: {},
+};
+const pendingStartWorker = await makeWorker(runtime, {
+  backing: pendingStartBacking,
+  userAgent: "Mozilla/5.0 Chrome/147.0.7727.116 Safari/537.36",
+});
+try {
+  const response = await pendingStartWorker.popup({ type: "SA_SUPPORT_SNAPSHOT", tab_id: 77 });
+  const snapshot = JSON.parse(JSON.stringify(response.snapshot));
+  assert.deepEqual(snapshot.work.lastStart, {
+    stage: "accepted",
+    code: null,
+    outcome: "pending",
+  });
+  const serialized = JSON.stringify(snapshot);
+  assert.equal(serialized.includes("PRIVATE_PENDING_CONVERSATION_SHOULD_NOT_LEAK"), false);
+  assert.equal(serialized.includes("PRIVATE_PENDING_PROMPT_SHOULD_NOT_LEAK"), false);
+} finally {
+  pendingStartWorker.close();
+}
+
+const startDiagnosticWorker = await makeWorker(runtime, {
+  backing: startDiagnosticBacking,
+  userAgent: "Mozilla/5.0 Chrome/147.0.7727.116 Safari/537.36",
+});
+try {
+  const response = await startDiagnosticWorker.popup({ type: "SA_SUPPORT_SNAPSHOT", tab_id: 77 });
+  const snapshot = JSON.parse(JSON.stringify(response.snapshot));
+  assert.deepEqual(snapshot.work.lastStart, {
+    stage: "terminal",
+    code: "WORK_START_SEND_TARGET_UNAVAILABLE",
+    outcome: "failed",
+  });
+  const serialized = JSON.stringify(snapshot);
+  assert.equal(serialized.includes("PRIVATE_CONVERSATION_SHOULD_NOT_LEAK"), false);
+  assert.equal(serialized.includes("PRIVATE_PROMPT_SHOULD_NOT_LEAK"), false);
+} finally {
+  startDiagnosticWorker.close();
+}
+
+const reopenedStartDiagnosticWorker = await makeWorker(runtime, {
+  backing: startDiagnosticBacking,
+  seedAuthority: false,
+  userAgent: "Mozilla/5.0 Chrome/147.0.7727.116 Safari/537.36",
+});
+try {
+  const response = await reopenedStartDiagnosticWorker.popup({ type: "SA_SUPPORT_SNAPSHOT", tab_id: 77 });
+  const snapshot = JSON.parse(JSON.stringify(response.snapshot));
+  assert.deepEqual(snapshot.work.lastStart, {
+    stage: "terminal",
+    code: "WORK_START_SEND_TARGET_UNAVAILABLE",
+    outcome: "failed",
+  });
+  const serialized = JSON.stringify(snapshot);
+  assert.equal(serialized.includes("PRIVATE_CONVERSATION_SHOULD_NOT_LEAK"), false);
+  assert.equal(serialized.includes("PRIVATE_PROMPT_SHOULD_NOT_LEAK"), false);
+} finally {
+  reopenedStartDiagnosticWorker.close();
 }
 
 const deniedTechnicalWorker = await makeWorker(runtime, {
