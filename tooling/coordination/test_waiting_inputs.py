@@ -51,7 +51,7 @@ class WaitingInputTests(unittest.TestCase):
 
     def waiting(self):
         args = argparse.Namespace(receipt=str(self.receipt), summary="", task="", next="")
-        with patch.object(control, "CONTROL", self.root), patch.object(control, "git", return_value=self.head), patch.object(control.resource_runner, "snapshot", return_value={}):
+        with patch.object(control, "CONTROL", self.root), patch.object(control, "git", side_effect=lambda *args: "" if args == ("status", "--porcelain") else self.head), patch.object(control.resource_runner, "snapshot", return_value={}):
             return control.update_state(self.role, "waiting", args)
 
     def assert_rejected_unchanged(self):

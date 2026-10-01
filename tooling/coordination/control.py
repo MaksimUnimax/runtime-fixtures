@@ -15,6 +15,7 @@ import time
 import resource_runner
 from waiting_gate import validate_waiting_receipt
 from notice_delivery import read_controller_notices
+from work_queue import status_work, compact_state, advance_task
 from datetime import datetime, timezone
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -70,6 +71,7 @@ def update_state(role, action, args):
                 state.pop("checkpoint_id", None)
                 state["checkpoint_status"] = "RECONCILIATION_REQUIRED"
             state["status"] = "RUNNING"
+            state.pop("waiting_since", None)
             state.setdefault("review_clock", now)
         elif action == "pause":
             state["status"] = "STOPPED"
@@ -111,8 +113,12 @@ def update_state(role, action, args):
             state["waiting_review"] = validate_waiting_receipt(
                 role, args.receipt, git("rev-parse", "HEAD"), inputs_root=CONTROL
             )
+            if git("status", "--porcelain"):
+                raise RuntimeError("WAITING_DIRTY_WORKTREE: finish or explicitly preserve current work before waiting")
             state["status"] = "WAITING_INPUT"
+            state.setdefault("waiting_since", now_text())
         elif action == "checkpoint":
+            state["last_checkpoint_at"] = now_text()
             state.update(task=args.task or state.get("task"), result=args.summary, next=args.next,
                          checkpoint_status="CURRENT", checkpoint_id=secrets.token_hex(16))
         elif action == "request-review":
@@ -137,6 +143,8 @@ def update_state(role, action, args):
             state.setdefault("review_reason", "4 hours since start/last controller review")
             state.setdefault("review_requested_at", now_text())
         state["controller_notices"] = controller_notices(role)
+        state["work_queue"] = status_work(CONTROL, role, git("status", "--porcelain"))
+        state["heartbeat_at"] = now_text()
         state.update(updated_at=now_text(), head=git("rev-parse", "HEAD"))
         state["resources"] = resource_runner.snapshot(ROOT)
         write_json(path, state)
@@ -292,7 +300,9 @@ def main():
     parser.add_argument("role", choices=["A", "B", "C"])
     parser.add_argument("action", choices=["status", "start", "pause", "resume", "waiting",
         "checkpoint", "request-review", "request-owner", "reviewed", "owner-done",
-        "guard", "submit", "ready-main", "ensure-db", "heavy", "resources"])
+        "guard", "submit", "ready-main", "ensure-db", "heavy", "resources", "queue-task"])
+    parser.add_argument("--compact", action="store_true")
+    parser.add_argument("--task-state", choices=["IN_PROGRESS", "BLOCKED", "DONE"])
     parser.add_argument("--summary", default="")
     parser.add_argument("--task", default="")
     parser.add_argument("--next", default="")
@@ -312,6 +322,10 @@ def main():
         return heavy(args.role, command, args.db, args.profile, args.memory_mib, args.timeout_seconds)
     if args.action == "resources":
         print(json.dumps(resource_runner.snapshot(ROOT)))
+        return 0
+    if args.action == "queue-task":
+        result = advance_task(CONTROL, args.role, args.task, args.task_state, args.receipt, args.summary)
+        print(json.dumps(result, ensure_ascii=False))
         return 0
     if args.action == "ensure-db":
         cfg = database(args.role)
@@ -348,6 +362,9 @@ def main():
         print(json.dumps(receipt, ensure_ascii=False))
     else:
         state = update_state(args.role, args.action, args)
+        if args.compact:
+            print(json.dumps(compact_state(state), ensure_ascii=False, indent=2))
+            return 0
         print(json.dumps(state, ensure_ascii=False, indent=2))
         if state["review_pending"]:
             print("НУЖЕН КОНТРОЛЬ [" + args.role + "]: " + display_review_reason(state) + "; независимая работа разрешена")

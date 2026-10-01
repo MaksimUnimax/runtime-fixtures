@@ -22,7 +22,7 @@ class CheckpointGenerationTests(unittest.TestCase):
                  "review_clock": time.time(), "owner_requests": ["preserve-owner-request"]}
         (self.root / "A.json").write_text(json.dumps(state))
         for obj, key, value in [(control, "CONTROL", self.root),
-                                (control, "git", lambda *a: "a" * 40),
+                                (control, "git", lambda *a: "" if a == ("status", "--porcelain") else "a" * 40),
                                 (control.resource_runner, "snapshot", lambda *a: {})]:
             patcher = patch.object(obj, key, value)
             patcher.start()

@@ -3,6 +3,7 @@ import hashlib
 import json
 from datetime import datetime, timezone
 from pathlib import Path
+from work_queue import assert_no_ready_work
 
 PLAN_IDS = {
     "A": {f"A{i:02d}" for i in range(1, 7)},
@@ -70,6 +71,8 @@ def validate_waiting_receipt(role, receipt, head, now=None, inputs_root=None):
         raise RuntimeError("WAITING_QUEUE_INCOMPLETE: " + ",".join(sorted(PLAN_IDS[role] - covered)))
     if ready:
         raise RuntimeError("WAITING_READY_TASKS_REMAIN: " + ",".join(ready))
+    if inputs_root is not None:
+        assert_no_ready_work(inputs_root, role)
     input_count = validate_input_freshness(role, checked, inputs_root) if inputs_root is not None else None
     return {
         "input_files_checked": input_count,
@@ -87,6 +90,9 @@ def validate_input_freshness(role, checked, control_root):
     changed = []
     checked_count = 0
     try:
+        board = root / "controllers/work-board.json"
+        if board.exists() and board.stat().st_mtime > checked.timestamp():
+            changed.append("controllers/work-board.json")
         for directory, pattern in groups:
             for path in directory.glob(pattern):
                 stat = path.stat()

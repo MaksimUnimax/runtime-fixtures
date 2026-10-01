@@ -1,0 +1,167 @@
+import argparse
+import copy
+import importlib.util
+import json
+from pathlib import Path
+import tempfile
+import unittest
+from datetime import datetime, timezone
+from unittest.mock import patch
+
+from work_queue import load_board, role_work, assert_no_ready_work, advance_task, compact_state
+from waiting_gate import validate_waiting_receipt, PLAN_IDS
+
+spec = importlib.util.spec_from_file_location("flow_control_test", Path(__file__).with_name("control.py"))
+control = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(control)
+
+
+class WorkQueueTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        (self.root / "controllers").mkdir()
+        (self.root / "logs").mkdir()
+        for role in "ABC":
+            (self.root / (role + ".json")).write_text(json.dumps({
+                "role": role, "status": "RUNNING", "task": "old", "review_pending": True,
+                "owner_requests": ["Existing human gate"], "checkpoint_id": "keep-fence",
+            }))
+        self.board = {"version": 1, "revision": 1, "tasks": [
+            {"id": "b-auth", "role": "B", "plan": "B04", "state": "READY", "requires": [], "result": "Ordinary isolated auth"},
+            {"id": "a-client", "role": "A", "plan": "A04", "state": "BLOCKED", "requires": ["b-auth"], "result": "Installed client"},
+        ]}
+        self.path = self.root / "controllers/work-board.json"
+        self.save()
+        self.receipt = self.root / "logs/result.json"
+        self.receipt.write_text('{"result":"source-only"}')
+        self.args = argparse.Namespace(receipt="", task="", summary="", next="")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def save(self):
+        self.path.write_text(json.dumps(self.board))
+
+    def test_ready_work_blocks_old_all_blocked_plan_receipt(self):
+        now = datetime.now(timezone.utc)
+        receipt = {"version": 1, "role": "B", "head": "f" * 40, "checked_at": now.isoformat(),
+                   "entries": [{"id": x, "plan": x, "state": "BLOCKED", "outcome": "Old wait",
+                                "evidence": ["old.md"], "owner": "C", "blocked_action": "live",
+                                "unblock_when": "auth", "independent_work_complete": True}
+                               for x in sorted(PLAN_IDS["B"])]}
+        file = self.root / "old-scan.json"
+        file.write_text(json.dumps(receipt))
+        with self.assertRaisesRegex(RuntimeError, "WAITING_WORK_QUEUE_AVAILABLE"):
+            validate_waiting_receipt("B", str(file), "f" * 40, now, self.root)
+
+    def test_completion_releases_consumer_without_controller(self):
+        self.assertEqual(role_work(self.root, "A")["tasks"][0]["state"], "BLOCKED")
+        advance_task(self.root, "B", "b-auth", "IN_PROGRESS")
+        advance_task(self.root, "B", "b-auth", "DONE", str(self.receipt))
+        self.assertEqual(role_work(self.root, "A")["tasks"][0]["state"], "READY")
+        with self.assertRaisesRegex(RuntimeError, "WAITING_WORK_QUEUE_AVAILABLE"):
+            assert_no_ready_work(self.root, "A")
+
+    def test_dependency_failure_cannot_start_consumer(self):
+        with self.assertRaisesRegex(RuntimeError, "DEPENDENCY_PENDING"):
+            advance_task(self.root, "A", "a-client", "IN_PROGRESS")
+
+    def test_other_role_cannot_change_task(self):
+        with self.assertRaisesRegex(RuntimeError, "TASK_OWNER"):
+            advance_task(self.root, "A", "b-auth", "IN_PROGRESS")
+
+    def test_stop_preserves_board_and_checkpoint(self):
+        f = self.root / "B.json"
+        original = json.loads(f.read_text())
+        original["status"] = "STOPPED"
+        f.write_text(json.dumps(original))
+        before = self.path.read_bytes()
+        with self.assertRaisesRegex(RuntimeError, "STOPPED"):
+            advance_task(self.root, "B", "b-auth", "IN_PROGRESS")
+        self.assertEqual(self.path.read_bytes(), before)
+        self.assertEqual(json.loads(f.read_text()), original)
+
+    def test_completion_needs_real_scoped_receipt(self):
+        for receipt in ["", "/etc/passwd", str(self.root / "profiles/private.json")]:
+            with self.subTest(receipt=receipt), self.assertRaises(RuntimeError):
+                advance_task(self.root, "B", "b-auth", "DONE", receipt)
+
+    def test_dependency_cycle_missing_and_duplicate_rejected(self):
+        for mutate in [
+            lambda d: d["tasks"][0].update(requires=["a-client"]),
+            lambda d: d["tasks"][0].update(requires=["missing"]),
+            lambda d: d["tasks"].append(copy.deepcopy(d["tasks"][0])),
+        ]:
+            board = copy.deepcopy(self.board)
+            mutate(board)
+            self.path.write_text(json.dumps(board))
+            with self.assertRaisesRegex(RuntimeError, "WORK_QUEUE_INVALID"):
+                load_board(self.root)
+
+    def test_malformed_board_does_not_silently_allow_wait(self):
+        for raw in ["[]", "{", "x" * 262145]:
+            self.path.write_text(raw)
+            with self.assertRaisesRegex(RuntimeError, "WORK_QUEUE_INVALID"):
+                assert_no_ready_work(self.root, "B")
+
+    def test_no_board_preserves_existing_plan_gate(self):
+        self.path.unlink()
+        self.assertEqual(role_work(self.root, "A")["tasks"], [])
+        assert_no_ready_work(self.root, "A")
+
+    def test_dirty_work_cannot_be_hidden_by_waiting(self):
+        with patch.object(control, "CONTROL", self.root), patch.object(control, "validate_waiting_receipt", return_value={}), patch.object(control, "git", return_value=" M unfinished.py"):
+            before = (self.root / "A.json").read_bytes()
+            with self.assertRaisesRegex(RuntimeError, "WAITING_DIRTY_WORKTREE"):
+                control.update_state("A", "waiting", self.args)
+            self.assertEqual((self.root / "A.json").read_bytes(), before)
+
+    def test_bad_board_never_prevents_stop(self):
+        self.path.write_text("{")
+        with patch.object(control, "CONTROL", self.root), patch.object(control, "git", return_value=""), patch.object(control.resource_runner, "snapshot", return_value={}):
+            result = control.update_state("A", "pause", self.args)
+            self.assertEqual(result["status"], "STOPPED")
+            self.assertIn("WORK_QUEUE_INVALID", result["work_queue"]["error"])
+
+    def test_compact_status_does_not_repeat_notice_bodies(self):
+        state = {"role": "A", "status": "RUNNING", "controller_notices": [
+            {"id": str(i), "created_at": f"2026-10-{i+1:02d}", "body": "x" * 3000}
+            for i in range(20)]}
+        result = compact_state(state)
+        self.assertEqual(result["notice_count"], 20)
+        self.assertEqual(len(result["latest_notices"]), 5)
+        self.assertLess(len(json.dumps(result)), 1400)
+        self.assertEqual(result["latest_notices"][0]["id"], "19")
+
+    def test_queue_transition_does_not_clear_review_or_owner_gate(self):
+        before = (self.root / "B.json").read_bytes()
+        advance_task(self.root, "B", "b-auth", "IN_PROGRESS")
+        self.assertEqual((self.root / "B.json").read_bytes(), before)
+
+    def test_heartbeat_does_not_claim_new_checkpoint(self):
+        with patch.object(control, "CONTROL", self.root), patch.object(control, "git", return_value=""), patch.object(control.resource_runner, "snapshot", return_value={}):
+            first = control.update_state("A", "status", self.args)
+            self.assertNotIn("last_checkpoint_at", first)
+            self.assertIn("heartbeat_at", first)
+            self.args.task = "actual task"
+            checkpoint = control.update_state("A", "checkpoint", self.args)
+            later = control.update_state("A", "status", self.args)
+            self.assertEqual(later["last_checkpoint_at"], checkpoint["last_checkpoint_at"])
+
+    def test_unblock_requires_new_scoped_evidence(self):
+        advance_task(self.root, "B", "b-auth", "BLOCKED", str(self.receipt), "SMTP unavailable")
+        with self.assertRaises(RuntimeError):
+            advance_task(self.root, "B", "b-auth", "IN_PROGRESS")
+        advance_task(self.root, "B", "b-auth", "IN_PROGRESS", str(self.receipt))
+        self.assertEqual(role_work(self.root, "B")["tasks"][0]["state"], "IN_PROGRESS")
+
+    def test_blocker_needs_concrete_evidence(self):
+        with self.assertRaisesRegex(RuntimeError, "BLOCKER_AND_EVIDENCE"):
+            advance_task(self.root, "B", "b-auth", "BLOCKED")
+        advance_task(self.root, "B", "b-auth", "BLOCKED", str(self.receipt), "Local SMTP test service absent")
+        assert_no_ready_work(self.root, "B")
+
+
+if __name__ == "__main__":
+    unittest.main()
