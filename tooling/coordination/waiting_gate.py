@@ -3,7 +3,7 @@ import hashlib
 import json
 from datetime import datetime, timezone
 from pathlib import Path
-from work_queue import assert_no_ready_work
+from work_queue import assert_no_ready_work, board_snapshot
 
 PLAN_IDS = {
     "A": {f"A{i:02d}" for i in range(1, 7)},
@@ -71,11 +71,17 @@ def validate_waiting_receipt(role, receipt, head, now=None, inputs_root=None):
         raise RuntimeError("WAITING_QUEUE_INCOMPLETE: " + ",".join(sorted(PLAN_IDS[role] - covered)))
     if ready:
         raise RuntimeError("WAITING_READY_TASKS_REMAIN: " + ",".join(ready))
+    work_board = None
     if inputs_root is not None:
+        work_board = board_snapshot(inputs_root)
+        if data.get("work_board") != work_board:
+            raise RuntimeError("WAITING_WORK_BOARD_CHANGED_OR_MISSING_PROOF")
         assert_no_ready_work(inputs_root, role)
+        if board_snapshot(inputs_root) != work_board:
+            raise RuntimeError("WAITING_WORK_BOARD_CHANGED_DURING_SCAN")
     input_count = validate_input_freshness(role, checked, inputs_root) if inputs_root is not None else None
     return {
-        "input_files_checked": input_count,
+        "input_files_checked": input_count, "work_board": work_board,
         "path": str(path.resolve()), "sha256": hashlib.sha256(raw).hexdigest(),
         "head": head, "checked_at": data["checked_at"], "entry_count": len(entries),
     }

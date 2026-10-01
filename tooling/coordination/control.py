@@ -15,7 +15,7 @@ import time
 import resource_runner
 from waiting_gate import validate_waiting_receipt
 from notice_delivery import read_controller_notices
-from work_queue import status_work, compact_state, advance_task
+from work_queue import status_work, compact_state, advance_task, add_task
 from datetime import datetime, timezone
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -143,7 +143,8 @@ def update_state(role, action, args):
             state.setdefault("review_reason", "4 hours since start/last controller review")
             state.setdefault("review_requested_at", now_text())
         state["controller_notices"] = controller_notices(role)
-        state["work_queue"] = status_work(CONTROL, role, git("status", "--porcelain"))
+        state["work_queue"] = status_work(CONTROL, role, git("status", "--porcelain"),
+            state.get("waiting_review", {}).get("work_board") if state["status"] == "WAITING_INPUT" else None)
         state["heartbeat_at"] = now_text()
         state.update(updated_at=now_text(), head=git("rev-parse", "HEAD"))
         state["resources"] = resource_runner.snapshot(ROOT)
@@ -300,7 +301,8 @@ def main():
     parser.add_argument("role", choices=["A", "B", "C"])
     parser.add_argument("action", choices=["status", "start", "pause", "resume", "waiting",
         "checkpoint", "request-review", "request-owner", "reviewed", "owner-done",
-        "guard", "submit", "ready-main", "ensure-db", "heavy", "resources", "queue-task"])
+        "guard", "submit", "ready-main", "ensure-db", "heavy", "resources", "queue-task", "queue-add"])
+    parser.add_argument("--task-file")
     parser.add_argument("--compact", action="store_true")
     parser.add_argument("--task-state", choices=["IN_PROGRESS", "BLOCKED", "DONE"])
     parser.add_argument("--summary", default="")
@@ -322,6 +324,18 @@ def main():
         return heavy(args.role, command, args.db, args.profile, args.memory_mib, args.timeout_seconds)
     if args.action == "resources":
         print(json.dumps(resource_runner.snapshot(ROOT)))
+        return 0
+    if args.action == "queue-add":
+        if not args.task_file:
+            raise RuntimeError("WORK_QUEUE_TASK_FILE_REQUIRED")
+        raw = Path(args.task_file).read_bytes()
+        if len(raw) > 32768:
+            raise RuntimeError("WORK_QUEUE_TASK_FILE_TOO_LARGE")
+        try:
+            task = json.loads(raw)
+        except ValueError:
+            raise RuntimeError("WORK_QUEUE_TASK_FILE_INVALID") from None
+        print(json.dumps(add_task(CONTROL, args.role, task), ensure_ascii=False))
         return 0
     if args.action == "queue-task":
         result = advance_task(CONTROL, args.role, args.task, args.task_state, args.receipt, args.summary)

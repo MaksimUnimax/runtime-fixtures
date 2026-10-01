@@ -1,5 +1,6 @@
 """Small shared outcome queue. It records work; it grants no live authority."""
 import fcntl
+import hashlib
 import json
 import os
 from datetime import datetime, timezone
@@ -8,16 +9,33 @@ from pathlib import Path
 STATES = {"READY", "IN_PROGRESS", "BLOCKED", "DONE"}
 
 
-def load_board(root):
+def board_snapshot(root):
     path = Path(root) / "controllers/work-board.json"
-    if not path.exists():
-        return {"version": 1, "revision": 0, "tasks": []}
     try:
         with path.open("rb") as source:
             raw = source.read(262145)
-        if len(raw) > 262144:
-            raise ValueError("size")
-        board = json.loads(raw)
+    except FileNotFoundError:
+        return {"exists": False, "sha256": None}
+    except OSError:
+        raise RuntimeError("WORK_QUEUE_SNAPSHOT_UNREADABLE") from None
+    if len(raw) > 262144:
+        raise RuntimeError("WORK_QUEUE_INVALID: size")
+    return {"exists": True, "sha256": hashlib.sha256(raw).hexdigest()}
+
+
+def load_board(root, candidate=None):
+    path = Path(root) / "controllers/work-board.json"
+    if candidate is None and not path.exists():
+        return {"version": 1, "revision": 0, "tasks": []}
+    try:
+        if candidate is None:
+            with path.open("rb") as source:
+                raw = source.read(262145)
+            if len(raw) > 262144:
+                raise ValueError("size")
+            board = json.loads(raw)
+        else:
+            board = candidate
         tasks = board["tasks"]
         if board["version"] != 1 or not isinstance(board.get("revision"), int) or board["revision"] < 0 or not isinstance(tasks, list) or len(tasks) > 100:
             raise ValueError("shape")
@@ -87,13 +105,16 @@ def assert_no_ready_work(root, role):
         raise RuntimeError("WAITING_WORK_QUEUE_AVAILABLE: " + ",".join(ready))
 
 
-def status_work(root, role, dirty=False):
+def status_work(root, role, dirty=False, waiting_proof=None):
     try:
         result = role_work(root, role)
+        result["input_snapshot"] = board_snapshot(root)
+        if waiting_proof is not None and waiting_proof != result["input_snapshot"]:
+            result["waiting_invalidated"] = "WORK_BOARD_CHANGED_OR_REMOVED"
     except RuntimeError as error:
         result = {"tasks": [], "error": str(error)}
     result["dirty_worktree"] = bool(dirty)
-    result["action_required"] = bool(dirty or result.get("error") or any(
+    result["action_required"] = bool(dirty or result.get("error") or result.get("waiting_invalidated") or any(
         t["state"] in {"READY", "IN_PROGRESS"} for t in result["tasks"]))
     return result
 
@@ -117,7 +138,9 @@ def advance_task(root, role, identifier, state, receipt="", reason=""):
             view = next(t for t in role_work(root, role)["tasks"] if t["id"] == identifier)
             if state in {"IN_PROGRESS", "DONE"} and view["waiting_for"]:
                 raise RuntimeError("WORK_QUEUE_DEPENDENCY_PENDING")
-            if state == "DONE" or (state == "IN_PROGRESS" and view["state"] == "BLOCKED"):
+            if state == "BLOCKED" and (not reason.strip() or not receipt.strip()):
+                raise RuntimeError("WORK_QUEUE_BLOCKER_AND_EVIDENCE_REQUIRED")
+            if state in {"DONE", "BLOCKED"} or (state == "IN_PROGRESS" and view["state"] == "BLOCKED"):
                 proof = Path(receipt).resolve()
                 try:
                     relative = proof.relative_to(root.resolve())
@@ -127,7 +150,7 @@ def advance_task(root, role, identifier, state, receipt="", reason=""):
                     raise RuntimeError("WORK_QUEUE_COMPLETION_RECEIPT_REQUIRED")
                 if state == "DONE":
                     task["completion_receipt"] = str(proof)
-                else:
+                elif state == "IN_PROGRESS":
                     task["unblock_receipt"] = str(proof)
             if state == "BLOCKED":
                 if not reason.strip() or not receipt.strip():
@@ -149,6 +172,44 @@ def advance_task(root, role, identifier, state, receipt="", reason=""):
             os.replace(temporary, path)
             event = {"at": now, "role": role, "task": identifier, "before": previous,
                      "state": state, "receipt": receipt, "revision": board["revision"]}
+            with (root / "controllers/work-board-events.jsonl").open("a") as output:
+                output.write(json.dumps(event, ensure_ascii=False) + "\n")
+            return event
+
+
+def add_task(root, role, task):
+    """A role decomposes its own approved PLAN without waiting for a controller."""
+    root = Path(root)
+    if not isinstance(task, dict) or task.get("role") != role or task.get("state") != "READY":
+        raise RuntimeError("WORK_QUEUE_ADD_OWNER_OR_STATE_INVALID")
+    if not all(isinstance(task.get(k), list) and task[k] and all(isinstance(x, str) and x.strip() for x in task[k]) for k in ("paths", "acceptance")):
+        raise RuntimeError("WORK_QUEUE_PATHS_AND_ACCEPTANCE_REQUIRED")
+    if any(Path(x).is_absolute() or ".." in Path(x).parts for x in task["paths"]):
+        raise RuntimeError("WORK_QUEUE_PATHS_INVALID")
+    if not isinstance(task.get("basis"), str) or not task["basis"].strip():
+        raise RuntimeError("WORK_QUEUE_UNFINISHED_REQUIREMENT_REQUIRED")
+    with (root / (role + ".lock")).open("a+") as role_lock:
+        fcntl.flock(role_lock, fcntl.LOCK_EX)
+        if json.loads((root / (role + ".json")).read_text()).get("status") == "STOPPED":
+            raise RuntimeError("STOPPED: no queue transition permitted")
+        with (root / "controllers/coordination.lock").open("a+") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            board = load_board(root)
+            task = dict(task)
+            task["created_at"] = datetime.now(timezone.utc).isoformat()
+            board["tasks"].append(task)
+            board["revision"] += 1
+            board["updated_at"] = task["created_at"]
+            load_board(root, candidate=board)
+            encoded = json.dumps(board, ensure_ascii=False, indent=2) + "\n"
+            if len(encoded.encode()) > 262144:
+                raise RuntimeError("WORK_QUEUE_INVALID: size")
+            path = root / "controllers/work-board.json"
+            temporary = path.with_name(path.name + ".tmp")
+            temporary.write_text(encoded)
+            os.chmod(temporary, 0o600)
+            os.replace(temporary, path)
+            event = {"at": task["created_at"], "role": role, "task": task["id"], "action": "ADD", "revision": board["revision"]}
             with (root / "controllers/work-board-events.jsonl").open("a") as output:
                 output.write(json.dumps(event, ensure_ascii=False) + "\n")
             return event

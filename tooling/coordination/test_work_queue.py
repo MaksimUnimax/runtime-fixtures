@@ -8,7 +8,7 @@ import unittest
 from datetime import datetime, timezone
 from unittest.mock import patch
 
-from work_queue import load_board, role_work, assert_no_ready_work, advance_task, compact_state
+from work_queue import load_board, role_work, assert_no_ready_work, advance_task, compact_state, board_snapshot, status_work, add_task
 from waiting_gate import validate_waiting_receipt, PLAN_IDS
 
 spec = importlib.util.spec_from_file_location("flow_control_test", Path(__file__).with_name("control.py"))
@@ -45,7 +45,7 @@ class WorkQueueTests(unittest.TestCase):
 
     def test_ready_work_blocks_old_all_blocked_plan_receipt(self):
         now = datetime.now(timezone.utc)
-        receipt = {"version": 1, "role": "B", "head": "f" * 40, "checked_at": now.isoformat(),
+        receipt = {"version": 1, "role": "B", "head": "f" * 40, "checked_at": now.isoformat(), "work_board": board_snapshot(self.root),
                    "entries": [{"id": x, "plan": x, "state": "BLOCKED", "outcome": "Old wait",
                                 "evidence": ["old.md"], "owner": "C", "blocked_action": "live",
                                 "unblock_when": "auth", "independent_work_complete": True}
@@ -138,6 +138,52 @@ class WorkQueueTests(unittest.TestCase):
         before = (self.root / "B.json").read_bytes()
         advance_task(self.root, "B", "b-auth", "IN_PROGRESS")
         self.assertEqual((self.root / "B.json").read_bytes(), before)
+
+    def test_removed_board_invalidates_recorded_wait(self):
+        proof = board_snapshot(self.root)
+        self.path.unlink()
+        result = status_work(self.root, "A", waiting_proof=proof)
+        self.assertEqual(result["waiting_invalidated"], "WORK_BOARD_CHANGED_OR_REMOVED")
+        self.assertTrue(result["action_required"])
+
+    def test_fake_blocker_receipt_cannot_hide_ready_work(self):
+        before = self.path.read_bytes()
+        with self.assertRaisesRegex(RuntimeError, "RECEIPT_REQUIRED"):
+            advance_task(self.root, "B", "b-auth", "BLOCKED", str(self.root / "logs/missing.json"), "external")
+        self.assertEqual(self.path.read_bytes(), before)
+
+    def test_board_delete_after_scan_rejects_wait_receipt(self):
+        now = datetime.now(timezone.utc)
+        scan = {"version": 1, "role": "C", "head": "a" * 40, "checked_at": now.isoformat(),
+                "work_board": board_snapshot(self.root), "entries": [
+                {"id": p, "plan": p, "state": "DONE", "outcome": "finished", "evidence": ["receipt"]}
+                for p in sorted(PLAN_IDS["C"])]}
+        file = self.root / "scan.json"
+        file.write_text(json.dumps(scan))
+        self.path.unlink()
+        with self.assertRaisesRegex(RuntimeError, "WORK_BOARD_CHANGED_OR_MISSING_PROOF"):
+            validate_waiting_receipt("C", str(file), "a" * 40, now, self.root)
+
+    def test_role_defines_next_requirement_without_controller(self):
+        task = {"id": "a-next", "role": "A", "plan": "A04", "state": "READY", "requires": [], "result": "Verify remaining acceptance criterion", "paths": ["tests/regression/example.mjs"], "acceptance": ["Actual regression fails before fix"], "basis": "SPEC remaining recovery criterion"}
+        add_task(self.root, "A", task)
+        self.assertEqual(role_work(self.root, "A")["tasks"][-1]["state"], "READY")
+        with self.assertRaisesRegex(RuntimeError, "WAITING_WORK_QUEUE_AVAILABLE"):
+            assert_no_ready_work(self.root, "A")
+        before = self.path.read_bytes()
+        for changed in [dict(task, role="B"), dict(task, id="other", plan="B04"), dict(task, id="other", basis=""), dict(task, id="other", requires=["missing"]), task]:
+            with self.assertRaises(RuntimeError):
+                add_task(self.root, "A", changed)
+            self.assertEqual(self.path.read_bytes(), before)
+
+    def test_stopped_role_cannot_self_assign(self):
+        path = self.root / "A.json"
+        path.write_text(json.dumps({"status": "STOPPED"}))
+        task = {"id": "a-next", "role": "A", "plan": "A04", "state": "READY", "requires": [], "result": "Check", "paths": ["test.py"], "acceptance": ["pass"], "basis": "SPEC"}
+        before = self.path.read_bytes()
+        with self.assertRaisesRegex(RuntimeError, "STOPPED"):
+            add_task(self.root, "A", task)
+        self.assertEqual(self.path.read_bytes(), before)
 
     def test_heartbeat_does_not_claim_new_checkpoint(self):
         with patch.object(control, "CONTROL", self.root), patch.object(control, "git", return_value=""), patch.object(control.resource_runner, "snapshot", return_value={}):

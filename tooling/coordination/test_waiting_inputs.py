@@ -30,7 +30,7 @@ class WaitingInputTests(unittest.TestCase):
         self.state.write_text(json.dumps({"role": role, "status": "RUNNING",
                                         "owner_requests": ["preserve"], "review_pending": True}))
         self.data = {"version": 1, "role": role, "head": self.head,
-                     "checked_at": self.checked.isoformat(),
+                     "checked_at": self.checked.isoformat(), "work_board": {"exists": False, "sha256": None},
                      "entries": [{"id": k, "plan": k, "state": "DONE",
                                   "outcome": "source complete", "evidence": ["exact-receipt"]}
                                  for k in sorted(PLAN_IDS[role])]}
