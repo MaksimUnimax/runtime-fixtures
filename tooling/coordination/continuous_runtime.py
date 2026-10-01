@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import signal
 import secrets
+import sqlite3
 import subprocess
 import sys
 import time
@@ -210,7 +211,7 @@ def schedule_planners(cfg, conn):
             continue
         # Snapshot all existing tasks and durable outcomes, including UNKNOWN/rework.
         board = work_queue.load_board(cfg["control_root"])
-        archived = [json.loads(r[0]) for r in conn.execute("SELECT value FROM meta WHERE key LIKE 'coverage:%'")]
+        archived = continuous_lifecycle.coverage_page(cfg, conn)
         history = [{"id": r["id"], "kind": r["kind"], "state": r["state"],
                     "reason": r["reason"], "result": json.loads(r["result"]) if r["result"] else None}
                    for r in conn.execute("SELECT * FROM jobs WHERE kind NOT IN ('plan','plan_review') ORDER BY created DESC LIMIT 100")]
@@ -450,15 +451,34 @@ def complete_task(cfg, conn, row, spec, verdict):
                "proof_validity": task.get("proof_validity"),
                "dependencies": dependencies}
     path = root(cfg) / "jobs" / row["id"] / "completion-receipt.json"
-    atomic_json(path, receipt)
-    work_queue.register_acceptance(cfg["control_root"], task["id"], str(path),
-                                   review_verifier=accepted_verifier(cfg, conn, row["id"]))
-    work_queue.advance_task(cfg["control_root"], author["role"], task["id"], "DONE", receipt=str(path))
-    transition(conn, author["id"], "ACCEPTED", result={**author_result, "candidate": candidate})
-    # A durable C handoff is consumed by the same runtime without a chat wakeup.
-    add_job(conn, "integrate-" + author["id"], "C", "integrate", {
-        "author_job": author["id"], "task_id": task["id"], "candidate": candidate,
-        "base": authored.get("scope_base", authored["base"]), "receipt": str(path), "epoch": cfg["epoch"], "rules": rules_snapshot(cfg)})
+    if path.exists():
+        preserved = read_json(path)
+        receipt["issued_at"] = preserved.get("issued_at")
+        if not receipt["issued_at"] or preserved != receipt:
+            raise RuntimeError("RUNTIME_COMPLETION_RECEIPT_CHANGED_ON_RECOVERY")
+    else:
+        atomic_json(path, receipt)
+    if task["state"] == "DONE":
+        effective = next(t for t in work_queue.validate_board(cfg["control_root"])["board"]["tasks"] if t["id"] == task["id"])
+        if (effective["state"] != "DONE" or effective.get("candidate") != candidate
+                or effective.get("completion_receipt_sha256") != digest(path.read_bytes())):
+            raise RuntimeError("RUNTIME_COMPLETION_ALREADY_DONE_PROOF_MISMATCH")
+        accepted_verifier(cfg, conn, row["id"])(task, receipt, digest(path.read_bytes()))
+    else:
+        work_queue.register_acceptance(cfg["control_root"], task["id"], str(path),
+                                       review_verifier=accepted_verifier(cfg, conn, row["id"]))
+        work_queue.advance_task(cfg["control_root"], author["role"], task["id"], "DONE", receipt=str(path))
+    # Board proof is durable first. The descriptor and author state then commit
+    # together; repeating after any crash reuses the identical receipt and ID.
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        transition(conn, author["id"], "ACCEPTED", result={**author_result, "candidate": candidate})
+        add_job(conn, "integrate-" + author["id"], "C", "integrate", {
+            "author_job": author["id"], "task_id": task["id"], "candidate": candidate,
+            "base": authored.get("scope_base", authored["base"]), "receipt": str(path), "epoch": cfg["epoch"], "rules": rules_snapshot(cfg)})
+        conn.commit()
+    except BaseException:
+        conn.rollback(); raise
 
 
 def enqueue_rework(cfg, conn, review_row, review_specification, verdict):
@@ -621,6 +641,7 @@ def main():
         sub.add_parser(command)
     p = sub.add_parser("add"); p.add_argument("--task-file", required=True)
     p = sub.add_parser("inspect"); p.add_argument("--job", required=True)
+    p = sub.add_parser("coverage"); p.add_argument("--requirement", required=True); p.add_argument("--offset", type=int, default=0)
     p = sub.add_parser("reconcile"); p.add_argument("--job", required=True); p.add_argument("--receipt", required=True)
     p = sub.add_parser("claim"); p.add_argument("--role", choices=ROLES, required=True); p.add_argument("--owner", required=True); p.add_argument("--base", required=True); p.add_argument("--paths-file", required=True)
     p = sub.add_parser("release"); p.add_argument("--token-file", required=True)
@@ -632,6 +653,10 @@ def main():
         print(encode(check(cfg, args.login))); return 0
     if args.command in {"worker", "entry"}:
         return (worker if args.command == "worker" else run_entry)(cfg, args.job, args.token)
+    if args.command == "coverage":
+        with sqlite3.connect("file:" + str(root(cfg) / "state.sqlite") + "?mode=ro", uri=True) as conn:
+            print(encode(continuous_lifecycle.coverage_page(cfg, conn, args.requirement, args.offset)))
+        return 0
     conn = initialize(cfg)
     if args.command == "claim":
         print(encode(manual_claim(cfg, conn, args.role, args.owner, args.base, read_json(args.paths_file)))); return 0

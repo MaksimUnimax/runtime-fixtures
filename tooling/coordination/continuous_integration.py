@@ -118,6 +118,18 @@ def failure_handoff(cfg, conn, row, spec, reason):
     event(conn, "integration_continuation", row["id"], key=attempt_key, next_job=identifier)
 
 
+def complete_integration(conn, row, spec, saved, remote_head):
+    if remote_head != saved["head"]:
+        raise RuntimeError("RUNTIME_MAIN_PUSH_OUTCOME_UNVERIFIED")
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        transition(conn, row["id"], "DONE", result=saved | {"remote_readback": remote_head})
+        transition(conn, spec["author_job"], "INTEGRATED")
+        conn.commit()
+    except BaseException:
+        conn.rollback(); raise
+
+
 def integrate_tick(cfg, conn):
     if not cfg.get("integration_enabled", False):
         return
@@ -183,8 +195,7 @@ def integrate_tick(cfg, conn):
             if row["state"] == "MAIN_PENDING":
                 remote = git(target, "ls-remote", "origin", "refs/heads/main").split()
                 if remote and remote[0] == saved["head"]:
-                    transition(conn, row["id"], "DONE", result=saved | {"remote_readback": remote[0]})
-                    transition(conn, spec["author_job"], "INTEGRATED")
+                    complete_integration(conn, row, spec, saved, remote[0])
                     continue
                 if not remote or remote[0] != saved["base"]:
                     failure_handoff(cfg, conn, row, spec, "REMOTE_MAIN_CHANGED_NEW_INTEGRATION_REQUIRED")
@@ -194,8 +205,7 @@ def integrate_tick(cfg, conn):
                 actual = git(target, "ls-remote", "origin", "refs/heads/main").split()
                 if not actual or actual[0] != saved["head"]:
                     raise RuntimeError("RUNTIME_MAIN_PUSH_OUTCOME_UNVERIFIED")
-                transition(conn, row["id"], "DONE", result=saved | {"remote_readback": actual[0]})
-                transition(conn, spec["author_job"], "INTEGRATED")
+                complete_integration(conn, row, spec, saved, actual[0])
         except (OSError, subprocess.SubprocessError) as error:
             current = conn.execute("SELECT state FROM jobs WHERE id=?", (row["id"],)).fetchone()[0]
             if current in {"CI_PENDING", "MAIN_PENDING"}:

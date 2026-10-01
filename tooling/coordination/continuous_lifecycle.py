@@ -4,6 +4,7 @@ import fcntl
 import json
 from pathlib import Path
 import subprocess
+import sys
 
 import resource_runner
 import work_queue
@@ -16,8 +17,7 @@ def readmit_capacity(cfg, conn):
     for row in rows:
         try:
             check_mode(cfg, row["role"])
-            if any(json.loads(x[0]).get("token") == row["token"] for x in conn.execute(
-                    "SELECT data FROM events WHERE job=? AND event='codex_launch_intent'", (row["id"],))):
+            if conn.execute("SELECT 1 FROM events WHERE job=? AND event='codex_launch_intent'", (row["id"],)).fetchone():
                 continue
             with lock(root(cfg) / "locks" / (row["id"] + ".lock")), lock(Path(cfg["control_root"]) / ("codex-" + row["role"] + ".lock")):
                 with (Path(cfg["control_root"]) / "heavy.lock").open("a+") as legacy:
@@ -95,7 +95,7 @@ def archive_integrated(cfg, conn, busy_roles=()):
                     conn.execute("INSERT INTO meta VALUES(?,?)", (key, encode(reference)))
                     requirement = json.loads(author["spec"]).get("task", {}).get("requirement_id")
                     if requirement:
-                        conn.execute("INSERT OR REPLACE INTO meta VALUES(?,?)", ("coverage:" + requirement, encode(reference)))
+                        conn.execute("INSERT OR REPLACE INTO meta VALUES(?,?)", ("coverage:" + requirement + ":" + spec["task_id"], encode(reference)))
                     conn.commit()
                 except BaseException:
                     conn.rollback(); raise
@@ -115,7 +115,13 @@ def cleanup_final_worktrees(cfg, conn, busy_roles=()):
         if not conn.execute("SELECT 1 FROM meta WHERE key=?", ("archive:" + integration["id"],)).fetchone():
             continue
         spec = json.loads(integration["spec"])
-        for row in related_jobs(conn, spec["author_job"], integration["id"]):
+        related = related_jobs(conn, spec["author_job"], integration["id"])
+        active_states = {"STARTING", "RUNNING", "RESULT", "READY", "CI_PENDING", "MAIN_PENDING", "MERGED", "INTEGRATING", "UNKNOWN"}
+        if any(r["state"] in active_states or r["role"] in busy_roles for r in related):
+            continue
+        author = conn.execute("SELECT spec FROM jobs WHERE id=?", (spec["author_job"],)).fetchone()
+        paths = set(json.loads(author[0]).get("task", {}).get("paths", [])) if author else set()
+        for row in related:
             key = "worktree-cleaned:" + row["id"]
             if row["role"] in busy_roles or conn.execute("SELECT 1 FROM meta WHERE key=?", (key,)).fetchone():
                 continue
@@ -125,13 +131,42 @@ def cleanup_final_worktrees(cfg, conn, busy_roles=()):
             if path != expected or path.resolve() != expected:
                 continue
             try:
+                check_mode(cfg, row["role"])
                 with lock(root(cfg) / "locks" / (row["id"] + ".lock")):
-                    if path.exists():
-                        if git(path, "status", "--porcelain"):
-                            continue
-                        # No --force: dirty/untracked data and unknown copies stay.
-                        git(cfg["repo"], "worktree", "remove", str(path))
-                    conn.execute("INSERT INTO meta VALUES(?,?)", (key, str(path)))
-                    event(conn, "final_worktree_cleaned", row["id"], path=str(path))
+                    conn.execute("BEGIN IMMEDIATE")
+                    try:
+                        current = related_jobs(conn, spec["author_job"], integration["id"])
+                        claimed = any(paths & set(json.loads(r[0])) for r in conn.execute("SELECT paths FROM claims WHERE state='ACTIVE'"))
+                        if claimed or any(r["state"] in active_states for r in current):
+                            conn.rollback(); continue
+                        if path.exists():
+                            if git(path, "status", "--porcelain"):
+                                conn.rollback(); continue
+                            # No --force: dirty/untracked data and unknown copies stay.
+                            git(cfg["repo"], "worktree", "remove", str(path))
+                        conn.execute("INSERT INTO meta VALUES(?,?)", (key, str(path)))
+                        event(conn, "final_worktree_cleaned", row["id"], path=str(path))
+                        conn.commit()
+                    except BaseException:
+                        conn.rollback(); raise
             except (BlockingIOError, RuntimeError, OSError, subprocess.SubprocessError):
                 continue
+
+
+def coverage_page(cfg, conn, requirement=None, offset=0, limit=10):
+    """Bounded planner view plus explicit read-only pagination of every leaf."""
+    if type(offset) is not int or offset < 0 or type(limit) is not int or not 1 <= limit <= 100:
+        raise RuntimeError("RUNTIME_COVERAGE_PAGE_INVALID")
+    grouped = {}
+    for row in conn.execute("SELECT key,value FROM meta WHERE key LIKE 'coverage:%' ORDER BY rowid DESC"):
+        identifier = row[0].split(":", 2)[1]
+        grouped.setdefault(identifier, []).append(json.loads(row[1]))
+    def page(identifier, values):
+        return {"requirement_id": identifier, "count": len(values), "offset": offset,
+                "entries": values[offset:offset + limit], "project_ready": False,
+                "lookup": {"argv": [sys.executable, str(Path(__file__).with_name("continuous_runtime.py")),
+                    "--config", cfg.get("config_path", ""), "coverage", "--requirement", identifier,
+                    "--offset", str(offset + limit)], "read_only": True}}
+    if requirement is not None:
+        return page(requirement, grouped.get(requirement, []))
+    return [page(identifier, values) for identifier, values in sorted(grouped.items())]
