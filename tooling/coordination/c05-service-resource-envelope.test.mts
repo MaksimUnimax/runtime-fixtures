@@ -3,11 +3,15 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
+  FIRST_BETA_WAVE_RESOURCE_SAMPLE_EVERY_CYCLES,
+  FIRST_BETA_WAVE_SEQUENTIAL_CYCLES,
   ServiceResourceEnvelopeSampler,
   captureServiceTree,
+  parseFirstBetaWaveSequentialCycles,
   parseProcStat,
   parseProcStatus,
   summarizeServiceResourceEnvelope,
+  summarizeServiceResourceEnvelopeSeries,
   type ProcReader,
 } from "./c05-service-resource-envelope.mts";
 
@@ -67,6 +71,19 @@ function fixtureReader(): FakeReader {
   reader.statuses.set(20, statusLine(999, 999, 20));
   return reader;
 }
+
+test("first beta wave sequential profile accepts only the exact 100-count workload", () => {
+  assert.equal(FIRST_BETA_WAVE_SEQUENTIAL_CYCLES, 100);
+  assert.equal(FIRST_BETA_WAVE_RESOURCE_SAMPLE_EVERY_CYCLES, 10);
+  assert.equal(parseFirstBetaWaveSequentialCycles(undefined), 0);
+  assert.equal(parseFirstBetaWaveSequentialCycles(""), 0);
+  assert.equal(parseFirstBetaWaveSequentialCycles("100"), 100);
+  for (const value of ["1", "99", "101", "0100", "100 "])
+    assert.throws(
+      () => parseFirstBetaWaveSequentialCycles(value),
+      /C05_FIRST_WAVE_SEQUENTIAL_CYCLES_INVALID/,
+    );
+});
 
 test("resource proc parsers reject malformed fields and accept bounded values", () => {
   assert.deepEqual(parseProcStat(statLine(10, 1, 10, 5, 100)), {
@@ -140,6 +157,60 @@ test("sampler produces sanitized before/after functional envelope", async () => 
   assert.match(serialized, /staging startup\/readiness\/auth\/bootstrap/);
 });
 
+test("series summary retains intermediate workload maxima without changing capacity claim", async () => {
+  const reader = fixtureReader();
+  reader.stats.set(30, statLine(30, 1, 3, 2, 300));
+  reader.stats.set(40, statLine(40, 1, 4, 2, 400));
+  reader.statuses.set(30, statusLine(60, 80, 1));
+  reader.statuses.set(40, statusLine(70, 90, 1));
+  const sampler = new ServiceResourceEnvelopeSampler(
+    { api: 10, worker: 30, portal: 40 },
+    reader,
+  );
+  const before = await sampler.sample("BEFORE_SMOKE");
+
+  reader.now = 1_500;
+  reader.stats.set(10, statLine(10, 1, 18, 7, 100));
+  reader.stats.set(11, statLine(11, 10, 9, 4, 101));
+  reader.statuses.set(10, statusLine(300, 350, 5));
+  reader.statuses.set(11, statusLine(100, 125, 2));
+  const workload = await sampler.sample("WORKLOAD_10");
+
+  reader.now = 2_500;
+  reader.stats.set(10, statLine(10, 1, 25, 10, 100));
+  reader.stats.set(11, statLine(11, 10, 12, 6, 101));
+  reader.statuses.set(10, statusLine(130, 180, 3));
+  reader.statuses.set(11, statusLine(60, 80, 1));
+  const after = await sampler.sample("AFTER_SMOKE");
+
+  const result = summarizeServiceResourceEnvelopeSeries([
+    before,
+    workload,
+    after,
+  ]);
+  assert.equal(result.services.api.rssBytesMax, 400 * 1024);
+  assert.equal(result.services.api.highWaterBytesMax, 475 * 1024);
+  assert.equal(result.services.api.taskCountMax, 7);
+  assert.equal(result.capacityProof, "NOT_PRODUCTION_CAPACITY_PROOF");
+  assert.equal(result.sampleWindowMs, 1_500);
+});
+
+test("sampler rejects unknown workload sample labels", async () => {
+  const reader = fixtureReader();
+  reader.stats.set(30, statLine(30, 1, 3, 2, 300));
+  reader.stats.set(40, statLine(40, 1, 4, 2, 400));
+  reader.statuses.set(30, statusLine(60, 80, 1));
+  reader.statuses.set(40, statusLine(70, 90, 1));
+  const sampler = new ServiceResourceEnvelopeSampler(
+    { api: 10, worker: 30, portal: 40 },
+    reader,
+  );
+  await assert.rejects(
+    sampler.sample("FIRST_WAVE"),
+    /SERVICE_RESOURCE_SAMPLE_LABEL_INVALID/,
+  );
+});
+
 test("capture fails closed on PID reuse between stat and status accounting", async () => {
   class ReusedDuringCaptureReader extends FakeReader {
     childReads = 0;
@@ -211,6 +282,27 @@ test("live reader source is restricted to stat/status proc files", async () => {
   assert.match(source, /\/stat/);
   assert.match(source, /\/status/);
   assert.doesNotMatch(source, /\/environ|\/cmdline|\/fd\b|\/net\b/);
+});
+
+test("first-wave workload remains sequential, exact-count, and final-current only", async () => {
+  const source = await readFile(
+    new URL("./c05-three-service-rollback-rehearsal.mts", import.meta.url),
+    "utf8",
+  );
+  assert.match(source, /C05_FIRST_WAVE_SEQUENTIAL_CYCLES/);
+  assert.match(source, /index === 2 && firstWaveSequentialCycles > 0/);
+  assert.match(
+    source,
+    /for \(let cycle = 1; cycle <= firstWaveSequentialCycles/,
+  );
+  assert.match(source, /concurrency: 1/);
+  assert.match(source, /requestsPerCycle: 8/);
+  assert.match(source, /NOT_CONCURRENCY_CAPACITY_PROOF/);
+  assert.match(source, /FIRST_WAVE_PROTECTED_COUNT_CHANGED/);
+  assert.doesNotMatch(
+    source,
+    /Promise\.all\([^\n]*runFirstWaveSequentialCycle/,
+  );
 });
 
 test("rehearsal admits only exact B/C disposable database targets", async () => {

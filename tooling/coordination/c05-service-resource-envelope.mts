@@ -2,6 +2,17 @@ import { readdir, readFile } from "node:fs/promises";
 
 export const SERVICE_RESOURCE_EVIDENCE_LEVEL =
   "DISPOSABLE_FUNCTIONAL_RESOURCE_ENVELOPE" as const;
+export const FIRST_BETA_WAVE_SEQUENTIAL_CYCLES = 100;
+export const FIRST_BETA_WAVE_RESOURCE_SAMPLE_EVERY_CYCLES = 10;
+
+export function parseFirstBetaWaveSequentialCycles(
+  value: string | undefined,
+): number {
+  if (value === undefined || value === "") return 0;
+  if (value !== String(FIRST_BETA_WAVE_SEQUENTIAL_CYCLES))
+    throw new Error("C05_FIRST_WAVE_SEQUENTIAL_CYCLES_INVALID");
+  return FIRST_BETA_WAVE_SEQUENTIAL_CYCLES;
+}
 
 export type ServiceResourceRole = "api" | "worker" | "portal";
 
@@ -34,7 +45,7 @@ export type ServiceTreeSample = {
 };
 
 export type ResourceSample = {
-  label: "BEFORE_SMOKE" | "AFTER_SMOKE";
+  label: string;
   capturedAtMs: number;
   services: Record<ServiceResourceRole, ServiceTreeSample>;
 };
@@ -290,6 +301,8 @@ export class ServiceResourceEnvelopeSampler {
   ) {}
 
   async sample(label: ResourceSample["label"]): Promise<ResourceSample> {
+    if (!/^(?:BEFORE_SMOKE|AFTER_SMOKE|WORKLOAD_[1-9]\d*)$/.test(label))
+      throw new Error("SERVICE_RESOURCE_SAMPLE_LABEL_INVALID");
     const services = {} as Record<ServiceResourceRole, ServiceTreeSample>;
     for (const role of ["api", "worker", "portal"] as const) {
       const sample = await captureServiceTree(this.roots[role], this.reader);
@@ -319,29 +332,47 @@ function safeNumber(value: bigint, code: string): number {
   return Number(value);
 }
 
-export function summarizeServiceResourceEnvelope(
-  before: ResourceSample,
-  after: ResourceSample,
+export function summarizeServiceResourceEnvelopeSeries(
+  samples: readonly ResourceSample[],
 ): ServiceResourceEnvelope {
   if (
-    before.label !== "BEFORE_SMOKE" ||
-    after.label !== "AFTER_SMOKE" ||
-    after.capturedAtMs <= before.capturedAtMs
+    samples.length < 2 ||
+    samples[0]?.label !== "BEFORE_SMOKE" ||
+    samples.at(-1)?.label !== "AFTER_SMOKE"
   )
     throw new Error("SERVICE_RESOURCE_SAMPLE_ORDER_INVALID");
+  for (let index = 1; index < samples.length; index += 1)
+    if (samples[index]!.capturedAtMs <= samples[index - 1]!.capturedAtMs)
+      throw new Error("SERVICE_RESOURCE_SAMPLE_ORDER_INVALID");
+
+  const firstSample = samples[0]!;
+  const lastSample = samples.at(-1)!;
   const services = {} as ServiceResourceEnvelope["services"];
   for (const role of ["api", "worker", "portal"] as const) {
-    const first = before.services[role];
-    const last = after.services[role];
-    if (last.rootStartTimeTicks !== first.rootStartTimeTicks)
-      throw new Error(`SERVICE_RESOURCE_ROOT_REUSED:${role}`);
-    if (last.cpuTicks < first.cpuTicks)
-      throw new Error(`SERVICE_RESOURCE_CPU_REGRESSED:${role}`);
+    const first = firstSample.services[role];
+    const last = lastSample.services[role];
+    let priorCpu = first.cpuTicks;
+    for (const sample of samples) {
+      const current = sample.services[role];
+      if (current.rootStartTimeTicks !== first.rootStartTimeTicks)
+        throw new Error(`SERVICE_RESOURCE_ROOT_REUSED:${role}`);
+      if (current.cpuTicks < priorCpu)
+        throw new Error(`SERVICE_RESOURCE_CPU_REGRESSED:${role}`);
+      priorCpu = current.cpuTicks;
+    }
     services[role] = {
-      rssBytesMax: Math.max(first.rssBytes, last.rssBytes),
-      highWaterBytesMax: Math.max(first.highWaterBytes, last.highWaterBytes),
-      processCountMax: Math.max(first.processCount, last.processCount),
-      taskCountMax: Math.max(first.taskCount, last.taskCount),
+      rssBytesMax: Math.max(
+        ...samples.map((sample) => sample.services[role].rssBytes),
+      ),
+      highWaterBytesMax: Math.max(
+        ...samples.map((sample) => sample.services[role].highWaterBytes),
+      ),
+      processCountMax: Math.max(
+        ...samples.map((sample) => sample.services[role].processCount),
+      ),
+      taskCountMax: Math.max(
+        ...samples.map((sample) => sample.services[role].taskCount),
+      ),
       cpuTicksDelta: safeNumber(
         last.cpuTicks - first.cpuTicks,
         "SERVICE_RESOURCE_CPU_OVERFLOW",
@@ -352,7 +383,7 @@ export function summarizeServiceResourceEnvelope(
     schema: "octoport-disposable-service-resource-envelope-v1",
     evidenceLevel: SERVICE_RESOURCE_EVIDENCE_LEVEL,
     capacityProof: "NOT_PRODUCTION_CAPACITY_PROOF",
-    sampleWindowMs: after.capturedAtMs - before.capturedAtMs,
+    sampleWindowMs: lastSample.capturedAtMs - firstSample.capturedAtMs,
     services,
     nextProofsRequired: [
       "representative staged load before choosing finite service resource ceilings",
@@ -360,4 +391,11 @@ export function summarizeServiceResourceEnvelope(
       "rollback proof for proposed controls before any live apply",
     ],
   };
+}
+
+export function summarizeServiceResourceEnvelope(
+  before: ResourceSample,
+  after: ResourceSample,
+): ServiceResourceEnvelope {
+  return summarizeServiceResourceEnvelopeSeries([before, after]);
 }

@@ -25,8 +25,12 @@ import {
   type ServiceRuntimeIdentity,
 } from "./c05-service-runtime-identity.mts";
 import {
+  FIRST_BETA_WAVE_RESOURCE_SAMPLE_EVERY_CYCLES,
   ServiceResourceEnvelopeSampler,
+  parseFirstBetaWaveSequentialCycles,
   summarizeServiceResourceEnvelope,
+  summarizeServiceResourceEnvelopeSeries,
+  type ResourceSample,
 } from "./c05-service-resource-envelope.mts";
 
 // C05 is intentionally a source rehearsal. It restores the accepted journal-40
@@ -314,6 +318,16 @@ if (captureServiceResourceEnvelope)
     serviceRuntimeIdentity,
     "C05_RESOURCE_ENVELOPE_REQUIRES_NONROOT_IDENTITY",
   );
+const firstWaveSequentialCycles = parseFirstBetaWaveSequentialCycles(
+  process.env.C05_FIRST_WAVE_SEQUENTIAL_CYCLES,
+);
+if (firstWaveSequentialCycles > 0) {
+  check(
+    captureServiceResourceEnvelope,
+    "C05_FIRST_WAVE_REQUIRES_RESOURCE_ENVELOPE",
+  );
+  check(serviceRuntimeIdentity, "C05_FIRST_WAVE_REQUIRES_NONROOT_IDENTITY");
+}
 
 const envNames = Object.keys(process.env);
 for (const k of envNames)
@@ -676,6 +690,19 @@ async function runPhase(
   const resourceBefore = resourceSampler
     ? await resourceSampler.sample("BEFORE_SMOKE")
     : null;
+  const resourceSamples: ResourceSample[] = resourceBefore
+    ? [resourceBefore]
+    : [];
+  let stagedWorkload: {
+    profile: "FIRST_BETA_WAVE_SEQUENTIAL_COUNT_V1";
+    cycles: number;
+    concurrency: 1;
+    requestsPerCycle: 8;
+    totalRequests: number;
+    sampleEveryCycles: number;
+    resourceSampleCount: number;
+    capacityClaim: "NOT_CONCURRENCY_CAPACITY_PROOF";
+  } | null = null;
   await poll(
     async () => {
       const r = await get(`${origin}/health/ready`);
@@ -786,6 +813,37 @@ async function runPhase(
     );
     return 200;
   };
+  async function runFirstWaveSequentialCycle(cycle: number) {
+    const ready = await get(`${origin}/health/ready`);
+    const readyBody = (await ready.json().catch(() => null)) as {
+      status?: unknown;
+    } | null;
+    check(
+      ready.status === 200 && readyBody?.status === "ready",
+      `FIRST_WAVE_READY_FAILED:${cycle}`,
+    );
+    check(
+      (await get(`${origin}/health/live`)).status === 200,
+      `FIRST_WAVE_LIVE_FAILED:${cycle}`,
+    );
+    check(
+      (await get(`http://127.0.0.1:${portalPort}/login`)).status === 200,
+      `FIRST_WAVE_PORTAL_LOGIN_FAILED:${cycle}`,
+    );
+    const accountRead = await get(
+      `http://127.0.0.1:${portalPort}/api/control-plane/v1/accounts`,
+      { headers: { cookie: `pcp_portal_session=${privateState.portalToken}` } },
+    );
+    check(
+      accountRead.status === 200,
+      `FIRST_WAVE_PORTAL_PROXY_FAILED:${cycle}`,
+    );
+    await sync("present");
+    await sync("withheld");
+    await bootstrap("present");
+    await bootstrap("withheld");
+  }
+
   await bootstrap("present");
   await bootstrap("withheld");
   if (index === 0) {
@@ -819,12 +877,33 @@ async function runPhase(
       "SYNTHETIC_WITHHELD_NOT_PERSISTED",
     );
   }
+  if (index === 2 && firstWaveSequentialCycles > 0) {
+    check(resourceSampler, "C05_FIRST_WAVE_RESOURCE_SAMPLER_MISSING");
+    for (let cycle = 1; cycle <= firstWaveSequentialCycles; cycle += 1) {
+      await runFirstWaveSequentialCycle(cycle);
+      if (cycle % FIRST_BETA_WAVE_RESOURCE_SAMPLE_EVERY_CYCLES === 0)
+        resourceSamples.push(await resourceSampler.sample(`WORKLOAD_${cycle}`));
+    }
+    stagedWorkload = {
+      profile: "FIRST_BETA_WAVE_SEQUENTIAL_COUNT_V1",
+      cycles: firstWaveSequentialCycles,
+      concurrency: 1,
+      requestsPerCycle: 8,
+      totalRequests: firstWaveSequentialCycles * 8,
+      sampleEveryCycles: FIRST_BETA_WAVE_RESOURCE_SAMPLE_EVERY_CYCLES,
+      resourceSampleCount: resourceSamples.length + 1,
+      capacityClaim: "NOT_CONCURRENCY_CAPACITY_PROOF",
+    };
+  }
   const resourceAfter = resourceSampler
     ? await resourceSampler.sample("AFTER_SMOKE")
     : null;
+  if (resourceAfter) resourceSamples.push(resourceAfter);
   const resourceEnvelope =
     resourceBefore && resourceAfter
-      ? summarizeServiceResourceEnvelope(resourceBefore, resourceAfter)
+      ? stagedWorkload
+        ? summarizeServiceResourceEnvelopeSeries(resourceSamples)
+        : summarizeServiceResourceEnvelope(resourceBefore, resourceAfter)
       : null;
   const post = await phaseSnapshot();
   check(
@@ -843,6 +922,21 @@ async function runPhase(
     "signingEventStateSha256",
   ])
     check(pre[key] === post[key], `PROTECTED_INVARIANT_CHANGED:${key}`);
+  if (stagedWorkload)
+    for (const key of [
+      "accounts",
+      "devices",
+      "sessions",
+      "portalSessions",
+      "config",
+      "signing",
+      "signingEvents",
+      "sync_entities",
+    ])
+      check(
+        pre[key] === post[key],
+        `FIRST_WAVE_PROTECTED_COUNT_CHANGED:${key}`,
+      );
   if (index > 0)
     check(
       pre.syntheticSha256 === post.syntheticSha256,
@@ -864,6 +958,7 @@ async function runPhase(
       ? { runtimeIdentity: publicRuntimeIdentity }
       : {}),
     ...(resourceEnvelope ? { resourceEnvelope } : {}),
+    ...(stagedWorkload ? { stagedWorkload } : {}),
     ports: { api: apiPort, portal: portalPort, smtpDisabledLoopback: smtpPort },
     checks: {
       apiLive: 200,
