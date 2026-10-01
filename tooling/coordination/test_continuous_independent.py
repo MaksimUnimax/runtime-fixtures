@@ -356,6 +356,38 @@ class RuntimeIndependent(unittest.TestCase):
         result = runtime.accepted_verifier(self.cfg, self.conn, "review-A")(self.task(), payload, "fixture")
         self.assertEqual("B", result["reviewer"])
 
+    def test_old_worker_result_cannot_corrupt_new_attempt(self):
+        self.cfg["config_path"] = str(self.area / "config.json")
+        self.add(spec={"worktree": str(self.repo)}, current="STARTING", token=1)
+        def another_attempt(*args, **kwargs):
+            self.conn.execute("UPDATE jobs SET state='STARTING',token=2 WHERE id='job-A'")
+            self.conn.commit()
+            return 0
+        with mock.patch.object(runtime.resource_runner, "run", side_effect=another_attempt):
+            runtime.worker(self.cfg, "job-A", 1)
+        self.assertEqual(("STARTING", 2), (self.current()["state"], self.current()["token"]))
+
+    def test_old_worker_exception_cannot_corrupt_new_attempt(self):
+        self.cfg["config_path"] = str(self.area / "config.json")
+        self.add(spec={"worktree": str(self.repo)}, current="STARTING", token=1)
+        def another_attempt(*args, **kwargs):
+            self.conn.execute("UPDATE jobs SET state='STARTING',token=2 WHERE id='job-A'")
+            self.conn.commit()
+            raise RuntimeError("old runner failed")
+        with mock.patch.object(runtime.resource_runner, "run", side_effect=another_attempt):
+            runtime.worker(self.cfg, "job-A", 1)
+        self.assertEqual(("STARTING", 2), (self.current()["state"], self.current()["token"]))
+
+    def test_launch_cannot_restart_while_previous_job_lease_held(self):
+        self.cfg["config_path"] = str(self.area / "config.json")
+        self.add()
+        with state.lock(state.root(self.cfg) / "locks" / "job-A.lock"):
+            with mock.patch.object(runtime, "prepare"):
+                with mock.patch.object(runtime.subprocess, "Popen") as spawn:
+                    runtime.launch(self.cfg, self.conn)
+                    spawn.assert_not_called()
+        self.assertEqual("READY", self.current()["state"])
+
 
 if __name__ == "__main__":
     unittest.main()
