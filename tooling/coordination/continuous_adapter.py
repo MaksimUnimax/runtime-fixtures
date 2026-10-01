@@ -15,7 +15,8 @@ from continuous_state import (LAUNCHERS, MODEL, atomic_json, birth, check_mode, 
 SCHEMA = {
     "type": "object", "additionalProperties": False,
     "properties": {
-        "verdict": {"type": "string", "enum": ["PASS", "ACCEPT", "REWORK", "BLOCKED"]},
+        "verdict": {"type": "string", "enum": ["PASS", "ACCEPT", "REWORK", "BLOCKED"],
+                    "description": "For implement only: PASS means source edits complete for supervisor verification, not tests passed or task accepted. Other job verdict semantics follow the prompt."},
         "summary": {"type": "string"},
         "candidate_sha": {"type": "string"},
         "candidate_tree": {"type": "string"},
@@ -40,9 +41,14 @@ store publication, platform-denied operations, unrelated files, or historical cl
 STOP always wins. Read AGENTS.md and current task-relevant rules and contracts.
 Any existing security/platform denial remains in force; another identity is no retry.
 Perform only the exact assigned scope. No detached servers, browsers or worker pools.
-Small bounded unit checks are allowed; request supervised heavy checks as BLOCKED.
-Missing exact Node/pnpm/browser/dependencies/DB prerequisites are BLOCKED; do not link
-shared node_modules or weaken tests. Report exact checks, output evidence, limitations.
+Small bounded unit checks are allowed. Never run unsupervised heavy checks, install
+dependencies yourself, link shared node_modules, or weaken tests. For implement jobs,
+the trusted supervisor prepares the configured check environments and executes the
+required check plan after the source handoff. Missing local dependencies needed only
+by those configured checks do not prevent that handoff. A prerequisite preventing
+source authoring, an unconfigured required capability, or a security denial is BLOCKED.
+For other jobs, missing prerequisites or required evidence remain BLOCKED as applicable.
+Report only actually observed checks and exit codes; never claim an unrun check passed.
 Report JSON according to the output schema. Exit status alone is never acceptance.
 Use empty strings/arrays for fields not relevant. Never declare whole project ready.
 Evidence must distinguish SOURCE/PACKAGE/INSTALLED_SYNTHETIC/LIVE/DEPLOYMENT.
@@ -126,9 +132,19 @@ def validate_result(kind, value, spec):
 def prompt_for(cfg, row, spec):
     kind = row["kind"]
     text = CONTRACT + "\nJOB KIND: " + kind + "\nTRUSTED TASK DATA:\n" + encode(spec) + "\n"
-    text += "Your actual tool output is captured in " + str(root(cfg) / "jobs" / row["id"] / "exec.log") + ". Report each required check name, observed exit code, and this log as evidence.\n"
+    text += "Your actual tool output is captured in " + str(root(cfg) / "jobs" / row["id"] / "exec.log") + ". For checks actually run, report their name, observed exit code and evidence. Put unrun checks in remaining; invent no exit code.\n"
     if kind == "implement":
-        text += "Implement the exact task. Leave only assigned source changes. Do not write evidence files into unassigned repo paths. Report existing test logs as evidence.\n"
+        plan = [{"id": name, "environment": cfg.get("check_catalog", {}).get(name, {}).get("environment", {}),
+                 "timeout_seconds": cfg.get("check_catalog", {}).get(name, {}).get("timeout_seconds", 600)}
+                for name in spec.get("task", {}).get("required_checks", [])]
+        text += "SUPERVISOR CHECK PLAN (trusted configuration, executed after your source handoff):\n" + encode(plan) + "\n"
+        text += ("Implement the exact task. Leave only assigned source changes. Do not write evidence files into unassigned repo paths. "
+                 "For this implement job only, verdict PASS means source editing is complete and ready for the supervisor check plan. "
+                 "It does not mean tests passed, acceptance, integration, or project readiness. If configured checks await the supervisor, "
+                 "return PASS with those checks named in remaining, and checks=[] when you ran none. Missing own node_modules or pinned "
+                 "Node/pnpm for those checks is handled by that configured environment; do not install or bypass it. "
+                 "Return BLOCKED when a real prerequisite prevents source authoring, a needed capability is absent from the configured plan, "
+                 "or an existing security/platform denial applies. Actual supervisor check exits and independent review decide acceptance.\n")
     elif kind in {"review", "reconcile_review", "integration_review"}:
         text += ("READ ONLY independent review. Inspect git diff from base to exact candidate; inspect code, requirements and recorded actual tests. "
                  "Verify scope, semantic requirement mapping, all acceptance criteria, absence of sensitive material and whether evidence actually exists. "

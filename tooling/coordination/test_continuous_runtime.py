@@ -362,6 +362,41 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(self.conn.execute("SELECT state FROM jobs WHERE id='one'").fetchone()[0], "SUPERSEDED")
         self.assertNotIn("one.py", runtime.paths_reserved(self.conn))
 
+    def test_source_handoff_defers_configured_checks_without_claiming_acceptance(self):
+        self.cfg["check_catalog"] = {"unit": {"environment": {"capability": "node-workspace", "allow_install": True}}}
+        row = self.add(task={"id": "one", "paths": ["one.py"], "required_checks": ["unit"]})
+        Path(json.loads(row["spec"])["worktree"]).mkdir()
+        prompt = adapter.prompt_for(self.cfg, row, json.loads(row["spec"]))
+        self.assertIn('"capability":"node-workspace"', prompt)
+        self.assertIn('"id":"unit"', prompt)
+        self.assertIn("checks=[] when you ran none", prompt)
+        self.assertIn("prerequisite prevents source authoring", prompt)
+        self.conn.execute("UPDATE jobs SET state='STARTING',token=1 WHERE id='one'")
+        def codex(argv, **kwargs):
+            output = Path(argv[argv.index("-o") + 1])
+            state.atomic_json(output, verdict("PASS") | {"checks": [], "remaining": ["unit awaits supervisor"]})
+            child = Mock(pid=os.getpid(), returncode=0); child.poll.return_value = 0
+            return child
+        with patch.object(adapter, "rules_snapshot", return_value={}), patch.object(adapter.subprocess, "run", return_value=Mock(returncode=0, stdout="Logged in using ChatGPT", stderr="")), patch.object(adapter.subprocess, "Popen", side_effect=codex), patch.object(adapter, "run_checks") as supervised:
+            self.assertEqual(adapter.run_entry(self.cfg, "one", 1), 0)
+        supervised.assert_called_once()
+        current = self.conn.execute("SELECT * FROM jobs WHERE id='one'").fetchone()
+        self.assertEqual(current["state"], "RESULT")
+        self.assertEqual(json.loads(current["result"])["checks"], [])
+
+    def test_real_author_blocker_does_not_invoke_supervisor_checks(self):
+        row = self.add(); Path(json.loads(row["spec"])["worktree"]).mkdir()
+        self.conn.execute("UPDATE jobs SET state='STARTING',token=1 WHERE id='one'")
+        def codex(argv, **kwargs):
+            state.atomic_json(Path(argv[argv.index("-o") + 1]), verdict("BLOCKED"))
+            child = Mock(pid=os.getpid(), returncode=0); child.poll.return_value = 0
+            return child
+        with patch.object(adapter, "rules_snapshot", return_value={}), patch.object(adapter.subprocess, "run", return_value=Mock(returncode=0, stdout="Logged in using ChatGPT", stderr="")), patch.object(adapter.subprocess, "Popen", side_effect=codex), patch.object(adapter, "run_checks") as supervised:
+            self.assertEqual(adapter.run_entry(self.cfg, "one", 1), 0)
+        supervised.assert_not_called()
+        runtime.finalize(self.cfg, self.conn)
+        self.assertEqual(self.conn.execute("SELECT state FROM jobs WHERE id='one'").fetchone()[0], "BLOCKED")
+
 
 if __name__ == "__main__":
     unittest.main()
