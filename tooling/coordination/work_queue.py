@@ -1,5 +1,6 @@
 """Small shared outcome queue. It records work; it grants no live authority."""
 import fcntl
+import fnmatch
 import hashlib
 import json
 import os
@@ -177,7 +178,7 @@ def advance_task(root, role, identifier, state, receipt="", reason=""):
             return event
 
 
-def add_task(root, role, task):
+def add_task(root, role, task, repo_root=None):
     """A role decomposes its own approved PLAN without waiting for a controller."""
     root = Path(root)
     if not isinstance(task, dict) or task.get("role") != role or task.get("state") != "READY":
@@ -188,6 +189,19 @@ def add_task(root, role, task):
         raise RuntimeError("WORK_QUEUE_PATHS_INVALID")
     if not isinstance(task.get("basis"), str) or not task["basis"].strip():
         raise RuntimeError("WORK_QUEUE_UNFINISHED_REQUIREMENT_REQUIRED")
+    repo = Path(repo_root) if repo_root is not None else Path(__file__).resolve().parents[2]
+    ownership = json.loads((repo / "docs/development/coordination/OWNERSHIP.json").read_text())["roles"]
+    def owned(path, owner):
+        spec = ownership[owner]
+        return any(fnmatch.fnmatchcase(path, x) for x in spec["allow"]) and not any(fnmatch.fnmatchcase(path, x) for x in spec["deny"])
+    for path in task["paths"]:
+        if any(x in path for x in "*?[") or not owned(path, role) or (role == "C" and any(owned(path, x) for x in "AB")):
+            raise RuntimeError("WORK_QUEUE_OWNERSHIP_VIOLATION: self-add requires exact owned paths; assigned exceptions use coordination")
+    plan = (repo / "docs/development/coordination/PLAN.md").read_text()
+    approved = next((row for row in plan.splitlines() if row.startswith("| " + str(task.get("plan")) + " |")), None)
+    if approved is None:
+        raise RuntimeError("WORK_QUEUE_APPROVED_PLAN_REQUIRED")
+    task = dict(task, approved_plan_basis=approved)
     with (root / (role + ".lock")).open("a+") as role_lock:
         fcntl.flock(role_lock, fcntl.LOCK_EX)
         if json.loads((root / (role + ".json")).read_text()).get("status") == "STOPPED":

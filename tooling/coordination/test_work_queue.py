@@ -165,13 +165,14 @@ class WorkQueueTests(unittest.TestCase):
             validate_waiting_receipt("C", str(file), "a" * 40, now, self.root)
 
     def test_role_defines_next_requirement_without_controller(self):
-        task = {"id": "a-next", "role": "A", "plan": "A04", "state": "READY", "requires": [], "result": "Verify remaining acceptance criterion", "paths": ["tests/regression/example.mjs"], "acceptance": ["Actual regression fails before fix"], "basis": "SPEC remaining recovery criterion"}
+        task = {"id": "a-next", "role": "A", "plan": "A04", "state": "READY", "requires": [], "result": "Verify remaining acceptance criterion", "paths": ["tests/regression/extension-core/example.mjs"], "acceptance": ["Actual regression fails before fix"], "basis": "SPEC remaining recovery criterion"}
         add_task(self.root, "A", task)
         self.assertEqual(role_work(self.root, "A")["tasks"][-1]["state"], "READY")
+        self.assertTrue(load_board(self.root)["tasks"][-1]["approved_plan_basis"].startswith("| A04 |"))
         with self.assertRaisesRegex(RuntimeError, "WAITING_WORK_QUEUE_AVAILABLE"):
             assert_no_ready_work(self.root, "A")
         before = self.path.read_bytes()
-        for changed in [dict(task, role="B"), dict(task, id="other", plan="B04"), dict(task, id="other", basis=""), dict(task, id="other", requires=["missing"]), task]:
+        for changed in [dict(task, role="B"), dict(task, id="other", plan="B04"), dict(task, id="other", basis=""), dict(task, id="other", paths=["apps/api/src/main.ts"]), dict(task, id="other", paths=["tests/**"]), dict(task, id="other", requires=["missing"]), task]:
             with self.assertRaises(RuntimeError):
                 add_task(self.root, "A", changed)
             self.assertEqual(self.path.read_bytes(), before)
@@ -179,7 +180,7 @@ class WorkQueueTests(unittest.TestCase):
     def test_stopped_role_cannot_self_assign(self):
         path = self.root / "A.json"
         path.write_text(json.dumps({"status": "STOPPED"}))
-        task = {"id": "a-next", "role": "A", "plan": "A04", "state": "READY", "requires": [], "result": "Check", "paths": ["test.py"], "acceptance": ["pass"], "basis": "SPEC"}
+        task = {"id": "a-next", "role": "A", "plan": "A04", "state": "READY", "requires": [], "result": "Check", "paths": ["tests/regression/extension-core/test.mjs"], "acceptance": ["pass"], "basis": "SPEC"}
         before = self.path.read_bytes()
         with self.assertRaisesRegex(RuntimeError, "STOPPED"):
             add_task(self.root, "A", task)
