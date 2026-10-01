@@ -84,6 +84,14 @@
       "paths": [
         "tooling/coordination/test_continuous_independent.py"
       ]
+    },
+    {
+      "owner": "runtime_environment",
+      "branch": "exec/C/runtime-environment-20261001",
+      "paths": [
+        "tooling/coordination/continuous_environment.py",
+        "tooling/coordination/test_continuous_environment.py"
+      ]
     }
   ],
   "constraints": [
@@ -93,5 +101,6 @@
     "No DB/schema/migrations edits",
     "Consumers: control CLI, persistent runtime, A/B/C chats, common controller"
   ],
-  "handoff_note": "Common docs author finished699adda4; rollout now owns runtime consistency sections; no concurrent edit."
+  "handoff_note": "Common docs author finished699adda4; rollout now owns runtime consistency sections; no concurrent edit.",
+  "scope_precedence": "Exact file assignments override runtime_adapter continuous_* glob; no concurrent edits to environment helper or independent tests."
 }
