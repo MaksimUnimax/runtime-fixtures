@@ -1,14 +1,17 @@
 import argparse
 import copy
 import importlib.util
+import hashlib
 import json
 from pathlib import Path
 import tempfile
 import unittest
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from unittest.mock import patch
 
-from work_queue import load_board, role_work, assert_no_ready_work, advance_task, compact_state, board_snapshot, status_work, add_task
+from work_queue import (load_board, role_work, assert_no_ready_work, advance_task, compact_state,
+                        board_snapshot, status_work, add_task, bind_candidate,
+                        register_acceptance, validate_board, revalidate_done, reopen_task)
 from waiting_gate import validate_waiting_receipt, PLAN_IDS
 
 spec = importlib.util.spec_from_file_location("flow_control_test", Path(__file__).with_name("control.py"))
@@ -37,6 +40,46 @@ class WorkQueueTests(unittest.TestCase):
         self.receipt.write_text('{"result":"source-only"}')
         self.args = argparse.Namespace(receipt="", task="", summary="", next="")
 
+    def proof(self, task_id="b-auth", *, reviewer="peer-C", level="SOURCE", dependencies=None):
+        board = json.loads(self.path.read_text())
+        task = next(t for t in board["tasks"] if t["id"] == task_id)
+        task.update(boundary=level, required_checks=["regression"], author="author-" + task["role"],
+                    candidate={"sha": "a" * 40, "tree": "b" * 40, "diff_sha256": "c" * 64})
+        if level != "SOURCE":
+            task["candidate"]["artifact_sha256"] = "d" * 64
+        self.path.write_text(json.dumps(board))
+        (self.root / "controllers/runtime-mode.json").write_text(json.dumps({"mode": "continuous-runtime", "epoch": "test-epoch"}))
+        evidence = self.root / "logs" / (task_id + "-check.json")
+        evidence.write_text('{"test_result":"PASS","actual_scope":"fixture"}')
+        now = datetime.now(timezone.utc)
+        receipt = {"version": 2, "task_id": task_id, "candidate": task["candidate"],
+                   "author": task["author"], "generation": task.get("proof_generation", 0),
+                   "result": "PASS", "level": level, "epoch": "test-epoch",
+                   "issued_at": now.isoformat(), "expires_at": (now + timedelta(hours=1)).isoformat(),
+                   "dependencies": dependencies or {},
+                   "checks": [{"id": "regression", "result": "PASS", "candidate": task["candidate"],
+                               "level": level, "evidence_path": str(evidence),
+                               "evidence_sha256": hashlib.sha256(evidence.read_bytes()).hexdigest()}],
+                   "review": {"reviewer": reviewer, "result": "ACCEPT", "candidate": task["candidate"]}}
+        path = self.root / "logs" / (task_id + "-completion.json")
+        path.write_text(json.dumps(receipt))
+        return path, receipt
+
+    @staticmethod
+    def trusted_verifier(task, payload, digest):
+        # Test double for independently recorded runtime peer-job authority;
+        # production adapter must authenticate the job, never echo caller text.
+        return {"reviewer": payload["review"]["reviewer"], "result": "ACCEPT",
+                "candidate": task["candidate"], "level": task["boundary"],
+                "epoch": "test-epoch", "review_job_id": "independent-peer-job"}
+
+    def complete(self, task_id="b-auth", **options):
+        path, receipt = self.proof(task_id, **options)
+        register_acceptance(self.root, task_id, str(path), review_verifier=self.trusted_verifier)
+        role = next(t["role"] for t in load_board(self.root)["tasks"] if t["id"] == task_id)
+        advance_task(self.root, role, task_id, "DONE", str(path))
+        return path, receipt
+
     def tearDown(self):
         self.tmp.cleanup()
 
@@ -58,7 +101,7 @@ class WorkQueueTests(unittest.TestCase):
     def test_completion_releases_consumer_without_controller(self):
         self.assertEqual(role_work(self.root, "A")["tasks"][0]["state"], "BLOCKED")
         advance_task(self.root, "B", "b-auth", "IN_PROGRESS")
-        advance_task(self.root, "B", "b-auth", "DONE", str(self.receipt))
+        self.complete()
         self.assertEqual(role_work(self.root, "A")["tasks"][0]["state"], "READY")
         with self.assertRaisesRegex(RuntimeError, "WAITING_WORK_QUEUE_AVAILABLE"):
             assert_no_ready_work(self.root, "A")
@@ -208,6 +251,202 @@ class WorkQueueTests(unittest.TestCase):
             advance_task(self.root, "B", "b-auth", "BLOCKED")
         advance_task(self.root, "B", "b-auth", "BLOCKED", str(self.receipt), "Local SMTP test service absent")
         assert_no_ready_work(self.root, "B")
+
+    def test_arbitrary_existing_receipt_does_not_complete_or_unlock(self):
+        for payload in ({"result": "REWORK"}, {"result": "PASS", "sha": "wrong"},
+                        {"tests": [{"exit_code": 1}]}, {"result": "source-only"}):
+            with self.subTest(payload=payload):
+                self.receipt.write_text(json.dumps(payload))
+                before = self.path.read_bytes()
+                with self.assertRaises(RuntimeError):
+                    advance_task(self.root, "B", "b-auth", "DONE", str(self.receipt))
+                self.assertEqual(before, self.path.read_bytes())
+                self.assertEqual(role_work(self.root, "A")["tasks"][0]["state"], "BLOCKED")
+
+    def test_structured_receipt_alone_cannot_establish_authority(self):
+        path, _ = self.proof()
+        for verifier in (None, "controller", {"reviewer": "L2", "result": "ACCEPT"}):
+            with self.subTest(verifier=verifier), self.assertRaisesRegex(RuntimeError, "TRUSTED_REVIEW_VERIFIER_REQUIRED"):
+                register_acceptance(self.root, "b-auth", str(path), review_verifier=verifier)
+        with self.assertRaises(RuntimeError):
+            advance_task(self.root, "B", "b-auth", "DONE", str(path))
+        self.assertFalse((self.root / "controllers/work-acceptances.json").exists())
+
+    def test_rejected_or_wrong_peer_binding_cannot_establish_authority(self):
+        path, _ = self.proof()
+        for changes in ({"result": "REWORK"}, {"reviewer": "unknown"},
+                        {"candidate": {"sha": "f" * 40}}, {"epoch": "old-epoch"},
+                        {"level": "LIVE"}, {"review_job_id": ""}):
+            def verifier(task, payload, digest):
+                return dict(self.trusted_verifier(task, payload, digest), **changes)
+            with self.subTest(changes=changes), self.assertRaises(RuntimeError):
+                register_acceptance(self.root, "b-auth", str(path), review_verifier=verifier)
+
+    def test_negative_receipt_contracts_are_rejected_before_trust(self):
+        path, valid = self.proof()
+        mutations = [
+            lambda x: x.update(result="REWORK"),
+            lambda x: x.update(task_id="a-client"),
+            lambda x: x.update(version=1),
+            lambda x: x.update(candidate=dict(x["candidate"], sha="f" * 40)),
+            lambda x: x.update(generation=99),
+            lambda x: x.update(level="LIVE_OWNER"),
+            lambda x: x.update(epoch="old"),
+            lambda x: x.update(checks=[]),
+            lambda x: x["checks"][0].update(result="FAIL"),
+            lambda x: x["checks"][0].update(candidate={"sha": "f" * 40}),
+            lambda x: x["checks"][0].update(level="LIVE_OWNER"),
+            lambda x: x["checks"][0].update(evidence_sha256="f" * 64),
+            lambda x: x["review"].update(result="REWORK"),
+            lambda x: x["review"].update(reviewer=x["author"]),
+            lambda x: x["review"].update(candidate={"sha": "f" * 40}),
+            lambda x: x.update(expires_at="2000-01-01T00:00:00+00:00"),
+            lambda x: x.update(issued_at="2999-01-01T00:00:00+00:00"),
+            lambda x: x.update(expires_at="2999-01-01T00:00:00"),
+        ]
+        for index, mutate in enumerate(mutations):
+            value = copy.deepcopy(valid)
+            mutate(value)
+            path.write_text(json.dumps(value))
+            with self.subTest(case=index), self.assertRaises(RuntimeError):
+                register_acceptance(self.root, "b-auth", str(path), review_verifier=self.trusted_verifier)
+
+    def test_source_cannot_close_explicit_installed_boundary(self):
+        path, value = self.proof(level="INSTALLED_SYNTHETIC")
+        value["level"] = "SOURCE"
+        value["checks"][0]["level"] = "SOURCE"
+        path.write_text(json.dumps(value))
+        with self.assertRaises(RuntimeError):
+            register_acceptance(self.root, "b-auth", str(path), review_verifier=self.trusted_verifier)
+
+    def test_missing_or_changed_completion_and_check_bytes_invalidate_done(self):
+        for kind in ("completion-missing", "completion-changed", "check-missing", "check-changed"):
+            with self.subTest(kind=kind):
+                self.save()
+                path, receipt = self.complete()
+                affected = path if kind.startswith("completion") else Path(receipt["checks"][0]["evidence_path"])
+                affected.unlink() if kind.endswith("missing") else affected.write_text('{"result":"REWORK"}')
+                self.assertEqual(role_work(self.root, "B")["tasks"][0]["state"], "UNVERIFIED")
+                self.assertEqual(role_work(self.root, "A")["tasks"][0]["state"], "BLOCKED")
+                with self.assertRaisesRegex(RuntimeError, "DEPENDENCY_PENDING"):
+                    advance_task(self.root, "A", "a-client", "IN_PROGRESS")
+                with self.assertRaisesRegex(RuntimeError, "WAITING_WORK_QUEUE_AVAILABLE"):
+                    assert_no_ready_work(self.root, "B")
+
+    def test_changed_task_candidate_contract_or_epoch_invalidates_done(self):
+        for field in ("candidate", "acceptance", "boundary", "epoch", "review-revoked"):
+            with self.subTest(field=field):
+                self.save()
+                self.complete()
+                board = load_board(self.root)
+                if field == "candidate":
+                    board["tasks"][0]["candidate"]["sha"] = "f" * 40
+                elif field == "acceptance":
+                    board["tasks"][0]["acceptance"] = ["new requirement"]
+                elif field == "boundary":
+                    board["tasks"][0]["boundary"] = "LIVE"
+                elif field == "epoch":
+                    (self.root / "controllers/runtime-mode.json").write_text('{"mode":"continuous-runtime","epoch":"new"}')
+                else:
+                    index_path = self.root / "controllers/work-acceptances.json"
+                    index = json.loads(index_path.read_text())
+                    digest = board["tasks"][0]["completion_receipt_sha256"]
+                    index["acceptances"][digest]["revoked"] = True
+                    index_path.write_text(json.dumps(index))
+                self.path.write_text(json.dumps(board))
+                self.assertEqual(role_work(self.root, "A")["tasks"][0]["state"], "BLOCKED")
+                self.assertEqual(role_work(self.root, "B")["tasks"][0]["state"], "UNVERIFIED")
+
+    def test_reopened_done_reblocks_transitive_done_and_old_receipt_cannot_replay(self):
+        producer_path, _ = self.complete()
+        digest = load_board(self.root)["tasks"][0]["completion_receipt_sha256"]
+        self.complete("a-client", dependencies={"b-auth": digest})
+        self.assertEqual(role_work(self.root, "A")["tasks"], [])
+        reopen_task(self.root, "B", "b-auth", "new observed regression")
+        self.assertEqual(role_work(self.root, "A")["tasks"][0]["state"], "BLOCKED")
+        effective = validate_board(self.root)
+        self.assertEqual(effective["board"]["tasks"][1]["state"], "UNVERIFIED")
+        with self.assertRaises(RuntimeError):
+            advance_task(self.root, "B", "b-auth", "DONE", str(producer_path))
+        self.complete()
+        self.assertEqual(role_work(self.root, "A")["tasks"][0]["state"], "UNVERIFIED")
+
+    def test_legacy_done_is_unverified_before_explicit_migration(self):
+        self.board["tasks"][0].update(state="DONE", completion_receipt=str(self.receipt))
+        self.save()
+        before = self.path.read_bytes()
+        self.assertEqual(role_work(self.root, "B")["tasks"][0]["state"], "UNVERIFIED")
+        self.assertEqual(role_work(self.root, "A")["tasks"][0]["state"], "BLOCKED")
+        self.assertEqual(before, self.path.read_bytes())
+        result = revalidate_done(self.root, "B")
+        self.assertEqual(result["invalidated"], ["b-auth"])
+        self.assertEqual(load_board(self.root)["tasks"][0]["state"], "UNVERIFIED")
+        advance_task(self.root, "B", "b-auth", "IN_PROGRESS")
+        self.assertEqual(load_board(self.root)["tasks"][0]["proof_generation"], 1)
+
+    def test_revalidation_preserves_valid_done(self):
+        self.complete()
+        result = revalidate_done(self.root, "B")
+        self.assertEqual(result["invalidated"], [])
+        self.assertEqual(load_board(self.root)["tasks"][0]["state"], "DONE")
+
+    def test_stop_protects_reopen_bind_register_and_migration(self):
+        path, receipt = self.complete()
+        (self.root / "B.json").write_text('{"status":"STOPPED"}')
+        before = self.path.read_bytes()
+        for action in (lambda: reopen_task(self.root, "B", "b-auth", "regression"),
+                       lambda: bind_candidate(self.root, "B", "b-auth", receipt["candidate"], "author-B"),
+                       lambda: register_acceptance(self.root, "b-auth", str(path), review_verifier=self.trusted_verifier),
+                       lambda: revalidate_done(self.root, "B")):
+            with self.assertRaisesRegex(RuntimeError, "STOPPED"):
+                action()
+            self.assertEqual(before, self.path.read_bytes())
+
+    def test_bind_candidate_requires_owner_and_fences_previous_candidate(self):
+        path, receipt = self.proof()
+        register_acceptance(self.root, "b-auth", str(path), review_verifier=self.trusted_verifier)
+        with self.assertRaisesRegex(RuntimeError, "TASK_OWNER"):
+            bind_candidate(self.root, "A", "b-auth", receipt["candidate"], "author-B")
+        bind_candidate(self.root, "B", "b-auth", dict(receipt["candidate"], sha="f" * 40), "author-B")
+        with self.assertRaises(RuntimeError):
+            advance_task(self.root, "B", "b-auth", "DONE", str(path))
+
+    def test_receipt_changed_during_trusted_review_cannot_gain_acceptance(self):
+        path, _ = self.proof()
+        def verifier(task, payload, digest):
+            path.write_text('{"result":"FAIL"}')
+            return self.trusted_verifier(task, payload, digest)
+        with self.assertRaisesRegex(RuntimeError, "RECEIPT_CHANGED"):
+            register_acceptance(self.root, "b-auth", str(path), review_verifier=verifier)
+
+    def test_missing_receipt_index_and_expiry_revalidate_as_unverified(self):
+        path, receipt = self.complete()
+        future = datetime.now(timezone.utc) + timedelta(hours=2)
+        self.assertEqual(validate_board(self.root, now=future)["board"]["tasks"][0]["state"], "UNVERIFIED")
+        (self.root / "controllers/work-acceptances.json").unlink()
+        self.assertEqual(role_work(self.root, "B")["tasks"][0]["state"], "UNVERIFIED")
+        self.assertEqual(role_work(self.root, "A")["tasks"][0]["state"], "BLOCKED")
+
+    def test_duplicate_keys_and_outside_check_evidence_fail_closed(self):
+        path, receipt = self.proof()
+        path.write_text(json.dumps(receipt)[:-1] + ',"result":"PASS"}')
+        with self.assertRaises(RuntimeError):
+            register_acceptance(self.root, "b-auth", str(path), review_verifier=self.trusted_verifier)
+        receipt["checks"][0]["evidence_path"] = "/etc/passwd"
+        path.write_text(json.dumps(receipt))
+        with self.assertRaises(RuntimeError):
+            register_acceptance(self.root, "b-auth", str(path), review_verifier=self.trusted_verifier)
+
+    def test_external_symlink_and_oversized_receipt_rejected(self):
+        path, _ = self.proof()
+        path.unlink()
+        path.symlink_to("/etc/passwd")
+        with self.assertRaises(RuntimeError):
+            register_acceptance(self.root, "b-auth", str(path), review_verifier=self.trusted_verifier)
+        path.unlink()
+        path.write_text("x" * 262145)
+        with self.assertRaises(RuntimeError):
+            register_acceptance(self.root, "b-auth", str(path), review_verifier=self.trusted_verifier)
 
 
 if __name__ == "__main__":
