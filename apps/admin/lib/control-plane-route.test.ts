@@ -20,6 +20,7 @@ function materialize(template: string) {
     .replaceAll("{price_id}", uuid)
     .replaceAll("{price_revision_id}", uuid)
     .replaceAll("{principal_id}", uuid)
+    .replaceAll("{repair_case_id}", uuid)
     .replaceAll("{adapter_id}", uuid)
     .replaceAll("{surface_id}", uuid)
     .replaceAll("{variant_id}", uuid)
@@ -34,10 +35,10 @@ function materialize(template: string) {
 
 describe("admin BFF exact route boundary", () => {
   it("keeps the exact accepted tuple arithmetic", () => {
-    expect(ADMIN_ALLOWED_TUPLES.length).toBe(85);
+    expect(ADMIN_ALLOWED_TUPLES.length).toBe(87);
     expect(OTP_ALLOWED_TUPLES.length).toBe(2);
-    expect(ADMIN_ALLOWED_TUPLES.length + OTP_ALLOWED_TUPLES.length).toBe(87);
-    expect(BFF_ALLOWED_TUPLE_COUNT).toBe(87);
+    expect(ADMIN_ALLOWED_TUPLES.length + OTP_ALLOWED_TUPLES.length).toBe(89);
+    expect(BFF_ALLOWED_TUPLE_COUNT).toBe(89);
   });
   it.each(ADMIN_ALLOWED_TUPLES)("allows accepted admin tuple %s", (tuple) => {
     const separator = tuple.indexOf(" ");
@@ -80,6 +81,11 @@ describe("admin BFF exact route boundary", () => {
     ],
     ["GET", "/v1/admin/ai/profiles/not-a-uuid"],
     ["GET", "/v1/admin/ai/assignments/not-a-uuid"],
+    ["GET", "/v1/admin/health/repair-cases/not-a-uuid/1"],
+    ["GET", `/v1/admin/health/repair-cases/${uuid}/0`],
+    ["GET", `/v1/admin/health/repair-cases/${uuid}/nope`],
+    ["POST", "/v1/admin/health/repair-cases"],
+    ["POST", `/v1/admin/health/repair-cases/${uuid}/1`],
     [
       "GET",
       "/v1/admin/ai/profiles/123e4567-e89b-42d3-a456-426614174000/revisions/%2e%2e",
