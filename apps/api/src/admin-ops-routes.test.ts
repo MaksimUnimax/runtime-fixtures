@@ -773,7 +773,21 @@ describe("P6.2 admin API boundary", () => {
         (count, path) => count + Object.keys(path).length,
         0,
       ),
-    ).toBe(142);
+    ).toBe(145);
+    expect(
+      Object.keys(document.paths["/v1/admin/beta/invitations"] ?? {}),
+    ).toEqual(["post"]);
+    expect(
+      Object.keys(
+        document.paths["/v1/admin/beta/invitations/{invitation_id}"] ?? {},
+      ),
+    ).toEqual(["get"]);
+    expect(
+      Object.keys(
+        document.paths["/v1/admin/beta/invitations/{invitation_id}/revoke"] ??
+          {},
+      ),
+    ).toEqual(["post"]);
     expect(
       Object.keys(
         document.paths["/v1/admin/compatibility/releases/{version}"] ?? {},

@@ -135,8 +135,18 @@ testing. The create audit now omits any target-email derivative entirely;
 invitation ID remains the audit correlation key. PostgreSQL regression asserts
 that invitation audit metadata contains no `identityHash` field.
 
-R1, R2 and R3 are rework evidence, not final acceptance. Publication requires a
-fresh independent review of the exact candidate after all corrections.
+R1, R2 and R3 are rework evidence. R4 independently reviewed exact
+`74de0463ea2a357a7c5ad4d127bc2b66a1dedd4a` after those source/privacy
+corrections and returned PASS with no High/Medium finding.
+
+The first exact-head Server CI then exposed two stale API surface-contract
+expectations only: the canonical method tuple count still expected 142 instead
+of 145, and the OpenAPI expected-path inventory omitted the three new invitation
+routes. Runtime route code, invitation semantics and generated OpenAPI were
+already correct. The companion task
+`B04-TARGETED-REVIEWER-API-SURFACE-TESTS` updates only those two test
+inventories. Final publication still requires a fresh independent review and
+five CI workflows on the exact corrected candidate.
 
 ## Verification
 
@@ -151,7 +161,14 @@ Focused SOURCE checks:
 - OpenAPI generation/check: PASS;
 - documentation check: PASS;
 - release-safety node tests: **42/42 PASS**;
-- `git diff --check`: PASS.
+- `git diff --check`: PASS;
+- companion API surface tests after the Server-CI diagnosis:
+  `admin-ops-routes.test.ts` + `openapi.test.ts`: **30/30 PASS**;
+- full root `pnpm test` after the companion correction: **PASS**, including
+  `apps/api` **284/284 PASS** and `bridge:guard` PASS;
+- full-unit resource unit:
+  `octoport-test-b-38d666d16567458092cbdcaae9289e7e.service`, exit 0,
+  peak about 3017 MiB, cleanup verified.
 
 Final disposable PostgreSQL acceptance uses the canonical sequential
 integration config through the B resource supervisor:
