@@ -54,7 +54,13 @@ const material = loadConfigSigningMaterial({
 let db: DatabaseRuntime;
 let access: ExtensionAuthService;
 let app: ReturnType<typeof createApiApp>;
-let principal: { accountId: string; deviceId: string; token: string };
+let principal: {
+  accountId: string;
+  deviceId: string;
+  sessionId: string;
+  token: string;
+  refreshToken: string;
+};
 const request = (deviceId = principal.deviceId) => ({
   contractVersion: "control_plane_v1",
   extensionVersion: "1.2.3",
@@ -69,7 +75,10 @@ async function clean() {
     "TRUNCATE audit_events,config_release_rollout_revisions,config_release_feature_rules,rollouts,feature_rule_revisions,feature_definitions,config_release_compatibility_policies,config_releases,signing_key_events,signing_keys,compatibility_policy_blocked_versions,compatibility_policy_revisions,extension_release_browsers,extension_release_contracts,extension_releases,refresh_tokens,sessions,devices,device_authorizations,portal_sessions,user_identities,account_memberships,accounts,users,auth_rate_limit_buckets RESTART IDENTITY CASCADE",
   );
 }
-async function authenticated() {
+async function authenticated(
+  extensionVersion = "1.2.3",
+  browserFamily = "chrome",
+) {
   const userId = randomUUID(),
     accountId = randomUUID(),
     deviceId = randomUUID(),
@@ -77,8 +86,8 @@ async function authenticated() {
   await db.query("INSERT INTO users(id) VALUES($1)", [userId]);
   await db.query("INSERT INTO accounts(id) VALUES($1)", [accountId]);
   await db.query(
-    "INSERT INTO devices(id,account_id,created_by_user_id,browser_family,extension_version_last_seen) VALUES($1,$2,$3,'chrome','1.2.3')",
-    [deviceId, accountId, userId],
+    "INSERT INTO devices(id,account_id,created_by_user_id,browser_family,extension_version_last_seen) VALUES($1,$2,$3,$4,$5)",
+    [deviceId, accountId, userId, browserFamily, extensionVersion],
   );
   await db.query(
     "INSERT INTO sessions(id,device_id,account_id,token_family_id) VALUES($1,$2,$3,$4)",
@@ -86,7 +95,13 @@ async function authenticated() {
   );
   const issued = await access.issue(sessionId);
   if (!issued.ok) throw new Error(issued.code);
-  return { accountId, deviceId, token: issued.value.accessToken };
+  return {
+    accountId,
+    deviceId,
+    sessionId,
+    token: issued.value.accessToken,
+    refreshToken: issued.value.refreshToken,
+  };
 }
 async function graph(
   options: {
@@ -161,6 +176,63 @@ async function graph(
       featureRuleRevisionIds: [feature.id],
       featureRolloutRevisionIds: [],
       publishedAt: now,
+    },
+    context,
+  );
+}
+
+async function store0211UpgradeGraph(
+  options: { targetRelease?: boolean } = {},
+) {
+  const publication = createP3PolicyPublicationRepository(db);
+  const publishedAt = new Date("2026-10-01T00:00:00.000Z");
+  const policy = await publication.publishCompatibilityPolicyRevision(
+    {
+      policyKey: "store1.opera.v2",
+      contractVersion: "control_plane_v2",
+      browserFamily: "opera",
+      minimumExtensionVersion: "0.2.9",
+      recommendedExtensionVersion:
+        options.targetRelease === false ? "0.2.9" : "0.2.11",
+      minimumBrowserVersion: "136",
+      maintenanceMode: false,
+      maintenanceCode: null,
+      blockedVersions: [],
+      publishedAt,
+    },
+    context,
+  );
+  await publication.publishExtensionRelease(
+    {
+      version: "0.2.9",
+      releaseChannel: "stable",
+      releasedAt: publishedAt,
+      supportedContracts: ["control_plane_v2"],
+      supportedBrowsers: ["opera"],
+    },
+    context,
+  );
+  if (options.targetRelease !== false)
+    await publication.publishExtensionRelease(
+      {
+        version: "0.2.11",
+        releaseChannel: "stable",
+        releasedAt: new Date(publishedAt.getTime() + 1),
+        supportedContracts: ["control_plane_v2"],
+        supportedBrowsers: ["opera"],
+      },
+      context,
+    );
+  return publication.publishConfigRelease(
+    {
+      contractVersion: "control_plane_v2",
+      snapshotVersion: "bootstrap_snapshot_v2",
+      envelopeVersion: "bootstrap_envelope_v2",
+      signingKeyId: material.keyId,
+      compatibilityPolicyRevisionIds: [policy.id],
+      featureRuleRevisionIds: [],
+      featureRolloutRevisionIds: [],
+      publishedAt: new Date(publishedAt.getTime() + 2),
     },
     context,
   );
@@ -310,6 +382,14 @@ async function post(body: unknown, token = principal.token) {
     url: "/v1/bootstrap",
     headers: token ? { authorization: `Bearer ${token}` } : {},
     payload: body,
+  });
+}
+async function postRefresh(refreshToken: string, idempotencyKey: string) {
+  return app.inject({
+    method: "POST",
+    url: "/v1/auth/refresh",
+    headers: { "idempotency-key": idempotencyKey },
+    payload: { refreshToken },
   });
 }
 
@@ -480,6 +560,175 @@ describe.sequential("P3.4 real PostgreSQL authenticated bootstrap", () => {
         configVersion: v2Release.configVersion,
       },
     });
+  });
+
+  it("refreshes an existing 0.2.9 Opera session and then signs exact 0.2.11 v2 bootstrap without re-registration", async () => {
+    const legacy = await authenticated("0.2.9", "opera");
+    const release = await store0211UpgradeGraph();
+    const refreshedResponse = await postRefresh(
+      legacy.refreshToken,
+      "store0211-upgrade-refresh",
+    );
+    expect(refreshedResponse.statusCode).toBe(200);
+    const refreshed = refreshedResponse.json<{
+      accessToken: string;
+      refreshToken: string;
+    }>();
+
+    const counts = await db.query<{
+      devices: string;
+      sessions: string;
+      refreshes: string;
+      admissions: string;
+    }>(
+      `SELECT
+         (SELECT count(*)::text FROM devices WHERE account_id=$1) AS devices,
+         (SELECT count(*)::text FROM sessions WHERE account_id=$1) AS sessions,
+         (SELECT count(*)::text FROM refresh_tokens WHERE session_id=$2) AS refreshes,
+         (SELECT count(*)::text FROM beta_admissions WHERE account_id=$1) AS admissions`,
+      [legacy.accountId, legacy.sessionId],
+    );
+    expect(counts.rows[0]).toEqual({
+      devices: "1",
+      sessions: "1",
+      refreshes: "2",
+      admissions: "0",
+    });
+
+    const response = await post(
+      {
+        contractVersion: "control_plane_v2",
+        extensionVersion: "0.2.11",
+        browser: { family: "opera", version: "136.0.6008.22" },
+        deviceId: legacy.deviceId,
+        lastConfigVersion: null,
+      },
+      refreshed.accessToken,
+    );
+    expect(response.statusCode).toBe(200);
+    const verified = verifyBootstrapEnvelopeV2(
+      response.json(),
+      new Map([[material.keyId, material.publicKey]]),
+    );
+    expect(verified).toMatchObject({
+      ok: true,
+      payload: {
+        contractVersion: "control_plane_v2",
+        configVersion: release.configVersion,
+        account: { id: legacy.accountId, status: "ACTIVE" },
+        devicePolicy: { status: "ACTIVE" },
+        compatibility: {
+          extension: { status: "SUPPORTED" },
+          browser: { status: "SUPPORTED" },
+        },
+      },
+    });
+  });
+
+  it("keeps refresh separate from 0.2.11 catalog compatibility", async () => {
+    const legacy = await authenticated("0.2.9", "opera");
+    await store0211UpgradeGraph({ targetRelease: false });
+    const refreshedResponse = await postRefresh(
+      legacy.refreshToken,
+      "store0211-no-target",
+    );
+    expect(refreshedResponse.statusCode).toBe(200);
+    const refreshed = refreshedResponse.json<{ accessToken: string }>();
+
+    const oldResponse = await post(
+      {
+        contractVersion: "control_plane_v2",
+        extensionVersion: "0.2.9",
+        browser: { family: "opera", version: "136.0.6008.22" },
+        deviceId: legacy.deviceId,
+        lastConfigVersion: null,
+      },
+      refreshed.accessToken,
+    );
+    expect(oldResponse.statusCode).toBe(200);
+    const oldVerified = verifyBootstrapEnvelopeV2(
+      oldResponse.json(),
+      new Map([[material.keyId, material.publicKey]]),
+    );
+    expect(oldVerified).toMatchObject({
+      ok: true,
+      payload: {
+        account: { id: legacy.accountId, status: "ACTIVE" },
+        compatibility: {
+          extension: { status: "SUPPORTED" },
+          browser: { status: "SUPPORTED" },
+        },
+      },
+    });
+
+    const targetResponse = await post(
+      {
+        contractVersion: "control_plane_v2",
+        extensionVersion: "0.2.11",
+        browser: { family: "opera", version: "136.0.6008.22" },
+        deviceId: legacy.deviceId,
+        lastConfigVersion: null,
+      },
+      refreshed.accessToken,
+    );
+    expect(targetResponse.statusCode).toBe(200);
+    const targetVerified = verifyBootstrapEnvelopeV2(
+      targetResponse.json(),
+      new Map([[material.keyId, material.publicKey]]),
+    );
+    expect(targetVerified).toMatchObject({
+      ok: true,
+      payload: {
+        account: { id: legacy.accountId, status: "ACTIVE" },
+        compatibility: {
+          extension: { status: "UPDATE_REQUIRED" },
+          browser: { status: "UNSUPPORTED_BROWSER" },
+        },
+      },
+    });
+  });
+
+  it("does not let a 0.2.11 version transition resurrect revoked device authority", async () => {
+    const legacy = await authenticated("0.2.9", "opera");
+    await store0211UpgradeGraph();
+    const firstRefresh = await postRefresh(
+      legacy.refreshToken,
+      "store0211-before-revoke",
+    );
+    expect(firstRefresh.statusCode).toBe(200);
+    const refreshed = firstRefresh.json<{
+      accessToken: string;
+      refreshToken: string;
+    }>();
+
+    await db.query(
+      "UPDATE devices SET status='REVOKED',revoked_at=now() WHERE id=$1",
+      [legacy.deviceId],
+    );
+
+    const bootstrap = await post(
+      {
+        contractVersion: "control_plane_v2",
+        extensionVersion: "0.2.11",
+        browser: { family: "opera", version: "136.0.6008.22" },
+        deviceId: legacy.deviceId,
+        lastConfigVersion: null,
+      },
+      refreshed.accessToken,
+    );
+    expect(bootstrap.statusCode).toBe(401);
+
+    const secondRefresh = await postRefresh(
+      refreshed.refreshToken,
+      "store0211-after-revoke",
+    );
+    expect(secondRefresh.statusCode).toBe(401);
+    expect(secondRefresh.json().error.code).toBe("AUTH_REFRESH_INVALID");
+    const rows = await db.query<{ count: string }>(
+      "SELECT count(*)::text AS count FROM refresh_tokens WHERE session_id=$1",
+      [legacy.sessionId],
+    );
+    expect(rows.rows[0]?.count).toBe("2");
   });
 
   it("serves a verified privacy-neutral v2 snapshot without client software metadata", async () => {
