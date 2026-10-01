@@ -22,6 +22,7 @@ import {
   createP5SubscriptionRepository,
   createP7AdminAiReadRepository,
   createP7AdminAiCommandRepository,
+  createMonitorProfileRepairReadRepository,
   createProfileLifecycleRepository,
   authorizeAdminMutationInTransaction,
   createBetaAdmissionRepository,
@@ -202,6 +203,8 @@ async function main(): Promise<void> {
           beforeMutation: authorizeAdminMutationInTransaction,
         }),
       ),
+      healthRepairAdminService:
+        createMonitorProfileRepairReadRepository(database),
       betaAdmissionService: betaAdmission,
     });
     await app.listen({ host: "127.0.0.1", port: config.apiPort });

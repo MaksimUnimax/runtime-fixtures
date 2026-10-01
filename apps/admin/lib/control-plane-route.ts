@@ -19,6 +19,8 @@ export const ADMIN_ALLOWED_TUPLES = [
   "GET /v1/admin/commercial/prices",
   "GET /v1/admin/commercial/prices/{price_id}",
   "GET /v1/admin/compatibility/policies",
+  "GET /v1/admin/health/repair-cases",
+  "GET /v1/admin/health/repair-cases/{repair_case_id}/{revision}",
   "GET /v1/admin/me",
   "GET /v1/admin/principals",
   "GET /v1/admin/users",
@@ -105,7 +107,8 @@ const segmentPattern = (segment: string): string => {
     segment === "{plan_revision_id}" ||
     segment === "{price_id}" ||
     segment === "{price_revision_id}" ||
-    segment === "{principal_id}"
+    segment === "{principal_id}" ||
+    segment === "{repair_case_id}"
   )
     return UUID;
   if (
