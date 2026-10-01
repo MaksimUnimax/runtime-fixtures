@@ -75,7 +75,6 @@ export type BetaAdmissionRepository = {
     actorPrincipalId: string;
     requestIdHash: string;
     payloadHash: string;
-    identityHash: string;
     correlationId: string;
     expectedRevision: number;
     normalizedIdentityTarget: string;
@@ -150,10 +149,6 @@ export function betaPayloadHash(
 
 export function betaInvitationRequestIdHash(value: string): string {
   return digest("beta-invitation-request-id", value);
-}
-
-export function betaInvitationIdentityHash(value: string): string {
-  return digest("beta-invitation-identity", value);
 }
 
 export function betaInvitationCreatePayloadHash(
@@ -249,7 +244,6 @@ export class BetaAdmissionService {
       ...input,
       requestIdHash: betaInvitationRequestIdHash(input.requestId),
       payloadHash: betaInvitationCreatePayloadHash(input),
-      identityHash: betaInvitationIdentityHash(input.normalizedIdentityTarget),
       expiresAt: new Date(
         this.now().getTime() + BETA_IDENTITY_INVITATION_TTL_MS,
       ),

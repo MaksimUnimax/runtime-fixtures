@@ -227,7 +227,6 @@ export function createBetaAdmissionRepository(
             input.correlationId,
             safeInvitationAuditReason(input.reason),
             JSON.stringify({
-              identityHash: input.identityHash,
               requestIdHash: input.requestIdHash,
               expiresAt: input.expiresAt.toISOString(),
             }),

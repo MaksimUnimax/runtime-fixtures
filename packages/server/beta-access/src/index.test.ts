@@ -68,7 +68,6 @@ describe("S1.1 beta admission domain", () => {
       | {
           requestIdHash: string;
           payloadHash: string;
-          identityHash: string;
           expiresAt: Date;
         }
       | undefined;
@@ -105,7 +104,6 @@ describe("S1.1 beta admission domain", () => {
     expect(captured).toBeDefined();
     expect(captured!.requestIdHash).not.toContain("invite-request-1234");
     expect(captured!.payloadHash).not.toContain("reviewer@example.test");
-    expect(captured!.identityHash).not.toContain("reviewer@example.test");
     expect(captured!.expiresAt.toISOString()).toBe("2030-01-02T00:00:00.000Z");
   });
 });

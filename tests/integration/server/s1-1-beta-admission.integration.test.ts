@@ -370,6 +370,7 @@ describe.sequential("S1.1 beta admission on real PostgreSQL", () => {
         expect(row.reason).not.toContain(rawEmail);
         expect(row.safe).not.toContain(rawEmail);
       }
+      expect(row.safe).not.toContain("identityHash");
     }
   });
 

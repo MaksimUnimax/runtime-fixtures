@@ -18,8 +18,8 @@ email identity while beta remains `CLOSED`. Creating the invitation:
 - creates no user, account, membership, email identity, beta admission,
   portal session, OTP challenge, or extension device;
 - stores the normalized target only in the invitation authority table;
-- writes only a one-way identity hash to audit metadata and redacts
-  email-shaped text from operator-supplied invitation audit reasons;
+- writes no raw or directly guessable derivative of the target email to audit
+  metadata; operator-supplied invitation audit reasons redact email-shaped text;
 - is request/payload-idempotent and fail-closed on a reused request ID with a
   different payload or target;
 - conflicts with an already-existing email identity or another active
@@ -128,8 +128,15 @@ matches the same non-whitespace `local@domain.suffix` shape regardless of
 Unicode code points, and the PostgreSQL regression includes
 `reviewer@bücher.example`.
 
-Neither R1 nor R2 is treated as final acceptance. Publication requires a fresh
-independent review of the exact final candidate after these corrections.
+R3 review found one further Medium privacy gap: audit metadata still stored an
+unkeyed SHA-256 derivative of the normalized invitee email. Because email
+addresses are guessable, that digest could be reversed by offline candidate
+testing. The create audit now omits any target-email derivative entirely;
+invitation ID remains the audit correlation key. PostgreSQL regression asserts
+that invitation audit metadata contains no `identityHash` field.
+
+R1, R2 and R3 are rework evidence, not final acceptance. Publication requires a
+fresh independent review of the exact candidate after all corrections.
 
 ## Verification
 
@@ -153,10 +160,19 @@ integration config through the B resource supervisor:
 - S1.1 beta admission integration: **20/20 PASS**;
 - total: **39/39 PASS**;
 - resource unit:
-  `octoport-test-b-cc0bc160809f48548223a170f9609fa8.service`;
+  `octoport-test-b-71f5cb2ceef1452c8396e054a5c99873.service`;
+- exact runner: Vitest with `--no-file-parallelism --maxWorkers=1` so the two
+  integration files cannot reset the same disposable DB concurrently;
 - exit code: 0;
-- peak memory: about 424 MiB;
+- peak memory: about 423 MiB;
+- OOM kills: 0;
 - cleanup: verified.
+
+One preceding combined Vitest attempt used the default file-parallel mode and
+was rejected as invalid evidence after the two test files concurrently reset the
+same disposable database, causing cross-file TRUNCATE/deadlock/state
+interference. The corrected sequential resource run above is the acceptance
+evidence.
 
 The matrix covers CLOSED invited success, CLOSED uninvited zero-partial denial,
 PAUSED denial, expiry/revoke, expiry **after waiting on the identity lock**,
