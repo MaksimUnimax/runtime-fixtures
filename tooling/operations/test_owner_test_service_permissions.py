@@ -2,10 +2,13 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import os
 import stat
+import subprocess
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 SOURCE = Path(__file__).with_name("owner_test_service_permissions.py")
@@ -136,6 +139,57 @@ class PermissionHelpersTest(unittest.TestCase):
             import shutil
             shutil.rmtree(root)
             outside.unlink(missing_ok=True)
+
+
+    def test_child_probe_checks_full_release_roots_and_fails_closed(self):
+        root_a = Path("/opt/octoport/ops-releases") / ("a" * 40)
+        root_b = Path("/opt/octoport/ops-releases") / ("b" * 40)
+        units = {
+            "api": {
+                "root": root_a,
+                "working": root_a / "apps/api",
+                "binary": root_a / ".runtime/node",
+                "execPaths": [root_a / ".runtime/node", root_a / "apps/api/src/main.ts"],
+                "env": Path("/etc/seller-agents-owner-test/api.env"),
+            },
+            "portal": {
+                "root": root_b,
+                "working": root_b / "apps/portal",
+                "binary": root_b / ".runtime/node",
+                "execPaths": [root_b / ".runtime/node", root_b / "apps/portal/server.js"],
+                "env": Path("/etc/seller-agents-owner-test/portal.env"),
+            },
+        }
+        writable = {"api": Path("/tmp/disposable-api")}
+        good = {
+            "nonRoot": True,
+            "supplementaryGroupsCleared": True,
+            "releaseTreesAccessible": True,
+            "releaseTreesWriteDenied": True,
+            "workingDirectoriesAccessible": True,
+            "execPathsAccessible": True,
+            "protectedConfigReadDenied": True,
+            "protectedConfigWriteOpenDenied": True,
+            "disposableWritesPassed": True,
+        }
+        completed = subprocess.CompletedProcess(
+            args=["setpriv"], returncode=0, stdout=json.dumps(good), stderr=""
+        )
+        with mock.patch.object(p.subprocess, "run", return_value=completed) as run:
+            self.assertEqual(p.run_child_probe(units, writable), good)
+            payload = json.loads(run.call_args.args[0][-1])
+            self.assertEqual(
+                payload["releaseRoots"], sorted([str(root_a), str(root_b)])
+            )
+        bad = dict(good, releaseTreesWriteDenied=False)
+        failed = subprocess.CompletedProcess(
+            args=["setpriv"], returncode=0, stdout=json.dumps(bad), stderr=""
+        )
+        with mock.patch.object(p.subprocess, "run", return_value=failed):
+            with self.assertRaisesRegex(
+                p.ProbeError, "NONROOT_PERMISSION_BOUNDARY_FAILED"
+            ):
+                p.run_child_probe(units, writable)
 
     def test_state_signature_uses_only_stability_fields(self):
         units = {

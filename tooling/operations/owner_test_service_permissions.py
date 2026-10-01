@@ -212,12 +212,43 @@ payload=json.loads(sys.argv[1])
 result={
  "nonRoot": os.geteuid()!=0,
  "supplementaryGroupsCleared": len(os.getgroups())==0,
+ "releaseTreesAccessible": True,
+ "releaseTreesWriteDenied": True,
  "workingDirectoriesAccessible": True,
  "execPathsAccessible": True,
  "protectedConfigReadDenied": True,
  "protectedConfigWriteOpenDenied": True,
  "disposableWritesPassed": True,
 }
+for raw_root in payload["releaseRoots"]:
+    stack=[pathlib.Path(raw_root)]
+    while stack:
+        p=stack.pop()
+        try:
+            is_link=p.is_symlink()
+            if is_link:
+                target_is_dir=p.is_dir()
+                needed=os.R_OK | (os.X_OK if target_is_dir else 0)
+                if not os.access(p, needed):
+                    result["releaseTreesAccessible"]=False
+                if os.access(p, os.W_OK):
+                    result["releaseTreesWriteDenied"]=False
+                continue
+            if p.is_dir():
+                if not os.access(p, os.R_OK | os.X_OK):
+                    result["releaseTreesAccessible"]=False
+                if os.access(p, os.W_OK):
+                    result["releaseTreesWriteDenied"]=False
+                stack.extend(p.iterdir())
+            elif p.is_file():
+                if not os.access(p, os.R_OK):
+                    result["releaseTreesAccessible"]=False
+                if os.access(p, os.W_OK):
+                    result["releaseTreesWriteDenied"]=False
+            else:
+                result["releaseTreesAccessible"]=False
+        except Exception:
+            result["releaseTreesAccessible"]=False
 for unit in payload["units"]:
     try:
         os.chdir(unit["working"])
@@ -269,6 +300,7 @@ def run_child_probe(
             }
             for value in units.values()
         ],
+        "releaseRoots": sorted({str(value["root"]) for value in units.values()}),
         "protected": sorted({str(value["env"]) for value in units.values()}),
         "writable": [str(path) for path in writable.values()],
     }
@@ -296,6 +328,8 @@ def run_child_probe(
     required = {
         "nonRoot",
         "supplementaryGroupsCleared",
+        "releaseTreesAccessible",
+        "releaseTreesWriteDenied",
         "workingDirectoriesAccessible",
         "execPathsAccessible",
         "protectedConfigReadDenied",
@@ -374,6 +408,8 @@ def run_live() -> dict[str, object]:
         "units": public_units,
         "releaseTrees": release_summaries,
         "protectedConfig": protected,
+        "releaseTreesAccessible": child["releaseTreesAccessible"],
+        "releaseTreesWriteDenied": child["releaseTreesWriteDenied"],
         "workingDirectoriesAccessible": child["workingDirectoriesAccessible"],
         "execPathsAccessible": child["execPathsAccessible"],
         "protectedConfigReadDenied": child["protectedConfigReadDenied"],
