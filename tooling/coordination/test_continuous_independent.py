@@ -10,6 +10,7 @@ from unittest import mock
 import continuous_state as state
 import continuous_adapter as adapter
 import continuous_runtime as runtime
+import continuous_lifecycle as lifecycle
 
 
 class RuntimeIndependent(unittest.TestCase):
@@ -482,6 +483,332 @@ class RuntimeIndependent(unittest.TestCase):
         task_b = self.task(id="task-B", requirement_id="req-B", role="B", plan="B01",
                            paths=["apps/b/source.py"])
         state.validate_task(self.cfg, task_b)
+
+    def capacity_fixture(self):
+        import contextlib
+        row = self.add(spec={"worktree": str(self.repo)}, current="BLOCKED", token=2)
+        self.conn.execute("UPDATE jobs SET reason='RESOURCE_ADMISSION_WAIT' WHERE id='job-A'")
+        self.conn.commit()
+        stack = contextlib.ExitStack()
+        self.addCleanup(stack.close)
+        mocks = {}
+        for name, result in (("active_jobs", []), ("snapshot", {"fixture": True}),
+                             ("effective_budget", {"fixture": True}), ("admission", None)):
+            mocks[name] = stack.enter_context(mock.patch.object(
+                lifecycle.resource_runner, name, return_value=result))
+        return mocks
+
+    def test_capacity_never_replays_any_prior_codex_intent(self):
+        self.capacity_fixture()
+        state.event(self.conn, "codex_launch_intent", "job-A", token=1)
+        lifecycle.readmit_capacity(self.cfg, self.conn)
+        self.assertEqual("BLOCKED", self.current()["state"])
+
+    def test_capacity_rechecks_locks_admission_and_is_idempotent(self):
+        mocks = self.capacity_fixture()
+        for path in (self.control / "codex-A.lock", state.root(self.cfg) / "locks/job-A.lock"):
+            with state.lock(path):
+                lifecycle.readmit_capacity(self.cfg, self.conn)
+            self.assertEqual("BLOCKED", self.current()["state"])
+        mocks["active_jobs"].return_value = [{"role": "A", "fixture_live_group": True}]
+        mocks["admission"].return_value = ["capacity occupied"]
+        lifecycle.readmit_capacity(self.cfg, self.conn)
+        self.assertEqual("BLOCKED", self.current()["state"])
+        self.assertEqual(mocks["active_jobs"].return_value,
+                         mocks["admission"].call_args.args[1])
+        mocks["active_jobs"].return_value = []
+        mocks["admission"].return_value = None
+        lifecycle.readmit_capacity(self.cfg, self.conn)
+        lifecycle.readmit_capacity(self.cfg, self.conn)
+        self.assertEqual("READY", self.current()["state"])
+        self.assertEqual(1, self.conn.execute(
+            "SELECT COUNT(*) FROM events WHERE event='capacity_readmitted'").fetchone()[0])
+
+    def integrated_fixture(self, archived=False):
+        import subprocess
+        _, authored, directory = self.check_fixture()
+        base = state.git(self.repo, "rev-parse", "HEAD")
+        copy = self.control / "worktrees/A/runtime-job-A"
+        subprocess.run(["git", "-C", str(self.repo), "worktree", "add", "--detach",
+                        str(copy), base], check=True, capture_output=True)
+        authored["worktree"] = str(copy)
+        self.conn.execute("UPDATE jobs SET state='INTEGRATED',spec=? WHERE id='job-A'",
+                          (state.encode(authored),))
+        candidate = {"sha": base, "tree": state.git(copy, "rev-parse", "HEAD^{tree}"),
+                     "diff_sha256": state.digest("")}
+        receipt = directory / "completion-receipt.json"
+        state.atomic_json(receipt, {"fixture": "canonical queue is mocked, not this receipt's authority"})
+        spec = {"author_job": "job-A", "task_id": "task-A",
+                "candidate": candidate, "receipt": str(receipt)}
+        self.add("integration-A", role="C", kind="integrate", spec=spec, current="DONE")
+        self.conn.execute("UPDATE jobs SET result=? WHERE id='integration-A'",
+                          (state.encode({"head": base, "remote_readback": base}),))
+        reference = {"task_id": "task-A", "candidate": candidate,
+                     "event_id": "stable-archive-event-A"}
+        if archived:
+            self.conn.execute("INSERT INTO meta VALUES(?,?)",
+                              ("archive:integration-A", state.encode(reference)))
+        self.conn.commit()
+        task = self.task(candidate=candidate, completion_receipt=str(receipt))
+        return copy, task, reference
+
+    def add_scope_claim(self):
+        import time
+        self.conn.execute("INSERT INTO claims VALUES(?,?,?,?,?,?,'ACTIVE',?)",
+                          ("claim-A", "A", "fixture", "base", state.encode(self.task()["paths"]),
+                           state.digest("fixture-token"), time.time()))
+        self.conn.commit()
+
+    def test_cleanup_preserves_active_related_job(self):
+        copy, _, _ = self.integrated_fixture(archived=True)
+        self.add("late-review", role="B", kind="review",
+                 spec={"author_job": "job-A"}, current="READY")
+        lifecycle.cleanup_final_worktrees(self.cfg, self.conn)
+        self.assertTrue(copy.is_dir(), "Clean source was removed while a related job was active")
+
+    def test_cleanup_preserves_active_scope_claim(self):
+        copy, _, _ = self.integrated_fixture(archived=True)
+        self.add_scope_claim()
+        lifecycle.cleanup_final_worktrees(self.cfg, self.conn)
+        self.assertTrue(copy.is_dir(), "Clean source was removed despite an active claim")
+
+    def test_cleanup_respects_current_stop(self):
+        copy, _, _ = self.integrated_fixture(archived=True)
+        state.atomic_json(self.control / "A.json", {"status": "STOPPED"})
+        lifecycle.cleanup_final_worktrees(self.cfg, self.conn)
+        self.assertTrue(copy.is_dir(), "STOP did not protect the retained worktree")
+
+    def test_cleanup_only_final_clean_copy_once(self):
+        copy, _, _ = self.integrated_fixture(archived=True)
+        lifecycle.cleanup_final_worktrees(self.cfg, self.conn)
+        lifecycle.cleanup_final_worktrees(self.cfg, self.conn)
+        self.assertFalse(copy.exists())
+        self.assertEqual(1, self.conn.execute(
+            "SELECT COUNT(*) FROM events WHERE event='final_worktree_cleaned' AND job='job-A'"
+        ).fetchone()[0])
+        self.assertTrue(self.repo.is_dir())
+
+    def canonical_archive_stub(self, task):
+        def archive(control, role, ids, *, archive_verifier, limit):
+            claim = archive_verifier(task, state.digest(Path(task["completion_receipt"]).read_bytes()))
+            self.assertEqual("FINAL", claim["state"])
+            self.assertEqual("INTEGRATED", claim["integration"])
+            self.assertEqual([], claim["active_leases"])
+            return {"fixture": "canonical queue boundary already verified"}
+        return archive
+
+    def test_archive_requires_final_readback_and_no_pending_jobs(self):
+        _, task, reference = self.integrated_fixture()
+        with mock.patch.object(lifecycle.work_queue, "archive_done",
+                               side_effect=self.canonical_archive_stub(task)) as archive:
+            with mock.patch.object(lifecycle.work_queue, "archived_task", return_value=reference):
+                lifecycle.archive_integrated(self.cfg, self.conn, busy_roles=("A",))
+                archive.assert_not_called()
+                self.conn.execute("UPDATE jobs SET result=? WHERE id='integration-A'",
+                                  (state.encode({"head": "x", "remote_readback": "y"}),))
+                self.conn.commit()
+                lifecycle.archive_integrated(self.cfg, self.conn)
+                archive.assert_not_called()
+                self.conn.execute("UPDATE jobs SET result=? WHERE id='integration-A'",
+                                  (state.encode({"head": "x", "remote_readback": "x"}),))
+                self.add("late-review", role="B", kind="review",
+                         spec={"author_job": "job-A"}, current="READY")
+                lifecycle.archive_integrated(self.cfg, self.conn)
+                archive.assert_not_called()
+
+    def test_archive_active_claim_prevents_consumption(self):
+        _, task, reference = self.integrated_fixture()
+        self.add_scope_claim()
+        with mock.patch.object(lifecycle.work_queue, "archive_done",
+                               side_effect=self.canonical_archive_stub(task)):
+            with mock.patch.object(lifecycle.work_queue, "archived_task", return_value=reference):
+                lifecycle.archive_integrated(self.cfg, self.conn)
+        self.assertIsNone(self.conn.execute(
+            "SELECT 1 FROM meta WHERE key='archive:integration-A'").fetchone())
+        self.assertEqual(0, self.conn.execute(
+            "SELECT COUNT(*) FROM events WHERE event='queue_archive_consumed'").fetchone()[0])
+
+    def test_archive_recovery_consumes_stable_event_once(self):
+        _, task, reference = self.integrated_fixture()
+        with mock.patch.object(lifecycle.work_queue, "archive_done",
+                               side_effect=self.canonical_archive_stub(task)) as archive:
+            with mock.patch.object(lifecycle.work_queue, "archived_task",
+                                   side_effect=[RuntimeError("crash after canonical replacement"),
+                                                reference, reference]):
+                lifecycle.archive_integrated(self.cfg, self.conn)
+                self.assertIsNone(self.conn.execute(
+                    "SELECT 1 FROM meta WHERE key='archive:integration-A'").fetchone())
+                lifecycle.archive_integrated(self.cfg, self.conn)
+                lifecycle.archive_integrated(self.cfg, self.conn)
+        self.assertEqual(2, archive.call_count)
+        self.assertEqual(1, self.conn.execute(
+            "SELECT COUNT(*) FROM events WHERE event='queue_archive_consumed'").fetchone()[0])
+        saved = [json.loads(row[0]) for row in self.conn.execute(
+            "SELECT value FROM meta WHERE key LIKE 'coverage:%'")]
+        self.assertTrue(any(reference == x for x in saved))
+
+    def test_finalize_recovers_crash_after_durable_queue_done(self):
+        import sqlite3
+        class InjectedCrash(BaseException):
+            pass
+        row, authored, directory = self.check_fixture()
+        base = state.git(self.repo, "rev-parse", "HEAD")
+        identity = adapter.candidate_identity(self.repo, base)
+        candidate = {"sha": identity["candidate_sha"], "tree": identity["candidate_tree"],
+                     "diff_sha256": identity["diff_sha256"]}
+        task = self.task(requires=[], result="fixture source outcome", candidate=candidate,
+                         author="A", proof_generation=0)
+        task["proof_validity"] = {"kind": "SNAPSHOT",
+                                  "input_hashes": adapter.source_inputs(self.cfg, task)}
+        authored.update(base=base, scope_base=base, task=task)
+        adapter.run_checks(self.cfg, row, authored, directory)
+        self.conn.execute("UPDATE jobs SET state='REVIEW_PENDING',spec=?,result=? WHERE id='job-A'",
+                          (state.encode(authored), state.encode(self.result(verdict="PASS", **identity))))
+        self.conn.commit()
+        review_spec = {"author_job": "job-A", "author": "A", "identity": identity,
+                       "worktree": str(self.repo), "epoch": self.cfg["epoch"], "generation": 0,
+                       "task_contract_sha256": runtime.work_queue._contract(task)}
+        self.add("review-A", role="B", kind="review", spec=review_spec,
+                 current="RESULT", token=1)
+        verdict = self.result(**identity)
+        self.conn.execute("UPDATE jobs SET result=?,entry_pid=?,entry_birth=? WHERE id='review-A'",
+                          (state.encode(verdict), os.getpid(), state.birth(os.getpid())))
+        self.conn.commit()
+        state.atomic_json(state.root(self.cfg) / "jobs/review-A/adapter-receipt.json",
+                          {"job": "review-A", "kind": "review", "role": "B", "model": state.MODEL,
+                           "token": 1, "adapter_status": "RESULT_VALIDATED",
+                           "result_sha256": state.digest(state.encode(verdict)),
+                           "worktree": str(self.repo), "entry_pid": os.getpid(),
+                           "entry_birth": state.birth(os.getpid())})
+        board_file = self.control / "fixture-board.json"
+        state.atomic_json(board_file, {"tasks": [dict(task, state="ACTIVE")]})
+        calls = {"advance": 0}
+        def board(_control):
+            return state.read_json(board_file)
+        def register(_control, task_id, receipt, *, review_verifier):
+            value = state.read_json(receipt)
+            current = board(None)["tasks"][0]
+            receipt_hash = state.digest(Path(receipt).read_bytes())
+            if current["state"] == "DONE":
+                self.assertEqual(current["completion_receipt_sha256"], receipt_hash,
+                                 "Restart rewrote the already accepted exact receipt")
+            review_verifier(current, value, receipt_hash)
+        def advance(_control, role, task_id, next_state, *, receipt):
+            value = board(None)
+            current = value["tasks"][0]
+            if current["state"] == "DONE":
+                raise RuntimeError("DONE_TO_DONE_IS_NOT_A_VALID_TRANSITION")
+            calls["advance"] += 1
+            current.update(state="DONE", completion_receipt=receipt,
+                           completion_receipt_sha256=state.digest(Path(receipt).read_bytes()))
+            state.atomic_json(board_file, value)
+            raise InjectedCrash("Queue replacement durable, runtime handoff not yet written")
+        with mock.patch.object(runtime.work_queue, "load_board", side_effect=board), mock.patch.object(
+                runtime.work_queue, "validate_board", side_effect=lambda *a, **k: {"board": board(None)}):
+            with mock.patch.object(runtime.work_queue, "register_acceptance", side_effect=register):
+                with mock.patch.object(runtime.work_queue, "advance_task", side_effect=advance):
+                    with self.assertRaises(InjectedCrash):
+                        runtime.finalize(self.cfg, self.conn)
+                    self.assertEqual("DONE", board(None)["tasks"][0]["state"])
+                    self.conn.execute("""CREATE TRIGGER fail_handoff_insert BEFORE INSERT ON jobs
+                      WHEN NEW.kind='integrate'
+                      BEGIN SELECT RAISE(ABORT, 'independent handoff insertion failure'); END""")
+                    with self.assertRaises(sqlite3.DatabaseError):
+                        runtime.finalize(self.cfg, self.conn)
+                    self.assertEqual("REVIEW_PENDING", self.current()["state"])
+                    self.assertEqual(0, self.conn.execute(
+                        "SELECT COUNT(*) FROM jobs WHERE kind='integrate'").fetchone()[0])
+                    self.conn.execute("DROP TRIGGER fail_handoff_insert")
+                    runtime.finalize(self.cfg, self.conn)
+                    runtime.finalize(self.cfg, self.conn)
+        self.assertEqual(1, calls["advance"])
+        self.assertEqual("ACCEPTED", self.current()["state"])
+        self.assertEqual("DONE", self.current("review-A")["state"])
+        self.assertEqual(1, self.conn.execute(
+            "SELECT COUNT(*) FROM jobs WHERE kind='integrate'").fetchone()[0])
+
+    def test_archived_coverage_retains_two_leaves_of_same_requirement(self):
+        self.cfg["config_path"] = str(self.area / "fixture-config.json")
+        _, first_task, first_ref = self.integrated_fixture()
+        first_ref["id"] = first_task["id"]
+        authored = json.loads(self.current()["spec"])
+        second_task = dict(first_task, id="task-B")
+        second_receipt = state.root(self.cfg) / "jobs/job-B/completion-receipt.json"
+        state.atomic_json(second_receipt, {"fixture": "second canonical proof"})
+        second_task["completion_receipt"] = str(second_receipt)
+        authored["task"] = second_task
+        self.add("job-B", role="A", spec=authored, current="INTEGRATED")
+        second_spec = {"author_job": "job-B", "task_id": "task-B",
+                       "candidate": second_task["candidate"], "receipt": str(second_receipt)}
+        self.add("integration-B", role="C", kind="integrate", spec=second_spec, current="DONE")
+        self.conn.execute("UPDATE jobs SET result=? WHERE id='integration-B'",
+                          (state.encode({"head": "verified-main", "remote_readback": "verified-main"}),))
+        self.conn.commit()
+        second_ref = dict(first_ref, id="task-B", task_id="task-B",
+                          event_id="stable-archive-event-B")
+        refs = {"task-A": first_ref, "task-B": second_ref}
+        tasks = {"task-A": first_task, "task-B": second_task}
+        def archive(control, role, identifiers, *, archive_verifier, limit):
+            task = tasks[identifiers[0]]
+            archive_verifier(task, state.digest(Path(task["completion_receipt"]).read_bytes()))
+            return {}
+        with mock.patch.object(lifecycle.work_queue, "archive_done", side_effect=archive):
+            with mock.patch.object(lifecycle.work_queue, "archived_task",
+                                   side_effect=lambda _control, identifier: refs[identifier]):
+                lifecycle.archive_integrated(self.cfg, self.conn)
+                lifecycle.archive_integrated(self.cfg, self.conn)
+        first = lifecycle.coverage_page(self.cfg, self.conn, requirement="req-A", offset=0, limit=1)
+        second = lifecycle.coverage_page(self.cfg, self.conn, requirement="req-A", offset=1, limit=1)
+        self.assertEqual(2, first["count"])
+        self.assertEqual(2, second["count"])
+        self.assertEqual({"task-A", "task-B"},
+                         {first["entries"][0]["id"], second["entries"][0]["id"]})
+        self.assertIs(first["lookup"]["read_only"], True)
+        self.assertIs(first["project_ready"], False)
+
+    def test_integration_terminal_pair_rolls_back_if_author_write_fails(self):
+        import sqlite3
+        import continuous_integration
+        self.integrated_fixture()
+        self.conn.execute("UPDATE jobs SET state='ACCEPTED' WHERE id='job-A'")
+        self.conn.execute("UPDATE jobs SET state='MAIN_PENDING' WHERE id='integration-A'")
+        self.conn.commit()
+        row = self.current("integration-A")
+        spec = json.loads(row["spec"])
+        saved = {"head": "verified-main"}
+        self.conn.execute("""CREATE TRIGGER fail_author_terminal BEFORE UPDATE ON jobs
+          WHEN NEW.id='job-A' AND NEW.state='INTEGRATED'
+          BEGIN SELECT RAISE(ABORT, 'independent injected terminal failure'); END""")
+        with self.assertRaises(sqlite3.DatabaseError):
+            continuous_integration.complete_integration(
+                self.conn, row, spec, saved, "verified-main")
+        self.assertFalse(self.conn.in_transaction)
+        self.assertEqual("MAIN_PENDING", self.current("integration-A")["state"])
+        self.assertEqual("ACCEPTED", self.current()["state"])
+        self.conn.execute("DROP TRIGGER fail_author_terminal")
+        with self.assertRaises(RuntimeError):
+            continuous_integration.complete_integration(self.conn, row, spec, saved, "wrong-main")
+        self.assertEqual("MAIN_PENDING", self.current("integration-A")["state"])
+        continuous_integration.complete_integration(self.conn, row, spec, saved, "verified-main")
+        self.assertEqual("DONE", self.current("integration-A")["state"])
+        self.assertEqual("INTEGRATED", self.current()["state"])
+
+    def test_stop_during_environment_preparation_prevents_check_spawn(self):
+        row, spec, directory = self.check_fixture(
+            "from pathlib import Path; Path('effect').write_text('must not execute')")
+        prepare = adapter.continuous_environment.ensure_environment
+        spawn = adapter.subprocess.Popen
+        def prepare_then_stop(*args, **kwargs):
+            result = prepare(*args, **kwargs)
+            self.set_mode(stopped=True)
+            return result
+        with mock.patch.object(adapter.continuous_environment, "ensure_environment",
+                               side_effect=prepare_then_stop):
+            with mock.patch.object(adapter.subprocess, "Popen", wraps=spawn) as launched:
+                with self.assertRaises(RuntimeError):
+                    adapter.run_checks(self.cfg, row, spec, directory)
+                self.assertEqual(0, launched.call_count, "Trusted check spawned after STOP")
+        self.assertFalse((self.repo / "effect").exists())
 
 
 if __name__ == "__main__":
