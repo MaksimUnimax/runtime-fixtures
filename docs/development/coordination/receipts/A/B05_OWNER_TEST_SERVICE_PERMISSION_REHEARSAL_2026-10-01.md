@@ -15,9 +15,9 @@ This task does not choose Memory/CPU/Tasks limits and does not create or switch 
 
 New source:
 - `tooling/operations/owner_test_service_permissions.py`
-  SHA-256 `82e6f0f7c05c2b5ac79551094f5b693d36ff59c0354f13bbcf3c4bb8b67bec1a`;
+  SHA-256 `d48dd2214e7b2ec89b7c6c93b7c9d357981f59d40caafc56b20ffb729e5e2fc4`;
 - `tooling/operations/test_owner_test_service_permissions.py`
-  SHA-256 `d8beba9ed32c2b5db0b45859fade4fba0a54ae5cd0f5de8fe4f03f00e46e8101`.
+  SHA-256 `8cf21c124fae42f81007d96d1efc23d53055e7429b0e1241e6cc0eac98929542`.
 
 The tool observes only the fixed owner-test API/worker/portal units and allowlisted systemd properties. It never requests or prints Environment contents.
 
@@ -40,6 +40,7 @@ For every pinned release:
 - no file, mode or ownership under `/opt/octoport/ops-releases` is changed.
 
 Protected config is checked without reading secret material:
+- `EnvironmentFiles` output is consumed entry-by-entry; any unparsed or additional path is rejected before the exact scope check, including unexpected paths without a `.env` suffix;
 - API/worker bind only the fixed API env label;
 - portal binds only the fixed portal env label;
 - both protected files are regular, root-owned and mode 0600;
@@ -60,16 +61,16 @@ Parent checks:
 ## Live read-only/disposable rehearsal
 
 Sanitized result:
-`/root/octoport-control/logs/A/b05-owner-test-service-permission-rehearsal-20261001/live-r2/result.json`
+`/root/octoport-control/logs/A/b05-owner-test-service-permission-rehearsal-20261001/live-r3/result.json`
 
 Result SHA-256:
 `779c4ef7b8c5030820f66ca417c8a0bd8ee4d5adf34722b98832842224568545`.
 
 Supervisor receipt:
-`/root/octoport-control/resource-jobs/82536b2c76d4483cac31e47addb84d80/receipt.json`
+`/root/octoport-control/resource-jobs/c2401f061c9945daa9dc5c64ca2cf362/receipt.json`
 
 Receipt SHA-256:
-`74fc245165c8944247184ba56c570bc69dfa7dd3a336ec8872ab8baa1f1f0fd1`.
+`144c8d887a64d9925b1c4691962d0ca8a043981ce1d8ec834d0a752bb936828a`.
 
 Supervisor outcome:
 - command exit 0;
@@ -94,7 +95,9 @@ Rehearsal result:
 
 ## Superseded diagnostic evidence
 
-The earlier `live-r1` result and resource job `bebe7fad2582487cb495539c6f57d63a` remain historical diagnostics only. Independent review identified that R1 proved whole-tree permissions from parent-observed mode bits while actual non-root access was exercised only on WorkingDirectory/ExecStart paths. R2 adds actual non-root traversal/write denial for every unique pinned release tree and is the acceptance evidence for this receipt.
+The earlier `live-r1` result and resource job `bebe7fad2582487cb495539c6f57d63a` remain historical diagnostics only. Independent review identified that R1 proved whole-tree permissions from parent-observed mode bits while actual non-root access was exercised only on WorkingDirectory/ExecStart paths.
+
+The later `live-r2` result and resource job `82536b2c76d4483cac31e47addb84d80` are also superseded diagnostics. R2 closed the actual whole-tree ACL/access gap, but independent review found that `EnvironmentFiles` parsing could silently ignore an unexpected additional path without a `.env` suffix. R3 consumes every entry fail-closed and is the acceptance evidence for this receipt.
 
 ## Evidence boundary
 
