@@ -241,10 +241,26 @@ export async function captureServiceTree(
       throw new Error("SERVICE_RESOURCE_STATUS_MISSING");
     }
     const status = parseProcStatus(statusText);
+    let confirmedText: string;
+    try {
+      confirmedText = await reader.readStat(pid);
+    } catch {
+      throw new Error("SERVICE_RESOURCE_STAT_RECHECK_MISSING");
+    }
+    const confirmed = parseProcStat(confirmedText);
+    if (
+      confirmed.pid !== pid ||
+      confirmed.startTimeTicks !== stat.startTimeTicks
+    )
+      throw new Error("SERVICE_RESOURCE_PID_REUSED_DURING_CAPTURE");
+    if (confirmed.parentPid !== stat.parentPid)
+      throw new Error("SERVICE_RESOURCE_PARENT_CHANGED_DURING_CAPTURE");
+    if (confirmed.cpuTicks < stat.cpuTicks)
+      throw new Error("SERVICE_RESOURCE_CPU_REGRESSED_DURING_CAPTURE");
     rssBytes += status.rssBytes;
     highWaterBytes += status.highWaterBytes;
     taskCount += status.threads;
-    cpuTicks += stat.cpuTicks;
+    cpuTicks += confirmed.cpuTicks;
     if (
       !Number.isSafeInteger(rssBytes) ||
       !Number.isSafeInteger(highWaterBytes) ||

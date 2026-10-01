@@ -140,6 +140,29 @@ test("sampler produces sanitized before/after functional envelope", async () => 
   assert.match(serialized, /staging startup\/readiness\/auth\/bootstrap/);
 });
 
+test("capture fails closed on PID reuse between stat and status accounting", async () => {
+  class ReusedDuringCaptureReader extends FakeReader {
+    childReads = 0;
+
+    override async readStat(pid: number): Promise<string> {
+      if (pid === 11) {
+        this.childReads += 1;
+        if (this.childReads > 1) return statLine(11, 10, 1, 1, 999);
+      }
+      return super.readStat(pid);
+    }
+  }
+  const reader = new ReusedDuringCaptureReader();
+  const fixture = fixtureReader();
+  for (const [pid, value] of fixture.stats) reader.stats.set(pid, value);
+  for (const [pid, value] of fixture.statuses) reader.statuses.set(pid, value);
+
+  await assert.rejects(
+    captureServiceTree(10, reader),
+    /SERVICE_RESOURCE_PID_REUSED_DURING_CAPTURE/,
+  );
+});
+
 test("sampler fails closed on root PID reuse", async () => {
   const reader = fixtureReader();
   reader.stats.set(30, statLine(30, 1, 3, 2, 300));
