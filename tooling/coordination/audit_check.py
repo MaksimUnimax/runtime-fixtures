@@ -5,6 +5,7 @@ from datetime import datetime
 import math
 import json
 from pathlib import Path
+from work_queue import load_board, blocker_attention
 
 CONTROL = Path("/root/octoport-control")
 LABELS = {
@@ -26,6 +27,7 @@ def snapshot(root):
             "updated_at", "status", "head", "task", "current_task", "last_audit")}
     return {
         "registry_revision": registry["revision"], "states": states,
+        "owner_attention": blocker_attention(load_board(root)),
         "records": [{key: item.get(key) for key in (
             "id", "title", "status", "recurrences_after_prior_fix", "last_observed_at")}
             for item in registry["records"]],
@@ -125,13 +127,35 @@ def render(registry, comparison):
     return "\n".join(output)
 
 
+
+def render_blockers(root):
+    alerts = blocker_attention(load_board(root))
+    if not alerts:
+        return "", []
+    lines = ["# ВНИМАНИЕ: незавершённые заблокированные результаты", ""]
+    for row in alerts:
+        lines += [
+            "- " + row["task_id"] + ": " + str(row["outcome"]),
+            "  Причина: " + str(row["reason"]),
+            "  Устраняет: " + str(row["resolver"]) + "; автор результата: " + row["author"],
+            "  Следующий шаг: " + str(row["next_action"]),
+            "  Условие возврата: " + str(row["unblock_when"]),
+        ]
+    lines += ["", "Сообщить владельцу сейчас. Подготовка отчёта не означает доставку сообщения или устранение препятствия.", ""]
+    return "\n".join(lines), alerts
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", choices=("snapshot", "report"))
+    parser.add_argument("mode", choices=("snapshot", "report", "alerts"))
     parser.add_argument("--root", type=Path, default=CONTROL)
     parser.add_argument("--comparison", type=Path)
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
+    if args.mode == "alerts":
+        text, alerts = render_blockers(args.root)
+        print(json.dumps({"owner_attention": alerts, "message_delivered": False}, ensure_ascii=False, indent=2))
+        return
     if args.mode == "snapshot":
         print(json.dumps(snapshot(args.root), ensure_ascii=False, indent=2))
         return
@@ -140,13 +164,15 @@ def main():
     registry = json.loads((args.root / "controllers/organization/errors.json").read_text())
     comparison = json.loads(args.comparison.read_text())
     issues = check_review_clock_holds(args.root, comparison)
-    text = render(registry, comparison)
+    blocker_text, alerts = render_blockers(args.root)
+    text = blocker_text + "\n" + render(registry, comparison)
     if issues:
         text += "\n\n## Незавершённая сверка контроля\n" + "\n".join(
             role + ": " + comparison["review_clock_holds"][role] for role in sorted(issues)
         )
     args.output.write_text(text)
-    print(json.dumps({"result": "REPORT_COMPLETE_WITH_REVIEW_HOLDS" if issues else "REPORT_COMPLETE",
+    print(json.dumps({"result": "REPORT_COMPLETE_WITH_UNRESOLVED_OUTCOMES" if alerts else "REPORT_COMPLETE_WITH_REVIEW_HOLDS" if issues else "REPORT_COMPLETE",
+                      "owner_attention": alerts, "message_delivered": False,
                       "review_clock_issues": issues, "record_count": len(registry["records"]),
                       "registry_revision": registry["revision"], "output": str(args.output)}))
 
