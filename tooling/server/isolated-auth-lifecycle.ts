@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { DeviceAuthorizationExchangeResponseV1Schema } from "../../packages/contracts/src/index.js";
 
 export interface IsolatedAuthIdentity {
   readonly email: string;
@@ -10,7 +11,7 @@ export interface IsolatedAuthLifecycleOptions {
   readonly apiOrigin: string;
   /** Portal origin; authenticated portal API calls use its same-origin proxy. */
   readonly portalOrigin: string;
-  /** Must name a loopback database with test, e2e, or disposable in its name. */
+  /** Must identify a loopback DB/port pair from the supervisor fixture registry. */
   readonly disposableDatabaseUrl: string;
   readonly identity: IsolatedAuthIdentity;
   /** Supplies only a generated local OTP fixture. Never read mail or logs here. */
@@ -74,22 +75,35 @@ function assertLoopbackOrigin(raw: string, label: string): string {
   return url.origin;
 }
 
-function assertDisposableDatabase(raw: string): void {
+// Exact disposable registry in tooling/coordination/control.py; never infer
+// ownership from a substring such as "test" in an arbitrary database name.
+const disposableDatabasePorts = new Map([
+  ["/octoport_a_test", "15541"],
+  ["/octoport_b_test", "15542"],
+  ["/octoport_c_test", "15543"],
+]);
+
+export function validateIsolatedDatabaseUrl(raw: string): string {
   let url: URL;
   try {
     url = new URL(raw);
   } catch {
     throw new Error("disposableDatabaseUrl must be an absolute PostgreSQL URL");
   }
-  const name = decodeURIComponent(url.pathname.replace(/^\//, ""));
   if (
     !["postgres:", "postgresql:"].includes(url.protocol) ||
     !isLoopback(url.hostname) ||
-    !/(?:test|e2e|disposable)/i.test(name)
+    url.search ||
+    url.hash ||
+    disposableDatabasePorts.get(url.pathname) !== url.port ||
+    !disposableDatabasePorts.has(url.pathname)
   )
     throw new Error(
-      "disposableDatabaseUrl must point to a loopback test, e2e, or disposable database",
+      "disposableDatabaseUrl must name a registered loopback disposable DB/port without overrides",
     );
+  // PostgreSQL connection-string query parameters can override URL.hostname.
+  // Returning only this validated URL keeps the guard and pg target aligned.
+  return url.toString();
 }
 
 function record(value: unknown): Record<string, unknown> {
@@ -123,7 +137,7 @@ export class IsolatedAuthLifecycleDriver {
       options.portalOrigin,
       "portalOrigin",
     );
-    assertDisposableDatabase(options.disposableDatabaseUrl);
+    validateIsolatedDatabaseUrl(options.disposableDatabaseUrl);
     if (
       options.identity.disposable !== true ||
       !otpTestIdentity.test(options.identity.email)
@@ -244,11 +258,14 @@ export class IsolatedAuthLifecycleDriver {
       body: { deviceCode },
       headers: { "idempotency-key": idempotencyKey },
     });
-    if (result.response.status === 200)
-      return {
-        kind: "activated",
-        token: result.body as unknown as IsolatedDeviceToken,
-      };
+    if (result.response.status === 200) {
+      const token = DeviceAuthorizationExchangeResponseV1Schema.safeParse(
+        result.body,
+      );
+      if (!token.success)
+        throw new Error("Device exchange returned an invalid token response");
+      return { kind: "activated", token: token.data };
+    }
     if (result.code === "DEVICE_AUTH_PENDING")
       return { kind: "pending", retryAfter: result.response.headers.get("retry-after") };
     if (result.code === "DEVICE_AUTH_CLOSED")
@@ -372,6 +389,8 @@ export class IsolatedAuthLifecycleDriver {
       try {
         bodyValue = await response.json();
       } catch {
+        if (response.ok)
+          throw new Error("Isolated auth lifecycle returned an invalid JSON response");
         bodyValue = {};
       }
     }
