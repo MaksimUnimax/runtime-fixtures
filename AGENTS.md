@@ -8,6 +8,10 @@ The controller has full project control within the owner-authorized scope: techn
 
 Octoport uses one canonical main and three scoped worktrees. Read docs/development/coordination/README.md, PROTOCOL.md, PLAN.md and OWNERSHIP.json before work. This owner-authorized program supersedes older single-executor/Stream-1/Stream-2 scheduling instructions, without changing product/security requirements or historical evidence. Each stream may select the next ready task within its assigned PLAN queue; it must not invent adjacent scope. Only C integrates main; only B authors DB/migration changes after the baseline. Explicit STOP always wins over an automatic governor repeat. Review requests are durable and do not block independent permitted work. Owner decision 2026-09-25: continue the approved roadmap until explicit STOP; a publication candidate, submission, moderation or deployment wait never ends the development queue. Follow docs/development/coordination/CONTINUOUS_ROADMAP_POLICY.md and prove that every remaining authorized task is blocked before whole-stream WAITING_INPUT.
 
+## Persistent execution
+
+Owner decision 2026-10-01 authorizes the execution mechanism in docs/development/coordination/EXECUTION_RUNTIME.md. Verify the actual mode/epoch and live service receipt; prose is not deployment. A bounded runtime job receives an exact requirement, paths, base, evidence and role contract. Read affected subsystem rules/contracts, not the entire historical roadmap for every small patch. The role planner and controller own full requirement coverage. A chat must acquire a compatible operation claim before writing alongside the service.
+
 ## Entry point
 
 Read `README.md`, `docs/README.md`, and the documentation for the subsystem you are changing. If the task changes a shared contract, read `docs/architecture/CONTRACTS.md` before editing it.
@@ -17,7 +21,7 @@ Current maintainer instructions for the active task take priority over historica
 ## Scope discipline
 
 - Work only inside the explicitly requested subsystem.
-- Do not start adjacent roadmap work because a preceding step finished.
+- A bounded author/reviewer job must finish its assigned scope, not self-start adjacent work. The persistent role/planner selects the next approved SPEC/PLAN gap after each result; it must not wait for a new chat message.
 - Do not redesign shared contracts, authentication/session behavior, migrations, deployment topology, or cross-component interfaces unless the task explicitly includes them.
 - Prefer the smallest complete change that fixes the requested behavior.
 - Preserve proven behavior outside the affected boundary.
