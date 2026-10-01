@@ -64,6 +64,40 @@ class CandidateRecordsTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "ONLY_DELIVERY_OWNER"):
             records.update(self.root, "A", self.record)
 
+
+
+    def test_current_owner_can_transfer_only_ownership_as_separate_update(self):
+        transfer = dict(self.record, responsible_role="A")
+        moved = records.update(self.root, "C", transfer)
+        self.assertEqual(moved["responsible_role"], "A")
+        history = moved["transition_history"][-1]
+        self.assertEqual(history["owner_transfer"], {"previous": "C", "next": "A"})
+        self.assertEqual(history["previous"], "PREPARING")
+        self.assertEqual(history["next"], "PREPARING")
+        with self.assertRaisesRegex(ValueError, "ONLY_DELIVERY_OWNER"):
+            records.update(self.root, "C", moved)
+        again = records.update(self.root, "A", moved)
+        self.assertEqual(again["responsible_role"], "A")
+
+    def test_ownership_transfer_cannot_change_scope_or_readiness(self):
+        with self.assertRaisesRegex(ValueError, "OWNERSHIP_TRANSFER_MUTATION_FORBIDDEN"):
+            records.update(
+                self.root,
+                "C",
+                dict(self.record, responsible_role="A", limitations=["changed"]),
+            )
+        with self.assertRaisesRegex(ValueError, "OWNERSHIP_TRANSFER_MUST_BE_SEPARATE"):
+            records.update(
+                self.root,
+                "C",
+                dict(self.record, responsible_role="A", readiness="READY_FOR_OPERATOR"),
+                self.review(),
+            )
+
+    def test_ownership_transfer_target_must_be_valid_role(self):
+        with self.assertRaisesRegex(ValueError, "DELIVERY_OWNER_AND_TASK_REQUIRED"):
+            records.update(self.root, "C", dict(self.record, responsible_role="Z"))
+
     def test_ready_requires_matching_independent_scope_review(self):
         record = dict(self.record, readiness="READY_FOR_OPERATOR")
         for change in [{"verdict": "FAIL"}, {"artifact_sha256": "b" * 64},

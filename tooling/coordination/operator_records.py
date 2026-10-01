@@ -12,7 +12,7 @@ ROLES = {"A", "B", "C"}
 STATES = {"PREPARING", "READY_FOR_OPERATOR", "WITHDRAWN"}
 IDENTITY = ("candidate_id", "version", "source_sha", "artifact_path",
             "artifact_sha256", "artifact_bytes", "browser", "environment",
-            "responsible_role", "work_item_id")
+            "work_item_id")
 
 
 def _read(path):
@@ -168,6 +168,19 @@ def update(root, actor, proposal, review_path=None):
         if current["readiness"] == "WITHDRAWN":
             raise ValueError("WITHDRAWN_HISTORY_IMMUTABLE")
         previous, target = current["readiness"], proposal["readiness"]
+        ownership_transfer = proposal.get("responsible_role") != current.get("responsible_role")
+        if ownership_transfer:
+            if target != previous:
+                raise ValueError("OWNERSHIP_TRANSFER_MUST_BE_SEPARATE")
+            if any(
+                proposal.get(key) != value
+                for key, value in current.items()
+                if key not in {"responsible_role", "updated_at", "transition_history"}
+            ) or any(
+                key not in current and key != "updated_at"
+                for key in proposal
+            ):
+                raise ValueError("OWNERSHIP_TRANSFER_MUTATION_FORBIDDEN")
         duplicate_recovery_withdrawal = (
             previous == "PREPARING"
             and target == "WITHDRAWN"
@@ -203,12 +216,18 @@ def update(root, actor, proposal, review_path=None):
                 raise ValueError("ACCEPTED_EVIDENCE_MUST_BE_PRESERVED")
         merged = dict(current, **proposal)
         merged["transition_history"] = current.get("transition_history", [])
-        if previous != target or decision is not None:
-            merged["transition_history"] = merged["transition_history"] + [{
+        if previous != target or decision is not None or ownership_transfer:
+            transition = {
                 "previous": previous, "next": target, "actor": actor,
                 "review_path": str(review_path) if review_path else None,
                 "recorded_at": datetime.now(timezone.utc).isoformat(),
-                "review_snapshot": decision}]
+                "review_snapshot": decision}
+            if ownership_transfer:
+                transition["owner_transfer"] = {
+                    "previous": current["responsible_role"],
+                    "next": proposal["responsible_role"],
+                }
+            merged["transition_history"] = merged["transition_history"] + [transition]
         _write(path, merged)
         return merged
 
