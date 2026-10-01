@@ -83,3 +83,7 @@ At EVERY controller review assess and report extension store readiness alongside
 Обязательны сравнение со старой записью, установленная причина повтора, фактический статус прежнего исправления, ответственный и проверка предотвращения. Костыли, скрывающие симптом вместо устранения причины, запрещены; неизвестную причину нельзя выдумывать.
 Назначение задачи, написание кода и запись политики не доказывают исправление: нужны применение и подтверждённый эффект. Владелец получает понятное объяснение организации, новых ошибок, реально исправленного, повторов и оставшегося.
 Это не дополнительное согласование с L2 и не барьер текущей выдачи. Поздний STOP и прежние владельцы main/DB сохраняются.
+
+## Operator test-version dialogue — owner decision 2026-10-01
+
+Follow docs/development/coordination/OPERATOR_TESTING_POLICY.md and the current owner notice. OPERATOR is an on-demand chat for delivering test packages and receiving feedback, not a fourth autonomous development stream. Producers save a verified candidate and continue roadmap immediately; neither operator ACK nor the dialogue's availability blocks development. Controllers may also deliver a candidate through the same records. This addition does not activate a different execution model or change main/DB authority.
