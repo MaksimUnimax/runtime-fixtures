@@ -1,1 +1,97 @@
-{"schema_version":1,"operation":"execution-method-rollout-20261001","authority":"Owner request 2026-10-01: implement execution updates and complete permanent plus startup prompts","base":"59e20e3c1d9468fb576d1ee47677dd06666ca8e5","integration_owner":"C","main_owner":"C","database_owner":"B","assignments":[{"owner":"runtime_adapter","branch":"exec/C/continuous-runtime-20261001","paths":["tooling/coordination/continuous_*","tooling/coordination/test_continuous_*","tooling/coordination/codex-runner.py","tooling/coordination/control.py","tooling/coordination/*continuous*.service"]},{"owner":"queue_proof","branch":"exec/C/queue-proof-20261001","paths":["tooling/coordination/work_queue.py","tooling/coordination/test_work_queue.py"]},{"owner":"controller_rules","branch":"exec/C/controller-rules-20261001","paths":["AGENTS.md","docs/README.md","docs/development/coordination/CONTROLLER*","docs/development/coordination/PROMPT_CONTROLLER*","docs/development/coordination/DOT_OPERATIONAL_ORDER.md","docs/development/coordination/README.md","docs/development/coordination/PROTOCOL.md","docs/development/coordination/WORK_METHOD.md","docs/development/coordination/ORGANIZATION*","docs/development/coordination/RELEASE_DELIVERY_BOUNDARY.md","docs/development/coordination/archive/2026-10-01/*"]},{"owner":"executor_prompts","branch":"exec/C/executor-prompts-20261001","paths":["docs/development/coordination/PROMPT_A.md","docs/development/coordination/PROMPT_B.md","docs/development/coordination/PROMPT_C.md","docs/development/coordination/START_*.md","docs/development/coordination/LAUNCH.md","docs/development/coordination/CODEX.md"]},{"owner":"rollout","branch":"exec/C/execution-rollout-20261001","paths":["docs/development/coordination/EXECUTION_RUNTIME.md","docs/development/coordination/CONTINUOUS_ROADMAP_POLICY.md","docs/development/coordination/DELIVERY_FLOW_POLICY.md","docs/development/coordination/PLAN.md","docs/development/coordination/OWNERSHIP.json","docs/development/coordination/UNATTENDED_CONTINUATION_POLICY.md","docs/development/coordination/receipts/C/execution-method-20261001/**"]}],"constraints":["No active parent worktree edits","No own-code acceptance","No force push or bypass CI/main hook","No DB/schema/migrations edits","Consumers: control CLI, persistent runtime, A/B/C chats, common controller"]}
+{
+  "schema_version": 1,
+  "operation": "execution-method-rollout-20261001",
+  "authority": "Owner request 2026-10-01: implement execution updates and complete permanent plus startup prompts",
+  "base": "59e20e3c1d9468fb576d1ee47677dd06666ca8e5",
+  "integration_owner": "C",
+  "main_owner": "C",
+  "database_owner": "B",
+  "assignments": [
+    {
+      "owner": "runtime_adapter",
+      "branch": "exec/C/continuous-runtime-20261001",
+      "paths": [
+        "tooling/coordination/continuous_*",
+        "tooling/coordination/test_continuous_*",
+        "tooling/coordination/codex-runner.py",
+        "tooling/coordination/control.py",
+        "tooling/coordination/*continuous*.service",
+        "tooling/coordination/hooks/pre-push",
+        "tooling/coordination/pre_push.py",
+        "tooling/coordination/integration_context.py",
+        "tooling/coordination/test_integration_context.py"
+      ]
+    },
+    {
+      "owner": "queue_proof",
+      "branch": "exec/C/queue-proof-20261001",
+      "paths": [
+        "tooling/coordination/work_queue.py",
+        "tooling/coordination/test_work_queue.py"
+      ]
+    },
+    {
+      "owner": "controller_rules",
+      "branch": "exec/C/controller-rules-20261001",
+      "paths": [
+        "AGENTS.md",
+        "docs/README.md",
+        "docs/development/coordination/CONTROLLER*",
+        "docs/development/coordination/PROMPT_CONTROLLER*",
+        "docs/development/coordination/DOT_OPERATIONAL_ORDER.md",
+        "docs/development/coordination/README.md",
+        "docs/development/coordination/PROTOCOL.md",
+        "docs/development/coordination/WORK_METHOD.md",
+        "docs/development/coordination/ORGANIZATION*",
+        "docs/development/coordination/RELEASE_DELIVERY_BOUNDARY.md",
+        "docs/development/coordination/archive/2026-10-01/*",
+        "docs/development/coordination/archives/controller-policy-2026-10-01/**"
+      ]
+    },
+    {
+      "owner": "executor_prompts",
+      "branch": "exec/C/executor-prompts-20261001",
+      "paths": [
+        "docs/development/coordination/PROMPT_A.md",
+        "docs/development/coordination/PROMPT_B.md",
+        "docs/development/coordination/PROMPT_C.md",
+        "docs/development/coordination/START_*.md",
+        "docs/development/coordination/LAUNCH.md",
+        "docs/development/coordination/CODEX.md"
+      ]
+    },
+    {
+      "owner": "rollout",
+      "branch": "exec/C/execution-rollout-20261001",
+      "paths": [
+        "docs/development/coordination/EXECUTION_RUNTIME.md",
+        "docs/development/coordination/CONTINUOUS_ROADMAP_POLICY.md",
+        "docs/development/coordination/DELIVERY_FLOW_POLICY.md",
+        "docs/development/coordination/PLAN.md",
+        "docs/development/coordination/OWNERSHIP.json",
+        "docs/development/coordination/UNATTENDED_CONTINUATION_POLICY.md",
+        "docs/development/coordination/receipts/C/execution-method-20261001/**",
+        "AGENTS.md",
+        "docs/development/coordination/README.md",
+        "docs/development/coordination/PROTOCOL.md",
+        "docs/development/coordination/WORK_METHOD.md",
+        "docs/development/coordination/CONTROLLER_GUIDE.md"
+      ]
+    },
+    {
+      "owner": "independent_runtime_review",
+      "branch": "exec/C/runtime-review-20261001",
+      "paths": [
+        "tooling/coordination/test_continuous_independent.py"
+      ]
+    }
+  ],
+  "constraints": [
+    "No active parent worktree edits",
+    "No own-code acceptance",
+    "No force push or bypass CI/main hook",
+    "No DB/schema/migrations edits",
+    "Consumers: control CLI, persistent runtime, A/B/C chats, common controller"
+  ],
+  "handoff_note": "Common docs author finished699adda4; rollout now owns runtime consistency sections; no concurrent edit."
+}
