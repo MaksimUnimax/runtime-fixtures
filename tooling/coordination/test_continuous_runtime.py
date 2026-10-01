@@ -252,6 +252,15 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(receipt["checks"][0]["exit_code"], 7)
         self.assertEqual(receipt["collector"], "SUPERVISOR_SUBPROCESS")
 
+    def test_stop_during_environment_preparation_prevents_check_launch(self):
+        spec, directory = self.check_fixture("from pathlib import Path; Path('effect').write_text('bad')")
+        def prepare(*args, **kwargs):
+            state.atomic_json(self.control / "A.json", {"status": "STOPPED"})
+            return {"status": "READY", "execution_env": {}, "evidence": {}}
+        with patch.object(adapter, "source_inputs", return_value={"x": "a" * 64}), patch.object(adapter.continuous_environment, "ensure_environment", side_effect=prepare), self.assertRaisesRegex(RuntimeError, "STOPPED"):
+            adapter.run_checks(self.cfg, {"id": "job", "role": "A", "token": 1}, spec, directory)
+        self.assertFalse((Path(spec["worktree"]) / "effect").exists())
+
     def test_controller_metadata_requires_live_claim_token(self):
         with patch.object(runtime, "git", return_value="a" * 40):
             claim = runtime.manual_claim(self.cfg, self.conn, "A", "controller", "a" * 40, ["controller-review-A.json"])

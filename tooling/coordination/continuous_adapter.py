@@ -293,8 +293,10 @@ def run_checks(cfg, row, spec, directory):
             environment["OCTOPORT_RUNTIME_CHECK_ROOT"] = str(directory / "checks")
             environment.update(prepared["execution_env"])
             environment["SA_NODE_BIN"] = str(continuous_environment.NODE_BIN)
-            child = subprocess.Popen(argv, cwd=spec["worktree"], stdout=log, stderr=subprocess.STDOUT,
-                                     start_new_session=True, env=environment)
+            with lock(Path(cfg["control_root"]) / (row["role"] + ".lock"), blocking=True):
+                check_mode(cfg, row["role"])
+                child = subprocess.Popen(argv, cwd=spec["worktree"], stdout=log, stderr=subprocess.STDOUT,
+                                         start_new_session=True, env=environment)
             deadline = time.monotonic() + min(int(check.get("timeout_seconds", 600)), 3600)
             while child.poll() is None:
                 reason = None
