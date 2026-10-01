@@ -22,6 +22,10 @@ import {
   createP5SubscriptionRepository,
   createP7AdminAiReadRepository,
   createP7AdminAiCommandRepository,
+  createFeedbackSupportRepository,
+  createHealthAdminReadRepository,
+  createHealthNotificationAdminReadRepository,
+  createHealthDiagnosticsReadRepository,
   createMonitorProfileRepairReadRepository,
   createProfileLifecycleRepository,
   authorizeAdminMutationInTransaction,
@@ -34,6 +38,7 @@ import { AdminBillingService } from "@product/admin-billing";
 import { createAdminCommercialService } from "@product/admin-commercial";
 import { AdminAiService } from "@product/admin-ai";
 import { BetaAdmissionService } from "@product/beta-access";
+import { FeedbackSupportService } from "@product/feedback-support";
 import {
   DeviceAuthorizationService,
   deriveDeviceAuthKeys,
@@ -203,6 +208,13 @@ async function main(): Promise<void> {
           beforeMutation: authorizeAdminMutationInTransaction,
         }),
       ),
+      feedbackSupportService: new FeedbackSupportService(
+        createFeedbackSupportRepository(database),
+      ),
+      healthAdminService: createHealthAdminReadRepository(database),
+      healthNotificationAdminService:
+        createHealthNotificationAdminReadRepository(database),
+      healthDiagnosticsService: createHealthDiagnosticsReadRepository(database),
       healthRepairAdminService:
         createMonitorProfileRepairReadRepository(database),
       betaAdmissionService: betaAdmission,
