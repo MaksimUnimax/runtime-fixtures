@@ -1,6 +1,6 @@
 # B04 targeted reviewer invitation — 2026-10-01
 
-Status: **SOURCE + DISPOSABLE_POSTGRESQL PASS / INDEPENDENT REVIEW PENDING / NO LIVE PROVISIONING OR DEPLOYMENT**.
+Status: **SOURCE + DISPOSABLE_POSTGRESQL PASS / R1 REVIEW REWORK FIXED / FINAL REVIEW PENDING / NO LIVE PROVISIONING OR DEPLOYMENT**.
 
 Task: `B04-TARGETED-REVIEWER-INVITATION`.
 
@@ -17,10 +17,11 @@ email identity while beta remains `CLOSED`. Creating the invitation:
 - reserves one beta-capacity slot for 24 hours;
 - creates no user, account, membership, email identity, beta admission,
   portal session, OTP challenge, or extension device;
-- stores the normalized target only in the invitation authority table while
-  audit metadata contains only a one-way identity hash and request metadata;
+- stores the normalized target only in the invitation authority table;
+- writes only a one-way identity hash to audit metadata and redacts
+  email-shaped text from operator-supplied invitation audit reasons;
 - is request/payload-idempotent and fail-closed on a reused request ID with a
-  different payload;
+  different payload or target;
 - conflicts with an already-existing email identity or another active
   invitation for the same target.
 
@@ -33,8 +34,12 @@ The existing OTP verification transaction now permits a missing identity under
 `CLOSED` only when one matching invitation is active, unexpired and
 non-revoked. `PAUSED` remains closed even when an invitation exists.
 
-A successful invited first login, under the existing normalized-email advisory
-lock and beta-state transaction lock, atomically:
+Invitation expiry is checked with PostgreSQL `clock_timestamp()` **after**
+the identity advisory lock and beta-state lock are acquired. This is
+intentional: PostgreSQL `now()` is transaction-start time and would permit a
+credential that expired while waiting on those locks.
+
+A successful invited first login atomically:
 
 1. creates exactly one user;
 2. creates exactly one account and OWNER membership;
@@ -46,7 +51,7 @@ lock and beta-state transaction lock, atomically:
 The pre-existing OTP challenge/idempotency behavior is retained. A consumed
 invitation cannot be revoked.
 
-## Capacity and concurrency
+## Capacity, replay and concurrency
 
 Pending, unexpired invitations are beta-capacity reservations.
 
@@ -58,9 +63,16 @@ Pending, unexpired invitations are beta-capacity reservations.
 - revoke or expiry releases a reservation;
 - concurrent last-slot invitation creation yields one applied reservation and
   one capacity failure;
+- create request IDs are checked again while the shared beta-state lock is
+  held, so concurrent cross-email reuse deterministically yields one applied
+  invitation and one conflict instead of a uniqueness/503 leak;
 - revoke request IDs are globally payload-bound: replay of the same revoke is
   idempotent, while reusing that request ID for another invitation returns a
   conflict instead of surfacing a database uniqueness error.
+
+The lock order for first-time invitation-related mutations is normalized
+identity advisory lock -> beta-state row lock -> invitation row/request binding,
+with OTP redemption following the same identity -> state -> invitation order.
 
 ## Admin API
 
@@ -74,9 +86,10 @@ New safe admin surfaces:
   CSRF-protected `beta.admission.manage`.
 
 Responses contain invitation ID/status/timestamps only and do not echo the
-target email. The OpenAPI artifact is generated from the route schemas.
+target email. Route tests cover role boundaries, CSRF, safe response shape and
+404 mapping. The OpenAPI artifact is generated from the route schemas.
 
-## Persistence
+## Persistence and release binding
 
 Migration `0056_beta_targeted_identity_invitations.sql` adds the invitation
 authority table, terminal-state constraints, admin/user foreign keys and
@@ -84,10 +97,30 @@ indexes. The canonical Drizzle journal registers 0056 immediately after 0055;
 prior migration entries are unchanged.
 
 The first disposable check exposed that an unregistered SQL file is invisible
-to Drizzle. That source-registration defect was fixed before acceptance. A
-direct parallel-file Vitest invocation also demonstrated why the repository's
-canonical integration config uses `fileParallelism:false`; the accepted run
-uses that canonical config.
+to Drizzle. The journal entry was added as the narrow
+`B04-TARGETED-REVIEWER-MIGRATION-JOURNAL` dependency.
+
+Adding migration 0056 also advances the current repository release migration
+level from 55 to 56. The Coordination CI release-safety test initially caught
+its stale expected value; the exact release-safety assertion was updated to 56
+without changing release logic, package identity, product version or contract
+version. Release-safety then passed **42/42**.
+
+## Independent review R1 and corrections
+
+Read-only `gpt-6-luna` review of candidate
+`7a26bb5be9ede3fca4e7e7a88388e9fd11dc63c3` returned REWORK_REQUIRED with
+three Medium findings:
+
+1. email-shaped text could enter audit through operator `reason`;
+2. concurrent cross-target create request-ID reuse could race to the database
+   unique constraint;
+3. invitation expiry used a stale transaction/application timestamp after a
+   lock wait.
+
+All three were corrected in source and each failure sequence has a dedicated
+PostgreSQL regression. A fresh independent review is required for the final
+candidate; the R1 verdict is not treated as acceptance.
 
 ## Verification
 
@@ -100,25 +133,28 @@ Focused SOURCE checks:
 - focused ESLint: PASS;
 - focused Prettier: PASS;
 - OpenAPI generation/check: PASS;
+- documentation check: PASS;
+- release-safety node tests: **42/42 PASS**;
 - `git diff --check`: PASS.
 
-Final disposable PostgreSQL acceptance used the canonical sequential
+Final disposable PostgreSQL acceptance uses the canonical sequential
 integration config through the B resource supervisor:
 
-- P2 auth integration: **18/18 PASS**;
-- S1.1 beta admission integration: **18/18 PASS**;
-- total: **36/36 PASS**;
+- P2 auth integration: **19/19 PASS**;
+- S1.1 beta admission integration: **20/20 PASS**;
+- total: **39/39 PASS**;
 - resource unit:
-  `octoport-test-b-5f3d236462f54b7ebc2094cbe080993f.service`;
+  `octoport-test-b-e6850559878b497686255bbe3e6d4c1a.service`;
 - exit code: 0;
-- peak memory: about 410 MiB;
+- peak memory: about 388 MiB;
 - cleanup: verified.
 
 The matrix covers CLOSED invited success, CLOSED uninvited zero-partial denial,
-PAUSED denial, expiry/revoke, consumed-invitation terminal behavior, OTP replay,
-reservation versus OPEN registration, reservation-aware capacity mutation,
-concurrent last-slot reservation, existing-identity conflict, revoke replay
-and cross-invitation revoke-request conflict.
+PAUSED denial, expiry/revoke, expiry **after waiting on the identity lock**,
+consumed-invitation terminal behavior, OTP replay, reservation versus OPEN
+registration, reservation-aware capacity mutation, concurrent last-slot
+reservation, existing-identity conflict, create request-ID cross-target race,
+revoke replay/cross-target conflict, and audit email redaction.
 
 ## Evidence boundary
 

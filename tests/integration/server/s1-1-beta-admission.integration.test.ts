@@ -144,6 +144,44 @@ describe.sequential("S1.1 beta admission on real PostgreSQL", () => {
     expect(await auditCount()).toBe(1);
   });
 
+  it("binds create requestId globally under concurrent cross-target reuse", async () => {
+    const actor = await admin();
+    const capacity = await service.mutate(
+      input(actor, "request-cross-target-create-capacity", { amount: 2 }),
+    );
+    expect(capacity.kind).toBe("APPLIED");
+    if (capacity.kind !== "APPLIED") throw new Error("capacity setup failed");
+
+    const sharedRequestId = "invite-cross-target-request";
+    const [left, right] = await Promise.all([
+      service.createIdentityInvitation({
+        actorPrincipalId: actor,
+        requestId: sharedRequestId,
+        correlationId: "invite-cross-target-left-correlation",
+        expectedRevision: capacity.state.revision,
+        normalizedIdentityTarget: "cross-target-left@example.test",
+        reason: "left",
+      }),
+      service.createIdentityInvitation({
+        actorPrincipalId: actor,
+        requestId: sharedRequestId,
+        correlationId: "invite-cross-target-right-correlation",
+        expectedRevision: capacity.state.revision,
+        normalizedIdentityTarget: "cross-target-right@example.test",
+        reason: "right",
+      }),
+    ]);
+
+    expect([left.kind, right.kind].sort()).toEqual(["APPLIED", "CONFLICT"]);
+    expect(
+      (
+        await q<{ count: string }>(
+          "SELECT count(*)::text count FROM beta_identity_invitations",
+        )
+      ).rows[0]!.count,
+    ).toBe("1");
+  });
+
   it("binds revoke requestId globally and conflicts instead of surfacing a unique violation", async () => {
     const actor = await admin();
     const capacity = await service.mutate(
@@ -283,6 +321,51 @@ describe.sequential("S1.1 beta admission on real PostgreSQL", () => {
         ).rows[0]!.count,
       ),
     ).toBe(1);
+  });
+
+  it("redacts email-shaped text from invitation create and revoke audit reasons", async () => {
+    const actor = await admin();
+    const capacity = await service.mutate(
+      input(actor, "request-audit-redaction-capacity", { amount: 1 }),
+    );
+    expect(capacity.kind).toBe("APPLIED");
+    if (capacity.kind !== "APPLIED") throw new Error("capacity setup failed");
+
+    const rawEmail = "private.reviewer@example.test";
+    const created = await service.createIdentityInvitation({
+      actorPrincipalId: actor,
+      requestId: "invite-audit-redaction",
+      correlationId: "invite-audit-redaction-correlation",
+      expectedRevision: capacity.state.revision,
+      normalizedIdentityTarget: "audit-target@example.test",
+      reason: `invite ${rawEmail} for review`,
+    });
+    expect(created.kind).toBe("APPLIED");
+    if (created.kind !== "APPLIED") throw new Error("invitation setup failed");
+
+    const revoked = await service.revokeIdentityInvitation({
+      actorPrincipalId: actor,
+      invitationId: created.invitation.id,
+      requestId: "revoke-audit-redaction",
+      correlationId: "revoke-audit-redaction-correlation",
+      reason: `remove ${rawEmail} from review`,
+    });
+    expect(revoked.kind).toBe("APPLIED");
+
+    const audit = await q<{ action: string; reason: string; safe: string }>(
+      `SELECT action,reason,safe_metadata::text AS safe
+         FROM audit_events
+        WHERE target_id=$1
+          AND action IN ('BETA_IDENTITY_INVITED','BETA_IDENTITY_INVITATION_REVOKED')
+        ORDER BY created_at,action`,
+      [created.invitation.id],
+    );
+    expect(audit.rows).toHaveLength(2);
+    for (const row of audit.rows) {
+      expect(row.reason).toContain("[REDACTED_EMAIL]");
+      expect(row.reason).not.toContain(rawEmail);
+      expect(row.safe).not.toContain(rawEmail);
+    }
   });
 
   it("rejects a stale expected revision without state or audit changes", async () => {

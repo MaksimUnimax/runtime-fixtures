@@ -11,6 +11,14 @@ import {
 import { safeAuditReason } from "./safe-audit.js";
 
 const stateId = 1;
+const invitationEmailPattern = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
+
+function safeInvitationAuditReason(value: string) {
+  return safeAuditReason(value).replace(
+    invitationEmailPattern,
+    "[REDACTED_EMAIL]",
+  );
+}
 type InvitationRow = {
   id: string;
   normalized_identity_target: string;
@@ -142,6 +150,8 @@ export function createBetaAdmissionRepository(
           [input.normalizedIdentityTarget],
         );
 
+        const current = await readState(tx, true);
+
         const prior = await tx.query<InvitationRow>(
           `SELECT id,normalized_identity_target,create_request_id_hash,create_payload_hash,
                   created_at,expires_at,consumed_at,consumed_user_id,revoked_at,
@@ -169,7 +179,6 @@ export function createBetaAdmissionRepository(
         );
         if (identity.rows[0]) return { kind: "CONFLICT" as const };
 
-        const current = await readState(tx, true);
         if (current.revision !== input.expectedRevision)
           return { kind: "STALE" as const };
         if (current.mode !== "CLOSED") return { kind: "CONFLICT" as const };
@@ -216,7 +225,7 @@ export function createBetaAdmissionRepository(
             input.actorPrincipalId,
             row.id,
             input.correlationId,
-            safeAuditReason(input.reason),
+            safeInvitationAuditReason(input.reason),
             JSON.stringify({
               identityHash: input.identityHash,
               requestIdHash: input.requestIdHash,
@@ -328,7 +337,7 @@ export function createBetaAdmissionRepository(
             input.actorPrincipalId,
             input.invitationId,
             input.correlationId,
-            safeAuditReason(input.reason),
+            safeInvitationAuditReason(input.reason),
             JSON.stringify({ requestIdHash: input.requestIdHash }),
           ],
         );

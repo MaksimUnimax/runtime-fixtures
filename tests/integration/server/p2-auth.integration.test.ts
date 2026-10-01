@@ -572,6 +572,65 @@ describe.sequential("P2.2 real PostgreSQL authentication matrix", () => {
     ).toBe("1");
   });
 
+  it("rechecks invitation expiry after waiting on the identity lock", async () => {
+    const email = "expiry-lock-reviewer@example.test";
+    const { invitation } = await createInvitation(email, 1);
+    await q(
+      "UPDATE beta_identity_invitations SET created_at=now()-interval '1 day',expires_at=now()+interval '1 second' WHERE id=$1",
+      [invitation.id],
+    );
+    const challengeId = await fixture(email);
+
+    const blocker = createDatabaseRuntime(url);
+    await blocker.ready();
+    let releaseLock!: () => void;
+    let lockAcquired!: () => void;
+    const release = new Promise<void>((resolve) => {
+      releaseLock = resolve;
+    });
+    const acquired = new Promise<void>((resolve) => {
+      lockAcquired = resolve;
+    });
+    const holder = blocker.transaction(async (tx) => {
+      await tx.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [
+        email,
+      ]);
+      lockAcquired();
+      await release;
+    });
+
+    await acquired;
+    const verification = auth().verifyOtp(
+      challengeId,
+      code,
+      "198.51.108.9",
+      "accepted-request-id-expiry-lock",
+    );
+    await new Promise((resolve) => setTimeout(resolve, 1_500));
+    releaseLock();
+    await holder;
+
+    try {
+      await expect(verification).resolves.toEqual({
+        ok: false,
+        code: "BETA_CLOSED",
+      });
+      expect(
+        (
+          await q<{ count: string }>(
+            "SELECT count(*)::text count FROM user_identities WHERE normalized_identifier=$1",
+            [email],
+          )
+        ).rows[0]!.count,
+      ).toBe("0");
+      await expect(
+        betaService().readIdentityInvitation(invitation.id),
+      ).resolves.toMatchObject({ status: "EXPIRED" });
+    } finally {
+      await blocker.close();
+    }
+  });
+
   it("CLOSED uninvited and PAUSED invited first login fail with zero partial identity rows", async () => {
     await q(
       "UPDATE beta_admission_state SET mode='CLOSED',capacity=2,admitted=0,revision=1 WHERE id=1",

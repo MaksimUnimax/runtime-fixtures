@@ -186,10 +186,10 @@ export function createAuthRepository(runtime: DatabaseRuntime): AuthRepository {
               WHERE normalized_identity_target=$1
                 AND consumed_at IS NULL
                 AND revoked_at IS NULL
-                AND expires_at>$2
+                AND expires_at>clock_timestamp()
               ORDER BY created_at ASC,id ASC
               FOR UPDATE`,
-            [c.normalized_identity_target, now],
+            [c.normalized_identity_target],
           );
           if (invitations.rows.length > 1)
             throw new Error("multiple active beta identity invitations");
@@ -215,8 +215,7 @@ export function createAuthRepository(runtime: DatabaseRuntime): AuthRepository {
                  FROM beta_identity_invitations
                 WHERE consumed_at IS NULL
                   AND revoked_at IS NULL
-                  AND expires_at>$1`,
-              [now],
+                  AND expires_at>clock_timestamp()`,
             );
             if (admitted + Number(reservations.rows[0]?.count ?? 0) >= capacity)
               return {
@@ -225,6 +224,7 @@ export function createAuthRepository(runtime: DatabaseRuntime): AuthRepository {
               } as AuthResult<never>;
           }
 
+          const admissionNow = new Date();
           userId = randomUUID();
           const accountId = randomUUID();
           await tx.query(`INSERT INTO users(id) VALUES($1)`, [userId]);
@@ -235,18 +235,18 @@ export function createAuthRepository(runtime: DatabaseRuntime): AuthRepository {
           );
           await tx.query(
             `INSERT INTO user_identities(user_id,provider,normalized_identifier,verified_at) VALUES($1,'EMAIL',$2,$3)`,
-            [userId, c.normalized_identity_target, now],
+            [userId, c.normalized_identity_target, admissionNow],
           );
           await tx.query(
             `INSERT INTO beta_admissions(account_id,user_id,admitted_at) VALUES($1,$2,$3)`,
-            [accountId, userId, now],
+            [accountId, userId, admissionNow],
           );
           const admittedRow = await tx.query<{ admitted: number | string }>(
             `UPDATE beta_admission_state
                 SET admitted=admitted+1,updated_at=$1
               WHERE id=1 AND admitted<capacity
               RETURNING admitted`,
-            [now],
+            [admissionNow],
           );
           if (!admittedRow.rows[0])
             throw new Error("beta admission state changed unexpectedly");
@@ -254,13 +254,13 @@ export function createAuthRepository(runtime: DatabaseRuntime): AuthRepository {
           if (invited) {
             const consumed = await tx.query(
               `UPDATE beta_identity_invitations
-                  SET consumed_at=$2,consumed_user_id=$3
+                  SET consumed_at=clock_timestamp(),consumed_user_id=$2
                 WHERE id=$1
                   AND consumed_at IS NULL
                   AND revoked_at IS NULL
-                  AND expires_at>$2
+                  AND expires_at>clock_timestamp()
                 RETURNING id`,
-              [invited.id, now, userId],
+              [invited.id, userId],
             );
             if (!consumed.rows[0])
               throw new Error("beta identity invitation changed unexpectedly");
