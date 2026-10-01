@@ -105,6 +105,14 @@
         "tests/integration/server/isolated-auth-lifecycle.integration.test.ts"
       ],
       "reason": "Independent source review found PostgreSQL URL query host override and HTTP200 non-JSON falsely activated; bounded fix before acceptance, no schema or live DB changes"
+    },
+    {
+      "owner": "A_prior_WIP_reconciliation",
+      "branch": "exec/A/prior-wip-reconciliation-20261001",
+      "paths": [
+        "tests/regression/extension-core/client-i1/client-support-snapshot.mjs"
+      ],
+      "reason": "Preserve parent A45line WIP and compare34cf81be with newly integrated3c3c626 support fix before runtime activation; isolatedcopyonly, exact independentreview"
     }
   ],
   "constraints": [
