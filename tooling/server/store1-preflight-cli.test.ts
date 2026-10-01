@@ -425,6 +425,16 @@ function protectedEntryInput() {
   };
 }
 
+function adminOnlyEntryInput(
+  input: ReturnType<typeof protectedEntryInput>["input"],
+) {
+  const adminOnly = { ...input } as Record<string, unknown>;
+  delete adminOnly.deviceId;
+  delete adminOnly.browserVersion;
+  delete adminOnly.reviewerDeviceBearerFile;
+  return adminOnly;
+}
+
 function entryFetch(
   fixture: ReturnType<typeof signedFixture>,
   options: {
@@ -596,10 +606,9 @@ describe("STORE-1 read-only authenticated entry", () => {
       const fixture = signedFixture();
       const protectedInput = protectedEntryInput();
       try {
-        rmSync(protectedInput.input.reviewerDeviceBearerFile);
         const http = entryFetch(fixture, options);
         const result = await runStore1ReadOnlyPreflightWithEvidenceForTest(
-          protectedInput.input,
+          adminOnlyEntryInput(protectedInput.input),
           fixture.packageEvidence,
           { fetchImpl: http.fetchImpl },
         );
@@ -619,6 +628,49 @@ describe("STORE-1 read-only authenticated entry", () => {
       }
     },
   );
+
+  it("requires complete, valid reviewer-device inputs only after reviewer prerequisites pass", async () => {
+    const fixture = signedFixture();
+    const protectedInput = protectedEntryInput();
+    try {
+      const { input } = protectedInput;
+      const withoutDeviceId = { ...input } as Record<string, unknown>;
+      delete withoutDeviceId.deviceId;
+      const withoutBrowserVersion = { ...input } as Record<string, unknown>;
+      delete withoutBrowserVersion.browserVersion;
+      const withoutBearerPath = { ...input } as Record<string, unknown>;
+      delete withoutBearerPath.reviewerDeviceBearerFile;
+      const variants: Array<[string, Record<string, unknown>]> = [
+        ["all reviewer-device fields omitted", adminOnlyEntryInput(input)],
+        ["device id omitted", withoutDeviceId],
+        ["device id malformed", { ...input, deviceId: "not-a-device-id" }],
+        ["browser version omitted", withoutBrowserVersion],
+        [
+          "browser version malformed",
+          { ...input, browserVersion: "opera-136" },
+        ],
+        ["reviewer bearer path omitted", withoutBearerPath],
+      ];
+
+      for (const [, value] of variants) {
+        const http = entryFetch(fixture);
+        await expect(
+          runStore1ReadOnlyPreflightWithEvidenceForTest(
+            value,
+            fixture.packageEvidence,
+            { fetchImpl: http.fetchImpl },
+          ),
+        ).rejects.toThrow("STORE1_REVIEWER_INPUT_INVALID");
+        expect(http.calls.length).toBeGreaterThan(0);
+        expect(http.calls.every((call) => call.method === "GET")).toBe(true);
+        expect(http.calls.some((call) => call.path === "/v1/bootstrap")).toBe(
+          false,
+        );
+      }
+    } finally {
+      rmSync(protectedInput.directory, { recursive: true, force: true });
+    }
+  });
 
   it("requires the reviewer bearer only after reviewer prerequisites pass", async () => {
     const fixture = signedFixture();
