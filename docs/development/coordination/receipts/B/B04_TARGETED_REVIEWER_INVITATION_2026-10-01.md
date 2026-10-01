@@ -145,8 +145,33 @@ of 145, and the OpenAPI expected-path inventory omitted the three new invitation
 routes. Runtime route code, invitation semantics and generated OpenAPI were
 already correct. The companion task
 `B04-TARGETED-REVIEWER-API-SURFACE-TESTS` updates only those two test
-inventories. Final publication still requires a fresh independent review and
-five CI workflows on the exact corrected candidate.
+inventories.
+
+R5 independently reviewed exact candidate
+`bb3b4bfa16bb11009f704e23cf8195cdaf53dae2` including those API-surface
+test corrections and returned PASS with no High/Medium finding.
+
+Exact Server CI attempts 1 and 2 on that unchanged SHA then failed
+deterministically only in the full integration suite on stale **current
+repository fact** assertions that predated migration 0056 and the three new
+admin routes:
+
+- current migration journal expected 44 rows / latest 0055 instead of 45 /
+  latest 0056;
+- the current PostgreSQL full-table inventory omitted
+  `beta_identity_invitations`;
+- one 0055 historical-prefix helper assumed 0055 was still the last journal
+  entry instead of retaining the exact prefix0054 boundary beneath 0055+0056;
+- P5.7 still expected 142 OpenAPI operations and the prior artifact hash
+  instead of 145 operations and the generated invitation-route artifact.
+
+Task `B04-CURRENT-FACT-ASSERTIONS` updates only those stale current-fact
+expectations. Historical prefix sizes and migration behavior remain unchanged.
+No runtime, schema, route or invitation semantics changed in that correction.
+
+Final publication therefore still requires one fresh independent review and
+all five CI workflows on the exact candidate containing this test-only
+correction.
 
 ## Verification
 
