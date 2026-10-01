@@ -55,7 +55,8 @@ describe("isolated auth lifecycle driver safety", () => {
     "postgres://local@127.0.0.1:15541/octoport_a_test",
     "postgresql://local@localhost:15542/octoport_b_test",
     "postgres://local@[::1]:15543/octoport_c_test",
-  ])("accepts the exact supervisor fixture target %s", (url) => {
+    "postgres://product_control_plane_ci@127.0.0.1:5432/product_control_plane_test",
+  ])("accepts the exact approved fixture target %s", (url) => {
     expect(validateIsolatedDatabaseUrl(url)).toBe(new URL(url).toString());
   });
 
@@ -74,6 +75,14 @@ describe("isolated auth lifecycle driver safety", () => {
     "postgres://local@127.0.0.1/octoport_b_test",
     "postgres://local@nonloopback.invalid:15542/octoport_b_test",
     "postgres://local@127.0.0.1:15542/octoport_%62_test",
+    "postgres://product_control_plane_ci@127.0.0.1:5432/product_control_plane_test_other",
+    "postgres://product_control_plane_ci@127.0.0.1:15432/product_control_plane_test",
+    "postgres://other_user@127.0.0.1:5432/product_control_plane_test",
+    "postgres://127.0.0.1:5432/product_control_plane_test",
+    "postgres://product_control_plane_ci@localhost:5432/product_control_plane_test",
+    "postgres://product_control_plane_ci@nonloopback.invalid:5432/product_control_plane_test",
+    "postgres://product_control_plane_ci@127.0.0.1:5432/product_control_plane_test?host=nonloopback.invalid",
+    "postgres://product_control_plane_ci@127.0.0.1:5432/product_control_plane_test?dbname=other_test",
   ])("rejects DB overrides and unregistered targets before I/O: %s", (url) => {
     const fetcher = vi.fn() as unknown as typeof fetch;
     expect(() => validateIsolatedDatabaseUrl(url)).toThrow(
