@@ -19,8 +19,11 @@ class RuntimeIndependent(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         self.area = Path(self.tmp.name)
         self.control = self.area / "control"
-        self.repo = self.area / "repo"
-        self.repo.mkdir()
+        self.repo = self.control / "worktrees/A/fixture"
+        self.repo.mkdir(parents=True)
+        environment_root = mock.patch.object(adapter.continuous_environment, "CONTROL", self.control)
+        environment_root.start()
+        self.addCleanup(environment_root.stop)
         self.cfg = {"control_root": str(self.control), "repo": str(self.repo),
                     "epoch": "independent", "enabled_roles": ["A", "B", "C"],
                     "requirements": str(self.area / "requirements.json")}
@@ -37,6 +40,17 @@ class RuntimeIndependent(unittest.TestCase):
             "B": {"allow": ["apps/b/**"], "deny": []},
             "C": {"allow": ["**"], "deny": []}}}
         state.atomic_json(self.repo / "docs/development/coordination/OWNERSHIP.json", ownership)
+        for path in state.RULES:
+            target = self.repo / path
+            if not target.exists():
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text("fixture rule\n")
+        spec_text = "Approved independent fixture criterion\n"
+        (self.repo / "docs/product/SPEC.md").write_text(spec_text)
+        (self.repo / "docs/development/coordination/PLAN.md").write_text("| A01 | fixture |\n")
+        self.req.update(source="docs/product/SPEC.md", quote="fixture criterion",
+                        source_sha256=state.digest(spec_text))
+        state.atomic_json(self.cfg["requirements"], {"requirements": [self.req]})
         self.conn = state.db(self.cfg)
         self.addCleanup(self.conn.close)
 
@@ -198,7 +212,8 @@ class RuntimeIndependent(unittest.TestCase):
         subprocess.run(["git", "init", "-q", str(self.repo)], check=True)
         subprocess.run(["git", "-C", str(self.repo), "config", "user.email", "fixture@example.invalid"], check=True)
         subprocess.run(["git", "-C", str(self.repo), "config", "user.name", "Fixture"], check=True)
-        (self.repo / "source.py").write_text("VALUE = 1\n")
+        (self.repo / "apps/a").mkdir(parents=True)
+        (self.repo / "apps/a/source.py").write_text("VALUE = 1\n")
         subprocess.run(["git", "-C", str(self.repo), "add", "."], check=True)
         subprocess.run(["git", "-C", str(self.repo), "commit", "-qm", "fixture"], check=True)
         self.cfg["check_catalog"] = {"unit": {
@@ -231,7 +246,7 @@ class RuntimeIndependent(unittest.TestCase):
         import time
         row, spec, directory = self.check_fixture("import time; time.sleep(10)", timeout=1)
         started = time.monotonic()
-        with self.assertRaises(RuntimeError):
+        with self.assertRaisesRegex(RuntimeError, "TRUSTED_CHECK_CHECK_LIMIT"):
             adapter.run_checks(self.cfg, row, spec, directory)
         self.assertLess(time.monotonic() - started, 5)
 
@@ -245,8 +260,8 @@ class RuntimeIndependent(unittest.TestCase):
 
     def test_check_mutating_source_cannot_produce_valid_receipt(self):
         row, spec, directory = self.check_fixture(
-            "from pathlib import Path; Path('source.py').write_text('VALUE = 2\\n')")
-        with self.assertRaises(RuntimeError):
+            "from pathlib import Path; Path('apps/a/source.py').write_text('VALUE = 2\\n')")
+        with self.assertRaisesRegex(RuntimeError, "CHECK_MUTATED_SOURCE"):
             adapter.run_checks(self.cfg, row, spec, directory)
 
     def test_absent_check_catalog_cannot_accept(self):
@@ -318,12 +333,20 @@ class RuntimeIndependent(unittest.TestCase):
     def review_receipt_fixture(self, role="B", author="A", adapter_changes=None):
         result = self.result()
         spec = self.review_spec()
-        spec.update(author=author, epoch=self.cfg["epoch"])
+        self.add("author-A", role=author, spec={"task": self.task()}, current="REVIEW_PENDING")
+        spec.update(author=author, epoch=self.cfg["epoch"], author_job="author-A",
+                    worktree=str(self.repo), generation=0,
+                    task_contract_sha256=runtime.work_queue._contract(self.task()))
         row = self.add("review-A", role=role, kind="review", spec=spec,
                        current="RESULT", token=1)
         self.conn.execute("UPDATE jobs SET result=? WHERE id='review-A'", (state.encode(result),))
         self.conn.commit()
+        self.conn.execute("UPDATE jobs SET entry_pid=?,entry_birth=? WHERE id='review-A'",
+                          (os.getpid(), state.birth(os.getpid())))
+        self.conn.commit()
         receipt = {"job": "review-A", "role": role, "model": state.MODEL,
+                   "kind": "review", "worktree": str(self.repo),
+                   "entry_pid": os.getpid(), "entry_birth": state.birth(os.getpid()),
                    "token": 1, "adapter_status": "RESULT_VALIDATED",
                    "result_sha256": state.digest(state.encode(result))}
         receipt.update(adapter_changes or {})
