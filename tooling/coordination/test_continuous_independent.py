@@ -450,6 +450,12 @@ class RuntimeIndependent(unittest.TestCase):
         self.conn.commit()
         self.assertEqual("normal", self.one_dispatch())
 
+    def test_check_mutating_executable_bit_cannot_produce_valid_receipt(self):
+        row, spec, directory = self.check_fixture(
+            "from pathlib import Path; Path('apps/a/source.py').chmod(0o755)")
+        with self.assertRaisesRegex(RuntimeError, "CHECK_MUTATED_SOURCE"):
+            adapter.run_checks(self.cfg, row, spec, directory)
+
 
 if __name__ == "__main__":
     unittest.main()
