@@ -17,8 +17,14 @@ assert.match(popupJs, /UPDATE_RECOMMENDED/);
 assert.match(popupJs, /Текущая версия пока разрешена/);
 assert.match(popupJs, /async function requestStart/);
 assert.match(popupJs, /response\?\.accepted !== true/);
-assert.match(popupJs, /WORK_START_ALREADY_PENDING: "Запуск уже выполняется\. Повторная инструкция не отправлена"/);
-assert.match(popupJs, /const run = async confirm_change => \{ await requestStart\(/);
+assert.match(
+  popupJs,
+  /WORK_START_ALREADY_PENDING: "Запуск уже выполняется\. Повторная инструкция не отправлена"/,
+);
+assert.match(
+  popupJs,
+  /const run = async confirm_change => \{ await requestStart\(/,
+);
 const worker = await makeWorker(runtime, {
   userAgent: "Mozilla/5.0 Chrome/147.0.7727.116 Safari/537.36",
 });
@@ -184,7 +190,10 @@ const pendingStartWorker = await makeWorker(runtime, {
   userAgent: "Mozilla/5.0 Chrome/147.0.7727.116 Safari/537.36",
 });
 try {
-  const response = await pendingStartWorker.popup({ type: "SA_SUPPORT_SNAPSHOT", tab_id: 77 });
+  const response = await pendingStartWorker.popup({
+    type: "SA_SUPPORT_SNAPSHOT",
+    tab_id: 77,
+  });
   const snapshot = JSON.parse(JSON.stringify(response.snapshot));
   assert.deepEqual(snapshot.work.lastStart, {
     stage: "accepted",
@@ -192,8 +201,14 @@ try {
     outcome: "pending",
   });
   const serialized = JSON.stringify(snapshot);
-  assert.equal(serialized.includes("PRIVATE_PENDING_CONVERSATION_SHOULD_NOT_LEAK"), false);
-  assert.equal(serialized.includes("PRIVATE_PENDING_PROMPT_SHOULD_NOT_LEAK"), false);
+  assert.equal(
+    serialized.includes("PRIVATE_PENDING_CONVERSATION_SHOULD_NOT_LEAK"),
+    false,
+  );
+  assert.equal(
+    serialized.includes("PRIVATE_PENDING_PROMPT_SHOULD_NOT_LEAK"),
+    false,
+  );
 } finally {
   pendingStartWorker.close();
 }
@@ -203,7 +218,10 @@ const startDiagnosticWorker = await makeWorker(runtime, {
   userAgent: "Mozilla/5.0 Chrome/147.0.7727.116 Safari/537.36",
 });
 try {
-  const response = await startDiagnosticWorker.popup({ type: "SA_SUPPORT_SNAPSHOT", tab_id: 77 });
+  const response = await startDiagnosticWorker.popup({
+    type: "SA_SUPPORT_SNAPSHOT",
+    tab_id: 77,
+  });
   const snapshot = JSON.parse(JSON.stringify(response.snapshot));
   assert.deepEqual(snapshot.work.lastStart, {
     stage: "terminal",
@@ -211,7 +229,10 @@ try {
     outcome: "failed",
   });
   const serialized = JSON.stringify(snapshot);
-  assert.equal(serialized.includes("PRIVATE_CONVERSATION_SHOULD_NOT_LEAK"), false);
+  assert.equal(
+    serialized.includes("PRIVATE_CONVERSATION_SHOULD_NOT_LEAK"),
+    false,
+  );
   assert.equal(serialized.includes("PRIVATE_PROMPT_SHOULD_NOT_LEAK"), false);
 } finally {
   startDiagnosticWorker.close();
@@ -223,7 +244,10 @@ const reopenedStartDiagnosticWorker = await makeWorker(runtime, {
   userAgent: "Mozilla/5.0 Chrome/147.0.7727.116 Safari/537.36",
 });
 try {
-  const response = await reopenedStartDiagnosticWorker.popup({ type: "SA_SUPPORT_SNAPSHOT", tab_id: 77 });
+  const response = await reopenedStartDiagnosticWorker.popup({
+    type: "SA_SUPPORT_SNAPSHOT",
+    tab_id: 77,
+  });
   const snapshot = JSON.parse(JSON.stringify(response.snapshot));
   assert.deepEqual(snapshot.work.lastStart, {
     stage: "terminal",
@@ -231,7 +255,10 @@ try {
     outcome: "failed",
   });
   const serialized = JSON.stringify(snapshot);
-  assert.equal(serialized.includes("PRIVATE_CONVERSATION_SHOULD_NOT_LEAK"), false);
+  assert.equal(
+    serialized.includes("PRIVATE_CONVERSATION_SHOULD_NOT_LEAK"),
+    false,
+  );
   assert.equal(serialized.includes("PRIVATE_PROMPT_SHOULD_NOT_LEAK"), false);
 } finally {
   reopenedStartDiagnosticWorker.close();
