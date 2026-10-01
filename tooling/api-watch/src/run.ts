@@ -9,11 +9,17 @@ import { classifyApiImpact } from "./impact.js";
 import { promoteAcceptedSnapshot, readAcceptedSnapshot } from "./snapshot.js";
 import { buildCompleteOperationInventory } from "./inventory.js";
 import { evaluateApiWatchIncidents } from "./incident.js";
+import {
+  buildProductCrosswalk,
+  extractProductRegistry,
+} from "./product-registry.js";
 import { applyRetryDecision } from "./retry.js";
 import type {
   ApiWatchDependencies,
+  ApiWatchImpact,
   ApiWatchReportSourceOutcome,
   AuthorityPassResult,
+  OperationInventory,
   SemanticDiff,
 } from "./types.js";
 
@@ -173,6 +179,30 @@ function currentTime(dependencies: ApiWatchDependencies): Date {
   return (dependencies.clock ?? (() => new Date()))();
 }
 
+async function persistProductCrosswalk(input: {
+  dependencies: ApiWatchDependencies;
+  reportId: string;
+  inventory: OperationInventory;
+  impact?: ApiWatchImpact;
+  diffSha256?: string | null;
+  createdAt: Date;
+}): Promise<void> {
+  const crosswalkStore = input.dependencies.crosswalkStore;
+  if (!crosswalkStore) return;
+  const runtimeEntries = await extractProductRegistry({
+    sourceFamily: input.inventory.sourceFamily,
+  });
+  const crosswalk = buildProductCrosswalk({
+    reportId: input.reportId,
+    inventory: input.inventory,
+    runtimeEntries,
+    impact: input.impact,
+    diffSha256: input.diffSha256,
+    createdAt: input.createdAt,
+  });
+  await crosswalkStore.saveRows(crosswalk.rows);
+}
+
 function extensionFor(
   outcome: Extract<
     AuthorityPassResult["outcomes"][number],
@@ -217,6 +247,7 @@ function reportResult(
 
 async function analyzeAcceptedOutcome(input: {
   dependencies: ApiWatchDependencies;
+  reportId: string;
   outcome: Extract<
     AuthorityPassResult["outcomes"][number],
     { kind: "ACQUIRED_OFFICIAL_SOURCE_CANDIDATE" }
@@ -226,7 +257,7 @@ async function analyzeAcceptedOutcome(input: {
     ReturnType<ApiWatchDependencies["store"]["listSnapshots"]>
   >;
 }): Promise<ApiWatchReportSourceOutcome> {
-  const { dependencies, outcome, record, previousSnapshots } = input;
+  const { dependencies, reportId, outcome, record, previousSnapshots } = input;
   const now = currentTime(dependencies);
   const documentKey = outcome.documentKey ?? null;
   const snapshot = await promoteAcceptedSnapshot({
@@ -321,7 +352,14 @@ async function analyzeAcceptedOutcome(input: {
       unknownCount: null,
       noPolicyImpactCount: null,
     };
-  if (previous.sha256 === snapshot.sha256)
+  if (previous.sha256 === snapshot.sha256) {
+    if (baseline)
+      await persistProductCrosswalk({
+        dependencies,
+        reportId,
+        inventory,
+        createdAt: now,
+      });
     return {
       sourceFamily: outcome.sourceFamily,
       documentKey,
@@ -344,6 +382,7 @@ async function analyzeAcceptedOutcome(input: {
       unknownCount: 0,
       noPolicyImpactCount: 0,
     };
+  }
   const previousBytes = await readAcceptedSnapshot(previous);
   // Compare both accepted byte sets with the same normalization rules. Cached
   // inventories may have been produced before a semantic fingerprint repair.
@@ -366,6 +405,15 @@ async function analyzeAcceptedOutcome(input: {
   });
   await dependencies.store.saveSemanticDiff(diff);
   const impact = classifyApiImpact(diff);
+  if (baseline)
+    await persistProductCrosswalk({
+      dependencies,
+      reportId,
+      inventory,
+      impact,
+      diffSha256: diff.diffSha256,
+      createdAt: now,
+    });
   return {
     sourceFamily: outcome.sourceFamily,
     documentKey,
@@ -490,6 +538,7 @@ export async function runApiWatchReport(input: {
         sources.push(
           await analyzeAcceptedOutcome({
             dependencies,
+            reportId: report.reportId,
             outcome,
             record,
             previousSnapshots,
@@ -519,9 +568,13 @@ export async function runApiWatchReport(input: {
       counts: reportCounts(sources),
     });
     const completedReport = await reportStore.getReport(report.reportId);
+    const crosswalkRows = dependencies.crosswalkStore
+      ? await dependencies.crosswalkStore.listRows(report.reportId)
+      : undefined;
     if (completedReport && dependencies.incidentStore)
       await evaluateApiWatchIncidents({
         report: completedReport,
+        crosswalkRows,
         store: dependencies.incidentStore,
         notifier: dependencies.incidentNotifier,
         now: currentTime(dependencies),

@@ -57,6 +57,15 @@ describe("TG4 Stream-2 upload security review", () => {
     expect(client).not.toMatch(/logger.*token/i);
   });
 
+  it("wires the PostgreSQL product crosswalk into the existing Swagger runner", async () => {
+    const main = await source("main.ts");
+    expect(main).toContain(
+      "crosswalkStore: createPostgresProductCrosswalkStore(database)",
+    );
+    expect(main).toContain("SWAGGER_API: apiWatchRunner");
+    expect(main.match(/new IndependentMonitoringScheduler/g)).toHaveLength(1);
+  });
+
   it("wires the durable product baseline as read authority without automatic acceptance", async () => {
     const main = await source("main.ts");
     const apiWatch = await source("../../../tooling/api-watch/src/run.ts");

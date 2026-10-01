@@ -8,6 +8,7 @@ import {
   createPostgresApiWatchReportStore,
   createPostgresApiWatchIncidentStore,
   createPostgresApiWatchRetryStore,
+  createPostgresProductCrosswalkStore,
   productionSourceRegistry,
   validateWbBundleUpload,
 } from "@product/api-watch";
@@ -93,6 +94,7 @@ const apiWatchRunner = createApiWatchRunner({
   pendingStore: createPostgresSwaggerSourceStore(database),
   reportStore: createPostgresApiWatchReportStore(database),
   productBaselineRepository: createApiWatchProductBaselineRepository(database),
+  crosswalkStore: createPostgresProductCrosswalkStore(database),
   incidentStore,
   incidentNotifier: async (event) => serviceRef.current?.notifyIncident(event),
   retryStore: createPostgresApiWatchRetryStore(database),

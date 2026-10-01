@@ -9,6 +9,8 @@ import {
   InMemoryApiWatchStore,
 } from "./authority.js";
 import { createSourceRegistry } from "./source-registry.js";
+import { InMemoryProductCrosswalkStore } from "./crosswalk.js";
+import { InMemoryApiWatchIncidentStore } from "./incident.js";
 import {
   createInMemoryApiWatchReportState,
   InMemoryApiWatchReportStore,
@@ -557,6 +559,103 @@ describe("A6 API-watch report lifecycle", () => {
       expect(changed?.errorCode).toBe("PRODUCT_BASELINE_MISSING");
       expect(repeated?.changeMode).toBe("NO_CHANGE");
       expect(repeated?.errorCode).toBe("PRODUCT_BASELINE_MISSING");
+    } finally {
+      await server.close();
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("C03 wires accepted document comparison through crosswalk into incidents", async () => {
+    const server = await fixtureServer(DOCUMENT_A);
+    const root = await mkdtemp(join(tmpdir(), "s2-c03-crosswalk-wiring-"));
+    const baseline = mutableBaselineReader();
+    const crosswalkStore = new InMemoryProductCrosswalkStore();
+    const incidentStore = new InMemoryApiWatchIncidentStore();
+    try {
+      const registry = createSourceRegistry({
+        OZON_SELLER: {
+          officialUrl: null,
+          requiredServerIdentity: undefined,
+          titlePattern: undefined,
+          documents: [
+            {
+              documentKey: "seller-public",
+              officialUrl: server.url,
+              expectedArtifactTypes: ["JSON"],
+            },
+          ],
+        },
+        OZON_PERFORMANCE: { officialUrl: null, documents: [] },
+        WILDBERRIES: { officialUrl: null, documents: [] },
+      });
+      const setup = reportDependencies(
+        registry,
+        root,
+        new InMemoryApiWatchReportStore(),
+        createInMemoryApiWatchState(),
+        baseline.reader,
+      );
+      const dependencies = {
+        ...setup.dependencies,
+        crosswalkStore,
+        incidentStore,
+      };
+      await runApiWatchReport({
+        dependencies,
+        runId: "document-baseline",
+        source: "FORCED",
+      });
+      expect(
+        await crosswalkStore.listRows("api-watch:document-baseline"),
+      ).toEqual([]);
+      expect(
+        (await incidentStore.listOpen()).some(
+          (incident) => incident.documentKey !== null,
+        ),
+      ).toBe(false);
+      const accepted = (await setup.dependencies.store.listSnapshots()).find(
+        (snapshot) =>
+          snapshot.sourceFamily === "OZON_SELLER" &&
+          snapshot.documentKey === "seller-public",
+      )!;
+      baseline.set({
+        baselineId: "seller-public-baseline",
+        sourceFamily: accepted.sourceFamily,
+        documentKey: "seller-public",
+        snapshotId: accepted.snapshotId,
+        snapshotSha256: accepted.sha256,
+        snapshotSpecVersion: accepted.specVersion,
+        revision: 1,
+        acceptedAt: new Date("2026-09-22T00:00:00Z"),
+        acceptedBy: "fixture",
+        acceptanceReference: "fixture:seller-public",
+      });
+      server.setBody(DOCUMENT_B);
+      await runApiWatchReport({
+        dependencies,
+        runId: "document-crosswalk",
+        source: "FORCED",
+      });
+      const rows = await crosswalkStore.listRows(
+        "api-watch:document-crosswalk",
+      );
+      const scoped = rows.filter((row) => row.documentKey === "seller-public");
+      expect(scoped.length).toBeGreaterThan(0);
+      expect(
+        scoped.every((row) => row.reportId === "api-watch:document-crosswalk"),
+      ).toBe(true);
+      expect(
+        scoped.some((row) => row.sourceIdentity === "OZON_SELLER:GET:/items"),
+      ).toBe(true);
+      expect(scoped.some((row) => row.diffSha256 !== null)).toBe(true);
+      const incidents = await incidentStore.listOpen();
+      expect(
+        incidents.some(
+          (incident) =>
+            incident.documentKey === "seller-public" &&
+            incident.latestReportId === "api-watch:document-crosswalk",
+        ),
+      ).toBe(true);
     } finally {
       await server.close();
       await rm(root, { recursive: true, force: true });
