@@ -456,6 +456,27 @@ class RuntimeIndependent(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "CHECK_MUTATED_SOURCE"):
             adapter.run_checks(self.cfg, row, spec, directory)
 
+    def test_unrelated_spec_text_does_not_block_unchanged_clause(self):
+        source = self.repo / "docs/product/SPEC.md"
+        source.write_text(source.read_text() + "Unrelated appendix added\n")
+        state.validate_task(self.cfg, self.task())
+
+    def test_changed_clause_blocks_its_task_not_other_owner(self):
+        source = self.repo / "docs/product/SPEC.md"
+        original = source.read_text() + "Independent B criterion\n"
+        source.write_text(original)
+        self.req["source_sha256"] = state.digest(original)
+        second = dict(self.req, id="req-B", role="B", plan="B01", quote="Independent B criterion")
+        state.atomic_json(self.cfg["requirements"], {"requirements": [self.req, second]})
+        plan = self.repo / "docs/development/coordination/PLAN.md"
+        plan.write_text(plan.read_text() + "| B01 | fixture |\n")
+        source.write_text(original.replace("fixture criterion", "changed A criterion"))
+        with self.assertRaises(RuntimeError):
+            state.validate_task(self.cfg, self.task())
+        task_b = self.task(id="task-B", requirement_id="req-B", role="B", plan="B01",
+                           paths=["apps/b/source.py"])
+        state.validate_task(self.cfg, task_b)
+
 
 if __name__ == "__main__":
     unittest.main()
