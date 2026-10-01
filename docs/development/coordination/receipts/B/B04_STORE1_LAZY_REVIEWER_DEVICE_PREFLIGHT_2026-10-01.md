@@ -1,6 +1,6 @@
 # B04 STORE1 lazy reviewer-device preflight — 2026-10-01
 
-Status: **SOURCE PASS / REVIEW PENDING / NO LIVE OR CATALOG MUTATION**.
+Status: **SOURCE + INDEPENDENT REVIEW PASS / NO LIVE OR CATALOG MUTATION**.
 
 Task: `B04-STORE1-LAZY-REVIEWER-DEVICE-PREFLIGHT`.
 
@@ -65,7 +65,12 @@ Node `v24.20.0`.
 - `tooling/server/store1-preflight-cli.test.ts`: **23/23 PASS**;
 - focused ESLint: PASS with zero warnings;
 - focused Prettier: PASS;
-- `git diff --check`: PASS.
+- `git diff --check`: PASS;
+- independent read-only `gpt-6-luna` review of the exact source/test bytes:
+  **PASS**, no High/Medium findings.
+
+The fresh-main publication candidate keeps the reviewed source/test blobs
+byte-identical; only this receipt status/evidence line is updated after review.
 
 ## Boundary
 
