@@ -350,7 +350,7 @@ function reviewerPreflight(
       status: "BLOCKED",
       code: "STORE1_REVIEWER_IDENTITY_PREEXISTING_REQUIRED",
       detail:
-        "Current CLOSED beta has no targeted invite primitive. Do not open global registration or create a reviewer by SQL/admin bypass.",
+        "Targeted reviewer invitation is supported through the authenticated CSRF-protected POST /v1/admin/beta/invitations path while beta remains CLOSED. Invitation alone creates no identity, account, session, device, or reviewer bearer: the intended reviewer must complete the ordinary OTP first-login before STORE1 preflight can continue. Run invitation as a separate authorized live operation using current beta revision/readback; do not open global registration, substitute the owner, fabricate admission/device credentials, or provision by SQL/direct DB.",
     };
   if (r.reviewerUser.status !== "ACTIVE")
     return conflict(

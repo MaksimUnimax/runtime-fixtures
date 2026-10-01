@@ -401,6 +401,9 @@ describe("STORE-1 ordinary-admin activation planner", () => {
     expect(planStore1Activation(authority, r)).toMatchObject({
       status: "BLOCKED",
       code: "STORE1_REVIEWER_IDENTITY_PREEXISTING_REQUIRED",
+      detail: expect.stringMatching(
+        /POST \/v1\/admin\/beta\/invitations.*ordinary OTP first-login.*separate authorized live operation.*do not open global registration.*SQL\/direct DB/s,
+      ),
     });
   });
 
