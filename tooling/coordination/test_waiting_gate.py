@@ -44,7 +44,7 @@ class WaitingPolicyTests(unittest.TestCase):
 
     def test_complete_blocker_review_allows_bounded_wait(self):
         result = self.validate()
-        self.assertEqual(result["entry_count"], 6)
+        self.assertEqual(result["entry_count"], 21)
         self.assertEqual(result["head"], self.head)
         self.assertEqual(len(result["sha256"]), 64)
 
@@ -97,8 +97,8 @@ class WaitingPolicyTests(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 validate_waiting_receipt("A", str(self.path), self.head, self.now)
 
-    def test_all_roles_require_their_entire_plan(self):
-        for role, expected in [("A", 6), ("B", 7), ("C", 8)]:
+    def test_all_roles_require_entire_shared_plan(self):
+        for role, expected in [("A", 21), ("B", 21), ("C", 21)]:
             d = copy.deepcopy(self.data)
             d["role"] = role
             template = d["entries"][0]

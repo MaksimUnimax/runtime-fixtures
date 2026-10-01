@@ -10,6 +10,8 @@ PLAN_IDS = {
     "B": {f"B{i:02d}" for i in range(1, 8)},
     "C": {f"C{i:02d}" for i in range(0, 8)},
 }
+ALL_PLAN_IDS = set().union(*PLAN_IDS.values())
+PLAN_IDS = {role: set(ALL_PLAN_IDS) for role in "ABC"}
 STATES = {"READY", "IN_PROGRESS", "BLOCKED", "DONE", "DEFERRED_BY_OWNER"}
 
 
@@ -91,7 +93,8 @@ def validate_input_freshness(role, checked, control_root):
     groups = [
         (root / "controller-notices", role + "-*.json"),
         (root / "peer-handoffs" / role, "*.json"),
-        (root / "inbox", "*.json" if role == "C" else role + "-*.json"),
+        (root / "inbox", "*.json"),
+        (root / "operator" / "feedback", "*.json"),
     ]
     changed = []
     checked_count = 0

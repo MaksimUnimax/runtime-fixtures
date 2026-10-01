@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 STATES = {"READY", "IN_PROGRESS", "BLOCKED", "DONE"}
+PLAN_IDS = {f"{r}{i:02d}" for r, span in (("A", range(1, 7)), ("B", range(1, 8)), ("C", range(8))) for i in span}
 
 
 def board_snapshot(root):
@@ -50,7 +51,7 @@ def load_board(root, candidate=None):
             role = task.get("role")
             if role not in {"A", "B", "C"} or task.get("state") not in STATES:
                 raise ValueError("role/state")
-            if task.get("plan") not in {f"{role}{i:02d}" for i in (range(1, 7) if role == "A" else range(1, 8) if role == "B" else range(8))}:
+            if task.get("plan") not in PLAN_IDS:
                 raise ValueError("plan")
             if not isinstance(task.get("requires"), list) or not all(isinstance(x, str) for x in task["requires"]):
                 raise ValueError("requires")
@@ -81,23 +82,115 @@ def load_board(root, candidate=None):
         raise RuntimeError("WORK_QUEUE_INVALID: repair controllers/work-board.json; no waiting proof") from None
 
 
+def valid_paths(paths):
+    return (isinstance(paths, list) and bool(paths) and all(
+        isinstance(p, str) and p.strip() == p and p not in {"", "."}
+        and not Path(p).is_absolute() and ".." not in Path(p).parts
+        and str(Path(p)) == p and not any(x in p for x in "*?[")
+        for p in paths))
+
+
+def paths_overlap(left, right):
+    return left == right or left.startswith(right + "/") or right.startswith(left + "/")
+
+
+def task_conflicts(board, task):
+    paths = task.get("paths")
+    if not valid_paths(paths):
+        return ["TASK_PATHS_REQUIRED"]
+    conflicts = []
+    for other in board["tasks"]:
+        if other["id"] == task["id"] or other["state"] != "IN_PROGRESS":
+            continue
+        if not valid_paths(other.get("paths")) or any(
+            paths_overlap(a, b) for a in paths for b in other["paths"]
+        ):
+            conflicts.append(other["id"])
+    return conflicts
+
+
+def task_view(board, task):
+    done = {t["id"] for t in board["tasks"] if t["state"] == "DONE"}
+    waiting = [x for x in task["requires"] if x not in done]
+    state = task["state"]
+    if waiting:
+        state = "BLOCKED"
+    elif state == "BLOCKED" and task["requires"] and not task.get("blocked_reason"):
+        state = "READY"
+    conflicts = task_conflicts(board, task) if state == "READY" else []
+    if conflicts:
+        state = "BLOCKED"
+    return {key: task.get(key) for key in (
+        "id", "role", "plan", "result", "paths", "acceptance", "blocked_reason"
+    )} | {"state": state, "waiting_for": waiting, "conflicts": conflicts}
+
+
 def role_work(root, role):
     board = load_board(root)
-    done = {t["id"] for t in board["tasks"] if t["state"] == "DONE"}
     rows = []
     for task in board["tasks"]:
-        if task["role"] != role or task["state"] == "DONE":
+        if task["state"] == "DONE":
             continue
-        waiting_for = [x for x in task["requires"] if x not in done]
-        state = task["state"]
-        if waiting_for:
-            state = "BLOCKED"
-        elif state == "BLOCKED" and task["requires"] and not task.get("blocked_reason"):
-            state = "READY"
-        rows.append({key: task.get(key) for key in ("id", "plan", "result", "paths", "acceptance", "blocked_reason")} | {
-            "state": state, "waiting_for": waiting_for,
-        })
+        view = task_view(board, task)
+        # All claimable work is visible, regardless of its original author.
+        if task["role"] == role or view["state"] == "READY":
+            rows.append(view)
     return {"revision": board.get("revision", 0), "tasks": rows}
+
+
+def validate_task_scope(root, role, paths):
+    board = load_board(root)
+    active = [t for t in board["tasks"] if t["role"] == role and t["state"] == "IN_PROGRESS"]
+    allowed = {p for t in active if valid_paths(t.get("paths")) for p in t["paths"]}
+    missing = [p for p in paths if p not in allowed]
+    if missing:
+        raise RuntimeError("TASK_SCOPE_VIOLATION: claim exact paths before editing: " + ", ".join(missing))
+    for task in active:
+        conflicts = task_conflicts(board, task)
+        if conflicts:
+            raise RuntimeError("TASK_SCOPE_CONFLICT: " + ",".join(conflicts))
+
+
+def write_board(root, board, event):
+    now = datetime.now(timezone.utc).isoformat()
+    board["revision"] = board.get("revision", 0) + 1
+    board["updated_at"] = now
+    load_board(root, candidate=board)
+    encoded = json.dumps(board, ensure_ascii=False, indent=2) + "\n"
+    if len(encoded.encode()) > 262144:
+        raise RuntimeError("WORK_QUEUE_INVALID: size")
+    path = root / "controllers/work-board.json"
+    temporary = path.with_name(path.name + ".tmp")
+    temporary.write_text(encoded)
+    os.chmod(temporary, 0o600)
+    os.replace(temporary, path)
+    event = dict(event, at=now, revision=board["revision"])
+    with (root / "controllers/work-board-events.jsonl").open("a") as output:
+        output.write(json.dumps(event, ensure_ascii=False) + "\n")
+    return event
+
+
+def claim_task(root, role, identifier=""):
+    root = Path(root)
+    with (root / (role + ".lock")).open("a+") as role_lock:
+        fcntl.flock(role_lock, fcntl.LOCK_EX)
+        if json.loads((root / (role + ".json")).read_text()).get("status") == "STOPPED":
+            raise RuntimeError("STOPPED: no queue claim permitted")
+        with (root / "controllers/coordination.lock").open("a+") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            board = load_board(root)
+            active = [t for t in board["tasks"] if t["role"] == role and t["state"] == "IN_PROGRESS"]
+            if any(t["id"] == identifier for t in active):
+                return {"role": role, "task": identifier, "state": "IN_PROGRESS", "revision": board["revision"]}
+            choices = [t for t in board["tasks"] if (not identifier or t["id"] == identifier)
+                       and task_view(board, t)["state"] == "READY"]
+            if not choices:
+                raise RuntimeError("WORK_QUEUE_NO_CLAIMABLE_TASK: no available result; do not steal active work")
+            task = choices[0]
+            previous = task["role"]
+            task.update(role=role, state="IN_PROGRESS", claimed_at=datetime.now(timezone.utc).isoformat())
+            return write_board(root, board, {"action": "CLAIM", "role": role,
+                "task": task["id"], "previous_role": previous, "state": "IN_PROGRESS"})
 
 
 def assert_no_ready_work(root, role):
@@ -139,6 +232,9 @@ def advance_task(root, role, identifier, state, receipt="", reason=""):
             view = next(t for t in role_work(root, role)["tasks"] if t["id"] == identifier)
             if state in {"IN_PROGRESS", "DONE"} and view["waiting_for"]:
                 raise RuntimeError("WORK_QUEUE_DEPENDENCY_PENDING")
+            if state == "IN_PROGRESS":
+                if task_conflicts(board, task):
+                    raise RuntimeError("WORK_QUEUE_SCOPE_CONFLICT_OR_ACTIVE_TASK")
             if state == "BLOCKED" and (not reason.strip() or not receipt.strip()):
                 raise RuntimeError("WORK_QUEUE_BLOCKER_AND_EVIDENCE_REQUIRED")
             if state in {"DONE", "BLOCKED"} or (state == "IN_PROGRESS" and view["state"] == "BLOCKED"):
@@ -179,13 +275,13 @@ def advance_task(root, role, identifier, state, receipt="", reason=""):
 
 
 def add_task(root, role, task, repo_root=None):
-    """A role decomposes its own approved PLAN without waiting for a controller."""
+    """A dialogue decomposes any approved PLAN outcome without controller handoff."""
     root = Path(root)
     if not isinstance(task, dict) or task.get("role") != role or task.get("state") != "READY":
         raise RuntimeError("WORK_QUEUE_ADD_OWNER_OR_STATE_INVALID")
     if not all(isinstance(task.get(k), list) and task[k] and all(isinstance(x, str) and x.strip() for x in task[k]) for k in ("paths", "acceptance")):
         raise RuntimeError("WORK_QUEUE_PATHS_AND_ACCEPTANCE_REQUIRED")
-    if any(Path(x).is_absolute() or ".." in Path(x).parts for x in task["paths"]):
+    if not valid_paths(task["paths"]):
         raise RuntimeError("WORK_QUEUE_PATHS_INVALID")
     if not isinstance(task.get("basis"), str) or not task["basis"].strip():
         raise RuntimeError("WORK_QUEUE_UNFINISHED_REQUIREMENT_REQUIRED")
@@ -195,8 +291,8 @@ def add_task(root, role, task, repo_root=None):
         spec = ownership[owner]
         return any(fnmatch.fnmatchcase(path, x) for x in spec["allow"]) and not any(fnmatch.fnmatchcase(path, x) for x in spec["deny"])
     for path in task["paths"]:
-        if any(x in path for x in "*?[") or not owned(path, role) or (role == "C" and any(owned(path, x) for x in "AB")):
-            raise RuntimeError("WORK_QUEUE_OWNERSHIP_VIOLATION: self-add requires exact owned paths; assigned exceptions use coordination")
+        if any(x in path for x in "*?[") or not owned(path, role):
+            raise RuntimeError("WORK_QUEUE_OWNERSHIP_VIOLATION: self-add requires exact approved paths")
     plan = (repo / "docs/development/coordination/PLAN.md").read_text()
     approved = next((row for row in plan.splitlines() if row.startswith("| " + str(task.get("plan")) + " |")), None)
     if approved is None:

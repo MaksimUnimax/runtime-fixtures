@@ -80,11 +80,19 @@ class WaitingInputTests(unittest.TestCase):
         self.input("inbox/B-exact.json")
         self.assert_rejected_unchanged()
 
-    def test_unrelated_role_does_not_block_wait(self):
+    def test_new_shared_inbox_from_other_role_requires_rescan(self):
         self.prepare()
         self.input("controller-notices/A-new.json")
         self.input("peer-handoffs/C/A-C.request.json")
         self.input("inbox/A-exact.json")
+        self.assert_rejected_unchanged()
+
+    def test_operator_feedback_after_scan_requires_rescan_without_clearing_state(self):
+        self.prepare()
+        self.input("operator/feedback/tested-old-package.json")
+        self.assert_rejected_unchanged()
+        self.data["checked_at"] = datetime.now(timezone.utc).isoformat()
+        self.receipt.write_text(json.dumps(self.data))
         self.assertEqual(self.waiting()["status"], "WAITING_INPUT")
 
     def test_old_inputs_and_fresh_rescan_allow_wait(self):

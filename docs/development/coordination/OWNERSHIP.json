@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "canonicalRepo": "MaksimUnimax/runtime-fixtures",
   "main": "main",
   "roles": {
@@ -7,54 +7,22 @@
       "path": "/root/octoport-a-extension",
       "branch": "work/a-extension",
       "allow": [
-        "apps/extension/**",
-        "packages/bridge-core/**",
-        "packages/ai-adapters/**",
-        "packages/browser-platform/**",
-        "packages/control-client/**",
-        "packages/marketplaces/**",
-        "tests/extension/**",
-        "tests/e2e/extension/**",
-        "docs/development/coordination/receipts/A/**",
-        "tests/regression/extension-core/**",
-        "tooling/build/extension_composed.py",
-        "tooling/build/extension_firefox.py",
-        "tooling/checks/extension_core.py",
-        "tooling/checks/extension_i1.py",
-        "tooling/checks/extension-test-requirements.txt"
+        "**"
       ],
       "deny": [
-        "**/package.json"
+        "apps/site/**",
+        "tests/regression/imported/**"
       ]
     },
     "B": {
       "path": "/root/octoport-b-backend",
       "branch": "work/b-backend",
       "allow": [
-        "apps/api/**",
-        "apps/worker/**",
-        "apps/portal/**",
-        "apps/admin/**",
-        "packages/server/**",
-        "tooling/server/**",
-        "tests/integration/server/**",
-        "tests/e2e/server/**",
-        "docs/development/coordination/receipts/B/**"
+        "**"
       ],
       "deny": [
-        "apps/api/src/health-admin*",
-        "apps/worker/src/health-notification*",
-        "apps/admin/app/health/**",
-        "apps/admin/lib/health*",
-        "packages/server/health/**",
-        "packages/server/monitoring-control/**",
-        "tests/e2e/server/health*",
-        "tests/e2e/server/playwright.health*",
-        "tests/e2e/server/playwright-dedicated*",
-        "tests/e2e/server/support/health*",
-        "tests/integration/server/h3-health*",
-        "tests/integration/server/s2-*",
-        "**/package.json"
+        "apps/site/**",
+        "tests/regression/imported/**"
       ]
     },
     "C": {
@@ -64,14 +32,17 @@
         "**"
       ],
       "deny": [
-        "apps/site/**"
+        "apps/site/**",
+        "tests/regression/imported/**"
       ]
     }
   },
   "notes": [
-    "C broad access is for serial integration and shared changes, not permission to edit an active A/B task concurrently.",
-    "DB and migrations: B sole author after baseline; C requests changes from B.",
-    "A/B dependency manifest changes and shared contract changes require a documented path assignment by C.",
-    "SEO outside this plan. Files outside A/B allowlists require assignment before editing."
-  ]
+    "A/B/C identify existing MCP dialogue worktrees, not exclusive component ownership.",
+    "Every changed path requires an active, atomic work-board task claim; shared contracts, package manifests and migrations are included.",
+    "Any role may author approved DB changes using its own isolated test DB; live migration/deployment authority is unchanged.",
+    "Any role may publish main with exact candidate/current-base/required CI evidence and non-force history preservation.",
+    "No background executor, scheduler or OPERATOR development gate is introduced."
+  ],
+  "taskBoundScope": true
 }
