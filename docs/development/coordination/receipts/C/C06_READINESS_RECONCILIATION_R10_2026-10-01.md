@@ -114,15 +114,15 @@ the normal admin BFF and ordinary disposable ADMIN_OWNER OTP/elevation:
 Evidence level is **DISPOSABLE_ADMIN_BROWSER**, not live administration.
 
 The accepted harness/browser-spec/receipt integration candidate
-`6af2915403a3e7a783936d1f3fd51efb5f786c93` has independent PASS review but
-is not yet in common main because the current C fixed-role publication route
-cannot safely publish an isolated fresh-main task without unrelated C branch
-history. Exact publication-only handoff to A is recorded at:
+`6af2915403a3e7a783936d1f3fd51efb5f786c93` was independently reviewed PASS.
+Its exact patch-equivalent three-path publication is now in common `main` at
+`3756de3d78c155867bf4600a38a0ecd151952bbc` with stable patch-id
+`e5dc08c6464b7be1516f5081ae025440a2fb973d`, five exact-head CI workflows
+PASS, ready-main, non-force push and GitHub/local readback.
 
-`/root/octoport-control/peer-handoffs/A/C-A-B06-ADMIN-BROWSER-EVIDENCE-PUBLISH-20261001T1457Z.request.json`.
-
-That is a regression-source publication gap, not evidence of a current BFF
-product failure.
+This closes the regression-source publication gap only. The evidence level
+remains **DISPOSABLE_ADMIN_BROWSER**; no LIVE_OWNER, deployment or production
+admin acceptance is inferred.
 
 ## 5. C03 semantic crosswalk source is published
 
@@ -164,10 +164,12 @@ resume the existing A publication task:
 This is a common-main regression-evidence integration gap, not a reason to
 erase the accepted installed-synthetic results.
 
-## 7. The real 0.2.11 useful-flow gate is actively being tested
+## 7. The real 0.2.11 useful-flow gate remains open after a platform block
 
-Work-board task `A06-STORE0211-REAL-USEFUL-FLOW` is currently
-**IN_PROGRESS** in A.
+Work-board task `A06-STORE0211-REAL-USEFUL-FLOW` reached a platform safety
+block **before execution** while preparing the combined real ChatGPT +
+protected real-WB-credential harness. No provider business request occurred and
+the blocked operation was not moved to another tool or bypassed.
 
 Its pinned boundary is the exact delivered 0.2.11 Chromium STORE package,
 Opera 136, normal packaged device activation, real `chatgpt.com`, one
@@ -187,22 +189,38 @@ Until this task produces accepted evidence, R10 keeps the following claims
 - semantic usefulness of that real result;
 - explicit Finish against the real flow.
 
-If external ChatGPT login/2FA/CAPTCHA or another platform security boundary is
-encountered, that exact external action is recorded as a blocker; it must not be
+The current unblock path is a manual exact-candidate OPERATOR/owner run, or the
+same bounded operation later executing through a permitted path. Existing owner
+authority remains valid; this blocker does not request repeat permission.
+External ChatGPT login/2FA/CAPTCHA or any platform security boundary must not be
 bypassed or silently converted into synthetic evidence.
 
-## 8. Old-profile 0.2.9 -> 0.2.11 upgrade is not proven yet
+## 8. Server cross-version refresh passed; preserved-profile upgrade remains open
 
-The separate task `C06-STORE0211-EXISTING-PROFILE-UPGRADE` remains open.
-Its earlier acceptance contract was too strict to establish whether a preserved
-0.2.9 technical device/profile could legitimately refresh and move to 0.2.11.
+B task `B04-STORE0211-CROSS-VERSION-REFRESH` is complete and published in
+common-main ancestry at
+`00500602bdd2d1f5d49ed29a9313be44e9ebbcdb`.
 
-This is now being addressed independently by B task
-`B04-STORE0211-CROSS-VERSION-REFRESH`, which is **IN_PROGRESS**.
+Its SOURCE + DISPOSABLE POSTGRESQL proof uses the real HTTP refresh route,
+PostgreSQL auth repositories and signed v2 bootstrap. It proves that a
+**still-valid** Opera 0.2.9 device/session can rotate its refresh credential and
+request identified 0.2.11 bootstrap without creating a second device, session
+or beta admission. Missing 0.2.11 catalog authority remains signed
+incompatible, and revoked durable authority cannot be restored by changing the
+extension version.
 
-R10 therefore does not ask the owner to repeat login/permission and does not
-declare upgrade PASS before B's exact result. Fresh-install 0.2.11 PASS and
-existing-profile N -> N+1 PASS remain distinct facts.
+That server-contract result does **not** prove the preserved owner-test profile
+still has valid refresh authority. The latest fresh-copy normal probe of
+`C06-STORE0211-EXISTING-PROFILE-UPGRADE` returns
+`AUTH_REFRESH_INVALID` before bootstrap. The exact underlying cause
+(expired, revoked, previously rotated or otherwise invalid) is not established.
+The preserved credential is not retried and no new device grant is issued under
+that existing-profile task.
+
+A separate disposable C06 regression may extend coverage around the published
+AI profile and predecessor config version, but it cannot turn the currently
+invalid preserved credential into LIVE_OWNER/N -> N+1 evidence. Fresh-install
+0.2.11 PASS and existing-profile upgrade PASS remain distinct facts.
 
 ## 9. Monitoring is prepared but the current live swap is not accepted
 
@@ -280,14 +298,20 @@ What is now closed and must not be reintroduced as a generic blocker:
 - signed Bootstrap/profile resolution for the accepted Opera surface;
 - synthetic ChatGPT Start and restart on exact STORE bytes;
 - exact package delivery/READY_FOR_OPERATOR metadata;
-- B06 current admin BFF product reachability at DISPOSABLE_ADMIN_BROWSER;
+- B06 current admin BFF product reachability and its regression-source
+  publication at DISPOSABLE_ADMIN_BROWSER;
+- B04 server cross-version refresh contract for a still-valid prior-version
+  credential, without claiming the preserved profile itself is valid;
 - C03 production crosswalk source publication.
 
 What is genuinely still open:
 
-1. A's exact 0.2.11 real ChatGPT + one real read-only marketplace useful flow
-   and same-dialogue delivery/Finish.
-2. Existing-profile/cross-version refresh proof now being tested by B.
+1. Exact 0.2.11 real ChatGPT + one real read-only marketplace useful flow,
+   same-dialogue delivery and Finish; the attempted automated harness was
+   platform-blocked before execution, so no provider request was made.
+2. The preserved 0.2.9 profile's actual N -> N+1 upgrade: its current refresh
+   authority is invalid before bootstrap, with cause unproven; B04 proves only
+   that a still-valid credential is supported by the server contract.
 3. Ordinary human/reviewer email/device/useful-flow acceptance.
 4. Authenticated release evidence for Chrome, Yandex and Firefox before those
    browser claims can be promoted.
