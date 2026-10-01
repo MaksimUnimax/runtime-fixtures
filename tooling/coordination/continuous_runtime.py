@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 import resource_runner
 import work_queue
 import continuous_environment
+import continuous_lifecycle
 from continuous_adapter import candidate_identity, run_entry, source_inputs, source_snapshot
 from continuous_state import (LAUNCHERS, MODEL, ROLES, add_job, atomic_json, birth,
                            check_mode, config, db, digest, encode, event, git,
@@ -209,16 +210,17 @@ def schedule_planners(cfg, conn):
             continue
         # Snapshot all existing tasks and durable outcomes, including UNKNOWN/rework.
         board = work_queue.load_board(cfg["control_root"])
+        archived = [json.loads(r[0]) for r in conn.execute("SELECT value FROM meta WHERE key LIKE 'coverage:%'")]
         history = [{"id": r["id"], "kind": r["kind"], "state": r["state"],
                     "reason": r["reason"], "result": json.loads(r["result"]) if r["result"] else None}
                    for r in conn.execute("SELECT * FROM jobs WHERE kind NOT IN ('plan','plan_review') ORDER BY created DESC LIMIT 100")]
         identifier = "plan-" + role + "-" + str(time.time_ns())
         base = git(cfg["repo"], "rev-parse", cfg.get("base_ref", "origin/main") + "^{commit}")
-        input_digest = digest(encode({"requirements": own, "board": board, "base": base,
+        input_digest = digest(encode({"requirements": own, "board": board, "archived": archived, "base": base,
                                      "outcomes": history, "rules": rules_snapshot(cfg)}))
         if any(json.loads(r[0]).get("input_digest") == input_digest for r in conn.execute("SELECT spec FROM jobs WHERE role=? AND kind='plan'", (role,))):
             continue
-        spec = {"requirements": own, "queue": board, "outcomes": history, "role_view": task_view,
+        spec = {"requirements": own, "queue": board, "archived_source_evidence": archived, "outcomes": history, "role_view": task_view,
                 "available_checks": cfg.get("check_catalog", {}),
                 "reserved_paths": sorted(paths_reserved(conn)), "base": base, "rules": rules_snapshot(cfg),
                 "worktree": str(worktree_path(cfg, role, identifier)), "epoch": cfg["epoch"], "input_digest": input_digest}
@@ -549,9 +551,10 @@ def finalize(cfg, conn):
 
 def snapshot(cfg, conn):
     rows = [{k: r[k] for k in ("id", "role", "kind", "state", "reason", "updated", "attempts")}
-            for r in conn.execute("SELECT * FROM jobs ORDER BY created")]
+            for r in conn.execute("SELECT * FROM jobs ORDER BY created DESC LIMIT 1000")]
     return {"epoch": cfg["epoch"], "model": MODEL, "capacity": 3, "project_ready": False,
             "collector_boundaries": ["SOURCE"], "unavailable_collectors": ["PACKAGE", "INSTALLED", "LIVE", "DEPLOYMENT"],
+            "total_jobs": conn.execute("SELECT count(*) FROM jobs").fetchone()[0],
             "status": "ACTIVE" if any(r["state"] in {"STARTING", "RUNNING"} for r in rows) else "IDLE_RECONCILIATION",
             "jobs": rows, "integration_enabled": cfg.get("integration_enabled", False)}
 
@@ -598,6 +601,10 @@ def tick(cfg, conn):
     finalize(cfg, conn)
     from continuous_integration import integrate_tick
     integrate_tick(cfg, conn)
+    continuous_lifecycle.readmit_capacity(cfg, conn)
+    busy = busy_resource_profiles(cfg, conn)
+    continuous_lifecycle.archive_integrated(cfg, conn, busy)
+    continuous_lifecycle.cleanup_final_worktrees(cfg, conn, busy)
     enqueue(cfg, conn)
     schedule_planners(cfg, conn)
     children = launch(cfg, conn)
