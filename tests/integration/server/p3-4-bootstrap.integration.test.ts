@@ -192,7 +192,8 @@ async function store0211UpgradeGraph(
       contractVersion: "control_plane_v2",
       browserFamily: "opera",
       minimumExtensionVersion: "0.2.9",
-      recommendedExtensionVersion: "0.2.11",
+      recommendedExtensionVersion:
+        options.targetRelease === false ? "0.2.9" : "0.2.11",
       minimumBrowserVersion: "136",
       maintenanceMode: false,
       maintenanceCode: null,
@@ -645,6 +646,20 @@ describe.sequential("P3.4 real PostgreSQL authenticated bootstrap", () => {
       refreshed.accessToken,
     );
     expect(oldResponse.statusCode).toBe(200);
+    const oldVerified = verifyBootstrapEnvelopeV2(
+      oldResponse.json(),
+      new Map([[material.keyId, material.publicKey]]),
+    );
+    expect(oldVerified).toMatchObject({
+      ok: true,
+      payload: {
+        account: { id: legacy.accountId, status: "ACTIVE" },
+        compatibility: {
+          extension: { status: "SUPPORTED" },
+          browser: { status: "SUPPORTED" },
+        },
+      },
+    });
 
     const targetResponse = await post(
       {

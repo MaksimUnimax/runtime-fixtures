@@ -34,14 +34,14 @@ Node: `v24.20.0`.
 
 Final exact test file:
 - `tests/integration/server/p3-4-bootstrap.integration.test.ts`: **19/19 PASS**.
-- Supervised B disposable PostgreSQL job: `octoport-test-b-cbe7cc592ddf4244935fbb3fa2116c82.service`.
-- Resource receipt: `/root/octoport-control/resource-jobs/cbe7cc592ddf4244935fbb3fa2116c82/receipt.json`.
-- Exit 0, peak 555 MiB, OOM 0, cleanup verified.
+- Supervised B disposable PostgreSQL job: `octoport-test-b-d85a4d50f6dd4eedbc3b45bc6dc07d2f.service`.
+- Resource receipt: `/root/octoport-control/resource-jobs/d85a4d50f6dd4eedbc3b45bc6dc07d2f/receipt.json`.
+- Exit 0, peak 548 MiB, OOM 0, cleanup verified.
 - Focused Prettier: PASS.
 - Focused ESLint with zero warnings: PASS.
 - `git diff --check`: PASS.
 
-The earlier diagnostic run `41988fc75ca94ef98063676c5fa6f932` is retained as RED evidence for the incorrect HTTP-failure assumption; it did not identify a production defect.
+The earlier diagnostic run `41988fc75ca94ef98063676c5fa6f932` is retained as RED evidence for the incorrect HTTP-failure assumption; it did not identify a production defect. The first independent review of candidate `2f1c6865...` returned `REWORK_REQUIRED` because the predecessor response was only checked for HTTP 200. The follow-up regression now verifies its signature plus exact `SUPPORTED` extension/browser statuses using a realistic pre-target policy whose recommendation remains `0.2.9`.
 
 ## Boundary
 
