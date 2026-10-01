@@ -430,7 +430,19 @@ def run(runtime, output):
                     context.route("https://**/*", lambda route: route.fulfill(body=fixture, content_type="text/html") if route.request.url.startswith("https://chatgpt.com/c/") else route.abort())
                     context.on("response", observe_control)
                     worker = context.service_workers[0] if context.service_workers else context.wait_for_event("serviceworker")
-                    restarted_sentinel = worker.evaluate("""() => { if (!globalThis.__saI1WorkerSentinel) globalThis.__saI1WorkerSentinel = crypto.randomUUID(); return globalThis.__saI1WorkerSentinel; }""")
+                    restarted_sentinel = worker.evaluate("""() => {
+                      if (!globalThis.__saI1WorkerSentinel) globalThis.__saI1WorkerSentinel = crypto.randomUUID();
+                      const original = chrome.tabs.sendMessage.bind(chrome.tabs);
+                      globalThis.__saNoReplayOutboundMessages = [];
+                      chrome.tabs.sendMessage = (...args) => {
+                        globalThis.__saNoReplayOutboundMessages.push({
+                          tabId:Number(args[0] || 0),
+                          type:String(args[1]?.type || "")
+                        });
+                        return original(...args);
+                      };
+                      return globalThis.__saI1WorkerSentinel;
+                    }""")
                     chat = context.new_page()
                     chat.goto("https://chatgpt.com/c/11111111-1111-4111-8111-111111111111")
                     chat_marker = "octoport-c05-restart-" + uuid.uuid4().hex
@@ -485,6 +497,34 @@ def run(runtime, output):
                         "browser restart state restore",
                     )
                     assert restarted_sentinel != worker_sentinel_after
+                    restart_no_replay = wait_until(
+                        lambda: worker.evaluate("""async tabId => {
+                          try {
+                            const page = await chrome.tabs.sendMessage(tabId, {type:"OZ_PAGE_CONTEXT"});
+                            if (!page?.ok) return null;
+                            const stored = await chrome.storage.local.get('ozmb_pending_work_starts_v1');
+                            const pending = stored.ozmb_pending_work_starts_v1 || {};
+                            const outbound = Array.isArray(globalThis.__saNoReplayOutboundMessages)
+                              ? globalThis.__saNoReplayOutboundMessages.filter(row => row.tabId === tabId)
+                              : [];
+                            return {
+                              pageContextReady:true,
+                              pendingWorkStarts:Object.keys(pending).length,
+                              pageContextProbes:outbound.filter(row => row.type === "OZ_PAGE_CONTEXT").length,
+                              initialPromptDispatches:outbound.filter(row => row.type === "OZ_WORK_SEND_INITIAL_PROMPT").length
+                            };
+                          } catch (_) {
+                            return null;
+                          }
+                        }""", chat_tab_id),
+                        "restarted content runtime handshake",
+                    )
+                    restart_sent_count = chat.evaluate("Number(window.sent?.length || 0)")
+                    assert restart_no_replay["pageContextReady"] is True
+                    assert restart_no_replay["pageContextProbes"] >= 1
+                    assert restart_no_replay["pendingWorkStarts"] == 0
+                    assert restart_no_replay["initialPromptDispatches"] == 0
+                    assert restart_sent_count == 0
 
                     distinct_accounts = first_identity["account"] != second_identity["account"]
                     distinct_device_sessions = (first_identity["device"], first_identity["session"]) != (second_identity["device"], second_identity["session"])
@@ -511,6 +551,7 @@ def run(runtime, output):
                             "installed Work Start through current signed AI profile",
                             "privacy-safe support snapshot after Start",
                             "browser restart preserves authenticated store/work state",
+                            "browser restart does not replay the prior Work Start prompt",
                         ],
                         work_start={"state": work_state["state"], "has_intent": work_state["hasIntent"]},
                         signed_profile={
@@ -533,6 +574,10 @@ def run(runtime, output):
                             "revision_before": before_restart["workRevision"],
                             "revision_after": after_restart["workRevision"],
                             "new_worker": True,
+                            "content_runtime_ready": restart_no_replay["pageContextReady"],
+                            "pending_work_starts": restart_no_replay["pendingWorkStarts"],
+                            "initial_prompt_dispatches": restart_no_replay["initialPromptDispatches"],
+                            "replayed_start_prompt": restart_sent_count != 0 or restart_no_replay["initialPromptDispatches"] != 0,
                         },
                         support_snapshot_privacy=True,
                         same_worker=same_worker,
