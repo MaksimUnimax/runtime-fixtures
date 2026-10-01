@@ -11,7 +11,7 @@ export interface IsolatedAuthLifecycleOptions {
   readonly apiOrigin: string;
   /** Portal origin; authenticated portal API calls use its same-origin proxy. */
   readonly portalOrigin: string;
-  /** Must identify a loopback DB/port pair from the supervisor fixture registry. */
+  /** Must identify a supervisor fixture or the exact disposable Server CI DB. */
   readonly disposableDatabaseUrl: string;
   readonly identity: IsolatedAuthIdentity;
   /** Supplies only a generated local OTP fixture. Never read mail or logs here. */
@@ -90,13 +90,22 @@ export function validateIsolatedDatabaseUrl(raw: string): string {
   } catch {
     throw new Error("disposableDatabaseUrl must be an absolute PostgreSQL URL");
   }
+  const supervisorFixture =
+    disposableDatabasePorts.get(url.pathname) === url.port &&
+    disposableDatabasePorts.has(url.pathname);
+  // Existing disposable service and integration DATABASE_URL in server-ci.yml.
+  // This does not authorize other databases on the default PostgreSQL port.
+  const serverCiFixture =
+    url.hostname === "127.0.0.1" &&
+    url.port === "5432" &&
+    url.pathname === "/product_control_plane_test" &&
+    url.username === "product_control_plane_ci";
   if (
     !["postgres:", "postgresql:"].includes(url.protocol) ||
     !isLoopback(url.hostname) ||
     url.search ||
     url.hash ||
-    disposableDatabasePorts.get(url.pathname) !== url.port ||
-    !disposableDatabasePorts.has(url.pathname)
+    !(supervisorFixture || serverCiFixture)
   )
     throw new Error(
       "disposableDatabaseUrl must name a registered loopback disposable DB/port without overrides",
