@@ -39,12 +39,17 @@ export type Store1PreflightOperatorInput = {
   manifestPath: string;
   packagePath: string;
   reviewerEmail: string;
-  deviceId: string;
-  browserVersion: string;
+  deviceId?: string;
+  browserVersion?: string;
   adminSessionFile: string;
-  reviewerDeviceBearerFile: string;
+  reviewerDeviceBearerFile?: string;
 };
 
+type ReviewerDeviceInput = {
+  deviceId: string;
+  browserVersion: string;
+  reviewerDeviceBearerFile: string;
+};
 type AdminCredentials = { adminSession: string };
 type Credentials = AdminCredentials & { reviewerBearer: string };
 type JsonRecord = Record<string, unknown>;
@@ -99,8 +104,26 @@ function readAdminCredentials(
   return { adminSession };
 }
 
-function readReviewerCredentials(
+function reviewerDeviceInput(
   input: Store1PreflightOperatorInput,
+): ReviewerDeviceInput {
+  if (
+    typeof input.reviewerDeviceBearerFile !== "string" ||
+    typeof input.deviceId !== "string" ||
+    !UUID.test(input.deviceId) ||
+    typeof input.browserVersion !== "string" ||
+    !/^\d+(?:\.\d+){0,3}$/.test(input.browserVersion)
+  )
+    return fail("STORE1_REVIEWER_INPUT_INVALID");
+  return {
+    reviewerDeviceBearerFile: input.reviewerDeviceBearerFile,
+    deviceId: input.deviceId,
+    browserVersion: input.browserVersion,
+  };
+}
+
+function readReviewerCredentials(
+  input: ReviewerDeviceInput,
   admin: AdminCredentials,
 ): Credentials {
   const reviewerBearer = secureTextFile(
@@ -348,20 +371,25 @@ async function fetchAdminJson(
 }
 
 function validateInput(value: unknown): Store1PreflightOperatorInput {
+  if (!object(value)) return fail("STORE1_OPERATOR_INPUT_INVALID");
+  const allowedKeys = new Set([
+    "adminSessionFile",
+    "browserVersion",
+    "deviceId",
+    "manifestPath",
+    "packagePath",
+    "reviewerDeviceBearerFile",
+    "reviewerEmail",
+  ]);
+  const requiredKeys = [
+    "adminSessionFile",
+    "manifestPath",
+    "packagePath",
+    "reviewerEmail",
+  ];
   if (
-    !object(value) ||
-    Object.keys(value).sort().join(",") !==
-      [
-        "adminSessionFile",
-        "browserVersion",
-        "deviceId",
-        "manifestPath",
-        "packagePath",
-        "reviewerDeviceBearerFile",
-        "reviewerEmail",
-      ]
-        .sort()
-        .join(",")
+    requiredKeys.some((key) => !(key in value)) ||
+    Object.keys(value).some((key) => !allowedKeys.has(key))
   )
     return fail("STORE1_OPERATOR_INPUT_INVALID");
   const input = value as unknown as Store1PreflightOperatorInput;
@@ -369,14 +397,9 @@ function validateInput(value: unknown): Store1PreflightOperatorInput {
     typeof input.manifestPath !== "string" ||
     typeof input.packagePath !== "string" ||
     typeof input.adminSessionFile !== "string" ||
-    typeof input.reviewerDeviceBearerFile !== "string" ||
     typeof input.reviewerEmail !== "string" ||
     input.reviewerEmail.length > 320 ||
-    !input.reviewerEmail.includes("@") ||
-    typeof input.deviceId !== "string" ||
-    !UUID.test(input.deviceId) ||
-    typeof input.browserVersion !== "string" ||
-    !/^\d+(?:\.\d+){0,3}$/.test(input.browserVersion)
+    !input.reviewerEmail.includes("@")
   )
     return fail("STORE1_OPERATOR_INPUT_INVALID");
   return input;
@@ -690,7 +713,8 @@ async function runReadOnlyPlanner(
   if (!reviewerPrerequisitesSatisfied)
     return safeOutput(planStore1Activation(evidence.authority, readback));
 
-  const credentials = readReviewerCredentials(input, adminCredentials);
+  const reviewerDevice = reviewerDeviceInput(input);
+  const credentials = readReviewerCredentials(reviewerDevice, adminCredentials);
   const expectedAccountId = readback.reviewerAdmission!.accountId;
   const transport = createStore1FetchTransport(
     {
@@ -712,8 +736,8 @@ async function runReadOnlyPlanner(
 
   const verified = await verifiedPlanner({
     expectedAccountId,
-    deviceId: input.deviceId,
-    browserVersion: input.browserVersion,
+    deviceId: reviewerDevice.deviceId,
+    browserVersion: reviewerDevice.browserVersion,
     readback,
     transport,
     now: options.now,
@@ -805,8 +829,8 @@ async function main() {
     if (argv.length === 1 && argv[0] === "--help") {
       process.stdout.write(
         "Usage: pnpm exec tsx tooling/server/store1-preflight-cli.ts --input-file <protected-json>\n" +
-          "The JSON file and both credential files must be mode 0600. Credential files contain one token each.\n" +
-          "Required JSON keys: manifestPath, packagePath, reviewerEmail, deviceId, browserVersion, adminSessionFile, reviewerDeviceBearerFile.\n" +
+          "The input JSON and any credential file it references must be private (mode 0600 recommended); credential files contain one token each.\n" +
+          "Required JSON keys: manifestPath, packagePath, reviewerEmail, adminSessionFile. Deferred reviewer-device keys: deviceId, browserVersion, reviewerDeviceBearerFile; they become mandatory only after reviewer identity/account/admission prerequisites pass.\n" +
           "The no-AI bootstrap POST may update device/auth state; catalog mutations are never executed.\n",
       );
       return;
