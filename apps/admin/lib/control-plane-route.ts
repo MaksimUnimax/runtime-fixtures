@@ -1,5 +1,8 @@
 const UUID =
   "[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
+const API_UUID =
+  "(?:[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[1-8][0-9A-Fa-f]{3}-[89ABab][0-9A-Fa-f]{3}-[0-9A-Fa-f]{12}|00000000-0000-0000-0000-000000000000|[Ff]{8}-[Ff]{4}-[Ff]{4}-[Ff]{4}-[Ff]{12})";
+const LOWER_HEX_64 = "[0-9a-f]{64}";
 const KEY = "[A-Za-z0-9._:-]+";
 
 export const ADMIN_ALLOWED_TUPLES = [
@@ -19,10 +22,22 @@ export const ADMIN_ALLOWED_TUPLES = [
   "GET /v1/admin/commercial/prices",
   "GET /v1/admin/commercial/prices/{price_id}",
   "GET /v1/admin/compatibility/policies",
+  "GET /v1/admin/beta/admission",
+  "GET /v1/admin/health/diagnostics/breakdown",
+  "GET /v1/admin/health/diagnostics/summary",
+  "GET /v1/admin/health/incidents/{health_incident_id}",
+  "GET /v1/admin/health/notifications",
+  "GET /v1/admin/health/notifications/{notification_id}",
   "GET /v1/admin/health/repair-cases",
   "GET /v1/admin/health/repair-cases/{repair_case_id}/{revision}",
+  "GET /v1/admin/health/targets",
+  "GET /v1/admin/health/targets/{health_target_id}",
   "GET /v1/admin/me",
   "GET /v1/admin/principals",
+  "GET /v1/admin/support/aggregates",
+  "GET /v1/admin/support/cases",
+  "GET /v1/admin/support/cases/{support_case_id}",
+  "GET /v1/admin/support/funnels",
   "GET /v1/admin/users",
   "POST /v1/admin/accounts/{account_id}/devices/{device_id}/revoke",
   "POST /v1/admin/accounts/{account_id}/entitlement-overrides/{entitlement_key}/clear",
@@ -31,6 +46,7 @@ export const ADMIN_ALLOWED_TUPLES = [
   "POST /v1/admin/accounts/{account_id}/subscription/{subscription_id}/extend",
   "POST /v1/admin/accounts/{account_id}/subscription/{subscription_id}/restore",
   "POST /v1/admin/accounts/{account_id}/subscription/{subscription_id}/suspend",
+  "POST /v1/admin/beta/admission",
   "POST /v1/admin/commercial/entitlements/definitions",
   "POST /v1/admin/commercial/entitlements/definitions/{entitlement_key}/deprecate",
   "POST /v1/admin/commercial/entitlements/definitions/{entitlement_key}/description",
@@ -55,6 +71,8 @@ export const ADMIN_ALLOWED_TUPLES = [
   "POST /v1/admin/principals/{principal_id}/roles/{role}/revoke",
   "POST /v1/admin/principals/{principal_id}/suspend",
   "POST /v1/admin/session",
+  "POST /v1/admin/support/cases/{support_case_id}/followups",
+  "POST /v1/admin/support/cases/{support_case_id}/status",
   "GET /v1/admin/ai/registry/adapters",
   "GET /v1/admin/ai/registry/adapters/{adapter_id}/surfaces",
   "GET /v1/admin/ai/registry/surfaces/{surface_id}/variants",
@@ -107,10 +125,17 @@ const segmentPattern = (segment: string): string => {
     segment === "{plan_revision_id}" ||
     segment === "{price_id}" ||
     segment === "{price_revision_id}" ||
-    segment === "{principal_id}" ||
-    segment === "{repair_case_id}"
+    segment === "{principal_id}"
   )
     return UUID;
+  if (
+    segment === "{notification_id}" ||
+    segment === "{health_incident_id}" ||
+    segment === "{repair_case_id}" ||
+    segment === "{support_case_id}"
+  )
+    return API_UUID;
+  if (segment === "{health_target_id}") return LOWER_HEX_64;
   if (
     segment === "{adapter_id}" ||
     segment === "{surface_id}" ||
