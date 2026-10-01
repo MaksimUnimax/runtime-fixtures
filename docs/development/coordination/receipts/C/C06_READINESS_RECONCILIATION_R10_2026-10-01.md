@@ -4,8 +4,8 @@ Status: **NOT_READY for full beta / exact STORE 0.2.11 owner-test slice is READY
 
 Task: `C06-STORE0211-READINESS-RECONCILIATION-R10`.
 
-Fresh common source boundary inspected for this reconciliation:
-`bab7c0085e581150e2bb28b4fd7c4c5912a4fa67`.
+Fresh common source boundary inspected for this corrected reconciliation:
+`3756de3d78c155867bf4600a38a0ecd151952bbc`.
 
 This receipt updates readiness bookkeeping after the 2026-10-01 exact 0.2.11
 owner-test publication. It does not rewrite historical R9, and it does not
