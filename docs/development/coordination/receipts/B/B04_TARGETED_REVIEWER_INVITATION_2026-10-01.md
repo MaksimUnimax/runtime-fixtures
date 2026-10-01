@@ -1,6 +1,6 @@
 # B04 targeted reviewer invitation — 2026-10-01
 
-Status: **SOURCE + DISPOSABLE_POSTGRESQL PASS / R1 REVIEW REWORK FIXED / FINAL REVIEW PENDING / NO LIVE PROVISIONING OR DEPLOYMENT**.
+Status: **SOURCE + DISPOSABLE_POSTGRESQL PASS / R1+R2 REVIEW REWORK FIXED / FINAL EXACT-CANDIDATE REVIEW REQUIRED BEFORE PUBLICATION / NO LIVE PROVISIONING OR DEPLOYMENT**.
 
 Task: `B04-TARGETED-REVIEWER-INVITATION`.
 
@@ -119,8 +119,17 @@ three Medium findings:
    lock wait.
 
 All three were corrected in source and each failure sequence has a dedicated
-PostgreSQL regression. A fresh independent review is required for the final
-candidate; the R1 verdict is not treated as acceptance.
+PostgreSQL regression.
+
+R2 review found one remaining Medium privacy gap: the first audit-redaction
+pattern covered only ASCII-style addresses, while ordinary email normalization
+also accepts Unicode domains. The invitation audit redaction now conservatively
+matches the same non-whitespace `local@domain.suffix` shape regardless of
+Unicode code points, and the PostgreSQL regression includes
+`reviewer@bücher.example`.
+
+Neither R1 nor R2 is treated as final acceptance. Publication requires a fresh
+independent review of the exact final candidate after these corrections.
 
 ## Verification
 
@@ -144,9 +153,9 @@ integration config through the B resource supervisor:
 - S1.1 beta admission integration: **20/20 PASS**;
 - total: **39/39 PASS**;
 - resource unit:
-  `octoport-test-b-e6850559878b497686255bbe3e6d4c1a.service`;
+  `octoport-test-b-cc0bc160809f48548223a170f9609fa8.service`;
 - exit code: 0;
-- peak memory: about 388 MiB;
+- peak memory: about 424 MiB;
 - cleanup: verified.
 
 The matrix covers CLOSED invited success, CLOSED uninvited zero-partial denial,
@@ -154,7 +163,8 @@ PAUSED denial, expiry/revoke, expiry **after waiting on the identity lock**,
 consumed-invitation terminal behavior, OTP replay, reservation versus OPEN
 registration, reservation-aware capacity mutation, concurrent last-slot
 reservation, existing-identity conflict, create request-ID cross-target race,
-revoke replay/cross-target conflict, and audit email redaction.
+revoke replay/cross-target conflict, and ASCII + Unicode-domain audit email
+redaction.
 
 ## Evidence boundary
 

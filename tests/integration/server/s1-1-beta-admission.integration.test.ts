@@ -331,14 +331,17 @@ describe.sequential("S1.1 beta admission on real PostgreSQL", () => {
     expect(capacity.kind).toBe("APPLIED");
     if (capacity.kind !== "APPLIED") throw new Error("capacity setup failed");
 
-    const rawEmail = "private.reviewer@example.test";
+    const rawEmails = [
+      "private.reviewer@example.test",
+      "reviewer@bücher.example",
+    ];
     const created = await service.createIdentityInvitation({
       actorPrincipalId: actor,
       requestId: "invite-audit-redaction",
       correlationId: "invite-audit-redaction-correlation",
       expectedRevision: capacity.state.revision,
       normalizedIdentityTarget: "audit-target@example.test",
-      reason: `invite ${rawEmail} for review`,
+      reason: `invite ${rawEmails.join(" and ")} for review`,
     });
     expect(created.kind).toBe("APPLIED");
     if (created.kind !== "APPLIED") throw new Error("invitation setup failed");
@@ -348,7 +351,7 @@ describe.sequential("S1.1 beta admission on real PostgreSQL", () => {
       invitationId: created.invitation.id,
       requestId: "revoke-audit-redaction",
       correlationId: "revoke-audit-redaction-correlation",
-      reason: `remove ${rawEmail} from review`,
+      reason: `remove ${rawEmails.join(" and ")} from review`,
     });
     expect(revoked.kind).toBe("APPLIED");
 
@@ -363,8 +366,10 @@ describe.sequential("S1.1 beta admission on real PostgreSQL", () => {
     expect(audit.rows).toHaveLength(2);
     for (const row of audit.rows) {
       expect(row.reason).toContain("[REDACTED_EMAIL]");
-      expect(row.reason).not.toContain(rawEmail);
-      expect(row.safe).not.toContain(rawEmail);
+      for (const rawEmail of rawEmails) {
+        expect(row.reason).not.toContain(rawEmail);
+        expect(row.safe).not.toContain(rawEmail);
+      }
     }
   });
 

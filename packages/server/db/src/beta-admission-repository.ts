@@ -11,7 +11,7 @@ import {
 import { safeAuditReason } from "./safe-audit.js";
 
 const stateId = 1;
-const invitationEmailPattern = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
+const invitationEmailPattern = /[^\s@]+@[^\s@]+\.[^\s@]+/gu;
 
 function safeInvitationAuditReason(value: string) {
   return safeAuditReason(value).replace(
