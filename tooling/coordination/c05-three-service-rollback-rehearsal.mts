@@ -42,6 +42,15 @@ const NODE = "/root/.nvm/versions/node/v24.20.0/bin/node";
 const PNPM = "pnpm";
 const DISPOSABLE_DATABASES = [
   {
+    container: "octoport-a-test-pg",
+    port: "15541",
+    databasePath: "/octoport_a_test",
+    evidenceRoots: [
+      "/root/octoport-control/logs/A/",
+      "/root/octoport-control/artifacts/A/",
+    ],
+  },
+  {
     container: "octoport-b-test-pg",
     port: "15542",
     databasePath: "/octoport_b_test",

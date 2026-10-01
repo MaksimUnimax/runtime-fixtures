@@ -305,12 +305,15 @@ test("first-wave workload remains sequential, exact-count, and final-current onl
   );
 });
 
-test("rehearsal admits only exact B/C disposable database targets", async () => {
+test("rehearsal admits only exact A/B/C disposable database targets", async () => {
   const source = await readFile(
     new URL("./c05-three-service-rollback-rehearsal.mts", import.meta.url),
     "utf8",
   );
   for (const value of [
+    "octoport-a-test-pg",
+    "15541",
+    "/octoport_a_test",
     "octoport-b-test-pg",
     "15542",
     "/octoport_b_test",
