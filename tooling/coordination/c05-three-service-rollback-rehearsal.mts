@@ -27,6 +27,7 @@ import {
 import {
   FIRST_BETA_WAVE_RESOURCE_SAMPLE_EVERY_CYCLES,
   ServiceResourceEnvelopeSampler,
+  parseFirstBetaWaveBurstStaircase,
   parseFirstBetaWaveSequentialCycles,
   summarizeServiceResourceEnvelope,
   summarizeServiceResourceEnvelopeSeries,
@@ -330,7 +331,14 @@ if (captureServiceResourceEnvelope)
 const firstWaveSequentialCycles = parseFirstBetaWaveSequentialCycles(
   process.env.C05_FIRST_WAVE_SEQUENTIAL_CYCLES,
 );
-if (firstWaveSequentialCycles > 0) {
+const firstWaveBurstStages = parseFirstBetaWaveBurstStaircase(
+  process.env.C05_FIRST_WAVE_BURST_STAIRCASE,
+);
+check(
+  !(firstWaveSequentialCycles > 0 && firstWaveBurstStages.length > 0),
+  "C05_FIRST_WAVE_PROFILES_MUTUALLY_EXCLUSIVE",
+);
+if (firstWaveSequentialCycles > 0 || firstWaveBurstStages.length > 0) {
   check(
     captureServiceResourceEnvelope,
     "C05_FIRST_WAVE_REQUIRES_RESOURCE_ENVELOPE",
@@ -702,16 +710,29 @@ async function runPhase(
   const resourceSamples: ResourceSample[] = resourceBefore
     ? [resourceBefore]
     : [];
-  let stagedWorkload: {
-    profile: "FIRST_BETA_WAVE_SEQUENTIAL_COUNT_V1";
-    cycles: number;
-    concurrency: 1;
-    requestsPerCycle: 8;
-    totalRequests: number;
-    sampleEveryCycles: number;
-    resourceSampleCount: number;
-    capacityClaim: "NOT_CONCURRENCY_CAPACITY_PROOF";
-  } | null = null;
+  let stagedWorkload:
+    | {
+        profile: "FIRST_BETA_WAVE_SEQUENTIAL_COUNT_V1";
+        cycles: number;
+        concurrency: 1;
+        requestsPerCycle: 8;
+        totalRequests: number;
+        sampleEveryCycles: number;
+        resourceSampleCount: number;
+        capacityClaim: "NOT_CONCURRENCY_CAPACITY_PROOF";
+      }
+    | {
+        profile: "FIRST_BETA_WAVE_SYNCHRONIZED_BURST_STAIRCASE_V1";
+        stages: number[];
+        cycles: number;
+        maxConcurrency: number;
+        requestsPerCycle: 8;
+        totalRequests: number;
+        resourceSampleCount: number;
+        concurrencyModelClaim: "NOT_REPRESENTATIVE_CONCURRENCY_MODEL";
+        capacityClaim: "NOT_PRODUCTION_CAPACITY_PROOF";
+      }
+    | null = null;
   await poll(
     async () => {
       const r = await get(`${origin}/health/ready`);
@@ -902,6 +923,32 @@ async function runPhase(
       sampleEveryCycles: FIRST_BETA_WAVE_RESOURCE_SAMPLE_EVERY_CYCLES,
       resourceSampleCount: resourceSamples.length + 1,
       capacityClaim: "NOT_CONCURRENCY_CAPACITY_PROOF",
+    };
+  }
+  if (index === 2 && firstWaveBurstStages.length > 0) {
+    check(resourceSampler, "C05_FIRST_WAVE_RESOURCE_SAMPLER_MISSING");
+    let cycles = 0;
+    for (const concurrency of firstWaveBurstStages) {
+      await Promise.all(
+        Array.from({ length: concurrency }, (_, worker) =>
+          runFirstWaveSequentialCycle(cycles + worker + 1),
+        ),
+      );
+      cycles += concurrency;
+      resourceSamples.push(
+        await resourceSampler.sample(`WORKLOAD_BURST_${concurrency}`),
+      );
+    }
+    stagedWorkload = {
+      profile: "FIRST_BETA_WAVE_SYNCHRONIZED_BURST_STAIRCASE_V1",
+      stages: [...firstWaveBurstStages],
+      cycles,
+      maxConcurrency: firstWaveBurstStages.at(-1)!,
+      requestsPerCycle: 8,
+      totalRequests: cycles * 8,
+      resourceSampleCount: resourceSamples.length + 1,
+      concurrencyModelClaim: "NOT_REPRESENTATIVE_CONCURRENCY_MODEL",
+      capacityClaim: "NOT_PRODUCTION_CAPACITY_PROOF",
     };
   }
   const resourceAfter = resourceSampler
