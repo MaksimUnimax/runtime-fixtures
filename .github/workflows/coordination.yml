@@ -1,9 +1,22 @@
 name: Coordination and release safety
 on:
   push:
-    branches: [main, "work/c-integration", "controller/**"]
+    branches:
+      [
+        main,
+        "work/a-extension",
+        "work/b-backend",
+        "work/c-integration",
+        "controller/**",
+      ]
   pull_request:
-    paths: ["tooling/coordination/**", "tooling/b1/**", "docs/development/coordination/**", ".github/workflows/coordination.yml"]
+    paths:
+      [
+        "tooling/coordination/**",
+        "tooling/b1/**",
+        "docs/development/coordination/**",
+        ".github/workflows/coordination.yml",
+      ]
   workflow_dispatch:
 permissions:
   contents: read

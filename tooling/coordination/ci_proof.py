@@ -13,6 +13,7 @@ from ci_impact import analyze
 
 REPOSITORY = "MaksimUnimax/runtime-fixtures"
 MAX_AGE_SECONDS = 6 * 3600
+STREAM_BRANCHES = ("work/a-extension", "work/b-backend", "work/c-integration")
 WORKFLOWS = {
     "server-ci.yml": ("Server CI", {"server"}),
     "extension-ci.yml": ("Extension CI", {
@@ -35,7 +36,7 @@ def exact_sha(value):
 
 
 def trusted_branch(branch):
-    return branch in ("main", "work/c-integration") or (
+    return branch in ("main", *STREAM_BRANCHES) or (
         isinstance(branch, str) and branch.startswith("controller/"))
 
 
@@ -115,14 +116,27 @@ def plan(repo, event, env, workflow, api, now):
         return full("IDENTITY_NOT_ELIGIBLE")
     current_run = int(env["GITHUB_RUN_ID"])
     options = []
+    run_cache = {}
     if branch == "main":
-        options.append((sha, "work/c-integration", "EXACT_C_PUSH_FULL_PROOF"))
+        run_cache[sha] = api.runs(sha, workflow)
+        name, _ = WORKFLOWS[workflow]
+        sources = [r for r in run_cache[sha] if r.get("head_sha") == sha
+                   and r.get("head_branch") in STREAM_BRANCHES
+                   and r.get("event") == "push"
+                   and r.get("path") == ".github/workflows/" + workflow
+                   and r.get("name") == name]
+        # Do not hide a newer failing attempt behind an older green stream.
+        if sources:
+            latest = max(sources, key=lambda r: (r["id"], r.get("run_attempt", 1)))
+            options.append((sha, latest["head_branch"], "EXACT_STREAM_PUSH_FULL_PROOF"))
     before = event.get("before")
     impact = analyze(repo, before, sha)
     if impact["impactClass"] == "PROSE_ONLY":
         options.append((before, branch, "PROSE_ONLY_WITH_FULL_PARENT_PROOF"))
     for source_sha, source_branch, reason in options:
-        run = select_run(api.runs(source_sha, workflow), source_sha, source_branch,
+        if source_sha not in run_cache:
+            run_cache[source_sha] = api.runs(source_sha, workflow)
+        run = select_run(run_cache[source_sha], source_sha, source_branch,
                          workflow, current_run, now)
         if run and full_jobs(run, api.jobs(run), workflow):
             return {

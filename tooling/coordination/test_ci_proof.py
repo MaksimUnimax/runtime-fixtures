@@ -79,8 +79,40 @@ class ProofTests(unittest.TestCase):
     def test_exact_successful_c_sha_can_be_reused_on_main(self):
         result = self.plan()
         self.assertFalse(result["fullTests"])
-        self.assertEqual(result["reason"], "EXACT_C_PUSH_FULL_PROOF")
+        self.assertEqual(result["reason"], "EXACT_STREAM_PUSH_FULL_PROOF")
         self.assertEqual(result["proof"]["sha"], self.head)
+
+    def test_each_stream_exact_full_proof_can_be_reused_on_main(self):
+        for branch in ci_proof.STREAM_BRANCHES:
+            with self.subTest(branch=branch):
+                self.run["head_branch"] = branch
+                result = self.plan()
+                self.assertFalse(result["fullTests"])
+                self.assertEqual(result["proof"]["branch"], branch)
+                self.assertEqual(result["proof"]["sha"], self.head)
+
+    def test_a_and_b_prose_only_changes_can_reuse_full_parent_proof(self):
+        for branch in ("work/a-extension", "work/b-backend"):
+            with self.subTest(branch=branch):
+                self.env["GITHUB_REF"] = "refs/heads/" + branch
+                self.run.update(head_sha=self.before, head_branch=branch)
+                self.jobs["jobs"][0]["head_sha"] = self.before
+                result = self.plan()
+                self.assertFalse(result["fullTests"])
+                self.assertEqual(result["reason"], "PROSE_ONLY_WITH_FULL_PARENT_PROOF")
+
+    def test_stream_name_prefix_does_not_authorize_another_branch(self):
+        for branch in ("work/a-extension-untrusted", "work/b-backend/other"):
+            with self.subTest(branch=branch):
+                self.env["GITHUB_REF"] = "refs/heads/" + branch
+                self.run.update(head_sha=self.before, head_branch=branch)
+                self.jobs["jobs"][0]["head_sha"] = self.before
+                self.assertFull()
+
+    def test_newer_failed_other_stream_does_not_hide_behind_old_green(self):
+        failed = dict(self.run, id=101, head_branch="work/b-backend", conclusion="failure")
+        self.api.runs = lambda *_: [self.run, failed]
+        self.assertFull()
 
     def test_controller_branch_does_not_reuse_same_head_without_parent_proof(self):
         self.env["GITHUB_REF"] = "refs/heads/controller/test"

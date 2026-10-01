@@ -2,7 +2,14 @@ name: Documentation CI
 
 on:
   push:
-    branches: [main, "work/c-integration", "controller/**"]
+    branches:
+      [
+        main,
+        "work/a-extension",
+        "work/b-backend",
+        "work/c-integration",
+        "controller/**",
+      ]
   pull_request:
   workflow_dispatch:
 
@@ -21,6 +28,6 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
-          node-version: '24'
+          node-version: "24"
       - name: Check documentation and scaffold
         run: node tooling/checks/docs-check.mjs

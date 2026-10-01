@@ -2,7 +2,14 @@ name: Extension CI
 
 on:
   push:
-    branches: [main, "work/c-integration", "controller/**"]
+    branches:
+      [
+        main,
+        "work/a-extension",
+        "work/b-backend",
+        "work/c-integration",
+        "controller/**",
+      ]
   pull_request:
     paths:
       - "apps/extension/**"

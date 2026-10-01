@@ -2,7 +2,14 @@ name: Extension I1-C1 client
 
 on:
   push:
-    branches: [main, "work/c-integration", "controller/**"]
+    branches:
+      [
+        main,
+        "work/a-extension",
+        "work/b-backend",
+        "work/c-integration",
+        "controller/**",
+      ]
   pull_request:
     branches: [main]
     paths:

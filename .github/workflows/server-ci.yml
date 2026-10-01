@@ -28,7 +28,14 @@ on:
       - ".prettierignore"
       - ".github/workflows/server-ci.yml"
   push:
-    branches: [main, "work/c-integration", "controller/**"]
+    branches:
+      [
+        main,
+        "work/a-extension",
+        "work/b-backend",
+        "work/c-integration",
+        "controller/**",
+      ]
   workflow_dispatch:
 
 permissions:
