@@ -55,7 +55,8 @@ class WorkQueueTests(unittest.TestCase):
         receipt = {"version": 2, "task_id": task_id, "candidate": task["candidate"],
                    "author": task["author"], "generation": task.get("proof_generation", 0),
                    "result": "PASS", "level": level, "epoch": "test-epoch",
-                   "issued_at": now.isoformat(), "expires_at": (now + timedelta(hours=1)).isoformat(),
+                   "issued_at": now.isoformat(), "expires_at": None if level in {"SOURCE", "PACKAGE"}
+                   else (now + timedelta(hours=1)).isoformat(),
                    "dependencies": dependencies or {},
                    "checks": [{"id": "regression", "result": "PASS", "candidate": task["candidate"],
                                "level": level, "evidence_path": str(evidence),
@@ -420,12 +421,62 @@ class WorkQueueTests(unittest.TestCase):
             register_acceptance(self.root, "b-auth", str(path), review_verifier=verifier)
 
     def test_missing_receipt_index_and_expiry_revalidate_as_unverified(self):
-        path, receipt = self.complete()
+        path, receipt = self.complete(level="LIVE_OWNER")
         future = datetime.now(timezone.utc) + timedelta(hours=2)
         self.assertEqual(validate_board(self.root, now=future)["board"]["tasks"][0]["state"], "UNVERIFIED")
         (self.root / "controllers/work-acceptances.json").unlink()
         self.assertEqual(role_work(self.root, "B")["tasks"][0]["state"], "UNVERIFIED")
         self.assertEqual(role_work(self.root, "A")["tasks"][0]["state"], "BLOCKED")
+
+    def test_immutable_source_and_package_remain_done_without_age_rechecks(self):
+        for level in ("SOURCE", "PACKAGE"):
+            with self.subTest(level=level):
+                self.save()
+                _, receipt = self.complete(level=level)
+                self.assertIsNone(receipt["expires_at"])
+                before = self.path.read_bytes()
+                future = datetime.now(timezone.utc) + timedelta(days=3650)
+                validation = validate_board(self.root, now=future)
+                self.assertEqual(validation["board"]["tasks"][0]["state"], "DONE")
+                self.assertEqual(validation["invalidated"], [])
+                self.assertEqual(before, self.path.read_bytes())
+                self.assertEqual(role_work(self.root, "A")["tasks"][0]["state"], "READY")
+
+    def test_expired_volatile_evidence_blocks_dependent_work(self):
+        self.complete(level="DEPLOYMENT")
+        future = datetime.now(timezone.utc) + timedelta(hours=2)
+        class FutureClock(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return future
+        with patch("work_queue.datetime", FutureClock):
+            self.assertEqual(role_work(self.root, "B")["tasks"][0]["state"], "UNVERIFIED")
+            self.assertEqual(role_work(self.root, "A")["tasks"][0]["state"], "BLOCKED")
+            with self.assertRaisesRegex(RuntimeError, "DEPENDENCY_PENDING"):
+                advance_task(self.root, "A", "a-client", "IN_PROGRESS")
+
+    def test_null_expiry_is_only_valid_for_explicit_immutable_boundaries(self):
+        for level in ("INSTALLED_LOCAL", "INSTALLED_SYNTHETIC", "LIVE", "LIVE_OWNER", "DEPLOYMENT", "PRODUCTION"):
+            with self.subTest(level=level):
+                path, receipt = self.proof(level=level)
+                receipt["expires_at"] = None
+                path.write_text(json.dumps(receipt))
+                with self.assertRaisesRegex(RuntimeError, "volatile evidence requires explicit expiry"):
+                    register_acceptance(self.root, "b-auth", str(path), review_verifier=self.trusted_verifier)
+        path, receipt = self.proof(level="SOURCE")
+        del receipt["expires_at"]
+        path.write_text(json.dumps(receipt))
+        with self.assertRaises(RuntimeError):
+            register_acceptance(self.root, "b-auth", str(path), review_verifier=self.trusted_verifier)
+
+    def test_nonexpiring_source_still_fences_epoch_changes_and_stale_writers(self):
+        path, _ = self.complete()
+        marker = self.root / "controllers/runtime-mode.json"
+        marker.write_text('{"mode":"continuous-runtime","epoch":"new-rollout"}')
+        self.assertEqual(role_work(self.root, "B")["tasks"][0]["state"], "UNVERIFIED")
+        revalidate_done(self.root, "B")
+        with self.assertRaises(RuntimeError):
+            register_acceptance(self.root, "b-auth", str(path), review_verifier=self.trusted_verifier)
 
     def test_duplicate_keys_and_outside_check_evidence_fail_closed(self):
         path, receipt = self.proof()

@@ -22,6 +22,7 @@ from pathlib import Path
 STATES = {"READY", "IN_PROGRESS", "BLOCKED", "DONE", "UNVERIFIED"}
 LEVELS = {"SOURCE", "PACKAGE", "INSTALLED_SYNTHETIC", "INSTALLED_LOCAL",
           "LIVE_OWNER", "LIVE", "DEPLOYMENT", "PRODUCTION"}
+IMMUTABLE_LEVELS = {"SOURCE", "PACKAGE"}
 MAX_BYTES = 262144
 
 
@@ -92,7 +93,15 @@ def _time(value):
 
 
 def _receipt(root, task, filename, dependencies, *, trusted=True, now=None):
-    """Validate bytes and bindings; only a trusted verifier establishes truth."""
+    """Validate bytes and bindings; only a trusted verifier establishes truth.
+
+    Explicit expires_at=null means immutable SOURCE/PACKAGE evidence whose
+    validity depends on hashes/contract/revocation, not age. Other boundaries
+    require a concrete expiry; a source success cannot renew a live assertion.
+    Epoch is still fenced: restart keeps the epoch, while rollout requires an
+    explicit trusted rebind of preserved immutable evidence, never a stale
+    writer replay or an unnecessary rerun of unchanged tests.
+    """
     path, raw = _scoped_bytes(root, filename)
     digest = _digest(raw)
     try:
@@ -114,8 +123,14 @@ def _receipt(root, task, filename, dependencies, *, trusted=True, now=None):
                 or any(receipt.get(key) != value for key, value in expected.items())):
             raise ValueError("task/candidate/result/level/generation/epoch/dependencies")
         now = now or datetime.now(timezone.utc)
-        if not _time(receipt["issued_at"]) <= now < _time(receipt["expires_at"]):
-            raise ValueError("expired or future proof")
+        if _time(receipt["issued_at"]) > now:
+            raise ValueError("future proof")
+        expiry = receipt["expires_at"]
+        if expiry is None:
+            if task["boundary"] not in IMMUTABLE_LEVELS:
+                raise ValueError("volatile evidence requires explicit expiry")
+        elif not now < _time(expiry):
+            raise ValueError("expired proof")
         review = receipt["review"]
         if (review["result"] != "ACCEPT" or review["candidate"] != task["candidate"]
                 or not isinstance(review["reviewer"], str) or not review["reviewer"].strip()
