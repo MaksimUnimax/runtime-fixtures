@@ -5,8 +5,8 @@ Status: **PASS — INSTALLED_SYNTHETIC / LOCAL DEVELOPMENT; NOT STORE / LIVE_OWN
 Task: `A04-TWO-INSTALL-KEY-TRANSFER`.
 
 Harness implementation commit: `6e4c57daa9b70248e9540021ecb26e725dcc2e7b`.
-Harness SHA-256: `f639669aab337e793eb53ed26e53691a869096f50c3ac42df16c95fa771fa212`.
-Base used by the final installed run: `ff4a83a453b405feb259b2370bb7b146582bf65e`.
+Reviewer-driven network instrumentation fix: `6be73fefdef204970a02ab3fb7f628aa06b70e96`.
+Final harness SHA-256: `a5f8ca1649704f9fe0a7ebed4c09bac88527e2d26013e7802670dbfd0a46a6fe`.
 
 ## Why this is a new result rather than a repeat of A02/B03
 
@@ -22,35 +22,37 @@ No transfer protocol, runtime, server route, DB schema, auth rule or marketplace
 
 ## Final exact installed package
 
-Final supervised run:
-`/root/octoport-control/logs/A/a04-two-install-key-transfer-20261001/run-r6/result.json`
+Final reviewer-driven supervised run:
+`/root/octoport-control/logs/A/a04-two-install-key-transfer-20261001/run-r7/result.json`
 
 Exact retained ZIP:
-`/root/octoport-control/logs/A/a04-two-install-key-transfer-20261001/run-r6/SELLER_AGENTS_I1_C1_v0.2.11_LOCAL_DEVELOPMENT.zip`
+`/root/octoport-control/logs/A/a04-two-install-key-transfer-20261001/run-r7/SELLER_AGENTS_I1_C1_v0.2.11_LOCAL_DEVELOPMENT.zip`
 
 ZIP SHA-256:
-`6010d07dc1165535820732fd5fc5c8912d6707732b86cc829e688f3cb5e6d84b`
+`e128361ef14009c8b65779d145fc9c02e2ff441a67a007cdd411e14d0edd4303`
 
 ZIP bytes: `2278225`.
 
 Composition receipt:
-`/root/octoport-control/logs/A/a04-two-install-key-transfer-20261001/run-r6/composition-receipt.json`
+`/root/octoport-control/logs/A/a04-two-install-key-transfer-20261001/run-r7/composition-receipt.json`
 
 Package:
 - version `0.2.11`;
 - build mode `development`;
 - environment `LOCAL DEVELOPMENT`;
-- source HEAD `ff4a83a453b405feb259b2370bb7b146582bf65e`;
+- package build Git HEAD `a5def035948606c6a581b9b0408533c3f99f793e`;
 - runtime input SHA-256 `88e7bec45a03ebc252c2bccf48126aa7b2f11e7c1b326b8adc589611bc3650c0`;
 - observed Chromium `151.0.7922.34`.
 
-The retained ZIP hash was read back after the run and still equals the result record. Its extracted bytes independently PASS the popup receive 5-case regression and TRR-01..TRR-08 recipient-recovery matrix.
+The package build HEAD predates only the test-harness network-instrumentation commit `6be73fef`; that commit changes no product/runtime input. The recorded runtime input SHA is unchanged.
+
+The retained R7 ZIP hash was read back after the run and still equals the result record. Its extracted bytes independently PASS the popup receive 5-case regression and TRR-01..TRR-08 recipient-recovery matrix.
 
 This is a test-only local package with process-local test trust. It is not a STORE candidate and must not be registered as READY_FOR_OPERATOR.
 
 ## Installed scenario proved
 
-R6 used A's supervised `heavy --db --profile e2e` boundary and A's own disposable PostgreSQL.
+R7 used A's supervised `heavy --db --profile e2e` boundary and A's own disposable PostgreSQL.
 
 The main transfer pair consisted of two independent persistent Chromium profiles:
 - source installation;
@@ -71,32 +73,40 @@ The scenario proved:
 - the rightful recipient can cancel a later request; server state is `CANCELLED`, recipient vault entry is removed and imported credentials do not change;
 - a later request with the minimum bounded 60-second TTL is expired by changing only that row's `expires_at` inside A's disposable DB; the normal authenticated read/receive path exposes `EXPIRED`, prunes the recipient vault entry and does not alter imported credentials;
 - cancelled/expired terminal requests are absent from the source pending list;
-- provider business requests: 0;
-- AI POSTs: 0.
+- Ozon/Wildberries provider business requests observed by the installed browser contexts: 0;
+- POSTs to all AI origins packaged for this extension version (`chatgpt.com`, `chat.openai.com`, `alice.yandex.ru`): 0.
 
 The expiry DB write is test setup inside the disposable database only. Production schema, migration and runtime semantics are unchanged; the production PostgreSQL repository itself performs the normal transition to `EXPIRED` on read when `expires_at <= now`.
 
 ## Resource evidence
 
 Resource receipt:
-`/root/octoport-control/resource-jobs/b72eccad015d4daca5673c7bb48a57d7/receipt.json`
+`/root/octoport-control/resource-jobs/36579990ddd14857a0b1319f5da790f4/receipt.json`
 
-R6:
+R7:
 - command exit: 0;
 - systemd result: success;
 - OOM kills: 0;
 - cleanup verified: true;
-- peak memory: 1,716,518,912 bytes.
+- peak memory: 1,718,616,064 bytes.
 
-## Retained rework history
+## Retained rework and review history
 
-Earlier attempts remain evidence and are not hidden or counted as PASS:
-- old helper email construction used a different fixture namespace, so closed-beta ordinary login correctly returned 403;
-- an early harness kept three browser contexts live simultaneously and timed out waiting for a worker; the final harness keeps at most two live contexts;
-- the first expiry helper used top-level await in `tsx -e`; it was replaced by an async IIFE without product changes;
-- R5 passed the full behavior but its temporary ZIP was removed at teardown, so R6 repeated the same bounded scenario specifically to retain the exact tested artifact for independent verification.
+Earlier run records are retained and are not counted as PASS. They directly show:
+- OTP verification returning 403 in early harness attempts;
+- one service-worker startup timeout;
+- one expiry-helper command failure;
+- R5 passing the full behavioral scenario while its temporary package was not retained.
 
-These were harness/evidence defects. No product transfer defect was reproduced in the final current 0.2.11 local package.
+The parent diagnosed fixture-namespace/account setup, simultaneous-context sequencing and the `tsx -e` helper form while correcting those attempts. The retained failed run records do **not** independently establish every causal diagnosis, so this receipt does not present those diagnoses as separately proven product facts. None of the retained failures records a transfer-product failure after the transfer scenario itself was reached.
+
+R6 then PASSed with a retained exact artifact. The first independent Luna review of candidate `a5def035` returned **REWORK_REQUIRED** for two evidence issues:
+1. its AI POST counter did not include the packaged Alice origin;
+2. the earlier rework causes were stated more strongly than the retained evidence independently supported.
+
+Commit `6be73fef` fixed the network instrumentation to exact packaged AI hostnames, and this receipt narrows the historical claims. R7 is the reviewer-driven rerun of that corrected harness and is the final installed evidence.
+
+A fresh independent review of the final candidate is mandatory before queue completion. Its result is stored in control evidence; this source receipt alone is not self-acceptance.
 
 ## Evidence limits
 
@@ -108,5 +118,3 @@ Not proven here:
 - Ozon/Wildberries live provider calls;
 - deployment, production or store submission;
 - manual operator acceptance.
-
-Independent review of the final candidate is mandatory before queue completion. The reviewer result is stored in control evidence and must bind the exact final Git candidate; this source receipt alone is not self-acceptance.
