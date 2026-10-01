@@ -20,14 +20,14 @@ Product API и PostgreSQL read-model существовали до этой за
 
 ## Проверки
 
-Final light gate:
+Final light gate привязан к source commit `087ea77a24be82b2107ee608928d1d65d02d9cf3`; полный лог: `/root/octoport-control/logs/B/s2-exact-light-087ea77a.log`.
 - `apps/admin/lib/repair-ui.test.ts`: 8 PASS;
 - `apps/admin/lib/control-plane-route.test.ts`: 135 PASS;
 - вместе 143/143 PASS;
 - admin TypeScript typecheck PASS;
 - ESLint, Prettier и `git diff --check` PASS.
 
-Final browser/API gate выполнялся через B heavy supervisor с отдельной disposable PostgreSQL и портами 34100/34200/34300. Resource receipt: `/root/octoport-control/resource-jobs/7c7ae40d272f438d823ddac1b0b3321a/receipt.json`: command/systemd exit 0, OOM 0, cleanup verified, peak 2491416576 bytes. Playwright `test-results/.last-run.json`: `status=passed`.
+Final browser/API gate для тех же source/test bytes `087ea77a24be82b2107ee608928d1d65d02d9cf3` выполнялся через B heavy supervisor с отдельной disposable PostgreSQL и портами 34100/34200/34300. Resource receipt: `/root/octoport-control/resource-jobs/58c03775c2624ce098800febdec7c96a/receipt.json`: command/systemd exit 0, OOM 0, cleanup verified, peak 2696937472 bytes. Playwright `/root/octoport-b-backend/test-results/.last-run.json`: `status=passed`.
 
 Browser suite содержит четыре сценария:
 1. ADMIN_OWNER получает реальный пустой scoped repair list через обычный admin page → BFF → Fastify GET → PostgreSQL repository.
