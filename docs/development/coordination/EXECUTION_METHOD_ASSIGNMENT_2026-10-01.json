@@ -75,7 +75,9 @@
         "docs/development/coordination/README.md",
         "docs/development/coordination/PROTOCOL.md",
         "docs/development/coordination/WORK_METHOD.md",
-        "docs/development/coordination/CONTROLLER_GUIDE.md"
+        "docs/development/coordination/CONTROLLER_GUIDE.md",
+        "tooling/coordination/continuous_checks.py",
+        "tooling/coordination/test_continuous_checks.py"
       ]
     },
     {
@@ -99,7 +101,8 @@
     "No own-code acceptance",
     "No force push or bypass CI/main hook",
     "No DB/schema/migrations edits",
-    "Consumers: control CLI, persistent runtime, A/B/C chats, common controller"
+    "Consumers: control CLI, persistent runtime, A/B/C chats, common controller",
+    "Exact root continuous_checks.py/test_continuous_checks.py ownership overrides runtime glob; independent review required"
   ],
   "handoff_note": "Common docs author finished699adda4; rollout now owns runtime consistency sections; no concurrent edit.",
   "scope_precedence": "Exact file assignments override runtime_adapter continuous_* glob; no concurrent edits to environment helper or independent tests."
