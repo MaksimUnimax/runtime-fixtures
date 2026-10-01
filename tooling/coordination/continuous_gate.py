@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 import sqlite3
 
-from continuous_state import check_mode, config, read_json, root
+from continuous_state import MODEL, check_mode, config, read_json, root, digest, encode
 
 
 def integration_context(repo, control=Path("/root/octoport-control")):
@@ -27,7 +27,25 @@ def integration_context(repo, control=Path("/root/octoport-control")):
             or context.get("path") != str(repo) or context.get("branch") != saved.get("branch")
             or context.get("candidate") != spec.get("candidate") or saved.get("worktree") != str(repo)):
         raise RuntimeError("RUNTIME_INTEGRATION_CONTEXT_MISMATCH")
-    return {**context, "ready_path": str(root(cfg) / "integrations" / identifier / "main-ready.json")}
+    accepted = False
+    review_id = saved.get("context_review_job")
+    if review_id:
+        with sqlite3.connect("file:" + str(root(cfg) / "state.sqlite") + "?mode=ro", uri=True) as conn:
+            peer = conn.execute("SELECT role,kind,state,spec,result,token FROM jobs WHERE id=?", (review_id,)).fetchone()
+        if peer and peer[1:3] == ("integration_review", "DONE"):
+            peer_spec, verdict = json.loads(peer[3]), json.loads(peer[4])
+            receipt = read_json(root(cfg) / "jobs" / review_id / "adapter-receipt.json")
+            accepted = (peer[0] not in {"C", peer_spec["source_author"]}
+                        and peer_spec["integration_job"] == identifier
+                        and peer_spec["identity"]["candidate_sha"] == saved.get("head")
+                        and peer_spec["epoch"] == cfg["epoch"] and verdict["verdict"] == "ACCEPT"
+                        and receipt.get("model") == MODEL and receipt.get("role") == peer[0]
+                        and receipt.get("job") == review_id and receipt.get("kind") == "integration_review"
+                        and receipt.get("worktree") == peer_spec.get("worktree")
+                        and receipt.get("token") == peer[5] and receipt.get("adapter_status") == "RESULT_VALIDATED"
+                        and receipt.get("result_sha256") == digest(encode(verdict)))
+    return {**context, "review_accepted": accepted,
+            "ready_path": str(root(cfg) / "integrations" / identifier / "main-ready.json")}
 
 
 def ready_path(repo, control=Path("/root/octoport-control")):

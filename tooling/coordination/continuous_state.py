@@ -215,6 +215,8 @@ def requirements(cfg):
 
 
 def validate_task(cfg, task):
+    if task.get("boundary") not in (None, "SOURCE"):
+        raise RuntimeError("RUNTIME_COLLECTOR_CAPABILITY_NOT_AVAILABLE: SOURCE only")
     req = requirements(cfg).get(task.get("requirement_id"))
     if not req or (task.get("role"), task.get("plan")) != (req["role"], req["plan"]):
         raise RuntimeError("RUNTIME_TASK_REQUIREMENT_MISMATCH")
@@ -236,11 +238,21 @@ def validate_task(cfg, task):
     return req
 
 
-def legacy_write_guard(control, role, action):
+def legacy_write_guard(control, role, action, claim_file=None):
     """Cutover gate for old writers; status/STOP remain available."""
     path = Path(control) / "controllers/runtime-mode.json"
     if not path.exists() or action in {"status", "pause", "resources"}:
         return
     marker = read_json(path)
     if marker.get("mode") == "continuous-runtime" and role in marker.get("roles", []):
+        metadata_actions = {"reviewed", "request-review", "request-owner", "owner-done", "checkpoint", "resume"}
+        if claim_file and action in metadata_actions:
+            proof = read_json(claim_file)
+            database = Path(control) / "controllers/runtime" / marker["epoch"] / "state.sqlite"
+            with sqlite3.connect("file:" + str(database) + "?mode=ro", uri=True) as conn:
+                claim = conn.execute("SELECT role,token_sha256,state FROM claims WHERE id=?", (proof.get("id"),)).fetchone()
+            if (claim and claim[0] == role and claim[1] == digest(proof.get("token", ""))
+                    and claim[2] == "ACTIVE" and proof.get("epoch") == marker["epoch"]):
+                return
+            raise RuntimeError("RUNTIME_CLAIM_OWNER_TOKEN_INVALID")
         raise RuntimeError("RUNTIME_OWNS_ROLE: use the runtime queue; legacy writes are disabled")

@@ -13,7 +13,8 @@ from datetime import datetime, timezone
 
 import resource_runner
 import work_queue
-from continuous_adapter import candidate_identity, run_entry
+import continuous_environment
+from continuous_adapter import candidate_identity, run_entry, source_inputs, source_snapshot
 from continuous_state import (LAUNCHERS, MODEL, ROLES, add_job, atomic_json, birth,
                            check_mode, config, db, digest, encode, event, git,
                            lock, read_json, requirements, root, rules_snapshot,
@@ -74,9 +75,20 @@ def identity_live(pid, started):
     return bool(pid and started and birth(pid) == started)
 
 
+def busy_resource_profiles(cfg, conn):
+    owners = {(x["pid"], x["birth"]) for row in conn.execute("SELECT data FROM events WHERE event='worker_registered'") for x in [json.loads(row[0])]}
+    jobs = Path(cfg["control_root"]) / "resource-jobs"
+    if not jobs.exists():
+        return set()
+    # The existing runner determines actual cgroup population, including dead
+    # owners. A released entry flock is insufficient until that group is empty.
+    return {r["role"] for r in resource_runner.active_jobs(jobs) if (r["owner_pid"], r["owner_start"]) in owners}
+
+
 def recover(cfg, conn):
+    resource_busy = busy_resource_profiles(cfg, conn)
     for row in conn.execute("SELECT * FROM jobs WHERE state IN ('STARTING','RUNNING')").fetchall():
-        if identity_live(row["entry_pid"], row["entry_birth"]):
+        if identity_live(row["entry_pid"], row["entry_birth"]) or row["role"] in resource_busy:
             continue
         try:
             with lock(root(cfg) / "locks" / (row["id"] + ".lock")):
@@ -201,6 +213,7 @@ def schedule_planners(cfg, conn):
         if any(json.loads(r[0]).get("input_digest") == input_digest for r in conn.execute("SELECT spec FROM jobs WHERE role=? AND kind='plan'", (role,))):
             continue
         spec = {"requirements": own, "queue": board, "outcomes": history, "role_view": task_view,
+                "available_checks": cfg.get("check_catalog", {}),
                 "reserved_paths": sorted(paths_reserved(conn)), "base": base, "rules": rules_snapshot(cfg),
                 "worktree": str(worktree_path(cfg, role, identifier)), "epoch": cfg["epoch"], "input_digest": input_digest}
         add_job(conn, identifier, role, "plan", spec)
@@ -222,13 +235,27 @@ def prepare(cfg, row):
 def launch(cfg, conn):
     children = []
     busy = {r[0] for r in conn.execute("SELECT role FROM jobs WHERE state IN ('STARTING','RUNNING')")}
-    # Oldest ready job first: a continuous review/hotfix stream cannot starve a feature.
-    for row in conn.execute("SELECT * FROM jobs WHERE state='READY' AND kind IN ('implement','review','plan','plan_review','reconcile_review') ORDER BY created,id").fetchall():
+    busy.update(busy_resource_profiles(cfg, conn))
+    ready = conn.execute("SELECT * FROM jobs WHERE state='READY' AND kind IN ('implement','review','plan','plan_review','reconcile_review','integration_review') ORDER BY created,id").fetchall()
+    # At most two urgent dispatches ahead of the oldest normal job; aging wins.
+    selected = []
+    for role in cfg["enabled_roles"]:
+        rows = [r for r in ready if r["role"] == role]
+        if not rows: continue
+        counter = conn.execute("SELECT value FROM meta WHERE key=?", ("urgent:" + role,)).fetchone()
+        streak = int(counter[0]) if counter else 0
+        urgent = [r for r in rows if r["kind"] in {"review", "plan_review", "reconcile_review", "integration_review"} or json.loads(r["spec"]).get("task", {}).get("priority") == "urgent"]
+        normal = [r for r in rows if r not in urgent]
+        chosen = rows[0] if time.time() - rows[0]["created"] >= 600 else (urgent[0] if urgent and (streak < 2 or not normal) else normal[0] if normal else rows[0])
+        selected.append((chosen, streak + 1 if chosen in urgent else 0))
+    for row, streak in selected:
         if row["role"] in busy:
             continue
         try:
             check_mode(cfg, row["role"])
             with lock(Path(cfg["control_root"]) / ("codex-" + row["role"] + ".lock")):
+                pass
+            with lock(root(cfg) / "locks" / (row["id"] + ".lock")):
                 pass
             prepare(cfg, row)
         except BlockingIOError:
@@ -247,6 +274,7 @@ def launch(cfg, conn):
                                       "worker", "--job", row["id"], "--token", str(token)],
                                      stdin=subprocess.DEVNULL, stdout=output, stderr=subprocess.STDOUT, start_new_session=True)
         children.append(child)
+        conn.execute("INSERT OR REPLACE INTO meta VALUES(?,?)", ("urgent:" + row["role"], str(streak)))
         busy.add(row["role"])
     return children
 
@@ -260,6 +288,11 @@ def worker(cfg, identifier, token):
         check_mode(cfg, row["role"])
         spec = json.loads(row["spec"])
         event(conn, "worker_registered", identifier, pid=os.getpid(), birth=birth(os.getpid()), token=token)
+        def finish(state, reason):
+            changed = conn.execute("UPDATE jobs SET state=?,reason=?,updated=? WHERE id=? AND token=? AND state IN ('STARTING','RUNNING')",
+                                   (state, reason, time.time(), identifier, token)).rowcount
+            if changed:
+                event(conn, state.lower(), identifier, token=token, reason=reason)
         try:
             code = resource_runner.run(row["role"], [sys.executable, str(Path(__file__).resolve()),
                     "--config", cfg["config_path"], "entry", "--job", identifier, "--token", str(token)],
@@ -267,11 +300,11 @@ def worker(cfg, identifier, token):
                     profile="general", timeout_seconds=cfg.get("job_timeout_seconds", 3600))
             current = conn.execute("SELECT state FROM jobs WHERE id=?", (identifier,)).fetchone()[0]
             if current in {"STARTING", "RUNNING"}:
-                transition(conn, identifier, "BLOCKED" if current == "STARTING" and code == 75 else "UNKNOWN",
-                           "RESOURCE_ADMISSION_WAIT" if code == 75 else "RESOURCE_RUNNER_EXIT_WITHOUT_RESULT")
+                finish("BLOCKED" if current == "STARTING" and code == 75 else "UNKNOWN",
+                       "RESOURCE_ADMISSION_WAIT" if code == 75 else "RESOURCE_RUNNER_EXIT_WITHOUT_RESULT")
             return code
         except (RuntimeError, OSError, subprocess.SubprocessError) as error:
-            transition(conn, identifier, "UNKNOWN", "SUPERVISOR_FAILURE: " + type(error).__name__)
+            finish("UNKNOWN", "SUPERVISOR_FAILURE: " + type(error).__name__)
             return 1
         finally:
             conn.close()
@@ -280,6 +313,14 @@ def worker(cfg, identifier, token):
 def freeze_candidate(cfg, row, result):
     spec = json.loads(row["spec"])
     worktree = Path(spec["worktree"])
+    collected_path = root(cfg) / "jobs" / row["id"] / "trusted-checks.json"
+    if collected_path.exists():
+        collection = read_json(collected_path)
+        identifiers = {c.get("environment", {}).get("resource_job") for c in collection.get("checks", [])}
+        for identifier in identifiers - {None}:
+            cleanup = continuous_environment.cleanup_environment(worktree, identifier)
+            if cleanup["status"] != "READY":
+                raise RuntimeError("RUNTIME_ENVIRONMENT_CLEANUP_UNVERIFIED")
     if git(worktree, "rev-parse", "HEAD") != spec["base"]:
         raise RuntimeError("RUNTIME_CHILD_CHANGED_GIT_HEAD")
     if git(worktree, "diff", "--cached", "--name-only"):
@@ -317,14 +358,25 @@ def accepted_verifier(cfg, conn, review_id):
             raise RuntimeError("RUNTIME_TRUSTED_REVIEW_REQUIRED")
         spec, verdict = json.loads(row["spec"]), json.loads(row["result"])
         adapter = read_json(root(cfg) / "jobs" / review_id / "adapter-receipt.json")
+        author = conn.execute("SELECT * FROM jobs WHERE id=?", (spec["author_job"],)).fetchone()
         if (row["role"] == spec["author"] or row["role"] != adapter["role"] or adapter["model"] != MODEL
+                or not author or author["role"] != spec["author"] or author["kind"] != "implement"
+                or json.loads(author["spec"])["task"]["id"] != task["id"]
+                or adapter.get("job") != review_id or adapter.get("kind") != "review"
+                or adapter.get("worktree") != spec["worktree"]
+                or adapter.get("entry_pid") != row["entry_pid"] or adapter.get("entry_birth") != row["entry_birth"]
                 or adapter["adapter_status"] != "RESULT_VALIDATED" or adapter["token"] != row["token"]
                 or adapter["result_sha256"] != digest(encode(verdict)) or verdict["verdict"] != "ACCEPT"
                 or payload["candidate"] != {"sha": spec["identity"]["candidate_sha"], "tree": spec["identity"]["candidate_tree"], "diff_sha256": spec["identity"]["diff_sha256"]}
                 or spec["epoch"] != cfg["epoch"]):
             raise RuntimeError("RUNTIME_TRUSTED_REVIEW_MISMATCH")
+        if task.get("proof_generation", 0) != spec.get("generation") or payload.get("proof_validity") != task.get("proof_validity"):
+            raise RuntimeError("RUNTIME_REVIEW_GENERATION_OR_VALIDITY_CHANGED")
+        if spec.get("task_contract_sha256") != work_queue._contract(task):
+            raise RuntimeError("RUNTIME_REVIEW_TASK_CONTRACT_CHANGED")
         return {"reviewer": row["role"], "result": "ACCEPT", "candidate": payload["candidate"],
-                "level": task["boundary"], "epoch": cfg["epoch"], "review_job_id": review_id}
+                "level": task["boundary"], "epoch": cfg["epoch"], "review_job_id": review_id,
+                "proof_validity": task.get("proof_validity")}
     return verify
 
 
@@ -356,6 +408,11 @@ def complete_task(cfg, conn, row, spec, verdict):
     collected = read_json(directory / "trusted-checks.json")
     if collected.get("collector", "SUPERVISOR_SUBPROCESS") != "SUPERVISOR_SUBPROCESS" or collected.get("token") != author["token"] or collected.get("job") != author["id"] or collected.get("boundary") != "SOURCE":
         raise RuntimeError("RUNTIME_TRUSTED_CHECK_BINDING_INVALID")
+    expected_inputs = source_inputs(cfg, task)
+    if (collected.get("input_hashes") != expected_inputs
+            or task.get("proof_validity") != {"kind": "SNAPSHOT", "input_hashes": expected_inputs}
+            or collected.get("source_snapshot") != source_snapshot(authored["worktree"], task["paths"])):
+        raise RuntimeError("RUNTIME_CHECK_INPUTS_OR_SOURCE_CHANGED")
     checks = []
     for name in task["required_checks"]:
         check = next((x for x in collected["checks"] if x["id"] == name and x["exit_code"] == 0), None)
@@ -403,12 +460,23 @@ def enqueue_rework(cfg, conn, review_row, review_specification, verdict):
 
 
 def finalize(cfg, conn):
+    resource_busy = busy_resource_profiles(cfg, conn)
     for row in conn.execute("SELECT * FROM jobs WHERE state='RESULT' ORDER BY created").fetchall():
         try:
+            if row["role"] in resource_busy:
+                continue
+            try:
+                with lock(root(cfg) / "locks" / (row["id"] + ".lock")):
+                    pass
+            except BlockingIOError:
+                continue
             check_mode(cfg, row["role"])
             result, spec = json.loads(row["result"]), json.loads(row["spec"])
             if row["kind"] == "reconcile_review":
                 transition(conn, row["id"], "RECONCILIATION_REVIEWED", result["summary"])
+                continue
+            if row["kind"] == "integration_review":
+                transition(conn, row["id"], "DONE" if result["verdict"] == "ACCEPT" else result["verdict"], result["summary"])
                 continue
             if result["verdict"] in {"REWORK", "BLOCKED"}:
                 if result["verdict"] == "REWORK" and row["kind"] == "review":
@@ -422,6 +490,7 @@ def finalize(cfg, conn):
                 identifier, reviewer, review = review_spec(cfg, row, identity, {"task": spec["task"], "author_result": result})
                 bound = next(t for t in work_queue.load_board(cfg["control_root"])["tasks"] if t["id"] == spec["task"]["id"])
                 review["generation"] = bound.get("proof_generation", 0)
+                review["task_contract_sha256"] = work_queue._contract(bound)
                 review["trusted_checks"] = str(root(cfg) / "jobs" / row["id"] / "trusted-checks.json")
                 add_job(conn, identifier, reviewer, "review", review)
                 transition(conn, row["id"], "REVIEW_PENDING")
@@ -433,6 +502,8 @@ def finalize(cfg, conn):
                 if not isinstance(tasks, list) or len(tasks) > 3:
                     raise RuntimeError("RUNTIME_PLAN_TASK_LIMIT")
                 for task in tasks:
+                    if task.get("boundary") == "SOURCE":
+                        task["proof_validity"] = {"kind": "SNAPSHOT", "input_hashes": source_inputs(cfg, task)}
                     validate_task(cfg, task)
                     if task["role"] != row["role"]:
                         raise RuntimeError("RUNTIME_PLAN_CANNOT_ASSIGN_PEER")
@@ -464,6 +535,7 @@ def snapshot(cfg, conn):
     rows = [{k: r[k] for k in ("id", "role", "kind", "state", "reason", "updated", "attempts")}
             for r in conn.execute("SELECT * FROM jobs ORDER BY created")]
     return {"epoch": cfg["epoch"], "model": MODEL, "capacity": 3, "project_ready": False,
+            "collector_boundaries": ["SOURCE"], "unavailable_collectors": ["PACKAGE", "INSTALLED", "LIVE", "DEPLOYMENT"],
             "status": "ACTIVE" if any(r["state"] in {"STARTING", "RUNNING"} for r in rows) else "IDLE_RECONCILIATION",
             "jobs": rows, "integration_enabled": cfg.get("integration_enabled", False)}
 

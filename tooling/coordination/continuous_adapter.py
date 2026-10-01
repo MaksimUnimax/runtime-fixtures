@@ -5,10 +5,12 @@ from pathlib import Path
 import signal
 import subprocess
 import time
+import re
+import continuous_environment
 
 from continuous_state import (LAUNCHERS, MODEL, atomic_json, birth, check_mode, db,
                            digest, encode, event, git, lock, read_json, root,
-                           rules_snapshot, transition)
+                           rules_snapshot, transition, requirements)
 
 SCHEMA = {
     "type": "object", "additionalProperties": False,
@@ -47,6 +49,39 @@ Evidence must distinguish SOURCE/PACKAGE/INSTALLED_SYNTHETIC/LIVE/DEPLOYMENT.
 """
 
 
+class CheckFailure(RuntimeError):
+    pass
+
+
+def source_inputs(cfg, task):
+    selected = {identifier: cfg["check_catalog"][identifier] for identifier in task["required_checks"]}
+    return {"requirements_sha256": digest(encode(requirements(cfg)[task["requirement_id"]])),
+            "rules_sha256": digest(encode(rules_snapshot(cfg))),
+            "check_catalog_sha256": digest(encode(selected))}
+
+
+def source_snapshot(worktree, paths):
+    values = {}
+    for relative in paths:
+        path = Path(worktree) / relative
+        if path.is_symlink() or not path.resolve().is_relative_to(Path(worktree)):
+            raise RuntimeError("RUNTIME_SOURCE_SYMLINK_REJECTED")
+        values[relative] = digest(path.read_bytes()) if path.is_file() else "ABSENT"
+    return digest(encode(values))
+
+
+def require_managed_job(cfg, conn, job, role):
+    cgroup = Path("/proc/self/cgroup").read_text()
+    match = re.search(r"octoport-test-" + role.lower() + r"-([a-f0-9]+)\.service", cgroup)
+    if not match:
+        raise RuntimeError("RUNTIME_MANAGED_CGROUP_REQUIRED")
+    receipt = read_json(Path(cfg["control_root"]) / "resource-jobs" / match[1] / "receipt.json")
+    owners = [json.loads(r[0]) for r in conn.execute("SELECT data FROM events WHERE job=? AND event='worker_registered'", (job,))]
+    if (receipt.get("role") != role or receipt.get("state") == "FINISHED"
+            or not any(x["pid"] == receipt.get("owner_pid") and x["birth"] == receipt.get("owner_start") for x in owners)):
+        raise RuntimeError("RUNTIME_MANAGED_CGROUP_OWNER_MISMATCH")
+
+
 def candidate_identity(worktree, base, candidate=None):
     head = candidate or git(worktree, "rev-parse", "HEAD")
     return {"candidate_sha": head, "candidate_tree": git(worktree, "rev-parse", head + "^{tree}"),
@@ -69,9 +104,10 @@ def validate_result(kind, value, spec):
         raise RuntimeError("RUNTIME_RESULT_CHECKS_INVALID")
     for check in value["checks"]:
         if (not isinstance(check, dict) or set(check) != {"name", "exit_code", "evidence"}
-                or type(check["exit_code"]) is not int or not check["name"] or not check["evidence"]):
+                or type(check["exit_code"]) is not int or not isinstance(check["name"], str)
+                or not isinstance(check["evidence"], str) or not check["name"] or not check["evidence"]):
             raise RuntimeError("RUNTIME_RESULT_CHECKS_INVALID")
-    if kind in {"review", "plan_review", "reconcile_review"}:
+    if kind in {"review", "plan_review", "reconcile_review", "integration_review"}:
         if value["verdict"] not in {"ACCEPT", "REWORK", "BLOCKED"}:
             raise RuntimeError("RUNTIME_REVIEW_EXPLICIT_VERDICT_REQUIRED")
         for key in ("candidate_sha", "candidate_tree", "diff_sha256"):
@@ -91,7 +127,7 @@ def prompt_for(cfg, row, spec):
     text += "Your actual tool output is captured in " + str(root(cfg) / "jobs" / row["id"] / "exec.log") + ". Report each required check name, observed exit code, and this log as evidence.\n"
     if kind == "implement":
         text += "Implement the exact task. Leave only assigned source changes. Do not write evidence files into unassigned repo paths. Report existing test logs as evidence.\n"
-    elif kind in {"review", "reconcile_review"}:
+    elif kind in {"review", "reconcile_review", "integration_review"}:
         text += ("READ ONLY independent review. Inspect git diff from base to exact candidate; inspect code, requirements and recorded actual tests. "
                  "Verify scope, semantic requirement mapping, all acceptance criteria, absence of sensitive material and whether evidence actually exists. "
                  "Check commands/outputs independently where bounded. ACCEPT only exact candidate with sufficient boundary-specific evidence; "
@@ -127,6 +163,7 @@ def run_entry(cfg, job, token):
     try:
         with lock(control / ("codex-" + row["role"] + ".lock")) as profile_lock:
             check_mode(cfg, row["role"])
+            require_managed_job(cfg, conn, job, row["role"])
             spec = json.loads(row["spec"])
             if spec["rules"] != rules_snapshot(cfg):
                 raise RuntimeError("RUNTIME_RULES_CHANGED_REPLAN_REQUIRED")
@@ -201,7 +238,10 @@ def run_entry(cfg, job, token):
                 return 1
             result = validate_result(row["kind"], read_json(result_path), spec)
             if row["kind"] == "implement" and result["verdict"] == "PASS":
-                run_checks(cfg, row, spec, directory)
+                try:
+                    run_checks(cfg, row, spec, directory)
+                except CheckFailure:
+                    result["summary"] += " [Supervisor: required checks failed; candidate is NOT_ACCEPTED.]"
             atomic_json(directory / "adapter-receipt.json", {
                 "version": 1, "job": job, "token": token, "role": row["role"], "kind": row["kind"],
                 "model": MODEL, "adapter_status": "RESULT_VALIDATED", "result_sha256": digest(encode(result)),
@@ -229,21 +269,30 @@ def run_entry(cfg, job, token):
 def run_checks(cfg, row, spec, directory):
     """Trusted fixed catalogue argv, actual OS exit and bytes; no model test claims."""
     reports = []
+    snapshot = source_snapshot(spec["worktree"], spec["task"]["paths"])
+    inputs = source_inputs(cfg, spec["task"])
     for identifier in spec["task"].get("required_checks", []):
         check_mode(cfg, row["role"])
         check = cfg.get("check_catalog", {}).get(identifier)
         if not check:
             raise RuntimeError("RUNTIME_TRUSTED_CHECK_NOT_CONFIGURED")
-        if check.get("environment", {}).get("capability") != "python-stdlib":
-            raise RuntimeError("RUNTIME_ENVIRONMENT_COLLECTOR_NOT_AVAILABLE")
+        prepared = continuous_environment.ensure_environment(spec["worktree"], check.get("environment", {}), managed=True)
+        if prepared["status"] != "READY":
+            atomic_json(directory / "environment-blocked.json", prepared)
+            raise RuntimeError("RUNTIME_ENVIRONMENT_BLOCKED: " + str(prepared["reason"]))
         argv = check["argv"]
         if not isinstance(argv, list) or not argv or not all(isinstance(x, str) and x and "\0" not in x for x in argv):
             raise RuntimeError("RUNTIME_TRUSTED_CHECK_ARGV_INVALID")
         output = directory / ("check-" + digest(identifier)[:16] + ".log")
         with output.open("wb") as log:
             os.chmod(output, 0o600)
+            environment = {k: v for k, v in os.environ.items() if not k.startswith("PG") and k not in {
+                "DATABASE_URL", "OPENAI_API_KEY", "OPENAI_BASE_URL", "CODEX_API_KEY", "AZURE_OPENAI_API_KEY"}}
+            environment["OCTOPORT_RUNTIME_CHECK_ROOT"] = str(directory / "checks")
+            environment.update(prepared["execution_env"])
+            environment["SA_NODE_BIN"] = str(continuous_environment.NODE_BIN)
             child = subprocess.Popen(argv, cwd=spec["worktree"], stdout=log, stderr=subprocess.STDOUT,
-                                     start_new_session=True)
+                                     start_new_session=True, env=environment)
             deadline = time.monotonic() + min(int(check.get("timeout_seconds", 600)), 3600)
             while child.poll() is None:
                 reason = None
@@ -262,10 +311,15 @@ def run_checks(cfg, row, spec, directory):
                     raise RuntimeError("RUNTIME_TRUSTED_CHECK_" + reason)
                 time.sleep(0.25)
         reports.append({"id": identifier, "argv_sha256": digest(encode(argv)), "exit_code": child.returncode,
-                        "log_path": str(output), "log_sha256": digest(output.read_bytes()), "collector": "SUPERVISOR_SUBPROCESS"})
+                        "log_path": str(output), "log_sha256": digest(output.read_bytes()), "collector": "SUPERVISOR_SUBPROCESS",
+                        "environment": prepared["evidence"]})
     if not reports:
         raise RuntimeError("RUNTIME_NO_TRUSTED_CHECKS")
+    if snapshot != source_snapshot(spec["worktree"], spec["task"]["paths"]):
+        raise RuntimeError("RUNTIME_CHECK_MUTATED_SOURCE")
     atomic_json(directory / "trusted-checks.json", {"version": 1, "job": row["id"], "token": row["token"],
-                "model": MODEL, "role": row["role"], "boundary": "SOURCE", "checks": reports})
+                "model": MODEL, "role": row["role"], "boundary": "SOURCE", "checks": reports,
+                "source_snapshot": snapshot, "input_hashes": inputs, "collector": "SUPERVISOR_SUBPROCESS"})
     if any(r["exit_code"] != 0 for r in reports):
-        raise RuntimeError("RUNTIME_TRUSTED_CHECK_FAILED")
+        raise CheckFailure("RUNTIME_TRUSTED_CHECK_FAILED")
+    return reports

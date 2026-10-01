@@ -5,6 +5,7 @@ from pathlib import Path
 import tempfile
 import time
 import unittest
+import sys
 from unittest.mock import Mock, patch
 
 import continuous_adapter as adapter
@@ -34,6 +35,8 @@ class RuntimeTests(unittest.TestCase):
                     "config_path": str(self.control / "config.json"), "planner_interval_seconds": 60}
         self.conn = state.db(self.cfg)
         self.addCleanup(self.conn.close)
+        managed = patch.object(adapter, "require_managed_job")
+        managed.start(); self.addCleanup(managed.stop)
 
     def add(self, identifier="one", role="A", kind="implement", **spec):
         details = {"task": {"id": identifier, "paths": [identifier + ".py"]}, "base": "a" * 40,
@@ -223,6 +226,37 @@ class RuntimeTests(unittest.TestCase):
         self.add(kind="review")
         with self.assertRaisesRegex(RuntimeError, "TRUSTED_REVIEW_REQUIRED"):
             runtime.accepted_verifier(self.cfg, self.conn, "one")({}, {}, "x")
+
+    def check_fixture(self, command):
+        worktree = self.control / "source"; worktree.mkdir()
+        (worktree / "source.py").write_text("answer = 1\n")
+        directory = self.control / "logs"; directory.mkdir()
+        spec = {"worktree": str(worktree), "task": {"paths": ["source.py"], "required_checks": ["actual"]}}
+        self.cfg["check_catalog"] = {"actual": {"argv": [sys.executable, "-c", command],
+            "environment": {"capability": "python-stdlib"}}}
+        return spec, directory
+
+    def test_collector_rejects_check_that_mutates_source(self):
+        spec, directory = self.check_fixture("from pathlib import Path; Path('source.py').write_text('answer=2')")
+        with patch.object(adapter, "source_inputs", return_value={"x": "a" * 64}), patch.object(adapter.continuous_environment, "ensure_environment", return_value={"status": "READY", "execution_env": {}, "evidence": {}}), self.assertRaisesRegex(RuntimeError, "CHECK_MUTATED_SOURCE"):
+            adapter.run_checks(self.cfg, {"id": "job", "role": "A", "token": 1}, spec, directory)
+        self.assertFalse((directory / "trusted-checks.json").exists())
+
+    def test_collector_records_actual_nonzero_exit(self):
+        spec, directory = self.check_fixture("raise SystemExit(7)")
+        with patch.object(adapter, "source_inputs", return_value={"x": "a" * 64}), patch.object(adapter.continuous_environment, "ensure_environment", return_value={"status": "READY", "execution_env": {}, "evidence": {}}), self.assertRaisesRegex(adapter.CheckFailure, "TRUSTED_CHECK_FAILED"):
+            adapter.run_checks(self.cfg, {"id": "job", "role": "A", "token": 1}, spec, directory)
+        receipt = state.read_json(directory / "trusted-checks.json")
+        self.assertEqual(receipt["checks"][0]["exit_code"], 7)
+        self.assertEqual(receipt["collector"], "SUPERVISOR_SUBPROCESS")
+
+    def test_controller_metadata_requires_live_claim_token(self):
+        with patch.object(runtime, "git", return_value="a" * 40):
+            claim = runtime.manual_claim(self.cfg, self.conn, "A", "controller", "a" * 40, ["controller-review-A.json"])
+        state.legacy_write_guard(self.control, "A", "reviewed", claim["token_file"])
+        runtime.release_claim(self.cfg, self.conn, claim["token_file"])
+        with self.assertRaisesRegex(RuntimeError, "TOKEN_INVALID"):
+            state.legacy_write_guard(self.control, "A", "reviewed", claim["token_file"])
 
 
 if __name__ == "__main__":

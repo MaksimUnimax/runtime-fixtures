@@ -7,8 +7,10 @@ import time
 
 import ci_gate
 import work_queue
-from continuous_state import (atomic_json, check_mode, digest, event, git,
+from continuous_state import (add_job, atomic_json, check_mode, digest, event, git,
                               root, rules_snapshot, transition)
+from continuous_adapter import candidate_identity
+from continuous_gate import integration_context
 
 
 def integration_receipt_valid(cfg, spec):
@@ -51,6 +53,20 @@ def prepare(cfg, conn, row, spec, task):
     saved["head"] = git(target, "rev-parse", "HEAD")
     if git(target, "status", "--porcelain"):
         raise RuntimeError("RUNTIME_INTEGRATION_DIRTY_AFTER_MERGE")
+    author = conn.execute("SELECT role FROM jobs WHERE id=?", (spec["author_job"],)).fetchone()[0]
+    reviewers = [r for r in cfg["enabled_roles"] if r not in {author, "C"}]
+    if not reviewers:
+        raise RuntimeError("RUNTIME_MERGED_CONTEXT_INDEPENDENT_REVIEWER_REQUIRED")
+    review_id = "context-" + row["id"]
+    reviewer = reviewers[0]
+    add_job(conn, review_id, reviewer, "integration_review", {
+        "integration_job": row["id"], "author": "C", "source_author": author,
+        "identity": candidate_identity(target, base), "base": base,
+        "payload": {"task": task, "source_candidate": spec["candidate"], "source_base": spec["base"],
+                    "instruction": "Review exact merged context and all changed requirements/consumer boundaries; source acceptance alone does not accept this merged tree."},
+        "rules": rules_snapshot(cfg), "epoch": cfg["epoch"],
+        "worktree": str(Path(cfg["control_root"]) / "worktrees" / reviewer / ("runtime-" + review_id))})
+    saved["context_review_job"] = review_id
     transition(conn, row["id"], "MERGED", result=saved)
     return saved
 
@@ -103,6 +119,12 @@ def integrate_tick(cfg, conn):
                 if proof["status"] != "PASS":
                     if any(x.get("status") == "completed" and x.get("conclusion") != "success" for x in proof["runs"]):
                         failure_handoff(cfg, conn, row, spec, "EXACT_CANDIDATE_CI_FAILED")
+                    continue
+                context = integration_context(target, Path(cfg["control_root"]))
+                if not context["review_accepted"]:
+                    review = conn.execute("SELECT state FROM jobs WHERE id=?", (saved["context_review_job"],)).fetchone()
+                    if review and review[0] in {"REWORK", "BLOCKED", "UNKNOWN"}:
+                        failure_handoff(cfg, conn, row, spec, "MERGED_CONTEXT_REVIEW_NOT_ACCEPTED")
                     continue
                 git(target, "fetch", "origin", "main")
                 if git(target, "rev-parse", "origin/main") != saved["base"]:
