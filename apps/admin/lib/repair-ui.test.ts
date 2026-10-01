@@ -139,10 +139,12 @@ describe("repair operator UI presentation", () => {
     item.testEvidence.h4Outcome = null;
     item.assignment.currentRevision = null;
     item.assignment.currentMode = null;
+    item.assignment.currentPercentageBps = null;
     item.staleReasons = ["CURRENT_OBSERVATION_MISSING"];
     const gaps = repairEvidenceGaps(item);
     expect(gaps.join(" ")).toContain("контрольного запуска");
     expect(gaps.join(" ")).toContain("H4");
+    expect(gaps.join(" ")).toContain("процента назначения");
     expect(gaps.join(" ")).toContain("решения оператора");
     expect(repairChangeSummary(item)).toContain("сравнение");
   });
@@ -201,6 +203,7 @@ describe("repair operator page source boundary", () => {
     expect(page).toContain("health.read");
     expect(page).toContain("ai.profile.read");
     expect(page).toContain("ai.assignment.read");
+    expect(page).not.toContain("currentPercentageBps ?? 0");
     expect(page).not.toMatch(/method:\s*["']POST["']/);
     expect(page).not.toContain("Mutation");
   });

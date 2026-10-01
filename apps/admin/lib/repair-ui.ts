@@ -209,8 +209,12 @@ export function repairEvidenceGaps(item: RepairCase): string[] {
     gaps.push("Нет текущего Health-состояния.");
   if (!item.testEvidence.h4Status) gaps.push("Нет текущего статуса H4.");
   if (!item.testEvidence.h4Outcome) gaps.push("Нет результата H4.");
-  if (item.assignment.currentRevision === null || !item.assignment.currentMode)
+  if (item.assignment.currentRevision === null)
     gaps.push("Нет текущей ревизии назначения профиля.");
+  if (!item.assignment.currentMode)
+    gaps.push("Нет текущего режима назначения профиля.");
+  if (item.assignment.currentPercentageBps === null)
+    gaps.push("Нет текущего процента назначения профиля.");
   if (!item.decision) gaps.push("Нет решения оператора.");
   return gaps;
 }

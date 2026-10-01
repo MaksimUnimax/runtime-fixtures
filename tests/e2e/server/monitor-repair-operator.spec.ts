@@ -74,11 +74,11 @@ function safeCase() {
       id: id(10),
       expectedRevision: 1,
       initialPercentageBps: 1000,
-      currentRevision: null,
-      currentRevisionId: null,
-      currentMode: null,
-      currentBaselineProfileRevisionId: null,
-      currentCandidateProfileRevisionId: null,
+      currentRevision: 1,
+      currentRevisionId: id(13),
+      currentMode: "ROLLOUT",
+      currentBaselineProfileRevisionId: id(6),
+      currentCandidateProfileRevisionId: id(5),
       currentPercentageBps: null,
     },
     decision: {
@@ -168,6 +168,10 @@ test("partial repair evidence is explicit and never becomes an apply action", as
     page.getByText("Нет текущего контрольного запуска."),
   ).toBeVisible();
   await expect(page.getByText("Нет результата H4.")).toBeVisible();
+  await expect(
+    page.getByText("Нет текущего процента назначения профиля."),
+  ).toBeVisible();
+  await expect(page.getByText(/процент отсутствует/)).toBeVisible();
   await expect(page.getByText(/Текущее наблюдение отличается/)).toBeVisible();
   await expect(page.getByRole("button", { name: /Применить/i })).toHaveCount(0);
   expect(requested).toHaveLength(2);

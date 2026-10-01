@@ -280,13 +280,11 @@ function RepairDetail({ item }: { item: RepairCase }) {
           [
             item.assignment.currentRevision === null
               ? "Текущая ревизия отсутствует"
-              : "rev " +
-                item.assignment.currentRevision +
-                " · " +
-                (item.assignment.currentMode ?? "режим отсутствует") +
-                " · " +
-                (item.assignment.currentPercentageBps ?? 0) / 100 +
-                "%",
+              : `rev ${item.assignment.currentRevision} · ${item.assignment.currentMode ?? "режим отсутствует"} · ${
+                  item.assignment.currentPercentageBps === null
+                    ? "процент отсутствует"
+                    : `${item.assignment.currentPercentageBps / 100}%`
+                }`,
             item.decision
               ? repairDecisionLabel(item) +
                 " · действует до " +
