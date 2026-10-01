@@ -142,7 +142,9 @@ export class IsolatedAuthLifecycleDriver {
       options.identity.disposable !== true ||
       !otpTestIdentity.test(options.identity.email)
     )
-      throw new Error("identity must be an explicit disposable *.test identity");
+      throw new Error(
+        "identity must be an explicit disposable *.test identity",
+      );
     this.identity = options.identity;
     this.readOtpFixture = options.readOtpFixture;
     this.fetcher = options.fetch ?? fetch;
@@ -267,10 +269,17 @@ export class IsolatedAuthLifecycleDriver {
       return { kind: "activated", token: token.data };
     }
     if (result.code === "DEVICE_AUTH_PENDING")
-      return { kind: "pending", retryAfter: result.response.headers.get("retry-after") };
+      return {
+        kind: "pending",
+        retryAfter: result.response.headers.get("retry-after"),
+      };
     if (result.code === "DEVICE_AUTH_CLOSED")
       return { kind: "closed", code: result.code };
-    return { kind: "failed", status: result.response.status, code: result.code };
+    return {
+      kind: "failed",
+      status: result.response.status,
+      code: result.code,
+    };
   }
 
   /** After expiry, ask the normal exchange API for its terminal outcome. */
@@ -355,7 +364,8 @@ export class IsolatedAuthLifecycleDriver {
     portal: boolean,
   ) {
     const requestHeaders = new Headers(headers);
-    if (body !== undefined) requestHeaders.set("content-type", "application/json");
+    if (body !== undefined)
+      requestHeaders.set("content-type", "application/json");
     if (portal && this.cookies.size)
       requestHeaders.set(
         "cookie",
@@ -390,7 +400,9 @@ export class IsolatedAuthLifecycleDriver {
         bodyValue = await response.json();
       } catch {
         if (response.ok)
-          throw new Error("Isolated auth lifecycle returned an invalid JSON response");
+          throw new Error(
+            "Isolated auth lifecycle returned an invalid JSON response",
+          );
         bodyValue = {};
       }
     }

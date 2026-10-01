@@ -31,8 +31,14 @@ describe("isolated auth lifecycle driver safety", () => {
     ["portalOrigin", { portalOrigin: "http://192.168.1.5:3200" }],
     ["database", { disposableDatabaseUrl: "postgres://db.example.test/live" }],
     ["database name", { disposableDatabaseUrl: "postgres://localhost/live" }],
-    ["identity", { identity: { email: "owner@example.com", disposable: true } }],
-    ["identity marker", { identity: { email: "e2e@example.test", disposable: false } }],
+    [
+      "identity",
+      { identity: { email: "owner@example.com", disposable: true } },
+    ],
+    [
+      "identity marker",
+      { identity: { email: "e2e@example.test", disposable: false } },
+    ],
   ])("rejects unsafe %s configuration before a request", (_name, override) => {
     const fetcher = vi.fn() as unknown as typeof fetch;
     expect(() =>
@@ -70,7 +76,9 @@ describe("isolated auth lifecycle driver safety", () => {
     "postgres://local@127.0.0.1:15542/octoport_%62_test",
   ])("rejects DB overrides and unregistered targets before I/O: %s", (url) => {
     const fetcher = vi.fn() as unknown as typeof fetch;
-    expect(() => validateIsolatedDatabaseUrl(url)).toThrow("registered loopback");
+    expect(() => validateIsolatedDatabaseUrl(url)).toThrow(
+      "registered loopback",
+    );
     expect(() =>
       createIsolatedAuthLifecycleDriver({
         ...common,
@@ -82,11 +90,12 @@ describe("isolated auth lifecycle driver safety", () => {
   });
 
   it("requires the injected OTP fixture to return a six-digit code", async () => {
-    const fetcher = vi.fn(async () =>
-      new Response(
-        JSON.stringify({ challengeId: "challenge", expiresAt: "soon" }),
-        { status: 202 },
-      ),
+    const fetcher = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({ challengeId: "challenge", expiresAt: "soon" }),
+          { status: 202 },
+        ),
     ) as unknown as typeof fetch;
     const driver = createIsolatedAuthLifecycleDriver({
       ...common,
@@ -120,42 +129,46 @@ function exchangeDriver(body: string) {
 describe("isolated auth token response evidence", () => {
   it("accepts a complete token response under the product contract", async () => {
     const { driver } = exchangeDriver(JSON.stringify(validToken));
-    await expect(driver.exchangeDevice("fixture-device-code")).resolves.toEqual({
-      kind: "activated",
-      token: validToken,
-    });
+    await expect(driver.exchangeDevice("fixture-device-code")).resolves.toEqual(
+      {
+        kind: "activated",
+        token: validToken,
+      },
+    );
   });
 
   it.each(["not JSON", "<html>not an API response</html>", ""])(
     "rejects malformed HTTP 200 bodies instead of reporting activation",
     async (body) => {
       const { driver, fetcher } = exchangeDriver(body);
-      await expect(driver.exchangeDevice("fixture-device-code")).rejects.toThrow(
-        "invalid JSON response",
-      );
+      await expect(
+        driver.exchangeDevice("fixture-device-code"),
+      ).rejects.toThrow("invalid JSON response");
       expect(fetcher).toHaveBeenCalledTimes(1);
     },
   );
 
-  it.each([
-    null,
-    [],
-    {},
-    { ...validToken, status: "pending" },
-    { ...validToken, deviceId: "not-a-device-id" },
-    { ...validToken, sessionId: null },
-    { ...validToken, tokenType: "Basic" },
-    { ...validToken, accessToken: "" },
-    { ...validToken, accessTokenExpiresAt: "not-a-timestamp" },
-    { ...validToken, refreshToken: "too-short" },
-    { ...validToken, refreshTokenExpiresAt: undefined },
-  ].map((body) => ({ body })))(
+  it.each(
+    [
+      null,
+      [],
+      {},
+      { ...validToken, status: "pending" },
+      { ...validToken, deviceId: "not-a-device-id" },
+      { ...validToken, sessionId: null },
+      { ...validToken, tokenType: "Basic" },
+      { ...validToken, accessToken: "" },
+      { ...validToken, accessTokenExpiresAt: "not-a-timestamp" },
+      { ...validToken, refreshToken: "too-short" },
+      { ...validToken, refreshTokenExpiresAt: undefined },
+    ].map((body) => ({ body })),
+  )(
     "rejects invalid token contracts without false activation",
     async ({ body }) => {
       const { driver } = exchangeDriver(JSON.stringify(body));
-      await expect(driver.exchangeDevice("fixture-device-code")).rejects.toThrow(
-        "invalid token response",
-      );
+      await expect(
+        driver.exchangeDevice("fixture-device-code"),
+      ).rejects.toThrow("invalid token response");
     },
   );
 
@@ -163,13 +176,21 @@ describe("isolated auth token response evidence", () => {
     const fetcher = vi
       .fn()
       .mockResolvedValueOnce(
-        new Response(JSON.stringify({ error: { code: "DEVICE_AUTH_PENDING" } }), {
-          status: 409,
-          headers: { "retry-after": "2" },
-        }),
+        new Response(
+          JSON.stringify({ error: { code: "DEVICE_AUTH_PENDING" } }),
+          {
+            status: 409,
+            headers: { "retry-after": "2" },
+          },
+        ),
       )
-      .mockResolvedValueOnce(new Response(JSON.stringify(validToken), { status: 200 }));
-    const driver = createIsolatedAuthLifecycleDriver({ ...common, fetch: fetcher });
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(validToken), { status: 200 }),
+      );
+    const driver = createIsolatedAuthLifecycleDriver({
+      ...common,
+      fetch: fetcher,
+    });
     expect(await driver.exchangeDevice("fixture-device-code")).toEqual({
       kind: "pending",
       retryAfter: "2",
@@ -189,12 +210,18 @@ describe("isolated auth token response evidence", () => {
     const fetcher = vi
       .fn()
       .mockResolvedValueOnce(
-        new Response(JSON.stringify({ error: { code: "DEVICE_AUTH_CLOSED" } }), {
-          status: 409,
-        }),
+        new Response(
+          JSON.stringify({ error: { code: "DEVICE_AUTH_CLOSED" } }),
+          {
+            status: 409,
+          },
+        ),
       )
       .mockResolvedValueOnce(new Response("unavailable", { status: 503 }));
-    const driver = createIsolatedAuthLifecycleDriver({ ...common, fetch: fetcher });
+    const driver = createIsolatedAuthLifecycleDriver({
+      ...common,
+      fetch: fetcher,
+    });
     expect(await driver.exchangeDevice("fixture-device-code")).toEqual({
       kind: "closed",
       code: "DEVICE_AUTH_CLOSED",
