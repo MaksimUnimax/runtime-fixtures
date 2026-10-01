@@ -715,7 +715,7 @@ describe.sequential("monitoring retention 0051 -> 0052 upgrade", () => {
     const migrationCount = await runtime.query<{ count: string }>(
       'SELECT count(*)::text AS count FROM drizzle."__drizzle_migrations"',
     );
-    expect(migrationCount.rows[0]?.count).toBe("44");
+    expect(migrationCount.rows[0]?.count).toBe("45");
   });
 
   it("runs the maintenance command across bounded 0051 legacy continuation without replay side effects", async () => {

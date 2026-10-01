@@ -104,6 +104,7 @@ describe.sequential("P2.1 PostgreSQL persistence integration", () => {
       "beta_admission_mutations",
       "beta_admission_state",
       "beta_admissions",
+      "beta_identity_invitations",
       "billing_events",
       "billing_reconciliation_jobs",
       "checkout_intents",
@@ -174,7 +175,7 @@ describe.sequential("P2.1 PostgreSQL persistence integration", () => {
     const count = await runtime.db.execute<{ count: string }>(sql`
       SELECT count(*)::text AS "count" FROM drizzle."__drizzle_migrations"
     `);
-    expect(count.rows[0]?.count).toBe("44");
+    expect(count.rows[0]?.count).toBe("45");
     const browserFamilyRows = await runtime.db.execute<{
       enumlabel: string;
     }>(sql`
