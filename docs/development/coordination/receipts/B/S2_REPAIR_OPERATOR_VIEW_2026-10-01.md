@@ -20,14 +20,14 @@ Product API и PostgreSQL read-model существовали до этой за
 
 ## Проверки
 
-Final light gate привязан к source commit `087ea77a24be82b2107ee608928d1d65d02d9cf3`; полный лог: `/root/octoport-control/logs/B/s2-exact-light-087ea77a.log`.
+Final light gate после независимого R1 rework привязан к source commit `393ca94fdedb111900e904d39c69caf4ddc46b9c`; полный лог: `/root/octoport-control/logs/B/s2-exact-light-393ca94f.log`. R1 `REWORK_REQUIRED` сохранён в `/root/octoport-control/logs/B/s2-review-r1-rework-required.md`: `currentPercentageBps=null` больше не отображается как `0%`, а явно отмечается как отсутствующее доказательство.
 - `apps/admin/lib/repair-ui.test.ts`: 8 PASS;
 - `apps/admin/lib/control-plane-route.test.ts`: 135 PASS;
 - вместе 143/143 PASS;
 - admin TypeScript typecheck PASS;
 - ESLint, Prettier и `git diff --check` PASS.
 
-Final browser/API gate для тех же source/test bytes `087ea77a24be82b2107ee608928d1d65d02d9cf3` выполнялся через B heavy supervisor с отдельной disposable PostgreSQL и портами 34100/34200/34300. Resource receipt: `/root/octoport-control/resource-jobs/58c03775c2624ce098800febdec7c96a/receipt.json`: command/systemd exit 0, OOM 0, cleanup verified, peak 2696937472 bytes. Playwright `/root/octoport-b-backend/test-results/.last-run.json`: `status=passed`.
+Final browser/API gate для тех же source/test bytes `393ca94fdedb111900e904d39c69caf4ddc46b9c` выполнялся через B heavy supervisor с отдельной disposable PostgreSQL и портами 34100/34200/34300. Resource receipt: `/root/octoport-control/resource-jobs/24fe84d5a3ee444d8eff41058768d45b/receipt.json`: command/systemd exit 0, OOM 0, cleanup verified, peak 2586836992 bytes. Playwright `/root/octoport-b-backend/test-results/.last-run.json`: `status=passed`.
 
 Browser suite содержит четыре сценария:
 1. ADMIN_OWNER получает реальный пустой scoped repair list через обычный admin page → BFF → Fastify GET → PostgreSQL repository.
