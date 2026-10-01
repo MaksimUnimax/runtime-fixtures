@@ -1,6 +1,7 @@
 """Independent adversarial tests; temporary SQLite/flock fixtures, no Codex/live."""
 import json
 import os
+import sys
 from pathlib import Path
 import tempfile
 import unittest
@@ -27,6 +28,8 @@ class RuntimeIndependent(unittest.TestCase):
         self.cfg = {"control_root": str(self.control), "repo": str(self.repo),
                     "epoch": "independent", "enabled_roles": ["A", "B", "C"],
                     "requirements": str(self.area / "requirements.json")}
+        self.cfg["check_catalog"] = {"unit": {"argv": [sys.executable, "-c", "pass"],
+                                              "environment": {"capability": "python-stdlib"}}}
         self.marker = {"mode": "continuous-runtime", "epoch": "independent",
                        "roles": ["A", "B", "C"], "authorization_receipt": "fixture"}
         self.set_mode()
@@ -45,10 +48,12 @@ class RuntimeIndependent(unittest.TestCase):
             if not target.exists():
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_text("fixture rule\n")
-        spec_text = "Approved independent fixture criterion\n"
+        (self.repo / "docs/product").mkdir(parents=True, exist_ok=True)
+        spec_text = "| SA-WORK-01 | Approved independent fixture criterion |\n"
         (self.repo / "docs/product/SPEC.md").write_text(spec_text)
         (self.repo / "docs/development/coordination/PLAN.md").write_text("| A01 | fixture |\n")
-        self.req.update(source="docs/product/SPEC.md", quote="fixture criterion",
+        self.req.update(source="docs/product/SPEC.md", quote=spec_text.strip(),
+                        plan_quote="| A01 | fixture |",
                         source_sha256=state.digest(spec_text))
         state.atomic_json(self.cfg["requirements"], {"requirements": [self.req]})
         self.conn = state.db(self.cfg)
@@ -463,10 +468,11 @@ class RuntimeIndependent(unittest.TestCase):
 
     def test_changed_clause_blocks_its_task_not_other_owner(self):
         source = self.repo / "docs/product/SPEC.md"
-        original = source.read_text() + "Independent B criterion\n"
+        original = source.read_text() + "| SA-B-01 | Independent B criterion |\n"
         source.write_text(original)
         self.req["source_sha256"] = state.digest(original)
-        second = dict(self.req, id="req-B", role="B", plan="B01", quote="Independent B criterion")
+        second = dict(self.req, id="req-B", role="B", plan="B01", quote="| SA-B-01 | Independent B criterion |",
+                      plan_quote="| B01 | fixture |")
         state.atomic_json(self.cfg["requirements"], {"requirements": [self.req, second]})
         plan = self.repo / "docs/development/coordination/PLAN.md"
         plan.write_text(plan.read_text() + "| B01 | fixture |\n")
