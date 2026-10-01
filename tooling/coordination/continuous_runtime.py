@@ -495,6 +495,34 @@ def enqueue_rework(cfg, conn, review_row, review_specification, verdict):
                 worktree=str(worktree_path(cfg, author["role"], identifier)),
                 feedback=verdict, rework_attempt=generation, rules=rules_snapshot(cfg))
     add_job(conn, identifier, author["role"], "implement", spec)
+    transition(conn, author["id"], "SUPERSEDED", verdict["summary"])
+
+
+def enqueue_plan_rework(cfg, conn, review_row, review_specification, verdict):
+    author = conn.execute("SELECT * FROM jobs WHERE id=?", (review_specification["author_job"],)).fetchone()
+    if not author or author["kind"] != "plan" or author["role"] == review_row["role"]:
+        raise RuntimeError("RUNTIME_PLAN_REWORK_IDENTITY_INVALID")
+    original = json.loads(author["spec"])
+    attempt = original.get("rework_attempt", 0) + 1
+    identifier = "replan-" + digest(author["id"] + ":" + review_row["id"])[:20]
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        transition(conn, author["id"], "REWORK", verdict["summary"])
+        if attempt <= 3:
+            replacement = dict(original, rework_attempt=attempt, feedback=verdict,
+                worktree=str(worktree_path(cfg, author["role"], identifier)), rules=rules_snapshot(cfg))
+            add_job(conn, identifier, author["role"], "plan", replacement)
+        else:
+            event(conn, "plan_rework_limit_requires_new_inputs", author["id"])
+        conn.commit()
+    except BaseException:
+        conn.rollback(); raise
+
+
+def require_same_planned_contract(existing, proposed):
+    if (work_queue._contract(existing) != work_queue._contract(proposed)
+            or any(existing.get(key) != proposed.get(key) for key in ("requirement_id", "basis"))):
+        raise RuntimeError("RUNTIME_PLANNED_TASK_ID_CONTRACT_CONFLICT")
 
 
 def finalize(cfg, conn):
@@ -519,6 +547,8 @@ def finalize(cfg, conn):
             if result["verdict"] in {"REWORK", "BLOCKED"}:
                 if result["verdict"] == "REWORK" and row["kind"] == "review":
                     enqueue_rework(cfg, conn, row, spec, result)
+                elif row["kind"] == "plan_review":
+                    enqueue_plan_rework(cfg, conn, row, spec, result)
                 transition(conn, row["id"], result["verdict"], result["summary"])
                 continue
             if row["kind"] == "implement":
@@ -561,11 +591,16 @@ def finalize(cfg, conn):
                     if set(task["paths"]) & paths_reserved(conn):
                         raise RuntimeError("RUNTIME_PLANNED_PATHS_BECAME_BUSY")
                     board = work_queue.load_board(cfg["control_root"])
-                    if not any(t["id"] == task["id"] for t in board["tasks"]):
+                    existing = next((t for t in board["tasks"] if t["id"] == task["id"]), None)
+                    if existing:
+                        require_same_planned_contract(existing, task)
+                    else:
                         work_queue.add_task(cfg["control_root"], task["role"], task, repo_root=cfg["repo"])
                 transition(conn, spec["author_job"], "DONE")
                 transition(conn, row["id"], "DONE")
         except (RuntimeError, OSError, ValueError, KeyError, subprocess.SubprocessError) as error:
+            if row["kind"] == "plan_review":
+                enqueue_plan_rework(cfg, conn, row, json.loads(row["spec"]), {"verdict": "BLOCKED", "summary": str(error)[:250]})
             transition(conn, row["id"], "BLOCKED", str(error)[:250])
 
 

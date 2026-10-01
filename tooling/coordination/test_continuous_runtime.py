@@ -324,6 +324,44 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(repair["base"], "c" * 40)
         self.assertEqual(self.conn.execute("SELECT state FROM jobs WHERE id='one'").fetchone()[0], "SUPERSEDED")
 
+    def test_plan_review_rejection_enqueues_bounded_read_only_feedback(self):
+        self.add(identifier="plan", kind="plan", requirements=[{"id": "A01"}], input_digest="same-inputs")
+        self.add(identifier="peer", role="B", kind="plan_review", author_job="plan")
+        state.transition(self.conn, "peer", "RESULT", result=verdict("REWORK"))
+        with patch.object(runtime, "rules_snapshot", return_value={}):
+            runtime.finalize(self.cfg, self.conn)
+        ready = self.conn.execute("SELECT * FROM jobs WHERE kind='plan' AND state='READY'").fetchall()
+        self.assertEqual(len(ready), 1)
+        replacement = json.loads(ready[0]["spec"])
+        self.assertEqual(replacement["feedback"]["verdict"], "REWORK")
+        self.assertEqual(replacement["input_digest"], "same-inputs")
+        self.assertEqual(replacement["rework_attempt"], 1)
+        self.assertEqual(ready[0]["role"], "A")
+
+    def test_plan_rework_does_not_repeat_identical_inputs_forever(self):
+        self.add(identifier="plan", kind="plan", rework_attempt=3)
+        peer = self.add(identifier="peer", role="B", kind="plan_review", author_job="plan")
+        with patch.object(runtime, "rules_snapshot", return_value={}):
+            runtime.enqueue_plan_rework(self.cfg, self.conn, peer, {"author_job": "plan"}, verdict("BLOCKED"))
+        self.assertEqual(self.conn.execute("SELECT count(*) FROM jobs WHERE kind='plan'").fetchone()[0], 1)
+
+    def test_duplicate_planned_id_requires_exact_existing_contract(self):
+        task = {"id": "same", "role": "A", "paths": ["source.py"], "requirement_id": "A01", "basis": "approved"}
+        runtime.require_same_planned_contract(task, dict(task))
+        for change in ({"paths": ["other.py"]}, {"requirement_id": "A02"}, {"basis": "different"}):
+            with self.assertRaisesRegex(RuntimeError, "CONTRACT_CONFLICT"):
+                runtime.require_same_planned_contract(task, task | change)
+
+    def test_peer_rework_old_candidate_does_not_reserve_paths_after_successor_integrates(self):
+        self.add()
+        peer = self.add(identifier="peer", role="B", kind="review", author_job="one")
+        with patch.object(runtime, "rules_snapshot", return_value={}):
+            runtime.enqueue_rework(self.cfg, self.conn, peer, {"author_job": "one", "identity": {"candidate_sha": "c" * 40}}, verdict("REWORK"))
+        successor = self.conn.execute("SELECT id FROM jobs WHERE kind='implement' AND state='READY'").fetchone()[0]
+        state.transition(self.conn, successor, "INTEGRATED")
+        self.assertEqual(self.conn.execute("SELECT state FROM jobs WHERE id='one'").fetchone()[0], "SUPERSEDED")
+        self.assertNotIn("one.py", runtime.paths_reserved(self.conn))
+
 
 if __name__ == "__main__":
     unittest.main()
