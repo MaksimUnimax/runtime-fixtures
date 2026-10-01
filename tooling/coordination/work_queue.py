@@ -30,6 +30,14 @@ def _digest(raw):
     return hashlib.sha256(raw).hexdigest()
 
 
+def _sync_directory(path):
+    descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
 def _scoped_bytes(root, filename):
     try:
         path = Path(filename).resolve(strict=True)
@@ -228,7 +236,7 @@ def _locked_board(root, role):
             yield load_board(root)
 
 
-def _write_board(root, board, event):
+def _write_board(root, board, event, *, append_event=True):
     root = Path(root)
     now = datetime.now(timezone.utc).isoformat()
     board["revision"] += 1
@@ -250,8 +258,12 @@ def _write_board(root, board, event):
     finally:
         os.close(descriptor)
     event.update(at=now, revision=board["revision"])
-    with (root / "controllers/work-board-events.jsonl").open("a") as output:
-        output.write(json.dumps(event, ensure_ascii=False) + "\n")
+    if append_event:
+        with (root / "controllers/work-board-events.jsonl").open("a") as output:
+            output.write(json.dumps(event, ensure_ascii=False) + "\n")
+            output.flush()
+            os.fsync(output.fileno())
+        _sync_directory(root / "controllers")
     return event
 
 
@@ -362,7 +374,8 @@ def _archive_reference(path, snapshot):
     return {"id": task["id"], "role": task["role"], "plan": task["plan"],
             "result": task["result"], "boundary": task["boundary"],
             "candidate": task["candidate"], "receipt_sha256": snapshot["proof"]["sha256"],
-            "archive_path": str(path), "authority_id": snapshot["final_acceptance"]["authority_id"]}
+            "archive_path": str(path), "authority_id": snapshot["final_acceptance"]["authority_id"],
+            "event_id": "archive:" + _digest((task["id"] + ":" + snapshot["proof"]["sha256"]).encode())}
 
 
 def archived_task(root, identifier):
@@ -441,6 +454,73 @@ def _prune_archived_acceptances(root, board, archive_paths):
     os.replace(temporary, path)
 
 
+def _append_archive_event(root, event):
+    """Durable idempotent append, with a bounded offset journal before each write.
+
+    The immutable snapshot stores event_id/payload before board replacement.
+    This journal records the append position before writing any event bytes.
+    Recovery reads one bounded line, rather than rescanning unbounded history.
+    A crash after append/fsync but before return finds the same bytes and does
+    not append again. Consumers also deduplicate by event_id on repeated reads.
+    """
+    root = Path(root)
+    raw = (json.dumps(event, sort_keys=True, ensure_ascii=False) + "\n").encode()
+    if len(raw) > MAX_ARCHIVE_BYTES:
+        raise RuntimeError("WORK_QUEUE_ARCHIVE_EVENT_INVALID: size")
+    journal = root / "controllers/work-board-event-offsets" / (_digest(event["event_id"].encode()) + ".json")
+    log = root / "controllers/work-board-events.jsonl"
+    remaining = raw
+    if journal.exists():
+        saved = _json(_scoped_bytes(root, journal)[1])
+        if (saved.get("event_id") != event["event_id"] or saved.get("event_sha256") != _digest(raw)
+                or type(saved.get("offset")) is not int or saved["offset"] < 0):
+            raise RuntimeError("WORK_QUEUE_ARCHIVE_EVENT_INVALID: journal")
+        if (not log.exists() and saved["offset"] != 0) or (log.exists() and log.stat().st_size < saved["offset"]):
+            raise RuntimeError("WORK_QUEUE_ARCHIVE_EVENT_LOG_TRUNCATED")
+        found, at_end = b"", True
+        if log.exists():
+            with log.open("rb") as source:
+                source.seek(saved["offset"])
+                found = source.readline(MAX_ARCHIVE_BYTES + 1)
+                at_end = source.read(1) == b""
+                if found == raw:
+                    os.fsync(source.fileno())
+                    _sync_directory(log.parent)
+                    return False
+        if at_end and raw.startswith(found):
+            # Finish only our own identified partial append; preserve all earlier history.
+            remaining = raw[len(found):]
+        elif found:
+            try:
+                other = _json(found)
+                if not isinstance(other, dict) or other.get("event_id") == event["event_id"]:
+                    raise ValueError()
+            except (ValueError, TypeError):
+                raise RuntimeError("WORK_QUEUE_ARCHIVE_EVENT_LOG_POSITION_INVALID") from None
+    offset = log.stat().st_size if log.exists() else 0
+    if remaining == raw:
+        journal.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        temporary = journal.with_suffix(".tmp")
+        with temporary.open("w") as output:
+            json.dump({"version": 1, "event_id": event["event_id"], "event_sha256": _digest(raw), "offset": offset}, output)
+            output.flush()
+            os.fsync(output.fileno())
+        os.chmod(temporary, 0o600)
+        os.replace(temporary, journal)
+        for directory in (journal.parent, journal.parent.parent):
+            descriptor = os.open(directory, os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                os.fsync(descriptor)
+            finally:
+                os.close(descriptor)
+    with log.open("a") as output:
+        output.buffer.write(remaining)
+        output.flush()
+        os.fsync(output.fileno())
+    _sync_directory(log.parent)
+    return True
+
+
 def archive_done(root, role, identifiers, *, archive_verifier=None, limit=10):
     """Archive bounded verified leaves after trusted final/integrated confirmation.
 
@@ -449,8 +529,10 @@ def archive_done(root, role, identifiers, *, archive_verifier=None, limit=10):
     verifier(task, receipt_sha256) reads durable peer/CI/integration/lease state;
     receipt text and a successful process exit are not final authority. Lock
     order remains role -> coordination; no external execution occurs here.
-    Crash order: immutable snapshot -> board replacement -> index pruning. A
-    retry recovers either side of board replacement without deleting evidence.
+    Crash order: immutable snapshot with event identity -> board replacement
+    -> recoverable durable event append -> index pruning. A retry recovers
+    either side of board replacement without deleting evidence or losing the
+    ARCHIVE_DONE event. Incremental consumers deduplicate by stable event_id.
     """
     if (not callable(archive_verifier) or type(limit) is not int or not 1 <= limit <= 10
             or not isinstance(identifiers, list) or not 1 <= len(identifiers) <= limit
@@ -494,6 +576,11 @@ def archive_done(root, role, identifiers, *, archive_verifier=None, limit=10):
                         "proof": proof, "acceptances": acceptances, "final_acceptance": deepcopy(claim),
                         "board_revision": board["revision"], "archived_at": datetime.now(timezone.utc).isoformat()}
             path = _archive_directory(root, identifier) / (digest + ".json")
+            reference = _archive_reference(path, snapshot)
+            snapshot["archive_event"] = {"event_id": reference["event_id"], "role": role,
+                                         "action": "ARCHIVE_DONE", "archives": [reference],
+                                         "prepared_at": snapshot["archived_at"],
+                                         "prepared_revision": board["revision"]}
             prepared.append((path, snapshot))
         # Validate the whole request before publishing any new archive snapshots.
         for path, snapshot in prepared:
@@ -502,7 +589,13 @@ def archive_done(root, role, identifiers, *, archive_verifier=None, limit=10):
         removed = {snapshot["task"]["id"] for _, snapshot in prepared}
         if removed:
             board["tasks"] = [t for t in board["tasks"] if t["id"] not in removed]
-            _write_board(root, board, {"role": role, "action": "ARCHIVE_DONE", "archives": references})
+            _write_board(root, board, {"role": role, "action": "ARCHIVE_DONE", "archives": references}, append_event=False)
+        for reference in references:
+            snapshot = _read_archive(reference["archive_path"])
+            event = snapshot.get("archive_event")
+            if not isinstance(event, dict) or event.get("event_id") != reference["event_id"]:
+                raise RuntimeError("WORK_QUEUE_ARCHIVE_EVENT_INVALID: snapshot")
+            _append_archive_event(root, event)
         _prune_archived_acceptances(root, board, [r["archive_path"] for r in references])
         return {"archived": references, "revision": board["revision"], "already_archived": [r["id"] for r in recovered]}
 

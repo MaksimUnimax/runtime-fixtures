@@ -648,6 +648,68 @@ class WorkQueueTests(unittest.TestCase):
         result = archive_done(self.root, "A", ["a-client"], archive_verifier=self.final_verifier)
         self.assertEqual(result["already_archived"], ["a-client"])
         self.assertNotIn(digest, json.loads((self.root / "controllers/work-acceptances.json").read_text())["acceptances"])
+        events = [json.loads(line) for line in (self.root / "controllers/work-board-events.jsonl").read_text().splitlines()]
+        self.assertEqual(sum(event["action"] == "ARCHIVE_DONE" for event in events if "action" in event), 1)
+
+    def test_archive_recovers_board_replaced_event_append_failed_exactly_once(self):
+        self.completed_chain()
+        event_log = self.root / "controllers/work-board-events.jsonl"
+        original_open = Path.open
+        def fail_archive_append(path, mode="r", *args, **kwargs):
+            if path == event_log and mode == "a":
+                raise OSError("injected event append failure")
+            return original_open(path, mode, *args, **kwargs)
+        with patch.object(Path, "open", fail_archive_append):
+            with self.assertRaisesRegex(OSError, "injected event append failure"):
+                archive_done(self.root, "A", ["a-client"], archive_verifier=self.final_verifier)
+        self.assertFalse(any(task["id"] == "a-client" for task in load_board(self.root)["tasks"]))
+        reference = archived_task(self.root, "a-client")
+        snapshot_path = Path(reference["archive_path"])
+        snapshot_bytes = snapshot_path.read_bytes()
+        snapshot = json.loads(snapshot_bytes)
+        self.assertEqual(snapshot["archive_event"]["event_id"], reference["event_id"])
+        before = [json.loads(line) for line in event_log.read_text().splitlines()]
+        self.assertFalse(any(event.get("action") == "ARCHIVE_DONE" for event in before))
+        for _ in range(2):
+            replay = archive_done(self.root, "A", ["a-client"], archive_verifier=self.final_verifier)
+            self.assertEqual(replay["already_archived"], ["a-client"])
+        events = [json.loads(line) for line in event_log.read_text().splitlines()]
+        archival = [event for event in events if event.get("action") == "ARCHIVE_DONE"]
+        self.assertEqual(len(archival), 1)
+        self.assertEqual(archival[0], snapshot["archive_event"])
+        self.assertEqual(snapshot_bytes, snapshot_path.read_bytes())
+
+    def test_archive_event_recovery_handles_own_partial_append_and_other_writer(self):
+        for interruption in ("partial", "other-writer"):
+            with self.subTest(interruption=interruption):
+                self.save()
+                # Each subcase uses a distinct archived result namespace.
+                task_id = "a-client-" + interruption
+                board = load_board(self.root)
+                board["tasks"][1]["id"] = task_id
+                self.path.write_text(json.dumps(board))
+                self.complete()
+                digest = load_board(self.root)["tasks"][0]["completion_receipt_sha256"]
+                self.complete(task_id, dependencies={"b-auth": digest})
+                log = self.root / "controllers/work-board-events.jsonl"
+                original_open = Path.open
+                def fail_append(path, mode="r", *args, **kwargs):
+                    if path == log and mode == "a":
+                        raise OSError("before event append")
+                    return original_open(path, mode, *args, **kwargs)
+                with patch.object(Path, "open", fail_append), self.assertRaises(OSError):
+                    archive_done(self.root, "A", [task_id], archive_verifier=self.final_verifier)
+                snapshot = json.loads(Path(archived_task(self.root, task_id)["archive_path"]).read_text())
+                expected = (json.dumps(snapshot["archive_event"], sort_keys=True, ensure_ascii=False) + "\n").encode()
+                if interruption == "partial":
+                    with log.open("ab") as output:
+                        output.write(expected[:len(expected) // 2])
+                else:
+                    reopen_task(self.root, "B", "b-auth", "independent later change")
+                archive_done(self.root, "A", [task_id], archive_verifier=self.final_verifier)
+                events = [json.loads(line) for line in log.read_text().splitlines()]
+                matching = [event for event in events if event.get("event_id") == snapshot["archive_event"]["event_id"]]
+                self.assertEqual(matching, [snapshot["archive_event"]])
 
     def test_archive_keeps_acceptance_still_referenced_by_remaining_task(self):
         self.completed_chain()
