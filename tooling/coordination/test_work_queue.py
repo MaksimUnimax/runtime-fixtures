@@ -11,7 +11,8 @@ from unittest.mock import patch
 
 from work_queue import (load_board, role_work, assert_no_ready_work, advance_task, compact_state,
                         board_snapshot, status_work, add_task, bind_candidate,
-                        register_acceptance, validate_board, revalidate_done, reopen_task)
+                        register_acceptance, validate_board, revalidate_done, reopen_task,
+                        archive_done, archived_task)
 from waiting_gate import validate_waiting_receipt, PLAN_IDS
 
 spec = importlib.util.spec_from_file_location("flow_control_test", Path(__file__).with_name("control.py"))
@@ -40,13 +41,18 @@ class WorkQueueTests(unittest.TestCase):
         self.receipt.write_text('{"result":"source-only"}')
         self.args = argparse.Namespace(receipt="", task="", summary="", next="")
 
-    def proof(self, task_id="b-auth", *, reviewer="peer-C", level="SOURCE", dependencies=None):
+    def proof(self, task_id="b-auth", *, reviewer="peer-C", level="SOURCE", dependencies=None, validity="SNAPSHOT"):
         board = json.loads(self.path.read_text())
         task = next(t for t in board["tasks"] if t["id"] == task_id)
         task.update(boundary=level, required_checks=["regression"], author="author-" + task["role"],
                     candidate={"sha": "a" * 40, "tree": "b" * 40, "diff_sha256": "c" * 64})
         if level != "SOURCE":
             task["candidate"]["artifact_sha256"] = "d" * 64
+        task["proof_validity"] = {"kind": validity}
+        if validity == "SNAPSHOT":
+            task["proof_validity"]["input_hashes"] = {"source_manifest_sha256": "e" * 64}
+            if level != "SOURCE":
+                task["proof_validity"]["input_hashes"]["environment_sha256"] = "f" * 64
         self.path.write_text(json.dumps(board))
         (self.root / "controllers/runtime-mode.json").write_text(json.dumps({"mode": "continuous-runtime", "epoch": "test-epoch"}))
         evidence = self.root / "logs" / (task_id + "-check.json")
@@ -55,7 +61,8 @@ class WorkQueueTests(unittest.TestCase):
         receipt = {"version": 2, "task_id": task_id, "candidate": task["candidate"],
                    "author": task["author"], "generation": task.get("proof_generation", 0),
                    "result": "PASS", "level": level, "epoch": "test-epoch",
-                   "issued_at": now.isoformat(), "expires_at": None if level in {"SOURCE", "PACKAGE"}
+                   "proof_validity": task["proof_validity"],
+                   "issued_at": now.isoformat(), "expires_at": None if validity == "SNAPSHOT"
                    else (now + timedelta(hours=1)).isoformat(),
                    "dependencies": dependencies or {},
                    "checks": [{"id": "regression", "result": "PASS", "candidate": task["candidate"],
@@ -72,7 +79,20 @@ class WorkQueueTests(unittest.TestCase):
         # production adapter must authenticate the job, never echo caller text.
         return {"reviewer": payload["review"]["reviewer"], "result": "ACCEPT",
                 "candidate": task["candidate"], "level": task["boundary"],
-                "epoch": "test-epoch", "review_job_id": "independent-peer-job"}
+                "epoch": "test-epoch", "review_job_id": "independent-peer-job",
+                "proof_validity": task["proof_validity"]}
+
+    @staticmethod
+    def final_verifier(task, digest):
+        return {"state": "FINAL", "integration": "INTEGRATED", "pending_review": False,
+                "pending_ci": False, "active_leases": [], "epoch": "test-epoch",
+                "candidate": task["candidate"], "receipt_sha256": digest,
+                "authority_id": "final-" + task["id"]}
+
+    def completed_chain(self):
+        self.complete()
+        digest = load_board(self.root)["tasks"][0]["completion_receipt_sha256"]
+        self.complete("a-client", dependencies={"b-auth": digest})
 
     def complete(self, task_id="b-auth", **options):
         path, receipt = self.proof(task_id, **options)
@@ -421,7 +441,7 @@ class WorkQueueTests(unittest.TestCase):
             register_acceptance(self.root, "b-auth", str(path), review_verifier=verifier)
 
     def test_missing_receipt_index_and_expiry_revalidate_as_unverified(self):
-        path, receipt = self.complete(level="LIVE_OWNER")
+        path, receipt = self.complete(level="LIVE_OWNER", validity="CURRENT_STATE")
         future = datetime.now(timezone.utc) + timedelta(hours=2)
         self.assertEqual(validate_board(self.root, now=future)["board"]["tasks"][0]["state"], "UNVERIFIED")
         (self.root / "controllers/work-acceptances.json").unlink()
@@ -429,7 +449,7 @@ class WorkQueueTests(unittest.TestCase):
         self.assertEqual(role_work(self.root, "A")["tasks"][0]["state"], "BLOCKED")
 
     def test_immutable_source_and_package_remain_done_without_age_rechecks(self):
-        for level in ("SOURCE", "PACKAGE"):
+        for level in ("SOURCE", "PACKAGE", "INSTALLED_LOCAL", "INSTALLED_SYNTHETIC"):
             with self.subTest(level=level):
                 self.save()
                 _, receipt = self.complete(level=level)
@@ -443,7 +463,7 @@ class WorkQueueTests(unittest.TestCase):
                 self.assertEqual(role_work(self.root, "A")["tasks"][0]["state"], "READY")
 
     def test_expired_volatile_evidence_blocks_dependent_work(self):
-        self.complete(level="DEPLOYMENT")
+        self.complete(level="DEPLOYMENT", validity="CURRENT_STATE")
         future = datetime.now(timezone.utc) + timedelta(hours=2)
         class FutureClock(datetime):
             @classmethod
@@ -455,13 +475,13 @@ class WorkQueueTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "DEPENDENCY_PENDING"):
                 advance_task(self.root, "A", "a-client", "IN_PROGRESS")
 
-    def test_null_expiry_is_only_valid_for_explicit_immutable_boundaries(self):
-        for level in ("INSTALLED_LOCAL", "INSTALLED_SYNTHETIC", "LIVE", "LIVE_OWNER", "DEPLOYMENT", "PRODUCTION"):
+    def test_current_state_policy_requires_expiry_even_for_source(self):
+        for level in ("SOURCE", "INSTALLED_LOCAL", "INSTALLED_SYNTHETIC", "LIVE", "LIVE_OWNER", "DEPLOYMENT", "PRODUCTION"):
             with self.subTest(level=level):
-                path, receipt = self.proof(level=level)
+                path, receipt = self.proof(level=level, validity="CURRENT_STATE")
                 receipt["expires_at"] = None
                 path.write_text(json.dumps(receipt))
-                with self.assertRaisesRegex(RuntimeError, "volatile evidence requires explicit expiry"):
+                with self.assertRaisesRegex(RuntimeError, "current-state evidence requires explicit expiry"):
                     register_acceptance(self.root, "b-auth", str(path), review_verifier=self.trusted_verifier)
         path, receipt = self.proof(level="SOURCE")
         del receipt["expires_at"]
@@ -494,10 +514,158 @@ class WorkQueueTests(unittest.TestCase):
         path.symlink_to("/etc/passwd")
         with self.assertRaises(RuntimeError):
             register_acceptance(self.root, "b-auth", str(path), review_verifier=self.trusted_verifier)
+
         path.unlink()
         path.write_text("x" * 262145)
         with self.assertRaises(RuntimeError):
             register_acceptance(self.root, "b-auth", str(path), review_verifier=self.trusted_verifier)
+
+    def test_validity_policy_and_exact_input_hashes_are_bound_to_trusted_review(self):
+        path, receipt = self.proof(level="INSTALLED_LOCAL")
+        before = load_board(self.root)
+        mutations = [
+            lambda task: task.pop("proof_validity"),
+            lambda task: task["proof_validity"].update(kind="UNKNOWN"),
+            lambda task: task["proof_validity"].update(input_hashes={}),
+            lambda task: task["proof_validity"]["input_hashes"].pop("environment_sha256"),
+            lambda task: task["proof_validity"]["input_hashes"].update(environment_sha256="bad"),
+        ]
+        for index, mutate in enumerate(mutations):
+            board = copy.deepcopy(before)
+            mutate(board["tasks"][0])
+            self.path.write_text(json.dumps(board))
+            with self.subTest(case=index), self.assertRaises(RuntimeError):
+                register_acceptance(self.root, "b-auth", str(path), review_verifier=self.trusted_verifier)
+        self.path.write_text(json.dumps(before))
+        def wrong_policy(task, payload, digest):
+            return dict(self.trusted_verifier(task, payload, digest), proof_validity={"kind": "CURRENT_STATE"})
+        with self.assertRaisesRegex(RuntimeError, "TRUSTED_REVIEW_REJECTED"):
+            register_acceptance(self.root, "b-auth", str(path), review_verifier=wrong_policy)
+        register_acceptance(self.root, "b-auth", str(path), review_verifier=self.trusted_verifier)
+        advance_task(self.root, "B", "b-auth", "DONE", str(path))
+        board = load_board(self.root)
+        board["tasks"][0]["proof_validity"]["input_hashes"]["environment_sha256"] = "a" * 64
+        self.path.write_text(json.dumps(board))
+        self.assertEqual(role_work(self.root, "B")["tasks"][0]["state"], "UNVERIFIED")
+
+    def test_archive_preserves_proof_history_and_prunes_only_removed_leaf(self):
+        self.completed_chain()
+        board = load_board(self.root)
+        producer, consumer = board["tasks"]
+        receipt_path = Path(consumer["completion_receipt"])
+        receipt_bytes = receipt_path.read_bytes()
+        result = archive_done(self.root, "A", ["a-client"], archive_verifier=self.final_verifier)
+        reference = result["archived"][0]
+        snapshot = json.loads(Path(reference["archive_path"]).read_text())
+        self.assertEqual(snapshot["task"], consumer)
+        self.assertEqual(snapshot["proof"]["sha256"], consumer["completion_receipt_sha256"])
+        self.assertEqual(snapshot["proof"]["payload"]["dependencies"], {"b-auth": producer["completion_receipt_sha256"]})
+        self.assertIn(consumer["completion_receipt_sha256"], snapshot["acceptances"])
+        self.assertEqual(receipt_bytes, receipt_path.read_bytes())
+        index = json.loads((self.root / "controllers/work-acceptances.json").read_text())
+        self.assertNotIn(consumer["completion_receipt_sha256"], index["acceptances"])
+        self.assertIn(producer["completion_receipt_sha256"], index["acceptances"])
+        self.assertEqual([t["id"] for t in load_board(self.root)["tasks"]], ["b-auth"])
+        self.assertEqual(archived_task(self.root, "a-client"), reference)
+        self.assertIn('"ARCHIVE_DONE"', (self.root / "controllers/work-board-events.jsonl").read_text())
+        archive_done(self.root, "B", ["b-auth"], archive_verifier=self.final_verifier)
+        self.assertEqual(load_board(self.root)["tasks"], [])
+
+    def test_archive_rejects_current_dependencies_invalid_done_and_unfinished_states(self):
+        self.completed_chain()
+        with self.assertRaisesRegex(RuntimeError, "DEPENDENCY_REFERENCED"):
+            archive_done(self.root, "B", ["b-auth"], archive_verifier=self.final_verifier)
+        valid = load_board(self.root)
+        for state in ("READY", "IN_PROGRESS", "BLOCKED", "UNVERIFIED", "UNKNOWN", "FAILED"):
+            board = copy.deepcopy(valid)
+            board["tasks"][1]["state"] = state
+            self.path.write_text(json.dumps(board))
+            with self.subTest(state=state), self.assertRaises(RuntimeError):
+                archive_done(self.root, "A", ["a-client"], archive_verifier=self.final_verifier)
+        self.path.write_text(json.dumps(valid))
+        Path(valid["tasks"][1]["completion_receipt"]).write_text('{"result":"FAIL"}')
+        with self.assertRaisesRegex(RuntimeError, "NEEDS_VERIFIED_DONE"):
+            archive_done(self.root, "A", ["a-client"], archive_verifier=self.final_verifier)
+
+    def test_archive_requires_trusted_final_no_pending_ci_review_or_active_lease(self):
+        self.completed_chain()
+        before = self.path.read_bytes()
+        for change in ({"state": "UNKNOWN"}, {"integration": "PENDING"}, {"pending_review": True},
+                       {"pending_ci": True}, {"active_leases": ["lease:1"]}, {"epoch": "stale"},
+                       {"authority_id": ""}, {"receipt_sha256": "a" * 64}, {"candidate": {}}):
+            def verifier(task, digest):
+                return dict(self.final_verifier(task, digest), **change)
+            with self.subTest(change=change), self.assertRaisesRegex(RuntimeError, "FINAL_AUTHORITY_REQUIRED"):
+                archive_done(self.root, "A", ["a-client"], archive_verifier=verifier)
+            self.assertEqual(before, self.path.read_bytes())
+        for verifier in (None, "ACCEPT", {"state": "FINAL"}):
+            with self.assertRaisesRegex(RuntimeError, "REQUEST_INVALID"):
+                archive_done(self.root, "A", ["a-client"], archive_verifier=verifier)
+
+    def test_archive_request_bounds_owner_stop_and_replay(self):
+        self.completed_chain()
+        for ids, limit in (([], 10), (["a-client"] * 2, 10), ([str(i) for i in range(11)], 10), (["a-client"], 11)):
+            with self.assertRaisesRegex(RuntimeError, "REQUEST_INVALID"):
+                archive_done(self.root, "A", ids, archive_verifier=self.final_verifier, limit=limit)
+        with self.assertRaisesRegex(RuntimeError, "NEEDS_VERIFIED_DONE"):
+            archive_done(self.root, "B", ["a-client"], archive_verifier=self.final_verifier)
+        (self.root / "A.json").write_text('{"status":"STOPPED"}')
+        with self.assertRaisesRegex(RuntimeError, "STOPPED"):
+            archive_done(self.root, "A", ["a-client"], archive_verifier=self.final_verifier)
+        (self.root / "A.json").write_text('{"status":"RUNNING"}')
+        first = archive_done(self.root, "A", ["a-client"], archive_verifier=self.final_verifier)
+        before = self.path.read_bytes()
+        archived_bytes = Path(first["archived"][0]["archive_path"]).read_bytes()
+        replay = archive_done(self.root, "A", ["a-client"], archive_verifier=self.final_verifier)
+        self.assertEqual(replay["already_archived"], ["a-client"])
+        self.assertEqual(replay["archived"], first["archived"])
+        self.assertEqual(before, self.path.read_bytes())
+        self.assertEqual(archived_bytes, Path(first["archived"][0]["archive_path"]).read_bytes())
+
+    def test_archive_recovers_crash_after_snapshot_before_board_replace(self):
+        self.completed_chain()
+        before = self.path.read_bytes()
+        with patch("work_queue._write_board", side_effect=RuntimeError("simulated crash")):
+            with self.assertRaisesRegex(RuntimeError, "simulated crash"):
+                archive_done(self.root, "A", ["a-client"], archive_verifier=self.final_verifier)
+        self.assertEqual(before, self.path.read_bytes())
+        self.assertIsNone(archived_task(self.root, "a-client"))
+        snapshots = list((self.root / "controllers/work-board-archive").glob("*/*.json"))
+        self.assertEqual(len(snapshots), 1)
+        snapshot_bytes = snapshots[0].read_bytes()
+        result = archive_done(self.root, "A", ["a-client"], archive_verifier=self.final_verifier)
+        self.assertEqual(snapshot_bytes, snapshots[0].read_bytes())
+        self.assertEqual(result["archived"][0]["id"], "a-client")
+
+    def test_archive_recovers_crash_after_board_replace_before_index_prune(self):
+        self.completed_chain()
+        digest = load_board(self.root)["tasks"][1]["completion_receipt_sha256"]
+        with patch("work_queue._prune_archived_acceptances", side_effect=RuntimeError("simulated crash")):
+            with self.assertRaisesRegex(RuntimeError, "simulated crash"):
+                archive_done(self.root, "A", ["a-client"], archive_verifier=self.final_verifier)
+        self.assertIsNotNone(archived_task(self.root, "a-client"))
+        self.assertIn(digest, json.loads((self.root / "controllers/work-acceptances.json").read_text())["acceptances"])
+        result = archive_done(self.root, "A", ["a-client"], archive_verifier=self.final_verifier)
+        self.assertEqual(result["already_archived"], ["a-client"])
+        self.assertNotIn(digest, json.loads((self.root / "controllers/work-acceptances.json").read_text())["acceptances"])
+
+    def test_archive_keeps_acceptance_still_referenced_by_remaining_task(self):
+        self.completed_chain()
+        board = load_board(self.root)
+        digest = board["tasks"][1]["completion_receipt_sha256"]
+        board["tasks"][0]["historical_receipt_sha256"] = digest
+        self.path.write_text(json.dumps(board))
+        archive_done(self.root, "A", ["a-client"], archive_verifier=self.final_verifier)
+        self.assertIn(digest, json.loads((self.root / "controllers/work-acceptances.json").read_text())["acceptances"])
+
+    def test_archived_task_id_cannot_be_reused_to_obscure_result(self):
+        self.completed_chain()
+        archive_done(self.root, "A", ["a-client"], archive_verifier=self.final_verifier)
+        task = {"id": "a-client", "role": "A", "plan": "A04", "state": "READY", "requires": [],
+                "result": "another result", "paths": ["tests/regression/extension-core/test.mjs"],
+                "acceptance": ["pass"], "basis": "SPEC next requirement"}
+        with self.assertRaisesRegex(RuntimeError, "ARCHIVED_ID_IMMUTABLE"):
+            add_task(self.root, "A", task)
 
 
 if __name__ == "__main__":
