@@ -711,6 +711,86 @@ class WorkQueueTests(unittest.TestCase):
                 matching = [event for event in events if event.get("event_id") == snapshot["archive_event"]["event_id"]]
                 self.assertEqual(matching, [snapshot["archive_event"]])
 
+    def test_partial_archive_then_normal_writer_then_retry_preserves_valid_jsonl(self):
+        self.completed_chain()
+        log = self.root / "controllers/work-board-events.jsonl"
+        original_open = Path.open
+        def fail_append(path, mode="r", *args, **kwargs):
+            if path == log and mode == "a":
+                raise OSError("killed before archive append")
+            return original_open(path, mode, *args, **kwargs)
+        with patch.object(Path, "open", fail_append), self.assertRaises(OSError):
+            archive_done(self.root, "A", ["a-client"], archive_verifier=self.final_verifier)
+        snapshot = json.loads(Path(archived_task(self.root, "a-client")["archive_path"]).read_text())
+        raw = (json.dumps(snapshot["archive_event"], sort_keys=True, ensure_ascii=False) + "\n").encode()
+        with log.open("ab") as output:
+            output.write(raw[:len(raw) // 2])
+        # This valid writer must finish the pending archive before either its
+        # board mutation or its own append can occur.
+        reopened = reopen_task(self.root, "B", "b-auth", "independent later change")
+        self.assertIn("event_id", reopened)
+        archive_done(self.root, "A", ["a-client"], archive_verifier=self.final_verifier)
+        events = [json.loads(line) for line in log.read_text().splitlines()]
+        archived = [event for event in events if event.get("event_id") == snapshot["archive_event"]["event_id"]]
+        later = [event for event in events if event.get("event_id") == reopened["event_id"]]
+        self.assertEqual(archived, [snapshot["archive_event"]])
+        self.assertEqual(later, [reopened])
+        self.assertLess(events.index(archived[0]), events.index(later[0]))
+        self.assertFalse((self.root / "controllers/work-board-pending-event.json").exists())
+
+    def test_legacy_concatenated_tail_preserved_with_repair_evidence_before_board_mutation(self):
+        self.completed_chain()
+        log = self.root / "controllers/work-board-events.jsonl"
+        original_open = Path.open
+        def fail_append(path, mode="r", *args, **kwargs):
+            if path == log and mode == "a":
+                raise OSError("before archive append")
+            return original_open(path, mode, *args, **kwargs)
+        with patch.object(Path, "open", fail_append), self.assertRaises(OSError):
+            archive_done(self.root, "A", ["a-client"], archive_verifier=self.final_verifier)
+        snapshot = json.loads(Path(archived_task(self.root, "a-client")["archive_path"]).read_text())
+        raw = (json.dumps(snapshot["archive_event"], sort_keys=True, ensure_ascii=False) + "\n").encode()
+        later = {"role": "B", "task": "b-auth", "state": "IN_PROGRESS", "revision": 999,
+                 "at": datetime.now(timezone.utc).isoformat()}
+        corrupt = raw[:len(raw) // 2] + (json.dumps(later) + "\n").encode()
+        with log.open("ab") as output:
+            output.write(corrupt)
+        # Old code had no global pending pointer. Tail validation must still
+        # block another mutation and preserve all bytes, including the B event.
+        (self.root / "controllers/work-board-pending-event.json").unlink()
+        board_before, log_before = self.path.read_bytes(), log.read_bytes()
+        with self.assertRaisesRegex(RuntimeError, "EVENT_REPAIR_REQUIRED"):
+            reopen_task(self.root, "B", "b-auth", "must not overwrite historical corruption")
+        self.assertEqual(board_before, self.path.read_bytes())
+        self.assertEqual(log_before, log.read_bytes())
+        repairs = list((self.root / "controllers/work-board-event-repairs").glob("*.json"))
+        self.assertEqual(len(repairs), 1)
+        repair = json.loads(repairs[0].read_text())
+        self.assertEqual(Path(repair["captured_file"]).read_bytes(), corrupt)
+        self.assertEqual(repair["captured_sha256"], hashlib.sha256(corrupt).hexdigest())
+
+    def test_queue_add_uses_same_pending_recovery_before_append(self):
+        self.completed_chain()
+        log = self.root / "controllers/work-board-events.jsonl"
+        original_open = Path.open
+        def fail_append(path, mode="r", *args, **kwargs):
+            if path == log and mode == "a":
+                raise OSError("before append")
+            return original_open(path, mode, *args, **kwargs)
+        with patch.object(Path, "open", fail_append), self.assertRaises(OSError):
+            archive_done(self.root, "A", ["a-client"], archive_verifier=self.final_verifier)
+        snapshot = json.loads(Path(archived_task(self.root, "a-client")["archive_path"]).read_text())
+        raw = (json.dumps(snapshot["archive_event"], sort_keys=True, ensure_ascii=False) + "\n").encode()
+        with log.open("ab") as output:
+            output.write(raw[:len(raw) // 2])
+        task = {"id": "a-new", "role": "A", "plan": "A04", "state": "READY", "requires": [],
+                "result": "another result", "paths": ["tests/regression/extension-core/test.mjs"],
+                "acceptance": ["pass"], "basis": "SPEC next requirement"}
+        added = add_task(self.root, "A", task)
+        events = [json.loads(line) for line in log.read_text().splitlines()]
+        self.assertIn(snapshot["archive_event"], events)
+        self.assertEqual(events[-1], added)
+
     def test_archive_keeps_acceptance_still_referenced_by_remaining_task(self):
         self.completed_chain()
         board = load_board(self.root)

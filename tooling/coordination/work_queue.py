@@ -238,6 +238,8 @@ def _locked_board(root, role):
 
 def _write_board(root, board, event, *, append_event=True):
     root = Path(root)
+    # Audit recovery is a prerequisite to another committed board transition.
+    _recover_pending_event(root)
     now = datetime.now(timezone.utc).isoformat()
     board["revision"] += 1
     board["updated_at"] = now
@@ -259,11 +261,8 @@ def _write_board(root, board, event, *, append_event=True):
         os.close(descriptor)
     event.update(at=now, revision=board["revision"])
     if append_event:
-        with (root / "controllers/work-board-events.jsonl").open("a") as output:
-            output.write(json.dumps(event, ensure_ascii=False) + "\n")
-            output.flush()
-            os.fsync(output.fileno())
-        _sync_directory(root / "controllers")
+        event.setdefault("event_id", "board:" + _digest(json.dumps(event, sort_keys=True).encode()))
+        _append_archive_event(root, event)
     return event
 
 
@@ -454,8 +453,96 @@ def _prune_archived_acceptances(root, board, archive_paths):
     os.replace(temporary, path)
 
 
-def _append_archive_event(root, event):
-    """Durable idempotent append, with a bounded offset journal before each write.
+def _pending_event_path(root):
+    return Path(root) / "controllers/work-board-pending-event.json"
+
+
+def _save_pending_event(root, event):
+    path = _pending_event_path(root)
+    temporary = path.with_suffix(".tmp")
+    with temporary.open("w") as output:
+        json.dump({"version": 1, "event": event}, output, sort_keys=True, ensure_ascii=False)
+        output.flush()
+        os.fsync(output.fileno())
+    os.chmod(temporary, 0o600)
+    os.replace(temporary, path)
+    _sync_directory(path.parent)
+
+
+def _clear_pending_event(root, event_id):
+    path = _pending_event_path(root)
+    if path.exists():
+        pending = _read_archive(path)
+        if pending.get("event", {}).get("event_id") != event_id:
+            raise RuntimeError("WORK_QUEUE_EVENT_PENDING_ID_MISMATCH")
+        path.unlink()
+        _sync_directory(path.parent)
+
+
+def _record_event_repair(root, offset, event=None):
+    """Preserve ambiguous bytes and expected binding; never truncate other events."""
+    root = Path(root)
+    log = root / "controllers/work-board-events.jsonl"
+    with log.open("rb") as source:
+        source.seek(offset)
+        captured = source.read(MAX_ARCHIVE_BYTES)
+        incomplete = bool(source.read(1))
+    directory = root / "controllers/work-board-event-repairs"
+    directory.mkdir(exist_ok=True, mode=0o700)
+    stem = _digest(str(offset).encode() + captured)
+    raw_path, info_path = directory / (stem + ".bin"), directory / (stem + ".json")
+    for path, raw in ((raw_path, captured), (info_path, (json.dumps({
+            "version": 1, "reason": "AMBIGUOUS_EVENT_TAIL", "offset": offset,
+            "event": event, "captured_sha256": _digest(captured),
+            "captured_bytes": len(captured), "more_bytes_preserved_in_original_log": incomplete,
+            "log": str(log), "captured_file": str(raw_path)}, sort_keys=True) + "\n").encode())):
+        if not path.exists():
+            with path.open("xb") as output:
+                output.write(raw)
+                output.flush()
+                os.fsync(output.fileno())
+            os.chmod(path, 0o600)
+    _sync_directory(directory)
+    _sync_directory(directory.parent)
+    raise RuntimeError("WORK_QUEUE_EVENT_REPAIR_REQUIRED: " + str(info_path))
+
+
+def _validate_event_tail(root):
+    log = Path(root) / "controllers/work-board-events.jsonl"
+    if not log.exists() or log.stat().st_size == 0:
+        return
+    size = log.stat().st_size
+    offset = max(0, size - MAX_ARCHIVE_BYTES)
+    with log.open("rb") as source:
+        source.seek(offset)
+        raw = source.read(MAX_ARCHIVE_BYTES)
+    # Require a complete final record. A partial/concatenated tail cannot be
+    # followed by another committed transition merely because its author differs.
+    split = raw[:-1].rfind(b"\n") + 1 if raw.endswith(b"\n") else raw.rfind(b"\n") + 1
+    last = raw[split:]
+    try:
+        if not raw.endswith(b"\n") or (offset and split == 0) or not isinstance(_json(last), dict):
+            raise ValueError()
+    except (ValueError, TypeError):
+        _record_event_repair(root, offset + split)
+
+
+def _recover_pending_event(root):
+    pending_path = _pending_event_path(root)
+    if pending_path.exists():
+        pending = _read_archive(pending_path)
+        event = pending.get("event")
+        if pending.get("version") != 1 or not isinstance(event, dict) or not event.get("event_id"):
+            raise RuntimeError("WORK_QUEUE_EVENT_PENDING_INVALID")
+        journal = Path(root) / "controllers/work-board-event-offsets" / (_digest(event["event_id"].encode()) + ".json")
+        if not journal.exists():
+            raise RuntimeError("WORK_QUEUE_EVENT_PENDING_JOURNAL_MISSING")
+        _append_archive_event(root, event, recover_pending=False)
+    _validate_event_tail(root)
+
+
+def _append_archive_event(root, event, *, recover_pending=True):
+    """Central durable idempotent append for every queue event writer.
 
     The immutable snapshot stores event_id/payload before board replacement.
     This journal records the append position before writing any event bytes.
@@ -464,6 +551,8 @@ def _append_archive_event(root, event):
     not append again. Consumers also deduplicate by event_id on repeated reads.
     """
     root = Path(root)
+    if recover_pending:
+        _recover_pending_event(root)
     raw = (json.dumps(event, sort_keys=True, ensure_ascii=False) + "\n").encode()
     if len(raw) > MAX_ARCHIVE_BYTES:
         raise RuntimeError("WORK_QUEUE_ARCHIVE_EVENT_INVALID: size")
@@ -486,6 +575,7 @@ def _append_archive_event(root, event):
                 if found == raw:
                     os.fsync(source.fileno())
                     _sync_directory(log.parent)
+                    _clear_pending_event(root, event["event_id"])
                     return False
         if at_end and raw.startswith(found):
             # Finish only our own identified partial append; preserve all earlier history.
@@ -496,7 +586,7 @@ def _append_archive_event(root, event):
                 if not isinstance(other, dict) or other.get("event_id") == event["event_id"]:
                     raise ValueError()
             except (ValueError, TypeError):
-                raise RuntimeError("WORK_QUEUE_ARCHIVE_EVENT_LOG_POSITION_INVALID") from None
+                _record_event_repair(root, saved["offset"], event)
     offset = log.stat().st_size if log.exists() else 0
     if remaining == raw:
         journal.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -513,11 +603,13 @@ def _append_archive_event(root, event):
                 os.fsync(descriptor)
             finally:
                 os.close(descriptor)
+    _save_pending_event(root, event)
     with log.open("a") as output:
         output.buffer.write(remaining)
         output.flush()
         os.fsync(output.fileno())
     _sync_directory(log.parent)
+    _clear_pending_event(root, event["event_id"])
     return True
 
 
@@ -802,21 +894,9 @@ def add_task(root, role, task, repo_root=None):
             task = dict(task)
             task["created_at"] = datetime.now(timezone.utc).isoformat()
             board["tasks"].append(task)
-            board["revision"] += 1
-            board["updated_at"] = task["created_at"]
             load_board(root, candidate=board)
-            encoded = json.dumps(board, ensure_ascii=False, indent=2) + "\n"
-            if len(encoded.encode()) > 262144:
-                raise RuntimeError("WORK_QUEUE_INVALID: size")
-            path = root / "controllers/work-board.json"
-            temporary = path.with_name(path.name + ".tmp")
-            temporary.write_text(encoded)
-            os.chmod(temporary, 0o600)
-            os.replace(temporary, path)
-            event = {"at": task["created_at"], "role": role, "task": task["id"], "action": "ADD", "revision": board["revision"]}
-            with (root / "controllers/work-board-events.jsonl").open("a") as output:
-                output.write(json.dumps(event, ensure_ascii=False) + "\n")
-            return event
+            return _write_board(root, board, {"role": role, "task": task["id"], "action": "ADD"})
+
 
 
 def compact_state(state):
