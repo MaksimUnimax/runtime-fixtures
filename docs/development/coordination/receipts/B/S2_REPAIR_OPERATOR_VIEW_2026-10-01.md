@@ -1,6 +1,6 @@
 # S2 — интерфейс оператора случаев ремонта мониторинга — 2026-10-01
 
-Status: **SOURCE + DISPOSABLE API/BFF/ADMIN BROWSER VERIFIED; INDEPENDENT REVIEW PENDING; NOT LIVE/PRODUCTION**
+Status: **SOURCE + DISPOSABLE API/BFF/ADMIN BROWSER VERIFIED; INDEPENDENT REVIEW PASS; NOT LIVE/PRODUCTION**
 
 ## Что реализовано
 
@@ -39,4 +39,4 @@ Browser suite содержит четыре сценария:
 
 ## Граница приёмки
 
-Это SOURCE + disposable authenticated API/BFF/admin-browser evidence. Это не live operator acceptance, не ручное одобрение реального monitor candidate, не production deployment и не разрешение применять профиль. Product schema, migrations, repair API permissions, decision/apply routes и production execution authority не изменялись. Независимый review exact parent candidate обязателен перед публикацией.
+Это SOURCE + disposable authenticated API/BFF/admin-browser evidence. Это не live operator acceptance, не ручное одобрение реального monitor candidate, не production deployment и не разрешение применять профиль. Product schema, migrations, repair API permissions, decision/apply routes и production execution authority не изменялись. Независимый read-only review кандидата `f3302f3a4f36bd19c083f68012f2521de3479288` вернул PASS; evidence: `/root/octoport-control/logs/B/s2-review-r2-verdict.md`.
