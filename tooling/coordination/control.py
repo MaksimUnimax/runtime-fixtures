@@ -15,7 +15,7 @@ import time
 import resource_runner
 from waiting_gate import validate_waiting_receipt
 from notice_delivery import read_controller_notices
-from work_queue import status_work, compact_state, advance_task, add_task
+from work_queue import status_work, compact_state, advance_task, add_task, claim_task, validate_task_scope
 from datetime import datetime, timezone
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -200,6 +200,9 @@ def scope_guard(role, base=None):
     )})
     if bad:
         raise RuntimeError("OWNERSHIP_VIOLATION: " + ", ".join(bad))
+    if policy().get("taskBoundScope"):
+        require_running(role)
+        validate_task_scope(CONTROL, role, sorted(set(changed)))
     return sorted(set(changed))
 
 
@@ -301,7 +304,7 @@ def main():
     parser.add_argument("role", choices=["A", "B", "C"])
     parser.add_argument("action", choices=["status", "start", "pause", "resume", "waiting",
         "checkpoint", "request-review", "request-owner", "reviewed", "owner-done",
-        "guard", "submit", "ready-main", "ensure-db", "heavy", "resources", "queue-task", "queue-add"])
+        "guard", "submit", "ready-main", "ensure-db", "heavy", "resources", "queue-task", "queue-add", "queue-claim"])
     parser.add_argument("--task-file")
     parser.add_argument("--compact", action="store_true")
     parser.add_argument("--task-state", choices=["IN_PROGRESS", "BLOCKED", "DONE"])
@@ -337,6 +340,9 @@ def main():
             raise RuntimeError("WORK_QUEUE_TASK_FILE_INVALID") from None
         print(json.dumps(add_task(CONTROL, args.role, task), ensure_ascii=False))
         return 0
+    if args.action == "queue-claim":
+        print(json.dumps(claim_task(CONTROL, args.role, args.task), ensure_ascii=False))
+        return 0
     if args.action == "queue-task":
         result = advance_task(CONTROL, args.role, args.task, args.task_state, args.receipt, args.summary)
         print(json.dumps(result, ensure_ascii=False))
@@ -347,18 +353,20 @@ def main():
     elif args.action == "guard":
         print(json.dumps({"allowed_files": scope_guard(args.role, args.base)}))
     elif args.action == "ready-main":
-        if args.role != "C" or not args.summary or not args.base:
-            raise RuntimeError("MAIN_READY_REQUIRES_C_BASE_AND_VALIDATION_EVIDENCE")
-        require_running("C")
+        if not args.summary or not args.base:
+            raise RuntimeError("MAIN_READY_REQUIRES_BASE_AND_VALIDATION_EVIDENCE")
+        require_running(args.role)
         if git("status", "--porcelain") or args.base != git("rev-parse", "origin/main"):
             raise RuntimeError("MAIN_READY_REQUIRES_CLEAN_HEAD_AND_FETCHED_BASE")
+        scope_guard(args.role, args.base)
         ci = subprocess.run([sys.executable, str(ROOT / "tooling/coordination/ci_gate.py"), "--sha", git("rev-parse", "HEAD"), "--branch", git("branch", "--show-current")], text=True, capture_output=True, timeout=90)
         if ci.returncode:
             raise RuntimeError("CURRENT_CANDIDATE_CI_NOT_GREEN: " + ci.stdout.strip())
         ci_evidence = json.loads(ci.stdout)
-        receipt = {"ci": ci_evidence, "head": git("rev-parse", "HEAD"), "tree": git("rev-parse", "HEAD^{tree}"),
+        receipt = {"role": args.role, "ci": ci_evidence, "head": git("rev-parse", "HEAD"), "tree": git("rev-parse", "HEAD^{tree}"),
                    "base": args.base, "evidence": args.summary, "recorded_at": now_text()}
-        write_json(CONTROL / "main-ready.json", receipt)
+        require_running(args.role)
+        write_json(CONTROL / ("main-ready-" + args.role + ".json"), receipt)
         print(json.dumps(receipt, ensure_ascii=False))
     elif args.action == "submit":
         require_running(args.role)

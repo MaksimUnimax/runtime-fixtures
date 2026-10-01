@@ -28,8 +28,8 @@ class WorkQueueTests(unittest.TestCase):
                 "owner_requests": ["Existing human gate"], "checkpoint_id": "keep-fence",
             }))
         self.board = {"version": 1, "revision": 1, "tasks": [
-            {"id": "b-auth", "role": "B", "plan": "B04", "state": "READY", "requires": [], "result": "Ordinary isolated auth"},
-            {"id": "a-client", "role": "A", "plan": "A04", "state": "BLOCKED", "requires": ["b-auth"], "result": "Installed client"},
+            {"id": "b-auth", "role": "B", "plan": "B04", "state": "READY", "requires": [], "result": "Ordinary isolated auth", "paths": ["apps/api/src/auth.ts"]},
+            {"id": "a-client", "role": "A", "plan": "A04", "state": "BLOCKED", "requires": ["b-auth"], "result": "Installed client", "paths": ["apps/extension/runtime.js"]},
         ]}
         self.path = self.root / "controllers/work-board.json"
         self.save()
@@ -56,7 +56,7 @@ class WorkQueueTests(unittest.TestCase):
             validate_waiting_receipt("B", str(file), "f" * 40, now, self.root)
 
     def test_completion_releases_consumer_without_controller(self):
-        self.assertEqual(role_work(self.root, "A")["tasks"][0]["state"], "BLOCKED")
+        self.assertEqual(next(t for t in role_work(self.root, "A")["tasks"] if t["id"] == "a-client")["state"], "BLOCKED")
         advance_task(self.root, "B", "b-auth", "IN_PROGRESS")
         advance_task(self.root, "B", "b-auth", "DONE", str(self.receipt))
         self.assertEqual(role_work(self.root, "A")["tasks"][0]["state"], "READY")
@@ -172,7 +172,7 @@ class WorkQueueTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "WAITING_WORK_QUEUE_AVAILABLE"):
             assert_no_ready_work(self.root, "A")
         before = self.path.read_bytes()
-        for changed in [dict(task, role="B"), dict(task, id="other", plan="B04"), dict(task, id="other", basis=""), dict(task, id="other", paths=["apps/api/src/main.ts"]), dict(task, id="other", paths=["tests/**"]), dict(task, id="other", requires=["missing"]), task]:
+        for changed in [dict(task, role="B"), dict(task, id="other", plan="Z99"), dict(task, id="other", basis=""), dict(task, id="other", paths=["apps/site/main.ts"]), dict(task, id="other", paths=["tests/**"]), dict(task, id="other", requires=["missing"]), task]:
             with self.assertRaises(RuntimeError):
                 add_task(self.root, "A", changed)
             self.assertEqual(self.path.read_bytes(), before)

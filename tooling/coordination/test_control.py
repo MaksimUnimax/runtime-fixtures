@@ -89,7 +89,8 @@ class CoordinationTests(unittest.TestCase):
 
     def test_extension_owner_can_change_its_actual_browser_regressions_and_builders(self):
         names = "tests/regression/extension-core/client-i1/browser_c1_acceptance.py\ntooling/build/extension_composed.py\ntooling/checks/extension_i1.py"
-        with patch.object(control, "git", side_effect=[names, ""]):
+        with patch.object(control, "git", side_effect=[names, ""]), patch.object(control, "validate_task_scope") as scope:
+            scope.return_value = None
             self.assertEqual(len(control.scope_guard("A")), 3)
         with patch.object(control, "git", side_effect=["tests/regression/imported/frozen-source.js", ""]):
             with self.assertRaisesRegex(RuntimeError, "OWNERSHIP_VIOLATION"):
