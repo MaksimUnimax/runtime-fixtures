@@ -573,10 +573,7 @@ describe("D3S2-2A control-plane foundation", () => {
       () => new Date("2026-09-18T10:00:00.000Z"),
     );
     await prepare(service, id);
-    const submitting = service.submit(
-      source,
-      packet(id, "revoked-in-flight"),
-    );
+    const submitting = service.submit(source, packet(id, "revoked-in-flight"));
     await started;
     expect(service.relayForTests().statsForTests()).toMatchObject({
       packets: 1,
