@@ -8,7 +8,7 @@ import unittest
 from datetime import datetime, timezone
 from unittest.mock import patch
 
-from work_queue import load_board, role_work, assert_no_ready_work, advance_task, compact_state, board_snapshot, status_work, add_task
+from work_queue import load_board, role_work, assert_no_ready_work, advance_task, compact_state, board_snapshot, status_work, add_task, current_worktree_head
 from waiting_gate import validate_waiting_receipt, PLAN_IDS
 
 spec = importlib.util.spec_from_file_location("flow_control_test", Path(__file__).with_name("control.py"))
@@ -43,6 +43,17 @@ class WorkQueueTests(unittest.TestCase):
     def save(self):
         self.path.write_text(json.dumps(self.board))
 
+    def completion(self, task_id="b-auth", candidate_sha=None, verdict="PASS", review_verdict="PASS", check_verdict="PASS"):
+        value = {
+            "kind": "octoport.work-queue-completion", "version": 1,
+            "task_id": task_id, "candidate_sha": candidate_sha or current_worktree_head(),
+            "verdict": verdict,
+            "review": {"verdict": review_verdict, "evidence": ["independent review record"]},
+            "checks": [{"name": "focused checks", "verdict": check_verdict, "evidence": ["run record"]}],
+        }
+        self.receipt.write_text(json.dumps(value))
+        return value
+
     def test_ready_work_blocks_old_all_blocked_plan_receipt(self):
         now = datetime.now(timezone.utc)
         receipt = {"version": 1, "role": "B", "head": "f" * 40, "checked_at": now.isoformat(), "work_board": board_snapshot(self.root),
@@ -58,6 +69,7 @@ class WorkQueueTests(unittest.TestCase):
     def test_completion_releases_consumer_without_controller(self):
         self.assertEqual(next(t for t in role_work(self.root, "A")["tasks"] if t["id"] == "a-client")["state"], "BLOCKED")
         advance_task(self.root, "B", "b-auth", "IN_PROGRESS")
+        self.completion()
         advance_task(self.root, "B", "b-auth", "DONE", str(self.receipt))
         self.assertEqual(role_work(self.root, "A")["tasks"][0]["state"], "READY")
         with self.assertRaisesRegex(RuntimeError, "WAITING_WORK_QUEUE_AVAILABLE"):
@@ -86,6 +98,97 @@ class WorkQueueTests(unittest.TestCase):
         for receipt in ["", "/etc/passwd", str(self.root / "profiles/private.json")]:
             with self.subTest(receipt=receipt), self.assertRaises(RuntimeError):
                 advance_task(self.root, "B", "b-auth", "DONE", receipt)
+
+    def test_completion_requires_strict_pass_and_rejects_ambiguous_verdicts(self):
+        candidates = [
+            "{",  # malformed JSON
+            json.dumps({"status": "PASS", "result": "contains PASS"}),
+        ]
+        for verdict, review, check in [("FAIL", "PASS", "PASS"),
+                                       ("REWORK_REQUIRED", "PASS", "PASS"),
+                                       ("PASS", "PASSING", "PASS"),
+                                       ("PASS", "PASS", "NOT_PASS")]:
+            candidates.append(json.dumps({
+                "kind": "octoport.work-queue-completion", "version": 1,
+                "task_id": "b-auth", "candidate_sha": current_worktree_head(),
+                "verdict": verdict,
+                "review": {"verdict": review, "evidence": ["review"]},
+                "checks": [{"name": "unit", "verdict": check, "evidence": ["run"]}],
+            }))
+        for raw in candidates:
+            with self.subTest(receipt=raw):
+                self.receipt.write_text(raw)
+                advance_task(self.root, "B", "b-auth", "IN_PROGRESS")
+                before = self.path.read_bytes()
+                with self.assertRaisesRegex(RuntimeError, "STRICT_PASS_RECEIPT_REQUIRED"):
+                    advance_task(self.root, "B", "b-auth", "DONE", str(self.receipt))
+                self.assertEqual(self.path.read_bytes(), before)
+                self.board = json.loads(before)
+                self.board["tasks"][0]["state"] = "READY"
+                self.save()
+
+    def test_completion_receipt_is_bound_to_task_and_candidate(self):
+        for task_id, candidate in [("other-task", current_worktree_head()),
+                                   ("b-auth", "f" * 40)]:
+            with self.subTest(task_id=task_id, candidate=candidate):
+                self.completion(task_id=task_id, candidate_sha=candidate)
+                advance_task(self.root, "B", "b-auth", "IN_PROGRESS")
+                with self.assertRaisesRegex(RuntimeError, "STRICT_PASS_RECEIPT_REQUIRED"):
+                    advance_task(self.root, "B", "b-auth", "DONE", str(self.receipt))
+                self.board = json.loads(self.path.read_text())
+                self.board["tasks"][0]["state"] = "READY"
+                self.save()
+
+    def test_later_negative_receipt_stops_satisfying_dependencies(self):
+        self.completion()
+        advance_task(self.root, "B", "b-auth", "IN_PROGRESS")
+        advance_task(self.root, "B", "b-auth", "DONE", str(self.receipt))
+        self.completion(verdict="REWORK_REQUIRED", review_verdict="REWORK_REQUIRED")
+        consumer = next(t for t in role_work(self.root, "A")["tasks"] if t["id"] == "a-client")
+        self.assertEqual(consumer["state"], "BLOCKED")
+        self.assertEqual(consumer["waiting_for"], ["b-auth"])
+        with self.assertRaisesRegex(RuntimeError, "WAITING_WORK_QUEUE_AVAILABLE"):
+            assert_no_ready_work(self.root, "B")
+
+    def test_invalidated_completion_reopens_with_negative_receipt_and_history(self):
+        self.completion()
+        advance_task(self.root, "B", "b-auth", "IN_PROGRESS")
+        advance_task(self.root, "B", "b-auth", "DONE", str(self.receipt))
+        original_path = str(self.receipt.resolve())
+        self.completion(verdict="FAIL", review_verdict="FAIL", check_verdict="FAIL")
+        with self.assertRaisesRegex(RuntimeError, "REOPEN_REWORK_RECEIPT_REQUIRED"):
+            advance_task(self.root, "B", "b-auth", "IN_PROGRESS", str(self.receipt))
+        self.receipt = self.root / "logs/rework.json"
+        self.completion(task_id="b-auth", verdict="REWORK_REQUIRED", review_verdict="REWORK_REQUIRED")
+        advance_task(self.root, "B", "b-auth", "IN_PROGRESS", str(self.receipt))
+        task = load_board(self.root)["tasks"][0]
+        self.assertEqual(task["state"], "IN_PROGRESS")
+        self.assertEqual(task["completion_receipt"], original_path)
+        self.assertEqual(task["completion_history"][0]["receipt"], original_path)
+        self.assertEqual(task["completion_history"][0]["format"], 1)
+        self.assertEqual(task["completion_history"][0]["receipt_snapshot"]["verdict"], "PASS")
+        self.assertEqual(role_work(self.root, "A")["tasks"][0]["waiting_for"], ["b-auth"])
+
+    def test_legacy_done_receipt_remains_historical_and_satisfies_dependency(self):
+        self.receipt.write_text('{"result":"legacy source-only receipt"}')
+        self.board["tasks"][0].update(state="DONE", completion_receipt=str(self.receipt.resolve()))
+        self.save()
+        consumer = next(t for t in role_work(self.root, "A")["tasks"] if t["id"] == "a-client")
+        self.assertEqual(consumer["state"], "READY")
+        self.assertNotIn("completion_receipt_format", load_board(self.root)["tasks"][0])
+
+    def test_legacy_done_can_be_explicitly_reopened_with_history(self):
+        self.receipt.write_text('{"result":"legacy source-only receipt"}')
+        old_path = str(self.receipt.resolve())
+        self.board["tasks"][0].update(state="DONE", completion_receipt=old_path)
+        self.save()
+        self.receipt = self.root / "logs/legacy-rework.json"
+        self.completion(verdict="REWORK_REQUIRED", review_verdict="REWORK_REQUIRED")
+        advance_task(self.root, "B", "b-auth", "IN_PROGRESS", str(self.receipt))
+        task = load_board(self.root)["tasks"][0]
+        self.assertEqual(task["state"], "IN_PROGRESS")
+        self.assertEqual(task["completion_receipt"], old_path)
+        self.assertEqual(task["completion_history"][0]["receipt"], old_path)
 
     def test_dependency_cycle_missing_and_duplicate_rejected(self):
         for mutate in [

@@ -4,11 +4,102 @@ import fnmatch
 import hashlib
 import json
 import os
+import re
+import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
 STATES = {"READY", "IN_PROGRESS", "BLOCKED", "DONE"}
 PLAN_IDS = {f"{r}{i:02d}" for r, span in (("A", range(1, 7)), ("B", range(1, 8)), ("C", range(8))) for i in span}
+COMPLETION_KIND = "octoport.work-queue-completion"
+COMPLETION_VERSION = 1
+COMPLETION_VERDICTS = {"PASS", "FAIL", "REWORK_REQUIRED"}
+
+
+def current_worktree_head():
+    """Return this source worktree's HEAD; role-state heads are not authoritative."""
+    repo = Path(__file__).resolve().parents[2]
+    try:
+        head = subprocess.run(
+            ["git", "-C", str(repo), "rev-parse", "HEAD"],
+            check=True, capture_output=True, text=True, timeout=5,
+        ).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        raise RuntimeError("WORK_QUEUE_CURRENT_HEAD_UNAVAILABLE") from None
+    if not re.fullmatch(r"(?:[0-9a-f]{40}|[0-9a-f]{64})", head):
+        raise RuntimeError("WORK_QUEUE_CURRENT_HEAD_INVALID")
+    return head
+
+
+def _strict_json_object(raw):
+    def pairs(items):
+        result = {}
+        for key, value in items:
+            if key in result:
+                raise ValueError("duplicate key")
+            result[key] = value
+        return result
+    value = json.loads(raw, object_pairs_hook=pairs)
+    if not isinstance(value, dict):
+        raise ValueError("object required")
+    return value
+
+
+def _completion_receipt(path, identifier, candidate_sha):
+    """Read and validate the exact, task- and candidate-bound receipt schema."""
+    try:
+        with Path(path).open("rb") as source:
+            raw = source.read(65537)
+        if len(raw) > 65536:
+            return None
+        receipt = _strict_json_object(raw)
+        if set(receipt) != {"kind", "version", "task_id", "candidate_sha", "verdict", "review", "checks"}:
+            return None
+        if (receipt["kind"] != COMPLETION_KIND or receipt["version"] != COMPLETION_VERSION
+                or receipt["task_id"] != identifier or receipt["candidate_sha"] != candidate_sha
+                or not re.fullmatch(r"(?:[0-9a-f]{40}|[0-9a-f]{64})", str(receipt["candidate_sha"]))
+                or receipt["verdict"] not in COMPLETION_VERDICTS):
+            return None
+        review = receipt["review"]
+        if (not isinstance(review, dict) or set(review) != {"verdict", "evidence"}
+                or review["verdict"] not in COMPLETION_VERDICTS
+                or not isinstance(review["evidence"], list) or not review["evidence"]
+                or not all(isinstance(item, str) and item.strip() for item in review["evidence"])):
+            return None
+        checks = receipt["checks"]
+        if not isinstance(checks, list) or not checks:
+            return None
+        for check in checks:
+            if (not isinstance(check, dict) or set(check) != {"name", "verdict", "evidence"}
+                    or not isinstance(check["name"], str) or not check["name"].strip()
+                    or check["verdict"] not in COMPLETION_VERDICTS
+                    or not isinstance(check["evidence"], list) or not check["evidence"]
+                    or not all(isinstance(item, str) and item.strip() for item in check["evidence"])):
+                return None
+        return receipt
+    except (OSError, ValueError, TypeError, KeyError):
+        return None
+
+
+def _receipt_passes(receipt):
+    return (receipt is not None and receipt["verdict"] == "PASS"
+            and receipt["review"]["verdict"] == "PASS"
+            and all(check["verdict"] == "PASS" for check in receipt["checks"]))
+
+
+def _strict_completion_valid(task):
+    if "completion_receipt_format" not in task:
+        # Pre-gate board rows are historical until explicitly reopened.
+        return True
+    if task.get("completion_receipt_format") != COMPLETION_VERSION:
+        return False
+    receipt = _completion_receipt(task.get("completion_receipt", ""), task["id"],
+                                  task.get("completion_candidate_sha", ""))
+    return _receipt_passes(receipt)
+
+
+def _task_satisfies_dependencies(task):
+    return task["state"] == "DONE" and _strict_completion_valid(task)
 
 
 def board_snapshot(root):
@@ -110,26 +201,30 @@ def task_conflicts(board, task):
 
 
 def task_view(board, task):
-    done = {t["id"] for t in board["tasks"] if t["state"] == "DONE"}
+    done = {t["id"] for t in board["tasks"] if _task_satisfies_dependencies(t)}
     waiting = [x for x in task["requires"] if x not in done]
     state = task["state"]
+    completion_invalidated = task["state"] == "DONE" and not _strict_completion_valid(task)
+    if completion_invalidated:
+        state = "BLOCKED"
     if waiting:
         state = "BLOCKED"
-    elif state == "BLOCKED" and task["requires"] and not task.get("blocked_reason"):
+    elif state == "BLOCKED" and task["requires"] and not task.get("blocked_reason") and not completion_invalidated:
         state = "READY"
     conflicts = task_conflicts(board, task) if state == "READY" else []
     if conflicts:
         state = "BLOCKED"
     return {key: task.get(key) for key in (
         "id", "role", "plan", "result", "paths", "acceptance", "blocked_reason"
-    )} | {"state": state, "waiting_for": waiting, "conflicts": conflicts}
+    )} | {"state": state, "waiting_for": waiting, "conflicts": conflicts,
+         "completion_invalidated": completion_invalidated}
 
 
 def role_work(root, role):
     board = load_board(root)
     rows = []
     for task in board["tasks"]:
-        if task["state"] == "DONE":
+        if task["state"] == "DONE" and _strict_completion_valid(task):
             continue
         view = task_view(board, task)
         # All claimable work is visible, regardless of its original author.
@@ -194,7 +289,8 @@ def claim_task(root, role, identifier=""):
 
 
 def assert_no_ready_work(root, role):
-    ready = [t["id"] for t in role_work(root, role)["tasks"] if t["state"] in {"READY", "IN_PROGRESS"}]
+    ready = [t["id"] for t in role_work(root, role)["tasks"]
+             if t["state"] in {"READY", "IN_PROGRESS"} or t.get("completion_invalidated")]
     if ready:
         raise RuntimeError("WAITING_WORK_QUEUE_AVAILABLE: " + ",".join(ready))
 
@@ -209,7 +305,7 @@ def status_work(root, role, dirty=False, waiting_proof=None):
         result = {"tasks": [], "error": str(error)}
     result["dirty_worktree"] = bool(dirty)
     result["action_required"] = bool(dirty or result.get("error") or result.get("waiting_invalidated") or any(
-        t["state"] in {"READY", "IN_PROGRESS"} for t in result["tasks"]))
+        t["state"] in {"READY", "IN_PROGRESS"} or t.get("completion_invalidated") for t in result["tasks"]))
     return result
 
 
@@ -227,26 +323,64 @@ def advance_task(root, role, identifier, state, receipt="", reason=""):
             fcntl.flock(lock, fcntl.LOCK_EX)
             board = load_board(root)
             task = next((t for t in board["tasks"] if t["id"] == identifier), None)
-            if task is None or task["role"] != role or task["state"] == "DONE":
+            if task is None or task["role"] != role:
                 raise RuntimeError("WORK_QUEUE_TASK_OWNER_OR_STATE_INVALID")
-            view = next(t for t in role_work(root, role)["tasks"] if t["id"] == identifier)
+            invalidated_done = task["state"] == "DONE" and not _strict_completion_valid(task)
+            legacy_done = task["state"] == "DONE" and "completion_receipt_format" not in task
+            if task["state"] == "DONE" and not (state == "IN_PROGRESS" and (invalidated_done or legacy_done)):
+                raise RuntimeError("WORK_QUEUE_TASK_OWNER_OR_STATE_INVALID")
+            if task["state"] != "DONE" and state == "IN_PROGRESS" and invalidated_done:
+                raise RuntimeError("WORK_QUEUE_TASK_OWNER_OR_STATE_INVALID")
+            view = task_view(board, task)
             if state in {"IN_PROGRESS", "DONE"} and view["waiting_for"]:
                 raise RuntimeError("WORK_QUEUE_DEPENDENCY_PENDING")
             if state == "IN_PROGRESS":
                 if task_conflicts(board, task):
                     raise RuntimeError("WORK_QUEUE_SCOPE_CONFLICT_OR_ACTIVE_TASK")
+                if invalidated_done or legacy_done:
+                    candidate_sha = current_worktree_head()
+                    try:
+                        proof = Path(receipt).resolve()
+                        relative = proof.relative_to(root.resolve())
+                    except (ValueError, OSError):
+                        raise RuntimeError("WORK_QUEUE_RECEIPT_OUTSIDE_CONTROL") from None
+                    if not proof.is_file() or not relative.parts or relative.parts[0] not in {"logs", "controllers", "artifacts"}:
+                        raise RuntimeError("WORK_QUEUE_COMPLETION_RECEIPT_REQUIRED")
+                    if proof == Path(task.get("completion_receipt", "")).resolve():
+                        raise RuntimeError("WORK_QUEUE_REOPEN_REWORK_RECEIPT_REQUIRED")
+                    negative = _completion_receipt(proof, identifier, candidate_sha)
+                    if (negative is None or negative["verdict"] not in {"FAIL", "REWORK_REQUIRED"}
+                            or (negative["review"]["verdict"] not in {"FAIL", "REWORK_REQUIRED"}
+                                and not any(c["verdict"] in {"FAIL", "REWORK_REQUIRED"} for c in negative["checks"]))):
+                        raise RuntimeError("WORK_QUEUE_REOPEN_REWORK_RECEIPT_REQUIRED")
+                    history = task.setdefault("completion_history", [])
+                    history.append({
+                        "receipt": task.get("completion_receipt"),
+                        "format": task.get("completion_receipt_format", "legacy"),
+                        "candidate_sha": task.get("completion_candidate_sha"),
+                        "receipt_snapshot": task.get("completion_receipt_snapshot"),
+                    })
+                    task["reopen_receipt"] = str(proof)
+                    task["reopen_candidate_sha"] = candidate_sha
             if state == "BLOCKED" and (not reason.strip() or not receipt.strip()):
                 raise RuntimeError("WORK_QUEUE_BLOCKER_AND_EVIDENCE_REQUIRED")
             if state in {"DONE", "BLOCKED"} or (state == "IN_PROGRESS" and view["state"] == "BLOCKED"):
-                proof = Path(receipt).resolve()
+                proof = Path(receipt).resolve() if receipt else None
                 try:
-                    relative = proof.relative_to(root.resolve())
+                    relative = proof.relative_to(root.resolve()) if proof else None
                 except ValueError:
                     raise RuntimeError("WORK_QUEUE_RECEIPT_OUTSIDE_CONTROL") from None
-                if not proof.is_file() or relative.parts[0] not in {"logs", "controllers", "artifacts"}:
+                if not proof or not proof.is_file() or not relative.parts or relative.parts[0] not in {"logs", "controllers", "artifacts"}:
                     raise RuntimeError("WORK_QUEUE_COMPLETION_RECEIPT_REQUIRED")
                 if state == "DONE":
+                    candidate_sha = current_worktree_head()
+                    acceptance = _completion_receipt(proof, identifier, candidate_sha)
+                    if not _receipt_passes(acceptance):
+                        raise RuntimeError("WORK_QUEUE_STRICT_PASS_RECEIPT_REQUIRED")
                     task["completion_receipt"] = str(proof)
+                    task["completion_receipt_format"] = COMPLETION_VERSION
+                    task["completion_candidate_sha"] = candidate_sha
+                    task["completion_receipt_snapshot"] = acceptance
                 elif state == "IN_PROGRESS":
                     task["unblock_receipt"] = str(proof)
             if state == "BLOCKED":
