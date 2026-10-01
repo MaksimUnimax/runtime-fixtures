@@ -7,12 +7,18 @@ import {
   loadConfigSigningMaterial,
 } from "../../../apps/api/src/bootstrap-signing.js";
 import { BootstrapService } from "../../../packages/server/bootstrap/src/index.js";
+import { CommercialAccessService } from "../../../packages/server/commercial-access/src/index.js";
 import {
   createDatabaseRuntime,
   createExtensionAuthRepository,
   createP3BootstrapPolicyCatalogRepository,
   createP3PolicyPublicationRepository,
+  createP4EntitlementRepository,
+  createP5SubscriptionAccessResolver,
+  createP5SubscriptionRepository,
   createBootstrapAiResolutionRepository,
+  createP7AdminAiCommandRepository,
+  createProfileLifecycleRepository,
   type DatabaseRuntime,
 } from "../../../packages/server/db/src/index.js";
 import {
@@ -30,6 +36,18 @@ import { LocalClientAuthorityMaterializer } from "../../../packages/server/boots
 import { BootstrapAiResolutionService } from "../../../packages/server/bootstrap/src/ai-resolution.js";
 import type { AppConfig } from "../../../packages/shared/src/index.js";
 import { runMigrations } from "../../../packages/server/db/src/migrations.js";
+import {
+  STORE1_AI_SURFACE,
+  STORE1_BROWSER,
+  STORE1_BROWSER_MINIMUM,
+  STORE1_POLICY_KEY,
+  STORE1_PREVIOUS_VERSION,
+  STORE1_PROFILE_COMPATIBILITY,
+  STORE1_PROFILE_CONTENT,
+  STORE1_PROFILE_KEY,
+  STORE1_PROFILE_SHA256,
+  STORE1_VERSION,
+} from "../../../tooling/server/store1-opera-admin-activation.js";
 
 const url = process.env.DATABASE_URL;
 if (!url) throw new Error("DATABASE_URL is required for real PostgreSQL tests");
@@ -72,7 +90,7 @@ const request = (deviceId = principal.deviceId) => ({
 
 async function clean() {
   await db.query(
-    "TRUNCATE audit_events,config_release_rollout_revisions,config_release_feature_rules,rollouts,feature_rule_revisions,feature_definitions,config_release_compatibility_policies,config_releases,signing_key_events,signing_keys,compatibility_policy_blocked_versions,compatibility_policy_revisions,extension_release_browsers,extension_release_contracts,extension_releases,refresh_tokens,sessions,devices,device_authorizations,portal_sessions,user_identities,account_memberships,accounts,users,auth_rate_limit_buckets RESTART IDENTITY CASCADE",
+    "TRUNCATE adapter_profile_assignment_revisions,adapter_profile_assignments,adapter_profile_revisions,adapter_profiles,ai_variants,ai_surfaces,ai_adapters,audit_events,config_release_rollout_revisions,config_release_feature_rules,rollouts,feature_rule_revisions,feature_definitions,config_release_compatibility_policies,config_releases,signing_key_events,signing_keys,compatibility_policy_blocked_versions,compatibility_policy_revisions,extension_release_browsers,extension_release_contracts,extension_releases,account_entitlement_overrides,subscriptions,plan_entitlements,entitlement_definitions,plan_revisions,plans,refresh_tokens,sessions,devices,device_authorizations,portal_sessions,user_identities,account_memberships,accounts,users,auth_rate_limit_buckets RESTART IDENTITY CASCADE",
   );
 }
 async function authenticated(
@@ -103,6 +121,29 @@ async function authenticated(
     refreshToken: issued.value.refreshToken,
   };
 }
+async function seedCommercialEligibility(accountId: string) {
+  const planId = randomUUID();
+  const planRevisionId = randomUUID();
+  await db.query("INSERT INTO plans(id,code,status) VALUES($1,$2,'ACTIVE')", [
+    planId,
+    `p34-store0211-${planId.replaceAll("-", "")}`,
+  ]);
+  await db.query(
+    "INSERT INTO plan_revisions(id,plan_id,revision,state,display_name,description,published_at) VALUES($1,$2,1,'PUBLISHED','P3.4 STORE 0.2.11','Cross-version AI profile regression',$3)",
+    [planRevisionId, planId, new Date("2026-09-01T00:00:00.000Z")],
+  );
+  await db.query(
+    "INSERT INTO subscriptions(id,account_id,state,state_revision,current_plan_revision_id,started_at,current_period_start,current_period_end,state_reason) VALUES($1,$2,'ACTIVE',1,$3,$4,$4,$5,'P3.4 STORE 0.2.11 regression')",
+    [
+      randomUUID(),
+      accountId,
+      planRevisionId,
+      new Date("2026-09-01T00:00:00.000Z"),
+      new Date("2026-10-01T00:00:00.000Z"),
+    ],
+  );
+}
+
 async function graph(
   options: {
     minimumExtensionVersion?: string;
@@ -182,19 +223,18 @@ async function graph(
 }
 
 async function store0211UpgradeGraph(
-  options: { targetRelease?: boolean } = {},
+  options: { targetRelease?: boolean; includeProfile?: boolean } = {},
 ) {
   const publication = createP3PolicyPublicationRepository(db);
   const publishedAt = new Date("2026-10-01T00:00:00.000Z");
-  const policy = await publication.publishCompatibilityPolicyRevision(
+  const previousPolicy = await publication.publishCompatibilityPolicyRevision(
     {
-      policyKey: "store1.opera.v2",
+      policyKey: STORE1_POLICY_KEY,
       contractVersion: "control_plane_v2",
-      browserFamily: "opera",
-      minimumExtensionVersion: "0.2.9",
-      recommendedExtensionVersion:
-        options.targetRelease === false ? "0.2.9" : "0.2.11",
-      minimumBrowserVersion: "136",
+      browserFamily: STORE1_BROWSER,
+      minimumExtensionVersion: STORE1_PREVIOUS_VERSION,
+      recommendedExtensionVersion: STORE1_PREVIOUS_VERSION,
+      minimumBrowserVersion: STORE1_BROWSER_MINIMUM,
       maintenanceMode: false,
       maintenanceCode: null,
       blockedVersions: [],
@@ -204,38 +244,159 @@ async function store0211UpgradeGraph(
   );
   await publication.publishExtensionRelease(
     {
-      version: "0.2.9",
+      version: STORE1_PREVIOUS_VERSION,
       releaseChannel: "stable",
       releasedAt: publishedAt,
       supportedContracts: ["control_plane_v2"],
-      supportedBrowsers: ["opera"],
+      supportedBrowsers: [STORE1_BROWSER],
+    },
+    context,
+  );
+  const previousConfig = await publication.publishConfigRelease(
+    {
+      contractVersion: "control_plane_v2",
+      snapshotVersion: "bootstrap_snapshot_v2",
+      envelopeVersion: "bootstrap_envelope_v2",
+      signingKeyId: material.keyId,
+      compatibilityPolicyRevisionIds: [previousPolicy.id],
+      featureRuleRevisionIds: [],
+      featureRolloutRevisionIds: [],
+      publishedAt: new Date(publishedAt.getTime() + 1),
+    },
+    context,
+  );
+  const targetPolicy = await publication.publishCompatibilityPolicyRevision(
+    {
+      policyKey: STORE1_POLICY_KEY,
+      contractVersion: "control_plane_v2",
+      browserFamily: "opera",
+      minimumExtensionVersion:
+        options.targetRelease === false
+          ? STORE1_PREVIOUS_VERSION
+          : STORE1_VERSION,
+      recommendedExtensionVersion:
+        options.targetRelease === false
+          ? STORE1_PREVIOUS_VERSION
+          : STORE1_VERSION,
+      minimumBrowserVersion: STORE1_BROWSER_MINIMUM,
+      maintenanceMode: false,
+      maintenanceCode: null,
+      blockedVersions: [],
+      publishedAt: new Date(publishedAt.getTime() + 2),
     },
     context,
   );
   if (options.targetRelease !== false)
     await publication.publishExtensionRelease(
       {
-        version: "0.2.11",
+        version: STORE1_VERSION,
         releaseChannel: "stable",
-        releasedAt: new Date(publishedAt.getTime() + 1),
+        releasedAt: new Date(publishedAt.getTime() + 3),
         supportedContracts: ["control_plane_v2"],
-        supportedBrowsers: ["opera"],
+        supportedBrowsers: [STORE1_BROWSER],
       },
       context,
     );
-  return publication.publishConfigRelease(
+  const targetConfig = await publication.publishConfigRelease(
     {
       contractVersion: "control_plane_v2",
       snapshotVersion: "bootstrap_snapshot_v2",
       envelopeVersion: "bootstrap_envelope_v2",
       signingKeyId: material.keyId,
-      compatibilityPolicyRevisionIds: [policy.id],
+      compatibilityPolicyRevisionIds: [targetPolicy.id],
       featureRuleRevisionIds: [],
       featureRolloutRevisionIds: [],
-      publishedAt: new Date(publishedAt.getTime() + 2),
+      publishedAt: new Date(publishedAt.getTime() + 4),
     },
     context,
   );
+  if (targetConfig.configVersion !== previousConfig.configVersion + 1)
+    throw new Error("STORE0211_CONFIG_VERSION_NOT_CONSECUTIVE");
+  if (options.includeProfile) await seedStore0211Profile();
+  return {
+    ...targetConfig,
+    previousConfigVersion: previousConfig.configVersion,
+  };
+}
+
+async function seedStore0211Profile() {
+  const actorId = randomUUID();
+  const actorUserId = randomUUID();
+  await db.query("INSERT INTO users(id) VALUES($1)", [actorUserId]);
+  await db.query(
+    "INSERT INTO admin_principals(id,user_id,status) VALUES($1,$2,'ACTIVE')",
+    [actorId, actorUserId],
+  );
+  await db.query(
+    "INSERT INTO admin_role_grants(admin_principal_id,role) VALUES($1,'ADMIN_OWNER')",
+    [actorId],
+  );
+  const commands = createP7AdminAiCommandRepository(db);
+  const adapter = await commands.createAdapter({
+    machineKey: "chatgpt",
+    displayName: "ChatGPT",
+    description: "STORE1 regression fixture",
+    actorId,
+    correlationId: "store0211-ai-adapter",
+    reason: "disposable regression fixture",
+  });
+  const surface = await commands.createSurface({
+    adapterId: adapter.id,
+    machineKey: STORE1_AI_SURFACE,
+    displayName: "Web",
+    actorId,
+    correlationId: "store0211-ai-surface",
+    reason: "disposable regression fixture",
+  });
+  const profile = await commands.createProfile({
+    adapterId: adapter.id,
+    surfaceId: surface.id,
+    variantId: null,
+    machineKey: STORE1_PROFILE_KEY,
+    displayName: "ChatGPT Web Opera",
+    actorId,
+    correlationId: "store0211-ai-profile",
+    reason: "disposable regression fixture",
+  });
+  const lifecycle = createProfileLifecycleRepository(db);
+  const adminContext = (suffix: string) => ({
+    actorType: "ADMIN" as const,
+    actorId,
+    correlationId: `store0211-ai-${suffix}`,
+    reason: "disposable regression fixture",
+  });
+  const draft = await lifecycle.createDraftProfileRevision({
+    profileId: profile.id,
+    content: STORE1_PROFILE_CONTENT,
+    compatibility: STORE1_PROFILE_COMPATIBILITY,
+    context: adminContext("draft"),
+  });
+  await lifecycle.markProfileRevisionCandidate({
+    profileId: profile.id,
+    revision: draft.revision,
+    context: adminContext("candidate"),
+  });
+  const published = await lifecycle.publishProfileRevision({
+    profileId: profile.id,
+    revision: draft.revision,
+    context: adminContext("publish"),
+  });
+  const assignment = await lifecycle.createAssignmentScope({
+    scope: {
+      adapterId: adapter.id,
+      surfaceId: surface.id,
+      variantId: null,
+      browserFamily: STORE1_BROWSER,
+      subjectKind: "ACCOUNT",
+    },
+    context: adminContext("assignment-scope"),
+  });
+  await lifecycle.assignDirect({
+    assignmentId: assignment.id,
+    baselineProfileRevisionId: published.id,
+    expectedLatestAssignmentRevision: null,
+    context: adminContext("assignment"),
+  });
 }
 
 async function localAuthorityGraph() {
@@ -431,6 +592,12 @@ describe.sequential("P3.4 real PostgreSQL authenticated bootstrap", () => {
         createBootstrapAiResolutionRepository(db),
       ),
     );
+    const subscriptions = createP5SubscriptionRepository(db);
+    const commercialAccess = new CommercialAccessService({
+      accessResolver: createP5SubscriptionAccessResolver(subscriptions),
+      currentSubscriptionReader: subscriptions,
+      entitlementResolver: createP4EntitlementRepository(db),
+    });
     app = createApiApp({
       config,
       isInfrastructureReady: async () => true,
@@ -439,8 +606,10 @@ describe.sequential("P3.4 real PostgreSQL authenticated bootstrap", () => {
         { resolve: (input) => resolveP3BootstrapPolicy(input, catalog) },
         createConfigSigningService(material, catalog),
         { now: () => new Date("2026-09-04T00:00:00.000Z") },
-        undefined,
-        undefined,
+        commercialAccess,
+        new BootstrapAiResolutionService(
+          createBootstrapAiResolutionRepository(db),
+        ),
         undefined,
         undefined,
         undefined,
@@ -620,6 +789,119 @@ describe.sequential("P3.4 real PostgreSQL authenticated bootstrap", () => {
         compatibility: {
           extension: { status: "SUPPORTED" },
           browser: { status: "SUPPORTED" },
+        },
+      },
+    });
+  });
+
+  it("resolves the published STORE1 ChatGPT profile after a 0.2.9 session refresh into 0.2.11", async () => {
+    const legacy = await authenticated("0.2.9", "opera");
+    await seedCommercialEligibility(legacy.accountId);
+    const release = await store0211UpgradeGraph({ includeProfile: true });
+    const refreshedResponse = await postRefresh(
+      legacy.refreshToken,
+      "store0211-ai-profile-refresh",
+    );
+    expect(refreshedResponse.statusCode).toBe(200);
+    const refreshed = refreshedResponse.json<{ accessToken: string }>();
+    const response = await post(
+      {
+        contractVersion: "control_plane_v2",
+        extensionVersion: "0.2.11",
+        browser: { family: "opera", version: "136.0.6008.22" },
+        deviceId: legacy.deviceId,
+        lastConfigVersion: release.previousConfigVersion,
+        detectedAi: { family: "chatgpt", surface: "web", variant: null },
+      },
+      refreshed.accessToken,
+    );
+    expect(response.statusCode).toBe(200);
+    const verified = verifyBootstrapEnvelopeV2(
+      response.json(),
+      new Map([[material.keyId, material.publicKey]]),
+    );
+    expect(verified).toMatchObject({
+      ok: true,
+      payload: {
+        contractVersion: "control_plane_v2",
+        configVersion: release.configVersion,
+        account: { id: legacy.accountId, status: "ACTIVE" },
+        devicePolicy: { status: "ACTIVE" },
+        compatibility: {
+          extension: { status: "SUPPORTED" },
+          browser: { status: "SUPPORTED" },
+        },
+        ai: {
+          status: "RESOLVED",
+          detected: { family: "chatgpt", surface: "web", variant: null },
+          profile: {
+            profileKey: STORE1_PROFILE_KEY,
+            contentSha256: STORE1_PROFILE_SHA256,
+            compatibility: STORE1_PROFILE_COMPATIBILITY,
+          },
+        },
+      },
+    });
+    const counts = await db.query<{
+      devices: string;
+      sessions: string;
+      refreshes: string;
+      admissions: string;
+    }>(
+      `SELECT
+         (SELECT count(*)::text FROM devices WHERE account_id=$1) AS devices,
+         (SELECT count(*)::text FROM sessions WHERE account_id=$1) AS sessions,
+         (SELECT count(*)::text FROM refresh_tokens WHERE session_id=$2) AS refreshes,
+         (SELECT count(*)::text FROM beta_admissions WHERE account_id=$1) AS admissions`,
+      [legacy.accountId, legacy.sessionId],
+    );
+    expect(counts.rows[0]).toEqual({
+      devices: "1",
+      sessions: "1",
+      refreshes: "2",
+      admissions: "0",
+    });
+  });
+
+  it("keeps a refreshed 0.2.9 account signed and fail-closed when STORE1 assignment material is absent", async () => {
+    const legacy = await authenticated("0.2.9", "opera");
+    await seedCommercialEligibility(legacy.accountId);
+    const release = await store0211UpgradeGraph();
+    const refreshedResponse = await postRefresh(
+      legacy.refreshToken,
+      "store0211-ai-profile-absent-refresh",
+    );
+    expect(refreshedResponse.statusCode).toBe(200);
+    const refreshed = refreshedResponse.json<{ accessToken: string }>();
+    const response = await post(
+      {
+        contractVersion: "control_plane_v2",
+        extensionVersion: "0.2.11",
+        browser: { family: "opera", version: "136.0.6008.22" },
+        deviceId: legacy.deviceId,
+        lastConfigVersion: release.previousConfigVersion,
+        detectedAi: { family: "chatgpt", surface: "web", variant: null },
+      },
+      refreshed.accessToken,
+    );
+    expect(response.statusCode).toBe(200);
+    const verified = verifyBootstrapEnvelopeV2(
+      response.json(),
+      new Map([[material.keyId, material.publicKey]]),
+    );
+    expect(verified).toMatchObject({
+      ok: true,
+      payload: {
+        account: { id: legacy.accountId, status: "ACTIVE" },
+        configVersion: release.configVersion,
+        compatibility: {
+          extension: { status: "SUPPORTED" },
+          browser: { status: "SUPPORTED" },
+        },
+        ai: {
+          status: "UNAVAILABLE",
+          detected: { family: "chatgpt", surface: "web", variant: null },
+          reason: "UNSUPPORTED_DETECTED_AI",
         },
       },
     });
