@@ -13,6 +13,7 @@ import subprocess
 import sys
 import time
 import resource_runner
+from continuous_state import legacy_write_guard
 from waiting_gate import validate_waiting_receipt
 from notice_delivery import read_controller_notices
 from work_queue import status_work, compact_state, advance_task, add_task
@@ -320,6 +321,7 @@ def main():
     args = parser.parse_args(argv[:split])
     command = argv[split + 1:]
     require_location(args.role)
+    legacy_write_guard(CONTROL, args.role, args.action)
     if args.action == "heavy":
         return heavy(args.role, command, args.db, args.profile, args.memory_mib, args.timeout_seconds)
     if args.action == "resources":

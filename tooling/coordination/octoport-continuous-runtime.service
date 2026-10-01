@@ -1,0 +1,20 @@
+[Unit]
+Description=Octoport durable A/B/C execution coordinator
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /root/octoport-main/tooling/coordination/continuous_runtime.py --config /root/octoport-control/runtime/config.json serve
+WorkingDirectory=/root/octoport-main
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=30
+KillMode=process
+UMask=0077
+# Codex jobs use the existing independently bounded resource_runner units.
+# Coordinator restart preserves dedicated job supervisors; role pause stops jobs.
+# Installation does not authorize start: matching owner cutover epoch is required.
+
+[Install]
+WantedBy=multi-user.target
