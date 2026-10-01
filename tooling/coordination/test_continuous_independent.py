@@ -909,6 +909,79 @@ class RuntimeIndependent(unittest.TestCase):
         self.assertNotEqual("SUPERSEDED", self.current("other-author")["state"])
         self.assertIn("apps/a/source.py", runtime.paths_reserved(self.conn))
 
+    def author_entry_fixture(self, verdict="PASS", check_code="print('supervisor proof')"):
+        import types
+        row, spec, directory = self.check_fixture(check_code)
+        spec.update(base=state.git(self.repo, "rev-parse", "HEAD"),
+                    rules=state.rules_snapshot(self.cfg))
+        spec["task"].update(requires=[], result="fixture source handoff")
+        spec["task"]["proof_validity"] = {"kind": "SNAPSHOT",
+                                          "input_hashes": adapter.source_inputs(self.cfg, spec["task"])}
+        self.conn.execute("UPDATE jobs SET state='STARTING',spec=? WHERE id='job-A'",
+                          (state.encode(spec),))
+        self.conn.commit()
+        output = self.result(verdict=verdict, checks=[],
+                             remaining=["unit has not been run by the author; supervisor must execute it"])
+        if verdict == "BLOCKED":
+            output["remaining"] = ["Required authoring contract is unavailable"]
+        original_run = adapter.subprocess.run
+        original_popen = adapter.subprocess.Popen
+        def login_or_real(argv, *args, **kwargs):
+            if argv[:3] == [adapter.LAUNCHERS["A"], "login", "status"]:
+                return types.SimpleNamespace(returncode=0, stdout="Logged in using ChatGPT", stderr="")
+            return original_run(argv, *args, **kwargs)
+        class FinishedAuthor:
+            pid = os.getpid()
+            returncode = 0
+            def poll(self):
+                return 0
+        def fake_author_or_real(argv, *args, **kwargs):
+            if argv[:2] == [adapter.LAUNCHERS["A"], "exec"]:
+                state.atomic_json(Path(argv[argv.index("-o") + 1]), output)
+                return FinishedAuthor()
+            return original_popen(argv, *args, **kwargs)
+        with mock.patch.object(adapter, "require_managed_job"):
+            with mock.patch.object(adapter.subprocess, "run", side_effect=login_or_real):
+                with mock.patch.object(adapter.subprocess, "Popen", side_effect=fake_author_or_real):
+                    with mock.patch.object(adapter, "run_checks", wraps=adapter.run_checks) as collector:
+                        exit_code = adapter.run_entry(self.cfg, "job-A", 1)
+        return spec, directory, collector.call_count, exit_code
+
+    def test_source_handoff_runs_configured_supervisor_checks_without_claiming_acceptance(self):
+        spec, directory, calls, exit_code = self.author_entry_fixture()
+        self.assertEqual(0, exit_code)
+        self.assertEqual(1, calls)
+        self.assertEqual("RESULT", self.current()["state"])
+        self.assertEqual([], json.loads(self.current()["result"])["checks"])
+        observed = state.read_json(directory / "trusted-checks.json")
+        self.assertEqual(0, observed["checks"][0]["exit_code"])
+        self.assertEqual("SUPERVISOR_SUBPROCESS", observed["checks"][0]["collector"])
+        self.assertFalse(self.conn.execute("SELECT 1 FROM jobs WHERE kind='integrate'").fetchone())
+        prompt = adapter.prompt_for(self.cfg, self.current(), spec)
+        self.assertIn("python-stdlib", prompt, "Author was not given the configured environment plan")
+
+    def test_source_handoff_failed_supervisor_check_cannot_receive_acceptance(self):
+        spec, directory, calls, exit_code = self.author_entry_fixture(
+            check_code="import sys; print('actual required failure'); sys.exit(7)")
+        self.assertEqual(1, calls)
+        self.assertEqual(7, state.read_json(directory / "trusted-checks.json")["checks"][0]["exit_code"])
+        identity = adapter.candidate_identity(self.repo, spec["base"])
+        peer = {"author_job": "job-A", "generation": 0, "identity": identity}
+        with mock.patch.object(runtime.work_queue, "load_board",
+                               return_value={"tasks": [spec["task"]]}):
+            with self.assertRaisesRegex(RuntimeError, "REQUIRED_CHECK_MISSING"):
+                runtime.complete_task(self.cfg, self.conn, {"id": "claimed-peer", "role": "B"}, peer, {})
+        self.assertNotIn(self.current()["state"], ("ACCEPTED", "INTEGRATED", "DONE"))
+
+    def test_genuine_author_block_is_not_relabelled_as_source_handoff(self):
+        spec, directory, calls, exit_code = self.author_entry_fixture(verdict="BLOCKED")
+        self.assertEqual(0, calls)
+        self.assertFalse((directory / "trusted-checks.json").exists())
+        runtime.finalize(self.cfg, self.conn)
+        self.assertEqual("BLOCKED", self.current()["state"])
+        self.assertEqual(0, self.conn.execute(
+            "SELECT COUNT(*) FROM jobs WHERE kind IN ('review','integrate')").fetchone()[0])
+
 
 if __name__ == "__main__":
     unittest.main()
