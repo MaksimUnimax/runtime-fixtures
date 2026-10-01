@@ -553,6 +553,50 @@ describe("D3S2-2A control-plane foundation", () => {
     });
   });
 
+  it("releases an in-flight reservation when the source device is revoked", async () => {
+    const repository = createMemoryTransferRepository();
+    let finishMark!: () => void;
+    let signalMark!: () => void;
+    const marking = new Promise<void>((resolve) => (finishMark = resolve));
+    const started = new Promise<void>((resolve) => (signalMark = resolve));
+    const revoked: TransferRepository = {
+      ...repository,
+      async markPacketAvailable() {
+        signalMark();
+        await marking;
+        throw new TransferError("TRANSFER_DEVICE_REVOKED");
+      },
+    };
+    const service = new CredentialTransferService(
+      revoked,
+      new EphemeralTransferRelay(),
+      () => new Date("2026-09-18T10:00:00.000Z"),
+    );
+    await prepare(service, id);
+    const submitting = service.submit(
+      source,
+      packet(id, "revoked-in-flight"),
+    );
+    await started;
+    expect(service.relayForTests().statsForTests()).toMatchObject({
+      packets: 1,
+      envelopeBytes: "revoked-in-flight".length,
+      reserved: 1,
+    });
+
+    finishMark();
+    await expect(submitting).rejects.toThrow("TRANSFER_DEVICE_REVOKED");
+    expect(service.relayForTests().statsForTests()).toMatchObject({
+      packets: 0,
+      envelopeBytes: 0,
+      reserved: 0,
+    });
+    expect(service.relayForTests().has(id)).toBe(false);
+    await expect(service.receive(recipient, id)).rejects.toThrow(
+      "SOURCE_OFFLINE",
+    );
+  });
+
   it("cancellation clears a reservation without broadening cancellation states", async () => {
     const repository = createMemoryTransferRepository();
     let finishMark!: () => void;
