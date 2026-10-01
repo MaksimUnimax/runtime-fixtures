@@ -143,7 +143,7 @@ def other_role(cfg, author):
 def paths_reserved(conn):
     reserved = set()
     # Accepted but unintegrated candidates reserve paths to avoid parallel stale edits.
-    for row in conn.execute("SELECT spec FROM jobs WHERE kind='implement' AND state NOT IN ('INTEGRATED','ABANDONED')"):
+    for row in conn.execute("SELECT spec FROM jobs WHERE kind='implement' AND state NOT IN ('INTEGRATED','ABANDONED','SUPERSEDED')"):
         reserved.update(json.loads(row[0]).get("task", {}).get("paths", []))
     for row in conn.execute("SELECT paths FROM claims WHERE state='ACTIVE'"):
         reserved.update(json.loads(row[0]))
@@ -154,7 +154,7 @@ def enqueue(cfg, conn):
     board = work_queue.validate_board(cfg["control_root"])
     if board.get("migration_required"):
         event(conn, "board_migration_required", invalidated=board.get("invalidated", []))
-    existing = {json.loads(r[0]).get("task", {}).get("id") for r in conn.execute("SELECT spec FROM jobs WHERE kind='implement'")}
+    existing = {(t.get("id"), t.get("proof_generation", 0)) for r in conn.execute("SELECT spec FROM jobs WHERE kind='implement' AND state NOT IN ('SUPERSEDED','ABANDONED')") for t in [json.loads(r[0]).get("task", {})]}
     reserved = paths_reserved(conn)
     for role in cfg["enabled_roles"]:
         try:
@@ -164,9 +164,15 @@ def enqueue(cfg, conn):
         available = {t["id"] for t in work_queue.role_work(cfg["control_root"], role)["tasks"] if t["state"] == "READY"}
         tasks = [t for t in board["board"]["tasks"] if t["role"] == role and t["id"] in available]
         for task in tasks:
-            if task["id"] in existing or set(task.get("paths", [])) & reserved:
+            if (task["id"], task.get("proof_generation", 0)) in existing or set(task.get("paths", [])) & reserved:
                 continue
-            validate_task(cfg, task)
+            try:
+                validate_task(cfg, task)
+            except (RuntimeError, KeyError) as error:
+                identifier = "blocked-" + digest(encode(task))[:20]
+                if add_job(conn, identifier, role, "task_blocked", {"task": task}):
+                    transition(conn, identifier, "BLOCKED", str(error)[:250])
+                continue
             if not task.get("boundary") or not task.get("required_checks"):
                 event(conn, "task_proof_contract_missing", task["id"])
                 continue
@@ -230,6 +236,16 @@ def prepare(cfg, row):
             raise RuntimeError("RUNTIME_UNCLAIMED_WORKTREE_EXISTS")
         return
     make_worktree(cfg, row["role"], row["id"], spec.get("identity", {}).get("candidate_sha") or spec["base"])
+    if spec.get("seed_candidate"):
+        # Reapply only the already reviewed exact scope onto fresh main. The
+        # author resolves conflicts in this isolated copy; the parent owns Git.
+        patch = subprocess.check_output(["git", "diff", "--binary", "--no-ext-diff", spec["seed_base"], spec["seed_candidate"], "--"], cwd=cfg["repo"])
+        applied = subprocess.run(["git", "apply", "--3way", "--index", "-"], input=patch,
+                                 cwd=path, capture_output=True)
+        conflicted = git(path, "diff", "--name-only", "--diff-filter=U").splitlines()
+        if applied.returncode and (not conflicted or not set(conflicted).issubset(set(spec["task"]["paths"]))):
+            raise RuntimeError("RUNTIME_REWORK_PATCH_APPLY_FAILED")
+        git(path, "reset", "--mixed", "HEAD")
 
 
 def launch(cfg, conn):
@@ -541,7 +557,9 @@ def snapshot(cfg, conn):
 
 
 def manual_claim(cfg, conn, role, owner, base, paths):
-    check_mode(cfg, role)
+    check_mode(cfg)
+    if role not in cfg["enabled_roles"]:
+        raise RuntimeError("RUNTIME_ROLE_DISABLED")
     if not owner or not isinstance(paths, list) or not paths or git(cfg["repo"], "rev-parse", base + "^{commit}") != base:
         raise RuntimeError("RUNTIME_MANUAL_CLAIM_INVALID")
     for path in paths:

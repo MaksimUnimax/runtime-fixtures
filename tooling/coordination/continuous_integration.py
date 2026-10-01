@@ -72,10 +72,50 @@ def prepare(cfg, conn, row, spec, task):
 
 
 def failure_handoff(cfg, conn, row, spec, reason):
+    if reason == "REMOTE_MAIN_CHANGED_NEW_INTEGRATION_REQUIRED":
+        git(cfg["repo"], "fetch", "origin", "main")
     transition(conn, row["id"], "REWORK", reason)
     atomic_json(root(cfg) / "integrations" / row["id"] / "rework.json", {
         "job": row["id"], "task_id": spec["task_id"], "candidate": spec["candidate"],
         "state": "REWORK", "reason": reason, "author_job": spec["author_job"]})
+    # Each continuation is a new immutable descriptor. A restarted tick cannot
+    # resubmit or silently reuse an unknown mutable integration worktree.
+    base = git(cfg["repo"], "rev-parse", "origin/main")
+    attempt_key = digest(spec["author_job"] + ":" + base + ":" + reason)
+    attempts = conn.execute("SELECT count(*) FROM events WHERE event='integration_continuation' AND data LIKE ?", ('%"key":"' + attempt_key + '"%',)).fetchone()[0]
+    if attempts >= 3:
+        event(conn, "integration_retry_budget_exhausted", row["id"], key=attempt_key)
+        return
+    if reason == "REMOTE_MAIN_CHANGED_NEW_INTEGRATION_REQUIRED":
+        identifier = "integrate-" + digest(spec["author_job"] + ":" + base)[:20]
+        if add_job(conn, identifier, "C", "integrate", dict(spec, rules=rules_snapshot(cfg))):
+            conn.execute("UPDATE jobs SET created=? WHERE id=?", (row["created"], identifier))
+            event(conn, "integration_continuation", row["id"], key=attempt_key, next_job=identifier)
+        return
+    if reason not in {"EXACT_CANDIDATE_CI_FAILED", "MERGED_CONTEXT_REVIEW_NOT_ACCEPTED",
+                      "INTERRUPTED_MERGE_PRESERVED_NO_AUTOMATIC_REPLAY", "MERGE_FAILED"}:
+        return
+    author = conn.execute("SELECT * FROM jobs WHERE id=?", (spec["author_job"],)).fetchone()
+    original = json.loads(author["spec"])
+    generation = original.get("rework_attempt", 0) + 1
+    if generation > 3:
+        event(conn, "rework_limit_requires_new_evidence", author["id"])
+        return
+    identifier = "fix-integration-" + digest(row["id"] + ":" + base)[:20]
+    if conn.execute("SELECT 1 FROM jobs WHERE id=?", (identifier,)).fetchone():
+        return
+    task = next(t for t in work_queue.load_board(cfg["control_root"])["tasks"] if t["id"] == spec["task_id"])
+    if task["state"] == "DONE":
+        work_queue.reopen_task(cfg["control_root"], author["role"], task["id"], "Integration rework: " + reason)
+        task = next(t for t in work_queue.load_board(cfg["control_root"])["tasks"] if t["id"] == spec["task_id"])
+    repair = dict(original, task=task, base=base, scope_base=base, seed_base=spec["base"],
+                  seed_candidate=spec["candidate"]["sha"], rework_attempt=generation,
+                  feedback={"reason": reason, "integration_job": row["id"], "preserved": str(root(cfg) / "integrations" / row["id"])},
+                  worktree=str(Path(cfg["control_root"]) / "worktrees" / author["role"] / ("runtime-" + identifier)),
+                  rules=rules_snapshot(cfg))
+    add_job(conn, identifier, author["role"], "implement", repair)
+    transition(conn, author["id"], "SUPERSEDED", reason)
+    event(conn, "integration_continuation", row["id"], key=attempt_key, next_job=identifier)
 
 
 def integrate_tick(cfg, conn):
@@ -118,6 +158,7 @@ def integrate_tick(cfg, conn):
                 proof = ci_gate.evaluate(ci_gate.fetch_runs(saved["head"]), saved["head"], saved["branch"])
                 if proof["status"] != "PASS":
                     if any(x.get("status") == "completed" and x.get("conclusion") != "success" for x in proof["runs"]):
+                        atomic_json(root(cfg) / "integrations" / row["id"] / "ci-failure.json", proof)
                         failure_handoff(cfg, conn, row, spec, "EXACT_CANDIDATE_CI_FAILED")
                     continue
                 context = integration_context(target, Path(cfg["control_root"]))
@@ -159,7 +200,9 @@ def integrate_tick(cfg, conn):
             current = conn.execute("SELECT state FROM jobs WHERE id=?", (row["id"],)).fetchone()[0]
             if current in {"CI_PENDING", "MAIN_PENDING"}:
                 event(conn, "integration_read_or_push_unverified", row["id"], error=type(error).__name__)
+            elif current == "INTEGRATING":
+                failure_handoff(cfg, conn, row, spec, "MERGE_FAILED")
             else:
-                failure_handoff(cfg, conn, row, spec, type(error).__name__)
+                event(conn, "integration_read_unavailable", row["id"], error=type(error).__name__)
         except (RuntimeError, ValueError, KeyError) as error:
             failure_handoff(cfg, conn, row, spec, str(error)[:250])

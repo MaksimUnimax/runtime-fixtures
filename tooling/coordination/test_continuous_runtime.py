@@ -11,6 +11,8 @@ from unittest.mock import Mock, patch
 import continuous_adapter as adapter
 import continuous_runtime as runtime
 import continuous_state as state
+import continuous_integration as integration
+from datetime import datetime, timezone, timedelta
 
 
 def verdict(kind="PASS", identity=None):
@@ -257,6 +259,61 @@ class RuntimeTests(unittest.TestCase):
         runtime.release_claim(self.cfg, self.conn, claim["token_file"])
         with self.assertRaisesRegex(RuntimeError, "TOKEN_INVALID"):
             state.legacy_write_guard(self.control, "A", "reviewed", claim["token_file"])
+
+    def test_stopped_role_can_claim_but_old_claim_cannot_resume_later_stop(self):
+        state.atomic_json(self.control / "A.json", {"status": "STOPPED", "stopped_at": datetime.now(timezone.utc).isoformat()})
+        with patch.object(runtime, "git", return_value="a" * 40):
+            claim = runtime.manual_claim(self.cfg, self.conn, "A", "controller", "a" * 40, ["controller-review-A.json"])
+        state.legacy_write_guard(self.control, "A", "resume", claim["token_file"])
+        state.atomic_json(self.control / "A.json", {"status": "STOPPED", "stopped_at": (datetime.now(timezone.utc) + timedelta(seconds=1)).isoformat()})
+        with self.assertRaisesRegex(RuntimeError, "FRESH_CLAIM_REQUIRED"):
+            state.legacy_write_guard(self.control, "A", "resume", claim["token_file"])
+        with self.assertRaisesRegex(RuntimeError, "STOPPED"):
+            state.check_mode(self.cfg, "A")
+
+    def test_source_snapshot_includes_executable_bit(self):
+        path = self.control / "source.py"; path.write_text("x = 1\n"); path.chmod(0o644)
+        before = adapter.source_snapshot(self.control, ["source.py"])
+        path.chmod(0o755)
+        self.assertNotEqual(before, adapter.source_snapshot(self.control, ["source.py"]))
+
+    def test_missing_check_is_explicit_local_block(self):
+        with self.assertRaisesRegex(RuntimeError, "TRUSTED_CHECK_NOT_CONFIGURED"):
+            adapter.source_inputs(self.cfg, {"required_checks": ["missing"]})
+
+    def integration_fixture(self):
+        author = self.add(task={"id": "task", "paths": ["source.py"]})
+        state.transition(self.conn, "one", "ACCEPTED")
+        spec = {"task_id": "task", "candidate": {"sha": "a" * 40}, "base": "b" * 40,
+                "author_job": "one", "rules": {}, "epoch": "test", "receipt": "receipt"}
+        state.add_job(self.conn, "integrate-one", "C", "integrate", spec)
+        return self.conn.execute("SELECT * FROM jobs WHERE id='integrate-one'").fetchone(), spec
+
+    def test_main_advance_enqueues_new_immutable_integration(self):
+        row, spec = self.integration_fixture()
+        with patch.object(integration, "git", return_value="c" * 40), patch.object(integration, "rules_snapshot", return_value={}):
+            integration.failure_handoff(self.cfg, self.conn, row, spec, "REMOTE_MAIN_CHANGED_NEW_INTEGRATION_REQUIRED")
+            integration.failure_handoff(self.cfg, self.conn, row, spec, "REMOTE_MAIN_CHANGED_NEW_INTEGRATION_REQUIRED")
+        next_job = self.conn.execute("SELECT * FROM jobs WHERE kind='integrate' AND state='READY'").fetchall()
+        self.assertEqual(len(next_job), 1)
+        self.assertEqual(json.loads(next_job[0]["spec"])["candidate"], spec["candidate"])
+        self.assertEqual(self.conn.execute("SELECT state FROM jobs WHERE id='one'").fetchone()[0], "ACCEPTED")
+
+    def test_ci_failure_is_consumed_author_rework(self):
+        row, spec = self.integration_fixture()
+        task = {"id": "task", "paths": ["source.py"], "state": "DONE", "proof_generation": 1}
+        def reopen(*args):
+            task.update(state="IN_PROGRESS", proof_generation=2)
+        with patch.object(integration, "git", return_value="c" * 40), patch.object(integration, "rules_snapshot", return_value={}), patch.object(integration.work_queue, "load_board", return_value={"tasks": [task]}), patch.object(integration.work_queue, "reopen_task", side_effect=reopen):
+            integration.failure_handoff(self.cfg, self.conn, row, spec, "EXACT_CANDIDATE_CI_FAILED")
+            integration.failure_handoff(self.cfg, self.conn, row, spec, "EXACT_CANDIDATE_CI_FAILED")
+        next_job = self.conn.execute("SELECT * FROM jobs WHERE kind='implement' AND state='READY'").fetchall()
+        self.assertEqual(len(next_job), 1)
+        repair = json.loads(next_job[0]["spec"])
+        self.assertEqual(repair["task"]["proof_generation"], 2)
+        self.assertEqual(repair["seed_candidate"], spec["candidate"]["sha"])
+        self.assertEqual(repair["base"], "c" * 40)
+        self.assertEqual(self.conn.execute("SELECT state FROM jobs WHERE id='one'").fetchone()[0], "SUPERSEDED")
 
 
 if __name__ == "__main__":

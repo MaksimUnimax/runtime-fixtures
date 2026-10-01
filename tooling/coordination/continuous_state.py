@@ -9,13 +9,13 @@ import re
 import sqlite3
 import subprocess
 import time
+from datetime import datetime, timezone
 
 ROLES = ("A", "B", "C")
 MODEL = "gpt-6-luna"
 LAUNCHERS = {"A": "/root/.nvm/versions/node/v22.22.2/bin/codex",
              "B": "/usr/local/bin/codex2", "C": "/usr/local/bin/codex3"}
 RULES = ("AGENTS.md", "docs/development/coordination/PROTOCOL.md",
-         "docs/development/coordination/PLAN.md", "docs/product/SPEC.md",
          "docs/development/coordination/OWNERSHIP.json",
          "docs/development/coordination/RESOURCE_POLICY.md",
          "docs/development/coordination/DELIVERY_FLOW_POLICY.md",
@@ -201,11 +201,19 @@ def requirements(cfg):
         if path.is_absolute() or ".." in path.parts or not str(path).startswith("docs/"):
             raise RuntimeError("RUNTIME_REQUIREMENT_SOURCE_INVALID")
         raw = (Path(cfg["repo"]) / path).read_text()
-        if not row.get("quote") or row["quote"] not in raw or digest(raw) != row.get("source_sha256"):
-            raise RuntimeError("RUNTIME_REQUIREMENT_SOURCE_CHANGED")
+        if not row.get("quote") or row["quote"] not in raw:
+            row = dict(row, validation_error="RUNTIME_REQUIREMENT_CLAUSE_CHANGED")
+        elif digest(raw) != row.get("source_sha256"):
+            # Only a complete normative table row grants per-clause continuity.
+            # A surviving identifier or fragment cannot stand in for unchanged
+            # semantics when the enclosing approved document has changed.
+            quote = row["quote"].strip()
+            if not quote.startswith("|") or not quote.endswith("|") or quote not in raw.splitlines():
+                row = dict(row, validation_error="RUNTIME_REQUIREMENT_FULL_CLAUSE_REQUIRED")
         plan = (Path(cfg["repo"]) / "docs/development/coordination/PLAN.md").read_text()
-        if not any(line.startswith("| " + row.get("plan", "") + " |") for line in plan.splitlines()):
-            raise RuntimeError("RUNTIME_REQUIREMENT_PLAN_INVALID")
+        approved = next((line for line in plan.splitlines() if line.startswith("| " + row.get("plan", "") + " |")), None)
+        if approved is None or (row.get("plan_quote") and row["plan_quote"] != approved):
+            row = dict(row, validation_error="RUNTIME_REQUIREMENT_PLAN_CLAUSE_CHANGED")
         if not row["plan"].startswith(row["role"]):
             raise RuntimeError("RUNTIME_REQUIREMENT_PLAN_OWNER_INVALID")
         result[identifier] = row
@@ -217,7 +225,11 @@ def requirements(cfg):
 def validate_task(cfg, task):
     if task.get("boundary") not in (None, "SOURCE"):
         raise RuntimeError("RUNTIME_COLLECTOR_CAPABILITY_NOT_AVAILABLE: SOURCE only")
+    if any(identifier not in cfg.get("check_catalog", {}) for identifier in task.get("required_checks", [])):
+        raise RuntimeError("RUNTIME_TRUSTED_CHECK_NOT_CONFIGURED")
     req = requirements(cfg).get(task.get("requirement_id"))
+    if req and req.get("validation_error"):
+        raise RuntimeError(req["validation_error"])
     if not req or (task.get("role"), task.get("plan")) != (req["role"], req["plan"]):
         raise RuntimeError("RUNTIME_TASK_REQUIREMENT_MISMATCH")
     if task.get("state") != "READY" or not task.get("basis"):
@@ -250,9 +262,17 @@ def legacy_write_guard(control, role, action, claim_file=None):
             proof = read_json(claim_file)
             database = Path(control) / "controllers/runtime" / marker["epoch"] / "state.sqlite"
             with sqlite3.connect("file:" + str(database) + "?mode=ro", uri=True) as conn:
-                claim = conn.execute("SELECT role,token_sha256,state FROM claims WHERE id=?", (proof.get("id"),)).fetchone()
+                claim = conn.execute("SELECT role,token_sha256,state,created FROM claims WHERE id=?", (proof.get("id"),)).fetchone()
             if (claim and claim[0] == role and claim[1] == digest(proof.get("token", ""))
                     and claim[2] == "ACTIVE" and proof.get("epoch") == marker["epoch"]):
+                if action == "resume":
+                    stopped = read_json(Path(control) / (role + ".json"))
+                    try:
+                        when = datetime.fromisoformat(stopped["stopped_at"].replace("Z", "+00:00"))
+                    except (KeyError, ValueError, AttributeError):
+                        raise RuntimeError("RUNTIME_RESUME_STOP_GENERATION_REQUIRED")
+                    if stopped.get("status") != "STOPPED" or when.tzinfo is None or claim[3] < when.timestamp():
+                        raise RuntimeError("RUNTIME_RESUME_FRESH_CLAIM_REQUIRED")
                 return
             raise RuntimeError("RUNTIME_CLAIM_OWNER_TOKEN_INVALID")
         raise RuntimeError("RUNTIME_OWNS_ROLE: use the runtime queue; legacy writes are disabled")

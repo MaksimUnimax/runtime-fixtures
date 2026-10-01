@@ -54,6 +54,8 @@ class CheckFailure(RuntimeError):
 
 
 def source_inputs(cfg, task):
+    if any(identifier not in cfg.get("check_catalog", {}) for identifier in task.get("required_checks", [])):
+        raise RuntimeError("RUNTIME_TRUSTED_CHECK_NOT_CONFIGURED")
     selected = {identifier: cfg["check_catalog"][identifier] for identifier in task["required_checks"]}
     return {"requirements_sha256": digest(encode(requirements(cfg)[task["requirement_id"]])),
             "rules_sha256": digest(encode(rules_snapshot(cfg))),
@@ -66,7 +68,7 @@ def source_snapshot(worktree, paths):
         path = Path(worktree) / relative
         if path.is_symlink() or not path.resolve().is_relative_to(Path(worktree)):
             raise RuntimeError("RUNTIME_SOURCE_SYMLINK_REJECTED")
-        values[relative] = digest(path.read_bytes()) if path.is_file() else "ABSENT"
+        values[relative] = {"sha256": digest(path.read_bytes()), "executable": bool(path.stat().st_mode & 0o111)} if path.is_file() else "ABSENT"
     return digest(encode(values))
 
 
