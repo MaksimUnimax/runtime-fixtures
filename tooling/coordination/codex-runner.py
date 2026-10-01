@@ -24,7 +24,6 @@ def main():
     args = parser.parse_args()
     control.require_location(args.role)
     control.require_running(args.role)
-    control.legacy_write_guard(control.CONTROL, args.role, "codex-child")
     if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}", args.task):
         raise RuntimeError("INVALID_CHILD_TASK_ID")
     directory = control.CONTROL / "worktrees" / args.role / args.task

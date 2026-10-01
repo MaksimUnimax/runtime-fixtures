@@ -13,8 +13,6 @@ import subprocess
 import sys
 import time
 import resource_runner
-from continuous_state import legacy_write_guard
-from continuous_gate import integration_context, ready_path
 from waiting_gate import validate_waiting_receipt
 from notice_delivery import read_controller_notices
 from work_queue import status_work, compact_state, advance_task, add_task
@@ -44,9 +42,6 @@ def policy():
 
 def require_location(role):
     spec = policy()["roles"][role]
-    context = integration_context(ROOT, CONTROL) if role == "C" else None
-    if context and git("branch", "--show-current") == context["branch"]:
-        return
     if str(ROOT) != spec["path"] or git("branch", "--show-current") != spec["branch"]:
         raise RuntimeError("ROLE_LOCATION_MISMATCH: use the assigned worktree and branch")
 
@@ -308,7 +303,6 @@ def main():
         "checkpoint", "request-review", "request-owner", "reviewed", "owner-done",
         "guard", "submit", "ready-main", "ensure-db", "heavy", "resources", "queue-task", "queue-add"])
     parser.add_argument("--task-file")
-    parser.add_argument("--runtime-claim-file")
     parser.add_argument("--compact", action="store_true")
     parser.add_argument("--task-state", choices=["IN_PROGRESS", "BLOCKED", "DONE"])
     parser.add_argument("--summary", default="")
@@ -326,9 +320,6 @@ def main():
     args = parser.parse_args(argv[:split])
     command = argv[split + 1:]
     require_location(args.role)
-    runtime_context = integration_context(ROOT, CONTROL) if args.role == "C" else None
-    if not (runtime_context and args.action in {"guard", "ready-main"}):
-        legacy_write_guard(CONTROL, args.role, args.action, args.runtime_claim_file)
     if args.action == "heavy":
         return heavy(args.role, command, args.db, args.profile, args.memory_mib, args.timeout_seconds)
     if args.action == "resources":
@@ -356,8 +347,6 @@ def main():
     elif args.action == "guard":
         print(json.dumps({"allowed_files": scope_guard(args.role, args.base)}))
     elif args.action == "ready-main":
-        if runtime_context and not runtime_context["review_accepted"]:
-            raise RuntimeError("RUNTIME_MERGED_CONTEXT_REVIEW_REQUIRED")
         if args.role != "C" or not args.summary or not args.base:
             raise RuntimeError("MAIN_READY_REQUIRES_C_BASE_AND_VALIDATION_EVIDENCE")
         require_running("C")
@@ -369,7 +358,7 @@ def main():
         ci_evidence = json.loads(ci.stdout)
         receipt = {"ci": ci_evidence, "head": git("rev-parse", "HEAD"), "tree": git("rev-parse", "HEAD^{tree}"),
                    "base": args.base, "evidence": args.summary, "recorded_at": now_text()}
-        write_json(ready_path(ROOT, CONTROL), receipt)
+        write_json(CONTROL / "main-ready.json", receipt)
         print(json.dumps(receipt, ensure_ascii=False))
     elif args.action == "submit":
         require_running(args.role)

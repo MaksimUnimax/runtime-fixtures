@@ -72,9 +72,6 @@
     "C broad access is for serial integration and shared changes, not permission to edit an active A/B task concurrently.",
     "DB and migrations: B sole author after baseline; C requests changes from B.",
     "A/B dependency manifest changes and shared contract changes require a documented path assignment by C.",
-    "SEO outside this plan. Files outside A/B allowlists require assignment before editing.",
-    "Execution mode/epoch and operation claims are defined in EXECUTION_RUNTIME.md; a chat and server worker must not write the same claimed paths concurrently.",
-    "Independent read-only peer review can use another profile without transferring authorship or main/DB authority.",
-    "Requirement planning covers all existing PLAN/SPEC criteria; current task exhaustion is not whole-project acceptance."
+    "SEO outside this plan. Files outside A/B allowlists require assignment before editing."
   ]
 }

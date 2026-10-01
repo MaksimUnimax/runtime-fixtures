@@ -6,15 +6,10 @@ import sys
 import time
 root = Path(subprocess.check_output(["git", "rev-parse", "--show-toplevel"], text=True).strip())
 rules = json.loads((root / "docs/development/coordination/OWNERSHIP.json").read_text())
-sys.path.insert(0, str(root / "tooling/coordination"))
-context = None
-if (root / "tooling/coordination/continuous_gate.py").is_file():
-    from continuous_gate import integration_context
-    context = integration_context(root)
-role = "C" if context else next((key for key,value in rules["roles"].items() if value["path"] == str(root)), None)
+role = next((key for key,value in rules["roles"].items() if value["path"] == str(root)), None)
 if role is None:
     raise SystemExit("Unknown stream worktree")
-own_ref = "refs/heads/" + (context["branch"] if context else rules["roles"][role]["branch"])
+own_ref = "refs/heads/" + rules["roles"][role]["branch"]
 current_ref = subprocess.check_output(["git", "symbolic-ref", "HEAD"], text=True).strip()
 if current_ref != own_ref:
     raise SystemExit("Stream branch does not match the assigned role")
@@ -31,12 +26,10 @@ for line in sys.stdin:
     if local_sha == "0" * 40 or remote_ref not in allowed:
         raise SystemExit("Stream cannot delete or publish this ref: " + remote_ref)
     if remote_ref == "refs/heads/main":
-        if context and not context["review_accepted"]:
-            raise SystemExit("Runtime main requires independent exact merged-context review")
         head = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
         if local_sha != head or subprocess.check_output(["git", "status", "--porcelain"], text=True).strip():
             raise SystemExit("Main requires the clean, checked current candidate")
-        ready_path = Path(context["ready_path"]) if context else Path("/root/octoport-control/main-ready.json")
+        ready_path = Path("/root/octoport-control/main-ready.json")
         ready = json.loads(ready_path.read_text()) if ready_path.exists() else {}
         if ready.get("head") != local_sha or ready.get("base") != remote_sha or not ready.get("evidence"):
             raise SystemExit("Main requires an exact ready-main receipt with current remote base and validation evidence")
