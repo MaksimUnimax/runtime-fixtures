@@ -94,6 +94,17 @@
         "tooling/coordination/continuous_environment.py",
         "tooling/coordination/test_continuous_environment.py"
       ]
+    },
+    {
+      "owner": "B_isolated_auth_repair",
+      "branch": "exec/B/isolated-auth-repair-20261001",
+      "base": "9d086d08f406ff9ea3b2d4e53193c1ae322758b5",
+      "paths": [
+        "tooling/server/isolated-auth-lifecycle.ts",
+        "tooling/server/isolated-auth-lifecycle.test.ts",
+        "tests/integration/server/isolated-auth-lifecycle.integration.test.ts"
+      ],
+      "reason": "Independent source review found PostgreSQL URL query host override and HTTP200 non-JSON falsely activated; bounded fix before acceptance, no schema or live DB changes"
     }
   ],
   "constraints": [
