@@ -1,6 +1,6 @@
 # B04 isolated normal auth lifecycle driver — 2026-10-01
 
-Status: **SOURCE + CURRENT DISPOSABLE DB/API VERIFIED; INDEPENDENT REVIEW PENDING; NOT INSTALLED OR LIVE ACCEPTANCE**
+Status: **SOURCE + CURRENT DISPOSABLE DB/API VERIFIED; INDEPENDENT REVIEW PASS; NOT INSTALLED OR LIVE ACCEPTANCE**
 
 Original task baseline: `ef363662`. Current B integration base before the four auth commits: `dbeaaf2f8d9cc36c5bac5f7a27ba83acc51a2503`.
 
@@ -63,4 +63,4 @@ Current B auth commits, ported without the rejected/foreign repair-branch histor
 
 ## Acceptance boundary
 
-This is ordinary isolated OTP/device-auth source plus disposable PostgreSQL/API-injection evidence. It is **not** installed-browser evidence, owner-account acceptance, live mailbox evidence, production DB evidence, or authorization to change live catalog/policy. No real credentials or customer data are used. Independent review of the current exact candidate is still required before publication.
+This is ordinary isolated OTP/device-auth source plus disposable PostgreSQL/API-injection evidence. It is **not** installed-browser evidence, owner-account acceptance, live mailbox evidence, production DB evidence, or authorization to change live catalog/policy. No real credentials or customer data are used. Independent read-only review of candidate `d9953a30aad3a469325c5f3598cbe9b3fb7d9015` returned PASS with no findings; evidence is `/root/octoport-control/logs/B/isolated-auth-review-20261001-verdict.md`.
