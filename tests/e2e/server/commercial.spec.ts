@@ -1,6 +1,12 @@
 import { expect, test } from "@playwright/test";
 import { randomUUID } from "node:crypto";
-import { accountId, login, reset, sql } from "./support/fixtures.js";
+import {
+  accountId,
+  activeCommercialPeriodEnd,
+  login,
+  reset,
+  sql,
+} from "./support/fixtures.js";
 
 const at = (value: string) => new Date(value);
 
@@ -49,7 +55,7 @@ async function seedSubscription(
       options.state ?? "ACTIVE",
       revision,
       priceRevision,
-      at("2026-10-01T00:00:00.000Z"),
+      activeCommercialPeriodEnd(),
     ],
   );
   return id;

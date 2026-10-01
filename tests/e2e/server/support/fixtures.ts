@@ -19,6 +19,12 @@ export const apiOrigin = `http://127.0.0.1:${apiPort}`;
 export const portalOrigin = `http://127.0.0.1:${portalPort}`;
 export const adminOrigin = `http://127.0.0.1:${adminPort}`;
 
+const COMMERCIAL_ACTIVE_PERIOD_MS = 30 * 24 * 60 * 60 * 1000;
+
+export function activeCommercialPeriodEnd(): Date {
+  return new Date(Date.now() + COMMERCIAL_ACTIVE_PERIOD_MS);
+}
+
 export async function reset(): Promise<void> {
   await resetE2eDatabase();
 }
@@ -128,7 +134,7 @@ async function ensureDefaultCommercialSubscription(): Promise<void> {
       account.id,
       revision,
       new Date("2026-09-01T00:00:00.000Z"),
-      new Date("2026-10-01T00:00:00.000Z"),
+      activeCommercialPeriodEnd(),
     ],
   );
 }
