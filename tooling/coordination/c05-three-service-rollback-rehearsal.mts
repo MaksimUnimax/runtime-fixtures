@@ -24,6 +24,10 @@ import {
   verifyServiceRuntimeTreeReadOnly,
   type ServiceRuntimeIdentity,
 } from "./c05-service-runtime-identity.mts";
+import {
+  ServiceResourceEnvelopeSampler,
+  summarizeServiceResourceEnvelope,
+} from "./c05-service-resource-envelope.mts";
 
 // C05 is intentionally a source rehearsal. It restores the accepted journal-40
 // seed, migrates it forward with the exact candidate, proves a post-upgrade
@@ -32,7 +36,26 @@ import {
 const FLOOR = "d24838669c54f21dc161dc48a7e71e0e288384c2";
 const NODE = "/root/.nvm/versions/node/v24.20.0/bin/node";
 const PNPM = "pnpm";
-const DB_CONTAINER = "octoport-c-test-pg";
+const DISPOSABLE_DATABASES = [
+  {
+    container: "octoport-b-test-pg",
+    port: "15542",
+    databasePath: "/octoport_b_test",
+    evidenceRoots: [
+      "/root/octoport-control/logs/B/",
+      "/root/octoport-control/artifacts/B/",
+    ],
+  },
+  {
+    container: "octoport-c-test-pg",
+    port: "15543",
+    databasePath: "/octoport_c_test",
+    evidenceRoots: [
+      "/root/octoport-control/logs/C/",
+      "/root/octoport-control/artifacts/C/",
+    ],
+  },
+] as const;
 const RESTORE = "/root/octoport-control/backups/C/c05-final0051-state.dump";
 const RESTORE_SHA256 =
   "5a95e34431baa6d64159ea5cf912a719ad0e35fe78807c15d9380ea6dc175fc9";
@@ -257,26 +280,40 @@ function safeEnv(
 const supplied = process.env.DATABASE_URL;
 check(supplied, "DATABASE_URL_REQUIRED");
 const dbBase = new URL(supplied);
-check(
-  loopback(dbBase.hostname) &&
-    dbBase.port === "15543" &&
-    dbBase.pathname.replace(/\/$/, "") === "/octoport_c_test",
-  "NOT_C_DISPOSABLE_DATABASE",
+const disposableDatabase = DISPOSABLE_DATABASES.find(
+  (target) =>
+    loopback(dbBase.hostname) &&
+    dbBase.port === target.port &&
+    dbBase.pathname.replace(/\/$/, "") === target.databasePath,
 );
+check(disposableDatabase, "NOT_OWNED_DISPOSABLE_DATABASE");
+const DB_CONTAINER = disposableDatabase.container;
 const candidate = sha(process.env.C05_CANDIDATE_SHA ?? "");
 const evidenceDir = process.env.C05_EVIDENCE_DIR;
 check(
   evidenceDir &&
-    [
-      "/root/octoport-control/logs/C/",
-      "/root/octoport-control/artifacts/C/",
-    ].some((root) => resolve(evidenceDir).startsWith(root)),
-  "C05_EVIDENCE_DIR_MUST_BE_C_ONLY",
+    disposableDatabase.evidenceRoots.some((root) =>
+      resolve(evidenceDir).startsWith(root),
+    ),
+  "C05_EVIDENCE_DIR_ROLE_MISMATCH",
 );
 const serviceRuntimeIdentity = parseServiceRuntimeIdentity(process.env);
 const publicRuntimeIdentity = publicServiceRuntimeIdentity(
   serviceRuntimeIdentity,
 );
+const resourceEnvelopeFlag = process.env.C05_CAPTURE_SERVICE_RESOURCE_ENVELOPE;
+check(
+  resourceEnvelopeFlag === undefined ||
+    resourceEnvelopeFlag === "" ||
+    resourceEnvelopeFlag === "1",
+  "C05_RESOURCE_ENVELOPE_FLAG_INVALID",
+);
+const captureServiceResourceEnvelope = resourceEnvelopeFlag === "1";
+if (captureServiceResourceEnvelope)
+  check(
+    serviceRuntimeIdentity,
+    "C05_RESOURCE_ENVELOPE_REQUIRES_NONROOT_IDENTITY",
+  );
 
 const envNames = Object.keys(process.env);
 for (const k of envNames)
@@ -621,6 +658,24 @@ async function runPhase(
   );
   services.push(portal);
   const alive = [api, worker, portal];
+  const apiPid = api.pid;
+  const workerPid = worker.pid;
+  const portalPid = portal.pid;
+  if (captureServiceResourceEnvelope) {
+    check(apiPid, "C05_RESOURCE_API_PID_MISSING");
+    check(workerPid, "C05_RESOURCE_WORKER_PID_MISSING");
+    check(portalPid, "C05_RESOURCE_PORTAL_PID_MISSING");
+  }
+  const resourceSampler = captureServiceResourceEnvelope
+    ? new ServiceResourceEnvelopeSampler({
+        api: apiPid!,
+        worker: workerPid!,
+        portal: portalPid!,
+      })
+    : null;
+  const resourceBefore = resourceSampler
+    ? await resourceSampler.sample("BEFORE_SMOKE")
+    : null;
   await poll(
     async () => {
       const r = await get(`${origin}/health/ready`);
@@ -764,6 +819,13 @@ async function runPhase(
       "SYNTHETIC_WITHHELD_NOT_PERSISTED",
     );
   }
+  const resourceAfter = resourceSampler
+    ? await resourceSampler.sample("AFTER_SMOKE")
+    : null;
+  const resourceEnvelope =
+    resourceBefore && resourceAfter
+      ? summarizeServiceResourceEnvelope(resourceBefore, resourceAfter)
+      : null;
   const post = await phaseSnapshot();
   check(
     post.journal === expectedJournalCount &&
@@ -801,6 +863,7 @@ async function runPhase(
     ...(serviceRuntimeIdentity
       ? { runtimeIdentity: publicRuntimeIdentity }
       : {}),
+    ...(resourceEnvelope ? { resourceEnvelope } : {}),
     ports: { api: apiPort, portal: portalPort, smtpDisabledLoopback: smtpPort },
     checks: {
       apiLive: 200,
@@ -861,7 +924,10 @@ try {
   ).stdout
     .toString()
     .trim();
-  check(dbPort === "127.0.0.1:15543", "TEST_DB_PORT_MAPPING_MISMATCH");
+  check(
+    dbPort === `127.0.0.1:${disposableDatabase.port}`,
+    "TEST_DB_PORT_MAPPING_MISMATCH",
+  );
   await dockerDb(["createdb", "-U", "octoport_test", dbName]);
   disposableDbCreated = true;
   await dockerDb(
