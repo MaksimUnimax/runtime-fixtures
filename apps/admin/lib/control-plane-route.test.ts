@@ -7,7 +7,7 @@ import {
   allowedRoute,
   controlPlaneOrigin,
 } from "./control-plane-route";
-import { GET } from "../app/api/control-plane/[...path]/route";
+import { GET, POST } from "../app/api/control-plane/[...path]/route";
 
 const uuid = "123e4567-e89b-42d3-a456-426614174000";
 function materialize(template: string) {
@@ -21,6 +21,10 @@ function materialize(template: string) {
     .replaceAll("{price_revision_id}", uuid)
     .replaceAll("{principal_id}", uuid)
     .replaceAll("{repair_case_id}", uuid)
+    .replaceAll("{support_case_id}", uuid)
+    .replaceAll("{notification_id}", uuid)
+    .replaceAll("{health_incident_id}", uuid)
+    .replaceAll("{health_target_id}", "a".repeat(64))
     .replaceAll("{adapter_id}", uuid)
     .replaceAll("{surface_id}", uuid)
     .replaceAll("{variant_id}", uuid)
@@ -35,10 +39,10 @@ function materialize(template: string) {
 
 describe("admin BFF exact route boundary", () => {
   it("keeps the exact accepted tuple arithmetic", () => {
-    expect(ADMIN_ALLOWED_TUPLES.length).toBe(87);
+    expect(ADMIN_ALLOWED_TUPLES.length).toBe(102);
     expect(OTP_ALLOWED_TUPLES.length).toBe(2);
-    expect(ADMIN_ALLOWED_TUPLES.length + OTP_ALLOWED_TUPLES.length).toBe(89);
-    expect(BFF_ALLOWED_TUPLE_COUNT).toBe(89);
+    expect(ADMIN_ALLOWED_TUPLES.length + OTP_ALLOWED_TUPLES.length).toBe(104);
+    expect(BFF_ALLOWED_TUPLE_COUNT).toBe(104);
   });
   it.each(ADMIN_ALLOWED_TUPLES)("allows accepted admin tuple %s", (tuple) => {
     const separator = tuple.indexOf(" ");
@@ -51,6 +55,46 @@ describe("admin BFF exact route boundary", () => {
     const method = tuple.slice(0, separator);
     const path = tuple.slice(separator + 1);
     expect(allowedRoute(method, path)).toBe(path);
+  });
+
+  it.each([
+    "123E4567-E89B-42D3-A456-426614174000",
+    "123e4567-e89b-62d3-a456-426614174000",
+    "123e4567-e89b-82d3-a456-426614174000",
+    "00000000-0000-0000-0000-000000000000",
+    "FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF",
+  ])("matches the z.uuid API boundary for %s", (apiId) => {
+    expect(allowedRoute("GET", `/v1/admin/health/notifications/${apiId}`)).toBe(
+      "/v1/admin/health/notifications/{notification_id}",
+    );
+    expect(allowedRoute("GET", `/v1/admin/health/incidents/${apiId}`)).toBe(
+      "/v1/admin/health/incidents/{health_incident_id}",
+    );
+    expect(
+      allowedRoute("GET", `/v1/admin/health/repair-cases/${apiId}/1`),
+    ).toBe("/v1/admin/health/repair-cases/{repair_case_id}/{revision}");
+    expect(allowedRoute("GET", `/v1/admin/support/cases/${apiId}`)).toBe(
+      "/v1/admin/support/cases/{support_case_id}",
+    );
+    expect(
+      allowedRoute("POST", `/v1/admin/support/cases/${apiId}/status`),
+    ).toBe("/v1/admin/support/cases/{support_case_id}/status");
+    expect(
+      allowedRoute("POST", `/v1/admin/support/cases/${apiId}/followups`),
+    ).toBe("/v1/admin/support/cases/{support_case_id}/followups");
+  });
+
+  it("matches the Health target API lower-hex identity boundary", () => {
+    const targetId = "a".repeat(64);
+    expect(allowedRoute("GET", `/v1/admin/health/targets/${targetId}`)).toBe(
+      "/v1/admin/health/targets/{health_target_id}",
+    );
+    expect(
+      allowedRoute("GET", `/v1/admin/health/targets/${"A".repeat(64)}`),
+    ).toBeUndefined();
+    expect(
+      allowedRoute("GET", `/v1/admin/health/targets/${"a".repeat(63)}`),
+    ).toBeUndefined();
   });
   it.each([
     ["GET", "/v1/admin/future"],
@@ -81,6 +125,42 @@ describe("admin BFF exact route boundary", () => {
     ],
     ["GET", "/v1/admin/ai/profiles/not-a-uuid"],
     ["GET", "/v1/admin/ai/assignments/not-a-uuid"],
+    ["GET", "/v1/admin/support/cases/not-a-uuid"],
+    ["GET", "/v1/admin/support/cases/123e4567-e89b-92d3-a456-426614174000"],
+    ["GET", "/v1/admin/support/cases/123e4567-e89b-42d3-c456-426614174000"],
+    ["GET", `/v1/admin/support/cases/${uuid}/extra`],
+    ["POST", "/v1/admin/support/cases"],
+    ["GET", `/v1/admin/support/cases/${uuid}/status`],
+    ["GET", `/v1/admin/support/cases/${uuid}/followups`],
+    ["POST", "/v1/admin/support/aggregates"],
+    ["POST", "/v1/admin/support/funnels"],
+    ["DELETE", `/v1/admin/support/cases/${uuid}`],
+    ["GET", `/v1/admin/beta/admission/accounts/${uuid}`],
+    ["GET", "/v1/admin/beta/admission/extra"],
+    ["POST", "/v1/admin/beta/admission/extra"],
+    ["DELETE", "/v1/admin/beta/admission"],
+    ["GET", "/v1/admin/health/incidents"],
+    ["GET", "/v1/admin/health/evaluations"],
+    ["GET", "/v1/admin/health/recommendations"],
+    ["GET", `/v1/admin/health/incidents/${uuid}/extra`],
+    ["POST", `/v1/admin/health/incidents/${uuid}`],
+    ["POST", "/v1/admin/health/targets"],
+    ["GET", `/v1/admin/health/targets/${"a".repeat(64)}/extra`],
+    ["POST", "/v1/admin/health/diagnostics/summary"],
+    ["GET", "/v1/admin/health/diagnostics/summary/extra"],
+    ["GET", "/v1/admin/health/notifications/not-a-uuid"],
+    [
+      "GET",
+      "/v1/admin/health/notifications/123e4567-e89b-92d3-a456-426614174000",
+    ],
+    [
+      "GET",
+      "/v1/admin/health/notifications/123e4567-e89b-42d3-c456-426614174000",
+    ],
+    ["GET", `/v1/admin/health/notifications/${uuid}/extra`],
+    ["POST", "/v1/admin/health/notifications"],
+    ["POST", `/v1/admin/health/notifications/${uuid}`],
+    ["DELETE", `/v1/admin/health/notifications/${uuid}`],
     ["GET", "/v1/admin/health/repair-cases/not-a-uuid/1"],
     ["GET", `/v1/admin/health/repair-cases/${uuid}/0`],
     ["GET", `/v1/admin/health/repair-cases/${uuid}/nope`],
@@ -157,6 +237,52 @@ describe("admin BFF forwarding behavior", () => {
     expect(headers.get("x-forwarded-for")).toBeNull();
     fetchMock.mockRestore();
   });
+  it("forwards an allowed beta mutation with CSRF but never Authorization", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("{}", {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    process.env.CONTROL_PLANE_API_ORIGIN = "http://127.0.0.1:3100";
+    const response = await POST(
+      new NextRequest(
+        "http://admin.test/api/control-plane/v1/admin/beta/admission",
+        {
+          method: "POST",
+          headers: {
+            cookie: "pcp_admin_csrf=session",
+            "content-type": "application/json",
+            "x-csrf-token": "csrf",
+            authorization: "Bearer should-not-forward",
+          },
+          body: JSON.stringify({ mode: "OPEN" }),
+        },
+      ),
+      {
+        params: Promise.resolve({
+          path: ["v1", "admin", "beta", "admission"],
+        }),
+      },
+    );
+    expect(response.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      "http://127.0.0.1:3100/v1/admin/beta/admission",
+    );
+    const init = fetchMock.mock.calls[0]?.[1];
+    expect(init?.method).toBe("POST");
+    expect(init?.cache).toBe("no-store");
+    const headers = new Headers(init?.headers);
+    expect(headers.get("cookie")).toBe("pcp_admin_csrf=session");
+    expect(headers.get("x-csrf-token")).toBe("csrf");
+    expect(headers.get("authorization")).toBeNull();
+    expect(new TextDecoder().decode(init?.body as ArrayBuffer)).toBe(
+      JSON.stringify({ mode: "OPEN" }),
+    );
+    fetchMock.mockRestore();
+  });
+
   it("forwards set-cookie and safe cache headers from upstream", async () => {
     const upstream = new Response("{}", {
       status: 200,
@@ -205,6 +331,24 @@ describe("admin BFF forwarding behavior", () => {
     const response = await GET(
       new NextRequest("http://admin.test/api/control-plane/v1/admin/future"),
       { params: Promise.resolve({ path: ["v1", "admin", "future"] }) },
+    );
+    expect(response.status).toBe(404);
+    expect(fetchMock).not.toHaveBeenCalled();
+    fetchMock.mockRestore();
+  });
+
+  it("blocks notification mutations before any upstream request", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch");
+    const response = await POST(
+      new NextRequest(
+        "http://admin.test/api/control-plane/v1/admin/health/notifications",
+        { method: "POST", body: "{}" },
+      ),
+      {
+        params: Promise.resolve({
+          path: ["v1", "admin", "health", "notifications"],
+        }),
+      },
     );
     expect(response.status).toBe(404);
     expect(fetchMock).not.toHaveBeenCalled();
