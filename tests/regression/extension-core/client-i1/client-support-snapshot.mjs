@@ -89,6 +89,37 @@ try {
   worker.close();
 }
 
+const unscopedDiagnosticWorker = await makeWorker(runtime, {
+  backing: {
+    local: {
+      ozmb_diagnostics: [{
+        sequence: 1,
+        event: "WORK_START_ACTION_RESULT",
+        tab_id: 77,
+        stage: "rejected",
+        code: "WORK_START_FAILED",
+        outcome: "failed",
+        conversation_id: "PRIVATE_CROSS_TAB_CONVERSATION",
+      }],
+    },
+    session: {},
+  },
+  userAgent: "Mozilla/5.0 Chrome/147.0.7727.116 Safari/537.36",
+});
+try {
+  for (const message of [
+    { type: "SA_SUPPORT_SNAPSHOT" },
+    { type: "SA_SUPPORT_SNAPSHOT", tab_id: null },
+  ]) {
+    const response = await unscopedDiagnosticWorker.popup(message);
+    const snapshot = JSON.parse(JSON.stringify(response.snapshot));
+    assert.equal(snapshot.work.lastStart, null, "diagnostics without a valid tab id stay unattributed");
+    assert.equal(JSON.stringify(snapshot).includes("PRIVATE_CROSS_TAB_CONVERSATION"), false);
+  }
+} finally {
+  unscopedDiagnosticWorker.close();
+}
+
 const AUTH = "seller_agents_control_auth_v2";
 const compatibilityBacking = { local: {}, session: {} };
 const compatibilitySeed = await makeWorker(runtime, {

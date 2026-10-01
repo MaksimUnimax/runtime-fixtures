@@ -1094,7 +1094,7 @@ function saSupportToken(value) {
 async function saLastStartDiagnostic(tabId = null) {
   const requestedTab = tabId == null ? null : Number(tabId);
   const targetTab = Number.isInteger(requestedTab) && requestedTab > 0 ? requestedTab : null;
-  if (tabId != null && targetTab == null) return null;
+  if (targetTab == null) return null;
   let rows = [];
   try {
     const data = await storageGet(KEYS.DIAGNOSTICS);
@@ -1102,7 +1102,7 @@ async function saLastStartDiagnostic(tabId = null) {
   } catch (_) { return null; }
   for (let index = rows.length - 1; index >= 0; index -= 1) {
     const row = rows[index] || {};
-    if (targetTab != null && Number(row.tab_id) !== targetTab) continue;
+    if (Number(row.tab_id) !== targetTab) continue;
     const event = String(row.event || "");
     if (event === "WORK_PENDING_START_TERMINAL") {
       return { stage: "terminal", code: saSupportCode(row.reason) || saSupportCode(row.code), outcome: "failed" };
