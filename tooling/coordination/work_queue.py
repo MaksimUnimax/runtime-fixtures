@@ -222,6 +222,35 @@ def task_view(board, task):
          "completion_invalidated": completion_invalidated}
 
 
+
+def blocker_attention(board):
+    """Derived unresolved outcomes; neither a second queue nor a permission request."""
+    alerts = []
+    for task in board["tasks"]:
+        view = task_view(board, task)
+        if view["state"] != "BLOCKED":
+            continue
+        resolution = task.get("blocker_resolution", {})
+        if not isinstance(resolution, dict):
+            resolution = {}
+        reason = task.get("blocked_reason") or (
+            "Приёмка результата недействительна" if view["completion_invalidated"] else
+            "Не завершены необходимые задачи: " + ", ".join(view["waiting_for"]) if view["waiting_for"] else
+            "Заняты файлы: " + ", ".join(view["conflicts"]))
+        alerts.append({
+            "task_id": task["id"], "outcome": task.get("result", ""), "author": task["role"],
+            "reason": reason, "evidence": task.get("blocked_receipt"),
+            "resolver": resolution.get("owner", "CONTROLLER"),
+            "next_action": resolution.get("next_action", "Контроллер должен установить причину и допустимый следующий шаг."),
+            "unblock_when": resolution.get("unblock_when", "Условие снятия препятствия ещё не установлено."),
+            "resolution_status": resolution.get("status", "UNRESOLVED"),
+            "delivery_priority": task.get("outcome_kind") == "OWNER_INSTALLABLE_DELIVERY",
+            "immediate_chat_notice_required": True,
+            "notice_instruction": "Сразу сообщи владельцу в текущем чате: что остановилось, причина, кто устраняет и следующий шаг. Запись JSON не является сообщением. Независимую работу продолжай.",
+        })
+    return sorted(alerts, key=lambda a: (not a["delivery_priority"], a["task_id"]))
+
+
 def role_work(root, role):
     board = load_board(root)
     rows = []
@@ -232,7 +261,8 @@ def role_work(root, role):
         # All claimable work is visible, regardless of its original author.
         if task["role"] == role or view["state"] == "READY":
             rows.append(view)
-    return {"revision": board.get("revision", 0), "tasks": rows}
+    return {"revision": board.get("revision", 0), "tasks": rows,
+            "owner_attention": blocker_attention(board)}
 
 
 def validate_task_scope(root, role, paths):
@@ -306,7 +336,7 @@ def status_work(root, role, dirty=False, waiting_proof=None):
     except RuntimeError as error:
         result = {"tasks": [], "error": str(error)}
     result["dirty_worktree"] = bool(dirty)
-    result["action_required"] = bool(dirty or result.get("error") or result.get("waiting_invalidated") or any(
+    result["action_required"] = bool(dirty or result.get("error") or result.get("waiting_invalidated") or result.get("owner_attention") or any(
         t["state"] in {"READY", "IN_PROGRESS"} or t.get("completion_invalidated") for t in result["tasks"]))
     return result
 
@@ -407,7 +437,7 @@ def advance_task(root, role, identifier, state, receipt="", reason=""):
                      "state": state, "receipt": receipt, "revision": board["revision"]}
             with (root / "controllers/work-board-events.jsonl").open("a") as output:
                 output.write(json.dumps(event, ensure_ascii=False) + "\n")
-            return event
+            return dict(event, owner_attention=blocker_attention(board))
 
 
 def add_task(root, role, task, repo_root=None):
