@@ -48,7 +48,8 @@ export default function HealthPage() {
           or apply restrictions.
         </p>
         <p>
-          <Link href="/health/diagnostics">Open aggregate diagnostics</Link>
+          <Link href="/health/diagnostics">Open aggregate diagnostics</Link> ·{" "}
+          <Link href="/health/repairs">Случаи ремонта мониторинга</Link>
         </p>
         <LoadState busy={result.busy} error={result.error} />
         {result.data && result.data.items.length === 0 && (
