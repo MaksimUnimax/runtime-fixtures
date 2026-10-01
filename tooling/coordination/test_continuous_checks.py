@@ -65,6 +65,21 @@ class CheckProofTests(unittest.TestCase):
         (self.repo / "new.js").write_text("new input")
         self.assertNotEqual(before, checks.source_identity(self.repo))
 
+    def test_index_hints_cannot_hide_changed_source(self):
+        for hint in ("--assume-unchanged", "--skip-worktree"):
+            with self.subTest(hint=hint):
+                (self.repo / "source.js").write_text("before")
+                before = checks.source_identity(self.repo)
+                self.git("update-index", hint, "source.js")
+                (self.repo / "source.js").write_text("hidden edit")
+                self.assertNotEqual(before, checks.source_identity(self.repo))
+                self.git("update-index", "--no-assume-unchanged", "--no-skip-worktree", "source.js")
+
+    def test_deleted_tracked_source_changes_identity(self):
+        before = checks.source_identity(self.repo)
+        (self.repo / "source.js").unlink()
+        self.assertNotEqual(before, checks.source_identity(self.repo))
+
     def test_tracked_symlink_cannot_import_unbound_bytes(self):
         (self.repo / "source.js").unlink()
         (self.root / "outside").write_text("external")

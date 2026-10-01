@@ -19,22 +19,17 @@ def sha(data):
 
 
 def source_identity(repo):
-    """HEAD plus all tracked edits and untracked input bytes, not timestamps."""
+    """Hash actual tracked/untracked bytes; Git index hints cannot hide edits."""
     head = subprocess.check_output(["git", "rev-parse", "HEAD^{tree}"], cwd=repo).strip()
     tracked = subprocess.check_output(["git", "ls-files", "-z"], cwd=repo)
-    for raw in (x for x in tracked.split(b"\0") if x):
-        path = repo / os.fsdecode(raw)
-        if path.is_symlink() or not path.resolve().is_relative_to(repo):
-            raise RuntimeError("CHECK_INPUT_SYMLINK_REJECTED")
-    diff = subprocess.check_output(["git", "diff", "HEAD", "--binary", "--no-ext-diff", "--"], cwd=repo)
     untracked = subprocess.check_output(["git", "ls-files", "--others", "--exclude-standard", "-z"], cwd=repo)
     rows = []
-    for raw in sorted(x for x in untracked.split(b"\0") if x):
+    for raw in sorted(set(x for x in (tracked + untracked).split(b"\0") if x)):
         path = repo / os.fsdecode(raw)
         if path.is_symlink() or not path.resolve().is_relative_to(repo):
             raise RuntimeError("CHECK_INPUT_SYMLINK_REJECTED")
-        rows.append([os.fsdecode(raw), sha(path.read_bytes())])
-    return sha(head + b"\0" + diff + b"\0" + json.dumps(rows, sort_keys=True).encode())
+        rows.append([os.fsdecode(raw), sha(path.read_bytes()) if path.exists() else None])
+    return sha(head + b"\0" + json.dumps(rows, sort_keys=True).encode())
 
 
 def package_identity(directory, composition):
