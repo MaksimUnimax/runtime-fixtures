@@ -810,6 +810,105 @@ class RuntimeIndependent(unittest.TestCase):
                 self.assertEqual(0, launched.call_count, "Trusted check spawned after STOP")
         self.assertFalse((self.repo / "effect").exists())
 
+    def test_plan_feedback_reworks_same_readonly_role_and_stops_after_three(self):
+        for verdict_name in ("REWORK", "BLOCKED"):
+            original = {"requirements": [self.req], "input_digest": "fixed-input-" + verdict_name,
+                        "worktree": str(self.repo), "base": "a"*40, "rules": state.rules_snapshot(self.cfg)}
+            author_id = "planner-" + verdict_name
+            self.add(author_id, role="A", kind="plan", spec=original, current="REVIEW_PENDING")
+            for attempt in range(1, 5):
+                review_id = "plan-review-" + verdict_name + "-" + str(attempt)
+                feedback = self.result(verdict=verdict_name, summary="exact feedback " + str(attempt))
+                self.add(review_id, role="B", kind="plan_review",
+                         spec={"author_job": author_id}, current="RESULT")
+                self.conn.execute("UPDATE jobs SET result=? WHERE id=?",
+                                  (state.encode(feedback), review_id))
+                self.conn.commit()
+                before = self.conn.execute("SELECT COUNT(*) FROM jobs WHERE kind='plan'").fetchone()[0]
+                runtime.finalize(self.cfg, self.conn)
+                runtime.finalize(self.cfg, self.conn)
+                after = self.conn.execute("SELECT COUNT(*) FROM jobs WHERE kind='plan'").fetchone()[0]
+                self.assertEqual(before + (1 if attempt <= 3 else 0), after)
+                self.assertEqual(verdict_name, self.current(review_id)["state"])
+                replacements = self.conn.execute(
+                    "SELECT * FROM jobs WHERE kind='plan' AND state='READY'").fetchall()
+                if attempt <= 3:
+                    self.assertEqual(1, len(replacements))
+                    replacement = replacements[0]
+                    payload = json.loads(replacement["spec"])
+                    self.assertEqual("A", replacement["role"])
+                    self.assertEqual("plan", replacement["kind"])
+                    self.assertEqual(original["input_digest"], payload["input_digest"])
+                    self.assertEqual(original["requirements"], payload["requirements"])
+                    self.assertEqual(feedback, payload["feedback"])
+                    self.assertEqual(attempt, payload["rework_attempt"])
+                    author_id = replacement["id"]
+                    self.conn.execute("UPDATE jobs SET state='REVIEW_PENDING' WHERE id=?", (author_id,))
+                    self.conn.commit()
+                else:
+                    self.assertEqual([], replacements)
+            self.assertEqual(0, self.conn.execute(
+                "SELECT COUNT(*) FROM jobs WHERE kind='implement'").fetchone()[0])
+
+    def test_duplicate_planned_contract_is_consumed_or_replanned_without_mutation(self):
+        existing = self.task()
+        for label, changes in (("identical", {}), ("path", {"paths": ["apps/a/different.py"]}),
+                               ("basis", {"basis": "different approved claim"})):
+            author_id = "duplicate-plan-" + label
+            review_id = "duplicate-review-" + label
+            proposed = dict(existing, **changes)
+            self.add(author_id, role="A", kind="plan",
+                     spec={"input_digest": "unchanged-inputs", "worktree": str(self.repo)},
+                     current="REVIEW_PENDING")
+            self.add(review_id, role="B", kind="plan_review",
+                     spec={"author_job": author_id, "payload": {"tasks": [proposed]}},
+                     current="RESULT")
+            self.conn.execute("UPDATE jobs SET result=? WHERE id=?",
+                              (state.encode(self.result()), review_id))
+            self.conn.commit()
+            before = self.conn.execute(
+                "SELECT COUNT(*) FROM jobs WHERE kind='plan' AND state='READY'").fetchone()[0]
+            original_bytes = state.encode(existing)
+            with mock.patch.object(runtime.work_queue, "load_board", return_value={"tasks": [existing]}):
+                with mock.patch.object(runtime.work_queue, "add_task") as add_task:
+                    runtime.finalize(self.cfg, self.conn)
+                    runtime.finalize(self.cfg, self.conn)
+                    add_task.assert_not_called()
+            self.assertEqual(original_bytes, state.encode(existing))
+            self.assertEqual("BLOCKED" if changes else "DONE", self.current(review_id)["state"])
+            after = self.conn.execute(
+                "SELECT COUNT(*) FROM jobs WHERE kind='plan' AND state='READY'").fetchone()[0]
+            self.assertEqual(before + (1 if changes else 0), after)
+            if changes:
+                self.assertIn("CONTRACT_CONFLICT", self.current(review_id)["reason"])
+
+    def test_peer_rework_releases_old_scope_only_after_durable_successor(self):
+        spec = {"task": self.task(), "base": "a"*40, "worktree": str(self.repo)}
+        self.add(spec=spec, current="REVIEW_PENDING")
+        review = self.add("peer-rework", role="B", kind="review",
+                          spec={"author_job": "job-A"}, current="RESULT")
+        review_spec = {"author_job": "job-A", "identity": {"candidate_sha": "b"*40}}
+        verdict = self.result(verdict="REWORK")
+        runtime.enqueue_rework(self.cfg, self.conn, review, review_spec, verdict)
+        successor = self.conn.execute(
+            "SELECT * FROM jobs WHERE kind='implement' AND state='READY'").fetchone()
+        self.assertIsNotNone(successor)
+        self.assertEqual("SUPERSEDED", self.current()["state"])
+        self.assertIn("apps/a/source.py", runtime.paths_reserved(self.conn))
+        self.conn.execute("UPDATE jobs SET state='INTEGRATED' WHERE id=?", (successor["id"],))
+        self.conn.commit()
+        self.assertNotIn("apps/a/source.py", runtime.paths_reserved(self.conn))
+        self.add("other-author", spec=spec, current="REVIEW_PENDING")
+        another = self.add("other-peer", role="B", kind="review",
+                           spec={"author_job": "other-author"}, current="RESULT")
+        with mock.patch.object(runtime, "add_job", side_effect=RuntimeError("injected descriptor failure")):
+            with self.assertRaises(RuntimeError):
+                runtime.enqueue_rework(self.cfg, self.conn, another,
+                                       {"author_job": "other-author", "identity": {"candidate_sha": "c"*40}},
+                                       verdict)
+        self.assertNotEqual("SUPERSEDED", self.current("other-author")["state"])
+        self.assertIn("apps/a/source.py", runtime.paths_reserved(self.conn))
+
 
 if __name__ == "__main__":
     unittest.main()
