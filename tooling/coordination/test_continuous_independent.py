@@ -388,6 +388,45 @@ class RuntimeIndependent(unittest.TestCase):
                     spawn.assert_not_called()
         self.assertEqual("READY", self.current()["state"])
 
+    def scheduler_fixture(self):
+        import time
+        self.cfg["config_path"] = str(self.area / "config.json")
+        now = time.time()
+        self.add("normal", spec={"task": {"priority": "normal"}})
+        self.conn.execute("UPDATE jobs SET created=? WHERE id='normal'", (now-10,))
+        for i in range(4):
+            name = "urgent-" + str(i)
+            self.add(name, spec={"task": {"priority": "urgent"}})
+            self.conn.execute("UPDATE jobs SET created=? WHERE id=?", (now+i, name))
+        self.conn.commit()
+
+    def one_dispatch(self):
+        with mock.patch.object(runtime, "prepare"):
+            with mock.patch.object(runtime.subprocess, "Popen"):
+                runtime.launch(self.cfg, self.conn)
+        rows = self.conn.execute("SELECT id FROM jobs WHERE state='STARTING'").fetchall()
+        self.assertEqual(1, len(rows))
+        identifier = rows[0]["id"]
+        self.conn.execute("UPDATE jobs SET state='DONE' WHERE id=?", (identifier,))
+        self.conn.commit()
+        return identifier
+
+    def test_urgent_dispatch_bounded_by_main_progress(self):
+        self.scheduler_fixture()
+        first = self.one_dispatch()
+        second = self.one_dispatch()
+        third = self.one_dispatch()
+        self.assertTrue(first.startswith("urgent-"))
+        self.assertTrue(second.startswith("urgent-"))
+        self.assertEqual("normal", third)
+
+    def test_oldest_aged_job_overrides_urgent_backlog(self):
+        import time
+        self.scheduler_fixture()
+        self.conn.execute("UPDATE jobs SET created=? WHERE id='normal'", (time.time()-601,))
+        self.conn.commit()
+        self.assertEqual("normal", self.one_dispatch())
+
 
 if __name__ == "__main__":
     unittest.main()
