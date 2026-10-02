@@ -1,0 +1,861 @@
+{
+  "schemaVersion": "business_scenario_gold_protocol_v1",
+  "sourceCoverageSchema": "business_scenario_coverage_v1",
+  "sourceNumericSchema": "business_scenario_numeric_fixtures_v1",
+  "expectedScenarioCount": 45,
+  "marketplaces": ["OZON", "WILDBERRIES"],
+  "checkLayers": [
+    "provider_fact",
+    "deterministic_arithmetic",
+    "owner_semantic_verdict"
+  ],
+  "expectedLogicalCardCount": 270,
+  "bindingCounts": {
+    "EXECUTABLE_KIND": 21,
+    "EXECUTABLE_CASE": 2,
+    "OWNER_ONLY_BOUNDARY": 17
+  },
+  "numericBindings": {
+    "ad_content_join": {
+      "mode": "EXECUTABLE_KIND",
+      "kind": "ad_content_join",
+      "caseIds": [
+        "ad_content_join_complete",
+        "ad_content_join_duplicate_active_rejected"
+      ]
+    },
+    "ad_efficiency": {
+      "mode": "OWNER_ONLY_BOUNDARY",
+      "reason": "NO_EXECUTABLE_NUMERIC_RULE_BOUND_IN_V1"
+    },
+    "ad_spend_rank": {
+      "mode": "OWNER_ONLY_BOUNDARY",
+      "reason": "NO_EXECUTABLE_NUMERIC_RULE_BOUND_IN_V1"
+    },
+    "ad_stats_grain": {
+      "mode": "OWNER_ONLY_BOUNDARY",
+      "reason": "NO_EXECUTABLE_NUMERIC_RULE_BOUND_IN_V1"
+    },
+    "ad_stock_join": {
+      "mode": "OWNER_ONLY_BOUNDARY",
+      "reason": "NO_EXECUTABLE_NUMERIC_RULE_BOUND_IN_V1"
+    },
+    "attention_rank": {
+      "mode": "EXECUTABLE_KIND",
+      "kind": "attention_rank",
+      "caseIds": ["attention_rank"]
+    },
+    "campaign_inventory": {
+      "mode": "OWNER_ONLY_BOUNDARY",
+      "reason": "NO_EXECUTABLE_NUMERIC_RULE_BOUND_IN_V1"
+    },
+    "catalog_identity": {
+      "mode": "OWNER_ONLY_BOUNDARY",
+      "reason": "NO_EXECUTABLE_NUMERIC_RULE_BOUND_IN_V1"
+    },
+    "causal_factors": {
+      "mode": "EXECUTABLE_KIND",
+      "kind": "causal_factors",
+      "caseIds": [
+        "causal_factors_complete",
+        "causal_factors_missing",
+        "causal_factors_no_adverse"
+      ]
+    },
+    "competitor_boundary": {
+      "mode": "EXECUTABLE_KIND",
+      "kind": "competitor_boundary",
+      "caseIds": [
+        "competitor_boundary_private_metric_forbidden",
+        "competitor_boundary_public_only"
+      ]
+    },
+    "content_quality_boundary": {
+      "mode": "EXECUTABLE_KIND",
+      "kind": "content_quality_boundary",
+      "caseIds": [
+        "content_quality_boundary_known_errors",
+        "content_quality_boundary_missing_errors",
+        "content_quality_boundary_zero_errors"
+      ]
+    },
+    "cross_source_join": {
+      "mode": "EXECUTABLE_KIND",
+      "kind": "cross_source_join",
+      "caseIds": [
+        "cross_source_join_complete",
+        "cross_source_join_duplicate_rejected",
+        "cross_source_join_missing_product_rejected"
+      ]
+    },
+    "daily_rank": {
+      "mode": "EXECUTABLE_KIND",
+      "kind": "daily_rank",
+      "caseIds": ["daily_rank_ties"]
+    },
+    "days_cover": {
+      "mode": "EXECUTABLE_KIND",
+      "kind": "days_cover",
+      "caseIds": [
+        "days_cover_known",
+        "days_cover_missing",
+        "days_cover_zero_demand"
+      ]
+    },
+    "drr_compare": {
+      "mode": "OWNER_ONLY_BOUNDARY",
+      "reason": "NO_EXECUTABLE_NUMERIC_RULE_BOUND_IN_V1"
+    },
+    "external_fact_boundary": {
+      "mode": "EXECUTABLE_KIND",
+      "kind": "external_fact_boundary",
+      "caseIds": [
+        "external_fact_boundary_missing_citation",
+        "external_fact_boundary_separated"
+      ]
+    },
+    "feedback_privacy": {
+      "mode": "OWNER_ONLY_BOUNDARY",
+      "reason": "NO_EXECUTABLE_NUMERIC_RULE_BOUND_IN_V1"
+    },
+    "finance_distinction": {
+      "mode": "OWNER_ONLY_BOUNDARY",
+      "reason": "NO_EXECUTABLE_NUMERIC_RULE_BOUND_IN_V1"
+    },
+    "finance_reconciliation": {
+      "mode": "OWNER_ONLY_BOUNDARY",
+      "reason": "NO_EXECUTABLE_NUMERIC_RULE_BOUND_IN_V1"
+    },
+    "incident_boundary": {
+      "mode": "EXECUTABLE_KIND",
+      "kind": "incident_boundary",
+      "caseIds": ["incident_boundary_known", "incident_boundary_missing_source"]
+    },
+    "movement_evidence": {
+      "mode": "EXECUTABLE_KIND",
+      "kind": "movement_evidence",
+      "caseIds": [
+        "movement_evidence_missing_event",
+        "movement_evidence_provider_event"
+      ]
+    },
+    "order_sale_distinction": {
+      "mode": "OWNER_ONLY_BOUNDARY",
+      "reason": "NO_EXECUTABLE_NUMERIC_RULE_BOUND_IN_V1"
+    },
+    "percent_change": {
+      "mode": "EXECUTABLE_KIND",
+      "kind": "percent_change",
+      "caseIds": ["percent_change_positive", "percent_change_zero_base"]
+    },
+    "platform_contribution": {
+      "mode": "EXECUTABLE_KIND",
+      "kind": "platform_contribution",
+      "caseIds": [
+        "platform_contribution",
+        "platform_contribution_incomplete",
+        "platform_contribution_null_storage"
+      ]
+    },
+    "price_semantics": {
+      "mode": "OWNER_ONLY_BOUNDARY",
+      "reason": "NO_EXECUTABLE_NUMERIC_RULE_BOUND_IN_V1"
+    },
+    "promotion_participation": {
+      "mode": "OWNER_ONLY_BOUNDARY",
+      "reason": "NO_EXECUTABLE_NUMERIC_RULE_BOUND_IN_V1"
+    },
+    "rating_boundary": {
+      "mode": "EXECUTABLE_KIND",
+      "kind": "rating_boundary",
+      "caseIds": [
+        "rating_boundary_known",
+        "rating_boundary_missing_penalty",
+        "rating_boundary_missing_rating"
+      ]
+    },
+    "restriction_boundary": {
+      "mode": "EXECUTABLE_KIND",
+      "kind": "restriction_boundary",
+      "caseIds": ["restriction_boundary_blocked"]
+    },
+    "returns_boundary": {
+      "mode": "OWNER_ONLY_BOUNDARY",
+      "reason": "NO_EXECUTABLE_NUMERIC_RULE_BOUND_IN_V1"
+    },
+    "sales_totals": {
+      "mode": "EXECUTABLE_KIND",
+      "kind": "sales_totals",
+      "caseIds": [
+        "sales_totals_complete",
+        "sales_totals_incomplete",
+        "sales_totals_missing_money",
+        "sales_totals_null_units"
+      ]
+    },
+    "search_dedup": {
+      "mode": "EXECUTABLE_KIND",
+      "kind": "search_dedup",
+      "caseIds": ["search_dedup_business_key"]
+    },
+    "search_fact_boundary": {
+      "mode": "EXECUTABLE_KIND",
+      "kind": "search_fact_boundary",
+      "caseIds": [
+        "search_fact_boundary_complete",
+        "search_fact_boundary_duplicate",
+        "search_fact_boundary_missing_metric"
+      ]
+    },
+    "search_position_boundary": {
+      "mode": "EXECUTABLE_KIND",
+      "kind": "search_position_boundary",
+      "caseIds": [
+        "search_position_boundary_known",
+        "search_position_boundary_missing_position",
+        "search_position_boundary_null_share",
+        "search_position_boundary_region_unsupported"
+      ]
+    },
+    "supply_acceptance": {
+      "mode": "OWNER_ONLY_BOUNDARY",
+      "reason": "NO_EXECUTABLE_NUMERIC_RULE_BOUND_IN_V1"
+    },
+    "supply_status": {
+      "mode": "OWNER_ONLY_BOUNDARY",
+      "reason": "NO_EXECUTABLE_NUMERIC_RULE_BOUND_IN_V1"
+    },
+    "top_n_join": {
+      "mode": "EXECUTABLE_KIND",
+      "kind": "top_n_join",
+      "caseIds": [
+        "top_n_duplicate_catalog_rejected",
+        "top_n_duplicate_sales_rejected",
+        "top_n_join"
+      ]
+    },
+    "visibility_boundary": {
+      "mode": "EXECUTABLE_KIND",
+      "kind": "visibility_boundary",
+      "caseIds": [
+        "visibility_boundary_missing_stock",
+        "visibility_boundary_signals"
+      ]
+    },
+    "warehouse_identity": {
+      "mode": "OWNER_ONLY_BOUNDARY",
+      "reason": "NO_EXECUTABLE_NUMERIC_RULE_BOUND_IN_V1"
+    },
+    "warehouse_sales_sort": {
+      "mode": "EXECUTABLE_CASE",
+      "caseId": "warehouse_sales_sort",
+      "kind": "warehouse_sort"
+    },
+    "warehouse_stock_sort": {
+      "mode": "EXECUTABLE_CASE",
+      "caseId": "warehouse_stock_sort",
+      "kind": "warehouse_sort"
+    }
+  },
+  "periodCatalog": {
+    "GOLD_MONTH_2026_09_MSK": {
+      "kind": "RANGE",
+      "start": "2026-09-01T00:00:00+03:00",
+      "end": "2026-09-30T23:59:59+03:00",
+      "timezone": "Europe/Moscow",
+      "purpose": "SYNTHETIC_REPRODUCIBLE_GOLD_PERIOD_ONLY"
+    },
+    "GOLD_SNAPSHOT_2026_09_30_MSK": {
+      "kind": "SNAPSHOT",
+      "at": "2026-09-30T12:00:00+03:00",
+      "timezone": "Europe/Moscow",
+      "purpose": "SYNTHETIC_REPRODUCIBLE_GOLD_SNAPSHOT_ONLY"
+    }
+  },
+  "definitionIndex": [
+    {
+      "scenarioId": "STD-01",
+      "marketplace": "OZON",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "090f79701c8c4693b1cdc55d1d0722cf8afdf9158e34a1aa541cb76c627d96e9"
+    },
+    {
+      "scenarioId": "STD-01",
+      "marketplace": "WILDBERRIES",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "14aba716adab6d0dbccabfa6adbfdb7dd20b7594a743dc9cb947b39931c2e69e"
+    },
+    {
+      "scenarioId": "STD-02",
+      "marketplace": "OZON",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "d7ab1019093f4a1adde2b509db16ff7178ebec60d70d62d9f044e2e760f8a897"
+    },
+    {
+      "scenarioId": "STD-02",
+      "marketplace": "WILDBERRIES",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "24331c432e8a37582d079089053c952f396885b860da08e98f14b2c001e6fb07"
+    },
+    {
+      "scenarioId": "STD-03",
+      "marketplace": "OZON",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "2c662b8ceae8a47d5750e2743dffcac13a53043c2cbb7827419f0575e64a61c7"
+    },
+    {
+      "scenarioId": "STD-03",
+      "marketplace": "WILDBERRIES",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "40648efefd9af4932145eacfecc8ac0d6b658a13645f49e9071b1d2b1ec28deb"
+    },
+    {
+      "scenarioId": "STD-04",
+      "marketplace": "OZON",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "2614e2e75413960f3bf74f186e9308a24417a6f4e05caac32cc28f3c3854c22f"
+    },
+    {
+      "scenarioId": "STD-04",
+      "marketplace": "WILDBERRIES",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "49a785545c430157434afef33053829e87dca5da38739035632e4e9c05c50c84"
+    },
+    {
+      "scenarioId": "STD-05",
+      "marketplace": "OZON",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "e8fc68bb6c2f22f6b592766b808d4d681e1f0361e65ac01e7ad38047478ab56e"
+    },
+    {
+      "scenarioId": "STD-05",
+      "marketplace": "WILDBERRIES",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "c5e2205fe03efd204e8bf63cdcdba360fda2418f61366388a9f89f70ae16d580"
+    },
+    {
+      "scenarioId": "STD-06",
+      "marketplace": "OZON",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "84c77e4661df6f6a84c3f2e2857cf083b9bcf2137fc07c7553df2a18b5110a54"
+    },
+    {
+      "scenarioId": "STD-06",
+      "marketplace": "WILDBERRIES",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "18a7c93fb2445d9e5357135a021bb1a525e6193cd448c2845b4e5888261a5183"
+    },
+    {
+      "scenarioId": "STD-07",
+      "marketplace": "OZON",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "111ef56e6523615901a1536379609242b8f6aa5bdfa5925e5562a3d232b9cc27"
+    },
+    {
+      "scenarioId": "STD-07",
+      "marketplace": "WILDBERRIES",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "4861397d069041e33f0d96ed8e0def7380f645eac5979db3cecf7defc4401060"
+    },
+    {
+      "scenarioId": "STD-08",
+      "marketplace": "OZON",
+      "periodRef": "GOLD_SNAPSHOT_2026_09_30_MSK",
+      "definitionsHash": "b080c8fff024dbfceba6165515f784bd61bdf9f5493ddf326ce02d61a6aed98a"
+    },
+    {
+      "scenarioId": "STD-08",
+      "marketplace": "WILDBERRIES",
+      "periodRef": "GOLD_SNAPSHOT_2026_09_30_MSK",
+      "definitionsHash": "7de5a5562f200f4b100c366fe69de719320fb357d81f98fb52c3fdc461fa550e"
+    },
+    {
+      "scenarioId": "STD-09",
+      "marketplace": "OZON",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "c1c1581cfe03f30df47e60393b034694ea2b5704d0b8452022d7b55cc18ca2b4"
+    },
+    {
+      "scenarioId": "STD-09",
+      "marketplace": "WILDBERRIES",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "51ebd9c668518fd09d810d21415fac58a4db57c656eff94401457dfbfeff9d1e"
+    },
+    {
+      "scenarioId": "STD-10",
+      "marketplace": "OZON",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "b547cbef2085547b51a5178e2a6054d73142aa7f2556522ee652933720a80ece"
+    },
+    {
+      "scenarioId": "STD-10",
+      "marketplace": "WILDBERRIES",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "24c1b20afbbc56186f9a92c90cd69a375799e853c12657d2b252da1c6a4a3e69"
+    },
+    {
+      "scenarioId": "STD-11",
+      "marketplace": "OZON",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "99b2b47f03ba63b1acbf19f7a9623487eabfdc903a773c43396b2811aa3ef167"
+    },
+    {
+      "scenarioId": "STD-11",
+      "marketplace": "WILDBERRIES",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "f5c9cd5adf99fe4094269212c0b46a0e402fad5c3657433bc2ecc4747782e559"
+    },
+    {
+      "scenarioId": "STD-12",
+      "marketplace": "OZON",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "9ac9c8ec4d7a4240d949e6b00c3dcda68ecc05efa6b4114dbeb889bf49fbd64e"
+    },
+    {
+      "scenarioId": "STD-12",
+      "marketplace": "WILDBERRIES",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "4c0b168e56270b4f653ec8d82efa4af2bc3bc2b00cd5e1eaa2c13eff4a313bd5"
+    },
+    {
+      "scenarioId": "STD-13",
+      "marketplace": "OZON",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "cf95d0066bd877021248bfd3305a9bb3eeca6b774aaf2bff53e488df86884d26"
+    },
+    {
+      "scenarioId": "STD-13",
+      "marketplace": "WILDBERRIES",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "3692770de99fb05c0a30975f3d21367f20bd31a2784ecb750af06c37bac248a9"
+    },
+    {
+      "scenarioId": "STD-14",
+      "marketplace": "OZON",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "4e45f59bea977dad6c0eff44c0fc2a2a4b4ffaef9271502d4795864dd124fb74"
+    },
+    {
+      "scenarioId": "STD-14",
+      "marketplace": "WILDBERRIES",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "c7575e9dfd7aa2260324d866be237a8cc0ca8ba8e33dc557f2dab91813379124"
+    },
+    {
+      "scenarioId": "STD-15",
+      "marketplace": "OZON",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "a3317c0656badda88b3605a781daaa09e9b8c3062f4b488952a4a29f14f26d00"
+    },
+    {
+      "scenarioId": "STD-15",
+      "marketplace": "WILDBERRIES",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "9aa68426bb857856e4f8960393757dd4f4a5e6e2e8e6b0e840325ed1adb146c4"
+    },
+    {
+      "scenarioId": "STD-16",
+      "marketplace": "OZON",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "30d75831a5652e386f01fcdffccce2fb642e3f962642c3ee20303613ce798804"
+    },
+    {
+      "scenarioId": "STD-16",
+      "marketplace": "WILDBERRIES",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "c36f44a72dd434bf639db54048acf44609c92d96360dac30e0989fc97be92f85"
+    },
+    {
+      "scenarioId": "STD-17",
+      "marketplace": "OZON",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "b82b0dbfe7e51f06a893eb4b19847cbd5ade361356e594154bd2ff277a35ed68"
+    },
+    {
+      "scenarioId": "STD-17",
+      "marketplace": "WILDBERRIES",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "08827a93bdc5f3e58e0daefe30ecf8147e6905b272f010b3146475e446b35ddd"
+    },
+    {
+      "scenarioId": "STD-18",
+      "marketplace": "OZON",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "e9d27b62a645ea8cba26bac61042079c84aa436e3fe38e408abec245dcaa55f9"
+    },
+    {
+      "scenarioId": "STD-18",
+      "marketplace": "WILDBERRIES",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "6a46b815e40499845865868ef21dd6f039d4d3df15e820e0fda9ffa89096bfe3"
+    },
+    {
+      "scenarioId": "STD-19",
+      "marketplace": "OZON",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "eb00a5aafad8df83ad70dde8808b354d86f6bb534ed014148cf8a0fc2517a734"
+    },
+    {
+      "scenarioId": "STD-19",
+      "marketplace": "WILDBERRIES",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "6812a04e9f51ea931d685dbe62eaca206fb9453bfc4b939c87b0543aedd56bea"
+    },
+    {
+      "scenarioId": "STD-20",
+      "marketplace": "OZON",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "43dc2c4ca716fe213814c208e5d7ed6f3e1d471c710c0d9f5201493e0a9dd214"
+    },
+    {
+      "scenarioId": "STD-20",
+      "marketplace": "WILDBERRIES",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "774c9a841c6b10cbd598f32265ba090dd12d45a36ad9704dfbcad51bf9da7ce2"
+    },
+    {
+      "scenarioId": "CAP-01",
+      "marketplace": "OZON",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "986f839bff0a61c186bef88f8dd862647578ccc4e7d15ea038b47b48982b08aa"
+    },
+    {
+      "scenarioId": "CAP-01",
+      "marketplace": "WILDBERRIES",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "5e28e844905a0cb29aa3d097cc56706ceb256bf7e01977c5447b24233dd295a5"
+    },
+    {
+      "scenarioId": "CAP-02",
+      "marketplace": "OZON",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "b3a18ab7cce70835cfa454b01cf7dec94e646bed97268a1d0afe2c312a35c431"
+    },
+    {
+      "scenarioId": "CAP-02",
+      "marketplace": "WILDBERRIES",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "929854d45e765ac4029a6c62e9c1ebb02576683b170fbc4e62c69aad412fa895"
+    },
+    {
+      "scenarioId": "CAP-03",
+      "marketplace": "OZON",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "6292628d3626b03c6ceff9c0a370473f6bd1f1383084cf5fb1c9a28124b203e8"
+    },
+    {
+      "scenarioId": "CAP-03",
+      "marketplace": "WILDBERRIES",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "1bbe377ec73a7d0482cbc87f3b6b38f6f548b64a91be144993a6a4968e35b3e5"
+    },
+    {
+      "scenarioId": "CAP-04",
+      "marketplace": "OZON",
+      "periodRef": "GOLD_SNAPSHOT_2026_09_30_MSK",
+      "definitionsHash": "ac2932239dc689918c6c87b3cc6f6f0a0a928a569a4fc31dadeb39f45f93d75c"
+    },
+    {
+      "scenarioId": "CAP-04",
+      "marketplace": "WILDBERRIES",
+      "periodRef": "GOLD_SNAPSHOT_2026_09_30_MSK",
+      "definitionsHash": "581a1535e9cb6b711ab1eb79cd3ebbc68ff04194eb755e3a87fac3aa196d9c0b"
+    },
+    {
+      "scenarioId": "CAP-05",
+      "marketplace": "OZON",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "c5164c66db5f098979f04d8c663fbf29e08456371db62ddc5575eb2acc31dc80"
+    },
+    {
+      "scenarioId": "CAP-05",
+      "marketplace": "WILDBERRIES",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "f24093b0ca7f779b794d5ef96150a6a4e814f2375020ddda6d51c4373a3a5b2a"
+    },
+    {
+      "scenarioId": "CAP-06",
+      "marketplace": "OZON",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "749671268b4d8cfd7ce6292b8b1db3304ada556c437694465a47bb4a4d411c9b"
+    },
+    {
+      "scenarioId": "CAP-06",
+      "marketplace": "WILDBERRIES",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "5180662c016d9c9cce79d3b8ffe33521fc420f83e62aceb242e95fed769646bb"
+    },
+    {
+      "scenarioId": "CAP-07",
+      "marketplace": "OZON",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "a3a743e159479553b251e25347d9d410ec752814136d134bc31cfea01160b3cc"
+    },
+    {
+      "scenarioId": "CAP-07",
+      "marketplace": "WILDBERRIES",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "a1d602986071da8148ac95a38fc65e8596cb65bbfc4cf3a75aabbb50182ffdfc"
+    },
+    {
+      "scenarioId": "CAP-08",
+      "marketplace": "OZON",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "353a7423887f775ea187c1f75ba0653c0cd2aa0130107c3810ec17e3e6548b7e"
+    },
+    {
+      "scenarioId": "CAP-08",
+      "marketplace": "WILDBERRIES",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "b8c06838276a48f3222bb79184d3166f2daa2fc6a223366924396c09d653179c"
+    },
+    {
+      "scenarioId": "CAP-09",
+      "marketplace": "OZON",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "df65ebdfc0d5b3dab4d04ce3bcf878853896c62aa0d689661ac2279d19258144"
+    },
+    {
+      "scenarioId": "CAP-09",
+      "marketplace": "WILDBERRIES",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "8849f71b9c90b5d9476cb402d74a11ca5adcd109f2f2e15169262a7c7046db44"
+    },
+    {
+      "scenarioId": "CAP-10",
+      "marketplace": "OZON",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "551d14d8309bff075c845db5b28c5ad8854f89951d33872842bade3a388e456e"
+    },
+    {
+      "scenarioId": "CAP-10",
+      "marketplace": "WILDBERRIES",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "0f9b867fd86ffac5925db3464e2c59e79e9a3ed8c4257873261616140358435b"
+    },
+    {
+      "scenarioId": "CAP-11",
+      "marketplace": "OZON",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "1f9e0dd8dfa75d6c9e03e17c43a9514b7850d23aa8ed928e57ec8afc85a277a8"
+    },
+    {
+      "scenarioId": "CAP-11",
+      "marketplace": "WILDBERRIES",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "381255e20fd6d1470226f9cb4869bc46bea25b38b05c5bee33591ae2240c84a2"
+    },
+    {
+      "scenarioId": "CAP-12",
+      "marketplace": "OZON",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "af8cdfa3058dcf82c990d5b10c57fa285394c543c0bfa5ddb684d69642ad3525"
+    },
+    {
+      "scenarioId": "CAP-12",
+      "marketplace": "WILDBERRIES",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "64809ecd62693b762c87d9ccb93baef71a0ffadf1bd7692a7eaa68b92ed0c77c"
+    },
+    {
+      "scenarioId": "CAP-13",
+      "marketplace": "OZON",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "c47c7379689444e556ff3961cadb8785e9b47a467c2a76e68bd4a654de455821"
+    },
+    {
+      "scenarioId": "CAP-13",
+      "marketplace": "WILDBERRIES",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "3dd8da9ffa6df6ab46ad5f15397b06cc6a1dfdee0a2603d83b5476e30bd9358c"
+    },
+    {
+      "scenarioId": "CAP-14",
+      "marketplace": "OZON",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "286194cf13f5e22d3569462a77f1d63e95ba9858875be0d15dfaac4bc462a53b"
+    },
+    {
+      "scenarioId": "CAP-14",
+      "marketplace": "WILDBERRIES",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "990746d4b330a29c426c64a48701fc958d05a970902ab5754ed5a378e69527a9"
+    },
+    {
+      "scenarioId": "CAP-15",
+      "marketplace": "OZON",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "9891dd96058a777d8e0961226836f857fca5ef5b1ec7681a9df9c7fe4a8f744c"
+    },
+    {
+      "scenarioId": "CAP-15",
+      "marketplace": "WILDBERRIES",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "66841193575851bcbf23bf374ad33256c37ad176bbaa04faf506ff2fe47bc576"
+    },
+    {
+      "scenarioId": "CAP-16",
+      "marketplace": "OZON",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "c4e7b498479998ffbe5afaddb97b78097477383570ed2a96931cb130dd8db500"
+    },
+    {
+      "scenarioId": "CAP-16",
+      "marketplace": "WILDBERRIES",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "a0f561a8e01ce5780525883b9b5b895a2943432b81192ce817bee8ea3608483f"
+    },
+    {
+      "scenarioId": "CAP-17",
+      "marketplace": "OZON",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "3e6e6a3d17d3fb6f74d0ad1b27edde20c5a1f0727db1baafa909c722b8357edb"
+    },
+    {
+      "scenarioId": "CAP-17",
+      "marketplace": "WILDBERRIES",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "ebdd010844659d1c356531a6819965d8a7afd180808ec9be3b2d4d017684bdab"
+    },
+    {
+      "scenarioId": "CAP-18",
+      "marketplace": "OZON",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "b5d901380e589ac98f9b3a41248f36b71770c1d913c19a2fb8757249654f381f"
+    },
+    {
+      "scenarioId": "CAP-18",
+      "marketplace": "WILDBERRIES",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "fa069632c3f787e54290a5378fdd64e9487f13a5c05604272cba379680e59b0e"
+    },
+    {
+      "scenarioId": "CAP-19",
+      "marketplace": "OZON",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "43466a70d92b9649d7218a10bd6eab61ec9fba5e29622d668267d41a1f8a5695"
+    },
+    {
+      "scenarioId": "CAP-19",
+      "marketplace": "WILDBERRIES",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "871c9037bc53c75ba87aa8d62272fcc461b4580a65c99254293b5b8063fea351"
+    },
+    {
+      "scenarioId": "CAP-20",
+      "marketplace": "OZON",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "f2ee003d9eda1db37a4d6b4a76b93755db8a9afc03b212d55795f0c8f511be08"
+    },
+    {
+      "scenarioId": "CAP-20",
+      "marketplace": "WILDBERRIES",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "317968d65a6c112783c838f46aca0d2d70e4f221820bb0622a59f7a2dfd89270"
+    },
+    {
+      "scenarioId": "CAP-21",
+      "marketplace": "OZON",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "a7406231ce774718ba6e95713e0222c945db379e35e74b36b96325d0fcc8617d"
+    },
+    {
+      "scenarioId": "CAP-21",
+      "marketplace": "WILDBERRIES",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "1914c5156018c42a93e97f3701feb75cc333048fdcc5efdadb7a2360bef00247"
+    },
+    {
+      "scenarioId": "CAP-22",
+      "marketplace": "OZON",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "8eaad5c47d8e3d1811a1f31c4a57140445bb34ade2001b927de038bdf0e1cbed"
+    },
+    {
+      "scenarioId": "CAP-22",
+      "marketplace": "WILDBERRIES",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "2a8b5f621b4ac44a2a5d8ee2b17b474dc9196c03f80f095762f7550b8e7d12e0"
+    },
+    {
+      "scenarioId": "CAP-23",
+      "marketplace": "OZON",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "1fb6dba9f94ed6b0e25021d33c081eb3e99b198effc5bdf6ac14591e1ed32774"
+    },
+    {
+      "scenarioId": "CAP-23",
+      "marketplace": "WILDBERRIES",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "4845133840496f5fb8efff7db555b2156492fe8624e8696e3cf250e9ef0169f2"
+    },
+    {
+      "scenarioId": "CAP-24",
+      "marketplace": "OZON",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "439ad9b58ad7e1945e60103c946c1f643f61c4d86fc33d85f9204495b066f5c7"
+    },
+    {
+      "scenarioId": "CAP-24",
+      "marketplace": "WILDBERRIES",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "cd27900b58795c4190916e2967e6d6dfa90d891f14c2add740f51313d0ddd560"
+    },
+    {
+      "scenarioId": "CAP-25",
+      "marketplace": "OZON",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "4fc3c4ca0fb0907aae2dfd3ef25dfd5363e9afbcda7f9dfcb8c8794e0f2c79dc"
+    },
+    {
+      "scenarioId": "CAP-25",
+      "marketplace": "WILDBERRIES",
+      "periodRef": "GOLD_MONTH_2026_09_MSK",
+      "definitionsHash": "dca58c3cb5d09082f5a88adf588d356ac6e436d6649cb0e7548cb8228ce0d42d"
+    }
+  ],
+  "definitionIndexSha256": "1f407ff5ffeb52d35f8e6eb0196fbc0d822fc83e211a277c76ec79f4888d90e2",
+  "providerFactStatus": "SOURCE_DEFINED_NOT_LIVE_ACCEPTED",
+  "ownerSemanticDefaultStatus": "PENDING_OWNER",
+  "externalDependencyDefaultStatus": "PENDING_EXTERNAL",
+  "ownerVerdictSchema": {
+    "requiredFields": [
+      "scenarioId",
+      "marketplace",
+      "periodRef",
+      "definitionsHash",
+      "resultClass",
+      "verdict"
+    ],
+    "allowedFields": [
+      "scenarioId",
+      "marketplace",
+      "periodRef",
+      "definitionsHash",
+      "resultClass",
+      "verdict"
+    ],
+    "tupleFields": [
+      "scenarioId",
+      "marketplace",
+      "periodRef",
+      "definitionsHash"
+    ],
+    "tupleBinding": "EXACT_DEFINITION_INDEX_ROW",
+    "allowedVerdicts": ["PASS", "FAIL", "BLOCKED"],
+    "allowedResultClasses": ["USEFUL", "NOT_USEFUL", "INCOMPLETE", "UNKNOWN"],
+    "forbiddenFields": [
+      "rawProviderPayload",
+      "token",
+      "otp",
+      "cookies",
+      "accountId",
+      "storeId",
+      "deviceId",
+      "sessionId",
+      "conversationId",
+      "fullAiTranscript"
+    ],
+    "notes": "Bind only to exact definitionIndex periodRef+definitionsHash; privacy-safe manual semantic metadata only."
+  }
+}

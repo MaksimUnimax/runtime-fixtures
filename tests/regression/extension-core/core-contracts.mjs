@@ -1,4 +1,5 @@
 import "./business-scenario-coverage.mjs";
+import "./business-scenario-gold-protocol.mjs";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
