@@ -122,6 +122,7 @@ class PublicationTests(unittest.TestCase):
             "task_ref": task_ref, "task_branch": task_branch,
             "completion_bundle_path": str(completion_bundle),
             "completion_bundle_manifest_sha256": completion_bundle_sha,
+            "remote": "origin", "push_target": str(self.remote),
         }
         registration_id = route._sha_bytes(route._canonical_bytes(core))
         publication = self.control / "controllers/task-publication"
@@ -201,6 +202,52 @@ class PublicationTests(unittest.TestCase):
         self.board["tasks"].append(task)
         self.save_board()
         return task
+
+    def blocker_fixture(self, *, role="C", stopped=False):
+        candidate = "c" * 40
+        receipt = self.control / "logs/blocker-successor-completion.json"
+        completion = {
+            "kind": "octoport.work-queue-completion", "version": 1,
+            "task_id": "ACCEPTED-SUCCESSOR", "candidate_sha": candidate,
+            "verdict": "PASS",
+            "review": {"verdict": "PASS", "evidence": ["independent successor review"]},
+            "checks": [{"name": "accepted", "verdict": "PASS", "evidence": ["exact result"]}],
+        }
+        receipt.write_text(json.dumps(completion))
+        old = {
+            "id": "OLD-BLOCKED", "role": role, "plan": "C00", "state": "BLOCKED",
+            "requires": [], "result": "Historical failed attempt", "paths": ["old.txt"],
+            "acceptance": ["preserve historical state"], "blocked_reason": "superseded attempt",
+            "blocked_receipt": str(self.control / "logs/old-blocker.json"),
+        }
+        Path(old["blocked_receipt"]).write_text('{"blocked":true}')
+        successor = {
+            "id": "ACCEPTED-SUCCESSOR", "role": role, "plan": "C00", "state": "DONE",
+            "requires": [], "result": "Accepted successor", "paths": ["successor.txt"],
+            "acceptance": ["strict completion"],
+            "completion_receipt": str(receipt.resolve()), "completion_receipt_format": 1,
+            "completion_candidate_sha": candidate, "completion_receipt_snapshot": completion,
+        }
+        self.board["tasks"].extend([old, successor])
+        self.save_board()
+        (self.control / f"{role}.json").write_text(
+            json.dumps({"status": "STOPPED" if stopped else "RUNNING"})
+        )
+        return old, successor, receipt
+
+    def run_blocker_broker(self, route_head, old, successor, receipt, *, cwd=None):
+        bundle = route._completion_bundle_dir(self.control, route_head)
+        return subprocess.run(
+            [
+                sys.executable, "-B", str(bundle / "task_publication.py"),
+                "--control-root", str(self.control), "resolve-blocker",
+                "--route-source-root", str(self.source),
+                "--task", old["id"], "--successor", successor["id"],
+                "--receipt", str(receipt),
+            ],
+            cwd=str(cwd or self.fixed), env=os.environ.copy(), text=True,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30, check=False,
+        )
 
     def prepared(self, reg, kind="TASK_REF", consume=True):
         old = self.base if kind == "MAIN" else (self.head if kind == "CLEANUP_TASK_REF" else route.ZERO_OID)
@@ -283,6 +330,219 @@ class PublicationTests(unittest.TestCase):
             self.base,
             route._tree(self.source),
         )
+
+    def test_trusted_route_resolves_blocker_from_divergent_canonical_branch(self):
+        self.strict_route_authority(self.base)
+        old, successor, receipt = self.blocker_fixture()
+        (self.fixed / "divergent.txt").write_text("canonical C WIP history stays independent\n")
+        self.git(self.fixed, "add", "divergent.txt")
+        self.git(self.fixed, "commit", "-m", "diverge canonical C branch")
+        self.assertNotEqual(route._head(self.fixed), self.base)
+
+        proc = self.run_blocker_broker(self.base, old, successor, receipt)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        result = json.loads(proc.stdout)
+        self.assertEqual(result["resolution_status"], "RESOLVED")
+        self.assertEqual(result["route_source_head"], self.base)
+        board = route._load_board(self.control)
+        current = next(row for row in board["tasks"] if row["id"] == old["id"])
+        self.assertEqual(current["state"], "BLOCKED")
+        self.assertEqual(current["blocker_resolution"]["status"], "RESOLVED")
+        self.assertEqual(current["blocker_resolution"]["successor_task"], successor["id"])
+        self.assertEqual(current["blocker_resolution"]["receipt"], str(receipt.resolve()))
+
+    def test_trusted_route_resolves_blocker_for_divergent_a_role(self):
+        fixed_a = self.root / "fixed-A"
+        policy_path = self.source / "docs/development/coordination/OWNERSHIP.json"
+        policy = json.loads(policy_path.read_text())
+        policy["roles"]["A"] = {
+            "path": str(fixed_a), "branch": "work/a-extension",
+            "allow": ["**"], "deny": ["secret/**"],
+        }
+        policy_path.write_text(json.dumps(policy))
+        self.git(self.source, "add", str(policy_path.relative_to(self.source)))
+        self.git(self.source, "commit", "-m", "fixture A role")
+        route_head = route._head(self.source)
+        self.git(self.source, "push", "origin", "main")
+        self.git(
+            self.source, "worktree", "add", "-b", "work/a-extension",
+            str(fixed_a), route_head,
+        )
+        self.strict_route_authority(route_head)
+        old, successor, receipt = self.blocker_fixture(role="A")
+        (fixed_a / "a-local.txt").write_text("divergent A history\n")
+        self.git(fixed_a, "add", "a-local.txt")
+        self.git(fixed_a, "commit", "-m", "diverge canonical A branch")
+
+        proc = self.run_blocker_broker(
+            route_head, old, successor, receipt, cwd=fixed_a
+        )
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        result = json.loads(proc.stdout)
+        self.assertEqual(result["resolution_status"], "RESOLVED")
+        self.assertEqual(result["role_location"], str(fixed_a.resolve()))
+        current = next(
+            row for row in route._load_board(self.control)["tasks"]
+            if row["id"] == old["id"]
+        )
+        self.assertEqual(current["state"], "BLOCKED")
+        self.assertEqual(current["blocker_resolution"]["owner"], "A")
+
+    def test_trusted_route_delegates_invalid_receipt_fail_closed(self):
+        self.strict_route_authority(self.base)
+        old, successor, _receipt = self.blocker_fixture()
+        wrong = self.control / "logs/wrong-successor-receipt.json"
+        wrong.write_text('{"wrong":true}')
+        board_path = self.control / "controllers/work-board.json"
+        before = board_path.read_bytes()
+
+        proc = self.run_blocker_broker(self.base, old, successor, wrong)
+        self.assertEqual(proc.returncode, 1, proc.stderr)
+        result = json.loads(proc.stdout)
+        self.assertIn("WORK_QUEUE_BLOCKER_RESOLUTION_RECEIPT_INVALID", result["error"])
+        self.assertEqual(board_path.read_bytes(), before)
+
+    def test_trusted_route_rejects_noncurrent_remote_main_before_mutation(self):
+        (self.source / "later.txt").write_text("not pushed\n")
+        self.git(self.source, "add", "later.txt")
+        self.git(self.source, "commit", "-m", "local route advance")
+        route_head = route._head(self.source)
+        self.strict_route_authority(route_head)
+        old, successor, receipt = self.blocker_fixture()
+        board_path = self.control / "controllers/work-board.json"
+        before = board_path.read_bytes()
+
+        proc = self.run_blocker_broker(route_head, old, successor, receipt)
+        self.assertEqual(proc.returncode, 1, proc.stderr)
+        result = json.loads(proc.stdout)
+        self.assertEqual(result["error"], "TRUSTED_ROUTE_NOT_CURRENT_REMOTE_MAIN")
+        self.assertEqual(board_path.read_bytes(), before)
+
+    def test_trusted_route_rechecks_remote_main_immediately_before_writer(self):
+        self.strict_route_authority(self.base)
+        old, successor, receipt = self.blocker_fixture()
+        authority = route._trusted_current_main_route_authority(
+            self.control, self.source
+        )
+        board_path = self.control / "controllers/work-board.json"
+        before = board_path.read_bytes()
+        with (
+            patch.object(
+                route, "_trusted_current_main_route_authority",
+                return_value=authority,
+            ),
+            patch.object(
+                route, "_select_execution_completion_bundle",
+                return_value=(
+                    Path(authority["completion_bundles"][0]["path"]),
+                    authority["completion_bundles"][0]["sha256"],
+                ),
+            ),
+            patch.object(
+                route, "_require_canonical_role_location",
+                return_value=self.fixed,
+            ),
+            patch.object(
+                route, "_authority_remote_oid_target",
+                return_value="f" * 40,
+            ) as remote,
+            patch.object(route, "_run_canonical_blocker_resolution") as writer,
+        ):
+            with self.assertRaisesRegex(
+                RuntimeError, "TRUSTED_ROUTE_NOT_CURRENT_REMOTE_MAIN"
+            ):
+                route.resolve_blocker_via_trusted_route(
+                    self.control,
+                    self.source,
+                    old["id"],
+                    successor["id"],
+                    str(receipt),
+                )
+        remote.assert_called_once_with(
+            authority["query_target"], "refs/heads/main"
+        )
+        writer.assert_not_called()
+        self.assertEqual(board_path.read_bytes(), before)
+
+    def test_trusted_route_remote_main_ignores_route_local_url_rewrite(self):
+        self.strict_route_authority(self.base)
+        old, successor, receipt = self.blocker_fixture()
+        board_path = self.control / "controllers/work-board.json"
+        before = board_path.read_bytes()
+
+        foreign = self.root / "foreign-authority.git"
+        self.git(self.source, "init", "--bare", str(foreign))
+        self.git(
+            self.source, "push", str(foreign),
+            f"{self.base}:refs/heads/main",
+        )
+        self.set_remote("refs/heads/main", self.head)
+        self.git(
+            self.source, "config",
+            f"url.{foreign}.insteadOf", str(self.remote),
+        )
+
+        # This reproduces the reviewed R2 defect: a repository-local rewrite
+        # can make the old -C route_root read see the accepted SHA.
+        self.assertEqual(
+            route._remote_oid_target(
+                self.source, str(self.remote), "refs/heads/main",
+                env=route.sanitized_git_authority_env(),
+            ),
+            self.base,
+        )
+
+        proc = self.run_blocker_broker(self.base, old, successor, receipt)
+        self.assertEqual(proc.returncode, 1, proc.stderr)
+        result = json.loads(proc.stdout)
+        self.assertEqual(result["error"], "TRUSTED_ROUTE_NOT_CURRENT_REMOTE_MAIN")
+        self.assertEqual(board_path.read_bytes(), before)
+        current = next(
+            row for row in route._load_board(self.control)["tasks"]
+            if row["id"] == old["id"]
+        )
+        self.assertNotIn("blocker_resolution", current)
+
+    def test_trusted_route_rejects_hidden_authority_bytes_before_mutation(self):
+        self.strict_route_authority(self.base)
+        old, successor, receipt = self.blocker_fixture()
+        board_path = self.control / "controllers/work-board.json"
+        cases = (
+            ("tooling/coordination/control.py", "--assume-unchanged"),
+            ("tooling/coordination/task_publication.py", "--skip-worktree"),
+        )
+        for index, (relative, flag) in enumerate(cases):
+            with self.subTest(relative=relative, flag=flag):
+                if index:
+                    self.git(self.source, "update-index", "--no-assume-unchanged", cases[index - 1][0])
+                    self.git(self.source, "update-index", "--no-skip-worktree", cases[index - 1][0])
+                    self.git(self.source, "checkout", "--", cases[index - 1][0])
+                self.git(self.source, "update-index", flag, relative)
+                target = self.source / relative
+                target.write_bytes(target.read_bytes() + b"\n# hidden route poison\n")
+                self.assertEqual(
+                    self.git(self.source, "status", "--porcelain=v1", "--untracked-files=all"), ""
+                )
+                before = board_path.read_bytes()
+                proc = self.run_blocker_broker(self.base, old, successor, receipt)
+                self.assertEqual(proc.returncode, 1, proc.stderr)
+                result = json.loads(proc.stdout)
+                self.assertEqual(
+                    result["error"], "QUEUE_COMPLETE_ROUTE_SOURCE_BYTES_DRIFT:" + relative
+                )
+                self.assertEqual(board_path.read_bytes(), before)
+
+    def test_trusted_route_stopped_owner_fails_without_board_mutation(self):
+        self.strict_route_authority(self.base)
+        old, successor, receipt = self.blocker_fixture(stopped=True)
+        board_path = self.control / "controllers/work-board.json"
+        before = board_path.read_bytes()
+
+        proc = self.run_blocker_broker(self.base, old, successor, receipt)
+        self.assertEqual(proc.returncode, 1, proc.stderr)
+        result = json.loads(proc.stdout)
+        self.assertIn("STOPPED", result["error"])
+        self.assertEqual(board_path.read_bytes(), before)
 
     def test_real_git_hook_task_main_cleanup_close(self):
         reg = self.register()

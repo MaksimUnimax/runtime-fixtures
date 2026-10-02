@@ -824,6 +824,249 @@ def _run_canonical_queue_completion(
     return result
 
 
+def _remote_repository_identity(target: str) -> tuple[str, str]:
+    """Normalize the same repository across trusted GitHub fetch/push URL forms."""
+    value = str(target).strip()
+    if not value:
+        raise PublicationError("TRUSTED_ROUTE_REMOTE_IDENTITY_INVALID")
+    if value.startswith("/"):
+        return ("path", str(Path(value).resolve()))
+    match = re.fullmatch(
+        r"git@(?:github\.com|github-seller-agents):([^\s]+?)(?:\.git)?", value
+    )
+    if match:
+        return ("github", match.group(1).removesuffix(".git"))
+    match = re.fullmatch(
+        r"https://github\.com/([^\s]+?)(?:\.git)?/?", value
+    )
+    if match:
+        return ("github", match.group(1).removesuffix(".git"))
+    match = re.fullmatch(
+        r"ssh://git@(?:github\.com|github-seller-agents)/([^\s]+?)(?:\.git)?/?", value
+    )
+    if match:
+        return ("github", match.group(1).removesuffix(".git"))
+    raise PublicationError("TRUSTED_ROUTE_REMOTE_IDENTITY_INVALID")
+
+
+def _canonical_remote_query_target(target: str) -> str:
+    """Derive a read-only remote target from immutable registration identity."""
+    kind, identity = _remote_repository_identity(target)
+    if kind == "github":
+        return f"https://github.com/{identity}.git"
+    if kind == "path":
+        return identity
+    raise PublicationError("TRUSTED_ROUTE_REMOTE_IDENTITY_INVALID")
+
+
+def _authority_remote_oid_target(target: str, ref: str) -> str:
+    """Read a remote ref without entering any repository-local Git config."""
+    query_target = _canonical_remote_query_target(target)
+    proc = subprocess.run(
+        [AUTHORITY_GIT_BIN, "ls-remote", query_target, ref],
+        cwd="/",
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        env=sanitized_git_authority_env(),
+        check=False,
+    )
+    if proc.returncode:
+        raise PublicationError(
+            f"TRUSTED_ROUTE_REMOTE_READ_FAILED:{proc.stderr.strip()}"
+        )
+    rows = [row.split() for row in proc.stdout.splitlines() if row.strip()]
+    if not rows:
+        return ZERO_OID
+    exact = [row for row in rows if len(row) >= 2 and row[1] == ref]
+    if len(exact) != 1 or not SHA40_RE.fullmatch(exact[0][0]):
+        raise PublicationError(f"REMOTE_REF_READBACK_AMBIGUOUS:{ref}")
+    return exact[0][0]
+
+
+def _trusted_current_main_route_authority(
+    root: Path, route_root: Path,
+) -> dict[str, Any]:
+    """Bind an administrative queue broker to accepted current-main route bytes."""
+    root = root.resolve()
+    route_root = route_root.resolve()
+    try:
+        if Path(_authority_git(route_root, "rev-parse", "--show-toplevel")).resolve() != route_root:
+            raise PublicationError("TRUSTED_ROUTE_SOURCE_ROOT_INVALID")
+        route_head = _authority_git(route_root, "rev-parse", "HEAD")
+        route_tree = _authority_git(route_root, "rev-parse", "HEAD^{tree}")
+    except (OSError, subprocess.SubprocessError):
+        raise PublicationError("TRUSTED_ROUTE_SOURCE_ROOT_INVALID") from None
+    if not SHA40_RE.fullmatch(route_head) or not SHA40_RE.fullmatch(route_tree):
+        raise PublicationError("TRUSTED_ROUTE_SOURCE_IDENTITY_INVALID")
+    if not _authority_clean(route_root):
+        raise PublicationError("TRUSTED_ROUTE_SOURCE_DIRTY")
+
+    from work_queue import _strict_completion_valid
+    board = _load_board(root)
+    authorities: list[str] = []
+    descriptors: dict[tuple[str, str], dict[str, str]] = {}
+    push_targets: set[str] = set()
+    for task in board["tasks"]:
+        registration_id = task.get("completion_publication_registration")
+        if (
+            task.get("state") != "DONE"
+            or task.get("completion_candidate_sha") != route_head
+            or not registration_id
+            or not _strict_completion_valid(task)
+        ):
+            continue
+        try:
+            reg, _ = _read_registration(root, registration_id)
+            core = reg["core"]
+            descriptor = _completion_bundle_descriptor(root, reg)
+        except (OSError, PublicationError, RuntimeError, ValueError, KeyError, TypeError):
+            continue
+        if (
+            reg.get("state") != "CLOSED"
+            or core.get("candidate_head") != route_head
+            or core.get("candidate_tree") != route_tree
+            or descriptor is None
+            or not isinstance(core.get("push_target"), str)
+            or not core["push_target"]
+        ):
+            continue
+        bundle_path, bundle_sha = descriptor
+        authorities.append(task["id"])
+        descriptors[(str(bundle_path), bundle_sha)] = {
+            "authority": task["id"],
+            "path": str(bundle_path),
+            "sha256": bundle_sha,
+        }
+        push_targets.add(core["push_target"])
+    if not authorities or not descriptors:
+        raise PublicationError("TRUSTED_ROUTE_SOURCE_NOT_ACCEPTED")
+    if len(push_targets) != 1:
+        raise PublicationError("TRUSTED_ROUTE_REMOTE_IDENTITY_AMBIGUOUS")
+
+    push_target = next(iter(push_targets))
+    query_target = _canonical_remote_query_target(push_target)
+    remote = _authority_remote_oid_target(query_target, "refs/heads/main")
+    if remote != route_head:
+        raise PublicationError("TRUSTED_ROUTE_NOT_CURRENT_REMOTE_MAIN")
+
+    _require_committed_worktree_bytes(
+        route_root, route_head, COMPLETION_BUNDLE_RELATIVE_FILES
+    )
+    ownership, _ownership_sha = _ownership_at_commit(route_root, route_head)
+    return {
+        "route_root": route_root,
+        "route_head": route_head,
+        "route_tree": route_tree,
+        "route_authority": sorted(authorities),
+        "completion_bundles": list(descriptors.values()),
+        "ownership": ownership,
+        "push_target": push_target,
+        "query_target": query_target,
+    }
+
+
+_BLOCKER_CONTROL_RUNNER = (
+    "import importlib.util,pathlib,sys;"
+    "bundle=pathlib.Path(sys.argv[1]).resolve();"
+    "role_root=pathlib.Path(sys.argv[2]).resolve();"
+    "control_root=pathlib.Path(sys.argv[3]).resolve();"
+    "argv=sys.argv[4:];"
+    "sys.path.insert(0,str(bundle));"
+    "spec=importlib.util.spec_from_file_location('octoport_blocker_control',bundle/'control.py');"
+    "module=importlib.util.module_from_spec(spec);"
+    "spec.loader.exec_module(module);"
+    "module.ROOT=role_root;"
+    "module.CONTROL=control_root;"
+    "sys.argv=[str(role_root/'tooling/coordination/control.py'),*argv];"
+    "raise SystemExit(module.main())"
+)
+
+
+def _run_canonical_blocker_resolution(
+    root: Path, completion_bundle: Path, completion_bundle_sha: str,
+    role_root: Path, role: str, task_id: str, successor_id: str, receipt: Path,
+) -> dict[str, Any]:
+    """Run the existing queue-resolve-blocker policy from immutable route code."""
+    root = root.resolve()
+    completion_bundle = completion_bundle.resolve()
+    _verify_completion_bundle(completion_bundle, completion_bundle_sha)
+    control_script = completion_bundle / "control.py"
+    if not control_script.is_file():
+        raise PublicationError("BLOCKER_RESOLUTION_CONTROL_SOURCE_INVALID")
+    env = sanitized_git_authority_env()
+    command = [
+        sys.executable, "-B", "-c", _BLOCKER_CONTROL_RUNNER,
+        str(completion_bundle), str(role_root.resolve()), str(root.resolve()),
+        role, "queue-resolve-blocker",
+        "--task", task_id,
+        "--successor", successor_id,
+        "--receipt", str(receipt.resolve()),
+    ]
+    try:
+        proc = subprocess.run(
+            command, cwd=str(role_root), env=env, text=True,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            timeout=30, check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        raise PublicationError("BLOCKER_RESOLUTION_ROLE_BOUNDARY_EXEC_FAILED") from None
+    if proc.returncode != 0:
+        detail = (proc.stdout.strip() or proc.stderr.strip())[-1000:]
+        raise PublicationError(f"BLOCKER_RESOLUTION_ROLE_BOUNDARY_BLOCKED:{detail}")
+    try:
+        result = json.loads(proc.stdout)
+    except (TypeError, ValueError):
+        raise PublicationError("BLOCKER_RESOLUTION_ROLE_BOUNDARY_RESULT_INVALID") from None
+    if not isinstance(result, dict):
+        raise PublicationError("BLOCKER_RESOLUTION_ROLE_BOUNDARY_RESULT_INVALID")
+    return result
+
+
+def _revalidate_trusted_route_remote_main(authority: dict[str, Any]) -> None:
+    """Refresh remote main outside repository-local Git configuration."""
+    remote = _authority_remote_oid_target(
+        authority["query_target"], "refs/heads/main"
+    )
+    if remote != authority["route_head"]:
+        raise PublicationError("TRUSTED_ROUTE_NOT_CURRENT_REMOTE_MAIN")
+
+
+def resolve_blocker_via_trusted_route(
+    root: Path, route_source_root: Path, task_id: str,
+    successor_id: str, receipt: str,
+) -> dict[str, Any]:
+    """Broker the existing blocker policy through accepted current-main route code."""
+    root = root.resolve()
+    authority = _trusted_current_main_route_authority(root, route_source_root)
+    board = _load_board(root)
+    task = _task_from_board(board, task_id)
+    role = task.get("role")
+    if role not in {"A", "B", "C"}:
+        raise PublicationError("BLOCKER_RESOLUTION_ROLE_INVALID")
+
+    completion_bundle, completion_bundle_sha = _select_execution_completion_bundle(
+        authority, Path(__file__), "task_publication.py"
+    )
+    role_location = _require_canonical_role_location(
+        authority["route_root"], role, authority["ownership"]
+    )
+    proof = Path(receipt).resolve()
+    _revalidate_trusted_route_remote_main(authority)
+    result = _run_canonical_blocker_resolution(
+        root, completion_bundle, completion_bundle_sha,
+        role_location, role, task_id, successor_id, proof,
+    )
+    return dict(
+        result,
+        route_source_head=authority["route_head"],
+        route_authority=authority["route_authority"],
+        role_location=str(role_location),
+        completion_bundle=str(completion_bundle),
+        completion_bundle_manifest_sha256=completion_bundle_sha,
+    )
+
+
 def _config_values(worktree: Path, key: str) -> dict[str, Any]:
     proc = subprocess.run(
         ["git", "-C", str(worktree), "config", "--worktree", "--get-all", key],
@@ -3133,6 +3376,12 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--summary", required=True)
     p.add_argument("--route-source-root", required=True)
 
+    p = sub.add_parser("resolve-blocker")
+    p.add_argument("--route-source-root", required=True)
+    p.add_argument("--task", required=True)
+    p.add_argument("--successor", required=True)
+    p.add_argument("--receipt", required=True)
+
     p = sub.add_parser("show")
     p.add_argument("--registration", required=True)
 
@@ -3177,6 +3426,11 @@ def main(argv: list[str] | None = None) -> int:
         _json_print(complete_queue_registration(
             root, args.registration, args.receipt, args.summary,
             Path(args.route_source_root),
+        ))
+    elif args.command == "resolve-blocker":
+        _json_print(resolve_blocker_via_trusted_route(
+            root, Path(args.route_source_root), args.task,
+            args.successor, args.receipt,
         ))
     elif args.command == "show":
         _json_print(_read_registration(root, args.registration)[0])

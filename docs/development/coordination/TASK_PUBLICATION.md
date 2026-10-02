@@ -126,6 +126,38 @@ Each subcommand has `--help` for its exact required arguments.
    mutation and does not bypass STOP, role ownership, role location, strict
    receipt validation or disk-lifecycle completion gates.
 
+12. Historical BLOCKED attempts are resolved without rewriting them as DONE by
+   invoking `resolve-blocker` from an accepted current-main completion bundle.
+   The broker accepts an exact current-main route checkout only when a strict
+   publication-backed DONE row binds that HEAD/tree to a CLOSED registration and
+   verified completion bundle. The accepted registration's immutable repository
+   identity supplies the only remote query target, and remote `main` must still
+   equal the route HEAD. Authority-critical checkout bytes and committed
+   `OWNERSHIP.json` are revalidated before the broker selects the bundle whose
+   `task_publication.py` is actually executing.
+
+   The broker does not implement blocker policy itself. Remote authority never
+   trusts the route checkout's mutable `.git/config`: the repository identity is
+   derived from the immutable accepted registration `push_target`, normalized to
+   a canonical read-only target (GitHub identity -> canonical HTTPS URL; disposable
+   local fixture -> exact resolved path), and queried by absolute `/usr/bin/git
+   ls-remote` from outside every repository with the minimal authority environment.
+   The same out-of-repository read is repeated immediately before starting the
+   shared-board writer and fails closed if the route HEAD is no longer current.
+   The remote cannot be locked across this boundary; the receipt records the
+   authorization-time observation rather than claiming a distributed atomic lock.
+
+   It then runs that immutable bundle's existing
+   `control.py ROLE queue-resolve-blocker` from the target
+   role's committed canonical cwd/branch, with only the sanitized authority
+   environment. The normal queue writer remains authoritative for target owner,
+   BLOCKED state, same-PLAN distinct successor, strict DONE successor receipt,
+   idempotency and STOP. The historical task stays BLOCKED; only evidence-bound
+   `blocker_resolution=RESOLVED` is recorded. Stale route source, remote-main
+   drift, hidden/mutable route bytes, wrong role location, STOPPED role, invalid
+   successor/receipt or non-BLOCKED target fail before a valid shared-board
+   mutation. This broker performs no Git push/ref/main or product/live mutation.
+
 ## Interruption and recovery
 A TASK_REF process that exits before any remote mutation settles back to REGISTERED with CANCELLED_REMOTE_UNCHANGED; the immutable transport binding is not edited in place. If that binding itself is wrong, create normal hash-bound supersede evidence with verdict FAIL or REWORK_REQUIRED and run supersede. The REGISTERED recovery path is allowed only with that exact settlement, no armed lease, and an absent task ref; it performs no remote deletion, records ALREADY_ABSENT, transitions through REVOKED, and uses ordinary close to restore route config. A present/foreign task ref or any other prior outcome fails closed. Re-register the unchanged reviewed candidate with the corrected immutable --pushurl only after the old registration is CLOSED.
 
