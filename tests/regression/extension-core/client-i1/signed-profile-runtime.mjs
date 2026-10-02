@@ -7,12 +7,21 @@ import { TextEncoder, TextDecoder } from "node:util";
 
 const runtime = path.resolve(process.argv[2]);
 const results = [];
-async function test(id, fn) { await fn(); results.push({ id, status: "PASS" }); }
-const clone = (v) => v == null ? v : structuredClone(v);
+async function test(id, fn) {
+  await fn();
+  results.push({ id, status: "PASS" });
+}
+const clone = (v) => (v == null ? v : structuredClone(v));
 
 function baseContent(
-  composerPrimary = { kind: "packaged_selector_reference", reference: "composer-root" },
-  conversationPrimary = { kind: "packaged_selector_reference", reference: "conversation-root" },
+  composerPrimary = {
+    kind: "packaged_selector_reference",
+    reference: "composer-root",
+  },
+  conversationPrimary = {
+    kind: "packaged_selector_reference",
+    reference: "conversation-root",
+  },
 ) {
   return {
     schemaVersion: "adapter_profile_v1",
@@ -22,17 +31,67 @@ function baseContent(
       composerStrategy: "composer_root",
     },
     selectors: {
-      conversation: { strategy: "conversation_root", primary: conversationPrimary, fallbacks: [], timeoutMs: 1000, observationMode: "polling" },
-      composer: { strategy: "composer_root", primary: composerPrimary, fallbacks: [], timeoutMs: 1000, observationMode: "polling" },
-      send: { strategy: "send_control", primary: { kind: "packaged_selector_reference", reference: "send-control" }, fallbacks: [], timeoutMs: 1000, observationMode: "polling" },
-      assistantResponse: { strategy: "assistant_response", primary: { kind: "packaged_selector_reference", reference: "assistant-response" }, fallbacks: [], timeoutMs: 1000, observationMode: "polling" },
+      conversation: {
+        strategy: "conversation_root",
+        primary: conversationPrimary,
+        fallbacks: [],
+        timeoutMs: 1000,
+        observationMode: "polling",
+      },
+      composer: {
+        strategy: "composer_root",
+        primary: composerPrimary,
+        fallbacks: [],
+        timeoutMs: 1000,
+        observationMode: "polling",
+      },
+      send: {
+        strategy: "send_control",
+        primary: {
+          kind: "packaged_selector_reference",
+          reference: "send-control",
+        },
+        fallbacks: [],
+        timeoutMs: 1000,
+        observationMode: "polling",
+      },
+      assistantResponse: {
+        strategy: "assistant_response",
+        primary: {
+          kind: "packaged_selector_reference",
+          reference: "assistant-response",
+        },
+        fallbacks: [],
+        timeoutMs: 1000,
+        observationMode: "polling",
+      },
     },
     observation: { mode: "polling", intervalMs: 100 },
     contours: [
-      { key: "page_identity", required: true, expectedState: "PRESENT", strategy: "page_identity" },
-      { key: "conversation_root", required: true, expectedState: "PRESENT", strategy: "conversation_root" },
-      { key: "composer_root", required: true, expectedState: "INTERACTIVE", strategy: "composer_root" },
-      { key: "send_control", required: true, expectedState: "INTERACTIVE", strategy: "send_control" },
+      {
+        key: "page_identity",
+        required: true,
+        expectedState: "PRESENT",
+        strategy: "page_identity",
+      },
+      {
+        key: "conversation_root",
+        required: true,
+        expectedState: "PRESENT",
+        strategy: "conversation_root",
+      },
+      {
+        key: "composer_root",
+        required: true,
+        expectedState: "INTERACTIVE",
+        strategy: "composer_root",
+      },
+      {
+        key: "send_control",
+        required: true,
+        expectedState: "INTERACTIVE",
+        strategy: "send_control",
+      },
     ],
   };
 }
@@ -44,12 +103,12 @@ const compatibility = {
   minimumExtensionVersion: null,
 };
 
-async function fixture() {
+async function fixture(options = {}) {
   const listeners = [];
   const sent = [];
   let work = false;
   let manual = false;
-  let scopeFamily = "chatgpt";
+  let scopeFamily = options.aiFamily || "chatgpt";
   let conversationRoot = null;
   let digestGate = null;
   let receiptGate = null;
@@ -96,7 +155,9 @@ async function fixture() {
       runtime: {
         lastError: null,
         onMessage: {
-          addListener(fn) { listeners.push(fn); },
+          addListener(fn) {
+            listeners.push(fn);
+          },
           removeListener(fn) {
             const i = listeners.indexOf(fn);
             if (i >= 0) listeners.splice(i, 1);
@@ -118,13 +179,18 @@ async function fixture() {
               receiptGate = null;
               gate.entered(message);
               void Promise.resolve(gate.release).then(() =>
-                callback(realmClone({ ok: true, accepted: true })));
+                callback(realmClone({ ok: true, accepted: true })),
+              );
               return;
             }
-            queueMicrotask(() => callback(realmClone({ ok: true, accepted: true })));
+            queueMicrotask(() =>
+              callback(realmClone({ ok: true, accepted: true })),
+            );
             return;
           }
-          throw new Error("unexpected runtime message " + JSON.stringify(message));
+          throw new Error(
+            "unexpected runtime message " + JSON.stringify(message),
+          );
         },
       },
     },
@@ -137,13 +203,28 @@ async function fixture() {
   };
   sandbox.globalThis = sandbox;
   const context = vm.createContext(sandbox);
-  const cloneInRealm = vm.runInContext("(value) => JSON.parse(JSON.stringify(value))", context);
+  const cloneInRealm = vm.runInContext(
+    "(value) => JSON.parse(JSON.stringify(value))",
+    context,
+  );
   realmClone = (value) => cloneInRealm(value);
-  vm.runInContext(fs.readFileSync(path.join(runtime, "shared/signed_ai_profile_consumer.js"), "utf8"), context);
+  vm.runInContext(
+    fs.readFileSync(
+      path.join(runtime, "shared/signed_ai_profile_consumer.js"),
+      "utf8",
+    ),
+    context,
+  );
   async function makeProfile(
     revision,
-    composerPrimary = { kind: "packaged_selector_reference", reference: "composer-root" },
-    conversationPrimary = { kind: "packaged_selector_reference", reference: "conversation-root" },
+    composerPrimary = {
+      kind: "packaged_selector_reference",
+      reference: "composer-root",
+    },
+    conversationPrimary = {
+      kind: "packaged_selector_reference",
+      reference: "conversation-root",
+    },
   ) {
     const profile = realmClone({
       profileKey: "fixture-profile",
@@ -154,11 +235,20 @@ async function fixture() {
       content: baseContent(composerPrimary, conversationPrimary),
       compatibility: clone(compatibility),
     });
-    profile.contentSha256 = await sandbox.SellerAgentsSignedAiProfileConsumer.profileFingerprint(profile);
+    profile.contentSha256 =
+      await sandbox.SellerAgentsSignedAiProfileConsumer.profileFingerprint(
+        profile,
+      );
     return profile;
   }
   state.profile = await makeProfile(1);
-  assert.equal(await sandbox.SellerAgentsSignedAiProfileConsumer.validMaterial(state.profile), true, JSON.stringify(state.profile));
+  assert.equal(
+    await sandbox.SellerAgentsSignedAiProfileConsumer.validMaterial(
+      state.profile,
+    ),
+    true,
+    JSON.stringify(state.profile),
+  );
   function responseFor(request) {
     if (state.unavailable) {
       return {
@@ -183,12 +273,18 @@ async function fixture() {
   function resolvePending(index, override = null) {
     const row = pending[index];
     if (!row) throw new Error("pending request missing");
-    queueMicrotask(() => row.callback(realmClone(override || responseFor(row.message))));
+    queueMicrotask(() =>
+      row.callback(realmClone(override || responseFor(row.message))),
+    );
   }
-  const runtimeSource = fs.readFileSync(path.join(runtime, "shared/signed_ai_profile_runtime.js"), "utf8");
+  const runtimeSource = fs.readFileSync(
+    path.join(runtime, "shared/signed_ai_profile_runtime.js"),
+    "utf8",
+  );
   vm.runInContext(runtimeSource, context);
   await new Promise((r) => setTimeout(r, 0));
-  const initial = await sandbox.SellerAgentsSignedProfileRuntime.refresh("fixture_ready");
+  const initial =
+    await sandbox.SellerAgentsSignedProfileRuntime.refresh("fixture_ready");
   assert.equal(initial?.ok, true, JSON.stringify(initial));
   assert.equal(initial?.status, "APPLIED", JSON.stringify(initial));
   return {
@@ -198,23 +294,39 @@ async function fixture() {
     state,
     makeProfile,
     runtime: sandbox.SellerAgentsSignedProfileRuntime,
-    setWork(value) { work = value; },
-    setManual(value) { manual = value; },
-    setScope(family) { scopeFamily = family; },
-    setConversationRoot(value) { conversationRoot = value; },
+    setWork(value) {
+      work = value;
+    },
+    setManual(value) {
+      manual = value;
+    },
+    setScope(family) {
+      scopeFamily = family;
+    },
+    setConversationRoot(value) {
+      conversationRoot = value;
+    },
     pauseNextDigest() {
       let enteredResolve;
       let releaseResolve;
-      const entered = new Promise((resolve) => { enteredResolve = resolve; });
-      const release = new Promise((resolve) => { releaseResolve = resolve; });
+      const entered = new Promise((resolve) => {
+        enteredResolve = resolve;
+      });
+      const release = new Promise((resolve) => {
+        releaseResolve = resolve;
+      });
       digestGate = { entered: enteredResolve, release };
       return { entered, release: releaseResolve };
     },
     pauseNextReceipt() {
       let enteredResolve;
       let releaseResolve;
-      const entered = new Promise((resolve) => { enteredResolve = resolve; });
-      const release = new Promise((resolve) => { releaseResolve = resolve; });
+      const entered = new Promise((resolve) => {
+        enteredResolve = resolve;
+      });
+      const release = new Promise((resolve) => {
+        releaseResolve = resolve;
+      });
       receiptGate = { entered: enteredResolve, release };
       return { entered, release: releaseResolve };
     },
@@ -333,7 +445,11 @@ await test("RUNTIME-03-invalid-profile-rejected-and-ensure-fence-fails-closed", 
     assert.equal(f.runtime.debugState().applied, null);
 
     assert.equal(
-      f.sent.some((message) => typeof message?.type === "string" && /WORK|SEND|EXECUTE|PROVIDER/.test(message.type)),
+      f.sent.some(
+        (message) =>
+          typeof message?.type === "string" &&
+          /WORK|SEND|EXECUTE|PROVIDER/.test(message.type),
+      ),
       false,
       "profile lifecycle must not replay or initiate irreversible work",
     );
@@ -341,7 +457,6 @@ await test("RUNTIME-03-invalid-profile-rejected-and-ensure-fence-fails-closed", 
     f.runtime.dispose();
   }
 });
-
 
 await test("RUNTIME-04-document-reload-does-not-carry-applied-profile", async () => {
   const f = await fixture();
@@ -373,8 +488,7 @@ await test("RUNTIME-04-document-reload-does-not-carry-applied-profile", async ()
   }
 });
 
-
-await test("RUNTIME-05-scope-change-stops-old-ChatGPT-profile-before-response", async () => {
+await test("RUNTIME-05-scope-change-stops-old-ChatGPT-profile-before-Alice-apply", async () => {
   const f = await fixture();
   try {
     f.state.profile = await f.makeProfile(2, {
@@ -382,7 +496,10 @@ await test("RUNTIME-05-scope-change-stops-old-ChatGPT-profile-before-response", 
       role: "status",
       reference: "composer-root",
     });
-    assert.equal((await f.runtime.refresh("chatgpt_role_profile")).status, "APPLIED");
+    assert.equal(
+      (await f.runtime.refresh("chatgpt_role_profile")).status,
+      "APPLIED",
+    );
     const baseline = { composer: {}, root: {}, form: {} };
     assert.equal(f.runtime.resolveComposerContext(null, baseline), null);
 
@@ -392,11 +509,12 @@ await test("RUNTIME-05-scope-change-stops-old-ChatGPT-profile-before-response", 
       baseline,
       "scope change must stop using old ChatGPT profile before Alice response arrives",
     );
-    f.state.unavailable = "PROFILE_UNSUPPORTED";
-    const cleared = await f.runtime.refresh("alice_scope_change");
-    assert.equal(cleared.status, "CLEARED");
-    assert.equal(cleared.reason, "PROFILE_UNSUPPORTED");
-    assert.equal(f.runtime.debugState().applied, null);
+    f.state.profile = await f.makeProfile(3);
+    const applied = await f.runtime.refresh("alice_scope_change");
+    assert.equal(applied.status, "APPLIED");
+    assert.equal(f.runtime.debugState().applied.scopeKey, "alice|web|");
+    assert.equal(f.runtime.debugState().applied.profile.revision, 3);
+    assert.equal(f.runtime.resolveComposerContext(null, baseline), baseline);
   } finally {
     f.runtime.dispose();
   }
@@ -411,7 +529,12 @@ await test("RUNTIME-06-newer-refresh-wins-while-old-fingerprint-validation-is-pa
     const oldRefresh = f.runtime.refresh("old_validation");
     await Promise.race([
       gate.entered,
-      new Promise((_, reject) => setTimeout(() => reject(new Error("old fingerprint validation not reached")), 5000)),
+      new Promise((_, reject) =>
+        setTimeout(
+          () => reject(new Error("old fingerprint validation not reached")),
+          5000,
+        ),
+      ),
     ]);
 
     f.state.profile = await f.makeProfile(3, {
@@ -434,7 +557,6 @@ await test("RUNTIME-06-newer-refresh-wins-while-old-fingerprint-validation-is-pa
   }
 });
 
-
 await test("RUNTIME-07-delayed-old-ensure-ack-cannot-clear-newer-bootstrap-profile", async () => {
   const f = await fixture();
   let gate;
@@ -453,12 +575,20 @@ await test("RUNTIME-07-delayed-old-ensure-ack-cannot-clear-newer-bootstrap-profi
     const oldEnsure = f.runtime.ensure(oldExpected);
     const oldReceipt = await Promise.race([
       gate.entered,
-      new Promise((_, reject) => setTimeout(() => reject(new Error("old APPLIED receipt not reached")), 5000)),
+      new Promise((_, reject) =>
+        setTimeout(
+          () => reject(new Error("old APPLIED receipt not reached")),
+          5000,
+        ),
+      ),
     ]);
     assert.equal(oldReceipt.status, "APPLIED");
     assert.equal(f.runtime.debugState().applied.profile.revision, 2);
 
-    f.state.authority = { authGeneration: 1, bootstrapSnapshotSha256: "b".repeat(64) };
+    f.state.authority = {
+      authGeneration: 1,
+      bootstrapSnapshotSha256: "b".repeat(64),
+    };
     f.state.profile = await f.makeProfile(3, {
       kind: "accessibility_role_name",
       role: "status",
@@ -467,7 +597,10 @@ await test("RUNTIME-07-delayed-old-ensure-ack-cannot-clear-newer-bootstrap-profi
     const newer = await f.runtime.refresh("newer_bootstrap_before_old_ack");
     assert.equal(newer.status, "APPLIED");
     assert.equal(f.runtime.debugState().applied.profile.revision, 3);
-    assert.equal(f.runtime.debugState().applied.authority.bootstrapSnapshotSha256, "b".repeat(64));
+    assert.equal(
+      f.runtime.debugState().applied.authority.bootstrapSnapshotSha256,
+      "b".repeat(64),
+    );
 
     gate.release();
     gate = null;
@@ -475,7 +608,10 @@ await test("RUNTIME-07-delayed-old-ensure-ack-cannot-clear-newer-bootstrap-profi
     assert.equal(stale.applied, false);
     assert.equal(stale.code, "STALE_REQUEST");
     assert.equal(f.runtime.debugState().applied.profile.revision, 3);
-    assert.equal(f.runtime.debugState().applied.authority.bootstrapSnapshotSha256, "b".repeat(64));
+    assert.equal(
+      f.runtime.debugState().applied.authority.bootstrapSnapshotSha256,
+      "b".repeat(64),
+    );
   } finally {
     gate?.release?.();
     f.runtime.dispose();
@@ -491,7 +627,12 @@ await test("RUNTIME-08-dispose-during-APPLIED-receipt-ack-cannot-resurrect-profi
     const oldRefresh = f.runtime.refresh("dispose_during_receipt");
     await Promise.race([
       gate.entered,
-      new Promise((_, reject) => setTimeout(() => reject(new Error("APPLIED receipt not reached before dispose")), 5000)),
+      new Promise((_, reject) =>
+        setTimeout(
+          () => reject(new Error("APPLIED receipt not reached before dispose")),
+          5000,
+        ),
+      ),
     ]);
     assert.equal(f.runtime.debugState().applied.profile.revision, 2);
     f.runtime.dispose();
@@ -517,11 +658,20 @@ await test("RUNTIME-09-revocation-during-old-APPLIED-ack-keeps-cleared-state", a
     const oldRefresh = f.runtime.refresh("old_profile_before_revoke");
     await Promise.race([
       gate.entered,
-      new Promise((_, reject) => setTimeout(() => reject(new Error("old APPLIED receipt not reached before revoke")), 5000)),
+      new Promise((_, reject) =>
+        setTimeout(
+          () =>
+            reject(new Error("old APPLIED receipt not reached before revoke")),
+          5000,
+        ),
+      ),
     ]);
     assert.equal(f.runtime.debugState().applied.profile.revision, 2);
 
-    f.state.authority = { authGeneration: 1, bootstrapSnapshotSha256: "c".repeat(64) };
+    f.state.authority = {
+      authGeneration: 1,
+      bootstrapSnapshotSha256: "c".repeat(64),
+    };
     f.state.unavailable = "WORK_NOT_ALLOWED";
     const revoked = await f.runtime.refresh("authority_revoked");
     assert.equal(revoked.status, "CLEARED");
@@ -538,15 +688,64 @@ await test("RUNTIME-09-revocation-during-old-APPLIED-ack-keeps-cleared-state", a
   }
 });
 
+await test("RUNTIME-10-Alice-same-generation-defer-rollback-clear", async () => {
+  const f = await fixture({ aiFamily: "alice" });
+  try {
+    assert.equal(f.runtime.debugState().applied.scopeKey, "alice|web|");
+    assert.equal(f.runtime.debugState().applied.profile.revision, 1);
 
-await test("RUNTIME-10-conversation-slot-scopes-packaged-message-region", async () => {
+    f.state.profile = await f.makeProfile(2, {
+      kind: "accessibility_role_name",
+      role: "status",
+      reference: "composer-root",
+    });
+    let update = await f.runtime.refresh("alice_same_generation_update");
+    assert.equal(update.status, "APPLIED");
+    assert.equal(f.runtime.debugState().applied.profile.revision, 2);
+
+    f.state.profile = await f.makeProfile(3);
+    f.setWork(true);
+    const deferred = await f.runtime.refresh("alice_active_work");
+    assert.equal(deferred.status, "DEFERRED");
+    assert.equal(f.runtime.debugState().applied.profile.revision, 2);
+    assert.equal(f.sent.at(-1).status, "DEFERRED");
+
+    f.setWork(false);
+    update = await f.runtime.refresh("alice_after_finish");
+    assert.equal(update.status, "APPLIED");
+    assert.equal(f.runtime.debugState().applied.profile.revision, 3);
+
+    f.state.profile = await f.makeProfile(1);
+    const rollback = await f.runtime.refresh("alice_verified_rollback");
+    assert.equal(rollback.status, "APPLIED");
+    assert.equal(f.runtime.debugState().applied.profile.revision, 1);
+
+    f.state.unavailable = "WORK_NOT_ALLOWED";
+    const cleared = await f.runtime.refresh("alice_revoked");
+    assert.equal(cleared.status, "CLEARED");
+    assert.equal(f.runtime.debugState().applied, null);
+    assert.equal(
+      f.sent.some(
+        (message) =>
+          typeof message?.type === "string" &&
+          /WORK|SEND|EXECUTE|PROVIDER/.test(message.type),
+      ),
+      false,
+      "Alice profile lifecycle must not initiate irreversible work",
+    );
+  } finally {
+    f.runtime.dispose();
+  }
+});
+
+await test("RUNTIME-11-conversation-slot-scopes-packaged-message-region", async () => {
   const f = await fixture();
   try {
     const root = new f.sandbox.Element();
     const inside = new f.sandbox.Element();
     const outside = new f.sandbox.Element();
     root.tagName = "MAIN";
-    root.getAttribute = (name) => name === "role" ? "main" : null;
+    root.getAttribute = (name) => (name === "role" ? "main" : null);
     root.contains = (node) => node === inside;
     f.setConversationRoot(root);
 
@@ -557,25 +756,33 @@ await test("RUNTIME-10-conversation-slot-scopes-packaged-message-region", async 
     assert.equal(users.length, 1);
     assert.equal(users[0], inside);
 
-    f.state.profile = await f.makeProfile(
-      10,
-      undefined,
-      { kind: "accessibility_role_name", role: "status", reference: "conversation-root" },
-    );
+    f.state.profile = await f.makeProfile(10, undefined, {
+      kind: "accessibility_role_name",
+      role: "status",
+      reference: "conversation-root",
+    });
     const changed = await f.runtime.refresh("conversation_role_change");
     assert.equal(changed.status, "APPLIED");
     assert.equal(f.runtime.resolveConversationRoot(), null);
-    assert.equal(f.runtime.resolveAssistantMessages(null, [inside, outside]).length, 0);
-    assert.equal(f.runtime.resolveUserMessages(null, [inside, outside]).length, 0);
+    assert.equal(
+      f.runtime.resolveAssistantMessages(null, [inside, outside]).length,
+      0,
+    );
+    assert.equal(
+      f.runtime.resolveUserMessages(null, [inside, outside]).length,
+      0,
+    );
   } finally {
     f.runtime.dispose();
   }
 });
 
-console.log(JSON.stringify({
-  status: "PASS",
-  scenarios: results.length,
-  results,
-  live_provider_calls: 0,
-  installed_acceptance: false,
-}));
+console.log(
+  JSON.stringify({
+    status: "PASS",
+    scenarios: results.length,
+    results,
+    live_provider_calls: 0,
+    installed_acceptance: false,
+  }),
+);

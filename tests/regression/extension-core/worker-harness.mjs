@@ -90,11 +90,17 @@ function fixtureBrowserIdentity(userAgent) {
   const firefox = match(/Firefox\/(\d+(?:\.\d+){0,3})/i);
   if (firefox) return { family: "firefox", version: firefox };
   if (/Edg(?:A|iOS)?\//i.test(ua)) return null;
-  const safari = /Safari\//i.test(ua) && !/(?:Chrome|Chromium|CriOS|HeadlessChrome|OPR|Opera|YaBrowser|FxiOS)\//i.test(ua)
-    ? match(/Version\/(\d+(?:\.\d+){0,3})/i)
-    : null;
+  const safari =
+    /Safari\//i.test(ua) &&
+    !/(?:Chrome|Chromium|CriOS|HeadlessChrome|OPR|Opera|YaBrowser|FxiOS)\//i.test(
+      ua,
+    )
+      ? match(/Version\/(\d+(?:\.\d+){0,3})/i)
+      : null;
   if (safari) return { family: "safari", version: safari };
-  const chrome = match(/(?:Chrome|Chromium|HeadlessChrome)\/(\d+(?:\.\d+){0,3})/i);
+  const chrome = match(
+    /(?:Chrome|Chromium|HeadlessChrome)\/(\d+(?:\.\d+){0,3})/i,
+  );
   if (chrome) return { family: "chrome", version: chrome };
   return null;
 }
@@ -146,7 +152,23 @@ export async function until(fn, description) {
 export async function makeWorker(directory, options = {}) {
   const fixtureUserAgent = options.userAgent || DEFAULT_FIXTURE_USER_AGENT;
   const fixtureBrowser = fixtureBrowserIdentity(fixtureUserAgent);
-  assert.ok(fixtureBrowser, "worker fixture requires an explicit supported browser user agent");
+  const fixtureAiFamily = options.aiFamily || "chatgpt";
+  assert.ok(
+    ["chatgpt", "alice"].includes(fixtureAiFamily),
+    "unsupported fixture AI family",
+  );
+  const fixtureAiOrigin =
+    fixtureAiFamily === "alice"
+      ? "https://alice.yandex.ru"
+      : "https://chatgpt.com";
+  const fixtureConversationId =
+    fixtureAiFamily === "alice"
+      ? "alice-fixture-dialogue"
+      : "core-fixture-dialogue";
+  assert.ok(
+    fixtureBrowser,
+    "worker fixture requires an explicit supported browser user agent",
+  );
   const network = [],
     controlNetwork = [],
     messages = [],
@@ -157,7 +179,10 @@ export async function makeWorker(directory, options = {}) {
     alarmEntries = new Map(),
     timers = new Set();
   const backing = options.backing || { local: {}, session: {} };
-  const timerScale = Number.isFinite(options.timerScale) && options.timerScale > 0 ? options.timerScale : 1;
+  const timerScale =
+    Number.isFinite(options.timerScale) && options.timerScale > 0
+      ? options.timerScale
+      : 1;
   const wallClock = () =>
     typeof options.wallClock === "function"
       ? options.wallClock()
@@ -370,7 +395,7 @@ export async function makeWorker(directory, options = {}) {
       features: {},
       ai: {
         status: "RESOLVED",
-        detected: { family: "chatgpt", surface: "web", variant: null },
+        detected: { family: fixtureAiFamily, surface: "web", variant: null },
         profile: {
           profileKey: "fixture-profile",
           revision: 1,
@@ -412,7 +437,7 @@ export async function makeWorker(directory, options = {}) {
       contractVersion: fixtureConfig.contractVersion,
       extensionVersion: fixtureConfig.extensionVersion,
       browser: { ...fixtureBrowser },
-      detectedAi: { family: "chatgpt", surface: "web", variant: null },
+      detectedAi: { family: fixtureAiFamily, surface: "web", variant: null },
       trustBundleSha256,
     };
     const cacheClock = {
@@ -443,7 +468,7 @@ export async function makeWorker(directory, options = {}) {
       authority: {
         verified: true,
         workAllowed: true,
-        requestedAi: "chatgpt",
+        requestedAi: fixtureAiFamily,
         generation: 1,
         payload,
         envelope: {
@@ -465,9 +490,9 @@ export async function makeWorker(directory, options = {}) {
     request,
     promptOutcome = options.promptOutcome ?? "sent";
   const identity = {
-    origin: "https://chatgpt.com",
-    ai_id: "chatgpt",
-    conversation_id: "core-fixture-dialogue",
+    origin: fixtureAiOrigin,
+    ai_id: fixtureAiFamily,
+    conversation_id: fixtureConversationId,
     status: "confirmed",
   };
   const tabId = 77;
@@ -544,7 +569,12 @@ export async function makeWorker(directory, options = {}) {
       async get(id) {
         return tabs.get(id) || null;
       },
-      async query() {
+      async query(queryInfo) {
+        if (typeof options.tabsQuery === "function") {
+          return structuredClone(
+            await options.tabsQuery(structuredClone(queryInfo)),
+          );
+        }
         return [];
       },
       async reload() {},
@@ -552,9 +582,10 @@ export async function makeWorker(directory, options = {}) {
       sendMessage(id, message, callback) {
         messages.push(structuredClone(message));
         if (message.type === "OZ_SIGNED_AI_PROFILE_ENSURE") {
-          const configured = typeof options.profileEnsureResponse === "function"
-            ? options.profileEnsureResponse(structuredClone(message), id)
-            : options.profileEnsureResponse;
+          const configured =
+            typeof options.profileEnsureResponse === "function"
+              ? options.profileEnsureResponse(structuredClone(message), id)
+              : options.profileEnsureResponse;
           const response = configured || {
             ok: true,
             applied: true,
@@ -616,12 +647,18 @@ export async function makeWorker(directory, options = {}) {
       },
     },
     alarms: {
-      create(name, details) { alarmEntries.set(name, details); },
+      create(name, details) {
+        alarmEntries.set(name, details);
+      },
       async clear(name) {
         alarmEntries.delete(name);
         return true;
       },
-      onAlarm: { addListener(fn) { alarmListeners.push(fn); } },
+      onAlarm: {
+        addListener(fn) {
+          alarmListeners.push(fn);
+        },
+      },
     },
     downloads: {
       async download() {
@@ -632,31 +669,32 @@ export async function makeWorker(directory, options = {}) {
   const sandbox = {
     console,
     chrome,
-    crypto: options.beforeCryptoVerify || options.beforeCryptoDigest
-      ? {
-          ...webcrypto,
-          randomUUID: webcrypto.randomUUID.bind(webcrypto),
-          getRandomValues: webcrypto.getRandomValues.bind(webcrypto),
-          subtle: new Proxy(webcrypto.subtle, {
-            get(target, property) {
-              const method = Reflect.get(target, property, target);
-              if (property === "verify" && options.beforeCryptoVerify)
-                return (...args) =>
-                  Promise.resolve(options.beforeCryptoVerify(...args)).then(
-                    () => Reflect.apply(method, target, args),
-                  );
-              if (property === "digest" && options.beforeCryptoDigest)
-                return (...args) =>
-                  Promise.resolve(options.beforeCryptoDigest(...args)).then(
-                    () => Reflect.apply(method, target, args),
-                  );
-              return typeof method === "function"
-                ? method.bind(target)
-                : method;
-            },
-          }),
-        }
-      : webcrypto,
+    crypto:
+      options.beforeCryptoVerify || options.beforeCryptoDigest
+        ? {
+            ...webcrypto,
+            randomUUID: webcrypto.randomUUID.bind(webcrypto),
+            getRandomValues: webcrypto.getRandomValues.bind(webcrypto),
+            subtle: new Proxy(webcrypto.subtle, {
+              get(target, property) {
+                const method = Reflect.get(target, property, target);
+                if (property === "verify" && options.beforeCryptoVerify)
+                  return (...args) =>
+                    Promise.resolve(options.beforeCryptoVerify(...args)).then(
+                      () => Reflect.apply(method, target, args),
+                    );
+                if (property === "digest" && options.beforeCryptoDigest)
+                  return (...args) =>
+                    Promise.resolve(options.beforeCryptoDigest(...args)).then(
+                      () => Reflect.apply(method, target, args),
+                    );
+                return typeof method === "function"
+                  ? method.bind(target)
+                  : method;
+              },
+            }),
+          }
+        : webcrypto,
     TextEncoder,
     TextDecoder,
     URL,
@@ -667,7 +705,9 @@ export async function makeWorker(directory, options = {}) {
     AbortController,
     Blob,
     navigator: { userAgent: fixtureUserAgent },
-    ...(options.firefoxPermissions ? { browser: { permissions: options.firefoxPermissions } } : {}),
+    ...(options.firefoxPermissions
+      ? { browser: { permissions: options.firefoxPermissions } }
+      : {}),
     performance: { now: monotonicClock },
     indexedDB: fixtureIndexedDB(backing, options),
     __SELLER_AGENTS_PACKAGED_CONFIG__: JSON.stringify(fixtureConfig),
@@ -951,7 +991,11 @@ export async function makeWorker(directory, options = {}) {
       tab.url = identity.origin + "/c/" + id;
     },
     async fireAlarm(name) {
-      for (const listener of alarmListeners) listener({ name, scheduledTime: alarmEntries.get(name)?.when || Date.now() });
+      for (const listener of alarmListeners)
+        listener({
+          name,
+          scheduledTime: alarmEntries.get(name)?.when || Date.now(),
+        });
       await new Promise((resolve) => setTimeout(resolve, 0));
     },
     portRequest(message) {
@@ -985,7 +1029,9 @@ export async function makeWorker(directory, options = {}) {
         runtime: listeners.length,
       };
     },
-    pendingTimerCount() { return timers.size; },
+    pendingTimerCount() {
+      return timers.size;
+    },
     call,
     async settings() {
       const response = await request(

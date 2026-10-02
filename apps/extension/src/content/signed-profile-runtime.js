@@ -191,13 +191,6 @@
       if (!receipt?.ok || receipt.accepted !== true) return { ok: false, code: receipt?.code || "STALE_REQUEST" };
       return { ok: true, status: "CLEARED", reason: response.reason };
     }
-    if (ai.family !== "chatgpt") {
-      if (applied && applied.scopeKey === token.scopeKey) clearApplied();
-      const receipt = await sendReceipt(request, { status: "REJECTED", reason: "AI_SCOPE_MISMATCH" });
-      if (!tokenCurrent(token)) return { ok: false, code: "STALE_REQUEST" };
-      if (pending === token) pending = null;
-      return { ok: false, code: receipt?.code || "AI_SCOPE_MISMATCH" };
-    }
     if (workInFlight()) {
       const receipt = await sendReceipt(request, {
         status: "DEFERRED",

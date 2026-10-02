@@ -864,7 +864,14 @@ async function saGuard(owner) {
   await guard.assertCurrent();
   return Object.freeze({ ...guard, async assertDispatchAuthority() { return saEvaluateDispatchAuthority(owner); }, async settings() { await guard.assertCurrent(); return settings; } });
 }
-const SA_SIGNED_PROFILE_ORIGINS = new Set(["https://chatgpt.com", "https://chat.openai.com"]);
+const SA_SIGNED_PROFILE_ORIGINS = Object.freeze({
+  chatgpt: Object.freeze(["https://chatgpt.com", "https://chat.openai.com"]),
+  alice: Object.freeze(["https://alice.yandex.ru"])
+});
+function saSignedProfileOriginAllowed(family, origin) {
+  const allowed = SA_SIGNED_PROFILE_ORIGINS[family];
+  return Array.isArray(allowed) && allowed.includes(origin);
+}
 function saProfileClone(value) { return value == null ? value : JSON.parse(JSON.stringify(value)); }
 function saSignedProfileUnavailable(request, reason) {
   return {
@@ -876,13 +883,14 @@ function saSignedProfileUnavailable(request, reason) {
     reason
   };
 }
-function saSignedProfileSender(sender) {
+function saSignedProfileSender(sender, family) {
   if (sender?.id !== chrome.runtime.id || sender?.frameId !== 0 || !Number.isSafeInteger(sender?.tab?.id)) return null;
   if (typeof sender.documentId !== "string" || !/^[A-Za-z0-9._:-]{1,256}$/.test(sender.documentId)) return null;
   try {
     const url = new URL(sender.url || sender.tab.url || "");
-    if (!SA_SIGNED_PROFILE_ORIGINS.has(url.origin.toLowerCase())) return null;
-    return { tabId: Number(sender.tab.id), documentId: sender.documentId, origin: url.origin.toLowerCase() };
+    const origin = url.origin.toLowerCase();
+    if (!saSignedProfileOriginAllowed(family, origin)) return null;
+    return { tabId: Number(sender.tab.id), documentId: sender.documentId, origin };
   } catch (_) { return null; }
 }
 function saSignedProfileIdentity(profile) {
@@ -931,14 +939,13 @@ async function saSignedProfileSnapshotStillCurrent(captured) {
 async function saSignedProfileRequest(message, sender) {
   const consumer = globalThis.SellerAgentsSignedAiProfileConsumer;
   if (!consumer?.validRequest?.(message)) throw saError("SIGNED_PROFILE_REQUEST_INVALID");
-  const trusted = saSignedProfileSender(sender);
+  const trusted = saSignedProfileSender(sender, message.ai.family);
   if (!trusted) throw saError("SIGNED_PROFILE_SENDER_UNTRUSTED");
-  if (message.ai.family !== "chatgpt") return saSignedProfileUnavailable(message, "PROFILE_UNSUPPORTED");
 
   let identity;
   try { identity = await tabIdentity(trusted.tabId); }
   catch (_) { return saSignedProfileUnavailable(message, "AI_SCOPE_MISMATCH"); }
-  if (identity?.ai_id !== "chatgpt" || String(identity.origin || "").toLowerCase() !== trusted.origin)
+  if (identity?.ai_id !== message.ai.family || String(identity.origin || "").toLowerCase() !== trusted.origin)
     return saSignedProfileUnavailable(message, "AI_SCOPE_MISMATCH");
 
   const captured = await saSignedProfileSnapshot().catch(() => null);
@@ -950,9 +957,9 @@ async function saSignedProfileRequest(message, sender) {
   const profile = payload?.ai?.profile;
   if (payload?.ai?.status !== "RESOLVED" || !detected || !profile)
     return saSignedProfileUnavailable(message, "NO_VERIFIED_AUTHORITY");
-  if (captured.authority?.requestedAi !== "chatgpt" ||
-      detected.family !== "chatgpt" || detected.surface !== "web" || detected.variant !== null ||
-      message.ai.family !== detected.family || message.ai.surface !== detected.surface || message.ai.variant !== detected.variant)
+  if (captured.authority?.requestedAi !== message.ai.family ||
+      detected.family !== message.ai.family || detected.surface !== "web" || detected.variant !== null ||
+      message.ai.surface !== detected.surface || message.ai.variant !== detected.variant)
     return saSignedProfileUnavailable(message, "AI_SCOPE_MISMATCH");
   if (!await consumer.validMaterial(profile)) return saSignedProfileUnavailable(message, "PROFILE_UNSUPPORTED");
   if (!await saSignedProfileSnapshotStillCurrent(captured))
@@ -978,7 +985,7 @@ async function saSignedProfileRequest(message, sender) {
 async function saSignedProfileReceipt(message, sender) {
   const consumer = globalThis.SellerAgentsSignedAiProfileConsumer;
   if (!consumer?.validReceipt?.(message)) throw saError("SIGNED_PROFILE_RECEIPT_INVALID");
-  const trusted = saSignedProfileSender(sender);
+  const trusted = saSignedProfileSender(sender, message.ai.family);
   if (!trusted) throw saError("SIGNED_PROFILE_SENDER_UNTRUSTED");
   let identity;
   try { identity = await tabIdentity(trusted.tabId); }
@@ -1029,13 +1036,16 @@ async function saSignedProfileReceipt(message, sender) {
 }
 async function saBroadcastSignedProfileRefresh(reason = "authority_changed") {
   const boundedReason = reason === "profile_changed" ? "profile_changed" : "authority_changed";
-  const tabs = await chrome.tabs.query({ url: ["https://chatgpt.com/*", "https://chat.openai.com/*"] }).catch(() => []);
+  const tabs = await chrome.tabs.query({
+    url: ["https://chatgpt.com/*", "https://chat.openai.com/*", "https://alice.yandex.ru/*"]
+  }).catch(() => []);
   await Promise.allSettled(tabs.filter(tab => Number.isSafeInteger(tab?.id))
     .map(tab => tabMessage(tab.id, { type: "OZ_SIGNED_AI_PROFILE_REFRESH", reason: boundedReason })));
 }
 
 async function saEnsureTabSignedProfile(tabId, fence) {
-  if (fence?.aiId !== "chatgpt") return true;
+  if (!Object.hasOwn(SA_SIGNED_PROFILE_ORIGINS, fence?.aiId))
+    throw saAdmissionError("SIGNED_PROFILE_NOT_APPLIED");
   const expected = {
     authority: {
       authGeneration: fence.generation,

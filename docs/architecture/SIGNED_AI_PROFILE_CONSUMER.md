@@ -140,3 +140,35 @@ Supervised job e098f93f72184ec6b3b8c61dcb910e71 exited0, peak869 MiB,
 cleanup verified. This follow-up is required together with62da3d71 before A
 implements activation. Alice may return PROFILE_UNSUPPORTED until separately
 accepted; ChatGPT is the first behaviorally tested consumer boundary.
+
+## Alice behavioral acceptance follow-up — 2026-10-01
+
+The earlier 2026-09-28 acceptance intentionally returned `PROFILE_UNSUPPORTED`
+for Alice until a separate behavioral acceptance. That source/package hold is
+now superseded by `A04-ALICE-SIGNED-PROFILE-CONSUMER`.
+
+The contract and signed material remain unchanged. The extension worker now
+applies the existing `signed_ai_profile_consumer_v1` boundary to both packaged
+web adapters:
+
+- `chatgpt` accepts only `https://chatgpt.com` and `https://chat.openai.com`;
+- `alice` accepts only `https://alice.yandex.ru`;
+- sender extension/frame/document identity remains browser-provided and
+  fail-closed;
+- requested AI, detected AI, tab identity, response scope and receipt scope
+  must still match exactly;
+- authority/profile refresh is broadcast only to the packaged ChatGPT/Alice
+  web origins;
+- irreversible Work Start/Resume requires the same exact applied signed-profile
+  fence for both families. An unknown future family cannot silently bypass the
+  fence.
+
+The content runtime likewise applies, defers, rolls back and clears a verified
+Alice profile through the same request/receipt lifecycle as ChatGPT. Signed
+profiles still choose only packaged symbolic behavior; Alice DOM/composer/send/
+attachment implementation remains the existing packaged Alice adapter.
+
+This follow-up does **not** publish an Alice profile revision or assignment,
+change server schemas/catalogs, or establish installed/LIVE_OWNER Alice
+behavior. Source/extracted-package behavior is accepted separately from those
+later gates.
