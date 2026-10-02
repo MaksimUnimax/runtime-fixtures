@@ -46,12 +46,36 @@ Each subcommand has `--help` for its exact required arguments.
    captured real gate result, never a hand-written success assertion.
 7. `publish-main` requires the fresh ready receipt and unchanged remote main.
    Successful readback records PUBLISHED. This does not prove installation.
-8. `cleanup-ref` deletes only this registration's exact candidate ref. An absent
-   ref is recorded; a foreign ref is retained. Cleanup failure does not revoke
-   an already verified main publication.
-9. `close` restores the exact prior route-owned worktree configuration, preserving
+8. If exact CI/review rejects a candidate after `TASK_REF_PUBLISHED`, or a
+   reviewed successor supersedes it, use `supersede` with a hash-bound control
+   evidence receipt. The receipt binds registration, task, candidate commit/tree
+   and exact task-ref plus supporting evidence; `SUPERSEDED` also binds a distinct
+   successor SHA. The command accepts no armed lease and **never writes `main`**.
+   It deletes the task-ref only when the remote ref still equals the registered
+   candidate, through one direct `git send-pack` deletion using the immutable captured
+   push target and `--force-with-lease=<exact-ref>:<registered-candidate>`. This low-level
+   transport does not resolve the target through Git `url.*.insteadOf/pushInsteadOf`
+   rewriting. System/global/runtime Git config injection is stripped, the SSH command is
+   pinned to the normal `ssh` binary while retaining the user's SSH host/key config, and
+   preflight plus settlement classify only exact/absent/foreign remote state through
+   `send-pack --dry-run --helper-status` CAS probes. The independently accepted route
+   bundle hook is invoked explicitly and must consume the same immutable lease before
+   the real send-pack child starts. Therefore no persistent Git config lock is needed,
+   and a parent crash cannot leave one that later recovery would have to guess about.
+   Unknown/live child identity remains fail-closed before any recovery remote probe. An
+   already absent ref is recorded; a foreign ref is retained. A
+   later reviewed successor may have changed the live task fingerprint:
+   that drift is not cleanup authority and grants no broader ref/config mutation.
+   Immutable registration/source/review identities remain required.
+9. `cleanup-ref` deletes only this registration's exact candidate ref after a
+   verified `PUBLISHED` main result. An absent ref is recorded; a foreign ref is
+   retained. Cleanup failure does not revoke an already verified main publication.
+10. `close` restores the exact prior route-owned worktree configuration, preserving
    absent versus empty values, ordered multi-values, and unrelated settings.
-   Same-key drift requires reconciliation. Registration history is retained.
+   `supersede` reaches this same close path after the stale ref is retired. Same-key,
+   common/global or fixed-role config drift fails closed and is never overwritten;
+   a successfully deleted stale ref may therefore remain `REVOKED` until config
+   reconciliation permits `close`. Registration/state/evidence history is retained.
 
 ## Interruption and recovery
 
@@ -75,6 +99,14 @@ remote again immediately before updating registration state. It never replaces
 the settlement with a later, more convenient remote result. Drift blocks the
 state change. Registration versions also have immutable predecessor snapshots.
 
+`supersede` uses the same lease/attempt/settlement machinery and CAS deletion,
+but its execution bundle is the current hash-verified route source rather than
+the stale candidate's historical bundle. The immutable registration still binds
+the candidate/ref/push target. Supersede evidence and the current bundle hash are
+also bound into the lease. An unknown process identity, cancelled delete or
+post-settlement remote drift cannot become a false successful revocation; retry
+starts from the preserved registration/evidence and re-reads the exact ref.
+
 Not every interrupted administrative write is automatically repairable. A
 partial initial config installation, missing settlement checksum, or conflicting
 state snapshot fails closed and needs evidence-based reconciliation. Do not
@@ -90,4 +122,6 @@ queue. Run through the normal resource runner on Linux with observable child
 process identities. The suite covers the actual hook and publication cycle,
 source and manifest identity, exact-five CI, STOP and scope fencing, cancellation
 versus consumption, immutable settlement recovery, configuration restoration,
-and absent/foreign-ref cleanup. Product installation has its own acceptance.
+normal published cleanup, and failed/superseded task-ref retirement with changed
+task fingerprints, absent/foreign refs, config drift, armed leases, evidence
+identity and idempotency. Product installation has its own acceptance.

@@ -142,6 +142,35 @@ class PublicationTests(unittest.TestCase):
         path.write_text(json.dumps(value))
         return path, value
 
+    def supersede_evidence(self, reg, verdict="SUPERSEDED", successor=None):
+        support = self.control / "logs/supersede-support.json"
+        support.write_text(json.dumps({
+            "kind": "fixture-ci-or-successor-evidence",
+            "candidate_sha": reg["core"]["candidate_head"],
+            "verdict": verdict,
+        }))
+        value = route.make_supersede_evidence(
+            reg,
+            verdict,
+            "Exact fixture candidate failed review/CI or was replaced by a reviewed successor.",
+            [{"path": str(support), "sha256": route._sha_file(support)}],
+            successor or ("a" * 40 if verdict == "SUPERSEDED" else None),
+        )
+        path = self.control / "logs/supersede.json"
+        path.write_text(json.dumps(value))
+        return path, value, support
+
+    def supersede(self, reg, evidence_path):
+        return route.supersede_registration(
+            self.control,
+            reg["registration_id"],
+            str(evidence_path),
+            route._sha_file(evidence_path),
+            self.source,
+            self.base,
+            route._tree(self.source),
+        )
+
     def test_real_git_hook_task_main_cleanup_close(self):
         reg = self.register()
         self.assertEqual(reg["core"]["full_diff_sha256"], route._full_diff_sha(self.work, self.base, self.head))
@@ -542,6 +571,252 @@ class PublicationTests(unittest.TestCase):
         self.git(self.source, "--git-dir", str(self.remote), "update-ref", "-d", ref)
         reg = route._push_operation(self.control, reg["registration_id"], "CLEANUP_TASK_REF")
         self.assertEqual(reg["task_ref_cleanup_status"], "ALREADY_ABSENT")
+
+    def test_supersede_exact_ref_ignores_successor_task_fingerprint_and_is_idempotent(self):
+        reg = self.register()
+        reg = route._push_operation(self.control, reg["registration_id"], "TASK_REF")
+        evidence_path, value, support = self.supersede_evidence(reg)
+        old_state = route._root_dir(self.control) / "states" / reg["registration_id"] / f"{reg['state_version']}.json"
+        old_state_bytes = old_state.read_bytes()
+        old_settlement = Path(reg["last_settlement"])
+        old_settlement_bytes = old_settlement.read_bytes()
+        main_before = route._remote_oid(self.work, "origin", "refs/heads/main")
+        self.task["result"] = "reviewed successor changed the live task fingerprint"
+        self.save_board()
+        result = self.supersede(reg, evidence_path)
+        self.assertEqual(result["state"], "CLOSED")
+        self.assertEqual(result["task_ref_cleanup_status"], "DELETED")
+        self.assertEqual(route._remote_oid_target(self.work, reg["core"]["push_target"], reg["core"]["task_ref"]), route.ZERO_OID)
+        self.assertEqual(route._remote_oid(self.work, "origin", "refs/heads/main"), main_before)
+        self.assertEqual(result["supersede_evidence"]["sha256"], route._sha_file(evidence_path))
+        self.assertEqual(old_state.read_bytes(), old_state_bytes)
+        self.assertEqual(old_settlement.read_bytes(), old_settlement_bytes)
+        before = route._registration_path(self.control, reg["registration_id"]).read_bytes()
+        self.assertEqual(self.supersede(result, evidence_path)["state"], "CLOSED")
+        self.assertEqual(route._registration_path(self.control, reg["registration_id"]).read_bytes(), before)
+
+    def test_supersede_absent_or_foreign_ref_records_truth_without_replacing_ref(self):
+        for disposition in ["absent", "foreign"]:
+            with self.subTest(disposition=disposition):
+                reg = self.register()
+                reg = route._push_operation(self.control, reg["registration_id"], "TASK_REF")
+                evidence_path, _, _ = self.supersede_evidence(reg)
+                ref = reg["core"]["task_ref"]
+                if disposition == "absent":
+                    self.set_remote(ref, route.ZERO_OID)
+                else:
+                    # The base object already exists in the disposable bare remote
+                    # from setUp. Inject only the foreign ref state; do not try to
+                    # publish it through the guarded candidate hook under test.
+                    self.git(self.source, "--git-dir", str(self.remote), "update-ref", ref, self.base)
+                result = self.supersede(reg, evidence_path)
+                self.assertEqual(result["state"], "CLOSED")
+                expected = "ALREADY_ABSENT" if disposition == "absent" else "FOREIGN_RETAINED"
+                self.assertEqual(result["task_ref_cleanup_status"], expected)
+                self.assertEqual(
+                    route._remote_oid_target(self.work, reg["core"]["push_target"], ref),
+                    route.ZERO_OID if disposition == "absent" else self.base,
+                )
+                self.assertEqual(route._remote_oid(self.work, "origin", "refs/heads/main"), self.base)
+
+    def test_supersede_deletes_exact_ref_but_close_preserves_route_config_drift(self):
+        reg = self.register()
+        reg = route._push_operation(self.control, reg["registration_id"], "TASK_REF")
+        evidence_path, _, _ = self.supersede_evidence(reg)
+        self.git(self.work, "config", "--worktree", "core.hooksPath", "changed-by-successor")
+        with self.assertRaisesRegex(RuntimeError, "SAME_KEY_DRIFT"):
+            self.supersede(reg, evidence_path)
+        current, _ = route._read_registration(self.control, reg["registration_id"])
+        self.assertEqual(current["state"], "REVOKED")
+        self.assertEqual(current["task_ref_cleanup_status"], "DELETED")
+        self.assertEqual(route._remote_oid_target(self.work, reg["core"]["push_target"], reg["core"]["task_ref"]), route.ZERO_OID)
+        self.assertEqual(route._config_values(self.work, "core.hooksPath")["values"], ["changed-by-successor"])
+        route._set_config_values(self.work, "core.hooksPath", reg["installed_config"]["core.hooksPath"])
+        self.assertEqual(route.close_registration(self.control, reg["registration_id"])["state"], "CLOSED")
+
+    def test_supersede_ignores_local_url_rewrite_for_transport_then_close_blocks_on_drift(self):
+        reg = self.register()
+        reg = route._push_operation(self.control, reg["registration_id"], "TASK_REF")
+        evidence_path, _, _ = self.supersede_evidence(reg)
+        foreign = self.root / "foreign.git"
+        self.git(self.source, "init", "--bare", str(foreign))
+        self.git(self.source, "push", str(foreign), f"{self.head}:{reg['core']['task_ref']}")
+        main_before = route._remote_oid(self.work, "origin", "refs/heads/main")
+        self.git(
+            self.work, "config", f"url.{foreign}.pushInsteadOf", str(self.remote)
+        )
+        # Direct send-pack uses the immutable captured target and therefore deletes
+        # only the original stale task ref. Ordinary close remains fail-closed on
+        # the changed common config and leaves the registration REVOKED.
+        with self.assertRaisesRegex(RuntimeError, "COMMON_CONFIG_DRIFT"):
+            self.supersede(reg, evidence_path)
+        original = subprocess.run(
+            ["git", "--git-dir", str(self.remote), "rev-parse", "--verify", reg["core"]["task_ref"]],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+        )
+        self.assertNotEqual(original.returncode, 0)
+        self.assertEqual(
+            self.git(self.source, "--git-dir", str(foreign), "rev-parse", reg["core"]["task_ref"]),
+            self.head,
+        )
+        self.assertEqual(
+            self.git(self.source, "--git-dir", str(self.remote), "rev-parse", "refs/heads/main"),
+            main_before,
+        )
+        current, _ = route._read_registration(self.control, reg["registration_id"])
+        self.assertEqual(current["state"], "REVOKED")
+        self.assertEqual(current["task_ref_cleanup_status"], "DELETED")
+
+    def test_direct_send_pack_ignores_local_insteadof_rewrite(self):
+        reg = self.register()
+        reg = route._push_operation(self.control, reg["registration_id"], "TASK_REF")
+        ref = reg["core"]["task_ref"]
+        target = reg["core"]["push_target"]
+        foreign = self.root / "foreign-insteadof.git"
+        self.git(self.source, "init", "--bare", str(foreign))
+        main_before = self.git(
+            self.source, "--git-dir", str(self.remote), "rev-parse", "refs/heads/main"
+        )
+        self.git(self.work, "config", f"url.{foreign}.insteadOf", str(self.remote))
+        proc = subprocess.run(
+            [
+                "git", "-C", str(self.work), "-c", "core.sshCommand=ssh", "send-pack",
+                "--helper-status", f"--force-with-lease={ref}:{self.head}", target, f":{ref}",
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            env=route._supersede_transport_env(),
+        )
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        original = subprocess.run(
+            ["git", "--git-dir", str(self.remote), "rev-parse", "--verify", ref],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+        )
+        redirected = subprocess.run(
+            ["git", "--git-dir", str(foreign), "rev-parse", "--verify", ref],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+        )
+        self.assertNotEqual(original.returncode, 0)
+        self.assertNotEqual(redirected.returncode, 0)
+        self.assertEqual(
+            self.git(self.source, "--git-dir", str(self.remote), "rev-parse", "refs/heads/main"),
+            main_before,
+        )
+
+    def test_supersede_transport_ignores_new_global_pushinstead_and_preserves_foreign(self):
+        reg = self.register()
+        reg = route._push_operation(self.control, reg["registration_id"], "TASK_REF")
+        evidence_path, _, _ = self.supersede_evidence(reg)
+        foreign = self.root / "global-foreign.git"
+        self.git(self.source, "init", "--bare", str(foreign))
+        self.git(self.source, "push", str(foreign), f"{self.head}:{reg['core']['task_ref']}")
+        global_config = Path(os.environ["GIT_CONFIG_GLOBAL"])
+        subprocess.check_call([
+            "git", "config", "--file", str(global_config),
+            f"url.{foreign}.pushInsteadOf", str(self.remote),
+        ])
+        # The supersede transport deliberately ignores changed global Git config,
+        # so deletion reaches the immutable captured target.  Ordinary close then
+        # refuses to restore route config because the global config digest drifted.
+        with self.assertRaisesRegex(RuntimeError, "GLOBAL_CONFIG_DRIFT"):
+            self.supersede(reg, evidence_path)
+        original = subprocess.run(
+            ["git", "--git-dir", str(self.remote), "rev-parse", "--verify", reg["core"]["task_ref"]],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+        )
+        self.assertNotEqual(original.returncode, 0)
+        self.assertEqual(
+            self.git(self.source, "--git-dir", str(foreign), "rev-parse", reg["core"]["task_ref"]),
+            self.head,
+        )
+        current, _ = route._read_registration(self.control, reg["registration_id"])
+        self.assertEqual(current["state"], "REVOKED")
+        self.assertEqual(current["task_ref_cleanup_status"], "DELETED")
+
+    def test_supersede_recovery_after_dead_child_needs_no_config_lock_reclamation(self):
+        reg = self.register()
+        reg = route._push_operation(self.control, reg["registration_id"], "TASK_REF")
+        evidence_path, _, _ = self.supersede_evidence(reg)
+        evidence = route._validate_supersede_evidence(
+            self.control, reg, str(evidence_path), route._sha_file(evidence_path)
+        )
+        bundle, bundle_sha = route._install_bundle(
+            self.control, self.source, self.base, route._tree(self.source)
+        )
+        with route._role_and_coord_locks(self.control, "C"):
+            reg, lease = route._prepare_supersede_push_locked(
+                self.control, reg, evidence, bundle, bundle_sha, 120
+            )
+        armed = route._lease_path(
+            self.control, reg["registration_id"], "armed", lease["nonce"]
+        )
+        self.assertTrue(route._rename_noreplace(
+            armed,
+            route._lease_path(self.control, reg["registration_id"], "consumed", lease["nonce"]),
+        ))
+        attempt_path = route._attempt_path(self.control, reg["registration_id"], lease["nonce"])
+        attempt = route._load_json(attempt_path)
+        attempt.update(pid=999999999, proc_start_time="1", wait_outcome="EXITED", exit_code=0)
+        route._attempt_update(attempt_path, attempt)
+        self.git(
+            self.source, "--git-dir", str(self.remote), "update-ref", "-d", reg["core"]["task_ref"]
+        )
+        result = route.recover_registration(self.control, reg["registration_id"])
+        self.assertEqual(result["state"], "REVOKED")
+        self.assertEqual(result["task_ref_cleanup_status"], "DELETED")
+        self.assertEqual(
+            route._remote_oid_target(self.work, reg["core"]["push_target"], reg["core"]["task_ref"]),
+            route.ZERO_OID,
+        )
+
+    def test_supersede_does_not_reclaim_foreign_git_config_lock(self):
+        reg = self.register()
+        reg = route._push_operation(self.control, reg["registration_id"], "TASK_REF")
+        evidence_path, _, _ = self.supersede_evidence(reg)
+        common = Path(self.git(self.work, "rev-parse", "--git-common-dir"))
+        if not common.is_absolute():
+            common = (self.work / common).resolve()
+        lock_path = common / "config.lock"
+        raw = "foreign git config lock\n"
+        lock_path.write_text(raw)
+        try:
+            result = self.supersede(reg, evidence_path)
+            self.assertTrue(lock_path.exists())
+            self.assertEqual(lock_path.read_text(), raw)
+            self.assertEqual(result["state"], "CLOSED")
+            self.assertEqual(result["task_ref_cleanup_status"], "DELETED")
+            self.assertEqual(
+                route._remote_oid_target(self.work, reg["core"]["push_target"], reg["core"]["task_ref"]),
+                route.ZERO_OID,
+            )
+        finally:
+            lock_path.unlink(missing_ok=True)
+
+    def test_process_identity_read_error_is_unknown_not_dead(self):
+        with patch.object(Path, "read_text", side_effect=PermissionError("denied")):
+            self.assertIsNone(route._process_alive(12345, "7"))
+
+    def test_supersede_rejects_evidence_drift_and_armed_lease_then_preserves_evidence(self):
+        reg = self.register()
+        reg = route._push_operation(self.control, reg["registration_id"], "TASK_REF")
+        evidence_path, value, support = self.supersede_evidence(reg, verdict="FAIL")
+        support_before = support.read_bytes()
+        changed = copy.deepcopy(value); changed["candidate_sha"] = self.base
+        evidence_path.write_text(json.dumps(changed))
+        with self.assertRaisesRegex(RuntimeError, "SUPERSEDE_EVIDENCE_IDENTITY"):
+            self.supersede(reg, evidence_path)
+        evidence_path.write_text(json.dumps(value))
+        armed = route._lease_dir(self.control, reg["registration_id"], "armed")
+        armed.mkdir(parents=True, exist_ok=True)
+        blocker = armed / "fixture.json"; blocker.write_text("{}")
+        with self.assertRaisesRegex(RuntimeError, "SUPERSEDE_ARMED_LEASE_PRESENT"):
+            self.supersede(reg, evidence_path)
+        blocker.unlink()
+        result = self.supersede(reg, evidence_path)
+        self.assertEqual(result["state"], "CLOSED")
+        self.assertEqual(support.read_bytes(), support_before)
+        self.assertEqual(result["supersede_evidence"]["sha256"], route._sha_file(evidence_path))
 
     def test_simultaneous_cancel_and_consume_have_one_winner(self):
         from concurrent.futures import ThreadPoolExecutor

@@ -47,6 +47,7 @@ OPEN_STATES = {
     "PUBLISHING_MAIN",
     "PUBLISHED",
     "CLEANING_TASK_REF",
+    "SUPERSEDING_TASK_REF",
     "REVOKED",
     "FAILED",
 }
@@ -54,6 +55,7 @@ TRANSIENT_STATES = {
     "TASK_REF": "PUSHING_TASK_REF",
     "MAIN": "PUBLISHING_MAIN",
     "CLEANUP_TASK_REF": "CLEANING_TASK_REF",
+    "SUPERSEDE_TASK_REF": "SUPERSEDING_TASK_REF",
 }
 PRE_PUSH_STATES = {
     "TASK_REF": "REGISTERED",
@@ -245,7 +247,12 @@ def _remote_oid(worktree: Path, remote: str, ref: str) -> str:
     targets = _git_lines(worktree, "remote", "get-url", "--push", "--all", remote)
     if len(targets) != 1:
         raise PublicationError("SINGLE_PUSH_TARGET_REQUIRED")
-    output = _git(worktree, "ls-remote", targets[0], ref)
+    return _remote_oid_target(worktree, targets[0], ref)
+
+
+def _remote_oid_target(worktree: Path, target: str, ref: str,
+                       env: dict[str, str] | None = None) -> str:
+    output = _git(worktree, "ls-remote", target, ref, env=env)
     if not output:
         return ZERO_OID
     rows = [row.split() for row in output.splitlines() if row.strip()]
@@ -277,10 +284,15 @@ def _proc_start_time(pid: int) -> str | None:
 def _process_alive(pid: int | None, start_time: str | None) -> bool | None:
     if not pid or not start_time:
         return None
-    current = _proc_start_time(pid)
-    if current is None:
+    try:
+        fields = Path(f"/proc/{pid}/stat").read_text().split()
+    except FileNotFoundError:
         return False
-    return current == start_time
+    except OSError:
+        return None
+    if len(fields) <= 21:
+        return None
+    return fields[21] == start_time
 
 
 def _safe_slug(value: str) -> str:
@@ -566,6 +578,67 @@ def _route_config_snapshot(worktree: Path, remote: str) -> dict[str, Any]:
         f"remote.{remote}.pushurl": _config_values(worktree, f"remote.{remote}.pushurl"),
         "full_worktree_config_sha256": _worktree_config_digest(worktree),
     }
+
+
+def _supersede_transport_env() -> dict[str, str]:
+    """Return a predictable environment for the direct supersede transport."""
+    env = dict(os.environ)
+    for key in list(env):
+        if (key in {"GIT_CONFIG", "GIT_CONFIG_COUNT", "GIT_CONFIG_PARAMETERS",
+                    "GIT_CONFIG_NOSYSTEM", "GIT_CONFIG_SYSTEM", "GIT_CONFIG_GLOBAL",
+                    "GIT_DIR", "GIT_WORK_TREE", "GIT_SSH", "GIT_SSH_COMMAND"}
+                or key.startswith("GIT_CONFIG_KEY_") or key.startswith("GIT_CONFIG_VALUE_")):
+            env.pop(key, None)
+    env["GIT_CONFIG_NOSYSTEM"] = "1"
+    env["GIT_CONFIG_SYSTEM"] = os.devnull
+    env["GIT_CONFIG_GLOBAL"] = os.devnull
+    # Preserve ~/.ssh/config host aliases and keys, but do not inherit a mutable
+    # Git-level sshCommand or process-environment SSH wrapper.
+    env["GIT_SSH_COMMAND"] = "ssh"
+    env["LC_ALL"] = "C"
+    return env
+
+
+def _supersede_send_pack_probe(worktree: Path, target: str, ref: str,
+                                expected_old: str) -> bool:
+    """Probe one exact remote-ref expectation without mutating the remote."""
+    proc = subprocess.run(
+        ["git", "-C", str(worktree), "-c", "core.sshCommand=ssh", "send-pack",
+         "--helper-status", "--dry-run", f"--force-with-lease={ref}:{expected_old}",
+         target, f":{ref}"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=_supersede_transport_env(),
+        check=False,
+    )
+    rows = [line.strip() for line in proc.stdout.splitlines() if line.strip()]
+    target_ok = f"ok {ref}"
+    target_stale = f"error {ref} stale info"
+    harmless_no_match = [row for row in rows if row.startswith("error ") and row.endswith(" no match")]
+    unexpected = [
+        row for row in rows
+        if row not in {target_ok, target_stale} and row not in harmless_no_match
+    ]
+    if proc.returncode == 0 and target_ok in rows and target_stale not in rows and not unexpected:
+        if sum(row.startswith("ok ") for row in rows) == 1:
+            return True
+    if proc.returncode != 0 and target_stale in rows and target_ok not in rows and not unexpected:
+        if not any(row.startswith("ok ") for row in rows):
+            return False
+    raise PublicationError(
+        "SUPERSEDE_REMOTE_PROBE_FAILED:"
+        + _sha_bytes((proc.stdout + "\n" + proc.stderr).encode())
+    )
+
+
+def _supersede_remote_state(worktree: Path, target: str, ref: str,
+                            candidate: str) -> str:
+    if _supersede_send_pack_probe(worktree, target, ref, candidate):
+        return candidate
+    if _supersede_send_pack_probe(worktree, target, ref, ZERO_OID):
+        return ZERO_OID
+    return "FOREIGN_REF"
 
 
 def _bundle_source_files(route_source_root: Path) -> dict[str, Path]:
@@ -1174,6 +1247,113 @@ def _validate_registration_identity(root: Path, reg: dict[str, Any], *, require_
     return task
 
 
+def _validate_supersede_registration_identity(
+    root: Path, reg: dict[str, Any], *, require_clean: bool = True,
+) -> dict[str, Any]:
+    """Validate immutable registration/candidate identity without current task ownership.
+
+    Supersession is intentionally allowed after a reviewed successor changes the live
+    work-board fingerprint.  That drift grants no extra authority: this validator binds
+    only the original registration, candidate, exact task ref and preserved source
+    evidence.  Remote deletion is limited separately to that exact ref/candidate pair.
+    """
+    core = reg.get("core", {})
+    registration_id = reg.get("registration_id")
+    if not registration_id or reg.get("registration_sha256") != registration_id:
+        raise PublicationError("REGISTRATION_IDENTITY_INVALID")
+    if _sha_bytes(_canonical_bytes(core)) != registration_id:
+        raise PublicationError("REGISTRATION_CORE_HASH_MISMATCH")
+    worktree = Path(core["worktree_path"]).resolve()
+    pointer = _load_json(_active_pointer_path(root, worktree))
+    if pointer.get("registration_id") != registration_id or pointer.get("registration_sha256") != registration_id:
+        raise PublicationError("ACTIVE_POINTER_DRIFT")
+    if pointer.get("worktree_path") != str(worktree) or pointer.get("generation") != core["generation"]:
+        raise PublicationError("ACTIVE_POINTER_DRIFT")
+    if require_clean and not _clean(worktree):
+        raise PublicationError("WORKTREE_DIRTY")
+    if _head(worktree) != core["candidate_head"] or _tree(worktree) != core["candidate_tree"]:
+        raise PublicationError("CANDIDATE_IDENTITY_DRIFT")
+    if _commit_parents(worktree, core["candidate_head"]) != [core["base_sha"]]:
+        raise PublicationError("CANDIDATE_PARENT_DRIFT")
+    changed = _diff_paths(worktree, core["base_sha"], core["candidate_head"])
+    if changed != core["changed_paths"]:
+        raise PublicationError("CHANGED_PATHS_DRIFT")
+    if _full_diff_sha(worktree, core["base_sha"], core["candidate_head"]) != core["full_diff_sha256"]:
+        raise PublicationError("FULL_DIFF_HASH_DRIFT")
+    if _patch_sha(worktree, core["base_sha"], core["candidate_head"]) != core["publication_commit_diff_sha256"]:
+        raise PublicationError("PUBLICATION_COMMIT_DIFF_DRIFT")
+    ownership, ownership_sha = _ownership(worktree)
+    if ownership_sha != core["ownership_policy_sha256"]:
+        raise PublicationError("OWNERSHIP_POLICY_DRIFT")
+    if any(not _path_owned(path, core["role"], ownership) for path in changed):
+        raise PublicationError("OWNERSHIP_SCOPE_DRIFT")
+    review = core["review"]
+    _review_identity(
+        root, review["path"], review["sha256"], core["task_id"], core["candidate_head"],
+        core["candidate_tree"], core["base_sha"], core["changed_paths"], core["full_diff_sha256"],
+        (core.get("accepted_manifest") or {}).get("sha256"), core["task_fingerprint"],
+    )
+    accepted = core.get("accepted_manifest")
+    if accepted:
+        manifest = _manifest_entry(root, accepted["path"], accepted["sha256"], core["task_id"], worktree)
+        if manifest is None or manifest["entry"].get("source_head") != accepted.get("source_head"):
+            raise PublicationError("ACCEPTED_MANIFEST_DRIFT")
+        if manifest["entry"].get("preserved_patch_sha256") != accepted.get("preserved_patch_sha256"):
+            raise PublicationError("ACCEPTED_PATCH_IDENTITY_DRIFT")
+    _verify_bundle(Path(core["bundle_path"]), core["bundle_manifest_sha256"])
+    return {"worktree": worktree, "changed_paths": changed}
+
+
+def _validate_supersede_evidence(
+    root: Path, reg: dict[str, Any], evidence_path: str | os.PathLike[str], evidence_sha: str,
+) -> dict[str, Any]:
+    path = _require_control_evidence(root, evidence_path)
+    if not SHA64_RE.fullmatch(str(evidence_sha)) or _sha_file(path) != evidence_sha:
+        raise PublicationError("SUPERSEDE_EVIDENCE_HASH_MISMATCH")
+    value = _load_json(path)
+    core = reg["core"]
+    required = {
+        "kind": "octoport.task-publication-supersede-evidence",
+        "version": 1,
+        "registration_id": reg["registration_id"],
+        "task_id": core["task_id"],
+        "candidate_sha": core["candidate_head"],
+        "candidate_tree": core["candidate_tree"],
+        "task_ref": core["task_ref"],
+    }
+    for key, expected in required.items():
+        if value.get(key) != expected:
+            raise PublicationError(f"SUPERSEDE_EVIDENCE_IDENTITY_MISMATCH:{key}")
+    verdict = value.get("verdict")
+    if verdict not in {"FAIL", "REWORK_REQUIRED", "SUPERSEDED"}:
+        raise PublicationError("SUPERSEDE_EVIDENCE_VERDICT_REQUIRED")
+    if not isinstance(value.get("reason"), str) or not value["reason"].strip():
+        raise PublicationError("SUPERSEDE_EVIDENCE_REASON_REQUIRED")
+    successor = value.get("successor_sha")
+    if verdict == "SUPERSEDED":
+        if not SHA40_RE.fullmatch(str(successor or "")) or successor == core["candidate_head"]:
+            raise PublicationError("SUPERSEDE_SUCCESSOR_IDENTITY_REQUIRED")
+    elif successor is not None and not SHA40_RE.fullmatch(str(successor)):
+        raise PublicationError("SUPERSEDE_SUCCESSOR_IDENTITY_INVALID")
+    evidence = value.get("evidence")
+    if not isinstance(evidence, list) or not evidence:
+        raise PublicationError("SUPERSEDE_SUPPORTING_EVIDENCE_REQUIRED")
+    normalized = []
+    for item in evidence:
+        if not isinstance(item, dict) or set(item) != {"path", "sha256"}:
+            raise PublicationError("SUPERSEDE_SUPPORTING_EVIDENCE_INVALID")
+        ep = _require_control_evidence(root, item.get("path", ""))
+        sha = item.get("sha256")
+        if not SHA64_RE.fullmatch(str(sha or "")) or _sha_file(ep) != sha:
+            raise PublicationError("SUPERSEDE_SUPPORTING_EVIDENCE_HASH_MISMATCH")
+        normalized.append({"path": str(ep), "sha256": sha})
+    return {
+        "path": str(path), "sha256": evidence_sha, "verdict": verdict,
+        "reason": value["reason"].strip(), "successor_sha": successor,
+        "evidence": normalized,
+    }
+
+
 def _role_and_coord_locks(root: Path, role: str):
     class Locks:
         def __enter__(self):
@@ -1320,6 +1500,63 @@ def _prepare_push_locked(root: Path, reg: dict[str, Any], push_kind: str,
     return next_reg, lease
 
 
+def _prepare_supersede_push_locked(
+    root: Path,
+    reg: dict[str, Any],
+    evidence: dict[str, Any],
+    bundle: Path,
+    bundle_manifest_sha: str,
+    ttl_seconds: int,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    if reg.get("state") != "TASK_REF_PUBLISHED":
+        raise PublicationError(f"SUPERSEDE_PRESTATE_INVALID:{reg.get('state')}")
+    if not _no_armed_leases(root, reg["registration_id"]):
+        raise PublicationError("SUPERSEDE_ARMED_LEASE_PRESENT")
+    _validate_supersede_registration_identity(root, reg, require_clean=True)
+    verified = _validate_supersede_evidence(root, reg, evidence["path"], evidence["sha256"])
+    if verified != evidence:
+        raise PublicationError("SUPERSEDE_EVIDENCE_DRIFT")
+    _verify_bundle(bundle, bundle_manifest_sha)
+    lease = _new_lease(
+        reg, "SUPERSEDE_TASK_REF", reg["core"]["candidate_head"],
+        reg["core"]["task_ref"], ZERO_OID, ttl_seconds,
+    )
+    lease["execution_bundle_manifest_sha256"] = bundle_manifest_sha
+    lease["supersede_evidence_sha256"] = evidence["sha256"]
+    nonce = lease["nonce"]
+    armed = _lease_path(root, reg["registration_id"], "armed", nonce)
+    _create_once_json(armed, lease)
+    lease_sha = _lease_sha(armed)
+    next_reg = _state_transition(
+        root, reg["registration_id"], {"TASK_REF_PUBLISHED"}, "SUPERSEDING_TASK_REF",
+        {
+            "current_nonce": nonce,
+            "current_lease_sha256": lease_sha,
+            "current_push_kind": "SUPERSEDE_TASK_REF",
+            "supersede_evidence": evidence,
+            "supersede_bundle": {"path": str(bundle), "sha256": bundle_manifest_sha},
+        },
+        expected_version=reg["state_version"],
+    )
+    attempt = {
+        "kind": "octoport.task-publication-push-attempt",
+        "version": 1,
+        "registration_id": reg["registration_id"],
+        "nonce": nonce,
+        "push_kind": "SUPERSEDE_TASK_REF",
+        "boot_id": lease["boot_id"],
+        "pid": None,
+        "process_group": None,
+        "proc_start_time": None,
+        "spawned_at": None,
+        "wait_outcome": "PREPARED",
+        "exit_code": None,
+        "signal": None,
+    }
+    _create_once_json(_attempt_path(root, reg["registration_id"], nonce), attempt)
+    return next_reg, lease
+
+
 def _push_command(reg: dict[str, Any], push_kind: str) -> list[str]:
     core = reg["core"]
     remote = core["remote"]
@@ -1335,24 +1572,128 @@ def _push_command(reg: dict[str, Any], push_kind: str) -> list[str]:
     raise PublicationError("PUSH_KIND_INVALID")
 
 
-def _run_git_push(root: Path, reg: dict[str, Any], lease: dict[str, Any], timeout_seconds: int) -> dict[str, Any]:
+def _run_git_push(root: Path, reg: dict[str, Any], lease: dict[str, Any],
+                  timeout_seconds: int) -> dict[str, Any]:
     command = _push_command(reg, lease["push_kind"])
     forbidden = {"--force", "--force-with-lease", "--mirror"}
     if any(arg.startswith("+") or arg in forbidden for arg in command):
         raise PublicationError("FORBIDDEN_PUSH_ARGUMENT")
-    # Exactly one refspec is generated by _push_command.
-    refspecs = [arg for arg in command[5:] if ":" in arg]
-    if len(refspecs) != 1:
+    # Every generated command ends in exactly one refspec.  Do not infer
+    # refspecs from ':' elsewhere because an immutable SSH push URL may contain
+    # a colon as well.
+    if not command or ":" not in command[-1]:
         raise PublicationError("SINGLE_REFSPEC_REQUIRED")
     env = dict(os.environ)
+    execution_bundle_sha = reg["core"]["bundle_manifest_sha256"]
+    if not SHA64_RE.fullmatch(str(execution_bundle_sha or "")):
+        raise PublicationError("EXECUTION_BUNDLE_IDENTITY_REQUIRED")
     env.update({
         "PYTHONDONTWRITEBYTECODE": "1",
         "OCTOPORT_PUBLICATION_CONTROL_ROOT": str(root),
         "OCTOPORT_PUBLICATION_REGISTRATION_ID": reg["registration_id"],
         "OCTOPORT_PUBLICATION_NONCE": lease["nonce"],
         "OCTOPORT_PUBLICATION_KIND": lease["push_kind"],
-        "OCTOPORT_PUBLICATION_BUNDLE_MANIFEST_SHA256": reg["core"]["bundle_manifest_sha256"],
+        "OCTOPORT_PUBLICATION_BUNDLE_MANIFEST_SHA256": execution_bundle_sha,
     })
+    attempt_path = _attempt_path(root, reg["registration_id"], lease["nonce"])
+    attempt = _load_json(attempt_path)
+    proc = subprocess.Popen(
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=env,
+        start_new_session=True,
+    )
+    attempt.update(
+        pid=proc.pid,
+        process_group=proc.pid,
+        proc_start_time=_proc_start_time(proc.pid),
+        spawned_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        wait_outcome="RUNNING",
+    )
+    _attempt_update(attempt_path, attempt)
+    try:
+        stdout, stderr = proc.communicate(timeout=timeout_seconds)
+        outcome = "EXITED"
+    except subprocess.TimeoutExpired:
+        outcome = "TIMEOUT"
+        try:
+            os.killpg(proc.pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+        try:
+            stdout, stderr = proc.communicate(timeout=5)
+        except subprocess.TimeoutExpired:
+            try:
+                os.killpg(proc.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            stdout, stderr = proc.communicate()
+    attempt = _load_json(attempt_path)
+    attempt.update(
+        wait_outcome=outcome,
+        exit_code=proc.returncode,
+        signal=(-proc.returncode if proc.returncode is not None and proc.returncode < 0 else None),
+        stdout_sha256=_sha_bytes((stdout or "").encode()),
+        stderr_sha256=_sha_bytes((stderr or "").encode()),
+    )
+    _attempt_update(attempt_path, attempt)
+    return attempt
+
+
+def _consume_supersede_hook(root: Path, reg: dict[str, Any], lease: dict[str, Any]) -> None:
+    bundle = reg.get("supersede_bundle", {})
+    bundle_path = Path(bundle.get("path", ""))
+    bundle_sha = bundle.get("sha256", "")
+    _verify_bundle(bundle_path, bundle_sha)
+    hook = bundle_path / "hooks/pre-push"
+    if not hook.is_file():
+        raise PublicationError("SUPERSEDE_HOOK_REQUIRED")
+    core = reg["core"]
+    env = _supersede_transport_env()
+    env.update({
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "OCTOPORT_PUBLICATION_CONTROL_ROOT": str(root),
+        "OCTOPORT_PUBLICATION_REGISTRATION_ID": reg["registration_id"],
+        "OCTOPORT_PUBLICATION_NONCE": lease["nonce"],
+        "OCTOPORT_PUBLICATION_KIND": "SUPERSEDE_TASK_REF",
+        "OCTOPORT_PUBLICATION_BUNDLE_MANIFEST_SHA256": bundle_sha,
+    })
+    row = f"(delete) {ZERO_OID} {lease['remote_ref']} {lease['expected_remote_old_oid']}\n"
+    proc = subprocess.run(
+        [str(hook), core["push_target"], core["push_target"]],
+        cwd=core["worktree_path"],
+        input=row,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=env,
+        check=False,
+    )
+    if proc.returncode:
+        raise PublicationError(
+            "SUPERSEDE_HOOK_BLOCKED:"
+            + _sha_bytes((proc.stdout + "\n" + proc.stderr).encode())
+        )
+    namespace, _ = _lease_namespace(root, reg["registration_id"], lease["nonce"])
+    if namespace != "consumed":
+        raise PublicationError("SUPERSEDE_HOOK_DID_NOT_CONSUME_LEASE")
+
+
+def _run_supersede_send_pack(root: Path, reg: dict[str, Any], lease: dict[str, Any],
+                             timeout_seconds: int) -> dict[str, Any]:
+    if lease.get("push_kind") != "SUPERSEDE_TASK_REF":
+        raise PublicationError("SUPERSEDE_PUSH_KIND_REQUIRED")
+    _consume_supersede_hook(root, reg, lease)
+    core = reg["core"]
+    command = [
+        "git", "-C", core["worktree_path"], "-c", "core.sshCommand=ssh", "send-pack",
+        "--helper-status",
+        f"--force-with-lease={lease['remote_ref']}:{lease['expected_remote_old_oid']}",
+        core["push_target"], f":{lease['remote_ref']}",
+    ]
+    env = _supersede_transport_env()
     attempt_path = _attempt_path(root, reg["registration_id"], lease["nonce"])
     attempt = _load_json(attempt_path)
     proc = subprocess.Popen(
@@ -1456,6 +1797,10 @@ def _settlement_decision(push_kind: str, lease_namespace: str, remote_oid: str,
             return "FAILED", "CONSUMED_NON_TARGET_AMBIGUOUS"
         if push_kind == "CLEANUP_TASK_REF":
             return "PUBLISHED", "CLEANUP_DELETED" if remote_oid == ZERO_OID else "CLEANUP_NON_ABSENT_AMBIGUOUS"
+        if push_kind == "SUPERSEDE_TASK_REF":
+            if remote_oid == ZERO_OID:
+                return "REVOKED", "SUPERSEDE_DELETED"
+            return "TASK_REF_PUBLISHED", "SUPERSEDE_NON_ABSENT_AMBIGUOUS"
     if lease_namespace == "cancelled":
         if push_kind == "TASK_REF":
             return ("REGISTERED", "CANCELLED_REMOTE_UNCHANGED") if remote_oid == expected_old else ("FAILED", "CANCELLED_REMOTE_CHANGED")
@@ -1463,6 +1808,12 @@ def _settlement_decision(push_kind: str, lease_namespace: str, remote_oid: str,
             return ("TASK_REF_PUBLISHED", "CANCELLED_REMOTE_UNCHANGED_FRESH_READY_REQUIRED") if remote_oid == expected_old else ("FAILED", "CANCELLED_REMOTE_CHANGED")
         if push_kind == "CLEANUP_TASK_REF":
             return "PUBLISHED", "CLEANUP_CANCELLED"
+        if push_kind == "SUPERSEDE_TASK_REF":
+            return (
+                ("TASK_REF_PUBLISHED", "SUPERSEDE_CANCELLED_REMOTE_UNCHANGED")
+                if remote_oid == expected_old
+                else ("TASK_REF_PUBLISHED", "SUPERSEDE_CANCELLED_REMOTE_CHANGED")
+            )
     raise PublicationError("LEASE_SETTLEMENT_STATE_INVALID")
 
 
@@ -1493,6 +1844,12 @@ def _settle_after_push_locked(root: Path, reg: dict[str, Any], lease: dict[str, 
             lease.get("task_fingerprint") != reg["core"]["task_fingerprint"] or
             lease.get("bundle_manifest_sha256") != reg["core"]["bundle_manifest_sha256"]):
         raise PublicationError("SETTLEMENT_LEASE_IDENTITY_MISMATCH")
+    if lease.get("push_kind") == "SUPERSEDE_TASK_REF":
+        bundle = reg.get("supersede_bundle", {})
+        evidence = reg.get("supersede_evidence", {})
+        if (lease.get("execution_bundle_manifest_sha256") != bundle.get("sha256") or
+                lease.get("supersede_evidence_sha256") != evidence.get("sha256")):
+            raise PublicationError("SUPERSEDE_LEASE_IDENTITY_MISMATCH")
     settled = _attempt_settled(lease, attempt)
     if settled is False:
         raise PublicationError("PUSH_PROCESS_STILL_ALIVE")
@@ -1505,26 +1862,59 @@ def _settle_after_push_locked(root: Path, reg: dict[str, Any], lease: dict[str, 
                 raise PublicationError("LEASE_CANCEL_RACE_UNSETTLED")
     if settled is None:
         # No retry/success decision can be made from an unknown child identity.
+        fallback = (
+            "PUBLISHED" if lease["push_kind"] == "CLEANUP_TASK_REF"
+            else "TASK_REF_PUBLISHED" if lease["push_kind"] == "SUPERSEDE_TASK_REF"
+            else "FAILED"
+        )
         return _state_transition(root, reg["registration_id"], {TRANSIENT_STATES[lease["push_kind"]]},
-            "PUBLISHED" if lease["push_kind"] == "CLEANUP_TASK_REF" else "FAILED",
-            {"current_nonce": None, "last_settlement_outcome": "PROCESS_IDENTITY_UNKNOWN_MANUAL"},
+            fallback,
+            {"current_nonce": None, "current_lease_sha256": None, "current_push_kind": None,
+             "last_settlement_outcome": "PROCESS_IDENTITY_UNKNOWN_MANUAL"},
             expected_version=reg["state_version"])
-    remote = _remote_oid(Path(reg["core"]["worktree_path"]), reg["core"]["remote"], lease["remote_ref"])
+    if lease["push_kind"] == "SUPERSEDE_TASK_REF":
+        remote = _supersede_remote_state(
+            Path(reg["core"]["worktree_path"]), reg["core"]["push_target"],
+            lease["remote_ref"], reg["core"]["candidate_head"],
+        )
+    else:
+        remote = _remote_oid(Path(reg["core"]["worktree_path"]), reg["core"]["remote"], lease["remote_ref"])
     outcome, reason = _settlement_decision(
         lease["push_kind"], namespace, remote, lease["expected_remote_old_oid"], lease["target_oid"])
     settlement = _immutable_settlement(root, reg, lease, namespace, attempt, remote, outcome, reason)
     next_state, reason = settlement["settlement_outcome"], settlement["reason"]
     try:
-        _validate_registration_identity(root, reg,
-            require_task_ref=lease["push_kind"] == "MAIN")
-        if lease["push_kind"] == "MAIN":
-            _validate_ready_receipt(root, reg)
+        if lease["push_kind"] == "SUPERSEDE_TASK_REF":
+            _validate_supersede_registration_identity(root, reg)
+            evidence = reg.get("supersede_evidence", {})
+            _validate_supersede_evidence(root, reg, evidence.get("path", ""), evidence.get("sha256", ""))
+            bundle = reg.get("supersede_bundle", {})
+            _verify_bundle(Path(bundle.get("path", "")), bundle.get("sha256", ""))
+        else:
+            _validate_registration_identity(root, reg,
+                require_task_ref=lease["push_kind"] == "MAIN")
+            if lease["push_kind"] == "MAIN":
+                _validate_ready_receipt(root, reg)
     except (RuntimeError, OSError, ValueError, KeyError, TypeError) as error:
-        next_state = "PUBLISHED" if lease["push_kind"] == "CLEANUP_TASK_REF" else "FAILED"
+        next_state = (
+            "PUBLISHED" if lease["push_kind"] == "CLEANUP_TASK_REF"
+            else "TASK_REF_PUBLISHED" if lease["push_kind"] == "SUPERSEDE_TASK_REF"
+            else "FAILED"
+        )
         reason = "SETTLEMENT_IDENTITY_DRIFT:" + str(error)
-    current_remote = _remote_oid(Path(reg["core"]["worktree_path"]), reg["core"]["remote"], lease["remote_ref"])
+    if lease["push_kind"] == "SUPERSEDE_TASK_REF":
+        current_remote = _supersede_remote_state(
+            Path(reg["core"]["worktree_path"]), reg["core"]["push_target"],
+            lease["remote_ref"], reg["core"]["candidate_head"],
+        )
+    else:
+        current_remote = _remote_oid(Path(reg["core"]["worktree_path"]), reg["core"]["remote"], lease["remote_ref"])
     if current_remote != settlement["remote_readback_oid_or_absent"]:
-        next_state = "PUBLISHED" if lease["push_kind"] == "CLEANUP_TASK_REF" else "FAILED"
+        next_state = (
+            "PUBLISHED" if lease["push_kind"] == "CLEANUP_TASK_REF"
+            else "TASK_REF_PUBLISHED" if lease["push_kind"] == "SUPERSEDE_TASK_REF"
+            else "FAILED"
+        )
         reason = "POST_SETTLEMENT_REMOTE_DRIFT"
     updates = {
         "current_nonce": None, "current_lease_sha256": None, "current_push_kind": None,
@@ -1536,6 +1926,8 @@ def _settle_after_push_locked(root: Path, reg: dict[str, Any], lease: dict[str, 
         updates["ready_receipt"] = None
     if lease["push_kind"] == "CLEANUP_TASK_REF":
         updates["task_ref_cleanup_status"] = "DELETED" if reason == "CLEANUP_DELETED" else "FAILED"
+    if lease["push_kind"] == "SUPERSEDE_TASK_REF":
+        updates["task_ref_cleanup_status"] = "DELETED" if reason == "SUPERSEDE_DELETED" else "FAILED"
     return _state_transition(root, reg["registration_id"], {TRANSIENT_STATES[lease["push_kind"]]},
         next_state, updates, expected_version=reg["state_version"])
 
@@ -1725,6 +2117,97 @@ def _no_armed_leases(root: Path, registration_id: str) -> bool:
     return not armed.exists() or not any(armed.glob("*.json"))
 
 
+def supersede_registration(
+    root: Path,
+    registration_id: str,
+    evidence_path: str,
+    evidence_sha: str,
+    route_source_root: Path,
+    route_source_sha: str,
+    route_source_tree: str,
+    ttl_seconds: int = DEFAULT_LEASE_SECONDS,
+    timeout_seconds: int = DEFAULT_LEASE_SECONDS,
+) -> dict[str, Any]:
+    """Retire a failed/superseded task-ref without touching main.
+
+    The cleanup is bounded to the immutable registration's exact candidate/ref.
+    A changed work-board task fingerprint is deliberately not authority here; the
+    independent supersede evidence is.  Config restoration is delegated to the
+    ordinary close path, so same-key/common/global/fixed-role drift remains
+    fail-closed and is never overwritten by this command.
+    """
+    root = root.resolve()
+    reg, _ = _read_registration(root, registration_id)
+    role = reg["core"]["role"]
+    should_close = False
+    with _role_and_coord_locks(root, role) as locks:
+        reg, _ = _read_registration(root, registration_id)
+        stored = reg.get("supersede_evidence")
+        if reg.get("state") in {"REVOKED", "CLOSED"}:
+            if not isinstance(stored, dict):
+                raise PublicationError("SUPERSEDE_TERMINAL_EVIDENCE_REQUIRED")
+            verified = _validate_supersede_evidence(root, reg, evidence_path, evidence_sha)
+            if stored.get("path") != verified["path"] or stored.get("sha256") != verified["sha256"]:
+                raise PublicationError("SUPERSEDE_EVIDENCE_DRIFT")
+            if reg.get("state") == "CLOSED":
+                return reg
+            should_close = True
+        else:
+            if reg.get("state") != "TASK_REF_PUBLISHED":
+                raise PublicationError(f"SUPERSEDE_PRESTATE_INVALID:{reg.get('state')}")
+            if not _no_armed_leases(root, registration_id):
+                raise PublicationError("SUPERSEDE_ARMED_LEASE_PRESENT")
+            _validate_supersede_registration_identity(root, reg, require_clean=True)
+            evidence = _validate_supersede_evidence(root, reg, evidence_path, evidence_sha)
+            if stored and (stored.get("path") != evidence["path"] or stored.get("sha256") != evidence["sha256"]):
+                raise PublicationError("SUPERSEDE_EVIDENCE_DRIFT")
+            core = reg["core"]
+            worktree = Path(core["worktree_path"])
+            current = _supersede_remote_state(
+                worktree, core["push_target"], core["task_ref"], core["candidate_head"]
+            )
+            base_updates = {
+                "supersede_evidence": evidence,
+                "superseded_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            }
+            if current == ZERO_OID:
+                reg = _state_transition(
+                    root, registration_id, {"TASK_REF_PUBLISHED"}, "REVOKED",
+                    dict(base_updates, task_ref_cleanup_status="ALREADY_ABSENT"),
+                    expected_version=reg["state_version"],
+                )
+                should_close = True
+            elif current != core["candidate_head"]:
+                reg = _state_transition(
+                    root, registration_id, {"TASK_REF_PUBLISHED"}, "REVOKED",
+                    dict(base_updates, task_ref_cleanup_status="FOREIGN_RETAINED"),
+                    expected_version=reg["state_version"],
+                )
+                should_close = True
+            else:
+                bundle, bundle_sha = _install_bundle(
+                    root, route_source_root.resolve(), route_source_sha, route_source_tree
+                )
+                existing_bundle = reg.get("supersede_bundle")
+                if existing_bundle and (
+                    existing_bundle.get("path") != str(bundle) or existing_bundle.get("sha256") != bundle_sha
+                ):
+                    raise PublicationError("SUPERSEDE_BUNDLE_DRIFT")
+                reg, lease = _prepare_supersede_push_locked(
+                    root, reg, evidence, bundle, bundle_sha, ttl_seconds
+                )
+                locks.release_coord()
+                try:
+                    attempt = _run_supersede_send_pack(root, reg, lease, timeout_seconds)
+                finally:
+                    locks.reacquire_coord()
+                reg = _settle_after_push_locked(root, reg, lease, attempt)
+                should_close = reg.get("state") == "REVOKED"
+    if should_close:
+        return close_registration(root, registration_id)
+    return reg
+
+
 def close_registration(root: Path, registration_id: str) -> dict[str, Any]:
     reg, _ = _read_registration(root, registration_id)
     role = reg["core"]["role"]
@@ -1848,28 +2331,47 @@ def hook_main(argv: list[str] | None = None, stdin: Iterable[str] | None = None)
         if lease.get("push_kind") != push_kind or lease.get("registration_sha256") != reg.get("registration_sha256"):
             raise PublicationError("HOOK_LEASE_IDENTITY_MISMATCH")
         _validate_lease_time(lease)
-        if expected_bundle_sha != core["bundle_manifest_sha256"]:
-            raise PublicationError("HOOK_BUNDLE_ENV_MISMATCH")
-        _verify_bundle(Path(core["bundle_path"]), expected_bundle_sha)
-        if Path(__file__).resolve() != Path(core["bundle_path"]) / "task_publication.py":
-            raise PublicationError("HOOK_EXECUTING_BUNDLE_MISMATCH")
-        if len(argv) != 3 or argv[1] != core["remote"] or argv[2] != core["push_target"]:
-            raise PublicationError("HOOK_PUSH_TARGET_MISMATCH")
-        _validate_registration_identity(root, reg)
-        if push_kind == "MAIN":
-            _validate_ready_receipt(root, reg)
-        _require_role_running(root, core["role"])
-        board = _load_board(root)
-        task = _task_from_board(board, core["task_id"])
-        if task.get("role") != core["role"] or task.get("state") != "IN_PROGRESS" or _task_fingerprint(task) != core["task_fingerprint"]:
-            raise PublicationError("HOOK_TASK_FINGERPRINT_DRIFT")
+        if push_kind == "SUPERSEDE_TASK_REF":
+            bundle = reg.get("supersede_bundle", {})
+            evidence = reg.get("supersede_evidence", {})
+            if (expected_bundle_sha != bundle.get("sha256") or
+                    lease.get("execution_bundle_manifest_sha256") != expected_bundle_sha or
+                    lease.get("supersede_evidence_sha256") != evidence.get("sha256")):
+                raise PublicationError("HOOK_SUPERSEDE_BUNDLE_OR_EVIDENCE_DRIFT")
+            bundle_path = Path(bundle.get("path", ""))
+            _verify_bundle(bundle_path, expected_bundle_sha)
+            if Path(__file__).resolve() != bundle_path / "task_publication.py":
+                raise PublicationError("HOOK_EXECUTING_BUNDLE_MISMATCH")
+            if (len(argv) != 3 or argv[2] != core["push_target"] or
+                    argv[1] not in {core["remote"], core["push_target"]}):
+                raise PublicationError("HOOK_PUSH_TARGET_MISMATCH")
+            _validate_supersede_registration_identity(root, reg)
+            _validate_supersede_evidence(
+                root, reg, evidence.get("path", ""), evidence.get("sha256", "")
+            )
+        else:
+            if expected_bundle_sha != core["bundle_manifest_sha256"]:
+                raise PublicationError("HOOK_BUNDLE_ENV_MISMATCH")
+            _verify_bundle(Path(core["bundle_path"]), expected_bundle_sha)
+            if Path(__file__).resolve() != Path(core["bundle_path"]) / "task_publication.py":
+                raise PublicationError("HOOK_EXECUTING_BUNDLE_MISMATCH")
+            if len(argv) != 3 or argv[1] != core["remote"] or argv[2] != core["push_target"]:
+                raise PublicationError("HOOK_PUSH_TARGET_MISMATCH")
+            _validate_registration_identity(root, reg)
+            if push_kind == "MAIN":
+                _validate_ready_receipt(root, reg)
+            _require_role_running(root, core["role"])
+            board = _load_board(root)
+            task = _task_from_board(board, core["task_id"])
+            if task.get("role") != core["role"] or task.get("state") != "IN_PROGRESS" or _task_fingerprint(task) != core["task_fingerprint"]:
+                raise PublicationError("HOOK_TASK_FINGERPRINT_DRIFT")
         if not _clean(worktree) or _head(worktree) != core["candidate_head"] or _tree(worktree) != core["candidate_tree"]:
             raise PublicationError("HOOK_CANDIDATE_DRIFT")
         if _diff_paths(worktree, core["base_sha"], core["candidate_head"]) != core["changed_paths"]:
             raise PublicationError("HOOK_CHANGED_PATHS_DRIFT")
 
         local_ref, local_sha, remote_ref, remote_sha = _hook_tuple(stdin)
-        if push_kind == "CLEANUP_TASK_REF":
+        if push_kind in {"CLEANUP_TASK_REF", "SUPERSEDE_TASK_REF"}:
             if local_sha != ZERO_OID:
                 raise PublicationError("HOOK_CLEANUP_DELETE_LOCAL_SHA_REQUIRED")
         else:
@@ -1907,6 +2409,26 @@ def make_review_receipt(task_id: str, candidate: str, candidate_tree: str, base:
         "evidence": evidence,
         "accepted_manifest_sha256": manifest_sha,
         "task_fingerprint": task_fingerprint,
+    }
+
+
+def make_supersede_evidence(
+    reg: dict[str, Any], verdict: str, reason: str, evidence: list[dict[str, str]],
+    successor_sha: str | None = None,
+) -> dict[str, Any]:
+    core = reg["core"]
+    return {
+        "kind": "octoport.task-publication-supersede-evidence",
+        "version": 1,
+        "verdict": verdict,
+        "registration_id": reg["registration_id"],
+        "task_id": core["task_id"],
+        "candidate_sha": core["candidate_head"],
+        "candidate_tree": core["candidate_tree"],
+        "task_ref": core["task_ref"],
+        "reason": reason,
+        "successor_sha": successor_sha,
+        "evidence": evidence,
     }
 
 
@@ -1968,6 +2490,16 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--ttl", type=int, default=DEFAULT_LEASE_SECONDS)
     p.add_argument("--timeout", type=int, default=DEFAULT_LEASE_SECONDS)
 
+    p = sub.add_parser("supersede")
+    p.add_argument("--registration", required=True)
+    p.add_argument("--evidence", required=True)
+    p.add_argument("--evidence-sha", required=True)
+    p.add_argument("--route-source-root", required=True)
+    p.add_argument("--route-source-sha", required=True)
+    p.add_argument("--route-source-tree", required=True)
+    p.add_argument("--ttl", type=int, default=DEFAULT_LEASE_SECONDS)
+    p.add_argument("--timeout", type=int, default=DEFAULT_LEASE_SECONDS)
+
     p = sub.add_parser("recover")
     p.add_argument("--registration", required=True)
 
@@ -2004,6 +2536,12 @@ def main(argv: list[str] | None = None) -> int:
         _json_print(_push_operation(root, args.registration, "MAIN", args.ttl, args.timeout))
     elif args.command == "cleanup-ref":
         _json_print(_push_operation(root, args.registration, "CLEANUP_TASK_REF", args.ttl, args.timeout))
+    elif args.command == "supersede":
+        _json_print(supersede_registration(
+            root, args.registration, args.evidence, args.evidence_sha,
+            Path(args.route_source_root), args.route_source_sha, args.route_source_tree,
+            args.ttl, args.timeout,
+        ))
     elif args.command == "recover":
         _json_print(recover_registration(root, args.registration))
     elif args.command == "close":
