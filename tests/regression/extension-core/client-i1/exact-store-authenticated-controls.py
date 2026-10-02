@@ -109,6 +109,44 @@ def browser_product(executable: Path) -> str:
     return subprocess.check_output([str(executable), "--version"], text=True).strip()
 
 
+def require_exact_browser_product(product: str, expected_version: str) -> None:
+    if not re.fullmatch(r"[0-9]+(?:\.[0-9]+){3}", expected_version) or product != expected_version:
+        raise AssertionError("BROWSER_PRODUCT_VERSION_MISMATCH")
+
+
+def validate_control_directory_path(
+    path: Path, symlink_code: str, permissions_code: str
+) -> None:
+    """Reject path traversal through symlinks or an externally writable owner boundary.
+
+    This helper runs inside a single-owner test workspace. The deepest existing path
+    component must be a directory owned by this uid and not writable by group/other.
+    That prevents an untrusted peer from replacing a checked missing descendant before
+    mkdir/extraction. A concurrently malicious process running as the same uid/root is
+    outside this helper's isolation boundary and must be excluded operationally.
+    """
+    absolute = Path(os.path.abspath(path))
+    current = Path(absolute.anchor)
+    deepest = current.lstat()
+    if not stat.S_ISDIR(deepest.st_mode):
+        raise AssertionError(permissions_code)
+    for part in absolute.parts[1:]:
+        current = current / part
+        try:
+            info = current.lstat()
+        except FileNotFoundError:
+            break
+        except OSError:
+            raise AssertionError(symlink_code) from None
+        if stat.S_ISLNK(info.st_mode):
+            raise AssertionError(symlink_code)
+        if not stat.S_ISDIR(info.st_mode):
+            raise AssertionError(permissions_code)
+        deepest = info
+    if deepest.st_uid != os.geteuid() or deepest.st_mode & 0o022:
+        raise AssertionError(permissions_code)
+
+
 def profile_in_use(path: Path, proc_root: Path = Path("/proc")) -> bool:
     """Inspect exact argv entries; an inspection failure never means unused.
 
@@ -148,6 +186,8 @@ def profile_in_use(path: Path, proc_root: Path = Path("/proc")) -> bool:
 def safe_failure_code(failure: Exception) -> str:
     known = {
         "STORE_ZIP_SHA256_MISMATCH", "BROWSER_PRODUCT_VERSION_MISMATCH",
+        "RUNTIME_ROOT_SYMLINK_REJECTED", "PROFILE_ROOT_SYMLINK_REJECTED",
+        "RUNTIME_ROOT_PERMISSIONS_UNSAFE", "PROFILE_ROOT_PERMISSIONS_UNSAFE",
         "DEDICATED_PROFILE_ALREADY_IN_USE", "DEDICATED_PROFILE_PERMISSIONS_UNSAFE", "PROFILE_USAGE_INSPECTION_FAILED",
         "UNSAFE_ZIP_MEMBER", "ZIP_SYMLINK_REJECTED", "RUNTIME_SYMLINK_REJECTED",
         "STABLE_RUNTIME_BYTES_MISMATCH", "RUNTIME_EXTRACTION_MISMATCH",
@@ -631,8 +671,17 @@ def prepare(args) -> dict:
     if actual_sha != args.expected_sha256:
         raise AssertionError("STORE_ZIP_SHA256_MISMATCH")
     product = browser_product(args.browser_executable)
-    if args.expected_browser_product not in product:
-        raise AssertionError("BROWSER_PRODUCT_VERSION_MISMATCH")
+    require_exact_browser_product(product, args.expected_browser_product)
+    validate_control_directory_path(
+        args.runtime_dir,
+        "RUNTIME_ROOT_SYMLINK_REJECTED",
+        "RUNTIME_ROOT_PERMISSIONS_UNSAFE",
+    )
+    validate_control_directory_path(
+        args.profile_dir,
+        "PROFILE_ROOT_SYMLINK_REJECTED",
+        "PROFILE_ROOT_PERMISSIONS_UNSAFE",
+    )
     if profile_in_use(args.profile_dir):
         raise AssertionError("DEDICATED_PROFILE_ALREADY_IN_USE")
     runtime = ensure_exact_runtime(args.carrier, args.runtime_dir)
@@ -839,8 +888,8 @@ def main() -> int:
     if args.mode == "technical-auth" and args.technical_session_file is None:
         parser.error("--technical-session-file is required for technical-auth")
     args.carrier = args.carrier.resolve()
-    args.runtime_dir = args.runtime_dir.resolve()
-    args.profile_dir = args.profile_dir.resolve()
+    args.runtime_dir = Path(os.path.abspath(args.runtime_dir))
+    args.profile_dir = Path(os.path.abspath(args.profile_dir))
     args.browser_executable = args.browser_executable.resolve()
     args.output = args.output.resolve()
     if args.technical_session_file is not None:

@@ -84,10 +84,10 @@ class HelperGuardTests(unittest.TestCase):
     def test_busy_profile_stops_before_runtime_or_profile_mutation(self):
         args = types.SimpleNamespace(carrier=self.root / "carrier",
             expected_sha256="expected", browser_executable=Path("/unused/opera"),
-            expected_browser_product="Opera", profile_dir=self.profile,
+            expected_browser_product="136.0.6008.22", profile_dir=self.profile,
             runtime_dir=self.root / "runtime")
         with mock.patch.object(helper, "sha256", return_value="expected"), \
-             mock.patch.object(helper, "browser_product", return_value="Opera 136"), \
+             mock.patch.object(helper, "browser_product", return_value="136.0.6008.22"), \
              mock.patch.object(helper, "profile_in_use", return_value=True), \
              mock.patch.object(helper, "ensure_exact_runtime") as extract:
             with self.assertRaisesRegex(AssertionError, "^DEDICATED_PROFILE_ALREADY_IN_USE$"):
@@ -95,9 +95,227 @@ class HelperGuardTests(unittest.TestCase):
             extract.assert_not_called()
             self.assertFalse(args.runtime_dir.exists())
 
+    def test_prepare_rejects_browser_version_substring_and_wrong_product(self):
+        self.profile.chmod(0o700)
+        args = types.SimpleNamespace(
+            carrier=self.root / "carrier",
+            expected_sha256="expected",
+            browser_executable=Path("/unused/opera"),
+            expected_browser_product="136.0.6008.22",
+            profile_dir=self.profile,
+            runtime_dir=self.root / "runtime",
+        )
+        for observed in [
+            "Opera 136.0.6008.220",
+            "FakeBrowser 136.0.6008.22",
+            "Opera 136.0.6008.22 extra",
+        ]:
+            with self.subTest(observed=observed):
+                with (
+                    mock.patch.object(helper, "sha256", return_value="expected"),
+                    mock.patch.object(helper, "browser_product", return_value=observed),
+                    mock.patch.object(helper, "profile_in_use", return_value=False),
+                    mock.patch.object(
+                        helper,
+                        "ensure_exact_runtime",
+                        return_value={"created": False, "fileCount": 1},
+                    ),
+                ):
+                    with self.assertRaisesRegex(
+                        AssertionError, "^BROWSER_PRODUCT_VERSION_MISMATCH$"
+                    ):
+                        helper.prepare(args)
+
+    def test_prepare_rejects_runtime_and_profile_root_symlinks_before_use(self):
+        self.profile.chmod(0o700)
+        real_runtime = self.root / "real-runtime"
+        real_runtime.mkdir()
+        runtime_link = self.root / "runtime-link"
+        runtime_link.symlink_to(real_runtime, target_is_directory=True)
+        real_profile = self.root / "real-profile"
+        real_profile.mkdir()
+        real_profile.chmod(0o700)
+        profile_link = self.root / "profile-link"
+        profile_link.symlink_to(real_profile, target_is_directory=True)
+
+        base = dict(
+            carrier=self.root / "carrier",
+            expected_sha256="expected",
+            browser_executable=Path("/unused/opera"),
+            expected_browser_product="136.0.6008.22",
+        )
+        with (
+            mock.patch.object(helper, "sha256", return_value="expected"),
+            mock.patch.object(
+                helper, "browser_product", return_value="136.0.6008.22"
+            ),
+            mock.patch.object(helper, "profile_in_use", return_value=False),
+            mock.patch.object(
+                helper,
+                "ensure_exact_runtime",
+                return_value={"created": False, "fileCount": 1},
+            ) as extract,
+        ):
+            with self.assertRaisesRegex(
+                AssertionError, "^RUNTIME_ROOT_SYMLINK_REJECTED$"
+            ):
+                helper.prepare(
+                    types.SimpleNamespace(
+                        **base, profile_dir=self.profile, runtime_dir=runtime_link
+                    )
+                )
+            extract.assert_not_called()
+
+        with (
+            mock.patch.object(helper, "sha256", return_value="expected"),
+            mock.patch.object(
+                helper, "browser_product", return_value="136.0.6008.22"
+            ),
+            mock.patch.object(helper, "profile_in_use", return_value=False),
+            mock.patch.object(
+                helper,
+                "ensure_exact_runtime",
+                return_value={"created": False, "fileCount": 1},
+            ) as extract,
+        ):
+            with self.assertRaisesRegex(
+                AssertionError, "^PROFILE_ROOT_SYMLINK_REJECTED$"
+            ):
+                helper.prepare(
+                    types.SimpleNamespace(
+                        **base,
+                        profile_dir=profile_link,
+                        runtime_dir=self.root / "runtime-clean",
+                    )
+                )
+            extract.assert_not_called()
+
+    def test_prepare_rejects_symlink_in_existing_parent_component(self):
+        self.profile.chmod(0o700)
+        real_parent = self.root / "real-parent"
+        real_parent.mkdir()
+        parent_link = self.root / "parent-link"
+        parent_link.symlink_to(real_parent, target_is_directory=True)
+        args = types.SimpleNamespace(
+            carrier=self.root / "carrier",
+            expected_sha256="expected",
+            browser_executable=Path("/unused/opera"),
+            expected_browser_product="136.0.6008.22",
+            profile_dir=self.profile,
+            runtime_dir=parent_link / "runtime",
+        )
+        with (
+            mock.patch.object(helper, "sha256", return_value="expected"),
+            mock.patch.object(
+                helper, "browser_product", return_value="136.0.6008.22"
+            ),
+            mock.patch.object(helper, "profile_in_use", return_value=False),
+            mock.patch.object(helper, "ensure_exact_runtime") as extract,
+        ):
+            with self.assertRaisesRegex(
+                AssertionError, "^RUNTIME_ROOT_SYMLINK_REJECTED$"
+            ):
+                helper.prepare(args)
+            extract.assert_not_called()
+
+    def test_prepare_rejects_externally_writable_existing_parent(self):
+        self.profile.chmod(0o700)
+        unsafe_parent = self.root / "unsafe-parent"
+        unsafe_parent.mkdir()
+        unsafe_parent.chmod(0o777)
+        args = types.SimpleNamespace(
+            carrier=self.root / "carrier",
+            expected_sha256="expected",
+            browser_executable=Path("/unused/opera"),
+            expected_browser_product="136.0.6008.22",
+            profile_dir=self.profile,
+            runtime_dir=unsafe_parent / "runtime",
+        )
+        with (
+            mock.patch.object(helper, "sha256", return_value="expected"),
+            mock.patch.object(
+                helper, "browser_product", return_value="136.0.6008.22"
+            ),
+            mock.patch.object(helper, "profile_in_use", return_value=False),
+            mock.patch.object(helper, "ensure_exact_runtime") as extract,
+        ):
+            with self.assertRaisesRegex(
+                AssertionError, "^RUNTIME_ROOT_PERMISSIONS_UNSAFE$"
+            ):
+                helper.prepare(args)
+            extract.assert_not_called()
+
+    def test_main_preserves_runtime_and_profile_paths_for_nofollow_validation(self):
+        runtime_target = self.root / "runtime-target"
+        runtime_target.mkdir()
+        runtime_link = self.root / "runtime-link-main"
+        runtime_link.symlink_to(runtime_target, target_is_directory=True)
+        profile_target = self.root / "profile-target"
+        profile_target.mkdir()
+        profile_link = self.root / "profile-link-main"
+        profile_link.symlink_to(profile_target, target_is_directory=True)
+        output = self.root / "main-result.json"
+        captured = {}
+
+        def fake_prepare(args):
+            captured["runtime_dir"] = args.runtime_dir
+            captured["profile_dir"] = args.profile_dir
+            return {
+                "status": "PREPARED",
+                "carrier": "carrier.zip",
+                "packageSha256": "expected",
+                "browserProduct": "136.0.6008.22",
+                "runtimeFileCount": 1,
+                "runtimeCreated": False,
+                "profileInUse": False,
+                "manifestKeyPresent": False,
+                "stablePathRequired": True,
+            }
+
+        argv = [
+            "helper",
+            "--mode",
+            "prepare",
+            "--carrier",
+            str(self.root / "carrier.zip"),
+            "--runtime-dir",
+            str(runtime_link),
+            "--profile-dir",
+            str(profile_link),
+            "--browser-executable",
+            "/unused/opera",
+            "--expected-browser-product",
+            "136.0.6008.22",
+            "--expected-version",
+            "0.2.11",
+            "--expected-sha256",
+            "expected",
+            "--output",
+            str(output),
+        ]
+        with (
+            mock.patch.object(sys, "argv", argv),
+            mock.patch.object(helper, "prepare", side_effect=fake_prepare),
+            contextlib.redirect_stdout(io.StringIO()),
+            contextlib.redirect_stderr(io.StringIO()),
+        ):
+            self.assertEqual(helper.main(), 0)
+        self.assertEqual(captured["runtime_dir"], runtime_link.absolute())
+        self.assertEqual(captured["profile_dir"], profile_link.absolute())
+        self.assertTrue(captured["runtime_dir"].is_symlink())
+        self.assertTrue(captured["profile_dir"].is_symlink())
+
     def test_known_failure_code_is_preserved_but_arbitrary_text_is_not(self):
         self.assertEqual(helper.safe_failure_code(AssertionError("PROFILE_USAGE_INSPECTION_FAILED")),
                          "PROFILE_USAGE_INSPECTION_FAILED")
+        self.assertEqual(helper.safe_failure_code(AssertionError("RUNTIME_ROOT_SYMLINK_REJECTED")),
+                         "RUNTIME_ROOT_SYMLINK_REJECTED")
+        self.assertEqual(helper.safe_failure_code(AssertionError("PROFILE_ROOT_SYMLINK_REJECTED")),
+                         "PROFILE_ROOT_SYMLINK_REJECTED")
+        self.assertEqual(helper.safe_failure_code(AssertionError("RUNTIME_ROOT_PERMISSIONS_UNSAFE")),
+                         "RUNTIME_ROOT_PERMISSIONS_UNSAFE")
+        self.assertEqual(helper.safe_failure_code(AssertionError("PROFILE_ROOT_PERMISSIONS_UNSAFE")),
+                         "PROFILE_ROOT_PERMISSIONS_UNSAFE")
         for failure in [RuntimeError("OTP=PRIVATE_VALUE"), AssertionError("TOKEN=PRIVATE_VALUE")]:
             self.assertEqual(helper.safe_failure_code(failure), "OWNER_CONTROL_HELPER_FAILED")
 
