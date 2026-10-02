@@ -39,6 +39,7 @@ def main():
         runner.run("core-build-create-pending-extraction", ["node", ROOT / "tests/regression/extension-core/client-i1/create-pending-work-start-extraction.mjs"])
         source, extracted, receipt = composed.build(output / "package")
         result["composition"] = receipt
+        runner.run("core-store-metadata-and-import-fences", ["node", ROOT / "tests/regression/extension-core/client-i1/client-d3s2-store-metadata-state.mjs", ROOT])
         work = output / "work"
         work.mkdir()
         for runtime, label, source_route in [(source, "core-source", True), (extracted, "core-package", False)]:
@@ -50,6 +51,7 @@ def main():
             runner.run(label + "-wb-adapter", ["node", ROOT / "tests/regression/extension-core/wb-adapter.mjs", runtime])
             runner.run(label + "-application", ["node", ROOT / "tests/regression/extension-core/application.mjs", runtime])
             runner.run(label + "-transfer-recipient-recovery", ["node", ROOT / "tests/regression/extension-core/client-i1/client-transfer-recipient-recovery.mjs", runtime])
+            runner.run(label + "-transfer-popup", ["node", ROOT / "tests/regression/extension-core/client-i1/client-transfer-popup-receive.mjs", runtime])
             runner.run(label + "-support-snapshot", ["node", ROOT / "tests/regression/extension-core/client-i1/client-support-snapshot.mjs", runtime])
             runner.run(label + "-start-diagnostics", ["node", ROOT / "tests/regression/extension-core/client-i1/client-start-diagnostics.mjs", runtime])
             runner.run(label + "-firefox-technical-data-consent", ["node", ROOT / "tests/regression/extension-core/client-i1/firefox-technical-data-consent.mjs", runtime])

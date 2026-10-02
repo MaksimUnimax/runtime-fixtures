@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import path from "node:path";
-import { makeWorker } from "../worker-harness.mjs";
+import { makeWorker, signFixtureBootstrap, until } from "../worker-harness.mjs";
 
 const runtime = path.resolve(process.argv[2]);
 const ACCOUNT = "11111111-1111-4111-8111-111111111111";
@@ -125,7 +125,7 @@ await check("TRR-03-restart-after-durable-import-before-ACK-does-not-reimport", 
   const encrypted = await envelope(worker, server, "transfer-store"); const packet = server.makePacket(encrypted);
   const received = await worker.call("SellerAgentsControlClient.receiveCredentialTransfer", server.state.request.requestId, SOURCE);
   const store = received.payload.stores[0];
-  const imported = await worker.call("SellerAgentsActiveStoreCatalog.importCredential", { ...store, id: store.storeId }); assert.equal(imported.kind, "IMPORTED");
+  const imported = await worker.call("SellerAgentsActiveStoreCatalog.importCredential", { ...store, id: store.storeId }, received.importContext); assert.equal(imported.kind, "IMPORTED");
   await worker.call("SellerAgentsControlClient.recordCredentialTransferImported", { requestId: server.state.request.requestId, packetId: packet.packetId, results: [{ storeId: store.storeId, ...imported }] });
   assert.equal([...idb.records.values()][0].phase, "IMPORTED_PENDING_ACK"); worker.close();
   worker = await workerWith({ backing, idb, server });
@@ -194,6 +194,117 @@ await check("TRR-08-expired-vault-record-pruned-on-worker-restore", async () => 
   const record = [...idb.records.values()][0]; record.expiresAt = new Date(Date.now() - 1000).toISOString(); idb.records.set(record.requestId, record); worker.close();
   worker = await workerWith({ backing, idb, server });
   try { assert.equal(idb.records.size, 0); } finally { worker.close(); }
+});
+
+
+for (const nextAccount of [ACCOUNT, "99999999-9999-4999-8999-999999999999"]) {
+  await check("TRR-09-decryption-fenced-after-reauth-" + nextAccount.slice(0, 8), async () => {
+    const server = transferServer(), idb = fakeIDB(), backing = { local: {}, session: {} };
+    let basePayload;
+    const worker = await makeWorker(runtime, { backing, indexedDB: idb, accountId: ACCOUNT, deviceId: RECIPIENT, fetch: async (url, init) => {
+      if (url.endsWith("/v1/device-authorizations")) return json({ status: "pending", authorizationId: "66666666-6666-4666-8666-666666666666", deviceCode: "D".repeat(43), userCode: "ABCD-EFGH", expiresAt: new Date(Date.now() + 60000).toISOString() });
+      if (url.endsWith("/v1/device-authorizations/token")) return json({ status: "activated", deviceId: "77777777-7777-4777-8777-777777777777", sessionId: "88888888-8888-4888-8888-888888888888", tokenType: "Bearer", accessToken: "B".repeat(24), accessTokenExpiresAt: new Date(Date.now() + 3600000).toISOString(), refreshToken: "C".repeat(43), refreshTokenExpiresAt: new Date(Date.now() + 7200000).toISOString() });
+      if (url.endsWith("/v1/bootstrap")) return json(await signFixtureBootstrap(backing, { ...basePayload, account: { id: nextAccount, status: "ACTIVE" }, serverTime: new Date().toISOString(), ai: { status: "UNCONFIGURED" } }));
+      return server.fetch(url, init);
+    } });
+    basePayload = structuredClone(backing.local.seller_agents_control_auth_v2.authority.payload);
+    try {
+      await worker.call("SellerAgentsControlClient.createCredentialTransfer", { consent: true, selectedStoreIds: ["race-store"] });
+      server.makePacket(await envelope(worker, server, "race-store"));
+      await worker.call("(() => { const original = SellerAgentsCredentialTransferCrypto; globalThis.SellerAgentsCredentialTransferCrypto = Object.freeze({ ...original, decrypt: async input => { const payload = await original.decrypt(input); await new Promise(resolve => { globalThis.releaseTransferDecryption = resolve; }); return payload; } }); })");
+      const pending = worker.call("saTransferReceive", { request: server.state.request }).then(value => ({ value }), error => ({ error: error.code || error.message }));
+      await until(() => worker.call("(() => typeof globalThis.releaseTransferDecryption === 'function')"), "real decryption barrier");
+      await worker.call("SellerAgentsControlClient.localReset");
+      await worker.call("SellerAgentsControlClient.startActivation");
+      await until(async () => (await worker.call("SellerAgentsControlClient.status")).authenticated, "signed replacement account");
+      assert.equal(await worker.call("SellerAgentsControlClient.currentAccount"), nextAccount);
+      const before = structuredClone(backing.local.seller_agents_stores_v1);
+      await worker.call("(() => globalThis.releaseTransferDecryption())");
+      const outcome = await pending;
+      assert.equal(JSON.stringify(backing.local.seller_agents_stores_v1) === JSON.stringify(before), true, "no credentials written after reset/re-auth");
+      assert.equal(outcome.error, "AUTH_GENERATION_CHANGED");
+      assert.equal(server.state.ackCalls, 0, "stale import never ACKs");
+    } finally { await worker.call("(() => globalThis.releaseTransferDecryption?.())"); worker.close(); }
+  });
+}
+
+await check("TRR-10-empty-recipient-imports-available-source-stores", async () => {
+  const server = transferServer(), recipientBacking = { local: {}, session: {} }, sourceBacking = { local: {}, session: {} };
+  const recipient = await workerWith({ backing: recipientBacking, idb: fakeIDB(), server, seedAuthority: true });
+  const source = await makeWorker(runtime, { backing: sourceBacking, accountId: ACCOUNT, deviceId: SOURCE, fetch: async (url, init = {}) => {
+    const pathname = new URL(url).pathname;
+    if (pathname.endsWith("/source-seen")) return json(server.state.request);
+    if (pathname.endsWith("/packet") && init.method === "POST") {
+      const body = JSON.parse(init.body);
+      server.makePacket(body.envelope, body.packetId); return json(server.state.request);
+    }
+    return server.fetch(url, init);
+  } });
+  try {
+    const chosen = await source.call("SellerAgentsActiveStoreCatalog.save", { marketplace: "wildberries", name: "Chosen", credentials: { token: "FIXTURE_CHOSEN_ONLY" } });
+    const other = await source.call("SellerAgentsActiveStoreCatalog.save", { marketplace: "wildberries", name: "Not chosen", credentials: { token: "FIXTURE_NOT_CHOSEN" } });
+    assert.equal((await recipient.call("SellerAgentsActiveStoreCatalog.list")).length, 0);
+    await recipient.popup({ type: "SA_TRANSFER_CREATE", consent: true, selectedStoreIds: [] });
+    await source.call("SellerAgentsActiveStoreCatalog.applyRemoteMetadata", { kind: "STORE_UPSERT", storeId: "remote-no-keys", marketplace: "wildberries", name: "Remote", credentialRevision: "metadata-only", metadataRevision: 1 });
+    await source.call("saTransferSourceSend", { request: server.state.request });
+    const received = await recipient.call("saTransferReceive", { request: server.state.request });
+    assert.equal(received.importState, "IMPORTED");
+    const stores = recipientBacking.local.seller_agents_stores_v1.accounts[ACCOUNT].stores;
+    assert.equal(stores[chosen.id].credentials.token, "FIXTURE_CHOSEN_ONLY");
+    assert.equal(stores[other.id].credentials.token, "FIXTURE_NOT_CHOSEN");
+    assert.equal(stores["remote-no-keys"], undefined);
+    assert.equal(Object.keys(stores).length, 2);
+  } finally { source.close(); recipient.close(); }
+});
+
+await check("TRR-11-runtime-backup-reports-skipped-metadata-only-stores", async () => {
+  const worker = await makeWorker(runtime);
+  try {
+    await worker.call("SellerAgentsActiveStoreCatalog.save", { marketplace: "wildberries", name: "Local", credentials: { token: "FIXTURE_BACKUP_LOCAL" } });
+    await worker.call("SellerAgentsActiveStoreCatalog.applyRemoteMetadata", { kind: "STORE_UPSERT", storeId: "metadata-only", marketplace: "ozon", name: "Remote", credentialRevision: "remote-revision", metadataRevision: 1, providerIdentityState: "UNCONFIRMED" });
+    const output = await worker.popup({ type: "SA_BACKUP_EXPORT", password: "fixture-backup-password", passwordConfirmation: "fixture-backup-password" });
+    assert.equal(output.ok, true, output.code);
+    assert.equal(output.storeCount, 1);
+    assert.equal(output.skippedStoreCount, 1);
+    const decoded = await worker.call("SellerAgentsStoreBackup.decrypt", output.backup, "fixture-backup-password", ACCOUNT);
+    assert.equal(decoded.payload.stores.length, 1);
+    assert.equal(decoded.payload.stores[0].credentials.token, "FIXTURE_BACKUP_LOCAL");
+  } finally { worker.close(); }
+});
+
+
+await check("TRR-12-explicit-selection-does-not-expand-to-all-stores", async () => {
+  const server = transferServer(), backing = { local: {}, session: {} };
+  const worker = await workerWith({ backing, idb: fakeIDB(), server, seedAuthority: true });
+  const sourceBacking = { local: {}, session: {} };
+  const source = await makeWorker(runtime, { backing: sourceBacking, accountId: ACCOUNT, deviceId: SOURCE, fetch: async (url, init = {}) => {
+    if (url.endsWith("/source-seen")) return json(server.state.request);
+    if (url.endsWith("/packet") && init.method === "POST") { const body = JSON.parse(init.body); server.makePacket(body.envelope, body.packetId); return json(server.state.request); }
+    return server.fetch(url, init);
+  } });
+  try {
+    const chosen = await source.call("SellerAgentsActiveStoreCatalog.save", { marketplace: "wildberries", name: "Chosen", credentials: { token: "FIXTURE_SELECTED" } });
+    const other = await source.call("SellerAgentsActiveStoreCatalog.save", { marketplace: "wildberries", name: "Other", credentials: { token: "FIXTURE_OTHER" } });
+    await worker.call("SellerAgentsControlClient.createCredentialTransfer", { consent: true, selectedStoreIds: [chosen.id] });
+    await source.call("saTransferSourceSend", { request: server.state.request });
+    const result = await worker.call("saTransferReceive", { request: server.state.request });
+    assert.equal(result.importState, "IMPORTED");
+    assert.equal((await worker.call("SellerAgentsActiveStoreCatalog.list")).length, 1);
+    await assert.rejects(worker.call("SellerAgentsActiveStoreCatalog.get", other.id), /STORE_NOT_FOUND/);
+  } finally { worker.close(); source.close(); }
+});
+
+await check("TRR-13-empty-packet-is-not-a-successful-import", async () => {
+  const server = transferServer(), backing = { local: {}, session: {} };
+  const worker = await workerWith({ backing, idb: fakeIDB(), server, seedAuthority: true });
+  try {
+    await worker.call("SellerAgentsControlClient.createCredentialTransfer", { consent: true, selectedStoreIds: [] });
+    server.makePacket(await worker.call("SellerAgentsCredentialTransferCrypto.encrypt", { accountId: ACCOUNT, requestId: server.state.request.requestId, sourceDeviceId: SOURCE, recipientDeviceId: RECIPIENT, packetId: "55555555-5555-4555-8555-555555555555", recipientPublicKeySpki: server.state.request.recipientPublicKeySpki, payload: { transferPayloadVersion: "seller_agents_credential_payload_v1", stores: [] } }));
+    const before = structuredClone(backing.local.seller_agents_stores_v1);
+    await assert.rejects(worker.call("saTransferReceive", { request: server.state.request }), /TRANSFER_CREDENTIALS_MISSING/);
+    assert.deepEqual(backing.local.seller_agents_stores_v1, before);
+    assert.equal(server.state.ackCalls, 0);
+  } finally { worker.close(); }
 });
 
 const failed = results.filter(row => row.status !== "PASS");

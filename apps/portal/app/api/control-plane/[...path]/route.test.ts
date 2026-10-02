@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
-import { POST } from "./route.js";
+import { GET, POST } from "./route.js";
 import {
   allowedRoute,
   controlPlaneOrigin,
@@ -12,6 +12,7 @@ describe("portal control-plane BFF boundary", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
     vi.restoreAllMocks();
   });
 
@@ -111,9 +112,66 @@ describe("portal control-plane BFF boundary", () => {
     ["GET", "/v1/devices/else"],
     ["POST", "/v1/billing/checkouts"],
     ["POST", "/v1/billing/events"],
+    ["DELETE", "/v1/support/cases"],
+    ["GET", "/v1/support/cases/" + id],
+    ["POST", "/v1/support/cases/admin"],
   ])("rejects %s %s", (method, path) =>
     expect(allowedRoute(method, path)).toBeUndefined(),
   );
+
+  it.each(["GET", "POST"])(
+    "forwards support cases through the real %s handler",
+    async (method) => {
+      vi.stubEnv("CONTROL_PLANE_API_ORIGIN", "https://api.example.test");
+      const payload = {
+        subject: "Synthetic feedback",
+        message: "Fixture only",
+      };
+      const downstream = vi.fn(async () =>
+        Response.json({ cases: [] }, { status: method === "POST" ? 201 : 200 }),
+      );
+      vi.stubGlobal("fetch", downstream);
+      const request = new NextRequest(
+        "https://portal.example.test/api/control-plane/v1/support/cases?limit=10",
+        {
+          method,
+          headers: {
+            "content-type": "application/json",
+            cookie: "pcp_session=fixture",
+            "x-csrf-token": "fixture-csrf",
+            "idempotency-key": "fixture-support",
+          },
+          ...(method === "POST" ? { body: JSON.stringify(payload) } : {}),
+        },
+      );
+      const response = await (method === "GET" ? GET : POST)(request, {
+        params: Promise.resolve({ path: ["v1", "support", "cases"] }),
+      });
+      expect(response.status).toBe(method === "POST" ? 201 : 200);
+      expect(downstream).toHaveBeenCalledTimes(1);
+      const [url, init] = downstream.mock.calls[0] as unknown as [
+        string,
+        RequestInit,
+      ];
+      expect(url).toBe("https://api.example.test/v1/support/cases?limit=10");
+      expect(init.method).toBe(method);
+      expect(new Headers(init.headers).get("cookie")).toBe(
+        "pcp_session=fixture",
+      );
+      expect(new Headers(init.headers).get("x-csrf-token")).toBe(
+        "fixture-csrf",
+      );
+      expect(new Headers(init.headers).get("idempotency-key")).toBe(
+        "fixture-support",
+      );
+      if (method === "POST")
+        expect(
+          JSON.parse(new TextDecoder().decode(init.body as ArrayBuffer)),
+        ).toEqual(payload);
+      else expect(init.body).toBeUndefined();
+    },
+  );
+
   it("accepts only a root absolute http(s) origin", () => {
     expect(controlPlaneOrigin("https://api.example.test")).toBe(
       "https://api.example.test",

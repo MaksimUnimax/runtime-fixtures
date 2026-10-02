@@ -117,6 +117,36 @@ test("CALL-57", "ordinary WB command has zero mandatory control calls", async ()
 test("CALL-58", "ordinary AI delivery has zero mandatory control calls", async () => { const source = fs.readFileSync(path.join(root, "apps/extension/src/application/delivery.js"), "utf8"); assert.doesNotMatch(source, /store.?metadata|syncNow/i); });
 test("CALL-59", "offline valid Work remains valid with pending metadata sync", async () => { const f = catalogFixture(); const a = await store(f); assert.equal((await f.catalog.get(a.id)).id, a.id); });
 
+for (const phase of ["before-import", "during-storage-read"]) test("TRANSFER-AUTH-" + phase, "pinned import rejects account/generation change before persistence", async () => {
+  let live = { accountId: accountA, generation: 1 }, releaseRead, enteredRead, readPaused = false;
+  const paused = new Promise(resolve => { enteredRead = resolve; });
+  const local = {};
+  const context = load("packages/bridge-core/src/stores/catalog.js", {
+    SellerAgentsLocalOperations: { createWriteQueue: () => { let tail = Promise.resolve(); return { run(fn) { const next = tail.then(fn); tail = next.catch(() => {}); return next; } }; } },
+  });
+  const catalog = context.SellerAgentsStoreCatalog.create({
+    currentAccount: async () => live.accountId,
+    assertTransferContext: pinned => {
+      if (!pinned || pinned.accountId !== live.accountId || pinned.generation !== live.generation)
+        throw Object.assign(new Error("AUTH_GENERATION_CHANGED"), { code: "AUTH_GENERATION_CHANGED" });
+    },
+    read: async key => {
+      if (phase === "during-storage-read" && !readPaused) { readPaused = true; enteredRead(); await new Promise(resolve => { releaseRead = resolve; }); }
+      return { [key]: structuredClone(local[key]) };
+    },
+    write: async value => Object.assign(local, structuredClone(value)),
+    normalizeCredentials: (_marketplace, value) => structuredClone(value),
+    revision: () => "revision", uuid,
+  });
+  const pinned = { ...live };
+  if (phase === "before-import") live = { accountId: accountB, generation: 2 };
+  const pending = catalog.importCredential({ id: "race", marketplace: "wildberries", credentialRevision: "r", credentials: { token: "SYNTHETIC_SECRET_A" } }, pinned);
+  const rejected = expectReject(() => pending, "AUTH_GENERATION_CHANGED");
+  if (phase === "during-storage-read") { await paused; live = { accountId: accountA, generation: 2 }; releaseRead(); }
+  await rejected;
+  assert.deepEqual(local, {}, "no write in either account");
+});
+
 async function main() {
   for (const item of cases) {
     try { await item.fn(); } catch (error) { failures.push({ id: item.id, description: item.description, error: (error && error.message) || String(error) }); }

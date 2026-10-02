@@ -32,6 +32,17 @@ await run("EX-01..EX-18", "export boundary includes every active store and exclu
   assert.equal(payload.stores.length, 4); assert.deepEqual(payload.stores.map(store => store.storeId), ["ozon-seller", "ozon-performance", "wb-one", "wb-two"]);
   assert.equal(JSON.stringify(payload).includes("deleted"), false); assert.equal(JSON.stringify(payload).includes("conversation"), false); assert.equal(JSON.stringify(payload).includes("access_token"), false);
 });
+
+await run("EX-METADATA-ONLY", "WB/Ozon metadata-only entries do not block available local credentials", async () => {
+  const remote = ["ozon", "wildberries"].map(marketplace => ({ id: "remote-" + marketplace, name: "Remote", marketplace, credentialRevision: "remote-revision", lifecycleState: "ACTIVE", credentials: {} }));
+  const mixed = backup.payloadFromStores(accountA, [...stores, ...remote]);
+  assert.equal(mixed.stores.length, 4);
+  const decoded = await backup.decrypt(await backup.encrypt(mixed, password), password, accountA);
+  assert.equal(decoded.payload.stores.length, 4);
+  assert.equal(backup.payloadFromStores(accountA, remote).stores.length, 0);
+  assert.throws(() => backup.payloadFromStores(accountA, [{ ...stores[2], credentials: { token: 42 } }]), /BACKUP_WB_TOKEN_INVALID/, "malformed present secrets remain an error");
+});
+
 await run("EX-19..EX-24", "current envelope is versioned, randomized, bounded and authenticated", async () => {
   const first = JSON.parse(await backup.encrypt(payload, password)); const second = JSON.parse(await backup.encrypt(payload, password));
   assert.equal(first.magic, backup.MAGIC); assert.equal(first.envelopeVersion, 1); assert.equal(first.kdf.name, backup.KDF_NAME); assert.equal(first.encryption.name, backup.ENCRYPTION_NAME);

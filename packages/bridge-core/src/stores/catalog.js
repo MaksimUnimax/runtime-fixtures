@@ -6,6 +6,7 @@
     read,
     write,
     currentAccount,
+    assertTransferContext,
     normalizeCredentials,
     revision,
     uuid,
@@ -74,20 +75,26 @@
       if (!store || store.accountId !== id || store.lifecycleState === "TOMBSTONED") fail("STORE_NOT_FOUND");
       return structuredClone(store);
     }
-    async function mutate(fn) {
+    async function mutate(fn, transferContext = null) {
       return lock.run(async () => {
+        if (transferContext) assertTransferContext?.(transferContext);
         const { id, all } = await state();
+        if (transferContext && transferContext.accountId !== id) fail("ACCOUNT_CHANGED");
         const scope = structuredClone(
           all.accounts[id] || { stores: {}, next: { ozon: 1, wildberries: 1 } },
         );
         const result = await fn(scope, id);
         if (id !== (await account())) fail("ACCOUNT_CHANGED");
         const next = { ...all, accounts: { ...all.accounts, [id]: scope } };
+        // Synchronous fence immediately before the storage call: no later
+        // account/generation can be selected by this queued import.
+        if (transferContext) assertTransferContext?.(transferContext);
         await write({ [key]: next });
         const saved = (await read(key))[key];
         if (canonicalJson(saved) !== canonicalJson(next))
           fail("STORE_WRITE_NOT_CONFIRMED");
         if (id !== (await account())) fail("ACCOUNT_CHANGED");
+        if (transferContext) assertTransferContext?.(transferContext);
         return result;
       });
     }
@@ -154,7 +161,8 @@
         return publicStore(store);
       });
     }
-    async function importCredential(input) {
+    async function importCredential(input, transferContext = null) {
+      assertTransferContext?.(transferContext);
       if (!input || typeof input !== "object" || typeof input.id !== "string" || typeof input.credentialRevision !== "string") fail("TRANSFER_CONFLICT");
       return mutate(async (scope, id) => {
         const previous = scope.stores[input.id];
@@ -172,7 +180,7 @@
         const store = { id: input.id, accountId: id, marketplace: input.marketplace, name: String(input.name || input.id).slice(0, 80), credentials, credentialRevision: input.credentialRevision, metadataRevision: Number(input.metadataRevision || 0), lifecycleState: "ACTIVE", providerAccountId: input.providerIdentityState === "CONFIRMED" ? input.providerAccountId || null : null, providerIdentityState: input.providerIdentityState === "CONFIRMED" ? "CONFIRMED" : "UNCONFIRMED", credentialsStale: false, personalDataEnabled: false, verification: {}, createdAt: Date.now() };
         scope.stores[store.id] = store;
         return { kind: "IMPORTED", store: publicStore(store) };
-      });
+      }, transferContext);
     }
     async function backupSnapshot() {
       const { id, all } = await state();

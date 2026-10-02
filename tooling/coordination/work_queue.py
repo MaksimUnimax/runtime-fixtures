@@ -2,6 +2,7 @@
 import fcntl
 import fnmatch
 import hashlib
+import importlib.util
 import json
 import os
 import re
@@ -14,6 +15,26 @@ PLAN_IDS = {f"{r}{i:02d}" for r, span in (("A", range(1, 7)), ("B", range(1, 8))
 COMPLETION_KIND = "octoport.work-queue-completion"
 COMPLETION_VERSION = 1
 COMPLETION_VERDICTS = {"PASS", "FAIL", "REWORK_REQUIRED"}
+_V2_MODULE = None
+
+
+def _v2():
+    global _V2_MODULE
+    if _V2_MODULE is None:
+        path = Path(__file__).with_name("work_board_v2.py")
+        spec = importlib.util.spec_from_file_location("octoport_work_board_v2", path)
+        if spec is None or spec.loader is None:
+            raise RuntimeError("WORK_BOARD_V2_SOURCE_UNAVAILABLE")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        _V2_MODULE = module
+    return _V2_MODULE
+
+
+def _prepare_storage_write(root):
+    module = _v2()
+    if module.storage_version(root) == 2:
+        module.recover_queue_transaction(root)
 
 
 def current_worktree_head():
@@ -115,7 +136,62 @@ def board_snapshot(root):
         raise RuntimeError("WORK_QUEUE_SNAPSHOT_UNREADABLE") from None
     if len(raw) > 262144:
         raise RuntimeError("WORK_QUEUE_INVALID: size")
+    try:
+        version = json.loads(raw).get("version")
+    except (ValueError, TypeError, AttributeError):
+        raise RuntimeError("WORK_QUEUE_INVALID: repair controllers/work-board.json; no waiting proof") from None
+    if version == 2:
+        try:
+            return _v2().board_snapshot(Path(root), raw)
+        except RuntimeError:
+            raise RuntimeError("WORK_QUEUE_INVALID: repair controllers/work-board.json; no waiting proof") from None
     return {"exists": True, "sha256": hashlib.sha256(raw).hexdigest()}
+
+
+def _validate_logical_board(board, *, enforce_v1_count):
+    tasks = board["tasks"]
+    version = board.get("version")
+    if (version not in {1, 2} or not isinstance(board.get("revision"), int)
+            or board["revision"] < 0 or not isinstance(tasks, list)
+            or (enforce_v1_count and len(tasks) > 100)):
+        raise ValueError("shape")
+    by_id = {}
+    for task in tasks:
+        if not isinstance(task, dict):
+            raise ValueError("task")
+        identifier = task.get("id")
+        if not isinstance(identifier, str) or not identifier or identifier in by_id:
+            raise ValueError("id")
+        role = task.get("role")
+        if role not in {"A", "B", "C"} or task.get("state") not in STATES:
+            raise ValueError("role/state")
+        if task.get("plan") not in PLAN_IDS:
+            raise ValueError("plan")
+        if not isinstance(task.get("requires"), list) or not all(isinstance(x, str) for x in task["requires"]):
+            raise ValueError("requires")
+        if not isinstance(task.get("result"), str) or not task["result"].strip():
+            raise ValueError("result")
+        if task["state"] == "DONE" and not task.get("completion_receipt"):
+            raise ValueError("completion receipt")
+        if task["state"] == "BLOCKED" and not task["requires"] and not task.get("blocked_reason"):
+            raise ValueError("external blocker")
+        by_id[identifier] = task
+    visiting, visited = set(), set()
+
+    def visit(identifier):
+        if identifier not in by_id or identifier in visiting:
+            raise ValueError("dependency missing/cycle")
+        if identifier in visited:
+            return
+        visiting.add(identifier)
+        for dependency in by_id[identifier]["requires"]:
+            visit(dependency)
+        visiting.remove(identifier)
+        visited.add(identifier)
+
+    for identifier in by_id:
+        visit(identifier)
+    return board
 
 
 def load_board(root, candidate=None):
@@ -123,63 +199,37 @@ def load_board(root, candidate=None):
     if candidate is None and not path.exists():
         return {"version": 1, "revision": 0, "tasks": []}
     try:
-        if candidate is None:
-            with path.open("rb") as source:
-                raw = source.read(262145)
-            if len(raw) > 262144:
-                raise ValueError("size")
-            board = json.loads(raw)
-        else:
+        if candidate is not None:
             board = candidate
-        tasks = board["tasks"]
-        if board["version"] != 1 or not isinstance(board.get("revision"), int) or board["revision"] < 0 or not isinstance(tasks, list) or len(tasks) > 100:
-            raise ValueError("shape")
-        by_id = {}
-        for task in tasks:
-            if not isinstance(task, dict):
-                raise ValueError("task")
-            identifier = task.get("id")
-            if not isinstance(identifier, str) or not identifier or identifier in by_id:
-                raise ValueError("id")
-            role = task.get("role")
-            if role not in {"A", "B", "C"} or task.get("state") not in STATES:
-                raise ValueError("role/state")
-            if task.get("plan") not in PLAN_IDS:
-                raise ValueError("plan")
-            if not isinstance(task.get("requires"), list) or not all(isinstance(x, str) for x in task["requires"]):
-                raise ValueError("requires")
-            if not isinstance(task.get("result"), str) or not task["result"].strip():
-                raise ValueError("result")
-            if task["state"] == "DONE" and not task.get("completion_receipt"):
-                raise ValueError("completion receipt")
-            if task["state"] == "BLOCKED" and not task["requires"] and not task.get("blocked_reason"):
-                raise ValueError("external blocker")
-            by_id[identifier] = task
-        visiting, visited = set(), set()
-
-        def visit(identifier):
-            if identifier not in by_id or identifier in visiting:
-                raise ValueError("dependency missing/cycle")
-            if identifier in visited:
-                return
-            visiting.add(identifier)
-            for dependency in by_id[identifier]["requires"]:
-                visit(dependency)
-            visiting.remove(identifier)
-            visited.add(identifier)
-
-        for identifier in by_id:
-            visit(identifier)
-        return board
-    except (OSError, ValueError, KeyError, TypeError):
+            return _validate_logical_board(board, enforce_v1_count=board.get("version") == 1)
+        with path.open("rb") as source:
+            raw = source.read(262145)
+        if len(raw) > 262144:
+            raise ValueError("size")
+        parsed = json.loads(raw)
+        if parsed.get("version") == 2:
+            board = _v2().load_logical_board(Path(root), raw)
+            return _validate_logical_board(board, enforce_v1_count=False)
+        return _validate_logical_board(parsed, enforce_v1_count=True)
+    except (OSError, ValueError, KeyError, TypeError, AttributeError, RuntimeError):
         raise RuntimeError("WORK_QUEUE_INVALID: repair controllers/work-board.json; no waiting proof") from None
+
+
+def _valid_literal_path_segment(segment):
+    if "[" not in segment and "]" not in segment:
+        return True
+    return re.fullmatch(
+        r"(?:\[[A-Za-z0-9_-]+\]|\[\.\.\.[A-Za-z0-9_-]+\]|\[\[\.\.\.[A-Za-z0-9_-]+\]\])",
+        segment,
+    ) is not None
 
 
 def valid_paths(paths):
     return (isinstance(paths, list) and bool(paths) and all(
         isinstance(p, str) and p.strip() == p and p not in {"", "."}
         and not Path(p).is_absolute() and ".." not in Path(p).parts
-        and str(Path(p)) == p and not any(x in p for x in "*?[")
+        and str(Path(p)) == p and not any(x in p for x in "*?")
+        and all(_valid_literal_path_segment(part) for part in Path(p).parts)
         for p in paths))
 
 
@@ -278,23 +328,40 @@ def validate_task_scope(root, role, paths):
             raise RuntimeError("TASK_SCOPE_CONFLICT: " + ",".join(conflicts))
 
 
+def _validated_board_text(root, board):
+    if board.get("version") != 1:
+        raise RuntimeError("WORK_BOARD_V2_LOGICAL_SERIALIZATION_FORBIDDEN")
+    load_board(root, candidate=board)
+    encoded = json.dumps(board, ensure_ascii=False, indent=2) + "\n"
+    if len(encoded.encode("utf-8")) > 262144:
+        raise RuntimeError("WORK_QUEUE_INVALID: size")
+    return encoded
+
+
+def _persist_board(root, board, event):
+    if board.get("version") == 2:
+        try:
+            _validate_logical_board(board, enforce_v1_count=False)
+        except (ValueError, KeyError, TypeError, AttributeError):
+            raise RuntimeError("WORK_QUEUE_INVALID: logical v2 candidate") from None
+        return _v2().commit_logical_board(root, board, event)
+    encoded = _validated_board_text(root, board)
+    path = root / "controllers/work-board.json"
+    temporary = path.with_name(path.name + ".tmp")
+    temporary.write_text(encoded, encoding="utf-8")
+    os.chmod(temporary, 0o600)
+    os.replace(temporary, path)
+    with (root / "controllers/work-board-events.jsonl").open("a") as output:
+        output.write(json.dumps(event, ensure_ascii=False) + "\n")
+    return event
+
+
 def write_board(root, board, event):
     now = datetime.now(timezone.utc).isoformat()
     board["revision"] = board.get("revision", 0) + 1
     board["updated_at"] = now
-    load_board(root, candidate=board)
-    encoded = json.dumps(board, ensure_ascii=False, indent=2) + "\n"
-    if len(encoded.encode()) > 262144:
-        raise RuntimeError("WORK_QUEUE_INVALID: size")
-    path = root / "controllers/work-board.json"
-    temporary = path.with_name(path.name + ".tmp")
-    temporary.write_text(encoded)
-    os.chmod(temporary, 0o600)
-    os.replace(temporary, path)
     event = dict(event, at=now, revision=board["revision"])
-    with (root / "controllers/work-board-events.jsonl").open("a") as output:
-        output.write(json.dumps(event, ensure_ascii=False) + "\n")
-    return event
+    return _persist_board(root, board, event)
 
 
 def claim_task(root, role, identifier=""):
@@ -305,6 +372,7 @@ def claim_task(root, role, identifier=""):
             raise RuntimeError("STOPPED: no queue claim permitted")
         with (root / "controllers/coordination.lock").open("a+") as lock:
             fcntl.flock(lock, fcntl.LOCK_EX)
+            _prepare_storage_write(root)
             board = load_board(root)
             active = [t for t in board["tasks"] if t["role"] == role and t["state"] == "IN_PROGRESS"]
             if any(t["id"] == identifier for t in active):
@@ -341,7 +409,7 @@ def status_work(root, role, dirty=False, waiting_proof=None):
     return result
 
 
-def advance_task(root, role, identifier, state, receipt="", reason=""):
+def advance_task(root, role, identifier, state, receipt="", reason="", *, expected_task=None):
     root = Path(root)
     if state not in {"IN_PROGRESS", "BLOCKED", "DONE"}:
         raise RuntimeError("WORK_QUEUE_TRANSITION_INVALID")
@@ -353,10 +421,13 @@ def advance_task(root, role, identifier, state, receipt="", reason=""):
             raise RuntimeError("STOPPED: no queue transition permitted")
         with (root / "controllers/coordination.lock").open("a+") as lock:
             fcntl.flock(lock, fcntl.LOCK_EX)
+            _prepare_storage_write(root)
             board = load_board(root)
             task = next((t for t in board["tasks"] if t["id"] == identifier), None)
             if task is None or task["role"] != role:
                 raise RuntimeError("WORK_QUEUE_TASK_OWNER_OR_STATE_INVALID")
+            if expected_task is not None and task != expected_task:
+                raise RuntimeError("WORK_QUEUE_TASK_DRIFT")
             invalidated_done = task["state"] == "DONE" and not _strict_completion_valid(task)
             legacy_done = task["state"] == "DONE" and "completion_receipt_format" not in task
             if task["state"] == "DONE" and not (state == "IN_PROGRESS" and (invalidated_done or legacy_done)):
@@ -428,16 +499,10 @@ def advance_task(root, role, identifier, state, receipt="", reason=""):
             task.update(state=state, updated_at=now)
             board["revision"] = board.get("revision", 0) + 1
             board["updated_at"] = now
-            path = root / "controllers/work-board.json"
-            temporary = path.with_name(path.name + ".tmp")
-            temporary.write_text(json.dumps(board, ensure_ascii=False, indent=2) + "\n")
-            os.chmod(temporary, 0o600)
-            os.replace(temporary, path)
             event = {"at": now, "role": role, "task": identifier, "before": previous,
                      "state": state, "receipt": receipt, "revision": board["revision"]}
-            with (root / "controllers/work-board-events.jsonl").open("a") as output:
-                output.write(json.dumps(event, ensure_ascii=False) + "\n")
-            return dict(event, owner_attention=blocker_attention(board))
+            persisted = _persist_board(root, board, event)
+            return dict(persisted, owner_attention=blocker_attention(board))
 
 
 def add_task(root, role, task, repo_root=None):
@@ -457,7 +522,7 @@ def add_task(root, role, task, repo_root=None):
         spec = ownership[owner]
         return any(fnmatch.fnmatchcase(path, x) for x in spec["allow"]) and not any(fnmatch.fnmatchcase(path, x) for x in spec["deny"])
     for path in task["paths"]:
-        if any(x in path for x in "*?[") or not owned(path, role):
+        if any(x in path for x in "*?") or not owned(path, role):
             raise RuntimeError("WORK_QUEUE_OWNERSHIP_VIOLATION: self-add requires exact approved paths")
     plan = (repo / "docs/development/coordination/PLAN.md").read_text()
     approved = next((row for row in plan.splitlines() if row.startswith("| " + str(task.get("plan")) + " |")), None)
@@ -470,25 +535,15 @@ def add_task(root, role, task, repo_root=None):
             raise RuntimeError("STOPPED: no queue transition permitted")
         with (root / "controllers/coordination.lock").open("a+") as lock:
             fcntl.flock(lock, fcntl.LOCK_EX)
+            _prepare_storage_write(root)
             board = load_board(root)
             task = dict(task)
             task["created_at"] = datetime.now(timezone.utc).isoformat()
             board["tasks"].append(task)
             board["revision"] += 1
             board["updated_at"] = task["created_at"]
-            load_board(root, candidate=board)
-            encoded = json.dumps(board, ensure_ascii=False, indent=2) + "\n"
-            if len(encoded.encode()) > 262144:
-                raise RuntimeError("WORK_QUEUE_INVALID: size")
-            path = root / "controllers/work-board.json"
-            temporary = path.with_name(path.name + ".tmp")
-            temporary.write_text(encoded)
-            os.chmod(temporary, 0o600)
-            os.replace(temporary, path)
             event = {"at": task["created_at"], "role": role, "task": task["id"], "action": "ADD", "revision": board["revision"]}
-            with (root / "controllers/work-board-events.jsonl").open("a") as output:
-                output.write(json.dumps(event, ensure_ascii=False) + "\n")
-            return event
+            return _persist_board(root, board, event)
 
 
 def compact_state(state):

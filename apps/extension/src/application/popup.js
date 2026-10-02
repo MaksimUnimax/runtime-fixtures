@@ -85,9 +85,10 @@ function actionSuccessText(result) {
   return startStatusText(state?.lastStart) || "Запуск принят. Ожидаем подтверждение инструкции и ответа ИИ";
 }
 function transferReceivePresentation(result) {
-  if (result?.ok === true && result?.importState === "IMPORTED") return { text: "Передача принята и магазин импортирован.", consume: Boolean(result.requestId) };
+  if (result?.ok === true && result?.importState === "IMPORTED") return { text: "Передача принята, ключи магазинов импортированы.", consume: Boolean(result.requestId) };
   if (result?.ok === true && result?.importState === "CONFLICT") return { text: "Передача получена, но импорт остановлен из-за конфликта магазина.", consume: false };
   if (result?.ok === false && result?.code === "SOURCE_OFFLINE" && result?.importState === "SOURCE_OFFLINE") return { text: "Источник ещё не доставил передачу.", consume: false };
+  if (result?.ok === false && result?.code === "TRANSFER_CREDENTIALS_MISSING") return { text: "В полученной передаче нет ключей. Ничего не импортировано.", consume: false };
   if (result?.ok === false && !result?.code && result?.importState === "PENDING") return { text: "Активной передачи для получения нет.", consume: false };
   return null;
 }
@@ -196,8 +197,7 @@ $("finish").onclick = () => action(() => request("OZ_WORK_FINISH", { conversatio
 $("resume").onclick = () => action(() => request("SA_RESUME_QUOTA"));
 $("transfer-create").onclick = () => action(async () => {
   if (!$("transfer-consent").checked) throw new Error("Сначала подтвердите явное согласие на передачу через транспорт Seller Agents");
-  if (!selectedId) throw new Error("Выберите магазин для передачи");
-  const result = await request("SA_TRANSFER_CREATE", { consent: true, selectedStoreIds: [selectedId] });
+  const result = await request("SA_TRANSFER_CREATE", { consent: true, selectedStoreIds: selectedId ? [selectedId] : [] });
   $("transfer-status").textContent = `Запрос создан до ${new Date(result.request.expiresAt).toLocaleTimeString()}. Источник должен быть активен.`;
 });
 $("transfer-discover").onclick = () => action(async () => {
@@ -236,7 +236,7 @@ $("backup-export").onclick = () => action(async () => {
   const response = await request("SA_BACKUP_EXPORT", { password, passwordConfirmation: confirmation });
   downloadBackup(response.fileName, response.backup);
   $("backup-password").value = $("backup-password-confirm").value = "";
-  $("backup-status").textContent = `Экспортировано магазинов: ${response.storeCount}. Файл сохранён локально как ${response.fileName}.`;
+  $("backup-status").textContent = `Экспортировано магазинов: ${response.storeCount}. Пропущено без локальных ключей: ${response.skippedStoreCount || 0}. Файл сохранён локально как ${response.fileName}.`;
 });
 $("backup-preview").onclick = () => action(async () => {
   const file = $("backup-file").files?.[0];
