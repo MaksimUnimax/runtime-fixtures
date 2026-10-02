@@ -1,6 +1,8 @@
 import copy
 import importlib.util
+import json
 from pathlib import Path
+import tempfile
 import unittest
 
 spec = importlib.util.spec_from_file_location("audit_check", Path(__file__).with_name("audit_check.py"))
@@ -57,6 +59,24 @@ class AuditCompletionTests(unittest.TestCase):
             candidate["records"][0][key] = ""
             with self.subTest(key=key), self.assertRaisesRegex(ValueError, "MISSING_EXPLANATION"):
                 audit.render(self.registry, candidate)
+
+
+class DiskLifecycleAuditTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup)
+        self.root=Path(self.tmp.name)
+        for role in 'ABC':(self.root/(role+'.json')).write_text(json.dumps({'status':'RUNNING'}))
+
+    def test_alert_guard_reports_missing_baseline(self):
+        guard=audit.disk_lifecycle_guard(self.root)
+        self.assertTrue(guard['baseline_required'])
+        self.assertEqual(guard['unregistered_managed_paths'],[])
+
+    def test_alert_guard_reports_new_unregistered_root(self):
+        reg=audit.DiskLifecycleRegistry(self.root,clock=lambda:1000);reg.seed_baseline()
+        rogue=self.root/'worktrees'/'B'/'unregistered-review';rogue.mkdir(parents=True)
+        guard=audit.disk_lifecycle_guard(self.root)
+        self.assertEqual([row['path'] for row in guard['unregistered_managed_paths']],[str(rogue)])
 
 
 if __name__ == "__main__":
