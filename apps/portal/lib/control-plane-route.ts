@@ -10,6 +10,8 @@ const allowed = new Set([
   "POST /v1/devices/:id/revoke",
   "GET /v1/subscription",
   "GET /v1/billing/payments",
+  "GET /v1/support/cases",
+  "POST /v1/support/cases",
 ]);
 
 export function allowedRoute(method: string, path: string): string | undefined {

@@ -199,7 +199,7 @@ def compose(directory, mode="development", release_authority=None):
         output[patch["target"]] = text.replace(patch["old"], patch["new"]).encode()
     if mode == "store":
         visible_brand_targets = {
-            "popup.html": 5,
+            "popup.html": 4,
             "popup.js": 2,
             "shared/application.js": 1,
         }

@@ -1102,6 +1102,14 @@
     const context = contextForState();
     return { credentials: clone(state.credentials), accountId: state.authority.payload.account.id, sessionId: state.credentials.sessionId, context };
   }
+  // A transfer may cross crypto/storage awaits. Its original account and auth
+  // generation remain authoritative even after reset and re-login to that account.
+  function assertCredentialTransferContext(context) {
+    if (!validContext(context) || !context.accountId || !context.deviceId || !context.sessionId ||
+        !isCurrent(context) || state.authority?.payload?.account?.id !== context.accountId ||
+        !validAuthOwnership()) throw error("AUTH_GENERATION_CHANGED");
+    return true;
+  }
   function transferRecordMatches(record, auth) {
     return Boolean(record && record.accountId === auth.accountId && record.recipientDeviceId === auth.credentials.deviceId && record.sessionId === auth.sessionId);
   }
@@ -1177,25 +1185,30 @@
   async function receiveCredentialTransfer(requestId, sourceDeviceId) {
     return transferSingleFlight(requestId, async () => {
       const { auth, record } = await requireTransferRecord(requestId);
-      if (record.phase === "ACKED_RESULT") return { ackedResult: true, result: clone(record.result) };
-      if (record.phase === "IMPORTED_PENDING_ACK") return { pendingAck: true, packet: { packetId: record.packetId }, result: clone(record.result) };
+      const importContext = { ...auth.context, accountId: auth.accountId };
+      assertCredentialTransferContext(importContext);
+      if (record.phase === "ACKED_RESULT") return { ackedResult: true, result: clone(record.result), importContext };
+      if (record.phase === "IMPORTED_PENDING_ACK") return { pendingAck: true, packet: { packetId: record.packetId }, result: clone(record.result), importContext };
       if (!record.privateKey) throw error("TRANSFER_KEY_MISSING");
       const packet = (await authenticatedRequest(`/v1/credential-transfers/${encodeURIComponent(requestId)}/packet`, {}, auth.context)).body;
       if (!packet?.packetId || packet.requestId !== requestId) throw error("TRANSFER_PACKET_INVALID");
       const current = await transferVault.update(requestId, value => ({ ...value, phase: "RECEIVING", sourceDeviceId: sourceDeviceId || value.sourceDeviceId || null, packetId: packet.packetId }));
       if (!transferRecordMatches(current, await transferAuth())) throw error("TRANSFER_ACCOUNT_MISMATCH");
       const payload = await SellerAgentsCredentialTransferCrypto.decrypt({ envelope: packet.envelope, privateKey: current.privateKey, accountId: auth.accountId, requestId, sourceDeviceId, recipientDeviceId: auth.credentials.deviceId, packetId: packet.packetId });
-      return { packet, payload };
+      assertCredentialTransferContext(importContext);
+      return { packet, payload, importContext };
     });
   }
   async function recordCredentialTransferImported(input) {
     const { record } = await requireTransferRecord(input?.requestId);
+    if (input.importContext) assertCredentialTransferContext(input.importContext);
     if (!input?.packetId || record.packetId !== input.packetId) throw error("TRANSFER_PACKET_CHANGED");
     if (record.phase === "ACKED_RESULT" && record.result) return clone(record.result);
     if (record.phase === "IMPORTED_PENDING_ACK" && record.result) return clone(record.result);
     if (record.phase !== "RECEIVING") throw error("TRANSFER_IMPORT_PHASE_INVALID");
     const result = safeTransferResult({ requestId: input.requestId, importState: "IMPORTED", results: input.results || [] });
     await transferVault.update(input.requestId, current => {
+      if (input.importContext) assertCredentialTransferContext(input.importContext);
       if (current.packetId !== input.packetId) throw error("TRANSFER_PACKET_CHANGED");
       if (current.phase === "ACKED_RESULT" && current.result) return current;
       if (current.phase === "IMPORTED_PENDING_ACK" && current.result) return current;
@@ -1236,7 +1249,7 @@
     await transferVault.remove(requestId);
     return result;
   }
-  const api = { restore: init, status: async () => { await init(); const decision = await cacheAuthorizationCheckpoint(); return publicStatus(decision); }, currentAccount: async () => { await init(); return state.authority?.payload?.account?.id || null; }, generation: async () => { await init(); return state.generation; }, hasAuthority: async () => { await init(); return Boolean(state.authority && state.credentials); }, canWork: async () => { await init(); const decision = await cacheAuthorizationCheckpoint(); return decision.identity === authorityDecisionIdentity() && decision.allowed === true; }, getAuthority: async () => { await init(); const decision = await cacheAuthorizationCheckpoint(); const authority = clone(state.authority); if (authority && !(decision.identity === authorityDecisionIdentity() && decision.allowed === true)) authority.workAllowed = false; return authority; }, getCachedContinuationState, getHealthAuthorityContext, getVerifiedAuthorityTime, getSubscriptionRefreshPlan, runSubscriptionRefreshTask, acquireSignedHealthAuthority, synchronizeMetadata, createCredentialTransfer, listCredentialTransferRecipients, listCredentialTransfers, readCredentialTransfer, markCredentialTransferSourceSeen, submitCredentialTransferPacket, receiveCredentialTransfer, recordCredentialTransferImported, acknowledgeCredentialTransfer, discardCredentialTransfer, consumeCredentialTransferResult, startActivation, cancelActivation, refresh, bootstrap, bootstrapWithPolicy, ensureForIdentity, localReset, openPortal: async () => { await init(); const pending = state.pending; if (!pendingLive(state.pending) || !validAuthContext(pending.authContext)) throw error("NO_ACTIVATION_ATTEMPT"); return openPortal(pending.authorizationId); }, onAuthorityChanged: handler => { authorityChanged = handler; } };
+  const api = { restore: init, status: async () => { await init(); const decision = await cacheAuthorizationCheckpoint(); return publicStatus(decision); }, currentAccount: async () => { await init(); return state.authority?.payload?.account?.id || null; }, generation: async () => { await init(); return state.generation; }, hasAuthority: async () => { await init(); return Boolean(state.authority && state.credentials); }, canWork: async () => { await init(); const decision = await cacheAuthorizationCheckpoint(); return decision.identity === authorityDecisionIdentity() && decision.allowed === true; }, getAuthority: async () => { await init(); const decision = await cacheAuthorizationCheckpoint(); const authority = clone(state.authority); if (authority && !(decision.identity === authorityDecisionIdentity() && decision.allowed === true)) authority.workAllowed = false; return authority; }, getCachedContinuationState, getHealthAuthorityContext, getVerifiedAuthorityTime, getSubscriptionRefreshPlan, runSubscriptionRefreshTask, acquireSignedHealthAuthority, synchronizeMetadata, createCredentialTransfer, assertCredentialTransferContext, listCredentialTransferRecipients, listCredentialTransfers, readCredentialTransfer, markCredentialTransferSourceSeen, submitCredentialTransferPacket, receiveCredentialTransfer, recordCredentialTransferImported, acknowledgeCredentialTransfer, discardCredentialTransfer, consumeCredentialTransferResult, startActivation, cancelActivation, refresh, bootstrap, bootstrapWithPolicy, ensureForIdentity, localReset, openPortal: async () => { await init(); const pending = state.pending; if (!pendingLive(state.pending) || !validAuthContext(pending.authContext)) throw error("NO_ACTIVATION_ATTEMPT"); return openPortal(pending.authorizationId); }, onAuthorityChanged: handler => { authorityChanged = handler; } };
   consentApi?.onWithdrawal?.(handleTechnicalPermissionWithdrawal);
   globalThis.SellerAgentsControlClient = Object.freeze(api);
 })();

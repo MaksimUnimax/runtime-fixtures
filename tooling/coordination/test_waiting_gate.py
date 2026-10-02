@@ -7,6 +7,8 @@ import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
+import work_board_v2 as v2
+import work_queue
 from waiting_gate import validate_waiting_receipt, PLAN_IDS
 
 spec = importlib.util.spec_from_file_location("control_queue_test", Path(__file__).with_name("control.py"))
@@ -130,6 +132,151 @@ class WaitingPolicyTests(unittest.TestCase):
             self.assertEqual((self.root / "A.json").read_bytes(), before)
             args.receipt = "OWNER_NEW_DIRECT_INSTRUCTION"
             self.assertEqual(control.update_state("A", "resume", args)["status"], "RUNNING")
+
+    def _install_v2_waiting_board(self):
+        control_root = self.root / "control"
+        (control_root / "controllers").mkdir(parents=True)
+        (control_root / "logs").mkdir()
+        for role in "ABC":
+            (control_root / f"{role}.json").write_text(
+                json.dumps({"role": role, "status": "RUNNING"})
+            )
+        legacy_receipt = control_root / "logs" / "done.json"
+        legacy_receipt.write_text('{"result":"legacy"}')
+        board = {
+            "version": 1,
+            "revision": 9,
+            "updated_at": self.now.isoformat(),
+            "tasks": [
+                {
+                    "id": "done-dependency",
+                    "role": "B",
+                    "plan": "B04",
+                    "state": "DONE",
+                    "requires": [],
+                    "result": "done",
+                    "paths": ["apps/api/src/done.ts"],
+                    "completion_receipt": str(legacy_receipt),
+                },
+                {
+                    "id": "blocked-active",
+                    "role": "A",
+                    "plan": "A04",
+                    "state": "BLOCKED",
+                    "requires": [],
+                    "result": "blocked",
+                    "paths": ["apps/extension/blocked.js"],
+                    "blocked_reason": "external gate",
+                },
+            ],
+        }
+        hot = control_root / "controllers" / "work-board.json"
+        hot.write_text(json.dumps(board, ensure_ascii=False, indent=2) + "\n")
+        generated = v2.build_generation_from_v1(control_root, board)
+        v2._write_drafts(control_root, generated["drafts"])
+        generated_hot = dict(generated["core"], generation_id=v2._generation_id(generated["core"]), last_operation_id="0" * 64)
+        generated_hot_raw = v2._canonical_bytes(generated_hot)
+        input_sha = v2._sha(hot.read_bytes())
+        operation_id, generated_hot_raw, tx = v2._make_migration_tx(
+            input_sha, board["revision"], generated_hot, generated_hot_raw, "b" * 64
+        )
+        v2._write_journal(control_root, tx, initial=True)
+        tx["state"] = "COMMITTED"
+        v2._write_journal(control_root, tx)
+        v2.install_hot_generation(control_root, generated_hot_raw)
+        return control_root
+
+    def _full_waiting_receipt(self, role, snapshot, checked_at):
+        return {
+            "version": 1,
+            "role": role,
+            "head": self.head,
+            "checked_at": checked_at.isoformat(),
+            "work_board": snapshot,
+            "entries": [
+                {
+                    "id": plan + "_waiting",
+                    "plan": plan,
+                    "state": "BLOCKED",
+                    "outcome": "External gate",
+                    "evidence": ["receipt/evidence.md"],
+                    "blocked_action": "external",
+                    "owner": "OWNER",
+                    "unblock_when": "external input",
+                    "independent_work_complete": True,
+                }
+                for plan in sorted(PLAN_IDS[role])
+            ],
+        }
+
+    def test_v2_snapshot_shape_and_completed_authority_change_invalidates_waiting(self):
+        control_root = self._install_v2_waiting_board()
+        snapshot = work_queue.board_snapshot(control_root)
+        self.assertEqual(set(snapshot), {"exists", "sha256"})
+        self.assertTrue(snapshot["exists"])
+        self.assertEqual(len(snapshot["sha256"]), 64)
+
+        checked = datetime.now(timezone.utc)
+        receipt = self._full_waiting_receipt("C", snapshot, checked)
+        waiting = self.root / "v2-waiting.json"
+        waiting.write_text(json.dumps(receipt))
+        validated = validate_waiting_receipt(
+            "C", str(waiting), self.head, checked, control_root
+        )
+        self.assertEqual(validated["work_board"], snapshot)
+
+        state = v2.load_state(control_root)
+        logical = copy.deepcopy(state["logical"])
+        next_receipt = control_root / "logs" / "done-2.json"
+        next_receipt.write_text('{"result":"legacy2"}')
+        logical["tasks"].append(
+            {
+                "id": "done-dependency-2",
+                "role": "B",
+                "plan": "B04",
+                "state": "DONE",
+                "requires": [],
+                "result": "done2",
+                "paths": ["apps/api/src/done-2.ts"],
+                "completion_receipt": str(next_receipt),
+            }
+        )
+        logical["revision"] += 1
+        logical["updated_at"] = datetime.now(timezone.utc).isoformat()
+        v2.commit_logical_board(
+            control_root, logical,
+            {"action": "ADD", "role": "B", "task": "done-dependency-2"},
+        )
+        self.assertNotEqual(work_queue.board_snapshot(control_root), snapshot)
+        with self.assertRaisesRegex(
+            RuntimeError, "WAITING_WORK_BOARD_CHANGED_OR_MISSING_PROOF"
+        ):
+            validate_waiting_receipt(
+                "C", str(waiting), self.head, datetime.now(timezone.utc), control_root
+            )
+
+    def test_v2_current_completed_sidecar_tamper_fails_waiting_closed(self):
+        control_root = self._install_v2_waiting_board()
+        snapshot = work_queue.board_snapshot(control_root)
+        checked = datetime.now(timezone.utc)
+        receipt = self._full_waiting_receipt("C", snapshot, checked)
+        waiting = self.root / "v2-tampered-waiting.json"
+        waiting.write_text(json.dumps(receipt))
+
+        state = v2.load_state(control_root)
+        root_sha = state["hot"]["completed_root_hash"]
+        node = (
+            control_root
+            / "controllers"
+            / "work-board-done"
+            / "nodes"
+            / f"{root_sha}.json"
+        )
+        node.write_bytes(node.read_bytes() + b" ")
+        with self.assertRaises(RuntimeError):
+            validate_waiting_receipt(
+                "C", str(waiting), self.head, datetime.now(timezone.utc), control_root
+            )
 
     def test_legacy_resume_receipt_is_not_reusable_after_stop(self):
         args = argparse.Namespace(receipt="old-authority", task="", summary="", next="")

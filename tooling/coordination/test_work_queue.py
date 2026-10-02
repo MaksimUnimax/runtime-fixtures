@@ -8,6 +8,7 @@ import unittest
 from datetime import datetime, timezone
 from unittest.mock import patch
 
+import work_queue
 from work_queue import load_board, role_work, assert_no_ready_work, advance_task, compact_state, board_snapshot, status_work, add_task, current_worktree_head
 from waiting_gate import validate_waiting_receipt, PLAN_IDS
 
@@ -82,6 +83,32 @@ class WorkQueueTests(unittest.TestCase):
     def test_other_role_cannot_change_task(self):
         with self.assertRaisesRegex(RuntimeError, "TASK_OWNER"):
             advance_task(self.root, "A", "b-auth", "IN_PROGRESS")
+
+    def test_expected_task_mismatch_leaves_board_and_events_unchanged(self):
+        expected = copy.deepcopy(self.board["tasks"][0])
+        expected["result"] = "stale task snapshot"
+        events = self.root / "controllers/work-board-events.jsonl"
+        before_board = self.path.read_bytes()
+        before_events = events.read_bytes() if events.exists() else None
+        with self.assertRaisesRegex(RuntimeError, "WORK_QUEUE_TASK_DRIFT"):
+            advance_task(self.root, "B", "b-auth", "IN_PROGRESS", expected_task=expected)
+        self.assertEqual(self.path.read_bytes(), before_board)
+        self.assertEqual(events.read_bytes() if events.exists() else None, before_events)
+
+    def test_valid_paths_accepts_literal_next_dynamic_segments(self):
+        self.assertTrue(work_queue.valid_paths([
+            "apps/portal/app/api/control-plane/[...path]/route.test.ts",
+            "apps/portal/app/[lang]/[[...slug]]/page.tsx",
+        ]))
+        for invalid in [
+            "apps/portal/app/api/control-plane/*/route.test.ts",
+            "apps/portal/app/api/control-plane/[...path/route.test.ts",
+            "apps/portal/app/api/control-plane/[path]]/route.test.ts",
+            "apps/portal/app/api/control-plane/pre[path]/route.test.ts",
+            "apps/portal/app/api/control-plane/[?path]/route.test.ts",
+        ]:
+            with self.subTest(path=invalid):
+                self.assertFalse(work_queue.valid_paths([invalid]))
 
     def test_stop_preserves_board_and_checkpoint(self):
         f = self.root / "B.json"
@@ -228,6 +255,20 @@ class WorkQueueTests(unittest.TestCase):
             self.path.write_text(json.dumps(board))
             with self.assertRaisesRegex(RuntimeError, "WORK_QUEUE_INVALID"):
                 load_board(self.root)
+
+    def test_v1_exact_byte_cap_accepts_262144_and_rejects_262145(self):
+        board = copy.deepcopy(self.board)
+        board["tasks"] = [copy.deepcopy(board["tasks"][0])]
+        board["tasks"][0]["result"] = "x"
+        current = len(
+            (json.dumps(board, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+        )
+        board["tasks"][0]["result"] += "x" * (262144 - current)
+        accepted = work_queue._validated_board_text(self.root, board)
+        self.assertEqual(len(accepted.encode("utf-8")), 262144)
+        board["tasks"][0]["result"] += "x"
+        with self.assertRaisesRegex(RuntimeError, "WORK_QUEUE_INVALID: size"):
+            work_queue._validated_board_text(self.root, board)
 
     def test_malformed_board_does_not_silently_allow_wait(self):
         for raw in ["[]", "{", "x" * 262145]:

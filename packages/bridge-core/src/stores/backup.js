@@ -103,8 +103,12 @@
     });
     return { payloadVersion: PAYLOAD_VERSION, accountBinding: { accountId }, createdAt: value.createdAt, stores };
   }
+  function metadataOnly(store) {
+    const credentials = store.credentials;
+    return credentials == null || typeof credentials === "object" && !Array.isArray(credentials) && Object.keys(credentials).length === 0;
+  }
   function payloadFromStores(accountId, stores) {
-    return validatePayload({ payloadVersion: PAYLOAD_VERSION, accountBinding: { accountId }, createdAt: new Date().toISOString(), stores: stores.filter((store) => (store.lifecycleState || "ACTIVE") === "ACTIVE").map((store) => ({
+    return validatePayload({ payloadVersion: PAYLOAD_VERSION, accountBinding: { accountId }, createdAt: new Date().toISOString(), stores: stores.filter((store) => (store.lifecycleState || "ACTIVE") === "ACTIVE" && !metadataOnly(store)).map((store) => ({
       storeId: store.id, label: store.name, marketplace: store.marketplace, providerAccountId: store.providerIdentityState === "CONFIRMED" ? store.providerAccountId : null, providerIdentityState: store.providerIdentityState === "CONFIRMED" ? "CONFIRMED" : "UNCONFIRMED", credentialRevision: store.credentialRevision, metadataRevision: Number.isSafeInteger(store.metadataRevision) ? store.metadataRevision : 0,
       credentials: store.marketplace === "ozon" ? { type: "ozon", version: 1, seller: { clientId: store.credentials?.seller?.clientId || "", apiKey: store.credentials?.seller?.apiKey || "" }, performance: store.credentials?.performance?.clientId && store.credentials?.performance?.clientSecret ? { clientId: store.credentials.performance.clientId, clientSecret: store.credentials.performance.clientSecret } : null } : { type: "wildberries", version: 1, token: store.credentials?.token || "", tokenType: "personal" },
     })) }, accountId);

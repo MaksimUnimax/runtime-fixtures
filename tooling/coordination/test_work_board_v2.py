@@ -1,0 +1,619 @@
+import copy
+import datetime as dt
+import hashlib
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
+import tempfile
+import unittest
+from unittest.mock import patch
+
+import work_board_v2 as v2
+import work_board_v2_migrate as migrate
+import work_queue
+
+
+class Crash(BaseException):
+    pass
+
+
+class WorkBoardV2Tests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        (self.root / "controllers").mkdir()
+        (self.root / "logs").mkdir()
+        (self.root / "authorizations").mkdir()
+        for role in "ABC":
+            (self.root / f"{role}.json").write_text(json.dumps({"role": role, "status": "RUNNING"}))
+        self.reader = Path(work_queue.__file__).resolve()
+        self.readers = {role: self.reader for role in ("A", "B", "C", "ORG")}
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def v1(self, tasks, revision=4):
+        board = {"version": 1, "revision": revision, "updated_at": "2026-10-02T00:00:00+00:00", "tasks": tasks}
+        raw = (json.dumps(board, ensure_ascii=False, indent=2) + "\n").encode()
+        (self.root / "controllers/work-board.json").write_bytes(raw)
+        return board, raw
+
+    def ready(self, task_id="a-one", requires=()):
+        return {"id": task_id, "role": "A", "plan": "A04", "state": "READY", "requires": list(requires),
+                "result": "A bounded task", "paths": [f"apps/extension/{task_id}.js"]}
+
+    def done(self, task_id="b-done"):
+        path = self.root / "logs" / f"{task_id}.json"
+        path.write_text('{"legacy":true}')
+        return {"id": task_id, "role": "B", "plan": "B04", "state": "DONE", "requires": [],
+                "result": "Historical row", "paths": ["apps/api/old.js"], "completion_receipt": str(path)}
+
+    def grant(self, raw, *, authority_id="test-001", alter=None):
+        now = dt.datetime.now(dt.timezone.utc)
+        hashes = {role: hashlib.sha256(self.reader.read_bytes()).hexdigest() for role in self.readers}
+        repo = Path(work_queue.__file__).resolve().parents[2]
+        try:
+            head = __import__("subprocess").run(["git", "-C", str(repo), "rev-parse", "HEAD"], check=True, capture_output=True, text=True).stdout.strip()
+        except Exception:
+            head = "0" * 40
+        value = {
+            "id": authority_id, "status": "GRANTED", "authority": migrate.AUTHORITY_KIND,
+            "issued_at": (now - dt.timedelta(seconds=1)).isoformat(),
+            "expires_at": (now + dt.timedelta(hours=1)).isoformat(),
+            "corrected_scope_sha256": migrate.SCOPE_SHA256, "source_candidate_sha": head,
+            "work_queue_sha256": hashlib.sha256(Path(work_queue.__file__).read_bytes()).hexdigest(),
+            "work_board_v2_sha256": hashlib.sha256(Path(v2.__file__).read_bytes()).hexdigest(),
+            "migrate_sha256": hashlib.sha256(Path(migrate.__file__).read_bytes()).hexdigest(),
+            "expected_v1_revision": 4, "expected_v1_sha256": hashlib.sha256(raw).hexdigest(),
+            "reader_sha256": hashes, "single_use": True,
+        }
+        if alter:
+            value.update(alter)
+        path = self.root / "authorizations" / f"CONTROLLER-WORK-BOARD-V2-MIGRATION-{authority_id}.json"
+        path.write_text(json.dumps(value, sort_keys=True, separators=(",", ":")) + "\n")
+        path.chmod(0o600)
+        return path
+
+    def migrate(self, tasks):
+        board, raw = self.v1(tasks)
+        grant = self.grant(raw)
+        result = migrate.migrate(self.root, grant, self.readers, board["revision"], hashlib.sha256(raw).hexdigest())
+        self.assertEqual(result["state"], "COMMITTED")
+        return board, raw, result
+
+    def test_migration_preserves_order_and_keeps_done_out_of_hot(self):
+        tasks = [self.ready("a-first", ["b-done"]), self.done(), self.ready("c-last")]
+        board, raw, receipt = self.migrate(tasks)
+        state = v2.load_state(self.root)
+        hot = json.loads((self.root / "controllers/work-board.json").read_text())
+        self.assertEqual([t["id"] for t in state["logical"]["tasks"]], ["a-first", "b-done", "c-last"])
+        self.assertEqual([t["id"] for t in hot["tasks"]], ["a-first", "c-last"])
+        self.assertEqual(hot["completed_count"], 1)
+        self.assertEqual(hot["archive_history_count"], 1)
+        self.assertEqual(v2.board_snapshot(self.root), receipt["post_switch"]["A"]["snapshot"])
+        self.assertTrue((self.root / "controllers/work-board-done/migrations" / (hashlib.sha256(raw).hexdigest()+".json")).is_file())
+
+    def test_all_readers_validate_same_committed_generation(self):
+        _board, _raw, result = self.migrate([self.ready(), self.done()])
+        self.assertEqual(set(result["post_switch"]), {"A", "B", "C", "ORG"})
+        self.assertEqual(len({x["snapshot"]["sha256"] for x in result["post_switch"].values()}), 1)
+
+    def test_inspect_default_is_read_only(self):
+        _board, raw = self.v1([self.ready()])
+        before = sorted(str(p.relative_to(self.root)) for p in self.root.rglob("*"))
+        report = migrate.inspect(self.root)
+        after = sorted(str(p.relative_to(self.root)) for p in self.root.rglob("*"))
+        self.assertEqual(report["mode"], "INSPECT_ONLY")
+        self.assertEqual(hashlib.sha256((self.root / "controllers/work-board.json").read_bytes()).hexdigest(), hashlib.sha256(raw).hexdigest())
+        self.assertEqual(before, after)
+
+    def test_missing_or_mismatched_authority_has_zero_writes(self):
+        _board, raw = self.v1([self.ready()])
+        self.grant(raw, alter={"work_queue_sha256": "0"*64})
+        before = (self.root / "controllers/work-board.json").read_bytes()
+        done = self.root / "controllers/work-board-done"
+        for authority in [self.root / "authorizations/missing.json", self.root / "authorizations/CONTROLLER-WORK-BOARD-V2-MIGRATION-test-001.json"]:
+            with self.subTest(authority=authority.name), self.assertRaises(RuntimeError):
+                migrate.migrate(self.root, authority, self.readers, 4, hashlib.sha256(raw).hexdigest())
+            self.assertEqual((self.root / "controllers/work-board.json").read_bytes(), before)
+            self.assertFalse(done.exists())
+
+    def test_reused_authority_rejected(self):
+        board, raw = self.v1([self.ready()])
+        authority = self.grant(raw)
+        migrate.migrate(self.root, authority, self.readers, 4, hashlib.sha256(raw).hexdigest())
+        with self.assertRaisesRegex(RuntimeError, "ALREADY_USED"):
+            migrate.migrate(self.root, authority, self.readers, 4, hashlib.sha256(raw).hexdigest())
+
+    def test_stopped_role_blocks_apply_before_writes(self):
+        _board, raw = self.v1([self.ready()])
+        authority = self.grant(raw)
+        (self.root / "C.json").write_text('{"status":"STOPPED"}')
+        before = (self.root / "controllers/work-board.json").read_bytes()
+        with self.assertRaisesRegex(RuntimeError, "STOPPED"):
+            migrate.migrate(self.root, authority, self.readers, 4, hashlib.sha256(raw).hexdigest())
+        self.assertEqual((self.root / "controllers/work-board.json").read_bytes(), before)
+        self.assertFalse((self.root / "controllers/work-board-done").exists())
+
+    def test_existing_role_state_fractional_timestamps_remain_compatible(self):
+        (self.root / "C.json").write_text(json.dumps({"role": "C", "status": "RUNNING",
+            "review_clock": 1790918735.1846023}))
+        before = (self.root / "C.json").read_bytes()
+        self.migrate([self.ready()])
+        self.assertEqual((self.root / "C.json").read_bytes(), before)
+        self.assertEqual(v2.load_state(self.root)["logical"]["version"], 2)
+        with self.assertRaisesRegex(ValueError, "float not allowed"):
+            v2._strict_object(b'{"revision": 1.5}')
+
+    def test_nonfinite_role_state_numbers_reject_before_migration_writes(self):
+        _board, raw = self.v1([self.ready()])
+        authority = self.grant(raw)
+        (self.root / "controllers/coordination.lock").touch()
+        before = self._capacity_snapshot()
+        for value in ("NaN", "Infinity", "-Infinity", "1e999"):
+            with self.subTest(value=value):
+                (self.root / "C.json").write_text('{"status":"RUNNING","review_clock":' + value + '}')
+                with self.assertRaisesRegex(ValueError, "non-finite"):
+                    migrate.migrate(self.root, authority, self.readers, 4, hashlib.sha256(raw).hexdigest())
+                self.assertEqual(self._capacity_snapshot(), before)
+
+    def test_sidecar_split_and_tamper_fail_closed(self):
+        entries = []
+        for i in range(2000):
+            key = f"task-{i:04d}"
+            entries.append({"id": key, "role": "A", "plan": "A04", "result": "Done",
+                            "requires": [], "ordinal": i, "completion_class": "LEGACY_UNVERIFIED",
+                            "completion_receipt": "/control/logs/legacy.json", "completion_generation": 1,
+                            "archive_entry_id": "a"*64, "archive_sha256": "b"*64})
+        root_hash, count, drafts = v2._trie_drafts(entries, "completed", cap=50000)
+        self.assertEqual(count, len(entries))
+        self.assertTrue(any(b'"kind":"internal"' in raw for raw in drafts.values()))
+        v2._paths(self.root, create=True)
+        for (directory, filename), raw in drafts.items():
+            path = self.root / "controllers/work-board-done" / directory / filename
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(raw)
+        self.assertEqual(len(v2._read_trie(self.root, root_hash, count, "completed")), count)
+        node = next((self.root / "controllers/work-board-done/nodes").iterdir())
+        node.write_bytes(node.read_bytes() + b" ")
+        with self.assertRaises(RuntimeError):
+            v2._read_trie(self.root, root_hash, count, "completed")
+
+    def test_noncanonical_json_and_duplicate_keys_rejected(self):
+        for raw in [b'{"x":1,"x":2}\n', b'{ "x":1}\n', b'{"x":1}\n\n']:
+            with self.subTest(raw=raw), self.assertRaises(RuntimeError):
+                v2._strict_file(raw, 100)
+
+    def _authority_bytes(self):
+        result = {}
+        for base in (self.root / "controllers/work-board.json", self.root / "controllers/work-board-events.jsonl",
+                     self.root / "controllers/work-board-v2-transactions", self.root / "controllers/work-board-done"):
+            if not base.exists():
+                result[str(base.relative_to(self.root))] = None
+                continue
+            if base.is_file():
+                result[str(base.relative_to(self.root))] = base.read_bytes()
+                continue
+            for item in sorted(base.rglob("*")):
+                if item.is_file(): result[str(item.relative_to(self.root))] = item.read_bytes()
+        return result
+
+    def test_v2_candidate_missing_dependency_rejected_before_any_write(self):
+        self.migrate([self.ready()])
+        board = v2.load_state(self.root)["logical"]
+        board["revision"] += 1
+        board["tasks"][0]["requires"] = ["missing-task"]
+        before = self._authority_bytes()
+        with self.assertRaisesRegex(RuntimeError, "logical v2 candidate"):
+            work_queue._persist_board(self.root, board, {"action": "INVALID", "role": "A", "task": "a-one"})
+        self.assertEqual(self._authority_bytes(), before)
+
+    def test_completed_generations_survive_real_reopen_and_second_done(self):
+        legacy = self.done("b-cycle")
+        self.migrate([legacy])
+        old_state = v2.load_state(self.root)
+        old_entry = old_state["completed_entries"]["b-cycle"]
+        negative = self.root / "logs/rework.json"
+        negative.write_text(json.dumps({"kind": work_queue.COMPLETION_KIND, "version": 1, "task_id": "b-cycle",
+            "candidate_sha": work_queue.current_worktree_head(), "verdict": "FAIL",
+            "review": {"verdict": "FAIL", "evidence": ["rework required"]},
+            "checks": [{"name": "focused", "verdict": "FAIL", "evidence": ["rework required"]}]}))
+        work_queue.advance_task(self.root, "B", "b-cycle", "IN_PROGRESS", str(negative))
+        reopened = v2.load_state(self.root)["logical"]["tasks"][0]
+        self.assertEqual(reopened["state"], "IN_PROGRESS")
+        strict = self.root / "logs/pass.json"
+        strict.write_text(json.dumps({"kind": work_queue.COMPLETION_KIND, "version": 1, "task_id": "b-cycle",
+            "candidate_sha": work_queue.current_worktree_head(), "verdict": "PASS",
+            "review": {"verdict": "PASS", "evidence": ["review"]},
+            "checks": [{"name": "focused", "verdict": "PASS", "evidence": ["run"]}]}))
+        work_queue.advance_task(self.root, "B", "b-cycle", "DONE", str(strict))
+        current = v2.load_state(self.root)
+        new_entry = current["completed_entries"]["b-cycle"]
+        self.assertEqual(old_entry["completion_generation"], 1)
+        self.assertEqual(new_entry["completion_generation"], 2)
+        self.assertNotEqual(old_entry["archive_entry_id"], new_entry["archive_entry_id"])
+        self.assertEqual(current["hot"]["archive_history_count"], 2)
+
+    def test_crash_after_hot_before_event_recovers_exactly_once(self):
+        self.migrate([self.ready()])
+        before = v2.load_state(self.root)["logical"]
+        changed = copy.deepcopy(before)
+        changed["revision"] += 1
+        changed["updated_at"] = "2026-10-02T00:02:00+00:00"
+        changed["tasks"][0]["state"] = "IN_PROGRESS"
+        event = {"at": changed["updated_at"], "role": "A", "task": "a-one", "before": "READY",
+                 "state": "IN_PROGRESS", "receipt": "", "revision": changed["revision"]}
+        def crash(point):
+            if point == "after_hot_published":
+                raise Crash()
+        with patch.object(v2, "_fault", crash), self.assertRaises(Crash):
+            v2.commit_logical_board(self.root, changed, event)
+        with self.assertRaisesRegex(RuntimeError, "RECOVERY_REQUIRED"):
+            v2.load_state(self.root)
+        v2.recover_queue_transaction(self.root)
+        self.assertEqual(v2.load_state(self.root)["logical"]["revision"], changed["revision"])
+        lines = (self.root / "controllers/work-board-events.jsonl").read_bytes().splitlines()
+        self.assertEqual(len(lines), 1)
+        v2.recover_queue_transaction(self.root)
+        self.assertEqual(len((self.root / "controllers/work-board-events.jsonl").read_bytes().splitlines()), 1)
+
+    def test_migration_failure_after_hot_restores_exact_noncanonical_v1(self):
+        board, raw = self.v1([self.ready()])
+        authority = self.grant(raw)
+        def crash(point):
+            if point == "migration_after_hot_before_readback": raise Crash()
+        with patch.object(v2, "_fault", crash), self.assertRaises(Crash):
+            migrate.migrate(self.root, authority, self.readers, board["revision"], hashlib.sha256(raw).hexdigest())
+        self.assertNotEqual((self.root / "controllers/work-board.json").read_bytes(), raw)
+        with self.assertRaisesRegex(RuntimeError, "RECOVERY_REQUIRED"):
+            v2.load_state(self.root)
+        recovered = v2.recover_migration(self.root)
+        self.assertEqual(recovered["state"], "ROLLED_BACK")
+        self.assertEqual((self.root / "controllers/work-board.json").read_bytes(), raw)
+        tx_files = list((self.root / "controllers/work-board-v2-transactions").glob("*.json"))
+        self.assertEqual(len(tx_files), 1)
+        self.assertEqual(json.loads(tx_files[0].read_text())["state"], "ROLLED_BACK")
+
+    def test_applied_receipt_failure_after_global_commit_does_not_rollback(self):
+        board, raw = self.v1([self.ready()])
+        authority = self.grant(raw, authority_id="receipt-failure")
+        with patch.object(migrate, "_write_exclusive", side_effect=OSError("receipt storage failure")):
+            with self.assertRaisesRegex(RuntimeError, "COMMITTED_RECEIPT_OR_READBACK_FAILURE"):
+                migrate.migrate(self.root, authority, self.readers, board["revision"], hashlib.sha256(raw).hexdigest())
+        self.assertEqual(json.loads((self.root / "controllers/work-board-v2-migration.json").read_text())["state"], "COMMITTED")
+        self.assertEqual(json.loads((self.root / "controllers/work-board.json").read_text())["version"], 2)
+        self.assertEqual(v2.load_state(self.root)["logical"]["revision"], board["revision"])
+
+    def _fault_fixture(self, root: Path, action: str):
+        self.root = root
+        (root / "controllers").mkdir(parents=True)
+        (root / "logs").mkdir()
+        (root / "authorizations").mkdir()
+        for role in "ABC":
+            (root / f"{role}.json").write_text(json.dumps({"role": role, "status": "RUNNING"}))
+            (root / f"{role}.lock").touch()
+        (root / "controllers/coordination.lock").touch()
+        initial = [self.done("b-reopen")] if action == "reopen" else [self.ready("a-base")]
+        board, raw = self.v1(initial)
+        authority = self.grant(raw, authority_id="matrix-" + action)
+        migrate.migrate(root, authority, self.readers, board["revision"], hashlib.sha256(raw).hexdigest())
+        if action == "done":
+            work_queue.claim_task(root, "A", "a-base")
+        return board
+
+    def test_writer_fault_matrix_claim_add_block_done_reopen(self):
+        points = ("after_data_durable", "after_hot_published", "after_event_append_before_event_durable")
+        for action in ("claim", "add", "block", "done", "reopen"):
+            for point in points:
+                with self.subTest(action=action, point=point):
+                    case_root = self.root / (action + "-" + point)
+                    self._fault_fixture(case_root, action)
+                    baseline = v2.load_state(case_root)["logical"]
+                    event_path = case_root / "controllers/work-board-events.jsonl"
+                    before_events = len(event_path.read_bytes().splitlines()) if event_path.exists() else 0
+                    receipt = case_root / "logs/evidence.json"
+                    if action == "done":
+                        value = {"kind": work_queue.COMPLETION_KIND, "version": 1, "task_id": "a-base",
+                                 "candidate_sha": work_queue.current_worktree_head(), "verdict": "PASS",
+                                 "review": {"verdict": "PASS", "evidence": ["review"]},
+                                 "checks": [{"name": "focused", "verdict": "PASS", "evidence": ["run"]}]}
+                        task_id, role, target_state, reason = "a-base", "A", "DONE", ""
+                    elif action == "reopen":
+                        value = {"kind": work_queue.COMPLETION_KIND, "version": 1, "task_id": "b-reopen",
+                                 "candidate_sha": work_queue.current_worktree_head(), "verdict": "FAIL",
+                                 "review": {"verdict": "FAIL", "evidence": ["rework"]},
+                                 "checks": [{"name": "focused", "verdict": "FAIL", "evidence": ["rework"]}]}
+                        task_id, role, target_state, reason = "b-reopen", "B", "IN_PROGRESS", ""
+                    else:
+                        value = {"evidence": "scoped local"}
+                        task_id, role, target_state, reason = "a-base", "A", ("IN_PROGRESS" if action == "claim" else "BLOCKED"), "External gate"
+                    receipt.write_text(json.dumps(value))
+                    def inject(name):
+                        if name == point: raise Crash(name)
+                    with patch.object(work_queue._v2(), "_fault", inject), self.assertRaises(Crash):
+                        if action == "claim": work_queue.claim_task(case_root, role, task_id)
+                        elif action == "add":
+                            work_queue.add_task(case_root, "A", {"id": "a-added", "role": "A", "plan": "A04", "state": "READY",
+                                "requires": [], "result": "Added", "paths": ["apps/extension/a-added.js"],
+                                "acceptance": ["focused check"], "basis": "approved plan remainder"},
+                                repo_root=Path(work_queue.__file__).resolve().parents[2])
+                        else: work_queue.advance_task(case_root, role, task_id, target_state, str(receipt), reason)
+                    tx = v2.recover_queue_transaction(case_root)
+                    self.assertIn(tx["state"], {"ROLLED_BACK", "COMMITTED"})
+                    after_events = len(event_path.read_bytes().splitlines()) if event_path.exists() else 0
+                    expected_commit = point != "after_data_durable"
+                    self.assertEqual(after_events - before_events, 1 if expected_commit else 0)
+                    after = v2.load_state(case_root)["logical"]
+                    if not expected_commit:
+                        self.assertEqual(after, baseline)
+                    else:
+                        self.assertEqual(after["revision"], baseline["revision"] + 1)
+                    v2.recover_queue_transaction(case_root)
+                    self.assertEqual(len(event_path.read_bytes().splitlines()) if event_path.exists() else 0, after_events)
+
+    def test_torn_exact_event_suffix_recovers_without_duplicate(self):
+        self.migrate([self.ready()])
+        before = v2.load_state(self.root)["logical"]
+        changed = copy.deepcopy(before); changed["revision"] += 1; changed["updated_at"] = "2026-10-02T00:03:00+00:00"
+        changed["tasks"][0]["state"] = "IN_PROGRESS"
+        event = {"at": changed["updated_at"], "role": "A", "task": "a-one", "before": "READY",
+                 "state": "IN_PROGRESS", "receipt": "", "revision": changed["revision"]}
+        with patch.object(v2, "_fault", lambda point: (_ for _ in ()).throw(Crash()) if point == "after_hot_published" else None):
+            with self.assertRaises(Crash): v2.commit_logical_board(self.root, changed, event)
+        tx_path = next(
+            path for path in (self.root / "controllers/work-board-v2-transactions").glob("*.json")
+            if json.loads(path.read_text()).get("operation_kind") == "QUEUE"
+        )
+        tx = json.loads(tx_path.read_text())
+        line = v2._canonical_bytes(tx["event"])
+        (self.root / "controllers/work-board-events.jsonl").write_bytes(line[:23])
+        v2.recover_queue_transaction(self.root)
+        self.assertEqual((self.root / "controllers/work-board-events.jsonl").read_bytes(), line)
+        v2.recover_queue_transaction(self.root)
+        self.assertEqual((self.root / "controllers/work-board-events.jsonl").read_bytes(), line)
+
+    def _capacity_snapshot(self):
+        # Stream hashes: the orphan-cap fixture is sparse and must not allocate
+        # a 512 MiB Python bytes object merely to prove zero mutation.
+        result = {}
+        for item in sorted((self.root / "controllers").rglob("*")):
+            if item.is_file():
+                with item.open("rb") as stream:
+                    digest = hashlib.file_digest(stream, "sha256").hexdigest()
+                result[str(item.relative_to(self.root))] = (item.stat().st_size, digest)
+        return result
+
+    def _next_claim(self):
+        previous = v2.load_state(self.root)
+        board = copy.deepcopy(previous["logical"])
+        board["revision"] += 1
+        board["tasks"][0]["state"] = "IN_PROGRESS"
+        event = {"action": "CLAIM", "role": "A", "task": "a-one", "revision": board["revision"]}
+        generated = v2._prepare_generation(self.root, board, previous)
+        return previous, board, event, generated
+
+    def _fill_event_bytes(self, size):
+        empty = v2._canonical_bytes({"padding": ""})
+        remaining = size
+        with (self.root / "controllers/work-board-events.jsonl").open("wb") as stream:
+            while remaining:
+                length = min(remaining, v2.EVENT_LINE_CAP_BYTES)
+                if 0 < remaining - length < len(empty):
+                    length -= len(empty)
+                self.assertGreaterEqual(length, len(empty))
+                stream.write(v2._canonical_bytes({"padding": "x" * (length - len(empty))}))
+                remaining -= length
+
+    def test_actual_event_total_exact_64mib_and_plus_one_zero_mutation(self):
+        self.migrate([self.ready()])
+        previous, board, event, generated = self._next_claim()
+        _hot, _raw, tx = v2._build_queue_tx(previous, generated, event)
+        line_size = len(v2._canonical_bytes(tx["event"]))
+        self.assertEqual(v2.EVENT_LOG_CAP_BYTES, 64 * 1024 * 1024)
+        self._fill_event_bytes(v2.EVENT_LOG_CAP_BYTES - line_size + 1)
+        before = self._capacity_snapshot()
+        with self.assertRaisesRegex(RuntimeError, "EVENT_LOG_CAPACITY"):
+            v2.commit_logical_board(self.root, board, event)
+        self.assertEqual(self._capacity_snapshot(), before)
+        self._fill_event_bytes(v2.EVENT_LOG_CAP_BYTES - line_size)
+        v2.commit_logical_board(self.root, board, event)
+        self.assertEqual((self.root / "controllers/work-board-events.jsonl").stat().st_size, v2.EVENT_LOG_CAP_BYTES)
+        self.assertEqual(v2.load_state(self.root)["logical"], board)
+
+    def _filler_journal(self, previous, generated, number, size=None):
+        event = {"action": "FIXTURE", "role": "C", "task": f"capacity-{number:06d}", "padding": ""}
+        _hot, _raw, tx = v2._build_queue_tx(previous, generated, event)
+        tx["state"] = "COMMITTED"
+        if size is not None:
+            event["padding"] = "x" * (size - len(v2._canonical_bytes(tx)))
+            _hot, _raw, tx = v2._build_queue_tx(previous, generated, event)
+            tx["state"] = "COMMITTED"
+        raw = v2._journal_text(tx)
+        if size is not None: self.assertEqual(len(raw), size)
+        path = self.root / "controllers/work-board-v2-transactions" / (tx["operation_id"] + ".json")
+        path.write_bytes(raw)
+        return path
+
+    def test_actual_hot_256kib_exact_and_plus_one_before_journal(self):
+        self.migrate([self.ready()])
+        previous, board, event, generated = self._next_claim()
+        _hot, raw, _tx = v2._build_queue_tx(previous, generated, event)
+        self.assertEqual(v2.HOT_CAP_BYTES, 256 * 1024)
+        board["tasks"][0]["result"] += "x" * (v2.HOT_CAP_BYTES - len(raw) + 1)
+        before = self._capacity_snapshot()
+        with self.assertRaisesRegex(RuntimeError, "WORK_QUEUE_INVALID: size"):
+            v2.commit_logical_board(self.root, board, event)
+        self.assertEqual(self._capacity_snapshot(), before)
+        board["tasks"][0]["result"] = board["tasks"][0]["result"][:-1]
+        v2.commit_logical_board(self.root, board, event)
+        self.assertEqual((self.root / "controllers/work-board.json").stat().st_size, v2.HOT_CAP_BYTES)
+
+    def test_actual_active_count_100_and_101_rejection(self):
+        self.migrate([self.ready(f"a-{number}") for number in range(99)])
+        def add(number):
+            return work_queue.add_task(self.root, "A", dict(self.ready(f"a-{number}"), acceptance=["bounded"], basis="approved plan remainder"), repo_root=Path(work_queue.__file__).resolve().parents[2])
+        add(99)
+        self.assertEqual(len(v2.load_state(self.root)["hot"]["tasks"]), 100)
+        before = self._capacity_snapshot()
+        with self.assertRaisesRegex(RuntimeError, "task count"): add(100)
+        self.assertEqual(self._capacity_snapshot(), before)
+
+    def test_actual_event_line_64kib_exact_and_plus_one(self):
+        self.migrate([self.ready()])
+        previous, board, event, generated = self._next_claim()
+        event["padding"] = ""
+        _hot, _raw, tx = v2._build_queue_tx(previous, generated, event)
+        event["padding"] = "x" * (v2.EVENT_LINE_CAP_BYTES - len(v2._canonical_bytes(tx["event"])) + 1)
+        before = self._capacity_snapshot()
+        with self.assertRaisesRegex(RuntimeError, "EVENT_LINE_CAPACITY"):
+            v2.commit_logical_board(self.root, board, event)
+        self.assertEqual(self._capacity_snapshot(), before)
+        event["padding"] = event["padding"][:-1]
+        v2.commit_logical_board(self.root, board, event)
+        self.assertEqual((self.root / "controllers/work-board-events.jsonl").stat().st_size, 65536)
+
+    def test_maximum_v1_row_wraps_below_archive_cap_and_oversize_leaf_refuses(self):
+        row = self.done()
+        _board, raw = self.v1([row])
+        row["result"] += "x" * (v2.HOT_CAP_BYTES - len(raw))
+        board, raw = self.v1([row])
+        self.assertEqual(len(raw), v2.HOT_CAP_BYTES)
+        drafts = {}
+        entry, _history = v2._make_archive(self.root, row, 0, 1, drafts)
+        self.assertEqual(len(drafts), 1)
+        wrapper = next(iter(drafts.values()))
+        self.assertLessEqual(len(wrapper), v2.ARCHIVE_CAP_BYTES)
+        self.assertEqual(v2._strict_file(wrapper, v2.ARCHIVE_CAP_BYTES)["row"], row)
+        before = self._capacity_snapshot()
+        # The separate index-node cap still applies. An unsplittable metadata
+        # entry must refuse before sidecar publication, never exceed the cap.
+        with self.assertRaisesRegex(RuntimeError, "COMPLETED_CAPACITY"):
+            v2.build_generation_from_v1(self.root, board)
+        self.assertEqual(self._capacity_snapshot(), before)
+
+    def test_authority_exact_128kib_and_plus_one(self):
+        board, raw = self.v1([self.ready()])
+        authority = self.grant(raw)
+        grant = authority.read_bytes()
+        (self.root / "controllers/coordination.lock").touch()
+        authority.write_bytes(grant + b" " * (migrate.AUTH_CAP - len(grant) + 1))
+        before = self._capacity_snapshot()
+        with self.assertRaisesRegex(RuntimeError, "AUTHORITY_FILE_INVALID"):
+            migrate.migrate(self.root, authority, self.readers, 4, hashlib.sha256(raw).hexdigest())
+        self.assertEqual(self._capacity_snapshot(), before)
+        authority.write_bytes(grant + b" " * (migrate.AUTH_CAP - len(grant)))
+        migrate.migrate(self.root, authority, self.readers, 4, hashlib.sha256(raw).hexdigest())
+        self.assertEqual(v2.load_state(self.root)["logical"]["tasks"], board["tasks"])
+
+    def test_fifo_storage_rejects_without_waiting_for_a_writer(self):
+        os.mkfifo(self.root / "controllers/work-board.json")
+        script = "import sys; from pathlib import Path; import work_board_v2 as v2\ntry: v2.storage_version(Path(sys.argv[1]))\nexcept RuntimeError as e:\n assert str(e) == 'WORK_BOARD_V2_STORAGE_NOT_REGULAR'\nelse: raise AssertionError('FIFO accepted')\n"
+        result = subprocess.run([sys.executable, "-c", script, str(self.root)], cwd=Path(v2.__file__).parent,
+                                capture_output=True, text=True, timeout=3)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_actual_journal_4095_to_4096_then_new_operation_rejects(self):
+        self.migrate([self.ready()])
+        previous, board, event, generated = self._next_claim()
+        self.assertEqual(v2.JOURNAL_COUNT_CAP, 4096)
+        for number in range(4094): self._filler_journal(previous, generated, number)
+        self.assertEqual(len(list((self.root / "controllers/work-board-v2-transactions").iterdir())), 4095)
+        v2.commit_logical_board(self.root, board, event)
+        self.assertEqual(len(list((self.root / "controllers/work-board-v2-transactions").iterdir())), 4096)
+        board = copy.deepcopy(board); board["revision"] += 1; board["tasks"][0]["state"] = "BLOCKED"
+        before = self._capacity_snapshot()
+        with self.assertRaisesRegex(RuntimeError, "TRANSACTION_CAPACITY"):
+            v2.commit_logical_board(self.root, board, dict(event, action="BLOCK", revision=board["revision"]))
+        self.assertEqual(self._capacity_snapshot(), before)
+
+    def test_actual_journal_64mib_admission_peak_includes_full_rewrite_reserve(self):
+        self.migrate([self.ready()])
+        previous, board, event, generated = self._next_claim()
+        _hot, _raw, tx = v2._build_queue_tx(previous, generated, event)
+        directory = self.root / "controllers/work-board-v2-transactions"
+        existing = sum(path.stat().st_size for path in directory.iterdir())
+        self.assertEqual(v2.JOURNAL_DIR_CAP_BYTES, 64 * 1024 * 1024)
+        self.assertEqual(v2.JOURNAL_REWRITE_RESERVE_BYTES, 128 * 1024)
+        target = v2.JOURNAL_DIR_CAP_BYTES - len(v2._journal_text(tx)) - v2.JOURNAL_REWRITE_RESERVE_BYTES
+        remaining = target - existing
+        number = 0
+        while remaining > 65536:
+            size = 65536 if remaining - 65536 >= 4096 else 61440
+            self._filler_journal(previous, generated, number, size)
+            number += 1; remaining -= size
+        last = self._filler_journal(previous, generated, number, remaining + 1)
+        before = self._capacity_snapshot()
+        with self.assertRaisesRegex(RuntimeError, "TRANSACTION_CAPACITY"):
+            v2.commit_logical_board(self.root, board, event)
+        self.assertEqual(self._capacity_snapshot(), before)
+        last.unlink()
+        self._filler_journal(previous, generated, number, remaining)
+        self.assertEqual(sum(path.stat().st_size for path in directory.iterdir()) + len(v2._journal_text(tx)) + v2.JOURNAL_REWRITE_RESERVE_BYTES, v2.JOURNAL_DIR_CAP_BYTES)
+        v2.commit_logical_board(self.root, board, event)
+        self.assertEqual(v2.load_state(self.root)["logical"], board)
+
+    def test_actual_done_physical_cap_counts_sparse_unreferenced_file(self):
+        self.migrate([self.ready()])
+        _previous, board, event, _generated = self._next_claim()
+        size, _files = v2._walk_done(self.root)
+        orphan = self.root / "controllers/work-board-done/rows" / ("f" * 64 + ".json")
+        self.assertEqual(v2.DONE_STORAGE_CAP_BYTES, 512 * 1024 * 1024)
+        with orphan.open("wb") as stream: stream.truncate(v2.DONE_STORAGE_CAP_BYTES - size + 1)
+        before = self._capacity_snapshot()
+        with self.assertRaisesRegex(RuntimeError, "DONE_STORAGE_CAPACITY"):
+            v2.commit_logical_board(self.root, board, event)
+        self.assertEqual(self._capacity_snapshot(), before)
+        with orphan.open("r+b") as stream: stream.truncate(v2.DONE_STORAGE_CAP_BYTES - size)
+        v2.commit_logical_board(self.root, board, event)
+        self.assertEqual(v2.load_state(self.root)["logical"], board)
+
+    def test_all_normal_writers_reject_event_plus_one_before_any_mutation(self):
+        base = self.root
+        for action in ("claim", "add", "block", "done", "reopen"):
+            with self.subTest(action=action):
+                self._fault_fixture(base / ("capacity-" + action), action)
+                receipt = self.root / "logs/boundary-receipt.json"
+                task_id, role = ("b-reopen", "B") if action == "reopen" else ("a-base", "A")
+                verdict = "FAIL" if action == "reopen" else "PASS"
+                receipt.write_text(json.dumps({"kind": work_queue.COMPLETION_KIND, "version": 1,
+                    "task_id": task_id, "candidate_sha": work_queue.current_worktree_head(), "verdict": verdict,
+                    "review": {"verdict": verdict, "evidence": ["boundary fixture"]},
+                    "checks": [{"name": "boundary", "verdict": verdict, "evidence": ["fixture"]}]}))
+                def call_action():
+                    if action == "claim": return work_queue.claim_task(self.root, role, task_id)
+                    if action == "add":
+                        return work_queue.add_task(self.root, "A", dict(self.ready("a-added"), acceptance=["bounded"], basis="approved plan remainder"), repo_root=Path(work_queue.__file__).resolve().parents[2])
+                    return work_queue.advance_task(self.root, role, task_id, {"block": "BLOCKED", "done": "DONE", "reopen": "IN_PROGRESS"}[action], str(receipt), "capacity fixture")
+                class FixedClock:
+                    @staticmethod
+                    def now(_tz=None):
+                        return dt.datetime(2026, 10, 2, 12, 0, 0, 123456, tzinfo=dt.timezone.utc)
+                def run():
+                    with patch.object(work_queue, "datetime", FixedClock):
+                        return call_action()
+                captured = {}
+                def capture(root, board, event):
+                    captured.update(board=copy.deepcopy(board), event=copy.deepcopy(event))
+                    raise Crash()
+                with patch.object(work_queue, "_persist_board", capture), self.assertRaises(Crash): run()
+                core = work_queue._v2()
+                previous = core.load_state(self.root)
+                generated = core._prepare_generation(self.root, captured["board"], previous)
+                _hot, _raw, tx = core._build_queue_tx(previous, generated, captured["event"])
+                event_path = self.root / "controllers/work-board-events.jsonl"
+                prior_size = event_path.stat().st_size if event_path.exists() else 0
+                exact = prior_size + len(core._canonical_bytes(tx["event"]))
+                before = self._capacity_snapshot()
+                # Only the measured total is reduced; normal writer policy,
+                # receipt validation, generation, locks and persistence run.
+                with patch.object(core, "EVENT_LOG_CAP_BYTES", exact - 1):
+                    with self.assertRaisesRegex(RuntimeError, "EVENT_LOG_CAPACITY"): run()
+                self.assertEqual(self._capacity_snapshot(), before)
+                with patch.object(core, "EVENT_LOG_CAP_BYTES", exact): run()
+                self.assertEqual(event_path.stat().st_size, exact)
+
+
+if __name__ == "__main__":
+    unittest.main()
