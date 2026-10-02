@@ -17,7 +17,11 @@ from waiting_gate import validate_waiting_receipt
 from notice_delivery import read_controller_notices
 from work_queue import status_work, compact_state, advance_task, add_task, claim_task, resolve_blocker, validate_task_scope, load_board
 from disk_lifecycle import Registry as DiskLifecycleRegistry
-from task_publication import validate_queue_completion_source_authority
+from task_publication import (
+    AUTHORITY_GIT_BIN, sanitized_git_authority_env,
+    validate_queue_completion_source_authority,
+    _select_execution_completion_bundle,
+)
 from datetime import datetime, timezone
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -49,24 +53,37 @@ def require_location(role):
 
 
 def require_publication_queue_location(role, task, registration_id):
-    """Bind publication-backed queue mutation to an accepted source and role cwd."""
+    """Bind publication-backed queue mutation to immutable code plus canonical cwd."""
     try:
+        route_raw = os.environ["OCTOPORT_PUBLICATION_ROUTE_SOURCE_ROOT"]
+        bundle_raw = os.environ["OCTOPORT_PUBLICATION_COMPLETION_BUNDLE"]
+        bundle_sha_raw = os.environ["OCTOPORT_PUBLICATION_COMPLETION_BUNDLE_SHA256"]
+        route_root = Path(route_raw).resolve()
         authority = validate_queue_completion_source_authority(
-            CONTROL, registration_id, ROOT, role, task
+            CONTROL, registration_id, route_root, role, task
         )
+        completion_bundle, completion_bundle_sha = _select_execution_completion_bundle(
+            authority, Path(__file__), "control.py"
+        )
+        if (
+            completion_bundle != Path(bundle_raw).resolve()
+            or completion_bundle_sha != bundle_sha_raw
+        ):
+            raise RuntimeError("QUEUE_COMPLETE_EXECUTION_BUNDLE_MISMATCH")
         expected_path = authority["role_path"]
         expected_branch = authority["role_branch"]
         location = Path.cwd().resolve()
+        authority_env = sanitized_git_authority_env()
         top = Path(subprocess.check_output(
-            ["git", "-C", str(location), "rev-parse", "--show-toplevel"],
-            text=True,
+            [AUTHORITY_GIT_BIN, "-C", str(location), "rev-parse", "--show-toplevel"],
+            text=True, env=authority_env,
         ).strip()).resolve()
         branch = subprocess.check_output(
-            ["git", "-C", str(location), "branch", "--show-current"],
-            text=True,
+            [AUTHORITY_GIT_BIN, "-C", str(location), "branch", "--show-current"],
+            text=True, env=authority_env,
         ).strip()
     except (OSError, subprocess.SubprocessError, ValueError, KeyError, TypeError, RuntimeError):
-        raise RuntimeError("ROLE_LOCATION_MISMATCH: use accepted publication source and assigned role worktree/branch") from None
+        raise RuntimeError("ROLE_LOCATION_MISMATCH: use accepted publication source and immutable completion bundle") from None
     if str(location) != expected_path or top != location or branch != expected_branch:
         raise RuntimeError("ROLE_LOCATION_MISMATCH: use accepted publication source and assigned role worktree/branch")
 

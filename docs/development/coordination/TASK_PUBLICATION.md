@@ -37,8 +37,12 @@ Each subcommand has `--help` for its exact required arguments.
    patch, verifies staged blob identities, and creates one new commit.
 3. Obtain independent review of that exact candidate and current task identity.
 4. `register` binds the worktree, task, candidate, review, source bundle and one
-   push target. It installs only worktree-local route configuration. Registration
-   never changes the candidate's tracked files or canonical worktree settings.
+   push target. It also materializes a separate hash-bound **completion bundle**
+   from the candidate commit objects (not mutable checkout bytes): `task_publication.py`,
+   `control.py`, queue/v2-board, disk/resource/waiting/notice helpers and the
+   publication/CI helpers needed by that writer. It installs only worktree-local
+   route configuration. Registration never changes the candidate's tracked files
+   or canonical worktree settings.
 5. `publish-task-ref` sends one normal refspec to a unique `controller/**` branch.
 6. Wait for Server CI, Extension CI, Extension I1-C1 client, Documentation CI,
    and Coordination and release safety on that exact SHA and branch. `ready`
@@ -87,21 +91,44 @@ Each subcommand has `--help` for its exact required arguments.
    required workflows, close receipt with `state_before=PUBLISHED`, and
    `DELETED`/`ALREADY_ABSENT` task-ref cleanup before accepting the publication
    candidate SHA. Normal `queue-task DONE` remains bound to the canonical
-   worktree HEAD. Before its internal queue write, `complete-queue` proves the
-   executing control source independently of caller cwd or caller policy. First
-   use is allowed only from a clean Git source whose exact HEAD and tree equal the
-   supplied CLOSED registration candidate; the original candidate worktree path
-   may already be gone. A later route source is accepted only when its exact HEAD
-   is already represented by a strict-valid publication-backed DONE task. Only
-   after that source identity is accepted may its `OWNERSHIP.json` define the
-   target role's canonical worktree path and exact branch; that canonical HEAD
-   need not equal the isolated candidate. Same-tree/different-commit descendants,
-   siblings, self-authored policy checkouts and arbitrary source copies fail
-   before disk SEALING or board mutation. This command performs no Git
-   push/ref/main mutation and does not bypass role state, role location, or
-   disk-lifecycle completion gates.
+   worktree HEAD.
+
+   Queue finalization is **not executed from mutable route-worktree Python bytes**.
+   Invoke the `task_publication.py` stored in the selected verified completion
+   bundle and pass `--route-source-root /exact/accepted/checkout`. For first use,
+   the route HEAD+tree must equal the target CLOSED registration candidate and
+   that registration supplies the completion bundle. For later use, the route
+   HEAD must already be a strict-valid publication-backed DONE and that accepted
+   route task's own registration supplies the execution bundle; this permits
+   older CLOSED target registrations to be finalized without rewriting history.
+
+   Before disk `SEALING` or board mutation, the immutable bundle rechecks the
+   route repository with the trusted absolute system Git binary and a minimal
+   environment, then compares every authority/writer-critical checkout file
+   byte-for-byte with `git show <route-head>:<path>`. Git index flags such as
+   `assume-unchanged` or `skip-worktree` therefore cannot hide substituted
+   executable bytes. `OWNERSHIP.json` is read from the committed route HEAD,
+   not mutable working-tree bytes. Same-tree/different-commit descendants,
+   self-authored policy checkouts, dirty copies, hidden tracked-byte substitutions
+   and arbitrary source heads fail closed.
+
+   The selected bundle manifest hash and every bundled file are rechecked. Its
+   `task_publication.py` must be the actual complete-queue entrypoint, and the
+   child writer must be that same bundle's `control.py`. The child receives only
+   the minimal authority environment plus exact route-root/bundle identity, runs
+   through the current absolute Python executable with `-B`, and keeps cwd equal
+   to the target role's canonical worktree. Canonical cwd/top-level/exact branch
+   remains a separate mandatory boundary. Caller `PATH`, inherited `GIT_*`,
+   `LD_*`, `PYTHON*`, HOME/XDG or arbitrary process variables cannot select
+   Git, repository/config/object namespace or Python imports for this route.
+   This is an operational fail-closed boundary, not an OS sandbox against a
+   privileged host process. `complete-queue` performs no Git push/ref/main
+   mutation and does not bypass STOP, role ownership, role location, strict
+   receipt validation or disk-lifecycle completion gates.
 
 ## Interruption and recovery
+A TASK_REF process that exits before any remote mutation settles back to REGISTERED with CANCELLED_REMOTE_UNCHANGED; the immutable transport binding is not edited in place. If that binding itself is wrong, create normal hash-bound supersede evidence with verdict FAIL or REWORK_REQUIRED and run supersede. The REGISTERED recovery path is allowed only with that exact settlement, no armed lease, and an absent task ref; it performs no remote deletion, records ALREADY_ABSENT, transitions through REVOKED, and uses ordinary close to restore route config. A present/foreign task ref or any other prior outcome fails closed. Re-register the unchanged reviewed candidate with the corrected immutable --pushurl only after the old registration is CLOSED.
+
 
 The parent takes the role lock before the short coordination lock and releases
 the coordination lock before Git starts. The hook takes neither lock. Every
@@ -152,4 +179,4 @@ with changed task fingerprints, absent/foreign refs, config drift, armed leases,
 evidence identity and idempotency. Product installation has its own acceptance.
 
 
-Publication-bound completion separates evidence authority from mutation authority. The mutation process runs with cwd equal to the role's canonical worktree and verifies cwd/top-level/branch against OWNERSHIP.json. Ordinary queue-task keeps the original require_location behavior.
+Publication-bound completion separates evidence authority, executable authority and mutation authority. The immutable completion bundle supplies the only accepted `task_publication.py`/`control.py` runtime; committed route bytes and policy supply evidence authority; the mutation child still runs with cwd equal to the role's canonical worktree and verifies cwd/top-level/branch. Ordinary queue-task keeps the original require_location behavior.

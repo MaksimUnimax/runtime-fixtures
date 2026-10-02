@@ -72,6 +72,18 @@ BUNDLE_RELATIVE_FILES = (
     "ci_gate.py",
     "hooks/pre-push",
 )
+COMPLETION_BUNDLE_RELATIVE_FILES = (
+    "task_publication.py",
+    "control.py",
+    "publication_guard.py",
+    "ci_gate.py",
+    "work_queue.py",
+    "work_board_v2.py",
+    "disk_lifecycle.py",
+    "resource_runner.py",
+    "waiting_gate.py",
+    "notice_delivery.py",
+)
 SAFE_CONTROL_TOP = {"logs", "controllers", "artifacts"}
 REQUEST_ID_RE = re.compile(r"^[A-Za-z0-9._:-]{16,128}$")
 SAFE_TASK_SLUG_RE = re.compile(r"[^A-Za-z0-9._-]+")
@@ -178,9 +190,58 @@ def _require_control_evidence(root: Path, path: str | os.PathLike[str]) -> Path:
     return resolved
 
 
+AUTHORITY_GIT_BIN = "/usr/bin/git"
+AUTHORITY_PATH = "/usr/bin:/bin"
+
+
+def sanitized_git_authority_env(base: dict[str, str] | None = None) -> dict[str, str]:
+    """Build a minimal environment for Git/process authority checks.
+
+    Caller environment is intentionally not inherited: repository/config/object
+    selectors, executable lookup, dynamic-loader and interpreter injection are
+    all outside the authority boundary. ``base`` exists only so regressions can
+    prove poisoned caller values are ignored.
+    """
+    _ = base
+    return {
+        "PATH": AUTHORITY_PATH,
+        "LC_ALL": "C",
+        "LANG": "C",
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_CONFIG_SYSTEM": os.devnull,
+        "GIT_CONFIG_GLOBAL": os.devnull,
+        "GIT_NO_REPLACE_OBJECTS": "1",
+    }
+
+
+def _authority_git(worktree: Path, *args: str) -> str:
+    return _git(
+        worktree, *args, env=sanitized_git_authority_env(),
+        executable=AUTHORITY_GIT_BIN,
+    )
+
+
+def _authority_git_bytes(worktree: Path, *args: str) -> bytes:
+    proc = subprocess.run(
+        [AUTHORITY_GIT_BIN, "-C", str(worktree), *args],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        env=sanitized_git_authority_env(),
+        check=False,
+    )
+    if proc.returncode:
+        detail = proc.stderr.decode(errors="replace").strip()
+        raise PublicationError(f"GIT_FAILED:{' '.join(args)}:{detail}")
+    return proc.stdout
+
+
+def _authority_clean(worktree: Path) -> bool:
+    return not _authority_git(worktree, "status", "--porcelain=v1", "--untracked-files=all")
+
+
 def _git(worktree: Path, *args: str, check: bool = True, input_text: str | None = None,
-         env: dict[str, str] | None = None) -> str:
-    command = ["git", "-C", str(worktree), *args]
+         env: dict[str, str] | None = None, executable: str = "git") -> str:
+    command = [executable, "-C", str(worktree), *args]
     proc = subprocess.run(
         command,
         text=True,
@@ -468,6 +529,43 @@ def _ownership(worktree: Path) -> tuple[dict[str, Any], str]:
     return value, _sha_file(path)
 
 
+def _ownership_at_commit(worktree: Path, commit: str) -> tuple[dict[str, Any], str]:
+    try:
+        raw = _authority_git_bytes(
+            worktree, "show", f"{commit}:docs/development/coordination/OWNERSHIP.json"
+        )
+        value = json.loads(raw)
+    except (PublicationError, ValueError, TypeError) as error:
+        raise PublicationError("OWNERSHIP_COMMITTED_POLICY_INVALID") from error
+    if not isinstance(value, dict):
+        raise PublicationError("OWNERSHIP_COMMITTED_POLICY_INVALID")
+    return value, _sha_bytes(raw)
+
+
+def _require_committed_worktree_bytes(
+    worktree: Path, commit: str, relative_paths: Iterable[str],
+) -> None:
+    for relative in relative_paths:
+        source_relative = (
+            relative if relative.startswith("tooling/coordination/")
+            else f"tooling/coordination/{relative}"
+        )
+        path = worktree / source_relative
+        try:
+            committed = _authority_git_bytes(
+                worktree, "show", f"{commit}:{source_relative}"
+            )
+            current = path.read_bytes()
+        except (OSError, PublicationError):
+            raise PublicationError(
+                f"QUEUE_COMPLETE_ROUTE_SOURCE_BYTES_DRIFT:{source_relative}"
+            ) from None
+        if current != committed:
+            raise PublicationError(
+                f"QUEUE_COMPLETE_ROUTE_SOURCE_BYTES_DRIFT:{source_relative}"
+            )
+
+
 def _path_owned(path: str, role: str, ownership: dict[str, Any]) -> bool:
     spec = ownership.get("roles", {}).get(role)
     if not isinstance(spec, dict):
@@ -479,9 +577,13 @@ def _path_owned(path: str, role: str, ownership: dict[str, Any]) -> bool:
     )
 
 
-def _require_canonical_role_location(source_root: Path, role: str) -> Path:
+def _require_canonical_role_location(
+    source_root: Path, role: str, ownership: dict[str, Any] | None = None,
+) -> Path:
     """Resolve and preflight the canonical role location used for queue mutation."""
-    ownership, _ownership_sha = _ownership(source_root)
+    if ownership is None:
+        source_head = _authority_git(source_root, "rev-parse", "HEAD")
+        ownership, _ownership_sha = _ownership_at_commit(source_root, source_head)
     spec = ownership.get("roles", {}).get(role)
     if not isinstance(spec, dict):
         raise PublicationError("QUEUE_COMPLETE_ROLE_LOCATION_INVALID")
@@ -493,8 +595,8 @@ def _require_canonical_role_location(source_root: Path, role: str) -> Path:
     role_root = Path(raw_path)
     try:
         resolved_root = role_root.resolve(strict=True)
-        top = Path(_git(role_root, "rev-parse", "--show-toplevel")).resolve(strict=True)
-        branch = _git(role_root, "branch", "--show-current")
+        top = Path(_authority_git(role_root, "rev-parse", "--show-toplevel")).resolve(strict=True)
+        branch = _authority_git(role_root, "branch", "--show-current")
     except (OSError, subprocess.SubprocessError):
         raise PublicationError("QUEUE_COMPLETE_ROLE_LOCATION_INVALID") from None
     if str(resolved_root) != raw_path or top != resolved_root or branch != expected_branch:
@@ -545,37 +647,68 @@ def validate_queue_completion_source_authority(
 
     route_root = Path(route_root).resolve()
     try:
-        if Path(_git(route_root, "rev-parse", "--show-toplevel")).resolve() != route_root:
+        if Path(_authority_git(route_root, "rev-parse", "--show-toplevel")).resolve() != route_root:
             raise PublicationError("QUEUE_COMPLETE_ROUTE_SOURCE_ROOT_INVALID")
-        _git(route_root, "ls-files", "--error-unmatch", "tooling/coordination/control.py")
-        _git(route_root, "ls-files", "--error-unmatch", "tooling/coordination/task_publication.py")
+        _authority_git(route_root, "ls-files", "--error-unmatch", "tooling/coordination/control.py")
+        _authority_git(route_root, "ls-files", "--error-unmatch", "tooling/coordination/task_publication.py")
     except (OSError, subprocess.SubprocessError):
         raise PublicationError("QUEUE_COMPLETE_ROUTE_SOURCE_ROOT_INVALID") from None
-    if not _clean(route_root):
+    if not _authority_clean(route_root):
         raise PublicationError("QUEUE_COMPLETE_ROUTE_SOURCE_DIRTY")
 
-    route_head = _head(route_root)
-    route_tree = _tree(route_root)
+    route_head = _authority_git(route_root, "rev-parse", "HEAD")
+    route_tree = _authority_git(route_root, "rev-parse", "HEAD^{tree}")
     registration_candidate_source = (
         route_head == core.get("candidate_head")
         and route_tree == core.get("candidate_tree")
     )
     route_authority: str | list[str]
+    completion_bundles: list[dict[str, str]] = []
     if registration_candidate_source:
+        descriptor = _completion_bundle_descriptor(root, reg)
+        if descriptor is None:
+            raise PublicationError("QUEUE_COMPLETE_COMPLETION_BUNDLE_REQUIRED")
+        bundle_path, bundle_sha = descriptor
+        completion_bundles.append({
+            "authority": "REGISTRATION_CANDIDATE_SOURCE",
+            "path": str(bundle_path),
+            "sha256": bundle_sha,
+        })
         route_authority = "REGISTRATION_CANDIDATE_SOURCE"
     else:
-        accepted = [
-            task["id"] for task in board["tasks"]
-            if task.get("state") == "DONE"
-            and task.get("completion_candidate_sha") == route_head
-            and task.get("completion_publication_registration")
-            and _strict_completion_valid(task)
-        ]
+        accepted: list[str] = []
+        for candidate_task in board["tasks"]:
+            if (
+                candidate_task.get("state") != "DONE"
+                or candidate_task.get("completion_candidate_sha") != route_head
+                or not candidate_task.get("completion_publication_registration")
+                or not _strict_completion_valid(candidate_task)
+            ):
+                continue
+            try:
+                authority_reg, _ = _read_registration(
+                    root, candidate_task["completion_publication_registration"]
+                )
+                descriptor = _completion_bundle_descriptor(root, authority_reg)
+            except (OSError, PublicationError, RuntimeError, ValueError, KeyError, TypeError):
+                continue
+            if descriptor is None:
+                continue
+            bundle_path, bundle_sha = descriptor
+            accepted.append(candidate_task["id"])
+            completion_bundles.append({
+                "authority": candidate_task["id"],
+                "path": str(bundle_path),
+                "sha256": bundle_sha,
+            })
         if not accepted:
             raise PublicationError("QUEUE_COMPLETE_ROUTE_SOURCE_NOT_ACCEPTED")
         route_authority = accepted
 
-    ownership, _ownership_sha = _ownership(route_root)
+    _require_committed_worktree_bytes(
+        route_root, route_head, COMPLETION_BUNDLE_RELATIVE_FILES
+    )
+    ownership, _ownership_sha = _ownership_at_commit(route_root, route_head)
     spec = ownership.get("roles", {}).get(role)
     if not isinstance(spec, dict):
         raise PublicationError("QUEUE_COMPLETE_ROLE_LOCATION_INVALID")
@@ -598,7 +731,29 @@ def validate_queue_completion_source_authority(
         "route_authority": route_authority,
         "role_path": role_path,
         "role_branch": role_branch,
+        "ownership": ownership,
+        "completion_bundles": completion_bundles,
     }
+
+
+def _select_execution_completion_bundle(
+    authority: dict[str, Any], executing_file: Path, expected_name: str,
+) -> tuple[Path, str]:
+    executing_file = Path(executing_file).resolve()
+    matches: list[tuple[Path, str]] = []
+    for descriptor in authority.get("completion_bundles", []):
+        if not isinstance(descriptor, dict):
+            continue
+        path = Path(descriptor.get("path", "")).resolve()
+        sha = descriptor.get("sha256")
+        if not isinstance(sha, str):
+            continue
+        _verify_completion_bundle(path, sha)
+        if executing_file == path / expected_name:
+            matches.append((path, sha))
+    if len(matches) != 1:
+        raise PublicationError("QUEUE_COMPLETE_EXECUTION_BUNDLE_MISMATCH")
+    return matches[0]
 
 
 def _run_canonical_queue_completion(
@@ -610,23 +765,26 @@ def _run_canonical_queue_completion(
     proof: Path,
     summary: str,
     registration_id: str,
+    completion_bundle: Path,
+    completion_bundle_sha: str,
 ) -> dict[str, Any]:
-    """Run the actual queue writer from the canonical role cwd."""
+    """Run the actual queue writer from the immutable completion bundle."""
     if root.resolve() != Path("/root/octoport-control").resolve():
         raise PublicationError("QUEUE_COMPLETE_CONTROL_ROOT_UNSUPPORTED")
-    control_script = route_root / "tooling/coordination/control.py"
-    try:
-        _git(route_root, "ls-files", "--error-unmatch", "tooling/coordination/control.py")
-    except subprocess.SubprocessError:
-        raise PublicationError("QUEUE_COMPLETE_CONTROL_SOURCE_INVALID") from None
+    completion_bundle = completion_bundle.resolve()
+    _verify_completion_bundle(completion_bundle, completion_bundle_sha)
+    control_script = completion_bundle / "control.py"
     if not control_script.is_file():
         raise PublicationError("QUEUE_COMPLETE_CONTROL_SOURCE_INVALID")
-    env = os.environ.copy()
-    env.pop("PYTHONPATH", None)
-    env.pop("PYTHONHOME", None)
-    env["PYTHONDONTWRITEBYTECODE"] = "1"
+    env = sanitized_git_authority_env()
+    env.update({
+        "OCTOPORT_PUBLICATION_ROUTE_SOURCE_ROOT": str(route_root.resolve()),
+        "OCTOPORT_PUBLICATION_COMPLETION_BUNDLE": str(completion_bundle),
+        "OCTOPORT_PUBLICATION_COMPLETION_BUNDLE_SHA256": completion_bundle_sha,
+    })
     command = [
         sys.executable,
+        "-B",
         str(control_script),
         role,
         "queue-task",
@@ -965,6 +1123,148 @@ def _verify_bundle(bundle: Path, expected_manifest_sha: str) -> dict[str, Any]:
     return payload
 
 
+def _completion_bundle_source_files(candidate_root: Path) -> dict[str, Path]:
+    base = candidate_root / "tooling/coordination"
+    return {name: base / name for name in COMPLETION_BUNDLE_RELATIVE_FILES}
+
+
+def _completion_bundle_manifest_payload(
+    candidate_root: Path, candidate_sha: str, candidate_tree: str,
+) -> dict[str, Any]:
+    files = _completion_bundle_source_files(candidate_root)
+    hashes: dict[str, str] = {}
+    for name, path in files.items():
+        relative = str(path.relative_to(candidate_root))
+        committed = _authority_git_bytes(candidate_root, "show", f"{candidate_sha}:{relative}")
+        hashes[name] = _sha_bytes(committed)
+    return {
+        "kind": "octoport.task-publication-completion-bundle",
+        "version": 1,
+        "candidate_sha": candidate_sha,
+        "candidate_tree": candidate_tree,
+        "files": hashes,
+    }
+
+
+def _completion_bundle_dir(root: Path, candidate_sha: str) -> Path:
+    if not SHA40_RE.fullmatch(candidate_sha):
+        raise PublicationError("COMPLETION_BUNDLE_CANDIDATE_INVALID")
+    return _root_dir(root) / "completion-bundles" / candidate_sha
+
+
+def _install_completion_bundle(
+    root: Path, candidate_root: Path, candidate_sha: str, candidate_tree: str,
+) -> tuple[Path, str]:
+    if _authority_git(candidate_root, "rev-parse", "HEAD") != candidate_sha:
+        raise PublicationError("COMPLETION_BUNDLE_CANDIDATE_IDENTITY_MISMATCH")
+    if _authority_git(candidate_root, "rev-parse", "HEAD^{tree}") != candidate_tree:
+        raise PublicationError("COMPLETION_BUNDLE_CANDIDATE_IDENTITY_MISMATCH")
+    payload = _completion_bundle_manifest_payload(
+        candidate_root, candidate_sha, candidate_tree
+    )
+    bundle = _completion_bundle_dir(root, candidate_sha)
+    manifest = bundle / "manifest.json"
+    if bundle.exists():
+        if not manifest.is_file() or _load_json(manifest) != payload:
+            raise PublicationError("COMPLETION_BUNDLE_EXISTING_IDENTITY_MISMATCH")
+        digest = _sha_file(manifest)
+        _verify_completion_bundle(bundle, digest)
+        return bundle, digest
+    bundle.mkdir(parents=True, exist_ok=False)
+    try:
+        for name in COMPLETION_BUNDLE_RELATIVE_FILES:
+            relative = f"tooling/coordination/{name}"
+            raw = _authority_git_bytes(candidate_root, "show", f"{candidate_sha}:{relative}")
+            target = bundle / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(raw)
+            os.chmod(target, 0o600)
+            with target.open("rb") as handle:
+                os.fsync(handle.fileno())
+        _atomic_write_json(manifest, payload)
+        _fsync_dir(bundle)
+        _fsync_dir(bundle.parent)
+    except Exception:
+        shutil.rmtree(bundle, ignore_errors=True)
+        raise
+    digest = _sha_file(manifest)
+    _verify_completion_bundle(bundle, digest)
+    return bundle, digest
+
+
+def _verify_completion_bundle(bundle: Path, expected_manifest_sha: str) -> dict[str, Any]:
+    bundle = Path(bundle).resolve()
+    manifest = bundle / "manifest.json"
+    if (
+        not SHA64_RE.fullmatch(str(expected_manifest_sha))
+        or not manifest.is_file()
+        or _sha_file(manifest) != expected_manifest_sha
+    ):
+        raise PublicationError("COMPLETION_BUNDLE_MANIFEST_HASH_MISMATCH")
+    payload = _load_json(manifest)
+    files = payload.get("files")
+    if (
+        payload.get("kind") != "octoport.task-publication-completion-bundle"
+        or payload.get("version") != 1
+        or not SHA40_RE.fullmatch(str(payload.get("candidate_sha", "")))
+        or not SHA40_RE.fullmatch(str(payload.get("candidate_tree", "")))
+        or not isinstance(files, dict)
+        or set(files) != set(COMPLETION_BUNDLE_RELATIVE_FILES)
+    ):
+        raise PublicationError("COMPLETION_BUNDLE_MANIFEST_INVALID")
+    if bundle != _completion_bundle_dir(
+        _control_root_from_bundle(bundle), payload["candidate_sha"]
+    ):
+        raise PublicationError("COMPLETION_BUNDLE_PATH_INVALID")
+    for name, expected in files.items():
+        path = bundle / name
+        if (
+            not SHA64_RE.fullmatch(str(expected))
+            or not path.is_file()
+            or _sha_file(path) != expected
+        ):
+            raise PublicationError(f"COMPLETION_BUNDLE_FILE_HASH_MISMATCH:{name}")
+    return payload
+
+
+def _control_root_from_bundle(bundle: Path) -> Path:
+    # .../controllers/task-publication/completion-bundles/<sha>
+    try:
+        root = bundle.parents[3]
+    except IndexError:
+        raise PublicationError("COMPLETION_BUNDLE_PATH_INVALID") from None
+    if bundle.parent.name != "completion-bundles" or bundle.parent.parent.name != "task-publication":
+        raise PublicationError("COMPLETION_BUNDLE_PATH_INVALID")
+    return root
+
+
+def _completion_bundle_descriptor(
+    root: Path, reg: dict[str, Any],
+) -> tuple[Path, str] | None:
+    core = reg.get("core")
+    if not isinstance(core, dict):
+        return None
+    raw_path = core.get("completion_bundle_path")
+    raw_sha = core.get("completion_bundle_manifest_sha256")
+    if raw_path is None and raw_sha is None:
+        return None
+    if not isinstance(raw_path, str) or not SHA64_RE.fullmatch(str(raw_sha or "")):
+        raise PublicationError("COMPLETION_BUNDLE_DESCRIPTOR_INVALID")
+    path = Path(raw_path).resolve()
+    expected_path = _completion_bundle_dir(
+        Path(root).resolve(), str(core.get("candidate_head", ""))
+    ).resolve()
+    if path != expected_path:
+        raise PublicationError("COMPLETION_BUNDLE_PATH_INVALID")
+    payload = _verify_completion_bundle(path, raw_sha)
+    if (
+        payload.get("candidate_sha") != core.get("candidate_head")
+        or payload.get("candidate_tree") != core.get("candidate_tree")
+    ):
+        raise PublicationError("COMPLETION_BUNDLE_CANDIDATE_BINDING_MISMATCH")
+    return path, raw_sha
+
+
 def _review_identity(root: Path, review_path: str, review_sha: str,
                      task_id: str, candidate: str, candidate_tree: str,
                      base: str, changed_paths: list[str], full_diff_sha: str,
@@ -1193,6 +1493,8 @@ def _registration_request_identity(reg: dict[str, Any]) -> dict[str, Any]:
         "accepted_manifest": core.get("accepted_manifest"),
         "route_source_sha": core["route_source_sha"],
         "route_source_tree": core["route_source_tree"],
+        "completion_bundle_path": core.get("completion_bundle_path"),
+        "completion_bundle_manifest_sha256": core.get("completion_bundle_manifest_sha256"),
         "remote": core["remote"],
         "pushurl_override": core.get("pushurl_override"),
     }
@@ -1227,14 +1529,14 @@ def _register_candidate_locked(
     task_paths = task.get("paths")
     if not isinstance(task_paths, list) or not task_paths:
         raise PublicationError("TASK_PATHS_REQUIRED")
-    ownership, ownership_sha = _ownership(worktree)
-    fixed_path = Path(ownership["roles"][role]["path"]).resolve()
-    if worktree == fixed_path:
-        raise PublicationError("ISOLATED_WORKTREE_REQUIRED")
     if not _clean(worktree):
         raise PublicationError("CANDIDATE_WORKTREE_CLEAN_REQUIRED")
     candidate = _head(worktree)
     candidate_tree = _tree(worktree)
+    ownership, ownership_sha = _ownership_at_commit(worktree, candidate)
+    fixed_path = Path(ownership["roles"][role]["path"]).resolve()
+    if worktree == fixed_path:
+        raise PublicationError("ISOLATED_WORKTREE_REQUIRED")
     if not SHA40_RE.fullmatch(base):
         raise PublicationError("BASE_SHA_REQUIRED")
     parents = _commit_parents(worktree, candidate)
@@ -1270,6 +1572,9 @@ def _register_candidate_locked(
     bundle, bundle_manifest_sha = _install_bundle(
         root, route_source_root, route_source_sha, route_source_tree
     )
+    completion_bundle, completion_bundle_manifest_sha = _install_completion_bundle(
+        root, worktree, candidate, candidate_tree
+    )
     # Current worktreeConfig capability is a prerequisite for isolated config.
     if _git(worktree, "config", "--get", "extensions.worktreeConfig", check=False).strip().lower() not in {"true", "1", "yes", "on"}:
         raise PublicationError("WORKTREE_CONFIG_EXTENSION_REQUIRED")
@@ -1295,6 +1600,8 @@ def _register_candidate_locked(
         } if accepted_manifest else None,
         "route_source_sha": route_source_sha,
         "route_source_tree": route_source_tree,
+        "completion_bundle_path": str(completion_bundle),
+        "completion_bundle_manifest_sha256": completion_bundle_manifest_sha,
         "remote": remote,
         "pushurl_override": pushurl,
     }
@@ -1303,6 +1610,9 @@ def _register_candidate_locked(
         existing, _ = _read_registration(root, pointer.get("registration_id", ""))
         if existing.get("state") in OPEN_STATES and _registration_request_identity(existing) == request_identity:
             _verify_bundle(Path(existing["core"]["bundle_path"]), existing["core"]["bundle_manifest_sha256"])
+            descriptor = _completion_bundle_descriptor(root, existing)
+            if descriptor is None:
+                raise PublicationError("COMPLETION_BUNDLE_DESCRIPTOR_REQUIRED")
             return existing
         raise PublicationError("WORKTREE_ALREADY_HAS_ACTIVE_REGISTRATION")
 
@@ -2387,8 +2697,9 @@ def supersede_registration(
                 return reg
             should_close = True
         else:
-            if reg.get("state") != "TASK_REF_PUBLISHED":
-                raise PublicationError(f"SUPERSEDE_PRESTATE_INVALID:{reg.get('state')}")
+            state = reg.get("state")
+            if state not in {"REGISTERED", "TASK_REF_PUBLISHED"}:
+                raise PublicationError(f"SUPERSEDE_PRESTATE_INVALID:{state}")
             if not _no_armed_leases(root, registration_id):
                 raise PublicationError("SUPERSEDE_ARMED_LEASE_PRESENT")
             _validate_supersede_registration_identity(root, reg, require_clean=True)
@@ -2397,46 +2708,61 @@ def supersede_registration(
                 raise PublicationError("SUPERSEDE_EVIDENCE_DRIFT")
             core = reg["core"]
             worktree = Path(core["worktree_path"])
-            current = _supersede_remote_state(
-                worktree, core["push_target"], core["task_ref"], core["candidate_head"]
-            )
             base_updates = {
                 "supersede_evidence": evidence,
                 "superseded_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             }
-            if current == ZERO_OID:
+            if state == "REGISTERED":
+                if reg.get("last_settlement_outcome") != "CANCELLED_REMOTE_UNCHANGED":
+                    raise PublicationError(
+                        "SUPERSEDE_REGISTERED_CANCELLED_REMOTE_UNCHANGED_REQUIRED"
+                    )
+                current = _remote_oid(worktree, core["remote"], core["task_ref"])
+                if current != ZERO_OID:
+                    raise PublicationError("SUPERSEDE_REGISTERED_TASK_REF_PRESENT")
                 reg = _state_transition(
-                    root, registration_id, {"TASK_REF_PUBLISHED"}, "REVOKED",
+                    root, registration_id, {"REGISTERED"}, "REVOKED",
                     dict(base_updates, task_ref_cleanup_status="ALREADY_ABSENT"),
                     expected_version=reg["state_version"],
                 )
                 should_close = True
-            elif current != core["candidate_head"]:
-                reg = _state_transition(
-                    root, registration_id, {"TASK_REF_PUBLISHED"}, "REVOKED",
-                    dict(base_updates, task_ref_cleanup_status="FOREIGN_RETAINED"),
-                    expected_version=reg["state_version"],
-                )
-                should_close = True
             else:
-                bundle, bundle_sha = _install_bundle(
-                    root, route_source_root.resolve(), route_source_sha, route_source_tree
+                current = _supersede_remote_state(
+                    worktree, core["push_target"], core["task_ref"], core["candidate_head"]
                 )
-                existing_bundle = reg.get("supersede_bundle")
-                if existing_bundle and (
-                    existing_bundle.get("path") != str(bundle) or existing_bundle.get("sha256") != bundle_sha
-                ):
-                    raise PublicationError("SUPERSEDE_BUNDLE_DRIFT")
-                reg, lease = _prepare_supersede_push_locked(
-                    root, reg, evidence, bundle, bundle_sha, ttl_seconds
-                )
-                locks.release_coord()
-                try:
-                    attempt = _run_supersede_send_pack(root, reg, lease, timeout_seconds)
-                finally:
-                    locks.reacquire_coord()
-                reg = _settle_after_push_locked(root, reg, lease, attempt)
-                should_close = reg.get("state") == "REVOKED"
+                if current == ZERO_OID:
+                    reg = _state_transition(
+                        root, registration_id, {"TASK_REF_PUBLISHED"}, "REVOKED",
+                        dict(base_updates, task_ref_cleanup_status="ALREADY_ABSENT"),
+                        expected_version=reg["state_version"],
+                    )
+                    should_close = True
+                elif current != core["candidate_head"]:
+                    reg = _state_transition(
+                        root, registration_id, {"TASK_REF_PUBLISHED"}, "REVOKED",
+                        dict(base_updates, task_ref_cleanup_status="FOREIGN_RETAINED"),
+                        expected_version=reg["state_version"],
+                    )
+                    should_close = True
+                else:
+                    bundle, bundle_sha = _install_bundle(
+                        root, route_source_root.resolve(), route_source_sha, route_source_tree
+                    )
+                    existing_bundle = reg.get("supersede_bundle")
+                    if existing_bundle and (
+                        existing_bundle.get("path") != str(bundle) or existing_bundle.get("sha256") != bundle_sha
+                    ):
+                        raise PublicationError("SUPERSEDE_BUNDLE_DRIFT")
+                    reg, lease = _prepare_supersede_push_locked(
+                        root, reg, evidence, bundle, bundle_sha, ttl_seconds
+                    )
+                    locks.release_coord()
+                    try:
+                        attempt = _run_supersede_send_pack(root, reg, lease, timeout_seconds)
+                    finally:
+                        locks.reacquire_coord()
+                    reg = _settle_after_push_locked(root, reg, lease, attempt)
+                    should_close = reg.get("state") == "REVOKED"
     if should_close:
         return close_registration(root, registration_id)
     return reg
@@ -2529,10 +2855,10 @@ def close_registration(root: Path, registration_id: str) -> dict[str, Any]:
 
 
 def complete_queue_registration(root: Path, registration_id: str, completion_receipt: str,
-                                summary: str, route_source_root: Path | None = None) -> dict[str, Any]:
+                                summary: str, route_source_root: Path) -> dict[str, Any]:
     registered, _ = _read_registration(root, registration_id)
     registered_core = registered.get("core", {})
-    route_root = (route_source_root or Path(__file__).resolve().parents[2]).resolve()
+    route_root = Path(route_source_root).resolve()
     authority = validate_queue_completion_source_authority(
         root,
         registration_id,
@@ -2544,8 +2870,13 @@ def complete_queue_registration(root: Path, registration_id: str, completion_rec
     core = authority["core"]
     route_head = authority["route_head"]
     route_authority = authority["route_authority"]
+    completion_bundle, completion_bundle_sha = _select_execution_completion_bundle(
+        authority, Path(__file__), "task_publication.py"
+    )
 
-    role_location = _require_canonical_role_location(route_root, core["role"])
+    role_location = _require_canonical_role_location(
+        route_root, core["role"], authority["ownership"]
+    )
 
     proof = Path(completion_receipt).resolve()
     try:
@@ -2567,6 +2898,8 @@ def complete_queue_registration(root: Path, registration_id: str, completion_rec
         proof,
         summary,
         registration_id,
+        completion_bundle,
+        completion_bundle_sha,
     )
     return dict(
         result,
@@ -2575,6 +2908,8 @@ def complete_queue_registration(root: Path, registration_id: str, completion_rec
         route_source_head=route_head,
         route_authority=route_authority,
         role_location=str(role_location),
+        completion_bundle=str(completion_bundle),
+        completion_bundle_manifest_sha256=completion_bundle_sha,
     )
 
 
@@ -2796,6 +3131,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--registration", required=True)
     p.add_argument("--receipt", required=True)
     p.add_argument("--summary", required=True)
+    p.add_argument("--route-source-root", required=True)
 
     p = sub.add_parser("show")
     p.add_argument("--registration", required=True)
@@ -2839,7 +3175,8 @@ def main(argv: list[str] | None = None) -> int:
         _json_print(close_registration(root, args.registration))
     elif args.command == "complete-queue":
         _json_print(complete_queue_registration(
-            root, args.registration, args.receipt, args.summary
+            root, args.registration, args.receipt, args.summary,
+            Path(args.route_source_root),
         ))
     elif args.command == "show":
         _json_print(_read_registration(root, args.registration)[0])

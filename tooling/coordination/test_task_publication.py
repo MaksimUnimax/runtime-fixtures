@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
 import unittest
@@ -13,6 +14,7 @@ from unittest.mock import patch
 
 import task_publication as route
 from ci_gate import REQUIRED
+from disk_lifecycle import Registry as DiskLifecycleRegistry
 
 
 class PublicationTests(unittest.TestCase):
@@ -33,14 +35,13 @@ class PublicationTests(unittest.TestCase):
         self.git(self.source, "config", "user.name", "Fixture")
         self.git(self.source, "config", "user.email", "fixture@example.invalid")
         self.git(self.source, "config", "extensions.worktreeConfig", "true")
-        for name, path in route._bundle_source_files(Path(__file__).resolve().parents[2]).items():
+        repo_root = Path(__file__).resolve().parents[2]
+        fixture_sources = dict(route._bundle_source_files(repo_root))
+        fixture_sources.update(route._completion_bundle_source_files(repo_root))
+        for name, path in fixture_sources.items():
             target = self.source / "tooling/coordination" / name
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(path, target)
-        control_source = Path(__file__).with_name("control.py")
-        control_target = self.source / "tooling/coordination/control.py"
-        control_target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(control_source, control_target)
         (self.source / ".gitignore").write_text("__pycache__/\n")
         policy = self.source / "docs/development/coordination/OWNERSHIP.json"
         policy.parent.mkdir(parents=True)
@@ -109,6 +110,9 @@ class PublicationTests(unittest.TestCase):
         review = {"path": str(self.control / "logs/authority-review.json"), "sha256": "a" * 64}
         task_ref = "refs/heads/controller/task-publication/c/ROUTE-AUTHORITY/test"
         task_branch = task_ref.removeprefix("refs/heads/")
+        completion_bundle, completion_bundle_sha = route._install_completion_bundle(
+            self.control, self.source, candidate_sha, route._tree(self.source)
+        )
         core = {
             "role": "C", "task_id": task["id"], "task_paths": task["paths"],
             "changed_paths": task["paths"], "candidate_head": candidate_sha,
@@ -116,6 +120,8 @@ class PublicationTests(unittest.TestCase):
             "task_fingerprint": work_queue._publication_task_fingerprint(task),
             "review": review, "bundle_manifest_sha256": "1" * 64,
             "task_ref": task_ref, "task_branch": task_branch,
+            "completion_bundle_path": str(completion_bundle),
+            "completion_bundle_manifest_sha256": completion_bundle_sha,
         }
         registration_id = route._sha_bytes(route._canonical_bytes(core))
         publication = self.control / "controllers/task-publication"
@@ -292,6 +298,57 @@ class PublicationTests(unittest.TestCase):
         self.assertEqual(route.close_registration(self.control, reg["registration_id"])["state"], "CLOSED")
         self.assertEqual(route._config_values(self.work, "core.hooksPath"), {"present": False, "values": []})
 
+    def test_git_authority_environment_is_minimal_and_ignores_caller_injection(self):
+        poisoned = {
+            "KEEP_ME": "yes", "PATH": "/tmp/fake-bin", "LD_PRELOAD": "/tmp/evil.so",
+            "PYTHONPATH": "/tmp/evil-python", "PYTHONHOME": "/tmp/evil-home",
+            "GIT_SSH_COMMAND": "ssh -F fixture", "GIT_DIR": "/tmp/evil-dir",
+            "GIT_WORK_TREE": "/tmp/evil-worktree", "GIT_COMMON_DIR": "/tmp/evil-common",
+            "GIT_INDEX_FILE": "/tmp/evil-index", "GIT_OBJECT_DIRECTORY": "/tmp/evil-objects",
+            "GIT_ALTERNATE_OBJECT_DIRECTORIES": "/tmp/evil-alternates",
+            "GIT_NAMESPACE": "evil", "GIT_SHALLOW_FILE": "/tmp/evil-shallow",
+            "GIT_REPLACE_REF_BASE": "refs/evil/", "GIT_CONFIG": "/tmp/evil-config",
+            "GIT_CONFIG_PARAMETERS": "'core.worktree=/tmp/evil'", "GIT_CONFIG_COUNT": "1",
+            "GIT_CONFIG_KEY_0": "core.worktree", "GIT_CONFIG_VALUE_0": "/tmp/evil",
+        }
+        env = route.sanitized_git_authority_env(poisoned)
+        self.assertEqual(set(env), {
+            "PATH", "LC_ALL", "LANG", "GIT_CONFIG_NOSYSTEM", "GIT_CONFIG_SYSTEM",
+            "GIT_CONFIG_GLOBAL", "GIT_NO_REPLACE_OBJECTS",
+        })
+        for key in poisoned:
+            if key != "PATH":
+                self.assertNotIn(key, env)
+        self.assertEqual(env["PATH"], route.AUTHORITY_PATH)
+        self.assertNotEqual(env["PATH"], poisoned["PATH"])
+        self.assertEqual(env["GIT_CONFIG_NOSYSTEM"], "1")
+        self.assertEqual(env["GIT_CONFIG_SYSTEM"], os.devnull)
+        self.assertEqual(env["GIT_CONFIG_GLOBAL"], os.devnull)
+        self.assertEqual(env["GIT_NO_REPLACE_OBJECTS"], "1")
+        self.assertEqual(env["LC_ALL"], "C")
+        self.assertEqual(env["LANG"], "C")
+
+    def test_authority_git_uses_absolute_binary_not_caller_path(self):
+        expected = self.git(self.source, "rev-parse", "HEAD")
+        fake_bin = self.root / "fake-bin"
+        fake_bin.mkdir()
+        marker = self.root / "fake-git-called"
+        fake_git = fake_bin / "git"
+        fake_git.write_text(
+            "#!/bin/sh\n"
+            "printf called > \"$FAKE_GIT_MARKER\"\n"
+            "printf fake-authority\n"
+        )
+        fake_git.chmod(0o755)
+        with patch.dict(os.environ, {
+            "PATH": str(fake_bin), "FAKE_GIT_MARKER": str(marker),
+            "LD_PRELOAD": "/tmp/evil-loader.so", "PYTHONPATH": "/tmp/evil-python",
+            "GIT_DIR": "/tmp/evil-dir",
+        }, clear=False):
+            self.assertEqual(route._authority_git(self.source, "rev-parse", "HEAD"), expected)
+        self.assertFalse(marker.exists())
+        self.assertEqual(route.AUTHORITY_GIT_BIN, "/usr/bin/git")
+
     def test_complete_queue_bootstraps_from_clean_exact_candidate_identity_after_original_path(self):
         reg = self.register()
         reg = route._push_operation(self.control, reg["registration_id"], "TASK_REF")
@@ -303,9 +360,11 @@ class PublicationTests(unittest.TestCase):
         self.git(self.source, "worktree", "add", "--detach", str(bootstrap), self.head)
         receipt = self.control / "logs/completion.json"
         receipt.write_text('{"fixture":"completion"}')
-        with patch.object(
-            route, "_run_canonical_queue_completion", return_value={"state": "DONE"}
-        ) as boundary:
+        completion_entrypoint = Path(reg["core"]["completion_bundle_path"]) / "task_publication.py"
+        with (
+            patch.object(route, "__file__", str(completion_entrypoint)),
+            patch.object(route, "_run_canonical_queue_completion", return_value={"state": "DONE"}) as boundary,
+        ):
             result = route.complete_queue_registration(
                 self.control, reg["registration_id"], str(receipt), "published",
                 route_source_root=bootstrap,
@@ -324,7 +383,143 @@ class PublicationTests(unittest.TestCase):
             receipt.resolve(),
             "published",
             reg["registration_id"],
+            Path(reg["core"]["completion_bundle_path"]).resolve(),
+            reg["core"]["completion_bundle_manifest_sha256"],
         )
+
+    def test_complete_queue_real_bundle_entrypoint_reaches_receipt_boundary(self):
+        reg = self.register()
+        reg = route._push_operation(self.control, reg["registration_id"], "TASK_REF")
+        reg = route.mark_ready(self.control, reg["registration_id"], self.ci(reg))
+        reg = route._push_operation(self.control, reg["registration_id"], "MAIN")
+        reg = route._push_operation(self.control, reg["registration_id"], "CLEANUP_TASK_REF")
+        reg = route.close_registration(self.control, reg["registration_id"])
+        bootstrap = self.root / "bootstrap-real-bundle-entrypoint"
+        self.git(self.source, "worktree", "add", "--detach", str(bootstrap), self.head)
+
+        registry = DiskLifecycleRegistry(self.control)
+        registry.seed_baseline()
+        registry.declare_none(
+            "C", self.task["id"],
+            "Real immutable completion-bundle entrypoint positive fixture",
+        )
+        board_path = self.control / "controllers/work-board.json"
+        before_board = board_path.read_bytes()
+        before_completion = registry.completion_record("C", self.task["id"])
+        completion_entrypoint = (
+            Path(reg["core"]["completion_bundle_path"]) / "task_publication.py"
+        )
+        missing_receipt = self.control / "logs/missing-positive-boundary.json"
+        proc = subprocess.run(
+            [
+                sys.executable, "-B", str(completion_entrypoint),
+                "--control-root", str(self.control),
+                "complete-queue",
+                "--registration", reg["registration_id"],
+                "--receipt", str(missing_receipt),
+                "--summary", "reach post-authority receipt boundary",
+                "--route-source-root", str(bootstrap),
+            ],
+            cwd=str(self.fixed),
+            env=os.environ.copy(),
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=30,
+            check=False,
+        )
+        self.assertEqual(proc.returncode, 1, proc.stderr)
+        result = json.loads(proc.stdout)
+        self.assertEqual(result["status"], "BLOCKED")
+        self.assertEqual(result["error"], "QUEUE_COMPLETE_RECEIPT_INVALID")
+        self.assertEqual(board_path.read_bytes(), before_board)
+        self.assertEqual(
+            registry.completion_record("C", self.task["id"]),
+            before_completion,
+        )
+
+    def test_complete_queue_real_bundle_rejects_hidden_worktree_bytes_before_mutation(self):
+        reg = self.register()
+        reg = route._push_operation(self.control, reg["registration_id"], "TASK_REF")
+        reg = route.mark_ready(self.control, reg["registration_id"], self.ci(reg))
+        reg = route._push_operation(self.control, reg["registration_id"], "MAIN")
+        reg = route._push_operation(self.control, reg["registration_id"], "CLEANUP_TASK_REF")
+        reg = route.close_registration(self.control, reg["registration_id"])
+        receipt = self.control / "logs/completion-hidden-bytes.json"
+        receipt.write_text('{"fixture":"completion"}')
+        completion_entrypoint = (
+            Path(reg["core"]["completion_bundle_path"]) / "task_publication.py"
+        )
+
+        registry = DiskLifecycleRegistry(self.control)
+        registry.seed_baseline()
+        registry.declare_none(
+            "C", self.task["id"],
+            "Hidden working-tree byte authority real-entrypoint fixture",
+        )
+        board_path = self.control / "controllers/work-board.json"
+
+        cases = (
+            ("tooling/coordination/control.py", "--assume-unchanged"),
+            ("tooling/coordination/task_publication.py", "--skip-worktree"),
+        )
+        for index, (relative, index_flag) in enumerate(cases):
+            with self.subTest(relative=relative, index_flag=index_flag):
+                bootstrap = self.root / f"bootstrap-hidden-real-{index}"
+                self.git(
+                    self.source, "worktree", "add", "--detach",
+                    str(bootstrap), self.head,
+                )
+                self.git(bootstrap, "update-index", index_flag, relative)
+                target = bootstrap / relative
+                target.write_bytes(
+                    target.read_bytes() + b"\n# hidden working-tree poison\n"
+                )
+                self.assertEqual(
+                    self.git(
+                        bootstrap, "status", "--porcelain=v1",
+                        "--untracked-files=all",
+                    ),
+                    "",
+                    "fixture must reproduce status-clean hidden tracked bytes",
+                )
+                self.assertEqual(route._head(bootstrap), self.head)
+                self.assertEqual(route._tree(bootstrap), reg["core"]["candidate_tree"])
+
+                before_board = board_path.read_bytes()
+                before_completion = registry.completion_record(
+                    "C", self.task["id"]
+                )
+                proc = subprocess.run(
+                    [
+                        sys.executable, "-B", str(completion_entrypoint),
+                        "--control-root", str(self.control),
+                        "complete-queue",
+                        "--registration", reg["registration_id"],
+                        "--receipt", str(receipt),
+                        "--summary", "must not mutate",
+                        "--route-source-root", str(bootstrap),
+                    ],
+                    cwd=str(self.fixed),
+                    env=os.environ.copy(),
+                    text=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    timeout=30,
+                    check=False,
+                )
+                self.assertEqual(proc.returncode, 1, proc.stderr)
+                result = json.loads(proc.stdout)
+                self.assertEqual(result["status"], "BLOCKED")
+                self.assertEqual(
+                    result["error"],
+                    "QUEUE_COMPLETE_ROUTE_SOURCE_BYTES_DRIFT:" + relative,
+                )
+                self.assertEqual(board_path.read_bytes(), before_board)
+                self.assertEqual(
+                    registry.completion_record("C", self.task["id"]),
+                    before_completion,
+                )
 
     def test_queue_source_authority_rejects_tampered_ready_before_policy_trust(self):
         reg = self.register()
@@ -395,8 +590,9 @@ class PublicationTests(unittest.TestCase):
     def test_canonical_queue_completion_runs_control_from_role_cwd(self):
         proof = self.control / "logs/completion-real.json"
         proof.write_text("{}")
-        control_script = self.source / "tooling/coordination/control.py"
-        control_script.write_text("# fixture control source\n")
+        completion_bundle, completion_bundle_sha = route._install_completion_bundle(
+            self.control, self.source, self.base, route._tree(self.source)
+        )
         completed = subprocess.CompletedProcess(
             ["control.py"], 0, stdout=json.dumps({"state": "DONE"}), stderr=""
         )
@@ -420,11 +616,23 @@ class PublicationTests(unittest.TestCase):
                 proof,
                 "published fixture",
                 "a" * 64,
+                completion_bundle,
+                completion_bundle_sha,
             )
         self.assertEqual(result, {"state": "DONE"})
         command = run.call_args.args[0]
         self.assertEqual(run.call_args.kwargs["cwd"], str(self.fixed))
-        self.assertEqual(command[1], str(self.source / "tooling/coordination/control.py"))
+        self.assertEqual(command[1], "-B")
+        self.assertEqual(command[2], str(completion_bundle / "control.py"))
+        child_env = run.call_args.kwargs["env"]
+        expected_env = route.sanitized_git_authority_env()
+        expected_env.update({
+            "OCTOPORT_PUBLICATION_ROUTE_SOURCE_ROOT": str(self.source.resolve()),
+            "OCTOPORT_PUBLICATION_COMPLETION_BUNDLE": str(completion_bundle.resolve()),
+            "OCTOPORT_PUBLICATION_COMPLETION_BUNDLE_SHA256": completion_bundle_sha,
+        })
+        self.assertEqual(child_env, expected_env)
+        self.assertFalse(any(key.startswith(("LD_", "PYTHON")) for key in child_env))
         self.assertEqual(
             command[command.index("--publication-registration") + 1],
             "a" * 64,
@@ -451,9 +659,11 @@ class PublicationTests(unittest.TestCase):
         authority = self.strict_route_authority(self.base)
         receipt = self.control / "logs/completion-other-route.json"
         receipt.write_text('{"fixture":"completion"}')
-        with patch.object(
-            route, "_run_canonical_queue_completion", return_value={"state": "DONE"}
-        ) as boundary:
+        authority_bundle = route._completion_bundle_dir(self.control, self.base)
+        with (
+            patch.object(route, "__file__", str(authority_bundle / "task_publication.py")),
+            patch.object(route, "_run_canonical_queue_completion", return_value={"state": "DONE"}) as boundary,
+        ):
             result = route.complete_queue_registration(
                 self.control, reg["registration_id"], str(receipt), "published",
                 route_source_root=self.source,
@@ -472,7 +682,11 @@ class PublicationTests(unittest.TestCase):
         receipt = self.control / "logs/completion-wrong-location.json"
         receipt.write_text('{"fixture":"completion"}')
         self.git(self.fixed, "checkout", "-b", "wrong-role-location")
-        with patch.object(route, "_run_canonical_queue_completion") as boundary:
+        completion_entrypoint = Path(reg["core"]["completion_bundle_path"]) / "task_publication.py"
+        with (
+            patch.object(route, "__file__", str(completion_entrypoint)),
+            patch.object(route, "_run_canonical_queue_completion") as boundary,
+        ):
             with self.assertRaisesRegex(RuntimeError, "QUEUE_COMPLETE_ROLE_LOCATION_INVALID"):
                 route.complete_queue_registration(
                     self.control, reg["registration_id"], str(receipt), "published",
@@ -881,6 +1095,63 @@ class PublicationTests(unittest.TestCase):
         self.git(self.source, "--git-dir", str(self.remote), "update-ref", "-d", ref)
         reg = route._push_operation(self.control, reg["registration_id"], "CLEANUP_TASK_REF")
         self.assertEqual(reg["task_ref_cleanup_status"], "ALREADY_ABSENT")
+
+    def test_supersede_registered_cancelled_remote_unchanged_closes_without_remote_mutation(self):
+        reg = self.register()
+        reg = route._state_transition(
+            self.control,
+            reg["registration_id"],
+            {"REGISTERED"},
+            "REGISTERED",
+            {"last_settlement_outcome": "CANCELLED_REMOTE_UNCHANGED"},
+            expected_version=reg["state_version"],
+        )
+        evidence_path, _, _ = self.supersede_evidence(reg, verdict="FAIL")
+        ref = reg["core"]["task_ref"]
+        main_before = route._remote_oid(self.work, "origin", "refs/heads/main")
+        prior_hooks = reg["core"]["prior_config"]["core.hooksPath"]
+
+        with patch.object(route, "_run_supersede_send_pack") as send_pack:
+            result = self.supersede(reg, evidence_path)
+
+        send_pack.assert_not_called()
+        self.assertEqual(result["state"], "CLOSED")
+        self.assertEqual(result["task_ref_cleanup_status"], "ALREADY_ABSENT")
+        self.assertEqual(route._remote_oid(self.work, "origin", ref), route.ZERO_OID)
+        self.assertEqual(route._remote_oid(self.work, "origin", "refs/heads/main"), main_before)
+        self.assertEqual(route._config_values(self.work, "core.hooksPath"), prior_hooks)
+        close = json.loads(Path(result["close_receipt"]["path"]).read_text())
+        self.assertEqual(close["state_before"], "REVOKED")
+        before = route._registration_path(self.control, reg["registration_id"]).read_bytes()
+        self.assertEqual(self.supersede(result, evidence_path)["state"], "CLOSED")
+        self.assertEqual(
+            route._registration_path(self.control, reg["registration_id"]).read_bytes(),
+            before,
+        )
+
+    def test_supersede_registered_requires_cancelled_remote_unchanged_and_absent_ref(self):
+        reg = self.register()
+        evidence_path, _, _ = self.supersede_evidence(reg, verdict="FAIL")
+        with self.assertRaisesRegex(
+            RuntimeError, "SUPERSEDE_REGISTERED_CANCELLED_REMOTE_UNCHANGED_REQUIRED"
+        ):
+            self.supersede(reg, evidence_path)
+
+        reg = route._state_transition(
+            self.control,
+            reg["registration_id"],
+            {"REGISTERED"},
+            "REGISTERED",
+            {"last_settlement_outcome": "CANCELLED_REMOTE_UNCHANGED"},
+            expected_version=reg["state_version"],
+        )
+        ref = reg["core"]["task_ref"]
+        self.git(self.source, "--git-dir", str(self.remote), "update-ref", ref, self.base)
+        with self.assertRaisesRegex(RuntimeError, "SUPERSEDE_REGISTERED_TASK_REF_PRESENT"):
+            self.supersede(reg, evidence_path)
+        current, _ = route._read_registration(self.control, reg["registration_id"])
+        self.assertEqual(current["state"], "REGISTERED")
+        self.assertEqual(route._remote_oid(self.work, "origin", ref), self.base)
 
     def test_supersede_exact_ref_ignores_successor_task_fingerprint_and_is_idempotent(self):
         reg = self.register()
