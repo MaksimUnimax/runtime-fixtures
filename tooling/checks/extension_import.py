@@ -73,7 +73,7 @@ def negative_control(output):
 
 # Historical routes keep their original assertions. Only the current I1-C1
 # recipe may add a 0.2.x route; arbitrary future versions fail closed.
-HISTORICAL_ROUTE_VERSIONS = frozenset({"0.1.22", *(f"0.2.{n}" for n in range(11))})
+HISTORICAL_ROUTE_VERSIONS = frozenset({"0.1.22", *(f"0.2.{n}" for n in range(12))})
 
 
 def _composed_patch(version):

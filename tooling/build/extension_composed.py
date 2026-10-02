@@ -17,6 +17,29 @@ spec = importlib.util.spec_from_file_location("extension_baseline", ROOT / "tool
 baseline = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(baseline)
 RECIPE = ROOT / "apps/extension/composition.json"
+STORE_VISIBLE_BRAND_TARGETS = (
+    "popup.html",
+    "popup.js",
+    "shared/application.js",
+    "attachment_delivery_port_content.js",
+)
+
+
+def rewrite_store_visible_brand(output):
+    """Rewrite visible development branding without coupling to copy occurrence counts."""
+    for target in STORE_VISIBLE_BRAND_TARGETS:
+        assert target in output, target
+        output[target] = output[target].replace(b"Seller Agents", b"Octoport")
+
+
+def assert_no_store_brand_leaks(directory):
+    """Fail if the final store runtime still contains the development-facing brand."""
+    stale = sorted(
+        path.relative_to(directory).as_posix()
+        for path in directory.rglob("*")
+        if path.is_file() and b"Seller Agents" in path.read_bytes()
+    )
+    assert not stale, ("stale Seller Agents store brand", stale)
 
 
 def read_input(relative, inputs):
@@ -110,7 +133,7 @@ def compose(directory, mode="development", release_authority=None):
     directory.mkdir(parents=True, exist_ok=False)
     baseline.verify_import()
     recipe = baseline.read_json(RECIPE)
-    assert recipe["version"] == "0.2.11" and recipe["stage"] == "I1-C1"
+    assert recipe["version"] == "0.2.12" and recipe["stage"] == "I1-C1"
     inputs = {}
     read_input("apps/extension/composition.json", inputs)
     output = {}
@@ -198,14 +221,7 @@ def compose(directory, mode="development", release_authority=None):
         assert text.count(patch["old"]) == 1, (patch["target"], patch["old"][:100], text.count(patch["old"]))
         output[patch["target"]] = text.replace(patch["old"], patch["new"]).encode()
     if mode == "store":
-        visible_brand_targets = {
-            "popup.html": 4,
-            "popup.js": 2,
-            "shared/application.js": 1,
-        }
-        for target, expected_count in visible_brand_targets.items():
-            assert output[target].count(b"Seller Agents") == expected_count, target
-            output[target] = output[target].replace(b"Seller Agents", b"Octoport")
+        rewrite_store_visible_brand(output)
         popup = output["popup.html"]
         assert popup.count("Локальная разработка".encode()) == 1
         assert popup.count(b"LOCAL DEVELOPMENT") == 1
@@ -249,6 +265,8 @@ def compose(directory, mode="development", release_authority=None):
         dict.fromkeys(manifest["host_permissions"] + recipe["marketplace_hosts"] + control_hosts)
     )
     baseline.write_json(manifest_path, manifest)
+    if mode == "store":
+        assert_no_store_brand_leaks(directory)
     files = [{"path": p.relative_to(directory).as_posix(), "sha256": baseline.sha256(p.read_bytes()),
               "bytes": p.stat().st_size} for p in sorted(directory.rglob("*")) if p.is_file()]
     assert len(files) == len(output)
