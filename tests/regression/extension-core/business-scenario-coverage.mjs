@@ -1,3 +1,4 @@
+import "./ozon-capability-status-boundary.mjs";
 import "./wb-stock-field-schema-slice.mjs";
 import "./wb-operational-sales-field-schema-slice.mjs";
 import "./wb-finance-sales-field-schema-slice.mjs";
