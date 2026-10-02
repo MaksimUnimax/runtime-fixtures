@@ -23,6 +23,7 @@ export const ADMIN_ALLOWED_TUPLES = [
   "GET /v1/admin/commercial/prices/{price_id}",
   "GET /v1/admin/compatibility/policies",
   "GET /v1/admin/beta/admission",
+  "GET /v1/admin/beta/invitations/{invitation_id}",
   "GET /v1/admin/health/diagnostics/breakdown",
   "GET /v1/admin/health/diagnostics/summary",
   "GET /v1/admin/health/incidents/{health_incident_id}",
@@ -47,6 +48,8 @@ export const ADMIN_ALLOWED_TUPLES = [
   "POST /v1/admin/accounts/{account_id}/subscription/{subscription_id}/restore",
   "POST /v1/admin/accounts/{account_id}/subscription/{subscription_id}/suspend",
   "POST /v1/admin/beta/admission",
+  "POST /v1/admin/beta/invitations",
+  "POST /v1/admin/beta/invitations/{invitation_id}/revoke",
   "POST /v1/admin/commercial/entitlements/definitions",
   "POST /v1/admin/commercial/entitlements/definitions/{entitlement_key}/deprecate",
   "POST /v1/admin/commercial/entitlements/definitions/{entitlement_key}/description",
@@ -132,7 +135,8 @@ const segmentPattern = (segment: string): string => {
     segment === "{notification_id}" ||
     segment === "{health_incident_id}" ||
     segment === "{repair_case_id}" ||
-    segment === "{support_case_id}"
+    segment === "{support_case_id}" ||
+    segment === "{invitation_id}"
   )
     return API_UUID;
   if (segment === "{health_target_id}") return LOWER_HEX_64;

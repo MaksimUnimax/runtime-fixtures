@@ -79,6 +79,16 @@ type BetaState = {
   revision: number;
   updatedAt: string;
 };
+type BetaInvitation = {
+  invitationId: string;
+  status: "PENDING" | "CONSUMED" | "REVOKED" | "EXPIRED";
+  createdAt: string;
+  expiresAt: string;
+  consumedAt: string | null;
+  revokedAt: string | null;
+};
+type BetaInvitationMutation = BetaInvitation & { replay: boolean };
+type ReviewedRequest = { fingerprint: string; requestId: string };
 
 const AdminContext = createContext<{
   me: Me | null;
@@ -220,6 +230,54 @@ export function buildCompatibilityPublishBody(
     reason,
   };
 }
+
+export function normalizeBetaInvitationEmail(input: string): string {
+  const normalized = input.trim().normalize("NFC").toLowerCase();
+  return normalized.length > 0 &&
+    normalized.length <= 320 &&
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(normalized)
+    ? normalized
+    : "";
+}
+
+export function buildBetaInvitationCreateBody(input: {
+  requestId: string;
+  expectedRevision: number;
+  email: string;
+  reason: string;
+}) {
+  return {
+    requestId: input.requestId,
+    expectedRevision: input.expectedRevision,
+    email: normalizeBetaInvitationEmail(input.email),
+    reason: input.reason.trim(),
+  };
+}
+
+export function buildBetaInvitationRevokeBody(input: {
+  requestId: string;
+  reason: string;
+}) {
+  return { requestId: input.requestId, reason: input.reason.trim() };
+}
+
+export function ensureReviewedRequest(
+  current: ReviewedRequest | undefined,
+  fingerprint: string,
+  makeId: () => string = () => crypto.randomUUID(),
+): ReviewedRequest {
+  return current?.fingerprint === fingerprint
+    ? current
+    : { fingerprint, requestId: makeId() };
+}
+
+export function lookupResultIsCurrent(
+  requestGeneration: number,
+  currentGeneration: number,
+): boolean {
+  return requestGeneration === currentGeneration;
+}
+
 function PageMessage({ notice }: { notice: Notice }) {
   return notice ? (
     <div
@@ -2412,7 +2470,7 @@ function Dashboard() {
 }
 
 function BetaAdmissionPage() {
-  const { me, setNotice } = useAdmin();
+  const { me, setNotice, refresh } = useAdmin();
   const state = useData<BetaState>(
     has(me, "beta.admission.read") ? "/v1/admin/beta/admission" : null,
   );
@@ -2424,8 +2482,221 @@ function BetaAdmissionPage() {
   const [review, setReview] = useState(false);
   const [busy, setBusy] = useState(false);
   const requestId = useRef<string | undefined>(undefined);
+
+  const [lookupId, setLookupId] = useState("");
+  const [invitation, setInvitation] = useState<BetaInvitation | null>(null);
+  const [lookupBusy, setLookupBusy] = useState(false);
+  const lookupGeneration = useRef(0);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteReason, setInviteReason] = useState("");
+  const [inviteBusy, setInviteBusy] = useState(false);
+  const [inviteReviewBody, setInviteReviewBody] = useState<ReturnType<
+    typeof buildBetaInvitationCreateBody
+  > | null>(null);
+  const inviteRequest = useRef<ReviewedRequest | undefined>(undefined);
+  const [revokeReason, setRevokeReason] = useState("");
+  const [revokeBusy, setRevokeBusy] = useState(false);
+  const [revokeReviewBody, setRevokeReviewBody] = useState<{
+    invitationId: string;
+    body: ReturnType<typeof buildBetaInvitationRevokeBody>;
+  } | null>(null);
+  const revokeRequest = useRef<ReviewedRequest | undefined>(undefined);
+
   const current = state.data;
   if (!has(me, "beta.admission.read")) return null;
+
+  const staleOrConflict = (error: unknown) =>
+    error instanceof ControlPlaneError &&
+    (error.code === "ADMIN_STATE_STALE" || error.code === "ADMIN_CONFLICT");
+  const refreshAdminOnAuthorityError = async (error: unknown) => {
+    if (
+      error instanceof ControlPlaneError &&
+      [
+        "ADMIN_UNAUTHORIZED",
+        "ADMIN_REAUTH_REQUIRED",
+        "ADMIN_CSRF_INVALID",
+        "ADMIN_FORBIDDEN",
+      ].includes(error.code)
+    )
+      await refresh();
+  };
+
+  const loadInvitation = async (value = lookupId) => {
+    const invitationId = value.trim();
+    if (!invitationId) return null;
+    const generation = ++lookupGeneration.current;
+    setLookupBusy(true);
+    try {
+      const next = await controlPlane<BetaInvitation>(
+        `/v1/admin/beta/invitations/${encodeURIComponent(invitationId)}`,
+      );
+      if (!lookupResultIsCurrent(generation, lookupGeneration.current))
+        return null;
+      setInvitation(next);
+      setLookupId(next.invitationId);
+      return next;
+    } catch (error) {
+      if (!lookupResultIsCurrent(generation, lookupGeneration.current))
+        return null;
+      setInvitation(null);
+      await refreshAdminOnAuthorityError(error);
+      if (!lookupResultIsCurrent(generation, lookupGeneration.current))
+        return null;
+      setNotice({ kind: "error", text: safeError(error) });
+      return null;
+    } finally {
+      if (lookupResultIsCurrent(generation, lookupGeneration.current))
+        setLookupBusy(false);
+    }
+  };
+
+  const beginInviteReview = () => {
+    const normalizedEmail = normalizeBetaInvitationEmail(inviteEmail);
+    if (!current || !normalizedEmail || !inviteReason.trim()) return;
+    const fingerprint = JSON.stringify([
+      current.revision,
+      normalizedEmail,
+      inviteReason.trim(),
+    ]);
+    inviteRequest.current = ensureReviewedRequest(
+      inviteRequest.current,
+      fingerprint,
+    );
+    setInviteReviewBody(
+      buildBetaInvitationCreateBody({
+        requestId: inviteRequest.current.requestId,
+        expectedRevision: current.revision,
+        email: normalizedEmail,
+        reason: inviteReason,
+      }),
+    );
+  };
+
+  const submitInvitation = async () => {
+    if (!inviteReviewBody) return;
+    const selectionGeneration = lookupGeneration.current;
+    setInviteBusy(true);
+    try {
+      const next = await controlPlane<BetaInvitationMutation>(
+        "/v1/admin/beta/invitations",
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(inviteReviewBody),
+        },
+      );
+      inviteRequest.current = undefined;
+      setInviteReviewBody(null);
+      setInviteEmail("");
+      setInviteReason("");
+      if (
+        lookupResultIsCurrent(selectionGeneration, lookupGeneration.current)
+      ) {
+        lookupGeneration.current += 1;
+        setLookupBusy(false);
+        setInvitation(next);
+        setLookupId(next.invitationId);
+      }
+      setNotice({
+        kind: "success",
+        text: next.replay
+          ? "Invitation request was already applied; current invitation state loaded."
+          : "Targeted reviewer invitation created.",
+      });
+      await state.load();
+    } catch (error) {
+      if (staleOrConflict(error)) {
+        inviteRequest.current = undefined;
+        setInviteReviewBody(null);
+        await state.load();
+        setNotice({
+          kind: "info",
+          text: "The invitation was not automatically retried. Current beta state was refreshed; review a new invitation before submitting.",
+        });
+      } else {
+        await refreshAdminOnAuthorityError(error);
+        setNotice({ kind: "error", text: safeError(error) });
+      }
+    } finally {
+      setInviteBusy(false);
+    }
+  };
+
+  const beginRevokeReview = () => {
+    if (!invitation || invitation.status !== "PENDING" || !revokeReason.trim())
+      return;
+    const fingerprint = JSON.stringify([
+      invitation.invitationId,
+      revokeReason.trim(),
+    ]);
+    revokeRequest.current = ensureReviewedRequest(
+      revokeRequest.current,
+      fingerprint,
+    );
+    setRevokeReviewBody({
+      invitationId: invitation.invitationId,
+      body: buildBetaInvitationRevokeBody({
+        requestId: revokeRequest.current.requestId,
+        reason: revokeReason,
+      }),
+    });
+  };
+
+  const submitRevoke = async () => {
+    if (!revokeReviewBody) return;
+    const selectionGeneration = lookupGeneration.current;
+    setRevokeBusy(true);
+    try {
+      const next = await controlPlane<BetaInvitationMutation>(
+        `/v1/admin/beta/invitations/${encodeURIComponent(revokeReviewBody.invitationId)}/revoke`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(revokeReviewBody.body),
+        },
+      );
+      revokeRequest.current = undefined;
+      setRevokeReviewBody(null);
+      setRevokeReason("");
+      if (
+        lookupResultIsCurrent(selectionGeneration, lookupGeneration.current)
+      ) {
+        lookupGeneration.current += 1;
+        setLookupBusy(false);
+        setInvitation(next);
+      }
+      setNotice({
+        kind: "success",
+        text: next.replay
+          ? "Invitation revoke was already applied; current state loaded."
+          : "Invitation revoked.",
+      });
+      await state.load();
+    } catch (error) {
+      if (staleOrConflict(error)) {
+        const invitationId = revokeReviewBody.invitationId;
+        revokeRequest.current = undefined;
+        setRevokeReviewBody(null);
+        await state.load();
+        if (
+          !lookupResultIsCurrent(selectionGeneration, lookupGeneration.current)
+        )
+          return;
+        const refreshed = await loadInvitation(invitationId);
+        if (refreshed)
+          setNotice({
+            kind: "info",
+            text: "The revoke was not automatically retried. Current invitation state was refreshed; review a new revoke if it is still applicable.",
+          });
+      } else {
+        await refreshAdminOnAuthorityError(error);
+        setNotice({ kind: "error", text: safeError(error) });
+      }
+    } finally {
+      setRevokeBusy(false);
+    }
+  };
+
   const capacity = current?.capacity ?? 0;
   const parsedAmount = Number(amount);
   const nextCapacity =
@@ -2440,6 +2711,7 @@ function BetaAdmissionPage() {
       : action === "SET_CAPACITY"
         ? `capacity ${capacity} → ${nextCapacity}`
         : `mode ${current?.mode ?? "—"} → ${action}`;
+
   const submit = async () => {
     if (
       !current ||
@@ -2487,6 +2759,7 @@ function BetaAdmissionPage() {
       setBusy(false);
     }
   };
+
   return (
     <Shell title="Beta admission">
       <LoadState busy={state.busy} error={state.error} />
@@ -2588,6 +2861,195 @@ function BetaAdmissionPage() {
               )}
             </section>
           )}
+
+          <section className="card">
+            <h2>Targeted reviewer invitation</h2>
+            <p className="muted">
+              An invitation admits one email identity to the closed beta. The
+              reviewer still completes the ordinary email OTP sign-in; an
+              invitation does not create a session or device.
+            </p>
+            <label>
+              Invitation ID
+              <input
+                value={lookupId}
+                onChange={(event) => {
+                  lookupGeneration.current += 1;
+                  setLookupBusy(false);
+                  setLookupId(event.target.value);
+                  setInvitation(null);
+                  setRevokeReviewBody(null);
+                }}
+                autoComplete="off"
+              />
+            </label>
+            <div className="actions">
+              <button
+                type="button"
+                className="secondary"
+                disabled={lookupBusy || !lookupId.trim()}
+                onClick={() => void loadInvitation()}
+              >
+                {lookupBusy ? "Loading…" : "Inspect invitation"}
+              </button>
+            </div>
+            {invitation && (
+              <Table
+                headers={[
+                  "Invitation",
+                  "Status",
+                  "Created",
+                  "Expires",
+                  "Consumed",
+                  "Revoked",
+                ]}
+                rows={[
+                  [
+                    invitation.invitationId,
+                    invitation.status,
+                    invitation.createdAt,
+                    invitation.expiresAt,
+                    invitation.consumedAt ?? "—",
+                    invitation.revokedAt ?? "—",
+                  ],
+                ]}
+              />
+            )}
+          </section>
+
+          {has(me, "beta.admission.manage") && (
+            <section className="panel">
+              <h2>Create targeted invitation</h2>
+              <p className="muted">
+                The target email is sent only in the reviewed create request. It
+                is cleared after success and is not returned by the server.
+              </p>
+              <label>
+                Reviewer email
+                <input
+                  type="email"
+                  value={inviteEmail}
+                  onChange={(event) => {
+                    setInviteEmail(event.target.value);
+                    setInviteReviewBody(null);
+                  }}
+                  autoComplete="off"
+                />
+              </label>
+              <label>
+                Reason
+                <textarea
+                  value={inviteReason}
+                  maxLength={512}
+                  onChange={(event) => {
+                    setInviteReason(event.target.value);
+                    setInviteReviewBody(null);
+                  }}
+                />
+              </label>
+              <button
+                type="button"
+                disabled={
+                  inviteBusy ||
+                  !inviteEmail.trim() ||
+                  !inviteReason.trim() ||
+                  !current
+                }
+                onClick={beginInviteReview}
+              >
+                Review invitation
+              </button>
+              {inviteReviewBody && (
+                <div
+                  className="confirm"
+                  role="dialog"
+                  aria-label="Confirm targeted invitation"
+                >
+                  <p>
+                    <strong>Exact invitation</strong>
+                  </p>
+                  <p>Target: {inviteReviewBody.email}</p>
+                  <p>Beta revision: {inviteReviewBody.expectedRevision}</p>
+                  <p>Reason: {inviteReviewBody.reason}</p>
+                  <div className="actions">
+                    <button
+                      type="button"
+                      disabled={inviteBusy}
+                      onClick={() => void submitInvitation()}
+                    >
+                      {inviteBusy ? "Working…" : "Confirm invitation"}
+                    </button>
+                    <button
+                      type="button"
+                      className="secondary"
+                      disabled={inviteBusy}
+                      onClick={() => setInviteReviewBody(null)}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+            </section>
+          )}
+
+          {has(me, "beta.admission.manage") &&
+            invitation?.status === "PENDING" && (
+              <section className="panel">
+                <h2>Revoke pending invitation</h2>
+                <p>
+                  Invitation <code>{invitation.invitationId}</code>
+                </p>
+                <label>
+                  Reason
+                  <textarea
+                    value={revokeReason}
+                    maxLength={512}
+                    onChange={(event) => {
+                      setRevokeReason(event.target.value);
+                      setRevokeReviewBody(null);
+                    }}
+                  />
+                </label>
+                <button
+                  type="button"
+                  disabled={revokeBusy || !revokeReason.trim()}
+                  onClick={beginRevokeReview}
+                >
+                  Review revoke
+                </button>
+                {revokeReviewBody && (
+                  <div
+                    className="confirm"
+                    role="dialog"
+                    aria-label="Confirm invitation revoke"
+                  >
+                    <p>
+                      Revoke invitation{" "}
+                      <code>{revokeReviewBody.invitationId}</code>
+                    </p>
+                    <p>Reason: {revokeReviewBody.body.reason}</p>
+                    <div className="actions">
+                      <button
+                        type="button"
+                        disabled={revokeBusy}
+                        onClick={() => void submitRevoke()}
+                      >
+                        {revokeBusy ? "Working…" : "Confirm revoke"}
+                      </button>
+                      <button
+                        type="button"
+                        className="secondary"
+                        disabled={revokeBusy}
+                        onClick={() => setRevokeReviewBody(null)}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </section>
+            )}
         </>
       )}
     </Shell>
