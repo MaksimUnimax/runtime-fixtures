@@ -1010,6 +1010,41 @@
     await init(); if (!state.credentials) throw error("AUTH_REQUIRED"); await ensureAuthOwnership(); if (!attempt.context) attempt.context = contextForState(); if (!bootstrapAttemptCurrent(attempt)) throw error("AUTH_GENERATION_CHANGED");
     return bootstrapOnline(options, attempt);
   }
+  // Privileged release diagnostics: retain the installed client's own storage and
+  // refresh transaction. This never activates a device or grants Work authority.
+  async function acquireBootstrapPreflight(input) {
+    let body = input?.request;
+    if (!exactKeys(input, ["expectedAccountId", "request"]) || !UUID.test(input.expectedAccountId) ||
+        !exactKeys(body, ["contractVersion", "extensionVersion", "browser", "deviceId", "lastConfigVersion"]) ||
+        !exactKeys(body.browser, ["family", "version"]) || !UUID.test(body.deviceId) || body.lastConfigVersion !== null ||
+        body.contractVersion !== "control_plane_v2" || body.contractVersion !== config.contractVersion ||
+        body.extensionVersion !== config.extensionVersion || body.browser.family !== browserFamily() ||
+        body.browser.version !== browserVersion()) throw error("PREFLIGHT_CONTEXT_MISMATCH");
+    body = clone(body);
+    const expectedAccountId = input.expectedAccountId;
+    // restore() resumes a pending activation. A release probe must never do that.
+    const saved = initialized ? state : (await chrome.storage.local.get(STORAGE_KEY))[STORAGE_KEY];
+    if (!saved?.credentials || saved.pending) throw error("PREFLIGHT_EXISTING_SESSION_REQUIRED");
+    if (saved.credentials.deviceId !== body.deviceId) throw error("PREFLIGHT_CONTEXT_MISMATCH");
+    await init();
+    if (!state.credentials || state.pending || state.credentials.deviceId !== body.deviceId) throw error("PREFLIGHT_EXISTING_SESSION_REQUIRED");
+    const context = contextForState();
+    const result = await authenticatedRequest("/v1/bootstrap", { method: "POST", body: clone(body) }, context);
+    if (!isCurrent(context)) throw error("AUTH_GENERATION_CHANGED");
+    const verified = await verifier.verifyV2(result.body, config.trustBundle);
+    if (!isCurrent(context)) throw error("AUTH_GENERATION_CHANGED");
+    if (!verified?.ok) throw error("PREFLIGHT_SIGNATURE_INVALID");
+    const payload = verified.payload;
+    if (payload?.contractVersion !== body.contractVersion || payload?.snapshotVersion !== "bootstrap_snapshot_v2" ||
+        payload?.account?.id !== expectedAccountId || payload.account.status !== "ACTIVE" ||
+        payload?.ai?.status !== "UNCONFIGURED") throw error("PREFLIGHT_SIGNED_CONTEXT_MISMATCH");
+    const serverTime = parsedMillis(payload.serverTime), expiresAt = parsedMillis(payload.expiresAt);
+    if (serverTime === null || expiresAt === null || Math.max(now(), serverTime) >= expiresAt) throw error("PREFLIGHT_SIGNATURE_EXPIRED");
+    return { envelope: clone(verified.envelope), authenticatedContext: {
+      accountId: payload.account.id, deviceId: context.deviceId,
+      browserFamily: browserFamily(), browserVersion: browserVersion(), controlApiOrigin: config.controlApiOrigin,
+    } };
+  }
   async function ensureForIdentity(identity) { await init(); const decision = await cacheAuthorizationCheckpoint(); if (!state.credentials) throw error("AUTH_REQUIRED"); const requested = LOCAL_AI[identity?.ai_id] ? identity.ai_id : null; if (!requested) throw error("WORK_UNSUPPORTED_AI"); const current = state.authority; if (decision.allowed && decision.identity === authorityDecisionIdentity() && current && current.generation === state.generation && current.requestedAi === requested && current.payload?.ai?.detected?.family === requested) return clone(current.payload); return bootstrap({ detectedAi: { family: requested, surface: LOCAL_AI[requested].surface, variant: null } }); }
   async function discardRestoredAuthority(failure) {
     const context = contextForState();
@@ -1249,7 +1284,7 @@
     await transferVault.remove(requestId);
     return result;
   }
-  const api = { restore: init, status: async () => { await init(); const decision = await cacheAuthorizationCheckpoint(); return publicStatus(decision); }, currentAccount: async () => { await init(); return state.authority?.payload?.account?.id || null; }, generation: async () => { await init(); return state.generation; }, hasAuthority: async () => { await init(); return Boolean(state.authority && state.credentials); }, canWork: async () => { await init(); const decision = await cacheAuthorizationCheckpoint(); return decision.identity === authorityDecisionIdentity() && decision.allowed === true; }, getAuthority: async () => { await init(); const decision = await cacheAuthorizationCheckpoint(); const authority = clone(state.authority); if (authority && !(decision.identity === authorityDecisionIdentity() && decision.allowed === true)) authority.workAllowed = false; return authority; }, getCachedContinuationState, getHealthAuthorityContext, getVerifiedAuthorityTime, getSubscriptionRefreshPlan, runSubscriptionRefreshTask, acquireSignedHealthAuthority, synchronizeMetadata, createCredentialTransfer, assertCredentialTransferContext, listCredentialTransferRecipients, listCredentialTransfers, readCredentialTransfer, markCredentialTransferSourceSeen, submitCredentialTransferPacket, receiveCredentialTransfer, recordCredentialTransferImported, acknowledgeCredentialTransfer, discardCredentialTransfer, consumeCredentialTransferResult, startActivation, cancelActivation, refresh, bootstrap, bootstrapWithPolicy, ensureForIdentity, localReset, openPortal: async () => { await init(); const pending = state.pending; if (!pendingLive(state.pending) || !validAuthContext(pending.authContext)) throw error("NO_ACTIVATION_ATTEMPT"); return openPortal(pending.authorizationId); }, onAuthorityChanged: handler => { authorityChanged = handler; } };
+  const api = { restore: init, status: async () => { await init(); const decision = await cacheAuthorizationCheckpoint(); return publicStatus(decision); }, currentAccount: async () => { await init(); return state.authority?.payload?.account?.id || null; }, generation: async () => { await init(); return state.generation; }, hasAuthority: async () => { await init(); return Boolean(state.authority && state.credentials); }, canWork: async () => { await init(); const decision = await cacheAuthorizationCheckpoint(); return decision.identity === authorityDecisionIdentity() && decision.allowed === true; }, getAuthority: async () => { await init(); const decision = await cacheAuthorizationCheckpoint(); const authority = clone(state.authority); if (authority && !(decision.identity === authorityDecisionIdentity() && decision.allowed === true)) authority.workAllowed = false; return authority; }, getCachedContinuationState, getHealthAuthorityContext, getVerifiedAuthorityTime, getSubscriptionRefreshPlan, runSubscriptionRefreshTask, acquireSignedHealthAuthority, synchronizeMetadata, createCredentialTransfer, assertCredentialTransferContext, listCredentialTransferRecipients, listCredentialTransfers, readCredentialTransfer, markCredentialTransferSourceSeen, submitCredentialTransferPacket, receiveCredentialTransfer, recordCredentialTransferImported, acknowledgeCredentialTransfer, discardCredentialTransfer, consumeCredentialTransferResult, startActivation, cancelActivation, refresh, bootstrap, acquireBootstrapPreflight, bootstrapWithPolicy, ensureForIdentity, localReset, openPortal: async () => { await init(); const pending = state.pending; if (!pendingLive(state.pending) || !validAuthContext(pending.authContext)) throw error("NO_ACTIVATION_ATTEMPT"); return openPortal(pending.authorizationId); }, onAuthorityChanged: handler => { authorityChanged = handler; } };
   consentApi?.onWithdrawal?.(handleTechnicalPermissionWithdrawal);
   globalThis.SellerAgentsControlClient = Object.freeze(api);
 })();
