@@ -380,6 +380,193 @@ class WorkQueueTests(unittest.TestCase):
         advance_task(self.root, "B", "b-auth", "BLOCKED", str(self.receipt), "Local SMTP test service absent")
         assert_no_ready_work(self.root, "B")
 
+    def test_resolved_historical_blocker_tracks_strict_successor_and_realerts_on_invalidation(self):
+        blocked_receipt = self.root / "logs/old-blocked.json"
+        blocked_receipt.write_text('{"reason":"superseded"}')
+        successor_receipt = self.root / "logs/successor.json"
+        self.receipt = successor_receipt
+        self.board = {"version": 1, "revision": 12, "tasks": [
+            {"id": "old-attempt", "role": "B", "plan": "C00", "state": "BLOCKED", "requires": [],
+             "result": "Historical failed attempt", "paths": ["tooling/old.py"],
+             "blocked_reason": "Superseded by corrected successor", "blocked_receipt": str(blocked_receipt),
+             "blocker_resolution": {"owner": "CONTROLLER", "next_action": "Find corrected successor",
+                                    "unblock_when": "Accepted successor exists", "status": "UNRESOLVED"}},
+            {"id": "accepted-successor", "role": "B", "plan": "C00", "state": "IN_PROGRESS", "requires": [],
+             "result": "Accepted corrected result", "paths": ["tooling/new.py"]},
+            {"id": "consumer", "role": "A", "plan": "C00", "state": "READY", "requires": ["old-attempt"],
+             "result": "Must still wait for actual dependency", "paths": ["tooling/consumer.py"]},
+        ]}
+        self.save()
+        self.completion("accepted-successor")
+        advance_task(self.root, "B", "accepted-successor", "DONE", str(successor_receipt))
+        result = work_queue.resolve_blocker(
+            self.root, "B", "old-attempt", "accepted-successor", str(successor_receipt)
+        )
+        self.assertEqual(result["resolution_status"], "RESOLVED")
+        board = load_board(self.root)
+        old = next(row for row in board["tasks"] if row["id"] == "old-attempt")
+        self.assertEqual(old["state"], "BLOCKED")
+        self.assertEqual(old["blocker_resolution"]["successor_task"], "accepted-successor")
+        self.assertEqual(old["blocker_resolution"]["successor_candidate_sha"], current_worktree_head())
+        self.assertFalse(any(row["task_id"] == "old-attempt" for row in work_queue.blocker_attention(board)))
+        consumer = next(row for row in role_work(self.root, "A")["tasks"] if row["id"] == "consumer")
+        self.assertEqual(consumer["state"], "BLOCKED")
+        revision = board["revision"]
+        repeated = work_queue.resolve_blocker(
+            self.root, "B", "old-attempt", "accepted-successor", str(successor_receipt)
+        )
+        self.assertTrue(repeated["idempotent"])
+        self.assertEqual(load_board(self.root)["revision"], revision)
+
+        accepted = json.loads(successor_receipt.read_text())
+        value = copy.deepcopy(accepted)
+        value["review"]["evidence"] = ["different still-PASS review evidence"]
+        successor_receipt.write_text(json.dumps(value))
+        stale = role_work(self.root, "B")
+        old_view = next(row for row in stale["tasks"] if row["id"] == "old-attempt")
+        self.assertEqual(old_view["resolution_status"], "STALE_RESOLUTION")
+        old_alert = next(row for row in stale["owner_attention"] if row["task_id"] == "old-attempt")
+        self.assertEqual(old_alert["resolution_status"], "STALE_RESOLUTION")
+        self.assertIn("successor", old_alert["reason"])
+        self.assertIn("Повторно принять", old_alert["next_action"])
+
+        successor_receipt.write_text(json.dumps(accepted))
+        restored = role_work(self.root, "B")
+        restored_view = next(row for row in restored["tasks"] if row["id"] == "old-attempt")
+        self.assertEqual(restored_view["resolution_status"], "RESOLVED")
+        value = copy.deepcopy(accepted)
+        value["verdict"] = "FAIL"
+        successor_receipt.write_text(json.dumps(value))
+        stale = role_work(self.root, "B")
+        old_view = next(row for row in stale["tasks"] if row["id"] == "old-attempt")
+        self.assertEqual(old_view["resolution_status"], "STALE_RESOLUTION")
+
+    def test_blocker_resolution_rejects_wrong_owner_plan_receipt_and_legacy_done(self):
+        blocked_receipt = self.root / "logs/old-blocked.json"
+        blocked_receipt.write_text('{"reason":"superseded"}')
+        successor_receipt = self.root / "logs/successor.json"
+        other_receipt = self.root / "logs/other.json"
+        other_receipt.write_text('{"unrelated":true}')
+        self.receipt = successor_receipt
+        self.board = {"version": 1, "revision": 20, "tasks": [
+            {"id": "old-attempt", "role": "B", "plan": "C00", "state": "BLOCKED", "requires": [],
+             "result": "Historical failed attempt", "paths": ["tooling/old.py"],
+             "blocked_reason": "Superseded", "blocked_receipt": str(blocked_receipt)},
+            {"id": "wrong-plan-successor", "role": "B", "plan": "B04", "state": "IN_PROGRESS", "requires": [],
+             "result": "Different plan result", "paths": ["tooling/new.py"]},
+        ]}
+        self.save()
+        self.completion("wrong-plan-successor")
+        advance_task(self.root, "B", "wrong-plan-successor", "DONE", str(successor_receipt))
+        with self.assertRaisesRegex(RuntimeError, "OWNER_OR_STATE"):
+            work_queue.resolve_blocker(self.root, "A", "old-attempt", "wrong-plan-successor", str(successor_receipt))
+        with self.assertRaisesRegex(RuntimeError, "SUCCESSOR_NOT_ACCEPTED"):
+            work_queue.resolve_blocker(self.root, "B", "old-attempt", "wrong-plan-successor", str(successor_receipt))
+
+        board = load_board(self.root)
+        successor = next(row for row in board["tasks"] if row["id"] == "wrong-plan-successor")
+        successor["plan"] = "C00"
+        self.board = board
+        self.save()
+
+        accepted = json.loads(successor_receipt.read_text())
+        changed = copy.deepcopy(accepted)
+        changed["checks"][0]["evidence"] = ["different still-PASS run evidence"]
+        successor_receipt.write_text(json.dumps(changed))
+        with self.assertRaisesRegex(RuntimeError, "SUCCESSOR_NOT_ACCEPTED"):
+            work_queue.resolve_blocker(self.root, "B", "old-attempt", "wrong-plan-successor", str(successor_receipt))
+        successor_receipt.write_text(json.dumps(accepted))
+
+        with self.assertRaisesRegex(RuntimeError, "RESOLUTION_RECEIPT_INVALID"):
+            work_queue.resolve_blocker(self.root, "B", "old-attempt", "wrong-plan-successor", str(other_receipt))
+
+        legacy = self.root / "logs/legacy.json"
+        legacy.write_text('{"legacy":true}')
+        board = load_board(self.root)
+        successor = next(row for row in board["tasks"] if row["id"] == "wrong-plan-successor")
+        successor.pop("completion_receipt_format", None)
+        successor.pop("completion_candidate_sha", None)
+        successor.pop("completion_receipt_snapshot", None)
+        successor["completion_receipt"] = str(legacy)
+        self.board = board
+        self.save()
+        with self.assertRaisesRegex(RuntimeError, "SUCCESSOR_NOT_ACCEPTED"):
+            work_queue.resolve_blocker(self.root, "B", "old-attempt", "wrong-plan-successor", str(legacy))
+
+    def test_resolved_blocker_cannot_be_rebound_to_different_accepted_successor(self):
+        blocked_receipt = self.root / "logs/old-blocked.json"
+        blocked_receipt.write_text('{"reason":"superseded"}')
+        self.board = {"version": 1, "revision": 30, "tasks": [
+            {"id": "old-attempt", "role": "B", "plan": "C00", "state": "BLOCKED", "requires": [],
+             "result": "Historical failed attempt", "paths": ["tooling/old.py"],
+             "blocked_reason": "Superseded", "blocked_receipt": str(blocked_receipt)},
+            {"id": "successor-one", "role": "B", "plan": "C00", "state": "IN_PROGRESS", "requires": [],
+             "result": "First accepted successor", "paths": ["tooling/one.py"]},
+            {"id": "successor-two", "role": "B", "plan": "C00", "state": "IN_PROGRESS", "requires": [],
+             "result": "Second accepted successor", "paths": ["tooling/two.py"]},
+        ]}
+        self.save()
+        receipts = {}
+        for task_id in ("successor-one", "successor-two"):
+            receipt = self.root / "logs" / f"{task_id}.json"
+            receipt.write_text(json.dumps({
+                "kind": work_queue.COMPLETION_KIND, "version": 1, "task_id": task_id,
+                "candidate_sha": current_worktree_head(), "verdict": "PASS",
+                "review": {"verdict": "PASS", "evidence": ["independent review"]},
+                "checks": [{"name": "focused", "verdict": "PASS", "evidence": ["test run"]}],
+            }))
+            receipts[task_id] = receipt
+            advance_task(self.root, "B", task_id, "DONE", str(receipt))
+        work_queue.resolve_blocker(
+            self.root, "B", "old-attempt", "successor-one", str(receipts["successor-one"])
+        )
+        with self.assertRaisesRegex(RuntimeError, "RESOLUTION_ALREADY_SET"):
+            work_queue.resolve_blocker(
+                self.root, "B", "old-attempt", "successor-two", str(receipts["successor-two"])
+            )
+
+    def test_historical_blocker_resolution_statuses_remain_readable_but_actionable(self):
+        for metadata in [
+            {
+                "owner": "CONTROLLER",
+                "status": "RESOLVED_FOR_THIS_OWNER_TEST_RELEASE",
+                "evidence": "/root/octoport-control/logs/controller/publication.json",
+            },
+            {
+                "owner": "CONTROLLER",
+                "status": "PUBLICATION_ROUTE_REQUIRED",
+                "next_action": "Publish through the reviewed route",
+                "unblock_when": "Exact candidate is accepted",
+            },
+        ]:
+            with self.subTest(status=metadata["status"]):
+                board = copy.deepcopy(self.board)
+                task = board["tasks"][0]
+                task.update(
+                    state="BLOCKED",
+                    blocked_reason="Historical blocker metadata",
+                    blocked_receipt=str(self.receipt.resolve()),
+                    blocker_resolution=metadata,
+                )
+                self.path.write_text(json.dumps(board))
+                loaded = load_board(self.root)
+                loaded_task = next(row for row in loaded["tasks"] if row["id"] == "b-auth")
+                self.assertEqual(loaded_task["blocker_resolution"]["status"], metadata["status"])
+                view = next(row for row in role_work(self.root, "B")["tasks"] if row["id"] == "b-auth")
+                self.assertEqual(view["resolution_status"], metadata["status"])
+                self.assertTrue(any(row["task_id"] == "b-auth" for row in work_queue.blocker_attention(loaded)))
+        self.save()
+
+    def test_malformed_resolved_blocker_metadata_is_rejected(self):
+        self.board["tasks"][0]["state"] = "BLOCKED"
+        self.board["tasks"][0]["blocked_reason"] = "historical"
+        self.board["tasks"][0]["blocker_resolution"] = {
+            "status": "RESOLVED", "owner": "B", "next_action": "none", "unblock_when": "done"
+        }
+        self.save()
+        with self.assertRaisesRegex(RuntimeError, "WORK_QUEUE_INVALID"):
+            load_board(self.root)
+
 
 if __name__ == "__main__":
     unittest.main()

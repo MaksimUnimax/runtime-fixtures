@@ -125,6 +125,18 @@ def _task_satisfies_dependencies(task):
     return task["state"] == "DONE" and _strict_completion_valid(task)
 
 
+def _strict_blocker_successor_valid(task):
+    if (task.get("state") != "DONE"
+            or type(task.get("completion_receipt_format")) is not int
+            or task.get("completion_receipt_format") != COMPLETION_VERSION
+            or not isinstance(task.get("completion_receipt_snapshot"), dict)):
+        return False
+    current = _completion_receipt(
+        task.get("completion_receipt", ""), task["id"], task.get("completion_candidate_sha", "")
+    )
+    return _receipt_passes(current) and current == task["completion_receipt_snapshot"]
+
+
 def board_snapshot(root):
     path = Path(root) / "controllers/work-board.json"
     try:
@@ -175,6 +187,22 @@ def _validate_logical_board(board, *, enforce_v1_count):
             raise ValueError("completion receipt")
         if task["state"] == "BLOCKED" and not task["requires"] and not task.get("blocked_reason"):
             raise ValueError("external blocker")
+        resolution = task.get("blocker_resolution")
+        if resolution is not None:
+            # blocker_resolution predates this governed successor mechanism and
+            # historical rows contain other nonterminal status labels. Keep
+            # those readable; only the new exact RESOLVED form is schema-bound.
+            if (not isinstance(resolution, dict)
+                    or not isinstance(resolution.get("status"), str)
+                    or not resolution["status"].strip()):
+                raise ValueError("blocker resolution")
+            if resolution["status"] == "RESOLVED" and (
+                not all(isinstance(resolution.get(key), str) and resolution[key].strip()
+                        for key in ("owner", "next_action", "unblock_when", "successor_task",
+                                    "successor_candidate_sha", "receipt", "resolved_at"))
+                or not re.fullmatch(r"(?:[0-9a-f]{40}|[0-9a-f]{64})", resolution["successor_candidate_sha"])
+            ):
+                raise ValueError("blocker resolution")
         by_id[identifier] = task
     visiting, visited = set(), set()
 
@@ -252,6 +280,21 @@ def task_conflicts(board, task):
     return conflicts
 
 
+def _valid_blocker_resolution(board, task):
+    resolution = task.get("blocker_resolution")
+    if not isinstance(resolution, dict) or resolution.get("status") != "RESOLVED":
+        return False
+    successor_id = resolution.get("successor_task")
+    if not isinstance(successor_id, str) or not successor_id or successor_id == task.get("id"):
+        return False
+    successor = next((row for row in board["tasks"] if row.get("id") == successor_id), None)
+    if (successor is None or successor.get("plan") != task.get("plan")
+            or not _strict_blocker_successor_valid(successor)):
+        return False
+    return (resolution.get("successor_candidate_sha") == successor.get("completion_candidate_sha")
+            and resolution.get("receipt") == successor.get("completion_receipt"))
+
+
 def task_view(board, task):
     done = {t["id"] for t in board["tasks"] if _task_satisfies_dependencies(t)}
     waiting = [x for x in task["requires"] if x not in done]
@@ -266,10 +309,18 @@ def task_view(board, task):
     conflicts = task_conflicts(board, task) if state == "READY" else []
     if conflicts:
         state = "BLOCKED"
+    resolution = task.get("blocker_resolution") if isinstance(task.get("blocker_resolution"), dict) else {}
+    resolution_status = (
+        "RESOLVED" if _valid_blocker_resolution(board, task)
+        else "STALE_RESOLUTION" if resolution.get("status") == "RESOLVED"
+        else resolution.get("status")
+    )
     return {key: task.get(key) for key in (
         "id", "role", "plan", "result", "paths", "acceptance", "blocked_reason"
     )} | {"state": state, "waiting_for": waiting, "conflicts": conflicts,
-         "completion_invalidated": completion_invalidated}
+         "completion_invalidated": completion_invalidated,
+         "resolution_status": resolution_status,
+         "successor_task": resolution.get("successor_task")}
 
 
 
@@ -283,17 +334,29 @@ def blocker_attention(board):
         resolution = task.get("blocker_resolution", {})
         if not isinstance(resolution, dict):
             resolution = {}
-        reason = task.get("blocked_reason") or (
-            "Приёмка результата недействительна" if view["completion_invalidated"] else
-            "Не завершены необходимые задачи: " + ", ".join(view["waiting_for"]) if view["waiting_for"] else
-            "Заняты файлы: " + ", ".join(view["conflicts"]))
+        if _valid_blocker_resolution(board, task):
+            continue
+        stale_resolution = view.get("resolution_status") == "STALE_RESOLUTION"
+        reason = (
+            f"Прежний blocker был помечен RESOLVED через successor {view.get('successor_task')}, но его strict completion больше не действует."
+            if stale_resolution else task.get("blocked_reason") or (
+                "Приёмка результата недействительна" if view["completion_invalidated"] else
+                "Не завершены необходимые задачи: " + ", ".join(view["waiting_for"]) if view["waiting_for"] else
+                "Заняты файлы: " + ", ".join(view["conflicts"]))
+        )
         alerts.append({
             "task_id": task["id"], "outcome": task.get("result", ""), "author": task["role"],
             "reason": reason, "evidence": task.get("blocked_receipt"),
             "resolver": resolution.get("owner", "CONTROLLER"),
-            "next_action": resolution.get("next_action", "Контроллер должен установить причину и допустимый следующий шаг."),
-            "unblock_when": resolution.get("unblock_when", "Условие снятия препятствия ещё не установлено."),
-            "resolution_status": resolution.get("status", "UNRESOLVED"),
+            "next_action": (
+                "Повторно принять exact successor, уже записанный в blocker_resolution; queue-resolve-blocker не перепривязывает RESOLVED к другому successor."
+                if stale_resolution else resolution.get("next_action", "Контроллер должен установить причину и допустимый следующий шаг.")
+            ),
+            "unblock_when": (
+                "Указанный в blocker_resolution exact successor снова имеет валидную strict completion."
+                if stale_resolution else resolution.get("unblock_when", "Условие снятия препятствия ещё не установлено.")
+            ),
+            "resolution_status": view.get("resolution_status") or resolution.get("status", "UNRESOLVED"),
             "delivery_priority": task.get("outcome_kind") == "OWNER_INSTALLABLE_DELIVERY",
             "immediate_chat_notice_required": True,
             "notice_instruction": "Сразу сообщи владельцу в текущем чате: что остановилось, причина, кто устраняет и следующий шаг. Запись JSON не является сообщением. Независимую работу продолжай.",
@@ -386,6 +449,66 @@ def claim_task(root, role, identifier=""):
             task.update(role=role, state="IN_PROGRESS", claimed_at=datetime.now(timezone.utc).isoformat())
             return write_board(root, board, {"action": "CLAIM", "role": role,
                 "task": task["id"], "previous_role": previous, "state": "IN_PROGRESS"})
+
+
+def resolve_blocker(root, role, identifier, successor_id, receipt):
+    root = Path(root)
+    if not isinstance(successor_id, str) or not successor_id or successor_id == identifier:
+        raise RuntimeError("WORK_QUEUE_BLOCKER_SUCCESSOR_REQUIRED")
+    with (root / (role + ".lock")).open("a+") as role_lock:
+        fcntl.flock(role_lock, fcntl.LOCK_EX)
+        if json.loads((root / (role + ".json")).read_text()).get("status") == "STOPPED":
+            raise RuntimeError("STOPPED: no blocker resolution permitted")
+        with (root / "controllers/coordination.lock").open("a+") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            _prepare_storage_write(root)
+            board = load_board(root)
+            task = next((row for row in board["tasks"] if row["id"] == identifier), None)
+            if task is None or task["role"] != role or task["state"] != "BLOCKED":
+                raise RuntimeError("WORK_QUEUE_BLOCKER_OWNER_OR_STATE_INVALID")
+            successor = next((row for row in board["tasks"] if row["id"] == successor_id), None)
+            if (successor is None or successor["id"] == task["id"]
+                    or successor.get("plan") != task.get("plan")
+                    or not _strict_blocker_successor_valid(successor)):
+                raise RuntimeError("WORK_QUEUE_BLOCKER_SUCCESSOR_NOT_ACCEPTED")
+            try:
+                proof = Path(receipt).resolve()
+                relative = proof.relative_to(root.resolve())
+                successor_receipt = Path(successor.get("completion_receipt", "")).resolve()
+            except (ValueError, OSError):
+                raise RuntimeError("WORK_QUEUE_BLOCKER_RESOLUTION_RECEIPT_INVALID") from None
+            if (not proof.is_file() or not relative.parts
+                    or relative.parts[0] not in {"logs", "controllers", "artifacts"}
+                    or proof != successor_receipt):
+                raise RuntimeError("WORK_QUEUE_BLOCKER_RESOLUTION_RECEIPT_INVALID")
+            existing = task.get("blocker_resolution")
+            if isinstance(existing, dict) and existing.get("status") == "RESOLVED":
+                if (_valid_blocker_resolution(board, task)
+                        and existing.get("successor_task") == successor_id
+                        and existing.get("receipt") == str(proof)):
+                    return {"action": "RESOLVE_BLOCKER", "role": role, "task": identifier,
+                            "state": "BLOCKED", "resolution_status": "RESOLVED",
+                            "successor_task": successor_id, "revision": board["revision"],
+                            "idempotent": True, "owner_attention": blocker_attention(board)}
+                raise RuntimeError("WORK_QUEUE_BLOCKER_RESOLUTION_ALREADY_SET")
+            now = datetime.now(timezone.utc).isoformat()
+            task["blocker_resolution"] = {
+                "owner": role,
+                "next_action": f"Историческая BLOCKED-попытка сохранена; действующий результат — {successor_id}.",
+                "unblock_when": f"Уже выполнено принятым successor {successor_id}.",
+                "status": "RESOLVED",
+                "successor_task": successor_id,
+                "successor_candidate_sha": successor["completion_candidate_sha"],
+                "receipt": str(proof),
+                "resolved_at": now,
+            }
+            task["updated_at"] = now
+            persisted = write_board(root, board, {
+                "action": "RESOLVE_BLOCKER", "role": role, "task": identifier,
+                "state": "BLOCKED", "resolution_status": "RESOLVED",
+                "successor_task": successor_id, "receipt": str(proof),
+            })
+            return dict(persisted, owner_attention=blocker_attention(board))
 
 
 def assert_no_ready_work(root, role):

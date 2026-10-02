@@ -239,6 +239,22 @@ class CoordinationTests(unittest.TestCase):
                 control.advance_queue_task("A", "TASK-DISK-ROLE", "DONE", "receipt.json", "done")
         self.assertEqual(registry.completion_record("A", "TASK-DISK-ROLE")["state"], "SEALING")
 
+    def test_queue_resolve_blocker_cli_delegates_exact_identity(self):
+        with (
+            patch.object(control, "require_location"),
+            patch.object(control, "resolve_blocker", return_value={"resolution_status": "RESOLVED"}) as resolve,
+            patch.object(control.sys, "argv", [
+                "control.py", "B", "queue-resolve-blocker",
+                "--task", "old-attempt", "--successor", "accepted-successor",
+                "--receipt", "/root/octoport-control/logs/B/successor.json",
+            ]),
+        ):
+            self.assertEqual(control.main(), 0)
+        resolve.assert_called_once_with(
+            self.root, "B", "old-attempt", "accepted-successor",
+            "/root/octoport-control/logs/B/successor.json",
+        )
+
     def test_busy_heavy_slot_does_not_start_a_command(self):
         import fcntl
         with (self.root / "heavy.lock").open("a+") as lock:

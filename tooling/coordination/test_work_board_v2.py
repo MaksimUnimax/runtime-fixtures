@@ -614,6 +614,69 @@ class WorkBoardV2Tests(unittest.TestCase):
                 with patch.object(core, "EVENT_LOG_CAP_BYTES", exact): run()
                 self.assertEqual(event_path.stat().st_size, exact)
 
+    def test_resolved_blocker_persists_in_v2_and_realerts_if_successor_invalidates(self):
+        blocked_receipt = self.root / "logs/old-blocked.json"
+        blocked_receipt.write_text('{"reason":"historical superseded attempt"}')
+        old = {"id": "old-attempt", "role": "B", "plan": "C00", "state": "BLOCKED", "requires": [],
+               "result": "Historical failed attempt", "paths": ["tooling/old.py"],
+               "blocked_reason": "Superseded", "blocked_receipt": str(blocked_receipt)}
+        successor = {"id": "accepted-successor", "role": "B", "plan": "C00", "state": "IN_PROGRESS", "requires": [],
+                     "result": "Accepted successor", "paths": ["tooling/new.py"]}
+        self.migrate([old, successor])
+        receipt = self.root / "logs/successor-completion.json"
+        receipt.write_text(json.dumps({
+            "kind": work_queue.COMPLETION_KIND, "version": 1,
+            "task_id": "accepted-successor", "candidate_sha": work_queue.current_worktree_head(),
+            "verdict": "PASS", "review": {"verdict": "PASS", "evidence": ["independent review"]},
+            "checks": [{"name": "focused", "verdict": "PASS", "evidence": ["test run"]}],
+        }))
+        work_queue.advance_task(self.root, "B", "accepted-successor", "DONE", str(receipt))
+        resolved = work_queue.resolve_blocker(
+            self.root, "B", "old-attempt", "accepted-successor", str(receipt)
+        )
+        self.assertEqual(resolved["resolution_status"], "RESOLVED")
+        state = v2.load_state(self.root)
+        logical = state["logical"]
+        old_row = next(row for row in logical["tasks"] if row["id"] == "old-attempt")
+        self.assertEqual(old_row["state"], "BLOCKED")
+        self.assertEqual(old_row["blocker_resolution"]["successor_task"], "accepted-successor")
+        self.assertFalse(any(row["task_id"] == "old-attempt" for row in work_queue.blocker_attention(logical)))
+        hot = json.loads((self.root / "controllers/work-board.json").read_text())
+        hot_old = next(row for row in hot["tasks"] if row["id"] == "old-attempt")
+        self.assertEqual(hot_old["blocker_resolution"]["status"], "RESOLVED")
+        self.assertFalse(any(row["id"] == "accepted-successor" for row in hot["tasks"]))
+
+        value = json.loads(receipt.read_text())
+        value["checks"][0]["verdict"] = "FAIL"
+        receipt.write_text(json.dumps(value))
+        stale = work_queue.role_work(self.root, "B")
+        old_view = next(row for row in stale["tasks"] if row["id"] == "old-attempt")
+        self.assertEqual(old_view["resolution_status"], "STALE_RESOLUTION")
+        self.assertTrue(any(row["task_id"] == "old-attempt" for row in stale["owner_attention"]))
+
+    def test_v2_preserves_historical_non_successor_blocker_resolution_metadata(self):
+        blocked_receipt = self.root / "logs/historical-blocked.json"
+        blocked_receipt.write_text('{"reason":"historical"}')
+        task = {
+            "id": "historical-blocker", "role": "B", "plan": "C00", "state": "BLOCKED",
+            "requires": [], "result": "Historical blocker", "paths": ["tooling/historical.py"],
+            "blocked_reason": "Historical route still requires attention",
+            "blocked_receipt": str(blocked_receipt),
+            "blocker_resolution": {
+                "owner": "CONTROLLER",
+                "status": "RESOLVED_FOR_THIS_OWNER_TEST_RELEASE",
+                "evidence": "/root/octoport-control/logs/controller/publication.json",
+            },
+        }
+        self.migrate([task])
+        state = v2.load_state(self.root)
+        logical = work_queue.load_board(self.root)
+        row = next(item for item in logical["tasks"] if item["id"] == "historical-blocker")
+        self.assertEqual(row["blocker_resolution"]["status"], "RESOLVED_FOR_THIS_OWNER_TEST_RELEASE")
+        view = next(item for item in work_queue.role_work(self.root, "B")["tasks"] if item["id"] == "historical-blocker")
+        self.assertEqual(view["resolution_status"], "RESOLVED_FOR_THIS_OWNER_TEST_RELEASE")
+        self.assertTrue(any(item["task_id"] == "historical-blocker" for item in work_queue.blocker_attention(state["logical"])))
+
 
 if __name__ == "__main__":
     unittest.main()

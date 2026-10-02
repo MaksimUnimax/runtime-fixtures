@@ -15,7 +15,7 @@ import time
 import resource_runner
 from waiting_gate import validate_waiting_receipt
 from notice_delivery import read_controller_notices
-from work_queue import status_work, compact_state, advance_task, add_task, claim_task, validate_task_scope, load_board
+from work_queue import status_work, compact_state, advance_task, add_task, claim_task, resolve_blocker, validate_task_scope, load_board
 from disk_lifecycle import Registry as DiskLifecycleRegistry
 from datetime import datetime, timezone
 
@@ -336,12 +336,13 @@ def main():
     parser.add_argument("role", choices=["A", "B", "C"])
     parser.add_argument("action", choices=["status", "start", "pause", "resume", "waiting",
         "checkpoint", "request-review", "request-owner", "reviewed", "owner-done",
-        "guard", "submit", "ready-main", "ensure-db", "heavy", "resources", "queue-task", "queue-add", "queue-claim"])
+        "guard", "submit", "ready-main", "ensure-db", "heavy", "resources", "queue-task", "queue-add", "queue-claim", "queue-resolve-blocker"])
     parser.add_argument("--task-file")
     parser.add_argument("--compact", action="store_true")
     parser.add_argument("--task-state", choices=["IN_PROGRESS", "BLOCKED", "DONE"])
     parser.add_argument("--summary", default="")
     parser.add_argument("--task", default="")
+    parser.add_argument("--successor", default="")
     parser.add_argument("--next", default="")
     parser.add_argument("--receipt", default="")
     parser.add_argument("--base")
@@ -374,6 +375,9 @@ def main():
         return 0
     if args.action == "queue-claim":
         print(json.dumps(claim_task(CONTROL, args.role, args.task), ensure_ascii=False))
+        return 0
+    if args.action == "queue-resolve-blocker":
+        print(json.dumps(resolve_blocker(CONTROL, args.role, args.task, args.successor, args.receipt), ensure_ascii=False))
         return 0
     if args.action == "queue-task":
         result = advance_queue_task(args.role, args.task, args.task_state, args.receipt, args.summary)
