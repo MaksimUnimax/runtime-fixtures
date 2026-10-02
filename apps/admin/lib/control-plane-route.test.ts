@@ -24,6 +24,7 @@ function materialize(template: string) {
     .replaceAll("{support_case_id}", uuid)
     .replaceAll("{notification_id}", uuid)
     .replaceAll("{health_incident_id}", uuid)
+    .replaceAll("{invitation_id}", uuid)
     .replaceAll("{health_target_id}", "a".repeat(64))
     .replaceAll("{adapter_id}", uuid)
     .replaceAll("{surface_id}", uuid)
@@ -39,10 +40,10 @@ function materialize(template: string) {
 
 describe("admin BFF exact route boundary", () => {
   it("keeps the exact accepted tuple arithmetic", () => {
-    expect(ADMIN_ALLOWED_TUPLES.length).toBe(102);
+    expect(ADMIN_ALLOWED_TUPLES.length).toBe(105);
     expect(OTP_ALLOWED_TUPLES.length).toBe(2);
-    expect(ADMIN_ALLOWED_TUPLES.length + OTP_ALLOWED_TUPLES.length).toBe(104);
-    expect(BFF_ALLOWED_TUPLE_COUNT).toBe(104);
+    expect(ADMIN_ALLOWED_TUPLES.length + OTP_ALLOWED_TUPLES.length).toBe(107);
+    expect(BFF_ALLOWED_TUPLE_COUNT).toBe(107);
   });
   it.each(ADMIN_ALLOWED_TUPLES)("allows accepted admin tuple %s", (tuple) => {
     const separator = tuple.indexOf(" ");
@@ -82,6 +83,12 @@ describe("admin BFF exact route boundary", () => {
     expect(
       allowedRoute("POST", `/v1/admin/support/cases/${apiId}/followups`),
     ).toBe("/v1/admin/support/cases/{support_case_id}/followups");
+    expect(allowedRoute("GET", `/v1/admin/beta/invitations/${apiId}`)).toBe(
+      "/v1/admin/beta/invitations/{invitation_id}",
+    );
+    expect(
+      allowedRoute("POST", `/v1/admin/beta/invitations/${apiId}/revoke`),
+    ).toBe("/v1/admin/beta/invitations/{invitation_id}/revoke");
   });
 
   it("matches the Health target API lower-hex identity boundary", () => {
@@ -139,6 +146,11 @@ describe("admin BFF exact route boundary", () => {
     ["GET", "/v1/admin/beta/admission/extra"],
     ["POST", "/v1/admin/beta/admission/extra"],
     ["DELETE", "/v1/admin/beta/admission"],
+    ["GET", "/v1/admin/beta/invitations/not-a-uuid"],
+    ["GET", `/v1/admin/beta/invitations/${uuid}/extra`],
+    ["POST", `/v1/admin/beta/invitations/${uuid}`],
+    ["DELETE", `/v1/admin/beta/invitations/${uuid}`],
+    ["POST", `/v1/admin/beta/invitations/${uuid}/revoke/extra`],
     ["GET", "/v1/admin/health/incidents"],
     ["GET", "/v1/admin/health/evaluations"],
     ["GET", "/v1/admin/health/recommendations"],
@@ -280,6 +292,87 @@ describe("admin BFF forwarding behavior", () => {
     expect(new TextDecoder().decode(init?.body as ArrayBuffer)).toBe(
       JSON.stringify({ mode: "OPEN" }),
     );
+    fetchMock.mockRestore();
+  });
+
+  it("forwards targeted invitation create/revoke with CSRF and no Authorization", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("{}", {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    process.env.CONTROL_PLANE_API_ORIGIN = "http://127.0.0.1:3100";
+    const createBody = {
+      requestId: "invite-request-123456",
+      expectedRevision: 7,
+      email: "reviewer@example.test",
+      reason: "beta review",
+    };
+    const create = await POST(
+      new NextRequest(
+        "http://admin.test/api/control-plane/v1/admin/beta/invitations",
+        {
+          method: "POST",
+          headers: {
+            cookie: "pcp_admin_csrf=session",
+            "content-type": "application/json",
+            "x-csrf-token": "csrf",
+            authorization: "Bearer should-not-forward",
+          },
+          body: JSON.stringify(createBody),
+        },
+      ),
+      {
+        params: Promise.resolve({
+          path: ["v1", "admin", "beta", "invitations"],
+        }),
+      },
+    );
+    expect(create.status).toBe(200);
+    const revokeBody = { requestId: "revoke-request-123456", reason: "done" };
+    const revoke = await POST(
+      new NextRequest(
+        `http://admin.test/api/control-plane/v1/admin/beta/invitations/${uuid}/revoke`,
+        {
+          method: "POST",
+          headers: {
+            cookie: "pcp_admin_csrf=session",
+            "content-type": "application/json",
+            "x-csrf-token": "csrf",
+            authorization: "Bearer should-not-forward",
+          },
+          body: JSON.stringify(revokeBody),
+        },
+      ),
+      {
+        params: Promise.resolve({
+          path: ["v1", "admin", "beta", "invitations", uuid, "revoke"],
+        }),
+      },
+    );
+    expect(revoke.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      "http://127.0.0.1:3100/v1/admin/beta/invitations",
+    );
+    expect(fetchMock.mock.calls[1]?.[0]).toBe(
+      `http://127.0.0.1:3100/v1/admin/beta/invitations/${uuid}/revoke`,
+    );
+    for (const [index, body] of [
+      [0, createBody],
+      [1, revokeBody],
+    ] as const) {
+      const init = fetchMock.mock.calls[index]?.[1];
+      const headers = new Headers(init?.headers);
+      expect(headers.get("cookie")).toBe("pcp_admin_csrf=session");
+      expect(headers.get("x-csrf-token")).toBe("csrf");
+      expect(headers.get("authorization")).toBeNull();
+      expect(init?.cache).toBe("no-store");
+      expect(
+        JSON.parse(new TextDecoder().decode(init?.body as ArrayBuffer)),
+      ).toEqual(body);
+    }
     fetchMock.mockRestore();
   });
 
