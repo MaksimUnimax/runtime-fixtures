@@ -142,6 +142,103 @@ class CoordinationTests(unittest.TestCase):
                 ("diff", "--name-only", "origin/main"),
             )
 
+    def test_done_requires_registered_disk_lifecycle_inventory_before_board_mutation(self):
+        with patch.object(control, "advance_task") as advance:
+            with self.assertRaisesRegex(RuntimeError, "ARTIFACT_INVENTORY_MISSING"):
+                control.advance_queue_task("A", "TASK-DISK-GATE", "DONE", "receipt.json", "done")
+            advance.assert_not_called()
+
+    def test_done_accepts_closed_no_output_inventory_and_seals_future_allocations(self):
+        registry = control.DiskLifecycleRegistry(self.root)
+        registry.seed_baseline()
+        registry.declare_none("A", "TASK-DISK-GATE", "Read-only task created no temporary outputs")
+        with patch.object(control, "advance_task", return_value={"state": "DONE"}) as advance:
+            result = control.advance_queue_task("A", "TASK-DISK-GATE", "DONE", "receipt.json", "done")
+        self.assertEqual(result, {"state": "DONE"})
+        advance.assert_called_once_with(self.root, "A", "TASK-DISK-GATE", "DONE", "receipt.json", "done")
+        self.assertEqual(registry.completion_record("A", "TASK-DISK-GATE")["state"], "SEALED")
+        (self.root / "A.json").write_text(json.dumps({"status": "RUNNING"}))
+        with self.assertRaisesRegex(ValueError, "TASK_DISK_LIFECYCLE_ALREADY_COMPLETED"):
+            registry.begin(
+                "A", "TASK-DISK-GATE", "Late output after task completion",
+                [str(self.root / "worktrees" / "A" / "late-output")], 16, 1,
+            )
+
+    def test_done_allows_current_hold_then_reopen_unseals_future_allocations(self):
+        registry = control.DiskLifecycleRegistry(self.root)
+        registry.seed_baseline()
+        (self.root / "A.json").write_text(json.dumps({"status": "RUNNING"}))
+        item = registry.begin(
+            "A", "TASK-DISK-HELD", "Temporary source retained for a named reviewer",
+            [str(self.root / "worktrees" / "A" / "task-disk-held")], 16, 1,
+        )
+        registry.change(
+            item["id"], "A", "hold",
+            "Reviewer still consumes the exact temporary source",
+            "Independent reviewer TASK-DISK-HELD", 1,
+        )
+        with patch.object(control, "advance_task", return_value={"state": "DONE"}):
+            self.assertEqual(
+                control.advance_queue_task("A", "TASK-DISK-HELD", "DONE", "receipt.json", "done"),
+                {"state": "DONE"},
+            )
+        self.assertEqual(registry.completion_record("A", "TASK-DISK-HELD")["state"], "SEALED")
+        with patch.object(control, "advance_task", return_value={"state": "IN_PROGRESS"}):
+            self.assertEqual(
+                control.advance_queue_task("A", "TASK-DISK-HELD", "IN_PROGRESS", "rework.json", "reopen"),
+                {"state": "IN_PROGRESS"},
+            )
+        self.assertEqual(registry.completion_record("A", "TASK-DISK-HELD")["state"], "REOPENED")
+        followup = registry.begin(
+            "A", "TASK-DISK-HELD", "New temporary output after explicit task reopen",
+            [str(self.root / "worktrees" / "A" / "task-disk-held-followup")], 16, 1,
+        )
+        self.assertEqual(followup["state"], "OPEN")
+
+    def test_precommit_done_failure_reopens_only_after_non_done_board_readback(self):
+        registry = control.DiskLifecycleRegistry(self.root)
+        registry.seed_baseline()
+        registry.declare_none("A", "TASK-DISK-FAIL", "Read-only task created no temporary outputs")
+        board = {"tasks": [{"id": "TASK-DISK-FAIL", "role": "A", "state": "IN_PROGRESS"}]}
+        with (
+            patch.object(control, "advance_task", side_effect=RuntimeError("strict receipt failed")),
+            patch.object(control, "load_board", return_value=board),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "strict receipt failed"):
+                control.advance_queue_task("A", "TASK-DISK-FAIL", "DONE", "receipt.json", "done")
+        failed = registry.completion_record("A", "TASK-DISK-FAIL")
+        self.assertEqual(failed["state"], "REOPENED")
+        self.assertEqual([row["state"] for row in failed["history"]], ["SEALING", "REOPENED"])
+
+    def test_postcommit_done_failure_keeps_fail_closed_sealing_state(self):
+        registry = control.DiskLifecycleRegistry(self.root)
+        registry.seed_baseline()
+        registry.declare_none("A", "TASK-DISK-POST", "Read-only task created no temporary outputs")
+        board = {"tasks": [{"id": "TASK-DISK-POST", "state": "DONE"}]}
+        with (
+            patch.object(control, "advance_task", side_effect=RuntimeError("event append failed")),
+            patch.object(control, "load_board", return_value=board),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "event append failed"):
+                control.advance_queue_task("A", "TASK-DISK-POST", "DONE", "receipt.json", "done")
+        failed = registry.completion_record("A", "TASK-DISK-POST")
+        self.assertEqual(failed["state"], "SEALING")
+        with self.assertRaisesRegex(ValueError, "TASK_DISK_LIFECYCLE_ALREADY_COMPLETED"):
+            registry.declare_none("A", "TASK-DISK-POST", "Late read-only declaration after uncertain DONE")
+
+    def test_failed_done_readback_for_other_role_keeps_sealing(self):
+        registry = control.DiskLifecycleRegistry(self.root)
+        registry.seed_baseline()
+        registry.declare_none("A", "TASK-DISK-ROLE", "Read-only task created no temporary outputs")
+        board = {"tasks": [{"id": "TASK-DISK-ROLE", "role": "B", "state": "IN_PROGRESS"}]}
+        with (
+            patch.object(control, "advance_task", side_effect=RuntimeError("board writer failed")),
+            patch.object(control, "load_board", return_value=board),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "board writer failed"):
+                control.advance_queue_task("A", "TASK-DISK-ROLE", "DONE", "receipt.json", "done")
+        self.assertEqual(registry.completion_record("A", "TASK-DISK-ROLE")["state"], "SEALING")
+
     def test_busy_heavy_slot_does_not_start_a_command(self):
         import fcntl
         with (self.root / "heavy.lock").open("a+") as lock:

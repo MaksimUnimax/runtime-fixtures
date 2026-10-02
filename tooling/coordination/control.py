@@ -15,7 +15,8 @@ import time
 import resource_runner
 from waiting_gate import validate_waiting_receipt
 from notice_delivery import read_controller_notices
-from work_queue import status_work, compact_state, advance_task, add_task, claim_task, validate_task_scope
+from work_queue import status_work, compact_state, advance_task, add_task, claim_task, validate_task_scope, load_board
+from disk_lifecycle import Registry as DiskLifecycleRegistry
 from datetime import datetime, timezone
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -161,6 +162,37 @@ def require_running(role):
     state = json.loads(path.read_text()) if path.exists() else {}
     if state.get("status") == "STOPPED":
         raise RuntimeError("STOPPED: no new work permitted")
+
+
+def advance_queue_task(role, task, task_state, receipt, summary):
+    if not task:
+        raise RuntimeError("DISK_LIFECYCLE_TASK_REQUIRED")
+    registry = DiskLifecycleRegistry(CONTROL)
+    if task_state in {"DONE", "IN_PROGRESS"}:
+        try:
+            with registry.locked():
+                if task_state == "DONE":
+                    registry.status_locked(role, task, complete=True)
+                    registry.record_completion_state(role, task, "SEALING")
+                    try:
+                        result = advance_task(CONTROL, role, task, task_state, receipt, summary)
+                    except Exception:
+                        try:
+                            board = load_board(CONTROL)
+                            current = next((row for row in board["tasks"] if row["id"] == task and row.get("role") == role), None)
+                            if current is not None and current.get("state") != "DONE":
+                                registry.record_completion_state(role, task, "REOPENED")
+                        except Exception:
+                            pass
+                        raise
+                    registry.record_completion_state(role, task, "SEALED")
+                    return result
+                result = advance_task(CONTROL, role, task, task_state, receipt, summary)
+                registry.reopen_if_completion_locked(role, task)
+                return result
+        except (ValueError, OSError, KeyError, TypeError, subprocess.TimeoutExpired) as exc:
+            raise RuntimeError(f"DISK_LIFECYCLE_INCOMPLETE:{exc}") from exc
+    return advance_task(CONTROL, role, task, task_state, receipt, summary)
 
 
 def default_scope_base():
@@ -344,7 +376,7 @@ def main():
         print(json.dumps(claim_task(CONTROL, args.role, args.task), ensure_ascii=False))
         return 0
     if args.action == "queue-task":
-        result = advance_task(CONTROL, args.role, args.task, args.task_state, args.receipt, args.summary)
+        result = advance_queue_task(args.role, args.task, args.task_state, args.receipt, args.summary)
         print(json.dumps(result, ensure_ascii=False))
         return 0
     if args.action == "ensure-db":
