@@ -13,6 +13,7 @@ SEEDS = ["AGENTS.md"] + [str(DIRECTORY / (name + ".md")) for name in (
     "PROMPT_CONTROLLER", "PROMPT_CONTROLLER_L1", "ORGANIZATION_AUDIT_POLICY")]
 OBSOLETE = ("C один интегрирует main", "B единственный автор БД",
             "B один пишет DB/schema/migrations",
+            "Только C продвигает main", "только B автор DB/schema/migrations",
             "A владелец клиентской матрицы; C — приёмка",
             "исправление готовится A, принимается C")
 
@@ -57,6 +58,15 @@ class DeliveryPolicyTests(unittest.TestCase):
             (root / "plan.md").write_text("[Roadmap](old.md)")
             (root / "old.md").write_text("C один интегрирует main")
             self.assertEqual(len(conflicts(root, ["entry.md"])), 1)
+
+    def test_exact_legacy_monitoring_role_wording_is_rejected_when_reachable(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "entry.md").write_text("[Архитектура](old.md)")
+            (root / "old.md").write_text(
+                "Только C продвигает main, только B автор DB/schema/migrations."
+            )
+            self.assertEqual(len(conflicts(root, ["entry.md"])), 2)
 
     def test_historical_receipts_are_evidence_not_active_commands(self):
         with tempfile.TemporaryDirectory() as directory:
