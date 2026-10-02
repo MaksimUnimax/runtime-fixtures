@@ -178,6 +178,40 @@ def _require_control_evidence(root: Path, path: str | os.PathLike[str]) -> Path:
     return resolved
 
 
+_GIT_AUTHORITY_ENV_KEYS = {
+    "GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE",
+    "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_NAMESPACE",
+    "GIT_PREFIX", "GIT_CEILING_DIRECTORIES", "GIT_DISCOVERY_ACROSS_FILESYSTEM",
+    "GIT_SHALLOW_FILE", "GIT_REPLACE_REF_BASE", "GIT_NO_REPLACE_OBJECTS",
+    "GIT_CONFIG", "GIT_CONFIG_PARAMETERS", "GIT_CONFIG_COUNT",
+    "GIT_CONFIG_NOSYSTEM", "GIT_CONFIG_SYSTEM", "GIT_CONFIG_GLOBAL",
+}
+
+
+def sanitized_git_authority_env(base: dict[str, str] | None = None) -> dict[str, str]:
+    """Remove caller-controlled Git repository/config/object selectors for trust checks."""
+    env = dict(os.environ if base is None else base)
+    for key in list(env):
+        if (key in _GIT_AUTHORITY_ENV_KEYS
+                or key.startswith("GIT_CONFIG_KEY_")
+                or key.startswith("GIT_CONFIG_VALUE_")):
+            env.pop(key, None)
+    env["GIT_CONFIG_NOSYSTEM"] = "1"
+    env["GIT_CONFIG_SYSTEM"] = os.devnull
+    env["GIT_CONFIG_GLOBAL"] = os.devnull
+    env["GIT_NO_REPLACE_OBJECTS"] = "1"
+    env["LC_ALL"] = "C"
+    return env
+
+
+def _authority_git(worktree: Path, *args: str) -> str:
+    return _git(worktree, *args, env=sanitized_git_authority_env())
+
+
+def _authority_clean(worktree: Path) -> bool:
+    return not _authority_git(worktree, "status", "--porcelain=v1", "--untracked-files=all")
+
+
 def _git(worktree: Path, *args: str, check: bool = True, input_text: str | None = None,
          env: dict[str, str] | None = None) -> str:
     command = ["git", "-C", str(worktree), *args]
@@ -493,8 +527,8 @@ def _require_canonical_role_location(source_root: Path, role: str) -> Path:
     role_root = Path(raw_path)
     try:
         resolved_root = role_root.resolve(strict=True)
-        top = Path(_git(role_root, "rev-parse", "--show-toplevel")).resolve(strict=True)
-        branch = _git(role_root, "branch", "--show-current")
+        top = Path(_authority_git(role_root, "rev-parse", "--show-toplevel")).resolve(strict=True)
+        branch = _authority_git(role_root, "branch", "--show-current")
     except (OSError, subprocess.SubprocessError):
         raise PublicationError("QUEUE_COMPLETE_ROLE_LOCATION_INVALID") from None
     if str(resolved_root) != raw_path or top != resolved_root or branch != expected_branch:
@@ -545,17 +579,17 @@ def validate_queue_completion_source_authority(
 
     route_root = Path(route_root).resolve()
     try:
-        if Path(_git(route_root, "rev-parse", "--show-toplevel")).resolve() != route_root:
+        if Path(_authority_git(route_root, "rev-parse", "--show-toplevel")).resolve() != route_root:
             raise PublicationError("QUEUE_COMPLETE_ROUTE_SOURCE_ROOT_INVALID")
-        _git(route_root, "ls-files", "--error-unmatch", "tooling/coordination/control.py")
-        _git(route_root, "ls-files", "--error-unmatch", "tooling/coordination/task_publication.py")
+        _authority_git(route_root, "ls-files", "--error-unmatch", "tooling/coordination/control.py")
+        _authority_git(route_root, "ls-files", "--error-unmatch", "tooling/coordination/task_publication.py")
     except (OSError, subprocess.SubprocessError):
         raise PublicationError("QUEUE_COMPLETE_ROUTE_SOURCE_ROOT_INVALID") from None
-    if not _clean(route_root):
+    if not _authority_clean(route_root):
         raise PublicationError("QUEUE_COMPLETE_ROUTE_SOURCE_DIRTY")
 
-    route_head = _head(route_root)
-    route_tree = _tree(route_root)
+    route_head = _authority_git(route_root, "rev-parse", "HEAD")
+    route_tree = _authority_git(route_root, "rev-parse", "HEAD^{tree}")
     registration_candidate_source = (
         route_head == core.get("candidate_head")
         and route_tree == core.get("candidate_tree")
@@ -616,12 +650,12 @@ def _run_canonical_queue_completion(
         raise PublicationError("QUEUE_COMPLETE_CONTROL_ROOT_UNSUPPORTED")
     control_script = route_root / "tooling/coordination/control.py"
     try:
-        _git(route_root, "ls-files", "--error-unmatch", "tooling/coordination/control.py")
+        _authority_git(route_root, "ls-files", "--error-unmatch", "tooling/coordination/control.py")
     except subprocess.SubprocessError:
         raise PublicationError("QUEUE_COMPLETE_CONTROL_SOURCE_INVALID") from None
     if not control_script.is_file():
         raise PublicationError("QUEUE_COMPLETE_CONTROL_SOURCE_INVALID")
-    env = os.environ.copy()
+    env = sanitized_git_authority_env()
     env.pop("PYTHONPATH", None)
     env.pop("PYTHONHOME", None)
     env["PYTHONDONTWRITEBYTECODE"] = "1"

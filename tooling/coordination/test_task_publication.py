@@ -292,6 +292,30 @@ class PublicationTests(unittest.TestCase):
         self.assertEqual(route.close_registration(self.control, reg["registration_id"])["state"], "CLOSED")
         self.assertEqual(route._config_values(self.work, "core.hooksPath"), {"present": False, "values": []})
 
+    def test_git_authority_environment_strips_repository_config_and_object_selectors(self):
+        poisoned = {
+            "KEEP_ME": "yes", "GIT_SSH_COMMAND": "ssh -F fixture",
+            "GIT_DIR": "/tmp/evil-dir", "GIT_WORK_TREE": "/tmp/evil-worktree",
+            "GIT_COMMON_DIR": "/tmp/evil-common", "GIT_INDEX_FILE": "/tmp/evil-index",
+            "GIT_OBJECT_DIRECTORY": "/tmp/evil-objects",
+            "GIT_ALTERNATE_OBJECT_DIRECTORIES": "/tmp/evil-alternates",
+            "GIT_NAMESPACE": "evil", "GIT_SHALLOW_FILE": "/tmp/evil-shallow",
+            "GIT_REPLACE_REF_BASE": "refs/evil/", "GIT_CONFIG": "/tmp/evil-config",
+            "GIT_CONFIG_PARAMETERS": "'core.worktree=/tmp/evil'", "GIT_CONFIG_COUNT": "1",
+            "GIT_CONFIG_KEY_0": "core.worktree", "GIT_CONFIG_VALUE_0": "/tmp/evil",
+        }
+        env = route.sanitized_git_authority_env(poisoned)
+        for key in poisoned:
+            if key not in {"KEEP_ME", "GIT_SSH_COMMAND"}:
+                self.assertNotIn(key, env)
+        self.assertEqual(env["KEEP_ME"], "yes")
+        self.assertEqual(env["GIT_SSH_COMMAND"], "ssh -F fixture")
+        self.assertEqual(env["GIT_CONFIG_NOSYSTEM"], "1")
+        self.assertEqual(env["GIT_CONFIG_SYSTEM"], os.devnull)
+        self.assertEqual(env["GIT_CONFIG_GLOBAL"], os.devnull)
+        self.assertEqual(env["GIT_NO_REPLACE_OBJECTS"], "1")
+        self.assertEqual(env["LC_ALL"], "C")
+
     def test_complete_queue_bootstraps_from_clean_exact_candidate_identity_after_original_path(self):
         reg = self.register()
         reg = route._push_operation(self.control, reg["registration_id"], "TASK_REF")

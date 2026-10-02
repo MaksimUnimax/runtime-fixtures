@@ -2,6 +2,7 @@ import argparse
 import contextlib
 import importlib.util
 import json
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -11,6 +12,7 @@ import unittest
 from unittest.mock import patch
 
 import test_work_queue as work_queue_test_module
+import test_task_publication as task_publication_test_module
 
 spec = importlib.util.spec_from_file_location("control", Path(__file__).with_name("control.py"))
 control = importlib.util.module_from_spec(spec)
@@ -406,6 +408,102 @@ class CoordinationTests(unittest.TestCase):
             self.assertEqual(registry.completion_record("B", "b-auth"), before_completion)
         finally:
             queue_fixture.tearDown()
+
+    def test_forged_git_environment_cannot_authorize_arbitrary_control_source(self):
+        publication = task_publication_test_module.PublicationTests(methodName="runTest")
+        publication.setUp()
+        try:
+            route = task_publication_test_module.route
+            reg = publication.register()
+            reg = route._push_operation(publication.control, reg["registration_id"], "TASK_REF")
+            reg = route.mark_ready(publication.control, reg["registration_id"], publication.ci(reg))
+            reg = route._push_operation(publication.control, reg["registration_id"], "MAIN")
+            reg = route._push_operation(publication.control, reg["registration_id"], "CLEANUP_TASK_REF")
+            reg = route.close_registration(publication.control, reg["registration_id"])
+            receipt = publication.control / "logs/completion-forged-env.json"
+            receipt.write_text(json.dumps({
+                "kind": "octoport.work-queue-completion", "version": 1,
+                "task_id": publication.task["id"], "candidate_sha": publication.head,
+                "verdict": "PASS", "review": {"verdict": "PASS", "evidence": ["fixture"]},
+                "checks": [{"name": "fixture", "verdict": "PASS", "evidence": ["fixture"]}],
+            }))
+            registry = control.DiskLifecycleRegistry(publication.control)
+            registry.seed_baseline()
+            registry.declare_none("C", publication.task["id"], "Forged Git environment regression fixture")
+            board_path = publication.control / "controllers/work-board.json"
+            before_board = board_path.read_bytes()
+            before_completion = registry.completion_record("C", publication.task["id"])
+
+            attacker = self.root / "forged-source-root"
+            attacker.mkdir()
+            tracked = subprocess.check_output(
+                ["git", "-C", str(publication.work), "ls-files"], text=True
+            ).splitlines()
+            for name in tracked:
+                source = publication.work / name
+                target = attacker / name
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(source, target)
+            policy = attacker / "docs/development/coordination/OWNERSHIP.json"
+            policy.write_text(json.dumps({"roles": {"C": {
+                "path": str(attacker), "branch": "candidate", "allow": ["**"], "deny": [],
+            }}}))
+            git_dir = subprocess.check_output(
+                ["git", "-C", str(publication.work), "rev-parse", "--absolute-git-dir"], text=True
+            ).strip()
+            index_path = Path(subprocess.check_output(
+                ["git", "-C", str(publication.work), "rev-parse", "--git-path", "index"], text=True
+            ).strip())
+            if not index_path.is_absolute():
+                index_path = (publication.work / index_path).resolve()
+            forged_index = self.root / "forged-index"
+            shutil.copyfile(index_path, forged_index)
+            forged_env = {
+                "GIT_DIR": git_dir,
+                "GIT_WORK_TREE": str(attacker),
+                "GIT_INDEX_FILE": str(forged_index),
+                "GIT_CONFIG_COUNT": "1",
+                "GIT_CONFIG_KEY_0": "core.worktree",
+                "GIT_CONFIG_VALUE_0": str(attacker),
+            }
+            with patch.dict(os.environ, forged_env, clear=False):
+                subprocess.run(
+                    ["git", "update-index", "--skip-worktree", "docs/development/coordination/OWNERSHIP.json"],
+                    cwd=attacker, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                )
+                with (
+                    contextlib.chdir(attacker),
+                    patch.object(control, "ROOT", attacker),
+                    patch.object(control, "CONTROL", publication.control),
+                    patch.object(control.sys, "argv", [
+                        "control.py", "C", "queue-task", "--task", publication.task["id"],
+                        "--task-state", "DONE", "--receipt", str(receipt),
+                        "--summary", "must not mutate", "--publication-registration", reg["registration_id"],
+                    ]),
+                ):
+                    with self.assertRaisesRegex(RuntimeError, "ROLE_LOCATION_MISMATCH"):
+                        control.main()
+
+            self.assertEqual(board_path.read_bytes(), before_board)
+            self.assertEqual(registry.completion_record("C", publication.task["id"]), before_completion)
+        finally:
+            publication.doCleanups()
+
+    def test_publication_role_branch_check_ignores_forged_git_environment(self):
+        fixed = self.publication_role_fixture("wrong-branch-C", branch="wrong-branch")
+        forger = self.publication_role_fixture("branch-forger-C", branch="work/c-integration")
+        authority = {"role_path": str(fixed), "role_branch": "work/c-integration"}
+        forged_env = {
+            "GIT_DIR": str((forger / ".git").resolve()),
+            "GIT_WORK_TREE": str(fixed),
+        }
+        with (
+            contextlib.chdir(fixed),
+            patch.dict(os.environ, forged_env, clear=False),
+            patch.object(control, "validate_queue_completion_source_authority", return_value=authority),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "ROLE_LOCATION_MISMATCH"):
+                control.require_publication_queue_location("C", "published-task", "b" * 64)
 
     def test_unaccepted_control_source_blocks_before_publication_queue_mutation(self):
         attacker = self.publication_role_fixture("self-authorized-C")

@@ -99,7 +99,13 @@ Each subcommand has `--help` for its exact required arguments.
    siblings, self-authored policy checkouts and arbitrary source copies fail
    before disk SEALING or board mutation. This command performs no Git
    push/ref/main mutation and does not bypass role state, role location, or
-   disk-lifecycle completion gates.
+   disk-lifecycle completion gates. Git checks that establish source/canonical
+   identity, cleanliness, top-level and branch use a dedicated sanitized
+   environment: inherited repository/worktree/index/common/object/config
+   namespace selectors (including `GIT_DIR`, `GIT_WORK_TREE`, `GIT_INDEX_FILE`,
+   `GIT_COMMON_DIR`, object/namespace and `GIT_CONFIG*` selectors) cannot redirect
+   those authority checks; ordinary Git transport/auth environment is not
+   broadened or replaced by this queue-finalization guard.
 
 ## Interruption and recovery
 

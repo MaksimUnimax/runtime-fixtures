@@ -17,7 +17,7 @@ from waiting_gate import validate_waiting_receipt
 from notice_delivery import read_controller_notices
 from work_queue import status_work, compact_state, advance_task, add_task, claim_task, resolve_blocker, validate_task_scope, load_board
 from disk_lifecycle import Registry as DiskLifecycleRegistry
-from task_publication import validate_queue_completion_source_authority
+from task_publication import validate_queue_completion_source_authority, sanitized_git_authority_env
 from datetime import datetime, timezone
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -57,13 +57,14 @@ def require_publication_queue_location(role, task, registration_id):
         expected_path = authority["role_path"]
         expected_branch = authority["role_branch"]
         location = Path.cwd().resolve()
+        authority_env = sanitized_git_authority_env()
         top = Path(subprocess.check_output(
             ["git", "-C", str(location), "rev-parse", "--show-toplevel"],
-            text=True,
+            text=True, env=authority_env,
         ).strip()).resolve()
         branch = subprocess.check_output(
             ["git", "-C", str(location), "branch", "--show-current"],
-            text=True,
+            text=True, env=authority_env,
         ).strip()
     except (OSError, subprocess.SubprocessError, ValueError, KeyError, TypeError, RuntimeError):
         raise RuntimeError("ROLE_LOCATION_MISMATCH: use accepted publication source and assigned role worktree/branch") from None
