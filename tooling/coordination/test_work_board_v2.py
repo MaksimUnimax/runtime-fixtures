@@ -50,6 +50,130 @@ class WorkBoardV2Tests(unittest.TestCase):
         return {"id": task_id, "role": "B", "plan": "B04", "state": "DONE", "requires": [],
                 "result": "Historical row", "paths": ["apps/api/old.js"], "completion_receipt": str(path)}
 
+    def publication(self, task, candidate="c" * 40):
+        role = task["role"]
+        task_id = task["id"]
+        task_paths = task["paths"]
+        task_ref = f"refs/heads/controller/task-publication/{role.lower()}/{task_id}/test"
+        task_branch = task_ref.removeprefix("refs/heads/")
+        review = {"path": str(self.root / "logs/review.json"), "sha256": "a" * 64}
+        core = {
+            "role": role,
+            "task_id": task_id,
+            "task_paths": task_paths,
+            "changed_paths": task_paths,
+            "candidate_head": candidate,
+            "candidate_tree": "d" * 40,
+            "base_sha": "e" * 40,
+            "task_fingerprint": work_queue._publication_task_fingerprint(
+                dict(task, state="IN_PROGRESS")
+            ),
+            "review": review,
+            "bundle_manifest_sha256": "1" * 64,
+            "task_ref": task_ref,
+            "task_branch": task_branch,
+        }
+        registration_id = work_queue._sha_bytes(work_queue._canonical_bytes(core))
+        publication = self.root / "controllers/task-publication"
+
+        ready_path = publication / "ready" / registration_id / "5.json"
+        ready_path.parent.mkdir(parents=True, exist_ok=True)
+        ready = {
+            "kind": "octoport.task-publication-ready",
+            "version": 1,
+            "registration_id": registration_id,
+            "registration_sha256": registration_id,
+            "registration_state_version": 2,
+            "task_id": task_id,
+            "role": role,
+            "task_fingerprint": core["task_fingerprint"],
+            "candidate_head": candidate,
+            "candidate_tree": core["candidate_tree"],
+            "base_sha": core["base_sha"],
+            "task_ref": task_ref,
+            "task_branch": task_branch,
+            "review": review,
+            "bundle_manifest_sha256": core["bundle_manifest_sha256"],
+            "ci": {
+                "status": "PASS",
+                "head": candidate,
+                "branch": task_branch,
+                "checked_at": 1,
+                "runs": [
+                    {"name": name, "id": i + 1, "status": "completed", "conclusion": "success"}
+                    for i, name in enumerate(work_queue.PUBLICATION_REQUIRED_CI)
+                ],
+            },
+            "created_at": "2026-10-02T00:00:00Z",
+        }
+        ready_raw = (json.dumps(ready, ensure_ascii=False, indent=2) + "\n").encode()
+        ready_path.write_bytes(ready_raw)
+        ready_descriptor = {
+            "path": str(ready_path.resolve()),
+            "sha256": hashlib.sha256(ready_raw).hexdigest(),
+        }
+
+        close_path = publication / "close" / registration_id / "receipt.json"
+        close_path.parent.mkdir(parents=True, exist_ok=True)
+        close = {
+            "kind": "octoport.task-publication-close",
+            "version": 1,
+            "registration_id": registration_id,
+            "state_before": "PUBLISHED",
+            "created_at": "2026-10-02T00:00:03Z",
+        }
+        close_raw = (json.dumps(close, ensure_ascii=False, indent=2) + "\n").encode()
+        close_path.write_bytes(close_raw)
+        close_descriptor = {
+            "path": str(close_path.resolve()),
+            "sha256": hashlib.sha256(close_raw).hexdigest(),
+        }
+
+        ready_state = {
+            "kind": "octoport.task-publication-registration",
+            "version": 1,
+            "registration_id": registration_id,
+            "registration_sha256": registration_id,
+            "core": core,
+            "state": "READY",
+            "state_version": 2,
+            "previous_state_sha256": "0" * 64,
+            "ready_receipt": ready_descriptor,
+            "task_ref_cleanup_status": None,
+            "created_at": "2026-10-02T00:00:00Z",
+            "updated_at": "2026-10-02T00:00:01Z",
+        }
+        history = publication / "states" / registration_id
+        history.mkdir(parents=True, exist_ok=True)
+        ready_state_raw = (json.dumps(ready_state, ensure_ascii=False, indent=2) + "\n").encode()
+        (history / "2.json").write_bytes(ready_state_raw)
+
+        published = dict(ready_state)
+        published.update(
+            state="PUBLISHED",
+            state_version=3,
+            previous_state_sha256=hashlib.sha256(ready_state_raw).hexdigest(),
+            task_ref_cleanup_status="DELETED",
+            updated_at="2026-10-02T00:00:02Z",
+        )
+        published_raw = (json.dumps(published, ensure_ascii=False, indent=2) + "\n").encode()
+        (history / "3.json").write_bytes(published_raw)
+
+        closed = dict(published)
+        closed.update(
+            state="CLOSED",
+            state_version=4,
+            previous_state_sha256=hashlib.sha256(published_raw).hexdigest(),
+            close_receipt=close_descriptor,
+            updated_at="2026-10-02T00:00:03Z",
+        )
+        closed_raw = (json.dumps(closed, ensure_ascii=False, indent=2) + "\n").encode()
+        (history / "4.json").write_bytes(closed_raw)
+        registrations = publication / "registrations"
+        registrations.mkdir(parents=True, exist_ok=True)
+        (registrations / f"{registration_id}.json").write_bytes(closed_raw)
+        return registration_id, candidate
+
     def grant(self, raw, *, authority_id="test-001", alter=None):
         now = dt.datetime.now(dt.timezone.utc)
         hashes = {role: hashlib.sha256(self.reader.read_bytes()).hexdigest() for role in self.readers}
@@ -94,6 +218,65 @@ class WorkBoardV2Tests(unittest.TestCase):
         self.assertEqual(hot["archive_history_count"], 1)
         self.assertEqual(v2.board_snapshot(self.root), receipt["post_switch"]["A"]["snapshot"])
         self.assertTrue((self.root / "controllers/work-board-done/migrations" / (hashlib.sha256(raw).hexdigest()+".json")).is_file())
+
+    def test_v2_isolated_publication_done_persists_candidate_and_leaves_hot_board(self):
+        task = self.ready("a-isolated")
+        self.migrate([task])
+        work_queue.advance_task(self.root, "A", task["id"], "IN_PROGRESS")
+        live_task = next(row for row in work_queue.load_board(self.root)["tasks"] if row["id"] == task["id"])
+        registration, candidate = self.publication(live_task)
+        receipt = self.root / "logs/a-isolated-completion.json"
+        receipt.write_text(json.dumps({
+            "kind": work_queue.COMPLETION_KIND,
+            "version": work_queue.COMPLETION_VERSION,
+            "task_id": task["id"],
+            "candidate_sha": candidate,
+            "verdict": "PASS",
+            "review": {"verdict": "PASS", "evidence": ["independent review"]},
+            "checks": [{"name": "focused", "verdict": "PASS", "evidence": ["run"]}],
+        }))
+        work_queue.advance_task(
+            self.root, "A", task["id"], "DONE", str(receipt),
+            publication_registration=registration,
+        )
+        logical = work_queue.load_board(self.root)
+        done = next(row for row in logical["tasks"] if row["id"] == task["id"])
+        self.assertEqual(done["state"], "DONE")
+        self.assertEqual(done["completion_candidate_sha"], candidate)
+        self.assertEqual(done["completion_publication_registration"], registration)
+        hot = json.loads((self.root / "controllers/work-board.json").read_text())
+        self.assertEqual(hot["tasks"], [])
+        self.assertEqual(hot["completed_count"], 1)
+
+    def test_v2_publication_evidence_tamper_rehydrates_done_as_invalidated(self):
+        task = self.ready("a-isolated-invalidated")
+        self.migrate([task])
+        work_queue.advance_task(self.root, "A", task["id"], "IN_PROGRESS")
+        live_task = next(row for row in work_queue.load_board(self.root)["tasks"] if row["id"] == task["id"])
+        registration, candidate = self.publication(live_task)
+        receipt = self.root / "logs/a-isolated-invalidated-completion.json"
+        receipt.write_text(json.dumps({
+            "kind": work_queue.COMPLETION_KIND,
+            "version": work_queue.COMPLETION_VERSION,
+            "task_id": task["id"],
+            "candidate_sha": candidate,
+            "verdict": "PASS",
+            "review": {"verdict": "PASS", "evidence": ["independent review"]},
+            "checks": [{"name": "focused", "verdict": "PASS", "evidence": ["run"]}],
+        }))
+        work_queue.advance_task(
+            self.root, "A", task["id"], "DONE", str(receipt),
+            publication_registration=registration,
+        )
+        done = next(row for row in work_queue.load_board(self.root)["tasks"] if row["id"] == task["id"])
+        close = Path(done["completion_publication_snapshot"]["close_receipt"])
+        accepted = close.read_bytes()
+        close.write_bytes(accepted + b" ")
+        invalidated = next(row for row in work_queue.role_work(self.root, "A")["tasks"] if row["id"] == task["id"])
+        self.assertEqual(invalidated["state"], "BLOCKED")
+        self.assertTrue(invalidated["completion_invalidated"])
+        close.write_bytes(accepted)
+        self.assertFalse(any(row["id"] == task["id"] for row in work_queue.role_work(self.root, "A")["tasks"]))
 
     def test_all_readers_validate_same_committed_generation(self):
         _board, _raw, result = self.migrate([self.ready(), self.done()])

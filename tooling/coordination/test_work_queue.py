@@ -1,5 +1,6 @@
 import argparse
 import copy
+import hashlib
 import importlib.util
 import json
 from pathlib import Path
@@ -54,6 +55,141 @@ class WorkQueueTests(unittest.TestCase):
         }
         self.receipt.write_text(json.dumps(value))
         return value
+
+    def publication(
+        self, candidate_sha=None, *, core_role="B", core_task_id="b-auth",
+        core_paths=None, cleanup="DELETED", current_state="CLOSED",
+        previous_state="PUBLISHED", close_state="PUBLISHED",
+        ready_status="PASS", omit_run=None, duplicate_run_id=False,
+    ):
+        candidate = candidate_sha or ("c" * 40)
+        task_paths = list(core_paths if core_paths is not None else ["apps/api/src/auth.ts"])
+        task_ref = "refs/heads/controller/task-publication/b/b-auth/test"
+        task_branch = "controller/task-publication/b/b-auth/test"
+        live_task = next(row for row in self.board["tasks"] if row["id"] == "b-auth")
+        live_task["state"] = "IN_PROGRESS"
+        self.save()
+        registered_task = dict(live_task)
+        registered_task["state"] = "IN_PROGRESS"
+        task_fingerprint = work_queue._publication_task_fingerprint(registered_task)
+        review = {"path": str(self.root / "logs/review.json"), "sha256": "a" * 64}
+        core = {
+            "role": core_role,
+            "task_id": core_task_id,
+            "task_paths": task_paths,
+            "changed_paths": task_paths,
+            "candidate_head": candidate,
+            "candidate_tree": "d" * 40,
+            "base_sha": "e" * 40,
+            "task_fingerprint": task_fingerprint,
+            "review": review,
+            "bundle_manifest_sha256": "1" * 64,
+            "task_ref": task_ref,
+            "task_branch": task_branch,
+        }
+        registration_id = work_queue._sha_bytes(work_queue._canonical_bytes(core))
+        publication = self.root / "controllers/task-publication"
+        ready_path = publication / "ready" / registration_id / "5.json"
+        ready_path.parent.mkdir(parents=True, exist_ok=True)
+        runs = [
+            {"name": name, "id": index + 1, "status": "completed", "conclusion": "success"}
+            for index, name in enumerate(work_queue.PUBLICATION_REQUIRED_CI)
+            if name != omit_run
+        ]
+        if duplicate_run_id and len(runs) >= 2:
+            runs[1]["id"] = runs[0]["id"]
+        ready = {
+            "kind": "octoport.task-publication-ready",
+            "version": 1,
+            "registration_id": registration_id,
+            "registration_sha256": registration_id,
+            "registration_state_version": 2,
+            "task_id": core_task_id,
+            "role": core_role,
+            "task_fingerprint": core["task_fingerprint"],
+            "candidate_head": candidate,
+            "candidate_tree": core["candidate_tree"],
+            "base_sha": core["base_sha"],
+            "task_ref": task_ref,
+            "task_branch": task_branch,
+            "review": review,
+            "bundle_manifest_sha256": core["bundle_manifest_sha256"],
+            "ci": {
+                "status": ready_status,
+                "head": candidate,
+                "branch": task_branch,
+                "checked_at": 1,
+                "runs": runs,
+            },
+            "created_at": "2026-10-02T00:00:00Z",
+        }
+        ready_raw = (json.dumps(ready, ensure_ascii=False, indent=2) + "\n").encode()
+        ready_path.write_bytes(ready_raw)
+        ready_descriptor = {
+            "path": str(ready_path.resolve()),
+            "sha256": hashlib.sha256(ready_raw).hexdigest(),
+        }
+
+        close_path = publication / "close" / registration_id / "receipt.json"
+        close_path.parent.mkdir(parents=True, exist_ok=True)
+        close = {
+            "kind": "octoport.task-publication-close",
+            "version": 1,
+            "registration_id": registration_id,
+            "state_before": close_state,
+            "created_at": "2026-10-02T00:00:03Z",
+        }
+        close_raw = (json.dumps(close, ensure_ascii=False, indent=2) + "\n").encode()
+        close_path.write_bytes(close_raw)
+        close_descriptor = {
+            "path": str(close_path.resolve()),
+            "sha256": hashlib.sha256(close_raw).hexdigest(),
+        }
+
+        ready_state = {
+            "kind": "octoport.task-publication-registration",
+            "version": 1,
+            "registration_id": registration_id,
+            "registration_sha256": registration_id,
+            "core": core,
+            "state": "READY",
+            "state_version": 2,
+            "previous_state_sha256": "0" * 64,
+            "ready_receipt": ready_descriptor,
+            "task_ref_cleanup_status": None,
+            "created_at": "2026-10-02T00:00:00Z",
+            "updated_at": "2026-10-02T00:00:01Z",
+        }
+        history = publication / "states" / registration_id
+        history.mkdir(parents=True, exist_ok=True)
+        ready_state_raw = (json.dumps(ready_state, ensure_ascii=False, indent=2) + "\n").encode()
+        (history / "2.json").write_bytes(ready_state_raw)
+
+        previous = dict(ready_state)
+        previous.update(
+            state=previous_state,
+            state_version=3,
+            previous_state_sha256=hashlib.sha256(ready_state_raw).hexdigest(),
+            task_ref_cleanup_status=cleanup,
+            updated_at="2026-10-02T00:00:02Z",
+        )
+        previous_raw = (json.dumps(previous, ensure_ascii=False, indent=2) + "\n").encode()
+        (history / "3.json").write_bytes(previous_raw)
+
+        current = dict(previous)
+        current.update(
+            state=current_state,
+            state_version=4,
+            previous_state_sha256=hashlib.sha256(previous_raw).hexdigest(),
+            close_receipt=close_descriptor,
+            updated_at="2026-10-02T00:00:03Z",
+        )
+        current_raw = (json.dumps(current, ensure_ascii=False, indent=2) + "\n").encode()
+        (history / "4.json").write_bytes(current_raw)
+        registrations = publication / "registrations"
+        registrations.mkdir(parents=True, exist_ok=True)
+        (registrations / f"{registration_id}.json").write_bytes(current_raw)
+        return registration_id, candidate
 
     def test_ready_work_blocks_old_all_blocked_plan_receipt(self):
         now = datetime.now(timezone.utc)
@@ -192,6 +328,163 @@ class WorkQueueTests(unittest.TestCase):
                 self.board = json.loads(self.path.read_text())
                 self.board["tasks"][0]["state"] = "READY"
                 self.save()
+
+    def test_isolated_publication_done_uses_closed_published_candidate(self):
+        registration, candidate = self.publication()
+        self.completion(candidate_sha=candidate)
+        advance_task(
+            self.root, "B", "b-auth", "DONE", str(self.receipt),
+            publication_registration=registration,
+        )
+        task = next(row for row in load_board(self.root)["tasks"] if row["id"] == "b-auth")
+        self.assertEqual(task["completion_candidate_sha"], candidate)
+        self.assertNotEqual(candidate, current_worktree_head())
+        self.assertEqual(task["completion_publication_registration"], registration)
+        self.assertEqual(task["completion_publication_snapshot"]["task_ref_cleanup_status"], "DELETED")
+        self.assertEqual(role_work(self.root, "A")["tasks"][0]["state"], "READY")
+
+    def test_isolated_publication_done_allows_truthful_blocked_finalization_state(self):
+        registration, candidate = self.publication()
+        blocker = self.root / "logs/blocker.json"
+        blocker.write_text('{"reason":"post-publication finalization"}')
+        advance_task(self.root, "B", "b-auth", "BLOCKED", str(blocker), "post-publication finalization")
+        self.completion(candidate_sha=candidate)
+        advance_task(
+            self.root, "B", "b-auth", "DONE", str(self.receipt),
+            publication_registration=registration,
+        )
+        task = next(row for row in load_board(self.root)["tasks"] if row["id"] == "b-auth")
+        self.assertEqual(task["state"], "DONE")
+        self.assertEqual(task["completion_candidate_sha"], candidate)
+
+    def test_isolated_publication_done_rejects_post_registration_result_drift(self):
+        registration, candidate = self.publication()
+        self.board = json.loads(self.path.read_text())
+        task = next(row for row in self.board["tasks"] if row["id"] == "b-auth")
+        task["result"] = "Changed acceptance outcome after publication"
+        self.save()
+        self.completion(candidate_sha=candidate)
+        before = self.path.read_bytes()
+        with self.assertRaisesRegex(RuntimeError, "PUBLICATION_TASK_BINDING_INVALID"):
+            advance_task(
+                self.root, "B", "b-auth", "DONE", str(self.receipt),
+                publication_registration=registration,
+            )
+        self.assertEqual(self.path.read_bytes(), before)
+
+    def test_isolated_publication_registration_is_done_only(self):
+        registration, _candidate = self.publication()
+        before = self.path.read_bytes()
+        with self.assertRaisesRegex(RuntimeError, "PUBLICATION_COMPLETION_DONE_ONLY"):
+            advance_task(
+                self.root, "B", "b-auth", "IN_PROGRESS",
+                publication_registration=registration,
+            )
+        self.assertEqual(self.path.read_bytes(), before)
+
+    def test_isolated_publication_completion_rejects_untrusted_evidence(self):
+        cases = [
+            ("registration-not-closed", {"current_state": "REVOKED"}, "REGISTRATION"),
+            ("predecessor-not-published", {"previous_state": "REVOKED"}, "STATE_CHAIN"),
+            ("wrong-task", {"core_task_id": "other-task"}, "TASK_BINDING"),
+            ("wrong-role", {"core_role": "A"}, "TASK_BINDING"),
+            ("wrong-paths", {"core_paths": ["apps/api/src/other.ts"]}, "TASK_BINDING"),
+            ("foreign-ref", {"cleanup": "FOREIGN_RETAINED"}, "TASK_BINDING"),
+            ("ci-blocked", {"ready_status": "BLOCKED"}, "READY"),
+            ("ci-missing", {"omit_run": "Server CI"}, "READY"),
+            ("ci-duplicate-run-id", {"duplicate_run_id": True}, "READY"),
+            ("close-not-published", {"close_state": "REVOKED"}, "CLOSE"),
+        ]
+        for name, options, error in cases:
+            with self.subTest(name=name):
+                registration, candidate = self.publication(**options)
+                self.completion(candidate_sha=candidate)
+                before = self.path.read_bytes()
+                with self.assertRaisesRegex(RuntimeError, f"PUBLICATION_.*{error}|PUBLICATION_{error}"):
+                    advance_task(
+                        self.root, "B", "b-auth", "DONE", str(self.receipt),
+                        publication_registration=registration,
+                    )
+                self.assertEqual(self.path.read_bytes(), before)
+
+    def test_isolated_publication_snapshot_tamper_invalidates_done_without_breaking_board(self):
+        registration, candidate = self.publication()
+        self.completion(candidate_sha=candidate)
+        advance_task(
+            self.root, "B", "b-auth", "DONE", str(self.receipt),
+            publication_registration=registration,
+        )
+        board = load_board(self.root)
+        task = next(row for row in board["tasks"] if row["id"] == "b-auth")
+        task["completion_publication_snapshot"]["candidate_sha"] = "9" * 40
+        self.board = board
+        self.save()
+        own = next(row for row in role_work(self.root, "B")["tasks"] if row["id"] == "b-auth")
+        self.assertTrue(own["completion_invalidated"])
+        consumer = next(row for row in role_work(self.root, "A")["tasks"] if row["id"] == "a-client")
+        self.assertEqual(consumer["state"], "BLOCKED")
+
+    def test_isolated_publication_evidence_tamper_after_done_invalidates_completion(self):
+        registration, candidate = self.publication()
+        self.completion(candidate_sha=candidate)
+        advance_task(
+            self.root, "B", "b-auth", "DONE", str(self.receipt),
+            publication_registration=registration,
+        )
+        task = next(row for row in load_board(self.root)["tasks"] if row["id"] == "b-auth")
+        snapshot = task["completion_publication_snapshot"]
+        publication = self.root / "controllers/task-publication"
+        evidence = [
+            ("ready", Path(snapshot["ready_receipt"])),
+            ("close", Path(snapshot["close_receipt"])),
+            ("registration", publication / "registrations" / f"{registration}.json"),
+            ("closed-state", publication / "states" / registration / "4.json"),
+            ("published-state", publication / "states" / registration / "3.json"),
+        ]
+        for name, path in evidence:
+            with self.subTest(name=name):
+                accepted = path.read_bytes()
+                if name == "ready":
+                    path.unlink()
+                else:
+                    path.write_bytes(accepted + b" ")
+                own = next(row for row in role_work(self.root, "B")["tasks"] if row["id"] == "b-auth")
+                self.assertTrue(own["completion_invalidated"])
+                consumer = next(row for row in role_work(self.root, "A")["tasks"] if row["id"] == "a-client")
+                self.assertEqual(consumer["state"], "BLOCKED")
+                path.write_bytes(accepted)
+                consumer = next(row for row in role_work(self.root, "A")["tasks"] if row["id"] == "a-client")
+                self.assertEqual(consumer["state"], "READY")
+
+    def test_publication_bound_successor_evidence_tamper_realerts_resolved_blocker(self):
+        blocked_receipt = self.root / "logs/old-blocked-publication.json"
+        blocked_receipt.write_text('{"reason":"superseded"}')
+        old = {
+            "id": "old-attempt", "role": "B", "plan": "B04", "state": "BLOCKED",
+            "requires": [], "result": "Historical attempt", "paths": ["tooling/old.py"],
+            "blocked_reason": "Superseded", "blocked_receipt": str(blocked_receipt),
+        }
+        self.board["tasks"].insert(0, old)
+        self.save()
+        registration, candidate = self.publication()
+        self.completion(candidate_sha=candidate)
+        advance_task(
+            self.root, "B", "b-auth", "DONE", str(self.receipt),
+            publication_registration=registration,
+        )
+        work_queue.resolve_blocker(self.root, "B", "old-attempt", "b-auth", str(self.receipt))
+        board = load_board(self.root)
+        self.assertFalse(any(row["task_id"] == "old-attempt" for row in work_queue.blocker_attention(board)))
+        successor = next(row for row in board["tasks"] if row["id"] == "b-auth")
+        ready = Path(successor["completion_publication_snapshot"]["ready_receipt"])
+        accepted = ready.read_bytes()
+        ready.unlink()
+        stale = role_work(self.root, "B")
+        old_view = next(row for row in stale["tasks"] if row["id"] == "old-attempt")
+        self.assertEqual(old_view["resolution_status"], "STALE_RESOLUTION")
+        alert = next(row for row in stale["owner_attention"] if row["task_id"] == "old-attempt")
+        self.assertEqual(alert["resolution_status"], "STALE_RESOLUTION")
+        ready.write_bytes(accepted)
 
     def test_later_negative_receipt_stops_satisfying_dependencies(self):
         self.completion()

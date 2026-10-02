@@ -79,6 +79,27 @@ Each subcommand has `--help` for its exact required arguments.
    normal worktree creation; stripping only that suffix must restore the exact
    registered common-config SHA. Any other common-config key, edit or reordering
    remains `COMMON_CONFIG_DRIFT`. Registration/state/evidence history is retained.
+11. After a published registration is `CLOSED` and its temporary-output inventory
+   is complete, `complete-queue` may finalize the exact work-board task without
+   moving the canonical role branch. The queue revalidates registration/core and
+   immutable state-chain hashes, immediate `PUBLISHED` predecessor, exact
+   task/role/paths/full task fingerprint, ready receipt with exactly five successful
+   required workflows, close receipt with `state_before=PUBLISHED`, and
+   `DELETED`/`ALREADY_ABSENT` task-ref cleanup before accepting the publication
+   candidate SHA. Normal `queue-task DONE` remains bound to the canonical
+   worktree HEAD. Before its internal queue write, `complete-queue` proves the
+   executing control source independently of caller cwd or caller policy. First
+   use is allowed only from a clean Git source whose exact HEAD and tree equal the
+   supplied CLOSED registration candidate; the original candidate worktree path
+   may already be gone. A later route source is accepted only when its exact HEAD
+   is already represented by a strict-valid publication-backed DONE task. Only
+   after that source identity is accepted may its `OWNERSHIP.json` define the
+   target role's canonical worktree path and exact branch; that canonical HEAD
+   need not equal the isolated candidate. Same-tree/different-commit descendants,
+   siblings, self-authored policy checkouts and arbitrary source copies fail
+   before disk SEALING or board mutation. This command performs no Git
+   push/ref/main mutation and does not bypass role state, role location, or
+   disk-lifecycle completion gates.
 
 ## Interruption and recovery
 
@@ -125,6 +146,10 @@ queue. Run through the normal resource runner on Linux with observable child
 process identities. The suite covers the actual hook and publication cycle,
 source and manifest identity, exact-five CI, STOP and scope fencing, cancellation
 versus consumption, immutable settlement recovery, configuration restoration,
-normal published cleanup, and failed/superseded task-ref retirement with changed
-task fingerprints, absent/foreign refs, config drift, armed leases, evidence
-identity and idempotency. Product installation has its own acceptance.
+normal published cleanup, strict isolated queue completion after temporary-worktree
+cleanup, accepted later-route bootstrap, and failed/superseded task-ref retirement
+with changed task fingerprints, absent/foreign refs, config drift, armed leases,
+evidence identity and idempotency. Product installation has its own acceptance.
+
+
+Publication-bound completion separates evidence authority from mutation authority. The mutation process runs with cwd equal to the role's canonical worktree and verifies cwd/top-level/branch against OWNERSHIP.json. Ordinary queue-task keeps the original require_location behavior.

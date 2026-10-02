@@ -479,6 +479,193 @@ def _path_owned(path: str, role: str, ownership: dict[str, Any]) -> bool:
     )
 
 
+def _require_canonical_role_location(source_root: Path, role: str) -> Path:
+    """Resolve and preflight the canonical role location used for queue mutation."""
+    ownership, _ownership_sha = _ownership(source_root)
+    spec = ownership.get("roles", {}).get(role)
+    if not isinstance(spec, dict):
+        raise PublicationError("QUEUE_COMPLETE_ROLE_LOCATION_INVALID")
+    raw_path = spec.get("path")
+    expected_branch = spec.get("branch")
+    if (not isinstance(raw_path, str) or not raw_path.startswith("/")
+            or not isinstance(expected_branch, str) or not expected_branch):
+        raise PublicationError("QUEUE_COMPLETE_ROLE_LOCATION_INVALID")
+    role_root = Path(raw_path)
+    try:
+        resolved_root = role_root.resolve(strict=True)
+        top = Path(_git(role_root, "rev-parse", "--show-toplevel")).resolve(strict=True)
+        branch = _git(role_root, "branch", "--show-current")
+    except (OSError, subprocess.SubprocessError):
+        raise PublicationError("QUEUE_COMPLETE_ROLE_LOCATION_INVALID") from None
+    if str(resolved_root) != raw_path or top != resolved_root or branch != expected_branch:
+        raise PublicationError("QUEUE_COMPLETE_ROLE_LOCATION_INVALID")
+    return resolved_root
+
+
+def validate_queue_completion_source_authority(
+    root: Path,
+    registration_id: str,
+    route_root: Path,
+    role: str,
+    task_id: str,
+) -> dict[str, Any]:
+    """Prove the executing queue-completion source before any shared mutation.
+
+    First use is allowed only from a clean checkout whose exact HEAD *and* tree
+    equal the CLOSED registration candidate.  Later route sources must already
+    be represented by a strict-valid publication-backed DONE row.  The source's
+    OWNERSHIP policy is read only after that source identity is accepted.
+    """
+    reg, _ = _read_registration(root, registration_id)
+    if reg.get("state") != "CLOSED":
+        raise PublicationError(f"QUEUE_COMPLETE_REGISTRATION_NOT_CLOSED:{reg.get('state')}")
+    if not _no_armed_leases(root, registration_id):
+        raise PublicationError("QUEUE_COMPLETE_ARMED_LEASE_PRESENT")
+    core = reg.get("core")
+    if (
+        not isinstance(core, dict)
+        or core.get("role") != role
+        or core.get("task_id") != task_id
+    ):
+        raise PublicationError("QUEUE_COMPLETE_SOURCE_TASK_ROLE_MISMATCH")
+
+    from work_queue import _publication_completion_candidate, _strict_completion_valid
+    board = _load_board(root)
+    task = _task_from_board(board, task_id)
+    if task.get("role") != role:
+        raise PublicationError("QUEUE_COMPLETE_SOURCE_TASK_ROLE_MISMATCH")
+    try:
+        publication_candidate, _publication_snapshot = _publication_completion_candidate(
+            root, role, task, registration_id
+        )
+    except RuntimeError as error:
+        raise PublicationError(f"QUEUE_COMPLETE_SOURCE_PUBLICATION_INVALID:{error}") from None
+    if publication_candidate != core.get("candidate_head"):
+        raise PublicationError("QUEUE_COMPLETE_SOURCE_PUBLICATION_INVALID:CANDIDATE_MISMATCH")
+
+    route_root = Path(route_root).resolve()
+    try:
+        if Path(_git(route_root, "rev-parse", "--show-toplevel")).resolve() != route_root:
+            raise PublicationError("QUEUE_COMPLETE_ROUTE_SOURCE_ROOT_INVALID")
+        _git(route_root, "ls-files", "--error-unmatch", "tooling/coordination/control.py")
+        _git(route_root, "ls-files", "--error-unmatch", "tooling/coordination/task_publication.py")
+    except (OSError, subprocess.SubprocessError):
+        raise PublicationError("QUEUE_COMPLETE_ROUTE_SOURCE_ROOT_INVALID") from None
+    if not _clean(route_root):
+        raise PublicationError("QUEUE_COMPLETE_ROUTE_SOURCE_DIRTY")
+
+    route_head = _head(route_root)
+    route_tree = _tree(route_root)
+    registration_candidate_source = (
+        route_head == core.get("candidate_head")
+        and route_tree == core.get("candidate_tree")
+    )
+    route_authority: str | list[str]
+    if registration_candidate_source:
+        route_authority = "REGISTRATION_CANDIDATE_SOURCE"
+    else:
+        accepted = [
+            task["id"] for task in board["tasks"]
+            if task.get("state") == "DONE"
+            and task.get("completion_candidate_sha") == route_head
+            and task.get("completion_publication_registration")
+            and _strict_completion_valid(task)
+        ]
+        if not accepted:
+            raise PublicationError("QUEUE_COMPLETE_ROUTE_SOURCE_NOT_ACCEPTED")
+        route_authority = accepted
+
+    ownership, _ownership_sha = _ownership(route_root)
+    spec = ownership.get("roles", {}).get(role)
+    if not isinstance(spec, dict):
+        raise PublicationError("QUEUE_COMPLETE_ROLE_LOCATION_INVALID")
+    role_path = spec.get("path")
+    role_branch = spec.get("branch")
+    if (
+        not isinstance(role_path, str)
+        or not role_path.startswith("/")
+        or not isinstance(role_branch, str)
+        or not role_branch
+    ):
+        raise PublicationError("QUEUE_COMPLETE_ROLE_LOCATION_INVALID")
+
+    return {
+        "registration": reg,
+        "core": core,
+        "route_root": route_root,
+        "route_head": route_head,
+        "route_tree": route_tree,
+        "route_authority": route_authority,
+        "role_path": role_path,
+        "role_branch": role_branch,
+    }
+
+
+def _run_canonical_queue_completion(
+    root: Path,
+    route_root: Path,
+    role_root: Path,
+    role: str,
+    task_id: str,
+    proof: Path,
+    summary: str,
+    registration_id: str,
+) -> dict[str, Any]:
+    """Run the actual queue writer from the canonical role cwd."""
+    if root.resolve() != Path("/root/octoport-control").resolve():
+        raise PublicationError("QUEUE_COMPLETE_CONTROL_ROOT_UNSUPPORTED")
+    control_script = route_root / "tooling/coordination/control.py"
+    try:
+        _git(route_root, "ls-files", "--error-unmatch", "tooling/coordination/control.py")
+    except subprocess.SubprocessError:
+        raise PublicationError("QUEUE_COMPLETE_CONTROL_SOURCE_INVALID") from None
+    if not control_script.is_file():
+        raise PublicationError("QUEUE_COMPLETE_CONTROL_SOURCE_INVALID")
+    env = os.environ.copy()
+    env.pop("PYTHONPATH", None)
+    env.pop("PYTHONHOME", None)
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
+    command = [
+        sys.executable,
+        str(control_script),
+        role,
+        "queue-task",
+        "--task",
+        task_id,
+        "--task-state",
+        "DONE",
+        "--receipt",
+        str(proof),
+        "--summary",
+        summary,
+        "--publication-registration",
+        registration_id,
+    ]
+    try:
+        proc = subprocess.run(
+            command,
+            cwd=str(role_root),
+            env=env,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=30,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        raise PublicationError("QUEUE_COMPLETE_ROLE_BOUNDARY_EXEC_FAILED") from None
+    if proc.returncode != 0:
+        detail = (proc.stdout.strip() or proc.stderr.strip())[-1000:]
+        raise PublicationError(f"QUEUE_COMPLETE_ROLE_BOUNDARY_BLOCKED:{detail}")
+    try:
+        result = json.loads(proc.stdout)
+    except (TypeError, ValueError):
+        raise PublicationError("QUEUE_COMPLETE_ROLE_BOUNDARY_RESULT_INVALID") from None
+    if not isinstance(result, dict):
+        raise PublicationError("QUEUE_COMPLETE_ROLE_BOUNDARY_RESULT_INVALID")
+    return result
+
+
 def _config_values(worktree: Path, key: str) -> dict[str, Any]:
     proc = subprocess.run(
         ["git", "-C", str(worktree), "config", "--worktree", "--get-all", key],
@@ -2341,6 +2528,56 @@ def close_registration(root: Path, registration_id: str) -> dict[str, Any]:
         return next_reg
 
 
+def complete_queue_registration(root: Path, registration_id: str, completion_receipt: str,
+                                summary: str, route_source_root: Path | None = None) -> dict[str, Any]:
+    registered, _ = _read_registration(root, registration_id)
+    registered_core = registered.get("core", {})
+    route_root = (route_source_root or Path(__file__).resolve().parents[2]).resolve()
+    authority = validate_queue_completion_source_authority(
+        root,
+        registration_id,
+        route_root,
+        registered_core.get("role"),
+        registered_core.get("task_id"),
+    )
+    reg = authority["registration"]
+    core = authority["core"]
+    route_head = authority["route_head"]
+    route_authority = authority["route_authority"]
+
+    role_location = _require_canonical_role_location(route_root, core["role"])
+
+    proof = Path(completion_receipt).resolve()
+    try:
+        relative = proof.relative_to(root.resolve())
+    except ValueError:
+        raise PublicationError("QUEUE_COMPLETE_RECEIPT_OUTSIDE_CONTROL") from None
+    if (not proof.is_file() or not relative.parts
+            or relative.parts[0] not in SAFE_CONTROL_TOP):
+        raise PublicationError("QUEUE_COMPLETE_RECEIPT_INVALID")
+    if not isinstance(summary, str) or not summary.strip():
+        raise PublicationError("QUEUE_COMPLETE_SUMMARY_REQUIRED")
+
+    result = _run_canonical_queue_completion(
+        root,
+        route_root,
+        role_location,
+        core["role"],
+        core["task_id"],
+        proof,
+        summary,
+        registration_id,
+    )
+    return dict(
+        result,
+        publication_registration=registration_id,
+        publication_candidate=core["candidate_head"],
+        route_source_head=route_head,
+        route_authority=route_authority,
+        role_location=str(role_location),
+    )
+
+
 def _hook_tuple(stdin: Iterable[str]) -> tuple[str, str, str, str]:
     rows = [line.strip().split() for line in stdin if line.strip()]
     if len(rows) != 1 or len(rows[0]) != 4:
@@ -2555,6 +2792,11 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("close")
     p.add_argument("--registration", required=True)
 
+    p = sub.add_parser("complete-queue")
+    p.add_argument("--registration", required=True)
+    p.add_argument("--receipt", required=True)
+    p.add_argument("--summary", required=True)
+
     p = sub.add_parser("show")
     p.add_argument("--registration", required=True)
 
@@ -2595,6 +2837,10 @@ def main(argv: list[str] | None = None) -> int:
         _json_print(recover_registration(root, args.registration))
     elif args.command == "close":
         _json_print(close_registration(root, args.registration))
+    elif args.command == "complete-queue":
+        _json_print(complete_queue_registration(
+            root, args.registration, args.receipt, args.summary
+        ))
     elif args.command == "show":
         _json_print(_read_registration(root, args.registration)[0])
     return 0

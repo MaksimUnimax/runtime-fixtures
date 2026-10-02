@@ -37,6 +37,10 @@ class PublicationTests(unittest.TestCase):
             target = self.source / "tooling/coordination" / name
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(path, target)
+        control_source = Path(__file__).with_name("control.py")
+        control_target = self.source / "tooling/coordination/control.py"
+        control_target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(control_source, control_target)
         (self.source / ".gitignore").write_text("__pycache__/\n")
         policy = self.source / "docs/development/coordination/OWNERSHIP.json"
         policy.parent.mkdir(parents=True)
@@ -46,6 +50,11 @@ class PublicationTests(unittest.TestCase):
         self.git(self.source, "add", ".")
         self.git(self.source, "commit", "-m", "fixture base")
         self.base = route._head(self.source)
+        self.fixed = self.root / "fixed-C"
+        self.git(
+            self.source, "worktree", "add", "-b", "work/c-integration",
+            str(self.fixed), self.base,
+        )
         self.remote = self.root / "remote.git"
         self.git(self.source, "init", "--bare", str(self.remote))
         self.git(self.source, "remote", "add", "origin", str(self.remote))
@@ -88,6 +97,104 @@ class PublicationTests(unittest.TestCase):
         return {"status": "PASS", "head": self.head, "branch": reg["core"]["task_branch"],
             "checked_at": time.time(), "runs": [{"name": name, "id": i + 1,
                 "status": "completed", "conclusion": "success"} for i, name in enumerate(REQUIRED)]}
+
+    def strict_route_authority(self, candidate_sha):
+        import work_queue
+        task = {
+            "id": "ROUTE-AUTHORITY", "role": "C", "plan": "C00", "state": "IN_PROGRESS",
+            "requires": [], "result": "Accepted publication route source",
+            "paths": ["tooling/coordination/task_publication.py"],
+            "acceptance": ["Exact accepted route publication evidence"],
+        }
+        review = {"path": str(self.control / "logs/authority-review.json"), "sha256": "a" * 64}
+        task_ref = "refs/heads/controller/task-publication/c/ROUTE-AUTHORITY/test"
+        task_branch = task_ref.removeprefix("refs/heads/")
+        core = {
+            "role": "C", "task_id": task["id"], "task_paths": task["paths"],
+            "changed_paths": task["paths"], "candidate_head": candidate_sha,
+            "candidate_tree": route._tree(self.source), "base_sha": "e" * 40,
+            "task_fingerprint": work_queue._publication_task_fingerprint(task),
+            "review": review, "bundle_manifest_sha256": "1" * 64,
+            "task_ref": task_ref, "task_branch": task_branch,
+        }
+        registration_id = route._sha_bytes(route._canonical_bytes(core))
+        publication = self.control / "controllers/task-publication"
+        ready_path = publication / "ready" / registration_id / "5.json"
+        ready_path.parent.mkdir(parents=True, exist_ok=True)
+        ready = {
+            "kind": "octoport.task-publication-ready", "version": 1,
+            "registration_id": registration_id, "registration_sha256": registration_id,
+            "registration_state_version": 2, "task_id": task["id"], "role": "C",
+            "task_fingerprint": core["task_fingerprint"], "candidate_head": candidate_sha,
+            "candidate_tree": core["candidate_tree"], "base_sha": core["base_sha"],
+            "task_ref": task_ref, "task_branch": task_branch, "review": review,
+            "bundle_manifest_sha256": core["bundle_manifest_sha256"],
+            "ci": {"status": "PASS", "head": candidate_sha, "branch": task_branch, "checked_at": 1,
+                   "runs": [{"name": name, "id": i + 1, "status": "completed", "conclusion": "success"}
+                            for i, name in enumerate(work_queue.PUBLICATION_REQUIRED_CI)]},
+            "created_at": "2026-10-02T00:00:00Z",
+        }
+        ready_raw = (json.dumps(ready, ensure_ascii=False, indent=2) + "\n").encode()
+        ready_path.write_bytes(ready_raw)
+        ready_descriptor = {"path": str(ready_path.resolve()), "sha256": route._sha_bytes(ready_raw)}
+        history = publication / "states" / registration_id
+        history.mkdir(parents=True, exist_ok=True)
+        state2 = {
+            "kind": "octoport.task-publication-registration", "version": 1,
+            "registration_id": registration_id, "registration_sha256": registration_id,
+            "core": core, "state": "READY", "state_version": 2,
+            "previous_state_sha256": "0" * 64, "ready_receipt": ready_descriptor,
+            "task_ref_cleanup_status": None, "created_at": "2026-10-02T00:00:00Z",
+            "updated_at": "2026-10-02T00:00:01Z",
+        }
+        state2_raw = (json.dumps(state2, ensure_ascii=False, indent=2) + "\n").encode()
+        (history / "2.json").write_bytes(state2_raw)
+        state3 = dict(state2, state="PUBLISHED", state_version=3,
+                      previous_state_sha256=route._sha_bytes(state2_raw),
+                      task_ref_cleanup_status="DELETED", updated_at="2026-10-02T00:00:02Z")
+        state3_raw = (json.dumps(state3, ensure_ascii=False, indent=2) + "\n").encode()
+        (history / "3.json").write_bytes(state3_raw)
+        close_path = publication / "close" / registration_id / "receipt.json"
+        close_path.parent.mkdir(parents=True, exist_ok=True)
+        close = {"kind": "octoport.task-publication-close", "version": 1,
+                 "registration_id": registration_id, "state_before": "PUBLISHED",
+                 "created_at": "2026-10-02T00:00:03Z"}
+        close_raw = (json.dumps(close, ensure_ascii=False, indent=2) + "\n").encode()
+        close_path.write_bytes(close_raw)
+        close_descriptor = {"path": str(close_path.resolve()), "sha256": route._sha_bytes(close_raw)}
+        state4 = dict(state3, state="CLOSED", state_version=4,
+                      previous_state_sha256=route._sha_bytes(state3_raw),
+                      close_receipt=close_descriptor, updated_at="2026-10-02T00:00:03Z")
+        state4_raw = (json.dumps(state4, ensure_ascii=False, indent=2) + "\n").encode()
+        (history / "4.json").write_bytes(state4_raw)
+        registrations = publication / "registrations"
+        registrations.mkdir(parents=True, exist_ok=True)
+        (registrations / f"{registration_id}.json").write_bytes(state4_raw)
+        completion_path = self.control / "logs/route-authority-completion.json"
+        completion = {
+            "kind": "octoport.work-queue-completion", "version": 1,
+            "task_id": task["id"], "candidate_sha": candidate_sha, "verdict": "PASS",
+            "review": {"verdict": "PASS", "evidence": ["independent route review"]},
+            "checks": [{"name": "route publication", "verdict": "PASS", "evidence": ["route run"]}],
+        }
+        completion_path.write_text(json.dumps(completion))
+        snapshot = {
+            "registration_id": registration_id, "candidate_sha": candidate_sha,
+            "task_id": task["id"], "role": "C", "task_paths": task["paths"],
+            "ready_receipt": str(ready_path.resolve()), "ready_sha256": ready_descriptor["sha256"],
+            "close_receipt": str(close_path.resolve()), "close_sha256": close_descriptor["sha256"],
+            "task_ref_cleanup_status": "DELETED",
+        }
+        task.update(
+            state="DONE", completion_receipt=str(completion_path.resolve()),
+            completion_receipt_format=1, completion_candidate_sha=candidate_sha,
+            completion_receipt_snapshot=completion,
+            completion_publication_registration=registration_id,
+            completion_publication_snapshot=snapshot,
+        )
+        self.board["tasks"].append(task)
+        self.save_board()
+        return task
 
     def prepared(self, reg, kind="TASK_REF", consume=True):
         old = self.base if kind == "MAIN" else (self.head if kind == "CLEANUP_TASK_REF" else route.ZERO_OID)
@@ -184,6 +291,209 @@ class PublicationTests(unittest.TestCase):
         self.assertEqual(reg["task_ref_cleanup_status"], "DELETED")
         self.assertEqual(route.close_registration(self.control, reg["registration_id"])["state"], "CLOSED")
         self.assertEqual(route._config_values(self.work, "core.hooksPath"), {"present": False, "values": []})
+
+    def test_complete_queue_bootstraps_from_clean_exact_candidate_identity_after_original_path(self):
+        reg = self.register()
+        reg = route._push_operation(self.control, reg["registration_id"], "TASK_REF")
+        reg = route.mark_ready(self.control, reg["registration_id"], self.ci(reg))
+        reg = route._push_operation(self.control, reg["registration_id"], "MAIN")
+        reg = route._push_operation(self.control, reg["registration_id"], "CLEANUP_TASK_REF")
+        reg = route.close_registration(self.control, reg["registration_id"])
+        bootstrap = self.root / "bootstrap-exact-candidate"
+        self.git(self.source, "worktree", "add", "--detach", str(bootstrap), self.head)
+        receipt = self.control / "logs/completion.json"
+        receipt.write_text('{"fixture":"completion"}')
+        with patch.object(
+            route, "_run_canonical_queue_completion", return_value={"state": "DONE"}
+        ) as boundary:
+            result = route.complete_queue_registration(
+                self.control, reg["registration_id"], str(receipt), "published",
+                route_source_root=bootstrap,
+            )
+        self.assertNotEqual(bootstrap.resolve(), Path(reg["core"]["worktree_path"]).resolve())
+        self.assertEqual(result["route_authority"], "REGISTRATION_CANDIDATE_SOURCE")
+        self.assertEqual(result["publication_candidate"], self.head)
+        self.assertEqual(result["route_source_head"], self.head)
+        self.assertEqual(result["role_location"], str(self.fixed.resolve()))
+        boundary.assert_called_once_with(
+            self.control,
+            bootstrap.resolve(),
+            self.fixed.resolve(),
+            "C",
+            self.task["id"],
+            receipt.resolve(),
+            "published",
+            reg["registration_id"],
+        )
+
+    def test_queue_source_authority_rejects_tampered_ready_before_policy_trust(self):
+        reg = self.register()
+        reg = route._push_operation(self.control, reg["registration_id"], "TASK_REF")
+        reg = route.mark_ready(self.control, reg["registration_id"], self.ci(reg))
+        reg = route._push_operation(self.control, reg["registration_id"], "MAIN")
+        reg = route._push_operation(self.control, reg["registration_id"], "CLEANUP_TASK_REF")
+        reg = route.close_registration(self.control, reg["registration_id"])
+        ready_path = Path(reg["ready_receipt"]["path"])
+        ready = json.loads(ready_path.read_text())
+        ready["ci"]["runs"][0]["conclusion"] = "failure"
+        ready_path.write_text(json.dumps(ready))
+        bootstrap = self.root / "bootstrap-tampered-ready"
+        self.git(self.source, "worktree", "add", "--detach", str(bootstrap), self.head)
+        with self.assertRaisesRegex(RuntimeError, "SOURCE_PUBLICATION_INVALID"):
+            route.validate_queue_completion_source_authority(
+                self.control, reg["registration_id"], bootstrap, "C", self.task["id"]
+            )
+
+    def test_queue_source_authority_rejects_same_tree_different_commit_without_done_authority(self):
+        reg = self.register()
+        reg = route._push_operation(self.control, reg["registration_id"], "TASK_REF")
+        reg = route.mark_ready(self.control, reg["registration_id"], self.ci(reg))
+        reg = route._push_operation(self.control, reg["registration_id"], "MAIN")
+        reg = route._push_operation(self.control, reg["registration_id"], "CLEANUP_TASK_REF")
+        reg = route.close_registration(self.control, reg["registration_id"])
+        descendant = self.root / "same-tree-descendant"
+        self.git(self.source, "worktree", "add", "--detach", str(descendant), self.head)
+        self.git(descendant, "config", "user.name", "Fixture")
+        self.git(descendant, "config", "user.email", "fixture@example.invalid")
+        self.git(descendant, "commit", "--allow-empty", "-m", "different identity")
+        self.assertEqual(route._tree(descendant), reg["core"]["candidate_tree"])
+        self.assertNotEqual(route._head(descendant), reg["core"]["candidate_head"])
+        with self.assertRaisesRegex(RuntimeError, "ROUTE_SOURCE_NOT_ACCEPTED"):
+            route.validate_queue_completion_source_authority(
+                self.control, reg["registration_id"], descendant, "C", self.task["id"]
+            )
+
+    def test_queue_source_authority_rejects_self_authored_checkout_before_policy_use(self):
+        reg = self.register()
+        reg = route._push_operation(self.control, reg["registration_id"], "TASK_REF")
+        reg = route.mark_ready(self.control, reg["registration_id"], self.ci(reg))
+        reg = route._push_operation(self.control, reg["registration_id"], "MAIN")
+        reg = route._push_operation(self.control, reg["registration_id"], "CLEANUP_TASK_REF")
+        reg = route.close_registration(self.control, reg["registration_id"])
+        attacker = self.root / "self-authored-route"
+        attacker.mkdir()
+        self.git(attacker, "init", "-b", "work/c-integration")
+        self.git(attacker, "config", "user.name", "Fixture")
+        self.git(attacker, "config", "user.email", "fixture@example.invalid")
+        for name in ("control.py", "task_publication.py"):
+            target = attacker / "tooling/coordination" / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(Path(__file__).with_name(name), target)
+        policy = attacker / "docs/development/coordination/OWNERSHIP.json"
+        policy.parent.mkdir(parents=True, exist_ok=True)
+        policy.write_text(json.dumps({"roles": {"C": {
+            "path": str(attacker), "branch": "work/c-integration",
+            "allow": ["**"], "deny": [],
+        }}}))
+        self.git(attacker, "add", ".")
+        self.git(attacker, "commit", "-m", "self authored policy")
+        with self.assertRaisesRegex(RuntimeError, "ROUTE_SOURCE_NOT_ACCEPTED"):
+            route.validate_queue_completion_source_authority(
+                self.control, reg["registration_id"], attacker, "C", self.task["id"]
+            )
+
+    def test_canonical_queue_completion_runs_control_from_role_cwd(self):
+        proof = self.control / "logs/completion-real.json"
+        proof.write_text("{}")
+        control_script = self.source / "tooling/coordination/control.py"
+        control_script.write_text("# fixture control source\n")
+        completed = subprocess.CompletedProcess(
+            ["control.py"], 0, stdout=json.dumps({"state": "DONE"}), stderr=""
+        )
+        with (
+            patch.object(route.Path, "resolve", autospec=True) as resolve,
+            patch.object(route, "_git", return_value="tooling/coordination/control.py"),
+            patch.object(route.subprocess, "run", return_value=completed) as run,
+        ):
+            def resolved(path, *args, **kwargs):
+                value = Path(path)
+                if str(value) in {str(self.control), "/root/octoport-control"}:
+                    return Path("/root/octoport-control")
+                return value.absolute()
+            resolve.side_effect = resolved
+            result = route._run_canonical_queue_completion(
+                self.control,
+                self.source,
+                self.fixed,
+                "C",
+                self.task["id"],
+                proof,
+                "published fixture",
+                "a" * 64,
+            )
+        self.assertEqual(result, {"state": "DONE"})
+        command = run.call_args.args[0]
+        self.assertEqual(run.call_args.kwargs["cwd"], str(self.fixed))
+        self.assertEqual(command[1], str(self.source / "tooling/coordination/control.py"))
+        self.assertEqual(
+            command[command.index("--publication-registration") + 1],
+            "a" * 64,
+        )
+
+    def test_complete_queue_rejects_registration_before_close(self):
+        reg = self.register()
+        receipt = self.control / "logs/completion.json"
+        receipt.write_text('{"fixture":"completion"}')
+        with self.assertRaisesRegex(RuntimeError, "REGISTRATION_NOT_CLOSED"):
+            route.complete_queue_registration(
+                self.control, reg["registration_id"], str(receipt), "published",
+                route_source_root=self.work,
+            )
+
+    def test_complete_queue_accepts_other_strict_published_route_source(self):
+        reg = self.register()
+        reg = route._push_operation(self.control, reg["registration_id"], "TASK_REF")
+        reg = route.mark_ready(self.control, reg["registration_id"], self.ci(reg))
+        reg = route._push_operation(self.control, reg["registration_id"], "MAIN")
+        reg = route._push_operation(self.control, reg["registration_id"], "CLEANUP_TASK_REF")
+        reg = route.close_registration(self.control, reg["registration_id"])
+
+        authority = self.strict_route_authority(self.base)
+        receipt = self.control / "logs/completion-other-route.json"
+        receipt.write_text('{"fixture":"completion"}')
+        with patch.object(
+            route, "_run_canonical_queue_completion", return_value={"state": "DONE"}
+        ) as boundary:
+            result = route.complete_queue_registration(
+                self.control, reg["registration_id"], str(receipt), "published",
+                route_source_root=self.source,
+            )
+        self.assertEqual(result["route_authority"], ["ROUTE-AUTHORITY"])
+        self.assertEqual(result["route_source_head"], self.base)
+        boundary.assert_called_once()
+
+    def test_complete_queue_requires_canonical_role_location_before_writer(self):
+        reg = self.register()
+        reg = route._push_operation(self.control, reg["registration_id"], "TASK_REF")
+        reg = route.mark_ready(self.control, reg["registration_id"], self.ci(reg))
+        reg = route._push_operation(self.control, reg["registration_id"], "MAIN")
+        reg = route._push_operation(self.control, reg["registration_id"], "CLEANUP_TASK_REF")
+        reg = route.close_registration(self.control, reg["registration_id"])
+        receipt = self.control / "logs/completion-wrong-location.json"
+        receipt.write_text('{"fixture":"completion"}')
+        self.git(self.fixed, "checkout", "-b", "wrong-role-location")
+        with patch.object(route, "_run_canonical_queue_completion") as boundary:
+            with self.assertRaisesRegex(RuntimeError, "QUEUE_COMPLETE_ROLE_LOCATION_INVALID"):
+                route.complete_queue_registration(
+                    self.control, reg["registration_id"], str(receipt), "published",
+                    route_source_root=self.work,
+                )
+        boundary.assert_not_called()
+
+    def test_complete_queue_rejects_unaccepted_other_route_source(self):
+        reg = self.register()
+        reg = route._state_transition(
+            self.control, reg["registration_id"], {"REGISTERED"}, "PUBLISHED",
+            {"task_ref_cleanup_status": "DELETED"},
+        )
+        reg = route.close_registration(self.control, reg["registration_id"])
+        receipt = self.control / "logs/completion.json"
+        receipt.write_text('{"fixture":"completion"}')
+        with self.assertRaisesRegex(RuntimeError, "SOURCE_PUBLICATION_INVALID"):
+            route.complete_queue_registration(
+                self.control, reg["registration_id"], str(receipt), "published",
+                route_source_root=self.source,
+            )
 
     def test_registration_idempotence_and_clean_source_binding(self):
         reg = self.register()

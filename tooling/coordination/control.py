@@ -17,6 +17,7 @@ from waiting_gate import validate_waiting_receipt
 from notice_delivery import read_controller_notices
 from work_queue import status_work, compact_state, advance_task, add_task, claim_task, resolve_blocker, validate_task_scope, load_board
 from disk_lifecycle import Registry as DiskLifecycleRegistry
+from task_publication import validate_queue_completion_source_authority
 from datetime import datetime, timezone
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -45,6 +46,29 @@ def require_location(role):
     spec = policy()["roles"][role]
     if str(ROOT) != spec["path"] or git("branch", "--show-current") != spec["branch"]:
         raise RuntimeError("ROLE_LOCATION_MISMATCH: use the assigned worktree and branch")
+
+
+def require_publication_queue_location(role, task, registration_id):
+    """Bind publication-backed queue mutation to an accepted source and role cwd."""
+    try:
+        authority = validate_queue_completion_source_authority(
+            CONTROL, registration_id, ROOT, role, task
+        )
+        expected_path = authority["role_path"]
+        expected_branch = authority["role_branch"]
+        location = Path.cwd().resolve()
+        top = Path(subprocess.check_output(
+            ["git", "-C", str(location), "rev-parse", "--show-toplevel"],
+            text=True,
+        ).strip()).resolve()
+        branch = subprocess.check_output(
+            ["git", "-C", str(location), "branch", "--show-current"],
+            text=True,
+        ).strip()
+    except (OSError, subprocess.SubprocessError, ValueError, KeyError, TypeError, RuntimeError):
+        raise RuntimeError("ROLE_LOCATION_MISMATCH: use accepted publication source and assigned role worktree/branch") from None
+    if str(location) != expected_path or top != location or branch != expected_branch:
+        raise RuntimeError("ROLE_LOCATION_MISMATCH: use accepted publication source and assigned role worktree/branch")
 
 
 def write_json(path, data):
@@ -164,10 +188,11 @@ def require_running(role):
         raise RuntimeError("STOPPED: no new work permitted")
 
 
-def advance_queue_task(role, task, task_state, receipt, summary):
+def advance_queue_task(role, task, task_state, receipt, summary, publication_registration="", control_root=None):
     if not task:
         raise RuntimeError("DISK_LIFECYCLE_TASK_REQUIRED")
-    registry = DiskLifecycleRegistry(CONTROL)
+    target_control = Path(control_root).resolve() if control_root is not None else CONTROL
+    registry = DiskLifecycleRegistry(target_control)
     if task_state in {"DONE", "IN_PROGRESS"}:
         try:
             with registry.locked():
@@ -175,10 +200,12 @@ def advance_queue_task(role, task, task_state, receipt, summary):
                     registry.status_locked(role, task, complete=True)
                     registry.record_completion_state(role, task, "SEALING")
                     try:
-                        result = advance_task(CONTROL, role, task, task_state, receipt, summary)
+                        kwargs = ({"publication_registration": publication_registration}
+                                  if publication_registration else {})
+                        result = advance_task(target_control, role, task, task_state, receipt, summary, **kwargs)
                     except Exception:
                         try:
-                            board = load_board(CONTROL)
+                            board = load_board(target_control)
                             current = next((row for row in board["tasks"] if row["id"] == task and row.get("role") == role), None)
                             if current is not None and current.get("state") != "DONE":
                                 registry.record_completion_state(role, task, "REOPENED")
@@ -187,12 +214,12 @@ def advance_queue_task(role, task, task_state, receipt, summary):
                         raise
                     registry.record_completion_state(role, task, "SEALED")
                     return result
-                result = advance_task(CONTROL, role, task, task_state, receipt, summary)
+                result = advance_task(target_control, role, task, task_state, receipt, summary)
                 registry.reopen_if_completion_locked(role, task)
                 return result
         except (ValueError, OSError, KeyError, TypeError, subprocess.TimeoutExpired) as exc:
             raise RuntimeError(f"DISK_LIFECYCLE_INCOMPLETE:{exc}") from exc
-    return advance_task(CONTROL, role, task, task_state, receipt, summary)
+    return advance_task(target_control, role, task, task_state, receipt, summary)
 
 
 def default_scope_base():
@@ -343,6 +370,7 @@ def main():
     parser.add_argument("--summary", default="")
     parser.add_argument("--task", default="")
     parser.add_argument("--successor", default="")
+    parser.add_argument("--publication-registration", default="")
     parser.add_argument("--next", default="")
     parser.add_argument("--receipt", default="")
     parser.add_argument("--base")
@@ -355,7 +383,10 @@ def main():
     split = argv.index("--") if "--" in argv else len(argv)
     args = parser.parse_args(argv[:split])
     command = argv[split + 1:]
-    require_location(args.role)
+    if args.action == "queue-task" and args.publication_registration:
+        require_publication_queue_location(args.role, args.task, args.publication_registration)
+    else:
+        require_location(args.role)
     if args.action == "heavy":
         return heavy(args.role, command, args.db, args.profile, args.memory_mib, args.timeout_seconds)
     if args.action == "resources":
@@ -380,7 +411,10 @@ def main():
         print(json.dumps(resolve_blocker(CONTROL, args.role, args.task, args.successor, args.receipt), ensure_ascii=False))
         return 0
     if args.action == "queue-task":
-        result = advance_queue_task(args.role, args.task, args.task_state, args.receipt, args.summary)
+        result = advance_queue_task(
+            args.role, args.task, args.task_state, args.receipt, args.summary,
+            args.publication_registration,
+        )
         print(json.dumps(result, ensure_ascii=False))
         return 0
     if args.action == "ensure-db":

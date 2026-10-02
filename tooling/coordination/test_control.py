@@ -1,11 +1,16 @@
 import argparse
+import contextlib
 import importlib.util
 import json
+import shutil
+import subprocess
 from pathlib import Path
 import tempfile
 import time
 import unittest
 from unittest.mock import patch
+
+import test_work_queue as work_queue_test_module
 
 spec = importlib.util.spec_from_file_location("control", Path(__file__).with_name("control.py"))
 control = importlib.util.module_from_spec(spec)
@@ -254,6 +259,170 @@ class CoordinationTests(unittest.TestCase):
             self.root, "B", "old-attempt", "accepted-successor",
             "/root/octoport-control/logs/B/successor.json",
         )
+
+    def test_done_passes_publication_registration_after_disk_gate(self):
+        registry = control.DiskLifecycleRegistry(self.root)
+        registry.seed_baseline()
+        registry.declare_none("C", "TASK-PUBLISHED", "Published isolated task has no remaining temp outputs")
+        registration = "a" * 64
+        with patch.object(control, "advance_task", return_value={"state": "DONE"}) as advance:
+            result = control.advance_queue_task(
+                "C", "TASK-PUBLISHED", "DONE", "receipt.json", "done", registration
+            )
+        self.assertEqual(result, {"state": "DONE"})
+        advance.assert_called_once_with(
+            self.root, "C", "TASK-PUBLISHED", "DONE", "receipt.json", "done",
+            publication_registration=registration,
+        )
+        self.assertEqual(registry.completion_record("C", "TASK-PUBLISHED")["state"], "SEALED")
+
+    def publication_role_fixture(self, name="fixed-C", branch="work/c-integration"):
+        fixed = self.root / name
+        fixed.mkdir()
+        subprocess.run(
+            ["git", "-C", str(fixed), "init", "-b", branch],
+            check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
+        # Deliberately write caller-owned policy too.  The publication location
+        # guard must ignore it and trust control.policy() from the accepted
+        # route source instead.
+        caller_policy = fixed / "docs/development/coordination/OWNERSHIP.json"
+        caller_policy.parent.mkdir(parents=True)
+        caller_policy.write_text(json.dumps({
+            "roles": {"C": {"path": str(fixed), "branch": branch}}
+        }))
+        return fixed
+
+    def test_queue_task_cli_passes_publication_registration_through_accepted_source_and_canonical_cwd(self):
+        registration = "b" * 64
+        fixed = self.publication_role_fixture()
+        authority = {"role_path": str(fixed), "role_branch": "work/c-integration"}
+        with (
+            contextlib.chdir(fixed),
+            patch.object(
+                control, "validate_queue_completion_source_authority",
+                return_value=authority,
+            ) as source_authority,
+            patch.object(control, "advance_queue_task", return_value={"state": "DONE"}) as advance,
+            patch.object(control.sys, "argv", [
+                "control.py", "C", "queue-task",
+                "--task", "published-task", "--task-state", "DONE",
+                "--receipt", "/root/octoport-control/logs/C/completion.json",
+                "--summary", "published",
+                "--publication-registration", registration,
+            ]),
+        ):
+            self.assertEqual(control.main(), 0)
+        source_authority.assert_called_once_with(
+            self.root, registration, control.ROOT, "C", "published-task"
+        )
+        advance.assert_called_once_with(
+            "C", "published-task", "DONE",
+            "/root/octoport-control/logs/C/completion.json",
+            "published", registration,
+        )
+
+    def test_queue_task_cli_rejects_publication_registration_outside_canonical_cwd(self):
+        registration = "b" * 64
+        attacker = self.publication_role_fixture("attacker-C")
+        authority = {
+            "role_path": str(self.root / "trusted-C"),
+            "role_branch": "work/c-integration",
+        }
+        with (
+            contextlib.chdir(attacker),
+            patch.object(
+                control, "validate_queue_completion_source_authority",
+                return_value=authority,
+            ),
+            patch.object(control, "advance_queue_task") as advance,
+            patch.object(control.sys, "argv", [
+                "control.py", "C", "queue-task",
+                "--task", "published-task", "--task-state", "DONE",
+                "--receipt", "/root/octoport-control/logs/C/completion.json",
+                "--summary", "published",
+                "--publication-registration", registration,
+            ]),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "ROLE_LOCATION_MISMATCH"):
+                control.main()
+        advance.assert_not_called()
+
+    def test_arbitrary_committed_control_entrypoint_rejected_before_board_or_disk_mutation(self):
+        queue_fixture = work_queue_test_module.WorkQueueTests(methodName="runTest")
+        queue_fixture.setUp()
+        try:
+            registration, candidate = queue_fixture.publication(candidate_sha="c" * 40)
+            queue_fixture.completion(candidate_sha=candidate)
+            registry = control.DiskLifecycleRegistry(queue_fixture.root)
+            registry.seed_baseline()
+            registry.declare_none("B", "b-auth", "Disposable publication completion fixture")
+            before_board = queue_fixture.path.read_bytes()
+            before_completion = registry.completion_record("B", "b-auth")
+
+            fixed = self.root / "canonical-B"
+            subprocess.run(
+                ["git", "-C", str(fixed.parent), "init", "-b", "work/b-backend", str(fixed)],
+                check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
+            attacker = self.root / "attacker-source"
+            subprocess.run(
+                ["git", "init", "-b", "attacker-route", str(attacker)],
+                check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
+            subprocess.run(["git", "-C", str(attacker), "config", "user.name", "Fixture"], check=True)
+            subprocess.run(["git", "-C", str(attacker), "config", "user.email", "fixture@example.invalid"], check=True)
+            coordination = attacker / "tooling/coordination"
+            coordination.mkdir(parents=True)
+            for name in ("control.py", "task_publication.py"):
+                shutil.copyfile(Path(__file__).with_name(name), coordination / name)
+            policy = attacker / "docs/development/coordination/OWNERSHIP.json"
+            policy.parent.mkdir(parents=True)
+            policy.write_text(json.dumps({"roles": {"B": {
+                "path": str(fixed), "branch": "work/b-backend",
+                "allow": ["**"], "deny": [],
+            }}}))
+            (attacker / "attacker-marker.txt").write_text("not the publication candidate\n")
+            subprocess.run(["git", "-C", str(attacker), "add", "."], check=True)
+            subprocess.run(["git", "-C", str(attacker), "commit", "-m", "self-authored route source"],
+                           check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+            with (
+                contextlib.chdir(fixed),
+                patch.object(control, "ROOT", attacker),
+                patch.object(control, "CONTROL", queue_fixture.root),
+                patch.object(control.sys, "argv", [
+                    "control.py", "B", "queue-task",
+                    "--task", "b-auth", "--task-state", "DONE",
+                    "--receipt", str(queue_fixture.receipt),
+                    "--summary", "must not mutate",
+                    "--publication-registration", registration,
+                ]),
+            ):
+                with self.assertRaisesRegex(RuntimeError, "ROLE_LOCATION_MISMATCH"):
+                    control.main()
+
+            self.assertEqual(queue_fixture.path.read_bytes(), before_board)
+            self.assertEqual(registry.completion_record("B", "b-auth"), before_completion)
+        finally:
+            queue_fixture.tearDown()
+
+    def test_unaccepted_control_source_blocks_before_publication_queue_mutation(self):
+        attacker = self.publication_role_fixture("self-authorized-C")
+        with (
+            contextlib.chdir(attacker),
+            patch.object(
+                control, "validate_queue_completion_source_authority",
+                side_effect=RuntimeError("QUEUE_COMPLETE_ROUTE_SOURCE_NOT_ACCEPTED"),
+            ) as source_authority,
+            patch.object(control, "advance_queue_task") as advance,
+        ):
+            with self.assertRaisesRegex(RuntimeError, "ROLE_LOCATION_MISMATCH"):
+                control.require_publication_queue_location(
+                    "C", "published-task", "b" * 64
+                )
+        source_authority.assert_called_once()
+        advance.assert_not_called()
 
     def test_busy_heavy_slot_does_not_start_a_command(self):
         import fcntl

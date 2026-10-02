@@ -15,6 +15,13 @@ PLAN_IDS = {f"{r}{i:02d}" for r, span in (("A", range(1, 7)), ("B", range(1, 8))
 COMPLETION_KIND = "octoport.work-queue-completion"
 COMPLETION_VERSION = 1
 COMPLETION_VERDICTS = {"PASS", "FAIL", "REWORK_REQUIRED"}
+PUBLICATION_REQUIRED_CI = (
+    "Server CI",
+    "Extension CI",
+    "Extension I1-C1 client",
+    "Documentation CI",
+    "Coordination and release safety",
+)
 _V2_MODULE = None
 
 
@@ -109,6 +116,262 @@ def _receipt_passes(receipt):
             and all(check["verdict"] == "PASS" for check in receipt["checks"]))
 
 
+def _canonical_bytes(value):
+    return (json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
+
+
+def _sha_bytes(raw):
+    return hashlib.sha256(raw).hexdigest()
+
+
+def _publication_task_fingerprint(task):
+    identity = {
+        "id": task.get("id"),
+        "role": task.get("role"),
+        "plan": task.get("plan"),
+        "state": task.get("state"),
+        "claimed_at": task.get("claimed_at"),
+        "requires": task.get("requires"),
+        "paths": task.get("paths"),
+        "result": task.get("result"),
+        "acceptance": task.get("acceptance"),
+        "unblock_receipt": task.get("unblock_receipt"),
+    }
+    return _sha_bytes(_canonical_bytes(identity))
+
+
+def _publication_json(path, *, cap=262144):
+    raw = Path(path).read_bytes()
+    if len(raw) > cap:
+        raise RuntimeError("WORK_QUEUE_PUBLICATION_EVIDENCE_INVALID")
+    try:
+        value = _strict_json_object(raw)
+    except (ValueError, TypeError):
+        raise RuntimeError("WORK_QUEUE_PUBLICATION_EVIDENCE_INVALID") from None
+    return value, raw
+
+
+def _publication_snapshot_shape_valid(task):
+    registration_id = task.get("completion_publication_registration")
+    snapshot = task.get("completion_publication_snapshot")
+    if registration_id is None and snapshot is None:
+        return True
+    expected = {
+        "registration_id", "candidate_sha", "task_id", "role", "task_paths",
+        "ready_receipt", "ready_sha256", "close_receipt", "close_sha256",
+        "task_ref_cleanup_status",
+    }
+    return (
+        isinstance(registration_id, str)
+        and re.fullmatch(r"[0-9a-f]{64}", registration_id) is not None
+        and isinstance(snapshot, dict)
+        and set(snapshot) == expected
+        and isinstance(snapshot.get("task_paths"), list)
+        and all(isinstance(path, str) and path for path in snapshot["task_paths"])
+        and all(
+            isinstance(snapshot.get(key), str) and snapshot[key].strip()
+            for key in (
+                "registration_id", "candidate_sha", "task_id", "role",
+                "ready_receipt", "ready_sha256", "close_receipt", "close_sha256",
+                "task_ref_cleanup_status",
+            )
+        )
+        and re.fullmatch(r"(?:[0-9a-f]{40}|[0-9a-f]{64})", snapshot["candidate_sha"]) is not None
+        and re.fullmatch(r"[0-9a-f]{64}", snapshot["ready_sha256"]) is not None
+        and re.fullmatch(r"[0-9a-f]{64}", snapshot["close_sha256"]) is not None
+    )
+
+
+def _publication_snapshot_valid(task):
+    if not _publication_snapshot_shape_valid(task):
+        return False
+    registration_id = task.get("completion_publication_registration")
+    snapshot = task.get("completion_publication_snapshot")
+    if registration_id is None:
+        return True
+    if not (
+        snapshot["registration_id"] == registration_id
+        and snapshot["candidate_sha"] == task.get("completion_candidate_sha")
+        and snapshot["task_id"] == task.get("id")
+        and snapshot["role"] == task.get("role")
+        and snapshot["task_paths"] == task.get("paths")
+        and snapshot["task_ref_cleanup_status"] in {"DELETED", "ALREADY_ABSENT"}
+    ):
+        return False
+    try:
+        ready_path = Path(snapshot["ready_receipt"]).resolve()
+        publication = ready_path.parents[2]
+        if publication.name != "task-publication" or publication.parent.name != "controllers":
+            return False
+        root = publication.parent.parent
+        completion_receipt = Path(task.get("completion_receipt", "")).resolve()
+        relative_receipt = completion_receipt.relative_to(root.resolve())
+        if not relative_receipt.parts or relative_receipt.parts[0] not in {"logs", "controllers", "artifacts"}:
+            return False
+        candidate, current_snapshot = _publication_completion_candidate(
+            root, task.get("role"), task, registration_id, allow_done=True
+        )
+    except (RuntimeError, OSError, ValueError, IndexError, KeyError, TypeError):
+        return False
+    return candidate == task.get("completion_candidate_sha") and current_snapshot == snapshot
+
+
+def _publication_completion_candidate(root, role, task, registration_id, *, allow_done=False):
+    if not isinstance(registration_id, str) or re.fullmatch(r"[0-9a-f]{64}", registration_id) is None:
+        raise RuntimeError("WORK_QUEUE_PUBLICATION_REGISTRATION_INVALID")
+    publication = Path(root) / "controllers/task-publication"
+    reg_path = publication / "registrations" / f"{registration_id}.json"
+    try:
+        reg, reg_raw = _publication_json(reg_path)
+        core = reg["core"]
+        version = reg["state_version"]
+        if (
+            reg.get("kind") != "octoport.task-publication-registration"
+            or reg.get("version") != 1
+            or reg.get("registration_id") != registration_id
+            or reg.get("registration_sha256") != registration_id
+            or not isinstance(core, dict)
+            or _sha_bytes(_canonical_bytes(core)) != registration_id
+            or type(version) is not int
+            or version < 2
+            or reg.get("state") != "CLOSED"
+        ):
+            raise RuntimeError("WORK_QUEUE_PUBLICATION_REGISTRATION_INVALID")
+
+        history = publication / "states" / registration_id
+        current_state_path = history / f"{version}.json"
+        previous_state_path = history / f"{version - 1}.json"
+        if current_state_path.read_bytes() != reg_raw:
+            raise RuntimeError("WORK_QUEUE_PUBLICATION_STATE_CHAIN_INVALID")
+        previous, previous_raw = _publication_json(previous_state_path)
+        if (
+            _sha_bytes(previous_raw) != reg.get("previous_state_sha256")
+            or previous.get("state") != "PUBLISHED"
+            or previous.get("state_version") != version - 1
+            or previous.get("registration_id") != registration_id
+            or previous.get("core") != core
+        ):
+            raise RuntimeError("WORK_QUEUE_PUBLICATION_STATE_CHAIN_INVALID")
+
+        candidate = core.get("candidate_head")
+        if (
+            core.get("task_id") != task.get("id")
+            or core.get("role") != role
+            or core.get("task_paths") != task.get("paths")
+            or not isinstance(candidate, str)
+            or re.fullmatch(r"(?:[0-9a-f]{40}|[0-9a-f]{64})", candidate) is None
+            or not isinstance(core.get("task_ref"), str)
+            or not isinstance(core.get("task_branch"), str)
+            or reg.get("task_ref_cleanup_status") not in {"DELETED", "ALREADY_ABSENT"}
+        ):
+            raise RuntimeError("WORK_QUEUE_PUBLICATION_TASK_BINDING_INVALID")
+        allowed_task_states = {"IN_PROGRESS", "BLOCKED", "DONE"} if allow_done else {"IN_PROGRESS", "BLOCKED"}
+        if task.get("state") not in allowed_task_states:
+            raise RuntimeError("WORK_QUEUE_PUBLICATION_TASK_BINDING_INVALID")
+        registered_task = dict(task)
+        registered_task["state"] = "IN_PROGRESS"
+        if _publication_task_fingerprint(registered_task) != core.get("task_fingerprint"):
+            raise RuntimeError("WORK_QUEUE_PUBLICATION_TASK_BINDING_INVALID")
+
+        ready_descriptor = reg.get("ready_receipt")
+        if not isinstance(ready_descriptor, dict) or set(ready_descriptor) != {"path", "sha256"}:
+            raise RuntimeError("WORK_QUEUE_PUBLICATION_READY_INVALID")
+        ready_path = Path(ready_descriptor["path"]).resolve()
+        expected_ready_dir = (publication / "ready" / registration_id).resolve()
+        if ready_path.parent != expected_ready_dir or not re.fullmatch(r"[1-9][0-9]*\.json", ready_path.name):
+            raise RuntimeError("WORK_QUEUE_PUBLICATION_READY_INVALID")
+        ready, ready_raw = _publication_json(ready_path)
+        if _sha_bytes(ready_raw) != ready_descriptor["sha256"]:
+            raise RuntimeError("WORK_QUEUE_PUBLICATION_READY_INVALID")
+        ci = ready.get("ci")
+        runs = ci.get("runs") if isinstance(ci, dict) else None
+        ready_version = ready.get("registration_state_version")
+        if (
+            ready.get("kind") != "octoport.task-publication-ready"
+            or ready.get("version") != 1
+            or ready.get("registration_id") != registration_id
+            or ready.get("registration_sha256") != registration_id
+            or type(ready_version) is not int
+            or ready_version < 1
+            or ready_version >= version
+            or ready.get("task_id") != task.get("id")
+            or ready.get("role") != role
+            or ready.get("candidate_head") != candidate
+            or ready.get("candidate_tree") != core.get("candidate_tree")
+            or ready.get("base_sha") != core.get("base_sha")
+            or ready.get("task_ref") != core.get("task_ref")
+            or ready.get("task_branch") != core.get("task_branch")
+            or ready.get("task_fingerprint") != core.get("task_fingerprint")
+            or ready.get("review") != core.get("review")
+            or ready.get("bundle_manifest_sha256") != core.get("bundle_manifest_sha256")
+            or not isinstance(ci, dict)
+            or ci.get("status") != "PASS"
+            or ci.get("head") != candidate
+            or ci.get("branch") != core.get("task_branch")
+            or not isinstance(runs, list)
+            or len(runs) != len(PUBLICATION_REQUIRED_CI)
+        ):
+            raise RuntimeError("WORK_QUEUE_PUBLICATION_READY_INVALID")
+        ready_state, _ready_state_raw = _publication_json(history / f"{ready_version}.json")
+        if (
+            ready_state.get("registration_id") != registration_id
+            or ready_state.get("state") != "READY"
+            or ready_state.get("state_version") != ready_version
+            or ready_state.get("core") != core
+            or ready_state.get("ready_receipt") != ready_descriptor
+        ):
+            raise RuntimeError("WORK_QUEUE_PUBLICATION_READY_INVALID")
+        by_name = {row.get("name"): row for row in runs if isinstance(row, dict)}
+        if set(by_name) != set(PUBLICATION_REQUIRED_CI):
+            raise RuntimeError("WORK_QUEUE_PUBLICATION_READY_INVALID")
+        run_ids = []
+        for name in PUBLICATION_REQUIRED_CI:
+            row = by_name[name]
+            if (
+                type(row.get("id")) is not int
+                or row["id"] <= 0
+                or row.get("status") != "completed"
+                or row.get("conclusion") != "success"
+            ):
+                raise RuntimeError("WORK_QUEUE_PUBLICATION_READY_INVALID")
+            run_ids.append(row["id"])
+        if len(set(run_ids)) != len(PUBLICATION_REQUIRED_CI):
+            raise RuntimeError("WORK_QUEUE_PUBLICATION_READY_INVALID")
+
+        close_descriptor = reg.get("close_receipt")
+        if not isinstance(close_descriptor, dict) or set(close_descriptor) != {"path", "sha256"}:
+            raise RuntimeError("WORK_QUEUE_PUBLICATION_CLOSE_INVALID")
+        close_path = Path(close_descriptor["path"]).resolve()
+        expected_close = (publication / "close" / registration_id / "receipt.json").resolve()
+        if close_path != expected_close:
+            raise RuntimeError("WORK_QUEUE_PUBLICATION_CLOSE_INVALID")
+        close, close_raw = _publication_json(close_path)
+        if (
+            _sha_bytes(close_raw) != close_descriptor["sha256"]
+            or close.get("kind") != "octoport.task-publication-close"
+            or close.get("version") != 1
+            or close.get("registration_id") != registration_id
+            or close.get("state_before") != "PUBLISHED"
+        ):
+            raise RuntimeError("WORK_QUEUE_PUBLICATION_CLOSE_INVALID")
+    except (OSError, KeyError, TypeError, ValueError):
+        raise RuntimeError("WORK_QUEUE_PUBLICATION_EVIDENCE_INVALID") from None
+
+    snapshot = {
+        "registration_id": registration_id,
+        "candidate_sha": candidate,
+        "task_id": task["id"],
+        "role": role,
+        "task_paths": task["paths"],
+        "ready_receipt": str(ready_path),
+        "ready_sha256": ready_descriptor["sha256"],
+        "close_receipt": str(close_path),
+        "close_sha256": close_descriptor["sha256"],
+        "task_ref_cleanup_status": reg["task_ref_cleanup_status"],
+    }
+    return candidate, snapshot
+
+
 def _strict_completion_valid(task):
     if "completion_receipt_format" not in task:
         # Pre-gate board rows are historical until explicitly reopened.
@@ -118,7 +381,7 @@ def _strict_completion_valid(task):
         return False
     receipt = _completion_receipt(task.get("completion_receipt", ""), task["id"],
                                   task.get("completion_candidate_sha", ""))
-    return _receipt_passes(receipt)
+    return _receipt_passes(receipt) and _publication_snapshot_valid(task)
 
 
 def _task_satisfies_dependencies(task):
@@ -134,7 +397,8 @@ def _strict_blocker_successor_valid(task):
     current = _completion_receipt(
         task.get("completion_receipt", ""), task["id"], task.get("completion_candidate_sha", "")
     )
-    return _receipt_passes(current) and current == task["completion_receipt_snapshot"]
+    return (_strict_completion_valid(task)
+            and current == task["completion_receipt_snapshot"])
 
 
 def board_snapshot(root):
@@ -185,6 +449,9 @@ def _validate_logical_board(board, *, enforce_v1_count):
             raise ValueError("result")
         if task["state"] == "DONE" and not task.get("completion_receipt"):
             raise ValueError("completion receipt")
+        if task.get("completion_publication_registration") is not None or task.get("completion_publication_snapshot") is not None:
+            if task["state"] != "DONE" or not _publication_snapshot_shape_valid(task):
+                raise ValueError("publication completion evidence")
         if task["state"] == "BLOCKED" and not task["requires"] and not task.get("blocked_reason"):
             raise ValueError("external blocker")
         resolution = task.get("blocker_resolution")
@@ -532,10 +799,13 @@ def status_work(root, role, dirty=False, waiting_proof=None):
     return result
 
 
-def advance_task(root, role, identifier, state, receipt="", reason="", *, expected_task=None):
+def advance_task(root, role, identifier, state, receipt="", reason="", *, expected_task=None,
+                 publication_registration=""):
     root = Path(root)
     if state not in {"IN_PROGRESS", "BLOCKED", "DONE"}:
         raise RuntimeError("WORK_QUEUE_TRANSITION_INVALID")
+    if publication_registration and state != "DONE":
+        raise RuntimeError("WORK_QUEUE_PUBLICATION_COMPLETION_DONE_ONLY")
     # Same lock order for every writer; no operation waits for a test under lock.
     with (root / (role + ".lock")).open("a+") as role_lock:
         fcntl.flock(role_lock, fcntl.LOCK_EX)
@@ -599,7 +869,13 @@ def advance_task(root, role, identifier, state, receipt="", reason="", *, expect
                 if not proof or not proof.is_file() or not relative.parts or relative.parts[0] not in {"logs", "controllers", "artifacts"}:
                     raise RuntimeError("WORK_QUEUE_COMPLETION_RECEIPT_REQUIRED")
                 if state == "DONE":
-                    candidate_sha = current_worktree_head()
+                    publication_snapshot = None
+                    if publication_registration:
+                        candidate_sha, publication_snapshot = _publication_completion_candidate(
+                            root, role, task, publication_registration
+                        )
+                    else:
+                        candidate_sha = current_worktree_head()
                     acceptance = _completion_receipt(proof, identifier, candidate_sha)
                     if not _receipt_passes(acceptance):
                         raise RuntimeError("WORK_QUEUE_STRICT_PASS_RECEIPT_REQUIRED")
@@ -607,6 +883,9 @@ def advance_task(root, role, identifier, state, receipt="", reason="", *, expect
                     task["completion_receipt_format"] = COMPLETION_VERSION
                     task["completion_candidate_sha"] = candidate_sha
                     task["completion_receipt_snapshot"] = acceptance
+                    if publication_snapshot is not None:
+                        task["completion_publication_registration"] = publication_registration
+                        task["completion_publication_snapshot"] = publication_snapshot
                 elif state == "IN_PROGRESS":
                     task["unblock_receipt"] = str(proof)
             if state == "BLOCKED":
