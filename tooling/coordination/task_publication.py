@@ -555,12 +555,59 @@ def _global_config_digest() -> str:
     return _sha_bytes(proc.stdout)
 
 
-def _common_config_digest(worktree: Path) -> str:
+def _common_config_path(worktree: Path) -> Path:
     common = Path(_git(worktree, "rev-parse", "--git-common-dir"))
     if not common.is_absolute():
         common = (worktree / common).resolve()
-    path = common / "config"
+    return common / "config"
+
+
+def _common_config_digest(worktree: Path) -> str:
+    path = _common_config_path(worktree)
     return _sha_file(path) if path.is_file() else _sha_bytes(b"")
+
+
+def _common_config_matches_registered(worktree: Path, expected_sha256: str) -> bool:
+    """Allow only normal append-only branch tracking after registration.
+
+    A normal git worktree add with a new branch appends a branch section to the
+    common repository config. That bookkeeping is unrelated to this route's
+    worktree-local hooksPath and pushurl, but the historical whole-file digest
+    made older open registrations impossible to close after another worktree
+    was created.
+
+    Compatibility is deliberately byte-based and one-way: the current file must
+    either match exactly or become the registered bytes after stripping only a
+    suffix of complete branch sections whose non-empty keys are exactly remote
+    and merge. Any other common-config edit remains fail-closed.
+    """
+    path = _common_config_path(worktree)
+    raw = path.read_bytes() if path.is_file() else b""
+    if _sha_bytes(raw) == expected_sha256:
+        return True
+    lines = raw.splitlines(keepends=True)
+    while lines:
+        headers = [
+            index for index, line in enumerate(lines)
+            if line.lstrip().startswith(b"[")
+        ]
+        if not headers:
+            return False
+        start = headers[-1]
+        header = lines[start].strip()
+        if re.fullmatch(br'\[branch "[^"\r\n]+"\]', header) is None:
+            return False
+        body = lines[start + 1:]
+        for line in body:
+            item = line.strip()
+            if not item:
+                continue
+            if re.fullmatch(br"(?:remote|merge)\s*=\s*\S.*", item) is None:
+                return False
+        lines = lines[:start]
+        if _sha_bytes(b"".join(lines)) == expected_sha256:
+            return True
+    return False
 
 
 def _fixed_role_config_digests(ownership: dict[str, Any]) -> dict[str, str]:
@@ -2228,8 +2275,10 @@ def close_registration(root: Path, registration_id: str) -> dict[str, Any]:
         close_receipt_path = close_root / "receipt.json"
         close_intent_path = close_root / "intent.json"
 
-        # Config/global drift checks before destructive restore.
-        if _common_config_digest(worktree) != core["common_config_sha256"]:
+        # Config/global drift checks before destructive restore. Normal creation
+        # of later worktree branches may append only branch remote/merge
+        # tracking sections; every other common-config change remains fail-closed.
+        if not _common_config_matches_registered(worktree, core["common_config_sha256"]):
             raise PublicationError("COMMON_CONFIG_DRIFT")
         if _global_config_digest() != core["global_config_sha256"]:
             raise PublicationError("GLOBAL_CONFIG_DRIFT")

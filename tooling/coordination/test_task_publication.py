@@ -634,6 +634,97 @@ class PublicationTests(unittest.TestCase):
         route._set_config_values(self.work, "core.hooksPath", reg["installed_config"]["core.hooksPath"])
         self.assertEqual(route.close_registration(self.control, reg["registration_id"])["state"], "CLOSED")
 
+    def test_close_allows_append_only_normal_branch_tracking_sections(self):
+        reg = self.register()
+        reg = route._state_transition(
+            self.control, reg["registration_id"], {"REGISTERED"}, "REVOKED"
+        )
+        self.git(self.work, "config", "branch.later-worktree.remote", "origin")
+        self.git(
+            self.work, "config", "branch.later-worktree.merge", "refs/heads/main"
+        )
+        self.git(self.work, "config", "branch.second-worktree.remote", "origin")
+        self.git(
+            self.work, "config", "branch.second-worktree.merge", "refs/heads/main"
+        )
+        self.assertNotEqual(
+            route._common_config_digest(self.work), reg["core"]["common_config_sha256"]
+        )
+        self.assertTrue(
+            route._common_config_matches_registered(
+                self.work, reg["core"]["common_config_sha256"]
+            )
+        )
+        self.assertEqual(
+            route.close_registration(self.control, reg["registration_id"])["state"],
+            "CLOSED",
+        )
+
+    def test_close_rejects_branch_suffix_with_nontracking_key(self):
+        reg = self.register()
+        reg = route._state_transition(
+            self.control, reg["registration_id"], {"REGISTERED"}, "REVOKED"
+        )
+        self.git(self.work, "config", "branch.later-worktree.remote", "origin")
+        self.git(
+            self.work, "config", "branch.later-worktree.merge", "refs/heads/main"
+        )
+        self.git(
+            self.work, "config", "branch.later-worktree.pushRemote", "unexpected"
+        )
+        self.assertFalse(
+            route._common_config_matches_registered(
+                self.work, reg["core"]["common_config_sha256"]
+            )
+        )
+        with self.assertRaisesRegex(RuntimeError, "COMMON_CONFIG_DRIFT"):
+            route.close_registration(self.control, reg["registration_id"])
+
+    def test_close_rejects_empty_branch_tracking_values(self):
+        reg = self.register()
+        reg = route._state_transition(
+            self.control, reg["registration_id"], {"REGISTERED"}, "REVOKED"
+        )
+        for key in ["remote", "merge"]:
+            with self.subTest(key=key):
+                other = "merge" if key == "remote" else "remote"
+                other_value = "refs/heads/main" if other == "merge" else "origin"
+                self.git(self.work, "config", f"branch.empty-{key}.{other}", other_value)
+                self.git(self.work, "config", f"branch.empty-{key}.{key}", "")
+                self.assertFalse(
+                    route._common_config_matches_registered(
+                        self.work, reg["core"]["common_config_sha256"]
+                    )
+                )
+                with self.assertRaisesRegex(RuntimeError, "COMMON_CONFIG_DRIFT"):
+                    route.close_registration(self.control, reg["registration_id"])
+                self.git(
+                    self.work, "config", "--remove-section", f"branch.empty-{key}"
+                )
+        self.assertEqual(
+            route.close_registration(self.control, reg["registration_id"])["state"],
+            "CLOSED",
+        )
+
+    def test_close_rejects_preexisting_common_config_edit_before_safe_branch_suffix(self):
+        self.git(self.work, "config", "octoport.fixture", "before")
+        reg = self.register()
+        reg = route._state_transition(
+            self.control, reg["registration_id"], {"REGISTERED"}, "REVOKED"
+        )
+        self.git(self.work, "config", "octoport.fixture", "after")
+        self.git(self.work, "config", "branch.later-worktree.remote", "origin")
+        self.git(
+            self.work, "config", "branch.later-worktree.merge", "refs/heads/main"
+        )
+        self.assertFalse(
+            route._common_config_matches_registered(
+                self.work, reg["core"]["common_config_sha256"]
+            )
+        )
+        with self.assertRaisesRegex(RuntimeError, "COMMON_CONFIG_DRIFT"):
+            route.close_registration(self.control, reg["registration_id"])
+
     def test_supersede_ignores_local_url_rewrite_for_transport_then_close_blocks_on_drift(self):
         reg = self.register()
         reg = route._push_operation(self.control, reg["registration_id"], "TASK_REF")
