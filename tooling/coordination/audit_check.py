@@ -6,6 +6,7 @@ import math
 import json
 from pathlib import Path
 from work_queue import load_board, blocker_attention
+from disk_lifecycle import Registry as DiskLifecycleRegistry
 
 CONTROL = Path("/root/octoport-control")
 LABELS = {
@@ -15,6 +16,14 @@ LABELS = {
     "NO_NEW_OCCURRENCE": "Нового случая в проверенном объёме не найдено",
     "INSUFFICIENT_EVIDENCE": "Недостаточно данных",
 }
+
+
+def disk_lifecycle_guard(root):
+    try:
+        return DiskLifecycleRegistry(root).status()['managed_guard']
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        return {'guard_unverified': True, 'reason': str(exc),
+                'baseline_required': False, 'unregistered_managed_paths': []}
 
 
 def snapshot(root):
@@ -28,6 +37,7 @@ def snapshot(root):
     return {
         "registry_revision": registry["revision"], "states": states,
         "owner_attention": blocker_attention(load_board(root)),
+        "disk_lifecycle": disk_lifecycle_guard(root),
         "records": [{key: item.get(key) for key in (
             "id", "title", "status", "recurrences_after_prior_fix", "last_observed_at")}
             for item in registry["records"]],
@@ -154,7 +164,12 @@ def main():
     args = parser.parse_args()
     if args.mode == "alerts":
         text, alerts = render_blockers(args.root)
-        print(json.dumps({"owner_attention": alerts, "message_delivered": False}, ensure_ascii=False, indent=2))
+        disk_guard = disk_lifecycle_guard(args.root)
+        disk_action = bool(disk_guard.get('guard_unverified') or disk_guard.get('baseline_required') or
+                           disk_guard.get('unregistered_managed_paths'))
+        print(json.dumps({"owner_attention": alerts, "disk_lifecycle": disk_guard,
+                          "action_required": bool(alerts) or disk_action,
+                          "message_delivered": False}, ensure_ascii=False, indent=2))
         return
     if args.mode == "snapshot":
         print(json.dumps(snapshot(args.root), ensure_ascii=False, indent=2))
