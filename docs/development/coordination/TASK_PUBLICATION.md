@@ -73,9 +73,12 @@ Each subcommand has `--help` for its exact required arguments.
 10. `close` restores the exact prior route-owned worktree configuration, preserving
    absent versus empty values, ordered multi-values, and unrelated settings.
    `supersede` reaches this same close path after the stale ref is retired. Same-key,
-   common/global or fixed-role config drift fails closed and is never overwritten;
-   a successfully deleted stale ref may therefore remain `REVOKED` until config
-   reconciliation permits `close`. Registration/state/evidence history is retained.
+   global and fixed-role config drift fails closed and is never overwritten. Common
+   config also fails closed except for a byte-proven append-only suffix of ordinary
+   `branch` sections containing only `remote`/`merge` tracking written by later
+   normal worktree creation; stripping only that suffix must restore the exact
+   registered common-config SHA. Any other common-config key, edit or reordering
+   remains `COMMON_CONFIG_DRIFT`. Registration/state/evidence history is retained.
 
 ## Interruption and recovery
 
