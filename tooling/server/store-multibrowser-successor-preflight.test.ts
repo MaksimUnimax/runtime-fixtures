@@ -162,6 +162,7 @@ describe("multi-browser successor STORE preflight", () => {
     )!;
     expect(opera).toMatchObject({
       observedBrowserVersion: "136.0.6008.22",
+      runtimeCompatibilityVersion: "136.0.0.0",
       packageKind: "chromium",
       profileKey: STORE1_PROFILE_KEY,
       profileContentSha256: STORE1_PROFILE_SHA256,
@@ -181,6 +182,7 @@ describe("multi-browser successor STORE preflight", () => {
       result.profiles.find((item) => item.browserFamily === "chrome"),
     ).toMatchObject({
       observedBrowserVersion: "147.0.7727.116",
+      runtimeCompatibilityVersion: "147.0.0.0",
       packageKind: "chromium",
       profileKey: "chatgpt-web-chrome-v1",
       reusesExistingOperaProfile: false,
@@ -196,6 +198,7 @@ describe("multi-browser successor STORE preflight", () => {
       result.profiles.find((item) => item.browserFamily === "yandex_chromium"),
     ).toMatchObject({
       observedBrowserVersion: "26.8.1.1111",
+      runtimeCompatibilityVersion: "26.8.0.0",
       packageKind: "chromium",
       profileKey: "chatgpt-web-yandex-v1",
       approvedMinimumBrowserVersion: null,
@@ -209,6 +212,7 @@ describe("multi-browser successor STORE preflight", () => {
       result.profiles.find((item) => item.browserFamily === "firefox"),
     ).toMatchObject({
       observedBrowserVersion: "155.0.1",
+      runtimeCompatibilityVersion: "155.0",
       packageKind: "firefox",
       profileKey: "chatgpt-web-firefox-v1",
       approvedMinimumBrowserVersion: null,
@@ -346,6 +350,41 @@ describe("multi-browser successor STORE preflight", () => {
     expect(() => assertMultibrowserProfileTargets(profiles)).toThrow(
       "MULTIBROWSER_PROFILE_BROWSER_MINIMUM_UNAUTHORIZED",
     );
+  });
+
+  it("rejects product-version substitution for runtime compatibility evidence", () => {
+    const f = fixture();
+    const result = readMultibrowserSuccessorTarget(f.manifestPath);
+    const profiles = JSON.parse(
+      JSON.stringify(result.profiles),
+    ) as SuccessorProfileTarget[];
+    const chrome = profiles.find((item) => item.browserFamily === "chrome")!;
+    (
+      chrome as unknown as { runtimeCompatibilityVersion?: string }
+    ).runtimeCompatibilityVersion = chrome.observedBrowserVersion;
+    expect(() => assertMultibrowserProfileTargets(profiles)).toThrow(
+      "MULTIBROWSER_PROFILE_RUNTIME_VERSION_EVIDENCE_INVALID",
+    );
+  });
+
+  it("requires approved minimums to be satisfied by runtime compatibility evidence", () => {
+    const f = fixture();
+    const result = readMultibrowserSuccessorTarget(f.manifestPath);
+
+    for (const runtimeCompatibilityVersion of ["", "135.9.9.9"]) {
+      const profiles = JSON.parse(
+        JSON.stringify(result.profiles),
+      ) as SuccessorProfileTarget[];
+      const opera = profiles.find((item) => item.browserFamily === "opera")!;
+      (
+        opera as unknown as { runtimeCompatibilityVersion?: string }
+      ).runtimeCompatibilityVersion = runtimeCompatibilityVersion;
+      expect(() => assertMultibrowserProfileTargets(profiles)).toThrow(
+        runtimeCompatibilityVersion
+          ? "MULTIBROWSER_PROFILE_RUNTIME_BELOW_APPROVED_MINIMUM"
+          : "MULTIBROWSER_PROFILE_RUNTIME_VERSION_EVIDENCE_INVALID",
+      );
+    }
   });
 
   it("fails closed on a browser/profile scope mismatch", () => {

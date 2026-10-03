@@ -57,6 +57,7 @@ export type SuccessorPackageTarget = {
 export type SuccessorProfileTarget = {
   browserFamily: BrowserTargetFamily;
   observedBrowserVersion: string;
+  runtimeCompatibilityVersion: string;
   packageKind: PackageKind;
   profileKey: string;
   profileContentSha256: string;
@@ -102,6 +103,7 @@ const BROWSER_SPECS = [
   {
     browserFamily: "opera",
     observedBrowserVersion: "136.0.6008.22",
+    runtimeCompatibilityVersion: "136.0.0.0",
     packageKind: "chromium",
     profileKey: STORE1_PROFILE_KEY,
     reusesExistingOperaProfile: true,
@@ -110,6 +112,7 @@ const BROWSER_SPECS = [
   {
     browserFamily: "chrome",
     observedBrowserVersion: "147.0.7727.116",
+    runtimeCompatibilityVersion: "147.0.0.0",
     packageKind: "chromium",
     profileKey: "chatgpt-web-chrome-v1",
     reusesExistingOperaProfile: false,
@@ -118,6 +121,7 @@ const BROWSER_SPECS = [
   {
     browserFamily: "yandex_chromium",
     observedBrowserVersion: "26.8.1.1111",
+    runtimeCompatibilityVersion: "26.8.0.0",
     packageKind: "chromium",
     profileKey: "chatgpt-web-yandex-v1",
     reusesExistingOperaProfile: false,
@@ -126,6 +130,7 @@ const BROWSER_SPECS = [
   {
     browserFamily: "firefox",
     observedBrowserVersion: "155.0.1",
+    runtimeCompatibilityVersion: "155.0",
     packageKind: "firefox",
     profileKey: "chatgpt-web-firefox-v1",
     reusesExistingOperaProfile: false,
@@ -136,6 +141,35 @@ const BROWSER_SPECS = [
 function requiredString(value: unknown, code: string): string {
   if (typeof value !== "string" || value.length === 0) throw new Error(code);
   return value;
+}
+
+function parseBrowserVersion(value: string): number[] | null {
+  const parts = value.split(".");
+  if (
+    parts.length < 1 ||
+    parts.length > 4 ||
+    parts.some((part) => !/^(?:0|[1-9]\d*)$/.test(part))
+  )
+    return null;
+  const numbers = parts.map(Number);
+  if (
+    numbers.some(
+      (part) => !Number.isSafeInteger(part) || part < 0 || part > 2147483647,
+    )
+  )
+    return null;
+  return [...numbers, ...Array(4 - numbers.length).fill(0)];
+}
+
+function browserVersionAtLeast(actual: string, minimum: string): boolean {
+  const left = parseBrowserVersion(actual);
+  const right = parseBrowserVersion(minimum);
+  if (!left || !right) return false;
+  for (let index = 0; index < 4; index += 1) {
+    if (left[index]! > right[index]!) return true;
+    if (left[index]! < right[index]!) return false;
+  }
+  return true;
 }
 
 function packageTarget(
@@ -205,6 +239,7 @@ function profileTarget(
     return {
       browserFamily: "opera",
       observedBrowserVersion: spec.observedBrowserVersion,
+      runtimeCompatibilityVersion: spec.runtimeCompatibilityVersion,
       packageKind: "chromium",
       profileKey: STORE1_PROFILE_KEY,
       profileContentSha256: STORE1_PROFILE_SHA256,
@@ -241,6 +276,7 @@ function profileTarget(
   return {
     browserFamily: spec.browserFamily,
     observedBrowserVersion: spec.observedBrowserVersion,
+    runtimeCompatibilityVersion: spec.runtimeCompatibilityVersion,
     packageKind: spec.packageKind,
     profileKey: spec.profileKey,
     profileContentSha256: validated.contentSha256,
@@ -268,8 +304,25 @@ export function assertMultibrowserProfileTargets(
     const profile = profiles.find(
       (candidate) => candidate.browserFamily === spec.browserFamily,
     );
+    if (!profile) throw new Error("MULTIBROWSER_PROFILE_SCOPE_INVALID");
+
+    const expectedMinimum = spec.approvedProfileMinimumBrowserVersion;
+    if (!parseBrowserVersion(profile.runtimeCompatibilityVersion))
+      throw new Error("MULTIBROWSER_PROFILE_RUNTIME_VERSION_EVIDENCE_INVALID");
     if (
-      !profile ||
+      expectedMinimum !== null &&
+      !browserVersionAtLeast(
+        profile.runtimeCompatibilityVersion,
+        expectedMinimum,
+      )
+    )
+      throw new Error("MULTIBROWSER_PROFILE_RUNTIME_BELOW_APPROVED_MINIMUM");
+    if (
+      profile.runtimeCompatibilityVersion !== spec.runtimeCompatibilityVersion
+    )
+      throw new Error("MULTIBROWSER_PROFILE_RUNTIME_VERSION_EVIDENCE_INVALID");
+
+    if (
       profile.packageKind !== spec.packageKind ||
       profile.profileKey !== spec.profileKey ||
       profile.observedBrowserVersion !== spec.observedBrowserVersion ||
@@ -283,7 +336,6 @@ export function assertMultibrowserProfileTargets(
     )
       throw new Error("MULTIBROWSER_PROFILE_SCOPE_INVALID");
 
-    const expectedMinimum = spec.approvedProfileMinimumBrowserVersion;
     if (expectedMinimum === null) {
       if (profile.compatibility.minimumBrowserVersions.length !== 0)
         throw new Error("MULTIBROWSER_PROFILE_BROWSER_MINIMUM_UNAUTHORIZED");
