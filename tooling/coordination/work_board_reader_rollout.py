@@ -1,11 +1,14 @@
 """Governed two-file reader rollout with exact rollback and semantic readback."""
 from __future__ import annotations
+import ctypes
+import errno
 import fcntl
 import hashlib
 import importlib.util
 import json
 import os
 import re
+import secrets
 import stat
 import subprocess
 import sys
@@ -14,6 +17,9 @@ import work_board_v2 as v2
 
 ROLES = ("A", "B", "C", "ORG")
 HEX64 = re.compile(r"^[0-9a-f]{64}$")
+SEMANTIC_TRANSITION_KIND = "octoport.work-board-reader-semantic-transition"
+SEMANTIC_TRANSITION_VERSION = 1
+SAFE_PROOF_TOP = {"logs", "controllers", "artifacts"}
 
 
 def _sha(raw): return hashlib.sha256(raw).hexdigest()
@@ -31,29 +37,136 @@ def _path(path, *, directory=False, missing=False):
     if not directory and info.st_nlink != 1: raise RuntimeError("WORK_BOARD_V2_ROLLOUT_PATH_INVALID")
     return info
 
-def _atomic(path: Path, raw: bytes, mode: int):
-    path = Path(path)
-    tmp = path.with_name("." + path.name + ".rollout.tmp")
-    _path(path, missing=True); _path(tmp, missing=True)
-    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), mode)
+def _rename_noreplace(source: Path, target: Path):
+    """Atomically rename without replacing an existing target."""
+    source = Path(source)
+    target = Path(target)
+    libc = ctypes.CDLL(None, use_errno=True)
+    renameat2 = getattr(libc, "renameat2", None)
+    if renameat2 is None:
+        raise RuntimeError("WORK_BOARD_V2_ROLLOUT_RENAME_NOREPLACE_UNAVAILABLE")
+    renameat2.argtypes = [
+        ctypes.c_int, ctypes.c_char_p,
+        ctypes.c_int, ctypes.c_char_p,
+        ctypes.c_uint,
+    ]
+    renameat2.restype = ctypes.c_int
+    at_fdcwd = -100
+    rename_noreplace = 1
+    result = renameat2(
+        at_fdcwd, os.fsencode(source),
+        at_fdcwd, os.fsencode(target),
+        rename_noreplace,
+    )
+    if result == 0:
+        return
+    code = ctypes.get_errno()
+    if code == errno.ENOENT:
+        raise FileNotFoundError(code, os.strerror(code), str(source))
+    if code == errno.EEXIST:
+        raise FileExistsError(code, os.strerror(code), str(target))
+    raise OSError(code, os.strerror(code), str(source))
+
+
+def _rollback_prior_missing(
+    target: Path,
+    installed_identity,
+    *,
+    scratch_dir: Path,
+):
+    """Restore an originally absent target without unlinking an untrusted pathname."""
+    target = Path(target)
+    scratch = Path(scratch_dir)
+    _path(scratch, directory=True)
+    target_parent = _path(target.parent, directory=True)
+    scratch_info = _path(scratch, directory=True)
+    if target_parent.st_dev != scratch_info.st_dev:
+        raise RuntimeError("WORK_BOARD_V2_ROLLOUT_SCRATCH_FILESYSTEM_MISMATCH")
+
+    if installed_identity is None:
+        try:
+            target.lstat()
+        except FileNotFoundError:
+            return
+        raise RuntimeError("WORK_BOARD_V2_ROLLOUT_ROLLBACK_OWNERSHIP_UNPROVEN")
+
+    quarantine = scratch / (
+        f".{target.name}.rollback.{os.getpid()}.{secrets.token_hex(8)}.preserved"
+    )
+    _path(quarantine, missing=True)
     try:
+        _rename_noreplace(target, quarantine)
+    except FileNotFoundError:
+        return
+
+    moved = quarantine.lstat()
+    moved_identity = (moved.st_dev, moved.st_ino)
+    if moved_identity != tuple(installed_identity):
+        # The pathname was replaced by another actor. Put that object back only
+        # if the original name is still free; never overwrite/delete it.
+        try:
+            _rename_noreplace(quarantine, target)
+        except FileExistsError:
+            # Both objects survive: the replacement stays quarantined and the
+            # newly occupied target is untouched. Manual reconciliation is needed.
+            pass
+        v2._fsync_dir(target.parent)
+        v2._fsync_dir(scratch)
+        raise RuntimeError("WORK_BOARD_V2_ROLLOUT_ROLLBACK_OWNERSHIP_DRIFT")
+
+    # The exact rollout-owned inode is now out of the target namespace. Keep it
+    # in control-root scratch as failure evidence instead of unlinking a pathname.
+    v2._fsync_dir(target.parent)
+    v2._fsync_dir(scratch)
+
+
+def _atomic(path: Path, raw: bytes, mode: int, *, scratch_dir: Path | None = None):
+    path = Path(path)
+    scratch = Path(scratch_dir) if scratch_dir is not None else path.parent
+    _path(path, missing=True)
+    _path(scratch, directory=True)
+    target_parent = _path(path.parent, directory=True)
+    scratch_info = _path(scratch, directory=True)
+    if target_parent.st_dev != scratch_info.st_dev:
+        raise RuntimeError("WORK_BOARD_V2_ROLLOUT_SCRATCH_FILESYSTEM_MISMATCH")
+    tmp = scratch / (
+        f".{path.name}.rollout.{os.getpid()}.{secrets.token_hex(8)}.tmp"
+    )
+    _path(tmp, missing=True)
+    fd = None
+    owned_identity = None
+    try:
+        fd = os.open(
+            tmp,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
+            0o600,
+        )
+        opened = os.fstat(fd)
+        owned_identity = (opened.st_dev, opened.st_ino)
+        os.fchmod(fd, mode)
         view = memoryview(raw)
         while view:
             n = os.write(fd, view)
             if n <= 0: raise OSError("short write")
             view = view[n:]
         os.fsync(fd)
-    finally: os.close(fd)
-    try:
+        current = _path(tmp)
+        if (current.st_dev, current.st_ino) != owned_identity:
+            raise RuntimeError("WORK_BOARD_V2_ROLLOUT_TEMP_IDENTITY_DRIFT")
         os.replace(tmp, path)
+        placed = _path(path)
+        if (placed.st_dev, placed.st_ino) != owned_identity:
+            raise RuntimeError("WORK_BOARD_V2_ROLLOUT_TEMP_IDENTITY_DRIFT")
         v2._fsync_dir(path.parent)
+        os.close(fd); fd = None
+        return owned_identity
     except Exception:
-        try:
-            info = _path(tmp)
-            if info.st_nlink == 1 and _read(tmp) == raw:
-                tmp.unlink(); v2._fsync_dir(tmp.parent)
-        except (OSError, RuntimeError):
-            pass
+        if fd is not None:
+            try: os.close(fd)
+            except OSError: pass
+        # Never unlink a pathname after a separate identity check: another
+        # process could replace that name between check and unlink. Failed
+        # writes remain in the control-root scratch area for explicit cleanup.
         raise
 
 def _module(path: Path, label: str):
@@ -94,7 +207,8 @@ def _unrelated_status(status: str, repo: Path, targets: set[Path]):
 
 def _semantic(module, root: Path):
     board = module.load_board(root)
-    if board.get("version") != 1: raise RuntimeError("WORK_BOARD_V2_ROLLOUT_V1_SEMANTICS_MISMATCH")
+    if board.get("version") not in {1, 2}:
+        raise RuntimeError("WORK_BOARD_V2_ROLLOUT_BOARD_VERSION_UNSUPPORTED")
     tasks = board["tasks"]
     return {
         "board": board,
@@ -115,15 +229,165 @@ def _raw_hash(path: Path):
     if not os.path.lexists(path): return None
     return _sha(_read(path, 64 * 1024 * 1024))
 
+def _semantic_digest(value):
+    return _sha(v2._canonical_bytes(value))
+
+def _board_binding(root: Path):
+    board_path = Path(root) / "controllers/work-board.json"
+    event_path = Path(root) / "controllers/work-board-events.jsonl"
+    raw = _read(board_path, 64 * 1024 * 1024)
+    try:
+        board = json.loads(raw)
+    except (ValueError, TypeError):
+        raise RuntimeError("WORK_BOARD_V2_ROLLOUT_BOARD_INVALID") from None
+    revision = board.get("revision") if isinstance(board, dict) else None
+    if type(revision) is not int or revision < 0:
+        raise RuntimeError("WORK_BOARD_V2_ROLLOUT_BOARD_INVALID")
+    return {
+        "revision": revision,
+        "snapshot": {"exists": True, "sha256": _sha(raw)},
+        "events_sha256": _raw_hash(event_path),
+    }
+
+def _proof_path(root: Path, path: Path):
+    resolved = Path(path).resolve()
+    try:
+        relative = resolved.relative_to(Path(root).resolve())
+    except ValueError:
+        raise RuntimeError("WORK_BOARD_V2_ROLLOUT_TRANSITION_PROOF_OUTSIDE_CONTROL") from None
+    if not relative.parts or relative.parts[0] not in SAFE_PROOF_TOP:
+        raise RuntimeError("WORK_BOARD_V2_ROLLOUT_TRANSITION_PROOF_OUTSIDE_CONTROL")
+    _path(resolved)
+    return resolved
+
+def _load_transition_proof(root: Path, path: Path, expected_sha: str):
+    if not HEX64.fullmatch(str(expected_sha)):
+        raise RuntimeError("WORK_BOARD_V2_ROLLOUT_TRANSITION_PROOF_HASH_INVALID")
+    resolved = _proof_path(root, path)
+    raw = _read(resolved, 1024 * 1024)
+    if _sha(raw) != expected_sha:
+        raise RuntimeError("WORK_BOARD_V2_ROLLOUT_TRANSITION_PROOF_HASH_MISMATCH")
+    try:
+        value = json.loads(raw)
+    except (ValueError, TypeError):
+        raise RuntimeError("WORK_BOARD_V2_ROLLOUT_TRANSITION_PROOF_INVALID") from None
+    if not isinstance(value, dict):
+        raise RuntimeError("WORK_BOARD_V2_ROLLOUT_TRANSITION_PROOF_INVALID")
+    return value, resolved
+
+def _reader_prior(candidate_sha, expected_queue_sha, expected_module_sha, role):
+    return {
+        "prior_sha256": {
+            "work_queue": expected_queue_sha[role],
+            "work_board_v2": expected_module_sha[role],
+        },
+        "candidate_sha256": dict(candidate_sha),
+    }
+
+def semantic_transition_proof(control_root: Path, candidates: dict[str, Path],
+                              reader_dirs: dict[str, Path],
+                              expected_queue_sha: dict[str, str],
+                              expected_module_sha: dict[str, str | None], *,
+                              rollout_id: str):
+    """Build the exact read-only semantic transition value for independent review."""
+    root = Path(control_root)
+    if (set(candidates) != {"work_queue", "work_board_v2"} or set(reader_dirs) != set(ROLES)
+        or set(expected_queue_sha) != set(ROLES) or set(expected_module_sha) != set(ROLES)):
+        raise RuntimeError("WORK_BOARD_V2_ROLLOUT_READER_SET_INVALID")
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", rollout_id):
+        raise RuntimeError("WORK_BOARD_V2_ROLLOUT_ID_INVALID")
+    candidate_raw = {}
+    for name, path in candidates.items():
+        _path(path); candidate_raw[name] = _read(path)
+    candidate_sha = {name: _sha(raw) for name, raw in candidate_raw.items()}
+    dirs = {role: Path(reader_dirs[role]) for role in ROLES}
+    before_semantics = {}
+    for role, directory in dirs.items():
+        _path(directory, directory=True)
+        queue = directory / "work_queue.py"
+        helper = directory / "work_board_v2.py"
+        if _file_state(queue)["sha256"] != expected_queue_sha[role]:
+            raise RuntimeError("WORK_BOARD_V2_ROLLOUT_QUEUE_SOURCE_MISMATCH")
+        if _file_state(helper)["sha256"] != expected_module_sha[role]:
+            raise RuntimeError("WORK_BOARD_V2_ROLLOUT_PRIOR_MODULE_MISMATCH")
+        before_semantics[role] = _semantic(_module(queue, role + "_proof_before"), root)
+    candidate_semantic = _semantic(_module(Path(candidates["work_queue"]), "proof_candidate"), root)
+    readers = {}
+    changed = False
+    for role in ROLES:
+        row = _reader_prior(candidate_sha, expected_queue_sha, expected_module_sha, role)
+        row["before_semantic_sha256"] = _semantic_digest(before_semantics[role])
+        row["after_semantic_sha256"] = _semantic_digest(candidate_semantic)
+        changed = changed or row["before_semantic_sha256"] != row["after_semantic_sha256"]
+        readers[role] = row
+    if not changed:
+        raise RuntimeError("WORK_BOARD_V2_ROLLOUT_TRANSITION_NO_SEMANTIC_CHANGE")
+    return {
+        "kind": SEMANTIC_TRANSITION_KIND,
+        "schema_version": SEMANTIC_TRANSITION_VERSION,
+        "rollout_id": rollout_id,
+        "board": _board_binding(root),
+        "readers": readers,
+    }
+
+def _verify_transition_proof(proof, rollout_id, board_binding, candidate_sha,
+                             expected_queue_sha, expected_module_sha,
+                             before_semantics, candidate_semantic):
+    if set(proof) != {"kind", "schema_version", "rollout_id", "board", "readers"}:
+        raise RuntimeError("WORK_BOARD_V2_ROLLOUT_TRANSITION_PROOF_INVALID")
+    if (proof.get("kind") != SEMANTIC_TRANSITION_KIND
+        or proof.get("schema_version") != SEMANTIC_TRANSITION_VERSION
+        or proof.get("rollout_id") != rollout_id
+        or proof.get("board") != board_binding
+        or not isinstance(proof.get("readers"), dict)
+        or set(proof["readers"]) != set(ROLES)):
+        raise RuntimeError("WORK_BOARD_V2_ROLLOUT_TRANSITION_PROOF_MISMATCH")
+    after_digest = _semantic_digest(candidate_semantic)
+    changed = False
+    for role in ROLES:
+        row = proof["readers"][role]
+        expected_keys = {
+            "prior_sha256", "candidate_sha256",
+            "before_semantic_sha256", "after_semantic_sha256",
+        }
+        if not isinstance(row, dict) or set(row) != expected_keys:
+            raise RuntimeError("WORK_BOARD_V2_ROLLOUT_TRANSITION_PROOF_INVALID")
+        expected_prior = _reader_prior(
+            candidate_sha, expected_queue_sha, expected_module_sha, role
+        )
+        before_digest = _semantic_digest(before_semantics[role])
+        if (row.get("prior_sha256") != expected_prior["prior_sha256"]
+            or row.get("candidate_sha256") != expected_prior["candidate_sha256"]
+            or row.get("before_semantic_sha256") != before_digest
+            or row.get("after_semantic_sha256") != after_digest
+            or not HEX64.fullmatch(str(row.get("before_semantic_sha256", "")))
+            or not HEX64.fullmatch(str(row.get("after_semantic_sha256", "")))):
+            raise RuntimeError("WORK_BOARD_V2_ROLLOUT_TRANSITION_PROOF_MISMATCH")
+        changed = changed or before_digest != after_digest
+    if not changed:
+        raise RuntimeError("WORK_BOARD_V2_ROLLOUT_TRANSITION_NO_SEMANTIC_CHANGE")
+    return {role: candidate_semantic for role in ROLES}
+
 def rollout(control_root: Path, candidates: dict[str, Path], reader_dirs: dict[str, Path],
             expected_queue_sha: dict[str, str], expected_module_sha: dict[str, str | None], *,
-            rollout_id: str, executing_role: str = "C"):
+            rollout_id: str, executing_role: str = "C",
+            semantic_transition_proof_path: Path | None = None,
+            semantic_transition_proof_sha256: str | None = None):
     root = Path(control_root)
     if (set(candidates) != {"work_queue", "work_board_v2"} or set(reader_dirs) != set(ROLES)
         or set(expected_queue_sha) != set(ROLES) or set(expected_module_sha) != set(ROLES)
         or executing_role not in {"A", "B", "C"}):
         raise RuntimeError("WORK_BOARD_V2_ROLLOUT_READER_SET_INVALID")
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", rollout_id): raise RuntimeError("WORK_BOARD_V2_ROLLOUT_ID_INVALID")
+    transition_requested = (
+        semantic_transition_proof_path is not None
+        or semantic_transition_proof_sha256 is not None
+    )
+    if transition_requested and (
+        semantic_transition_proof_path is None
+        or semantic_transition_proof_sha256 is None
+    ):
+        raise RuntimeError("WORK_BOARD_V2_ROLLOUT_TRANSITION_PROOF_REQUIRED")
     candidate_raw = {}
     for name, path in candidates.items():
         _path(path); candidate_raw[name] = _read(path)
@@ -193,19 +457,54 @@ def rollout(control_root: Path, candidates: dict[str, Path], reader_dirs: dict[s
         for role in ROLES:
             before_mod = _module(target_paths[role]["work_queue"], role + "_before")
             baseline[role] = _semantic(before_mod, root)
+        role_state_before = {role: _raw_hash(root / (role + ".json")) for role in "ABC"}
+        expected_after = baseline
+        proof_path = None
+        proof_sha = None
+        if transition_requested:
+            proof, proof_path = _load_transition_proof(
+                root, semantic_transition_proof_path,
+                semantic_transition_proof_sha256,
+            )
+            proof_sha = semantic_transition_proof_sha256
+            candidate_semantic = _semantic(
+                _module(Path(candidates["work_queue"]), "transition_candidate"),
+                root,
+            )
+            expected_after = _verify_transition_proof(
+                proof, rollout_id, _board_binding(root), candidate_sha,
+                expected_queue_sha, expected_module_sha,
+                baseline, candidate_semantic,
+            )
+            for name, path in candidates.items():
+                _path(path)
+                if _sha(_read(path)) != candidate_sha[name]:
+                    raise RuntimeError("WORK_BOARD_V2_ROLLOUT_CANDIDATE_DRIFT")
+        receipt.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        _path(receipt.parent, directory=True)
         for role in ROLES:
             # Both files are an inseparable reader pair.
             for name in ("work_queue", "work_board_v2"):
                 target = target_paths[role][name]
                 prior = _file_state(target)
-                changes.append({"role": role, "name": name, "target": str(target), **prior,
-                                "new_sha256": candidate_sha[name]})
+                change = {"role": role, "name": name, "target": str(target), **prior,
+                          "new_sha256": candidate_sha[name]}
+                changes.append(change)
                 mode = prior["mode"] if prior["exists"] else 0o644
-                _atomic(target, candidate_raw[name], mode)
-                if _sha(_read(target)) != candidate_sha[name]: raise RuntimeError("WORK_BOARD_V2_ROLLOUT_READBACK_FAILED")
+                change["installed_identity"] = _atomic(
+                    target, candidate_raw[name], mode, scratch_dir=receipt.parent
+                )
+                installed_state = _file_state(target)
+                if (
+                    installed_state["sha256"] != candidate_sha[name]
+                    or installed_state["mode"] != mode
+                ):
+                    raise RuntimeError("WORK_BOARD_V2_ROLLOUT_READBACK_FAILED")
                 compile(candidate_raw[name].decode("utf-8"), str(target), "exec")
             installed = _module(target_paths[role]["work_queue"], role + "_after")
-            if _semantic(installed, root) != baseline[role]: raise RuntimeError("WORK_BOARD_V2_ROLLOUT_SEMANTIC_MISMATCH")
+            installed_semantic = _semantic(installed, root)
+            if installed_semantic != expected_after[role]:
+                raise RuntimeError("WORK_BOARD_V2_ROLLOUT_SEMANTIC_MISMATCH")
         status_after = {}
         for role, directory in dirs.items():
             repo, status = _git_status(directory, operational_org=role == "ORG")
@@ -214,13 +513,30 @@ def rollout(control_root: Path, candidates: dict[str, Path], reader_dirs: dict[s
             status_after[role] = status
         if _raw_hash(board_path) != board_before or _raw_hash(event_path) != event_before:
             raise RuntimeError("WORK_BOARD_V2_ROLLOUT_BOARD_OR_EVENT_CHANGED")
+        role_state_after = {role: _raw_hash(root / (role + ".json")) for role in "ABC"}
+        if role_state_after != role_state_before:
+            raise RuntimeError("WORK_BOARD_V2_ROLLOUT_ROLE_STATE_CHANGED")
         receipt_value = {"schema_version": 1, "rollout_id": rollout_id, "executing_role": executing_role,
                          "result": "COMMITTED", "candidate_sha256": candidate_sha,
                          "board_sha256_before": board_before, "board_sha256_after": _raw_hash(board_path),
                          "events_sha256_before": event_before, "events_sha256_after": _raw_hash(event_path),
+                         "role_state_sha256_before": role_state_before,
+                         "role_state_sha256_after": role_state_after,
                          "reader_semantics_before": baseline,
+                         "reader_semantic_sha256_before": {
+                             role: _semantic_digest(baseline[role]) for role in ROLES
+                         },
+                         "reader_semantic_sha256_after": {
+                             role: _semantic_digest(expected_after[role]) for role in ROLES
+                         },
+                         "semantic_transition_proof": (
+                             {"path": str(proof_path), "sha256": proof_sha}
+                             if transition_requested else None
+                         ),
                          "git_status_before": status_before, "git_status_after": status_after,
-                         "prior": [{key: value for key, value in item.items() if key != "raw"} for item in changes]}
+                         "prior": [{key: value for key, value in item.items()
+                                    if key not in {"raw", "installed_identity"}}
+                                   for item in changes]}
         v2._atomic_write(receipt, v2._canonical_bytes(receipt_value))
         return receipt_value
     except Exception as error:
@@ -230,11 +546,28 @@ def rollout(control_root: Path, candidates: dict[str, Path], reader_dirs: dict[s
             target = Path(item["target"])
             try:
                 if not item["exists"]:
-                    target.unlink(missing_ok=True); v2._fsync_dir(target.parent)
+                    _rollback_prior_missing(
+                        target,
+                        item.get("installed_identity"),
+                        scratch_dir=receipt.parent,
+                    )
                 else:
-                    _atomic(target, item["raw"], item["mode"])
-                    if _sha(_read(target)) != item["sha256"]: raise RuntimeError("rollback hash mismatch")
+                    _atomic(target, item["raw"], item["mode"], scratch_dir=receipt.parent)
+                    restored = _file_state(target)
+                    if (
+                        restored["sha256"] != item["sha256"]
+                        or restored["mode"] != item["mode"]
+                    ):
+                        raise RuntimeError("rollback hash/mode mismatch")
             except Exception as rollback_error: rollback_errors.append(type(rollback_error).__name__)
+        if (changes and (
+            _raw_hash(board_path) != board_before
+            or _raw_hash(event_path) != event_before
+            or ("role_state_before" in locals() and {
+                role: _raw_hash(root / (role + ".json")) for role in "ABC"
+            } != role_state_before)
+        )):
+            rollback_errors.append("shared-state-drift")
         if rollback_errors: raise RuntimeError("WORK_BOARD_V2_ROLLOUT_ROLLBACK_FAILED: " + ",".join(rollback_errors)) from None
         raise RuntimeError("WORK_BOARD_V2_ROLLOUT_FAILED: " + str(error) + "; rollback verified") from None
     finally:
