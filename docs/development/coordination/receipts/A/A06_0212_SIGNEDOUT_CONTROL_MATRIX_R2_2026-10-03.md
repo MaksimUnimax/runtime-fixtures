@@ -1,10 +1,10 @@
-# A06 — exact STORE 0.2.12 signed-out control matrix R2 — 2026-10-03
+# A06 — exact STORE 0.2.12 signed-out control matrix R2 + R3 evidence reconciliation — 2026-10-03
 
 ## Scope and verdict
 
 **PASS — INSTALLED_SYNTHETIC_EXACT_STORE_SIGNED_OUT_CONTROL_MATRIX.**
 
-This receipt consolidates already accepted exact branded 0.2.12 evidence. No browser, auth, marketplace, provider or live action was rerun for this R2 reconciliation.
+This receipt consolidates already accepted exact branded 0.2.12 evidence. R2 established the 45-control Chromium-family matrix plus Firefox consent/support evidence. R3 adds the later strict-DONE Firefox155 full 45-control STATE measurement. No browser, auth, marketplace, provider or live action is rerun for R3.
 
 - current main at evidence readback: `41186f2b751cd63f37b8d7b2eb2dc32dc0551dc1`
 - accepted branded source successor: `1616a88e35766a1d17055216d1348def50989b9f`
@@ -31,7 +31,7 @@ R1 task `A06-0212-SIGNEDOUT-CONTROL-MATRIX-20261003` was correctly blocked becau
 - Opera/Chrome/Yandex: external HTTP(S) request count 0; page-error count 0
 - support snapshot: `authenticated=false`, `workAllowed=false`, sensitive inclusion flags all false
 - Firefox155: technicalAndInteraction consent/support transition `WITHHELD → INCLUDED → WITHHELD`; no forbidden product/provider attempt
-- Firefox evidence does **not** establish full 45-control parity
+- Firefox full 45-control **STATE** is now measured on exact Firefox STORE bytes. Exact hidden/disabled/visible/text tuples match the Chromium-family matrix for 44/45 controls; the only state difference is `firefox-technical-grant.visible`: Chromium-family `false`, Firefox `true`.
 
 ## Exact raw evidence
 
@@ -40,6 +40,24 @@ R1 task `A06-0212-SIGNEDOUT-CONTROL-MATRIX-20261003` was correctly blocked becau
 - yandex: `/root/octoport-control/logs/A/a03-0212-branded-chromium-signedout-yandex-20261003.json` — SHA256 `b5e094afe2e4b6592f7d6c81d4be53cf31b3748869ed02ef090eae3e119b298f` — `find_ffmpeg failed, using the integrated library.
 Yandex 26.8.1.1111 stable` — install `cdp`
 - Firefox consent/support: `/root/octoport-control/logs/C/a03-0212-branded-firefox-signedout-20261003/EVIDENCE.json` — SHA256 `7abbb7d49d6282b6455d4390269f051464ee6743b8080b4bb4d746453a2bad1f` — Firefox `155.0.1`
+
+## R3 Firefox full45 evidence reconciliation
+
+- strict-DONE successor: `A06-0212-FIREFOX-SIGNEDOUT-CONTROL-STATE-MATRIX-SUCCESSOR-R2-20261003`
+- successor completion receipt: `/root/octoport-control/logs/A/a06-0212-firefox-signedout-control-state-matrix-successor-r2-20261003/STRICT_COMPLETION.json`
+- exact Firefox full45 result: `/root/octoport-control/logs/A/a06-0212-firefox-signedout-control-state-matrix-successor-r2-20261003/RESULT.json`
+- exact Firefox full45 evidence: `/root/octoport-control/logs/A/a06-0212-firefox-signedout-control-state-matrix-successor-r2-20261003/EVIDENCE.json`
+- deterministic R3 comparison: `/root/octoport-control/logs/A/a06-0212-signedout-control-matrix-r3-preflight-20261003.json` — SHA256 `d7eeb462d4737c5317b24925b40918e3fbfa872722e3b11068ee442cb0e713ab`
+- control sets: 45 Chromium IDs = 45 Firefox IDs, exact set equality PASS
+- exact hidden/disabled/visible/text tuple matches: 44/45
+- only cross-family state difference: `firefox-technical-grant` is visible/enabled in Firefox and not visible in Chromium-family
+- Chromium-family visible/enabled: `auth-start`, `support-generate`
+- Firefox visible/enabled: `auth-start`, `firefox-technical-grant`, `support-generate`
+- `firefox-technical-revoke` remains hidden in Firefox
+- Firefox support snapshot remains `authenticated=false`, `workAllowed=false`, sensitive privacy flags false, technical browser metadata withheld before optional consent
+- bounded Firefox run recorded zero forbidden Octoport/AI/Ozon/WB product/provider attempts
+
+The existing 45-row Chromium column remains the canonical row order. For Firefox, all rows have the same measured hidden/disabled/visible/text state as that column except `firefox-technical-grant`, whose Firefox state is `VISIBLE_ENABLED_ONLY`. This rule completely defines the measured Firefox 45-row state without implying action parity.
 
 ## Control matrix
 
@@ -104,7 +122,7 @@ Yandex 26.8.1.1111 stable` — install `cdp`
 - No browser rerun was performed in this reconciliation; it reuses accepted exact-hash evidence.
 - auth-start was not clicked; ordinary authentication remains unverified by this matrix.
 - Hidden signed-out controls were not action-tested.
-- Firefox evidence covers consent/support, not full 45-control parity.
+- Firefox full 45-control **STATE** is measured; this still does **not** establish full 45-control **ACTION** parity. Only `support-generate` action is verified by the full45 state task; auth, Firefox grant/revoke, marketplace/work/transfer/backup/confirm/reject actions remain unverified.
 - Development/temporary exact-package installation is not browser-store installation.
 - No marketplace credential/provider/signed-profile/minimum-browser/LIVE_OWNER/READY_FOR_OPERATOR/deployment/production claim.
 - This matrix does not promote either 0.2.12 operator candidate beyond `PREPARING`.
