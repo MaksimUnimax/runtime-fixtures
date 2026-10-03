@@ -12,6 +12,7 @@ import json
 import os
 from pathlib import Path
 import re
+import stat
 import subprocess
 import sys
 import time
@@ -411,6 +412,179 @@ class Registry:
             atomic_json(self.directory / (item['id'] + '.json'), item)
             return item
 
+    def retained_archive_inventory(self, lease_id, role):
+        """Inspect finite, flat recovery archives; never alter retained bytes.
+
+        Hashing is outside the admission lock. Reconciliation rechecks metadata
+        under that lock. This remains a cooperative budget, not a disk quota.
+        """
+        identifier(lease_id)
+        with self.locked():
+            item = self._retained_archive_item(lease_id, role)
+        before = self._retained_archive_stats(item)
+        files = []
+        root = Path(item['paths'][0])
+        for entry in before['files']:
+            fd = os.open(root / entry['name'], os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+            try:
+                if self._archive_stat(os.fstat(fd)) != entry['stat']:
+                    raise ValueError('RETAINED_ARCHIVE_CHANGED')
+                digest = hashlib.sha256()
+                with os.fdopen(fd, 'rb', closefd=False) as stream:
+                    for chunk in iter(lambda: stream.read(MIB), b''):
+                        digest.update(chunk)
+                if self._archive_stat(os.fstat(fd)) != entry['stat']:
+                    raise ValueError('RETAINED_ARCHIVE_CHANGED')
+                files.append(dict(entry, sha256=digest.hexdigest()))
+            finally:
+                os.close(fd)
+        if self._retained_archive_stats(item) != before:
+            raise ValueError('RETAINED_ARCHIVE_CHANGED')
+        measured = max(sum(x['stat']['size'] for x in files),
+                       sum(x['stat']['allocated'] for x in files))
+        minimum = (measured + max(256 * MIB, (measured + 4) // 5) + MIB - 1) // MIB
+        return {'kind': 'RETAINED_ARCHIVE_INVENTORY', 'version': 1,
+                'allocation_id': item['id'], 'role': role, 'task': item['task'],
+                'paths': item['paths'], 'reserve_mib': item['reserve_mib'],
+                'due_at': item['due_at'], 'root_stat': before['root_stat'],
+                'files': files, 'measured_bytes': measured,
+                'minimum_reserve_mib': minimum, 'observed_at': self.clock()}
+
+    @staticmethod
+    def _archive_stat(st):
+        return {'device': st.st_dev, 'inode': st.st_ino, 'mode': st.st_mode,
+                'links': st.st_nlink, 'size': st.st_size,
+                'allocated': st.st_blocks * 512,
+                'mtime_ns': st.st_mtime_ns, 'ctime_ns': st.st_ctime_ns}
+
+    def _retained_archive_item(self, lease_id, role):
+        # Deliberately narrow: controller-owned completed recovery archives.
+        # Worktrees, live volumes and unfinished task outputs are ineligible.
+        item = next((r for r in self.rows() if r['id'] == lease_id), None)
+        if role != 'CONTROLLER' or item is None or item['role'] != role:
+            raise ValueError('CONTROLLER_RETAINED_ARCHIVE_REQUIRED')
+        if item['state'] != 'HELD' or item['due_at'] <= self.clock():
+            raise ValueError('CURRENT_HELD_ARCHIVE_REQUIRED')
+        if item['volumes'] or len(item['paths']) != 1:
+            raise ValueError('SINGLE_ARCHIVE_PATH_WITHOUT_VOLUMES_REQUIRED')
+        root = Path(item['paths'][0])
+        if (root.parent != self.control / 'temporary' / 'controller' or
+                root.resolve() != root or root.is_symlink()):
+            raise ValueError('CANONICAL_CONTROLLER_ARCHIVE_REQUIRED')
+        self.require_task_not_completed(role, item['task'])
+        self.require_managed_guard(self.rows(), role)
+        return item
+
+    def _retained_archive_stats(self, item):
+        root = Path(item['paths'][0])
+        first = self._archive_stat(root.lstat())
+        if not stat.S_ISDIR(first['mode']) or first['device'] != self.control.stat().st_dev:
+            raise ValueError('SAME_FILESYSTEM_ARCHIVE_DIRECTORY_REQUIRED')
+        files = []
+        for p in sorted(root.iterdir()):
+            st = self._archive_stat(p.lstat())
+            if (not stat.S_ISREG(st['mode']) or st['links'] != 1 or
+                    st['device'] != first['device'] or
+                    not re.fullmatch(r'[A-Za-z0-9_-]+\.(json|tar\.gz)', p.name)):
+                raise ValueError('ONLY_REGULAR_ARCHIVE_PAIRS_ALLOWED')
+            files.append({'name': p.name, 'stat': st})
+            if len(files) > 512 or sum(x['stat']['size'] for x in files) > 8192 * MIB:
+                raise ValueError('ARCHIVE_INVENTORY_LIMIT')
+        names = {x['name'] for x in files}
+        manifests = {n[:-5] for n in names if n.endswith('.json')}
+        archives = {n[:-7] for n in names if n.endswith('.tar.gz')}
+        if not manifests or manifests != archives:
+            raise ValueError('COMPLETE_ARCHIVE_MANIFEST_PAIRS_REQUIRED')
+        if self._archive_stat(root.lstat()) != first:
+            raise ValueError('RETAINED_ARCHIVE_CHANGED')
+        return {'root_stat': first, 'files': files}
+
+    @staticmethod
+    def _require_no_archive_writers(root):
+        """Fail closed on live consumers that can still grow the retained set."""
+        def inside(value):
+            return value == str(root) or value.startswith(str(root) + '/')
+        for proc in Path('/proc').iterdir():
+            if not proc.name.isdigit():
+                continue
+            try:
+                if inside(os.readlink(proc / 'cwd')):
+                    raise ValueError('RETAINED_ARCHIVE_ACTIVE_CONSUMER')
+                for fd in (proc / 'fd').iterdir():
+                    try:
+                        target = os.readlink(fd)
+                        if not inside(target):
+                            continue
+                        # A directory fd opened O_RDONLY/O_PATH is still mutation-capable
+                        # through openat/renameat/unlinkat. Retained archives are fixed,
+                        # so any live descriptor to the archive root fails closed.
+                        if target == str(root):
+                            raise ValueError('RETAINED_ARCHIVE_ACTIVE_WRITER')
+                        info = (proc / 'fdinfo' / fd.name).read_text()
+                        flags = next(int(line.split()[1], 8) for line in info.splitlines()
+                                     if line.startswith('flags:'))
+                        if flags & os.O_ACCMODE != os.O_RDONLY:
+                            raise ValueError('RETAINED_ARCHIVE_ACTIVE_WRITER')
+                    except FileNotFoundError:
+                        continue  # descriptor/process ended during observation
+                for line in (proc / 'maps').read_text().splitlines():
+                    fields = line.split(None, 5)
+                    if len(fields) == 6 and 'w' in fields[1] and inside(fields[5]):
+                        raise ValueError('RETAINED_ARCHIVE_ACTIVE_WRITER')
+            except FileNotFoundError:
+                continue
+
+    def reconcile_retained(self, lease_id, role, reserve_mib, proof_path, review_path):
+        """Reduce an overestimated fixed retention budget after independent review."""
+        if type(reserve_mib) is not int or reserve_mib < 16:
+            raise ValueError('POSITIVE_RETAINED_RESERVE_REQUIRED')
+        proof_raw = Path(proof_path).read_bytes()
+        proof = json.loads(proof_raw)
+        review_raw = Path(review_path).read_bytes()
+        review = json.loads(review_raw)
+        if (review.get('verdict') != 'PASS' or
+                review.get('reviewer_role') not in ('A', 'B', 'C', 'INDEPENDENT_CODEX') or
+                review.get('allocation_id') != lease_id or
+                review.get('inventory_sha256') != hashlib.sha256(proof_raw).hexdigest() or
+                review.get('reserve_mib') != reserve_mib or
+                review.get('fixed_retention_only') is not True or
+                review.get('no_active_writers_verified') is not True):
+            raise ValueError('INDEPENDENT_FIXED_RETENTION_REVIEW_REQUIRED')
+        current = self.retained_archive_inventory(lease_id, role)
+        # Bind the exact bytes, filesystem identities, original budget and due
+        # date reviewed. Timestamp alone is excluded; fresh hashing is required.
+        if ({k: v for k, v in current.items() if k != 'observed_at'} !=
+                {k: v for k, v in proof.items() if k != 'observed_at'}):
+            raise ValueError('RETAINED_INVENTORY_MISMATCH')
+        if not current['minimum_reserve_mib'] <= reserve_mib < current['reserve_mib']:
+            raise ValueError('RETAINED_RESERVE_REDUCTION_WITH_MARGIN_REQUIRED')
+        observed = proof.get('observed_at')
+        if type(observed) not in (int, float) or not 0 <= self.clock() - observed <= 3600:
+            raise ValueError('FRESH_RETAINED_INVENTORY_REQUIRED')
+        self._require_no_archive_writers(Path(current['paths'][0]))
+        with self.locked():
+            item = self._retained_archive_item(lease_id, role)
+            if (item['reserve_mib'] != current['reserve_mib'] or
+                    item['due_at'] != current['due_at'] or
+                    item['task'] != current['task'] or item['paths'] != current['paths'] or
+                    self._retained_archive_stats(item) != {
+                        'root_stat': current['root_stat'],
+                        'files': [{'name': f['name'], 'stat': f['stat']} for f in current['files']]}):
+                raise ValueError('RETAINED_ARCHIVE_CHANGED')
+            event = {'at': self.clock(), 'action': 'reconcile-retained',
+                     'previous_state': item['state'], 'previous_reserve_mib': item['reserve_mib'],
+                     'reserve_mib': reserve_mib, 'inventory_path': str(Path(proof_path).resolve()),
+                     'inventory_sha256': hashlib.sha256(proof_raw).hexdigest(),
+                     'review_path': str(Path(review_path).resolve()),
+                     'review_sha256': hashlib.sha256(review_raw).hexdigest(),
+                     'measured_bytes': current['measured_bytes'],
+                     'minimum_reserve_mib': current['minimum_reserve_mib']}
+            item['history'].append(event)
+            item['reserve_mib'] = reserve_mib
+            item['fixed_retention_only'] = True
+            atomic_json(self.directory / (item['id'] + '.json'), item)
+            return item
+
     def status_locked(self, role=None, task=None, complete=False):
         rows = self.rows()
         selected = [r for r in rows if (not role or r['role'] == role) and
@@ -445,7 +619,7 @@ class Registry:
 
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument('action', choices=['seed-baseline','begin','declare-none','close','hold','status','check-complete'])
+    p.add_argument('action', choices=['seed-baseline','begin','declare-none','close','hold','status','check-complete','retention-inventory','reconcile-retained'])
     p.add_argument('--role', choices=ROLES)
     p.add_argument('--task')
     p.add_argument('--purpose')
@@ -456,6 +630,7 @@ def main(argv=None):
     p.add_argument('--id')
     p.add_argument('--reason', default='')
     p.add_argument('--consumer', default='')
+    p.add_argument('--review')
     args=p.parse_args(argv)
     registry=Registry()
     try:
@@ -467,6 +642,10 @@ def main(argv=None):
             result=registry.declare_none(args.role,args.task,args.purpose)
         elif args.action in ('close','hold'):
             result=registry.change(args.id,args.role,args.action,args.reason,args.consumer,args.hours)
+        elif args.action=='retention-inventory':
+            result=registry.retained_archive_inventory(args.id,args.role)
+        elif args.action=='reconcile-retained':
+            result=registry.reconcile_retained(args.id,args.role,args.reserve_mib,args.reason,args.review)
         else:
             if args.action=='check-complete' and (not args.role or not args.task):
                 raise ValueError('ROLE_AND_TASK_REQUIRED')

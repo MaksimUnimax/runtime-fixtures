@@ -1,4 +1,6 @@
 import json
+import hashlib
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -207,6 +209,159 @@ class LifecycleTests(unittest.TestCase):
         with patch.object(self.reg,'volume_exists',return_value=True):
             with self.assertRaisesRegex(ValueError,'NEW_VOLUME_ALREADY_EXISTS'):
                 self.reg.begin('A','test-one','Disposable integration database',[],512,1,['octoport-a-fixture'])
+
+
+class RetainedArchiveTests(unittest.TestCase):
+    setUp = LifecycleTests.setUp
+    tearDown = LifecycleTests.tearDown
+    begin = LifecycleTests.begin
+    proof = LifecycleTests.proof
+    def retention(self):
+        root = self.root / 'temporary' / 'controller' / 'recovery'
+        item = self.reg.begin('CONTROLLER', 'archive-retention',
+                              'Preserved completed recovery archives', [str(root)], 1024, 24)
+        root.mkdir(parents=True)
+        (root / 'one.json').write_text('{"preserved": true}')
+        (root / 'one.tar.gz').write_bytes(b'preserved opaque recovery bytes')
+        held = self.reg.change(item['id'], 'CONTROLLER', 'hold',
+                               'Completed archives retained for recovery',
+                               'Controller historical recovery review', 24)
+        proof = self.root / 'inventory.json'
+        review = self.root / 'independent-review.json'
+        self.write_review(held, proof, review)
+        return held, root, proof, review
+
+    def write_review(self, item, proof, review, budget=512):
+        proof.write_text(json.dumps(self.reg.retained_archive_inventory(item['id'], 'CONTROLLER')))
+        review.write_text(json.dumps({'verdict': 'PASS', 'reviewer_role': 'A',
+                                     'allocation_id': item['id'],
+                                     'inventory_sha256': hashlib.sha256(proof.read_bytes()).hexdigest(),
+                                     'reserve_mib': budget, 'fixed_retention_only': True,
+                                     'no_active_writers_verified': True}))
+
+    def reconcile(self, item, proof, review, budget=512):
+        # Unit fixture uses real descriptors/maps in this process. Other
+        # processes may be unreadable in the local CI sandbox; production
+        # scanning must still reject that unknown state, tested separately.
+        original = Path.iterdir
+        process = self.root / 'proc-fixture' / '123'
+        process.parent.mkdir(exist_ok=True)
+        if not process.is_symlink():
+            process.symlink_to('/proc/self', target_is_directory=True)
+        def processes(path):
+            return iter([process]) if path == Path('/proc') else original(path)
+        with patch.object(Path, 'iterdir', processes):
+            return self.reg.reconcile_retained(item['id'], 'CONTROLLER', budget, str(proof), str(review))
+
+    def test_fixed_archive_reduction_preserves_bytes_hold_due_and_admission_floor(self):
+        item, root, proof, review = self.retention()
+        before = {p.name: p.read_bytes() for p in root.iterdir()}
+        result = self.reconcile(item, proof, review)
+        self.assertEqual(result['state'], 'HELD')
+        self.assertEqual(result['due_at'], item['due_at'])
+        self.assertEqual(result['consumer'], item['consumer'])
+        self.assertEqual(result['reserve_mib'], 512)
+        self.assertEqual(result['history'][-1]['previous_reserve_mib'], 1024)
+        self.assertEqual(before, {p.name: p.read_bytes() for p in root.iterdir()})
+        self.assertEqual(self.reg.status()['all_open_reservations_mib'], 512)
+        self.capacity['available_mib'] = dl.RESERVE_MIB + 512 + 15
+        with self.assertRaisesRegex(ValueError, 'DISK_CAPACITY_REQUIRED'):
+            self.begin('B', reserve=16)
+        with self.assertRaisesRegex(ValueError, 'ARTIFACTS_STILL_PRESENT'):
+            self.reg.change(item['id'], 'CONTROLLER', 'close', self.proof(item))
+
+    def test_changed_archive_or_inventory_cannot_release_budget(self):
+        item, root, proof, review = self.retention()
+        (root / 'one.tar.gz').write_bytes(b'new incomplete archive')
+        with self.assertRaisesRegex(ValueError, 'RETAINED_INVENTORY_MISMATCH'):
+            self.reconcile(item, proof, review)
+        self.assertEqual(self.reg.rows()[0]['reserve_mib'], 1024)
+
+    def test_review_must_bind_budget_inventory_and_independent_author(self):
+        item, root, proof, review = self.retention()
+        original = json.loads(review.read_text())
+        for key, value in [('verdict', 'REWORK'), ('reviewer_role', 'CONTROLLER'),
+                           ('inventory_sha256', '0' * 64), ('allocation_id', 'other'),
+                           ('reserve_mib', 513), ('fixed_retention_only', False),
+                           ('no_active_writers_verified', False)]:
+            review.write_text(json.dumps(dict(original, **{key: value})))
+            with self.assertRaisesRegex(ValueError, 'INDEPENDENT_FIXED_RETENTION_REVIEW_REQUIRED'):
+                self.reconcile(item, proof, review)
+        self.assertEqual(self.reg.rows()[0]['reserve_mib'], 1024)
+
+    def test_budget_cannot_remove_margin_or_increase_reservation(self):
+        item, root, proof, review = self.retention()
+        for budget in (16, 256, 1024, 2048):
+            self.write_review(item, proof, review, budget)
+            with self.assertRaisesRegex(ValueError, 'RETAINED_RESERVE_REDUCTION_WITH_MARGIN_REQUIRED'):
+                self.reconcile(item, proof, review, budget)
+
+    def test_archive_inventory_rejects_links_unknown_files_and_missing_pairs(self):
+        item, root, proof, review = self.retention()
+        extra = root / 'extra.json'
+        extra.symlink_to(root / 'one.json')
+        with self.assertRaisesRegex(ValueError, 'ONLY_REGULAR_ARCHIVE_PAIRS_ALLOWED'):
+            self.reg.retained_archive_inventory(item['id'], 'CONTROLLER')
+        extra.unlink()
+        (root / 'unknown.txt').write_text('unclassified')
+        with self.assertRaisesRegex(ValueError, 'ONLY_REGULAR_ARCHIVE_PAIRS_ALLOWED'):
+            self.reg.retained_archive_inventory(item['id'], 'CONTROLLER')
+        (root / 'unknown.txt').unlink()
+        (root / 'one.json').unlink()
+        with self.assertRaisesRegex(ValueError, 'COMPLETE_ARCHIVE_MANIFEST_PAIRS_REQUIRED'):
+            self.reg.retained_archive_inventory(item['id'], 'CONTROLLER')
+
+    def test_current_review_does_not_allow_live_writer_or_expired_hold(self):
+        item, root, proof, review = self.retention()
+        with (root / 'one.tar.gz').open('ab'):
+            with self.assertRaisesRegex(ValueError, 'RETAINED_ARCHIVE_ACTIVE_WRITER'):
+                self.reconcile(item, proof, review)
+        self.now += 86401
+        with self.assertRaisesRegex(ValueError, 'CURRENT_HELD_ARCHIVE_REQUIRED'):
+            self.reconcile(item, proof, review)
+        self.assertEqual(self.reg.rows()[0]['reserve_mib'], 1024)
+
+    def test_read_only_archive_directory_descriptor_blocks_reconcile(self):
+        item, root, proof, review = self.retention()
+        fd = os.open(root, os.O_RDONLY | getattr(os, 'O_DIRECTORY', 0))
+        try:
+            with self.assertRaisesRegex(ValueError, 'RETAINED_ARCHIVE_ACTIVE_WRITER'):
+                self.reconcile(item, proof, review)
+        finally:
+            os.close(fd)
+        self.assertEqual(self.reg.rows()[0]['reserve_mib'], 1024)
+
+    def test_final_readback_rejects_change_during_admission(self):
+        item, root, proof, review = self.retention()
+        def changed(_):
+            (root / 'one.json').write_text('{"changed": true}')
+        with patch.object(self.reg, '_require_no_archive_writers', side_effect=changed):
+            with self.assertRaisesRegex(ValueError, 'RETAINED_ARCHIVE_CHANGED'):
+                self.reconcile(item, proof, review)
+        self.assertEqual(self.reg.rows()[0]['reserve_mib'], 1024)
+
+    def test_stale_inventory_rejected_without_budget_change(self):
+        item, root, proof, review = self.retention()
+        self.now += 3601
+        with self.assertRaisesRegex(ValueError, 'FRESH_RETAINED_INVENTORY_REQUIRED'):
+            self.reconcile(item, proof, review)
+        self.assertEqual(self.reg.rows()[0]['reserve_mib'], 1024)
+
+    def test_unreadable_process_inventory_fails_closed(self):
+        item, root, proof, review = self.retention()
+        with patch.object(self.reg, '_require_no_archive_writers', side_effect=PermissionError('unreadable process')):
+            with self.assertRaises(PermissionError):
+                self.reconcile(item, proof, review)
+        self.assertEqual(self.reg.rows()[0]['reserve_mib'], 1024)
+
+    def test_other_role_and_normal_worktree_ineligible(self):
+        item = self.begin()
+        with self.assertRaisesRegex(ValueError, 'CONTROLLER_RETAINED_ARCHIVE_REQUIRED'):
+            self.reg.retained_archive_inventory(item['id'], 'A')
+        item = self.begin('CONTROLLER')
+        self.reg.change(item['id'], 'CONTROLLER', 'hold', 'Retain source for review', 'Independent source reviewer', 24)
+        with self.assertRaisesRegex(ValueError, 'CANONICAL_CONTROLLER_ARCHIVE_REQUIRED'):
+            self.reg.retained_archive_inventory(item['id'], 'CONTROLLER')
 
 
 if __name__=='__main__':
