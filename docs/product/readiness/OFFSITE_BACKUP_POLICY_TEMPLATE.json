@@ -1,0 +1,38 @@
+{
+  "schemaVersion": "octoport-offsite-backup-policy-v1",
+  "decisionState": "OWNER_DECISION_PENDING",
+  "destination": {
+    "destinationClass": null,
+    "destinationReference": null,
+    "runtimeAccess": "EXISTING_MOUNTED_FILESYSTEM_BACKUP",
+    "ownerSelected": false,
+    "hostFailureDomainIndependent": null,
+    "sourceHostLossSurvivable": null
+  },
+  "retention": {
+    "model": "KEEP_VERIFIED_SUCCESSFUL_COUNT",
+    "keepSuccessful": 7,
+    "schedule": "DAILY_PERSISTENT",
+    "randomizedDelayMinutes": 30,
+    "accuracyMinutes": 5
+  },
+  "objectives": {
+    "rpoMinutes": null,
+    "rtoMinutes": null
+  },
+  "restoreAcceptance": {
+    "evidenceState": "NOT_RUN",
+    "requiredGates": [
+      "ARCHIVE_HASH_AND_BYTES_VERIFIED",
+      "PG_RESTORE_LIST_VERIFIED",
+      "SELECTED_DESTINATION_ARCHIVE_READBACK_VERIFIED",
+      "DISPOSABLE_DATABASE_RESTORE_VERIFIED",
+      "MIGRATION_JOURNAL_READBACK_VERIFIED",
+      "PROTECTED_STATE_INVARIANTS_VERIFIED",
+      "APPLICATION_HEALTH_AND_BOOTSTRAP_VERIFIED",
+      "COMPATIBLE_ROLLBACK_FLOOR_VERIFIED",
+      "BACKUP_AGE_WITHIN_RECORDED_RPO_VERIFIED",
+      "MEASURED_RESTORE_DURATION_WITHIN_RECORDED_RTO_VERIFIED"
+    ]
+  }
+}
