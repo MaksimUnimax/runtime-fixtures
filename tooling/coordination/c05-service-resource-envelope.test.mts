@@ -3,10 +3,12 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
+  FIRST_BETA_WAVE_BURST_STAGES,
   FIRST_BETA_WAVE_RESOURCE_SAMPLE_EVERY_CYCLES,
   FIRST_BETA_WAVE_SEQUENTIAL_CYCLES,
   ServiceResourceEnvelopeSampler,
   captureServiceTree,
+  parseFirstBetaWaveBurstStaircase,
   parseFirstBetaWaveSequentialCycles,
   parseProcStat,
   parseProcStatus,
@@ -82,6 +84,21 @@ test("first beta wave sequential profile accepts only the exact 100-count worklo
     assert.throws(
       () => parseFirstBetaWaveSequentialCycles(value),
       /C05_FIRST_WAVE_SEQUENTIAL_CYCLES_INVALID/,
+    );
+});
+
+test("first beta wave burst staircase is exact and opt-in only", () => {
+  assert.deepEqual(FIRST_BETA_WAVE_BURST_STAGES, [1, 2, 4, 8, 16, 32, 64, 100]);
+  assert.deepEqual(parseFirstBetaWaveBurstStaircase(undefined), []);
+  assert.deepEqual(parseFirstBetaWaveBurstStaircase(""), []);
+  assert.deepEqual(
+    parseFirstBetaWaveBurstStaircase("1"),
+    [1, 2, 4, 8, 16, 32, 64, 100],
+  );
+  for (const value of ["0", "true", "2", "1 "])
+    assert.throws(
+      () => parseFirstBetaWaveBurstStaircase(value),
+      /C05_FIRST_WAVE_BURST_STAIRCASE_INVALID/,
     );
 });
 
@@ -195,7 +212,7 @@ test("series summary retains intermediate workload maxima without changing capac
   assert.equal(result.sampleWindowMs, 1_500);
 });
 
-test("sampler rejects unknown workload sample labels", async () => {
+test("sampler accepts burst workload labels and rejects unknown labels", async () => {
   const reader = fixtureReader();
   reader.stats.set(30, statLine(30, 1, 3, 2, 300));
   reader.stats.set(40, statLine(40, 1, 4, 2, 400));
@@ -205,6 +222,8 @@ test("sampler rejects unknown workload sample labels", async () => {
     { api: 10, worker: 30, portal: 40 },
     reader,
   );
+  const burst = await sampler.sample("WORKLOAD_BURST_100");
+  assert.equal(burst.label, "WORKLOAD_BURST_100");
   await assert.rejects(
     sampler.sample("FIRST_WAVE"),
     /SERVICE_RESOURCE_SAMPLE_LABEL_INVALID/,
@@ -303,6 +322,22 @@ test("first-wave workload remains sequential, exact-count, and final-current onl
     source,
     /Promise\.all\([^\n]*runFirstWaveSequentialCycle/,
   );
+});
+
+test("first-wave burst staircase is final-current only and explicitly non-capacity", async () => {
+  const source = await readFile(
+    new URL("./c05-three-service-rollback-rehearsal.mts", import.meta.url),
+    "utf8",
+  );
+  assert.match(source, /C05_FIRST_WAVE_BURST_STAIRCASE/);
+  assert.match(source, /C05_FIRST_WAVE_PROFILES_MUTUALLY_EXCLUSIVE/);
+  assert.match(source, /index === 2 && firstWaveBurstStages\.length > 0/);
+  assert.match(source, /Promise\.all\(/);
+  assert.match(source, /WORKLOAD_BURST_\$\{concurrency\}/);
+  assert.match(source, /FIRST_BETA_WAVE_SYNCHRONIZED_BURST_STAIRCASE_V1/);
+  assert.match(source, /NOT_REPRESENTATIVE_CONCURRENCY_MODEL/);
+  assert.match(source, /NOT_PRODUCTION_CAPACITY_PROOF/);
+  assert.match(source, /FIRST_WAVE_PROTECTED_COUNT_CHANGED/);
 });
 
 test("rehearsal admits only exact A/B/C disposable database targets", async () => {

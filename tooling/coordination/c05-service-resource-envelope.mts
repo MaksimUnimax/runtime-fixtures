@@ -4,6 +4,9 @@ export const SERVICE_RESOURCE_EVIDENCE_LEVEL =
   "DISPOSABLE_FUNCTIONAL_RESOURCE_ENVELOPE" as const;
 export const FIRST_BETA_WAVE_SEQUENTIAL_CYCLES = 100;
 export const FIRST_BETA_WAVE_RESOURCE_SAMPLE_EVERY_CYCLES = 10;
+export const FIRST_BETA_WAVE_BURST_STAGES = [
+  1, 2, 4, 8, 16, 32, 64, 100,
+] as const;
 
 export function parseFirstBetaWaveSequentialCycles(
   value: string | undefined,
@@ -12,6 +15,14 @@ export function parseFirstBetaWaveSequentialCycles(
   if (value !== String(FIRST_BETA_WAVE_SEQUENTIAL_CYCLES))
     throw new Error("C05_FIRST_WAVE_SEQUENTIAL_CYCLES_INVALID");
   return FIRST_BETA_WAVE_SEQUENTIAL_CYCLES;
+}
+
+export function parseFirstBetaWaveBurstStaircase(
+  value: string | undefined,
+): number[] {
+  if (value === undefined || value === "") return [];
+  if (value !== "1") throw new Error("C05_FIRST_WAVE_BURST_STAIRCASE_INVALID");
+  return [...FIRST_BETA_WAVE_BURST_STAGES];
 }
 
 export type ServiceResourceRole = "api" | "worker" | "portal";
@@ -301,7 +312,11 @@ export class ServiceResourceEnvelopeSampler {
   ) {}
 
   async sample(label: ResourceSample["label"]): Promise<ResourceSample> {
-    if (!/^(?:BEFORE_SMOKE|AFTER_SMOKE|WORKLOAD_[1-9]\d*)$/.test(label))
+    if (
+      !/^(?:BEFORE_SMOKE|AFTER_SMOKE|WORKLOAD_[1-9]\d*|WORKLOAD_BURST_[1-9]\d*)$/.test(
+        label,
+      )
+    )
       throw new Error("SERVICE_RESOURCE_SAMPLE_LABEL_INVALID");
     const services = {} as Record<ServiceResourceRole, ServiceTreeSample>;
     for (const role of ["api", "worker", "portal"] as const) {
