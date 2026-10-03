@@ -25,7 +25,9 @@ HTTP_TIMEOUT_SECONDS = 20
 POLL_INTERVAL_SECONDS = 20
 INTERNAL_DEADLINE_SECONDS = 50 * 60
 MAX_TRANSIENT_DELAY_SECONDS = 120
+DEFAULT_RATE_LIMIT_DELAY_SECONDS = 60
 MAX_RESPONSE_BYTES = 8 * 1024 * 1024
+MAX_ERROR_RESPONSE_BYTES = 16 * 1024
 
 
 class GateError(RuntimeError):
@@ -166,6 +168,40 @@ def _rate_limit_delay(headers, wall_now: float) -> float | None:
     return None
 
 
+def _proven_403_rate_limit_delay(headers, wall_now: float) -> tuple[bool, float | None]:
+    remaining = headers.get("X-RateLimit-Remaining") if headers else None
+    if remaining is None:
+        return False, None
+
+    try:
+        remaining_value = float(remaining)
+    except (TypeError, ValueError):
+        return False, None
+
+    if remaining_value != 0:
+        return False, None
+
+    delay = _rate_limit_delay(headers, wall_now)
+    if delay is None:
+        delay = DEFAULT_RATE_LIMIT_DELAY_SECONDS
+    return True, delay
+
+
+def _is_secondary_rate_limit(error: urllib.error.HTTPError) -> bool:
+    try:
+        raw = error.read(MAX_ERROR_RESPONSE_BYTES + 1)
+    except (AttributeError, OSError):
+        return False
+    if len(raw) > MAX_ERROR_RESPONSE_BYTES:
+        return False
+    try:
+        data = json.loads(raw)
+    except (json.JSONDecodeError, UnicodeDecodeError, TypeError):
+        return False
+    message = data.get("message") if isinstance(data, dict) else None
+    return isinstance(message, str) and "secondary rate limit" in message.lower()
+
+
 def _request_json(
     url: str,
     token: str,
@@ -192,9 +228,22 @@ def _request_json(
                 "RATE_LIMIT",
                 _rate_limit_delay(error.headers, wall_clock()),
             ) from None
+        if error.code == 403:
+            proven, delay = _proven_403_rate_limit_delay(
+                error.headers,
+                wall_clock(),
+            )
+            if proven:
+                raise RetryableGateError("RATE_LIMIT", delay) from None
+            if _is_secondary_rate_limit(error):
+                delay = _rate_limit_delay(error.headers, wall_clock())
+                if delay is None:
+                    delay = DEFAULT_RATE_LIMIT_DELAY_SECONDS
+                raise RetryableGateError("RATE_LIMIT", delay) from None
+            raise GateError("AUTH_OR_PERMISSION") from None
         if 500 <= error.code <= 599:
             raise RetryableGateError("HTTP_5XX") from None
-        if error.code in (401, 403):
+        if error.code == 401:
             raise GateError("AUTH_OR_PERMISSION") from None
         raise GateError("HTTP_" + str(error.code)) from None
     except (urllib.error.URLError, TimeoutError, OSError):
@@ -321,13 +370,16 @@ def run_gate(
         except GateError as error:
             return _blocked(error.code, head, branch, checked_at=wall_clock())
         except RetryableGateError as error:
-            if error.delay_seconds is not None:
-                delay = max(1.0, error.delay_seconds)
-                deadline_reason = (
-                    "RATE_LIMIT_DEADLINE"
-                    if error.code == "RATE_LIMIT"
-                    else "TRANSIENT_DEADLINE"
+            if error.code == "RATE_LIMIT":
+                delay = (
+                    DEFAULT_RATE_LIMIT_DELAY_SECONDS
+                    if error.delay_seconds is None
+                    else max(1.0, error.delay_seconds)
                 )
+                deadline_reason = "RATE_LIMIT_DEADLINE"
+            elif error.delay_seconds is not None:
+                delay = max(1.0, error.delay_seconds)
+                deadline_reason = "TRANSIENT_DEADLINE"
             else:
                 delay = min(
                     POLL_INTERVAL_SECONDS * (2 ** min(retry_count, 2)),

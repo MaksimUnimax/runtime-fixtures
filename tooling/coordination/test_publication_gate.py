@@ -2,6 +2,7 @@ import io
 import json
 import unittest
 import urllib.error
+from pathlib import Path
 
 from publication_gate import (
     EXPECTED_REPOSITORY,
@@ -263,6 +264,215 @@ class PublicationGateTests(unittest.TestCase):
                     fetch_runs_once(HEAD, TOKEN, 10, opener=opener, wall_clock=lambda: 0)
                 self.assertEqual(str(caught.exception), "AUTH_OR_PERMISSION")
                 self.assertNotIn("SECRET", str(caught.exception))
+
+    def test_http_403_primary_rate_limit_headers_are_retryable_without_leaking_body(self):
+        cases = (
+            (
+                {"X-RateLimit-Remaining": "0", "Retry-After": "30"},
+                0,
+                30,
+            ),
+            (
+                {"X-RateLimit-Remaining": "0", "X-RateLimit-Reset": "100"},
+                40,
+                60,
+            ),
+            ({"X-RateLimit-Remaining": "0"}, 0, 60),
+        )
+        for headers, wall_now, expected_delay in cases:
+            def opener(request, timeout, headers=headers):
+                raise urllib.error.HTTPError(
+                    request.full_url,
+                    403,
+                    "secret reason",
+                    headers,
+                    io.BytesIO(b'{"message":"VERY_SECRET"}'),
+                )
+
+            with self.subTest(headers=headers):
+                with self.assertRaises(RetryableGateError) as caught:
+                    fetch_runs_once(
+                        HEAD,
+                        TOKEN,
+                        10,
+                        opener=opener,
+                        wall_clock=lambda wall_now=wall_now: wall_now,
+                    )
+                self.assertEqual(caught.exception.code, "RATE_LIMIT")
+                self.assertEqual(caught.exception.delay_seconds, expected_delay)
+                self.assertNotIn("SECRET", str(caught.exception))
+
+    def test_http_403_secondary_message_uses_bounded_delay_headers_or_default(self):
+        cases = (
+            ({}, 60),
+            ({"Retry-After": "30"}, 30),
+            ({"X-RateLimit-Reset": "100"}, 100),
+        )
+        for headers, expected_delay in cases:
+            def opener(request, timeout, headers=headers):
+                raise urllib.error.HTTPError(
+                    request.full_url,
+                    403,
+                    "secret reason",
+                    headers,
+                    io.BytesIO(
+                        json.dumps(
+                            {"message": "You have exceeded a secondary rate limit. VERY_SECRET"}
+                        ).encode()
+                    ),
+                )
+
+            with self.subTest(headers=headers):
+                with self.assertRaises(RetryableGateError) as caught:
+                    fetch_runs_once(HEAD, TOKEN, 10, opener=opener, wall_clock=lambda: 0)
+                self.assertEqual(caught.exception.code, "RATE_LIMIT")
+                self.assertEqual(caught.exception.delay_seconds, expected_delay)
+                self.assertNotIn("SECRET", str(caught.exception))
+
+    def test_http_403_retry_after_without_rate_limit_proof_remains_auth_or_permission(self):
+        def opener(request, timeout):
+            raise urllib.error.HTTPError(
+                request.full_url,
+                403,
+                "permission denied",
+                {"Retry-After": "30"},
+                io.BytesIO(
+                    json.dumps({"message": "Resource not accessible by integration"}).encode()
+                ),
+            )
+
+        with self.assertRaises(GateError) as caught:
+            fetch_runs_once(HEAD, TOKEN, 10, opener=opener, wall_clock=lambda: 0)
+        self.assertEqual(str(caught.exception), "AUTH_OR_PERMISSION")
+
+    def test_http_403_oversized_secondary_body_is_not_rate_limit_proof(self):
+        def opener(request, timeout):
+            payload = (
+                b'{"message":"secondary rate limit '
+                + b"x" * (16 * 1024)
+                + b'"}'
+            )
+            raise urllib.error.HTTPError(
+                request.full_url,
+                403,
+                "secret reason",
+                {},
+                io.BytesIO(payload),
+            )
+
+        with self.assertRaises(GateError) as caught:
+            fetch_runs_once(HEAD, TOKEN, 10, opener=opener, wall_clock=lambda: 0)
+        self.assertEqual(str(caught.exception), "AUTH_OR_PERMISSION")
+
+    def test_http_403_non_rate_limit_remains_auth_or_permission(self):
+        cases = (
+            (json.dumps({"message": "Resource not accessible by integration"}).encode(), {}),
+            (b"not-json VERY_SECRET", {"X-RateLimit-Remaining": "1", "X-RateLimit-Reset": "100"}),
+        )
+        for body, response_headers in cases:
+            def opener(request, timeout, body=body, response_headers=response_headers):
+                raise urllib.error.HTTPError(
+                    request.full_url,
+                    403,
+                    "secret reason",
+                    response_headers,
+                    io.BytesIO(body),
+                )
+
+            with self.subTest(headers=response_headers):
+                with self.assertRaises(GateError) as caught:
+                    fetch_runs_once(HEAD, TOKEN, 10, opener=opener, wall_clock=lambda: 0)
+                self.assertEqual(str(caught.exception), "AUTH_OR_PERMISSION")
+                self.assertNotIn("SECRET", str(caught.exception))
+
+    def test_http_403_malformed_proven_rate_limit_header_fails_closed(self):
+        def opener(request, timeout):
+            raise urllib.error.HTTPError(
+                request.full_url,
+                403,
+                "secret reason",
+                {"X-RateLimit-Remaining": "0", "X-RateLimit-Reset": "invalid"},
+                io.BytesIO(b'{"message":"secondary rate limit VERY_SECRET"}'),
+            )
+
+        with self.assertRaises(GateError) as caught:
+            fetch_runs_once(HEAD, TOKEN, 10, opener=opener, wall_clock=lambda: 0)
+        self.assertEqual(str(caught.exception), "RATE_LIMIT_HEADER_INVALID")
+        self.assertNotIn("SECRET", str(caught.exception))
+
+    def test_rate_limit_without_delay_uses_sixty_second_default(self):
+        clock = FakeClock()
+        attempts = {"count": 0}
+
+        def fetcher(*args, **kwargs):
+            attempts["count"] += 1
+            if attempts["count"] == 1:
+                raise RetryableGateError("RATE_LIMIT")
+            return successful_runs()
+
+        result = run_gate(
+            EXPECTED_REPOSITORY,
+            HEAD,
+            BRANCH,
+            TOKEN,
+            deadline_seconds=120,
+            clock=clock.now,
+            wall_clock=lambda: 123,
+            sleep_fn=clock.sleep,
+            fetcher=fetcher,
+        )
+        self.assertEqual(result["status"], "PASS")
+        self.assertEqual(clock.value, 60)
+        self.assertEqual(attempts["count"], 2)
+
+    def test_rate_limit_without_delay_fails_with_rate_limit_deadline(self):
+        clock = FakeClock()
+
+        def fetcher(*args, **kwargs):
+            raise RetryableGateError("RATE_LIMIT")
+
+        result = run_gate(
+            EXPECTED_REPOSITORY,
+            HEAD,
+            BRANCH,
+            TOKEN,
+            deadline_seconds=30,
+            clock=clock.now,
+            wall_clock=lambda: 456,
+            sleep_fn=clock.sleep,
+            fetcher=fetcher,
+        )
+        self.assertEqual(result["status"], "BLOCKED")
+        self.assertEqual(result["reason"], "RATE_LIMIT_DEADLINE")
+        self.assertEqual(clock.value, 0)
+
+    def test_workflow_required_context_and_safety_dependency_are_fail_closed(self):
+        root = Path(__file__).resolve().parents[2]
+        workflow = (root / ".github/workflows/coordination.yml").read_text()
+
+        expected_name = (
+            "name: @@{{ github.event_name == 'push' && "
+            "startsWith(github.ref_name, 'controller/task-publication/') "
+            "&& 'octoport-publication-gate' || "
+            "'octoport-publication-gate-not-applicable' }}"
+        ).replace("@@", "$")
+        expected_if = (
+            "if: @@{{ always() && github.event_name == 'push' && "
+            "startsWith(github.ref_name, 'controller/task-publication/') }}"
+        ).replace("@@", "$")
+        self.assertIn(expected_name, workflow)
+        self.assertNotIn(
+            "name: "
+            + "$"
+            + "{{ startsWith(github.ref_name, 'controller/task-publication/') "
+            + "&& 'octoport-publication-gate'",
+            workflow,
+        )
+        self.assertIn(expected_if, workflow)
+        self.assertIn("needs: safety", workflow)
+        self.assertIn("if: " + "$" + "{{ needs.safety.result != 'success' }}", workflow)
+        self.assertIn("if: " + "$" + "{{ needs.safety.result == 'success' }}", workflow)
+        self.assertIn('echo "local safety did not succeed"', workflow)
 
     def test_http_429_and_5xx_are_retryable_with_sanitized_codes(self):
         def rate_limited(request, timeout):
