@@ -1,3 +1,4 @@
+import type { MaintenanceCredentialStore } from "./maintenance-credential-file.js";
 import type {
   FastifyInstance,
   RawReplyDefaultExpression,
@@ -76,12 +77,13 @@ export function registerAdminAuthRoutes(
   auth: AuthService,
   adminAuth: AdminAuthService,
   production: boolean,
+  credentialStore?: MaintenanceCredentialStore,
 ): void {
   const safeHeaders = (reply: {
     header(name: string, value: string): unknown;
   }) => reply.header("cache-control", "no-store");
   const guard = createAdminRouteGuard(adminAuth);
-  registerMaintenanceAccessRoutes(app, adminAuth);
+  registerMaintenanceAccessRoutes(app, adminAuth, credentialStore);
 
   app.post(
     "/v1/admin/session",

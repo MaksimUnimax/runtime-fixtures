@@ -9,11 +9,7 @@ type Grant = {
   expiresAt: string;
   revokedAt: string | null;
 };
-export default function ServiceAccessPanel({
-  apiOrigin,
-}: {
-  apiOrigin: string;
-}) {
+export default function ServiceAccessPanel() {
   const [grants, setGrants] = useState<Grant[]>([]);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
@@ -37,14 +33,16 @@ export default function ServiceAccessPanel({
     setBusy(true);
     setMessage("");
     try {
-      const result = await controlPlane<{
+      await controlPlane<{
         grant: Grant;
-        credential: { token: string; expiresAt: string };
+        delivery: "server";
+        saved: true;
       }>("/v1/admin/maintenance-grants", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           label: "Controller",
+          delivery: "server",
           permissions: [
             "compatibility.read",
             "compatibility.manage",
@@ -58,28 +56,14 @@ export default function ServiceAccessPanel({
           ],
         }),
       });
-      // Credential is delivered once, never placed in the DOM or browser storage.
-      const blob = new Blob(
-        [
-          JSON.stringify({
-            version: 1,
-            origin: apiOrigin,
-            ...result.credential,
-            rotatedAt: new Date().toISOString(),
-          }),
-        ],
-        { type: "application/json" },
-      );
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = "octoport-maintenance-credential.json";
-      link.click();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
       setMessage(
-        "Доступ создан. Файл содержит секретный ключ; передайте его только доверенному средству обслуживания.",
+        "Доступ сохранён на сервере. Контроллер может продолжить работу.",
       );
-      await reload();
+      await reload().catch(() =>
+        setMessage(
+          "Доступ сохранён на сервере. Не удалось обновить список доступов.",
+        ),
+      );
     } catch (error) {
       report(error);
     } finally {
@@ -113,8 +97,12 @@ export default function ServiceAccessPanel({
         Ключ обновляется автоматически при работе. Доступ можно отозвать в любой
         момент. После 30 дней без обновления ключ перестаёт действовать.
       </p>
+      <p>
+        Ключ сохраняется в закрытом файле на сервере. Скачивать и переносить его
+        вручную не нужно.
+      </p>
       <button disabled={busy} onClick={() => void create()}>
-        Создать доступ и скачать ключ
+        Создать доступ на сервере
       </button>
       <p role="status">{message}</p>
       <ul>

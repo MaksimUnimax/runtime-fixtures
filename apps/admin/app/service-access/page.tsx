@@ -11,5 +11,5 @@ export default function ServiceAccessPage() {
         api.octoport.ru.
       </main>
     );
-  return <ServiceAccessPanel apiOrigin={origin} />;
+  return <ServiceAccessPanel />;
 }

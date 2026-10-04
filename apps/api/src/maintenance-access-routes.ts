@@ -1,3 +1,7 @@
+import type {
+  MaintenanceCredentialStore,
+  MaintenanceCredentialReservation,
+} from "./maintenance-credential-file.js";
 import { z } from "zod";
 import type {
   FastifyInstance,
@@ -72,6 +76,7 @@ const failures = {
 export function registerMaintenanceAccessRoutes(
   app: Api,
   adminAuth: AdminAuthService,
+  credentialStore?: MaintenanceCredentialStore,
 ): void {
   const guard = createAdminRouteGuard(adminAuth);
   const service = () => {
@@ -109,6 +114,7 @@ export function registerMaintenanceAccessRoutes(
         body: z
           .object({
             label: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9 ._-]{0,63}$/),
+            delivery: z.enum(["download", "server"]).default("download"),
             permissions: z
               .array(z.enum(MAINTENANCE_PERMISSIONS))
               .min(1)
@@ -116,7 +122,14 @@ export function registerMaintenanceAccessRoutes(
           })
           .strict(),
         response: {
-          200: z.object({ grant: grantSchema, credential: credentialSchema }),
+          200: z.union([
+            z.object({ grant: grantSchema, credential: credentialSchema }),
+            z.object({
+              grant: grantSchema,
+              delivery: z.literal("server"),
+              saved: z.literal(true),
+            }),
+          ]),
           ...failures,
         },
       },
@@ -126,23 +139,79 @@ export function registerMaintenanceAccessRoutes(
         request,
         "admin.principal.manage",
       );
-      const body = request.body as { label: string; permissions: string[] };
-      const issued = value(
-        await service().issue(
-          subject,
-          body.label,
-          body.permissions,
-          request.id,
-        ),
-      );
-      reply.header("cache-control", "no-store");
-      return {
-        grant: publicGrant(issued.grant),
-        credential: {
-          token: issued.token,
-          expiresAt: issued.grant.expiresAt.toISOString(),
-        },
+      const body = request.body as {
+        label: string;
+        permissions: string[];
+        delivery: "download" | "server";
       };
+      const maintenance = service();
+      const unavailable = () =>
+        new ControlledError(
+          "SERVICE_UNAVAILABLE",
+          "Server credential could not be saved",
+          503,
+        );
+      let reservation: MaintenanceCredentialReservation | undefined;
+      if (body.delivery === "server") {
+        if (!credentialStore) throw unavailable();
+        try {
+          reservation = await credentialStore.reserve();
+        } catch {
+          throw unavailable();
+        }
+      }
+      let issued: { grant: MaintenanceGrant; token: string } | undefined;
+      try {
+        issued = value(
+          await maintenance.issue(
+            subject,
+            body.label,
+            body.permissions,
+            request.id,
+          ),
+        );
+        reply.header("cache-control", "no-store");
+        if (reservation) {
+          await reservation.publish({
+            token: issued.token,
+            expiresAt: issued.grant.expiresAt.toISOString(),
+            rotatedAt: new Date().toISOString(),
+          });
+          return {
+            grant: publicGrant(issued.grant),
+            delivery: "server" as const,
+            saved: true as const,
+          };
+        }
+        return {
+          grant: publicGrant(issued.grant),
+          credential: {
+            token: issued.token,
+            expiresAt: issued.grant.expiresAt.toISOString(),
+          },
+        };
+      } catch (error) {
+        let canDiscard = !issued;
+        if (reservation && issued) {
+          try {
+            canDiscard = (
+              await maintenance.revoke(subject, issued.grant.id, request.id)
+            ).ok;
+          } catch {
+            canDiscard = false;
+          }
+        }
+        // Unknown revocation retains the private pending file for explicit
+        // recovery. A subsequent issuance cannot overwrite that reservation.
+        if (reservation && canDiscard) {
+          try {
+            await reservation.abort();
+          } catch {
+            /* Keep private recovery evidence. */
+          }
+        }
+        throw error instanceof ControlledError ? error : unavailable();
+      }
     },
   );
   app.delete(

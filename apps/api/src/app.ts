@@ -1,3 +1,4 @@
+import type { MaintenanceCredentialStore } from "./maintenance-credential-file.js";
 import { randomUUID } from "node:crypto";
 import swagger from "@fastify/swagger";
 import cookie from "@fastify/cookie";
@@ -109,6 +110,7 @@ export interface ApiDependencies {
   readonly catalogClock?: () => Date;
   readonly commercialPortalService?: CommercialPortalService;
   readonly adminAuthService?: AdminAuthServiceType;
+  readonly maintenanceCredentialStore?: MaintenanceCredentialStore;
   readonly adminOpsService?: AdminOpsService;
   readonly adminBillingService?: AdminBillingService;
   readonly adminCommercialService?: AdminCommercialService;
@@ -325,6 +327,7 @@ export function createApiApp(
         new AuthService(unavailable, deriveAuthKeys(Buffer.alloc(32))),
       dependencies.adminAuthService ?? unavailableAdmin,
       dependencies.config.environment === "production",
+      dependencies.maintenanceCredentialStore,
     );
     if (dependencies.adminOpsService)
       registerAdminOpsRoutes(

@@ -66956,6 +66956,14 @@
               "schema": {
                 "additionalProperties": false,
                 "properties": {
+                  "delivery": {
+                    "default": "download",
+                    "enum": [
+                      "download",
+                      "server"
+                    ],
+                    "type": "string"
+                  },
                   "label": {
                     "pattern": "^[A-Za-z0-9][A-Za-z0-9 ._-]{0,63}$",
                     "type": "string"
@@ -66995,94 +67003,182 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": false,
-                  "properties": {
-                    "credential": {
+                  "anyOf": [
+                    {
                       "additionalProperties": false,
                       "properties": {
-                        "expiresAt": {
-                          "format": "date-time",
-                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
-                          "type": "string"
-                        },
-                        "token": {
-                          "maxLength": 128,
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "token",
-                        "expiresAt"
-                      ],
-                      "type": "object"
-                    },
-                    "grant": {
-                      "additionalProperties": false,
-                      "properties": {
-                        "createdAt": {
-                          "format": "date-time",
-                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
-                          "type": "string"
-                        },
-                        "expiresAt": {
-                          "format": "date-time",
-                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
-                          "type": "string"
-                        },
-                        "id": {
-                          "format": "uuid",
-                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                          "type": "string"
-                        },
-                        "label": {
-                          "type": "string"
-                        },
-                        "permissions": {
-                          "items": {
-                            "enum": [
-                              "compatibility.read",
-                              "compatibility.manage",
-                              "health.read",
-                              "ai.registry.read",
-                              "ai.registry.manage",
-                              "ai.profile.read",
-                              "ai.profile.manage",
-                              "ai.assignment.read",
-                              "ai.assignment.manage"
-                            ],
-                            "type": "string"
-                          },
-                          "type": "array"
-                        },
-                        "revokedAt": {
-                          "anyOf": [
-                            {
+                        "credential": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "expiresAt": {
                               "format": "date-time",
                               "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
                               "type": "string"
                             },
-                            {
-                              "type": "null"
+                            "token": {
+                              "maxLength": 128,
+                              "type": "string"
                             }
-                          ]
+                          },
+                          "required": [
+                            "token",
+                            "expiresAt"
+                          ],
+                          "type": "object"
+                        },
+                        "grant": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "createdAt": {
+                              "format": "date-time",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                              "type": "string"
+                            },
+                            "expiresAt": {
+                              "format": "date-time",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                              "type": "string"
+                            },
+                            "id": {
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                              "type": "string"
+                            },
+                            "label": {
+                              "type": "string"
+                            },
+                            "permissions": {
+                              "items": {
+                                "enum": [
+                                  "compatibility.read",
+                                  "compatibility.manage",
+                                  "health.read",
+                                  "ai.registry.read",
+                                  "ai.registry.manage",
+                                  "ai.profile.read",
+                                  "ai.profile.manage",
+                                  "ai.assignment.read",
+                                  "ai.assignment.manage"
+                                ],
+                                "type": "string"
+                              },
+                              "type": "array"
+                            },
+                            "revokedAt": {
+                              "anyOf": [
+                                {
+                                  "format": "date-time",
+                                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "label",
+                            "permissions",
+                            "createdAt",
+                            "expiresAt",
+                            "revokedAt"
+                          ],
+                          "type": "object"
                         }
                       },
                       "required": [
-                        "id",
-                        "label",
-                        "permissions",
-                        "createdAt",
-                        "expiresAt",
-                        "revokedAt"
+                        "grant",
+                        "credential"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "additionalProperties": false,
+                      "properties": {
+                        "delivery": {
+                          "enum": [
+                            "server"
+                          ],
+                          "type": "string"
+                        },
+                        "grant": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "createdAt": {
+                              "format": "date-time",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                              "type": "string"
+                            },
+                            "expiresAt": {
+                              "format": "date-time",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                              "type": "string"
+                            },
+                            "id": {
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                              "type": "string"
+                            },
+                            "label": {
+                              "type": "string"
+                            },
+                            "permissions": {
+                              "items": {
+                                "enum": [
+                                  "compatibility.read",
+                                  "compatibility.manage",
+                                  "health.read",
+                                  "ai.registry.read",
+                                  "ai.registry.manage",
+                                  "ai.profile.read",
+                                  "ai.profile.manage",
+                                  "ai.assignment.read",
+                                  "ai.assignment.manage"
+                                ],
+                                "type": "string"
+                              },
+                              "type": "array"
+                            },
+                            "revokedAt": {
+                              "anyOf": [
+                                {
+                                  "format": "date-time",
+                                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "label",
+                            "permissions",
+                            "createdAt",
+                            "expiresAt",
+                            "revokedAt"
+                          ],
+                          "type": "object"
+                        },
+                        "saved": {
+                          "enum": [
+                            true
+                          ],
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "grant",
+                        "delivery",
+                        "saved"
                       ],
                       "type": "object"
                     }
-                  },
-                  "required": [
-                    "grant",
-                    "credential"
-                  ],
-                  "type": "object"
+                  ]
                 }
               }
             },

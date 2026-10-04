@@ -1,3 +1,4 @@
+import { createMaintenanceCredentialFileStore } from "./maintenance-credential-file.js";
 import {
   createAuthRepository,
   createDatabaseRuntime,
@@ -120,6 +121,8 @@ const localClientAuthority = new LocalClientAuthorityMaterializer(
 await bindConfigSigningRing(bootstrapSigningMaterial, (keyId) =>
   p3Catalog.findSigningKey(keyId),
 );
+const maintenanceCredentialFile =
+  process.env.OCTOPORT_MAINTENANCE_CREDENTIAL_FILE;
 const app = createApiApp({
   config,
   isInfrastructureReady: createInfrastructureReadiness(database),
@@ -173,6 +176,13 @@ const app = createApiApp({
   publicCommercialCatalogReader: createP4CommercialCatalogRepository(database),
   commercialPortalService: commercialPortal,
   adminAuthService: adminAuth,
+  ...(maintenanceCredentialFile
+    ? {
+        maintenanceCredentialStore: createMaintenanceCredentialFileStore(
+          maintenanceCredentialFile,
+        ),
+      }
+    : {}),
   adminOpsService: new AdminOpsService(
     createAdminOpsRepository(database),
     commercialPortal,

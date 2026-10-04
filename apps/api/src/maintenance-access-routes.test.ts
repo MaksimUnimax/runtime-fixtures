@@ -1,3 +1,10 @@
+import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import {
+  createMaintenanceCredentialFileStore,
+  type MaintenanceCredentialStore,
+} from "./maintenance-credential-file.js";
 import { describe, expect, it, vi } from "vitest";
 import {
   AdminAuthService,
@@ -17,7 +24,7 @@ import { createApiApp } from "./app.js";
 import { createAdminRouteGuard } from "./admin-route-guard.js";
 
 const now = new Date("2030-01-01T00:00:00Z");
-function fixture() {
+function fixture(maintenanceCredentialStore?: MaintenanceCredentialStore) {
   const keys = deriveAdminAuthKeys(Buffer.alloc(32, 9));
   const humanToken = "human-test-credential";
   const subject = {
@@ -102,6 +109,7 @@ function fixture() {
       () => now,
     ),
     adminAuthService: admin,
+    ...(maintenanceCredentialStore ? { maintenanceCredentialStore } : {}),
   });
   const guard = createAdminRouteGuard(admin);
   app.post("/test-maintenance-write", async (request) => {
@@ -261,6 +269,150 @@ describe("maintenance HTTP authority boundary", () => {
           })
         ).statusCode,
       ).toBe(401);
+    } finally {
+      await f.app.close();
+    }
+  });
+});
+
+describe("owner-issued server credential delivery", () => {
+  const payload = {
+    label: "Controller",
+    permissions: ["compatibility.manage"],
+    delivery: "server",
+  };
+  it("persists a usable private credential without returning it to the browser", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "maintenance-route-"));
+    const path = join(directory, "credential.json");
+    const f = fixture(createMaintenanceCredentialFileStore(path));
+    try {
+      const response = await f.app.inject({
+        method: "POST",
+        url: "/v1/admin/maintenance-grants",
+        headers: f.headers,
+        payload,
+      });
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toMatchObject({
+        delivery: "server",
+        saved: true,
+      });
+      expect(response.json()).not.toHaveProperty("credential");
+      const saved = JSON.parse(await readFile(path, "utf8")) as {
+        token: string;
+        origin: string;
+        version: number;
+      };
+      expect(response.body).not.toContain(saved.token);
+      expect(saved.origin).toBe("https://api.octoport.ru");
+      expect(saved.version).toBe(1);
+      expect((await stat(path)).mode & 0o777).toBe(0o600);
+      expect(
+        (
+          await f.app.inject({
+            method: "POST",
+            url: "/test-maintenance-write",
+            headers: { authorization: "Bearer " + saved.token },
+          })
+        ).statusCode,
+      ).toBe(200);
+      const retry = await f.app.inject({
+        method: "POST",
+        url: "/v1/admin/maintenance-grants",
+        headers: f.headers,
+        payload,
+      });
+      expect(retry.statusCode).toBe(503);
+      expect(f.repository.issue).toHaveBeenCalledTimes(1);
+      expect(JSON.parse(await readFile(path, "utf8")).token).toBe(saved.token);
+    } finally {
+      await f.app.close();
+      await rm(directory, { recursive: true });
+    }
+  });
+  it("checks owner session and CSRF before touching server storage", async () => {
+    const reserve = vi.fn();
+    const f = fixture({ reserve });
+    try {
+      for (const headers of [
+        {},
+        { cookie: "pcp_portal_session=ordinary" },
+        { cookie: f.headers.cookie },
+      ]) {
+        const response = await f.app.inject({
+          method: "POST",
+          url: "/v1/admin/maintenance-grants",
+          headers,
+          payload,
+        });
+        expect([401, 403]).toContain(response.statusCode);
+      }
+      expect(reserve).not.toHaveBeenCalled();
+      expect(f.repository.issue).not.toHaveBeenCalled();
+    } finally {
+      await f.app.close();
+    }
+  });
+  it("does not issue when server storage has not been enabled", async () => {
+    const f = fixture();
+    try {
+      const response = await f.app.inject({
+        method: "POST",
+        url: "/v1/admin/maintenance-grants",
+        headers: f.headers,
+        payload,
+      });
+      expect(response.statusCode).toBe(503);
+      expect(f.repository.issue).not.toHaveBeenCalled();
+    } finally {
+      await f.app.close();
+    }
+  });
+  it("revokes a newly issued grant and releases storage after failed persistence", async () => {
+    const abort = vi.fn(async () => {});
+    const publish = vi.fn(async () => {
+      throw new Error("synthetic disk failure");
+    });
+    const f = fixture({ reserve: async () => ({ publish, abort }) });
+    try {
+      const response = await f.app.inject({
+        method: "POST",
+        url: "/v1/admin/maintenance-grants",
+        headers: f.headers,
+        payload,
+      });
+      expect(response.statusCode).toBe(503);
+      expect(response.body).not.toContain("octm_");
+      expect(f.repository.issue).toHaveBeenCalledTimes(1);
+      expect(f.repository.revoke).toHaveBeenCalledTimes(1);
+      expect(abort).toHaveBeenCalledTimes(1);
+    } finally {
+      await f.app.close();
+    }
+  });
+  it("retains the private reservation when revocation has an unknown outcome", async () => {
+    const abort = vi.fn(async () => {});
+    const f = fixture({
+      reserve: async () => ({
+        publish: async () => {
+          throw new Error("synthetic disk failure");
+        },
+        abort,
+      }),
+    });
+    vi.mocked(f.repository.revoke).mockRejectedValue(
+      new Error("synthetic database failure"),
+    );
+    try {
+      const response = await f.app.inject({
+        method: "POST",
+        url: "/v1/admin/maintenance-grants",
+        headers: f.headers,
+        payload,
+      });
+      expect(response.statusCode).toBe(503);
+      expect(abort).not.toHaveBeenCalled();
+      expect(response.body).not.toContain("octm_");
     } finally {
       await f.app.close();
     }

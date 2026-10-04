@@ -1,0 +1,5 @@
+# Install only on the owner-authorized maintenance server.
+# Prepare an owner-only directory (0700) before enabling this destination.
+# The API service and maintenance client must use the same OS owner.
+[Service]
+Environment=OCTOPORT_MAINTENANCE_CREDENTIAL_FILE=/root/octoport-control/credentials/maintenance.json

@@ -63,15 +63,21 @@ an authentication failure into a new human login attempt.
   DELETE /v1/admin/maintenance-grants/:id.
 - Machine rotation: POST /v1/admin/maintenance-credential/rotate.
 - Machine readback: existing GET /v1/admin/me.
-- Admin app: /service-access, to create/download one credential or revoke grants.
+- Admin app: /service-access, to save one credential directly on the maintenance
+  server or revoke grants.
   The existing admin app deployment and its externally mounted base path must
   actually be available; source routes do not prove public routing works.
 - Client: tooling/server/maintenance-client.py, using --credential-file,
   --method, --path and optional --body-file. Credential material is never passed
   in command arguments or printed by the client.
 
-The downloadable credential is delivered once and must be installed in a private
-file owned by the controller, mode 0600, in an owner-controlled directory.
+The admin UI requests `delivery: server`. After the normal OWNER and CSRF checks,
+the API reserves a private file, issues the grant and durably saves the credential
+on the maintenance server. The response contains only the grant and a saved
+acknowledgment; the secret is not sent to the browser. No browser download or
+manual transfer is needed. The default API `delivery: download` remains available
+for existing clients. Its credential is delivered once and must be installed in
+a private file owned by the controller, mode 0600, in an owner-controlled directory.
 The file contains an origin, version, token, expiry and rotation timestamp.
 The current client pins https://api.octoport.ru, refuses redirects and does not
 send a token to an arbitrary supplied origin. The UI obtains the API origin from
@@ -115,3 +121,30 @@ assets must load under `/admin/_next/`, and an unauthenticated BFF request must
 still receive the backend denial. First key issuance remains the normal human
 owner action described above. These source templates are not an installation
 or initial-key receipt.
+
+## Direct server storage
+
+Configure `OCTOPORT_MAINTENANCE_CREDENTIAL_FILE` only on the maintenance server.
+The optional systemd drop-in template sets the existing client destination to
+`/root/octoport-control/credentials/maintenance.json`. The API and client must run
+as the same OS owner. Prepare the parent directory with mode 0700; do not copy
+this root-owned path to an unprivileged or remote API service unchanged.
+
+Storage is disabled without this setting. The destination must be absolute,
+the parent must be a real private directory owned by the API process, and an
+existing destination or `.pending` reservation is never overwritten. Reservation
+happens before issuance. The complete file is synced and linked atomically without
+replacement, with mode 0600. A successful response is sent only after persistence.
+
+If persistence fails after issuance, the route revokes that grant through the
+normal authorization service. It removes its own reservation only after confirmed
+revocation. Unknown revocation or a process crash leaves private recovery state
+and blocks another issuance. Do not blindly delete or retry: inspect non-secret
+file metadata and the owner's grant list, confirm revocation of the affected grant,
+then remove only the corresponding obsolete file/reservation. A revoked or expired
+installed credential is not silently replaced by this endpoint.
+
+Validation must cover the real filesystem boundary and the HTTP response, including
+no secret in server-delivery responses, no overwrite or concurrent issuance,
+authorization before reservation, and save-failure revocation. Installation and an
+actual OWNER activation plus one authenticated client read require separate proof.
