@@ -316,6 +316,13 @@
       "when": 1790882827000,
       "tag": "0056_beta_targeted_identity_invitations",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1791098438000,
+      "tag": "0057_admin_maintenance_access",
+      "breakpoints": true
     }
   ]
 }

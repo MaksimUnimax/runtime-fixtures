@@ -1,0 +1,23 @@
+[Unit]
+Description=Octoport owner-test admin application
+After=network.target
+
+[Service]
+Type=simple
+DynamicUser=yes
+WorkingDirectory=@RELEASE_DIR@/apps/admin
+Environment=NODE_ENV=production
+Environment=NEXT_TELEMETRY_DISABLED=1
+Environment=NEXT_PUBLIC_ADMIN_BASE_PATH=/admin
+Environment=CONTROL_PLANE_API_ORIGIN=https://api.octoport.ru
+ExecStart=@RELEASE_DIR@/.runtime/node @RELEASE_DIR@/apps/admin/node_modules/next/dist/bin/next start --hostname 127.0.0.1 --port 3101
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

@@ -1,6 +1,11 @@
 import type { NextConfig } from "next";
 
+const basePath = process.env.NEXT_PUBLIC_ADMIN_BASE_PATH ?? "";
+if (basePath !== "" && basePath !== "/admin")
+  throw new Error("ADMIN_BASE_PATH_INVALID");
+
 const config: NextConfig = {
+  basePath,
   poweredByHeader: false,
   async headers() {
     return [

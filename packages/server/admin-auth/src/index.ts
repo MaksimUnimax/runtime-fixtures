@@ -5,6 +5,8 @@ import {
   timingSafeEqual,
 } from "node:crypto";
 import { normalizeEmail } from "@product/auth";
+import type { MaintenanceAccessService } from "./maintenance-access.js";
+export * from "./maintenance-access.js";
 
 export const ADMIN_SESSION_TTL_MS = 30 * 60_000;
 export const ADMIN_ELEVATION_MAX_PORTAL_SESSION_AGE_MS = 15 * 60_000;
@@ -128,6 +130,7 @@ export function permissionsForRole(role: string): readonly AdminPermission[] {
 }
 
 export interface AdminSubject {
+  maintenanceGrantId?: string;
   adminPrincipalId: string;
   userId: string;
   adminSessionId: string;
@@ -255,6 +258,7 @@ export class AdminAuthService {
     private readonly keys: AdminAuthKeys,
     private readonly now: () => Date = () => new Date(),
     private readonly tokenGenerator = generateAdminSessionToken,
+    public readonly maintenance?: MaintenanceAccessService,
   ) {}
 
   async createAdminSession(

@@ -34,15 +34,13 @@ async function makePrefix0054Directory() {
       breakpoints: boolean;
     }>;
   };
-  expect(journal.entries.at(-1)?.tag).toBe(
-    "0056_beta_targeted_identity_invitations",
+  const prefixEnd = journal.entries.findIndex(
+    (entry) => entry.tag === "0054_api_watch_product_baselines",
   );
-  expect(journal.entries.at(-2)?.tag).toBe(
-    "0055_api_watch_document_scope_persistence",
-  );
+  expect(prefixEnd).toBe(42);
   const prefix = {
     ...journal,
-    entries: journal.entries.slice(0, -2),
+    entries: journal.entries.slice(0, prefixEnd + 1),
   };
   await mkdir(join(prefix0054Directory, "meta"), { recursive: true });
   await writeFile(
@@ -146,7 +144,7 @@ describe.sequential("API-watch document scope migration 0055", () => {
          FROM drizzle."__drizzle_migrations"`,
     );
     expect(migrationCount.rows).toEqual([
-      { count: "45", latest: "1790882827000" },
+      { count: "46", latest: "1791098438000" },
     ]);
 
     expect((await documentColumns()).rows).toEqual([
@@ -308,6 +306,6 @@ describe.sequential("API-watch document scope migration 0055", () => {
              FROM drizzle."__drizzle_migrations"`,
         )
       ).rows,
-    ).toEqual([{ count: "45", latest: "1790882827000" }]);
+    ).toEqual([{ count: "46", latest: "1791098438000" }]);
   });
 });

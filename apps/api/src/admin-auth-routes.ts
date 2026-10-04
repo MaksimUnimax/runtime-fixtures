@@ -18,6 +18,7 @@ import {
   ADMIN_SESSION_COOKIE,
   createAdminRouteGuard,
 } from "./admin-route-guard.js";
+import { registerMaintenanceAccessRoutes } from "./maintenance-access-routes.js";
 const portalSessionCookie = "pcp_portal_session";
 const portalCsrfCookie = "pcp_csrf";
 
@@ -80,6 +81,7 @@ export function registerAdminAuthRoutes(
     header(name: string, value: string): unknown;
   }) => reply.header("cache-control", "no-store");
   const guard = createAdminRouteGuard(adminAuth);
+  registerMaintenanceAccessRoutes(app, adminAuth);
 
   app.post(
     "/v1/admin/session",

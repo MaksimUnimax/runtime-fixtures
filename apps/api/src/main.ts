@@ -11,6 +11,7 @@ import {
   createP5SubscriptionRepository,
   createP5CommercialPortalRepository,
   createAdminAuthRepository,
+  createMaintenanceRepository,
   createAdminOpsRepository,
   createP6AdminBillingRepository,
   createP6AdminSubscriptionCommandAdapter,
@@ -35,7 +36,11 @@ import {
   createMonitorProfileRepairReadRepository,
 } from "@product/db";
 import { AuthService, deriveAuthKeys, loadAuthRootSecret } from "@product/auth";
-import { AdminAuthService, deriveAdminAuthKeys } from "@product/admin-auth";
+import {
+  AdminAuthService,
+  deriveAdminAuthKeys,
+  MaintenanceAccessService,
+} from "@product/admin-auth";
 import { AdminOpsService } from "@product/admin-ops";
 import { AdminBillingService } from "@product/admin-billing";
 import { createAdminCommercialService } from "@product/admin-commercial";
@@ -99,6 +104,9 @@ const rootSecret = loadAuthRootSecret(process.env);
 const adminAuth = new AdminAuthService(
   createAdminAuthRepository(database),
   deriveAdminAuthKeys(rootSecret),
+  undefined,
+  undefined,
+  new MaintenanceAccessService(createMaintenanceRepository(database)),
 );
 const bootstrapSigningMaterial = loadConfigSigningMaterial(process.env);
 const p3Catalog = createP3BootstrapPolicyCatalogRepository(database);

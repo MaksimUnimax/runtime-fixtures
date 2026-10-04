@@ -35,6 +35,24 @@ export function createAdminRouteGuard(adminAuth: AdminAuthService) {
   async function requireAdminSubject(
     request: GuardRequest,
   ): Promise<{ token: string; subject: AdminSubject }> {
+    const authorization = request.headers.authorization;
+    if (authorization !== undefined) {
+      if (
+        request.cookies[ADMIN_SESSION_COOKIE] ||
+        !authorization.startsWith("Bearer octm_") ||
+        !adminAuth.maintenance
+      )
+        throw error("ADMIN_UNAUTHORIZED");
+      const token = authorization.slice(7);
+      const result = await adminAuth.maintenance.authenticate(token);
+      if (!result.ok)
+        throw error(
+          result.code === "SERVICE_UNAVAILABLE"
+            ? result.code
+            : "ADMIN_UNAUTHORIZED",
+        );
+      return { token, subject: result.value };
+    }
     const token = request.cookies[ADMIN_SESSION_COOKIE];
     if (!token) throw error("ADMIN_UNAUTHORIZED");
     const result = await adminAuth.authenticateAdminSession(token);
@@ -62,6 +80,10 @@ export function createAdminRouteGuard(adminAuth: AdminAuthService) {
     const authenticated = permission
       ? await requireAdminPermission(request, permission)
       : await requireAdminSubject(request);
+    if (authenticated.subject.maintenanceGrantId) {
+      if (!permission) throw error("ADMIN_FORBIDDEN");
+      return authenticated;
+    }
     const header = request.headers["x-csrf-token"];
     const csrf = typeof header === "string" ? header : undefined;
     if (

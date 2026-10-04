@@ -289,7 +289,7 @@ test("repository release facts use current contract/version/migration tag", () =
   const facts = productFacts();
   assert.equal(facts.productVersion, "0.2.12");
   assert.equal(facts.contractVersion, "control_plane_v2");
-  assert.equal(facts.migrationLevel, 56);
+  assert.equal(facts.migrationLevel, 57);
 });
 
 test("correct synthetic Chromium and Firefox candidate prepares and passes", () => {

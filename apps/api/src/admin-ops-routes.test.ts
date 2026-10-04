@@ -773,7 +773,18 @@ describe("P6.2 admin API boundary", () => {
         (count, path) => count + Object.keys(path).length,
         0,
       ),
-    ).toBe(145);
+    ).toBe(149);
+    expect(
+      Object.keys(document.paths["/v1/admin/maintenance-grants"] ?? {}).sort(),
+    ).toEqual(["get", "post"]);
+    expect(
+      Object.keys(document.paths["/v1/admin/maintenance-grants/{id}"] ?? {}),
+    ).toEqual(["delete"]);
+    expect(
+      Object.keys(
+        document.paths["/v1/admin/maintenance-credential/rotate"] ?? {},
+      ),
+    ).toEqual(["post"]);
     expect(
       Object.keys(document.paths["/v1/admin/beta/invitations"] ?? {}),
     ).toEqual(["post"]);

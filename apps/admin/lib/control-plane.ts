@@ -47,13 +47,16 @@ export async function controlPlane<T = unknown>(
   if (token) headers.set("x-csrf-token", token);
   let response: Response;
   try {
-    response = await fetch(`/api/control-plane${path}`, {
-      ...init,
-      method,
-      headers,
-      credentials: "same-origin",
-      cache: "no-store",
-    });
+    response = await fetch(
+      `${process.env.NEXT_PUBLIC_ADMIN_BASE_PATH ?? ""}/api/control-plane${path}`,
+      {
+        ...init,
+        method,
+        headers,
+        credentials: "same-origin",
+        cache: "no-store",
+      },
+    );
   } catch {
     throw new ControlPlaneError(
       "SERVICE_UNAVAILABLE",

@@ -95,21 +95,22 @@ describe.sequential("P6.1 admin security foundation on real PostgreSQL", () => {
   beforeEach(clear);
   afterAll(async () => db.close());
 
-  it("migration creates exactly the three admin tables", async () => {
+  it("migration creates the admin and scoped maintenance tables", async () => {
     const rows = await q<{ table_name: string }>(
       "SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_name LIKE 'admin_%' ORDER BY table_name",
     );
     expect(rows.rows.map((r) => r.table_name)).toEqual([
+      "admin_maintenance_grants",
       "admin_principals",
       "admin_role_grants",
       "admin_sessions",
     ]);
   });
-  it("includes the complete current migration journal through 0056", async () => {
+  it("includes the complete current migration journal through 0057", async () => {
     const rows = await q<{ count: string }>(
       "SELECT count(*)::text AS count FROM drizzle.__drizzle_migrations",
     );
-    expect(rows.rows[0]!.count).toBe("45");
+    expect(rows.rows[0]!.count).toBe("46");
   });
   it("principal user binding is unique", async () => {
     const u = await user();

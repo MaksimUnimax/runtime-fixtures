@@ -74,6 +74,21 @@ describe("narrow browser control-plane client", () => {
     expect(call.mock.calls[0]?.[0]).toBe("/api/control-plane/v1/admin/me");
     call.mockRestore();
   });
+  it("uses the mounted admin BFF path when built for /admin", async () => {
+    cookies("");
+    vi.stubEnv("NEXT_PUBLIC_ADMIN_BASE_PATH", "/admin");
+    const call = vi.spyOn(globalThis, "fetch").mockResolvedValue(response({}));
+    try {
+      await controlPlane("/v1/admin/me");
+      expect(call.mock.calls[0]?.[0]).toBe(
+        "/admin/api/control-plane/v1/admin/me",
+      );
+      expect(call.mock.calls[0]?.[1]?.credentials).toBe("same-origin");
+    } finally {
+      call.mockRestore();
+      vi.unstubAllEnvs();
+    }
+  });
   it("always requests no-store", async () => {
     cookies("");
     const call = vi.spyOn(globalThis, "fetch").mockResolvedValue(response({}));

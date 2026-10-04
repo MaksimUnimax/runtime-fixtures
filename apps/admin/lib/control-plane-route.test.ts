@@ -20,6 +20,7 @@ function materialize(template: string) {
     .replaceAll("{price_id}", uuid)
     .replaceAll("{price_revision_id}", uuid)
     .replaceAll("{principal_id}", uuid)
+    .replaceAll("{maintenance_grant_id}", uuid)
     .replaceAll("{repair_case_id}", uuid)
     .replaceAll("{support_case_id}", uuid)
     .replaceAll("{notification_id}", uuid)
@@ -40,10 +41,10 @@ function materialize(template: string) {
 
 describe("admin BFF exact route boundary", () => {
   it("keeps the exact accepted tuple arithmetic", () => {
-    expect(ADMIN_ALLOWED_TUPLES.length).toBe(105);
+    expect(ADMIN_ALLOWED_TUPLES.length).toBe(108);
     expect(OTP_ALLOWED_TUPLES.length).toBe(2);
-    expect(ADMIN_ALLOWED_TUPLES.length + OTP_ALLOWED_TUPLES.length).toBe(107);
-    expect(BFF_ALLOWED_TUPLE_COUNT).toBe(107);
+    expect(ADMIN_ALLOWED_TUPLES.length + OTP_ALLOWED_TUPLES.length).toBe(110);
+    expect(BFF_ALLOWED_TUPLE_COUNT).toBe(110);
   });
   it.each(ADMIN_ALLOWED_TUPLES)("allows accepted admin tuple %s", (tuple) => {
     const separator = tuple.indexOf(" ");

@@ -51,10 +51,12 @@ await run("EX-19..EX-24", "current envelope is versioned, randomized, bounded an
 const encrypted = await backup.encrypt(payload, password);
 await run("EX-25..EX-30", "wrong password, ciphertext/tag/header/truncation/encoding tamper fail closed", async () => {
   await rejects(() => backup.decrypt(encrypted, "wrong-password", accountA), "BACKUP_AUTHENTICATION_FAILED");
+  // Alter decoded bytes: editing Base64 padding can leave the payload unchanged.
+  const flipLastByte = encoded => { const bytes = Buffer.from(encoded, "base64"); bytes[bytes.length - 1] ^= 1; return bytes.toString("base64"); };
   const cases = [
-    value => { value.ciphertext = value.ciphertext.slice(0, -2) + (value.ciphertext.endsWith("A") ? "B" : "A"); },
+    value => { value.ciphertext = flipLastByte(value.ciphertext); },
     value => { value.kdf.iterations += 1; },
-    value => { value.encryption.iv = value.encryption.iv.slice(0, -2) + "AA"; },
+    value => { value.encryption.iv = flipLastByte(value.encryption.iv); },
     value => { value.ciphertext = value.ciphertext.slice(0, -4); },
   ];
   for (const mutate of cases) { const value = JSON.parse(encrypted); mutate(value); await rejects(() => backup.decrypt(JSON.stringify(value), password, accountA), ["BACKUP_AUTHENTICATION_FAILED", "BACKUP_ENCODING_INVALID"]); }

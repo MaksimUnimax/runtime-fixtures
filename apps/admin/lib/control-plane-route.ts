@@ -6,6 +6,9 @@ const LOWER_HEX_64 = "[0-9a-f]{64}";
 const KEY = "[A-Za-z0-9._:-]+";
 
 export const ADMIN_ALLOWED_TUPLES = [
+  "GET /v1/admin/maintenance-grants",
+  "POST /v1/admin/maintenance-grants",
+  "DELETE /v1/admin/maintenance-grants/{maintenance_grant_id}",
   "DELETE /v1/admin/session",
   "GET /v1/admin/accounts",
   "GET /v1/admin/accounts/{account_id}/billing/events",
@@ -135,6 +138,7 @@ const segmentPattern = (segment: string): string => {
     segment === "{notification_id}" ||
     segment === "{health_incident_id}" ||
     segment === "{repair_case_id}" ||
+    segment === "{maintenance_grant_id}" ||
     segment === "{support_case_id}" ||
     segment === "{invitation_id}"
   )

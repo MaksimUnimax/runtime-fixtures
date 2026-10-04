@@ -80,6 +80,7 @@ describe.sequential("P2.1 PostgreSQL persistence integration", () => {
       "adapter_profile_assignments",
       "adapter_profile_revisions",
       "adapter_profiles",
+      "admin_maintenance_grants",
       "admin_principals",
       "admin_role_grants",
       "admin_sessions",
@@ -175,7 +176,7 @@ describe.sequential("P2.1 PostgreSQL persistence integration", () => {
     const count = await runtime.db.execute<{ count: string }>(sql`
       SELECT count(*)::text AS "count" FROM drizzle."__drizzle_migrations"
     `);
-    expect(count.rows[0]?.count).toBe("45");
+    expect(count.rows[0]?.count).toBe("46");
     const browserFamilyRows = await runtime.db.execute<{
       enumlabel: string;
     }>(sql`

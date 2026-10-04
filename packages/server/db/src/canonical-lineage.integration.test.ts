@@ -11,7 +11,7 @@ describe.sequential("canonical product and monitoring migration intake", () => {
   beforeAll(() => runtime.ready());
   afterAll(() => runtime.close());
 
-  it("upgrades the observed 22-entry owner-test prefix to current0056 without losing rows", async () => {
+  it("upgrades the observed 22-entry owner-test prefix to current0057 without losing rows", async () => {
     await runtime.query(
       "DROP SCHEMA IF EXISTS public CASCADE; DROP SCHEMA IF EXISTS drizzle CASCADE; CREATE SCHEMA public",
     );
@@ -24,10 +24,10 @@ describe.sequential("canonical product and monitoring migration intake", () => {
       };
       const currentCount = journal.entries.length;
       const currentLatest = journal.entries.at(-1);
-      expect(currentCount).toBe(45);
+      expect(currentCount).toBe(46);
       expect(currentLatest).toMatchObject({
-        tag: "0056_beta_targeted_identity_invitations",
-        when: 1790882827000,
+        tag: "0057_admin_maintenance_access",
+        when: 1791098438000,
       });
 
       const prefix = { ...journal, entries: journal.entries.slice(0, 22) };
@@ -65,7 +65,7 @@ describe.sequential("canonical product and monitoring migration intake", () => {
             "SELECT count(*)::int AS count,max(created_at)::text AS latest FROM drizzle.__drizzle_migrations",
           )
         ).rows,
-      ).toEqual([{ count: 45, latest: "1790882827000" }]);
+      ).toEqual([{ count: 46, latest: "1791098438000" }]);
       expect(
         (
           await runtime.query(
@@ -118,7 +118,7 @@ describe.sequential("canonical product and monitoring migration intake", () => {
             "SELECT count(*)::int AS count FROM drizzle.__drizzle_migrations",
           )
         ).rows,
-      ).toEqual([{ count: 45 }]);
+      ).toEqual([{ count: 46 }]);
       expect(
         (
           await runtime.query(
