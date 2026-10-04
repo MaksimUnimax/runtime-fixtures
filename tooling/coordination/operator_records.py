@@ -5,6 +5,8 @@ import hashlib
 import json
 import os
 import re
+import zipfile
+from urllib.parse import urlsplit
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -156,6 +158,94 @@ def _decision(path, record, actor, verdicts):
     }
 
 
+def _packaged_target(record):
+    """Read the inert JSON build header, never execute code from the archive."""
+    try:
+        with zipfile.ZipFile(record["artifact_path"]) as archive:
+            for name in ("manifest.json", "service_worker.js"):
+                if archive.namelist().count(name) != 1 or archive.getinfo(name).file_size > 16 * 1024 * 1024:
+                    raise ValueError("ambiguous or oversized package member")
+            manifest = json.loads(archive.read("manifest.json"))
+            source = archive.read("service_worker.js").decode("utf-8")
+        prefix = "globalThis.__SELLER_AGENTS_PACKAGED_CONFIG__="
+        if not source.startswith(prefix):
+            raise ValueError("packaged target missing")
+        encoded, end = json.JSONDecoder().raw_decode(source[len(prefix):])
+        if not isinstance(encoded, str) or not source[len(prefix) + end:].startswith(";"):
+            raise ValueError("invalid packaged target")
+        target = json.loads(encoded)
+        origin = urlsplit(target["controlApiOrigin"])
+        if target["extensionVersion"] != record["version"] or manifest["version"] != record["version"] or target["environment"] != record["environment"] or target["contractVersion"] not in {"control_plane_v2", "control_plane_v3"} or origin.scheme != "https" or not origin.netloc or origin.username or origin.password or origin.path or origin.query or origin.fragment:
+            raise ValueError("package target mismatch")
+        return target
+    except (OSError, ValueError, KeyError, TypeError, UnicodeError, zipfile.BadZipFile):
+        raise ValueError("RELEASE_ACCEPTANCE_PACKAGED_TARGET_INVALID") from None
+
+
+def _release_acceptance(record, review_path):
+    """Require reviewed target-server and installed evidence before manual delivery.
+
+    This binds recorded evidence; it neither creates live authority nor performs
+    authentication. Independent review still evaluates the underlying results.
+    """
+    ref = record.get("release_acceptance")
+    if not isinstance(ref, dict) or set(ref) != {"path", "sha256"}:
+        raise ValueError("RELEASE_ACCEPTANCE_REQUIRED")
+    path = Path(ref.get("path", ""))
+    if not path.is_absolute() or not re.fullmatch(r"[0-9a-f]{64}", ref.get("sha256", "")):
+        raise ValueError("RELEASE_ACCEPTANCE_REFERENCE_INVALID")
+    raw = path.read_bytes()
+    if hashlib.sha256(raw).hexdigest() != ref["sha256"]:
+        raise ValueError("RELEASE_ACCEPTANCE_HASH_MISMATCH")
+    proof = json.loads(raw)
+    if not isinstance(proof, dict) or proof.get("kind") != "octoport.operator-release-acceptance" or proof.get("schema_version") != 1 or proof.get("verdict") != "PASS":
+        raise ValueError("RELEASE_ACCEPTANCE_INVALID")
+    for key in ("artifact_sha256", "source_sha", "version", "environment"):
+        if proof.get(key) != record.get(key):
+            raise ValueError("RELEASE_ACCEPTANCE_IDENTITY_MISMATCH:" + key)
+    packaged = _packaged_target(record)
+    if proof.get("contract_version") != packaged["contractVersion"] or proof.get("control_api_origin") != packaged["controlApiOrigin"]:
+        raise ValueError("RELEASE_ACCEPTANCE_TARGET_MISMATCH")
+    if proof.get("delivery_scope") != record.get("delivery_scope") or proof.get("browser") != record.get("browser"):
+        raise ValueError("RELEASE_ACCEPTANCE_SCOPE_MISMATCH")
+    try:
+        checked_at = datetime.fromisoformat(proof["checked_at"].replace("Z", "+00:00"))
+        age = (datetime.now(timezone.utc) - checked_at).total_seconds()
+    except (KeyError, TypeError, AttributeError, ValueError):
+        raise ValueError("RELEASE_ACCEPTANCE_TIME_INVALID") from None
+    if not 0 <= age <= 24 * 60 * 60:
+        raise ValueError("RELEASE_ACCEPTANCE_STALE")
+    review = _read(review_path)
+    reviewed = review.get("evidence_refs", [])
+    if ref not in reviewed:
+        raise ValueError("RELEASE_ACCEPTANCE_NOT_REVIEWED")
+    checks = proof.get("checks")
+    required = {"server_catalog", "installed_authentication", "installed_start"}
+    if not isinstance(checks, dict) or set(checks) != required:
+        raise ValueError("RELEASE_ACCEPTANCE_CHECKS_REQUIRED")
+    for name in sorted(required):
+        result = checks[name]
+        if not isinstance(result, dict) or result.get("status") != "PASS":
+            raise ValueError("RELEASE_ACCEPTANCE_CHECK_FAILED:" + name)
+        evidence = result.get("evidence")
+        if not isinstance(evidence, dict) or set(evidence) != {"path", "sha256"} or evidence not in reviewed:
+            raise ValueError("RELEASE_ACCEPTANCE_CHECK_NOT_REVIEWED:" + name)
+        if not isinstance(evidence.get("path"), str) or not Path(evidence["path"]).is_absolute():
+            raise ValueError("RELEASE_ACCEPTANCE_CHECK_REFERENCE_INVALID:" + name)
+        if hashlib.sha256(Path(evidence["path"]).read_bytes()).hexdigest() != evidence.get("sha256"):
+            raise ValueError("RELEASE_ACCEPTANCE_CHECK_HASH_MISMATCH:" + name)
+    catalog = checks["server_catalog"]
+    if catalog.get("target_contract_version") != packaged["contractVersion"] or catalog.get("control_api_origin") != packaged["controlApiOrigin"] or catalog.get("target_version") != record["version"] or catalog.get("target_artifact_sha256") != record["artifact_sha256"] or catalog.get("release_present") is not True or catalog.get("extension_status") not in {"SUPPORTED", "UPDATE_RECOMMENDED"} or catalog.get("browser_status") != "SUPPORTED" or catalog.get("profile_status") != "RESOLVED":
+        raise ValueError("RELEASE_ACCEPTANCE_CATALOG_INCOMPATIBLE")
+    auth = checks["installed_authentication"]
+    if auth.get("control_plane") != "TARGET_SERVER" or auth.get("method") != "NORMAL_DEVICE_FLOW" or auth.get("authenticated") is not True:
+        raise ValueError("RELEASE_ACCEPTANCE_REAL_AUTH_REQUIRED")
+    start = checks["installed_start"]
+    if start.get("exact_installed_artifact") is not True or start.get("work_allowed") is not True or start.get("start_outcome") != "STARTED" or start.get("finish_outcome") != "FINISHED":
+        raise ValueError("RELEASE_ACCEPTANCE_INSTALLED_START_REQUIRED")
+    return {"path": str(path), "sha256": ref["sha256"], "checked_at": proof["checked_at"]}
+
+
 def update(root, actor, proposal, review_path=None):
     _validate(proposal, check_bytes=True)
     with _locked(root):
@@ -199,9 +289,11 @@ def update(root, actor, proposal, review_path=None):
         decision = None
         if target == "READY_FOR_OPERATOR":
             material_change = any(proposal.get(k) != current.get(k) for k in (
-                "delivery_scope", "backend_revision_or_contract", "checked_scenarios", "limitations"))
+                "delivery_scope", "backend_revision_or_contract", "checked_scenarios", "limitations",
+                "release_acceptance", "fixes_feedback_ids"))
             if previous != target or material_change:
                 decision = _decision(review_path, proposal, actor, {"PASS"})
+                decision["release_acceptance"] = _release_acceptance(proposal, review_path)
         if target == "WITHDRAWN":
             decision = _decision(
                 review_path,
