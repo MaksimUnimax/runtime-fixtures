@@ -558,6 +558,96 @@ def _read_archive(paths, entry: dict) -> tuple[dict, int, int]:
         raise RuntimeError("WORK_BOARD_V2_ARCHIVE_ID_MISMATCH")
     return row, int(entry["ordinal"]), len(raw)
 
+def _resolved_blocker_tombstone(task: dict, ordinal: int, drafts: dict) -> dict:
+    row = dict(task)
+    row.pop("_ordinal", None)
+    resolution = row.get("blocker_resolution")
+    if (row.get("state") != "BLOCKED" or not isinstance(resolution, dict)
+            or resolution.get("status") != "RESOLVED"):
+        raise RuntimeError("WORK_BOARD_V2_RESOLVED_BLOCKER_ROW_INVALID")
+    wrapper = {
+        "schema_version": ARCHIVE_VERSION,
+        "kind": "resolved_blocker",
+        "task_id": row.get("id"),
+        "row_sha256": _semantic_sha(row),
+        "row": row,
+    }
+    raw = _canonical_bytes(wrapper)
+    if len(raw) > ARCHIVE_CAP_BYTES:
+        raise RuntimeError("WORK_BOARD_V2_ARCHIVE_ROW_CAPACITY")
+    archive_sha = _sha(raw)
+    drafts[("rows", archive_sha + ".json")] = raw
+    # Keep the minimal fields required by the previous v2 reader/writer so a
+    # mixed-version process can still validate BLOCKED semantics and preserve
+    # the archive pointer. New readers always hydrate the exact archived row.
+    tombstone = {
+        "_ordinal": ordinal,
+        "id": row["id"],
+        "role": row["role"],
+        "plan": row["plan"],
+        "state": "BLOCKED",
+        "requires": list(row["requires"]),
+        "result": "R",
+        "blocked_reason": "R",
+        "blocker_resolution": dict(resolution),
+        "resolved_archive_sha256": archive_sha,
+    }
+    if row.get("blocked_receipt"):
+        tombstone["blocked_receipt"] = row["blocked_receipt"]
+    return tombstone
+
+
+def _is_resolved_blocker_tombstone(task: dict) -> bool:
+    required = {
+        "_ordinal", "id", "role", "plan", "state", "requires", "result",
+        "blocked_reason", "blocker_resolution", "resolved_archive_sha256",
+    }
+    keys = set(task) if isinstance(task, dict) else set()
+    return (
+        isinstance(task, dict)
+        and required <= keys
+        and keys <= (required | {"blocked_receipt"})
+        and task.get("state") == "BLOCKED"
+        and task.get("role") in {"A", "B", "C"}
+        and isinstance(task.get("plan"), str)
+        and isinstance(task.get("requires"), list)
+        and task.get("result") == "R"
+        and task.get("blocked_reason") == "R"
+        and isinstance(task.get("blocker_resolution"), dict)
+        and task["blocker_resolution"].get("status") == "RESOLVED"
+    )
+
+
+def _read_resolved_blocker_archive(paths, tombstone: dict) -> dict:
+    archive_sha = tombstone.get("resolved_archive_sha256")
+    if not HEX64.fullmatch(str(archive_sha)):
+        raise RuntimeError("WORK_BOARD_V2_RESOLVED_BLOCKER_TOMBSTONE_INVALID")
+    raw = _read_immutable(paths["rows"], archive_sha + ".json", archive_sha, ARCHIVE_CAP_BYTES)
+    wrapper = _strict_file(raw, ARCHIVE_CAP_BYTES)
+    if set(wrapper) != {"schema_version", "kind", "task_id", "row_sha256", "row"}:
+        raise RuntimeError("WORK_BOARD_V2_RESOLVED_BLOCKER_ARCHIVE_INVALID")
+    row = wrapper.get("row")
+    resolution = row.get("blocker_resolution") if isinstance(row, dict) else None
+    if (
+        wrapper.get("schema_version") != ARCHIVE_VERSION
+        or wrapper.get("kind") != "resolved_blocker"
+        or wrapper.get("task_id") != tombstone.get("id")
+        or not isinstance(row, dict)
+        or row.get("id") != tombstone.get("id")
+        or row.get("state") != "BLOCKED"
+        or not isinstance(resolution, dict)
+        or resolution.get("status") != "RESOLVED"
+        or tombstone.get("role") != row.get("role")
+        or tombstone.get("plan") != row.get("plan")
+        or tombstone.get("requires") != row.get("requires")
+        or tombstone.get("blocker_resolution") != resolution
+        or tombstone.get("blocked_receipt") != row.get("blocked_receipt")
+        or _semantic_sha(row) != wrapper.get("row_sha256")
+    ):
+        raise RuntimeError("WORK_BOARD_V2_RESOLVED_BLOCKER_ARCHIVE_MISMATCH")
+    return row
+
+
 def _generation_id(core: dict) -> str:
     return _semantic_sha({
         "schema_version": 1,
@@ -594,11 +684,17 @@ def _validate_hot(hot: dict) -> None:
             raise RuntimeError("WORK_BOARD_V2_HOT_INVALID")
     ordinals, ids = set(), set()
     for task in hot["tasks"]:
-        if not isinstance(task, dict) or task.get("state") not in ACTIVE_STATES:
+        if not isinstance(task, dict):
             raise RuntimeError("WORK_BOARD_V2_ACTIVE_TASK_INVALID")
         ordinal, identifier = task.get("_ordinal"), task.get("id")
         if (type(ordinal) is not int or ordinal < 0 or not isinstance(identifier, str) or not identifier
             or ordinal in ordinals or identifier in ids):
+            raise RuntimeError("WORK_BOARD_V2_ACTIVE_TASK_INVALID")
+        if "resolved_archive_sha256" in task:
+            if (not _is_resolved_blocker_tombstone(task)
+                    or not HEX64.fullmatch(str(task.get("resolved_archive_sha256")))):
+                raise RuntimeError("WORK_BOARD_V2_RESOLVED_BLOCKER_TOMBSTONE_INVALID")
+        elif task.get("state") not in ACTIVE_STATES:
             raise RuntimeError("WORK_BOARD_V2_ACTIVE_TASK_INVALID")
         ordinals.add(ordinal)
         ids.add(identifier)
@@ -949,8 +1045,12 @@ def _load_state(root: Path, hot_raw: bytes | None, *, require_committed: bool):
         ordinals[task_id] = ordinal
     rows = []
     for task in hot["tasks"]:
-        clean = dict(task)
-        ordinal = clean.pop("_ordinal")
+        ordinal = task["_ordinal"]
+        if _is_resolved_blocker_tombstone(task):
+            clean = _read_resolved_blocker_archive(paths, task)
+        else:
+            clean = dict(task)
+            clean.pop("_ordinal")
         if clean["id"] in ids or ordinal in used_ordinals:
             raise RuntimeError("WORK_BOARD_V2_DUPLICATE_ID")
         ids.add(clean["id"])
@@ -1028,8 +1128,13 @@ def _prepare_generation(root: Path, board: dict, previous_state: dict | None = N
         seen_ordinals.add(ordinal)
         assigned[task_id] = ordinal
         if row.get("state") in ACTIVE_STATES:
-            row["_ordinal"] = ordinal
-            active.append(row)
+            resolution = row.get("blocker_resolution")
+            if (row.get("state") == "BLOCKED" and isinstance(resolution, dict)
+                    and resolution.get("status") == "RESOLVED"):
+                active.append(_resolved_blocker_tombstone(row, ordinal, drafts))
+            else:
+                row["_ordinal"] = ordinal
+                active.append(row)
             continue
         if row.get("state") != "DONE":
             raise RuntimeError("WORK_BOARD_V2_LOGICAL_INVALID")

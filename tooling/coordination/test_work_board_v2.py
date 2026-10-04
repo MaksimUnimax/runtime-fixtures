@@ -797,7 +797,7 @@ class WorkBoardV2Tests(unittest.TestCase):
                 with patch.object(core, "EVENT_LOG_CAP_BYTES", exact): run()
                 self.assertEqual(event_path.stat().st_size, exact)
 
-    def test_resolved_blocker_persists_in_v2_and_realerts_if_successor_invalidates(self):
+    def _resolve_blocker_fixture(self):
         blocked_receipt = self.root / "logs/old-blocked.json"
         blocked_receipt.write_text('{"reason":"historical superseded attempt"}')
         old = {"id": "old-attempt", "role": "B", "plan": "C00", "state": "BLOCKED", "requires": [],
@@ -817,6 +817,10 @@ class WorkBoardV2Tests(unittest.TestCase):
         resolved = work_queue.resolve_blocker(
             self.root, "B", "old-attempt", "accepted-successor", str(receipt)
         )
+        return old, successor, receipt, resolved
+
+    def test_resolved_blocker_persists_in_v2_and_realerts_if_successor_invalidates(self):
+        _old, _successor, receipt, resolved = self._resolve_blocker_fixture()
         self.assertEqual(resolved["resolution_status"], "RESOLVED")
         state = v2.load_state(self.root)
         logical = state["logical"]
@@ -826,7 +830,23 @@ class WorkBoardV2Tests(unittest.TestCase):
         self.assertFalse(any(row["task_id"] == "old-attempt" for row in work_queue.blocker_attention(logical)))
         hot = json.loads((self.root / "controllers/work-board.json").read_text())
         hot_old = next(row for row in hot["tasks"] if row["id"] == "old-attempt")
-        self.assertEqual(hot_old["blocker_resolution"]["status"], "RESOLVED")
+        self.assertTrue(v2._is_resolved_blocker_tombstone(hot_old))
+        self.assertEqual(hot_old["state"], "BLOCKED")
+        self.assertEqual(hot_old["role"], old_row["role"])
+        self.assertEqual(hot_old["plan"], old_row["plan"])
+        self.assertEqual(hot_old["requires"], old_row["requires"])
+        self.assertEqual(hot_old["result"], "R")
+        self.assertEqual(hot_old["blocked_reason"], "R")
+        self.assertEqual(hot_old["blocked_receipt"], old_row["blocked_receipt"])
+        self.assertEqual(hot_old["blocker_resolution"], old_row["blocker_resolution"])
+        self.assertRegex(hot_old["resolved_archive_sha256"], r"^[0-9a-f]{64}$")
+        archive = self.root / "controllers/work-board-done/rows" / (
+            hot_old["resolved_archive_sha256"] + ".json"
+        )
+        self.assertTrue(archive.is_file())
+        wrapper = json.loads(archive.read_text())
+        self.assertEqual(wrapper["kind"], "resolved_blocker")
+        self.assertEqual(wrapper["row"], old_row)
         self.assertFalse(any(row["id"] == "accepted-successor" for row in hot["tasks"]))
 
         value = json.loads(receipt.read_text())
@@ -836,6 +856,250 @@ class WorkBoardV2Tests(unittest.TestCase):
         old_view = next(row for row in stale["tasks"] if row["id"] == "old-attempt")
         self.assertEqual(old_view["resolution_status"], "STALE_RESOLUTION")
         self.assertTrue(any(row["task_id"] == "old-attempt" for row in stale["owner_attention"]))
+
+    def test_resolved_blocker_archive_missing_tampered_or_semantically_wrong_fails_closed(self):
+        _old, _successor, _receipt, _resolved = self._resolve_blocker_fixture()
+        hot = json.loads((self.root / "controllers/work-board.json").read_text())
+        tombstone = next(row for row in hot["tasks"] if row["id"] == "old-attempt")
+        archive = self.root / "controllers/work-board-done/rows" / (
+            tombstone["resolved_archive_sha256"] + ".json"
+        )
+        accepted = archive.read_bytes()
+        archive.unlink()
+        with self.assertRaisesRegex(RuntimeError, "CONTENT_MISSING"):
+            v2.load_state(self.root)
+
+        archive.write_bytes(accepted.replace(b'"resolved_blocker"', b'"resolved_blockerX"', 1))
+        with self.assertRaisesRegex(RuntimeError, "HASH_MISMATCH"):
+            v2.load_state(self.root)
+
+        wrapper = json.loads(accepted)
+        wrapper["row"]["state"] = "READY"
+        wrapper["row_sha256"] = v2._semantic_sha(wrapper["row"])
+        wrong = v2._canonical_bytes(wrapper)
+        wrong_sha = hashlib.sha256(wrong).hexdigest()
+        wrong_path = archive.parent / (wrong_sha + ".json")
+        wrong_path.write_bytes(wrong)
+        wrong_tombstone = dict(tombstone, resolved_archive_sha256=wrong_sha)
+        with self.assertRaisesRegex(RuntimeError, "RESOLVED_BLOCKER_ARCHIVE_MISMATCH"):
+            v2._read_resolved_blocker_archive(v2._paths(self.root), wrong_tombstone)
+
+    def test_old_v2_full_resolved_blocker_hot_row_remains_readable_and_compacts_next_generation(self):
+        _old, _successor, _receipt, _resolved = self._resolve_blocker_fixture()
+        state = v2.load_state(self.root)
+        hot = copy.deepcopy(state["hot"])
+        logical_old = next(row for row in state["logical"]["tasks"] if row["id"] == "old-attempt")
+        index = next(i for i, row in enumerate(hot["tasks"]) if row["id"] == "old-attempt")
+        ordinal = hot["tasks"][index]["_ordinal"]
+        full = dict(logical_old, _ordinal=ordinal)
+        hot["tasks"][index] = full
+        hot["generation_id"] = v2._generation_id(v2._hot_core(hot))
+        old_style_raw = v2._canonical_bytes(hot)
+
+        loaded = v2._load_state(self.root, old_style_raw, require_committed=False)
+        loaded_old = next(row for row in loaded["logical"]["tasks"] if row["id"] == "old-attempt")
+        self.assertEqual(loaded_old, logical_old)
+
+        board = copy.deepcopy(loaded["logical"])
+        board["revision"] += 1
+        board["updated_at"] = "2026-10-04T00:01:00+00:00"
+        generated = v2._prepare_generation(self.root, board, loaded)
+        generated_old = next(row for row in generated["core"]["tasks"] if row["id"] == "old-attempt")
+        self.assertTrue(v2._is_resolved_blocker_tombstone(generated_old))
+        self.assertEqual(generated_old["result"], "R")
+        self.assertEqual(generated_old["blocked_reason"], "R")
+        self.assertEqual(generated_old["blocker_resolution"], logical_old["blocker_resolution"])
+        self.assertIn(("rows", generated_old["resolved_archive_sha256"] + ".json"), generated["drafts"])
+
+    def test_compat_tombstone_keeps_old_reader_policy_and_pointer_across_old_writer_shape(self):
+        _old, _successor, receipt, _resolved = self._resolve_blocker_fixture()
+        state = v2.load_state(self.root)
+        logical = copy.deepcopy(state["logical"])
+        full_old = next(row for row in logical["tasks"] if row["id"] == "old-attempt")
+        hot = json.loads((self.root / "controllers/work-board.json").read_text())
+        compat_hot = next(row for row in hot["tasks"] if row["id"] == "old-attempt")
+        ordinal = compat_hot["_ordinal"]
+        compat_logical = dict(compat_hot)
+        compat_logical.pop("_ordinal")
+
+        index = next(i for i, row in enumerate(logical["tasks"]) if row["id"] == "old-attempt")
+        logical["tasks"][index] = compat_logical
+        work_queue._validate_logical_board(logical, enforce_v1_count=False)
+        old_view = work_queue.task_view(logical, compat_logical)
+        self.assertEqual(old_view["state"], "BLOCKED")
+        self.assertEqual(old_view["resolution_status"], "RESOLVED")
+        self.assertFalse(any(row["task_id"] == "old-attempt" for row in work_queue.blocker_attention(logical)))
+
+        old_writer_hot_row = dict(compat_logical, _ordinal=ordinal)
+        self.assertTrue(v2._is_resolved_blocker_tombstone(old_writer_hot_row))
+        self.assertEqual(
+            v2._read_resolved_blocker_archive(v2._paths(self.root), old_writer_hot_row),
+            full_old,
+        )
+
+        value = json.loads(receipt.read_text())
+        value["checks"][0]["verdict"] = "FAIL"
+        receipt.write_text(json.dumps(value))
+        stale_view = work_queue.task_view(logical, compat_logical)
+        self.assertEqual(stale_view["resolution_status"], "STALE_RESOLUTION")
+        attention = next(row for row in work_queue.blocker_attention(logical) if row["task_id"] == "old-attempt")
+        self.assertEqual(attention["evidence"], full_old["blocked_receipt"])
+        self.assertIn("accepted-successor", attention["reason"])
+
+    def test_malformed_resolved_blocker_tombstone_shape_is_rejected(self):
+        _old, _successor, _receipt, _resolved = self._resolve_blocker_fixture()
+        raw = (self.root / "controllers/work-board.json").read_bytes()
+        hot = json.loads(raw)
+        row = next(item for item in hot["tasks"] if item["id"] == "old-attempt")
+        row["extra"] = "not allowed"
+        core = v2._hot_core(hot)
+        hot["generation_id"] = v2._generation_id(core)
+        tampered = v2._canonical_bytes(hot)
+        with self.assertRaisesRegex(RuntimeError, "RESOLVED_BLOCKER_TOMBSTONE_INVALID"):
+            v2._read_hot_once(self.root, tampered)
+
+    def test_unresolved_nonexact_ready_and_in_progress_rows_stay_full_in_hot(self):
+        blocked_receipt = self.root / "logs/historical-blocked.json"
+        blocked_receipt.write_text('{"reason":"historical"}')
+        tasks = [
+            {
+                "id": "unresolved", "role": "B", "plan": "C00", "state": "BLOCKED", "requires": [],
+                "result": "Unresolved", "paths": ["tooling/unresolved.py"],
+                "blocked_reason": "Still blocked", "blocked_receipt": str(blocked_receipt),
+            },
+            {
+                "id": "nonexact", "role": "B", "plan": "C00", "state": "BLOCKED", "requires": [],
+                "result": "Historical", "paths": ["tooling/nonexact.py"],
+                "blocked_reason": "Historical", "blocked_receipt": str(blocked_receipt),
+                "blocker_resolution": {
+                    "owner": "CONTROLLER",
+                    "status": "RESOLVED_FOR_THIS_OWNER_TEST_RELEASE",
+                    "evidence": "/root/octoport-control/logs/controller/publication.json",
+                },
+            },
+            self.ready("ready-row"),
+            dict(self.ready("in-progress-row"), state="IN_PROGRESS"),
+        ]
+        self.migrate(tasks)
+        hot = json.loads((self.root / "controllers/work-board.json").read_text())
+        by_id = {row["id"]: row for row in hot["tasks"]}
+        for identifier in ("unresolved", "nonexact", "ready-row", "in-progress-row"):
+            self.assertNotIn("resolved_archive_sha256", by_id[identifier])
+        self.assertEqual(by_id["unresolved"]["blocked_reason"], "Still blocked")
+        self.assertEqual(
+            by_id["nonexact"]["blocker_resolution"]["status"],
+            "RESOLVED_FOR_THIS_OWNER_TEST_RELEASE",
+        )
+        self.assertEqual(by_id["ready-row"]["state"], "READY")
+        self.assertEqual(by_id["in-progress-row"]["state"], "IN_PROGRESS")
+
+    def test_resolved_blocker_archive_hash_stable_across_unrelated_queue_mutation(self):
+        _old, _successor, _receipt, _resolved = self._resolve_blocker_fixture()
+        before = json.loads((self.root / "controllers/work-board.json").read_text())
+        old_before = next(row for row in before["tasks"] if row["id"] == "old-attempt")
+        archive_sha = old_before["resolved_archive_sha256"]
+        archive_path = self.root / "controllers/work-board-done/rows" / (archive_sha + ".json")
+        accepted = archive_path.read_bytes()
+
+        work_queue.add_task(
+            self.root,
+            "A",
+            dict(
+                self.ready("a-unrelated"),
+                acceptance=["bounded"],
+                basis="approved plan remainder",
+            ),
+            repo_root=Path(work_queue.__file__).resolve().parents[2],
+        )
+        after = json.loads((self.root / "controllers/work-board.json").read_text())
+        old_after = next(row for row in after["tasks"] if row["id"] == "old-attempt")
+        self.assertEqual(old_after["resolved_archive_sha256"], archive_sha)
+        self.assertEqual(archive_path.read_bytes(), accepted)
+        self.assertEqual(
+            len(list((self.root / "controllers/work-board-done/rows").glob(archive_sha + ".json"))),
+            1,
+        )
+
+    def test_resolved_blocker_sidecar_crash_before_hot_publish_rolls_back_then_reuses_archive(self):
+        blocked_receipt = self.root / "logs/old-blocked.json"
+        blocked_receipt.write_text('{"reason":"historical superseded attempt"}')
+        old = {"id": "old-attempt", "role": "B", "plan": "C00", "state": "BLOCKED", "requires": [],
+               "result": "Historical failed attempt", "paths": ["tooling/old.py"],
+               "blocked_reason": "Superseded", "blocked_receipt": str(blocked_receipt)}
+        successor = {"id": "accepted-successor", "role": "B", "plan": "C00", "state": "IN_PROGRESS", "requires": [],
+                     "result": "Accepted successor", "paths": ["tooling/new.py"]}
+        self.migrate([old, successor])
+        receipt = self.root / "logs/successor-completion.json"
+        receipt.write_text(json.dumps({
+            "kind": work_queue.COMPLETION_KIND, "version": 1,
+            "task_id": "accepted-successor", "candidate_sha": work_queue.current_worktree_head(),
+            "verdict": "PASS", "review": {"verdict": "PASS", "evidence": ["review"]},
+            "checks": [{"name": "focused", "verdict": "PASS", "evidence": ["run"]}],
+        }))
+        work_queue.advance_task(self.root, "B", "accepted-successor", "DONE", str(receipt))
+        baseline = v2.load_state(self.root)["logical"]
+
+        def crash(point):
+            if point == "after_data_durable":
+                raise Crash(point)
+
+        with patch.object(work_queue._v2(), "_fault", crash), self.assertRaises(Crash):
+            work_queue.resolve_blocker(
+                self.root, "B", "old-attempt", "accepted-successor", str(receipt)
+            )
+        recovered = v2.recover_queue_transaction(self.root)
+        self.assertEqual(recovered["state"], "ROLLED_BACK")
+        self.assertEqual(v2.load_state(self.root)["logical"], baseline)
+
+        work_queue.resolve_blocker(
+            self.root, "B", "old-attempt", "accepted-successor", str(receipt)
+        )
+        hot = json.loads((self.root / "controllers/work-board.json").read_text())
+        tombstone = next(row for row in hot["tasks"] if row["id"] == "old-attempt")
+        archive = self.root / "controllers/work-board-done/rows" / (
+            tombstone["resolved_archive_sha256"] + ".json"
+        )
+        self.assertTrue(archive.is_file())
+        self.assertEqual(
+            next(row for row in v2.load_state(self.root)["logical"]["tasks"] if row["id"] == "old-attempt")[
+                "blocker_resolution"
+            ]["status"],
+            "RESOLVED",
+        )
+
+    def test_current_like_36_resolved_blockers_reduce_hot_by_more_than_100kib(self):
+        tasks = []
+        for number in range(36):
+            tasks.append({
+                "id": f"resolved-{number:02d}",
+                "role": "B",
+                "plan": "C00",
+                "state": "BLOCKED",
+                "requires": [],
+                "result": "x" * 3500 + str(number),
+                "paths": [f"tooling/historical-{number:02d}.py"],
+                "blocked_reason": "Historical superseded attempt",
+                "blocked_receipt": f"/root/octoport-control/logs/historical-{number:02d}.json",
+                "blocker_resolution": {
+                    "owner": "CONTROLLER",
+                    "next_action": "Historical attempt preserved",
+                    "unblock_when": "Accepted successor remains valid",
+                    "status": "RESOLVED",
+                    "successor_task": f"successor-{number:02d}",
+                    "successor_candidate_sha": "a" * 40,
+                    "receipt": f"/root/octoport-control/logs/successor-{number:02d}.json",
+                    "resolved_at": "2026-10-04T00:00:00+00:00",
+                },
+            })
+        board, raw, _receipt = self.migrate(tasks)
+        state = v2.load_state(self.root)
+        hot_raw = (self.root / "controllers/work-board.json").read_bytes()
+        self.assertEqual(state["logical"]["tasks"], board["tasks"])
+        self.assertGreater(len(raw) - len(hot_raw), 100 * 1024)
+        hot = json.loads(hot_raw)
+        self.assertEqual(len(hot["tasks"]), 36)
+        self.assertTrue(all(v2._is_resolved_blocker_tombstone(row) for row in hot["tasks"]))
+        self.assertEqual(len(list((self.root / "controllers/work-board-done/rows").glob("*.json"))), 36)
 
     def test_v2_preserves_historical_non_successor_blocker_resolution_metadata(self):
         blocked_receipt = self.root / "logs/historical-blocked.json"
