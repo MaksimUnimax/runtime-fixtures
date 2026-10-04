@@ -73,10 +73,15 @@ Qualified PASS is intentionally not collapsed into CLEAN_PASS.
 The current rows whose historical Ozon status explicitly contains `GUIDANCE_GAP` are:
 
 - CAP-16;
-- CAP-18;
 - CAP-21.
 
-All three remain `QUALIFIED_PASS`, not `CLEAN_PASS`.
+Both remain `QUALIFIED_PASS`, not `CLEAN_PASS`.
+
+CAP-18 remains `QUALIFIED_PASS` under
+`PASS_WITH_PRODUCT_LEVEL_COVERAGE_AND_EXPLICIT_DATA_READINESS_GUIDANCE`.
+Its guidance now exposes the accepted composite `campaign/product/day` boundary
+and distinguishes direct responses from explicit asynchronous report
+start/status/download steps without inventing a provider latency duration.
 
 Other qualified PASS rows retain their exact boundary/recovery/omission/coverage wording from the canonical TSV; this task does not simplify those statuses.
 

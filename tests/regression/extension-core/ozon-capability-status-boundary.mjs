@@ -66,6 +66,10 @@ assert.equal(
   "REOPENED__STORAGE_PLACEMENT_REQUIRED_FOR_UNIT_ECONOMICS",
 );
 assert.equal(byId.get("CAP-25")[statusColumn], "IN_PROGRESS");
+assert.equal(
+  byId.get("CAP-18")[statusColumn],
+  "PASS_WITH_PRODUCT_LEVEL_COVERAGE_AND_EXPLICIT_DATA_READINESS_GUIDANCE",
+);
 
 const counts = {
   CLEAN_PASS: 0,
@@ -136,7 +140,7 @@ const guidanceGapIds = statusRows
 assert.deepEqual(partialIds, ["CAP-22"]);
 assert.deepEqual(reopenedIds, ["CAP-24"]);
 assert.deepEqual(inProgressIds, ["CAP-25"]);
-assert.deepEqual(guidanceGapIds, ["CAP-16", "CAP-18", "CAP-21"]);
+assert.deepEqual(guidanceGapIds, ["CAP-16", "CAP-21"]);
 assert.ok(
   guidanceGapIds.every(
     (id) => classify(byId.get(id)[statusColumn]) === "QUALIFIED_PASS",
