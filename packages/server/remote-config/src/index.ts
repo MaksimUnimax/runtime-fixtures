@@ -1,3 +1,4 @@
+export * from "./beta-canonical-inputs.js";
 import {
   createHash,
   createPublicKey,
