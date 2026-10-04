@@ -20,6 +20,12 @@ const coverage = JSON.parse(
   ),
 );
 
+function compareCodeUnits(left, right) {
+  const a = String(left);
+  const b = String(right);
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
 function loadGlobal(relative, name) {
   const context = {};
   context.globalThis = context;
@@ -131,12 +137,20 @@ function aggregateWbWarehouses(rows) {
   return [...totals.values()].sort(
     (a, b) =>
       b.onHandUnits - a.onHandUnits ||
-      a.warehouseName.localeCompare(b.warehouseName),
+      compareCodeUnits(a.warehouseName, b.warehouseName),
   );
 }
 
 const wbCase = slice.syntheticCases.wbWarehouses;
 assert.deepEqual(aggregateWbWarehouses(wbCase.rows), wbCase.expected);
+assert.deepEqual(
+  aggregateWbWarehouses([
+    { warehouseId: 1, warehouseName: "Ä", quantity: 5 },
+    { warehouseId: 2, warehouseName: "Z", quantity: 5 },
+  ]).map((row) => row.warehouseName),
+  ["Z", "Ä"],
+  "STD-08 WB equal-stock tie must use exact ECMAScript code-unit order",
+);
 assert.notEqual(
   wbCase.expected[1].onHandUnits,
   wbCase.rows
@@ -184,7 +198,7 @@ function aggregateSellerWarehouses(warehouses, responses) {
       .sort(
         (a, b) =>
           b.onHandUnits - a.onHandUnits ||
-          a.warehouseName.localeCompare(b.warehouseName),
+          compareCodeUnits(a.warehouseName, b.warehouseName),
       ),
   };
 }
@@ -195,6 +209,22 @@ const sellerResult = aggregateSellerWarehouses(
 );
 assert.equal(sellerResult.status, "COMPLETE");
 assert.deepEqual(sellerResult.rows, sellerCase.expected);
+const sellerCodeUnitTie = aggregateSellerWarehouses(
+  [
+    { id: 1, name: "Ä" },
+    { id: 2, name: "Z" },
+  ],
+  [
+    { warehouseId: 1, stocks: [{ chrtId: 101, amount: 5 }] },
+    { warehouseId: 2, stocks: [{ chrtId: 202, amount: 5 }] },
+  ],
+);
+assert.equal(sellerCodeUnitTie.status, "COMPLETE");
+assert.deepEqual(
+  sellerCodeUnitTie.rows.map((row) => row.warehouseName),
+  ["Z", "Ä"],
+  "STD-08 seller equal-stock tie must use exact ECMAScript code-unit order",
+);
 assert.deepEqual(
   aggregateSellerWarehouses(
     sellerCase.warehouses,

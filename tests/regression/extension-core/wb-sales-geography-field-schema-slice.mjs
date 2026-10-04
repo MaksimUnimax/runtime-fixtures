@@ -26,6 +26,12 @@ const numeric = JSON.parse(
 );
 const operational = JSON.parse(read(slice.sources.sales.reuseFixture));
 
+function compareCodeUnits(left, right) {
+  const a = String(left);
+  const b = String(right);
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
 function loadGlobal(relative, name) {
   const context = {};
   context.globalThis = context;
@@ -153,7 +159,7 @@ function summarize(rows) {
   }
   return [...grouped.values()].sort(
     (a, b) =>
-      b.saleUnits - a.saleUnits || a.warehouse.localeCompare(b.warehouse),
+      b.saleUnits - a.saleUnits || compareCodeUnits(a.warehouse, b.warehouse),
   );
 }
 
@@ -163,6 +169,16 @@ assert.deepEqual(summarize(c.duplicateSale.rows), c.duplicateSale.expected);
 assert.deepEqual(
   summarize(c.missingWarehouse.rows),
   c.missingWarehouse.expected,
+);
+
+const codeUnitTie = summarize([
+  { saleID: "S-code-unit-a", warehouseName: "Ä" },
+  { saleID: "S-code-unit-z", warehouseName: "Z" },
+]);
+assert.deepEqual(
+  codeUnitTie.map((row) => row.warehouse),
+  ["Z", "Ä"],
+  "STD-09 equal-sale-unit tie must use exact ECMAScript code-unit order",
 );
 
 assert.deepEqual(c.officeReference.expected, {
@@ -175,7 +191,7 @@ const warehouseSort = numeric.cases.find(
 );
 assert.ok(warehouseSort, "warehouse_sales_sort numeric fixture missing");
 const sorted = [...warehouseSort.input.rows]
-  .sort((a, b) => b.units - a.units || a.warehouse.localeCompare(b.warehouse))
+  .sort((a, b) => b.units - a.units || compareCodeUnits(a.warehouse, b.warehouse))
   .map((row) => row.warehouse);
 assert.deepEqual(sorted, warehouseSort.expected);
 

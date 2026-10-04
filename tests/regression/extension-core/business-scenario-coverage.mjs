@@ -61,6 +61,12 @@ const numeric = JSON.parse(
   ),
 );
 
+function compareCodeUnits(left, right) {
+  const a = String(left);
+  const b = String(right);
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
 function loadGlobal(relative, name) {
   const context = {};
   context.globalThis = context;
@@ -318,7 +324,7 @@ const calculators = {
       .sort(
         (a, b) =>
           Number(b.units) - Number(a.units) ||
-          String(a.warehouse).localeCompare(String(b.warehouse)),
+          compareCodeUnits(a.warehouse, b.warehouse),
       )
       .map((row) => row.warehouse);
   },
@@ -862,6 +868,17 @@ const calculators = {
     };
   },
 };
+
+assert.deepEqual(
+  calculators.warehouse_sort({
+    rows: [
+      { warehouse: "Ä", units: 7 },
+      { warehouse: "Z", units: 7 },
+    ],
+  }),
+  ["Z", "Ä"],
+  "warehouse_sort equal-unit tie must use exact ECMAScript code-unit order",
+);
 
 for (const row of numeric.cases) {
   assert.ok(
