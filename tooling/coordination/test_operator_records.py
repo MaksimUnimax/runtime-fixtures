@@ -3,6 +3,8 @@ import hashlib
 import json
 import tempfile
 import unittest
+import zipfile
+from datetime import datetime, timedelta, timezone
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import operator_records as records
@@ -14,7 +16,11 @@ class CandidateRecordsTests(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
         self.artifact = self.root / "candidate.zip"
-        self.artifact.write_bytes(b"immutable test package")
+        config = dict(environment="PREPRODUCTION", extensionVersion="0.2.11",
+            contractVersion="control_plane_v2", controlApiOrigin="https://api.example.test")
+        with zipfile.ZipFile(self.artifact, "w") as archive:
+            archive.writestr("manifest.json", json.dumps({"version": "0.2.11"}))
+            archive.writestr("service_worker.js", "globalThis.__SELLER_AGENTS_PACKAGED_CONFIG__=" + json.dumps(json.dumps(config)) + ";")
         self.record = dict(candidate_id="candidate-C", version="0.2.11",
             source_sha="a" * 40, artifact_path=str(self.artifact),
             artifact_sha256=hashlib.sha256(self.artifact.read_bytes()).hexdigest(),
@@ -23,7 +29,32 @@ class CandidateRecordsTests(unittest.TestCase):
             readiness="PREPARING", evidence_refs=[], checked_scenarios=[],
             limitations=["full live scenario pending"],
             delivery_scope=["ordinary-login", "installed-start"])
+        self.acceptance_path = self.root / "release-acceptance.json"
+        self._acceptance()
         records.register(self.root, "C", self.record)
+
+    def _acceptance(self, **changes):
+        evidence = self.root / "target-runtime-result.json"
+        evidence.write_text('{"test_fixture":true,"status":"PASS"}')
+        ref = {"path": str(evidence), "sha256": hashlib.sha256(evidence.read_bytes()).hexdigest()}
+        proof = dict(kind="octoport.operator-release-acceptance", schema_version=1,
+            verdict="PASS", checked_at=datetime.now(timezone.utc).isoformat(),
+            contract_version="control_plane_v2", control_api_origin="https://api.example.test",
+            **{k: self.record[k] for k in ("artifact_sha256", "source_sha", "version", "environment", "browser", "delivery_scope")},
+            checks={
+                "server_catalog": dict(status="PASS", evidence=ref, target_version=self.record["version"],
+                    target_contract_version="control_plane_v2", control_api_origin="https://api.example.test",
+                    target_artifact_sha256=self.record["artifact_sha256"], release_present=True,
+                    extension_status="SUPPORTED", browser_status="SUPPORTED", profile_status="RESOLVED"),
+                "installed_authentication": dict(status="PASS", evidence=ref, control_plane="TARGET_SERVER",
+                    method="NORMAL_DEVICE_FLOW", authenticated=True),
+                "installed_start": dict(status="PASS", evidence=ref, exact_installed_artifact=True,
+                    work_allowed=True, start_outcome="STARTED", finish_outcome="FINISHED")})
+        proof.update(changes)
+        self.acceptance_path.write_text(json.dumps(proof))
+        self.record["release_acceptance"] = {"path": str(self.acceptance_path),
+            "sha256": hashlib.sha256(self.acceptance_path.read_bytes()).hexdigest()}
+        return proof
 
     def review(self, verdict="PASS", **changes):
         evidence = self.root / "installed-result.json"
@@ -31,6 +62,9 @@ class CandidateRecordsTests(unittest.TestCase):
         decision = dict(verdict=verdict, artifact_sha256=self.record["artifact_sha256"],
             author_role="C", reviewer_role="A", delivery_scope=self.record["delivery_scope"],
             evidence_refs=[{"path": str(evidence), "sha256": hashlib.sha256(evidence.read_bytes()).hexdigest()}])
+        if verdict == "PASS":
+            proof = json.loads(self.acceptance_path.read_text())
+            decision["evidence_refs"] += [self.record["release_acceptance"], proof["checks"]["server_catalog"]["evidence"]]
         decision.update(changes)
         path = self.root / "review.json"
         path.write_text(json.dumps(decision))
@@ -39,6 +73,66 @@ class CandidateRecordsTests(unittest.TestCase):
     def ready(self):
         record = dict(self.record, readiness="READY_FOR_OPERATOR")
         return records.update(self.root, "C", record, self.review())
+
+    def test_ready_rejects_offline_only_review(self):
+        record = dict(self.record, readiness="READY_FOR_OPERATOR")
+        record.pop("release_acceptance")
+        with self.assertRaisesRegex(ValueError, "RELEASE_ACCEPTANCE_REQUIRED"):
+            records.update(self.root, "C", record, self.review())
+
+    def test_acceptance_binds_identity_scope_and_freshness(self):
+        for changes in [{"artifact_sha256": "b" * 64}, {"source_sha": "b" * 40},
+                        {"version": "0.2.12"}, {"environment": "LOCAL"}, {"browser": "firefox"},
+                        {"contract_version": "control_plane_v3"}, {"contract_version": "control_plane_v1"},
+                        {"control_api_origin": "https://wrong.example.test"},
+                        {"delivery_scope": ["signed-out-only"]}, {"verdict": "FAIL"},
+                        {"checked_at": "invalid"},
+                        {"checked_at": (datetime.now(timezone.utc) - timedelta(days=2)).isoformat()},
+                        {"checked_at": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()}]:
+            with self.subTest(changes=changes):
+                self._acceptance(**changes)
+                with self.assertRaisesRegex(ValueError, "RELEASE_ACCEPTANCE_"):
+                    self.ready()
+
+    def test_required_live_and_installed_boundaries_cannot_be_replaced(self):
+        cases = [("server_catalog", "release_present", False),
+                 ("server_catalog", "target_contract_version", "control_plane_v3"),
+                 ("server_catalog", "control_api_origin", "https://wrong.example.test"),
+                 ("server_catalog", "target_version", "0.2.10"),
+                 ("server_catalog", "target_artifact_sha256", "b" * 64),
+                 ("server_catalog", "extension_status", "UPDATE_REQUIRED"),
+                 ("server_catalog", "browser_status", "UNSUPPORTED_BROWSER"),
+                 ("server_catalog", "profile_status", "UNCONFIGURED"),
+                 ("installed_authentication", "control_plane", "MOCK"),
+                 ("installed_authentication", "method", "INJECTED_SESSION"),
+                 ("installed_authentication", "authenticated", False),
+                 ("installed_start", "exact_installed_artifact", False),
+                 ("installed_start", "work_allowed", False),
+                 ("installed_start", "start_outcome", "UNKNOWN"),
+                 ("installed_start", "finish_outcome", "NOT_TESTED")]
+        for group, field, value in cases:
+            with self.subTest(group=group, field=field):
+                proof = self._acceptance()
+                proof["checks"][group][field] = value
+                self._acceptance(checks=proof["checks"])
+                with self.assertRaisesRegex(ValueError, "RELEASE_ACCEPTANCE_"):
+                    self.ready()
+
+    def test_acceptance_and_underlying_evidence_must_be_reviewed(self):
+        for omit in ["release-acceptance.json", "target-runtime-result.json"]:
+            review = self.review()
+            value = json.loads(review.read_text())
+            value["evidence_refs"] = [x for x in value["evidence_refs"] if not x["path"].endswith(omit)]
+            review.write_text(json.dumps(value))
+            with self.subTest(omit=omit), self.assertRaisesRegex(ValueError, "RELEASE_ACCEPTANCE_.*REVIEWED"):
+                records.update(self.root, "C", dict(self.record, readiness="READY_FOR_OPERATOR"), review)
+
+    def test_changed_acceptance_requires_new_review(self):
+        ready = self.ready()
+        proof = self._acceptance()
+        proposal = dict(ready, release_acceptance=self.record["release_acceptance"])
+        with self.assertRaisesRegex(ValueError, "EXACT_REVIEW_REQUIRED"):
+            records.update(self.root, "C", proposal)
 
     def test_concurrent_registration_reuses_one_artifact(self):
         def register(i):
