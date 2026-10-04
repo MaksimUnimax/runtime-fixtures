@@ -1,3 +1,5 @@
+export * from "./beta-canonical-inputs.js";
+
 import { createHash } from "node:crypto";
 import { canonicalizeJson } from "@product/remote-config";
 import { selectRolloutCandidateV1 } from "@product/remote-config";

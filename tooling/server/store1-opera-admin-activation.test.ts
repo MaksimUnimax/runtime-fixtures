@@ -1,3 +1,4 @@
+import { BETA_CHATGPT_STANDARD_OPERA_INPUT_V1 } from "../../packages/server/adapter-registry/src/index.js";
 import { describe, expect, it } from "vitest";
 import {
   STORE1_ACCEPTED_ARTIFACT_SHA256,
@@ -166,6 +167,68 @@ function exactReadback(): Store1ActivationReadback {
 }
 
 describe("STORE-1 ordinary-admin activation planner", () => {
+  it("uses the beta canonical input contract as its single semantic/profile authority", () => {
+    expect(STORE1_AI_SURFACE).toBe(
+      BETA_CHATGPT_STANDARD_OPERA_INPUT_V1.surface.machineKey,
+    );
+    expect(STORE1_PROFILE_KEY).toBe(
+      BETA_CHATGPT_STANDARD_OPERA_INPUT_V1.profile.machineKey,
+    );
+    expect(STORE1_PROFILE_COMPATIBILITY).toEqual(
+      BETA_CHATGPT_STANDARD_OPERA_INPUT_V1.profile.compatibility,
+    );
+    expect(STORE1_PROFILE_SHA256).toBe(
+      BETA_CHATGPT_STANDARD_OPERA_INPUT_V1.profile.contentSha256,
+    );
+
+    const noAdapter = exactReadback();
+    noAdapter.adapters = [];
+    noAdapter.adapterNextCursor = null;
+    expect(planStore1Activation(authority, noAdapter)).toMatchObject({
+      status: "POST",
+      next: {
+        path: "/v1/admin/ai/registry/adapters",
+        body: {
+          machineKey: BETA_CHATGPT_STANDARD_OPERA_INPUT_V1.adapter.machineKey,
+          displayName: BETA_CHATGPT_STANDARD_OPERA_INPUT_V1.adapter.displayName,
+          description: BETA_CHATGPT_STANDARD_OPERA_INPUT_V1.adapter.description,
+        },
+      },
+    });
+
+    const noSurface = exactReadback();
+    noSurface.surfaces = [];
+    noSurface.surfaceNextCursor = null;
+    expect(planStore1Activation(authority, noSurface)).toMatchObject({
+      status: "POST",
+      next: {
+        path: "/v1/admin/ai/registry/surfaces",
+        body: {
+          adapterId: ids.adapter,
+          machineKey: BETA_CHATGPT_STANDARD_OPERA_INPUT_V1.surface.machineKey,
+          displayName: BETA_CHATGPT_STANDARD_OPERA_INPUT_V1.surface.displayName,
+        },
+      },
+    });
+
+    const noProfile = exactReadback();
+    noProfile.profiles = [];
+    noProfile.profileNextCursor = null;
+    expect(planStore1Activation(authority, noProfile)).toMatchObject({
+      status: "POST",
+      next: {
+        path: "/v1/admin/ai/profiles",
+        body: {
+          adapterId: ids.adapter,
+          surfaceId: ids.surface,
+          variantId: null,
+          machineKey: BETA_CHATGPT_STANDARD_OPERA_INPUT_V1.profile.machineKey,
+          displayName: BETA_CHATGPT_STANDARD_OPERA_INPUT_V1.profile.displayName,
+        },
+      },
+    });
+  });
+
   it("completes CLOSED-beta reviewer preflight before catalog reads", () => {
     expect(planStore1Activation(authority, {})).toMatchObject({
       status: "READ",

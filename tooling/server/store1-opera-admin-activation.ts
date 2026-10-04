@@ -1,7 +1,10 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { basename } from "node:path";
-import { validateProfileContent } from "../../packages/server/adapter-registry/src/index.js";
+import {
+  BETA_CHATGPT_STANDARD_OPERA_INPUT_V1,
+  validateProfileContent,
+} from "../../packages/server/adapter-registry/src/index.js";
 import {
   STORE1_ACCEPTED_ARTIFACT_SHA256,
   STORE1_ACCEPTED_SOURCE_HEAD,
@@ -10,7 +13,6 @@ import {
   STORE1_BROWSER_MINIMUM,
   STORE1_CONTRACT,
   STORE1_PREVIOUS_VERSION,
-  STORE1_PROFILE_MINIMUM_EXTENSION_VERSION,
   STORE1_VERSION,
 } from "./store1-operator-authority.js";
 import { isTrustedStore1V2SignaturePreflightProof } from "./store1-v2-signature-preflight.js";
@@ -28,78 +30,25 @@ export {
 } from "./store1-operator-authority.js";
 
 export const STORE1_POLICY_KEY = "store1.opera.v2" as const;
-export const STORE1_AI_SURFACE = "web" as const;
-export const STORE1_PROFILE_KEY = "chatgpt-web-opera-v1" as const;
+const STORE1_CANONICAL_AI_INPUT = BETA_CHATGPT_STANDARD_OPERA_INPUT_V1;
+export const STORE1_AI_SURFACE = STORE1_CANONICAL_AI_INPUT.surface.machineKey;
+export const STORE1_PROFILE_KEY = STORE1_CANONICAL_AI_INPUT.profile.machineKey;
 export const STORE1_REASON = "STORE-1 Opera reviewer catalog activation";
 
-function selector(
-  strategy:
-    | "conversation_root"
-    | "composer_root"
-    | "send_control"
-    | "assistant_response",
-  reference:
-    | "conversation-root"
-    | "composer-root"
-    | "send-control"
-    | "assistant-response",
-) {
-  return {
-    strategy,
-    primary: { kind: "packaged_selector_reference" as const, reference },
-    fallbacks: [],
-    timeoutMs: 1000,
-    observationMode: "polling" as const,
-  };
-}
-function contour(
-  key: "page_identity" | "conversation_root" | "composer_root" | "send_control",
-  expectedState: "PRESENT" | "INTERACTIVE",
-  strategy:
-    | "page_identity"
-    | "conversation_root"
-    | "composer_root"
-    | "send_control",
-) {
-  return { key, required: true, expectedState, strategy };
-}
+export const STORE1_PROFILE_CONTENT = STORE1_CANONICAL_AI_INPUT.profile.content;
+export const STORE1_PROFILE_COMPATIBILITY =
+  STORE1_CANONICAL_AI_INPUT.profile.compatibility;
 
-export const STORE1_PROFILE_CONTENT = {
-  schemaVersion: "adapter_profile_v1" as const,
-  page: {
-    identityStrategy: "page_identity" as const,
-    conversationStrategy: "conversation_root" as const,
-    composerStrategy: "composer_root" as const,
-  },
-  selectors: {
-    conversation: selector("conversation_root", "conversation-root"),
-    composer: selector("composer_root", "composer-root"),
-    send: selector("send_control", "send-control"),
-    assistantResponse: selector("assistant_response", "assistant-response"),
-  },
-  observation: { mode: "polling" as const, intervalMs: 100 },
-  contours: [
-    contour("page_identity", "PRESENT", "page_identity"),
-    contour("conversation_root", "PRESENT", "conversation_root"),
-    contour("composer_root", "INTERACTIVE", "composer_root"),
-    contour("send_control", "INTERACTIVE", "send_control"),
-  ],
-};
-
-export const STORE1_PROFILE_COMPATIBILITY = {
-  schemaVersion: "profile_compatibility_v1" as const,
-  contractVersion: STORE1_CONTRACT,
-  browserFamilies: [STORE1_BROWSER],
-  minimumBrowserVersions: [
-    { browserFamily: STORE1_BROWSER, minimumVersion: STORE1_BROWSER_MINIMUM },
-  ],
-  minimumExtensionVersion: STORE1_PROFILE_MINIMUM_EXTENSION_VERSION,
-};
-
-export const STORE1_PROFILE_SHA256 = validateProfileContent({
+const store1ValidatedProfile = validateProfileContent({
   content: STORE1_PROFILE_CONTENT,
   compatibility: STORE1_PROFILE_COMPATIBILITY,
-}).contentSha256;
+});
+if (
+  store1ValidatedProfile.contentSha256 !==
+  STORE1_CANONICAL_AI_INPUT.profile.contentSha256
+)
+  throw new Error("STORE1_CANONICAL_PROFILE_FINGERPRINT_MISMATCH");
+export const STORE1_PROFILE_SHA256 = store1ValidatedProfile.contentSha256;
 const STORE1_PREVIOUS_PROFILE_SHA256 =
   "24b03fc9b89c3ec849e96bbc10ce8138382e29807e0e7251aca41ec2de357985" as const;
 
@@ -622,7 +571,8 @@ export function planStore1Activation(
     );
   const adapter = exactOne(
     r.adapters,
-    (value) => value.machineKey === "chatgpt",
+    (value) =>
+      value.machineKey === STORE1_CANONICAL_AI_INPUT.adapter.machineKey,
   );
   if (adapter === "CONFLICT")
     return conflict(
@@ -633,9 +583,9 @@ export function planStore1Activation(
     return post(
       "/v1/admin/ai/registry/adapters",
       {
-        machineKey: "chatgpt",
-        displayName: "ChatGPT",
-        description: "STORE-1 Standard reviewer slice",
+        machineKey: STORE1_CANONICAL_AI_INPUT.adapter.machineKey,
+        displayName: STORE1_CANONICAL_AI_INPUT.adapter.displayName,
+        description: STORE1_CANONICAL_AI_INPUT.adapter.description,
         reason: STORE1_REASON,
       },
       "Create ChatGPT adapter through ordinary admin.",
@@ -678,7 +628,7 @@ export function planStore1Activation(
       {
         adapterId: adapter.id,
         machineKey: STORE1_AI_SURFACE,
-        displayName: "Web",
+        displayName: STORE1_CANONICAL_AI_INPUT.surface.displayName,
         reason: STORE1_REASON,
       },
       "Create packaged ChatGPT web surface.",
@@ -727,7 +677,7 @@ export function planStore1Activation(
         surfaceId: surface.id,
         variantId: null,
         machineKey: STORE1_PROFILE_KEY,
-        displayName: "ChatGPT Web Opera",
+        displayName: STORE1_CANONICAL_AI_INPUT.profile.displayName,
         reason: STORE1_REASON,
       },
       "Create immutable target profile identity.",
