@@ -1,25 +1,31 @@
 # B03 current-main joint acceptance reconciliation — 2026-10-04
 
-Status: PRECLAIM REVIEW DRAFT. This file is permanent control evidence outside Git. It does not claim queue ownership, publication, deployment or production.
+Status: **FINAL — PUBLICATION-BACKED STRICT DONE** for exact candidate `de64e69350b63d658e82bda8f34d408af21fbcba`. Fresh current-main applicability was revalidated on `789a75e3c0a016bdf15f9bf14e0dba1e41d1959a`.
 
 ## Purpose
 
-Reconcile PLAN B03 against exact current main without rerunning unchanged heavy transfer scenarios. The technical B03 bounded relay and the mandatory joint A02+B03 restart/replay acceptance already exist in canonical accepted receipts; the current work-board archive has no plan=B03 strict-DONE row, so the missing result is an evidence/accounting reconciliation, not a new protocol implementation.
+Reconcile PLAN B03 against current main without rerunning unchanged heavy transfer scenarios. The technical B03 bounded relay and the mandatory joint A02+B03 restart/replay acceptance already existed in canonical accepted receipts. This evidence-only reconciliation supplied the missing strict work-board completion row; it did not implement a new transfer protocol.
 
-## Exact current inputs
+The original preclaim review and source-freeze records are preserved as historical inputs. They describe the state **before** queue claim/publication and must not be read as the final disposition of this document.
 
-- Current origin/main: `c2831613c9a0f64d973f550aaf602e3dfb5c0788`.
+## Exact inputs and current-main continuity
+
+- Historical preclaim/source base: `c2831613c9a0f64d973f550aaf602e3dfb5c0788`.
+- Published reconciliation candidate: `de64e69350b63d658e82bda8f34d408af21fbcba`.
+- Published candidate parent: `c2831613c9a0f64d973f550aaf602e3dfb5c0788`.
+- Fresh current origin/main at this status correction: `789a75e3c0a016bdf15f9bf14e0dba1e41d1959a`.
 - Previous joint acceptance base: `5499d57cdbff250723ce2497911d36527306b07b`.
 - B03 implementation commit: `ae15d486cef926b48a7f4749dde4c2b6c978a403`.
 - A02 recovery commit: `02dc7639de915f7d1928e8dd91b6288f06a548be`.
-- All three historical inputs are ancestors of current main.
-- Main advanced from `35053304` to `c2831613` only by the B06 retention-classification receipt; that commit does not touch transfer product paths.
+- All historical protocol inputs remain ancestors of current main.
+- The receipt blob published at `de64e693` remained byte-identical through `789a75e3` before this correction: Git blob `86dd3d690279fe1a8d31857ca2d299295a168161`.
+- Fresh `git diff de64e693..789a75e3` over the five protocol/client/server paths below is empty. Main advances after `de64e693` therefore do not invalidate the accepted protocol evidence.
 
 ## Byte-continuity proof
 
-These five relevant blobs are identical on the accepted joint base and current main:
+These five relevant blobs were identical on the accepted joint base and the published reconciliation line, and fresh status-correction readback found no changes through current main:
 
-| Path | Blob |
+| Path | Accepted blob |
 | --- | --- |
 | `packages/server/credential-transfer/src/index.ts` | `db519266951c79c962aa143ad4f09ba103910184` |
 | `packages/server/credential-transfer/src/credential-transfer.test.ts` | `2e28d6526d2cf61a5ec905b7702aa83798af9c39` |
@@ -27,12 +33,9 @@ These five relevant blobs are identical on the accepted joint base and current m
 | `apps/api/src/credential-transfer-routes.test.ts` | `85b871311d4433fb18818e8fee4a68c4e46da2fd` |
 | `packages/control-client/src/credential-transfer.js` | `2ab75f1cf157827e0a9559a373e1b382f47006be` |
 
-Fresh `git diff 5499d57c..origin/main` over those paths is empty.
-
 ## Accepted B03 server behavior
 
 Canonical receipt: `docs/development/coordination/receipts/B/B03_EPHEMERAL_TRANSFER_RELAY_2026-09-23.md`.
-Current-main receipt SHA-256: `524d7a8bc7cce1863054c7f4943e37093e830fda28f18b76f4288ade46cb9b1d`.
 
 Accepted behavior:
 - process-memory-only packet bytes; no packet serialization/logging;
@@ -46,12 +49,12 @@ Accepted behavior:
 - get/has/expireDue/ACK/cancel/clear release accounting as applicable;
 - a new process relay is empty after restart and preserves truthful `SOURCE_OFFLINE`, not false SUCCESS.
 
-The historical pre-fix review at `/root/octoport-control/logs/B/b03-relay-review-result.md` is retained as rejected/problem evidence; its unbounded-relay findings were the input to the later accepted implementation and must not be replayed as current defects.
+The historical pre-fix review at `/root/octoport-control/logs/B/b03-relay-review-result.md` remains rejected/problem evidence. Its unbounded-relay findings were input to the later accepted implementation, not current defects.
 
 ## Mandatory joint A02+B03 acceptance
 
 Canonical receipt: `docs/development/coordination/receipts/C/C02_A02_B03_JOINT_RESTART_ACCEPTANCE_2026-09-27.md`.
-Current-main receipt SHA-256: `0d6b9184344735503d66e102b1ac889f1e51ded7eafed2d78a1b6d89ff4dae76`.
+
 Status in that receipt: **JOINT INSTALLED_SYNTHETIC PASS / NOT LIVE_OWNER / NOT DEPLOYED**.
 
 The accepted joint scenario used:
@@ -72,14 +75,13 @@ It proved:
 - AI requests zero;
 - no completion/success fabricated after process loss.
 
-Because all five relevant client/server blobs remain identical on current main, the accepted heavy installed-synthetic result remains applicable to this exact protocol boundary.
+Because all five relevant client/server blobs remain unchanged through fresh current main, the accepted heavy installed-synthetic result remains applicable to this exact protocol boundary.
 
 ## Later two-installed-profile lifecycle evidence
 
 Canonical receipt: `docs/development/coordination/receipts/A/A04_TWO_INSTALL_KEY_TRANSFER_2026-10-01.md`.
-Current-main receipt SHA-256: `29b5de046967be221f187a9bc80e3142ca1a7f4beb5936a713c326bed3ff6546`.
 
-A04 explicitly treats the prior A02+B03 joint result as accepted and adds only later installed two-profile lifecycle evidence:
+A04 explicitly treats the prior A02+B03 joint result as accepted and adds later installed two-profile lifecycle evidence:
 - refusal without consent creates no request;
 - explicit consent creates one request;
 - recipient restart restores ACTIVE request and non-extractable key;
@@ -92,9 +94,27 @@ A04 explicitly treats the prior A02+B03 joint result as accepted and adds only l
 
 This is additional INSTALLED_SYNTHETIC / LOCAL DEVELOPMENT evidence and does not upgrade B03 to store/live/deployment acceptance.
 
+## Publication-backed final disposition
+
+The historical preclaim review was followed by the normal governed publication lifecycle. The final evidence is:
+
+- source freeze: `/root/octoport-control/logs/B/b03-current-main-joint-acceptance-reconcile-20261004/SOURCE_FREEZE.json`;
+- exact-candidate independent publication review: **PASS**, `PUBLICATION_REVIEW.json`;
+- published candidate: `de64e69350b63d658e82bda8f34d408af21fbcba`;
+- publication registration: `b93b6002604d526cfae844b0e8eda0227008526c9cec7d810c30d0e5e781695f`;
+- exact-five CI ready receipt: `/root/octoport-control/controllers/task-publication/ready/b93b6002604d526cfae844b0e8eda0227008526c9cec7d810c30d0e5e781695f/5.json`;
+- governed main publication/readback: `PUBLISH_MAIN_RESULT.json`;
+- governed task-ref cleanup: `CLEANUP_REF_RESULT.json`, final cleanup state **DELETED**;
+- registration close: `CLOSE_RESULT.json`, final state **CLOSED**;
+- strict completion receipt: `STRICT_COMPLETION_DE64E693_R2.json`, verdict **PASS**;
+- strict queue finalization: `COMPLETE_QUEUE_DE64E693_R2.json`;
+- completed work-board archive row: `/root/octoport-control/controllers/work-board-done/rows/4928b11018bdc378c26d0c5829e46d67c8315ffbd6367c26de6f2174ac1658a5.json`.
+
+Therefore the bookkeeping gap described in the preclaim draft is closed for the accepted tested B03 protocol boundary. Publication and strict DONE are completed facts, not future actions.
+
 ## Why no new heavy run is justified
 
-The accepted joint test script and product inputs were explicitly checked for applicability in the C02 receipt. Fresh 2026-10-04 readback again proves all relevant product/test blobs are unchanged. Repeating the same browser/DB scenario would only create a newer timestamp and consume resources without adding an acceptance dimension.
+The accepted joint test and relevant product inputs are unchanged. Repeating the same browser/DB transfer scenario would add only a newer timestamp, not a new acceptance dimension.
 
 A new heavy run becomes justified only if:
 - one of the five protocol/client/server blobs changes;
@@ -102,17 +122,7 @@ A new heavy run becomes justified only if:
 - a new defect/feedback invalidates the accepted scenario;
 - a new browser/live/store/deployment claim is being added.
 
-None of those conditions is established by the current-main delta.
-
-## Current disposition
-
-Technical B03 requirement for the tested protocol boundary is already supported by accepted evidence. The current bookkeeping gap is that the v2 work-board completion archive contains no strict-DONE row whose plan is B03.
-
-After the operational notice reader is repaired and a fresh duplicate check still finds no equivalent successor, the correct next action is:
-1. atomically queue-add/claim one B03 evidence-only reconciliation task;
-2. place this independently reviewed content at `docs/development/coordination/receipts/B/B03_CURRENT_MAIN_JOINT_ACCEPTANCE_RECONCILIATION_2026-10-04.md`;
-3. use normal fresh-main review/exact-five/publication/readback;
-4. strict-DONE the task without rerunning the unchanged heavy transfer scenario.
+None of those conditions is established by the current-main delta or by this documentation correction.
 
 ## Evidence boundaries
 
@@ -125,4 +135,4 @@ Not claimed by this reconciliation:
 - deployment or production;
 - store submission/manual operator acceptance.
 
-No source, package, database, service, provider, browser, GitHub setting or live state is mutated by this preclaim evidence draft.
+This status correction changes only this documentation receipt. It performs no transfer/runtime/server/client/DB/schema/config/service/provider/browser or GitHub-admin mutation.
