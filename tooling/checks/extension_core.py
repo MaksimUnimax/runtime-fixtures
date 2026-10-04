@@ -50,6 +50,7 @@ def main():
             runner.run(label + "-attachment-port-idle", ["node", ROOT / "tests/regression/extension-core/attachment-port-idle.mjs", runtime])
             runner.run(label + "-wb-adapter", ["node", ROOT / "tests/regression/extension-core/wb-adapter.mjs", runtime])
             runner.run(label + "-application", ["node", ROOT / "tests/regression/extension-core/application.mjs", runtime])
+            runner.run(label + "-owner-opera-start-keys", ["node", ROOT / "tests/regression/extension-core/owner-opera-start-keys.mjs", runtime])
             runner.run(label + "-transfer-recipient-recovery", ["node", ROOT / "tests/regression/extension-core/client-i1/client-transfer-recipient-recovery.mjs", runtime])
             runner.run(label + "-transfer-popup", ["node", ROOT / "tests/regression/extension-core/client-i1/client-transfer-popup-receive.mjs", runtime])
             runner.run(label + "-support-snapshot", ["node", ROOT / "tests/regression/extension-core/client-i1/client-support-snapshot.mjs", runtime])

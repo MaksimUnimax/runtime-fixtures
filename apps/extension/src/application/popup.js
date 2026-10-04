@@ -156,7 +156,10 @@ function render() {
   $("selection").textContent = connected && selectedId !== connected.id ? "Выбран следующий магазин. Текущее подключение изменится только после подтверждения и нового Start." : "";
   const lastStartText = !connected ? startStatusText(state.lastStart) : null;
   if (lastStartText) $("connection").textContent = lastStartText;
-  if (state.pending) $("connection").textContent = state.pending.send_outcome === "outcome_unknown_no_retry" ? "Исход отправки инструкции неизвестен. Повторная отправка заблокирована" : "Запускаем: ожидаем подтверждение инструкции и ответа ИИ";
+  if (state.pending) $("connection").textContent = ["committed_before_click", "outcome_unknown_no_retry"].includes(state.pending.send_outcome) && state.lastStart?.outcome === "unknown_no_retry" ? "Не удалось подтвердить отправку инструкции. Она не будет вставлена или отправлена повторно автоматически" : "Запускаем: ожидаем подтверждение инструкции и ответа ИИ";
+  const unknownChat = state.identity.ai_id === "chatgpt" && state.identity.status !== "confirmed";
+  $("conversation-note").hidden = !unknownChat;
+  $("conversation-note").textContent = unknownChat ? "Кнопки запросов появятся после подтверждения диалога. Если ChatGPT предлагает войти или зарегистрироваться, войдите и откройте сохраняемый чат. В гостевом диалоге без постоянного адреса кнопки недоступны. Вход в Octoport не означает вход в ChatGPT." : "";
   $("start").disabled = Boolean(state.pending) || !s || !state.identity.ai_id || ["binding", "recovering", "finishing"].includes(state.work?.state);
   $("work-resume").hidden = !(state.context.store_id && state.work?.state === "inactive" && state.context.work_active !== true);
   $("work-resume").disabled = Boolean(state.pending) || !state.conversation_key;
@@ -221,9 +224,21 @@ $("auth-open").onclick = () => action(() => request("SA_AUTH_OPEN_PORTAL"));
 $("auth-cancel").onclick = () => action(() => request("SA_AUTH_CANCEL"));
 $("auth-reset").onclick = () => confirm("Локально завершить текущую сессию и выбрать аккаунт заново? Сохранённые магазины останутся изолированными по аккаунту.", () => request("SA_AUTH_RESET"));
 for (const part of ["seller", "performance", "token"]) $("check-" + part).onclick = () => action(() => request("SA_STORE_CHECK", { store_id: selectedId, part }));
+function openKeyFiles(mode) {
+  $("backup").scrollIntoView({ block: "start", behavior: "smooth" });
+  if (mode === "upload") { $("backup-file").focus(); $("backup-file").click(); }
+  else $("backup-password").focus();
+}
+$("keys-download").onclick = () => openKeyFiles("download");
+$("keys-upload").onclick = () => openKeyFiles("upload");
+$("backup-file").onchange = () => {
+  backupText = "";
+  $("backup-preview-result").hidden = true;
+  $("backup-status").textContent = $("backup-file").files?.length ? "Файл выбран. Введите пароль и нажмите «Проверить файл»." : "";
+};
 function downloadBackup(name, value) {
   const url = URL.createObjectURL(new Blob([value], { type: "application/json" }));
-  const link = document.createElement("a"); link.href = url; link.download = name; link.click();
+  const link = document.createElement("a"); link.href = url; link.download = name; document.body.appendChild(link); link.click(); link.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 function backupSummary(preview) {

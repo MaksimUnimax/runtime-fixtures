@@ -180,6 +180,18 @@ async function saStoreForPending(tab, intent) {
   await saAssertStore(pending.store_context);
   return pending.store_context;
 }
+async function saVerifyCommittedWorkStart(message, sender) {
+  // Recheck authority after composer readiness without issuing a second commit.
+  return withBindingWrite(async () => {
+    const { pending, identity } = await pendingWorkStartForMessage(message, sender);
+    const actorId = String(message.actor_id || "").trim();
+    if (!actorId || pending.send_commit_actor_id !== actorId || pending.send_outcome !== "committed_before_click")
+      return { ok: false, valid: false, code: "WORK_START_COMMIT_VERIFICATION_FAILED" };
+    if (pending.observed_conversation_id && identity.conversation_id !== pending.observed_conversation_id)
+      return { ok: false, valid: false, code: "WORK_PENDING_CONVERSATION_CHANGED" };
+    return { ok: true, valid: true };
+  });
+}
 async function saPendingGuard(pending) {
   await saAssertLocalAuthorityAdmission();
   if (pending?.store_context) await saAssertStore(pending.store_context);
