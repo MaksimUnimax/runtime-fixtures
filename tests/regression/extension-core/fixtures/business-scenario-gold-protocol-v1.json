@@ -196,7 +196,13 @@
     "search_dedup": {
       "mode": "EXECUTABLE_KIND",
       "kind": "search_dedup",
-      "caseIds": ["search_dedup_business_key"]
+      "caseIds": [
+        "search_dedup_business_key",
+        "search_dedup_period_missing",
+        "search_dedup_product_empty",
+        "search_dedup_query_non_string",
+        "search_dedup_rows_missing"
+      ]
     },
     "search_fact_boundary": {
       "mode": "EXECUTABLE_KIND",
@@ -805,16 +811,16 @@
       "scenarioId": "CAP-25",
       "marketplace": "OZON",
       "periodRef": "GOLD_MONTH_2026_09_MSK",
-      "definitionsHash": "4fc3c4ca0fb0907aae2dfd3ef25dfd5363e9afbcda7f9dfcb8c8794e0f2c79dc"
+      "definitionsHash": "b00dd54023df80cc2411b0cd5e7b79662e22f4a09e621f015770635939601e49"
     },
     {
       "scenarioId": "CAP-25",
       "marketplace": "WILDBERRIES",
       "periodRef": "GOLD_MONTH_2026_09_MSK",
-      "definitionsHash": "dca58c3cb5d09082f5a88adf588d356ac6e436d6649cb0e7548cb8228ce0d42d"
+      "definitionsHash": "14287e8439610217c351a3960ef310cb3c70aece0c96962683cfc949b2c6c150"
     }
   ],
-  "definitionIndexSha256": "1f407ff5ffeb52d35f8e6eb0196fbc0d822fc83e211a277c76ec79f4888d90e2",
+  "definitionIndexSha256": "a75029fa796b372d53819cde1d333bd6e0476e9f266646bd1614b6cbbcd0405f",
   "providerFactStatus": "SOURCE_DEFINED_NOT_LIVE_ACCEPTED",
   "ownerSemanticDefaultStatus": "PENDING_OWNER",
   "externalDependencyDefaultStatus": "PENDING_EXTERNAL",

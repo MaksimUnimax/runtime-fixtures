@@ -325,6 +325,73 @@
       }
     },
     {
+      "id": "search_dedup_rows_missing",
+      "kind": "search_dedup",
+      "input": {},
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "SEARCH_ROWS_MISSING",
+        "uniqueCount": null,
+        "pageCountProvesCompleteness": false
+      }
+    },
+    {
+      "id": "search_dedup_period_missing",
+      "kind": "search_dedup",
+      "input": {
+        "rows": [
+          {
+            "product": "p1",
+            "query": "red dress"
+          }
+        ]
+      },
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "SEARCH_BUSINESS_KEY_MISSING",
+        "uniqueCount": null,
+        "pageCountProvesCompleteness": false
+      }
+    },
+    {
+      "id": "search_dedup_product_empty",
+      "kind": "search_dedup",
+      "input": {
+        "rows": [
+          {
+            "period": "2026-08",
+            "product": " ",
+            "query": "red dress"
+          }
+        ]
+      },
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "SEARCH_BUSINESS_KEY_MISSING",
+        "uniqueCount": null,
+        "pageCountProvesCompleteness": false
+      }
+    },
+    {
+      "id": "search_dedup_query_non_string",
+      "kind": "search_dedup",
+      "input": {
+        "rows": [
+          {
+            "period": "2026-08",
+            "product": "p1",
+            "query": null
+          }
+        ]
+      },
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "SEARCH_BUSINESS_KEY_MISSING",
+        "uniqueCount": null,
+        "pageCountProvesCompleteness": false
+      }
+    },
+    {
       "id": "attention_rank",
       "kind": "attention_rank",
       "input": {

@@ -477,9 +477,32 @@ const calculators = {
     };
   },
   search_dedup(input) {
-    const keys = input.rows.map(
-      (row) => `${row.period}\u0000${row.product}\u0000${row.query}`,
-    );
+    if (!input || !Array.isArray(input.rows))
+      return {
+        status: "INCOMPLETE",
+        reason: "SEARCH_ROWS_MISSING",
+        uniqueCount: null,
+        pageCountProvesCompleteness: false,
+      };
+    const keys = [];
+    for (const row of input.rows) {
+      if (
+        !row ||
+        typeof row.period !== "string" ||
+        !row.period.trim() ||
+        typeof row.product !== "string" ||
+        !row.product.trim() ||
+        typeof row.query !== "string" ||
+        !row.query.trim()
+      )
+        return {
+          status: "INCOMPLETE",
+          reason: "SEARCH_BUSINESS_KEY_MISSING",
+          uniqueCount: null,
+          pageCountProvesCompleteness: false,
+        };
+      keys.push(`${row.period}\u0000${row.product}\u0000${row.query}`);
+    }
     return {
       uniqueCount: new Set(keys).size,
       pageCountProvesCompleteness: false,
