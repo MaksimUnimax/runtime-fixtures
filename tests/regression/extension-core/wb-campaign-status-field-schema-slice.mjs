@@ -20,6 +20,11 @@ const coverage = JSON.parse(
   ),
 );
 const advertising = JSON.parse(read(slice.sources.promotion.reuseFixture));
+const advertisedStock = JSON.parse(
+  read(
+    "tests/regression/extension-core/fixtures/wb-advertised-stock-reuse-v1.json",
+  ),
+);
 
 function loadGlobal(relative, name) {
   const context = {};
@@ -68,6 +73,34 @@ const promotionMeta = assertOperation(promotion);
 const mediaMeta = assertOperation(media);
 assert.deepEqual([...promotionMeta.query_keys], promotion.queryFields);
 assert.deepEqual([...mediaMeta.query_keys], media.queryFields);
+assert.deepEqual(Object.keys(promotion.fields), [
+  "id",
+  "status",
+  "settings.payment_type",
+  "nm_settings[].nm_id",
+  "currency",
+]);
+assert.ok(!Object.hasOwn(promotion.fields, "advertId"));
+assert.ok(!Object.hasOwn(promotion.fields, "paymentType"));
+assert.equal(
+  promotion.fields.id.role,
+  advertisedStock.sources.campaigns.fields.id.role,
+);
+assert.equal(
+  promotion.fields["nm_settings[].nm_id"].role,
+  advertisedStock.sources.campaigns.fields["nm_settings.nm_id"].role,
+);
+assert.equal(
+  promotion.fields.currency.role,
+  advertisedStock.sources.campaigns.fields.currency.role,
+);
+assert.deepEqual(Object.keys(advertising.sources.campaigns.fields), [
+  "id",
+  "status",
+  "settings.payment_type",
+  "nm_settings[].nm_id",
+  "currency",
+]);
 assert.equal(
   advertising.sources.campaigns.operationAlias,
   promotion.operationAlias,
@@ -100,14 +133,23 @@ assert.equal(cap17.continuationPolicy, "EXPLICIT_PAGINATION");
 assert.equal(cap17.omissionPolicy, "MISSING_NOT_ZERO");
 
 function projectPromotion(row) {
-  if (!row || !Number.isInteger(row.advertId) || !Number.isInteger(row.status))
+  if (
+    !row ||
+    !Number.isInteger(row.id) ||
+    !Number.isInteger(row.status) ||
+    !row.settings ||
+    !["cpm", "cpc"].includes(row.settings.payment_type) ||
+    !(row.nm_settings === null || Array.isArray(row.nm_settings)) ||
+    (Array.isArray(row.nm_settings) &&
+      row.nm_settings.some((item) => !item || !Number.isInteger(item.nm_id)))
+  )
     return { status: "INCOMPLETE", reason: "PROMOTION_CAMPAIGN_ROW_INVALID" };
   const label = promotion.statuses[String(row.status)];
   if (!label)
     return { status: "INCOMPLETE", reason: "UNKNOWN_PROMOTION_STATUS" };
   return {
     family: "PROMOTION",
-    campaignId: row.advertId,
+    campaignId: row.id,
     statusId: row.status,
     status: label,
   };
@@ -148,6 +190,10 @@ assert.deepEqual(unified(c.rows.promotion, c.rows.media), c.rows.expected);
 assert.deepEqual(
   projectPromotion(c.unknownPromotionStatus.row),
   c.unknownPromotionStatus.expected,
+);
+assert.deepEqual(
+  projectPromotion({ advertId: 9999, status: 9, paymentType: "cpm" }),
+  { status: "INCOMPLETE", reason: "PROMOTION_CAMPAIGN_ROW_INVALID" },
 );
 assert.deepEqual(
   projectMedia(c.unknownMediaStatus.row),

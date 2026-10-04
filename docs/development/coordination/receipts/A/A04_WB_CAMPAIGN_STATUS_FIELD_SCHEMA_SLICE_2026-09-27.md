@@ -94,3 +94,34 @@ Open:
 - any future owner-approved cross-marketplace campaign status vocabulary.
 
 Next: continue another uncovered A04 family with no external dependency; prefer evidence reuse/source-only slices until a runtime defect requires a full package gate.
+
+## Correction — 2026-10-04
+
+Fresh reconciliation against the same pinned provider authority
+`eslazarev/wildberries-sdk@5057bdb9bf16dea24000e3ca79e1934f7761d7fe`,
+`specs/08-promotion.yaml` blob
+`30ae48c8d1b67944b34cf51ac896ae4c2b2fa0d9`, found that the historical
+promotion-campaign row shape in this receipt's fixture was stale.
+
+For `GET /api/advert/v2/adverts`, the pinned `GetAdverts` response requires
+top-level `id`, `settings`, `nm_settings`, `status`, `bid_type`, and
+`restrictions`. Payment type is `settings.payment_type`; campaign product
+identity is `nm_settings[].nm_id`. The historical `advertId` /
+`paymentType` promotion-row assumption is not the response shape of this
+endpoint. Media-campaign `advertId` semantics remain unchanged.
+
+Corrected machine-readable evidence:
+- fixture SHA-256:
+  `98a779af44b2dc58a87a817644db1a3b1d1a8efb47f90a51fbcc667709f5a133`;
+- validator SHA-256:
+  `1aa63312d68f2ac0e86d75db82f3e0422c58782bf4dee3cedbd4642a1a2f555b`.
+
+The validator now rejects the stale promotion `advertId/paymentType` shape and
+cross-checks `id`, `nm_settings[].nm_id`, and currency semantics against the
+already accepted advertised-stock source evidence. Focused campaign-status,
+advertising, advertised-stock, visibility, and aggregate business-scenario
+validators all PASS. No provider request or runtime/product behavior changed.
+
+The earlier hashes above are retained as historical identifiers of the
+superseded evidence bytes; they are not rewritten as if they had always
+contained the corrected shape.

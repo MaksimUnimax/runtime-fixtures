@@ -2,11 +2,7 @@
   "schemaVersion": "wb_advertising_field_schema_slice_v1",
   "capturedDate": "2026-09-27",
   "scope": {
-    "scenarioIds": [
-      "STD-16",
-      "STD-17",
-      "STD-20"
-    ],
+    "scenarioIds": ["STD-16", "STD-17", "STD-20"],
     "boundary": "ACTUAL_PROMOTION_SPEND_VS_ATTRIBUTION_VS_OWNER_SELECTED_REVENUE",
     "evidence": "OFFICIAL_FIELD_SCHEMA_SOURCE_ONLY",
     "liveValues": false,
@@ -20,23 +16,28 @@
       "method": "GET",
       "path": "/api/advert/v2/adverts",
       "fields": {
-        "advertId": {
+        "id": {
           "role": "campaign_id",
           "unit": "identifier"
         },
         "status": {
           "role": "campaign_status",
-          "unit": "enum"
+          "unit": "provider_enum_integer"
         },
-        "paymentType": {
+        "settings.payment_type": {
           "role": "payment_model",
-          "unit": "enum"
+          "unit": "provider_enum"
+        },
+        "nm_settings[].nm_id": {
+          "role": "campaign_product_id",
+          "unit": "identifier"
+        },
+        "currency": {
+          "role": "campaign_currency",
+          "unit": "currency_code"
         }
       },
-      "paymentTypes": [
-        "cpm",
-        "cpc"
-      ]
+      "paymentTypes": ["cpm", "cpc"]
     },
     "costHistory": {
       "url": "https://dev.wildberries.ru/en/docs/openapi/promotion",
@@ -44,10 +45,7 @@
       "host": "advert",
       "method": "GET",
       "path": "/adv/v1/upd",
-      "requestFields": [
-        "from",
-        "to"
-      ],
+      "requestFields": ["from", "to"],
       "maxPeriodDays": 31,
       "minPeriodDays": 1,
       "rowMeaning": "ACTUAL_PROMOTION_COST_HISTORY_ENTRY",
@@ -97,18 +95,10 @@
       "host": "advert",
       "method": "GET",
       "path": "/adv/v3/fullstats",
-      "requestFields": [
-        "ids",
-        "beginDate",
-        "endDate"
-      ],
+      "requestFields": ["ids", "beginDate", "endDate"],
       "maxPeriodDays": 31,
       "maxCampaignIds": 50,
-      "eligibleStatuses": [
-        7,
-        9,
-        11
-      ],
+      "eligibleStatuses": [7, 9, 11],
       "fields": {
         "advertId": {
           "role": "campaign_id",
@@ -162,19 +152,9 @@
       "host": "advert",
       "method": "POST",
       "path": "/adv/v1/normquery/stats",
-      "paymentTypes": [
-        "cpm",
-        "cpc"
-      ],
-      "cpcUnavailableFields": [
-        "views",
-        "ctr",
-        "cpm"
-      ],
-      "requiredForSlice": [
-        "clicks",
-        "orders"
-      ],
+      "paymentTypes": ["cpm", "cpc"],
+      "cpcUnavailableFields": ["views", "ctr", "cpm"],
+      "requiredForSlice": ["clicks", "orders"],
       "moneyBoundary": "NOT_SOURCE_OF_ACTUAL_PROMOTION_SPEND"
     },
     "revenueBoundary": {
@@ -195,19 +175,13 @@
     "cpc": "DO_NOT_REQUIRE_VIEWS_CTR_CPM_FROM_CPC_SEARCH_CLUSTER_STATS"
   },
   "acceptedMappingSnapshot": {
-    "STD-16": [
-      "promo_campaigns",
-      "promo_spend_history"
-    ],
+    "STD-16": ["promo_campaigns", "promo_spend_history"],
     "STD-17": [
       "promo_fullstats",
       "promo_normquery_stats_daily",
       "statistics_sales"
     ],
-    "STD-20": [
-      "promo_spend_history",
-      "statistics_sales"
-    ],
+    "STD-20": ["promo_spend_history", "statistics_sales"],
     "knownGap": {
       "STD-16": "PROMOTION_SPEND_RESPONSE_HAS_NO_CURRENCY_FIELD",
       "STD-17": "FINAL_REVENUE_DENOMINATOR_AND_CURRENCY_ALIGNMENT_UNRESOLVED",
@@ -236,10 +210,7 @@
       "1001": 125,
       "1002": 50
     },
-    "expectedRank": [
-      1001,
-      1002
-    ],
+    "expectedRank": [1001, 1002],
     "fullStatsRow": {
       "advertId": 1001,
       "sum": 120.5,

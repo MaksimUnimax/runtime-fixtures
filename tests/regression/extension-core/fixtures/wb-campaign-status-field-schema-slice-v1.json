@@ -24,12 +24,26 @@
       "queryFields": ["ids", "statuses", "payment_type"],
       "pagination": "NO_OFFSET_PAGINATION_DOCUMENTED",
       "fields": {
-        "advertId": { "role": "campaign_id", "unit": "identifier" },
+        "id": {
+          "role": "campaign_id",
+          "unit": "identifier"
+        },
         "status": {
           "role": "promotion_campaign_status",
           "unit": "provider_enum_integer"
         },
-        "paymentType": { "role": "payment_model", "unit": "provider_enum" }
+        "settings.payment_type": {
+          "role": "payment_model",
+          "unit": "provider_enum"
+        },
+        "nm_settings[].nm_id": {
+          "role": "campaign_product_id",
+          "unit": "identifier"
+        },
+        "currency": {
+          "role": "campaign_currency",
+          "unit": "currency_code"
+        }
       },
       "statuses": {
         "-1": "DELETED",
@@ -55,9 +69,18 @@
       ],
       "pagination": "EXPLICIT_OFFSET_LIMIT",
       "fields": {
-        "advertId": { "role": "media_campaign_id", "unit": "identifier" },
-        "name": { "role": "media_campaign_name", "unit": "text" },
-        "brand": { "role": "brand_name", "unit": "text" },
+        "advertId": {
+          "role": "media_campaign_id",
+          "unit": "identifier"
+        },
+        "name": {
+          "role": "media_campaign_name",
+          "unit": "text"
+        },
+        "brand": {
+          "role": "brand_name",
+          "unit": "text"
+        },
         "type": {
           "role": "media_campaign_type",
           "unit": "provider_enum_integer"
@@ -66,8 +89,14 @@
           "role": "media_campaign_status",
           "unit": "provider_enum_integer"
         },
-        "createTime": { "role": "created_time", "unit": "datetime" },
-        "endTime": { "role": "ended_time", "unit": "datetime_optional" }
+        "createTime": {
+          "role": "created_time",
+          "unit": "datetime"
+        },
+        "endTime": {
+          "role": "ended_time",
+          "unit": "datetime_optional"
+        }
       },
       "types": {
         "1": "PLACEMENT_BY_DAY",
@@ -102,8 +131,32 @@
   "syntheticCases": {
     "rows": {
       "promotion": [
-        { "advertId": 1001, "status": 9, "paymentType": "cpm" },
-        { "advertId": 1002, "status": 11, "paymentType": "cpc" }
+        {
+          "id": 1001,
+          "status": 9,
+          "settings": {
+            "payment_type": "cpm"
+          },
+          "nm_settings": [
+            {
+              "nm_id": 91001
+            }
+          ],
+          "currency": "RUB"
+        },
+        {
+          "id": 1002,
+          "status": 11,
+          "settings": {
+            "payment_type": "cpc"
+          },
+          "nm_settings": [
+            {
+              "nm_id": 91002
+            }
+          ],
+          "currency": "RUB"
+        }
       ],
       "media": [
         {
@@ -149,19 +202,46 @@
       ]
     },
     "unknownPromotionStatus": {
-      "row": { "advertId": 1003, "status": 5 },
+      "row": {
+        "id": 1003,
+        "status": 5,
+        "settings": {
+          "payment_type": "cpm"
+        },
+        "nm_settings": [],
+        "currency": "RUB"
+      },
       "expected": {
         "status": "INCOMPLETE",
         "reason": "UNKNOWN_PROMOTION_STATUS"
       }
     },
     "unknownMediaStatus": {
-      "row": { "advertId": 2003, "type": 1, "status": 12 },
-      "expected": { "status": "INCOMPLETE", "reason": "UNKNOWN_MEDIA_STATUS" }
+      "row": {
+        "advertId": 2003,
+        "type": 1,
+        "status": 12
+      },
+      "expected": {
+        "status": "INCOMPLETE",
+        "reason": "UNKNOWN_MEDIA_STATUS"
+      }
     },
     "sameNumericNine": {
-      "promotion": { "advertId": 1010, "status": 9 },
-      "media": { "advertId": 2010, "type": 1, "status": 9 },
+      "promotion": {
+        "id": 1010,
+        "status": 9,
+        "settings": {
+          "payment_type": "cpm"
+        },
+        "nm_settings": [],
+        "currency": "RUB"
+      },
+      "media": {
+        "advertId": 2010,
+        "type": 1,
+        "status": 9
+      },
       "expected": {
         "promotion": "ACTIVE",
         "media": "PAUSED_BY_SELLER"

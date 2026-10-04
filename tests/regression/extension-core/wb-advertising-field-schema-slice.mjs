@@ -4,20 +4,34 @@ import path from "node:path";
 import vm from "node:vm";
 import { fileURLToPath } from "node:url";
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
+const ROOT = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../../..",
+);
 const read = (relative) => fs.readFileSync(path.join(ROOT, relative), "utf8");
 const slice = JSON.parse(
-  read("tests/regression/extension-core/fixtures/wb-advertising-field-schema-slice-v1.json"),
+  read(
+    "tests/regression/extension-core/fixtures/wb-advertising-field-schema-slice-v1.json",
+  ),
 );
 const coverage = JSON.parse(
-  read("tests/regression/extension-core/fixtures/business-scenario-coverage-v1.json"),
+  read(
+    "tests/regression/extension-core/fixtures/business-scenario-coverage-v1.json",
+  ),
 );
 const finance = JSON.parse(
-  read("tests/regression/extension-core/fixtures/wb-finance-sales-field-schema-slice-v1.json"),
+  read(
+    "tests/regression/extension-core/fixtures/wb-finance-sales-field-schema-slice-v1.json",
+  ),
 );
 const statsGrain = JSON.parse(
   read(
     "tests/regression/extension-core/fixtures/wb-advertising-stats-grain-field-schema-slice-v1.json",
+  ),
+);
+const advertisedStock = JSON.parse(
+  read(
+    "tests/regression/extension-core/fixtures/wb-advertised-stock-reuse-v1.json",
   ),
 );
 
@@ -28,16 +42,27 @@ function loadGlobal(relative, name) {
   vm.runInContext(read(relative), context, { filename: relative });
   return context[name];
 }
-const wb = loadGlobal(coverage.authorities.wildberries.registryPath, "WBOperations");
+const wb = loadGlobal(
+  coverage.authorities.wildberries.registryPath,
+  "WBOperations",
+);
 const scenarios = new Map(coverage.scenarios.map((row) => [row.id, row]));
 
 function assertOperation(source) {
   const meta = wb.OPERATIONS[source.operationAlias];
   assert.ok(meta, "missing WB operation " + source.operationAlias);
   assert.equal(meta.host, source.host, source.operationAlias + ": host drift");
-  assert.equal(meta.method, source.method, source.operationAlias + ": method drift");
+  assert.equal(
+    meta.method,
+    source.method,
+    source.operationAlias + ": method drift",
+  );
   assert.equal(meta.path, source.path, source.operationAlias + ": path drift");
-  assert.equal(meta.effect, "READ", source.operationAlias + ": must remain read-only");
+  assert.equal(
+    meta.effect,
+    "READ",
+    source.operationAlias + ": must remain read-only",
+  );
   assert.equal(meta.execution_enabled, true);
   assert.equal(meta.current, true);
 }
@@ -56,6 +81,27 @@ for (const source of [campaigns, costs, stats, clusters]) {
   assertOperation(source);
 }
 assert.deepEqual(campaigns.paymentTypes, ["cpm", "cpc"]);
+assert.deepEqual(Object.keys(campaigns.fields), [
+  "id",
+  "status",
+  "settings.payment_type",
+  "nm_settings[].nm_id",
+  "currency",
+]);
+assert.ok(!Object.hasOwn(campaigns.fields, "advertId"));
+assert.ok(!Object.hasOwn(campaigns.fields, "paymentType"));
+assert.deepEqual(
+  campaigns.fields.id,
+  advertisedStock.sources.campaigns.fields.id,
+);
+assert.deepEqual(
+  campaigns.fields["nm_settings[].nm_id"],
+  advertisedStock.sources.campaigns.fields["nm_settings.nm_id"],
+);
+assert.deepEqual(
+  campaigns.fields.currency,
+  advertisedStock.sources.campaigns.fields.currency,
+);
 assert.deepEqual(costs.requestFields, ["from", "to"]);
 assert.equal(costs.minPeriodDays, 1);
 assert.equal(costs.maxPeriodDays, 31);
@@ -131,12 +177,18 @@ function campaignSpend(rows) {
 const spend = campaignSpend(slice.syntheticCases.costRows);
 assert.deepEqual(spend, slice.syntheticCases.expectedCampaignSpend);
 const rank = Object.entries(spend)
-.sort((left, right) => right[1] - left[1] || Number(left[0]) - Number(right[0]))
+  .sort(
+    (left, right) => right[1] - left[1] || Number(left[0]) - Number(right[0]),
+  )
   .map(([id]) => Number(id));
 assert.deepEqual(rank, slice.syntheticCases.expectedRank);
 
 const statsRow = slice.syntheticCases.fullStatsRow;
-assert.equal(statsRow.currency, "RUB", "fullstats fixture must carry explicit response currency");
+assert.equal(
+  statsRow.currency,
+  "RUB",
+  "fullstats fixture must carry explicit response currency",
+);
 assert.notEqual(
   statsRow.sum,
   statsRow.sum_price,

@@ -98,3 +98,34 @@ This slice changes only tests/fixtures/receipt and does not change product/runti
 - shared readiness TSV correction, if needed, is handed to C rather than taken over by A.
 
 Evidence level: SOURCE only for these new provider semantics. This is not LIVE_WB, LIVE_OWNER, store acceptance or final business acceptance.
+
+## Correction — 2026-10-04
+
+Fresh reconciliation against the same pinned provider authority
+`eslazarev/wildberries-sdk@5057bdb9bf16dea24000e3ca79e1934f7761d7fe`,
+`specs/08-promotion.yaml` blob
+`30ae48c8d1b67944b34cf51ac896ae4c2b2fa0d9`, corrected the historical
+`promo_campaigns` response-field description used by this advertising slice.
+
+For `GET /api/advert/v2/adverts`, campaign identity is top-level `id`;
+payment model is `settings.payment_type`; campaign product membership is
+`nm_settings[].nm_id`; `status` remains the top-level provider enum and
+`currency` remains a top-level campaign currency field. Historical
+`advertId/paymentType` promotion-row field names were stale evidence and are
+now rejected. This does not alter `promo_spend_history`,
+`promo_fullstats`, DRR rules, cost/revenue boundaries, or runtime execution.
+
+Corrected machine-readable evidence:
+- fixture SHA-256:
+  `4633c5094a66cea2326b6bcc153ef5141cccf396a2d70644d88ea9b6c6198929`;
+- validator SHA-256:
+  `9a28e80fe8edfc884e43fa8d6ee891295903c11b86bc0134979bed23974d35ee`.
+
+The corrected advertising validator cross-checks shared campaign identity,
+product-membership, and currency field roles against the accepted
+advertised-stock evidence. Focused advertising/campaign-status consumers and
+the aggregate business-scenario suite PASS. No provider call, package,
+browser, database, service, or live mutation was performed.
+
+The earlier hashes above remain as historical identifiers of the superseded
+pre-correction bytes.
