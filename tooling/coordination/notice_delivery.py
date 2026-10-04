@@ -10,7 +10,7 @@ def read_controller_notices(directory, role):
             raise ValueError(f"NOTICE_OBJECT_REQUIRED: {path.name}")
         if item.get("status") in ("CLOSED", "SUPERSEDED"):
             continue
-        recipients = [item[key] for key in ("role", "to") if key in item]
+        recipients = [item[key] for key in ("role", "to", "target_role") if key in item]
         if not recipients or any(recipient != role for recipient in recipients):
             raise ValueError(f"NOTICE_RECIPIENT_MISMATCH: {path.name}; expected {role}")
         # Legacy controller messages used 'to'. Normalize the read projection

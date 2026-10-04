@@ -44,13 +44,25 @@ class NoticeDeliveryTests(unittest.TestCase):
         self.assertEqual([row["id"] for row in notices], ["B-owner"])
         self.assertTrue(notices[0]["later_stop_wins"])
 
-    def test_matching_dual_fields_do_not_duplicate_delivery(self):
-        self.write("B-current.json", {"role": "B", "to": "B", "status": "OPEN"})
+    def test_target_role_only_notice_is_delivered_without_mutating_history(self):
+        notice = self.write("C-target.json", {"id": "target", "target_role": "C", "status": "ACTIVE"})
+        before = notice.read_bytes()
+        delivered = read_controller_notices(self.root, "C")
+        self.assertEqual([row["id"] for row in delivered], ["target"])
+        self.assertEqual(delivered[0]["role"], "C")
+        self.assertEqual(notice.read_bytes(), before)
+
+    def test_matching_recipient_aliases_do_not_duplicate_delivery(self):
+        self.write("B-current.json", {
+            "role": "B", "to": "B", "target_role": "B", "status": "OPEN"
+        })
         self.assertEqual(len(read_controller_notices(self.root, "B")), 1)
 
     def test_missing_or_conflicting_recipient_is_visible_error(self):
-        for data in ({}, {"role": "B"}, {"to": "B"}, {"role": "A", "to": "B"},
-                     {"role": None, "to": "A"}, {"role": "", "to": "A"}):
+        for data in ({}, {"role": "B"}, {"to": "B"}, {"target_role": "B"},
+                     {"role": "A", "to": "B"}, {"role": "A", "target_role": "B"},
+                     {"to": "A", "target_role": "B"}, {"role": None, "to": "A"},
+                     {"role": "", "target_role": "A"}, {"target_role": None}):
             with self.subTest(data=data):
                 self.write("A-invalid.json", data)
                 with self.assertRaisesRegex(ValueError, "NOTICE_RECIPIENT_MISMATCH: A-invalid.json"):
