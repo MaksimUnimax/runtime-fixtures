@@ -1,6 +1,7 @@
 """Exercise real shell operations in a disposable filesystem; no live mutations."""
 from pathlib import Path
 import os
+import re
 import shlex
 import shutil
 import subprocess
@@ -78,6 +79,27 @@ class SiteDeploymentTests(unittest.TestCase):
         for needle in required:
             with self.subTest(needle=needle):
                 self.assertIn(needle, nginx)
+
+    def test_metrika_csp_matches_owner_approved_sources_and_keeps_frame_denials(self):
+        nginx = (ROOT / 'infra/production/nginx/octoport-site.conf').read_text()
+        match = re.search(r'add_header Content-Security-Policy "([^"]+)" always;', nginx)
+        self.assertIsNotNone(match)
+        self.assertEqual(
+            match.group(1),
+            "default-src 'none'; "
+            "script-src 'self' https://mc.yandex.ru https://yastatic.net; "
+            "style-src 'self' https://fonts.googleapis.com; "
+            "img-src 'self' data: https://mc.yandex.ru; "
+            "connect-src https://mc.yandex.ru; "
+            "child-src blob: https://mc.yandex.ru; "
+            "frame-src blob: https://mc.yandex.ru; "
+            "font-src 'self' https://fonts.gstatic.com; "
+            "base-uri 'self'; form-action 'none'; frame-ancestors 'none'; object-src 'none'",
+        )
+        self.assertIn('add_header X-Frame-Options "DENY" always;', nginx)
+        for unapproved in ('*', 'wss:', 'mc.webvisor.com', 'mc.webvisor.org'):
+            with self.subTest(unapproved=unapproved):
+                self.assertNotIn(unapproved, match.group(1))
 
     def test_historical_combined_ingress_rejected(self):
         bad = self.root / 'old.conf'

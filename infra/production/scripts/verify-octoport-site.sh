@@ -136,7 +136,7 @@ check_site_content() {
   expect_status_with_retry 200 'https://octoport.ru/robots.txt' octoport.ru 443
   expect_status_with_retry 200 'https://octoport.ru/sitemap.xml' octoport.ru 443
 
-  local homepage homepage_headers css_headers favicon_headers content_type homepage_csp css_csp
+  local homepage homepage_headers css_headers favicon_headers content_type homepage_csp css_csp homepage_frame_options required_csp_rule
   local seller privacy support install sitemap metrika_script
   local homepage_cache css_cache css_frame_options css_nosniff favicon_type favicon_location
 
@@ -250,6 +250,18 @@ check_site_content() {
   homepage_headers="$(curl --silent --show-error --head --resolve 'octoport.ru:443:127.0.0.1' 'https://octoport.ru/')"
   homepage_csp="$(header_value "${homepage_headers}" 'content-security-policy')"
   grep -Fq "default-src 'none'" <<<"${homepage_csp}" || fail "homepage CSP is missing the restrictive default-src"
+  for required_csp_rule in \
+    "script-src 'self' https://mc.yandex.ru https://yastatic.net" \
+    "img-src 'self' data: https://mc.yandex.ru" \
+    "connect-src https://mc.yandex.ru" \
+    "child-src blob: https://mc.yandex.ru" \
+    "frame-src blob: https://mc.yandex.ru" \
+    "frame-ancestors 'none'"; do
+    grep -Fq "${required_csp_rule}" <<<"${homepage_csp}" \
+      || fail "homepage CSP is missing the approved Metrika or framing rule: ${required_csp_rule}"
+  done
+  homepage_frame_options="$(header_value "${homepage_headers}" 'x-frame-options')"
+  [[ "${homepage_frame_options}" == 'DENY' ]] || fail "homepage lost X-Frame-Options DENY"
   homepage_cache="$(header_value "${homepage_headers}" 'cache-control')"
   grep -Fqi 'no-cache' <<<"${homepage_cache}" || fail "homepage cache-control is ${homepage_cache:-<missing>}, expected no-cache"
 

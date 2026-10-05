@@ -39,6 +39,7 @@ class QuietHandler(SimpleHTTPRequestHandler):
 class StrictCspHandler(QuietHandler):
     def end_headers(self):
         self.send_header("Content-Security-Policy", STRICT_CSP)
+        self.send_header("X-Frame-Options", "DENY")
         super().end_headers()
 
 
@@ -177,9 +178,57 @@ def main():
                     strict_page.on("console", lambda message: console_messages.append(message.text))
                     response = strict_page.goto(f"{strict_origin}/", wait_until="load")
                     assert response and response.ok
-                    assert strict_page.evaluate("typeof window.ym") == "undefined"
-                    assert external_requests == [], external_requests
+                    assert response.headers.get("x-frame-options") == "DENY", response.headers
+                    strict_page.wait_for_function("window.__metrikaMockLoaded === true")
+                    strict_state = strict_page.evaluate("""() => ({
+                      queue: window.ym.a.map((args) => Array.from(args)),
+                      dataLayerLength: window.dataLayer.length,
+                      scripts: [...document.scripts].filter((script) => script.src === "https://mc.yandex.ru/metrika/tag.js?id=113424299").length
+                    })""")
+                    assert strict_state["queue"][0][1] == "init" and len(strict_state["queue"]) == 1, strict_state
+                    assert strict_state["dataLayerLength"] == 0 and strict_state["scripts"] == 1, strict_state
+                    assert external_requests == ["https://mc.yandex.ru/metrika/tag.js?id=113424299"], external_requests
+                    assert not any("Content Security Policy" in message for message in console_messages), console_messages
+
+                    strict_page.evaluate("""() => {
+                      window.__cspViolations = [];
+                      document.addEventListener("securitypolicyviolation", (event) => {
+                        window.__cspViolations.push(event.effectiveDirective);
+                      });
+                      const script = document.createElement("script");
+                      script.src = "https://untrusted.invalid/blocked.js";
+                      document.head.appendChild(script);
+                      const image = new Image();
+                      image.src = "https://untrusted.invalid/blocked.png";
+                      document.body.appendChild(image);
+                      fetch("https://untrusted.invalid/blocked").catch(() => {});
+                      const frame = document.createElement("iframe");
+                      frame.src = "https://untrusted.invalid/blocked-frame";
+                      document.body.appendChild(frame);
+                    }""")
+                    strict_page.wait_for_function("""() => {
+                      const directives = window.__cspViolations;
+                      return directives.some((value) => value.startsWith("script-src")) &&
+                        directives.includes("img-src") &&
+                        directives.includes("connect-src") &&
+                        directives.includes("frame-src");
+                    }""")
+                    violations = strict_page.evaluate("window.__cspViolations")
+                    assert any(value.startswith("script-src") for value in violations), violations
+                    assert {"img-src", "connect-src", "frame-src"}.issubset(set(violations)), violations
+                    assert all(urlsplit(item).hostname != "untrusted.invalid" for item in external_requests), external_requests
                     assert any("Content Security Policy" in message for message in console_messages), console_messages
+
+                    strict_no_js = browser.new_context(java_script_enabled=False)
+                    strict_no_js_page = strict_no_js.new_page()
+                    strict_no_js_page.route("**/*", intercept_external)
+                    external_requests.clear()
+                    no_js_response = strict_no_js_page.goto(f"{strict_origin}/install.html", wait_until="load")
+                    assert no_js_response and no_js_response.ok
+                    assert no_js_response.headers.get("x-frame-options") == "DENY", no_js_response.headers
+                    assert strict_no_js_page.locator("noscript img[src='https://mc.yandex.ru/watch/113424299']").count() == 1
+                    assert external_requests == ["https://mc.yandex.ru/watch/113424299"], external_requests
+                    strict_no_js.close()
                     strict_page.close()
                 finally:
                     strict_server.shutdown()
@@ -192,7 +241,7 @@ def main():
         server.server_close()
         thread.join(timeout=5)
 
-    print("SITE_METRIKA_MOCK_BROWSER_PASS pages=5 init_once_per_document=5 hash_and_page_navigation=single_init duplicate_eval=blocked noscript_pixel=mocked production_csp_blocks_loader=confirmed")
+    print("SITE_METRIKA_MOCK_BROWSER_PASS pages=5 init_once_per_document=5 owner_csp_allows_mocked_metrika=confirmed untrusted_script_img_connect_frame=blocked noscript_pixel=allowed x_frame_options_deny=preserved")
 
 
 if __name__ == "__main__":
