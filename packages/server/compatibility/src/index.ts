@@ -294,3 +294,5 @@ export function resolveCompatibility(
     browser = "UNSUPPORTED_BROWSER";
   return { extension, browser, minimumVersion: minimum };
 }
+
+export * from "./beta-release-canonical-inputs.js";
