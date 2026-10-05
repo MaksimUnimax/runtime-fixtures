@@ -78,7 +78,7 @@
     for (const [storedKey, binding] of Object.entries(bindings || {})) {
       const accountId = text(binding?.store_context?.accountId, 128), bindingId = text(binding?.binding_id, 128);
       const conversationKey = normalizedConversationKey(binding?.conversation_key || storedKey);
-      if (!accountId || !conversationKey) continue;
+      if (!accountId || !conversationKey || globalThis.BB2ConversationIdentity?.isLocal?.(conversationKey)) continue;
       const keyDigest = await digest(conversationKey), slot = stateSlot(accountId, `conversation:${keyDigest}`);
       for (const legacyKey of [bindingId, keyDigest]) changed = copyLegacyKnowledge(result, legacyKey, slot) || changed;
     }
@@ -181,6 +181,7 @@
       };
     }
     const normalizedKey = normalizedConversationKey(conversationKey || binding?.conversation_key);
+    if (globalThis.BB2ConversationIdentity?.isLocal?.(normalizedKey)) return null;
     if (!normalizedKey) throw Object.assign(new Error("SYNC_CONVERSATION_KEY_INVALID"), { code: "SYNC_CONVERSATION_KEY_INVALID" });
     const keyDigest = await digest(normalizedKey);
     const bindingId = text(binding?.binding_id, 128), baseBindingRevision = integer(binding?.revision) || 0;
@@ -251,6 +252,7 @@
   async function record(kind, input = {}) {
     const entry = await mutate(async () => {
       const recordData = await metadata({ ...input, kind });
+      if (!recordData) return null;
       const next = clone(await read());
       const entry = entryFor(next, recordData, recordData.auth, recordData.payload);
       next.entries[entry.entryId] = entry;
@@ -258,6 +260,7 @@
       await write(next);
       return entry;
     });
+    if (!entry) return null;
     await schedule();
     return clone(entry);
   }
@@ -490,6 +493,7 @@
     });
   }
   async function syncConversationSnapshot(input = {}) {
+    if (globalThis.BB2ConversationIdentity?.isLocal?.(input.conversationKey || input.binding?.conversation_key)) return { applied: false, code: "LOCAL_CONVERSATION_SCOPE" };
     const intent = await createSnapshotReadIntent(input);
     const entityId = intent.entityIds[0], snapshotKey = stateSlot(intent.accountId, entityId);
     const reason = text(input.reason, 64) || "conversation_open";
@@ -527,7 +531,7 @@
   async function assertCurrentActionAllowed(input = {}) {
     const auth = await identity();
     const conversationKey = normalizedConversationKey(input.conversationKey || input.binding?.conversation_key);
-    if (!conversationKey) return { allowed: true, code: null };
+    if (!conversationKey || globalThis.BB2ConversationIdentity?.isLocal?.(conversationKey)) return { allowed: true, code: null };
     const entityId = await conversationEntityId(conversationKey), keyDigest = entityId.slice("conversation:".length), slot = stateSlot(auth.accountId, entityId);
     const journal = await read(), local = bindingContext(auth, entityId, keyDigest, input.binding, input.store, input.workGeneration);
     // Pending local explicit changes are local truth until the server reconciles them.

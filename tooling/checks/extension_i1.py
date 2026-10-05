@@ -49,6 +49,7 @@ def main():
             tests = [
                 ("contracts", ROOT / "tests/regression/extension-core/core-contracts.mjs"),
                 ("i1-browser-family-contract", ROOT / "tests/regression/extension-core/client-i1/browser-family-contract.mjs"),
+                ("conversation-binding-lifecycle", ROOT / "tests/regression/extension-core/conversation-binding-lifecycle.mjs"),
                 ("worker", ROOT / "tests/regression/extension-core/worker-lifecycle.mjs"),
                 ("context", ROOT / "tests/regression/extension-core/batch-context.mjs"),
                 ("wb", ROOT / "tests/regression/extension-core/wb-adapter.mjs"),

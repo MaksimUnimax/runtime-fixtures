@@ -70,7 +70,7 @@ const actionSuccessSource = extract(
 );
 const actionSource = extract(
   popupJs,
-  "async function action(fn)",
+  "async function action(fn,",
   "\nfunction selected",
 );
 assert.match(popupJs, /popupAction: "WORK_START_ACCEPTED"/);
@@ -81,6 +81,8 @@ const createActionHarness = new Function(
   "initialState",
   `
     let busy = false;
+    let actionGeneration = 0;
+    let refreshGeneration = 0;
     let state = initialState;
     let refreshState = initialState;
     const statusNode = { textContent: "" };

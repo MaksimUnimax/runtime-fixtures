@@ -2,6 +2,7 @@
 const $ = id => document.getElementById(id);
 let tabId, state, marketplace = "ozon", selectedId = "", editingId = null, busy = false, confirmAction = null;
 let backupText = "";
+let actionGeneration = 0, refreshGeneration = 0;
 const FIREFOX_TECHNICAL_CATEGORY = "technicalAndInteraction";
 function firefoxTechnicalPermissions() { return globalThis.browser?.permissions || null; }
 function firefoxTechnicalAvailable() { return /Firefox\/\d/i.test(navigator.userAgent || "") && typeof firefoxTechnicalPermissions()?.getAll === "function"; }
@@ -98,7 +99,23 @@ async function requestTransferReceivePending() {
   if (!presentation) throw new Error(texts[response?.code] || `Действие не выполнено: ${response?.code || "нет ответа расширения"}`);
   return { response, presentation };
 }
-async function action(fn) { if (busy) return; busy = true; $("status").textContent = "Выполняем…"; try { const result = await fn(); await refresh(); $("status").textContent = actionSuccessText(result); } catch (e) { $("status").textContent = e.message; } finally { busy = false; } }
+async function action(fn, { interrupt = false } = {}) {
+  if (busy && !interrupt) return;
+  const generation = ++actionGeneration;
+  refreshGeneration += 1;
+  busy = true;
+  $("status").textContent = "Выполняем…";
+  try {
+    const result = await fn();
+    if (generation !== actionGeneration) return;
+    await refresh();
+    if (generation === actionGeneration) $("status").textContent = actionSuccessText(result);
+  } catch (e) {
+    if (generation === actionGeneration) $("status").textContent = e.message;
+  } finally {
+    if (generation === actionGeneration) busy = false;
+  }
+}
 function selected() { return state?.stores.find(x => x.id === selectedId); }
 function onboardingModel(value) {
   const authenticated = value?.auth?.authenticated === true;
@@ -157,9 +174,14 @@ function render() {
   const lastStartText = !connected ? startStatusText(state.lastStart) : null;
   if (lastStartText) $("connection").textContent = lastStartText;
   if (state.pending) $("connection").textContent = ["committed_before_click", "outcome_unknown_no_retry"].includes(state.pending.send_outcome) && state.lastStart?.outcome === "unknown_no_retry" ? "Не удалось подтвердить отправку инструкции. Она не будет вставлена или отправлена повторно автоматически" : "Запускаем: ожидаем подтверждение инструкции и ответа ИИ";
-  const unknownChat = state.identity.ai_id === "chatgpt" && state.identity.status !== "confirmed";
-  $("conversation-note").hidden = !unknownChat;
-  $("conversation-note").textContent = unknownChat ? "Кнопки запросов появятся после подтверждения диалога. Если ChatGPT предлагает войти или зарегистрироваться, войдите и откройте сохраняемый чат. В гостевом диалоге без постоянного адреса кнопки недоступны. Вход в Octoport не означает вход в ChatGPT." : "";
+  const uncertainDialogue = Boolean(state.identity.ai_id && state.identity.status !== "confirmed");
+  const localDialogue = state.identity.identity_scope === "document";
+  $("conversation-note").hidden = !uncertainDialogue && !localDialogue;
+  $("conversation-note").textContent = uncertainDialogue
+    ? state.identity.source === "history_continuity_unverified"
+      ? "Содержимое диалога изменилось. Новые действия приостановлены. Дождитесь загрузки прежней переписки или нажмите Start для текущего диалога."
+      : "Дождитесь загрузки переписки. Start подключит текущий диалог после подтверждённой отправки инструкции и ответа ИИ."
+    : localDialogue ? "Привязка действует в этом браузере. После перезагрузки она восстанавливается только при совпадении сохранённых признаков переписки." : "";
   $("start").disabled = Boolean(state.pending) || !s || !state.identity.ai_id || ["binding", "recovering", "finishing"].includes(state.work?.state);
   $("work-resume").hidden = !(state.context.store_id && state.work?.state === "inactive" && state.context.work_active !== true);
   $("work-resume").disabled = Boolean(state.pending) || !state.conversation_key;
@@ -168,7 +190,10 @@ function render() {
   $("resume").hidden = !state.operation?.quota_wait;
 }
 async function refresh(first = false) {
-  state = await request("SA_POPUP_STATE");
+  const generation = ++refreshGeneration;
+  const next = await request("SA_POPUP_STATE");
+  if (generation !== refreshGeneration) return;
+  state = next;
   if (first && state.context.store_id) { const current = state.stores.find(s => s.id === state.context.store_id); if (current) { selectedId = current.id; marketplace = current.marketplace; } }
   render();
   await refreshFirefoxTechnicalConsent();
@@ -196,7 +221,10 @@ $("confirm").onclick = () => { const fn = confirmAction; confirmAction = null; $
 $("reject").onclick = () => { confirmAction = null; $("confirmation").hidden = true; };
 $("work-resume").onclick = () => action(() => request("SA_WORK_RESUME", { conversation_key: state.conversation_key }));
 $("visibility").onclick = () => action(() => request(state.context.button_visible ? "OZ_WORK_HIDE" : "OZ_WORK_SHOW", { conversation_key: state.conversation_key }));
-$("finish").onclick = () => action(() => request("OZ_WORK_FINISH", { conversation_key: state.conversation_key }));
+$("finish").onclick = () => {
+  const fields = { conversation_key: state.conversation_key, surface_id: state.identity?.surface_id || null };
+  return action(() => request("OZ_WORK_FINISH", fields), { interrupt: true });
+};
 $("resume").onclick = () => action(() => request("SA_RESUME_QUOTA"));
 $("transfer-create").onclick = () => action(async () => {
   if (!$("transfer-consent").checked) throw new Error("Сначала подтвердите явное согласие на передачу через транспорт Seller Agents");

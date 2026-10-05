@@ -159,6 +159,9 @@ function setup(options = {}) {
     clickComposerUntilEmpty: async () => { state.clicks++; state.draft = ''; return { click_event_observed: true, composer_empty: true }; },
     startWorkStartResponseWatch: () => {}, recordContentDiagnostic: () => {},
   };
+  // Send transaction boundary; shared surface has separate model and browser coverage.
+  sandbox.currentAIAdapter = () => ({});
+  sandbox.SellerAgentsConversationSurface = { beginStart: () => sandbox.conversationIdentity() };
   vm.createContext(sandbox); vm.runInContext(body + '\nglobalThis.send = sendWorkSessionPrompt;', sandbox);
   return { state, send: () => sandbox.send('synthetic initial instruction', 'synthetic-intent', 1) };
 }

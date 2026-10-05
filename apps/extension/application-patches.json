@@ -493,5 +493,135 @@
     "target": "service_worker.js",
     "old": "async function tabMessage(tabId, message) {\n  return new Promise((resolve) => {\n    try {\n      chrome.tabs.sendMessage(tabId, message, (response) => {\n        const error = chrome.runtime.lastError;\n        if (error) return resolve({ ok: false, code: \"TAB_MESSAGE_ERROR\", error: error.message });\n        resolve(response || { ok: false, code: \"EMPTY_RESPONSE\", error: \"Пустой ответ вкладки.\" });\n      });\n    } catch (error) {\n      resolve({ ok: false, code: \"TAB_MESSAGE_ERROR\", error: String(error?.message || error) });\n    }\n  });\n}",
     "new": "const TAB_MESSAGE_TRANSPORT_CLASSES = new Set([\n  \"NO_RECEIVER\",\n  \"PORT_CLOSED\",\n  \"TAB_GONE\",\n  \"CONTEXT_INVALIDATED\",\n  \"SYNC_SEND_EXCEPTION\",\n  \"OTHER_TAB_MESSAGE_ERROR\"\n]);\n\nfunction safeTabMessageTransportClass(value) {\n  const candidate = typeof value === \"string\" ? value : \"\";\n  return TAB_MESSAGE_TRANSPORT_CLASSES.has(candidate) ? candidate : null;\n}\n\nfunction classifyTabMessageTransportError(error, source = \"runtime_last_error\") {\n  if (source === \"sync_exception\") return \"SYNC_SEND_EXCEPTION\";\n  const message = String(error?.message || \"\").toLowerCase();\n  if (message.includes(\"extension context invalidated\")) return \"CONTEXT_INVALIDATED\";\n  if (message.includes(\"receiving end does not exist\")) return \"NO_RECEIVER\";\n  if (message.includes(\"message port closed\") || message.includes(\"message channel closed\")) return \"PORT_CLOSED\";\n  if (message.includes(\"no tab with id\") || message.includes(\"tab was closed\") || message.includes(\"frame was removed\")) return \"TAB_GONE\";\n  return \"OTHER_TAB_MESSAGE_ERROR\";\n}\n\nasync function tabMessage(tabId, message) {\n  return new Promise((resolve) => {\n    try {\n      chrome.tabs.sendMessage(tabId, message, (response) => {\n        const error = chrome.runtime.lastError;\n        if (error) return resolve({\n          ok: false,\n          code: \"TAB_MESSAGE_ERROR\",\n          transport_class: classifyTabMessageTransportError(error)\n        });\n        resolve(response || { ok: false, code: \"EMPTY_RESPONSE\", error: \"Пустой ответ вкладки.\" });\n      });\n    } catch (error) {\n      resolve({\n        ok: false,\n        code: \"TAB_MESSAGE_ERROR\",\n        transport_class: classifyTabMessageTransportError(error, \"sync_exception\")\n      });\n    }\n  });\n}"
+  },
+  {
+    "target": "content_script.js",
+    "old": "  function conversationIdentity() {\n    const canonicalHref = document.querySelector('link[rel=\"canonical\"][href]')?.href || \"\";\n    const adapter = currentAIAdapter();\n    const activeConversationId = adapter?.id === \"alice\" ? aliceActiveHistoryConversationId() : null;\n    const resolved = typeof BB2ConversationIdentity.resolveWithEvidence === \"function\"\n      ? BB2ConversationIdentity.resolveWithEvidence({ origin: location.origin, pathname: location.pathname, canonicalHref, activeConversationId })\n      : BB2ConversationIdentity.resolve({ origin: location.origin, pathname: location.pathname, canonicalHref });\n    if (!adapter || resolved.ai_id !== adapter.id) {\n      return { ...resolved, conversation_id: null, status: \"adapter_mismatch\", source: \"ai_mode_mismatch\", selected_ai_mode: aiMode, active_adapter_id: adapter?.id || null };\n    }\n    return { ...resolved, selected_ai_mode: aiMode, active_adapter_id: adapter.id };\n  }\n",
+    "new": "  function conversationIdentity() {\n    const adapter = currentAIAdapter();\n    const resolved = SellerAgentsConversationSurface.read(adapter);\n    if (!adapter || resolved.ai_id !== adapter.id) {\n      return { ...resolved, conversation_id: null, status: \"adapter_mismatch\", source: \"ai_mode_mismatch\", selected_ai_mode: aiMode, active_adapter_id: adapter?.id || null };\n    }\n    return { ...resolved, selected_ai_mode: aiMode, active_adapter_id: adapter.id };\n  }\n"
+  },
+  {
+    "target": "attachment_delivery_port_content.js",
+    "old": "  function identity() {\n    const active = adapter();\n    if (!active) return { status: \"unsupported\", conversation_id: null, origin: location.origin.toLowerCase(), ai_id: null };\n    const canonicalHref = document.querySelector('link[rel=\"canonical\"][href]')?.href || \"\";\n    const activeConversationId = active.id === \"alice\" ? aliceActiveHistoryConversationId() : null;\n    const resolved = typeof BB2ConversationIdentity.resolveWithEvidence === \"function\"\n      ? BB2ConversationIdentity.resolveWithEvidence({ origin: location.origin, pathname: location.pathname, canonicalHref, activeConversationId })\n      : BB2ConversationIdentity.resolve({ origin: location.origin, pathname: location.pathname, canonicalHref });\n    if (resolved.ai_id !== active.id) return { ...resolved, status: \"adapter_mismatch\", conversation_id: null };\n    return resolved;\n  }\n",
+    "new": "  function identity() {\n    return SellerAgentsConversationSurface.read(adapter());\n  }\n"
+  },
+  {
+    "target": "service_worker.js",
+    "old": "function normalizeIdentity(identity) {\n  const origin = String(identity?.origin || \"\").trim().toLowerCase();\n  const aiId = BB2ConversationIdentity.providerForOrigin(origin);\n  const conversationId = identity?.conversation_id ? String(identity.conversation_id).trim().toLowerCase() : null;\n  const status = String(identity?.status || (conversationId ? \"confirmed\" : \"unknown\"));\n  if (!aiId) {\n    throw Object.assign(new Error(\"Origin не принадлежит поддерживаемому AI (ChatGPT/Alice).\"), { code: \"INVALID_AI_ORIGIN\" });\n  }\n  if (status === \"conflict\") {\n    throw Object.assign(new Error(\"Path и canonical указывают на разные AI-диалоги. Autorun заблокирован fail-closed.\"), { code: \"CONVERSATION_IDENTITY_CONFLICT\" });\n  }\n  if (identity?.ai_id && String(identity.ai_id) !== aiId) {\n    throw Object.assign(new Error(\"AI adapter identity не совпадает с origin.\"), { code: \"AI_IDENTITY_MISMATCH\" });\n  }\n  return {\n    origin,\n    ai_id: aiId,\n    conversation_id: conversationId,\n    status: conversationId ? \"confirmed\" : \"unknown\",\n    source: String(identity?.source || \"none\"),\n    chat_path: String(identity?.chat_path || \"\")\n  };\n}\n",
+    "new": "function normalizeIdentity(identity) {\n  const origin = String(identity?.origin || \"\").trim().toLowerCase();\n  const aiId = BB2ConversationIdentity.providerForOrigin(origin);\n  if (!aiId) throw Object.assign(new Error(\"Origin не принадлежит поддерживаемому AI.\"), { code: \"INVALID_AI_ORIGIN\" });\n  if (identity?.ai_id && String(identity.ai_id) !== aiId)\n    throw Object.assign(new Error(\"AI adapter identity не совпадает с origin.\"), { code: \"AI_IDENTITY_MISMATCH\" });\n  const candidate = typeof identity?.conversation_id === \"string\" ? identity.conversation_id.trim().toLowerCase() : null;\n  const status = String(identity?.status || (candidate ? \"confirmed\" : \"unknown\"));\n  if (status === \"conflict\") throw Object.assign(new Error(\"Свидетельства текущего диалога противоречат друг другу.\"), { code: \"CONVERSATION_IDENTITY_CONFLICT\" });\n  const confirmed = status === \"confirmed\" && candidate && candidate.length <= 256 && !/[\\s|\\u0000-\\u001f]/u.test(candidate);\n  return {\n    origin, ai_id: aiId, conversation_id: confirmed ? candidate : null,\n    status: confirmed ? \"confirmed\" : status === \"confirmed\" ? \"unknown\" : status,\n    source: String(identity?.source || \"none\"), chat_path: String(identity?.chat_path || \"\"),\n    proof_version: Number(identity?.proof_version || 0),\n    identity_scope: identity?.identity_scope === \"document\" || BB2ConversationIdentity.isLocal(candidate) ? \"document\" : \"conversation\",\n    surface_id: typeof identity?.surface_id === \"string\" ? identity.surface_id : null\n  };\n}\n"
+  },
+  {
+    "target": "service_worker.js",
+    "old": "Нужен подтверждённый диалог ChatGPT /c/<id> или Alice /chat/<id>.",
+    "new": "Не удалось подтвердить текущий диалог. Дождитесь загрузки переписки и повторите Start."
+  },
+  {
+    "target": "service_worker.js",
+    "old": "    const sameSurface = existing.origin === identity.origin && existing.ai_id === identity.ai_id;",
+    "new": "    const sameSurface = existing.origin === identity.origin && existing.ai_id === identity.ai_id && (!existing.surface_id || existing.surface_id === identity.surface_id);"
+  },
+  {
+    "target": "service_worker.js",
+    "old": "    conversation_key: conversationKey,\n    expected_session_revision: expectedSessionRevision,",
+    "new": "    conversation_key: conversationKey,\n    surface_id: identity.surface_id || null,\n    identity_scope: identity.identity_scope || null,\n    expected_session_revision: expectedSessionRevision,"
+  },
+  {
+    "target": "service_worker.js",
+    "old": "  if (pending.observed_conversation_id && identity.conversation_id && pending.observed_conversation_id !== identity.conversation_id) {",
+    "new": "  if (pending.surface_id && pending.surface_id !== identity.surface_id) throw Object.assign(new Error(\"Dialogue surface changed during Start.\"), { code: \"WORK_PENDING_SURFACE_CHANGED\" });\n  if (pending.observed_conversation_id && identity.conversation_id && pending.observed_conversation_id !== identity.conversation_id) {"
+  },
+  {
+    "target": "service_worker.js",
+    "old": "        if (pending.observed_conversation_id && pending.observed_conversation_id !== identity.conversation_id) {",
+    "new": "        if (pending.surface_id && pending.surface_id !== identity.surface_id) {\n          await clearPendingWorkStart(tab, pending.intent_id, pending.revision, \"surface_changed\");\n          return { ok: false, code: \"WORK_PENDING_SURFACE_CHANGED\" };\n        }\n        if (pending.observed_conversation_id && pending.observed_conversation_id !== identity.conversation_id) {"
+  },
+  {
+    "target": "service_worker.js",
+    "old": "    conversation_id: String(pending?.observed_conversation_id || \"\").toLowerCase() || null,",
+    "new": "    conversation_id: String(pending?.observed_conversation_id || \"\").toLowerCase() || null,\n    surface_id: pending?.surface_id || null,"
+  },
+  {
+    "target": "content_script.js",
+    "old": "    workStartWatches.delete(key);",
+    "new": "    workStartWatches.delete(key);\n    SellerAgentsConversationSurface.endStart(intentId);"
+  },
+  {
+    "target": "content_script.js",
+    "old": "    const identityBefore = conversationIdentity();\n    const commit = await sendRuntime(\"OZ_WORK_START_COMMIT_REQUEST\",",
+    "new": "    const identityBefore = SellerAgentsConversationSurface.beginStart(currentAIAdapter(), intentId, messageText);\n    const commit = await sendRuntime(\"OZ_WORK_START_COMMIT_REQUEST\","
+  },
+  {
+    "target": "content_script.js",
+    "old": "  async function syncAllState() {",
+    "new": "  let stateSyncGeneration = 0, fullSyncSequence = 0, manualSyncSequence = 0;\n  async function syncAllState() {\n    const generation = stateSyncGeneration, sequence = ++fullSyncSequence;"
+  },
+  {
+    "target": "content_script.js",
+    "old": "    const response = await sendRuntime(\"OZ_CONTENT_READY\", { identity: here });\n    const key =",
+    "new": "    const response = await sendRuntime(\"OZ_CONTENT_READY\", { identity: here });\n    if (!current() || generation !== stateSyncGeneration || sequence !== fullSyncSequence || !sameConversation(here.origin, here.conversation_id)) return { ok: false, code: \"CONTENT_SYNC_SUPERSEDED\" };\n    const key ="
+  },
+  {
+    "target": "content_script.js",
+    "old": "    if (message?.type === \"OZ_WORK_APPLY_VISIBILITY\") {\n      if (saContentContext)",
+    "new": "    if (message?.type === \"OZ_WORK_APPLY_VISIBILITY\") {\n      stateSyncGeneration += 1;\n      if (saContentContext)"
+  },
+  {
+    "target": "content_script.js",
+    "old": "    if (message?.type === \"OZ_GET_IDENTITY\") {",
+    "new": "    if (message?.type === \"OZ_CONFIRM_CURRENT_SURFACE\") {\n      sendResponse({ ok: true, identity: SellerAgentsConversationSurface.confirmCurrent(currentAIAdapter()) });\n      return false;\n    }\n    if (message?.type === \"OZ_GET_IDENTITY\") {"
+  },
+  {
+    "target": "service_worker.js",
+    "old": "    surface_id: typeof identity?.surface_id === \"string\" ? identity.surface_id : null",
+    "new": "    surface_id: typeof identity?.surface_id === \"string\" ? identity.surface_id : null,\n    identity_evidence: SellerAgentsConversationIdentity.normalizeProof(identity?.identity_evidence)"
+  },
+  {
+    "target": "service_worker.js",
+    "old": "  return normalizeIdentity(response.identity);",
+    "new": "  const identity = normalizeIdentity(response.identity);\n  return typeof saResolveSurfaceIdentity === \"function\" ? saResolveSurfaceIdentity(tab, identity) : identity;"
+  },
+  {
+    "target": "service_worker.js",
+    "old": "    assistant_baseline_ids: record.assistant_baseline_ids || []",
+    "new": "    assistant_baseline_ids: record.assistant_baseline_ids || [],\n    identity_evidence: SellerAgentsConversationIdentity.normalizeProof(record.identity_evidence),\n    identity_scope: record.identity_scope || null"
+  },
+  {
+    "target": "service_worker.js",
+    "old": "      bound_at: previous?.bound_at || now,\n      updated_at: now",
+    "new": "      bound_at: previous?.bound_at || now,\n      identity_evidence: live.identity_evidence || null,\n      identity_scope: live.identity_scope || null,\n      updated_at: now"
+  },
+  {
+    "target": "content_script.js",
+    "old": "    const here = conversationIdentity();\n    if (here?.status !== \"confirmed\" || !here?.conversation_id) {",
+    "new": "    const here = await SellerAgentsConversationSurface.ready(currentAIAdapter());\n    if (here?.status !== \"confirmed\" || !here?.conversation_id) {"
+  },
+  {
+    "target": "content_script.js",
+    "old": "    if (message?.type === \"OZ_GET_IDENTITY\") {\n      sendResponse({ ok: true, identity: conversationIdentity(), href: location.href });\n      return false;\n    }",
+    "new": "    if (message?.type === \"OZ_APPLY_SURFACE_IDENTITY\") {\n      const identity = SellerAgentsConversationSurface.adoptLocal(currentAIAdapter(), message);\n      sendResponse({ ok: Boolean(identity), identity });\n      return false;\n    }\n    if (message?.type === \"OZ_GET_IDENTITY\") {\n      SellerAgentsConversationSurface.ready(currentAIAdapter()).then((identity) => sendResponse({ ok: true, identity, href: location.href }));\n      return true;\n    }"
+  },
+  {
+    "target": "content_script.js",
+    "old": "  function recordContentDiagnostic(event, details = {}) {\n    sendRuntime",
+    "new": "  function recordContentDiagnostic(event, details = {}) {\n    if (details.identity) { details = { ...details, identity: { ...details.identity } }; delete details.identity.identity_evidence; }\n    sendRuntime"
+  },
+  {
+    "target": "content_script.js",
+    "old": "  async function syncManualState() {\n    const key =",
+    "new": "  async function syncManualState() {\n    const generation = stateSyncGeneration, sequence = ++manualSyncSequence;\n    const key ="
+  },
+  {
+    "target": "content_script.js",
+    "old": "    const response = await sendRuntime(\"OZ_GET_MANUAL_STATE\", { conversation_key: key });\n    saApplyContext",
+    "new": "    const response = await sendRuntime(\"OZ_GET_MANUAL_STATE\", { conversation_key: key });\n    if (!current() || generation !== stateSyncGeneration || sequence !== manualSyncSequence || key !== conversationKeyFromLocation()) return { ok: false, code: \"CONTENT_SYNC_SUPERSEDED\" };\n    saApplyContext"
+  },
+  {
+    "target": "attachment_delivery_port_content.js",
+    "old": "  async function queryRecovery(expectation = null) {\n    const key = conversationKey();",
+    "new": "  async function queryRecovery(expectation = null) {\n    await SellerAgentsConversationSurface.ready(adapter());\n    if (!current()) return null;\n    const key = conversationKey();"
+  },
+  {
+    "target": "shared/file_delivery_port_worker.js",
+    "old": "  function normalizedLiveOwner(value) {\n    if (!value || typeof value !== \"object\" || Array.isArray(value)) return null;\n    const origin = normalizeKey(value.origin);\n    const conversationId = normalizeKey(value.conversation_id);\n    if (!origin || !conversationId) return null;\n    try {\n      const parsed = new URL(origin);\n      if (normalizeKey(parsed.origin) !== origin || parsed.protocol !== \"https:\") return null;\n    } catch (_) { return null; }\n    const provider = BB2ConversationIdentity.providerForOrigin(origin);\n    if (!provider) return null;\n    const syntheticPath = provider === \"alice\" ? `/chat/${conversationId}` : `/c/${conversationId}`;\n    if (BB2ConversationIdentity.conversationIdFromPath(syntheticPath, provider) !== conversationId) return null;\n    return { origin, conversation_id: conversationId };\n  }\n",
+    "new": "  function normalizedLiveOwner(value) {\n    if (!value || typeof value !== \"object\" || Array.isArray(value)) return null;\n    try {\n      const identity = normalizeIdentity(value);\n      return identity.status === \"confirmed\" && identity.conversation_id\n        ? { origin: identity.origin, conversation_id: identity.conversation_id }\n        : null;\n    } catch (_) { return null; }\n  }\n"
   }
 ]

@@ -18,7 +18,7 @@ class FakeHTMLElement {
   remove() { this.isConnected = false; }
 }
 
-function makePage({ respond, disconnectFirst = false, adapterOverrides = {} } = {}) {
+function makePage({ respond, disconnectFirst = false, adapterOverrides = {}, surfaceReady = null } = {}) {
   const page = { ports: [], requests: [], intervals: 0, wakeListener: null };
   const document = {
     querySelector: () => null,
@@ -45,7 +45,7 @@ function makePage({ respond, disconnectFirst = false, adapterOverrides = {} } = 
     document,
     location: { origin: identity.origin, pathname: '/c/idle-fixture-conversation' },
     Element: class Element {}, HTMLElement: FakeHTMLElement,
-    BB2ConversationIdentity: { resolveWithEvidence: () => identity },
+    SellerAgentsConversationSurface: { read: () => identity, ready: async () => { await surfaceReady; return identity; } },
     OzonAIAdapters: { adapterForLocation: () => activeAdapter },
     setTimeout, clearTimeout, setInterval(fn, ms) { page.intervals++; return setInterval(fn, ms); }, clearInterval,
     queueMicrotask,
@@ -173,5 +173,24 @@ await wait(300);
 assert.equal(cancelled.runtime.port, null, 'cancelled active recovery releases its Port');
 assert.equal(cancelled.runtime.reconnect_timer, null);
 assert.equal(cancelled.runtime.active_tasks, 0);
+
+
+let releaseSurface;
+const deferredSurface = new Promise(resolve => { releaseSurface = resolve; });
+const awaitingSurface = makePage({ respond: () => terminal, surfaceReady: deferredSurface });
+await wait(300);
+assert.equal(awaitingSurface.requests.length, 0, 'recovery waits for identity evidence without polling');
+releaseSurface();
+await wait(80);
+assert.equal(awaitingSurface.requests.length, 1, 'exactly one probe follows confirmed surface readiness');
+assert.equal(awaitingSurface.runtime.port, null);
+
+let releaseDisposed;
+const disposedSurface = makePage({ respond: () => terminal, surfaceReady: new Promise(resolve => { releaseDisposed = resolve; }) });
+await wait(300);
+disposedSurface.runtime.dispose();
+releaseDisposed();
+await wait(80);
+assert.equal(disposedSurface.requests.length, 0, 'disposed content cannot resume a late surface read');
 
 console.log(JSON.stringify({ status: 'PASS', startup: true, staleWakeIgnored: true, targetedWake: true, activeReconnect: true, committedSendNoReplay: true, cancellation: true, failureCleanup: true }));

@@ -22,6 +22,10 @@
     ],
     "shared/ozon_provider.js": [
       "packages/marketplaces/ozon/src/provider-runtime.js"
+    ],
+    "shared/conversation_identity.js": [
+      "packages/bridge-core/src/work/conversation-identity.js",
+      "apps/extension/src/background/compat/conversation-identity.js"
     ]
   },
   "worker_prelude": [
@@ -173,7 +177,10 @@
       ]
     }
   },
-  "worker_postload": ["shared/wb_adapter.js", "shared/application.js"],
+  "worker_postload": [
+    "shared/wb_adapter.js",
+    "shared/application.js"
+  ],
   "application_patches": "apps/extension/application-patches.json",
   "static_files": {
     "icons/octoport-16.png": "apps/extension/src/assets/octoport-16.png",
@@ -181,9 +188,15 @@
     "icons/octoport-128.png": "apps/extension/src/assets/octoport-128.png"
   },
   "application_files": {
-    "shared/bootstrap_verifier.js": ["packages/control-client/src/crypto.js"],
-    "shared/signed_ai_profile_consumer.js": ["packages/control-client/src/signed-ai-profile-consumer.js"],
-    "shared/signed_ai_profile_runtime.js": ["apps/extension/src/content/signed-profile-runtime.js"],
+    "shared/bootstrap_verifier.js": [
+      "packages/control-client/src/crypto.js"
+    ],
+    "shared/signed_ai_profile_consumer.js": [
+      "packages/control-client/src/signed-ai-profile-consumer.js"
+    ],
+    "shared/signed_ai_profile_runtime.js": [
+      "apps/extension/src/content/signed-profile-runtime.js"
+    ],
     "shared/application.js": [
       "packages/bridge-core/src/stores/catalog.js",
       "packages/bridge-core/src/sync/reconciliation.js",
@@ -191,11 +204,23 @@
       "apps/extension/src/application/runtime.js",
       "apps/extension/src/application/delivery.js"
     ],
-    "popup.html": ["apps/extension/src/application/popup.html"],
-    "popup.js": ["apps/extension/src/application/popup.js"],
-    "popup.css": ["apps/extension/src/application/popup.css"]
+    "popup.html": [
+      "apps/extension/src/application/popup.html"
+    ],
+    "popup.js": [
+      "apps/extension/src/application/popup.js"
+    ],
+    "popup.css": [
+      "apps/extension/src/application/popup.css"
+    ],
+    "shared/ai_adapters.js": [
+      "apps/extension/src/imported/ozon-v0.1.22/shared/ai_adapters.js",
+      "apps/extension/src/content/conversation-surface.js"
+    ]
   },
-  "store_excluded_application_files": ["shared/bootstrap_verifier.js"],
+  "store_excluded_application_files": [
+    "shared/bootstrap_verifier.js"
+  ],
   "marketplace_hosts": [
     "https://content-api.wildberries.ru/*",
     "https://discounts-prices-api.wildberries.ru/*",
@@ -212,5 +237,8 @@
     "https://feedbacks-api.wildberries.ru/*",
     "https://returns-api.wildberries.ru/*"
   ],
-  "control_hosts": ["http://127.0.0.1:43100/*", "http://127.0.0.1:43101/*"]
+  "control_hosts": [
+    "http://127.0.0.1:43100/*",
+    "http://127.0.0.1:43101/*"
+  ]
 }

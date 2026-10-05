@@ -1,3 +1,25 @@
+
+async function saResolveSurfaceIdentity(tabId, identity) {
+  const model = globalThis.SellerAgentsConversationIdentity;
+  const proof = model.normalizeProof(identity?.identity_evidence);
+  if (!model.isLocal(identity?.conversation_id) || !proof || !await saEnabled()) return identity;
+  const accountId = await SellerAgentsControlClient.currentAccount();
+  if (!accountId) return identity;
+  const bindings = await getConversationBindings();
+  const matches = Object.values(bindings).filter((record) =>
+    record?.store_context?.accountId === accountId && record.origin === identity.origin &&
+    record.ai_id === identity.ai_id && model.isLocal(record.conversation_id) &&
+    model.matchingProof(record.identity_evidence, proof));
+  if (matches.length > 1) return { ...identity, conversation_id: null, status: "conflict", source: "local_identity_ambiguous" };
+  if (matches.length !== 1 || matches[0].conversation_id === identity.conversation_id) return identity;
+  if (await SellerAgentsControlClient.currentAccount() !== accountId) return { ...identity, conversation_id: null, status: "unknown", source: "account_changed" };
+  const applied = await tabMessage(tabId, { type: "OZ_APPLY_SURFACE_IDENTITY",
+    conversation_id: matches[0].conversation_id, surface_id: identity.surface_id, identity_evidence: proof });
+  if (await SellerAgentsControlClient.currentAccount() !== accountId || !applied?.ok || !applied.identity)
+    return { ...identity, conversation_id: null, status: "unknown", source: "surface_restore_unverified" };
+  return normalizeIdentity(applied.identity);
+}
+
 /* Privileged application orchestration. Mature Ozon Work and delivery remain the implementation. */
 const SA_PAYLOAD_TTL = 3600000;
 let saCatalogEnabled = false;
@@ -1286,7 +1308,12 @@ async function saPopupState(tabId) {
 async function saWorkStart(message, sender) {
   try {
     const result = await singleFlight(saWorkFlights, String(message.tab_id), async () => {
-    const identity = await tabIdentity(normalizeTabId(message.tab_id));
+    let identity = await tabIdentity(normalizeTabId(message.tab_id));
+    if (identity.source === "history_continuity_unverified") {
+      const confirmed = await tabMessage(message.tab_id, { type: "OZ_CONFIRM_CURRENT_SURFACE" });
+      if (!confirmed?.ok) throw saError("CONVERSATION_SURFACE_UNAVAILABLE");
+      identity = await tabIdentity(normalizeTabId(message.tab_id));
+    }
     await SellerAgentsControlClient.ensureForIdentity(identity);
     if (!await SellerAgentsControlClient.canWork()) throw saError("WORK_POLICY_BLOCKED");
     const store = await saCatalog.get(message.store_id);
@@ -1378,6 +1405,11 @@ async function saWorkResume(message, sender) {
 }
 async function saHandleMessage(message, sender) {
   const enabled = await saEnabled();
+  if (enabled && message?.type === "OZ_CONTENT_READY" && sender?.tab?.id && message.identity) {
+    const identity = await saResolveSurfaceIdentity(Number(sender.tab.id), normalizeIdentity(message.identity));
+    if (identity.status !== "confirmed") return { ok: false, code: "CONVERSATION_NOT_CONFIRMED" };
+    message = { ...message, identity };
+  }
   if (message?.messageType === "OZ_REQUEST_SIGNED_AI_PROFILE") return saSignedProfileRequest(message, sender);
   if (message?.messageType === "OZ_SIGNED_AI_PROFILE_RECEIPT") return saSignedProfileReceipt(message, sender);
   if (enabled && ["OZ_WORK_RESUME", "OZ_WORK_START"].includes(message?.type)) throw saError("LEGACY_ACTION_DISABLED");
@@ -1497,6 +1529,13 @@ async function saHandleMessage(message, sender) {
       await saPendingGuard(pending);
     }
     if (message.type === "OZ_WORK_FINISH") {
+      if (message.surface_id) {
+        const live = await tabIdentity(normalizeTabId(message.tab_id));
+        if (live.surface_id !== message.surface_id) throw saError("WORK_PENDING_SURFACE_CHANGED");
+        // The empty dialogue may have become bound after the popup rendered.
+        // Finish follows that same observed surface, never a replacement tab.
+        message = { ...message, conversation_key: live.conversation_id ? conversationKeyFromIdentity(live) : null };
+      }
       await Promise.allSettled(saCancelAdmission(message.tab_id, typeof message.conversation_key === "string" ? message.conversation_key : null));
       const pending = (await getPendingWorkStarts())[String(message.tab_id)];
       if (pending) {

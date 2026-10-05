@@ -147,6 +147,12 @@ def run(runtime, output):
             processes.append(portal)
             wait_for(f"http://127.0.0.1:{portal_port}/login")
             fixture = (ROOT / "tests/regression/extension-core/fixtures/application-chat.html").read_text()
+            # This account/restart fixture exposes a provider conversation ID.
+            # Its URL is deliberately unrelated; an address alone is not proof.
+            fixture_conversation_id = "11111111-1111-4111-8111-111111111111"
+            chat_url = "https://chatgpt.com/workspaces/installed-integration-thread"
+            assert fixture.count('<main id="turns">') == 1
+            fixture = fixture.replace('<main id="turns">', f'<main id="turns" data-conversation-id="{fixture_conversation_id}">')
             with sync_playwright() as playwright, tempfile.TemporaryDirectory(prefix="seller-agents-i1-browser-") as profile:
                 options = {"headless": True, "args": ["--no-sandbox", f"--disable-extensions-except={package_root / 'runtime'}", f"--load-extension={package_root / 'runtime'}"]}
                 if os.environ.get("SA_TEST_CHROMIUM"):
@@ -156,7 +162,7 @@ def run(runtime, output):
                 context = playwright.chromium.launch_persistent_context(profile, **options)
                 stage = "browser_start"
                 try:
-                    context.route("https://**/*", lambda route: route.fulfill(body=fixture, content_type="text/html") if route.request.url.startswith("https://chatgpt.com/c/") else route.abort())
+                    context.route("https://**/*", lambda route: route.fulfill(body=fixture, content_type="text/html") if route.request.url == chat_url else route.abort())
                     control_responses = []
                     bootstrap_envelopes = []
                     authorization_ids = set()
@@ -200,7 +206,7 @@ def run(runtime, output):
                         })
 
                     chat = context.new_page()
-                    chat.goto("https://chatgpt.com/c/11111111-1111-4111-8111-111111111111")
+                    chat.goto(chat_url)
                     chat_marker = "octoport-c05-" + uuid.uuid4().hex
                     chat.evaluate("value => { document.title = value; }", chat_marker)
                     chat_tab_id = wait_until(
@@ -302,7 +308,16 @@ def run(runtime, output):
                     stage = "work_start"
                     popup.click("#start")
                     wait_until(lambda: chat.evaluate("() => window.sent.length > 0"), "installed Work Start prompt")
-                    conversation_key = "https://chatgpt.com|11111111-1111-4111-8111-111111111111"
+                    active_surface = wait_until(
+                        lambda: popup.evaluate('''async tabId => {
+                          const state = await chrome.runtime.sendMessage({type:"SA_POPUP_STATE", tab_id:tabId});
+                          return state?.identity?.status === "confirmed" && state?.conversation_key ? state : null;
+                        }''', chat_tab_id),
+                        "confirmed active conversation binding",
+                    )
+                    assert active_surface["identity"]["conversation_id"] == fixture_conversation_id
+                    conversation_key = active_surface["conversation_key"]
+                    assert conversation_key == f"https://chatgpt.com|{fixture_conversation_id}"
                     work_state = wait_until(
                         lambda: worker.evaluate("""async key => {
                           const stored = await chrome.storage.local.get('ozmb_work_sessions_v1');
@@ -421,13 +436,13 @@ def run(runtime, output):
                     assert len(before_restart["storeIds"]) == 1
                     assert before_restart["workState"] == "active_visible"
                     assert before_restart["workStartIntentId"]
-                    assert before_restart["conversationId"] == "11111111-1111-4111-8111-111111111111"
+                    assert before_restart["conversationId"] == fixture_conversation_id
                     assert before_restart["origin"] == "https://chatgpt.com"
 
                     stage = "browser_restart"
                     context.close()
                     context = playwright.chromium.launch_persistent_context(profile, **options)
-                    context.route("https://**/*", lambda route: route.fulfill(body=fixture, content_type="text/html") if route.request.url.startswith("https://chatgpt.com/c/") else route.abort())
+                    context.route("https://**/*", lambda route: route.fulfill(body=fixture, content_type="text/html") if route.request.url == chat_url else route.abort())
                     context.on("response", observe_control)
                     worker = context.service_workers[0] if context.service_workers else context.wait_for_event("serviceworker")
                     restarted_sentinel = worker.evaluate("""() => {
@@ -444,7 +459,7 @@ def run(runtime, output):
                       return globalThis.__saI1WorkerSentinel;
                     }""")
                     chat = context.new_page()
-                    chat.goto("https://chatgpt.com/c/11111111-1111-4111-8111-111111111111")
+                    chat.goto(chat_url)
                     chat_marker = "octoport-c05-restart-" + uuid.uuid4().hex
                     chat.evaluate("value => { document.title = value; }", chat_marker)
                     chat_tab_id = wait_until(
