@@ -16,6 +16,7 @@ import {
   InMemoryApiWatchReportStore,
 } from "./report.js";
 import { runApiWatchReport } from "./run.js";
+import { extractProductRegistry, productIdentity } from "./product-registry.js";
 import type {
   ApiWatchProductBaseline,
   ApiWatchProductBaselineReader,
@@ -971,6 +972,164 @@ describe("A6 API-watch report lifecycle", () => {
       expect(source?.unchangedCount).toBe(1);
     } finally {
       await server.close();
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("family-wide product absence", () => {
+  it("does not invent missing WB operations across healthy documents, and retains real absence checks", async () => {
+    const entries = await extractProductRegistry({
+      sourceFamily: "WILDBERRIES",
+    });
+    const document = (rows: typeof entries) => {
+      const paths: Record<string, Record<string, unknown>> = {};
+      for (const entry of rows) {
+        (paths[entry.normalizedPath] ??= {})[entry.method.toLowerCase()] = {
+          responses: { "200": { description: "ok" } },
+        };
+      }
+      return Buffer.from(
+        JSON.stringify({
+          openapi: "3.0.3",
+          info: { title: "WB fixture", version: "1" },
+          paths,
+        }),
+      );
+    };
+    const groups = [
+      entries.filter((_, i) => i % 2 === 0),
+      entries.filter((_, i) => i % 2 === 1),
+    ];
+    const servers = await Promise.all(
+      groups.map((rows) => fixtureServer(document(rows))),
+    );
+    const root = await mkdtemp(join(tmpdir(), "api-watch-family-scope-"));
+    const baselines = new Map<string, ApiWatchProductBaseline>();
+    const crosswalkStore = new InMemoryProductCrosswalkStore();
+    const incidentStore = new InMemoryApiWatchIncidentStore();
+    try {
+      const registry = createSourceRegistry({
+        OZON_SELLER: { officialUrl: null, documents: [] },
+        OZON_PERFORMANCE: { officialUrl: null, documents: [] },
+        WILDBERRIES: {
+          officialUrl: null,
+          requiredServerIdentity: undefined,
+          titlePattern: undefined,
+          documents: servers.map((server, index) => ({
+            documentKey: "WB_" + index,
+            officialUrl: server.url,
+            expectedArtifactTypes: ["JSON"],
+          })),
+        },
+      });
+      const setup = reportDependencies(
+        registry,
+        root,
+        new InMemoryApiWatchReportStore(),
+        createInMemoryApiWatchState(),
+        {
+          async read(scope) {
+            return baselines.get(scope.documentKey ?? "");
+          },
+        },
+      );
+      const dependencies = {
+        ...setup.dependencies,
+        crosswalkStore,
+        incidentStore,
+      };
+      const run = (runId: string) =>
+        runApiWatchReport({ dependencies, runId, source: "FORCED" });
+      await run("family-baseline");
+      for (const snapshot of await dependencies.store.listSnapshots()) {
+        baselines.set(snapshot.documentKey!, {
+          baselineId: "baseline-" + snapshot.documentKey,
+          sourceFamily: snapshot.sourceFamily,
+          documentKey: snapshot.documentKey!,
+          snapshotId: snapshot.snapshotId,
+          snapshotSha256: snapshot.sha256,
+          snapshotSpecVersion: snapshot.specVersion,
+          revision: 1,
+          acceptedAt: new Date("2026-09-22T00:00:00Z"),
+          acceptedBy: "fixture",
+          acceptanceReference: "fixture:" + snapshot.documentKey,
+        });
+      }
+      await run("family-unchanged");
+      const report = await setup.reportStore.getReport(
+        "api-watch:family-unchanged",
+      );
+      expect(
+        report?.sources
+          .filter((row) => row.sourceFamily === "WILDBERRIES")
+          .map((row) => row.changeMode),
+      ).toEqual(["NO_CHANGE", "NO_CHANGE"]);
+      const healthy = await crosswalkStore.listRows(
+        "api-watch:family-unchanged",
+      );
+      expect(
+        healthy.filter((row) => row.crosswalkState === "RUNTIME_ONLY"),
+      ).toEqual([]);
+      expect(
+        healthy.filter((row) => row.reviewState === "BLOCKING_RISK"),
+      ).toEqual([]);
+      expect(new Set(healthy.map((row) => row.sourceIdentity))).toEqual(
+        new Set(entries.map(productIdentity)),
+      );
+      expect(healthy.some((row) => row.documentKey === "WB_0")).toBe(true);
+      expect(healthy.some((row) => row.documentKey === "WB_1")).toBe(true);
+      expect(
+        (await incidentStore.listOpen()).filter(
+          (row) => row.sourceFamily === "WILDBERRIES",
+        ),
+      ).toEqual([]);
+
+      const removed = groups[0]!.find((entry) => entry.executionEnabled)!;
+      servers[0]!.setBody(
+        document(
+          groups[0]!.filter(
+            (entry) => productIdentity(entry) !== productIdentity(removed),
+          ),
+        ),
+      );
+      await run("family-missing");
+      const missing = (
+        await crosswalkStore.listRows("api-watch:family-missing")
+      ).filter((row) => row.crosswalkState === "RUNTIME_ONLY");
+      expect(missing).toHaveLength(1);
+      expect(missing[0]).toMatchObject({
+        sourceIdentity: productIdentity(removed),
+        reviewState: "BLOCKING_RISK",
+        documentKey: null,
+        diffSha256: null,
+      });
+      expect(
+        (await incidentStore.listOpen()).filter(
+          (row) =>
+            row.sourceFamily === "WILDBERRIES" &&
+            row.incidentType === "API_CHANGE_BLOCKING",
+        ),
+      ).toHaveLength(1);
+
+      // A missing baseline is not evidence that the other document lost operations.
+      baselines.delete("WB_1");
+      await run("family-incomplete-baseline");
+      expect(
+        (
+          await crosswalkStore.listRows("api-watch:family-incomplete-baseline")
+        ).filter((row) => row.crosswalkState === "RUNTIME_ONLY"),
+      ).toEqual([]);
+      // Failed source acquisition must also remain unknown, not absent.
+      servers[1]!.setBody(Buffer.from("not an API document"));
+      await run("family-unavailable");
+      expect(
+        (await crosswalkStore.listRows("api-watch:family-unavailable")).filter(
+          (row) => row.crosswalkState === "RUNTIME_ONLY",
+        ),
+      ).toEqual([]);
+    } finally {
+      await Promise.all(servers.map((server) => server.close()));
       await rm(root, { recursive: true, force: true });
     }
   });

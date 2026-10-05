@@ -5,6 +5,7 @@ import {
   repairCaseStateLabel,
   repairChangeSummary,
   repairDecisionLabel,
+  repairDetailMatchesSelection,
   repairEvidenceGaps,
   repairOperationLabel,
   repairScopeValid,
@@ -212,5 +213,36 @@ describe("repair operator page source boundary", () => {
     expect(page).toContain("repairApplyUnavailableReason");
     expect(page).toContain("не применяет исправление");
     expect(health).toContain('href="/health/repairs"');
+  });
+});
+
+describe("selected repair identity", () => {
+  it("requires the selected id, revision and monitoring scope", () => {
+    const item = fixture();
+    const selected = { id: item.repairCaseId, revision: item.caseRevision };
+    expect(repairDetailMatchesSelection(item, selected, item.scopeSha256)).toBe(
+      true,
+    );
+    expect(
+      repairDetailMatchesSelection(
+        item,
+        { ...selected, id: uuid(99) },
+        item.scopeSha256,
+      ),
+    ).toBe(false);
+    expect(
+      repairDetailMatchesSelection(
+        item,
+        { ...selected, revision: 2 },
+        item.scopeSha256,
+      ),
+    ).toBe(false);
+    expect(repairDetailMatchesSelection(item, selected, sha("f"))).toBe(false);
+    expect(repairDetailMatchesSelection(null, selected, item.scopeSha256)).toBe(
+      false,
+    );
+    expect(repairDetailMatchesSelection(item, null, item.scopeSha256)).toBe(
+      false,
+    );
   });
 });

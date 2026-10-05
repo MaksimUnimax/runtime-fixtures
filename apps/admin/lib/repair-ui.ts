@@ -237,3 +237,18 @@ export function shortFingerprint(value: string): string {
   if (value.length <= 24) return value;
   return value.slice(0, 12) + "…" + value.slice(-8);
 }
+
+// The transport request and selected repair revision must agree before display.
+export function repairDetailMatchesSelection(
+  item: RepairCase | null,
+  selected: { id: string; revision: number } | null,
+  scope: string,
+): item is RepairCase {
+  return (
+    item !== null &&
+    selected !== null &&
+    item.repairCaseId === selected.id &&
+    item.caseRevision === selected.revision &&
+    item.scopeSha256 === scope
+  );
+}

@@ -11,6 +11,7 @@ import { buildCompleteOperationInventory } from "./inventory.js";
 import { evaluateApiWatchIncidents } from "./incident.js";
 import {
   buildProductCrosswalk,
+  inventoryIdentity,
   extractProductRegistry,
 } from "./product-registry.js";
 import { applyRetryDecision } from "./retry.js";
@@ -179,28 +180,61 @@ function currentTime(dependencies: ApiWatchDependencies): Date {
   return (dependencies.clock ?? (() => new Date()))();
 }
 
-async function persistProductCrosswalk(input: {
-  dependencies: ApiWatchDependencies;
-  reportId: string;
+type CrosswalkDocument = {
   inventory: OperationInventory;
   impact?: ApiWatchImpact;
   diffSha256?: string | null;
   createdAt: Date;
+};
+
+async function persistProductCrosswalks(input: {
+  dependencies: ApiWatchDependencies;
+  reportId: string;
+  documents: CrosswalkDocument[];
+  sources: ApiWatchReportSourceOutcome[];
 }): Promise<void> {
   const crosswalkStore = input.dependencies.crosswalkStore;
   if (!crosswalkStore) return;
-  const runtimeEntries = await extractProductRegistry({
-    sourceFamily: input.inventory.sourceFamily,
-  });
-  const crosswalk = buildProductCrosswalk({
-    reportId: input.reportId,
-    inventory: input.inventory,
-    runtimeEntries,
-    impact: input.impact,
-    diffSha256: input.diffSha256,
-    createdAt: input.createdAt,
-  });
-  await crosswalkStore.saveRows(crosswalk.rows);
+  const families = new Set(
+    input.documents.map((doc) => doc.inventory.sourceFamily),
+  );
+  for (const sourceFamily of families) {
+    const documents = input.documents.filter(
+      (doc) => doc.inventory.sourceFamily === sourceFamily,
+    );
+    const sources = input.sources.filter(
+      (source) => source.sourceFamily === sourceFamily,
+    );
+    // A failed acquisition or missing/invalid baseline is unknown coverage,
+    // never proof that an operation is absent from the provider's documents.
+    const complete =
+      sources.length === documents.length &&
+      sources.every(
+        (source) =>
+          source.authorityStatus === "AUTHORITY_ACCEPTED" &&
+          source.blockerCode === null &&
+          source.errorCode === null &&
+          (source.changeMode === "NO_CHANGE" ||
+            source.changeMode === "CHANGED"),
+      );
+    const familySourceIdentities = new Set(
+      documents.flatMap((doc) =>
+        doc.inventory.operations.map(inventoryIdentity),
+      ),
+    );
+    const runtimeEntries = await extractProductRegistry({ sourceFamily });
+    for (const [index, document] of documents.entries()) {
+      const crosswalk = buildProductCrosswalk({
+        ...document,
+        reportId: input.reportId,
+        runtimeEntries,
+        familySourceIdentities,
+        // Emit a truly missing operation once, with family-level provenance.
+        includeRuntimeOnly: complete && index === 0,
+      });
+      await crosswalkStore.saveRows(crosswalk.rows);
+    }
+  }
 }
 
 function extensionFor(
@@ -248,6 +282,7 @@ function reportResult(
 async function analyzeAcceptedOutcome(input: {
   dependencies: ApiWatchDependencies;
   reportId: string;
+  crosswalkDocuments: CrosswalkDocument[];
   outcome: Extract<
     AuthorityPassResult["outcomes"][number],
     { kind: "ACQUIRED_OFFICIAL_SOURCE_CANDIDATE" }
@@ -257,7 +292,7 @@ async function analyzeAcceptedOutcome(input: {
     ReturnType<ApiWatchDependencies["store"]["listSnapshots"]>
   >;
 }): Promise<ApiWatchReportSourceOutcome> {
-  const { dependencies, reportId, outcome, record, previousSnapshots } = input;
+  const { dependencies, outcome, record, previousSnapshots } = input;
   const now = currentTime(dependencies);
   const documentKey = outcome.documentKey ?? null;
   const snapshot = await promoteAcceptedSnapshot({
@@ -353,13 +388,7 @@ async function analyzeAcceptedOutcome(input: {
       noPolicyImpactCount: null,
     };
   if (previous.sha256 === snapshot.sha256) {
-    if (baseline)
-      await persistProductCrosswalk({
-        dependencies,
-        reportId,
-        inventory,
-        createdAt: now,
-      });
+    if (baseline) input.crosswalkDocuments.push({ inventory, createdAt: now });
     return {
       sourceFamily: outcome.sourceFamily,
       documentKey,
@@ -406,9 +435,7 @@ async function analyzeAcceptedOutcome(input: {
   await dependencies.store.saveSemanticDiff(diff);
   const impact = classifyApiImpact(diff);
   if (baseline)
-    await persistProductCrosswalk({
-      dependencies,
-      reportId,
+    input.crosswalkDocuments.push({
       inventory,
       impact,
       diffSha256: diff.diffSha256,
@@ -532,6 +559,7 @@ export async function runApiWatchReport(input: {
       now: dependencies.clock,
     });
     const sources: ApiWatchReportSourceOutcome[] = [];
+    const crosswalkDocuments: CrosswalkDocument[] = [];
     for (const [index, outcome] of pass.outcomes.entries()) {
       const record = pass.records[index];
       if (outcome.kind === "ACQUIRED_OFFICIAL_SOURCE_CANDIDATE" && record) {
@@ -539,6 +567,7 @@ export async function runApiWatchReport(input: {
           await analyzeAcceptedOutcome({
             dependencies,
             reportId: report.reportId,
+            crosswalkDocuments,
             outcome,
             record,
             previousSnapshots,
@@ -548,6 +577,12 @@ export async function runApiWatchReport(input: {
         sources.push(blockedOutcome(outcome, record));
       }
     }
+    await persistProductCrosswalks({
+      dependencies,
+      reportId: report.reportId,
+      documents: crosswalkDocuments,
+      sources,
+    });
     const usable = sources.filter(
       (sourceOutcome) =>
         sourceOutcome.snapshotSha256 !== null &&

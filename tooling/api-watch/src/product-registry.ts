@@ -527,6 +527,9 @@ export function buildProductCrosswalk(input: {
   reportId: string;
   inventory: OperationInventory;
   runtimeEntries: ProductRegistryEntry[];
+  // Absence is family-wide even when mapped rows retain document provenance.
+  familySourceIdentities?: ReadonlySet<string>;
+  includeRuntimeOnly?: boolean;
   impact?: ApiWatchImpact;
   diffSha256?: string | null;
   createdAt?: Date;
@@ -554,7 +557,10 @@ export function buildProductCrosswalk(input: {
   const all = new Set([
     ...sourceById.keys(),
     ...[...runtimeById.keys()].filter(
-      (identity) => !sourceIdentities.has(identity),
+      (identity) =>
+        input.includeRuntimeOnly !== false &&
+        !sourceIdentities.has(identity) &&
+        !input.familySourceIdentities?.has(identity),
     ),
   ]);
   const impactById = new Map(
@@ -576,7 +582,8 @@ export function buildProductCrosswalk(input: {
       executionEnabled = runtime.executionEnabled;
       alias = runtime.runtimeAlias;
     }
-    const impact = impactById.get(identity);
+    const familyAbsence = !source && input.familySourceIdentities !== undefined;
+    const impact = familyAbsence ? undefined : impactById.get(identity);
     let reviewState: import("./types.js").CrosswalkReviewState;
     if (
       state === "AMBIGUOUS_RUNTIME_MAPPING" ||
@@ -613,7 +620,7 @@ export function buildProductCrosswalk(input: {
       reviewState,
       executionEnabled,
       impactSeverity: impact?.severity ?? null,
-      diffSha256: input.diffSha256 ?? null,
+      diffSha256: familyAbsence ? null : (input.diffSha256 ?? null),
       createdAt: new Date(now),
     };
   });

@@ -17,6 +17,7 @@ import {
   repairCaseStateLabel,
   repairChangeSummary,
   repairDecisionLabel,
+  repairDetailMatchesSelection,
   repairEvidenceGaps,
   repairOperationLabel,
   repairScopeValid,
@@ -184,7 +185,15 @@ export default function RepairCasesPage() {
         <section className="card">
           <h2>Карточка исправления</h2>
           <LoadState busy={detail.busy} error={detail.error} />
-          {detail.data && <RepairDetail item={detail.data} />}
+          {repairDetailMatchesSelection(detail.data, selected, scope) && (
+            <RepairDetail item={detail.data} />
+          )}
+          {detail.data &&
+            !repairDetailMatchesSelection(detail.data, selected, scope) && (
+              <p role="alert">
+                Карточка не соответствует выбранному случаю. Обновите список.
+              </p>
+            )}
         </section>
       )}
     </Shell>

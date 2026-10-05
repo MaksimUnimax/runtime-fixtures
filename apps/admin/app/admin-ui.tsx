@@ -557,36 +557,76 @@ export function LoginPage() {
 }
 
 export function useData<T>(path: string | null) {
-  const [data, setData] = useState<T | null>(null);
-  const [busy, setBusy] = useState(Boolean(path));
-  const [error, setError] = useState<unknown>(null);
+  // A new selection has a distinct scope, so previous data is hidden in the
+  // selection render itself, before the effect starts the next request.
+  const scope = useMemo(
+    () => ({
+      active: false,
+      generation: 0,
+      controller: null as AbortController | null,
+    }),
+    [path],
+  );
+  const [state, setState] = useState<{
+    scope: typeof scope | null;
+    data: T | null;
+    busy: boolean;
+    error: unknown;
+  }>({ scope: null, data: null, busy: Boolean(path), error: null });
   const { refresh, setNotice } = useAdmin();
   const load = async () => {
-    if (!path) return;
-    setBusy(true);
-    setError(null);
+    // An onDone callback retained by an old selection cannot reload it.
+    if (!scope.active) return;
+    const generation = ++scope.generation;
+    scope.controller?.abort();
+    if (!path) {
+      setState({ scope, data: null, busy: false, error: null });
+      return;
+    }
+    const controller = new AbortController();
+    scope.controller = controller;
+    const isCurrent = () =>
+      scope.active &&
+      scope.generation === generation &&
+      !controller.signal.aborted;
+    setState({ scope, data: null, busy: true, error: null });
     try {
-      setData(await controlPlane<T>(path));
+      const data = await controlPlane<T>(path, { signal: controller.signal });
+      if (isCurrent()) setState({ scope, data, busy: true, error: null });
     } catch (value) {
-      setError(value);
+      if (!isCurrent()) return;
+      setState({ scope, data: null, busy: true, error: value });
       if (
         value instanceof ControlPlaneError &&
         value.code === "ADMIN_FORBIDDEN"
       ) {
         await refresh();
-        setNotice({
-          kind: "error",
-          text: "Your permission changed. Available controls were refreshed.",
-        });
+        if (isCurrent())
+          setNotice({
+            kind: "error",
+            text: "Your permission changed. Available controls were refreshed.",
+          });
       }
     } finally {
-      setBusy(false);
+      if (isCurrent()) setState((current) => ({ ...current, busy: false }));
     }
   };
   useEffect(() => {
+    scope.active = true;
     void load();
-  }, [path]);
-  return { data, busy, error, load };
+    return () => {
+      scope.active = false;
+      ++scope.generation;
+      scope.controller?.abort();
+    };
+  }, [scope]);
+  const current = state.scope === scope ? state : null;
+  return {
+    data: current?.data ?? null,
+    busy: current ? current.busy : Boolean(path),
+    error: current?.error ?? null,
+    load,
+  };
 }
 
 export function Mutation({
