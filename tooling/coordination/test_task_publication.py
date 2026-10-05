@@ -349,6 +349,39 @@ class PublicationTests(unittest.TestCase):
             route._tree(self.source),
         )
 
+    def test_project_deploy_alias_normalizes_to_https_query(self):
+        expected = ("github", "MaksimUnimax/runtime-fixtures")
+        for target in (
+            "github-seller-agents:MaksimUnimax/runtime-fixtures.git",
+            "github-seller-agents:MaksimUnimax/runtime-fixtures",
+        ):
+            with self.subTest(target=target):
+                self.assertEqual(route._remote_repository_identity(target), expected)
+                self.assertEqual(
+                    route._canonical_remote_query_target(target),
+                    "https://github.com/MaksimUnimax/runtime-fixtures.git",
+                )
+
+        for target in (
+            "github-seller-agents:",
+            "github-seller-agents:MaksimUnimax",
+            "github-seller-agents:/runtime-fixtures.git",
+            "github-seller-agents:MaksimUnimax/.git",
+            "github-seller-agents:MaksimUnimax/..",
+            "github-seller-agents:MaksimUnimax/runtime-fixtures?query",
+            "github-seller-agents:MaksimUnimax/runtime-fixtures#fragment",
+            "github-seller-agents:MaksimUnimax/runtime-fixtures\\suffix",
+            "github-seller-agents:MaksimUnimax/runtime-fixtures:extra",
+            "github-seller-agents:MaksimUnimax/runtime-fixtures/extra",
+            "foreign-alias:MaksimUnimax/runtime-fixtures.git",
+            "github-seller-agents:MaksimUnimax/runtime fixtures.git",
+        ):
+            with self.subTest(target=target):
+                with self.assertRaisesRegex(
+                    RuntimeError, "TRUSTED_ROUTE_REMOTE_IDENTITY_INVALID"
+                ):
+                    route._remote_repository_identity(target)
+
     def test_trusted_route_resolves_blocker_from_divergent_canonical_branch(self):
         self.strict_route_authority(self.base)
         old, successor, receipt = self.blocker_fixture()

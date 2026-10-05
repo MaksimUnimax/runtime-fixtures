@@ -837,6 +837,17 @@ def _remote_repository_identity(target: str) -> tuple[str, str]:
     if match:
         return ("github", match.group(1).removesuffix(".git"))
     match = re.fullmatch(
+        r"github-seller-agents:"
+        r"([A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?)/"
+        r"([A-Za-z0-9._-]+)",
+        value,
+    )
+    if match:
+        owner = match.group(1)
+        repository = match.group(2).removesuffix(".git")
+        if repository and repository not in {".", ".."}:
+            return ("github", f"{owner}/{repository}")
+    match = re.fullmatch(
         r"https://github\.com/([^\s]+?)(?:\.git)?/?", value
     )
     if match:
