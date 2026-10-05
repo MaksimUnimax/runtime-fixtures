@@ -71,6 +71,30 @@ Each subcommand has `--help` for its exact required arguments.
    later reviewed successor may have changed the live task fingerprint:
    that drift is not cleanup authority and grants no broader ref/config mutation.
    Immutable registration/source/review identities remain required.
+
+   A distinct fail-closed retirement exists for a registration that already reached
+   `READY` and then loses its registered `main` base **before** any MAIN push starts.
+   `supersede` first validates the immutable READY receipt (including the exact five
+   successful workflows), registration/source/review/config identity, evidence and
+   absence of an armed lease. It then reads `main` through the immutable captured push
+   target. Retirement is allowed only when that remote SHA is present, differs from the
+   registered base, and is not the candidate itself. The stale READY authority is
+   revoked locally first: the ready receipt is cleared and the observed base drift is
+   recorded while state returns to `TASK_REF_PUBLISHED`. From there the existing exact
+   ref supersede rules apply: absent is recorded, foreign is retained, and only a ref
+   still equal to the registered candidate can be CAS-deleted. Immediately before a
+   deletion lease is created, READY-originated retirement revalidates route/config
+   identity and requires `main` to still equal the previously observed drift SHA. If
+   either changed after READY authority was cleared, the registration remains only
+   `TASK_REF_PUBLISHED`, no deletion lease/send-pack exists, and the exact task ref is
+   retained for fresh reconciliation. The isolated pre-push hook repeats both
+   route/config validation and the exact observed-`main` comparison immediately before
+   consuming the deletion lease, so drift after lease preparation still cannot reach
+   send-pack. This retirement path performs **no MAIN send-pack**
+   and never converts old CI into authority for the new base. Unchanged `main` or
+   `main==candidate` fails closed. A fresh-main reconstruction
+   must obtain a new independent review, exact-five CI and READY receipt before later
+   publication.
 9. `cleanup-ref` deletes only this registration's exact candidate ref after a
    verified `PUBLISHED` main result. An absent ref is recorded; a foreign ref is
    retained. Cleanup failure does not revoke an already verified main publication.

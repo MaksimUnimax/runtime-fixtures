@@ -2300,6 +2300,22 @@ def _prepare_supersede_push_locked(
     if not _no_armed_leases(root, reg["registration_id"]):
         raise PublicationError("SUPERSEDE_ARMED_LEASE_PRESENT")
     _validate_supersede_registration_identity(root, reg, require_clean=True)
+    ready_retirement = reg.get("ready_base_drift_retirement")
+    if ready_retirement is not None:
+        if not isinstance(ready_retirement, dict):
+            raise PublicationError("SUPERSEDE_READY_RETIREMENT_RECORD_INVALID")
+        # This is the final fail-closed boundary before a deletion lease exists.
+        # READY authority was already cleared, but route/config or main drift now
+        # leaves the exact task ref untouched and requires a fresh reconciliation.
+        _validate_ready_retirement_config(reg)
+        current_main = _remote_oid_target(
+            Path(reg["core"]["worktree_path"]),
+            reg["core"]["push_target"],
+            "refs/heads/main",
+            env=_supersede_transport_env(),
+        )
+        if current_main != ready_retirement.get("observed_remote_main"):
+            raise PublicationError("SUPERSEDE_READY_REMOTE_MAIN_DRIFT")
     verified = _validate_supersede_evidence(root, reg, evidence["path"], evidence["sha256"])
     if verified != evidence:
         raise PublicationError("SUPERSEDE_EVIDENCE_DRIFT")
@@ -2789,7 +2805,13 @@ def _ready_payload(root: Path, reg: dict[str, Any], ci: dict[str, Any]) -> dict[
     }
 
 
-def _validate_ready_receipt(root: Path, reg: dict[str, Any], max_age_seconds: int = 1800) -> dict[str, Any]:
+def _validate_ready_receipt(
+    root: Path,
+    reg: dict[str, Any],
+    max_age_seconds: int = 1800,
+    *,
+    require_fresh_ci: bool = True,
+) -> dict[str, Any]:
     ref = reg.get("ready_receipt")
     if not isinstance(ref, dict):
         raise PublicationError("READY_RECEIPT_REQUIRED")
@@ -2816,10 +2838,18 @@ def _validate_ready_receipt(root: Path, reg: dict[str, Any], max_age_seconds: in
     for key, expected in required.items():
         if ready.get(key) != expected:
             raise PublicationError(f"READY_RECEIPT_IDENTITY_MISMATCH:{key}")
-    validate_ci_payload(
-        ready.get("ci", {}), core["candidate_head"], core["task_branch"],
-        max_age_seconds=max_age_seconds,
-    )
+    ci = ready.get("ci", {})
+    if require_fresh_ci:
+        validate_ci_payload(
+            ci, core["candidate_head"], core["task_branch"],
+            max_age_seconds=max_age_seconds,
+        )
+    else:
+        checked_at = ci.get("checked_at", 0) if isinstance(ci, dict) else 0
+        validate_ci_payload(
+            ci, core["candidate_head"], core["task_branch"],
+            now=checked_at, max_age_seconds=0,
+        )
     return ready
 
 
@@ -2904,6 +2934,23 @@ def _no_armed_leases(root: Path, registration_id: str) -> bool:
     return not armed.exists() or not any(armed.glob("*.json"))
 
 
+def _validate_ready_retirement_config(reg: dict[str, Any]) -> None:
+    """Fail closed on route/config drift before READY retirement mutates any ref."""
+    core = reg["core"]
+    worktree = Path(core["worktree_path"])
+    installed = reg.get("installed_config", {})
+    if not _common_config_matches_registered(worktree, core["common_config_sha256"]):
+        raise PublicationError("COMMON_CONFIG_DRIFT")
+    if _global_config_digest() != core["global_config_sha256"]:
+        raise PublicationError("GLOBAL_CONFIG_DRIFT")
+    ownership, _ = _ownership(worktree)
+    if _fixed_role_config_digests(ownership) != core["fixed_role_config_sha256"]:
+        raise PublicationError("FIXED_ROLE_CONFIG_DRIFT")
+    for key in installed.get("owned_keys", []):
+        if _config_values(worktree, key) != installed.get(key):
+            raise PublicationError(f"ROUTE_CONFIG_SAME_KEY_DRIFT:{key}")
+
+
 def supersede_registration(
     root: Path,
     registration_id: str,
@@ -2941,20 +2988,59 @@ def supersede_registration(
             should_close = True
         else:
             state = reg.get("state")
-            if state not in {"REGISTERED", "TASK_REF_PUBLISHED"}:
+            if state not in {"REGISTERED", "TASK_REF_PUBLISHED", "READY"}:
                 raise PublicationError(f"SUPERSEDE_PRESTATE_INVALID:{state}")
             if not _no_armed_leases(root, registration_id):
                 raise PublicationError("SUPERSEDE_ARMED_LEASE_PRESENT")
             _validate_supersede_registration_identity(root, reg, require_clean=True)
+            if state == "READY":
+                # READY base-drift retirement is stricter than ordinary supersede:
+                # no task-ref mutation is allowed while route/config identity drifts.
+                _validate_ready_retirement_config(reg)
+                # Retirement validates the immutable READY proof but intentionally
+                # does not require CI to still be publication-fresh: this path can
+                # only revoke stale publication authority and never writes main.
+                _validate_ready_receipt(root, reg, require_fresh_ci=False)
             evidence = _validate_supersede_evidence(root, reg, evidence_path, evidence_sha)
             if stored and (stored.get("path") != evidence["path"] or stored.get("sha256") != evidence["sha256"]):
                 raise PublicationError("SUPERSEDE_EVIDENCE_DRIFT")
             core = reg["core"]
             worktree = Path(core["worktree_path"])
+            superseded_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
             base_updates = {
                 "supersede_evidence": evidence,
-                "superseded_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                "superseded_at": superseded_at,
             }
+            if state == "READY":
+                remote_main = _remote_oid_target(
+                    worktree,
+                    core["push_target"],
+                    "refs/heads/main",
+                    env=_supersede_transport_env(),
+                )
+                if remote_main == ZERO_OID:
+                    raise PublicationError("SUPERSEDE_READY_REMOTE_MAIN_UNAVAILABLE")
+                if remote_main == core["base_sha"]:
+                    raise PublicationError("SUPERSEDE_READY_REMOTE_MAIN_UNCHANGED")
+                if remote_main == core["candidate_head"]:
+                    raise PublicationError("SUPERSEDE_READY_CANDIDATE_IS_MAIN")
+                reg = _state_transition(
+                    root,
+                    registration_id,
+                    {"READY"},
+                    "TASK_REF_PUBLISHED",
+                    dict(
+                        base_updates,
+                        ready_receipt=None,
+                        ready_base_drift_retirement={
+                            "registered_base": core["base_sha"],
+                            "observed_remote_main": remote_main,
+                            "observed_at": superseded_at,
+                        },
+                    ),
+                    expected_version=reg["state_version"],
+                )
+                state = "TASK_REF_PUBLISHED"
             if state == "REGISTERED":
                 if reg.get("last_settlement_outcome") != "CANCELLED_REMOTE_UNCHANGED":
                     raise PublicationError(
@@ -3213,6 +3299,23 @@ def hook_main(argv: list[str] | None = None, stdin: Iterable[str] | None = None)
             _validate_supersede_evidence(
                 root, reg, evidence.get("path", ""), evidence.get("sha256", "")
             )
+            ready_retirement = reg.get("ready_base_drift_retirement")
+            if ready_retirement is not None:
+                if not isinstance(ready_retirement, dict):
+                    raise PublicationError("SUPERSEDE_READY_RETIREMENT_RECORD_INVALID")
+                # Last irreversible boundary: a READY-originated retirement must
+                # still have the exact route/config identity and the exact remote
+                # main drift that justified revoking READY before this hook consumes
+                # the deletion lease and send-pack can begin.
+                _validate_ready_retirement_config(reg)
+                current_main = _remote_oid_target(
+                    worktree,
+                    core["push_target"],
+                    "refs/heads/main",
+                    env=_supersede_transport_env(),
+                )
+                if current_main != ready_retirement.get("observed_remote_main"):
+                    raise PublicationError("SUPERSEDE_READY_REMOTE_MAIN_DRIFT")
         else:
             if expected_bundle_sha != core["bundle_manifest_sha256"]:
                 raise PublicationError("HOOK_BUNDLE_ENV_MISMATCH")
