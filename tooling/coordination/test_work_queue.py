@@ -860,6 +860,42 @@ class WorkQueueTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "WORK_QUEUE_INVALID"):
             load_board(self.root)
 
+    def test_role_work_reuses_strict_validation_once_per_task_and_fails_closed(self):
+        count = 24
+        tasks = []
+        for index in range(count):
+            tasks.append({
+                "id": f"strict-{index}", "role": "B", "plan": "B04", "state": "DONE",
+                "requires": [], "result": "accepted result", "paths": [f"tooling/{index}.py"],
+                "completion_receipt_format": work_queue.COMPLETION_VERSION,
+                "completion_receipt": str(self.root / "logs/tampered.json"),
+                "completion_candidate_sha": "a" * 40,
+            })
+        # Invalid evidence must remain invalid through the optimized role and owner paths.
+        (self.root / "logs/tampered.json").write_text('{"verdict":"PASS"}')
+        self.board = {"version": 1, "revision": 2, "tasks": tasks}
+        self.save()
+        original = work_queue._completion_receipt
+        with patch.object(work_queue, "_completion_receipt", wraps=original) as read_receipt:
+            result = role_work(self.root, "B")
+        self.assertEqual(read_receipt.call_count, count)
+        self.assertEqual(len(result["tasks"]), count)
+        self.assertTrue(all(row["state"] == "BLOCKED" for row in result["tasks"]))
+        self.assertTrue(all(row["completion_invalidated"] for row in result["tasks"]))
+
+    def test_task_view_direct_call_keeps_fail_closed_completion_check(self):
+        task = {
+            "id": "tampered", "role": "B", "plan": "B04", "state": "DONE", "requires": [],
+            "result": "result", "paths": ["tooling/tampered.py"],
+            "completion_receipt_format": work_queue.COMPLETION_VERSION,
+            "completion_receipt": str(self.root / "logs/tampered.json"),
+            "completion_candidate_sha": "a" * 40,
+        }
+        (self.root / "logs/tampered.json").write_text('{"verdict":"PASS"}')
+        view = work_queue.task_view({"tasks": [task]}, task)
+        self.assertEqual(view["state"], "BLOCKED")
+        self.assertTrue(view["completion_invalidated"])
+
 
 if __name__ == "__main__":
     unittest.main()

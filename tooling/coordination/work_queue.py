@@ -388,6 +388,55 @@ def _task_satisfies_dependencies(task):
     return task["state"] == "DONE" and _strict_completion_valid(task)
 
 
+class _BoardEvaluation:
+    """Validation memo scoped to one immutable in-memory board evaluation."""
+    def __init__(self, board):
+        self.board = board
+        self._strict = {}
+        self._receipts = {}
+        self._blocker_successors = {}
+        self.done = frozenset(
+            task["id"] for task in board["tasks"]
+            if task["state"] == "DONE" and self.strict_completion_valid(task)
+        )
+
+    def receipt(self, task):
+        key = id(task)
+        if key not in self._receipts:
+            self._receipts[key] = _completion_receipt(
+                task.get("completion_receipt", ""), task["id"],
+                task.get("completion_candidate_sha", ""),
+            )
+        return self._receipts[key]
+
+    def strict_completion_valid(self, task):
+        key = id(task)
+        if key not in self._strict:
+            if "completion_receipt_format" not in task:
+                valid = True
+            elif (type(task.get("completion_receipt_format")) is not int
+                    or task.get("completion_receipt_format") != COMPLETION_VERSION):
+                valid = False
+            else:
+                valid = _receipt_passes(self.receipt(task)) and _publication_snapshot_valid(task)
+            self._strict[key] = valid
+        return self._strict[key]
+
+    def strict_blocker_successor_valid(self, task):
+        key = id(task)
+        if key not in self._blocker_successors:
+            valid = (
+                task.get("state") == "DONE"
+                and type(task.get("completion_receipt_format")) is int
+                and task.get("completion_receipt_format") == COMPLETION_VERSION
+                and isinstance(task.get("completion_receipt_snapshot"), dict)
+                and self.strict_completion_valid(task)
+                and self.receipt(task) == task["completion_receipt_snapshot"]
+            )
+            self._blocker_successors[key] = valid
+        return self._blocker_successors[key]
+
+
 def _strict_blocker_successor_valid(task):
     if (task.get("state") != "DONE"
             or type(task.get("completion_receipt_format")) is not int
@@ -547,7 +596,7 @@ def task_conflicts(board, task):
     return conflicts
 
 
-def _valid_blocker_resolution(board, task):
+def _valid_blocker_resolution(board, task, evaluation=None):
     resolution = task.get("blocker_resolution")
     if not isinstance(resolution, dict) or resolution.get("status") != "RESOLVED":
         return False
@@ -556,17 +605,19 @@ def _valid_blocker_resolution(board, task):
         return False
     successor = next((row for row in board["tasks"] if row.get("id") == successor_id), None)
     if (successor is None or successor.get("plan") != task.get("plan")
-            or not _strict_blocker_successor_valid(successor)):
+            or not (evaluation.strict_blocker_successor_valid(successor) if evaluation
+                    else _strict_blocker_successor_valid(successor))):
         return False
     return (resolution.get("successor_candidate_sha") == successor.get("completion_candidate_sha")
             and resolution.get("receipt") == successor.get("completion_receipt"))
 
 
-def task_view(board, task):
-    done = {t["id"] for t in board["tasks"] if _task_satisfies_dependencies(t)}
+def task_view(board, task, evaluation=None):
+    evaluation = evaluation or _BoardEvaluation(board)
+    done = evaluation.done
     waiting = [x for x in task["requires"] if x not in done]
     state = task["state"]
-    completion_invalidated = task["state"] == "DONE" and not _strict_completion_valid(task)
+    completion_invalidated = task["state"] == "DONE" and not evaluation.strict_completion_valid(task)
     if completion_invalidated:
         state = "BLOCKED"
     if waiting:
@@ -578,7 +629,7 @@ def task_view(board, task):
         state = "BLOCKED"
     resolution = task.get("blocker_resolution") if isinstance(task.get("blocker_resolution"), dict) else {}
     resolution_status = (
-        "RESOLVED" if _valid_blocker_resolution(board, task)
+        "RESOLVED" if _valid_blocker_resolution(board, task, evaluation)
         else "STALE_RESOLUTION" if resolution.get("status") == "RESOLVED"
         else resolution.get("status")
     )
@@ -593,15 +644,19 @@ def task_view(board, task):
 
 def blocker_attention(board):
     """Derived unresolved outcomes; neither a second queue nor a permission request."""
+    return _blocker_attention(board, _BoardEvaluation(board))
+
+
+def _blocker_attention(board, evaluation):
     alerts = []
     for task in board["tasks"]:
-        view = task_view(board, task)
+        view = task_view(board, task, evaluation)
         if view["state"] != "BLOCKED":
             continue
         resolution = task.get("blocker_resolution", {})
         if not isinstance(resolution, dict):
             resolution = {}
-        if _valid_blocker_resolution(board, task):
+        if _valid_blocker_resolution(board, task, evaluation):
             continue
         stale_resolution = view.get("resolution_status") == "STALE_RESOLUTION"
         reason = (
@@ -633,16 +688,17 @@ def blocker_attention(board):
 
 def role_work(root, role):
     board = load_board(root)
+    evaluation = _BoardEvaluation(board)
     rows = []
     for task in board["tasks"]:
-        if task["state"] == "DONE" and _strict_completion_valid(task):
+        if task["state"] == "DONE" and evaluation.strict_completion_valid(task):
             continue
-        view = task_view(board, task)
+        view = task_view(board, task, evaluation)
         # All claimable work is visible, regardless of its original author.
         if task["role"] == role or view["state"] == "READY":
             rows.append(view)
     return {"revision": board.get("revision", 0), "tasks": rows,
-            "owner_attention": blocker_attention(board)}
+            "owner_attention": _blocker_attention(board, evaluation)}
 
 
 def validate_task_scope(root, role, paths):
