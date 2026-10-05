@@ -13,7 +13,9 @@ on:
       - "tests/regression/site/test_site_contour.py"
       - "tests/regression/site/test_site_brand_names.py"
       - "tests/regression/site/test_site_approved_copy.py"
+      - "tests/regression/site/test_site_metrika.py"
       - "tests/regression/site/browser_approved_copy.py"
+      - "tests/regression/site/browser_metrika_mock.py"
       - "tests/regression/site/fixtures/**"
       - ".github/workflows/site-ci.yml"
   push:
@@ -28,7 +30,9 @@ on:
       - "tests/regression/site/test_site_contour.py"
       - "tests/regression/site/test_site_brand_names.py"
       - "tests/regression/site/test_site_approved_copy.py"
+      - "tests/regression/site/test_site_metrika.py"
       - "tests/regression/site/browser_approved_copy.py"
+      - "tests/regression/site/browser_metrika_mock.py"
       - "tests/regression/site/fixtures/**"
       - ".github/workflows/site-ci.yml"
   workflow_dispatch:
@@ -92,6 +96,7 @@ jobs:
               root / "assets" / "color-deepseek-r2.svg",
               root / "assets" / "color-alice-r2.svg",
               root / "assets" / "color-qwen-r2.svg",
+              root / "assets" / "yandex-metrika.js",
               root / "assets" / "browser-icons" / "chrome.svg",
               root / "assets" / "browser-icons" / "opera.svg",
               root / "assets" / "browser-icons" / "firefox.svg",
@@ -115,7 +120,7 @@ jobs:
                   self.hrefs = []
                   self.canonical = []
                   self.html_lang = None
-                  self.executable_scripts = 0
+                  self.executable_scripts = []
                   self.json_ld = []
                   self._json_buffer = None
                   self.stylesheets = []
@@ -147,7 +152,7 @@ jobs:
                       if attrs.get("type") == "application/ld+json":
                           self._json_buffer = []
                       else:
-                          self.executable_scripts += 1
+                          self.executable_scripts.append(attrs)
                   if tag == "br" and self.in_h1:
                       self.h1.append(" ")
                   if tag == "h1":
@@ -173,7 +178,8 @@ jobs:
           assert parser.canonical == ["https://octoport.ru/"], parser.canonical
           assert parser.stylesheets == ["/styles.css?v=logo-meditation-20260928-r1"], parser.stylesheets
           assert parser.icons == [("/favicon.png", "image/png"), ("/assets/favicon-contour-v1.png", "image/png")], parser.icons
-          assert parser.executable_scripts == 0, "M14 must remain executable-JavaScript-free"
+          assert parser.executable_scripts == [{"src": "/assets/yandex-metrika.js", "defer": None}], \
+              f"only the shared owner-provided analytics loader may execute: {parser.executable_scripts}"
           assert len(parser.json_ld) == 1, parser.json_ld
           website = json.loads(parser.json_ld[0])
           assert website == {
@@ -243,7 +249,9 @@ jobs:
           subprocess.run(["python3", "tests/regression/site/test_site_contour.py"], check=True)
           subprocess.run(["python3", "tests/regression/site/test_site_brand_names.py"], check=True)
           subprocess.run(["python3", "tests/regression/site/test_site_approved_copy.py"], check=True)
+          subprocess.run(["python3", "tests/regression/site/test_site_metrika.py"], check=True)
           subprocess.run(["python3", "-m", "py_compile", "tests/regression/site/browser_approved_copy.py"], check=True)
+          subprocess.run(["python3", "-m", "py_compile", "tests/regression/site/browser_metrika_mock.py"], check=True)
 
           required_sections = {"top", "features", "how", "employee", "privacy", "beta"}
           assert required_sections.issubset(parser.ids), f"missing sections: {required_sections - parser.ids}"
@@ -379,7 +387,8 @@ jobs:
                   f"{page_name}: unexpected canonical {page_parser.canonical}"
               assert page_parser.stylesheets == ["/styles.css?v=logo-meditation-20260928-r1"], \
                   f"{page_name}: shared stylesheet link is missing"
-              assert page_parser.executable_scripts == 0, f"{page_name}: executable JavaScript is forbidden"
+              assert page_parser.executable_scripts == [{"src": "/assets/yandex-metrika.js", "defer": None}], \
+                  f"{page_name}: unexpected executable JavaScript {page_parser.executable_scripts}"
               assert page_parser.json_ld == [], f"{page_name}: unexpected page-level JSON-LD"
               assert f"<title>{spec['title']}</title>" in html, f"{page_name}: title is missing"
               assert len(re.findall(r"<h1(?:\s|>)", html)) == 1 and "".join(page_parser.h1) == spec["h1"], \
@@ -505,9 +514,12 @@ jobs:
           fi
 
           grep -Fq 'seller-analytics.html' "${deploy_script}"
+          grep -Fq 'assets/yandex-metrika.js' "${deploy_script}"
           grep -Fq 'favicon.png' "${deploy_script}"
           grep -Fq 'verify-octoport-site.sh' "${deploy_script}"
           grep -Fq 'seller-analytics' "${verify_script}"
+          grep -Fq 'assets/yandex-metrika.js' "${verify_script}"
+          grep -Fq '113424299' "${verify_script}"
           grep -Fq 'favicon' "${verify_script}"
           grep -Fq 'styles.css lost the inherited CSP' "${verify_script}"
           grep -Fq 'styles.css lost X-Frame-Options' "${verify_script}"

@@ -41,7 +41,8 @@ class ApprovedCopyTests(unittest.TestCase):
             self.assertEqual(len(children), 2)
             cards.extend(visible(c) for c in children)
         self.assertCountEqual(cards, FIXTURE['cards'])
-        self.assertNotRegex(self.home, r'<script(?![^>]*application/ld\+json)')
+        runtime_scripts = re.findall(r'<script(?![^>]*application/ld\+json)[^>]*>', self.home)
+        self.assertEqual(runtime_scripts, ['<script src="/assets/yandex-metrika.js" defer>'])
     def test_approved_owner_copy_and_api_tokens_remain(self):
         for paragraph in FIXTURE['home_owner_paragraphs']:
             self.assertIn(paragraph, visible(self.home))

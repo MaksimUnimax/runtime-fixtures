@@ -79,7 +79,7 @@ check_release() {
   [[ -d "${target}" ]] || fail "current release target does not exist: ${target}"
 
   local required
-  for required in index.html seller-analytics.html privacy.html support.html install.html favicon.png styles.css robots.txt sitemap.xml; do
+  for required in index.html seller-analytics.html privacy.html support.html install.html favicon.png styles.css robots.txt sitemap.xml assets/yandex-metrika.js; do
     [[ -f "${target}/${required}" ]] || fail "current release is missing ${required}"
   done
 
@@ -132,11 +132,12 @@ check_site_content() {
   expect_status_with_retry 200 'https://octoport.ru/install' octoport.ru 443
   expect_status_with_retry 200 'https://octoport.ru/favicon.png' octoport.ru 443
   expect_status_with_retry 200 'https://octoport.ru/styles.css' octoport.ru 443
+  expect_status_with_retry 200 'https://octoport.ru/assets/yandex-metrika.js' octoport.ru 443
   expect_status_with_retry 200 'https://octoport.ru/robots.txt' octoport.ru 443
   expect_status_with_retry 200 'https://octoport.ru/sitemap.xml' octoport.ru 443
 
   local homepage homepage_headers css_headers favicon_headers content_type homepage_csp css_csp
-  local seller privacy support install sitemap
+  local seller privacy support install sitemap metrika_script
   local homepage_cache css_cache css_frame_options css_nosniff favicon_type favicon_location
 
   homepage="$(curl --silent --show-error --resolve 'octoport.ru:443:127.0.0.1' 'https://octoport.ru/')"
@@ -161,6 +162,18 @@ check_site_content() {
   support="$(curl --silent --show-error --resolve 'octoport.ru:443:127.0.0.1' 'https://octoport.ru/support')"
   install="$(curl --silent --show-error --resolve 'octoport.ru:443:127.0.0.1' 'https://octoport.ru/install')"
   sitemap="$(curl --silent --show-error --resolve 'octoport.ru:443:127.0.0.1' 'https://octoport.ru/sitemap.xml')"
+  metrika_script="$(curl --silent --show-error --resolve 'octoport.ru:443:127.0.0.1' 'https://octoport.ru/assets/yandex-metrika.js')"
+
+  for page in "${homepage}" "${seller}" "${privacy}" "${support}" "${install}"; do
+    grep -Fq '<script src="/assets/yandex-metrika.js" defer></script>' <<<"${page}" \
+      || fail "public HTML page is missing the shared Yandex Metrika loader"
+    grep -Fq 'https://mc.yandex.ru/watch/113424299' <<<"${page}" \
+      || fail "public HTML page is missing the Metrika noscript pixel"
+  done
+  grep -Fq 'https://mc.yandex.ru/metrika/tag.js?id=113424299' <<<"${metrika_script}" \
+    || fail "Yandex Metrika loader asset is missing the owner-provided counter URL"
+  grep -Fq 'accurateTrackBounce: true' <<<"${metrika_script}" \
+    || fail "Yandex Metrika loader asset is missing the owner-provided counter options"
 
   grep -Fq '<title>ИИ для аналитики маркетплейсов — данные магазина | Октопорт</title>' <<<"${seller}" \
     || fail "seller analytics M12 title is missing"

@@ -73,7 +73,7 @@ assert_source() {
   fi
 
   local required
-  for required in index.html seller-analytics.html privacy.html support.html install.html favicon.png styles.css robots.txt sitemap.xml assets/browser-icons/chrome.png assets/browser-icons/opera.png assets/browser-icons/firefox-color.svg assets/browser-icons/yandex.png assets/browser-icons/octoport.svg; do
+  for required in index.html seller-analytics.html privacy.html support.html install.html favicon.png styles.css robots.txt sitemap.xml assets/yandex-metrika.js assets/browser-icons/chrome.png assets/browser-icons/opera.png assets/browser-icons/firefox-color.svg assets/browser-icons/yandex.png assets/browser-icons/octoport.svg; do
     [[ -f "${SOURCE_SITE}/${required}" ]] || fail "site source is missing ${required}"
   done
 

@@ -203,13 +203,18 @@ class ContourSourceTests(unittest.TestCase):
         self.assertIn('width="512" height="512"',firefox)
         self.assertIn("radialGradient",firefox)
 
-    def test_local_images_resolve_and_no_executable_javascript(self):
+    def test_local_images_resolve_and_only_approved_tracking_script(self):
+        executable_scripts = []
         for tag,a in self.tags:
-            if tag=="img": self.assertTrue((ROOT/a["src"].lstrip("/")).is_file(),a["src"])
-            if tag=="script": self.assertEqual(a.get("type"),"application/ld+json")
+            if tag=="img" and a.get("src","").startswith("/"): self.assertTrue((ROOT/a["src"].lstrip("/")).is_file(),a["src"])
+            if tag=="script" and a.get("type")!="application/ld+json": executable_scripts.append(a)
+        self.assertEqual(len(executable_scripts),1)
+        self.assertEqual(executable_scripts[0].get("src"),"/assets/yandex-metrika.js")
+        self.assertIn("defer",executable_scripts[0])
         for name in ("seller-analytics","privacy","support","install"):
             html=(ROOT/(name+".html")).read_text()
             self.assertIn('src="/assets/octoport-brand.png"',html)
             self.assertIn('href="/assets/favicon-contour-v1.png"',html)
+            self.assertEqual(html.count('src="/assets/yandex-metrika.js" defer'),1)
 
 if __name__=="__main__": unittest.main()

@@ -48,7 +48,7 @@ class SiteDeploymentTests(unittest.TestCase):
 
     def test_m14_required_source_artifacts_are_enforced(self):
         public = ROOT / 'apps/site/public'
-        for missing in ['seller-analytics.html', 'favicon.png']:
+        for missing in ['seller-analytics.html', 'favicon.png', 'assets/yandex-metrika.js']:
             with self.subTest(missing=missing):
                 source = self.root / ('source-' + missing.replace('.', '-'))
                 shutil.copytree(public, source)

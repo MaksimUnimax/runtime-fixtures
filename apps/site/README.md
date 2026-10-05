@@ -31,7 +31,8 @@ Known .html and non-root trailing-slash aliases are redirect-only. Unknown publi
 - HOME carries one static WebSite JSON-LD node for the preferred site name.
 - SoftwareApplication, review/rating and invented Organization facts are not published.
 - /favicon.png is a 120×120 PNG derived only by deterministic resize from the current accepted Octoport extension mark.
-- application/ld+json is non-executable structured data; executable public JavaScript remains zero in this M14 scope.
+- application/ld+json is non-executable structured data. The only executable public script is the owner-provided Yandex Metrika loader at `public/assets/yandex-metrika.js`; it is shared by all five public HTML pages and adds no site application runtime. It prepares an empty `dataLayer` for the requested Metrika configuration, but the site does not push ecommerce events or custom goals and does not enable Webvisor or form analytics.
+- A strict production Content-Security-Policy currently blocks both this loader and the Metrika endpoints. The policy has not been widened in this source change; a security-reviewed policy update must precede deployment.
 
 ## Sitemap
 
