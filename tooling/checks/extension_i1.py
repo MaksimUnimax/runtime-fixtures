@@ -31,10 +31,12 @@ def main():
     runner = original.Runner(output)
     try:
         original.negative_control(output)
+        runner.run("start-entry-lifecycle", [node, ROOT / "tests/regression/extension-core/client-i1/client-start-entry-lifecycle.mjs", ROOT])
         runner.run("i1-release-preflight-source", [node, ROOT / "tests/regression/extension-core/client-i1/client-release-preflight.mjs", ROOT])
         source, extracted, receipt = composed.build(output / "package")
         assert receipt["stage"] == "I1-C1" and receipt["version"] == expected_version
         result["composition"] = receipt
+        runner.run("native-start-entry", [os.environ.get("WB_TEST_PYTHON", "python3"), ROOT / "tests/regression/extension-core/browser_start_entry.py", "--runtime", extracted, "--output", output / "native-start-entry"])
         for runtime, label in ((source, "i1-source"), (extracted, "i1-package")):
             browser_output = output / (label + "-browser-proof")
             runner.run(label + "-native-browser-proof", [os.environ.get("WB_TEST_PYTHON", "python3"), ROOT / "tests/regression/extension-core/client-i1/browser_verifier.py", "--runtime", runtime, "--output", browser_output])

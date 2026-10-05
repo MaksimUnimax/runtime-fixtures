@@ -623,5 +623,15 @@
     "target": "shared/file_delivery_port_worker.js",
     "old": "  function normalizedLiveOwner(value) {\n    if (!value || typeof value !== \"object\" || Array.isArray(value)) return null;\n    const origin = normalizeKey(value.origin);\n    const conversationId = normalizeKey(value.conversation_id);\n    if (!origin || !conversationId) return null;\n    try {\n      const parsed = new URL(origin);\n      if (normalizeKey(parsed.origin) !== origin || parsed.protocol !== \"https:\") return null;\n    } catch (_) { return null; }\n    const provider = BB2ConversationIdentity.providerForOrigin(origin);\n    if (!provider) return null;\n    const syntheticPath = provider === \"alice\" ? `/chat/${conversationId}` : `/c/${conversationId}`;\n    if (BB2ConversationIdentity.conversationIdFromPath(syntheticPath, provider) !== conversationId) return null;\n    return { origin, conversation_id: conversationId };\n  }\n",
     "new": "  function normalizedLiveOwner(value) {\n    if (!value || typeof value !== \"object\" || Array.isArray(value)) return null;\n    try {\n      const identity = normalizeIdentity(value);\n      return identity.status === \"confirmed\" && identity.conversation_id\n        ? { origin: identity.origin, conversation_id: identity.conversation_id }\n        : null;\n    } catch (_) { return null; }\n  }\n"
+  },
+  {
+    "target": "service_worker.js",
+    "old": "    throw Object.assign(new Error(response?.error || \"Не удалось прочитать identity AI-диалога.\"), { code: response?.code || \"IDENTITY_UNAVAILABLE\" });",
+    "new": "    throw Object.assign(new Error(response?.error || \"Не удалось прочитать identity AI-диалога.\"), { code: response?.code || \"IDENTITY_UNAVAILABLE\", transport_class: safeTabMessageTransportClass(response?.transport_class) });"
+  },
+  {
+    "target": "content_script.js",
+    "old": "      SellerAgentsConversationSurface.ready(currentAIAdapter()).then((identity) => sendResponse({ ok: true, identity, href: location.href }));",
+    "new": "      SellerAgentsConversationSurface.ready(currentAIAdapter()).then((identity) => sendResponse({ ok: true, identity, href: location.href })).catch(() => sendResponse({ ok: false, code: \"CONVERSATION_SURFACE_UNAVAILABLE\" }));"
   }
 ]

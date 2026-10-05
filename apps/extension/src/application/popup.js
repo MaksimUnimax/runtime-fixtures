@@ -45,7 +45,7 @@ function revokeFirefoxTechnicalConsentFromClick() {
     .catch(() => { $("status").textContent = "Не удалось изменить разрешение"; })
     .finally(() => { $("firefox-technical-revoke").disabled = false; refreshFirefoxTechnicalConsent().catch(() => null); });
 }
-const texts = { ACCESS_CONFIRMED: "Доступ подтверждён этой проверкой; кабинет и полный набор прав ещё не подтверждены",
+const texts = { PAGE_RUNTIME_INSTALL_FAILED: "Браузер не разрешил подключиться к странице. Проверьте разрешение расширения для этого сайта и повторите Start", PAGE_RUNTIME_RECOVERY_UNAVAILABLE: "Эта сборка не поддерживает восстановление связи со страницей", PAGE_TAB_UNAVAILABLE: "Вкладка закрыта или недоступна", PAGE_RUNTIME_NOT_PACKAGED: "В сборке отсутствует обработчик этой страницы", ACCESS_CONFIRMED: "Доступ подтверждён этой проверкой; кабинет и полный набор прав ещё не подтверждены",
   CREDENTIAL_REJECTED: "Ключ отклонён (401). Причина и срок действия не подтверждены", ACCESS_DENIED: "Недостаточно прав (403)",
   CHECK_FAILED: "Не удалось проверить: сеть, ответ площадки или формат запроса", STORE_CHANGE_CONFIRMATION_REQUIRED: "Подтвердите смену магазина",
   WORK_SESSION_ALREADY_ACTIVE: "Этот магазин уже подключён", STORE_NOT_FOUND: "Магазин удалён. Откройте список заново",
@@ -120,12 +120,12 @@ function selected() { return state?.stores.find(x => x.id === selectedId); }
 function onboardingModel(value) {
   const authenticated = value?.auth?.authenticated === true;
   const hasStore = authenticated && Array.isArray(value?.stores) && value.stores.length > 0;
-  const aiReady = Boolean(value?.identity?.ai_id && ["chatgpt", "alice"].includes(value.identity.ai_id));
+  const aiReady = Boolean(value?.page?.supported ?? value?.identity?.ai_id);
   const workReady = Boolean(value?.context?.work_active === true && ["active_visible", "active_hidden", "recovering"].includes(value?.work?.state));
   return [
     { id: "onboarding-auth", done: authenticated, text: authenticated ? "1. Вход через портал подтверждён." : "1. Войдите через портал и подтвердите эту установку." },
     { id: "onboarding-store", done: hasStore, text: hasStore ? "2. Магазин добавлен." : "2. Добавьте магазин Ozon или WB и сохраните его ключи локально." },
-    { id: "onboarding-ai", done: aiReady, text: aiReady ? `3. Открыт ${value.identity.ai_id === "chatgpt" ? "ChatGPT" : "Алиса"}.` : "3. Откройте ChatGPT или Алису в текущей вкладке." },
+    { id: "onboarding-ai", done: aiReady, text: aiReady ? "3. Поддерживаемый ИИ открыт." : "3. Откройте поддерживаемый ИИ в текущей вкладке." },
     { id: "onboarding-work", done: workReady, text: workReady ? "4. Work активен — расширение готово к командам." : "4. После первых трёх шагов выберите магазин и нажмите «Начать работу»." },
   ];
 }
@@ -169,8 +169,14 @@ function render() {
   $("verification").textContent = Object.entries(s?.verification || {}).map(([part, v]) => `${part}: ${texts[v.code] || v.code}`).join(". ") || "Кабинет и доступ не проверены. Проверка выполняется только по нажатию.";
   const connected = state.stores.find(x => x.id === state.context.store_id), active = state.context.work_active;
   const labels = { active_visible: "Работаем", active_hidden: "Работаем · кнопка скрыта", recovering: "Восстанавливаем", binding: "Подключаем", error: "Ошибка запуска", inactive: "Завершено" };
-  $("connection").textContent = state.identity.ai_id ? connected ? `${labels[state.work?.state] || "Диалог подключён"}: ${connected.name} · ${connected.marketplace === "ozon" ? "Ozon" : "WB"}` : "Диалог не подключён" : "Откройте ChatGPT или Алису в текущей вкладке";
+  const supportedPage = Boolean(state.page?.supported ?? state.identity.ai_id);
+  $("connection").textContent = supportedPage ? connected ? `${labels[state.work?.state] || "Диалог подключён"}: ${connected.name} · ${connected.marketplace === "ozon" ? "Ozon" : "WB"}` : "Диалог не подключён" : "Откройте поддерживаемый ИИ в текущей вкладке";
   $("selection").textContent = connected && selectedId !== connected.id ? "Выбран следующий магазин. Текущее подключение изменится только после подтверждения и нового Start." : "";
+  if (supportedPage && state.page?.runtimeStatus === "unavailable" && !connected) {
+    $("connection").textContent = state.page.transportClass === "NO_RECEIVER"
+      ? "Страница ещё не подключена к расширению. Нажмите «Начать работу» — подключение будет восстановлено."
+      : "Не удалось прочитать текущий диалог. Нажмите «Начать работу» для повторной проверки.";
+  }
   const lastStartText = !connected ? startStatusText(state.lastStart) : null;
   if (lastStartText) $("connection").textContent = lastStartText;
   if (state.pending) $("connection").textContent = ["committed_before_click", "outcome_unknown_no_retry"].includes(state.pending.send_outcome) && state.lastStart?.outcome === "unknown_no_retry" ? "Не удалось подтвердить отправку инструкции. Она не будет вставлена или отправлена повторно автоматически" : "Запускаем: ожидаем подтверждение инструкции и ответа ИИ";
@@ -182,7 +188,7 @@ function render() {
       ? "Содержимое диалога изменилось. Новые действия приостановлены. Дождитесь загрузки прежней переписки или нажмите Start для текущего диалога."
       : "Дождитесь загрузки переписки. Start подключит текущий диалог после подтверждённой отправки инструкции и ответа ИИ."
     : localDialogue ? "Привязка действует в этом браузере. После перезагрузки она восстанавливается только при совпадении сохранённых признаков переписки." : "";
-  $("start").disabled = Boolean(state.pending) || !s || !state.identity.ai_id || ["binding", "recovering", "finishing"].includes(state.work?.state);
+  $("start").disabled = Boolean(state.pending) || !s || !supportedPage || ["binding", "recovering", "finishing"].includes(state.work?.state);
   $("work-resume").hidden = !(state.context.store_id && state.work?.state === "inactive" && state.context.work_active !== true);
   $("work-resume").disabled = Boolean(state.pending) || !state.conversation_key;
   $("visibility").disabled = !active; $("finish").disabled = !active && state.work?.state !== "error" && !state.pending;

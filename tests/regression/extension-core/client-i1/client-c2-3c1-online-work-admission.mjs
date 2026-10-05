@@ -342,7 +342,8 @@ await runPR("PR-03", "legitimate Finish in the pre-token window rejects stale ac
   try {
     const result = await rebindStart(f);
     assert.equal(result.ok, false, JSON.stringify(result));
-    assert.equal(result.code, "WORK_ADMISSION_CONTEXT_CHANGED", JSON.stringify(result));
+    // Finish now cancels the preparation intent before work admission begins.
+    assert.equal(result.code, "WORK_ADMISSION_CANCELLED", JSON.stringify(result));
     assert.equal(healthCalls(f).length, 0);
     assert.deepEqual(preTokenStorage(f), afterMutation);
     assert.equal((await f.worker.call("getPendingWorkStarts"))[f.worker.tabId] || null, null);

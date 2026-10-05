@@ -261,6 +261,9 @@ def compose(directory, mode="development", release_authority=None):
             parsed_config["controlApiOrigin"].rstrip("/") + "/*",
             parsed_config["portalOrigin"].rstrip("/") + "/*",
         ]
+    # Explicit Start can attach the packaged receiver to a pre-existing AI tab.
+    # Existing host permissions still determine where execution is permitted.
+    manifest["permissions"] = list(dict.fromkeys(manifest["permissions"] + ["scripting"]))
     manifest["host_permissions"] = list(
         dict.fromkeys(manifest["host_permissions"] + recipe["marketplace_hosts"] + control_hosts)
     )

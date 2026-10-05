@@ -56,10 +56,19 @@ assert.deepEqual(flags({
 assert.deepEqual(flags({
   auth: { authenticated: true },
   stores: [{ id: "private-store", marketplace: "wildberries" }],
+  page: { supported: false },
   identity: { ai_id: "gemini" },
   context: { work_active: false },
   work: { state: "inactive" },
 }), [true, true, false, false]);
+
+// Page capability comes from the common runtime; the UI has no provider list.
+for (const identity of [{ai_id:null},{ai_id:"provider_future"}]) {
+  assert.deepEqual(flags({
+    auth:{authenticated:true},stores:[{id:"private-store",marketplace:"ozon"}],
+    page:{supported:true},identity,context:{work_active:false},work:null,
+  }),[true,true,true,false]);
+}
 
 assert.match(js, /renderOnboarding\(\);\s*if \(!authenticated\) return;/);
 console.log(JSON.stringify({

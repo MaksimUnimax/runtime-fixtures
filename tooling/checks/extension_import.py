@@ -108,6 +108,7 @@ def version_route_profile(version, current_version=None):
     patch = -1 if version == "0.1.22" else _composed_patch(version)
     return {"marketplace_hosts": patch >= 3, "control_hosts": patch >= 4,
             "corrective_ports": patch >= 1, "application_worker": patch >= 4,
+            "page_entry_recovery": patch >= 12,
             "version_files": 8 if patch >= 4 else (9 if patch == 3 else 10)}
 
 
@@ -121,6 +122,8 @@ def ozon_route(runner, work, runtime, label, source_route, expected_version="0.1
     assert manifest["manifest_version"] == 3 and manifest["version"] == expected_version
     for key in ("permissions", "host_permissions"):
         expected_permissions = permission[key]
+        if version_profile['page_entry_recovery'] and key == "permissions":
+            expected_permissions += ["scripting"]
         if version_profile['marketplace_hosts'] and key == "host_permissions":
             expected_permissions += baseline.read_json(ROOT / "apps/extension/composition.json")["marketplace_hosts"]
         if version_profile['control_hosts'] and key == "host_permissions":

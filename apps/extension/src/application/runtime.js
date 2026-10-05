@@ -1,3 +1,72 @@
+/* Page availability is independent of conversation identity. Only an explicit
+ * Start may install the already packaged receiver into an existing allowed tab. */
+const saPageEntryFlights = new Map();
+function saManifestMatches(pattern, value) {
+  if (typeof pattern !== "string" || !/^(\*|https?):\/\//.test(pattern)) return false;
+  const escaped = pattern.replace(/[.+?^{}$()|[\]\\]/g, "\\$&").replace(/\*/g, ".*");
+  return new RegExp("^" + escaped + "$").test(value);
+}
+async function saBrowserPage(tabId) {
+  let tab;
+  try { tab = await chrome.tabs.get(normalizeTabId(tabId)); }
+  catch (_) { throw saError("PAGE_TAB_UNAVAILABLE"); }
+  let url;
+  try { url = new URL(tab.url); }
+  catch (_) { throw saError("WORK_START_UNSUPPORTED_PAGE"); }
+  const aiFamily = BB2ConversationIdentity.providerForOrigin(url.origin);
+  if (!aiFamily) throw saError("WORK_START_UNSUPPORTED_PAGE");
+  return { tabId: tab.id, url: url.href, origin: url.origin, aiFamily };
+}
+async function saUnavailablePage(tabId, error) {
+  let page = null;
+  try { page = await saBrowserPage(tabId); } catch (_) {}
+  return { supported: Boolean(page), aiFamily: page?.aiFamily || null,
+    runtimeStatus: "unavailable", errorCode: saSupportCode(error?.code) || "IDENTITY_UNAVAILABLE",
+    transportClass: safeTabMessageTransportClass(error?.transport_class) };
+}
+async function saPreparePageReceiver(tabId) {
+  const tab = normalizeTabId(tabId);
+  if (saPageEntryFlights.has(tab)) return saPageEntryFlights.get(tab);
+  const flight = (async () => {
+    const before = await saBrowserPage(tab);
+    // Another Start or document_idle may have installed the receiver meanwhile.
+    const observed = await tabMessage(tab, { type: "OZ_GET_IDENTITY" });
+    if (observed?.ok && observed.identity) return;
+    if (observed?.code !== "TAB_MESSAGE_ERROR" || observed.transport_class !== "NO_RECEIVER")
+      throw Object.assign(saError(observed?.code || "IDENTITY_UNAVAILABLE"), {
+        transport_class: safeTabMessageTransportClass(observed?.transport_class) });
+    const documentUrl = new URL(before.url);
+    documentUrl.hash = "";
+    const scripts = chrome.runtime.getManifest().content_scripts || [];
+    const files = [...new Set(scripts.filter(entry =>
+      entry.matches?.some(pattern => saManifestMatches(pattern, documentUrl.href)) &&
+      !entry.exclude_matches?.some(pattern => saManifestMatches(pattern, documentUrl.href))
+    ).flatMap(entry => entry.js || []))];
+    if (!files.length || files.some(file => typeof file !== "string" ||
+        file.startsWith("/") || file.includes("..") || file.includes("://")))
+      throw saError("PAGE_RUNTIME_NOT_PACKAGED");
+    if (typeof chrome.scripting?.executeScript !== "function")
+      throw saError("PAGE_RUNTIME_RECOVERY_UNAVAILABLE");
+    if ((await saBrowserPage(tab)).url !== before.url) throw saError("POPUP_CONTEXT_STALE");
+    try { await chrome.scripting.executeScript({ target: { tabId: tab, frameIds: [0] }, files }); }
+    catch (_) { throw saError("PAGE_RUNTIME_INSTALL_FAILED"); }
+    if ((await saBrowserPage(tab)).url !== before.url) throw saError("POPUP_CONTEXT_STALE");
+  })();
+  saPageEntryFlights.set(tab, flight);
+  try { return await flight; }
+  finally { if (saPageEntryFlights.get(tab) === flight) saPageEntryFlights.delete(tab); }
+}
+async function saStartPageIdentity(tabId) {
+  const tab = normalizeTabId(tabId);
+  try { return await tabIdentity(tab); }
+  catch (error) {
+    if (error?.code !== "TAB_MESSAGE_ERROR" || error.transport_class !== "NO_RECEIVER") throw error;
+    await saPreparePageReceiver(tab);
+    return tabIdentity(tab);
+  }
+}
+/* End page entry. */
+
 
 async function saResolveSurfaceIdentity(tabId, identity) {
   const model = globalThis.SellerAgentsConversationIdentity;
@@ -626,12 +695,14 @@ async function saObserveHealth(initial) {
     throw error;
   }
 }
-async function saAdmitWork({ operation, tabId, store, intentId, conversationKey = null, rebindPlan = null }) {
+async function saAdmitWork({ operation, tabId, store, intentId, conversationKey = null, rebindPlan = null, entryToken = null }) {
   try { await saAssertLocalAuthorityAdmission(); }
   catch (error) { if (rebindPlan) throw saAdmissionError("WORK_ADMISSION_CONTEXT_CHANGED"); throw error; }
   let initialRead;
   try { initialRead = await saReadAdmissionSnapshot({ operation, tabId, store, intentId, conversationKey }); }
   catch (error) { if (rebindPlan) throw saAdmissionError("WORK_ADMISSION_CONTEXT_CHANGED"); throw error; }
+  if (entryToken && !saAdmissionCurrent(entryToken)) throw saAdmissionError("WORK_ADMISSION_CANCELLED");
+  if (entryToken && entryToken.generation !== initialRead.fence.generation) throw saAdmissionError("WORK_ADMISSION_CONTEXT_CHANGED");
   const validatedPlan = saValidateRebindPlan(rebindPlan, initialRead);
   const admissionKey = saAdmissionKey(tabId, initialRead.key);
   const token = saBeginAdmission(admissionKey, { operation, tabId, conversationKey: initialRead.key, store: initialRead.store, intentId });
@@ -1124,10 +1195,32 @@ async function saInvalidateStore(id) {
   for (const [tab, start] of Object.entries(pending)) if (start.store_context?.storeId === id)
     await clearPendingWorkStart(Number(tab), start.intent_id, start.revision, "store_changed");
 }
-async function saInvalidateAuthority() {
+async function saInvalidateAuthority(nextAuthority = null, reason = null) {
   const waits = [];
   for (const token of saAdmissionEpochs.values()) {
-    token.cancelled = true;
+    // Preparation owns an intent, not an admitted profile. Resolving the AI
+    // within the same verified account/session must not cancel its own Start.
+    // Existing admitted work always loses its old authority.
+    const samePreparingAccount = token.operation === "prepare_start"
+      && nextAuthority?.verified === true && nextAuthority?.workAllowed === true
+      && token.accountId && token.accountId === nextAuthority.payload?.account?.id
+      && token.deviceId && token.deviceId === nextAuthority.deviceId
+      && token.sessionId && token.sessionId === nextAuthority.sessionId;
+    // The client intentionally advances generation when first resolving AI.
+    // Carry only this still-current preparation across its own verified
+    // resolution. Reset, another AI, another session and already-admitted work
+    // retain the ordinary cancellation and exact-generation fences.
+    const ownResolution = samePreparingAccount && saAdmissionCurrent(token)
+      && reason === "bootstrap_verified" && token.resolvingIdentity === true
+      && token.expectedAi && token.requestedAi !== token.expectedAi
+      && nextAuthority.requestedAi === token.expectedAi
+      && nextAuthority.generation === token.generation + 1;
+    if (ownResolution) {
+      token.generation = nextAuthority.generation;
+      token.requestedAi = nextAuthority.requestedAi;
+    } else if (!samePreparingAccount || token.generation !== nextAuthority.generation) {
+      token.cancelled = true;
+    }
     if (token.mutationFlight) waits.push(token.mutationFlight);
   }
   await Promise.allSettled(waits);
@@ -1143,8 +1236,8 @@ async function saInvalidateAuthority() {
     try { await clearPendingWorkStart(Number(tab), start.intent_id, start.revision, "authority_changed"); } catch (_) { /* stale pending state is harmless */ }
   }
 }
-SellerAgentsControlClient.onAuthorityChanged(async (_authority, reason) => {
-  if (reason !== "profile_changed") await saInvalidateAuthority();
+SellerAgentsControlClient.onAuthorityChanged(async (authority, reason) => {
+  if (reason !== "profile_changed") await saInvalidateAuthority(authority, reason);
   queueMicrotask(() => { void saBroadcastSignedProfileRefresh(reason); });
 });
 function saSupportCode(value) {
@@ -1221,7 +1314,8 @@ async function saSupportSnapshot(tabId) {
   const family = globalThis.SellerAgentsBrowserIdentity?.families?.includes(observed.family) ? observed.family : null;
   const version = typeof observed.version === "string" && /^\d+(?:\.\d+){0,3}$/.test(observed.version) ? observed.version : null;
   const workState = saSupportToken(popup.work?.state);
-  const aiFamily = ["chatgpt", "alice"].includes(popup.identity?.ai_id) ? popup.identity.ai_id : null;
+  const detectedAiFamily = popup.identity?.ai_id || popup.page?.aiFamily;
+  const aiFamily = ["chatgpt", "alice"].includes(detectedAiFamily) ? detectedAiFamily : null;
   const lastStart = popup.lastStart || null;
   return Object.freeze({
     snapshotVersion: "seller_agents_support_snapshot_v1",
@@ -1242,7 +1336,10 @@ async function saSupportSnapshot(tabId) {
         browserStatus: saSupportCode(popup.auth.compatibility.browser?.status),
       } : null,
     },
-    page: { aiFamily, identityStatus: saSupportToken(popup.identity?.status) },
+    page: { aiFamily, identityStatus: saSupportToken(popup.identity?.status),
+      runtimeStatus: saSupportToken(popup.page?.runtimeStatus),
+      lastErrorCode: saSupportCode(popup.page?.errorCode),
+      transportClass: safeTabMessageTransportClass(popup.page?.transportClass) },
     work: {
       state: workState,
       pending: Boolean(popup.pending),
@@ -1285,11 +1382,12 @@ async function saRefreshConversationSnapshot(conversationKey) {
 async function saPopupState(tabId) {
   void globalThis.SellerAgentsTechnicalScheduler?.wake?.("popup_open");
   let live = { ai_id: null, origin: null, conversation_id: null, status: "unavailable", source: "none", chat_path: "" };
-  let usableIdentity = false;
+  let usableIdentity = false, page = null;
   try {
     live = await tabIdentity(normalizeTabId(tabId));
     usableIdentity = true;
-  } catch (_) {}
+    page = { supported: true, aiFamily: live.ai_id, runtimeStatus: "ready", errorCode: null, transportClass: null };
+  } catch (error) { page = await saUnavailablePage(tabId, error); }
   const key = usableIdentity && live.conversation_id ? conversationKeyFromIdentity(live) : null;
   const pending = usableIdentity ? (await getPendingWorkStarts())[String(tabId)] || null : null;
   const lastStart = await saLastStartDiagnostic(tabId);
@@ -1302,19 +1400,35 @@ async function saPopupState(tabId) {
   if (auth.authenticated) stores = await saCatalog.list();
   return { ok: true, auth, pending: pending ? { intent_id: pending.intent_id, send_outcome: pending.send_outcome, expires_at: pending.expires_at } : null, stores,
     account: auth.account || { kind: "signed_out", label: "Вход не выполнен" },
-    identity: live, conversation_key: key, context, work: publicWork, lastStart,
+    identity: live, page, conversation_key: key, context, work: publicWork, lastStart,
     operation: key ? publicManualOperation(await getManualOperation(key)) : null };
 }
 async function saWorkStart(message, sender) {
   try {
     const result = await singleFlight(saWorkFlights, String(message.tab_id), async () => {
-    let identity = await tabIdentity(normalizeTabId(message.tab_id));
+    const entry = saBeginAdmission(saAdmissionKey(message.tab_id, null), {
+      operation: "prepare_start", tabId: message.tab_id, conversationKey: null,
+      store: { id: message.store_id }, intentId: "page-entry"
+    });
+    try {
+    entry.generation = await SellerAgentsControlClient.generation();
+    const entryAuthority = await SellerAgentsControlClient.getAuthority();
+    entry.accountId = entryAuthority?.payload?.account?.id || null;
+    entry.deviceId = entryAuthority?.deviceId || null;
+    entry.sessionId = entryAuthority?.sessionId || null;
+    entry.requestedAi = entryAuthority?.requestedAi ?? null;
+    let identity = await saStartPageIdentity(normalizeTabId(message.tab_id));
     if (identity.source === "history_continuity_unverified") {
       const confirmed = await tabMessage(message.tab_id, { type: "OZ_CONFIRM_CURRENT_SURFACE" });
       if (!confirmed?.ok) throw saError("CONVERSATION_SURFACE_UNAVAILABLE");
       identity = await tabIdentity(normalizeTabId(message.tab_id));
     }
-    await SellerAgentsControlClient.ensureForIdentity(identity);
+    if (entry.generation !== await SellerAgentsControlClient.generation()) throw saAdmissionError("WORK_ADMISSION_CONTEXT_CHANGED");
+    if (!saAdmissionCurrent(entry)) throw saAdmissionError("WORK_ADMISSION_CANCELLED");
+    entry.expectedAi = identity.ai_id;
+    entry.resolvingIdentity = true;
+    try { await SellerAgentsControlClient.ensureForIdentity(identity); }
+    finally { entry.resolvingIdentity = false; }
     if (!await SellerAgentsControlClient.canWork()) throw saError("WORK_POLICY_BLOCKED");
     const store = await saCatalog.get(message.store_id);
     const live = await tabIdentity(normalizeTabId(message.tab_id));
@@ -1338,7 +1452,9 @@ async function saWorkStart(message, sender) {
     const plan = changingStore ? saRebindPlan({ tabId: message.tab_id, identity: live, key, binding, work, sourceStore, targetStore: store, intentId, authority }) : null;
     if (key && !changingStore && ![OzonWorkSessionModel.STATES.INACTIVE, OzonWorkSessionModel.STATES.ERROR].includes(work?.state))
       throw saError("WORK_START_ALREADY_IN_PROGRESS");
-    const admission = await saAdmitWork({ operation: "start", tabId: message.tab_id, store, intentId, rebindPlan: plan });
+    if (entry.generation !== await SellerAgentsControlClient.generation()) throw saAdmissionError("WORK_ADMISSION_CONTEXT_CHANGED");
+    if (!saAdmissionCurrent(entry)) throw saAdmissionError("WORK_ADMISSION_CANCELLED");
+    const admission = await saAdmitWork({ operation: "start", tabId: message.tab_id, store, intentId, rebindPlan: plan, entryToken: entry });
     const provenance = await saAdmissionProvenanceSeed(admission, "start", intentId);
     saStarts.set(Number(message.tab_id), await saAuthorityStoreContext(store));
     try {
@@ -1356,6 +1472,7 @@ async function saWorkStart(message, sender) {
         return saLegacyMessage({ type: "OZ_WORK_START", tab_id: message.tab_id, start_intent_id: intentId, admission_provenance: provenance }, sender);
       });
     } finally { saReleaseAdmission(admission.token); saStarts.delete(Number(message.tab_id)); }
+    } finally { saReleaseAdmission(entry); }
     });
     const accepted = result?.accepted === true;
     const code = saSupportCode(result?.code);

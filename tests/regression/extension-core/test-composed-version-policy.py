@@ -95,6 +95,7 @@ class VersionPolicyTests(unittest.TestCase):
                     "control_hosts": patch >= 4,
                     "corrective_ports": patch >= 1,
                     "application_worker": patch >= 4,
+                    "page_entry_recovery": False,
                     "version_files": 8 if patch >= 4 else (9 if patch == 3 else 10),
                 }
                 self.assertEqual(
@@ -151,7 +152,7 @@ class VersionPolicyTests(unittest.TestCase):
             manifest = {
                 "manifest_version": 3,
                 "version": "0.2.9" if mismatch else requested,
-                "permissions": ["storage"],
+                "permissions": ["storage", "scripting"],
                 "host_permissions": [
                     "https://ozon.example/*",
                     "https://wb.example/*",

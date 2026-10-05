@@ -607,7 +607,7 @@ def run(runtime, output):
                     )
                 except Exception:
                     try:
-                        diagnostic = worker.evaluate("""async () => {
+                        diagnostic = worker.evaluate("""async tabId => {
                           const status = await SellerAgentsControlClient.status();
                           const code = String(status?.lastError?.code || "");
                           return {
@@ -615,9 +615,11 @@ def run(runtime, output):
                             authenticated: status?.authenticated === true,
                             workAllowed: status?.workAllowed === true,
                             codePresent: Boolean(code),
-                            errorCode: /^[A-Z0-9_]{1,80}$/.test(code) ? code : null
+                            errorCode: /^[A-Z0-9_]{1,80}$/.test(code) ? code : null,
+                            lastStart: Number.isInteger(tabId) && typeof saLastStartDiagnostic === "function"
+                              ? await saLastStartDiagnostic(tabId) : null
                           };
-                        }""")
+                        }""", locals().get("chat_tab_id"))
                         result["failure_diagnostic"] = {"stage": stage, **diagnostic}
                         if bootstrap_envelopes and bootstrap_envelopes[-1]:
                             result["failure_profile_diagnostic"] = inspect_signed_profile(bootstrap_envelopes[-1])
