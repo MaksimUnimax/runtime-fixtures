@@ -12,6 +12,7 @@ from unittest.mock import patch
 
 import work_board_reader_rollout as rollout
 import work_queue
+import test_work_queue as work_queue_tests
 
 
 class ReaderRolloutTests(unittest.TestCase):
@@ -183,6 +184,206 @@ class ReaderRolloutTests(unittest.TestCase):
         self.assertEqual(value["board"]["version"], 2)
         self.assertEqual(value["blocker_attention"], [])
         self.assertEqual(set(value["role_work"]), set("ABC"))
+
+    def test_semantic_validation_reads_scale_with_distinct_task_evidence_and_restore(self):
+        rows = []
+        for index in range(12):
+            rows.append({
+                "id": f"tampered-{index}", "role": "B", "plan": "B04", "state": "DONE",
+                "requires": [], "result": "result", "paths": [f"tooling/{index}.py"],
+                "completion_receipt_format": work_queue.COMPLETION_VERSION,
+                "completion_receipt": str(self.root / "logs/tampered.json"),
+                "completion_candidate_sha": "a" * 40,
+            })
+        (self.root / "logs/tampered.json").write_text('{"verdict":"PASS"}')
+        board_path = self.root / "controllers/work-board.json"
+        board_path.write_text(json.dumps({"version": 1, "revision": 2, "tasks": rows}))
+        original_receipt = work_queue._completion_receipt
+        original_publication = work_queue._publication_snapshot_valid
+        with (
+            patch.object(work_queue, "_completion_receipt", wraps=original_receipt) as receipt,
+            patch.object(work_queue, "_publication_snapshot_valid", wraps=original_publication) as publication,
+        ):
+            value = rollout._semantic(work_queue, self.root)
+        self.assertEqual(receipt.call_count, 2 * len(rows))
+        # Receipt failure short-circuits publication validation, as it must.
+        self.assertEqual(publication.call_count, 0)
+        self.assertTrue(all(row["state"] == "BLOCKED" for row in value["task_views"]))
+        self.assertIs(work_queue._completion_receipt, original_receipt)
+        self.assertIs(work_queue._publication_snapshot_valid, original_publication)
+
+    def test_semantic_validation_cache_misses_changed_task_identity_and_restores_on_error(self):
+        first = {"id": "same", "role": "B", "plan": "B04", "state": "DONE", "requires": [],
+                 "result": "r", "paths": ["tooling/a.py"],
+                 "completion_receipt_format": work_queue.COMPLETION_VERSION,
+                 "completion_receipt": str(self.root / "logs/tampered.json"),
+                 "completion_candidate_sha": "a" * 40}
+        second = dict(first, id="same-other", completion_candidate_sha="b" * 40)
+        (self.root / "logs/tampered.json").write_text('{"verdict":"PASS"}')
+        board_path = self.root / "controllers/work-board.json"
+        board_path.write_text(json.dumps({"version": 1, "revision": 3, "tasks": [first, second]}))
+        original = work_queue._completion_receipt
+        with patch.object(work_queue, "_completion_receipt", wraps=original) as receipt:
+            rollout._semantic(work_queue, self.root)
+        self.assertEqual(receipt.call_count, 4)
+        self.assertIs(work_queue._completion_receipt, original)
+
+        class RaisingReader:
+            _BoardEvaluation = work_queue._BoardEvaluation
+            load_board = staticmethod(lambda _root: {"version": 1, "tasks": []})
+            task_view = staticmethod(lambda _board, _task, evaluation=None: None)
+            role_work = staticmethod(lambda _root, _role: {})
+            blocker_attention = staticmethod(lambda _board: [])
+            board_snapshot = staticmethod(lambda _root: {})
+            status_work = staticmethod(lambda _root, _role: (_ for _ in ()).throw(ValueError("boom")))
+
+        with self.assertRaisesRegex(ValueError, "boom"):
+            rollout._semantic(RaisingReader, self.root)
+        self.assertIs(work_queue._completion_receipt, original)
+
+    def test_semantic_direct_projection_shares_board_evaluation(self):
+        seen = []
+
+        class Evaluation:
+            def __init__(self, board):
+                self.board = board
+
+        class EvaluatedReader:
+            _BoardEvaluation = Evaluation
+            load_board = staticmethod(lambda _root: {"version": 1, "tasks": [{"id": "one"}, {"id": "two"}]})
+
+            @staticmethod
+            def task_view(_board, task, evaluation=None):
+                seen.append(evaluation)
+                return {"id": task["id"]}
+
+            @staticmethod
+            def role_work(_root, _role):
+                return {}
+
+            @staticmethod
+            def blocker_attention(_board):
+                return []
+
+            @staticmethod
+            def board_snapshot(_root):
+                return {}
+
+            @staticmethod
+            def status_work(_root, _role):
+                return {}
+
+        value = rollout._semantic(EvaluatedReader, self.root)
+        self.assertEqual(value["task_views"], [{"id": "one"}, {"id": "two"}])
+        self.assertEqual(len(seen), 2)
+        self.assertIs(seen[0], seen[1])
+
+    def test_semantic_matches_uncached_reference_for_resolved_tombstone(self):
+        fixture = work_queue_tests.WorkQueueTests()
+        fixture.setUp()
+        try:
+            blocked_receipt = fixture.root / "logs/old-blocked.json"
+            blocked_receipt.write_text('{"reason":"superseded"}')
+            fixture.receipt = fixture.root / "logs/successor.json"
+            fixture.board = {"version": 1, "revision": 12, "tasks": [
+                {"id": "old-attempt", "role": "B", "plan": "C00", "state": "BLOCKED", "requires": [],
+                 "result": "Historical failed attempt", "paths": ["tooling/old.py"],
+                 "blocked_reason": "Superseded", "blocked_receipt": str(blocked_receipt),
+                 "blocker_resolution": {"owner": "CONTROLLER", "next_action": "Find corrected successor",
+                                         "unblock_when": "Accepted successor exists", "status": "UNRESOLVED"}},
+                {"id": "accepted-successor", "role": "B", "plan": "C00", "state": "IN_PROGRESS", "requires": [],
+                 "result": "Accepted corrected successor", "paths": ["tooling/new.py"]},
+                {"id": "consumer", "role": "A", "plan": "C00", "state": "READY", "requires": ["old-attempt"],
+                 "result": "Must remain blocked by tombstone", "paths": ["tooling/consumer.py"]},
+            ]}
+            fixture.save()
+            fixture.completion("accepted-successor")
+            work_queue.advance_task(fixture.root, "B", "accepted-successor", "DONE", str(fixture.receipt))
+            work_queue.resolve_blocker(fixture.root, "B", "old-attempt", "accepted-successor", str(fixture.receipt))
+            board = work_queue.load_board(fixture.root)
+            reference = {
+                "board": board,
+                "task_views": [work_queue.task_view(board, task) for task in board["tasks"]],
+                "role_work": {role: work_queue.role_work(fixture.root, role) for role in "ABC"},
+                "blocker_attention": work_queue.blocker_attention(board),
+                "snapshots": {role: work_queue.board_snapshot(fixture.root) for role in "ABC"},
+                "status": {role: work_queue.status_work(fixture.root, role) for role in "ABC"},
+            }
+            original_publication = work_queue._publication_snapshot_valid
+            with patch.object(work_queue, "_publication_snapshot_valid", wraps=original_publication) as publication:
+                optimized = rollout._semantic(work_queue, fixture.root)
+            self.assertEqual(publication.call_count, 2)
+            self.assertEqual(optimized, reference)
+            old_view = next(row for row in optimized["task_views"] if row["id"] == "old-attempt")
+            consumer = next(row for row in optimized["task_views"] if row["id"] == "consumer")
+            self.assertEqual(old_view["resolution_status"], "RESOLVED")
+            self.assertEqual(old_view["state"], "BLOCKED")
+            self.assertEqual(consumer["state"], "BLOCKED")
+        finally:
+            fixture.tearDown()
+
+    def test_semantic_revalidates_cached_completion_evidence_before_return(self):
+        task = {
+            "id": "evidence-task", "role": "B", "plan": "B04", "state": "DONE",
+            "requires": [], "result": "result", "paths": ["tooling/evidence.py"],
+            "completion_receipt_format": work_queue.COMPLETION_VERSION,
+            "completion_receipt": str(self.root / "logs/evidence.json"),
+            "completion_candidate_sha": "a" * 40,
+        }
+        (self.root / "controllers/work-board.json").write_text(
+            json.dumps({"version": 1, "revision": 4, "tasks": [task]})
+        )
+        valid_receipt = {
+            "kind": work_queue.COMPLETION_KIND,
+            "version": work_queue.COMPLETION_VERSION,
+            "task_id": task["id"],
+            "candidate_sha": task["completion_candidate_sha"],
+            "verdict": "PASS",
+            "review": {"verdict": "PASS", "evidence": ["review"]},
+            "checks": [{"name": "focused", "verdict": "PASS", "evidence": ["test"]}],
+        }
+        original = work_queue._completion_receipt
+        with patch.object(
+            work_queue, "_completion_receipt", side_effect=[valid_receipt, None]
+        ) as receipt:
+            with self.assertRaisesRegex(
+                RuntimeError, "WORK_BOARD_V2_ROLLOUT_VALIDATION_EVIDENCE_CHANGED"
+            ):
+                rollout._semantic(work_queue, self.root)
+        self.assertEqual(receipt.call_count, 2)
+        self.assertIs(work_queue._completion_receipt, original)
+
+    def test_semantic_rejects_in_memory_board_mutation(self):
+        board = {
+            "version": 1,
+            "revision": 5,
+            "tasks": [{
+                "id": "mutable", "role": "C", "plan": "C00",
+                "state": "IN_PROGRESS", "requires": [], "result": "before",
+                "paths": ["tooling/mutable.py"],
+            }],
+        }
+        (self.root / "controllers/work-board.json").write_text(json.dumps(board))
+
+        class MutatingReader:
+            _BoardEvaluation = work_queue._BoardEvaluation
+            load_board = staticmethod(lambda _root: board)
+            task_view = staticmethod(work_queue.task_view)
+
+            @staticmethod
+            def role_work(_root, role):
+                if role == "A":
+                    board["tasks"][0]["result"] = "after"
+                return {}
+
+            blocker_attention = staticmethod(lambda _board: [])
+            board_snapshot = staticmethod(lambda _root: {})
+            status_work = staticmethod(lambda _root, _role: {})
+
+        with self.assertRaisesRegex(
+            RuntimeError, "WORK_BOARD_V2_ROLLOUT_IN_MEMORY_BOARD_CHANGED"
+        ):
+            rollout._semantic(MutatingReader, self.root)
 
     def test_rollout_installs_exact_pair_and_preserves_v1_semantics(self):
         result = self._run()

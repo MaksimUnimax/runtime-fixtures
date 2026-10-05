@@ -5,6 +5,7 @@ import errno
 import fcntl
 import hashlib
 import importlib.util
+import inspect
 import json
 import os
 import re
@@ -205,19 +206,146 @@ def _unrelated_status(status: str, repo: Path, targets: set[Path]):
             result.append(line)
     return result
 
+def _completion_receipt_identity(args, kwargs):
+    """Use the exact small receipt-call arguments when they are safely hashable."""
+    try:
+        identity = (tuple(args), tuple(sorted(kwargs.items())))
+        hash(identity)
+        return identity
+    except (TypeError, ValueError):
+        return None
+
+
+def _semantic_value_identity(value):
+    """Bind cached validation to the exact in-memory JSON value."""
+    try:
+        raw = json.dumps(
+            value, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        ).encode("utf-8")
+    except (TypeError, ValueError):
+        return None
+    return hashlib.sha256(raw).hexdigest()
+
+
 def _semantic(module, root: Path):
+    binding_before = _board_binding(root)
     board = module.load_board(root)
     if board.get("version") not in {1, 2}:
         raise RuntimeError("WORK_BOARD_V2_ROLLOUT_BOARD_VERSION_UNSUPPORTED")
+    board_identity_before = _semantic_value_identity(board)
+    if board_identity_before is None:
+        raise RuntimeError("WORK_BOARD_V2_ROLLOUT_BOARD_IDENTITY_INVALID")
     tasks = board["tasks"]
-    return {
-        "board": board,
-        "task_views": [module.task_view(board, task) for task in tasks],
-        "role_work": {role: module.role_work(root, role) for role in "ABC"},
-        "blocker_attention": module.blocker_attention(board),
-        "snapshots": {role: module.board_snapshot(root) for role in "ABC"},
-        "status": {role: module.status_work(root, role) for role in "ABC"},
+    board_tasks_by_id = {
+        task.get("id"): task for task in tasks
+        if isinstance(task, dict) and isinstance(task.get("id"), str)
     }
+    board_task_identity = {
+        identifier: _semantic_value_identity(task)
+        for identifier, task in board_tasks_by_id.items()
+    }
+    # Older readers repeatedly validate the same immutable evidence as they
+    # derive task views, role work and blocker attention. Memoize only inside
+    # this exact board/event-bound semantic evaluation and restore every
+    # patched reader function even if a downstream projection raises.
+    namespace = getattr(module.task_view, "__globals__", {})
+    saved = {}
+    revalidations = []
+    try:
+        for name in ("_completion_receipt", "_publication_snapshot_valid"):
+            original = namespace.get(name)
+            if not callable(original):
+                continue
+            saved[name] = original
+            cache = {}
+            calls = {}
+            revalidations.append((name, original, cache, calls))
+
+            def memoized(
+                *args,
+                __original=original,
+                __cache=cache,
+                __calls=calls,
+                __name=name,
+                **kwargs,
+            ):
+                if __name == "_publication_snapshot_valid":
+                    task = args[0] if args and isinstance(args[0], dict) else None
+                    identifier = task.get("id") if task is not None else None
+                    expected_identity = board_task_identity.get(identifier)
+                    current_identity = (
+                        _semantic_value_identity(task) if task is not None else None
+                    )
+                    # Reuse only an exact task value from the immutable board
+                    # bound to this _semantic call. A changed/copy-drifted task
+                    # bypasses the cache and uses the original validator.
+                    identity = (
+                        ("publication", identifier, current_identity)
+                        if expected_identity is not None
+                        and current_identity == expected_identity
+                        else None
+                    )
+                else:
+                    identity = _completion_receipt_identity(args, kwargs)
+                if identity is None:
+                    return __original(*args, **kwargs)
+                if identity not in __cache:
+                    __cache[identity] = __original(*args, **kwargs)
+                    __calls[identity] = (args, dict(kwargs))
+                return __cache[identity]
+
+            namespace[name] = memoized
+
+        evaluation_type = getattr(module, "_BoardEvaluation", None)
+        evaluation = evaluation_type(board) if callable(evaluation_type) else None
+        task_view = module.task_view
+        accepts_evaluation = False
+        if evaluation is not None:
+            try:
+                parameters = inspect.signature(task_view).parameters.values()
+                accepts_evaluation = any(
+                    p.name == "evaluation" or p.kind == p.VAR_KEYWORD
+                    for p in parameters
+                )
+            except (TypeError, ValueError):
+                accepts_evaluation = False
+        if accepts_evaluation:
+            task_views = [
+                task_view(board, task, evaluation=evaluation) for task in tasks
+            ]
+        else:
+            task_views = [task_view(board, task) for task in tasks]
+        value = {
+            "board": board,
+            "task_views": task_views,
+            "role_work": {role: module.role_work(root, role) for role in "ABC"},
+            "blocker_attention": module.blocker_attention(board),
+            "snapshots": {role: module.board_snapshot(root) for role in "ABC"},
+            "status": {role: module.status_work(root, role) for role in "ABC"},
+        }
+        if _semantic_value_identity(board) != board_identity_before:
+            raise RuntimeError("WORK_BOARD_V2_ROLLOUT_IN_MEMORY_BOARD_CHANGED")
+        if _board_binding(root) != binding_before:
+            raise RuntimeError("WORK_BOARD_V2_ROLLOUT_BOARD_OR_EVENT_CHANGED")
+
+        # Cached PASS/FAIL cannot outlive the evidence bytes that produced it.
+        # Re-run each distinct cached validation once before returning. This
+        # keeps validation O(distinct evidence) while preserving fail-closed
+        # behavior if a receipt/publication artifact changes mid-evaluation.
+        for _name, original, cache, calls in revalidations:
+            for identity, (args, kwargs) in calls.items():
+                if original(*args, **kwargs) != cache[identity]:
+                    raise RuntimeError(
+                        "WORK_BOARD_V2_ROLLOUT_VALIDATION_EVIDENCE_CHANGED"
+                    )
+        if _semantic_value_identity(board) != board_identity_before:
+            raise RuntimeError("WORK_BOARD_V2_ROLLOUT_IN_MEMORY_BOARD_CHANGED")
+        if _board_binding(root) != binding_before:
+            raise RuntimeError("WORK_BOARD_V2_ROLLOUT_BOARD_OR_EVENT_CHANGED")
+        return value
+    finally:
+        for name, original in saved.items():
+            namespace[name] = original
 
 def _file_state(path: Path):
     info = _path(path, missing=True)
