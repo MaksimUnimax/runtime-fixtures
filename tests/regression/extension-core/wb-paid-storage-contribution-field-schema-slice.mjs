@@ -213,6 +213,122 @@ function statusData(input) {
   return { id: data.id, status: data.status };
 }
 
+const JSON_DECIMAL_LEXEME = /^(-?)(0|[1-9]\d*)(?:\.(\d+))?(?:[eE]([+-]?\d+))?$/;
+
+function parseBoundedDecimalExponent(value, fractionLength) {
+  const token = value ?? "0";
+  const negative = token.startsWith("-");
+  const digits =
+    token.startsWith("-") || token.startsWith("+") ? token.slice(1) : token;
+  if (
+    digits.length === 0 ||
+    digits.length > slice.decimalContract.maxExponentLexemeDigits
+  )
+    return null;
+
+  const maximumRelevantMagnitude =
+    slice.decimalContract.maxExpansionDigits + fractionLength;
+  let magnitude = 0;
+  for (const digit of digits) {
+    magnitude = magnitude * 10 + (digit.charCodeAt(0) - 48);
+    if (magnitude > maximumRelevantMagnitude) return null;
+  }
+  return negative ? -magnitude : magnitude;
+}
+
+function parseExactDecimalLexeme(value) {
+  if (typeof value !== "string") return null;
+  const match = JSON_DECIMAL_LEXEME.exec(value);
+  if (!match) return null;
+
+  const fraction = match[3] ?? "";
+  const digitCount = match[2].length + fraction.length;
+  if (digitCount > slice.decimalContract.maxExpansionDigits) return null;
+
+  const exponent = parseBoundedDecimalExponent(match[4], fraction.length);
+  if (exponent === null) return null;
+
+  let coefficient = BigInt(match[2] + fraction);
+  if (match[1] === "-") coefficient = -coefficient;
+
+  let scale = fraction.length - exponent;
+  if (!Number.isSafeInteger(scale)) return null;
+  if (scale < 0) {
+    const shift = -scale;
+    if (
+      shift > slice.decimalContract.maxExpansionDigits ||
+      digitCount + shift > slice.decimalContract.maxExpansionDigits
+    )
+      return null;
+    if (coefficient !== 0n) coefficient *= 10n ** BigInt(shift);
+    scale = 0;
+  }
+  if (scale > slice.decimalContract.maxExpansionDigits) return null;
+  return { coefficient, scale };
+}
+
+function coefficientDigits(coefficient) {
+  return (coefficient < 0n ? -coefficient : coefficient).toString().length;
+}
+
+function formatExactDecimal(coefficient, scale) {
+  const negative = coefficient < 0n;
+  let digits = (negative ? -coefficient : coefficient).toString();
+  if (scale === 0) {
+    const value = (negative ? "-" : "") + digits;
+    return value.length <= slice.decimalContract.maxOutputCharacters
+      ? value
+      : null;
+  }
+  digits = digits.padStart(scale + 1, "0");
+  const value =
+    (negative ? "-" : "") +
+    digits.slice(0, -scale) +
+    "." +
+    digits.slice(-scale);
+  return value.length <= slice.decimalContract.maxOutputCharacters
+    ? value
+    : null;
+}
+
+function aggregateExactDecimals(parts) {
+  if (parts.length === 0) return "0";
+  if (parts.length > slice.decimalContract.maxAggregateRows) return null;
+
+  let scale = 0;
+  for (const part of parts) {
+    if (
+      !part ||
+      typeof part.coefficient !== "bigint" ||
+      !Number.isSafeInteger(part.scale) ||
+      part.scale < 0 ||
+      part.scale > slice.decimalContract.maxExpansionDigits
+    )
+      return null;
+    if (part.scale > scale) scale = part.scale;
+  }
+
+  let coefficient = 0n;
+  for (const part of parts) {
+    const shift = scale - part.scale;
+    if (
+      part.coefficient !== 0n &&
+      coefficientDigits(part.coefficient) + shift >
+        slice.decimalContract.maxAlignedCoefficientDigits
+    )
+      return null;
+    const aligned =
+      part.coefficient === 0n ? 0n : part.coefficient * 10n ** BigInt(shift);
+    coefficient += aligned;
+    if (
+      coefficientDigits(coefficient) >
+      slice.decimalContract.maxAggregateCoefficientDigits
+    )
+      return null;
+  }
+  return formatExactDecimal(coefficient, scale);
+}
+
 function projectPaidStorage(input) {
   const period = validatePeriod(input.create);
   if (period.status !== "PASS") return period;
@@ -250,18 +366,24 @@ function projectPaidStorage(input) {
   }
   if (input.downloadHttpStatus !== 200 || !Array.isArray(input.rows))
     return { status: "INCOMPLETE", reason: "PAID_STORAGE_DOWNLOAD_INVALID" };
+  if (input.rows.length > slice.decimalContract.maxAggregateRows)
+    return {
+      status: "INCOMPLETE",
+      reason: "PAID_STORAGE_DECIMAL_AGGREGATE_ROW_LIMIT_EXCEEDED",
+    };
 
   const productIds = new Set();
   const storageAmounts = [];
+  const exactAmounts = [];
   for (const row of input.rows) {
-    if (
-      !row ||
-      dateMs(row.date) === null ||
-      !Number.isInteger(row.nmId) ||
-      typeof row.warehousePrice !== "number" ||
-      !Number.isFinite(row.warehousePrice)
-    )
+    if (!row || dateMs(row.date) === null || !Number.isInteger(row.nmId))
       return { status: "INCOMPLETE", reason: "PAID_STORAGE_ROW_INVALID" };
+    const exactAmount = parseExactDecimalLexeme(row.warehousePrice);
+    if (!exactAmount)
+      return {
+        status: "INCOMPLETE",
+        reason: "PAID_STORAGE_WAREHOUSE_PRICE_DECIMAL_INVALID",
+      };
     if (
       row.originalDate !== undefined &&
       row.originalDate !== null &&
@@ -273,7 +395,15 @@ function projectPaidStorage(input) {
       };
     productIds.add(row.nmId);
     storageAmounts.push(row.warehousePrice);
+    exactAmounts.push(exactAmount);
   }
+
+  const exactStorageAggregate = aggregateExactDecimals(exactAmounts);
+  if (exactStorageAggregate === null)
+    return {
+      status: "INCOMPLETE",
+      reason: "PAID_STORAGE_DECIMAL_AGGREGATE_LIMIT_EXCEEDED",
+    };
 
   return {
     status: "PASS",
@@ -284,7 +414,7 @@ function projectPaidStorage(input) {
     storageAmounts,
     currencyCode: null,
     currencyPolicy: null,
-    exactStorageAggregate: input.rows.length ? null : "0",
+    exactStorageAggregate,
   };
 }
 const cases = slice.syntheticCases;
@@ -299,6 +429,154 @@ for (const name of [
   const value = cases[name];
   const { expected, ...input } = value;
   assert.deepEqual(projectPaidStorage(input), expected, name);
+}
+
+assert.equal(
+  slice.decimalContract.inputRepresentation,
+  "LOSSLESS_JSON_NUMBER_LEXEME_STRING",
+);
+assert.equal(slice.decimalContract.grammar, "JSON_NUMBER");
+assert.equal(
+  slice.decimalContract.arithmetic,
+  "BIGINT_COEFFICIENT_EFFECTIVE_SCALE",
+);
+assert.equal(slice.decimalContract.aggregateScale, "MAX_EFFECTIVE_INPUT_SCALE");
+assert.equal(slice.decimalContract.output, "NON_EXPONENTIAL_DECIMAL_STRING");
+assert.equal(slice.decimalContract.maxExpansionDigits, 4096);
+assert.equal(slice.decimalContract.maxExponentLexemeDigits, 4096);
+assert.equal(slice.decimalContract.maxAggregateRows, 4096);
+assert.equal(slice.decimalContract.maxAlignedCoefficientDigits, 4096);
+assert.equal(slice.decimalContract.maxAggregateCoefficientDigits, 4096);
+assert.equal(slice.decimalContract.maxOutputCharacters, 4100);
+assert.equal(
+  slice.decimalContract.resourceBoundsAuthority,
+  "LOCAL_FAIL_CLOSED_SAFETY_LIMIT_NOT_PROVIDER_SEMANTICS",
+);
+
+for (const value of slice.decimalContract.cases) {
+  const parts = value.lexemes.map(parseExactDecimalLexeme);
+  assert.equal(parts.includes(null), false, value.name + ": parse");
+  assert.equal(
+    aggregateExactDecimals(parts),
+    value.expectedAggregate,
+    value.name + ": aggregate",
+  );
+
+  const projected = structuredClone(cases.doneRows);
+  projected.rows[0].warehousePrice = value.lexemes[0];
+  projected.rows[1].warehousePrice = value.lexemes[1];
+  projected.expected.storageAmounts = [...value.lexemes];
+  projected.expected.exactStorageAggregate = value.expectedAggregate;
+  const { expected, ...input } = projected;
+  assert.deepEqual(
+    projectPaidStorage(input),
+    expected,
+    value.name + ": project",
+  );
+}
+assert.equal(
+  parseExactDecimalLexeme(
+    "1".repeat(slice.decimalContract.maxExpansionDigits + 1),
+  ),
+  null,
+  "oversize decimal mantissa must fail closed",
+);
+assert.equal(
+  parseExactDecimalLexeme(
+    "1e" + "0".repeat(slice.decimalContract.maxExponentLexemeDigits + 1) + "1",
+  ),
+  null,
+  "oversize exponent lexeme must fail closed before numeric conversion",
+);
+
+{
+  const crossScale = [
+    parseExactDecimalLexeme(
+      "9".repeat(slice.decimalContract.maxExpansionDigits),
+    ),
+    parseExactDecimalLexeme("1e-" + slice.decimalContract.maxExpansionDigits),
+  ];
+  assert.equal(
+    crossScale.includes(null),
+    false,
+    "cross-scale inputs parse individually",
+  );
+  assert.equal(
+    aggregateExactDecimals(crossScale),
+    null,
+    "cross-scale alignment beyond aggregate coefficient bound must fail closed",
+  );
+
+  const projected = structuredClone(cases.doneRows);
+  projected.rows[0].warehousePrice = "9".repeat(
+    slice.decimalContract.maxExpansionDigits,
+  );
+  projected.rows[1].warehousePrice =
+    "1e-" + slice.decimalContract.maxExpansionDigits;
+  const { expected: _expected, ...input } = projected;
+  assert.deepEqual(
+    projectPaidStorage(input),
+    {
+      status: "INCOMPLETE",
+      reason: "PAID_STORAGE_DECIMAL_AGGREGATE_LIMIT_EXCEEDED",
+    },
+    "projected cross-scale aggregate growth must fail closed",
+  );
+}
+
+{
+  const maxDigits = "9".repeat(slice.decimalContract.maxExpansionDigits);
+  const carryParts = [
+    parseExactDecimalLexeme(maxDigits),
+    parseExactDecimalLexeme(maxDigits),
+  ];
+  assert.equal(
+    carryParts.includes(null),
+    false,
+    "carry inputs parse individually",
+  );
+  assert.equal(
+    aggregateExactDecimals(carryParts),
+    null,
+    "aggregate carry beyond coefficient bound must fail closed",
+  );
+}
+
+{
+  const projected = structuredClone(cases.doneRows);
+  const template = projected.rows[0];
+  projected.rows = Array.from(
+    { length: slice.decimalContract.maxAggregateRows + 1 },
+    () => ({ ...template }),
+  );
+  const { expected: _expected, ...input } = projected;
+  assert.deepEqual(
+    projectPaidStorage(input),
+    {
+      status: "INCOMPLETE",
+      reason: "PAID_STORAGE_DECIMAL_AGGREGATE_ROW_LIMIT_EXCEEDED",
+    },
+    "aggregate row count must fail closed before decimal work",
+  );
+}
+
+for (const value of slice.decimalContract.invalidInputs) {
+  assert.equal(
+    parseExactDecimalLexeme(value),
+    null,
+    "invalid decimal " + String(value),
+  );
+  const projected = structuredClone(cases.doneRows);
+  projected.rows[0].warehousePrice = value;
+  const { expected: _expected, ...input } = projected;
+  assert.deepEqual(
+    projectPaidStorage(input),
+    {
+      status: "INCOMPLETE",
+      reason: "PAID_STORAGE_WAREHOUSE_PRICE_DECIMAL_INVALID",
+    },
+    "invalid projected decimal " + String(value),
+  );
 }
 
 function contributionReadiness(input) {
@@ -343,8 +621,12 @@ assert.equal(
   "DO_NOT_DEDUP_WITHOUT_DOCUMENTED_UNIQUE_ROW_KEY",
 );
 assert.equal(
+  slice.rules.storageDeliveryRepresentation,
+  "PAID_STORAGE_WAREHOUSE_PRICE_DELIVERED_AS_LOSSLESS_JSON_NUMBER_LEXEME_STRING",
+);
+assert.equal(
   slice.rules.storageArithmetic,
-  "WAREHOUSE_PRICE_IS_PROVIDER_JSON_NUMBER_REQUIRE_EXPLICIT_DECIMAL_NORMALIZATION_POLICY_FOR_EXACT_MONEY_SUM",
+  "SUM_LOSSLESS_DECIMAL_STRINGS_WITH_BIGINT_COEFFICIENT_AND_MAX_EFFECTIVE_SCALE",
 );
 assert.equal(
   slice.rules.revenue,
@@ -380,7 +662,8 @@ console.log(
     done204ExplicitEmpty: true,
     recalculationRowsPreserved: true,
     storageCurrencyCodeInResponse: false,
-    storageExactAggregateRequiresPolicy: true,
+    storageExactAggregateRequiresPolicy: false,
+    storageExactAggregateUsesLosslessDecimalStrings: true,
     platformContributionSourceReady: false,
     platformContributionReason:
       "COMPONENT_POLICY_AND_COMMON_CURRENCY_BINDING_OPEN",

@@ -166,7 +166,8 @@
     "recalculation": "PRESERVE_DATE_AND_ORIGINAL_DATE_DO_NOT_DISCARD_RECALCULATION_ROWS",
     "storageSign": "PRESERVE_PROVIDER_WAREHOUSE_PRICE_SIGN",
     "storageCurrency": "PAID_STORAGE_RESPONSE_HAS_NO_CURRENCY_CODE_REQUIRE_EXPLICIT_STORE_ACCOUNT_CURRENCY_BINDING",
-    "storageArithmetic": "WAREHOUSE_PRICE_IS_PROVIDER_JSON_NUMBER_REQUIRE_EXPLICIT_DECIMAL_NORMALIZATION_POLICY_FOR_EXACT_MONEY_SUM",
+    "storageDeliveryRepresentation": "PAID_STORAGE_WAREHOUSE_PRICE_DELIVERED_AS_LOSSLESS_JSON_NUMBER_LEXEME_STRING",
+    "storageArithmetic": "SUM_LOSSLESS_DECIMAL_STRINGS_WITH_BIGINT_COEFFICIENT_AND_MAX_EFFECTIVE_SCALE",
     "revenue": "NO_OWNER_DEFINED_REVENUE_FIELD_IS_CURRENTLY_SELECTED",
     "fees": "DO_NOT_DERIVE_PLATFORM_FEES_AS_RETAIL_AMOUNT_MINUS_FOR_PAY_OR_BY_IMPLICIT_FIELD_BUCKETING",
     "logistics": "DO_NOT_AUTO_GROUP_DELIVERY_SERVICE_AND_REBILL_LOGISTIC_COST_WITHOUT_COMPONENT_POLICY",
@@ -185,6 +186,53 @@
       "paid_storage_download",
       "promo_spend_history",
       "statistics_sales"
+    ]
+  },
+  "decimalContract": {
+    "inputRepresentation": "LOSSLESS_JSON_NUMBER_LEXEME_STRING",
+    "grammar": "JSON_NUMBER",
+    "arithmetic": "BIGINT_COEFFICIENT_EFFECTIVE_SCALE",
+    "aggregateScale": "MAX_EFFECTIVE_INPUT_SCALE",
+    "output": "NON_EXPONENTIAL_DECIMAL_STRING",
+    "maxExpansionDigits": 4096,
+    "maxExponentLexemeDigits": 4096,
+    "maxAggregateRows": 4096,
+    "maxAlignedCoefficientDigits": 4096,
+    "maxAggregateCoefficientDigits": 4096,
+    "maxOutputCharacters": 4100,
+    "resourceBoundsAuthority": "LOCAL_FAIL_CLOSED_SAFETY_LIMIT_NOT_PROVIDER_SEMANTICS",
+    "cases": [
+      {
+        "name": "trailing_zero_precision",
+        "lexemes": ["7.650", "-1.25"],
+        "expectedAggregate": "6.400"
+      },
+      {
+        "name": "negative_exponent_precision",
+        "lexemes": ["1e-2", "1.00E-2"],
+        "expectedAggregate": "0.0200"
+      },
+      {
+        "name": "positive_exponent_normalization",
+        "lexemes": ["1.20e1", "-2"],
+        "expectedAggregate": "10.0"
+      },
+      {
+        "name": "equal_opposite_scale",
+        "lexemes": ["1.25", "-1.25"],
+        "expectedAggregate": "0.00"
+      }
+    ],
+    "invalidInputs": [
+      7.65,
+      " 1.00",
+      "+1.00",
+      "01.00",
+      ".5",
+      "1.",
+      "NaN",
+      "Infinity",
+      "1e999999999999999999999"
     ]
   },
   "syntheticCases": {
@@ -211,7 +259,7 @@
           "originalDate": "2026-09-24",
           "nmId": 1001,
           "vendorCode": "sku-1001",
-          "warehousePrice": 7.65,
+          "warehousePrice": "7.65",
           "barcodesCount": 1
         },
         {
@@ -219,7 +267,7 @@
           "originalDate": "2026-09-24",
           "nmId": 1001,
           "vendorCode": "sku-1001",
-          "warehousePrice": -1.25,
+          "warehousePrice": "-1.25",
           "barcodesCount": 1
         }
       ],
@@ -229,10 +277,10 @@
         "taskId": "06e06887-9d9f-491f-b16a-bb1766fcb8d2",
         "rows": 2,
         "productIds": [1001],
-        "storageAmounts": [7.65, -1.25],
+        "storageAmounts": ["7.65", "-1.25"],
         "currencyCode": null,
         "currencyPolicy": null,
-        "exactStorageAggregate": null
+        "exactStorageAggregate": "6.40"
       }
     },
     "doneNoData": {
@@ -368,7 +416,6 @@
   "remainingOpen": [
     "explicit CAP-24 business component policy for revenue, platform fees and logistics",
     "explicit store/account currency-code binding shared by finance, paid-storage and promotion-spend sources",
-    "exact decimal normalization policy for paid-storage JSON-number money before cross-source arithmetic",
     "live WB paid-storage task lifecycle and owner gold-set reconciliation",
     "live cross-source period alignment across finance UTC+3, paid-storage report dates, advertising period and operational sales",
     "controller review of whether accepted CAP-24 operation set needs finance_sales_reports metadata for explicit currency reconciliation"
