@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "stage": "I1-C1",
-  "version": "0.2.12",
+  "version": "0.2.13",
   "purpose": "LOCAL_DEVELOPMENT_CANDIDATE_DEVICE_AUTH_SIGNED_ACCOUNT_BINDING",
   "control_api_origin": "http://127.0.0.1:43100",
   "portal_origin": "http://127.0.0.1:43101",
