@@ -14,6 +14,7 @@ import {
   type DatabaseRuntime,
 } from "../../../packages/server/db/src/index.js";
 import { OtpEmailRunner } from "../../../apps/worker/src/otp-runner.js";
+import { EmailProviderError } from "../../../packages/server/email/src/index.js";
 import { BetaAdmissionService } from "../../../packages/server/beta-access/src/index.js";
 import { runMigrations } from "../../../packages/server/db/src/migrations.js";
 
@@ -866,6 +867,109 @@ describe.sequential("P2.2 real PostgreSQL authentication matrix", () => {
     expect(expired.ciphertext).toBeNull();
     expect(expired.last_error_code).toBe("LEASE_EXPIRED_UNKNOWN_OUTCOME");
     expect(calls).toBe(1);
+  });
+
+  it("T2-16A supersede fences an in-flight successful delivery from rewriting DEAD to SENT", async () => {
+    const email = "supersede-inflight-success@example.test";
+    const oldChallengeId = await request(
+      email,
+      "accepted-request-id-old-success",
+    );
+    await q(
+      "UPDATE otp_challenges SET created_at=now()-interval '2 minutes' WHERE id=$1",
+      [oldChallengeId],
+    );
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let providerStarted!: () => void;
+    const started = new Promise<void>((resolve) => {
+      providerStarted = resolve;
+    });
+    let calls = 0;
+    const runner = new OtpEmailRunner(db, keys, {
+      sendLoginOtp: async () => {
+        calls++;
+        providerStarted();
+        await held;
+        return { providerMessageId: "old-provider-message" };
+      },
+    });
+    const tick = runner.tick();
+    await started;
+    expect((await jobFor(oldChallengeId)).status).toBe("PROCESSING");
+    expect((await jobFor(oldChallengeId)).lease_id).toBeTruthy();
+
+    const newChallengeId = await request(
+      email,
+      "accepted-request-id-new-success",
+    );
+    const superseded = await jobFor(oldChallengeId);
+    expect((await challenge(oldChallengeId)).invalidation_reason).toBe(
+      "SUPERSEDED",
+    );
+    expect(superseded.status).toBe("DEAD");
+    expect(superseded.ciphertext).toBeNull();
+    expect(superseded.nonce).toBeNull();
+    expect(superseded.auth_tag).toBeNull();
+    expect(superseded.lease_id).toBeNull();
+    expect(superseded.leased_until).toBeNull();
+    expect((await jobFor(newChallengeId)).status).toBe("PENDING");
+
+    release();
+    await tick;
+    const afterProviderReturn = await jobFor(oldChallengeId);
+    expect(afterProviderReturn.status).toBe("DEAD");
+    expect(afterProviderReturn.lease_id).toBeNull();
+    expect(afterProviderReturn.leased_until).toBeNull();
+    expect(calls).toBe(1);
+  });
+
+  it("T2-16B supersede fences an in-flight retryable failure from resurrecting DEAD to PENDING", async () => {
+    const email = "supersede-inflight-retry@example.test";
+    const oldChallengeId = await request(
+      email,
+      "accepted-request-id-old-retry",
+    );
+    await q(
+      "UPDATE otp_challenges SET created_at=now()-interval '2 minutes' WHERE id=$1",
+      [oldChallengeId],
+    );
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let providerStarted!: () => void;
+    const started = new Promise<void>((resolve) => {
+      providerStarted = resolve;
+    });
+    const runner = new OtpEmailRunner(db, keys, {
+      sendLoginOtp: async () => {
+        providerStarted();
+        await held;
+        throw new EmailProviderError("KNOWN_FAILURE", true, 503);
+      },
+    });
+    const tick = runner.tick();
+    await started;
+
+    const newChallengeId = await request(
+      email,
+      "accepted-request-id-new-retry",
+    );
+    const superseded = await jobFor(oldChallengeId);
+    expect(superseded.status).toBe("DEAD");
+    expect(superseded.lease_id).toBeNull();
+    expect(superseded.leased_until).toBeNull();
+    expect((await jobFor(newChallengeId)).status).toBe("PENDING");
+
+    release();
+    await tick;
+    const afterProviderReturn = await jobFor(oldChallengeId);
+    expect(afterProviderReturn.status).toBe("DEAD");
+    expect(afterProviderReturn.lease_id).toBeNull();
+    expect(afterProviderReturn.leased_until).toBeNull();
   });
 
   it("T2-17 through T2-22 clear secrets for exhausted, sent, dead, consumed, expired, and superseded jobs", async () => {

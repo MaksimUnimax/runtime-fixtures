@@ -57,7 +57,7 @@ export class OtpEmailRunner implements JobRunner {
     const c = challenge.rows[0];
     const dead = async (code: string) =>
       this.db.query(
-        `UPDATE otp_email_jobs SET status='DEAD',ciphertext=NULL,nonce=NULL,auth_tag=NULL,lease_id=NULL,leased_until=NULL,last_error_code=$2,updated_at=now() WHERE id=$1 AND lease_id=$3`,
+        `UPDATE otp_email_jobs SET status='DEAD',ciphertext=NULL,nonce=NULL,auth_tag=NULL,lease_id=NULL,leased_until=NULL,last_error_code=$2,updated_at=now() WHERE id=$1 AND status='PROCESSING' AND lease_id=$3`,
         [row.id, code, lease],
       );
     if (
@@ -82,7 +82,7 @@ export class OtpEmailRunner implements JobRunner {
         expiresAt: new Date(c.expires_at),
       });
       await this.db.query(
-        `UPDATE otp_email_jobs SET status='SENT',sent_at=now(),ciphertext=NULL,nonce=NULL,auth_tag=NULL,lease_id=NULL,leased_until=NULL,provider_message_id=$2,updated_at=now() WHERE id=$1 AND lease_id=$3`,
+        `UPDATE otp_email_jobs SET status='SENT',sent_at=now(),ciphertext=NULL,nonce=NULL,auth_tag=NULL,lease_id=NULL,leased_until=NULL,provider_message_id=$2,updated_at=now() WHERE id=$1 AND status='PROCESSING' AND lease_id=$3`,
         [row.id, sent.providerMessageId ?? null, lease],
       );
     } catch (error) {
@@ -101,8 +101,8 @@ export class OtpEmailRunner implements JobRunner {
               : "EMAIL_PROVIDER_REJECTED";
       await this.db.query(
         exhausted || !classified.retryable
-          ? `UPDATE otp_email_jobs SET status='DEAD',ciphertext=NULL,nonce=NULL,auth_tag=NULL,lease_id=NULL,leased_until=NULL,last_error_code=$3,updated_at=now() WHERE id=$1 AND lease_id=$2`
-          : `UPDATE otp_email_jobs SET status='PENDING',lease_id=NULL,leased_until=NULL,available_at=now()+interval '30 seconds',last_error_code=$3,updated_at=now() WHERE id=$1 AND lease_id=$2`,
+          ? `UPDATE otp_email_jobs SET status='DEAD',ciphertext=NULL,nonce=NULL,auth_tag=NULL,lease_id=NULL,leased_until=NULL,last_error_code=$3,updated_at=now() WHERE id=$1 AND status='PROCESSING' AND lease_id=$2`
+          : `UPDATE otp_email_jobs SET status='PENDING',lease_id=NULL,leased_until=NULL,available_at=now()+interval '30 seconds',last_error_code=$3,updated_at=now() WHERE id=$1 AND status='PROCESSING' AND lease_id=$2`,
         [row.id, lease, errorCode],
       );
     }

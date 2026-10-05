@@ -61,7 +61,7 @@ export function createAuthRepository(runtime: DatabaseRuntime): AuthRepository {
           return { ok: false, code: "AUTH_RATE_LIMITED" } as AuthResult<never>;
         }
         await tx.query(
-          `UPDATE otp_email_jobs SET status='DEAD',ciphertext=NULL,nonce=NULL,auth_tag=NULL WHERE challenge_id IN (SELECT id FROM otp_challenges WHERE purpose='LOGIN' AND normalized_identity_target=$1 AND consumed_at IS NULL AND invalidated_at IS NULL)`,
+          `UPDATE otp_email_jobs SET status='DEAD',ciphertext=NULL,nonce=NULL,auth_tag=NULL,lease_id=NULL,leased_until=NULL WHERE challenge_id IN (SELECT id FROM otp_challenges WHERE purpose='LOGIN' AND normalized_identity_target=$1 AND consumed_at IS NULL AND invalidated_at IS NULL)`,
           [input.email],
         );
         await tx.query(
