@@ -1,0 +1,14 @@
+# Source-only candidate. Do not install until the maintenance credential
+# destination is absent or exactly /var/lib/octoport-owner-test-api/maintenance.json.
+[Service]
+User=@SERVICE_USER@
+Group=@SERVICE_GROUP@
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+StateDirectory=octoport-owner-test-api
+StateDirectoryMode=0700

@@ -1,0 +1,11 @@
+# Source-only candidate. No persistent writable directory is granted.
+[Service]
+User=@SERVICE_USER@
+Group=@SERVICE_GROUP@
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
