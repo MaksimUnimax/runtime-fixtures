@@ -145,6 +145,42 @@
     return name && name.length <= 240 && !/[\x00-\x1f\x7f/\\]/.test(name) && !/^\.+$/.test(name)
       ? name : null;
   }
+  function preserveJsonNumberProperty(rawText, property) {
+    const source = String(rawText);
+    let output = "", index = 0;
+    const number = /-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/y;
+    while (index < source.length) {
+      if (source[index] !== '"') { output += source[index++]; continue; }
+      const start = index++;
+      let escaped = false;
+      while (index < source.length) {
+        const char = source[index++];
+        if (escaped) { escaped = false; continue; }
+        if (char === "\\") { escaped = true; continue; }
+        if (char === '"') break;
+      }
+      const token = source.slice(start, index);
+      output += token;
+      let key;
+      try { key = JSON.parse(token); } catch { continue; }
+      if (key !== property) continue;
+      let cursor = index;
+      while (/\s/.test(source[cursor] || "")) cursor++;
+      if (source[cursor] !== ":") continue;
+      cursor++;
+      while (/\s/.test(source[cursor] || "")) cursor++;
+      output += source.slice(index, cursor);
+      index = cursor;
+      number.lastIndex = index;
+      const match = number.exec(source);
+      if (!match) continue;
+      const end = number.lastIndex;
+      if (end < source.length && !/[\s,}\]]/.test(source[end])) continue;
+      output += JSON.stringify(match[0]);
+      index = end;
+    }
+    return output;
+  }
   function createProvider({ fetchImpl = globalThis.fetch, timeoutMs = 30000, maxBytes = 3000000,
     maxBinaryBytes = 12000000, uuid = () => crypto.randomUUID() } = {}) {
     async function execute(commandText, { context, executionCommand = null, onProviderResponse = null, onProviderResult = null } = {}) {
@@ -199,8 +235,14 @@
           original_filename: filename, delivery_status: "BYTES_RECEIVED_NOT_DELIVERED" };
         else {
           const declaredJson = /(?:^|[+/])json(?:;|$)/i.test(response.responseMeta?.content_type || "");
-          if (declaredJson && !(response.rawText.trim() === "" && [204, 205].includes(response.httpStatus))) {
-            try { result = JSON.parse(response.rawText); } catch { fail("PROVIDER_JSON_INVALID"); }
+          const paidStorage = command.operation === "paid_storage_download";
+          const nonEmptyBody = response.rawText.trim() !== "";
+          if ((paidStorage && nonEmptyBody) ||
+              (declaredJson && !(response.rawText.trim() === "" && [204, 205].includes(response.httpStatus)))) {
+            const jsonText = paidStorage
+              ? preserveJsonNumberProperty(response.rawText, "warehousePrice")
+              : response.rawText;
+            try { result = JSON.parse(jsonText); } catch { fail("PROVIDER_JSON_INVALID"); }
           } else result = response.parsed ?? response.rawText;
           safeTree(result);
           result = redactSecrets(C.sanitizeResult(command, result), [saved.token]);

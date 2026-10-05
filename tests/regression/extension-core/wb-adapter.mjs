@@ -859,6 +859,104 @@ try {
     assert.match(state.batch.entries[0].report_text, /42/);
     assert.equal(state.batch.entries[1].status, "pending");
   });
+  await test("WB-12a-paid-storage-preserves-exact-money-lexemes", async () => {
+    const paidStorage = command("paid_storage_download", {
+      path: { task_id: "fixture-paid-storage-task" },
+    });
+    const raw =
+      '[{"warehousePrice":0.10000000000000001,"nmId":1,"note":"warehousePrice: 9.9"},' +
+      '{"warehouse\\u0050rice":1.2300,"nmId":2},' +
+      '{"warehousePrice":-4.5e-7,"nmId":3}]';
+    const s = await setup(paidStorage, {
+      fetch: async () =>
+        new Response(raw, {
+          headers: { "content-type": "application/json" },
+        }),
+    });
+    assert.equal((await s.run()).ok, true);
+    const envelope = JSON.parse(
+      (await s.state()).batch.entries[0].report_text
+        .split("\n")
+        .slice(1)
+        .join("\n"),
+    );
+    assert.equal(envelope.result[0].warehousePrice, "0.10000000000000001");
+    assert.equal(envelope.result[1].warehousePrice, "1.2300");
+    assert.equal(envelope.result[2].warehousePrice, "-4.5e-7");
+    assert.equal(envelope.result[0].nmId, 1);
+    assert.equal(envelope.result[1].nmId, 2);
+    assert.equal(envelope.result[2].nmId, 3);
+    assert.equal(envelope.result[0].note, "warehousePrice: 9.9");
+
+    const ordinary = await setup(basic, {
+      fetch: async () =>
+        new Response('{"warehousePrice":0.10000000000000001,"id":7}', {
+          headers: { "content-type": "application/json" },
+        }),
+    });
+    assert.equal((await ordinary.run()).ok, true);
+    const ordinaryEnvelope = JSON.parse(
+      (await ordinary.state()).batch.entries[0].report_text
+        .split("\n")
+        .slice(1)
+        .join("\n"),
+    );
+    assert.equal(typeof ordinaryEnvelope.result.warehousePrice, "number");
+    assert.equal(ordinaryEnvelope.result.warehousePrice, 0.1);
+    assert.equal(ordinaryEnvelope.result.id, 7);
+  });
+  await test("WB-12b-paid-storage-lossless-parse-ignores-content-type", async () => {
+    const paidStorage = command("paid_storage_download", {
+      path: { task_id: "fixture-paid-storage-header-task" },
+    });
+    const cases = [
+      {
+        response: new Response(
+          '[{"warehousePrice":0.10000000000000001,"nmId":4}]',
+          { headers: { "content-type": "text/plain" } },
+        ),
+        expected: "0.10000000000000001",
+      },
+      {
+        response: new Response(
+          new TextEncoder().encode(
+            '[{"warehousePrice":9007199254740993,"nmId":5}]',
+          ),
+        ),
+        expected: "9007199254740993",
+      },
+    ];
+    for (const { response, expected } of cases) {
+      const s = await setup(paidStorage, { fetch: async () => response });
+      assert.equal((await s.run()).ok, true);
+      const envelope = JSON.parse(
+        (await s.state()).batch.entries[0].report_text
+          .split("\n")
+          .slice(1)
+          .join("\n"),
+      );
+      assert.equal(envelope.result[0].warehousePrice, expected);
+      assert.equal(typeof envelope.result[0].nmId, "number");
+    }
+  });
+  await test("WB-12c-paid-storage-malformed-number-remains-invalid", async () => {
+    const s = await setup(
+      command("paid_storage_download", {
+        path: { task_id: "fixture-paid-storage-task-invalid" },
+      }),
+      {
+        fetch: async () =>
+          new Response('[{"warehousePrice":1e}]', {
+            headers: { "content-type": "text/plain" },
+          }),
+      },
+    );
+    await s.run();
+    assert.match(
+      (await s.state()).batch.entries[0].report_text,
+      /PROVIDER_JSON_INVALID/,
+    );
+  });
   await test("WB-13-provider-timeout-malformed-and-secret-errors-no-replay", async () => {
     for (const fetch of [
       async () => {
