@@ -21,6 +21,9 @@ HEX64 = re.compile(r"^[0-9a-f]{64}$")
 SEMANTIC_TRANSITION_KIND = "octoport.work-board-reader-semantic-transition"
 SEMANTIC_TRANSITION_VERSION = 1
 SAFE_PROOF_TOP = {"logs", "controllers", "artifacts"}
+TRANSITION_CONTRACT_KIND = "octoport.work-board-reader-transition-contract"
+TRANSITION_CONTRACT_VERSION = 1
+TRANSITION_CONTRACT_POLICY = "resolved-blocker-tombstone-hydration-v1"
 
 
 def _sha(raw): return hashlib.sha256(raw).hexdigest()
@@ -412,6 +415,128 @@ def _reader_prior(candidate_sha, expected_queue_sha, expected_module_sha, role):
         "candidate_sha256": dict(candidate_sha),
     }
 
+def _strict_sha_map(value):
+    return (
+        isinstance(value, dict)
+        and set(value) == {"work_queue", "work_board_v2"}
+        and all(isinstance(item, str) and HEX64.fullmatch(item) for item in value.values())
+    )
+
+def _transition_contract_policy_valid(prior_sha256, candidate_sha256):
+    common_queue = prior_sha256["A"]["work_queue"]
+    return (
+        all(prior_sha256[role]["work_queue"] == common_queue for role in ROLES)
+        and candidate_sha256["work_queue"] != common_queue
+        and all(
+            prior_sha256[role]["work_board_v2"] == candidate_sha256["work_board_v2"]
+            for role in "ABC"
+        )
+        and prior_sha256["ORG"]["work_board_v2"] != candidate_sha256["work_board_v2"]
+    )
+
+def build_transition_contract(rollout_id, prior_sha256, candidate_sha256):
+    """Return the sole supported, strict source-bound transition contract."""
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", str(rollout_id)):
+        raise RuntimeError("WORK_BOARD_V2_ROLLOUT_ID_INVALID")
+    if (not isinstance(prior_sha256, dict) or set(prior_sha256) != set(ROLES)
+            or not _strict_sha_map(candidate_sha256)):
+        raise RuntimeError("WORK_BOARD_V2_ROLLOUT_TRANSITION_CONTRACT_INVALID")
+    readers = {}
+    normalized_prior = {}
+    for role in ROLES:
+        prior = prior_sha256[role]
+        if not _strict_sha_map(prior):
+            raise RuntimeError("WORK_BOARD_V2_ROLLOUT_TRANSITION_CONTRACT_INVALID")
+        normalized_prior[role] = dict(prior)
+        readers[role] = {
+            "prior_sha256": dict(prior),
+            "candidate_sha256": dict(candidate_sha256),
+        }
+    if not _transition_contract_policy_valid(normalized_prior, candidate_sha256):
+        raise RuntimeError("WORK_BOARD_V2_ROLLOUT_TRANSITION_CONTRACT_INVALID")
+    return {"kind": TRANSITION_CONTRACT_KIND, "schema_version": TRANSITION_CONTRACT_VERSION,
+            "rollout_id": rollout_id, "policy": TRANSITION_CONTRACT_POLICY, "readers": readers}
+
+def _load_transition_contract(root, path, expected_sha, rollout_id, candidate_sha,
+                              expected_queue_sha, expected_module_sha):
+    if not HEX64.fullmatch(str(expected_sha)):
+        raise RuntimeError("WORK_BOARD_V2_ROLLOUT_TRANSITION_CONTRACT_HASH_INVALID")
+    resolved = _proof_path(root, path)
+    raw = _read(resolved, 1024 * 1024)
+    if _sha(raw) != expected_sha:
+        raise RuntimeError("WORK_BOARD_V2_ROLLOUT_TRANSITION_CONTRACT_HASH_MISMATCH")
+    def pairs(items):
+        result = {}
+        for key, item in items:
+            if key in result: raise ValueError("duplicate key")
+            result[key] = item
+        return result
+    try: value = json.loads(raw, object_pairs_hook=pairs, parse_constant=lambda _x: (_ for _ in ()).throw(ValueError("constant")))
+    except (ValueError, TypeError): raise RuntimeError("WORK_BOARD_V2_ROLLOUT_TRANSITION_CONTRACT_INVALID") from None
+    if not isinstance(value, dict) or set(value) != {"kind", "schema_version", "rollout_id", "policy", "readers"}:
+        raise RuntimeError("WORK_BOARD_V2_ROLLOUT_TRANSITION_CONTRACT_INVALID")
+    if (value.get("kind") != TRANSITION_CONTRACT_KIND or type(value.get("schema_version")) is not int
+        or value["schema_version"] != TRANSITION_CONTRACT_VERSION or value.get("rollout_id") != rollout_id
+        or value.get("policy") != TRANSITION_CONTRACT_POLICY or not isinstance(value.get("readers"), dict)
+        or set(value["readers"]) != set(ROLES)):
+        raise RuntimeError("WORK_BOARD_V2_ROLLOUT_TRANSITION_CONTRACT_MISMATCH")
+    prior = {}
+    for role in ROLES:
+        row = value["readers"][role]
+        if not isinstance(row, dict) or set(row) != {"prior_sha256", "candidate_sha256"}:
+            raise RuntimeError("WORK_BOARD_V2_ROLLOUT_TRANSITION_CONTRACT_INVALID")
+        if (not _strict_sha_map(row.get("prior_sha256"))
+                or not _strict_sha_map(row.get("candidate_sha256"))):
+            raise RuntimeError("WORK_BOARD_V2_ROLLOUT_TRANSITION_CONTRACT_INVALID")
+        prior[role] = row["prior_sha256"]
+        if row["candidate_sha256"] != candidate_sha:
+            raise RuntimeError("WORK_BOARD_V2_ROLLOUT_TRANSITION_CONTRACT_MISMATCH")
+        expected = {"work_queue": expected_queue_sha[role], "work_board_v2": expected_module_sha[role]}
+        if row["prior_sha256"] != expected:
+            raise RuntimeError("WORK_BOARD_V2_ROLLOUT_TRANSITION_CONTRACT_MISMATCH")
+    if not _transition_contract_policy_valid(prior, candidate_sha):
+        raise RuntimeError("WORK_BOARD_V2_ROLLOUT_TRANSITION_CONTRACT_MISMATCH")
+    return value, resolved
+
+def _structural_transition(root, candidate_v2):
+    """Cheap hot-state/archive validation for the fixed ORG hydration policy."""
+    state = candidate_v2._load_state(Path(root), None, require_committed=True)
+    hot_rows = state["hot"]["tasks"]
+    tombstones = [row for row in hot_rows if "resolved_archive_sha256" in row]
+    if not tombstones:
+        raise RuntimeError("WORK_BOARD_V2_ROLLOUT_TRANSITION_TOMBSTONE_REQUIRED")
+    expected_archives = {}
+    paths = candidate_v2._paths(Path(root))
+    for tombstone in tombstones:
+        if not candidate_v2._is_resolved_blocker_tombstone(tombstone):
+            raise RuntimeError("WORK_BOARD_V2_ROLLOUT_TRANSITION_TOMBSTONE_INVALID")
+        archived = candidate_v2._read_resolved_blocker_archive(paths, tombstone)
+        if archived.get("state") != "BLOCKED" or archived.get("blocker_resolution", {}).get("status") != "RESOLVED":
+            raise RuntimeError("WORK_BOARD_V2_ROLLOUT_TRANSITION_ARCHIVE_INVALID")
+        expected_archives[tombstone["id"]] = (archived, tombstone["resolved_archive_sha256"])
+    # Use the logical view from this exact committed state read. Re-loading here
+    # would create a second mutable-board window and the logical board also
+    # contains completed rows in addition to the current hot rows.
+    hydrated = {row.get("id"): row for row in state["logical"].get("tasks", [])}
+    hot_ids = {row.get("id") for row in hot_rows}
+    completed_ids = set(state.get("completed_rows", {}))
+    if set(hydrated) != hot_ids | completed_ids:
+        raise RuntimeError("WORK_BOARD_V2_ROLLOUT_TRANSITION_HYDRATION_MISMATCH")
+    for row in hot_rows:
+        identifier = row["id"]
+        if identifier in expected_archives:
+            if hydrated[identifier] != expected_archives[identifier][0]:
+                raise RuntimeError("WORK_BOARD_V2_ROLLOUT_TRANSITION_HYDRATION_MISMATCH")
+        else:
+            clean = dict(row); clean.pop("_ordinal", None)
+            if hydrated[identifier] != clean:
+                raise RuntimeError("WORK_BOARD_V2_ROLLOUT_TRANSITION_HYDRATION_MISMATCH")
+    digest_rows = sorted((identifier, sha) for identifier, (_row, sha) in expected_archives.items())
+    return {
+        "tombstone_count": len(tombstones),
+        "hydrated_tombstones_sha256": _sha(candidate_v2._canonical_bytes(digest_rows)),
+    }
+
 def semantic_transition_proof(control_root: Path, candidates: dict[str, Path],
                               reader_dirs: dict[str, Path],
                               expected_queue_sha: dict[str, str],
@@ -500,7 +625,9 @@ def rollout(control_root: Path, candidates: dict[str, Path], reader_dirs: dict[s
             expected_queue_sha: dict[str, str], expected_module_sha: dict[str, str | None], *,
             rollout_id: str, executing_role: str = "C",
             semantic_transition_proof_path: Path | None = None,
-            semantic_transition_proof_sha256: str | None = None):
+            semantic_transition_proof_sha256: str | None = None,
+            transition_contract_path: Path | None = None,
+            transition_contract_sha256: str | None = None):
     root = Path(control_root)
     if (set(candidates) != {"work_queue", "work_board_v2"} or set(reader_dirs) != set(ROLES)
         or set(expected_queue_sha) != set(ROLES) or set(expected_module_sha) != set(ROLES)
@@ -516,6 +643,11 @@ def rollout(control_root: Path, candidates: dict[str, Path], reader_dirs: dict[s
         or semantic_transition_proof_sha256 is None
     ):
         raise RuntimeError("WORK_BOARD_V2_ROLLOUT_TRANSITION_PROOF_REQUIRED")
+    contract_requested = transition_contract_path is not None or transition_contract_sha256 is not None
+    if contract_requested and (transition_contract_path is None or transition_contract_sha256 is None):
+        raise RuntimeError("WORK_BOARD_V2_ROLLOUT_TRANSITION_CONTRACT_REQUIRED")
+    if contract_requested and transition_requested:
+        raise RuntimeError("WORK_BOARD_V2_ROLLOUT_TRANSITION_MODE_CONFLICT")
     candidate_raw = {}
     for name, path in candidates.items():
         _path(path); candidate_raw[name] = _read(path)
@@ -582,9 +714,23 @@ def rollout(control_root: Path, candidates: dict[str, Path], reader_dirs: dict[s
         if _raw_hash(board_path) != board_before or _raw_hash(event_path) != event_before:
             raise RuntimeError("WORK_BOARD_V2_ROLLOUT_BOARD_OR_EVENT_CHANGED")
         baseline = {}
-        for role in ROLES:
-            before_mod = _module(target_paths[role]["work_queue"], role + "_before")
-            baseline[role] = _semantic(before_mod, root)
+        contract = None
+        contract_path = None
+        contract_sha = None
+        structural_before = None
+        if contract_requested:
+            contract, contract_path = _load_transition_contract(
+                root, transition_contract_path, transition_contract_sha256, rollout_id,
+                candidate_sha, expected_queue_sha, expected_module_sha,
+            )
+            contract_sha = transition_contract_sha256
+            # Exact source checks plus the narrow live structural invariant replace
+            # whole-product semantic projections in this policy only.
+            structural_before = _structural_transition(root, _module(Path(candidates["work_board_v2"]), "contract_v2_before"))
+        else:
+            for role in ROLES:
+                before_mod = _module(target_paths[role]["work_queue"], role + "_before")
+                baseline[role] = _semantic(before_mod, root)
         role_state_before = {role: _raw_hash(root / (role + ".json")) for role in "ABC"}
         expected_after = baseline
         proof_path = None
@@ -629,10 +775,20 @@ def rollout(control_root: Path, candidates: dict[str, Path], reader_dirs: dict[s
                 ):
                     raise RuntimeError("WORK_BOARD_V2_ROLLOUT_READBACK_FAILED")
                 compile(candidate_raw[name].decode("utf-8"), str(target), "exec")
-            installed = _module(target_paths[role]["work_queue"], role + "_after")
-            installed_semantic = _semantic(installed, root)
-            if installed_semantic != expected_after[role]:
-                raise RuntimeError("WORK_BOARD_V2_ROLLOUT_SEMANTIC_MISMATCH")
+            if not contract_requested:
+                installed = _module(target_paths[role]["work_queue"], role + "_after")
+                installed_semantic = _semantic(installed, root)
+                if installed_semantic != expected_after[role]:
+                    raise RuntimeError("WORK_BOARD_V2_ROLLOUT_SEMANTIC_MISMATCH")
+        structural_after = None
+        if contract_requested:
+            for role in ROLES:
+                for name in candidates:
+                    if _file_state(target_paths[role][name])['sha256'] != candidate_sha[name]:
+                        raise RuntimeError("WORK_BOARD_V2_ROLLOUT_READBACK_FAILED")
+            structural_after = _structural_transition(root, _module(target_paths["ORG"]["work_board_v2"], "contract_v2_after"))
+            if structural_after != structural_before:
+                raise RuntimeError("WORK_BOARD_V2_ROLLOUT_TRANSITION_STRUCTURE_DRIFT")
         status_after = {}
         for role, directory in dirs.items():
             repo, status = _git_status(directory, operational_org=role == "ORG")
@@ -650,17 +806,20 @@ def rollout(control_root: Path, candidates: dict[str, Path], reader_dirs: dict[s
                          "events_sha256_before": event_before, "events_sha256_after": _raw_hash(event_path),
                          "role_state_sha256_before": role_state_before,
                          "role_state_sha256_after": role_state_after,
-                         "reader_semantics_before": baseline,
+                         "reader_semantics_before": baseline if not contract_requested else None,
                          "reader_semantic_sha256_before": {
                              role: _semantic_digest(baseline[role]) for role in ROLES
-                         },
+                         } if not contract_requested else None,
                          "reader_semantic_sha256_after": {
                              role: _semantic_digest(expected_after[role]) for role in ROLES
-                         },
+                         } if not contract_requested else None,
                          "semantic_transition_proof": (
                              {"path": str(proof_path), "sha256": proof_sha}
                              if transition_requested else None
                          ),
+                         "transition_contract": ({"path": str(contract_path), "sha256": contract_sha,
+                                                  "structural_transition": structural_after}
+                                                 if contract_requested else None),
                          "git_status_before": status_before, "git_status_after": status_after,
                          "prior": [{key: value for key, value in item.items()
                                     if key not in {"raw", "installed_identity"}}
