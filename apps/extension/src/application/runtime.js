@@ -1133,6 +1133,18 @@ function saSupportToken(value) {
   const token = typeof value === "string" ? value : "";
   return /^[a-z][a-z0-9_]{0,39}$/.test(token) ? token : null;
 }
+const SA_SUPPORT_TRANSPORT_CLASSES = new Set([
+  "NO_RECEIVER",
+  "PORT_CLOSED",
+  "TAB_GONE",
+  "CONTEXT_INVALIDATED",
+  "SYNC_SEND_EXCEPTION",
+  "OTHER_TAB_MESSAGE_ERROR"
+]);
+function saSupportTransportClass(value) {
+  const transportClass = typeof value === "string" ? value : "";
+  return SA_SUPPORT_TRANSPORT_CLASSES.has(transportClass) ? transportClass : null;
+}
 async function saLastStartDiagnostic(tabId = null) {
   const requestedTab = tabId == null ? null : Number(tabId);
   const targetTab = Number.isInteger(requestedTab) && requestedTab > 0 ? requestedTab : null;
@@ -1161,7 +1173,12 @@ async function saLastStartDiagnostic(tabId = null) {
       return { stage: event === "WORK_START_SEND_FAILED" ? "send" : "dispatch", code: saSupportCode(row.code), outcome: "failed" };
     }
     if (event === "WORK_START_CONTENT_RESPONSE_LOST_NO_RETRY") {
-      return { stage: "send", code: saSupportCode(row.code), outcome: "unknown_no_retry" };
+      return {
+        stage: "send",
+        code: saSupportCode(row.code),
+        outcome: "unknown_no_retry",
+        transportClass: saSupportTransportClass(row.transport_class),
+      };
     }
     if (event === "WORK_START_SEND_OUTCOME" && saSupportToken(row.send_outcome)) {
       return { stage: "send", code: saSupportCode(row.code), outcome: saSupportToken(row.send_outcome) };
