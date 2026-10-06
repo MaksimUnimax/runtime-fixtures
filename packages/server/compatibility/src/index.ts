@@ -332,3 +332,4 @@ export function resolveCompatibility(
 
 export * from "./beta-release-canonical-inputs.js";
 export * from "./beta-opera-policy-canonical-inputs.js";
+export * from "./beta-chrome-policy-canonical-inputs.js";

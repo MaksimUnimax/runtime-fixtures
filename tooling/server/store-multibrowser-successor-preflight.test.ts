@@ -425,22 +425,35 @@ describe("multi-browser successor STORE preflight", () => {
     );
   });
 
-  it("does not promote observed browser versions into unapproved profile minimums", () => {
+  it("keeps historical Chrome profile undecided instead of cross-binding repaired authority", () => {
     const f = fixture();
     const result = readMultibrowserSuccessorTarget(f.manifestPath);
-    const profiles = JSON.parse(
-      JSON.stringify(result.profiles),
-    ) as SuccessorProfileTarget[];
-    const chrome = profiles.find((item) => item.browserFamily === "chrome")!;
-    chrome.compatibility.minimumBrowserVersions = [
-      {
-        browserFamily: "chrome",
-        minimumVersion: chrome.observedBrowserVersion,
+    const chrome = result.profiles.find(
+      (item) => item.browserFamily === "chrome",
+    )!;
+    expect(chrome.approvedMinimumBrowserVersion).toBeNull();
+    expect(chrome.browserMinimumDecisionRequired).toBe(true);
+    expect(chrome.compatibility.minimumBrowserVersions).toEqual([]);
+  });
+
+  it("binds Chrome 147 only to the repaired 7d12 canonical target", () => {
+    const result = readStore0213RepairedChromeCanonicalTarget();
+    expect(result.release.browserArtifacts[0]).toEqual({
+      browserFamily: "chrome",
+      artifactSha256:
+        "7d12ddcbd82e18e26885c94f6a02e512dbade2c57b7e89ac9444dcbe0cac8cf4",
+    });
+    expect(result.chromeProfile).toMatchObject({
+      browserFamily: "chrome",
+      approvedMinimumBrowserVersion: "147",
+      browserMinimumDecisionRequired: false,
+      compatibility: {
+        browserFamilies: ["chrome"],
+        minimumBrowserVersions: [
+          { browserFamily: "chrome", minimumVersion: "147" },
+        ],
       },
-    ];
-    expect(() => assertMultibrowserProfileTargets(profiles)).toThrow(
-      "MULTIBROWSER_PROFILE_BROWSER_MINIMUM_UNAUTHORIZED",
-    );
+    });
   });
 
   it("rejects product-version substitution for runtime compatibility evidence", () => {

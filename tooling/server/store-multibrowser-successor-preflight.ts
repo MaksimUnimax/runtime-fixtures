@@ -8,6 +8,7 @@ import {
   STORE_0_2_13_RELEASE_CANONICAL_INPUTS_V1,
   STORE_0_2_13_REPAIRED_CHROME_RELEASE_CANONICAL_INPUTS_V1,
 } from "../../packages/server/compatibility/src/beta-release-canonical-inputs.js";
+import { BETA_CHROME_POLICY_CANONICAL_INPUTS_V1 } from "../../packages/server/compatibility/src/beta-chrome-policy-canonical-inputs.js";
 import {
   STORE1_CONTRACT,
   STORE1_PROFILE_COMPATIBILITY,
@@ -276,7 +277,15 @@ function profileTarget(
     schemaVersion: "profile_compatibility_v1" as const,
     contractVersion: STORE1_CONTRACT,
     browserFamilies: [spec.browserFamily],
-    minimumBrowserVersions: [],
+    minimumBrowserVersions:
+      spec.approvedProfileMinimumBrowserVersion === null
+        ? []
+        : [
+            {
+              browserFamily: spec.browserFamily,
+              minimumVersion: spec.approvedProfileMinimumBrowserVersion,
+            },
+          ],
     minimumExtensionVersion: MULTIBROWSER_SUCCESSOR_VERSION,
   };
   const validated = validateProfileContent({
@@ -293,8 +302,9 @@ function profileTarget(
     profileContentSha256: validated.contentSha256,
     compatibility,
     reusesExistingOperaProfile: false,
-    approvedMinimumBrowserVersion: null,
-    browserMinimumDecisionRequired: true,
+    approvedMinimumBrowserVersion: spec.approvedProfileMinimumBrowserVersion,
+    browserMinimumDecisionRequired:
+      spec.approvedProfileMinimumBrowserVersion === null,
   };
 }
 
@@ -411,6 +421,7 @@ export type Store0213RepairedChromeCanonicalTarget = {
     bytes: number;
     bytesVerified: boolean;
   };
+  chromeProfile: SuccessorProfileTarget;
 };
 
 export function readStore0213RepairedChromeCanonicalTarget(
@@ -432,6 +443,39 @@ export function readStore0213RepairedChromeCanonicalTarget(
     chrome.artifactSha256 === historicalByBrowser.get("chrome")
   )
     throw new Error("REPAIRED_CHROME_CANONICAL_IDENTITY_INVALID");
+  if (
+    chrome.artifactSha256 !==
+    BETA_CHROME_POLICY_CANONICAL_INPUTS_V1.scope.exactChromeArtifactSha256
+  )
+    throw new Error("REPAIRED_CHROME_POLICY_ARTIFACT_CROSS_BIND");
+
+  const chromeProfile = profileTarget({
+    browserFamily: "chrome",
+    observedBrowserVersion: "147.0.7727.116",
+    runtimeCompatibilityVersion: "147.0.0.0",
+    packageKind: "chromium",
+    profileKey: "chatgpt-web-chrome-v1",
+    reusesExistingOperaProfile: false,
+    approvedProfileMinimumBrowserVersion:
+      BETA_CHROME_POLICY_CANONICAL_INPUTS_V1.policy.minimumBrowserVersion,
+  });
+  if (
+    chromeProfile.browserFamily !== "chrome" ||
+    chromeProfile.approvedMinimumBrowserVersion !==
+      BETA_CHROME_POLICY_CANONICAL_INPUTS_V1.policy.minimumBrowserVersion ||
+    chromeProfile.browserMinimumDecisionRequired ||
+    chromeProfile.compatibility.minimumBrowserVersions.length !== 1 ||
+    chromeProfile.compatibility.minimumBrowserVersions[0]?.browserFamily !==
+      "chrome" ||
+    chromeProfile.compatibility.minimumBrowserVersions[0]?.minimumVersion !==
+      BETA_CHROME_POLICY_CANONICAL_INPUTS_V1.policy.minimumBrowserVersion ||
+    chromeProfile.profileContentSha256 === STORE1_PROFILE_SHA256 ||
+    !browserVersionAtLeast(
+      chromeProfile.runtimeCompatibilityVersion,
+      BETA_CHROME_POLICY_CANONICAL_INPUTS_V1.policy.minimumBrowserVersion,
+    )
+  )
+    throw new Error("REPAIRED_CHROME_PROFILE_AUTHORITY_INVALID");
 
   for (const browserFamily of [
     "opera",
@@ -486,6 +530,7 @@ export function readStore0213RepairedChromeCanonicalTarget(
       ...canonical.chromeRepairArtifact,
       bytesVerified,
     },
+    chromeProfile,
   };
 }
 
