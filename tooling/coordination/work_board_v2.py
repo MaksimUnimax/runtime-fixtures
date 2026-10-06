@@ -618,6 +618,11 @@ def _is_resolved_blocker_tombstone(task: dict) -> bool:
     )
 
 
+def _active_task_count(tasks: list) -> int:
+    """Count current work, excluding shape-validated historical tombstones."""
+    return sum(not _is_resolved_blocker_tombstone(task) for task in tasks)
+
+
 def _read_resolved_blocker_archive(paths, tombstone: dict) -> dict:
     archive_sha = tombstone.get("resolved_archive_sha256")
     if not HEX64.fullmatch(str(archive_sha)):
@@ -675,7 +680,7 @@ def _validate_hot(hot: dict) -> None:
         or not HEX64.fullmatch(str(hot.get("last_operation_id")))
         or type(hot.get("completed_count")) is not int or not 0 <= hot["completed_count"] <= COMPLETED_CURRENT_CAP
         or type(hot.get("archive_history_count")) is not int or not 0 <= hot["archive_history_count"] <= ARCHIVE_GENERATION_CAP
-        or not isinstance(hot.get("tasks"), list) or len(hot["tasks"]) > ACTIVE_TASK_CAP):
+        or not isinstance(hot.get("tasks"), list) or _active_task_count(hot["tasks"]) > ACTIVE_TASK_CAP):
         raise RuntimeError("WORK_BOARD_V2_HOT_INVALID")
     for root_key, count_key in (("completed_root_hash", "completed_count"),
                                 ("archive_history_root_hash", "archive_history_count")):
@@ -1152,7 +1157,7 @@ def _prepare_generation(root: Path, board: dict, previous_state: dict | None = N
         current.append(current_entry)
         history.append(history_entry)
         max_gen[task_id] = generation
-    if len(active) > ACTIVE_TASK_CAP:
+    if _active_task_count(active) > ACTIVE_TASK_CAP:
         raise RuntimeError("WORK_QUEUE_INVALID: task count")
     if len(current) > COMPLETED_CURRENT_CAP or len(history) > ARCHIVE_GENERATION_CAP:
         raise RuntimeError("WORK_BOARD_V2_COMPLETED_CAPACITY")
