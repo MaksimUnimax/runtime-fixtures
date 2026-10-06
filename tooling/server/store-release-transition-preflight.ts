@@ -32,7 +32,12 @@ type CandidateManifest = {
   };
 };
 
-export type StoreReleaseTransitionTarget = {
+export type StoreReleaseTransitionTarget<
+  BrowserFamily extends string = typeof STORE1_BROWSER,
+  MinimumBrowserVersion extends string = typeof STORE1_BROWSER_MINIMUM,
+  PolicyKey extends string = typeof STORE1_POLICY_KEY,
+  ProfileKey extends string = typeof STORE1_PROFILE_KEY,
+> = {
   source: { head: string; tree: string };
   productVersion: string;
   contractVersion: "control_plane_v2";
@@ -40,14 +45,21 @@ export type StoreReleaseTransitionTarget = {
   artifactSha256: string;
   packageFilename: string;
   packageBytes: number;
-  browserFamily: typeof STORE1_BROWSER;
-  minimumBrowserVersion: typeof STORE1_BROWSER_MINIMUM;
-  policyKey: typeof STORE1_POLICY_KEY;
+  browserFamily: BrowserFamily;
+  minimumBrowserVersion: MinimumBrowserVersion;
+  policyKey: PolicyKey;
   adapterKey: typeof ADAPTER_KEY;
   surfaceKey: typeof STORE1_AI_SURFACE;
-  profileKey: typeof STORE1_PROFILE_KEY;
+  profileKey: ProfileKey;
   profileContentSha256: string;
 };
+
+export type AnyStoreReleaseTransitionTarget = StoreReleaseTransitionTarget<
+  string,
+  string,
+  string,
+  string
+>;
 
 export type TransitionRelease = {
   version: string;
@@ -186,12 +198,14 @@ export type TransitionCheck = {
   detail: string;
 };
 
-export type StoreReleaseTransitionReport = {
+export type StoreReleaseTransitionReport<
+  Target extends AnyStoreReleaseTransitionTarget = StoreReleaseTransitionTarget,
+> = {
   schemaVersion: "store_release_transition_preflight_v1";
   status: "READY" | "MISMATCH" | "UNKNOWN";
   readOnly: true;
   catalogMutationExecuted: false;
-  target: StoreReleaseTransitionTarget;
+  target: Target;
   checks: TransitionCheck[];
   mismatches: TransitionCheck[];
 };
@@ -315,10 +329,12 @@ function unknown(
   return true;
 }
 
-export function analyzeStoreReleaseTransition(
-  target: StoreReleaseTransitionTarget,
+export function analyzeStoreReleaseTransition<
+  Target extends AnyStoreReleaseTransitionTarget,
+>(
+  target: Target,
   catalog: StoreReleaseTransitionCatalog,
-): StoreReleaseTransitionReport {
+): StoreReleaseTransitionReport<Target> {
   const checks: TransitionCheck[] = [];
 
   if (!unknown(catalog, "release", "release", checks)) {
@@ -675,7 +691,7 @@ export function analyzeStoreReleaseTransition(
         "assignment",
         "MISMATCH",
         "ASSIGNMENT_MISSING",
-        "Opera account assignment is missing.",
+        "Target browser account assignment is missing.",
       );
     else if (found.kind === "conflict")
       check(
@@ -683,7 +699,7 @@ export function analyzeStoreReleaseTransition(
         "assignment",
         "MISMATCH",
         "ASSIGNMENT_CONFLICT",
-        "Multiple exact Opera account assignments exist.",
+        "Multiple exact target browser account assignments exist.",
       );
     else if (
       found.value.latest?.mode !== "DIRECT" ||
@@ -789,7 +805,7 @@ async function readOne<T>(
 }
 
 export async function collectStoreReleaseTransitionCatalog(
-  target: StoreReleaseTransitionTarget,
+  target: AnyStoreReleaseTransitionTarget,
   get: ReadOnlyJsonGet,
 ): Promise<StoreReleaseTransitionCatalog> {
   const errors: StoreReleaseTransitionCatalog["errors"] = [];
@@ -893,10 +909,12 @@ export async function collectStoreReleaseTransitionCatalog(
   return catalog;
 }
 
-export async function runStoreReleaseTransitionPreflight(
-  target: StoreReleaseTransitionTarget,
+export async function runStoreReleaseTransitionPreflight<
+  Target extends AnyStoreReleaseTransitionTarget,
+>(
+  target: Target,
   get: ReadOnlyJsonGet,
-): Promise<StoreReleaseTransitionReport> {
+): Promise<StoreReleaseTransitionReport<Target>> {
   return analyzeStoreReleaseTransition(
     target,
     await collectStoreReleaseTransitionCatalog(target, get),

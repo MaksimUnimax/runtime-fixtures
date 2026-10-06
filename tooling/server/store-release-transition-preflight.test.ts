@@ -8,6 +8,7 @@ import {
   analyzeStoreReleaseTransition,
   collectStoreReleaseTransitionCatalog,
   readStoreReleaseTransitionTarget,
+  type AnyStoreReleaseTransitionTarget,
   type StoreReleaseTransitionCatalog,
   type StoreReleaseTransitionTarget,
 } from "./store-release-transition-preflight.js";
@@ -61,7 +62,7 @@ function target(
 }
 
 function exactCatalog(
-  t: StoreReleaseTransitionTarget,
+  t: AnyStoreReleaseTransitionTarget,
 ): StoreReleaseTransitionCatalog {
   return {
     release: {
@@ -154,7 +155,88 @@ function codes(report: ReturnType<typeof analyzeStoreReleaseTransition>) {
   return report.mismatches.map((item) => item.code);
 }
 
+const CHROME_TYPE_TARGET: StoreReleaseTransitionTarget<
+  "chrome",
+  "147",
+  "store1.chrome.v2",
+  "chatgpt-web-chrome-v1"
+> = {
+  source: { head: "3".repeat(40), tree: "4".repeat(40) },
+  productVersion: "0.2.13",
+  contractVersion: "control_plane_v2",
+  migrationLevel: 58,
+  artifactSha256: "7".repeat(64),
+  packageFilename: "Octoport-Chrome-0.2.13.zip",
+  packageBytes: 1,
+  browserFamily: "chrome",
+  minimumBrowserVersion: "147",
+  policyKey: "store1.chrome.v2",
+  adapterKey: "chatgpt",
+  surfaceKey: "web",
+  profileKey: "chatgpt-web-chrome-v1",
+  profileContentSha256: "8".repeat(64),
+};
+
 describe("STORE release transition preflight", () => {
+  it("keeps Opera defaults while allowing a typed Chrome transition target", () => {
+    const opera: StoreReleaseTransitionTarget = target().value;
+    expect(opera).toMatchObject({
+      browserFamily: "opera",
+      minimumBrowserVersion: "136",
+      policyKey: "store1.opera.v2",
+      profileKey: "chatgpt-web-opera-v1",
+    });
+
+    const ready = analyzeStoreReleaseTransition(
+      CHROME_TYPE_TARGET,
+      exactCatalog(CHROME_TYPE_TARGET),
+    );
+    expect(ready.status).toBe("READY");
+    const chromeFamily: "chrome" = ready.target.browserFamily;
+    expect(chromeFamily).toBe("chrome");
+    expect(ready.target).toMatchObject({
+      browserFamily: "chrome",
+      minimumBrowserVersion: "147",
+      policyKey: "store1.chrome.v2",
+      profileKey: "chatgpt-web-chrome-v1",
+    });
+
+    const missingAssignment = exactCatalog(CHROME_TYPE_TARGET);
+    missingAssignment.assignments = [];
+    const mismatch = analyzeStoreReleaseTransition(
+      CHROME_TYPE_TARGET,
+      missingAssignment,
+    );
+    expect(
+      mismatch.checks.find((item) => item.code === "ASSIGNMENT_MISSING"),
+    ).toMatchObject({
+      detail: "Target browser account assignment is missing.",
+    });
+    expect(
+      mismatch.checks.find((item) => item.code === "ASSIGNMENT_MISSING")
+        ?.detail,
+    ).not.toContain("Opera");
+
+    const duplicateAssignment = exactCatalog(CHROME_TYPE_TARGET);
+    duplicateAssignment.assignments = [
+      ...duplicateAssignment.assignments!,
+      { ...duplicateAssignment.assignments![0]!, id: "assignment-duplicate" },
+    ];
+    const conflict = analyzeStoreReleaseTransition(
+      CHROME_TYPE_TARGET,
+      duplicateAssignment,
+    );
+    expect(
+      conflict.checks.find((item) => item.code === "ASSIGNMENT_CONFLICT"),
+    ).toMatchObject({
+      detail: "Multiple exact target browser account assignments exist.",
+    });
+    expect(
+      conflict.checks.find((item) => item.code === "ASSIGNMENT_CONFLICT")
+        ?.detail,
+    ).not.toContain("Opera");
+  });
+
   it("derives the 0.2.10 successor target without changing migration or profile authority", () => {
     const accepted = target("0.2.9");
     const successor = target("0.2.10");
