@@ -3,12 +3,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import { makeWorker } from './worker-harness.mjs';
+import { lateStartRouteCases } from './late-start-route-continuity.mjs';
 const runtime=path.resolve(process.argv[2]);
 const sandbox={URL, TextEncoder};
 vm.createContext(sandbox);
 vm.runInContext(fs.readFileSync(path.join(runtime,'shared/conversation_identity.js'),'utf8'),sandbox);
 const core=sandbox.SellerAgentsConversationIdentity;
 const rows=[];
+for (const [name, run] of lateStartRouteCases(fs.readFileSync(path.join(runtime,'shared/conversation_identity.js'),'utf8'))) { await test('late-route: '+name, run); }
 async function test(name,fn){try{await fn();rows.push({name,status:'PASS'});}catch(error){rows.push({name,status:'FAIL',error:String(error.stack)});}}
 const base={origin:'https://chatgpt.com',provider:'chatgpt',pathname:'/arbitrary/conversation?view=1',surfaceConfirmed:true,hasMessages:true,messageIds:['u-1','a-1'],root:{}};
 function tracker(){let sequence=0;return core.createTracker({newToken:()=>String(++sequence)});}

@@ -62,7 +62,13 @@
         empty: state.ids.size === 0, root: state.root };
       return start.surfaceId;
     }
-    function endStart(intentId) { if (start?.intentId === String(intentId)) start = null; }
+    function endStart(intentId, { retainWitness = false } = {}) {
+      if (start?.intentId !== String(intentId)) return;
+      // Only the completed, witnessed first send may bridge its still-pending
+      // route promotion. Cancellation never authorizes later continuity.
+      if (retainWitness && start.empty && !start.promoted && start.witnessId) start.completed = true;
+      else start = null;
+    }
     function observe(input) {
       const origin = originOf(input.origin), provider = token(input.provider);
       const path = locator(input.pathname || "/", origin)?.path || "";
@@ -70,6 +76,12 @@
       const account = token(input.accountScope);
       const explicit = opaque(input.explicitIds);
       const externalId = explicit.length === 1 ? externalKey(explicit[0]) : null;
+      if (start && start.surfaceId === state?.surfaceId &&
+          start.root === input.root && input.startWitness === start.intentId &&
+          input.startWitnessMessageId && ids.includes(input.startWitnessMessageId) &&
+          (!start.witnessId || start.witnessId === input.startWitnessMessageId)) {
+        start.witnessId = input.startWitnessMessageId;
+      }
       let reason = null;
       if (!state || state.origin !== origin || state.provider !== provider || state.account !== account) reason = "context_changed";
       else if (externalId && state.externalId && externalId !== state.externalId) reason = "external_identity_changed";
@@ -77,10 +89,15 @@
         const sameId = state.identity?.identity_scope === "conversation" &&
           resolveEvidence({ ...input, surfaceId: state.surfaceId }).conversation_id === state.identity.conversation_id;
         const promotion = start && start.empty && start.surfaceId === state.surfaceId &&
-          start.root === input.root && input.startWitness === start.intentId;
+          start.root === input.root && input.startWitness === start.intentId &&
+          (!start.completed || (input.startWitnessMessageId === start.witnessId &&
+            ids.includes(start.witnessId)));
         if (!sameId && !promotion) {
-          if (start && start.empty && start.root === input.root) return { ...state.identity, conversation_id: null, status: "unknown", source: "pending_route_continuity" };
+          if (start && !start.completed && start.empty && start.root === input.root) return { ...state.identity, conversation_id: null, status: "unknown", source: "pending_route_continuity" };
           reason = "navigation";
+        } else if (promotion) {
+          start.promoted = true;
+          if (start.completed) start = null;
         }
       } else if (state.ids.size && ids.length && !ids.some((id) => state.ids.has(id))) {
         // This might be a different dialogue or a virtualized history window.

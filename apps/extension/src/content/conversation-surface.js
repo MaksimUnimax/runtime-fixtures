@@ -45,12 +45,15 @@
       const item = active?.closest?.(".ChatListItem[id]");
       if (item?.id) explicitIds.push(item.id);
     }
-    let startWitness = null;
+    let startWitness = null, startWitnessMessageId = null;
     if (pending && pending.root === root) {
       for (const node of adapter.userMessages?.() || []) {
         const id = adapter.messageId(node);
-        if (id && !pending.baseline.has(id) && text(adapter.messageText(node)) === pending.text) {
+        if (id && (!pending.witnessId || id === pending.witnessId) &&
+            !pending.baseline.has(id) && text(adapter.messageText(node)) === pending.text) {
+          pending.witnessId = id;
           startWitness = pending.intentId;
+          startWitnessMessageId = id;
           break;
         }
       }
@@ -61,7 +64,7 @@
       (composer?.composer?.isConnected || inSurface.length));
     lastInput = { origin, provider, pathname: location.pathname + (location.search || "") + (location.hash || ""), canonicalHref,
       explicitIds, requiresExplicitId: provider === "alice", root,
-      surfaceConfirmed, hasMessages: inSurface.length > 0, messageIds, startWitness,
+      surfaceConfirmed, hasMessages: inSurface.length > 0, messageIds, startWitness, startWitnessMessageId,
       conflict: roots.size > 1 ? "multiple_conversation_surfaces" : null };
     return lastInput;
   }
@@ -94,9 +97,11 @@
       baseline: new Set((adapter.userMessages?.() || []).map((node) => adapter.messageId(node)).filter(Boolean)) };
     return identity;
   }
-  function endStart(intentId) {
-    tracker.endStart(intentId);
-    if (pending?.intentId === String(intentId)) pending = null;
+  function endStart(intentId, reason = "terminal") {
+    const retainWitness = reason === "active_visible" &&
+      pending?.intentId === String(intentId) && Boolean(pending.witnessId);
+    tracker.endStart(intentId, { retainWitness });
+    if (!retainWitness && pending?.intentId === String(intentId)) pending = null;
   }
   function confirmCurrent(adapter) {
     const input = capture(adapter);

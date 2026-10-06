@@ -542,7 +542,7 @@
   {
     "target": "content_script.js",
     "old": "    workStartWatches.delete(key);",
-    "new": "    workStartWatches.delete(key);\n    SellerAgentsConversationSurface.endStart(intentId);"
+    "new": "    workStartWatches.delete(key);\n    SellerAgentsConversationSurface.endStart(intentId, reason);"
   },
   {
     "target": "content_script.js",
