@@ -72,6 +72,22 @@ Each subcommand has `--help` for its exact required arguments.
    that drift is not cleanup authority and grants no broader ref/config mutation.
    Immutable registration/source/review identities remain required.
 
+   One narrower recovery exists only for a `TASK_REF_PUBLISHED` registration whose
+   originally hash-bound review **path itself changed bytes after the exact task ref
+   was already published**. Normal supersede still requires the original review hash.
+   Review-drift retirement instead requires a separate hash-bound
+   `octoport.task-publication-review-drift-retirement-evidence` receipt that binds the
+   registration/task/candidate/tree/exact task ref, the registered review path and
+   expected SHA, the freshly observed different SHA, a fixed evidence-drift
+   classification, nonempty reason and hash-verified supporting evidence. The current
+   work-board row must be role-matched and `BLOCKED`; an active task cannot use this
+   recovery. Matching review bytes, wrong expected/observed hash or path, candidate/
+   diff/manifest/bundle drift, dirty worktree, route/common/global/fixed-role config
+   drift, or a foreign task ref all fail before deletion. Only an absent exact ref may
+   close as `ALREADY_ABSENT`; only a ref still equal to the registered candidate can be
+   CAS-deleted. The path never pushes `main`, never trusts the changed review bytes as
+   approval, and normal supersede semantics remain unchanged.
+
    A distinct fail-closed retirement exists for a registration that already reached
    `READY` and then loses its registered `main` base **before** any MAIN push starts.
    `supersede` first validates the immutable READY receipt (including the exact five

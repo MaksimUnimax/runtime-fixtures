@@ -82,6 +82,22 @@ class PublicationTests(unittest.TestCase):
     def save_board(self):
         (self.control / "controllers/work-board.json").write_text(json.dumps(self.board))
 
+    def mark_task_blocked(self):
+        receipt = self.control / "logs/review-drift-blocker.json"
+        receipt.write_text('{"kind":"fixture-blocker","reason":"review evidence drift"}')
+        self.task.update(
+            state="BLOCKED",
+            blocked_reason="review evidence drift after task-ref publication",
+            blocked_receipt=str(receipt),
+        )
+        self.save_board()
+
+    def mark_task_in_progress(self):
+        self.task["state"] = "IN_PROGRESS"
+        self.task.pop("blocked_reason", None)
+        self.task.pop("blocked_receipt", None)
+        self.save_board()
+
     def write_review(self, manifest_sha=None):
         value = route.make_review_receipt(self.task["id"], self.head, route._tree(self.work),
             self.base, ["product.txt"], route._full_diff_sha(self.work, self.base, self.head),
@@ -335,6 +351,32 @@ class PublicationTests(unittest.TestCase):
             successor or ("a" * 40 if verdict == "SUPERSEDED" else None),
         )
         path = self.control / "logs/supersede.json"
+        path.write_text(json.dumps(value))
+        return path, value, support
+
+    def review_drift_evidence(self, reg, *, observed=None, successor=None):
+        support = self.control / "logs/review-drift-support.json"
+        support.write_text(json.dumps({
+            "kind": "fixture-review-drift-recovery",
+            "candidate_sha": reg["core"]["candidate_head"],
+            "classification": "EVIDENCE_PATH_BYTES_DRIFT_AFTER_TASK_REF_PUBLICATION",
+        }))
+        value = {
+            "kind": "octoport.task-publication-review-drift-retirement-evidence",
+            "version": 1,
+            "registration_id": reg["registration_id"],
+            "task_id": reg["core"]["task_id"],
+            "candidate_sha": reg["core"]["candidate_head"],
+            "candidate_tree": reg["core"]["candidate_tree"],
+            "task_ref": reg["core"]["task_ref"],
+            "classification": "EVIDENCE_PATH_BYTES_DRIFT_AFTER_TASK_REF_PUBLICATION",
+            "expected_review": dict(reg["core"]["review"]),
+            "observed_review_sha256": observed or route._sha_file(self.review),
+            "reason": "The registered review path changed bytes after exact task-ref publication; retire only that exact temporary ref.",
+            "successor_sha": successor,
+            "evidence": [{"path": str(support), "sha256": route._sha_file(support)}],
+        }
+        path = self.control / "logs/review-drift-retirement.json"
         path.write_text(json.dumps(value))
         return path, value, support
 
@@ -2111,6 +2153,259 @@ class PublicationTests(unittest.TestCase):
     def test_process_identity_read_error_is_unknown_not_dead(self):
         with patch.object(Path, "read_text", side_effect=PermissionError("denied")):
             self.assertIsNone(route._process_alive(12345, "7"))
+
+    def test_review_drift_retirement_deletes_only_exact_task_ref_and_closes(self):
+        reg = self.register()
+        reg = route._push_operation(self.control, reg["registration_id"], "TASK_REF")
+        main_before = self.git(self.source, "--git-dir", str(self.remote), "rev-parse", "refs/heads/main")
+        self.mark_task_blocked()
+        self.review.write_text('{"drifted_after_task_ref":true}')
+        evidence_path, _, _ = self.review_drift_evidence(reg, successor="a" * 40)
+        result = self.supersede(reg, evidence_path)
+        self.assertEqual(result["state"], "CLOSED")
+        self.assertEqual(result["task_ref_cleanup_status"], "DELETED")
+        self.assertTrue(result["supersede_evidence"]["review_drift_retirement"])
+        self.assertEqual(
+            route._remote_oid_target(self.work, reg["core"]["push_target"], reg["core"]["task_ref"]),
+            route.ZERO_OID,
+        )
+        self.assertEqual(
+            self.git(self.source, "--git-dir", str(self.remote), "rev-parse", "refs/heads/main"),
+            main_before,
+        )
+
+    def test_normal_supersede_still_rejects_drifted_registered_review(self):
+        reg = self.register()
+        reg = route._push_operation(self.control, reg["registration_id"], "TASK_REF")
+        evidence_path, _, _ = self.supersede_evidence(reg, verdict="FAIL")
+        self.review.write_text('{"drifted_after_task_ref":true}')
+        with self.assertRaisesRegex(RuntimeError, "REVIEW_HASH_MISMATCH"):
+            self.supersede(reg, evidence_path)
+        self.assertEqual(
+            route._remote_oid_target(self.work, reg["core"]["push_target"], reg["core"]["task_ref"]),
+            self.head,
+        )
+
+    def test_review_drift_retirement_requires_real_exact_hash_drift_and_blocked_task(self):
+        reg = self.register()
+        reg = route._push_operation(self.control, reg["registration_id"], "TASK_REF")
+        self.mark_task_blocked()
+        matching_path, _, _ = self.review_drift_evidence(reg)
+        with self.assertRaisesRegex(RuntimeError, "REVIEW_DRIFT_NOT_PRESENT"):
+            self.supersede(reg, matching_path)
+
+        self.review.write_text('{"drifted_after_task_ref":true}')
+        correct_path, correct, _ = self.review_drift_evidence(reg)
+        wrong_observed = copy.deepcopy(correct)
+        wrong_observed["observed_review_sha256"] = "f" * 64
+        correct_path.write_text(json.dumps(wrong_observed))
+        with self.assertRaisesRegex(RuntimeError, "REVIEW_DRIFT_OBSERVED_HASH_MISMATCH"):
+            self.supersede(reg, correct_path)
+
+        wrong_expected = copy.deepcopy(correct)
+        wrong_expected["expected_review"] = dict(wrong_expected["expected_review"])
+        wrong_expected["expected_review"]["sha256"] = "e" * 64
+        correct_path.write_text(json.dumps(wrong_expected))
+        with self.assertRaisesRegex(RuntimeError, "REVIEW_DRIFT_EXPECTED_REVIEW_MISMATCH"):
+            self.supersede(reg, correct_path)
+
+        correct_path.write_text(json.dumps(correct))
+        self.mark_task_in_progress()
+        with self.assertRaisesRegex(RuntimeError, "REVIEW_DRIFT_TASK_MUST_BE_BLOCKED"):
+            self.supersede(reg, correct_path)
+        self.assertEqual(
+            route._remote_oid_target(self.work, reg["core"]["push_target"], reg["core"]["task_ref"]),
+            self.head,
+        )
+
+    def test_review_drift_retirement_requires_exact_schema_and_integer_version(self):
+        reg = self.register()
+        reg = route._push_operation(self.control, reg["registration_id"], "TASK_REF")
+        self.mark_task_blocked()
+        self.review.write_text('{"drifted_after_task_ref":true}')
+        evidence_path, value, _ = self.review_drift_evidence(reg)
+
+        cases = [
+            ("extra key", dict(value, unexpected_field="forbidden"),
+             "REVIEW_DRIFT_EVIDENCE_SCHEMA_INVALID"),
+            ("boolean version", dict(value, version=True),
+             "REVIEW_DRIFT_EVIDENCE_VERSION_INVALID"),
+            ("string version", dict(value, version="1"),
+             "REVIEW_DRIFT_EVIDENCE_VERSION_INVALID"),
+        ]
+        for label, invalid, error in cases:
+            with self.subTest(label=label):
+                evidence_path.write_text(json.dumps(invalid))
+                with self.assertRaisesRegex(RuntimeError, error):
+                    self.supersede(reg, evidence_path)
+
+        current, _ = route._read_registration(self.control, reg["registration_id"])
+        self.assertEqual(current["state"], "TASK_REF_PUBLISHED")
+        self.assertEqual(
+            route._remote_oid_target(self.work, reg["core"]["push_target"], reg["core"]["task_ref"]),
+            self.head,
+        )
+
+    def test_review_drift_retirement_requires_supporting_evidence(self):
+        reg = self.register()
+        reg = route._push_operation(self.control, reg["registration_id"], "TASK_REF")
+        self.mark_task_blocked()
+        self.review.write_text('{"drifted_after_task_ref":true}')
+        evidence_path, value, _ = self.review_drift_evidence(reg)
+        value["evidence"] = []
+        evidence_path.write_text(json.dumps(value))
+        with self.assertRaisesRegex(RuntimeError, "SUPERSEDE_SUPPORTING_EVIDENCE_REQUIRED"):
+            self.supersede(reg, evidence_path)
+        current, _ = route._read_registration(self.control, reg["registration_id"])
+        self.assertEqual(current["state"], "TASK_REF_PUBLISHED")
+        self.assertEqual(
+            route._remote_oid_target(self.work, reg["core"]["push_target"], reg["core"]["task_ref"]),
+            self.head,
+        )
+
+    def test_review_drift_retirement_rejects_wrong_or_missing_registered_review_path(self):
+        reg = self.register()
+        reg = route._push_operation(self.control, reg["registration_id"], "TASK_REF")
+        self.mark_task_blocked()
+        self.review.write_text('{"drifted_after_task_ref":true}')
+        evidence_path, value, _ = self.review_drift_evidence(reg)
+
+        wrong_path = copy.deepcopy(value)
+        wrong_path["expected_review"] = dict(wrong_path["expected_review"])
+        wrong_path["expected_review"]["path"] = str(self.control / "logs/wrong-review.json")
+        evidence_path.write_text(json.dumps(wrong_path))
+        with self.assertRaisesRegex(RuntimeError, "REVIEW_DRIFT_EXPECTED_REVIEW_MISMATCH"):
+            self.supersede(reg, evidence_path)
+
+        evidence_path.write_text(json.dumps(value))
+        self.review.unlink()
+        with self.assertRaisesRegex(RuntimeError, "CONTROL_EVIDENCE_REQUIRED"):
+            self.supersede(reg, evidence_path)
+        current, _ = route._read_registration(self.control, reg["registration_id"])
+        self.assertEqual(current["state"], "TASK_REF_PUBLISHED")
+        self.assertEqual(
+            route._remote_oid_target(self.work, reg["core"]["push_target"], reg["core"]["task_ref"]),
+            self.head,
+        )
+
+    def test_review_drift_retirement_rejects_ready_board_state(self):
+        reg = self.register()
+        reg = route._push_operation(self.control, reg["registration_id"], "TASK_REF")
+        self.task["state"] = "READY"
+        self.save_board()
+        self.review.write_text('{"drifted_after_task_ref":true}')
+        evidence_path, _, _ = self.review_drift_evidence(reg)
+        with self.assertRaisesRegex(RuntimeError, "REVIEW_DRIFT_TASK_MUST_BE_BLOCKED"):
+            self.supersede(reg, evidence_path)
+        current, _ = route._read_registration(self.control, reg["registration_id"])
+        self.assertEqual(current["state"], "TASK_REF_PUBLISHED")
+        self.assertEqual(
+            route._remote_oid_target(self.work, reg["core"]["push_target"], reg["core"]["task_ref"]),
+            self.head,
+        )
+
+    def test_review_drift_retirement_requires_task_ref_published_registration(self):
+        reg = self.register()
+        self.mark_task_blocked()
+        self.review.write_text('{"drifted_before_task_ref":true}')
+        evidence_path, _, _ = self.review_drift_evidence(reg)
+        with self.assertRaisesRegex(RuntimeError, "REVIEW_DRIFT_RETIREMENT_PRESTATE_INVALID"):
+            self.supersede(reg, evidence_path)
+        current, _ = route._read_registration(self.control, reg["registration_id"])
+        self.assertEqual(current["state"], "REGISTERED")
+
+    def test_review_drift_retirement_closes_when_exact_task_ref_is_already_absent(self):
+        reg = self.register()
+        reg = route._push_operation(self.control, reg["registration_id"], "TASK_REF")
+        self.mark_task_blocked()
+        self.review.write_text('{"drifted_after_task_ref":true}')
+        evidence_path, _, _ = self.review_drift_evidence(reg)
+        self.git(
+            self.source, "--git-dir", str(self.remote), "update-ref", "-d", reg["core"]["task_ref"]
+        )
+        result = self.supersede(reg, evidence_path)
+        self.assertEqual(result["state"], "CLOSED")
+        self.assertEqual(result["task_ref_cleanup_status"], "ALREADY_ABSENT")
+        self.assertEqual(self.supersede(result, evidence_path)["state"], "CLOSED")
+
+    def test_review_drift_retirement_closed_replay_does_not_depend_on_later_board_state(self):
+        reg = self.register()
+        reg = route._push_operation(self.control, reg["registration_id"], "TASK_REF")
+        self.mark_task_blocked()
+        self.review.write_text('{"drifted_after_task_ref":true}')
+        evidence_path, _, _ = self.review_drift_evidence(reg)
+        result = self.supersede(reg, evidence_path)
+        self.assertEqual(result["state"], "CLOSED")
+        self.mark_task_in_progress()
+        replay = self.supersede(result, evidence_path)
+        self.assertEqual(replay["state"], "CLOSED")
+        self.assertEqual(replay["supersede_evidence"]["sha256"], route._sha_file(evidence_path))
+
+    def test_review_drift_retirement_rejects_foreign_ref_and_dirty_candidate(self):
+        reg = self.register()
+        reg = route._push_operation(self.control, reg["registration_id"], "TASK_REF")
+        self.mark_task_blocked()
+        self.review.write_text('{"drifted_after_task_ref":true}')
+        evidence_path, _, _ = self.review_drift_evidence(reg)
+        self.git(
+            self.source, "--git-dir", str(self.remote), "update-ref",
+            reg["core"]["task_ref"], self.base,
+        )
+        with self.assertRaisesRegex(RuntimeError, "REVIEW_DRIFT_RETIREMENT_FOREIGN_TASK_REF"):
+            self.supersede(reg, evidence_path)
+        self.assertEqual(
+            route._remote_oid_target(self.work, reg["core"]["push_target"], reg["core"]["task_ref"]),
+            self.base,
+        )
+        current, _ = route._read_registration(self.control, reg["registration_id"])
+        self.assertEqual(current["state"], "TASK_REF_PUBLISHED")
+
+        self.git(
+            self.source, "--git-dir", str(self.remote), "update-ref",
+            reg["core"]["task_ref"], self.head,
+        )
+        (self.work / "product.txt").write_text("dirty candidate\n")
+        with self.assertRaisesRegex(RuntimeError, "WORKTREE_DIRTY"):
+            self.supersede(reg, evidence_path)
+        self.assertEqual(
+            route._remote_oid_target(self.work, reg["core"]["push_target"], reg["core"]["task_ref"]),
+            self.head,
+        )
+
+    def test_review_drift_retirement_config_drift_fails_before_task_ref_mutation(self):
+        reg = self.register()
+        reg = route._push_operation(self.control, reg["registration_id"], "TASK_REF")
+        self.mark_task_blocked()
+        self.review.write_text('{"drifted_after_task_ref":true}')
+        evidence_path, _, _ = self.review_drift_evidence(reg)
+        ref = reg["core"]["task_ref"]
+        self.git(self.work, "config", "--worktree", "core.hooksPath", "drifted-review-route")
+
+        with self.assertRaisesRegex(RuntimeError, "ROUTE_CONFIG_SAME_KEY_DRIFT:core.hooksPath"):
+            self.supersede(reg, evidence_path)
+
+        current, _ = route._read_registration(self.control, reg["registration_id"])
+        self.assertEqual(current["state"], "TASK_REF_PUBLISHED")
+        self.assertEqual(
+            route._remote_oid_target(self.work, reg["core"]["push_target"], ref),
+            self.head,
+        )
+
+    def test_review_drift_retirement_preserves_manifest_binding(self):
+        manifest_path, _ = self.manifest()
+        self.write_review(route._sha_file(manifest_path))
+        reg = self.register(manifest_path=str(manifest_path), manifest_sha=route._sha_file(manifest_path))
+        reg = route._push_operation(self.control, reg["registration_id"], "TASK_REF")
+        self.mark_task_blocked()
+        self.review.write_text('{"drifted_after_task_ref":true}')
+        evidence_path, _, _ = self.review_drift_evidence(reg)
+        manifest_path.write_text(manifest_path.read_text() + "\n")
+        with self.assertRaisesRegex(RuntimeError, "ACCEPTED_MANIFEST_HASH_MISMATCH"):
+            self.supersede(reg, evidence_path)
+        self.assertEqual(
+            route._remote_oid_target(self.work, reg["core"]["push_target"], reg["core"]["task_ref"]),
+            self.head,
+        )
 
     def test_supersede_rejects_evidence_drift_and_armed_lease_then_preserves_evidence(self):
         reg = self.register()

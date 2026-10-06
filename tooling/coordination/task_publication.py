@@ -2045,16 +2045,10 @@ def _validate_registration_identity(root: Path, reg: dict[str, Any], *, require_
     return task
 
 
-def _validate_supersede_registration_identity(
+def _validate_supersede_registration_core_identity(
     root: Path, reg: dict[str, Any], *, require_clean: bool = True,
 ) -> dict[str, Any]:
-    """Validate immutable registration/candidate identity without current task ownership.
-
-    Supersession is intentionally allowed after a reviewed successor changes the live
-    work-board fingerprint.  That drift grants no extra authority: this validator binds
-    only the original registration, candidate, exact task ref and preserved source
-    evidence.  Remote deletion is limited separately to that exact ref/candidate pair.
-    """
+    """Validate supersede identity except the mutable review evidence path bytes."""
     core = reg.get("core", {})
     registration_id = reg.get("registration_id")
     if not registration_id or reg.get("registration_sha256") != registration_id:
@@ -2085,12 +2079,6 @@ def _validate_supersede_registration_identity(
         raise PublicationError("OWNERSHIP_POLICY_DRIFT")
     if any(not _path_owned(path, core["role"], ownership) for path in changed):
         raise PublicationError("OWNERSHIP_SCOPE_DRIFT")
-    review = core["review"]
-    _review_identity(
-        root, review["path"], review["sha256"], core["task_id"], core["candidate_head"],
-        core["candidate_tree"], core["base_sha"], core["changed_paths"], core["full_diff_sha256"],
-        (core.get("accepted_manifest") or {}).get("sha256"), core["task_fingerprint"],
-    )
     accepted = core.get("accepted_manifest")
     if accepted:
         manifest = _manifest_entry(root, accepted["path"], accepted["sha256"], core["task_id"], worktree)
@@ -2100,6 +2088,37 @@ def _validate_supersede_registration_identity(
             raise PublicationError("ACCEPTED_PATCH_IDENTITY_DRIFT")
     _verify_bundle(Path(core["bundle_path"]), core["bundle_manifest_sha256"])
     return {"worktree": worktree, "changed_paths": changed}
+
+
+def _validate_supersede_registration_identity(
+    root: Path, reg: dict[str, Any], *, require_clean: bool = True,
+) -> dict[str, Any]:
+    """Validate immutable registration/candidate identity and original review evidence."""
+    result = _validate_supersede_registration_core_identity(root, reg, require_clean=require_clean)
+    core = reg["core"]
+    review = core["review"]
+    _review_identity(
+        root, review["path"], review["sha256"], core["task_id"], core["candidate_head"],
+        core["candidate_tree"], core["base_sha"], core["changed_paths"], core["full_diff_sha256"],
+        (core.get("accepted_manifest") or {}).get("sha256"), core["task_fingerprint"],
+    )
+    return result
+
+
+def _validate_supersede_supporting_evidence(root: Path, value: dict[str, Any]) -> list[dict[str, str]]:
+    evidence = value.get("evidence")
+    if not isinstance(evidence, list) or not evidence:
+        raise PublicationError("SUPERSEDE_SUPPORTING_EVIDENCE_REQUIRED")
+    normalized = []
+    for item in evidence:
+        if not isinstance(item, dict) or set(item) != {"path", "sha256"}:
+            raise PublicationError("SUPERSEDE_SUPPORTING_EVIDENCE_INVALID")
+        ep = _require_control_evidence(root, item.get("path", ""))
+        sha = item.get("sha256")
+        if not SHA64_RE.fullmatch(str(sha or "")) or _sha_file(ep) != sha:
+            raise PublicationError("SUPERSEDE_SUPPORTING_EVIDENCE_HASH_MISMATCH")
+        normalized.append({"path": str(ep), "sha256": sha})
+    return normalized
 
 
 def _validate_supersede_evidence(
@@ -2133,24 +2152,116 @@ def _validate_supersede_evidence(
             raise PublicationError("SUPERSEDE_SUCCESSOR_IDENTITY_REQUIRED")
     elif successor is not None and not SHA40_RE.fullmatch(str(successor)):
         raise PublicationError("SUPERSEDE_SUCCESSOR_IDENTITY_INVALID")
-    evidence = value.get("evidence")
-    if not isinstance(evidence, list) or not evidence:
-        raise PublicationError("SUPERSEDE_SUPPORTING_EVIDENCE_REQUIRED")
-    normalized = []
-    for item in evidence:
-        if not isinstance(item, dict) or set(item) != {"path", "sha256"}:
-            raise PublicationError("SUPERSEDE_SUPPORTING_EVIDENCE_INVALID")
-        ep = _require_control_evidence(root, item.get("path", ""))
-        sha = item.get("sha256")
-        if not SHA64_RE.fullmatch(str(sha or "")) or _sha_file(ep) != sha:
-            raise PublicationError("SUPERSEDE_SUPPORTING_EVIDENCE_HASH_MISMATCH")
-        normalized.append({"path": str(ep), "sha256": sha})
+    normalized = _validate_supersede_supporting_evidence(root, value)
     return {
         "path": str(path), "sha256": evidence_sha, "verdict": verdict,
         "reason": value["reason"].strip(), "successor_sha": successor,
         "evidence": normalized,
     }
 
+
+def _validate_review_drift_supersede_evidence(
+    root: Path, reg: dict[str, Any], evidence_path: str | os.PathLike[str], evidence_sha: str,
+    *, require_blocked_task: bool = True,
+) -> dict[str, Any]:
+    path = _require_control_evidence(root, evidence_path)
+    if not SHA64_RE.fullmatch(str(evidence_sha)) or _sha_file(path) != evidence_sha:
+        raise PublicationError("SUPERSEDE_EVIDENCE_HASH_MISMATCH")
+    value = _load_json(path)
+    core = reg["core"]
+    required = {
+        "kind": "octoport.task-publication-review-drift-retirement-evidence",
+        "version": 1,
+        "registration_id": reg["registration_id"],
+        "task_id": core["task_id"],
+        "candidate_sha": core["candidate_head"],
+        "candidate_tree": core["candidate_tree"],
+        "task_ref": core["task_ref"],
+        "classification": "EVIDENCE_PATH_BYTES_DRIFT_AFTER_TASK_REF_PUBLICATION",
+    }
+    expected_keys = set(required) | {
+        "expected_review",
+        "observed_review_sha256",
+        "reason",
+        "successor_sha",
+        "evidence",
+    }
+    if set(value) != expected_keys:
+        raise PublicationError("REVIEW_DRIFT_EVIDENCE_SCHEMA_INVALID")
+    if type(value.get("version")) is not int:
+        raise PublicationError("REVIEW_DRIFT_EVIDENCE_VERSION_INVALID")
+    for key, expected in required.items():
+        if value.get(key) != expected:
+            raise PublicationError(f"REVIEW_DRIFT_EVIDENCE_IDENTITY_MISMATCH:{key}")
+    expected_review = value.get("expected_review")
+    if expected_review != core.get("review"):
+        raise PublicationError("REVIEW_DRIFT_EXPECTED_REVIEW_MISMATCH")
+    observed = value.get("observed_review_sha256")
+    if not SHA64_RE.fullmatch(str(observed or "")):
+        raise PublicationError("REVIEW_DRIFT_OBSERVED_HASH_REQUIRED")
+    review_path = _require_control_evidence(root, core["review"]["path"])
+    actual = _sha_file(review_path)
+    if actual != observed:
+        raise PublicationError("REVIEW_DRIFT_OBSERVED_HASH_MISMATCH")
+    if actual == core["review"]["sha256"]:
+        raise PublicationError("REVIEW_DRIFT_NOT_PRESENT")
+    if not isinstance(value.get("reason"), str) or not value["reason"].strip():
+        raise PublicationError("SUPERSEDE_EVIDENCE_REASON_REQUIRED")
+    successor = value.get("successor_sha")
+    if successor is not None:
+        if not SHA40_RE.fullmatch(str(successor)) or successor == core["candidate_head"]:
+            raise PublicationError("REVIEW_DRIFT_SUCCESSOR_IDENTITY_INVALID")
+    if require_blocked_task:
+        board = _load_board(root)
+        task = _task_from_board(board, core["task_id"])
+        if task.get("role") != core["role"] or task.get("state") != "BLOCKED":
+            raise PublicationError("REVIEW_DRIFT_TASK_MUST_BE_BLOCKED")
+    normalized = _validate_supersede_supporting_evidence(root, value)
+    return {
+        "path": str(path), "sha256": evidence_sha, "verdict": "REWORK_REQUIRED",
+        "reason": value["reason"].strip(), "successor_sha": successor,
+        "evidence": normalized, "review_drift_retirement": True,
+        "expected_review": dict(core["review"]), "observed_review_sha256": observed,
+        "classification": required["classification"],
+    }
+
+
+def _validate_supersede_evidence_by_kind(
+    root: Path, reg: dict[str, Any], evidence_path: str | os.PathLike[str], evidence_sha: str,
+    *, require_blocked_task: bool = True,
+) -> dict[str, Any]:
+    path = _require_control_evidence(root, evidence_path)
+    if not SHA64_RE.fullmatch(str(evidence_sha)) or _sha_file(path) != evidence_sha:
+        raise PublicationError("SUPERSEDE_EVIDENCE_HASH_MISMATCH")
+    kind = _load_json(path).get("kind")
+    if kind == "octoport.task-publication-supersede-evidence":
+        return _validate_supersede_evidence(root, reg, path, evidence_sha)
+    if kind == "octoport.task-publication-review-drift-retirement-evidence":
+        return _validate_review_drift_supersede_evidence(
+            root, reg, path, evidence_sha, require_blocked_task=require_blocked_task
+        )
+    raise PublicationError("SUPERSEDE_EVIDENCE_KIND_INVALID")
+
+
+def _validate_supersede_request(
+    root: Path, reg: dict[str, Any], evidence_path: str | os.PathLike[str], evidence_sha: str,
+    *, require_clean: bool = True,
+) -> dict[str, Any]:
+    path = _require_control_evidence(root, evidence_path)
+    if not SHA64_RE.fullmatch(str(evidence_sha)) or _sha_file(path) != evidence_sha:
+        raise PublicationError("SUPERSEDE_EVIDENCE_HASH_MISMATCH")
+    kind = _load_json(path).get("kind")
+    if kind == "octoport.task-publication-supersede-evidence":
+        _validate_supersede_registration_identity(root, reg, require_clean=require_clean)
+    elif kind == "octoport.task-publication-review-drift-retirement-evidence":
+        _validate_supersede_registration_core_identity(root, reg, require_clean=require_clean)
+        # Review-drift recovery deliberately skips only the mutated review bytes.
+        # Route/common/global/fixed-role config must still match the immutable
+        # registration before any task-ref retirement can be prepared.
+        _validate_ready_retirement_config(reg)
+    else:
+        raise PublicationError("SUPERSEDE_EVIDENCE_KIND_INVALID")
+    return _validate_supersede_evidence_by_kind(root, reg, path, evidence_sha)
 
 def _role_and_coord_locks(root: Path, role: str):
     class Locks:
@@ -2310,7 +2421,6 @@ def _prepare_supersede_push_locked(
         raise PublicationError(f"SUPERSEDE_PRESTATE_INVALID:{reg.get('state')}")
     if not _no_armed_leases(root, reg["registration_id"]):
         raise PublicationError("SUPERSEDE_ARMED_LEASE_PRESENT")
-    _validate_supersede_registration_identity(root, reg, require_clean=True)
     ready_retirement = reg.get("ready_base_drift_retirement")
     if ready_retirement is not None:
         if not isinstance(ready_retirement, dict):
@@ -2327,7 +2437,9 @@ def _prepare_supersede_push_locked(
         )
         if current_main != ready_retirement.get("observed_remote_main"):
             raise PublicationError("SUPERSEDE_READY_REMOTE_MAIN_DRIFT")
-    verified = _validate_supersede_evidence(root, reg, evidence["path"], evidence["sha256"])
+    verified = _validate_supersede_request(
+        root, reg, evidence["path"], evidence["sha256"], require_clean=True
+    )
     if verified != evidence:
         raise PublicationError("SUPERSEDE_EVIDENCE_DRIFT")
     _verify_bundle(bundle, bundle_manifest_sha)
@@ -2699,9 +2811,10 @@ def _settle_after_push_locked(root: Path, reg: dict[str, Any], lease: dict[str, 
     next_state, reason = settlement["settlement_outcome"], settlement["reason"]
     try:
         if lease["push_kind"] == "SUPERSEDE_TASK_REF":
-            _validate_supersede_registration_identity(root, reg)
             evidence = reg.get("supersede_evidence", {})
-            _validate_supersede_evidence(root, reg, evidence.get("path", ""), evidence.get("sha256", ""))
+            _validate_supersede_request(
+                root, reg, evidence.get("path", ""), evidence.get("sha256", "")
+            )
             bundle = reg.get("supersede_bundle", {})
             _verify_bundle(Path(bundle.get("path", "")), bundle.get("sha256", ""))
         else:
@@ -2991,7 +3104,9 @@ def supersede_registration(
         if reg.get("state") in {"REVOKED", "CLOSED"}:
             if not isinstance(stored, dict):
                 raise PublicationError("SUPERSEDE_TERMINAL_EVIDENCE_REQUIRED")
-            verified = _validate_supersede_evidence(root, reg, evidence_path, evidence_sha)
+            verified = _validate_supersede_evidence_by_kind(
+                root, reg, evidence_path, evidence_sha, require_blocked_task=False
+            )
             if stored.get("path") != verified["path"] or stored.get("sha256") != verified["sha256"]:
                 raise PublicationError("SUPERSEDE_EVIDENCE_DRIFT")
             if reg.get("state") == "CLOSED":
@@ -3003,7 +3118,12 @@ def supersede_registration(
                 raise PublicationError(f"SUPERSEDE_PRESTATE_INVALID:{state}")
             if not _no_armed_leases(root, registration_id):
                 raise PublicationError("SUPERSEDE_ARMED_LEASE_PRESENT")
-            _validate_supersede_registration_identity(root, reg, require_clean=True)
+            evidence = _validate_supersede_request(
+                root, reg, evidence_path, evidence_sha, require_clean=True
+            )
+            review_drift_retirement = bool(evidence.get("review_drift_retirement"))
+            if review_drift_retirement and state != "TASK_REF_PUBLISHED":
+                raise PublicationError("REVIEW_DRIFT_RETIREMENT_PRESTATE_INVALID")
             if state == "READY":
                 # READY base-drift retirement is stricter than ordinary supersede:
                 # no task-ref mutation is allowed while route/config identity drifts.
@@ -3012,7 +3132,6 @@ def supersede_registration(
                 # does not require CI to still be publication-fresh: this path can
                 # only revoke stale publication authority and never writes main.
                 _validate_ready_receipt(root, reg, require_fresh_ci=False)
-            evidence = _validate_supersede_evidence(root, reg, evidence_path, evidence_sha)
             if stored and (stored.get("path") != evidence["path"] or stored.get("sha256") != evidence["sha256"]):
                 raise PublicationError("SUPERSEDE_EVIDENCE_DRIFT")
             core = reg["core"]
@@ -3078,6 +3197,8 @@ def supersede_registration(
                     )
                     should_close = True
                 elif current != core["candidate_head"]:
+                    if review_drift_retirement:
+                        raise PublicationError("REVIEW_DRIFT_RETIREMENT_FOREIGN_TASK_REF")
                     reg = _state_transition(
                         root, registration_id, {"TASK_REF_PUBLISHED"}, "REVOKED",
                         dict(base_updates, task_ref_cleanup_status="FOREIGN_RETAINED"),
@@ -3306,8 +3427,7 @@ def hook_main(argv: list[str] | None = None, stdin: Iterable[str] | None = None)
             if (len(argv) != 3 or argv[2] != core["push_target"] or
                     argv[1] not in {core["remote"], core["push_target"]}):
                 raise PublicationError("HOOK_PUSH_TARGET_MISMATCH")
-            _validate_supersede_registration_identity(root, reg)
-            _validate_supersede_evidence(
+            _validate_supersede_request(
                 root, reg, evidence.get("path", ""), evidence.get("sha256", "")
             )
             ready_retirement = reg.get("ready_base_drift_retirement")
