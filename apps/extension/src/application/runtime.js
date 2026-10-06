@@ -1260,6 +1260,30 @@ function saSupportTransportClass(value) {
   const transportClass = typeof value === "string" ? value : "";
   return SA_SUPPORT_TRANSPORT_CLASSES.has(transportClass) ? transportClass : null;
 }
+// Only known lifecycle reasons are translated; never expose arbitrary reason text.
+function saPendingStartDiagnostic(row) {
+  if (row.reason === "bound_after_first_response") return { stage: "active", code: null, outcome: "active" };
+  if (row.reason === "operator_finish") return { stage: "finished", code: null, outcome: "finished" };
+  const reasons = {
+    response_timeout: ["failed", "WORK_PENDING_TIMEOUT"],
+    identity_mismatch: ["failed", "WORK_PENDING_IDENTITY_MISMATCH"],
+    surface_changed: ["cancelled", "WORK_PENDING_SURFACE_CHANGED"],
+    conversation_changed: ["cancelled", "WORK_PENDING_CONVERSATION_CHANGED"],
+    store_changed: ["cancelled", "WORK_PENDING_STORE_CHANGED"],
+    authority_changed: ["cancelled", "WORK_PENDING_AUTHORITY_CHANGED"],
+    content_cancelled: ["cancelled", "WORK_PENDING_CONTENT_CANCELLED"],
+    tab_closed: ["cancelled", "WORK_PENDING_TAB_CLOSED"],
+    binding_failed: ["failed", "WORK_PENDING_BIND_FAILED"],
+    send_failed_before_commit: ["failed", "WORK_START_SEND_FAILED"],
+    send_failed_before_irreversible_click: ["failed", "WORK_START_SEND_FAILED"],
+  };
+  const known = Object.hasOwn(reasons, row.reason) ? reasons[row.reason] : null;
+  return {
+    stage: "terminal",
+    code: known?.[1] || saSupportCode(row.code) || saSupportCode(row.reason) || "WORK_PENDING_TERMINATED",
+    outcome: known?.[0] || "failed",
+  };
+}
 async function saLastStartDiagnostic(tabId = null) {
   const requestedTab = tabId == null ? null : Number(tabId);
   const targetTab = Number.isInteger(requestedTab) && requestedTab > 0 ? requestedTab : null;
@@ -1273,8 +1297,9 @@ async function saLastStartDiagnostic(tabId = null) {
     const row = rows[index] || {};
     if (targetTab != null && Number(row.tab_id) !== targetTab) continue;
     const event = String(row.event || "");
-    if (event === "WORK_PENDING_START_TERMINAL") {
-      return { stage: "terminal", code: saSupportCode(row.reason) || saSupportCode(row.code), outcome: "failed" };
+    if (event === "WORK_PENDING_START_TERMINAL") return saPendingStartDiagnostic(row);
+    if (event === "WORK_PENDING_START_CANCELLED_TAB_CLOSED") {
+      return saPendingStartDiagnostic({ reason: "tab_closed" });
     }
     if (event === "WORK_START_ACTIVE_VISIBLE") return { stage: "active", code: null, outcome: "active" };
     if (event === "WORK_START_ACTION_RESULT") {

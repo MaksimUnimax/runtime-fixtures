@@ -164,14 +164,64 @@ def main():
             assert active["context"]["store_id"] == store["id"]
             assert not active["pending"]
             report["cases"].append({"name": "one-popup-click-one-message-then-bind-after-address-appears", "status": "PASS"})
+            diagnostic = worker.evaluate("async id=>saLastStartDiagnostic(id)", tab_id)
+            assert diagnostic == {"stage": "active", "code": None, "outcome": "active"}, diagnostic
+            report["cases"].append({"name": "successful-binding-reported-active-not-failed", "status": "PASS"})
+            page.evaluate("""()=>fixtureCurrentChatGPTBlock('OZON_HELP_V2 {"cluster":"catalog_products"}')""")
+            page.locator("[data-assistant-stream-block]").last.scroll_into_view_if_needed()
+            button = page.locator(".ozon-bridge-block-action").last
+            button.wait_for(timeout=10000)
+            assert button.inner_text() == "Ozon"
+            popup.click("#visibility")
+            wait_for(lambda: page.locator(".ozon-bridge-block-action").count() == 0, "hidden command button")
+            popup.click("#visibility")
+            wait_for(lambda: page.locator(".ozon-bridge-block-action").count() == 1, "restored command button")
+            assert page.evaluate("sent.length") == 1
+            report["cases"].append({"name": "modern-help-button-hide-show-without-send", "status": "PASS"})
+            button.click()
+            page.wait_for_function("sent.length === 2", timeout=30000)
+            assert page.evaluate("sent[1].startsWith('OZON_')")
+            assert page.url == target
+            report["cases"].append({"name": "help-button-delivers-result-in-bound-dialogue", "status": "PASS"})
+            page.screenshot(path=str(args.output / "chrome-help-result.png"))
             fixture.reload_popup()
             fixture.click_start()
-            assert page.evaluate("sent.length") == 1
+            assert page.evaluate("sent.length") == 2
             report["cases"].append({"name": "popup-reopen-and-repeated-start-do-not-resend", "status": "PASS"})
             popup.click("#finish")
             wait_for(lambda: not fixture.state()["context"]["work_active"], "Finish", 10)
-            assert page.evaluate("sent.length") == 1
-            report["cases"].append({"name": "finish-does-not-resend", "status": "PASS"})
+            assert page.evaluate("sent.length") == 2
+            wait_for(lambda: page.locator(".ozon-bridge-block-action").count() == 0, "finished command buttons")
+            report["cases"].append({"name": "finish-removes-buttons-without-resend", "status": "PASS"})
+            # Restart on an existing conversation; the old HELP remains history.
+            fixture.click_start()
+            wait_for(lambda: ((fixture.state().get("work") or {}).get("state") == "active_visible" and not fixture.state().get("pending")), "existing-dialogue restart", 25)
+            assert page.evaluate("sent.length") == 3
+            assert page.locator(".ozon-bridge-block-action").count() == 0
+            report["cases"].append({"name": "existing-dialogue-start-once-old-help-not-executable", "status": "PASS"})
+            popup.click("#finish")
+            wait_for(lambda: not fixture.state()["context"]["work_active"], "final Finish", 10)
+            wb = fixture.add_wb("Synthetic Chrome WB store")
+            fixture.click_start()
+            popup.locator("#confirm").click()
+            wait_for(lambda: ((s := fixture.state()).get("context", {}).get("store_id") == wb["id"] and (s.get("work") or {}).get("state") == "active_visible" and not s.get("pending")), "WB store binding", 25)
+            assert page.evaluate("sent.length") == 4
+            assert page.evaluate("sent[3].includes('WB_HELP_V1')")
+            page.evaluate("""()=>fixtureCurrentChatGPTBlock('WB_HELP_V1 {"operation":"describe","params":{"alias":"seller_info"}}')""")
+            page.locator("[data-assistant-stream-block]").last.scroll_into_view_if_needed()
+            wb_button = page.locator(".ozon-bridge-block-action").last
+            wb_button.wait_for(timeout=10000)
+            assert wb_button.inner_text() == "WB"
+            report["cases"].append({"name": "confirmed-store-change-starts-wb-once-and-shows-wb-button", "status": "PASS"})
+            wb_button.click()
+            page.wait_for_function("sent.length === 5", timeout=30000)
+            assert page.evaluate("sent[4].startsWith('WB_')")
+            assert page.url == target
+            popup.click("#finish")
+            wait_for(lambda: not fixture.state()["context"]["work_active"], "WB Finish", 10)
+            wait_for(lambda: page.locator(".ozon-bridge-block-action").count() == 0, "WB buttons removed")
+            assert page.evaluate("sent.length") == 5
+            report["cases"].append({"name": "wb-help-result-and-finish-without-resend", "status": "PASS"})
             report["status"] = "PASS"
             context.close()
             context = None

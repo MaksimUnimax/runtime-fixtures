@@ -70,12 +70,24 @@ async function requestStart(fields = {}) {
 }
 function startStatusText(lastStart) {
   if (!lastStart || lastStart.outcome === "active") return null;
+  if (lastStart.outcome === "finished") return "Работа завершена по вашему запросу.";
+  if (lastStart.outcome === "cancelled") {
+    const reasons = {
+      WORK_PENDING_SURFACE_CHANGED: "Изменилась страница диалога.",
+      WORK_PENDING_CONVERSATION_CHANGED: "Вы открыли другой диалог.",
+      WORK_PENDING_STORE_CHANGED: "Выбран другой магазин.",
+      WORK_PENDING_AUTHORITY_CHANGED: "Изменился аккаунт или доступ к работе.",
+      WORK_PENDING_CONTENT_CANCELLED: "Страница отменила ожидание ответа.",
+      WORK_PENDING_TAB_CLOSED: "Вкладка диалога закрыта.",
+    };
+    return `Запуск отменён. ${Object.hasOwn(reasons, lastStart.code) ? reasons[lastStart.code] : "Контекст запуска изменился."}`;
+  }
   if (lastStart.outcome === "sent_acknowledged") return "Последний запуск: инструкция отправлена. Ожидаем создание и подтверждение диалога ИИ.";
   if (lastStart.outcome === "unknown_no_retry") return "Последний запуск: исход отправки не подтверждён. Автоматический повтор заблокирован.";
   if (lastStart.outcome === "pending") return "Последний запуск ещё ожидает подтверждения диалога ИИ.";
   if (["failed", "blocked"].includes(lastStart.outcome)) {
     const code = typeof lastStart.code === "string" && /^[A-Z][A-Z0-9_]{0,79}$/.test(lastStart.code) ? lastStart.code : null;
-    const reason = code ? (texts[code] || `Код для поддержки: ${code}`) : "Причина сохранена в безопасной диагностике.";
+    const reason = code ? (texts[code] || `Код для поддержки: ${code}`) : "Причина не определена. Сохраните снимок диагностики для проверки.";
     return `Последний запуск не завершён. ${reason}`;
   }
   return null;

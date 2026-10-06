@@ -214,6 +214,51 @@ try {
   ));
   assert.equal(tab88.work.lastStart, null);
 
+  // Pending cleanup is a lifecycle outcome, not necessarily an error.
+  const terminalCases = [
+    ["bound_after_first_response", "active", null],
+    ["operator_finish", "finished", null],
+    ["response_timeout", "failed", "WORK_PENDING_TIMEOUT"],
+    ["identity_mismatch", "failed", "WORK_PENDING_IDENTITY_MISMATCH"],
+    ["surface_changed", "cancelled", "WORK_PENDING_SURFACE_CHANGED"],
+    ["conversation_changed", "cancelled", "WORK_PENDING_CONVERSATION_CHANGED"],
+    ["store_changed", "cancelled", "WORK_PENDING_STORE_CHANGED"],
+    ["authority_changed", "cancelled", "WORK_PENDING_AUTHORITY_CHANGED"],
+    ["content_cancelled", "cancelled", "WORK_PENDING_CONTENT_CANCELLED"],
+    ["binding_failed", "failed", "WORK_PENDING_BIND_FAILED"],
+    ["send_failed_before_commit", "failed", "WORK_START_SEND_FAILED"],
+    ["send_failed_before_irreversible_click", "failed", "WORK_START_SEND_FAILED"],
+    ["WORK_PENDING_CONTENT_REJECTED", "failed", "WORK_PENDING_CONTENT_REJECTED"],
+    ["private-reason-with-account@example.test", "failed", "WORK_PENDING_TERMINATED"],
+  ];
+  for (const [reason, outcome, code] of terminalCases) {
+    backing.local.ozmb_diagnostics = [
+      { event: "WORK_START_ACTIVE_VISIBLE", tab_id: 66 },
+      { event: "WORK_PENDING_START_TERMINAL", tab_id: 66, reason },
+      { event: "WORK_PENDING_START_TERMINAL", tab_id: 77, reason: "response_timeout" },
+    ];
+    const snapshot = (await worker.popup({ type: "SA_SUPPORT_SNAPSHOT", tab_id: 66 })).snapshot;
+    assert.equal(snapshot.work.lastStart.outcome, outcome, reason);
+    assert.equal(snapshot.work.lastStart.code, code, reason);
+    assert.equal(JSON.stringify(snapshot).includes("account@example.test"), false);
+    if (["finished", "cancelled"].includes(outcome)) {
+      const message = startStatusText(snapshot.work.lastStart);
+      assert.equal(typeof message, "string");
+      assert.doesNotMatch(message, /не завершён|Причина сохранена/);
+    }
+  }
+  backing.local.ozmb_diagnostics = [
+    { event: "WORK_PENDING_START_CANCELLED_TAB_CLOSED", tab_id: 66 },
+  ];
+  const closed = (await worker.popup({ type: "SA_SUPPORT_SNAPSHOT", tab_id: 66 })).snapshot;
+  assert.equal(closed.work.lastStart.outcome, "cancelled");
+  assert.equal(closed.work.lastStart.code, "WORK_PENDING_TAB_CLOSED");
+  // Restore the restart fixture; late records from other tabs must never win.
+  backing.local.ozmb_diagnostics = [
+    { event: "WORK_START_ACTION_RESULT", tab_id: 77, stage: "not_accepted",
+      code: "WORK_START_ALREADY_PENDING", outcome: "blocked" },
+  ];
+
   for (const snapshot of [tab77, tab66, tab88]) {
     const serialized = JSON.stringify(snapshot);
     for (const forbidden of [
