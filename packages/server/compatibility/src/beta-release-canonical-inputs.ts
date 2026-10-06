@@ -52,12 +52,12 @@ export const BetaReleaseCanonicalInputsV1Schema = z
       .strict(),
     currentPersistenceBoundary: z
       .object({
-        model: z.literal("UNIQUE_VERSION_WITH_SINGLE_ARTIFACT_SHA256"),
-        exactMulticarrierBindingRepresentable: z.literal(false),
-        exactMulticarrierPublicationCommandRepresentable: z.literal(false),
-        requiredFollowup: z.literal(
-          "R26_REVIEWED_PERSISTENCE_AND_ADMIN_CONTRACT_MIGRATION",
+        model: z.literal(
+          "UNIQUE_VERSION_WITH_BROWSER_SPECIFIC_ARTIFACT_SHA256",
         ),
+        exactMulticarrierBindingRepresentable: z.literal(true),
+        exactMulticarrierPublicationCommandRepresentable: z.literal(true),
+        storageMode: z.literal("EXACT_BROWSER_ARTIFACTS"),
       })
       .strict(),
     authority: z
@@ -154,10 +154,10 @@ export const BETA_RELEASE_CANONICAL_INPUTS_V1 = deepFreeze(
       derivedFromSemVerOrFilename: false,
     },
     currentPersistenceBoundary: {
-      model: "UNIQUE_VERSION_WITH_SINGLE_ARTIFACT_SHA256",
-      exactMulticarrierBindingRepresentable: false,
-      exactMulticarrierPublicationCommandRepresentable: false,
-      requiredFollowup: "R26_REVIEWED_PERSISTENCE_AND_ADMIN_CONTRACT_MIGRATION",
+      model: "UNIQUE_VERSION_WITH_BROWSER_SPECIFIC_ARTIFACT_SHA256",
+      exactMulticarrierBindingRepresentable: true,
+      exactMulticarrierPublicationCommandRepresentable: true,
+      storageMode: "EXACT_BROWSER_ARTIFACTS",
     },
     authority: {
       evidenceLevel: "SOURCE_CANONICAL_INPUT",

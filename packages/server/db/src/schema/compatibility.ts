@@ -55,9 +55,14 @@ export const extensionReleaseBrowsers = pgTable(
   {
     releaseId: uuid("release_id").notNull(),
     browserFamily: browserFamily("browser_family").notNull(),
+    artifactSha256: varchar("artifact_sha256", { length: 64 }),
   },
   (t) => [
     primaryKey({ columns: [t.releaseId, t.browserFamily] }),
+    check(
+      "extension_release_browsers_artifact_sha256_format",
+      sql`${t.artifactSha256} IS NULL OR ${t.artifactSha256} ~ '^[0-9a-f]{64}$'`,
+    ),
     foreignKey({
       columns: [t.releaseId],
       foreignColumns: [extensionReleases.id],

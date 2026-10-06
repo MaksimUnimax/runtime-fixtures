@@ -509,6 +509,11 @@ export function createP3PolicyPublicationRepository(
           if (!options.beforeExtensionReleasePublication)
             throw new Error("ADMIN_EXTENSION_RELEASE_AUTHORIZATION_REQUIRED");
           await options.beforeExtensionReleasePublication(q);
+          if (
+            (value.artifactSha256 === undefined) ===
+            (value.browserArtifacts === undefined)
+          )
+            throw new Error("ADMIN_EXTENSION_RELEASE_INTEGRITY_MODE_REQUIRED");
         }
         const inserted = await q.query<Record<string, unknown>>(
           'INSERT INTO extension_releases(version,release_channel,artifact_sha256,released_at) VALUES($1,$2,$3,$4) RETURNING id,version,release_channel AS "releaseChannel",artifact_sha256 AS "artifactSha256",released_at AS "releasedAt",created_at AS "createdAt"',
@@ -527,8 +532,14 @@ export function createP3PolicyPublicationRepository(
           );
         for (const browser of value.supportedBrowsers)
           await q.query(
-            "INSERT INTO extension_release_browsers(release_id,browser_family) VALUES($1,$2)",
-            [row.id, browser],
+            "INSERT INTO extension_release_browsers(release_id,browser_family,artifact_sha256) VALUES($1,$2,$3)",
+            [
+              row.id,
+              browser,
+              value.browserArtifacts?.find(
+                (artifact) => artifact.browserFamily === browser,
+              )?.artifactSha256 ?? null,
+            ],
           );
         await audit(
           q,

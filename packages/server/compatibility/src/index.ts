@@ -107,6 +107,16 @@ export const PublishExtensionReleaseCommandSchema = z
     version: SemVerV1Schema,
     releaseChannel: ReleaseChannelSchema,
     artifactSha256: HashSchema.optional(),
+    browserArtifacts: z
+      .array(
+        z
+          .object({
+            browserFamily: BrowserFamilySchema,
+            artifactSha256: HashSchema,
+          })
+          .strict(),
+      )
+      .optional(),
     releasedAt: TimestampSchema,
     supportedContracts: z.array(ContractVersionSchema).min(1),
     supportedBrowsers: z.array(BrowserFamilySchema).min(1),
@@ -121,6 +131,31 @@ export const PublishExtensionReleaseCommandSchema = z
       new Set(value.supportedBrowsers).size !== value.supportedBrowsers.length
     )
       ctx.addIssue({ code: "custom", message: "duplicate browser" });
+    if (
+      value.artifactSha256 !== undefined &&
+      value.browserArtifacts !== undefined
+    )
+      ctx.addIssue({
+        code: "custom",
+        message: "conflicting artifact integrity modes",
+      });
+    if (value.browserArtifacts !== undefined) {
+      const artifactFamilies = value.browserArtifacts.map(
+        (artifact) => artifact.browserFamily,
+      );
+      if (new Set(artifactFamilies).size !== artifactFamilies.length)
+        ctx.addIssue({ code: "custom", message: "duplicate artifact browser" });
+      if (
+        artifactFamilies.length !== value.supportedBrowsers.length ||
+        value.supportedBrowsers.some(
+          (browser) => !artifactFamilies.includes(browser),
+        )
+      )
+        ctx.addIssue({
+          code: "custom",
+          message: "artifact browser set mismatch",
+        });
+    }
   });
 export type PublishExtensionReleaseCommand = z.infer<
   typeof PublishExtensionReleaseCommandSchema

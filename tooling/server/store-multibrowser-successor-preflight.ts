@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { basename } from "node:path";
 import { SemVerV1Schema } from "../../packages/shared/src/index.js";
 import { validateProfileContent } from "../../packages/server/adapter-registry/src/index.js";
+import { BETA_RELEASE_CANONICAL_INPUTS_V1 } from "../../packages/server/compatibility/src/beta-release-canonical-inputs.js";
 import {
   STORE1_CONTRACT,
   STORE1_PROFILE_COMPATIBILITY,
@@ -15,7 +16,8 @@ import {
 const HASH = /^[0-9a-f]{64}$/;
 const GIT_SHA = /^[0-9a-f]{40}$/;
 
-export const MULTIBROWSER_SUCCESSOR_VERSION = "0.2.12" as const;
+export const MULTIBROWSER_SUCCESSOR_VERSION =
+  BETA_RELEASE_CANONICAL_INPUTS_V1.release.productVersion;
 export const MULTIBROWSER_CURRENT_VERSION = STORE1_VERSION;
 export const MULTIBROWSER_EVIDENCE_LEVEL = "SOURCE_PREFLIGHT" as const;
 
@@ -82,6 +84,7 @@ export type MultibrowserSuccessorTarget = {
   readOnly: true;
   catalogMutationAuthorized: false;
   packageBuildAuthorized: false;
+  livePublicationAuthorized: false;
   source: { head: string; tree: string };
   currentImmutableVersion: typeof STORE1_VERSION;
   productVersion: typeof MULTIBROWSER_SUCCESSOR_VERSION;
@@ -91,6 +94,10 @@ export type MultibrowserSuccessorTarget = {
     releaseChannel: "stable";
     supportedContracts: [typeof STORE1_CONTRACT];
     supportedBrowsers: BrowserTargetFamily[];
+    browserArtifacts: Array<{
+      browserFamily: BrowserTargetFamily;
+      artifactSha256: string;
+    }>;
   };
   packages: {
     chromium: SuccessorPackageTarget;
@@ -418,6 +425,17 @@ export function readMultibrowserSuccessorTarget(
     MULTIBROWSER_SUCCESSOR_VERSION,
     packagePaths.firefoxZipPath,
   );
+  const canonicalChromiumSha = BETA_RELEASE_CANONICAL_INPUTS_V1.artifacts.find(
+    (artifact) => artifact.carrier === "chromium",
+  )!.sha256;
+  const canonicalFirefoxSha = BETA_RELEASE_CANONICAL_INPUTS_V1.artifacts.find(
+    (artifact) => artifact.carrier === "firefox",
+  )!.sha256;
+  if (
+    chromium.sha256 !== canonicalChromiumSha ||
+    firefox.sha256 !== canonicalFirefoxSha
+  )
+    throw new Error("MULTIBROWSER_CANONICAL_PACKAGE_DIGEST_MISMATCH");
   const profiles = BROWSER_SPECS.map(profileTarget);
   assertMultibrowserProfileTargets(profiles);
 
@@ -427,18 +445,30 @@ export function readMultibrowserSuccessorTarget(
     readOnly: true,
     catalogMutationAuthorized: false,
     packageBuildAuthorized: false,
+    livePublicationAuthorized: false,
     source: {
       head: manifest.source!.head as string,
       tree: manifest.source!.tree as string,
     },
     currentImmutableVersion: MULTIBROWSER_CURRENT_VERSION,
     productVersion: MULTIBROWSER_SUCCESSOR_VERSION,
-    contractVersion: STORE1_CONTRACT,
+    contractVersion: BETA_RELEASE_CANONICAL_INPUTS_V1.release.contractVersion,
     migrationLevel: manifest.migrationLevel,
     release: {
-      releaseChannel: "stable",
-      supportedContracts: [STORE1_CONTRACT],
-      supportedBrowsers: BROWSER_SPECS.map((item) => item.browserFamily),
+      releaseChannel: BETA_RELEASE_CANONICAL_INPUTS_V1.release.releaseChannel,
+      supportedContracts: [
+        BETA_RELEASE_CANONICAL_INPUTS_V1.release.contractVersion,
+      ],
+      supportedBrowsers: [
+        ...BETA_RELEASE_CANONICAL_INPUTS_V1.release.supportedBrowsers,
+      ],
+      browserArtifacts: BETA_RELEASE_CANONICAL_INPUTS_V1.artifacts.flatMap(
+        (artifact) =>
+          artifact.browserFamilies.map((browserFamily) => ({
+            browserFamily,
+            artifactSha256: artifact.sha256,
+          })),
+      ),
     },
     packages: { chromium, firefox },
     profiles,

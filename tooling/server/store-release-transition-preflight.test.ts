@@ -70,6 +70,12 @@ function exactCatalog(
       artifactSha256: t.artifactSha256,
       supportedContracts: [t.contractVersion],
       supportedBrowsers: [t.browserFamily],
+      browserArtifacts: [
+        {
+          browserFamily: t.browserFamily,
+          artifactSha256: null,
+        },
+      ],
     },
     policies: [
       {
@@ -254,6 +260,112 @@ describe("STORE release transition preflight", () => {
       readOnly: true,
       catalogMutationExecuted: false,
     });
+  });
+
+  it("accepts exact browser binding and rejects unbound, partial, mixed, and wrong digests", () => {
+    const t = target("0.2.8").value;
+    const exact = exactCatalog(t);
+    exact.release = {
+      ...exact.release!,
+      artifactSha256: null,
+      browserArtifacts: [
+        {
+          browserFamily: t.browserFamily,
+          artifactSha256: t.artifactSha256,
+        },
+      ],
+    };
+    expect(codes(analyzeStoreReleaseTransition(t, exact))).not.toContain(
+      "RELEASE_CONFLICT",
+    );
+
+    const wrong = analyzeStoreReleaseTransition(t, {
+      ...exact,
+      release: {
+        ...exact.release!,
+        browserArtifacts: [
+          {
+            browserFamily: t.browserFamily,
+            artifactSha256: "0".repeat(64),
+          },
+        ],
+      },
+    });
+    expect(codes(wrong)).toContain("RELEASE_CONFLICT");
+
+    const expandedRelease = {
+      ...exact.release!,
+      supportedBrowsers: [t.browserFamily, "chrome"],
+    };
+    const unbound = analyzeStoreReleaseTransition(t, {
+      ...exact,
+      release: {
+        ...expandedRelease,
+        artifactSha256: null,
+        browserArtifacts: [
+          { browserFamily: t.browserFamily, artifactSha256: null },
+          { browserFamily: "chrome", artifactSha256: null },
+        ],
+      },
+    });
+    expect(codes(unbound)).toContain("RELEASE_ARTIFACT_UNBOUND");
+    const partial = analyzeStoreReleaseTransition(t, {
+      ...exact,
+      release: {
+        ...expandedRelease,
+        artifactSha256: null,
+        browserArtifacts: [
+          { browserFamily: t.browserFamily, artifactSha256: t.artifactSha256 },
+          { browserFamily: "chrome", artifactSha256: null },
+        ],
+      },
+    });
+    expect(codes(partial)).toContain("RELEASE_ARTIFACT_BROWSER_SET_PARTIAL");
+
+    const mixed = analyzeStoreReleaseTransition(t, {
+      ...exact,
+      release: {
+        ...exact.release!,
+        artifactSha256: t.artifactSha256,
+        browserArtifacts: [
+          {
+            browserFamily: t.browserFamily,
+            artifactSha256: t.artifactSha256,
+          },
+        ],
+      },
+    });
+    expect(codes(mixed)).toContain("RELEASE_ARTIFACT_MODE_MIXED");
+  });
+
+  it("rejects duplicate supported browser identities before classifying artifact mode", () => {
+    const t = target("0.2.8").value;
+    const catalog = exactCatalog(t);
+    catalog.release = {
+      ...catalog.release!,
+      artifactSha256: null,
+      supportedBrowsers: [t.browserFamily, t.browserFamily],
+      browserArtifacts: [
+        {
+          browserFamily: t.browserFamily,
+          artifactSha256: t.artifactSha256,
+        },
+        {
+          browserFamily: "chrome",
+          artifactSha256: "1".repeat(64),
+        },
+      ],
+    };
+    const report = analyzeStoreReleaseTransition(t, catalog);
+    expect(codes(report)).toContain("RELEASE_ARTIFACT_BROWSER_SET_INVALID");
+  });
+
+  it("fails closed if browser-row classification data is unavailable", () => {
+    const t = target("0.2.8").value;
+    const catalog = exactCatalog(t);
+    delete catalog.release!.browserArtifacts;
+    const report = analyzeStoreReleaseTransition(t, catalog);
+    expect(codes(report)).toContain("RELEASE_ARTIFACT_MODE_UNAVAILABLE");
   });
 
   it("fails closed when the published profile SHA does not match canonical STORE profile authority", () => {

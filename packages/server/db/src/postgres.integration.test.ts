@@ -176,7 +176,7 @@ describe.sequential("P2.1 PostgreSQL persistence integration", () => {
     const count = await runtime.db.execute<{ count: string }>(sql`
       SELECT count(*)::text AS "count" FROM drizzle."__drizzle_migrations"
     `);
-    expect(count.rows[0]?.count).toBe("46");
+    expect(count.rows[0]?.count).toBe("47");
     const browserFamilyRows = await runtime.db.execute<{
       enumlabel: string;
     }>(sql`

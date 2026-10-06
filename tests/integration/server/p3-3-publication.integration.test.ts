@@ -1,5 +1,8 @@
+import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { runMigrations } from "../../../packages/server/db/src/migrations.js";
+import { createP3PolicyPublicationRepository } from "../../../packages/server/db/src/index.js";
 import {
   addKey,
   clean,
@@ -78,6 +81,127 @@ describe.sequential(
       expect(await count(db, "config_release_feature_rules")).toBe(1);
       expect(await count(db, "config_release_rollout_revisions")).toBe(1);
       expect(await count(db, "audit_events")).toBe(8);
+    });
+    it("persists legacy, exact, SYSTEM-unbound, and old-writer release integrity modes", async () => {
+      const migration = readFileSync(
+        "packages/server/db/drizzle/0058_extension_release_browser_artifacts.sql",
+        "utf8",
+      );
+      expect(migration).not.toMatch(/\bUPDATE\b|DROP\s+TRIGGER/i);
+      const p = publicationFor(db);
+      const legacyDigest = "a".repeat(64);
+      await p.publishExtensionRelease(
+        {
+          version: "2.0.0",
+          releaseChannel: "stable",
+          artifactSha256: legacyDigest,
+          releasedAt: now(),
+          supportedContracts: ["control_plane_v2"],
+          supportedBrowsers: ["chrome", "firefox"],
+        },
+        context,
+      );
+      await p.publishExtensionRelease(
+        {
+          version: "2.0.1",
+          releaseChannel: "stable",
+          releasedAt: now(),
+          supportedContracts: ["control_plane_v2"],
+          supportedBrowsers: ["chrome"],
+        },
+        context,
+      );
+
+      const adminContext = {
+        actorType: "ADMIN" as const,
+        actorId: randomUUID(),
+        correlationId: "p3-3-admin-integrity",
+        reason: "release artifact integrity integration test",
+      };
+      const admin = createP3PolicyPublicationRepository(db, {
+        beforeExtensionReleasePublication: async () => undefined,
+      });
+      await expect(
+        admin.publishExtensionRelease(
+          {
+            version: "2.0.2",
+            releaseChannel: "stable",
+            releasedAt: now(),
+            supportedContracts: ["control_plane_v2"],
+            supportedBrowsers: ["chrome"],
+          },
+          adminContext,
+        ),
+      ).rejects.toThrow("ADMIN_EXTENSION_RELEASE_INTEGRITY_MODE_REQUIRED");
+      await admin.publishExtensionRelease(
+        {
+          version: "2.0.3",
+          releaseChannel: "stable",
+          browserArtifacts: [
+            { browserFamily: "chrome", artifactSha256: "b".repeat(64) },
+            { browserFamily: "firefox", artifactSha256: "c".repeat(64) },
+          ],
+          releasedAt: now(),
+          supportedContracts: ["control_plane_v2"],
+          supportedBrowsers: ["chrome", "firefox"],
+        },
+        adminContext,
+      );
+
+      const rows = await db.query<{
+        version: string;
+        artifact_sha256: string | null;
+        browser_family: string;
+        browser_artifact_sha256: string | null;
+      }>(
+        "SELECT r.version,r.artifact_sha256,b.browser_family,b.artifact_sha256 AS browser_artifact_sha256 FROM extension_releases r JOIN extension_release_browsers b ON b.release_id=r.id ORDER BY r.version,b.browser_family",
+      );
+      expect(rows.rows.filter((row) => row.version === "2.0.0")).toEqual([
+        expect.objectContaining({
+          artifact_sha256: legacyDigest,
+          browser_artifact_sha256: null,
+        }),
+        expect.objectContaining({
+          artifact_sha256: legacyDigest,
+          browser_artifact_sha256: null,
+        }),
+      ]);
+      expect(rows.rows.find((row) => row.version === "2.0.1")).toMatchObject({
+        artifact_sha256: null,
+        browser_artifact_sha256: null,
+      });
+      expect(rows.rows.filter((row) => row.version === "2.0.3")).toEqual([
+        expect.objectContaining({
+          artifact_sha256: null,
+          browser_family: "chrome",
+          browser_artifact_sha256: "b".repeat(64),
+        }),
+        expect.objectContaining({
+          artifact_sha256: null,
+          browser_family: "firefox",
+          browser_artifact_sha256: "c".repeat(64),
+        }),
+      ]);
+
+      const oldWriter = await db.query<{ id: string }>(
+        "INSERT INTO extension_releases(version,release_channel,artifact_sha256,released_at) VALUES('2.0.4','stable',$1,$2) RETURNING id",
+        [legacyDigest, now()],
+      );
+      await db.query(
+        "INSERT INTO extension_release_browsers(release_id,browser_family) VALUES($1,'chrome')",
+        [oldWriter.rows[0]!.id],
+      );
+      const oldWriterRows = await db.query<{ artifact_sha256: string | null }>(
+        "SELECT artifact_sha256 FROM extension_release_browsers WHERE release_id=$1",
+        [oldWriter.rows[0]!.id],
+      );
+      expect(oldWriterRows.rows[0]?.artifact_sha256).toBeNull();
+      await expect(
+        db.query(
+          "UPDATE extension_release_browsers SET artifact_sha256=$2 WHERE release_id=$1",
+          [oldWriter.rows[0]!.id, "d".repeat(64)],
+        ),
+      ).rejects.toThrow();
     });
     it("serializes concurrent policy revisions with distinct server revisions and audits", async () => {
       const [a, b] = await Promise.all([

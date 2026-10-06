@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -44,10 +43,6 @@ type MutableManifest = {
   };
 };
 
-function sha256(bytes: Buffer): string {
-  return createHash("sha256").update(bytes).digest("hex");
-}
-
 function fixture() {
   const dir = mkdtempSync(join(tmpdir(), "octoport-multibrowser-"));
   const chromiumBytes = Buffer.from("chromium-successor-package");
@@ -72,7 +67,8 @@ function fixture() {
     packages: {
       chromium: {
         filename: chromiumFilename,
-        sha256: sha256(chromiumBytes),
+        sha256:
+          "90f6d67a5c3f3a2650886e32411f076349d7f429b3d4ed8ac1aa617e61ac77d7",
         bytes: chromiumBytes.length,
         inventoryCount: 43,
         version: MULTIBROWSER_SUCCESSOR_VERSION,
@@ -80,7 +76,8 @@ function fixture() {
       },
       firefox: {
         filename: firefoxFilename,
-        sha256: sha256(firefoxBytes),
+        sha256:
+          "a29ad0de5f91fdcf6fbd09a6443f31a754af7248e41ec8429dc74ed26e76dd9c",
         bytes: firefoxBytes.length,
         inventoryCount: 44,
         version: MULTIBROWSER_SUCCESSOR_VERSION,
@@ -114,10 +111,7 @@ function rewrite(
 describe("multi-browser successor STORE preflight", () => {
   it("binds exact successor packages to four explicit browser/profile targets", () => {
     const f = fixture();
-    const result = readMultibrowserSuccessorTarget(f.manifestPath, {
-      chromiumZipPath: f.chromiumZipPath,
-      firefoxZipPath: f.firefoxZipPath,
-    });
+    const result = readMultibrowserSuccessorTarget(f.manifestPath);
 
     expect(result).toMatchObject({
       schemaVersion: "store_multibrowser_successor_preflight_v1",
@@ -125,29 +119,55 @@ describe("multi-browser successor STORE preflight", () => {
       readOnly: true,
       catalogMutationAuthorized: false,
       packageBuildAuthorized: false,
+      livePublicationAuthorized: false,
       currentImmutableVersion: "0.2.11",
       productVersion: "0.2.12",
       contractVersion: "control_plane_v2",
       release: {
         releaseChannel: "stable",
         supportedContracts: ["control_plane_v2"],
-        supportedBrowsers: ["opera", "chrome", "yandex_chromium", "firefox"],
+        supportedBrowsers: ["chrome", "opera", "yandex_chromium", "firefox"],
+        browserArtifacts: [
+          {
+            browserFamily: "chrome",
+            artifactSha256:
+              "90f6d67a5c3f3a2650886e32411f076349d7f429b3d4ed8ac1aa617e61ac77d7",
+          },
+          {
+            browserFamily: "opera",
+            artifactSha256:
+              "90f6d67a5c3f3a2650886e32411f076349d7f429b3d4ed8ac1aa617e61ac77d7",
+          },
+          {
+            browserFamily: "yandex_chromium",
+            artifactSha256:
+              "90f6d67a5c3f3a2650886e32411f076349d7f429b3d4ed8ac1aa617e61ac77d7",
+          },
+          {
+            browserFamily: "firefox",
+            artifactSha256:
+              "a29ad0de5f91fdcf6fbd09a6443f31a754af7248e41ec8429dc74ed26e76dd9c",
+          },
+        ],
       },
       packages: {
         chromium: {
           kind: "chromium",
           version: "0.2.12",
           browser: "chromium",
-          bytesVerified: true,
+          bytesVerified: false,
         },
         firefox: {
           kind: "firefox",
           version: "0.2.12",
           browser: "firefox",
-          bytesVerified: true,
+          bytesVerified: false,
         },
       },
     });
+    expect(
+      new Set(result.release.browserArtifacts.map((row) => row.browserFamily)),
+    ).toEqual(new Set(["chrome", "opera", "yandex_chromium", "firefox"]));
 
     expect(result.profiles).toHaveLength(4);
     expect(new Set(result.profiles.map((item) => item.profileKey)).size).toBe(
@@ -222,6 +242,16 @@ describe("multi-browser successor STORE preflight", () => {
         minimumBrowserVersions: [],
       },
     });
+  });
+
+  it("rejects successor manifest digests that drift from accepted canonical artifacts", () => {
+    const f = fixture();
+    rewrite(f, (manifest) => {
+      manifest.packages.firefox.sha256 = "0".repeat(64);
+    });
+    expect(() => readMultibrowserSuccessorTarget(f.manifestPath)).toThrow(
+      "MULTIBROWSER_CANONICAL_PACKAGE_DIGEST_MISMATCH",
+    );
   });
 
   it("parses a manifest without claiming package bytes were verified", () => {

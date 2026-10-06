@@ -55,7 +55,52 @@ export type TransitionRelease = {
   artifactSha256: string | null;
   supportedContracts: string[];
   supportedBrowsers: string[];
+  browserArtifacts?: Array<{
+    browserFamily: string;
+    artifactSha256: string | null;
+  }>;
 };
+
+type EffectiveArtifact =
+  | { ok: true; artifactSha256: string }
+  | { ok: false; code: string };
+
+export function classifyReleaseArtifact(
+  release: TransitionRelease,
+  browserFamily: string,
+): EffectiveArtifact {
+  const rows = release.browserArtifacts;
+  if (!rows) return { ok: false, code: "RELEASE_ARTIFACT_MODE_UNAVAILABLE" };
+  const families = rows.map((row) => row.browserFamily);
+  if (
+    new Set(families).size !== families.length ||
+    new Set(release.supportedBrowsers).size !==
+      release.supportedBrowsers.length ||
+    families.length !== release.supportedBrowsers.length ||
+    release.supportedBrowsers.some((family) => !families.includes(family))
+  )
+    return { ok: false, code: "RELEASE_ARTIFACT_BROWSER_SET_INVALID" };
+  if (release.artifactSha256 !== null) {
+    if (rows.some((row) => row.artifactSha256 !== null))
+      return { ok: false, code: "RELEASE_ARTIFACT_MODE_MIXED" };
+    if (!HASH.test(release.artifactSha256))
+      return { ok: false, code: "RELEASE_ARTIFACT_DIGEST_INVALID" };
+    return { ok: true, artifactSha256: release.artifactSha256 };
+  }
+  if (
+    rows.some(
+      (row) => row.artifactSha256 !== null && !HASH.test(row.artifactSha256),
+    )
+  )
+    return { ok: false, code: "RELEASE_ARTIFACT_DIGEST_INVALID" };
+  if (rows.every((row) => row.artifactSha256 === null))
+    return { ok: false, code: "RELEASE_ARTIFACT_UNBOUND" };
+  if (rows.some((row) => row.artifactSha256 === null))
+    return { ok: false, code: "RELEASE_ARTIFACT_BROWSER_SET_PARTIAL" };
+  const selected = rows.find((row) => row.browserFamily === browserFamily);
+  if (!selected) return { ok: false, code: "RELEASE_BROWSER_UNSUPPORTED" };
+  return { ok: true, artifactSha256: selected.artifactSha256! };
+}
 
 export type TransitionPolicy = {
   id: string;
@@ -278,6 +323,9 @@ export function analyzeStoreReleaseTransition(
 
   if (!unknown(catalog, "release", "release", checks)) {
     const release = catalog.release;
+    const effective = release
+      ? classifyReleaseArtifact(release, target.browserFamily)
+      : null;
     if (!release)
       check(
         checks,
@@ -289,7 +337,8 @@ export function analyzeStoreReleaseTransition(
     else if (
       release.version !== target.productVersion ||
       release.releaseChannel !== "stable" ||
-      release.artifactSha256 !== target.artifactSha256 ||
+      !effective?.ok ||
+      (effective.ok && effective.artifactSha256 !== target.artifactSha256) ||
       !release.supportedContracts.includes(target.contractVersion) ||
       !release.supportedBrowsers.includes(target.browserFamily)
     )
@@ -297,7 +346,7 @@ export function analyzeStoreReleaseTransition(
         checks,
         "release",
         "MISMATCH",
-        "RELEASE_CONFLICT",
+        effective && !effective.ok ? effective.code : "RELEASE_CONFLICT",
         "Published release does not bind the exact candidate package and STORE scope.",
       );
     else

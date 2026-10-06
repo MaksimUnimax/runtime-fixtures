@@ -45,32 +45,38 @@ describe("beta release canonical input contract", () => {
     ]);
   });
 
-  it("preserves the R26 persistence gap instead of flattening two artifacts", () => {
+  it("binds the canonical browser-specific publication mapping without flattening artifacts", () => {
     const canonical = BETA_RELEASE_CANONICAL_INPUTS_V1;
     const digests = canonical.artifacts.map((artifact) => artifact.sha256);
 
     expect(new Set(digests).size).toBe(2);
     expect(canonical.currentPersistenceBoundary).toEqual({
-      model: "UNIQUE_VERSION_WITH_SINGLE_ARTIFACT_SHA256",
-      exactMulticarrierBindingRepresentable: false,
-      exactMulticarrierPublicationCommandRepresentable: false,
-      requiredFollowup: "R26_REVIEWED_PERSISTENCE_AND_ADMIN_CONTRACT_MIGRATION",
+      model: "UNIQUE_VERSION_WITH_BROWSER_SPECIFIC_ARTIFACT_SHA256",
+      exactMulticarrierBindingRepresentable: true,
+      exactMulticarrierPublicationCommandRepresentable: true,
+      storageMode: "EXACT_BROWSER_ARTIFACTS",
     });
 
-    for (const artifactSha256 of digests) {
-      const currentCommand = PublishExtensionReleaseCommandSchema.parse({
-        version: canonical.release.productVersion,
-        releaseChannel: canonical.release.releaseChannel,
-        artifactSha256,
-        releasedAt: new Date("2026-10-05T00:00:00.000Z"),
-        supportedContracts: [canonical.release.contractVersion],
-        supportedBrowsers: canonical.release.supportedBrowsers,
-      });
-      expect(currentCommand.artifactSha256).toBe(artifactSha256);
-      expect(currentCommand.artifactSha256).not.toBe(
-        digests.find((digest) => digest !== artifactSha256),
-      );
-    }
+    const browserArtifacts = canonical.artifacts.flatMap((artifact) =>
+      artifact.browserFamilies.map((browserFamily) => ({
+        browserFamily,
+        artifactSha256: artifact.sha256,
+      })),
+    );
+    const exactCommand = PublishExtensionReleaseCommandSchema.parse({
+      version: canonical.release.productVersion,
+      releaseChannel: canonical.release.releaseChannel,
+      browserArtifacts,
+      releasedAt: new Date("2026-10-05T00:00:00.000Z"),
+      supportedContracts: [canonical.release.contractVersion],
+      supportedBrowsers: canonical.release.supportedBrowsers,
+    });
+    expect(exactCommand.browserArtifacts).toEqual([
+      { browserFamily: "chrome", artifactSha256: digests[0] },
+      { browserFamily: "opera", artifactSha256: digests[0] },
+      { browserFamily: "yandex_chromium", artifactSha256: digests[0] },
+      { browserFamily: "firefox", artifactSha256: digests[1] },
+    ]);
   });
 
   it("rejects channel, digest, mapping, and extra-field drift", () => {

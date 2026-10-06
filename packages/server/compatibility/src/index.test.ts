@@ -3,6 +3,7 @@ import {
   compareBrowserVersionV1,
   CompatibilityPolicyRevisionSchema,
   ExtensionReleaseSchema,
+  PublishExtensionReleaseCommandSchema,
 } from "./index.js";
 
 const now = new Date("2026-09-04T00:00:00.000Z");
@@ -59,5 +60,65 @@ describe("P3.3 version comparison", () => {
     expect(compareBrowserVersionV1("151.0.7922.34", "151.0.7922.35")).toBe(-1);
     expect(compareBrowserVersionV1("01", "1")).toBeUndefined();
     expect(compareBrowserVersionV1("1.2.3.4.5", "1")).toBeUndefined();
+  });
+});
+
+describe("release artifact integrity command modes", () => {
+  const base = {
+    version: "0.2.12",
+    releaseChannel: "stable",
+    releasedAt: now,
+    supportedContracts: ["control_plane_v2"],
+    supportedBrowsers: ["chrome", "opera", "yandex_chromium", "firefox"],
+  };
+
+  it("keeps SYSTEM-compatible neither mode valid and accepts legacy single mode", () => {
+    expect(PublishExtensionReleaseCommandSchema.safeParse(base).success).toBe(
+      true,
+    );
+    expect(
+      PublishExtensionReleaseCommandSchema.safeParse({
+        ...base,
+        artifactSha256: "a".repeat(64),
+      }).success,
+    ).toBe(true);
+  });
+
+  it("accepts the exact complete browser set and rejects invalid mappings", () => {
+    const browserArtifacts = base.supportedBrowsers.map((browserFamily) => ({
+      browserFamily,
+      artifactSha256: "b".repeat(64),
+    }));
+    expect(
+      PublishExtensionReleaseCommandSchema.safeParse({
+        ...base,
+        browserArtifacts,
+      }).success,
+    ).toBe(true);
+    expect(
+      PublishExtensionReleaseCommandSchema.safeParse({
+        ...base,
+        artifactSha256: "a".repeat(64),
+        browserArtifacts,
+      }).success,
+    ).toBe(false);
+    for (const invalid of [
+      [browserArtifacts[0], browserArtifacts[0], ...browserArtifacts.slice(2)],
+      browserArtifacts.slice(0, -1),
+      [
+        ...browserArtifacts,
+        { browserFamily: "safari", artifactSha256: "b".repeat(64) },
+      ],
+      browserArtifacts.map((row, index) =>
+        index === 0 ? { ...row, artifactSha256: "B".repeat(64) } : row,
+      ),
+    ]) {
+      expect(
+        PublishExtensionReleaseCommandSchema.safeParse({
+          ...base,
+          browserArtifacts: invalid,
+        }).success,
+      ).toBe(false);
+    }
   });
 });

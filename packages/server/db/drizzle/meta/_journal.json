@@ -323,6 +323,13 @@
       "when": 1791098438000,
       "tag": "0057_admin_maintenance_access",
       "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1791098439000,
+      "tag": "0058_extension_release_browser_artifacts",
+      "breakpoints": true
     }
   ]
 }
