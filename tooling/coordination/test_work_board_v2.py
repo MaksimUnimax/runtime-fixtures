@@ -643,39 +643,34 @@ class WorkBoardV2Tests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "task count"): add(100)
         self.assertEqual(self._capacity_snapshot(), before)
 
-    def test_resolved_tombstones_do_not_consume_active_task_capacity(self):
+    def test_valid_resolved_history_does_not_consume_semantic_capacity(self):
+        self._resolve_blocker_fixture()
+        board = work_queue.load_board(self.root)
+        old = next(row for row in board["tasks"] if row["id"] == "old-attempt")
+        successor = next(row for row in board["tasks"] if row["id"] == "accepted-successor")
         historical = []
         for number in range(100):
-            historical.append({
-                "id": f"resolved-{number:03d}", "role": "B", "plan": "C00",
-                "state": "BLOCKED", "requires": [], "result": "Historical attempt",
-                "paths": [f"tooling/historical-{number:03d}.py"],
-                "blocked_reason": "Superseded",
-                "blocker_resolution": {
-                    "owner": "CONTROLLER", "status": "RESOLVED",
-                    "next_action": "Preserve history",
-                    "unblock_when": "Accepted successor remains valid",
-                    "successor_task": f"successor-{number:03d}",
-                    "successor_candidate_sha": "a" * 40,
-                    "receipt": f"/historical/successor-{number:03d}.json",
-                    "resolved_at": "2026-10-04T00:00:00+00:00",
-                },
-            })
-        self.migrate(historical)
+            row = copy.deepcopy(old)
+            row["id"] = f"resolved-{number:03d}"
+            historical.append(row)
+        board["tasks"] = historical + [successor]
+        work_queue.write_board(self.root, board, {"action": "TEST_SEED_HISTORY"})
         task = dict(self.ready("a-new"), acceptance=["bounded"],
                     basis="approved plan remainder")
         work_queue.add_task(self.root, "A", task,
                             repo_root=Path(work_queue.__file__).resolve().parents[2])
         state = v2.load_state(self.root)
         self.assertEqual(len(state["hot"]["tasks"]), 101)
-        self.assertEqual(v2._active_task_count(state["hot"]["tasks"]), 1)
-        self.assertEqual(state["logical"]["tasks"][:100], historical)
+        self.assertEqual(len(work_queue._semantic_active_task_ids(state["logical"])), 1)
+        by_id = {row["id"]: row for row in state["logical"]["tasks"]}
+        for row in historical:
+            self.assertEqual(by_id[row["id"]], row)
         self.assertEqual(sum(v2._is_resolved_blocker_tombstone(row)
                              for row in state["hot"]["tasks"]), 100)
         self.assertLess(len(v2._canonical_bytes(state["hot"])), v2.HOT_CAP_BYTES)
         work_queue.claim_task(self.root, "A", "a-new")
         state = v2.load_state(self.root)
-        self.assertEqual(v2._active_task_count(state["hot"]["tasks"]), 1)
+        self.assertEqual(len(work_queue._semantic_active_task_ids(state["logical"])), 1)
         self.assertEqual(next(row for row in state["logical"]["tasks"]
                               if row["id"] == "a-new")["state"], "IN_PROGRESS")
 

@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from unittest.mock import patch
 
 import work_queue
+import test_work_board_v2 as board_test_support
 from work_queue import load_board, role_work, assert_no_ready_work, advance_task, compact_state, board_snapshot, status_work, add_task, current_worktree_head
 from waiting_gate import validate_waiting_receipt, PLAN_IDS
 
@@ -672,6 +673,66 @@ class WorkQueueTests(unittest.TestCase):
             advance_task(self.root, "B", "b-auth", "BLOCKED")
         advance_task(self.root, "B", "b-auth", "BLOCKED", str(self.receipt), "Local SMTP test service absent")
         assert_no_ready_work(self.root, "B")
+
+    def _semantic_capacity_fixture(self, other_count):
+        case = board_test_support.WorkBoardV2Tests()
+        case.setUp()
+        self.addCleanup(case.tearDown)
+        _old, _successor, receipt, _resolved = case._resolve_blocker_fixture()
+        board = load_board(case.root)
+        board["tasks"].extend(case.ready(f"quota-{number}") for number in range(other_count))
+        work_queue.write_board(case.root, board, {"action": "TEST_SEED_ACTIVE"})
+        return case, receipt
+
+    def _add_quota_task(self, case, identifier="quota-new"):
+        return add_task(
+            case.root, "A",
+            dict(case.ready(identifier), acceptance=["bounded"], basis="approved plan remainder"),
+            repo_root=Path(work_queue.__file__).resolve().parents[2],
+        )
+
+    def test_semantic_capacity_recounts_stale_successor_before_add(self):
+        for other_count in (98, 99):
+            with self.subTest(other_count=other_count):
+                case, receipt = self._semantic_capacity_fixture(other_count)
+                value = json.loads(receipt.read_text())
+                value["review"]["evidence"] = ["changed still-PASS evidence"]
+                receipt.write_text(json.dumps(value))
+                board = load_board(case.root)
+                self.assertEqual(len(work_queue._semantic_active_task_ids(board)), other_count + 1)
+                self.assertTrue(any(row["task_id"] == "old-attempt"
+                                    for row in work_queue.blocker_attention(board)))
+                before = case._capacity_snapshot()
+                if other_count == 99:
+                    with self.assertRaisesRegex(RuntimeError, "WORK_QUEUE_INVALID: task count"):
+                        self._add_quota_task(case)
+                    self.assertEqual(case._capacity_snapshot(), before)
+                else:
+                    self._add_quota_task(case)
+                    self.assertEqual(len(work_queue._semantic_active_task_ids(load_board(case.root))), 100)
+
+    def test_over_capacity_invalidation_allows_repair_not_new_work(self):
+        case, receipt = self._semantic_capacity_fixture(100)
+        value = json.loads(receipt.read_text())
+        value["verdict"] = "FAIL"
+        receipt.write_text(json.dumps(value))
+        board = load_board(case.root)
+        self.assertEqual(len(work_queue._semantic_active_task_ids(board)), 102)
+        self.assertTrue(work_queue.blocker_attention(board))
+        before = case._capacity_snapshot()
+        with self.assertRaisesRegex(RuntimeError, "WORK_QUEUE_INVALID: task count"):
+            self._add_quota_task(case)
+        self.assertEqual(case._capacity_snapshot(), before)
+        work_queue.claim_task(case.root, "A", "quota-0")
+        completion = case.root / "logs/quota-repair-completion.json"
+        completion.write_text(json.dumps({
+            "kind": work_queue.COMPLETION_KIND, "version": work_queue.COMPLETION_VERSION,
+            "task_id": "quota-0", "candidate_sha": current_worktree_head(),
+            "verdict": "PASS", "review": {"verdict": "PASS", "evidence": ["independent review"]},
+            "checks": [{"name": "focused", "verdict": "PASS", "evidence": ["test run"]}],
+        }))
+        advance_task(case.root, "A", "quota-0", "DONE", str(completion))
+        self.assertEqual(len(work_queue._semantic_active_task_ids(load_board(case.root))), 101)
 
     def test_resolved_historical_blocker_tracks_strict_successor_and_realerts_on_invalidation(self):
         blocked_receipt = self.root / "logs/old-blocked.json"

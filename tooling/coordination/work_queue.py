@@ -612,6 +612,30 @@ def _valid_blocker_resolution(board, task, evaluation=None):
             and resolution.get("receipt") == successor.get("completion_receipt"))
 
 
+def _semantic_active_task_ids(board, evaluation=None):
+    """Use queue authority, not storage shape, to account for actionable work."""
+    evaluation = evaluation or _BoardEvaluation(board)
+    return frozenset(
+        task["id"] for task in board["tasks"]
+        if not (task["state"] == "DONE" and evaluation.strict_completion_valid(task))
+        and not (task["state"] == "BLOCKED"
+                 and _valid_blocker_resolution(board, task, evaluation))
+    )
+
+
+def _enforce_active_task_capacity(root, board):
+    active = _semantic_active_task_ids(board)
+    if len(active) <= _v2().ACTIVE_TASK_CAP:
+        return
+    previous = load_board(root)
+    # External receipt invalidation can reopen existing work beyond the quota.
+    # Keep that work readable/finishable, but never admit additional active IDs.
+    if (previous.get("version") == 2
+            and active <= _semantic_active_task_ids(previous)):
+        return
+    raise RuntimeError("WORK_QUEUE_INVALID: task count")
+
+
 def task_view(board, task, evaluation=None):
     evaluation = evaluation or _BoardEvaluation(board)
     done = evaluation.done
@@ -730,6 +754,7 @@ def _persist_board(root, board, event):
             _validate_logical_board(board, enforce_v1_count=False)
         except (ValueError, KeyError, TypeError, AttributeError):
             raise RuntimeError("WORK_QUEUE_INVALID: logical v2 candidate") from None
+        _enforce_active_task_capacity(root, board)
         return _v2().commit_logical_board(root, board, event)
     encoded = _validated_board_text(root, board)
     path = root / "controllers/work-board.json"
