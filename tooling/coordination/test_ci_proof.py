@@ -91,6 +91,40 @@ class ProofTests(unittest.TestCase):
                 self.assertEqual(result["proof"]["branch"], branch)
                 self.assertEqual(result["proof"]["sha"], self.head)
 
+    def test_task_publication_exact_full_proof_can_be_reused_on_main(self):
+        branch = "controller/task-publication/c/C00-CI-PROOF/abc123"
+        self.run["head_branch"] = branch
+        result = self.plan()
+        self.assertFalse(result["fullTests"])
+        self.assertEqual(result["reason"], "EXACT_TASK_PUBLICATION_PUSH_FULL_PROOF")
+        self.assertEqual(result["proof"]["branch"], branch)
+        self.assertEqual(result["proof"]["sha"], self.head)
+
+    def test_generic_controller_push_is_not_reusable_for_main(self):
+        self.run["head_branch"] = "controller/review/candidate"
+        self.assertFull()
+
+    def test_newer_failed_task_publication_does_not_hide_behind_old_green(self):
+        branch = "controller/task-publication/c/C00-CI-PROOF/abc123"
+        self.run["head_branch"] = branch
+        failed = dict(self.run, id=101, conclusion="failure")
+        self.api.runs = lambda *_: [self.run, failed]
+        self.assertFull()
+
+    def test_stale_task_publication_proof_runs_full(self):
+        self.run.update(
+            head_branch="controller/task-publication/c/C00-CI-PROOF/abc123",
+            updated_at=(NOW - timedelta(hours=7)).isoformat(),
+        )
+        self.assertFull()
+
+    def test_task_publication_exact_sha_mismatch_runs_full(self):
+        self.run.update(
+            head_branch="controller/task-publication/c/C00-CI-PROOF/abc123",
+            head_sha="a" * 40,
+        )
+        self.assertFull()
+
     def test_a_and_b_prose_only_changes_can_reuse_full_parent_proof(self):
         for branch in ("work/a-extension", "work/b-backend"):
             with self.subTest(branch=branch):

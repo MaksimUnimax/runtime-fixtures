@@ -14,6 +14,7 @@ from ci_impact import analyze
 REPOSITORY = "MaksimUnimax/runtime-fixtures"
 MAX_AGE_SECONDS = 6 * 3600
 STREAM_BRANCHES = ("work/a-extension", "work/b-backend", "work/c-integration")
+TASK_PUBLICATION_PREFIX = "controller/task-publication/"
 WORKFLOWS = {
     "server-ci.yml": ("Server CI", {"server"}),
     "extension-ci.yml": ("Extension CI", {
@@ -38,6 +39,11 @@ def exact_sha(value):
 def trusted_branch(branch):
     return branch in ("main", *STREAM_BRANCHES) or (
         isinstance(branch, str) and branch.startswith("controller/"))
+
+
+def reusable_main_source_branch(branch):
+    return branch in STREAM_BRANCHES or (
+        isinstance(branch, str) and branch.startswith(TASK_PUBLICATION_PREFIX))
 
 
 def select_run(runs, sha, branch, workflow, current_run, now):
@@ -121,14 +127,17 @@ def plan(repo, event, env, workflow, api, now):
         run_cache[sha] = api.runs(sha, workflow)
         name, _ = WORKFLOWS[workflow]
         sources = [r for r in run_cache[sha] if r.get("head_sha") == sha
-                   and r.get("head_branch") in STREAM_BRANCHES
+                   and reusable_main_source_branch(r.get("head_branch"))
                    and r.get("event") == "push"
                    and r.get("path") == ".github/workflows/" + workflow
                    and r.get("name") == name]
-        # Do not hide a newer failing attempt behind an older green stream.
+        # Do not hide a newer failing attempt behind an older green approved source.
         if sources:
             latest = max(sources, key=lambda r: (r["id"], r.get("run_attempt", 1)))
-            options.append((sha, latest["head_branch"], "EXACT_STREAM_PUSH_FULL_PROOF"))
+            reason = ("EXACT_STREAM_PUSH_FULL_PROOF"
+                      if latest["head_branch"] in STREAM_BRANCHES
+                      else "EXACT_TASK_PUBLICATION_PUSH_FULL_PROOF")
+            options.append((sha, latest["head_branch"], reason))
     before = event.get("before")
     impact = analyze(repo, before, sha)
     if impact["impactClass"] == "PROSE_ONLY":
