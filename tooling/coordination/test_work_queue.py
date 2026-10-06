@@ -681,7 +681,7 @@ class WorkQueueTests(unittest.TestCase):
         _old, _successor, receipt, _resolved = case._resolve_blocker_fixture()
         board = load_board(case.root)
         board["tasks"].extend(case.ready(f"quota-{number}") for number in range(other_count))
-        work_queue.write_board(case.root, board, {"action": "TEST_SEED_ACTIVE"})
+        work_queue.write_board(case.root, board, {"action": "TEST_SEED_ACTIVE", "role": "A", "task": "active-capacity-fixture"})
         return case, receipt
 
     def _add_quota_task(self, case, identifier="quota-new"):

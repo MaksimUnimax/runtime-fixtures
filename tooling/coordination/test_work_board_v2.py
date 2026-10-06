@@ -654,7 +654,7 @@ class WorkBoardV2Tests(unittest.TestCase):
             row["id"] = f"resolved-{number:03d}"
             historical.append(row)
         board["tasks"] = historical + [successor]
-        work_queue.write_board(self.root, board, {"action": "TEST_SEED_HISTORY"})
+        work_queue.write_board(self.root, board, {"action": "TEST_SEED_HISTORY", "role": "B", "task": "history-capacity-fixture"})
         task = dict(self.ready("a-new"), acceptance=["bounded"],
                     basis="approved plan remainder")
         work_queue.add_task(self.root, "A", task,
