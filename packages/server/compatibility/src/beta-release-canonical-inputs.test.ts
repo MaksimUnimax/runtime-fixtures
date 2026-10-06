@@ -4,6 +4,8 @@ import {
   BetaReleaseCanonicalInputsV1Schema,
   STORE_0_2_13_RELEASE_CANONICAL_INPUTS_V1,
   Store0213ReleaseCanonicalInputsV1Schema,
+  STORE_0_2_13_REPAIRED_CHROME_RELEASE_CANONICAL_INPUTS_V1,
+  Store0213RepairedChromeReleaseCanonicalInputsV1Schema,
   PublishExtensionReleaseCommandSchema,
   ReleaseChannelSchema,
 } from "./index.js";
@@ -127,6 +129,90 @@ describe("beta release canonical input contract", () => {
     expect(
       Object.isFrozen(STORE_0_2_13_RELEASE_CANONICAL_INPUTS_V1.artifacts),
     ).toBe(true);
+  });
+
+  it("adds a repaired-Chrome canonical successor without rewriting frozen 0.2.13 carriers", () => {
+    const frozenBefore = JSON.stringify(
+      STORE_0_2_13_RELEASE_CANONICAL_INPUTS_V1,
+    );
+    const parsed = Store0213RepairedChromeReleaseCanonicalInputsV1Schema.parse(
+      STORE_0_2_13_REPAIRED_CHROME_RELEASE_CANONICAL_INPUTS_V1,
+    );
+
+    expect(parsed.source).toEqual({
+      head: "087eab3394aac5164e8b3d16459eabf0697895d9",
+      tree: "7c72525e6e91c2ddda65e5d8ca0226846c04ae66",
+    });
+    expect(parsed.browserArtifacts).toEqual([
+      {
+        browserFamily: "chrome",
+        artifactSha256:
+          "7d12ddcbd82e18e26885c94f6a02e512dbade2c57b7e89ac9444dcbe0cac8cf4",
+      },
+      {
+        browserFamily: "opera",
+        artifactSha256:
+          "8d0664dda71e5b1f12e4bd69e42b53325ee8d213eb6d4869d7291799fce5b463",
+      },
+      {
+        browserFamily: "yandex_chromium",
+        artifactSha256:
+          "8d0664dda71e5b1f12e4bd69e42b53325ee8d213eb6d4869d7291799fce5b463",
+      },
+      {
+        browserFamily: "firefox",
+        artifactSha256:
+          "b987ce3a24258d3922f61b2d650c17ef029d895a25aab0ec6d27cccacec3c037",
+      },
+    ]);
+    expect(parsed.chromeRepairArtifact).toEqual({
+      filename: "Octoport-Chrome-0.2.13-test-7d12ddcb.zip",
+      sha256:
+        "7d12ddcbd82e18e26885c94f6a02e512dbade2c57b7e89ac9444dcbe0cac8cf4",
+      bytes: 2300829,
+    });
+    expect(parsed.authority).toEqual({
+      evidenceLevel: "SOURCE_CANONICAL_INPUT",
+      catalogMutationAuthorized: false,
+      packageBuildAuthorized: false,
+      livePublicationAuthorized: false,
+    });
+
+    expect(JSON.stringify(STORE_0_2_13_RELEASE_CANONICAL_INPUTS_V1)).toBe(
+      frozenBefore,
+    );
+    expect(STORE_0_2_13_RELEASE_CANONICAL_INPUTS_V1.artifacts[0].sha256).toBe(
+      "8d0664dda71e5b1f12e4bd69e42b53325ee8d213eb6d4869d7291799fce5b463",
+    );
+
+    const exactCommand = PublishExtensionReleaseCommandSchema.parse({
+      version: parsed.release.productVersion,
+      releaseChannel: parsed.release.releaseChannel,
+      browserArtifacts: parsed.browserArtifacts,
+      releasedAt: new Date("2026-10-06T00:00:00.000Z"),
+      supportedContracts: [parsed.release.contractVersion],
+      supportedBrowsers: parsed.release.supportedBrowsers,
+    });
+    expect(exactCommand.browserArtifacts).toEqual(parsed.browserArtifacts);
+  });
+
+  it("fails closed if the repaired Chrome digest is propagated to Opera", () => {
+    const canonical = STORE_0_2_13_REPAIRED_CHROME_RELEASE_CANONICAL_INPUTS_V1;
+    expect(
+      Store0213RepairedChromeReleaseCanonicalInputsV1Schema.safeParse({
+        ...canonical,
+        browserArtifacts: [
+          canonical.browserArtifacts[0],
+          {
+            browserFamily: "opera",
+            artifactSha256:
+              "7d12ddcbd82e18e26885c94f6a02e512dbade2c57b7e89ac9444dcbe0cac8cf4",
+          },
+          canonical.browserArtifacts[2],
+          canonical.browserArtifacts[3],
+        ],
+      }).success,
+    ).toBe(false);
   });
 
   it("binds each browser family to its exact accepted carrier digest", () => {

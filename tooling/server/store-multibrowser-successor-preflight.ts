@@ -6,6 +6,7 @@ import { validateProfileContent } from "../../packages/server/adapter-registry/s
 import {
   BETA_RELEASE_CANONICAL_INPUTS_V1,
   STORE_0_2_13_RELEASE_CANONICAL_INPUTS_V1,
+  STORE_0_2_13_REPAIRED_CHROME_RELEASE_CANONICAL_INPUTS_V1,
 } from "../../packages/server/compatibility/src/beta-release-canonical-inputs.js";
 import {
   STORE1_CONTRACT,
@@ -381,6 +382,111 @@ export function assertMultibrowserProfileTargets(
     opera.profileContentSha256 !== STORE1_PROFILE_SHA256
   )
     throw new Error("MULTIBROWSER_EXISTING_OPERA_PROFILE_CHANGED");
+}
+
+export type Store0213RepairedChromeCanonicalTarget = {
+  schemaVersion: "store_0213_repaired_chrome_preflight_v1";
+  evidenceLevel: typeof MULTIBROWSER_EVIDENCE_LEVEL;
+  readOnly: true;
+  catalogMutationAuthorized: false;
+  packageBuildAuthorized: false;
+  livePublicationAuthorized: false;
+  ordinaryAuthAccepted: false;
+  liveOwnerAccepted: false;
+  deploymentAuthorized: false;
+  source: { head: string; tree: string };
+  productVersion: typeof MULTIBROWSER_SUCCESSOR_VERSION;
+  release: {
+    releaseChannel: "stable";
+    supportedContracts: [typeof STORE1_CONTRACT];
+    supportedBrowsers: BrowserTargetFamily[];
+    browserArtifacts: Array<{
+      browserFamily: BrowserTargetFamily;
+      artifactSha256: string;
+    }>;
+  };
+  chromeRepairArtifact: {
+    filename: string;
+    sha256: string;
+    bytes: number;
+    bytesVerified: boolean;
+  };
+};
+
+export function readStore0213RepairedChromeCanonicalTarget(
+  chromeZipPath?: string,
+): Store0213RepairedChromeCanonicalTarget {
+  const canonical = STORE_0_2_13_REPAIRED_CHROME_RELEASE_CANONICAL_INPUTS_V1;
+  const historical = STORE_0_2_13_RELEASE_CANONICAL_INPUTS_V1;
+  const historicalByBrowser = new Map(
+    historical.artifacts.flatMap((artifact) =>
+      artifact.browserFamilies.map(
+        (browserFamily) => [browserFamily, artifact.sha256] as const,
+      ),
+    ),
+  );
+
+  const chrome = canonical.browserArtifacts[0];
+  if (
+    chrome.browserFamily !== "chrome" ||
+    chrome.artifactSha256 === historicalByBrowser.get("chrome")
+  )
+    throw new Error("REPAIRED_CHROME_CANONICAL_IDENTITY_INVALID");
+
+  for (const browserFamily of [
+    "opera",
+    "yandex_chromium",
+    "firefox",
+  ] as const) {
+    const repaired = canonical.browserArtifacts.find(
+      (artifact) => artifact.browserFamily === browserFamily,
+    );
+    if (
+      !repaired ||
+      repaired.artifactSha256 !== historicalByBrowser.get(browserFamily)
+    )
+      throw new Error("REPAIRED_CHROME_NON_CHROME_DIGEST_DRIFT");
+  }
+
+  let bytesVerified = false;
+  if (chromeZipPath) {
+    const bytes = readFileSync(chromeZipPath);
+    if (
+      basename(chromeZipPath) !== canonical.chromeRepairArtifact.filename ||
+      bytes.length !== canonical.chromeRepairArtifact.bytes ||
+      createHash("sha256").update(bytes).digest("hex") !==
+        canonical.chromeRepairArtifact.sha256
+    )
+      throw new Error("REPAIRED_CHROME_PACKAGE_MISMATCH");
+    bytesVerified = true;
+  }
+
+  return {
+    schemaVersion: "store_0213_repaired_chrome_preflight_v1",
+    evidenceLevel: MULTIBROWSER_EVIDENCE_LEVEL,
+    readOnly: true,
+    catalogMutationAuthorized: false,
+    packageBuildAuthorized: false,
+    livePublicationAuthorized: false,
+    ordinaryAuthAccepted: false,
+    liveOwnerAccepted: false,
+    deploymentAuthorized: false,
+    source: { ...canonical.source },
+    productVersion: canonical.release.productVersion,
+    release: {
+      releaseChannel: canonical.release.releaseChannel,
+      supportedContracts: [canonical.release.contractVersion],
+      supportedBrowsers: [...canonical.release.supportedBrowsers],
+      browserArtifacts: canonical.browserArtifacts.map((artifact) => ({
+        browserFamily: artifact.browserFamily,
+        artifactSha256: artifact.artifactSha256,
+      })),
+    },
+    chromeRepairArtifact: {
+      ...canonical.chromeRepairArtifact,
+      bytesVerified,
+    },
+  };
 }
 
 export function readMultibrowserSuccessorTarget(

@@ -11,6 +11,7 @@ import {
   MULTIBROWSER_SUCCESSOR_VERSION,
   assertMultibrowserProfileTargets,
   readMultibrowserSuccessorTarget,
+  readStore0213RepairedChromeCanonicalTarget,
   type SuccessorProfileTarget,
 } from "./store-multibrowser-successor-preflight.js";
 
@@ -107,6 +108,66 @@ function rewrite(
   mutate(manifest);
   writeFileSync(value.manifestPath, JSON.stringify(manifest, null, 2));
 }
+
+describe("repaired Chrome STORE 0.2.13 canonical preflight", () => {
+  it("keeps repaired Chrome distinct from the frozen Opera/Yandex and Firefox artifacts", () => {
+    const result = readStore0213RepairedChromeCanonicalTarget();
+    expect(result).toMatchObject({
+      schemaVersion: "store_0213_repaired_chrome_preflight_v1",
+      evidenceLevel: "SOURCE_PREFLIGHT",
+      readOnly: true,
+      catalogMutationAuthorized: false,
+      packageBuildAuthorized: false,
+      livePublicationAuthorized: false,
+      ordinaryAuthAccepted: false,
+      liveOwnerAccepted: false,
+      deploymentAuthorized: false,
+      source: {
+        head: "087eab3394aac5164e8b3d16459eabf0697895d9",
+        tree: "7c72525e6e91c2ddda65e5d8ca0226846c04ae66",
+      },
+      productVersion: "0.2.13",
+      chromeRepairArtifact: {
+        filename: "Octoport-Chrome-0.2.13-test-7d12ddcb.zip",
+        sha256:
+          "7d12ddcbd82e18e26885c94f6a02e512dbade2c57b7e89ac9444dcbe0cac8cf4",
+        bytes: 2300829,
+        bytesVerified: false,
+      },
+    });
+    expect(result.release.browserArtifacts).toEqual([
+      {
+        browserFamily: "chrome",
+        artifactSha256:
+          "7d12ddcbd82e18e26885c94f6a02e512dbade2c57b7e89ac9444dcbe0cac8cf4",
+      },
+      {
+        browserFamily: "opera",
+        artifactSha256:
+          "8d0664dda71e5b1f12e4bd69e42b53325ee8d213eb6d4869d7291799fce5b463",
+      },
+      {
+        browserFamily: "yandex_chromium",
+        artifactSha256:
+          "8d0664dda71e5b1f12e4bd69e42b53325ee8d213eb6d4869d7291799fce5b463",
+      },
+      {
+        browserFamily: "firefox",
+        artifactSha256:
+          "b987ce3a24258d3922f61b2d650c17ef029d895a25aab0ec6d27cccacec3c037",
+      },
+    ]);
+  });
+
+  it("rejects non-exact repaired Chrome package bytes and basename", () => {
+    const dir = mkdtempSync(join(tmpdir(), "octoport-repaired-chrome-"));
+    const path = join(dir, "Octoport-Chrome-0.2.13-test-7d12ddcb.zip");
+    writeFileSync(path, Buffer.from("not-the-exact-package"));
+    expect(() => readStore0213RepairedChromeCanonicalTarget(path)).toThrow(
+      "REPAIRED_CHROME_PACKAGE_MISMATCH",
+    );
+  });
+});
 
 describe("multi-browser successor STORE preflight", () => {
   it("binds exact successor packages to four explicit browser/profile targets", () => {
