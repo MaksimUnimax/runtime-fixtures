@@ -47,8 +47,8 @@ function fixture() {
   const dir = mkdtempSync(join(tmpdir(), "octoport-multibrowser-"));
   const chromiumBytes = Buffer.from("chromium-successor-package");
   const firefoxBytes = Buffer.from("firefox-successor-package");
-  const chromiumFilename = "OCTOPORT_v0.2.12_CHROMIUM_STORE.zip";
-  const firefoxFilename = "OCTOPORT_v0.2.12_FIREFOX_STORE.zip";
+  const chromiumFilename = "OCTOPORT_v0.2.13_CHROMIUM_STORE.zip";
+  const firefoxFilename = "OCTOPORT_v0.2.13_FIREFOX_STORE.zip";
   const chromiumZipPath = join(dir, chromiumFilename);
   const firefoxZipPath = join(dir, firefoxFilename);
   writeFileSync(chromiumZipPath, chromiumBytes);
@@ -68,7 +68,7 @@ function fixture() {
       chromium: {
         filename: chromiumFilename,
         sha256:
-          "90f6d67a5c3f3a2650886e32411f076349d7f429b3d4ed8ac1aa617e61ac77d7",
+          "8d0664dda71e5b1f12e4bd69e42b53325ee8d213eb6d4869d7291799fce5b463",
         bytes: chromiumBytes.length,
         inventoryCount: 43,
         version: MULTIBROWSER_SUCCESSOR_VERSION,
@@ -77,7 +77,7 @@ function fixture() {
       firefox: {
         filename: firefoxFilename,
         sha256:
-          "a29ad0de5f91fdcf6fbd09a6443f31a754af7248e41ec8429dc74ed26e76dd9c",
+          "b987ce3a24258d3922f61b2d650c17ef029d895a25aab0ec6d27cccacec3c037",
         bytes: firefoxBytes.length,
         inventoryCount: 44,
         version: MULTIBROWSER_SUCCESSOR_VERSION,
@@ -120,8 +120,8 @@ describe("multi-browser successor STORE preflight", () => {
       catalogMutationAuthorized: false,
       packageBuildAuthorized: false,
       livePublicationAuthorized: false,
-      currentImmutableVersion: "0.2.11",
-      productVersion: "0.2.12",
+      currentImmutableVersion: "0.2.12",
+      productVersion: "0.2.13",
       contractVersion: "control_plane_v2",
       release: {
         releaseChannel: "stable",
@@ -131,35 +131,35 @@ describe("multi-browser successor STORE preflight", () => {
           {
             browserFamily: "chrome",
             artifactSha256:
-              "90f6d67a5c3f3a2650886e32411f076349d7f429b3d4ed8ac1aa617e61ac77d7",
+              "8d0664dda71e5b1f12e4bd69e42b53325ee8d213eb6d4869d7291799fce5b463",
           },
           {
             browserFamily: "opera",
             artifactSha256:
-              "90f6d67a5c3f3a2650886e32411f076349d7f429b3d4ed8ac1aa617e61ac77d7",
+              "8d0664dda71e5b1f12e4bd69e42b53325ee8d213eb6d4869d7291799fce5b463",
           },
           {
             browserFamily: "yandex_chromium",
             artifactSha256:
-              "90f6d67a5c3f3a2650886e32411f076349d7f429b3d4ed8ac1aa617e61ac77d7",
+              "8d0664dda71e5b1f12e4bd69e42b53325ee8d213eb6d4869d7291799fce5b463",
           },
           {
             browserFamily: "firefox",
             artifactSha256:
-              "a29ad0de5f91fdcf6fbd09a6443f31a754af7248e41ec8429dc74ed26e76dd9c",
+              "b987ce3a24258d3922f61b2d650c17ef029d895a25aab0ec6d27cccacec3c037",
           },
         ],
       },
       packages: {
         chromium: {
           kind: "chromium",
-          version: "0.2.12",
+          version: "0.2.13",
           browser: "chromium",
           bytesVerified: false,
         },
         firefox: {
           kind: "firefox",
-          version: "0.2.12",
+          version: "0.2.13",
           browser: "firefox",
           bytesVerified: false,
         },
@@ -211,7 +211,7 @@ describe("multi-browser successor STORE preflight", () => {
       compatibility: {
         browserFamilies: ["chrome"],
         minimumBrowserVersions: [],
-        minimumExtensionVersion: "0.2.12",
+        minimumExtensionVersion: "0.2.13",
       },
     });
     expect(
@@ -263,7 +263,7 @@ describe("multi-browser successor STORE preflight", () => {
     expect(result.packageBuildAuthorized).toBe(false);
   });
 
-  it("refuses to widen the immutable current 0.2.11 release", () => {
+  it("refuses to widen the immutable current 0.2.12 release", () => {
     const f = fixture();
     rewrite(f, (manifest) => {
       manifest.productVersion = MULTIBROWSER_CURRENT_VERSION;
@@ -275,14 +275,14 @@ describe("multi-browser successor STORE preflight", () => {
     );
   });
 
-  it.each(["0.2.10", "0.2.13"])(
+  it.each(["0.2.11", "0.2.14"])(
     "requires the exact next patch version instead of %s",
     (version) => {
       const f = fixture();
       rewrite(f, (manifest) => {
-        manifest.productVersion = version as "0.2.12";
-        manifest.packages.chromium.version = version as "0.2.12";
-        manifest.packages.firefox.version = version as "0.2.12";
+        manifest.productVersion = version as "0.2.13";
+        manifest.packages.chromium.version = version as "0.2.13";
+        manifest.packages.firefox.version = version as "0.2.13";
       });
       expect(() => readMultibrowserSuccessorTarget(f.manifestPath)).toThrow(
         "MULTIBROWSER_SUCCESSOR_VERSION_REQUIRED",
@@ -323,7 +323,7 @@ describe("multi-browser successor STORE preflight", () => {
   it("rejects package version mismatch", () => {
     const f = fixture();
     rewrite(f, (manifest) => {
-      manifest.packages.firefox.version = "0.2.11";
+      manifest.packages.firefox.version = "0.2.12";
     });
     expect(() => readMultibrowserSuccessorTarget(f.manifestPath)).toThrow(
       "MULTIBROWSER_FIREFOX_PACKAGE_INVALID",

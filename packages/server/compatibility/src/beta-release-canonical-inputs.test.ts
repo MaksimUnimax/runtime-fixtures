@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   BETA_RELEASE_CANONICAL_INPUTS_V1,
   BetaReleaseCanonicalInputsV1Schema,
+  STORE_0_2_13_RELEASE_CANONICAL_INPUTS_V1,
+  Store0213ReleaseCanonicalInputsV1Schema,
   PublishExtensionReleaseCommandSchema,
   ReleaseChannelSchema,
 } from "./index.js";
@@ -26,6 +28,105 @@ describe("beta release canonical input contract", () => {
       freeBetaAdmissionIsReleaseChannel: false,
       derivedFromSemVerOrFilename: false,
     });
+  });
+
+  it("adds exact 0.2.13 authority without rewriting historical 0.2.12", () => {
+    expect(BETA_RELEASE_CANONICAL_INPUTS_V1.release.productVersion).toBe(
+      "0.2.12",
+    );
+
+    const parsed = Store0213ReleaseCanonicalInputsV1Schema.parse(
+      STORE_0_2_13_RELEASE_CANONICAL_INPUTS_V1,
+    );
+    expect(parsed.release).toEqual({
+      productVersion: "0.2.13",
+      contractVersion: "control_plane_v2",
+      releaseChannel: "stable",
+      supportedBrowsers: ["chrome", "opera", "yandex_chromium", "firefox"],
+    });
+    expect(parsed.artifacts).toEqual([
+      {
+        carrier: "chromium",
+        sha256:
+          "8d0664dda71e5b1f12e4bd69e42b53325ee8d213eb6d4869d7291799fce5b463",
+        browserFamilies: ["chrome", "opera", "yandex_chromium"],
+      },
+      {
+        carrier: "firefox",
+        sha256:
+          "b987ce3a24258d3922f61b2d650c17ef029d895a25aab0ec6d27cccacec3c037",
+        browserFamilies: ["firefox"],
+      },
+    ]);
+
+    const browserArtifacts = parsed.artifacts.flatMap((artifact) =>
+      artifact.browserFamilies.map((browserFamily) => ({
+        browserFamily,
+        artifactSha256: artifact.sha256,
+      })),
+    );
+    const exactCommand = PublishExtensionReleaseCommandSchema.parse({
+      version: parsed.release.productVersion,
+      releaseChannel: parsed.release.releaseChannel,
+      browserArtifacts,
+      releasedAt: new Date("2026-10-06T00:00:00.000Z"),
+      supportedContracts: [parsed.release.contractVersion],
+      supportedBrowsers: parsed.release.supportedBrowsers,
+    });
+    expect(exactCommand.browserArtifacts).toEqual([
+      {
+        browserFamily: "chrome",
+        artifactSha256:
+          "8d0664dda71e5b1f12e4bd69e42b53325ee8d213eb6d4869d7291799fce5b463",
+      },
+      {
+        browserFamily: "opera",
+        artifactSha256:
+          "8d0664dda71e5b1f12e4bd69e42b53325ee8d213eb6d4869d7291799fce5b463",
+      },
+      {
+        browserFamily: "yandex_chromium",
+        artifactSha256:
+          "8d0664dda71e5b1f12e4bd69e42b53325ee8d213eb6d4869d7291799fce5b463",
+      },
+      {
+        browserFamily: "firefox",
+        artifactSha256:
+          "b987ce3a24258d3922f61b2d650c17ef029d895a25aab0ec6d27cccacec3c037",
+      },
+    ]);
+
+    expect(
+      Store0213ReleaseCanonicalInputsV1Schema.safeParse({
+        ...parsed,
+        release: { ...parsed.release, productVersion: "0.2.12" },
+      }).success,
+    ).toBe(false);
+    expect(
+      Store0213ReleaseCanonicalInputsV1Schema.safeParse({
+        ...parsed,
+        artifacts: [
+          { ...parsed.artifacts[0], sha256: "0".repeat(64) },
+          parsed.artifacts[1],
+        ],
+      }).success,
+    ).toBe(false);
+
+    expect(parsed.authority).toEqual({
+      evidenceLevel: "SOURCE_CANONICAL_INPUT",
+      catalogMutationAuthorized: false,
+      packageBuildAuthorized: false,
+      livePublicationAuthorized: false,
+    });
+    expect(Object.isFrozen(STORE_0_2_13_RELEASE_CANONICAL_INPUTS_V1)).toBe(
+      true,
+    );
+    expect(
+      Object.isFrozen(STORE_0_2_13_RELEASE_CANONICAL_INPUTS_V1.release),
+    ).toBe(true);
+    expect(
+      Object.isFrozen(STORE_0_2_13_RELEASE_CANONICAL_INPUTS_V1.artifacts),
+    ).toBe(true);
   });
 
   it("binds each browser family to its exact accepted carrier digest", () => {
