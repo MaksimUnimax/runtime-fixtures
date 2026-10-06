@@ -213,7 +213,14 @@
         "storage": 45,
         "logistics": 75,
         "ads": 90,
-        "complete": true
+        "complete": true,
+        "currencyByComponent": {
+          "revenue": "RUB",
+          "fees": "RUB",
+          "storage": "RUB",
+          "logistics": "RUB",
+          "ads": "RUB"
+        }
       },
       "expected": {
         "status": "COMPLETE",
@@ -540,7 +547,14 @@
         "fees": 110,
         "storage": 45,
         "logistics": 75,
-        "ads": 90
+        "ads": 90,
+        "currencyByComponent": {
+          "revenue": "RUB",
+          "fees": "RUB",
+          "storage": "RUB",
+          "logistics": "RUB",
+          "ads": "RUB"
+        }
       },
       "expected": {
         "status": "INCOMPLETE",
@@ -558,7 +572,181 @@
         "fees": 110,
         "storage": null,
         "logistics": 75,
+        "ads": 90,
+        "currencyByComponent": {
+          "revenue": "RUB",
+          "fees": "RUB",
+          "storage": "RUB",
+          "logistics": "RUB",
+          "ads": "RUB"
+        }
+      },
+      "expected": {
+        "status": "INCOMPLETE",
+        "label": "platform_contribution",
+        "amount": null,
+        "isNetProfit": false
+      }
+    },
+    {
+      "id": "platform_contribution_currency_missing",
+      "kind": "platform_contribution",
+      "input": {
+        "complete": true,
+        "revenue": 1000,
+        "fees": 110,
+        "storage": 45,
+        "logistics": 75,
         "ads": 90
+      },
+      "expected": {
+        "status": "INCOMPLETE",
+        "label": "platform_contribution",
+        "amount": null,
+        "isNetProfit": false
+      }
+    },
+    {
+      "id": "platform_contribution_currency_incomplete",
+      "kind": "platform_contribution",
+      "input": {
+        "complete": true,
+        "revenue": 1000,
+        "fees": 110,
+        "storage": 45,
+        "logistics": 75,
+        "ads": 90,
+        "currencyByComponent": {
+          "revenue": "RUB",
+          "fees": "RUB",
+          "storage": "RUB",
+          "logistics": "RUB"
+        }
+      },
+      "expected": {
+        "status": "INCOMPLETE",
+        "label": "platform_contribution",
+        "amount": null,
+        "isNetProfit": false
+      }
+    },
+    {
+      "id": "platform_contribution_currency_mismatch",
+      "kind": "platform_contribution",
+      "input": {
+        "complete": true,
+        "revenue": 1000,
+        "fees": 110,
+        "storage": 45,
+        "logistics": 75,
+        "ads": 90,
+        "currencyByComponent": {
+          "revenue": "RUB",
+          "fees": "RUB",
+          "storage": "RUB",
+          "logistics": "RUB",
+          "ads": "USD"
+        }
+      },
+      "expected": {
+        "status": "INCOMPLETE",
+        "label": "platform_contribution",
+        "amount": null,
+        "isNetProfit": false
+      }
+    },
+    {
+      "id": "platform_contribution_complete_non_boolean",
+      "kind": "platform_contribution",
+      "input": {
+        "complete": "true",
+        "revenue": 1000,
+        "fees": 110,
+        "storage": 45,
+        "logistics": 75,
+        "ads": 90,
+        "currencyByComponent": {
+          "revenue": "RUB",
+          "fees": "RUB",
+          "storage": "RUB",
+          "logistics": "RUB",
+          "ads": "RUB"
+        }
+      },
+      "expected": {
+        "status": "INCOMPLETE",
+        "label": "platform_contribution",
+        "amount": null,
+        "isNetProfit": false
+      }
+    },
+    {
+      "id": "platform_contribution_currency_wrong_type",
+      "kind": "platform_contribution",
+      "input": {
+        "complete": true,
+        "revenue": 1000,
+        "fees": 110,
+        "storage": 45,
+        "logistics": 75,
+        "ads": 90,
+        "currencyByComponent": {
+          "revenue": "RUB",
+          "fees": "RUB",
+          "storage": "RUB",
+          "logistics": "RUB",
+          "ads": 643
+        }
+      },
+      "expected": {
+        "status": "INCOMPLETE",
+        "label": "platform_contribution",
+        "amount": null,
+        "isNetProfit": false
+      }
+    },
+    {
+      "id": "platform_contribution_currency_blank",
+      "kind": "platform_contribution",
+      "input": {
+        "complete": true,
+        "revenue": 1000,
+        "fees": 110,
+        "storage": 45,
+        "logistics": 75,
+        "ads": 90,
+        "currencyByComponent": {
+          "revenue": "RUB",
+          "fees": "RUB",
+          "storage": "RUB",
+          "logistics": "RUB",
+          "ads": ""
+        }
+      },
+      "expected": {
+        "status": "INCOMPLETE",
+        "label": "platform_contribution",
+        "amount": null,
+        "isNetProfit": false
+      }
+    },
+    {
+      "id": "platform_contribution_currency_whitespace",
+      "kind": "platform_contribution",
+      "input": {
+        "complete": true,
+        "revenue": 1000,
+        "fees": 110,
+        "storage": 45,
+        "logistics": 75,
+        "ads": 90,
+        "currencyByComponent": {
+          "revenue": "RUB",
+          "fees": "RUB",
+          "storage": "RUB",
+          "logistics": "RUB",
+          "ads": " RUB "
+        }
       },
       "expected": {
         "status": "INCOMPLETE",

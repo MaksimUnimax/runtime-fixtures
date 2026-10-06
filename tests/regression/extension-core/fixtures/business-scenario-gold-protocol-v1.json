@@ -153,6 +153,13 @@
       "kind": "platform_contribution",
       "caseIds": [
         "platform_contribution",
+        "platform_contribution_complete_non_boolean",
+        "platform_contribution_currency_blank",
+        "platform_contribution_currency_incomplete",
+        "platform_contribution_currency_mismatch",
+        "platform_contribution_currency_missing",
+        "platform_contribution_currency_whitespace",
+        "platform_contribution_currency_wrong_type",
         "platform_contribution_incomplete",
         "platform_contribution_null_storage"
       ]
@@ -799,13 +806,13 @@
       "scenarioId": "CAP-24",
       "marketplace": "OZON",
       "periodRef": "GOLD_MONTH_2026_09_MSK",
-      "definitionsHash": "439ad9b58ad7e1945e60103c946c1f643f61c4d86fc33d85f9204495b066f5c7"
+      "definitionsHash": "d62ba2f05bb98619a32734dcead6cd58573fb8031c953ab0253143c7065a2d5c"
     },
     {
       "scenarioId": "CAP-24",
       "marketplace": "WILDBERRIES",
       "periodRef": "GOLD_MONTH_2026_09_MSK",
-      "definitionsHash": "cd27900b58795c4190916e2967e6d6dfa90d891f14c2add740f51313d0ddd560"
+      "definitionsHash": "29ab6cdac17186e113cc3011dcd63f8c326faadd4d77ad610a5d8183372f2bdf"
     },
     {
       "scenarioId": "CAP-25",
@@ -820,7 +827,7 @@
       "definitionsHash": "14287e8439610217c351a3960ef310cb3c70aece0c96962683cfc949b2c6c150"
     }
   ],
-  "definitionIndexSha256": "a75029fa796b372d53819cde1d333bd6e0476e9f266646bd1614b6cbbcd0405f",
+  "definitionIndexSha256": "42db216a18e971bf9f0407dd3745c4cbf6f660115c7c857c49455f645c0c7ec7",
   "providerFactStatus": "SOURCE_DEFINED_NOT_LIVE_ACCEPTED",
   "ownerSemanticDefaultStatus": "PENDING_OWNER",
   "externalDependencyDefaultStatus": "PENDING_EXTERNAL",

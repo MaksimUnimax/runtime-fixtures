@@ -79,13 +79,21 @@ function loadEffectiveWildberriesRegistry() {
   const composition = JSON.parse(read("apps/extension/composition.json"));
   const sources =
     composition.isolated_bundles?.["shared/wb_adapter.js"]?.reference_sources;
-  assert.ok(Array.isArray(sources), "WB effective registry composition missing");
-  const donorIndex = sources.indexOf(coverage.authorities.wildberries.registryPath);
+  assert.ok(
+    Array.isArray(sources),
+    "WB effective registry composition missing",
+  );
+  const donorIndex = sources.indexOf(
+    coverage.authorities.wildberries.registryPath,
+  );
   const credentialsIndex = sources.findIndex((value) =>
     value.endsWith("/wb_credentials.js"),
   );
   assert.equal(donorIndex, 0, "frozen WB donor must remain first in bundle");
-  assert.ok(credentialsIndex > donorIndex, "WB registry overlay boundary missing");
+  assert.ok(
+    credentialsIndex > donorIndex,
+    "WB registry overlay boundary missing",
+  );
   const context = {};
   context.globalThis = context;
   vm.createContext(context);
@@ -370,10 +378,33 @@ const calculators = {
       input.ads,
     ];
     if (
-      !input.complete ||
+      input.complete !== true ||
       raw.some((value) => typeof value !== "number" || !Number.isFinite(value))
     )
       return incomplete;
+
+    const components = ["revenue", "fees", "storage", "logistics", "ads"];
+    const currencyByComponent = input.currencyByComponent;
+    if (
+      !currencyByComponent ||
+      typeof currencyByComponent !== "object" ||
+      Array.isArray(currencyByComponent)
+    )
+      return incomplete;
+    const currencies = components.map(
+      (component) => currencyByComponent[component],
+    );
+    if (
+      currencies.some(
+        (currency) =>
+          typeof currency !== "string" ||
+          !currency ||
+          currency !== currency.trim(),
+      ) ||
+      new Set(currencies).size !== 1
+    )
+      return incomplete;
+
     const values = raw;
     return {
       status: "COMPLETE",
