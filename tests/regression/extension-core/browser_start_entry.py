@@ -192,8 +192,9 @@ def main():
             wait_for(lambda: not fixture.state()["context"]["work_active"], "Finish", 10)
             assert page.evaluate("sent.length") == 2
             wait_for(lambda: page.locator(".ozon-bridge-block-action").count() == 0, "finished command buttons")
+            wait_for(lambda: popup.locator("#start").is_enabled(), "Start ready after Finish action completion", 10)
             report["cases"].append({"name": "finish-removes-buttons-without-resend", "status": "PASS"})
-            # Restart on an existing conversation; the old HELP remains history.
+            # Restart on an existing conversation only after the popup action itself is ready.
             fixture.click_start()
             wait_for(lambda: ((fixture.state().get("work") or {}).get("state") == "active_visible" and not fixture.state().get("pending")), "existing-dialogue restart", 25)
             assert page.evaluate("sent.length") == 3

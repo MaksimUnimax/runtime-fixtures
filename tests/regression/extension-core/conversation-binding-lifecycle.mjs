@@ -183,6 +183,38 @@ await test('real-popup-refresh-and-finish-ignore-obsolete-actions',async()=>{
 });
 
 
+
+await test('real-popup-finish-refresh-cannot-silently-drop-next-start',async()=>{
+ const source=fs.readFileSync(path.join(runtime,'popup.js'),'utf8');
+ const actionStart=source.indexOf('async function action(');
+ const actionEnd=source.indexOf('\nfunction selected()',actionStart);
+ assert(actionStart>=0&&actionEnd>actionStart);
+ const status={textContent:''};
+ let refreshRelease,startVisible=false;
+ const ctx={
+  $:()=>status,
+  render:()=>{},
+  actionSuccessText:result=>result?.label||'ok',
+  refresh:async()=>{startVisible=true;await new Promise(resolve=>{refreshRelease=resolve;});}
+ };
+ vm.createContext(ctx);
+ vm.runInContext('let busy=false, actionGeneration=0, refreshGeneration=0, state={};\n'+
+  source.slice(actionStart,actionEnd)+
+  '\nglobalThis.api={action,read:()=>({busy})};',ctx);
+ const finish=ctx.api.action(async()=>({label:'finished'}),{interrupt:true});
+ for(let i=0;i<20&&!startVisible;i++) await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(startVisible,true);
+ assert.equal(ctx.api.read().busy,true);
+ let startRan=false;
+ const rejected=await ctx.api.action(async()=>{startRan=true;return {label:'started'};});
+ assert.equal(startRan,false,'a non-interrupt Start must not execute while Finish action is still busy');
+ assert.equal(rejected?.popupAction,'BUSY_REJECTED');
+ assert.equal(status.textContent,'Дождитесь завершения текущего действия.');
+ refreshRelease();
+ await finish;
+ assert.equal(ctx.api.read().busy,false);
+});
+
 await test('attachment-worker-uses-confirmed-shared-identity-without-route-shape',async()=>{
  const source=fs.readFileSync(path.join(runtime,'shared/file_delivery_port_worker.js'),'utf8');
  const begin=source.indexOf('  function normalizedLiveOwner(');

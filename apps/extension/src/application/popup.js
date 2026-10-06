@@ -112,10 +112,14 @@ async function requestTransferReceivePending() {
   return { response, presentation };
 }
 async function action(fn, { interrupt = false } = {}) {
-  if (busy && !interrupt) return;
+  if (busy && !interrupt) {
+    $("status").textContent = "Дождитесь завершения текущего действия.";
+    return { popupAction: "BUSY_REJECTED" };
+  }
   const generation = ++actionGeneration;
   refreshGeneration += 1;
   busy = true;
+  if (typeof render === "function") render();
   $("status").textContent = "Выполняем…";
   try {
     const result = await fn();
@@ -125,7 +129,10 @@ async function action(fn, { interrupt = false } = {}) {
   } catch (e) {
     if (generation === actionGeneration) $("status").textContent = e.message;
   } finally {
-    if (generation === actionGeneration) busy = false;
+    if (generation === actionGeneration) {
+      busy = false;
+      if (typeof render === "function") render();
+    }
   }
 }
 function selected() { return state?.stores.find(x => x.id === selectedId); }
@@ -200,10 +207,10 @@ function render() {
       ? "Содержимое диалога изменилось. Новые действия приостановлены. Дождитесь загрузки прежней переписки или нажмите Start для текущего диалога."
       : "Дождитесь загрузки переписки. Start подключит текущий диалог после подтверждённой отправки инструкции и ответа ИИ."
     : localDialogue ? "Привязка действует в этом браузере. После перезагрузки она восстанавливается только при совпадении сохранённых признаков переписки." : "";
-  $("start").disabled = Boolean(state.pending) || !s || !supportedPage || ["binding", "recovering", "finishing"].includes(state.work?.state);
+  $("start").disabled = busy || Boolean(state.pending) || !s || !supportedPage || ["binding", "recovering", "finishing"].includes(state.work?.state);
   $("work-resume").hidden = !(state.context.store_id && state.work?.state === "inactive" && state.context.work_active !== true);
-  $("work-resume").disabled = Boolean(state.pending) || !state.conversation_key;
-  $("visibility").disabled = !active; $("finish").disabled = !active && state.work?.state !== "error" && !state.pending;
+  $("work-resume").disabled = busy || Boolean(state.pending) || !state.conversation_key;
+  $("visibility").disabled = busy || !active; $("finish").disabled = !active && state.work?.state !== "error" && !state.pending;
   $("visibility").textContent = state.context.button_visible ? "Скрыть кнопку" : "Показать кнопку";
   $("resume").hidden = !state.operation?.quota_wait;
 }
