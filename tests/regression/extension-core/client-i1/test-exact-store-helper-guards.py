@@ -7,6 +7,8 @@ import sys
 import tempfile
 import types
 import unittest
+import warnings
+import zipfile
 from pathlib import Path
 from unittest import mock
 
@@ -29,6 +31,10 @@ class HelperGuardTests(unittest.TestCase):
         self.proc.mkdir()
         self.profile = self.root / "profile [1].test"
         self.profile.mkdir()
+        self.carrier = self.root / "carrier"
+        with zipfile.ZipFile(self.carrier, "w") as archive:
+            archive.writestr("manifest.json", json.dumps({"version": "0.2.11"}))
+            archive.writestr("payload.txt", "fixture")
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -83,7 +89,7 @@ class HelperGuardTests(unittest.TestCase):
 
     def test_busy_profile_stops_before_runtime_or_profile_mutation(self):
         args = types.SimpleNamespace(carrier=self.root / "carrier",
-            expected_sha256="expected", browser_executable=Path("/unused/opera"),
+            expected_sha256="expected", expected_version="0.2.11", browser_executable=Path("/unused/opera"),
             expected_browser_product="136.0.6008.22", profile_dir=self.profile,
             runtime_dir=self.root / "runtime")
         with mock.patch.object(helper, "sha256", return_value="expected"), \
@@ -95,11 +101,104 @@ class HelperGuardTests(unittest.TestCase):
             extract.assert_not_called()
             self.assertFalse(args.runtime_dir.exists())
 
+    def test_prepare_rejects_wrong_manifest_version_before_browser_or_mutation(self):
+        runtime = self.root / "version-runtime"
+        profile = self.root / "version-profile"
+        args = types.SimpleNamespace(
+            carrier=self.carrier,
+            expected_sha256="expected",
+            expected_version="0.2.13",
+            browser_executable=Path("/unused/chrome"),
+            expected_browser_product="Google Chrome 147.0.7727.116",
+            profile_dir=profile,
+            runtime_dir=runtime,
+        )
+        with (
+            mock.patch.object(helper, "sha256", return_value="expected"),
+            mock.patch.object(helper, "browser_product") as browser,
+            mock.patch.object(helper, "ensure_exact_runtime") as extract,
+        ):
+            with self.assertRaisesRegex(AssertionError, "^EXTENSION_VERSION_MISMATCH$"):
+                helper.prepare(args)
+            browser.assert_not_called()
+            extract.assert_not_called()
+        self.assertFalse(runtime.exists())
+        self.assertFalse(profile.exists())
+
+    def test_prepare_reports_exact_manifest_version_on_success(self):
+        runtime = self.root / "exact-runtime"
+        profile = self.root / "exact-profile"
+        args = types.SimpleNamespace(
+            carrier=self.carrier,
+            expected_sha256="expected",
+            expected_version="0.2.11",
+            browser_executable=Path("/unused/chrome"),
+            expected_browser_product="Google Chrome 147.0.7727.116",
+            profile_dir=profile,
+            runtime_dir=runtime,
+        )
+        with (
+            mock.patch.object(helper, "sha256", return_value="expected"),
+            mock.patch.object(
+                helper,
+                "browser_product",
+                return_value="Google Chrome 147.0.7727.116",
+            ),
+            mock.patch.object(helper, "profile_in_use", return_value=False),
+            mock.patch.object(
+                helper,
+                "ensure_exact_runtime",
+                return_value={"created": False, "fileCount": 2},
+            ),
+        ):
+            result = helper.prepare(args)
+        self.assertEqual(result["status"], "PREPARED")
+        self.assertEqual(result["manifestVersion"], "0.2.11")
+        self.assertEqual(result["browserProduct"], "Google Chrome 147.0.7727.116")
+        self.assertTrue(profile.is_dir())
+        self.assertEqual(profile.stat().st_mode & 0o077, 0)
+
+    def test_carrier_manifest_version_rejects_missing_malformed_and_duplicate(self):
+        missing = self.root / "missing-manifest.zip"
+        malformed = self.root / "malformed-manifest.zip"
+        no_version = self.root / "missing-version.zip"
+        duplicate = self.root / "duplicate-manifest.zip"
+        with zipfile.ZipFile(missing, "w") as archive:
+            archive.writestr("payload.txt", "fixture")
+        with zipfile.ZipFile(malformed, "w") as archive:
+            archive.writestr("manifest.json", "{not-json")
+        with zipfile.ZipFile(no_version, "w") as archive:
+            archive.writestr("manifest.json", "{}")
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            with zipfile.ZipFile(duplicate, "w") as archive:
+                archive.writestr("manifest.json", json.dumps({"version": "0.2.11"}))
+                archive.writestr("manifest.json", json.dumps({"version": "0.2.12"}))
+        for path in (missing, malformed, no_version, duplicate):
+            with self.subTest(path=path.name):
+                with self.assertRaisesRegex(AssertionError, "^PACKAGE_MANIFEST_INVALID$"):
+                    helper.carrier_manifest_version(path)
+
+    def test_exact_google_chrome_product_is_supported_without_broadening_identity(self):
+        expected = "Google Chrome 147.0.7727.116"
+        helper.require_exact_browser_product(expected, expected)
+        for observed in (
+            "Chromium 147.0.7727.116",
+            "FakeBrowser 147.0.7727.116",
+            "Google Chrome 147.0.7727.116 extra",
+            "Google Chrome 147.0.7727.1160",
+        ):
+            with self.subTest(observed=observed):
+                with self.assertRaisesRegex(
+                    AssertionError, "^BROWSER_PRODUCT_VERSION_MISMATCH$"
+                ):
+                    helper.require_exact_browser_product(observed, expected)
+
     def test_prepare_rejects_browser_version_substring_and_wrong_product(self):
         self.profile.chmod(0o700)
         args = types.SimpleNamespace(
             carrier=self.root / "carrier",
-            expected_sha256="expected",
+            expected_sha256="expected", expected_version="0.2.11",
             browser_executable=Path("/unused/opera"),
             expected_browser_product="136.0.6008.22",
             profile_dir=self.profile,
@@ -140,7 +239,7 @@ class HelperGuardTests(unittest.TestCase):
 
         base = dict(
             carrier=self.root / "carrier",
-            expected_sha256="expected",
+            expected_sha256="expected", expected_version="0.2.11",
             browser_executable=Path("/unused/opera"),
             expected_browser_product="136.0.6008.22",
         )
@@ -198,7 +297,7 @@ class HelperGuardTests(unittest.TestCase):
         parent_link.symlink_to(real_parent, target_is_directory=True)
         args = types.SimpleNamespace(
             carrier=self.root / "carrier",
-            expected_sha256="expected",
+            expected_sha256="expected", expected_version="0.2.11",
             browser_executable=Path("/unused/opera"),
             expected_browser_product="136.0.6008.22",
             profile_dir=self.profile,
@@ -225,7 +324,7 @@ class HelperGuardTests(unittest.TestCase):
         unsafe_parent.chmod(0o777)
         args = types.SimpleNamespace(
             carrier=self.root / "carrier",
-            expected_sha256="expected",
+            expected_sha256="expected", expected_version="0.2.11",
             browser_executable=Path("/unused/opera"),
             expected_browser_product="136.0.6008.22",
             profile_dir=self.profile,
@@ -316,6 +415,10 @@ class HelperGuardTests(unittest.TestCase):
                          "RUNTIME_ROOT_PERMISSIONS_UNSAFE")
         self.assertEqual(helper.safe_failure_code(AssertionError("PROFILE_ROOT_PERMISSIONS_UNSAFE")),
                          "PROFILE_ROOT_PERMISSIONS_UNSAFE")
+        self.assertEqual(helper.safe_failure_code(AssertionError("PACKAGE_MANIFEST_INVALID")),
+                         "PACKAGE_MANIFEST_INVALID")
+        self.assertEqual(helper.safe_failure_code(AssertionError("EXTENSION_VERSION_MISMATCH")),
+                         "EXTENSION_VERSION_MISMATCH")
         for failure in [RuntimeError("OTP=PRIVATE_VALUE"), AssertionError("TOKEN=PRIVATE_VALUE")]:
             self.assertEqual(helper.safe_failure_code(failure), "OWNER_CONTROL_HELPER_FAILED")
 

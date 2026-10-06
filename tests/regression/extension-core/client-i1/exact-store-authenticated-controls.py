@@ -109,8 +109,11 @@ def browser_product(executable: Path) -> str:
     return subprocess.check_output([str(executable), "--version"], text=True).strip()
 
 
-def require_exact_browser_product(product: str, expected_version: str) -> None:
-    if not re.fullmatch(r"[0-9]+(?:\.[0-9]+){3}", expected_version) or product != expected_version:
+def require_exact_browser_product(product: str, expected_product: str) -> None:
+    accepted_shape = re.fullmatch(
+        r"(?:Google Chrome )?[0-9]+(?:\.[0-9]+){3}", expected_product
+    )
+    if not accepted_shape or product != expected_product:
         raise AssertionError("BROWSER_PRODUCT_VERSION_MISMATCH")
 
 
@@ -186,12 +189,13 @@ def profile_in_use(path: Path, proc_root: Path = Path("/proc")) -> bool:
 def safe_failure_code(failure: Exception) -> str:
     known = {
         "STORE_ZIP_SHA256_MISMATCH", "BROWSER_PRODUCT_VERSION_MISMATCH",
+        "PACKAGE_MANIFEST_INVALID", "EXTENSION_VERSION_MISMATCH",
         "RUNTIME_ROOT_SYMLINK_REJECTED", "PROFILE_ROOT_SYMLINK_REJECTED",
         "RUNTIME_ROOT_PERMISSIONS_UNSAFE", "PROFILE_ROOT_PERMISSIONS_UNSAFE",
         "DEDICATED_PROFILE_ALREADY_IN_USE", "DEDICATED_PROFILE_PERMISSIONS_UNSAFE", "PROFILE_USAGE_INSPECTION_FAILED",
         "UNSAFE_ZIP_MEMBER", "ZIP_SYMLINK_REJECTED", "RUNTIME_SYMLINK_REJECTED",
         "STABLE_RUNTIME_BYTES_MISMATCH", "RUNTIME_EXTRACTION_MISMATCH",
-        "EXTENSION_VERSION_MISMATCH", "ORDINARY_AUTH_REQUIRED",
+        "ORDINARY_AUTH_REQUIRED",
         "LOCAL_TEST_STORES_EXPLICIT_FLAG_REQUIRED", "POPUP_PAGE_ERROR",
         "PREEXISTING_STORE_STATE_NOT_RESTORED", "LOCAL_PHASE_EXECUTED_PROVIDER_REQUEST",
         "TECHNICAL_SESSION_PERMISSIONS_UNSAFE", "TECHNICAL_SESSION_RECEIPT_INVALID",
@@ -234,6 +238,29 @@ def runtime_inventory(runtime: Path) -> dict[str, str]:
         if item.is_file():
             rows[item.relative_to(runtime).as_posix()] = sha256(item)
     return rows
+
+
+def carrier_manifest_version(carrier: Path) -> str:
+    """Read only the inert manifest version; never execute package code."""
+    try:
+        with zipfile.ZipFile(carrier) as archive:
+            manifests = [
+                info for info in archive.infolist()
+                if info.filename == "manifest.json" and not info.is_dir()
+            ]
+            if len(manifests) != 1 or manifests[0].file_size > 256 * 1024:
+                raise AssertionError("PACKAGE_MANIFEST_INVALID")
+            if stat.S_ISLNK(manifests[0].external_attr >> 16):
+                raise AssertionError("PACKAGE_MANIFEST_INVALID")
+            value = json.loads(archive.read(manifests[0]).decode("utf-8"))
+    except AssertionError:
+        raise
+    except (OSError, UnicodeError, json.JSONDecodeError, zipfile.BadZipFile):
+        raise AssertionError("PACKAGE_MANIFEST_INVALID") from None
+    version = value.get("version") if isinstance(value, dict) else None
+    if not isinstance(version, str) or not version.strip():
+        raise AssertionError("PACKAGE_MANIFEST_INVALID")
+    return version
 
 
 def ensure_exact_runtime(carrier: Path, runtime: Path) -> dict:
@@ -670,6 +697,9 @@ def prepare(args) -> dict:
     actual_sha = sha256(args.carrier)
     if actual_sha != args.expected_sha256:
         raise AssertionError("STORE_ZIP_SHA256_MISMATCH")
+    manifest_version = carrier_manifest_version(args.carrier)
+    if manifest_version != args.expected_version:
+        raise AssertionError("EXTENSION_VERSION_MISMATCH")
     product = browser_product(args.browser_executable)
     require_exact_browser_product(product, args.expected_browser_product)
     validate_control_directory_path(
@@ -692,6 +722,7 @@ def prepare(args) -> dict:
         "status": "PREPARED",
         "carrier": args.carrier.name,
         "packageSha256": actual_sha,
+        "manifestVersion": manifest_version,
         "browserProduct": product,
         "runtimeFileCount": runtime["fileCount"],
         "runtimeCreated": runtime["created"],
