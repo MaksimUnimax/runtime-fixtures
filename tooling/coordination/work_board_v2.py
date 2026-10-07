@@ -675,7 +675,7 @@ def _validate_hot(hot: dict) -> None:
         or not HEX64.fullmatch(str(hot.get("last_operation_id")))
         or type(hot.get("completed_count")) is not int or not 0 <= hot["completed_count"] <= COMPLETED_CURRENT_CAP
         or type(hot.get("archive_history_count")) is not int or not 0 <= hot["archive_history_count"] <= ARCHIVE_GENERATION_CAP
-        or not isinstance(hot.get("tasks"), list) or len(hot["tasks"]) > ACTIVE_TASK_CAP):
+        or not isinstance(hot.get("tasks"), list)):
         raise RuntimeError("WORK_BOARD_V2_HOT_INVALID")
     for root_key, count_key in (("completed_root_hash", "completed_count"),
                                 ("archive_history_root_hash", "archive_history_count")):
@@ -1152,8 +1152,6 @@ def _prepare_generation(root: Path, board: dict, previous_state: dict | None = N
         current.append(current_entry)
         history.append(history_entry)
         max_gen[task_id] = generation
-    if len(active) > ACTIVE_TASK_CAP:
-        raise RuntimeError("WORK_QUEUE_INVALID: task count")
     if len(current) > COMPLETED_CURRENT_CAP or len(history) > ARCHIVE_GENERATION_CAP:
         raise RuntimeError("WORK_BOARD_V2_COMPLETED_CAPACITY")
     for entry in history:

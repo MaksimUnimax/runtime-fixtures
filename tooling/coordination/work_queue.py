@@ -724,12 +724,34 @@ def _validated_board_text(root, board):
     return encoded
 
 
+def _semantic_active_count(board):
+    """Count live work from one immutable board evaluation and task_view authority."""
+    evaluation = _BoardEvaluation(board)
+    active_states = _v2().ACTIVE_STATES
+    count = 0
+    for task in board["tasks"]:
+        view = task_view(board, task, evaluation)
+        if view["state"] in active_states and view["resolution_status"] != "RESOLVED":
+            count += 1
+    return count
+
+
+def _enforce_semantic_active_transition(pre_board, post_board):
+    cap = _v2().ACTIVE_TASK_CAP
+    pre_count = _semantic_active_count(pre_board)
+    post_count = _semantic_active_count(post_board)
+    if (pre_count <= cap and post_count > cap) or (pre_count > cap and post_count > pre_count):
+        raise RuntimeError("WORK_QUEUE_SEMANTIC_ACTIVE_TASK_CAP")
+
+
 def _persist_board(root, board, event):
     if board.get("version") == 2:
         try:
             _validate_logical_board(board, enforce_v1_count=False)
         except (ValueError, KeyError, TypeError, AttributeError):
             raise RuntimeError("WORK_QUEUE_INVALID: logical v2 candidate") from None
+        pre_board = load_board(root)
+        _enforce_semantic_active_transition(pre_board, board)
         return _v2().commit_logical_board(root, board, event)
     encoded = _validated_board_text(root, board)
     path = root / "controllers/work-board.json"

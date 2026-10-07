@@ -207,6 +207,50 @@ class WorkBoardV2Tests(unittest.TestCase):
         self.assertEqual(result["state"], "COMMITTED")
         return board, raw, result
 
+    def _add_ready_task(self, task_id):
+        task = self.ready(task_id)
+        task.update(acceptance=["bounded"], basis="approved plan remainder")
+        return work_queue.add_task(
+            self.root, "A", task,
+            repo_root=Path(work_queue.__file__).resolve().parents[2],
+        )
+
+    def _completion_receipt(self, task_id, verdict="PASS"):
+        receipt = self.root / "logs" / f"{task_id}-{verdict.lower()}.json"
+        receipt.write_text(json.dumps({
+            "kind": work_queue.COMPLETION_KIND,
+            "version": work_queue.COMPLETION_VERSION,
+            "task_id": task_id,
+            "candidate_sha": work_queue.current_worktree_head(),
+            "verdict": verdict,
+            "review": {"verdict": verdict, "evidence": ["independent review"]},
+            "checks": [{"name": "focused", "verdict": verdict, "evidence": ["run"]}],
+        }))
+        return receipt
+
+    def _strict_done(self, task_id):
+        work_queue.advance_task(self.root, "A", task_id, "IN_PROGRESS")
+        receipt = self._completion_receipt(task_id)
+        work_queue.advance_task(self.root, "A", task_id, "DONE", str(receipt))
+        return next(row for row in work_queue.load_board(self.root)["tasks"] if row["id"] == task_id)
+
+    def _rework_receipt(self, task_id):
+        receipt = self.root / "logs" / f"{task_id}-rework.json"
+        receipt.write_text(json.dumps({
+            "kind": work_queue.COMPLETION_KIND,
+            "version": work_queue.COMPLETION_VERSION,
+            "task_id": task_id,
+            "candidate_sha": work_queue.current_worktree_head(),
+            "verdict": "REWORK_REQUIRED",
+            "review": {"verdict": "REWORK_REQUIRED", "evidence": ["repair required"]},
+            "checks": [{"name": "focused", "verdict": "REWORK_REQUIRED", "evidence": ["run"]}],
+        }))
+        return receipt
+
+    def _semantic_count(self):
+        board = work_queue.load_board(self.root)
+        return work_queue._semantic_active_count(board)
+
     def test_migration_preserves_order_and_keeps_done_out_of_hot(self):
         tasks = [self.ready("a-first", ["b-done"]), self.done(), self.ready("c-last")]
         board, raw, receipt = self.migrate(tasks)
@@ -640,7 +684,7 @@ class WorkBoardV2Tests(unittest.TestCase):
         add(99)
         self.assertEqual(len(v2.load_state(self.root)["hot"]["tasks"]), 100)
         before = self._capacity_snapshot()
-        with self.assertRaisesRegex(RuntimeError, "task count"): add(100)
+        with self.assertRaisesRegex(RuntimeError, "SEMANTIC_ACTIVE_TASK_CAP"): add(100)
         self.assertEqual(self._capacity_snapshot(), before)
 
     def test_actual_event_line_64kib_exact_and_plus_one(self):
@@ -1123,6 +1167,219 @@ class WorkBoardV2Tests(unittest.TestCase):
         view = next(item for item in work_queue.role_work(self.root, "B")["tasks"] if item["id"] == "historical-blocker")
         self.assertEqual(view["resolution_status"], "RESOLVED_FOR_THIS_OWNER_TEST_RELEASE")
         self.assertTrue(any(item["task_id"] == "historical-blocker" for item in work_queue.blocker_attention(state["logical"])))
+
+
+    def test_v2_storage_accepts_101_full_rows_under_hot_byte_cap(self):
+        self.migrate([self.ready("storage-base")])
+        previous = v2.load_state(self.root)
+        board = copy.deepcopy(previous["logical"])
+        board["revision"] += 1
+        board["updated_at"] = "2026-10-07T00:00:00+00:00"
+        board["tasks"].extend(self.ready(f"storage-{number:03d}") for number in range(100))
+        event = {"action": "DIRECT_STORAGE_FIXTURE", "role": "A", "task": "storage-base", "revision": board["revision"]}
+        v2._prepare_generation(self.root, board, previous)
+        v2.commit_logical_board(self.root, board, event)
+        hot_raw = (self.root / "controllers/work-board.json").read_bytes()
+        hot = json.loads(hot_raw)
+        v2._validate_hot(hot)
+        self.assertEqual(len(hot["tasks"]), 101)
+        self.assertLessEqual(len(hot_raw), v2.HOT_CAP_BYTES)
+        self.assertEqual(len(v2.load_state(self.root)["logical"]["tasks"]), 101)
+
+    def test_invalidated_done_quota_neutral_reopen_materializes_101_full_rows(self):
+        tasks = [self.ready(f"repair-other-{number:02d}") for number in range(99)]
+        tasks.append(self.ready("repair-strict"))
+        self.migrate(tasks)
+        self._strict_done("repair-strict")
+        self.assertEqual(self._semantic_count(), 99)
+        self._add_ready_task("repair-extra")
+        self.assertEqual(self._semantic_count(), 100)
+        hot_path = self.root / "controllers/work-board.json"
+        self.assertEqual(len(json.loads(hot_path.read_text())["tasks"]), 100)
+
+        done = next(row for row in work_queue.load_board(self.root)["tasks"] if row["id"] == "repair-strict")
+        close = Path(done["completion_receipt"])
+        accepted_close = close.read_bytes()
+        close.write_bytes(accepted_close + b"x")
+        board = work_queue.load_board(self.root)
+        self.assertEqual(self._semantic_count(), 101)
+        self.assertEqual(len(json.loads(hot_path.read_text())["tasks"]), 100)
+        self.assertTrue(next(row for row in work_queue.role_work(self.root, "A")["tasks"]
+                             if row["id"] == "repair-strict")["completion_invalidated"])
+
+        before = self._capacity_snapshot()
+        with self.assertRaisesRegex(RuntimeError, "SEMANTIC_ACTIVE_TASK_CAP"):
+            self._add_ready_task("repair-forbidden")
+        self.assertEqual(self._capacity_snapshot(), before)
+
+        history_before = next(row for row in board["tasks"] if row["id"] == "repair-strict").get("completion_history", [])
+        receipt = self._rework_receipt("repair-strict")
+        work_queue.advance_task(self.root, "A", "repair-strict", "IN_PROGRESS", str(receipt))
+        after = work_queue.load_board(self.root)
+        strict = next(row for row in after["tasks"] if row["id"] == "repair-strict")
+        self.assertEqual(strict["state"], "IN_PROGRESS")
+        self.assertEqual(len(strict["completion_history"]), len(history_before) + 1)
+        self.assertEqual(strict["completion_history"][-1]["format"], work_queue.COMPLETION_VERSION)
+        self.assertEqual(strict["completion_history"][-1]["receipt_snapshot"]["verdict"], "PASS")
+        self.assertEqual(strict["reopen_receipt"], str(receipt.resolve()))
+        self.assertEqual(self._semantic_count(), 101)
+        hot = json.loads(hot_path.read_text())
+        self.assertEqual(len(hot["tasks"]), 101)
+        self.assertLessEqual(hot_path.stat().st_size, v2.HOT_CAP_BYTES)
+
+    def test_invalidated_done_add_boundary_98_other_active_reaches_100(self):
+        tasks = [self.ready(f"boundary-98-{number:02d}") for number in range(98)]
+        tasks.append(self.ready("boundary-98-strict"))
+        self.migrate(tasks)
+        self._strict_done("boundary-98-strict")
+        done = next(row for row in work_queue.load_board(self.root)["tasks"] if row["id"] == "boundary-98-strict")
+        close = Path(done["completion_receipt"])
+        close.write_bytes(close.read_bytes() + b"x")
+        self.assertEqual(self._semantic_count(), 99)
+        self._add_ready_task("boundary-98-add")
+        self.assertEqual(self._semantic_count(), 100)
+
+    def test_invalidated_done_add_boundary_99_other_active_rejects_atomically(self):
+        tasks = [self.ready(f"boundary-99-{number:02d}") for number in range(99)]
+        tasks.append(self.ready("boundary-99-strict"))
+        self.migrate(tasks)
+        self._strict_done("boundary-99-strict")
+        done = next(row for row in work_queue.load_board(self.root)["tasks"] if row["id"] == "boundary-99-strict")
+        close = Path(done["completion_receipt"])
+        close.write_bytes(close.read_bytes() + b"x")
+        self.assertEqual(self._semantic_count(), 100)
+        before = self._capacity_snapshot()
+        with self.assertRaisesRegex(RuntimeError, "SEMANTIC_ACTIVE_TASK_CAP"):
+            self._add_ready_task("boundary-99-forbidden")
+        self.assertEqual(self._capacity_snapshot(), before)
+
+    def test_legacy_done_reopen_at_100_fails_without_board_or_event_mutation(self):
+        tasks = [self.ready(f"legacy-other-{number:02d}") for number in range(99)]
+        tasks.append(self.done("legacy-cap-done"))
+        self.migrate(tasks)
+        self._add_ready_task("legacy-cap-extra")
+        self.assertEqual(self._semantic_count(), 100)
+        receipt = self._rework_receipt("legacy-cap-done")
+        before = self._capacity_snapshot()
+        with self.assertRaisesRegex(RuntimeError, "SEMANTIC_ACTIVE_TASK_CAP"):
+            work_queue.advance_task(self.root, "B", "legacy-cap-done", "IN_PROGRESS", str(receipt))
+        self.assertEqual(self._capacity_snapshot(), before)
+
+    def test_semantic_101_blocked_to_in_progress_is_quota_neutral(self):
+        self.migrate([self.ready("blocked-base")])
+        previous = v2.load_state(self.root)
+        board = copy.deepcopy(previous["logical"])
+        board["revision"] += 1
+        board["updated_at"] = "2026-10-07T00:00:00+00:00"
+        board["tasks"].extend(self.ready(f"blocked-other-{number:03d}") for number in range(99))
+        blocked = self.ready("blocked-neutral")
+        blocked.update(state="BLOCKED", blocked_reason="External condition", blocked_receipt="/logs/blocked.json")
+        board["tasks"].append(blocked)
+        event = {"action": "DIRECT_STORAGE_FIXTURE", "role": "A", "task": "blocked-neutral", "revision": board["revision"]}
+        v2.commit_logical_board(self.root, board, event)
+        self.assertEqual(self._semantic_count(), 101)
+        receipt = self._rework_receipt("blocked-neutral")
+        work_queue.advance_task(self.root, "A", "blocked-neutral", "IN_PROGRESS", str(receipt))
+        saved = work_queue.load_board(self.root)
+        self.assertEqual(self._semantic_count(), 101)
+        self.assertEqual(next(row for row in saved["tasks"] if row["id"] == "blocked-neutral")["state"], "IN_PROGRESS")
+
+    def test_over_cap_reduction_succeeds_then_worsening_add_is_atomic(self):
+        self.migrate([self.ready("over-cap-done")])
+        previous = v2.load_state(self.root)
+        board = copy.deepcopy(previous["logical"])
+        board["revision"] += 1
+        board["updated_at"] = "2026-10-07T00:00:00+00:00"
+        board["tasks"][0]["state"] = "IN_PROGRESS"
+        board["tasks"].extend(self.ready(f"over-cap-{number:03d}") for number in range(101))
+        event = {"action": "DIRECT_STORAGE_FIXTURE", "role": "A", "task": "over-cap-done", "revision": board["revision"]}
+        v2.commit_logical_board(self.root, board, event)
+        self.assertEqual(self._semantic_count(), 102)
+        receipt = self._completion_receipt("over-cap-done")
+        work_queue.advance_task(self.root, "A", "over-cap-done", "DONE", str(receipt))
+        self.assertEqual(self._semantic_count(), 101)
+        before = self._capacity_snapshot()
+        with self.assertRaisesRegex(RuntimeError, "SEMANTIC_ACTIVE_TASK_CAP"):
+            self._add_ready_task("over-cap-forbidden")
+        self.assertEqual(self._capacity_snapshot(), before)
+
+    def test_stale_resolution_98_other_active_adds_to_100(self):
+        tasks = [self.ready(f"stale-98-{number:02d}") for number in range(98)]
+        stale = self.ready("stale-98-blocker")
+        stale.update(state="BLOCKED", blocked_reason="Historical blocker", blocked_receipt="/logs/stale.json")
+        stale["blocker_resolution"] = {
+            "owner": "CONTROLLER", "next_action": "Preserve history",
+            "unblock_when": "Accepted successor remains valid", "status": "RESOLVED",
+            "successor_task": "missing-successor", "successor_candidate_sha": "a" * 40,
+            "receipt": "/logs/missing-successor.json", "resolved_at": "2026-10-07T00:00:00+00:00",
+        }
+        tasks.append(stale)
+        self.migrate(tasks)
+        stale_view = next(row for row in work_queue.role_work(self.root, "A")["tasks"]
+                          if row["id"] == "stale-98-blocker")
+        self.assertEqual(stale_view["resolution_status"], "STALE_RESOLUTION")
+        self.assertEqual(self._semantic_count(), 99)
+        self._add_ready_task("stale-98-add")
+        self.assertEqual(self._semantic_count(), 100)
+
+    def test_stale_resolution_99_other_active_add_rejects_atomically(self):
+        tasks = [self.ready(f"stale-99-{number:02d}") for number in range(99)]
+        stale = self.ready("stale-99-blocker")
+        stale.update(state="BLOCKED", blocked_reason="Historical blocker", blocked_receipt="/logs/stale.json")
+        stale["blocker_resolution"] = {
+            "owner": "CONTROLLER", "next_action": "Preserve history",
+            "unblock_when": "Accepted successor remains valid", "status": "RESOLVED",
+            "successor_task": "missing-successor", "successor_candidate_sha": "a" * 40,
+            "receipt": "/logs/missing-successor.json", "resolved_at": "2026-10-07T00:00:00+00:00",
+        }
+        tasks.append(stale)
+        self.migrate(tasks)
+        self.assertEqual(self._semantic_count(), 100)
+        before = self._capacity_snapshot()
+        with self.assertRaisesRegex(RuntimeError, "SEMANTIC_ACTIVE_TASK_CAP"):
+            self._add_ready_task("stale-99-forbidden")
+        self.assertEqual(self._capacity_snapshot(), before)
+
+    def test_add_from_semantic_100_rejects_without_board_or_event_mutation(self):
+        self.migrate([self.ready(f"full-{number:03d}") for number in range(100)])
+        self.assertEqual(self._semantic_count(), 100)
+        before = self._capacity_snapshot()
+        with self.assertRaisesRegex(RuntimeError, "SEMANTIC_ACTIVE_TASK_CAP"):
+            self._add_ready_task("full-forbidden")
+        self.assertEqual(self._capacity_snapshot(), before)
+
+    def test_receipt_tamper_activates_invalidated_successor_and_stale_blocker_plus_two(self):
+        blocked_receipt = self.root / "logs/old-attempt-blocked.json"
+        blocked_receipt.write_text('{"reason":"historical superseded attempt"}')
+        old = {
+            "id": "old-attempt", "role": "B", "plan": "C00", "state": "BLOCKED", "requires": [],
+            "result": "Historical failed attempt", "paths": ["tooling/old-attempt.py"],
+            "blocked_reason": "Superseded", "blocked_receipt": str(blocked_receipt),
+        }
+        successor = {
+            "id": "accepted-successor", "role": "B", "plan": "C00", "state": "IN_PROGRESS", "requires": [],
+            "result": "Accepted successor", "paths": ["tooling/accepted-successor.py"],
+        }
+        tasks = [self.ready(f"combined-other-{number:02d}") for number in range(98)]
+        tasks.extend([old, successor])
+        self.migrate(tasks)
+        receipt = self._completion_receipt("accepted-successor")
+        work_queue.advance_task(self.root, "B", "accepted-successor", "DONE", str(receipt))
+        work_queue.resolve_blocker(self.root, "B", "old-attempt", "accepted-successor", str(receipt))
+        self.assertEqual(self._semantic_count(), 98)
+
+        value = json.loads(receipt.read_text())
+        value["checks"][0]["verdict"] = "FAIL"
+        receipt.write_text(json.dumps(value))
+        board = work_queue.load_board(self.root)
+        views = {row["id"]: row for row in work_queue.role_work(self.root, "B")["tasks"]}
+        self.assertTrue(views["accepted-successor"]["completion_invalidated"])
+        self.assertEqual(views["old-attempt"]["resolution_status"], "STALE_RESOLUTION")
+        self.assertEqual(self._semantic_count(), 100)
+        before = self._capacity_snapshot()
+        with self.assertRaisesRegex(RuntimeError, "SEMANTIC_ACTIVE_TASK_CAP"):
+            self._add_ready_task("combined-forbidden")
+        self.assertEqual(self._capacity_snapshot(), before)
 
 
 if __name__ == "__main__":

@@ -897,5 +897,30 @@ class WorkQueueTests(unittest.TestCase):
         self.assertTrue(view["completion_invalidated"])
 
 
+    def test_semantic_active_count_uses_task_view_and_one_evaluation_per_board(self):
+        board = copy.deepcopy(self.board)
+        invalidated = {
+            "id": "invalidated-done", "role": "B", "plan": "B04", "state": "DONE", "requires": [],
+            "result": "Strict completion invalidated", "paths": ["tooling/invalidated.py"],
+            "completion_receipt_format": work_queue.COMPLETION_VERSION,
+            "completion_receipt": str(self.root / "logs/missing-strict.json"),
+            "completion_candidate_sha": "a" * 40,
+            "completion_receipt_snapshot": {"verdict": "PASS"},
+        }
+        legacy = {
+            "id": "legacy-done", "role": "B", "plan": "B04", "state": "DONE", "requires": [],
+            "result": "Legacy completion remains historical", "paths": ["tooling/legacy.py"],
+            "completion_receipt": str(self.receipt),
+        }
+        board["tasks"].extend([invalidated, legacy])
+        with patch.object(work_queue, "_BoardEvaluation", wraps=work_queue._BoardEvaluation) as evaluation:
+            self.assertEqual(work_queue._semantic_active_count(board), 3)
+        evaluation.assert_called_once_with(board)
+
+        with patch.object(work_queue, "_BoardEvaluation", wraps=work_queue._BoardEvaluation) as evaluation:
+            work_queue._enforce_semantic_active_transition(board, board)
+        self.assertEqual(evaluation.call_count, 2)
+
+
 if __name__ == "__main__":
     unittest.main()
