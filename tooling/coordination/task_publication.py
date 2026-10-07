@@ -3058,6 +3058,90 @@ def _no_armed_leases(root: Path, registration_id: str) -> bool:
     return not armed.exists() or not any(armed.glob("*.json"))
 
 
+def _registered_never_started_retirement_facts(
+    root: Path, reg: dict[str, Any],
+) -> dict[str, Any]:
+    """Prove a REGISTERED publication attempt never started remote mutation."""
+    registration_id = reg["registration_id"]
+    core = reg["core"]
+    for key in (
+        "current_nonce", "current_lease_sha256", "current_push_kind",
+        "last_settlement", "last_settlement_outcome",
+    ):
+        if reg.get(key) is not None:
+            raise PublicationError(
+                f"SUPERSEDE_REGISTERED_NEVER_STARTED_METADATA_PRESENT:{key}"
+            )
+
+    for namespace in ("armed", "consumed", "cancelled"):
+        path = _lease_dir(root, registration_id, namespace)
+        try:
+            entries = list(path.iterdir()) if path.exists() else []
+        except OSError as exc:
+            raise PublicationError(
+                f"SUPERSEDE_REGISTERED_NEVER_STARTED_LEASE_HISTORY_UNREADABLE:{namespace}"
+            ) from exc
+        if entries:
+            raise PublicationError(
+                f"SUPERSEDE_REGISTERED_NEVER_STARTED_LEASE_HISTORY:{namespace}"
+            )
+
+    for kind in ("attempts", "settlements"):
+        path = _root_dir(root) / kind / registration_id
+        try:
+            entries = list(path.iterdir()) if path.exists() else []
+        except OSError as exc:
+            raise PublicationError(
+                f"SUPERSEDE_REGISTERED_NEVER_STARTED_{kind.upper()}_UNREADABLE"
+            ) from exc
+        if entries:
+            raise PublicationError(
+                f"SUPERSEDE_REGISTERED_NEVER_STARTED_{kind.upper()}_PRESENT"
+            )
+
+    event_path = _events_path(root, registration_id)
+    try:
+        raw = event_path.read_bytes()
+        lines = raw.splitlines(keepends=True)
+        event = json.loads(raw)
+    except (OSError, json.JSONDecodeError) as exc:
+        raise PublicationError(
+            "SUPERSEDE_REGISTERED_NEVER_STARTED_EVENT_HISTORY_INVALID"
+        ) from exc
+    expected_fields = {
+        "at", "bundle_manifest_sha256", "candidate", "kind",
+        "state", "task_ref", "version",
+    }
+    if (
+        len(lines) != 1
+        or lines[0] != raw
+        or _canonical_bytes(event) != raw
+        or type(event) is not dict
+        or set(event) != expected_fields
+        or event.get("kind") != "REGISTERED"
+        or event.get("state") != "REGISTERED"
+        or event.get("version") != 2
+        or reg.get("state_version") != 2
+        or event.get("candidate") != core["candidate_head"]
+        or event.get("task_ref") != core["task_ref"]
+        or event.get("bundle_manifest_sha256") != core["bundle_manifest_sha256"]
+        or not isinstance(event.get("at"), str)
+        or not event["at"].endswith("Z")
+    ):
+        raise PublicationError(
+            "SUPERSEDE_REGISTERED_NEVER_STARTED_EVENT_HISTORY_INVALID"
+        )
+    return {
+        "armed_lease_count": 0,
+        "consumed_lease_count": 0,
+        "cancelled_lease_count": 0,
+        "attempt_count": 0,
+        "settlement_count": 0,
+        "event_count": 1,
+        "event_journal_sha256": _sha_bytes(raw),
+    }
+
+
 def _validate_ready_retirement_config(reg: dict[str, Any]) -> None:
     """Fail closed on route/config drift before READY retirement mutates any ref."""
     core = reg["core"]
@@ -3172,18 +3256,50 @@ def supersede_registration(
                 )
                 state = "TASK_REF_PUBLISHED"
             if state == "REGISTERED":
-                if reg.get("last_settlement_outcome") != "CANCELLED_REMOTE_UNCHANGED":
-                    raise PublicationError(
-                        "SUPERSEDE_REGISTERED_CANCELLED_REMOTE_UNCHANGED_REQUIRED"
+                if reg.get("last_settlement_outcome") == "CANCELLED_REMOTE_UNCHANGED":
+                    current = _remote_oid(worktree, core["remote"], core["task_ref"])
+                    if current != ZERO_OID:
+                        raise PublicationError("SUPERSEDE_REGISTERED_TASK_REF_PRESENT")
+                    reg = _state_transition(
+                        root, registration_id, {"REGISTERED"}, "REVOKED",
+                        dict(base_updates, task_ref_cleanup_status="ALREADY_ABSENT"),
+                        expected_version=reg["state_version"],
                     )
-                current = _remote_oid(worktree, core["remote"], core["task_ref"])
-                if current != ZERO_OID:
-                    raise PublicationError("SUPERSEDE_REGISTERED_TASK_REF_PRESENT")
-                reg = _state_transition(
-                    root, registration_id, {"REGISTERED"}, "REVOKED",
-                    dict(base_updates, task_ref_cleanup_status="ALREADY_ABSENT"),
-                    expected_version=reg["state_version"],
-                )
+                else:
+                    never_started = _registered_never_started_retirement_facts(root, reg)
+                    remote_main = _remote_oid_target(
+                        worktree, core["push_target"], "refs/heads/main",
+                        env=_supersede_transport_env(),
+                    )
+                    if remote_main == ZERO_OID:
+                        raise PublicationError("SUPERSEDE_REGISTERED_REMOTE_MAIN_UNAVAILABLE")
+                    if remote_main == core["base_sha"]:
+                        raise PublicationError(
+                            "SUPERSEDE_REGISTERED_CANCELLED_REMOTE_UNCHANGED_REQUIRED"
+                        )
+                    current = _remote_oid_target(
+                        worktree, core["push_target"], core["task_ref"],
+                        env=_supersede_transport_env(),
+                    )
+                    if current != ZERO_OID:
+                        raise PublicationError("SUPERSEDE_REGISTERED_TASK_REF_PRESENT")
+                    retirement = dict(
+                        never_started,
+                        outcome="NEVER_PUBLISHED_CONFIRMED_ABSENT",
+                        registered_base=core["base_sha"],
+                        observed_remote_main=remote_main,
+                        observed_at=superseded_at,
+                        task_ref_absent=True,
+                    )
+                    reg = _state_transition(
+                        root, registration_id, {"REGISTERED"}, "REVOKED",
+                        dict(
+                            base_updates,
+                            task_ref_cleanup_status="ALREADY_ABSENT",
+                            registered_base_drift_retirement=retirement,
+                        ),
+                        expected_version=reg["state_version"],
+                    )
                 should_close = True
             else:
                 current = _supersede_remote_state(
@@ -3229,6 +3345,1447 @@ def supersede_registration(
     return reg
 
 
+LEGACY_COMMON_CONFIG_EVIDENCE_KIND = "octoport.legacy-common-config-close-evidence"
+LEGACY_COMMON_CONFIG_EVIDENCE_VERSION = 1
+
+
+def _legacy_common_config_evidence_shape(value: Any) -> dict[str, Any]:
+    """Validate only the bounded, non-secret evidence shape; grant no authority.
+
+    This pure check does not verify a reviewer, current registration/config/ref,
+    anchor lineage, or a live permission. Bind/close must verify those separately
+    under their locks before using any parsed evidence.
+    """
+    hashes = {
+        "target_registration_id", "target_core_sha256",
+        "registered_common_config_sha256", "global_config_sha256",
+        "anchor_registration_id", "anchor_state_sha256",
+        "anchor_close_receipt_sha256", "current_common_config_sha256",
+        "remote_identity_sha256", "push_identity_sha256",
+        "pushurl_identity_sha256",
+    }
+    oids = {"candidate_sha", "candidate_tree", "base_sha",
+            "anchor_candidate_sha", "current_main_sha"}
+    fields = hashes | oids | {
+        "kind", "version", "task_id", "role", "task_ref",
+        "fixed_role_config_sha256", "anchor_state_version", "review",
+    }
+    def invalid() -> None:
+        # Never include the rejected value: it might contain accidental secrets.
+        raise PublicationError("LEGACY_COMMON_CONFIG_EVIDENCE_SCHEMA_INVALID")
+
+    def public_text(text: Any, maximum: int) -> bool:
+        return (isinstance(text, str) and 0 < len(text) <= maximum
+                and text == text.strip()
+                and all(ord(char) >= 32 and ord(char) != 127 for char in text))
+
+    if type(value) is not dict or set(value) != fields:
+        invalid()
+    if (value["kind"] != LEGACY_COMMON_CONFIG_EVIDENCE_KIND
+            or type(value["version"]) is not int
+            or value["version"] != LEGACY_COMMON_CONFIG_EVIDENCE_VERSION):
+        invalid()
+    for key in hashes:
+        if not isinstance(value[key], str) or not SHA64_RE.fullmatch(value[key]):
+            invalid()
+    for key in oids:
+        if (not isinstance(value[key], str) or not SHA40_RE.fullmatch(value[key])
+                or value[key] == ZERO_OID):
+            invalid()
+    if (value["target_core_sha256"] != value["target_registration_id"]
+            or value["anchor_registration_id"] == value["target_registration_id"]):
+        invalid()
+    if (not isinstance(value["role"], str)
+            or value["role"] not in {"A", "B", "C"}
+            or not public_text(value["task_id"], 512)
+            or not public_text(value["task_ref"], 1024)
+            or not value["task_ref"].startswith("refs/heads/")
+            or type(value["anchor_state_version"]) is not int
+            or value["anchor_state_version"] < 1):
+        invalid()
+    fixed = value["fixed_role_config_sha256"]
+    if type(fixed) is not dict or set(fixed) != {"A", "B", "C"}:
+        invalid()
+    if any(not isinstance(item, str) or not SHA64_RE.fullmatch(item)
+           for item in fixed.values()):
+        invalid()
+    review = value["review"]
+    if type(review) is not dict or set(review) != {
+        "reviewer_role", "reviewer_identity", "independence_basis", "verdict", "findings"
+    }:
+        invalid()
+    if (not isinstance(review["reviewer_role"], str)
+            or review["reviewer_role"] not in {"A", "B", "C", "CONTROLLER"}
+            or not public_text(review["reviewer_identity"], 256)
+            or not public_text(review["independence_basis"], 1024)
+            or review["verdict"] != "PASS"):
+        invalid()
+    findings = review["findings"]
+    if (type(findings) is not dict or set(findings) != {"P0", "P1", "P2"}
+            or any(type(bucket) is not list or bucket for bucket in findings.values())):
+        invalid()
+    return json.loads(_canonical_bytes(value))
+
+
+def _legacy_common_config_evidence_identity(value: Any, observed: Any) -> dict[str, Any]:
+    """Compare parsed evidence to independently collected, exact observations.
+
+    This is a pure consistency check, not an observation or permission grant.
+    The bind/close integration must collect and revalidate these facts under
+    its locks, including reviewer independence and real anchor/main lineage.
+    No caller may substitute evidence-derived assertions for those facts.
+    """
+    from datetime import datetime
+
+    evidence = _legacy_common_config_evidence_shape(value)
+    # Reviewer provenance is part of the exact independently observed identity.
+    # The separate boolean proves independence, not which review was checked.
+    identity_fields = set(evidence) - {"kind", "version"}
+    observation_fields = identity_fields | {
+        "target_created_at", "anchor_created_at", "anchor_state",
+        "anchor_common_config_sha256", "anchor_global_config_sha256",
+        "anchor_fixed_role_config_sha256", "anchor_remote_identity_sha256",
+        "anchor_push_identity_sha256", "anchor_pushurl_identity_sha256",
+        "anchor_close_receipt_valid", "anchor_is_ancestor_of_main",
+        "reviewer_independence_verified", "ordinary_common_matches",
+    }
+    if type(observed) is not dict or set(observed) != observation_fields:
+        raise PublicationError("LEGACY_COMMON_CONFIG_OBSERVATION_INVALID")
+    # In particular, True must not satisfy integer state version 1.
+    if any(type(observed[key]) is not type(evidence[key])
+           or observed[key] != evidence[key] for key in identity_fields):
+        raise PublicationError("LEGACY_COMMON_CONFIG_IDENTITY_MISMATCH")
+    if observed["anchor_state"] != "CLOSED":
+        raise PublicationError("LEGACY_COMMON_CONFIG_ANCHOR_NOT_CLOSED")
+    for key in ("anchor_close_receipt_valid", "anchor_is_ancestor_of_main",
+                "reviewer_independence_verified"):
+        if observed[key] is not True:
+            raise PublicationError("LEGACY_COMMON_CONFIG_OBSERVATION_UNVERIFIED")
+    if observed["ordinary_common_matches"] is not False:
+        raise PublicationError("LEGACY_COMMON_CONFIG_BRIDGE_NOT_REQUIRED")
+    pairs = {
+        "anchor_common_config_sha256": "current_common_config_sha256",
+        "anchor_global_config_sha256": "global_config_sha256",
+        "anchor_fixed_role_config_sha256": "fixed_role_config_sha256",
+        "anchor_remote_identity_sha256": "remote_identity_sha256",
+        "anchor_push_identity_sha256": "push_identity_sha256",
+        "anchor_pushurl_identity_sha256": "pushurl_identity_sha256",
+    }
+    for anchor_key, current_key in pairs.items():
+        if (type(observed[anchor_key]) is not type(evidence[current_key])
+                or observed[anchor_key] != evidence[current_key]):
+            raise PublicationError("LEGACY_COMMON_CONFIG_ANCHOR_IDENTITY_MISMATCH")
+    try:
+        target_time = observed["target_created_at"]
+        anchor_time = observed["anchor_created_at"]
+        if not isinstance(target_time, str) or not isinstance(anchor_time, str):
+            raise ValueError("timestamp type")
+        target_time = datetime.fromisoformat(target_time.replace("Z", "+00:00"))
+        anchor_time = datetime.fromisoformat(anchor_time.replace("Z", "+00:00"))
+        if target_time.utcoffset() is None or anchor_time.utcoffset() is None:
+            raise ValueError("timezone required")
+        if anchor_time <= target_time:
+            raise ValueError("anchor must be later")
+    except (TypeError, ValueError, OverflowError):
+        raise PublicationError("LEGACY_COMMON_CONFIG_ANCHOR_ORDER_INVALID") from None
+    # _evidence_shape returned an isolated copy, never a reference to input data.
+    return evidence
+
+
+
+def _legacy_common_config_binding_transition(
+    value: Any, observed: Any, evidence_reference: Any,
+    authority: Any, facts: Any,
+) -> dict[str, Any]:
+    """Plan a detached binding journal update from already observed facts.
+
+    Pure policy only: this function performs no observation, I/O or grant of
+    authority. The bind caller must collect and revalidate all inputs under
+    the role/coordination locks before applying a changed result through the
+    existing registration transition. Never populate observations from the
+    submitted evidence. An unchanged result must not create a state version.
+    """
+    from datetime import datetime
+    from pathlib import PurePosixPath
+
+    identity = _legacy_common_config_evidence_identity(value, observed)
+    fields = {"state", "task_ref_oid", "no_armed_lease", "worktree_clean",
+              "installed_keys_match", "close_intent_exists", "close_receipt_exists"}
+    if type(facts) is not dict or set(facts) != fields:
+        raise PublicationError("LEGACY_COMMON_CONFIG_BIND_FACTS_INVALID")
+    state = facts["state"]
+    if type(state) is not str or state not in {"TASK_REF_PUBLISHED", "PUBLISHED", "REVOKED", "FAILED"}:
+        raise PublicationError("LEGACY_COMMON_CONFIG_BIND_STATE_INVALID")
+    if any(facts[key] is not True for key in ("no_armed_lease", "worktree_clean", "installed_keys_match")):
+        raise PublicationError("LEGACY_COMMON_CONFIG_BIND_GUARD_UNVERIFIED")
+    if any(facts[key] is not False for key in ("close_intent_exists", "close_receipt_exists")):
+        raise PublicationError("LEGACY_COMMON_CONFIG_BIND_CLOSE_STARTED")
+    ref_oid = facts["task_ref_oid"]
+    if type(ref_oid) is not str or not SHA40_RE.fullmatch(ref_oid):
+        raise PublicationError("LEGACY_COMMON_CONFIG_BIND_REF_INVALID")
+    if ref_oid != ZERO_OID and not (state == "TASK_REF_PUBLISHED" and ref_oid == identity["candidate_sha"]):
+        raise PublicationError("LEGACY_COMMON_CONFIG_BIND_TASK_REF_PRESENT")
+
+    def reference(item: Any) -> dict[str, str]:
+        if type(item) is not dict or set(item) != {"path", "sha256"}:
+            raise PublicationError("LEGACY_COMMON_CONFIG_BIND_EVIDENCE_REFERENCE_INVALID")
+        path, digest = item["path"], item["sha256"]
+        if (type(path) is not str or not 0 < len(path) <= 4096
+                or not path.startswith("/") or path.startswith("//")
+                or path != path.strip() or "\\" in path
+                or any(ord(c) < 32 or ord(c) == 127 for c in path)
+                or ".." in PurePosixPath(path).parts
+                or type(digest) is not str or not SHA64_RE.fullmatch(digest)):
+            raise PublicationError("LEGACY_COMMON_CONFIG_BIND_EVIDENCE_REFERENCE_INVALID")
+        return {"path": path, "sha256": digest}
+
+    def timestamp(text: Any):
+        if type(text) is not str:
+            raise ValueError("timestamp type")
+        result = datetime.fromisoformat(text.replace("Z", "+00:00"))
+        if result.utcoffset() is None:
+            raise ValueError("timezone required")
+        return result
+
+    proposed = {"evidence": reference(evidence_reference), "identity": identity,
+                "anchor_created_at": observed["anchor_created_at"]}
+    if authority is None:
+        return {"changed": True, "authority": {"current": proposed, "history": []}}
+
+    stable = {"target_registration_id", "target_core_sha256", "task_id", "role",
+              "candidate_sha", "candidate_tree", "base_sha", "task_ref",
+              "registered_common_config_sha256", "global_config_sha256",
+              "fixed_role_config_sha256", "remote_identity_sha256",
+              "push_identity_sha256", "pushurl_identity_sha256"}
+    try:
+        if (type(authority) is not dict or set(authority) != {"current", "history"}
+                or type(authority["history"]) is not list):
+            raise ValueError("authority shape")
+        sequence = [*authority["history"], authority["current"]]
+        previous_time, anchors, validated = None, set(), []
+        for binding in sequence:
+            if type(binding) is not dict or set(binding) != {"evidence", "identity", "anchor_created_at"}:
+                raise ValueError("binding shape")
+            reference(binding["evidence"])
+            historical = _legacy_common_config_evidence_shape(binding["identity"])
+            at = timestamp(binding["anchor_created_at"])
+            anchor_id = historical["anchor_registration_id"]
+            if anchor_id in anchors or (previous_time is not None and at <= previous_time):
+                raise ValueError("binding history order")
+            if validated and any(historical[k] != validated[0][k] for k in stable):
+                raise ValueError("binding history identity")
+            anchors.add(anchor_id)
+            previous_time = at
+            validated.append(historical)
+    except (KeyError, TypeError, ValueError, OverflowError, PublicationError):
+        raise PublicationError("LEGACY_COMMON_CONFIG_BIND_AUTHORITY_INVALID") from None
+
+    from copy import deepcopy
+    current = authority["current"]
+    if current == proposed:
+        return {"changed": False, "authority": deepcopy(authority)}
+    if state != "REVOKED":
+        raise PublicationError("LEGACY_COMMON_CONFIG_REBIND_STATE_INVALID")
+    if any(identity[k] != current["identity"][k] for k in stable):
+        raise PublicationError("LEGACY_COMMON_CONFIG_REBIND_IDENTITY_DRIFT")
+    if (identity["anchor_registration_id"] in anchors
+            or timestamp(proposed["anchor_created_at"]) <= previous_time):
+        raise PublicationError("LEGACY_COMMON_CONFIG_REBIND_ANCHOR_INVALID")
+    return {"changed": True, "authority": {
+        "current": proposed,
+        "history": [*deepcopy(authority["history"]), deepcopy(current)],
+    }}
+
+
+def _legacy_common_config_apply_binding_transition_locked(
+    root: Path, registration_id: str, current: dict[str, Any], transition: Any,
+) -> dict[str, Any]:
+    """Apply a validated transition while the caller retains role+coord locks."""
+    from copy import deepcopy
+    from datetime import datetime
+    from pathlib import PurePosixPath
+
+    def invalid(code: str = "LEGACY_COMMON_CONFIG_BIND_TRANSITION_INVALID") -> None:
+        raise PublicationError(code)
+
+    if (type(registration_id) is not str or not SHA64_RE.fullmatch(registration_id)
+            or type(current) is not dict
+            or current.get("registration_id") != registration_id
+            or current.get("registration_sha256") != registration_id
+            or type(current.get("state")) is not str
+            or current.get("state") not in {"TASK_REF_PUBLISHED", "PUBLISHED", "REVOKED", "FAILED"}
+            or type(current.get("state_version")) is not int
+            or current["state_version"] < 1):
+        raise PublicationError("LEGACY_COMMON_CONFIG_BIND_CAS_DRIFT")
+    if (type(transition) is not dict or set(transition) != {"changed", "authority"}
+            or type(transition["changed"]) is not bool):
+        invalid()
+
+    def reference(value: Any) -> dict[str, str]:
+        if type(value) is not dict or set(value) != {"path", "sha256"}:
+            invalid("LEGACY_COMMON_CONFIG_BIND_JOURNAL_INVALID")
+        path, digest = value["path"], value["sha256"]
+        if (type(path) is not str or not 0 < len(path) <= 4096
+                or not path.startswith("/") or path.startswith("//")
+                or path != path.strip() or "\\" in path
+                or ".." in PurePosixPath(path).parts
+                or any(ord(char) < 32 or ord(char) == 127 for char in path)
+                or type(digest) is not str or not SHA64_RE.fullmatch(digest)):
+            invalid("LEGACY_COMMON_CONFIG_BIND_JOURNAL_INVALID")
+        return {"path": path, "sha256": digest}
+
+    def normalize_authority(value: Any) -> dict[str, Any]:
+        if (type(value) is not dict or set(value) != {"current", "history"}
+                or type(value["history"]) is not list):
+            invalid("LEGACY_COMMON_CONFIG_BIND_JOURNAL_INVALID")
+        sequence = [*value["history"], value["current"]]
+        previous_time = None
+        anchors: set[str] = set()
+        normalized: list[dict[str, Any]] = []
+        for binding in sequence:
+            if (type(binding) is not dict
+                    or set(binding) != {"evidence", "identity", "anchor_created_at"}):
+                invalid("LEGACY_COMMON_CONFIG_BIND_JOURNAL_INVALID")
+            identity = _legacy_common_config_evidence_shape(binding["identity"])
+            if identity["target_registration_id"] != registration_id:
+                invalid("LEGACY_COMMON_CONFIG_BIND_JOURNAL_INVALID")
+            try:
+                at_text = binding["anchor_created_at"]
+                if type(at_text) is not str:
+                    raise ValueError("timestamp")
+                at = datetime.fromisoformat(at_text.replace("Z", "+00:00"))
+                if at.utcoffset() is None:
+                    raise ValueError("timezone")
+            except (TypeError, ValueError, OverflowError):
+                invalid("LEGACY_COMMON_CONFIG_BIND_JOURNAL_INVALID")
+            anchor_id = identity["anchor_registration_id"]
+            if anchor_id in anchors or (previous_time is not None and at <= previous_time):
+                invalid("LEGACY_COMMON_CONFIG_BIND_JOURNAL_INVALID")
+            anchors.add(anchor_id); previous_time = at
+            normalized.append({
+                "evidence": reference(binding["evidence"]),
+                "identity": identity,
+                "anchor_created_at": at_text,
+            })
+        if not normalized:
+            invalid("LEGACY_COMMON_CONFIG_BIND_JOURNAL_INVALID")
+        stable = {
+            "target_registration_id", "target_core_sha256", "task_id", "role",
+            "candidate_sha", "candidate_tree", "base_sha", "task_ref",
+            "registered_common_config_sha256", "global_config_sha256",
+            "fixed_role_config_sha256", "remote_identity_sha256",
+            "push_identity_sha256", "pushurl_identity_sha256",
+        }
+        first_identity = normalized[0]["identity"]
+        if any(any(binding["identity"][key] != first_identity[key] for key in stable)
+               for binding in normalized[1:]):
+            invalid("LEGACY_COMMON_CONFIG_BIND_JOURNAL_INVALID")
+        return {"current": normalized[-1], "history": normalized[:-1]}
+
+    proposed = normalize_authority(transition["authority"])
+    existing_raw = current.get("legacy_common_config_authority")
+    existing = normalize_authority(existing_raw) if existing_raw is not None else None
+
+    if transition["changed"] is False:
+        if existing is None or _canonical_bytes(existing) != _canonical_bytes(proposed):
+            raise PublicationError("LEGACY_COMMON_CONFIG_BIND_REPLAY_DRIFT")
+        return deepcopy(current)
+
+    if existing is None:
+        if proposed["history"]:
+            raise PublicationError("LEGACY_COMMON_CONFIG_BIND_JOURNAL_INVALID")
+    else:
+        expected_history = [*existing["history"], existing["current"]]
+        if (_canonical_bytes(proposed["history"]) != _canonical_bytes(expected_history)
+                or _canonical_bytes(proposed["current"]) == _canonical_bytes(existing["current"])):
+            raise PublicationError("LEGACY_COMMON_CONFIG_BIND_JOURNAL_INVALID")
+
+    state, version = current["state"], current["state_version"]
+    return _state_transition(
+        root, registration_id, {state}, state,
+        {"legacy_common_config_authority": proposed},
+        expected_version=version,
+    )
+
+
+def _legacy_common_config_apply_binding_transition(
+    root: Path, registration_id: str, expected_state: str,
+    expected_version: int, transition: Any,
+) -> dict[str, Any]:
+    """Acquire role+coord locks then CAS-apply an already validated transition."""
+    if (type(registration_id) is not str or not SHA64_RE.fullmatch(registration_id)
+            or type(expected_state) is not str
+            or expected_state not in {"TASK_REF_PUBLISHED", "PUBLISHED", "REVOKED", "FAILED"}
+            or type(expected_version) is not int or expected_version < 1):
+        raise PublicationError("LEGACY_COMMON_CONFIG_BIND_TRANSITION_INVALID")
+    first, _ = _read_registration(root, registration_id)
+    try:
+        role = first["core"]["role"]
+    except (KeyError, TypeError):
+        raise PublicationError("LEGACY_COMMON_CONFIG_BIND_TRANSITION_INVALID") from None
+    if role not in {"A", "B", "C"}:
+        raise PublicationError("LEGACY_COMMON_CONFIG_BIND_TRANSITION_INVALID")
+    with _role_and_coord_locks(root, role):
+        current, _ = _read_registration(root, registration_id)
+        if (current.get("registration_id") != registration_id
+                or current.get("registration_sha256") != registration_id
+                or current.get("state") != expected_state
+                or current.get("state_version") != expected_version):
+            raise PublicationError("LEGACY_COMMON_CONFIG_BIND_CAS_DRIFT")
+        return _legacy_common_config_apply_binding_transition_locked(
+            root, registration_id, current, transition)
+
+
+def _legacy_common_config_close_checkpoint(
+    value: Any, observed: Any, evidence_reference: Any, authority: Any,
+    frozen_checkpoint: Any = None,
+) -> dict[str, Any]:
+    """Freeze non-secret close identity and reject drift on an intent replay.
+
+    Pure serialization/consistency only, never a close permission or observer.
+    The integration must independently validate evidence bytes, the complete
+    journal and current authority under its locks, check state/ref/lease/config
+    guards and use the same checkpoint in close intent and crash recovery.
+    Existing history is fingerprinted, not re-authorized by this function.
+    No configuration values or raw reviewer metadata enter the checkpoint.
+    """
+    from datetime import datetime
+    from pathlib import PurePosixPath
+
+    identity = _legacy_common_config_evidence_identity(value, observed)
+
+    def reference(item: Any) -> dict[str, str]:
+        if type(item) is not dict or set(item) != {"path", "sha256"}:
+            raise ValueError("reference shape")
+        path, digest = item["path"], item["sha256"]
+        if (type(path) is not str or not 0 < len(path) <= 4096
+                or not path.startswith("/") or path.startswith("//")
+                or path != path.strip() or "\\" in path
+                or any(ord(char) < 32 or ord(char) == 127 for char in path)
+                or ".." in PurePosixPath(path).parts
+                or type(digest) is not str or not SHA64_RE.fullmatch(digest)):
+            raise ValueError("reference identity")
+        return {"path": path, "sha256": digest}
+
+    try:
+        loaded_reference = reference(evidence_reference)
+        if (type(authority) is not dict or set(authority) != {"current", "history"}
+                or type(authority["history"]) is not list):
+            raise ValueError("authority shape")
+        for binding in [*authority["history"], authority["current"]]:
+            if type(binding) is not dict or set(binding) != {"evidence", "identity", "anchor_created_at"}:
+                raise ValueError("binding shape")
+            reference(binding["evidence"])
+            _legacy_common_config_evidence_shape(binding["identity"])
+            anchor_time = binding["anchor_created_at"]
+            if type(anchor_time) is not str or datetime.fromisoformat(anchor_time.replace("Z", "+00:00")).utcoffset() is None:
+                raise ValueError("anchor timestamp")
+    except (KeyError, TypeError, ValueError, OverflowError, PublicationError):
+        raise PublicationError("LEGACY_COMMON_CONFIG_CLOSE_AUTHORITY_INVALID") from None
+
+    current = authority["current"]
+    if (current["evidence"] != loaded_reference
+            or _canonical_bytes(current["identity"]) != _canonical_bytes(identity)
+            or current["anchor_created_at"] != observed["anchor_created_at"]):
+        raise PublicationError("LEGACY_COMMON_CONFIG_CLOSE_BINDING_MISMATCH")
+    checkpoint = {
+        "kind": "octoport.legacy-common-config-close-checkpoint",
+        "version": 1,
+        "target_registration_id": identity["target_registration_id"],
+        "evidence": loaded_reference,
+        "anchor_registration_id": identity["anchor_registration_id"],
+        "anchor_state_version": identity["anchor_state_version"],
+        "anchor_state_sha256": identity["anchor_state_sha256"],
+        "anchor_close_receipt_sha256": identity["anchor_close_receipt_sha256"],
+        "binding_current_sha256": _sha_bytes(_canonical_bytes(current)),
+        "binding_history_sha256": _sha_bytes(_canonical_bytes(authority["history"])),
+        "authority_sha256": _sha_bytes(_canonical_bytes(authority)),
+    }
+    if frozen_checkpoint is not None:
+        try:
+            matches = (type(frozen_checkpoint) is dict
+                       and _canonical_bytes(frozen_checkpoint) == _canonical_bytes(checkpoint))
+        except (TypeError, ValueError, OverflowError):
+            matches = False
+        if not matches:
+            raise PublicationError("LEGACY_COMMON_CONFIG_CLOSE_CHECKPOINT_DRIFT")
+    return json.loads(_canonical_bytes(checkpoint))
+
+
+def _legacy_common_config_target_facts(
+    root: Path, registration: dict[str, Any],
+) -> dict[str, Any]:
+    """Collect target guards; this is not a bind permission or journal writer.
+
+    The caller must hold the role and coordination locks, pass the snapshot
+    returned by the existing registration validator and retain those locks
+    through evidence/anchor validation and the version-checked state write.
+    Returned facts must never be cached or supplied by a CLI caller. This
+    collector does not authenticate a reviewer or validate anchor lineage.
+    The existing immutable-target dry-run probe performs no ref mutation.
+    """
+    try:
+        identifier = registration['registration_id']
+        core = registration['core']
+        state = registration['state']
+        installed = registration['installed_config']
+        if (type(identifier) is not str or not SHA64_RE.fullmatch(identifier)
+                or type(core) is not dict or type(installed) is not dict):
+            raise ValueError('snapshot shape')
+        worktree_text = core['worktree_path']
+        candidate, task_ref, target = core['candidate_head'], core['task_ref'], core['push_target']
+        if (type(worktree_text) is not str or not Path(worktree_text).is_absolute()
+                or '..' in Path(worktree_text).parts
+                or type(candidate) is not str or not SHA40_RE.fullmatch(candidate)
+                or candidate == ZERO_OID or type(task_ref) is not str
+                or not task_ref.startswith('refs/heads/')
+                or type(target) is not str or not target):
+            raise ValueError('target identity')
+        keys = installed['owned_keys']
+        if (type(keys) is not list or len(keys) != 2
+                or any(type(key) is not str for key in keys)
+                or set(keys) != {'core.hooksPath', 'remote.origin.pushurl'}):
+            raise ValueError('owned keys')
+        for key in keys:
+            item = installed[key]
+            if (type(item) is not dict or set(item) != {'present', 'values'}
+                    or type(item['present']) is not bool or type(item['values']) is not list
+                    or any(type(value) is not str for value in item['values'])):
+                raise ValueError('installed values')
+    except (KeyError, TypeError, ValueError):
+        raise PublicationError('LEGACY_COMMON_CONFIG_TARGET_SNAPSHOT_INVALID') from None
+    if type(state) is not str or state not in {'TASK_REF_PUBLISHED', 'PUBLISHED', 'REVOKED', 'FAILED'}:
+        raise PublicationError('LEGACY_COMMON_CONFIG_BIND_STATE_INVALID')
+    worktree = Path(worktree_text)
+    close_root = Path(root) / 'controllers' / 'task-publication' / 'close' / identifier
+
+    def local_guards() -> None:
+        if _no_armed_leases(root, identifier) is not True:
+            raise PublicationError('LEGACY_COMMON_CONFIG_BIND_GUARD_UNVERIFIED')
+        for name in ('intent.json', 'receipt.json'):
+            marker = close_root / name
+            if marker.exists() or marker.is_symlink():
+                raise PublicationError('LEGACY_COMMON_CONFIG_BIND_CLOSE_STARTED')
+        try:
+            result = subprocess.run(
+                [AUTHORITY_GIT_BIN, '-C', str(worktree), 'status', '--porcelain', '--untracked-files=normal'],
+                cwd='/', env=sanitized_git_authority_env(), capture_output=True,
+                text=True, timeout=30, check=False,
+            )
+        except (OSError, subprocess.SubprocessError, UnicodeError):
+            raise PublicationError('LEGACY_COMMON_CONFIG_GIT_OBSERVATION_FAILED') from None
+        if result.returncode != 0 or type(result.stdout) is not str:
+            raise PublicationError('LEGACY_COMMON_CONFIG_GIT_OBSERVATION_FAILED')
+        if result.stdout.strip():
+            raise PublicationError('LEGACY_COMMON_CONFIG_BIND_GUARD_UNVERIFIED')
+        try:
+            matches = all(_config_values(worktree, key) == installed[key] for key in keys)
+        except (PublicationError, OSError, subprocess.SubprocessError, UnicodeError):
+            raise PublicationError('LEGACY_COMMON_CONFIG_BIND_GUARD_UNVERIFIED') from None
+        if not matches:
+            raise PublicationError('LEGACY_COMMON_CONFIG_BIND_GUARD_UNVERIFIED')
+
+    # Reject local failures before performing any transport observation.
+    local_guards()
+    try:
+        ref_oid = _supersede_remote_state(worktree, target, task_ref, candidate)
+    except (PublicationError, OSError, subprocess.SubprocessError, UnicodeError, ValueError):
+        raise PublicationError('LEGACY_COMMON_CONFIG_REF_OBSERVATION_FAILED') from None
+    if type(ref_oid) is not str or not SHA40_RE.fullmatch(ref_oid):
+        raise PublicationError('LEGACY_COMMON_CONFIG_REF_OBSERVATION_FAILED')
+    if ref_oid != ZERO_OID and not (state == 'TASK_REF_PUBLISHED' and ref_oid == candidate):
+        raise PublicationError('LEGACY_COMMON_CONFIG_BIND_TASK_REF_PRESENT')
+    # A network observation may take time. Never reuse the earlier local facts.
+    local_guards()
+    return {'state': state, 'task_ref_oid': ref_oid, 'no_armed_lease': True,
+            'worktree_clean': True, 'installed_keys_match': True,
+            'close_intent_exists': False, 'close_receipt_exists': False}
+
+
+def _legacy_common_config_transport_hashes(core: Any) -> dict[str, str]:
+    """Hash bounded canonical transport identity without exposing endpoint values."""
+    try:
+        if type(core) is not dict:
+            raise ValueError("core shape")
+        remote = core["remote"]
+        push_target = core["push_target"]
+        pushurl = core.get("pushurl_override")
+        if (type(remote) is not str or not remote or remote != remote.strip()
+                or any(ord(char) < 33 or ord(char) == 127 for char in remote)
+                or type(push_target) is not str or not push_target
+                or (pushurl is not None and (type(pushurl) is not str or not pushurl))):
+            raise ValueError("transport shape")
+        push_identity = _remote_repository_identity(push_target)
+        pushurl_identity = None if pushurl is None else _remote_repository_identity(pushurl)
+    except (KeyError, TypeError, ValueError, PublicationError):
+        raise PublicationError("LEGACY_COMMON_CONFIG_TRANSPORT_IDENTITY_INVALID") from None
+
+    def digest(label: str, value: Any) -> str:
+        return _sha_bytes(_canonical_bytes({"kind": label, "value": value}))
+
+    return {
+        "remote_identity_sha256": digest("remote-name", remote),
+        "push_identity_sha256": digest("push-target", push_identity),
+        "pushurl_identity_sha256": digest("pushurl-override", pushurl_identity),
+    }
+
+
+def _legacy_common_config_current_observation(
+    root: Path, registration: dict[str, Any], evidence: Any,
+    anchor: Any, review_observation: Any,
+) -> dict[str, Any]:
+    """Collect current non-mutating authority facts; reviewer input is independently supplied."""
+    from copy import deepcopy
+    try:
+        if type(registration) is not dict or type(registration.get("core")) is not dict:
+            raise ValueError("registration shape")
+        identifier = registration["registration_id"]
+        core = registration["core"]
+        if (type(identifier) is not str or not SHA64_RE.fullmatch(identifier)
+                or core["role"] not in {"A", "B", "C"}
+                or type(core["worktree_path"]) is not str):
+            raise ValueError("target identity")
+        worktree = Path(core["worktree_path"])
+        if not worktree.is_absolute() or ".." in worktree.parts:
+            raise ValueError("worktree path")
+        target = {
+            "target_registration_id": identifier,
+            "target_core_sha256": identifier,
+            "registered_common_config_sha256": core["common_config_sha256"],
+            "global_config_sha256": core["global_config_sha256"],
+            "candidate_sha": core["candidate_head"],
+            "candidate_tree": core["candidate_tree"],
+            "base_sha": core["base_sha"],
+            "task_id": core["task_id"],
+            "role": core["role"],
+            "task_ref": core["task_ref"],
+            "fixed_role_config_sha256": deepcopy(core["fixed_role_config_sha256"]),
+        }
+    except (KeyError, TypeError, ValueError):
+        raise PublicationError("LEGACY_COMMON_CONFIG_TARGET_IDENTITY_INVALID") from None
+
+    parsed = _legacy_common_config_evidence_shape(evidence)
+    for key, actual in target.items():
+        if parsed[key] != actual:
+            raise PublicationError("LEGACY_COMMON_CONFIG_TARGET_IDENTITY_MISMATCH")
+
+    transport = _legacy_common_config_transport_hashes(core)
+    for key, actual in transport.items():
+        if parsed[key] != actual:
+            raise PublicationError("LEGACY_COMMON_CONFIG_TARGET_TRANSPORT_MISMATCH")
+        if type(anchor) is not dict or anchor.get("anchor_" + key) != actual:
+            raise PublicationError("LEGACY_COMMON_CONFIG_ANCHOR_TRANSPORT_MISMATCH")
+
+    if (type(review_observation) is not dict
+            or review_observation.get("reviewer_role") == core["role"]):
+        raise PublicationError("LEGACY_COMMON_CONFIG_REVIEW_NOT_INDEPENDENT")
+
+    try:
+        common = _common_config_digest(worktree)
+        global_digest = _global_config_digest()
+        ownership, _ = _ownership(worktree)
+        fixed = _fixed_role_config_digests(ownership)
+    except (OSError, subprocess.SubprocessError, PublicationError, KeyError, TypeError, ValueError):
+        raise PublicationError("LEGACY_COMMON_CONFIG_CURRENT_AUTHORITY_UNAVAILABLE") from None
+    if (common != parsed["current_common_config_sha256"]
+            or global_digest != parsed["global_config_sha256"]
+            or fixed != parsed["fixed_role_config_sha256"]):
+        raise PublicationError("LEGACY_COMMON_CONFIG_CURRENT_AUTHORITY_MISMATCH")
+
+    ordinary = _common_config_matches_registered(worktree, core["common_config_sha256"])
+    try:
+        current_main = _authority_remote_oid_target(core["push_target"], "refs/heads/main")
+    except (OSError, subprocess.SubprocessError, PublicationError, ValueError):
+        raise PublicationError("LEGACY_COMMON_CONFIG_CURRENT_MAIN_UNAVAILABLE") from None
+    if (current_main == ZERO_OID or current_main != parsed["current_main_sha"]):
+        raise PublicationError("LEGACY_COMMON_CONFIG_CURRENT_MAIN_MISMATCH")
+
+    try:
+        lineage = subprocess.run(
+            [AUTHORITY_GIT_BIN, "-C", str(worktree), "merge-base", "--is-ancestor",
+             parsed["anchor_candidate_sha"], current_main],
+            cwd="/", env=sanitized_git_authority_env(), capture_output=True,
+            text=True, timeout=30, check=False,
+        )
+    except (OSError, subprocess.SubprocessError, UnicodeError):
+        raise PublicationError("LEGACY_COMMON_CONFIG_ANCHOR_LINEAGE_UNVERIFIED") from None
+    if lineage.returncode != 0:
+        raise PublicationError("LEGACY_COMMON_CONFIG_ANCHOR_LINEAGE_UNVERIFIED")
+
+    try:
+        observed = dict(target)
+        observed.update(transport)
+        observed.update({
+            "anchor_registration_id": anchor["anchor_registration_id"],
+            "anchor_state_version": anchor["anchor_state_version"],
+            "anchor_state_sha256": anchor["anchor_state_sha256"],
+            "anchor_close_receipt_sha256": anchor["anchor_close_receipt_sha256"],
+            "anchor_candidate_sha": anchor["anchor_candidate_sha"],
+            "current_main_sha": current_main,
+            "current_common_config_sha256": common,
+            "review": deepcopy(review_observation),
+            "target_created_at": registration["created_at"],
+            "anchor_created_at": anchor["anchor_created_at"],
+            "anchor_state": anchor["anchor_state"],
+            "anchor_common_config_sha256": anchor["anchor_common_config_sha256"],
+            "anchor_global_config_sha256": anchor["anchor_global_config_sha256"],
+            "anchor_fixed_role_config_sha256": deepcopy(anchor["anchor_fixed_role_config_sha256"]),
+            "anchor_remote_identity_sha256": anchor["anchor_remote_identity_sha256"],
+            "anchor_push_identity_sha256": anchor["anchor_push_identity_sha256"],
+            "anchor_pushurl_identity_sha256": anchor["anchor_pushurl_identity_sha256"],
+            "anchor_close_receipt_valid": anchor["anchor_close_receipt_valid"],
+            "anchor_is_ancestor_of_main": True,
+            "reviewer_independence_verified": True,
+            "ordinary_common_matches": ordinary,
+        })
+    except (KeyError, TypeError):
+        raise PublicationError("LEGACY_COMMON_CONFIG_ANCHOR_SNAPSHOT_INVALID") from None
+    _legacy_common_config_evidence_identity(parsed, observed)
+    return json.loads(_canonical_bytes(observed))
+
+
+def _legacy_common_config_evidence_snapshot(
+    root: Path, evidence_path: str, evidence_sha256: str,
+) -> dict[str, Any]:
+    """Read exact bounded evidence bytes without granting review/bind authority.
+
+    The managed control root is trusted. Directory-relative no-follow opens
+    retain each path component; every binding is rechecked before returning.
+    The future bind/close caller must still verify independent review, current
+    target/anchor/config/ref facts and keep its locks through the state write.
+    An expected file hash alone proves neither a reviewer nor permission.
+    """
+    import stat
+
+    def invalid(code: str = 'LEGACY_COMMON_CONFIG_EVIDENCE_FILE_INVALID') -> None:
+        raise PublicationError(code)
+    try:
+        root_path = Path(root)
+        if (not root_path.is_absolute() or '..' in root_path.parts
+                or type(evidence_path) is not str or not 0 < len(evidence_path) <= 4096
+                or '\x00' in evidence_path or type(evidence_sha256) is not str
+                or not SHA64_RE.fullmatch(evidence_sha256)):
+            invalid('LEGACY_COMMON_CONFIG_EVIDENCE_FILE_PATH_INVALID')
+        path = Path(evidence_path)
+        if str(path) != evidence_path or '..' in path.parts:
+            invalid('LEGACY_COMMON_CONFIG_EVIDENCE_FILE_PATH_INVALID')
+        relative = path.relative_to(root_path)
+        if not relative.parts:
+            invalid('LEGACY_COMMON_CONFIG_EVIDENCE_FILE_PATH_INVALID')
+    except (TypeError, ValueError):
+        invalid('LEGACY_COMMON_CONFIG_EVIDENCE_FILE_PATH_INVALID')
+
+    descriptors: list[int] = []
+    bindings: list[tuple[int | None, str, Any]] = []
+    directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
+    def identity(info: Any) -> tuple[int, int]:
+        return info.st_dev, info.st_ino
+    def fingerprint(info: Any) -> tuple[int, ...]:
+        return (*identity(info), info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+    try:
+        parent = os.open(str(root_path), directory_flags)
+        descriptors.append(parent)
+        root_info = os.fstat(parent)
+        if not stat.S_ISDIR(root_info.st_mode):
+            invalid()
+        bindings.append((None, str(root_path), root_info))
+        for component in relative.parts[:-1]:
+            child = os.open(component, directory_flags, dir_fd=parent)
+            descriptors.append(child)
+            child_info = os.fstat(child)
+            if not stat.S_ISDIR(child_info.st_mode):
+                invalid()
+            bindings.append((parent, component, child_info))
+            parent = child
+        descriptor = os.open(relative.name, os.O_RDONLY | os.O_NOFOLLOW |
+                             os.O_NONBLOCK | os.O_CLOEXEC, dir_fd=parent)
+        descriptors.append(descriptor)
+        before = os.fstat(descriptor)
+        if not stat.S_ISREG(before.st_mode) or not 0 < before.st_size <= 65536:
+            invalid()
+        raw = b''
+        while len(raw) <= 65536:
+            part = os.read(descriptor, 65537 - len(raw))
+            if not part:
+                break
+            raw += part
+        after = os.fstat(descriptor)
+        if (len(raw) != before.st_size or len(raw) > 65536
+                or fingerprint(before) != fingerprint(after)
+                or _sha_bytes(raw) != evidence_sha256):
+            invalid('LEGACY_COMMON_CONFIG_EVIDENCE_FILE_DRIFT')
+        for parent_fd, name, original in bindings:
+            current = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+            if not stat.S_ISDIR(current.st_mode) or identity(current) != identity(original):
+                invalid('LEGACY_COMMON_CONFIG_EVIDENCE_FILE_DRIFT')
+        current = os.stat(relative.name, dir_fd=parent, follow_symlinks=False)
+        if not stat.S_ISREG(current.st_mode) or fingerprint(current) != fingerprint(after):
+            invalid('LEGACY_COMMON_CONFIG_EVIDENCE_FILE_DRIFT')
+    except (OSError, UnicodeError, ValueError):
+        invalid()
+    finally:
+        close_failed = False
+        for descriptor in reversed(descriptors):
+            try:
+                os.close(descriptor)
+            except OSError:
+                close_failed = True
+        if close_failed:
+            invalid()
+
+    def unique_pairs(items: Any) -> dict[str, Any]:
+        result: dict[str, Any] = {}
+        for key, item in items:
+            if key in result:
+                invalid()
+            result[key] = item
+        return result
+    try:
+        parsed = json.loads(raw.decode('utf-8'), object_pairs_hook=unique_pairs,
+                            parse_constant=lambda _: invalid())
+        evidence = _legacy_common_config_evidence_shape(parsed)
+    except (PublicationError, ValueError, UnicodeError, RecursionError, TypeError):
+        invalid()
+    return {'reference': {'path': evidence_path, 'sha256': evidence_sha256},
+            'evidence': evidence}
+
+
+def _legacy_common_config_receipt_checkpoint(
+    registration: dict[str, Any], checkpoint: Any,
+) -> None:
+    """Validate an archived checkpoint against journal bytes, not live authority."""
+    from datetime import datetime
+    from pathlib import PurePosixPath
+    try:
+        authority = registration['legacy_common_config_authority']
+        if (type(authority) is not dict or set(authority) != {'current', 'history'}
+                or type(authority['history']) is not list):
+            raise ValueError('authority shape')
+        for binding in [*authority['history'], authority['current']]:
+            if type(binding) is not dict or set(binding) != {'evidence', 'identity', 'anchor_created_at'}:
+                raise ValueError('binding shape')
+            identity = _legacy_common_config_evidence_shape(binding['identity'])
+            if identity['target_registration_id'] != registration['registration_id']:
+                raise ValueError('binding target')
+            reference = binding['evidence']
+            if type(reference) is not dict or set(reference) != {'path', 'sha256'}:
+                raise ValueError('reference shape')
+            path, digest = reference['path'], reference['sha256']
+            if (type(path) is not str or not 0 < len(path) <= 4096
+                    or not path.startswith('/') or path.startswith('//') or path != path.strip()
+                    or '\\' in path or '..' in PurePosixPath(path).parts
+                    or any(ord(char) < 32 or ord(char) == 127 for char in path)
+                    or type(digest) is not str or not SHA64_RE.fullmatch(digest)):
+                raise ValueError('reference identity')
+            anchor_time = binding['anchor_created_at']
+            if (type(anchor_time) is not str
+                    or datetime.fromisoformat(anchor_time.replace('Z', '+00:00')).utcoffset() is None):
+                raise ValueError('anchor timestamp')
+        current = authority['current']; identity = current['identity']
+        expected = {
+            'kind': 'octoport.legacy-common-config-close-checkpoint', 'version': 1,
+            'target_registration_id': identity['target_registration_id'], 'evidence': current['evidence'],
+            'anchor_registration_id': identity['anchor_registration_id'],
+            'anchor_state_version': identity['anchor_state_version'],
+            'anchor_state_sha256': identity['anchor_state_sha256'],
+            'anchor_close_receipt_sha256': identity['anchor_close_receipt_sha256'],
+            'binding_current_sha256': _sha_bytes(_canonical_bytes(current)),
+            'binding_history_sha256': _sha_bytes(_canonical_bytes(authority['history'])),
+            'authority_sha256': _sha_bytes(_canonical_bytes(authority)),
+        }
+        if type(checkpoint) is not dict or _canonical_bytes(checkpoint) != _canonical_bytes(expected):
+            raise ValueError('checkpoint mismatch')
+    except (KeyError, TypeError, ValueError, OverflowError, RecursionError, PublicationError):
+        raise PublicationError('LEGACY_COMMON_CONFIG_ANCHOR_RECEIPT_INVALID') from None
+
+
+def _legacy_common_config_validate_close_receipt_payload(
+    registration: dict[str, Any], receipt: Any,
+) -> None:
+    """Validate representation and captured config only, not time or authority."""
+    def invalid() -> None:
+        raise PublicationError('LEGACY_COMMON_CONFIG_ANCHOR_RECEIPT_INVALID')
+    def config_entry(value: Any) -> bool:
+        return (type(value) is dict and set(value) == {'present', 'values'}
+                and type(value['present']) is bool and type(value['values']) is list
+                and all(type(v) is str for v in value['values'])
+                and (value['present'] or not value['values']))
+    try:
+        if type(receipt) is not dict or type(receipt.get('version')) is not int:
+            invalid()
+        version = receipt['version']
+        common = {'kind', 'version', 'registration_id', 'state_before',
+                  'worktree_config_sha256_after', 'created_at'}
+        extras = {'before', 'installed', 'final'} if version == 1 else {'config_sha256', 'legacy_checkpoint'}
+        if (version not in (1, 2) or set(receipt) != common | extras
+                or receipt['kind'] != 'octoport.task-publication-close'
+                or receipt['registration_id'] != registration['registration_id']
+                or type(receipt['state_before']) is not str
+                or receipt['state_before'] not in {'PUBLISHED', 'REVOKED', 'FAILED'}
+                or type(receipt['worktree_config_sha256_after']) is not str
+                or not SHA64_RE.fullmatch(receipt['worktree_config_sha256_after'])):
+            invalid()
+        core, installed = registration['core'], registration['installed_config']
+        keys = installed['owned_keys']
+        if (type(keys) is not list or len(keys) != 2
+                or any(type(k) is not str for k in keys)
+                or set(keys) != {'core.hooksPath', 'remote.origin.pushurl'}):
+            invalid()
+        prior = {k: core['prior_config'][k] for k in keys}
+        captured = {k: installed[k] for k in keys}
+        if not all(config_entry(item) for item in [*prior.values(), *captured.values()]):
+            invalid()
+        if version == 1:
+            for name in ('before', 'installed', 'final'):
+                if type(receipt[name]) is not dict or set(receipt[name]) != set(keys):
+                    invalid()
+            for key in keys:
+                if (not all(config_entry(receipt[name][key]) for name in ('before', 'installed', 'final'))
+                        or receipt['final'][key] != prior[key] or receipt['installed'][key] != captured[key]
+                        or receipt['before'][key] not in (prior[key], captured[key])):
+                    invalid()
+        else:
+            values = receipt['config_sha256']
+            if type(values) is not dict or set(values) != {'before', 'installed', 'final'}:
+                invalid()
+            for name in ('before', 'installed', 'final'):
+                if (type(values[name]) is not dict or set(values[name]) != set(keys)
+                        or any(type(v) is not str or not SHA64_RE.fullmatch(v) for v in values[name].values())):
+                    invalid()
+            for key in keys:
+                old_hash = _sha_bytes(_canonical_bytes(prior[key]))
+                installed_hash = _sha_bytes(_canonical_bytes(captured[key]))
+                if (values['final'][key] != old_hash or values['installed'][key] != installed_hash
+                        or values['before'][key] not in (old_hash, installed_hash)):
+                    invalid()
+            _legacy_common_config_receipt_checkpoint(registration, receipt['legacy_checkpoint'])
+    except (KeyError, TypeError, ValueError, OverflowError, RecursionError):
+        invalid()
+
+
+def _legacy_common_config_validate_close_receipt(
+    registration: dict[str, Any], receipt: Any,
+) -> None:
+    """Validate a completed archive; a future observation is never an archive."""
+    from datetime import datetime
+    _legacy_common_config_validate_close_receipt_payload(registration, receipt)
+    try:
+        raw_times = [registration['created_at'], receipt['created_at'], registration['updated_at']]
+        if any(type(value) is not str for value in raw_times):
+            raise ValueError('timestamp type')
+        created, closed, updated = [datetime.fromisoformat(value.replace('Z', '+00:00'))
+                                    for value in raw_times]
+        if any(value.utcoffset() is None for value in (created, closed, updated)):
+            raise ValueError('timezone required')
+        if not created <= closed <= updated:
+            raise PublicationError('LEGACY_COMMON_CONFIG_ANCHOR_ORDER_INVALID')
+    except (KeyError, TypeError, ValueError, OverflowError, RecursionError):
+        raise PublicationError('LEGACY_COMMON_CONFIG_ANCHOR_RECEIPT_INVALID') from None
+
+
+def _legacy_common_config_construct_close_receipt(
+    registration: dict[str, Any], before: Any, after: Any,
+    worktree_config_sha256_after: str, checkpoint: Any,
+) -> dict[str, Any]:
+    """Construct an unpersisted v2 observation before the CLOSED transition.
+
+    This is not archival validation or authority to close. The caller must
+    obtain before/after/config observations, validate current legacy authority
+    under its locks, persist the exact intent and receipt, and use the normal
+    version-checked journal transition. No registration timestamp is changed.
+    Archived receipts must still pass _legacy_common_config_validate_close_receipt.
+    """
+    from datetime import datetime, timezone
+    try:
+        if (type(registration) is not dict or type(registration.get('state')) is not str
+                or registration['state'] not in {'PUBLISHED', 'REVOKED', 'FAILED'}):
+            raise ValueError('close prestate')
+        raw_times = [registration['created_at'], registration['updated_at']]
+        if any(type(value) is not str for value in raw_times):
+            raise ValueError('timestamp type')
+        created, updated = [datetime.fromisoformat(value.replace('Z', '+00:00'))
+                            for value in raw_times]
+        if any(value.utcoffset() is None for value in (created, updated)):
+            raise ValueError('timezone required')
+        # Journal state transitions use whole UTC seconds. Matching precision
+        # permits a truthful receipt and CLOSED transition in the same second.
+        observed = datetime.fromtimestamp(time.time(), timezone.utc).replace(microsecond=0)
+        if not created <= updated <= observed:
+            raise PublicationError('LEGACY_COMMON_CONFIG_CLOSE_OBSERVATION_ORDER_INVALID')
+        installed = registration['installed_config']
+        ordinary = {
+            'kind': 'octoport.task-publication-close', 'version': 1,
+            'registration_id': registration['registration_id'],
+            'state_before': registration['state'],
+            'before': before, 'installed': {key: installed[key] for key in installed['owned_keys']},
+            'final': after, 'worktree_config_sha256_after': worktree_config_sha256_after,
+            'created_at': observed.strftime('%Y-%m-%dT%H:%M:%SZ'),
+        }
+    except (KeyError, TypeError, ValueError, OverflowError, OSError):
+        raise PublicationError('LEGACY_COMMON_CONFIG_CLOSE_OBSERVATION_INVALID') from None
+    _legacy_common_config_validate_close_receipt_payload(registration, ordinary)
+    _legacy_common_config_receipt_checkpoint(registration, checkpoint)
+    result = {name: ordinary[name] for name in (
+        'kind', 'registration_id', 'state_before', 'worktree_config_sha256_after', 'created_at')}
+    result.update(version=2, config_sha256={
+        name: {key: _sha_bytes(_canonical_bytes(value)) for key, value in ordinary[name].items()}
+        for name in ('before', 'installed', 'final')
+    }, legacy_checkpoint=checkpoint)
+    return json.loads(_canonical_bytes(result))
+
+
+
+
+def _legacy_common_config_redacted_close_receipt(
+    registration: dict[str, Any], ordinary_receipt: Any, checkpoint: Any,
+) -> dict[str, Any]:
+    """Encode a verified close observation without raw config values.
+
+    Pure format conversion only. The caller still owns observation, permission,
+    immutable intent, safe persistence and recovery; this never rewrites a file.
+    Registration timestamps must cover the completed close observation.
+    """
+    _legacy_common_config_validate_close_receipt(registration, ordinary_receipt)
+    if ordinary_receipt['version'] != 1:
+        raise PublicationError('LEGACY_COMMON_CONFIG_ANCHOR_RECEIPT_INVALID')
+    _legacy_common_config_receipt_checkpoint(registration, checkpoint)
+    result = {name: ordinary_receipt[name] for name in (
+        'kind', 'registration_id', 'state_before', 'worktree_config_sha256_after', 'created_at')}
+    result.update(version=2, config_sha256={
+        name: {key: _sha_bytes(_canonical_bytes(value)) for key, value in ordinary_receipt[name].items()}
+        for name in ('before', 'installed', 'final')
+    }, legacy_checkpoint=checkpoint)
+    return json.loads(_canonical_bytes(result))
+
+
+def _legacy_common_config_anchor_snapshot(
+    root: Path, target_registration: dict[str, Any], value: Any,
+) -> dict[str, Any]:
+    """Read a pinned CLOSED anchor and its actual canonical close receipt.
+
+    Call only while holding the existing role/coordination locks and after
+    validating the target registration. No caller-supplied 'valid' flag is
+    trusted. This observes terminal-artifact identity, not reviewer provenance,
+    current configuration/transport compatibility, or Git ancestry; bind/close
+    must verify those remaining facts separately before any state write.
+    """
+    import stat
+    from datetime import datetime
+
+    evidence = _legacy_common_config_evidence_shape(value)
+    def invalid(code: str = 'LEGACY_COMMON_CONFIG_ANCHOR_SNAPSHOT_INVALID') -> None:
+        raise PublicationError(code)
+    def timestamp(raw: Any) -> datetime:
+        if type(raw) is not str:
+            invalid()
+        try:
+            parsed = datetime.fromisoformat(raw.replace('Z', '+00:00'))
+            if parsed.utcoffset() is None:
+                invalid()
+            return parsed
+        except (ValueError, TypeError, OverflowError):
+            invalid()
+        raise AssertionError('unreachable')
+    try:
+        target_id = target_registration['registration_id']
+        target_time = timestamp(target_registration['created_at'])
+    except (KeyError, TypeError):
+        invalid()
+    if target_id != evidence['target_registration_id']:
+        invalid()
+    anchor_id = evidence['anchor_registration_id']
+    try:
+        anchor, state_sha = _read_registration(root, anchor_id)
+    except (PublicationError, OSError, ValueError, TypeError):
+        invalid('LEGACY_COMMON_CONFIG_ANCHOR_UNAVAILABLE')
+    if type(anchor) is not dict:
+        invalid()
+    if (anchor.get('state') != 'CLOSED'
+            or type(anchor.get('state_version')) is not int
+            or anchor['state_version'] != evidence['anchor_state_version']
+            or state_sha != evidence['anchor_state_sha256']
+            or anchor.get('registration_id') != anchor_id
+            or anchor.get('registration_sha256') != anchor_id):
+        invalid()
+    anchor_time = timestamp(anchor.get('created_at'))
+    if anchor_time <= target_time:
+        invalid('LEGACY_COMMON_CONFIG_ANCHOR_ORDER_INVALID')
+    try:
+        core, installed = anchor['core'], anchor['installed_config']
+        fixed = core['fixed_role_config_sha256']
+        if (type(core) is not dict or type(installed) is not dict
+                or core['candidate_head'] != evidence['anchor_candidate_sha']
+                or type(fixed) is not dict or set(fixed) != {'A', 'B', 'C'}):
+            invalid()
+        anchor_transport = _legacy_common_config_transport_hashes(core)
+        for digest in [core['common_config_sha256'], core['global_config_sha256'], *fixed.values()]:
+            if type(digest) is not str or not SHA64_RE.fullmatch(digest):
+                invalid()
+        keys = installed['owned_keys']
+        if (type(keys) is not list or len(keys) != 2
+                or any(type(key) is not str for key in keys)
+                or set(keys) != {'core.hooksPath', 'remote.origin.pushurl'}):
+            invalid()
+        reference = anchor['close_receipt']
+        if (type(reference) is not dict or set(reference) != {'path', 'sha256'}
+                or reference['sha256'] != evidence['anchor_close_receipt_sha256']):
+            invalid()
+    except (KeyError, TypeError):
+        invalid()
+    canonical_root = Path(root).resolve()
+    close_root = canonical_root / 'controllers' / 'task-publication' / 'close' / anchor_id
+    receipt_path = close_root / 'receipt.json'
+    if reference['path'] != str(receipt_path):
+        invalid('LEGACY_COMMON_CONFIG_ANCHOR_RECEIPT_PATH_INVALID')
+    # Keep the whole canonical directory chain pinned through schema checking
+    # and the final registration readback, not just through the initial open.
+    from contextlib import contextmanager
+
+    @contextmanager
+    def pinned_receipt_bytes():
+        descriptors: list[int] = []
+        bindings: list[tuple[int | None, str, Any]] = []
+        directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
+
+        def identity(info: Any) -> tuple[int, int]:
+            return info.st_dev, info.st_ino
+
+        def fingerprint(info: Any) -> tuple[int, ...]:
+            return (*identity(info), info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+
+        try:
+            directory = os.open(str(canonical_root), directory_flags)
+            descriptors.append(directory)
+            root_info = os.fstat(directory)
+            if not stat.S_ISDIR(root_info.st_mode):
+                invalid('LEGACY_COMMON_CONFIG_ANCHOR_RECEIPT_PATH_INVALID')
+            bindings.append((None, str(canonical_root), root_info))
+            for component in ('controllers', 'task-publication', 'close', anchor_id):
+                child = os.open(component, directory_flags, dir_fd=directory)
+                descriptors.append(child)
+                child_info = os.fstat(child)
+                if not stat.S_ISDIR(child_info.st_mode):
+                    invalid('LEGACY_COMMON_CONFIG_ANCHOR_RECEIPT_PATH_INVALID')
+                bindings.append((directory, component, child_info))
+                directory = child
+            descriptor = os.open('receipt.json', os.O_RDONLY | os.O_NOFOLLOW |
+                                 os.O_NONBLOCK | os.O_CLOEXEC, dir_fd=directory)
+            descriptors.append(descriptor)
+            before = os.fstat(descriptor)
+            if not stat.S_ISREG(before.st_mode) or not 0 < before.st_size <= 65536:
+                invalid('LEGACY_COMMON_CONFIG_ANCHOR_RECEIPT_INVALID')
+            raw = b''
+            while len(raw) <= 65536:
+                part = os.read(descriptor, 65537 - len(raw))
+                if not part:
+                    break
+                raw += part
+            after = os.fstat(descriptor)
+            if (len(raw) != before.st_size or len(raw) > 65536
+                    or fingerprint(before) != fingerprint(after)
+                    or _sha_bytes(raw) != reference['sha256']):
+                invalid('LEGACY_COMMON_CONFIG_ANCHOR_RECEIPT_DRIFT')
+
+            def verify_bindings(code: str) -> None:
+                try:
+                    for parent_fd, name, original in bindings:
+                        current = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+                        if not stat.S_ISDIR(current.st_mode) or identity(current) != identity(original):
+                            invalid(code)
+                    leaf = os.stat('receipt.json', dir_fd=directory, follow_symlinks=False)
+                    if (not stat.S_ISREG(leaf.st_mode)
+                            or fingerprint(leaf) != fingerprint(after)
+                            or fingerprint(os.fstat(descriptor)) != fingerprint(after)):
+                        invalid(code)
+                except OSError:
+                    invalid(code)
+
+            verify_bindings('LEGACY_COMMON_CONFIG_ANCHOR_RECEIPT_DRIFT')
+            yield raw
+            verify_bindings('LEGACY_COMMON_CONFIG_ANCHOR_SNAPSHOT_DRIFT')
+        except (OSError, ValueError, UnicodeError):
+            invalid('LEGACY_COMMON_CONFIG_ANCHOR_RECEIPT_INVALID')
+        finally:
+            close_failed = False
+            for descriptor in reversed(descriptors):
+                try:
+                    os.close(descriptor)
+                except OSError:
+                    close_failed = True
+            if close_failed:
+                invalid('LEGACY_COMMON_CONFIG_ANCHOR_RECEIPT_INVALID')
+
+    with pinned_receipt_bytes() as raw:
+        def pairs(items: Any) -> dict[str, Any]:
+            result: dict[str, Any] = {}
+            for key, item in items:
+                if key in result:
+                    invalid('LEGACY_COMMON_CONFIG_ANCHOR_RECEIPT_INVALID')
+                result[key] = item
+            return result
+        try:
+            receipt = json.loads(raw, object_pairs_hook=pairs,
+                                 parse_constant=lambda _: invalid('LEGACY_COMMON_CONFIG_ANCHOR_RECEIPT_INVALID'))
+        except (ValueError, UnicodeError, RecursionError):
+            invalid('LEGACY_COMMON_CONFIG_ANCHOR_RECEIPT_INVALID')
+        _legacy_common_config_validate_close_receipt(anchor, receipt)
+        # Do not return a stale artifact after an intervening registration change.
+        try:
+            current, current_sha = _read_registration(root, anchor_id)
+        except (PublicationError, OSError, ValueError, TypeError):
+            invalid('LEGACY_COMMON_CONFIG_ANCHOR_UNAVAILABLE')
+        if current_sha != state_sha or _canonical_bytes(current) != _canonical_bytes(anchor):
+            invalid('LEGACY_COMMON_CONFIG_ANCHOR_SNAPSHOT_DRIFT')
+        return {'anchor_registration_id': anchor_id, 'anchor_state': 'CLOSED',
+                'anchor_state_version': anchor['state_version'], 'anchor_state_sha256': state_sha,
+                'anchor_candidate_sha': core['candidate_head'], 'anchor_created_at': anchor['created_at'],
+                'anchor_close_receipt_sha256': reference['sha256'], 'anchor_close_receipt_valid': True,
+                'anchor_common_config_sha256': core['common_config_sha256'],
+                'anchor_global_config_sha256': core['global_config_sha256'],
+                'anchor_fixed_role_config_sha256': dict(fixed),
+                'anchor_remote_identity_sha256': anchor_transport['remote_identity_sha256'],
+                'anchor_push_identity_sha256': anchor_transport['push_identity_sha256'],
+                'anchor_pushurl_identity_sha256': anchor_transport['pushurl_identity_sha256']}
+
+
+def bind_legacy_common_config_authority(
+    root: Path, registration_id: str, evidence_path: str, evidence_sha256: str,
+    review_observation: Any,
+) -> dict[str, Any]:
+    """Bind/rebind close authority using a separately authenticated review observation.
+
+    The caller must obtain review_observation independently from the evidence
+    being bound. This function never derives reviewer provenance from
+    evidence["review"] and is not yet exposed by the public CLI.
+    """
+    first, _ = _read_registration(root, registration_id)
+    try:
+        role = first["core"]["role"]
+    except (KeyError, TypeError):
+        raise PublicationError("LEGACY_COMMON_CONFIG_BIND_REGISTRATION_INVALID") from None
+    if role not in {"A", "B", "C"}:
+        raise PublicationError("LEGACY_COMMON_CONFIG_BIND_REGISTRATION_INVALID")
+
+    with _role_and_coord_locks(root, role):
+        registration, _ = _read_registration(root, registration_id)
+        if (registration.get("registration_id") != registration_id
+                or registration.get("registration_sha256") != registration_id):
+            raise PublicationError("LEGACY_COMMON_CONFIG_BIND_CAS_DRIFT")
+        state = registration.get("state")
+        if state not in {"TASK_REF_PUBLISHED", "PUBLISHED", "REVOKED", "FAILED"}:
+            raise PublicationError("LEGACY_COMMON_CONFIG_BIND_STATE_INVALID")
+
+        snapshot = _legacy_common_config_evidence_snapshot(
+            root, evidence_path, evidence_sha256)
+        evidence = snapshot["evidence"]
+        reference = snapshot["reference"]
+        if evidence["target_registration_id"] != registration_id:
+            raise PublicationError("LEGACY_COMMON_CONFIG_TARGET_IDENTITY_MISMATCH")
+
+        anchor = _legacy_common_config_anchor_snapshot(root, registration, evidence)
+        observed = _legacy_common_config_current_observation(
+            root, registration, evidence, anchor, review_observation)
+        facts = _legacy_common_config_target_facts(root, registration)
+        transition = _legacy_common_config_binding_transition(
+            evidence, observed, reference,
+            registration.get("legacy_common_config_authority"), facts)
+        return _legacy_common_config_apply_binding_transition_locked(
+            root, registration_id, registration, transition)
+
+
+def _legacy_common_config_close_context(
+    root: Path, registration: dict[str, Any], frozen_checkpoint: Any = None,
+) -> dict[str, Any]:
+    """Revalidate persisted legacy authority for close without mutating state."""
+    from copy import deepcopy
+    try:
+        authority = registration["legacy_common_config_authority"]
+        current = authority["current"]
+        reference = current["evidence"]
+        persisted_identity = _legacy_common_config_evidence_shape(current["identity"])
+        review_observation = deepcopy(persisted_identity["review"])
+        if (type(reference) is not dict or set(reference) != {"path", "sha256"}
+                or type(current.get("anchor_created_at")) is not str):
+            raise ValueError("binding shape")
+    except (KeyError, TypeError, ValueError, PublicationError):
+        raise PublicationError("LEGACY_COMMON_CONFIG_CLOSE_AUTHORITY_INVALID") from None
+
+    snapshot = _legacy_common_config_evidence_snapshot(
+        root, reference["path"], reference["sha256"])
+    if _canonical_bytes(snapshot["evidence"]) != _canonical_bytes(persisted_identity):
+        raise PublicationError("LEGACY_COMMON_CONFIG_CLOSE_BINDING_MISMATCH")
+
+    anchor = _legacy_common_config_anchor_snapshot(
+        root, registration, snapshot["evidence"])
+    observed = _legacy_common_config_current_observation(
+        root, registration, snapshot["evidence"], anchor, review_observation)
+    checkpoint = _legacy_common_config_close_checkpoint(
+        snapshot["evidence"], observed, snapshot["reference"], authority,
+        frozen_checkpoint=frozen_checkpoint)
+    return {
+        "snapshot": snapshot,
+        "anchor": anchor,
+        "observed": observed,
+        "checkpoint": checkpoint,
+    }
+
+
+def _legacy_common_config_ref_oid(registration: dict[str, Any]) -> str:
+    """Observe exact task-ref state for legacy close; never mutate the ref."""
+    try:
+        core = registration["core"]
+        worktree = Path(core["worktree_path"])
+        value = _supersede_remote_state(
+            worktree, core["push_target"], core["task_ref"], core["candidate_head"])
+    except (KeyError, TypeError, ValueError, OSError, subprocess.SubprocessError, PublicationError):
+        raise PublicationError("LEGACY_COMMON_CONFIG_REF_OBSERVATION_FAILED") from None
+    if type(value) is not str or not SHA40_RE.fullmatch(value):
+        raise PublicationError("LEGACY_COMMON_CONFIG_REF_OBSERVATION_FAILED")
+    return value
+
+
+def _legacy_common_config_close_intent(
+    registration: dict[str, Any], checkpoint: Any,
+) -> dict[str, Any]:
+    """Freeze value-free legacy close recovery identity."""
+    try:
+        installed = registration["installed_config"]
+        prior = registration["core"]["prior_config"]
+        keys = installed["owned_keys"]
+        if (type(keys) is not list or len(keys) != 2
+                or set(keys) != {"core.hooksPath", "remote.origin.pushurl"}):
+            raise ValueError("owned keys")
+        digests = {
+            "prior": {key: _sha_bytes(_canonical_bytes(prior[key])) for key in keys},
+            "installed": {key: _sha_bytes(_canonical_bytes(installed[key])) for key in keys},
+        }
+        value = {
+            "kind": "octoport.task-publication-legacy-close-intent",
+            "version": 1,
+            "registration_id": registration["registration_id"],
+            "registration_sha256": registration["registration_sha256"],
+            "state_before": registration["state"],
+            "state_version": registration["state_version"],
+            "config_sha256": digests,
+            "legacy_checkpoint": checkpoint,
+        }
+        _legacy_common_config_receipt_checkpoint(registration, checkpoint)
+        return json.loads(_canonical_bytes(value))
+    except (KeyError, TypeError, ValueError, OverflowError, RecursionError, PublicationError):
+        raise PublicationError("LEGACY_COMMON_CONFIG_CLOSE_INTENT_INVALID") from None
+
+
+def _legacy_common_config_worktree_clean(worktree: Path) -> None:
+    try:
+        result = subprocess.run(
+            [AUTHORITY_GIT_BIN, "-C", str(worktree), "status", "--porcelain",
+             "--untracked-files=normal"],
+            cwd="/", env=sanitized_git_authority_env(), capture_output=True,
+            text=True, timeout=30, check=False,
+        )
+    except (OSError, subprocess.SubprocessError, UnicodeError):
+        raise PublicationError("LEGACY_COMMON_CONFIG_CLOSE_GUARD_UNVERIFIED") from None
+    if result.returncode != 0 or type(result.stdout) is not str or result.stdout.strip():
+        raise PublicationError("LEGACY_COMMON_CONFIG_CLOSE_GUARD_UNVERIFIED")
+
+
+def _legacy_common_config_close_locked(
+    root: Path, registration: dict[str, Any], worktree: Path,
+    installed: dict[str, Any], prior: dict[str, Any], owned_keys: list[str],
+    close_receipt_path: Path, close_intent_path: Path,
+) -> dict[str, Any]:
+    """Close through persisted legacy authority; caller holds role+coord locks."""
+    from copy import deepcopy
+    registration_id = registration["registration_id"]
+    if "legacy_common_config_authority" not in registration:
+        raise PublicationError("COMMON_CONFIG_DRIFT")
+
+    intent = None
+    if close_intent_path.exists() or close_intent_path.is_symlink():
+        if close_intent_path.is_symlink() or not close_intent_path.is_file():
+            raise PublicationError("LEGACY_COMMON_CONFIG_CLOSE_INTENT_INVALID")
+        try:
+            intent = _load_json(close_intent_path)
+            frozen = intent["legacy_checkpoint"]
+        except (KeyError, TypeError, ValueError, OSError):
+            raise PublicationError("LEGACY_COMMON_CONFIG_CLOSE_INTENT_INVALID") from None
+    else:
+        frozen = None
+
+    context = _legacy_common_config_close_context(
+        root, registration, frozen_checkpoint=frozen)
+    checkpoint = context["checkpoint"]
+    expected_intent = _legacy_common_config_close_intent(
+        registration, checkpoint)
+    if intent is not None and _canonical_bytes(intent) != _canonical_bytes(expected_intent):
+        raise PublicationError("CLOSE_INTENT_DRIFT")
+
+    _legacy_common_config_worktree_clean(worktree)
+    if _legacy_common_config_ref_oid(registration) != ZERO_OID:
+        raise PublicationError("LEGACY_COMMON_CONFIG_TASK_REF_PRESENT")
+
+    before = {key: _config_values(worktree, key) for key in owned_keys}
+    recovering = intent is not None
+    for key in owned_keys:
+        if (before[key] != installed[key]
+                and not (recovering and before[key] == prior[key])):
+            raise PublicationError(f"ROUTE_CONFIG_SAME_KEY_DRIFT:{key}")
+
+    # Slow authority/ref observations happened above. Revalidate the exact
+    # frozen binding and ref immediately before freezing the intent or mutating
+    # config. A failed second observation therefore does not strand an intent.
+    _legacy_common_config_close_context(
+        root, registration, frozen_checkpoint=checkpoint)
+    if _legacy_common_config_ref_oid(registration) != ZERO_OID:
+        raise PublicationError("LEGACY_COMMON_CONFIG_TASK_REF_PRESENT")
+    _legacy_common_config_worktree_clean(worktree)
+    before = {key: _config_values(worktree, key) for key in owned_keys}
+    for key in owned_keys:
+        if (before[key] != installed[key]
+                and not (recovering and before[key] == prior[key])):
+            raise PublicationError(f"ROUTE_CONFIG_SAME_KEY_DRIFT:{key}")
+    if intent is None:
+        _create_once_json(close_intent_path, expected_intent)
+
+    if close_receipt_path.exists() or close_receipt_path.is_symlink():
+        if close_receipt_path.is_symlink() or not close_receipt_path.is_file():
+            raise PublicationError("LEGACY_COMMON_CONFIG_ANCHOR_RECEIPT_INVALID")
+        receipt = _load_json(close_receipt_path)
+        _legacy_common_config_validate_close_receipt_payload(registration, receipt)
+        if (receipt.get("version") != 2
+                or _canonical_bytes(receipt.get("legacy_checkpoint"))
+                   != _canonical_bytes(checkpoint)):
+            raise PublicationError("LEGACY_COMMON_CONFIG_ANCHOR_RECEIPT_INVALID")
+        for key in owned_keys:
+            if _config_values(worktree, key) != prior[key]:
+                raise PublicationError("CLOSE_RECEIPT_CONFIG_NOT_RESTORED")
+    else:
+        for key in owned_keys:
+            _set_config_values(worktree, key, prior[key])
+        after = {key: _config_values(worktree, key) for key in owned_keys}
+        if any(after[key] != prior[key] for key in owned_keys):
+            raise PublicationError("CLOSE_RECEIPT_CONFIG_NOT_RESTORED")
+        receipt = _legacy_common_config_construct_close_receipt(
+            registration, before, after, _worktree_config_digest(worktree),
+            checkpoint)
+        _create_once_json(close_receipt_path, receipt)
+
+    # Validate the archive time boundary against the exact state-transition
+    # second before committing CLOSED. _state_transition uses the same UTC
+    # second precision and may only advance this timestamp.
+    projected = deepcopy(registration)
+    projected["updated_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    _legacy_common_config_validate_close_receipt(projected, receipt)
+    return _state_transition(
+        root, registration_id, {registration["state"]}, "CLOSED",
+        {"close_receipt": {
+            "path": str(close_receipt_path),
+            "sha256": _sha_file(close_receipt_path),
+        }},
+        expected_version=registration["state_version"],
+    )
+
+
 def close_registration(root: Path, registration_id: str) -> dict[str, Any]:
     reg, _ = _read_registration(root, registration_id)
     role = reg["core"]["role"]
@@ -3253,7 +4810,17 @@ def close_registration(root: Path, registration_id: str) -> dict[str, Any]:
         # of later worktree branches may append only branch remote/merge
         # tracking sections; every other common-config change remains fail-closed.
         if not _common_config_matches_registered(worktree, core["common_config_sha256"]):
-            raise PublicationError("COMMON_CONFIG_DRIFT")
+            next_reg = _legacy_common_config_close_locked(
+                root, reg, worktree, installed, prior, owned_keys,
+                close_receipt_path, close_intent_path)
+            pointer = _active_pointer_path(root, worktree)
+            if pointer.is_file():
+                ptr = _load_json(pointer)
+                if ptr.get("registration_id") != registration_id:
+                    raise PublicationError("ACTIVE_POINTER_FOREIGN_ON_CLOSE")
+                pointer.unlink()
+                _fsync_dir(pointer.parent)
+            return next_reg
         if _global_config_digest() != core["global_config_sha256"]:
             raise PublicationError("GLOBAL_CONFIG_DRIFT")
         ownership, _ = _ownership(worktree)

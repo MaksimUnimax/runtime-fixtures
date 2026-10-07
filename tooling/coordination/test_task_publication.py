@@ -1506,6 +1506,236 @@ class PublicationTests(unittest.TestCase):
         self.assertEqual(current["state"], "REGISTERED")
         self.assertEqual(route._remote_oid(self.work, "origin", ref), self.base)
 
+    def test_supersede_registered_never_started_base_drift_closes_without_remote_mutation(self):
+        reg = self.register()
+        advanced_main = self.advance_remote_main_disjoint("registered-never-started")
+        evidence_path, _, _ = self.supersede_evidence(reg, verdict="FAIL")
+        ref = reg["core"]["task_ref"]
+        main_before = route._remote_oid(self.work, "origin", "refs/heads/main")
+        with patch.object(route, "_run_supersede_send_pack") as send_pack:
+            result = self.supersede(reg, evidence_path)
+        send_pack.assert_not_called()
+        self.assertEqual(result["state"], "CLOSED")
+        self.assertEqual(result["task_ref_cleanup_status"], "ALREADY_ABSENT")
+        self.assertEqual(route._remote_oid(self.work, "origin", ref), route.ZERO_OID)
+        self.assertEqual(
+            route._remote_oid(self.work, "origin", "refs/heads/main"), main_before
+        )
+        retirement = result["registered_base_drift_retirement"]
+        self.assertEqual(
+            retirement["outcome"], "NEVER_PUBLISHED_CONFIRMED_ABSENT"
+        )
+        self.assertEqual(retirement["registered_base"], self.base)
+        self.assertEqual(retirement["observed_remote_main"], advanced_main)
+        self.assertTrue(retirement["task_ref_absent"])
+        self.assertEqual(retirement["event_count"], 1)
+        self.assertRegex(retirement["event_journal_sha256"], r"^[0-9a-f]{64}$")
+        before = route._registration_path(
+            self.control, reg["registration_id"]
+        ).read_bytes()
+        self.assertEqual(self.supersede(result, evidence_path)["state"], "CLOSED")
+        self.assertEqual(
+            route._registration_path(
+                self.control, reg["registration_id"]
+            ).read_bytes(),
+            before,
+        )
+
+    def test_supersede_registered_never_started_base_drift_recovers_close_crash(self):
+        reg = self.register()
+        self.advance_remote_main_disjoint("registered-never-started-crash")
+        evidence_path, _, _ = self.supersede_evidence(reg, verdict="FAIL")
+        with patch.object(
+            route, "close_registration", side_effect=RuntimeError("close crash")
+        ):
+            with self.assertRaisesRegex(RuntimeError, "close crash"):
+                self.supersede(reg, evidence_path)
+        current, _ = route._read_registration(
+            self.control, reg["registration_id"]
+        )
+        self.assertEqual(current["state"], "REVOKED")
+        self.assertEqual(
+            current["registered_base_drift_retirement"]["outcome"],
+            "NEVER_PUBLISHED_CONFIRMED_ABSENT",
+        )
+        with patch.object(route, "_run_supersede_send_pack") as send_pack:
+            result = self.supersede(current, evidence_path)
+        send_pack.assert_not_called()
+        self.assertEqual(result["state"], "CLOSED")
+
+    def test_supersede_registered_never_started_rejects_metadata(self):
+        reg = self.register()
+        self.advance_remote_main_disjoint("registered-never-started-metadata")
+        evidence_path, _, _ = self.supersede_evidence(reg, verdict="FAIL")
+        previous = None
+        values = (
+            ("current_nonce", "nonce"),
+            ("current_lease_sha256", "a" * 64),
+            ("current_push_kind", "TASK_REF"),
+            ("last_settlement", {"path": "/tmp/settlement"}),
+            ("last_settlement_outcome", "FAILED"),
+        )
+        for key, value in values:
+            updates = {key: value}
+            if previous is not None:
+                updates[previous] = None
+            reg = route._state_transition(
+                self.control,
+                reg["registration_id"],
+                {"REGISTERED"},
+                "REGISTERED",
+                updates,
+                expected_version=reg["state_version"],
+            )
+            with self.subTest(key=key):
+                with self.assertRaisesRegex(
+                    RuntimeError, f"NEVER_STARTED_METADATA_PRESENT:{key}"
+                ):
+                    self.supersede(reg, evidence_path)
+            previous = key
+
+    def test_supersede_registered_never_started_rejects_local_history(self):
+        reg = self.register()
+        self.advance_remote_main_disjoint("registered-never-started-history")
+        evidence_path, _, _ = self.supersede_evidence(reg, verdict="FAIL")
+        rid = reg["registration_id"]
+        for namespace in ("armed", "consumed", "cancelled"):
+            with self.subTest(namespace=namespace):
+                path = route._lease_dir(self.control, rid, namespace)
+                path.mkdir(parents=True, exist_ok=True)
+                marker = path / "history.json"
+                marker.write_text("{}")
+                expected = (
+                    "SUPERSEDE_ARMED_LEASE_PRESENT"
+                    if namespace == "armed"
+                    else "NEVER_STARTED_LEASE_HISTORY"
+                )
+                with self.assertRaisesRegex(RuntimeError, expected):
+                    self.supersede(reg, evidence_path)
+                marker.unlink()
+        for kind in ("attempts", "settlements"):
+            with self.subTest(kind=kind):
+                path = route._root_dir(self.control) / kind / rid
+                path.mkdir(parents=True, exist_ok=True)
+                marker = path / "history.json"
+                marker.write_text("{}")
+                with self.assertRaisesRegex(
+                    RuntimeError, "NEVER_STARTED_.*_PRESENT"
+                ):
+                    self.supersede(reg, evidence_path)
+                marker.unlink()
+
+    def test_supersede_registered_never_started_rejects_event_history(self):
+        reg = self.register()
+        self.advance_remote_main_disjoint("registered-never-started-events")
+        evidence_path, _, _ = self.supersede_evidence(reg, verdict="FAIL")
+        events = route._events_path(self.control, reg["registration_id"])
+        original = events.read_bytes()
+        event = json.loads(original)
+        mismatched = dict(event, candidate="0" * 40)
+        cases = (
+            original + b"{}\n",
+            b"{\n",
+            route._canonical_bytes(mismatched),
+        )
+        try:
+            for raw in cases:
+                with self.subTest(raw=raw[:20]):
+                    events.write_bytes(raw)
+                    with self.assertRaisesRegex(
+                        RuntimeError, "NEVER_STARTED_EVENT_HISTORY_INVALID"
+                    ):
+                        self.supersede(reg, evidence_path)
+        finally:
+            events.write_bytes(original)
+
+    def test_supersede_registered_never_started_rejects_present_or_foreign_ref(self):
+        reg = self.register()
+        self.advance_remote_main_disjoint("registered-never-started-ref")
+        evidence_path, _, _ = self.supersede_evidence(reg, verdict="FAIL")
+        ref = reg["core"]["task_ref"]
+        self.git(
+            self.source,
+            "--git-dir",
+            str(self.remote),
+            "fetch",
+            str(self.work),
+            self.head,
+        )
+        for oid in (self.head, self.base):
+            with self.subTest(oid=oid):
+                self.git(
+                    self.source,
+                    "--git-dir",
+                    str(self.remote),
+                    "update-ref",
+                    ref,
+                    oid,
+                )
+                with self.assertRaisesRegex(
+                    RuntimeError, "SUPERSEDE_REGISTERED_TASK_REF_PRESENT"
+                ):
+                    self.supersede(reg, evidence_path)
+                current, _ = route._read_registration(
+                    self.control, reg["registration_id"]
+                )
+                self.assertEqual(current["state"], "REGISTERED")
+        self.git(
+            self.source,
+            "--git-dir",
+            str(self.remote),
+            "update-ref",
+            "-d",
+            ref,
+        )
+
+    def test_supersede_registered_never_started_rejects_remote_main_unavailable(self):
+        reg = self.register()
+        evidence_path, _, _ = self.supersede_evidence(reg, verdict="FAIL")
+        with patch.object(
+            route, "_remote_oid_target", return_value=route.ZERO_OID
+        ):
+            with self.assertRaisesRegex(
+                RuntimeError, "SUPERSEDE_REGISTERED_REMOTE_MAIN_UNAVAILABLE"
+            ):
+                self.supersede(reg, evidence_path)
+
+    def test_supersede_registered_never_started_remote_lookup_errors_leave_state_unchanged(self):
+        reg = self.register()
+        advanced_main = self.advance_remote_main_disjoint(
+            "registered-never-started-lookup-error"
+        )
+        evidence_path, _, _ = self.supersede_evidence(reg, verdict="FAIL")
+        scenarios = (
+            (
+                "remote-main",
+                route.PublicationError("GIT_FAILED: injected remote-main lookup"),
+            ),
+            (
+                "task-ref",
+                [
+                    advanced_main,
+                    route.PublicationError("GIT_FAILED: injected task-ref lookup"),
+                ],
+            ),
+        )
+        for name, side_effect in scenarios:
+            with self.subTest(name=name):
+                with (
+                    patch.object(
+                        route, "_remote_oid_target", side_effect=side_effect
+                    ),
+                    patch.object(route, "_run_supersede_send_pack") as send_pack,
+                ):
+                    with self.assertRaisesRegex(RuntimeError, "GIT_FAILED"):
+                        self.supersede(reg, evidence_path)
+                current, _ = route._read_registration(
+                    self.control, reg["registration_id"]
+                )
+                self.assertEqual(current["state"], "REGISTERED")
+                self.assertEqual(current["state_version"], reg["state_version"])
+                send_pack.assert_not_called()
+
     def test_supersede_ready_after_base_drift_deletes_exact_ref_without_main_mutation(self):
         reg = self.register()
         reg = route._push_operation(self.control, reg["registration_id"], "TASK_REF")
@@ -2475,5 +2705,2545 @@ class PublicationTests(unittest.TestCase):
         self.assertEqual(route._config_values(self.work, "remote.origin.pushurl")["values"], ["prior"])
 
 
+
+class LegacyCommonConfigEvidenceShapeTests(unittest.TestCase):
+    """Pure parsing regressions, not live bind/close or reviewer authentication."""
+
+    @staticmethod
+    def evidence():
+        hashes = ["target_registration_id", "target_core_sha256",
+                  "registered_common_config_sha256", "global_config_sha256",
+                  "anchor_state_sha256", "anchor_close_receipt_sha256",
+                  "current_common_config_sha256", "remote_identity_sha256",
+                  "push_identity_sha256", "pushurl_identity_sha256"]
+        value = {key: "a" * 64 for key in hashes}
+        value.update({key: "c" * 40 for key in ["candidate_sha", "candidate_tree",
+                     "base_sha", "anchor_candidate_sha", "current_main_sha"]})
+        value.update(kind="octoport.legacy-common-config-close-evidence", version=1,
+                     task_id="B06-LEGACY-RETIREMENT", role="B",
+                     task_ref="refs/heads/controller/task-publication/b/fixture",
+                     anchor_registration_id="b" * 64, anchor_state_version=10,
+                     fixed_role_config_sha256={role: "d" * 64 for role in "ABC"},
+                     review={"reviewer_role": "A", "reviewer_identity": "A fixture reviewer",
+                             "independence_basis": "Separate test reviewer; not live authority",
+                             "verdict": "PASS", "findings": {key: [] for key in ["P0", "P1", "P2"]}})
+        return value
+
+    def reject(self, value):
+        with self.assertRaisesRegex(route.PublicationError,
+                                    "^LEGACY_COMMON_CONFIG_EVIDENCE_SCHEMA_INVALID$"):
+            route._legacy_common_config_evidence_shape(value)
+
+    def test_valid_shape_is_detached_without_changing_input(self):
+        value = self.evidence()
+        before = copy.deepcopy(value)
+        parsed = route._legacy_common_config_evidence_shape(value)
+        self.assertEqual(parsed, before)
+        parsed["review"]["findings"]["P1"].append("changed returned copy")
+        self.assertEqual(value, before)
+
+    def test_missing_identity_field_is_rejected(self):
+        for key in self.evidence():
+            with self.subTest(key=key):
+                value = self.evidence(); del value[key]; self.reject(value)
+
+    def test_unknown_or_raw_config_fields_are_rejected(self):
+        for key in ["remote_url", "pushurl", "config_values", "credentials"]:
+            with self.subTest(key=key):
+                value = self.evidence(); value[key] = "PRIVATE_SENTINEL"; self.reject(value)
+
+    def test_boolean_and_unsupported_schema_versions_are_rejected(self):
+        for version in [True, False, 0, 2, "1", None]:
+            with self.subTest(version=version):
+                value = self.evidence(); value["version"] = version; self.reject(value)
+
+    def test_invalid_anchor_state_version_is_rejected(self):
+        for version in [True, 0, -1, "10", None]:
+            with self.subTest(version=version):
+                value = self.evidence(); value["anchor_state_version"] = version; self.reject(value)
+
+    def test_malformed_hash_and_oid_fields_are_rejected(self):
+        for key, original in self.evidence().items():
+            if isinstance(original, str) and len(original) in {40, 64}:
+                for replacement in [original.upper(), original[:-1], None, [], "PRIVATE_SENTINEL"]:
+                    with self.subTest(key=key, replacement=replacement):
+                        value = self.evidence(); value[key] = replacement; self.reject(value)
+
+    def test_zero_current_main_is_rejected(self):
+        value = self.evidence(); value["current_main_sha"] = "0" * 40; self.reject(value)
+
+    def test_same_anchor_and_target_are_rejected(self):
+        value = self.evidence(); value["anchor_registration_id"] = value["target_registration_id"]; self.reject(value)
+
+    def test_target_core_must_match_registration_id(self):
+        value = self.evidence(); value["target_core_sha256"] = "e" * 64; self.reject(value)
+
+    def test_all_three_fixed_role_hashes_are_required(self):
+        for replacement in [{"A": "d" * 64}, {role: "bad" for role in "ABC"}, []]:
+            with self.subTest(replacement=replacement):
+                value = self.evidence(); value["fixed_role_config_sha256"] = replacement; self.reject(value)
+
+    def test_role_values_are_strings_from_known_set(self):
+        for replacement in [[], {}, None, "ROOT", ""]:
+            with self.subTest(replacement=replacement):
+                value = self.evidence(); value["role"] = replacement; self.reject(value)
+                value = self.evidence(); value["review"]["reviewer_role"] = replacement; self.reject(value)
+
+    def test_required_labels_are_bounded_and_control_free(self):
+        for replacement in ["", " ", "value\nline", "x" * 2048, None]:
+            with self.subTest(replacement=replacement):
+                value = self.evidence(); value["task_id"] = replacement; self.reject(value)
+                value = self.evidence(); value["review"]["independence_basis"] = replacement; self.reject(value)
+
+    def test_non_branch_task_ref_is_rejected(self):
+        value = self.evidence(); value["task_ref"] = "refs/tags/release"; self.reject(value)
+
+    def test_rework_and_findings_cannot_look_like_pass(self):
+        value = self.evidence(); value["review"]["verdict"] = "REWORK_REQUIRED"; self.reject(value)
+        for key in ["P0", "P1", "P2"]:
+            value = self.evidence(); value["review"]["findings"][key] = ["finding"]; self.reject(value)
+        value = self.evidence(); value["review"]["findings"]["P0"] = (); self.reject(value)
+
+    def test_unknown_review_and_findings_fields_are_rejected(self):
+        value = self.evidence(); value["review"]["raw_config"] = "PRIVATE_SENTINEL"; self.reject(value)
+        value = self.evidence(); value["review"]["findings"]["OTHER"] = []; self.reject(value)
+
+    def test_error_never_echoes_rejected_value(self):
+        value = self.evidence(); value["global_config_sha256"] = "PRIVATE_SENTINEL"
+        try:
+            route._legacy_common_config_evidence_shape(value)
+        except route.PublicationError as error:
+            self.assertNotIn("PRIVATE_SENTINEL", str(error))
+        else:
+            self.fail("Malformed evidence was accepted")
+
+    def test_non_object_input_is_rejected(self):
+        for value in [None, [], "PRIVATE_SENTINEL", True]:
+            with self.subTest(value=value):
+                self.reject(value)
+
+
+
+class LegacyCommonConfigEvidenceIdentityTests(unittest.TestCase):
+    """Pure observed-identity contract; never access real registrations or Git."""
+
+    def setUp(self):
+        import copy
+        import task_publication
+        self.copy = copy.deepcopy
+        self.publication = task_publication
+        value = {
+            "kind": task_publication.LEGACY_COMMON_CONFIG_EVIDENCE_KIND,
+            "version": 1, "target_registration_id": "a" * 64,
+            "target_core_sha256": "a" * 64,
+            "registered_common_config_sha256": "b" * 64,
+            "global_config_sha256": "c" * 64,
+            "anchor_registration_id": "d" * 64,
+            "anchor_state_sha256": "e" * 64,
+            "anchor_close_receipt_sha256": "f" * 64,
+            "current_common_config_sha256": "1" * 64,
+            "remote_identity_sha256": "2" * 64,
+            "push_identity_sha256": "3" * 64,
+            "pushurl_identity_sha256": "4" * 64,
+            "candidate_sha": "a" * 40, "candidate_tree": "b" * 40,
+            "base_sha": "c" * 40, "anchor_candidate_sha": "d" * 40,
+            "current_main_sha": "e" * 40,
+            "task_id": "C00-LEGACY-SYNTHETIC", "role": "B",
+            "task_ref": "refs/heads/synthetic/legacy", "anchor_state_version": 7,
+            "fixed_role_config_sha256": {r: "5" * 64 for r in "ABC"},
+            "review": {"reviewer_role": "A", "reviewer_identity": "synthetic reviewer A",
+                       "independence_basis": "Separate fixture author and reviewer",
+                       "verdict": "PASS", "findings": {"P0": [], "P1": [], "P2": []}},
+        }
+        observed = {k: self.copy(v) for k, v in value.items()
+                    if k not in {"kind", "version"}}
+        observed.update({
+            "target_created_at": "2026-10-01T10:00:00Z",
+            "anchor_created_at": "2026-10-02T10:00:00+00:00",
+            "anchor_state": "CLOSED",
+            "anchor_common_config_sha256": value["current_common_config_sha256"],
+            "anchor_global_config_sha256": value["global_config_sha256"],
+            "anchor_fixed_role_config_sha256": self.copy(value["fixed_role_config_sha256"]),
+            "anchor_remote_identity_sha256": value["remote_identity_sha256"],
+            "anchor_push_identity_sha256": value["push_identity_sha256"],
+            "anchor_pushurl_identity_sha256": value["pushurl_identity_sha256"],
+            "anchor_close_receipt_valid": True, "anchor_is_ancestor_of_main": True,
+            "reviewer_independence_verified": True, "ordinary_common_matches": False,
+        })
+        self.value, self.observed = value, observed
+
+    def validate(self):
+        return self.publication._legacy_common_config_evidence_identity(self.value, self.observed)
+
+    def rejects(self, code):
+        with self.assertRaisesRegex(self.publication.PublicationError, "^" + code + "$"):
+            self.validate()
+
+    def test_exact_independently_observed_identity_passes(self):
+        self.assertEqual(self.validate(), self.value)
+
+    def test_each_identity_mismatch_fails(self):
+        original = self.copy(self.observed)
+        for key in set(self.value) - {"kind", "version"}:
+            with self.subTest(key=key):
+                self.observed = self.copy(original)
+                current = self.observed[key]
+                if isinstance(current, dict):
+                    self.observed[key]["A"] = "9" * 64
+                elif isinstance(current, int):
+                    self.observed[key] += 1
+                else:
+                    self.observed[key] = "different"
+                self.rejects("LEGACY_COMMON_CONFIG_IDENTITY_MISMATCH")
+
+    def test_missing_observation_is_not_inferred_from_evidence(self):
+        original = self.copy(self.observed)
+        for key in original:
+            with self.subTest(key=key):
+                self.observed = self.copy(original)
+                del self.observed[key]
+                self.rejects("LEGACY_COMMON_CONFIG_OBSERVATION_INVALID")
+
+    def test_extra_observation_fields_are_rejected(self):
+        self.observed["unexpected"] = "not accepted"
+        self.rejects("LEGACY_COMMON_CONFIG_OBSERVATION_INVALID")
+
+    def test_non_object_observation_is_rejected(self):
+        for value in (None, [], True, "not an observation"):
+            with self.subTest(value=value):
+                self.observed = value
+                self.rejects("LEGACY_COMMON_CONFIG_OBSERVATION_INVALID")
+
+    def test_boolean_cannot_match_integer_anchor_version(self):
+        self.value["anchor_state_version"] = 1
+        self.observed["anchor_state_version"] = True
+        self.rejects("LEGACY_COMMON_CONFIG_IDENTITY_MISMATCH")
+
+    def test_non_closed_anchor_is_rejected(self):
+        for state in ("REVOKED", "PUBLISHED", "READY", "CLOSED ", None):
+            with self.subTest(state=state):
+                self.observed["anchor_state"] = state
+                self.rejects("LEGACY_COMMON_CONFIG_ANCHOR_NOT_CLOSED")
+
+    def test_required_facts_are_exact_booleans_not_truthy_values(self):
+        original = self.copy(self.observed)
+        for key in ("anchor_close_receipt_valid", "anchor_is_ancestor_of_main",
+                    "reviewer_independence_verified"):
+            for value in (False, None, 1, "true"):
+                with self.subTest(key=key, value=value):
+                    self.observed = self.copy(original)
+                    self.observed[key] = value
+                    self.rejects("LEGACY_COMMON_CONFIG_OBSERVATION_UNVERIFIED")
+
+    def test_ordinary_match_or_unknown_does_not_use_bridge(self):
+        for value in (True, None, 0, "false"):
+            with self.subTest(value=value):
+                self.observed["ordinary_common_matches"] = value
+                self.rejects("LEGACY_COMMON_CONFIG_BRIDGE_NOT_REQUIRED")
+
+    def test_anchor_configuration_and_transport_must_match(self):
+        original = self.copy(self.observed)
+        keys = ("anchor_common_config_sha256", "anchor_global_config_sha256",
+                "anchor_fixed_role_config_sha256", "anchor_remote_identity_sha256",
+                "anchor_push_identity_sha256", "anchor_pushurl_identity_sha256")
+        for key in keys:
+            with self.subTest(key=key):
+                self.observed = self.copy(original)
+                if isinstance(self.observed[key], dict):
+                    self.observed[key]["C"] = "9" * 64
+                else:
+                    self.observed[key] = "9" * 64
+                self.rejects("LEGACY_COMMON_CONFIG_ANCHOR_IDENTITY_MISMATCH")
+
+    def test_anchor_must_be_strictly_later(self):
+        for time in ("2026-10-01T10:00:00Z", "2026-09-30T10:00:00Z"):
+            with self.subTest(time=time):
+                self.observed["anchor_created_at"] = time
+                self.rejects("LEGACY_COMMON_CONFIG_ANCHOR_ORDER_INVALID")
+
+    def test_utc_offsets_are_compared_as_instants(self):
+        self.observed["target_created_at"] = "2026-10-01T12:00:00+02:00"
+        self.observed["anchor_created_at"] = "2026-10-01T10:00:01Z"
+        self.assertEqual(self.validate(), self.value)
+        self.observed["anchor_created_at"] = "2026-10-01T10:00:00Z"
+        self.rejects("LEGACY_COMMON_CONFIG_ANCHOR_ORDER_INVALID")
+
+    def test_naive_timestamps_are_rejected(self):
+        original = self.copy(self.observed)
+        for key in ("target_created_at", "anchor_created_at"):
+            with self.subTest(key=key):
+                self.observed = self.copy(original)
+                self.observed[key] = "2026-10-01T10:00:00"
+                self.rejects("LEGACY_COMMON_CONFIG_ANCHOR_ORDER_INVALID")
+
+    def test_malformed_timestamp_error_does_not_expose_value(self):
+        original = self.copy(self.observed)
+        for value in (None, 123, {}, "private-input-must-not-appear", "2026-99-99"):
+            with self.subTest(value=value):
+                self.observed = self.copy(original)
+                self.observed["anchor_created_at"] = value
+                self.rejects("LEGACY_COMMON_CONFIG_ANCHOR_ORDER_INVALID")
+
+    def test_result_is_detached_from_both_inputs(self):
+        original_value, original_observed = self.copy(self.value), self.copy(self.observed)
+        result = self.validate()
+        result["fixed_role_config_sha256"]["A"] = "9" * 64
+        result["review"]["findings"]["P1"].append("test-only")
+        self.assertEqual(self.value, original_value)
+        self.assertEqual(self.observed, original_observed)
+
+    def test_failure_does_not_change_inputs(self):
+        self.observed["anchor_state"] = "REVOKED"
+        original_value, original_observed = self.copy(self.value), self.copy(self.observed)
+        self.rejects("LEGACY_COMMON_CONFIG_ANCHOR_NOT_CLOSED")
+        self.assertEqual(self.value, original_value)
+        self.assertEqual(self.observed, original_observed)
+
+    def test_evidence_schema_is_checked_before_observations(self):
+        self.value["review"]["verdict"] = "REWORK_REQUIRED"
+        self.observed = {}
+        self.rejects("LEGACY_COMMON_CONFIG_EVIDENCE_SCHEMA_INVALID")
+
+    def test_changed_evidence_reviewer_provenance_rejected_with_true_flag(self):
+        original = self.copy(self.value)
+        for key, changed in (("reviewer_role", "CONTROLLER"),
+                             ("reviewer_identity", "different reviewer"),
+                             ("independence_basis", "different independence basis")):
+            with self.subTest(key=key):
+                self.value = self.copy(original)
+                self.value["review"][key] = changed
+                self.assertIs(self.observed["reviewer_independence_verified"], True)
+                self.rejects("LEGACY_COMMON_CONFIG_IDENTITY_MISMATCH")
+
+    def test_changed_observed_reviewer_provenance_is_not_ignored(self):
+        original = self.copy(self.observed)
+        for key, changed in (("reviewer_role", "CONTROLLER"),
+                             ("reviewer_identity", "different reviewer"),
+                             ("independence_basis", "different independence basis")):
+            with self.subTest(key=key):
+                self.observed = self.copy(original)
+                self.observed["review"][key] = changed
+                self.rejects("LEGACY_COMMON_CONFIG_IDENTITY_MISMATCH")
+
+    def test_matching_review_metadata_does_not_replace_independence_check(self):
+        self.observed["reviewer_independence_verified"] = False
+        self.rejects("LEGACY_COMMON_CONFIG_OBSERVATION_UNVERIFIED")
+
+    def test_missing_observed_review_is_not_inferred_from_boolean(self):
+        self.observed.pop("review")
+        self.rejects("LEGACY_COMMON_CONFIG_OBSERVATION_INVALID")
+
+    def test_observed_review_verdict_and_findings_must_match(self):
+        original = self.copy(self.observed)
+        for field, changed in (("verdict", "REWORK_REQUIRED"),
+                               ("findings", {"P0": [], "P1": ["unresolved"], "P2": []})):
+            with self.subTest(field=field):
+                self.observed = self.copy(original)
+                self.observed["review"][field] = changed
+                self.rejects("LEGACY_COMMON_CONFIG_IDENTITY_MISMATCH")
+
+    def test_observed_review_wrong_type_and_extra_fields_are_rejected(self):
+        original = self.copy(self.observed)
+        for changed in (None, [], True, "PASS", dict(self.value["review"], extra=True)):
+            with self.subTest(kind=type(changed).__name__):
+                self.observed = self.copy(original)
+                self.observed["review"] = changed
+                self.rejects("LEGACY_COMMON_CONFIG_IDENTITY_MISMATCH")
+
+    def test_matched_new_reviewer_provenance_is_detached(self):
+        review = self.copy(self.value["review"])
+        review.update(reviewer_role="C", reviewer_identity="independent fixture C")
+        self.value["review"] = self.copy(review)
+        self.observed["review"] = self.copy(review)
+        returned = self.validate()
+        returned["review"]["reviewer_identity"] = "result-only change"
+        self.assertEqual(self.value["review"], review)
+        self.assertEqual(self.observed["review"], review)
+
+
+
+class LegacyCommonConfigBindingTransitionTests(unittest.TestCase):
+    """In-memory bind/rebind policy only; no registration or Git side effects."""
+
+    def setUp(self):
+        import copy
+        import task_publication
+        fixture = LegacyCommonConfigEvidenceIdentityTests()
+        fixture.setUp()
+        self.copy = copy.deepcopy
+        self.publication = task_publication
+        self.value, self.observed = fixture.value, fixture.observed
+        self.reference = {"path": "/root/octoport-control/logs/B/legacy-fixture.json", "sha256": "6" * 64}
+        self.facts = {"state": "TASK_REF_PUBLISHED", "task_ref_oid": self.value["candidate_sha"],
+                      "no_armed_lease": True, "worktree_clean": True, "installed_keys_match": True,
+                      "close_intent_exists": False, "close_receipt_exists": False}
+        self.authority = None
+
+    def transition(self):
+        return self.publication._legacy_common_config_binding_transition(
+            self.value, self.observed, self.reference, self.authority, self.facts)
+
+    def reject(self, code):
+        before = self.copy([self.value, self.observed, self.reference, self.authority, self.facts])
+        with self.assertRaisesRegex(self.publication.PublicationError, "^" + code + "$"):
+            self.transition()
+        self.assertEqual(before, [self.value, self.observed, self.reference, self.authority, self.facts])
+
+    def initial(self):
+        result = self.transition()
+        self.assertTrue(result["changed"])
+        self.authority = result["authority"]
+        return self.copy(self.authority)
+
+    def next_epoch(self, number=7):
+        self.facts.update(state="REVOKED", task_ref_oid="0" * 40)
+        updates = {"anchor_registration_id": str(number) * 64,
+                   "anchor_state_sha256": str(number) * 64,
+                   "anchor_close_receipt_sha256": str(number) * 64,
+                   "anchor_candidate_sha": str(number) * 40,
+                   "current_main_sha": str(number) * 40,
+                   "current_common_config_sha256": str(number) * 64}
+        self.value.update(updates)
+        self.observed.update(self.copy(updates))
+        self.observed.update(anchor_common_config_sha256=self.value["current_common_config_sha256"],
+                             anchor_created_at=f"2026-10-0{number - 4}T10:00:00Z")
+        self.reference = {"path": f"/root/octoport-control/logs/B/legacy-{number}.json", "sha256": str(number) * 64}
+
+    def test_initial_bind_is_detached_and_does_not_mutate_inputs(self):
+        before = self.copy([self.value, self.observed, self.reference, self.facts])
+        result = self.transition()
+        self.assertTrue(result["changed"])
+        self.assertEqual(result["authority"]["history"], [])
+        self.assertEqual(before, [self.value, self.observed, self.reference, self.facts])
+        result["authority"]["current"]["identity"]["review"]["reviewer_identity"] = "changed output"
+        self.assertEqual(self.value["review"]["reviewer_identity"], before[0]["review"]["reviewer_identity"])
+
+    def test_exact_replay_preserves_authority_and_signals_no_write(self):
+        original = self.initial()
+        result = self.transition()
+        self.assertFalse(result["changed"])
+        self.assertEqual(result["authority"], original)
+        result["authority"]["history"].append({})
+        self.assertEqual(self.authority, original)
+
+    def test_initial_absent_ref_allowed_in_close_states(self):
+        for state in ("TASK_REF_PUBLISHED", "PUBLISHED", "REVOKED", "FAILED"):
+            with self.subTest(state=state):
+                self.facts.update(state=state, task_ref_oid="0" * 40)
+                self.assertTrue(self.transition()["changed"])
+
+    def test_initial_registered_ready_closed_and_unknown_rejected(self):
+        for state in ("REGISTERED", "READY", "CLOSED", "UNKNOWN", None, 1):
+            with self.subTest(state=state):
+                self.facts["state"] = state
+                self.reject("LEGACY_COMMON_CONFIG_BIND_STATE_INVALID")
+
+    def test_foreign_ref_rejected_in_all_bind_states(self):
+        for state in ("TASK_REF_PUBLISHED", "PUBLISHED", "REVOKED", "FAILED"):
+            with self.subTest(state=state):
+                self.facts.update(state=state, task_ref_oid="f" * 40)
+                self.reject("LEGACY_COMMON_CONFIG_BIND_TASK_REF_PRESENT")
+
+    def test_close_states_reject_exact_candidate_ref(self):
+        for state in ("PUBLISHED", "REVOKED", "FAILED"):
+            with self.subTest(state=state):
+                self.facts["state"] = state
+                self.reject("LEGACY_COMMON_CONFIG_BIND_TASK_REF_PRESENT")
+
+    def test_invalid_or_unverified_guard_values_rejected(self):
+        original = self.copy(self.facts)
+        for key in ("no_armed_lease", "worktree_clean", "installed_keys_match"):
+            for value in (False, 1, "true", None):
+                with self.subTest(key=key, value=value):
+                    self.facts = self.copy(original)
+                    self.facts[key] = value
+                    self.reject("LEGACY_COMMON_CONFIG_BIND_GUARD_UNVERIFIED")
+
+    def test_close_intent_or_receipt_blocks_initial_and_replay(self):
+        original = self.copy(self.facts)
+        for initial in (False, True):
+            if initial:
+                self.facts = self.copy(original)
+                self.initial()
+            for key in ("close_intent_exists", "close_receipt_exists"):
+                with self.subTest(initial=initial, key=key):
+                    self.facts = self.copy(original)
+                    self.facts[key] = True
+                    self.reject("LEGACY_COMMON_CONFIG_BIND_CLOSE_STARTED")
+
+    def test_rebind_appends_old_identity_and_preserves_all_history(self):
+        original = self.initial()
+        self.next_epoch()
+        result = self.transition()
+        self.assertTrue(result["changed"])
+        self.assertEqual(result["authority"]["history"], [original["current"]])
+        self.assertEqual(self.authority, original)
+        self.authority = result["authority"]
+        previous = self.copy(self.authority)
+        self.next_epoch(8)
+        result = self.transition()
+        self.assertEqual(result["authority"]["history"], [original["current"], previous["current"]])
+        self.assertEqual(self.authority, previous)
+
+    def test_different_binding_allowed_only_in_revoked_state(self):
+        self.initial()
+        self.next_epoch()
+        for state in ("TASK_REF_PUBLISHED", "PUBLISHED", "FAILED"):
+            with self.subTest(state=state):
+                self.facts["state"] = state
+                self.reject("LEGACY_COMMON_CONFIG_REBIND_STATE_INVALID")
+
+    def test_rebind_rejects_stable_target_and_security_identity_drift(self):
+        self.initial()
+        self.next_epoch()
+        value, observed = self.copy(self.value), self.copy(self.observed)
+        for key in ("candidate_sha", "candidate_tree", "base_sha", "task_id", "task_ref",
+                    "registered_common_config_sha256", "global_config_sha256", "remote_identity_sha256",
+                    "push_identity_sha256", "pushurl_identity_sha256", "fixed_role_config_sha256"):
+            with self.subTest(key=key):
+                self.value, self.observed = self.copy(value), self.copy(observed)
+                changed = {r: "9" * 64 for r in "ABC"} if key == "fixed_role_config_sha256" else (
+                    "refs/heads/different" if key == "task_ref" else "C00-DIFFERENT" if key == "task_id"
+                    else "9" * len(value[key]))
+                self.value[key] = self.copy(changed)
+                self.observed[key] = self.copy(changed)
+                anchor_key = "anchor_" + key
+                if key in {"global_config_sha256", "fixed_role_config_sha256", "remote_identity_sha256", "push_identity_sha256", "pushurl_identity_sha256"}:
+                    self.observed[anchor_key] = self.copy(changed)
+                self.reject("LEGACY_COMMON_CONFIG_REBIND_IDENTITY_DRIFT")
+
+    def test_rebind_requires_distinct_later_anchor(self):
+        original = self.initial()
+        self.next_epoch()
+        self.value["anchor_registration_id"] = original["current"]["identity"]["anchor_registration_id"]
+        self.observed["anchor_registration_id"] = self.value["anchor_registration_id"]
+        self.reject("LEGACY_COMMON_CONFIG_REBIND_ANCHOR_INVALID")
+
+    def test_rebind_rejects_anchor_not_later_than_prior_binding(self):
+        self.initial()
+        self.next_epoch()
+        self.observed["anchor_created_at"] = "2026-10-02T09:00:00Z"
+        self.reject("LEGACY_COMMON_CONFIG_REBIND_ANCHOR_INVALID")
+
+    def test_rebind_rejects_started_close(self):
+        self.initial()
+        self.next_epoch()
+        self.facts["close_intent_exists"] = True
+        self.reject("LEGACY_COMMON_CONFIG_BIND_CLOSE_STARTED")
+
+    def test_reviewer_binding_and_independence_remain_mandatory(self):
+        self.value["review"]["reviewer_identity"] = "changed evidence reviewer"
+        self.reject("LEGACY_COMMON_CONFIG_IDENTITY_MISMATCH")
+        self.observed["review"] = self.copy(self.value["review"])
+        self.observed["reviewer_independence_verified"] = False
+        self.reject("LEGACY_COMMON_CONFIG_OBSERVATION_UNVERIFIED")
+
+    def test_invalid_reference_rejected_without_echoing_payload(self):
+        good = self.copy(self.reference)
+        for bad in ({}, {"path": "https://invalid.example/secret", "sha256": "6" * 64},
+                    {"path": "relative/file", "sha256": "6" * 64},
+                    {"path": "/control/../secret", "sha256": "6" * 64},
+                    {"path": good["path"], "sha256": "not-a-hash"},
+                    {"path": good["path"], "sha256": "6" * 64, "extra": "secret"}):
+            with self.subTest(bad=bad):
+                self.reference = bad
+                self.reject("LEGACY_COMMON_CONFIG_BIND_EVIDENCE_REFERENCE_INVALID")
+
+    def test_malformed_facts_are_rejected(self):
+        good = self.copy(self.facts)
+        self.facts.pop("worktree_clean")
+        self.reject("LEGACY_COMMON_CONFIG_BIND_FACTS_INVALID")
+        self.facts = dict(good, unexpected=True)
+        self.reject("LEGACY_COMMON_CONFIG_BIND_FACTS_INVALID")
+
+    def test_malformed_ref_oid_rejected(self):
+        for value in (None, True, "a" * 39, "F" * 40, "a" * 41):
+            with self.subTest(value=value):
+                self.facts["task_ref_oid"] = value
+                self.reject("LEGACY_COMMON_CONFIG_BIND_REF_INVALID")
+
+    def test_malformed_authority_rejected(self):
+        good = self.initial()
+        for bad in (False, {}, {"current": good["current"]},
+                    {"current": good["current"], "history": None},
+                    {"current": good["current"], "history": [{}]},
+                    dict(good, unexpected=True)):
+            with self.subTest(bad=bad):
+                self.authority = bad
+                self.reject("LEGACY_COMMON_CONFIG_BIND_AUTHORITY_INVALID")
+
+    def test_history_cannot_contain_different_target_identity(self):
+        good = self.initial()
+        old = self.copy(good["current"])
+        old["identity"]["task_id"] = "OTHER-HISTORICAL-TARGET"
+        self.authority["history"].append(old)
+        self.reject("LEGACY_COMMON_CONFIG_BIND_AUTHORITY_INVALID")
+
+    def test_observed_reviewer_can_change_only_with_exact_new_review(self):
+        self.initial()
+        self.next_epoch()
+        self.value["review"]["reviewer_role"] = "C"
+        self.value["review"]["reviewer_identity"] = "C independent reviewer"
+        self.observed["review"] = self.copy(self.value["review"])
+        self.assertTrue(self.transition()["changed"])
+
+    def test_replay_does_not_skip_fresh_identity_checks(self):
+        self.initial()
+        self.observed["anchor_close_receipt_valid"] = False
+        self.reject("LEGACY_COMMON_CONFIG_OBSERVATION_UNVERIFIED")
+
+
+class LegacyCommonConfigCloseCheckpointTests(unittest.TestCase):
+    """Pure intent identity only: no close permission, filesystem or Git use."""
+
+    def setUp(self):
+        self.fixture = LegacyCommonConfigBindingTransitionTests()
+        self.fixture.setUp()
+        self.fixture.initial()
+        self.publication = self.fixture.publication
+        self.copy = self.fixture.copy
+
+    def checkpoint(self, frozen=None):
+        f = self.fixture
+        return self.publication._legacy_common_config_close_checkpoint(
+            f.value, f.observed, f.reference, f.authority, frozen)
+
+    def reject(self, code, frozen=None):
+        f = self.fixture
+        before = self.copy([f.value, f.observed, f.reference, f.authority, frozen])
+        with self.assertRaisesRegex(self.publication.PublicationError, '^' + code + '$'):
+            self.checkpoint(frozen)
+        self.assertEqual(before, [f.value, f.observed, f.reference, f.authority, frozen])
+
+    def next_binding(self):
+        self.fixture.next_epoch()
+        self.fixture.authority = self.fixture.transition()['authority']
+
+    def test_checkpoint_is_hash_bound_and_detached(self):
+        result = self.checkpoint()
+        self.assertEqual(result['kind'], 'octoport.legacy-common-config-close-checkpoint')
+        self.assertEqual(result['version'], 1)
+        self.assertEqual(result['target_registration_id'], self.fixture.value['target_registration_id'])
+        self.assertEqual(result['evidence'], self.fixture.reference)
+        for name, value in result.items():
+            if name.endswith('_sha256'):
+                self.assertRegex(value, '^[0-9a-f]{64}$')
+        result['evidence']['path'] = '/changed'
+        self.assertNotEqual(result['evidence'], self.fixture.reference)
+
+    def test_exact_replay_is_byte_equivalent_and_preserves_inputs(self):
+        f = self.fixture
+        before = self.copy([f.value, f.observed, f.reference, f.authority])
+        frozen = self.checkpoint()
+        self.assertEqual(self.checkpoint(frozen), frozen)
+        self.assertEqual(before, [f.value, f.observed, f.reference, f.authority])
+
+    def test_dictionary_order_does_not_change_checkpoint(self):
+        frozen = self.checkpoint()
+        reversed_order = dict(reversed(list(frozen.items())))
+        self.assertEqual(self.checkpoint(reversed_order), frozen)
+
+    def test_bool_is_not_checkpoint_version_one(self):
+        frozen = self.checkpoint()
+        frozen['version'] = True
+        self.reject('LEGACY_COMMON_CONFIG_CLOSE_CHECKPOINT_DRIFT', frozen)
+
+    def test_extra_checkpoint_field_rejected(self):
+        frozen = self.checkpoint()
+        frozen['unbound'] = True
+        self.reject('LEGACY_COMMON_CONFIG_CLOSE_CHECKPOINT_DRIFT', frozen)
+
+    def test_missing_checkpoint_field_rejected(self):
+        frozen = self.checkpoint()
+        del frozen['binding_history_sha256']
+        self.reject('LEGACY_COMMON_CONFIG_CLOSE_CHECKPOINT_DRIFT', frozen)
+
+    def test_wrong_checkpoint_types_rejected(self):
+        for frozen in (False, 1, [], 'checkpoint'):
+            with self.subTest(frozen=frozen):
+                self.reject('LEGACY_COMMON_CONFIG_CLOSE_CHECKPOINT_DRIFT', frozen)
+
+    def test_changed_evidence_reference_rejected(self):
+        for key, value in [('path', '/different/evidence.json'), ('sha256', '9' * 64)]:
+            self.setUp()
+            with self.subTest(key=key):
+                self.fixture.reference[key] = value
+                self.reject('LEGACY_COMMON_CONFIG_CLOSE_BINDING_MISMATCH')
+
+    def test_invalid_reference_path_or_digest_rejected(self):
+        for key, value in [('path', 'relative.json'), ('path', '/root/../escape'),
+                           ('path', '/root/file\n'), ('sha256', 'not-a-hash')]:
+            self.setUp()
+            with self.subTest(key=key, value=value):
+                self.fixture.reference[key] = value
+                self.reject('LEGACY_COMMON_CONFIG_CLOSE_AUTHORITY_INVALID')
+
+    def test_current_evidence_identity_mismatch_rejected(self):
+        self.fixture.authority['current']['identity']['review']['reviewer_identity'] = 'Other valid reviewer'
+        self.reject('LEGACY_COMMON_CONFIG_CLOSE_BINDING_MISMATCH')
+
+    def test_reviewer_drift_not_masked_by_true_flag(self):
+        self.fixture.value['review']['reviewer_identity'] = 'Changed unobserved reviewer'
+        self.reject('LEGACY_COMMON_CONFIG_IDENTITY_MISMATCH')
+
+    def test_independence_false_rejected_on_replay(self):
+        frozen = self.checkpoint()
+        self.fixture.observed['reviewer_independence_verified'] = False
+        self.reject('LEGACY_COMMON_CONFIG_OBSERVATION_UNVERIFIED', frozen)
+
+    def test_anchor_time_mismatch_rejected(self):
+        self.fixture.authority['current']['anchor_created_at'] = '2026-10-03T10:00:00Z'
+        self.reject('LEGACY_COMMON_CONFIG_CLOSE_BINDING_MISMATCH')
+
+    def test_rebind_requires_a_new_checkpoint(self):
+        frozen = self.checkpoint()
+        self.next_binding()
+        self.reject('LEGACY_COMMON_CONFIG_CLOSE_CHECKPOINT_DRIFT', frozen)
+        self.assertNotEqual(self.checkpoint(), frozen)
+
+    def test_history_mutation_after_checkpoint_rejected(self):
+        self.next_binding()
+        frozen = self.checkpoint()
+        self.fixture.authority['history'][0]['evidence']['sha256'] = '9' * 64
+        self.reject('LEGACY_COMMON_CONFIG_CLOSE_CHECKPOINT_DRIFT', frozen)
+
+    def test_invalid_authority_shapes_rejected(self):
+        for authority in (None, [], {}, {'current': {}, 'history': []},
+                          {'current': {}, 'history': {}},
+                          {'current': {}, 'history': [], 'extra': True}):
+            self.setUp()
+            with self.subTest(authority=authority):
+                self.fixture.authority = authority
+                self.reject('LEGACY_COMMON_CONFIG_CLOSE_AUTHORITY_INVALID')
+
+    def test_malformed_historical_binding_rejected(self):
+        self.next_binding()
+        self.fixture.authority['history'][0]['identity']['extra'] = 'unbound'
+        self.reject('LEGACY_COMMON_CONFIG_CLOSE_AUTHORITY_INVALID')
+
+    def test_frozen_reference_is_not_a_permission_grant(self):
+        from unittest.mock import patch
+        import builtins
+        with patch.object(builtins, 'open', side_effect=AssertionError('file I/O forbidden')):
+            with patch.object(self.publication, '_state_transition', side_effect=AssertionError('mutation forbidden')):
+                with patch.object(self.publication, '_read_registration', side_effect=AssertionError('observation forbidden')):
+                    frozen = self.checkpoint()
+                    self.assertEqual(self.checkpoint(frozen), frozen)
+        self.assertNotIn('verdict', frozen)
+        self.assertNotIn('permission', frozen)
+        self.assertNotIn('restore', frozen)
+
+    def test_raw_review_and_configuration_not_copied_to_checkpoint(self):
+        f = self.fixture
+        marker = 'PRIVATE_PROVENANCE_VALUE_MUST_NOT_APPEAR'
+        f.value['review']['reviewer_identity'] = marker
+        f.value['review']['independence_basis'] = marker
+        f.observed['review'] = self.copy(f.value['review'])
+        f.authority['current']['identity'] = self.copy(f.value)
+        serialized = json.dumps(self.checkpoint(), sort_keys=True)
+        self.assertNotIn(marker, serialized)
+        for field in ('reviewer_identity', 'independence_basis', 'installed', 'prior', 'final'):
+            self.assertNotIn('"' + field + '"', serialized)
+
+    def test_current_and_history_hashes_cover_entire_canonical_bindings(self):
+        self.next_binding()
+        f = self.fixture
+        frozen = self.checkpoint()
+        for key, payload in [('binding_current_sha256', f.authority['current']),
+                             ('binding_history_sha256', f.authority['history']),
+                             ('authority_sha256', f.authority)]:
+            self.assertEqual(frozen[key], self.publication._sha_bytes(self.publication._canonical_bytes(payload)))
+        self.assertEqual(frozen['anchor_state_version'], f.value['anchor_state_version'])
+        self.assertEqual(frozen['anchor_close_receipt_sha256'], f.value['anchor_close_receipt_sha256'])
+
+    def test_changed_anchor_terminal_identity_rejected_after_freeze(self):
+        frozen = self.checkpoint()
+        f = self.fixture
+        for target in (f.value, f.observed, f.authority['current']['identity']):
+            target['anchor_state_sha256'] = '8' * 64
+        self.reject('LEGACY_COMMON_CONFIG_CLOSE_CHECKPOINT_DRIFT', frozen)
+
+    def test_returned_checkpoint_does_not_alias_frozen(self):
+        frozen = self.checkpoint()
+        result = self.checkpoint(frozen)
+        result['evidence']['path'] = '/different'
+        self.assertNotEqual(result, frozen)
+        self.assertEqual(frozen['evidence'], self.fixture.reference)
+
+
+
+class LegacyCommonConfigTargetFactsTests(unittest.TestCase):
+    """Collector wiring with mocked Git/config/ref I/O, never a live authority."""
+
+    def setUp(self):
+        import copy
+        import subprocess
+        import task_publication
+        from unittest import mock
+        self.copy = copy.deepcopy
+        self.p = task_publication
+        self.root = Path('/synthetic-control')
+        self.worktree = Path('/synthetic-worktree')
+        self.record = {
+            'registration_id': 'a' * 64, 'state': 'TASK_REF_PUBLISHED',
+            'core': {'worktree_path': str(self.worktree), 'candidate_head': 'b' * 40,
+                     'task_ref': 'refs/heads/controller/task-publication/b/fixture',
+                     'push_target': 'https://github.com/example/fixture.git'},
+            'installed_config': {
+                'owned_keys': ['core.hooksPath', 'remote.origin.pushurl'],
+                'core.hooksPath': {'present': True, 'values': ['/synthetic-hooks']},
+                'remote.origin.pushurl': {'present': True, 'values': ['synthetic-target']},
+            },
+        }
+        def patch(obj, name, **kwargs):
+            manager = mock.patch.object(obj, name, autospec=True, **kwargs)
+            value = manager.start()
+            self.addCleanup(manager.stop)
+            return value
+        self.leases = patch(self.p, '_no_armed_leases', return_value=True)
+        self.config = patch(self.p, '_config_values', side_effect=lambda w, k: self.copy(self.record['installed_config'][k]))
+        self.remote = patch(self.p, '_supersede_remote_state', return_value='b' * 40)
+        self.env = patch(self.p, 'sanitized_git_authority_env', return_value={'PINNED': 'test'})
+        self.git = patch(self.p.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, '', ''))
+        self.exists = patch(Path, 'exists', return_value=False)
+        self.symlink = patch(Path, 'is_symlink', return_value=False)
+        self.writer = patch(self.p, '_state_transition')
+        self.set_config = patch(self.p, '_set_config_values')
+
+    def collect(self):
+        return self.p._legacy_common_config_target_facts(self.root, self.record)
+
+    def reject(self, code):
+        with self.assertRaisesRegex(self.p.PublicationError, '^' + code + '$'):
+            self.collect()
+        self.writer.assert_not_called()
+        self.set_config.assert_not_called()
+
+    def test_success_reads_real_interfaces_without_writes(self):
+        before = self.copy(self.record)
+        result = self.collect()
+        self.assertEqual(result, {'state': 'TASK_REF_PUBLISHED', 'task_ref_oid': 'b' * 40,
+            'no_armed_lease': True, 'worktree_clean': True, 'installed_keys_match': True,
+            'close_intent_exists': False, 'close_receipt_exists': False})
+        self.assertEqual(self.record, before)
+        self.remote.assert_called_once_with(self.worktree, self.record['core']['push_target'],
+            self.record['core']['task_ref'], 'b' * 40)
+        self.assertEqual(self.git.call_count, 2)
+        self.writer.assert_not_called()
+        self.set_config.assert_not_called()
+
+    def test_allowed_terminal_states_require_absent_ref(self):
+        for state in ('PUBLISHED', 'REVOKED', 'FAILED'):
+            with self.subTest(state=state):
+                self.record['state'] = state
+                self.remote.return_value = self.p.ZERO_OID
+                self.assertEqual(self.collect()['state'], state)
+
+    def test_invalid_states_fail_before_any_probe(self):
+        for state in ('REGISTERED', 'READY', 'CLOSED', None, 1):
+            with self.subTest(state=state):
+                self.record['state'] = state
+                self.reject('LEGACY_COMMON_CONFIG_BIND_STATE_INVALID')
+        self.git.assert_not_called()
+        self.remote.assert_not_called()
+
+    def test_armed_or_unverified_lease_fails_before_git(self):
+        for value in (False, None, 1):
+            with self.subTest(value=value):
+                self.leases.return_value = value
+                self.reject('LEGACY_COMMON_CONFIG_BIND_GUARD_UNVERIFIED')
+        self.git.assert_not_called()
+        self.remote.assert_not_called()
+
+    def test_existing_close_intent_or_receipt_fails_before_git(self):
+        for name in ('intent.json', 'receipt.json'):
+            with self.subTest(name=name):
+                self.exists.side_effect = lambda p: p.name == name
+                self.reject('LEGACY_COMMON_CONFIG_BIND_CLOSE_STARTED')
+        self.git.assert_not_called()
+        self.remote.assert_not_called()
+
+    def test_dangling_close_marker_is_also_a_started_close(self):
+        self.symlink.return_value = True
+        self.reject('LEGACY_COMMON_CONFIG_BIND_CLOSE_STARTED')
+        self.git.assert_not_called()
+        self.remote.assert_not_called()
+
+    def test_git_failure_has_only_sanitized_code(self):
+        self.git.return_value.returncode = 128
+        self.git.return_value.stderr = 'must-not-appear-secret'
+        self.reject('LEGACY_COMMON_CONFIG_GIT_OBSERVATION_FAILED')
+        self.remote.assert_not_called()
+
+    def test_git_timeout_fails_closed(self):
+        self.git.side_effect = self.p.subprocess.TimeoutExpired('secret-command', 30)
+        self.reject('LEGACY_COMMON_CONFIG_GIT_OBSERVATION_FAILED')
+        self.remote.assert_not_called()
+
+    def test_dirty_worktree_fails_before_remote(self):
+        self.git.return_value.stdout = ' M a-file\n'
+        self.reject('LEGACY_COMMON_CONFIG_BIND_GUARD_UNVERIFIED')
+        self.remote.assert_not_called()
+
+    def test_git_environment_is_pinned_and_shell_is_not_used(self):
+        self.collect()
+        for call in self.git.call_args_list:
+            self.assertEqual(call.args[0][0], self.p.AUTHORITY_GIT_BIN)
+            self.assertEqual(call.args[0][1:3], ['-C', str(self.worktree)])
+            self.assertEqual(call.kwargs['env'], {'PINNED': 'test'})
+            self.assertEqual(call.kwargs['cwd'], '/')
+            self.assertFalse(call.kwargs.get('shell', False))
+            self.assertEqual(call.kwargs['timeout'], 30)
+
+    def test_owned_config_drift_fails_before_remote(self):
+        self.config.side_effect = lambda w, k: {'present': False, 'values': []}
+        self.reject('LEGACY_COMMON_CONFIG_BIND_GUARD_UNVERIFIED')
+        self.remote.assert_not_called()
+
+    def test_invalid_owned_keys_fail_before_config_read(self):
+        for keys in ([], ['core.hooksPath', 'core.hooksPath'], ['url.secret.insteadOf'], 'core.hooksPath'):
+            with self.subTest(keys=keys):
+                self.record['installed_config']['owned_keys'] = keys
+                self.reject('LEGACY_COMMON_CONFIG_TARGET_SNAPSHOT_INVALID')
+        self.config.assert_not_called()
+        self.remote.assert_not_called()
+
+    def test_foreign_or_disallowed_present_ref_fails(self):
+        self.remote.return_value = 'c' * 40
+        self.reject('LEGACY_COMMON_CONFIG_BIND_TASK_REF_PRESENT')
+        self.record['state'] = 'REVOKED'
+        self.remote.return_value = 'b' * 40
+        self.reject('LEGACY_COMMON_CONFIG_BIND_TASK_REF_PRESENT')
+
+    def test_unverified_remote_result_is_not_an_absent_ref(self):
+        for value in (None, '', False, 'secret:failed', 'x' * 40):
+            with self.subTest(value=value):
+                self.remote.return_value = value
+                self.reject('LEGACY_COMMON_CONFIG_REF_OBSERVATION_FAILED')
+
+    def test_remote_exception_is_sanitized(self):
+        self.remote.side_effect = self.p.PublicationError('secret remote details')
+        self.reject('LEGACY_COMMON_CONFIG_REF_OBSERVATION_FAILED')
+
+    def test_post_probe_worktree_drift_does_not_return_facts(self):
+        import subprocess
+        self.git.side_effect = [subprocess.CompletedProcess([], 0, '', ''),
+                               subprocess.CompletedProcess([], 0, ' M late', '')]
+        self.reject('LEGACY_COMMON_CONFIG_BIND_GUARD_UNVERIFIED')
+        self.remote.assert_called_once()
+
+    def test_post_probe_close_start_is_rejected(self):
+        self.exists.side_effect = [False, False, True]
+        self.reject('LEGACY_COMMON_CONFIG_BIND_CLOSE_STARTED')
+        self.remote.assert_called_once()
+
+    def test_post_probe_lease_is_rechecked(self):
+        self.leases.side_effect = [True, False]
+        self.reject('LEGACY_COMMON_CONFIG_BIND_GUARD_UNVERIFIED')
+        self.remote.assert_called_once()
+
+    def test_missing_or_relative_snapshot_is_rejected(self):
+        self.record['core']['worktree_path'] = 'relative/worktree'
+        self.reject('LEGACY_COMMON_CONFIG_TARGET_SNAPSHOT_INVALID')
+        self.record.pop('core')
+        self.reject('LEGACY_COMMON_CONFIG_TARGET_SNAPSHOT_INVALID')
+        self.git.assert_not_called()
+
+    def test_installed_values_must_have_exact_safe_shape(self):
+        for malformed in ({'present': 1, 'values': []}, {'present': True, 'values': 'secret'},
+                          {'present': True, 'values': [], 'extra': 'secret'}):
+            with self.subTest(malformed=malformed):
+                self.record['installed_config']['core.hooksPath'] = malformed
+                self.reject('LEGACY_COMMON_CONFIG_TARGET_SNAPSHOT_INVALID')
+        self.remote.assert_not_called()
+
+    def test_absent_task_ref_is_valid_for_initial_binding(self):
+        self.remote.return_value = self.p.ZERO_OID
+        self.assertEqual(self.collect()['task_ref_oid'], self.p.ZERO_OID)
+
+class LegacyCommonConfigAnchorSnapshotTests(unittest.TestCase):
+    """Real receipt-file observations; registration reader is a pinned test double."""
+
+    def setUp(self):
+        import copy
+        import tempfile
+        import hashlib
+        from unittest.mock import patch
+        import task_publication
+        self.p = task_publication
+        self.copy, self.patch, self.hashlib = copy.deepcopy, patch, hashlib
+        self.tmp = tempfile.TemporaryDirectory(prefix='legacy-anchor-')
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+        self.value = LegacyCommonConfigEvidenceShapeTests.evidence()
+        self.target = {'registration_id': self.value['target_registration_id'],
+                       'created_at': '2026-10-01T00:00:00Z'}
+        self.anchor_id = self.value['anchor_registration_id']
+        self.close_dir = self.root/'controllers/task-publication/close'/self.anchor_id
+        self.close_dir.mkdir(parents=True)
+        self.path = self.close_dir/'receipt.json'
+        prior = {k: {'present': False, 'values': []} for k in ('core.hooksPath','remote.origin.pushurl')}
+        installed = {k: {'present': True, 'values': ['fixture-only-'+k]} for k in prior}
+        self.anchor = {'registration_id': self.anchor_id, 'registration_sha256': self.anchor_id,
+                       'state': 'CLOSED', 'state_version': 10,
+                       'created_at': '2026-10-02T00:00:00Z', 'updated_at': '2026-10-03T00:00:00Z',
+                       'core': {'candidate_head': self.value['anchor_candidate_sha'],
+                                'common_config_sha256': 'e'*64, 'global_config_sha256': 'f'*64,
+                                'fixed_role_config_sha256': {k: 'd'*64 for k in 'ABC'},
+                                'remote': 'origin',
+                                'push_target': 'https://github.com/example/repo.git',
+                                'pushurl_override': None,
+                                'prior_config': prior},
+                       'installed_config': dict(installed, owned_keys=list(prior))}
+        self.receipt = {'kind': 'octoport.task-publication-close', 'version': 1,
+                        'registration_id': self.anchor_id, 'state_before': 'PUBLISHED',
+                        'before': self.copy(installed), 'installed': self.copy(installed),
+                        'final': self.copy(prior), 'worktree_config_sha256_after': '5'*64,
+                        'created_at': '2026-10-03T00:00:00Z'}
+        self.pin()
+
+    def pin(self, raw=None):
+        if raw is None:
+            raw = json.dumps(self.receipt).encode()
+        self.path.write_bytes(raw)
+        digest = self.hashlib.sha256(raw).hexdigest()
+        self.anchor['close_receipt'] = {'path': str(self.path), 'sha256': digest}
+        self.value['anchor_close_receipt_sha256'] = digest
+        self.value['anchor_state_sha256'] = self.hashlib.sha256(self.p._canonical_bytes(self.anchor)).hexdigest()
+
+    def observe(self, side_effect=None):
+        pinned = (self.copy(self.anchor), self.value['anchor_state_sha256'])
+        with self.patch.object(self.p, '_read_registration', side_effect=side_effect, return_value=pinned):
+            return self.p._legacy_common_config_anchor_snapshot(self.root, self.target, self.value)
+
+    def rejects(self):
+        with self.assertRaisesRegex(self.p.PublicationError, '^LEGACY_COMMON_CONFIG_'):
+            self.observe()
+
+    def test_real_receipt_observed_and_detached(self):
+        before = self.path.read_bytes()
+        observed = self.observe()
+        self.assertTrue(observed['anchor_close_receipt_valid'])
+        self.assertEqual(observed['anchor_state_sha256'], self.value['anchor_state_sha256'])
+        self.assertEqual(observed['anchor_candidate_sha'], self.value['anchor_candidate_sha'])
+        observed['anchor_fixed_role_config_sha256']['A'] = '9'*64
+        self.assertEqual(self.anchor['core']['fixed_role_config_sha256']['A'], 'd'*64)
+        self.assertEqual(self.path.read_bytes(), before)
+
+    def test_does_not_grant_unobserved_authority(self):
+        observed = self.observe()
+        for key in ('review', 'reviewer_independence_verified', 'anchor_is_ancestor_of_main',
+                    'current_main_sha', 'ordinary_common_matches', 'permission'):
+            self.assertNotIn(key, observed)
+        encoded = json.dumps(observed)
+        self.assertNotIn('fixture-only-', encoded)
+        self.assertNotIn('reviewer_identity', encoded)
+
+    def test_no_state_or_transport_operation(self):
+        with self.patch.object(self.p, '_state_transition', side_effect=AssertionError('writer forbidden')), \
+             self.patch.object(self.p.subprocess, 'run', side_effect=AssertionError('transport forbidden')):
+            self.observe()
+
+    def test_anchor_state_and_version_fail_closed(self):
+        original = self.copy(self.anchor)
+        for field, value in [('state','PUBLISHED'),('state_version',True),('state_version',11),
+                             ('registration_id','f'*64),('registration_sha256','f'*64)]:
+            with self.subTest(field=field, value=value):
+                self.anchor = self.copy(original); self.anchor[field] = value
+                self.rejects()
+
+    def test_target_identity_and_order(self):
+        self.target['registration_id'] = 'f'*64
+        self.rejects()
+        self.target['registration_id'] = self.value['target_registration_id']
+        for date in ['2026-10-02T00:00:00Z','2026-10-04T00:00:00Z','2026-10-01','bad',None]:
+            with self.subTest(date=date):
+                self.target['created_at'] = date;self.rejects()
+
+    def test_anchor_candidate_mismatch(self):
+        self.anchor['core']['candidate_head'] = 'd'*40
+        self.rejects()
+
+    def test_config_hashes_must_be_well_formed(self):
+        for name in ['common_config_sha256','global_config_sha256']:
+            original = self.anchor['core'][name]
+            self.anchor['core'][name] = 'not-a-hash';self.rejects()
+            self.anchor['core'][name] = original
+        self.anchor['core']['fixed_role_config_sha256'].pop('A');self.rejects()
+
+    def test_canonical_path_required(self):
+        self.anchor['close_receipt']['path'] = str(self.root/'other.json')
+        self.rejects()
+
+    def test_receipt_leaf_symlink_rejected(self):
+        other = self.root/'other.json';other.write_bytes(self.path.read_bytes())
+        self.path.unlink();self.path.symlink_to(other)
+        self.rejects()
+
+    def test_receipt_parent_symlink_rejected(self):
+        moved = self.close_dir.with_name('moved')
+        self.close_dir.rename(moved);self.close_dir.symlink_to(moved, target_is_directory=True)
+        self.rejects()
+
+    def test_receipt_missing_and_directory_rejected(self):
+        self.path.unlink();self.rejects()
+        self.path.mkdir();self.rejects()
+
+    def test_actual_receipt_hash_mismatch(self):
+        self.path.write_bytes(self.path.read_bytes()+b' ')
+        self.rejects()
+
+    def test_pinned_receipt_reference_hash_mismatch(self):
+        self.anchor['close_receipt']['sha256'] = '0'*64
+        self.rejects()
+
+    def test_validly_rehashed_semantically_wrong_receipt_rejected(self):
+        original = self.copy(self.receipt)
+        for field, value in [('kind','other'),('version',True),('registration_id','e'*64),
+                             ('state_before','READY'),('created_at','2026-10-01T00:00:00Z'),
+                             ('created_at','2026-10-04T00:00:00Z'),('worktree_config_sha256_after','bad')]:
+            with self.subTest(field=field, value=value):
+                self.receipt = self.copy(original);self.receipt[field] = value;self.pin();self.rejects()
+
+    def test_restored_config_must_match_captured_prior(self):
+        self.receipt['final']['core.hooksPath'] = {'present':True,'values':['incorrect']}
+        self.pin();self.rejects()
+
+    def test_installed_receipt_config_must_match_registration(self):
+        self.receipt['installed']['core.hooksPath']['values'] = ['incorrect']
+        self.pin();self.rejects()
+
+    def test_impossible_absent_config_with_values_rejected(self):
+        self.receipt['final']['core.hooksPath']['values'] = ['unexpected']
+        self.anchor['core']['prior_config']['core.hooksPath']['values'] = ['unexpected']
+        self.pin();self.rejects()
+
+    def test_partial_restore_before_snapshot_remains_valid(self):
+        self.receipt['before']['core.hooksPath'] = self.copy(self.receipt['final']['core.hooksPath'])
+        self.pin();self.observe()
+
+    def test_duplicate_json_keys_nonfinite_invalid_utf8_rejected(self):
+        raws = [b'{"kind":"x","kind":"y"}', b'{"x":NaN}', b'\xff', b'{}', b'[]']
+        for raw in raws:
+            with self.subTest(raw=raw):
+                self.pin(raw);self.rejects()
+
+    def test_oversized_regular_receipt_rejected(self):
+        self.pin(b' ' * 65537);self.rejects()
+
+    def test_extra_receipt_fields_rejected(self):
+        self.receipt['unexpected'] = True;self.pin();self.rejects()
+
+    def test_anchor_drift_after_receipt_read_rejected(self):
+        before = (self.copy(self.anchor),self.value['anchor_state_sha256'])
+        changed = self.copy(self.anchor);changed['state_version'] += 1
+        with self.assertRaisesRegex(self.p.PublicationError,'ANCHOR_SNAPSHOT_DRIFT'):
+            self.observe(side_effect=[before,(changed,'9'*64)])
+
+    def test_receipt_replacement_after_read_rejected(self):
+        count = [0]
+        def read(*args):
+            count[0] += 1
+            if count[0] == 2:
+                replacement = self.path.with_name('replacement')
+                replacement.write_bytes(self.path.read_bytes());replacement.replace(self.path)
+            return self.copy(self.anchor),self.value['anchor_state_sha256']
+        with self.assertRaisesRegex(self.p.PublicationError,'ANCHOR_SNAPSHOT_DRIFT'):
+            self.observe(side_effect=read)
+
+
+
+    def test_parent_binding_change_before_leaf_open_is_rejected(self):
+        """Exercise a controlled path change inside this disposable fixture."""
+        original_open = self.p.os.open
+        changed = []
+        detached = self.root / 'detached-anchor'
+        def checked_open(path, flags, *args, **kwargs):
+            if Path(path).name == 'receipt.json' and not changed:
+                self.close_dir.rename(detached)
+                self.close_dir.symlink_to(detached, target_is_directory=True)
+                changed.append(True)
+            return original_open(path, flags, *args, **kwargs)
+        with self.patch.object(self.p.os, 'open', side_effect=checked_open):
+            self.rejects()
+        self.assertEqual(changed, [True])
+
+    def test_parent_replaced_by_regular_directory_before_leaf_is_rejected(self):
+        original_open = self.p.os.open
+        raw = self.path.read_bytes()
+        changed = []
+        def checked_open(path, flags, *args, **kwargs):
+            if Path(path).name == 'receipt.json' and not changed:
+                self.close_dir.rename(self.root / 'detached-anchor')
+                self.close_dir.mkdir()
+                self.path.write_bytes(raw)
+                changed.append(True)
+            return original_open(path, flags, *args, **kwargs)
+        with self.patch.object(self.p.os, 'open', side_effect=checked_open):
+            self.rejects()
+        self.assertEqual(changed, [True])
+
+    def test_parent_binding_rechecked_after_registration_readback(self):
+        calls = []
+        def reader(*args):
+            calls.append(True)
+            if len(calls) == 2:
+                detached = self.root / 'detached-anchor'
+                self.close_dir.rename(detached)
+                self.close_dir.symlink_to(detached, target_is_directory=True)
+            return self.copy(self.anchor), self.value['anchor_state_sha256']
+        with self.assertRaisesRegex(self.p.PublicationError, 'ANCHOR_SNAPSHOT_DRIFT'):
+            self.observe(side_effect=reader)
+
+    def test_every_directory_component_and_leaf_use_pinned_descriptors(self):
+        original_open = self.p.os.open
+        calls = []
+        def checked_open(path, flags, *args, **kwargs):
+            descriptor = original_open(path, flags, *args, **kwargs)
+            calls.append((str(path), flags, kwargs.get('dir_fd'), descriptor))
+            return descriptor
+        with self.patch.object(self.p.os, 'open', side_effect=checked_open):
+            self.observe()
+        self.assertEqual([item[0] for item in calls],
+                         [str(self.root), 'controllers', 'task-publication',
+                          'close', self.anchor_id, 'receipt.json'])
+        for name, flags, parent, descriptor in calls:
+            self.assertTrue(flags & self.p.os.O_NOFOLLOW)
+            self.assertTrue(flags & self.p.os.O_CLOEXEC)
+            if name != str(self.root):
+                self.assertIsInstance(parent, int)
+            if name != 'receipt.json':
+                self.assertTrue(flags & self.p.os.O_DIRECTORY)
+            with self.assertRaises(OSError):
+                self.p.os.fstat(descriptor)
+
+    def test_opened_descriptors_closed_when_receipt_schema_fails(self):
+        self.receipt['version'] = True
+        self.pin()
+        original_open = self.p.os.open
+        opened = []
+        def checked_open(*args, **kwargs):
+            descriptor = original_open(*args, **kwargs)
+            opened.append(descriptor)
+            return descriptor
+        with self.patch.object(self.p.os, 'open', side_effect=checked_open):
+            self.rejects()
+        self.assertGreaterEqual(len(opened), 6)
+        for descriptor in opened:
+            with self.assertRaises(OSError):
+                self.p.os.fstat(descriptor)
+
+    def test_intermediate_directory_binding_change_is_rejected(self):
+        original_open = self.p.os.open
+        publication = self.root / 'controllers' / 'task-publication'
+        changed = []
+        def checked_open(path, flags, *args, **kwargs):
+            if Path(path).name == 'receipt.json' and not changed:
+                detached = self.root / 'detached-publication'
+                publication.rename(detached)
+                publication.symlink_to(detached, target_is_directory=True)
+                changed.append(True)
+            return original_open(path, flags, *args, **kwargs)
+        with self.patch.object(self.p.os, 'open', side_effect=checked_open):
+            self.rejects()
+        self.assertEqual(changed, [True])
+
+    def pin_v2_receipt(self):
+        """Actual receipt file; the existing registration double remains explicit."""
+        fixture = LegacyCommonConfigEvidenceIdentityTests()
+        fixture.setUp()
+        fixture.value['target_registration_id'] = self.anchor_id
+        fixture.value['target_core_sha256'] = self.anchor_id
+        fixture.observed.update(target_registration_id=self.anchor_id,
+                                target_core_sha256=self.anchor_id,
+                                target_created_at=self.anchor['created_at'],
+                                anchor_created_at='2026-10-02T12:00:00Z')
+        reference = {'path': str(self.root/'logs/A/independent-evidence.json'),
+                     'sha256': '1'*64}
+        authority = {'current': {'evidence': reference, 'identity': fixture.value,
+                                'anchor_created_at': fixture.observed['anchor_created_at']},
+                     'history': []}
+        checkpoint = self.p._legacy_common_config_close_checkpoint(
+            fixture.value, fixture.observed, reference, authority)
+        self.anchor['legacy_common_config_authority'] = authority
+        self.receipt = self.p._legacy_common_config_redacted_close_receipt(
+            self.anchor, self.receipt, checkpoint)
+        self.pin()
+
+    def test_v2_real_file_observer_accepts_value_free_receipt(self):
+        self.pin_v2_receipt()
+        result = self.observe()
+        self.assertIs(result['anchor_close_receipt_valid'], True)
+        self.assertEqual(self.receipt['version'], 2)
+        self.assertNotIn('fixture-only-', self.path.read_text())
+        self.assertNotIn('fixture-only-', json.dumps(result))
+        self.assertNotIn('reviewer_identity', json.dumps(result))
+
+    def test_v2_real_file_all_close_states_remain_artifact_only(self):
+        self.pin_v2_receipt()
+        for state in ('REVOKED', 'FAILED', 'PUBLISHED'):
+            with self.subTest(state=state):
+                self.receipt['state_before'] = state
+                self.pin()
+                result = self.observe()
+                self.assertIs(result['anchor_close_receipt_valid'], True)
+                self.assertNotIn('completion_valid', result)
+                self.assertNotIn('publication_authority', result)
+
+    def test_v2_real_file_preserves_partial_restore(self):
+        key = 'core.hooksPath'
+        self.receipt['before'][key] = self.copy(self.receipt['final'][key])
+        self.pin_v2_receipt()
+        self.assertIs(self.observe()['anchor_close_receipt_valid'], True)
+
+    def test_v2_rehashed_wrong_config_digest_is_rejected(self):
+        self.pin_v2_receipt()
+        self.receipt['config_sha256']['final']['core.hooksPath'] = '0'*64
+        self.pin()
+        self.rejects()
+
+    def test_v2_rehashed_checkpoint_drift_is_rejected(self):
+        self.pin_v2_receipt()
+        self.receipt['legacy_checkpoint']['binding_history_sha256'] = '0'*64
+        self.pin()
+        self.rejects()
+
+    def test_v2_real_file_missing_journal_authority_is_rejected(self):
+        self.pin_v2_receipt()
+        del self.anchor['legacy_common_config_authority']
+        self.pin()
+        self.rejects()
+
+    def test_v2_real_file_changed_journal_history_is_rejected(self):
+        self.pin_v2_receipt()
+        authority = self.anchor['legacy_common_config_authority']
+        authority['history'].append(self.copy(authority['current']))
+        self.pin()
+        self.rejects()
+
+    def test_v2_rehashed_raw_config_fields_are_rejected(self):
+        self.pin_v2_receipt()
+        self.receipt['installed'] = {'unsafe': 'NOT_A_CONFIGURATION_VALUE'}
+        self.pin()
+        self.rejects()
+
+    def test_v2_real_file_duplicate_json_fields_are_rejected(self):
+        self.pin_v2_receipt()
+        raw = json.dumps(self.receipt).encode()
+        self.pin(raw[:-1] + b', "version": 2}')
+        self.rejects()
+
+    def test_v2_real_file_replacement_at_registration_readback_is_rejected(self):
+        self.pin_v2_receipt()
+        pinned = (self.copy(self.anchor), self.value['anchor_state_sha256'])
+        count = 0
+        def readback(*args):
+            nonlocal count
+            count += 1
+            if count == 2:
+                replacement = self.close_dir/'receipt-replacement.json'
+                replacement.write_bytes(self.path.read_bytes())
+                replacement.replace(self.path)
+            return self.copy(pinned)
+        with self.assertRaisesRegex(self.p.PublicationError, '^LEGACY_COMMON_CONFIG_'):
+            self.observe(side_effect=readback)
+        self.assertEqual(count, 2)
+
+    def test_v2_real_file_registration_readback_drift_is_rejected(self):
+        self.pin_v2_receipt()
+        first = (self.copy(self.anchor), self.value['anchor_state_sha256'])
+        second = (self.copy(self.anchor), '0'*64)
+        with self.assertRaisesRegex(self.p.PublicationError, '^LEGACY_COMMON_CONFIG_'):
+            self.observe(side_effect=[first, second])
+
+
+
+class LegacyCommonConfigEvidenceSnapshotTests(unittest.TestCase):
+    """Descriptor-only mocked I/O; no host files, Git or live authority."""
+
+    def setUp(self):
+        import copy
+        import json
+        import stat
+        from types import SimpleNamespace
+        import task_publication as publication
+        self.publication = publication
+        self.copy = copy.deepcopy
+        self.value = LegacyCommonConfigEvidenceShapeTests.evidence()
+        self.raw = json.dumps(self.value).encode('utf-8')
+        self.root = Path('/synthetic/control')
+        self.path = str(self.root/'logs'/'review.json')
+        self.digest = publication._sha_bytes(self.raw)
+        self.stat = SimpleNamespace(st_mode=stat.S_IFREG | 0o600, st_dev=1, st_ino=30,
+                                    st_size=len(self.raw), st_mtime_ns=1, st_ctime_ns=1)
+        self.directory = SimpleNamespace(st_mode=stat.S_IFDIR | 0o700, st_dev=1,
+                                         st_ino=20, st_size=4096, st_mtime_ns=1, st_ctime_ns=1)
+
+    def call(self, *, raw=None, digest=None, path=None, opens=None, fstats=None, stats=None):
+        import io
+        from unittest.mock import patch
+        stream = io.BytesIO(self.raw if raw is None else raw)
+        def read_fd(fd, count):
+            return stream.read(count)
+        def default_stat(path, **kwargs):
+            return self.stat if str(path) == 'review.json' else self.directory
+        with patch.object(self.publication.os, 'open', side_effect=opens or [10, 11, 12]) as opened, \
+             patch.object(self.publication.os, 'close') as closed, \
+             patch.object(self.publication.os, 'read', side_effect=read_fd) as read, \
+             patch.object(self.publication.os, 'fstat', side_effect=fstats or [self.directory, self.directory, self.stat, self.stat]), \
+             patch.object(self.publication.os, 'stat', side_effect=stats or default_stat):
+            try:
+                result = self.publication._legacy_common_config_evidence_snapshot(
+                    self.root, self.path if path is None else path,
+                    self.digest if digest is None else digest)
+            finally:
+                self.open_calls = list(opened.call_args_list)
+                self.closed = [c.args[0] for c in closed.call_args_list]
+                self.read_calls = list(read.call_args_list)
+            return result
+
+    def reject(self, **kwargs):
+        with self.assertRaisesRegex(self.publication.PublicationError, '^LEGACY_COMMON_CONFIG_EVIDENCE_FILE_'):
+            self.call(**kwargs)
+
+    def test_valid_hash_bound_snapshot(self):
+        result = self.call()
+        self.assertEqual(result['reference'], {'path': self.path, 'sha256': self.digest})
+        self.assertEqual(result['evidence'], self.value)
+        self.assertEqual(self.closed, [12, 11, 10])
+        self.assertEqual(set(result), {'reference', 'evidence'})
+
+    def test_detached_snapshot(self):
+        result = self.call()
+        result['evidence']['review']['reviewer_identity'] = 'changed'
+        self.assertNotEqual(result['evidence'], self.value)
+
+    def test_no_follow_and_directory_relative_open(self):
+        import os
+        self.call()
+        self.assertTrue(all(call.args[1] & os.O_NOFOLLOW for call in self.open_calls))
+        self.assertEqual(self.open_calls[1].kwargs['dir_fd'], 10)
+        self.assertEqual(self.open_calls[2].kwargs['dir_fd'], 11)
+        self.assertTrue(self.open_calls[2].args[1] & os.O_NONBLOCK)
+
+    def test_wrong_hash_rejected(self):
+        self.reject(digest='b' * 64)
+        self.assertEqual(self.closed, [12, 11, 10])
+
+    def test_invalid_reference_rejected_before_open(self):
+        for value in ['', 'relative.json', '/synthetic/other/review.json',
+                      '/synthetic/control/../outside.json', self.path + '\x00',
+                      '/synthetic/control/logs//review.json']:
+            with self.subTest(path=value):
+                self.reject(path=value)
+                self.assertEqual(self.open_calls, [])
+
+    def test_malformed_digest_rejected_before_open(self):
+        for digest in ['', True, 'a' * 63, 'A' * 64, None]:
+            with self.subTest(digest=digest):
+                # None is the call helper's default; use the entrypoint directly.
+                if digest is None:
+                    with self.assertRaises(self.publication.PublicationError):
+                        self.publication._legacy_common_config_evidence_snapshot(self.root, self.path, digest)
+                else:
+                    self.reject(digest=digest)
+                    self.assertEqual(self.open_calls, [])
+
+    def test_open_failure_closes_prior_descriptors(self):
+        for opens, expected in [([OSError('unavailable')], []),
+                                ([10, OSError('unavailable')], [10]),
+                                ([10, 11, OSError('unavailable')], [11, 10])]:
+            with self.subTest(opens=len(opens)):
+                self.reject(opens=opens)
+                self.assertEqual(self.closed, expected)
+
+    def test_symlink_leaf_rejected(self):
+        import stat
+        bad = self.copy(self.stat); bad.st_mode = stat.S_IFLNK | 0o777
+        self.reject(fstats=[self.directory, self.directory, bad])
+        self.assertEqual(self.read_calls, [])
+
+    def test_non_regular_files_rejected(self):
+        import stat
+        for mode in [stat.S_IFIFO, stat.S_IFDIR, stat.S_IFSOCK, stat.S_IFCHR]:
+            with self.subTest(mode=mode):
+                bad = self.copy(self.stat); bad.st_mode = mode
+                self.reject(fstats=[self.directory, self.directory, bad])
+                self.assertEqual(self.read_calls, [])
+
+    def test_empty_and_oversized_file_rejected_before_read(self):
+        for size in [0, 65537]:
+            with self.subTest(size=size):
+                bad=self.copy(self.stat);bad.st_size=size
+                self.reject(fstats=[self.directory,self.directory,bad])
+                self.assertEqual(self.read_calls, [])
+
+    def test_truncated_read_rejected(self):
+        self.reject(raw=self.raw[:-1], digest=self.publication._sha_bytes(self.raw[:-1]))
+
+    def test_replaced_leaf_rejected(self):
+        bad=self.copy(self.stat);bad.st_ino+=1
+        self.reject(stats=[self.directory, self.directory, bad])
+
+    def test_file_mutation_during_read_rejected(self):
+        for field in ['st_size', 'st_mtime_ns', 'st_ctime_ns', 'st_ino']:
+            with self.subTest(field=field):
+                bad=self.copy(self.stat);setattr(bad,field,getattr(bad,field)+1)
+                self.reject(fstats=[self.directory,self.directory,self.stat,bad])
+
+    def test_directory_replacement_rejected(self):
+        bad=self.copy(self.directory);bad.st_ino+=1
+        self.reject(stats=[self.directory,bad])
+
+    def test_root_replacement_rejected(self):
+        bad=self.copy(self.directory);bad.st_ino+=1
+        self.reject(stats=[bad])
+
+    def test_invalid_json_and_encoding_rejected(self):
+        for raw in [b'{', b'\xff', b'{"x":NaN}', b'{"x":Infinity}', b'{"x":-Infinity}']:
+            with self.subTest(raw=raw):
+                self.stat.st_size=len(raw)
+                self.reject(raw=raw,digest=self.publication._sha_bytes(raw))
+
+    def test_duplicate_top_level_and_nested_fields_rejected(self):
+        import json
+        raw=json.dumps(self.value).encode()
+        variants=[raw.replace(b'"version": 1',b'"version": 1, "version": 1'),
+                  raw.replace(b'"verdict": "PASS"',b'"verdict": "PASS", "verdict": "PASS"')]
+        for payload in variants:
+            with self.subTest(size=len(payload)):
+                self.assertNotEqual(payload,raw)
+                self.stat.st_size=len(payload)
+                self.reject(raw=payload,digest=self.publication._sha_bytes(payload))
+
+    def test_wrong_evidence_schema_rejected(self):
+        payload=b'{"kind":"not-legacy-evidence"}'
+        self.stat.st_size=len(payload)
+        self.reject(raw=payload,digest=self.publication._sha_bytes(payload))
+
+    def test_file_read_error_closes_all_descriptors(self):
+        from unittest.mock import patch
+        with patch.object(self.publication.os,'open',side_effect=[10,11,12]), \
+             patch.object(self.publication.os,'fstat',side_effect=[self.directory,self.directory,self.stat]), \
+             patch.object(self.publication.os,'read',side_effect=OSError('private value')), \
+             patch.object(self.publication.os,'close') as closed:
+            with self.assertRaisesRegex(self.publication.PublicationError,'^LEGACY_COMMON_CONFIG_EVIDENCE_FILE_INVALID$'):
+                self.publication._legacy_common_config_evidence_snapshot(self.root,self.path,self.digest)
+            self.assertEqual([x.args[0] for x in closed.call_args_list],[12,11,10])
+
+    def test_hash_match_is_not_a_review_or_bind_permission(self):
+        result=self.call()
+        self.assertNotIn('reviewer_independence_verified',result)
+        self.assertNotIn('authority',result)
+        self.assertNotIn('anchor_close_receipt_valid',result)
+
+    def test_error_message_contains_no_input_or_file_content(self):
+        raw=b'PRIVATE_SENTINEL_0955'
+        self.stat.st_size=len(raw)
+        try:
+            self.call(raw=raw,digest=self.publication._sha_bytes(raw))
+        except self.publication.PublicationError as exc:
+            self.assertNotIn('PRIVATE_SENTINEL',str(exc))
+            self.assertNotIn(self.path,str(exc))
+        else:
+            self.fail('Invalid private content accepted')
+
+
+
+
+class LegacyCommonConfigRedactedReceiptTests(unittest.TestCase):
+    """Pure receipt compatibility; no Git, filesystem or runtime authority."""
+
+    def setUp(self):
+        import copy
+        import task_publication as publication
+        self.copy, self.p = copy.deepcopy, publication
+        fixture = LegacyCommonConfigEvidenceIdentityTests()
+        fixture.setUp()
+        reference = {"path": "/control/logs/A/approved.json", "sha256": "1" * 64}
+        authority = {"current": {"evidence": reference, "identity": fixture.value,
+                                "anchor_created_at": fixture.observed["anchor_created_at"]}, "history": []}
+        self.checkpoint = publication._legacy_common_config_close_checkpoint(
+            fixture.value, fixture.observed, reference, authority)
+        prior = {"core.hooksPath": {"present": False, "values": []},
+                 "remote.origin.pushurl": {"present": True, "values": ["OLD_SECRET_A", "OLD_SECRET_B"]}}
+        installed = {"core.hooksPath": {"present": True, "values": ["INSTALLED_SECRET"]},
+                     "remote.origin.pushurl": {"present": True, "values": ["NEW_SECRET"]}}
+        self.anchor = {"registration_id": fixture.value["target_registration_id"], "state": "CLOSED",
+                       "created_at": "2026-10-01T00:00:00Z", "updated_at": "2026-10-07T11:00:00Z",
+                       "core": {"prior_config": prior},
+                       "installed_config": dict(installed, owned_keys=list(installed)),
+                       "legacy_common_config_authority": authority}
+        self.ordinary = {"kind": "octoport.task-publication-close", "version": 1,
+                         "registration_id": self.anchor["registration_id"], "state_before": "REVOKED",
+                         "before": self.copy(installed), "installed": self.copy(installed), "final": self.copy(prior),
+                         "worktree_config_sha256_after": "2" * 64, "created_at": "2026-10-07T10:59:00Z"}
+
+    def make(self):
+        return self.p._legacy_common_config_redacted_close_receipt(
+            self.anchor, self.ordinary, self.checkpoint)
+
+    def validate(self, receipt):
+        return self.p._legacy_common_config_validate_close_receipt(self.anchor, receipt)
+
+    def test_new_format_is_readable_without_raw_config_values(self):
+        receipt = self.make()
+        self.assertEqual(receipt["version"], 2)
+        self.validate(receipt)
+        text = json.dumps(receipt)
+        for secret in ["OLD_SECRET_A", "OLD_SECRET_B", "INSTALLED_SECRET", "NEW_SECRET", "synthetic reviewer A"]:
+            self.assertNotIn(secret, text)
+        self.assertNotIn("before", receipt)
+        self.assertNotIn("installed", receipt)
+        self.assertNotIn("final", receipt)
+
+    def test_ordinary_receipt_stays_readable(self):
+        self.validate(self.ordinary)
+        self.anchor.pop("legacy_common_config_authority")
+        self.validate(self.ordinary)
+
+    def test_serialization_is_detached_and_deterministic(self):
+        before = self.copy((self.anchor, self.ordinary, self.checkpoint))
+        one, two = self.make(), self.make()
+        self.assertEqual(one, two)
+        one["legacy_checkpoint"]["evidence"]["path"] = "/changed"
+        self.assertEqual(before, (self.anchor, self.ordinary, self.checkpoint))
+        self.assertNotEqual(one, two)
+
+    def test_partial_restore_is_valid_in_both_formats(self):
+        self.ordinary["before"]["core.hooksPath"] = self.copy(self.ordinary["final"]["core.hooksPath"])
+        self.validate(self.ordinary)
+        self.validate(self.make())
+
+    def test_config_order_absent_and_empty_remain_distinct(self):
+        self.ordinary["final"]["remote.origin.pushurl"]["values"].reverse()
+        with self.assertRaises(self.p.PublicationError): self.validate(self.ordinary)
+        self.ordinary["final"] = self.copy(self.anchor["core"]["prior_config"])
+        self.ordinary["final"]["core.hooksPath"] = {"present": True, "values": []}
+        with self.assertRaises(self.p.PublicationError): self.make()
+
+    def test_invalid_ordinary_config_is_not_hidden_by_hashing(self):
+        for stage in ("before", "installed", "final"):
+            for bad in ({"present": False, "values": ["NOT_ABSENT"]}, {"present": 1, "values": []},
+                        {"present": True, "values": "not-list"}, {"present": True, "values": [], "extra": 1}):
+                with self.subTest(stage=stage, bad=bad):
+                    original = self.copy(self.ordinary)
+                    self.ordinary[stage]["core.hooksPath"] = bad
+                    with self.assertRaises(self.p.PublicationError): self.make()
+                    self.ordinary = original
+
+    def test_wrong_hashes_and_hash_maps_reject(self):
+        for stage in ("before", "installed", "final"):
+            for replacement in ("f" * 64, True, None, "invalid"):
+                with self.subTest(stage=stage, replacement=replacement):
+                    receipt = self.make()
+                    receipt["config_sha256"][stage]["core.hooksPath"] = replacement
+                    with self.assertRaises(self.p.PublicationError): self.validate(receipt)
+        for key in ("extra", "missing"):
+            receipt = self.make()
+            if key == "extra": receipt["config_sha256"]["final"]["foreign"] = "f" * 64
+            else: receipt["config_sha256"].pop("before")
+            with self.assertRaises(self.p.PublicationError): self.validate(receipt)
+
+    def test_versions_and_identity_are_exact(self):
+        for version in (True, False, 0, 3, "2", 2.0):
+            with self.subTest(version=version):
+                receipt = self.make(); receipt["version"] = version
+                with self.assertRaises(self.p.PublicationError): self.validate(receipt)
+        for key, value in (("kind", "foreign"), ("registration_id", "f" * 64),
+                           ("state_before", "READY"), ("state_before", []),
+                           ("worktree_config_sha256_after", "not-a-hash")):
+            receipt = self.make(); receipt[key] = value
+            with self.assertRaises(self.p.PublicationError): self.validate(receipt)
+
+    def test_mixed_or_extra_receipt_fields_reject(self):
+        for key in ("before", "installed", "final", "extra"):
+            receipt = self.make(); receipt[key] = {}
+            with self.assertRaises(self.p.PublicationError): self.validate(receipt)
+        receipt = self.make(); receipt.pop("legacy_checkpoint")
+        with self.assertRaises(self.p.PublicationError): self.validate(receipt)
+
+    def test_time_order_and_timezone_are_preserved(self):
+        for value in (None, True, "2026-10-07T10:00:00", "2026-09-01T00:00:00Z", "2026-11-01T00:00:00Z"):
+            for version in (1, 2):
+                with self.subTest(value=value, version=version):
+                    receipt = self.copy(self.ordinary) if version == 1 else self.make()
+                    receipt["created_at"] = value
+                    with self.assertRaises(self.p.PublicationError): self.validate(receipt)
+
+    def test_frozen_checkpoint_drift_rejects(self):
+        for key in self.checkpoint:
+            receipt = self.make(); receipt["legacy_checkpoint"][key] = None
+            with self.subTest(key=key):
+                with self.assertRaises(self.p.PublicationError): self.validate(receipt)
+        receipt = self.make(); receipt["legacy_checkpoint"]["version"] = True
+        with self.assertRaises(self.p.PublicationError): self.validate(receipt)
+        receipt = self.make(); receipt["legacy_checkpoint"]["extra"] = "injected"
+        with self.assertRaises(self.p.PublicationError): self.validate(receipt)
+
+    def test_authority_and_full_history_are_bound(self):
+        receipt = self.make()
+        authority = self.anchor["legacy_common_config_authority"]
+        authority["history"].append(self.copy(authority["current"]))
+        with self.assertRaises(self.p.PublicationError): self.validate(receipt)
+        authority["history"].clear()
+        authority["current"]["identity"]["review"]["reviewer_identity"] = "other reviewer"
+        with self.assertRaises(self.p.PublicationError): self.validate(receipt)
+
+    def test_missing_or_wrong_authority_cannot_accept_v2(self):
+        receipt = self.make()
+        for bad in (None, {}, {"current": {}, "history": []}, {"current": {}, "history": False}):
+            self.anchor["legacy_common_config_authority"] = bad
+            with self.assertRaises(self.p.PublicationError): self.validate(receipt)
+
+    def test_error_does_not_echo_raw_configuration(self):
+        self.ordinary["final"]["core.hooksPath"] = {"present": True, "values": ["DO_NOT_ECHO_SECRET"]}
+        with self.assertRaises(self.p.PublicationError) as error: self.make()
+        self.assertNotIn("DO_NOT_ECHO_SECRET", str(error.exception))
+
+    def test_encoder_has_no_filesystem_or_state_effects(self):
+        from unittest.mock import patch
+        with patch("builtins.open", side_effect=AssertionError("unexpected filesystem")), \
+                patch.object(self.p, "_state_transition", side_effect=AssertionError("unexpected state write")):
+            self.validate(self.make())
+
+
 if __name__ == "__main__":
     unittest.main()
+
+
+class LegacyCommonConfigCloseConstructionTests(unittest.TestCase):
+    """Creation before CLOSED and archival verification are different phases."""
+
+    def setUp(self):
+        import copy
+        from unittest import mock
+        from datetime import datetime, timezone
+        fixture = LegacyCommonConfigRedactedReceiptTests()
+        fixture.setUp()
+        self.copy, self.p, self.mock = copy.deepcopy, fixture.p, mock
+        self.registration = self.copy(fixture.anchor)
+        self.registration['state'] = 'REVOKED'
+        self.registration['updated_at'] = '2026-10-07T09:00:00Z'
+        self.before = self.copy(fixture.ordinary['before'])
+        self.after = self.copy(fixture.ordinary['final'])
+        self.checkpoint = self.copy(fixture.checkpoint)
+        self.digest = fixture.ordinary['worktree_config_sha256_after']
+        self.instant = datetime(2026, 10, 7, 12, 0, 0, 654321, tzinfo=timezone.utc).timestamp()
+        clock = mock.patch.object(self.p.time, 'time', return_value=self.instant)
+        clock.start()
+        self.addCleanup(clock.stop)
+
+    def construct(self):
+        return self.p._legacy_common_config_construct_close_receipt(
+            self.registration, self.before, self.after, self.digest, self.checkpoint)
+
+    def archive(self, receipt):
+        closed = self.copy(self.registration)
+        closed['state'] = 'CLOSED'
+        closed['updated_at'] = receipt['created_at']
+        self.p._legacy_common_config_validate_close_receipt(closed, receipt)
+
+    def test_receipt_can_be_created_before_closed_state_is_recorded(self):
+        receipt = self.construct()
+        self.assertEqual(receipt['version'], 2)
+        self.assertEqual(receipt['created_at'], '2026-10-07T12:00:00Z')
+        self.assertEqual(self.registration['updated_at'], '2026-10-07T09:00:00Z')
+        self.assertEqual(self.registration['state'], 'REVOKED')
+        with self.assertRaises(self.p.PublicationError):
+            self.p._legacy_common_config_validate_close_receipt(self.registration, receipt)
+        self.archive(receipt)
+
+    def test_inputs_and_registration_timestamps_are_never_rewritten(self):
+        original = self.copy((self.registration, self.before, self.after, self.checkpoint))
+        self.construct()
+        self.assertEqual(original, (self.registration, self.before, self.after, self.checkpoint))
+
+    def test_all_existing_close_prestates_are_observations_only(self):
+        for state in ('PUBLISHED', 'REVOKED', 'FAILED'):
+            with self.subTest(state=state):
+                self.registration['state'] = state
+                receipt = self.construct()
+                self.assertEqual(receipt['state_before'], state)
+                self.archive(receipt)
+
+    def test_invalid_or_already_closed_state_is_rejected(self):
+        for state in ('CLOSED', 'READY', 'REGISTERED', 'TASK_REF_PUBLISHED', None, True):
+            with self.subTest(state=state):
+                self.registration['state'] = state
+                with self.assertRaises(self.p.PublicationError):
+                    self.construct()
+
+    def test_clock_before_last_registration_update_is_rejected(self):
+        self.registration['updated_at'] = '2026-10-07T12:00:01Z'
+        with self.assertRaises(self.p.PublicationError):
+            self.construct()
+
+    def test_reversed_registration_times_are_rejected(self):
+        self.registration['created_at'] = '2026-10-07T10:00:00Z'
+        with self.assertRaises(self.p.PublicationError):
+            self.construct()
+
+    def test_bad_or_naive_registration_timestamp_is_rejected(self):
+        for key in ('created_at', 'updated_at'):
+            original = self.registration[key]
+            for value in ('bad time', '2026-10-07T08:00:00', True, None):
+                with self.subTest(key=key, value=value):
+                    self.registration[key] = value
+                    with self.assertRaises(self.p.PublicationError):
+                        self.construct()
+            self.registration[key] = original
+
+    def test_missing_registration_timestamp_is_rejected(self):
+        self.registration.pop('updated_at')
+        with self.assertRaises(self.p.PublicationError):
+            self.construct()
+
+    def test_clock_failure_is_sanitized_and_has_no_mutation(self):
+        with self.mock.patch.object(self.p.time, 'time', side_effect=OSError('private-clock-detail')):
+            with self.assertRaises(self.p.PublicationError) as raised:
+                self.construct()
+        self.assertNotIn('private-clock-detail', str(raised.exception))
+
+    def test_future_receipt_is_still_rejected_by_archived_validator(self):
+        receipt = self.construct()
+        closed = self.copy(self.registration)
+        closed['state'] = 'CLOSED'
+        closed['updated_at'] = '2026-10-07T11:59:59Z'
+        with self.assertRaises(self.p.PublicationError):
+            self.p._legacy_common_config_validate_close_receipt(closed, receipt)
+
+    def test_original_archived_converter_keeps_its_time_boundary(self):
+        ordinary = {'kind': 'octoport.task-publication-close', 'version': 1,
+                    'registration_id': self.registration['registration_id'], 'state_before': 'REVOKED',
+                    'before': self.before, 'installed': self.before, 'final': self.after,
+                    'worktree_config_sha256_after': self.digest, 'created_at': '2026-10-07T12:00:00Z'}
+        with self.assertRaises(self.p.PublicationError):
+            self.p._legacy_common_config_redacted_close_receipt(self.registration, ordinary, self.checkpoint)
+
+    def test_partial_restore_is_compatible(self):
+        self.before['core.hooksPath'] = self.copy(self.after['core.hooksPath'])
+        self.archive(self.construct())
+
+    def test_unrestored_final_config_is_rejected_without_values_in_error(self):
+        self.after['remote.origin.pushurl']['values'] = ['PRIVATE_UNRESTORED_VALUE']
+        with self.assertRaises(self.p.PublicationError) as raised:
+            self.construct()
+        self.assertNotIn('PRIVATE_UNRESTORED_VALUE', str(raised.exception))
+
+    def test_foreign_before_config_is_rejected(self):
+        self.before['core.hooksPath']['values'] = ['foreign']
+        with self.assertRaises(self.p.PublicationError):
+            self.construct()
+
+    def test_invalid_config_digest_is_rejected(self):
+        self.digest = 'not a digest'
+        with self.assertRaises(self.p.PublicationError):
+            self.construct()
+
+    def test_checkpoint_drift_is_rejected(self):
+        self.checkpoint['authority_sha256'] = '9' * 64
+        with self.assertRaises(self.p.PublicationError):
+            self.construct()
+
+    def test_missing_authority_is_rejected(self):
+        self.registration.pop('legacy_common_config_authority')
+        with self.assertRaises(self.p.PublicationError):
+            self.construct()
+
+    def test_output_contains_no_configuration_or_reviewer_values(self):
+        raw = json.dumps(self.construct())
+        for forbidden in ('OLD_SECRET_A', 'OLD_SECRET_B', 'INSTALLED_SECRET', 'NEW_SECRET', 'synthetic reviewer A'):
+            self.assertNotIn(forbidden, raw)
+
+    def test_result_is_detached_from_all_inputs(self):
+        receipt = self.construct()
+        receipt['legacy_checkpoint']['evidence']['path'] = '/changed'
+        self.assertNotEqual(receipt['legacy_checkpoint'], self.checkpoint)
+        self.assertEqual(self.registration['updated_at'], '2026-10-07T09:00:00Z')
+
+    def test_constructor_does_not_persist_or_restore_settings(self):
+        with self.mock.patch.object(self.p, '_state_transition') as transition, \
+                self.mock.patch.object(self.p, '_create_once_json') as persist, \
+                self.mock.patch.object(self.p, '_set_config_values') as restore:
+            self.construct()
+            transition.assert_not_called()
+            persist.assert_not_called()
+            restore.assert_not_called()
+
+    def test_seconds_precision_is_compatible_with_same_second_closed_state(self):
+        receipt = self.construct()
+        self.assertNotIn('.', receipt['created_at'])
+        self.archive(receipt)
+
+
+
+class LegacyCommonConfigCurrentAuthorityObservationTests(unittest.TestCase):
+    """Current authority observation with mocked external reads; never writes."""
+
+    def setUp(self):
+        import copy
+        import subprocess
+        from unittest import mock
+        import task_publication as publication
+        fixture = LegacyCommonConfigEvidenceIdentityTests()
+        fixture.setUp()
+        self.copy, self.p, self.mock = copy.deepcopy, publication, mock
+        self.value, self.review = self.copy(fixture.value), self.copy(fixture.value["review"])
+        self.worktree = Path("/synthetic/target")
+        self.registration = {
+            "registration_id": self.value["target_registration_id"],
+            "created_at": fixture.observed["target_created_at"],
+            "core": {
+                "role": self.value["role"], "task_id": self.value["task_id"],
+                "candidate_head": self.value["candidate_sha"],
+                "candidate_tree": self.value["candidate_tree"], "base_sha": self.value["base_sha"],
+                "task_ref": self.value["task_ref"], "worktree_path": str(self.worktree),
+                "common_config_sha256": self.value["registered_common_config_sha256"],
+                "global_config_sha256": self.value["global_config_sha256"],
+                "fixed_role_config_sha256": self.copy(self.value["fixed_role_config_sha256"]),
+                "remote": "origin", "push_target": "https://github.com/example/repo.git",
+                "pushurl_override": None,
+            },
+        }
+        self.anchor = {
+            "anchor_registration_id": self.value["anchor_registration_id"],
+            "anchor_state": "CLOSED", "anchor_state_version": self.value["anchor_state_version"],
+            "anchor_state_sha256": self.value["anchor_state_sha256"],
+            "anchor_candidate_sha": self.value["anchor_candidate_sha"],
+            "anchor_created_at": fixture.observed["anchor_created_at"],
+            "anchor_close_receipt_sha256": self.value["anchor_close_receipt_sha256"],
+            "anchor_close_receipt_valid": True,
+            "anchor_common_config_sha256": self.value["current_common_config_sha256"],
+            "anchor_global_config_sha256": self.value["global_config_sha256"],
+            "anchor_fixed_role_config_sha256": self.copy(self.value["fixed_role_config_sha256"]),
+        }
+
+
+
+class LegacyCommonConfigCurrentAuthorityObservationTests(unittest.TestCase):
+    """Current authority observation with mocked external reads; never writes."""
+
+    def setUp(self):
+        import copy
+        import subprocess
+        from unittest import mock
+        import task_publication as publication
+        fixture = LegacyCommonConfigEvidenceIdentityTests()
+        fixture.setUp()
+        self.copy, self.p, self.mock = copy.deepcopy, publication, mock
+        self.value, self.review = self.copy(fixture.value), self.copy(fixture.value["review"])
+        self.worktree = Path("/synthetic/target")
+        self.registration = {
+            "registration_id": self.value["target_registration_id"],
+            "created_at": fixture.observed["target_created_at"],
+            "core": {
+                "role": self.value["role"], "task_id": self.value["task_id"],
+                "candidate_head": self.value["candidate_sha"],
+                "candidate_tree": self.value["candidate_tree"], "base_sha": self.value["base_sha"],
+                "task_ref": self.value["task_ref"], "worktree_path": str(self.worktree),
+                "common_config_sha256": self.value["registered_common_config_sha256"],
+                "global_config_sha256": self.value["global_config_sha256"],
+                "fixed_role_config_sha256": self.copy(self.value["fixed_role_config_sha256"]),
+                "remote": "origin", "push_target": "https://github.com/example/repo.git",
+                "pushurl_override": None,
+            },
+        }
+        self.anchor = {
+            "anchor_registration_id": self.value["anchor_registration_id"],
+            "anchor_state": "CLOSED", "anchor_state_version": self.value["anchor_state_version"],
+            "anchor_state_sha256": self.value["anchor_state_sha256"],
+            "anchor_candidate_sha": self.value["anchor_candidate_sha"],
+            "anchor_created_at": fixture.observed["anchor_created_at"],
+            "anchor_close_receipt_sha256": self.value["anchor_close_receipt_sha256"],
+            "anchor_close_receipt_valid": True,
+            "anchor_common_config_sha256": self.value["current_common_config_sha256"],
+            "anchor_global_config_sha256": self.value["global_config_sha256"],
+            "anchor_fixed_role_config_sha256": self.copy(self.value["fixed_role_config_sha256"]),
+        }
+
+        def patch(name, **kwargs):
+            manager = mock.patch.object(self.p, name, autospec=True, **kwargs)
+            value = manager.start(); self.addCleanup(manager.stop); return value
+        self.common = patch("_common_config_digest", return_value=self.value["current_common_config_sha256"])
+        self.global_digest = patch("_global_config_digest", return_value=self.value["global_config_sha256"])
+        self.fixed = patch("_fixed_role_config_digests", return_value=self.copy(self.value["fixed_role_config_sha256"]))
+        self.ownership = patch("_ownership", return_value=({"roles": {}}, "policy"))
+        self.matcher = patch("_common_config_matches_registered", return_value=False)
+        self.remote_main = patch("_authority_remote_oid_target", return_value=self.value["current_main_sha"])
+        self.process = mock.patch.object(
+            self.p.subprocess, "run", autospec=True,
+            return_value=subprocess.CompletedProcess([], 0, "", "")
+        )
+        self.run = self.process.start(); self.addCleanup(self.process.stop)
+        hashes = self.p._legacy_common_config_transport_hashes(self.registration["core"])
+        self.value.update(hashes)
+        self.anchor.update({
+            "anchor_remote_identity_sha256": hashes["remote_identity_sha256"],
+            "anchor_push_identity_sha256": hashes["push_identity_sha256"],
+            "anchor_pushurl_identity_sha256": hashes["pushurl_identity_sha256"],
+        })
+
+    def observe(self):
+        return self.p._legacy_common_config_current_observation(
+            Path("/control"), self.registration, self.value, self.anchor, self.review)
+
+    def reject(self, code):
+        with self.assertRaisesRegex(self.p.PublicationError, "^" + code + "$"):
+            self.observe()
+
+    def test_success_is_complete_detached_observation(self):
+        result = self.observe()
+        self.assertEqual(result["review"], self.review)
+        self.assertTrue(result["reviewer_independence_verified"])
+        self.assertEqual(result["current_main_sha"], self.value["current_main_sha"])
+        self.assertTrue(result["anchor_is_ancestor_of_main"])
+        result["review"]["reviewer_identity"] = "changed result"
+        self.assertNotEqual(result["review"], self.review)
+
+    def test_same_role_reviewer_is_not_independent(self):
+        self.review["reviewer_role"] = self.registration["core"]["role"]
+        self.value["review"] = self.copy(self.review)
+        self.reject("LEGACY_COMMON_CONFIG_REVIEW_NOT_INDEPENDENT")
+
+    def test_observed_reviewer_must_match_evidence(self):
+        self.review["reviewer_identity"] = "different observed reviewer"
+        self.reject("LEGACY_COMMON_CONFIG_IDENTITY_MISMATCH")
+
+    def test_target_core_identity_drift_is_rejected(self):
+        self.registration["core"]["candidate_head"] = "9" * 40
+        self.reject("LEGACY_COMMON_CONFIG_TARGET_IDENTITY_MISMATCH")
+
+    def test_current_common_global_and_fixed_drift_fail_closed(self):
+        for mocker, bad in [
+            (self.common, "8" * 64),
+            (self.global_digest, "8" * 64),
+            (self.fixed, {role: "8" * 64 for role in "ABC"}),
+        ]:
+            with self.subTest(mocker=mocker):
+                original = mocker.return_value
+                mocker.return_value = bad
+                self.reject("LEGACY_COMMON_CONFIG_CURRENT_AUTHORITY_MISMATCH")
+                mocker.return_value = original
+
+    def test_ordinary_match_means_bridge_is_not_required(self):
+        self.matcher.return_value = True
+        self.reject("LEGACY_COMMON_CONFIG_BRIDGE_NOT_REQUIRED")
+
+    def test_remote_main_must_be_exact_nonzero_evidence_value(self):
+        self.remote_main.return_value = "8" * 40
+        self.reject("LEGACY_COMMON_CONFIG_CURRENT_MAIN_MISMATCH")
+        self.remote_main.return_value = self.p.ZERO_OID
+        self.reject("LEGACY_COMMON_CONFIG_CURRENT_MAIN_MISMATCH")
+
+    def test_anchor_transport_must_match_target_transport(self):
+        self.anchor["anchor_push_identity_sha256"] = "8" * 64
+        self.reject("LEGACY_COMMON_CONFIG_ANCHOR_TRANSPORT_MISMATCH")
+
+    def test_anchor_lineage_must_be_proven(self):
+        import subprocess
+        self.run.return_value = subprocess.CompletedProcess([], 1, "", "")
+        self.reject("LEGACY_COMMON_CONFIG_ANCHOR_LINEAGE_UNVERIFIED")
+        self.run.return_value = subprocess.CompletedProcess([], 128, "", "private error")
+        self.reject("LEGACY_COMMON_CONFIG_ANCHOR_LINEAGE_UNVERIFIED")
+
+    def test_observer_never_writes_state_or_config(self):
+        with self.mock.patch.object(self.p, "_state_transition") as state, \
+                self.mock.patch.object(self.p, "_set_config_values") as config:
+            self.observe()
+            state.assert_not_called()
+            config.assert_not_called()
+
+
+class LegacyCommonConfigJournalApplyTests(unittest.TestCase):
+    """Registration-journal CAS application only; no authority observation or live I/O."""
+
+    def setUp(self):
+        import copy
+        from contextlib import nullcontext
+        from unittest import mock
+        import task_publication as publication
+        fixture = LegacyCommonConfigBindingTransitionTests()
+        fixture.setUp()
+        initial = fixture.transition()["authority"]
+        self.copy, self.p, self.mock = copy.deepcopy, publication, mock
+        self.registration_id = fixture.value["target_registration_id"]
+        self.current = {
+            "registration_id": self.registration_id,
+            "registration_sha256": self.registration_id,
+            "state": "REVOKED",
+            "state_version": 7,
+            "core": {"role": "B"},
+            "legacy_common_config_authority": self.copy(initial),
+        }
+        fixture.authority = self.copy(initial)
+        fixture.next_epoch()
+        self.next_authority = fixture.transition()["authority"]
+        self.transition = {"changed": True, "authority": self.copy(self.next_authority)}
+        self.read = mock.patch.object(
+            self.p, "_read_registration",
+            return_value=(self.copy(self.current), "f" * 64)
+        ).start()
+        self.addCleanup(mock.patch.stopall)
+        self.locks = mock.patch.object(
+            self.p, "_role_and_coord_locks", return_value=nullcontext()
+        ).start()
+        self.writer = mock.patch.object(
+            self.p, "_state_transition",
+            return_value=dict(self.current, state_version=8,
+                              legacy_common_config_authority=self.copy(self.next_authority))
+        ).start()
+        self.set_config = mock.patch.object(self.p, "_set_config_values").start()
+
+    _DEFAULT_RESULT = object()
+
+    def apply(self, *, expected_version=7, expected_state="REVOKED",
+              result=_DEFAULT_RESULT):
+        return self.p._legacy_common_config_apply_binding_transition(
+            Path("/control"), self.registration_id, expected_state,
+            expected_version,
+            self.transition if result is self._DEFAULT_RESULT else result)
+
+    def reject(self, code, **kwargs):
+        with self.assertRaisesRegex(self.p.PublicationError, "^" + code + "$"):
+            self.apply(**kwargs)
+        self.writer.assert_not_called()
+        self.set_config.assert_not_called()
+
+    def test_changed_transition_uses_same_state_and_exact_version_cas(self):
+        result = self.apply()
+        self.writer.assert_called_once()
+        args = self.writer.call_args.args
+        kwargs = self.writer.call_args.kwargs
+        self.assertEqual(args[1], self.registration_id)
+        self.assertEqual(args[2], {"REVOKED"})
+        self.assertEqual(args[3], "REVOKED")
+        self.assertEqual(args[4], {"legacy_common_config_authority": self.next_authority})
+        self.assertEqual(kwargs["expected_version"], 7)
+        self.assertEqual(result["state_version"], 8)
+        self.set_config.assert_not_called()
+
+    def test_exact_replay_returns_current_bytes_without_state_write(self):
+        result = self.apply(result={
+            "changed": False,
+            "authority": self.copy(self.current["legacy_common_config_authority"]),
+        })
+        self.writer.assert_not_called()
+        self.assertEqual(result, self.current)
+        result["legacy_common_config_authority"]["history"].append({})
+        self.assertEqual(self.current["legacy_common_config_authority"]["history"], [])
+
+    def test_replay_authority_drift_is_rejected(self):
+        bad = self.copy(self.current["legacy_common_config_authority"])
+        bad["current"]["anchor_created_at"] = "2026-10-09T00:00:00Z"
+        self.reject("LEGACY_COMMON_CONFIG_BIND_REPLAY_DRIFT",
+                    result={"changed": False, "authority": bad})
+
+    def test_state_or_version_drift_fails_before_writer(self):
+        self.reject("LEGACY_COMMON_CONFIG_BIND_CAS_DRIFT", expected_state="FAILED")
+        self.reject("LEGACY_COMMON_CONFIG_BIND_CAS_DRIFT", expected_version=8)
+
+    def test_malformed_transition_is_rejected(self):
+        for bad in (None, {}, {"changed": True}, {"changed": "yes", "authority": {}}):
+            with self.subTest(bad=bad):
+                self.reject("LEGACY_COMMON_CONFIG_BIND_TRANSITION_INVALID", result=bad)
+
+    def test_initial_binding_must_start_with_empty_history(self):
+        record = self.copy(self.current)
+        record.pop("legacy_common_config_authority")
+        self.read.return_value = (record, "f" * 64)
+        bad = self.copy(self.next_authority)
+        bad["history"] = [self.copy(bad["current"])]
+        self.reject("LEGACY_COMMON_CONFIG_BIND_JOURNAL_INVALID",
+                    result={"changed": True, "authority": bad})
+
+    def test_rebind_must_append_previous_current_verbatim(self):
+        bad = self.copy(self.next_authority)
+        bad["history"][0]["anchor_created_at"] = "2026-10-09T00:00:00Z"
+        self.reject("LEGACY_COMMON_CONFIG_BIND_JOURNAL_INVALID",
+                    result={"changed": True, "authority": bad})
+
+    def test_every_binding_must_target_same_registration(self):
+        bad = self.copy(self.next_authority)
+        bad["current"]["identity"]["target_registration_id"] = "9" * 64
+        bad["current"]["identity"]["target_core_sha256"] = "9" * 64
+        self.reject("LEGACY_COMMON_CONFIG_BIND_JOURNAL_INVALID",
+                    result={"changed": True, "authority": bad})
+
+    def test_writer_never_mutates_config_or_remote(self):
+        remote = self.mock.patch.object(self.p, "_supersede_remote_state").start()
+        main = self.mock.patch.object(self.p, "_authority_remote_oid_target").start()
+        self.apply()
+        self.set_config.assert_not_called()
+        remote.assert_not_called()
+        main.assert_not_called()
+
+
+    def test_registration_identity_mismatch_fails_before_writer(self):
+        bad = self.copy(self.current)
+        bad["registration_sha256"] = "8" * 64
+        self.read.return_value = (bad, "f" * 64)
+        self.reject("LEGACY_COMMON_CONFIG_BIND_CAS_DRIFT")
+
+    def test_rebind_stable_identity_drift_is_rejected(self):
+        bad = self.copy(self.next_authority)
+        bad["current"]["identity"]["global_config_sha256"] = "8" * 64
+        self.reject("LEGACY_COMMON_CONFIG_BIND_JOURNAL_INVALID",
+                    result={"changed": True, "authority": bad})
+
+    def test_invalid_evidence_reference_is_rejected(self):
+        bad = self.copy(self.next_authority)
+        bad["current"]["evidence"]["path"] = "/control/../escape.json"
+        self.reject("LEGACY_COMMON_CONFIG_BIND_JOURNAL_INVALID",
+                    result={"changed": True, "authority": bad})
+
+    def test_changed_true_cannot_rewrite_same_current(self):
+        bad = self.copy(self.current["legacy_common_config_authority"])
+        bad["history"] = [self.copy(bad["current"])]
+        self.reject("LEGACY_COMMON_CONFIG_BIND_JOURNAL_INVALID",
+                    result={"changed": True, "authority": bad})
+
+
+class LegacyCommonConfigBindOrchestrationTests(unittest.TestCase):
+    """One-lock bind orchestration with mocked observers; no live authority."""
+
+    def setUp(self):
+        import copy
+        from contextlib import contextmanager
+        from unittest import mock
+        import task_publication as publication
+        fixture = LegacyCommonConfigBindingTransitionTests()
+        fixture.setUp()
+        self.copy, self.p, self.mock = copy.deepcopy, publication, mock
+        self.registration_id = fixture.value["target_registration_id"]
+        self.evidence = self.copy(fixture.value)
+        self.review_observation = self.copy(fixture.value["review"])
+        self.reference = {"path": "/control/logs/reviewed-evidence.json", "sha256": "6" * 64}
+        self.registration = {
+            "registration_id": self.registration_id,
+            "registration_sha256": self.registration_id,
+            "state": "TASK_REF_PUBLISHED",
+            "state_version": 4,
+            "core": {"role": "B"},
+        }
+        self.anchor = {"anchor_registration_id": self.evidence["anchor_registration_id"]}
+        self.observed = self.copy(fixture.observed)
+        self.facts = self.copy(fixture.facts)
+        self.planned = fixture.transition()
+        self.result = dict(self.registration, state_version=5,
+                           legacy_common_config_authority=self.copy(self.planned["authority"]))
+        self.lock_active = False
+
+        @contextmanager
+        def locks(root, role):
+            self.assertFalse(self.lock_active)
+            self.lock_active = True
+            try:
+                yield
+            finally:
+                self.lock_active = False
+
+        self.locks = mock.patch.object(self.p, "_role_and_coord_locks", side_effect=locks).start()
+        self.addCleanup(mock.patch.stopall)
+        self.read = mock.patch.object(
+            self.p, "_read_registration",
+            return_value=(self.copy(self.registration), "f" * 64)
+        ).start()
+
+        def inside(value):
+            def effect(*args, **kwargs):
+                self.assertTrue(self.lock_active)
+                return self.copy(value)
+            return effect
+
+        self.snapshot = mock.patch.object(
+            self.p, "_legacy_common_config_evidence_snapshot",
+            side_effect=inside({"reference": self.reference, "evidence": self.evidence})
+        ).start()
+        self.anchor_read = mock.patch.object(
+            self.p, "_legacy_common_config_anchor_snapshot",
+            side_effect=inside(self.anchor)
+        ).start()
+        self.current = mock.patch.object(
+            self.p, "_legacy_common_config_current_observation",
+            side_effect=inside(self.observed)
+        ).start()
+        self.target = mock.patch.object(
+            self.p, "_legacy_common_config_target_facts",
+            side_effect=inside(self.facts)
+        ).start()
+        self.transition = mock.patch.object(
+            self.p, "_legacy_common_config_binding_transition",
+            side_effect=inside(self.planned)
+        ).start()
+
+        def writer_effect(*args, **kwargs):
+            self.assertTrue(self.lock_active)
+            return self.copy(self.result)
+        self.writer = mock.patch.object(
+            self.p, "_legacy_common_config_apply_binding_transition_locked",
+            side_effect=writer_effect
+        ).start()
+
+    def bind(self):
+        return self.p.bind_legacy_common_config_authority(
+            Path("/control"), self.registration_id,
+            self.reference["path"], self.reference["sha256"],
+            self.review_observation)
+
+    def test_all_observation_and_write_steps_share_one_lock(self):
+        result = self.bind()
+        self.assertEqual(result, self.result)
+        self.locks.assert_called_once()
+        self.snapshot.assert_called_once()
+        self.anchor_read.assert_called_once()
+        self.current.assert_called_once()
+        self.target.assert_called_once()
+        self.transition.assert_called_once()
+        self.writer.assert_called_once()
+        self.assertFalse(self.lock_active)
+
+    def test_transition_receives_current_journal_and_fresh_facts(self):
+        self.registration["legacy_common_config_authority"] = {"current": {}, "history": []}
+        self.read.return_value = (self.copy(self.registration), "f" * 64)
+        self.bind()
+        args = self.transition.call_args.args
+        self.assertEqual(args[0], self.evidence)
+        self.assertEqual(args[1], self.observed)
+        self.assertEqual(args[2], self.reference)
+        self.assertEqual(args[3], self.registration["legacy_common_config_authority"])
+        self.assertEqual(args[4], self.facts)
+
+    def test_reviewer_observation_is_not_invented_by_orchestrator(self):
+        self.evidence["review"]["reviewer_identity"] = "untrusted evidence-only change"
+        self.bind()
+        args = self.current.call_args.args
+        self.assertEqual(args[4], self.review_observation)
+        self.assertNotEqual(args[4], self.evidence["review"])
+
+    def test_target_registration_mismatch_fails_before_anchor(self):
+        bad = self.copy(self.evidence)
+        bad["target_registration_id"] = "9" * 64
+        bad["target_core_sha256"] = "9" * 64
+        self.snapshot.side_effect = lambda *args, **kwargs: {
+            "reference": self.copy(self.reference), "evidence": bad}
+        with self.assertRaisesRegex(self.p.PublicationError,
+                                    "^LEGACY_COMMON_CONFIG_TARGET_IDENTITY_MISMATCH$"):
+            self.bind()
+        self.anchor_read.assert_not_called()
+        self.writer.assert_not_called()
+
+    def test_registration_cas_identity_is_checked_under_lock(self):
+        bad = self.copy(self.registration)
+        bad["registration_sha256"] = "9" * 64
+        self.read.return_value = (bad, "f" * 64)
+        with self.assertRaisesRegex(self.p.PublicationError,
+                                    "^LEGACY_COMMON_CONFIG_BIND_CAS_DRIFT$"):
+            self.bind()
+        self.snapshot.assert_not_called()
+        self.writer.assert_not_called()
+
+    def test_closed_registration_is_rejected_before_evidence_read(self):
+        closed = self.copy(self.registration)
+        closed["state"] = "CLOSED"
+        self.read.return_value = (closed, "f" * 64)
+        with self.assertRaisesRegex(self.p.PublicationError,
+                                    "^LEGACY_COMMON_CONFIG_BIND_STATE_INVALID$"):
+            self.bind()
+        self.snapshot.assert_not_called()
+        self.writer.assert_not_called()
+
+    def test_no_direct_ref_config_or_queue_mutator(self):
+        remote = self.mock.patch.object(self.p, "_run_supersede_send_pack").start()
+        config = self.mock.patch.object(self.p, "_set_config_values").start()
+        queue = self.mock.patch.object(self.p, "_load_board").start()
+        self.bind()
+        remote.assert_not_called()
+        config.assert_not_called()
+        queue.assert_not_called()
+
+
+class LegacyCommonConfigCloseIntegrationTests(unittest.TestCase):
+    """Mocked legacy close/crash integration; no live Git/config/remote access."""
+
+    def setUp(self):
+        import copy
+        import json as json_module
+        import tempfile
+        from unittest import mock
+        import task_publication as publication
+
+        self.copy, self.json, self.p, self.mock = copy.deepcopy, json_module, publication, mock
+        fixture = LegacyCommonConfigRedactedReceiptTests()
+        fixture.setUp()
+        self.checkpoint = self.copy(fixture.checkpoint)
+        self.registration = self.copy(fixture.anchor)
+        self.registration.update(
+            registration_sha256=self.registration["registration_id"],
+            state="REVOKED", state_version=7)
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.worktree = Path(self.temp.name) / "work"
+        self.close_root = Path(self.temp.name) / "close"
+        self.worktree.mkdir()
+        self.close_root.mkdir()
+        self.receipt = self.close_root / "receipt.json"
+        self.intent = self.close_root / "intent.json"
+        self.registration["core"].update(
+            role="B", worktree_path=str(self.worktree),
+            candidate_head="a" * 40, task_ref="refs/heads/legacy-close",
+            push_target="fixture-target")
+        self.installed = self.copy(self.registration["installed_config"])
+        self.prior = self.copy(self.registration["core"]["prior_config"])
+        self.keys = list(self.installed["owned_keys"])
+        self.values = {key: self.copy(self.installed[key]) for key in self.keys}
+
+        def context(root, registration, frozen_checkpoint=None):
+            if (frozen_checkpoint is not None
+                    and self.p._canonical_bytes(frozen_checkpoint)
+                    != self.p._canonical_bytes(self.checkpoint)):
+                raise self.p.PublicationError(
+                    "LEGACY_COMMON_CONFIG_CLOSE_CHECKPOINT_DRIFT")
+            return {"checkpoint": self.copy(self.checkpoint)}
+
+        self.context = mock.patch.object(
+            self.p, "_legacy_common_config_close_context",
+            side_effect=context).start()
+        self.ref = mock.patch.object(
+            self.p, "_legacy_common_config_ref_oid",
+            return_value=self.p.ZERO_OID).start()
+        self.clean = mock.patch.object(
+            self.p, "_legacy_common_config_worktree_clean").start()
+        self.digest = mock.patch.object(
+            self.p, "_worktree_config_digest",
+            return_value="9" * 64).start()
+        self.get_config = mock.patch.object(
+            self.p, "_config_values",
+            side_effect=lambda worktree, key: self.copy(self.values[key])).start()
+        self.set_config = mock.patch.object(
+            self.p, "_set_config_values",
+            side_effect=lambda worktree, key, value: self.values.__setitem__(
+                key, self.copy(value))).start()
+        self.transition = mock.patch.object(
+            self.p, "_state_transition",
+            side_effect=self._closed_registration).start()
+        self.addCleanup(mock.patch.stopall)
+
+    def _closed_registration(self, root, registration_id, expected_states,
+                             new_state, updates=None, expected_version=None):
+        result = self.copy(self.registration)
+        result.update(state=new_state, state_version=expected_version + 1,
+                      updated_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
+        if updates:
+            result.update(self.copy(updates))
+        return result
+
+    def close(self):
+        return self.p._legacy_common_config_close_locked(
+            Path("/control"), self.registration, self.worktree,
+            self.installed, self.prior, self.keys, self.receipt, self.intent)
+
+    def test_initial_close_writes_value_free_intent_and_v2_receipt(self):
+        result = self.close()
+        self.assertEqual(result["state"], "CLOSED")
+        intent = self.json.loads(self.intent.read_text())
+        receipt = self.json.loads(self.receipt.read_text())
+        self.assertEqual(intent["kind"], "octoport.task-publication-legacy-close-intent")
+        self.assertEqual(receipt["version"], 2)
+        rendered = self.json.dumps([intent, receipt])
+        for secret in ("OLD_SECRET_A", "OLD_SECRET_B", "INSTALLED_SECRET", "NEW_SECRET"):
+            self.assertNotIn(secret, rendered)
+        self.assertEqual(self.values, self.prior)
+        self.assertEqual(self.ref.call_count, 2)
+        self.assertEqual(self.clean.call_count, 2)
+        self.assertEqual(self.context.call_count, 2)
+
+    def test_present_task_ref_fails_before_intent_or_config_restore(self):
+        self.ref.return_value = self.registration["core"]["candidate_head"]
+        before = self.copy(self.values)
+        with self.assertRaisesRegex(
+                self.p.PublicationError,
+                "^LEGACY_COMMON_CONFIG_TASK_REF_PRESENT$"):
+            self.close()
+        self.assertEqual(self.values, before)
+        self.assertFalse(self.intent.exists())
+        self.assertFalse(self.receipt.exists())
+        self.set_config.assert_not_called()
+
+    def test_crash_after_receipt_is_recoverable_with_same_checkpoint(self):
+        self.transition.side_effect = RuntimeError("synthetic crash after receipt")
+        with self.assertRaisesRegex(RuntimeError, "synthetic crash"):
+            self.close()
+        self.assertTrue(self.intent.is_file())
+        self.assertTrue(self.receipt.is_file())
+        self.assertEqual(self.values, self.prior)
+
+        self.transition.side_effect = self._closed_registration
+        result = self.close()
+        self.assertEqual(result["state"], "CLOSED")
+        self.assertEqual(self.values, self.prior)
+        self.assertEqual(self.json.loads(self.receipt.read_text())["version"], 2)
+
+    def test_checkpoint_drift_blocks_recovery_before_config_write(self):
+        self.transition.side_effect = RuntimeError("synthetic crash after receipt")
+        with self.assertRaises(RuntimeError):
+            self.close()
+        intent = self.json.loads(self.intent.read_text())
+        intent["legacy_checkpoint"]["authority_sha256"] = "f" * 64
+        self.intent.write_text(self.json.dumps(intent, sort_keys=True))
+        self.set_config.reset_mock()
+        with self.assertRaisesRegex(
+                self.p.PublicationError,
+                "^LEGACY_COMMON_CONFIG_CLOSE_CHECKPOINT_DRIFT$"):
+            self.close()
+        self.set_config.assert_not_called()
+
+    def test_missing_legacy_authority_preserves_common_config_drift_failure(self):
+        registration = self.copy(self.registration)
+        registration.pop("legacy_common_config_authority")
+        with self.assertRaisesRegex(self.p.PublicationError, "^COMMON_CONFIG_DRIFT$"):
+            self.p._legacy_common_config_close_locked(
+                Path("/control"), registration, self.worktree,
+                self.installed, self.prior, self.keys, self.receipt, self.intent)
+
+    def test_second_authority_revalidation_failure_does_not_strand_intent(self):
+        self.context.side_effect = [
+            {"checkpoint": self.copy(self.checkpoint)},
+            self.p.PublicationError("LEGACY_COMMON_CONFIG_OBSERVATION_UNVERIFIED"),
+        ]
+        with self.assertRaisesRegex(
+                self.p.PublicationError,
+                "^LEGACY_COMMON_CONFIG_OBSERVATION_UNVERIFIED$"):
+            self.close()
+        self.assertFalse(self.intent.exists())
+        self.assertFalse(self.receipt.exists())
+        self.set_config.assert_not_called()
+
+    def test_second_ref_drift_does_not_strand_intent(self):
+        self.ref.side_effect = [
+            self.p.ZERO_OID, self.registration["core"]["candidate_head"]]
+        with self.assertRaisesRegex(
+                self.p.PublicationError,
+                "^LEGACY_COMMON_CONFIG_TASK_REF_PRESENT$"):
+            self.close()
+        self.assertFalse(self.intent.exists())
+        self.assertFalse(self.receipt.exists())
+        self.set_config.assert_not_called()
+
+    def test_second_same_key_drift_does_not_get_overwritten(self):
+        drift_key = self.keys[0]
+
+        def clean_with_late_drift(worktree):
+            if self.clean.call_count == 2:
+                self.values[drift_key] = {"present": True, "values": ["NEW_SECRET"]}
+
+        self.clean.side_effect = clean_with_late_drift
+        with self.assertRaisesRegex(
+                self.p.PublicationError,
+                "^ROUTE_CONFIG_SAME_KEY_DRIFT:" + drift_key + "$"):
+            self.close()
+        self.assertEqual(
+            self.values[drift_key], {"present": True, "values": ["NEW_SECRET"]})
+        self.assertFalse(self.intent.exists())
+        self.assertFalse(self.receipt.exists())
+        self.set_config.assert_not_called()

@@ -199,7 +199,9 @@ Each subcommand has `--help` for its exact required arguments.
    mutation. This broker performs no Git push/ref/main or product/live mutation.
 
 ## Interruption and recovery
-A TASK_REF process that exits before any remote mutation settles back to REGISTERED with CANCELLED_REMOTE_UNCHANGED; the immutable transport binding is not edited in place. If that binding itself is wrong, create normal hash-bound supersede evidence with verdict FAIL or REWORK_REQUIRED and run supersede. The REGISTERED recovery path is allowed only with that exact settlement, no armed lease, and an absent task ref; it performs no remote deletion, records ALREADY_ABSENT, transitions through REVOKED, and uses ordinary close to restore route config. A present/foreign task ref or any other prior outcome fails closed. Re-register the unchanged reviewed candidate with the corrected immutable --pushurl only after the old registration is CLOSED.
+A TASK_REF process that exits before any remote mutation settles back to REGISTERED with CANCELLED_REMOTE_UNCHANGED; the immutable transport binding is not edited in place. If that binding itself is wrong, create normal hash-bound supersede evidence with verdict FAIL or REWORK_REQUIRED and run supersede. The existing CANCELLED_REMOTE_UNCHANGED REGISTERED recovery remains unchanged: no armed lease, exact task ref absent, no remote deletion, ALREADY_ABSENT, REGISTERED to REVOKED, then ordinary close.
+
+A second fail-closed REGISTERED retirement exists only for a registration proven never to have started a push and whose immutable registered main base has since advanced. Under the existing role and coordination locks, normal supersede identity, clean-state and evidence validation must pass; nonce, lease, push and settlement fields must be null; armed, consumed and cancelled lease namespaces plus attempt and settlement stores must contain no records; the event journal must be exactly the matching initial REGISTERED v2 event. Main and the exact task ref are observed through the immutable captured push target. Unavailable or unchanged main, any history ambiguity, or any present or foreign task ref fails before state mutation. With changed main and an absent task ref, the route records a non-secret NEVER_PUBLISHED_CONFIRMED_ABSENT fact, performs no send-pack, ref or main mutation, CAS-transitions REGISTERED to REVOKED and uses ordinary close. A later close or config failure leaves truthful REVOKED evidence for the normal recovery path; no synthetic settlement is created. Each registration still requires its own accepted supersede evidence. Re-register a successor only after the old registration is CLOSED.
 
 
 The parent takes the role lock before the short coordination lock and releases
@@ -252,3 +254,91 @@ evidence identity and idempotency. Product installation has its own acceptance.
 
 
 Publication-bound completion separates evidence authority, executable authority and mutation authority. The immutable completion bundle supplies the only accepted `task_publication.py`/`control.py` runtime; committed route bytes and policy supply evidence authority; the mutation child still runs with cwd equal to the role's canonical worktree and verifies cwd/top-level/branch. Ordinary queue-task keeps the original require_location behavior.
+
+
+## Legacy close receipt v2: value-free artifact contract
+
+The R3 artifact reader accepts ordinary v1 close receipts and the value-free v2
+format. V2 retains the close identity/timestamps and stores per-key canonical
+SHA256 digests for before/installed/final configuration, plus the frozen legacy
+close checkpoint. Ordered values and absent versus present-empty stay distinct.
+The checkpoint is matched to the registration current binding and complete
+history; a hash by itself does not authenticate a reviewer or grant permission.
+
+The pure encoder validates an ordinary-shaped completed observation before
+producing v2. It does not write or rewrite receipts. The anchor observer uses
+the same strict validator for both formats while retaining descriptor-relative
+file reads, pinned file hashes and registration readback. Existing v1 artifacts
+and ordinary close behavior remain unchanged.
+
+This is an artifact-format implementation, not an operational legacy-close
+command. Trusted evidence/reviewer/config/lineage observations, under-lock
+bind/rebind, intent persistence, close recovery and full R3 acceptance are still
+required before any live legacy registration can use this format.
+
+### Artifact validation is not strict queue completion
+
+A value-free v2 receipt may be verified as an archived anchor artifact. This
+does not make it evidence for strict publication-backed queue completion:
+the current `work_queue._publication_completion_candidate` accepts only a
+version-1 close receipt whose `state_before` is `PUBLISHED`. An artifact observer
+returning `anchor_close_receipt_valid` is not a completion or publication grant.
+Do not rewrite historical v1 receipts or bypass the existing queue validator to
+finish a v2-shaped publication. A compatibility change to that separate consumer
+needs its own admitted scope and review before any operational dependence on it.
+
+The R3 v2 file regressions exercise real pinned receipt files and the existing
+anchor reader, including rehashed invalid content and readback replacement.
+They retain an explicit registration-reader test double: these tests do not
+prove the complete registration journal, independent review, current transport,
+ancestry or live close authority.
+
+
+### Construction time and archived close time
+
+`_legacy_common_config_construct_close_receipt` prepares an unpersisted v2
+receipt from the caller's before/after observations, captured route config and
+frozen checkpoint. It samples the system UTC clock itself, using the same
+whole-second precision as the journal. The registration must still be in a
+normal close prestate. Its creation and last-update timestamps must be valid,
+timezone-aware and no later than the observed time. It never rewrites those
+timestamps or records a CLOSED state to satisfy validation.
+
+Construction and archival verification share only payload/config validation.
+The existing archived validator and archived v1-to-v2 converter continue to
+require registration-created <= receipt-created <= registration-updated.
+Consequently a newly constructed receipt is not yet a valid completed archive
+against the pre-close registration. After the truthful CLOSED transition, the
+normal archived validator can check it. No caller-supplied cutoff overrides the
+archived upper bound, and a backward clock fails closed during construction.
+
+The constructor does not collect settings, authenticate review/lineage, write
+intent/receipt/state, restore configuration or authorize queue completion. The
+future locked close caller must perform those operations and retain the exact
+checkpoint through crash recovery. Ordinary close still writes v1 and the
+strict-completion boundary above is unchanged.
+
+### Legacy bind and close integration safety
+
+The R3 internal bind path keeps reviewer provenance separate from the evidence
+being bound. The bind orchestrator accepts a separately authenticated reviewer
+observation, keeps the role and coordination locks across evidence/anchor/current
+authority observation and the journal CAS, and never derives reviewer identity
+from the evidence review block alone. Until a trusted operational source for that
+reviewer observation is defined and independently reviewed, the public
+bind-legacy-common-config CLI remains intentionally unavailable.
+
+Ordinary close is unchanged when the registered common-config matcher succeeds.
+Only a matcher failure with an already persisted legacy authority enters the
+legacy close path. That path revalidates the evidence, CLOSED anchor, current
+configuration/transport/main lineage and frozen binding checkpoint, requires the
+task ref to be absent and the target worktree clean, and repeats the authority,
+ref and cleanliness checks immediately before freezing the close intent.
+
+The legacy intent stores only registration identity, state/version, canonical
+configuration digests and the frozen checkpoint; it stores no raw route config
+or reviewer values. Recovery accepts only the exact frozen checkpoint and only
+installed/prior route-config states. The resulting close receipt is v2 and is
+not strict queue-completion authority; the existing v1/PUBLISHED queue rule is
+unchanged. A crash after receipt creation may finalize the same CLOSED state
+only after exact checkpoint, receipt and restored-config revalidation.
