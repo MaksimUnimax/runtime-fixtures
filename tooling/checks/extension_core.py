@@ -38,6 +38,7 @@ def main():
         runner.run("core-provider-response-policy-differential", ["node", ROOT / "tests/regression/extension-core/provider-response-policy.mjs", ROOT])
         runner.run("core-provider-response-verifier-differential", ["node", ROOT / "tests/regression/extension-core/provider-response-verifier.mjs", ROOT])
         runner.run("core-provider-response-disposition-differential", ["node", ROOT / "tests/regression/extension-core/provider-response-disposition.mjs", ROOT])
+        runner.run("core-provider-response-retention-differential", ["node", ROOT / "tests/regression/extension-core/provider-response-retention.mjs", ROOT])
         runner.run("core-store-package-contract", [sys.executable, ROOT / "tests/regression/extension-core/store-package-contract.py"])
         runner.run("core-build-create-pending-extraction", ["node", ROOT / "tests/regression/extension-core/client-i1/create-pending-work-start-extraction.mjs"])
         source, extracted, receipt = composed.build(output / "package")
