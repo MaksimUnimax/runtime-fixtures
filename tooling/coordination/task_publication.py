@@ -3347,6 +3347,208 @@ def supersede_registration(
 
 LEGACY_COMMON_CONFIG_EVIDENCE_KIND = "octoport.legacy-common-config-close-evidence"
 LEGACY_COMMON_CONFIG_EVIDENCE_VERSION = 1
+LEGACY_COMMON_CONFIG_REVIEW_OBSERVATION_KIND = (
+    "octoport.legacy-common-config-review-observation"
+)
+LEGACY_COMMON_CONFIG_REVIEW_OBSERVATION_VERSION = 1
+LEGACY_COMMON_CONFIG_REVIEW_OBSERVATION_MAX_BYTES = 16384
+LEGACY_COMMON_CONFIG_REVIEW_PUBLIC_WORDS = frozenset({
+    "a", "b", "c", "controller", "reviewer", "review", "independent",
+    "independence", "separate", "test", "fixture", "synthetic", "not", "live",
+    "authority", "peer", "source", "exact", "read", "only", "bounded", "luna",
+    "codex", "parent", "child", "different", "role", "from", "target", "manual",
+    "automated", "approved", "external", "internal", "observation", "observed",
+    "author", "and", "same",
+})
+
+
+def _legacy_common_config_review_public_text(text: Any, maximum: int) -> bool:
+    """Accept only fixed-vocabulary public labels, never arbitrary payload text."""
+
+    if (
+        not isinstance(text, str)
+        or not 0 < len(text) <= maximum
+        or text != text.strip()
+        or not text.isascii()
+        or re.fullmatch(r"[A-Za-z][A-Za-z _.,;()'\-]*", text) is None
+    ):
+        return False
+    words = re.findall(r"[A-Za-z]+", text.casefold())
+    return bool(words) and all(
+        word in LEGACY_COMMON_CONFIG_REVIEW_PUBLIC_WORDS for word in words
+    )
+
+
+def _legacy_common_config_review_observation_shape(value: Any) -> dict[str, Any]:
+    """Validate the separate reviewer receipt without granting bind authority."""
+
+    expected = {
+        "kind", "version", "target_registration_id", "evidence_sha256",
+        "reviewer_role", "reviewer_identity", "independence_basis", "verdict",
+        "findings",
+    }
+
+    def invalid() -> None:
+        raise PublicationError("LEGACY_COMMON_CONFIG_REVIEW_OBSERVATION_SCHEMA_INVALID")
+
+    if type(value) is not dict or set(value) != expected:
+        invalid()
+    if (
+        value["kind"] != LEGACY_COMMON_CONFIG_REVIEW_OBSERVATION_KIND
+        or type(value["version"]) is not int
+        or value["version"] != LEGACY_COMMON_CONFIG_REVIEW_OBSERVATION_VERSION
+        or not isinstance(value["target_registration_id"], str)
+        or not SHA64_RE.fullmatch(value["target_registration_id"])
+        or not isinstance(value["evidence_sha256"], str)
+        or not SHA64_RE.fullmatch(value["evidence_sha256"])
+        or not isinstance(value["reviewer_role"], str)
+        or value["reviewer_role"] not in {"A", "B", "C", "CONTROLLER"}
+        or not _legacy_common_config_review_public_text(
+            value["reviewer_identity"], 256
+        )
+        or not _legacy_common_config_review_public_text(
+            value["independence_basis"], 1024
+        )
+        or value["verdict"] != "PASS"
+    ):
+        invalid()
+    findings = value["findings"]
+    if (
+        type(findings) is not dict
+        or set(findings) != {"P0", "P1", "P2"}
+        or any(type(bucket) is not list or bucket for bucket in findings.values())
+    ):
+        invalid()
+    return json.loads(_canonical_bytes(value))
+
+
+def _legacy_common_config_review_observation_snapshot(
+    root: Path, receipt_path: str, receipt_sha256: str,
+) -> dict[str, Any]:
+    """Read one exact independent reviewer receipt through a no-follow boundary."""
+
+    import stat
+
+    def invalid(
+        code: str = "LEGACY_COMMON_CONFIG_REVIEW_OBSERVATION_FILE_INVALID",
+    ) -> None:
+        raise PublicationError(code)
+
+    try:
+        root_path = Path(root)
+        if (
+            not root_path.is_absolute()
+            or ".." in root_path.parts
+            or type(receipt_path) is not str
+            or not 0 < len(receipt_path) <= 4096
+            or "\x00" in receipt_path
+            or type(receipt_sha256) is not str
+            or not SHA64_RE.fullmatch(receipt_sha256)
+        ):
+            invalid("LEGACY_COMMON_CONFIG_REVIEW_OBSERVATION_PATH_INVALID")
+        path = Path(receipt_path)
+        if str(path) != receipt_path or ".." in path.parts:
+            invalid("LEGACY_COMMON_CONFIG_REVIEW_OBSERVATION_PATH_INVALID")
+        relative = path.relative_to(root_path)
+        if not relative.parts or relative.parts[0] not in SAFE_CONTROL_TOP:
+            invalid("LEGACY_COMMON_CONFIG_REVIEW_OBSERVATION_PATH_INVALID")
+    except (TypeError, ValueError):
+        invalid("LEGACY_COMMON_CONFIG_REVIEW_OBSERVATION_PATH_INVALID")
+
+    descriptors: list[int] = []
+    bindings: list[tuple[int | None, str, Any]] = []
+    directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
+
+    def identity(info: Any) -> tuple[int, int]:
+        return info.st_dev, info.st_ino
+
+    def fingerprint(info: Any) -> tuple[int, ...]:
+        return (*identity(info), info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+
+    try:
+        parent = os.open(str(root_path), directory_flags)
+        descriptors.append(parent)
+        root_info = os.fstat(parent)
+        if not stat.S_ISDIR(root_info.st_mode):
+            invalid()
+        bindings.append((None, str(root_path), root_info))
+        for component in relative.parts[:-1]:
+            child = os.open(component, directory_flags, dir_fd=parent)
+            descriptors.append(child)
+            child_info = os.fstat(child)
+            if not stat.S_ISDIR(child_info.st_mode):
+                invalid()
+            bindings.append((parent, component, child_info))
+            parent = child
+        descriptor = os.open(
+            relative.name,
+            os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC,
+            dir_fd=parent,
+        )
+        descriptors.append(descriptor)
+        before = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(before.st_mode)
+            or not 0 < before.st_size <= LEGACY_COMMON_CONFIG_REVIEW_OBSERVATION_MAX_BYTES
+        ):
+            invalid()
+        raw = b""
+        while len(raw) <= LEGACY_COMMON_CONFIG_REVIEW_OBSERVATION_MAX_BYTES:
+            part = os.read(
+                descriptor,
+                LEGACY_COMMON_CONFIG_REVIEW_OBSERVATION_MAX_BYTES + 1 - len(raw),
+            )
+            if not part:
+                break
+            raw += part
+        after = os.fstat(descriptor)
+        if (
+            len(raw) != before.st_size
+            or len(raw) > LEGACY_COMMON_CONFIG_REVIEW_OBSERVATION_MAX_BYTES
+            or fingerprint(before) != fingerprint(after)
+            or _sha_bytes(raw) != receipt_sha256
+        ):
+            invalid("LEGACY_COMMON_CONFIG_REVIEW_OBSERVATION_FILE_DRIFT")
+        for parent_fd, name, original in bindings:
+            current = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+            if not stat.S_ISDIR(current.st_mode) or identity(current) != identity(original):
+                invalid("LEGACY_COMMON_CONFIG_REVIEW_OBSERVATION_FILE_DRIFT")
+        current = os.stat(relative.name, dir_fd=parent, follow_symlinks=False)
+        if not stat.S_ISREG(current.st_mode) or fingerprint(current) != fingerprint(after):
+            invalid("LEGACY_COMMON_CONFIG_REVIEW_OBSERVATION_FILE_DRIFT")
+    except (OSError, UnicodeError, ValueError):
+        invalid()
+    finally:
+        close_failed = False
+        for descriptor in reversed(descriptors):
+            try:
+                os.close(descriptor)
+            except OSError:
+                close_failed = True
+        if close_failed:
+            invalid()
+
+    def unique_pairs(items: Any) -> dict[str, Any]:
+        result: dict[str, Any] = {}
+        for key, item in items:
+            if key in result:
+                invalid()
+            result[key] = item
+        return result
+
+    try:
+        parsed = json.loads(
+            raw.decode("utf-8"),
+            object_pairs_hook=unique_pairs,
+            parse_constant=lambda _: invalid(),
+        )
+        receipt = _legacy_common_config_review_observation_shape(parsed)
+    except (PublicationError, ValueError, UnicodeError, RecursionError, TypeError):
+        invalid()
+    return {
+        "reference": {"path": receipt_path, "sha256": receipt_sha256},
+        "receipt": receipt,
+    }
 
 
 def _legacy_common_config_evidence_shape(value: Any) -> dict[str, Any]:
@@ -4548,6 +4750,68 @@ def _legacy_common_config_anchor_snapshot(
                 'anchor_pushurl_identity_sha256': anchor_transport['pushurl_identity_sha256']}
 
 
+def bind_legacy_common_config_authority_from_review_receipt(
+    root: Path, registration_id: str, evidence_path: str, evidence_sha256: str,
+    review_observation_path: str, review_observation_sha256: str,
+) -> dict[str, Any]:
+    """Authenticate an independent review receipt, then delegate to internal bind."""
+
+    if evidence_path == review_observation_path:
+        raise PublicationError("LEGACY_COMMON_CONFIG_REVIEW_OBSERVATION_EVIDENCE_ALIAS")
+    evidence_snapshot = _legacy_common_config_evidence_snapshot(
+        root, evidence_path, evidence_sha256
+    )
+    review_snapshot = _legacy_common_config_review_observation_snapshot(
+        root, review_observation_path, review_observation_sha256
+    )
+    if (
+        Path(evidence_snapshot["reference"]["path"]).resolve()
+        == Path(review_snapshot["reference"]["path"]).resolve()
+    ):
+        raise PublicationError("LEGACY_COMMON_CONFIG_REVIEW_OBSERVATION_EVIDENCE_ALIAS")
+
+    receipt = review_snapshot["receipt"]
+    if receipt["target_registration_id"] != registration_id:
+        raise PublicationError(
+            "LEGACY_COMMON_CONFIG_REVIEW_OBSERVATION_TARGET_MISMATCH"
+        )
+    if receipt["evidence_sha256"] != evidence_sha256:
+        raise PublicationError(
+            "LEGACY_COMMON_CONFIG_REVIEW_OBSERVATION_EVIDENCE_MISMATCH"
+        )
+
+    registration, _ = _read_registration(root, registration_id)
+    try:
+        target_role = registration["core"]["role"]
+    except (KeyError, TypeError):
+        raise PublicationError(
+            "LEGACY_COMMON_CONFIG_BIND_REGISTRATION_INVALID"
+        ) from None
+    if receipt["reviewer_role"] == target_role:
+        raise PublicationError("LEGACY_COMMON_CONFIG_REVIEW_NOT_INDEPENDENT")
+
+    from copy import deepcopy
+
+    review_observation = {
+        key: deepcopy(receipt[key])
+        for key in (
+            "reviewer_role", "reviewer_identity", "independence_basis",
+            "verdict", "findings",
+        )
+    }
+    if (
+        _canonical_bytes(review_observation)
+        != _canonical_bytes(evidence_snapshot["evidence"]["review"])
+    ):
+        raise PublicationError(
+            "LEGACY_COMMON_CONFIG_REVIEW_OBSERVATION_MISMATCH"
+        )
+    return bind_legacy_common_config_authority(
+        root, registration_id, evidence_path, evidence_sha256,
+        review_observation,
+    )
+
+
 def bind_legacy_common_config_authority(
     root: Path, registration_id: str, evidence_path: str, evidence_sha256: str,
     review_observation: Any,
@@ -4556,7 +4820,8 @@ def bind_legacy_common_config_authority(
 
     The caller must obtain review_observation independently from the evidence
     being bound. This function never derives reviewer provenance from
-    evidence["review"] and is not yet exposed by the public CLI.
+    evidence["review"]. The public CLI may call this function only after
+    authenticating a separate hash-bound reviewer-observation receipt.
     """
     first, _ = _read_registration(root, registration_id)
     try:
@@ -5168,6 +5433,13 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("recover")
     p.add_argument("--registration", required=True)
 
+    p = sub.add_parser("bind-legacy-common-config")
+    p.add_argument("--registration", required=True)
+    p.add_argument("--evidence", required=True)
+    p.add_argument("--evidence-sha", required=True)
+    p.add_argument("--review-observation", required=True)
+    p.add_argument("--review-observation-sha", required=True)
+
     p = sub.add_parser("close")
     p.add_argument("--registration", required=True)
 
@@ -5221,6 +5493,11 @@ def main(argv: list[str] | None = None) -> int:
         ))
     elif args.command == "recover":
         _json_print(recover_registration(root, args.registration))
+    elif args.command == "bind-legacy-common-config":
+        _json_print(bind_legacy_common_config_authority_from_review_receipt(
+            root, args.registration, args.evidence, args.evidence_sha,
+            args.review_observation, args.review_observation_sha,
+        ))
     elif args.command == "close":
         _json_print(close_registration(root, args.registration))
     elif args.command == "complete-queue":

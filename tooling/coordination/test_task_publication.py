@@ -4904,6 +4904,473 @@ class LegacyCommonConfigJournalApplyTests(unittest.TestCase):
                     result={"changed": True, "authority": bad})
 
 
+class LegacyCommonConfigReviewObservationReceiptTests(unittest.TestCase):
+    """Public review-receipt boundary; internal bind semantics are tested separately."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name) / "control"
+        (self.root / "logs").mkdir(parents=True)
+
+        fixture = LegacyCommonConfigBindingTransitionTests()
+        fixture.setUp()
+        self.evidence = copy.deepcopy(fixture.value)
+        self.registration_id = self.evidence["target_registration_id"]
+        self.target_role = self.evidence["role"]
+        self.evidence_path = self.root / "logs" / "legacy-evidence.json"
+        self.evidence_path.write_text(
+            json.dumps(self.evidence, ensure_ascii=False, indent=2) + "\n"
+        )
+        self.evidence_sha = route._sha_file(self.evidence_path)
+        review = self.evidence["review"]
+        self.receipt = {
+            "kind": route.LEGACY_COMMON_CONFIG_REVIEW_OBSERVATION_KIND,
+            "version": route.LEGACY_COMMON_CONFIG_REVIEW_OBSERVATION_VERSION,
+            "target_registration_id": self.registration_id,
+            "evidence_sha256": self.evidence_sha,
+            "reviewer_role": review["reviewer_role"],
+            "reviewer_identity": review["reviewer_identity"],
+            "independence_basis": review["independence_basis"],
+            "verdict": review["verdict"],
+            "findings": copy.deepcopy(review["findings"]),
+        }
+        self.review_path, self.review_sha = self.write_receipt(self.receipt)
+
+    def write_receipt(self, value, name="review-observation.json", raw=None):
+        path = self.root / "logs" / name
+        if raw is None:
+            raw = (json.dumps(value, ensure_ascii=False, indent=2) + "\n").encode()
+        path.write_bytes(raw)
+        return path, route._sha_file(path)
+
+    def registration(self):
+        return {
+            "registration_id": self.registration_id,
+            "registration_sha256": self.registration_id,
+            "core": {"role": self.target_role},
+        }
+
+    def test_valid_receipt_snapshot_is_exact_and_bounded(self):
+        result = route._legacy_common_config_review_observation_snapshot(
+            self.root, str(self.review_path), self.review_sha
+        )
+        self.assertEqual(result["receipt"], self.receipt)
+        self.assertEqual(
+            result["reference"],
+            {"path": str(self.review_path), "sha256": self.review_sha},
+        )
+
+    def test_receipt_shape_rejects_extra_nonpass_findings_and_bad_role(self):
+        cases = []
+        extra = copy.deepcopy(self.receipt)
+        extra["unexpected"] = True
+        cases.append(extra)
+        nonpass = copy.deepcopy(self.receipt)
+        nonpass["verdict"] = "REWORK_REQUIRED"
+        cases.append(nonpass)
+        findings = copy.deepcopy(self.receipt)
+        findings["findings"]["P1"] = ["finding"]
+        cases.append(findings)
+        bad_role = copy.deepcopy(self.receipt)
+        bad_role["reviewer_role"] = ["C"]
+        cases.append(bad_role)
+        for value in cases:
+            with self.subTest(value=value):
+                with self.assertRaisesRegex(
+                    route.PublicationError,
+                    "^LEGACY_COMMON_CONFIG_REVIEW_OBSERVATION_SCHEMA_INVALID$",
+                ):
+                    route._legacy_common_config_review_observation_shape(value)
+
+    def test_receipt_public_labels_reject_payload_and_sensitive_data_forms(self):
+        unsafe = (
+            "https://example.invalid/review",
+            "git@github.invalid:owner/repo",
+            "remote origin pushurl",
+            "config value",
+            "credential secret",
+            "bearer token",
+            "api token",
+            "seller order",
+            "customer email",
+            "key=value",
+            "reviewer 12345",
+        )
+        for field in ("reviewer_identity", "independence_basis"):
+            for text in unsafe:
+                with self.subTest(field=field, text=text):
+                    value = copy.deepcopy(self.receipt)
+                    value[field] = text
+                    with self.assertRaisesRegex(
+                        route.PublicationError,
+                        "^LEGACY_COMMON_CONFIG_REVIEW_OBSERVATION_SCHEMA_INVALID$",
+                    ):
+                        route._legacy_common_config_review_observation_shape(value)
+
+    def test_snapshot_rejects_wrong_hash_duplicate_keys_symlink_and_oversize(self):
+        with self.assertRaisesRegex(
+            route.PublicationError,
+            "^LEGACY_COMMON_CONFIG_REVIEW_OBSERVATION_FILE_DRIFT$",
+        ):
+            route._legacy_common_config_review_observation_snapshot(
+                self.root, str(self.review_path), "0" * 64
+            )
+
+        compact = json.dumps(self.receipt, ensure_ascii=False, separators=(",", ":"))
+        needle = (
+            '"reviewer_identity":'
+            + json.dumps(self.receipt["reviewer_identity"], ensure_ascii=False)
+        )
+        duplicate = compact.replace(needle, needle + "," + needle, 1).encode()
+        duplicate_path, duplicate_sha = self.write_receipt(
+            self.receipt, "duplicate.json", raw=duplicate
+        )
+        with self.assertRaisesRegex(
+            route.PublicationError,
+            "^LEGACY_COMMON_CONFIG_REVIEW_OBSERVATION_FILE_INVALID$",
+        ):
+            route._legacy_common_config_review_observation_snapshot(
+                self.root, str(duplicate_path), duplicate_sha
+            )
+
+        link = self.root / "logs" / "review-link.json"
+        link.symlink_to(self.review_path)
+        with self.assertRaisesRegex(
+            route.PublicationError,
+            "^LEGACY_COMMON_CONFIG_REVIEW_OBSERVATION_FILE_INVALID$",
+        ):
+            route._legacy_common_config_review_observation_snapshot(
+                self.root, str(link), self.review_sha
+            )
+
+        oversize = self.root / "logs" / "oversize.json"
+        oversize.write_bytes(
+            b" " * (route.LEGACY_COMMON_CONFIG_REVIEW_OBSERVATION_MAX_BYTES + 1)
+        )
+        with self.assertRaisesRegex(
+            route.PublicationError,
+            "^LEGACY_COMMON_CONFIG_REVIEW_OBSERVATION_FILE_INVALID$",
+        ):
+            route._legacy_common_config_review_observation_snapshot(
+                self.root, str(oversize), route._sha_file(oversize)
+            )
+
+    def test_mutated_receipt_bytes_after_hash_fail_before_bind(self):
+        digest = self.review_sha
+        changed = copy.deepcopy(self.receipt)
+        changed["reviewer_identity"] = "different reviewer"
+        self.review_path.write_text(
+            json.dumps(changed, ensure_ascii=False, indent=2) + "\n"
+        )
+        with patch.object(route, "bind_legacy_common_config_authority") as bind:
+            with self.assertRaisesRegex(
+                route.PublicationError,
+                "^LEGACY_COMMON_CONFIG_REVIEW_OBSERVATION_FILE_DRIFT$",
+            ):
+                route.bind_legacy_common_config_authority_from_review_receipt(
+                    self.root,
+                    self.registration_id,
+                    str(self.evidence_path),
+                    self.evidence_sha,
+                    str(self.review_path),
+                    digest,
+                )
+            bind.assert_not_called()
+
+    def test_wrapper_passes_only_independently_validated_review_to_internal_bind(self):
+        expected = copy.deepcopy(self.evidence["review"])
+        marker = {"state": "TASK_REF_PUBLISHED", "state_version": 5}
+        with (
+            patch.object(
+                route,
+                "_read_registration",
+                return_value=(self.registration(), "f" * 64),
+            ),
+            patch.object(
+                route,
+                "bind_legacy_common_config_authority",
+                return_value=marker,
+            ) as bind,
+        ):
+            result = route.bind_legacy_common_config_authority_from_review_receipt(
+                self.root,
+                self.registration_id,
+                str(self.evidence_path),
+                self.evidence_sha,
+                str(self.review_path),
+                self.review_sha,
+            )
+        self.assertEqual(result, marker)
+        bind.assert_called_once_with(
+            self.root,
+            self.registration_id,
+            str(self.evidence_path),
+            self.evidence_sha,
+            expected,
+        )
+
+    def test_wrapper_rejects_alias_target_evidence_role_and_review_mismatch_before_bind(self):
+        with patch.object(route, "bind_legacy_common_config_authority") as bind:
+            with self.assertRaisesRegex(
+                route.PublicationError,
+                "^LEGACY_COMMON_CONFIG_REVIEW_OBSERVATION_EVIDENCE_ALIAS$",
+            ):
+                route.bind_legacy_common_config_authority_from_review_receipt(
+                    self.root,
+                    self.registration_id,
+                    str(self.evidence_path),
+                    self.evidence_sha,
+                    str(self.evidence_path),
+                    self.evidence_sha,
+                )
+            bind.assert_not_called()
+
+        variants = []
+        target = copy.deepcopy(self.receipt)
+        target["target_registration_id"] = "9" * 64
+        variants.append(
+            (
+                target,
+                "LEGACY_COMMON_CONFIG_REVIEW_OBSERVATION_TARGET_MISMATCH",
+            )
+        )
+        evidence = copy.deepcopy(self.receipt)
+        evidence["evidence_sha256"] = "8" * 64
+        variants.append(
+            (
+                evidence,
+                "LEGACY_COMMON_CONFIG_REVIEW_OBSERVATION_EVIDENCE_MISMATCH",
+            )
+        )
+        same_role = copy.deepcopy(self.receipt)
+        same_role["reviewer_role"] = self.target_role
+        variants.append((same_role, "LEGACY_COMMON_CONFIG_REVIEW_NOT_INDEPENDENT"))
+        mismatch = copy.deepcopy(self.receipt)
+        mismatch["reviewer_identity"] = "different reviewer"
+        variants.append(
+            (
+                mismatch,
+                "LEGACY_COMMON_CONFIG_REVIEW_OBSERVATION_MISMATCH",
+            )
+        )
+
+        for number, (value, code) in enumerate(variants):
+            path, digest = self.write_receipt(value, f"variant-{number}.json")
+            with (
+                patch.object(
+                    route,
+                    "_read_registration",
+                    return_value=(self.registration(), "f" * 64),
+                ),
+                patch.object(route, "bind_legacy_common_config_authority") as bind,
+            ):
+                with self.assertRaisesRegex(route.PublicationError, "^" + code + "$"):
+                    route.bind_legacy_common_config_authority_from_review_receipt(
+                        self.root,
+                        self.registration_id,
+                        str(self.evidence_path),
+                        self.evidence_sha,
+                        str(path),
+                        digest,
+                    )
+                bind.assert_not_called()
+
+    def test_cli_exposes_only_path_and_hash_review_observation_boundary(self):
+        import contextlib
+        import io
+
+        expected = {"state": "TASK_REF_PUBLISHED", "state_version": 5}
+        with patch.object(
+            route,
+            "bind_legacy_common_config_authority_from_review_receipt",
+            return_value=expected,
+        ) as bind:
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                code = route.main(
+                    [
+                        "--control-root",
+                        str(self.root),
+                        "bind-legacy-common-config",
+                        "--registration",
+                        self.registration_id,
+                        "--evidence",
+                        str(self.evidence_path),
+                        "--evidence-sha",
+                        self.evidence_sha,
+                        "--review-observation",
+                        str(self.review_path),
+                        "--review-observation-sha",
+                        self.review_sha,
+                    ]
+                )
+        self.assertEqual(code, 0)
+        self.assertEqual(json.loads(output.getvalue()), expected)
+        bind.assert_called_once_with(
+            self.root.resolve(),
+            self.registration_id,
+            str(self.evidence_path),
+            self.evidence_sha,
+            str(self.review_path),
+            self.review_sha,
+        )
+
+    def test_cli_real_receipt_path_initial_replay_and_revoked_rebind(self):
+        import contextlib
+        import io
+
+        fixture = LegacyCommonConfigBindingTransitionTests()
+        fixture.setUp()
+        self.assertEqual(fixture.value, self.evidence)
+        current = {
+            "registration_id": self.registration_id,
+            "registration_sha256": self.registration_id,
+            "state": "TASK_REF_PUBLISHED",
+            "state_version": 4,
+            "core": {"role": self.target_role},
+        }
+        observed = copy.deepcopy(fixture.observed)
+        facts = copy.deepcopy(fixture.facts)
+        anchor = {"anchor_registration_id": self.evidence["anchor_registration_id"]}
+
+        @contextlib.contextmanager
+        def locks(_root, _role):
+            yield
+
+        def read_registration(_root, registration_id):
+            self.assertEqual(registration_id, self.registration_id)
+            return copy.deepcopy(current), "f" * 64
+
+        def current_observation(_root, _registration, evidence, _anchor, review):
+            self.assertEqual(review, evidence["review"])
+            return copy.deepcopy(observed)
+
+        def target_facts(_root, _registration):
+            return copy.deepcopy(facts)
+
+        def state_transition(
+            _root, registration_id, allowed, target_state, updates,
+            expected_version=None,
+        ):
+            nonlocal current
+            self.assertEqual(registration_id, self.registration_id)
+            self.assertIn(current["state"], allowed)
+            self.assertEqual(target_state, current["state"])
+            self.assertEqual(expected_version, current["state_version"])
+            next_value = copy.deepcopy(current)
+            next_value.update(copy.deepcopy(updates))
+            next_value["state"] = target_state
+            next_value["state_version"] = current["state_version"] + 1
+            current = next_value
+            return copy.deepcopy(current)
+
+        def cli(evidence_path, evidence_sha, review_path, review_sha):
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                code = route.main([
+                    "--control-root", str(self.root),
+                    "bind-legacy-common-config",
+                    "--registration", self.registration_id,
+                    "--evidence", str(evidence_path),
+                    "--evidence-sha", evidence_sha,
+                    "--review-observation", str(review_path),
+                    "--review-observation-sha", review_sha,
+                ])
+            self.assertEqual(code, 0)
+            return json.loads(output.getvalue())
+
+        with (
+            patch.object(route, "_read_registration", side_effect=read_registration),
+            patch.object(route, "_role_and_coord_locks", side_effect=locks),
+            patch.object(
+                route, "_legacy_common_config_anchor_snapshot",
+                side_effect=lambda *_args, **_kwargs: copy.deepcopy(anchor),
+            ),
+            patch.object(
+                route, "_legacy_common_config_current_observation",
+                side_effect=current_observation,
+            ),
+            patch.object(
+                route, "_legacy_common_config_target_facts",
+                side_effect=target_facts,
+            ),
+            patch.object(
+                route, "_state_transition", side_effect=state_transition
+            ) as journal_write,
+            patch.object(route, "_run_git_push") as git_push,
+            patch.object(route, "_run_supersede_send_pack") as send_pack,
+            patch.object(route, "_set_config_values") as set_config,
+        ):
+            initial = cli(
+                self.evidence_path, self.evidence_sha,
+                self.review_path, self.review_sha,
+            )
+            self.assertEqual(initial["state"], "TASK_REF_PUBLISHED")
+            self.assertEqual(initial["state_version"], 5)
+            initial_authority = copy.deepcopy(
+                initial["legacy_common_config_authority"]
+            )
+            self.assertEqual(journal_write.call_count, 1)
+
+            replay = cli(
+                self.evidence_path, self.evidence_sha,
+                self.review_path, self.review_sha,
+            )
+            self.assertEqual(replay["state_version"], 5)
+            self.assertEqual(
+                replay["legacy_common_config_authority"], initial_authority
+            )
+            self.assertEqual(journal_write.call_count, 1)
+
+            current["state"] = "REVOKED"
+            current["state_version"] = 6
+            evidence2 = copy.deepcopy(self.evidence)
+            updates = {
+                "anchor_registration_id": "7" * 64,
+                "anchor_state_sha256": "7" * 64,
+                "anchor_close_receipt_sha256": "7" * 64,
+                "anchor_candidate_sha": "7" * 40,
+                "current_main_sha": "7" * 40,
+                "current_common_config_sha256": "7" * 64,
+            }
+            evidence2.update(updates)
+            observed2 = copy.deepcopy(observed)
+            observed2.update(copy.deepcopy(updates))
+            observed2["anchor_common_config_sha256"] = (
+                evidence2["current_common_config_sha256"]
+            )
+            observed2["anchor_created_at"] = "2026-10-03T10:00:00Z"
+            observed = observed2
+            facts = copy.deepcopy(facts)
+            facts.update(state="REVOKED", task_ref_oid=route.ZERO_OID)
+            anchor = {"anchor_registration_id": evidence2["anchor_registration_id"]}
+
+            evidence2_path = self.root / "logs" / "legacy-evidence-rebind.json"
+            evidence2_path.write_text(
+                json.dumps(evidence2, ensure_ascii=False, indent=2) + "\n"
+            )
+            evidence2_sha = route._sha_file(evidence2_path)
+            receipt2 = copy.deepcopy(self.receipt)
+            receipt2["evidence_sha256"] = evidence2_sha
+            review2_path, review2_sha = self.write_receipt(
+                receipt2, "review-observation-rebind.json"
+            )
+            rebound = cli(
+                evidence2_path, evidence2_sha, review2_path, review2_sha
+            )
+            self.assertEqual(rebound["state"], "REVOKED")
+            self.assertEqual(rebound["state_version"], 7)
+            authority = rebound["legacy_common_config_authority"]
+            self.assertEqual(len(authority["history"]), 1)
+            self.assertEqual(authority["history"][0], initial_authority["current"])
+            self.assertEqual(journal_write.call_count, 2)
+
+            git_push.assert_not_called()
+            send_pack.assert_not_called()
+            set_config.assert_not_called()
+
+
 class LegacyCommonConfigBindOrchestrationTests(unittest.TestCase):
     """One-lock bind orchestration with mocked observers; no live authority."""
 

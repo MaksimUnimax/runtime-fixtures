@@ -324,9 +324,43 @@ The R3 internal bind path keeps reviewer provenance separate from the evidence
 being bound. The bind orchestrator accepts a separately authenticated reviewer
 observation, keeps the role and coordination locks across evidence/anchor/current
 authority observation and the journal CAS, and never derives reviewer identity
-from the evidence review block alone. Until a trusted operational source for that
-reviewer observation is defined and independently reviewed, the public
-bind-legacy-common-config CLI remains intentionally unavailable.
+from the evidence review block alone.
+
+R5 defines the operational source for that observation as a distinct immutable
+reviewer-observation receipt. The receipt kind is
+`octoport.legacy-common-config-review-observation`, version 1, with exactly
+`target_registration_id`, `evidence_sha256`, `reviewer_role`,
+`reviewer_identity`, `independence_basis`, `verdict` and `findings`.
+The verdict must be `PASS`; P0/P1/P2 findings are present and empty; the reviewer
+role must differ from the target registration role. The receipt contains no
+remote URL, pushurl, configuration value, credential, token or business data.
+`reviewer_identity` and `independence_basis` are not free-form payload fields:
+they are ASCII public labels restricted to the fixed coordination-review
+vocabulary implemented by `LEGACY_COMMON_CONFIG_REVIEW_PUBLIC_WORDS`, with only
+plain label punctuation. Digits, URI/path/config separators and any word outside
+that vocabulary fail schema validation, so operational identifiers or provider,
+store, order, credential and configuration data cannot be smuggled through
+those labels.
+
+The public `bind-legacy-common-config` command accepts only the target
+registration plus exact `--evidence/--evidence-sha` and
+`--review-observation/--review-observation-sha` pairs. Evidence and reviewer
+observation must be distinct files below the managed control-root evidence
+boundary. Both are read through bounded no-follow/hash checks; duplicate keys,
+unknown fields, hash drift, non-PASS review, non-empty findings, target/evidence
+mismatch, target-role review or disagreement with the review identity embedded
+in the legacy evidence fail before any registration journal mutation. Inline
+review assertions are not accepted.
+
+After the separate receipt is authenticated, the command passes only its
+validated review object to the existing internal bind orchestrator. Bind/rebind
+remains a same-logical-state registration CAS and never authorizes or performs
+task-ref deletion, main mutation, route/common/global configuration mutation,
+board mutation or source mutation. The exact validated review identity is then
+part of the persisted legacy authority journal; later close revalidates that
+identity together with the immutable evidence, anchor, current transport/config
+and lineage. Operational users must still collect fresh legacy evidence and a
+fresh independent reviewer-observation receipt immediately before bind/rebind.
 
 Ordinary close is unchanged when the registered common-config matcher succeeds.
 Only a matcher failure with an already persisted legacy authority enters the
