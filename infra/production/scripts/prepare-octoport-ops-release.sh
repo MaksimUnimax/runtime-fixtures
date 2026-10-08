@@ -128,7 +128,10 @@ if find "${tmp}" ! -user root -print -quit | grep -q .; then
   fail "release must be root-owned"
 fi
 mv "${tmp}" "${target}"
-python3 "${target}/tooling/operations/verify_ops_release.py" "${target}" >/dev/null ||
+python3 "${target}/tooling/operations/verify_ops_release.py" \
+  --expected-source-sha "${head_sha}" \
+  --expected-source-tree "${tree_sha}" \
+  "${target}" >/dev/null ||
   fail "prepared release failed self-verification"
 success=1
 trap - EXIT
