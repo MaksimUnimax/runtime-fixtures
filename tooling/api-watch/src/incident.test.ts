@@ -1,10 +1,16 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import {
+  createPostgresApiWatchIncidentStore,
   evaluateApiWatchIncidents,
   incidentKey,
   InMemoryApiWatchIncidentStore,
 } from "./incident.js";
-import type { ApiWatchReport } from "./types.js";
+import type {
+  ApiWatchReport,
+  ApiWatchSqlRuntime,
+  ProductCrosswalkRow,
+} from "./types.js";
 
 function report(
   state: ApiWatchReport["state"],
@@ -502,4 +508,182 @@ describe("acquisition recovery remains automatic", () => {
     await evaluateApiWatchIncidents({ report: comparableReport(), store });
     expect(await store.listOpen()).toHaveLength(0);
   });
+});
+
+describe("verified family absence recovery", () => {
+  function familyReport(): ApiWatchReport {
+    const value = comparableReport();
+    value.sources = ["one", "two"].map((documentKey) => ({
+      ...value.sources[0]!,
+      documentKey,
+      errorCode: null,
+    }));
+    return value;
+  }
+  function missingRow(reportId: string): ProductCrosswalkRow {
+    return {
+      crosswalkId: "verified-missing",
+      reportId,
+      sourceFamily: "OZON_SELLER",
+      documentKey: null,
+      sourceIdentity: "OZON_SELLER:GET:/restored",
+      runtimeAlias: null,
+      crosswalkState: "RUNTIME_ONLY",
+      reviewState: "BLOCKING_RISK",
+      executionEnabled: null,
+      impactSeverity: null,
+      diffSha256: null,
+      createdAt: new Date(1),
+    };
+  }
+  async function opened(verified = true) {
+    const store = new InMemoryApiWatchIncidentStore();
+    const notify = vi.fn().mockResolvedValue(undefined);
+    const changed = familyReport();
+    changed.reportId = "changed";
+    changed.sources[0]!.changeMode = "CHANGED";
+    changed.sources[0]!.snapshotSha256 = "b".repeat(64);
+    const row = missingRow(changed.reportId);
+    await evaluateApiWatchIncidents({
+      report: changed,
+      crosswalkRows: [row],
+      verifiedFamilyAbsenceRowIds: verified ? [row.crosswalkId] : [],
+      store,
+      notifier: notify,
+    });
+    const incident = (await store.listOpen())[0]!;
+    const recovered = familyReport();
+    recovered.reportId = "recovered";
+    const mapping: ProductCrosswalkRow = {
+      ...row,
+      reportId: recovered.reportId,
+      documentKey: "one",
+      crosswalkState: "MAPPED_ENABLED",
+      executionEnabled: true,
+      reviewState: "NO_ACTION",
+    };
+    return { store, notify, changed, row, incident, recovered, mapping };
+  }
+  it("resolves a proven family incident once, persists resolution and reopens on a new absence", async () => {
+    const x = await opened();
+    expect(x.incident.safeSummaryCode).toMatch(/^FAMILY_ABS_V1_[a-f0-9]{64}$/);
+    for (let i = 0; i < 2; i++)
+      await evaluateApiWatchIncidents({
+        report: x.recovered,
+        crosswalkRows: [x.mapping],
+        store: x.store,
+        notifier: x.notify,
+      });
+    expect((await x.store.find(x.incident.incidentKey))?.state).toBe(
+      "RESOLVED",
+    );
+    expect(x.notify.mock.calls.map(([event]) => event.kind)).toEqual([
+      "OPENED",
+      "RESOLVED",
+    ]);
+    await evaluateApiWatchIncidents({
+      report: x.changed,
+      crosswalkRows: [x.row],
+      verifiedFamilyAbsenceRowIds: [x.row.crosswalkId],
+      store: x.store,
+      notifier: x.notify,
+    });
+    expect((await x.store.find(x.incident.incidentKey))?.state).toBe("OPEN");
+    expect(x.notify.mock.calls.map(([event]) => event.kind)).toEqual([
+      "OPENED",
+      "RESOLVED",
+      "OPENED",
+    ]);
+  });
+  it("binds a family fingerprint that fits the actual PostgreSQL schema and reads it back", async () => {
+    const x = await opened();
+    const ddl = readFileSync(
+      new URL(
+        "../../../packages/server/db/drizzle/0044_s2_api_watch_incidents.sql",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+    const maximum = Number(
+      ddl.match(/"safe_summary_code" varchar\((\d+)\)/)![1],
+    );
+    let saved: Record<string, unknown> | undefined;
+    const runtime: ApiWatchSqlRuntime = {
+      async query<T extends Record<string, unknown>>(
+        sql: string,
+        parameters: unknown[] = [],
+      ) {
+        if (sql.startsWith("INSERT INTO api_watch_incidents")) {
+          const columns = sql
+            .match(/api_watch_incidents\(([^)]+)\)/)![1]!
+            .split(",");
+          const values = sql.match(/VALUES\(([^)]+)\)/)![1]!.split(",");
+          const binding = values[columns.indexOf("safe_summary_code")]!;
+          const actual = String(parameters[Number(binding.slice(1)) - 1]);
+          expect(actual.length).toBeLessThanOrEqual(maximum);
+          saved = { ...x.incident, safeSummaryCode: actual };
+          return { rows: [] };
+        }
+        return { rows: (saved ? [saved] : []) as T[] };
+      },
+      async transaction(operation) {
+        return operation(runtime);
+      },
+    };
+    await createPostgresApiWatchIncidentStore(runtime).observe(x.incident);
+    const readback = await createPostgresApiWatchIncidentStore(runtime).find(
+      x.incident.incidentKey,
+    );
+    expect(readback?.safeSummaryCode).toBe(x.incident.safeSummaryCode);
+  });
+  it("does not reinterpret an unproven legacy null scope as family provenance", async () => {
+    const x = await opened(false);
+    await evaluateApiWatchIncidents({
+      report: x.recovered,
+      crosswalkRows: [x.mapping],
+      store: x.store,
+    });
+    expect(await x.store.listOpen()).toHaveLength(1);
+  });
+  it.each([
+    "partial",
+    "missing-document",
+    "missing-baseline",
+    "source-error",
+    "unaccepted",
+    "changed",
+    "missing-mapping",
+    "wrong-operation",
+    "wrong-family",
+    "stale-mapping",
+    "disabled",
+  ])(
+    "keeps the incident open when recovery evidence is %s",
+    async (failure) => {
+      const x = await opened();
+      let rows = [x.mapping];
+      if (failure === "partial") x.recovered.state = "PARTIAL";
+      if (failure === "missing-document") x.recovered.sources.pop();
+      if (failure === "missing-baseline")
+        x.recovered.sources[1]!.baseSnapshotSha256 = null;
+      if (failure === "source-error")
+        x.recovered.sources[1]!.errorCode = "PRODUCT_BASELINE_MISSING";
+      if (failure === "unaccepted")
+        x.recovered.sources[1]!.authorityStatus = null;
+      if (failure === "changed")
+        x.recovered.sources[1]!.snapshotSha256 = "b".repeat(64);
+      if (failure === "missing-mapping") rows = [];
+      if (failure === "wrong-operation")
+        x.mapping.sourceIdentity = "OZON_SELLER:GET:/other";
+      if (failure === "wrong-family") x.mapping.sourceFamily = "WILDBERRIES";
+      if (failure === "stale-mapping") x.mapping.reportId = "old-report";
+      if (failure === "disabled") x.mapping.executionEnabled = false;
+      await evaluateApiWatchIncidents({
+        report: x.recovered,
+        crosswalkRows: rows,
+        store: x.store,
+      });
+      expect(await x.store.listOpen()).toHaveLength(1);
+    },
+  );
 });

@@ -1023,8 +1023,13 @@ describe("family-wide product absence", () => {
           })),
         },
       });
+      // Exercise a complete report for this two-document family.
+      const familyRegistry = {
+        ...registry,
+        list: () => [registry.get("WILDBERRIES")],
+      };
       const setup = reportDependencies(
-        registry,
+        familyRegistry,
         root,
         new InMemoryApiWatchReportStore(),
         createInMemoryApiWatchState(),
@@ -1111,6 +1116,45 @@ describe("family-wide product absence", () => {
             row.incidentType === "API_CHANGE_BLOCKING",
         ),
       ).toHaveLength(1);
+
+      const familyIncident = (await incidentStore.listOpen()).find(
+        (row) => row.incidentType === "API_CHANGE_BLOCKING",
+      )!;
+      servers[0]!.setBody(document(groups[0]!));
+      const secondBaseline = baselines.get("WB_1")!;
+      baselines.delete("WB_1");
+      await run("family-restored-incomplete");
+      expect(
+        (await incidentStore.listOpen()).some(
+          (row) => row.incidentKey === familyIncident.incidentKey,
+        ),
+      ).toBe(true);
+      baselines.set("WB_1", secondBaseline);
+      await run("family-restored");
+      const restored = await setup.reportStore.getReport(
+        "api-watch:family-restored",
+      );
+      expect(restored?.state).toBe("COMPLETED");
+      expect(restored?.sources.map((row) => row.changeMode)).toEqual([
+        "NO_CHANGE",
+        "NO_CHANGE",
+      ]);
+      expect(
+        (await crosswalkStore.listRows("api-watch:family-restored")).filter(
+          (row) => row.reviewState === "BLOCKING_RISK",
+        ),
+      ).toEqual([]);
+      expect(
+        (await incidentStore.listOpen()).some(
+          (row) => row.incidentKey === familyIncident.incidentKey,
+        ),
+      ).toBe(false);
+      await run("family-restored-again");
+      expect(
+        (await incidentStore.listOpen()).some(
+          (row) => row.incidentKey === familyIncident.incidentKey,
+        ),
+      ).toBe(false);
 
       // A missing baseline is not evidence that the other document lost operations.
       baselines.delete("WB_1");

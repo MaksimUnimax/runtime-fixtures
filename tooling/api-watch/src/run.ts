@@ -192,9 +192,10 @@ async function persistProductCrosswalks(input: {
   reportId: string;
   documents: CrosswalkDocument[];
   sources: ApiWatchReportSourceOutcome[];
-}): Promise<void> {
+}): Promise<string[]> {
+  const verifiedFamilyAbsenceRowIds: string[] = [];
   const crosswalkStore = input.dependencies.crosswalkStore;
-  if (!crosswalkStore) return;
+  if (!crosswalkStore) return verifiedFamilyAbsenceRowIds;
   const families = new Set(
     input.documents.map((doc) => doc.inventory.sourceFamily),
   );
@@ -233,8 +234,20 @@ async function persistProductCrosswalks(input: {
         includeRuntimeOnly: complete && index === 0,
       });
       await crosswalkStore.saveRows(crosswalk.rows);
+      if (complete && index === 0) {
+        verifiedFamilyAbsenceRowIds.push(
+          ...crosswalk.rows
+            .filter(
+              (row) =>
+                row.crosswalkState === "RUNTIME_ONLY" &&
+                row.documentKey === null,
+            )
+            .map((row) => row.crosswalkId),
+        );
+      }
     }
   }
+  return verifiedFamilyAbsenceRowIds;
 }
 
 function extensionFor(
@@ -577,7 +590,7 @@ export async function runApiWatchReport(input: {
         sources.push(blockedOutcome(outcome, record));
       }
     }
-    await persistProductCrosswalks({
+    const verifiedFamilyAbsenceRowIds = await persistProductCrosswalks({
       dependencies,
       reportId: report.reportId,
       documents: crosswalkDocuments,
@@ -610,6 +623,7 @@ export async function runApiWatchReport(input: {
       await evaluateApiWatchIncidents({
         report: completedReport,
         crosswalkRows,
+        verifiedFamilyAbsenceRowIds,
         store: dependencies.incidentStore,
         notifier: dependencies.incidentNotifier,
         now: currentTime(dependencies),

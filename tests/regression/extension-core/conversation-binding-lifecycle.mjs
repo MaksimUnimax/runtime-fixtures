@@ -14,6 +14,39 @@ for (const [name, run] of lateStartRouteCases(fs.readFileSync(path.join(runtime,
 async function test(name,fn){try{await fn();rows.push({name,status:'PASS'});}catch(error){rows.push({name,status:'FAIL',error:String(error.stack)});}}
 const base={origin:'https://chatgpt.com',provider:'chatgpt',pathname:'/arbitrary/conversation?view=1',surfaceConfirmed:true,hasMessages:true,messageIds:['u-1','a-1'],root:{}};
 function tracker(){let sequence=0;return core.createTracker({newToken:()=>String(++sequence)});}
+await test('popup-keeps-active-work-through-temporary-external-id-loss',async()=>{
+ const input={...base,provider:'alice',origin:'https://alice.yandex.ru',explicitIds:['Alice-Thread-A']};
+ const t=tracker();const first=t.observe(input);
+ const worker=await makeWorker(runtime,{aiFamily:'alice'});
+ try{
+  Object.assign(worker.identity,first);worker.setIdentity(first);
+  await worker.settings();const key=await worker.start();
+  const observations=[first,t.observe({...input,explicitIds:[],root:{}}),t.observe(input)];
+  const results=[];
+  for(const identity of observations){
+   worker.setIdentity(identity);
+   const popup=await worker.call('saPopupState',worker.tabId);
+   results.push({key:popup.conversation_key,work:popup.work?.state,scope:identity.identity_scope});
+  }
+  assert.deepEqual(results,observations.map(()=>({key,work:'active_visible',scope:'conversation'})),JSON.stringify(results));
+ }finally{worker.close();}
+});
+await test('external-id-loss-needs-history-proof-and-respects-context-fences',()=>{
+ const input={...base,explicitIds:['Thread-A']};
+ for(const interruption of [{messageIds:[]},{messageIds:['other']},{surfaceConfirmed:false},{conflict:'ambiguous'}]){
+  const t=tracker();const first=t.observe(input);
+  const suspended=t.observe({...input,explicitIds:[],...interruption});
+  assert.notEqual(suspended.status,'confirmed');
+  const resumed=t.observe({...input,explicitIds:[]});
+  assert.equal(resumed.conversation_id,first.conversation_id);
+ }
+ for(const change of [{pathname:'/other'},{accountScope:'another'},{origin:'https://alice.yandex.ru',provider:'alice'}]){
+  const t=tracker();const first=t.observe(input);
+  assert.notEqual(t.observe({...input,...change,explicitIds:[]}).conversation_id,first.conversation_id);
+ }
+ const t=tracker();const first=t.observe(input);
+ assert.notEqual(t.observe({...input,explicitIds:['Thread-B']}).conversation_id,first.conversation_id);
+});
 await test('url-shape-is-not-conversation-proof',()=>{
  for(const pathname of ['/','/c/11111111-1111-4111-8111-111111111111','/uc/22222222-2222-4222-8222-222222222222','/anything/nonuuid','#thread']){
   assert.equal(core.resolveEvidence({...base,pathname,surfaceConfirmed:false}).status,'unknown');

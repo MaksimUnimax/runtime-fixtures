@@ -117,12 +117,28 @@
         start = null;
         forceLocal = false;
       }
+      // An external address remains the address of this tracked surface. A
+      // transient missing DOM attribute is not evidence for a new local Work.
+      // Keep the proof while suspending effects if the history cannot confirm it.
+      const priorConversation = state.identity?.identity_scope === "conversation" &&
+        state.identity.status === "confirmed";
+      if (priorConversation && (input.surfaceConfirmed !== true || input.conflict || explicit.length > 1)) {
+        return resolveEvidence({ ...input, surfaceId: state.surfaceId });
+      }
+      if (priorConversation && !externalId && !ids.some((id) => state.ids.has(id))) {
+        return { ...state.identity, conversation_id: null, status: "unknown", source: "history_continuity_unverified" };
+      }
       if (externalId) state.externalId = externalId;
       state.path = path;
       state.root = input.root;
       ids.forEach((id) => state.ids.add(id));
       while (state.ids.size > 256) state.ids.delete(state.ids.values().next().value);
       const identity = resolveEvidence({ ...input, surfaceId: state.surfaceId });
+      if (priorConversation && !externalId && identity.status === "confirmed") {
+        identity.conversation_id = state.identity.conversation_id;
+        identity.identity_scope = "conversation";
+        identity.source = "external_surface_continuity";
+      }
       if (forceLocal && identity.status === "confirmed") {
         identity.conversation_id = "local:" + state.surfaceId;
         identity.identity_scope = "document";

@@ -6,6 +6,7 @@ import type {
   ApiWatchIncidentStore,
   ApiWatchImpactSeverity,
   ApiWatchReport,
+  ApiWatchReportSourceOutcome,
   ApiWatchSqlRuntime,
   ProductCrosswalkRow,
   SwaggerSourceFamily,
@@ -210,9 +211,41 @@ function incidentInput(
   };
 }
 
+// Persist family provenance in the existing durable summary field. The exact
+// document set is part of the proof: removing a document from a later registry
+// must not make an incomplete family appear recovered. Legacy null scopes have
+// no such proof and remain open until a new verified observation establishes it.
+function familyAbsenceSummary(
+  sources: ApiWatchReportSourceOutcome[],
+): string | null {
+  const keys = sources.map((source) => source.documentKey ?? null);
+  if (
+    !keys.length ||
+    keys.some((key) => key === null) ||
+    new Set(keys).size !== keys.length
+  )
+    return null;
+  return (
+    "FAMILY_ABS_V1_" +
+    createHash("sha256").update(JSON.stringify(keys.sort())).digest("hex")
+  );
+}
+function atAcceptedBaseline(source: ApiWatchReportSourceOutcome): boolean {
+  return (
+    source.authorityStatus === "AUTHORITY_ACCEPTED" &&
+    source.blockerCode === null &&
+    source.errorCode === null &&
+    source.snapshotSha256 !== null &&
+    source.baseSnapshotSha256 !== null &&
+    source.snapshotSha256 === source.baseSnapshotSha256 &&
+    source.changeMode === "NO_CHANGE"
+  );
+}
+
 export async function evaluateApiWatchIncidents(input: {
   report: ApiWatchReport;
   crosswalkRows?: ProductCrosswalkRow[];
+  verifiedFamilyAbsenceRowIds?: readonly string[];
   store: ApiWatchIncidentStore;
   notifier?: ApiWatchIncidentNotifier;
   now?: Date;
@@ -270,6 +303,17 @@ export async function evaluateApiWatchIncidents(input: {
             : "API_CHANGE_REVIEW_REQUIRED";
     const severity =
       row.reviewState === "BLOCKING_RISK" ? "BLOCKING_RISK" : "REVIEW_REQUIRED";
+    const familySummary =
+      row.crosswalkState === "RUNTIME_ONLY" &&
+      row.documentKey === null &&
+      row.reportId === input.report.reportId &&
+      input.verifiedFamilyAbsenceRowIds?.includes(row.crosswalkId)
+        ? familyAbsenceSummary(
+            input.report.sources.filter(
+              (source) => source.sourceFamily === row.sourceFamily,
+            ),
+          )
+        : null;
     const value = await observeAndNotify(
       input.store,
       input.notifier,
@@ -279,7 +323,7 @@ export async function evaluateApiWatchIncidents(input: {
         row.sourceIdentity,
         input.report,
         severity,
-        type,
+        familySummary ?? type,
         now,
         row.diffSha256,
         row.documentKey,
@@ -316,19 +360,31 @@ export async function evaluateApiWatchIncidents(input: {
                 source.documentKey === open.documentKey,
             )
           : [];
+      const familySources = input.report.sources.filter(
+        (source) => source.sourceFamily === open.sourceFamily,
+      );
+      const familyRecovered =
+        open.documentKey === null &&
+        open.safeSummaryCode === familyAbsenceSummary(familySources) &&
+        familySources.every(atAcceptedBaseline) &&
+        (input.crosswalkRows ?? []).some(
+          (row) =>
+            row.reportId === input.report.reportId &&
+            row.sourceFamily === open.sourceFamily &&
+            row.sourceIdentity === open.operationIdentity &&
+            row.documentKey !== null &&
+            familySources.some(
+              (source) => source.documentKey === row.documentKey,
+            ) &&
+            row.crosswalkState === "MAPPED_ENABLED" &&
+            row.executionEnabled === true &&
+            row.reviewState === "NO_ACTION",
+        );
       const productRecovered =
         isProductIncidentType(open.incidentType) &&
-        matchingDocumentSources.length > 0 &&
-        matchingDocumentSources.every(
-          (source) =>
-            source.authorityStatus === "AUTHORITY_ACCEPTED" &&
-            source.blockerCode === null &&
-            source.errorCode === null &&
-            source.snapshotSha256 !== null &&
-            source.baseSnapshotSha256 !== null &&
-            source.snapshotSha256 === source.baseSnapshotSha256 &&
-            source.changeMode === "NO_CHANGE",
-        );
+        ((matchingDocumentSources.length > 0 &&
+          matchingDocumentSources.every(atAcceptedBaseline)) ||
+          familyRecovered);
       if (acquisitionRecovered || productRecovered) {
         const resolved = await input.store.resolve(open.incidentKey, now);
         if (resolved && input.notifier)
