@@ -119,7 +119,24 @@ export function createAuthRepository(runtime: DatabaseRuntime): AuthRepository {
         const now = new Date();
         if (!c)
           return { ok: false, code: "AUTH_OTP_INVALID" } as AuthResult<never>;
+        const rejectWrongCode = async (): Promise<AuthResult<never>> => {
+          await tx.query(
+            `UPDATE otp_challenges SET attempt_count=LEAST(attempt_count+1,max_attempts) WHERE id=$1`,
+            [c.id],
+          );
+          await tx.query(
+            `INSERT INTO audit_events(actor_type,action,target_type,target_id,correlation_id,reason) VALUES('ANONYMOUS','AUTH_OTP_VERIFY_FAILED','OTP',$1,$2,'AUTH_OTP_INVALID')`,
+            [c.id, input.correlationId],
+          );
+          return { ok: false, code: "AUTH_OTP_INVALID" };
+        };
         if (c.consumed_at) {
+          // The idempotency key identifies a retry, not a substitute for OTP
+          // proof. Count invalid replay attempts under the same challenge lock.
+          if (c.attempt_count >= c.max_attempts)
+            return { ok: false, code: "AUTH_OTP_INVALID" } as AuthResult<never>;
+          if (!input.verify(c.normalized_identity_target, c.verification_hash))
+            return rejectWrongCode();
           const replay = await tx.query<{ user_id: string; expires_at: Date }>(
             `SELECT r.user_id,s.expires_at FROM otp_verify_replays r JOIN portal_sessions s ON s.id=r.portal_session_id JOIN users u ON u.id=r.user_id WHERE r.challenge_id=$1 AND r.idempotency_hash=$2 AND s.revoked_at IS NULL AND s.expires_at>now() AND u.status='ACTIVE'`,
             [c.id, input.idempotencyHash],
@@ -140,17 +157,8 @@ export function createAuthRepository(runtime: DatabaseRuntime): AuthRepository {
           c.attempt_count >= c.max_attempts
         )
           return { ok: false, code: "AUTH_OTP_INVALID" } as AuthResult<never>;
-        if (!input.verify(c.normalized_identity_target, c.verification_hash)) {
-          await tx.query(
-            `UPDATE otp_challenges SET attempt_count=LEAST(attempt_count+1,max_attempts) WHERE id=$1`,
-            [c.id],
-          );
-          await tx.query(
-            `INSERT INTO audit_events(actor_type,action,target_type,target_id,correlation_id,reason) VALUES('ANONYMOUS','AUTH_OTP_VERIFY_FAILED','OTP',$1,$2,'AUTH_OTP_INVALID')`,
-            [c.id, input.correlationId],
-          );
-          return { ok: false, code: "AUTH_OTP_INVALID" } as AuthResult<never>;
-        }
+        if (!input.verify(c.normalized_identity_target, c.verification_hash))
+          return rejectWrongCode();
         const claimed = await tx.query<{ id: string }>(
           `UPDATE otp_challenges SET consumed_at=$2 WHERE id=$1 AND consumed_at IS NULL RETURNING id`,
           [c.id, now],

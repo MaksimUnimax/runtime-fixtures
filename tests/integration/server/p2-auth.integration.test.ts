@@ -369,6 +369,17 @@ describe.sequential("P2.2 real PostgreSQL authentication matrix", () => {
     );
     expect(first.ok).toBe(true);
     if (!first.ok) throw new Error(first.code);
+    const wrongCodeWithSameKey = await auth().verifyOtp(
+      id,
+      "999999",
+      "198.51.104.43",
+      "accepted-request-id-replay-wrong-code",
+      key,
+    );
+    expect(wrongCodeWithSameKey).toEqual({
+      ok: false,
+      code: "AUTH_OTP_INVALID",
+    });
     const replay = await auth().verifyOtp(
       id,
       code,
@@ -410,6 +421,52 @@ describe.sequential("P2.2 real PostgreSQL authentication matrix", () => {
         )
       ).rows[0]!.count,
     ).toBe("1");
+  });
+
+  it("S1.1 locks a consumed OTP challenge after five bad same-key replay codes across IPs", async () => {
+    const id = await request("otp-replay-lockout@example.test");
+    const key = "otp-replay-lockout-key-1234";
+    const first = await auth().verifyOtp(
+      id,
+      code,
+      "198.51.107.1",
+      "accepted-request-id-replay-lockout-initial",
+      key,
+    );
+    expect(first.ok).toBe(true);
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const denied = await auth().verifyOtp(
+        id,
+        "999999",
+        `198.51.108.${attempt + 1}`,
+        `accepted-request-id-replay-lockout-${attempt}`,
+        key,
+      );
+      expect(denied).toEqual({ ok: false, code: "AUTH_OTP_INVALID" });
+    }
+    expect((await challenge(id)).attempt_count).toBe(5);
+    const exhausted = await auth().verifyOtp(
+      id,
+      code,
+      "198.51.109.1",
+      "accepted-request-id-replay-lockout-exhausted",
+      key,
+    );
+    expect(exhausted).toEqual({ ok: false, code: "AUTH_OTP_INVALID" });
+    expect(
+      (
+        await q<{ count: string }>(
+          "SELECT count(*)::text count FROM portal_sessions",
+        )
+      ).rows[0]!.count,
+    ).toBe("1");
+    expect(
+      (
+        await q<{ count: string }>(
+          "SELECT count(*)::text count FROM audit_events WHERE action='AUTH_OTP_VERIFY_FAILED'",
+        )
+      ).rows[0]!.count,
+    ).toBe("5");
   });
 
   it("S1.1 admits exactly one winner for the last slot and leaves the loser partial-free", async () => {
