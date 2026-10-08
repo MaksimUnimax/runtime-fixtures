@@ -37,6 +37,12 @@ export interface TransferRepository {
     requestId: string;
     now: Date;
   }): Promise<TransferRequestV1 | undefined>;
+  /** Source eligibility view, including an account-bound unassigned request. */
+  readForSource(input: {
+    principal: ExtensionPrincipal;
+    requestId: string;
+    now: Date;
+  }): Promise<TransferRequestV1 | undefined>;
   listForSource(input: {
     principal: ExtensionPrincipal;
     now: Date;
@@ -355,7 +361,7 @@ export class CredentialTransferService {
   }
 
   public async sourceSeen(principal: ExtensionPrincipal, requestId: string) {
-    const current = await this.repository.read({
+    const current = await this.repository.readForSource({
       principal,
       requestId,
       now: this.now(),
@@ -601,7 +607,24 @@ export function createMemoryTransferRepository(): TransferRepository {
     },
     async read({ principal, requestId, now }) {
       const row = find(principal, requestId, now);
-      return row ? clone(row) : undefined;
+      // Match the production participant-only read contract.
+      if (
+        !row ||
+        (row.recipientDeviceId !== principal.deviceId &&
+          row.sourceDeviceId !== principal.deviceId)
+      )
+        return undefined;
+      return clone(row);
+    },
+    async readForSource({ principal, requestId, now }) {
+      const row = find(principal, requestId, now);
+      if (
+        !row ||
+        row.recipientDeviceId === principal.deviceId ||
+        (row.sourceDeviceId && row.sourceDeviceId !== principal.deviceId)
+      )
+        return undefined;
+      return clone(row);
     },
     async listForSource({ principal, now }) {
       return [...rows.values()]
@@ -619,7 +642,10 @@ export function createMemoryTransferRepository(): TransferRepository {
     async markSourceSeen({ principal, requestId, now }) {
       const row = find(principal, requestId, now);
       if (!row) throw new TransferError("TRANSFER_ACCOUNT_MISMATCH");
-      if (row.sourceDeviceId && row.sourceDeviceId !== principal.deviceId)
+      if (
+        row.recipientDeviceId === principal.deviceId ||
+        (row.sourceDeviceId && row.sourceDeviceId !== principal.deviceId)
+      )
         throw new TransferError("TRANSFER_ACCOUNT_MISMATCH");
       if (!row.sourceDeviceId) row.sourceDeviceId = principal.deviceId;
       transition(

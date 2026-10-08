@@ -73,8 +73,8 @@ function assertPrincipal(
     fail("TRANSFER_ACCOUNT_MISMATCH");
   if (
     role === "source" &&
-    row.source_device_id &&
-    row.source_device_id !== principal.deviceId
+    (row.recipient_device_id === principal.deviceId ||
+      (row.source_device_id && row.source_device_id !== principal.deviceId))
   )
     fail("TRANSFER_ACCOUNT_MISMATCH");
 }
@@ -160,6 +160,24 @@ export function createCredentialTransferRepository(
           row.source_device_id !== principal.deviceId
         )
           return undefined;
+        return map(row);
+      });
+    },
+    async readForSource({ principal, requestId, now }) {
+      return runtime.transaction(async (tx) => {
+        const row = await load(tx, requestId, now);
+        if (
+          !row ||
+          row.account_id !== principal.accountId ||
+          row.recipient_device_id === principal.deviceId ||
+          (row.source_device_id && row.source_device_id !== principal.deviceId)
+        )
+          return undefined;
+        assertActiveDevice(
+          await activeDevice(tx, principal.accountId, principal.deviceId),
+        );
+        // Assignment is still authorized again under the transition's row lock.
+        // Ordinary read remains limited to an already assigned participant.
         return map(row);
       });
     },

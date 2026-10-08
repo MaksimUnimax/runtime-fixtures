@@ -789,3 +789,42 @@ describe("D3S2-2A control-plane foundation", () => {
     ).toBeLessThanOrEqual(6);
   });
 });
+
+describe("unassigned source participant visibility", () => {
+  it("keeps ordinary reads private while allowing the same-account source to accept", async () => {
+    const { service } = setup();
+    await service.create(recipient, createInput());
+    expect(await service.read(source, id)).toBeUndefined();
+    expect(await service.read(other, id)).toBeUndefined();
+    expect((await service.read(recipient, id))?.state).toBe("REQUESTED");
+    expect(
+      (await service.listForSource(source)).map((row) => row.requestId),
+    ).toContain(id);
+    expect((await service.sourceSeen(source, id)).sourceDeviceId).toBe(
+      source.deviceId,
+    );
+    expect((await service.read(source, id))?.state).toBe("SOURCE_SEEN");
+  });
+});
+
+describe("source eligibility rejects the recipient", () => {
+  it("rejects recipient self-assignment before any state change in memory", async () => {
+    const repository = createMemoryTransferRepository();
+    const { service } = setup({}, repository);
+    const before = await service.create(recipient, createInput());
+    await expect(service.sourceSeen(recipient, id)).rejects.toMatchObject({
+      code: "TRANSFER_ACCOUNT_MISMATCH",
+    });
+    await expect(
+      repository.markSourceSeen({
+        principal: recipient,
+        requestId: id,
+        now: new Date("2026-09-18T10:00:00.000Z"),
+      }),
+    ).rejects.toMatchObject({ code: "TRANSFER_ACCOUNT_MISMATCH" });
+    expect(await service.read(recipient, id)).toEqual(before);
+    expect((await service.sourceSeen(source, id)).sourceDeviceId).toBe(
+      source.deviceId,
+    );
+  });
+});
