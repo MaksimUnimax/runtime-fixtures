@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import subprocess
 import tempfile
 import unittest
 import sys
@@ -61,12 +62,8 @@ class VerifyOpsReleaseTest(unittest.TestCase):
                 and path.name != "RELEASE_SHA256SUMS"
             ):
                 digest = hashlib.sha256(path.read_bytes()).hexdigest()
-                checksums.append(
-                    f"{digest}  {path.relative_to(self.root).as_posix()}"
-                )
-        (self.root / "RELEASE_SHA256SUMS").write_text(
-            "\n".join(checksums) + "\n"
-        )
+                checksums.append(f"{digest}  {path.relative_to(self.root).as_posix()}")
+        (self.root / "RELEASE_SHA256SUMS").write_text("\n".join(checksums) + "\n")
 
     def test_valid_release_passes(self) -> None:
         result = verify_release(self.root)
@@ -126,6 +123,151 @@ class VerifyOpsReleaseTest(unittest.TestCase):
             ReleaseVerificationError, "RELEASE_PERMISSIONS_INVALID"
         ):
             verify_release(self.root)
+
+    def test_exact_expected_source_pair_succeeds(self) -> None:
+        result = verify_release(
+            self.root,
+            expected_source_sha=SOURCE_SHA,
+            expected_source_tree=SOURCE_TREE,
+        )
+        self.assertEqual(result["status"], "PASS")
+
+    def test_exact_expected_source_pair_preserves_checksum_validation(self) -> None:
+        (self.root / "payload.txt").write_text("tampered\\n")
+        with self.assertRaisesRegex(
+            ReleaseVerificationError, "RELEASE_CHECKSUM_MISMATCH"
+        ):
+            verify_release(
+                self.root,
+                expected_source_sha=SOURCE_SHA,
+                expected_source_tree=SOURCE_TREE,
+            )
+
+    def test_expected_source_commit_mismatch_fails(self) -> None:
+        with self.assertRaisesRegex(
+            ReleaseVerificationError, "RELEASE_EXPECTED_SOURCE_SHA_MISMATCH"
+        ):
+            verify_release(
+                self.root,
+                expected_source_sha="c" * 40,
+                expected_source_tree=SOURCE_TREE,
+            )
+
+    def test_expected_source_tree_mismatch_fails(self) -> None:
+        with self.assertRaisesRegex(
+            ReleaseVerificationError, "RELEASE_EXPECTED_SOURCE_TREE_MISMATCH"
+        ):
+            verify_release(
+                self.root,
+                expected_source_sha=SOURCE_SHA,
+                expected_source_tree="c" * 40,
+            )
+
+    def test_expected_source_pair_is_required_together(self) -> None:
+        for kwargs in (
+            {"expected_source_sha": SOURCE_SHA},
+            {"expected_source_tree": SOURCE_TREE},
+        ):
+            with self.subTest(kwargs=tuple(kwargs)):
+                with self.assertRaisesRegex(
+                    ReleaseVerificationError, "RELEASE_EXPECTED_SOURCE_PAIR_REQUIRED"
+                ):
+                    verify_release(self.root, **kwargs)
+
+    def test_invalid_expected_source_values_fail_closed(self) -> None:
+        for kwargs, code in (
+            (
+                {"expected_source_sha": "INVALID", "expected_source_tree": SOURCE_TREE},
+                "RELEASE_EXPECTED_SOURCE_SHA_INVALID",
+            ),
+            (
+                {"expected_source_sha": SOURCE_SHA, "expected_source_tree": "NOT-GIT"},
+                "RELEASE_EXPECTED_SOURCE_TREE_INVALID",
+            ),
+            (
+                {
+                    "expected_source_sha": SOURCE_SHA.upper(),
+                    "expected_source_tree": SOURCE_TREE,
+                },
+                "RELEASE_EXPECTED_SOURCE_SHA_INVALID",
+            ),
+        ):
+            with self.subTest(code=code):
+                with self.assertRaisesRegex(ReleaseVerificationError, code):
+                    verify_release(self.root, **kwargs)
+
+    def _run_cli(self, *flags: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [
+                sys.executable,
+                "-B",
+                str(Path(__file__).with_name("verify_ops_release.py")),
+                *flags,
+                str(self.root),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+
+    def test_cli_legacy_positional_mode_still_passes(self) -> None:
+        result = self._run_cli()
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(json.loads(result.stdout)["status"], "PASS")
+
+    def test_cli_exact_expected_pair_succeeds(self) -> None:
+        result = self._run_cli(
+            "--expected-source-sha",
+            SOURCE_SHA,
+            "--expected-source-tree",
+            SOURCE_TREE,
+        )
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(json.loads(result.stdout)["sourceSha"], SOURCE_SHA)
+
+    def test_cli_wrong_expected_tree_fails_without_accepted_release(self) -> None:
+        result = self._run_cli(
+            "--expected-source-sha",
+            SOURCE_SHA,
+            "--expected-source-tree",
+            "c" * 40,
+        )
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(
+            json.loads(result.stderr)["code"], "RELEASE_EXPECTED_SOURCE_TREE_MISMATCH"
+        )
+
+    def test_json_integer_manifest_source_tree_rejected(self) -> None:
+        manifest_path = self.root / "RELEASE_MANIFEST.json"
+        manifest = json.loads(manifest_path.read_text())
+        manifest["sourceTree"] = int("1" * 40)
+        manifest_path.write_text(json.dumps(manifest) + "\n")
+        self._refresh_metadata()
+        with self.assertRaisesRegex(
+            ReleaseVerificationError, "RELEASE_SOURCE_TREE_INVALID"
+        ):
+            verify_release(
+                self.root,
+                expected_source_sha=SOURCE_SHA,
+                expected_source_tree="1" * 40,
+            )
+
+    def test_json_integer_manifest_source_sha_rejected(self) -> None:
+        digit_source_sha = "1" * 40
+        self.root = self.root.rename(self.base / digit_source_sha)
+        manifest_path = self.root / "RELEASE_MANIFEST.json"
+        manifest = json.loads(manifest_path.read_text())
+        manifest["sourceSha"] = int(digit_source_sha)
+        manifest_path.write_text(json.dumps(manifest) + "\n")
+        self._refresh_metadata()
+        with self.assertRaisesRegex(
+            ReleaseVerificationError, "RELEASE_SOURCE_SHA_INVALID"
+        ):
+            verify_release(
+                self.root,
+                expected_source_sha=digit_source_sha,
+                expected_source_tree=SOURCE_TREE,
+            )
 
 
 if __name__ == "__main__":

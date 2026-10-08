@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
 import os
@@ -63,7 +64,12 @@ def _symlink_inventory(root: Path) -> dict[str, str]:
     return result
 
 
-def verify_release(root_value: str | Path) -> dict[str, object]:
+def verify_release(
+    root_value: str | Path,
+    *,
+    expected_source_sha: str | None = None,
+    expected_source_tree: str | None = None,
+) -> dict[str, object]:
     raw_root = Path(root_value)
     if not raw_root.is_absolute() or raw_root.is_symlink():
         raise ReleaseVerificationError("RELEASE_ROOT_INVALID")
@@ -82,14 +88,35 @@ def verify_release(root_value: str | Path) -> dict[str, object]:
     manifest = json.loads((root / "RELEASE_MANIFEST.json").read_text())
     if manifest.get("format") != "octoport-ops-release-v1":
         raise ReleaseVerificationError("RELEASE_MANIFEST_INVALID")
-    source_sha = str(manifest.get("sourceSha", ""))
-    source_tree = str(manifest.get("sourceTree", ""))
-    if not re.fullmatch(r"[0-9a-f]{40}", source_sha):
+    source_sha = manifest.get("sourceSha")
+    source_tree = manifest.get("sourceTree")
+    if not isinstance(source_sha, str) or not re.fullmatch(r"[0-9a-f]{40}", source_sha):
         raise ReleaseVerificationError("RELEASE_SOURCE_SHA_INVALID")
-    if not re.fullmatch(r"[0-9a-f]{40}", source_tree):
+    if not isinstance(source_tree, str) or not re.fullmatch(
+        r"[0-9a-f]{40}", source_tree
+    ):
         raise ReleaseVerificationError("RELEASE_SOURCE_TREE_INVALID")
     if root.name != source_sha:
         raise ReleaseVerificationError("RELEASE_DIRECTORY_SHA_MISMATCH")
+
+    # A caller-supplied accepted Git commit/tree pair binds an otherwise
+    # internally valid release to the exact intended source. These two values
+    # must come from a separately verified release authority.
+    if (expected_source_sha is None) != (expected_source_tree is None):
+        raise ReleaseVerificationError("RELEASE_EXPECTED_SOURCE_PAIR_REQUIRED")
+    if expected_source_sha is not None:
+        if not isinstance(expected_source_sha, str) or not re.fullmatch(
+            r"[0-9a-f]{40}", expected_source_sha
+        ):
+            raise ReleaseVerificationError("RELEASE_EXPECTED_SOURCE_SHA_INVALID")
+        if not isinstance(expected_source_tree, str) or not re.fullmatch(
+            r"[0-9a-f]{40}", expected_source_tree
+        ):
+            raise ReleaseVerificationError("RELEASE_EXPECTED_SOURCE_TREE_INVALID")
+        if expected_source_sha != source_sha:
+            raise ReleaseVerificationError("RELEASE_EXPECTED_SOURCE_SHA_MISMATCH")
+        if expected_source_tree != source_tree:
+            raise ReleaseVerificationError("RELEASE_EXPECTED_SOURCE_TREE_MISMATCH")
 
     expected_files = _checksums(root)
     actual_files: dict[str, Path] = {}
@@ -145,18 +172,40 @@ def verify_release(root_value: str | Path) -> dict[str, object]:
 
 
 def main() -> int:
-    if len(sys.argv) != 2:
-        print("usage: verify_ops_release.py <release-dir>", file=sys.stderr)
-        return 2
+    parser = argparse.ArgumentParser(
+        description="Verify an immutable Octoport release directory."
+    )
+    parser.add_argument(
+        "--expected-source-sha",
+        help="Accepted exact 40-hex Git commit; requires --expected-source-tree.",
+    )
+    parser.add_argument(
+        "--expected-source-tree",
+        help="Accepted exact 40-hex Git tree; requires --expected-source-sha.",
+    )
+    parser.add_argument("release_dir", help="Absolute release directory")
+    args = parser.parse_args()
     try:
-        result = verify_release(sys.argv[1])
-    except (OSError, ValueError, json.JSONDecodeError, ReleaseVerificationError) as error:
+        result = verify_release(
+            args.release_dir,
+            expected_source_sha=args.expected_source_sha,
+            expected_source_tree=args.expected_source_tree,
+        )
+    except (
+        OSError,
+        ValueError,
+        json.JSONDecodeError,
+        ReleaseVerificationError,
+    ) as error:
         code = (
             str(error)
             if isinstance(error, ReleaseVerificationError)
             else "RELEASE_VERIFICATION_FAILED"
         )
-        print(json.dumps({"status": "FAIL", "code": code}, sort_keys=True), file=sys.stderr)
+        print(
+            json.dumps({"status": "FAIL", "code": code}, sort_keys=True),
+            file=sys.stderr,
+        )
         return 1
     print(json.dumps(result, sort_keys=True))
     return 0

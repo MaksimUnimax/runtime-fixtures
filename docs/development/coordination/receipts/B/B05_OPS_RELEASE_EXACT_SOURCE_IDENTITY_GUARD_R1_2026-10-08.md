@@ -1,0 +1,13 @@
+# B05 — exact expected source identity guard (SOURCE)
+
+- Owner/task: B / B05-OPS-RELEASE-EXACT-SOURCE-IDENTITY-GUARD-R1-20261008.
+- Accepted base: 947a102789a0ab9d9952b37a1f05c29a54e4097a; three exact task files, no overlaps with active controller P2, A or C paths.
+- Requirement: PLAN B05 clean pinned release/SHA. The existing verify_ops_release.py verifies internal manifest, checksum, symlink and ownership/permission identities, but before this change a caller could not require that an internally valid directory be the selected accepted Git source.
+- API: verify_release(root) is unchanged. New optional keyword-only expected_source_sha + expected_source_tree require both 40-character lowercase hex OIDs and exact equality to RELEASE_MANIFEST.json. Missing, malformed or mismatched values fail closed with distinct safe error codes.
+- CLI: previous verify_ops_release.py <release-dir> still works. New strict mode: verify_ops_release.py --expected-source-sha <accepted-commit-oid> --expected-source-tree <accepted-tree-oid> <release-dir>. The trusted pair must be obtained separately from the current authorized source, not taken from the release being verified. Neither the CLI nor this patch verifies the authority that supplied the expected values.
+- Existing SHA256SUMS, symlink/path, root ownership/permission checks are preserved and still run on a matching pair; strict identity does not skip integrity validation.
+- Reproduction: RED_UNIT_RESULT_R1.json — newly added tests failed on the original API without expected-source arguments; no production calls.
+- Source test: FOCUSED_UNIT_TEST_R1.json — 16/16 PASS including legacy CLI, strict-pair accepted/rejected, missing pair, malformed values and tampered payload.
+- Independent first review: codex2/gpt-6-luna found P2 in initial candidate 24f62a02: numeric JSON manifest OIDs passed after str() coercion. Added two regression tests reproducing RED; successor validates raw manifest values are strings before the 40-hex check. P2 must be independently reviewed again on exact successor SHA, not self-accepted.
+- Build/resource boundary: dedicated task-local Git sparse checkout and a disk_lifecycle 32-MiB allocation; no dependency installation, API/worker/portal start, marketplace call, live DB, user authentication, ZIP rebuild or existing release mutation.
+- Release authority: source-only. Independent review, full exact-candidate CI, native task publication, pinned server build and authorized owner-test rollout remain separate gates. Previous specific B04 OTP publish-main platform denial is unchanged; current running API still lacks B03 and B04 source.
