@@ -231,6 +231,7 @@ function harness(
     createdAt: new Date("2026-01-01T00:00:00.000Z"),
     supportedContracts: ["control_plane_v2"],
     supportedBrowsers: ["opera"],
+    browserArtifacts: [{ browserFamily: "opera", artifactSha256: null }],
   }));
   behavior.set("getLatestConfigRelease", () => ({
     configVersion: 7,
@@ -511,6 +512,7 @@ describe("P6.4 admin-commercial controller", () => {
       artifactSha256: "c".repeat(64),
       supportedContracts: ["control_plane_v2"],
       supportedBrowsers: ["opera"],
+      browserArtifacts: [{ browserFamily: "opera", artifactSha256: null }],
     });
     expect(configRelease.json()).toMatchObject({
       configVersion: 7,
@@ -1473,6 +1475,78 @@ describe("P6.4 admin-commercial controller", () => {
     });
     expect(calls).toContain("publishExtensionRelease");
   });
+  it("publishes exact browser artifacts and rejects unsafe artifact coverage before mutation", async () => {
+    const payload = {
+      version: extensionReleaseBody.version,
+      releaseChannel: extensionReleaseBody.releaseChannel,
+      supportedContracts: extensionReleaseBody.supportedContracts,
+      reason: extensionReleaseBody.reason,
+      supportedBrowsers: ["chrome", "opera"],
+      browserArtifacts: [
+        { browserFamily: "chrome", artifactSha256: "a".repeat(64) },
+        { browserFamily: "opera", artifactSha256: "b".repeat(64) },
+      ],
+    };
+    const { app, behavior, calls } = harness();
+    apps.push(app);
+    behavior.set("publishExtensionRelease", (input) => {
+      expect(input).toMatchObject({ ...payload, actorId });
+      expect(input).not.toHaveProperty("artifactSha256");
+      return { id: "00000000-0000-4000-8000-000000000013", ...payload };
+    });
+    const response = await app.inject({
+      method: "POST",
+      url: "/v1/admin/compatibility/releases/0.2.4/publish",
+      headers: mutationHeaders,
+      payload,
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.headers["cache-control"]).toBe("no-store");
+    expect(calls.filter((x) => x === "publishExtensionRelease")).toHaveLength(
+      1,
+    );
+    for (const invalid of [
+      { ...payload, browserArtifacts: undefined },
+      { ...payload, browserArtifacts: [] },
+      { ...payload, artifactSha256: "c".repeat(64) },
+      { ...payload, browserArtifacts: payload.browserArtifacts.slice(0, 1) },
+      {
+        ...payload,
+        browserArtifacts: [
+          payload.browserArtifacts[0],
+          payload.browserArtifacts[0],
+        ],
+      },
+      { ...payload, supportedBrowsers: ["chrome", "chrome"] },
+      {
+        ...payload,
+        supportedContracts: ["control_plane_v2", "control_plane_v2"],
+      },
+      {
+        ...payload,
+        browserArtifacts: [
+          { browserFamily: "firefox", artifactSha256: "a".repeat(64) },
+          payload.browserArtifacts[1],
+        ],
+      },
+      { ...payload, releasedAt: "2026-10-06T00:00:00Z" },
+    ]) {
+      expectError(
+        await app.inject({
+          method: "POST",
+          url: "/v1/admin/compatibility/releases/0.2.4/publish",
+          headers: mutationHeaders,
+          payload: invalid,
+        }),
+        400,
+        "INVALID_REQUEST",
+      );
+    }
+    expect(calls.filter((x) => x === "publishExtensionRelease")).toHaveLength(
+      1,
+    );
+  });
+
   it("publishes an add-only v2 config link through compatibility.manage with no-store", async () => {
     const configRelease = {
       configVersion: 9,

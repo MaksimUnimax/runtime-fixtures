@@ -1494,7 +1494,7 @@ describe.sequential(
           )
           .digest("hex"),
       ).toBe(
-        "1153ca8f476bd1364012236a7a86058fff84ba02d4edc87a66219be2a6e21bd7",
+        "182d7ac4b687b6571bf33b3bacfdd0e8268574f39dd7b6bbd97b02f60982d659",
       );
     });
     it("STATIC-72 OpenAPI has no checkout, webhook, or fake completion route", async () => {

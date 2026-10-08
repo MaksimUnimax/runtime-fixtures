@@ -254,7 +254,12 @@ export function createP6AdminCommercialReadRepository(
           COALESCE((SELECT array_agg(contract_version::text ORDER BY contract_version::text)
             FROM extension_release_contracts c WHERE c.release_id=r.id),ARRAY[]::text[]) AS "supportedContracts",
           COALESCE((SELECT array_agg(browser_family::text ORDER BY browser_family::text)
-            FROM extension_release_browsers b WHERE b.release_id=r.id),ARRAY[]::text[]) AS "supportedBrowsers"
+            FROM extension_release_browsers b WHERE b.release_id=r.id),ARRAY[]::text[]) AS "supportedBrowsers",
+          COALESCE((SELECT jsonb_agg(jsonb_build_object(
+              'browserFamily', b.browser_family::text, 'artifactSha256', b.artifact_sha256)
+              ORDER BY b.browser_family::text)
+            FROM extension_release_browsers b
+            WHERE b.release_id=r.id),'[]'::jsonb) AS "browserArtifacts"
          FROM extension_releases r WHERE r.version=$1`,
         [version],
       );

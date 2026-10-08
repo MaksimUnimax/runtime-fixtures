@@ -546,6 +546,55 @@ describe.sequential("P6.4 behavioral real PostgreSQL acceptance matrix", () => {
             ?.mode,
         ).toBe("CLOSED");
       }));
+    it("[A05i] real release GET returns ordered browser-specific digests", async () =>
+      withAdmin("ADMIN_OWNER", async (f) => {
+        const version = "0.2.14";
+        const browserArtifacts = [
+          { browserFamily: "opera", artifactSha256: "b".repeat(64) },
+          { browserFamily: "chrome", artifactSha256: "a".repeat(64) },
+        ];
+        const published = await call(
+          f,
+          "POST",
+          `/v1/admin/compatibility/releases/${version}/publish`,
+          {
+            version,
+            releaseChannel: "stable",
+            browserArtifacts,
+            supportedContracts: ["control_plane_v2"],
+            supportedBrowsers: ["opera", "chrome"],
+            reason: rsn("release"),
+          },
+        );
+        expect(published.statusCode).toBe(200);
+        const response = await call(
+          f,
+          "GET",
+          `/v1/admin/compatibility/releases/${version}`,
+        );
+        expect(response.statusCode).toBe(200);
+        expect(response.json()).toMatchObject({
+          version,
+          artifactSha256: null,
+          supportedBrowsers: ["chrome", "opera"],
+          browserArtifacts: [browserArtifacts[1], browserArtifacts[0]],
+        });
+      }));
+    it("[A05j] real legacy release GET keeps scalar digest and null browser membership artifacts", async () =>
+      withAdmin("ADMIN_OWNER", async (f) => {
+        expect((await publishRelease(f)).statusCode).toBe(200);
+        const response = await call(
+          f,
+          "GET",
+          "/v1/admin/compatibility/releases/0.2.4",
+        );
+        expect(response.statusCode).toBe(200);
+        expect(response.json()).toMatchObject({
+          artifactSha256: "d".repeat(64),
+          supportedBrowsers: ["opera"],
+          browserArtifacts: [{ browserFamily: "opera", artifactSha256: null }],
+        });
+      }));
     it("[A05e] OWNER add-only config link preserves current v2 baseline and rejects no-op replay", async () =>
       withAdmin("ADMIN_OWNER", async (f) => {
         const existingPolicy = await publishCompat(

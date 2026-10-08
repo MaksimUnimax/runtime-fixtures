@@ -2,7 +2,7 @@ import {
   BrowserFamilySchema,
   ContractVersionSchema,
   PublishCompatibilityPolicyRevisionCommandSchema,
-  PublishExtensionReleaseCommandSchema,
+  ExtensionReleasePublicationInputSchema,
   type CompatibilityPublicationPort,
   type BrowserFamily,
   type CompatibilityMutationContext,
@@ -310,29 +310,20 @@ export const CompatibilityPublishBodySchema = z
       c.addIssue({ code: "custom", message: "duplicate blocked version" });
   });
 
-export const ExtensionReleasePublishBodySchema = z
-  .object({
-    version: PublishExtensionReleaseCommandSchema.shape.version,
-    releaseChannel: PublishExtensionReleaseCommandSchema.shape.releaseChannel,
+export const ExtensionReleasePublishBodySchema = z.union([
+  ExtensionReleasePublicationInputSchema.safeExtend({
     artifactSha256:
-      PublishExtensionReleaseCommandSchema.shape.artifactSha256.unwrap(),
-    supportedContracts:
-      PublishExtensionReleaseCommandSchema.shape.supportedContracts,
-    supportedBrowsers:
-      PublishExtensionReleaseCommandSchema.shape.supportedBrowsers,
+      ExtensionReleasePublicationInputSchema.shape.artifactSha256.unwrap(),
+    browserArtifacts: z.never().optional(),
     reason: Reason,
-  })
-  .strict()
-  .superRefine((value, ctx) => {
-    if (
-      new Set(value.supportedContracts).size !== value.supportedContracts.length
-    )
-      ctx.addIssue({ code: "custom", message: "duplicate contract" });
-    if (
-      new Set(value.supportedBrowsers).size !== value.supportedBrowsers.length
-    )
-      ctx.addIssue({ code: "custom", message: "duplicate browser" });
-  });
+  }),
+  ExtensionReleasePublicationInputSchema.safeExtend({
+    artifactSha256: z.never().optional(),
+    browserArtifacts:
+      ExtensionReleasePublicationInputSchema.shape.browserArtifacts.unwrap(),
+    reason: Reason,
+  }),
+]);
 
 export const ConfigReleasePublishBodySchema = z
   .object({
@@ -403,6 +394,10 @@ export type CompatibilityAdminRevision = CompatibilityPolicyRevision & {
 export type AdminExtensionReleaseRead = ExtensionRelease & {
   supportedContracts: Array<"control_plane_v1" | "control_plane_v2">;
   supportedBrowsers: BrowserFamily[];
+  browserArtifacts: Array<{
+    browserFamily: BrowserFamily;
+    artifactSha256: string | null;
+  }>;
 };
 export type AdminConfigReleaseRead = {
   configVersion: number;
@@ -615,16 +610,12 @@ export type AdminCommercialService = AdminCommercialReadRepository & {
     blockedVersions: string[];
     reason: string;
   }): Promise<CompatibilityPolicyRevision>;
-  publishExtensionRelease(input: {
-    version: string;
-    releaseChannel: string;
-    artifactSha256: string;
-    supportedContracts: z.infer<typeof ContractVersionSchema>[];
-    supportedBrowsers: BrowserFamily[];
-    actorId: string;
-    correlationId: string;
-    reason: string;
-  }): Promise<ExtensionRelease>;
+  publishExtensionRelease(
+    input: z.infer<typeof ExtensionReleasePublishBodySchema> & {
+      actorId: string;
+      correlationId: string;
+    },
+  ): Promise<ExtensionRelease>;
 };
 
 type MutationPorts = {
@@ -870,6 +861,7 @@ export function createAdminCommercialService(
           version: x.version,
           releaseChannel: x.releaseChannel,
           artifactSha256: x.artifactSha256,
+          browserArtifacts: x.browserArtifacts,
           releasedAt: new Date(),
           supportedContracts: x.supportedContracts,
           supportedBrowsers: x.supportedBrowsers,

@@ -471,16 +471,17 @@ describe.sequential("STORE release transition read-only preflight", () => {
     ).toMatchObject({ status: "READY", code: "ASSIGNMENT_READY" });
   });
 
-  it("fails closed when existing admin GET handlers omit browser artifact rows", async () => {
+  it("accepts legacy scalar release when admin GET returns null browser membership rows", async () => {
     await seedStoreCatalog(
       transitionTarget.productVersion,
       transitionTarget.artifactSha256,
     );
     const { report, paths } = await runReadOnly();
-    expect(report.status).toBe("MISMATCH");
-    expect(mismatchCodes(report)).toContain(
-      "RELEASE_ARTIFACT_MODE_UNAVAILABLE",
-    );
+    expect(report.status).toBe("READY");
+    expect(mismatchCodes(report)).toEqual([]);
+    expect(
+      report.checks.find((item) => item.component === "release"),
+    ).toMatchObject({ status: "READY", code: "RELEASE_READY" });
     expect(paths).toContain(
       "/v1/admin/compatibility/releases/" + transitionTarget.productVersion,
     );
@@ -505,10 +506,7 @@ describe.sequential("STORE release transition read-only preflight", () => {
     const { report } = await runReadOnly({ policyUnavailable: true });
     expect(report.status).toBe("UNKNOWN");
     expect(mismatchCodes(report)).toEqual(
-      expect.arrayContaining([
-        "RELEASE_ARTIFACT_MODE_UNAVAILABLE",
-        "POLICIES_HTTP_503",
-      ]),
+      expect.arrayContaining(["RELEASE_CONFLICT", "POLICIES_HTTP_503"]),
     );
   });
 });

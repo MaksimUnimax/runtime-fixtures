@@ -14,6 +14,23 @@ describe("OpenAPI foundation", () => {
     ).toBe(false);
   });
 
+  it("documents mutually exclusive release integrity modes and a nonempty browser artifact list", async () => {
+    const document = JSON.parse(await generateOpenApiRepresentation());
+    const schema =
+      document.paths["/v1/admin/compatibility/releases/{version}/publish"].post
+        .requestBody.content["application/json"].schema;
+    expect(schema.anyOf).toHaveLength(2);
+    const [legacy, perBrowser] = schema.anyOf;
+    expect(legacy.required).toContain("artifactSha256");
+    expect(legacy.properties.browserArtifacts).toEqual({ not: {} });
+    expect(perBrowser.required).toContain("browserArtifacts");
+    expect(perBrowser.properties.artifactSha256).toEqual({ not: {} });
+    expect(perBrowser.properties.browserArtifacts.minItems).toBe(1);
+    expect(perBrowser.properties.browserArtifacts.items.required).toEqual(
+      expect.arrayContaining(["browserFamily", "artifactSha256"]),
+    );
+  });
+
   it("generates the implemented P6.4 API surface", async () => {
     const document = JSON.parse(await generateOpenApiRepresentation()) as {
       openapi: string;

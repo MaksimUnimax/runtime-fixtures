@@ -54540,64 +54540,158 @@
           "content": {
             "application/json": {
               "schema": {
-                "additionalProperties": false,
-                "properties": {
-                  "artifactSha256": {
-                    "pattern": "^[0-9a-f]{64}$",
-                    "type": "string"
-                  },
-                  "reason": {
-                    "maxLength": 256,
-                    "minLength": 1,
-                    "type": "string"
-                  },
-                  "releaseChannel": {
-                    "maxLength": 64,
-                    "minLength": 1,
-                    "pattern": "^[a-z0-9][a-z0-9._-]*$",
-                    "type": "string"
-                  },
-                  "supportedBrowsers": {
-                    "items": {
-                      "enum": [
-                        "chrome",
-                        "opera",
-                        "yandex_chromium",
-                        "firefox",
-                        "safari"
-                      ],
-                      "type": "string"
+                "anyOf": [
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "artifactSha256": {
+                        "pattern": "^[0-9a-f]{64}$",
+                        "type": "string"
+                      },
+                      "browserArtifacts": {
+                        "not": {}
+                      },
+                      "reason": {
+                        "maxLength": 256,
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "releaseChannel": {
+                        "maxLength": 64,
+                        "minLength": 1,
+                        "pattern": "^[a-z0-9][a-z0-9._-]*$",
+                        "type": "string"
+                      },
+                      "supportedBrowsers": {
+                        "items": {
+                          "enum": [
+                            "chrome",
+                            "opera",
+                            "yandex_chromium",
+                            "firefox",
+                            "safari"
+                          ],
+                          "type": "string"
+                        },
+                        "minItems": 1,
+                        "type": "array"
+                      },
+                      "supportedContracts": {
+                        "items": {
+                          "enum": [
+                            "control_plane_v1",
+                            "control_plane_v2"
+                          ],
+                          "type": "string"
+                        },
+                        "minItems": 1,
+                        "type": "array"
+                      },
+                      "version": {
+                        "maxLength": 64,
+                        "minLength": 1,
+                        "pattern": "^(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)(?:-(?:0|[1-9]\\d*|\\d*[A-Za-z-][0-9A-Za-z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$",
+                        "type": "string"
+                      }
                     },
-                    "minItems": 1,
-                    "type": "array"
+                    "required": [
+                      "version",
+                      "releaseChannel",
+                      "artifactSha256",
+                      "supportedContracts",
+                      "supportedBrowsers",
+                      "reason"
+                    ],
+                    "type": "object"
                   },
-                  "supportedContracts": {
-                    "items": {
-                      "enum": [
-                        "control_plane_v1",
-                        "control_plane_v2"
-                      ],
-                      "type": "string"
+                  {
+                    "additionalProperties": false,
+                    "properties": {
+                      "artifactSha256": {
+                        "not": {}
+                      },
+                      "browserArtifacts": {
+                        "items": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "artifactSha256": {
+                              "pattern": "^[0-9a-f]{64}$",
+                              "type": "string"
+                            },
+                            "browserFamily": {
+                              "enum": [
+                                "chrome",
+                                "opera",
+                                "yandex_chromium",
+                                "firefox",
+                                "safari"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "browserFamily",
+                            "artifactSha256"
+                          ],
+                          "type": "object"
+                        },
+                        "minItems": 1,
+                        "type": "array"
+                      },
+                      "reason": {
+                        "maxLength": 256,
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "releaseChannel": {
+                        "maxLength": 64,
+                        "minLength": 1,
+                        "pattern": "^[a-z0-9][a-z0-9._-]*$",
+                        "type": "string"
+                      },
+                      "supportedBrowsers": {
+                        "items": {
+                          "enum": [
+                            "chrome",
+                            "opera",
+                            "yandex_chromium",
+                            "firefox",
+                            "safari"
+                          ],
+                          "type": "string"
+                        },
+                        "minItems": 1,
+                        "type": "array"
+                      },
+                      "supportedContracts": {
+                        "items": {
+                          "enum": [
+                            "control_plane_v1",
+                            "control_plane_v2"
+                          ],
+                          "type": "string"
+                        },
+                        "minItems": 1,
+                        "type": "array"
+                      },
+                      "version": {
+                        "maxLength": 64,
+                        "minLength": 1,
+                        "pattern": "^(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)(?:-(?:0|[1-9]\\d*|\\d*[A-Za-z-][0-9A-Za-z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$",
+                        "type": "string"
+                      }
                     },
-                    "minItems": 1,
-                    "type": "array"
-                  },
-                  "version": {
-                    "maxLength": 64,
-                    "minLength": 1,
-                    "pattern": "^(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)(?:-(?:0|[1-9]\\d*|\\d*[A-Za-z-][0-9A-Za-z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$",
-                    "type": "string"
+                    "required": [
+                      "version",
+                      "releaseChannel",
+                      "browserArtifacts",
+                      "supportedContracts",
+                      "supportedBrowsers",
+                      "reason"
+                    ],
+                    "type": "object"
                   }
-                },
-                "required": [
-                  "version",
-                  "releaseChannel",
-                  "artifactSha256",
-                  "supportedContracts",
-                  "supportedBrowsers",
-                  "reason"
-                ],
-                "type": "object"
+                ]
               }
             }
           },

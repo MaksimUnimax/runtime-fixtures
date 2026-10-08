@@ -102,7 +102,7 @@ export const CompatibilityMutationContextSchema = z.discriminatedUnion(
 export type CompatibilityMutationContext = z.infer<
   typeof CompatibilityMutationContextSchema
 >;
-export const PublishExtensionReleaseCommandSchema = z
+export const ExtensionReleasePublicationInputSchema = z
   .object({
     version: SemVerV1Schema,
     releaseChannel: ReleaseChannelSchema,
@@ -116,8 +116,8 @@ export const PublishExtensionReleaseCommandSchema = z
           })
           .strict(),
       )
+      .min(1)
       .optional(),
-    releasedAt: TimestampSchema,
     supportedContracts: z.array(ContractVersionSchema).min(1),
     supportedBrowsers: z.array(BrowserFamilySchema).min(1),
   })
@@ -156,6 +156,10 @@ export const PublishExtensionReleaseCommandSchema = z
           message: "artifact browser set mismatch",
         });
     }
+  });
+export const PublishExtensionReleaseCommandSchema =
+  ExtensionReleasePublicationInputSchema.safeExtend({
+    releasedAt: TimestampSchema,
   });
 export type PublishExtensionReleaseCommand = z.infer<
   typeof PublishExtensionReleaseCommandSchema
