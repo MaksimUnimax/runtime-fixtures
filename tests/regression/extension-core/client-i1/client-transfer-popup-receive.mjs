@@ -16,6 +16,11 @@ assert.deepEqual(transferReceivePresentation({ ok: false, code: "SOURCE_OFFLINE"
 assert.deepEqual(transferReceivePresentation({ ok: false, importState: "PENDING" }), { text: "Активной передачи для получения нет.", consume: false });
 assert.equal(transferReceivePresentation({ ok: false, code: "TRANSFER_REPLAY" }), null);
 assert.deepEqual(transferReceivePresentation({ ok: false, code: "TRANSFER_CREDENTIALS_MISSING", importState: "EMPTY_TRANSFER" }), { text: "В полученной передаче нет ключей. Ничего не импортировано.", consume: false });
+assert.equal(transferReceivePresentation({
+  ok: false, code: "TRANSFER_ACK_UNCONFIRMED", importState: "IMPORTED_PENDING_ACK",
+  requestId: "request", result: { requestId: "request", importState: "IMPORTED" },
+  recovered: true, ackConfirmed: false,
+}), null, "unconfirmed ACK must not be rendered or consumed as imported success");
 
 assert.match(source, /chrome\.runtime\.sendMessage\(\{ type: "SA_TRANSFER_RECEIVE_PENDING", tab_id: tabId \}\)/);
 assert.match(source, /transfer-receive[\s\S]*requestTransferReceivePending\(\)/);
@@ -36,4 +41,4 @@ assert.deepEqual(await createRequest("", true), [{ type: "SA_TRANSFER_CREATE", b
 assert.deepEqual(await createRequest("selected", true), [{ type: "SA_TRANSFER_CREATE", body: { consent: true, selectedStoreIds: ["selected"] } }]);
 await assert.rejects(createRequest("", false), /согласие/);
 
-console.log(JSON.stringify({ status: "PASS", scope: "A02_TRANSFER_POPUP_RECEIVE_OUTCOMES", cases: 9 }, null, 2));
+console.log(JSON.stringify({ status: "PASS", scope: "A02_TRANSFER_POPUP_RECEIVE_OUTCOMES", cases: 10 }, null, 2));

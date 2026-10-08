@@ -1260,9 +1260,42 @@
       let serverResult, reconciled = false;
       try { serverResult = clone((await authenticatedRequest(`/v1/credential-transfers/${encodeURIComponent(input.requestId)}/ack`, { method: "POST", body: input }, auth.context)).body); }
       catch (failure) {
-        let observed = null;
-        try { observed = clone((await authenticatedRequest(`/v1/credential-transfers/${encodeURIComponent(input.requestId)}`, {}, auth.context)).body); } catch (_) {}
-        if (observed?.state !== "COMPLETED") throw failure;
+        let observed = null, readFailure = null;
+        try {
+          const body = clone((await authenticatedRequest(`/v1/credential-transfers/${encodeURIComponent(input.requestId)}`, {}, auth.context)).body);
+          observed = assertTransferRequestMatches(record, body);
+        } catch (readError) { readFailure = readError; }
+        if (readFailure?.code === "TRANSFER_ACCOUNT_MISMATCH") {
+          // A GET 404/mismatch after any failed ACK (including transport
+          // timeout, not only REPLAY) supplies no identity-bound terminal
+          // result. Keep the imported vault record, never invent ACK, and
+          // only show the sanitized pending state if local authority still
+          // matches its original account/device/session/store binding.
+          const latestAuth = await transferAuth();
+          if (!transferRecordMatches(record, latestAuth)) throw error("TRANSFER_ACCOUNT_MISMATCH");
+          throw error("TRANSFER_ACK_UNCONFIRMED", { serverState: null });
+        }
+        if (readFailure && ["TRANSFER_REQUEST_MISMATCH", "TRANSFER_ACCOUNT_MISMATCH",
+                            "AUTH_REQUIRED", "TRANSFER_EXPIRED"].includes(readFailure.code)) throw readFailure;
+        if (["CANCELLED", "EXPIRED"].includes(observed?.state)) {
+          const latestAuth = await transferAuth();
+          if (!transferRecordMatches(record, latestAuth)) throw error("TRANSFER_ACCOUNT_MISMATCH");
+          // The authenticated readback matched this exact recipient request.
+          // A terminal server state is distinct from a recoverable lost relay.
+          throw error("TRANSFER_ACK_TERMINAL", { state: observed.state });
+        }
+        if (observed?.state !== "COMPLETED") {
+          // Losing the process-memory relay before ACK can yield REPLAY while
+          // PostgreSQL still has a nonterminal delivered request. Do not
+          // erase the already durable recipient import or invent an ACK.
+          if (failure?.code === "TRANSFER_REPLAY" &&
+              (!observed || !["CANCELLED", "EXPIRED"].includes(observed.state))) {
+            const latestAuth = await transferAuth();
+            if (!transferRecordMatches(record, latestAuth)) throw error("TRANSFER_ACCOUNT_MISMATCH");
+            throw error("TRANSFER_ACK_UNCONFIRMED", { serverState: observed?.state || null });
+          }
+          throw failure;
+        }
         serverResult = observed; reconciled = true;
       }
       const latestAuth = await transferAuth();

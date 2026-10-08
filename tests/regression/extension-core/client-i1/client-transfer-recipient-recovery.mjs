@@ -45,7 +45,7 @@ function fakeIDB({ failOpen = false } = {}) {
   } };
 }
 function transferServer() {
-  const state = { request: null, packet: null, createCalls: 0, ackCalls: 0, loseCreateResponse: false, loseAckResponse: false };
+  const state = { request: null, packet: null, createCalls: 0, ackCalls: 0, loseCreateResponse: false, loseAckResponse: false, failRequestReadback: false, requestReadback404: false, ackTransportInterrupted: false, ackExplicitError: null };
   return {
     state,
     async fetch(url, init = {}) {
@@ -63,7 +63,12 @@ function transferServer() {
       if (!match) throw new Error(`unexpected transfer URL ${method} ${pathname}`);
       const [, requestId, suffix] = match;
       assert.equal(requestId, state.request?.requestId);
-      if (!suffix && method === "GET") return json(state.request);
+      if (!suffix && method === "GET") {
+        if (state.failRequestReadback) throw new Error("fixture server readback unavailable");
+        if (state.requestReadback404)
+          return json({ error: { code: "TRANSFER_ACCOUNT_MISMATCH" } }, 404);
+        return json(state.request);
+      }
       if (suffix === "packet" && method === "GET") {
         if (!state.packet) return json({ error: { code: "SOURCE_OFFLINE" } }, 409);
         state.request = { ...state.request, state: "DELIVERED_TO_RECIPIENT", revision: state.request.revision + 1 };
@@ -71,6 +76,10 @@ function transferServer() {
       }
       if (suffix === "ack" && method === "POST") {
         state.ackCalls += 1;
+        if (state.ackTransportInterrupted) throw new Error("synthetic ACK network interrupted");
+        if (state.ackExplicitError)
+          return json({ error: { code: state.ackExplicitError } }, 409);
+        if (!state.packet) return json({ error: { code: "TRANSFER_REPLAY" } }, 409);
         assert.equal(body.packetId, state.packet?.packetId);
         if (state.request.state === "COMPLETED") return json({ error: { code: "TRANSFER_REPLAY" } }, 409);
         state.request = { ...state.request, state: "COMPLETED", revision: state.request.revision + 1 };
@@ -132,6 +141,270 @@ await check("TRR-03-restart-after-durable-import-before-ACK-does-not-reimport", 
   try {
     const recovered = await worker.popup({ type: "SA_TRANSFER_RECEIVE_PENDING" }); assert.equal(recovered.importState, "IMPORTED", JSON.stringify(recovered)); assert.equal(recovered.recovered, true); assert.equal(server.state.ackCalls, 1);
     assert.equal(Object.keys(backing.local.seller_agents_stores_v1.accounts[ACCOUNT].stores).length, 1);
+  } finally { worker.close(); }
+});
+
+await check("TRR-09-relay-restart-before-ACK-retains-durable-import-without-false-success", async () => {
+  const server = transferServer(), idb = fakeIDB(), backing = { local: {}, session: {} };
+  let worker = await workerWith({ backing, idb, server, seedAuthority: true });
+  await worker.call("SellerAgentsControlClient.createCredentialTransfer", { consent: true, selectedStoreIds: ["transfer-store"] });
+  const encrypted = await envelope(worker, server, "transfer-store"), packet = server.makePacket(encrypted);
+  const received = await worker.call("SellerAgentsControlClient.receiveCredentialTransfer", server.state.request.requestId, SOURCE);
+  const store = received.payload.stores[0];
+  const imported = await worker.call("SellerAgentsActiveStoreCatalog.importCredential", { ...store, id: store.storeId }, received.importContext);
+  assert.equal(imported.kind, "IMPORTED");
+  await worker.call("SellerAgentsControlClient.recordCredentialTransferImported", {
+    requestId: server.state.request.requestId, packetId: packet.packetId,
+    results: [{ storeId: store.storeId, ...imported }],
+  });
+  assert.equal([...idb.records.values()][0].phase, "IMPORTED_PENDING_ACK");
+  worker.close();
+  // PostgreSQL still says delivered, but the process-memory relay packet is lost.
+  server.state.packet = null;
+  worker = await workerWith({ backing, idb, server });
+  try {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const pending = await worker.popup({ type: "SA_TRANSFER_RECEIVE_PENDING" });
+      assert.equal(pending.ok, false);
+      assert.equal(pending.code, "TRANSFER_ACK_UNCONFIRMED");
+      assert.equal(pending.importState, "IMPORTED_PENDING_ACK");
+      assert.equal(pending.ackConfirmed, false);
+      assert.equal(pending.result.requestId, server.state.request.requestId);
+      assert.equal(pending.result.results.length, 1);
+      assert.equal(server.state.request.state, "DELIVERED_TO_RECIPIENT");
+      const vault = [...idb.records.values()];
+      assert.equal(vault.length, 1);
+      assert.equal(vault[0].phase, "IMPORTED_PENDING_ACK");
+      assert.equal(vault[0].result.importState, "IMPORTED");
+      assert.equal(Object.keys(backing.local.seller_agents_stores_v1.accounts[ACCOUNT].stores).length, 1);
+    }
+    server.state.failRequestReadback = true;
+    const offline = await worker.popup({ type: "SA_TRANSFER_RECEIVE_PENDING" });
+    assert.equal(offline.ok, false);
+    assert.equal(offline.code, "TRANSFER_ACK_UNCONFIRMED");
+    assert.equal(offline.ackConfirmed, false);
+    assert.equal([...idb.records.values()][0].phase, "IMPORTED_PENDING_ACK");
+    assert.equal(Object.keys(backing.local.seller_agents_stores_v1.accounts[ACCOUNT].stores).length, 1);
+    server.state.failRequestReadback = false;
+  } finally { worker.close(); }
+});
+
+await check("TRR-12-ACK-replay-GET404-preserves-imported-vault-and-can-reconcile-later", async () => {
+  const server = transferServer(), idb = fakeIDB(), backing = { local: {}, session: {} };
+  let worker = await workerWith({ backing, idb, server, seedAuthority: true });
+  await worker.call("SellerAgentsControlClient.createCredentialTransfer",
+    { consent: true, selectedStoreIds: ["transfer-store"] });
+  const encrypted = await envelope(worker, server, "transfer-store");
+  const packet = server.makePacket(encrypted);
+  const received = await worker.call(
+    "SellerAgentsControlClient.receiveCredentialTransfer", server.state.request.requestId, SOURCE);
+  const store = received.payload.stores[0];
+  const imported = await worker.call("SellerAgentsActiveStoreCatalog.importCredential",
+    { ...store, id: store.storeId }, received.importContext);
+  assert.equal(imported.kind, "IMPORTED");
+  await worker.call("SellerAgentsControlClient.recordCredentialTransferImported", {
+    requestId: server.state.request.requestId, packetId: packet.packetId,
+    results: [{ storeId: store.storeId, ...imported }],
+  });
+  assert.equal([...idb.records.values()][0].phase, "IMPORTED_PENDING_ACK");
+  worker.close();
+
+  // Relay memory is gone. ACK returns 409, and GET now returns 404 with
+  // TRANSFER_ACCOUNT_MISMATCH despite unchanged local account/identity.
+  server.state.packet = null;
+  server.state.requestReadback404 = true;
+  worker = await workerWith({ backing, idb, server });
+  try {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const pending = await worker.popup({ type: "SA_TRANSFER_RECEIVE_PENDING" });
+      assert.equal(pending.ok, false);
+      assert.equal(pending.code, "TRANSFER_ACK_UNCONFIRMED");
+      assert.equal(pending.importState, "IMPORTED_PENDING_ACK");
+      assert.equal(pending.ackConfirmed, false);
+      assert.equal(pending.result.requestId, server.state.request.requestId);
+      assert.equal(pending.result.results.length, 1);
+      assert.equal(idb.records.size, 1);
+      assert.equal([...idb.records.values()][0].phase, "IMPORTED_PENDING_ACK");
+      assert.equal(Object.keys(
+        backing.local.seller_agents_stores_v1.accounts[ACCOUNT].stores).length, 1);
+      assert.equal(server.state.request.state, "DELIVERED_TO_RECIPIENT");
+    }
+    // Synthetic relay rehydration only (not a real server recovery): same
+    // packet+request becomes available for a subsequent *verified* ACK.
+    server.state.requestReadback404 = false;
+    server.state.packet = packet;
+    const resolved = await worker.popup({ type: "SA_TRANSFER_RECEIVE_PENDING" });
+    assert.equal(resolved.ok, true);
+    assert.equal(resolved.importState, "IMPORTED");
+    assert.equal(server.state.request.state, "COMPLETED");
+    assert.equal(idb.records.size, 1);
+    assert.equal([...idb.records.values()][0].phase, "ACKED_RESULT");
+    assert.equal(Object.keys(
+      backing.local.seller_agents_stores_v1.accounts[ACCOUNT].stores).length, 1);
+  } finally { worker.close(); }
+});
+
+await check("TRR-13-ACK-transport-failure-GET404-keeps-durable-import-before-verified-ACK", async () => {
+  const server = transferServer(), idb = fakeIDB(), backing = { local: {}, session: {} };
+  let worker = await workerWith({ backing, idb, server, seedAuthority: true });
+  await worker.call("SellerAgentsControlClient.createCredentialTransfer",
+    { consent: true, selectedStoreIds: ["transfer-store"] });
+  const encrypted = await envelope(worker, server, "transfer-store");
+  const packet = server.makePacket(encrypted);
+  const received = await worker.call(
+    "SellerAgentsControlClient.receiveCredentialTransfer",
+    server.state.request.requestId, SOURCE);
+  const store = received.payload.stores[0];
+  const imported = await worker.call(
+    "SellerAgentsActiveStoreCatalog.importCredential",
+    { ...store, id: store.storeId }, received.importContext);
+  assert.equal(imported.kind, "IMPORTED");
+  await worker.call("SellerAgentsControlClient.recordCredentialTransferImported", {
+    requestId: server.state.request.requestId, packetId: packet.packetId,
+    results: [{ storeId: store.storeId, ...imported }],
+  });
+  assert.equal([...idb.records.values()][0].phase, "IMPORTED_PENDING_ACK");
+  worker.close();
+  // A process-memory relay disappears, but this time the ACK POST itself
+  // is interrupted by transport, not rejected with the explicit REPLAY code.
+  server.state.packet = null;
+  server.state.ackTransportInterrupted = true;
+  server.state.requestReadback404 = true;
+  worker = await workerWith({ backing, idb, server });
+  try {
+    for (let retry = 0; retry < 2; retry += 1) {
+      const pending = await worker.popup({ type: "SA_TRANSFER_RECEIVE_PENDING" });
+      assert.equal(pending.ok, false);
+      assert.equal(pending.code, "TRANSFER_ACK_UNCONFIRMED");
+      assert.equal(pending.importState, "IMPORTED_PENDING_ACK");
+      assert.equal(pending.ackConfirmed, false);
+      assert.equal(pending.result.requestId, server.state.request.requestId);
+      assert.equal(idb.records.size, 1);
+      assert.equal([...idb.records.values()][0].phase, "IMPORTED_PENDING_ACK");
+      assert.equal(Object.keys(
+        backing.local.seller_agents_stores_v1.accounts[ACCOUNT].stores).length, 1);
+      assert.equal(server.state.request.state, "DELIVERED_TO_RECIPIENT");
+    }
+    // The test adapter rehydrates the exact same packet. The next ACK
+    // must reconcile the already-imported result, without another import.
+    server.state.ackTransportInterrupted = false;
+    server.state.requestReadback404 = false;
+    server.state.packet = packet;
+    const accepted = await worker.popup({ type: "SA_TRANSFER_RECEIVE_PENDING" });
+    assert.equal(accepted.ok, true);
+    assert.equal(accepted.importState, "IMPORTED");
+    assert.equal(server.state.request.state, "COMPLETED");
+    assert.equal(idb.records.size, 1);
+    assert.equal([...idb.records.values()][0].phase, "ACKED_RESULT");
+    assert.equal(Object.keys(
+      backing.local.seller_agents_stores_v1.accounts[ACCOUNT].stores).length, 1);
+  } finally { worker.close(); }
+});
+
+await check("TRR-14-unverified-ACK-expiry-must-not-discard-until-matching-terminal-readback", async () => {
+  const server = transferServer(), idb = fakeIDB(), backing = { local: {}, session: {} };
+  let worker = await workerWith({ backing, idb, server, seedAuthority: true });
+  await worker.call("SellerAgentsControlClient.createCredentialTransfer",
+    { consent: true, selectedStoreIds: ["transfer-store"] });
+  const encrypted = await envelope(worker, server, "transfer-store");
+  const packet = server.makePacket(encrypted);
+  const received = await worker.call(
+    "SellerAgentsControlClient.receiveCredentialTransfer",
+    server.state.request.requestId, SOURCE);
+  const store = received.payload.stores[0];
+  const imported = await worker.call(
+    "SellerAgentsActiveStoreCatalog.importCredential", { ...store, id: store.storeId }, received.importContext);
+  assert.equal(imported.kind, "IMPORTED");
+  await worker.call("SellerAgentsControlClient.recordCredentialTransferImported", {
+    requestId: server.state.request.requestId, packetId: packet.packetId,
+    results: [{ storeId: store.storeId, ...imported }],
+  });
+  worker.close();
+  server.state.ackExplicitError = "TRANSFER_EXPIRED";
+  worker = await workerWith({ backing, idb, server });
+  try {
+    // ACK itself fails, but GET still confirms a nonterminal delivered
+    // request. This is NOT sufficient evidence to erase the imported vault.
+    const unverified = await worker.popup({ type: "SA_TRANSFER_RECEIVE_PENDING" });
+    assert.equal(unverified.ok, false);
+    assert.equal(unverified.code, "TRANSFER_EXPIRED");
+    assert.equal(unverified.importState, "PENDING");
+    assert.equal(unverified.ackConfirmed, false);
+    assert.equal(unverified.result, undefined);
+    assert.equal(idb.records.size, 1);
+    assert.equal([...idb.records.values()][0].phase, "IMPORTED_PENDING_ACK");
+    assert.equal(Object.keys(
+      backing.local.seller_agents_stores_v1.accounts[ACCOUNT].stores).length, 1);
+
+    // Only a subsequent exact matching, identity-bound terminal GET may
+    // retire the pending vault; the local imported store is not reimported.
+    server.state.request = { ...server.state.request, state: "EXPIRED" };
+    const terminal = await worker.popup({ type: "SA_TRANSFER_RECEIVE_PENDING" });
+    assert.equal(terminal.ok, false);
+    assert.equal(terminal.importState, "EXPIRED");
+    assert.equal(terminal.ackConfirmed, false);
+    assert.equal(terminal.result, undefined);
+    assert.equal(idb.records.size, 0);
+    assert.equal(Object.keys(
+      backing.local.seller_agents_stores_v1.accounts[ACCOUNT].stores).length, 1);
+  } finally { worker.close(); }
+});
+
+await check("TRR-10-confirmed-terminal-relay-loss-does-not-show-false-pending-ACK", async () => {
+  for (const terminal of ["CANCELLED", "EXPIRED"]) {
+    const server = transferServer(), idb = fakeIDB(), backing = { local: {}, session: {} };
+    let worker = await workerWith({ backing, idb, server, seedAuthority: true });
+    await worker.call("SellerAgentsControlClient.createCredentialTransfer", { consent: true, selectedStoreIds: ["transfer-store"] });
+    const encrypted = await envelope(worker, server, "transfer-store"), packet = server.makePacket(encrypted);
+    const received = await worker.call("SellerAgentsControlClient.receiveCredentialTransfer", server.state.request.requestId, SOURCE);
+    const store = received.payload.stores[0];
+    const imported = await worker.call("SellerAgentsActiveStoreCatalog.importCredential", { ...store, id: store.storeId }, received.importContext);
+    assert.equal(imported.kind, "IMPORTED");
+    await worker.call("SellerAgentsControlClient.recordCredentialTransferImported", {
+      requestId: server.state.request.requestId, packetId: packet.packetId,
+      results: [{ storeId: store.storeId, ...imported }],
+    });
+    assert.equal([...idb.records.values()][0].phase, "IMPORTED_PENDING_ACK");
+    worker.close();
+    server.state.packet = null;
+    server.state.request = { ...server.state.request, state: terminal };
+    worker = await workerWith({ backing, idb, server });
+    try {
+      const result = await worker.popup({ type: "SA_TRANSFER_RECEIVE_PENDING" });
+      assert.equal(result.ok, false);
+      assert.equal(result.importState, terminal);
+      assert.equal(result.ackConfirmed, false);
+      assert.equal(result.code, terminal === "EXPIRED" ? "TRANSFER_EXPIRED" : "TRANSFER_REPLAY");
+      assert.equal(idb.records.size, 0, terminal);
+      assert.equal(Object.keys(backing.local.seller_agents_stores_v1.accounts[ACCOUNT].stores).length, 1);
+      assert.equal(server.state.request.state, terminal);
+    } finally { worker.close(); }
+  }
+});
+
+await check("TRR-11-mismatched-terminal-readback-preserves-imported-result", async () => {
+  const server = transferServer(), idb = fakeIDB(), backing = { local: {}, session: {} };
+  let worker = await workerWith({ backing, idb, server, seedAuthority: true });
+  await worker.call("SellerAgentsControlClient.createCredentialTransfer", { consent: true, selectedStoreIds: ["transfer-store"] });
+  const encrypted = await envelope(worker, server, "transfer-store"), packet = server.makePacket(encrypted);
+  const received = await worker.call("SellerAgentsControlClient.receiveCredentialTransfer", server.state.request.requestId, SOURCE);
+  const store = received.payload.stores[0];
+  const imported = await worker.call("SellerAgentsActiveStoreCatalog.importCredential", { ...store, id: store.storeId }, received.importContext);
+  await worker.call("SellerAgentsControlClient.recordCredentialTransferImported", {
+    requestId: server.state.request.requestId, packetId: packet.packetId,
+    results: [{ storeId: store.storeId, ...imported }],
+  });
+  worker.close();
+  server.state.packet = null;
+  server.state.request = { ...server.state.request, state: "CANCELLED", recipientDeviceId: SOURCE };
+  worker = await workerWith({ backing, idb, server });
+  try {
+    const result = await worker.popup({ type: "SA_TRANSFER_RECEIVE_PENDING" });
+    assert.equal(result.ok, false);
+    assert.equal(result.importState, "IMPORTED_PENDING_ACK");
+    assert.equal(result.ackConfirmed, false);
+    assert.equal(idb.records.size, 1);
+    assert.equal([...idb.records.values()][0].phase, "IMPORTED_PENDING_ACK");
   } finally { worker.close(); }
 });
 
