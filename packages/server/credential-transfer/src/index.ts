@@ -74,6 +74,8 @@ type RelayPacket = TransferPacketV1 & {
   sourceDeviceId: string;
   expiresAt: number;
   envelopeBytes: number;
+  /** Pin a successfully delivered packet until ACK, TTL or process loss. */
+  deliveredToRecipient: boolean;
 };
 
 type RelayReservation = {
@@ -129,7 +131,8 @@ export class EphemeralTransferRelay {
     if (
       this.reservations.has(packet.requestId) ||
       (existing &&
-        (existing.accountId !== accountId ||
+        (existing.deliveredToRecipient ||
+          existing.accountId !== accountId ||
           existing.sourceDeviceId !== sourceDeviceId))
     )
       throw new TransferError("TRANSFER_CONFLICT");
@@ -177,6 +180,7 @@ export class EphemeralTransferRelay {
       sourceDeviceId: reservation.sourceDeviceId,
       expiresAt: reservation.expiresAt,
       envelopeBytes: reservation.envelopeBytes,
+      deliveredToRecipient: false,
     });
     this.scheduleExpiry(now);
     return true;
@@ -195,6 +199,20 @@ export class EphemeralTransferRelay {
     if (this.reservations.has(requestId)) return undefined;
     const packet = this.packets.get(requestId);
     return packet ? { ...packet } : undefined;
+  }
+
+  isDelivered(requestId: string, now = new Date()): boolean {
+    this.prune(now);
+    return this.packets.get(requestId)?.deliveredToRecipient === true;
+  }
+
+  pinDelivered(requestId: string, packetId: string, now = new Date()): boolean {
+    this.prune(now);
+    if (this.reservations.has(requestId)) return false;
+    const packet = this.packets.get(requestId);
+    if (!packet || packet.packetId !== packetId) return false;
+    packet.deliveredToRecipient = true;
+    return true;
   }
 
   delete(requestId: string, now = new Date()): void {
@@ -295,11 +313,28 @@ export class EphemeralTransferRelay {
 }
 
 export class CredentialTransferService {
+  private readonly inFlightRequests = new Set<string>();
+
   public constructor(
     private readonly repository: TransferRepository,
     private readonly relay = new EphemeralTransferRelay(),
     private readonly now: () => Date = () => new Date(),
   ) {}
+
+  /** Fail closed on overlapping mutations of one request, without an unbounded queue. */
+  private async forRequest<T>(
+    requestId: string,
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    if (this.inFlightRequests.has(requestId))
+      throw new TransferError("TRANSFER_CONFLICT");
+    this.inFlightRequests.add(requestId);
+    try {
+      return await operation();
+    } finally {
+      this.inFlightRequests.delete(requestId);
+    }
+  }
 
   public async create(
     principal: ExtensionPrincipal,
@@ -320,10 +355,26 @@ export class CredentialTransferService {
   }
 
   public async sourceSeen(principal: ExtensionPrincipal, requestId: string) {
-    return this.repository.markSourceSeen({
+    const current = await this.repository.read({
       principal,
       requestId,
       now: this.now(),
+    });
+    if (
+      !current ||
+      (current.sourceDeviceId && current.sourceDeviceId !== principal.deviceId)
+    )
+      throw new TransferError("TRANSFER_ACCOUNT_MISMATCH");
+    return this.forRequest(requestId, async () => {
+      // Source retries after process loss remain allowed. While the original
+      // delivery is still resident, resetting durable state would strand ACK.
+      if (this.relay.isDelivered(requestId, this.now()))
+        throw new TransferError("TRANSFER_CONFLICT");
+      return this.repository.markSourceSeen({
+        principal,
+        requestId,
+        now: this.now(),
+      });
     });
   }
 
@@ -348,6 +399,9 @@ export class CredentialTransferService {
     if (current.sourceDeviceId !== principal.deviceId)
       throw new TransferError("TRANSFER_ACCOUNT_MISMATCH");
     const parsedPacket = TransferPacketV1Schema.parse(packet);
+    // A recipient already committing delivery must not race with replacement.
+    if (this.inFlightRequests.has(packet.requestId))
+      throw new TransferError("TRANSFER_CONFLICT");
     const reservationId = this.relay.reserve(
       parsedPacket,
       current.accountId,
@@ -390,38 +444,51 @@ export class CredentialTransferService {
       now: this.now(),
     });
     if (!request) throw new TransferError("TRANSFER_ACCOUNT_MISMATCH");
-    const packet = this.relay.get(requestId, this.now());
-    if (!packet) throw new TransferError("SOURCE_OFFLINE");
-    if (
-      packet.accountId !== request.accountId ||
-      (packet.sourceDeviceId !== request.sourceDeviceId &&
-        request.sourceDeviceId)
-    )
-      throw new TransferError("TRANSFER_ACCOUNT_MISMATCH");
-    await this.repository.markDelivered({
-      principal,
-      requestId,
-      now: this.now(),
-    });
-    return TransferPacketV1Schema.parse({
-      requestId: packet.requestId,
-      packetId: packet.packetId,
-      envelope: packet.envelope,
+    return this.forRequest(requestId, async () => {
+      const packet = this.relay.get(requestId, this.now());
+      if (!packet) throw new TransferError("SOURCE_OFFLINE");
+      if (
+        packet.accountId !== request.accountId ||
+        (packet.sourceDeviceId !== request.sourceDeviceId &&
+          request.sourceDeviceId)
+      )
+        throw new TransferError("TRANSFER_ACCOUNT_MISMATCH");
+      await this.repository.markDelivered({
+        principal,
+        requestId,
+        now: this.now(),
+      });
+      if (!this.relay.pinDelivered(requestId, packet.packetId, this.now()))
+        throw new TransferError("SOURCE_OFFLINE");
+      return TransferPacketV1Schema.parse({
+        requestId: packet.requestId,
+        packetId: packet.packetId,
+        envelope: packet.envelope,
+      });
     });
   }
 
   public async acknowledge(principal: ExtensionPrincipal, input: unknown) {
     const ack = TransferAckV1Schema.parse(input);
-    const packet = this.relay.get(ack.requestId, this.now());
-    if (!packet || packet.packetId !== ack.packetId)
-      throw new TransferError("TRANSFER_REPLAY");
-    const result = await this.repository.acknowledge({
+    const request = await this.repository.read({
       principal,
-      ack,
+      requestId: ack.requestId,
       now: this.now(),
     });
-    this.relay.delete(ack.requestId, this.now());
-    return result;
+    if (!request || request.recipientDeviceId !== principal.deviceId)
+      throw new TransferError("TRANSFER_ACCOUNT_MISMATCH");
+    return this.forRequest(ack.requestId, async () => {
+      const packet = this.relay.get(ack.requestId, this.now());
+      if (!packet || packet.packetId !== ack.packetId)
+        throw new TransferError("TRANSFER_REPLAY");
+      const result = await this.repository.acknowledge({
+        principal,
+        ack,
+        now: this.now(),
+      });
+      this.relay.delete(ack.requestId, this.now());
+      return result;
+    });
   }
 
   public async cancel(principal: ExtensionPrincipal, requestId: string) {

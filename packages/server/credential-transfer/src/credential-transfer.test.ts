@@ -396,14 +396,19 @@ describe("D3S2-2A control-plane foundation", () => {
     await expect(
       service.submit(source, packet(id, "123456789", idFor(8))),
     ).rejects.toMatchObject({ code: "TRANSFER_CONFLICT" });
-    await expect(service.receive(recipient, id)).resolves.toMatchObject({
-      packetId: idFor(7),
-      envelope: "123456",
-    });
+    // Verify the failed admission preserved the old packet without marking
+    // it delivered. Once delivered, packet identity is pinned through ACK.
+    expect(
+      service.relayForTests().get(id, new Date("2026-09-18T10:00:00.000Z")),
+    ).toMatchObject({ packetId: idFor(7), envelope: "123456" });
     await service.submit(source, packet(id, "12345678", idFor(9)));
     expect(service.relayForTests().statsForTests()).toMatchObject({
       packets: 1,
       envelopeBytes: 8,
+    });
+    await expect(service.receive(recipient, id)).resolves.toMatchObject({
+      packetId: idFor(9),
+      envelope: "12345678",
     });
   });
 
@@ -438,6 +443,182 @@ describe("D3S2-2A control-plane foundation", () => {
     await expect(service.receive(recipient, id)).resolves.toMatchObject({
       packetId: idFor(7),
       envelope: "old",
+    });
+  });
+
+  it("pins the delivered packet through ACK while source replacement races", async () => {
+    const repository = createMemoryTransferRepository();
+    let startMark!: () => void;
+    let finishMark!: () => void;
+    const markStarted = new Promise<void>((resolve) => (startMark = resolve));
+    const markGate = new Promise<void>((resolve) => (finishMark = resolve));
+    const gated: TransferRepository = {
+      ...repository,
+      async markDelivered(input) {
+        startMark();
+        await markGate;
+        return repository.markDelivered(input);
+      },
+    };
+    const service = new CredentialTransferService(
+      gated,
+      new EphemeralTransferRelay(),
+      () => new Date("2026-09-18T10:00:00.000Z"),
+    );
+    await prepare(service, id);
+    await service.submit(source, packet(id, "original", idFor(7)));
+    const receiving = service.receive(recipient, id);
+    await markStarted;
+    let replacementOutcome = "ACCEPTED";
+    try {
+      await service.submit(source, packet(id, "replaced", idFor(8)));
+    } catch (error) {
+      replacementOutcome = (error as TransferError).code;
+    }
+    // A blocked request must not serialize unrelated transfer IDs.
+    await prepare(service, idFor(3));
+    await service.submit(source, packet(idFor(3), "unrelated"));
+    finishMark();
+    const delivered = await receiving;
+    expect(replacementOutcome).toBe("TRANSFER_CONFLICT");
+    expect(delivered).toMatchObject({
+      packetId: idFor(7),
+      envelope: "original",
+    });
+    await expect(service.sourceSeen(source, id)).rejects.toMatchObject({
+      code: "TRANSFER_CONFLICT",
+    });
+    await expect(service.sourceSeen(other, id)).rejects.toMatchObject({
+      code: "TRANSFER_ACCOUNT_MISMATCH",
+    });
+    await expect(
+      service.acknowledge(other, {
+        requestId: id,
+        packetId: idFor(7),
+        importDecision: "IMPORTED",
+      }),
+    ).rejects.toMatchObject({ code: "TRANSFER_ACCOUNT_MISMATCH" });
+    await expect(service.receive(recipient, id)).resolves.toMatchObject({
+      packetId: idFor(7),
+      envelope: "original",
+    });
+    expect(
+      await service.acknowledge(recipient, {
+        requestId: id,
+        packetId: idFor(7),
+        importDecision: "IMPORTED",
+      }),
+    ).toMatchObject({ state: "COMPLETED" });
+    await expect(service.receive(recipient, id)).rejects.toMatchObject({
+      code: "SOURCE_OFFLINE",
+    });
+    await expect(service.receive(recipient, idFor(3))).resolves.toMatchObject({
+      envelope: "unrelated",
+    });
+  });
+
+  it("unlocks a failed delivery attempt so the source can safely replace its packet", async () => {
+    const repository = createMemoryTransferRepository();
+    let rejectOnce = true;
+    const failingDelivery: TransferRepository = {
+      ...repository,
+      async markDelivered(input) {
+        if (rejectOnce) {
+          rejectOnce = false;
+          throw new TransferError("TRANSFER_CONFLICT");
+        }
+        return repository.markDelivered(input);
+      },
+    };
+    const service = new CredentialTransferService(
+      failingDelivery,
+      new EphemeralTransferRelay(),
+      () => new Date("2026-09-18T10:00:00.000Z"),
+    );
+    await prepare(service, id);
+    await service.submit(source, packet(id, "original", idFor(7)));
+    await expect(service.receive(recipient, id)).rejects.toMatchObject({
+      code: "TRANSFER_CONFLICT",
+    });
+    await service.submit(source, packet(id, "recovered", idFor(8)));
+    await expect(service.receive(recipient, id)).resolves.toMatchObject({
+      packetId: idFor(8),
+      envelope: "recovered",
+    });
+    expect(
+      await service.acknowledge(recipient, {
+        requestId: id,
+        packetId: idFor(8),
+        importDecision: "IMPORTED",
+      }),
+    ).toMatchObject({ state: "COMPLETED" });
+  });
+
+  it("allows resubmission after process loss of a delivered but unacknowledged packet", async () => {
+    const repository = createMemoryTransferRepository();
+    const now = () => new Date("2026-09-18T10:00:00.000Z");
+    const first = new CredentialTransferService(
+      repository,
+      new EphemeralTransferRelay(),
+      now,
+    );
+    await prepare(first, id);
+    await first.submit(source, packet(id, "original", idFor(7)));
+    await expect(first.receive(recipient, id)).resolves.toMatchObject({
+      packetId: idFor(7),
+    });
+    const restarted = new CredentialTransferService(
+      repository,
+      new EphemeralTransferRelay(),
+      now,
+    );
+    await expect(restarted.receive(recipient, id)).rejects.toMatchObject({
+      code: "SOURCE_OFFLINE",
+    });
+    await restarted.sourceSeen(source, id);
+    await restarted.submit(source, packet(id, "recovered", idFor(8)));
+    await expect(restarted.receive(recipient, id)).resolves.toMatchObject({
+      packetId: idFor(8),
+      envelope: "recovered",
+    });
+    expect(
+      await restarted.acknowledge(recipient, {
+        requestId: id,
+        packetId: idFor(8),
+        importDecision: "IMPORTED",
+      }),
+    ).toMatchObject({ state: "COMPLETED" });
+  });
+
+  it("expires a delivered but unacknowledged packet without retaining relay memory", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-18T10:00:00.000Z"));
+    const service = new CredentialTransferService(
+      createMemoryTransferRepository(),
+      new EphemeralTransferRelay(),
+      () => new Date(),
+    );
+    await prepare(service, id);
+    await service.submit(source, packet(id, "delivered", idFor(7)));
+    await expect(service.receive(recipient, id)).resolves.toMatchObject({
+      packetId: idFor(7),
+    });
+    expect(service.relayForTests().statsForTests().packets).toBe(1);
+    await vi.advanceTimersByTimeAsync(300_001);
+    expect(service.relayForTests().statsForTests()).toMatchObject({
+      packets: 0,
+      envelopeBytes: 0,
+      reserved: 0,
+    });
+    await expect(
+      service.acknowledge(recipient, {
+        requestId: id,
+        packetId: idFor(7),
+        importDecision: "IMPORTED",
+      }),
+    ).rejects.toMatchObject({ code: "TRANSFER_REPLAY" });
+    await expect(service.sourceSeen(source, id)).rejects.toMatchObject({
+      code: "TRANSFER_EXPIRED",
     });
   });
 
