@@ -337,6 +337,28 @@ class CoordinationTests(unittest.TestCase):
             "published", registration,
         )
 
+    def test_queue_task_cli_forwards_explicit_evidence_without_publication_override(self):
+        fixed = self.publication_role_fixture("evidence-C")
+        proof = "/root/octoport-control/logs/C/currentity/MANIFEST.json"
+        with (
+            contextlib.chdir(fixed),
+            patch.object(control, "require_location", return_value=None),
+            patch.object(control, "advance_queue_task", return_value={"state": "DONE"}) as advance,
+            patch.object(control.sys, "argv", [
+                "control.py", "C", "queue-task",
+                "--task", "read-only-currentity", "--task-state", "DONE",
+                "--receipt", "/root/octoport-control/logs/C/completion.json",
+                "--summary", "exact read-only evidence",
+                "--evidence-provenance", proof,
+            ]),
+        ):
+            self.assertEqual(control.main(), 0)
+        advance.assert_called_once_with(
+            "C", "read-only-currentity", "DONE",
+            "/root/octoport-control/logs/C/completion.json",
+            "exact read-only evidence", "", evidence_provenance=proof,
+        )
+
     def test_queue_task_cli_rejects_publication_registration_outside_canonical_cwd(self):
         registration = "b" * 64
         attacker = self.publication_role_fixture("attacker-C")

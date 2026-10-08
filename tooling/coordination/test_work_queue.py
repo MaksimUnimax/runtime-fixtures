@@ -1,4 +1,5 @@
 import argparse
+import subprocess
 import copy
 import hashlib
 import importlib.util
@@ -920,6 +921,565 @@ class WorkQueueTests(unittest.TestCase):
         with patch.object(work_queue, "_BoardEvaluation", wraps=work_queue._BoardEvaluation) as evaluation:
             work_queue._enforce_semantic_active_transition(board, board)
         self.assertEqual(evaluation.call_count, 2)
+
+
+class EvidenceProvenanceTests(unittest.TestCase):
+    """Source-free RESULT tasks cannot inherit an unrelated role worktree HEAD."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        # An exception in setUp skips tearDown, but unittest still executes
+        # registered cleanups. Register temporary cleanup immediately, before
+        # any Git commands or process-global monkeypatch is installed.
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+        (self.root / "controllers").mkdir()
+        self.dir = self.root / "logs/B/observed-runtime"
+        self.dir.mkdir(parents=True)
+        for role in "ABC":
+            (self.root / (role + ".json")).write_text(
+                json.dumps({"role": role, "status": "RUNNING", "task": "evidence"}))
+        self.task = {
+            "id": "b-observe", "role": "B", "plan": "B04", "state": "READY",
+            "requires": [], "result": "Record exact read-only ordinary auth currentity",
+            "paths": ["logs/B/observed-runtime/RESULT.json"],
+            "evidence_only": True,
+            "execution_class": "OPERATIONAL_EVIDENCE",
+            "source_publication_authorized": False,
+            "outcome_kind": "OPERATIONAL_OBSERVATION",
+        }
+        self.boardfile = self.root / "controllers/work-board.json"
+        self.boardfile.write_text(json.dumps({
+            "version": 1, "revision": 1, "tasks": [self.task]}))
+        # GitHub Actions uses a shallow checkout of the task-ref and need not
+        # expose origin/main. A unit test MUST NOT add that ref to the source
+        # worktree or relax production ancestry checks. Build an independent
+        # short-lived Git object store with its own explicit accepted main ref.
+        repo = Path(work_queue.__file__).resolve().parents[2]
+        self.source_repo = self.root / "accepted-source-git"
+        subprocess.run(
+            ["git", "init", "-q", str(self.source_repo)], check=True,
+            capture_output=True,
+        )
+        source_paths = (
+            "tooling/coordination/work_queue.py",
+            "packages/bridge-core/src/work/conversation-identity.js",
+        )
+        for source_path in source_paths:
+            original_entry = subprocess.check_output(
+                ["git", "-C", str(repo), "ls-tree", "HEAD", "--", source_path],
+                text=True,
+            ).strip()
+            self.assertRegex(
+                original_entry, r"^100644 blob [0-9a-f]{40}\t",
+            )
+            raw = subprocess.check_output(
+                ["git", "-C", str(repo), "show", "HEAD:" + source_path],
+            )
+            dest = self.source_repo / source_path
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_bytes(raw)
+        subprocess.run(
+            ["git", "-C", str(self.source_repo), "add", "--", *source_paths],
+            check=True, capture_output=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(self.source_repo),
+             "-c", "user.name=Octoport Test Fixture",
+             "-c", "user.email=octoport-test@example.invalid",
+             "-c", "commit.gpgsign=false",
+             "commit", "-q", "-m", "Accepted source provenance fixture"],
+            check=True, capture_output=True,
+        )
+        self.source = subprocess.check_output(
+            ["git", "-C", str(self.source_repo), "rev-parse", "HEAD"],
+            text=True,
+        ).strip()
+        self.tree = subprocess.check_output(
+            ["git", "-C", str(self.source_repo), "rev-parse", "HEAD^{tree}"],
+            text=True,
+        ).strip()
+        self.blob = subprocess.check_output(
+            ["git", "-C", str(self.source_repo), "rev-parse",
+             self.source + ":tooling/coordination/work_queue.py"],
+            text=True,
+        ).strip()
+        subprocess.run(
+            ["git", "-C", str(self.source_repo), "update-ref",
+             "refs/remotes/origin/main", self.source],
+            check=True, capture_output=True,
+        )
+        self.real_repo_resolver = work_queue._evidence_source_repo
+        self._source_repo_patch = patch.object(
+            work_queue, "_evidence_source_repo",
+            return_value=self.source_repo,
+        )
+        # Install cleanup before start: even a failing partial setup cannot
+        # leave global work_queue._evidence_source_repo patched.
+        self.addCleanup(self._source_repo_patch.stop)
+        self._source_repo_patch.start()
+        self.result = self.dir / "RESULT.json"
+        self.result.write_text('{"bounded":"read-only"}\n')
+        self.review = self.dir / "REVIEW.md"
+        self.review.write_text(
+            "Verdict: PASS\nReview b-observe result_sha256="
+            + hashlib.sha256(self.result.read_bytes()).hexdigest() + "\n")
+        self.manifest = self.dir / "MANIFEST.json"
+        self.manifest_value = {
+            "kind": work_queue.EVIDENCE_MANIFEST_KIND, "version": 1,
+            "task_id": "b-observe", "role": "B",
+            "source_commit": self.source, "source_tree": self.tree,
+            "source_blobs": [{
+                "path": "tooling/coordination/work_queue.py", "blob_sha": self.blob,
+            }],
+            "result_path": "logs/B/observed-runtime/RESULT.json",
+            "result_sha256": hashlib.sha256(self.result.read_bytes()).hexdigest(),
+            "review_path": "logs/B/observed-runtime/REVIEW.md",
+            "review_sha256": hashlib.sha256(self.review.read_bytes()).hexdigest(),
+        }
+        self.update_manifest()
+        self.receipt = self.dir / "COMPLETION.json"
+        self.receipt.write_text(json.dumps({
+            "kind": work_queue.COMPLETION_KIND, "version": 1,
+            "task_id": "b-observe", "candidate_sha": self.source,
+            "verdict": "PASS", "review": {
+                "verdict": "PASS", "evidence": ["independent exact read-only review"],
+            },
+            "checks": [{
+                "name": "manifest and result provenance",
+                "verdict": "PASS", "evidence": ["accepted source blob and file hashes"],
+            }],
+        }))
+
+    def tearDown(self):
+        # Three rollout consumers manually construct this TestCase and call
+        # tearDown directly. The unittest runner's later doCleanups() does not
+        # run in that path, so release all registered mocks BEFORE deleting
+        # their source Git fixture. Normal unittest runs see an empty cleanup
+        # stack on their standard post-tearDown doCleanups() call.
+        self.doCleanups()
+
+    def update_manifest(self):
+        self.manifest.write_text(json.dumps(self.manifest_value))
+
+    def start(self):
+        work_queue.advance_task(self.root, "B", "b-observe", "IN_PROGRESS")
+
+    def finish(self):
+        with patch.object(work_queue, "current_worktree_head",
+                          return_value="f" * 40):
+            return work_queue.advance_task(
+                self.root, "B", "b-observe", "DONE", str(self.receipt),
+                evidence_provenance=str(self.manifest))
+
+    def done(self):
+        return next(t for t in work_queue.load_board(self.root)["tasks"]
+                    if t["id"] == "b-observe")
+
+    def test_successful_evidence_only_done_pins_accepted_source_not_role_head(self):
+        self.start()
+        self.finish()
+        done = self.done()
+        self.assertEqual(done["completion_candidate_sha"], self.source)
+        self.assertNotEqual(done["completion_candidate_sha"], "f" * 40)
+        self.assertEqual(done["completion_evidence_snapshot"]["source_commit"], self.source)
+        self.assertEqual(done["state"], "DONE")
+        self.assertTrue(work_queue._strict_completion_valid(done, root=self.root))
+        self.assertEqual(work_queue.task_view(work_queue.load_board(self.root), done, root=self.root)["state"], "DONE")
+        self.assertNotIn("completion_publication_registration", done)
+
+    def test_actual_git_source_blob_with_hyphenated_path_is_allowed(self):
+        # Genuine accepted main regular file, not a fabricated or wildcard
+        # path; both directory name and file base name contain a dash.
+        source_path = "packages/bridge-core/src/work/conversation-identity.js"
+        repo = self.source_repo
+        tree_line = subprocess.check_output(
+            ["git", "-C", str(repo), "ls-tree", self.source, "--", source_path],
+            text=True,
+        ).strip()
+        self.assertRegex(tree_line, r"^100644 blob [0-9a-f]{40}\t")
+        blob = subprocess.check_output(
+            ["git", "-C", str(repo), "rev-parse", self.source + ":" + source_path],
+            text=True,
+        ).strip()
+        self.manifest_value["source_blobs"] = [{
+            "path": source_path, "blob_sha": blob,
+        }]
+        self.update_manifest()
+        self.start()
+        self.finish()
+        current = self.done()
+        self.assertEqual(current["completion_candidate_sha"], self.source)
+        self.assertTrue(work_queue._strict_completion_valid(current, root=self.root))
+        self.assertEqual(
+            work_queue.task_view(
+                work_queue.load_board(self.root), current, root=self.root)["state"],
+            "DONE",
+        )
+        self.assertFalse(work_queue.blocker_attention(
+            work_queue.load_board(self.root), root=self.root))
+
+    def test_evidence_only_successor_repeat_resolve_uses_trusted_root(self):
+        self.start()
+        self.finish()
+        blocked = {
+            "id": "old-evidence-attempt", "role": "B", "plan": "B04",
+            "state": "BLOCKED", "requires": [],
+            "result": "Previous evidence attempt retained as BLOCKED",
+            "paths": ["tooling/legacy-evidence-currentity.py"],
+            "blocked_reason": "Superseded by exact observational evidence",
+            "blocked_receipt": str(self.result),
+        }
+        board = work_queue.load_board(self.root)
+        board["tasks"].append(blocked)
+        self.boardfile.write_text(json.dumps(board))
+        first = work_queue.resolve_blocker(
+            self.root, "B", blocked["id"], "b-observe", str(self.receipt))
+        self.assertEqual(first["resolution_status"], "RESOLVED")
+        self.assertFalse(first.get("idempotent", False))
+        revision = work_queue.load_board(self.root)["revision"]
+
+        # Regression: rootless _valid_blocker_resolution had rejected a valid
+        # evidence-only DONE on the second identical call; rootless alerts
+        # then incorrectly reported both historical and accepted outcomes.
+        second = work_queue.resolve_blocker(
+            self.root, "B", blocked["id"], "b-observe", str(self.receipt))
+        self.assertTrue(second["idempotent"])
+        self.assertEqual(second["revision"], revision)
+        self.assertEqual(second["owner_attention"], [])
+        current = work_queue.load_board(self.root)
+        historic = next(t for t in current["tasks"] if t["id"] == blocked["id"])
+        self.assertEqual(
+            work_queue.task_view(current, historic, root=self.root)["resolution_status"],
+            "RESOLVED")
+
+        # If evidence has changed, neither first nor repeated resolution may
+        # become a fake successful idempotent acknowledgment.
+        self.review.write_bytes(self.review.read_bytes() + b"\nTAMPER")
+        with self.assertRaisesRegex(RuntimeError, "SUCCESSOR_NOT_ACCEPTED"):
+            work_queue.resolve_blocker(
+                self.root, "B", blocked["id"], "b-observe", str(self.receipt))
+        self.assertEqual(work_queue.load_board(self.root)["revision"], revision)
+
+    def test_installed_non_git_org_reader_uses_trusted_sibling_git_store(self):
+        self.start()
+        self.finish()
+        done = self.done()
+        true_repo = self.source_repo
+        installed_org = self.root / "controllers/organization/tools/work_queue.py"
+        expected_repo = self.root.parent / "octoport-main"
+        calls = []
+        real_git = work_queue._evidence_git
+
+        def controlled_read(repo, *command):
+            # Simulates an already-admitted immutable Git object store at the
+            # only trusted sibling path; source bytes are resolved from a real
+            # accepted main commit rather than fabricated fixture output.
+            self.assertEqual(Path(repo), expected_repo)
+            calls.append(command)
+            return real_git(true_repo, *command)
+
+        with patch.object(work_queue, "_evidence_source_repo",
+                          self.real_repo_resolver), \
+             patch.object(work_queue, "__file__", str(installed_org)), \
+             patch.object(work_queue, "_evidence_git", side_effect=controlled_read):
+            self.assertTrue(work_queue._strict_completion_valid(done, root=self.root))
+            self.assertEqual(
+                work_queue.task_view(
+                    work_queue.load_board(self.root), done, root=self.root)["state"],
+                "DONE")
+        self.assertTrue(calls)
+        self.assertTrue(any(command[:2] == ("cat-file", "-t") for command in calls))
+
+        # An arbitrary non-Git reader is not the managed operational reader;
+        # it must not silently inherit that trusted fallback.
+        other = self.root / "controllers/untrusted/tools/work_queue.py"
+        other.parent.mkdir(parents=True)
+        # Even though this existing fake directory inherits a parent Git
+        # worktree in nested TMPDIR setups, it must not inherit provenance.
+        with patch.object(work_queue, "_evidence_source_repo",
+                          self.real_repo_resolver), \
+             patch.object(work_queue, "__file__", str(other)):
+            self.assertFalse(work_queue._strict_completion_valid(done, root=self.root))
+
+    def test_evidence_source_requires_explicit_accepted_git_main_ref(self):
+        self.start()
+        self.finish()
+        done = self.done()
+        subprocess.run(
+            ["git", "-C", str(self.source_repo), "update-ref", "-d",
+             "refs/remotes/origin/main"],
+            check=True, capture_output=True,
+        )
+        self.assertFalse(work_queue._strict_completion_valid(
+            done, root=self.root))
+        self.assertEqual(
+            work_queue.task_view(
+                work_queue.load_board(self.root), done, root=self.root)["state"],
+            "BLOCKED",
+        )
+
+    def test_result_review_and_manifest_tampering_invalidates_done(self):
+        self.start()
+        self.finish()
+        for file in (self.result, self.review, self.manifest):
+            original = file.read_bytes()
+            with self.subTest(file=file.name):
+                file.write_bytes(original + b"\nTAMPER")
+                self.assertFalse(work_queue._strict_completion_valid(self.done(), root=self.root))
+                view = work_queue.task_view(work_queue.load_board(self.root), self.done(), root=self.root)
+                self.assertEqual(view["state"], "BLOCKED")
+                self.assertTrue(view["completion_invalidated"])
+                file.write_bytes(original)
+                self.assertTrue(work_queue._strict_completion_valid(self.done(), root=self.root))
+
+    def test_fake_caller_git_environment_cannot_override_source_identity(self):
+        self.start()
+        with patch.dict(work_queue.os.environ, {
+            "PATH": "/nonexistent",
+            "GIT_DIR": "/nonexistent",
+            "GIT_WORK_TREE": "/nonexistent",
+            "GIT_CONFIG_COUNT": "1",
+            "GIT_CONFIG_KEY_0": "core.repositoryformatversion",
+            "GIT_CONFIG_VALUE_0": "1",
+        }, clear=False):
+            self.finish()
+        self.assertTrue(work_queue._strict_completion_valid(self.done(), root=self.root))
+
+    def test_source_task_can_never_use_evidence_shortcut(self):
+        self.task.pop("evidence_only")
+        self.task.pop("execution_class")
+        self.task.pop("source_publication_authorized")
+        self.task["paths"] = ["apps/api/src/auth.ts"]
+        self.boardfile.write_text(json.dumps({
+            "version": 1, "revision": 1, "tasks": [self.task]}))
+        self.start()
+        before = self.boardfile.read_bytes()
+        with self.assertRaisesRegex(RuntimeError, "EVIDENCE_SCOPE_INVALID"):
+            work_queue.advance_task(self.root, "B", "b-observe", "DONE",
+                str(self.receipt), evidence_provenance=str(self.manifest))
+        self.assertEqual(before, self.boardfile.read_bytes())
+
+    def test_evidence_only_requires_manifest_and_disallows_publication_mixing(self):
+        self.start()
+        for extra in ({}, {"publication_registration": "a" * 64,
+                           "evidence_provenance": str(self.manifest)}):
+            with self.subTest(extra=extra):
+                with self.assertRaisesRegex(RuntimeError, "EVIDENCE_"):
+                    work_queue.advance_task(self.root, "B", "b-observe", "DONE",
+                                            str(self.receipt), **extra)
+        self.assertEqual(self.done()["state"], "IN_PROGRESS")
+
+    def test_manifest_bad_role_bad_hash_and_wrong_source_fail_closed(self):
+        self.start()
+        tamper = [
+            ("role", "A", "MANIFEST_INVALID"),
+            ("result_sha256", "a" * 64, "DRIFT"),
+            ("review_sha256", "b" * 64, "DRIFT"),
+            ("source_tree", "b" * 40, "SOURCE_INVALID"),
+            ("source_commit", "e" * 40, "SOURCE_INVALID"),
+        ]
+        before = self.boardfile.read_bytes()
+        for key, value, expected in tamper:
+            with self.subTest(field=key):
+                original = self.manifest_value[key]
+                self.manifest_value[key] = value
+                self.update_manifest()
+                with self.assertRaisesRegex(RuntimeError, expected):
+                    self.finish()
+                self.manifest_value[key] = original
+                self.update_manifest()
+        self.assertEqual(before, self.boardfile.read_bytes())
+
+    def test_wrong_blob_order_and_duplicate_json_keys_are_rejected(self):
+        self.start()
+        self.manifest_value["source_blobs"][0]["blob_sha"] = "0" * 40
+        self.update_manifest()
+        with self.assertRaisesRegex(RuntimeError, "SOURCE_INVALID"):
+            self.finish()
+        self.manifest_value["source_blobs"][0]["blob_sha"] = self.blob
+        self.update_manifest()
+        raw = self.manifest.read_text()
+        self.manifest.write_text(raw[:-1] + ', "role": "B"}')
+        with self.assertRaisesRegex(RuntimeError, "MANIFEST_INVALID"):
+            self.finish()
+
+    def test_relative_paths_outside_control_logs_are_rejected(self):
+        self.start()
+        self.manifest_value["review_path"] = "../../etc/passwd"
+        self.update_manifest()
+        with self.assertRaisesRegex(RuntimeError, "EVIDENCE_FILE_INVALID"):
+            self.finish()
+
+    def test_legacy_done_with_evidence_only_marker_cannot_skip_strict_snapshot(self):
+        self.start()
+        task = self.done()
+        task.update(state="DONE", completion_receipt=str(self.receipt))
+        self.boardfile.write_text(json.dumps({"version": 1, "revision": 4, "tasks": [task]}))
+        self.assertFalse(work_queue._strict_completion_valid(task, root=self.root))
+        self.assertEqual(work_queue.task_view(work_queue.load_board(self.root), task, root=self.root)["state"], "BLOCKED")
+
+    def test_independent_review_must_bind_task_result_hash_and_pass(self):
+        self.start()
+        self.review.write_text("Unrelated reviewed output says PASS")
+        self.manifest_value["review_sha256"] = hashlib.sha256(
+            self.review.read_bytes()).hexdigest()
+        self.update_manifest()
+        with self.assertRaisesRegex(RuntimeError, "REVIEW_NOT_BOUND"):
+            self.finish()
+
+    def test_result_symlink_is_rejected_even_with_matching_bytes(self):
+        self.start()
+        ordinary = self.dir / "retained-result.json"
+        self.result.rename(ordinary)
+        self.result.symlink_to(ordinary)
+        with self.assertRaisesRegex(RuntimeError, "EVIDENCE_FILE_INVALID"):
+            self.finish()
+
+    def test_review_conflicting_verdicts_fail_even_with_correct_hash(self):
+        self.start()
+        for review in (
+            "Verdict: FAIL\\nPrevious review PASS b-observe sha256="
+            + hashlib.sha256(self.result.read_bytes()).hexdigest(),
+            "Verdict: PASS\\nVerdict: FAIL\\nReview b-observe result="
+            + hashlib.sha256(self.result.read_bytes()).hexdigest(),
+        ):
+            with self.subTest(review=review[:40]):
+                self.review.write_text(review.replace(chr(92)+"n", "\\n"))
+                self.manifest_value["review_sha256"] = hashlib.sha256(
+                    self.review.read_bytes()).hexdigest()
+                self.update_manifest()
+                with self.assertRaisesRegex(RuntimeError, "REVIEW_NOT_BOUND"):
+                    self.finish()
+
+    def test_git_symlink_source_blob_mode_is_rejected(self):
+        self.start()
+        original = work_queue._evidence_git
+        def injected(repo, *command):
+            if len(command) >= 2 and command[0] == "ls-tree":
+                return "120000 blob " + self.blob + "\\ttooling/coordination/work_queue.py"
+            return original(repo, *command)
+        with patch.object(work_queue, "_evidence_git", side_effect=injected):
+            with self.assertRaisesRegex(RuntimeError, "SOURCE_INVALID"):
+                self.finish()
+
+    def test_forged_different_control_root_cannot_keep_done_valid(self):
+        from shutil import copytree
+        self.start()
+        self.finish()
+        with tempfile.TemporaryDirectory() as alt:
+            other = Path(alt)
+            copytree(self.dir, other / "logs/B/observed-runtime")
+            forged = copy.deepcopy(self.done())
+            snapshot = forged["completion_evidence_snapshot"]
+            snapshot["control_root"] = str(other.resolve())
+            snapshot["manifest_path"] = str(
+                other / "logs/B/observed-runtime/MANIFEST.json")
+            self.assertTrue(work_queue._evidence_snapshot_valid(
+                forged, expected_root=other))
+            self.boardfile.write_text(json.dumps({
+                "version": 1, "revision": 3, "tasks": [forged]}))
+            # The board reader must use self.root, NOT the forged root.
+            own = work_queue.role_work(self.root, "B")["tasks"][0]
+            self.assertEqual(own["state"], "BLOCKED")
+            self.assertTrue(own["completion_invalidated"])
+            self.assertFalse(work_queue._strict_completion_valid(
+                forged, root=self.root))
+
+    def test_publication_related_evidence_card_is_not_admitted(self):
+        for field, val in (
+            ("outcome_kind", "SOURCE_PUBLICATION"),
+            ("outcome_kind", "DEPLOYMENT"),
+            ("execution_class", "SOURCE_PUBLICATION"),
+            ("source_publication_authorized", True),
+        ):
+            with self.subTest(field=field):
+                task = dict(self.task)
+                task[field] = val
+                self.boardfile.write_text(json.dumps({
+                    "version": 1, "revision": 1, "tasks": [task]}))
+                with self.assertRaisesRegex(RuntimeError, "WORK_QUEUE_INVALID"):
+                    work_queue.load_board(self.root)
+
+    def test_duplicate_source_paths_are_rejected(self):
+        self.start()
+        self.manifest_value["source_blobs"].append(
+            dict(self.manifest_value["source_blobs"][0]))
+        self.update_manifest()
+        with self.assertRaisesRegex(RuntimeError, "SOURCE_INVALID"):
+            self.finish()
+
+    def test_non_evidence_default_source_completion_still_uses_current_head(self):
+        self.task.pop("evidence_only")
+        self.task.pop("execution_class")
+        self.task.pop("source_publication_authorized")
+        self.task["paths"] = ["apps/api/src/auth.ts"]
+        self.boardfile.write_text(json.dumps({
+            "version": 1, "revision": 1, "tasks": [self.task]}))
+        self.start()
+        receipt = json.loads(self.receipt.read_text())
+        receipt["candidate_sha"] = "f" * 40
+        self.receipt.write_text(json.dumps(receipt))
+        with patch.object(work_queue, "current_worktree_head", return_value="f" * 40):
+            work_queue.advance_task(self.root, "B", "b-observe", "DONE",
+                                    str(self.receipt))
+        self.assertEqual(self.done()["completion_candidate_sha"], "f" * 40)
+        self.assertNotIn("completion_evidence_snapshot", self.done())
+
+
+
+class EvidenceManualFixtureCleanupRegressionTests(unittest.TestCase):
+    """Consumer-created fixtures must restore module globals on every exit."""
+
+    def test_manually_constructed_fixture_teardown_restores_resolver(self):
+        original = work_queue._evidence_source_repo
+        fixture = EvidenceProvenanceTests()
+        fixture.setUp()
+        root = fixture.root
+        try:
+            self.assertIsNot(work_queue._evidence_source_repo, original)
+            fixture.tearDown()
+            self.assertFalse(root.exists())
+            self.assertIs(work_queue._evidence_source_repo, original)
+        finally:
+            # RED tests must not leak a process-global patch after failure.
+            fixture.doCleanups()
+            fixture.tmp.cleanup()
+
+    def test_exception_in_manual_consumer_still_restores_resolver(self):
+        original = work_queue._evidence_source_repo
+        fixture = EvidenceProvenanceTests()
+        fixture.setUp()
+        root = fixture.root
+        try:
+            with self.assertRaisesRegex(RuntimeError, "injected consumer failure"):
+                try:
+                    raise RuntimeError("injected consumer failure")
+                finally:
+                    fixture.tearDown()
+            self.assertFalse(root.exists())
+            self.assertIs(work_queue._evidence_source_repo, original)
+        finally:
+            fixture.doCleanups()
+            fixture.tmp.cleanup()
+
+    def test_fixture_setup_error_restores_patch_and_temp_via_cleanups(self):
+        original = work_queue._evidence_source_repo
+        fixture = EvidenceProvenanceTests()
+        try:
+            with patch.object(fixture, "update_manifest",
+                              side_effect=RuntimeError("injected setup failure")):
+                with self.assertRaisesRegex(RuntimeError,
+                                            "injected setup failure"):
+                    fixture.setUp()
+            root = fixture.root
+            fixture.doCleanups()
+            self.assertIs(work_queue._evidence_source_repo, original)
+            self.assertFalse(root.exists())
+        finally:
+            fixture.doCleanups()
+            if hasattr(fixture, "tmp"):
+                fixture.tmp.cleanup()
 
 
 if __name__ == "__main__":

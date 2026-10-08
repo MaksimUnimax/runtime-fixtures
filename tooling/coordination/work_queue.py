@@ -6,6 +6,7 @@ import importlib.util
 import json
 import os
 import re
+import stat
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
@@ -14,6 +15,8 @@ STATES = {"READY", "IN_PROGRESS", "BLOCKED", "DONE"}
 PLAN_IDS = {f"{r}{i:02d}" for r, span in (("A", range(1, 7)), ("B", range(1, 8)), ("C", range(8))) for i in span}
 COMPLETION_KIND = "octoport.work-queue-completion"
 COMPLETION_VERSION = 1
+EVIDENCE_MANIFEST_KIND = "octoport.work-queue-evidence-provenance"
+EVIDENCE_MANIFEST_VERSION = 1
 COMPLETION_VERDICTS = {"PASS", "FAIL", "REWORK_REQUIRED"}
 PUBLICATION_REQUIRED_CI = (
     "Server CI",
@@ -122,6 +125,247 @@ def _canonical_bytes(value):
 
 def _sha_bytes(raw):
     return hashlib.sha256(raw).hexdigest()
+
+
+
+def _evidence_task_scope(task):
+    """Only explicit read-only results may avoid SOURCE candidate/CI attribution."""
+    role = task.get("role")
+    paths = task.get("paths")
+    return (task.get("evidence_only") is True
+            and task.get("execution_class") == "OPERATIONAL_EVIDENCE"
+            and task.get("source_publication_authorized") is False
+            and task.get("outcome_kind") == "OPERATIONAL_OBSERVATION"
+            and role in {"A", "B", "C"}
+            and not any(k in task for k in (
+                "publication_registration", "completion_publication_registration",
+                "completion_publication_snapshot"))
+            and task.get("outcome_kind") not in {
+                "SOURCE_PUBLICATION", "OWNER_INSTALLABLE_DELIVERY",
+                "DEPLOYMENT", "PRODUCTION",
+            }
+            and type(paths) is list and len(paths) == 1
+            and isinstance(paths[0], str)
+            and re.fullmatch(r"logs/" + role + r"/[A-Za-z0-9_./-]+/RESULT\.json",
+                             paths[0]) is not None
+            and ".." not in Path(paths[0]).parts
+            and valid_paths(paths))
+
+
+def _evidence_file(root, relative, prefix, *, max_bytes=65536):
+    """Read one bounded regular file inside the exact control-root evidence tree."""
+    if (type(relative) is not str or not relative.startswith(prefix)
+            or relative.startswith("/") or ".." in Path(relative).parts
+            or not re.fullmatch(r"[A-Za-z0-9_./-]+", relative)):
+        raise RuntimeError("WORK_QUEUE_EVIDENCE_FILE_INVALID")
+    base = Path(root).resolve()
+    path = base / relative
+    descriptors = []
+    try:
+        # Open every component relative to a no-follow directory descriptor.
+        # A symlink or component-swap cannot redirect the read to private data.
+        parent = os.open(base, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        descriptors.append(parent)
+        parts = Path(relative).parts
+        for part in parts[:-1]:
+            parent = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                             dir_fd=parent)
+            descriptors.append(parent)
+        fd = os.open(parts[-1], os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK,
+                     dir_fd=parent)
+        descriptors.append(fd)
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            raise RuntimeError("WORK_QUEUE_EVIDENCE_FILE_INVALID")
+        with os.fdopen(os.dup(fd), "rb") as source:
+            data = source.read(max_bytes + 1)
+        if len(data) > max_bytes:
+            raise RuntimeError("WORK_QUEUE_EVIDENCE_FILE_INVALID")
+    except OSError:
+        raise RuntimeError("WORK_QUEUE_EVIDENCE_FILE_INVALID") from None
+    finally:
+        for fd in reversed(descriptors):
+            os.close(fd)
+    return path, data
+
+
+def _evidence_git(repo, *command):
+    # Untrusted GIT_*, LD_* and PATH values may not provide fake source
+    # provenance. Read only the local checked-out Git object store via the
+    # trusted absolute Git binary and a bounded, minimal environment.
+    environment = {
+        "PATH": "/usr/bin:/bin",
+        "HOME": "/nonexistent",
+        "XDG_CONFIG_HOME": "/nonexistent",
+        "LC_ALL": "C",
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_CONFIG_GLOBAL": "/dev/null",
+    }
+    try:
+        result = subprocess.run(["/usr/bin/git", "-C", str(repo), *command],
+                                env=environment, capture_output=True,
+                                text=True, timeout=5)
+    except (OSError, subprocess.SubprocessError):
+        raise RuntimeError("WORK_QUEUE_EVIDENCE_SOURCE_INVALID") from None
+    if result.returncode:
+        raise RuntimeError("WORK_QUEUE_EVIDENCE_SOURCE_INVALID")
+    return result.stdout.strip()
+
+
+def _evidence_source_repo(root):
+    """Select Git object provenance from the trusted reader deployment path.
+
+    A/B/C install the reader inside their own Git worktree. The operational
+    organization reader is deliberately outside Git. Only its exact managed
+    location may consult the accepted sibling main worktree; no receipt,
+    manifest or caller-supplied Git path can change this selection.
+    """
+    root = Path(root).resolve()
+    module = Path(__file__).resolve()
+    installed_org_reader = root / "controllers/organization/tools/work_queue.py"
+    if module == installed_org_reader:
+        return root.parent / "octoport-main"
+    role_repo = module.parents[2]
+    if module == role_repo / "tooling/coordination/work_queue.py":
+        return role_repo
+    raise RuntimeError("WORK_QUEUE_EVIDENCE_SOURCE_INVALID")
+
+
+def _evidence_completion_candidate(root, role, task, manifest_path):
+    """Opt-in accepted-source snapshot. Never authorizes a code publication."""
+    root = Path(root)
+    if task.get("role") != role or not _evidence_task_scope(task):
+        raise RuntimeError("WORK_QUEUE_EVIDENCE_SCOPE_INVALID")
+    try:
+        if Path(manifest_path).is_symlink():
+            raise RuntimeError("WORK_QUEUE_EVIDENCE_MANIFEST_INVALID")
+        absolute = Path(manifest_path).resolve()
+        relative = absolute.relative_to(root.resolve()).as_posix()
+    except (TypeError, OSError, ValueError):
+        raise RuntimeError("WORK_QUEUE_EVIDENCE_MANIFEST_INVALID") from None
+    manifest_file, raw = _evidence_file(root, relative, f"logs/{role}/",
+                                         max_bytes=32768)
+    try:
+        manifest = _strict_json_object(raw)
+    except (ValueError, TypeError):
+        raise RuntimeError("WORK_QUEUE_EVIDENCE_MANIFEST_INVALID") from None
+    if set(manifest) != {
+        "kind", "version", "task_id", "role", "source_commit", "source_tree",
+        "source_blobs", "result_path", "result_sha256", "review_path", "review_sha256",
+    }:
+        raise RuntimeError("WORK_QUEUE_EVIDENCE_MANIFEST_INVALID")
+    sha40 = r"[0-9a-f]{40}"
+    sha64 = r"[0-9a-f]{64}"
+    source = manifest.get("source_commit")
+    tree = manifest.get("source_tree")
+    if (manifest.get("kind") != EVIDENCE_MANIFEST_KIND
+            or type(manifest.get("version")) is not int
+            or manifest["version"] != EVIDENCE_MANIFEST_VERSION
+            or manifest.get("task_id") != task.get("id")
+            or manifest.get("role") != role
+            or type(source) is not str or re.fullmatch(sha40, source) is None
+            or type(tree) is not str or re.fullmatch(sha40, tree) is None
+            or manifest.get("result_path") != task["paths"][0]
+            or type(manifest.get("result_sha256")) is not str
+            or re.fullmatch(sha64, manifest["result_sha256"]) is None
+            or type(manifest.get("review_sha256")) is not str
+            or re.fullmatch(sha64, manifest["review_sha256"]) is None
+            or not isinstance(manifest.get("source_blobs"), list)
+            or not 1 <= len(manifest["source_blobs"]) <= 32):
+        raise RuntimeError("WORK_QUEUE_EVIDENCE_MANIFEST_INVALID")
+    names = []
+    for blob in manifest["source_blobs"]:
+        if (type(blob) is not dict or set(blob) != {"path", "blob_sha"}
+                or type(blob["path"]) is not str
+                or re.fullmatch(r"[A-Za-z0-9_./-]+", blob["path"]) is None
+                or blob["path"].startswith("/")
+                or ".." in Path(blob["path"]).parts
+                or type(blob["blob_sha"]) is not str
+                or re.fullmatch(sha40, blob["blob_sha"]) is None):
+            raise RuntimeError("WORK_QUEUE_EVIDENCE_SOURCE_INVALID")
+        names.append(blob["path"])
+    if names != sorted(set(names)):
+        raise RuntimeError("WORK_QUEUE_EVIDENCE_SOURCE_INVALID")
+    result_file, result_raw = _evidence_file(root, manifest["result_path"],
+                                              f"logs/{role}/", max_bytes=65536)
+    review_file, review_raw = _evidence_file(root, manifest.get("review_path"),
+                                              f"logs/{role}/", max_bytes=65536)
+    if (result_file == review_file or result_file == manifest_file
+            or review_file == manifest_file
+            or not manifest["review_path"].endswith((".json", ".md"))
+            or hashlib.sha256(result_raw).hexdigest() != manifest["result_sha256"]
+            or hashlib.sha256(review_raw).hexdigest() != manifest["review_sha256"]):
+        raise RuntimeError("WORK_QUEUE_EVIDENCE_DRIFT")
+    try:
+        review_text = review_raw.decode("utf-8")
+    except UnicodeDecodeError:
+        raise RuntimeError("WORK_QUEUE_EVIDENCE_REVIEW_NOT_BOUND") from None
+    verdicts = []
+    for line in review_text.splitlines():
+        match = re.fullmatch(
+            r"(?:#{1,3}\s*)?(?:Вердикт|Verdict)\s*:\s*(PASS|FAIL|REWORK_REQUIRED)",
+            line.strip(), flags=re.IGNORECASE)
+        if match is not None:
+            verdicts.append(match.group(1).upper())
+    if (manifest["task_id"] not in review_text
+            or manifest["result_sha256"] not in review_text
+            or verdicts != ["PASS"]):
+        raise RuntimeError("WORK_QUEUE_EVIDENCE_REVIEW_NOT_BOUND")
+    repo = _evidence_source_repo(root)
+    if (_evidence_git(repo, "cat-file", "-t", source) != "commit"
+            or _evidence_git(repo, "rev-parse", source + "^{tree}") != tree):
+        raise RuntimeError("WORK_QUEUE_EVIDENCE_SOURCE_INVALID")
+    _evidence_git(repo, "merge-base", "--is-ancestor", source, "origin/main")
+    for blob in manifest["source_blobs"]:
+        git_entry = source + ":" + blob["path"]
+        entry = _evidence_git(repo, "ls-tree", source, "--", blob["path"])
+        # The Git blob object type alone also accepts symlink mode 120000.
+        acceptable = {
+            f"100644 blob {blob['blob_sha']}\t{blob['path']}",
+            f"100755 blob {blob['blob_sha']}\t{blob['path']}",
+        }
+        if (entry not in acceptable
+                or _evidence_git(repo, "cat-file", "-t", git_entry) != "blob"
+                or _evidence_git(repo, "rev-parse", git_entry) != blob["blob_sha"]):
+            raise RuntimeError("WORK_QUEUE_EVIDENCE_SOURCE_INVALID")
+    snapshot = {
+        "control_root": str(root.resolve()),
+        "manifest_path": str(manifest_file),
+        "manifest_sha256": hashlib.sha256(raw).hexdigest(),
+        "source_commit": source,
+        "result_sha256": manifest["result_sha256"],
+        "review_sha256": manifest["review_sha256"],
+    }
+    return source, snapshot
+
+
+def _evidence_snapshot_valid(task, expected_root=None):
+    snapshot = task.get("completion_evidence_snapshot")
+    if snapshot is None:
+        return task.get("evidence_only") is not True
+    if (task.get("evidence_only") is not True
+            or task.get("completion_publication_registration") is not None
+            or task.get("completion_publication_snapshot") is not None
+            or type(snapshot) is not dict
+            or set(snapshot) != {
+                "control_root", "manifest_path", "manifest_sha256", "source_commit",
+                "result_sha256", "review_sha256",
+            }):
+        return False
+    try:
+        if expected_root is None:
+            return False
+        root = Path(expected_root).resolve()
+        if snapshot["control_root"] != str(root):
+            return False
+        path = Path(snapshot["manifest_path"]).resolve()
+        if not path.is_relative_to(root / "logs"):
+            return False
+        source, current = _evidence_completion_candidate(
+            root, task.get("role"), task, str(path))
+        return (source == task.get("completion_candidate_sha")
+                and current == snapshot)
+    except (RuntimeError, OSError, ValueError, TypeError, KeyError, StopIteration):
+        return False
 
 
 def _publication_task_fingerprint(task):
@@ -372,26 +616,29 @@ def _publication_completion_candidate(root, role, task, registration_id, *, allo
     return candidate, snapshot
 
 
-def _strict_completion_valid(task):
+def _strict_completion_valid(task, root=None):
     if "completion_receipt_format" not in task:
-        # Pre-gate board rows are historical until explicitly reopened.
-        return True
+        # Pre-gate historical rows remain historical, but new evidence-only
+        # tasks may never become DONE without an exact evidence snapshot.
+        return task.get("evidence_only") is not True
     if (type(task.get("completion_receipt_format")) is not int
             or task.get("completion_receipt_format") != COMPLETION_VERSION):
         return False
     receipt = _completion_receipt(task.get("completion_receipt", ""), task["id"],
                                   task.get("completion_candidate_sha", ""))
-    return _receipt_passes(receipt) and _publication_snapshot_valid(task)
+    return (_receipt_passes(receipt) and _publication_snapshot_valid(task)
+            and _evidence_snapshot_valid(task, expected_root=root))
 
 
-def _task_satisfies_dependencies(task):
-    return task["state"] == "DONE" and _strict_completion_valid(task)
+def _task_satisfies_dependencies(task, root=None):
+    return task["state"] == "DONE" and _strict_completion_valid(task, root)
 
 
 class _BoardEvaluation:
     """Validation memo scoped to one immutable in-memory board evaluation."""
-    def __init__(self, board):
+    def __init__(self, board, root=None):
         self.board = board
+        self.root = Path(root).resolve() if root is not None else None
         self._strict = {}
         self._receipts = {}
         self._blocker_successors = {}
@@ -413,12 +660,13 @@ class _BoardEvaluation:
         key = id(task)
         if key not in self._strict:
             if "completion_receipt_format" not in task:
-                valid = True
+                valid = task.get("evidence_only") is not True
             elif (type(task.get("completion_receipt_format")) is not int
                     or task.get("completion_receipt_format") != COMPLETION_VERSION):
                 valid = False
             else:
-                valid = _receipt_passes(self.receipt(task)) and _publication_snapshot_valid(task)
+                valid = (_receipt_passes(self.receipt(task)) and _publication_snapshot_valid(task)
+                         and _evidence_snapshot_valid(task, expected_root=self.root))
             self._strict[key] = valid
         return self._strict[key]
 
@@ -437,7 +685,7 @@ class _BoardEvaluation:
         return self._blocker_successors[key]
 
 
-def _strict_blocker_successor_valid(task):
+def _strict_blocker_successor_valid(task, root=None):
     if (task.get("state") != "DONE"
             or type(task.get("completion_receipt_format")) is not int
             or task.get("completion_receipt_format") != COMPLETION_VERSION
@@ -446,7 +694,7 @@ def _strict_blocker_successor_valid(task):
     current = _completion_receipt(
         task.get("completion_receipt", ""), task["id"], task.get("completion_candidate_sha", "")
     )
-    return (_strict_completion_valid(task)
+    return (_strict_completion_valid(task, root)
             and current == task["completion_receipt_snapshot"])
 
 
@@ -496,6 +744,26 @@ def _validate_logical_board(board, *, enforce_v1_count):
             raise ValueError("requires")
         if not isinstance(task.get("result"), str) or not task["result"].strip():
             raise ValueError("result")
+        if "evidence_only" in task and type(task["evidence_only"]) is not bool:
+            raise ValueError("evidence-only marker")
+        if task.get("evidence_only") is True and (
+                task.get("execution_class") != "OPERATIONAL_EVIDENCE"
+                or task.get("source_publication_authorized") is not False):
+            raise ValueError("evidence-only classified task")
+        if task.get("evidence_only") is True and not _evidence_task_scope(task):
+            raise ValueError("evidence-only scope")
+        evidence = task.get("completion_evidence_snapshot")
+        if evidence is not None and (
+                task["state"] != "DONE"
+                or task.get("evidence_only") is not True
+                or type(evidence) is not dict
+                or set(evidence) != {
+                    "control_root", "manifest_path", "manifest_sha256",
+                    "source_commit", "result_sha256", "review_sha256",
+                }):
+            raise ValueError("evidence completion provenance shape")
+        # Live evidence hash drift is handled by task_view/strict validation,
+        # not by rejecting the entire shared board and all unrelated tasks.
         if task["state"] == "DONE" and not task.get("completion_receipt"):
             raise ValueError("completion receipt")
         if task.get("completion_publication_registration") is not None or task.get("completion_publication_snapshot") is not None:
@@ -612,8 +880,8 @@ def _valid_blocker_resolution(board, task, evaluation=None):
             and resolution.get("receipt") == successor.get("completion_receipt"))
 
 
-def task_view(board, task, evaluation=None):
-    evaluation = evaluation or _BoardEvaluation(board)
+def task_view(board, task, evaluation=None, root=None):
+    evaluation = evaluation or _BoardEvaluation(board, root=root)
     done = evaluation.done
     waiting = [x for x in task["requires"] if x not in done]
     state = task["state"]
@@ -642,9 +910,9 @@ def task_view(board, task, evaluation=None):
 
 
 
-def blocker_attention(board):
+def blocker_attention(board, root=None):
     """Derived unresolved outcomes; neither a second queue nor a permission request."""
-    return _blocker_attention(board, _BoardEvaluation(board))
+    return _blocker_attention(board, _BoardEvaluation(board, root=root))
 
 
 def _blocker_attention(board, evaluation):
@@ -688,7 +956,7 @@ def _blocker_attention(board, evaluation):
 
 def role_work(root, role):
     board = load_board(root)
-    evaluation = _BoardEvaluation(board)
+    evaluation = _BoardEvaluation(board, root=root)
     rows = []
     for task in board["tasks"]:
         if task["state"] == "DONE" and evaluation.strict_completion_valid(task):
@@ -724,9 +992,10 @@ def _validated_board_text(root, board):
     return encoded
 
 
-def _semantic_active_count(board):
+def _semantic_active_count(board, root=None):
     """Count live work from one immutable board evaluation and task_view authority."""
-    evaluation = _BoardEvaluation(board)
+    evaluation = (_BoardEvaluation(board, root=root) if root is not None
+                  else _BoardEvaluation(board))
     active_states = _v2().ACTIVE_STATES
     count = 0
     for task in board["tasks"]:
@@ -736,10 +1005,10 @@ def _semantic_active_count(board):
     return count
 
 
-def _enforce_semantic_active_transition(pre_board, post_board):
+def _enforce_semantic_active_transition(pre_board, post_board, root=None):
     cap = _v2().ACTIVE_TASK_CAP
-    pre_count = _semantic_active_count(pre_board)
-    post_count = _semantic_active_count(post_board)
+    pre_count = _semantic_active_count(pre_board, root=root)
+    post_count = _semantic_active_count(post_board, root=root)
     if (pre_count <= cap and post_count > cap) or (pre_count > cap and post_count > pre_count):
         raise RuntimeError("WORK_QUEUE_SEMANTIC_ACTIVE_TASK_CAP")
 
@@ -751,7 +1020,7 @@ def _persist_board(root, board, event):
         except (ValueError, KeyError, TypeError, AttributeError):
             raise RuntimeError("WORK_QUEUE_INVALID: logical v2 candidate") from None
         pre_board = load_board(root)
-        _enforce_semantic_active_transition(pre_board, board)
+        _enforce_semantic_active_transition(pre_board, board, root=root)
         return _v2().commit_logical_board(root, board, event)
     encoded = _validated_board_text(root, board)
     path = root / "controllers/work-board.json"
@@ -786,7 +1055,7 @@ def claim_task(root, role, identifier=""):
             if any(t["id"] == identifier for t in active):
                 return {"role": role, "task": identifier, "state": "IN_PROGRESS", "revision": board["revision"]}
             choices = [t for t in board["tasks"] if (not identifier or t["id"] == identifier)
-                       and task_view(board, t)["state"] == "READY"]
+                       and task_view(board, t, root=root)["state"] == "READY"]
             if not choices:
                 raise RuntimeError("WORK_QUEUE_NO_CLAIMABLE_TASK: no available result; do not steal active work")
             task = choices[0]
@@ -814,7 +1083,7 @@ def resolve_blocker(root, role, identifier, successor_id, receipt):
             successor = next((row for row in board["tasks"] if row["id"] == successor_id), None)
             if (successor is None or successor["id"] == task["id"]
                     or successor.get("plan") != task.get("plan")
-                    or not _strict_blocker_successor_valid(successor)):
+                    or not _strict_blocker_successor_valid(successor, root=root)):
                 raise RuntimeError("WORK_QUEUE_BLOCKER_SUCCESSOR_NOT_ACCEPTED")
             try:
                 proof = Path(receipt).resolve()
@@ -828,13 +1097,18 @@ def resolve_blocker(root, role, identifier, successor_id, receipt):
                 raise RuntimeError("WORK_QUEUE_BLOCKER_RESOLUTION_RECEIPT_INVALID")
             existing = task.get("blocker_resolution")
             if isinstance(existing, dict) and existing.get("status") == "RESOLVED":
-                if (_valid_blocker_resolution(board, task)
+                # Idempotent readback has the same trusted control root as the
+                # first resolution. Without it, a valid evidence-only DONE
+                # successor is spuriously treated as a stale resolution.
+                evaluation = _BoardEvaluation(board, root=root)
+                if (_valid_blocker_resolution(board, task, evaluation)
                         and existing.get("successor_task") == successor_id
                         and existing.get("receipt") == str(proof)):
                     return {"action": "RESOLVE_BLOCKER", "role": role, "task": identifier,
                             "state": "BLOCKED", "resolution_status": "RESOLVED",
                             "successor_task": successor_id, "revision": board["revision"],
-                            "idempotent": True, "owner_attention": blocker_attention(board)}
+                            "idempotent": True,
+                            "owner_attention": _blocker_attention(board, evaluation)}
                 raise RuntimeError("WORK_QUEUE_BLOCKER_RESOLUTION_ALREADY_SET")
             now = datetime.now(timezone.utc).isoformat()
             task["blocker_resolution"] = {
@@ -853,7 +1127,7 @@ def resolve_blocker(root, role, identifier, successor_id, receipt):
                 "state": "BLOCKED", "resolution_status": "RESOLVED",
                 "successor_task": successor_id, "receipt": str(proof),
             })
-            return dict(persisted, owner_attention=blocker_attention(board))
+            return dict(persisted, owner_attention=blocker_attention(board, root=root))
 
 
 def assert_no_ready_work(root, role):
@@ -878,12 +1152,16 @@ def status_work(root, role, dirty=False, waiting_proof=None):
 
 
 def advance_task(root, role, identifier, state, receipt="", reason="", *, expected_task=None,
-                 publication_registration=""):
+                 publication_registration="", evidence_provenance=""):
     root = Path(root)
     if state not in {"IN_PROGRESS", "BLOCKED", "DONE"}:
         raise RuntimeError("WORK_QUEUE_TRANSITION_INVALID")
     if publication_registration and state != "DONE":
         raise RuntimeError("WORK_QUEUE_PUBLICATION_COMPLETION_DONE_ONLY")
+    if evidence_provenance and state != "DONE":
+        raise RuntimeError("WORK_QUEUE_EVIDENCE_COMPLETION_DONE_ONLY")
+    if evidence_provenance and publication_registration:
+        raise RuntimeError("WORK_QUEUE_EVIDENCE_SOURCE_PUBLISH_CONFLICT")
     # Same lock order for every writer; no operation waits for a test under lock.
     with (root / (role + ".lock")).open("a+") as role_lock:
         fcntl.flock(role_lock, fcntl.LOCK_EX)
@@ -899,13 +1177,13 @@ def advance_task(root, role, identifier, state, receipt="", reason="", *, expect
                 raise RuntimeError("WORK_QUEUE_TASK_OWNER_OR_STATE_INVALID")
             if expected_task is not None and task != expected_task:
                 raise RuntimeError("WORK_QUEUE_TASK_DRIFT")
-            invalidated_done = task["state"] == "DONE" and not _strict_completion_valid(task)
+            invalidated_done = task["state"] == "DONE" and not _strict_completion_valid(task, root)
             legacy_done = task["state"] == "DONE" and "completion_receipt_format" not in task
             if task["state"] == "DONE" and not (state == "IN_PROGRESS" and (invalidated_done or legacy_done)):
                 raise RuntimeError("WORK_QUEUE_TASK_OWNER_OR_STATE_INVALID")
             if task["state"] != "DONE" and state == "IN_PROGRESS" and invalidated_done:
                 raise RuntimeError("WORK_QUEUE_TASK_OWNER_OR_STATE_INVALID")
-            view = task_view(board, task)
+            view = task_view(board, task, root=root)
             if state in {"IN_PROGRESS", "DONE"} and view["waiting_for"]:
                 raise RuntimeError("WORK_QUEUE_DEPENDENCY_PENDING")
             if state == "IN_PROGRESS":
@@ -948,11 +1226,18 @@ def advance_task(root, role, identifier, state, receipt="", reason="", *, expect
                     raise RuntimeError("WORK_QUEUE_COMPLETION_RECEIPT_REQUIRED")
                 if state == "DONE":
                     publication_snapshot = None
-                    if publication_registration:
+                    evidence_snapshot = None
+                    if evidence_provenance:
+                        candidate_sha, evidence_snapshot = _evidence_completion_candidate(
+                            root, role, task, evidence_provenance)
+                    elif publication_registration:
+                        if task.get("evidence_only") is True:
+                            raise RuntimeError("WORK_QUEUE_EVIDENCE_SOURCE_PUBLISH_CONFLICT")
                         candidate_sha, publication_snapshot = _publication_completion_candidate(
-                            root, role, task, publication_registration
-                        )
+                            root, role, task, publication_registration)
                     else:
+                        if task.get("evidence_only") is True:
+                            raise RuntimeError("WORK_QUEUE_EVIDENCE_PROVENANCE_REQUIRED")
                         candidate_sha = current_worktree_head()
                     acceptance = _completion_receipt(proof, identifier, candidate_sha)
                     if not _receipt_passes(acceptance):
@@ -964,6 +1249,8 @@ def advance_task(root, role, identifier, state, receipt="", reason="", *, expect
                     if publication_snapshot is not None:
                         task["completion_publication_registration"] = publication_registration
                         task["completion_publication_snapshot"] = publication_snapshot
+                    if evidence_snapshot is not None:
+                        task["completion_evidence_snapshot"] = evidence_snapshot
                 elif state == "IN_PROGRESS":
                     task["unblock_receipt"] = str(proof)
             if state == "BLOCKED":
@@ -982,7 +1269,7 @@ def advance_task(root, role, identifier, state, receipt="", reason="", *, expect
             event = {"at": now, "role": role, "task": identifier, "before": previous,
                      "state": state, "receipt": receipt, "revision": board["revision"]}
             persisted = _persist_board(root, board, event)
-            return dict(persisted, owner_attention=blocker_attention(board))
+            return dict(persisted, owner_attention=blocker_attention(board, root=root))
 
 
 def add_task(root, role, task, repo_root=None):
@@ -994,6 +1281,14 @@ def add_task(root, role, task, repo_root=None):
         raise RuntimeError("WORK_QUEUE_PATHS_AND_ACCEPTANCE_REQUIRED")
     if not valid_paths(task["paths"]):
         raise RuntimeError("WORK_QUEUE_PATHS_INVALID")
+    if "evidence_only" in task and type(task["evidence_only"]) is not bool:
+        raise RuntimeError("WORK_QUEUE_EVIDENCE_MARKER_INVALID")
+    if task.get("evidence_only") is True and (
+            task.get("execution_class") != "OPERATIONAL_EVIDENCE"
+            or task.get("source_publication_authorized") is not False):
+        raise RuntimeError("WORK_QUEUE_EVIDENCE_CLASSIFICATION_REQUIRED")
+    if task.get("evidence_only") is True and not _evidence_task_scope(task):
+        raise RuntimeError("WORK_QUEUE_EVIDENCE_SCOPE_INVALID")
     if not isinstance(task.get("basis"), str) or not task["basis"].strip():
         raise RuntimeError("WORK_QUEUE_UNFINISHED_REQUIREMENT_REQUIRED")
     repo = Path(repo_root) if repo_root is not None else Path(__file__).resolve().parents[2]

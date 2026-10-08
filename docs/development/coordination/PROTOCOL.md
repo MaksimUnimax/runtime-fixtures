@@ -54,3 +54,83 @@ review_pending/четыре часа — сигнал аудита, не STOP. �
 
 
 Обязательное правило WORK_METHOD.md «Блокировка не завершает обязательный результат»: сразу сообщить препятствие владельцу в текущем чате, сохранить ответственного/следующий шаг/условие возврата, продолжать независимую работу и явно показывать нерешённый результат в каждой сводке. Перед длинной проверкой и итогом выполнить python3 /root/octoport-control/controllers/organization/tools/audit_check.py alerts; файл или вывод CLI не равен доставленному сообщению.
+
+
+## Доказательный strict DONE без атрибуции к чужому HEAD
+
+Для специально объявленной read-only задачи, содержащей только результат
+**logs/ROLE/.../RESULT.json**, автор при queue-add указывает **evidence_only: true**, **execution_class: OPERATIONAL_EVIDENCE** и
+**source_publication_authorized: false**, а также
+**outcome_kind: OPERATIONAL_OBSERVATION**.
+Это не режим для разработки, миграций, выпуска пакетов, проверок браузера
+или живых серверных операций. Имени RESULT.json недостаточно: без явной отметки
+и точного зарегистрированного scope новый маршрут запрещён.
+
+После независимого review и фиксации доказательств создаётся
+JSON-манифест внутри /root/octoport-control/logs/ROLE/:
+
+~~~json
+{
+  "kind": "octoport.work-queue-evidence-provenance",
+  "version": 1,
+  "task_id": "EXACT_TASK_ID",
+  "role": "C",
+  "source_commit": "40_lowercase_hex",
+  "source_tree": "40_lowercase_hex",
+  "source_blobs": [
+    {"path": "exact/repository/source/path", "blob_sha": "40_lowercase_hex"}
+  ],
+  "result_path": "logs/C/exact/RESULT.json",
+  "result_sha256": "64_lowercase_hex",
+  "review_path": "logs/C/exact/REVIEW.md",
+  "review_sha256": "64_lowercase_hex"
+}
+~~~
+
+source_commit — принятый commit, предок текущего origin/main на момент
+завершения; source_tree и все уникальные, отсортированные source_blobs
+проверяются непосредственно через Git, с проверкой режима обычного файла
+100644/100755 (режим Git-symlink 120000 отклоняется). result_path обязан точно совпадать
+с единственным зарегистрированным путём задачи. Результат, отзыв и манифест
+читаются с ограничением размера и SHA-256, без следования symlink;
+независимый текст отзыва должен содержать точные task ID, SHA-256 результата
+и однозначную строку **Verdict: PASS** (или **Вердикт: PASS**) без
+противоречащих вердиктов. Не сохранять секреты и сырые данные магазина.
+
+Финализация из канонической копии своей роли:
+
+~~~sh
+python3 tooling/coordination/control.py C queue-task \
+  --task EXACT_TASK_ID --task-state DONE \
+  --receipt /root/octoport-control/logs/C/exact/COMPLETION.json \
+  --evidence-provenance /root/octoport-control/logs/C/exact/MANIFEST.json
+~~~
+
+Стандартный COMPLETION.json сохраняет формат octoport.work-queue-completion
+с независимым review=PASS и проверками PASS. Поле candidate_sha равно
+**проверенному source_commit из манифеста**, а не постороннему HEAD.
+Очередь сохраняет completion_evidence_snapshot и при каждом прочтении
+DONE проверяет Git-источник, манифест, результат, отзыв и хеши. Фактический
+корень контроля обязан прийти от читающего кодом work-board, а не из
+поля snapshot. Без доверенного root проверка fail-closed. Дрейф
+одного доказательства инвалидирует только его карточку и зависимые
+результаты; вся доска должна оставаться читаемой.
+
+Для обычной задачи с исходниками этот маршрут недопустим. Исходный DONE
+без флага остаётся привязан к HEAD своей роли, а
+--publication-registration требует прежние независимое review, пять
+точных успешных CI, принятый SHA, закрытую регистрацию и очистку ref.
+Одновременно --evidence-provenance и --publication-registration запрещены.
+Учёт диска, STOP, очередь, адресные отказы платформы и privacy обязательны.
+**Доказательный DONE подтверждает только результат наблюдения**:
+никакого live GET, входа, деплоя или выпуска он не разрешает.
+
+При развёртывании общего читателя в
+`/root/octoport-control/controllers/organization/tools/work_queue.py`
+он работает **вне Git-репозитория**. Только для этого точного
+пути относительно доверенного control-root источник подтверждённого
+Git-объекта выбирается из соседней канонической копии
+`/root/octoport-main`; исходники A/B/C продолжают проверять
+собственные Git-деревья. Manifest и snapshot не могут указать
+другой Git-каталог. Если доверенный репозиторий недоступен,
+evidence-only DONE остаётся непринятым, а не превращается в PASS.

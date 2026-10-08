@@ -801,6 +801,141 @@ class ReaderRolloutTests(unittest.TestCase):
         self.assertEqual(len(seen), 2)
         self.assertIs(seen[0], seen[1])
 
+    def test_manual_evidence_consumer_set_up_error_cleans_global_patch(self):
+        # Reproduce the actual three consumer methods as a nested unittest
+        # runner. If EvidenceProvenanceTests.setUp raises only AFTER its
+        # process-global patch starts, the parent must still run its cleanup.
+        original_resolver = work_queue._evidence_source_repo
+        original_init = work_queue_tests.EvidenceProvenanceTests.__init__
+        consumer_tests = (
+            "test_semantic_evidence_done_parity_with_role_work_and_tamper",
+            "test_semantic_revalidates_operational_evidence_after_projection",
+            "test_semantic_evidence_forged_control_root_fails_closed",
+        )
+        for consumer in consumer_tests:
+            with self.subTest(consumer=consumer):
+                captured = []
+
+                def tracking_init(fixture, *args, **kwargs):
+                    original_init(fixture, *args, **kwargs)
+                    captured.append(fixture)
+
+                child = ReaderRolloutTests(consumer)
+                outcome = unittest.TestResult()
+                try:
+                    with patch.object(
+                        work_queue_tests.EvidenceProvenanceTests,
+                        "__init__", tracking_init,
+                    ), patch.object(
+                        work_queue_tests.EvidenceProvenanceTests,
+                        "update_manifest",
+                        side_effect=RuntimeError("injected setup after patch start"),
+                    ):
+                        child.run(outcome)
+                    self.assertEqual(len(outcome.errors), 1)
+                    self.assertIn("injected setup after patch start",
+                                  outcome.errors[0][1])
+                    self.assertEqual(outcome.failures, [])
+                    self.assertIs(work_queue._evidence_source_repo,
+                                  original_resolver)
+                finally:
+                    # Emergency RED-test isolation only. The assertion above
+                    # must pass BEFORE this safety cleanup on a fixed consumer.
+                    for fixture in captured:
+                        fixture.doCleanups()
+                    self.assertIs(work_queue._evidence_source_repo,
+                                  original_resolver)
+
+    def test_semantic_evidence_done_parity_with_role_work_and_tamper(self):
+        # The external role-work and direct task-view projections must agree
+        # on exact evidence-only DONE on this board's trusted control root.
+        fixture = work_queue_tests.EvidenceProvenanceTests()
+        # Manually constructed TestCase.setUp does not receive unittest's
+        # automatic doCleanups on failure. Register cleanup in the owning
+        # consumer BEFORE setup; a partly initialized Git source fixture must
+        # never leave process-global provenance resolver monkeypatched.
+        self.addCleanup(fixture.doCleanups)
+        fixture.setUp()
+        self.addCleanup(fixture.tearDown)
+        fixture.start()
+        fixture.finish()
+        task = fixture.done()
+        self.assertTrue(work_queue._strict_completion_valid(
+            task, root=fixture.root))
+        # Accepted DONE is intentionally omitted from role_work's actionable
+        # list; direct views and rollout views must still validate as DONE.
+        direct_board = work_queue.load_board(fixture.root)
+        self.assertEqual(work_queue.task_view(
+            direct_board, direct_board["tasks"][0], root=fixture.root)["state"], "DONE")
+        self.assertEqual(work_queue.role_work(fixture.root, "B")["tasks"], [])
+        value = rollout._semantic(work_queue, fixture.root)
+        self.assertEqual(value["task_views"][0]["state"], "DONE")
+        self.assertEqual(value["role_work"]["B"]["tasks"], [])
+        self.assertEqual(value["status"]["B"]["tasks"], [])
+        self.assertEqual(value["blocker_attention"], [])
+        # Independent evidence drift affects one card, not the whole board.
+        original = fixture.review.read_bytes()
+        fixture.review.write_bytes(original + b"\nTAMPER")
+        tampered = rollout._semantic(work_queue, fixture.root)
+        self.assertEqual(tampered["task_views"][0]["state"], "BLOCKED")
+        self.assertTrue(tampered["task_views"][0]["completion_invalidated"])
+        self.assertEqual(tampered["role_work"]["B"]["tasks"][0]["state"], "BLOCKED")
+        self.assertEqual(tampered["status"]["B"]["tasks"][0]["state"], "BLOCKED")
+        fixture.review.write_bytes(original)
+        restored = rollout._semantic(work_queue, fixture.root)
+        self.assertEqual(restored["task_views"][0]["state"], "DONE")
+
+    def test_semantic_revalidates_operational_evidence_after_projection(self):
+        fixture = work_queue_tests.EvidenceProvenanceTests()
+        # Manually constructed TestCase.setUp does not receive unittest's
+        # automatic doCleanups on failure. Register cleanup in the owning
+        # consumer BEFORE setup; a partly initialized Git source fixture must
+        # never leave process-global provenance resolver monkeypatched.
+        self.addCleanup(fixture.doCleanups)
+        fixture.setUp()
+        self.addCleanup(fixture.tearDown)
+        fixture.start()
+        fixture.finish()
+        original = work_queue._evidence_snapshot_valid
+        with patch.object(
+            work_queue, "_evidence_snapshot_valid",
+            side_effect=[True, False],
+        ) as validator:
+            with self.assertRaisesRegex(
+                RuntimeError, "WORK_BOARD_V2_ROLLOUT_VALIDATION_EVIDENCE_CHANGED",
+            ):
+                rollout._semantic(work_queue, fixture.root)
+            self.assertEqual(validator.call_count, 2)
+        self.assertIs(work_queue._evidence_snapshot_valid, original)
+
+    def test_semantic_evidence_forged_control_root_fails_closed(self):
+        fixture = work_queue_tests.EvidenceProvenanceTests()
+        # Manually constructed TestCase.setUp does not receive unittest's
+        # automatic doCleanups on failure. Register cleanup in the owning
+        # consumer BEFORE setup; a partly initialized Git source fixture must
+        # never leave process-global provenance resolver monkeypatched.
+        self.addCleanup(fixture.doCleanups)
+        fixture.setUp()
+        self.addCleanup(fixture.tearDown)
+        fixture.start()
+        fixture.finish()
+        task = fixture.done()
+        with tempfile.TemporaryDirectory() as alt:
+            other = Path(alt)
+            shutil.copytree(fixture.dir, other / "logs/B/observed-runtime")
+            snapshot = task["completion_evidence_snapshot"]
+            snapshot["control_root"] = str(other.resolve())
+            snapshot["manifest_path"] = str(
+                other / "logs/B/observed-runtime/MANIFEST.json")
+            fixture.boardfile.write_text(json.dumps({
+                "version": 1, "revision": 7, "tasks": [task]}))
+            direct = work_queue.role_work(fixture.root, "B")["tasks"][0]
+            self.assertEqual(direct["state"], "BLOCKED")
+            optimized = rollout._semantic(work_queue, fixture.root)
+            self.assertEqual(optimized["task_views"][0]["state"], "BLOCKED")
+            self.assertTrue(optimized["task_views"][0]["completion_invalidated"])
+            self.assertEqual(optimized["role_work"]["B"]["tasks"][0]["state"], "BLOCKED")
+
     def test_semantic_matches_uncached_reference_for_resolved_tombstone(self):
         fixture = work_queue_tests.WorkQueueTests()
         fixture.setUp()
@@ -1050,15 +1185,38 @@ class ReaderRolloutTests(unittest.TestCase):
 
     def test_operational_org_reader_outside_git_is_supported_explicitly(self):
         shutil.rmtree(self.repo_roots["ORG"] / ".git")
-        result = self._run("org-nonrepo")
+        # These fixtures also run from a managed task-local TMPDIR nested
+        # inside the developer's source Git worktree. Recreate the true
+        # production ORG condition (no Git ancestor), not the incidental
+        # parent repository of the test runner. The reader's production
+        # _git_status guard is unchanged.
+        fixture = Path(self.tmp.name).resolve()
+        original_lexists = os.path.lexists
+
+        def only_fixture_git_files(path):
+            candidate = Path(path)
+            if (candidate.name == ".git"
+                    and not candidate.parent.resolve().is_relative_to(fixture)):
+                return False
+            return original_lexists(path)
+
+        with patch.dict(os.environ, {
+                "GIT_CEILING_DIRECTORIES": str(fixture.parent)}), \
+             patch.object(rollout.os.path, "lexists",
+                          side_effect=only_fixture_git_files):
+            result = self._run("org-nonrepo")
         self.assertEqual(result["result"], "COMMITTED")
         self.assertEqual(result["git_status_before"]["ORG"], "ORG_OPERATIONAL_READER_OUTSIDE_GIT")
         self.assertEqual(result["git_status_before"]["ORG"], result["git_status_after"]["ORG"])
 
     def test_non_git_canonical_role_still_rejected(self):
         shutil.rmtree(self.repo_roots["A"] / ".git")
-        with self.assertRaisesRegex(RuntimeError, "GIT_STATUS_UNAVAILABLE"):
-            self._run("a-nonrepo")
+        # An unrelated Git repository above the task-local fixture must
+        # not silently replace the intentionally missing A repository.
+        with patch.dict(os.environ, {
+                "GIT_CEILING_DIRECTORIES": str(Path(self.tmp.name).resolve().parent)}):
+            with self.assertRaisesRegex(RuntimeError, "GIT_STATUS_UNAVAILABLE"):
+                self._run("a-nonrepo")
         self.assertFalse(any((directory / "work_board_v2.py").exists() for directory in self.dirs.values()))
 
     def test_source_drift_while_waiting_for_locks_is_preserved(self):

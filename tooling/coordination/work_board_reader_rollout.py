@@ -255,7 +255,10 @@ def _semantic(module, root: Path):
     saved = {}
     revalidations = []
     try:
-        for name in ("_completion_receipt", "_publication_snapshot_valid"):
+        for name in (
+            "_completion_receipt", "_publication_snapshot_valid",
+            "_evidence_snapshot_valid",
+        ):
             original = namespace.get(name)
             if not callable(original):
                 continue
@@ -272,19 +275,38 @@ def _semantic(module, root: Path):
                 __name=name,
                 **kwargs,
             ):
-                if __name == "_publication_snapshot_valid":
+                if __name in {
+                    "_publication_snapshot_valid", "_evidence_snapshot_valid",
+                }:
                     task = args[0] if args and isinstance(args[0], dict) else None
                     identifier = task.get("id") if task is not None else None
                     expected_identity = board_task_identity.get(identifier)
                     current_identity = (
                         _semantic_value_identity(task) if task is not None else None
                     )
-                    # Reuse only an exact task value from the immutable board
-                    # bound to this _semantic call. A changed/copy-drifted task
-                    # bypasses the cache and uses the original validator.
+                    # Exact task value only. Evidence validation also binds to
+                    # the actual reader control root, never a snapshot path.
+                    root_identity = None
+                    if __name == "_evidence_snapshot_valid":
+                        candidate_root = (
+                            kwargs.get("expected_root")
+                            if "expected_root" in kwargs else
+                            args[1] if len(args) > 1 else None
+                        )
+                        if candidate_root is not None:
+                            try:
+                                root_identity = str(Path(candidate_root).resolve())
+                            except (OSError, ValueError, TypeError):
+                                root_identity = None
                     identity = (
-                        ("publication", identifier, current_identity)
-                        if expected_identity is not None
+                        ("evidence", identifier, current_identity, root_identity)
+                        if __name == "_evidence_snapshot_valid"
+                        and root_identity is not None
+                        and expected_identity is not None
+                        and current_identity == expected_identity
+                        else ("publication", identifier, current_identity)
+                        if __name == "_publication_snapshot_valid"
+                        and expected_identity is not None
                         and current_identity == expected_identity
                         else None
                     )
@@ -299,30 +321,44 @@ def _semantic(module, root: Path):
 
             namespace[name] = memoized
 
-        evaluation_type = getattr(module, "_BoardEvaluation", None)
-        evaluation = evaluation_type(board) if callable(evaluation_type) else None
-        task_view = module.task_view
-        accepts_evaluation = False
-        if evaluation is not None:
+        def accepts_keyword(callback, name):
+            # Historical immutable readers may not declare the newer root
+            # argument. Dispatch based on the exact signature; never absorb
+            # a TypeError from inside a validator as a compatibility fallback.
             try:
-                parameters = inspect.signature(task_view).parameters.values()
-                accepts_evaluation = any(
-                    p.name == "evaluation" or p.kind == p.VAR_KEYWORD
-                    for p in parameters
+                return any(
+                    p.name == name or p.kind == p.VAR_KEYWORD
+                    for p in inspect.signature(callback).parameters.values()
                 )
             except (TypeError, ValueError):
-                accepts_evaluation = False
-        if accepts_evaluation:
-            task_views = [
-                task_view(board, task, evaluation=evaluation) for task in tasks
-            ]
+                return False
+
+        evaluation_type = getattr(module, "_BoardEvaluation", None)
+        if callable(evaluation_type):
+            evaluation_kwargs = (
+                {"root": root} if accepts_keyword(evaluation_type, "root") else {}
+            )
+            evaluation = evaluation_type(board, **evaluation_kwargs)
         else:
-            task_views = [task_view(board, task) for task in tasks]
+            evaluation = None
+        task_view = module.task_view
+        view_kwargs = {}
+        if evaluation is not None and accepts_keyword(task_view, "evaluation"):
+            view_kwargs["evaluation"] = evaluation
+        if accepts_keyword(task_view, "root"):
+            view_kwargs["root"] = root
+        task_views = [
+            task_view(board, task, **view_kwargs) for task in tasks
+        ]
+        attention_kwargs = (
+            {"root": root} if accepts_keyword(module.blocker_attention, "root")
+            else {}
+        )
         value = {
             "board": board,
             "task_views": task_views,
             "role_work": {role: module.role_work(root, role) for role in "ABC"},
-            "blocker_attention": module.blocker_attention(board),
+            "blocker_attention": module.blocker_attention(board, **attention_kwargs),
             "snapshots": {role: module.board_snapshot(root) for role in "ABC"},
             "status": {role: module.status_work(root, role) for role in "ABC"},
         }

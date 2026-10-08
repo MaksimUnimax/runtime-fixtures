@@ -205,9 +205,13 @@ def require_running(role):
         raise RuntimeError("STOPPED: no new work permitted")
 
 
-def advance_queue_task(role, task, task_state, receipt, summary, publication_registration="", control_root=None):
+def advance_queue_task(role, task, task_state, receipt, summary, publication_registration="", control_root=None, evidence_provenance=""):
     if not task:
         raise RuntimeError("DISK_LIFECYCLE_TASK_REQUIRED")
+    if evidence_provenance and publication_registration:
+        raise RuntimeError("WORK_QUEUE_EVIDENCE_SOURCE_PUBLISH_CONFLICT")
+    if evidence_provenance and task_state != "DONE":
+        raise RuntimeError("WORK_QUEUE_EVIDENCE_COMPLETION_DONE_ONLY")
     target_control = Path(control_root).resolve() if control_root is not None else CONTROL
     registry = DiskLifecycleRegistry(target_control)
     if task_state in {"DONE", "IN_PROGRESS"}:
@@ -218,7 +222,9 @@ def advance_queue_task(role, task, task_state, receipt, summary, publication_reg
                     registry.record_completion_state(role, task, "SEALING")
                     try:
                         kwargs = ({"publication_registration": publication_registration}
-                                  if publication_registration else {})
+                                  if publication_registration else
+                                  {"evidence_provenance": evidence_provenance}
+                                  if evidence_provenance else {})
                         result = advance_task(target_control, role, task, task_state, receipt, summary, **kwargs)
                     except Exception:
                         try:
@@ -388,6 +394,7 @@ def main():
     parser.add_argument("--task", default="")
     parser.add_argument("--successor", default="")
     parser.add_argument("--publication-registration", default="")
+    parser.add_argument("--evidence-provenance", default="")
     parser.add_argument("--next", default="")
     parser.add_argument("--receipt", default="")
     parser.add_argument("--base")
@@ -400,6 +407,8 @@ def main():
     split = argv.index("--") if "--" in argv else len(argv)
     args = parser.parse_args(argv[:split])
     command = argv[split + 1:]
+    if args.action == "queue-task" and args.publication_registration and args.evidence_provenance:
+        raise RuntimeError("WORK_QUEUE_EVIDENCE_SOURCE_PUBLISH_CONFLICT")
     if args.action == "queue-task" and args.publication_registration:
         require_publication_queue_location(args.role, args.task, args.publication_registration)
     else:
@@ -428,9 +437,11 @@ def main():
         print(json.dumps(resolve_blocker(CONTROL, args.role, args.task, args.successor, args.receipt), ensure_ascii=False))
         return 0
     if args.action == "queue-task":
+        evidence_kwargs = ({"evidence_provenance": args.evidence_provenance}
+                           if args.evidence_provenance else {})
         result = advance_queue_task(
             args.role, args.task, args.task_state, args.receipt, args.summary,
-            args.publication_registration,
+            args.publication_registration, **evidence_kwargs,
         )
         print(json.dumps(result, ensure_ascii=False))
         return 0
