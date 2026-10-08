@@ -58,7 +58,9 @@ const texts = { PAGE_RUNTIME_INSTALL_FAILED: "Браузер не разреши
   AUTH_REQUIRED: "Выполните вход через портал", WORK_POLICY_BLOCKED: "Работа недоступна: подписанная политика не разрешила этот профиль ИИ", DEVICE_AUTH_CLOSED: "Попытка входа закрыта. Начните новую попытку", BOOTSTRAP_EXPIRED: "Проверенная сессия истекла. Выполните вход заново",
   UNSUPPORTED_BROWSER: "Текущий браузер или его версия не подтверждены подписанной совместимостью. Доказательства другого браузера не переносятся сюда", BOOTSTRAP_PROFILE_INCOMPATIBLE: "Подписанная конфигурация не разрешает текущую версию расширения или браузера", WORK_UNSUPPORTED_AI: "Откройте поддерживаемый ИИ: ChatGPT или Алису",
   SOURCE_OFFLINE: "Источник передачи сейчас недоступен. Повтор не считается доставкой", TRANSFER_VAULT_UNAVAILABLE: "Безопасное локальное хранилище ключа передачи недоступно. Передача не начата", TRANSFER_VAULT_PERSIST_FAILED: "Не удалось безопасно сохранить локальный ключ передачи. Запрос не считается готовым", TRANSFER_VAULT_CLEAR_FAILED: "Не удалось подтвердить очистку локального ключа передачи. Сброс не считается завершённым",
-  TRANSFER_KEY_MISSING: "Локальный ключ этой передачи отсутствует. Создайте новый запрос на получающей установке", TRANSFER_ACCOUNT_MISMATCH: "Передача относится к другому аккаунту или установке и заблокирована", TRANSFER_EXPIRED: "Срок запроса передачи истёк. Создайте новый запрос", TRANSFER_REPLAY: "Передача уже завершена или повтор заблокирован" };
+  TRANSFER_KEY_MISSING: "Локальный ключ этой передачи отсутствует. Создайте новый запрос на получающей установке", TRANSFER_ACCOUNT_MISMATCH: "Передача относится к другому аккаунту или установке и заблокирована", TRANSFER_REQUEST_MISMATCH: "Ответ относится к другой передаче. Подтверждение заблокировано; проверьте аккаунт и установку.",
+  TRANSFER_ACK_UNCONFIRMED: "Ключи уже сохранены локально, но сервер не подтвердил завершение передачи. Не импортируйте их повторно. Проверьте эту передачу позже.",
+  TRANSFER_EXPIRED: "Срок запроса передачи истёк. Создайте новый запрос", TRANSFER_REPLAY: "Передача уже завершена или повтор заблокирован" };
 async function request(type, fields = {}) {
   const response = await chrome.runtime.sendMessage({ type, tab_id: tabId, ...fields });
   if (!response?.ok) throw new Error(texts[response?.code] || `Действие не выполнено: ${response?.code || "нет ответа расширения"}`);
@@ -111,7 +113,15 @@ function transferReceivePresentation(result) {
 async function requestTransferReceivePending() {
   const response = await chrome.runtime.sendMessage({ type: "SA_TRANSFER_RECEIVE_PENDING", tab_id: tabId });
   const presentation = transferReceivePresentation(response);
-  if (!presentation) throw new Error(texts[response?.code] || `Действие не выполнено: ${response?.code || "нет ответа расширения"}`);
+  if (!presentation) {
+    // An unverified ACK failure does not prove terminal expiry or replay.
+    // Do not tell the owner to re-import an already durable local result.
+    const unconfirmedAck = response?.ok === false && response?.ackConfirmed === false
+      && ["IMPORTED_PENDING_ACK", "PENDING"].includes(response?.importState)
+      && ["TRANSFER_ACK_UNCONFIRMED", "TRANSFER_EXPIRED", "TRANSFER_REPLAY"].includes(response?.code);
+    if (unconfirmedAck) throw new Error(texts.TRANSFER_ACK_UNCONFIRMED);
+    throw new Error(texts[response?.code] || `Действие не выполнено: ${response?.code || "нет ответа расширения"}`);
+  }
   return { response, presentation };
 }
 async function action(fn, { interrupt = false, accountOnly = false } = {}) {
