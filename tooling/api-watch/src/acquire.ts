@@ -1,4 +1,8 @@
 import { createHash } from "node:crypto";
+import { lookup } from "node:dns/promises";
+import { Agent as HttpsAgent, request as httpsRequest } from "node:https";
+import { BlockList, isIP } from "node:net";
+import { Readable } from "node:stream";
 import {
   validateSwaggerBytes,
   type SwaggerSourceFamily,
@@ -49,6 +53,211 @@ function acceptedHosts(entry: SourceRegistryEntry): Set<string> {
             entry.officialUrl ?? entry.documents![0]!.officialUrl,
           ).hostname.toLowerCase(),
         ],
+  );
+}
+
+// DNS rebinding cannot be excluded by checking an HTTPS URL hostname alone.
+// Vet all answers and pin the selected public address *as the socket lookup*
+// while Node verifies the original hostname's TLS certificate. Never perform
+// a separate preflight DNS lookup followed by an unpinned fetch.
+const forbiddenIpv4 = new BlockList();
+for (const [network, mask] of [
+  ["0.0.0.0", 8],
+  ["10.0.0.0", 8],
+  ["100.64.0.0", 10],
+  ["127.0.0.0", 8],
+  ["169.254.0.0", 16],
+  ["172.16.0.0", 12],
+  ["192.0.0.0", 24],
+  ["192.0.2.0", 24],
+  ["192.88.99.0", 24],
+  ["192.168.0.0", 16],
+  ["198.18.0.0", 15],
+  ["198.51.100.0", 24],
+  ["203.0.113.0", 24],
+  ["224.0.0.0", 4],
+  ["240.0.0.0", 4],
+] as const) {
+  forbiddenIpv4.addSubnet(network, mask, "ipv4");
+}
+const publicIpv6Range = new BlockList();
+publicIpv6Range.addSubnet("2000::", 3, "ipv6");
+const forbiddenIpv6 = new BlockList();
+for (const [network, mask] of [
+  ["2001::", 23],
+  ["2001:db8::", 32],
+  ["2002::", 16],
+  // IANA reserves the full 3f00::/8 block, including 3fff::/20
+  // (the additional IPv6 documentation prefix).
+  ["3f00::", 8],
+] as const) {
+  forbiddenIpv6.addSubnet(network, mask, "ipv6");
+}
+
+export function isPublicOfficialSourceAddress(
+  address: string,
+  family: 4 | 6,
+): boolean {
+  if (family === 4)
+    return isIP(address) === 4 && !forbiddenIpv4.check(address, "ipv4");
+  return (
+    family === 6 &&
+    isIP(address) === 6 &&
+    publicIpv6Range.check(address, "ipv6") &&
+    !forbiddenIpv6.check(address, "ipv6")
+  );
+}
+
+type ResolvedOfficialAddress = { address: string; family: 4 | 6 };
+
+export async function selectVerifiedOfficialAddress(
+  hostname: string,
+  resolver: (
+    host: string,
+  ) => Promise<readonly { address: string; family: number }[]> = async (host) =>
+    lookup(host, { all: true, order: "verbatim" }),
+): Promise<ResolvedOfficialAddress> {
+  const values = await resolver(hostname);
+  if (
+    !Array.isArray(values) ||
+    values.length < 1 ||
+    values.length > 32 ||
+    values.some(
+      (record) =>
+        (record.family !== 4 && record.family !== 6) ||
+        !isPublicOfficialSourceAddress(record.address, record.family as 4 | 6),
+    )
+  )
+    throw new Error("OFFICIAL_SOURCE_DNS_ADDRESS_FORBIDDEN");
+  const first = values[0]!;
+  return { address: first.address, family: first.family as 4 | 6 };
+}
+
+// Per-redirect-hop socket binding is essential: an independent DNS precheck
+// cannot prevent the address used by fetch from changing before connection.
+// Existing local HTTP fixtures are explicitly scoped by the URL origin guard.
+// Injected fetchers are trusted test adapters, never the production transport.
+async function pinnedOfficialSourceFetch(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+): Promise<Response> {
+  const raw =
+    typeof input === "string"
+      ? input
+      : input instanceof URL
+        ? input.href
+        : input.url;
+  const target = new URL(raw);
+  if (target.protocol === "http:" && target.hostname === "127.0.0.1")
+    return fetch(input, init);
+  if (
+    target.protocol !== "https:" ||
+    isIP(target.hostname) !== 0 ||
+    target.hostname.startsWith("[")
+  )
+    throw new Error("OFFICIAL_SOURCE_DNS_ADDRESS_FORBIDDEN");
+
+  // A fresh agent/socket for each request also prevents a stale, previously
+  // trusted connection from crossing into another redirect authority.
+  const agent = new HttpsAgent({
+    keepAlive: false,
+    autoSelectFamily: false,
+    maxCachedSessions: 0,
+    lookup(hostname, options, callback) {
+      selectVerifiedOfficialAddress(hostname).then(
+        ({ address, family }) => {
+          if (options.all) callback(null, [{ address, family }]);
+          else callback(null, address, family);
+        },
+        (error: unknown) =>
+          callback(
+            error instanceof Error
+              ? error
+              : new Error("OFFICIAL_SOURCE_DNS_FAILED"),
+            "",
+            4,
+          ),
+      );
+    },
+  });
+  return new Promise<Response>((resolve, reject) => {
+    const request = httpsRequest(
+      target,
+      {
+        method: "GET",
+        signal: init?.signal ?? undefined,
+        agent,
+        rejectUnauthorized: true,
+        headers: { "accept-encoding": "identity" },
+      },
+      (incoming) => {
+        incoming.once("close", () => agent.destroy());
+        try {
+          const headers = new Headers();
+          for (const [name, value] of Object.entries(incoming.headers)) {
+            if (Array.isArray(value)) {
+              for (const item of value) headers.append(name, item);
+            } else if (value !== undefined) {
+              headers.set(name, value);
+            }
+          }
+          const status = incoming.statusCode ?? 502;
+          const noBody = status === 204 || status === 205 || status === 304;
+          const stream = noBody
+            ? null
+            : (Readable.toWeb(incoming) as ReadableStream<Uint8Array>);
+          if (noBody) incoming.resume();
+          resolve(new Response(stream, { status, headers }));
+        } catch (error) {
+          incoming.destroy();
+          agent.destroy();
+          reject(error);
+        }
+      },
+    );
+    request.once("error", (error) => {
+      agent.destroy();
+      reject(error);
+    });
+    request.end();
+  });
+}
+
+// acceptedHosts authorizes only a hostname. It does not authorize HTTP
+// downgrade, credentials in the authority, or an arbitrary HTTPS port.
+// The one permitted plain-HTTP exception is the exact 127.0.0.1 origin
+// explicitly entered in a local test/source entry, including its port.
+function isTrustedOfficialAuthority(
+  official: URL,
+  candidate: URL,
+  hosts: ReadonlySet<string>,
+): boolean {
+  if (
+    candidate.username !== "" ||
+    candidate.password !== "" ||
+    official.username !== "" ||
+    official.password !== ""
+  )
+    return false;
+  // Test-only local overrides can retain production acceptedHosts via
+  // createSourceRegistry. Their explicit 127.0.0.1 officialUrl is the
+  // authority for one loopback origin, never for an arbitrary HTTP host
+  // or another local port. This does not add hosts to acceptedHosts.
+  if (official.protocol === "http:" && official.hostname === "127.0.0.1") {
+    return (
+      candidate.protocol === "http:" && candidate.origin === official.origin
+    );
+  }
+  return (
+    hosts.has(candidate.hostname.toLowerCase()) &&
+    official.protocol === "https:" &&
+    official.port === "" &&
+    isIP(official.hostname) === 0 &&
+    !official.hostname.startsWith("[") &&
+    candidate.protocol === "https:" &&
+    candidate.port === "" &&
+    isIP(candidate.hostname) === 0 &&
+    !candidate.hostname.startsWith("[")
   );
 }
 
@@ -167,10 +376,27 @@ export async function acquireOfficialSource(input: {
       "SOURCE_URL_AUTHORITY_MISSING",
       "Accepted official URL authority is not present in the repository registry.",
     );
-  const fetcher = input.fetcher ?? fetch;
+  let official: URL;
+  let hosts: Set<string>;
+  try {
+    official = new URL(officialUrl);
+    hosts = acceptedHosts(entry);
+  } catch {
+    return failure(
+      entry,
+      "INVALID_OFFICIAL_SOURCE_RESPONSE",
+      "Official source URL is not a valid accepted HTTPS authority.",
+    );
+  }
+  if (!isTrustedOfficialAuthority(official, official, hosts))
+    return failure(
+      entry,
+      "INVALID_OFFICIAL_SOURCE_RESPONSE",
+      "Official source URL scheme or authority is not trusted.",
+    );
+  const fetcher = input.fetcher ?? pinnedOfficialSourceFetch;
   const timeoutMs = input.timeoutMs ?? API_WATCH_TIMEOUT_MS;
   const maxRedirects = input.maxRedirects ?? API_WATCH_MAX_REDIRECTS;
-  const hosts = acceptedHosts(entry);
   let currentUrl = officialUrl;
   let redirects = 0;
   let consecutiveOzonAccessControlRedirects = 0;
@@ -195,13 +421,24 @@ export async function acquireOfficialSource(input: {
           response.status,
         );
       }
-      const nextUrl = new URL(location, currentUrl);
-      if (!hosts.has(nextUrl.hostname.toLowerCase())) {
+      let nextUrl: URL;
+      try {
+        nextUrl = new URL(location, currentUrl);
+      } catch {
         clearTimeout(timer);
         return failure(
           entry,
           "INVALID_OFFICIAL_SOURCE_RESPONSE",
-          "Redirect left the accepted official host set.",
+          "Redirect location is not a valid official URL.",
+          response.status,
+        );
+      }
+      if (!isTrustedOfficialAuthority(official, nextUrl, hosts)) {
+        clearTimeout(timer);
+        return failure(
+          entry,
+          "INVALID_OFFICIAL_SOURCE_RESPONSE",
+          "Redirect left the accepted official HTTPS authority policy.",
           response.status,
         );
       }

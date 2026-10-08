@@ -25,6 +25,10 @@ import {
   type AuthorityRecord,
   type SourceRegistryEntry,
 } from "./index.js";
+import {
+  isPublicOfficialSourceAddress,
+  selectVerifiedOfficialAddress,
+} from "./acquire.js";
 import { promoteAcceptedSnapshot } from "./snapshot.js";
 import { buildCompleteOperationInventory } from "./inventory.js";
 
@@ -337,6 +341,271 @@ describe("A1 runtime API source authority", () => {
     } finally {
       await server.close();
     }
+  });
+
+  for (const [label, destination] of [
+    ["HTTPS downgrade on accepted hostname", "http://docs.ozon.ru/spec.json"],
+    [
+      "unexpected HTTPS port on accepted hostname",
+      "https://docs.ozon.ru:8080/spec.json",
+    ],
+  ] as const) {
+    it("C03 rejects " + label + " without a second request", async () => {
+      const requests: string[] = [];
+      const fetcher: typeof fetch = async (request) => {
+        requests.push(String(request));
+        if (requests.length === 1) {
+          return new Response(null, {
+            status: 302,
+            headers: { location: destination },
+          });
+        }
+        return new Response(OPENAPI_3.toString("utf8"), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      };
+      const officialUrl = "https://docs.ozon.ru/start";
+      const result = await acquireOfficialSource({
+        entry: entry(officialUrl),
+        fetcher,
+      });
+      expect(result.kind).toBe("INVALID_OFFICIAL_SOURCE_RESPONSE");
+      expect(requests).toEqual([officialUrl]);
+    });
+  }
+
+  it("C03 rejects insecure remote official entry before any GET", async () => {
+    const requests: string[] = [];
+    const fetcher: typeof fetch = async (request) => {
+      requests.push(String(request));
+      return new Response(OPENAPI_3.toString("utf8"), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    };
+    const result = await acquireOfficialSource({
+      entry: entry("http://docs.ozon.ru/spec.json"),
+      fetcher,
+    });
+    expect(result.kind).toBe("INVALID_OFFICIAL_SOURCE_RESPONSE");
+    expect(requests).toEqual([]);
+  });
+
+  it("C03 accepts an explicitly listed HTTPS cross-host origin", async () => {
+    const officialUrl = "https://docs.ozon.ru/start";
+    const destination = "https://cdn.ozon.ru/spec.json";
+    const trusted: SourceRegistryEntry = {
+      ...entry(officialUrl),
+      acceptedHosts: ["docs.ozon.ru", "cdn.ozon.ru"],
+    };
+    const requests: string[] = [];
+    const fetcher: typeof fetch = async (request) => {
+      requests.push(String(request));
+      return new Response(
+        requests.length === 1 ? null : OPENAPI_3.toString("utf8"),
+        requests.length === 1
+          ? { status: 302, headers: { location: destination } }
+          : { status: 200, headers: { "content-type": "application/json" } },
+      );
+    };
+    const result = await acquireOfficialSource({ entry: trusted, fetcher });
+    expect(result.kind).toBe("ACQUIRED_OFFICIAL_SOURCE_CANDIDATE");
+    expect(requests).toEqual([officialUrl, destination]);
+  });
+
+  it("C03 local official override retains production acceptedHosts but only fetches loopback", async () => {
+    const officialUrl = "http://127.0.0.1:43123/spec.json";
+    const registry = createSourceRegistry({
+      OZON_SELLER: {
+        officialUrl,
+        requiredServerIdentity: undefined,
+        titlePattern: undefined,
+      },
+    });
+    const registered = registry.get("OZON_SELLER");
+    expect(registered.acceptedHosts).toContain("docs.ozon.ru");
+    const requests: string[] = [];
+    const fetcher: typeof fetch = async (request) => {
+      requests.push(String(request));
+      return new Response(OPENAPI_3.toString("utf8"), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    };
+    const result = await acquireOfficialSource({
+      entry: registered,
+      fetcher,
+    });
+    expect(result.kind).toBe("ACQUIRED_OFFICIAL_SOURCE_CANDIDATE");
+    expect(requests).toEqual([officialUrl]);
+  });
+
+  it("C03 inherited production hosts cannot redirect local HTTP to remote HTTPS", async () => {
+    const officialUrl = "http://127.0.0.1:43123/start";
+    const registry = createSourceRegistry({
+      OZON_SELLER: {
+        officialUrl,
+        requiredServerIdentity: undefined,
+        titlePattern: undefined,
+      },
+    });
+    const registered = registry.get("OZON_SELLER");
+    expect(registered.acceptedHosts).toContain("docs.ozon.ru");
+    const requests: string[] = [];
+    const fetcher: typeof fetch = async (request) => {
+      requests.push(String(request));
+      return new Response(null, {
+        status: 302,
+        headers: { location: "https://docs.ozon.ru/spec.json" },
+      });
+    };
+    const result = await acquireOfficialSource({
+      entry: registered,
+      fetcher,
+    });
+    expect(result.kind).toBe("INVALID_OFFICIAL_SOURCE_RESPONSE");
+    expect(requests).toEqual([officialUrl]);
+  });
+
+  it("C03 rejects a different port from a local HTTP fixture origin", async () => {
+    const officialUrl = "http://127.0.0.1:43123/start";
+    const requests: string[] = [];
+    const fetcher: typeof fetch = async (request) => {
+      requests.push(String(request));
+      return new Response(null, {
+        status: 302,
+        headers: { location: "http://127.0.0.1:43124/spec.json" },
+      });
+    };
+    const result = await acquireOfficialSource({
+      entry: entry(officialUrl),
+      fetcher,
+    });
+    expect(result.kind).toBe("INVALID_OFFICIAL_SOURCE_RESPONSE");
+    expect(requests).toEqual([officialUrl]);
+  });
+
+  for (const officialUrl of [
+    "https://docs.ozon.ru:8080/spec.json",
+    "https://editor:secret@docs.ozon.ru/spec.json",
+  ]) {
+    it(
+      "C03 rejects an untrusted initial official URL before fetching: " +
+        officialUrl,
+      async () => {
+        const requests: string[] = [];
+        const fetcher: typeof fetch = async (request) => {
+          requests.push(String(request));
+          return new Response(OPENAPI_3.toString("utf8"), { status: 200 });
+        };
+        const result = await acquireOfficialSource({
+          entry: entry(officialUrl),
+          fetcher,
+        });
+        expect(result.kind).toBe("INVALID_OFFICIAL_SOURCE_RESPONSE");
+        expect(requests).toEqual([]);
+      },
+    );
+  }
+
+  for (const directPrivateSource of [
+    "https://127.0.0.1/spec.json",
+    "https://0x7f000001/spec.json",
+    "https://[::1]/spec.json",
+    "https://[::ffff:127.0.0.1]/spec.json",
+  ]) {
+    it(
+      "C03 rejects a literal HTTPS IP source before any request: " +
+        directPrivateSource,
+      async () => {
+        const sent: string[] = [];
+        const fetcher: typeof fetch = async (request) => {
+          sent.push(String(request));
+          return new Response(OPENAPI_3.toString("utf8"), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        };
+        const result = await acquireOfficialSource({
+          entry: entry(directPrivateSource),
+          fetcher,
+        });
+        expect(result.kind).toBe("INVALID_OFFICIAL_SOURCE_RESPONSE");
+        expect(sent).toEqual([]);
+      },
+    );
+  }
+
+  for (const [reservedAddress, family] of [
+    ["192.88.99.2", 4],
+    ["3fff::1", 6],
+    ["3f00::1", 6],
+  ] as const) {
+    it(
+      "C03 rejects IANA special-purpose or reserved destination before socket: " +
+        reservedAddress,
+      () => {
+        expect(isPublicOfficialSourceAddress(reservedAddress, family)).toBe(
+          false,
+        );
+      },
+    );
+  }
+
+  it("C03 DNS address policy rejects private, metadata, mapped, and non-global targets", () => {
+    for (const [address, family] of [
+      ["127.0.0.1", 4],
+      ["10.1.2.3", 4],
+      ["169.254.169.254", 4],
+      ["100.64.3.1", 4],
+      ["192.168.1.1", 4],
+      ["172.16.0.4", 4],
+      ["198.18.0.1", 4],
+      ["192.0.2.1", 4],
+      ["::1", 6],
+      ["fc00::1", 6],
+      ["fe80::1", 6],
+      ["::ffff:127.0.0.1", 6],
+      ["2001:db8::1", 6],
+      ["2002:c0a8:0101::1", 6],
+    ] as const) {
+      expect(isPublicOfficialSourceAddress(address, family), address).toBe(
+        false,
+      );
+    }
+    for (const [address, family] of [
+      ["8.8.8.8", 4],
+      ["1.1.1.1", 4],
+      ["2001:4860:4860::8888", 6],
+    ] as const) {
+      expect(isPublicOfficialSourceAddress(address, family), address).toBe(
+        true,
+      );
+    }
+  });
+
+  it("C03 pinned DNS source rejects mixed public and private records before a socket", async () => {
+    await expect(
+      selectVerifiedOfficialAddress("docs.ozon.ru", async () => [
+        { address: "8.8.8.8", family: 4 },
+        { address: "127.0.0.1", family: 4 },
+      ]),
+    ).rejects.toThrow("OFFICIAL_SOURCE_DNS_ADDRESS_FORBIDDEN");
+    await expect(
+      selectVerifiedOfficialAddress("docs.ozon.ru", async () => []),
+    ).rejects.toThrow("OFFICIAL_SOURCE_DNS_ADDRESS_FORBIDDEN");
+  });
+
+  it("C03 pinned DNS chooses only an audited public address", async () => {
+    const resolved = await selectVerifiedOfficialAddress(
+      "docs.ozon.ru",
+      async () => [
+        { address: "8.8.8.8", family: 4 },
+        { address: "2001:4860:4860::8888", family: 6 },
+      ],
+    );
+    expect(resolved).toEqual({ address: "8.8.8.8", family: 4 });
   });
 
   it("A1-13 rejects a redirect outside accepted authority", async () => {
