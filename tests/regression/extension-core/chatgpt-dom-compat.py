@@ -8,6 +8,7 @@ from playwright.sync_api import sync_playwright
 def run(runtime: Path, output: Path):
     output.mkdir(parents=True, exist_ok=True)
     source=(runtime/"shared/ai_adapters.js").read_text()
+    identity_source=(runtime/"shared/conversation_identity.js").read_text()
     cases={
       "nested_explicit_outer_actions": '<article id="outer"><div data-message-author-role="assistant" id="inner"><pre data-assistant-stream-block><code>WB_HELP_V1 {}</code><button aria-label="Copy code"></button></pre></div><div role="group" aria-label="Response actions"></div></article>',
       "mixed_document_order": '<article id="first"><div data-assistant-markdown><pre><code>FIRST</code></pre></div><div role="group" aria-label="Response actions"></div></article><li data-message-role="assistant" id="last"><pre><code>LAST</code><button aria-label="Copy code"></button></pre></li>',
@@ -25,15 +26,71 @@ def run(runtime: Path, output: Path):
       "real_and_response_copy": '<li data-message-role="assistant" id="both"><div id="real-root"><code>REAL</code><button id="real-copy" data-code-copy-state="idle" aria-label="Copy code"></button></div><div data-assistant-message-actions role="group" aria-label="Response actions"><button id="response-copy-both" aria-label="Copy">Copy</button></div></li>',
       "localized_response_copy": '<li data-message-role="assistant" id="localized-response"><div><code>BAD</code><div data-message-actions role="group" aria-label="Действия с ответом"><button id="localized-response-copy">Копировать</button></div></div></li>'
     }
-    result={"status":"RUNNING","scope":"offline synthetic Chromium adapter-only","source_sha256":hashlib.sha256(source.encode()).hexdigest(),"cases":{}}
+    content_source=(runtime/"content_script.js").read_text()
+    function_names = [
+        "visible", "controlDisabled", "buttonToken", "chatgptInsideAssistantEditor",
+        "chatgptAllComposerControls", "chatgptBuiltinMicrophoneButton",
+        "chatgptMicrophoneButton", "chatgptWorkSubmitButton",
+        "chatgptStopButton", "chatgptRecognizedSendControl", "classifyChatgptComposerControl",
+    ]
+    functions=[]
+    for name in function_names:
+        start=content_source.index("  function "+name+"(")
+        end=content_source.index("\n  }\n",start)+5
+        functions.append(content_source[start:end])
+    constants=[line for line in content_source.splitlines() if line.startswith("  const CHATGPT_")]
+    composer_probe = "(function(){" + "\n".join(constants+functions) + """
+      const sendButtonProfile=null, microphoneButtonProfile=null;
+      function chatgptPrimaryComposerContext() {
+        return {form:document.querySelector('#composer-form'),composer:document.querySelector('#composer')};
+      }
+      const result=classifyChatgptComposerControl();
+      return {kind:result.kind, id:result.button?.id||null};
+    })()"""
+    result={"status":"RUNNING","scope":"offline synthetic Chromium adapter and composer-state classification","source_sha256":hashlib.sha256(source.encode()).hexdigest(),"content_source_sha256":hashlib.sha256(content_source.encode()).hexdigest(),"cases":{}}
     with sync_playwright() as pw:
         browser=pw.chromium.launch(headless=True)
         try:
             page=browser.new_page()
             for name,html in cases.items():
                 page.set_content(html)
+                page.evaluate(identity_source)
                 page.evaluate(source)
                 result["cases"][name]=page.evaluate("""()=>{const a=OzonAIAdapters.ADAPTERS.chatgpt;return a.assistantMessages().map(m=>{const blocks=a.findCodeBlocks(m);return {id:a.messageId(m),blocks:blocks.map(b=>a.readCodeText(b)),anchors:blocks.map(b=>a.geometryAnchor(b)?.id||null)};});}""")
+            user_cases = {
+                "attributed_user": ('<li data-message-role="user" id="u1"><h4 data-message-attribution>You said:</h4><div data-submit-message-animation-target><button data-user-message-bubble><p data-user-message-copy>Exact instruction</p></button><div data-user-message-actions>Copy Edit message</div></div></li>', "Exact instruction"),
+                "localized_attribution": ('<li data-message-role="user" id="u2"><h4 data-message-attribution>Вы сказали:</h4><p data-user-message-copy>Exact instruction</p></li>', "Exact instruction"),
+                "literal_label_in_body": ('<li data-message-role="user" id="u3"><h4 data-message-attribution>You said:</h4><p data-user-message-copy>You said: is part of my instruction</p></li>', "You said: is part of my instruction"),
+                "ambiguous_bodies": ('<li data-message-role="user" id="u4"><p data-user-message-copy>First</p><p data-user-message-copy>Second</p></li>', ""),
+                "legacy_user": ('<section data-turn="user" data-turn-id="u5">Exact instruction</section>', "Exact instruction"),
+            }
+            for name,(html,expected) in user_cases.items():
+                page.set_content(html)
+                page.evaluate(identity_source)
+                page.evaluate(source)
+                actual=page.evaluate("""()=>{const a=OzonAIAdapters.ADAPTERS.chatgpt,n=a.userMessages()[0];return {id:a.messageId(n),text:a.messageText(n)};}""")
+                assert actual["text"] == expected, (name,actual)
+                assert actual["id"].startswith("u"), (name,actual)
+                result["cases"][name]=actual
+            modern = '<button id="modern" data-composer-submit data-send-label="Send message" data-stop-label="Stop generating" aria-label="Send message" {attrs}>Send</button>'
+            composer_cases = {
+                "modern_submit_active": (modern.format(attrs=""), "work_send_active"),
+                "modern_submit_aria_disabled": (modern.format(attrs='aria-disabled="true"'), "work_send_disabled"),
+                "modern_submit_native_disabled": (modern.format(attrs="disabled"), "work_send_disabled"),
+                "modern_submit_stop": (modern.format(attrs="").replace('aria-label="Send message"', 'aria-label="Stop generating"'), "stop"),
+                "localized_submit_active": ('<button id="localized" data-composer-submit data-send-label="Envoyer" data-stop-label="Arrêter" aria-label="Envoyer">Envoyer</button>', "work_send_active"),
+                "localized_submit_stop": ('<button id="localized" data-composer-submit data-send-label="Envoyer" data-stop-label="Arrêter" aria-label="Arrêter">Arrêter</button>', "stop"),
+                "duplicate_submit_rejected": (modern.format(attrs="")+modern.format(attrs="").replace('id="modern"','id="other"'), "unknown"),
+                "assistant_submit_rejected": ('<section data-turn="assistant">'+modern.format(attrs="")+'</section>', "unknown"),
+                "outside_submit_rejected": ('</form>'+modern.format(attrs="")+'<form>', "unknown"),
+                "legacy_work_submit": ('<button id="composer-submit-button" data-testid="send-button" disabled>Send</button>', "work_send_disabled"),
+                "legacy_microphone": ('<button data-testid="composer-speech-button">Voice</button>', "microphone"),
+            }
+            for name,(buttons,expected) in composer_cases.items():
+                page.set_content('<form id="composer-form"><textarea id="composer"></textarea>'+buttons+'</form>')
+                actual=page.evaluate(composer_probe)
+                assert actual["kind"] == expected, (name,actual,expected)
+                result["cases"][name]=actual
         finally:
             browser.close()
     assert [x["id"] for x in result["cases"]["nested_explicit_outer_actions"]]==["inner"]

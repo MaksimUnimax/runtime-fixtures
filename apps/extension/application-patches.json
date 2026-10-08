@@ -633,5 +633,25 @@
     "target": "content_script.js",
     "old": "      SellerAgentsConversationSurface.ready(currentAIAdapter()).then((identity) => sendResponse({ ok: true, identity, href: location.href }));",
     "new": "      SellerAgentsConversationSurface.ready(currentAIAdapter()).then((identity) => sendResponse({ ok: true, identity, href: location.href })).catch(() => sendResponse({ ok: false, code: \"CONVERSATION_SURFACE_UNAVAILABLE\" }));"
+  },
+  {
+    "target": "shared/ai_adapters.js",
+    "old": "      return node.getAttribute(\"data-turn-id\") || node.querySelector('[data-message-author-role][data-message-id]')?.getAttribute(\"data-message-id\") || node.getAttribute(\"data-message-id\") || node.id || \"\";\n    },\n    messageText(node) { return text(node); },",
+    "new": "      return node.getAttribute(\"data-turn-id\") || node.querySelector('[data-message-author-role][data-message-id]')?.getAttribute(\"data-message-id\") || node.getAttribute(\"data-message-id\") || node.id || \"\";\n    },\n    messageText(node) {\n      if (!(node instanceof Element)) return \"\";\n      if (!node.matches('[data-message-role=\"user\"], [data-message-author-role=\"user\"], [data-turn=\"user\"]')) return text(node);\n      // A turn wrapper also contains attribution and response controls. Match\n      // the semantic user body, never a translated label or a prompt substring.\n      const bodies = [...node.querySelectorAll(\"[data-user-message-copy]\")].filter(body =>\n        body.closest('[data-message-role], [data-message-author-role], [data-turn]') === node);\n      if (bodies.length === 1) return text(bodies[0]);\n      if (bodies.length > 1) return \"\";\n      return text(node);\n    },"
+  },
+  {
+    "target": "content_script.js",
+    "old": "  function chatgptWorkSubmitButton(context) {\n    if (!context?.form?.contains(context.composer)) return null;\n    const candidates = [...context.form.querySelectorAll('button#composer-submit-button[data-testid=\"send-button\"]')]\n      .filter((button) => button instanceof HTMLElement && visible(button) && !chatgptInsideAssistantEditor(button));\n    return candidates.length === 1 ? candidates[0] : null;\n  }",
+    "new": "  function chatgptWorkSubmitButton(context) {\n    if (!context?.form?.contains(context.composer)) return null;\n    // Both provider variants share the same one-shot Send -> disabled lifecycle.\n    // The current variant exposes its own localized Send/Stop labels.\n    const candidates = [...context.form.querySelectorAll('button#composer-submit-button[data-testid=\"send-button\"], button[data-composer-submit][data-send-label]')]\n      .filter((button) => {\n        if (!(button instanceof HTMLElement) || !visible(button) || chatgptInsideAssistantEditor(button)) return false;\n        if (!button.hasAttribute(\"data-composer-submit\")) return true;\n        const label = button.getAttribute(\"aria-label\") || \"\";\n        const sendLabel = button.getAttribute(\"data-send-label\") || \"\";\n        const stopLabel = button.getAttribute(\"data-stop-label\") || \"\";\n        return Boolean(sendLabel) && label === sendLabel && label !== stopLabel;\n      });\n    return candidates.length === 1 ? candidates[0] : null;\n  }"
+  },
+  {
+    "target": "content_script.js",
+    "old": "      return testid.includes(\"stop\") || /(?:^|\\s)(?:stop|stop generating|cancel generation|остановить|прервать генерац)(?:\\s|$)/u.test(token);",
+    "new": "      const stopLabel = button.getAttribute(\"data-stop-label\") || \"\";\n      const semanticStop = button.hasAttribute(\"data-composer-submit\") && Boolean(stopLabel) && button.getAttribute(\"aria-label\") === stopLabel;\n      return semanticStop || testid.includes(\"stop\") || /(?:^|\\s)(?:stop|stop generating|cancel generation|остановить|прервать генерац)(?:\\s|$)/u.test(token);"
+  },
+  {
+    "target": "content_script.js",
+    "old": "        recordContentDiagnostic(\"DELIVERY_SUCCESS\", { owner_kind: state.owner_kind, owner_id: state.owner_id, delivery_id: state.delivery_id, click_attempts: state.click_attempts, confirmation_basis: \"work_submit_disabled_after_click\" });\n        stopDeliveryWatch(\"delivery_success\");",
+    "new": "        recordContentDiagnostic(\"DELIVERY_SUCCESS\", { owner_kind: state.owner_kind, owner_id: state.owner_id, delivery_id: state.delivery_id, click_attempts: state.click_attempts, confirmation_basis: \"work_submit_disabled_after_click\" });\n        toast(\"Ozon: отправка объединённого результата подтверждена.\", \"success\", 5000, \"autorun-state\");\n        stopDeliveryWatch(\"delivery_success\");"
   }
 ]

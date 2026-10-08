@@ -1,8 +1,11 @@
 "use strict";
 const $ = id => document.getElementById(id);
+const BACKUP_IMPORT_FRAGMENT = "#backup-import";
+const durableImportMode = globalThis.location?.hash === BACKUP_IMPORT_FRAGMENT;
 let tabId, state, marketplace = "ozon", selectedId = "", editingId = null, busy = false, confirmAction = null;
 let backupText = "";
 let actionGeneration = 0, refreshGeneration = 0;
+let refreshTimer, refreshRequested = false;
 const FIREFOX_TECHNICAL_CATEGORY = "technicalAndInteraction";
 function firefoxTechnicalPermissions() { return globalThis.browser?.permissions || null; }
 function firefoxTechnicalAvailable() { return /Firefox\/\d/i.test(navigator.userAgent || "") && typeof firefoxTechnicalPermissions()?.getAll === "function"; }
@@ -111,7 +114,7 @@ async function requestTransferReceivePending() {
   if (!presentation) throw new Error(texts[response?.code] || `Действие не выполнено: ${response?.code || "нет ответа расширения"}`);
   return { response, presentation };
 }
-async function action(fn, { interrupt = false } = {}) {
+async function action(fn, { interrupt = false, accountOnly = false } = {}) {
   if (busy && !interrupt) {
     $("status").textContent = "Дождитесь завершения текущего действия.";
     return { popupAction: "BUSY_REJECTED" };
@@ -119,19 +122,20 @@ async function action(fn, { interrupt = false } = {}) {
   const generation = ++actionGeneration;
   refreshGeneration += 1;
   busy = true;
-  if (typeof render === "function") render();
+  if (!accountOnly && typeof render === "function") render();
   $("status").textContent = "Выполняем…";
   try {
     const result = await fn();
     if (generation !== actionGeneration) return;
-    await refresh();
+    if (!accountOnly) await refresh();
     if (generation === actionGeneration) $("status").textContent = actionSuccessText(result);
   } catch (e) {
     if (generation === actionGeneration) $("status").textContent = e.message;
   } finally {
     if (generation === actionGeneration) {
       busy = false;
-      if (typeof render === "function") render();
+      if (!accountOnly && typeof render === "function") render();
+      if (!accountOnly && refreshRequested) scheduleRefresh();
     }
   }
 }
@@ -214,7 +218,19 @@ function render() {
   $("visibility").textContent = state.context.button_visible ? "Скрыть кнопку" : "Показать кнопку";
   $("resume").hidden = !state.operation?.quota_wait;
 }
+function scheduleRefresh() {
+  refreshRequested = true;
+  clearTimeout(refreshTimer);
+  refreshTimer = setTimeout(() => {
+    // A notification received while an action is busy remains pending. Its
+    // finally block drains it after the older state response is consumed.
+    if (!refreshRequested || busy || !tabId || durableImportMode) return;
+    refresh().catch(e => { $("status").textContent = e.message; });
+  }, 100);
+}
 async function refresh(first = false) {
+  refreshRequested = false;
+  clearTimeout(refreshTimer);
   const generation = ++refreshGeneration;
   const next = await request("SA_POPUP_STATE");
   if (generation !== refreshGeneration) return;
@@ -277,13 +293,23 @@ $("auth-open").onclick = () => action(() => request("SA_AUTH_OPEN_PORTAL"));
 $("auth-cancel").onclick = () => action(() => request("SA_AUTH_CANCEL"));
 $("auth-reset").onclick = () => confirm("Локально завершить текущую сессию и выбрать аккаунт заново? Сохранённые магазины останутся изолированными по аккаунту.", () => request("SA_AUTH_RESET"));
 for (const part of ["seller", "performance", "token"]) $("check-" + part).onclick = () => action(() => request("SA_STORE_CHECK", { store_id: selectedId, part }));
-function openKeyFiles(mode) {
+async function openKeyFiles(mode) {
+  if (mode === "upload" && !durableImportMode) {
+    try {
+      await chrome.tabs.create({ url: chrome.runtime.getURL("popup.html") + BACKUP_IMPORT_FRAGMENT });
+    } catch (_) {
+      $("status").textContent = "Не удалось открыть загрузку ключей. Повторите открытие страницы импорта.";
+    }
+    return;
+  }
   $("backup").scrollIntoView({ block: "start", behavior: "smooth" });
-  if (mode === "upload") { $("backup-file").focus(); $("backup-file").click(); }
-  else $("backup-password").focus();
+  $(mode === "upload" ? "backup-file" : "backup-password").focus();
 }
 $("keys-download").onclick = () => openKeyFiles("download");
 $("keys-upload").onclick = () => openKeyFiles("upload");
+$("backup-file").onclick = event => {
+  if (!durableImportMode) { event.preventDefault(); return openKeyFiles("upload"); }
+};
 $("backup-file").onchange = () => {
   backupText = "";
   $("backup-preview-result").hidden = true;
@@ -304,7 +330,7 @@ $("backup-export").onclick = () => action(async () => {
   const response = await request("SA_BACKUP_EXPORT", { password, passwordConfirmation: confirmation });
   downloadBackup(response.fileName, response.backup);
   $("backup-password").value = $("backup-password-confirm").value = "";
-  $("backup-status").textContent = `Экспортировано магазинов: ${response.storeCount}. Пропущено без локальных ключей: ${response.skippedStoreCount || 0}. Файл сохранён локально как ${response.fileName}.`;
+  $("backup-status").textContent = `Экспортировано магазинов: ${response.storeCount}. Пропущено без локальных ключей: ${response.skippedStoreCount || 0}. Скачивание запрошено: ${response.fileName}. Проверьте завершение в загрузках браузера.`;
 });
 $("backup-preview").onclick = () => action(async () => {
   const file = $("backup-file").files?.[0];
@@ -315,21 +341,30 @@ $("backup-preview").onclick = () => action(async () => {
   $("backup-summary").textContent = backupSummary(response.preview);
   $("backup-preview-result").hidden = false;
   $("backup-status").textContent = "Проверка завершена. Нажмите финальную кнопку, чтобы применить только безопасные новые магазины.";
-});
+}, { accountOnly: durableImportMode });
 $("backup-import").onclick = () => action(async () => {
   if (!backupText) throw new Error("Сначала проверьте файл");
   const response = await request("SA_BACKUP_IMPORT", { backup: backupText, password: $("backup-import-password").value, apply: true });
   $("backup-status").textContent = `Импорт завершён: добавлено ${response.imported.length}; конфликты не перезаписаны.`;
   $("backup-preview-result").hidden = true; $("backup-file").value = ""; $("backup-import-password").value = ""; backupText = "";
-});
+}, { accountOnly: durableImportMode });
+if (durableImportMode) {
+  const backup = $("backup"), status = $("status");
+  document.querySelector("main").replaceChildren(backup, status);
+  backup.querySelector("h2").textContent = "Загрузить ключи из файла";
+  for (const id of ["backup-password", "backup-password-confirm"]) $(id).closest("label").hidden = true;
+  $("backup-export").hidden = true;
+  backup.querySelector("hr").hidden = true;
+  $("backup-file").focus();
+} else {
 const firefoxPermissionEvents = firefoxTechnicalPermissions();
 firefoxPermissionEvents?.onAdded?.addListener(() => refreshFirefoxTechnicalConsent().catch(() => null));
 firefoxPermissionEvents?.onRemoved?.addListener(() => refreshFirefoxTechnicalConsent().catch(() => null));
 chrome.tabs.query({ active: true, currentWindow: true }).then(tabs => { tabId = tabs[0]?.id; return refresh(true); }).catch(e => { $("status").textContent = e.message; });
 
-let refreshTimer;
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== "local" || !Object.keys(changes).some(key => ["seller_agents_control_auth_v2", "seller_agents_stores_v1", "ozmb_work_sessions_v1", "ozmb_pending_work_starts_v1", "ozmb_conversation_bindings", "ozmb_manual_operations"].includes(key))) return;
-  clearTimeout(refreshTimer);
-  refreshTimer = setTimeout(() => { if (!busy && tabId) refresh().catch(e => { $("status").textContent = e.message; }); }, 100);
+  scheduleRefresh();
 });
+
+}

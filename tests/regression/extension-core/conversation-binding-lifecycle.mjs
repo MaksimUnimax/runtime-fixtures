@@ -162,11 +162,11 @@ await test('real-popup-refresh-and-finish-ignore-obsolete-actions',async()=>{
  assert(actionStart>=0&&actionEnd>actionStart&&refreshStart>=0&&refreshEnd>refreshStart);
  const requests=[],status={textContent:''};
  let deferred=true;
- const ctx={$:()=>status,render:()=>{},refreshFirefoxTechnicalConsent:async()=>{},
+ const ctx={clearTimeout,$:()=>status,render:()=>{},refreshFirefoxTechnicalConsent:async()=>{},
   actionSuccessText:result=>result.label,
   request:()=>deferred?new Promise(resolve=>requests.push(resolve)):Promise.resolve({context:{},stores:[],key:'B'})};
  vm.createContext(ctx);
- vm.runInContext('let busy=false, actionGeneration=0, refreshGeneration=0, state=null;\n'+
+ vm.runInContext('let busy=false, actionGeneration=0, refreshGeneration=0, state=null, refreshTimer=null, refreshRequested=false;\n'+
  source.slice(actionStart,actionEnd)+'\n'+source.slice(refreshStart,refreshEnd)+
  '\nglobalThis.api={action,refresh,read:()=>({busy,state})};',ctx);
  const a=ctx.api.refresh(),b=ctx.api.refresh();
@@ -200,7 +200,7 @@ await test('real-popup-finish-refresh-cannot-silently-drop-next-start',async()=>
   refresh:async()=>{startVisible=true;await new Promise(resolve=>{refreshRelease=resolve;});}
  };
  vm.createContext(ctx);
- vm.runInContext('let busy=false, actionGeneration=0, refreshGeneration=0, state={};\n'+
+ vm.runInContext('let busy=false, actionGeneration=0, refreshGeneration=0, state={}, refreshRequested=false;\n'+
   source.slice(actionStart,actionEnd)+
   '\nglobalThis.api={action,read:()=>({busy})};',ctx);
  const finish=ctx.api.action(async()=>({label:'finished'}),{interrupt:true});

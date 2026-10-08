@@ -28,6 +28,14 @@
           .join(",")}}`;
       return JSON.stringify(value);
     };
+    function backupCredentials(incoming) {
+      // Match the representation produced when a store is saved/imported.
+      // Backup payloads deliberately omit derived credential presence fields.
+      const input = incoming.credentials.type === "ozon"
+        ? { seller: incoming.credentials.seller, performance: incoming.credentials.performance || {} }
+        : { token: incoming.credentials.token };
+      return normalizeCredentials(incoming.marketplace, input, {});
+    }
     async function account() {
       const id = await currentAccount();
       if (!id || typeof id !== "string") fail("AUTH_REQUIRED");
@@ -200,7 +208,7 @@
         if (previous.marketplace !== incoming.marketplace) return { storeId: incoming.storeId, kind: "MARKETPLACE_MISMATCH" };
         if (previous.providerIdentityState === "CONFIRMED" && incoming.providerIdentityState === "CONFIRMED" && previous.providerAccountId !== incoming.providerAccountId) return { storeId: incoming.storeId, kind: "PROVIDER_ACCOUNT_MISMATCH" };
         const localCredentials = previous.credentials || {};
-        const incomingCredentials = incoming.credentials.type === "ozon" ? { seller: incoming.credentials.seller, performance: incoming.credentials.performance || {} } : { token: incoming.credentials.token };
+        const incomingCredentials = backupCredentials(incoming);
         if (previous.credentialRevision === incoming.credentialRevision && canonicalJson(localCredentials) === canonicalJson(incomingCredentials)) return { storeId: incoming.storeId, kind: "SAME_CURRENT" };
         return { storeId: incoming.storeId, kind: "LOCAL_NEWER" };
       });
@@ -217,7 +225,7 @@
           if (previous.marketplace !== incoming.marketplace) return { storeId: incoming.storeId, kind: "MARKETPLACE_MISMATCH" };
           if (previous.providerIdentityState === "CONFIRMED" && incoming.providerIdentityState === "CONFIRMED" && previous.providerAccountId !== incoming.providerAccountId) return { storeId: incoming.storeId, kind: "PROVIDER_ACCOUNT_MISMATCH" };
           const localCredentials = previous.credentials || {};
-          const incomingCredentials = incoming.credentials.type === "ozon" ? { seller: incoming.credentials.seller, performance: incoming.credentials.performance || {} } : { token: incoming.credentials.token };
+          const incomingCredentials = backupCredentials(incoming);
           if (previous.credentialRevision === incoming.credentialRevision && canonicalJson(localCredentials) === canonicalJson(incomingCredentials)) return { storeId: incoming.storeId, kind: "SAME_CURRENT" };
           return { storeId: incoming.storeId, kind: "LOCAL_NEWER" };
         });
@@ -226,9 +234,7 @@
         const imported = [];
         for (const incoming of payload.stores) {
           if (!safe.has(incoming.storeId)) continue;
-          const credentials = incoming.credentials.type === "ozon"
-            ? normalizeCredentials("ozon", { seller: incoming.credentials.seller, performance: incoming.credentials.performance || {} })
-            : normalizeCredentials("wildberries", { token: incoming.credentials.token });
+          const credentials = backupCredentials(incoming);
           const store = {
             id: incoming.storeId, accountId: id, marketplace: incoming.marketplace, name: incoming.label,
             credentials, credentialRevision: incoming.credentialRevision, metadataRevision: incoming.metadataRevision,

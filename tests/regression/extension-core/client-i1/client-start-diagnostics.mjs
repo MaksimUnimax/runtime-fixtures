@@ -63,6 +63,14 @@ assert.match(
   /WORK_START_SEND_TARGET_UNAVAILABLE/,
 );
 
+// Use the popup's actual shared state declarations for extracted actions.
+// A manually duplicated subset misses new lifecycle state used by finally.
+const actionStateSource = extract(
+  popupJs,
+  "let tabId, state,",
+  "\nconst FIREFOX_TECHNICAL_CATEGORY",
+);
+
 const actionSuccessSource = extract(
   popupJs,
   "function actionSuccessText(result)",
@@ -80,10 +88,8 @@ const createActionHarness = new Function(
   "texts",
   "initialState",
   `
-    let busy = false;
-    let actionGeneration = 0;
-    let refreshGeneration = 0;
-    let state = initialState;
+    ${actionStateSource}
+    state = initialState;
     let refreshState = initialState;
     const statusNode = { textContent: "" };
     const $ = () => statusNode;

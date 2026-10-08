@@ -1,3 +1,4 @@
+import "./client-backup-canonical-roundtrip.mjs";
 import assert from "node:assert/strict";
 import { webcrypto } from "node:crypto";
 import fs from "node:fs";
@@ -153,6 +154,112 @@ await run("EX-64..EX-67", "real historical provider backups are explicit adapter
 await run("EX-68..EX-74", "secret lifetime/privacy boundaries contain no plaintext in envelope and reject arbitrary page-shaped payloads", async () => {
   assert.equal(encrypted.includes("ozon-key"), false); assert.equal(encrypted.includes("perf-secret"), false); assert.equal(encrypted.includes("wb-token"), false);
   const malformed = structuredClone(payload); malformed.stores[0].credentials = { type: "ozon", version: 1, seller: { clientId: "x", apiKey: "y" }, performance: null, executable: "eval" }; await rejects(() => backup.encrypt(malformed, password), "BACKUP_UNKNOWN_FIELDS");
+});
+
+
+const popupSource = fs.readFileSync(new URL("../../../../apps/extension/src/application/popup.js", import.meta.url), "utf8");
+function popupFixture(fragment = "", { openFails = false } = {}) {
+  const nodes = new Map(), calls = { queries: 0, messages: [], opens: [], listeners: [], fileClicks: 0 };
+  const node = id => {
+    if (!nodes.has(id)) nodes.set(id, { id, value: "", hidden: false, files: [], disabled: false,
+      focus() {}, scrollIntoView() {}, click() { if (id === "backup-file") calls.fileClicks++; },
+      closest: selector => node(id + selector), querySelector: selector => node(id + selector),
+      replaceChildren(...children) { calls.visibleRoots = children.map(x => x.id); },
+      reset() {}, appendChild() {}, remove() {} });
+    return nodes.get(id);
+  };
+  const timers = new Map(); let timerId = 0, uuid = 0;
+  const ctx = { console, URL, Blob, navigator: { userAgent: "Chromium" }, location: { hash: fragment },
+    crypto: { randomUUID: () => `00000000-0000-4000-8000-${String(++uuid).padStart(12, "0")}` },
+    document: { getElementById: node, querySelector: node },
+    setTimeout: fn => { timers.set(++timerId, fn); return timerId; }, clearTimeout: id => timers.delete(id),
+    chrome: {
+      tabs: { query: async () => { calls.queries++; return [{ id: 7 }]; }, create: async ({url}) => { if (openFails) throw new Error("create rejected"); const id = 100 + calls.opens.length; calls.opens.push({ url, id }); return { id }; } },
+      runtime: { getURL: path => "chrome-extension://fixture/" + path, sendMessage: async request => {
+        calls.messages.push(request);
+        if (request.type === "SA_POPUP_STATE") return { ok: true, context: {}, stores: [] };
+        if (request.type === "SA_BACKUP_PREVIEW") return { ok: true, preview: { classifications: [], storeCount: 1,
+          marketplaces: ["ozon"], safeImportCount: 1, rejectedCount: 0 } };
+        if (request.type === "SA_BACKUP_IMPORT") return { ok: true, imported: ["synthetic-store"] };
+        throw new Error("Unexpected message " + request.type);
+      } }, storage: { onChanged: { addListener: fn => calls.listeners.push(fn) } }
+    }
+  };
+  vm.createContext(ctx); vm.runInContext(popupSource, ctx, { filename: "popup.js" });
+  // Rendering details are covered by native browser tests; execute the actual
+  // startup, action and import handlers here with inert DOM elements.
+  vm.runInContext("render = () => {};", ctx);
+  return { ctx, calls, node, flush: async () => { for (let i = 0; i < 12; i++) await Promise.resolve(); },
+    timers: () => { const work = [...timers.values()]; timers.clear(); work.forEach(fn => fn()); } };
+}
+await run("POPUP-IMPORT-OPEN", "every import entry opens an exact durable URL without ephemeral chooser", async () => {
+  const f = popupFixture(); await f.flush();
+  assert.equal(f.calls.queries, 1);
+  await f.node("keys-upload").onclick();
+  let prevented = false;
+  await f.node("backup-file").onclick({ preventDefault() { prevented = true; } });
+  assert.equal(prevented, true); assert.equal(f.calls.opens.length, 2);
+  assert.equal(f.calls.fileClicks, 0);
+  for (const item of f.calls.opens) assert.equal(item.url, "chrome-extension://fixture/popup.html#backup-import");
+  assert.notEqual(f.calls.opens[0].id, f.calls.opens[1].id);
+  const blocked = popupFixture("", { openFails: true }); await blocked.flush(); await blocked.node("keys-upload").onclick();
+  assert.match(blocked.node("status").textContent, /Не удалось открыть/);
+  assert.equal(blocked.calls.fileClicks, 0);
+});
+await run("POPUP-IMPORT-ISOLATION", "durable browser tab emits only explicit account backup requests", async () => {
+  const f = popupFixture("#backup-import"); await f.flush();
+  assert.equal(f.calls.queries, 0); assert.equal(f.calls.listeners.length, 0); assert.equal(f.calls.messages.length, 0);
+  assert.deepEqual(f.calls.visibleRoots, ["backup", "status"]);
+  assert.equal(f.calls.fileClicks, 0);
+  f.node("backup-file").files = [{ size: 32, text: async () => "synthetic-encrypted-backup" }];
+  f.node("backup-import-password").value = "synthetic-password";
+  await f.node("backup-preview").onclick(); await f.node("backup-import").onclick();
+  assert.deepEqual(f.calls.messages.map(x => x.type), ["SA_BACKUP_PREVIEW", "SA_BACKUP_IMPORT"]);
+  assert.ok(f.calls.messages.every(x => x.tab_id === undefined));
+  assert.equal(f.node("backup-import-password").value, "");
+  assert.equal(f.calls.queries, 0);
+  const reload = popupFixture(f.ctx.location.hash); await reload.flush(); assert.equal(reload.calls.queries, 0);
+});
+await run("POPUP-IMPORT-INVALID-MARKER", "invalid and ordinary fragments retain normal startup", async () => {
+  for (const fragment of ["", "#arbitrary", "#backup-import-extra"]) {
+    const f = popupFixture(fragment); await f.flush();
+    assert.equal(f.calls.queries, 1); assert.equal(f.calls.listeners.length, 1);
+    assert.deepEqual(f.calls.messages.map(x => x.type), ["SA_POPUP_STATE"]);
+  }
+});
+
+await run("POPUP-STATE-EVENT-DURING-ACTION", "storage changes during an in-flight state read are not lost", async () => {
+const f = popupFixture(); await f.flush();
+let release, reads = 0;
+f.ctx.chrome.runtime.sendMessage = async request => {
+  if (request.type !== "SA_POPUP_STATE") throw new Error(request.type);
+  reads++;
+  if (reads === 1) return new Promise(resolve => { release = resolve; });
+  return { ok: true, context: {}, stores: [], work: { state: "active_visible" } };
+};
+const action = f.ctx.action(async () => {}); await f.flush();
+f.calls.listeners[0]({ ozmb_work_sessions_v1: { newValue: "changed" } }, "local");
+f.timers();
+release({ ok: true, context: {}, stores: [], work: { state: "inactive" } });
+await action; f.timers(); await f.flush();
+const actual = vm.runInContext("state.work.state", f.ctx);
+assert.equal(actual, "active_visible");
+assert.equal(reads, 2, "coalesced notification must be consumed after action completion");
+});
+
+await run("POPUP-IMPORT-SENDER", "import route admits only explicit preview/import from exact browser sender URL", async () => {
+  const source = fs.readFileSync(new URL("../../../../apps/extension/src/application/runtime.js", import.meta.url), "utf8");
+  const start = source.indexOf("function saPopupSender("), end = source.indexOf("async function saEnabled()", start);
+  const box = { chrome: { runtime: { getURL: path => "chrome-extension://fixture/" + path } } };
+  vm.createContext(box); vm.runInContext(source.slice(start, end), box);
+  const normal = { url: "chrome-extension://fixture/popup.html" };
+  const imported = { url: normal.url + "#backup-import" };
+  assert.equal(box.saPopupSender(normal), true); assert.equal(box.saPopupSender(imported), false);
+  for (const type of ["SA_BACKUP_PREVIEW", "SA_BACKUP_IMPORT"]) assert.equal(box.saBackupImportSender(imported, type), true);
+  for (const type of ["SA_WORK_START", "SA_AUTH_RESET", "SA_BACKUP_EXPORT", "SA_POPUP_STATE", "SA_STORE_SAVE", "OZ_WORK_FINISH"])
+    assert.equal(box.saBackupImportSender(imported, type), false);
+  for (const url of [normal.url + "?mode=backup-import", normal.url + "#backup-import-extra", "https://example.com/popup.html#backup-import", "chrome-extension://other/popup.html#backup-import"])
+    assert.equal(box.saBackupImportSender({url}, "SA_BACKUP_IMPORT"), false);
 });
 
 console.log(JSON.stringify({ suite: "A24", cases: results.length, results }, null, 2));

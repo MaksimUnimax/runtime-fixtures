@@ -46,8 +46,10 @@
       if (item?.id) explicitIds.push(item.id);
     }
     let startWitness = null, startWitnessMessageId = null;
-    if (pending && pending.root === root) {
+    if (pending && roots.size <= 1 && (pending.root === root || pending.witnessId)) {
       for (const node of adapter.userMessages?.() || []) {
+        // Never discover a new witness on another root, or in hidden history.
+        if (!inSurface.includes(node)) continue;
         const id = adapter.messageId(node);
         if (id && (!pending.witnessId || id === pending.witnessId) &&
             !pending.baseline.has(id) && text(adapter.messageText(node)) === pending.text) {

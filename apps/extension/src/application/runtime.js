@@ -124,6 +124,10 @@ function saPopupSender(sender) {
   // The same privileged page may be hosted by the browser action or its own tab.
   return sender?.url === chrome.runtime.getURL("popup.html");
 }
+function saBackupImportSender(sender, type) {
+  return ["SA_BACKUP_PREVIEW", "SA_BACKUP_IMPORT"].includes(type) &&
+    sender?.url === chrome.runtime.getURL("popup.html") + "#backup-import";
+}
 async function saEnabled() { await saReady; return saCatalogEnabled; }
 // Lifecycle admission only. Provider authorization is decided by
 // saEvaluateDispatchAuthority at the provider boundary below.
@@ -1558,7 +1562,7 @@ async function saHandleMessage(message, sender) {
   if (/^OZ_(?:SAVE_|RESET_|CLEAR_|SET_|GET_SETTINGS_STATE|GET_GLOBAL_SETTINGS_STATE|GET_DIAGNOSTICS|BIND_CONVERSATION|TEST_CONNECTION|REFRESH_SELLER_API_METADATA|WORK_START$|WORK_SHOW$|WORK_HIDE$|WORK_FINISH$|WORK_REFRESH$|WORK_RESUME$)/.test(message?.type || "") && !saPopupSender(sender)) throw saError("POPUP_SENDER_REQUIRED");
   if (/^OZ_AUTO_/.test(message?.type || "")) throw saError("LEGACY_ACTION_DISABLED");
   if (message?.type?.startsWith("SA_")) {
-    if (!saPopupSender(sender)) throw saError("POPUP_SENDER_REQUIRED");
+    if (!saPopupSender(sender) && !saBackupImportSender(sender, message.type)) throw saError("POPUP_SENDER_REQUIRED");
     if (message.type === "SA_AUTH_STATE") return { ok: true, auth: await SellerAgentsControlClient.status() };
     if (message.type === "SA_AUTH_START") return { ok: true, auth: await SellerAgentsControlClient.startActivation() };
     if (message.type === "SA_AUTH_OPEN_PORTAL") return { ok: true, portalUrl: await SellerAgentsControlClient.openPortal() };

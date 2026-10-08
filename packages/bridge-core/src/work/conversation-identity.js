@@ -88,8 +88,13 @@
       else if (path !== state.path) {
         const sameId = state.identity?.identity_scope === "conversation" &&
           resolveEvidence({ ...input, surfaceId: state.surfaceId }).conversation_id === state.identity.conversation_id;
+        // A renderer may replace the root while assigning the first route.
+        // Only an already recorded, still visible Start message can bridge it.
+        const retainedWitness = start?.witnessId && input.surfaceConfirmed === true &&
+          !input.conflict && explicit.length <= 1 &&
+          input.startWitnessMessageId === start.witnessId && ids.includes(start.witnessId);
         const promotion = start && start.empty && start.surfaceId === state.surfaceId &&
-          start.root === input.root && input.startWitness === start.intentId &&
+          (start.root === input.root || retainedWitness) && input.startWitness === start.intentId &&
           (!start.completed || (input.startWitnessMessageId === start.witnessId &&
             ids.includes(start.witnessId)));
         if (!sameId && !promotion) {

@@ -46,9 +46,36 @@ test("witness must remain in the visible message inventory", () => {
   const f = fixture(); f.tracker.endStart("intent-a", { retainWitness: true });
   assert.notEqual(promote(f, { messageIds: ["other-user", "assistant-complete"] }).conversation_id, f.bound.conversation_id);
 });
-test("another surface root cannot inherit the completed Start", () => {
+test("remounted surface with exact retained Start witness preserves late promotion", () => {
   const f = fixture(); f.tracker.endStart("intent-a", { retainWitness: true });
+  assert.equal(promote(f, { root: {} }).conversation_id, f.bound.conversation_id);
+});
+test("remounted surface with recorded witness preserves pending Start promotion", () => {
+  const f = fixture();
+  assert.equal(promote(f, { root: {} }).conversation_id, f.bound.conversation_id);
+});
+test("another root without the exact witness cannot inherit completed Start", () => {
+  const f = fixture(); f.tracker.endStart("intent-a", { retainWitness: true });
+  assert.notEqual(promote(f, { root: {}, startWitnessMessageId: "other-user",
+    messageIds: ["other-user", "assistant-complete"] }).conversation_id, f.bound.conversation_id);
+});
+test("a witness first observed on a replacement root cannot authorize promotion", () => {
+  const f = fixture({ evidence: false });
+  assert.notEqual(promote(f, { root: {}, startWitnessMessageId: "sent-user" }).conversation_id, f.bound.conversation_id);
+});
+test("ambiguous remount cannot authorize promotion", () => {
+  const f = fixture(); f.tracker.endStart("intent-a", { retainWitness: true });
+  const result = promote(f, { root: {}, conflict: "multiple_conversation_surfaces" });
+  assert.equal(result.conversation_id, null);
+  assert.notEqual(promote(f).conversation_id, f.bound.conversation_id);
+});
+test("cancelled Start cannot transfer to a replacement root", () => {
+  const f = fixture(); f.tracker.endStart("intent-a");
   assert.notEqual(promote(f, { root: {} }).conversation_id, f.bound.conversation_id);
+});
+test("provider change cannot transfer retained witness to a replacement root", () => {
+  const f = fixture(); f.tracker.endStart("intent-a", { retainWitness: true });
+  assert.notEqual(promote(f, { root: {}, provider: "other-ai" }).conversation_id, f.bound.conversation_id);
 });
 test("changed account invalidates completed Start continuity", () => {
   const f = fixture(); f.tracker.endStart("intent-a", { retainWitness: true });

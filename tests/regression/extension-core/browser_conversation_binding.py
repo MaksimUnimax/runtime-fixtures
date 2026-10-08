@@ -144,6 +144,48 @@ def main():
             fixture.popup.click("#finish")
             wait_for(lambda: fixture.storage().get(SESSIONS, {}).get(promoted_key, {}).get("state") == "inactive", "promoted Finish")
 
+            # A renderer may replace the main element while assigning the first
+            # route. Preserve only the already witnessed send, pending or complete.
+            for phase in ("pending", "completed"):
+                render_url = "https://chatgpt.com/render-start/" + phase
+                pages[render_url] = empty_html
+                fixture.page.goto(render_url, wait_until="domcontentloaded")
+                fixture.reload_popup()
+                fixture.page.evaluate("""()=>{
+                  const timer=window.setTimeout;
+                  window.fixtureLateReplies=[];
+                  window.setTimeout=(fn,delay,...args)=>delay===150
+                    ? (fixtureLateReplies.push(()=>fn(...args)),0)
+                    : timer(fn,delay,...args);
+                }""")
+                fixture.click_start()
+                witnessed = wait_for(lambda: (s if (s := fixture.state()).get("pending") and
+                    s.get("conversation_key") else None), "recorded user witness", 15)
+                render_key = witnessed["conversation_key"]
+                if phase == "completed":
+                    fixture.page.evaluate("()=>fixtureLateReplies.splice(0).forEach(fn=>fn())")
+                    wait_for(lambda: (fixture.state().get("work") or {}).get("state") == "active_visible", "completed Start", 15)
+                fixture.page.evaluate("""()=>{
+                  const root=document.querySelector('#turns');
+                  root.replaceWith(root.cloneNode(true));
+                  history.pushState({},'',location.pathname+'/assigned');
+                  fixtureLateReplies.splice(0).forEach(fn=>fn());
+                }""")
+                remounted = wait_for(lambda: (s if (s := fixture.state()).get("conversation_key") == render_key and
+                    (s.get("work") or {}).get("state") == "active_visible" else None), "remount continuity " + phase, 15)
+                assert fixture.page.evaluate("sent.length") == 1
+                fixture.page.evaluate("""()=>fixtureCommand('OZON_HELP_V2 {"cluster":"catalog_products"}','remount-help')""")
+                button = fixture.page.locator(".ozon-bridge-block-action").last
+                button.wait_for(timeout=10000)
+                button.click()
+                fixture.page.wait_for_function("sent.length === 2", timeout=30000)
+                assert fixture.page.evaluate("sent[1].startsWith('OZON_')")
+                assert fixture.state()["conversation_key"] == render_key
+                assert fixture.worker.evaluate("bindingExternalRequests.length") == 0
+                fixture.popup.click("#finish")
+                wait_for(lambda: fixture.storage().get(SESSIONS, {}).get(render_key, {}).get("state") == "inactive", "remount Finish")
+                passed("root-replacement-and-route-" + phase + "-preserves-command-delivery")
+
             pending_url = "https://chatgpt.com/pending/new"
             pages[pending_url] = empty_html
             fixture.page.goto(pending_url, wait_until="domcontentloaded")
