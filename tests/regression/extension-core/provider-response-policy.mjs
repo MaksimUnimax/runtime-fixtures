@@ -45,7 +45,10 @@ vm.runInContext(fs.readFileSync(donorVerifierPath, "utf8"), donorContext, {
 });
 const donorPolicy = donorContext.WBRuntimePolicy;
 const donorVerifier = donorContext.WBResponseVerifier;
-assert.ok(donorPolicy && donorVerifier, "donor policy/verifier globals must exist");
+assert.ok(
+  donorPolicy && donorVerifier,
+  "donor policy/verifier globals must exist",
+);
 
 const normalize = (value) =>
   value && typeof value === "object"
@@ -214,19 +217,24 @@ check(
   () => candidate.safeResponseTree(deepResponse),
 );
 
-// The foundation deliberately does not load into current worker composition yet.
+// Source composition now includes the accepted inert policy foundation.
 const composition = JSON.parse(
   fs.readFileSync(path.join(root, "apps/extension/composition.json"), "utf8"),
 );
-assert.ok(
-  !(composition.worker_prelude || []).includes(
-    "packages/bridge-core/src/execution/provider-response-policy.js",
-  ),
-  "foundation task must not silently widen packaged runtime",
+const prelude = composition.worker_prelude || [];
+const policyScript =
+  "packages/bridge-core/src/execution/provider-response-policy.js";
+const verifierScript =
+  "packages/bridge-core/src/execution/provider-response-verifier.js";
+assert.equal(
+  prelude.filter((script) => script === policyScript).length,
+  1,
+  "accepted response-policy foundation must be packaged exactly once",
 );
 assert.ok(
-  !JSON.stringify(composition).includes("provider-response-policy.js"),
-  "foundation task must not be bundled before the separate wiring slice",
+  prelude.indexOf(policyScript) >= 0 &&
+    prelude.indexOf(policyScript) < prelude.indexOf(verifierScript),
+  "response policy must precede verifier in worker prelude",
 );
 assertions += 2;
 
@@ -236,8 +244,9 @@ console.log(
     assertions,
     live_provider_calls: 0,
     browser_actions: 0,
-    packaged_runtime_widened: false,
+    packaged_runtime_widened: true,
+    provider_processing_activated: false,
     scope:
-      "provider-neutral response policy foundation differential only; no WB schema activated",
+      "accepted response policy packaged before verifier; no WB schema or provider processing activated",
   }),
 );

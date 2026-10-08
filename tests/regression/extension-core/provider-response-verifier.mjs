@@ -75,7 +75,11 @@ const reviewedSchema = {
   },
 };
 
-check("null policy", () => donor.policy(null), () => candidate.policy(null));
+check(
+  "null policy",
+  () => donor.policy(null),
+  () => candidate.policy(null),
+);
 check(
   "undefined policy",
   () => donor.policy(undefined),
@@ -163,11 +167,18 @@ const response = (overrides = {}) => ({
   responseMeta: { content_type: "application/json" },
   ...overrides,
 });
-const verifyCheck = (id, responseValue, donorPolicy, candidatePolicy, options = {}) =>
+const verifyCheck = (
+  id,
+  responseValue,
+  donorPolicy,
+  candidatePolicy,
+  options = {},
+) =>
   check(
     id,
     () => donor.verify(responseValue, { ...options, policy: donorPolicy }),
-    () => candidate.verify(responseValue, { ...options, policy: candidatePolicy }),
+    () =>
+      candidate.verify(responseValue, { ...options, policy: candidatePolicy }),
   );
 
 verifyCheck(
@@ -178,7 +189,9 @@ verifyCheck(
 );
 verifyCheck(
   "JSON content-type charset",
-  response({ responseMeta: { content_type: "application/json; charset=utf-8" } }),
+  response({
+    responseMeta: { content_type: "application/json; charset=utf-8" },
+  }),
   donorPassPolicy,
   candidatePassPolicy,
 );
@@ -343,20 +356,14 @@ verifyCheck(
   donorSemanticOnly,
   candidateSemanticOnly,
 );
-verifyCheck(
-  "no policy remains not fully verified",
-  response(),
-  null,
-  null,
-);
+verifyCheck("no policy remains not fully verified", response(), null, null);
 
 const noDependency = context();
 load(candidateVerifierPath, noDependency, "provider-response-verifier.js");
 const withoutPolicy = noDependency.SellerAgentsProviderResponseVerifier;
 assert.equal(
-  capture(() =>
-    withoutPolicy.policy({ reviewed: true, source_revision: "r1" }),
-  ).code,
+  capture(() => withoutPolicy.policy({ reviewed: true, source_revision: "r1" }))
+    .code,
   "PROVIDER_RESPONSE_POLICY_REQUIRED",
   "non-null policy must fail closed without common response-policy dependency",
 );
@@ -387,16 +394,24 @@ assertions += 2;
 const composition = JSON.parse(
   fs.readFileSync(path.join(root, "apps/extension/composition.json"), "utf8"),
 );
-for (const relative of [
-  "packages/bridge-core/src/execution/provider-response-policy.js",
-  "packages/bridge-core/src/execution/provider-response-verifier.js",
-]) {
-  assert.ok(
-    !JSON.stringify(composition).includes(relative),
-    relative + " must remain outside packaged composition in foundation slice",
+const prelude = composition.worker_prelude || [];
+const policyScript =
+  "packages/bridge-core/src/execution/provider-response-policy.js";
+const verifierScript =
+  "packages/bridge-core/src/execution/provider-response-verifier.js";
+for (const relative of [policyScript, verifierScript]) {
+  assert.equal(
+    prelude.filter((script) => script === relative).length,
+    1,
+    relative + " must be included exactly once in packaged composition",
   );
   assertions += 1;
 }
+assert.ok(
+  prelude.indexOf(policyScript) < prelude.indexOf(verifierScript),
+  "response verifier requires the policy foundation to be loaded first",
+);
+assertions += 1;
 
 console.log(
   JSON.stringify({
@@ -404,9 +419,10 @@ console.log(
     assertions,
     live_provider_calls: 0,
     browser_actions: 0,
-    packaged_runtime_widened: false,
+    packaged_runtime_widened: true,
+    provider_processing_activated: false,
     live_schema_attached: false,
     scope:
-      "provider-neutral response verifier foundation differential only; no runtime wiring or provider policy attachment",
+      "accepted response verifier packaged after policy; no runtime provider policy attachment",
   }),
 );
