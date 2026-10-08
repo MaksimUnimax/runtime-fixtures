@@ -92,7 +92,7 @@ verification attempt.
 
 ### `beta_admission_mutations`
 
-Idempotent admin mutation ledger keyed by HMAC request identity. It records
+Idempotent admin mutation ledger keyed by a domain-separated unkeyed SHA-256 digest of the request identity. It records
 safe action, actor, old/new mode/capacity/admitted/revision, and the resulting
 state timestamp; the separate audit event records the bounded reason and
 correlation identity.
