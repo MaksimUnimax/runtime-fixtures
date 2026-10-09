@@ -76,6 +76,16 @@ STD-21..28 — ещё 8 резервных бизнес-вопросов. Они
 
 Качество содержания самих подсказок и команд проверяется позже, после определения содержания по тестам. В следующую тестовую сборку после отдельного выбора решения параллельной работы входят универсальный механизм дерева с админкой, это выбранное решение, добавление и импорт магазинов внутри popup и имя продукта «Октопорт»/Octoport вместо Ozon Bridge. Решение параллельной работы остаётся невыбранным; не назначать номер сборки, исполнителей или готовность. Известное отсутствие attachment surface у гостевого GPT не добавляется в список багов и не требует guest detector.
 
+### Repeated ChatGPT Chat/Standard start defect — future patch
+
+Это отдельный повторный дефект Chat, не acceptance результата: в авторизованном ChatGPT Chat/Standard «Начать работу» завершается `COMPOSER_NOT_FOUND`. Work исследуется по собственному DOM; предоставленный snapshot Work показывает `GENERATING`, Stop visible, Send not observed, но не подтверждает ту же ошибку.
+
+| ID | Доказательство и обязательная будущая работа | Проверка/статус |
+|---|---|---|
+| TR-18 | Сверить вчерашнюю задачу (историческая запись `OWNER-0213-KEYS-IMPORT-IN-EXTENSION-20261008T052743Z`), diff, коммиты и точный состав установленного 0.2.14; не предполагать, что patch был. Установить причину по коду и доступному безопасному HTML и сделать адресное исправление. Если данных мало — запросить точные дополнительные HTML/диагностику через владельца/dot. Не переносить Alice результаты на Chat. | NOT_RUN; владелец исключил тесты для этого исправления. Будущий результат обозначать «изменение без проверки в авторизованной среде», не PASS/«исправлено тестами». Не тестировать серверный Chromium без входа в ChatGPT; quality gates не заявлять пройденными и не обходить. |
+
+Snapshot владельца `2026-10-09T04:22:14.438Z`: extension `0.2.14 PREPRODUCTION`; Chrome `152.0.0.0` — observed runtime only; extension/browser `SUPPORTED`, minimum `0.2.13`; `authenticated=true`/`workAllowed=true`, `lastErrorCode=null`, `aiStatus=null`; page `aiFamily=chatgpt`, `identityStatus=unknown`, `runtimeStatus=ready`, `lastErrorCode=null`, `transportClass=null`; work `state=null`, `pending=false`, `pendingOutcome=null`, `lastStart.stage=send`, `code=COMPOSER_NOT_FOUND`, `outcome=failed`; stores total 1, Ozon 1, WB 0. Octoport auth fields do not prove ChatGPT login; owner separately confirms authenticated ChatGPT and a personal Chat homepage with empty «Спросить ChatGPT» editor. The exact safe historical HTML and capture limitations are consolidated in [ChatGPT composer evidence](CHATGPT_CHAT_COMPOSER_NOT_FOUND_EVIDENCE.md); the excerpts do not establish the root cause. The referenced historical task record was not accessed in this documentation-only update.
+
 H2-I/category-comparison из эталона — отдельно исследуемая capability, не разрешение молча добавлять новую API-операцию. Новая операция требует собственной schema/read-effect/entitlement/privacy проверки.
 
 35 Q1-C кейсов связаны в [OWNER_Q1_CROSSWALK.tsv](OWNER_Q1_CROSSWALK.tsv). Опасные UNKNOWN/429/cache expiry тестируются детерминированно; искусственно ломать площадку или её квоты не нужно. Браузерные/изоляционные проверки по возможности выполняет A, а человек оценивает готовый UX и реальные внешние доставки.
