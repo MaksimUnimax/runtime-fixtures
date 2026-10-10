@@ -1386,7 +1386,8 @@ root=Path(sys.argv[1]); repo=Path(sys.argv[2]); task=json.loads(sys.argv[3])
 work_queue.add_task(root,'A',task,repo_root=repo)
 """
         child = subprocess.run([sys.executable, "-B", "-c", script, str(self.root), str(repo),
-                                json.dumps(candidate)], capture_output=True, text=True)
+                                json.dumps(candidate)], capture_output=True, text=True,
+                               cwd=Path(work_queue.__file__).resolve().parent)
         self.assertEqual(child.returncode, 0, child.stderr)
         after = v2.load_state(self.root)
         self.assertLessEqual(len(after["hot_raw"]), v2.HOT_CAP_BYTES)
