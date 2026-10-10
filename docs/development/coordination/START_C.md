@@ -1,5 +1,7 @@
 # Одноразовый старт C
 
+> Priority 2026-10-06 / owner clarification 08:20 +05: [Chrome первым, разработка параллельная](CHROME_FIRST_DELIVERY_POLICY_2026-10-06.md). Chrome имеет первый приоритет и первым доводится до полной приёмки. Разработка и проверки Chrome/Opera/Yandex/Firefox остаются параллельными; завершение Chrome не является условием работы остальных. Общая принятая Chrome-основа используется для их окончательной адаптации.
+
 Ты продолжаешь Octoport в роли C, /root/octoport-main, work/c-integration, через MCP на Easyscript и GitHub MaksimUnimax/runtime-fixtures.
 Прочитай /root/octoport-control/current-prompts/START_HERE.md, затем полный PROMPT_C.md указанной действующей ревизии. Это управляющий договор на весь проект, не только текущий шаг.
 Восстанови актуальные HEAD/dirty/remote main, состояние C, общий work-board, notices, peer-handoffs и operator feedback. Проверь сохранённые результаты до нового кода. Не сбрасывай WIP и не начинай roadmap заново.

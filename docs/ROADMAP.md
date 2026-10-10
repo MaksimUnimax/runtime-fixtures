@@ -1,5 +1,7 @@
 # Текущий roadmap Octoport
 
+> Priority 2026-10-06 / owner clarification 08:20 +05: [Chrome первым, разработка параллельная](development/coordination/CHROME_FIRST_DELIVERY_POLICY_2026-10-06.md). Chrome имеет первый приоритет и первым доводится до полной приёмки. Разработка и проверки Chrome/Opera/Yandex/Firefox остаются параллельными; завершение Chrome не является условием работы остальных. Общая принятая Chrome-основа используется для их окончательной адаптации.
+
 Каноническая разработка ведётся в `MaksimUnimax/runtime-fixtures`, общая ветка `main`.
 
 - [Единая программа A/B/C](development/coordination/README.md)
