@@ -21,6 +21,17 @@ class Crash(BaseException):
 
 class WorkBoardV2Tests(unittest.TestCase):
     def setUp(self):
+        # These existing cases exercise the retained reader-only release and
+        # its legacy writer. The enabled SOURCE writer is exercised in a new
+        # interpreter below, so it cannot inherit this compatibility fixture.
+        self.legacy_writer = patch.object(v2, "COMPACT_RESOLVED_WRITES_ENABLED", False)
+        self.legacy_writer.start()
+        self.addCleanup(self.legacy_writer.stop)
+        self.legacy_queue_writer = patch.object(
+            work_queue._v2(), "COMPACT_RESOLVED_WRITES_ENABLED", False
+        )
+        self.legacy_queue_writer.start()
+        self.addCleanup(self.legacy_queue_writer.stop)
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name)
         (self.root / "controllers").mkdir()
@@ -1315,6 +1326,88 @@ class WorkBoardV2Tests(unittest.TestCase):
         attention = next(row for row in work_queue.blocker_attention(logical) if row["task_id"] == "old-attempt")
         self.assertEqual(attention["evidence"], full_old["blocked_receipt"])
         self.assertIn("accepted-successor", attention["reason"])
+
+    def test_source_writer_native_add_at_legacy_byte_cap_preserves_all_archives(self):
+        self._resolve_blocker_fixture()
+        state = v2.load_state(self.root)
+        board = copy.deepcopy(state["logical"])
+        original = next(t for t in board["tasks"] if t["id"] == "old-attempt")
+        rows = [original] + [dict(copy.deepcopy(original), id=f"old-attempt-{i}") for i in range(1, 83)]
+        board["tasks"] = [t for t in board["tasks"] if t["id"] != original["id"]] + rows
+        board["tasks"] += [self.ready(f"independent-active-{i}") for i in range(42)]
+        board["revision"] += 1
+        board["updated_at"] = "2026-10-10T00:00:00+00:00"
+        # Fill the old representation through legitimate historical metadata,
+        # without changing the cap or truncating any archived row.
+        low, high = 0, 4000
+        while low + 1 < high:
+            length = (low + high) // 2
+            for row in rows:
+                row["blocker_resolution"]["next_action"] = "preserved-history-" + "x" * length
+            generated = v2._prepare_generation(self.root, board, state)
+            raw = v2._canonical_bytes(dict(generated["core"], generation_id="0" * 64,
+                                           last_operation_id="0" * 64))
+            if len(raw) <= v2.HOT_CAP_BYTES - 128:
+                low = length
+            else:
+                high = length
+        for row in rows:
+            row["blocker_resolution"]["next_action"] = "preserved-history-" + "x" * low
+        v2.commit_logical_board(self.root, board, {
+            "action": "ADVANCE", "role": "B", "task": original["id"],
+            "at": board["updated_at"], "revision": board["revision"],
+        })
+        before = v2.load_state(self.root)
+        hot_before = before["hot_raw"]
+        events = self.root / "controllers/work-board-events.jsonl"
+        events_before = events.read_bytes()
+        archive_files = {
+            p: p.read_bytes() for p in (self.root / "controllers/work-board-done/rows").glob("*.json")
+        }
+        candidate = dict(self.ready("post-repair-add"), basis="accepted personal queue maintenance",
+                         acceptance=["same native ADD after source writer acceptance"],
+                         result="n" * 2048)
+        repo = Path(work_queue.__file__).resolve().parents[2]
+        with self.assertRaisesRegex(RuntimeError, "WORK_QUEUE_INVALID: size"):
+            work_queue.add_task(self.root, "A", candidate, repo_root=repo)
+        self.assertEqual(v2.load_state(self.root)["hot_raw"], hot_before)
+        self.assertEqual(events.read_bytes(), events_before)
+        self.assertEqual({p: p.read_bytes() for p in archive_files}, archive_files)
+        # This child imports the candidate's literal SOURCE defaults. It has no
+        # runtime writer override, no cold-index writer and no live control root.
+        script = """
+import json,sys
+from pathlib import Path
+import work_board_v2 as v2
+import work_queue
+assert v2.COMPACT_RESOLVED_WRITES_ENABLED is True
+assert v2.RESOLVED_COLD_INDEX_WRITES_ENABLED is False
+root=Path(sys.argv[1]); repo=Path(sys.argv[2]); task=json.loads(sys.argv[3])
+work_queue.add_task(root,'A',task,repo_root=repo)
+"""
+        child = subprocess.run([sys.executable, "-B", "-c", script, str(self.root), str(repo),
+                                json.dumps(candidate)], capture_output=True, text=True)
+        self.assertEqual(child.returncode, 0, child.stderr)
+        after = v2.load_state(self.root)
+        self.assertLessEqual(len(after["hot_raw"]), v2.HOT_CAP_BYTES)
+        self.assertLess(len(after["hot_raw"]), len(hot_before) - 100000)
+        before_rows = {t["id"]: t for t in before["logical"]["tasks"]}
+        after_rows = {t["id"]: t for t in after["logical"]["tasks"]}
+        self.assertEqual({k: after_rows[k] for k in before_rows}, before_rows)
+        self.assertIn(candidate["id"], after_rows)
+        self.assertEqual({p: p.read_bytes() for p in archive_files}, archive_files)
+        markers = [t for t in after["hot"]["tasks"] if v2._is_resolved_blocker_tombstone(t)]
+        self.assertEqual(len(markers), 83)
+        self.assertTrue(all(t["resolved_cold_ref_schema"] == 2 for t in markers))
+        self.assertFalse(v2.RESOLVED_COLD_ROOT_KEYS & set(after["hot"]))
+        print(json.dumps({
+            "level": "SOURCE_LOCAL_SYNTHETIC", "native_boundary": "add_task",
+            "legacy_refusal": "WORK_QUEUE_INVALID: size",
+            "hot_before_bytes": len(hot_before), "hot_after_bytes": len(after["hot_raw"]),
+            "cap_bytes": v2.HOT_CAP_BYTES, "preserved_prior_rows": len(before_rows),
+            "preserved_archive_files": len(archive_files), "compact_resolved_rows": len(markers),
+            "cold_index_writer": False, "live_control_root": False,
+        }, sort_keys=True))
 
     def test_compact_v2_resolved_blocker_roundtrip_and_inactive_default(self):
         old, _next, _receipt, _resolved = self._resolve_blocker_fixture()

@@ -682,7 +682,7 @@ def validate_queue_completion_source_authority(
                 candidate_task.get("state") != "DONE"
                 or candidate_task.get("completion_candidate_sha") != route_head
                 or not candidate_task.get("completion_publication_registration")
-                or not _strict_completion_valid(candidate_task)
+                or not _strict_completion_valid(candidate_task, root=root)
             ):
                 continue
             try:

@@ -34,7 +34,7 @@ ACTIVE_STATES = {"READY", "IN_PROGRESS", "BLOCKED"}
 # accept both tombstone formats BEFORE a separately reviewed writer activation.
 # Do not enable based on an env variable, HOT content or caller-supplied flag.
 COMPACT_RESOLVED_BLOCKER_SCHEMA = 2
-COMPACT_RESOLVED_WRITES_ENABLED = False
+COMPACT_RESOLVED_WRITES_ENABLED = True
 # A second, separately accepted format moves historical resolved BLOCKED rows
 # to an immutable indexed trie. Keep disabled until ALL installed readers have
 # passed exact-source review, CI and source SHA readback.

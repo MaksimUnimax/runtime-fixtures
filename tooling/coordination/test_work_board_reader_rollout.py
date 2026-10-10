@@ -78,7 +78,29 @@ class ReaderRolloutTests(unittest.TestCase):
              "result": "Task", "paths": ["apps/extension/a.js"]}
         ]}
         (self.root / "controllers/work-board.json").write_text(json.dumps(board))
-        self.candidate_queue = Path(work_queue.__file__).resolve()
+        # Retain a separate reader-only release fixture. A writer release must
+        # not turn the module-only reader updater into a writer installer.
+        self.writer_candidate_v2 = Path(work_queue.__file__).resolve().with_name("work_board_v2.py")
+        reader_repo = Path(self.tmp.name) / "reader-only-source-fixture"
+        reader_directory = reader_repo / "tooling/coordination"
+        reader_directory.mkdir(parents=True)
+        for name in ("work_queue.py", "work_board_v2.py", "work_board_reader_rollout.py"):
+            raw = Path(work_queue.__file__).resolve().with_name(name).read_bytes()
+            if name == "work_board_v2.py":
+                enabled = b"COMPACT_RESOLVED_WRITES_ENABLED = True"
+                self.assertEqual(raw.count(enabled), 1)
+                raw = raw.replace(enabled, b"COMPACT_RESOLVED_WRITES_ENABLED = False")
+            (reader_directory / name).write_bytes(raw)
+        for args in (("init", "-q"), ("config", "user.name", "TEST_ONLY reader fixture"),
+                     ("config", "user.email", "test-only@example.invalid"),
+                     ("add", "tooling/coordination"),
+                     ("commit", "-qm", "TEST_ONLY retained reader-only source")):
+            subprocess.run(["git", "-C", str(reader_repo), *args], check=True,
+                           capture_output=True, timeout=8)
+        source_location = patch.object(rollout, "__file__", str(reader_directory / "work_board_reader_rollout.py"))
+        source_location.start()
+        self.addCleanup(source_location.stop)
+        self.candidate_queue = reader_directory / "work_queue.py"
         self.candidate_v2 = self.candidate_queue.with_name("work_board_v2.py")
         # TEST-ONLY source authority substitute. Production trust anchor is
         # deliberately None until an independently accepted release installs
@@ -1561,6 +1583,12 @@ with patch.object(r,"_atomic",side_effect=install):
                 self.root, {"work_board_v2": bad}, self.dirs,
                 self.queue_hashes, self.module_prior,
                 rollout_id="writer-active-denied", module_only=True,
+            )
+        with self.assertRaisesRegex(RuntimeError, "MODULE_ONLY_WRITER_NOT_DISABLED"):
+            rollout.rollout(
+                self.root, {"work_board_v2": self.writer_candidate_v2}, self.dirs,
+                self.queue_hashes, self.module_prior,
+                rollout_id="compact-writer-source-denied", module_only=True,
             )
         with self.assertRaisesRegex(RuntimeError, "MODULE_ONLY_TRANSITION_FORBIDDEN"):
             rollout.rollout(

@@ -115,16 +115,16 @@ class PublicationTests(unittest.TestCase):
             "checked_at": time.time(), "runs": [{"name": name, "id": i + 1,
                 "status": "completed", "conclusion": "success"} for i, name in enumerate(REQUIRED)]}
 
-    def strict_route_authority(self, candidate_sha):
+    def strict_route_authority(self, candidate_sha, identifier="ROUTE-AUTHORITY"):
         import work_queue
         task = {
-            "id": "ROUTE-AUTHORITY", "role": "C", "plan": "C00", "state": "IN_PROGRESS",
+            "id": identifier, "role": "C", "plan": "C00", "state": "IN_PROGRESS",
             "requires": [], "result": "Accepted publication route source",
             "paths": ["tooling/coordination/task_publication.py"],
             "acceptance": ["Exact accepted route publication evidence"],
         }
         review = {"path": str(self.control / "logs/authority-review.json"), "sha256": "a" * 64}
-        task_ref = "refs/heads/controller/task-publication/c/ROUTE-AUTHORITY/test"
+        task_ref = f"refs/heads/controller/task-publication/c/{identifier}/test"
         task_branch = task_ref.removeprefix("refs/heads/")
         completion_bundle, completion_bundle_sha = route._install_completion_bundle(
             self.control, self.source, candidate_sha, route._tree(self.source)
@@ -193,7 +193,7 @@ class PublicationTests(unittest.TestCase):
         registrations = publication / "registrations"
         registrations.mkdir(parents=True, exist_ok=True)
         (registrations / f"{registration_id}.json").write_bytes(state4_raw)
-        completion_path = self.control / "logs/route-authority-completion.json"
+        completion_path = self.control / "logs" / (identifier + "-completion.json")
         completion = {
             "kind": "octoport.work-queue-completion", "version": 1,
             "task_id": task["id"], "candidate_sha": candidate_sha, "verdict": "PASS",
@@ -1024,6 +1024,96 @@ class PublicationTests(unittest.TestCase):
         self.assertEqual(result["route_authority"], ["ROUTE-AUTHORITY"])
         self.assertEqual(result["route_source_head"], self.base)
         boundary.assert_called_once()
+
+    def _sealed_other_route_completion(self):
+        import work_queue
+
+        # Use the existing immutable publication-history fixture, independently
+        # of process supervision/transport: this regression targets acceptance
+        # of a later route source and its actual canonical resource seal.
+        self.git(self.source, "checkout", "--detach", self.head)
+        original = self.strict_route_authority(self.head, "ORIGINAL-SOURCE-TASK")
+        original_registration = original["completion_publication_registration"]
+        original["state"] = "IN_PROGRESS"
+        for key in list(original):
+            if key.startswith("completion_"):
+                original.pop(key)
+        self.save_board()
+        reg, _raw = route._read_registration(
+            self.control, original_registration
+        )
+        self.git(self.source, "checkout", "main")
+        authority = self.strict_route_authority(self.base)
+        seal = self.control / "disk-task-completions/C--ROUTE-AUTHORITY.json"
+        seal.parent.mkdir()
+        raw = route._canonical_bytes({
+            "version": 1, "role": "C", "task": authority["id"],
+            "state": "SEALED", "history": [{"state": "SEALING"}, {"state": "SEALED"}],
+        })
+        seal.write_bytes(raw)
+        authority.update(
+            completion_resource_required=True,
+            completion_resource_seal_snapshot={
+                "version": 1, "control_root": str(self.control.resolve()),
+                "role": "C", "task_id": authority["id"],
+                "seal_record_sha256": route._sha_bytes(raw),
+                "delegation_inventory_version": 1,
+                "delegation_inventory_attested": True,
+                "foreign_allocation_count": 0,
+                "delegated_publication_registration": None,
+            },
+        )
+        self.save_board()
+        self.assertTrue(work_queue._strict_completion_valid(authority, root=self.control))
+        self.assertFalse(work_queue._strict_completion_valid(authority))
+        receipt = self.control / "logs/completion-sealed-route.json"
+        receipt.write_text('{"fixture":"completion"}')
+        return reg, authority, seal, receipt
+
+    def test_complete_queue_accepts_other_sealed_route_with_trusted_caller_root(self):
+        reg, _authority, _seal, receipt = self._sealed_other_route_completion()
+        bundle = route._completion_bundle_dir(self.control, self.base)
+        with (
+            patch.object(route, "__file__", str(bundle / "task_publication.py")),
+            patch.object(route, "_run_canonical_queue_completion", return_value={"state": "DONE"}) as boundary,
+        ):
+            result = route.complete_queue_registration(
+                self.control, reg["registration_id"], str(receipt), "published",
+                route_source_root=self.source,
+            )
+        self.assertEqual(result["route_authority"], ["ROUTE-AUTHORITY"])
+        boundary.assert_called_once()
+
+    def test_complete_queue_rejects_sealed_route_persisted_root_forgery(self):
+        reg, authority, _seal, receipt = self._sealed_other_route_completion()
+        authority["completion_resource_seal_snapshot"]["control_root"] = "/forged/untrusted"
+        self.save_board()
+        bundle = route._completion_bundle_dir(self.control, self.base)
+        with (
+            patch.object(route, "__file__", str(bundle / "task_publication.py")),
+            patch.object(route, "_run_canonical_queue_completion") as boundary,
+            self.assertRaisesRegex(route.PublicationError, "QUEUE_COMPLETE_ROUTE_SOURCE_NOT_ACCEPTED"),
+        ):
+            route.complete_queue_registration(
+                self.control, reg["registration_id"], str(receipt), "published",
+                route_source_root=self.source,
+            )
+        boundary.assert_not_called()
+
+    def test_complete_queue_rejects_sealed_route_tampered_canonical_record(self):
+        reg, _authority, seal, receipt = self._sealed_other_route_completion()
+        seal.write_text('{"state":"REOPENED"}')
+        bundle = route._completion_bundle_dir(self.control, self.base)
+        with (
+            patch.object(route, "__file__", str(bundle / "task_publication.py")),
+            patch.object(route, "_run_canonical_queue_completion") as boundary,
+            self.assertRaisesRegex(route.PublicationError, "QUEUE_COMPLETE_ROUTE_SOURCE_NOT_ACCEPTED"),
+        ):
+            route.complete_queue_registration(
+                self.control, reg["registration_id"], str(receipt), "published",
+                route_source_root=self.source,
+            )
+        boundary.assert_not_called()
 
     def test_complete_queue_requires_canonical_role_location_before_writer(self):
         reg = self.register()
