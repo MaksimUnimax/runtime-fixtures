@@ -20,7 +20,7 @@ import uuid
 
 MIB = 1024 * 1024
 CONTROL = Path('/root/octoport-control')
-RESERVE_MIB = 5120
+RESERVE_MIB = 3072
 INODE_RESERVE = 200000
 MAX_HOURS = 72
 ID = re.compile(r'[A-Za-z0-9][A-Za-z0-9_.-]{0,119}')
@@ -141,6 +141,14 @@ class Registry:
         item = self.completion_record(role, task) or {
             'version': 1, 'role': role, 'task': task, 'history': []
         }
+        if state == 'REOPENED' and item.get('state') in ('SEALING', 'SEALED'):
+            # Guard the durable state transition itself, not only a helper:
+            # queue completion error handling can call this method directly.
+            # A CONTROLLER-produced resource needs V2 journal-certified
+            # recovery authority; no ordinary REOPENED route provides it.
+            if any(row['task'] == task and row['role'] != role
+                   for row in self.rows()):
+                raise ValueError('CROSS_ROLE_REOPEN_JOURNAL_AUTHORITY_REQUIRED')
         now = self.clock()
         item['state'] = state
         item['updated_at'] = now
@@ -149,9 +157,13 @@ class Registry:
         return item
 
     def require_task_not_completed(self, role, task):
-        item = self.completion_record(role, task)
-        if item and item['state'] in ('SEALING', 'SEALED'):
-            raise ValueError('TASK_DISK_LIFECYCLE_ALREADY_COMPLETED')
+        # The task ID is globally unique in the work board. A final role-A
+        # administrative seal also blocks the actual CONTROLLER producer from
+        # allocating new same-task artifacts. Explicit REOPENED allows rework.
+        for owner in ROLES:
+            item = self.completion_record(owner, task)
+            if item and item['state'] in ('SEALING', 'SEALED'):
+                raise ValueError('TASK_DISK_LIFECYCLE_ALREADY_COMPLETED')
 
     def managed_roots(self, role=None):
         roles = (role,) if role else ROLES
@@ -534,6 +546,13 @@ class Registry:
             except FileNotFoundError:
                 continue
 
+    def _require_retained_review_authority(self, proof_raw, review_raw):
+        # No independently authenticated review issuer is installed for this
+        # legacy operation. Textual role/PASS fields cannot grant that power.
+        # Keep reservations unchanged; do not invent a signer or trust caller
+        # input, environment values, file ownership or an unreviewed hash pin.
+        raise ValueError('RETAINED_REVIEW_AUTHORITY_UNAVAILABLE')
+
     def reconcile_retained(self, lease_id, role, reserve_mib, proof_path, review_path):
         """Reduce an overestimated fixed retention budget after independent review."""
         if type(reserve_mib) is not int or reserve_mib < 16:
@@ -550,6 +569,7 @@ class Registry:
                 review.get('fixed_retention_only') is not True or
                 review.get('no_active_writers_verified') is not True):
             raise ValueError('INDEPENDENT_FIXED_RETENTION_REVIEW_REQUIRED')
+        self._require_retained_review_authority(proof_raw, review_raw)
         current = self.retained_archive_inventory(lease_id, role)
         # Bind the exact bytes, filesystem identities, original budget and due
         # date reviewed. Timestamp alone is excluded; fresh hashing is required.
@@ -561,9 +581,15 @@ class Registry:
         observed = proof.get('observed_at')
         if type(observed) not in (int, float) or not 0 <= self.clock() - observed <= 3600:
             raise ValueError('FRESH_RETAINED_INVENTORY_REQUIRED')
-        self._require_no_archive_writers(Path(current['paths'][0]))
         with self.locked():
             item = self._retained_archive_item(lease_id, role)
+            # The final consumer scan must share the admission lock with the
+            # archive stat check and reserve update. A writer may have opened
+            # an FD since the earlier (unlocked) inventory/hash pass.
+            # This is a cooperative, point-in-time check: callers must still
+            # enforce a read-only/quiescent retention window against writers
+            # that do not participate in the admission lock.
+            self._require_no_archive_writers(Path(item['paths'][0]))
             if (item['reserve_mib'] != current['reserve_mib'] or
                     item['due_at'] != current['due_at'] or
                     item['task'] != current['task'] or item['paths'] != current['paths'] or
@@ -585,13 +611,348 @@ class Registry:
             atomic_json(self.directory / (item['id'] + '.json'), item)
             return item
 
+    def _verify_controller_authored_task_inventory(self, role, task, foreign_rows):
+        """Bind a CONTROLLER worktree to a normally published role task.
+
+        A shared task id or a locally written no-output declaration is not
+        delegation authority. The publisher's exact closed registration and
+        hashed review/close receipts must refer to the real reserved worktree.
+        """
+        if role not in ('A', 'B', 'C') or not foreign_rows or any(
+                row['role'] != 'CONTROLLER' for row in foreign_rows):
+            raise ValueError('CROSS_ROLE_RESOURCE_AUTHORITY_REQUIRED')
+        board_path = self.control / 'controllers' / 'work-board.json'
+        if board_path.is_symlink() or not board_path.is_file():
+            raise ValueError('CROSS_ROLE_TASK_IDENTITY_MISSING')
+        # Native V2 keeps DONE tasks in a verified immutable archive, outside
+        # the hot tasks array. Read the complete logical board through the
+        # versioned queue loader (including committed journal/archive checks),
+        # not the partial hot JSON. V1 continues through that same validator.
+        try:
+            from work_queue import load_board
+        except ImportError:
+            # The installed resource CLI can be provisioned separately from
+            # its trusted native queue reader. Never substitute hot JSON.
+            raise ValueError('CROSS_ROLE_NATIVE_VERIFIER_UNAVAILABLE') from None
+        try:
+            board = load_board(self.control)
+        except (RuntimeError, OSError, ValueError, KeyError, TypeError):
+            raise ValueError('CROSS_ROLE_TASK_LEDGER_UNVERIFIED') from None
+        tasks = [item for item in board['tasks']
+                 if item.get('id') == task and item.get('role') == role
+                 and item.get('state') in ('IN_PROGRESS', 'DONE')]
+        if len(tasks) != 1:
+            raise ValueError('CROSS_ROLE_TASK_IDENTITY_MISMATCH')
+        if tasks[0]['state'] == 'DONE':
+            # DONE may be committed just before the resource SEALING->SEALED
+            # metadata write. Never re-attest the finished delegated task
+            # as complete while that second durable transition is pending.
+            # The queue dependency evaluator must separately enforce this
+            # seal; this check only protects resource inventory consumers.
+            seal = self.completion_record(role, task)
+            if seal is None or seal['state'] != 'SEALED':
+                raise ValueError('CROSS_ROLE_COMPLETION_SEAL_REQUIRED')
+        # Never mistake a role-local no-output declaration for the work of
+        # the actual controller author. Every real allocation remains visible.
+        if any(row['role'] == role and row.get('kind') == 'NO_TEMPORARY_OUTPUTS'
+               for row in self.rows() if row['task'] == task):
+            raise ValueError('CROSS_ROLE_FALSE_NO_OUTPUT_DECLARATION')
+        foreign_paths = {path for row in foreign_rows for path in row['paths']}
+        active_foreign_paths = [path for row in foreign_rows
+                                if row['state'] != 'CLOSED' for path in row['paths']]
+        if len(active_foreign_paths) != len(set(active_foreign_paths)):
+            raise ValueError('CROSS_ROLE_DUPLICATE_ACTIVE_ARTIFACT')
+        allowed_roots = (self.control / 'worktrees' / 'controller',
+                         self.control / 'temporary' / 'controller')
+        for row in foreign_rows:
+            if row['volumes'] or any(Path(path).parent not in allowed_roots
+                                     for path in row['paths']):
+                raise ValueError('CROSS_ROLE_RESOURCE_SCOPE_INVALID')
+            if row['state'] == 'HELD':
+                if (not row.get('consumer') or not row.get('hold_reason') or
+                        row['due_at'] <= self.clock() or
+                        any(not Path(path).is_dir() or Path(path).is_symlink()
+                            for path in row['paths'])):
+                    raise ValueError('CROSS_ROLE_HELD_RESOURCE_INVALID')
+        registration_dir = self.control / 'controllers' / 'task-publication' / 'registrations'
+        if registration_dir.is_symlink() or not registration_dir.is_dir():
+            raise ValueError('CROSS_ROLE_PUBLICATION_MISSING')
+        files = list(registration_dir.glob('*.json'))
+        if len(files) > 512 or any(path.is_symlink() for path in files):
+            raise ValueError('CROSS_ROLE_PUBLICATION_INVENTORY_INVALID')
+
+        def verified_receipt(item, path=None):
+            if not isinstance(item, dict) or not isinstance(item.get('path'), str):
+                raise ValueError('CROSS_ROLE_PUBLICATION_RECEIPT_MISSING')
+            receipt = Path(item['path'])
+            if (not receipt.is_absolute() or
+                    not receipt.is_relative_to(self.control) or
+                    (path is not None and receipt != path)):
+                raise ValueError('CROSS_ROLE_PUBLICATION_RECEIPT_INVALID')
+            parts = receipt.relative_to(self.control).parts
+            if not parts or any(part in ('.', '..') for part in parts):
+                raise ValueError('CROSS_ROLE_PUBLICATION_RECEIPT_INVALID')
+
+            # Pin the entire trusted directory chain, not only the final file.
+            # No component may traverse a symlink. All reads and the last
+            # lstat use the same pinned parent directory descriptor; a final
+            # ordinary path readback also detects a renamed ancestor.
+            dir_flags = os.O_RDONLY | getattr(os, 'O_DIRECTORY', 0) | getattr(os, 'O_NOFOLLOW', 0)
+            file_flags = os.O_RDONLY | getattr(os, 'O_NOFOLLOW', 0)
+            parent_fd = None
+            try:
+                parent_fd = os.open(self.control, dir_flags)
+                for part in parts[:-1]:
+                    child_fd = os.open(part, dir_flags, dir_fd=parent_fd)
+                    previous_parent_fd = parent_fd
+                    parent_fd = child_fd
+                    # close() can raise after releasing/reusing its integer FD.
+                    # The new child is already owned by finally; never retry
+                    # the ambiguous previous numeric descriptor.
+                    os.close(previous_parent_fd)
+                fd = os.open(parts[-1], file_flags, dir_fd=parent_fd)
+                with os.fdopen(fd, 'rb') as handle:
+                    before = os.fstat(handle.fileno())
+                    if not stat.S_ISREG(before.st_mode) or before.st_size > 4 * MIB:
+                        raise ValueError('CROSS_ROLE_PUBLICATION_RECEIPT_INVALID')
+                    raw = handle.read(4 * MIB + 1)
+                    after = os.fstat(handle.fileno())
+                pinned = os.stat(parts[-1], dir_fd=parent_fd, follow_symlinks=False)
+                current = receipt.lstat()
+            except OSError as exc:
+                raise ValueError('CROSS_ROLE_PUBLICATION_RECEIPT_INVALID') from exc
+            finally:
+                if parent_fd is not None:
+                    # Capture the validation error BEFORE os.close. The FD
+                    # number may be released/reused even if close raises.
+                    primary_error = sys.exc_info()[1]
+                    closing_fd, parent_fd = parent_fd, None
+                    try:
+                        os.close(closing_fd)
+                    except OSError as cleanup_error:
+                        if primary_error is not None:
+                            if hasattr(primary_error, 'add_note'):
+                                primary_error.add_note(
+                                    'CROSS_ROLE_PUBLICATION_RECEIPT_DIR_CLOSE_UNCERTAIN')
+                        else:
+                            raise ValueError(
+                                'CROSS_ROLE_PUBLICATION_RECEIPT_INVALID'
+                            ) from cleanup_error
+            def identity(st):
+                return (st.st_dev, st.st_ino, st.st_size,
+                        st.st_mtime_ns, st.st_ctime_ns)
+            if (len(raw) > 4 * MIB or not stat.S_ISREG(pinned.st_mode) or
+                    not stat.S_ISREG(current.st_mode) or
+                    identity(before) != identity(after) or
+                    identity(before) != identity(pinned) or
+                    identity(before) != identity(current) or
+                    hashlib.sha256(raw).hexdigest() != item.get('sha256')):
+                raise ValueError('CROSS_ROLE_PUBLICATION_RECEIPT_INVALID')
+            return json.loads(raw)
+
+        # Reuse the native publisher's core SHA and immutable versioned state
+        # validation. A fabricated self-hashed review and close JSON cannot
+        # supply task-ref publication authority on its own.
+        try:
+            from task_publication import _read_registration, PublicationError
+            from work_queue import _publication_completion_candidate
+        except ImportError as exc:
+            # The standalone operational script is not by itself a trusted
+            # native publisher. A deployment missing the approved verifier
+            # must fail closed, not improvise a weaker JSON-only fallback.
+            raise ValueError('CROSS_ROLE_NATIVE_VERIFIER_UNAVAILABLE') from exc
+        # Every registration, including an unrelated one, must be bounded
+        # before JSON parsing. Skip no unreadable record: its true task/role
+        # cannot be established without a trusted native issuer identity.
+        # Pin all ancestors with O_NOFOLLOW to bound symlink/replacement races
+        # while the disk inventory lock is held.
+        max_registration_bytes = 64 * 1024
+        max_inventory_bytes = 8 * MIB
+        inventory_bytes = 0
+
+        def pinned_registration(registration_file):
+            if (registration_file.parent != registration_dir or
+                    not re.fullmatch(r'[0-9a-f]{64}\.json', registration_file.name)):
+                raise ValueError('CROSS_ROLE_PUBLICATION_REGISTRATION_INVALID')
+            dir_flags = (os.O_RDONLY | getattr(os, 'O_DIRECTORY', 0) |
+                         getattr(os, 'O_NOFOLLOW', 0))
+            file_flags = os.O_RDONLY | getattr(os, 'O_NOFOLLOW', 0)
+            dir_fd = None
+            try:
+                dir_fd = os.open(self.control, dir_flags)
+                for part in ('controllers', 'task-publication', 'registrations'):
+                    next_fd = os.open(part, dir_flags, dir_fd=dir_fd)
+                    previous_dir_fd = dir_fd
+                    dir_fd = next_fd
+                    # Transfer child ownership before closing an old FD
+                    # whose numeric value might be reused after close EIO.
+                    os.close(previous_dir_fd)
+                file_fd = os.open(registration_file.name, file_flags, dir_fd=dir_fd)
+                with os.fdopen(file_fd, 'rb') as handle:
+                    before = os.fstat(handle.fileno())
+                    if not stat.S_ISREG(before.st_mode) or before.st_size > max_registration_bytes:
+                        raise ValueError('CROSS_ROLE_PUBLICATION_REGISTRATION_TOO_LARGE')
+                    raw = handle.read(max_registration_bytes + 1)
+                    after = os.fstat(handle.fileno())
+                pinned = os.stat(registration_file.name, dir_fd=dir_fd,
+                                 follow_symlinks=False)
+                current = registration_file.lstat()
+                pinned_parent = os.fstat(dir_fd)
+                current_parent = registration_dir.lstat()
+            except OSError as exc:
+                raise ValueError('CROSS_ROLE_PUBLICATION_REGISTRATION_READ_INVALID') from exc
+            finally:
+                if dir_fd is not None:
+                    # Do not mask a prior registration validation error with
+                    # ambiguous close EIO; never reclose that numeric FD.
+                    primary_error = sys.exc_info()[1]
+                    closing_fd, dir_fd = dir_fd, None
+                    try:
+                        os.close(closing_fd)
+                    except OSError as cleanup_error:
+                        if primary_error is not None:
+                            if hasattr(primary_error, 'add_note'):
+                                primary_error.add_note(
+                                    'CROSS_ROLE_PUBLICATION_REGISTRATION_DIR_CLOSE_UNCERTAIN')
+                        else:
+                            raise ValueError(
+                                'CROSS_ROLE_PUBLICATION_REGISTRATION_READ_INVALID'
+                            ) from cleanup_error
+
+            def identity(st):
+                return (st.st_dev, st.st_ino, st.st_size,
+                        st.st_mtime_ns, st.st_ctime_ns)
+            if (len(raw) > max_registration_bytes or not stat.S_ISREG(pinned.st_mode) or
+                    not stat.S_ISREG(current.st_mode) or len(raw) != before.st_size or
+                    identity(before) != identity(after) or
+                    identity(before) != identity(pinned) or
+                    identity(before) != identity(current) or
+                    not stat.S_ISDIR(current_parent.st_mode) or
+                    identity(pinned_parent) != identity(current_parent)):
+                raise ValueError('CROSS_ROLE_PUBLICATION_REGISTRATION_CHANGED')
+            try:
+                record = json.loads(raw)
+            except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+                raise ValueError('CROSS_ROLE_PUBLICATION_REGISTRATION_INVALID_JSON') from exc
+            if not isinstance(record, dict):
+                raise ValueError('CROSS_ROLE_PUBLICATION_REGISTRATION_INVALID_JSON')
+            return record, hashlib.sha256(raw).hexdigest(), len(raw)
+
+        proven_worktrees = {}
+        for registration_file in files:
+            registration, initial_sha, byte_count = pinned_registration(registration_file)
+            inventory_bytes += byte_count
+            if inventory_bytes > max_inventory_bytes:
+                raise ValueError('CROSS_ROLE_PUBLICATION_REGISTRATION_BUDGET_EXCEEDED')
+            core = registration.get('core')
+            if not isinstance(core, dict):
+                raise ValueError('CROSS_ROLE_PUBLICATION_REGISTRATION_CORE_INVALID')
+            if (core.get('role') != role or core.get('task_id') != task or
+                    core.get('worktree_path') not in foreign_paths):
+                continue
+            registration_id = registration_file.stem
+            try:
+                registration, native_raw_sha = _read_registration(
+                    self.control, registration_id)
+            except (PublicationError, OSError, ValueError, KeyError, TypeError) as exc:
+                raise ValueError('CROSS_ROLE_NATIVE_PUBLISHER_INVALID') from exc
+            if initial_sha != native_raw_sha:
+                raise ValueError('CROSS_ROLE_PUBLICATION_VERSION_DRIFT')
+            core = registration.get('core')
+            if not isinstance(core, dict):
+                raise ValueError('CROSS_ROLE_PUBLICATION_REGISTRATION_CORE_INVALID')
+            if (registration.get('kind') != 'octoport.task-publication-registration' or
+                    registration.get('registration_id') != registration_id or
+                    registration.get('registration_sha256') != registration_id or
+                    registration.get('state') != 'CLOSED' or
+                    registration.get('task_ref_cleanup_status') != 'DELETED' or
+                    not re.fullmatch(r'[0-9a-f]{40}', str(core.get('candidate_head'))) or
+                    not re.fullmatch(r'[0-9a-f]{40}', str(core.get('candidate_tree')))):
+                raise ValueError('CROSS_ROLE_PUBLICATION_NOT_ACCEPTED')
+            # The queue completion verifier additionally checks the native
+            # READY evidence, task fingerprint, exact five successful CI runs,
+            # PUBLISHED predecessor and final close. A CLOSED JSON alone is
+            # not proof that a normal accepted source publication occurred.
+            try:
+                native_candidate, native_snapshot = _publication_completion_candidate(
+                    self.control, role, tasks[0], registration_id,
+                    allow_done=tasks[0]['state'] == 'DONE')
+            except (RuntimeError, OSError, ValueError, KeyError, TypeError) as exc:
+                raise ValueError('CROSS_ROLE_NATIVE_COMPLETION_PROOF_INVALID') from exc
+            if (native_candidate != core['candidate_head'] or
+                    native_snapshot.get('registration_id') != registration_id or
+                    native_snapshot.get('role') != role or
+                    native_snapshot.get('task_paths') != tasks[0].get('paths')):
+                raise ValueError('CROSS_ROLE_NATIVE_COMPLETION_IDENTITY_DRIFT')
+            review = verified_receipt(core.get('review'))
+            manifest = verified_receipt(core.get('accepted_manifest'))
+            close = verified_receipt(
+                registration.get('close_receipt'),
+                self.control / 'controllers' / 'task-publication' / 'close' /
+                registration_id / 'receipt.json')
+            accepted = manifest.get('accepted')
+            if (not isinstance(accepted, list) or len(accepted) != 1 or
+                    not isinstance(accepted[0], dict)):
+                raise ValueError('CROSS_ROLE_PUBLICATION_MANIFEST_INVALID')
+            source = accepted[0]
+            if (review.get('verdict') != 'PASS' or
+                    review.get('candidate_sha') != core['candidate_head'] or
+                    source.get('task_id') != task or
+                    source.get('source_head') != core['candidate_head'] or
+                    source.get('source_tree') != core['candidate_tree'] or
+                    source.get('source_base') != core.get('base_sha') or
+                    sorted(source.get('exact_task_paths') or []) != sorted(tasks[0].get('paths') or []) or
+                    sorted(core.get('task_paths') or []) != sorted(tasks[0].get('paths') or []) or
+                    close.get('kind') != 'octoport.task-publication-close' or
+                    close.get('registration_id') != registration_id or
+                    close.get('state_before') != 'PUBLISHED'):
+                raise ValueError('CROSS_ROLE_PUBLICATION_SOURCE_MISMATCH')
+            if core['worktree_path'] in proven_worktrees:
+                # Two independent accepted publications for one live source
+                # would leave the later DONE caller free to choose either.
+                raise ValueError('CROSS_ROLE_PUBLISHER_IDENTITY_AMBIGUOUS')
+            proven_worktrees[core['worktree_path']] = registration_id
+        if not proven_worktrees:
+            raise ValueError('CROSS_ROLE_PUBLICATION_NOT_FOUND_FOR_RESOURCE')
+        if set(active_foreign_paths) - proven_worktrees.keys():
+            # One accepted source registration does not authorize another
+            # unrelated active CONTROLLER output of this same task.
+            raise ValueError('CROSS_ROLE_ACTIVE_ARTIFACT_UNATTESTED')
+        identities = (set(proven_worktrees.values()) if not active_foreign_paths
+                      else {proven_worktrees[path] for path in active_foreign_paths})
+        if len(identities) != 1:
+            raise ValueError('CROSS_ROLE_PUBLISHER_IDENTITY_AMBIGUOUS')
+        return identities.pop()
+
     def status_locked(self, role=None, task=None, complete=False):
         rows = self.rows()
         selected = [r for r in rows if (not role or r['role'] == role) and
                     (not task or r['task'] == task)]
+        delegated_registration = None
+        foreign_allocation_count = None
+        if complete and role is not None and task is not None:
+            # An absent delegation field is not proof of zero foreign work.
+            # This inventory attestation is mandatory even for role-local
+            # completion, and it is derived from this locked registry snapshot.
+            foreign = [r for r in rows if r['task'] == task and r['role'] != role]
+            foreign_allocation_count = len(foreign)
+            if foreign:
+                delegated_registration = self._verify_controller_authored_task_inventory(
+                    role, task, foreign)
+                selected = [r for r in rows if r['task'] == task]
         unresolved = [r['id'] for r in selected if r['state'] != 'CLOSED' and
                       (r['state'] == 'OPEN' or r['due_at'] <= self.clock())]
         guard = self.managed_guard(rows, role)
+        if foreign_allocation_count is not None and role in ('A', 'B', 'C'):
+            # V1 count=0 means the locked registry contained no foreign rows,
+            # not permission to ignore unregistered CONTROLLER outputs.
+            # Check the real producer lane even for exact zero, so a missing
+            # lease cannot be misreported as an exhaustive empty inventory.
+            # Ordinary non-completion status calls retain their own scope.
+            controller_guard = self.managed_guard(rows, 'CONTROLLER')
+            guard['baseline_required'] |= controller_guard['baseline_required']
+            guard['unregistered_managed_paths'].extend(
+                controller_guard['unregistered_managed_paths'])
         if complete and not selected:
             raise ValueError('ARTIFACT_INVENTORY_MISSING')
         if complete and guard['baseline_required']:
@@ -601,10 +962,21 @@ class Registry:
             raise ValueError('UNREGISTERED_MANAGED_PATHS:' + paths)
         if complete and unresolved:
             raise ValueError('CLEANUP_NOT_COMPLETE:' + ','.join(unresolved))
-        return {'resources': self.snapshot(), 'reserve_floor_mib': RESERVE_MIB,
-                'all_open_reservations_mib': sum(r['reserve_mib'] for r in rows if r['state'] != 'CLOSED'),
-                'unresolved': unresolved, 'allocations': selected, 'managed_guard': guard,
-                'note': 'HELD means retained for the named consumer. New unmanaged roots after the sealed baseline are fail-closed.'}
+        result = {'resources': self.snapshot(), 'reserve_floor_mib': RESERVE_MIB,
+                  'all_open_reservations_mib': sum(r['reserve_mib'] for r in rows if r['state'] != 'CLOSED'),
+                  'unresolved': unresolved, 'allocations': selected, 'managed_guard': guard,
+                  'note': 'HELD means retained for the named consumer. New unmanaged roots after the sealed baseline are fail-closed.'}
+        if foreign_allocation_count is not None:
+            # Explicit locked snapshot contract for the C-owned atomic DONE
+            # gate. Version 1 always attests a complete inventory: zero means
+            # an observed zero, not a missing or untrusted response field.
+            # The producer's accepted native registration must be the exact
+            # publication_registration of the normal guarded queue transition.
+            result.update(delegation_inventory_version=1,
+                          delegation_inventory_attested=True,
+                          foreign_allocation_count=foreign_allocation_count,
+                          delegated_publication_registration=delegated_registration)
+        return result
 
     def status(self, role=None, task=None, complete=False):
         with self.locked():
@@ -613,6 +985,8 @@ class Registry:
     def reopen_if_completion_locked(self, role, task):
         item = self.completion_record(role, task)
         if item and item['state'] in ('SEALING', 'SEALED'):
+            # Both ordinary queue reopening and the direct exception path
+            # share the durable transition guard in record_completion_state.
             return self.record_completion_state(role, task, 'REOPENED')
         return item
 

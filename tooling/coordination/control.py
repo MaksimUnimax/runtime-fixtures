@@ -3,19 +3,21 @@
 import argparse
 import contextlib
 import fcntl
+import hashlib
 import fnmatch
 import json
 import os
 from pathlib import Path
 import secrets
-import signal
+import stat
 import subprocess
 import sys
 import time
 import resource_runner
+import re
 from waiting_gate import validate_waiting_receipt
 from notice_delivery import read_controller_notices
-from work_queue import status_work, compact_state, advance_task, add_task, claim_task, resolve_blocker, validate_task_scope, load_board
+from work_queue import status_work, compact_state, advance_task, add_task, claim_task, resolve_blocker, validate_task_scope
 from disk_lifecycle import Registry as DiskLifecycleRegistry
 from task_publication import (
     AUTHORITY_GIT_BIN, sanitized_git_authority_env,
@@ -32,6 +34,133 @@ PERIOD = 4 * 3600
 
 def now_text():
     return datetime.now(timezone.utc).isoformat()
+
+
+QUEUE_HOT_CAP_BYTES = 262144
+QUEUE_HOT_JSON_MAX_DEPTH = 128
+
+
+def observed_queue_hot_capacity(root: Path) -> dict:
+    """Bounded read-only HOT observation, never an admission decision.
+
+    Pin the controller and HOT inodes via openat, so a symlinked or renamed
+    parent cannot redirect the read to an unrelated file. A noncooperating
+    writer may still change data after the final stat; do not infer a lease.
+    """
+    root = Path(root)
+    path_flags = os.O_RDONLY | os.O_CLOEXEC | os.O_DIRECTORY | os.O_NOFOLLOW
+    file_flags = os.O_RDONLY | os.O_NONBLOCK | os.O_CLOEXEC | os.O_NOFOLLOW
+
+    def pinned(info):
+        return (
+            info.st_dev, info.st_ino, info.st_size,
+            info.st_mtime_ns, info.st_ctime_ns,
+        )
+
+    try:
+        root_fd = os.open(root, path_flags)
+        try:
+            root_before = os.fstat(root_fd)
+            controller_fd = os.open("controllers", path_flags, dir_fd=root_fd)
+            try:
+                controller_before = os.fstat(controller_fd)
+                fd = os.open("work-board.json", file_flags, dir_fd=controller_fd)
+                try:
+                    before = os.fstat(fd)
+                    if (not stat.S_ISREG(before.st_mode) or before.st_size < 1
+                            or before.st_size > QUEUE_HOT_CAP_BYTES):
+                        raise RuntimeError("WORK_QUEUE_CAPACITY_SOURCE_INVALID")
+                    data = bytearray()
+                    while len(data) <= QUEUE_HOT_CAP_BYTES:
+                        piece = os.read(
+                            fd, min(65536, QUEUE_HOT_CAP_BYTES + 1 - len(data))
+                        )
+                        if not piece:
+                            break
+                        data.extend(piece)
+                    raw = bytes(data)
+                    after = os.fstat(fd)
+                finally:
+                    os.close(fd)
+                last = os.stat(
+                    "work-board.json", dir_fd=controller_fd,
+                    follow_symlinks=False,
+                )
+                controller_after = os.fstat(controller_fd)
+                controller_named = os.stat(
+                    "controllers", dir_fd=root_fd, follow_symlinks=False
+                )
+            finally:
+                os.close(controller_fd)
+            root_after = os.fstat(root_fd)
+            root_named = os.stat(root, follow_symlinks=False)
+        finally:
+            os.close(root_fd)
+    except (OSError, ValueError) as exc:
+        raise RuntimeError("WORK_QUEUE_CAPACITY_SOURCE_UNAVAILABLE") from exc
+    if (
+        pinned(root_before) != pinned(root_after)
+        or pinned(root_before) != pinned(root_named)
+        or not stat.S_ISDIR(root_named.st_mode)
+        or pinned(controller_before) != pinned(controller_after)
+        or pinned(controller_before) != pinned(controller_named)
+        or not stat.S_ISDIR(controller_named.st_mode)
+        or pinned(before) != pinned(after)
+        or pinned(before) != pinned(last)
+        or not stat.S_ISREG(last.st_mode)
+        or len(raw) != before.st_size
+    ):
+        raise RuntimeError("WORK_QUEUE_CAPACITY_SOURCE_DRIFT")
+
+    # JSON's recursion behavior varies across Python builds/settings. Bound
+    # container nesting explicitly before entering its recursive decoder.
+    # Structural brackets inside quoted/escaped strings are ordinary bytes.
+    depth = 0
+    quoted = escaped = False
+    for byte in raw:
+        if quoted:
+            if escaped:
+                escaped = False
+            elif byte == 92:
+                escaped = True
+            elif byte == 34:
+                quoted = False
+        elif byte == 34:
+            quoted = True
+        elif byte in (123, 91):
+            depth += 1
+            if depth > QUEUE_HOT_JSON_MAX_DEPTH:
+                raise RuntimeError("WORK_QUEUE_CAPACITY_SCHEMA_INVALID")
+        elif byte in (125, 93):
+            depth -= 1
+    try:
+        board = json.loads(raw)
+    except (UnicodeDecodeError, ValueError, RecursionError) as exc:
+        raise RuntimeError("WORK_QUEUE_CAPACITY_SCHEMA_INVALID") from exc
+    if (not isinstance(board, dict)
+            or type(board.get("revision")) is not int
+            or board["revision"] < 0
+            or not isinstance(board.get("tasks"), list)):
+        raise RuntimeError("WORK_QUEUE_CAPACITY_SCHEMA_INVALID")
+    counts = {"READY": 0, "IN_PROGRESS": 0, "BLOCKED": 0, "DONE": 0}
+    for task in board["tasks"]:
+        if not isinstance(task, dict):
+            raise RuntimeError("WORK_QUEUE_CAPACITY_SCHEMA_INVALID")
+        task_state = task.get("state")
+        if type(task_state) is not str or task_state not in counts:
+            raise RuntimeError("WORK_QUEUE_CAPACITY_SCHEMA_INVALID")
+        counts[task_state] += 1
+    return {
+        "board_revision": board["revision"],
+        "hot_bytes": len(raw),
+        "hot_cap_bytes": QUEUE_HOT_CAP_BYTES,
+        "headroom_bytes": QUEUE_HOT_CAP_BYTES - len(raw),
+        "task_state_counts": counts,
+        "observed_hot_sha256": hashlib.sha256(raw).hexdigest(),
+        "read_at_utc": now_text(),
+        "authority": "OBSERVED_ONLY_NOT_QUEUE_ADMISSION",
+        "mutation_performed": False,
+    }
 
 
 def display_review_reason(state):
@@ -205,38 +334,107 @@ def require_running(role):
         raise RuntimeError("STOPPED: no new work permitted")
 
 
-def advance_queue_task(role, task, task_state, receipt, summary, publication_registration="", control_root=None):
+def advance_queue_task(role, task, task_state, receipt, summary, publication_registration="", control_root=None, evidence_provenance=""):
+    """Governed queue transaction: role -> coordination -> resource lock order.
+
+    Disk completion is durably SEALED inside the native queue writer, directly
+    before the V2 commit. No exception path guesses journal persistence or
+    automatically unseals a resource.
+    """
     if not task:
         raise RuntimeError("DISK_LIFECYCLE_TASK_REQUIRED")
+    if evidence_provenance and publication_registration:
+        raise RuntimeError("WORK_QUEUE_EVIDENCE_SOURCE_PUBLISH_CONFLICT")
+    if evidence_provenance and task_state != "DONE":
+        raise RuntimeError("WORK_QUEUE_EVIDENCE_COMPLETION_DONE_ONLY")
     target_control = Path(control_root).resolve() if control_root is not None else CONTROL
+    if task_state not in {"DONE", "IN_PROGRESS"}:
+        return advance_task(target_control, role, task, task_state, receipt, summary)
     registry = DiskLifecycleRegistry(target_control)
-    if task_state in {"DONE", "IN_PROGRESS"}:
-        try:
-            with registry.locked():
-                if task_state == "DONE":
-                    registry.status_locked(role, task, complete=True)
-                    registry.record_completion_state(role, task, "SEALING")
-                    try:
-                        kwargs = ({"publication_registration": publication_registration}
-                                  if publication_registration else {})
-                        result = advance_task(target_control, role, task, task_state, receipt, summary, **kwargs)
-                    except Exception:
-                        try:
-                            board = load_board(target_control)
-                            current = next((row for row in board["tasks"] if row["id"] == task and row.get("role") == role), None)
-                            if current is not None and current.get("state") != "DONE":
-                                registry.record_completion_state(role, task, "REOPENED")
-                        except Exception:
-                            pass
-                        raise
-                    registry.record_completion_state(role, task, "SEALED")
-                    return result
-                result = advance_task(target_control, role, task, task_state, receipt, summary)
-                registry.reopen_if_completion_locked(role, task)
-                return result
-        except (ValueError, OSError, KeyError, TypeError, subprocess.TimeoutExpired) as exc:
-            raise RuntimeError(f"DISK_LIFECYCLE_INCOMPLETE:{exc}") from exc
-    return advance_task(target_control, role, task, task_state, receipt, summary)
+
+    @contextlib.contextmanager
+    def resource_guard(previous_state, updated_task):
+        # work_queue.advance_task owns role.lock and coordination.lock before
+        # invoking this callback. The resource lock is always innermost.
+        if updated_task.get("id") != task or updated_task.get("role") != role:
+            raise RuntimeError("WORK_QUEUE_RESOURCE_TASK_IDENTITY_MISMATCH")
+        if task_state == "DONE":
+            completion = registry.completion_record(role, task)
+            if completion and completion["state"] in {"SEALING", "SEALED"}:
+                # A previous queue transaction may have committed or
+                # rolled back. A journal-aware dedicated recovery, not a
+                # second ordinary DONE, must resolve this state.
+                raise RuntimeError("WORK_QUEUE_RESOURCE_JOURNAL_RECOVERY_REQUIRED")
+            inventory = registry.status_locked(role, task, complete=True)
+            count = inventory.get("foreign_allocation_count")
+            issuer = inventory.get("delegated_publication_registration")
+            if (type(inventory.get("delegation_inventory_version")) is not int
+                    or inventory["delegation_inventory_version"] != 1
+                    or inventory.get("delegation_inventory_attested") is not True
+                    or type(count) is not int or count < 0):
+                raise RuntimeError("CROSS_ROLE_RESOURCE_INVENTORY_ATTESTATION_REQUIRED")
+            if count == 0:
+                if issuer is not None:
+                    raise RuntimeError("CROSS_ROLE_PUBLICATION_REGISTRATION_MISMATCH")
+            elif (not isinstance(issuer, str)
+                  or re.fullmatch(r"[0-9a-f]{64}", issuer) is None
+                  or issuer != publication_registration):
+                raise RuntimeError("CROSS_ROLE_PUBLICATION_REGISTRATION_MISMATCH")
+            registry.record_completion_state(role, task, "SEALING")
+            registry.record_completion_state(role, task, "SEALED")
+            # Bind a new DONE to the exact durable seal, not an in-memory
+            # status or a persisted path chosen by an untrusted board row.
+            seal_path = registry.completion_path(role, task)
+            fd = os.open(seal_path, os.O_RDONLY | os.O_NOFOLLOW)
+            with os.fdopen(fd, "rb") as sealed:
+                seal_bytes = sealed.read(65537)
+            if len(seal_bytes) > 65536:
+                raise RuntimeError("WORK_QUEUE_RESOURCE_SEAL_RECORD_OVERSIZE")
+            record = registry.completion_record(role, task)
+            if record is None or record["state"] != "SEALED":
+                raise RuntimeError("WORK_QUEUE_RESOURCE_SEAL_RECORD_INVALID")
+            updated_task["completion_resource_required"] = True
+            updated_task["completion_resource_seal_snapshot"] = {
+                "version": 1,
+                "control_root": str(target_control),
+                "role": role,
+                "task_id": task,
+                "seal_record_sha256": hashlib.sha256(seal_bytes).hexdigest(),
+                "delegation_inventory_version": 1,
+                "delegation_inventory_attested": True,
+                "foreign_allocation_count": count,
+                "delegated_publication_registration": issuer,
+            }
+        else:
+            completion = registry.completion_record(role, task)
+            if completion and completion["state"] in {"SEALING", "SEALED"}:
+                if previous_state != "DONE":
+                    # IN_PROGRESS -> IN_PROGRESS is not a negative review
+                    # and never authorizes release of an abandoned seal.
+                    raise RuntimeError("WORK_QUEUE_RESOURCE_JOURNAL_RECOVERY_REQUIRED")
+                if any(row["task"] == task and row["role"] != role
+                       for row in registry.rows()):
+                    raise RuntimeError("CROSS_ROLE_REOPEN_JOURNAL_AUTHORITY_REQUIRED")
+                # The queue has already checked the exact negative rework
+                # receipt. Keep historical seal in completion_history, but
+                # new IN_PROGRESS must not carry a DONE-only resource tag.
+                updated_task.pop("completion_resource_required", None)
+                updated_task.pop("completion_resource_seal_snapshot", None)
+        yield
+        if task_state == "IN_PROGRESS" and previous_state == "DONE":
+            # The native queue writer has durably accepted the negative
+            # rework receipt. Preserve seal if postcommit unseal fails.
+            registry.reopen_if_completion_locked(role, task)
+
+    kwargs = {"completion_guard": resource_guard, "resource_lock": registry.locked}
+    if publication_registration:
+        kwargs["publication_registration"] = publication_registration
+    if evidence_provenance:
+        kwargs["evidence_provenance"] = evidence_provenance
+    try:
+        return advance_task(target_control, role, task, task_state, receipt, summary, **kwargs)
+    except (ValueError, OSError, KeyError, TypeError, subprocess.TimeoutExpired) as exc:
+        raise RuntimeError(f"DISK_LIFECYCLE_INCOMPLETE:{exc}") from exc
 
 
 def default_scope_base():
@@ -380,7 +578,7 @@ def main():
     parser.add_argument("role", choices=["A", "B", "C"])
     parser.add_argument("action", choices=["status", "start", "pause", "resume", "waiting",
         "checkpoint", "request-review", "request-owner", "reviewed", "owner-done",
-        "guard", "submit", "ready-main", "ensure-db", "heavy", "resources", "queue-task", "queue-add", "queue-claim", "queue-resolve-blocker"])
+        "guard", "submit", "ready-main", "ensure-db", "heavy", "resources", "queue-task", "queue-add", "queue-claim", "queue-resolve-blocker", "queue-capacity"])
     parser.add_argument("--task-file")
     parser.add_argument("--compact", action="store_true")
     parser.add_argument("--task-state", choices=["IN_PROGRESS", "BLOCKED", "DONE"])
@@ -388,6 +586,7 @@ def main():
     parser.add_argument("--task", default="")
     parser.add_argument("--successor", default="")
     parser.add_argument("--publication-registration", default="")
+    parser.add_argument("--evidence-provenance", default="")
     parser.add_argument("--next", default="")
     parser.add_argument("--receipt", default="")
     parser.add_argument("--base")
@@ -400,6 +599,8 @@ def main():
     split = argv.index("--") if "--" in argv else len(argv)
     args = parser.parse_args(argv[:split])
     command = argv[split + 1:]
+    if args.action == "queue-task" and args.publication_registration and args.evidence_provenance:
+        raise RuntimeError("WORK_QUEUE_EVIDENCE_SOURCE_PUBLISH_CONFLICT")
     if args.action == "queue-task" and args.publication_registration:
         require_publication_queue_location(args.role, args.task, args.publication_registration)
     else:
@@ -408,6 +609,9 @@ def main():
         return heavy(args.role, command, args.db, args.profile, args.memory_mib, args.timeout_seconds)
     if args.action == "resources":
         print(json.dumps(resource_runner.snapshot(ROOT)))
+        return 0
+    if args.action == "queue-capacity":
+        print(json.dumps(observed_queue_hot_capacity(CONTROL), ensure_ascii=False))
         return 0
     if args.action == "queue-add":
         if not args.task_file:
@@ -431,6 +635,7 @@ def main():
         result = advance_queue_task(
             args.role, args.task, args.task_state, args.receipt, args.summary,
             args.publication_registration,
+            evidence_provenance=args.evidence_provenance,
         )
         print(json.dumps(result, ensure_ascii=False))
         return 0

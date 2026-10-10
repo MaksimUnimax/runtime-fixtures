@@ -2,14 +2,19 @@ import argparse
 import contextlib
 import importlib.util
 import json
+import io
+import hashlib
+from types import SimpleNamespace
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 import tempfile
 import time
 import unittest
 from unittest.mock import patch
+from contextlib import nullcontext
 
 import test_work_queue as work_queue_test_module
 import test_task_publication as task_publication_test_module
@@ -32,6 +37,190 @@ class CoordinationTests(unittest.TestCase):
         self.git.stop()
         self.ctx.stop()
         self.tmp.cleanup()
+
+    def _attested_v1_test_status(self):
+        """Unit-only V1 producer overlay, AFTER real current inventory checks."""
+        native = control.DiskLifecycleRegistry.status_locked
+
+        def attested(registry, role=None, task=None, complete=False):
+            actual = native(registry, role, task, complete=complete)
+            if not complete:
+                return actual
+            return dict(
+                actual,
+                delegation_inventory_version=1,
+                delegation_inventory_attested=True,
+                foreign_allocation_count=0,
+                delegated_publication_registration=None,
+            )
+
+        return attested
+
+    def _guarded_mock_queue_writer(self, *, before="IN_PROGRESS",
+                                  fail_after_guard=None, spoof_role=None):
+        """Exercise real R7 callbacks; only queue persistence is mocked."""
+        def write(target, role, task, state, receipt, summary, **kwargs):
+            self.assertEqual(target, self.root)
+            self.assertIn("completion_guard", kwargs)
+            self.assertIn("resource_lock", kwargs)
+            updated_task = {"id": task, "role": spoof_role or role}
+            with kwargs["resource_lock"]():
+                with kwargs["completion_guard"](before, updated_task):
+                    if fail_after_guard is not None:
+                        raise RuntimeError(fail_after_guard)
+            return {"state": state}
+
+        return write
+
+    def _capacity_fixture(self, revision=5):
+        folder = self.root / "controllers"
+        folder.mkdir(exist_ok=True)
+        path = folder / "work-board.json"
+        raw = json.dumps(
+            {"revision": revision, "tasks": [
+                {"id": "q1", "state": "READY"},
+                {"id": "q2", "state": "BLOCKED"},
+                {"id": "q3", "state": "IN_PROGRESS"},
+            ]},
+            separators=(",", ":"),
+        ).encode()
+        path.write_bytes(raw)
+        return path, raw
+
+    def test_queue_capacity_reports_exact_observed_hot_without_writing(self):
+        file, original = self._capacity_fixture()
+        result = control.observed_queue_hot_capacity(self.root)
+        self.assertEqual(result["board_revision"], 5)
+        self.assertEqual(result["hot_bytes"], len(original))
+        self.assertEqual(result["hot_cap_bytes"], 262144)
+        self.assertEqual(result["headroom_bytes"], 262144 - len(original))
+        self.assertEqual(result["task_state_counts"], {
+            "READY": 1, "IN_PROGRESS": 1, "BLOCKED": 1, "DONE": 0,
+        })
+        self.assertEqual(
+            result["observed_hot_sha256"], hashlib.sha256(original).hexdigest()
+        )
+        self.assertFalse(result["mutation_performed"])
+        self.assertEqual(result["authority"], "OBSERVED_ONLY_NOT_QUEUE_ADMISSION")
+        self.assertEqual(file.read_bytes(), original)
+        self.assertEqual(sorted(x.name for x in file.parent.iterdir()), ["work-board.json"])
+
+    def test_queue_capacity_cli_route_never_writes_role_or_board_state(self):
+        file, raw = self._capacity_fixture(revision=77)
+        role_file = self.root / "C.json"
+        role_bytes = b'{"role":"C","status":"RUNNING","task":"C00"}\n'
+        role_file.write_bytes(role_bytes)
+        stdout = io.StringIO()
+        with patch.object(control, "require_location"):
+            with patch.object(sys, "argv", ["control.py", "C", "queue-capacity"]):
+                with contextlib.redirect_stdout(stdout):
+                    self.assertEqual(control.main(), 0)
+        message = json.loads(stdout.getvalue())
+        self.assertEqual(message["board_revision"], 77)
+        self.assertFalse(message["mutation_performed"])
+        self.assertEqual(message["authority"], "OBSERVED_ONLY_NOT_QUEUE_ADMISSION")
+        self.assertEqual(file.read_bytes(), raw)
+        self.assertEqual(role_file.read_bytes(), role_bytes)
+
+    def test_queue_capacity_accepts_exact_byte_limit_and_refuses_oversize(self):
+        file, body = self._capacity_fixture(revision=42)
+        full = body + b" " * (262144 - len(body))
+        self.assertEqual(len(full), 262144)
+        file.write_bytes(full)
+        result = control.observed_queue_hot_capacity(self.root)
+        self.assertEqual(result["hot_bytes"], 262144)
+        self.assertEqual(result["headroom_bytes"], 0)
+        file.write_bytes(full + b" ")
+        with self.assertRaisesRegex(RuntimeError, "SOURCE_INVALID"):
+            control.observed_queue_hot_capacity(self.root)
+        self.assertEqual(file.read_bytes(), full + b" ")
+
+    def test_queue_capacity_rejects_symlink_nonfile_and_invalid_schema(self):
+        file, _ = self._capacity_fixture()
+        external = self.root / "never-open-target.json"
+        external.write_text('{"revision":4,"tasks":[]}')
+        file.unlink()
+        file.symlink_to(external)
+        with self.assertRaisesRegex(RuntimeError, "SOURCE_UNAVAILABLE"):
+            control.observed_queue_hot_capacity(self.root)
+        self.assertEqual(external.read_text(), '{"revision":4,"tasks":[]}')
+        file.unlink()
+        file.mkdir()
+        with self.assertRaisesRegex(RuntimeError, "SOURCE_INVALID"):
+            control.observed_queue_hot_capacity(self.root)
+        file.rmdir()
+        deep = (
+            b'{"revision":1,"tasks":[],"extra":'
+            + b"[" * 1200 + b"0" + b"]" * 1200 + b"}"
+        )
+        self.assertLess(len(deep), 262144)
+        for raw in (
+            b"not json",
+            b'{"revision":true,"tasks":[]}',
+            b'{"revision":1,"tasks":[{"state":"FAKE"}]}',
+            b'{"revision":1,"tasks":[{"state":[]}]}',
+            b'{"revision":1,"tasks":[{"state":{}}]}',
+            deep,
+        ):
+            file.write_bytes(raw)
+            with self.assertRaisesRegex(RuntimeError, "SCHEMA_INVALID"):
+                control.observed_queue_hot_capacity(self.root)
+            self.assertEqual(file.read_bytes(), raw)
+
+
+    def test_queue_capacity_depth_limit_is_independent_of_python_recursion_limit(self):
+        file, _ = self._capacity_fixture()
+        raw = b'{"revision":1,"tasks":[],"extra":' + b"[" * 1200 + b"0" + b"]" * 1200 + b"}"
+        file.write_bytes(raw)
+        previous = sys.getrecursionlimit()
+        try:
+            sys.setrecursionlimit(10000)
+            with self.assertRaisesRegex(RuntimeError, "SCHEMA_INVALID"):
+                control.observed_queue_hot_capacity(self.root)
+        finally:
+            sys.setrecursionlimit(previous)
+        self.assertEqual(file.read_bytes(), raw)
+
+    def test_queue_capacity_ignores_structural_brackets_inside_escaped_strings(self):
+        file, _ = self._capacity_fixture()
+        value = {
+            "revision": 8, "tasks": [],
+            "note": '[{' * 2000 + r'\"quoted\\value[{}]',
+        }
+        raw = json.dumps(value).encode()
+        file.write_bytes(raw)
+        result = control.observed_queue_hot_capacity(self.root)
+        self.assertEqual(result["board_revision"], 8)
+        self.assertEqual(result["hot_bytes"], len(raw))
+        self.assertEqual(file.read_bytes(), raw)
+
+    def test_queue_capacity_rejects_symlinked_controllers_directory(self):
+        file, original = self._capacity_fixture()
+        directory = file.parent
+        actual = self.root / "untrusted-controllers-target"
+        directory.rename(actual)
+        directory.symlink_to(actual, target_is_directory=True)
+        with self.assertRaisesRegex(RuntimeError, "SOURCE_UNAVAILABLE"):
+            control.observed_queue_hot_capacity(self.root)
+        self.assertEqual((actual / "work-board.json").read_bytes(), original)
+        directory.unlink()
+        actual.rename(directory)
+        self.assertEqual(
+            control.observed_queue_hot_capacity(self.root)["board_revision"], 5
+        )
+        self.assertEqual(file.read_bytes(), original)
+
+    def test_queue_capacity_refuses_changed_source_identity(self):
+        file, raw = self._capacity_fixture()
+        actual = os.stat(file, follow_symlinks=False)
+        fields = ("st_dev", "st_ino", "st_size", "st_mtime_ns",
+                  "st_ctime_ns", "st_mode")
+        fake = SimpleNamespace(**{x: getattr(actual, x) for x in fields})
+        fake.st_ino += 1
+        with patch.object(control.os, "stat", return_value=fake):
+            with self.assertRaisesRegex(RuntimeError, "SOURCE_DRIFT"):
+                control.observed_queue_hot_capacity(self.root)
+        self.assertEqual(file.read_bytes(), raw)
 
     def test_automatic_start_cannot_clear_stop(self):
         control.update_state("A", "pause", self.args)
@@ -150,101 +339,183 @@ class CoordinationTests(unittest.TestCase):
             )
 
     def test_done_requires_registered_disk_lifecycle_inventory_before_board_mutation(self):
-        with patch.object(control, "advance_task") as advance:
+        with patch.object(control, "advance_task",
+                          side_effect=self._guarded_mock_queue_writer()) as advance:
             with self.assertRaisesRegex(RuntimeError, "ARTIFACT_INVENTORY_MISSING"):
-                control.advance_queue_task("A", "TASK-DISK-GATE", "DONE", "receipt.json", "done")
-            advance.assert_not_called()
+                control.advance_queue_task(
+                    "A", "TASK-DISK-GATE", "DONE", "receipt.json", "done")
+        advance.assert_called_once()
+        self.assertIsNone(
+            control.DiskLifecycleRegistry(self.root).completion_record(
+                "A", "TASK-DISK-GATE"))
+
+    def test_current_main_without_v1_issuer_attestation_fails_closed(self):
+        registry = control.DiskLifecycleRegistry(self.root)
+        registry.seed_baseline()
+        registry.declare_none(
+            "A", "TASK-DISK-NO-V1",
+            "Read-only task created no temporary outputs")
+        # Exercise a truly pre-V1 status, including when native source
+        # already emits the four accepted issuer attestation fields.
+        native_status_locked = control.DiskLifecycleRegistry.status_locked
+
+        def missing_v1_attestation(registry, role=None, task=None, complete=False):
+            current = native_status_locked(registry, role, task, complete=complete)
+            if not complete:
+                return current
+            without_issuer = dict(current)
+            for field in (
+                "delegation_inventory_version", "delegation_inventory_attested",
+                "foreign_allocation_count", "delegated_publication_registration",
+            ):
+                without_issuer.pop(field, None)
+            return without_issuer
+
+        with (
+            patch.object(control.DiskLifecycleRegistry, "status_locked",
+                         new=missing_v1_attestation),
+            patch.object(control, "advance_task",
+                         side_effect=self._guarded_mock_queue_writer()),
+        ):
+            with self.assertRaisesRegex(
+                RuntimeError, "CROSS_ROLE_RESOURCE_INVENTORY_ATTESTATION_REQUIRED"
+            ):
+                control.advance_queue_task(
+                    "A", "TASK-DISK-NO-V1", "DONE",
+                    "receipt.json", "done")
+        self.assertIsNone(
+            registry.completion_record("A", "TASK-DISK-NO-V1"))
 
     def test_done_accepts_closed_no_output_inventory_and_seals_future_allocations(self):
         registry = control.DiskLifecycleRegistry(self.root)
         registry.seed_baseline()
-        registry.declare_none("A", "TASK-DISK-GATE", "Read-only task created no temporary outputs")
-        with patch.object(control, "advance_task", return_value={"state": "DONE"}) as advance:
-            result = control.advance_queue_task("A", "TASK-DISK-GATE", "DONE", "receipt.json", "done")
+        registry.declare_none(
+            "A", "TASK-DISK-GATE",
+            "Read-only task created no temporary outputs")
+        with (
+            patch.object(control.DiskLifecycleRegistry, "status_locked",
+                         new=self._attested_v1_test_status()),
+            patch.object(control, "advance_task",
+                         side_effect=self._guarded_mock_queue_writer()) as advance,
+        ):
+            result = control.advance_queue_task(
+                "A", "TASK-DISK-GATE", "DONE", "receipt.json", "done")
         self.assertEqual(result, {"state": "DONE"})
-        advance.assert_called_once_with(self.root, "A", "TASK-DISK-GATE", "DONE", "receipt.json", "done")
-        self.assertEqual(registry.completion_record("A", "TASK-DISK-GATE")["state"], "SEALED")
+        advance.assert_called_once()
+        self.assertEqual(
+            registry.completion_record("A", "TASK-DISK-GATE")["state"], "SEALED")
         (self.root / "A.json").write_text(json.dumps({"status": "RUNNING"}))
-        with self.assertRaisesRegex(ValueError, "TASK_DISK_LIFECYCLE_ALREADY_COMPLETED"):
+        with self.assertRaisesRegex(ValueError,
+                                    "TASK_DISK_LIFECYCLE_ALREADY_COMPLETED"):
             registry.begin(
                 "A", "TASK-DISK-GATE", "Late output after task completion",
-                [str(self.root / "worktrees" / "A" / "late-output")], 16, 1,
-            )
+                [str(self.root / "worktrees" / "A" / "late-output")], 16, 1)
 
     def test_done_allows_current_hold_then_reopen_unseals_future_allocations(self):
         registry = control.DiskLifecycleRegistry(self.root)
         registry.seed_baseline()
         (self.root / "A.json").write_text(json.dumps({"status": "RUNNING"}))
         item = registry.begin(
-            "A", "TASK-DISK-HELD", "Temporary source retained for a named reviewer",
-            [str(self.root / "worktrees" / "A" / "task-disk-held")], 16, 1,
-        )
+            "A", "TASK-DISK-HELD",
+            "Temporary source retained for a named reviewer",
+            [str(self.root / "worktrees" / "A" / "task-disk-held")], 16, 1)
         registry.change(
             item["id"], "A", "hold",
             "Reviewer still consumes the exact temporary source",
-            "Independent reviewer TASK-DISK-HELD", 1,
-        )
-        with patch.object(control, "advance_task", return_value={"state": "DONE"}):
+            "Independent reviewer TASK-DISK-HELD", 1)
+        with (
+            patch.object(control.DiskLifecycleRegistry, "status_locked",
+                         new=self._attested_v1_test_status()),
+            patch.object(control, "advance_task",
+                         side_effect=self._guarded_mock_queue_writer()),
+        ):
             self.assertEqual(
-                control.advance_queue_task("A", "TASK-DISK-HELD", "DONE", "receipt.json", "done"),
-                {"state": "DONE"},
-            )
-        self.assertEqual(registry.completion_record("A", "TASK-DISK-HELD")["state"], "SEALED")
-        with patch.object(control, "advance_task", return_value={"state": "IN_PROGRESS"}):
+                control.advance_queue_task(
+                    "A", "TASK-DISK-HELD", "DONE", "receipt.json", "done"),
+                {"state": "DONE"})
+        self.assertEqual(
+            registry.completion_record("A", "TASK-DISK-HELD")["state"], "SEALED")
+        # The separate native queue tests validate the negative rework
+        # receipt; this mock checks only resource postcommit release.
+        with patch.object(
+            control, "advance_task",
+            side_effect=self._guarded_mock_queue_writer(before="DONE")
+        ):
             self.assertEqual(
-                control.advance_queue_task("A", "TASK-DISK-HELD", "IN_PROGRESS", "rework.json", "reopen"),
-                {"state": "IN_PROGRESS"},
-            )
-        self.assertEqual(registry.completion_record("A", "TASK-DISK-HELD")["state"], "REOPENED")
+                control.advance_queue_task(
+                    "A", "TASK-DISK-HELD", "IN_PROGRESS",
+                    "rework.json", "reopen"),
+                {"state": "IN_PROGRESS"})
+        self.assertEqual(
+            registry.completion_record("A", "TASK-DISK-HELD")["state"], "REOPENED")
         followup = registry.begin(
-            "A", "TASK-DISK-HELD", "New temporary output after explicit task reopen",
-            [str(self.root / "worktrees" / "A" / "task-disk-held-followup")], 16, 1,
-        )
+            "A", "TASK-DISK-HELD",
+            "New temporary output after explicit task reopen",
+            [str(self.root / "worktrees" / "A" / "task-disk-held-followup")],
+            16, 1)
         self.assertEqual(followup["state"], "OPEN")
 
-    def test_precommit_done_failure_reopens_only_after_non_done_board_readback(self):
+    def test_precommit_done_failure_does_not_invent_resource_reopen(self):
         registry = control.DiskLifecycleRegistry(self.root)
         registry.seed_baseline()
-        registry.declare_none("A", "TASK-DISK-FAIL", "Read-only task created no temporary outputs")
-        board = {"tasks": [{"id": "TASK-DISK-FAIL", "role": "A", "state": "IN_PROGRESS"}]}
-        with (
-            patch.object(control, "advance_task", side_effect=RuntimeError("strict receipt failed")),
-            patch.object(control, "load_board", return_value=board),
-        ):
+        registry.declare_none(
+            "A", "TASK-DISK-FAIL",
+            "Read-only task created no temporary outputs")
+        # Failure before the native writer invokes the guard has never
+        # created a resource seal; no stale board readback is invented.
+        with patch.object(control, "advance_task",
+                          side_effect=RuntimeError("strict receipt failed")):
             with self.assertRaisesRegex(RuntimeError, "strict receipt failed"):
-                control.advance_queue_task("A", "TASK-DISK-FAIL", "DONE", "receipt.json", "done")
-        failed = registry.completion_record("A", "TASK-DISK-FAIL")
-        self.assertEqual(failed["state"], "REOPENED")
-        self.assertEqual([row["state"] for row in failed["history"]], ["SEALING", "REOPENED"])
+                control.advance_queue_task(
+                    "A", "TASK-DISK-FAIL", "DONE", "receipt.json", "done")
+        self.assertIsNone(
+            registry.completion_record("A", "TASK-DISK-FAIL"))
 
-    def test_postcommit_done_failure_keeps_fail_closed_sealing_state(self):
+    def test_postcommit_done_failure_keeps_durable_sealed_state(self):
         registry = control.DiskLifecycleRegistry(self.root)
         registry.seed_baseline()
-        registry.declare_none("A", "TASK-DISK-POST", "Read-only task created no temporary outputs")
-        board = {"tasks": [{"id": "TASK-DISK-POST", "state": "DONE"}]}
+        registry.declare_none(
+            "A", "TASK-DISK-POST",
+            "Read-only task created no temporary outputs")
         with (
-            patch.object(control, "advance_task", side_effect=RuntimeError("event append failed")),
-            patch.object(control, "load_board", return_value=board),
+            patch.object(control.DiskLifecycleRegistry, "status_locked",
+                         new=self._attested_v1_test_status()),
+            patch.object(
+                control, "advance_task",
+                side_effect=self._guarded_mock_queue_writer(
+                    fail_after_guard="event append failed")),
         ):
             with self.assertRaisesRegex(RuntimeError, "event append failed"):
-                control.advance_queue_task("A", "TASK-DISK-POST", "DONE", "receipt.json", "done")
-        failed = registry.completion_record("A", "TASK-DISK-POST")
-        self.assertEqual(failed["state"], "SEALING")
-        with self.assertRaisesRegex(ValueError, "TASK_DISK_LIFECYCLE_ALREADY_COMPLETED"):
-            registry.declare_none("A", "TASK-DISK-POST", "Late read-only declaration after uncertain DONE")
+                control.advance_queue_task(
+                    "A", "TASK-DISK-POST", "DONE", "receipt.json", "done")
+        # R7 writes a durable SEALED record immediately before V2 commit.
+        # A failed event append must not silently REOPEN its resource.
+        self.assertEqual(
+            registry.completion_record("A", "TASK-DISK-POST")["state"], "SEALED")
+        with self.assertRaisesRegex(
+            ValueError, "TASK_DISK_LIFECYCLE_ALREADY_COMPLETED"
+        ):
+            registry.declare_none(
+                "A", "TASK-DISK-POST",
+                "Late read-only declaration after uncertain DONE")
 
-    def test_failed_done_readback_for_other_role_keeps_sealing(self):
+    def test_foreign_role_task_identity_rejected_before_seal(self):
         registry = control.DiskLifecycleRegistry(self.root)
         registry.seed_baseline()
-        registry.declare_none("A", "TASK-DISK-ROLE", "Read-only task created no temporary outputs")
-        board = {"tasks": [{"id": "TASK-DISK-ROLE", "role": "B", "state": "IN_PROGRESS"}]}
-        with (
-            patch.object(control, "advance_task", side_effect=RuntimeError("board writer failed")),
-            patch.object(control, "load_board", return_value=board),
+        registry.declare_none(
+            "A", "TASK-DISK-ROLE",
+            "Read-only task created no temporary outputs")
+        with patch.object(
+            control, "advance_task",
+            side_effect=self._guarded_mock_queue_writer(spoof_role="B"),
         ):
-            with self.assertRaisesRegex(RuntimeError, "board writer failed"):
-                control.advance_queue_task("A", "TASK-DISK-ROLE", "DONE", "receipt.json", "done")
-        self.assertEqual(registry.completion_record("A", "TASK-DISK-ROLE")["state"], "SEALING")
+            with self.assertRaisesRegex(
+                RuntimeError, "WORK_QUEUE_RESOURCE_TASK_IDENTITY_MISMATCH"
+            ):
+                control.advance_queue_task(
+                    "A", "TASK-DISK-ROLE", "DONE", "receipt.json", "done")
+        self.assertIsNone(
+            registry.completion_record("A", "TASK-DISK-ROLE"))
 
     def test_queue_resolve_blocker_cli_delegates_exact_identity(self):
         with (
@@ -265,18 +536,28 @@ class CoordinationTests(unittest.TestCase):
     def test_done_passes_publication_registration_after_disk_gate(self):
         registry = control.DiskLifecycleRegistry(self.root)
         registry.seed_baseline()
-        registry.declare_none("C", "TASK-PUBLISHED", "Published isolated task has no remaining temp outputs")
+        registry.declare_none(
+            "C", "TASK-PUBLISHED",
+            "Published isolated task has no remaining temp outputs")
         registration = "a" * 64
-        with patch.object(control, "advance_task", return_value={"state": "DONE"}) as advance:
+        with (
+            patch.object(control.DiskLifecycleRegistry, "status_locked",
+                         new=self._attested_v1_test_status()),
+            patch.object(control, "advance_task",
+                         side_effect=self._guarded_mock_queue_writer()) as advance,
+        ):
             result = control.advance_queue_task(
-                "C", "TASK-PUBLISHED", "DONE", "receipt.json", "done", registration
-            )
+                "C", "TASK-PUBLISHED", "DONE", "receipt.json", "done",
+                registration)
         self.assertEqual(result, {"state": "DONE"})
-        advance.assert_called_once_with(
-            self.root, "C", "TASK-PUBLISHED", "DONE", "receipt.json", "done",
-            publication_registration=registration,
-        )
-        self.assertEqual(registry.completion_record("C", "TASK-PUBLISHED")["state"], "SEALED")
+        advance.assert_called_once()
+        self.assertEqual(
+            advance.call_args.kwargs["publication_registration"], registration)
+        self.assertIn("resource_lock", advance.call_args.kwargs)
+        self.assertIn("completion_guard", advance.call_args.kwargs)
+        self.assertEqual(
+            registry.completion_record("C", "TASK-PUBLISHED")["state"],
+            "SEALED")
 
     def publication_role_fixture(self, name="fixed-C", branch="work/c-integration"):
         fixed = self.root / name
@@ -335,6 +616,7 @@ class CoordinationTests(unittest.TestCase):
             "C", "published-task", "DONE",
             "/root/octoport-control/logs/C/completion.json",
             "published", registration,
+            evidence_provenance="",
         )
 
     def test_queue_task_cli_rejects_publication_registration_outside_canonical_cwd(self):
@@ -575,6 +857,8 @@ class CoordinationTests(unittest.TestCase):
                 patch.object(control, "__file__", str(completion_bundle / "control.py")),
                 patch.object(control, "ROOT", publication.work),
                 patch.object(control, "CONTROL", publication.control),
+                patch.object(control.DiskLifecycleRegistry, "status_locked",
+                             new=self._attested_v1_test_status()),
                 patch.object(control.sys, "argv", [
                     "control.py", "C", "queue-task", "--task", publication.task["id"],
                     "--task-state", "DONE", "--receipt", str(receipt),
@@ -743,6 +1027,287 @@ class CoordinationTests(unittest.TestCase):
             with patch.object(control.subprocess, "Popen") as child:
                 self.assertEqual(control.heavy("C", ["must-not-run"], False), 75)
                 child.assert_not_called()
+
+
+    def _configure_mock_native_resource_seal(self, registry, events):
+        # Preserve the actual record bytes used by the writer's attestation.
+        seal_path = self.root / "C--C00-SAFETY.json"
+        registry.completion_path.return_value = seal_path
+        registry.completion_record.side_effect = (
+            lambda _role, _task: {"state": "SEALED"} if seal_path.exists() else None
+        )
+
+        def persist_state(role, task, state):
+            events.append(state)
+            if state == "SEALED":
+                seal_path.write_text(json.dumps({
+                    "version": 1, "role": role, "task": task,
+                    "state": state, "history": [{"state": "SEALING"}, {"state": "SEALED"}],
+                }))
+        registry.record_completion_state.side_effect = persist_state
+
+    def test_resource_seal_precedes_native_queue_commit(self):
+        events = []
+        with patch.object(control, "DiskLifecycleRegistry") as factory:
+            registry = factory.return_value
+            registry.locked.return_value = nullcontext()
+            self._configure_mock_native_resource_seal(registry, events)
+            registry.status_locked.return_value = {
+                "delegation_inventory_version": 1,
+                "delegation_inventory_attested": True,
+                "foreign_allocation_count": 0,
+                "delegated_publication_registration": None,
+            }
+
+            def queue_writer(_root, role, task, state, receipt, summary, **kwargs):
+                self.assertEqual(set(kwargs), {"completion_guard", "resource_lock"})
+                with kwargs["resource_lock"](), kwargs["completion_guard"]("IN_PROGRESS", {"id": task, "role": role, "state": state}):
+                    events.append("QUEUE_PERSIST")
+                    self.assertTrue(kwargs.get("completion_guard") is not None)
+                return {"accepted": True}
+
+            with patch.object(control, "advance_task", side_effect=queue_writer):
+                result = control.advance_queue_task("C", "C00-SAFETY", "DONE", "/proof", "accepted", control_root=self.root)
+            self.assertTrue(result["accepted"])
+            self.assertEqual(events, ["SEALING", "SEALED", "QUEUE_PERSIST"])
+
+    def test_native_v1_attestation_rejects_boolean_count_and_wrong_issuer(self):
+        with patch.object(control, "DiskLifecycleRegistry") as factory:
+            registry = factory.return_value
+            registry.locked.return_value = nullcontext()
+            registry.completion_record.return_value = None
+            registry.status_locked.return_value = {
+                "delegation_inventory_version": 1,
+                "delegation_inventory_attested": True,
+                "foreign_allocation_count": True,
+                "delegated_publication_registration": "a" * 64,
+            }
+            def queue_writer(_root, role, task, state, receipt, summary, **kwargs):
+                with kwargs["resource_lock"](), kwargs["completion_guard"]("IN_PROGRESS", {"id": task, "role": role, "state": state}):
+                    self.fail("Boolean inventory must not reach persistence")
+
+            with patch.object(control, "advance_task", side_effect=queue_writer):
+                with self.assertRaisesRegex(RuntimeError, "CROSS_ROLE_RESOURCE_INVENTORY_ATTESTATION_REQUIRED"):
+                    control.advance_queue_task("C", "C00-SAFETY", "DONE", "/proof", "accepted",
+                                               publication_registration="a" * 64, control_root=self.root)
+            registry.record_completion_state.assert_not_called()
+            registry.status_locked.return_value["foreign_allocation_count"] = 1
+            with patch.object(control, "advance_task", side_effect=queue_writer):
+                with self.assertRaisesRegex(RuntimeError, "CROSS_ROLE_PUBLICATION_REGISTRATION_MISMATCH"):
+                    control.advance_queue_task("C", "C00-SAFETY", "DONE", "/proof", "accepted",
+                                               publication_registration="b" * 64, control_root=self.root)
+            registry.record_completion_state.assert_not_called()
+
+    def test_foreign_attested_publisher_binds_guard_before_native_commit(self):
+        """A registered CONTROLLER issuer must match the DONE caller."""
+        events = []
+        with patch.object(control, "DiskLifecycleRegistry") as factory:
+            registry = factory.return_value
+            registry.locked.return_value = nullcontext()
+            self._configure_mock_native_resource_seal(registry, events)
+            registry.status_locked.return_value = {
+                "delegation_inventory_version": 1,
+                "delegation_inventory_attested": True,
+                "foreign_allocation_count": 1,
+                "delegated_publication_registration": "a" * 64,
+            }
+
+            def writer(_root, role, task, state, receipt, summary, **kwargs):
+                with kwargs["resource_lock"](), kwargs["completion_guard"](
+                    "IN_PROGRESS", {"id": task, "role": role, "state": state}
+                ):
+                    events.append("V2_COMMIT")
+                return {"state": state}
+
+            with patch.object(control, "advance_task", side_effect=writer):
+                for provided in ("b" * 64, ""):
+                    with self.subTest(provided=provided), self.assertRaisesRegex(
+                        RuntimeError, "CROSS_ROLE_PUBLICATION_REGISTRATION_MISMATCH"
+                    ):
+                        control.advance_queue_task(
+                            "C", "C00-SAFETY", "DONE", "/accepted", "test",
+                            publication_registration=provided, control_root=self.root,
+                        )
+                    self.assertEqual(events, [])
+                    registry.record_completion_state.assert_not_called()
+                    self.assertFalse((self.root / "C--C00-SAFETY.json").exists())
+                # Positive callback shape only, not a published registration.
+                result = control.advance_queue_task(
+                    "C", "C00-SAFETY", "DONE", "/accepted", "test",
+                    publication_registration="a" * 64, control_root=self.root,
+                )
+            self.assertEqual(result["state"], "DONE")
+            self.assertEqual(events, ["SEALING", "SEALED", "V2_COMMIT"])
+
+    def test_foreign_sealed_rework_denied_before_native_queue_persist(self):
+        """Reject a foreign resource before writing IN_PROGRESS to V2."""
+        persisted = []
+        task = {
+            "id": "C00-SAFETY", "role": "C", "state": "IN_PROGRESS",
+            "completion_resource_required": True,
+            "completion_resource_seal_snapshot": {"marker": "keep"},
+        }
+        with patch.object(control, "DiskLifecycleRegistry") as factory:
+            registry = factory.return_value
+            registry.locked.return_value = nullcontext()
+            registry.completion_record.return_value = {"state": "SEALED"}
+            registry.rows.return_value = [
+                {"task": "C00-SAFETY", "role": "CONTROLLER"}
+            ]
+
+            def writer(_root, role, ident, state, receipt, summary, **kwargs):
+                with kwargs["resource_lock"](), kwargs["completion_guard"](
+                    "DONE", task
+                ):
+                    persisted.append("V2_COMMIT")
+                return {"state": state}
+
+            with patch.object(control, "advance_task", side_effect=writer):
+                with self.assertRaisesRegex(
+                    RuntimeError, "CROSS_ROLE_REOPEN_JOURNAL_AUTHORITY_REQUIRED"
+                ):
+                    control.advance_queue_task(
+                        "C", "C00-SAFETY", "IN_PROGRESS", "/negative", "rework",
+                        control_root=self.root,
+                    )
+            self.assertEqual(persisted, [])
+            self.assertIs(task["completion_resource_required"], True)
+            self.assertEqual(
+                task["completion_resource_seal_snapshot"], {"marker": "keep"}
+            )
+            registry.record_completion_state.assert_not_called()
+            registry.reopen_if_completion_locked.assert_not_called()
+            self.assertEqual(
+                registry.completion_record("C", "C00-SAFETY")["state"], "SEALED"
+            )
+
+    def test_ambiguous_v2_exception_leaves_resource_sealed(self):
+        events = []
+        with patch.object(control, "DiskLifecycleRegistry") as factory:
+            registry = factory.return_value
+            registry.locked.return_value = nullcontext()
+            self._configure_mock_native_resource_seal(registry, events)
+            registry.status_locked.return_value = {
+                "delegation_inventory_version": 1,
+                "delegation_inventory_attested": True,
+                "foreign_allocation_count": 0,
+                "delegated_publication_registration": None,
+            }
+
+            def queue_writer(_root, role, task, state, receipt, summary, **kwargs):
+                with kwargs["resource_lock"](), kwargs["completion_guard"]("IN_PROGRESS", {"id": task, "role": role, "state": state}):
+                    events.append("V2_AMBIGUOUS")
+                    raise OSError("V2_FAIL_AFTER_HOT_REPLACE")
+
+            with patch.object(control, "advance_task", side_effect=queue_writer):
+                with self.assertRaisesRegex(RuntimeError, "DISK_LIFECYCLE_INCOMPLETE"):
+                    control.advance_queue_task("C", "C00-SAFETY", "DONE", "/proof", "accepted", control_root=self.root)
+            self.assertEqual(events, ["SEALING", "SEALED", "V2_AMBIGUOUS"])
+            self.assertNotIn("REOPENED", events)
+
+    def test_abandoned_sealed_in_progress_cannot_be_noop_reopened(self):
+        with patch.object(control, "DiskLifecycleRegistry") as factory:
+            registry = factory.return_value
+            registry.locked.return_value = nullcontext()
+            registry.completion_record.return_value = {"state": "SEALED"}
+
+            def queue_writer(_root, role, task, state, receipt, summary, **kwargs):
+                with kwargs["resource_lock"](), kwargs["completion_guard"]("IN_PROGRESS", {"id": task, "role": role, "state": state}):
+                    self.fail("No-op IN_PROGRESS with SEALED must not reach persistence")
+
+            with patch.object(control, "advance_task", side_effect=queue_writer):
+                with self.assertRaisesRegex(RuntimeError, "WORK_QUEUE_RESOURCE_JOURNAL_RECOVERY_REQUIRED"):
+                    control.advance_queue_task("C", "C00-SAFETY", "IN_PROGRESS", "", "", control_root=self.root)
+            registry.reopen_if_completion_locked.assert_not_called()
+
+    def test_valid_same_role_negative_rework_unseals_only_after_commit(self):
+        events = []
+        with patch.object(control, "DiskLifecycleRegistry") as factory:
+            registry = factory.return_value
+            registry.locked.return_value = nullcontext()
+            registry.completion_record.return_value = {"state": "SEALED"}
+            registry.rows.return_value = [{"role": "C", "task": "C00-SAFETY"}]
+            registry.reopen_if_completion_locked.side_effect = lambda role, task: events.append("REOPENED")
+
+            def queue_writer(_root, role, task, state, receipt, summary, **kwargs):
+                with kwargs["resource_lock"](), kwargs["completion_guard"]("DONE", {"id": task, "role": role, "state": state}):
+                    events.append("QUEUE_COMMITTED")
+
+            with patch.object(control, "advance_task", side_effect=queue_writer):
+                control.advance_queue_task("C", "C00-SAFETY", "IN_PROGRESS", "/negative", "rework", control_root=self.root)
+            self.assertEqual(events, ["QUEUE_COMMITTED", "REOPENED"])
+
+
+    def test_native_evidence_only_provenance_cli_is_forwarded(self):
+        with (patch.object(control, "require_location") as location,
+              patch.object(control, "advance_queue_task",
+                           return_value={"state": "DONE"}) as writer,
+              patch.object(control.sys, "argv", [
+                  "control.py", "C", "queue-task", "--task", "c-evidence",
+                  "--task-state", "DONE", "--receipt", "/root/isolated.json",
+                  "--evidence-provenance", "/root/isolated-manifest.json",
+              ])):
+            self.assertEqual(control.main(), 0)
+        location.assert_called_once_with("C")
+        writer.assert_called_once()
+        self.assertEqual(writer.call_args.args[:3],
+                         ("C", "c-evidence", "DONE"))
+        self.assertEqual(writer.call_args.kwargs,
+                         {"evidence_provenance": "/root/isolated-manifest.json"})
+
+    def test_native_evidence_and_publication_cannot_share_queue_command(self):
+        with (patch.object(control, "require_location") as location,
+              patch.object(control, "require_publication_queue_location") as publication,
+              patch.object(control.sys, "argv", [
+                  "control.py", "C", "queue-task", "--task", "c-evidence",
+                  "--task-state", "DONE", "--publication-registration", "a" * 64,
+                  "--evidence-provenance", "/root/untrusted-manifest.json",
+              ])):
+            with self.assertRaisesRegex(
+                RuntimeError, "WORK_QUEUE_EVIDENCE_SOURCE_PUBLISH_CONFLICT"
+            ):
+                control.main()
+        location.assert_not_called()
+        publication.assert_not_called()
+
+    def test_native_advance_queue_evidence_pair_rejected_before_disk(self):
+        with patch.object(control, "DiskLifecycleRegistry") as registry:
+            with self.assertRaisesRegex(
+                RuntimeError, "WORK_QUEUE_EVIDENCE_SOURCE_PUBLISH_CONFLICT"
+            ):
+                control.advance_queue_task(
+                    "C", "c-evidence", "DONE", "/receipt", "accepted",
+                    publication_registration="a" * 64,
+                    control_root=self.root,
+                    evidence_provenance="/logs/c-evidence/manifest.json",
+                )
+            with self.assertRaisesRegex(
+                RuntimeError, "WORK_QUEUE_EVIDENCE_COMPLETION_DONE_ONLY"
+            ):
+                control.advance_queue_task(
+                    "C", "c-evidence", "IN_PROGRESS", "", "work",
+                    control_root=self.root,
+                    evidence_provenance="/logs/c-evidence/manifest.json",
+                )
+        registry.assert_not_called()
+
+    def test_native_advance_queue_evidence_keeps_atomic_resource_guards(self):
+        with (patch.object(control, "DiskLifecycleRegistry") as registry,
+              patch.object(control, "advance_task", return_value={"accepted": True})
+              as writer):
+            result = control.advance_queue_task(
+                "C", "c-evidence", "DONE", "/proof", "accepted",
+                control_root=self.root,
+                evidence_provenance="/logs/c-evidence/manifest.json",
+            )
+        self.assertEqual(result, {"accepted": True})
+        registry.assert_called_once()
+        self.assertEqual(writer.call_args.kwargs["evidence_provenance"],
+                         "/logs/c-evidence/manifest.json")
+        self.assertIn("completion_guard", writer.call_args.kwargs)
+        self.assertEqual(writer.call_args.kwargs["resource_lock"],
+                         registry.return_value.locked)
+        self.assertNotIn("publication_registration", writer.call_args.kwargs)
 
 if __name__ == "__main__":
     unittest.main()

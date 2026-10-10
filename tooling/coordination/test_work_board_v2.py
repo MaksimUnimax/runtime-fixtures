@@ -901,6 +901,332 @@ class WorkBoardV2Tests(unittest.TestCase):
         self.assertEqual(old_view["resolution_status"], "STALE_RESOLUTION")
         self.assertTrue(any(row["task_id"] == "old-attempt" for row in stale["owner_attention"]))
 
+    def test_indexed_cold_history_root_roundtrip_and_writer_disabled_preserve(self):
+        old, _successor, _receipt, _resolved = self._resolve_blocker_fixture()
+        previous = v2.load_state(self.root)
+        original = next(t for t in previous["logical"]["tasks"] if t["id"] == old["id"])
+        self.assertNotIn("resolved_blocker_root_hash", previous["hot"])
+        with patch.object(work_queue._v2(), "RESOLVED_COLD_INDEX_WRITES_ENABLED", True):
+            work_queue.add_task(
+                self.root, "A",
+                dict(self.ready("cold-first"), basis="C00 P1 root-count",
+                     acceptance=["all archived identity remains"]),
+                repo_root=Path(work_queue.__file__).resolve().parents[2],
+            )
+        indexed = v2.load_state(self.root)
+        self.assertEqual(indexed["hot"]["resolved_blocker_count"], 1)
+        self.assertRegex(indexed["hot"]["resolved_blocker_root_hash"], r"^[0-9a-f]{64}$")
+        self.assertFalse(any(t["id"] == old["id"] for t in indexed["hot"]["tasks"]))
+        self.assertEqual(
+            next(t for t in indexed["logical"]["tasks"] if t["id"] == old["id"]),
+            original,
+        )
+        entries = v2._read_trie(
+            self.root, indexed["hot"]["resolved_blocker_root_hash"],
+            indexed["hot"]["resolved_blocker_count"], "resolved_blocker",
+        )
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0]["id"], old["id"])
+        self.assertEqual(entries[0]["ordinal"], previous["ordinals"][old["id"]])
+        self.assertEqual(entries[0]["row_sha256"], v2._semantic_sha(original))
+        self.assertEqual(
+            v2._read_indexed_resolved_blocker(indexed["paths"], entries[0]),
+            (original, previous["ordinals"][old["id"]]),
+        )
+        journal = v2._transaction_for_operation(
+            self.root, indexed["hot"]["last_operation_id"],
+        )
+        self.assertEqual(
+            journal["resolved_blocker_root_hash"],
+            indexed["hot"]["resolved_blocker_root_hash"],
+        )
+        self.assertEqual(journal["resolved_blocker_count"], 1)
+        self.assertEqual(journal["state"], "COMMITTED")
+        self.assertFalse(work_queue.blocker_attention(indexed["logical"], root=self.root))
+
+        # Once an indexed generation is seen it must not be silently
+        # inflated by a different source-controlled writer flag.
+        self.assertIs(work_queue._v2().RESOLVED_COLD_INDEX_WRITES_ENABLED, False)
+        work_queue.add_task(
+            self.root, "A",
+            dict(self.ready("cold-followup"), basis="C00 cold generation",
+                 acceptance=["no hot reinflation"]),
+            repo_root=Path(work_queue.__file__).resolve().parents[2],
+        )
+        followup = v2.load_state(self.root)
+        self.assertEqual(followup["hot"]["resolved_blocker_count"], 1)
+        self.assertEqual(
+            followup["hot"]["resolved_blocker_root_hash"],
+            indexed["hot"]["resolved_blocker_root_hash"],
+        )
+        self.assertFalse(any(t["id"] == old["id"] for t in followup["hot"]["tasks"]))
+        self.assertEqual(
+            next(t for t in followup["logical"]["tasks"] if t["id"] == old["id"]),
+            original,
+        )
+
+    def test_indexed_cold_history_stale_successor_realerts_unchanged_hot(self):
+        old, successor, receipt, _resolved = self._resolve_blocker_fixture()
+        with patch.object(work_queue._v2(), "RESOLVED_COLD_INDEX_WRITES_ENABLED", True):
+            work_queue.add_task(
+                self.root, "A",
+                dict(self.ready("cold-stale"), basis="C00 invalidate source",
+                     acceptance=["preserve re-alert evidence"]),
+                repo_root=Path(work_queue.__file__).resolve().parents[2],
+            )
+        state = v2.load_state(self.root)
+        full = next(t for t in state["logical"]["tasks"] if t["id"] == old["id"])
+        self.assertEqual(state["hot"]["resolved_blocker_count"], 1)
+        self.assertFalse(any(t["id"] == old["id"] for t in state["hot"]["tasks"]))
+        self.assertFalse(any(x["task_id"] == old["id"] for x in work_queue.blocker_attention(state["logical"], root=self.root)))
+        original_hot = state["hot_sha256"]
+        original_revision = state["logical"]["revision"]
+        original_index_root = state["hot"]["resolved_blocker_root_hash"]
+        value = json.loads(receipt.read_text())
+        value["checks"][0]["verdict"] = "FAIL"
+        receipt.write_text(json.dumps(value))
+        view = work_queue.role_work(self.root, "B")
+        stale = next(t for t in view["tasks"] if t["id"] == old["id"])
+        self.assertEqual(stale["resolution_status"], "STALE_RESOLUTION")
+        self.assertEqual(stale["state"], "BLOCKED")
+        attention = next(t for t in view["owner_attention"] if t["task_id"] == old["id"])
+        self.assertEqual(attention["evidence"], full["blocked_receipt"])
+        self.assertEqual(attention["resolution_status"], "STALE_RESOLUTION")
+        self.assertIn(successor["id"], attention["reason"])
+        self.assertIn("Повторно принять exact successor", attention["next_action"])
+        current = v2.load_state(self.root)
+        self.assertEqual(current["hot_sha256"], original_hot)
+        self.assertEqual(current["logical"]["revision"], original_revision)
+        self.assertEqual(current["hot"]["resolved_blocker_root_hash"], original_index_root)
+        self.assertEqual(
+            next(t for t in current["logical"]["tasks"] if t["id"] == old["id"]),
+            full,
+        )
+        self.assertNotIn(old["id"], current["completed_entries"])
+        self.assertNotIn(old["id"], work_queue._BoardEvaluation(current["logical"], root=self.root).done)
+
+    def test_indexed_cold_history_growth_has_bounded_hot_and_tamper_fails(self):
+        old, _successor, _receipt, _resolved = self._resolve_blocker_fixture()
+        before = v2.load_state(self.root)
+        original = next(t for t in before["logical"]["tasks"] if t["id"] == old["id"])
+        def projected(extra):
+            logical = copy.deepcopy(before["logical"])
+            logical["revision"] += 1
+            for index in range(extra):
+                row = copy.deepcopy(original)
+                row["id"] = f"cold-history-{index:05d}"
+                row["paths"] = [f"tooling/coordination/cold-{index:05d}.py"]
+                logical["tasks"].append(row)
+            with patch.object(v2, "RESOLVED_COLD_INDEX_WRITES_ENABLED", True):
+                generated = v2._prepare_generation(self.root, logical, before)
+            self.assertEqual(generated["core"]["resolved_blocker_count"], extra + 1)
+            self.assertFalse(any(
+                item["id"] in {old["id"]} | {f"cold-history-{k:05d}" for k in range(extra)}
+                for item in generated["core"]["tasks"]
+            ))
+            return v2._canonical_bytes(generated["core"]), generated
+        small, _ = projected(4)
+        large, large_gen = projected(90)
+        self.assertLess(len(large) - len(small), 20)
+        self.assertLess(len(large), v2.HOT_CAP_BYTES)
+        self.assertTrue(any(key[0] == "nodes" for key in large_gen["drafts"]))
+        self.assertTrue(any(key[0] == "rows" for key in large_gen["drafts"]))
+        # A physical one-record commit tests the authenticated root/count and
+        # archive lookup, then independently forged hot input must fail.
+        with patch.object(work_queue._v2(), "RESOLVED_COLD_INDEX_WRITES_ENABLED", True):
+            work_queue.add_task(
+                self.root, "A",
+                dict(self.ready("cold-corruption"), basis="C00 archive integrity",
+                     acceptance=["source hash rejection"]),
+                repo_root=Path(work_queue.__file__).resolve().parents[2],
+            )
+        accepted = v2.load_state(self.root)
+        forged = copy.deepcopy(accepted["hot"])
+        forged["resolved_blocker_count"] += 1
+        forged["generation_id"] = v2._generation_id(v2._hot_core(forged))
+        with self.assertRaisesRegex(RuntimeError, "TRIE_COUNT_MISMATCH"):
+            v2._load_state(self.root, v2._canonical_bytes(forged), require_committed=False)
+        index_path = accepted["paths"]["nodes"] / (
+            accepted["hot"]["resolved_blocker_root_hash"] + ".json"
+        )
+        archived_index = index_path.read_bytes()
+        index_path.write_bytes(archived_index + b" ")
+        with self.assertRaisesRegex(RuntimeError, "HASH_MISMATCH"):
+            v2.load_state(self.root)
+        index_path.write_bytes(archived_index)
+        self.assertEqual(v2.load_state(self.root)["logical"], accepted["logical"])
+
+    def test_indexed_cold_history_recover_faulted_v2_journal(self):
+        old, _successor, _receipt, _resolved = self._resolve_blocker_fixture()
+        original = next(
+            row for row in v2.load_state(self.root)["logical"]["tasks"]
+            if row["id"] == old["id"]
+        )
+        for point, expected in (
+            ("after_data_durable", "ROLLED_BACK"),
+            ("after_hot_replace_before_hot_published", "COMMITTED"),
+            ("after_event_append_before_event_durable", "COMMITTED"),
+        ):
+            with self.subTest(point=point):
+                previous = v2.load_state(self.root)
+                event_file = self.root / "controllers/work-board-events.jsonl"
+                count_before = len(event_file.read_bytes().splitlines())
+                new_id = "cold-fault-" + point
+                task = dict(
+                    self.ready(new_id), basis="C00 indexed journal crash recovery",
+                    acceptance=["exact cold root and event binding"],
+                )
+
+                def crash(at):
+                    if at == point:
+                        raise Crash(point)
+
+                with patch.object(work_queue._v2(), "RESOLVED_COLD_INDEX_WRITES_ENABLED", True):
+                    with patch.object(work_queue._v2(), "_fault", side_effect=crash):
+                        with self.assertRaises(Crash):
+                            work_queue.add_task(
+                                self.root, "A", task,
+                                repo_root=Path(work_queue.__file__).resolve().parents[2],
+                            )
+                recovered = v2.recover_queue_transaction(self.root)
+                self.assertEqual(recovered["state"], expected)
+                after = v2.load_state(self.root)
+                committed = expected == "COMMITTED"
+                self.assertEqual(
+                    after["logical"]["revision"],
+                    previous["logical"]["revision"] + int(committed),
+                )
+                self.assertEqual(
+                    len(event_file.read_bytes().splitlines()),
+                    count_before + int(committed),
+                )
+                self.assertEqual(
+                    any(row["id"] == new_id for row in after["logical"]["tasks"]),
+                    committed,
+                )
+                self.assertIsNone(v2.recover_queue_transaction(self.root))
+                hydrated = next(
+                    row for row in after["logical"]["tasks"] if row["id"] == old["id"]
+                )
+                self.assertEqual(hydrated, original)
+                if committed:
+                    self.assertEqual(after["hot"]["resolved_blocker_count"], 1)
+                    self.assertFalse(any(
+                        row["id"] == old["id"] for row in after["hot"]["tasks"]
+                    ))
+                    journal = v2._transaction_for_operation(
+                        self.root, after["hot"]["last_operation_id"]
+                    )
+                    self.assertEqual(
+                        journal["resolved_blocker_root_hash"],
+                        after["hot"]["resolved_blocker_root_hash"],
+                    )
+                    self.assertEqual(journal["resolved_blocker_count"], 1)
+                else:
+                    self.assertNotIn("resolved_blocker_root_hash", after["hot"])
+
+    def test_indexed_cold_history_refuses_duplicate_identity_and_metadata_spoof(self):
+        old, _successor, _receipt, _resolved = self._resolve_blocker_fixture()
+        with patch.object(work_queue._v2(), "RESOLVED_COLD_INDEX_WRITES_ENABLED", True):
+            work_queue.add_task(
+                self.root, "A",
+                dict(self.ready("cold-unique-task"), basis="C00 strict identity",
+                     acceptance=["no duplicate cold/live IDs or ordinals"]),
+                repo_root=Path(work_queue.__file__).resolve().parents[2],
+            )
+        state = v2.load_state(self.root)
+        cold_id = old["id"]
+        cold_ordinal = state["ordinals"][cold_id]
+        self.assertEqual(state["hot"]["resolved_blocker_count"], 1)
+        self.assertFalse(any(row["id"] == cold_id for row in state["hot"]["tasks"]))
+        for attack in ("duplicate_id", "duplicate_ordinal"):
+            with self.subTest(attack=attack):
+                forged = copy.deepcopy(state["hot"])
+                hot_task = next(row for row in forged["tasks"]
+                                if row["id"] == "cold-unique-task")
+                if attack == "duplicate_id":
+                    hot_task["id"] = cold_id
+                else:
+                    hot_task["_ordinal"] = cold_ordinal
+                forged["generation_id"] = v2._generation_id(v2._hot_core(forged))
+                with self.assertRaisesRegex(RuntimeError, "WORK_BOARD_V2_DUPLICATE_ID"):
+                    v2._load_state(
+                        self.root, v2._canonical_bytes(forged),
+                        require_committed=False,
+                    )
+
+        entries = v2._read_trie(
+            self.root, state["hot"]["resolved_blocker_root_hash"],
+            state["hot"]["resolved_blocker_count"], "resolved_blocker",
+        )
+        self.assertEqual(len(entries), 1)
+        entry = entries[0]
+        for key, value in (
+            ("role", "A" if entry["role"] != "A" else "B"),
+            ("plan", "B04" if entry["plan"] != "B04" else "C00"),
+            ("requires", ["forged"]),
+            ("row_sha256", "0" * 64),
+            ("blocked_receipt", "/wrong/receipt"),
+        ):
+            with self.subTest(forged_key=key):
+                forged = copy.deepcopy(entry)
+                forged[key] = value
+                with self.assertRaises(RuntimeError):
+                    v2._read_indexed_resolved_blocker(state["paths"], forged)
+        forged = dict(entry, unexpected_source_authority=True)
+        with self.assertRaisesRegex(RuntimeError, "RESOLVED_INDEX_ENTRY_INVALID"):
+            v2._read_indexed_resolved_blocker(state["paths"], forged)
+        self.assertEqual(v2.load_state(self.root)["logical"], state["logical"])
+
+    def test_marker2_resolved_blocker_successor_invalidation_realerts_original(self):
+        old, successor, receipt, resolved = self._resolve_blocker_fixture()
+        self.assertEqual(resolved["resolution_status"], "RESOLVED")
+        original = next(
+            task for task in v2.load_state(self.root)["logical"]["tasks"]
+            if task["id"] == old["id"]
+        )
+        assert original["state"] == "BLOCKED"
+        with patch.object(work_queue._v2(), "COMPACT_RESOLVED_WRITES_ENABLED", True):
+            work_queue.add_task(
+                self.root, "A",
+                dict(self.ready("marker2-realert"), basis="C00 P2 archive re-alert",
+                     acceptance=["old original blocker evidence preserved"]),
+                repo_root=Path(work_queue.__file__).resolve().parents[2],
+            )
+        indexed = v2.load_state(self.root)
+        marker = next(t for t in indexed["hot"]["tasks"] if t["id"] == old["id"])
+        self.assertEqual(marker["resolved_cold_ref_schema"], 2)
+        self.assertEqual(marker["blocker_resolution"], {"status": "RESOLVED"})
+        archived = next(t for t in indexed["logical"]["tasks"] if t["id"] == old["id"])
+        self.assertEqual(archived, original)
+        self.assertEqual(archived["blocked_receipt"], str(self.root / "logs/old-blocked.json"))
+        self.assertFalse(any(x["task_id"] == old["id"] for x in work_queue.blocker_attention(indexed["logical"], root=self.root)))
+        original_hot_sha = indexed["hot_sha256"]
+        original_revision = indexed["logical"]["revision"]
+        original_archive_sha = marker["resolved_archive_sha256"]
+        value = json.loads(receipt.read_text())
+        value["checks"][0]["verdict"] = "FAIL"
+        receipt.write_text(json.dumps(value))
+        after = work_queue.role_work(self.root, "B")
+        row = next(t for t in after["tasks"] if t["id"] == old["id"])
+        self.assertEqual(row["state"], "BLOCKED")
+        self.assertEqual(row["resolution_status"], "STALE_RESOLUTION")
+        self.assertEqual(row["successor_task"], successor["id"])
+        alert = next(t for t in after["owner_attention"] if t["task_id"] == old["id"])
+        self.assertEqual(alert["evidence"], original["blocked_receipt"])
+        self.assertEqual(alert["resolution_status"], "STALE_RESOLUTION")
+        self.assertIn(successor["id"], alert["reason"])
+        self.assertIn("Повторно принять exact successor", alert["next_action"])
+        self.assertFalse(any(x["task_id"] == old["id"] for x in work_queue.blocker_attention(indexed["logical"], root=self.root) if x["resolution_status"] == "RESOLVED"))
+        final = v2.load_state(self.root)
+        self.assertEqual(final["logical"]["revision"], original_revision)
+        self.assertEqual(final["hot_sha256"], original_hot_sha)
+        compact = next(t for t in final["hot"]["tasks"] if t["id"] == old["id"])
+        self.assertEqual(compact["resolved_archive_sha256"], original_archive_sha)
+        self.assertEqual(next(t for t in final["logical"]["tasks"] if t["id"] == old["id"]), original)
+        self.assertFalse(any(t["id"] == old["id"] for t in final["completed_entries"].values()))
+        self.assertNotIn(old["id"], work_queue._BoardEvaluation(final["logical"], root=self.root).done)
+
     def test_resolved_blocker_archive_missing_tampered_or_semantically_wrong_fails_closed(self):
         _old, _successor, _receipt, _resolved = self._resolve_blocker_fixture()
         hot = json.loads((self.root / "controllers/work-board.json").read_text())
@@ -989,6 +1315,164 @@ class WorkBoardV2Tests(unittest.TestCase):
         attention = next(row for row in work_queue.blocker_attention(logical) if row["task_id"] == "old-attempt")
         self.assertEqual(attention["evidence"], full_old["blocked_receipt"])
         self.assertIn("accepted-successor", attention["reason"])
+
+    def test_compact_v2_resolved_blocker_roundtrip_and_inactive_default(self):
+        old, _next, _receipt, _resolved = self._resolve_blocker_fixture()
+        before = v2.load_state(self.root)
+        original = next(t for t in before["logical"]["tasks"] if t["id"] == old["id"])
+        prior = next(t for t in before["hot"]["tasks"] if t["id"] == old["id"])
+        self.assertTrue(v2._is_resolved_blocker_tombstone(prior))
+        self.assertNotIn("resolved_cold_ref_schema", prior)
+        archive_sha = prior["resolved_archive_sha256"]
+        archive = self.root / "controllers/work-board-done/rows" / (archive_sha + ".json")
+        immutable = archive.read_bytes()
+        root_id = before["hot"]["generation_id"]
+
+        def new_ready(suffix):
+            return dict(
+                self.ready("versioned-" + suffix),
+                basis="bounded C00 archive compatibility",
+                acceptance=["preserve immutable blocker metadata"],
+            )
+
+        work_queue.add_task(
+            self.root, "A", new_ready("default"),
+            repo_root=Path(work_queue.__file__).resolve().parents[2],
+        )
+        default = v2.load_state(self.root)
+        disabled = next(t for t in default["hot"]["tasks"] if t["id"] == old["id"])
+        self.assertNotIn("resolved_cold_ref_schema", disabled)
+        self.assertEqual(disabled["blocker_resolution"], original["blocker_resolution"])
+
+        with patch.object(work_queue._v2(), "COMPACT_RESOLVED_WRITES_ENABLED", True):
+            work_queue.add_task(
+                self.root, "A", new_ready("compact"),
+                repo_root=Path(work_queue.__file__).resolve().parents[2],
+            )
+        compact = v2.load_state(self.root)
+        tombstone = next(t for t in compact["hot"]["tasks"] if t["id"] == old["id"])
+        self.assertEqual(tombstone["resolved_cold_ref_schema"], 2)
+        self.assertEqual(tombstone["blocker_resolution"], {"status": "RESOLVED"})
+        self.assertEqual(tombstone["resolved_archive_sha256"], archive_sha)
+        self.assertEqual(tombstone["blocked_receipt"], original["blocked_receipt"])
+        self.assertEqual(
+            next(t for t in compact["logical"]["tasks"] if t["id"] == old["id"]),
+            original,
+        )
+        self.assertEqual(archive.read_bytes(), immutable)
+        self.assertNotEqual(compact["hot"]["generation_id"], root_id)
+        self.assertLessEqual(len(compact["hot_raw"]), v2.HOT_CAP_BYTES)
+
+        # Retain compact rows once issued even with the writer gate disabled;
+        # a rollback to dual-reader code must not re-inflate HOT on the next ADD.
+        work_queue.add_task(
+            self.root, "A", new_ready("preserved"),
+            repo_root=Path(work_queue.__file__).resolve().parents[2],
+        )
+        kept = v2.load_state(self.root)
+        last = next(t for t in kept["hot"]["tasks"] if t["id"] == old["id"])
+        self.assertEqual(last["resolved_cold_ref_schema"], 2)
+        self.assertEqual(last["resolved_archive_sha256"], archive_sha)
+        self.assertEqual(archive.read_bytes(), immutable)
+
+    def test_versioned_compact_blocker_tamper_and_missing_archive_fail_closed(self):
+        old, _next, _receipt, _resolved = self._resolve_blocker_fixture()
+        with patch.object(work_queue._v2(), "COMPACT_RESOLVED_WRITES_ENABLED", True):
+            work_queue.add_task(
+                self.root, "A",
+                dict(self.ready("compact-adversarial"), basis="source",
+                     acceptance=["strict archive"]),
+                repo_root=Path(work_queue.__file__).resolve().parents[2],
+            )
+        state = v2.load_state(self.root)
+        index = next(i for i, t in enumerate(state["hot"]["tasks"]) if t["id"] == old["id"])
+        trusted = state["hot"]["tasks"][index]
+        self.assertEqual(trusted["resolved_cold_ref_schema"], 2)
+        archive = state["paths"]["rows"] / (trusted["resolved_archive_sha256"] + ".json")
+        expected_archive = archive.read_bytes()
+
+        def forged(**changes):
+            changed = copy.deepcopy(state["hot"])
+            changed["tasks"][index].update(changes)
+            changed["generation_id"] = v2._generation_id(v2._hot_core(changed))
+            return v2._canonical_bytes(changed)
+
+        mutations = [
+            {"resolved_cold_ref_schema": True},
+            {"resolved_cold_ref_schema": 3},
+            {"blocker_resolution": {"status": "RESOLVED", "owner": "forged"}},
+            {"resolved_archive_sha256": "0" * 64},
+            {"role": "A" if trusted["role"] != "A" else "B"},
+            {"blocked_receipt": "/forged/receipt"},
+            {"untrusted_owner": "C"},
+        ]
+        for change in mutations:
+            with self.subTest(change=change), self.assertRaises(RuntimeError):
+                v2._load_state(self.root, forged(**change), require_committed=False)
+
+        missing = copy.deepcopy(state["hot"])
+        missing["tasks"][index].pop("resolved_archive_sha256")
+        missing["generation_id"] = v2._generation_id(v2._hot_core(missing))
+        with self.assertRaisesRegex(RuntimeError, "TOMBSTONE_INVALID"):
+            v2._read_hot_once(self.root, v2._canonical_bytes(missing))
+
+        archive.unlink()
+        with self.assertRaisesRegex(RuntimeError, "CONTENT_MISSING"):
+            v2.load_state(self.root)
+        archive.write_bytes(expected_archive.replace(b'"resolved_blocker"', b'"broken_archive"', 1))
+        with self.assertRaisesRegex(RuntimeError, "HASH_MISMATCH"):
+            v2.load_state(self.root)
+        archive.write_bytes(expected_archive)
+        self.assertEqual(v2.load_state(self.root)["logical"], state["logical"])
+
+    def test_compact_resolved_blocker_native_journal_crash_recovery(self):
+        old, _successor, _receipt, _resolved = self._resolve_blocker_fixture()
+        baseline = v2.load_state(self.root)
+        old_tombstone = next(t for t in baseline["hot"]["tasks"] if t["id"] == old["id"])
+        archive_id = old_tombstone["resolved_archive_sha256"]
+        archive = baseline["paths"]["rows"] / (archive_id + ".json")
+        original_archive = archive.read_bytes()
+
+        for point, expected in (
+            ("after_data_durable", "ROLLED_BACK"),
+            ("after_hot_replace_before_hot_published", "COMMITTED"),
+        ):
+            with self.subTest(point=point):
+                pre = v2.load_state(self.root)
+                extra = dict(
+                    self.ready("compacted-" + point),
+                    basis="C00 native crash fixture",
+                    acceptance=["atomic compact HOT"],
+                )
+
+                def failure(at):
+                    if at == point:
+                        raise Crash(point)
+
+                with patch.object(work_queue._v2(), "COMPACT_RESOLVED_WRITES_ENABLED", True):
+                    with patch.object(work_queue._v2(), "_fault", side_effect=failure):
+                        with self.assertRaises(Crash):
+                            work_queue.add_task(
+                                self.root, "A", extra,
+                                repo_root=Path(work_queue.__file__).resolve().parents[2],
+                            )
+                outcome = v2.recover_queue_transaction(self.root)
+                self.assertEqual(outcome["state"], expected)
+                actual = v2.load_state(self.root)
+                present = any(t["id"] == extra["id"] for t in actual["logical"]["tasks"])
+                self.assertEqual(present, expected == "COMMITTED")
+                self.assertEqual(
+                    actual["revision"] if "revision" in actual else actual["logical"]["revision"],
+                    pre["logical"]["revision"] + int(expected == "COMMITTED"),
+                )
+                tombstone = next(t for t in actual["hot"]["tasks"] if t["id"] == old["id"])
+                self.assertEqual(
+                    "resolved_cold_ref_schema" in tombstone,
+                    expected == "COMMITTED",
+                )
+                self.assertEqual(tombstone["resolved_archive_sha256"], archive_id)
+                self.assertEqual(archive.read_bytes(), original_archive)
+                self.assertIsNone(v2.recover_queue_transaction(self.root))
 
     def test_malformed_resolved_blocker_tombstone_shape_is_rejected(self):
         _old, _successor, _receipt, _resolved = self._resolve_blocker_fixture()

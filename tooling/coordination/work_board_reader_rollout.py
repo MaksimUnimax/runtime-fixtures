@@ -1,5 +1,6 @@
-"""Governed two-file reader rollout with exact rollback and semantic readback."""
+"""Governed reader rollout with inode-bound rollback and semantic readback."""
 from __future__ import annotations
+import ast
 import ctypes
 import errno
 import fcntl
@@ -24,6 +25,15 @@ SAFE_PROOF_TOP = {"logs", "controllers", "artifacts"}
 TRANSITION_CONTRACT_KIND = "octoport.work-board-reader-transition-contract"
 TRANSITION_CONTRACT_VERSION = 1
 TRANSITION_CONTRACT_POLICY = "resolved-blocker-tombstone-hydration-v1"
+
+# Independent owner/release authority has not yet installed a reviewed immutable
+# helper source. Never infer this triple from a caller, environment or mutable
+# origin/main. The accepted publisher source must pin (commit, tree, V2 blob).
+MODULE_ONLY_ACCEPTED_SOURCE_TRUST_ANCHOR = None
+
+class _ReceiptPublicationUncertain(RuntimeError):
+    """Exact rollout receipt may already have been published; never roll back blindly."""
+MODULE_ONLY_V2_SOURCE_PATH = "tooling/coordination/work_board_v2.py"
 
 
 def _sha(raw): return hashlib.sha256(raw).hexdigest()
@@ -78,53 +88,29 @@ def _rollback_prior_missing(
     *,
     scratch_dir: Path,
 ):
-    """Restore an originally absent target without unlinking an untrusted pathname."""
+    """Do not remove or move a public pathname without an inode-bound primitive."""
     target = Path(target)
     scratch = Path(scratch_dir)
-    _path(scratch, directory=True)
-    target_parent = _path(target.parent, directory=True)
-    scratch_info = _path(scratch, directory=True)
-    if target_parent.st_dev != scratch_info.st_dev:
+    parent = _path(target.parent, directory=True)
+    sdir = _path(scratch, directory=True)
+    if parent.st_dev != sdir.st_dev:
         raise RuntimeError("WORK_BOARD_V2_ROLLOUT_SCRATCH_FILESYSTEM_MISMATCH")
-
-    if installed_identity is None:
-        try:
-            target.lstat()
-        except FileNotFoundError:
-            return
-        raise RuntimeError("WORK_BOARD_V2_ROLLOUT_ROLLBACK_OWNERSHIP_UNPROVEN")
-
-    quarantine = scratch / (
-        f".{target.name}.rollback.{os.getpid()}.{secrets.token_hex(8)}.preserved"
-    )
-    _path(quarantine, missing=True)
     try:
-        _rename_noreplace(target, quarantine)
+        current = target.lstat()
     except FileNotFoundError:
         return
-
-    moved = quarantine.lstat()
-    moved_identity = (moved.st_dev, moved.st_ino)
-    if moved_identity != tuple(installed_identity):
-        # The pathname was replaced by another actor. Put that object back only
-        # if the original name is still free; never overwrite/delete it.
-        try:
-            _rename_noreplace(quarantine, target)
-        except FileExistsError:
-            # Both objects survive: the replacement stays quarantined and the
-            # newly occupied target is untouched. Manual reconciliation is needed.
-            pass
-        v2._fsync_dir(target.parent)
-        v2._fsync_dir(scratch)
+    if installed_identity is None:
+        raise RuntimeError("WORK_BOARD_V2_ROLLOUT_ROLLBACK_OWNERSHIP_UNPROVEN")
+    if (current.st_dev, current.st_ino) != tuple(installed_identity):
         raise RuntimeError("WORK_BOARD_V2_ROLLOUT_ROLLBACK_OWNERSHIP_DRIFT")
+    # Linux pathname rename/unlink cannot atomically require an expected inode.
+    # Keep the installed object and require explicit reconciliation rather than
+    # temporarily moving a replacement and claiming that a later restore is safe.
+    raise RuntimeError("WORK_BOARD_V2_ROLLOUT_ROLLBACK_RECONCILIATION_REQUIRED")
 
-    # The exact rollout-owned inode is now out of the target namespace. Keep it
-    # in control-root scratch as failure evidence instead of unlinking a pathname.
-    v2._fsync_dir(target.parent)
-    v2._fsync_dir(scratch)
 
-
-def _atomic(path: Path, raw: bytes, mode: int, *, scratch_dir: Path | None = None):
+def _atomic_core(path: Path, raw: bytes, mode: int, *, scratch_dir: Path | None = None,
+                 replace_existing: bool = True):
     path = Path(path)
     scratch = Path(scratch_dir) if scratch_dir is not None else path.parent
     _path(path, missing=True)
@@ -157,21 +143,166 @@ def _atomic(path: Path, raw: bytes, mode: int, *, scratch_dir: Path | None = Non
         current = _path(tmp)
         if (current.st_dev, current.st_ino) != owned_identity:
             raise RuntimeError("WORK_BOARD_V2_ROLLOUT_TEMP_IDENTITY_DRIFT")
-        os.replace(tmp, path)
+        if replace_existing:
+            os.replace(tmp, path)
+        else:
+            # During rollback an untrusted replacement may have appeared
+            # after the rollout-owned inode was quarantined. Never clobber it.
+            _rename_noreplace(tmp, path)
         placed = _path(path)
         if (placed.st_dev, placed.st_ino) != owned_identity:
             raise RuntimeError("WORK_BOARD_V2_ROLLOUT_TEMP_IDENTITY_DRIFT")
         v2._fsync_dir(path.parent)
-        os.close(fd); fd = None
+        # Transfer numeric FD ownership before close: an error may be
+        # reported after Linux has already released (and reused) that number.
+        closing_fd, fd = fd, None
+        os.close(closing_fd)
         return owned_identity
     except Exception:
         if fd is not None:
-            try: os.close(fd)
+            # This path has not attempted the final close yet.
+            closing_fd, fd = fd, None
+            try: os.close(closing_fd)
             except OSError: pass
         # Never unlink a pathname after a separate identity check: another
         # process could replace that name between check and unlink. Failed
         # writes remain in the control-root scratch area for explicit cleanup.
         raise
+
+def _atomic(path: Path, raw: bytes, mode: int, *, scratch_dir: Path | None = None):
+    """Original two-file installer API; preserve existing scoped injection hooks."""
+    return _atomic_core(path, raw, mode, scratch_dir=scratch_dir,
+                        replace_existing=True)
+
+
+def _atomic_noreplace(path: Path, raw: bytes, mode: int, *,
+                      scratch_dir: Path | None = None):
+    """Dedicated rollback restore, never replaces a newly occupied pathname."""
+    return _atomic_core(path, raw, mode, scratch_dir=scratch_dir,
+                        replace_existing=False)
+
+
+def _rollback_prior_existing(
+    target: Path, prior_raw: bytes, prior_mode: int, prior_sha256: str,
+    installed_identity, installed_sha256: str, *, scratch_dir: Path,
+    preimage_path: Path | None = None,
+):
+    """Restore bytes only through a descriptor bound to the installed owned inode."""
+    target = Path(target)
+    scratch = Path(scratch_dir)
+    parent = _path(target.parent, directory=True)
+    sdir = _path(scratch, directory=True)
+    if parent.st_dev != sdir.st_dev:
+        raise RuntimeError("WORK_BOARD_V2_ROLLOUT_SCRATCH_FILESYSTEM_MISMATCH")
+    if _sha(prior_raw) != prior_sha256:
+        raise RuntimeError("WORK_BOARD_V2_ROLLOUT_ROLLBACK_PRIOR_HASH_MISMATCH")
+    if installed_identity is None:
+        current = _file_state(target)
+        if (current["exists"] and current["sha256"] == prior_sha256
+                and current["mode"] == prior_mode):
+            return
+        raise RuntimeError("WORK_BOARD_V2_ROLLOUT_ROLLBACK_OWNERSHIP_UNPROVEN")
+
+    # Rollback may itself be interrupted after a partial write. It must never
+    # be the only surviving custodian of the original WIP bytes.
+    if preimage_path is None:
+        raise RuntimeError("WORK_BOARD_V2_ROLLOUT_PRIOR_CUSTODY_REQUIRED")
+    preimage_info = _path(preimage_path)
+    if (stat.S_IMODE(preimage_info.st_mode) != 0o600
+            or _sha(_read(preimage_path)) != prior_sha256):
+        raise RuntimeError("WORK_BOARD_V2_ROLLOUT_PRIOR_CUSTODY_MISMATCH")
+
+    fd = None
+    try:
+        fd = os.open(target, os.O_RDWR | getattr(os, "O_NOFOLLOW", 0))
+        opened = os.fstat(fd)
+        identity = (opened.st_dev, opened.st_ino)
+        if (not stat.S_ISREG(opened.st_mode) or opened.st_nlink != 1
+                or identity != tuple(installed_identity)
+                or stat.S_IMODE(opened.st_mode) != prior_mode):
+            raise RuntimeError("WORK_BOARD_V2_ROLLOUT_ROLLBACK_OWNERSHIP_DRIFT")
+
+        def read_owned():
+            os.lseek(fd, 0, os.SEEK_SET)
+            chunks = []
+            size = 0
+            while True:
+                chunk = os.read(fd, 65536)
+                if not chunk:
+                    return b"".join(chunks)
+                size += len(chunk)
+                if size > 2 * 1024 * 1024:
+                    raise RuntimeError("WORK_BOARD_V2_ROLLOUT_ROLLBACK_OWNERSHIP_DRIFT")
+                chunks.append(chunk)
+
+        if _sha(read_owned()) != installed_sha256:
+            raise RuntimeError("WORK_BOARD_V2_ROLLOUT_ROLLBACK_OWNERSHIP_DRIFT")
+        checked = os.fstat(fd)
+        current = _path(target)
+        if ((checked.st_mtime_ns, checked.st_ctime_ns, checked.st_size)
+                != (opened.st_mtime_ns, opened.st_ctime_ns, opened.st_size)
+                or (current.st_dev, current.st_ino) != identity
+                or checked.st_nlink != 1):
+            raise RuntimeError("WORK_BOARD_V2_ROLLOUT_ROLLBACK_OWNERSHIP_DRIFT")
+        # Subsequent pathname replacement cannot redirect these writes to the
+        # replacement inode. No public rename, unlink or path-based overwrite.
+        os.lseek(fd, 0, os.SEEK_SET)
+        view = memoryview(prior_raw)
+        while view:
+            count = os.write(fd, view)
+            if count <= 0:
+                raise OSError("short rollback write")
+            view = view[count:]
+        os.ftruncate(fd, len(prior_raw))
+        os.fchmod(fd, prior_mode)
+        os.fsync(fd)
+        if (_sha(read_owned()) != prior_sha256
+                or stat.S_IMODE(os.fstat(fd).st_mode) != prior_mode):
+            raise RuntimeError("WORK_BOARD_V2_ROLLOUT_ROLLBACK_READBACK_FAILED")
+        current = _path(target)
+        if (current.st_dev, current.st_ino) != identity:
+            raise RuntimeError("WORK_BOARD_V2_ROLLOUT_ROLLBACK_OWNERSHIP_DRIFT")
+        v2._fsync_dir(target.parent)
+    finally:
+        if fd is not None:
+            closing_fd, fd = fd, None
+            os.close(closing_fd)
+
+
+def _preserve_rollout_preimages(receipt: Path, changes, *, board_sha256, events_sha256):
+    """Persist complete recovery custody before touching any public reader."""
+    recovery = receipt.parent / (receipt.stem + ".recovery")
+    # An interrupted/failed rollout owns this id permanently until explicit
+    # authoritative reconciliation. Never reuse or overwrite its custody.
+    os.mkdir(recovery, 0o700)
+    _path(recovery, directory=True)
+    v2._fsync_dir(receipt.parent)
+    records = []
+    for item in changes:
+        if item["exists"]:
+            preimage = recovery / (item["role"] + "-" + item["name"] + ".prior")
+            _atomic_noreplace(preimage, item["raw"], 0o600, scratch_dir=recovery)
+            if _sha(_read(preimage)) != item["sha256"]:
+                raise RuntimeError("WORK_BOARD_V2_ROLLOUT_PRIOR_CUSTODY_MISMATCH")
+            item["preimage_path"] = str(preimage)
+        else:
+            item["preimage_path"] = None
+        records.append({key: value for key, value in item.items()
+                        if key not in {"raw", "installed_identity"}})
+    manifest = {
+        "schema_version": 1, "rollout_id": receipt.stem,
+        "state": "RECOVERY_CUSTODY_PREPARED",
+        "automatic_recovery_authorized": False,
+        "board_sha256": board_sha256, "events_sha256": events_sha256,
+        "prior": records,
+    }
+    manifest_raw = v2._canonical_bytes(manifest)
+    manifest_path = recovery / "manifest.json"
+    _atomic_noreplace(manifest_path, manifest_raw, 0o600, scratch_dir=recovery)
+    if _read(manifest_path) != manifest_raw:
+        raise RuntimeError("WORK_BOARD_V2_ROLLOUT_PRIOR_CUSTODY_MISMATCH")
+    return {"path": str(manifest_path), "sha256": _sha(manifest_raw)}
+
 
 def _module(path: Path, label: str):
     spec = importlib.util.spec_from_file_location("octoport_rollout_" + label, path)
@@ -255,7 +386,10 @@ def _semantic(module, root: Path):
     saved = {}
     revalidations = []
     try:
-        for name in ("_completion_receipt", "_publication_snapshot_valid"):
+        for name in (
+            "_completion_receipt", "_publication_snapshot_valid",
+            "_evidence_snapshot_valid", "_resource_seal_snapshot_valid",
+        ):
             original = namespace.get(name)
             if not callable(original):
                 continue
@@ -272,19 +406,49 @@ def _semantic(module, root: Path):
                 __name=name,
                 **kwargs,
             ):
-                if __name == "_publication_snapshot_valid":
+                if __name in {
+                    "_publication_snapshot_valid", "_evidence_snapshot_valid",
+                    "_resource_seal_snapshot_valid",
+                }:
                     task = args[0] if args and isinstance(args[0], dict) else None
                     identifier = task.get("id") if task is not None else None
                     expected_identity = board_task_identity.get(identifier)
                     current_identity = (
                         _semantic_value_identity(task) if task is not None else None
                     )
-                    # Reuse only an exact task value from the immutable board
-                    # bound to this _semantic call. A changed/copy-drifted task
-                    # bypasses the cache and uses the original validator.
+                    # Exact task value only. Evidence validation also binds to
+                    # the actual reader control root, never a snapshot path.
+                    root_identity = None
+                    if __name in {
+                        "_evidence_snapshot_valid", "_resource_seal_snapshot_valid",
+                    }:
+                        key = (
+                            "expected_root" if __name == "_evidence_snapshot_valid"
+                            else "root"
+                        )
+                        candidate_root = (
+                            kwargs[key] if key in kwargs else
+                            args[1] if len(args) > 1 else None
+                        )
+                        if candidate_root is not None:
+                            try:
+                                root_identity = str(Path(candidate_root).resolve())
+                            except (OSError, ValueError, TypeError):
+                                root_identity = None
                     identity = (
-                        ("publication", identifier, current_identity)
-                        if expected_identity is not None
+                        ("evidence", identifier, current_identity, root_identity)
+                        if __name == "_evidence_snapshot_valid"
+                        and root_identity is not None
+                        and expected_identity is not None
+                        and current_identity == expected_identity
+                        else ("resource-seal", identifier, current_identity, root_identity)
+                        if __name == "_resource_seal_snapshot_valid"
+                        and root_identity is not None
+                        and expected_identity is not None
+                        and current_identity == expected_identity
+                        else ("publication", identifier, current_identity)
+                        if __name == "_publication_snapshot_valid"
+                        and expected_identity is not None
                         and current_identity == expected_identity
                         else None
                     )
@@ -299,30 +463,56 @@ def _semantic(module, root: Path):
 
             namespace[name] = memoized
 
-        evaluation_type = getattr(module, "_BoardEvaluation", None)
-        evaluation = evaluation_type(board) if callable(evaluation_type) else None
-        task_view = module.task_view
-        accepts_evaluation = False
-        if evaluation is not None:
+        def accepts_keyword(callback, name):
+            # Historical immutable readers may not declare the newer root
+            # argument. Dispatch based on the exact signature; never absorb
+            # a TypeError from inside a validator as a compatibility fallback.
             try:
-                parameters = inspect.signature(task_view).parameters.values()
-                accepts_evaluation = any(
-                    p.name == "evaluation" or p.kind == p.VAR_KEYWORD
-                    for p in parameters
+                return any(
+                    p.name == name or p.kind == p.VAR_KEYWORD
+                    for p in inspect.signature(callback).parameters.values()
                 )
             except (TypeError, ValueError):
-                accepts_evaluation = False
-        if accepts_evaluation:
-            task_views = [
-                task_view(board, task, evaluation=evaluation) for task in tasks
-            ]
+                return False
+
+        evaluation_type = getattr(module, "_BoardEvaluation", None)
+        if callable(evaluation_type):
+            evaluation_kwargs = (
+                {"root": root} if accepts_keyword(evaluation_type, "root") else {}
+            )
+            evaluation = evaluation_type(board, **evaluation_kwargs)
         else:
-            task_views = [task_view(board, task) for task in tasks]
+            evaluation = None
+        task_view = module.task_view
+        view_kwargs = {}
+        if evaluation is not None and accepts_keyword(task_view, "evaluation"):
+            view_kwargs["evaluation"] = evaluation
+        if accepts_keyword(task_view, "root"):
+            view_kwargs["root"] = root
+        task_views = [
+            task_view(board, task, **view_kwargs) for task in tasks
+        ]
+        attention_callback = getattr(module, "blocker_attention", None)
+        if callable(attention_callback):
+            attention_kwargs = (
+                {"root": root}
+                if accepts_keyword(attention_callback, "root")
+                else {}
+            )
+            attention = attention_callback(board, **attention_kwargs)
+        else:
+            # Pre-blocker-attention v1 readers cannot describe unresolved
+            # blockers. Permit only boards containing no blocked tasks;
+            # otherwise fail closed before any reader installation.
+            if any(row.get("state") == "BLOCKED" for row in tasks):
+                raise RuntimeError(
+                    "WORK_BOARD_V2_ROLLOUT_LEGACY_BLOCKER_ATTENTION_REQUIRED")
+            attention = []
         value = {
             "board": board,
             "task_views": task_views,
             "role_work": {role: module.role_work(root, role) for role in "ABC"},
-            "blocker_attention": module.blocker_attention(board),
+            "blocker_attention": attention,
             "snapshots": {role: module.board_snapshot(root) for role in "ABC"},
             "status": {role: module.status_work(root, role) for role in "ABC"},
         }
@@ -331,7 +521,10 @@ def _semantic(module, root: Path):
         if _board_binding(root) != binding_before:
             raise RuntimeError("WORK_BOARD_V2_ROLLOUT_BOARD_OR_EVENT_CHANGED")
 
-        # Cached PASS/FAIL cannot outlive the evidence bytes that produced it.
+        # Cached PASS/FAIL cannot outlive receipt, publication, evidence, or
+        # versioned resource-seal bytes. Recheck the real native-root resource
+        # seal after deriving every consumer; the work-board/event binding
+        # alone does not cover disk-task-completions.
         # Re-run each distinct cached validation once before returning. This
         # keeps validation O(distinct evidence) while preserving fail-closed
         # behavior if a receipt/publication artifact changes mid-evaluation.
@@ -621,15 +814,120 @@ def _verify_transition_proof(proof, rollout_id, board_binding, candidate_sha,
         raise RuntimeError("WORK_BOARD_V2_ROLLOUT_TRANSITION_NO_SEMANTIC_CHANGE")
     return {role: candidate_semantic for role in ROLES}
 
+def _module_only_writer_flags_off(raw: bytes) -> bool:
+    """Conservatively validate writer-off constants, not arbitrary Python trust.
+
+    AST flags are only defense in depth; publisher acceptance must also pin
+    reviewed source blob bytes, signer authority, and four-role readback.
+    """
+    try:
+        tree = ast.parse(raw.decode("utf-8"))
+    except (SyntaxError, UnicodeDecodeError, ValueError):
+        return False
+    flags = {"COMPACT_RESOLVED_WRITES_ENABLED", "RESOLVED_COLD_INDEX_WRITES_ENABLED"}
+    observed = {}
+    allowed_stores = set()
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and len(node.targets) == 1:
+            target, value = node.targets[0], node.value
+        elif isinstance(node, ast.AnnAssign):
+            target, value = node.target, node.value
+        else:
+            continue
+        if isinstance(target, ast.Name) and target.id in flags:
+            if target.id in observed:
+                return False
+            if not isinstance(value, ast.Constant) or value.value is not False:
+                return False
+            observed[target.id] = True
+            allowed_stores.add(id(target))
+    if set(observed) != flags:
+        return False
+
+    # Checking just top-level assignments would accept a later import-time
+    # if-block, AugAssign, global binding, or globals()["FLAG"] mutation.
+    # None is compatible with reader-only writer-disabled publication.
+    unsafe_dynamic_calls = {
+        "globals", "locals", "vars", "exec", "eval", "compile",
+        "setattr", "delattr", "__import__",
+    }
+    for node in ast.walk(tree):
+        if (isinstance(node, ast.Name) and node.id in flags
+                and isinstance(node.ctx, (ast.Store, ast.Del))
+                and id(node) not in allowed_stores):
+            return False
+        if isinstance(node, (ast.Global, ast.Nonlocal)) and flags.intersection(node.names):
+            return False
+        if (isinstance(node, ast.Constant) and isinstance(node.value, str)
+                and node.value in flags):
+            return False
+        if (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                and node.func.id in unsafe_dynamic_calls):
+            return False
+    return True
+
+
+def _module_only_trusted_git_source(raw: bytes) -> bool:
+    """Match the byte-for-byte helper to a separately accepted Git source.
+
+    The immutable source triple is supplied by accepted publisher code only.
+    It is intentionally None until an external authority provisions it; a
+    caller-provided hash, origin/main, or AST scan is not an authorization.
+    """
+    identity = MODULE_ONLY_ACCEPTED_SOURCE_TRUST_ANCHOR
+    if (type(identity) is not tuple or len(identity) != 3
+            or any(type(v) is not str or re.fullmatch(r"[0-9a-f]{40}", v) is None
+                   for v in identity)):
+        return False
+    commit, tree, blob = identity
+    repo_source = Path(__file__).absolute()
+    try:
+        _path(repo_source)
+        repo = repo_source.parents[2].resolve(strict=True)
+        commands = (
+            ("cat-file", "-t", commit),
+            ("rev-parse", commit + "^{tree}"),
+            ("ls-tree", commit, "--", MODULE_ONLY_V2_SOURCE_PATH),
+            ("cat-file", "-t", blob),
+            ("cat-file", "-p", blob),
+        )
+        values = []
+        for args in commands:
+            result = subprocess.run(
+                ["/usr/bin/git", "-C", str(repo), *args],
+                check=True, capture_output=True, timeout=6,
+                env={"PATH": "/usr/bin:/bin", "HOME": "/nonexistent",
+                     "LC_ALL": "C", "GIT_CONFIG_GLOBAL": "/dev/null",
+                     "GIT_CONFIG_SYSTEM": "/dev/null"},
+            )
+            values.append(result.stdout)
+        expected_entry = (
+            f"100644 blob {blob}\t{MODULE_ONLY_V2_SOURCE_PATH}"
+        ).encode("utf-8")
+        return (
+            values[0].strip() == b"commit"
+            and values[1].strip() == tree.encode("ascii")
+            and values[2].strip() == expected_entry
+            and values[3].strip() == b"blob"
+            and values[4] == raw
+        )
+    except (OSError, ValueError, subprocess.SubprocessError, RuntimeError):
+        return False
+
+
 def rollout(control_root: Path, candidates: dict[str, Path], reader_dirs: dict[str, Path],
             expected_queue_sha: dict[str, str], expected_module_sha: dict[str, str | None], *,
             rollout_id: str, executing_role: str = "C",
             semantic_transition_proof_path: Path | None = None,
             semantic_transition_proof_sha256: str | None = None,
             transition_contract_path: Path | None = None,
-            transition_contract_sha256: str | None = None):
+            transition_contract_sha256: str | None = None,
+            module_only: bool = False):
     root = Path(control_root)
-    if (set(candidates) != {"work_queue", "work_board_v2"} or set(reader_dirs) != set(ROLES)
+    if type(module_only) is not bool:
+        raise RuntimeError("WORK_BOARD_V2_ROLLOUT_MODE_INVALID")
+    install_names = ("work_board_v2",) if module_only else ("work_queue", "work_board_v2")
+    if (set(candidates) != set(install_names) or set(reader_dirs) != set(ROLES)
         or set(expected_queue_sha) != set(ROLES) or set(expected_module_sha) != set(ROLES)
         or executing_role not in {"A", "B", "C"}):
         raise RuntimeError("WORK_BOARD_V2_ROLLOUT_READER_SET_INVALID")
@@ -648,13 +946,26 @@ def rollout(control_root: Path, candidates: dict[str, Path], reader_dirs: dict[s
         raise RuntimeError("WORK_BOARD_V2_ROLLOUT_TRANSITION_CONTRACT_REQUIRED")
     if contract_requested and transition_requested:
         raise RuntimeError("WORK_BOARD_V2_ROLLOUT_TRANSITION_MODE_CONFLICT")
+    if module_only and (contract_requested or transition_requested):
+        raise RuntimeError("WORK_BOARD_V2_ROLLOUT_MODULE_ONLY_TRANSITION_FORBIDDEN")
     candidate_raw = {}
     for name, path in candidates.items():
         _path(path); candidate_raw[name] = _read(path)
     candidate_sha = {name: _sha(raw) for name, raw in candidate_raw.items()}
+    if module_only and not _module_only_writer_flags_off(candidate_raw["work_board_v2"]):
+        raise RuntimeError("WORK_BOARD_V2_ROLLOUT_MODULE_ONLY_WRITER_NOT_DISABLED")
+    if module_only and not _module_only_trusted_git_source(candidate_raw["work_board_v2"]):
+        raise RuntimeError("WORK_BOARD_V2_ROLLOUT_MODULE_ONLY_SOURCE_NOT_TRUSTED")
     dirs = {role: Path(reader_dirs[role]) for role in ROLES}
-    target_paths = {role: {name: dirs[role] / (name + ".py") for name in candidates} for role in ROLES}
-    if len({str(path.resolve(strict=False)) for role in ROLES for path in target_paths[role].values()}) != 8:
+    # Queue source is ALWAYS a verified reader dependency. In module-only
+    # mode it is never an installation target (preserves each role's WIP).
+    target_paths = {
+        role: {name: dirs[role] / (name + ".py")
+               for name in ("work_queue", "work_board_v2")}
+        for role in ROLES
+    }
+    if len({str(target_paths[role][name].resolve(strict=False))
+            for role in ROLES for name in install_names}) != len(ROLES) * len(install_names):
         raise RuntimeError("WORK_BOARD_V2_ROLLOUT_TARGETS_OVERLAP")
     for role, directory in dirs.items():
         _path(directory, directory=True)
@@ -670,23 +981,35 @@ def rollout(control_root: Path, candidates: dict[str, Path], reader_dirs: dict[s
             raise RuntimeError("WORK_BOARD_V2_ROLLOUT_EXPECTED_MODULE_HASH_INVALID")
     receipt = root / "controllers/work-board-reader-rollouts" / (rollout_id + ".json")
     if os.path.lexists(receipt): raise RuntimeError("WORK_BOARD_V2_ROLLOUT_ALREADY_USED")
+    recovery = receipt.parent / (receipt.stem + ".recovery")
+    if os.path.lexists(recovery):
+        raise RuntimeError("WORK_BOARD_V2_ROLLOUT_RECOVERY_ALREADY_USED")
     status_before = {}
     repos, target_set = {}, set()
     for role, directory in dirs.items():
         repo, status = _git_status(directory, operational_org=role == "ORG"); repos[role] = repo; status_before[role] = status
-        target_set.add(target_paths[role]["work_queue"].resolve(strict=False))
-        target_set.add(target_paths[role]["work_board_v2"].resolve(strict=False))
+        for name in install_names:
+            target_set.add(target_paths[role][name].resolve(strict=False))
     board_path = root / "controllers/work-board.json"
     event_path = root / "controllers/work-board-events.jsonl"
     board_before, event_before = _raw_hash(board_path), _raw_hash(event_path)
     locks, changes = [], []
+    receipt_publication_started = False
     try:
         for role in "ABC":
             lock_path = root / (role + ".lock")
             fd = os.open(lock_path, os.O_CREAT | os.O_RDWR | getattr(os, "O_NOFOLLOW", 0), 0o600)
-            fcntl.flock(fd, fcntl.LOCK_EX); locks.append(fd)
+            locks.append(fd)
+            fcntl.flock(fd, fcntl.LOCK_EX)
         fd = os.open(root / "controllers/coordination.lock", os.O_CREAT | os.O_RDWR | getattr(os, "O_NOFOLLOW", 0), 0o600)
-        fcntl.flock(fd, fcntl.LOCK_EX); locks.append(fd)
+        locks.append(fd)
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        # The pre-lock receipt check is a fail-fast only. Two callers may
+        # both pass it before either acquires these four writer locks.
+        if os.path.lexists(receipt):
+            raise RuntimeError("WORK_BOARD_V2_ROLLOUT_ALREADY_USED")
+        if os.path.lexists(recovery):
+            raise RuntimeError("WORK_BOARD_V2_ROLLOUT_RECOVERY_ALREADY_USED")
         state_path = root / (executing_role + ".json")
         if not os.path.lexists(state_path):
             raise RuntimeError("WORK_BOARD_V2_EXECUTING_ROLE_STATE_INVALID")
@@ -754,17 +1077,47 @@ def rollout(control_root: Path, candidates: dict[str, Path], reader_dirs: dict[s
                 _path(path)
                 if _sha(_read(path)) != candidate_sha[name]:
                     raise RuntimeError("WORK_BOARD_V2_ROLLOUT_CANDIDATE_DRIFT")
-        receipt.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        # controllers is already required by the verified board. Do not
+        # create an untracked recursive ancestor chain here. Persist the new
+        # rollout-parent directory entry before any preimage or public write.
+        _path(receipt.parent.parent, directory=True)
+        receipt.parent.mkdir(mode=0o700, exist_ok=True)
         _path(receipt.parent, directory=True)
+        v2._fsync_dir(receipt.parent.parent)
+        # Capture every preimage and persist all custody before the first
+        # install; a process death must not erase any original dirty/WIP file.
         for role in ROLES:
-            # Both files are an inseparable reader pair.
-            for name in ("work_queue", "work_board_v2"):
+            for name in install_names:
                 target = target_paths[role][name]
                 prior = _file_state(target)
-                change = {"role": role, "name": name, "target": str(target), **prior,
-                          "new_sha256": candidate_sha[name]}
-                changes.append(change)
-                mode = prior["mode"] if prior["exists"] else 0o644
+                info = _path(target, missing=True)
+                if prior["exists"] != (info is not None):
+                    raise RuntimeError("WORK_BOARD_V2_ROLLOUT_PRIOR_CUSTODY_MISMATCH")
+                changes.append({
+                    "role": role, "name": name, "target": str(target), **prior,
+                    "new_sha256": candidate_sha[name],
+                    "prior_identity": [info.st_dev, info.st_ino] if info else None,
+                })
+        recovery_custody = _preserve_rollout_preimages(
+            receipt, changes, board_sha256=board_before, events_sha256=event_before,
+        )
+        change_by_target = {item["target"]: item for item in changes}
+        for role in ROLES:
+            # Default rollout retains the accepted two-file pair. A separately
+            # source-reviewed, flag-disabled module-only route can roll out a
+            # compatible V2 helper without replacing a role's dirty queue.
+            for name in install_names:
+                target = target_paths[role][name]
+                change = change_by_target[str(target)]
+                current = _file_state(target)
+                info = _path(target, missing=True)
+                identity = [info.st_dev, info.st_ino] if info else None
+                if (current["exists"] != change["exists"]
+                        or current["sha256"] != change["sha256"]
+                        or current["mode"] != change["mode"]
+                        or identity != change["prior_identity"]):
+                    raise RuntimeError("WORK_BOARD_V2_ROLLOUT_PRIOR_CUSTODY_MISMATCH")
+                mode = change["mode"] if change["exists"] else 0o644
                 change["installed_identity"] = _atomic(
                     target, candidate_raw[name], mode, scratch_dir=receipt.parent
                 )
@@ -775,6 +1128,10 @@ def rollout(control_root: Path, candidates: dict[str, Path], reader_dirs: dict[s
                 ):
                     raise RuntimeError("WORK_BOARD_V2_ROLLOUT_READBACK_FAILED")
                 compile(candidate_raw[name].decode("utf-8"), str(target), "exec")
+            # The untouched queue source must still be the exact role-bound
+            # source after writing its helper, not merely at preflight.
+            if module_only and _file_state(target_paths[role]["work_queue"])["sha256"] != expected_queue_sha[role]:
+                raise RuntimeError("WORK_BOARD_V2_ROLLOUT_QUEUE_SOURCE_MISMATCH")
             if not contract_requested:
                 installed = _module(target_paths[role]["work_queue"], role + "_after")
                 installed_semantic = _semantic(installed, root)
@@ -800,8 +1157,26 @@ def rollout(control_root: Path, candidates: dict[str, Path], reader_dirs: dict[s
         role_state_after = {role: _raw_hash(root / (role + ".json")) for role in "ABC"}
         if role_state_after != role_state_before:
             raise RuntimeError("WORK_BOARD_V2_ROLLOUT_ROLE_STATE_CHANGED")
+        # Source status can remain " M" while WIP bytes change again. At
+        # final commit verify exact per-role source bytes, not git status alone,
+        # so a late foreign edit cannot be silently accepted with new helper.
+        if module_only:
+            for role in ROLES:
+                if _file_state(target_paths[role]["work_queue"])["sha256"] != expected_queue_sha[role]:
+                    raise RuntimeError("WORK_BOARD_V2_ROLLOUT_QUEUE_SOURCE_MISMATCH")
+                if _file_state(target_paths[role]["work_board_v2"])["sha256"] != candidate_sha["work_board_v2"]:
+                    raise RuntimeError("WORK_BOARD_V2_ROLLOUT_READBACK_FAILED")
         receipt_value = {"schema_version": 1, "rollout_id": rollout_id, "executing_role": executing_role,
-                         "result": "COMMITTED", "candidate_sha256": candidate_sha,
+                         # A helper-only rollout cannot certify current
+                         # source bytes against non-cooperating OS writers.
+                         # Only the old governed pair route publishes COMMITTED.
+                         "result": (
+                             "APPLIED_PENDING_SOURCE_CURRENTITY"
+                             if module_only else "COMMITTED"
+                         ),
+                         "candidate_sha256": candidate_sha,
+                         "recovery_custody": recovery_custody,
+                         "installed_file_scope": list(install_names),
                          "board_sha256_before": board_before, "board_sha256_after": _raw_hash(board_path),
                          "events_sha256_before": event_before, "events_sha256_after": _raw_hash(event_path),
                          "role_state_sha256_before": role_state_before,
@@ -824,9 +1199,48 @@ def rollout(control_root: Path, candidates: dict[str, Path], reader_dirs: dict[s
                          "prior": [{key: value for key, value in item.items()
                                     if key not in {"raw", "installed_identity"}}
                                    for item in changes]}
-        v2._atomic_write(receipt, v2._canonical_bytes(receipt_value))
+        if module_only:
+            # This is NOT a release/installation acceptance receipt. The exact
+            # per-role hash is a historical observation, not an atomic lease:
+            # external privileged source edits can happen after its last read.
+            receipt_value["source_currentity"] = {
+                "level": "OBSERVED_ONLY_NO_EXCLUSIVE_WRITER_AUTHORITY",
+                "observed_queue_sha256_by_role": dict(expected_queue_sha),
+                "exclusive_source_revalidation_required": True,
+                "exclusive_writer_authority_verified": False,
+            }
+        receipt_publication_started = True
+        # A non-cooperating writer may ignore the role+coordination flock.
+        # Never overwrite another receipt for this single-use rollout id.
+        _atomic_noreplace(
+            receipt, v2._canonical_bytes(receipt_value), 0o600,
+            scratch_dir=receipt.parent,
+        )
         return receipt_value
     except Exception as error:
+        if isinstance(error, _ReceiptPublicationUncertain):
+            raise
+        if receipt_publication_started:
+            # The final rename may be visible even if parent-directory fsync
+            # failed. No automatic rollback may contradict a visible receipt.
+            receipt_status = None
+            try:
+                expected_raw = v2._canonical_bytes(receipt_value)
+                if _read(receipt, limit=len(expected_raw)) == expected_raw:
+                    receipt_status = receipt_value.get("result")
+            except (OSError, RuntimeError, ValueError):
+                pass
+            if receipt_status in {"COMMITTED", "APPLIED_PENDING_SOURCE_CURRENTITY"}:
+                raise _ReceiptPublicationUncertain(
+                    "WORK_BOARD_V2_ROLLOUT_RECEIPT_DURABILITY_UNCERTAIN_"
+                    + receipt_status
+                ) from error
+            # Even a missing receipt cannot prove that rename never happened
+            # in the presence of external non-cooperating writers. Preserve
+            # current sources and require authoritative recovery/readback.
+            raise _ReceiptPublicationUncertain(
+                "WORK_BOARD_V2_ROLLOUT_RECEIPT_WRITE_RECOVERY_REQUIRED"
+            ) from error
         if not changes: raise
         rollback_errors = []
         for item in reversed(changes):
@@ -839,14 +1253,14 @@ def rollout(control_root: Path, candidates: dict[str, Path], reader_dirs: dict[s
                         scratch_dir=receipt.parent,
                     )
                 else:
-                    _atomic(target, item["raw"], item["mode"], scratch_dir=receipt.parent)
-                    restored = _file_state(target)
-                    if (
-                        restored["sha256"] != item["sha256"]
-                        or restored["mode"] != item["mode"]
-                    ):
-                        raise RuntimeError("rollback hash/mode mismatch")
-            except Exception as rollback_error: rollback_errors.append(type(rollback_error).__name__)
+                    _rollback_prior_existing(
+                        target, item["raw"], item["mode"], item["sha256"],
+                        item.get("installed_identity"), item["new_sha256"],
+                        scratch_dir=receipt.parent,
+                        preimage_path=Path(item["preimage_path"]) if item.get("preimage_path") else None,
+                    )
+            except Exception as rollback_error:
+                rollback_errors.append(str(rollback_error) or type(rollback_error).__name__)
         if (changes and (
             _raw_hash(board_path) != board_before
             or _raw_hash(event_path) != event_before
@@ -855,8 +1269,36 @@ def rollout(control_root: Path, candidates: dict[str, Path], reader_dirs: dict[s
             } != role_state_before)
         )):
             rollback_errors.append("shared-state-drift")
-        if rollback_errors: raise RuntimeError("WORK_BOARD_V2_ROLLOUT_ROLLBACK_FAILED: " + ",".join(rollback_errors)) from None
+        if rollback_errors: raise RuntimeError("WORK_BOARD_V2_ROLLOUT_ROLLBACK_FAILED: " + ",".join(rollback_errors) + "; install_error=" + str(error)) from None
         raise RuntimeError("WORK_BOARD_V2_ROLLOUT_FAILED: " + str(error) + "; rollback verified") from None
     finally:
+        # Linux releases the advisory flock on the final close. Attempt to
+        # close every owned descriptor, even when one close reports OSError.
+        primary_error = sys.exc_info()[1]
+        close_errors = []
         for fd in reversed(locks):
-            fcntl.flock(fd, fcntl.LOCK_UN); os.close(fd)
+            try:
+                os.close(fd)
+            except OSError as close_error:
+                close_errors.append(close_error)
+        if close_errors:
+            if primary_error is not None:
+                # Do not mask the original rollback/provenance failure.
+                if hasattr(primary_error, "add_note"):
+                    primary_error.add_note("WORK_BOARD_V2_ROLLOUT_LOCK_CLOSE_FAILED")
+            else:
+                # Durable receipt may already have been committed. An error
+                # after that point is NOT proof that installation rolled back.
+                receipt_state = None
+                if "receipt_value" in locals():
+                    try:
+                        expected_receipt_raw = v2._canonical_bytes(receipt_value)
+                        if _read(receipt, limit=len(expected_receipt_raw)) == expected_receipt_raw:
+                            receipt_state = receipt_value.get("result")
+                    except (OSError, RuntimeError, ValueError):
+                        pass
+                if receipt_state in {"COMMITTED", "APPLIED_PENDING_SOURCE_CURRENTITY"}:
+                    code = "WORK_BOARD_V2_ROLLOUT_POSTCOMMIT_CLEANUP_UNCERTAIN_" + receipt_state
+                else:
+                    code = "WORK_BOARD_V2_ROLLOUT_CLEANUP_UNCERTAIN_RECEIPT_NOT_VERIFIED"
+                raise RuntimeError(code) from close_errors[0]

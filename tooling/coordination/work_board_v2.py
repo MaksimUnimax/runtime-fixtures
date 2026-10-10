@@ -30,6 +30,19 @@ COMPLETION_RECEIPT_CAP_BYTES = 65536
 HEX64 = re.compile(r"^[0-9a-f]{64}$")
 PLAN_IDS = {f"{role}{number:02d}" for role, numbers in (("A", range(1, 7)), ("B", range(1, 8)), ("C", range(0, 8))) for number in numbers}
 ACTIVE_STATES = {"READY", "IN_PROGRESS", "BLOCKED"}
+# Source-controlled two-phase rollout: all installed A/B/C/ORG readers must
+# accept both tombstone formats BEFORE a separately reviewed writer activation.
+# Do not enable based on an env variable, HOT content or caller-supplied flag.
+COMPACT_RESOLVED_BLOCKER_SCHEMA = 2
+COMPACT_RESOLVED_WRITES_ENABLED = False
+# A second, separately accepted format moves historical resolved BLOCKED rows
+# to an immutable indexed trie. Keep disabled until ALL installed readers have
+# passed exact-source review, CI and source SHA readback.
+RESOLVED_COLD_INDEX_WRITES_ENABLED = False
+RESOLVED_COLD_INDEX_SCHEMA = 1
+RESOLVED_COLD_ROOT_KEYS = frozenset({
+    "resolved_blocker_root_hash", "resolved_blocker_count",
+})
 TX_STATES = {"PREPARED", "DATA_DURABLE", "HOT_PUBLISHED", "EVENT_DURABLE", "COMMITTED", "ROLLED_BACK"}
 
 def _fault(_point: str) -> None:
@@ -407,6 +420,24 @@ def _validate_leaf_entry(entry: dict, tree: str, prefix: str):
                 raise RuntimeError("WORK_BOARD_V2_COMPLETED_ENTRY_INVALID")
         elif entry.get("completion_class") != "LEGACY_UNVERIFIED":
             raise RuntimeError("WORK_BOARD_V2_COMPLETED_ENTRY_INVALID")
+    elif tree == "resolved_blocker":
+        required = {"schema_version", "id", "role", "plan", "requires",
+                    "ordinal", "archive_sha256", "row_sha256"}
+        extra = {"blocked_receipt"}
+        if (not required <= set(entry) or set(entry) - required - extra
+            or type(entry.get("schema_version")) is not int
+            or entry["schema_version"] != RESOLVED_COLD_INDEX_SCHEMA
+            or entry.get("role") not in {"A", "B", "C"}
+            or entry.get("plan") not in PLAN_IDS
+            or not isinstance(entry.get("requires"), list)
+            or not all(isinstance(item, str) for item in entry["requires"])
+            or type(entry.get("ordinal")) is not int or entry["ordinal"] < 0
+            or not HEX64.fullmatch(str(entry.get("archive_sha256")))
+            or not HEX64.fullmatch(str(entry.get("row_sha256")))
+            or ("blocked_receipt" in entry and
+                (not isinstance(entry["blocked_receipt"], str)
+                 or not entry["blocked_receipt"]))):
+            raise RuntimeError("WORK_BOARD_V2_RESOLVED_INDEX_ENTRY_INVALID")
     elif tree == "archive_history":
         expected = {"archive_entry_id", "archive_sha256", "archive_size", "task_id", "completion_generation"}
         if (set(entry) != expected or not HEX64.fullmatch(str(entry.get("archive_entry_id")))
@@ -558,7 +589,7 @@ def _read_archive(paths, entry: dict) -> tuple[dict, int, int]:
         raise RuntimeError("WORK_BOARD_V2_ARCHIVE_ID_MISMATCH")
     return row, int(entry["ordinal"]), len(raw)
 
-def _resolved_blocker_tombstone(task: dict, ordinal: int, drafts: dict) -> dict:
+def _resolved_blocker_tombstone(task: dict, ordinal: int, drafts: dict, *, compact: bool = False) -> dict:
     row = dict(task)
     row.pop("_ordinal", None)
     resolution = row.get("blocker_resolution")
@@ -594,6 +625,11 @@ def _resolved_blocker_tombstone(task: dict, ordinal: int, drafts: dict) -> dict:
     }
     if row.get("blocked_receipt"):
         tombstone["blocked_receipt"] = row["blocked_receipt"]
+    if compact:
+        # The full resolution lives in the immutable content-addressed row.
+        # An old reader must reject this marker, not silently drop evidence.
+        tombstone["blocker_resolution"] = {"status": "RESOLVED"}
+        tombstone["resolved_cold_ref_schema"] = COMPACT_RESOLVED_BLOCKER_SCHEMA
     return tombstone
 
 
@@ -603,10 +639,14 @@ def _is_resolved_blocker_tombstone(task: dict) -> bool:
         "blocked_reason", "blocker_resolution", "resolved_archive_sha256",
     }
     keys = set(task) if isinstance(task, dict) else set()
+    compact = "resolved_cold_ref_schema" in keys
+    allowed = required | {"blocked_receipt"}
+    if compact:
+        allowed = allowed | {"resolved_cold_ref_schema"}
     return (
         isinstance(task, dict)
         and required <= keys
-        and keys <= (required | {"blocked_receipt"})
+        and keys <= allowed
         and task.get("state") == "BLOCKED"
         and task.get("role") in {"A", "B", "C"}
         and isinstance(task.get("plan"), str)
@@ -615,6 +655,14 @@ def _is_resolved_blocker_tombstone(task: dict) -> bool:
         and task.get("blocked_reason") == "R"
         and isinstance(task.get("blocker_resolution"), dict)
         and task["blocker_resolution"].get("status") == "RESOLVED"
+        and (
+            (not compact)
+            or (
+                type(task["resolved_cold_ref_schema"]) is int
+                and task["resolved_cold_ref_schema"] == COMPACT_RESOLVED_BLOCKER_SCHEMA
+                and task["blocker_resolution"] == {"status": "RESOLVED"}
+            )
+        )
     )
 
 
@@ -640,7 +688,13 @@ def _read_resolved_blocker_archive(paths, tombstone: dict) -> dict:
         or tombstone.get("role") != row.get("role")
         or tombstone.get("plan") != row.get("plan")
         or tombstone.get("requires") != row.get("requires")
-        or tombstone.get("blocker_resolution") != resolution
+        or (
+            tombstone.get("blocker_resolution") != (
+                {"status": "RESOLVED"}
+                if tombstone.get("resolved_cold_ref_schema") == COMPACT_RESOLVED_BLOCKER_SCHEMA
+                else resolution
+            )
+        )
         or tombstone.get("blocked_receipt") != row.get("blocked_receipt")
         or _semantic_sha(row) != wrapper.get("row_sha256")
     ):
@@ -648,27 +702,76 @@ def _read_resolved_blocker_archive(paths, tombstone: dict) -> dict:
     return row
 
 
+def _make_resolved_index_entry(task: dict, ordinal: int, drafts: dict) -> dict:
+    tombstone = _resolved_blocker_tombstone(task, ordinal, drafts, compact=True)
+    row = dict(task)
+    row.pop("_ordinal", None)
+    entry = {
+        "schema_version": RESOLVED_COLD_INDEX_SCHEMA,
+        "id": row["id"], "role": row["role"], "plan": row["plan"],
+        "requires": list(row["requires"]), "ordinal": ordinal,
+        "archive_sha256": tombstone["resolved_archive_sha256"],
+        "row_sha256": _semantic_sha(row),
+    }
+    if tombstone.get("blocked_receipt"):
+        entry["blocked_receipt"] = tombstone["blocked_receipt"]
+    _validate_leaf_entry(entry, "resolved_blocker", "")
+    return entry
+
+
+def _read_indexed_resolved_blocker(paths, entry: dict) -> tuple[dict, int]:
+    _validate_leaf_entry(entry, "resolved_blocker", "")
+    tombstone = {
+        "_ordinal": entry["ordinal"], "id": entry["id"],
+        "role": entry["role"], "plan": entry["plan"], "state": "BLOCKED",
+        "requires": list(entry["requires"]), "result": "R",
+        "blocked_reason": "R", "blocker_resolution": {"status": "RESOLVED"},
+        "resolved_archive_sha256": entry["archive_sha256"],
+        "resolved_cold_ref_schema": COMPACT_RESOLVED_BLOCKER_SCHEMA,
+    }
+    if "blocked_receipt" in entry:
+        tombstone["blocked_receipt"] = entry["blocked_receipt"]
+    row = _read_resolved_blocker_archive(paths, tombstone)
+    if _semantic_sha(row) != entry["row_sha256"]:
+        raise RuntimeError("WORK_BOARD_V2_RESOLVED_INDEX_ROW_MISMATCH")
+    return row, entry["ordinal"]
+
+
 def _generation_id(core: dict) -> str:
-    return _semantic_sha({
-        "schema_version": 1,
+    cold = RESOLVED_COLD_ROOT_KEYS <= set(core)
+    identity = {
+        "schema_version": 2 if cold else 1,
         "output_revision": core["revision"],
         "hot_core_sha256": _semantic_sha(core),
         "completed_root_hash": core["completed_root_hash"],
         "completed_count": core["completed_count"],
         "archive_history_root_hash": core["archive_history_root_hash"],
         "archive_history_count": core["archive_history_count"],
-    })
+    }
+    if cold:
+        identity.update(resolved_blocker_root_hash=core["resolved_blocker_root_hash"],
+                        resolved_blocker_count=core["resolved_blocker_count"])
+    return _semantic_sha(identity)
+
 
 def _hot_core(hot: dict) -> dict:
-    return {key: hot[key] for key in ("version", "revision", "updated_at", "completed_root_hash",
-                                      "completed_count", "archive_history_root_hash",
-                                      "archive_history_count", "tasks")}
+    keys = ("version", "revision", "updated_at", "completed_root_hash",
+            "completed_count", "archive_history_root_hash",
+            "archive_history_count", "tasks")
+    core = {key: hot[key] for key in keys}
+    if RESOLVED_COLD_ROOT_KEYS <= set(hot):
+        core.update({key: hot[key] for key in RESOLVED_COLD_ROOT_KEYS})
+    return core
 
 def _validate_hot(hot: dict) -> None:
     expected = {"version", "revision", "updated_at", "generation_id", "last_operation_id",
                 "completed_root_hash", "completed_count", "archive_history_root_hash",
                 "archive_history_count", "tasks"}
-    if (not isinstance(hot, dict) or set(hot) != expected or hot.get("version") != VERSION
+    keys = set(hot) if isinstance(hot, dict) else set()
+    extended = RESOLVED_COLD_ROOT_KEYS <= keys
+    if (not isinstance(hot, dict)
+        or keys != (expected | (RESOLVED_COLD_ROOT_KEYS if extended else set()))
+        or hot.get("version") != VERSION
         or type(hot.get("revision")) is not int or hot["revision"] < 0
         or not isinstance(hot.get("updated_at"), str)
         or not HEX64.fullmatch(str(hot.get("generation_id")))
@@ -682,6 +785,13 @@ def _validate_hot(hot: dict) -> None:
         root_sha = hot[root_key]
         if (root_sha is None) != (hot[count_key] == 0) or (root_sha is not None and not HEX64.fullmatch(str(root_sha))):
             raise RuntimeError("WORK_BOARD_V2_HOT_INVALID")
+    if extended:
+        count = hot["resolved_blocker_count"]
+        root_hash = hot["resolved_blocker_root_hash"]
+        if (type(count) is not int or not 0 <= count <= COMPLETED_CURRENT_CAP
+            or (root_hash is None) != (count == 0)
+            or (root_hash is not None and not HEX64.fullmatch(str(root_hash)))):
+            raise RuntimeError("WORK_BOARD_V2_RESOLVED_INDEX_ROOT_INVALID")
     ordinals, ids = set(), set()
     for task in hot["tasks"]:
         if not isinstance(task, dict):
@@ -690,7 +800,7 @@ def _validate_hot(hot: dict) -> None:
         if (type(ordinal) is not int or ordinal < 0 or not isinstance(identifier, str) or not identifier
             or ordinal in ordinals or identifier in ids):
             raise RuntimeError("WORK_BOARD_V2_ACTIVE_TASK_INVALID")
-        if "resolved_archive_sha256" in task:
+        if "resolved_archive_sha256" in task or "resolved_cold_ref_schema" in task:
             if (not _is_resolved_blocker_tombstone(task)
                     or not HEX64.fullmatch(str(task.get("resolved_archive_sha256")))):
                 raise RuntimeError("WORK_BOARD_V2_RESOLVED_BLOCKER_TOMBSTONE_INVALID")
@@ -747,8 +857,12 @@ def _validate_journal(tx: dict):
                 "event", "event_file_sha256", "pre_event_size", "pre_event_exists"}
     if not isinstance(tx, dict) or tx.get("schema_version") != 1:
         raise RuntimeError("WORK_BOARD_V2_TRANSACTION_INVALID")
+    txkeys = set(tx)
+    extended = RESOLVED_COLD_ROOT_KEYS <= txkeys
     expected_keys = required | ({"migration_id"} if tx.get("operation_kind") == "MIGRATION" else set())
-    if set(tx) != expected_keys:
+    if extended:
+        expected_keys |= RESOLVED_COLD_ROOT_KEYS
+    if txkeys != expected_keys:
         raise RuntimeError("WORK_BOARD_V2_TRANSACTION_INVALID")
     if tx.get("operation_kind") not in {"QUEUE", "MIGRATION"} or tx.get("state") not in TX_STATES:
         raise RuntimeError("WORK_BOARD_V2_TRANSACTION_INVALID")
@@ -764,6 +878,13 @@ def _validate_journal(tx: dict):
         raise RuntimeError("WORK_BOARD_V2_TRANSACTION_INVALID")
     for key in ("input_revision", "output_revision", "completed_count", "archive_history_count"):
         if type(tx.get(key)) is not int or tx[key] < 0:
+            raise RuntimeError("WORK_BOARD_V2_TRANSACTION_INVALID")
+    if extended:
+        count = tx["resolved_blocker_count"]
+        root_hash = tx["resolved_blocker_root_hash"]
+        if (type(count) is not int or not 0 <= count <= COMPLETED_CURRENT_CAP
+            or (root_hash is None) != (count == 0)
+            or (root_hash is not None and not HEX64.fullmatch(str(root_hash)))):
             raise RuntimeError("WORK_BOARD_V2_TRANSACTION_INVALID")
     if tx["operation_kind"] == "QUEUE":
         if (not isinstance(tx["event"], dict) or not HEX64.fullmatch(str(tx["event_core_sha256"]))
@@ -1001,6 +1122,16 @@ def _transaction_for_operation(root: Path, operation_id: str):
     _validate_journal(tx)
     return tx
 
+def _require_cold_index_tx_matches_hot(tx: dict, hot: dict) -> None:
+    """A recovery COMMITTED must bind the indexed root/count to published HOT."""
+    indexed_hot = RESOLVED_COLD_ROOT_KEYS <= set(hot)
+    indexed_tx = RESOLVED_COLD_ROOT_KEYS <= set(tx)
+    if indexed_hot != indexed_tx or (
+        indexed_hot and any(tx[key] != hot[key] for key in RESOLVED_COLD_ROOT_KEYS)
+    ):
+        raise RuntimeError("WORK_BOARD_V2_TRANSACTION_OUTPUT_MISMATCH")
+
+
 def _require_committed(root: Path, hot: dict, raw: bytes):
     if migration_pending(root):
         raise RuntimeError("WORK_QUEUE_RECOVERY_REQUIRED")
@@ -1009,6 +1140,7 @@ def _require_committed(root: Path, hot: dict, raw: bytes):
         raise RuntimeError("WORK_QUEUE_RECOVERY_REQUIRED")
     if tx["output_generation_id"] != hot["generation_id"] or tx["output_revision"] != hot["revision"]:
         raise RuntimeError("WORK_BOARD_V2_TRANSACTION_OUTPUT_MISMATCH")
+    _require_cold_index_tx_matches_hot(tx, hot)
 
 def _load_state(root: Path, hot_raw: bytes | None, *, require_committed: bool):
     paths = _paths(Path(root))
@@ -1017,6 +1149,11 @@ def _load_state(root: Path, hot_raw: bytes | None, *, require_committed: bool):
         _require_committed(Path(root), hot, raw)
     current_entries = _read_trie(Path(root), hot["completed_root_hash"], hot["completed_count"], "completed")
     history_entries = _read_trie(Path(root), hot["archive_history_root_hash"], hot["archive_history_count"], "archive_history")
+    cold_entries = (
+        _read_trie(Path(root), hot["resolved_blocker_root_hash"],
+                   hot["resolved_blocker_count"], "resolved_blocker")
+        if RESOLVED_COLD_ROOT_KEYS <= set(hot) else []
+    )
     history = {item["archive_entry_id"]: item for item in history_entries}
     if len(history) != len(history_entries):
         raise RuntimeError("WORK_BOARD_V2_ARCHIVE_HISTORY_DUPLICATE")
@@ -1057,6 +1194,14 @@ def _load_state(root: Path, hot_raw: bytes | None, *, require_committed: bool):
         used_ordinals.add(ordinal)
         ordinals[clean["id"]] = ordinal
         rows.append((ordinal, clean))
+    for entry in cold_entries:
+        clean, ordinal = _read_indexed_resolved_blocker(paths, entry)
+        if clean["id"] in ids or ordinal in used_ordinals:
+            raise RuntimeError("WORK_BOARD_V2_DUPLICATE_ID")
+        ids.add(clean["id"])
+        used_ordinals.add(ordinal)
+        ordinals[clean["id"]] = ordinal
+        rows.append((ordinal, clean))
     for task_id, row in completed_rows.items():
         rows.append((ordinals[task_id], row))
     rows.sort(key=lambda pair: pair[0])
@@ -1074,10 +1219,13 @@ def load_logical_board(root: Path, hot_raw: bytes | None = None) -> dict:
 
 def _snapshot_from_state(state: dict) -> dict:
     hot = state["hot"]
-    descriptor = {"schema_version": 1, "final_hot_file_sha256": state["hot_sha256"],
+    cold = RESOLVED_COLD_ROOT_KEYS <= set(hot)
+    descriptor = {"schema_version": 2 if cold else 1, "final_hot_file_sha256": state["hot_sha256"],
                   "generation_id": hot["generation_id"], "completed_root_hash": hot["completed_root_hash"],
                   "completed_count": hot["completed_count"], "archive_history_root_hash": hot["archive_history_root_hash"],
                   "archive_history_count": hot["archive_history_count"]}
+    if cold:
+        descriptor.update({key: hot[key] for key in RESOLVED_COLD_ROOT_KEYS})
     return {"exists": True, "sha256": _semantic_sha(descriptor)}
 
 def board_snapshot(root: Path, hot_raw: bytes | None = None) -> dict:
@@ -1100,6 +1248,17 @@ def _prepare_generation(root: Path, board: dict, previous_state: dict | None = N
         raise RuntimeError("WORK_BOARD_V2_LOGICAL_INVALID")
     previous_state = previous_state or {}
     old_ordinals = dict(previous_state.get("ordinals", {}))
+    use_cold_index = (
+        RESOLVED_COLD_INDEX_WRITES_ENABLED
+        or RESOLVED_COLD_ROOT_KEYS <= set(previous_state.get("hot", {}))
+    )
+    # Never silently inflate a previously compacted HOT row on rollback or
+    # an unrelated transaction if the source-controlled writer gate is off.
+    already_compact = {
+        item["id"] for item in previous_state.get("hot", {}).get("tasks", [])
+        if _is_resolved_blocker_tombstone(item)
+        and item.get("resolved_cold_ref_schema") == COMPACT_RESOLVED_BLOCKER_SCHEMA
+    }
     next_ordinal = max(old_ordinals.values(), default=-1) + 1
     old_current = dict(previous_state.get("completed_entries", {}))
     old_rows = dict(previous_state.get("completed_rows", {}))
@@ -1108,7 +1267,7 @@ def _prepare_generation(root: Path, board: dict, previous_state: dict | None = N
     for item in history:
         max_gen[item["task_id"]] = max(max_gen.get(item["task_id"], 0), item["completion_generation"])
     drafts: dict[tuple[str, str], bytes] = {}
-    assigned, active, current = {}, [], []
+    assigned, active, current, indexed_resolved = {}, [], [], []
     seen_ids, seen_ordinals = set(), set()
     for incoming in tasks:
         if not isinstance(incoming, dict):
@@ -1131,7 +1290,13 @@ def _prepare_generation(root: Path, board: dict, previous_state: dict | None = N
             resolution = row.get("blocker_resolution")
             if (row.get("state") == "BLOCKED" and isinstance(resolution, dict)
                     and resolution.get("status") == "RESOLVED"):
-                active.append(_resolved_blocker_tombstone(row, ordinal, drafts))
+                if use_cold_index:
+                    indexed_resolved.append(_make_resolved_index_entry(row, ordinal, drafts))
+                else:
+                    active.append(_resolved_blocker_tombstone(
+                        row, ordinal, drafts,
+                        compact=COMPACT_RESOLVED_WRITES_ENABLED or task_id in already_compact,
+                    ))
             else:
                 row["_ordinal"] = ordinal
                 active.append(row)
@@ -1160,6 +1325,13 @@ def _prepare_generation(root: Path, board: dict, previous_state: dict | None = N
     history_root, history_count, history_drafts = _trie_drafts(history, "archive_history", node_cap)
     drafts.update(current_drafts)
     drafts.update(history_drafts)
+    if use_cold_index:
+        if len(indexed_resolved) > COMPLETED_CURRENT_CAP:
+            raise RuntimeError("WORK_BOARD_V2_RESOLVED_INDEX_CAPACITY")
+        resolved_root, resolved_count, resolved_drafts = _trie_drafts(
+            indexed_resolved, "resolved_blocker", node_cap
+        )
+        drafts.update(resolved_drafts)
     active.sort(key=lambda row: row["_ordinal"])
     core = {
         "version": VERSION,
@@ -1171,6 +1343,9 @@ def _prepare_generation(root: Path, board: dict, previous_state: dict | None = N
         "archive_history_count": history_count,
         "tasks": active,
     }
+    if use_cold_index:
+        core.update(resolved_blocker_root_hash=resolved_root,
+                    resolved_blocker_count=resolved_count)
     return {"core": core, "drafts": drafts, "ordinals": assigned,
             "completed_entries": {item["id"]: item for item in current},
             "archive_history": {item["archive_entry_id"]: item for item in history}}
@@ -1242,6 +1417,8 @@ def _build_queue_tx(previous, generated, event_input):
         "event": event, "event_file_sha256": _sha(event_raw),
         "pre_event_size": event_offset, "pre_event_exists": event_exists,
     }
+    if RESOLVED_COLD_ROOT_KEYS <= set(hot):
+        tx.update({key: hot[key] for key in RESOLVED_COLD_ROOT_KEYS})
     return hot, hot_raw, tx
 
 def _event_preflight_root_placeholder(event: dict, event_raw: bytes):
@@ -1278,7 +1455,10 @@ def recover_queue_transaction(root: Path):
         return tx
     if current_sha != tx["final_hot_file_sha256"]:
         raise RuntimeError("WORK_QUEUE_RECOVERY_REQUIRED")
-    _load_state(root, current_raw, require_committed=False)
+    published = _load_state(root, current_raw, require_committed=False)
+    # The final HOT hash alone does not authenticate the journal's new cold
+    # root/count. Verify exact equality BEFORE committing or replaying events.
+    _require_cold_index_tx_matches_hot(tx, published["hot"])
     if tx["operation_kind"] == "QUEUE":
         _recover_event(root, tx)
     tx["state"] = "COMMITTED"
@@ -1335,6 +1515,8 @@ def commit_logical_board(root: Path, board: dict, event: dict):
         "event_core_sha256": event_core_sha, "event": final_event, "event_file_sha256": _sha(event_raw),
         "pre_event_size": pre_event_size, "pre_event_exists": pre_event_exists,
     }
+    if RESOLVED_COLD_ROOT_KEYS <= set(hot):
+        tx.update({key: hot[key] for key in RESOLVED_COLD_ROOT_KEYS})
     tx_raw = _journal_text(tx)
     directory, journals, temps, total = _tx_scan(root, create=True)
     if temps:
@@ -1405,7 +1587,7 @@ def _make_migration_tx(input_sha: str, input_revision: int, hot: dict, raw: byte
                           "output_revision": hot["revision"], "hot_core_sha256": core_sha})
     hot["last_operation_id"] = opid
     raw = _canonical_bytes(hot)
-    return opid, raw, {
+    tx = {
         "schema_version": 1, "operation_kind": "MIGRATION", "operation_id": opid,
         "migration_id": migration_id, "state": "PREPARED", "input_generation_id": None,
         "input_revision": input_revision, "input_hot_file_sha256": input_sha,
@@ -1416,6 +1598,9 @@ def _make_migration_tx(input_sha: str, input_revision: int, hot: dict, raw: byte
         "event_core_sha256": None, "event": None, "event_file_sha256": None,
         "pre_event_size": None, "pre_event_exists": None,
     }
+    if RESOLVED_COLD_ROOT_KEYS <= set(hot):
+        tx.update({key: hot[key] for key in RESOLVED_COLD_ROOT_KEYS})
+    return opid, raw, tx
 
 def validate_hot_candidate(root: Path, raw: bytes):
     """Validate a non-published v2 candidate using the same sidecar readers."""
