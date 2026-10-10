@@ -20,9 +20,10 @@ function fakeIDB() {
         queueMicrotask(() => { if (kind === 'get' || kind === 'all') stats.reads++;
           if (kind === 'put') { stats.writes++; records.set(value.artifact_key, value); }
           if (kind === 'delete') { stats.writes++; records.delete(value); }
+          if (kind === 'clear') { stats.writes++; records.clear(); }
           r.result = kind === 'get' ? records.get(value) : kind === 'all' ? [...records.values()] : value?.artifact_key;
           r.onsuccess?.(); queueMicrotask(() => tx.oncomplete?.()); }); return r;
-      }; return { get: k => op('get', k), put: v => op('put', v), delete: k => op('delete', k), getAll: () => op('all') }; } }; return tx;
+      }; return { get: k => op('get', k), put: v => op('put', v), delete: k => op('delete', k), getAll: () => op('all'), clear: () => op('clear') }; } }; return tx;
     } }; request.onsuccess?.(); }); return request;
   }, stats };
 }
@@ -192,13 +193,29 @@ await test('APP-04-Hide-stops-not-yet-dispatched-tail-and-Finish-stops-delivery'
   let release, arrived;
   const entered = new Promise(r => arrived = r), wait = new Promise(r => release = r);
   const s = await setup({ fetch: async () => { arrived(); await wait; return new Response('{}', { headers: { 'content-type': 'application/json' } }); } }); try {
-    const start = await s.start(await s.save(wb(fixtureToken))); await s.execute(start, api+'\n'+api);
+    const store = await s.save(wb(fixtureToken));
+    const start = await s.start(store); await s.execute(start, api+'\n'+api);
     await entered;
     assert.equal((await s.popup('OZ_WORK_HIDE', { conversation_key: start.key })).ok, true);
-    release(); const owner = await s.collected(start); assert.equal(s.worker.network.length, 1);
+    // Historical APP-04 ID is retained. R3 Hide changes visibility only.
+    release(); const owner = await s.collected(start); assert.equal(s.worker.network.length, 2);
+    const hiddenClick = await s.worker.request({ type: 'OZ_EXECUTE_COMMAND', conversation_key: start.key,
+      command_text: api, manual_request_id: 'hidden-new-click', work_session_id: start.session.start_intent_id }, start.sender);
+    assert.equal(hiddenClick.code, 'WORK_SESSION_NOT_VISIBLE');
+    assert.equal(s.worker.network.length, 2);
     await s.deliver(start, owner);
     assert.equal((await s.popup('OZ_WORK_FINISH', { conversation_key: start.key })).ok, true);
     const late = await s.worker.request({ type: 'OZ_WORK_DELIVERY_ASSERT', conversation_key: start.key, owner_id: owner.operation_id, delivery_id: owner.delivery_id }); assert.equal(late.ok, false);
+    const finished = await s.worker.call('workSessionFor', start.key);
+    assert.equal(finished.finished, true);
+    const resume = await s.popup('SA_WORK_RESUME', { conversation_key: start.key });
+    assert.equal(resume.ok, false); assert.equal(resume.code, 'WORK_SESSION_FINISHED');
+    const current = await s.popup('SA_POPUP_STATE'); assert.equal(current.work.can_resume, false);
+    await s.worker.call('(() => OzonWorkSessionModel.markStorageUnavailable())');
+    const blockedStart = await s.popup('SA_WORK_START', { store_id: store.id });
+    assert.equal(blockedStart.code, 'WORK_STATE_COMMIT_UNCONFIRMED');
+    assert.deepEqual(plain(await s.worker.call('getPendingWorkStarts')), {});
+    assert.equal(s.worker.network.length, 2);
   } finally { release?.(); s.worker.close(); }
 });
 await test('APP-05-conflicting-store-confirmation-cannot-bypass-admission', async () => {
@@ -365,5 +382,180 @@ await test('C3A-04-finish-during-authority-crypto-evaluation-drops-stale-positiv
     await new Promise(resolve => setTimeout(resolve, 40));
     assert.equal(s.worker.network.length, 0);
   } finally { release(); s.worker.close(); }
+});
+await test('PAR-32-package-subset-UNKNOWN-block-version-and-reload-never-repeat-provider', async () => {
+  const s = await setup({ fetch: async () => { throw new TypeError('fixture provider connection lost'); } });
+  let restarted;
+  try {
+    const store = await s.save(wb(fixtureToken)), started = await s.start(store);
+    await s.execute(started);
+    const owner = await s.collected(started), binding = await s.worker.call('bindingForConversationKey', started.key);
+    const receipt = owner.r3_commands.receipts[owner.r3_execution_id];
+    assert.equal(receipt.items[0].state, 'UNKNOWN'); assert.equal(s.worker.network.length, 1);
+    const source = { protocol: 2, documentKey: 'controlled-r3-document', workSessionId: started.session.start_intent_id,
+      bindingId: binding.binding_id, conversationKey: started.key,
+      messageIdentity: { kind: 'provider-message', id: 'fixture-message:explicit-fixture-block' }, blockOrdinal: 0 };
+    const click = (text, id) => ({ type: 'OZ_EXECUTE_COMMAND', conversation_key: started.key,
+      command_text: text, manual_request_id: id, work_session_id: started.session.start_intent_id, command_source: source });
+    for (const [text, id] of [[api, 'new-click'], [api + '\n', 'changed-block']]) {
+      const answer = await s.worker.request(click(text, id));
+      assert.equal(answer.code, 'COMMAND_OUTCOME_UNKNOWN_EXPLICIT_RETRY_REQUIRED', JSON.stringify(answer));
+    }
+    const oldContent = await s.worker.request({ ...click(api, 'old-content'), command_source: null });
+    assert.equal(oldContent.code, 'COMMAND_PROTOCOL_RELOAD_REQUIRED');
+    assert.equal(s.worker.network.length, 1);
+    const backing = s.worker.backing; s.worker.close();
+    restarted = await makeWorker(runtime, { backing, seedAuthority: false, fetch: async () => { throw new Error('reload must not dispatch provider'); } });
+    const answer = await restarted.request(click(api, 'after-reload'));
+    assert.equal(answer.code, 'COMMAND_OUTCOME_UNKNOWN_EXPLICIT_RETRY_REQUIRED', JSON.stringify(answer));
+    assert.equal(restarted.network.length, 0);
+    const preserved = await restarted.call('getManualOperation', started.key);
+    assert.equal(preserved.r3_commands.receipts[owner.r3_execution_id].items[0].state, 'UNKNOWN');
+    assert.equal(preserved.r3_commands.receipts[owner.r3_execution_id].payloadExpiresAt, receipt.payloadExpiresAt);
+  } finally { restarted?.close(); s.worker.close(); }
+});
+await test('PAR-33-35-package-subset-explicit-review-confirm-and-double-click', async () => {
+  let text = api, source, count = 0;
+  const s = await setup({ fetch: async () => { if (++count === 1) throw new TypeError('provider result lost');
+    return new Response('{"name":"fixture seller"}', { headers: { 'content-type': 'application/json' } }); },
+    readBlockResponse: () => ({ ok: true, command_text: text, command_source: source }) });
+  try {
+    const store = await s.save(wb(fixtureToken)), started = await s.start(store);
+    await s.execute(started); const old = await s.collected(started);
+    const binding = await s.worker.call('bindingForConversationKey', started.key);
+    source = { protocol: 2, documentKey: old.r3_source.documentKey, workSessionId: started.session.start_intent_id,
+      bindingId: binding.binding_id, conversationKey: started.key, messageIdentity: old.r3_source.messageIdentity, blockOrdinal: 0 };
+    await s.deliver(started, old);
+    const fields = { execution_id: old.r3_execution_id };
+    const review = await s.popup('SA_R3_RETRY_REVIEW', fields); assert.equal(review.ok, true, JSON.stringify(review));
+    assert.equal(review.items[0].supported, true, JSON.stringify(review.items)); assert.equal(count, 1);
+    const noItems = await s.popup('SA_R3_RETRY_PREVIEW', { ...fields, block_version: review.block_version, ordinals: [] });
+    assert.equal(noItems.code, 'RETRY_SELECTION_REQUIRED');
+    const preview = await s.popup('SA_R3_RETRY_PREVIEW', { ...fields, block_version: review.block_version, ordinals: [0] });
+    assert.equal(preview.ok, true, JSON.stringify(preview)); assert.equal(count, 1);
+    const confirm = { ...fields, confirmation_id: preview.confirmationId, block_version: preview.block_version, ordinals: [0], confirmed: true };
+    text += '\n';
+    const changed = await s.popup('SA_R3_RETRY_CONFIRM', confirm); assert.equal(changed.code, 'RETRY_PREVIEW_CHANGED'); assert.equal(count, 1);
+    text = api;
+    const answers = await Promise.all([s.popup('SA_R3_RETRY_CONFIRM', confirm), s.popup('SA_R3_RETRY_CONFIRM', confirm)]);
+    for (const answer of answers) assert.equal(answer.ok, true, JSON.stringify(answer));
+    assert.equal(answers.filter(answer => answer.accepted).length, 1);
+    const current = await s.collected(started); assert.equal(count, 2);
+    assert.notEqual(current.r3_execution_id, old.r3_execution_id);
+    assert.equal(current.r3_commands.receipts[current.r3_execution_id].predecessor, old.r3_execution_id);
+    assert.deepEqual(current.r3_commands.receipts[old.r3_execution_id], old.r3_commands.receipts[old.r3_execution_id]);
+    const duplicate = await s.popup('SA_R3_RETRY_CONFIRM', confirm); assert.equal(duplicate.duplicate, true); assert.equal(count, 2);
+  } finally { s.worker.close(); }
+});
+await test('PAR-36-38-package-subset-copy-exact-buffer-double-click-and-worker-crash', async () => {
+  const s = await setup(); let restarted;
+  try {
+    const store = await s.save(wb(fixtureToken)), started = await s.start(store);
+    await s.execute(started); const original = await s.collected(started); await s.deliver(started, original);
+    const fields = { execution_id: original.r3_execution_id };
+    const preview = await s.popup('SA_R3_COPY_PREVIEW', fields); assert.equal(preview.ok, true, JSON.stringify(preview));
+    assert.equal(preview.buffer, original.outgoing_text); assert.equal(preview.expiresAt, original.payload_expires_at_ms);
+    assert.equal(s.worker.network.length, 1);
+    const confirmation = { ...fields, confirmation_id: preview.confirmationId, confirmed: true };
+    const answers = await Promise.all([s.popup('SA_R3_COPY_CONFIRM', confirmation), s.popup('SA_R3_COPY_CONFIRM', confirmation)]);
+    for (const answer of answers) assert.equal(answer.ok, true, JSON.stringify(answer));
+    assert.equal(answers.filter(answer => answer.accepted).length, 1);
+    const copy = await s.worker.call('getManualOperation', started.key);
+    assert.notEqual(copy.delivery_id, original.delivery_id); assert.equal(copy.outgoing_text, original.outgoing_text);
+    assert.equal(copy.payload_expires_at_ms, original.payload_expires_at_ms);
+    assert.equal(copy.r3_commands.deliveries[original.delivery_id].state, 'CONFIRMED');
+    await s.deliver(started, copy); assert.equal(s.worker.network.length, 1);
+    const duplicate = await s.popup('SA_R3_COPY_CONFIRM', confirmation); assert.equal(duplicate.duplicate, true);
+    const preview2 = await s.popup('SA_R3_COPY_PREVIEW', fields); assert.equal(preview2.ok, true, JSON.stringify(preview2));
+    const next = await s.popup('SA_R3_COPY_CONFIRM', { ...fields, confirmation_id: preview2.confirmationId, confirmed: true });
+    assert.equal(next.ok, true, JSON.stringify(next));
+    const pending = await s.worker.call('getManualOperation', started.key), backing = s.worker.backing; s.worker.close();
+    restarted = await makeWorker(runtime, { backing, seedAuthority: false, fetch: async () => { throw new Error('copy never calls API'); } });
+    const send = await restarted.request({ type: 'OZ_BATCH_DELIVERY_INSERT_COMMIT', owner_kind: 'manual', owner_id: pending.operation_id,
+      conversation_key: started.key, delivery_id: pending.delivery_id, actor_id: 'after-crash' });
+    assert.equal(send.code, 'COPY_OUTCOME_UNKNOWN_NO_RETRY', JSON.stringify(send)); assert.equal(restarted.network.length, 0);
+    const history = await restarted.call('getManualOperation', started.key);
+    assert.equal(history.r3_commands.deliveries[pending.delivery_id].state, 'DELIVERY_INTENT');
+  } finally { restarted?.close(); s.worker.close(); }
+});
+await test('PAR-37-package-subset-copy-confirmation-rejected-after-Finish-expiry-and-logout', async () => {
+  for (const mode of ['Finish', 'expiry', 'logout']) {
+    const s = await setup();
+    try {
+      const store = await s.save(wb(fixtureToken)), started = await s.start(store);
+      await s.execute(started); const owner = await s.collected(started); await s.deliver(started, owner);
+      const fields = { execution_id: owner.r3_execution_id }, preview = await s.popup('SA_R3_COPY_PREVIEW', fields);
+      assert.equal(preview.ok, true, JSON.stringify(preview));
+      if (mode === 'Finish') assert.equal((await s.popup('OZ_WORK_FINISH', { conversation_key: started.key })).ok, true);
+      if (mode === 'logout') { const reset = await s.popup('SA_AUTH_RESET'); assert.equal(reset.ok, true, JSON.stringify(reset)); }
+      if (mode === 'expiry') { const keys = await s.worker.call('(() => OzonRuntime.STORAGE_KEYS)'); s.worker.backing.local[keys.MANUAL_OPERATIONS][started.key].payload_expires_at_ms = 1; }
+      const result = await s.popup('SA_R3_COPY_CONFIRM', { ...fields, confirmation_id: preview.confirmationId, confirmed: true });
+      assert.equal(result.ok, false, mode + ': ' + JSON.stringify(result)); assert.equal(s.worker.network.length, 1);
+    } finally { s.worker.close(); }
+  }
+});
+await test('PAR-36-package-subset-copy-local-HELP-without-provider-intent', async () => {
+  const s = await setup(); try {
+    const store = await s.save(wb(fixtureToken)), started = await s.start(store);
+    await s.execute(started, 'WB_HELP_V1 {"operation":"catalog","params":{"offset":0,"limit":1}}');
+    const old = await s.collected(started); await s.deliver(started, old); assert.equal(s.worker.network.length, 0);
+    const preview = await s.popup('SA_R3_COPY_PREVIEW', { execution_id: old.r3_execution_id });
+    assert.equal(preview.ok, true, JSON.stringify(preview));
+    const copy = await s.popup('SA_R3_COPY_CONFIRM', { execution_id: old.r3_execution_id, confirmation_id: preview.confirmationId, confirmed: true });
+    assert.equal(copy.ok, true, JSON.stringify(copy));
+    const owner = await s.worker.call('getManualOperation', started.key); await s.deliver(started, owner);
+    assert.equal(owner.outgoing_text, old.outgoing_text); assert.equal(s.worker.network.length, 0);
+    assert.ok(owner.r3_commands.receipts[old.r3_execution_id].items.every(item => item.providerAttemptId === null));
+  } finally { s.worker.close(); }
+});
+await test('PAR-36-38-package-subset-copy-original-attachment-and-reject-corruption', async () => {
+  const bytes = new Uint8Array([37,80,68,70,45,49,10,0,255]);
+  const s = await setup({ fetch: async () => new Response(bytes, { headers: { 'content-type': 'application/pdf',
+    'content-disposition': 'attachment; filename="retained-original.pdf"' } }) });
+  try {
+    s.worker.setDialogue('11111111-1111-4111-8111-111111111111');
+    const store = await s.save(wb(fixtureToken)), started = await s.start(store);
+    const contract = await s.worker.call('(() => SellerAgentsWBReference.contract)');
+    const meta = Object.values(contract.OPERATIONS).find(m => m.response_mode === 'binary' && m.execution_enabled && m.privacy === 'standard');
+    const params = { path: Object.fromEntries([...meta.path.matchAll(/\{([^}]+)\}/g)].map(m => [m[1], 'fixture'])),
+      query: Object.fromEntries(meta.required_query_keys.map(k => [k, '1'])), ...(meta.body_required ? { body: {} } : {}) };
+    await s.execute(started, 'WB_API_V1 ' + JSON.stringify({ operation: meta.alias, params }));
+    const original = await s.collected(started);
+    async function deliverAttachment(owner) {
+      const fields = { owner_kind: 'manual', owner_id: owner.operation_id, conversation_key: started.key,
+        delivery_id: owner.delivery_id, actor_id: 'fixture-copy-attachment' };
+      const commit = await s.worker.portRequest({ type: 'OZ_ATTACHMENT_COMMIT', ...fields });
+      assert.equal(commit.attach_allowed, true, JSON.stringify(commit));
+      const twice = await s.worker.portRequest({ type: 'OZ_ATTACHMENT_COMMIT', ...fields }); assert.equal(twice.attach_allowed, false);
+      const ready = await s.worker.portRequest({ type: 'OZ_ATTACHMENT_READY', ...fields,
+        attached_filenames: commit.recovery.artifact_descriptors.map(d => d.filename) }); assert.equal(ready.ok, true, JSON.stringify(ready));
+      const send = await s.worker.portRequest({ type: 'OZ_ATTACHMENT_SEND_COMMIT', ...fields }); assert.equal(send.click_allowed, true, JSON.stringify(send));
+      const sentTwice = await s.worker.portRequest({ type: 'OZ_ATTACHMENT_SEND_COMMIT', ...fields }); assert.equal(sentTwice.click_allowed, false);
+      const done = await s.worker.portRequest({ type: 'OZ_ATTACHMENT_CONFIRM', ...fields, confirmed_user_turn_id: 'fixture-confirmed-copy' });
+      assert.equal(done.confirmed, true, JSON.stringify(done)); return commit.recovery.artifact_descriptors;
+    }
+    const descriptors = await deliverAttachment(original);
+    const preview = await s.popup('SA_R3_COPY_PREVIEW', { execution_id: original.r3_execution_id });
+    assert.equal(preview.ok, true, JSON.stringify(preview)); assert.equal(preview.attachments.length, descriptors.length);
+    const accepted = await s.popup('SA_R3_COPY_CONFIRM', { execution_id: original.r3_execution_id,
+      confirmation_id: preview.confirmationId, confirmed: true }); assert.equal(accepted.ok, true, JSON.stringify(accepted));
+    const copy = await s.worker.call('getManualOperation', started.key);
+    assert.equal(copy.payload_expires_at_ms, original.payload_expires_at_ms);
+    const copied = await deliverAttachment(copy); assert.deepEqual(copied, descriptors); assert.equal(s.worker.network.length, 1);
+    const preview2 = await s.popup('SA_R3_COPY_PREVIEW', { execution_id: original.r3_execution_id }); assert.equal(preview2.ok, true, JSON.stringify(preview2));
+    const record = s.idb.records.get(descriptors.find(d => d.source_kind === 'original_provider_file').artifact_key);
+    const originalBytes = record.bytes;
+    record.bytes = new Uint8Array([0,1,2]).buffer;
+    const bad = await s.popup('SA_R3_COPY_CONFIRM', { execution_id: original.r3_execution_id,
+      confirmation_id: preview2.confirmationId, confirmed: true });
+    assert.equal(bad.code, 'COPY_ARTIFACT_MISMATCH', JSON.stringify(bad)); assert.equal(s.worker.network.length, 1);
+    record.bytes = originalBytes;
+    const allowed = await s.popup('SA_R3_COPY_CONFIRM', { execution_id: original.r3_execution_id,
+      confirmation_id: preview2.confirmationId, confirmed: true }); assert.equal(allowed.ok, true, JSON.stringify(allowed));
+    s.idb.records.delete(record.artifact_key);
+    const absent = await s.worker.portRequest({ type: 'OZ_ATTACHMENT_COMMIT', owner_kind: 'manual', owner_id: original.operation_id,
+      conversation_key: started.key, delivery_id: allowed.delivery_id, actor_id: 'fixture-after-artifact-loss' });
+    assert.equal(absent.code, 'COPY_ARTIFACT_UNAVAILABLE', JSON.stringify(absent)); assert.equal(s.worker.network.length, 1);
+  } finally { s.worker.close(); }
 });
 console.log(JSON.stringify({ status:'PASS', results, live_provider_calls:0, scope:'actual generated worker/popup messages and attachment port; simulated browser and provider; not installed live acceptance' },null,2));

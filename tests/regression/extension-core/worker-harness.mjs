@@ -550,6 +550,7 @@ export async function makeWorker(directory, options = {}) {
       id: "core-fixture",
       lastError: null,
       getURL: (name) => "chrome-extension://core-fixture/" + name,
+      getManifest: () => JSON.parse(fs.readFileSync(path.join(directory, "manifest.json"), "utf8")),
       onMessage: {
         addListener(fn) {
           listeners.push(fn);
@@ -581,6 +582,11 @@ export async function makeWorker(directory, options = {}) {
       onRemoved: { addListener() {} },
       sendMessage(id, message, callback) {
         messages.push(structuredClone(message));
+        if (message.type === "OZ_R3_READ_BLOCK") {
+          Promise.resolve(options.readBlockResponse?.(structuredClone(message), id) || { ok: false, error: { code: "COMMAND_BLOCK_UNAVAILABLE" } })
+            .then(response => callback?.(structuredClone(response)));
+          return;
+        }
         if (message.type === "OZ_SIGNED_AI_PROFILE_ENSURE") {
           const configured =
             typeof options.profileEnsureResponse === "function"
@@ -894,7 +900,20 @@ export async function makeWorker(directory, options = {}) {
   );
   // Default sender reflects the mature popup/content ownership of each message.
   let fixtureStoreId = null;
+  const fixtureDocumentKey = crypto.randomUUID();
   const adaptFixtureMessage = (message) => {
+    // These legacy-shaped test calls represent the current content script. Explicit
+    // command_source:null or commandProtocol:1 tests the old-content rejection path.
+    if (message.type === "OZ_EXECUTE_COMMAND" && options.commandProtocol !== 1 && !Object.hasOwn(message, "command_source")) {
+      const key = vm.runInContext(`normalizeConversationKey(${JSON.stringify(message.conversation_key)})`, context);
+      const keys = vm.runInContext("({ bindings: KEYS.CONVERSATION_BINDINGS, work: KEYS.WORK_SESSIONS })", context);
+      const binding = backing.local[keys.bindings]?.[key], work = backing.local[keys.work]?.[key];
+      if (binding && work) return { ...message, command_source: {
+        protocol: 2, documentKey: fixtureDocumentKey, workSessionId: work.start_intent_id,
+        bindingId: binding.binding_id, conversationKey: key,
+        messageIdentity: { kind: "provider-message", id: "fixture-message:" + message.manual_request_id }, blockOrdinal: 0,
+      } };
+    }
     if (message.type === "OZ_SAVE_GLOBAL_SETTINGS")
       return {
         type: "SA_STORE_SAVE",

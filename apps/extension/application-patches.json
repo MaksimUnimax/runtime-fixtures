@@ -77,17 +77,17 @@
   {
     "target": "content_script.js",
     "old": "    const manualRequestId = crypto.randomUUID();",
-    "new": "    const manualRequestId = saContentContext ? await sha256Hex(JSON.stringify([saContentContext.work_session_id, adapter.messageId(binding.section), text])) : crypto.randomUUID();"
+    "new": "    const manualRequestId = crypto.randomUUID();\n    let r3CommandSource = null;"
   },
   {
     "target": "content_script.js",
     "old": "manual_request_id: manualRequestId });",
-    "new": "manual_request_id: manualRequestId, work_session_id: saContentContext?.work_session_id });"
+    "new": "manual_request_id: manualRequestId, work_session_id: saContentContext?.work_session_id, command_source: r3CommandSource });"
   },
   {
     "target": "content_script.js",
     "old": "    for (const message of adapter.assistantMessages()) {\n      for (const root",
-    "new": "    for (const message of adapter.assistantMessages()) {\n      if (saContentContext?.assistant_baseline_ids?.includes(adapter.messageId(message))) continue;\n      for (const root"
+    "new": "    for (const message of adapter.assistantMessages()) {\n      if (saContentContext?.assistant_baseline_ids?.includes(SellerAgentsCommandSource.baselineId(SellerAgentsCommandSource.messageIdentity(adapter, message)))) continue;\n      for (const root"
   },
   {
     "target": "content_script.js",
@@ -653,5 +653,60 @@
     "target": "content_script.js",
     "old": "        recordContentDiagnostic(\"DELIVERY_SUCCESS\", { owner_kind: state.owner_kind, owner_id: state.owner_id, delivery_id: state.delivery_id, click_attempts: state.click_attempts, confirmation_basis: \"work_submit_disabled_after_click\" });\n        stopDeliveryWatch(\"delivery_success\");",
     "new": "        recordContentDiagnostic(\"DELIVERY_SUCCESS\", { owner_kind: state.owner_kind, owner_id: state.owner_id, delivery_id: state.delivery_id, click_attempts: state.click_attempts, confirmation_basis: \"work_submit_disabled_after_click\" });\n        toast(\"Ozon: отправка объединённого результата подтверждена.\", \"success\", 5000, \"autorun-state\");\n        stopDeliveryWatch(\"delivery_success\");"
+  },
+  {
+    "target": "content_script.js",
+    "old": "      const response = await sendRuntime(\"OZ_EXECUTE_COMMAND\", { command_text: text,",
+    "new": "      if (saContentContext) r3CommandSource = await SellerAgentsCommandSource.capture({ context: saContentContext, adapter, binding, conversationKey: operationConversationKey });\n      const response = await sendRuntime(\"OZ_EXECUTE_COMMAND\", { command_text: text,"
+  },
+  {
+    "target": "service_worker.js",
+    "old": "return await executeManualCommand(String(message.command_text || \"\"), message.conversation_key, sender, message.manual_request_id);",
+    "new": "return await executeManualCommand(String(message.command_text || \"\"), message.conversation_key, sender, message.manual_request_id, message.command_source);"
+  },
+  {
+    "target": "content_script.js",
+    "old": "return assistantMessages().map((message) => adapter.messageId(message)).filter(Boolean);",
+    "new": "return SellerAgentsCommandSource.baselineIds(adapter, assistantMessages());"
+  },
+  {
+    "target": "content_script.js",
+    "old": "  runtimeMessageListener = (message, _sender, sendResponse) => {",
+    "new": "  runtimeMessageListener = (message, _sender, sendResponse) => {\n    if (message?.type === \"OZ_R3_READ_BLOCK\") {\n      if (_sender?.id !== chrome.runtime.id) { sendResponse({ ok: false, error: { code: \"COMMAND_SENDER_INVALID\" } }); return false; }\n      SellerAgentsCommandSource.readBlock({ context: saContentContext, adapter, source: message.source,\n        conversationKey: manualConversationKey }).then(sendResponse).catch(error =>\n          sendResponse({ ok: false, error: { code: error.code || \"COMMAND_BLOCK_UNAVAILABLE\" } }));\n      return true;\n    }"
+  },
+  {
+    "target": "shared/file_delivery_port_worker.js",
+    "old": "  globalThis.OzonFileDeliveryWorker = Object.freeze({",
+    "new": "  async function copyManifest(delivery) {\n    const descriptors = delivery?.artifact_descriptors;\n    if (!Array.isArray(descriptors) || !descriptors.length) throw Object.assign(new Error(\"Copy artifacts unavailable\"), { code: \"COPY_ARTIFACT_UNAVAILABLE\" });\n    const manifest = [];\n    for (const descriptor of descriptors) {\n      const record = await getArtifact(descriptor.artifact_key);\n      if (!record || record.expires_at_ms <= nowMs()) throw Object.assign(new Error(\"Copy artifact expired\"), { code: \"COPY_ARTIFACT_UNAVAILABLE\" });\n      const bytes = new Uint8Array(record.bytes);\n      if (bytes.byteLength !== descriptor.byte_length || record.sha256 !== descriptor.sha256 ||\n          await sha256Hex(bytes) !== descriptor.sha256 || record.filename !== descriptor.filename || record.mime_type !== descriptor.mime_type)\n        throw Object.assign(new Error(\"Copy artifact changed\"), { code: \"COPY_ARTIFACT_MISMATCH\" });\n      manifest.push({ ...descriptor, expires_at_ms: record.expires_at_ms });\n    }\n    return manifest;\n  }\n\n  globalThis.OzonFileDeliveryWorker = Object.freeze({"
+  },
+  {
+    "target": "shared/file_delivery_port_worker.js",
+    "old": "    PORT_NAME,\n",
+    "new": "    PORT_NAME,\n    copyManifest,\n"
+  },
+  {
+    "target": "shared/file_delivery_port_worker.js",
+    "old": "    if (!completed) throw Object.assign(new Error(\"Attachment delivery state changed before confirmation.\"), { code: \"ATTACHMENT_CONFIRM_RACE\" });\n    await cleanupDeliveryArtifacts(preservedDelivery);",
+    "new": "    if (!completed) throw Object.assign(new Error(\"Attachment delivery state changed before confirmation.\"), { code: \"ATTACHMENT_CONFIRM_RACE\" });\n    if (found.kind !== \"manual\" || !found.owner.r3_execution_id) await cleanupDeliveryArtifacts(preservedDelivery);\n    if (found.kind === \"manual\" && typeof saR3RecordCopyConfirmation === \"function\") await saR3RecordCopyConfirmation(found.key, deliveryId);"
+  },
+  {
+    "target": "shared/file_delivery_wake_worker.js",
+    "old": "    if (!owner?.tab_id || owner?.delivery?.mode !== ATTACHMENT_MODE) return;",
+    "new": "    if (!owner?.tab_id || owner.status !== \"delivering\" || owner?.delivery?.mode !== ATTACHMENT_MODE) return;"
+  },
+  {
+    "target": "shared/file_delivery_port_worker.js",
+    "old": "    const records = await ensureArtifactsForDelivery(found.owner.delivery);",
+    "new": "    if (found.owner.r3_copy_delivery_id) await copyManifest(found.owner.delivery);\n    const records = await ensureArtifactsForDelivery(found.owner.delivery);"
+  },
+  {
+    "target": "shared/file_delivery_port_worker.js",
+    "old": "  async function commitAttachmentSend(message, sender) {\n    const found = await ownerForMessage(message, sender);",
+    "new": "  async function commitAttachmentSend(message, sender) {\n    const found = await ownerForMessage(message, sender);\n    if (found.owner.r3_copy_delivery_id) await copyManifest(found.owner.delivery);"
+  },
+  {
+    "target": "shared/runtime_names.js",
+    "old": "    \"ЭТО НАЧАЛО РАБОТЫ С OZON BRIDGE.\",",
+    "new": "    \"ЭТО НАЧАЛО РАБОТЫ С OCTOPORT.\","
   }
 ]

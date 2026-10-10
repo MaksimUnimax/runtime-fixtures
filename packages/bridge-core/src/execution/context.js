@@ -13,6 +13,7 @@
     "commandHash",
     "requestId",
   ]);
+  const authorityFields = Object.freeze(["scopeKey", "principalEpoch", "accessEpoch", "grantEpoch", "workGeneration", "aiFamily"]);
   function error(code = "EXECUTION_CONTEXT_CHANGED") {
     return Object.assign(
       new Error(
@@ -38,11 +39,20 @@
         throw error("EXECUTION_CONTEXT_MISSING");
       output.authGeneration = input.authGeneration;
     }
+    if (authorityFields.some(field => input?.[field] !== undefined)) {
+      for (const field of authorityFields) {
+        const value = input[field];
+        if (["scopeKey", "aiFamily"].includes(field) ? typeof value !== "string" || !value : !Number.isSafeInteger(value) || value < 0)
+          throw error("EXECUTION_CONTEXT_MISSING");
+        output[field] = value;
+      }
+    }
     return Object.freeze(output);
   }
   function assertSame(expected, live) {
     if (live?.active !== true || fields.some((field) => expected[field] !== live[field]) ||
-        (expected.authGeneration !== undefined && expected.authGeneration !== live.authGeneration))
+        (expected.authGeneration !== undefined && expected.authGeneration !== live.authGeneration) ||
+        authorityFields.some(field => expected[field] !== undefined && expected[field] !== live[field]))
       throw error();
   }
   function createGuard(expected, readCurrent) {
@@ -62,5 +72,6 @@
     createGuard,
     error,
     fields,
+    authorityFields,
   });
 })();

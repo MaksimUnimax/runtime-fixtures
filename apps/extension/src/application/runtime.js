@@ -433,7 +433,7 @@ async function saSnapshotDigest(envelope) {
   return [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))].map(value => value.toString(16).padStart(2, "0")).join("");
 }
 async function saAdmissionFence({ operation, tabId, identity, key, binding, work, store, bindingStore = null, intentId, authority, admissionEpoch = "" }) {
-  const currentAuthority = authority || await SellerAgentsControlClient.getAuthority();
+  const currentAuthority = authority || await SellerAgentsControlClient.getAuthority(identity);
   const currentGeneration = await SellerAgentsControlClient.generation();
   const profile = currentAuthority?.payload?.ai?.profile || {};
   return Object.freeze({
@@ -479,9 +479,9 @@ function saSameFence(left, right) {
   return left && right && ["operation", "admissionEpoch", "accountId", "generation", "deviceId", "sessionId", "authorityIdentity", "bootstrapSnapshotSha256", "tabId", "origin", "pageSource", "chatPath", "aiId", "aiSurface", "aiVariant", "aiProfileKey", "aiProfileRevision", "aiProfileScopeVariant", "aiProfileContentSha256", "conversationKey", "conversationId", "pendingIdentityState", "bindingId", "bindingIdentity", "bindingStoreId", "bindingStoreMarketplace", "bindingStoreCredentialRevision", "storeId", "selectedStoreId", "marketplace", "credentialRevision", "bindingRevision", "workState", "workRevision", "workIntentId", "intentId"].every(field => left[field] === right[field]);
 }
 async function saAdmissionInput({ operation, tabId, identity, key, binding, work, store }) {
-  const authority = await SellerAgentsControlClient.getAuthority();
-  const cached = await SellerAgentsControlClient.getCachedContinuationState();
-  const effectiveTimeMs = await SellerAgentsControlClient.getVerifiedAuthorityTime();
+  const authority = await SellerAgentsControlClient.getAuthority(identity);
+  const cached = await SellerAgentsControlClient.getCachedContinuationState(identity);
+  const effectiveTimeMs = await SellerAgentsControlClient.getVerifiedAuthorityTime(identity);
   const payload = authority?.payload;
   const generation = await SellerAgentsControlClient.generation();
   const bootstrapSnapshotSha256 = await saSnapshotDigest(authority?.envelope);
@@ -643,7 +643,7 @@ async function saReadAdmissionSnapshot({ operation, tabId, store, intentId, conv
   const bindingStore = binding?.store_context ? await saAssertStore(binding.store_context) : null;
   const liveStore = store ? await saAssertStore(saStoreContext(store)) : (binding?.store_context ? await saAssertStore(binding.store_context) : null);
   if (!liveStore) throw saAdmissionError("STORE_NOT_FOUND");
-  const authority = await SellerAgentsControlClient.getAuthority();
+  const authority = await SellerAgentsControlClient.getAuthority(identity);
   return { identity, key, binding, work, store: liveStore, bindingStore, authority, fence: await saAdmissionFence({ operation, tabId, identity, key, binding, work, store: liveStore, bindingStore, intentId, authority, admissionEpoch }) };
 }
 async function saAdmissionMutationGuard({ operation, tabId, conversationKey = null, intentId = "" }) {
@@ -768,7 +768,7 @@ async function saAdmissionProvenanceSeed(admission, operation, intentId) {
     bindingRevision: admission.snapshot.binding?.revision || null,
     workStartIntentId: String(intentId || ""),
     operation: String(operation || "").toUpperCase(),
-    admissionSafeTimeMs: await SellerAgentsControlClient.getVerifiedAuthorityTime(),
+    admissionSafeTimeMs: await SellerAgentsControlClient.getVerifiedAuthorityTime(admission.snapshot.identity),
     executionAuthority: false,
     bearer: false,
   });
@@ -781,6 +781,7 @@ async function saRunAdmissionMutation(token, fn) {
   finally { if (token.mutationFlight === flight) token.mutationFlight = null; }
 }
 async function saReadContext(key, immutable, ownerIdentity) {
+  OzonWorkSessionModel.assertStorageAvailable();
   const data = await storageGet([KEYS.CONVERSATION_BINDINGS, KEYS.WORK_SESSIONS]);
   const binding = normalizeBindingRecord(data[KEYS.CONVERSATION_BINDINGS]?.[key], key);
   const work = OzonWorkSessionModel.normalize(data[KEYS.WORK_SESSIONS]?.[key], key);
@@ -798,10 +799,15 @@ async function saReadContext(key, immutable, ownerIdentity) {
     current = await getManualOperation(key);
     if (current) manualContextOwners.set(key, manualContextOwnerSummary(current));
   }
-  const workAllowed = await SellerAgentsControlClient.canWork();
+  // Read-only inside the existing command writer: no nested auth mutation or Finish callback.
+  const workAllowed = SellerAgentsControlClient.canContinueCached(binding?.ai_id);
+  const grant = (await SellerAgentsControlClient.getCachedContinuationState(binding?.ai_id)).authority;
   const ownerActive = !ownerIdentity || current?.operation_id === ownerIdentity.operation_id && manualOperationActive(current) &&
-    SellerAgentsExecutionContext.fields.every(field => current.execution_context?.[field] === ownerIdentity.execution_context[field]);
+    [...SellerAgentsExecutionContext.fields, ...SellerAgentsExecutionContext.authorityFields].every(field => current.execution_context?.[field] === ownerIdentity.execution_context[field]);
   return { ...immutable, ...(store ? await saAuthorityStoreContext(store) : p), accountId: store?.accountId || "unavailable",
+    scopeKey: grant?.scopeKey || "unavailable", principalEpoch: grant?.principalEpoch ?? -1,
+    accessEpoch: grant?.accessEpoch ?? -1, grantEpoch: grant?.grantEpoch ?? -1,
+    workGeneration: work.work_generation, aiFamily: binding?.ai_id || "unavailable",
     conversationKey: key, bindingId: binding?.binding_id || "unbound", bindingRevision: binding?.revision || 0,
     workSessionId: work.start_intent_id || "inactive", active: Boolean(workAllowed && store && ownerActive &&
       [OzonWorkSessionModel.STATES.ACTIVE_VISIBLE, OzonWorkSessionModel.STATES.ACTIVE_HIDDEN, OzonWorkSessionModel.STATES.RECOVERING].includes(work.state)) };
@@ -835,8 +841,8 @@ function saDispatchFence(snapshot) {
     marketplace: snapshot.marketplace,
     storeId: snapshot.storeId,
     credentialRevision: snapshot.credentialRevision,
-    workState: snapshot.workState,
-    workRevision: snapshot.workRevision,
+    // Visibility revisions do not revoke an already admitted packet.
+    workGeneration: snapshot.workGeneration,
     workStartIntentId: snapshot.workStartIntentId,
     admissionProvenance: snapshot.admissionProvenance,
     localInvalidation: snapshot.localInvalidation,
@@ -849,9 +855,11 @@ async function saReadDispatchSnapshot(owner) {
   const key = normalizeConversationKey(owner?.conversation_key);
   const pinned = owner?.execution_context;
   if (!key || !pinned || !owner?.tab_id) throw SellerAgentsExecutionContext.error("EXECUTION_CONTEXT_MISSING");
+  if (SellerAgentsExecutionContext.authorityFields.some(field => pinned[field] === undefined))
+    throw SellerAgentsExecutionContext.error("EXECUTION_CONTEXT_LEGACY_UNRESOLVED");
   const currentOwner = await getManualOperation(key);
   if (!currentOwner || currentOwner.operation_id !== owner.operation_id || !currentOwner.execution_context ||
-      SellerAgentsExecutionContext.fields.some(field => currentOwner.execution_context[field] !== pinned[field]))
+      [...SellerAgentsExecutionContext.fields, ...SellerAgentsExecutionContext.authorityFields].some(field => currentOwner.execution_context[field] !== pinned[field]))
     throw SellerAgentsExecutionContext.error();
   const tab = Number(owner.tab_id);
   const identity = await tabIdentity(tab);
@@ -861,9 +869,14 @@ async function saReadDispatchSnapshot(owner) {
   if (!binding?.store_context) throw saDispatchAuthorityError("CONVERSATION_NOT_BOUND", ["binding"]);
   const store = await saAssertStore(binding.store_context);
   const work = await workSessionFor(key);
-  if (work.state !== OzonWorkSessionModel.STATES.ACTIVE_VISIBLE)
-    throw saDispatchAuthorityError("WORK_SESSION_NOT_VISIBLE", ["workState"]);
+  OzonWorkSessionModel.assertStorageAvailable();
+  if (work.finished || ![OzonWorkSessionModel.STATES.ACTIVE_VISIBLE, OzonWorkSessionModel.STATES.ACTIVE_HIDDEN].includes(work.state))
+    throw saDispatchAuthorityError("WORK_SESSION_NOT_ACTIVE", ["workState"]);
+  const cached = await SellerAgentsControlClient.getCachedContinuationState(identity);
+  const authority = cached.authority;
   const live = {
+    scopeKey: authority?.scopeKey, principalEpoch: authority?.principalEpoch, accessEpoch: authority?.accessEpoch,
+    grantEpoch: authority?.grantEpoch, workGeneration: work.work_generation, aiFamily: identity.ai_id,
     accountId: store.accountId, storeId: store.id, marketplace: store.marketplace,
     credentialRevision: store.credentialRevision, conversationKey: key,
     bindingId: binding.binding_id, bindingRevision: Number(binding.revision),
@@ -875,9 +888,7 @@ async function saReadDispatchSnapshot(owner) {
   };
   try { SellerAgentsExecutionContext.assertSame(pinned, live); }
   catch (_) { throw SellerAgentsExecutionContext.error(); }
-  const cached = await SellerAgentsControlClient.getCachedContinuationState();
-  const authority = cached.authority;
-  const safeTimeMs = await SellerAgentsControlClient.getVerifiedAuthorityTime();
+  const safeTimeMs = await SellerAgentsControlClient.getVerifiedAuthorityTime(identity);
   const payload = authority?.payload || {};
   const profile = payload.ai?.profile || {};
   const accountId = payload.account?.id || null;
@@ -892,7 +903,7 @@ async function saReadDispatchSnapshot(owner) {
     aiProfileContentSha256: profile.contentSha256 || null, bindingId: binding.binding_id,
     bindingRevision: Number(binding.revision), marketplace: store.marketplace, storeId: store.id,
     credentialRevision: store.credentialRevision, workState: work.state,
-    workRevision: Number(work.revision || 0), workStartIntentId: work.start_intent_id || null,
+    workGeneration: work.work_generation, workStartIntentId: work.start_intent_id || null,
     admissionProvenance: JSON.stringify(work.admission_provenance || null),
     localInvalidation: JSON.stringify(cached.localInvalidation || {}), safeTimeMs,
     authorityExpiresAt: payload.expiresAt || null,
@@ -958,7 +969,8 @@ async function saGuard(owner) {
   // This checkpoint only lets the control client persist a local expiry/invalidation.
   // Its boolean is deliberately ignored; saEvaluateDispatchAuthority is the sole
   // provider predispatch decision and runs again at the provider fetch boundary.
-  await SellerAgentsControlClient.canWork();
+  const binding = await bindingForConversationKey(owner.conversation_key);
+  await SellerAgentsControlClient.canWork(binding?.ai_id);
   const readCurrent = () => saReadContext(owner.conversation_key, { commandHash: p.commandHash, requestId: p.requestId }, owner);
   if (owner.payload_expires_at_ms && owner.payload_expires_at_ms <= Date.now()) throw saError("RESULT_EXPIRED");
   const guard = SellerAgentsExecutionContext.createGuard(p, readCurrent);
@@ -1029,9 +1041,9 @@ function saSameSignedProfileIdentity(left, right) {
     left.scopeVariant === right.scopeVariant &&
     left.contentSha256 === right.contentSha256);
 }
-async function saSignedProfileSnapshot() {
+async function saSignedProfileSnapshot(identity) {
   const generation = await SellerAgentsControlClient.generation();
-  const authority = await SellerAgentsControlClient.getAuthority();
+  const authority = await SellerAgentsControlClient.getAuthority(identity);
   if (!authority) return null;
   const snapshot = saSignedProfileAuthorityIdentity(generation, authority);
   snapshot.bootstrapSnapshotSha256 = await saSnapshotDigest(authority.envelope);
@@ -1039,7 +1051,7 @@ async function saSignedProfileSnapshot() {
 }
 async function saSignedProfileSnapshotStillCurrent(captured) {
   if (!captured) return false;
-  const current = await saSignedProfileSnapshot().catch(() => null);
+  const current = await saSignedProfileSnapshot(captured.authority?.requestedAi).catch(() => null);
   return Boolean(current &&
     current.generation === captured.generation &&
     current.snapshot.authorityIdentity === captured.snapshot.authorityIdentity &&
@@ -1057,9 +1069,9 @@ async function saSignedProfileRequest(message, sender) {
   if (identity?.ai_id !== message.ai.family || String(identity.origin || "").toLowerCase() !== trusted.origin)
     return saSignedProfileUnavailable(message, "AI_SCOPE_MISMATCH");
 
-  const captured = await saSignedProfileSnapshot().catch(() => null);
+  const captured = await saSignedProfileSnapshot(identity).catch(() => null);
   if (!captured) return saSignedProfileUnavailable(message, "NO_VERIFIED_AUTHORITY");
-  if (!await SellerAgentsControlClient.canWork()) return saSignedProfileUnavailable(message, "WORK_NOT_ALLOWED");
+  if (!await SellerAgentsControlClient.canWork(identity)) return saSignedProfileUnavailable(message, "WORK_NOT_ALLOWED");
 
   const payload = captured.authority?.payload;
   const detected = payload?.ai?.detected;
@@ -1087,7 +1099,7 @@ async function saSignedProfileRequest(message, sender) {
     profile: saProfileClone(profile)
   };
   if (!await consumer.validResponse(response)) return saSignedProfileUnavailable(message, "PROFILE_UNSUPPORTED");
-  if (!await SellerAgentsControlClient.canWork() || !await saSignedProfileSnapshotStillCurrent(captured))
+  if (!await SellerAgentsControlClient.canWork(identity) || !await saSignedProfileSnapshotStillCurrent(captured))
     return saSignedProfileUnavailable(message, "AUTHORITY_CHANGED");
   return response;
 }
@@ -1103,8 +1115,8 @@ async function saSignedProfileReceipt(message, sender) {
     return { ok: false, accepted: false, code: "AI_SCOPE_MISMATCH" };
 
   if (message.status === "REJECTED") return { ok: true, accepted: true };
-  const captured = await saSignedProfileSnapshot().catch(() => null);
-  const canWork = captured ? await SellerAgentsControlClient.canWork() : false;
+  const captured = await saSignedProfileSnapshot(identity).catch(() => null);
+  const canWork = captured ? await SellerAgentsControlClient.canWork(identity) : false;
   const payload = captured?.authority?.payload;
   const detected = payload?.ai?.detected;
   const profile = payload?.ai?.profile;
@@ -1113,9 +1125,9 @@ async function saSignedProfileReceipt(message, sender) {
     captured?.authority?.requestedAi === message.ai.family);
 
   if (message.status === "CLEARED") {
-    const latest = await saSignedProfileSnapshot().catch(() => null);
+    const latest = await saSignedProfileSnapshot(identity).catch(() => null);
     if (!latest) return { ok: true, accepted: true };
-    const latestCanWork = await SellerAgentsControlClient.canWork();
+    const latestCanWork = await SellerAgentsControlClient.canWork(identity);
     const latestPayload = latest.authority?.payload;
     const latestDetected = latestPayload?.ai?.detected;
     const latestProfile = latestPayload?.ai?.profile;
@@ -1131,7 +1143,7 @@ async function saSignedProfileReceipt(message, sender) {
   }
   if (!captured || !canWork || !scopeMatches || payload?.ai?.status !== "RESOLVED" || !profile ||
       !await consumer.validMaterial(profile)) return { ok: false, accepted: false, code: "STALE_REQUEST" };
-  if (!await SellerAgentsControlClient.canWork() || !await saSignedProfileSnapshotStillCurrent(captured))
+  if (!await SellerAgentsControlClient.canWork(identity) || !await saSignedProfileSnapshotStillCurrent(captured))
     return { ok: false, accepted: false, code: "STALE_REQUEST" };
 
   const currentAuthority = {
@@ -1181,8 +1193,9 @@ async function saEnsureTabSignedProfile(tabId, fence) {
 async function saPublicContext(key) {
   const binding = key ? await bindingForConversationKey(key) : null;
   const work = key ? await workSessionFor(key) : null;
-  const allowed = await SellerAgentsControlClient.canWork();
-  return { marketplace: binding?.store_context?.marketplace || "ozon", store_id: binding?.store_context?.storeId || null,
+  const allowed = await SellerAgentsControlClient.canWork(binding?.ai_id);
+  return { command_protocol: 2, binding_id: binding?.binding_id || null,
+    marketplace: binding?.store_context?.marketplace || "ozon", store_id: binding?.store_context?.storeId || null,
     work_session_id: allowed ? work?.start_intent_id || null : null, work_active: Boolean(allowed && work && ["active_visible", "active_hidden", "recovering"].includes(work.state)),
     button_visible: Boolean(allowed && work?.state === "active_visible"), assistant_baseline_ids: allowed ? binding?.assistant_baseline_ids || [] : [] };
 }
@@ -1199,9 +1212,10 @@ async function saInvalidateStore(id) {
   for (const [tab, start] of Object.entries(pending)) if (start.store_context?.storeId === id)
     await clearPendingWorkStart(Number(tab), start.intent_id, start.revision, "store_changed");
 }
-async function saInvalidateAuthority(nextAuthority = null, reason = null) {
+async function saInvalidateAuthority(nextAuthority = null, reason = null, scopeNotice = null) {
   const waits = [];
   for (const token of saAdmissionEpochs.values()) {
+    if (scopeNotice?.requestedAi && (token.expectedAi || token.requestedAi) !== scopeNotice.requestedAi) continue;
     // Preparation owns an intent, not an admitted profile. Resolving the AI
     // within the same verified account/session must not cancel its own Start.
     // Existing admitted work always loses its old authority.
@@ -1210,19 +1224,8 @@ async function saInvalidateAuthority(nextAuthority = null, reason = null) {
       && token.accountId && token.accountId === nextAuthority.payload?.account?.id
       && token.deviceId && token.deviceId === nextAuthority.deviceId
       && token.sessionId && token.sessionId === nextAuthority.sessionId;
-    // The client intentionally advances generation when first resolving AI.
-    // Carry only this still-current preparation across its own verified
-    // resolution. Reset, another AI, another session and already-admitted work
-    // retain the ordinary cancellation and exact-generation fences.
-    const ownResolution = samePreparingAccount && saAdmissionCurrent(token)
-      && reason === "bootstrap_verified" && token.resolvingIdentity === true
-      && token.expectedAi && token.requestedAi !== token.expectedAi
-      && nextAuthority.requestedAi === token.expectedAi
-      && nextAuthority.generation === token.generation + 1;
-    if (ownResolution) {
-      token.generation = nextAuthority.generation;
-      token.requestedAi = nextAuthority.requestedAi;
-    } else if (!samePreparingAccount || token.generation !== nextAuthority.generation) {
+    // A new grant never upgrades an already captured command/admission generation.
+    if (!samePreparingAccount || token.generation !== nextAuthority.generation) {
       token.cancelled = true;
     }
     if (token.mutationFlight) waits.push(token.mutationFlight);
@@ -1230,6 +1233,7 @@ async function saInvalidateAuthority(nextAuthority = null, reason = null) {
   await Promise.allSettled(waits);
   const bindings = await getConversationBindings();
   for (const [key, raw] of Object.entries(bindings)) {
+    if (scopeNotice?.requestedAi && raw.ai_id !== scopeNotice.requestedAi) continue;
     const work = await workSessionFor(key);
     if (["active_visible", "active_hidden", "recovering", "error"].includes(work.state)) {
       try { await saLegacyMessage({ type: "OZ_WORK_FINISH", conversation_key: key, tab_id: work.tab_id }, {}); } catch (_) { /* the context guard remains closed */ }
@@ -1237,11 +1241,12 @@ async function saInvalidateAuthority(nextAuthority = null, reason = null) {
   }
   const pending = await getPendingWorkStarts();
   for (const [tab, start] of Object.entries(pending)) {
+    if (scopeNotice?.requestedAi && start.ai_id !== scopeNotice.requestedAi) continue;
     try { await clearPendingWorkStart(Number(tab), start.intent_id, start.revision, "authority_changed"); } catch (_) { /* stale pending state is harmless */ }
   }
 }
-SellerAgentsControlClient.onAuthorityChanged(async (authority, reason) => {
-  if (reason !== "profile_changed") await saInvalidateAuthority(authority, reason);
+SellerAgentsControlClient.onAuthorityChanged(async (authority, reason, generation, scopeNotice) => {
+  if (reason !== "profile_changed") await saInvalidateAuthority(authority, reason, scopeNotice);
   queueMicrotask(() => { void saBroadcastSignedProfileRefresh(reason); });
 });
 function saSupportCode(value) {
@@ -1420,19 +1425,24 @@ async function saPopupState(tabId) {
   const key = usableIdentity && live.conversation_id ? conversationKeyFromIdentity(live) : null;
   const pending = usableIdentity ? (await getPendingWorkStarts())[String(tabId)] || null : null;
   const lastStart = await saLastStartDiagnostic(tabId);
-  const auth = await SellerAgentsControlClient.status();
+  const auth = await SellerAgentsControlClient.status(usableIdentity ? live : null);
   const work = key ? await workSessionFor(key) : null;
   if (auth.authenticated && key) void saRefreshConversationSnapshot(key);
   const context = await saPublicContext(key);
-  const publicWork = auth.workAllowed ? work : work ? { ...work, state: OzonWorkSessionModel.STATES.INACTIVE } : null;
+  const publicWork = work ? { ...work,
+    can_resume: auth.workAllowed && OzonWorkSessionModel.canResume(work),
+    state: auth.workAllowed ? work.state : OzonWorkSessionModel.STATES.INACTIVE,
+  } : null;
   let stores = [];
   if (auth.authenticated) stores = await saCatalog.list();
   return { ok: true, auth, pending: pending ? { intent_id: pending.intent_id, send_outcome: pending.send_outcome, expires_at: pending.expires_at } : null, stores,
     account: auth.account || { kind: "signed_out", label: "Вход не выполнен" },
     identity: live, page, conversation_key: key, context, work: publicWork, lastStart,
+    recovery: key ? await saR3RecoverySummary(key, work) : [],
     operation: key ? publicManualOperation(await getManualOperation(key)) : null };
 }
 async function saWorkStart(message, sender) {
+  OzonWorkSessionModel.assertStorageAvailable();
   try {
     const result = await singleFlight(saWorkFlights, String(message.tab_id), async () => {
     const entry = saBeginAdmission(saAdmissionKey(message.tab_id, null), {
@@ -1458,7 +1468,7 @@ async function saWorkStart(message, sender) {
     entry.resolvingIdentity = true;
     try { await SellerAgentsControlClient.ensureForIdentity(identity); }
     finally { entry.resolvingIdentity = false; }
-    if (!await SellerAgentsControlClient.canWork()) throw saError("WORK_POLICY_BLOCKED");
+    if (!await SellerAgentsControlClient.canWork(identity)) throw saError("WORK_POLICY_BLOCKED");
     const store = await saCatalog.get(message.store_id);
     const live = await tabIdentity(normalizeTabId(message.tab_id));
     const key = live.conversation_id ? conversationKeyFromIdentity(live) : null;
@@ -1475,7 +1485,7 @@ async function saWorkStart(message, sender) {
     if (changingStore && (!key || !rebindStates.includes(work?.state))) throw saError("WORK_START_ALREADY_IN_PROGRESS");
     if (changingStore && await getManualOperation(key).then(manualOperationActive)) throw saError("WORK_START_ALREADY_IN_PROGRESS");
     const intentId = String(message.start_intent_id || "").trim() || `work-start-${crypto.randomUUID()}`;
-    const authority = await SellerAgentsControlClient.getAuthority();
+    const authority = await SellerAgentsControlClient.getAuthority(live);
     const sourceStore = changingStore ? await saAssertStore(binding.store_context) : null;
     await saAssertReconciliationAction(binding, sourceStore || store, key);
     const plan = changingStore ? saRebindPlan({ tabId: message.tab_id, identity: live, key, binding, work, sourceStore, targetStore: store, intentId, authority }) : null;
@@ -1525,18 +1535,22 @@ async function saWorkStart(message, sender) {
   }
 }
 async function saWorkResume(message, sender) {
+  OzonWorkSessionModel.assertStorageAvailable();
   return singleFlight(saWorkFlights, String(message.tab_id), async () => {
     const tab = normalizeTabId(message.tab_id);
     const identity = await tabIdentity(tab);
-    await SellerAgentsControlClient.ensureForIdentity(identity);
     const key = identity.conversation_id ? conversationKeyFromIdentity(identity) : null;
     if (!key || key !== normalizeConversationKey(message.conversation_key)) throw saAdmissionError("CONVERSATION_MISMATCH");
+    const resumableWork = await workSessionFor(key);
+    if (!OzonWorkSessionModel.canResume(resumableWork)) throw saError(
+      resumableWork.finished ? "WORK_SESSION_FINISHED" : "WORK_RESUME_UNPROVEN");
+    await SellerAgentsControlClient.ensureForIdentity(identity);
     const binding = await bindingForConversationKey(key);
     if (!binding?.store_context) throw saAdmissionError("CONVERSATION_NOT_BOUND");
     const store = await saAssertStore(binding.store_context);
     await saAssertReconciliationAction(binding, store, key);
     const work = await workSessionFor(key);
-    if (work.state !== OzonWorkSessionModel.STATES.INACTIVE) throw saError("WORK_SESSION_NOT_INACTIVE");
+    if (!OzonWorkSessionModel.canResume(work)) throw saError(work.finished ? "WORK_SESSION_FINISHED" : "WORK_RESUME_UNPROVEN");
     if (await getManualOperation(key).then(manualOperationActive)) throw saError("WORK_RESUME_OPERATION_ACTIVE");
     const intentId = `resume-${crypto.randomUUID()}`;
     const admission = await saAdmitWork({ operation: "resume", tabId: tab, store, intentId, conversationKey: key });
@@ -1591,6 +1605,11 @@ async function saHandleMessage(message, sender) {
       case "SA_BACKUP_IMPORT": return saBackupImport(message);
       case "SA_WORK_START": return saWorkStart(message, sender);
       case "SA_WORK_RESUME": return saWorkResume(message, sender);
+      case "SA_R3_RETRY_REVIEW": return saR3RetryReview(message);
+      case "SA_R3_RETRY_PREVIEW": return saR3RetryPreview(message);
+      case "SA_R3_RETRY_CONFIRM": return saR3RetryConfirm(message);
+      case "SA_R3_COPY_PREVIEW": return saR3CopyPreview(message);
+      case "SA_R3_COPY_CONFIRM": return saR3CopyConfirm(message);
       case "SA_STORE_CHECK": return saCheckStore(message);
       case "SA_TRANSFER_CREATE": {
         const request = await SellerAgentsControlClient.createCredentialTransfer({ consent: message.consent === true, sourceDeviceId: message.sourceDeviceId || null, selectedStoreIds: message.selectedStoreIds || [], expiresInSeconds: message.expiresInSeconds || 300 });
@@ -1714,6 +1733,7 @@ async function saHandleMessage(message, sender) {
       await saAssertReconciliationAction(binding, store, message.conversation_key, message.work_session_id);
     }
     if (message.type.startsWith("OZ_BATCH_DELIVERY_")) {
+      saR3AssertCopyPermit(await getManualOperation(message.conversation_key));
       await assertManualBatchContext(message.conversation_key, message.owner_id || message.operation_id);
     if (message.type === "OZ_BATCH_DELIVERY_COMPLETE") {
         const current = await getManualOperation(message.conversation_key);
@@ -1732,6 +1752,13 @@ async function saHandleMessage(message, sender) {
     await saRecordFinishMutation(key, binding, store);
   }
   if (enabled && result?.ok && ["OZ_BATCH_DELIVERY_COMPLETE", "OZ_REPORT_DELIVERY_CONFIRMED"].includes(message.type)) {
+    const copyOwner = await getManualOperation(message.conversation_key);
+    if (copyOwner?.r3_copy_delivery_id === message.delivery_id && copyOwner.status === MANUAL_OPERATION_STATUSES.COMPLETED &&
+        copyOwner.delivery_confirmed === true && copyOwner.last_confirmed_delivery_id === message.delivery_id) {
+      await saR3Ledger().recordCopyOutcome({ conversationKey: copyOwner.conversation_key, context: copyOwner.execution_context,
+        deliveryId: message.delivery_id, outcome: "CONFIRMED" });
+      saR3CopyPermits.delete(message.delivery_id);
+    }
     const key = normalizeConversationKey(message.conversation_key), binding = await bindingForConversationKey(key);
     const store = binding?.store_context ? await saAssertStore(binding.store_context).catch(() => null) : null;
     await saRecordDeliveryMarker(key, binding, store, message.delivery_id || message.owner_id || "", {
@@ -1810,6 +1837,7 @@ function saPrunePayload(owner, now = Date.now()) {
 async function saAssertDeliveryOwner(owner) {
   if (!owner?.execution_context) throw SellerAgentsExecutionContext.error("EXECUTION_CONTEXT_MISSING");
   await saAssertLocalAuthorityAdmission();
+  saR3AssertCopyPermit(owner);
   if (owner.payload_expires_at_ms <= Date.now()) throw saError("RESULT_EXPIRED");
   const guard = await saGuard(owner);
   await guard.assertCurrent();
@@ -1867,4 +1895,326 @@ async function saRememberOzonFileRefs(response, context) {
       return old || { accountId: p.accountId, storeId: p.storeId, credentialRevision: p.credentialRevision, expires_at_ms: Date.now() + SA_PAYLOAD_TTL };
     });
   }
+}
+
+// R3 receipts extend the existing manual record writer; they do not schedule another queue.
+let saR3CommandLedger = null;
+const saR3RetryPermits = new WeakSet();
+const saR3CopyPermits = new Set();
+function saR3ReadOnly(item) {
+  try {
+    const meta = item.marketplace === "ozon" ? OzonContract.OPERATIONS[item.operation] :
+      item.marketplace === "wildberries" ? SellerAgentsWBAdapter.operation({ operation: item.operation }) : null;
+    return Boolean(meta && meta.effect === "READ" && meta.execution_enabled === true &&
+      (meta.current === true || meta.currentness === "current"));
+  } catch (_) { return false; }
+}
+function saR3Ledger() {
+  if (!saR3CommandLedger) saR3CommandLedger = SellerAgentsCommandLedger.createCommandLedger({
+    store: manualOperationRecords, canonicalJson: SellerAgentsBootstrapVerifier.canonicalJson, sha256: sha256Hex,
+    assertContext: async context => {
+      const live = await saReadContext(context.conversationKey, { commandHash: context.commandHash, requestId: context.requestId });
+      try { SellerAgentsExecutionContext.assertSame(context, live); return true; } catch (_) { return false; }
+    },
+    classifyReadOnly: saR3ReadOnly,
+    readBuffer: saR3ReadBuffer,
+  });
+  return saR3CommandLedger;
+}
+async function saR3PrepareCommandSource(source, sender, identity, binding, work, key, text) {
+  if (source?.protocol !== 2) throw saError("COMMAND_PROTOCOL_RELOAD_REQUIRED");
+  const message = source.messageIdentity;
+  if (!message || !["provider-message", "document-local"].includes(message.kind) ||
+      typeof message.id !== "string" || !message.id || message.id.length > 512 || /[\u0000-\u001f]/.test(message.id) ||
+      typeof source.documentKey !== "string" || !source.documentKey || source.documentKey.length > 128 ||
+      !Number.isSafeInteger(source.blockOrdinal) || source.blockOrdinal < 0 || source.blockOrdinal > 10000)
+    throw saError("BLOCK_IDENTITY_REQUIRED");
+  if (source.workSessionId !== work.start_intent_id || source.bindingId !== binding.binding_id ||
+      normalizeConversationKey(source.conversationKey) !== key || identity.ai_id !== binding.ai_id)
+    throw saError("EXECUTION_CONTEXT_CHANGED");
+  const baseline = binding.assistant_baseline_ids || [];
+  const baselineId = message.kind === "provider-message" ? message.id : "r3-local:" + message.id;
+  if (baseline.includes(baselineId)) throw saError("COMMAND_PRECEDES_WORK_START");
+  if (message.kind === "document-local" && (message.documentKey !== source.documentKey ||
+      !baseline.includes("r3-document:" + source.documentKey)))
+    throw saError("COMMAND_LOCAL_IDENTITY_UNCERTAIN_START_REQUIRED");
+  const accountId = await SellerAgentsControlClient.currentAccount();
+  if (!accountId || accountId !== binding.store_context?.accountId) throw saError("EXECUTION_CONTEXT_CHANGED");
+  const keys = await saR3Ledger().blockKeys({ accountId, conversationBindingId: binding.binding_id,
+    workSessionId: work.start_intent_id, messageIdentity: message, blockOrdinal: source.blockOrdinal, blockText: text });
+  const requestToken = await sha256Hex(SellerAgentsBootstrapVerifier.canonicalJson({
+    blockOriginKey: keys.blockOriginKey, blockVersion: keys.blockVersion, approvalRevision: 0 }));
+  return { ...keys, requestToken, source: { messageAnchorKey: keys.messageAnchorKey,
+    documentKey: source.documentKey, messageKind: message.kind, messageIdentity: structuredClone(message), blockOrdinal: source.blockOrdinal,
+    browserDocumentId: typeof sender.documentId === "string" ? sender.documentId : null } };
+}
+async function saR3ReserveCommand(prepared, context, entries, ingressRequestToken) {
+  const current = await getManualOperation(context.conversationKey);
+  if (current?.execution_context?.workSessionId === context.workSessionId &&
+      current.seen_request_ids?.includes(ingressRequestToken)) throw saError("MANUAL_REQUEST_DUPLICATE");
+  if (current?.operation_id && !current.r3_execution_id && current.execution_context?.workSessionId === context.workSessionId)
+    throw saError("COMMAND_HISTORY_UNKNOWN_START_REQUIRED");
+  const items = await Promise.all(entries.map(async (entry, ordinal) => ({ ordinal,
+    inputHash: await sha256Hex(SellerAgentsBootstrapVerifier.canonicalJson({
+      kind: entry.kind, command_text: entry.command_text || null, operation: entry.operation || null,
+      guidance: entry.guidance || null, error: entry.error || null })) })));
+  const reserved = await saR3Ledger().reserveCommand({ conversationKey: context.conversationKey, context,
+    blockOriginKey: prepared.blockOriginKey, blockVersion: prepared.blockVersion, source: prepared.source, items });
+  if (reserved.duplicate) {
+    const latest = await getManualOperation(context.conversationKey);
+    const receipt = latest?.r3_commands?.receipts?.[reserved.executionId];
+    // Durable RESERVED without an owner or provider intent proves this new protocol made no API call.
+    const recoverable = receipt?.items.every(item => item.state === "RESERVED") &&
+      latest?.r3_execution_id !== reserved.executionId && !manualOperationActive(latest) &&
+      receipt.payloadExpiresAt > Date.now();
+    if (!recoverable) throw saError(reserved.unknown ? "COMMAND_OUTCOME_UNKNOWN_EXPLICIT_RETRY_REQUIRED" : "MANUAL_REQUEST_DUPLICATE");
+  }
+  return reserved;
+}
+const saR3BaseGuardedQueue = globalThis.SellerAgentsGuardedBatchQueue;
+globalThis.SellerAgentsGuardedBatchQueue = Object.freeze({ ...saR3BaseGuardedQueue,
+  async run(options, { context, ports }) {
+    if (options.ownerKind !== "manual" || !await saEnabled()) return saR3BaseGuardedQueue.run(options, { context, ports });
+    const initial = await options.getOwner();
+    if (!initial?.r3_execution_id) throw SellerAgentsExecutionContext.error("COMMAND_HISTORY_UNKNOWN_START_REQUIRED");
+    let pending = null;
+    const record = async (outcome, result = null) => {
+      if (!pending || pending.recorded) return;
+      const digest = result === null ? null : await sha256Hex(SellerAgentsBootstrapVerifier.canonicalJson(result));
+      for (const item of pending.items) await saR3Ledger().recordProviderOutcome({
+        conversationKey: initial.conversation_key, context: initial.execution_context,
+        executionId: initial.r3_execution_id, ordinal: item.ordinal,
+        providerAttemptId: item.providerAttemptId, outcome, bufferDigest: digest });
+      pending.recorded = true;
+    };
+    const wrapped = { ...ports,
+      beforeProviderDispatch: async (...args) => {
+        await ports.beforeProviderDispatch?.(...args);
+        const owner = await options.getOwner();
+        if (owner?.r3_execution_id !== initial.r3_execution_id) throw SellerAgentsExecutionContext.error();
+        const indexes = (owner.batch?.entries || []).flatMap((entry, ordinal) => entry.kind === "command" && entry.status === "requesting" ? [entry.r3_original_ordinal ?? ordinal] : []);
+        if (!indexes.length) throw SellerAgentsExecutionContext.error("COMMAND_ITEM_MISSING");
+        pending = { items: [], recorded: false };
+        for (const ordinal of indexes) {
+          const permit = await saR3Ledger().beginProviderAttempt({ conversationKey: owner.conversation_key,
+            context: owner.execution_context, executionId: owner.r3_execution_id, ordinal });
+          if (permit.dispatch !== true) throw SellerAgentsExecutionContext.error("COMMAND_OUTCOME_UNKNOWN_EXPLICIT_RETRY_REQUIRED");
+          pending.items.push({ ordinal, providerAttemptId: permit.providerAttemptId });
+        }
+      },
+      execute: async (text, input) => {
+        if (!pending) throw SellerAgentsExecutionContext.error("PROVIDER_INTENT_REQUIRED");
+        try {
+          const result = await ports.execute(text, { ...input, onProviderResult: async value => {
+            await input.onProviderResult?.(value);
+            await record("RESULT", value?.provider_result || value);
+          } });
+          if (!pending.recorded) {
+            const uncertain = result?.external_request_executed === true && !(Number(result.http_status) > 0);
+            await record(uncertain ? "UNKNOWN" : "RESULT", uncertain ? null : result);
+          }
+          return result;
+        } catch (failure) {
+          try { await record("UNKNOWN"); } catch (_) { /* A retained PROVIDER_INTENT is still UNKNOWN, never permission to retry. */ }
+          throw failure;
+        } finally { pending = null; }
+      },
+    };
+    return saR3BaseGuardedQueue.run(options, { context, ports: wrapped });
+  },
+});
+
+async function saR3RecoverySummary(key, work) {
+  const owner = await getManualOperation(key);
+  return Object.values(owner?.r3_commands?.receipts || {}).filter(receipt =>
+    receipt.context?.workSessionId === work?.start_intent_id &&
+    (receipt.items?.some(item => ["UNKNOWN", "PROVIDER_INTENT"].includes(item.state)) ||
+      receipt.executionId === owner.r3_execution_id && saR3CopyCandidate(owner))).map(receipt => ({
+      executionId: receipt.executionId, predecessor: receipt.predecessor || null,
+      approvalRevision: receipt.approvalRevision, retryAvailable: Boolean(receipt.source?.messageIdentity) && receipt.items.some(item => ["UNKNOWN", "PROVIDER_INTENT"].includes(item.state)),
+      copyAvailable: receipt.executionId === owner.r3_execution_id && saR3CopyCandidate(owner),
+      state: receipt.items.some(item => ["UNKNOWN", "PROVIDER_INTENT"].includes(item.state)) ? "UNKNOWN" : "RESULT",
+    }));
+}
+async function saR3RecoveryInput(message, expectedContext = null) {
+  const tabId = normalizeTabId(message.tab_id), identity = await tabIdentity(tabId);
+  const key = conversationKeyFromIdentity(identity), binding = await strictBindingForIdentity(identity);
+  const work = await workSessionFor(key), owner = await getManualOperation(key);
+  const receipt = owner?.r3_commands?.receipts?.[message.execution_id];
+  if (!receipt?.source?.messageIdentity) throw saError("RETRY_PROVENANCE_UNAVAILABLE");
+  if (work.finished || work.state !== OzonWorkSessionModel.STATES.ACTIVE_VISIBLE ||
+      receipt.context.workSessionId !== work.start_intent_id) throw saError("WORK_SESSION_NOT_VISIBLE");
+  if (manualOperationActive(owner)) throw saError("RECOVERY_PREVIOUS_DELIVERY_PENDING");
+  if (!await SellerAgentsControlClient.canWork(identity)) throw saError("WORK_POLICY_BLOCKED");
+  const source = { protocol: 2, ...receipt.source, messageIdentity: receipt.source.messageIdentity,
+    workSessionId: work.start_intent_id, bindingId: binding.binding_id, conversationKey: key };
+  const block = await tabMessage(tabId, { type: "OZ_R3_READ_BLOCK", source });
+  if (!block?.ok) throw saError(block?.error?.code || "COMMAND_BLOCK_UNAVAILABLE");
+  const sender = { tab: { id: tabId } };
+  const prepared = await saR3PrepareCommandSource(block.command_source, sender, identity, binding, work, key, block.command_text);
+  if (prepared.blockOriginKey !== receipt.blockOriginKey) throw saError("COMMAND_CONTEXT_CHANGED");
+  if (message.block_version && message.block_version !== prepared.blockVersion) throw saError("RETRY_PREVIEW_CHANGED");
+  const entries = binding.store_context.marketplace === "wildberries"
+    ? SellerAgentsWBAdapter.discover(block.command_text) : discoverBatchEntries(block.command_text);
+  if (binding.store_context.marketplace === "ozon" && /\bWB_(?:API|HELP|FILE)_V[12]\b/.test(block.command_text))
+    throw saError("MIXED_MARKETPLACE_BLOCK");
+  const context = await captureBatchContext(key, block.command_text, expectedContext?.requestId || crypto.randomUUID());
+  if (expectedContext) SellerAgentsExecutionContext.assertSame(expectedContext, await saReadContext(key, { commandHash: context.commandHash, requestId: context.requestId }));
+  const parserContract = "r3-retry-parser-1:" + context.marketplace + ":" + chrome.runtime.getManifest().version;
+  const items = await Promise.all(entries.map(async (entry, ordinal) => {
+    const operation = typeof entry.operation === "string" ? entry.operation : entry.operation?.operation;
+    const candidate = { ordinal, operation, marketplace: context.marketplace,
+      inputHash: await sha256Hex(SellerAgentsBootstrapVerifier.canonicalJson({
+        kind: entry.kind, command_text: entry.command_text || null, operation: entry.operation || null,
+        guidance: entry.guidance || null, error: entry.error || null })) };
+    return { ...candidate, supported: entry.kind === "command" && saR3ReadOnly(candidate) &&
+      receipt.items.some(item => item.ordinal === ordinal),
+      parameters: SellerAgentsBootstrapVerifier.canonicalJson({ operation: entry.operation || null, command_text: entry.command_text || null }) };
+  }));
+  return { tabId, key, identity, binding, work, owner, receipt, block, prepared, context, entries, items, parserContract };
+}
+function saR3Selected(input, ordinals) {
+  if (!Array.isArray(ordinals) || !ordinals.length || new Set(ordinals).size !== ordinals.length)
+    throw saError("RETRY_SELECTION_REQUIRED");
+  return ordinals.map(ordinal => {
+    const item = input.items.find(candidate => candidate.ordinal === ordinal);
+    if (!item?.supported) throw saError("RETRY_READ_ONLY_REQUIRED");
+    return item;
+  });
+}
+async function saR3RetryReview(message) {
+  const input = await saR3RecoveryInput(message);
+  return { ok: true, execution_id: input.receipt.executionId, block_version: input.prepared.blockVersion,
+    items: input.items, warning: "Предыдущий запрос мог выполниться. Новый запуск может повторить действие и расход квоты" };
+}
+async function saR3RetryPreview(message) {
+  const input = await saR3RecoveryInput(message), selection = saR3Selected(input, message.ordinals);
+  const preview = await saR3Ledger().previewRetry({ conversationKey: input.key, context: input.context,
+    executionId: input.receipt.executionId, blockVersion: input.prepared.blockVersion, selection,
+    parserContract: input.parserContract, credentialRevision: input.context.credentialRevision });
+  return { ok: true, ...preview, execution_id: input.receipt.executionId, block_version: input.prepared.blockVersion,
+    items: selection, target: { conversationKey: input.key, storeId: input.context.storeId },
+    ordinals: selection.map(item => item.ordinal) };
+}
+async function saR3RetryConfirm(message) {
+  const identity = await tabIdentity(normalizeTabId(message.tab_id)), key = conversationKeyFromIdentity(identity);
+  const owner = await getManualOperation(key), approval = owner?.r3_commands?.approvals?.[message.confirmation_id];
+  if (message.confirmed !== true || !approval || approval.kind !== "RETRY") throw saError("RETRY_EXPLICIT_CONFIRMATION_REQUIRED");
+  if (approval.predecessor !== message.execution_id) throw saError("RETRY_PREVIEW_CHANGED");
+  if (approval.consumedBy) {
+    SellerAgentsExecutionContext.assertSame(approval.context, await saReadContext(key, approval.context));
+    return { ok: true, accepted: false, duplicate: true, execution_id: approval.consumedBy };
+  }
+  const input = await saR3RecoveryInput(message, approval.context), selection = saR3Selected(input, message.ordinals);
+  const reservation = await saR3Ledger().confirmRetry({ conversationKey: key, context: input.context,
+    confirmationId: message.confirmation_id, confirmed: true, selection, blockVersion: input.prepared.blockVersion,
+    parserContract: input.parserContract, credentialRevision: input.context.credentialRevision });
+  if (reservation.duplicate) return { ok: true, accepted: false, duplicate: true, execution_id: reservation.executionId };
+  const permit = { context: input.context, reservation, blockVersion: input.prepared.blockVersion,
+    blockOriginKey: input.prepared.blockOriginKey, ordinals: selection.map(item => item.ordinal) };
+  saR3RetryPermits.add(permit);
+  const result = await executeManualCommand(input.block.command_text, key, { tab: { id: input.tabId } },
+    "r3-retry:" + message.confirmation_id, input.block.command_source, permit);
+  return { ...result, execution_id: reservation.executionId, predecessor: reservation.predecessor };
+}
+
+function saR3CopyCandidate(owner) {
+  return Boolean(owner?.r3_execution_id && owner.outgoing_text && owner.payload_expires_at_ms > Date.now() &&
+    ["batch_watch_v1", "attachment_watch_v1"].includes(owner.delivery?.mode) &&
+    (owner.status === MANUAL_OPERATION_STATUSES.COMPLETED || owner.delivery?.sa_send_actor || owner.delivery?.attachment_send_actor_id ||
+      owner.delivery?.phase === BridgeAutorunModel.ATTACHMENT_PHASES.ATTACH_COMMITTED ||
+      owner.delivery?.phase === BridgeAutorunModel.DELIVERY_PHASES.INSERT_COMMITTED ||
+      owner.r3_copy_delivery_id && !saR3CopyPermits.has(owner.r3_copy_delivery_id) &&
+      owner.r3_commands?.deliveries?.[owner.r3_copy_delivery_id]?.state === "DELIVERY_INTENT"));
+}
+function saR3AssertCopyPermit(owner) {
+  if (owner?.r3_copy_delivery_id && !saR3CopyPermits.has(owner.r3_copy_delivery_id))
+    throw SellerAgentsExecutionContext.error("COPY_OUTCOME_UNKNOWN_NO_RETRY");
+}
+async function saR3CopyInput(message) {
+  const tabId = normalizeTabId(message.tab_id), identity = await tabIdentity(tabId);
+  const key = conversationKeyFromIdentity(identity), owner = await getManualOperation(key);
+  if (!saR3CopyCandidate(owner) || owner.r3_execution_id !== message.execution_id) throw saError("COPY_BUFFER_UNAVAILABLE");
+  if (!await SellerAgentsControlClient.canWork(identity)) throw saError("WORK_POLICY_BLOCKED");
+  SellerAgentsExecutionContext.assertSame(owner.execution_context, await saReadContext(key, owner.execution_context));
+  return { tabId, identity, key, owner };
+}
+async function saR3CopyPreview(message) {
+  const input = await saR3CopyInput(message), owner = input.owner;
+  const buffer = await saR3ReadBuffer(owner.r3_execution_id, owner.execution_context), digest = buffer.digest;
+  await saR3Ledger().recordDeliveryBuffer({ conversationKey: input.key, context: owner.execution_context,
+    executionId: owner.r3_execution_id, bufferDigest: digest, expiresAt: owner.payload_expires_at_ms,
+    previousDelivery: { deliveryId: owner.delivery.delivery_id,
+      state: owner.delivery_confirmed === true || owner.status === MANUAL_OPERATION_STATUSES.COMPLETED ? "CONFIRMED" : "UNKNOWN" } });
+  const preview = await saR3Ledger().previewCopy({ conversationKey: input.key, context: owner.execution_context,
+    executionId: owner.r3_execution_id });
+  return { ok: true, ...preview, execution_id: owner.r3_execution_id, buffer: owner.outgoing_text, attachments: buffer.attachments,
+    target: { conversationKey: input.key, storeId: owner.execution_context.storeId },
+    warning: "Предыдущая отправка могла состояться. В диалоге может появиться дубликат сообщения" };
+}
+async function saR3CopyConfirm(message) {
+  if (message.confirmed !== true) throw saError("COPY_EXPLICIT_CONFIRMATION_REQUIRED");
+  const identity = await tabIdentity(normalizeTabId(message.tab_id)), initialKey = conversationKeyFromIdentity(identity);
+  const initialOwner = await getManualOperation(initialKey), previous = initialOwner?.r3_commands?.approvals?.[message.confirmation_id];
+  if (previous?.kind === "COPY" && previous.executionId === message.execution_id && previous.consumedBy) {
+    if (!await SellerAgentsControlClient.canWork(identity)) throw saError("WORK_POLICY_BLOCKED");
+    SellerAgentsExecutionContext.assertSame(previous.context, await saReadContext(initialKey, previous.context));
+    return { ok: true, accepted: false, duplicate: true, delivery_id: previous.consumedBy };
+  }
+  const input = await saR3CopyInput(message), { key, owner } = input;
+  const approval = owner.r3_commands?.approvals?.[message.confirmation_id];
+  if (!approval || approval.kind !== "COPY" || approval.executionId !== message.execution_id)
+    throw saError("COPY_PREVIEW_MISSING");
+  const reservation = await saR3Ledger().confirmCopy({ conversationKey: key, context: owner.execution_context,
+    confirmationId: message.confirmation_id, confirmed: true });
+  if (reservation.duplicate) return { ok: true, accepted: false, duplicate: true, delivery_id: reservation.deliveryId };
+  const permit = await saR3Ledger().beginCopyDelivery({ conversationKey: key, context: owner.execution_context,
+    deliveryId: reservation.deliveryId });
+  if (!permit.send) throw saError("COPY_OUTCOME_UNKNOWN_NO_RETRY");
+  saR3CopyPermits.add(reservation.deliveryId);
+  try {
+    await mutateManualOperation(key, async current => {
+      SellerAgentsExecutionContext.assertSame(owner.execution_context, await saReadContext(key, owner.execution_context));
+      if (current?.operation_id !== owner.operation_id || current.r3_execution_id !== owner.r3_execution_id ||
+          current.delivery?.delivery_id !== owner.delivery.delivery_id ||
+          current.outgoing_text !== owner.outgoing_text || current.payload_expires_at_ms !== owner.payload_expires_at_ms)
+        throw saError("COPY_BUFFER_CHANGED");
+      const next = BridgeAutorunModel.claimDelivery(current, { deliveryId: reservation.deliveryId, requestId: "",
+        outgoingText: current.outgoing_text, outgoingHash: permit.bufferDigest,
+        reportPrefixApplied: current.report_prefix_applied === true, mode: "batch_watch_v1" });
+      if (current.delivery.mode === "attachment_watch_v1") {
+        next.delivery = { ...current.delivery, delivery_id: reservation.deliveryId,
+          phase: BridgeAutorunModel.ATTACHMENT_PHASES.CLAIMED, commit_actor_id: null,
+          attachment_send_actor_id: null, attachment_send_committed_at: null,
+          attachment_committed_at: null, attachment_ready_at: null, attached_filenames: [],
+          baseline_user_turn_ids: [], baseline_assistant_turn_ids: [], claimed_at: new Date().toISOString() };
+      }
+      next.delivery.payload_expires_at_ms = current.payload_expires_at_ms;
+      next.delivery.marketplace = current.execution_context.marketplace;
+      return { ...next, tab_id: input.tabId, r3_copy_delivery_id: reservation.deliveryId,
+        delivery_id: reservation.deliveryId, delivery_confirmed: false, completed_at: null };
+    });
+    void attemptManualBatchDelivery(key, owner.operation_id);
+    return { ok: true, accepted: true, delivery_id: reservation.deliveryId, api_request: false };
+  } catch (error) {
+    saR3CopyPermits.delete(reservation.deliveryId);
+    throw error;
+  }
+}
+
+async function saR3ReadBuffer(executionId, context) {
+  const owner = await getManualOperation(context.conversationKey);
+  if (owner?.r3_execution_id !== executionId || !owner.outgoing_text || !owner.execution_context) return null;
+  const attachments = owner.delivery?.mode === "attachment_watch_v1"
+    ? await OzonFileDeliveryWorker.copyManifest(owner.delivery) : [];
+  const payload = attachments.length ? SellerAgentsBootstrapVerifier.canonicalJson({ text: owner.outgoing_text, attachments }) : owner.outgoing_text;
+  return { payload, digest: await sha256Hex(payload), attachments,
+    expiresAt: owner.payload_expires_at_ms, context: owner.execution_context };
+}
+async function saR3RecordCopyConfirmation(key, deliveryId) {
+  const owner = await getManualOperation(key);
+  if (owner?.r3_copy_delivery_id !== deliveryId || owner.status !== MANUAL_OPERATION_STATUSES.COMPLETED ||
+      !owner.delivery_confirmed || owner.last_confirmed_delivery_id !== deliveryId) return;
+  await saR3Ledger().recordCopyOutcome({ conversationKey: key, context: owner.execution_context, deliveryId, outcome: "CONFIRMED" });
+  saR3CopyPermits.delete(deliveryId);
 }

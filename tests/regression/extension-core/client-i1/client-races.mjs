@@ -41,7 +41,9 @@ const refreshed = () => new Response(JSON.stringify({ tokenType: "Bearer", acces
     await until(() => release, "bootstrap dispatch");
     await worker.call("SellerAgentsControlClient.localReset");
     release();
-    await assert.rejects(bootstrap, /UNAUTHORIZED/);
+    // R3 retires the old acquisition at logout; its late 401 is not a new-principal denial.
+    await assert.rejects(bootstrap, { code: "BOOTSTRAP_CONTEXT_CHANGED" });
+    assert.equal(worker.controlNetwork.filter(item => item.url.endsWith("/v1/auth/refresh")).length, 0);
     const status = await worker.call("SellerAgentsControlClient.status");
     assert.equal(status.authenticated, false);
     assert.equal(status.accountId, null);
@@ -51,12 +53,17 @@ const refreshed = () => new Response(JSON.stringify({ tokenType: "Bearer", acces
 {
   let release;
   const backing = { local: {}, session: {} };
+  let expireSeedToken = true;
   const workerA = await makeWorker(runtime, { backing, fetch: async (url) => {
     if (url.endsWith("/v1/auth/refresh")) return new Promise(resolve => { release = () => resolve(httpError("AUTH_REFRESH_INVALID", 401)); });
     throw new Error("unexpected request " + url);
   }, onStorageRead: (kind, keys) => {
-    if (kind === "local" && String(keys).includes("seller_agents_control_auth_v2") && backing.local.seller_agents_control_auth_v2)
+    if (expireSeedToken && kind === "local" && String(keys).includes("seller_agents_control_auth_v2") && backing.local.seller_agents_control_auth_v2) {
+      // Expire the initial fixture once. Mutating each read also corrupts commit readback,
+      // which is a separate storage-failure scenario and must remain fail-closed.
+      expireSeedToken = false;
       backing.local.seller_agents_control_auth_v2.credentials.accessTokenExpiresAt = new Date(Date.now() - 1000).toISOString();
+    }
   } });
   let workerB;
   try {

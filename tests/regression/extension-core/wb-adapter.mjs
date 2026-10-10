@@ -1044,7 +1044,8 @@ try {
         throw new Error("fixture-storage-abort");
       },
     });
-    await assert.rejects(() => s.run(), /fixture-storage-abort/);
+    await assert.rejects(() => s.run(), { code: "RECORD_STORE_COMMIT_UNCONFIRMED", stage: "write" });
+    await assert.rejects(() => s.run(), { code: "RECORD_STORE_COMMIT_UNCONFIRMED" });
     assert.equal(s.network.length, 0);
     assert.equal(s.delivered.length, 0);
   });

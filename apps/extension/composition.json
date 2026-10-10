@@ -38,6 +38,7 @@
     "packages/control-client/src/signed-ai-profile-consumer.js",
     "packages/bridge-core/src/stores/backup.js",
     "packages/control-client/src/packaged-capabilities.js",
+    "packages/control-client/src/parallel-authority.js",
     "packages/control-client/src/client.js",
     "packages/control-client/src/health-metadata.js",
     "packages/control-client/src/signed-metadata.js",
@@ -47,6 +48,7 @@
     "packages/control-client/src/verified-online-work-authority.js",
     "packages/control-client/src/offline-work-authority.js",
     "packages/bridge-core/src/execution/local-operations.js",
+    "packages/bridge-core/src/execution/command-ledger.js",
     "packages/bridge-core/src/execution/context.js",
     "packages/bridge-core/src/execution/provider-response-policy.js",
     "packages/bridge-core/src/execution/provider-response-verifier.js",
@@ -154,6 +156,11 @@
       "function": "storeAnalyticsResultCache",
       "source_sha256": "e8f8a899fc34eaf055a55a58b2ae8e3600b17b7d477797091e51c59c1487599f",
       "replacement": "apps/extension/src/background/context/storeAnalyticsResultCache.js"
+    },
+    {
+      "function": "mutateWorkSession",
+      "source_sha256": "138bf46e82f3ed2ec467935113f2e3d65850780a7dd588f8b1c399bffc2c736d",
+      "replacement": "apps/extension/src/background/compat/mutateWorkSession.js"
     }
   ],
   "preserved_boundaries": [
@@ -181,7 +188,10 @@
       ]
     }
   },
-  "worker_postload": ["shared/wb_adapter.js", "shared/application.js"],
+  "worker_postload": [
+    "shared/wb_adapter.js",
+    "shared/application.js"
+  ],
   "application_patches": "apps/extension/application-patches.json",
   "static_files": {
     "icons/octoport-16.png": "apps/extension/src/assets/octoport-16.png",
@@ -189,7 +199,9 @@
     "icons/octoport-128.png": "apps/extension/src/assets/octoport-128.png"
   },
   "application_files": {
-    "shared/bootstrap_verifier.js": ["packages/control-client/src/crypto.js"],
+    "shared/bootstrap_verifier.js": [
+      "packages/control-client/src/crypto.js"
+    ],
     "shared/signed_ai_profile_consumer.js": [
       "packages/control-client/src/signed-ai-profile-consumer.js"
     ],
@@ -203,15 +215,24 @@
       "apps/extension/src/application/runtime.js",
       "apps/extension/src/application/delivery.js"
     ],
-    "popup.html": ["apps/extension/src/application/popup.html"],
-    "popup.js": ["apps/extension/src/application/popup.js"],
-    "popup.css": ["apps/extension/src/application/popup.css"],
+    "popup.html": [
+      "apps/extension/src/application/popup.html"
+    ],
+    "popup.js": [
+      "apps/extension/src/application/popup.js"
+    ],
+    "popup.css": [
+      "apps/extension/src/application/popup.css"
+    ],
     "shared/ai_adapters.js": [
       "apps/extension/src/imported/ozon-v0.1.22/shared/ai_adapters.js",
-      "apps/extension/src/content/conversation-surface.js"
+      "apps/extension/src/content/conversation-surface.js",
+      "apps/extension/src/content/command-receipts.js"
     ]
   },
-  "store_excluded_application_files": ["shared/bootstrap_verifier.js"],
+  "store_excluded_application_files": [
+    "shared/bootstrap_verifier.js"
+  ],
   "marketplace_hosts": [
     "https://content-api.wildberries.ru/*",
     "https://discounts-prices-api.wildberries.ru/*",
@@ -228,5 +249,8 @@
     "https://feedbacks-api.wildberries.ru/*",
     "https://returns-api.wildberries.ru/*"
   ],
-  "control_hosts": ["http://127.0.0.1:43100/*", "http://127.0.0.1:43101/*"]
+  "control_hosts": [
+    "http://127.0.0.1:43100/*",
+    "http://127.0.0.1:43101/*"
+  ]
 }
