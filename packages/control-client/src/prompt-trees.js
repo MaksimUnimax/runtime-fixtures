@@ -64,7 +64,7 @@
       const verified=await verifier.verifyPromptTreeV1(entry.envelope,trustBundle);
       const claim=verified.payload,p=claim?.publication;
       if(!verified.ok || claim.accountId!==ctx.accountId || JSON.stringify(claim.detected)!==JSON.stringify(detected) ||
-        !p?.body || claim.aiId!==entry.aiId || p.version!==entry.version || p.sha256!==entry.sha256 ||
+        !p?.body || claim.aiId!==entry.aiId || p.version!==entry.version || p.sha256!==entry.sha256 || entry.format!==p.format ||
         !validateBody(entry.body) || await digest(entry.body)!==p.sha256)throw failure("AI_TREE_CACHE_UNVERIFIED");
       return entry;
     }
@@ -89,7 +89,9 @@
       const detected={family:input.family,surface:input.surface,variant:input.variant??null};
       const ctx=await authorize(detected);if(!ctx)throw failure("AI_TREE_ACCESS_REQUIRED");
       await load();const aiId=state.aliases[aliasKey(ctx,detected)];
-      const saved=await validateEntry(aiId?state.entries[entryKey(ctx,aiId)]:null,ctx,detected);
+      const candidate=aiId?state.entries[entryKey(ctx,aiId)]:null;
+      if(candidate && candidate.aiId!==aiId)throw failure("AI_TREE_CACHE_ID_MISMATCH");
+      const saved=await validateEntry(candidate,ctx,detected);
       if(options.offline || (!options.refresh && saved && Number.isFinite(saved.checkedAt) && now()>=saved.checkedAt && now()-saved.checkedAt<intervalMs)) {
         if(!saved)throw failure("AI_TREE_CACHE_MISSING");await stillCurrent(detected,ctx);return clone(saved);
       }
@@ -117,7 +119,15 @@
       flights.set(key,pending);
       try{return clone(await pending);}finally{if(flights.get(key)===pending)flights.delete(key);}
     }
-    return Object.freeze({get});
+    async function validatePinned(input,pin) {
+      const detected={family:input.family,surface:input.surface,variant:input.variant??null};
+      const ctx=await authorize(detected);if(!ctx)throw failure("AI_TREE_ACCESS_REQUIRED");
+      await load();
+      if(!pin || state.aliases[aliasKey(ctx,detected)]!==pin.aiId)throw failure("AI_TREE_PIN_ID_MISMATCH");
+      const verified=await validateEntry(pin,ctx,detected);
+      await stillCurrent(detected,ctx);return clone(verified);
+    }
+    return Object.freeze({get,validatePinned});
   }
   globalThis.OctoportPromptTrees=Object.freeze({validateBody,canonicalBody,digest,render,createCache});
 })();

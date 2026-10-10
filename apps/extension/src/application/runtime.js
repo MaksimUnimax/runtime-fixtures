@@ -287,6 +287,20 @@ async function saVerifyCommittedWorkStart(message, sender) {
     return { ok: true, valid: true };
   });
 }
+async function saPromptTreeForExchange(identity, cacheOnly = false) {
+  if (typeof SellerAgentsControlClient.getPromptTree !== "function")
+    return { available: false, pin: null, warning: "AI_TREE_CLIENT_UNAVAILABLE" };
+  return SellerAgentsControlClient.getPromptTree(identity, { cacheOnly });
+}
+async function saPendingPrompt(pending) {
+  await saPendingGuard(pending);
+  let tree = null;
+  if (pending.prompt_tree) {
+    tree = await SellerAgentsControlClient.validatePromptTreePin(pending.ai_id, pending.prompt_tree);
+    await saPendingGuard(pending);
+  }
+  return saPrompt(pending.store_context, tree);
+}
 async function saPendingGuard(pending) {
   await saAssertLocalAuthorityAdmission();
   if (pending?.store_context) await saAssertStore(pending.store_context);
@@ -294,7 +308,7 @@ async function saPendingGuard(pending) {
 
   const provenance = pending?.admission_provenance;
   if (!provenance) throw saAdmissionError("WORK_ADMISSION_CONTEXT_CHANGED");
-  const captured = await saSignedProfileSnapshot().catch(() => null);
+  const captured = await saSignedProfileSnapshot(pending.ai_id || provenance.aiFamily).catch(() => null);
   const profile = captured?.authority?.payload?.ai?.profile || null;
   const detected = captured?.authority?.payload?.ai?.detected || null;
   if (!captured || !profile || !detected ||
@@ -1493,6 +1507,7 @@ async function saWorkStart(message, sender) {
       throw saError("WORK_START_ALREADY_IN_PROGRESS");
     if (entry.generation !== await SellerAgentsControlClient.generation()) throw saAdmissionError("WORK_ADMISSION_CONTEXT_CHANGED");
     if (!saAdmissionCurrent(entry)) throw saAdmissionError("WORK_ADMISSION_CANCELLED");
+    const promptTree = await saPromptTreeForExchange(live);
     const admission = await saAdmitWork({ operation: "start", tabId: message.tab_id, store, intentId, rebindPlan: plan, entryToken: entry });
     const provenance = await saAdmissionProvenanceSeed(admission, "start", intentId);
     saStarts.set(Number(message.tab_id), await saAuthorityStoreContext(store));
@@ -1508,7 +1523,8 @@ async function saWorkStart(message, sender) {
         await saAdmissionMutationGuard({ operation: "start", tabId: message.tab_id, conversationKey: admission.snapshot.key, intentId });
         await saEnsureTabSignedProfile(message.tab_id, admission.snapshot.fence);
         await saAdmissionMutationGuard({ operation: "start", tabId: message.tab_id, conversationKey: admission.snapshot.key, intentId });
-        return saLegacyMessage({ type: "OZ_WORK_START", tab_id: message.tab_id, start_intent_id: intentId, admission_provenance: provenance }, sender);
+        const started = await saLegacyMessage({ type: "OZ_WORK_START", tab_id: message.tab_id, start_intent_id: intentId, admission_provenance: provenance, prompt_tree: promptTree.pin }, sender);
+        return { ...started, prompt_tree_available: promptTree.available, prompt_tree_warning: promptTree.warning };
       });
     } finally { saReleaseAdmission(admission.token); saStarts.delete(Number(message.tab_id)); }
     } finally { saReleaseAdmission(entry); }

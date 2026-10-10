@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { makeWorker, until } from './worker-harness.mjs';
+import { makeWorker, until, signFixtureBootstrap } from './worker-harness.mjs';
 const runtime = path.resolve(process.argv[2]);
 const results = [];
-async function test(id, fn) { await fn(); results.push({ id, status: 'PASS' }); }
+const selectedScenario = process.argv[3] || null;
+async function test(id, fn) { if (selectedScenario && id !== selectedScenario) return; await fn(); results.push({ id, status: 'PASS' }); }
 const wb = token => ({ marketplace: 'wildberries', credentials: { token }, personalDataEnabled: true });
 const ozon = (id, key) => ({ marketplace: 'ozon', credentials: { seller: { clientId: id, apiKey: key } }, personalDataEnabled: true });
 const fixtureToken = 'FIXTURE_PERSONAL_WB_NEVER_REAL';
@@ -82,7 +83,10 @@ await test('APP-00-popup-state-is-available-without-AI-tab', async () => {
 });
 async function setup(options = {}) {
   const idb = fakeIDB();
-  const worker = await makeWorker(runtime, { indexedDB: idb, fetch: async (url, init, n) => options.fetch ? options.fetch(url, init, n) : new Response('{"result":{"value":42}}', { headers: { 'content-type': 'application/json' } }), ...options });
+  const worker = await makeWorker(runtime, { indexedDB: idb, ...options, fetch: async (url, init, n) => {
+    if (url.endsWith("/v1/ai-prompt-tree")) return options.treeFetch ? options.treeFetch(url, init, n) : new Response('{"code":"NOT_FOUND"}', { status: 404, headers: { "content-type": "application/json" } });
+    return options.fetch ? options.fetch(url, init, n) : new Response('{"result":{"value":42}}', { headers: { "content-type": "application/json" } });
+  } });
   const popup = (type, fields = {}) => worker.popup({ type, tab_id: worker.tabId, ...fields });
   const initial = await popup('SA_POPUP_STATE'); assert.equal(initial.ok, true, JSON.stringify(initial));
   async function save(store) { const r = await popup('SA_STORE_SAVE', { store }); assert.equal(r.ok, true, JSON.stringify(r)); return r.store; }
@@ -558,4 +562,65 @@ await test('PAR-36-38-package-subset-copy-original-attachment-and-reject-corrupt
     assert.equal(absent.code, 'COPY_ARTIFACT_UNAVAILABLE', JSON.stringify(absent)); assert.equal(s.worker.network.length, 1);
   } finally { s.worker.close(); }
 });
+await test('AI-TREE-04-08-package-subset-signed-Start-pin-update-and-command-no-tree-fetch', async () => {
+  let s, version=1, treeFetches=0;
+  const aiId='61000000-0000-4000-8000-000000000001';
+  const treeBody=()=>({format:'octoport_prompt_tree_v1',root:'root',nodes:[{id:'root',text:`PERSONAL_R3_TREE_VERSION_${version}`,children:[]}]});
+  s=await setup({treeFetch:async(url,init)=>{
+    if(!url.endsWith('/v1/ai-prompt-tree'))return new Response('{"result":{"value":42}}',{headers:{'content-type':'application/json'}});
+    treeFetches++;const request=JSON.parse(init.body),auth=s.worker.backing.local.seller_agents_control_auth_v2;
+    const body=treeBody(),sha256=await s.worker.call('OctoportPromptTrees.digest',body);
+    const claim={claimVersion:'ai_prompt_tree_claim_v1',accountId:auth.authority.payload.account.id,
+      deviceId:auth.credentials.deviceId,sessionId:auth.credentials.sessionId,requestNonce:request.requestNonce,
+      detected:request.bootstrap.detectedAi,aiId,issuedAt:new Date().toISOString(),
+      publication:{version,format:body.format,sha256,body:request.known?.version===version?null:body,publishedAt:new Date().toISOString()}};
+    const canonical=await s.worker.call('SellerAgentsBootstrapVerifier.canonicalJson',claim),bytes=Buffer.from(canonical);
+    const {createPrivateKey,sign}=await import('node:crypto');
+    const key=createPrivateKey({key:Buffer.from(s.worker.backing.local.__seller_agents_fixture_signing_key.privateKey,'base64'),format:'der',type:'pkcs8'});
+    const signature=sign(null,Buffer.concat([Buffer.from('Octoport ai prompt tree v1\0fixture-key\0'),bytes]),key).toString('base64url');
+    return new Response(JSON.stringify({treeEnvelopeVersion:'ai_prompt_tree_envelope_v1',algorithm:'Ed25519',keyId:'fixture-key',payload:bytes.toString('base64url'),signature}),{headers:{'content-type':'application/json'}});
+  }});
+  try {
+    const store=await s.save(wb(fixtureToken));
+    const started=await s.popup('SA_WORK_START',{store_id:store.id});assert.equal(started.ok,true,JSON.stringify(started));assert.equal(started.prompt_tree_available,true,JSON.stringify(started));
+    const pending=await until(async()=>{const p=(await s.worker.call('getPendingWorkStarts'))[s.worker.tabId];return p?.send_outcome==='sent_acknowledged'&&p;},'tree-pinned Start');
+    assert.equal(pending.prompt_tree.aiId,aiId);assert.equal(pending.prompt_tree.version,1);assert.equal(treeFetches,1);
+    const beforeMessages=s.worker.messages.length,beforeProvider=s.worker.network.length;
+    version=2;const next=await s.worker.call('SellerAgentsControlClient.getPromptTree',s.worker.identity,{refresh:true});
+    assert.equal(next.pin.version,2,JSON.stringify(next));assert.equal(treeFetches,2);
+    assert.equal(s.worker.messages.length,beforeMessages);assert.equal(s.worker.network.length,beforeProvider);
+    const oldPrompt=await s.worker.call('saPendingPrompt',pending);assert.match(oldPrompt,/PERSONAL_R3_TREE_VERSION_1/);assert.doesNotMatch(oldPrompt,/PERSONAL_R3_TREE_VERSION_2/);
+    const active=await s.worker.request({type:'OZ_WORK_PENDING_IDENTITY',identity:s.worker.identity,intent_id:pending.intent_id,revision:pending.revision,first_response_complete:true});assert.equal(active.ok,true,JSON.stringify(active));
+    const work={key:active.binding.conversation_key,session:active.session,identity:s.worker.identity,tabId:s.worker.tabId};
+    await s.execute(work,api,'tree-exchange-two');const owner=await s.collected(work);
+    assert.equal(owner.prompt_tree.version,2);assert.equal(owner.prompt_tree.aiId,aiId);assert.equal(treeFetches,2);
+    await s.deliver(work,owner);assert.equal(s.worker.network.length,beforeProvider+1);assert.equal(treeFetches,2);
+  } finally {s.worker.close();}
+});
+
+await test('PAR-01-package-subset-pending-ChatGPT-Start-survives-Alice-grant', async () => {
+  let s;
+  s=await setup({fetch:async(url,init)=>{
+    if(url.endsWith('/v1/bootstrap')) {
+      const payload=plain(s.worker.backing.local.seller_agents_control_auth_v2.authority.payload);
+      payload.ai.detected=JSON.parse(init.body).detectedAi;
+      return new Response(JSON.stringify(await signFixtureBootstrap(s.worker.backing,payload)),{headers:{'content-type':'application/json'}});
+    }
+    return new Response('{"result":{}}',{headers:{'content-type':'application/json'}});
+  }});
+  try {
+    const store=await s.save(wb(fixtureToken)),start=await s.popup('SA_WORK_START',{store_id:store.id});
+    assert.equal(start.ok,true,JSON.stringify(start));
+    const pending=await until(async()=>{const p=(await s.worker.call('getPendingWorkStarts'))[s.worker.tabId];return p?.send_outcome==='sent_acknowledged'&&p;},'ChatGPT pending Start');
+    await s.worker.call('SellerAgentsControlClient.bootstrap',{detectedAi:{family:'alice',surface:'web',variant:null}});
+    assert.equal(s.worker.backing.local.seller_agents_control_auth_v2.authority.requestedAi,'alice');
+    assert.equal(await s.worker.call('SellerAgentsControlClient.canWork','chatgpt'),true);
+    await s.worker.call('saPendingGuard',pending);
+    const preserved=(await s.worker.call('getPendingWorkStarts'))[s.worker.tabId];
+    assert.equal(preserved.intent_id,pending.intent_id);assert.equal(preserved.send_outcome,'sent_acknowledged');
+    const active=await s.worker.request({type:'OZ_WORK_PENDING_IDENTITY',identity:s.worker.identity,intent_id:pending.intent_id,revision:pending.revision,first_response_complete:true});
+    assert.equal(active.ok,true,JSON.stringify(active));assert.equal(s.worker.network.length,0);
+  } finally {s.worker.close();}
+});
+if (selectedScenario && results.length !== 1) throw new Error('Selected scenario was not executed');
 console.log(JSON.stringify({ status:'PASS', results, live_provider_calls:0, scope:'actual generated worker/popup messages and attachment port; simulated browser and provider; not installed live acceptance' },null,2));

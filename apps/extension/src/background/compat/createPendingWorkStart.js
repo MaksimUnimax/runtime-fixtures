@@ -19,6 +19,7 @@ async function createPendingWorkStart(tab, identity, options = {}) {
     version: 2,
     store_context: saStarts.get(Number(tab)) || null,
     admission_provenance: options.admission_provenance || null,
+    prompt_tree: options.prompt_tree ? JSON.parse(JSON.stringify(options.prompt_tree)) : null,
     state: OzonWorkSessionModel.STATES.PENDING_IDENTITY,
     intent_id: String(options.intent_id || "").trim() || `work-start-${crypto.randomUUID()}`,
     revision,

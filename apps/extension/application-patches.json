@@ -27,7 +27,7 @@
   {
     "target": "service_worker.js",
     "old": "async function dispatchPendingWorkStartPrompt(tab, pending, promptText) {",
-    "new": "async function dispatchPendingWorkStartPrompt(tab, pending, promptText) {\n  await saPendingGuard(pending);\n  if (pending.store_context) promptText = await saPrompt(pending.store_context);"
+    "new": "async function dispatchPendingWorkStartPrompt(tab, pending, promptText) {\n  await saPendingGuard(pending);\n  if (pending.store_context) promptText = await saPendingPrompt(pending);"
   },
   {
     "target": "service_worker.js",
@@ -37,7 +37,7 @@
   {
     "target": "service_worker.js",
     "old": "        const pending = await createPendingWorkStart(tab, live, { intent_id: requestedIntentId, revision: nextRevision, observed_conversation_id: live.conversation_id || null, conversation_key: key, expected_session_revision: currentSession?.revision ?? 0, state_before: currentSession?.state || OzonWorkSessionModel.STATES.INACTIVE });",
-    "new": "        await saAdmissionMutationGuard({ operation: \"start\", tabId: tab, conversationKey: key, intentId: requestedIntentId });\n        const pending = await withBindingWrite(() => createPendingWorkStart(tab, live, { intent_id: requestedIntentId, revision: nextRevision, observed_conversation_id: live.conversation_id || null, conversation_key: key, expected_session_revision: currentSession?.revision ?? 0, state_before: currentSession?.state || OzonWorkSessionModel.STATES.INACTIVE, admission_provenance: message.admission_provenance || null }));"
+    "new": "        await saAdmissionMutationGuard({ operation: \"start\", tabId: tab, conversationKey: key, intentId: requestedIntentId });\n        const pending = await withBindingWrite(() => createPendingWorkStart(tab, live, { intent_id: requestedIntentId, revision: nextRevision, observed_conversation_id: live.conversation_id || null, conversation_key: key, expected_session_revision: currentSession?.revision ?? 0, state_before: currentSession?.state || OzonWorkSessionModel.STATES.INACTIVE, admission_provenance: message.admission_provenance || null, prompt_tree: message.prompt_tree || null }));"
   },
   {
     "target": "service_worker.js",

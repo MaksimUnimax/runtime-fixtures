@@ -1,7 +1,8 @@
-async function saPrompt(pinned) {
+async function saPrompt(pinned, tree = null) {
   const store = await saAssertStore(pinned);
-  const header = `Seller Agents. Источник: ${store.marketplace === "ozon" ? "Ozon" : "Wildberries"}. Магазин: ${JSON.stringify(store.name)}. Store ID: ${store.id}. Новая рабочая сессия: прежние данные диалога могут относиться к другому магазину. Не смешивай источники.\n`;
-  if (store.marketplace === "ozon") return header + DEFAULT_AUTO_START_TEXT;
+  const header = `Octoport. Источник: ${store.marketplace === "ozon" ? "Ozon" : "Wildberries"}. Магазин: ${JSON.stringify(store.name)}. Store ID: ${store.id}. Новая рабочая сессия: прежние данные диалога могут относиться к другому магазину. Не смешивай источники.\n`;
+  const hints = tree ? `\n\nПодсказки Octoport для выбранного ИИ, опубликованная версия ${tree.version}:\n${OctoportPromptTrees.render(tree.body)}` : "";
+  if (store.marketplace === "ozon") return header + DEFAULT_AUTO_START_TEXT + hints;
   return header + [
     "Ты работаешь с разрешёнными данными Wildberries через расширение пользователя. Секреты хранит расширение: никогда не проси ключ в чате.",
     "Пользователь разрешает один блок кнопкой WB. Выводи все явные независимые команды шага в одном fenced text code block. Выполняются последовательно; одна API-команда — максимум один запрос, HELP — локально.",
@@ -14,7 +15,7 @@ async function saPrompt(pinned) {
     "Большие результаты и оригинальные файлы расширение прикрепляет к сообщению; читай их полностью. Локальный технический буфер живёт не более часа, архива нет.",
     `Передача персональных данных: ${store.personalDataEnabled ? "разрешена пользователем для этого магазина" : "выключена; соответствующие операции блокирует код"}. Только чтение; изменение цен, рекламы и карточек запрещено.`,
     "Ответь кратко, что подключён к указанному источнику и магазину; уточни задачу пользователя."
-  ].join("\n");
+  ].join("\n") + hints;
 }
 function saCombinedReport(entries, owner) {
   const p = owner.execution_context;

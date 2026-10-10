@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { runInThisContext } from "node:vm";
 import { createHash, generateKeyPairSync, sign, webcrypto } from "node:crypto";
 const root=resolve(process.argv[2] || process.cwd());
 globalThis.crypto ||= webcrypto;
-for(const file of ["packages/control-client/src/prompt-trees.js","packages/control-client/src/crypto.js"])
+const packaged=existsSync(resolve(root,"shared/bootstrap_verifier.js"));
+for(const file of packaged?["shared/bootstrap_verifier.js"]:["packages/control-client/src/prompt-trees.js","packages/control-client/src/crypto.js"])
   runInThisContext(readFileSync(resolve(root,file),"utf8"),{filename:file});
 const trees=globalThis.OctoportPromptTrees,verifier=globalThis.SellerAgentsBootstrapVerifier;
 const {privateKey,publicKey}=generateKeyPairSync("ed25519"),der=publicKey.export({type:"spki",format:"der"});
@@ -97,4 +98,23 @@ await test("unconfirmed cache write is not reported as installed",async()=>{
 await test("third AI needs no ChatGPT/Alice special case",async()=>{
  const f=fixture();const third=await f.cache.get(detected("third"));assert.equal(third.aiId,uuid(6));assert.equal(trees.render(third.body),"Third AI");
 });
-console.log(JSON.stringify({level:"SOURCE",passed,installed:"NOT_RUN",owner:"NOT_RUN",providerApiCalls:0,sendCalls:0}));
+await test("pinned exchange keeps verified old version after update; denial still blocks it",async()=>{
+ const f=fixture(),old=await f.cache.get(detected("chatgpt"));
+ f.versions.chatgpt={...f.versions.chatgpt,version:2,body:body("Next exchange")};f.advance();await f.cache.get(detected("chatgpt"));
+ assert.equal((await f.cache.validatePinned(detected("chatgpt"),old)).version,1);
+ const before=f.trace.fetches;await f.cache.validatePinned(detected("chatgpt"),old);assert.equal(f.trace.fetches,before);
+ f.deny();await assert.rejects(f.cache.validatePinned(detected("chatgpt"),old),/AI_TREE_ACCESS_REQUIRED/);
+});
+await test("foreign or mutated exchange pin is rejected without a fetch",async()=>{
+ const f=fixture(),g=await f.cache.get(detected("chatgpt")),a=await f.cache.get(detected("alice"));
+ await assert.rejects(f.cache.validatePinned(detected("chatgpt"),a),/AI_TREE_PIN_ID_MISMATCH/);
+ const changed=copy(g);changed.body=body("Tampered pin");await assert.rejects(f.cache.validatePinned(detected("chatgpt"),changed),/AI_TREE_CACHE_UNVERIFIED/);
+ assert.equal(f.trace.fetches,2);
+});
+await test("storage alias cannot relabel a signed cache entry as another permanent AI ID",async()=>{
+ const f=fixture();await f.cache.get(detected("chatgpt"));const saved=copy(f.memory()),s=saved.octoport_prompt_trees_v1;
+ const oldKey=Object.keys(s.entries)[0],parts=JSON.parse(oldKey);parts[2]=uuid(99);s.entries[JSON.stringify(parts)]=s.entries[oldKey];delete s.entries[oldKey];
+ s.aliases[Object.keys(s.aliases)[0]]=uuid(99);f.setMemory(saved);
+ await assert.rejects(f.make().get(detected("chatgpt"),{offline:true}),/AI_TREE_CACHE_ID_MISMATCH/);
+});
+console.log(JSON.stringify({level:packaged?"PACKAGE":"SOURCE",passed,installed:"NOT_RUN",owner:"NOT_RUN",providerApiCalls:0,sendCalls:0}));

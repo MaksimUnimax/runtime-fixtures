@@ -98,6 +98,8 @@ function startStatusText(lastStart) {
 }
 function actionSuccessText(result) {
   if (result?.popupAction !== "WORK_START_ACCEPTED") return "Готово";
+  if (result.promptTreeAvailable === false) return "Запуск принят. Дополнительные подсказки этого ИИ недоступны; чужое дерево не использовано.";
+  if (result.promptTreeWarning) return "Запуск принят. Используется сохранённая проверенная версия подсказок этого ИИ.";
   if (state?.context?.work_active === true && ["active_visible", "active_hidden"].includes(state?.work?.state)) return "Работа запущена";
   return startStatusText(state?.lastStart) || "Запуск принят. Ожидаем подтверждение инструкции и ответа ИИ";
 }
@@ -258,7 +260,7 @@ $("card").onsubmit = e => { e.preventDefault(); action(async () => {
   selectedId = response.store.id; closeCard();
 }); };
 $("remove").onclick = () => { const id = selectedId; confirm(`Удалить магазин «${selected()?.name}» и его ключи? Все связанные с ним локальные рабочие сессии будут завершены.`, () => request("SA_STORE_DELETE", { store_id: id, confirm: true })); };
-$("start").onclick = () => { const id = selectedId; const run = async confirm_change => { await requestStart({ store_id: id, confirm_change, start_intent_id: crypto.randomUUID() }); return { popupAction: "WORK_START_ACCEPTED" }; };
+$("start").onclick = () => { const id = selectedId; const run = async confirm_change => { const started = await requestStart({ store_id: id, confirm_change, start_intent_id: crypto.randomUUID() }); return { popupAction: "WORK_START_ACCEPTED", promptTreeAvailable: started.prompt_tree_available, promptTreeWarning: started.prompt_tree_warning }; };
   if (state.context.store_id && state.context.store_id !== id) confirm("В диалоге останутся данные предыдущего магазина. ИИ может смешать их в ответах. Старую работу завершим и отправим новую инструкцию для выбранного магазина.", () => run(true)); else action(() => run(false)); };
 $("confirm").onclick = () => { const fn = confirmAction; confirmAction = null; $("confirmation").hidden = true; if (fn) action(fn); };
 $("reject").onclick = () => { confirmAction = null; $("confirmation").hidden = true; };

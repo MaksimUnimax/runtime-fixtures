@@ -1614,7 +1614,67 @@
     await transferVault.remove(requestId);
     return result;
   }
-  const api = { restore: init, status: async (identity = null) => { await init(); const decision = await workDecisionFor(identity); return publicStatus(decision); }, currentAccount: async () => { await init(); return state.authority?.payload?.account?.id || null; }, generation: async () => { await init(); return state.generation; }, hasAuthority: async () => { await init(); return Boolean(state.authority && state.credentials); }, canWork: async (identity = null) => { await init(); const decision = await workDecisionFor(identity); return decision.allowed === true && !authStorageUnconfirmed; }, getAuthority: authorityFor, canContinueCached, getCachedContinuationState, getHealthAuthorityContext, getVerifiedAuthorityTime, getSubscriptionRefreshPlan, runSubscriptionRefreshTask, acquireSignedHealthAuthority, synchronizeMetadata, createCredentialTransfer, assertCredentialTransferContext, listCredentialTransferRecipients, listCredentialTransfers, readCredentialTransfer, markCredentialTransferSourceSeen, submitCredentialTransferPacket, receiveCredentialTransfer, recordCredentialTransferImported, acknowledgeCredentialTransfer, discardCredentialTransfer, consumeCredentialTransferResult, startActivation, cancelActivation, refresh, bootstrap, acquireBootstrapPreflight, bootstrapWithPolicy, ensureForIdentity, localReset, openPortal: async () => { await init(); const pending = state.pending; if (!pendingLive(state.pending) || !validAuthContext(pending.authContext)) throw error("NO_ACTIVATION_ATTEMPT"); return openPortal(pending.authorizationId); }, onAuthorityChanged: handler => { authorityChanged = handler; } };
+  let promptTreeCache = null;
+  async function promptTreeContext(detected) {
+    await init();
+    await ensureAuthOwnership();
+    const authority = await authorityFor(detected.family), payload = authority?.payload;
+    if (!authority?.workAllowed || authStorageUnconfirmed || !state.credentials ||
+        payload?.ai?.status !== "RESOLVED" ||
+        verifier.canonicalJson(payload.ai.detected) !== verifier.canonicalJson(detected))
+      throw error("AI_TREE_ACCESS_REQUIRED");
+    return { origin: config.controlApiOrigin, accountId: payload.account.id,
+      deviceId: state.credentials.deviceId, sessionId: state.credentials.sessionId,
+      principalEpoch: epoch("principalEpoch"), accessEpoch: epoch("accessEpoch"),
+      grantEpoch: authority.grantEpoch, scopeKey: authority.scopeKey,
+      profileKey: payload.ai.profile.profileKey, profileRevision: payload.ai.profile.revision,
+      profileHash: payload.ai.profile.contentSha256 };
+  }
+  function treeCache() {
+    if (!globalThis.OctoportPromptTrees?.createCache || !verifier?.verifyPromptTreeV1)
+      throw error("AI_TREE_CLIENT_UNAVAILABLE");
+    if (!promptTreeCache) promptTreeCache = OctoportPromptTrees.createCache({
+      storage: chrome.storage.local, verifier, trustBundle: config.trustBundle,
+      authorize: promptTreeContext,
+      fetchManifest: async ({ detected, context, requestNonce, known }) => {
+        if (verifier.canonicalJson(await promptTreeContext(detected)) !== verifier.canonicalJson(context))
+          throw error("AI_TREE_CONTEXT_CHANGED");
+        const authority = grantFor(detected.family)?.authority;
+        const result = await authenticatedRequest("/v1/ai-prompt-tree", { method: "POST",
+          body: { bootstrap: bootstrapRequest(detected, state.credentials, authority), requestNonce, known } }, contextForState());
+        return result.body;
+      },
+    });
+    return promptTreeCache;
+  }
+  async function promptTreeDetected(identity) {
+    const family = requestedFamily(identity);
+    if (!family) throw error("AI_TREE_SCOPE_UNSUPPORTED");
+    const authority = await authorityFor(family);
+    if (!authority?.workAllowed || authority.payload?.ai?.status !== "RESOLVED") throw error("AI_TREE_ACCESS_REQUIRED");
+    return clone(authority.payload.ai.detected);
+  }
+  async function getPromptTree(identity, options = {}) {
+    let detected;
+    try {
+      detected = await promptTreeDetected(identity);
+      const pin = await treeCache().get(detected, { offline: options.cacheOnly === true, refresh: options.refresh === true });
+      return { available: true, pin, warning: null };
+    } catch (failure) {
+      // A failed update preserves a previously verified copy. Reauthorization
+      // inside the cache prevents this fallback from reviving a known denial.
+      if (detected && !options.cacheOnly) {
+        try { return { available: true, pin: await treeCache().get(detected, { offline: true }), warning: safeError(failure) }; }
+        catch (_) { /* No foreign AI or unverified fallback. */ }
+      }
+      return { available: false, pin: null, warning: safeError(failure) };
+    }
+  }
+  async function validatePromptTreePin(identity, pin) {
+    const detected = await promptTreeDetected(identity);
+    return treeCache().validatePinned(detected, pin);
+  }
+  const api = { getPromptTree, validatePromptTreePin, restore: init, status: async (identity = null) => { await init(); const decision = await workDecisionFor(identity); return publicStatus(decision); }, currentAccount: async () => { await init(); return state.authority?.payload?.account?.id || null; }, generation: async () => { await init(); return state.generation; }, hasAuthority: async () => { await init(); return Boolean(state.authority && state.credentials); }, canWork: async (identity = null) => { await init(); const decision = await workDecisionFor(identity); return decision.allowed === true && !authStorageUnconfirmed; }, getAuthority: authorityFor, canContinueCached, getCachedContinuationState, getHealthAuthorityContext, getVerifiedAuthorityTime, getSubscriptionRefreshPlan, runSubscriptionRefreshTask, acquireSignedHealthAuthority, synchronizeMetadata, createCredentialTransfer, assertCredentialTransferContext, listCredentialTransferRecipients, listCredentialTransfers, readCredentialTransfer, markCredentialTransferSourceSeen, submitCredentialTransferPacket, receiveCredentialTransfer, recordCredentialTransferImported, acknowledgeCredentialTransfer, discardCredentialTransfer, consumeCredentialTransferResult, startActivation, cancelActivation, refresh, bootstrap, acquireBootstrapPreflight, bootstrapWithPolicy, ensureForIdentity, localReset, openPortal: async () => { await init(); const pending = state.pending; if (!pendingLive(state.pending) || !validAuthContext(pending.authContext)) throw error("NO_ACTIVATION_ATTEMPT"); return openPortal(pending.authorizationId); }, onAuthorityChanged: handler => { authorityChanged = handler; } };
   consentApi?.onWithdrawal?.(handleTechnicalPermissionWithdrawal);
   globalThis.SellerAgentsControlClient = Object.freeze(api);
 })();

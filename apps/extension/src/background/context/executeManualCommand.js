@@ -105,6 +105,8 @@ async function executeManualCommand(
   if (r3Prepared) requestToken = recovery?.context.requestId || r3Prepared.requestToken;
   if (r3Enabled && !await SellerAgentsControlClient.canWork(liveIdentity))
     throw Object.assign(new Error("Work policy blocked"), { code: "WORK_POLICY_BLOCKED" });
+  const promptTree = r3Enabled ? await saPromptTreeForExchange(liveIdentity, true) : { pin: null };
+  if (r3Prepared && promptTree.pin) r3Prepared.source.promptTree = { aiId: promptTree.pin.aiId, version: promptTree.pin.version, sha256: promptTree.pin.sha256 };
   const executionContext = await captureBatchContext(
     key,
     commandText,
@@ -145,6 +147,7 @@ async function executeManualCommand(
       conversation_id: liveIdentity.conversation_id,
       binding_snapshot: bindingSnapshot(binding),
       execution_context: executionContext,
+      prompt_tree: promptTree.pin,
       ...(r3Reservation ? { r3_execution_id: r3Reservation.executionId, r3_source: r3Prepared.source,
         r3_block_origin_key: r3Prepared.blockOriginKey, r3_block_version: r3Prepared.blockVersion } : {}),
       seen_request_ids: [...seen, ingressRequestToken],
