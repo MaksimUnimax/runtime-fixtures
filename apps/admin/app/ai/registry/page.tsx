@@ -2,4 +2,4 @@
 
 import { RegistryWorkspace } from "../../admin-ai";
 
-export default RegistryWorkspace;
+export default function RegistryPage() { return <><nav><a href="/ai/trees">AI prompt trees</a></nav><RegistryWorkspace /></>; }

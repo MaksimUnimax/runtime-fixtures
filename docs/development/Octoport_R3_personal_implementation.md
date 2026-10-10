@@ -186,3 +186,14 @@ receipts, failed compose-16 и текущие пакеты. Cleanup receipt SHA2
 Это не завершение задания. AI-TREE01–09, H-WIRE, полная миграция/совместимость,
 прочие неохваченные PAR и точный новый установленный пакет ещё не закрыты.
 INSTALLED/OWNER: NOT_RUN; A/B/C: NOT_DECIDED; готовность не заявлена.
+
+
+## Phase 6: personal per-AI tree foundation (2026-10-10)
+
+Personal implementation continues; this is not release or installed acceptance. PR36 candidate e2d72e09fa7e75c2f12cd09a770d194fb4702459 supplies the separate tree contract, not evidence of merged implementation.
+
+- Permanent registry AI IDs own independent drafts and immutable publications. PostgreSQL trigger copies the published template atomically for both current and older registry writers; existing AI rows get independent empty unpublished drafts. Template content remains unspecified.
+- Existing RBAC/CSRF and transactional audit remain required. CAS detects conflicting edits; rollback creates a newer publication. Canonical data-only tree payload uses the existing Ed25519 key trust system with a distinct domain, nonce and account/device/session binding. This is a new tree endpoint, not a change to bootstrap v2/v3 permission wires.
+- Verified local per-AI cache coalesces reads, preserves old copies and returned pins, verifies restart reads and rejects replay, corruption and unconfirmed writes. Actual Start/command integration is still pending at this checkpoint.
+- SOURCE domain: 6/6 (R3_AI_TREE_SOURCE_RUN1). SOURCE real crypto/cache: 13/13 (CLIENT_SOURCE_RUN1). Isolated PostgreSQL: DB_RUN1 failed (template audit target was incorrectly sent to a UUID column); DB_FIX1 stores template identity in metadata with null UUID; DB_RUN2 11/11 passed, cleanup verified. Strict typecheck including the DB test: TYPECHECK_RUN5 passed. These are limited subsets, not full AI-TREE-01–09 or PAR-01–39 acceptance.
+- No production migration, deployed server, new installed extension or owner acceptance. H-WIRE, full old/new worker migration, installed Chromium and delivery remain open. A/B/C recovery policy NOT_DECIDED.

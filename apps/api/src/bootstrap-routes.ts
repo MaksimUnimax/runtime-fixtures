@@ -1,3 +1,4 @@
+import { BootstrapRequestV2Schema, AiPromptTreeKnownV1Schema, SignedAiPromptTreeEnvelopeV1Schema } from "@product/contracts";
 import type {
   FastifyInstance,
   RawReplyDefaultExpression,
@@ -50,6 +51,22 @@ export function registerBootstrapRoutes(
   service: BootstrapService,
   auth: ExtensionAuthService,
 ): void {
+  const treeRequest = z.object({bootstrap:z.union([BootstrapRequestV2Schema,BootstrapRequestV3Schema]),
+    requestNonce:z.uuid(),known:AiPromptTreeKnownV1Schema.nullable()}).strict();
+  app.post("/v1/ai-prompt-tree", {schema:{body:treeRequest,response:{200:SignedAiPromptTreeEnvelopeV1Schema,
+    400:ApiErrorEnvelopeV1Schema,401:ApiErrorEnvelopeV1Schema,403:ApiErrorEnvelopeV1Schema,503:ApiErrorEnvelopeV1Schema}},
+    preHandler:async request=>{
+      const result=await authenticateExtensionBearer(request.headers.authorization,auth);
+      if(!result.ok)throw new ControlledError("UNAUTHORIZED","Unauthorized",401);
+      request.extensionPrincipal=result.value;
+    }},async(request,reply)=>{
+      reply.header("cache-control","no-store");
+      try{return await service.issuePromptTree(request.extensionPrincipal!,treeRequest.parse(request.body));}
+      catch(error){
+        if(error instanceof BootstrapError)throw new ControlledError("SERVICE_UNAVAILABLE","AI tree unavailable",503);
+        throw error;
+      }
+    });
   app.post(
     "/v1/bootstrap",
     {

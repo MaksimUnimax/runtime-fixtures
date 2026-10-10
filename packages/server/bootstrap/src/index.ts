@@ -1,3 +1,4 @@
+import { AiPromptTreeKnownV1Schema, type AiPromptTreeClaimV1, type SignedAiPromptTreeEnvelopeV1 } from "@product/contracts";
 import type {
   BootstrapRequestV1,
   BootstrapRequestV2,
@@ -53,6 +54,7 @@ export type BootstrapPolicyResolver = {
   ): Promise<ResolveP3BootstrapPolicyResult | { failure: string }>;
 };
 export type BootstrapSnapshotSigningService = {
+  signPromptTree?(keyId: string, claim: AiPromptTreeClaimV1): Promise<SignedAiPromptTreeEnvelopeV1>;
   sign(
     keyId: string,
     payload: BootstrapSnapshotPayloadV1,
@@ -203,6 +205,32 @@ export class BootstrapService {
     private readonly bootstrapVerifier?: BootstrapSnapshotVerifier,
     private readonly localClientAuthority?: BootstrapLocalClientAuthorityMaterializer,
   ) {}
+
+  async issuePromptTree(subject: BootstrapSubject, input: {
+    bootstrap: BootstrapRequestV2 | BootstrapRequestV3; requestNonce: string;
+    known: {aiId:string;version:number;sha256:string} | null;
+  }): Promise<SignedAiPromptTreeEnvelopeV1> {
+    const request = input.bootstrap;
+    if (!subject.sessionId || !this.signer.signPromptTree || !this.aiResolution ||
+      !("detectedAi" in request) || !request.detectedAi || !("browser" in request))
+      throw new BootstrapError("UNAVAILABLE");
+    const envelope = request.contractVersion === "control_plane_v3"
+      ? await this.issueV3(subject,request) : await this.issueV2(subject,request);
+    // This is our own freshly issued snapshot; this data endpoint cannot grant work.
+    const snapshot = JSON.parse(Buffer.from(envelope.payload,"base64url").toString("utf8"));
+    if (!["BETA","COMMERCIAL"].includes(snapshot.accessBasis) || snapshot.account?.id !== subject.accountId || snapshot.account?.status !== "ACTIVE" || snapshot.devicePolicy?.status !== "ACTIVE" || snapshot.ai?.status !== "RESOLVED") throw new BootstrapError("UNAVAILABLE");
+    const detected = {family:request.detectedAi.family,surface:request.detectedAi.surface,variant:request.detectedAi.variant ?? null};
+    const value = await this.aiResolution.resolvePromptTree({detected,contractVersion:"control_plane_v2",
+      extensionVersion:request.extensionVersion,browser:request.browser,accountId:subject.accountId,deviceId:subject.deviceId});
+    const known = input.known === null ? null : AiPromptTreeKnownV1Schema.parse(input.known);
+    const publication = value.publication ? {version:value.publication.version,format:value.publication.format,
+      sha256:value.publication.sha256,publishedAt:value.publication.publishedAt,
+      body:known?.aiId === value.aiId && known.version === value.publication.version && known.sha256 === value.publication.sha256
+        ? null : value.publication.body} : null;
+    return this.signer.signPromptTree(envelope.keyId,{claimVersion:"ai_prompt_tree_claim_v1",accountId:subject.accountId,
+      deviceId:subject.deviceId,sessionId:subject.sessionId,requestNonce:input.requestNonce,detected,
+      aiId:value.aiId,issuedAt:this.clock.now().toISOString(),publication});
+  }
 
   async issueHealth(
     subject: BootstrapSubject,

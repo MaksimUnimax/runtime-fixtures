@@ -1,3 +1,4 @@
+import { createAiPromptTreeRepository } from "./ai-prompt-tree-repository.js";
 import { randomUUID } from "node:crypto";
 import {
   AdapterProfileSchema,
@@ -85,6 +86,7 @@ export function createP7AdminAiCommandRepository(
   runtime: DatabaseRuntime,
 ): AdminAiRegistryCommandRepository {
   return {
+    promptTrees: createAiPromptTreeRepository(runtime),
     async createAdapter(input) {
       return runtime.transaction(async (q) => {
         await authorizeAdminMutationInTransaction(

@@ -30,6 +30,7 @@
   },
   "worker_prelude": [
     "packages/control-client/src/config.js",
+    "packages/control-client/src/prompt-trees.js",
     "packages/control-client/src/crypto.js",
     "packages/control-client/src/credential-transfer.js",
     "packages/control-client/src/browser-identity.js",
@@ -200,6 +201,7 @@
   },
   "application_files": {
     "shared/bootstrap_verifier.js": [
+      "packages/control-client/src/prompt-trees.js",
       "packages/control-client/src/crypto.js"
     ],
     "shared/signed_ai_profile_consumer.js": [

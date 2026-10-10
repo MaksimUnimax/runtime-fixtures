@@ -270,6 +270,29 @@
     try { const canonicalBytes = new TextEncoder().encode(canonical(json)); if (canonicalBytes.byteLength !== payloadBytes.byteLength || !cryptoEqual(canonicalBytes, payloadBytes)) return fail("NON_CANONICAL_PAYLOAD"); } catch (_) { return fail("INVALID_PAYLOAD_SCHEMA"); }
     return { ok: true, payload: json, envelope: input };
   }
+  const TREE_DOMAIN = textEncoder.encode("Octoport ai prompt tree v1\0");
+  function promptTreeClaim(value) {
+    if (!exact(value,["claimVersion","accountId","deviceId","sessionId","requestNonce","detected","aiId","issuedAt","publication"]) ||
+      value.claimVersion !== "ai_prompt_tree_claim_v1" || ![value.accountId,value.deviceId,value.sessionId,value.requestNonce,value.aiId].every(x=>typeof x==="string"&&UUID.test(x)) ||
+      typeof value.issuedAt!=="string" || !Number.isFinite(Date.parse(value.issuedAt)) ||
+      !exact(value.detected,["family","surface","variant"]) || !machine(value.detected.family) || !machine(value.detected.surface) || !(value.detected.variant===null || machine(value.detected.variant))) return false;
+    const p=value.publication;
+    return p===null || (exact(p,["version","format","sha256","publishedAt","body"]) && Number.isSafeInteger(p.version) && p.version>0 &&
+      p.format==="octoport_prompt_tree_v1" && typeof p.sha256==="string" && /^[0-9a-f]{64}$/.test(p.sha256) &&
+      typeof p.publishedAt==="string" && Number.isFinite(Date.parse(p.publishedAt)) &&
+      (p.body===null || globalThis.OctoportPromptTrees?.validateBody(p.body)===true));
+  }
+  async function verifyPromptTreeV1(input, bundle) {
+    if (!exact(input, ["treeEnvelopeVersion", "algorithm", "keyId", "payload", "signature"]) || input.treeEnvelopeVersion !== "ai_prompt_tree_envelope_v1" || input.algorithm !== "Ed25519" || !machine(input.keyId) || typeof input.payload !== "string" || input.payload.length > 131072 || typeof input.signature !== "string" || input.signature.length > 256) return fail("INVALID_ENVELOPE");
+    const keyRing = await makeKeyRing(bundle), key = keyRing.get(input.keyId); if (!key) return fail("UNKNOWN_SIGNING_KEY");
+    const payloadBytes = b64url(input.payload), signature = b64url(input.signature); if (!payloadBytes || !signature) return fail("INVALID_PAYLOAD_ENCODING");
+    let valid = false; try { const data = new Uint8Array(TREE_DOMAIN.length + input.keyId.length + 1 + payloadBytes.length); data.set(TREE_DOMAIN); data.set(textEncoder.encode(input.keyId), TREE_DOMAIN.length); data[TREE_DOMAIN.length + input.keyId.length] = 0; data.set(payloadBytes, TREE_DOMAIN.length + input.keyId.length + 1); valid = await crypto.subtle.verify("Ed25519", key, signature, data); } catch (_) { return fail("INVALID_SIGNATURE"); }
+    if (!valid) return fail("INVALID_SIGNATURE");
+    let json; try { json = parseStrictJson(new TextDecoder("utf-8", { fatal: true }).decode(payloadBytes)); } catch (_) { return fail("INVALID_PAYLOAD_JSON"); }
+    if (!promptTreeClaim(json)) return fail("INVALID_PAYLOAD_SCHEMA");
+    try { const canonicalBytes = new TextEncoder().encode(canonical(json)); if (canonicalBytes.byteLength !== payloadBytes.byteLength || !cryptoEqual(canonicalBytes, payloadBytes)) return fail("NON_CANONICAL_PAYLOAD"); } catch (_) { return fail("INVALID_PAYLOAD_SCHEMA"); }
+    return { ok: true, payload: json, envelope: input };
+  }
   function cryptoEqual(a, b) { if (a.length !== b.length) return false; let result = 0; for (let i = 0; i < a.length; i++) result |= a[i] ^ b[i]; return result === 0; }
-  globalThis.SellerAgentsBootstrapVerifier = Object.freeze({ verifyV2: verifyBootstrapV2, verifyV3: verifyBootstrapV3, verifyHealthV1, validateBundle, canonicalJson: value => canonical(value), base64urlEncode: b64urlEncode });
+  globalThis.SellerAgentsBootstrapVerifier = Object.freeze({ verifyV2: verifyBootstrapV2, verifyV3: verifyBootstrapV3, verifyHealthV1, verifyPromptTreeV1, validateBundle, canonicalJson: value => canonical(value), base64urlEncode: b64urlEncode });
 })();

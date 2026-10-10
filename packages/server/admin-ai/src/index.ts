@@ -1,3 +1,6 @@
+import { PromptTreeTargetSchema, PromptTreeSaveSchema, PromptTreePublishSchema,
+  PromptTreeRollbackSchema, type PromptTreeRepository, type PromptTreeActor } from "./prompt-tree.js";
+export * from "./prompt-tree.js";
 import {
   AssignmentScopeCommandSchema,
   AssignmentExpectedRevisionSchema,
@@ -301,6 +304,7 @@ export type AdminAiAssignmentRevision = z.infer<
 >;
 
 export type AdminAiRegistryCommandRepository = {
+  promptTrees?: PromptTreeRepository;
   createAdapter(input: {
     machineKey: string;
     displayName: string;
@@ -469,6 +473,22 @@ export class AdminAiService {
     private readonly registry: AdminAiRegistryCommandRepository,
     private readonly lifecycle: ProfileLifecycleRepository,
   ) {}
+  private trees(): PromptTreeRepository {
+    if (!this.registry.promptTrees) throw new AdminAiError("SERVICE_UNAVAILABLE");
+    return this.registry.promptTrees;
+  }
+  getPromptTree(target: string) {
+    return safe(() => this.trees().get(PromptTreeTargetSchema.parse(target)));
+  }
+  savePromptTree(target: string, input: unknown, actor: Omit<PromptTreeActor, "reason">) {
+    return safe(() => this.trees().save(PromptTreeTargetSchema.parse(target), { ...PromptTreeSaveSchema.parse(input), ...actor }));
+  }
+  publishPromptTree(target: string, input: unknown, actor: Omit<PromptTreeActor, "reason">) {
+    return safe(() => this.trees().publish(PromptTreeTargetSchema.parse(target), { ...PromptTreePublishSchema.parse(input), ...actor }));
+  }
+  rollbackPromptTree(target: string, input: unknown, actor: Omit<PromptTreeActor, "reason">) {
+    return safe(() => this.trees().publish(PromptTreeTargetSchema.parse(target), { ...PromptTreeRollbackSchema.parse(input), ...actor }));
+  }
   listAdapters(input: z.infer<typeof ReadQuery>) {
     return safe(() => this.reads.listAdapters(input));
   }
