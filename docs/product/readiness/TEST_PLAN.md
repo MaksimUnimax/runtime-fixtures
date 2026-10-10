@@ -58,6 +58,10 @@ STD-21..28 — ещё 8 резервных бизнес-вопросов. Они
 | TR-16 | Server/release | OTP/refresh race, beta quota, RBAC, real PG restore, exact package/trust/manifest/contract validation |
 | TR-17 | Monitoring | Нет self-patch publication; auth lanes, scheduler, unauthorized Telegram, notification dedup, official WB bundle validation |
 
+H2-I/category-comparison из эталона — отдельно исследуемая capability, не разрешение молча добавлять новую API-операцию. Новая операция требует собственной schema/read-effect/entitlement/privacy проверки.
+
+35 Q1-C кейсов связаны в [OWNER_Q1_CROSSWALK.tsv](OWNER_Q1_CROSSWALK.tsv). Опасные UNKNOWN/429/cache expiry тестируются детерминированно; искусственно ломать площадку или её квоты не нужно. Браузерные/изоляционные проверки по возможности выполняет A, а человек оценивает готовый UX и реальные внешние доставки.
+
 ### Per-AI hint-tree acceptance — new checks
 
 Все перечисленные ниже проверки относятся к новому согласованному контракту и имеют статус `NOT_RUN`. Детальный целевой результат — [Per-AI hint and answer trees](../../architecture/SYNC.md#per-ai-hint-and-answer-trees); запуск контроллеров, серверных исполнителей и браузерных проверок в этой документационной правке не выполнялся.
