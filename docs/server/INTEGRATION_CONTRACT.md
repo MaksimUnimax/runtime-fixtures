@@ -366,6 +366,12 @@ Profile schema MUST NOT contain:
 - arbitrary HTTP instructions;
 - arbitrary executable selectors/actions outside the packaged engine strategy vocabulary.
 
+### AI hint and answer trees — new required contract
+
+The `ai.profile` in the bootstrap example is the adapter/DOM profile. It is not an AI hint-and-answer tree, and this document does not claim that the current DOM-profile implementation provides tree storage or delivery.
+
+The existing signed configuration channel must report the permanent AI registry ID, published tree version, format identifier and content hash. The tree body is separate data authenticated by the accepted signed-configuration system and must match that descriptor. No endpoint, database layout or wire payload shape is specified here; those details require a separately versioned implementation contract. The client verifies AI ownership, integrity/hash, authenticity and format compatibility before atomically storing the per-AI copy, and skips a repeat download of the same unchanged version. Full behavior and acceptance: [Per-AI hint and answer trees](../architecture/SYNC.md#per-ai-hint-and-answer-trees).
+
 ## 15. Rollout assignment
 
 The server may assign profile/config revisions by stable rollout cohorts.
@@ -395,6 +401,8 @@ The extension must show actionable UX rather than a generic network failure when
 Already-authorized client may use the last valid signed snapshot until `offline_grace_until` if server is temporarily unavailable.
 
 The client MUST NOT locally extend that deadline.
+
+For AI hint trees, the last validated usable per-AI copy follows the same current access and signed offline-grace boundary; a known revoke is not ignored, and missing/unusable data for one AI does not fall back to another AI's tree. Tree refresh follows the existing rare client-initiated configuration sync. See [Per-AI hint and answer trees](../architecture/SYNC.md#per-ai-hint-and-answer-trees).
 
 When online again, fresh bootstrap takes precedence and can reflect revocation/suspension/health changes.
 
