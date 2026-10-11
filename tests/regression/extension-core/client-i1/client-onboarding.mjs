@@ -70,7 +70,7 @@ for (const identity of [{ai_id:null},{ai_id:"provider_future"}]) {
   }),[true,true,true,false]);
 }
 
-assert.match(js, /renderOnboarding\(\);\s*if \(!authenticated\) return;/);
+assert.match(js, /renderOnboarding\(\);\s*if \(!authenticated\) \{ \$\("r3-recovery"\)\.hidden = true; \$\("r3-review"\)\.hidden = true; r3Review = null; return; \}/);
 console.log(JSON.stringify({
   status: "PASS",
   scope: "A06_FIRST_RUN_ONBOARDING",

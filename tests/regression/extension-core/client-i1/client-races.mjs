@@ -37,12 +37,12 @@ const refreshed = () => new Response(JSON.stringify({ tokenType: "Bearer", acces
     throw new Error("unexpected request " + url);
   } });
   try {
-    const bootstrap = worker.call("SellerAgentsControlClient.bootstrap");
+    const bootstrap = worker.call("SellerAgentsControlClient.bootstrap"); bootstrap.catch(() => {});
     await until(() => release, "bootstrap dispatch");
     await worker.call("SellerAgentsControlClient.localReset");
     release();
     // R3 retires the old acquisition at logout; its late 401 is not a new-principal denial.
-    await assert.rejects(bootstrap, { code: "BOOTSTRAP_CONTEXT_CHANGED" });
+    await assert.rejects(bootstrap, { code: "AUTH_GENERATION_CHANGED", acquisition: "OUTCOME_UNKNOWN", retryRequiresExplicitAction: true });
     assert.equal(worker.controlNetwork.filter(item => item.url.endsWith("/v1/auth/refresh")).length, 0);
     const status = await worker.call("SellerAgentsControlClient.status");
     assert.equal(status.authenticated, false);

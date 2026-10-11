@@ -15,7 +15,7 @@ const source = fs.readFileSync(
 assert.equal((source.match(/\bcanWork\s*:/g) || []).length, 1);
 assert.match(
   source,
-  /canWork:\s*async\s*\(identity = null\)\s*=>\s*\{ await init\(\); const decision = await workDecisionFor\(identity\); return decision\.allowed === true && !authStorageUnconfirmed; \}/,
+  /canWork:\s*async\s*\(identity = null\)\s*=>\s*\{ await init\(\); const decision = await workDecisionFor\(identity\); return isCurrentScopedDecision\(decision\); \}/,
 );
 assert.doesNotMatch(
   source,
