@@ -1238,3 +1238,307 @@ describe("BootstrapService", () => {
     });
   });
 });
+
+describe("R3 H-WIRE issuer SOURCE subsets (not deployment freshness proof)", () => {
+  for (const version of [2, 3] as const)
+    it(`v${version} re-reads access across two AI scopes, deny and explicit recovery even with equal serverTime`, async () => {
+      const { profileRevisionFingerprint } = await import(
+        "@product/adapter-registry"
+      );
+      const content = {
+        schemaVersion: "adapter_profile_v1",
+        page: {
+          identityStrategy: "page_identity",
+          conversationStrategy: "conversation_root",
+          composerStrategy: "composer_root",
+        },
+        selectors: Object.fromEntries(
+          [
+            ["conversation", "conversation_root", "conversation-root"],
+            ["composer", "composer_root", "composer-root"],
+            ["send", "send_control", "send-control"],
+            ["assistantResponse", "assistant_response", "assistant-response"],
+          ].map(([key, strategy, reference]) => [
+            key,
+            {
+              strategy,
+              primary: { kind: "packaged_selector_reference", reference },
+              fallbacks: [],
+              timeoutMs: 1000,
+              observationMode: "polling",
+            },
+          ]),
+        ),
+        observation: { mode: "polling", intervalMs: 100 },
+        contours: [
+          {
+            key: "page_identity",
+            required: true,
+            expectedState: "PRESENT",
+            strategy: "page_identity",
+          },
+          {
+            key: "conversation_root",
+            required: true,
+            expectedState: "PRESENT",
+            strategy: "conversation_root",
+          },
+          {
+            key: "composer_root",
+            required: true,
+            expectedState: "INTERACTIVE",
+            strategy: "composer_root",
+          },
+          {
+            key: "send_control",
+            required: true,
+            expectedState: "INTERACTIVE",
+            strategy: "send_control",
+          },
+        ],
+      };
+      const compatibility = {
+        schemaVersion: "profile_compatibility_v1",
+        contractVersion: "control_plane_v2",
+        browserFamilies: ["chrome"],
+        minimumBrowserVersions: [],
+        minimumExtensionVersion: null,
+      };
+      const hash = profileRevisionFingerprint({
+          content,
+          compatibility,
+        } as never),
+        pair = generateKeyPairSync("ed25519"),
+        reads: string[] = [];
+      let allowed = true;
+      const service = new BootstrapService(
+        {
+          resolve: async () => {
+            reads.push("policy");
+            return {
+              configVersion: 7,
+              signingKeyId: "config-key",
+              sourceFingerprintSha256: "a".repeat(64),
+              compatibility: {
+                extension: {
+                  status: "SUPPORTED" as const,
+                  minimumVersion: null,
+                },
+                browser: { status: "SUPPORTED" as const },
+              },
+              features: {},
+            };
+          },
+        },
+        {
+          sign: async (_id, p) =>
+            signBootstrapSnapshot(p, "config-key", pair.privateKey),
+          signV2: async (_id, p) =>
+            signBootstrapSnapshotV2(p, "config-key", pair.privateKey),
+          signV3: async (_id, p) =>
+            signBootstrapSnapshotV3(p, "config-key", pair.privateKey),
+        },
+        { now: () => new Date("2026-10-10T16:00:00.000Z") },
+        undefined,
+        {
+          resolve: async (input: {
+            detected: { family: string; surface: string; variant: null };
+          }) => {
+            reads.push(input.detected.family);
+            return {
+              status: "RESOLVED",
+              detected: input.detected,
+              profile: {
+                profileKey: "r3-" + input.detected.family,
+                revision: 1,
+                scopeVariant: null,
+                schemaVersion: "adapter_profile_v1",
+                contentSha256: hash,
+                content,
+                compatibility,
+              },
+            };
+          },
+        } as never,
+        {
+          resolve: async () => {
+            reads.push("access:" + allowed);
+            return allowed
+              ? { kind: "BETA" as const }
+              : { kind: "NONE" as const };
+          },
+        },
+      );
+      const issue = async (family: string) => {
+        const base = {
+          extensionVersion: "1.2.3",
+          browser: { family: "chrome" as const, version: "120" },
+          deviceId: subject.deviceId,
+          lastConfigVersion: null,
+          detectedAi: { family, surface: "web", variant: null },
+        };
+        const keys = new Map([["config-key", pair.publicKey]]);
+        const value =
+          version === 2
+            ? verifyBootstrapEnvelopeV2(
+                await service.issueV2(subject, {
+                  ...base,
+                  contractVersion: "control_plane_v2",
+                }),
+                keys,
+              )
+            : verifyBootstrapEnvelopeV3(
+                await service.issueV3(subject, {
+                  ...base,
+                  contractVersion: "control_plane_v3",
+                }),
+                keys,
+              );
+        expect(value.ok).toBe(true);
+        if (!value.ok) throw new Error("signature failed");
+        if (!("ai" in value.payload))
+          throw new Error("identified authority required");
+        return value.payload;
+      };
+      const chatgpt = await issue("chatgpt"),
+        alice = await issue("alice");
+      expect(chatgpt.ai).toMatchObject({
+        status: "RESOLVED",
+        detected: { family: "chatgpt", surface: "web", variant: null },
+      });
+      expect(alice.ai).toMatchObject({
+        status: "RESOLVED",
+        detected: { family: "alice", surface: "web", variant: null },
+      });
+      allowed = false;
+      const deny = await issue("chatgpt");
+      expect(deny.accessBasis).toBe("NONE");
+      expect(deny.ai.status).toBe("UNAVAILABLE");
+      allowed = true;
+      const recovered = await issue("alice");
+      expect(recovered.accessBasis).toBe("BETA");
+      expect(recovered.ai).toMatchObject({
+        status: "RESOLVED",
+        detected: { family: "alice" },
+      });
+      expect(chatgpt.accessBasis).toBe("BETA");
+      expect(chatgpt.serverTime).toBe(deny.serverTime);
+      expect(recovered.serverTime).toBe(deny.serverTime);
+      expect(reads.filter((x) => x.startsWith("access:"))).toEqual([
+        "access:true",
+        "access:true",
+        "access:false",
+        "access:true",
+      ]);
+      expect(reads.filter((x) => x === "policy")).toHaveLength(4);
+      expect(reads.filter((x) => x === "chatgpt" || x === "alice")).toEqual([
+        "chatgpt",
+        "alice",
+        "alice",
+      ]);
+    });
+});
+
+describe("R3 tree cannot serve a publication through a denied bootstrap gate", () => {
+  for (const version of [2, 3] as const)
+    it(`v${version} enforces common gates before publication lookup`, async () => {
+      let snapshot = {
+        accessBasis: "BETA",
+        account: { id: subject.accountId, status: "ACTIVE" },
+        devicePolicy: { status: "ACTIVE" },
+        compatibility: {
+          extension: { status: "SUPPORTED" },
+          browser: { status: "SUPPORTED" },
+        },
+        ai: { status: "RESOLVED" },
+      };
+      const allowed = structuredClone(snapshot),
+        resolvePromptTree = vi.fn(async () => ({
+          aiId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+          publication: null,
+        }));
+      const signer = {
+        sign: vi.fn(),
+        signPromptTree: vi.fn(async () => ({
+          treeEnvelopeVersion: "ai_prompt_tree_envelope_v1" as const,
+          algorithm: "Ed25519" as const,
+          keyId: "config-key",
+          payload: "eA",
+          signature: "eA",
+        })),
+      };
+      const service = new BootstrapService(
+        policy,
+        signer,
+        { now: () => new Date("2026-10-10T16:00:00Z") },
+        undefined,
+        { resolvePromptTree } as never,
+      );
+      vi.spyOn(
+        service,
+        version === 2 ? "issueV2" : "issueV3",
+      ).mockImplementation(
+        async () =>
+          ({
+            envelopeVersion: `bootstrap_envelope_v${version}`,
+            algorithm: "Ed25519",
+            keyId: "config-key",
+            payload: Buffer.from(JSON.stringify(snapshot)).toString(
+              "base64url",
+            ),
+            signature: "eA",
+          }) as never,
+      );
+      const input = {
+        bootstrap: {
+          ...request,
+          contractVersion:
+            version === 2
+              ? ("control_plane_v2" as const)
+              : ("control_plane_v3" as const),
+          detectedAi: { family: "chatgpt", surface: "web", variant: null },
+        },
+        requestNonce: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        known: null,
+      };
+      const principal = {
+        ...subject,
+        sessionId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      };
+      for (const deny of [
+        { accessBasis: "NONE" },
+        { account: { id: subject.accountId, status: "SUSPENDED" } },
+        {
+          account: {
+            id: "ffffffff-ffff-4fff-8fff-ffffffffffff",
+            status: "ACTIVE",
+          },
+        },
+        { devicePolicy: { status: "REVOKED" } },
+        { ai: { status: "UNAVAILABLE" } },
+        {
+          compatibility: {
+            ...allowed.compatibility,
+            extension: { status: "UPDATE_REQUIRED" },
+          },
+        },
+        {
+          compatibility: {
+            ...allowed.compatibility,
+            browser: { status: "UNSUPPORTED_BROWSER" },
+          },
+        },
+      ]) {
+        snapshot = { ...structuredClone(allowed), ...deny };
+        await expect(
+          service.issuePromptTree(principal, input),
+        ).rejects.toMatchObject({ code: "ACCESS_DENIED" });
+      }
+      expect(resolvePromptTree).not.toHaveBeenCalled();
+      expect(signer.signPromptTree).not.toHaveBeenCalled();
+      snapshot = allowed;
+      await service.issuePromptTree(principal, input);
+      expect(resolvePromptTree).toHaveBeenCalledTimes(1);
+      expect(signer.signPromptTree).toHaveBeenCalledTimes(1);
+    });
+});

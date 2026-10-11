@@ -115,9 +115,28 @@ jobs:
       - run: pnpm test
         env:
           PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/product-control-plane-playwright
+      - name: Prepare isolated R3 migration boundary
+        run: |
+          docker exec "${{ job.services.postgres.id }}" createdb -U product_control_plane_ci operator_r3_trees
+          python3 - <<'PY'
+          import json, os, shutil
+          from pathlib import Path
+          source = Path("packages/server/db/drizzle")
+          target = Path(os.environ["RUNNER_TEMP"]) / "octoport-r3-baseline-0058"
+          journal = json.loads((source / "meta/_journal.json").read_text())
+          boundary = next(i for i, entry in enumerate(journal["entries"]) if entry["tag"] == "0059_ai_prompt_trees")
+          assert boundary == 47
+          prefix = {**journal, "entries": journal["entries"][:boundary]}
+          (target / "meta").mkdir(parents=True, exist_ok=False)
+          (target / "meta/_journal.json").write_text(json.dumps(prefix))
+          for entry in prefix["entries"]:
+              shutil.copyfile(source / (entry["tag"] + ".sql"), target / (entry["tag"] + ".sql"))
+          PY
       - run: pnpm test:integration
         env:
           DATABASE_URL: postgres://product_control_plane_ci:ci_development_only_password@127.0.0.1:5432/product_control_plane_test
+          R3_TREE_DATABASE_URL: postgres://product_control_plane_ci:ci_development_only_password@127.0.0.1:5432/operator_r3_trees
+          R3_TREE_BASELINE_MIGRATIONS: ${{ runner.temp }}/octoport-r3-baseline-0058
       - run: pnpm db:migrate
         env:
           DATABASE_URL: postgres://product_control_plane_ci:ci_development_only_password@127.0.0.1:5432/product_control_plane_test

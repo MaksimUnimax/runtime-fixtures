@@ -102,10 +102,12 @@ for (const [browser, userAgent] of [
 }
 {
   const grants = new Set();
-  let envelope, releaseClear, count = 0;
+  let envelope, releaseClear, count = 0, phase = "initial";
+  const forgetTrace = [], requestTrace = [];
   const worker = await makeWorker(runtime, { userAgent: firefox, firefoxPermissions: permissions(grants), fetch: async url => {
+    requestTrace.push({ phase, path: new URL(url).pathname });
     if (url.endsWith("/v1/devices/current/client-metadata/forget")) {
-      count++;
+      count++; forgetTrace.push({ phase, count });
       if (count === 1) return new Promise(resolve => { releaseClear = () => resolve(cleared()); });
       return cleared();
     }
@@ -116,13 +118,16 @@ for (const [browser, userAgent] of [
     envelope = await identified(worker);
     await worker.call("SellerAgentsControlClient.acquireSignedHealthAuthority", { detectedAi });
     await until(() => releaseClear, "clear started");
+    phase = "identified-send";
     grants.add("technicalAndInteraction");
     await worker.call("SellerAgentsControlClient.bootstrap", { detectedAi });
-    releaseClear(); await drain();
+    await drain();
+    assert.equal(forgets(worker), 1, "identified-send follow-up checks still join the held clear");
+    phase = "late-clear"; releaseClear(); await drain();
     assert.equal(worker.backing.local[receiptKey], undefined, "late clear cannot acknowledge newer identified transmission");
-    grants.clear();
+    phase = "withdraw-again"; grants.clear();
     await worker.call("SellerAgentsControlClient.acquireSignedHealthAuthority", { detectedAi }); await drain();
-    assert.equal(forgets(worker), 2);
+    assert.equal(forgets(worker), 2, JSON.stringify({ forgetTrace, requestTrace }));
     assert.equal(worker.backing.local[receiptKey].deviceId, deviceId);
     passed.push("late_clear_vs_identified_send");
   } finally { releaseClear?.(); worker.close(); }

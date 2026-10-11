@@ -138,6 +138,11 @@ async function deniedFixture(marketplace, phase) {
     denied = true;
     await assert.rejects(worker.call("SellerAgentsControlClient.bootstrap"), /R5_BOOTSTRAP403/);
     await until(async () => !(await worker.call("SellerAgentsControlClient.status")).workAllowed, "R5 authority denial");
+    const controlAfterDenial = worker.controlNetwork.filter(row => row.url.startsWith("http://127.0.0.1:43100/v1/")).map(row => new URL(row.url).pathname);
+    assert.equal(controlAfterDenial.filter(p => p === "/v1/bootstrap").length, 1);
+    assert.equal(controlAfterDenial.filter(p => p === "/v1/ai-prompt-tree").length, 1);
+    assert.equal(controlAfterDenial.filter(p => p === "/v1/health-authority").length, 1);
+    assert.equal(controlAfterDenial.length, 3);
     const afterDenial = await worker.call("getManualOperation", started.key);
     assert.equal(afterDenial.operation_id, owner.operation_id); assert.equal(afterDenial.delivery.delivery_id, owner.delivery.delivery_id);
     const deliveryFields = { owner_kind: "manual", owner_id: owner.operation_id, conversation_key: started.key, delivery_id: owner.delivery.delivery_id, actor_id: "r5-denied" };
@@ -156,13 +161,15 @@ async function deniedFixture(marketplace, phase) {
     }
     assert.equal(worker.messages.filter(message => message.type === "OZ_BATCH_DELIVERY_AVAILABLE").length, sentBefore, "denial must not advertise delivery again");
     assert.equal(providerCalls, 1, "denial must not replay provider calls");
-    assert.equal(worker.controlNetwork.filter(row => row.url.startsWith("http://127.0.0.1:43100/v1/")).length, 2, "ordinary denied guards add no control requests");
+    assert.deepEqual(worker.controlNetwork.filter(row => row.url.startsWith("http://127.0.0.1:43100/v1/")).map(row => new URL(row.url).pathname), controlAfterDenial, "ordinary denied guards add no control requests");
     assert.ok(cleanupAttempts.length > 0, "durable cleanup failure was exercised");
     assert.equal((await worker.request({ type: "OZ_AUTO_START", conversation_key: started.key }, popupSender)).code, "LEGACY_ACTION_DISABLED");
     denied = false;
     const finished = await worker.request({ type: "OZ_WORK_FINISH", tab_id: worker.tabId, conversation_key: started.key }, popupSender);
-    assert.equal(finished.ok, true, JSON.stringify(finished));
-    return { marketplace, phase, providerCalls, controlRequests: 2, cleanupAttempts: cleanupAttempts.length, attachmentResults };
+    assert.equal(finished.ok, false, "restored storage does not clear Work quarantine");
+    assert.equal(finished.code, "WORK_STATE_COMMIT_UNCONFIRMED");
+    assert.equal(providerCalls, 1);
+    return { marketplace, phase, providerCalls, controlRequests: controlAfterDenial.length, cleanupAttempts: cleanupAttempts.length, attachmentResults };
   } finally { worker.close(); }
 }
 
@@ -189,4 +196,4 @@ for (const marketplace of ["ozon", "wildberries"]) {
   outcomes.push(await deniedFixture(marketplace, "before-attachment-commit"));
   outcomes.push(await deniedFixture(marketplace, "after-insert-before-send").catch(error => { throw error; }));
 }
-console.log(JSON.stringify({ status: "PASS", r5_2: { denied_fixtures: outcomes.length, marketplaces: ["ozon", "wildberries"], real_delivery_owner: true, explicit_bootstrap403: true, legacy_credentials_seeded: true, attachment_port_positive: true, recovery_payload_denied: true, idb_reads_blocked: true, cleanup_restored_finish: true, control_requests_per_fixture: 2, ordinary_command_added_control_requests: 0 } }));
+console.log(JSON.stringify({ status: "PASS", r5_2: { denied_fixtures: outcomes.length, marketplaces: ["ozon", "wildberries"], real_delivery_owner: true, explicit_bootstrap403: true, legacy_credentials_seeded: true, attachment_port_positive: true, recovery_payload_denied: true, idb_reads_blocked: true, cleanup_restored_finish: false, work_quarantine_retained: true, control_requests_per_fixture: 3, ordinary_command_added_control_requests: 0 } }));

@@ -204,8 +204,9 @@ for (const [label, minimum, expected] of [["browser-fourth-component", "120.0", 
 // across a real worker close/restart with the same backing and no seed.
 {
   const backing = { local: {}, session: {} };
-  const first = await makeWorker(runtime, { backing, fetch: async (url) => url.endsWith("/v1/bootstrap") ? json({ error: { code: "FORBIDDEN" } }, 403) : new Error("unexpected"), onStorageWrite: async (kind, values) => { if (kind === "local" && Object.hasOwn(values, AUTH_KEY)) throw new Error("fixture write failure"); } });
-  try { await assert.rejects(first.call("SellerAgentsControlClient.bootstrap"), /FORBIDDEN/); assert.equal((await first.call("SellerAgentsControlClient.status")).authenticated, false); } finally { first.close(); }
+  let denialObserved = false;
+  const first = await makeWorker(runtime, { backing, fetch: async (url) => { assert.ok(url.endsWith("/v1/bootstrap")); denialObserved = true; return json({ error: { code: "FORBIDDEN" } }, 403); }, onStorageWrite: async (kind, values) => { if (denialObserved && kind === "local" && Object.hasOwn(values, AUTH_KEY)) throw new Error("fixture write failure"); } });
+  try { await assert.rejects(first.call("SellerAgentsControlClient.bootstrap"), { code: "BOOTSTRAP_SECURITY_QUARANTINE" }); assert.equal(denialObserved, true); assert.equal((await first.call("SellerAgentsControlClient.status")).authenticated, false); } finally { first.close(); }
   const second = await makeWorker(runtime, { backing, seedAuthority: false });
   try { assert.equal((await second.call("SellerAgentsControlClient.status")).authenticated, false); assert.equal(backing.local[AUTH_KEY], undefined); } finally { second.close(); }
 }

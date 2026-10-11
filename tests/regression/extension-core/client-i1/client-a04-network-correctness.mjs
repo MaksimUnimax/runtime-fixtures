@@ -27,15 +27,20 @@ const refreshed = (accessToken = "a04_rotated_access_token") =>
     refreshToken: "R".repeat(43),
     refreshTokenExpiresAt: future(7_200_000),
   });
-const expireStoredAccess = (backing) => (kind, keys) => {
-  if (
-    kind === "local" &&
-    String(keys).includes("seller_agents_control_auth_v2") &&
-    backing.local.seller_agents_control_auth_v2
-  ) {
-    backing.local.seller_agents_control_auth_v2.credentials.accessTokenExpiresAt =
-      new Date(Date.now() - 1000).toISOString();
-  }
+const expireStoredAccess = (backing) => {
+  let expired = false;
+  return (kind, keys) => {
+    if (
+      !expired &&
+      kind === "local" &&
+      String(keys).includes("seller_agents_control_auth_v2") &&
+      backing.local.seller_agents_control_auth_v2
+    ) {
+      expired = true;
+      backing.local.seller_agents_control_auth_v2.credentials.accessTokenExpiresAt =
+        new Date(Date.now() - 1000).toISOString();
+    }
+  };
 };
 const recordStore = (worker, suffix = "one") =>
   worker.call("SellerAgentsSyncJournal.recordStoreMetadata", {
@@ -160,6 +165,8 @@ const recordStore = (worker, suffix = "one") =>
     });
     assert.deepEqual(routes, ["refresh", "sync"]);
     assert.equal(syncBearer, "Bearer a04_rotated_access_token");
+    assert.ok(Date.parse(backing.local.seller_agents_control_auth_v2.credentials.accessTokenExpiresAt) > Date.now(),
+      "refreshed expiry remains durably stored through the real readback check");
     assert.equal((await worker.call("SellerAgentsControlClient.status")).authenticated, true);
   } finally { worker.close(); }
 }

@@ -3,7 +3,10 @@ async function executeManualCommand(
   conversationKey,
   sender,
   manualRequestId,
+  commandSource = null,
+  recovery = null,
 ) {
+  if (recovery && !saR3RetryPermits.delete(recovery)) throw saError("RETRY_INTERNAL_PERMIT_REQUIRED");
   const key = normalizeConversationKey(conversationKey);
   const senderTabId = Number(sender?.tab?.id || 0);
   if (!Number.isInteger(senderTabId) || senderTabId <= 0) {
@@ -14,11 +17,12 @@ async function executeManualCommand(
       { code: "MANUAL_SENDER_TAB_MISSING" },
     );
   }
-  const requestToken = String(manualRequestId || "").trim();
+  let requestToken = String(manualRequestId || "").trim();
   if (!requestToken)
     throw Object.assign(new Error("Manual request ID отсутствует."), {
       code: "MANUAL_REQUEST_ID_MISSING",
     });
+  const ingressRequestToken = requestToken;
   const liveIdentity = await assertTabConversation(senderTabId, key);
   const binding = await strictBindingForIdentity(liveIdentity);
   const manualAutoSend = (await getSettings()).autoSend !== false;
@@ -96,11 +100,28 @@ async function executeManualCommand(
     }
   }
 
+  const r3Enabled = await saEnabled();
+  const r3Prepared = r3Enabled ? await saR3PrepareCommandSource(commandSource, sender, liveIdentity, binding, workSession, key, commandText) : null;
+  if (r3Prepared) requestToken = recovery?.context.requestId || r3Prepared.requestToken;
+  if (r3Enabled && !await SellerAgentsControlClient.canWork(liveIdentity))
+    throw Object.assign(new Error("Work policy blocked"), { code: "WORK_POLICY_BLOCKED" });
+  const promptTree = r3Enabled ? await saPromptTreeForExchange(liveIdentity, true) : { pin: null };
+  if (r3Prepared && promptTree.pin) r3Prepared.source.promptTree = { aiId: promptTree.pin.aiId, version: promptTree.pin.version, sha256: promptTree.pin.sha256 };
   const executionContext = await captureBatchContext(
     key,
     commandText,
     requestToken,
   );
+  if (recovery) {
+    SellerAgentsExecutionContext.assertSame(recovery.context, await saReadContext(key, { commandHash: executionContext.commandHash, requestId: executionContext.requestId }));
+    if (!r3Prepared || recovery.blockVersion !== r3Prepared.blockVersion || recovery.blockOriginKey !== r3Prepared.blockOriginKey)
+      throw saError("RETRY_PREVIEW_CHANGED");
+    entries = recovery.ordinals.map(ordinal => {
+      if (!entries[ordinal]) throw saError("RETRY_SELECTION_CHANGED");
+      return { ...entries[ordinal], r3_original_ordinal: ordinal };
+    });
+  }
+  const r3Reservation = recovery?.reservation || (r3Prepared ? await saR3ReserveCommand(r3Prepared, executionContext, entries, ingressRequestToken) : null);
   const operationId = `ozmanual-${crypto.randomUUID()}`;
   const now = new Date().toISOString();
   let duplicateOperation = null;
@@ -110,24 +131,27 @@ async function executeManualCommand(
       const guard = SellerAgentsExecutionContext.createGuard(executionContext, () => readBatchContextState(key, { commandHash: executionContext.commandHash, requestId: requestToken }));
       await guard.assertCurrent();
       seen = current?.execution_context?.workSessionId === executionContext.workSessionId ? (current.seen_request_ids || []) : [];
-      if (seen.includes(requestToken)) throw saError("MANUAL_REQUEST_DUPLICATE");
+      if (seen.includes(ingressRequestToken)) throw saError("MANUAL_REQUEST_DUPLICATE");
       if (seen.length >= 2000) throw saError("WORK_MARKER_CAPACITY_START_REQUIRED");
     }
-    if (current?.manual_request_id === requestToken) {
+    if (current?.manual_request_id === ingressRequestToken) {
       duplicateOperation = current;
       return current;
     }
     if (manualOperationActive(current)) return current;
     return {
       operation_id: operationId,
-      manual_request_id: requestToken,
+      manual_request_id: ingressRequestToken,
       conversation_key: key,
       origin: liveIdentity.origin,
       conversation_id: liveIdentity.conversation_id,
       binding_snapshot: bindingSnapshot(binding),
       execution_context: executionContext,
-      seen_request_ids: [...seen, requestToken],
-      payload_expires_at_ms: Date.now() + 3600000,
+      prompt_tree: promptTree.pin,
+      ...(r3Reservation ? { r3_execution_id: r3Reservation.executionId, r3_source: r3Prepared.source,
+        r3_block_origin_key: r3Prepared.blockOriginKey, r3_block_version: r3Prepared.blockVersion } : {}),
+      seen_request_ids: [...seen, ingressRequestToken],
+      payload_expires_at_ms: r3Reservation?.payloadExpiresAt || Date.now() + 3600000,
       tab_id: senderTabId,
       status: MANUAL_OPERATION_STATUSES.REQUESTING,
       operation: null,
@@ -180,7 +204,7 @@ async function executeManualCommand(
   }
   await diagnostic("MANUAL_BATCH_ACCEPTED", {
     operation_id: operationId,
-    manual_request_id: requestToken,
+    manual_request_id: ingressRequestToken,
     conversation_id: liveIdentity.conversation_id,
     tab_id: senderTabId,
     item_count: entries.length,
@@ -195,7 +219,7 @@ async function executeManualCommand(
     ok: true,
     accepted: true,
     manual_operation_id: operationId,
-    manual_request_id: requestToken,
+    manual_request_id: ingressRequestToken,
     item_count: entries.length,
     command_count: entries.filter((entry) => entry.kind === "command").length,
     pre_execution_error_count: entries.filter(

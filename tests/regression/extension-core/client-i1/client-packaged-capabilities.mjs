@@ -93,16 +93,15 @@ const EXPECTED = [
 // explicit binding/intersection step is designed and accepted.
 {
   const backing = { local: {}, session: {} };
-  const seed = await makeWorker(runtime, { backing });
-  await seed.call("SellerAgentsControlClient.status");
+  const seed = await makeWorker(runtime, { backing, fetch: async (url) => {
+    assert.ok(url.endsWith("/v1/bootstrap"));
+    const payload = clone(backing.local[AUTH].authority.payload);
+    payload.features = { "marketplace.ozon.adapter": true };
+    payload.entitlements = { "ai.chatgpt.web.adapter": true };
+    return Response.json(await signFixtureBootstrap(backing, payload));
+  } });
+  await seed.call("SellerAgentsControlClient.bootstrap", { detectedAi: CHATGPT });
   seed.close();
-
-  const authority = backing.local[AUTH].authority;
-  const payload = clone(authority.payload);
-  payload.features = { "marketplace.ozon.adapter": true };
-  payload.entitlements = { "ai.chatgpt.web.adapter": true };
-  authority.payload = payload;
-  authority.envelope = await signFixtureBootstrap(backing, payload);
 
   const worker = await makeWorker(runtime, {
     backing,

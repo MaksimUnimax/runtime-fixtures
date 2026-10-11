@@ -72,6 +72,18 @@ export async function resetE2eDatabase(): Promise<void> {
         await new Promise((resolve) => setTimeout(resolve, attempt * 50));
       }
     }
+    // TRUNCATE CASCADE removed the unpublished template seeded by migration 0058.
+    // Restore only that exact empty seed in the interlocked disposable database.
+    await database.query(
+      "INSERT INTO ai_prompt_tree_heads(target,draft) VALUES ('template',$1::jsonb)",
+      [
+        JSON.stringify({
+          format: "octoport_prompt_tree_v1",
+          root: null,
+          nodes: [],
+        }),
+      ],
+    );
     await database.query(
       "UPDATE beta_admission_state SET mode='OPEN',capacity=100000,admitted=0,revision=1 WHERE id=1",
     );

@@ -63,10 +63,18 @@ await test("WORK-transition-and-revision-parity", () => {
         tab_id: 11,
         error: null,
       };
-      assert.deepEqual(
-        outcome(() => current.OzonWorkSessionModel.transition(record, next)),
-        outcome(() => old.OzonWorkSessionModel.transition(record, next)),
-      );
+      const actual = outcome(() => current.OzonWorkSessionModel.transition(record, next));
+      const expected = outcome(() => old.OzonWorkSessionModel.transition(record, next));
+      if (actual.value) {
+        // Preserve the accepted state graph and legacy projection while asserting
+        // the additional R3 terminal/generation contract explicitly.
+        assert.equal(actual.value.work_session_id, null);
+        assert.equal(actual.value.work_generation, next === "finishing" ? 1 : 0);
+        assert.equal(actual.value.finished, next === "finishing");
+        assert.equal(actual.value.finished_at, next === "finishing" ? "2026-09-14T00:00:00.000Z" : null);
+        const { work_session_id, work_generation, terminal_state_known, finished, finished_at, ...legacy } = actual.value;
+        assert.deepEqual({ value: legacy }, expected);
+      } else assert.deepEqual(actual, expected);
     }
 });
 await test("WORK-finished-session-cannot-jump-active", () => {
@@ -76,6 +84,11 @@ await test("WORK-finished-session-cannot-jump-active", () => {
   value = current.OzonWorkSessionModel.transition(value, "finishing");
   value = current.OzonWorkSessionModel.transition(value, "inactive");
   assert.equal(value.revision, 4);
+  assert.equal(value.finished, true);
+  assert.equal(current.OzonWorkSessionModel.canResume(value), false);
+  assert.throws(() => current.OzonWorkSessionModel.transition(value, "binding", { start_intent_id: null }),
+    { code: "WORK_SESSION_FINISHED" });
+  assert.equal(current.OzonWorkSessionModel.transition(value, "binding", { start_intent_id: "new-explicit-start" }).finished, false);
   assert.throws(
     () => current.OzonWorkSessionModel.transition(value, "active_visible"),
     { code: "WORK_SESSION_TRANSITION_REJECTED" },
@@ -355,6 +368,7 @@ await test("STORAGE-two-dialogues-do-not-erase-each-other-and-rejected-write-is-
     fail = false;
   const ports = {
     namespace: "account-map",
+    writerKey: "account-map",
     read: async () => structuredClone(data),
     write: async (value) => {
       if (fail) throw new Error("quota");
@@ -371,15 +385,113 @@ await test("STORAGE-two-dialogues-do-not-erase-each-other-and-rejected-write-is-
   fail = true;
   await assert.rejects(
     records.mutate("dialogue-a", () => ({ operation_id: "lost" })),
-    /quota/,
+    (error) => error.code === "RECORD_STORE_COMMIT_UNCONFIRMED" && error.stage === "write",
   );
   fail = false;
-  assert.equal((await records.get("dialogue-a")).operation_id, "a");
-  await records.mutate("dialogue-b", () => null);
-  assert.equal(await records.get("dialogue-b"), null);
-  const restarted = local.SellerAgentsLocalOperations.createRecordStore(ports);
+  // A later successful storage call cannot turn an unconfirmed commit into a permit.
+  await assert.rejects(records.get("dialogue-a"), (error) => error.code === "RECORD_STORE_COMMIT_UNCONFIRMED");
+  assert.throws(() => local.SellerAgentsLocalOperations.createRecordStore(ports),
+    (error) => error.code === "RECORD_STORE_WRITER_ALREADY_REGISTERED");
+  // A service-worker restart has a new JS realm, not a second writer in the old realm.
+  const restoredRealm = vm.createContext({ Date: fixedDate });
+  vm.runInContext(fs.readFileSync(path.join(root, "packages/bridge-core/src/execution/local-operations.js"), "utf8"), restoredRealm);
+  const restarted = restoredRealm.SellerAgentsLocalOperations.createRecordStore(ports);
   assert.equal((await restarted.get("dialogue-a")).operation_id, "a");
+  await restarted.mutate("dialogue-b", () => null);
+  assert.equal(await restarted.get("dialogue-b"), null);
 });
+await test("PAR-08-source-immutable-grant-and-Work-fences", () => {
+  const realm = vm.createContext({});
+  vm.runInContext(fs.readFileSync(path.join(root, "packages/bridge-core/src/execution/context.js"), "utf8"), realm);
+  const api = realm.SellerAgentsExecutionContext;
+  const base = Object.fromEntries(api.fields.map(field => [field, field + "-fixture"]));
+  const input = { ...base, authGeneration: 7, scopeKey: "signed-chatgpt-scope", aiFamily: "chatgpt",
+    principalEpoch: 10, accessEpoch: 20, grantEpoch: 30, workGeneration: 40 };
+  const pinned = api.snapshot(input); assert.equal(Object.isFrozen(pinned), true);
+  api.assertSame(pinned, { ...input, active: true, visibility: "hidden" });
+  for (const field of api.authorityFields) {
+    const changed = typeof input[field] === "number" ? input[field] + 1 : input[field] + "-changed";
+    assert.throws(() => api.assertSame(pinned, { ...input, active: true, [field]: changed }), { code: "EXECUTION_CONTEXT_CHANGED" });
+  }
+  assert.throws(() => api.snapshot({ ...base, scopeKey: "partial" }), { code: "EXECUTION_CONTEXT_MISSING" });
+  assert.equal(pinned.workGeneration, 40); assert.equal(pinned.grantEpoch, 30);
+});
+await test("PAR-07-32-package-subset-content-source-identities-and-review", async () => {
+  const bundle = fs.readFileSync(path.join(candidate, "shared/ai_adapters.js"), "utf8");
+  const marker = "/* Content-side identity evidence only.";
+  assert.equal(bundle.split(marker).length, 2);
+  let id = 0;
+  function sourceRealm() {
+    const realm = vm.createContext({ crypto: { randomUUID: () => "source-id-" + (++id) } });
+    vm.runInContext(bundle.slice(bundle.indexOf(marker)), realm);
+    return realm.SellerAgentsCommandSource;
+  }
+  const source = sourceRealm(), section = { isConnected: true }, root = { isConnected: true };
+  let providerId = null, text = "read-only command", messages = [section];
+  const adapter = { messageId: node => providerId, assistantMessages: () => messages,
+    findCodeBlocks: node => node === section ? [root] : [], readCodeText: () => text };
+  const context = { command_protocol: 2, work_session_id: "W", binding_id: "B", work_active: true };
+  const args = { context, adapter, binding: { root, section }, conversationKey: "C" };
+  const one = await source.capture(args), two = await source.capture(args);
+  assert.deepEqual(plain(one), plain(two)); assert.equal(one.messageIdentity.kind, "document-local");
+  const baseline = source.baselineIds(adapter, messages);
+  assert.ok(baseline.includes(source.baselineId(one.messageIdentity)));
+  const review = await source.readBlock({ context, adapter, source: one, conversationKey: "C" });
+  assert.equal(review.command_text, text);
+  const restarted = sourceRealm();
+  await assert.rejects(restarted.readBlock({ context, adapter, source: one, conversationKey: "C" }),
+    { code: "COMMAND_LOCAL_IDENTITY_UNCERTAIN_START_REQUIRED" });
+  providerId = "Provider-Case-ID";
+  const proved = await source.capture(args); assert.equal(proved.messageIdentity.id, "Provider-Case-ID");
+  assert.equal((await restarted.readBlock({ context, adapter, source: proved, conversationKey: "C" })).command_text, text);
+  messages = [section, { isConnected: true }];
+  await assert.rejects(source.readBlock({ context, adapter, source: proved, conversationKey: "C" }),
+    { code: "COMMAND_MESSAGE_IDENTITY_REQUIRED" });
+  messages = [section]; root.isConnected = false;
+  await assert.rejects(source.capture(args), { code: "COMMAND_CONTEXT_CHANGED" });
+});
+
+await test("R3-popup-import-stays-in-popup-and-rejects-stale-preview", async () => {
+  const source = fs.readFileSync(path.join(candidate, "popup.js"), "utf8"), nodes = new Map(), calls = [];
+  let tabs = 0, release = null, defer = true;
+  const node = id => { if (!nodes.has(id)) nodes.set(id, { value: "", files: [], hidden: true,
+    focus() { this.focused = true; }, scrollIntoView() {} }); return nodes.get(id); };
+  const ctx = { $: node, chrome: { tabs: { create() { tabs++; } }, runtime: { getURL: x => x } },
+    action: fn => fn(), backupSummary: () => "verified preview", request: async (type, fields) => {
+      calls.push({ type, fields });
+      if (type === "SA_BACKUP_PREVIEW") return defer ? new Promise(resolve => { release = resolve; }) : { preview: {} };
+      if (type === "SA_BACKUP_IMPORT") return { imported: [] };
+      throw new Error("unexpected request");
+    } };
+  vm.createContext(ctx);
+  const first = source.indexOf("async function openKeyFiles(mode)"), last = source.indexOf("function downloadBackup", first);
+  const preview = source.indexOf('$("backup-preview").onclick'), end = source.indexOf("if (durableImportMode) {", preview);
+  assert.ok(first >= 0 && last > first && preview > last && end > preview);
+  vm.runInContext('let backupText="",backupPreview=null,backupSelectionRevision=0; const durableImportMode=false; let state={auth:{accountId:"fixture"}};\n' +
+    source.slice(first, last) + source.slice(preview, end), ctx);
+  await node("keys-upload").onclick(); assert.equal(tabs, 0); assert.equal(node("backup-file").focused, true);
+  assert.equal(node("backup-file").onclick, undefined, "native picker is not replaced with tab navigation");
+  const fileA = { size: 10, text: async () => "file-A" }, fileB = { size: 10, text: async () => "file-B" };
+  node("backup-file").files = [fileA]; node("backup-file").onchange(); node("backup-import-password").value = "password-A";
+  const pending = node("backup-preview").onclick();
+  for (let i = 0; i < 12 && !release; i++) await Promise.resolve();
+  assert.ok(release); node("backup-file").files = [fileB]; node("backup-file").onchange(); release({ preview: {} });
+  await assert.rejects(pending, /изменились/); assert.equal(node("backup-preview-result").hidden, true);
+  await assert.rejects(node("backup-import").onclick(), /Сначала проверьте/);
+  defer = false; await node("backup-preview").onclick(); assert.equal(node("backup-preview-result").hidden, false);
+  node("backup-import-password").value = "changed-without-event";
+  await assert.rejects(node("backup-import").onclick(), /Сначала проверьте/);
+  node("backup-import-password").oninput(); assert.equal(node("backup-preview-result").hidden, true);
+  await node("backup-preview").onclick(); await node("backup-import").onclick();
+  const imports = calls.filter(call => call.type === "SA_BACKUP_IMPORT");
+  assert.equal(imports.length, 1); assert.equal(imports[0].fields.backup, "file-B");
+  assert.equal(imports[0].fields.password, "changed-without-event"); assert.equal(imports[0].fields.apply, true);
+  await assert.rejects(node("backup-import").onclick(), /Сначала проверьте/);
+  node("backup-file").files = [{ size: 8 * 1024 * 1024 + 1, text: () => { throw new Error("oversized file must not be read"); } }];
+  node("backup-file").onchange(); await assert.rejects(node("backup-preview").onclick(), /8 MiB/);
+  assert.equal(calls.filter(call => call.type === "SA_BACKUP_IMPORT").length, 1); assert.equal(tabs, 0);
+});
+
 console.log(
   JSON.stringify(
     {

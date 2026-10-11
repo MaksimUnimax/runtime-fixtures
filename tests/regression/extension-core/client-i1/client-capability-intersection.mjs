@@ -15,16 +15,16 @@ const EXPECTED_BINDINGS = [
 
 async function makeCachedWorker(entitlements, features = {}) {
   const backing = { local: {}, session: {} };
-  const seed = await makeWorker(runtime, { backing });
-  await seed.call("SellerAgentsControlClient.status");
+  const seed = await makeWorker(runtime, { backing, fetch: async (url) => {
+    assert.ok(url.endsWith("/v1/bootstrap"));
+    const payload = clone(backing.local[AUTH].authority.payload);
+    payload.entitlements = entitlements;
+    payload.features = features;
+    return Response.json(await signFixtureBootstrap(backing, payload));
+  } });
+  // Populate the current per-AI grant through the actual signed response path.
+  await seed.call("SellerAgentsControlClient.bootstrap", { detectedAi: CHATGPT });
   seed.close();
-
-  const authority = backing.local[AUTH].authority;
-  const payload = clone(authority.payload);
-  payload.entitlements = entitlements;
-  payload.features = features;
-  authority.payload = payload;
-  authority.envelope = await signFixtureBootstrap(backing, payload);
 
   return makeWorker(runtime, {
     backing,

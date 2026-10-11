@@ -1,3 +1,7 @@
+import {
+  AiPromptTreePublicationV1Schema,
+  type AiPromptTreePublicationV1,
+} from "@product/contracts";
 import type { BrowserFamily } from "@product/shared";
 import type { DatabaseRuntime } from "./index.js";
 
@@ -54,6 +58,7 @@ type BootstrapAiResolutionSnapshot = {
 };
 
 interface BootstrapAiResolutionRepository {
+  promptTree(aiId: string): Promise<AiPromptTreePublicationV1 | null>;
   resolve(input: {
     family: string;
     surface: string;
@@ -294,6 +299,29 @@ export function createBootstrapAiResolutionRepository(
   runtime: DatabaseRuntime,
 ): BootstrapAiResolutionRepository {
   return {
+    async promptTree(aiId) {
+      const result = await runtime.query(
+        `SELECT a.id,p.version,p.body,p.content_sha256,p.published_at
+        FROM ai_adapters a JOIN ai_prompt_tree_heads h ON h.ai_id=a.id
+        LEFT JOIN ai_prompt_tree_publications p ON p.target=h.target AND p.version=h.published_version
+        WHERE a.id=$1 AND a.status='ACTIVE'`,
+        [aiId],
+      );
+      const row = result.rows[0];
+      if (!row) throw new Error("AI_TREE_NOT_FOUND");
+      if (row.version === null) return null;
+      return AiPromptTreePublicationV1Schema.parse({
+        aiId: String(row.id),
+        version: Number(row.version),
+        format: "octoport_prompt_tree_v1",
+        sha256: String(row.content_sha256),
+        body: row.body,
+        publishedAt:
+          row.published_at instanceof Date
+            ? row.published_at.toISOString()
+            : String(row.published_at),
+      });
+    },
     async resolve(input) {
       const result = await runtime.query<{
         hierarchy: unknown;

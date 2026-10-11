@@ -71,12 +71,17 @@ async function fixture(options = {}) {
   auth.authority.cacheBinding.detectedAi = { family: provider, surface: provider === "alice" ? "web" : "web", variant: null };
   payload.entitlements = options.entitlements || { "source.ozon": true, "source.wildberries": true, "ai.chatgpt": true, "ai.alice": true };
   if (options.incompatible) payload.compatibility.browser.status = "UNSUPPORTED";
-  if (options.workAllowed === false) auth.authority.workAllowed = false;
   auth.authority.envelope = await signFixtureBootstrap(backing, payload);
   if (options.staleBootstrap) {
     payload.expiresAt = new Date(Date.now() - 60_000).toISOString();
     auth.cacheClock.effectiveTimeMs = Date.now();
     auth.authority.envelope = await signFixtureBootstrap(backing, payload);
+  }
+  if (options.workAllowed === false) {
+    const primed = await makeWorker(runtime, { backing, seedAuthority: false });
+    try { assert.equal(await primed.call("SellerAgentsControlClient.canWork", provider), true); }
+    finally { primed.close(); }
+    backing.local[AUTH].authority.workAllowed = false; // Legacy projection only; verified scoped grant is unchanged.
   }
   const mode = options.health || "pass";
   const signedHealth = await healthEnvelope(backing, options.healthOverrides || {});
@@ -104,7 +109,7 @@ async function fixture(options = {}) {
   if (options.bound) {
     const context = { accountId: store.accountId, storeId: store.id, marketplace, credentialRevision: store.credentialRevision, policyRevision: "personal-disabled", authGeneration: 1 };
     backing.local[BINDINGS] = { [key]: { binding_id: "fixture-binding", revision: 2, origin: identity.origin, ai_id: provider, conversation_id: identity.conversation_id, conversation_key: key, store_context: context } };
-    backing.local[SESSIONS] = { [key]: { version: 1, state: options.state || "inactive", revision: 4, conversation_key: key, tab_id: worker.tabId, origin: identity.origin, ai_id: provider, conversation_id: identity.conversation_id, start_intent_id: null } };
+    backing.local[SESSIONS] = { [key]: { version: 1, state: options.state || "inactive", work_session_id: "fixture-paused-work", work_generation: 1, terminal_state_known: true, finished: false, revision: 4, conversation_key: key, tab_id: worker.tabId, origin: identity.origin, ai_id: provider, conversation_id: identity.conversation_id, start_intent_id: "fixture-paused-work" } };
   }
   return { worker, backing, store, identity, key, calls, release, mode, marketplace, provider };
 }
@@ -155,6 +160,8 @@ const run = async (id, description, fn) => {
 await run("C1-01", "new-dialogue Start acquires one Health and creates pending_identity", async () => { const f = await fixture({ conversationId: null }); try { const r = await start(f); assert.equal(r.ok, true, JSON.stringify(r)); assert.equal(healthCalls(f).length, 1); assert.equal((await f.worker.call("getPendingWorkStarts"))[f.worker.tabId].state, "pending_identity"); } finally { await close(f); } });
 await run("C1-02", "WB/Alice historical-unbound Start proceeds", async () => { const f = await fixture({ provider: "alice", marketplace: "wildberries" }); try { await activeStart(f); assert.equal((await f.worker.call("workSessionFor", f.key)).state, "active_visible"); } finally { await close(f); } });
 await run("C1-03", "exact inactive Resume proceeds", async () => { const f = await fixture({ bound: true }); try { const r = await resume(f); assert.equal(r.ok, true, JSON.stringify(r)); assert.equal((await f.worker.call("workSessionFor", f.key)).state, "active_visible"); assert.equal(healthCalls(f).length, 1); } finally { await close(f); } });
+await run("C1-03-LEGACY", "unproven legacy Work cannot Resume", async () => { const f = await fixture({ bound: true }); try { delete f.backing.local[SESSIONS][f.key].terminal_state_known; const r = await resume(f); assert.equal(r.code, "WORK_RESUME_UNPROVEN"); assert.equal(healthCalls(f).length, 0); } finally { await close(f); } });
+await run("C1-03-FINISHED", "finished Work cannot Resume", async () => { const f = await fixture({ bound: true }); try { f.backing.local[SESSIONS][f.key].finished = true; const r = await resume(f); assert.equal(r.code, "WORK_SESSION_FINISHED"); assert.equal(healthCalls(f).length, 0); } finally { await close(f); } });
 await run("C1-04", "unbound Resume denied before mutation", async () => { const f = await fixture(); try { const r = await resume(f); assert.equal(r.ok, false); assert.equal(healthCalls(f).length, 0); } finally { await close(f); } });
 await run("C1-05", "conflicting binding Start denied", async () => { const f = await fixture(); const other = await f.worker.popup({ type: "SA_STORE_SAVE", store: { marketplace: "wildberries", name: "other", credentials: { token: "OTHER-TOKEN" } } }); f.backing[BINDINGS] = {}; try { const context = { accountId: f.store.accountId, storeId: other.store.id, marketplace: "wildberries", credentialRevision: other.store.credentialRevision, policyRevision: "personal-disabled", authGeneration: 1 }; f.backing.local[BINDINGS] = { [f.key]: { binding_id: "conflict", revision: 2, origin: f.identity.origin, ai_id: f.provider, conversation_id: f.identity.conversation_id, conversation_key: f.key, store_context: context } }; const r = await deniedStart(f, "STORE_CHANGE_CONFIRMATION_REQUIRED"); assert.equal(healthCalls(f).length, 0); } finally { await close(f); } });
 await run("C1-06", "invalid Work state denied before Health", async () => { const f = await fixture({ bound: true, state: "active_visible" }); try { const r = await start(f); assert.equal(r.ok, true); assert.equal(r.accepted, false); assert.equal(healthCalls(f).length, 0); } finally { await close(f); } });
@@ -203,7 +210,7 @@ await run("C1-43", "synthetic PASS exists only in test fixture", async () => { c
 await run("C1-44", "Finish remains unchanged without admission", async () => { const f = await fixture(); try { await activeStart(f); const r = await f.worker.popup({ type: "OZ_WORK_FINISH", tab_id: f.worker.tabId, conversation_key: f.key }); assert.equal(r.ok, true, JSON.stringify(r)); assert.equal((await f.worker.call("workSessionFor", f.key)).state, "inactive"); } finally { await close(f); } });
 await run("C1-45", "pending_identity to confirmed identity to binding remains intact", async () => { const f = await fixture(); try { const response = await activeStart(f); assert.equal(response.binding.store_context.storeId, f.store.id); assert.equal(response.session.state, "active_visible"); } finally { await close(f); } });
 await run("C1-46", "historical Start binding semantics remain intact", async () => { const f = await fixture({ bound: true }); try { const r = await start(f); assert.equal(r.ok, true); assert.equal((await f.worker.call("getPendingWorkStarts"))[f.worker.tabId].conversation_key, f.key); } finally { await close(f); } });
-await run("C1-47", "Resume transition semantics remain intact", async () => { const f = await fixture({ bound: true }); try { const r = await resume(f); assert.equal(r.ok, true); const session = await f.worker.call("workSessionFor", f.key); assert.equal(session.state, "active_visible"); assert.equal(session.start_intent_id, null); } finally { await close(f); } });
+await run("C1-47", "Resume transition semantics remain intact", async () => { const f = await fixture({ bound: true }); try { const r = await resume(f); assert.equal(r.ok, true); const session = await f.worker.call("workSessionFor", f.key); assert.equal(session.state, "active_visible"); assert.equal(session.start_intent_id, "fixture-paused-work"); assert.equal(session.work_session_id, "fixture-paused-work"); } finally { await close(f); } });
 await run("C1-48", "old commands never autorun after admission", async () => { const f = await fixture(); try { await start(f); assert.equal(f.worker.messages.some(message => message.type === "OZ_EXECUTE_COMMAND"), false); assert.equal(f.calls.some(row => row.url.includes("ozon.ru")), false); } finally { await close(f); } });
 await run("C1-49", "pending Work Start map writes serialize across parallel dialogues", async () => {
   let activePendingWrites = 0, maxPendingWrites = 0, gatedWrites = 0, releasePair;

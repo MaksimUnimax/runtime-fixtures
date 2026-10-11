@@ -133,7 +133,10 @@ def compose(directory, mode="development", release_authority=None):
     directory.mkdir(parents=True, exist_ok=False)
     baseline.verify_import()
     recipe = baseline.read_json(RECIPE)
-    assert recipe["version"] == "0.2.13" and recipe["stage"] == "I1-C1"
+    version = recipe["version"]
+    assert isinstance(version, str) and re.fullmatch(r"(?:0|[1-9][0-9]{0,4})(?:\.(?:0|[1-9][0-9]{0,4})){2}", version)
+    assert all(int(part) <= 65535 for part in version.split(".")) and any(int(part) for part in version.split("."))
+    assert recipe["stage"] == "I1-C1"
     inputs = {}
     read_input("apps/extension/composition.json", inputs)
     output = {}
@@ -198,6 +201,15 @@ def compose(directory, mode="development", release_authority=None):
                 assert parsed_config["extensionVersion"] == recipe["version"]
             except (AssertionError, TypeError, ValueError) as error:
                 raise AssertionError("invalid SA_PACKAGED_CONFIG_JSON") from error
+    if parsed_config is None:
+        # The recipe owns the version, including the development fallback. A
+        # supplied packaged authority still takes precedence inside this module.
+        development_config = read_input("packages/control-client/src/config.js", inputs)
+        pattern = rb'extensionVersion: "[^"]+"'
+        assert len(re.findall(pattern, development_config)) == 1
+        versioned_config = re.sub(pattern, b"extensionVersion: " + json.dumps(version).encode(), development_config)
+        assert output["service_worker.js"].count(development_config) == 1
+        output["service_worker.js"] = output["service_worker.js"].replace(development_config, versioned_config, 1)
     if parsed_config is not None:
         config_bytes = json.dumps(parsed_config, ensure_ascii=False, separators=(",", ":"))
         output["service_worker.js"] = b"globalThis.__SELLER_AGENTS_PACKAGED_CONFIG__=" + json.dumps(config_bytes).encode() + b";\n" + output["service_worker.js"]
@@ -215,6 +227,14 @@ def compose(directory, mode="development", release_authority=None):
 """
             output["service_worker.js"] = output["service_worker.js"].replace(
                 development_config, store_config_module
+            )
+            # Store authority has already restricted the environment to
+            # PREPRODUCTION. Compile out the development-only scope
+            # option as well as its config fallback; retain fail-closed gates.
+            development_scope = b'development: config.environment === "LOCAL DEVELOPMENT"'
+            assert output["service_worker.js"].count(development_scope) == 1
+            output["service_worker.js"] = output["service_worker.js"].replace(
+                development_scope, b"development: false", 1
             )
     for patch in json.loads(read_input(recipe["application_patches"], inputs)):
         text = output[patch["target"]].decode()

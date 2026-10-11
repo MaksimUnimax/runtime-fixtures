@@ -1,5 +1,9 @@
 (() => {
   "use strict";
+  let storageUnavailable = false;
+  function assertStorageAvailable() {
+    if (storageUnavailable) throw Object.assign(new Error("Work storage remains unconfirmed"), { code: "WORK_STATE_COMMIT_UNCONFIRMED" });
+  }
   const STATES = Object.freeze({
     INACTIVE: "inactive",
     PENDING_IDENTITY: "pending_identity",
@@ -50,6 +54,13 @@
       ai_id: record?.ai_id || null,
       conversation_id: record?.conversation_id || null,
       start_intent_id: record?.start_intent_id || null,
+      // An absent legacy terminal marker is not proof of resumable work.
+      work_session_id: record?.work_session_id || record?.start_intent_id || null,
+      work_generation: Number.isSafeInteger(record?.work_generation) && record.work_generation >= 0
+        ? record.work_generation : 0,
+      terminal_state_known: record?.terminal_state_known === true,
+      finished: record?.finished === true,
+      finished_at: record?.finished_at || null,
       updated_at: record?.updated_at || null,
       error: record?.error || null,
     };
@@ -58,6 +69,7 @@
     return Object.freeze(normalized);
   }
   function transition(record, next, patch = {}) {
+    assertStorageAvailable();
     const current = normalize(record, record?.conversation_key || null);
     if (current.state !== next && !ALLOWED[current.state]?.has(next))
       throw Object.assign(
@@ -66,9 +78,26 @@
         ),
         { code: "WORK_SESSION_TRANSITION_REJECTED" },
       );
+    const newStart = next === STATES.BINDING &&
+      typeof patch.start_intent_id === "string" && patch.start_intent_id.length > 0 &&
+      patch.start_intent_id !== current.work_session_id;
+    if (current.finished && !newStart && ![STATES.INACTIVE, STATES.FINISHING, STATES.ERROR].includes(next))
+      throw Object.assign(new Error("Finished work requires a new explicit Start"), { code: "WORK_SESSION_FINISHED" });
+    const finishing = next === STATES.FINISHING && !current.finished;
+    const generation = current.work_generation + (newStart || finishing ? 1 : 0);
+    if (!Number.isSafeInteger(generation))
+      throw Object.assign(new Error("Work generation exhausted"), { code: "WORK_GENERATION_EXHAUSTED" });
     return Object.freeze({
       ...current,
       ...patch,
+      work_session_id: newStart ? patch.start_intent_id : current.work_session_id,
+      work_generation: generation,
+      terminal_state_known: newStart || finishing || current.terminal_state_known,
+      finished: newStart ? false : finishing || current.finished,
+      finished_at: newStart ? null : finishing ? new Date().toISOString() : current.finished_at,
+      // Resume may refresh the binding but cannot manufacture a new Work identity.
+      start_intent_id: newStart ? patch.start_intent_id :
+        next === STATES.FINISHING || next === STATES.INACTIVE ? (patch.start_intent_id ?? current.start_intent_id) : current.start_intent_id,
       state: next,
       revision: current.revision + 1,
       updated_at: new Date().toISOString(),
@@ -78,5 +107,11 @@
     STATES,
     normalize,
     transition,
+    assertStorageAvailable,
+    markStorageUnavailable() { storageUnavailable = true; },
+    canResume(record) {
+      const work = normalize(record, record?.conversation_key);
+      return !storageUnavailable && work.state === STATES.INACTIVE && work.terminal_state_known && !work.finished && Boolean(work.work_session_id);
+    },
   });
 })();

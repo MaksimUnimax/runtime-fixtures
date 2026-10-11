@@ -3,7 +3,8 @@ const $ = id => document.getElementById(id);
 const BACKUP_IMPORT_FRAGMENT = "#backup-import";
 const durableImportMode = globalThis.location?.hash === BACKUP_IMPORT_FRAGMENT;
 let tabId, state, marketplace = "ozon", selectedId = "", editingId = null, busy = false, confirmAction = null;
-let backupText = "";
+let backupText = "", backupPreview = null, backupSelectionRevision = 0;
+let r3Review = null;
 let actionGeneration = 0, refreshGeneration = 0;
 let refreshTimer, refreshRequested = false;
 const FIREFOX_TECHNICAL_CATEGORY = "technicalAndInteraction";
@@ -96,11 +97,20 @@ function startStatusText(lastStart) {
   return null;
 }
 function actionSuccessText(result) {
+  if (result?.popupAction === "TRANSFER_RECEIVE") return result.text;
   if (result?.popupAction !== "WORK_START_ACCEPTED") return "Готово";
+  if (result.promptTreeAvailable === false) return "Запуск принят. Дополнительные подсказки этого ИИ недоступны; чужое дерево не использовано.";
+  if (result.promptTreeWarning) return "Запуск принят. Используется сохранённая проверенная версия подсказок этого ИИ.";
   if (state?.context?.work_active === true && ["active_visible", "active_hidden"].includes(state?.work?.state)) return "Работа запущена";
   return startStatusText(state?.lastStart) || "Запуск принят. Ожидаем подтверждение инструкции и ответа ИИ";
 }
 function transferReceivePresentation(result) {
+  if (result?.ok === false && result?.ackConfirmed === false) {
+    if (result.importState === "IMPORTED_PENDING_ACK" && result.code === "TRANSFER_ACK_UNCONFIRMED") return { text: "Результат импорта сохранён локально, но сервер ещё не подтвердил завершение передачи. Повторный импорт не выполнен.", consume: false };
+    if (["IMPORTED_PENDING_ACK", "PENDING"].includes(result.importState) && ["TRANSFER_ACK_UNCONFIRMED", "TRANSFER_REQUEST_MISMATCH", "TRANSFER_EXPIRED", "TRANSFER_REPLAY"].includes(result.code)) return { text: "Сервер не подтвердил завершение передачи. Повторный импорт не выполнен.", consume: false };
+    if (result.importState === "EXPIRED" && result.code === "TRANSFER_EXPIRED") return { text: "Сервер подтвердил, что срок запроса передачи истёк.", consume: false };
+    if (result.importState === "CANCELLED" && result.code === "TRANSFER_REPLAY") return { text: "Сервер подтвердил отмену запроса передачи.", consume: false };
+  }
   if (result?.ok === true && result?.importState === "IMPORTED") return { text: "Передача принята, ключи магазинов импортированы.", consume: Boolean(result.requestId) };
   if (result?.ok === true && result?.importState === "CONFLICT") return { text: "Передача получена, но импорт остановлен из-за конфликта магазина.", consume: false };
   if (result?.ok === false && result?.code === "SOURCE_OFFLINE" && result?.importState === "SOURCE_OFFLINE") return { text: "Источник ещё не доставил передачу.", consume: false };
@@ -178,7 +188,7 @@ function render() {
   $("compatibility-note").hidden = !updateRecommended;
   $("compatibility-note").textContent = updateRecommended ? `Подписанная конфигурация рекомендует обновить расширение. Текущая версия пока разрешена.${extensionCompatibility.minimumVersion ? ` Минимально допустимая версия: ${extensionCompatibility.minimumVersion}.` : ""}` : "";
   renderOnboarding();
-  if (!authenticated) return;
+  if (!authenticated) { $("r3-recovery").hidden = true; $("r3-review").hidden = true; r3Review = null; return; }
   for (const id of ["ozon", "wildberries"]) $(id).setAttribute("aria-pressed", String(id === marketplace));
   const choices = state.stores.filter(s => s.marketplace === marketplace);
   if (!choices.some(x => x.id === selectedId)) selectedId = choices[0]?.id || "";
@@ -191,7 +201,7 @@ function render() {
   $("check-seller").disabled = !s?.sellerPresent; $("check-performance").disabled = !s?.performancePresent; $("check-token").disabled = !s?.tokenPresent;
   $("verification").textContent = Object.entries(s?.verification || {}).map(([part, v]) => `${part}: ${texts[v.code] || v.code}`).join(". ") || "Кабинет и доступ не проверены. Проверка выполняется только по нажатию.";
   const connected = state.stores.find(x => x.id === state.context.store_id), active = state.context.work_active;
-  const labels = { active_visible: "Работаем", active_hidden: "Работаем · кнопка скрыта", recovering: "Восстанавливаем", binding: "Подключаем", error: "Ошибка запуска", inactive: "Завершено" };
+  const labels = { active_visible: "Работаем", active_hidden: "Работаем · кнопка скрыта", recovering: "Восстанавливаем", binding: "Подключаем", error: "Ошибка запуска", inactive: state.work?.finished ? "Завершено" : "Работа приостановлена" };
   const supportedPage = Boolean(state.page?.supported ?? state.identity.ai_id);
   $("connection").textContent = supportedPage ? connected ? `${labels[state.work?.state] || "Диалог подключён"}: ${connected.name} · ${connected.marketplace === "ozon" ? "Ozon" : "WB"}` : "Диалог не подключён" : "Откройте поддерживаемый ИИ в текущей вкладке";
   $("selection").textContent = connected && selectedId !== connected.id ? "Выбран следующий магазин. Текущее подключение изменится только после подтверждения и нового Start." : "";
@@ -212,11 +222,12 @@ function render() {
       : "Дождитесь загрузки переписки. Start подключит текущий диалог после подтверждённой отправки инструкции и ответа ИИ."
     : localDialogue ? "Привязка действует в этом браузере. После перезагрузки она восстанавливается только при совпадении сохранённых признаков переписки." : "";
   $("start").disabled = busy || Boolean(state.pending) || !s || !supportedPage || ["binding", "recovering", "finishing"].includes(state.work?.state);
-  $("work-resume").hidden = !(state.context.store_id && state.work?.state === "inactive" && state.context.work_active !== true);
+  $("work-resume").hidden = !(state.context.store_id && state.work?.can_resume === true && state.context.work_active !== true);
   $("work-resume").disabled = busy || Boolean(state.pending) || !state.conversation_key;
   $("visibility").disabled = busy || !active; $("finish").disabled = !active && state.work?.state !== "error" && !state.pending;
   $("visibility").textContent = state.context.button_visible ? "Скрыть кнопку" : "Показать кнопку";
   $("resume").hidden = !state.operation?.quota_wait;
+  renderRecovery();
 }
 function scheduleRefresh() {
   refreshRequested = true;
@@ -246,7 +257,7 @@ function openCard(store) {
   $("seller").hidden = $("performance").hidden = marketplace !== "ozon"; $("wb").hidden = marketplace !== "wildberries";
   $("name").focus();
 }
-function confirm(text, fn) { $("confirmation-text").textContent = text; confirmAction = fn; $("confirmation").hidden = false; $("confirm").focus(); }
+function confirm(text, fn) { $("confirmation-text").style.whiteSpace = "pre-wrap"; $("confirmation-text").textContent = text; confirmAction = fn; $("confirmation").hidden = false; $("confirm").focus(); }
 for (const id of ["ozon", "wildberries"]) $(id).onclick = () => { marketplace = id; selectedId = ""; closeCard(); render(); };
 $("stores").onchange = () => { selectedId = $("stores").value; closeCard(); render(); };
 $("add").onclick = () => openCard(null); $("edit").onclick = () => openCard(selected()); $("cancel").onclick = closeCard;
@@ -256,7 +267,7 @@ $("card").onsubmit = e => { e.preventDefault(); action(async () => {
   selectedId = response.store.id; closeCard();
 }); };
 $("remove").onclick = () => { const id = selectedId; confirm(`Удалить магазин «${selected()?.name}» и его ключи? Все связанные с ним локальные рабочие сессии будут завершены.`, () => request("SA_STORE_DELETE", { store_id: id, confirm: true })); };
-$("start").onclick = () => { const id = selectedId; const run = async confirm_change => { await requestStart({ store_id: id, confirm_change, start_intent_id: crypto.randomUUID() }); return { popupAction: "WORK_START_ACCEPTED" }; };
+$("start").onclick = () => { const id = selectedId; const run = async confirm_change => { const started = await requestStart({ store_id: id, confirm_change, start_intent_id: crypto.randomUUID() }); return { popupAction: "WORK_START_ACCEPTED", promptTreeAvailable: started.prompt_tree_available, promptTreeWarning: started.prompt_tree_warning }; };
   if (state.context.store_id && state.context.store_id !== id) confirm("В диалоге останутся данные предыдущего магазина. ИИ может смешать их в ответах. Старую работу завершим и отправим новую инструкцию для выбранного магазина.", () => run(true)); else action(() => run(false)); };
 $("confirm").onclick = () => { const fn = confirmAction; confirmAction = null; $("confirmation").hidden = true; if (fn) action(fn); };
 $("reject").onclick = () => { confirmAction = null; $("confirmation").hidden = true; };
@@ -280,6 +291,7 @@ $("transfer-receive").onclick = () => action(async () => {
   const { response: result, presentation } = await requestTransferReceivePending();
   $("transfer-status").textContent = presentation.text;
   if (presentation.consume) void request("SA_TRANSFER_RESULT_CONSUME", { requestId: result.requestId }).catch(() => null);
+  return { popupAction: "TRANSFER_RECEIVE", text: presentation.text };
 });
 $("support-generate").onclick = () => action(async () => {
   const result = await request("SA_SUPPORT_SNAPSHOT");
@@ -294,25 +306,18 @@ $("auth-cancel").onclick = () => action(() => request("SA_AUTH_CANCEL"));
 $("auth-reset").onclick = () => confirm("Локально завершить текущую сессию и выбрать аккаунт заново? Сохранённые магазины останутся изолированными по аккаунту.", () => request("SA_AUTH_RESET"));
 for (const part of ["seller", "performance", "token"]) $("check-" + part).onclick = () => action(() => request("SA_STORE_CHECK", { store_id: selectedId, part }));
 async function openKeyFiles(mode) {
-  if (mode === "upload" && !durableImportMode) {
-    try {
-      await chrome.tabs.create({ url: chrome.runtime.getURL("popup.html") + BACKUP_IMPORT_FRAGMENT });
-    } catch (_) {
-      $("status").textContent = "Не удалось открыть загрузку ключей. Повторите открытие страницы импорта.";
-    }
-    return;
-  }
   $("backup").scrollIntoView({ block: "start", behavior: "smooth" });
   $(mode === "upload" ? "backup-file" : "backup-password").focus();
 }
 $("keys-download").onclick = () => openKeyFiles("download");
 $("keys-upload").onclick = () => openKeyFiles("upload");
-$("backup-file").onclick = event => {
-  if (!durableImportMode) { event.preventDefault(); return openKeyFiles("upload"); }
-};
-$("backup-file").onchange = () => {
-  backupText = "";
+function invalidateBackupReview() {
+  backupSelectionRevision++; backupText = ""; backupPreview = null;
   $("backup-preview-result").hidden = true;
+}
+$("backup-import-password").oninput = invalidateBackupReview;
+$("backup-file").onchange = () => {
+  invalidateBackupReview();
   $("backup-status").textContent = $("backup-file").files?.length ? "Файл выбран. Введите пароль и нажмите «Проверить файл»." : "";
 };
 function downloadBackup(name, value) {
@@ -336,17 +341,24 @@ $("backup-preview").onclick = () => action(async () => {
   const file = $("backup-file").files?.[0];
   if (!file) throw new Error("Выберите файл копии");
   if (file.size > 8 * 1024 * 1024) throw new Error("Файл больше 8 MiB");
-  backupText = await file.text();
-  const response = await request("SA_BACKUP_PREVIEW", { backup: backupText, password: $("backup-import-password").value });
+  invalidateBackupReview();
+  const revision = backupSelectionRevision, password = $("backup-import-password").value;
+  const candidate = await file.text();
+  const response = await request("SA_BACKUP_PREVIEW", { backup: candidate, password });
+  if (revision !== backupSelectionRevision || $("backup-file").files?.[0] !== file || $("backup-import-password").value !== password)
+    throw new Error("Файл или пароль изменились. Проверьте текущий файл заново");
+  backupText = candidate; backupPreview = { revision, file, password, accountId: state?.auth?.accountId || null };
   $("backup-summary").textContent = backupSummary(response.preview);
   $("backup-preview-result").hidden = false;
   $("backup-status").textContent = "Проверка завершена. Нажмите финальную кнопку, чтобы применить только безопасные новые магазины.";
 }, { accountOnly: durableImportMode });
 $("backup-import").onclick = () => action(async () => {
-  if (!backupText) throw new Error("Сначала проверьте файл");
+  if (!backupText || !backupPreview || backupPreview.revision !== backupSelectionRevision ||
+      backupPreview.file !== $("backup-file").files?.[0] || backupPreview.password !== $("backup-import-password").value ||
+      backupPreview.accountId !== (state?.auth?.accountId || null)) throw new Error("Сначала проверьте текущий файл и пароль");
   const response = await request("SA_BACKUP_IMPORT", { backup: backupText, password: $("backup-import-password").value, apply: true });
   $("backup-status").textContent = `Импорт завершён: добавлено ${response.imported.length}; конфликты не перезаписаны.`;
-  $("backup-preview-result").hidden = true; $("backup-file").value = ""; $("backup-import-password").value = ""; backupText = "";
+  $("backup-preview-result").hidden = true; $("backup-file").value = ""; $("backup-import-password").value = ""; invalidateBackupReview();
 }, { accountOnly: durableImportMode });
 if (durableImportMode) {
   const backup = $("backup"), status = $("status");
@@ -368,3 +380,56 @@ chrome.storage.onChanged.addListener((changes, area) => {
 });
 
 }
+
+function renderRecovery() {
+  const attempts = state.recovery || [];
+  $("r3-recovery").hidden = !attempts.length;
+  $("r3-attempts").replaceChildren(...attempts.map(attempt => {
+    const row = document.createElement("div"), label = document.createElement("p"), button = document.createElement("button");
+    label.textContent = attempt.state + " · " + attempt.executionId + " · попытка " + attempt.approvalRevision;
+    button.textContent = "Выполнить заново";
+    button.disabled = busy || !attempt.retryAvailable || state.work?.state !== "active_visible";
+    button.onclick = () => action(async () => {
+      const review = await request("SA_R3_RETRY_REVIEW", { execution_id: attempt.executionId });
+      r3Review = { ...review, conversationKey: state.conversation_key, workSessionId: state.work?.start_intent_id, boxes: [] };
+      $("r3-warning").textContent = review.warning;
+      $("r3-items").replaceChildren(...review.items.map(item => {
+        const itemRow = document.createElement("label"), box = document.createElement("input"), text = document.createElement("pre");
+        box.type = "checkbox"; box.checked = false; box.disabled = !item.supported;
+        text.textContent = "Элемент " + item.ordinal + (item.supported ? "" : " · повтор не поддерживается") + "\n" + item.parameters;
+        r3Review.boxes.push({ box, ordinal: item.ordinal }); itemRow.append(box, text); return itemRow;
+      }));
+      $("r3-review").hidden = false;
+    });
+    button.hidden = !attempt.retryAvailable;
+    const copy = document.createElement("button"); copy.textContent = "Отправить копию";
+    copy.hidden = !attempt.copyAvailable; copy.disabled = busy || !state.context.work_active;
+    copy.onclick = () => action(async () => {
+      const preview = await request("SA_R3_COPY_PREVIEW", { execution_id: attempt.executionId });
+      const files = (preview.attachments || []).map(file => file.filename + " · " + file.byte_length + " байт").join("\n");
+      confirm(preview.warning + "\n\nДиалог: " + preview.target.conversationKey + "\n\n" + preview.buffer + (files ? "\n\nВложения:\n" + files : ""),
+        () => request("SA_R3_COPY_CONFIRM", { execution_id: preview.execution_id,
+          confirmation_id: preview.confirmationId, confirmed: true }));
+    });
+    row.append(label, button, copy); return row;
+  }));
+  if (r3Review && (r3Review.conversationKey !== state.conversation_key ||
+      r3Review.workSessionId !== state.work?.start_intent_id || state.work?.finished)) {
+    r3Review = null; $("r3-review").hidden = true;
+  }
+}
+$("r3-review-cancel").onclick = () => { r3Review = null; $("r3-review").hidden = true; };
+$("r3-review-confirm").onclick = () => action(async () => {
+  if (!r3Review) return;
+  const review = r3Review, ordinals = review.boxes.filter(item => item.box.checked).map(item => item.ordinal);
+  if (!ordinals.length) throw new Error("Выберите поддержанные элементы для нового запуска");
+  const preview = await request("SA_R3_RETRY_PREVIEW", { execution_id: review.execution_id,
+    block_version: review.block_version, ordinals });
+  const details = preview.items.map(item => "Элемент " + item.ordinal + ": " + item.parameters).join("\n");
+  confirm(preview.warning + "\n\n" + details, async () => {
+    const result = await request("SA_R3_RETRY_CONFIRM", { execution_id: preview.execution_id,
+      confirmation_id: preview.confirmationId, block_version: preview.block_version,
+      ordinals: preview.ordinals, confirmed: true });
+    r3Review = null; $("r3-review").hidden = true; return result;
+  });
+});

@@ -2591,3 +2591,5 @@ export type FeedbackFunnelResponseV1 = z.infer<
 export * from "./adapter-profile.js";
 export * from "./signed-ai-profile.js";
 export * from "./monitor-profile-repair.js";
+
+export * from "./ai-prompt-tree.js";

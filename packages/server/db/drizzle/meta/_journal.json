@@ -330,6 +330,13 @@
       "when": 1791098439000,
       "tag": "0058_extension_release_browser_artifacts",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1791630000000,
+      "tag": "0059_ai_prompt_trees",
+      "breakpoints": true
     }
   ]
 }

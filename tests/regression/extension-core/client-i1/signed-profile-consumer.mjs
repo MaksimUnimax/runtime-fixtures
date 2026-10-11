@@ -549,12 +549,13 @@ await test("PROFILE-08-failed-ensure-blocks-Start-and-Resume-before-legacy-actio
 
       allowEnsure = true;
       const key = await worker.start();
-      const finish = await worker.popup({
-        type: "OZ_WORK_FINISH",
-        tab_id: worker.tabId,
-        conversation_key: key,
-      });
-      assert.equal(finish.ok, true, family + ": " + JSON.stringify(finish));
+      // Pause a real, unfinished Work through valid durable transitions.
+      const active = await worker.call("workSessionFor", key);
+      const errored = await worker.call("mutateWorkSession", key, active.revision, "error");
+      const paused = await worker.call("mutateWorkSession", key, errored.revision, "inactive");
+      assert.equal(paused.work_session_id, active.work_session_id);
+      assert.equal(paused.terminal_state_known, true);
+      assert.equal(paused.finished, false);
       assert.equal(
         (await worker.call("workSessionFor", key)).state,
         "inactive",

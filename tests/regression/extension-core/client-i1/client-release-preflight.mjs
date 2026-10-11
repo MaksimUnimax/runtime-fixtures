@@ -116,7 +116,8 @@ test("server committed refresh but reply lost: restart reuses persisted idempote
 });
 test("failed durable rotation save blocks bootstrap; restart recovers through same rotation", async () => {
   const first = fixture({ failRotatedSave: true });
-  await assert.rejects(() => first.client.acquireBootstrapPreflight(first.input), /SYNTHETIC_STORAGE_FAILURE/);
+  await assert.rejects(() => first.client.acquireBootstrapPreflight(first.input), error =>
+    error.code === "AUTH_STATE_COMMIT_UNCONFIRMED" && !error.message.includes("SYNTHETIC_STORAGE_FAILURE"));
   assert.deepEqual(first.calls.map(x => x.path), ["/v1/auth/refresh"]);
   const key = first.storage[storageKey].rotation.idempotencyKey;
   const second = fixture({ storage: first.storage });
