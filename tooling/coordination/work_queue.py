@@ -1438,6 +1438,10 @@ def advance_task(root, role, identifier, state, receipt="", reason="", *, expect
                             "format": task.get("completion_receipt_format", "legacy"),
                             "candidate_sha": task.get("completion_candidate_sha"),
                             "receipt_snapshot": task.get("completion_receipt_snapshot"),
+                            "publication_registration": task.pop("completion_publication_registration", None),
+                            "publication_snapshot": task.pop("completion_publication_snapshot", None),
+                            "resource_required": task.get("completion_resource_required"),
+                            "resource_seal_snapshot": task.get("completion_resource_seal_snapshot"),
                         })
                         task["reopen_receipt"] = str(proof)
                         task["reopen_candidate_sha"] = candidate_sha

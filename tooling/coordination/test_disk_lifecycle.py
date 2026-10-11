@@ -1552,6 +1552,7 @@ class NoTemporaryFilesystemSourceTests(unittest.TestCase):
 
                     class VirtualDirectoryFDs:
                         O_RDONLY = os.O_RDONLY
+                        O_NONBLOCK = os.O_NONBLOCK
                         O_DIRECTORY = getattr(os, 'O_DIRECTORY', 0)
                         O_NOFOLLOW = getattr(os, 'O_NOFOLLOW', 0)
 
@@ -1669,6 +1670,7 @@ class NoTemporaryFilesystemSourceTests(unittest.TestCase):
 
                 class DualCloseErrors:
                     O_RDONLY = os.O_RDONLY
+                    O_NONBLOCK = os.O_NONBLOCK
                     O_DIRECTORY = getattr(os, 'O_DIRECTORY', 0)
                     O_NOFOLLOW = getattr(os, 'O_NOFOLLOW', 0)
 
@@ -1737,6 +1739,69 @@ class NoTemporaryFilesystemSourceTests(unittest.TestCase):
 
 
 
+
+
+class NonregularResourceReaderTests(unittest.TestCase):
+    """FIFO regressions only in the test's own disposable control root."""
+
+    def setUp(self):
+        self.fixture = LifecycleTests()
+        self.fixture.setUp()
+        self.addCleanup(self.fixture.tearDown)
+
+    def _assert_rejection_releases_resource_lock(self, expected):
+        import multiprocessing
+        import fcntl
+        context = multiprocessing.get_context("fork")
+        receiver, sender = context.Pipe(duplex=False)
+        release = context.Event()
+
+        def read_inventory():
+            try:
+                self.fixture.reg.status("A", "delegated-source", complete=True)
+                sender.send(("ACCEPTED", ""))
+            except Exception as exc:
+                sender.send((type(exc).__name__, str(exc)))
+            finally:
+                sender.close()
+            # Keep the reader alive while its released lock is verified.
+            release.wait(3)
+
+        child = context.Process(target=read_inventory)
+        child.start()
+        sender.close()
+        try:
+            self.assertTrue(receiver.poll(2), "FIFO open held resource lock beyond deadline")
+            kind, reason = receiver.recv()
+            self.assertEqual(kind, "ValueError")
+            self.assertIn(expected, reason)
+            with (self.fixture.root / "resource-admission.lock").open("a") as lock:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                fcntl.flock(lock, fcntl.LOCK_UN)
+            self.assertIsNone(self.fixture.reg.completion_record("A", "delegated-source"))
+        finally:
+            release.set()
+            child.join(2)
+            if child.is_alive():
+                child.terminate()
+                child.join(2)
+            receiver.close()
+        self.assertEqual(child.exitcode, 0)
+
+    def test_unrelated_fifo_registration_rejects_without_blocking_inventory(self):
+        _, registration, _, _ = self.fixture.controller_authored_source()
+        self.fixture.reg.status("A", "delegated-source", complete=True)
+        fifo = registration.parent / ("e" * 64 + ".json")
+        os.mkfifo(fifo, 0o600)
+        self._assert_rejection_releases_resource_lock("CROSS_ROLE_PUBLICATION_REGISTRATION")
+
+    def test_fifo_review_receipt_rejects_without_blocking_inventory(self):
+        _, registration, _, _ = self.fixture.controller_authored_source()
+        self.fixture.reg.status("A", "delegated-source", complete=True)
+        review = Path(json.loads(registration.read_text())["core"]["review"]["path"])
+        review.unlink()
+        os.mkfifo(review, 0o600)
+        self._assert_rejection_releases_resource_lock("CROSS_ROLE_PUBLICATION_RECEIPT")
 
 if __name__=='__main__':
     unittest.main()

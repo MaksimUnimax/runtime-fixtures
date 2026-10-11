@@ -1994,5 +1994,77 @@ class EvidenceProvenanceTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "EVIDENCE_FILE_INVALID"):
             self.finish()
 
+
+class PublishedReopeningRegressionTests(unittest.TestCase):
+    """Real queue/resource callbacks; synthetic publication authority only."""
+
+    def setUp(self):
+        self.fixture = WorkQueueTests()
+        self.fixture.setUp()
+        self.addCleanup(self.fixture.tearDown)
+
+    def _reopen_publication(self, storage_version):
+        import disk_lifecycle
+        fixture = self.fixture
+        registry = disk_lifecycle.Registry(fixture.root)
+        registry.seed_baseline()
+        registry.declare_none("B", "b-auth", "Publication source-only fixture")
+        registration, candidate = fixture.publication()
+        fixture.completion(candidate_sha=candidate)
+        control.advance_queue_task(
+            "B", "b-auth", "DONE", str(fixture.receipt), "published",
+            publication_registration=registration, control_root=fixture.root)
+        self.assertEqual(registry.completion_record("B", "b-auth")["state"], "SEALED")
+        done = next(row for row in load_board(fixture.root)["tasks"]
+                    if row["id"] == "b-auth")
+        original_publication = copy.deepcopy(done["completion_publication_snapshot"])
+        original_resource = copy.deepcopy(done["completion_resource_seal_snapshot"])
+        if storage_version == 2:
+            from test_work_board_reader_rollout import _issuer_bound_migration_fixture
+            import work_board_v2_migrate
+            issuer = _issuer_bound_migration_fixture()
+            issuer.root = fixture.root
+            issuer.reader = Path(work_queue.__file__)
+            issuer.readers = {role: issuer.reader for role in ("A", "B", "C", "ORG")}
+            (fixture.root / "authorizations").mkdir(exist_ok=True)
+            raw = fixture.path.read_bytes()
+            revision = json.loads(raw)["revision"]
+            authority = issuer.grant(raw, alter={"expected_v1_revision": revision})
+            result = work_board_v2_migrate.migrate(
+                fixture.root, authority, issuer.readers, revision,
+                hashlib.sha256(raw).hexdigest())
+            self.assertEqual(result["state"], "COMMITTED")
+            self.assertEqual(json.loads(fixture.path.read_text())["version"], 2)
+        fixture.completion(candidate_sha=candidate, verdict="FAIL",
+                           review_verdict="FAIL", check_verdict="FAIL")
+        fixture.receipt = fixture.root / "logs" / "rework-published.json"
+        fixture.completion(verdict="REWORK_REQUIRED", review_verdict="REWORK_REQUIRED")
+        control.advance_queue_task(
+            "B", "b-auth", "IN_PROGRESS", str(fixture.receipt), "negative review",
+            control_root=fixture.root)
+        active = next(row for row in load_board(fixture.root)["tasks"]
+                      if row["id"] == "b-auth")
+        self.assertEqual(active["state"], "IN_PROGRESS")
+        self.assertNotIn("completion_publication_registration", active)
+        self.assertNotIn("completion_publication_snapshot", active)
+        self.assertNotIn("completion_resource_required", active)
+        self.assertNotIn("completion_resource_seal_snapshot", active)
+        history = active["completion_history"][-1]
+        self.assertEqual(history["publication_registration"], registration)
+        self.assertEqual(history["publication_snapshot"], original_publication)
+        self.assertEqual(history["resource_seal_snapshot"], original_resource)
+        self.assertEqual(registry.completion_record("B", "b-auth")["state"], "REOPENED")
+        followup = registry.begin(
+            "B", "b-auth", "Actual native begin after durable reopening",
+            [str(fixture.root / "worktrees" / "B" / "followup")], 16, 1)
+        self.assertEqual(followup["state"], "OPEN")
+        self.assertEqual(role_work(fixture.root, "A")["tasks"][0]["waiting_for"], ["b-auth"])
+
+    def test_published_negative_review_reopens_v1_board_and_resource(self):
+        self._reopen_publication(1)
+
+    def test_published_negative_review_reopens_v2_board_and_resource(self):
+        self._reopen_publication(2)
+
 if __name__ == "__main__":
     unittest.main()

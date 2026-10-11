@@ -698,7 +698,8 @@ class Registry:
             # lstat use the same pinned parent directory descriptor; a final
             # ordinary path readback also detects a renamed ancestor.
             dir_flags = os.O_RDONLY | getattr(os, 'O_DIRECTORY', 0) | getattr(os, 'O_NOFOLLOW', 0)
-            file_flags = os.O_RDONLY | getattr(os, 'O_NOFOLLOW', 0)
+            file_flags = (os.O_RDONLY | os.O_NONBLOCK |
+                          getattr(os, 'O_NOFOLLOW', 0))
             parent_fd = None
             try:
                 parent_fd = os.open(self.control, dir_flags)
@@ -776,7 +777,8 @@ class Registry:
                 raise ValueError('CROSS_ROLE_PUBLICATION_REGISTRATION_INVALID')
             dir_flags = (os.O_RDONLY | getattr(os, 'O_DIRECTORY', 0) |
                          getattr(os, 'O_NOFOLLOW', 0))
-            file_flags = os.O_RDONLY | getattr(os, 'O_NOFOLLOW', 0)
+            file_flags = (os.O_RDONLY | os.O_NONBLOCK |
+                          getattr(os, 'O_NOFOLLOW', 0))
             dir_fd = None
             try:
                 dir_fd = os.open(self.control, dir_flags)
