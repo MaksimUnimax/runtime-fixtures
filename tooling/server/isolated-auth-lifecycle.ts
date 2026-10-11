@@ -75,7 +75,7 @@ function assertLoopbackOrigin(raw: string, label: string): string {
   return url.origin;
 }
 
-// Exact disposable registry in tooling/coordination/control.py; never infer
+// Exact disposable identities documented in coordination/RESOURCE_POLICY.md; never infer
 // ownership from a substring such as "test" in an arbitrary database name.
 const disposableDatabasePorts = new Map([
   ["/octoport_a_test", "15541"],

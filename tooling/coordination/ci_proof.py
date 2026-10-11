@@ -14,7 +14,6 @@ from ci_impact import analyze
 REPOSITORY = "MaksimUnimax/runtime-fixtures"
 MAX_AGE_SECONDS = 6 * 3600
 STREAM_BRANCHES = ("work/a-extension", "work/b-backend", "work/c-integration")
-TASK_PUBLICATION_PREFIX = "controller/task-publication/"
 WORKFLOWS = {
     "server-ci.yml": ("Server CI", {"server"}),
     "extension-ci.yml": ("Extension CI", {
@@ -42,8 +41,7 @@ def trusted_branch(branch):
 
 
 def reusable_main_source_branch(branch):
-    return branch in STREAM_BRANCHES or (
-        isinstance(branch, str) and branch.startswith(TASK_PUBLICATION_PREFIX))
+    return branch in STREAM_BRANCHES
 
 
 def select_run(runs, sha, branch, workflow, current_run, now):
@@ -134,9 +132,7 @@ def plan(repo, event, env, workflow, api, now):
         # Do not hide a newer failing attempt behind an older green approved source.
         if sources:
             latest = max(sources, key=lambda r: (r["id"], r.get("run_attempt", 1)))
-            reason = ("EXACT_STREAM_PUSH_FULL_PROOF"
-                      if latest["head_branch"] in STREAM_BRANCHES
-                      else "EXACT_TASK_PUBLICATION_PUSH_FULL_PROOF")
+            reason = "EXACT_STREAM_PUSH_FULL_PROOF"
             options.append((sha, latest["head_branch"], reason))
     before = event.get("before")
     impact = analyze(repo, before, sha)

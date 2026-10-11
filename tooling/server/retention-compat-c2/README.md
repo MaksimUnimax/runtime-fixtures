@@ -21,11 +21,15 @@ Create a detached legacy source worktree outside this repository:
 LEGACY_SHA=c2e715501161d421b1641bb697c7ee7786d84960
 LEGACY_ROOT="$(mktemp -d)/legacy-c2"
 git worktree add --detach "$LEGACY_ROOT" "$LEGACY_SHA"
-python3 tooling/coordination/control.py B ensure-db
 ```
 
-Every database-touching command below must run through
-`python3 tooling/coordination/control.py B heavy --db -- ...`.
+Before running the sequence, personally verify the existing B disposable container,
+its loopback binding, port, database identity and exclusive test use. Obtain the
+connection from the existing protected B test configuration; never print credentials
+or inherit a live DATABASE_URL. Supervise each database-touching test using native
+OS facilities and the finite resource limits in
+`docs/development/coordination/RESOURCE_POLICY.md`. Record the owned unit and its
+result before another run. No coordination wrapper or task admission is required.
 
 `setup.ts` also enforces this boundary in executable code before creating a
 database runtime or issuing `DROP SCHEMA`. It accepts only B's role-owned
