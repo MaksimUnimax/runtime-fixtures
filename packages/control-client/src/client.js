@@ -431,10 +431,15 @@
     delete requestOptions.captureProjection;
     delete requestOptions.observeSettlement;
     const requestPath = new URL(endpoint).pathname;
-    const projectionKind = requestPath === "/v1/device-authorizations" ? "device_authorization" : requestPath === "/v1/bootstrap" ? "bootstrap" : requestPath === "/v1/health-authority" ? "health_authority" : null;
+    const treeRequest = requestPath === "/v1/ai-prompt-tree";
+    if (treeRequest || requestPath === "/v1/bootstrap" || requestPath === "/v1/health-authority") {
+      requestOptions.cache = "no-store";
+      headers.set("Cache-Control", "no-store");
+    }
+    const projectionKind = requestPath === "/v1/device-authorizations" ? "device_authorization" : requestPath === "/v1/bootstrap" || treeRequest ? "bootstrap" : requestPath === "/v1/health-authority" ? "health_authority" : null;
     if (projectionKind && requestOptions.body && typeof requestOptions.body === "object" && consentApi?.projectControlRequest) {
-      const projection = await consentApi.projectControlRequest(projectionKind, requestOptions.body);
-      requestOptions.body = projection.body;
+      const projection = await consentApi.projectControlRequest(projectionKind, treeRequest ? requestOptions.body.bootstrap : requestOptions.body);
+      requestOptions.body = treeRequest ? { ...requestOptions.body, bootstrap: projection.body } : projection.body;
       if (typeof captureProjection === "function") captureProjection(projection);
       if (projection.consent.applicable && projection.consent.granted) {
         // A later identified send invalidates the prior clear acknowledgement.
@@ -444,6 +449,7 @@
       }
       if (projection.consent.applicable && !projection.consent.granted) {
         void scheduleMetadataForget();
+        if (treeRequest) throw error("AI_TREE_TECHNICAL_PERMISSION_REQUIRED");
         if (projectionKind === "health_authority") throw error("HEALTH_TECHNICAL_PERMISSION_REQUIRED");
       }
     }
@@ -1326,7 +1332,12 @@
   }
   async function bootstrap(options = {}) {
     if (!options || typeof options !== "object" || Array.isArray(options)) throw error("AUTH_CONTEXT_INVALID");
-    return scheduleBootstrap(options, (lease, principal) => bootstrapActive(options, lease, principal));
+    const payload = await scheduleBootstrap(options, (lease, principal) => bootstrapActive(options, lease, principal));
+    // Reuse initiated configuration synchronization; no tab polling, timer or
+    // marketplace hook. The per-AI cache coalesces pulls and checks infrequently.
+    if (payload?.ai?.status === "RESOLVED" && LOCAL_AI[payload.ai.detected?.family])
+      void getPromptTree(payload.ai.detected.family);
+    return payload;
   }
   // Privileged release diagnostics: retain the installed client's own storage and
   // refresh transaction. This never activates a device or grants Work authority.
@@ -1640,9 +1651,28 @@
         if (verifier.canonicalJson(await promptTreeContext(detected)) !== verifier.canonicalJson(context))
           throw error("AI_TREE_CONTEXT_CHANGED");
         const authority = grantFor(detected.family)?.authority;
-        const result = await authenticatedRequest("/v1/ai-prompt-tree", { method: "POST",
-          body: { bootstrap: bootstrapRequest(detected, state.credentials, authority), requestNonce, known } }, contextForState());
-        return result.body;
+        const requestContext = contextForState();
+        const principal = { principalEpoch: epoch("principalEpoch"), deviceId: state.credentials?.deviceId, sessionId: state.credentials?.sessionId };
+        let denialApplied = false;
+        const observeDenial = async (failure, late = false) => {
+          // A current endpoint denial invalidates all grants, including a denial
+          // arriving after timeout. Tree data and transport failures cannot grant work.
+          if (denialApplied || !failure || !(failure.status === 403 || late && failure.status === 401) ||
+            httpErrorProvenance.get(failure) !== endpointFor("/v1/ai-prompt-tree") || authStorageUnconfirmed ||
+            epoch("principalEpoch") !== principal.principalEpoch || state.credentials?.deviceId !== principal.deviceId ||
+            state.credentials?.sessionId !== principal.sessionId) return;
+          denialApplied = true;
+          await invalidateKnown(contextForState(), failure, failure.status === 401);
+        };
+        try {
+          const result = await authenticatedRequest("/v1/ai-prompt-tree", { method: "POST",
+            body: { bootstrap: bootstrapRequest(detected, state.credentials, authority), requestNonce, known },
+            observeSettlement: outcome => outcome.late ? observeDenial(outcome.error, true) : undefined }, requestContext);
+          return result.body;
+        } catch (failure) {
+          await observeDenial(failure);
+          throw failure;
+        }
       },
     });
     return promptTreeCache;

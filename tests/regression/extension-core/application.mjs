@@ -622,5 +622,80 @@ await test('PAR-01-package-subset-pending-ChatGPT-Start-survives-Alice-grant', a
     assert.equal(active.ok,true,JSON.stringify(active));assert.equal(s.worker.network.length,0);
   } finally {s.worker.close();}
 });
+async function r3TreeResponse(s, init) {
+  const request=JSON.parse(init.body),auth=s.worker.backing.local.seller_agents_control_auth_v2;
+  const body={format:'octoport_prompt_tree_v1',root:'root',nodes:[{id:'root',text:'DENY_BOUNDARY_TREE',children:[]}]};
+  const sha256=await s.worker.call('OctoportPromptTrees.digest',body);
+  const claim={claimVersion:'ai_prompt_tree_claim_v1',accountId:auth.authority.payload.account.id,
+    deviceId:auth.credentials.deviceId,sessionId:auth.credentials.sessionId,requestNonce:request.requestNonce,
+    detected:request.bootstrap.detectedAi,aiId:'62000000-0000-4000-8000-000000000001',issuedAt:new Date().toISOString(),
+    publication:{version:1,format:body.format,sha256,body:request.known?.version===1?null:body,publishedAt:new Date().toISOString()}};
+  const bytes=Buffer.from(await s.worker.call('SellerAgentsBootstrapVerifier.canonicalJson',claim));
+  const {createPrivateKey,sign}=await import('node:crypto');
+  const key=createPrivateKey({key:Buffer.from(s.worker.backing.local.__seller_agents_fixture_signing_key.privateKey,'base64'),format:'der',type:'pkcs8'});
+  const signature=sign(null,Buffer.concat([Buffer.from('Octoport ai prompt tree v1\0fixture-key\0'),bytes]),key).toString('base64url');
+  return new Response(JSON.stringify({treeEnvelopeVersion:'ai_prompt_tree_envelope_v1',algorithm:'Ed25519',keyId:'fixture-key',payload:bytes.toString('base64url'),signature}),{headers:{'content-type':'application/json'}});
+}
+await test('AI-TREE-R3-package-data-failure-preserves-cache-authenticated-deny-invalidates',async()=>{
+ let s,mode='ok',count=0;
+ s=await setup({treeFetch:async(url,init)=>{
+   count++;assert.equal(init.cache,'no-store');assert.equal(new Headers(init.headers).get('cache-control'),'no-store');
+   if(mode==='ok')return r3TreeResponse(s,init);
+   return new Response(JSON.stringify({code:mode==='deny'?'BOOTSTRAP_UNAVAILABLE':'SERVICE_UNAVAILABLE'}),{status:mode==='deny'?403:503,headers:{'content-type':'application/json'}});
+ }});
+ try {
+   const first=await s.worker.call('SellerAgentsControlClient.getPromptTree',s.worker.identity);assert.equal(first.available,true,JSON.stringify(first));
+   mode='network';const stale=await s.worker.call('SellerAgentsControlClient.getPromptTree',s.worker.identity,{refresh:true});
+   assert.equal(stale.available,true,JSON.stringify(stale));assert.equal(stale.pin.sha256,first.pin.sha256);assert.equal(await s.worker.call('SellerAgentsControlClient.canWork','chatgpt'),true);
+   mode='deny';const denied=await s.worker.call('SellerAgentsControlClient.getPromptTree',s.worker.identity,{refresh:true});
+   assert.equal(denied.available,false,JSON.stringify(denied));assert.equal(await s.worker.call('SellerAgentsControlClient.canWork','chatgpt'),false);
+   const cached=await s.worker.call('SellerAgentsControlClient.getPromptTree',s.worker.identity,{cacheOnly:true});assert.equal(cached.available,false);assert.equal(count,3);
+   assert.equal(s.worker.network.length,0);assert.equal(s.worker.messages.filter(x=>x.message?.type==='OZ_SEND_PROMPT').length,0);
+ }finally{s.worker.close();}
+});
+await test('AI-TREE-R3-package-late-deny-after-timeout-no-hidden-retry',async()=>{
+ let s,late,requests=0;
+ s=await setup({timerScale:0.01,treeFetch:async(url,init)=>{
+   requests++;if(requests===1)return r3TreeResponse(s,init);
+   return new Promise(resolve=>{late=resolve;});
+ }});
+ try {
+   assert.equal((await s.worker.call('SellerAgentsControlClient.getPromptTree',s.worker.identity)).available,true);
+   const timeout=await s.worker.call('SellerAgentsControlClient.getPromptTree',s.worker.identity,{refresh:true});
+   assert.equal(timeout.available,true,JSON.stringify(timeout));assert.equal(timeout.warning.code,'CONTROL_REQUEST_TIMEOUT');assert.equal(requests,2);
+   late(new Response('{"code":"BOOTSTRAP_UNAVAILABLE"}',{status:403,headers:{'content-type':'application/json'}}));
+   await until(async()=>!(await s.worker.call('SellerAgentsControlClient.canWork','chatgpt')),'late tree deny must invalidate authority');
+   assert.equal(requests,2);assert.equal((await s.worker.call('SellerAgentsControlClient.getPromptTree',s.worker.identity,{cacheOnly:true})).available,false);
+ }finally{s.worker.close();}
+});
+await test('AI-TREE-R3-package-Firefox-no-consent-no-identified-tree-request',async()=>{
+ let requests=0;
+ const s=await setup({userAgent:'Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0',firefoxPermissions:{getAll:async()=>({data_collection:[]})},treeFetch:async()=>{requests++;throw new Error('identified tree request forbidden');}});
+ try {
+   const result=await s.worker.call('SellerAgentsControlClient.getPromptTree',s.worker.identity);
+   assert.equal(result.available,false,JSON.stringify(result));assert.equal(result.warning.code,'AI_TREE_TECHNICAL_PERMISSION_REQUIRED',JSON.stringify(result));
+   assert.equal(requests,0);assert.equal(s.worker.network.length,0);
+ }finally{s.worker.close();}
+});
+
+await test('AI-TREE-R3-package-existing-config-sync-refreshes-tree-without-business-effects',async()=>{
+ let s,requests=0;
+ s=await setup({fetch:async(url,init)=>{
+   assert.ok(url.endsWith('/v1/bootstrap'));
+   const payload=plain(s.worker.backing.local.seller_agents_control_auth_v2.authority.payload);
+   payload.ai.detected=JSON.parse(init.body).detectedAi;
+   return new Response(JSON.stringify(await signFixtureBootstrap(s.worker.backing,payload)),{headers:{'content-type':'application/json'}});
+ },treeFetch:async(url,init)=>{requests++;return r3TreeResponse(s,init);}});
+ try {
+   const beforeMessages=s.worker.messages.length;
+   await s.worker.call('SellerAgentsControlClient.bootstrap',{detectedAi:{family:'chatgpt',surface:'web',variant:null}});
+   const cached=await until(async()=>{const r=await s.worker.call('SellerAgentsControlClient.getPromptTree',s.worker.identity,{cacheOnly:true});return r.available&&r;},'existing config synchronization must populate the tree');
+   assert.equal(cached.pin.aiId,'62000000-0000-4000-8000-000000000001');assert.equal(requests,1);
+   await s.worker.call('SellerAgentsControlClient.bootstrap',{detectedAi:{family:'chatgpt',surface:'web',variant:null}});
+   await new Promise(resolve=>setTimeout(resolve,30));assert.equal(requests,1);
+   assert.equal(s.worker.messages.length,beforeMessages);assert.equal(s.worker.network.length,0);
+ }finally{s.worker.close();}
+});
+
 if (selectedScenario && results.length !== 1) throw new Error('Selected scenario was not executed');
 console.log(JSON.stringify({ status:'PASS', results, live_provider_calls:0, scope:'actual generated worker/popup messages and attachment port; simulated browser and provider; not installed live acceptance' },null,2));

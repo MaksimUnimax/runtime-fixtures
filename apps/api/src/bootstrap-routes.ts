@@ -55,7 +55,8 @@ export function registerBootstrapRoutes(
     requestNonce:z.uuid(),known:AiPromptTreeKnownV1Schema.nullable()}).strict();
   app.post("/v1/ai-prompt-tree", {schema:{body:treeRequest,response:{200:SignedAiPromptTreeEnvelopeV1Schema,
     400:ApiErrorEnvelopeV1Schema,401:ApiErrorEnvelopeV1Schema,403:ApiErrorEnvelopeV1Schema,503:ApiErrorEnvelopeV1Schema}},
-    preHandler:async request=>{
+    preHandler:async(request,reply)=>{
+      reply.header("cache-control","no-store");
       const result=await authenticateExtensionBearer(request.headers.authorization,auth);
       if(!result.ok)throw new ControlledError("UNAUTHORIZED","Unauthorized",401);
       request.extensionPrincipal=result.value;
@@ -63,6 +64,10 @@ export function registerBootstrapRoutes(
       reply.header("cache-control","no-store");
       try{return await service.issuePromptTree(request.extensionPrincipal!,treeRequest.parse(request.body));}
       catch(error){
+        if(error instanceof BootstrapError && error.code === "DEVICE_MISMATCH")
+          throw new ControlledError("DEVICE_MISMATCH","Device mismatch",403);
+        if(error instanceof BootstrapError && error.code === "ACCESS_DENIED")
+          throw new ControlledError("BOOTSTRAP_UNAVAILABLE","Access denied",403);
         if(error instanceof BootstrapError)throw new ControlledError("SERVICE_UNAVAILABLE","AI tree unavailable",503);
         throw error;
       }
@@ -80,7 +85,8 @@ export function registerBootstrapRoutes(
           503: ApiErrorEnvelopeV1Schema,
         },
       },
-      preHandler: async (request) => {
+      preHandler: async (request, reply) => {
+        reply.header("cache-control", "no-store");
         const result = await authenticateExtensionBearer(
           request.headers.authorization,
           auth,
@@ -126,7 +132,8 @@ export function registerBootstrapRoutes(
           503: ApiErrorEnvelopeV1Schema,
         },
       },
-      preHandler: async (request) => {
+      preHandler: async (request, reply) => {
+        reply.header("cache-control", "no-store");
         const result = await authenticateExtensionBearer(
           request.headers.authorization,
           auth,

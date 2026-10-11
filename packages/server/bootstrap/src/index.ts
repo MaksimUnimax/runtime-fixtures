@@ -186,7 +186,7 @@ function composeSignedEntitlements(
 }
 
 export class BootstrapError extends Error {
-  constructor(public readonly code: "DEVICE_MISMATCH" | "UNAVAILABLE") {
+  constructor(public readonly code: "DEVICE_MISMATCH" | "UNAVAILABLE" | "ACCESS_DENIED") {
     super(code);
   }
 }
@@ -218,7 +218,11 @@ export class BootstrapService {
       ? await this.issueV3(subject,request) : await this.issueV2(subject,request);
     // This is our own freshly issued snapshot; this data endpoint cannot grant work.
     const snapshot = JSON.parse(Buffer.from(envelope.payload,"base64url").toString("utf8"));
-    if (!["BETA","COMMERCIAL"].includes(snapshot.accessBasis) || snapshot.account?.id !== subject.accountId || snapshot.account?.status !== "ACTIVE" || snapshot.devicePolicy?.status !== "ACTIVE" || snapshot.ai?.status !== "RESOLVED") throw new BootstrapError("UNAVAILABLE");
+    if (!["BETA","COMMERCIAL"].includes(snapshot.accessBasis) || snapshot.account?.id !== subject.accountId ||
+      snapshot.account?.status !== "ACTIVE" || snapshot.devicePolicy?.status !== "ACTIVE" ||
+      !["SUPPORTED","UPDATE_RECOMMENDED"].includes(snapshot.compatibility?.extension?.status) ||
+      snapshot.compatibility?.browser?.status !== "SUPPORTED" || snapshot.ai?.status !== "RESOLVED")
+      throw new BootstrapError("ACCESS_DENIED");
     const detected = {family:request.detectedAi.family,surface:request.detectedAi.surface,variant:request.detectedAi.variant ?? null};
     const value = await this.aiResolution.resolvePromptTree({detected,contractVersion:"control_plane_v2",
       extensionVersion:request.extensionVersion,browser:request.browser,accountId:subject.accountId,deviceId:subject.deviceId});
