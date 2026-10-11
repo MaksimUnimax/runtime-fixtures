@@ -1,5 +1,7 @@
 # Octoport — действующие правила работы
 
+> Priority 2026-10-06 / owner clarification 08:20 +05: [Chrome первым, разработка параллельная](docs/development/coordination/CHROME_FIRST_DELIVERY_POLICY_2026-10-06.md). Chrome имеет первый приоритет и первым доводится до полной приёмки. Разработка и проверки Chrome/Opera/Yandex/Firefox остаются параллельными; завершение Chrome не является условием работы остальных. Общая принятая Chrome-основа используется для их окончательной адаптации.
+
 Канонический репозиторий MaksimUnimax/runtime-fixtures. Это продолжение проекта. Читать docs/development/coordination/{README.md,WORK_METHOD.md,PROTOCOL.md,PLAN.md,OWNERSHIP.json}, docs/product/SPEC.md и docs/product/readiness/MINIMUM_SPEC.md, профильные контракты и актуальные server notices.
 Метод: три основных диалога A/B/C через MCP/Remote Desktop Commander, каждый отвечает за сквозной результат из общего roadmap; отдельный OPERATOR по обращениям для выдачи тестовых пакетов и замечаний. Полный договор — WORK_METHOD.md. Постоянные C-only-main и B-only-DB отменены; scope конкретного изменения закрепляется до правки. Новый серверный исполнитель/планировщик не предусмотрен.
 
