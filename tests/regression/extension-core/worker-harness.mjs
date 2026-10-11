@@ -738,8 +738,10 @@ export async function makeWorker(directory, options = {}) {
       const target = new URL(record.url);
       if (target.origin === fixtureConfig.controlApiOrigin &&
           target.pathname === "/v1/ai-prompt-tree") {
-        // This lifecycle fixture has no published tree. Keep the real client's
-        // unavailable-tree fallback separate from the business-request race hook.
+        if (options.treeFetch)
+          return options.treeFetch(String(url), init, controlNetwork.length);
+        // Without an explicit signed-tree fixture, exercise the real client's
+        // unavailable-tree fallback separately from the business-request race hook.
         return Response.json({ error: { code: "SERVICE_UNAVAILABLE", message: "AI tree unavailable" } },
           { status: 503 });
       }
