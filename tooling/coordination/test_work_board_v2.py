@@ -21,6 +21,14 @@ class Crash(BaseException):
 
 class WorkBoardV2Tests(unittest.TestCase):
     def setUp(self):
+        # Preserve explicit legacy-format coverage after the operational
+        # defaults change. The bounded suite tests literal SOURCE defaults
+        # in a fresh interpreter, independently of these test-only patches.
+        for module in (v2, work_queue._v2()):
+            for flag in ("COMPACT_RESOLVED_WRITES_ENABLED", "WORKING_INDEX_WRITES_ENABLED"):
+                legacy = patch.object(module, flag, False)
+                legacy.start()
+                self.addCleanup(legacy.stop)
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name)
         (self.root / "controllers").mkdir()

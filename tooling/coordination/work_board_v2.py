@@ -34,7 +34,7 @@ ACTIVE_STATES = {"READY", "IN_PROGRESS", "BLOCKED"}
 # accept both tombstone formats BEFORE a separately reviewed writer activation.
 # Do not enable based on an env variable, HOT content or caller-supplied flag.
 COMPACT_RESOLVED_BLOCKER_SCHEMA = 2
-COMPACT_RESOLVED_WRITES_ENABLED = False
+COMPACT_RESOLVED_WRITES_ENABLED = True
 # A second, separately accepted format moves historical resolved BLOCKED rows
 # to an immutable indexed trie. Keep disabled until ALL installed readers have
 # passed exact-source review, CI and source SHA readback.
@@ -46,7 +46,9 @@ RESOLVED_COLD_ROOT_KEYS = frozenset({
 # SOURCE preparation only. This is another cold-index writer, not an exception
 # to the existing prohibition. Activation needs separate exact-source approval
 # and an all-reader rollout; no environment/caller/HOT flag may enable it.
-WORKING_INDEX_WRITES_ENABLED = False
+# Owner accepted this exact writer activation on 2026-10-11 17:16 +05.
+# Installation still requires reviewed source and all-reader readiness.
+WORKING_INDEX_WRITES_ENABLED = True
 WORKING_ROOT_KEYS = frozenset({"working_root_hash", "working_count"})
 TX_STATES = {"PREPARED", "DATA_DURABLE", "HOT_PUBLISHED", "EVENT_DURABLE", "COMMITTED", "ROLLED_BACK"}
 

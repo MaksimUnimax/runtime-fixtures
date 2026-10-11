@@ -1,11 +1,13 @@
 """Disposable SOURCE tests; never opens the live Easyscript registry.
 
-The production writer remains disabled. Patches below affect only imported
-modules inside this test process and roots created by TemporaryDirectory.
+The operational SOURCE enables the reviewed writer. Compatibility patches
+affect only imported modules and roots created by TemporaryDirectory.
 """
 import copy
 import hashlib
 import json
+import subprocess
+import sys
 from pathlib import Path
 import tempfile
 import unittest
@@ -26,6 +28,7 @@ class BoundedWorkingTests(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
         v2._paths(self.root, create=True)
+        (self.root / "controllers/coordination.lock").touch()
         for role in "ABC":
             (self.root / (role + ".json")).write_text(json.dumps({"role": role, "status": "RUNNING"}))
         self.repo = self.root / "repo"
@@ -88,11 +91,13 @@ class BoundedWorkingTests(unittest.TestCase):
         p = self.root / "controllers/work-board-events.jsonl"
         return p.read_bytes().splitlines() if p.exists() else []
 
-    def test_default_writer_stays_disabled_and_legacy_counterexample_stays_red(self):
-        self.assertFalse(v2.WORKING_INDEX_WRITES_ENABLED)
+    def test_enabled_source_default_and_legacy_counterexample_stays_red(self):
+        self.assertTrue(v2.WORKING_INDEX_WRITES_ENABLED)
+        self.assertTrue(v2.COMPACT_RESOLVED_WRITES_ENABLED)
         self.assertFalse(v2.RESOLVED_COLD_INDEX_WRITES_ENABLED)
         tasks = [self.ready(f"active-{i}") for i in range(30)] + [self.resolved(f"old-{i}") for i in range(1000)]
-        generation = v2._prepare_generation(self.root, self.logical(tasks, 2))
+        with patch.object(v2, "WORKING_INDEX_WRITES_ENABLED", False):
+            generation = v2._prepare_generation(self.root, self.logical(tasks, 2))
         self.assertNotIn("working_root_hash", generation["core"])
         previous = {"hot": {"generation_id": "0" * 64}, "logical": {"revision": 1}, "hot_sha256": "1" * 64}
         with self.assertRaisesRegex(RuntimeError, "WORK_QUEUE_INVALID: size"):
@@ -114,6 +119,53 @@ class BoundedWorkingTests(unittest.TestCase):
                                 for (kind, _), data in generated["drafts"].items()))
             measured.append(len(raw))
         self.assertLessEqual(max(measured) - min(measured), 2)
+
+    def test_literal_source_retries_same_native_add_after_legacy_size_refusal(self):
+        successor = self.successor()
+        original = None
+        for count in range(500, 1001, 10):
+            rows = [self.ready(f"active-{i}", 128) for i in range(30)]
+            rows += [self.resolved(f"old-{i}") for i in range(count)] + [successor]
+            with patch.object(v2, "WORKING_INDEX_WRITES_ENABLED", False):
+                generated = v2._prepare_generation(self.root, self.logical(rows))
+            hot = dict(generated["core"], generation_id=v2._generation_id(generated["core"]),
+                       last_operation_id="0" * 64)
+            size = len(v2._canonical_bytes(hot))
+            if size > v2.HOT_CAP_BYTES - 1024:
+                break
+            original = rows
+        self.assertIsNotNone(original)
+        self.seed(original, bounded=False)
+        prior = self.snapshots()
+        task = self.ready("literal-source-native-add", 32768)
+        with patch.object(v2, "WORKING_INDEX_WRITES_ENABLED", False):
+            with self.assertRaisesRegex(RuntimeError, "WORK_QUEUE_INVALID: size"):
+                work_queue.add_task(self.root, "A", task, repo_root=self.repo)
+        self.assertEqual(self.snapshots(), prior)
+        script = """
+import json,sys
+from pathlib import Path
+import work_board_v2 as v2
+import work_queue
+assert v2.WORKING_INDEX_WRITES_ENABLED is True
+assert v2.COMPACT_RESOLVED_WRITES_ENABLED is True
+assert v2.RESOLVED_COLD_INDEX_WRITES_ENABLED is False
+work_queue.add_task(Path(sys.argv[1]), 'A', json.loads(sys.argv[3]), repo_root=Path(sys.argv[2]))
+"""
+        completed = subprocess.run([sys.executable, "-B", "-c", script,
+                                    str(self.root), str(self.repo), json.dumps(task)],
+                                   cwd=Path(v2.__file__).parent, capture_output=True, text=True, timeout=30)
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        logical = v2.load_logical_board(self.root)
+        self.assertEqual(logical["tasks"][:-1], original)
+        for key, value in task.items():
+            self.assertEqual(logical["tasks"][-1][key], value)
+        after = self.snapshots()
+        for name, digest in prior.items():
+            if "work-board-done/" in name:
+                self.assertEqual(after[name], digest)
+        self.assertEqual(len(self.events()), 1)
+        self.assertLess((self.root / "controllers/work-board.json").stat().st_size, 1024)
 
     def test_native_add_claim_large_payload_history_and_duplicate_claim(self):
         original = [self.ready(f"active-{i}", 8192) for i in range(99)]
@@ -147,8 +199,9 @@ class BoundedWorkingTests(unittest.TestCase):
         before = self.snapshots()
         board = v2.load_logical_board(self.root)
         board["revision"] += 1
-        with self.assertRaisesRegex(RuntimeError, "WORKING_WRITER_DISABLED"):
-            v2.commit_logical_board(self.root, board, {"action": "ADD", "role": "A", "task": "one"})
+        with patch.object(v2, "WORKING_INDEX_WRITES_ENABLED", False):
+            with self.assertRaisesRegex(RuntimeError, "WORKING_WRITER_DISABLED"):
+                v2.commit_logical_board(self.root, board, {"action": "ADD", "role": "A", "task": "one"})
         self.assertEqual(before, self.snapshots())
 
     def test_legacy_to_bounded_transaction_preserves_existing_immutable_history(self):
@@ -237,6 +290,7 @@ class BoundedWorkingTests(unittest.TestCase):
     def test_reader_only_rollout_cannot_enable_new_writer(self):
         raw = Path(v2.__file__).read_bytes().replace(b"COMPACT_RESOLVED_WRITES_ENABLED = True",
                                                   b"COMPACT_RESOLVED_WRITES_ENABLED = False")
+        raw = raw.replace(b"WORKING_INDEX_WRITES_ENABLED = True", b"WORKING_INDEX_WRITES_ENABLED = False")
         self.assertTrue(rollout._module_only_writer_flags_off(raw))
         self.assertFalse(rollout._module_only_writer_flags_off(raw.replace(
             b"WORKING_INDEX_WRITES_ENABLED = False", b"WORKING_INDEX_WRITES_ENABLED = True")))
