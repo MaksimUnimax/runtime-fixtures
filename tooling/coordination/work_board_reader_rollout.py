@@ -825,6 +825,11 @@ def _module_only_writer_flags_off(raw: bytes) -> bool:
     except (SyntaxError, UnicodeDecodeError, ValueError):
         return False
     flags = {"COMPACT_RESOLVED_WRITES_ENABLED", "RESOLVED_COLD_INDEX_WRITES_ENABLED"}
+    # Older accepted readers have no working-index flag. If the new format is
+    # present, reader-only rollout must prove its writer disabled as well.
+    if any(isinstance(node, ast.Name) and node.id == "WORKING_INDEX_WRITES_ENABLED"
+           for node in ast.walk(tree)):
+        flags.add("WORKING_INDEX_WRITES_ENABLED")
     observed = {}
     allowed_stores = set()
     for node in tree.body:
