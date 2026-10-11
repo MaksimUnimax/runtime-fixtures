@@ -1,5 +1,10 @@
-import { PromptTreeTargetSchema, PromptTreeSaveSchema, PromptTreePublishSchema,
-  PromptTreeRollbackSchema, PromptTreeStateSchema } from "@product/admin-ai";
+import {
+  PromptTreeTargetSchema,
+  PromptTreeSaveSchema,
+  PromptTreePublishSchema,
+  PromptTreeRollbackSchema,
+  PromptTreeStateSchema,
+} from "@product/admin-ai";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type {
   FastifyInstance,
@@ -195,25 +200,72 @@ export function registerAdminAiRoutes(
   service: AdminAiService,
 ): void {
   const treeParams = z.object({ target: PromptTreeTargetSchema }).strict();
-  app.get("/v1/admin/ai/prompt-trees/:target", { schema: { params: treeParams, ...response(PromptTreeStateSchema) } }, async (request, reply) => {
-    await guard.requireAdminPermission(request, permission("ai.registry.read"));
-    const { target } = treeParams.parse(request.params);
-    const value = await invoke(() => service.getPromptTree(target));
-    if (!value) throw new ControlledError("ADMIN_RESOURCE_NOT_FOUND", "AI tree not found", 404);
-    noStore(reply); return value;
-  });
-  const mutations = [
-    ["draft", PromptTreeSaveSchema, (t: string, b: unknown, a: {actorId:string;correlationId:string}) => service.savePromptTree(t,b,a)],
-    ["publish", PromptTreePublishSchema, (t: string, b: unknown, a: {actorId:string;correlationId:string}) => service.publishPromptTree(t,b,a)],
-    ["rollback", PromptTreeRollbackSchema, (t: string, b: unknown, a: {actorId:string;correlationId:string}) => service.rollbackPromptTree(t,b,a)],
-  ] as const;
-  for (const [action, schema, perform] of mutations) app.post(`/v1/admin/ai/prompt-trees/:target/${action}`,
-    { schema: { params: treeParams, body: schema, ...response(PromptTreeStateSchema) } }, async (request, reply) => {
-      const { subject } = await guard.requireAdminMutation(request, permission("ai.registry.manage"));
+  app.get(
+    "/v1/admin/ai/prompt-trees/:target",
+    { schema: { params: treeParams, ...response(PromptTreeStateSchema) } },
+    async (request, reply) => {
+      await guard.requireAdminPermission(
+        request,
+        permission("ai.registry.read"),
+      );
       const { target } = treeParams.parse(request.params);
-      const value = await invoke(() => perform(target, schema.parse(request.body), {actorId:subject.adminPrincipalId,correlationId:request.id}));
-      noStore(reply); return value;
-    });
+      const value = await invoke(() => service.getPromptTree(target));
+      if (!value)
+        throw new ControlledError(
+          "ADMIN_RESOURCE_NOT_FOUND",
+          "AI tree not found",
+          404,
+        );
+      noStore(reply);
+      return value;
+    },
+  );
+  const mutations = [
+    [
+      "draft",
+      PromptTreeSaveSchema,
+      (t: string, b: unknown, a: { actorId: string; correlationId: string }) =>
+        service.savePromptTree(t, b, a),
+    ],
+    [
+      "publish",
+      PromptTreePublishSchema,
+      (t: string, b: unknown, a: { actorId: string; correlationId: string }) =>
+        service.publishPromptTree(t, b, a),
+    ],
+    [
+      "rollback",
+      PromptTreeRollbackSchema,
+      (t: string, b: unknown, a: { actorId: string; correlationId: string }) =>
+        service.rollbackPromptTree(t, b, a),
+    ],
+  ] as const;
+  for (const [action, schema, perform] of mutations)
+    app.post(
+      `/v1/admin/ai/prompt-trees/:target/${action}`,
+      {
+        schema: {
+          params: treeParams,
+          body: schema,
+          ...response(PromptTreeStateSchema),
+        },
+      },
+      async (request, reply) => {
+        const { subject } = await guard.requireAdminMutation(
+          request,
+          permission("ai.registry.manage"),
+        );
+        const { target } = treeParams.parse(request.params);
+        const value = await invoke(() =>
+          perform(target, schema.parse(request.body), {
+            actorId: subject.adminPrincipalId,
+            correlationId: request.id,
+          }),
+        );
+        noStore(reply);
+        return value;
+      },
+    );
   app.get(
     "/v1/admin/ai/registry/adapters",
     {

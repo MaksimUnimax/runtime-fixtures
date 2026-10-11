@@ -1,4 +1,8 @@
-import { AiPromptTreePublicationV1Schema, canonicalAiPromptTreeV1, type AiPromptTreePublicationV1 } from "@product/contracts";
+import {
+  AiPromptTreePublicationV1Schema,
+  canonicalAiPromptTreeV1,
+  type AiPromptTreePublicationV1,
+} from "@product/contracts";
 import { createHash } from "node:crypto";
 import {
   BootstrapAiResolutionV1Schema,
@@ -303,17 +307,34 @@ export class BootstrapAiResolutionService {
     return resolveBootstrapAiSnapshot(input, snapshot);
   }
 
-  async resolvePromptTree(input: BootstrapAiResolutionInput): Promise<{ aiId: string; publication: AiPromptTreePublicationV1 | null }> {
+  async resolvePromptTree(
+    input: BootstrapAiResolutionInput,
+  ): Promise<{ aiId: string; publication: AiPromptTreePublicationV1 | null }> {
     if (!this.repository.promptTree) throw new BootstrapAiResolutionError();
-    const snapshot = await this.repository.resolve({family:input.detected.family,surface:input.detected.surface,
-      variant:input.detected.variant,browserFamily:input.browser.family});
-    if (resolveBootstrapAiSnapshot(input,snapshot).status !== "RESOLVED" || !snapshot.hierarchy)
+    const snapshot = await this.repository.resolve({
+      family: input.detected.family,
+      surface: input.detected.surface,
+      variant: input.detected.variant,
+      browserFamily: input.browser.family,
+    });
+    if (
+      resolveBootstrapAiSnapshot(input, snapshot).status !== "RESOLVED" ||
+      !snapshot.hierarchy
+    )
       throw new BootstrapAiResolutionError();
-    const aiId = snapshot.hierarchy.adapterId, raw = await this.repository.promptTree(aiId);
-    const publication = raw === null ? null : AiPromptTreePublicationV1Schema.parse(raw);
-    if (publication && (publication.aiId !== aiId || createHash("sha256").update(canonicalAiPromptTreeV1(publication.body)).digest("hex") !== publication.sha256))
+    const aiId = snapshot.hierarchy.adapterId,
+      raw = await this.repository.promptTree(aiId);
+    const publication =
+      raw === null ? null : AiPromptTreePublicationV1Schema.parse(raw);
+    if (
+      publication &&
+      (publication.aiId !== aiId ||
+        createHash("sha256")
+          .update(canonicalAiPromptTreeV1(publication.body))
+          .digest("hex") !== publication.sha256)
+    )
       throw new BootstrapAiResolutionError();
-    return {aiId,publication};
+    return { aiId, publication };
   }
 
   async resolveLocalCandidates(

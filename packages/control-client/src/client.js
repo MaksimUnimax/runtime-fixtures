@@ -62,7 +62,7 @@
   function queueMutation(fn) { const run = mutationQueue.then(fn); mutationQueue = run.catch(() => {}); return run; }
   async function persist(next) {
     if (authStorageUnconfirmed) throw error("AUTH_STATE_COMMIT_UNCONFIRMED");
-    const expected = clone(next);
+    const expected = { ...clone(next), authStateSchema: 2 };
     try {
       await chrome.storage.local.set({ [STORAGE_KEY]: expected });
       const observed = await chrome.storage.local.get(STORAGE_KEY);
@@ -1402,10 +1402,55 @@
     state = next;
     try { await persist(next); } catch (_) { /* signed-out memory remains safe; pending state is not discarded */ }
   }
+  function storedAuthShapeError(saved) {
+    if (!saved || typeof saved !== "object" || Array.isArray(saved)) return "AUTH_STATE_SCHEMA_INVALID";
+    if (saved.authStateSchema !== undefined && saved.authStateSchema !== 2) return "AUTH_STATE_SCHEMA_UNSUPPORTED";
+    for (const name of ["generation", "principalEpoch", "accessEpoch"]) {
+      if (saved[name] === undefined && name !== "generation" && saved.authStateSchema === undefined) continue;
+      if (!Number.isSafeInteger(saved[name]) || saved[name] < 0) return "AUTH_EPOCH_INVALID";
+    }
+    if (saved.grants === undefined && saved.authStateSchema === 2) return "AUTH_GRANT_HISTORY_INVALID";
+    if (saved.grants !== undefined) {
+      if (!saved.grants || typeof saved.grants !== "object" || Array.isArray(saved.grants)) return "AUTH_GRANT_HISTORY_INVALID";
+      for (const [scopeKey, grant] of Object.entries(saved.grants)) {
+        if (!grant || typeof grant !== "object" || grant.schemaVersion !== 1 || grant.scopeKey !== scopeKey ||
+          !Number.isSafeInteger(grant.grantEpoch) || grant.grantEpoch < 1 ||
+          !grant.authority || grant.authority.generation !== saved.generation ||
+          grant.authority.deviceId !== saved.credentials?.deviceId || grant.authority.sessionId !== saved.credentials?.sessionId ||
+          grant.authority.payload?.account?.id !== saved.authority?.payload?.account?.id ||
+          grant.principalEpoch !== (saved.principalEpoch ?? saved.generation) || grant.accessEpoch !== (saved.accessEpoch ?? 0))
+          return "AUTH_GRANT_HISTORY_INVALID";
+      }
+    }
+    if (saved.authMigration !== undefined) {
+      const migration = saved.authMigration;
+      if (!migration || migration.sourceSchema !== 1 || migration.targetSchema !== 2 || migration.phase !== "COMMITTED" ||
+        !/^[a-f0-9]{64}$/.test(migration.sourceDigest || "") || migration.migrationId !== "auth-v2:" + migration.sourceDigest)
+        return "AUTH_MIGRATION_REVALIDATION_REQUIRED";
+    }
+    return null;
+  }
+  async function legacyAuthMigration(saved) {
+    const bytes = new TextEncoder().encode(verifier.canonicalJson(saved));
+    const sourceDigest = [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))].map(x => x.toString(16).padStart(2, "0")).join("");
+    return { sourceSchema: 1, targetSchema: 2, migrationId: "auth-v2:" + sourceDigest, sourceDigest, phase: "COMMITTED" };
+  }
   async function restoreOnce() {
-    await chrome.storage.local.setAccessLevel?.({ accessLevel: "TRUSTED_CONTEXTS" }); const result = await chrome.storage.local.get(STORAGE_KEY); const saved = result[STORAGE_KEY]; if (saved && typeof saved === "object") {
+    await chrome.storage.local.setAccessLevel?.({ accessLevel: "TRUSTED_CONTEXTS" });
+    const result = await chrome.storage.local.get(STORAGE_KEY), saved = result[STORAGE_KEY];
+    if (saved !== undefined && saved !== null) {
+      const schemaFailure = storedAuthShapeError(saved);
+      if (schemaFailure) {
+        // Preserve the unrecognized record for compatible recovery. No fallback
+        // to its old authority or rewrite of generations/history is permitted.
+        authStorageUnconfirmed = true;
+        state = { ...state, lastError: { code: schemaFailure } };
+        initialized = true;
+        return publicStatus({ allowed: false, persistenceFailure: true });
+      }
       state = { ...state, ...clone(saved), principalEpoch: saved.principalEpoch ?? saved.generation,
         accessEpoch: saved.accessEpoch ?? 0, grants: saved.grants ?? {} };
+      if (saved.authStateSchema === undefined) state.authMigration = await legacyAuthMigration(saved);
     }
     if (state.credentials !== null && state.credentials !== undefined && !validCredentials(state.credentials)) await invalidateKnown(contextForState(), error("STORED_CREDENTIALS_INVALID"), true);
     else if ((state.credentials === null || state.credentials === undefined) && saved && (state.rotation || state.authority || state.cacheClock)) await discardOrphanCredentialState();
@@ -1439,6 +1484,9 @@
     if (state.pending && !validRestoredPending(state.pending)) await invalidateKnown(contextForState(), error("ACTIVATION_CONTEXT_MISMATCH"), true);
     try { await transferVault?.prune(now()); } catch (_) { /* transfer actions fail closed on vault access; auth restore remains independent */ }
     const restoredDecision = state.authority && state.credentials ? await cacheAuthorizationCheckpoint() : { allowed: false };
+    // The auth migration is one existing storage-key replacement, followed by
+    // exact readback; there is no cross-key staging window or renewed TTL.
+    if (saved && saved.authStateSchema === undefined && !authStorageUnconfirmed) await persist(state);
     initialized = true; if (pendingLive(state.pending)) void ensurePolling(); return publicStatus(restoredDecision);
   }
   function init() { if (initialized) { void retryPendingMetadataForget(); return Promise.resolve(publicStatus()); } if (!initFlight) initFlight = restoreOnce().finally(() => { initFlight = null; }); return initFlight.then(status => { void retryPendingMetadataForget(); return status; }); }

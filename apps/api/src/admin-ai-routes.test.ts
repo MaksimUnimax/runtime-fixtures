@@ -65,9 +65,25 @@ function fixture(role: AdminRole = "ADMIN_SUPPORT") {
     complete: vi.fn(async () => mutationResult),
     rollback: vi.fn(async () => mutationResult),
   };
+  const treeState = (target: string) => ({
+    target,
+    draftRevision: 1,
+    draft: {
+      format: "octoport_prompt_tree_v1",
+      root: "root",
+      nodes: [{ id: "root", text: "Original draft", children: [] }],
+    },
+    templateRevision: null,
+    publishedVersion: 0,
+    history: [],
+  });
   const service = {
     listAdapters,
     createAdapter: vi.fn(),
+    getPromptTree: vi.fn(async (target: string) => treeState(target)),
+    savePromptTree: vi.fn(async (target: string) => treeState(target)),
+    publishPromptTree: vi.fn(async (target: string) => treeState(target)),
+    rollbackPromptTree: vi.fn(async (target: string) => treeState(target)),
     ...mutations,
   } as unknown as AdminAiService;
   const app = createApiApp({
@@ -237,4 +253,119 @@ describe("P7.4 admin AI route security", () => {
       await f.app.close();
     },
   );
+});
+
+describe("AI-TREE-02 SOURCE admin tree route permission and CSRF boundaries", () => {
+  const target = "61000000-0000-4000-8000-000000000001";
+  const body = {
+    format: "octoport_prompt_tree_v1",
+    root: "root",
+    nodes: [{ id: "root", text: "Changed draft", children: [] }],
+  };
+  const cases = [
+    [
+      "draft",
+      { expectedDraftRevision: 1, body, reason: "route regression" },
+      "savePromptTree",
+    ],
+    [
+      "publish",
+      {
+        expectedDraftRevision: 1,
+        expectedPublishedVersion: 0,
+        reason: "route regression",
+      },
+      "publishPromptTree",
+    ],
+    [
+      "rollback",
+      {
+        expectedDraftRevision: 1,
+        expectedPublishedVersion: 0,
+        sourceVersion: 1,
+        reason: "route regression",
+      },
+      "rollbackPromptTree",
+    ],
+  ] as const;
+  for (const [action, payload, method] of cases) {
+    for (const denial of [
+      "no-session",
+      "support",
+      "missing-csrf",
+      "wrong-csrf",
+    ] as const)
+      it(`${action}: ${denial} cannot change draft/publication`, async () => {
+        const f = fixture(
+          denial === "support" ? "ADMIN_SUPPORT" : "ADMIN_OWNER",
+        );
+        try {
+          const before = await f.service.getPromptTree(target);
+          const headers =
+            denial === "no-session"
+              ? {}
+              : denial === "missing-csrf"
+                ? { cookie: f.headers.cookie }
+                : denial === "wrong-csrf"
+                  ? { ...f.headers, "x-csrf-token": "wrong" }
+                  : f.headers;
+          const response = await f.app.inject({
+            method: "POST",
+            url: `/v1/admin/ai/prompt-trees/${target}/${action}`,
+            headers,
+            payload,
+          });
+          expect(response.statusCode).toBe(denial === "no-session" ? 401 : 403);
+          if (denial === "support")
+            expect(response.json().error.code).toBe("ADMIN_FORBIDDEN");
+          if (denial === "missing-csrf" || denial === "wrong-csrf")
+            expect(response.json().error.code).toBe("ADMIN_CSRF_INVALID");
+          expect(f.service[method]).not.toHaveBeenCalled();
+          expect(await f.service.getPromptTree(target)).toEqual(before);
+        } finally {
+          await f.app.close();
+        }
+      });
+    it(`${action}: authorized owner is routed to exact permanent target and actor`, async () => {
+      const f = fixture("ADMIN_OWNER");
+      try {
+        const response = await f.app.inject({
+          method: "POST",
+          url: `/v1/admin/ai/prompt-trees/${target}/${action}`,
+          headers: f.headers,
+          payload,
+        });
+        expect(response.statusCode).toBe(200);
+        expect(response.headers["cache-control"]).toBe("no-store");
+        expect(response.json().target).toBe(target);
+        expect(f.service[method]).toHaveBeenCalledWith(
+          target,
+          payload,
+          expect.objectContaining({
+            actorId: principalId,
+            correlationId: expect.any(String),
+          }),
+        );
+      } finally {
+        await f.app.close();
+      }
+    });
+  }
+  it("support can read each tree and the template with existing read permission", async () => {
+    const f = fixture("ADMIN_SUPPORT");
+    try {
+      for (const id of [target, "template"]) {
+        const response = await f.app.inject({
+          method: "GET",
+          url: `/v1/admin/ai/prompt-trees/${id}`,
+          headers: f.headers,
+        });
+        expect(response.statusCode).toBe(200);
+        expect(response.json().target).toBe(id);
+        expect(response.headers["cache-control"]).toBe("no-store");
+      }
+    } finally {
+      await f.app.close();
+    }
+  });
 });

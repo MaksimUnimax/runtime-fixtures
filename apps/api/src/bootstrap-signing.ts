@@ -1,4 +1,7 @@
-import { AiPromptTreeClaimV1Schema, SignedAiPromptTreeEnvelopeV1Schema } from "@product/contracts";
+import {
+  AiPromptTreeClaimV1Schema,
+  SignedAiPromptTreeEnvelopeV1Schema,
+} from "@product/contracts";
 import { canonicalizeJson } from "@product/remote-config";
 import {
   createHash,
@@ -238,15 +241,31 @@ export function createConfigSigningService(
       return signBootstrapSnapshotV3(payload, keyId, entry.privateKey);
     },
     async signPromptTree(keyId, claim) {
-      const entry = material.keys.get(keyId), metadata = await catalog.findSigningKey(keyId);
+      const entry = material.keys.get(keyId),
+        metadata = await catalog.findSigningKey(keyId);
       if (!entry || !metadata) throw new Error("signing key unavailable");
       bindConfigSigningKeyMaterial(entry, metadata);
-      if (resolveSigningKeyLifecycle(await catalog.listSigningKeyEvents(keyId)).state !== "ACTIVE")
+      if (
+        resolveSigningKeyLifecycle(await catalog.listSigningKeyEvents(keyId))
+          .state !== "ACTIVE"
+      )
         throw new Error("signing key is not active");
       const bytes = canonicalizeJson(AiPromptTreeClaimV1Schema.parse(claim));
-      const signingBytes = Buffer.concat([Buffer.from("Octoport ai prompt tree v1\0"),Buffer.from(keyId),Buffer.from([0]),bytes]);
-      return SignedAiPromptTreeEnvelopeV1Schema.parse({treeEnvelopeVersion:"ai_prompt_tree_envelope_v1",algorithm:"Ed25519",
-        keyId,payload:bytes.toString("base64url"),signature:signBytes(null,signingBytes,entry.privateKey).toString("base64url")});
+      const signingBytes = Buffer.concat([
+        Buffer.from("Octoport ai prompt tree v1\0"),
+        Buffer.from(keyId),
+        Buffer.from([0]),
+        bytes,
+      ]);
+      return SignedAiPromptTreeEnvelopeV1Schema.parse({
+        treeEnvelopeVersion: "ai_prompt_tree_envelope_v1",
+        algorithm: "Ed25519",
+        keyId,
+        payload: bytes.toString("base64url"),
+        signature: signBytes(null, signingBytes, entry.privateKey).toString(
+          "base64url",
+        ),
+      });
     },
     async signHealth(keyId: string, claim: HealthClaimV1) {
       const entry = material.keys.get(keyId);

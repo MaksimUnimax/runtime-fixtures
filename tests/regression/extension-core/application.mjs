@@ -697,5 +697,73 @@ await test('AI-TREE-R3-package-existing-config-sync-refreshes-tree-without-busin
  }finally{s.worker.close();}
 });
 
+await test('PAR-29-package-subset-auth-migration-repeat-original-TTL-one-scope',async()=>{
+ const seed=await setup();let backing;
+ try{await seed.worker.call('SellerAgentsControlClient.canWork','chatgpt');backing=plain(seed.worker.backing);}finally{seed.worker.close();}
+ const raw=backing.local.seller_agents_control_auth_v2;
+ delete raw.authStateSchema;delete raw.authMigration;delete raw.grants;delete raw.principalEpoch;delete raw.accessEpoch;
+ const envelope=plain(raw.authority.envelope),expires=raw.authority.payload.expiresAt,generation=raw.generation;
+ const first=await setup({backing});let migrated;
+ try{
+   assert.equal(await first.worker.call('SellerAgentsControlClient.canWork','chatgpt'),true);
+   assert.equal(await first.worker.call('SellerAgentsControlClient.canWork','alice'),false);
+   migrated=plain(first.worker.backing.local.seller_agents_control_auth_v2);
+   assert.equal(migrated.authStateSchema,2);assert.equal(migrated.authMigration.phase,'COMMITTED');assert.match(migrated.authMigration.migrationId,/^auth-v2:[a-f0-9]{64}$/);
+   assert.equal(migrated.generation,generation);assert.equal(migrated.authority.payload.expiresAt,expires);assert.deepEqual(migrated.authority.envelope,envelope);
+   assert.equal(Object.keys(migrated.grants).length,1);assert.equal(Object.values(migrated.grants)[0].authority.requestedAi,'chatgpt');
+   assert.equal(first.worker.network.length,0);backing=plain(first.worker.backing);
+ }finally{first.worker.close();}
+ const second=await setup({backing});
+ try{
+   assert.equal(await second.worker.call('SellerAgentsControlClient.canWork','chatgpt'),true);
+   const after=second.worker.backing.local.seller_agents_control_auth_v2;
+   assert.deepEqual(plain(after.authMigration),migrated.authMigration);assert.equal(after.authority.payload.expiresAt,expires);
+   assert.equal(Object.values(after.grants)[0].grantEpoch,Object.values(migrated.grants)[0].grantEpoch);assert.equal(Object.keys(after.grants).length,1);
+   assert.equal(second.worker.network.length,0);
+ }finally{second.worker.close();}
+});
+await test('PAR-29-30-package-subset-unsupported-partial-corrupt-auth-preserved-closed',async()=>{
+ const seed=await setup();let original;
+ try{await seed.worker.call('SellerAgentsControlClient.canWork','chatgpt');original=plain(seed.worker.backing);}finally{seed.worker.close();}
+ const cases=[
+   ['future',s=>{s.authStateSchema=3;}],
+   ['staging',s=>{s.authMigration.phase='STAGING';}],
+   ['bad-grants',s=>{s.grants=[];}],
+   ['stale-fence',s=>{Object.values(s.grants)[0].accessEpoch+=1;}],
+   ['negative-epoch',s=>{s.principalEpoch=-1;}]
+ ];
+ for(const [name,change] of cases){
+   const backing=plain(original);change(backing.local.seller_agents_control_auth_v2);const before=plain(backing.local.seller_agents_control_auth_v2);
+   const worker=await makeWorker(runtime,{backing,indexedDB:fakeIDB()});
+   try{
+     assert.equal(await worker.call('SellerAgentsControlClient.canWork','chatgpt'),false,name);
+     assert.equal(await worker.call('SellerAgentsControlClient.canWork','alice'),false,name);
+     assert.deepEqual(plain(worker.backing.local.seller_agents_control_auth_v2),before,name);
+     assert.equal(worker.network.length,0,name);assert.equal(worker.messages.length,0,name);
+   }finally{worker.close();}
+ }
+});
+await test('PAR-29-package-subset-auth-migration-write-failure-never-opens-worker',async()=>{
+ const seed=await setup();let original;
+ try{original=plain(seed.worker.backing);}finally{seed.worker.close();}
+ for(const failRemove of [false,true]){
+  const backing=plain(original),raw=backing.local.seller_agents_control_auth_v2;
+  delete raw.authStateSchema;delete raw.authMigration;delete raw.grants;delete raw.principalEpoch;delete raw.accessEpoch;
+  const before=plain(raw);let failedWrites=0;
+  const worker=await makeWorker(runtime,{backing,indexedDB:fakeIDB(),onStorageWrite:async(kind,values)=>{
+    if(kind==='local'&&values.seller_agents_control_auth_v2){failedWrites++;throw new Error('injected storage failure');}
+  },onStorageRemove:async(kind,keys)=>{
+    if(failRemove && kind==='local' && [keys].flat().includes('seller_agents_control_auth_v2'))throw new Error('injected remove failure');
+  }});
+  try{
+    let allowed=false;try{allowed=await worker.call('SellerAgentsControlClient.canWork','chatgpt');}catch(error){assert.match(String(error),/AUTH_STATE_COMMIT_UNCONFIRMED/);}
+    assert.equal(allowed,false);assert.ok(failedWrites>0);assert.equal(await worker.call('SellerAgentsControlClient.canWork','chatgpt'),false);
+    const retained=worker.backing.local.seller_agents_control_auth_v2;
+    if(failRemove)assert.deepEqual(plain(retained),before);else assert.equal(retained,undefined);
+    assert.equal(worker.network.length,0);
+  }finally{worker.close();}
+ }
+});
+
 if (selectedScenario && results.length !== 1) throw new Error('Selected scenario was not executed');
 console.log(JSON.stringify({ status:'PASS', results, live_provider_calls:0, scope:'actual generated worker/popup messages and attachment port; simulated browser and provider; not installed live acceptance' },null,2));
