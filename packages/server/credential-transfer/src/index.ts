@@ -405,42 +405,42 @@ export class CredentialTransferService {
     if (current.sourceDeviceId !== principal.deviceId)
       throw new TransferError("TRANSFER_ACCOUNT_MISMATCH");
     const parsedPacket = TransferPacketV1Schema.parse(packet);
-    // A recipient already committing delivery must not race with replacement.
-    if (this.inFlightRequests.has(packet.requestId))
-      throw new TransferError("TRANSFER_CONFLICT");
-    const reservationId = this.relay.reserve(
-      parsedPacket,
-      current.accountId,
-      principal.deviceId,
-      new Date(current.expiresAt),
-      now,
-    );
-    try {
-      await this.repository.markPacketAvailable({
-        principal,
-        requestId: packet.requestId,
-        now: this.now(),
-      });
-    } catch (error) {
-      this.relay.release(packet.requestId, reservationId, this.now());
-      throw error;
-    }
-    if (
-      !this.relay.activate(
-        packet.requestId,
-        reservationId,
+    // Hold the request guard across the durable transition and relay activation.
+    return this.forRequest(packet.requestId, async () => {
+      const reservationId = this.relay.reserve(
         parsedPacket,
-        this.now(),
+        current.accountId,
+        principal.deviceId,
+        new Date(current.expiresAt),
+        now,
+      );
+      try {
+        await this.repository.markPacketAvailable({
+          principal,
+          requestId: packet.requestId,
+          now: this.now(),
+        });
+      } catch (error) {
+        this.relay.release(packet.requestId, reservationId, this.now());
+        throw error;
+      }
+      if (
+        !this.relay.activate(
+          packet.requestId,
+          reservationId,
+          parsedPacket,
+          this.now(),
+        )
       )
-    )
-      throw new TransferError("TRANSFER_EXPIRED");
-    return {
-      request: await this.repository.read({
-        principal,
-        requestId: packet.requestId,
-        now: this.now(),
-      }),
-    };
+        throw new TransferError("TRANSFER_EXPIRED");
+      return {
+        request: await this.repository.read({
+          principal,
+          requestId: packet.requestId,
+          now: this.now(),
+        }),
+      };
+    });
   }
 
   public async receive(principal: ExtensionPrincipal, requestId: string) {

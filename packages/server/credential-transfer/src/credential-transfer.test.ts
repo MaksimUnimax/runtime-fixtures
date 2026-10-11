@@ -637,6 +637,50 @@ describe("D3S2-2A control-plane foundation", () => {
     expect(service.relayForTests().statsForTests().packets).toBe(0);
   });
 
+  it("blocks repeated source-seen during committed in-flight submit", async () => {
+    const repository = createMemoryTransferRepository();
+    let finishSubmit!: () => void;
+    let signalCommitted!: () => void;
+    const release = new Promise<void>((resolve) => (finishSubmit = resolve));
+    const committed = new Promise<void>(
+      (resolve) => (signalCommitted = resolve),
+    );
+    const gated: TransferRepository = {
+      ...repository,
+      async markPacketAvailable(input) {
+        const result = await repository.markPacketAvailable(input);
+        signalCommitted();
+        await release;
+        return result;
+      },
+    };
+    const { service } = setup({}, gated);
+    await prepare(service, id);
+    const submitting = service.submit(source, packet(id, "committed-envelope"));
+    await committed;
+    try {
+      await expect(service.sourceSeen(source, id)).rejects.toThrow(
+        "TRANSFER_CONFLICT",
+      );
+      expect((await service.read(recipient, id))?.state).toBe(
+        "PACKET_AVAILABLE_EPHEMERAL",
+      );
+    } finally {
+      finishSubmit();
+      await submitting;
+    }
+    await expect(service.receive(recipient, id)).resolves.toMatchObject({
+      envelope: "committed-envelope",
+    });
+    await expect(
+      service.acknowledge(recipient, {
+        requestId: id,
+        packetId: idFor(7),
+        importDecision: "IMPORTED",
+      }),
+    ).resolves.toMatchObject({ state: "COMPLETED" });
+  });
+
   it("reserves before the durable transition and keeps reservations unreadable", async () => {
     const repository = createMemoryTransferRepository();
     let finishMark!: () => void;
@@ -664,7 +708,7 @@ describe("D3S2-2A control-plane foundation", () => {
       reserved: 1,
     });
     await expect(service.receive(recipient, id)).rejects.toThrow(
-      "SOURCE_OFFLINE",
+      "TRANSFER_CONFLICT",
     );
     finishMark();
     await submitting;
