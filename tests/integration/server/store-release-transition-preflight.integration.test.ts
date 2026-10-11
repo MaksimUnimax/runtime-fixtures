@@ -113,6 +113,17 @@ async function resetTransitionCatalog() {
       ].join(",") +
       " RESTART IDENTITY CASCADE",
   );
+  // Restore the exact unpublished seed removed by this fixture's TRUNCATE CASCADE.
+  await q(
+    "INSERT INTO ai_prompt_tree_heads(target,draft) VALUES ('template',$1::jsonb)",
+    [
+      JSON.stringify({
+        format: "octoport_prompt_tree_v1",
+        root: null,
+        nodes: [],
+      }),
+    ],
+  );
 }
 
 async function seedV2BaseConfig() {

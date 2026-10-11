@@ -735,6 +735,14 @@ export async function makeWorker(directory, options = {}) {
       ).push(record);
       const healthEndpoint = record.url.endsWith("/v1/health-authority");
       const syncEndpoint = record.url.endsWith("/v1/sync");
+      const target = new URL(record.url);
+      if (target.origin === fixtureConfig.controlApiOrigin &&
+          target.pathname === "/v1/ai-prompt-tree") {
+        // This lifecycle fixture has no published tree. Keep the real client's
+        // unavailable-tree fallback separate from the business-request race hook.
+        return Response.json({ error: { code: "SERVICE_UNAVAILABLE", message: "AI tree unavailable" } },
+          { status: 503 });
+      }
       if (syncEndpoint && options.syncFetch)
         return options.syncFetch(String(url), init, controlNetwork.length);
       if (syncEndpoint) {

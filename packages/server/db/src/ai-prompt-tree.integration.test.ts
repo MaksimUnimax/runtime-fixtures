@@ -21,11 +21,14 @@ if (
     "R3 exact isolated database URL required; never use shared DATABASE_URL",
   );
 const baseline = process.env.R3_TREE_BASELINE_MIGRATIONS;
-if (
-  !baseline?.startsWith(
-    "/root/octoport-control/temporary/controller/OPERATOR-R3-PERSONAL-DB-20261010/",
-  )
-)
+const ownerBaseline = baseline?.startsWith(
+  "/root/octoport-control/temporary/controller/OPERATOR-R3-PERSONAL-DB-20261010/",
+);
+const ciBaseline =
+  process.env.GITHUB_ACTIONS === "true" &&
+  Boolean(process.env.RUNNER_TEMP?.startsWith("/")) &&
+  baseline === process.env.RUNNER_TEMP + "/octoport-r3-baseline-0058";
+if (!ownerBaseline && !ciBaseline)
   throw new Error("R3 isolated baseline migrations required");
 const USER = "51000000-0000-4000-8000-000000000001",
   ACTOR = "51000000-0000-4000-8000-000000000002";

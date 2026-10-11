@@ -251,11 +251,11 @@ describe.sequential(
     beforeEach(clean);
     afterAll(() => db.close());
 
-    it("DB-01 exposes the complete current migration journal through 0058", async () => {
+    it("DB-01 exposes the complete current migration journal through 0059", async () => {
       const rows = await q<{ count: string }>(
         "SELECT count(*)::text AS count FROM drizzle.__drizzle_migrations",
       );
-      expect(rows.rows[0]?.count).toBe("47");
+      expect(rows.rows[0]?.count).toBe("48");
     });
     it("DB-02 enforces one current non-expired subscription", async () => {
       const f = await fixture();
@@ -1470,7 +1470,7 @@ describe.sequential(
       expect(source).not.toContain("/v1/billing/checkouts");
       expect(source).not.toContain("/v1/webhooks");
     });
-    it("STATIC-71 OpenAPI current repository artifact has 149 operations and exact hash", async () => {
+    it("STATIC-71 OpenAPI current repository artifact has 154 operations and exact hash", async () => {
       const artifact = JSON.parse(
         await text("packages/contracts/openapi/openapi.json"),
       ) as {
@@ -1484,7 +1484,7 @@ describe.sequential(
           ).length,
         0,
       );
-      expect(count).toBe(149);
+      expect(count).toBe(154);
       expect(
         createHash("sha256")
           .update(
@@ -1494,7 +1494,7 @@ describe.sequential(
           )
           .digest("hex"),
       ).toBe(
-        "182d7ac4b687b6571bf33b3bacfdd0e8268574f39dd7b6bbd97b02f60982d659",
+        "82426d96b2f5c820b80e796c90ab357b4ff9ed2d3e17de8071d8cbfff4e565fa",
       );
     });
     it("STATIC-72 OpenAPI has no checkout, webhook, or fake completion route", async () => {

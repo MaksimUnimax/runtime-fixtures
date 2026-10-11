@@ -158,7 +158,8 @@ def main():
                 report["generation_after"] = worker.evaluate("async()=>SellerAgentsControlClient.generation()")
                 raise
             report["generation_after"] = worker.evaluate("async()=>SellerAgentsControlClient.generation()")
-            assert report["generation_after"] == generation_before + 1, report
+            # Resolving the first AI grant does not rebase an in-flight R3 command.
+            assert report["generation_after"] == generation_before, report
             assert page.evaluate("sent.length") == 1
             assert page.url == target
             assert active["context"]["store_id"] == store["id"]
