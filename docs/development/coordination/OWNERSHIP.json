@@ -39,10 +39,9 @@
   },
   "notes": [
     "A/B/C identify existing MCP dialogue worktrees, not exclusive component ownership.",
-    "Every changed path requires an active, atomic work-board task claim; shared contracts, package manifests and migrations are included.",
+    "Before editing, verify the approved scope and one current author from role checkpoints, Git changes and explicit instructions; no queue claim or task registration is required.",
     "Any role may author approved DB changes using its own isolated test DB; live migration/deployment authority is unchanged.",
     "Any role may publish main with exact candidate/current-base/required CI evidence and non-force history preservation.",
     "No background executor, scheduler or OPERATOR development gate is introduced."
-  ],
-  "taskBoundScope": true
+  ]
 }
