@@ -10,7 +10,7 @@ assert.ok(start >= 0 && end > start, "transferReceivePresentation must stay a st
 const helperSource = source.slice(start, end);
 const transferReceivePresentation = new Function(`${helperSource}; return transferReceivePresentation;`)();
 
-assert.deepEqual(transferReceivePresentation({ ok: true, importState: "IMPORTED", requestId: "request" }), { text: "Передача принята и магазин импортирован.", consume: true });
+assert.deepEqual(transferReceivePresentation({ ok: true, importState: "IMPORTED", requestId: "request" }), { text: "Передача принята, ключи магазинов импортированы.", consume: true });
 assert.deepEqual(transferReceivePresentation({ ok: true, importState: "CONFLICT" }), { text: "Передача получена, но импорт остановлен из-за конфликта магазина.", consume: false });
 assert.deepEqual(transferReceivePresentation({ ok: false, code: "SOURCE_OFFLINE", importState: "SOURCE_OFFLINE" }), { text: "Источник ещё не доставил передачу.", consume: false });
 assert.deepEqual(transferReceivePresentation({ ok: false, importState: "PENDING" }), { text: "Активной передачи для получения нет.", consume: false });
