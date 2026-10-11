@@ -15,8 +15,13 @@ assert.deepEqual(transferReceivePresentation({ ok: true, importState: "CONFLICT"
 assert.deepEqual(transferReceivePresentation({ ok: false, code: "SOURCE_OFFLINE", importState: "SOURCE_OFFLINE" }), { text: "Источник ещё не доставил передачу.", consume: false });
 assert.deepEqual(transferReceivePresentation({ ok: false, importState: "PENDING" }), { text: "Активной передачи для получения нет.", consume: false });
 assert.equal(transferReceivePresentation({ ok: false, code: "TRANSFER_REPLAY" }), null);
+assert.equal(transferReceivePresentation({
+  ok: false, code: "TRANSFER_ACK_UNCONFIRMED", importState: "IMPORTED_PENDING_ACK",
+  requestId: "request", result: { requestId: "request", importState: "IMPORTED" },
+  recovered: true, ackConfirmed: false,
+}), null, "unconfirmed ACK must not be rendered or consumed as imported success");
 
 assert.match(source, /chrome\.runtime\.sendMessage\(\{ type: "SA_TRANSFER_RECEIVE_PENDING", tab_id: tabId \}\)/);
 assert.match(source, /transfer-receive[\s\S]*requestTransferReceivePending\(\)/);
 assert.doesNotMatch(source, /request\("SA_TRANSFER_RECEIVE_PENDING"\)/);
-console.log(JSON.stringify({ status: "PASS", scope: "A02_TRANSFER_POPUP_RECEIVE_OUTCOMES", cases: 5 }, null, 2));
+console.log(JSON.stringify({ status: "PASS", scope: "A02_TRANSFER_POPUP_RECEIVE_OUTCOMES", cases: 6 }, null, 2));
