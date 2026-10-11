@@ -110,13 +110,13 @@ export function isPublicOfficialSourceAddress(
 
 type ResolvedOfficialAddress = { address: string; family: 4 | 6 };
 
-export async function selectVerifiedOfficialAddress(
+async function selectVerifiedOfficialAddresses(
   hostname: string,
   resolver: (
     host: string,
   ) => Promise<readonly { address: string; family: number }[]> = async (host) =>
     lookup(host, { all: true, order: "verbatim" }),
-): Promise<ResolvedOfficialAddress> {
+): Promise<ResolvedOfficialAddress[]> {
   const values = await resolver(hostname);
   if (
     !Array.isArray(values) ||
@@ -129,8 +129,21 @@ export async function selectVerifiedOfficialAddress(
     )
   )
     throw new Error("OFFICIAL_SOURCE_DNS_ADDRESS_FORBIDDEN");
-  const first = values[0]!;
-  return { address: first.address, family: first.family as 4 | 6 };
+  return values.map(({ address, family }) => ({
+    address,
+    family: family as 4 | 6,
+  }));
+}
+
+// Preserve the existing single-address helper for callers; the socket lookup
+// below supplies the complete vetted set to Node\'s native bounded fallback.
+export async function selectVerifiedOfficialAddress(
+  hostname: string,
+  resolver?: (
+    host: string,
+  ) => Promise<readonly { address: string; family: number }[]>,
+): Promise<ResolvedOfficialAddress> {
+  return (await selectVerifiedOfficialAddresses(hostname, resolver))[0]!;
 }
 
 // Per-redirect-hop socket binding is essential: an independent DNS precheck
@@ -161,13 +174,13 @@ async function pinnedOfficialSourceFetch(
   // trusted connection from crossing into another redirect authority.
   const agent = new HttpsAgent({
     keepAlive: false,
-    autoSelectFamily: false,
+    autoSelectFamily: true,
     maxCachedSessions: 0,
     lookup(hostname, options, callback) {
-      selectVerifiedOfficialAddress(hostname).then(
-        ({ address, family }) => {
-          if (options.all) callback(null, [{ address, family }]);
-          else callback(null, address, family);
+      selectVerifiedOfficialAddresses(hostname).then(
+        (addresses) => {
+          if (options.all) callback(null, addresses);
+          else callback(null, addresses[0]!.address, addresses[0]!.family);
         },
         (error: unknown) =>
           callback(
@@ -401,226 +414,227 @@ export async function acquireOfficialSource(input: {
   let redirects = 0;
   let consecutiveOzonAccessControlRedirects = 0;
   let response: Response;
+  let responseToClose: Response | undefined;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    while (true) {
-      response = await fetcher(currentUrl, {
-        method: "GET",
-        redirect: "manual",
-        signal: controller.signal,
-      });
-      if (![301, 302, 303, 307, 308].includes(response.status)) break;
-      const location = response.headers.get("location");
-      if (!location) {
-        clearTimeout(timer);
-        return failure(
+    try {
+      while (true) {
+        response = await fetcher(currentUrl, {
+          method: "GET",
+          redirect: "manual",
+          signal: controller.signal,
+        });
+        responseToClose = response;
+        if (![301, 302, 303, 307, 308].includes(response.status)) break;
+        const location = response.headers.get("location");
+        if (!location) {
+          return failure(
+            entry,
+            "INVALID_OFFICIAL_SOURCE_RESPONSE",
+            "Redirect policy rejected the response.",
+            response.status,
+          );
+        }
+        let nextUrl: URL;
+        try {
+          nextUrl = new URL(location, currentUrl);
+        } catch {
+          return failure(
+            entry,
+            "INVALID_OFFICIAL_SOURCE_RESPONSE",
+            "Redirect location is not a valid official URL.",
+            response.status,
+          );
+        }
+        if (!isTrustedOfficialAuthority(official, nextUrl, hosts)) {
+          return failure(
+            entry,
+            "INVALID_OFFICIAL_SOURCE_RESPONSE",
+            "Redirect left the accepted official HTTPS authority policy.",
+            response.status,
+          );
+        }
+        const ozonAccessControlRedirect = isOzonAccessControlRedirect(
           entry,
-          "INVALID_OFFICIAL_SOURCE_RESPONSE",
-          "Redirect policy rejected the response.",
-          response.status,
+          currentUrl,
+          nextUrl,
         );
+        consecutiveOzonAccessControlRedirects = ozonAccessControlRedirect
+          ? consecutiveOzonAccessControlRedirects + 1
+          : 0;
+        if (redirects >= maxRedirects) {
+          return consecutiveOzonAccessControlRedirects >= maxRedirects + 1
+            ? failure(
+                entry,
+                "OPERATOR_SOURCE_REQUIRED",
+                "Official Ozon documentation is behind an access-control redirect loop; an official operator-supplied source is required.",
+                response.status,
+              )
+            : failure(
+                entry,
+                "INVALID_OFFICIAL_SOURCE_RESPONSE",
+                "Redirect policy rejected the response.",
+                response.status,
+              );
+        }
+        redirects += 1;
+        await response.body?.cancel().catch(() => undefined);
+        currentUrl = nextUrl.toString();
       }
-      let nextUrl: URL;
-      try {
-        nextUrl = new URL(location, currentUrl);
-      } catch {
-        clearTimeout(timer);
-        return failure(
-          entry,
-          "INVALID_OFFICIAL_SOURCE_RESPONSE",
-          "Redirect location is not a valid official URL.",
-          response.status,
-        );
-      }
-      if (!isTrustedOfficialAuthority(official, nextUrl, hosts)) {
-        clearTimeout(timer);
-        return failure(
-          entry,
-          "INVALID_OFFICIAL_SOURCE_RESPONSE",
-          "Redirect left the accepted official HTTPS authority policy.",
-          response.status,
-        );
-      }
-      const ozonAccessControlRedirect = isOzonAccessControlRedirect(
-        entry,
-        currentUrl,
-        nextUrl,
-      );
-      consecutiveOzonAccessControlRedirects = ozonAccessControlRedirect
-        ? consecutiveOzonAccessControlRedirects + 1
-        : 0;
-      if (redirects >= maxRedirects) {
-        clearTimeout(timer);
-        return consecutiveOzonAccessControlRedirects >= maxRedirects + 1
-          ? failure(
-              entry,
-              "OPERATOR_SOURCE_REQUIRED",
-              "Official Ozon documentation is behind an access-control redirect loop; an official operator-supplied source is required.",
-              response.status,
-            )
-          : failure(
-              entry,
-              "INVALID_OFFICIAL_SOURCE_RESPONSE",
-              "Redirect policy rejected the response.",
-              response.status,
-            );
-      }
-      redirects += 1;
-      await response.body?.cancel().catch(() => undefined);
-      currentUrl = nextUrl.toString();
-    }
-  } catch (error) {
-    clearTimeout(timer);
-    return failure(
-      entry,
-      "SOURCE_TEMPORARILY_UNAVAILABLE",
-      error instanceof DOMException && error.name === "AbortError"
-        ? "Official source acquisition timed out."
-        : "Official source network acquisition failed.",
-    );
-  }
-
-  if (
-    response.status === 401 ||
-    response.status === 403 ||
-    response.status === 498
-  ) {
-    clearTimeout(timer);
-    return failure(
-      entry,
-      "OPERATOR_SOURCE_REQUIRED",
-      "Official source requires legitimate operator access.",
-      response.status,
-    );
-  }
-  if (response.status === 429 || response.status >= 500) {
-    clearTimeout(timer);
-    const retryAfter = response.headers.get("retry-after");
-    const parsedRetryAfter =
-      retryAfter && /^\d+(?:\.\d+)?$/.test(retryAfter.trim())
-        ? Number(retryAfter)
-        : null;
-    return failure(
-      entry,
-      "SOURCE_TEMPORARILY_UNAVAILABLE",
-      "Official source returned a transient response.",
-      response.status,
-      parsedRetryAfter,
-    );
-  }
-  if (!response.ok) {
-    clearTimeout(timer);
-    return failure(
-      entry,
-      "INVALID_OFFICIAL_SOURCE_RESPONSE",
-      "Official source returned an unexpected HTTP response.",
-      response.status,
-    );
-  }
-
-  let bytes: Uint8Array;
-  try {
-    bytes = await readBoundedBody(
-      response,
-      Math.min(entry.maximumBytes, API_WATCH_MAX_ARTIFACT_BYTES),
-    );
-  } catch (error) {
-    if (controller.signal.aborted)
+    } catch (error) {
       return failure(
         entry,
         "SOURCE_TEMPORARILY_UNAVAILABLE",
-        "Official source acquisition timed out.",
+        error instanceof DOMException && error.name === "AbortError"
+          ? "Official source acquisition timed out."
+          : "Official source network acquisition failed.",
+      );
+    }
+
+    if (
+      response.status === 401 ||
+      response.status === 403 ||
+      response.status === 498
+    ) {
+      return failure(
+        entry,
+        "OPERATOR_SOURCE_REQUIRED",
+        "Official source requires legitimate operator access.",
         response.status,
       );
-    return failure(
-      entry,
-      "INVALID_OFFICIAL_SOURCE_RESPONSE",
-      error instanceof Error && error.message === "SOURCE_TOO_LARGE"
-        ? "Official source exceeded the bounded artifact size."
-        : "Official source body could not be read safely.",
-      response.status,
-    );
-  } finally {
-    clearTimeout(timer);
-  }
-  if (isHtml(response, bytes)) {
-    return isAccessControlPage(bytes)
-      ? failure(
+    }
+    if (response.status === 429 || response.status >= 500) {
+      const retryAfter = response.headers.get("retry-after");
+      const parsedRetryAfter =
+        retryAfter && /^\d+(?:\.\d+)?$/.test(retryAfter.trim())
+          ? Number(retryAfter)
+          : null;
+      return failure(
+        entry,
+        "SOURCE_TEMPORARILY_UNAVAILABLE",
+        "Official source returned a transient response.",
+        response.status,
+        parsedRetryAfter,
+      );
+    }
+    if (!response.ok) {
+      return failure(
+        entry,
+        "INVALID_OFFICIAL_SOURCE_RESPONSE",
+        "Official source returned an unexpected HTTP response.",
+        response.status,
+      );
+    }
+
+    let bytes: Uint8Array;
+    try {
+      bytes = await readBoundedBody(
+        response,
+        Math.min(entry.maximumBytes, API_WATCH_MAX_ARTIFACT_BYTES),
+      );
+    } catch (error) {
+      if (controller.signal.aborted)
+        return failure(
           entry,
-          "OPERATOR_SOURCE_REQUIRED",
-          "Official source returned an access-control page.",
-          response.status,
-        )
-      : failure(
-          entry,
-          "INVALID_OFFICIAL_SOURCE_RESPONSE",
-          "Official source returned HTML instead of an API document.",
+          "SOURCE_TEMPORARILY_UNAVAILABLE",
+          "Official source acquisition timed out.",
           response.status,
         );
-  }
+      return failure(
+        entry,
+        "INVALID_OFFICIAL_SOURCE_RESPONSE",
+        error instanceof Error && error.message === "SOURCE_TOO_LARGE"
+          ? "Official source exceeded the bounded artifact size."
+          : "Official source body could not be read safely.",
+        response.status,
+      );
+    }
+    if (isHtml(response, bytes)) {
+      return isAccessControlPage(bytes)
+        ? failure(
+            entry,
+            "OPERATOR_SOURCE_REQUIRED",
+            "Official source returned an access-control page.",
+            response.status,
+          )
+        : failure(
+            entry,
+            "INVALID_OFFICIAL_SOURCE_RESPONSE",
+            "Official source returned HTML instead of an API document.",
+            response.status,
+          );
+    }
 
-  const artifactType = artifactTypeFor(currentUrl);
-  const extension =
-    artifactType === "JSON"
-      ? ".json"
-      : artifactType === "YAML"
-        ? ".yaml"
-        : ".yml";
-  try {
-    const validation = validateSwaggerBytes(
-      bytes,
-      `official${extension}`,
-      Math.min(entry.maximumBytes, API_WATCH_MAX_ARTIFACT_BYTES),
-    );
-    if (entry.requiredServerIdentity) {
-      const servers = Array.isArray(validation.document.root.servers)
-        ? validation.document.root.servers
-            .filter(
-              (server): server is Record<string, unknown> =>
-                Boolean(server) && typeof server === "object",
-            )
-            .map((server) => server.url)
-            .filter((url): url is string => typeof url === "string")
-        : [];
-      if (!servers.some((server) => server === entry.requiredServerIdentity))
-        throw new Error("SOURCE_SERVER_IDENTITY_MISMATCH");
+    const artifactType = artifactTypeFor(currentUrl);
+    const extension =
+      artifactType === "JSON"
+        ? ".json"
+        : artifactType === "YAML"
+          ? ".yaml"
+          : ".yml";
+    try {
+      const validation = validateSwaggerBytes(
+        bytes,
+        `official${extension}`,
+        Math.min(entry.maximumBytes, API_WATCH_MAX_ARTIFACT_BYTES),
+      );
+      if (entry.requiredServerIdentity) {
+        const servers = Array.isArray(validation.document.root.servers)
+          ? validation.document.root.servers
+              .filter(
+                (server): server is Record<string, unknown> =>
+                  Boolean(server) && typeof server === "object",
+              )
+              .map((server) => server.url)
+              .filter((url): url is string => typeof url === "string")
+          : [];
+        if (!servers.some((server) => server === entry.requiredServerIdentity))
+          throw new Error("SOURCE_SERVER_IDENTITY_MISMATCH");
+      }
+      if (entry.titlePattern) {
+        const info = validation.document.root.info;
+        const title =
+          info &&
+          typeof info === "object" &&
+          !Array.isArray(info) &&
+          typeof (info as Record<string, unknown>).title === "string"
+            ? (info as Record<string, unknown>).title
+            : "";
+        if (!entry.titlePattern.test(typeof title === "string" ? title : ""))
+          throw new Error("SOURCE_TITLE_IDENTITY_MISMATCH");
+      }
+      return {
+        kind: "ACQUIRED_OFFICIAL_SOURCE_CANDIDATE",
+        sourceFamily: entry.sourceFamily,
+        officialUrl,
+        bytes,
+        sha256: createHash("sha256").update(bytes).digest("hex"),
+        sizeBytes: bytes.byteLength,
+        specVersion: validation.detectedSpecVersion,
+        artifactType,
+        finalUrl: currentUrl,
+        parserResult: validation.parserResult,
+        validationResult: validation.validationResult,
+        documentKey: document?.documentKey ?? null,
+      };
+    } catch (error) {
+      return failure(
+        entry,
+        "INVALID_OFFICIAL_SOURCE_RESPONSE",
+        error instanceof Error
+          ? error.message
+          : "Official source document validation failed.",
+        response.status,
+      );
     }
-    if (entry.titlePattern) {
-      const info = validation.document.root.info;
-      const title =
-        info &&
-        typeof info === "object" &&
-        !Array.isArray(info) &&
-        typeof (info as Record<string, unknown>).title === "string"
-          ? (info as Record<string, unknown>).title
-          : "";
-      if (!entry.titlePattern.test(typeof title === "string" ? title : ""))
-        throw new Error("SOURCE_TITLE_IDENTITY_MISMATCH");
-    }
-    return {
-      kind: "ACQUIRED_OFFICIAL_SOURCE_CANDIDATE",
-      sourceFamily: entry.sourceFamily,
-      officialUrl,
-      bytes,
-      sha256: createHash("sha256").update(bytes).digest("hex"),
-      sizeBytes: bytes.byteLength,
-      specVersion: validation.detectedSpecVersion,
-      artifactType,
-      finalUrl: currentUrl,
-      parserResult: validation.parserResult,
-      validationResult: validation.validationResult,
-      documentKey: document?.documentKey ?? null,
-    };
-  } catch (error) {
-    return failure(
-      entry,
-      "INVALID_OFFICIAL_SOURCE_RESPONSE",
-      error instanceof Error
-        ? error.message
-        : "Official source document validation failed.",
-      response.status,
-    );
+  } finally {
+    // Headers can finish acquisition before their body ends. Abort the same
+    // request deadline owner on every exit, then cancel any unread body.
+    // Do not await a trusted test adapter's possibly unbounded cancellation.
+    controller.abort();
+    clearTimeout(timer);
+    void responseToClose?.body?.cancel().catch(() => undefined);
   }
 }
 
