@@ -10,12 +10,13 @@ assert.ok(start >= 0 && end > start, "transferReceivePresentation must stay a st
 const helperSource = source.slice(start, end);
 const transferReceivePresentation = new Function(`${helperSource}; return transferReceivePresentation;`)();
 
-assert.deepEqual(transferReceivePresentation({ ok: true, importState: "IMPORTED", requestId: "request" }), { text: "Передача принята, ключи магазинов импортированы.", consume: true });
+assert.deepEqual(transferReceivePresentation({ ok: true, importState: "IMPORTED", requestId: "request" }), { text: "Передача принята и магазин импортирован.", consume: true });
 assert.deepEqual(transferReceivePresentation({ ok: true, importState: "CONFLICT" }), { text: "Передача получена, но импорт остановлен из-за конфликта магазина.", consume: false });
 assert.deepEqual(transferReceivePresentation({ ok: false, code: "SOURCE_OFFLINE", importState: "SOURCE_OFFLINE" }), { text: "Источник ещё не доставил передачу.", consume: false });
 assert.deepEqual(transferReceivePresentation({ ok: false, importState: "PENDING" }), { text: "Активной передачи для получения нет.", consume: false });
 assert.equal(transferReceivePresentation({ ok: false, code: "TRANSFER_REPLAY" }), null);
 assert.deepEqual(transferReceivePresentation({ ok: false, code: "TRANSFER_CREDENTIALS_MISSING", importState: "EMPTY_TRANSFER" }), { text: "В полученной передаче нет ключей. Ничего не импортировано.", consume: false });
+assert.equal(transferReceivePresentation({ ok: false, code: "TRANSFER_ACK_UNCONFIRMED", importState: "IMPORTED_PENDING_ACK", requestId: "request", result: { requestId: "request", importState: "IMPORTED" }, recovered: true, ackConfirmed: false }), null, "unconfirmed ACK must not be rendered or consumed as imported success");
 
 assert.match(source, /chrome\.runtime\.sendMessage\(\{ type: "SA_TRANSFER_RECEIVE_PENDING", tab_id: tabId \}\)/);
 assert.match(source, /transfer-receive[\s\S]*requestTransferReceivePending\(\)/);
@@ -36,4 +37,4 @@ assert.deepEqual(await createRequest("", true), [{ type: "SA_TRANSFER_CREATE", b
 assert.deepEqual(await createRequest("selected", true), [{ type: "SA_TRANSFER_CREATE", body: { consent: true, selectedStoreIds: ["selected"] } }]);
 await assert.rejects(createRequest("", false), /согласие/);
 
-console.log(JSON.stringify({ status: "PASS", scope: "A02_TRANSFER_POPUP_RECEIVE_OUTCOMES", cases: 9 }, null, 2));
+console.log(JSON.stringify({ status: "PASS", scope: "A02_TRANSFER_POPUP_RECEIVE_OUTCOMES", cases: 10 }, null, 2));
