@@ -765,5 +765,201 @@ await test('PAR-29-package-subset-auth-migration-write-failure-never-opens-worke
  }
 });
 
+await test('PAR-29-package-subset-migration-readback-failure-no-effects',async()=>{
+ const seed=await setup();let original;
+ try{original=plain(seed.worker.backing);}finally{seed.worker.close();}
+ const backing=plain(original),raw=backing.local.seller_agents_control_auth_v2;
+ delete raw.authStateSchema;delete raw.authMigration;delete raw.grants;delete raw.principalEpoch;delete raw.accessEpoch;
+ let migrationWritten=false,blockedReads=0;
+ const worker=await makeWorker(runtime,{backing,indexedDB:fakeIDB(),onStorageWrite:async(kind,values)=>{
+   if(kind==='local'&&values.seller_agents_control_auth_v2?.authMigration?.phase==='COMMITTED')migrationWritten=true;
+ },onStorageRead:(kind,keys)=>{
+   if(migrationWritten && kind==='local' && (keys==null || [keys].flat().includes('seller_agents_control_auth_v2'))){
+     blockedReads++;throw new Error('injected migration readback failure');
+   }
+ }});
+ try{
+   let allowed=false;
+   try{allowed=await worker.call('SellerAgentsControlClient.canWork','chatgpt');}
+   catch(error){assert.match(String(error),/AUTH_STATE_COMMIT_UNCONFIRMED|injected migration readback failure/);}
+   assert.equal(allowed,false);assert.equal(migrationWritten,true);assert.ok(blockedReads>0);
+   assert.equal(await worker.call('SellerAgentsControlClient.canWork','chatgpt'),false);
+   assert.equal(worker.network.length,0);assert.equal(worker.messages.length,0);
+ }finally{worker.close();}
+});
+
+await test('PAR-29-package-subset-legacy-denied-and-orphan-stay-closed-across-restarts',async()=>{
+ const seed=await setup();let original;
+ try{await seed.worker.call('SellerAgentsControlClient.canWork','chatgpt');original=plain(seed.worker.backing);}finally{seed.worker.close();}
+ for(const scenario of ['explicit-deny','signed-out-orphan']){
+  let backing=plain(original),raw=backing.local.seller_agents_control_auth_v2;
+  delete raw.authStateSchema;delete raw.authMigration;delete raw.grants;delete raw.principalEpoch;delete raw.accessEpoch;
+  if(scenario==='explicit-deny')raw.authority.workAllowed=false;
+  else raw.credentials=null;
+  const originalExpiry=raw.authority.payload.expiresAt;
+  let migrationId;
+  for(let restart=0;restart<2;restart++){
+   const worker=await makeWorker(runtime,{backing,indexedDB:fakeIDB()});
+   try{
+    for(const ai of ['chatgpt','alice'])assert.equal(await worker.call('SellerAgentsControlClient.canWork',ai),false,scenario+':'+restart+':'+ai);
+    const saved=plain(worker.backing.local.seller_agents_control_auth_v2);
+    assert.equal(saved.authStateSchema,2);assert.equal(saved.authMigration.phase,'COMMITTED');
+    if(restart===0)migrationId=saved.authMigration.migrationId;else assert.equal(saved.authMigration.migrationId,migrationId);
+    assert.ok(Object.values(saved.grants||{}).every(grant=>grant.authority.workAllowed!==true));
+    if(scenario==='explicit-deny'){
+     assert.equal(saved.authority.workAllowed,false);assert.equal(saved.authority.payload.expiresAt,originalExpiry);
+    }else{
+     assert.equal(saved.credentials,null);assert.equal(saved.authority,null);assert.equal(saved.cacheClock,null);
+    }
+    assert.equal(worker.network.length,0);assert.equal(worker.messages.length,0);
+    backing=plain(worker.backing);
+   }finally{worker.close();}
+  }
+ }
+});
+
+await test('R3-branding-default-Ozon-Start-keeps-protocol-and-custom-text',async()=>{
+ const s=await setup();
+ try{
+  const store=await s.save(ozon('FIXTURE_BRAND_CLIENT','FIXTURE_BRAND_KEY'));
+  await s.start(store);
+  const prompts=s.worker.messages.filter(message=>message.type==='OZ_WORK_SEND_INITIAL_PROMPT');
+  assert.equal(prompts.length,1);const text=prompts[0].prompt_text;
+  assert.match(text,/НАЧАЛО РАБОТЫ С OCTOPORT/);
+  assert.doesNotMatch(text,/Ozon Bridge/i,'default Start must not request the former product name');
+  for(const protocol of ['OZON_API_V1','OZON_HELP_V2','OZON_RESULT_V1'])assert.ok(text.includes(protocol),protocol);
+  assert.ok(text.includes('кнопку Ozon'));
+  const saved={text:'Моя сохранённая инструкция Ozon Bridge / OZON_API_V1',is_default:false,updated_at:'2026-10-01T00:00:00.000Z'};
+  const normalized=await s.worker.call('normalizeGlobalAutoStartPromptRecord',saved);
+  assert.equal(normalized.changed,false);assert.deepEqual(plain(normalized.record),saved);
+  assert.equal(s.worker.network.length,0);
+ }finally{s.worker.close();}
+});
+
+await test('R3-bootstrap-safe-rejection-diagnostic-survives-restart', async () => {
+  const authKey='seller_agents_control_auth_v2'; let worker, payload, fixtureCalls=0;
+  worker=await makeWorker(runtime,{fetch:async url=>{
+    assert.ok(url.endsWith('/v1/bootstrap'));fixtureCalls++;
+    return new Response(JSON.stringify(await signFixtureBootstrap(worker.backing,payload)),{status:200,headers:{'content-type':'application/json'}});
+  }});
+  let backing, diagnostic;
+  try {
+    payload=structuredClone(worker.backing.local[authKey].authority.payload);
+    const secrets=[worker.backing.local[authKey].credentials.accessToken,worker.backing.local[authKey].credentials.refreshToken,payload.account.id,payload.ai.profile.profileKey];
+    payload.compatibility.extension.status='UPDATE_REQUIRED';
+    await assert.rejects(worker.call('SellerAgentsControlClient.bootstrap',{detectedAi:{family:'chatgpt',surface:'web',variant:null}}),e=>e.code==='BOOTSTRAP_PROFILE_INCOMPATIBLE');
+    const status=await worker.call('SellerAgentsControlClient.status');
+    assert.equal(status.authenticated,false);assert.equal(status.workAllowed,false);assert.equal(status.authority,null);
+    diagnostic=plain(status.lastError.bootstrapDiagnostic);
+    assert.equal(diagnostic.stage,'SIGNED_AUTHORITY');assert.equal(diagnostic.diagnosticVersion,'bootstrap_rejection_v1');
+    assert.deepEqual(diagnostic.checks,[{check:'PAYLOAD_VARIANT',passed:true},{check:'PAYLOAD_PRESENT',passed:true},{check:'ACCESS_BASIS_ALLOWED',passed:true},{check:'ACCOUNT_ACTIVE',passed:true},{check:'DEVICE_ACTIVE',passed:true},{check:'EXTENSION_STATUS_ALLOWED',passed:false}]);
+    assert.match(diagnostic.recordedAt,/^\d{4}-\d{2}-\d{2}T/);
+    const support=await worker.popup({type:'SA_SUPPORT_SNAPSHOT',tab_id:worker.tabId});assert.equal(support.ok,true);assert.deepEqual(plain(support.snapshot.auth.bootstrapRejection),diagnostic);assert.equal(support.snapshot.auth.bootstrapRetryAvailable,true);
+    for(const secret of secrets)assert.ok(!JSON.stringify(support.snapshot).includes(secret),'support projection must exclude identifiers and credentials');
+    assert.equal(fixtureCalls,1);backing=worker.backing;
+  }finally{worker.close();}
+  worker=await makeWorker(runtime,{backing,fetch:async()=>{throw new Error('Unexpected diagnostic restore network');}});
+  try {
+    const support=await worker.popup({type:'SA_SUPPORT_SNAPSHOT',tab_id:worker.tabId});assert.deepEqual(plain(support.snapshot.auth.bootstrapRejection),diagnostic);assert.equal(support.snapshot.auth.workAllowed,false);
+    assert.equal(worker.network.length,0);
+  }finally{worker.close();}
+  backing.local[authKey].lastError.bootstrapDiagnostic.checks.push({check:'SECRET_FIXTURE_NOT_ALLOWED',passed:false});
+  worker=await makeWorker(runtime,{backing,fetch:async()=>{throw new Error('Unexpected diagnostic sanitizer network');}});
+  try {
+    const support=await worker.popup({type:'SA_SUPPORT_SNAPSHOT',tab_id:worker.tabId});assert.equal(support.snapshot.auth.bootstrapRejection,null);assert.ok(!JSON.stringify(support.snapshot).includes('SECRET_FIXTURE_NOT_ALLOWED'));assert.equal(support.snapshot.auth.lastErrorCode,'BOOTSTRAP_PROFILE_INCOMPATIBLE');assert.equal(support.snapshot.auth.workAllowed,false);
+  }finally{worker.close();}
+});
+
+await test('PAR-28-package-subset-late-snapshot-after-Finish-and-rebind',async()=>{
+ for(const transition of process.argv[4]?[process.argv[4]]:['finish','rebind']){
+  const s=await setup({syncFetch:async()=>new Response('{"code":"TEMPORARILY_UNAVAILABLE"}',{status:503,headers:{'content-type':'application/json'}})});
+  let backing,idb,key,expected;
+  try {
+   const a=await s.save(wb('FIXTURE_PAR28_A')),b=await s.save(wb('FIXTURE_PAR28_B'));
+   const started=await s.start(a);key=started.key;
+   const oldBinding=plain(await s.worker.call('bindingForConversationKey',key));
+   const context={conversationKey:key,binding:oldBinding,store:a,workGeneration:started.session.start_intent_id};
+   const intent=plain(await s.worker.call('SellerAgentsSyncJournal.createSnapshotReadIntent',context));
+   const journal=await s.worker.call('SellerAgentsSyncJournal.read');
+   const bound=Object.values(journal.entries).filter(e=>e.kind==='BINDING_UPSERT'&&e.entityId===intent.entityIds[0]).at(-1);
+   assert.ok(bound,'actual Start must record its binding');
+   if(transition==='finish')assert.equal((await s.popup('OZ_WORK_FINISH',{conversation_key:key})).ok,true);
+   else await s.start(b,{confirm:true});
+   expected=plain(await s.worker.call('workSessionFor',key));
+   const currentBinding=plain(await s.worker.call('bindingForConversationKey',key));
+   const messages=s.worker.messages.length;
+   const late=await s.worker.call('SellerAgentsSyncJournal.applySnapshotRead',{intent,currentConversationKey:key,binding:oldBinding,store:a,workGeneration:started.session.start_intent_id,snapshots:[{entityId:intent.entityIds[0],serverRevision:999999,serverState:plain(bound.payload)}]});
+   assert.equal(late.applied,false);assert.equal(late.code,'SYNC_SNAPSHOT_CONTEXT_STALE');
+   assert.deepEqual(plain(await s.worker.call('workSessionFor',key)),expected);
+   assert.deepEqual(plain(await s.worker.call('bindingForConversationKey',key)),currentBinding);
+   assert.equal(s.worker.messages.length,messages,'late snapshot itself must not send any message');
+   if(transition==='finish'){assert.equal(expected.finished,true);assert.equal((await s.popup('SA_WORK_RESUME',{conversation_key:key})).code,'WORK_SESSION_FINISHED');}
+   else {assert.equal(currentBinding.store_context.storeId,b.id);assert.notEqual(expected.start_intent_id,started.session.start_intent_id);}
+   assert.equal(s.worker.network.length,0);
+   backing=s.worker.backing;idb=s.worker.idb;
+  }finally{s.worker.close();}
+  const reopened=await makeWorker(runtime,{backing,indexedDB:idb,syncFetch:async()=>new Response('{}',{status:503}),fetch:async()=>{throw new Error('No provider calls allowed in PAR28 restart');}});
+  try{
+   const restored=await reopened.call('workSessionFor',key);assert.equal(restored.start_intent_id,expected.start_intent_id);assert.equal(restored.finished,expected.finished);assert.equal(reopened.network.length,0);assert.equal(reopened.messages.length,0);
+  }finally{reopened.close();}
+ }
+});
+
+await test('PAR-28-rebind-finish-guard-rejects-wrong-terminal',async()=>{
+ for(const failure of ['foreign-work','unknown-terminal','not-finished','wrong-revision']){
+  const s=await setup();
+  try{
+   const a=await s.save(wb('FIXTURE_GUARD_A')),b=await s.save(wb('FIXTURE_GUARD_B'));const started=await s.start(a);
+   await s.worker.call(`(mode => { const guard=saRebindAfterFinishGuard; saRebindAfterFinishGuard=async token=>{const read=saReadAdmissionSnapshot;saReadAdmissionSnapshot=async input=>{const current=await read(input),fence={...current.fence},work={...current.work};if(mode==='foreign-work'){fence.workIntentId='fixture-foreign-work';work.work_session_id='fixture-foreign-work';}if(mode==='unknown-terminal')work.terminal_state_known=false;if(mode==='not-finished')work.finished=false;if(mode==='wrong-revision')fence.workRevision+=1;return {...current,fence,work};};try{return await guard(token);}finally{saReadAdmissionSnapshot=read;}};return true;})`,failure);
+   const before=s.worker.messages.filter(x=>x.type==='OZ_WORK_SEND_INITIAL_PROMPT').length;
+   const response=await s.popup('SA_WORK_START',{store_id:b.id,confirm_change:true});
+   assert.equal(response.ok,false);assert.equal(response.code,'WORK_ADMISSION_CONTEXT_CHANGED');
+   assert.equal((await s.worker.call('bindingForConversationKey',started.key)).store_context.storeId,a.id);
+   assert.equal((await s.worker.call('workSessionFor',started.key)).finished,true);
+   assert.equal(s.worker.messages.filter(x=>x.type==='OZ_WORK_SEND_INITIAL_PROMPT').length,before);assert.equal(s.worker.network.length,0);
+  }finally{s.worker.close();}
+ }
+});
+
+
+await test('A06-popup-unconfirmed-ACK-is-truthful-and-nonconsuming', async () => {
+  const { readFileSync } = await import('node:fs');
+  const source = readFileSync(path.join(runtime, 'popup.js'), 'utf8');
+  const start = source.indexOf('function transferReceivePresentation(result)');
+  const end = source.indexOf('\nasync function requestTransferReceivePending()', start);
+  assert.ok(start >= 0 && end > start);
+  const presentation = new Function(source.slice(start, end) + '; return transferReceivePresentation;')();
+  const statusStart = source.indexOf('function actionSuccessText(result)');
+  const status = new Function(source.slice(statusStart, start) + '; return actionSuccessText;')();
+  const cases = [
+    [{ok:false,code:'TRANSFER_ACK_UNCONFIRMED',importState:'IMPORTED_PENDING_ACK',ackConfirmed:false,result:{stores:['PRIVATE_FIXTURE']}}, /сохранён локально.*не подтвердил/i],
+    [{ok:false,code:'TRANSFER_REQUEST_MISMATCH',importState:'IMPORTED_PENDING_ACK',ackConfirmed:false}, /не подтвердил завершение/i],
+    ...['TRANSFER_EXPIRED','TRANSFER_REPLAY','TRANSFER_ACK_UNCONFIRMED'].map(code => [{ok:false,code,importState:'PENDING',ackConfirmed:false}, /не подтвердил завершение/i]),
+    [{ok:false,code:'TRANSFER_EXPIRED',importState:'EXPIRED',ackConfirmed:false}, /подтвердил.*истёк/i],
+    [{ok:false,code:'TRANSFER_REPLAY',importState:'CANCELLED',ackConfirmed:false}, /подтвердил отмену/i],
+  ];
+  const handlerStart = source.indexOf('$("transfer-receive").onclick =');
+  const handlerEnd = source.indexOf('\n$("support-generate")', handlerStart);
+  assert.ok(handlerStart >= 0 && handlerEnd > handlerStart);
+  for (const [response, expected] of cases) {
+    const shown = presentation(response);
+    assert.match(shown.text, expected); assert.equal(shown.consume, false);
+    assert.doesNotMatch(shown.text, /PRIVATE_FIXTURE|Передача принята|Создайте новый запрос/);
+    const elements = {'transfer-receive':{},'transfer-status':{}}, calls=[];
+    let result;
+    const install = new Function('$','action','requestTransferReceivePending','request',source.slice(handlerStart,handlerEnd));
+    install(id=>elements[id],async fn=>{result=await fn();},async()=>({response,presentation:shown}),async(...args)=>calls.push(args));
+    await elements['transfer-receive'].onclick();
+    assert.equal(elements['transfer-status'].textContent,shown.text);
+    assert.equal(status(result),shown.text,'general status must not claim generic success');
+    assert.deepEqual(calls,[],'unconfirmed/terminal result must not be consumed');
+  }
+  for (const code of ['TRANSFER_ACCOUNT_MISMATCH','AUTH_REQUIRED']) {
+    assert.equal(presentation({ok:false,code,importState:'PENDING',ackConfirmed:false}),null);
+  }
+  assert.equal(presentation({ok:false,code:'TRANSFER_ACK_UNCONFIRMED',importState:'IMPORTED_PENDING_ACK'}),null);
+  assert.equal(presentation({ok:true,importState:'IMPORTED',requestId:'fixture'}).consume,true);
+});
+
 if (selectedScenario && results.length !== 1) throw new Error('Selected scenario was not executed');
 console.log(JSON.stringify({ status:'PASS', results, live_provider_calls:0, scope:'actual generated worker/popup messages and attachment port; simulated browser and provider; not installed live acceptance' },null,2));

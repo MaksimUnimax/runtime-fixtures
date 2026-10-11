@@ -688,7 +688,10 @@ async function saRebindAfterFinishGuard(token) {
   const current = await saReadAdmissionSnapshot({ operation: "start", tabId: token.tabId, store: token.store, intentId: token.intentId, conversationKey: token.conversationKey, admissionEpoch: token.id });
   const plan = token.rebindPlan;
   const unchanged = ["accountId", "generation", "deviceId", "sessionId", "authorityIdentity", "bootstrapSnapshotSha256", "tabId", "origin", "pageSource", "chatPath", "aiId", "aiProfileKey", "aiProfileRevision", "aiProfileScopeVariant", "aiProfileContentSha256", "conversationKey", "conversationId", "pendingIdentityState", "bindingId", "bindingIdentity", "bindingStoreId", "bindingStoreMarketplace", "bindingStoreCredentialRevision", "storeId", "selectedStoreId", "marketplace", "credentialRevision", "bindingRevision"].every(field => token.fence[field] === current.fence[field]);
-  if (!unchanged || current.fence.workState !== OzonWorkSessionModel.STATES.INACTIVE || current.fence.workIntentId !== null || current.fence.workRevision !== token.sourceRevisionAtAdmission + 2) {
+  // R3 retains the finished Work identity as a durable denial marker.
+  const sourceFinished = current.work?.terminal_state_known === true && current.work?.finished === true &&
+    current.fence.workIntentId === plan.sourceWorkIntentId && current.work?.work_session_id === plan.sourceWorkIntentId;
+  if (!unchanged || current.fence.workState !== OzonWorkSessionModel.STATES.INACTIVE || !sourceFinished || current.fence.workRevision !== token.sourceRevisionAtAdmission + 2) {
     token.cancelled = true;
     throw saAdmissionError("WORK_ADMISSION_CONTEXT_CHANGED");
   }
@@ -1377,6 +1380,8 @@ async function saSupportSnapshot(tabId) {
       authenticated: popup.auth?.authenticated === true,
       workAllowed: popup.auth?.workAllowed === true,
       lastErrorCode: saSupportCode(popup.auth?.lastError?.code),
+      bootstrapRejection: popup.auth?.lastError?.bootstrapDiagnostic || null,
+      bootstrapRetryAvailable: popup.auth?.bootstrapRetryAvailable === true,
       aiStatus: saSupportToken(popup.auth?.authority?.aiStatus),
       compatibility: popup.auth?.compatibility ? {
         extensionStatus: saSupportCode(popup.auth.compatibility.extension?.status),
@@ -1656,6 +1661,33 @@ async function saHandleMessage(message, sender) {
             if (request?.state === "COMPLETED") { await SellerAgentsControlClient.discardCredentialTransfer(local.requestId); continue; }
             if (request?.state === "PACKET_AVAILABLE_EPHEMERAL" || request?.state === "DELIVERED_TO_RECIPIENT") { pending = await saTransferReceive({ request }); break; }
           } catch (error) {
+            if (local.phase === "IMPORTED_PENDING_ACK" && local.packetId &&
+                local.result?.requestId === local.requestId) {
+              if (error?.code === "TRANSFER_ACK_TERMINAL" &&
+                  ["CANCELLED", "EXPIRED"].includes(error?.detail?.state)) {
+                // Only the client can certify a terminal readback bound to
+                // the same account, device, request, key and store selection.
+                await SellerAgentsControlClient.discardCredentialTransfer(local.requestId);
+                pending = { ok: false, code: error.detail.state === "EXPIRED" ? "TRANSFER_EXPIRED" : "TRANSFER_REPLAY",
+                            importState: error.detail.state, ackConfirmed: false };
+                break;
+              }
+              if (["TRANSFER_ACK_UNCONFIRMED", "TRANSFER_REQUEST_MISMATCH"].includes(error?.code)) {
+                // The imported result stays private and durable. No ACK and
+                // no second import are inferred from a lost relay response.
+                pending = { ok: false, code: error.code, importState: "IMPORTED_PENDING_ACK",
+                            requestId: local.requestId, recovered: true, ackConfirmed: false };
+                if (error.code === "TRANSFER_ACK_UNCONFIRMED") pending.result = local.result;
+                break;
+              }
+              // All other ACK failures lack an identity-bound terminal
+              // verdict. Keep the durable local import until exact confirmed
+              // completion/cancellation/expiry or an owner-authorized reset.
+              // Hide even sanitized store results on auth or transport errors.
+              pending = { ok: false, code: typeof error?.code === "string" ? error.code : "TRANSFER_ACK_UNCONFIRMED",
+                          importState: "PENDING", ackConfirmed: false };
+              break;
+            }
             if (["TRANSFER_EXPIRED", "TRANSFER_REPLAY", "TRANSFER_ACCOUNT_MISMATCH"].includes(error?.code)) await SellerAgentsControlClient.discardCredentialTransfer(local.requestId).catch(() => null);
             else if (error?.code === "SOURCE_OFFLINE") pending = { ok: false, code: error.code, importState: "SOURCE_OFFLINE" };
             else if (error?.code === "TRANSFER_CREDENTIALS_MISSING") pending = { ok: false, code: error.code, importState: "EMPTY_TRANSFER" };

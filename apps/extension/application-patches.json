@@ -708,5 +708,10 @@
     "target": "shared/runtime_names.js",
     "old": "    \"ЭТО НАЧАЛО РАБОТЫ С OZON BRIDGE.\",",
     "new": "    \"ЭТО НАЧАЛО РАБОТЫ С OCTOPORT.\","
+  },
+  {
+    "target": "shared/runtime_names.js",
+    "old": "    \"После command block обязательно напиши: «Для отправки команд в Ozon Bridge нажмите кнопку Ozon на этом блоке.»\",",
+    "new": "    \"После command block обязательно напиши: «Для отправки команд в Octoport нажмите кнопку Ozon на этом блоке.»\","
   }
 ]

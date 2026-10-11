@@ -97,6 +97,7 @@ function startStatusText(lastStart) {
   return null;
 }
 function actionSuccessText(result) {
+  if (result?.popupAction === "TRANSFER_RECEIVE") return result.text;
   if (result?.popupAction !== "WORK_START_ACCEPTED") return "Готово";
   if (result.promptTreeAvailable === false) return "Запуск принят. Дополнительные подсказки этого ИИ недоступны; чужое дерево не использовано.";
   if (result.promptTreeWarning) return "Запуск принят. Используется сохранённая проверенная версия подсказок этого ИИ.";
@@ -104,6 +105,12 @@ function actionSuccessText(result) {
   return startStatusText(state?.lastStart) || "Запуск принят. Ожидаем подтверждение инструкции и ответа ИИ";
 }
 function transferReceivePresentation(result) {
+  if (result?.ok === false && result?.ackConfirmed === false) {
+    if (result.importState === "IMPORTED_PENDING_ACK" && result.code === "TRANSFER_ACK_UNCONFIRMED") return { text: "Результат импорта сохранён локально, но сервер ещё не подтвердил завершение передачи. Повторный импорт не выполнен.", consume: false };
+    if (["IMPORTED_PENDING_ACK", "PENDING"].includes(result.importState) && ["TRANSFER_ACK_UNCONFIRMED", "TRANSFER_REQUEST_MISMATCH", "TRANSFER_EXPIRED", "TRANSFER_REPLAY"].includes(result.code)) return { text: "Сервер не подтвердил завершение передачи. Повторный импорт не выполнен.", consume: false };
+    if (result.importState === "EXPIRED" && result.code === "TRANSFER_EXPIRED") return { text: "Сервер подтвердил, что срок запроса передачи истёк.", consume: false };
+    if (result.importState === "CANCELLED" && result.code === "TRANSFER_REPLAY") return { text: "Сервер подтвердил отмену запроса передачи.", consume: false };
+  }
   if (result?.ok === true && result?.importState === "IMPORTED") return { text: "Передача принята, ключи магазинов импортированы.", consume: Boolean(result.requestId) };
   if (result?.ok === true && result?.importState === "CONFLICT") return { text: "Передача получена, но импорт остановлен из-за конфликта магазина.", consume: false };
   if (result?.ok === false && result?.code === "SOURCE_OFFLINE" && result?.importState === "SOURCE_OFFLINE") return { text: "Источник ещё не доставил передачу.", consume: false };
@@ -284,6 +291,7 @@ $("transfer-receive").onclick = () => action(async () => {
   const { response: result, presentation } = await requestTransferReceivePending();
   $("transfer-status").textContent = presentation.text;
   if (presentation.consume) void request("SA_TRANSFER_RESULT_CONSUME", { requestId: result.requestId }).catch(() => null);
+  return { popupAction: "TRANSFER_RECEIVE", text: presentation.text };
 });
 $("support-generate").onclick = () => action(async () => {
   const result = await request("SA_SUPPORT_SNAPSHOT");

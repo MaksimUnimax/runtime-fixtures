@@ -1,13 +1,30 @@
 import assert from "node:assert/strict";
 import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { runInThisContext } from "node:vm";
 import { createHash, generateKeyPairSync, sign, webcrypto } from "node:crypto";
 const root=resolve(process.argv[2] || process.cwd());
 globalThis.crypto ||= webcrypto;
-const packaged=existsSync(resolve(root,"shared/bootstrap_verifier.js"));
-for(const file of packaged?["shared/bootstrap_verifier.js"]:["packages/control-client/src/prompt-trees.js","packages/control-client/src/crypto.js"])
-  runInThisContext(readFileSync(resolve(root,file),"utf8"),{filename:file});
+const moduleFiles=["packages/control-client/src/prompt-trees.js","packages/control-client/src/crypto.js"];
+const storeBundle=existsSync(resolve(root,"manifest.json")) && existsSync(resolve(root,"service_worker.js"));
+const packaged=storeBundle || existsSync(resolve(root,"shared/bootstrap_verifier.js"));
+if(storeBundle) {
+  const worker=readFileSync(resolve(root,"service_worker.js"),"utf8");
+  const sourceRoot=fileURLToPath(new URL("../../../../",import.meta.url));
+  for(const file of moduleFiles) {
+    const expected=readFileSync(resolve(sourceRoot,file),"utf8");
+    const start=worker.indexOf(expected);
+    assert.ok(start>=0,`Exact source module missing from STORE service_worker.js: ${file}`);
+    assert.equal(worker.indexOf(expected,start+1),-1,`Duplicate STORE module: ${file}`);
+    // Execute bytes read from the archive, not the source used to locate them.
+    runInThisContext(worker.slice(start,start+expected.length),{filename:`service_worker.js:${file}`});
+  }
+  console.log("PACKAGE module provenance: exact prompt-tree and crypto bytes from STORE service_worker.js; not installed worker acceptance.");
+} else {
+  for(const file of packaged?["shared/bootstrap_verifier.js"]:moduleFiles)
+    runInThisContext(readFileSync(resolve(root,file),"utf8"),{filename:file});
+}
 const trees=globalThis.OctoportPromptTrees,verifier=globalThis.SellerAgentsBootstrapVerifier;
 const {privateKey,publicKey}=generateKeyPairSync("ed25519"),der=publicKey.export({type:"spki",format:"der"});
 const bundle={trustBundleVersion:"bootstrap_trust_bundle_v1",algorithm:"Ed25519",publicKeyFormat:"spki_der",publicKeyEncoding:"base64",

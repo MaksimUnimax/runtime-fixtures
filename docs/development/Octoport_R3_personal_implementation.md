@@ -52,7 +52,7 @@ SOURCE и PACKAGE-подмножества проверены по указан�
 | PAR-12 | Crash вокруг provider dispatch | Provider intent/outcome подключены к реальному manual queue; UNKNOWN и restart PACKAGE-подмножество | NOT_RUN |
 | PAR-13 | Crash вокруг доставки результата | Существующая durable delivery сохранена; копия имеет отдельный intent и RAM dispatch fence; полный matrix не закрыт | NOT_RUN |
 | PAR-14 | Общая квота кабинета | APP-10b PACKAGE: общая квота кабинета для карточек и marketplace methods | NOT_RUN |
-| PAR-15 | 429 / Retry-After | Существующая политика сохранена, регресс не выполнен | NOT_RUN |
+| PAR-15 | 429 / Retry-After | APP-10/10b прежнего точного STORE-пакета проверяют 429/Retry-After и общий cabinet quota; evidence переиспользовано после сверки хешей. Полный PAR-15 не принят | NOT_RUN |
 | PAR-16 | Группы API и installation cap | Существующие очереди сохранены, регресс не выполнен | NOT_RUN |
 | PAR-17 | Logout / другой principal / поздний ответ | Client races PACKAGE: поздний 401 после logout не refresh нового principal; scheduler late-response fences | NOT_RUN |
 | PAR-18 | Device и общий отзыв | Client PACKAGE: общий device deny закрывает оба grant; защита не сужена | NOT_RUN |
@@ -65,10 +65,10 @@ SOURCE и PACKAGE-подмножества проверены по указан�
 | PAR-25 | Offline нескольких grant | Два verified cached grant переживают restart; offline запрошенного AI использует его cache, client PACKAGE | NOT_RUN |
 | PAR-26 | Firefox privacy-neutral | Не проверено, серверный Chromium не доказывает Firefox | NOT_RUN |
 | PAR-27 | Разные установки | Не проверено | NOT_RUN |
-| PAR-28 | Поздний sync после Finish / rebind | Не проверено | NOT_RUN |
+| PAR-28 | Поздний sync после Finish / rebind | Finish: assertions passed before independent rebind failure in RUN2. Rebind defect traced and fixed in SOURCE; same late-snapshot/restart boundary PASS plus four terminal-guard negative cases PASS. Full installed matrix remains open | NOT_RUN |
 | PAR-29 | Прерванная / повторная миграция | Legacy grant ограниченно переносится без TTL renewal; UNKNOWN сохраняется; неоднозначный Resume закрыт; полный migration matrix не закрыт | NOT_RUN |
 | PAR-30 | Старый content / worker / rollback | protocol 2 content evidence; старый content отклонён до API с reload-required, PACKAGE; rollback ещё NOT_RUN | NOT_RUN |
-| PAR-31 | Точный ZIP / установленный пакет | Промежуточные deterministic ZIP/source-extracted совпадают; final version/source commit/INSTALLED/выдача ещё отсутствуют | NOT_RUN |
+| PAR-31 | Точный ZIP / установленный пакет | STORE0.2.15/source5a608cfc/ZIP46f62e60;43 installed файла совпадают. Полезный installed цикл NOT_REACHED; READY/OWNER отсутствуют | NOT_RUN |
 | PAR-32 | Обычный клик / reload после UNKNOWN | PACKAGE: новый клик/изменённый hash/reload после UNKNOWN без API; document-local ambiguity закрывается | NOT_RUN |
 | PAR-33 | Явный read-only повтор | Popup review + отдельное подтверждение; immutable fresh context, выбранные исходные ordinals, predecessor; PACKAGE-подмножество | NOT_RUN |
 | PAR-34 | Неподдержанные / запись / подмена preview | Реальный operation registry READ/current/execution_enabled; changed-preview PACKAGE, write/unsupported SOURCE | NOT_RUN |
@@ -77,17 +77,17 @@ SOURCE и PACKAGE-подмножества проверены по указан�
 | PAR-37 | Запрет / TTL / Finish / rebind для копии | SOURCE fences; PACKAGE Finish/expiry/logout запрещают копию; rebind/identity/deny полный installed matrix ещё NOT_RUN | NOT_RUN |
 | PAR-38 | Двойной клик / crash копии | PACKAGE: duplicate confirmation одна delivery, worker crash запрещает скрытый Send; UNKNOWN intent сохраняется | NOT_RUN |
 | PAR-39 | Границы независимости ИИ | Общий ChatGPT grant Standard/Work, отдельный Alice grant и общий deny; client PACKAGE-подмножество | NOT_RUN |
-| AI-TREE-01 | Создание дерева нового ИИ | Серверная реализация отсутствует в PR36 | NOT_RUN |
-| AI-TREE-02 | Черновик / публикация / RBAC / CSRF | Требование PR36, ещё не реализовано | NOT_RUN |
-| AI-TREE-03 | Конфликт редактирования / монотонная публикация | Требование PR36, ещё не реализовано | NOT_RUN |
-| AI-TREE-04 | Подписанный descriptor и локальный cache | Отдельно от grant/DOM, ещё не реализовано | NOT_RUN |
-| AI-TREE-05 | Обрыв загрузки дерева | Ещё не реализовано | NOT_RUN |
-| AI-TREE-06 | Offline / отзыв для дерева | Ещё не реализовано | NOT_RUN |
-| AI-TREE-07 | Версия дерева закреплена за обменом | Ещё не реализовано | NOT_RUN |
-| AI-TREE-08 | Вкладки / установки / редкая sync | Ещё не реализовано | NOT_RUN |
-| AI-TREE-09 | Данные, не код; общие permissions | Ещё не реализовано | NOT_RUN |
+| AI-TREE-01 | Создание дерева нового ИИ | Реализованы постоянные AI ID и независимые drafts/publications; SOURCE и DB-подмножества фаз6–9, полная installed матрица открыта | NOT_RUN |
+| AI-TREE-02 | Черновик / публикация / RBAC / CSRF | Реализовано в фазах6–9; RBAC/CSRF, CAS и монотонная публикация имеют ограниченные SOURCE/DB проверки, installed не пройден | NOT_RUN |
+| AI-TREE-03 | Конфликт редактирования / монотонная публикация | Реализовано в фазах6–9; RBAC/CSRF, CAS и монотонная публикация имеют ограниченные SOURCE/DB проверки, installed не пройден | NOT_RUN |
+| AI-TREE-04 | Подписанный descriptor и локальный cache | Подписанный data-only descriptor и проверяемый cache реализованы; точный STORE-модуль16/16, это не installed приёмка | NOT_RUN |
+| AI-TREE-05 | Обрыв загрузки дерева | Повреждённое обновление сохраняет прежнюю проверенную копию; PACKAGE-подмножество16/16 | NOT_RUN |
+| AI-TREE-06 | Offline / отзыв для дерева | Проверенный cache не возвращает доступ после deny; PACKAGE-модуль и application-подмножества | NOT_RUN |
+| AI-TREE-07 | Версия дерева закреплена за обменом | Pin сохраняет прежнюю версию при обновлении; изменённый/чужой pin отклоняется; PACKAGE | NOT_RUN |
+| AI-TREE-08 | Вкладки / установки / редкая sync | Coalescing и существующий configuration sync реализованы; реальные вкладки/установки не приняты | NOT_RUN |
+| AI-TREE-09 | Данные, не код; общие permissions | Data-only, нулевые provider API/Send в модульной проверке, общий deny сохранён; PACKAGE subset | NOT_RUN |
 | Popup / stores | Добавление и импорт внутри popup, проверка полей | Импорт не открывает вкладку; stale file/password preview отклонён PACKAGE; 6 SOURCE backup/canonical/conflict cases | NOT_RUN |
-| Branding | Octoport, оставшийся OZON BRIDGE | Стартовая инструкция исправлена; финальный STORE-branding gate ещё NOT_RUN | NOT_RUN |
+| Branding | Octoport, оставшийся OZON BRIDGE | В ZIP0.2.15 исправлен только заголовок; полный Start воспроизвёл старое имя ниже. Однострочная SOURCE-правка прошла тот же тест на diagnostic runtime; исходный ZIP/installed неизменны | NOT_RUN |
 | CI PR35/36 | Применимые проверки документационного кандидата | PR36 получен для чтения, merge/main не утверждён | NOT_RUN |
 
 ## Первичные результаты
@@ -236,3 +236,96 @@ SOURCE admin routes RUN1:26/26, including sixteen new exact-target permission/CS
 Versioned candidate preparation: recipe0.2.15, browser-version validation in builder, and default development configuration version bound to the same recipe. Store authority/version/trust/origin checks remain intact. Existing0.2.14 archive and43 installed files were freshly matched to93ca3188...; unchanged immutable old package. New0.2.15 package has not yet been built/installed at this checkpoint. No server catalog, live DB, profile or release is modified.
 
 Fresh browser inventory came from the existing single-owner driver; no browser/profile restart. Claims1897 include the admin API regression, builder and own DB test formatting, with no conflicting writer. Source scope remains personal, no assistants. Remaining exact versioned build/installed guest-local QA, source-vs-installed proofs, delivery and unresolved owner/review gates remain mandatory; checkpoint is not completion.
+
+
+## 2026-10-11 phase 10 — same-role transfer and exact STORE verification
+
+The existing OPERATOR-R3-PERSONAL-20261010 claim and personal execution owner survive the owner-directed dialogue transfer. No helper, second browser, profile reset, delegation, server mutation, publication or review was performed. HEAD remains5a608cfc; subsequent WIP is limited to tests and this traceability document.
+
+The STORE prompt-tree harness had inferred source layout from absence of shared/bootstrap_verifier.js and failed with ENOENT. The exact tree and crypto modules are embedded in service_worker.js. The harness now verifies each exact module occurs once in that archive bundle and executes those package bytes. R3_STORE_PROMPT_TREES_PACKAGE_RUN3_20261011.json:16/16 PASS. RUN1 ENOENT and RUN2 native ROLE_LOCATION_MISMATCH are retained. RUN3 used the documented canonical B resource-accounting route without changing guards or delegating execution.
+
+R3_STORE_MIGRATION_READBACK_RUN1_20261011.json passes the previously uncovered migration write-succeeded/readback-failed boundary: worker stays closed and makes zero network/Send effects. This is PACKAGE with simulated browser storage, not installed migration or invisible deny-history-loss acceptance. R3_STORE_CORE_CONVERSATION_RUN1_20261011.json confirms core12 and conversation lifecycle40 on the current STORE inputs; no browser/live-provider acceptance.
+
+Fresh installed check at07:16MSK:43/43 files and no extras match unchanged ZIP46f62e608d4f3afbb1a5712421003dab575e60d7ebc0d9d5e99d7885c8e36d19. Runtime ready, identity unknown, authenticated=false/workAllowed=false and BOOTSTRAP_PROFILE_INCOMPATIBLE. First support read contained old generatedAt; the safe-snapshot button was then used and a fresh generatedAt verified. No stale snapshot was promoted to a fresh result.
+
+The current admin compatibility page offers OTP sign-in and Continue with current sign-in. Source inspection proves the latter POSTs /v1/admin/session to create separate elevation. It was not clicked under the no-elevation constraint. Exact catalog/profile condition remains UNKNOWN. A previous elevation-expired result and HTTP503 health-authority are not proof of the compatibility cause.
+
+Mandatory unresolved outcomes remain: exact catalog/normal admission, installed Start/Finish/import and full PAR/AI-TREE matrix; independent review versus no-delegation; five required remote CI and deployed wire/tree proof; owner recovery choice A/B/C; manual owner acceptance. READY is not declared.
+
+## Продолжение 11.10.2026 после 08:00 МСК
+
+Тот же OPERATOR, claim и рабочая копия; новый исполнитель не создан. Хеши
+19 прежних evidence и исходного ZIP сверены. 16/16, 12/12, 40/40 не повторялись.
+
+- `R3_STORE_MIGRATION_DENY_RESTART_RUN1_20261011.json`: новый PACKAGE-сценарий
+  PAR-29 PASS — explicit deny и signed-out orphan остаются закрытыми при двух
+  запусках worker; migrationId/TTL сохранены, API и Send отсутствуют. Это
+  simulated browser, полный PAR-29/installed не закрыт.
+- `R3_RESUME_0806_SAFE_SNAPSHOT_RESULT_20261011.json`: 08:06:22 МСК установленная
+  0.2.15 по-прежнему закрыта с BOOTSTRAP_PROFILE_INCOMPATIBLE; runtime ready,
+  identity unknown, work.state null. Историческое lastStart=active не является
+  нынешним активным Work. Catalog/Start/Finish/import не приняты.
+- `R3_BRANDING_ORIGINAL_PACKAGE_RUN1_20261011.json`: исходный FAIL полного
+  начального сообщения — после правильного заголовка оно ещё просит писать
+  Ozon Bridge. Место: DEFAULT_AUTO_START_TEXT, включаемый saPrompt.
+- Предыдущая правка заменяла только заголовок; проверка не покрывала всё
+  сообщение, а store guard ищет только Seller Agents. Более подробная мотивация
+  прежнего решения UNKNOWN. Минимальная правка в application-patches заменяет
+  одну пользовательскую фразу общего Start, не технические ID и legacy formats.
+- `R3_BRANDING_DIAGNOSTIC_RESULT_RUN1_20261011.json`: тот же сценарий PASS на
+  diagnostic runtime. `R3_BRANDING_DIAGNOSTIC_COMPOSITION_20261011.json` доказывает
+  отличие ровно одной строки одного файла shared/runtime_names.js. Protocol
+  identifiers, кнопка Ozon и сохранённый non-default текст не меняются.
+  SOURCE-патч ещё не включён в immutable ZIP, не установлен и не прошёл review.
+
+Документ ручной приёмки №4: тот же Library ID
+`libfile_80483d81632c81919d7840b9d2adf275`, version4,
+SHA256 `d510ea6d82609f8ccf683f0217876e8d39a229c09bda04aa0a154c746a7e2cb1`.
+PREPARING сохраняется. Совместимость UNKNOWN, независимый review при запрете
+делегирования, remote CI, deployed wire/tree, полная матрица, OWNER и A/B/C
+policy остаются незакрытыми с прежними ответственными. Новый ZIP не выпускался.
+
+
+## 2026-10-11 — bootstrap rejection diagnostic after 08:19 MSK
+
+Six new exact original-package worker scenarios passed (Chrome 151.0.0.0, extension 0.2.15, signed synthetic v2 responses): a valid control and five distinct causes sharing `BOOTSTRAP_PROFILE_INCOMPATIBLE`. One rejects before HTTP. After each denial authority and public compatibility are null. This is diagnostic evidence, not installed acceptance or the actual live cause. No previous test suite was repeated.
+
+The previous catalog-only dependency was too narrow. The exact missing source is a safe record of the failing guard for the original attempt, then the allowlisted verified status/compatibility/profile predicate results and signed config revision. A current catalog cannot reconstruct an earlier signed response or a pre-HTTP rejection. No full auth payload, identifiers, secrets or profile read is needed or permitted. Separate admin elevation remains prohibited. The current Chrome consent path is identified; Firefox privacy-neutral hypotheses are not the current Chrome route.
+
+No live incompatibility repair is claimed without that source. Existing branding source correction, immutable ZIP, original profile, all WIP and other actors' changes are retained. Candidate remains PREPARING. Independent review, five exact remote CI checks, complete PAR/AI-TREE matrix, installed Start/Finish/import, wire/tree, OWNER and A/B/C remain open.
+
+Evidence: `/root/octoport-control/controllers/audits/EXTENSION-LIVE-CONTINUE-20261007T090339Z/R3_BOOTSTRAP_PRIMARY_CAUSE_OR_MISSING_SOURCE_20261011.json`; `/root/octoport-control/controllers/audits/EXTENSION-LIVE-CONTINUE-20261007T090339Z/R3_BOOTSTRAP_CAUSE_PROBE_RESULT_20261011.json`.
+
+
+## 2026-10-11 — installed safe bootstrap diagnostic and PAR-28 repair
+
+A separate private research candidate `OCTOPORT-0215-R3-BOOTSTRAP-DIAG-20261011` remains PREPARING: version0.2.15, ZIP `ccde79d100fcdf2de769b37525236bf0c389ba146b75d2376bbbb4c6dea3ee21`, 43 installed files exact. Original ZIP46f62e60 and profile are preserved. This candidate adds only the tested allowlisted bootstrap trace plus the previously prepared branding source correction; no catalog/release overwrite or delivery.
+
+At 09:15:38.927 MSK, one normal bootstrap retry with existing credentials produced a verified installed trace: payload variant/presence, access, active account and active device passed; EXTENSION_STATUS_ALLOWED failed. Hence the verified server status is UPDATE_REQUIRED; adapter-profile validation was not reached. No owner action was required to obtain this record. Which server configuration input caused UPDATE_REQUIRED remains unknown. Read-only release/contract/blocked-version/minimum-policy evidence is needed from an existing authorized catalog administrator; the current separate admin elevation remains prohibited. Evidence: `/root/octoport-control/controllers/audits/EXTENSION-LIVE-CONTINUE-20261007T090339Z/R3_BOOTSTRAP_INSTALLED_REJECTION_CAUSE_20261011.json`.
+
+Independent PAR-28 work found a concrete source defect: rebind expected the completed Work intent to be null, but R3 deliberately retains that identity as a durable terminal marker. The correction requires known finished state, the exact previous Work identity, unchanged account/device/profile/binding/store fields, inactive state and the same exact revision increment. The corrected rebind late-snapshot/restart case and four invalid-terminal rejection cases PASS on a separately composed SOURCE diagnostic runtime. Only shared/application.js differs from the installed diagnostic. This rebind correction is NOT in the currently installed diagnostic ZIP. Failed RUN1-4 history is retained; old6/6 and other completed suites were not rerun.
+
+Review, five exact remote CI, full PAR/AI-TREE/installed matrices, deployed wire/tree, durable import/ACK, OWNER acceptance and A/B/C remain mandatory and unresolved. SOURCE tests are not installed acceptance.
+
+## 2026-10-11 — catalog publication scope and transferred ACK recovery (12:32 MSK)
+
+The already completed single native machine rotation at 12:04:25 MSK is preserved (expiry 10 November 12:04:25 MSK; pendingRotation=false). The saved release 0.2.15 GET returned HTTP404. Saved v2 policies: chrome minimum 0.2.13, blockedVersions=[], no GLOBAL row; latest config was not requested because this release's v2 support has not been established. The client was not executed again. Deployed source maps a missing release to404 and UPDATE_REQUIRED; this supports that diagnosis but is not a direct database-row read or independent proof of the running API's loaded code. The explicit API-process verification refusal remains unbypassed.
+
+Read-only authority reconciliation found exact prior publication approval only for 0.2.14, source e07a457 and its reviewed ZIP. It does not authorize this 0.2.15 candidate. Both 0.2.15 cards remain PREPARING without required review/CI. The board routes the catalog dependency to CONTROLLER, but does not establish the sole release-owner for this exact0.2.15 publication. Minimal owner decision: name that single release-owner and authorize only the final independently reviewed exact0.2.15 source/ZIP/hash and bounded publication operation after mandatory gates. No release row, catalog, policy, BFF, auth, rights or profile was changed.
+
+Independent own-source work found that the safely transferred A02 recovery patches had never been incorporated into R3. The baseline relay-restart-before-ACK scenario failed: durable import was lost after TRANSFER_REPLAY. The existing A patches were merged into the personally claimed client/runtime while preserving the R3 empty-transfer guard and all previous WIP. Sixteen targeted recovery cases PASS on a separately composed diagnostic runtime; exact account/device/request/key/store checks remain enforced. No old unaffected suite was rerun.
+
+A06 popup now distinguishes retained local import with unconfirmed ACK, unverifiable expiry/replay, and identity-bound confirmed terminal states. No pending/terminal result is consumed, generic success is not shown, and auth/account errors reveal no store information. One new tracked application scenario (seven handler outcomes plus negative guards) and the nine existing popup checks PASS. Only popup.js differs from the preceding ACK diagnostic runtime; client/worker bytes are unchanged, so the16 recovery cases were reused. Diagnostic output: temporary/controller/OPERATOR-R3-PERSONAL-PACKAGE-20261010/ack-popup-diagnostic-20261011. No new installed ZIP or release delivery.
+
+Evidence in controllers/audits/EXTENSION-LIVE-CONTINUE-20261007T090339Z:
+- R3_ACK_RECOVERY_BASELINE_RUN1_20261011.json (retained FAIL);
+- R3_TRANSFERRED_ACK_SOURCE_APPLY_20261011.json and R3_TRANSFERRED_ACK_TARGETED_TESTS_20261011.json;
+- R3_A06_POPUP_SOURCE_APPLY_20261011.json and R3_A06_POPUP_TARGETED_TESTS_20261011.json;
+- R3_RELEASE_AUTHORITY_ACK_CURRENT_CHECKPOINT_20261011.json.
+
+The prior full PAR01–39/AI-TREE01–09 matrix is preserved above. These results update only source/diagnostic ACK and popup boundaries; real PostgreSQL restart, installed two-device import/ACK, all remaining installed/manual cases, independent review, five exact remote CI, deployed wire/tree, OWNER acceptance and A/B/C remain open. C's active isolated0059 recovery task and Controller/A server changes are not duplicated. Operator401 correlation d06dd1de-c484-416f-8e83-4a4539c935e2 and installed UPDATE_REQUIRED remain open. Original ZIP46f62e60 and installed diagnostic ZIPccde79d1 are preserved.
+
+
+## 2026-10-11 — owner personal release authority at12:38 MSK
+
+OWNER_TESTER_PERSONAL_PRIORITY_20261011T0938Z appoints this same personal Tester the sole end-to-end release-owner, including0.2.15 and its normal release/catalog path. The prior release-owner authorization blocker above is historical and superseded. Required independent review, exact CI, exact ZIP/installed acceptance and security/rights boundaries remain. No queue or Controller/A/B/C handoff is required. The eight transferred ACK recovery regressions are now merged into the existing CI-selected test file, preserving all existing personal/R3 scenarios (14 executed cases;22 after the merge).

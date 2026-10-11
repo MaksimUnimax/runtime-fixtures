@@ -58,7 +58,19 @@
   function key() { return crypto.randomUUID(); }
   function origin(value) { try { return typeof value === "string" && value === new URL(value).origin; } catch (_) { return false; } }
   function url(path, base) { const root = base || config.controlApiOrigin; if (!origin(root) || ![config.controlApiOrigin, config.portalOrigin].includes(root)) throw error("PACKAGED_ORIGIN_INVALID"); return new URL(path, `${root}/`).toString(); }
-  function safeError(value) { const code = typeof value?.code === "string" ? value.code : "CONTROL_REQUEST_FAILED"; return { code: code.slice(0, 80) }; }
+  const BOOTSTRAP_DIAGNOSTIC_STAGES = new Set(["REQUEST_FAMILY", "REQUEST_IDENTITY", "SIGNED_AUTHORITY"]);
+  const BOOTSTRAP_DIAGNOSTIC_CHECKS = new Set(["REQUESTED_AI_KNOWN", "REQUEST_SURFACE", "REQUEST_VARIANT", "PAYLOAD_PRESENT", "ACCESS_BASIS_ALLOWED", "ACCOUNT_ACTIVE", "DEVICE_ACTIVE", "EXTENSION_STATUS_ALLOWED", "BROWSER_SUPPORTED", "EXTENSION_MINIMUM", "AI_UNCONFIGURED_SCOPE", "AI_UNAVAILABLE_LOCAL", "AI_RESOLVED", "PROFILE_SHAPE", "PROFILE_BROWSER_FAMILY", "PROFILE_EXTENSION_MINIMUM", "PROFILE_BROWSER_MINIMUM", "AI_PROFILE_SCOPE", "PROFILE_FINGERPRINT", "PAYLOAD_VARIANT", "LOCAL_MATERIALIZATION", "VALIDATOR_COMPLETED"]);
+  function bootstrapCheck(checks, check, passed) { if (checks) checks.push({ check, passed: Boolean(passed) }); return passed; }
+  function safeBootstrapDiagnostic(value) {
+    if (value?.diagnosticVersion !== "bootstrap_rejection_v1" || !BOOTSTRAP_DIAGNOSTIC_STAGES.has(value.stage) || typeof value.recordedAt !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value.recordedAt) || !Number.isFinite(Date.parse(value.recordedAt)) || !Array.isArray(value.checks) || value.checks.length < 1 || value.checks.length > 24 || !value.checks.every(row => BOOTSTRAP_DIAGNOSTIC_CHECKS.has(row?.check) && typeof row.passed === "boolean")) return null;
+    return { diagnosticVersion: "bootstrap_rejection_v1", stage: value.stage, recordedAt: value.recordedAt, checks: value.checks.map(row => ({ check: row.check, passed: row.passed })) };
+  }
+  function bootstrapProfileFailure(stage, checks) {
+    const failure = error("BOOTSTRAP_PROFILE_INCOMPATIBLE");
+    failure.bootstrapDiagnostic = { diagnosticVersion: "bootstrap_rejection_v1", stage, recordedAt: new Date(now()).toISOString(), checks };
+    return failure;
+  }
+  function safeError(value) { const code = typeof value?.code === "string" ? value.code : "CONTROL_REQUEST_FAILED"; const result = { code: code.slice(0, 80) }; const diagnostic = result.code === "BOOTSTRAP_PROFILE_INCOMPATIBLE" ? safeBootstrapDiagnostic(value?.bootstrapDiagnostic) : null; if (diagnostic) result.bootstrapDiagnostic = diagnostic; return result; }
   function queueMutation(fn) { const run = mutationQueue.then(fn); mutationQueue = run.catch(() => {}); return run; }
   async function persist(next) {
     if (authStorageUnconfirmed) throw error("AUTH_STATE_COMMIT_UNCONFIRMED");
@@ -124,11 +136,11 @@
   function validRestoredPending(value) { return validStarting(value) || validPending(value) && parsedMillis(value.expiresAt) > now(); }
   function pendingLive(value) { return value?.phase !== "starting" && validPending(value) && Date.parse(value.expiresAt) > now(); }
   function publicPending(value) { if (!value) return null; return { authorizationId: value.authorizationId, userCode: value.userCode, expiresAt: value.expiresAt, verificationUri: url(`/activate?authorizationId=${encodeURIComponent(value.authorizationId)}`, config.portalOrigin) }; }
-  function publicStatus(decision = null) { const authority = decision?.grant?.authority || state.authority, accountId = authority?.payload?.account?.id || null, snapshot = authority?.payload || null, matching = decision && decision.identity && sameAuthorityRuntimeIdentity(decision.identity, authorityDecisionIdentity(authority)); const compatibility = snapshot?.compatibility ? { extension: { status: snapshot.compatibility.extension.status, minimumVersion: snapshot.compatibility.extension.minimumVersion }, browser: { status: snapshot.compatibility.browser.status } } : null; return Object.freeze({ authenticated: Boolean(state.credentials && authority && accountId), accountId, account: accountId ? { kind: "control_account", label: `Аккаунт · ${accountId.slice(0, 8)}` } : null, pending: pendingLive(state.pending) ? publicPending(state.pending) : null, lastError: state.lastError, generation: state.generation, workAllowed: Boolean(accountId && matching && decision.allowed === true), authority: authority ? { configVersion: snapshot.configVersion, expiresAt: snapshot.expiresAt, aiStatus: snapshot.ai.status } : null, compatibility }); }
-  function authorityStaticValid(snapshot) {
+  function publicStatus(decision = null) { const authority = decision?.grant?.authority || state.authority, accountId = authority?.payload?.account?.id || null, snapshot = authority?.payload || null, matching = decision && decision.identity && sameAuthorityRuntimeIdentity(decision.identity, authorityDecisionIdentity(authority)); const compatibility = snapshot?.compatibility ? { extension: { status: snapshot.compatibility.extension.status, minimumVersion: snapshot.compatibility.extension.minimumVersion }, browser: { status: snapshot.compatibility.browser.status } } : null; return Object.freeze({ authenticated: Boolean(state.credentials && authority && accountId), bootstrapRetryAvailable: Boolean(state.credentials && !state.authority), accountId, account: accountId ? { kind: "control_account", label: `Аккаунт · ${accountId.slice(0, 8)}` } : null, pending: pendingLive(state.pending) ? publicPending(state.pending) : null, lastError: state.lastError ? safeError(state.lastError) : null, generation: state.generation, workAllowed: Boolean(accountId && matching && decision.allowed === true), authority: authority ? { configVersion: snapshot.configVersion, expiresAt: snapshot.expiresAt, aiStatus: snapshot.ai.status } : null, compatibility }); }
+  function authorityStaticValid(snapshot, checks = null) {
     const extension = snapshot?.compatibility?.extension;
     const accessAllowed = snapshot?.contractVersion !== "control_plane_v3" || snapshot?.accessBasis !== "NONE";
-    return Boolean(snapshot && accessAllowed && snapshot.account?.status === "ACTIVE" && snapshot.devicePolicy?.status === "ACTIVE" && ["SUPPORTED", "UPDATE_RECOMMENDED"].includes(extension?.status) && snapshot.compatibility?.browser?.status === "SUPPORTED" && (extension.minimumVersion === null || (parseSemver(extension.minimumVersion) && versionAtLeast(config.extensionVersion, extension.minimumVersion))));
+    return Boolean(bootstrapCheck(checks, "PAYLOAD_PRESENT", snapshot) && bootstrapCheck(checks, "ACCESS_BASIS_ALLOWED", accessAllowed) && bootstrapCheck(checks, "ACCOUNT_ACTIVE", snapshot.account?.status === "ACTIVE") && bootstrapCheck(checks, "DEVICE_ACTIVE", snapshot.devicePolicy?.status === "ACTIVE") && bootstrapCheck(checks, "EXTENSION_STATUS_ALLOWED", ["SUPPORTED", "UPDATE_RECOMMENDED"].includes(extension?.status)) && bootstrapCheck(checks, "BROWSER_SUPPORTED", snapshot.compatibility?.browser?.status === "SUPPORTED") && bootstrapCheck(checks, "EXTENSION_MINIMUM", extension.minimumVersion === null || (parseSemver(extension.minimumVersion) && versionAtLeast(config.extensionVersion, extension.minimumVersion))));
   }
   function cacheAuthorityDeadline(snapshot) {
     const expiresAt = parsedMillis(snapshot?.expiresAt);
@@ -769,7 +781,7 @@
     const validPrimitive = primitive => exactKeys(primitive, ["kind", "reference"], ["role"]) && ["page-root", "conversation-root", "composer-root", "send-control", "assistant-response", "busy-control", "copy-control"].includes(primitive.reference) && (primitive.kind === "packaged_selector_reference" ? !Object.hasOwn(primitive, "role") : primitive.kind === "accessibility_role_name" && ["main", "article", "textbox", "button", "status"].includes(primitive.role));
     return validPrimitive(value.primary) && value.fallbacks.every(validPrimitive) && !(value.observationMode === "polling" && value.timeoutMs < 500);
   }
-  function validProfileShape(profile, enforceEnvironment = true, expectedContractVersion = "control_plane_v1") {
+  function validProfileShape(profile, enforceEnvironment = true, expectedContractVersion = "control_plane_v1", checks = null) {
     const content = profile?.content, compatibility = profile?.compatibility;
     if (!MACHINE.test(profile?.profileKey || "") || String(profile?.profileKey || "").length > 64 || !Number.isSafeInteger(profile?.revision) || profile.revision <= 0 || profile?.schemaVersion !== "adapter_profile_v1" || profile?.scopeVariant !== null) return false;
     if (!exactKeys(content, ["schemaVersion", "page", "selectors", "observation", "contours"]) || content.schemaVersion !== "adapter_profile_v1" || !exactKeys(content.page, ["identityStrategy", "conversationStrategy", "composerStrategy"]) || content.page.identityStrategy !== "page_identity" || content.page.conversationStrategy !== "conversation_root" || content.page.composerStrategy !== "composer_root") return false;
@@ -778,9 +790,10 @@
     const contourKeys = new Set(["page_identity", "conversation_root", "composer_root", "send_control", "busy_state", "assistant_response", "copy_control"]);
     if (!Array.isArray(content.contours) || content.contours.length < 4 || content.contours.length > 7 || new Set(content.contours.map(x => x.key)).size !== content.contours.length || !content.contours.every(x => exactKeys(x, ["key", "required", "expectedState", "strategy"]) && contourKeys.has(x.key) && typeof x.required === "boolean" && ["PRESENT", "INTERACTIVE", "COMPLETES"].includes(x.expectedState) && contourKeys.has(x.strategy))) return false;
     if (!exactKeys(compatibility, ["schemaVersion", "contractVersion", "browserFamilies", "minimumBrowserVersions", "minimumExtensionVersion"]) || compatibility.schemaVersion !== "profile_compatibility_v1" || compatibility.contractVersion !== expectedContractVersion || !["control_plane_v1", "control_plane_v2"].includes(compatibility.contractVersion) || !Array.isArray(compatibility.browserFamilies) || compatibility.browserFamilies.length < 1 || compatibility.browserFamilies.length > browserIdentity.families.length || new Set(compatibility.browserFamilies).size !== compatibility.browserFamilies.length || !compatibility.browserFamilies.every(x => browserIdentity.families.includes(x)) || !Array.isArray(compatibility.minimumBrowserVersions) || compatibility.minimumBrowserVersions.length > browserIdentity.families.length || new Set(compatibility.minimumBrowserVersions.map(x => x.browserFamily)).size !== compatibility.minimumBrowserVersions.length || !compatibility.minimumBrowserVersions.every(x => exactKeys(x, ["browserFamily", "minimumVersion"]) && compatibility.browserFamilies.includes(x.browserFamily) && parseBrowser(x.minimumVersion)) || !(compatibility.minimumExtensionVersion === null || parseSemver(compatibility.minimumExtensionVersion))) return false;
+    bootstrapCheck(checks, "PROFILE_SHAPE", true);
     if (!enforceEnvironment) return true;
-    if (!compatibility.browserFamilies.includes(browserFamily()) || (compatibility.minimumExtensionVersion && !versionAtLeast(config.extensionVersion, compatibility.minimumExtensionVersion))) return false;
-    const browserMin = compatibility.minimumBrowserVersions.find(x => x.browserFamily === browserFamily()); return !browserMin || versionAtLeast(browserVersion(), browserMin.minimumVersion, true);
+    if (!bootstrapCheck(checks, "PROFILE_BROWSER_FAMILY", compatibility.browserFamilies.includes(browserFamily())) || !bootstrapCheck(checks, "PROFILE_EXTENSION_MINIMUM", !compatibility.minimumExtensionVersion || versionAtLeast(config.extensionVersion, compatibility.minimumExtensionVersion))) return false;
+    const browserMin = compatibility.minimumBrowserVersions.find(x => x.browserFamily === browserFamily()); return bootstrapCheck(checks, "PROFILE_BROWSER_MINIMUM", !browserMin || versionAtLeast(browserVersion(), browserMin.minimumVersion, true));
   }
   async function profileFingerprint(profile) { const bytes = new TextEncoder().encode(verifier.canonicalJson({ content: profile.content, compatibility: profile.compatibility })); return [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))].map(x => x.toString(16).padStart(2, "0")).join(""); }
   async function materializeLocalAuthority(payload, requestedAi = null) {
@@ -798,26 +811,28 @@
       profileFingerprint,
     }) || null;
   }
-  async function validateAccountProfile(payload, requestedAi = null, enforceEnvironment = true) {
-    if (!authorityStaticValid(payload) || requestedAi && !LOCAL_AI[requestedAi]) return null;
-    if (payload.ai.status === "UNCONFIGURED") return requestedAi === null ? { workAllowed: false, requestedAi: null } : null;
-    if (payload.ai.status === "UNAVAILABLE") return payload.localClientAuthority ? { workAllowed: false, requestedAi: requestedAi || null } : null;
+  async function validateAccountProfile(payload, requestedAi = null, enforceEnvironment = true, checks = null) {
+    if (!authorityStaticValid(payload, checks) || !bootstrapCheck(checks, "REQUESTED_AI_KNOWN", !requestedAi || Boolean(LOCAL_AI[requestedAi]))) return null;
+    if (payload.ai.status === "UNCONFIGURED") return bootstrapCheck(checks, "AI_UNCONFIGURED_SCOPE", requestedAi === null) ? { workAllowed: false, requestedAi: null } : null;
+    if (payload.ai.status === "UNAVAILABLE") return bootstrapCheck(checks, "AI_UNAVAILABLE_LOCAL", payload.localClientAuthority) ? { workAllowed: false, requestedAi: requestedAi || null } : null;
     // Adapter profile bytes remain v1/v2 material even when a dormant v3 bootstrap carries them.
     const profileContractVersion = payload.ai.profile?.compatibility?.contractVersion === "control_plane_v1" ? "control_plane_v1" : "control_plane_v2";
-    if (payload.ai.status !== "RESOLVED" || !validProfileShape(payload.ai.profile, enforceEnvironment, profileContractVersion)) return null;
+    if (!bootstrapCheck(checks, "AI_RESOLVED", payload.ai.status === "RESOLVED")) return null;
+    const checksBeforeProfile = checks?.length || 0;
+    if (!validProfileShape(payload.ai.profile, enforceEnvironment, profileContractVersion, checks)) { if (checks && checks.length === checksBeforeProfile) bootstrapCheck(checks, "PROFILE_SHAPE", false); return null; }
     const expected = requestedAi ? LOCAL_AI[requestedAi] : LOCAL_AI[payload.ai.detected?.family], detected = payload.ai.detected;
-    if (!expected || detected.family !== (requestedAi || detected.family) || detected.surface !== expected.surface || detected.variant !== null || payload.ai.profile.scopeVariant !== null) return null;
-    if ((await profileFingerprint(payload.ai.profile)) !== payload.ai.profile.contentSha256) return null;
+    if (!bootstrapCheck(checks, "AI_PROFILE_SCOPE", expected && detected.family === (requestedAi || detected.family) && detected.surface === expected.surface && detected.variant === null && payload.ai.profile.scopeVariant === null)) return null;
+    if (!bootstrapCheck(checks, "PROFILE_FINGERPRINT", (await profileFingerprint(payload.ai.profile)) === payload.ai.profile.contentSha256)) return null;
     return { workAllowed: true, requestedAi: requestedAi || payload.ai.detected.family };
   }
   async function validateOperationalAuthority(payload, requestedAi = null) { return Boolean(await validateAccountProfile(payload, requestedAi, true)); }
-  async function validateBootstrapAuthority(payload, requestedAi = null, privacyNeutral = false) {
+  async function validateBootstrapAuthority(payload, requestedAi = null, privacyNeutral = false, checks = null) {
     if (privacyNeutral) {
-      if (!payload?.localClientAuthority || Object.hasOwn(payload, "compatibility") || Object.hasOwn(payload, "features") || Object.hasOwn(payload, "ai")) return null;
+      if (!bootstrapCheck(checks, "PAYLOAD_VARIANT", payload?.localClientAuthority && !Object.hasOwn(payload, "compatibility") && !Object.hasOwn(payload, "features") && !Object.hasOwn(payload, "ai"))) return null;
       payload = await materializeLocalAuthority(payload, requestedAi);
-      if (!payload) return null;
-    } else if (payload?.localClientAuthority) return null;
-    return validateAccountProfile(payload, requestedAi, true);
+      if (!bootstrapCheck(checks, "LOCAL_MATERIALIZATION", payload)) return null;
+    } else if (!bootstrapCheck(checks, "PAYLOAD_VARIANT", !payload?.localClientAuthority)) return null;
+    return validateAccountProfile(payload, requestedAi, true, checks);
   }
   async function requestBootstrap(credentials, authority, detectedAi, attempt) {
     return request("/v1/bootstrap", { method: "POST", headers: { Authorization: `Bearer ${credentials.accessToken}` },
@@ -971,7 +986,7 @@
     if (!state.credentials) throw error("AUTH_REQUIRED");
     if (!parallelAuthority?.createBootstrapScheduler) throw error("BOOTSTRAP_SCHEDULER_UNAVAILABLE");
     const family = options.detectedAi?.family || null;
-    if (family !== null && !LOCAL_AI[family]) throw error("BOOTSTRAP_PROFILE_INCOMPATIBLE");
+    if (family !== null && !LOCAL_AI[family]) throw bootstrapProfileFailure("REQUEST_FAMILY", [{ check: "REQUESTED_AI_KNOWN", passed: false }]);
     const principal = { principalEpoch: epoch("principalEpoch"), deviceId: state.credentials.deviceId, sessionId: state.credentials.sessionId };
     const environmentKey = verifier.canonicalJson({ purpose: "bootstrap_acquisition_environment_v1",
       controlApiOrigin: config.controlApiOrigin, portalOrigin: config.portalOrigin, contractVersion: bootstrapContractVersion(),
@@ -1011,7 +1026,7 @@
     if (!bootstrapAttemptCurrent(attempt)) throw error("AUTH_GENERATION_CHANGED");
     const requestedAi = options.detectedAi?.family || null;
     if (options.detectedAi && (!LOCAL_AI[requestedAi] || options.detectedAi.surface !== LOCAL_AI[requestedAi].surface || options.detectedAi.variant !== null)) {
-      const failure = error("BOOTSTRAP_PROFILE_INCOMPATIBLE"); await invalidateBootstrapFailure(attempt, failure); throw failure;
+      const failure = bootstrapProfileFailure("REQUEST_IDENTITY", [{ check: "REQUESTED_AI_KNOWN", passed: Boolean(LOCAL_AI[requestedAi]) }, { check: "REQUEST_SURFACE", passed: options.detectedAi.surface === LOCAL_AI[requestedAi]?.surface }, { check: "REQUEST_VARIANT", passed: options.detectedAi.variant === null }]); await invalidateBootstrapFailure(attempt, failure); throw failure;
     }
     if (!accessFresh()) {
       attempt.preflightRefresh = true;
@@ -1064,9 +1079,10 @@
       if (options.expectedAccountId && acceptedPayload?.account?.id !== options.expectedAccountId) {
         const failure = error("BOOTSTRAP_ACCOUNT_MISMATCH"); await invalidateBootstrapFailure(attempt, failure, false); throw failure;
       }
-      const validation = acceptedPayload ? currentDeny && privacyVariantMatches ? { workAllowed: false, requestedAi } : await validateBootstrapAuthority(verified.payload, requestedAi, attempt.privacyNeutral === true).catch(() => null) : null;
+      const validationChecks = [];
+      const validation = acceptedPayload ? currentDeny && privacyVariantMatches ? { workAllowed: false, requestedAi } : await validateBootstrapAuthority(verified.payload, requestedAi, attempt.privacyNeutral === true, validationChecks).catch(() => { bootstrapCheck(validationChecks, "VALIDATOR_COMPLETED", false); return null; }) : (bootstrapCheck(validationChecks, "LOCAL_MATERIALIZATION", false), null);
       if (!bootstrapAttemptCurrent(attempt)) throw error("AUTH_GENERATION_CHANGED");
-      if (!validation) { const failure = error("BOOTSTRAP_PROFILE_INCOMPATIBLE"); await invalidateBootstrapFailure(attempt, failure, false); throw failure; }
+      if (!validation) { const failure = bootstrapProfileFailure("SIGNED_AUTHORITY", validationChecks); await invalidateBootstrapFailure(attempt, failure, false); throw failure; }
       const cacheBinding = await expectedCacheBinding(acceptedPayload, validation.requestedAi);
       if (!bootstrapAttemptCurrent(attempt)) throw error("AUTH_GENERATION_CHANGED");
       const nextAuthority = { verified: true, privacyNeutral: attempt.privacyNeutral === true, workAllowed: validation.workAllowed, payload: acceptedPayload, envelope: verified.envelope, deviceId: credentials.deviceId, sessionId: credentials.sessionId, generation: attempt.context.generation, requestedAi: validation.requestedAi, cacheBinding };
@@ -1646,13 +1662,55 @@
       const { auth, record } = await requireTransferRecord(input?.requestId);
       if (record.phase === "ACKED_RESULT") return { request: null, result: clone(record.result), reconciled: true };
       if (record.phase !== "IMPORTED_PENDING_ACK" || !record.result || record.packetId !== input.packetId) throw error("TRANSFER_IMPORT_NOT_DURABLE");
-      let serverResult, reconciled = false;
-      try { serverResult = clone((await authenticatedRequest(`/v1/credential-transfers/${encodeURIComponent(input.requestId)}/ack`, { method: "POST", body: input }, auth.context)).body); }
+      let serverResult, directResponse, reconciled = false;
+      try { directResponse = clone((await authenticatedRequest(`/v1/credential-transfers/${encodeURIComponent(input.requestId)}/ack`, { method: "POST", body: input }, auth.context)).body); }
       catch (failure) {
-        let observed = null;
-        try { observed = clone((await authenticatedRequest(`/v1/credential-transfers/${encodeURIComponent(input.requestId)}`, {}, auth.context)).body); } catch (_) {}
-        if (observed?.state !== "COMPLETED") throw failure;
+        let observed = null, readFailure = null;
+        try {
+          const body = clone((await authenticatedRequest(`/v1/credential-transfers/${encodeURIComponent(input.requestId)}`, {}, auth.context)).body);
+          observed = assertTransferRequestMatches(record, body);
+        } catch (readError) { readFailure = readError; }
+        if (readFailure?.code === "TRANSFER_ACCOUNT_MISMATCH") {
+          // A GET 404/mismatch after any failed ACK (including transport
+          // timeout, not only REPLAY) supplies no identity-bound terminal
+          // result. Keep the imported vault record, never invent ACK, and
+          // only show the sanitized pending state if local authority still
+          // matches its original account/device/session/store binding.
+          const latestAuth = await transferAuth();
+          if (!transferRecordMatches(record, latestAuth)) throw error("TRANSFER_ACCOUNT_MISMATCH");
+          throw error("TRANSFER_ACK_UNCONFIRMED", { serverState: null });
+        }
+        if (readFailure && ["TRANSFER_REQUEST_MISMATCH", "TRANSFER_ACCOUNT_MISMATCH",
+                            "AUTH_REQUIRED", "TRANSFER_EXPIRED"].includes(readFailure.code)) throw readFailure;
+        if (["CANCELLED", "EXPIRED"].includes(observed?.state)) {
+          const latestAuth = await transferAuth();
+          if (!transferRecordMatches(record, latestAuth)) throw error("TRANSFER_ACCOUNT_MISMATCH");
+          // The authenticated readback matched this exact recipient request.
+          // A terminal server state is distinct from a recoverable lost relay.
+          throw error("TRANSFER_ACK_TERMINAL", { state: observed.state });
+        }
+        if (observed?.state !== "COMPLETED") {
+          // Losing the process-memory relay before ACK can yield REPLAY while
+          // PostgreSQL still has a nonterminal delivered request. Do not
+          // erase the already durable recipient import or invent an ACK.
+          if (failure?.code === "TRANSFER_REPLAY" &&
+              (!observed || !["CANCELLED", "EXPIRED"].includes(observed.state))) {
+            const latestAuth = await transferAuth();
+            if (!transferRecordMatches(record, latestAuth)) throw error("TRANSFER_ACCOUNT_MISMATCH");
+            throw error("TRANSFER_ACK_UNCONFIRMED", { serverState: observed?.state || null });
+          }
+          throw failure;
+        }
         serverResult = observed; reconciled = true;
+      }
+      if (!reconciled) {
+        // A successful HTTP status alone cannot certify the exact imported
+        // recipient request. Reject a foreign/malformed ACK body before the
+        // durable vault is marked ACKED_RESULT; a later matching authenticated
+        // readback can still recover a lost or malformed response.
+        serverResult = assertTransferRequestMatches(record, directResponse);
+        if (serverResult.state !== "COMPLETED")
+          throw error("TRANSFER_ACK_UNCONFIRMED", { serverState: serverResult.state || null });
       }
       const latestAuth = await transferAuth();
       if (!transferRecordMatches(record, latestAuth)) throw error("TRANSFER_ACCOUNT_MISMATCH");
