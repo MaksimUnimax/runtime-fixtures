@@ -132,12 +132,22 @@ function admissionFixture() {
     saReadAdmissionSnapshot:async()=>{entered.resolve();return snapshot.promise;},
     saValidateRebindPlan:()=>{observed.mutations++;throw new Error("unexpected admission");}
   });
+  vm.runInContext(fs.readFileSync(path.join(repo, "packages/bridge-core/src/work/session-model.js"), "utf8"), ctx);
+  ctx.OzonWorkSessionModel = ctx.SellerAgentsWorkSessionModel;
   for (const name of ["saAdmissionKey","saBeginAdmission","saCancelAdmission","saAdmissionCurrent",
                       "saAdmissionError","saReleaseAdmission","saAdmitWork","saWorkStart","saInvalidateAuthority"]) {
     vm.runInContext(realFunction(name),ctx);
   }
   return {ctx,observed,page,entered,snapshot};
 }
+await check("unconfirmed-work-storage-rejects-before-page-preparation", async () => {
+  const f = admissionFixture();
+  f.ctx.OzonWorkSessionModel.markStorageUnavailable();
+  await assert.rejects(f.ctx.saWorkStart({tab_id:7,store_id:"store"},{}), error => error.code === "WORK_STATE_COMMIT_UNCONFIRMED");
+  assert.equal(f.observed.authorizations,0);
+  assert.equal(f.observed.mutations,0);
+  assert.equal(f.ctx.saAdmissionEpochs.size,0);
+});
 for (const change of ["finish","account"]) {
   await check(change+"-during-page-preparation-invalidates-start",async()=>{
     const f=admissionFixture();
@@ -187,37 +197,50 @@ for (const transition of ["resolved-ai","denied","different-account","different-
   });
 }
 
-for (const transition of ["own-resolution","finish","account","session","wrong-ai","generation-gap","denied"]) {
-  await check("first-bootstrap-generation-"+transition,async()=>{
+// Resolving an AI grant retains the common generation in R3. A grant must never
+// upgrade the generation captured by a command that is already preparing.
+for (const transition of ["own-resolution","finish","account","session","wrong-ai","generation-change","generation-gap","denied"]) {
+  await check("first-scoped-bootstrap-"+transition,async()=>{
     const f=admissionFixture();
+    let promptReads=0;
     f.ctx.SellerAgentsControlClient.ensureForIdentity=async()=>{
       f.observed.authorizations++;
-      const next={...f.observed.authority,generation:2,workAllowed:true,requestedAi:"provider_future"};
+      const next={...f.observed.authority,workAllowed:true,requestedAi:"provider_future"};
       if(transition==="finish")f.ctx.saCancelAdmission(7);
       if(transition==="account")next.payload={account:{id:"account-B"}};
       if(transition==="session")next.sessionId="session-B";
       if(transition==="wrong-ai")next.requestedAi="another_provider";
+      if(transition==="generation-change")next.generation=2;
       if(transition==="generation-gap")next.generation=3;
-      if(transition==="denied")next.workAllowed=false;
+      if(transition==="denied"){next.workAllowed=false;next.generation=2;}
       f.observed.generation=next.generation;
       f.observed.authority=next;
-      await f.observed.authorityChanged(next,"bootstrap_verified");
+      await f.observed.authorityChanged(next,"bootstrap_verified",
+        next.generation,next.workAllowed?{requestedAi:next.requestedAi}:null);
     };
-    f.ctx.SellerAgentsControlClient.canWork=async()=>true;
+    f.ctx.SellerAgentsControlClient.canWork=async(identity)=>
+      f.observed.authority.workAllowed && f.observed.authority.requestedAi===identity.ai_id;
     f.ctx.saCatalog={get:async()=>({id:"store"})};
     f.ctx.tabIdentity=async()=>({ai_id:"provider_future",conversation_id:null});
-    f.ctx.OzonWorkSessionModel={STATES:{}};
     f.ctx.saAssertReconciliationAction=async()=>{};
+    f.ctx.saPromptTreeForExchange=async(identity)=>{
+      assert.equal(identity.ai_id,"provider_future");promptReads++;
+      return {id:"entry-fixture-tree"};
+    };
     f.ctx.saAdmitWork=async({entryToken})=>{
       assert.equal(f.ctx.saAdmissionCurrent(entryToken),true);
-      assert.equal(entryToken.generation,2);
+      assert.equal(entryToken.generation,1,"an existing command is never rebased");
       throw Object.assign(new Error("ENTRY_PASSED"),{code:"ENTRY_PASSED"});
     };
     const run=f.ctx.saWorkStart({tab_id:7,store_id:"store"},{});
     const outcome=run.then(()=>({code:"UNEXPECTED_SUCCESS"}),error=>({code:error.code}));
     await f.entered.promise;
     f.page.resolve({ai_id:"provider_future",conversation_id:null});
-    assert.equal((await outcome).code,transition==="own-resolution"?"ENTRY_PASSED":"WORK_ADMISSION_CONTEXT_CHANGED");
+    const expected=transition==="own-resolution"?"ENTRY_PASSED":
+      ["wrong-ai","denied"].includes(transition)?"WORK_POLICY_BLOCKED":
+      transition.startsWith("generation-")?"WORK_ADMISSION_CONTEXT_CHANGED":"WORK_ADMISSION_CANCELLED";
+    assert.equal((await outcome).code,expected);
+    assert.equal(promptReads,transition==="own-resolution"?1:0);
     assert.equal(f.observed.authorizations,1);
     assert.equal(f.observed.mutations,0);
     assert.equal(f.ctx.saAdmissionEpochs.size,0);

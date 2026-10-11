@@ -228,6 +228,14 @@ def compose(directory, mode="development", release_authority=None):
             output["service_worker.js"] = output["service_worker.js"].replace(
                 development_config, store_config_module
             )
+            # Store authority has already restricted the environment to
+            # PREPRODUCTION. Compile out the development-only scope
+            # option as well as its config fallback; retain fail-closed gates.
+            development_scope = b'development: config.environment === "LOCAL DEVELOPMENT"'
+            assert output["service_worker.js"].count(development_scope) == 1
+            output["service_worker.js"] = output["service_worker.js"].replace(
+                development_scope, b"development: false", 1
+            )
     for patch in json.loads(read_input(recipe["application_patches"], inputs)):
         text = output[patch["target"]].decode()
         assert text.count(patch["old"]) == 1, (patch["target"], patch["old"][:100], text.count(patch["old"]))

@@ -25,7 +25,7 @@ def authority(control="https://api.octoport.ru", portal="https://app.octoport.ru
     return {
         "schemaVersion": "octoport_release_authority_v1",
         "source": {"head": "0" * 40, "tree": "1" * 40},
-        "productVersion": "0.2.13",
+        "productVersion": "0.2.15",
         "contractVersion": "control_plane_v2",
         "migrationLevel": 48,
         "environment": "PREPRODUCTION",
@@ -77,12 +77,16 @@ def declared_resources(manifest):
 with tempfile.TemporaryDirectory(prefix="octoport-store-contract-") as temp:
     root = Path(temp)
     verifier_source = (ROOT / "packages/control-client/src/crypto.js").read_bytes()
+    prompt_tree_source = (ROOT / "packages/control-client/src/prompt-trees.js").read_bytes()
+    development_verifier = b"\n;\n".join((prompt_tree_source, verifier_source))
     development_runtime, development_extracted, development_receipt = composed.build(
         root / "development"
     )
-    assert development_receipt["version"] == "0.2.13"
-    assert (development_runtime / "shared/bootstrap_verifier.js").read_bytes() == verifier_source
-    assert (development_extracted / "shared/bootstrap_verifier.js").read_bytes() == verifier_source
+    assert development_receipt["version"] == "0.2.15"
+    development_worker = (development_runtime / "service_worker.js").read_bytes()
+    assert b'development: config.environment === "LOCAL DEVELOPMENT"' in development_worker
+    assert (development_runtime / "shared/bootstrap_verifier.js").read_bytes() == development_verifier
+    assert (development_extracted / "shared/bootstrap_verifier.js").read_bytes() == development_verifier
 
     auth = write_authority(root, authority())
     runtime, extracted, receipt = composed.build(
@@ -109,6 +113,7 @@ with tempfile.TemporaryDirectory(prefix="octoport-store-contract-") as temp:
     assert not (extracted / "shared/bootstrap_verifier.js").exists()
     assert "shared/bootstrap_verifier.js" not in {row["path"] for row in receipt["files"]}
     assert worker_bytes.count(verifier_source) == 1
+    assert worker_bytes.count(prompt_tree_source) == 1
     for resource in declared_resources(manifest):
         assert (runtime / resource).is_file(), resource
         assert (extracted / resource).is_file(), resource
@@ -116,6 +121,7 @@ with tempfile.TemporaryDirectory(prefix="octoport-store-contract-") as temp:
     assert "control_plane_v2" in worker and "PREPRODUCTION" in worker
     assert "PACKAGED_CONFIG_REQUIRED" in worker
     assert "LOCAL DEVELOPMENT" not in worker
+    assert "development: false" in worker
     assert "127.0.0.1:43100" not in worker and "127.0.0.1:43101" not in worker
     assert "config-local-development" not in worker
     for visible in ("popup.html", "popup.js", "shared/application.js"):
@@ -129,7 +135,7 @@ with tempfile.TemporaryDirectory(prefix="octoport-store-contract-") as temp:
     assert "BETA · результаты сразу в ИИ · буфер до 1 часа" in popup
     assert receipt["build_mode"] == "store"
     assert receipt["environment"] == "PREPRODUCTION"
-    assert receipt["package"]["name"] == "OCTOPORT_v0.2.13_CHROMIUM_STORE.zip"
+    assert receipt["package"]["name"] == "OCTOPORT_v0.2.15_CHROMIUM_STORE.zip"
     assert receipt["package"]["repeat_archive_match"] is True
     assert receipt["release_authority_sha256"] == composed.baseline.sha256(auth.read_bytes())
 
@@ -138,7 +144,7 @@ with tempfile.TemporaryDirectory(prefix="octoport-store-contract-") as temp:
         (root / "firefox-runtime" / "manifest.json").read_text(encoding="utf-8")
     )
     assert firefox_receipt["build_mode"] == "store"
-    assert firefox_receipt["package"]["name"] == "OCTOPORT_v0.2.13_FIREFOX_STORE.zip"
+    assert firefox_receipt["package"]["name"] == "OCTOPORT_v0.2.15_FIREFOX_STORE.zip"
     assert firefox_manifest["browser_specific_settings"]["gecko"]["id"] == "octoport@octoport.ru"
     assert firefox_manifest["browser_specific_settings"]["gecko"]["data_collection_permissions"] == {
         "required": [
