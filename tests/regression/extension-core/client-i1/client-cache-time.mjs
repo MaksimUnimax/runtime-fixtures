@@ -185,7 +185,8 @@ async function signedBootstrap(backing, payload, clock, accountId = "11111111-11
 // R3-B: invalid-origin and malformed-starting records use the same terminal
 // cleanup branch. When both persistence operations fail, initialization still
 // resolves denied and leaves the old disk record explicitly unprotected until
-// storage recovers; the same initialized worker can then start fresh.
+// storage recovers. R3 keeps that initialized worker quarantined; it must not
+// start a new authentication attempt or silently trust the old disk record.
 for (const [label, makeInvalid] of [["invalid-origin", pending => { pending.authContext.controlApiOrigin = "http://127.0.0.1:43199"; }], ["malformed-starting", pending => ({ phase: "starting", attemptId: pending.attemptId, startIdempotencyKey: "bad", authContext: pending.authContext })]]) {
   const clock = { wall: baseWall, mono: 1000 }, { backing } = await signedOutTemplate(clock);
   const source = await makeWorker(runtime, { backing, seedAuthority: false, wallClock: () => clock.wall, monotonicClock: () => clock.mono, fetch: async (url) => {
@@ -202,9 +203,11 @@ for (const [label, makeInvalid] of [["invalid-origin", pending => { pending.auth
   const brokenRequests = [], freshRequests = [], broken = await makeWorker(runtime, { backing, seedAuthority: false, wallClock: () => clock.wall, monotonicClock: () => clock.mono, onStorageWrite: async (kind, values) => { if (failPersistence && kind === "local" && Object.hasOwn(values, AUTH)) { setAttempts++; throw new Error(`R3-B ${label} AUTH set failure`); } }, onStorageRemove: async (kind, key) => { if (failPersistence && kind === "local" && key === AUTH) { removeAttempts++; throw new Error(`R3-B ${label} AUTH remove failure`); } }, fetch: async (url, init) => { if (failPersistence) { brokenRequests.push({ url, body: init?.body || "" }); throw new Error(`R3-B ${label} restore request`); } freshRequests.push({ url, key: init.headers?.get?.("Idempotency-Key") || init.headers?.["Idempotency-Key"] || null, body: init.body || "" }); if (url.endsWith("/v1/device-authorizations")) return json(activationResponse(clock, { authorizationId: "ffffffff-ffff-4fff-8fff-ffffffffffff", deviceCode: "F".repeat(43) }), 201); if (url.endsWith("/v1/device-authorizations/token")) return new Promise(() => {}); throw new Error(`R3-B ${label} unexpected fresh request`); } });
   try {
     const status = await broken.call("SellerAgentsControlClient.status"); assert.equal(status.authenticated, false, label); assert.equal(status.pending, null, label); assert.equal(status.workAllowed, false, label); assert.equal(status.lastError.code, "AUTH_DENIAL_PERSISTENCE_FAILED", label); assert.equal(setAttempts, 1, `${label} one failed denied write`); assert.equal(removeAttempts, 1, `${label} one failed removal`); assert.ok(backing.local[AUTH], `${label} no durable-protection claim`); assert.equal(brokenRequests.length, 0, `${label} no old request`);
-    failPersistence = false; const started = await broken.call("SellerAgentsControlClient.startActivation");
-    await until(() => freshRequests.some(row => row.url.endsWith("/v1/device-authorizations")), `${label} fresh request`);
-    assert.ok(started.pending); assert.notEqual(freshRequests.find(row => row.url.endsWith("/v1/device-authorizations")).key, oldPending.startIdempotencyKey, `${label} fresh idempotency key`); assert.equal(freshRequests.some(row => String(row.body).includes(oldPending.deviceCode)), false, `${label} old device code`); assert.equal(backing.local.r3_catalog_marker.keep, true);
+    failPersistence = false;
+    await assert.rejects(broken.call("SellerAgentsControlClient.startActivation"), { code: "AUTH_STATE_COMMIT_UNCONFIRMED" });
+    assert.equal(freshRequests.length, 0, `${label} no implicit recovery or new authentication`);
+    assert.equal((await broken.call("SellerAgentsControlClient.status")).authenticated, false);
+    assert.equal(backing.local.r3_catalog_marker.keep, true);
   } finally { broken.close(); }
 }
 
@@ -269,10 +272,11 @@ for (const [label, makeInvalid] of [["invalid-origin", pending => { pending.auth
     try { assert.equal(await worker.call("SellerAgentsControlClient.canWork"), false, kind); assert.equal((await worker.call("SellerAgentsControlClient.getAuthority")).workAllowed, false); } finally { worker.close(); }
   }
   const clock = { wall: baseWall, mono: 1000 }, backing = { local: {}, session: {} };
-  let release, writes = 0;
-  const { worker } = await fixture({ backing, clock, onStorageWrite: async (kind, values) => { if (kind === "local" && Object.hasOwn(values, AUTH) && writes++ === 0) await new Promise(resolve => { release = resolve; }); } });
+  let release, writes = 0, holdCheckpoint = false;
+  const { worker } = await fixture({ backing, clock, onStorageWrite: async (kind, values) => { if (holdCheckpoint && kind === "local" && Object.hasOwn(values, AUTH) && writes++ === 0) await new Promise(resolve => { release = resolve; }); } });
   try {
     await worker.call("SellerAgentsControlClient.canWork");
+    holdCheckpoint = true;
     clock.wall += 100; clock.mono += 100;
     const held = worker.call("SellerAgentsControlClient.canWork");
     await new Promise(resolve => setTimeout(resolve, 10));
@@ -281,13 +285,13 @@ for (const [label, makeInvalid] of [["invalid-origin", pending => { pending.auth
     const oldFloor = backing.local[AUTH].cacheClock.effectiveTimeMs;
     let mode = "normal";
     const failing = await fixture({ backing, clock, onStorageWrite: async (kind, values) => { if (mode === "fail" && kind === "local" && Object.hasOwn(values, AUTH)) throw new Error("write barrier"); }, onStorageRemove: async () => { throw new Error("removal barrier"); } });
-    try { await failing.worker.call("SellerAgentsControlClient.canWork"); mode = "fail"; clock.wall += 100; clock.mono += 100; assert.equal(await failing.worker.call("SellerAgentsControlClient.canWork"), false); clock.wall += 100; clock.mono += 100; mode = "normal"; assert.equal(await failing.worker.call("SellerAgentsControlClient.canWork"), true); assert.ok(backing.local[AUTH].cacheClock.effectiveTimeMs >= oldFloor); } finally { failing.worker.close(); }
+    try { await failing.worker.call("SellerAgentsControlClient.canWork"); mode = "fail"; clock.wall += 100; clock.mono += 100; assert.equal(await failing.worker.call("SellerAgentsControlClient.canWork"), false); clock.wall += 100; clock.mono += 100; mode = "normal"; assert.equal(await failing.worker.call("SellerAgentsControlClient.canWork"), false, "R3 unknown storage commit remains quarantined"); assert.ok(backing.local[AUTH].cacheClock.effectiveTimeMs >= oldFloor); } finally { failing.worker.close(); }
   } finally { worker.close(); }
 }
 
-// T5: a failed checkpoint with a successful removal is durably fail-closed;
-// when both writes fail, only the in-memory denial is proven until a later
-// successful, nondecreasing floor is persisted.
+// T5: R3 checkpoint failure keeps this worker quarantined. Verified AUTH
+// removal also prevents rollback restart reuse. If write and removal both fail,
+// the retained disk record is explicitly unprotected, not an accepted recovery.
 {
   const clock = { wall: baseWall, mono: 1000 }, backing = { local: {}, session: {} };
   let fail = false;
@@ -296,10 +300,13 @@ for (const [label, makeInvalid] of [["invalid-origin", pending => { pending.auth
   try {
     await denied.worker.call("SellerAgentsControlClient.canWork"); fail = true; clock.wall += 100; clock.mono += 100;
     assert.equal(await denied.worker.call("SellerAgentsControlClient.canWork"), false);
-    assert.equal(backing.local[AUTH], undefined, "successful removal clears the record");
+    assert.equal(backing.local[AUTH], undefined, "verified AUTH removal prevents stale grant restore");
+    fail = false;
+    assert.equal(await denied.worker.call("SellerAgentsControlClient.canWork"), false, "storage recovery cannot clear this worker quarantine");
   } finally { denied.worker.close(); }
-  const restartDenied = await makeWorker(runtime, { backing, seedAuthority: false, wallClock: () => clock.wall, monotonicClock: () => clock.mono });
-  try { assert.equal(await restartDenied.call("SellerAgentsControlClient.canWork"), false); } finally { restartDenied.close(); }
+  const restartDenied = await makeWorker(runtime, { backing, seedAuthority: false, wallClock: () => baseWall - 100000, monotonicClock: () => 1 });
+  try { assert.equal(await restartDenied.call("SellerAgentsControlClient.canWork"), false, "rollback restart has no removed grant"); }
+  finally { restartDenied.close(); }
 
   const limitedClock = { wall: baseWall, mono: 1000 }, limitedBacking = { local: {}, session: {} }, limitedSeed = await fixture({ backing: limitedBacking, clock: limitedClock }); limitedSeed.worker.close();
   let limited = true;
@@ -309,9 +316,9 @@ for (const [label, makeInvalid] of [["invalid-origin", pending => { pending.auth
     limitedClock.wall += 100; limitedClock.mono += 100; assert.equal(await limitedWorker.worker.call("SellerAgentsControlClient.canWork"), false);
     assert.ok(limitedBacking.local[AUTH], "failed set/remove leaves a record whose restart protection is unproven");
   } finally { limitedWorker.worker.close(); }
-  limited = false; limitedClock.wall += 100; limitedClock.mono += 100;
-  const recovered = await fixture({ backing: limitedBacking, clock: limitedClock });
-  try { assert.equal(await recovered.worker.call("SellerAgentsControlClient.canWork"), true); assert.ok(limitedBacking.local[AUTH].cacheClock.effectiveTimeMs >= oldFloor); } finally { recovered.worker.close(); }
+  assert.ok(limitedBacking.local[AUTH], "both storage failures leave restart protection unproven");
+  assert.equal(limitedBacking.local[AUTH].cacheClock.effectiveTimeMs, oldFloor);
+  // No positive restart/recovery acceptance is claimed when both operations fail.
 }
 
 // C2.1-R7/R8: every packaged context dimension denies cached Work. Origin
@@ -384,7 +391,7 @@ for (const [label, makeInvalid] of [["invalid-origin", pending => { pending.auth
   } });
   basePayload = clone(backing.local[AUTH].authority.payload);
   try {
-    const oldBootstrap = owned.worker.call("SellerAgentsControlClient.bootstrap"); await until(() => releaseA, "held A verification");
+    const oldBootstrap = owned.worker.call("SellerAgentsControlClient.bootstrap"); oldBootstrap.catch(() => {}); await until(() => releaseA, "held A verification");
     const oldEnvelope = clone(backing.local[AUTH].authority.envelope);
     await owned.worker.call("SellerAgentsControlClient.localReset"); await owned.worker.call("SellerAgentsControlClient.startActivation");
     await until(async () => (await owned.worker.call("SellerAgentsControlClient.status")).authenticated, "B activation");
@@ -446,10 +453,10 @@ for (const [label, makeInvalid] of [["invalid-origin", pending => { pending.auth
     if (url.endsWith("/v1/bootstrap")) return signedBootstrap(backing, basePayload, clock, "99999999-9999-4999-8999-999999999999");
     throw new Error("unexpected R3-C queued request " + url);
   } });
-  basePayload = clone(backing.local[AUTH].authority.payload); const oldRecord = clone(backing.local[AUTH]);
+  basePayload = clone(backing.local[AUTH].authority.payload); let oldRecord;
   let resetSettled = false, startSettled = false;
   try {
-    await owned.worker.call("SellerAgentsControlClient.canWork"); clock.wall += 100; clock.mono += 100;
+    await owned.worker.call("SellerAgentsControlClient.canWork"); oldRecord = clone(backing.local[AUTH]); events.length = 0; clock.wall += 100; clock.mono += 100;
     const oldCheckpoint = owned.worker.call("SellerAgentsControlClient.canWork"); await until(() => releaseCheckpoint, "R3-C held checkpoint");
     const reset = owned.worker.call("SellerAgentsControlClient.localReset").then(value => { resetSettled = true; return value; });
     const start = reset.then(() => owned.worker.call("SellerAgentsControlClient.startActivation")).then(value => { startSettled = true; return value; });
@@ -487,7 +494,7 @@ for (const [label, makeInvalid] of [["invalid-origin", pending => { pending.auth
   } });
   const oldEnvelope = clone(backing.local[AUTH].authority.envelope), oldAuthority = clone(backing.local[AUTH].authority);
   try {
-    await worker.call("SellerAgentsControlClient.canWork"); clock.wall += 100; clock.mono += 100;
+    await worker.call("SellerAgentsControlClient.canWork"); events.length = 0; clock.wall += 100; clock.mono += 100;
     const oldPublic = worker.call("SellerAgentsControlClient.canWork").then(value => { oldPublicSettled = true; return value; }); await until(() => releaseCheckpoint, "R3-C replacement checkpoint"); releaseCheckpoint();
     await replacementCall; const replacementCommittedBeforeOldPublic = !oldPublicSettled; const oldDecision = await oldPublic;
     const current = await worker.call("SellerAgentsControlClient.getAuthority"), status = await worker.call("SellerAgentsControlClient.status");

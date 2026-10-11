@@ -23,7 +23,7 @@ assert.match(
 );
 assert.match(
   popupJs,
-  /const run = async confirm_change => \{ await requestStart\(/,
+  /const run = async confirm_change => \{ const started = await requestStart\(/,
 );
 const worker = await makeWorker(runtime, {
   userAgent: "Mozilla/5.0 Chrome/147.0.7727.116 Safari/537.36",

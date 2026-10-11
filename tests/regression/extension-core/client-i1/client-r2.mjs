@@ -62,31 +62,35 @@ const response = (body, status = 200) => new Response(JSON.stringify(body), { st
 // G3: a restrictive denial closes memory before storage; removal is the fail-closed restart fallback.
 {
   const backing = { local: {}, session: {} };
+  let denialObserved = false;
   const worker = await makeWorker(runtime, { backing, fetch: async (url) => {
-    if (url.endsWith("/v1/bootstrap")) return response({ error: { code: "FORBIDDEN" } }, 403);
+    if (url.endsWith("/v1/bootstrap")) { denialObserved = true; return response({ error: { code: "FORBIDDEN" } }, 403); }
     throw new Error("unexpected request " + url);
   }, onStorageWrite: async (kind, values) => {
-    if (kind === "local" && Object.hasOwn(values, "seller_agents_control_auth_v2")) throw new Error("fixture write failure");
+    if (denialObserved && kind === "local" && Object.hasOwn(values, "seller_agents_control_auth_v2")) throw new Error("fixture write failure");
   } });
   try {
-    await assert.rejects(worker.call("SellerAgentsControlClient.bootstrap"), /FORBIDDEN/);
+    await assert.rejects(worker.call("SellerAgentsControlClient.bootstrap"), { code: "BOOTSTRAP_SECURITY_QUARANTINE" });
     assert.equal((await worker.call("SellerAgentsControlClient.status")).authenticated, false);
+    assert.equal(denialObserved, true);
     assert.equal(backing.local.seller_agents_control_auth_v2, undefined);
-    assert.equal((await worker.call("SellerAgentsControlClient.status")).lastError.code, "FORBIDDEN");
+    assert.equal((await worker.call("SellerAgentsControlClient.status")).lastError.code, "AUTH_STATE_COMMIT_UNCONFIRMED");
   } finally { worker.close(); }
 }
 
 {
+  let denialObserved = false;
   const worker = await makeWorker(runtime, { fetch: async (url) => {
-    if (url.endsWith("/v1/bootstrap")) return response({ error: { code: "FORBIDDEN" } }, 403);
+    if (url.endsWith("/v1/bootstrap")) { denialObserved = true; return response({ error: { code: "FORBIDDEN" } }, 403); }
     throw new Error("unexpected request " + url);
   }, onStorageWrite: async (kind, values) => {
-    if (kind === "local" && Object.hasOwn(values, "seller_agents_control_auth_v2")) throw new Error("fixture write failure");
+    if (denialObserved && kind === "local" && Object.hasOwn(values, "seller_agents_control_auth_v2")) throw new Error("fixture write failure");
   }, onStorageRemove: async (kind, key) => {
     if (kind === "local" && String(key) === "seller_agents_control_auth_v2") throw new Error("fixture remove failure");
   } });
   try {
-    await assert.rejects(worker.call("SellerAgentsControlClient.bootstrap"), /FORBIDDEN/);
+    await assert.rejects(worker.call("SellerAgentsControlClient.bootstrap"), { code: "BOOTSTRAP_SECURITY_QUARANTINE" });
+    assert.equal(denialObserved, true);
     const status = await worker.call("SellerAgentsControlClient.status");
     assert.equal(status.authenticated, false);
     assert.equal(status.lastError.code, "AUTH_DENIAL_PERSISTENCE_FAILED");

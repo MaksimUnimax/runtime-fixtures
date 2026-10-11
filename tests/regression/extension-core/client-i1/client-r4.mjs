@@ -181,14 +181,13 @@ for (const outcome of ["success", "forbidden", "malformed"]) {
     throw new Error("unexpected bootstrap-owner request " + url);
   } });
   try {
-    const oldBootstrap = worker.call("SellerAgentsControlClient.bootstrap");
+    const oldBootstrap = worker.call("SellerAgentsControlClient.bootstrap"); oldBootstrap.catch(() => {});
     await until(() => bootstrapCalls === 1 && releaseA, "held A bootstrap after expired-token refresh");
     await worker.call("SellerAgentsControlClient.localReset");
     await completeB(worker, payload, 1, { starts: 1 });
     releaseA();
-    if (outcome === "success") await assert.rejects(oldBootstrap, /AUTH_GENERATION_CHANGED/);
-    else if (outcome === "forbidden") await assert.rejects(oldBootstrap, /A_BOOTSTRAP_FORBIDDEN/);
-    else await assert.rejects(oldBootstrap, /BOOTSTRAP_INVALID_PAYLOAD_SCHEMA|AUTH_GENERATION_CHANGED/);
+    // Reset retires the old principal immediately, before any late transport outcome.
+    await assert.rejects(oldBootstrap, { code: "AUTH_GENERATION_CHANGED", acquisition: "OUTCOME_UNKNOWN" });
     const state = await worker.call("SellerAgentsControlClient.status");
     assert.equal(state.accountId, account(2)); assert.equal(state.authenticated, true); assert.equal(state.workAllowed, false); assert.equal(state.lastError, null);
   } finally { releaseA?.(); worker.close(); }

@@ -233,9 +233,9 @@
         }
       } finally { pumping = false; }
     }
-    function request({ fence: suppliedFence, run, signal, waitMs = waitTimeoutMs }) {
+    function request({ fence: suppliedFence, requestKey = "", run, signal, waitMs = waitTimeoutMs }) {
       if (closed) return Promise.reject(failure("BOOTSTRAP_SECURITY_QUARANTINE"));
-      if (typeof run !== "function" || !Number.isFinite(waitMs) || waitMs <= 0 || waitMs > WAIT_MS) {
+      if (typeof requestKey !== "string" || typeof run !== "function" || !Number.isFinite(waitMs) || waitMs <= 0 || waitMs > WAIT_MS) {
         return Promise.reject(failure("BOOTSTRAP_REQUEST_INVALID"));
       }
       let fence;
@@ -249,8 +249,12 @@
       let job = scopes.get(key);
       if (job && !sameFence(job.ticket.fence, fence)) {
         retire(job, "BOOTSTRAP_CONTEXT_CHANGED");
+        if (closed) return Promise.reject(failure("BOOTSTRAP_SECURITY_QUARANTINE"));
         job = null;
       }
+      if (job && job.requestKey !== requestKey) return Promise.reject(failure("BOOTSTRAP_REQUEST_CONFLICT", {
+        acquisition: "NOT_STARTED", retryRequiresExplicitAction: true,
+      }));
       if (!job) {
         if (scopes.size >= maxScopes) return Promise.reject(failure("BOOTSTRAP_SCOPE_CAPACITY", {
           acquisition: "NOT_STARTED", retryRequiresExplicitAction: true,
@@ -258,7 +262,7 @@
         const ticket = Object.freeze({
           workerInstanceId, acquisitionId: makeId(), scopeSeq: nextSeq(key), fence,
         });
-        job = { key, ticket, run, waiters: new Set(), state: "queued",
+        job = { key, ticket, requestKey, run, waiters: new Set(), state: "queued",
           controller: new AbortController(), activeTimer: null, activeDeadline: null,
           dispatched: false, commitStarted: false };
         scopes.set(key, job);

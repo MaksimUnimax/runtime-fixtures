@@ -134,6 +134,13 @@ async function policy(worker, options = {}) {
   return worker.call("SellerAgentsControlClient.bootstrapWithPolicy", options);
 }
 
+function cancellablePolicy(worker, options = {}) {
+  return worker.call("(function (options) { globalThis.__offlinePolicyAbort = new AbortController(); return SellerAgentsControlClient.bootstrapWithPolicy({ ...options, signal: globalThis.__offlinePolicyAbort.signal }); })", options);
+}
+function cancelPolicy(worker) {
+  return worker.call("(function () { globalThis.__offlinePolicyAbort.abort(); })");
+}
+
 async function assertTransportCase(kind, responseFactory, expectedFreshness = "STALE_BUT_OFFLINE_GRACE_ELIGIBLE", payloadOptions = {}) {
   const clock = { wall: Date.now(), mono: 1000 };
   const fixture = await prepared({ clock, payload: base => ({ ...base, expiresAt: new Date(clock.wall - 1).toISOString(), offlineGraceUntil: new Date(clock.wall + 3600000).toISOString(), ...payloadOptions }), fetch: async url => {
@@ -230,10 +237,9 @@ for (const [label, offset, expected] of [["expiresAt", 0, "STALE_BUT_OFFLINE_GRA
   finally { fixture.worker.close(); }
 }
 
-// P2: hold the actual denial AUTH write after the increased-floor write. A
-// later raw bootstrap supersedes the policy while that successful write is
-// held. Obsolescence must not remove AUTH or turn the successful write into a
-// storage failure.
+// P2/R3: a new fence during an unconfirmed denial commit cannot supersede it.
+// The scheduler quarantines both requests without a hidden retry. The held
+// successful write still persists the denial; no unchosen recovery revives Work.
 {
   const clock = { wall: Date.now(), mono: 1000 };
   let denialRelease, denialHeld = false, bootstrapCalls = 0;
@@ -251,8 +257,9 @@ for (const [label, offset, expected] of [["expiresAt", 0, "STALE_BUT_OFFLINE_GRA
     onStorageWrite: async (kind, values) => {
       if (kind !== "local" || !values[AUTH]) return;
       const entry = structuredClone(values[AUTH]);
-      writes.push({ workAllowed: entry.authority?.workAllowed, floor: entry.cacheClock?.effectiveTimeMs, configVersion: entry.authority?.payload?.configVersion });
-      if (!denialHeld && entry.authority?.workAllowed === false) {
+      const grantAuthority = Object.values(entry.grants || {}).find(g => g.authority?.requestedAi === "chatgpt")?.authority || entry.authority;
+      writes.push({ workAllowed: grantAuthority?.workAllowed, floor: entry.cacheClock?.effectiveTimeMs, configVersion: grantAuthority?.payload?.configVersion });
+      if (!denialHeld && grantAuthority?.workAllowed === false) {
         denialHeld = true;
         await new Promise(resolve => { denialRelease = resolve; });
       }
@@ -265,24 +272,22 @@ for (const [label, offset, expected] of [["expiresAt", 0, "STALE_BUT_OFFLINE_GRA
     await until(() => denialHeld && writes.some(row => row.workAllowed === true) && typeof denialRelease === "function", "P2 denial AUTH write");
     const oldFloor = fixture.backing.local[AUTH].cacheClock.effectiveTimeMs;
     const later = fixture.worker.call("SellerAgentsControlClient.bootstrap", { detectedAi: CHATGPT });
-    await until(() => bootstrapCalls === 2, "P2 later raw bootstrap");
+    await assert.rejects(later, { code: "BOOTSTRAP_SECURITY_QUARANTINE" });
+    assert.equal(bootstrapCalls, 1, "P2 no second dispatch during an unconfirmed denial commit");
     denialRelease();
-    try { await old; } catch (error) { if (error.code !== "CACHE_ACQUISITION_OBSOLETED") throw error; }
-    assert.equal(fixture.removeAttempts || 0, 0, "P2 obsolescence does not remove AUTH");
-    assert.ok(fixture.backing.local[AUTH], "P2 AUTH remains present");
-    assert.ok(fixture.backing.local[AUTH].cacheClock.effectiveTimeMs >= oldFloor, "P2 floor is nondecreasing");
-    fixture.releaseBootstrap();
-    let newer;
-    try { newer = await later; } catch (error) { throw error; }
-    assert.equal(newer.configVersion, 2, "P2 newer raw result completes");
-    assert.equal(fixture.backing.local[AUTH].authority.payload.configVersion, 2, "P2 newer authority remains owner");
-    assert.ok(writes.some(row => row.workAllowed === true) && writes.some(row => row.workAllowed === false), "P2 held denial write was after floor write");
+    await assert.rejects(old, { code: "BOOTSTRAP_SECURITY_QUARANTINE" });
+    await until(() => fixture.backing.local[AUTH] === undefined, "P2 quarantined AUTH removal after held write settles");
+    assert.equal(fixture.removeAttempts, 1, "P2 retirement during unknown commit retains durable denial");
+    assert.equal(await fixture.worker.call("SellerAgentsControlClient.canWork", "chatgpt"), false);
+    await assert.rejects(fixture.worker.call("SellerAgentsControlClient.bootstrap", { detectedAi: CHATGPT }), { code: "AUTH_STATE_COMMIT_UNCONFIRMED" });
+    assert.equal(bootstrapCalls, 1, "P2 quarantine is not cleared by a later ordinary call");
+    assert.ok(writes.some(row => row.workAllowed === true) && writes.some(row => row.workAllowed === false));
   } finally { fixture.worker.close(); }
 }
 
-// G/public-return fence: resolve the real successful checkpoint write, then
-// start a newer raw invocation before the queue promise reaches the public
-// consumer. The old policy result is rejected and B owns the final authority.
+// G/public-return contract: a concurrent raw request has different result
+// semantics and must fail before dispatch,
+// without replacing the held checkpoint. A later explicit raw request can run.
 {
   const clock = { wall: Date.now(), mono: 1000 };
   let checkpointHeld = false, releaseCheckpoint, calls = 0;
@@ -307,10 +312,15 @@ for (const [label, offset, expected] of [["expiresAt", 0, "STALE_BUT_OFFLINE_GRA
     clock.wall += 3600001; clock.mono += 3600001;
     const old = policy(fixture.worker, { detectedAi: CHATGPT }); old.catch(() => {});
     await until(() => checkpointHeld && typeof releaseCheckpoint === "function", "G checkpoint write");
+    const incompatible = fixture.worker.call("SellerAgentsControlClient.bootstrap", { detectedAi: CHATGPT });
+    await assert.rejects(incompatible, { code: "BOOTSTRAP_REQUEST_CONFLICT", acquisition: "NOT_STARTED", retryRequiresExplicitAction: true });
+    assert.equal(calls, 1, "G incompatible request never dispatches");
     releaseCheckpoint();
-    const newer = fixture.worker.call("SellerAgentsControlClient.bootstrap", { detectedAi: CHATGPT });
-    await assert.rejects(old, /CACHE_ACQUISITION_OBSOLETED/);
-    const result = await newer;
+    const cached = await old;
+    assert.equal(cached.source, "CACHE");
+    const result = await fixture.worker.call("SellerAgentsControlClient.bootstrap", { detectedAi: CHATGPT });
+    assert.equal(calls, 2, "G only the later explicit raw call dispatches");
+    assert.equal(result.source, undefined, "G raw result is a payload, not a policy wrapper");
     assert.equal(result.configVersion, 2);
     assert.equal(fixture.backing.local[AUTH].authority.payload.configVersion, 2);
   } finally { fixture.worker.close(); }
@@ -399,9 +409,8 @@ for (const [label, field, value] of [
   finally { fixture.worker.close(); }
 }
 
-// A later raw online invocation supersedes an older policy attempt even when
-// both use the same account/device/session. The held A response cannot return
-// cache or lower B's signed authority.
+// Explicit cancellation retires the held policy waiter. Only a later explicit
+// raw call may dispatch; a late transport outcome cannot lower its authority.
 {
   let calls = 0, release;
   const fixture = await prepared({ fetch: async url => {
@@ -411,7 +420,8 @@ for (const [label, field, value] of [
     return signed(fixture.backing, { ...payload, configVersion: 2 });
   } });
   try {
-    const old = policy(fixture.worker, { detectedAi: CHATGPT }), oldFailure = assert.rejects(old, /CONTROL_TRANSPORT_UNAVAILABLE/); await until(() => release, "held policy A");
+    const old = cancellablePolicy(fixture.worker, { detectedAi: CHATGPT }), oldFailure = assert.rejects(old, { code: "BOOTSTRAP_WAITER_CANCELLED" }); await until(() => release, "held policy A");
+    await cancelPolicy(fixture.worker); await oldFailure;
     const replacement = fixture.worker.call("SellerAgentsControlClient.bootstrap", { detectedAi: CHATGPT });
     await until(() => calls === 2, "raw online B"); release();
     await replacement; await oldFailure;
@@ -429,7 +439,8 @@ for (const [label, field, value] of [
     return json({ error: { code: "LATER_FORBIDDEN" } }, 403);
   } });
   try {
-    const old = policy(fixture.worker, { detectedAi: CHATGPT }), oldFailure = assert.rejects(old, /CONTROL_TRANSPORT_UNAVAILABLE/); await until(() => release, "held policy before 403");
+    const old = cancellablePolicy(fixture.worker, { detectedAi: CHATGPT }), oldFailure = assert.rejects(old, { code: "BOOTSTRAP_WAITER_CANCELLED" }); await until(() => release, "held policy before 403");
+    await cancelPolicy(fixture.worker); await oldFailure;
     const forbidden = fixture.worker.call("SellerAgentsControlClient.bootstrap", { detectedAi: CHATGPT }), forbiddenFailure = assert.rejects(forbidden, /LATER_FORBIDDEN/);
     await until(() => calls === 2, "later 403"); release();
     await forbiddenFailure; await oldFailure;
@@ -437,19 +448,22 @@ for (const [label, field, value] of [
   } finally { fixture.worker.close(); }
 }
 
-// Failed checkpoint writes deny this call; after storage recovery the same
-// signed cache is reconsidered. The catalog/IDB surface is not involved.
+// Failed checkpoint writes quarantine this worker. Restored storage does not
+// implicitly clear that uncertainty or invoke a new authentication flow.
 {
   let fail = false, writes = 0, removes = 0;
   const fixture = await prepared({ payload: base => ({ ...base, expiresAt: new Date(Date.now() - 1).toISOString(), offlineGraceUntil: new Date(Date.now() + 3600000).toISOString() }), fetch: async url => { assert.ok(url.endsWith("/v1/bootstrap")); return json({ error: { code: "BOOTSTRAP_UNAVAILABLE" } }, 503); }, onStorageWrite: async (kind, values) => { if (kind === "local" && values[AUTH] && fail) { writes++; throw new Error("injected storage failure"); } }, onStorageRemove: async kind => { if (kind === "local" && fail) removes++; } });
   try {
+    assert.equal(await fixture.worker.call("SellerAgentsControlClient.canWork", "chatgpt"), true);
     fail = true;
     fixture.clock.wall += 100; fixture.clock.mono += 100;
-    await assert.rejects(policy(fixture.worker, { detectedAi: CHATGPT }), /AUTH_DENIAL_PERSISTENCE_FAILED/);
+    await assert.rejects(policy(fixture.worker, { detectedAi: CHATGPT }), { code: "BOOTSTRAP_SECURITY_QUARANTINE" });
+    await until(() => removes === 1, "failed checkpoint AUTH cleanup");
     assert.equal(writes, 1); assert.equal(removes, 1);
+    assert.equal(fixture.backing.local[AUTH], undefined, "verified removal protects restart");
     fail = false;
-    const result = await policy(fixture.worker, { detectedAi: CHATGPT });
-    assert.equal(result.source, "CACHE");
+    await assert.rejects(policy(fixture.worker, { detectedAi: CHATGPT }), { code: "AUTH_STATE_COMMIT_UNCONFIRMED" });
+    assert.equal(await fixture.worker.call("SellerAgentsControlClient.canWork", "chatgpt"), false);
   } finally { fixture.worker.close(); }
 }
 
@@ -463,16 +477,18 @@ for (const [label, field, value] of [
     clock,
     payload: base => ({ ...base, expiresAt: new Date(clock.wall + 3600000).toISOString(), offlineGraceUntil: new Date(clock.wall + 7200000).toISOString() }),
     fetch: async url => { assert.ok(url.endsWith("/v1/bootstrap")); return json({ error: { code: "BOOTSTRAP_UNAVAILABLE" } }, 503); },
-    onStorageWrite: async (kind, values) => { if (kind === "local" && failDenial && values[AUTH]?.authority?.workAllowed === false) { writes.push(values[AUTH].cacheClock.effectiveTimeMs); throw new Error("denial set failed"); } },
+    onStorageWrite: async (kind, values) => { if (kind === "local" && failDenial && Object.values(values[AUTH]?.grants || {}).some(g => g.authority?.workAllowed === false)) { writes.push(values[AUTH].cacheClock.effectiveTimeMs); throw new Error("denial set failed"); } },
     onStorageRemove: async (kind, key) => { if (kind === "local" && failDenial && key === AUTH) { removals.push(key); throw new Error("denial remove failed"); } },
   });
   const persistedFloor = fixture.backing.local[AUTH].cacheClock.effectiveTimeMs;
   try {
+    assert.equal(await fixture.worker.call("SellerAgentsControlClient.canWork", "chatgpt"), true);
     clock.wall += 7200000; clock.mono += 7200000; failDenial = true;
-    await assert.rejects(policy(fixture.worker, { detectedAi: CHATGPT }), /AUTH_DENIAL_PERSISTENCE_FAILED/);
+    await assert.rejects(policy(fixture.worker, { detectedAi: CHATGPT }), { code: "BOOTSTRAP_SECURITY_QUARANTINE" });
+    await until(() => removals.length === 1, "failed denial cleanup attempt");
     assert.equal(writes.length, 1); assert.equal(removals.length, 1);
     assert.ok(fixture.backing.local[AUTH].cacheClock.effectiveTimeMs >= persistedFloor, "successful floor checkpoint is retained");
-    assert.equal((await fixture.worker.call("SellerAgentsControlClient.getAuthority")).workAllowed, false, "memory remains denied");
+    assert.notEqual((await fixture.worker.call("SellerAgentsControlClient.getAuthority"))?.workAllowed, true, "memory remains denied");
     failDenial = false;
     const restarted = await makeWorker(runtime, { backing: fixture.backing, seedAuthority: false, wallClock: () => clock.wall, monotonicClock: () => clock.mono, fetch: async url => { assert.ok(url.endsWith("/v1/bootstrap")); return json({ error: { code: "BOOTSTRAP_UNAVAILABLE" } }, 503); } });
     try { assert.equal((await restarted.call("SellerAgentsControlClient.status")).authenticated, true); assert.ok(restarted.backing.local[AUTH].cacheClock.effectiveTimeMs >= persistedFloor); } finally { restarted.close(); }
@@ -591,12 +607,14 @@ for (const status of [401, 403]) await namedCase("Q1-D-bootstrap401-refresh-" + 
 await namedCase("Q1-E-storage503-is-not-http503", async () => {
   const clock = { wall: T0, mono: 1000 };
   const injected = Object.assign(new Error("local AUTH set failed"), { status: 503, code: "BOOTSTRAP_UNAVAILABLE" });
+  let failStorage = false;
   const fixture = await prepared({ clock, payload: fixedPayload(clock, { expiresAt: new Date(T0 - 1).toISOString() }), fetch: async url => {
     assert.equal(new URL(url).pathname, "/v1/bootstrap"); return json({ error: { code: "BOOTSTRAP_UNAVAILABLE" } }, 503);
-  }, onStorageWrite: async (kind, values) => { if (kind === "local" && values[AUTH]) throw injected; } });
+  }, onStorageWrite: async (kind, values) => { if (failStorage && kind === "local" && values[AUTH]) throw injected; } });
   try {
-    clock.wall = T0 + 100; clock.mono = 1100;
-    const failure = await exactFailure(() => policy(fixture.worker, { detectedAi: CHATGPT }), "AUTH_DENIAL_PERSISTENCE_FAILED", "Q1-E");
+    await fixture.worker.call("SellerAgentsControlClient.canWork", "chatgpt");
+    failStorage = true; clock.wall = T0 + 100; clock.mono = 1100;
+    const failure = await exactFailure(() => policy(fixture.worker, { detectedAi: CHATGPT }), "BOOTSTRAP_SECURITY_QUARANTINE", "Q1-E");
     assert.notEqual(failure.status, 503);
     assert.deepEqual(paths(fixture.worker), ["/v1/bootstrap"]);
   } finally { fixture.worker.close(); }
@@ -608,7 +626,10 @@ for (const [label, offset, expected] of [["expires-minus-one", 999, "FRESH"], ["
     clock.wall = T0 + offset; clock.mono = 1000 + offset;
     if (expected === "CACHE_EXPIRED") await exactFailure(() => policy(fixture.worker, { detectedAi: CHATGPT }), expected, "Q2-A-" + label);
     else { const result = await policy(fixture.worker, { detectedAi: CHATGPT }); assert.equal(result.source, "CACHE"); assert.equal(result.freshness, expected); }
-    assert.equal(fixture.backing.local[AUTH].authority.workAllowed, expected === "CACHE_EXPIRED" ? false : true);
+    const grants = Object.values(fixture.backing.local[AUTH].grants);
+    assert.equal(grants.length, 1);
+    assert.equal(grants[0].authority.workAllowed, expected !== "CACHE_EXPIRED");
+    assert.equal(await fixture.worker.call("SellerAgentsControlClient.canWork", "chatgpt"), expected !== "CACHE_EXPIRED");
   } finally { fixture.worker.close(); }
 });
 
@@ -624,7 +645,10 @@ await namedCase("Q2-B-held-write-crosses-grace", async () => {
     clock.wall = T0 + 3000; clock.mono = 4000; release();
     await exactFailure(() => pending, "CACHE_EXPIRED", "Q2-B");
     assert.ok(fixture.backing.local[AUTH].cacheClock.effectiveTimeMs >= T0 + 3000);
-    assert.equal(fixture.backing.local[AUTH].authority.workAllowed, false);
+    const grants = Object.values(fixture.backing.local[AUTH].grants);
+    assert.equal(grants.length, 1);
+    assert.equal(grants[0].authority.workAllowed, false);
+    assert.equal(await fixture.worker.call("SellerAgentsControlClient.canWork", "chatgpt"), false);
   } finally { release?.(); fixture.worker.close(); }
 });
 
@@ -689,9 +713,11 @@ await namedCase("Q3-A-first-floor-both-storage-fail-and-idb-retention", async ()
     const seedWriteCount = idb.stats.writes;
     assert.equal(seedWriteCount, 1);
     assert.deepEqual(await idbGet(idb, record.artifact_key), record);
+    await fixture.worker.call("SellerAgentsControlClient.canWork", "chatgpt");
     const oldBytes = clone(backing.local[AUTH]), oldFloor = oldBytes.cacheClock.effectiveTimeMs;
     fail = true; clock.wall = T0 + 100; clock.mono = 1100;
-    await exactFailure(() => policy(fixture.worker, { detectedAi: CHATGPT }), "AUTH_DENIAL_PERSISTENCE_FAILED", "Q3-A");
+    await exactFailure(() => policy(fixture.worker, { detectedAi: CHATGPT }), "BOOTSTRAP_SECURITY_QUARANTINE", "Q3-A");
+    await until(() => removes === 1, "Q3-A failed removal settled");
     assert.equal(writes, 1); assert.equal(removes, 1);
     assert.deepEqual(backing.local[AUTH], oldBytes);
     assert.equal(backing.local.r2_catalog_marker.keep, "catalog-exact");
@@ -711,9 +737,9 @@ await namedCase("Q3-A-first-floor-both-storage-fail-and-idb-retention", async ()
 
     fail = false;
     clock.wall = T0 - 100; clock.mono = 1100;
-    const recovered = await policy(fixture.worker, { detectedAi: CHATGPT });
-    assert.equal(recovered.source, "CACHE"); assert.equal(recovered.freshness, "FRESH");
-    assert.equal(backing.local[AUTH].cacheClock.effectiveTimeMs, T0 + 100);
+    await exactFailure(() => policy(fixture.worker, { detectedAi: CHATGPT }), "AUTH_STATE_COMMIT_UNCONFIRMED", "Q3-A storage recovery does not clear quarantine");
+    assert.equal(await fixture.worker.call("SellerAgentsControlClient.canWork", "chatgpt"), false);
+    assert.deepEqual(backing.local[AUTH], oldBytes);
     assert.deepEqual(await idbGet(idb, record.artifact_key), record);
     assert.equal(idb.stats.writes, seedWriteCount, "Q3 recovery does not rewrite IDB");
     fixture.worker.close();
@@ -725,6 +751,7 @@ await namedCase("Q3-A-first-floor-both-storage-fail-and-idb-retention", async ()
       assert.deepEqual(await idbGet(idb, record.artifact_key), record);
       assert.equal(idb.stats.writes, seedWriteCount, "Q3 restart does not rewrite IDB");
       restartClock.wall = T0 + 100; restartClock.mono = 1100;
+      // Both persistent denial mechanisms failed: this counterexample does not claim restart protection.
       const restartedRecovery = await policy(restarted, { detectedAi: CHATGPT });
       assert.equal(restartedRecovery.source, "CACHE"); assert.equal(restartedRecovery.freshness, "FRESH");
       assert.equal(restarted.backing.local[AUTH].cacheClock.effectiveTimeMs, T0 + 100);
@@ -775,7 +802,7 @@ await namedCase("Q4-D-account-replacement-online-positive", async () => {
   } finally { fixture.worker.close(); }
 }, "valid signed online account replacement is a positive policy case; legitimate server authority is accepted");
 
-await namedCase("Q4-D-account-replacement-obsoletes-held-cache", async () => {
+await namedCase("Q4-D-account-replacement-obsoletes-held-online-verification", async () => {
   const accountB = "99999999-9999-4999-8999-999999999999";
   const clock = { wall: T0, mono: 1000 }, backing = { local: {}, session: {} };
   const held = { armed: false, entered: false };
@@ -788,7 +815,7 @@ await namedCase("Q4-D-account-replacement-obsoletes-held-cache", async () => {
     assert.equal(new URL(url).pathname, "/v1/bootstrap");
     calls++;
     if (calls === 1) return signed(backing, clone(backing.local[AUTH].authority.payload));
-    if (calls === 2) throw new TypeError("A policy transport");
+    if (calls === 2) return signed(backing, clone(backing.local[AUTH].authority.payload));
     const payload = { ...clone(backing.local[AUTH].authority.payload), account: { id: accountB, status: "ACTIVE" }, configVersion: 2, serverTime: new Date(T0 + 1).toISOString(), expiresAt: new Date(T0 + 3600000).toISOString(), offlineGraceUntil: new Date(T0 + 7200000).toISOString() };
     return signed(backing, payload);
   } });
@@ -798,8 +825,10 @@ await namedCase("Q4-D-account-replacement-obsoletes-held-cache", async () => {
     const aRecord = clone(backing.local[AUTH]);
     const aDeviceId = aRecord.authority.deviceId, aSessionId = aRecord.authority.sessionId;
     held.armed = true;
-    const old = policy(fixture.worker, { detectedAi: CHATGPT }); old.catch(() => {});
-    await until(() => held.entered, "Q4-D held cached-envelope verification");
+    const old = cancellablePolicy(fixture.worker, { detectedAi: CHATGPT }); old.catch(() => {});
+    await until(() => held.entered, "Q4-D held signed online-envelope verification");
+    await cancelPolicy(fixture.worker);
+    await exactFailure(() => old, "BOOTSTRAP_WAITER_CANCELLED", "Q4-D explicit cancellation");
     const b = fixture.worker.call("SellerAgentsControlClient.bootstrap", { detectedAi: CHATGPT });
     const bResult = await b;
     const bSnapshot = clone(backing.local[AUTH]);
@@ -810,7 +839,7 @@ await namedCase("Q4-D-account-replacement-obsoletes-held-cache", async () => {
     assert.equal(bSnapshot.cacheClock.owner.deviceId, aRecord.cacheClock.owner.deviceId);
     assert.equal(bSnapshot.cacheClock.owner.sessionId, aRecord.cacheClock.owner.sessionId);
     releaseA();
-    await exactFailure(() => old, "CACHE_ACQUISITION_OBSOLETED", "Q4-D obsolete cached A");
+    await exactFailure(() => old, "BOOTSTRAP_WAITER_CANCELLED", "Q4-D obsolete verified online A");
     assert.deepEqual(backing.local[AUTH], bSnapshot, "Q4-D B durable AUTH is exact after A settles");
     assert.deepEqual(backing.local[AUTH].credentials, bSnapshot.credentials);
     assert.deepEqual(backing.local[AUTH].authority.envelope, bSnapshot.authority.envelope);
@@ -852,14 +881,14 @@ await namedCase("Q5-A-held-A-then-real-B-activation", async () => {
     await until(async () => (await fixture.worker.call("SellerAgentsControlClient.status")).authenticated, "Q5-A B authentication");
     const bRecord = clone(backing.local[AUTH]), bGeneration = bRecord.generation, bAccount = bRecord.authority.payload.account.id, bEnvelope = clone(bRecord.authority.envelope), bFloor = bRecord.cacheClock.effectiveTimeMs;
     releaseA();
-    await exactFailure(() => old, "CONTROL_TRANSPORT_UNAVAILABLE", "Q5-A old");
+    await exactFailure(() => old, "AUTH_GENERATION_CHANGED", "Q5-A old");
     assert.equal(starts, 1); assert.equal(exchanges, 1);
     assert.equal(backing.local[AUTH].generation, bGeneration); assert.equal(backing.local[AUTH].authority.payload.account.id, bAccount);
     assert.deepEqual(backing.local[AUTH].authority.envelope, bEnvelope); assert.equal(backing.local[AUTH].cacheClock.effectiveTimeMs, bFloor);
   } finally { releaseA?.(); fixture.worker.close(); }
 });
 
-for (const later of ["replacement", "forbidden"]) await namedCase("Q5-B-held-cached-verification-" + later, async () => {
+for (const later of ["replacement", "forbidden"]) await namedCase("Q5-B-held-online-verification-" + later, async () => {
   const clock = { wall: T0, mono: 1000 }, held = { armed: false, entered: false }, backing = { local: {}, session: {} };
   let releaseVerify, calls = 0;
   const fixture = await prepared({ clock, backing, beforeCryptoVerify: async () => {
@@ -869,15 +898,18 @@ for (const later of ["replacement", "forbidden"]) await namedCase("Q5-B-held-cac
   }, payload: fixedPayload(clock), fetch: async url => {
     const pathname = new URL(url).pathname;
     assert.equal(pathname, "/v1/bootstrap");
-    if (++calls === 1) throw new TypeError("A policy transport");
+    if (++calls === 1) return signed(backing, clone(backing.local[AUTH].authority.payload));
     if (later === "forbidden") return json({ error: { code: "B_FORBIDDEN" } }, 403);
     const base = clone(backing.local[AUTH].authority.payload);
     return signed(backing, { ...base, configVersion: 2, serverTime: new Date(T0 + 1).toISOString() });
   } });
   try {
+    await fixture.worker.call("SellerAgentsControlClient.canWork", "chatgpt");
     held.armed = true;
-    const old = policy(fixture.worker, { detectedAi: CHATGPT }); old.catch(() => {});
-    await until(() => held.entered, "Q5-B held fallback verify");
+    const old = cancellablePolicy(fixture.worker, { detectedAi: CHATGPT }); old.catch(() => {});
+    await until(() => held.entered, "Q5-B held signed online verification");
+    await cancelPolicy(fixture.worker);
+    await exactFailure(() => old, "BOOTSTRAP_WAITER_CANCELLED", "Q5-B explicit cancellation");
     const b = fixture.worker.call("SellerAgentsControlClient.bootstrap", { detectedAi: CHATGPT }); b.catch(() => {});
     await until(() => calls === 2, "Q5-B B request");
     let bSnapshot;
@@ -892,7 +924,7 @@ for (const later of ["replacement", "forbidden"]) await namedCase("Q5-B-held-cac
       assert.ok(bSnapshot.credentials, "Q5-B denied B retains owned credentials");
     }
     releaseVerify();
-    await exactFailure(() => old, "CACHE_ACQUISITION_OBSOLETED", "Q5-B old");
+    await exactFailure(() => old, "BOOTSTRAP_WAITER_CANCELLED", "Q5-B old");
     assert.deepEqual(backing.local[AUTH], bSnapshot, "Q5-B A settle preserves exact durable B AUTH");
     assert.deepEqual(backing.local[AUTH].generation, bSnapshot.generation);
     assert.deepEqual(backing.local[AUTH].credentials, bSnapshot.credentials);
@@ -922,33 +954,18 @@ for (const later of ["replacement", "forbidden"]) await namedCase("Q5-C-held-pos
   } });
   try {
     const expectedOwnedCredentials = clone(fixture.backing.local[AUTH].credentials);
+    await fixture.worker.call("SellerAgentsControlClient.canWork", "chatgpt");
     clock.wall = T0 + 100; clock.mono = 1100;
-    const old = policy(fixture.worker, { detectedAi: CHATGPT }); old.catch(() => {});
+    const old = cancellablePolicy(fixture.worker, { detectedAi: CHATGPT }); old.catch(() => {});
     await until(() => held, "Q5-C held positive AUTH write");
-    const b = fixture.worker.call("SellerAgentsControlClient.bootstrap", { detectedAi: CHATGPT }); b.catch(() => {});
-    await until(() => calls === 2, "Q5-C B request");
-    await new Promise(resolve => setImmediate(resolve));
-    assert.equal(fixture.backing.local[AUTH].authority.payload.configVersion, 1);
+    await cancelPolicy(fixture.worker);
+    await exactFailure(() => old, "BOOTSTRAP_WAITER_CANCELLED", "Q5-C explicit waiter cancellation");
+    await exactFailure(() => fixture.worker.call("SellerAgentsControlClient.bootstrap", { detectedAi: CHATGPT }), "AUTH_STATE_COMMIT_UNCONFIRMED", "Q5-C no competing request");
+    assert.equal(calls, 1);
     releaseWrite();
-    await exactFailure(() => old, "CACHE_ACQUISITION_OBSOLETED", "Q5-C old");
-    if (later === "replacement") {
-      await b;
-      const bCommitted = clone(fixture.backing.local[AUTH]);
-      assert.deepEqual(bCommitted.authority.payload, bResponsePayload, "Q5-C durable B payload matches signed response");
-      assert.deepEqual(bCommitted.authority.envelope, bResponseEnvelope, "Q5-C durable B envelope matches signed response");
-      assert.deepEqual(bCommitted.credentials, expectedOwnedCredentials, "Q5-C B preserves owned credentials");
-      assert.ok(bCommitted.generation >= 1);
-      assert.ok(bCommitted.cacheClock.effectiveTimeMs >= T0 + 100);
-      assert.deepEqual(fixture.backing.local[AUTH], bCommitted, "Q5-C final replacement state is exact committed B");
-    } else {
-      await exactFailure(() => b, "B_FORBIDDEN", "Q5-C B");
-      const bDenied = clone(fixture.backing.local[AUTH]);
-      assert.equal(bDenied.authority, null);
-      assert.deepEqual(bDenied.credentials, expectedOwnedCredentials, "Q5-C denied B retains owned credentials");
-      assert.ok(bDenied.generation >= 1);
-      assert.ok(bDenied.cacheClock.effectiveTimeMs >= T0 + 100);
-      assert.deepEqual(fixture.backing.local[AUTH], bDenied, "Q5-C final denied state is exact committed B denial");
-    }
+    await until(() => fixture.backing.local[AUTH] === undefined, "Q5-C held write settled and quarantined AUTH removed");
+    assert.equal(await fixture.worker.call("SellerAgentsControlClient.canWork", "chatgpt"), false);
+    assert.equal(calls, 1, "Q5-C settled storage cannot clear quarantine or dispatch B");
   } finally { releaseWrite?.(); fixture.worker.close(); }
 });
 
@@ -958,7 +975,7 @@ await namedCase("Q6-final-public-return-fence", async () => {
   const monotonicClock = () => {
     if (scheduleB && !bStarted) {
       bStarted = true;
-      queueMicrotask(() => { bPromise = worker.call("SellerAgentsControlClient.bootstrap", { detectedAi: CHATGPT }); });
+      queueMicrotask(() => { bPromise = worker.call("SellerAgentsControlClient.bootstrap", { detectedAi: CHATGPT }); bPromise.catch(() => {}); });
     }
     return clock.mono;
   };
@@ -972,15 +989,23 @@ await namedCase("Q6-final-public-return-fence", async () => {
   } });
   worker = fixture.worker;
   try {
+    await worker.call("SellerAgentsControlClient.canWork", "chatgpt");
     clock.wall = T0 + 100; clock.mono = 1100;
     const old = policy(worker, { detectedAi: CHATGPT }); old.catch(() => {});
     await until(() => bStarted, "Q6 queued raw B");
     await new Promise(resolve => setImmediate(resolve));
     assert.ok(bPromise, "Q6 raw B promise was scheduled");
-    await exactFailure(() => old, "CACHE_ACQUISITION_OBSOLETED", "Q6 old");
+    const cached = await old;
+    assert.equal(cached.source, "CACHE");
+    assert.equal(cached.payload.configVersion, 1, "Q6 original policy never receives a raw result");
+    if (calls === 1) {
+      await exactFailure(() => bPromise, "BOOTSTRAP_REQUEST_CONFLICT", "Q6 incompatible caller before retirement");
+      bPromise = worker.call("SellerAgentsControlClient.bootstrap", { detectedAi: CHATGPT });
+    }
+    await until(() => typeof releaseB === "function", "Q6 explicit raw request after original acquisition");
     assert.equal(calls, 2);
     releaseB();
-    await bPromise;
+    assert.equal((await bPromise).configVersion, 2);
     assert.equal(backing.local[AUTH].authority.payload.configVersion, 2);
     assert.equal((await worker.call("SellerAgentsControlClient.status")).authenticated, true);
   } finally { releaseB?.(); await bPromise?.catch(() => {}); worker.close(); }

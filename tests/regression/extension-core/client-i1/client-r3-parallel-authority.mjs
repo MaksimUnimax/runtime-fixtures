@@ -279,6 +279,36 @@ await test("PAR-18/source: confirmed revocation preserves the precise rejection 
   assert.equal(a.error.code, "UNAUTHORIZED"); assert.equal(b.error.code, "BOOTSTRAP_CONTEXT_CHANGED");
   assert.equal(calls, 0); assert.equal(f.quarantines.length, 0);
 });
+await test("PAR-02/source: replacement during an unknown security commit rejects without a stranded queue", async () => {
+  const f = fixture(), queue = f.make(), hold = deferred(); let dispatched = 0;
+  const first = watch(queue.request({ fence: f.fence("chatgpt"), run: async lease => {
+    lease.beginSecurityCommit(); await hold.promise;
+  } }));
+  await flush();
+  const second = watch(queue.request({ fence: { ...f.fence("chatgpt"), accessEpoch: 2 }, run: () => { dispatched++; } }));
+  await flush();
+  assert.equal(first.state, "rejected"); assert.equal(first.error.code, "BOOTSTRAP_SECURITY_QUARANTINE");
+  assert.equal(second.state, "rejected"); assert.equal(second.error.code, "BOOTSTRAP_SECURITY_QUARANTINE");
+  assert.deepEqual(f.quarantines, ["BOOTSTRAP_SECURITY_COMMIT_UNKNOWN"]);
+  assert.equal(dispatched, 0); assert.equal(queue.inspect().queuedScopes.length, 0);
+  hold.resolve(); await flush(); assert.equal(dispatched, 0);
+});
+await test("PAR-02/source: incompatible operation rejects without replacing a coalesced acquisition", async () => {
+  const f = fixture(), queue = f.make(), hold = deferred(); let calls = 0;
+  const run = () => { calls++; return hold.promise; };
+  const a = watch(queue.request({ fence: f.fence("chatgpt"), requestKey: "policy", run }));
+  const b = watch(queue.request({ fence: f.fence("chatgpt"), requestKey: "policy", run }));
+  await flush();
+  await assert.rejects(queue.request({ fence: f.fence("chatgpt"), requestKey: "raw", run }), {
+    code: "BOOTSTRAP_REQUEST_CONFLICT", acquisition: "NOT_STARTED", retryRequiresExplicitAction: true,
+  });
+  assert.equal(calls, 1); assert.equal(queue.inspect().queuedScopes.length, 0);
+  assert.equal(a.state, "pending"); assert.equal(b.state, "pending");
+  hold.resolve("cache"); await flush();
+  assert.equal(a.value.value, "cache"); assert.equal(b.value.value, "cache");
+  const explicit = await queue.request({ fence: f.fence("chatgpt"), requestKey: "raw", run: () => { calls++; return "online"; } });
+  assert.equal(explicit.value, "online"); assert.equal(calls, 2);
+});
 console.log("SOURCE bootstrap scheduler: " + count + " scenarios passed; no package/installed acceptance claimed.");
 
 if (process.argv[2]) {
@@ -304,12 +334,25 @@ if (process.argv[2]) {
   try {
     await test("PAR-01/package: real client serializes only bootstrap and retains two signed grants", async () => {
       const generation = await worker.call("SellerAgentsControlClient.generation");
-      const a = watch(worker.call("SellerAgentsControlClient.bootstrapWithPolicy", ai("chatgpt")));
+      const a = watch(worker.call('(function () { const options = { detectedAi: { family: "chatgpt", surface: "web", variant: null } }; const pending = SellerAgentsControlClient.bootstrapWithPolicy(options); options.detectedAi.family = "alice"; return pending; })'));
       await until(() => releaseFirst || a.state === "rejected", "first bootstrap request");
       assert.equal(a.state, "pending", a.error?.stack);
+      const identical = watch(worker.call("SellerAgentsControlClient.bootstrapWithPolicy", ai("chatgpt")));
+      const conflict = { code: "BOOTSTRAP_REQUEST_CONFLICT", acquisition: "NOT_STARTED", retryRequiresExplicitAction: true };
+      await assert.rejects(worker.call("SellerAgentsControlClient.bootstrap", ai("chatgpt")), conflict);
+      for (const constraint of [
+        { context: null },
+        { expectedAccountId: template.account.id },
+        { minimumServerTimeExclusive: 0 },
+        { detectedAi: { family: "chatgpt", surface: "other", variant: null } },
+        { detectedAi: { family: "chatgpt", surface: "web", variant: "work" } },
+      ]) await assert.rejects(worker.call("SellerAgentsControlClient.bootstrapWithPolicy", { ...ai("chatgpt"), ...constraint }), conflict);
+      assert.deepEqual(calls, ["chatgpt"], "incompatible constraints neither dispatch nor replace the original snapshot");
       const b = watch(worker.call("SellerAgentsControlClient.bootstrapWithPolicy", ai("alice")));
       await new Promise(resolve => setTimeout(resolve, 20)); assert.deepEqual(calls, ["chatgpt"]);
-      releaseFirst(); await Promise.all([a.done, b.done]);
+      releaseFirst(); await Promise.all([a.done, b.done, identical.done]);
+      assert.equal(identical.state, "fulfilled", identical.error?.stack);
+      assert.deepEqual(identical.value, a.value);
       assert.equal(a.state, "fulfilled", a.error?.stack); assert.equal(b.state, "fulfilled", b.error?.stack);
       assert.equal(await worker.call("SellerAgentsControlClient.canWork", "chatgpt"), true);
       assert.equal(await worker.call("SellerAgentsControlClient.canWork", "alice"), true);
