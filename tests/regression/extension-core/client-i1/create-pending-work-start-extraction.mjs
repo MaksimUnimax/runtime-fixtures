@@ -20,9 +20,10 @@ const donorFunction = extract(fs.readFileSync(donorPath, "utf8"));
 assert.equal(sha256(donorFunction), "7bbf2b74017852afc3c4af834bea076440bf07c6adbf29e9be69de798bc559b8", "raw donor function SHA drifted");
 
 const replacementFunction = fs.readFileSync(replacementPath, "utf8").trimEnd();
-assert.equal(sha256(replacementFunction), "f8af51a38db0f31633f9c54a5cdad8945cfa64546945203c2fa0c9ccd318a1ae", "adapted replacement function SHA drifted");
+assert.equal(sha256(replacementFunction), "4de886e6cb091f51f39563e79498bc6c089aabe1fb7b7c1da9fefc3d1dd4df68", "adapted replacement function SHA drifted");
 assert.match(replacementFunction, /store_context: saStarts\.get\(Number\(tab\)\) \|\| null/);
 assert.match(replacementFunction, /admission_provenance: options\.admission_provenance \|\| null/);
+assert.match(replacementFunction, /prompt_tree: options\.prompt_tree \? JSON\.parse\(JSON\.stringify\(options\.prompt_tree\)\) : null/);
 assert.match(replacementFunction, /await saAdmissionMutationGuard\(\{ operation: "start", tabId: tab, conversationKey, intentId: transaction\.intent_id \}\);\n  await storageSet/);
 
 const composition = JSON.parse(fs.readFileSync(compositionPath, "utf8"));
