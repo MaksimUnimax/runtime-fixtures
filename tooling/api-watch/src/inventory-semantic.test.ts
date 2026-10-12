@@ -513,3 +513,127 @@ describe("OpenAPI path/operation parameter overrides", () => {
     expect(result.operations[0]!.parameterCount).toBe(1);
   });
 });
+
+describe("Parameter Object default-false equivalence", () => {
+  const source = (options: {
+    field?: string;
+    value?: unknown;
+    location?: "query" | "path" | "header" | "cookie";
+    swagger2?: boolean;
+  }) => {
+    const location = options.location ?? "query";
+    const parameter: Record<string, unknown> = {
+      name: "page",
+      in: location,
+      schema: { type: "array", items: { type: "integer" } },
+    };
+    if (location === "path") parameter.required = true;
+    if (options.field) parameter[options.field] = options.value;
+    const operation = {
+      operationId: "getItems",
+      parameters: [parameter],
+      responses: { "200": { description: "OK" } },
+    };
+    const document = {
+      ...(options.swagger2 ? { swagger: "2.0" } : { openapi: "3.0.3" }),
+      info: { title: "default-false", version: "1" },
+      paths: {
+        [location === "path" ? "/items/{page}" : "/items"]: { get: operation },
+      },
+    };
+    return buildCompleteOperationInventory({
+      sourceFamily: "OZON_SELLER",
+      snapshotSha256: "f".repeat(64),
+      filename: "default-false.json",
+      bytes: Buffer.from(JSON.stringify(document)),
+    });
+  };
+
+  for (const field of [
+    "required",
+    "deprecated",
+    "allowEmptyValue",
+    "allowReserved",
+  ]) {
+    it(`treats omitted versus explicit ${field}: false as equivalent for a query parameter`, () => {
+      const before = source({});
+      const after = source({ field, value: false });
+      expect(state(before, after)).toBe("UNCHANGED");
+      expect(after.operations[0]!.parameterSchemaSha256).toBe(
+        before.operations[0]!.parameterSchemaSha256,
+      );
+    });
+
+    it(`still detects ${field}: true as an actual change`, () => {
+      expect(state(source({}), source({ field, value: true }))).toBe("CHANGED");
+    });
+  }
+
+  describe("Parameter serialization defaults", () => {
+    for (const location of ["query", "path", "header", "cookie"] as const) {
+      const defaultStyle =
+        location === "query" || location === "cookie" ? "form" : "simple";
+      const defaultExplode = defaultStyle === "form";
+
+      it(`ignores an explicit default style for ${location}`, () => {
+        expect(
+          state(
+            source({ location }),
+            source({ location, field: "style", value: defaultStyle }),
+          ),
+        ).toBe("UNCHANGED");
+      });
+
+      it(`ignores an explicit default explode for ${location}`, () => {
+        expect(
+          state(
+            source({ location }),
+            source({ location, field: "explode", value: defaultExplode }),
+          ),
+        ).toBe("UNCHANGED");
+      });
+    }
+
+    it("detects non-default query style and explode", () => {
+      expect(
+        state(source({}), source({ field: "style", value: "simple" })),
+      ).toBe("CHANGED");
+      expect(
+        state(source({}), source({ field: "explode", value: false })),
+      ).toBe("CHANGED");
+    });
+
+    it("detects non-default header style and path explode", () => {
+      expect(
+        state(
+          source({ location: "header" }),
+          source({ location: "header", field: "style", value: "form" }),
+        ),
+      ).toBe("CHANGED");
+      expect(
+        state(
+          source({ location: "path" }),
+          source({ location: "path", field: "explode", value: true }),
+        ),
+      ).toBe("CHANGED");
+    });
+  });
+
+  it("does not erase an explicitly invalid path parameter required: false", () => {
+    expect(
+      state(
+        source({ location: "path" }),
+        source({ location: "path", field: "required", value: false }),
+      ),
+    ).toBe("CHANGED");
+  });
+
+  it("uses the same optional required: false default for Swagger 2 query parameters", () => {
+    expect(
+      state(
+        source({ swagger2: true }),
+        source({ swagger2: true, field: "required", value: false }),
+      ),
+    ).toBe("UNCHANGED");
+  });
+});

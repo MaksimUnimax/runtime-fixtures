@@ -280,15 +280,54 @@ function effectiveParameters(
 
 function parametersFingerprint(
   parameters: readonly Record<string, unknown>[],
+  root: Record<string, unknown>,
 ): string {
+  const openapi3 =
+    typeof root.openapi === "string" && /^3\./u.test(root.openapi);
   const projected = parameters
     .map((parameter) => {
+      const locationStyle =
+        parameter.in === "query" || parameter.in === "cookie"
+          ? "form"
+          : parameter.in === "path" || parameter.in === "header"
+            ? "simple"
+            : null;
+      const effectiveStyle =
+        typeof parameter.style === "string" ? parameter.style : locationStyle;
       return Object.fromEntries(
         Object.entries(parameter)
-          .filter(
-            ([key]) =>
-              key !== "description" && key !== "example" && key !== "examples",
-          )
+          .filter(([key, value]) => {
+            if (
+              key === "description" ||
+              key === "example" ||
+              key === "examples"
+            )
+              return false;
+            // OAS 3 parameter serialization uses location-dependent defaults.
+            // Drop only an explicit default so older hashes for omitted fields stay unchanged.
+            if (openapi3) {
+              if (key === "style" && value === locationStyle) return false;
+              if (
+                key === "explode" &&
+                typeof value === "boolean" &&
+                effectiveStyle !== null &&
+                value === (effectiveStyle === "form")
+              )
+                return false;
+            }
+            if (value !== false) return true;
+            // Explicit default false has the same meaning as omission.
+            // Retain required:false on path parameters: OAS requires true there.
+            if (key === "required" && parameter.in !== "path") return false;
+            if (!openapi3) return true;
+            if (key === "deprecated") return false;
+            if (
+              parameter.in === "query" &&
+              (key === "allowEmptyValue" || key === "allowReserved")
+            )
+              return false;
+            return true;
+          })
           .sort(([a], [b]) => a.localeCompare(b)),
       );
     })
@@ -414,7 +453,7 @@ export function buildCompleteOperationInventory(input: {
         requestBodyPresent: hasRequestBody(op, parameters),
         parameterCount: parameters.length,
         responseStatusKeys: Object.keys(responses).sort(),
-        parameterSchemaSha256: parametersFingerprint(parameters),
+        parameterSchemaSha256: parametersFingerprint(parameters, document.root),
         requestSchemaSha256: requestFingerprint(op, parameters, document.root),
         responseSchemaSha256: responseFingerprint(responses, document.root),
         securityRequirementsSha256: securityFingerprint(op, document.root),
