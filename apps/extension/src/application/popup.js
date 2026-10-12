@@ -115,7 +115,7 @@ function transferReceivePresentation(result) {
   if (result?.ok === true && result?.importState === "CONFLICT") return { text: "Передача получена, но импорт остановлен из-за конфликта магазина.", consume: false };
   if (result?.ok === false && result?.code === "SOURCE_OFFLINE" && result?.importState === "SOURCE_OFFLINE") return { text: "Источник ещё не доставил передачу.", consume: false };
   if (result?.ok === false && result?.code === "TRANSFER_CREDENTIALS_MISSING") return { text: "В полученной передаче нет ключей. Ничего не импортировано.", consume: false };
-  if (result?.ok === false && !result?.code && result?.importState === "PENDING") return { text: "Активной передачи для получения нет.", consume: false };
+  if (result?.ok === false && !result?.code && result?.importState === "PENDING") return { text: "Подтверждённого результата переноса пока нет. Если ключи уже импортированы, проверьте магазин перед повторной попыткой.", consume: false };
   return null;
 }
 async function requestTransferReceivePending() {
