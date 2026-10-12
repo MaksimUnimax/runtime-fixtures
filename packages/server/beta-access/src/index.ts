@@ -185,12 +185,19 @@ export function betaInvitationRevokePayloadHash(
 }
 
 function validNormalizedEmail(value: string): boolean {
-  return (
-    value.length > 0 &&
-    value.length <= 320 &&
-    value === value.trim().normalize("NFC").toLowerCase() &&
-    /^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(value)
-  );
+  if (
+    value.length === 0 ||
+    value.length > 320 ||
+    value !== value.trim().normalize("NFC").toLowerCase() ||
+    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(value)
+  )
+    return false;
+  const domain = value.slice(value.lastIndexOf("@") + 1);
+  return domain
+    .split(".")
+    .every(
+      (label) => !!label && !label.startsWith("-") && !label.endsWith("-"),
+    );
 }
 
 export class BetaAdmissionService {

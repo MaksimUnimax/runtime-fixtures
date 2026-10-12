@@ -47,6 +47,13 @@ export function normalizeEmail(input: string): string | undefined {
     !/^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(normalized)
   )
     return undefined;
+  const domain = normalized.slice(normalized.lastIndexOf("@") + 1);
+  if (
+    domain
+      .split(".")
+      .some((label) => !label || label.startsWith("-") || label.endsWith("-"))
+  )
+    return undefined;
   return normalized;
 }
 function hmac(key: Buffer, parts: string[]): string {
