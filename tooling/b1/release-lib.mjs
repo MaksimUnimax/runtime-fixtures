@@ -454,6 +454,11 @@ export function readZip(bytes) {
     if (end > centralStart + centralSize) {
       fail("Invalid ZIP central entry bounds");
     }
+    // Only release file payloads are inspected for private material. Do not
+    // permit opaque per-entry comments or extras outside those inspected bytes.
+    if (extraLength !== 0 || commentEntryLength !== 0) {
+      fail("Unsupported ZIP entry metadata");
+    }
 
     const nameBytes = bytes.subarray(pointer + 46, pointer + 46 + nameLength);
     const name = decodeZipName(nameBytes, Boolean(flags & 0x800));
@@ -525,6 +530,9 @@ export function readZip(bytes) {
     const localRawSize = bytes.readUInt32LE(localOffset + 22);
     const localNameLength = bytes.readUInt16LE(localOffset + 26);
     const localExtraLength = bytes.readUInt16LE(localOffset + 28);
+    if (localExtraLength !== 0) {
+      fail("Unsupported ZIP local entry metadata");
+    }
     const localName = bytes.subarray(
       localOffset + 30,
       localOffset + 30 + localNameLength,
