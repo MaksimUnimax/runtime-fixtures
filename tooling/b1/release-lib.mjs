@@ -484,6 +484,16 @@ export function readZip(bytes) {
       fail("Unsupported special ZIP entry");
     }
 
+    // An explicit Unix type must agree with the entry name. Otherwise a ZIP
+    // can pass preflight as a file but be installed as a directory (or vice versa).
+    if (
+      madeBy >> 8 === 3 &&
+      ((fileType === 0x4000 && !isDirectory) ||
+        (fileType === 0x8000 && isDirectory))
+    ) {
+      fail("ZIP Unix type/path mismatch");
+    }
+
     if (
       flags & 1 ||
       ![0, 8].includes(method) ||
