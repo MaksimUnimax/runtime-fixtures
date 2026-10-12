@@ -137,6 +137,14 @@ with zipfile.ZipFile(path,"w") as z:
         info.create_system=3
         info.external_attr=(0o100644<<16)
         z.writestr(info,b"")
+    if mode=="zip_comment":
+        z.comment=b"C01_NONPRIVATE_OPAQUE_COMMENT"
+if mode=="zip_directory_gap":
+    with open(path,"rb") as handle:
+        raw=handle.read()
+    assert raw[-22:-18]==bytes((80,75,5,6))
+    with open(path,"wb") as handle:
+        handle.write(raw[:-22]+b"C01_NONPRIVATE_OPAQUE_GAP"+raw[-22:])
 `;
 
 function encode(value) {
@@ -549,6 +557,11 @@ expectPrepareFailure(
 expectPrepareFailure(
   "ZIP Unix regular-file mode on directory path is rejected",
   "unix_file_for_directory",
+);
+expectPrepareFailure("opaque ZIP comment is rejected", "zip_comment");
+expectPrepareFailure(
+  "unaccounted ZIP central directory gap is rejected",
+  "zip_directory_gap",
 );
 expectPrepareFailure("symlink-like ZIP entry is rejected", "symlink");
 

@@ -408,6 +408,8 @@ export function readZip(bytes) {
 
   if (
     eocd + 22 + commentLength !== bytes.length ||
+    // Store releases must not carry unchecked arbitrary comment bytes.
+    commentLength !== 0 ||
     disk !== 0 ||
     centralDisk !== 0 ||
     diskCount !== count ||
@@ -416,7 +418,8 @@ export function readZip(bytes) {
     count === 0xffff ||
     centralSize === 0xffffffff ||
     centralStart === 0xffffffff ||
-    centralStart + centralSize > eocd
+    // No unaccounted bytes may appear between the directory and EOCD.
+    centralStart + centralSize !== eocd
   ) {
     fail("Unsupported ZIP directory");
   }
