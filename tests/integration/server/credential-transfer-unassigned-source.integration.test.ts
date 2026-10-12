@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { createServer } from "node:http";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   CredentialTransferService,
@@ -139,6 +140,135 @@ describe.sequential(
         ).rejects.toMatchObject({ code: "SOURCE_OFFLINE" });
       },
     );
+
+    it("commits ACK durably when the HTTP response is lost after commit", async () => {
+      const f = await fixture(true);
+      await f.service.sourceSeen(f.source, f.requestId);
+      const packet = {
+        requestId: f.requestId,
+        packetId: randomUUID(),
+        envelope: "A".repeat(64),
+      };
+      await f.service.submit(f.source, packet);
+      await f.service.receive(f.recipient, f.requestId);
+      expect((await f.service.read(f.recipient, f.requestId))?.state).toBe(
+        "DELIVERED_TO_RECIPIENT",
+      );
+
+      // A test-only loopback HTTP adapter discards the successful response
+      // AFTER production service + PostgreSQL have committed the ACK.
+      // This is not a test of the real API auth/route composition.
+      let responseDrops = 0;
+      const server = createServer(async (request, reply) => {
+        try {
+          if (request.method === "POST" && request.url === "/test-only/ack") {
+            const result = await f.service.acknowledge(f.recipient, {
+              requestId: f.requestId,
+              packetId: packet.packetId,
+              importDecision: "IMPORTED",
+            });
+            if (result.state !== "COMPLETED")
+              throw new Error("ACK did not commit before socket loss");
+            responseDrops += 1;
+            reply.destroy();
+            return;
+          }
+          if (request.method === "GET" && request.url === "/test-only/state") {
+            const restarted = new CredentialTransferService(
+              createCredentialTransferRepository(db),
+              new EphemeralTransferRelay(),
+              () => new Date("2026-10-08T00:00:00.000Z"),
+            );
+            const row = await restarted.read(f.recipient, f.requestId);
+            reply.setHeader("content-type", "application/json");
+            reply.end(
+              JSON.stringify({
+                state: row?.state,
+                revision: row?.revision,
+              }),
+            );
+            return;
+          }
+          reply.statusCode = 404;
+          reply.end();
+        } catch {
+          reply.statusCode = 500;
+          reply.end();
+        }
+      });
+      const port = await new Promise<number>((resolve, reject) => {
+        server.once("error", reject);
+        server.listen(0, "127.0.0.1", () => {
+          const address = server.address();
+          if (address && typeof address !== "string") resolve(address.port);
+          else reject(new Error("No loopback test port"));
+        });
+      });
+      const origin = `http://127.0.0.1:${port}`;
+      try {
+        await expect(
+          fetch(`${origin}/test-only/ack`, {
+            method: "POST",
+            signal: AbortSignal.timeout(5_000),
+          }),
+        ).rejects.toThrow();
+        expect(responseDrops).toBe(1);
+
+        // A new in-memory relay cannot invent a second packet or ACK.
+        const state = await fetch(`${origin}/test-only/state`, {
+          signal: AbortSignal.timeout(5_000),
+        });
+        expect(state.status).toBe(200);
+        const recovered = (await state.json()) as {
+          state: string;
+          revision: number;
+        };
+        expect(recovered.state).toBe("COMPLETED");
+        const stored = await db.query<{ state: string; revision: number }>(
+          "SELECT state,revision FROM credential_transfer_requests WHERE request_id=$1",
+          [f.requestId],
+        );
+        expect(stored.rows).toHaveLength(1);
+        expect(stored.rows[0]).toEqual(recovered);
+        await expect(
+          f.service.acknowledge(f.recipient, {
+            requestId: f.requestId,
+            packetId: packet.packetId,
+            importDecision: "IMPORTED",
+          }),
+        ).rejects.toMatchObject({ code: "TRANSFER_REPLAY" });
+
+        // Bypass the in-memory relay in this TEST ONLY to verify that the
+        // production PostgreSQL transaction itself rejects a repeated ACK.
+        await expect(
+          f.repository.acknowledge({
+            principal: f.recipient,
+            ack: {
+              requestId: f.requestId,
+              packetId: packet.packetId,
+              importDecision: "IMPORTED",
+            },
+            now: new Date("2026-10-08T00:00:00.000Z"),
+          }),
+        ).rejects.toMatchObject({ code: "TRANSFER_REPLAY" });
+        const afterDbReplay = await db.query<{
+          state: string;
+          revision: number;
+        }>(
+          "SELECT state,revision FROM credential_transfer_requests WHERE request_id=$1",
+          [f.requestId],
+        );
+        expect(afterDbReplay.rows).toEqual(stored.rows);
+        expect((await f.service.read(f.recipient, f.requestId))?.revision).toBe(
+          recovered.revision,
+        );
+        expect(responseDrops).toBe(1);
+      } finally {
+        await new Promise<void>((resolve, reject) => {
+          server.close((failure) => (failure ? reject(failure) : resolve()));
+        });
+      }
+    });
 
     it("rejects recipient self-assignment under the PostgreSQL transition lock", async () => {
       const f = await fixture();
