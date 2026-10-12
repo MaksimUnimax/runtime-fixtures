@@ -148,6 +148,10 @@ const secretPatterns: readonly [RegExp, string][] = [
     "[REDACTED_PRIVATE_KEY]",
   ],
   [
+    /(\b(?:proxy-)?authorization[ \t]*[:=][ \t]*)[^\r\n]*(?:(?:\r\n|\r|\n)[ \t]+[^\r\n]*)*/giu,
+    "$1[REDACTED_AUTHORIZATION]",
+  ],
+  [
     /(authorization\s*[:=]\s*bearer\s+)[A-Za-z0-9._~+/=-]{12,}/giu,
     "$1[REDACTED_TOKEN]",
   ],
