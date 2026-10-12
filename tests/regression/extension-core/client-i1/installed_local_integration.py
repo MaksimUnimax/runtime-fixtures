@@ -60,6 +60,21 @@ def wait_until(check, label, timeout=30):
         time.sleep(.1)
     raise RuntimeError(f"timed out waiting for {label}; last={last!r}")
 
+def read_completed_bootstrap_response(response):
+    # BrowserContext "response" fires before the response body has finished.
+    # Parsing JSON from inside that callback can hide a valid signed response.
+    error = response.finished()
+    if error is not None:
+        raise RuntimeError("signed AI bootstrap HTTP response did not complete")
+    try:
+        envelope = response.json()
+    except Exception:
+        raise RuntimeError("signed AI bootstrap HTTP body was unreadable") from None
+    if not isinstance(envelope, dict) or not envelope:
+        raise RuntimeError("signed AI bootstrap HTTP response has invalid shape")
+    return envelope
+
+
 def file_sha256(path):
     digest = hashlib.sha256()
     with Path(path).open("rb") as stream:
@@ -164,17 +179,16 @@ def run(runtime, output):
                 try:
                     context.route("https://**/*", lambda route: route.fulfill(body=fixture, content_type="text/html") if route.request.url == chat_url else route.abort())
                     control_responses = []
-                    bootstrap_envelopes = []
+                    bootstrap_http_responses = []
+                    bootstrap_envelope = None
                     authorization_ids = set()
                     def observe_control(response):
                         parsed = urlparse(response.url)
                         if parsed.netloc == f"127.0.0.1:{api_port}" and parsed.path.startswith("/v1/"):
                             control_responses.append(("direct_extension", parsed.path, response.status))
                             if parsed.path == "/v1/bootstrap" and response.status == 200:
-                                try:
-                                    bootstrap_envelopes.append(response.json())
-                                except Exception:
-                                    bootstrap_envelopes.append(None)
+                                # Keep the response handle, not an early JSON parse.
+                                bootstrap_http_responses.append(response)
                         elif parsed.netloc == f"127.0.0.1:{portal_port}" and parsed.path.startswith("/api/control-plane/"):
                             control_responses.append(("portal_bff", parsed.path.removeprefix("/api/control-plane"), response.status))
                     context.on("response", observe_control)
@@ -328,15 +342,19 @@ def run(runtime, output):
                         }""", conversation_key),
                         "installed Work Start activation",
                     )
-                    if not bootstrap_envelopes or not bootstrap_envelopes[-1]:
-                        raise RuntimeError("signed AI bootstrap was not observed")
-                    signed_profile = worker.evaluate("""async ({envelope, trust, extensionVersion}) => {
+                    bootstrap_response = wait_until(
+                        lambda: bootstrap_http_responses[-1] if bootstrap_http_responses else None,
+                        "signed AI bootstrap HTTP 200 observation",
+                    )
+                    bootstrap_envelope = read_completed_bootstrap_response(bootstrap_response)
+                    signed_profile = worker.evaluate("""async ({envelope, trust, extensionVersion, expectedAccountId}) => {
                       const observed = SellerAgentsBrowserIdentity.current();
                       const verified = await SellerAgentsBootstrapVerifier.verifyV2(envelope, trust);
                       if (!verified.ok) return {verified:false, error:verified.error || null};
                       const profile = verified.payload?.ai?.profile || null;
                       return {
                         verified:true,
+                        accountMatches: verified.payload?.account?.id === expectedAccountId,
                         aiStatus:verified.payload?.ai?.status || null,
                         detected:verified.payload?.ai?.detected || null,
                         profileContractVersion:profile?.compatibility?.contractVersion || null,
@@ -348,12 +366,14 @@ def run(runtime, output):
                         materialValid:profile ? await SellerAgentsSignedAiProfileConsumer.validMaterial(profile) : false,
                       };
                     }""", {
-                        "envelope": bootstrap_envelopes[-1],
+                        "envelope": bootstrap_envelope,
                         "trust": packaged_config["trustBundle"],
                         "extensionVersion": packaged_config["extensionVersion"],
+                        "expectedAccountId": second_identity["account"],
                     })
                     if not (
                         signed_profile.get("verified") is True
+                        and signed_profile.get("accountMatches") is True
                         and signed_profile.get("aiStatus") == "RESOLVED"
                         and signed_profile.get("detected") == {"family": "chatgpt", "surface": "web", "variant": None}
                         and signed_profile.get("materialShapeValid") is True
@@ -606,6 +626,10 @@ def run(runtime, output):
                         beta_unchanged=True,
                     )
                 except Exception:
+                    result["failure_observation"] = {
+                        "bootstrap_http_200_events": len(bootstrap_http_responses),
+                        "bootstrap_body_parsed": bootstrap_envelope is not None,
+                    }
                     try:
                         diagnostic = worker.evaluate("""async tabId => {
                           const status = await SellerAgentsControlClient.status();
@@ -621,8 +645,8 @@ def run(runtime, output):
                           };
                         }""", locals().get("chat_tab_id"))
                         result["failure_diagnostic"] = {"stage": stage, **diagnostic}
-                        if bootstrap_envelopes and bootstrap_envelopes[-1]:
-                            result["failure_profile_diagnostic"] = inspect_signed_profile(bootstrap_envelopes[-1])
+                        if bootstrap_envelope is not None:
+                            result["failure_profile_diagnostic"] = inspect_signed_profile(bootstrap_envelope)
                     except Exception:
                         result["failure_diagnostic"] = {"stage": stage, "read_failed": True, "error_code": "DIAGNOSTIC_READ_FAILED"}
                     raise
