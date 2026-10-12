@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { createServer } from "node:http";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { createApiApp } from "../../../apps/api/src/app.js";
 import {
   CredentialTransferService,
   EphemeralTransferRelay,
@@ -267,6 +268,103 @@ describe.sequential(
         await new Promise<void>((resolve, reject) => {
           server.close((failure) => (failure ? reject(failure) : resolve()));
         });
+      }
+    });
+
+    it("retains committed ACK when the real API route loses its HTTP reply", async () => {
+      const f = await fixture(true);
+      await f.service.sourceSeen(f.source, f.requestId);
+      const packetId = randomUUID();
+      await f.service.submit(f.source, {
+        requestId: f.requestId,
+        packetId,
+        envelope: "A".repeat(64),
+      });
+      await f.service.receive(f.recipient, f.requestId);
+      const before = await f.service.read(f.recipient, f.requestId);
+      expect(before?.state).toBe("DELIVERED_TO_RECIPIENT");
+
+      // Exercise the actual createApiApp + route + Bearer pre-handler with a
+      // synthetic test-only access validator. Real auth issuance is not tested.
+      let authenticatedRequests = 0;
+      const extensionAuth = {
+        authenticateAccess: async (token: string) => {
+          authenticatedRequests += 1;
+          return token === "B03-fixture-access"
+            ? { ok: true, value: f.recipient }
+            : { ok: false, code: "ACCESS_TOKEN_INVALID" };
+        },
+      };
+      const app = createApiApp({
+        config: {
+          environment: "test",
+          databaseUrl: connectionString!,
+          logLevel: "warn",
+          apiPort: 0,
+          workerReadyDelayMs: 0,
+        },
+        isInfrastructureReady: async () => true,
+        credentialTransferService: f.service,
+        extensionAuthService: extensionAuth as never,
+      });
+      let droppedResponses = 0;
+      const ackPath = `/v1/credential-transfers/${f.requestId}/ack`;
+      app.addHook("onSend", (request, reply, payload, done) => {
+        if (
+          request.method === "POST" &&
+          request.url === ackPath &&
+          reply.statusCode === 200
+        ) {
+          droppedResponses += 1;
+          reply.raw.destroy();
+        }
+        done(null, payload);
+      });
+      const origin = await app.listen({ host: "127.0.0.1", port: 0 });
+      const headers = {
+        authorization: "Bearer B03-fixture-access",
+        "content-type": "application/json",
+      };
+      try {
+        await expect(
+          fetch(`${origin}${ackPath}`, {
+            method: "POST",
+            headers,
+            body: JSON.stringify({
+              requestId: f.requestId,
+              packetId,
+              importDecision: "IMPORTED",
+            }),
+            signal: AbortSignal.timeout(5_000),
+          }),
+        ).rejects.toThrow();
+        expect(droppedResponses).toBe(1);
+
+        const recoveredResponse = await fetch(
+          `${origin}/v1/credential-transfers/${f.requestId}`,
+          { headers, signal: AbortSignal.timeout(5_000) },
+        );
+        expect(recoveredResponse.status).toBe(200);
+        const recovered = (await recoveredResponse.json()) as {
+          state: string;
+          revision: number;
+        };
+        expect(recovered.state).toBe("COMPLETED");
+        expect(recovered.revision).toBe((before?.revision ?? 0) + 1);
+        const actualDb = await db.query<{
+          state: string;
+          revision: number;
+        }>(
+          "SELECT state,revision FROM credential_transfer_requests WHERE request_id=$1",
+          [f.requestId],
+        );
+        expect(actualDb.rows).toEqual([
+          { state: recovered.state, revision: recovered.revision },
+        ]);
+        expect(authenticatedRequests).toBe(2);
+        expect(droppedResponses).toBe(1);
+      } finally {
+        await app.close();
       }
     });
 
