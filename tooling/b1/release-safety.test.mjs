@@ -203,7 +203,7 @@ if mode=="zip_opaque_prefix":
     with open(path,"wb") as sink:
         sink.write(b"C01_NONPRIVATE_UNCHECKED_PREAMBLE")
 with zipfile.ZipFile(path,"a" if mode=="zip_opaque_prefix" else "w",
-        compression=zipfile.ZIP_DEFLATED if mode=="zip_gpbf_deflate_options" else zipfile.ZIP_STORED) as z:
+        compression=zipfile.ZIP_DEFLATED if mode in ("zip_gpbf_deflate_options","zip_deflate_unused_tail") else zipfile.ZIP_STORED) as z:
     for index,(name,value) in enumerate(rows):
         if mode=="zip_opaque_local_gap" and index==1:
             z.fp.write(b"C01_NONPRIVATE_UNCHECKED_LOCAL_GAP")
@@ -256,6 +256,44 @@ if mode in ("zip_gpbf_reserved_bit14", "zip_gpbf_strong_encryption_bit6", "zip_g
     # pre-existing mismatch check so this exercises unsupported GPBF semantics.
     struct.pack_into("<H",payload,local_offset+6,flag)
     struct.pack_into("<H",payload,target_central+8,flag)
+    with open(path,"wb") as sink:
+        sink.write(payload)
+if mode=="zip_deflate_unused_tail":
+    with open(path,"rb") as source:
+        payload=bytearray(source.read())
+    with zipfile.ZipFile(io.BytesIO(payload)) as archive:
+        worker=archive.getinfo("worker.js")
+        assert worker.compress_type==zipfile.ZIP_DEFLATED
+        local_offset=worker.header_offset
+        original_compressed_size=worker.compress_size
+    local_name_length,local_extra_length=struct.unpack_from("<HH",payload,local_offset+26)
+    end_of_deflate=local_offset+30+local_name_length+local_extra_length+original_compressed_size
+    eocd=payload.rfind(bytes((80,75,5,6)))
+    assert eocd>=0
+    central=struct.unpack_from("<I",payload,eocd+16)[0]
+    count=struct.unpack_from("<H",payload,eocd+10)[0]
+    assert end_of_deflate==central and count==2
+    directory=central
+    worker_directory=None
+    for _ in range(count):
+        assert payload[directory:directory+4]==bytes((80,75,1,2))
+        n,e,c=struct.unpack_from("<HHH",payload,directory+28)
+        if payload[directory+46:directory+46+n]==b"worker.js":
+            worker_directory=directory
+        directory+=46+n+e+c
+    assert directory==eocd and worker_directory is not None
+    # A well-formed compressed entry can have an opaque tail after the
+    # end-of-deflate marker. Neither CRC nor raw-size checks account for it.
+    extra=b"C01_BENIGN_UNUSED_DEFLATE_BYTES_"*3
+    payload[central:central]=extra
+    central_after=central+len(extra)
+    eocd_after=eocd+len(extra)
+    worker_directory_after=worker_directory+len(extra)
+    struct.pack_into("<I",payload,local_offset+18,original_compressed_size+len(extra))
+    struct.pack_into("<I",payload,worker_directory_after+20,original_compressed_size+len(extra))
+    struct.pack_into("<I",payload,eocd_after+16,central_after)
+    with zipfile.ZipFile(io.BytesIO(payload)) as verified:
+        assert verified.testzip() is None
     with open(path,"wb") as sink:
         sink.write(payload)
 if mode=="zip_directory_gap":
@@ -700,6 +738,10 @@ expectPrepareFailure(
 expectPrepareFailure(
   "ZIP Unix regular-file mode on directory path is rejected",
   "unix_file_for_directory",
+);
+expectPrepareFailure(
+  "unconsumed bytes after deflate stream are rejected",
+  "zip_deflate_unused_tail",
 );
 expectPrepareFailure(
   "reserved ZIP general-purpose flag bit14 is rejected",

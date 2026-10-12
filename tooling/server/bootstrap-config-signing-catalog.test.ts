@@ -133,6 +133,183 @@ describe("canonical signing catalog bootstrap tool", () => {
     expect(repository.activateSigningKey).not.toHaveBeenCalled();
   });
 
+  it("converges on one active key during two concurrent initial bootstraps", async () => {
+    const createdAt = new Date("2026-09-21T00:00:00.000Z");
+    const keyMetadata = {
+      keyId,
+      algorithm: "Ed25519" as const,
+      publicKeySpkiDer: der,
+      publicKeySha256: material.publicKeySha256,
+      createdAt,
+    };
+    const events = [
+      {
+        id: "11111111-1111-4111-8111-111111111111",
+        keyId,
+        eventType: "REGISTERED" as const,
+        occurredAt: createdAt,
+        reasonCode: null,
+        createdAt,
+      },
+      {
+        id: "22222222-2222-4222-8222-222222222222",
+        keyId,
+        eventType: "ACTIVATED" as const,
+        occurredAt: new Date("2026-09-21T00:00:01.000Z"),
+        reasonCode: null,
+        createdAt: new Date("2026-09-21T00:00:01.000Z"),
+      },
+    ];
+    let firstReads = 0;
+    let signalInitialReads!: () => void;
+    const bothReadEmpty = new Promise<void>((resolve) => {
+      signalInitialReads = resolve;
+    });
+    let registered = false;
+    let active = false;
+    const database = {
+      query: vi.fn(async (sql: string) => {
+        if (sql.includes("FROM signing_keys")) {
+          if (firstReads < 2) {
+            firstReads += 1;
+            if (firstReads === 2) signalInitialReads();
+            await bothReadEmpty;
+            return { rows: [] };
+          }
+          return { rows: registered ? [keyMetadata] : [] };
+        }
+        if (sql.includes("FROM signing_key_events"))
+          return { rows: active ? events : events.slice(0, 1) };
+        throw new Error("unexpected database read");
+      }),
+    } as unknown as DatabaseRuntime;
+    const repository = {
+      registerSigningKey: vi.fn(async () => {
+        registered = true;
+        return keyMetadata;
+      }),
+      activateSigningKey: vi.fn(async () => {
+        if (active) throw new Error("P3_SIGNING_KEY_ACTIVATION_INVALID");
+        active = true;
+        return events[1];
+      }),
+    };
+    const results = await Promise.allSettled([
+      bootstrapConfigSigningCatalog(database, material, {
+        publication: repository,
+      }),
+      bootstrapConfigSigningCatalog(database, material, {
+        publication: repository,
+      }),
+    ]);
+    expect(results.map((result) => result.status)).toEqual([
+      "fulfilled",
+      "fulfilled",
+    ]);
+    expect(
+      results
+        .map((result) =>
+          result.status === "fulfilled" ? result.value.kind : "REJECTED",
+        )
+        .sort(),
+    ).toEqual(["ALREADY_HEALTHY", "REGISTERED_AND_ACTIVATED"]);
+    expect(repository.activateSigningKey).toHaveBeenCalledTimes(2);
+    expect(registered).toBe(true);
+    expect(active).toBe(true);
+  });
+
+  it.each([
+    ["incomplete lifecycle", "P3_SIGNING_KEY_ACTIVATION_INVALID", false, true],
+    [
+      "different key fingerprint",
+      "P3_SIGNING_KEY_ACTIVATION_INVALID",
+      true,
+      false,
+    ],
+    [
+      "unrelated activation error",
+      "P3_SIGNING_KEY_INVALID_LIFECYCLE",
+      true,
+      true,
+    ],
+  ])(
+    "never masks %s after a rejected activation",
+    async (_name, errorCode, activeAfterRace, sameKey) => {
+      const when = new Date("2026-09-21T00:00:00.000Z");
+      const unexpectedDer = generateKeyPairSync("ed25519").publicKey.export({
+        format: "der",
+        type: "spki",
+      });
+      const metadata = {
+        keyId,
+        algorithm: "Ed25519" as const,
+        publicKeySpkiDer: der,
+        publicKeySha256: material.publicKeySha256,
+        createdAt: when,
+      };
+      let catalogReads = 0;
+      let eventReads = 0;
+      const database = {
+        query: vi.fn(async (sql: string) => {
+          if (sql.includes("FROM signing_keys")) {
+            catalogReads += 1;
+            return {
+              rows: [
+                catalogReads < 2 || sameKey
+                  ? metadata
+                  : {
+                      ...metadata,
+                      publicKeySpkiDer: unexpectedDer,
+                      publicKeySha256: createHash("sha256")
+                        .update(unexpectedDer)
+                        .digest("hex"),
+                    },
+              ],
+            };
+          }
+          if (sql.includes("FROM signing_key_events")) {
+            eventReads += 1;
+            const registered = {
+              id: "11111111-1111-4111-8111-111111111111",
+              keyId,
+              eventType: "REGISTERED",
+              occurredAt: when,
+              reasonCode: null,
+              createdAt: when,
+            };
+            const activated = {
+              ...registered,
+              id: "22222222-2222-4222-8222-222222222222",
+              eventType: "ACTIVATED",
+              occurredAt: new Date("2026-09-21T00:00:01.000Z"),
+              createdAt: new Date("2026-09-21T00:00:01.000Z"),
+            };
+            return {
+              rows:
+                eventReads > 1 && activeAfterRace
+                  ? [registered, activated]
+                  : [registered],
+            };
+          }
+          throw new Error("unexpected database read");
+        }),
+      } as unknown as DatabaseRuntime;
+      const repository = {
+        registerSigningKey: vi.fn(async () => metadata),
+        activateSigningKey: vi.fn(async () => {
+          throw new Error(errorCode);
+        }),
+      };
+      await expect(
+        bootstrapConfigSigningCatalog(database, material, {
+          publication: repository,
+        }),
+      ).rejects.toThrow(errorCode);
+      expect(repository.registerSigningKey).not.toHaveBeenCalled();
+      expect(repository.activateSigningKey).toHaveBeenCalledOnce();
+    },
+  );
+
   it("contains no direct signing-event INSERT or history mutation", () => {
     const source = readFileSync(
       new URL("./bootstrap-config-signing-catalog.ts", import.meta.url),

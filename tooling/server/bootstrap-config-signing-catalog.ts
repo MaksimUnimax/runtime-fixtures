@@ -29,6 +29,42 @@ type CatalogPublication = Pick<
   "registerSigningKey" | "activateSigningKey"
 >;
 
+/**
+ * Reconcile only a known concurrent activation winner. Never accept an
+ * unrelated signer or an incomplete lifecycle as successful bootstrap.
+ */
+async function exactActiveAfterConcurrentActivation(
+  database: CatalogQuery,
+  material: ConfigSigningMaterial,
+): Promise<boolean> {
+  const keys = await database.query(
+    'SELECT key_id AS "keyId",algorithm,public_key_spki_der AS "publicKeySpkiDer",public_key_sha256 AS "publicKeySha256",created_at AS "createdAt" FROM signing_keys ORDER BY key_id',
+  );
+  const catalog = keys.rows.map((row) => SigningKeyMetadataSchema.parse(row));
+  if (
+    catalog.length === 0 ||
+    catalog.some((entry) => {
+      const configured = material.keys.get(entry.keyId);
+      return (
+        !configured ||
+        entry.algorithm !== "Ed25519" ||
+        entry.publicKeySha256 !== configured.publicKeySha256 ||
+        !Buffer.from(entry.publicKeySpkiDer).equals(configured.publicKeySpkiDer)
+      );
+    }) ||
+    !catalog.some((entry) => entry.keyId === material.keyId)
+  )
+    return false;
+  const r = await database.query(
+    'SELECT id,key_id AS "keyId",event_type AS "eventType",occurred_at AS "occurredAt",reason_code AS "reasonCode",created_at AS "createdAt" FROM signing_key_events WHERE key_id=$1 ORDER BY occurred_at,id',
+    [material.keyId],
+  );
+  const lifecycle = resolveSigningKeyLifecycle(
+    r.rows.map((row) => SigningKeyEventSchema.parse(row)),
+  );
+  return lifecycle.state === "ACTIVE";
+}
+
 export async function bootstrapConfigSigningCatalog(
   database: CatalogQuery,
   material: ConfigSigningMaterial,
@@ -55,6 +91,22 @@ export async function bootstrapConfigSigningCatalog(
     options.publication ??
     createP3PolicyPublicationRepository(database as DatabaseRuntime);
 
+  const activateOrConfirm =
+    async (): Promise<SigningCatalogBootstrapResult> => {
+      try {
+        await publication.activateSigningKey(material.keyId, context);
+        return { kind: "REGISTERED_AND_ACTIVATED", keyId: material.keyId };
+      } catch (error) {
+        if (
+          error instanceof Error &&
+          error.message === "P3_SIGNING_KEY_ACTIVATION_INVALID" &&
+          (await exactActiveAfterConcurrentActivation(database, material))
+        )
+          return { kind: "ALREADY_HEALTHY", keyId: material.keyId };
+        throw error;
+      }
+    };
+
   if (!exact) {
     if (catalog.length !== 0) throw new Error("SIGNING_CATALOG_CONFLICT");
     await publication.registerSigningKey(
@@ -64,8 +116,7 @@ export async function bootstrapConfigSigningCatalog(
       },
       context,
     );
-    await publication.activateSigningKey(configured.keyId, context);
-    return { kind: "REGISTERED_AND_ACTIVATED", keyId: configured.keyId };
+    return activateOrConfirm();
   }
 
   if (
@@ -87,8 +138,7 @@ export async function bootstrapConfigSigningCatalog(
   if (lifecycle.state !== "REGISTERED")
     throw new Error("SIGNING_CATALOG_CONFLICT");
 
-  await publication.activateSigningKey(material.keyId, context);
-  return { kind: "REGISTERED_AND_ACTIVATED", keyId: material.keyId };
+  return activateOrConfirm();
 }
 
 export async function main(): Promise<void> {
