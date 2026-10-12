@@ -27,14 +27,14 @@ function fixture(provider = "alice") {
       }
       return null;
     }
-    getClientRects() { return this.hidden ? [] : [{}]; }
+    getClientRects() { return this.hidden || !this.isConnected ? [] : [{}]; }
     getAttribute() { return null; }
   }
   let body = new Node(), mains = [], users = [], assistants = [];
   let desktopRoots = provider === "qwen" ? [new Node(body)] : [];
   if (provider === "qwen") mains = [new Node(desktopRoots[0], { main: true })];
   const composerRoot = new Node(mains[0] || body), composer = new Node(composerRoot);
-  const adapter = { id: provider, composerContext: () => ({ root: composerRoot, composer }),
+  const adapter = { id: provider, composerContext: () => composer.isConnected ? ({ root: composerRoot, composer }) : null,
     userMessages: () => users, assistantMessages: () => assistants,
     messageId: (node) => node.id, messageText: (node) => node.text };
   const context = { URL, TextEncoder, crypto: webcrypto,
@@ -47,15 +47,23 @@ function fixture(provider = "alice") {
   return { api: context.SellerAgentsConversationSurface, adapter, context, Node,
     addMessages(text = "Начальная инструкция") {
       if (provider === "qwen") {
-        mains[0].isConnected = false;
+        if (mains[0]) mains[0].isConnected = false;
         mains = [new Node(desktopRoots[0], { main: true })];
-        composerRoot.parent = mains[0];
+        composerRoot.parent = mains[0]; composer.isConnected = true;
       }
       const messageRoot = provider === "qwen" ? mains[0] : body;
       users = [new Node(messageRoot, { id: "user-1", text })];
       assistants = [new Node(messageRoot, { id: "assistant-1", text: "Готово" })];
       context.location.pathname = provider === "qwen" ? "/c/guest" : "/chat/new-conversation/";
     },
+    remountGap() {
+      for (const main of mains) main.isConnected = false;
+      mains = []; composer.isConnected = false; users = []; assistants = [];
+      context.location.pathname = "/c/new-chat";
+    },
+    hiddenMainInGap() { mains = [new Node(desktopRoots[0], { main: true, hidden: true })]; },
+    hiddenMessageInGap() { users = [new Node(desktopRoots[0], { id: "hidden-1", text: "History", hidden: true })]; },
+    hideDesktopRoot() { desktopRoots[0].hidden = true; },
     replaceBody() { body = new Node(); composerRoot.parent = body; },
     hiddenWitness() { users[0].hidden = true; },
     replaceDesktopRoot() { desktopRoots[0].isConnected = false; desktopRoots = [new Node(body)]; },
@@ -125,6 +133,69 @@ for (const [name, change, success] of [
   const after = await f.api.ready(f.adapter);
   if (success) { assert.equal(after.status, "confirmed"); assert.equal(after.surface_id, before.surface_id); }
   else assert(after.status !== "confirmed" || after.surface_id !== before.surface_id, "unproved root continuity must remain blocked");
+}]);
+
+// Primary installed observation: one stable parent, then 351 ms with no
+// main/composer/message, then new main and the owned message on /c/new-chat,
+// followed by /c/guest. The empty frame must suspend effects, not lose Start.
+cases.push(["Qwen empty remount gap preserves pending identity without authorizing effects", async () => {
+  const f = fixture("qwen"), before = await f.api.ready(f.adapter);
+  f.api.beginStart(f.adapter, "intent-qwen-gap", "Начальная инструкция");
+  f.remountGap();
+  for (let frame = 0; frame < 3; frame += 1) {
+    const gap = await f.api.ready(f.adapter);
+    assert.equal(gap.status, "unknown");
+    assert.equal(gap.conversation_id, null);
+    assert.equal(gap.surface_id, before.surface_id);
+  }
+  f.addMessages(); f.context.location.pathname = "/c/new-chat";
+  const witnessed = await f.api.ready(f.adapter);
+  assert.equal(witnessed.status, "confirmed");
+  assert.equal(witnessed.surface_id, before.surface_id);
+  f.context.location.pathname = "/c/guest";
+  const promoted = await f.api.ready(f.adapter);
+  assert.equal(promoted.status, "confirmed");
+  assert.equal(promoted.surface_id, before.surface_id);
+}]);
+for (const [name, change] of [
+  ["no Start", () => {}],
+  ["ended Start", f => f.api.endStart("intent-qwen-gap")],
+  ["different parent", f => f.replaceDesktopRoot()],
+  ["duplicate parent", f => f.duplicateDesktopRoot()],
+  ["hidden parent", f => f.hideDesktopRoot()],
+  ["hidden main", f => f.hiddenMainInGap()],
+  ["hidden history", f => f.hiddenMessageInGap()],
+  ["different origin", f => { f.context.location.origin = "https://chatgpt.com"; }],
+]) cases.push([`Qwen empty remount gap rejects ${name}`, async () => {
+  const f = fixture("qwen"), before = await f.api.ready(f.adapter);
+  if (name !== "no Start") f.api.beginStart(f.adapter, "intent-qwen-gap", "Начальная инструкция");
+  f.remountGap(); change(f);
+  const gap = await f.api.ready(f.adapter);
+  assert.notEqual(gap.status, "confirmed");
+  assert.notEqual(gap.surface_id, before.surface_id, "unproved gap must not retain the pending surface");
+}]);
+
+for (const [name, gapPath, landingPath] of [
+  ["unrelated same-origin gap", "/c/existing-thread", "/c/existing-thread"],
+  ["unrelated landing after observed gap", "/c/new-chat", "/c/existing-thread"],
+  ["query-bearing transition", "/c/new-chat?thread=other", "/c/guest"],
+]) cases.push([`Qwen ${name} cannot witness the same prompt`, async () => {
+  const f = fixture("qwen"), before = await f.api.ready(f.adapter);
+  f.api.beginStart(f.adapter, "intent-qwen-gap", "Начальная инструкция");
+  f.remountGap(); f.context.location.pathname = gapPath;
+  const gap = await f.api.ready(f.adapter);
+  assert.notEqual(gap.status, "confirmed");
+  f.addMessages(); f.context.location.pathname = landingPath;
+  const after = await f.api.ready(f.adapter);
+  assert.notEqual(after.surface_id, before.surface_id, "matching text in a different route must not bind the pending Work");
+}]);
+cases.push(["Qwen remount of a nonempty conversation cannot retain first-Start continuity", async () => {
+  const f = fixture("qwen"); f.addMessages("Previous message");
+  const before = await f.api.ready(f.adapter);
+  f.api.beginStart(f.adapter, "intent-existing", "Начальная инструкция");
+  f.remountGap(); const gap = await f.api.ready(f.adapter);
+  assert.notEqual(gap.status, "confirmed");
+  assert.notEqual(gap.surface_id, before.surface_id);
 }]);
 
 // Exercise the real Alice adapter against the observed author/bubble/control structure.

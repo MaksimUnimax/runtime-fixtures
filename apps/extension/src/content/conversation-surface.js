@@ -22,12 +22,22 @@
     const origin = String(location.origin).toLowerCase();
     const provider = globalThis.BB2ConversationIdentity.providerForOrigin(origin);
     if (!adapter || adapter.id !== provider) return { origin, provider: null };
+    const pathname = location.pathname + (location.search || "") + (location.hash || "");
+    // A retained empty Qwen frame may finish only the observed guest route
+    // promotion. A different route ends that observation before any matching
+    // historical text could be considered an owned-message witness.
+    if (pending?.qwenRemountGap && (provider !== "qwen" ||
+        !["/c/new-chat", "/c/guest"].includes(pathname))) {
+      tracker.endStart(pending.intentId);
+      pending = null;
+    }
     const composer = adapter.composerContext?.() || null;
-    const messages = [...(adapter.userMessages?.() || []), ...(adapter.assistantMessages?.() || [])]
-      .filter((node) => node?.isConnected && (!node.getClientRects || node.getClientRects().length > 0) && !node.closest?.('[aria-hidden="true"], [hidden]'));
+    const observedMessages = [...(adapter.userMessages?.() || []), ...(adapter.assistantMessages?.() || [])];
+    const messages = observedMessages.filter((node) => node?.isConnected && (!node.getClientRects || node.getClientRects().length > 0) && !node.closest?.('[aria-hidden="true"], [hidden]'));
     const roots = new Set(messages.map((node) => node.closest?.("main, [role='main']") || document.body).filter(Boolean));
     const composerRoot = composer?.composer?.closest?.("main, [role='main']") || composer?.root || null;
-    const mainRoots = [...document.querySelectorAll("main, [role='main']")].filter((node) =>
+    const allMainRoots = [...document.querySelectorAll("main, [role='main']")];
+    const mainRoots = allMainRoots.filter((node) =>
       !node.getClientRects || node.getClientRects().length > 0);
     // Alice's guest chat can have no semantic main. Its empty editor uses a
     // nested composer root, but the first visible message is rooted at body.
@@ -40,14 +50,24 @@
     // desktop content parent survives that transition. Use it only when one
     // visible main, the composer, and every visible message belong to it.
     // Exact owned-message witnessing and all navigation fences still apply.
-    const qwenRoots = provider === "qwen" ? [...document.querySelectorAll('.desktop-layout-content-inner')]
-      .filter((node) => node.isConnected && node.getClientRects().length > 0 &&
-        !node.closest('[aria-hidden="true"], [hidden]')) : [];
+    const allQwenRoots = provider === "qwen" ? [...document.querySelectorAll('.desktop-layout-content-inner')] : [];
+    const qwenRoots = allQwenRoots.filter((node) => node.isConnected && node.getClientRects().length > 0 &&
+        !node.closest('[aria-hidden="true"], [hidden]'));
     const qwenRoot = qwenRoots.length === 1 && mainRoots.length === 1 && roots.size <= 1 &&
       composer?.composer?.isConnected && qwenRoots[0].contains(mainRoots[0]) &&
       qwenRoots[0].contains(composer.composer) && messages.every((node) => mainRoots[0].contains(node))
       ? qwenRoots[0] : null;
-    const root = aliceNoMainRoot ? document.body : qwenRoot || (
+    // The same parent also survives a brief fully empty remount frame. Keep
+    // only the already pending empty Start's reference through that frame.
+    // With no main, composer or messages surfaceConfirmed stays false: this
+    // preserves observation, never permission to send or retry. Hidden or
+    // duplicate surfaces, history, replacement parents and ended Starts fail.
+    const qwenGapRoot = pending?.emptySurface && pending.initialPath === "/" && pathname === "/c/new-chat" &&
+      !pending.witnessId && pending.baseline.size === 0 &&
+      allQwenRoots.length === 1 && qwenRoots.length === 1 && pending.root === qwenRoots[0] &&
+      allMainRoots.length === 0 && !composer && observedMessages.length === 0 ? qwenRoots[0] : null;
+    if (qwenGapRoot) pending.qwenRemountGap = true;
+    const root = aliceNoMainRoot ? document.body : qwenRoot || qwenGapRoot || (
       roots.size === 1 ? [...roots][0] :
       mainRoots.length === 1 ? mainRoots[0] : composerRoot);
 
@@ -83,7 +103,7 @@
     const messageIds = inSurface.map((node) => adapter.messageId(node)).filter(Boolean);
     const surfaceConfirmed = Boolean(root && roots.size <= 1 &&
       (composer?.composer?.isConnected || inSurface.length));
-    lastInput = { origin, provider, pathname: location.pathname + (location.search || "") + (location.hash || ""), canonicalHref,
+    lastInput = { origin, provider, pathname, canonicalHref,
       explicitIds, requiresExplicitId: provider === "alice", root,
       surfaceConfirmed, hasMessages: inSurface.length > 0, messageIds, startWitness, startWitnessMessageId,
       conflict: roots.size > 1 ? "multiple_conversation_surfaces" : null };
@@ -115,6 +135,7 @@
     if (!lastInput?.root) throw Object.assign(new Error("Не найдено поле текущего диалога."), { code: "CONVERSATION_SURFACE_UNAVAILABLE" });
     tracker.beginStart(intentId);
     pending = { intentId: String(intentId), text: text(prompt), root: lastInput.root,
+      emptySurface: lastInput.surfaceConfirmed && !lastInput.hasMessages, initialPath: lastInput.pathname,
       baseline: new Set((adapter.userMessages?.() || []).map((node) => adapter.messageId(node)).filter(Boolean)) };
     return identity;
   }
