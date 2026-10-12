@@ -126,6 +126,10 @@ async function requestTransferReceivePending() {
   return { response, presentation };
 }
 async function action(fn, { interrupt = false, accountOnly = false } = {}) {
+  if (!accountOnly && !state) {
+    $("status").textContent = "Октопорт ещё загружает состояние. Дождитесь завершения проверки.";
+    return { popupAction: "INITIAL_STATE_PENDING" };
+  }
   if (busy && !interrupt) {
     $("status").textContent = "Дождитесь завершения текущего действия.";
     return { popupAction: "BUSY_REJECTED" };
@@ -133,9 +137,9 @@ async function action(fn, { interrupt = false, accountOnly = false } = {}) {
   const generation = ++actionGeneration;
   refreshGeneration += 1;
   busy = true;
-  if (!accountOnly && typeof render === "function") render();
   $("status").textContent = "Выполняем…";
   try {
+    if (!accountOnly && typeof render === "function") render();
     const result = await fn();
     if (generation !== actionGeneration) return;
     if (!accountOnly) await refresh();
@@ -182,6 +186,7 @@ function render() {
   $("auth-code").textContent = state.auth?.pending ? `Код подтверждения: ${state.auth.pending.userCode}` : "";
   $("auth-open").hidden = !state.auth?.pending;
   $("auth-start").textContent = state.auth?.pending ? "Открыть портал ещё раз" : "Войти через портал";
+  $("auth-start").disabled = busy;
   $("auth-reset").hidden = !authenticated && !state.auth?.pending;
   $("auth-cancel").hidden = !state.auth?.pending;
   const extensionCompatibility = state.auth?.compatibility?.extension;

@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
+import { verifyPopupInitialState } from "./client-i1/popup-initial-state.mjs";
 
 const root = path.resolve(import.meta.dirname, "../../..");
 const candidate = path.resolve(process.argv[2]);
@@ -450,6 +451,8 @@ await test("PAR-07-32-package-subset-content-source-identities-and-review", asyn
   messages = [section]; root.isConnected = false;
   await assert.rejects(source.capture(args), { code: "COMMAND_CONTEXT_CHANGED" });
 });
+
+await test("R3-popup-initial-state-and-render-failure-no-latched-action", () => verifyPopupInitialState(candidate));
 
 await test("R3-durable-import-panel-rejects-stale-file-password-account-preview", async () => {
   const source = fs.readFileSync(path.join(candidate, "popup.js"), "utf8"), nodes = new Map(), calls = [];
