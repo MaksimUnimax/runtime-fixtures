@@ -1,5 +1,11 @@
 import assert from "node:assert/strict";
+import { Buffer } from "node:buffer";
+import console from "node:console";
+import { ReadableStream } from "node:stream/web";
+import { clearTimeout, setTimeout } from "node:timers";
 import { acquireOfficialSource } from "./dist/index.js";
+
+const { Response } = globalThis;
 
 const entry = {
   sourceFamily: "OZON_SELLER",
