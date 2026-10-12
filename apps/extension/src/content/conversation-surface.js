@@ -36,9 +36,20 @@
     const aliceNoMainRoot = provider === "alice" && mainRoots.length === 0 &&
       composer?.composer?.isConnected && document.body?.contains?.(composer.composer) &&
       (roots.size === 0 || (roots.size === 1 && roots.has(document.body)));
-    const root = aliceNoMainRoot ? document.body :
+    // Qwen replaces its home-page main on the first guest send. Its observed
+    // desktop content parent survives that transition. Use it only when one
+    // visible main, the composer, and every visible message belong to it.
+    // Exact owned-message witnessing and all navigation fences still apply.
+    const qwenRoots = provider === "qwen" ? [...document.querySelectorAll('.desktop-layout-content-inner')]
+      .filter((node) => node.isConnected && node.getClientRects().length > 0 &&
+        !node.closest('[aria-hidden="true"], [hidden]')) : [];
+    const qwenRoot = qwenRoots.length === 1 && mainRoots.length === 1 && roots.size <= 1 &&
+      composer?.composer?.isConnected && qwenRoots[0].contains(mainRoots[0]) &&
+      qwenRoots[0].contains(composer.composer) && messages.every((node) => mainRoots[0].contains(node))
+      ? qwenRoots[0] : null;
+    const root = aliceNoMainRoot ? document.body : qwenRoot || (
       roots.size === 1 ? [...roots][0] :
-      mainRoots.length === 1 ? mainRoots[0] : composerRoot;
+      mainRoots.length === 1 ? mainRoots[0] : composerRoot);
 
     const inSurface = root ? messages.filter((node) => root.contains(node)) : [];
     const explicitIds = [];

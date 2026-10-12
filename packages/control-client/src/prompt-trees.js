@@ -78,7 +78,8 @@
         if(new TextEncoder().encode(JSON.stringify(updated)).length>4*1024*1024)throw failure("AI_TREE_CACHE_LIMIT");
         try {
           await storage.set({[KEY]:updated});const readback=(await storage.get(KEY))[KEY];
-          if(JSON.stringify(readback)!==JSON.stringify(updated))throw failure("AI_TREE_STORAGE_READBACK_FAILED");
+          // Chrome storage may reorder object keys; values and array order must remain exact.
+          if(!readback || verifier.canonicalJson(readback)!==verifier.canonicalJson(updated))throw failure("AI_TREE_STORAGE_READBACK_FAILED");
         }catch(error){storageFailed=true;throw error;}
         // A response cannot become usable through a logout/deny while storage was pending.
         await stillCurrent(detected,ctx);state=updated;

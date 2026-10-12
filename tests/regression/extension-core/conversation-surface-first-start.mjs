@@ -5,8 +5,17 @@ import vm from "node:vm";
 import { webcrypto } from "node:crypto";
 const root = path.resolve(import.meta.dirname, "../../..");
 const source = (name) => fs.readFileSync(path.join(root, name), "utf8");
+function composedSource(name, target) {
+  let result = source(name);
+  for (const patch of JSON.parse(source("apps/extension/application-patches.json"))) {
+    if (patch.target !== target) continue;
+    assert.equal(result.split(patch.old).length - 1, 1, `Unique composed patch: ${target}`);
+    result = result.replace(patch.old, patch.new);
+  }
+  return result;
+}
 
-function fixture() {
+function fixture(provider = "alice") {
   class Node {
     constructor(parent = null, { id = "", text = "", main = false, hidden = false } = {}) {
       Object.assign(this, { parent, id, text, main, hidden, isConnected: true });
@@ -22,25 +31,35 @@ function fixture() {
     getAttribute() { return null; }
   }
   let body = new Node(), mains = [], users = [], assistants = [];
-  const composerRoot = new Node(body), composer = new Node(composerRoot);
-  const adapter = { id: "alice", composerContext: () => ({ root: composerRoot, composer }),
+  let desktopRoots = provider === "qwen" ? [new Node(body)] : [];
+  if (provider === "qwen") mains = [new Node(desktopRoots[0], { main: true })];
+  const composerRoot = new Node(mains[0] || body), composer = new Node(composerRoot);
+  const adapter = { id: provider, composerContext: () => ({ root: composerRoot, composer }),
     userMessages: () => users, assistantMessages: () => assistants,
     messageId: (node) => node.id, messageText: (node) => node.text };
   const context = { URL, TextEncoder, crypto: webcrypto,
-    location: { origin: "https://alice.yandex.ru", pathname: "/", search: "", hash: "" },
-    document: { get body() { return body; }, querySelectorAll: () => mains, querySelector: () => null } };
+    location: { origin: provider === "qwen" ? "https://chat.qwen.ai" : "https://alice.yandex.ru", pathname: "/", search: "", hash: "" },
+    document: { get body() { return body; }, querySelectorAll: selector => selector === ".desktop-layout-content-inner" ? desktopRoots : mains, querySelector: () => null } };
   vm.createContext(context);
   for (const file of ["packages/bridge-core/src/work/conversation-identity.js",
     "apps/extension/src/background/compat/conversation-identity.js",
     "apps/extension/src/content/conversation-surface.js"]) vm.runInContext(source(file), context);
   return { api: context.SellerAgentsConversationSurface, adapter, context, Node,
     addMessages(text = "Начальная инструкция") {
-      users = [new Node(body, { id: "user-1", text })];
-      assistants = [new Node(body, { id: "assistant-1", text: "Готово" })];
-      context.location.pathname = "/chat/new-conversation/";
+      if (provider === "qwen") {
+        mains[0].isConnected = false;
+        mains = [new Node(desktopRoots[0], { main: true })];
+        composerRoot.parent = mains[0];
+      }
+      const messageRoot = provider === "qwen" ? mains[0] : body;
+      users = [new Node(messageRoot, { id: "user-1", text })];
+      assistants = [new Node(messageRoot, { id: "assistant-1", text: "Готово" })];
+      context.location.pathname = provider === "qwen" ? "/c/guest" : "/chat/new-conversation/";
     },
     replaceBody() { body = new Node(); composerRoot.parent = body; },
     hiddenWitness() { users[0].hidden = true; },
+    replaceDesktopRoot() { desktopRoots[0].isConnected = false; desktopRoots = [new Node(body)]; },
+    duplicateDesktopRoot() { desktopRoots.push(new Node(body)); },
     splitMainRoots() {
       mains = [new Node(body, { main: true }), new Node(body, { main: true })];
       users[0].parent = mains[0]; assistants[0].parent = mains[1];
@@ -92,6 +111,130 @@ const cases = [
     assert.notEqual((await f.api.ready(f.adapter)).surface_id, before.surface_id);
   }],
 ];
+for (const [name, change, success] of [
+  ["Qwen remount with the exact owned message", () => {}, true],
+  ["Qwen remount with unrelated user text", f => { f.addMessages("Foreign text"); }, false],
+  ["Qwen remount with a hidden owned message", f => f.hiddenWitness(), false],
+  ["Qwen remount under a replaced stable parent", f => { f.replaceDesktopRoot(); f.addMessages(); }, false],
+  ["Qwen remount with multiple desktop parents", f => f.duplicateDesktopRoot(), false],
+  ["Qwen remount with multiple conversation mains", f => f.splitMainRoots(), false],
+]) cases.push([name, async () => {
+  const f = fixture("qwen"), before = await f.api.ready(f.adapter);
+  f.api.beginStart(f.adapter, "intent-qwen", "Начальная инструкция");
+  f.addMessages(); change(f);
+  const after = await f.api.ready(f.adapter);
+  if (success) { assert.equal(after.status, "confirmed"); assert.equal(after.surface_id, before.surface_id); }
+  else assert(after.status !== "confirmed" || after.surface_id !== before.surface_id, "unproved root continuity must remain blocked");
+}]);
+
+// Exercise the real Alice adapter against the observed author/bubble/control structure.
+class AliceElement {
+  constructor({ role = null, body = false, text = "", hidden = false } = {}) {
+    Object.assign(this, { role, body, textContent: text, innerText: text, hidden, isConnected: true, children: [], parent: null });
+  }
+  append(child) { child.parent = this; this.children.push(child); return child; }
+  matches(selector) { return selector === '[data-message-role="user"]' && this.role === "user"; }
+  closest(selector) {
+    for (let n = this; n; n = n.parent) {
+      if (selector.includes("aria-hidden") ? n.hidden : Boolean(n.role)) return n;
+    }
+    return null;
+  }
+  querySelectorAll() { return this.children.flatMap(child => [...(child.body ? [child] : []), ...child.querySelectorAll()]); }
+  getClientRects() { return this.hidden || !this.isConnected ? [] : [{}]; }
+  getBoundingClientRect() { return { width: 100, height: 20 }; }
+}
+const aliceContext = { Element: AliceElement, HTMLElement: AliceElement,
+  getComputedStyle: node => ({ display: node.hidden ? "none" : "block", visibility: "visible" }) };
+aliceContext.SellerAgentsQwenAdapter = { create: () => ({ id: "qwen" }) };
+vm.runInNewContext(composedSource("apps/extension/src/imported/ozon-v0.1.22/shared/ai_adapters.js", "shared/ai_adapters.js"), aliceContext);
+const realAlice = aliceContext.OzonAIAdapters.ADAPTERS.alice;
+cases.push(["Alice exact prompt excludes author and Expand controls", async () => {
+  const wrapper = new AliceElement({ role: "user", text: "Я\nНачальная инструкция\nРазвернуть" });
+  wrapper.append(new AliceElement({ body: true, text: "Начальная инструкция" }));
+  assert.equal(realAlice.messageText(wrapper), "Начальная инструкция");
+  assert.equal(realAlice.messageText(new AliceElement({ role: "alice", text: "Готово" })), "Готово");
+}]);
+for (const variant of ["missing", "duplicate", "hidden", "disconnected", "nested_foreign_role"]) {
+  cases.push([`Alice ${variant} semantic bubble cannot witness Start`, async () => {
+    const wrapper = new AliceElement({ role: "user", text: "Начальная инструкция" });
+    const bubble = new AliceElement({ body: true, text: "Начальная инструкция" });
+    if (variant === "nested_foreign_role") wrapper.append(new AliceElement({ role: "user" })).append(bubble);
+    else if (variant !== "missing") wrapper.append(bubble);
+    if (variant === "duplicate") wrapper.append(new AliceElement({ body: true, text: "Начальная инструкция" }));
+    if (variant === "hidden") bubble.hidden = true;
+    if (variant === "disconnected") bubble.isConnected = false;
+    assert.equal(realAlice.messageText(wrapper), "");
+  }]);
+}
+function responseWatchFixture() {
+  const content = composedSource("apps/extension/src/imported/ozon-v0.1.22/content_script.js", "content_script.js");
+  const begin = content.indexOf("  function stopWorkStartWatch("), end = content.indexOf("  async function sendWorkSessionPrompt(", begin);
+  assert(begin >= 0 && end > begin);
+  const timers = new Map(), watches = new Map(), calls = [], events = [];
+  let timerId = 0, live = true, now = 0;
+  const identity = { origin: "https://chatgpt.com", ai_id: "chatgpt", conversation_id: "owned-dialogue" };
+  const context = { SellerAgentsConversationSurface: { endStart: () => {} }, workStartWatches: watches, workRuntimeGeneration: "owned-runtime", Date: { now: () => now },
+    setInterval: callback => { const id = ++timerId; timers.set(id, callback); return id; },
+    clearInterval: id => timers.delete(id), current: () => live, conversationIdentity: () => identity,
+    assistantMessages: () => [{ id: "new-assistant" }], currentAIAdapter: () => ({ messageId: x => x.id }),
+    assistantTurnComplete: () => true, recordContentDiagnostic: (event, detail) => events.push({ event, ...detail }),
+    sendRuntime: (type, detail) => new Promise((resolve, reject) => calls.push({ type, detail, resolve, reject })) };
+  vm.runInNewContext(content.slice(begin, end), context);
+  const start = () => context.startWorkStartResponseWatch({ intentId: "one-start", revision: 1, origin: identity.origin, aiId: identity.ai_id, assistantBaselineIds: [] });
+  return { start, calls, events, identity, watches, stop: () => context.stopWorkStartWatch("one-start", 1),
+    tick: () => { for (const callback of [...timers.values()]) callback(); },
+    dispose: () => { live = false; }, expire: () => { now = 120001; } };
+}
+const drain = () => new Promise(resolve => setImmediate(resolve));
+cases.push(["slow worker binding allows only one in-flight observer request", async () => {
+  const f = responseWatchFixture(); f.start(); f.tick(); f.tick(); f.tick();
+  assert.equal(f.calls.length, 1); assert.equal(f.calls[0].type, "OZ_WORK_PENDING_IDENTITY");
+  f.calls[0].resolve({ ok: true, waiting: true }); await drain(); f.tick();
+  assert.equal(f.calls.length, 2, "only an acknowledged waiting state can be observed again");
+  f.calls[1].resolve({ ok: true }); await drain(); f.tick();
+  assert.equal(f.calls.length, 2); assert.equal(f.watches.size, 0);
+  assert.equal(f.events.at(-1).reason, "active_visible");
+}]);
+cases.push(["lost worker response ends observation without a second binding or Send", async () => {
+  const f = responseWatchFixture(); f.start(); f.tick(); f.calls[0].reject(new Error("transport lost"));
+  await drain(); f.tick(); assert.equal(f.calls.length, 1); assert.equal(f.watches.size, 0);
+  assert.equal(f.events.at(-1).reason, "worker_response_unavailable");
+}]);
+cases.push(["late response cannot terminate a replacement watch", async () => {
+  const f = responseWatchFixture(); f.start(); f.tick(); f.stop(); f.start();
+  f.calls[0].resolve({ ok: true }); await drain(); assert.equal(f.watches.size, 1);
+  f.tick(); assert.equal(f.calls.length, 2); f.calls[1].resolve({ ok: true }); await drain();
+  assert.equal(f.watches.size, 0);
+}]);
+for (const [boundary, prepare, expected] of [
+  ["runtime disposed", f => f.dispose(), null],
+  ["deadline expired", f => f.expire(), "OZ_WORK_PENDING_TIMEOUT"],
+  ["provider identity changed", f => { f.identity.ai_id = "alice"; }, "OZ_WORK_PENDING_CANCEL"],
+]) cases.push([`response watch preserves ${boundary} fence`, async () => {
+  const f = responseWatchFixture(); f.start(); prepare(f); f.tick();
+  assert.equal(f.watches.size, 0);
+  assert.equal(f.calls.length, expected ? 1 : 0);
+  if (expected) { assert.equal(f.calls[0].type, expected); f.calls[0].resolve({ ok: true }); }
+  await drain(); f.tick(); assert.equal(f.calls.length, expected ? 1 : 0);
+}]);
+for (const [boundary, prepare, reason] of [
+  ["deadline", f => f.expire(), "worker_response_unavailable"],
+  ["runtime disposal", f => f.dispose(), "runtime_disposed"],
+]) cases.push([`held worker callback cannot outlive ${boundary}`, async () => {
+  const f = responseWatchFixture(); f.start(); f.tick(); assert.equal(f.calls.length, 1);
+  prepare(f); f.tick(); assert.equal(f.watches.size, 0); assert.equal(f.calls.length, 1);
+  assert.equal(f.events.at(-1).reason, reason);
+  f.calls[0].resolve({ ok: true }); await drain(); f.tick();
+  assert.equal(f.calls.length, 1, "unknown worker outcome must not issue cancel, retry, or Send");
+}]);
+for (const code of ["WORK_START_SEND_OUTCOME_UNKNOWN_NO_RETRY", "WORK_START_SEND_NOT_ACKNOWLEDGED"]) {
+  cases.push([`negative waiting response ${code} never retries observation`, async () => {
+    const f = responseWatchFixture(); f.start(); f.tick();
+    f.calls[0].resolve({ ok: false, waiting: true, code }); await drain(); f.tick();
+    assert.equal(f.calls.length, 1); assert.equal(f.watches.size, 0); assert.equal(f.events.at(-1).reason, code);
+  }]);
+}
 const results = [];
 for (const [name, run] of cases) {
   try { await run(); results.push({ name, status: "PASS" }); }

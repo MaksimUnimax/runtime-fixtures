@@ -42,8 +42,8 @@ function envelope(claim,domain="Octoport ai prompt tree v1\0") {
 function fixture() {
   let memory={},clock=1000000,context={origin:"https://control.invalid",accountId:uuid(1),deviceId:uuid(2),sessionId:uuid(3),principalEpoch:1,accessEpoch:1};
   const versions={chatgpt:{aiId:uuid(4),version:1,body:body("GPT only")},alice:{aiId:uuid(5),version:1,body:body("Alice only")},third:{aiId:uuid(6),version:1,body:body("Third AI")}};
-  const trace={fetches:0,bodyDownloads:0,providerApi:0,send:0};let hook=null,dropWrite=false;
-  const storage={get:async key=>({[key]:memory[key]===undefined?undefined:copy(memory[key])}),set:async value=>{if(!dropWrite)memory={...memory,...copy(value)};}};
+  const trace={fetches:0,bodyDownloads:0,providerApi:0,send:0};let hook=null,dropWrite=false,rewriteStored=value=>value;
+  const storage={get:async key=>({[key]:memory[key]===undefined?undefined:copy(memory[key])}),set:async value=>{if(!dropWrite)memory={...memory,...rewriteStored(copy(value))};}};
   const fetchManifest=async request=>{
     trace.fetches++;const v=versions[request.detected.family],sha256=await trees.digest(v.body);
     const same=request.known?.aiId===v.aiId&&request.known.version===v.version&&request.known.sha256===sha256;
@@ -55,7 +55,7 @@ function fixture() {
   };
   const make=()=>trees.createCache({storage,verifier,trustBundle:bundle,authorize:async()=>context?copy(context):null,fetchManifest,now:()=>clock});
   return {cache:make(),make,trace,versions,memory:()=>memory,setMemory:x=>{memory=x;},advance:()=>{clock+=7*60*60*1000;},
-    hook:fn=>{hook=fn;},deny:()=>{context=null;},changePrincipal:()=>{context={...context,sessionId:uuid(20),principalEpoch:2};},dropWrite:()=>{dropWrite=true;}};
+    hook:fn=>{hook=fn;},deny:()=>{context=null;},changePrincipal:()=>{context={...context,sessionId:uuid(20),principalEpoch:2};},dropWrite:()=>{dropWrite=true;},rewriteStored:fn=>{rewriteStored=fn;}};
 }
 let passed=0;
 async function test(name,run){await run();passed++;console.log(`PASS ${name}`);}
@@ -110,6 +110,29 @@ await test("restart re-verifies cache; modified cache is not accepted",async()=>
 });
 await test("unconfirmed cache write is not reported as installed",async()=>{
  const f=fixture();f.dropWrite();await assert.rejects(f.cache.get(detected("chatgpt")),/AI_TREE_STORAGE_READBACK_FAILED/);assert.deepEqual(f.memory(),{});
+ await assert.rejects(f.cache.get(detected("chatgpt")),/AI_TREE_STORAGE_UNCONFIRMED/);
+});
+await test("Chrome reordered object keys survive readback and restart without weakening verification",async()=>{
+ const f=fixture();
+ const reorder=value=>Array.isArray(value)?value.map(reorder):value&&typeof value==="object"
+   ?Object.fromEntries(Object.keys(value).sort().map(key=>[key,reorder(value[key])])):value;
+ f.rewriteStored(reorder);
+ const first=await f.cache.get(detected("chatgpt"));
+ assert.equal(first.version,1);assert.equal(trees.render(first.body),"GPT only");
+ assert.deepEqual(Object.keys(f.memory().octoport_prompt_trees_v1),["aliases","entries","schema"]);
+ const next=await f.make().get(detected("chatgpt"),{offline:true});
+ assert.equal(next.sha256,first.sha256);assert.equal(f.trace.fetches,1);
+});
+await test("readback rejects modified scalar despite equivalent key order",async()=>{
+ const f=fixture();f.rewriteStored(value=>{Object.values(value.octoport_prompt_trees_v1.entries)[0].body.nodes[0].text="changed";return value;});
+ await assert.rejects(f.cache.get(detected("chatgpt")),/AI_TREE_STORAGE_READBACK_FAILED/);
+ await assert.rejects(f.cache.get(detected("chatgpt")),/AI_TREE_STORAGE_UNCONFIRMED/);
+});
+await test("readback rejects changed branch order and keeps its failure latch",async()=>{
+ const f=fixture();f.versions.chatgpt.body={format:"octoport_prompt_tree_v1",root:"root",nodes:[
+   {id:"root",text:"Root",children:["a","b"]},{id:"a",text:"First",children:[]},{id:"b",text:"Second",children:[]}]};
+ f.rewriteStored(value=>{Object.values(value.octoport_prompt_trees_v1.entries)[0].body.nodes[0].children.reverse();return value;});
+ await assert.rejects(f.cache.get(detected("chatgpt")),/AI_TREE_STORAGE_READBACK_FAILED/);
  await assert.rejects(f.cache.get(detected("chatgpt")),/AI_TREE_STORAGE_UNCONFIRMED/);
 });
 await test("third AI needs no ChatGPT/Alice special case",async()=>{
