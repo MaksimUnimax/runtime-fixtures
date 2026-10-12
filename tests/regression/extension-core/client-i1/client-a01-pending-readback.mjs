@@ -12,7 +12,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.
 const source = readFileSync(path.join(ROOT, "apps/extension/src/background/compat/createPendingWorkStart.js"), "utf8").trimEnd();
 const patches = JSON.parse(readFileSync(path.join(ROOT, "apps/extension/application-patches.json"), "utf8"));
 const sha256 = text => createHash("sha256").update(text).digest("hex");
-assert.equal(sha256(source), "ec6af3cc88715409a90d9a5ff8ef1588e979eacfc55726d4ebaabc72d1273903");
+assert.equal(sha256(source), "e00b5d597fc2a3f95c7d661eb2c45eb2c71eb1d2ecb5d05ccb9d3d4f71fa4d64");
 
 function selectUniquePatch(pattern) {
   const hits = patches.filter(row =>
@@ -31,7 +31,7 @@ for (const patch of [surfacePatch, fieldsPatch]) {
   assert.equal(composed.split(patch.old).length - 1, 1, "Exact patch preimage must appear once in function");
   composed = composed.replace(patch.old, patch.new);
 }
-assert.equal(sha256(composed), "8289c6d877315f42b27720586c6451a6f072ac5b14a32f195104ce2870704ed3");
+assert.equal(sha256(composed), "7332fc148c1af5f8bd4dde52bfdd29e0564037706cad2686cf4bf37a1938d2cb");
 assert.match(composed, /readback\.surface_id !== transaction\.surface_id/);
 assert.match(composed, /readback\.identity_scope !== transaction\.identity_scope/);
 
@@ -53,13 +53,13 @@ const options = {
   admission_provenance: { source: "synthetic-test" }
 };
 
-function harness({ alterReadback = null, denyAdmission = false, failStorage = false, pending = {} } = {}) {
+function harness({ alterReadback = null, denyAdmission = false, failStorage = false, pending = {}, storeContext = null } = {}) {
   const state = { pending: copy(pending) };
   const counts = { reads: 0, writes: 0, admissions: 0, externalRequests: 0 };
   const events = [];
   const sandbox = {
     KEYS: { PENDING_WORK_STARTS: "pending" },
-    saStarts: new Map([[41, { marketplace: "ozon", store_id: "synthetic-only" }]]),
+    saStarts: new Map([[41, storeContext || { accountId: "synthetic-account", storeId: "synthetic-store", marketplace: "ozon", credentialRevision: 7, policyRevision: "personal-disabled", authGeneration: "synthetic-generation" }]]),
     crypto: { randomUUID: () => "synthetic-uuid" },
     OzonWorkSessionModel: { STATES: { PENDING_IDENTITY: "PENDING_IDENTITY" } },
     getPendingWorkStarts: async () => {
@@ -178,4 +178,47 @@ test("A01-12 null/null identity fields remain compatible", async () => {
   assert.equal(result.transaction.surface_id, null);
   assert.equal(result.transaction.identity_scope, null);
   assert.equal(hasAck(h), true);
+});
+
+test("A01-13 changed original store context fails before ACK", async () => {
+  await assertFailClosed(record => { record.store_context.storeId = "different-synthetic-store"; }, "storeId");
+});
+test("A01-14 changed original conversation key fails before ACK", async () => {
+  await assertFailClosed(record => { record.conversation_key = "different-synthetic-conversation"; }, "conversation_key");
+});
+test("A01-15 removed pinned store context fails before ACK", async () => {
+  await assertFailClosed(record => { delete record.store_context; }, "missing store_context");
+});
+test("A01-16 reordered stored context properties do not cause a false rejection", async () => {
+  const h = harness({
+    alterReadback: record => {
+      record.store_context = Object.fromEntries(Object.entries(record.store_context).reverse());
+    }
+  });
+  const r = await h.fn(41, identity, options);
+  assert.equal(r.duplicate, false);
+  assert.equal(hasAck(h), true);
+  assert.equal(h.counts.externalRequests, 0);
+});
+test("A01-17 extra unexpected store context property fails before ACK", async () => {
+  await assertFailClosed(record => { record.store_context.addedField = "untrusted-test-field"; }, "extra store context field");
+});
+
+test("A01-18 removed conversation key fails before ACK", async () => {
+  await assertFailClosed(record => { delete record.conversation_key; }, "missing conversation key");
+});
+test("A01-19 optional undefined generation survives Chrome-style JSON roundtrip", async () => {
+  const h = harness({
+    storeContext: {
+      accountId: "synthetic-account", storeId: "synthetic-store", marketplace: "ozon",
+      credentialRevision: 7, policyRevision: "personal-disabled", authGeneration: undefined
+    }
+  });
+  const result = await h.fn(41, identity, options);
+  assert.equal(result.duplicate, false);
+  assert.equal(hasAck(h), true);
+  assert.equal(h.counts.externalRequests, 0);
+});
+test("A01-20 changed pinned credential revision fails before ACK", async () => {
+  await assertFailClosed(record => { record.store_context.credentialRevision = 8; }, "credential revision");
 });

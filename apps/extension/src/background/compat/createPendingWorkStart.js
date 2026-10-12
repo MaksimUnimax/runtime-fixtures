@@ -45,7 +45,13 @@ async function createPendingWorkStart(tab, identity, options = {}) {
   await storageSet({ [KEYS.PENDING_WORK_STARTS]: pending });
   await diagnostic("WORK_START_PENDING_PERSISTED", { intent_id: transaction.intent_id, revision: transaction.revision, tab_id: tab, conversation_id: observedConversationId, external_request_executed: false });
   const readback = (await getPendingWorkStarts())[slot] || null;
-  if (!readback || readback.intent_id !== transaction.intent_id || Number(readback.revision) !== transaction.revision || readback.origin !== transaction.origin || readback.ai_id !== transaction.ai_id || readback.surface_id !== transaction.surface_id || readback.identity_scope !== transaction.identity_scope) {
+  // Browser storage can reorder object fields. Compare the complete JSON store context without depending on field order.
+  const canonicalStoreContext = (value) => JSON.stringify(value, (_key, entry) =>
+    entry && typeof entry === "object" && !Array.isArray(entry)
+      ? Object.fromEntries(Object.keys(entry).sort().map((key) => [key, entry[key]]))
+      : entry
+  );
+  if (!readback || readback.intent_id !== transaction.intent_id || Number(readback.revision) !== transaction.revision || readback.origin !== transaction.origin || readback.ai_id !== transaction.ai_id || readback.surface_id !== transaction.surface_id || readback.identity_scope !== transaction.identity_scope || readback.conversation_key !== transaction.conversation_key || canonicalStoreContext(readback.store_context) !== canonicalStoreContext(transaction.store_context)) {
     throw Object.assign(new Error("Pending Work Start transaction was not durably read back before Send."), { code: "WORK_START_PENDING_COMMIT_READBACK_FAILED" });
   }
   await diagnostic("WORK_START_PENDING_COMMIT_ACK", { intent_id: transaction.intent_id, revision: transaction.revision, tab_id: tab, conversation_id: observedConversationId, external_request_executed: false });

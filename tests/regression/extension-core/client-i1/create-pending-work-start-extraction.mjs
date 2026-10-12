@@ -20,7 +20,7 @@ const donorFunction = extract(fs.readFileSync(donorPath, "utf8"));
 assert.equal(sha256(donorFunction), "7bbf2b74017852afc3c4af834bea076440bf07c6adbf29e9be69de798bc559b8", "raw donor function SHA drifted");
 
 const replacementFunction = fs.readFileSync(replacementPath, "utf8").trimEnd();
-assert.equal(sha256(replacementFunction), "ec6af3cc88715409a90d9a5ff8ef1588e979eacfc55726d4ebaabc72d1273903", "adapted replacement function SHA drifted");
+assert.equal(sha256(replacementFunction), "e00b5d597fc2a3f95c7d661eb2c45eb2c71eb1d2ecb5d05ccb9d3d4f71fa4d64", "adapted replacement function SHA drifted");
 assert.match(replacementFunction, /store_context: saStarts\.get\(Number\(tab\)\) \|\| null/);
 assert.match(replacementFunction, /admission_provenance: options\.admission_provenance \|\| null/);
 assert.match(replacementFunction, /prompt_tree: options\.prompt_tree \? JSON\.parse\(JSON\.stringify\(options\.prompt_tree\)\) : null/);
