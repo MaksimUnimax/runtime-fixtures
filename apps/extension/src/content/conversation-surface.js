@@ -29,7 +29,15 @@
     const composerRoot = composer?.composer?.closest?.("main, [role='main']") || composer?.root || null;
     const mainRoots = [...document.querySelectorAll("main, [role='main']")].filter((node) =>
       !node.getClientRects || node.getClientRects().length > 0);
-    const root = roots.size === 1 ? [...roots][0] :
+    // Alice's guest chat can have no semantic main. Its empty editor uses a
+    // nested composer root, but the first visible message is rooted at body.
+    // Choose that same proven document root before the irreversible first
+    // send; never generalize this fallback to another AI or ambiguous roots.
+    const aliceNoMainRoot = provider === "alice" && mainRoots.length === 0 &&
+      composer?.composer?.isConnected && document.body?.contains?.(composer.composer) &&
+      (roots.size === 0 || (roots.size === 1 && roots.has(document.body)));
+    const root = aliceNoMainRoot ? document.body :
+      roots.size === 1 ? [...roots][0] :
       mainRoots.length === 1 ? mainRoots[0] : composerRoot;
 
     const inSurface = root ? messages.filter((node) => root.contains(node)) : [];

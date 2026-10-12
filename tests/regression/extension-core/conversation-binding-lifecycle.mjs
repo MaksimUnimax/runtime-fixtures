@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
+import { webcrypto } from 'node:crypto';
 import { makeWorker } from './worker-harness.mjs';
 import { lateStartRouteCases } from './late-start-route-continuity.mjs';
 const runtime=path.resolve(process.argv[2]);
@@ -14,6 +15,74 @@ for (const [name, run] of lateStartRouteCases(fs.readFileSync(path.join(runtime,
 async function test(name,fn){try{await fn();rows.push({name,status:'PASS'});}catch(error){rows.push({name,status:'FAIL',error:String(error.stack)});}}
 const base={origin:'https://chatgpt.com',provider:'chatgpt',pathname:'/arbitrary/conversation?view=1',surfaceConfirmed:true,hasMessages:true,messageIds:['u-1','a-1'],root:{}};
 function tracker(){let sequence=0;return core.createTracker({newToken:()=>String(++sequence)});}
+// Reproduce the actual content-side capture, not only the underlying tracker:
+ // Alice has no semantic <main> on a fresh guest page. The composer container
+ // becomes document.body after its first visible message unless the root is stable.
+function aliceSurfaceFixture({ withMain = false, activeThread = null } = {}) {
+  let visible = false, activeId = activeThread;
+  const prompt = 'octoport-first-start';
+  const mainRoot = { getAttribute: () => null, contains: (node) => node === composer || node === editorRoot || node === userMessage };
+  const composer = { isConnected: true, closest: () => withMain ? mainRoot : null };
+  const editorRoot = { getAttribute: () => null, contains: (node) => node === composer };
+  const userMessage = {
+    isConnected: true, getClientRects: () => [{}],
+    closest: (selector) => selector.startsWith('main') && withMain ? mainRoot : null
+  };
+  const body = { getAttribute: () => null, contains: (node) => node === composer || node === editorRoot || node === mainRoot || node === userMessage };
+  const page = {
+    body,
+    querySelectorAll: (selector) => selector === "main, [role='main']" && withMain ? [mainRoot] : [],
+    querySelector: (selector) => selector.startsWith('button[data-testid="chatlist-item-active"]') && activeId
+      ? { closest: () => ({id: activeId}) } : null
+  };
+  const env = {
+    URL, TextEncoder, crypto: webcrypto, document: page,
+    location: {origin: 'https://alice.yandex.ru', pathname: '/', search: '', hash: ''},
+    BB2ConversationIdentity: {providerForOrigin: () => 'alice'}
+  };
+  vm.createContext(env);
+  vm.runInContext(fs.readFileSync(path.join(runtime,'shared/conversation_identity.js'),'utf8'),env);
+  vm.runInContext(fs.readFileSync(new URL('../../../apps/extension/src/content/conversation-surface.js',import.meta.url),'utf8'),env);
+  const adapter = {
+    id: 'alice', composerContext: () => ({composer, root: editorRoot}),
+    userMessages: () => visible ? [userMessage] : [],
+    assistantMessages: () => [], messageId: () => 'alice-user-1', messageText: () => prompt
+  };
+  return {surface: env.SellerAgentsConversationSurface, adapter, prompt,
+    showFirstMessage: () => {visible = true;}, switchThread: (id) => {activeId = id;}};
+}
+await test('alice-guest-first-start-preserves-surface-before-and-after-first-message',async()=>{
+  const fixture = aliceSurfaceFixture();
+  const first = await fixture.surface.ready(fixture.adapter);
+  assert.equal(first.source,'new_conversation_pending');
+  fixture.surface.beginStart(fixture.adapter,'owned-first-intent',fixture.prompt);
+  fixture.showFirstMessage();
+  const after = await fixture.surface.ready(fixture.adapter);
+  assert.equal(after.surface_id,first.surface_id,'Alice first message changed root after irreversible send');
+  assert.equal(after.status,'confirmed');
+  assert.equal(after.conversation_id,'local:'+first.surface_id);
+  assert.equal(Array.from(after.identity_evidence.message_ids).join(','),'alice-user-1');
+  fixture.surface.endStart('owned-first-intent','active_visible');
+  assert.equal((await fixture.surface.ready(fixture.adapter)).surface_id,first.surface_id);
+});
+await test('alice-main-scoped-composer-does-not-widen-to-document-body',async()=>{
+  const fixture = aliceSurfaceFixture({withMain: true});
+  const first = await fixture.surface.ready(fixture.adapter);
+  fixture.surface.beginStart(fixture.adapter,'owned-main-intent',fixture.prompt);
+  fixture.showFirstMessage();
+  const after = await fixture.surface.ready(fixture.adapter);
+  assert.equal(after.surface_id,first.surface_id);
+  assert.equal(after.status,'confirmed');
+});
+await test('alice-active-thread-change-still-fences-conversation-identity',async()=>{
+  const fixture = aliceSurfaceFixture({activeThread: 'alice-thread-a'});
+  const before = await fixture.surface.ready(fixture.adapter);
+  assert.equal(before.status,'confirmed');
+  fixture.switchThread('alice-thread-b');
+  const after = await fixture.surface.ready(fixture.adapter);
+  assert.notEqual(after.conversation_id,before.conversation_id);
+  assert.notEqual(after.surface_id,before.surface_id);
+});
 await test('popup-keeps-active-work-through-temporary-external-id-loss',async()=>{
  const input={...base,provider:'alice',origin:'https://alice.yandex.ru',explicitIds:['Alice-Thread-A']};
  const t=tracker();const first=t.observe(input);
