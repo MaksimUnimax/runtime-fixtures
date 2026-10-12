@@ -46,6 +46,16 @@ class ProbeError(RuntimeError):
 def fail(code: str) -> None:
     raise ProbeError(code)
 
+def canonical_release_spelling(raw: str) -> bool:
+    match = RELEASE_RE.fullmatch(raw)
+    if not match:
+        return False
+    suffix = raw[len(match.group(1)):]
+    return not suffix or (
+        suffix.startswith("/")
+        and all(part not in {"", ".", ".."} for part in suffix[1:].split("/"))
+    )
+
 def effective_bits(mode: int, owner_uid: int, owner_gid: int, uid: int, gid: int) -> int:
     if owner_uid == uid:
         return (mode >> 6) & 0o7
@@ -54,10 +64,11 @@ def effective_bits(mode: int, owner_uid: int, owner_gid: int, uid: int, gid: int
     return mode & 0o7
 
 def parse_working_directory(value: str) -> tuple[Path, str, Path]:
-    match = RELEASE_RE.fullmatch(value.strip())
-    if not match:
+    raw = value.strip()
+    match = RELEASE_RE.fullmatch(raw)
+    if not match or not canonical_release_spelling(raw):
         fail("WORKING_DIRECTORY_NOT_PINNED_RELEASE")
-    return Path(match.group(1)), match.group(2), Path(value.strip())
+    return Path(match.group(1)), match.group(2), Path(raw)
 
 def parse_environment_files(value: str) -> list[Path]:
     text = value.strip()
@@ -85,6 +96,8 @@ def parse_execstart(value: str, expected_sha: str) -> tuple[Path, list[Path]]:
     binary = Path(binary_match.group(1))
     refs: list[Path] = []
     for raw in RELEASE_TOKEN_RE.findall(value):
+        if not canonical_release_spelling(raw):
+            fail("EXECSTART_RELEASE_PATH_NOT_CANONICAL")
         path = Path(raw)
         if path not in refs:
             refs.append(path)

@@ -29,6 +29,20 @@ class PermissionHelpersTest(unittest.TestCase):
         with self.assertRaisesRegex(p.ProbeError, "WORKING_DIRECTORY_NOT_PINNED_RELEASE"):
             p.parse_working_directory("/srv/current")
 
+    def test_working_directory_rejects_noncanonical_release_paths(self):
+        for path in (
+            str(ROOT) + "/../../../../etc",
+            str(ROOT) + "/apps/../api",
+            str(ROOT) + "/apps/./api",
+            str(ROOT) + "/apps//api",
+            str(ROOT) + "/",
+        ):
+            with self.subTest(path=path):
+                with self.assertRaisesRegex(
+                    p.ProbeError, "WORKING_DIRECTORY_NOT_PINNED_RELEASE"
+                ):
+                    p.parse_working_directory(path)
+
     def test_environment_files_consume_every_entry(self):
         value = (
             "/etc/seller-agents-owner-test/api.env (ignore_errors=no) "
@@ -64,6 +78,34 @@ class PermissionHelpersTest(unittest.TestCase):
         other = "b" * 40
         with self.assertRaisesRegex(p.ProbeError, "EXECSTART_RELEASE_SHA_MISMATCH"):
             p.parse_execstart(value, other)
+
+    def test_execstart_rejects_noncanonical_release_paths(self):
+        node = str(ROOT / ".runtime/node")
+        for argument in (
+            str(ROOT) + "/../../../../etc/passwd",
+            str(ROOT) + "/apps/../api",
+            str(ROOT) + "/apps/./api",
+            str(ROOT) + "/apps//api",
+        ):
+            with self.subTest(argument=argument):
+                command = (
+                    "{ path=" + node + " ; argv[]=" + node + " " + argument
+                    + " ; ignore_errors=no ; }"
+                )
+                with self.assertRaisesRegex(
+                    p.ProbeError, "EXECSTART_RELEASE_PATH_NOT_CANONICAL"
+                ):
+                    p.parse_execstart(command, SHA)
+
+        escaped_binary = str(ROOT) + "/../../../../bin/sh"
+        command = (
+            "{ path=" + escaped_binary + " ; argv[]=" + escaped_binary
+            + " ; ignore_errors=no ; }"
+        )
+        with self.assertRaisesRegex(
+            p.ProbeError, "EXECSTART_RELEASE_PATH_NOT_CANONICAL"
+        ):
+            p.parse_execstart(command, SHA)
 
     def test_effective_bits_choose_owner_group_other(self):
         self.assertEqual(p.effective_bits(0o754, 10, 20, 10, 99), 0o7)
