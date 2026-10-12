@@ -15,7 +15,7 @@ const SESSION = "33333333-3333-4333-8333-333333333333";
 const CONTROL_ORIGIN = "http://127.0.0.1:43100";
 const PORTAL_ORIGIN = "http://127.0.0.1:43101";
 const AUTH = "seller_agents_control_auth_v2";
-const REVIEWED = ["source.ozon", "source.wildberries", "ai.chatgpt", "ai.alice"];
+const REVIEWED = ["source.ozon", "source.wildberries", "ai.chatgpt", "ai.alice", "ai.qwen"];
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value));
 
 type CommercialMap = Record<string, boolean | number>;
@@ -269,7 +269,7 @@ const cases: Record<string, unknown> = {};
   const fixture = await issue({ beta: true });
   const read = await readBack(runtime, fixture);
   try {
-    assert.deepEqual(fixture.serverPayload?.entitlements, { "source.ozon": true, "source.wildberries": true, "ai.chatgpt": true, "ai.alice": true });
+    assert.deepEqual(fixture.serverPayload?.entitlements, { "source.ozon": true, "source.wildberries": true, "ai.chatgpt": true, "ai.alice": true, "ai.qwen": true });
     assert.deepEqual(read.metadata.signedEntitlements, fixture.serverPayload?.entitlements);
     assert.deepEqual(resultMap(read.intersection), Object.fromEntries(REVIEWED.map(key => [key, true])));
     cases["D3C-01"] = { server: fixture.serverPayload?.entitlements, verified: read.metadata.signedEntitlements, d2: resultMap(read.intersection) };
@@ -294,7 +294,7 @@ const cases: Record<string, unknown> = {};
   try {
     assert.equal(fixture.serverPayload?.accessBasis, "COMMERCIAL");
     assert.deepEqual(read.metadata.signedEntitlements, commercial);
-    assert.deepEqual(resultMap(read.intersection), { "source.ozon": true, "source.wildberries": false, "ai.chatgpt": true, "ai.alice": false });
+    assert.deepEqual(resultMap(read.intersection), { "source.ozon": true, "source.wildberries": false, "ai.chatgpt": true, "ai.alice": false, "ai.qwen": false });
     cases["D3C-03"] = { accessBasis: read.metadata.accessBasis, verified: read.metadata.signedEntitlements, d2: resultMap(read.intersection) };
   } finally { read.worker.close(); }
 }
@@ -305,7 +305,7 @@ const cases: Record<string, unknown> = {};
   const read = await readBack(runtime, fixture);
   try {
     assert.equal(read.metadata.accessBasis, "BETA");
-    assert.deepEqual(read.metadata.signedEntitlements, { ...commercial, "source.ozon": true, "source.wildberries": true, "ai.chatgpt": true, "ai.alice": true });
+    assert.deepEqual(read.metadata.signedEntitlements, { ...commercial, "source.ozon": true, "source.wildberries": true, "ai.chatgpt": true, "ai.alice": true, "ai.qwen": true });
     assert.deepEqual(resultMap(read.intersection), Object.fromEntries(REVIEWED.map(key => [key, true])));
     cases["D3C-04"] = { accessBasis: read.metadata.accessBasis, verified: read.metadata.signedEntitlements, d2: resultMap(read.intersection) };
   } finally { read.worker.close(); }
@@ -317,7 +317,7 @@ const cases: Record<string, unknown> = {};
   assert.ok(features);
   const payload = clone(features);
   payload.entitlements = {};
-  payload.features = { "source.ozon": true, "source.wildberries": true, "ai.chatgpt": true, "ai.alice": true };
+  payload.features = { "source.ozon": true, "source.wildberries": true, "ai.chatgpt": true, "ai.alice": true, "ai.qwen": true };
   const replacement = signBootstrapSnapshotV2(payload, "d3c-key", fixture.pair.privateKey);
   const read = await readBack(runtime, { ...fixture, envelope: replacement, serverPayload: payload });
   try {
@@ -374,7 +374,7 @@ const cases: Record<string, unknown> = {};
   const read = await readBack(runtime, { ...fixture, envelope, serverPayload: payload });
   try {
     assert.equal(read.metadata.signedEntitlements["unrelated.legitimate"], 99);
-    assert.equal(read.intersection.capabilities.length, 4);
+    assert.equal(read.intersection.capabilities.length, 5);
     cases["D3C-10"] = { unknownRetained: true, capabilityRows: read.intersection.capabilities.length };
   } finally { read.worker.close(); }
 }
@@ -395,6 +395,7 @@ const cases: Record<string, unknown> = {};
     assert.equal(absent["source.wildberries"], true);
     assert.equal(absent["ai.chatgpt"], true);
     assert.equal(absent["ai.alice"], true);
+    assert.equal(absent["ai.qwen"], true);
     assert.equal(await read.worker.call("SellerAgentsPackagedCapabilities.has", "marketplace.ozon.adapter"), false);
     cases["D3C-11"] = { ozonPermissionTrue: true, ozonPackaged: false, d2: absent, productionManifestUntouched: true };
   } finally {

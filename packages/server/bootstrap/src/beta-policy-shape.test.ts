@@ -35,7 +35,15 @@ describe("BootstrapService beta policy boundary", () => {
   it.each([
     ["unexpected key", { "unexpected.beta": true }],
     ["missing accepted key", { "source.ozon": true }],
-    ["missing Qwen permission", { "source.ozon": true, "source.wildberries": true, "ai.chatgpt": true, "ai.alice": true }],
+    [
+      "missing Qwen permission",
+      {
+        "source.ozon": true,
+        "source.wildberries": true,
+        "ai.chatgpt": true,
+        "ai.alice": true,
+      },
+    ],
     [
       "non-true value",
       {
