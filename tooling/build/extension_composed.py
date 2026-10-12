@@ -43,6 +43,7 @@ def rewrite_product_labels(output):
         ("Ozon Bridge", "Октопорт"),
         ("OZON BRIDGE", "ОКТОПОРТ"),
         ("Ozon Autorun:", "Октопорт:"),
+        ("Ozon Autorun ", "Октопорт "),
         ("Ozon manual recovery:", "Октопорт:"),
         ("Ozon manual:", "Октопорт:"),
         ("Ozon recovery:", "Октопорт:"),
@@ -50,11 +51,14 @@ def rewrite_product_labels(output):
         ("кнопку Ozon", "кнопку «Октопорт»"),
         ("кнопки Ozon", "кнопки «Октопорт»"),
         ("кнопка Ozon", "кнопка «Октопорт»"),
+        ('submit_control: "Ozon"', 'submit_control: "Октопорт"'),
         ("команд в Octoport", "команд в Октопорт"),
         ("Сохранённый Ozon delivery text", "Сохранённый результат Октопорта"),
     )
     for target in ("content_script.js", "attachment_delivery_port_content.js",
-                   "shared/runtime_names.js", "service_worker.js"):
+                   "shared/runtime_names.js", "service_worker.js",
+                   "shared/live_runtime_v0122_patch.js", "shared/llm_output_report_workflow_patch.js",
+                   "shared/ozon_contract.js"):
         for old, new in labels:
             output[target] = output[target].replace(old.encode(), new.encode())
 

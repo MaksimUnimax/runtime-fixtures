@@ -29,8 +29,8 @@ class StoreBrandingBuildTests(unittest.TestCase):
             self.assertEqual(output[target].count("Октопорт".encode()), count)
 
     def test_product_labels_preserve_protocols_hosts_and_marketplace_names(self):
-        sample = "Ozon: batch принят; нажмите кнопку Ozon; OZON_API_V1 OZON_HELP_V2 https://api-seller.ozon.ru Магазин Ozon"
-        targets = ("content_script.js", "attachment_delivery_port_content.js", "shared/runtime_names.js", "service_worker.js")
+        sample = 'submit_control: "Ozon"; ' + "Ozon Bridge; Ozon Autorun ошибка; Ozon: batch принят; нажмите кнопку Ozon; OZON_API_V1 OZON_HELP_V2 https://api-seller.ozon.ru Магазин Ozon"
+        targets = ("content_script.js", "attachment_delivery_port_content.js", "shared/runtime_names.js", "service_worker.js", "shared/live_runtime_v0122_patch.js", "shared/llm_output_report_workflow_patch.js", "shared/ozon_contract.js")
         output = {target: sample.encode() for target in targets}
         composed.rewrite_product_labels(output)
         for value in output.values():
@@ -39,6 +39,9 @@ class StoreBrandingBuildTests(unittest.TestCase):
             self.assertIn("кнопку «Октопорт»", text)
             self.assertIn("OZON_API_V1 OZON_HELP_V2 https://api-seller.ozon.ru Магазин Ozon", text)
             self.assertNotIn("Ozon:", text)
+            self.assertNotIn("Ozon Bridge", text)
+            self.assertNotIn("Ozon Autorun", text)
+            self.assertIn('submit_control: "Октопорт"', text)
 
     def test_rewrite_requires_every_declared_visible_surface(self):
         output = {target: b"Seller Agents" for target in composed.STORE_VISIBLE_BRAND_TARGETS[:-1]}
