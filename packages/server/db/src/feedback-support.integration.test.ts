@@ -246,6 +246,95 @@ describe.sequential("B2 PostgreSQL feedback/support persistence", () => {
     expect(purged.cases).toBe(1);
   });
 
+  it("anonymizes all followup bodies and author ids for the deleted account only", async () => {
+    const created = await service.createCase(userId, {
+      accountId,
+      category: "OTHER",
+      description: "Synthetic case to anonymize",
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    const ownCaseId = created.value.caseId;
+
+    const userReply = await service.addUserFollowup(userId, ownCaseId, {
+      description: "synthetic-user-private-message",
+    });
+    const supportReply = await service.addAdminFollowup(
+      "SUPPORT",
+      supportPrincipalId,
+      ownCaseId,
+      { description: "synthetic-support-private-message" },
+    );
+    expect(userReply.ok).toBe(true);
+    expect(supportReply.ok).toBe(true);
+
+    const otherAccountId = randomUUID();
+    await runtime.query("INSERT INTO accounts(id) VALUES($1)", [
+      otherAccountId,
+    ]);
+    await runtime.query(
+      "INSERT INTO account_memberships(account_id,user_id,role) VALUES($1,$2,'OWNER')",
+      [otherAccountId, otherUserId],
+    );
+    const unrelated = await service.createCase(otherUserId, {
+      accountId: otherAccountId,
+      category: "OTHER",
+      description: "Synthetic unrelated case",
+    });
+    expect(unrelated.ok).toBe(true);
+    if (!unrelated.ok) return;
+    const otherCaseId = unrelated.value.caseId;
+    const otherReply = await service.addUserFollowup(otherUserId, otherCaseId, {
+      description: "synthetic-other-account-message",
+    });
+    expect(otherReply.ok).toBe(true);
+
+    expect((await service.anonymizeAccount(accountId)).cases).toBe(1);
+    const rows = await runtime.query<{
+      case_id: string;
+      body: string;
+      author_user_id: string | null;
+      author_admin_principal_id: string | null;
+    }>(
+      "SELECT case_id,body,author_user_id,author_admin_principal_id FROM feedback_followups WHERE case_id IN ($1,$2) ORDER BY case_id,id",
+      [ownCaseId, otherCaseId],
+    );
+    const removed = rows.rows.filter((row) => row.case_id === ownCaseId);
+    expect(removed).toHaveLength(2);
+    for (const row of removed)
+      expect(row).toMatchObject({
+        body: "[Feedback removed after account deletion]",
+        author_user_id: null,
+        author_admin_principal_id: null,
+      });
+    expect(rows.rows.filter((row) => row.case_id === otherCaseId)).toEqual([
+      expect.objectContaining({
+        body: "synthetic-other-account-message",
+        author_user_id: otherUserId,
+        author_admin_principal_id: null,
+      }),
+    ]);
+    expect((await service.anonymizeAccount(accountId)).cases).toBe(0);
+
+    for (const actorType of ["SUPPORT", "ADMIN"] as const) {
+      await expect(
+        service.addAdminFollowup(actorType, supportPrincipalId, ownCaseId, {
+          description: "synthetic-private-after-anonymization",
+        }),
+      ).resolves.toEqual({ ok: false, code: "FORBIDDEN" });
+    }
+    await expect(
+      service.addUserFollowup(userId, ownCaseId, {
+        description: "synthetic-user-after-anonymization",
+      }),
+    ).resolves.toEqual({ ok: false, code: "FORBIDDEN" });
+    const remaining = await runtime.query<{ count: string }>(
+      "SELECT count(*)::text AS count FROM feedback_followups WHERE case_id=$1",
+      [ownCaseId],
+    );
+    expect(remaining.rows[0]?.count).toBe("2");
+  });
+
   it("deletes retention rows in bounded batches and preserves the exact cutoff", async () => {
     const now = new Date("2030-01-01T00:00:00.000Z");
     const cutoff = new Date("2029-12-31T00:00:00.000Z");

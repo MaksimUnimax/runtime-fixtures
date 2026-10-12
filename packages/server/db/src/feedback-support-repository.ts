@@ -366,6 +366,12 @@ export function createFeedbackSupportRepository(
         const row = await loadCase(tx, input.caseId, true);
         if (!row) return { kind: "NOT_FOUND" as const };
         if (
+          row.account_id === null &&
+          row.created_by_user_id === null &&
+          row.description === "[Feedback removed after account deletion]"
+        )
+          return { kind: "FORBIDDEN" as const };
+        if (
           input.actorType === "USER" &&
           row.created_by_user_id !== input.actorId
         )
@@ -686,6 +692,11 @@ export function createFeedbackSupportRepository(
           `UPDATE feedback_cases SET account_id=NULL,created_by_user_id=NULL,device_id=NULL,description='[Feedback removed after account deletion]',diagnostics=NULL,updated_at=now() WHERE account_id=$1 RETURNING id`,
           [accountId],
         );
+        if (result.rows.length > 0)
+          await tx.query(
+            `UPDATE feedback_followups SET body='[Feedback removed after account deletion]',author_user_id=NULL,author_admin_principal_id=NULL WHERE case_id=ANY($1::uuid[])`,
+            [result.rows.map((row) => row.id)],
+          );
         const signals = await tx.query<{ id: string }>(
           `UPDATE feedback_signal_events SET account_id=NULL,device_id=NULL,subject_id=NULL WHERE account_id=$1 RETURNING id`,
           [accountId],
