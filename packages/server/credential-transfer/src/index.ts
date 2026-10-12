@@ -376,6 +376,19 @@ export class CredentialTransferService {
       // delivery is still resident, resetting durable state would strand ACK.
       if (this.relay.isDelivered(requestId, this.now()))
         throw new TransferError("TRANSFER_CONFLICT");
+      // A source discovery retry may repeat before the recipient receives
+      // the packet. Keep the durable prepared state and the same relay packet,
+      // rather than turning the request back into SOURCE_SEEN.
+      if (this.relay.has(requestId, this.now())) {
+        const prepared = await this.repository.readForSource({
+          principal,
+          requestId,
+          now: this.now(),
+        });
+        if (prepared?.state !== "PACKET_AVAILABLE_EPHEMERAL")
+          throw new TransferError("TRANSFER_CONFLICT");
+        return prepared;
+      }
       return this.repository.markSourceSeen({
         principal,
         requestId,
@@ -395,52 +408,54 @@ export class CredentialTransferService {
     )
       throw new TransferError("TRANSFER_PACKET_TOO_LARGE");
     const packet = TransferSubmitPacketV1Schema.parse(input);
-    const now = this.now();
-    const current = await this.repository.read({
-      principal,
-      requestId: packet.requestId,
-      now,
-    });
-    if (!current) throw new TransferError("TRANSFER_ACCOUNT_MISMATCH");
-    if (current.sourceDeviceId !== principal.deviceId)
-      throw new TransferError("TRANSFER_ACCOUNT_MISMATCH");
-    const parsedPacket = TransferPacketV1Schema.parse(packet);
-    // A recipient already committing delivery must not race with replacement.
-    if (this.inFlightRequests.has(packet.requestId))
-      throw new TransferError("TRANSFER_CONFLICT");
-    const reservationId = this.relay.reserve(
-      parsedPacket,
-      current.accountId,
-      principal.deviceId,
-      new Date(current.expiresAt),
-      now,
-    );
-    try {
-      await this.repository.markPacketAvailable({
+    // Claim the same request fence as sourceSeen/receive/ACK before the first
+    // asynchronous repository read. A check-only fence can lose the race while
+    // a reserved packet is waiting for its durable mark to settle.
+    return this.forRequest(packet.requestId, async () => {
+      const now = this.now();
+      const current = await this.repository.read({
         principal,
         requestId: packet.requestId,
-        now: this.now(),
+        now,
       });
-    } catch (error) {
-      this.relay.release(packet.requestId, reservationId, this.now());
-      throw error;
-    }
-    if (
-      !this.relay.activate(
-        packet.requestId,
-        reservationId,
+      if (!current) throw new TransferError("TRANSFER_ACCOUNT_MISMATCH");
+      if (current.sourceDeviceId !== principal.deviceId)
+        throw new TransferError("TRANSFER_ACCOUNT_MISMATCH");
+      const parsedPacket = TransferPacketV1Schema.parse(packet);
+      const reservationId = this.relay.reserve(
         parsedPacket,
-        this.now(),
+        current.accountId,
+        principal.deviceId,
+        new Date(current.expiresAt),
+        now,
+      );
+      try {
+        await this.repository.markPacketAvailable({
+          principal,
+          requestId: packet.requestId,
+          now: this.now(),
+        });
+      } catch (error) {
+        this.relay.release(packet.requestId, reservationId, this.now());
+        throw error;
+      }
+      if (
+        !this.relay.activate(
+          packet.requestId,
+          reservationId,
+          parsedPacket,
+          this.now(),
+        )
       )
-    )
-      throw new TransferError("TRANSFER_EXPIRED");
-    return {
-      request: await this.repository.read({
-        principal,
-        requestId: packet.requestId,
-        now: this.now(),
-      }),
-    };
+        throw new TransferError("TRANSFER_EXPIRED");
+      return {
+        request: await this.repository.read({
+          principal,
+          requestId: packet.requestId,
+          now: this.now(),
+        }),
+      };
+    });
   }
 
   public async receive(principal: ExtensionPrincipal, requestId: string) {
