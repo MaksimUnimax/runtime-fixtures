@@ -34,6 +34,7 @@ def main():
               "live_provider_calls": 0, "installed_acceptance": False}
     try:
         runner.run("core-composed-version-policy", [sys.executable, "-B", ROOT / "tests/regression/extension-core/test-composed-version-policy.py"])
+        runner.run("core-compose-optimized-python-guard", [sys.executable, "-B", ROOT / "tests/regression/extension-core/test-composed-optimized-python-guard.py"])
         original.negative_control(output)
         runner.run("core-provider-response-policy-differential", ["node", ROOT / "tests/regression/extension-core/provider-response-policy.mjs", ROOT])
         runner.run("core-provider-response-verifier-differential", ["node", ROOT / "tests/regression/extension-core/provider-response-verifier.mjs", ROOT])

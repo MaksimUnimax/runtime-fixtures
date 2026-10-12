@@ -11,6 +11,11 @@ import sys
 import zipfile
 from urllib.parse import urlsplit
 
+# Python -O removes assert statements, including release trust and patch guards.
+# Refuse to compose any artifact when those validations would be disabled.
+if not __debug__:
+    raise RuntimeError("EXTENSION_COMPOSITION_ASSERTIONS_DISABLED")
+
 sys.dont_write_bytecode = True
 ROOT = Path(__file__).resolve().parents[2]
 spec = importlib.util.spec_from_file_location("extension_baseline", ROOT / "tooling/build/extension_baseline.py")
