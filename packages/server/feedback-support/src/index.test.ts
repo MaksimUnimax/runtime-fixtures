@@ -47,6 +47,68 @@ describe("B2 feedback/support safety foundation", () => {
     expect(redacted).not.toContain("abcdefghijklmnopqrstuvwxyz123456");
   });
 
+  it.each([
+    ["Authorization: Basic dXNlcjpwYXNzd29yZA==", "dXNlcjpwYXNzd29yZA=="],
+    ["Proxy-Authorization: Basic cHJveHk6c2VjcmV0", "cHJveHk6c2VjcmV0"],
+    [
+      'Authorization: Digest username="synthetic", response="deadbeefcafebabe"',
+      "deadbeefcafebabe",
+    ],
+  ])("redacts synthetic credential values in %s", (header, value) => {
+    const sanitized = sanitizeFeedbackText(`diagnostic: ${header}`);
+    expect(sanitized).not.toContain(value);
+    expect(sanitized).toContain("[REDACTED_AUTHORIZATION]");
+  });
+
+  it.each([
+    [
+      "Authorization: Basic dXNlcjpwYXNz\r\n d29yZA==\nX-Trace: retained",
+      "d29yZA==",
+    ],
+    [
+      'Proxy-Authorization: Digest username="synthetic",\n\tresponse="cafebabe"\nX-Trace: retained',
+      "cafebabe",
+    ],
+    [
+      "Authorization: Basic dXNlcg==\r\tOnN5bnRoZXRpYw==\nX-Trace: retained",
+      "OnN5bnRoZXRpYw==",
+    ],
+  ])("redacts synthetic folded HTTP auth header %s", (header, foldedValue) => {
+    const sanitized = sanitizeFeedbackText(`diagnostic: ${header}`);
+    expect(sanitized).not.toContain(foldedValue);
+    expect(sanitized).toContain("[REDACTED_AUTHORIZATION]");
+    expect(sanitized).toContain("X-Trace: retained");
+  });
+
+  it.each([
+    [
+      "Authorization:\r\n Basic c3ludGhldGlj\nX-Trace: retained",
+      "c3ludGhldGlj",
+    ],
+    [
+      "Authorization:   \n\tBasic dGVzdC1vbmx5\nX-Trace: retained",
+      "dGVzdC1vbmx5",
+    ],
+    [
+      'Proxy-Authorization:\r Digest response="cafecafe"\nX-Trace: retained',
+      "cafecafe",
+    ],
+  ])(
+    "redacts auth headers with an empty first value line: %s",
+    (header, value) => {
+      const sanitized = sanitizeFeedbackText(`diagnostic: ${header}`);
+      expect(sanitized).not.toContain(value);
+      expect(sanitized).toContain("[REDACTED_AUTHORIZATION]");
+      expect(sanitized).toContain("X-Trace: retained");
+    },
+  );
+
+  it("keeps ordinary support text that is not an auth header", () => {
+    expect(sanitizeFeedbackText("authorization failed for test browser")).toBe(
+      "authorization failed for test browser",
+    );
+  });
+
   it("accepts only the safe diagnostic allowlist", () => {
     expect(
       sanitizeDiagnostics({
