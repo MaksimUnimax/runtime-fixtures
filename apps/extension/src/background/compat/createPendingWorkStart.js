@@ -45,7 +45,7 @@ async function createPendingWorkStart(tab, identity, options = {}) {
   await storageSet({ [KEYS.PENDING_WORK_STARTS]: pending });
   await diagnostic("WORK_START_PENDING_PERSISTED", { intent_id: transaction.intent_id, revision: transaction.revision, tab_id: tab, conversation_id: observedConversationId, external_request_executed: false });
   const readback = (await getPendingWorkStarts())[slot] || null;
-  if (!readback || readback.intent_id !== transaction.intent_id || Number(readback.revision) !== transaction.revision || readback.origin !== transaction.origin || readback.ai_id !== transaction.ai_id) {
+  if (!readback || readback.intent_id !== transaction.intent_id || Number(readback.revision) !== transaction.revision || readback.origin !== transaction.origin || readback.ai_id !== transaction.ai_id || readback.surface_id !== transaction.surface_id || readback.identity_scope !== transaction.identity_scope) {
     throw Object.assign(new Error("Pending Work Start transaction was not durably read back before Send."), { code: "WORK_START_PENDING_COMMIT_READBACK_FAILED" });
   }
   await diagnostic("WORK_START_PENDING_COMMIT_ACK", { intent_id: transaction.intent_id, revision: transaction.revision, tab_id: tab, conversation_id: observedConversationId, external_request_executed: false });
