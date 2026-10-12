@@ -29,6 +29,8 @@ const MAX_AUTHORITY_BYTES = 1024 * 1024;
 const MAX_CANDIDATE_MANIFEST_BYTES = 1024 * 1024;
 const MAX_ARCHIVE_BYTES = 128 * 1024 * 1024;
 const MAX_ZIP_ENTRIES = 4096;
+// Bound ancestor-prefix work for portable cross-browser release archives.
+const MAX_ZIP_PATH_SEGMENTS = 128;
 const MAX_ENTRY_BYTES = 64 * 1024 * 1024;
 const MAX_TOTAL_UNCOMPRESSED_BYTES = 256 * 1024 * 1024;
 const PACKAGED_CONFIG_MARKER = "globalThis.__SELLER_AGENTS_PACKAGED_CONFIG__=";
@@ -490,6 +492,7 @@ export function readZip(bytes) {
       name.includes("\\") ||
       name.startsWith("/") ||
       /^[A-Za-z]:/.test(name) ||
+      parts.length > MAX_ZIP_PATH_SEGMENTS ||
       parts.some(
         (part) =>
           !part ||

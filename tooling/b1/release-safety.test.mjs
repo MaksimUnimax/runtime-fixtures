@@ -125,6 +125,10 @@ if mode=="prefix_valid_parent_first":
     rows.extend([("assets/",b""),("assets/logo.svg",b"child")])
 if mode=="prefix_valid_parent_last":
     rows.extend([("assets/logo.svg",b"child"),("assets/",b"")])
+if mode=="prefix_depth_excess":
+    rows.append(("/".join(["a"]*129)+".txt",b"too deep"))
+if mode=="prefix_depth_limit":
+    rows.append(("/".join(["a"]*128)+".txt",b"within depth"))
 if mode.startswith("windows_unsafe_"):
     invalid_names={
         "windows_unsafe_ads":"content/worker.js:payload",
@@ -844,6 +848,11 @@ for (const [name, mode] of [
 ]) {
   expectPrepareFailure(name, mode, /ZIP path hierarchy collision/);
 }
+expectPrepareFailure(
+  "ZIP excessive ancestor depth is rejected before hierarchy allocation",
+  "prefix_depth_excess",
+  /Unsafe ZIP path/,
+);
 for (const [name, mode] of [
   [
     "ZIP real directory before descendant stays valid",
@@ -853,6 +862,7 @@ for (const [name, mode] of [
     "ZIP real directory after descendant stays valid",
     "prefix_valid_parent_last",
   ],
+  ["ZIP bounded maximum path depth stays valid", "prefix_depth_limit"],
 ]) {
   test(name, () => {
     const value = fixture({ chromium: { mode } });
