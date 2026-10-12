@@ -637,3 +637,139 @@ describe("Parameter Object default-false equivalence", () => {
     ).toBe("UNCHANGED");
   });
 });
+
+describe("Response Object header semantics", () => {
+  const make = (
+    options: {
+      headerType?: string;
+      headerName?: string;
+      required?: boolean;
+      noHeader?: boolean;
+      extraHeader?: boolean;
+      viaReference?: boolean;
+      description?: string;
+      bodyType?: string;
+      contentTypeHeader?: boolean;
+    } = {},
+  ) => {
+    const header = {
+      description: options.description ?? "request correlation",
+      schema: { type: options.headerType ?? "string" },
+      ...(options.required === undefined ? {} : { required: options.required }),
+    };
+    const headers: Record<string, unknown> = {};
+    if (!options.noHeader)
+      headers[options.headerName ?? "X-Request-ID"] = options.viaReference
+        ? { $ref: "#/components/headers/Correlation" }
+        : header;
+    if (options.extraHeader)
+      headers["X-Rate-Limit"] = { schema: { type: "integer" } };
+    if (options.contentTypeHeader)
+      headers["Content-Type"] = { schema: { type: "integer" } };
+    return buildCompleteOperationInventory({
+      sourceFamily: "OZON_SELLER",
+      snapshotSha256: "8".repeat(64),
+      filename: "response-header-contract.json",
+      bytes: Buffer.from(
+        JSON.stringify({
+          openapi: "3.0.3",
+          info: { title: "response header contract", version: "1" },
+          components: { headers: { Correlation: header } },
+          paths: {
+            "/items": {
+              get: {
+                operationId: "listItems",
+                responses: {
+                  "200": {
+                    description: "OK",
+                    headers,
+                    content: {
+                      "application/json": {
+                        schema: {
+                          type: "object",
+                          properties: {
+                            name: { type: options.bodyType ?? "string" },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        }),
+      ),
+    });
+  };
+
+  it("detects a changed response header schema even when the body is unchanged", () => {
+    expect(state(make(), make({ headerType: "integer" }))).toBe("CHANGED");
+  });
+
+  it("detects removal and addition of response headers", () => {
+    expect(state(make(), make({ noHeader: true }))).toBe("CHANGED");
+    expect(state(make(), make({ extraHeader: true }))).toBe("CHANGED");
+  });
+
+  it("detects a newly required response header", () => {
+    expect(state(make(), make({ required: true }))).toBe("CHANGED");
+  });
+
+  it("resolves referenced response headers before fingerprinting them", () => {
+    expect(
+      state(
+        make({ viaReference: true }),
+        make({ viaReference: true, headerType: "integer" }),
+      ),
+    ).toBe("CHANGED");
+  });
+
+  it("does not report a change for header case or documentation only", () => {
+    expect(state(make(), make({ headerName: "x-request-id" }))).toBe(
+      "UNCHANGED",
+    );
+    expect(state(make(), make({ description: "new documentation" }))).toBe(
+      "UNCHANGED",
+    );
+  });
+
+  it("ignores Content-Type response header and keeps body schema changes", () => {
+    expect(state(make(), make({ contentTypeHeader: true }))).toBe("UNCHANGED");
+    expect(state(make(), make({ bodyType: "integer" }))).toBe("CHANGED");
+  });
+
+  it("detects a changed Swagger 2 response header schema", () => {
+    const sw2 = (headerType: string) =>
+      buildCompleteOperationInventory({
+        sourceFamily: "OZON_SELLER",
+        snapshotSha256: "9".repeat(64),
+        filename: "response-header-swagger2.json",
+        bytes: Buffer.from(
+          JSON.stringify({
+            swagger: "2.0",
+            info: { title: "legacy header", version: "1" },
+            paths: {
+              "/items": {
+                get: {
+                  operationId: "listItems",
+                  responses: {
+                    "200": {
+                      description: "OK",
+                      schema: { type: "object" },
+                      headers: { "X-Rate-Limit": { type: headerType } },
+                    },
+                  },
+                },
+              },
+            },
+          }),
+        ),
+      });
+    expect(state(sw2("integer"), sw2("string"))).toBe("CHANGED");
+  });
+
+  it("considers a response header with required:false equivalent to default", () => {
+    expect(state(make(), make({ required: false }))).toBe("UNCHANGED");
+  });
+});

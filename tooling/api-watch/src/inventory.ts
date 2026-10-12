@@ -358,7 +358,46 @@ function responseFingerprint(
     Object.fromEntries(
       Object.entries(responses).map(([status, raw]) => {
         const response = asObject(localRef(raw, root));
-        return [status, response.schema ?? response.content ?? null];
+        const body = response.schema ?? response.content ?? null;
+        // Response headers are contract fields, not just response annotations.
+        // HTTP header names are case-insensitive; OAS ignores Content-Type here.
+        const headers = Object.entries(asObject(response.headers))
+          .filter(([name]) => name.toLowerCase() !== "content-type")
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([name, rawHeader]) => {
+            const header = asObject(localRef(rawHeader, root));
+            const normalized = Object.fromEntries(
+              Object.entries(header).filter(([key, value]) => {
+                if (
+                  key === "description" ||
+                  key === "example" ||
+                  key === "examples"
+                )
+                  return false;
+                if (
+                  value === false &&
+                  (key === "required" || key === "deprecated")
+                )
+                  return false;
+                if (key === "style" && value === "simple") return false;
+                if (
+                  key === "explode" &&
+                  value === false &&
+                  (header.style === undefined || header.style === "simple")
+                )
+                  return false;
+                return true;
+              }),
+            );
+            return [name.toLowerCase(), normalized];
+          });
+        // Preserve prior fingerprints for responses without semantic headers.
+        return [
+          status,
+          headers.length > 0
+            ? { body, headers: Object.fromEntries(headers) }
+            : body,
+        ];
       }),
     ),
     "named-fields",
