@@ -76,7 +76,12 @@ describe("Seller Agents commercial access boundary", () => {
   });
 
   it("projects Qwen only with an explicit true commercial permission", () => {
-    for (const permissions of [{}, { "ai.qwen": false }, { "ai.qwen": 1 }]) {
+    const deniedPermissions: Record<string, boolean | number>[] = [
+      {},
+      { "ai.qwen": false },
+      { "ai.qwen": 1 },
+    ];
+    for (const permissions of deniedPermissions) {
       expect(
         sellerAgentsCommercialCapabilityPermissions(permissions),
       ).not.toHaveProperty("ai.qwen");
