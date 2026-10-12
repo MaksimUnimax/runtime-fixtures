@@ -72,7 +72,7 @@
   {
     "target": "content_script.js",
     "old": "    record.button.textContent = record.in_flight ? \"Ozon…\" : \"Ozon\";",
-    "new": "    const label = saContentContext?.marketplace === \"wildberries\" ? \"WB\" : \"Ozon\";\n    record.button.textContent = record.in_flight ? `${label}…` : label;"
+    "new": "    const label = \"Октопорт\";\n    record.button.textContent = record.in_flight ? `${label}…` : label;"
   },
   {
     "target": "content_script.js",
@@ -672,7 +672,7 @@
   {
     "target": "content_script.js",
     "old": "  runtimeMessageListener = (message, _sender, sendResponse) => {",
-    "new": "  runtimeMessageListener = (message, _sender, sendResponse) => {\n    if (message?.type === \"OZ_R3_READ_BLOCK\") {\n      if (_sender?.id !== chrome.runtime.id) { sendResponse({ ok: false, error: { code: \"COMMAND_SENDER_INVALID\" } }); return false; }\n      SellerAgentsCommandSource.readBlock({ context: saContentContext, adapter, source: message.source,\n        conversationKey: manualConversationKey }).then(sendResponse).catch(error =>\n          sendResponse({ ok: false, error: { code: error.code || \"COMMAND_BLOCK_UNAVAILABLE\" } }));\n      return true;\n    }"
+    "new": "  runtimeMessageListener = (message, _sender, sendResponse) => {\n    if (message?.type === \"OZ_R3_READ_BLOCK\") {\n      if (_sender?.id !== chrome.runtime.id) { sendResponse({ ok: false, error: { code: \"COMMAND_SENDER_INVALID\" } }); return false; }\n      SellerAgentsCommandSource.readBlock({ context: saContentContext, adapter: currentAIAdapter(), source: message.source,\n        conversationKey: manualConversationKey }).then(sendResponse).catch(error =>\n          sendResponse({ ok: false, error: { code: error.code || \"COMMAND_BLOCK_UNAVAILABLE\" } }));\n      return true;\n    }"
   },
   {
     "target": "shared/file_delivery_port_worker.js",
@@ -707,11 +707,121 @@
   {
     "target": "shared/runtime_names.js",
     "old": "    \"ЭТО НАЧАЛО РАБОТЫ С OZON BRIDGE.\",",
-    "new": "    \"ЭТО НАЧАЛО РАБОТЫ С OCTOPORT.\","
+    "new": "    \"НАЧАЛО РАБОТЫ В «Октопорт».\","
   },
   {
     "target": "shared/runtime_names.js",
     "old": "    \"После command block обязательно напиши: «Для отправки команд в Ozon Bridge нажмите кнопку Ozon на этом блоке.»\",",
     "new": "    \"После command block обязательно напиши: «Для отправки команд в Octoport нажмите кнопку Ozon на этом блоке.»\","
+  },
+  {
+    "target": "service_worker.js",
+    "old": "const AI_MODES = new Set([\"auto\", \"chatgpt\", \"alice\"]);",
+    "new": "const AI_MODES = new Set([\"auto\", \"chatgpt\", \"alice\", \"qwen\"]);"
+  },
+  {
+    "target": "shared/ai_adapters.js",
+    "old": "const AI_MODES = Object.freeze([\"auto\", \"chatgpt\", \"alice\"]);",
+    "new": "const AI_MODES = Object.freeze([\"auto\", \"chatgpt\", \"alice\", \"qwen\"]);"
+  },
+  {
+    "target": "shared/ai_adapters.js",
+    "old": "  const ADAPTERS = Object.freeze({ chatgpt: CHATGPT, alice: ALICE });",
+    "new": "  const QWEN = SellerAgentsQwenAdapter.create({ visible, readComposerText, setComposerText });\n  const ADAPTERS = Object.freeze({ chatgpt: CHATGPT, alice: ALICE, qwen: QWEN });"
+  },
+  {
+    "target": "content_script.js",
+    "old": "const baseline = adapter.id === \"alice\" ? alicePrimaryComposerContext() : chatgptPrimaryComposerContext();",
+    "new": "const baseline = adapter.id === \"qwen\" ? adapter.composerContext() : adapter.id === \"alice\" ? alicePrimaryComposerContext() : chatgptPrimaryComposerContext();"
+  },
+  {
+    "target": "content_script.js",
+    "old": "const baseline = adapter.id === \"alice\" ? aliceSendButton(context) : chatgptSendButton(context);",
+    "new": "const baseline = adapter.id === \"qwen\" ? adapter.sendButton(context) : adapter.id === \"alice\" ? aliceSendButton(context) : chatgptSendButton(context);"
+  },
+  {
+    "target": "content_script.js",
+    "old": "const text = commandText(binding); // Read live raw block text only now, on the extension-owned click.",
+    "new": "let text = commandText(binding); // Only the explicit extension-owned click may read a complete code block."
+  },
+  {
+    "target": "content_script.js",
+    "old": "      if (saContentContext) r3CommandSource = await SellerAgentsCommandSource.capture({ context: saContentContext, adapter, binding, conversationKey: operationConversationKey });",
+    "new": "      const readContext = saContentContext;\n      if (readContext) r3CommandSource = await SellerAgentsCommandSource.capture({ context: readContext, adapter, binding, conversationKey: operationConversationKey });\n      if (adapter.readCodeTextAsync) {\n        text = await adapter.readCodeTextAsync(binding.root);\n        if (!manualEnabled || manualConversationKey !== operationConversationKey ||\n            conversationKeyFromLocation() !== operationConversationKey ||\n            !saContentContext?.work_active || saContentContext.work_session_id !== readContext?.work_session_id ||\n            saContentContext.binding_id !== readContext?.binding_id)\n          throw Object.assign(new Error(\"Контекст команды изменился. Ничего не отправлено.\"), { code: \"COMMAND_CONTEXT_CHANGED\" });\n        const afterRead = await SellerAgentsCommandSource.capture({ context: saContentContext, adapter, binding, conversationKey: operationConversationKey });\n        if (JSON.stringify(afterRead) !== JSON.stringify(r3CommandSource))\n          throw Object.assign(new Error(\"Источник команды изменился. Ничего не отправлено.\"), { code: \"COMMAND_CONTEXT_CHANGED\" });\n      }"
+  },
+  {
+    "target": "content_script.js",
+    "old": "record.binding.adapter_id === \"alice\" ? \"Alice\" : \"ChatGPT\"",
+    "new": "OzonAIAdapters.ADAPTERS[record.binding.adapter_id]?.label || \"ИИ\""
+  },
+  {
+    "target": "shared/ai_delivery_capabilities.js",
+    "old": "    if (host === \"alice.yandex.ru\") return \"alice\";",
+    "new": "    if (host === \"alice.yandex.ru\") return \"alice\";\n    if (host === \"chat.qwen.ai\") return \"qwen\";"
+  },
+  {
+    "target": "content_script.js",
+    "old": "return adapter.id === \"alice\" ? aliceSendButtonCandidates(context) : chatgptSendButtonCandidates(context);",
+    "new": "return adapter.id === \"qwen\" ? adapter.sendButtonCandidates(context) : adapter.id === \"alice\" ? aliceSendButtonCandidates(context) : chatgptSendButtonCandidates(context);"
+  },
+  {
+    "target": "content_script.js",
+    "old": "return adapter.id === \"alice\" ? aliceAllComposerControls(context) : chatgptAllComposerControls(context);",
+    "new": "return adapter.id === \"qwen\" ? [...(context?.root?.querySelectorAll(\"button\") || [])].filter(visible) : adapter.id === \"alice\" ? aliceAllComposerControls(context) : chatgptAllComposerControls(context);"
+  },
+  {
+    "target": "content_script.js",
+    "old": "return adapter.id === \"alice\" ? classifyAliceComposerControl() : classifyChatgptComposerControl();",
+    "new": "if (adapter.id === \"qwen\") {\n      const context = adapter.composerContext(), state = adapter.classifyComposerControl(context);\n      return { ...state, context, kind: state.kind === \"ready\" ? \"qwen_ready\" : state.kind };\n    }\n    return adapter.id === \"alice\" ? classifyAliceComposerControl() : classifyChatgptComposerControl();"
+  },
+  {
+    "target": "content_script.js",
+    "old": "    return chatgptStopButton(context);",
+    "new": "    if (adapter.id === \"qwen\") {\n      const state = adapter.classifyComposerControl(context);\n      return state.kind === \"stop\" ? state.button : null;\n    }\n    return chatgptStopButton(context);"
+  },
+  {
+    "target": "content_script.js",
+    "old": "    return chatgptRecognizedSendControl(context);",
+    "new": "    if (adapter.id === \"qwen\") {\n      const state = adapter.classifyComposerControl(context);\n      return [\"send_active\", \"send_disabled\"].includes(state.kind) ? state.button : null;\n    }\n    return chatgptRecognizedSendControl(context);"
+  },
+  {
+    "target": "content_script.js",
+    "old": "if (!adapter || adapter.id === \"alice\") return null;",
+    "new": "if (!adapter || adapter.id !== \"chatgpt\") return null;"
+  },
+  {
+    "target": "content_script.js",
+    "old": "      alice_ready: \"BUTTON_ALICE_READY\",",
+    "new": "      alice_ready: \"BUTTON_ALICE_READY\",\n      qwen_ready: \"BUTTON_QWEN_READY\","
+  },
+  {
+    "target": "service_worker.js",
+    "old": "  if (provider === \"alice\") return \"alice_ready\";",
+    "new": "  if (provider === \"alice\") return \"alice_ready\";\n  if (provider === \"qwen\") return \"qwen_user_turn_ready\";"
+  },
+  {
+    "target": "content_script.js",
+    "old": "      send_click_committed: false,\n      wake_cancel: null,",
+    "new": "      send_click_committed: false,\n      qwen_user_baseline: currentAIAdapter()?.id === \"qwen\" ? new Set(userTurnIds()) : null,\n      qwen_expected_text: currentAIAdapter()?.id === \"qwen\" ? canonicalText(recovery.outgoing_text || \"\") : \"\",\n      wake_cancel: null,"
+  },
+  {
+    "target": "content_script.js",
+    "old": "      if (classified.kind === \"alice_ready\") {",
+    "new": "      if (classified.kind === \"qwen_ready\") {\n        // An empty composer/ready control alone is not proof of delivery.\n        const adapter = currentAIAdapter();\n        const witnessed = state.send_click_committed && state.qwen_expected_text &&\n          adapter?.id === \"qwen\" && adapter.userMessages().some(node => {\n            const id = adapter.messageId(node);\n            return id && !state.qwen_user_baseline.has(id) &&\n              canonicalText(adapter.messageText(node)) === state.qwen_expected_text;\n          });\n        if (!witnessed) { await waitForDeliveryWatchWake(state); continue; }\n        const completion = await sendRuntime(\"OZ_BATCH_DELIVERY_COMPLETE\", {\n          owner_kind: state.owner_kind, owner_id: state.owner_id, run_id: state.run_id,\n          conversation_key: state.conversation_key, delivery_id: state.delivery_id,\n          delivery_confirmed: true, confirmation_basis: \"qwen_user_turn_ready\",\n          click_attempts: state.click_attempts\n        });\n        if (!completion?.ok) { await waitForDeliveryWatchWake(state); continue; }\n        recordContentDiagnostic(\"DELIVERY_SUCCESS\", { owner_kind: state.owner_kind, owner_id: state.owner_id,\n          delivery_id: state.delivery_id, confirmation_basis: \"qwen_user_turn_ready\", click_attempts: state.click_attempts });\n        toast(\"Октопорт: отправка объединённого результата подтверждена.\", \"success\", 5000, \"autorun-state\");\n        stopDeliveryWatch(\"delivery_success\");\n        if (state.owner_kind === \"manual\") setManualBridgeReady(manualEnabled && manualConversationKey === state.conversation_key, \"qwen_user_turn_confirmed\");\n        return { ok: true, delivered: true, click_attempts: state.click_attempts };\n      }\n      if (classified.kind === \"alice_ready\") {"
+  },
+  {
+    "target": "service_worker.js",
+    "old": "async function dispatchPendingWorkStartPrompt(tab, pending, promptText) {\n  await saPendingGuard(pending);\n  if (pending.store_context) promptText = await saPendingPrompt(pending);",
+    "new": "async function dispatchPendingWorkStartPrompt(tab, pending, promptText) {\n  await diagnostic(\"WORK_START_DISPATCH_PROGRESS\", { tab_id: tab, intent_id: pending.intent_id, revision: pending.revision, stage: \"guard_enter\" });\n  await saPendingGuard(pending);\n  await diagnostic(\"WORK_START_DISPATCH_PROGRESS\", { tab_id: tab, intent_id: pending.intent_id, revision: pending.revision, stage: \"guard_passed\" });\n  if (pending.store_context) promptText = await saPendingPrompt(pending);"
+  },
+  {
+    "target": "service_worker.js",
+    "old": "  const latest = (await getPendingWorkStarts())[String(tab)] || null;\n  if (!sent?.ok || sent.sent !== true) {",
+    "new": "  await diagnostic(\"WORK_START_DISPATCH_PROGRESS\", { tab_id: tab, intent_id: pending.intent_id, revision: pending.revision,\n    stage: \"content_response\", response_ok: sent?.ok === true, response_sent: sent?.sent === true });\n  const latest = (await getPendingWorkStarts())[String(tab)] || null;\n  if (!sent?.ok || sent.sent !== true) {"
+  },
+  {
+    "target": "shared/ai_delivery_capabilities.js",
+    "old": "    qwen: Object.freeze({ id: \"qwen\", status: \"planned\", plain_text_max_chars: null, attachments_supported: true, accepted_extensions: Object.freeze([\"pdf\", \"xlsx\", \"xls\"]), max_file_bytes: null, max_files_per_turn: null, attachment_strategy: \"pending\" }),",
+    "new": "    qwen: Object.freeze({ id: \"qwen\", status: \"implemented\", plain_text_max_chars: null, attachments_supported: false, accepted_extensions: Object.freeze([]), max_file_bytes: null, max_files_per_turn: null, attachment_strategy: \"pending_guest_verification\" }),"
   }
 ]

@@ -290,7 +290,8 @@ async function saVerifyCommittedWorkStart(message, sender) {
 async function saPromptTreeForExchange(identity, cacheOnly = false) {
   if (typeof SellerAgentsControlClient.getPromptTree !== "function")
     return { available: false, pin: null, warning: "AI_TREE_CLIENT_UNAVAILABLE" };
-  return SellerAgentsControlClient.getPromptTree(identity, { cacheOnly });
+  // Explicit Start checks the latest publication; command execution remains cache-only.
+  return SellerAgentsControlClient.getPromptTree(identity, { cacheOnly, refresh: !cacheOnly });
 }
 async function saPendingPrompt(pending) {
   await saPendingGuard(pending);
@@ -1004,7 +1005,8 @@ async function saGuard(owner) {
 }
 const SA_SIGNED_PROFILE_ORIGINS = Object.freeze({
   chatgpt: Object.freeze(["https://chatgpt.com", "https://chat.openai.com"]),
-  alice: Object.freeze(["https://alice.yandex.ru"])
+  alice: Object.freeze(["https://alice.yandex.ru"]),
+  qwen: Object.freeze(["https://chat.qwen.ai"])
 });
 function saSignedProfileOriginAllowed(family, origin) {
   const allowed = SA_SIGNED_PROFILE_ORIGINS[family];
@@ -1175,7 +1177,7 @@ async function saSignedProfileReceipt(message, sender) {
 async function saBroadcastSignedProfileRefresh(reason = "authority_changed") {
   const boundedReason = reason === "profile_changed" ? "profile_changed" : "authority_changed";
   const tabs = await chrome.tabs.query({
-    url: ["https://chatgpt.com/*", "https://chat.openai.com/*", "https://alice.yandex.ru/*"]
+    url: ["https://chatgpt.com/*", "https://chat.openai.com/*", "https://alice.yandex.ru/*", "https://chat.qwen.ai/*"]
   }).catch(() => []);
   await Promise.allSettled(tabs.filter(tab => Number.isSafeInteger(tab?.id))
     .map(tab => tabMessage(tab.id, { type: "OZ_SIGNED_AI_PROFILE_REFRESH", reason: boundedReason })));
@@ -1356,6 +1358,34 @@ async function saLastStartDiagnostic(tabId = null) {
   }
   return null;
 }
+// Only a stage/booleans projection for the exact currently pending attempt.
+// No prompt, response body, conversation, account, session, or intent identifiers.
+async function saStartDispatchProgress(tabId, pending) {
+  if (!pending?.intent_id || !Number.isInteger(Number(tabId))) return null;
+  let rows;
+  try {
+    const data = await storageGet(KEYS.DIAGNOSTICS);
+    rows = Array.isArray(data[KEYS.DIAGNOSTICS]) ? data[KEYS.DIAGNOSTICS] : [];
+  } catch (_) { return null; }
+  for (let index = rows.length - 1; index >= 0; index -= 1) {
+    const row = rows[index];
+    if (Number(row?.tab_id) !== Number(tabId) || row.intent_id !== pending.intent_id ||
+        Number(row.revision) !== Number(pending.revision)) continue;
+    const stage = row.event === "WORK_START_CONTENT_DISPATCHED" ? "content_requested" :
+      row.event === "WORK_START_DISPATCH_PROGRESS" ? row.stage : null;
+    if (!["guard_enter", "guard_passed", "content_requested", "content_response"].includes(stage)) continue;
+    return {
+      stage,
+      pendingGuardPassed: stage !== "guard_enter",
+      promptReady: ["content_requested", "content_response"].includes(stage),
+      responseReceived: stage === "content_response",
+      responseOk: stage === "content_response" ? row.response_ok === true : null,
+      responseSent: stage === "content_response" ? row.response_sent === true : null,
+      recordedAt: typeof row.at === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(row.at) ? row.at : null,
+    };
+  }
+  return null;
+}
 async function saSupportSnapshot(tabId) {
   const popup = await saPopupState(tabId);
   const observed = globalThis.SellerAgentsBrowserIdentity?.current?.() || {};
@@ -1366,7 +1396,7 @@ async function saSupportSnapshot(tabId) {
   const version = typeof observed.version === "string" && /^\d+(?:\.\d+){0,3}$/.test(observed.version) ? observed.version : null;
   const workState = saSupportToken(popup.work?.state);
   const detectedAiFamily = popup.identity?.ai_id || popup.page?.aiFamily;
-  const aiFamily = ["chatgpt", "alice"].includes(detectedAiFamily) ? detectedAiFamily : null;
+  const aiFamily = ["chatgpt", "alice", "qwen"].includes(detectedAiFamily) ? detectedAiFamily : null;
   const lastStart = popup.lastStart || null;
   return Object.freeze({
     snapshotVersion: "seller_agents_support_snapshot_v1",
@@ -1398,6 +1428,7 @@ async function saSupportSnapshot(tabId) {
       pending: Boolean(popup.pending),
       pendingOutcome: saSupportToken(popup.pending?.send_outcome),
       lastStart,
+      dispatchProgress: popup.dispatchProgress || null,
     },
     stores: {
       total: stores.length,
@@ -1444,6 +1475,7 @@ async function saPopupState(tabId) {
   const key = usableIdentity && live.conversation_id ? conversationKeyFromIdentity(live) : null;
   const pending = usableIdentity ? (await getPendingWorkStarts())[String(tabId)] || null : null;
   const lastStart = await saLastStartDiagnostic(tabId);
+  const dispatchProgress = await saStartDispatchProgress(tabId, pending);
   const auth = await SellerAgentsControlClient.status(usableIdentity ? live : null);
   const work = key ? await workSessionFor(key) : null;
   if (auth.authenticated && key) void saRefreshConversationSnapshot(key);
@@ -1456,7 +1488,7 @@ async function saPopupState(tabId) {
   if (auth.authenticated) stores = await saCatalog.list();
   return { ok: true, auth, pending: pending ? { intent_id: pending.intent_id, send_outcome: pending.send_outcome, expires_at: pending.expires_at } : null, stores,
     account: auth.account || { kind: "signed_out", label: "Вход не выполнен" },
-    identity: live, page, conversation_key: key, context, work: publicWork, lastStart,
+    identity: live, page, conversation_key: key, context, work: publicWork, lastStart, dispatchProgress,
     recovery: key ? await saR3RecoverySummary(key, work) : [],
     operation: key ? publicManualOperation(await getManualOperation(key)) : null };
 }
@@ -1585,6 +1617,7 @@ async function saWorkResume(message, sender) {
   });
 }
 async function saHandleMessage(message, sender) {
+  if (message?.type === "OZ_QWEN_READ_CODE") return saReadQwenCode(message, sender);
   const enabled = await saEnabled();
   if (enabled && message?.type === "OZ_CONTENT_READY" && sender?.tab?.id && message.identity) {
     const identity = await saResolveSurfaceIdentity(Number(sender.tab.id), normalizeIdentity(message.identity));

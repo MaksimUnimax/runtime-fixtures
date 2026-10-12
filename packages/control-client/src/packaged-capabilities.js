@@ -36,6 +36,14 @@
       packaged: true,
       executionAuthority: false,
     },
+    {
+      id: "ai.qwen.web.adapter",
+      kind: "ai_adapter",
+      family: "qwen",
+      surface: "web",
+      packaged: true,
+      executionAuthority: false,
+    },
   ];
 
   function deepFreeze(value) {

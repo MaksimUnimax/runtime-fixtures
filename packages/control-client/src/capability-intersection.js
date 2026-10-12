@@ -36,6 +36,10 @@
       capabilityId: "ai.alice.web.adapter",
       entitlementKey: "ai.alice",
     },
+    {
+      capabilityId: "ai.qwen.web.adapter",
+      entitlementKey: "ai.qwen",
+    },
   ];
 
   function deepFreeze(value) {

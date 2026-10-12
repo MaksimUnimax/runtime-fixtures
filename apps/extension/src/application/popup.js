@@ -2,7 +2,7 @@
 const $ = id => document.getElementById(id);
 const BACKUP_IMPORT_FRAGMENT = "#backup-import";
 const durableImportMode = globalThis.location?.hash === BACKUP_IMPORT_FRAGMENT;
-let tabId, state, marketplace = "ozon", selectedId = "", editingId = null, busy = false, confirmAction = null;
+let tabId, windowId, state, marketplace = "ozon", selectedId = "", editingId = null, busy = false, confirmAction = null;
 let backupText = "", backupPreview = null, backupSelectionRevision = 0;
 let r3Review = null;
 let actionGeneration = 0, refreshGeneration = 0;
@@ -53,11 +53,11 @@ const texts = { PAGE_RUNTIME_INSTALL_FAILED: "Браузер не разреши
   CREDENTIAL_REJECTED: "Ключ отклонён (401). Причина и срок действия не подтверждены", ACCESS_DENIED: "Недостаточно прав (403)",
   CHECK_FAILED: "Не удалось проверить: сеть, ответ площадки или формат запроса", STORE_CHANGE_CONFIRMATION_REQUIRED: "Подтвердите смену магазина",
   WORK_SESSION_ALREADY_ACTIVE: "Этот магазин уже подключён", STORE_NOT_FOUND: "Магазин удалён. Откройте список заново",
-  POPUP_CONTEXT_STALE: "Диалог изменился. Откройте расширение в нужной вкладке", WORK_START_UNSUPPORTED_PAGE: "Откройте поддерживаемый ИИ: ChatGPT или Алису",
+  POPUP_CONTEXT_STALE: "Диалог изменился. Откройте расширение в нужной вкладке", WORK_START_UNSUPPORTED_PAGE: "Откройте поддерживаемый ИИ: ChatGPT, Алису или Qwen",
   WORK_START_ALREADY_PENDING: "Запуск уже выполняется. Повторная инструкция не отправлена", WORK_START_ALREADY_IN_PROGRESS: "Запуск уже выполняется. Дождитесь результата или завершите текущую работу",
   EXECUTION_CONTEXT_CHANGED: "Магазин или рабочая сессия изменились. Нажмите «Начать работу»", RESULT_EXPIRED: "Часовой срок результата истёк", NO_QUOTA_WAIT: "Нет пакета, ожидающего продолжения",
   AUTH_REQUIRED: "Выполните вход через портал", WORK_POLICY_BLOCKED: "Работа недоступна: подписанная политика не разрешила этот профиль ИИ", DEVICE_AUTH_CLOSED: "Попытка входа закрыта. Начните новую попытку", BOOTSTRAP_EXPIRED: "Проверенная сессия истекла. Выполните вход заново",
-  UNSUPPORTED_BROWSER: "Текущий браузер или его версия не подтверждены подписанной совместимостью. Доказательства другого браузера не переносятся сюда", BOOTSTRAP_PROFILE_INCOMPATIBLE: "Подписанная конфигурация не разрешает текущую версию расширения или браузера", WORK_UNSUPPORTED_AI: "Откройте поддерживаемый ИИ: ChatGPT или Алису",
+  UNSUPPORTED_BROWSER: "Текущий браузер или его версия не подтверждены подписанной совместимостью. Доказательства другого браузера не переносятся сюда", BOOTSTRAP_PROFILE_INCOMPATIBLE: "Подписанная конфигурация не разрешает текущую версию расширения или браузера", WORK_UNSUPPORTED_AI: "Откройте поддерживаемый ИИ: ChatGPT, Алису или Qwen",
   SOURCE_OFFLINE: "Источник передачи сейчас недоступен. Повтор не считается доставкой", TRANSFER_VAULT_UNAVAILABLE: "Безопасное локальное хранилище ключа передачи недоступно. Передача не начата", TRANSFER_VAULT_PERSIST_FAILED: "Не удалось безопасно сохранить локальный ключ передачи. Запрос не считается готовым", TRANSFER_VAULT_CLEAR_FAILED: "Не удалось подтвердить очистку локального ключа передачи. Сброс не считается завершённым",
   TRANSFER_KEY_MISSING: "Локальный ключ этой передачи отсутствует. Создайте новый запрос на получающей установке", TRANSFER_ACCOUNT_MISMATCH: "Передача относится к другому аккаунту или установке и заблокирована", TRANSFER_EXPIRED: "Срок запроса передачи истёк. Создайте новый запрос", TRANSFER_REPLAY: "Передача уже завершена или повтор заблокирован" };
 async function request(type, fields = {}) {
@@ -307,9 +307,31 @@ $("auth-cancel").onclick = () => action(() => request("SA_AUTH_CANCEL"));
 $("auth-reset").onclick = () => confirm("Локально завершить текущую сессию и выбрать аккаунт заново? Сохранённые магазины останутся изолированными по аккаунту.", () => request("SA_AUTH_RESET"));
 for (const part of ["seller", "performance", "token"]) $("check-" + part).onclick = () => action(() => request("SA_STORE_CHECK", { store_id: selectedId, part }));
 async function openKeyFiles(mode) {
+  if (mode === "upload" && !durableImportMode) {
+    try {
+      // Call from the click handler, before any await, to retain the user gesture.
+      // A side panel survives the native file chooser; an action popup may not.
+      const sidebar = globalThis.browser?.sidebarAction;
+      if (typeof sidebar?.open === "function") await sidebar.open();
+      else if (typeof chrome.sidePanel?.open === "function" && Number.isInteger(windowId)) {
+        await chrome.sidePanel.open({ windowId });
+      } else {
+        throw new Error("IMPORT_PANEL_UNAVAILABLE");
+      }
+      globalThis.close?.();
+    } catch (_) {
+      $("status").textContent = "Не удалось открыть панель загрузки ключей в расширении. Обновите расширение и браузер и повторите.";
+      $("backup-status").textContent = $("status").textContent;
+    }
+    return;
+  }
   $("backup").scrollIntoView({ block: "start", behavior: "smooth" });
   $(mode === "upload" ? "backup-file" : "backup-password").focus();
 }
+if (!durableImportMode) $("backup-file").onclick = event => {
+  event.preventDefault();
+  return openKeyFiles("upload");
+};
 $("keys-download").onclick = () => openKeyFiles("download");
 $("keys-upload").onclick = () => openKeyFiles("upload");
 function invalidateBackupReview() {
@@ -373,7 +395,7 @@ if (durableImportMode) {
 const firefoxPermissionEvents = firefoxTechnicalPermissions();
 firefoxPermissionEvents?.onAdded?.addListener(() => refreshFirefoxTechnicalConsent().catch(() => null));
 firefoxPermissionEvents?.onRemoved?.addListener(() => refreshFirefoxTechnicalConsent().catch(() => null));
-chrome.tabs.query({ active: true, currentWindow: true }).then(tabs => { tabId = tabs[0]?.id; return refresh(true); }).catch(e => { $("status").textContent = e.message; });
+chrome.tabs.query({ active: true, currentWindow: true }).then(tabs => { tabId = tabs[0]?.id; windowId = tabs[0]?.windowId; return refresh(true); }).catch(e => { $("status").textContent = e.message; });
 
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== "local" || !Object.keys(changes).some(key => ["seller_agents_control_auth_v2", "seller_agents_stores_v1", "ozmb_work_sessions_v1", "ozmb_pending_work_starts_v1", "ozmb_conversation_bindings", "ozmb_manual_operations"].includes(key))) return;

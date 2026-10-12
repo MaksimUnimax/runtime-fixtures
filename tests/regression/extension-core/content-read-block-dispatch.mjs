@@ -1,0 +1,25 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { runInNewContext } from "node:vm";
+const root=fileURLToPath(new URL("../../../",import.meta.url));
+const patches=JSON.parse(readFileSync(root+"apps/extension/application-patches.json","utf8"));
+const patch=patches.find(p=>p.target==="content_script.js"&&p.new.includes('message?.type === "OZ_R3_READ_BLOCK"'));
+assert.ok(patch);
+const source=patch.new+"\n return false; }; runtimeMessageListener;";
+let reads=0,current={id:"qwen"},args=null;
+const sandbox={chrome:{runtime:{id:"own-extension"}},saContentContext:{work_active:true},manualConversationKey:"same-conversation",
+ currentAIAdapter:()=>current,SellerAgentsCommandSource:{readBlock:async input=>{reads++;args=input;return {ok:true,command_text:"PUBLIC_FIXTURE"};}}};
+const handler=runInNewContext(source,sandbox);
+let response;
+assert.equal(handler({type:"OZ_R3_READ_BLOCK",source:{}},{id:"foreign"},x=>response=x),false);
+assert.equal(response.error.code,"COMMAND_SENDER_INVALID");assert.equal(reads,0);
+assert.equal(handler({type:"OZ_R3_READ_BLOCK",source:{marker:"same-proof"}},{id:"own-extension"},x=>response=x),true);
+await new Promise(r=>setImmediate(r));
+assert.equal(response.ok,true);assert.equal(args.adapter,current);assert.equal(args.context,sandbox.saContentContext);assert.equal(reads,1);
+current={id:"alice"};handler({type:"OZ_R3_READ_BLOCK",source:{}},{id:"own-extension"},x=>response=x);
+await new Promise(r=>setImmediate(r));assert.equal(args.adapter,current);assert.equal(reads,2);
+sandbox.SellerAgentsCommandSource.readBlock=async()=>{throw Object.assign(new Error("closed"),{code:"COMMAND_CONTEXT_CHANGED"});};
+handler({type:"OZ_R3_READ_BLOCK",source:{}},{id:"own-extension"},x=>response=x);
+await new Promise(r=>setImmediate(r));assert.equal(response.ok,false);assert.equal(response.error.code,"COMMAND_CONTEXT_CHANGED");
+console.log(JSON.stringify({level:"SOURCE",passed:4,installed:"NOT_RUN",sendCalls:0}));

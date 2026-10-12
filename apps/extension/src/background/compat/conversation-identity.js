@@ -5,7 +5,8 @@
   const PROVIDERS = Object.freeze({
     "https://chatgpt.com": "chatgpt",
     "https://chat.openai.com": "chatgpt",
-    "https://alice.yandex.ru": "alice"
+    "https://alice.yandex.ru": "alice",
+    "https://chat.qwen.ai": "qwen"
   });
   function providerForOrigin(origin) { return PROVIDERS[core.originOf(origin)] || null; }
   function conversationIdFromPath(pathname) {

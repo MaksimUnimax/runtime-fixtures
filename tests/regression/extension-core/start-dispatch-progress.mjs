@@ -1,0 +1,30 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import vm from "node:vm";
+const source = fs.readFileSync(path.resolve(import.meta.dirname, "../../../apps/extension/src/application/runtime.js"), "utf8");
+const begin = source.indexOf("async function saStartDispatchProgress(");
+const end = source.indexOf("\nasync function saSupportSnapshot(", begin);
+assert(begin >= 0 && end > begin);
+const body = source.slice(begin, end);
+assert(body);
+let rows = [];
+const ctx = { KEYS: { DIAGNOSTICS: "diagnostics" }, storageGet: async () => ({ diagnostics: rows }) };
+vm.createContext(ctx); vm.runInContext(body, ctx);
+const pending = { intent_id: "current-attempt", revision: 3 };
+const read = () => ctx.saStartDispatchProgress(77, pending);
+rows = [{ event: "WORK_START_DISPATCH_PROGRESS", tab_id: 77, intent_id: pending.intent_id, revision: 3,
+  stage: "guard_enter", prompt_text: "PRIVATE_PROMPT", token: "PRIVATE_TOKEN", conversation_id: "PRIVATE_CHAT" }];
+let value = await read(); assert.equal(value.stage, "guard_enter"); assert.equal(value.pendingGuardPassed, false);
+assert.equal(value.promptReady, false); assert.equal(value.responseReceived, false);
+for (const privateText of ["PRIVATE_PROMPT", "PRIVATE_TOKEN", "PRIVATE_CHAT", "current-attempt"]) assert(!JSON.stringify(value).includes(privateText));
+rows.push({ ...rows[0], event: "WORK_START_CONTENT_DISPATCHED", at: "2026-10-12T08:00:00.000Z" });
+value = await read(); assert.equal(value.stage, "content_requested"); assert.equal(value.recordedAt, "2026-10-12T08:00:00.000Z"); assert.equal(value.pendingGuardPassed, true); assert.equal(value.promptReady, true);
+for (const change of [{ tab_id: 78 }, { intent_id: "other" }, { revision: 4 }, { stage: "PRIVATE_DATA" }])
+  rows.push({ ...rows[0], stage: "content_response", response_ok: true, response_sent: true, ...change });
+assert.equal((await read()).stage, "content_requested", "another attempt or unrecognized stage must not replace this progress");
+rows.push({ ...rows[0], stage: "content_response", response_ok: true, response_sent: false });
+value = await read(); assert.equal(value.responseReceived, true); assert.equal(value.responseOk, true); assert.equal(value.responseSent, false);
+assert.equal(await ctx.saStartDispatchProgress(77, null), null);
+rows = []; assert.equal(await read(), null);
+console.log(JSON.stringify({ evidenceType: "SOURCE", status: "PASS", scope: "exact-attempt stage/booleans only; no payload or identity output; no execution authority" }));

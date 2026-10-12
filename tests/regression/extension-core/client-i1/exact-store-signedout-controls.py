@@ -81,7 +81,7 @@ def wait_for_exact_extension_worker(context, expected_version: str, timeout_ms=3
                 continue
             if (
                 manifest.get("version") == expected_version
-                and manifest.get("name") == "Octoport — Ozon + Wildberries"
+                and manifest.get("name") == "Октопорт — Ozon + Wildberries"
             ):
                 return worker
         time.sleep(0.1)

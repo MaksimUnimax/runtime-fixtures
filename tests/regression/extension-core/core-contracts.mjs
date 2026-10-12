@@ -451,7 +451,7 @@ await test("PAR-07-32-package-subset-content-source-identities-and-review", asyn
   await assert.rejects(source.capture(args), { code: "COMMAND_CONTEXT_CHANGED" });
 });
 
-await test("R3-popup-import-stays-in-popup-and-rejects-stale-preview", async () => {
+await test("R3-durable-import-panel-rejects-stale-file-password-account-preview", async () => {
   const source = fs.readFileSync(path.join(candidate, "popup.js"), "utf8"), nodes = new Map(), calls = [];
   let tabs = 0, release = null, defer = true;
   const node = id => { if (!nodes.has(id)) nodes.set(id, { value: "", files: [], hidden: true,
@@ -467,7 +467,7 @@ await test("R3-popup-import-stays-in-popup-and-rejects-stale-preview", async () 
   const first = source.indexOf("async function openKeyFiles(mode)"), last = source.indexOf("function downloadBackup", first);
   const preview = source.indexOf('$("backup-preview").onclick'), end = source.indexOf("if (durableImportMode) {", preview);
   assert.ok(first >= 0 && last > first && preview > last && end > preview);
-  vm.runInContext('let backupText="",backupPreview=null,backupSelectionRevision=0; const durableImportMode=false; let state={auth:{accountId:"fixture"}};\n' +
+  vm.runInContext('let backupText="",backupPreview=null,backupSelectionRevision=0; const durableImportMode=true; let state={auth:{accountId:"fixture"}};\n' +
     source.slice(first, last) + source.slice(preview, end), ctx);
   await node("keys-upload").onclick(); assert.equal(tabs, 0); assert.equal(node("backup-file").focused, true);
   assert.equal(node("backup-file").onclick, undefined, "native picker is not replaced with tab navigation");

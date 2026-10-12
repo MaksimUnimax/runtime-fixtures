@@ -67,7 +67,7 @@ assert.match(
 // A manually duplicated subset misses new lifecycle state used by finally.
 const actionStateSource = extract(
   popupJs,
-  "let tabId, state,",
+  "let tabId,",
   "\nconst FIREFOX_TECHNICAL_CATEGORY",
 );
 

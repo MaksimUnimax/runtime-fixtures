@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { runInThisContext } from "node:vm";
+import { runInThisContext, runInNewContext } from "node:vm";
 import { createHash, generateKeyPairSync, sign, webcrypto } from "node:crypto";
 const root=resolve(process.argv[2] || process.cwd());
 globalThis.crypto ||= webcrypto;
@@ -133,5 +133,25 @@ await test("storage alias cannot relabel a signed cache entry as another permane
  const oldKey=Object.keys(s.entries)[0],parts=JSON.parse(oldKey);parts[2]=uuid(99);s.entries[JSON.stringify(parts)]=s.entries[oldKey];delete s.entries[oldKey];
  s.aliases[Object.keys(s.aliases)[0]]=uuid(99);f.setMemory(saved);
  await assert.rejects(f.make().get(detected("chatgpt"),{offline:true}),/AI_TREE_CACHE_ID_MISMATCH/);
+});
+await test("explicit Start receives an immediate publication; commands and old Work preserve their pin",async()=>{
+ const f=fixture(),old=await f.cache.get(detected("chatgpt")),alice=await f.cache.get(detected("alice"));
+ f.versions.chatgpt={...f.versions.chatgpt,version:2,body:body("Published immediately before new dialogue")};
+ const sourceRoot=fileURLToPath(new URL("../../../../",import.meta.url));
+ const runtime=readFileSync(resolve(sourceRoot,"apps/extension/src/application/runtime.js"),"utf8");
+ const start=runtime.indexOf("async function saPromptTreeForExchange("),end=runtime.indexOf("\nasync function saPendingPrompt",start);
+ assert.ok(start>=0&&end>start);
+ const exchange=runInNewContext(runtime.slice(start,end)+"; saPromptTreeForExchange",{
+   SellerAgentsControlClient:{getPromptTree:async(identity,options)=>({available:true,pin:await f.cache.get(identity,{offline:options.cacheOnly,refresh:options.refresh})})}
+ });
+ const current=await exchange(detected("chatgpt"));
+ assert.equal(current.pin.version,2,"Explicit Start must not wait for the six-hour background interval");
+ assert.equal((await f.cache.validatePinned(detected("chatgpt"),old)).version,1);
+ assert.equal((await f.cache.get(detected("alice"))).version,alice.version);
+ assert.equal(trees.render(alice.body),"Alice only");
+ const before=f.trace.fetches;
+ assert.equal((await exchange(detected("chatgpt"),true)).pin.version,2);
+ assert.equal(f.trace.fetches,before,"Ordinary command must not synchronize trees");
+ assert.equal(f.trace.providerApi,0);assert.equal(f.trace.send,0);
 });
 console.log(JSON.stringify({level:packaged?"PACKAGE":"SOURCE",passed,installed:"NOT_RUN",owner:"NOT_RUN",providerApiCalls:0,sendCalls:0}));
