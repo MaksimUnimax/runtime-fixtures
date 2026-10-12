@@ -35,6 +35,7 @@ describe("BootstrapService beta policy boundary", () => {
   it.each([
     ["unexpected key", { "unexpected.beta": true }],
     ["missing accepted key", { "source.ozon": true }],
+    ["missing Qwen permission", { "source.ozon": true, "source.wildberries": true, "ai.chatgpt": true, "ai.alice": true }],
     [
       "non-true value",
       {
@@ -42,6 +43,7 @@ describe("BootstrapService beta policy boundary", () => {
         "source.wildberries": true,
         "ai.chatgpt": true,
         "ai.alice": false,
+        "ai.qwen": true,
       },
     ],
     [
@@ -51,6 +53,7 @@ describe("BootstrapService beta policy boundary", () => {
         "source.wildberries": true,
         "ai.chatgpt": true,
         "ai.alice": true,
+        "ai.qwen": true,
       },
     ],
     [
@@ -60,6 +63,7 @@ describe("BootstrapService beta policy boundary", () => {
         "source.wb": true,
         "ai.chatgpt": true,
         "ai.alice": true,
+        "ai.qwen": true,
       },
     ],
   ])("fails closed for a policy with %s", async (_label, map) => {

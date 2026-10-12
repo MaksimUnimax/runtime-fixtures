@@ -75,6 +75,15 @@ describe("Seller Agents commercial access boundary", () => {
     });
   });
 
+  it("projects Qwen only with an explicit true commercial permission", () => {
+    for (const permissions of [{}, { "ai.qwen": false }, { "ai.qwen": 1 }]) {
+      expect(sellerAgentsCommercialCapabilityPermissions(permissions)).not.toHaveProperty("ai.qwen");
+    }
+    expect(sellerAgentsCommercialCapabilityPermissions({ "ai.qwen": true })).toEqual({ "ai.qwen": true });
+    const result = resolveSellerAgentsEffectiveAccess({ mode: "ENABLED", betaEligible: false, commercial, at });
+    expect(result.permissions).not.toHaveProperty("ai.qwen");
+  });
+
   it("M1-05 ignores unknown and limit keys in capability projection", () => {
     const result = sellerAgentsCommercialCapabilityPermissions({
       "source.ozon": true,

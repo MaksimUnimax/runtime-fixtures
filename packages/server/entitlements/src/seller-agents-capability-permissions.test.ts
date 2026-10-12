@@ -9,12 +9,13 @@ import {
 const EXPECTED = [
   "ai.alice",
   "ai.chatgpt",
+  "ai.qwen",
   "source.ozon",
   "source.wildberries",
 ];
 
 describe("Seller Agents capability permission vocabulary", () => {
-  it("defines exactly the four reviewed account permission keys", () => {
+  it("defines exactly the five reviewed account permission keys", () => {
     expect([...SELLER_AGENTS_CAPABILITY_PERMISSION_KEYS].sort()).toEqual(
       EXPECTED,
     );
@@ -42,6 +43,12 @@ describe("Seller Agents capability permission vocabulary", () => {
       "marketplace.wildberries.adapter",
       "ai.chatgpt.web.adapter",
       "ai.alice.web.adapter",
+      "ai.qwen.web.adapter",
+      "ai.claude",
+      "ai.grok",
+      "ai.gemini",
+      "ai.deepseek",
+      "ai.kimi",
       "ozon.analytics",
       "ozon.performance",
       "feature.guided_commands",

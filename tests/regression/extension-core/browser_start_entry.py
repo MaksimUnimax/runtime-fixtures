@@ -213,8 +213,8 @@ def main():
             page.locator("[data-assistant-stream-block]").last.scroll_into_view_if_needed()
             wb_button = page.locator(".ozon-bridge-block-action").last
             wb_button.wait_for(timeout=10000)
-            assert wb_button.inner_text() == "WB"
-            report["cases"].append({"name": "confirmed-store-change-starts-wb-once-and-shows-wb-button", "status": "PASS"})
+            assert wb_button.inner_text() == "Октопорт"
+            report["cases"].append({"name": "confirmed-store-change-starts-wb-once-and-shows-product-button", "status": "PASS"})
             wb_button.click()
             page.wait_for_function("sent.length === 5", timeout=30000)
             assert page.evaluate("sent[4].startsWith('WB_')")
