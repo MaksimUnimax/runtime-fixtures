@@ -149,7 +149,7 @@ def run(runtime,output,private_key):
             page.evaluate("fixtureCommand('WB_HELP_V1 {\"operation\":\"describe\",\"params\":{\"alias\":\"seller_info\"}}\\nWB_API_V1 {\"operation\":\"seller_info\",\"params\":{}}')")
             page.locator("section[data-turn='assistant'] .code").last.scroll_into_view_if_needed()
             button=page.locator('.ozon-bridge-block-action').last
-            button.wait_for();assert button.inner_text()=='WB';button.click()
+            button.wait_for();assert button.inner_text()=='Октопорт';button.click()
             page.wait_for_function('sent.length===2',timeout=30000)
             assert page.evaluate("sent[1].startsWith('WB_BATCH_RESULT_V1')")
             until(lambda:worker.evaluate("async()=>Object.values((await chrome.storage.local.get('ozmb_manual_operations')).ozmb_manual_operations||{})[0]?.status==='completed'"))
@@ -164,7 +164,7 @@ def run(runtime,output,private_key):
             # Current ChatGPT fenced-code DOM: li[data-message-role=assistant] + Copy code/data-code-copy-state.
             current_assistant=page.evaluate("()=>fixtureCurrentChatGPTBlock('WB_HELP_V1 {\"operation\":\"describe\",\"params\":{\"alias\":\"seller_info\"}}','assistant')")
             until(lambda:page.locator('.ozon-bridge-block-action').count()==2)
-            assert page.locator('.ozon-bridge-block-action').last.inner_text()=='WB'
+            assert page.locator('.ozon-bridge-block-action').last.inner_text()=='Октопорт'
             current_user=page.evaluate("()=>fixtureCurrentChatGPTBlock('WB_API_V1 {\"operation\":\"seller_info\",\"params\":{}}','user')")
             page.wait_for_timeout(250)
             assert page.locator('.ozon-bridge-block-action').count()==2
