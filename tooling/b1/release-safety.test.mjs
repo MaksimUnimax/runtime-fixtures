@@ -111,6 +111,41 @@ if mode=="duplicate":
     rows.append(("manifest.json",b"{}"))
 if mode=="case_duplicate":
     rows.append(("MANIFEST.JSON",b"{}"))
+if mode.startswith("windows_unsafe_"):
+    invalid_names={
+        "windows_unsafe_ads":"content/worker.js:payload",
+        "windows_unsafe_reserved":"AUX.txt",
+        "windows_unsafe_child_device":"content/NUL.log",
+        "windows_unsafe_unicode_device":"content/COM¹.log",
+        "windows_unsafe_trailing_dot":"content/name.js.",
+        "windows_unsafe_trailing_space":"content/name.js ",
+        "windows_unsafe_wildcard":"content/name?.js",
+        "windows_unsafe_control":"content/name\x1f.js",
+        "windows_unsafe_nonascii_composed":"content/café.js",
+        "windows_unsafe_nonascii_decomposed":"content/cafe\u0301.js",
+        "windows_unsafe_nonascii_kelvin":"content/Kernel.js",
+        "windows_unsafe_conin":"content/CONIN$.js",
+        "windows_unsafe_conout":"CONOUT$.txt",
+        "windows_unsafe_conout_directory":"content/CONOUT$/asset.js",
+        "windows_unsafe_com0":"content/COM0.log",
+        "windows_unsafe_lpt0":"content/LPT0.log",
+    }
+    rows.append((invalid_names[mode],b"non-private fixture"))
+if mode=="windows_case_alias":
+    rows.extend([
+        ("content/Foo.js",b"first"),
+        ("content/foo.js",b"second"),
+    ])
+if mode=="windows_portable_names":
+    rows.extend([
+        ("content/AUXiliary.js",b"portable"),
+        ("content/COM10.js",b"portable"),
+        ("content/LPT10.js",b"portable"),
+        ("content/CONINput.js",b"portable"),
+        ("content/CONOUTland.js",b"portable"),
+        ("content/.well-known.txt",b"portable"),
+        ("content/module.version.js",b"portable"),
+    ])
 if mode=="development_popup":
     rows.append(("popup.html",b'<html><script src="popup.js"></script></html>'))
     rows.append(("popup.js","console.log('Локальная разработка')".encode()))
@@ -472,13 +507,13 @@ function preflight(value, candidateDir) {
   });
 }
 
-function expectPrepareFailure(name, browserMode) {
+function expectPrepareFailure(name, browserMode, expectedFailure) {
   test(name, () => {
     const value = fixture({
       chromium: { mode: browserMode },
     });
     try {
-      assert.throws(() => prepare(value));
+      assert.throws(() => prepare(value), expectedFailure);
     } finally {
       cleanup(value);
     }
@@ -720,6 +755,55 @@ test("authority public-key fingerprint must be cryptographically consistent", ()
 expectPrepareFailure("ZIP traversal is rejected", "path");
 expectPrepareFailure("absolute ZIP path is rejected", "absolute");
 expectPrepareFailure("backslash ZIP escape is rejected", "backslash");
+for (const [name, mode] of [
+  ["Windows ZIP alternate-data-stream colon is rejected", "windows_unsafe_ads"],
+  ["Windows ZIP reserved device AUX is rejected", "windows_unsafe_reserved"],
+  ["Windows ZIP nested device NUL is rejected", "windows_unsafe_child_device"],
+  [
+    "Windows ZIP superscript device COM¹ is rejected",
+    "windows_unsafe_unicode_device",
+  ],
+  ["Windows ZIP trailing dot is rejected", "windows_unsafe_trailing_dot"],
+  ["Windows ZIP trailing space is rejected", "windows_unsafe_trailing_space"],
+  ["Windows ZIP wildcard is rejected", "windows_unsafe_wildcard"],
+  ["Windows ZIP control character is rejected", "windows_unsafe_control"],
+  [
+    "Windows ZIP non-ASCII composed filename is rejected",
+    "windows_unsafe_nonascii_composed",
+  ],
+  [
+    "Windows ZIP non-ASCII decomposed filename is rejected",
+    "windows_unsafe_nonascii_decomposed",
+  ],
+  [
+    "Windows ZIP non-ASCII compatibility case filename is rejected",
+    "windows_unsafe_nonascii_kelvin",
+  ],
+  ["Windows ZIP console device CONIN$ is rejected", "windows_unsafe_conin"],
+  ["Windows ZIP console device CONOUT$ is rejected", "windows_unsafe_conout"],
+  [
+    "Windows ZIP nested CONOUT$ directory is rejected",
+    "windows_unsafe_conout_directory",
+  ],
+  ["Windows ZIP COM0 device alias is rejected", "windows_unsafe_com0"],
+  ["Windows ZIP LPT0 device alias is rejected", "windows_unsafe_lpt0"],
+]) {
+  expectPrepareFailure(name, mode, /Unsafe ZIP path/);
+}
+expectPrepareFailure(
+  "Windows ZIP nested ASCII case alias is rejected",
+  "windows_case_alias",
+  /Duplicate ZIP entry/,
+);
+test("portable Windows ZIP near-device filenames remain accepted", () => {
+  const value = fixture({ chromium: { mode: "windows_portable_names" } });
+  try {
+    const { output } = prepare(value);
+    preflight(value, output);
+  } finally {
+    cleanup(value);
+  }
+});
 expectPrepareFailure("duplicate ZIP entry is rejected", "duplicate");
 expectPrepareFailure(
   "case-folded duplicate ZIP entry is rejected",
