@@ -374,6 +374,21 @@ function decodeZipName(bytes, utf8) {
 }
 
 // Minimal ZIP reader: no extraction, duplicate-preserving central-directory walk.
+// ZIP names accepted for browser distribution must survive Windows extraction
+// unchanged. Win32 treats device names, streams and trailing dots/spaces
+// differently from the logical ZIP filename (even in nested directories).
+function unsafeWindowsZipSegment(segment) {
+  if (
+    /[<>:"|?*]/u.test(segment) ||
+    /[. ]$/u.test(segment) ||
+    Array.from(segment).some((character) => character.charCodeAt(0) < 32)
+  ) {
+    return true;
+  }
+  const deviceStem = segment.split(".", 1)[0].trimEnd();
+  return /^(?:CON|PRN|AUX|NUL|COM[1-9¹²³]|LPT[1-9¹²³])$/iu.test(deviceStem);
+}
+
 export function readZip(bytes) {
   if (
     !Buffer.isBuffer(bytes) ||
@@ -471,7 +486,13 @@ export function readZip(bytes) {
       name.includes("\\") ||
       name.startsWith("/") ||
       /^[A-Za-z]:/.test(name) ||
-      parts.some((part) => !part || part === "." || part === "..")
+      parts.some(
+        (part) =>
+          !part ||
+          part === "." ||
+          part === ".." ||
+          unsafeWindowsZipSegment(part),
+      )
     ) {
       fail("Unsafe ZIP path");
     }

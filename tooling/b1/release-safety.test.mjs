@@ -111,6 +111,25 @@ if mode=="duplicate":
     rows.append(("manifest.json",b"{}"))
 if mode=="case_duplicate":
     rows.append(("MANIFEST.JSON",b"{}"))
+if mode.startswith("windows_unsafe_"):
+    invalid_names={
+        "windows_unsafe_ads":"content/worker.js:payload",
+        "windows_unsafe_reserved":"AUX.txt",
+        "windows_unsafe_child_device":"content/NUL.log",
+        "windows_unsafe_unicode_device":"content/COM¹.log",
+        "windows_unsafe_trailing_dot":"content/name.js.",
+        "windows_unsafe_trailing_space":"content/name.js ",
+        "windows_unsafe_wildcard":"content/name?.js",
+        "windows_unsafe_control":"content/name\x1f.js",
+    }
+    rows.append((invalid_names[mode],b"non-private fixture"))
+if mode=="windows_portable_names":
+    rows.extend([
+        ("content/AUXiliary.js",b"portable"),
+        ("content/COM10.js",b"portable"),
+        ("content/.well-known.txt",b"portable"),
+        ("content/module.version.js",b"portable"),
+    ])
 if mode=="development_popup":
     rows.append(("popup.html",b'<html><script src="popup.js"></script></html>'))
     rows.append(("popup.js","console.log('Локальная разработка')".encode()))
@@ -472,13 +491,13 @@ function preflight(value, candidateDir) {
   });
 }
 
-function expectPrepareFailure(name, browserMode) {
+function expectPrepareFailure(name, browserMode, expectedFailure) {
   test(name, () => {
     const value = fixture({
       chromium: { mode: browserMode },
     });
     try {
-      assert.throws(() => prepare(value));
+      assert.throws(() => prepare(value), expectedFailure);
     } finally {
       cleanup(value);
     }
@@ -720,6 +739,30 @@ test("authority public-key fingerprint must be cryptographically consistent", ()
 expectPrepareFailure("ZIP traversal is rejected", "path");
 expectPrepareFailure("absolute ZIP path is rejected", "absolute");
 expectPrepareFailure("backslash ZIP escape is rejected", "backslash");
+for (const [name, mode] of [
+  ["Windows ZIP alternate-data-stream colon is rejected", "windows_unsafe_ads"],
+  ["Windows ZIP reserved device AUX is rejected", "windows_unsafe_reserved"],
+  ["Windows ZIP nested device NUL is rejected", "windows_unsafe_child_device"],
+  [
+    "Windows ZIP superscript device COM¹ is rejected",
+    "windows_unsafe_unicode_device",
+  ],
+  ["Windows ZIP trailing dot is rejected", "windows_unsafe_trailing_dot"],
+  ["Windows ZIP trailing space is rejected", "windows_unsafe_trailing_space"],
+  ["Windows ZIP wildcard is rejected", "windows_unsafe_wildcard"],
+  ["Windows ZIP control character is rejected", "windows_unsafe_control"],
+]) {
+  expectPrepareFailure(name, mode, /Unsafe ZIP path/);
+}
+test("portable Windows ZIP near-device filenames remain accepted", () => {
+  const value = fixture({ chromium: { mode: "windows_portable_names" } });
+  try {
+    const { output } = prepare(value);
+    preflight(value, output);
+  } finally {
+    cleanup(value);
+  }
+});
 expectPrepareFailure("duplicate ZIP entry is rejected", "duplicate");
 expectPrepareFailure(
   "case-folded duplicate ZIP entry is rejected",
