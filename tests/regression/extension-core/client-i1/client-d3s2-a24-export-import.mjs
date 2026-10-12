@@ -159,7 +159,7 @@ await run("EX-68..EX-74", "secret lifetime/privacy boundaries contain no plainte
 
 const popupSource = fs.readFileSync(new URL("../../../../apps/extension/src/application/popup.js", import.meta.url), "utf8");
 function popupFixture(fragment = "", { openFails = false } = {}) {
-  const nodes = new Map(), calls = { queries: 0, messages: [], opens: [], listeners: [], fileClicks: 0, focuses: [], scrolls: [] };
+  const nodes = new Map(), calls = { queries: 0, messages: [], opens: [], listeners: [], fileClicks: 0, focuses: [], scrolls: [], panels: [], closes: 0 };
   const node = id => {
     if (!nodes.has(id)) nodes.set(id, { id, value: "", hidden: false, files: [], disabled: false,
       focus() { calls.focuses.push(id); }, scrollIntoView() { calls.scrolls.push(id); }, click() { if (id === "backup-file") calls.fileClicks++; },
@@ -169,12 +169,13 @@ function popupFixture(fragment = "", { openFails = false } = {}) {
     return nodes.get(id);
   };
   const timers = new Map(); let timerId = 0, uuid = 0;
-  const ctx = { console, URL, Blob, navigator: { userAgent: "Chromium" }, location: { hash: fragment },
+  const ctx = { console, URL, Blob, navigator: { userAgent: "Chromium" }, location: { hash: fragment }, close: () => { calls.closes++; },
     crypto: { randomUUID: () => `00000000-0000-4000-8000-${String(++uuid).padStart(12, "0")}` },
     document: { getElementById: node, querySelector: node },
     setTimeout: fn => { timers.set(++timerId, fn); return timerId; }, clearTimeout: id => timers.delete(id),
     chrome: {
-      tabs: { query: async () => { calls.queries++; return [{ id: 7 }]; }, create: async ({url}) => { if (openFails) throw new Error("create rejected"); const id = 100 + calls.opens.length; calls.opens.push({ url, id }); return { id }; } },
+      sidePanel: { open: async options => { if (openFails) throw new Error("panel rejected"); calls.panels.push({ ...options }); } },
+      tabs: { query: async () => { calls.queries++; return [{ id: 7, windowId: 4 }]; }, create: async ({url}) => { if (openFails) throw new Error("create rejected"); const id = 100 + calls.opens.length; calls.opens.push({ url, id }); return { id }; } },
       runtime: { getURL: path => "chrome-extension://fixture/" + path, sendMessage: async request => {
         calls.messages.push(request);
         if (request.type === "SA_POPUP_STATE") return { ok: true, context: {}, stores: [] };
@@ -192,21 +193,34 @@ function popupFixture(fragment = "", { openFails = false } = {}) {
   return { ctx, calls, node, flush: async () => { for (let i = 0; i < 12; i++) await Promise.resolve(); },
     timers: () => { const work = [...timers.values()]; timers.clear(); work.forEach(fn => fn()); } };
 }
-await run("POPUP-IMPORT-OPEN", "key actions focus the single embedded import/export form without side effects", async () => {
+await run("POPUP-IMPORT-OPEN", "upload opens the durable native panel; export stays in the current form", async () => {
   const f = popupFixture(); await f.flush();
   assert.equal(f.calls.queries, 1);
   const messagesBefore = f.calls.messages.length;
   await f.node("keys-upload").onclick();
-  assert.equal(f.calls.focuses.at(-1), "backup-file");
+  assert.deepEqual(f.calls.panels, [{ windowId: 4 }]);
+  assert.equal(f.calls.closes, 1);
+  assert.deepEqual(f.calls.focuses, []);
   await f.node("keys-download").onclick();
   assert.equal(f.calls.focuses.at(-1), "backup-password");
-  assert.deepEqual(f.calls.scrolls, ["backup", "backup"]);
+  assert.deepEqual(f.calls.scrolls, ["backup"]);
   assert.equal(f.calls.opens.length, 0);
   assert.equal(f.calls.fileClicks, 0);
   assert.equal(f.calls.messages.length, messagesBefore, "focus alone never imports or exports credentials");
   assert.equal(typeof f.node("backup-file").onchange, "function");
 });
-await run("POPUP-IMPORT-ISOLATION", "durable browser tab emits only explicit account backup requests", async () => {
+await run("POPUP-IMPORT-PANEL-DENIED", "native panel refusal stays visible without opening a tab or file picker", async () => {
+  const f = popupFixture("", { openFails: true }); await f.flush();
+  const messagesBefore = f.calls.messages.length;
+  await f.node("keys-upload").onclick();
+  assert.equal(f.calls.closes, 0);
+  assert.equal(f.calls.panels.length, 0);
+  assert.equal(f.calls.opens.length, 0);
+  assert.equal(f.calls.fileClicks, 0);
+  assert.equal(f.calls.messages.length, messagesBefore);
+  assert.match(f.node("status").textContent, /Не удалось открыть панель/);
+});
+await run("POPUP-IMPORT-ISOLATION", "durable import surface emits only explicit account backup requests", async () => {
   const f = popupFixture("#backup-import"); await f.flush();
   assert.equal(f.calls.queries, 0); assert.equal(f.calls.listeners.length, 0); assert.equal(f.calls.messages.length, 0);
   assert.deepEqual(f.calls.visibleRoots, ["backup", "status"]);
