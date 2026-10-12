@@ -374,19 +374,16 @@ function decodeZipName(bytes, utf8) {
 }
 
 // Minimal ZIP reader: no extraction, duplicate-preserving central-directory walk.
-// ZIP names accepted for browser distribution must survive Windows extraction
-// unchanged. Win32 treats device names, streams and trailing dots/spaces
-// differently from the logical ZIP filename (even in nested directories).
+// Browser-release ZIP entry names use portable printable ASCII. This avoids
+// Unicode casefold/normalization aliases between Windows extraction and ZIP
+// duplicate detection while keeping non-ASCII file CONTENT fully supported.
+// Win32 also treats device names, streams and trailing dots/spaces specially.
 function unsafeWindowsZipSegment(segment) {
-  if (
-    /[<>:"|?*]/u.test(segment) ||
-    /[. ]$/u.test(segment) ||
-    Array.from(segment).some((character) => character.charCodeAt(0) < 32)
-  ) {
+  if (/[<>:"|?*]/u.test(segment) || /[. ]$/u.test(segment)) {
     return true;
   }
-  const deviceStem = segment.split(".", 1)[0].trimEnd();
-  return /^(?:CON|PRN|AUX|NUL|COM[1-9¹²³]|LPT[1-9¹²³])$/iu.test(deviceStem);
+  const deviceStem = segment.split(".", 1)[0].replace(/ +$/u, "");
+  return /^(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/iu.test(deviceStem);
 }
 
 export function readZip(bytes) {
@@ -482,6 +479,7 @@ export function readZip(bytes) {
 
     if (
       !name ||
+      /[^\x20-\x7e]/u.test(name) ||
       name.includes("\0") ||
       name.includes("\\") ||
       name.startsWith("/") ||

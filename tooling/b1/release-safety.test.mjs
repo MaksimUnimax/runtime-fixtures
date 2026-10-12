@@ -121,8 +121,16 @@ if mode.startswith("windows_unsafe_"):
         "windows_unsafe_trailing_space":"content/name.js ",
         "windows_unsafe_wildcard":"content/name?.js",
         "windows_unsafe_control":"content/name\x1f.js",
+        "windows_unsafe_nonascii_composed":"content/café.js",
+        "windows_unsafe_nonascii_decomposed":"content/cafe\u0301.js",
+        "windows_unsafe_nonascii_kelvin":"content/Kernel.js",
     }
     rows.append((invalid_names[mode],b"non-private fixture"))
+if mode=="windows_case_alias":
+    rows.extend([
+        ("content/Foo.js",b"first"),
+        ("content/foo.js",b"second"),
+    ])
 if mode=="windows_portable_names":
     rows.extend([
         ("content/AUXiliary.js",b"portable"),
@@ -751,9 +759,26 @@ for (const [name, mode] of [
   ["Windows ZIP trailing space is rejected", "windows_unsafe_trailing_space"],
   ["Windows ZIP wildcard is rejected", "windows_unsafe_wildcard"],
   ["Windows ZIP control character is rejected", "windows_unsafe_control"],
+  [
+    "Windows ZIP non-ASCII composed filename is rejected",
+    "windows_unsafe_nonascii_composed",
+  ],
+  [
+    "Windows ZIP non-ASCII decomposed filename is rejected",
+    "windows_unsafe_nonascii_decomposed",
+  ],
+  [
+    "Windows ZIP non-ASCII compatibility case filename is rejected",
+    "windows_unsafe_nonascii_kelvin",
+  ],
 ]) {
   expectPrepareFailure(name, mode, /Unsafe ZIP path/);
 }
+expectPrepareFailure(
+  "Windows ZIP nested ASCII case alias is rejected",
+  "windows_case_alias",
+  /Duplicate ZIP entry/,
+);
 test("portable Windows ZIP near-device filenames remain accepted", () => {
   const value = fixture({ chromium: { mode: "windows_portable_names" } });
   try {
