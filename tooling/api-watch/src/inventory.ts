@@ -253,18 +253,36 @@ function securityFingerprint(
   return fingerprint({ requirements, schemes }, "literal");
 }
 
-function parametersFingerprint(
+// Operation parameters override Path Item parameters with the same name and
+// location (OAS 2 and 3). Resolve local references before identifying them.
+function effectiveParameters(
   operation: Record<string, unknown>,
-  pathParameters: unknown[],
+  pathParameters: readonly unknown[],
   root: Record<string, unknown>,
+): Record<string, unknown>[] {
+  const effective = new Map<string, Record<string, unknown>>();
+  let unresolvedIndex = 0;
+  const add = (raw: unknown) => {
+    const parameter = asObject(localRef(raw, root));
+    const identity =
+      typeof parameter.name === "string" && typeof parameter.in === "string"
+        ? JSON.stringify([parameter.name, parameter.in])
+        : "unresolved:" + unresolvedIndex++;
+    effective.set(identity, parameter);
+  };
+  for (const parameter of pathParameters) add(parameter);
+  for (const parameter of Array.isArray(operation.parameters)
+    ? operation.parameters
+    : [])
+    add(parameter);
+  return [...effective.values()];
+}
+
+function parametersFingerprint(
+  parameters: readonly Record<string, unknown>[],
 ): string {
-  const all = [
-    ...pathParameters,
-    ...(Array.isArray(operation.parameters) ? operation.parameters : []),
-  ];
-  const projected = all
-    .map((raw) => {
-      const parameter = asObject(localRef(raw, root));
+  const projected = parameters
+    .map((parameter) => {
       return Object.fromEntries(
         Object.entries(parameter)
           .filter(
@@ -280,17 +298,14 @@ function parametersFingerprint(
 
 function requestFingerprint(
   operation: Record<string, unknown>,
-  parameters: unknown[],
+  parameters: readonly Record<string, unknown>[],
   root: Record<string, unknown>,
 ): string | null {
   if (operation.requestBody !== undefined)
     return schemaFingerprint(operation.requestBody, root);
-  const bodies = [
-    ...parameters,
-    ...(Array.isArray(operation.parameters) ? operation.parameters : []),
-  ]
-    .filter((raw) => asObject(raw).in === "body")
-    .map((raw) => asObject(raw).schema ?? null);
+  const bodies = parameters
+    .filter((parameter) => parameter.in === "body")
+    .map((parameter) => parameter.schema ?? null);
   return bodies.length
     ? schemaFingerprint(bodies, root, "node", "schema")
     : null;
@@ -341,20 +356,11 @@ function securityReferences(
 
 function hasRequestBody(
   operation: Record<string, unknown>,
-  pathParameters: unknown[],
+  parameters: readonly Record<string, unknown>[],
 ): boolean {
   if (operation.requestBody && typeof operation.requestBody === "object")
     return true;
-  const operationParameters = Array.isArray(operation.parameters)
-    ? operation.parameters
-    : [];
-  return [...pathParameters, ...operationParameters].some(
-    (parameter) =>
-      parameter &&
-      typeof parameter === "object" &&
-      !Array.isArray(parameter) &&
-      (parameter as Record<string, unknown>).in === "body",
-  );
+  return parameters.some((parameter) => parameter.in === "body");
 }
 
 export function buildCompleteOperationInventory(input: {
@@ -372,7 +378,6 @@ export function buildCompleteOperationInventory(input: {
     const pathParameterValues = Array.isArray(pathItem.parameters)
       ? pathItem.parameters
       : [];
-    const pathParameters = pathParameterValues.length;
     for (const method of HTTP_METHODS) {
       const operation = pathItem[method.toLowerCase()];
       if (
@@ -383,6 +388,11 @@ export function buildCompleteOperationInventory(input: {
         continue;
       const op = operation as Record<string, unknown>;
       const normalized = normalizedPath(path);
+      const parameters = effectiveParameters(
+        op,
+        pathParameterValues,
+        document.root,
+      );
       const summary = typeof op.summary === "string" ? op.summary : null;
       const responses = asObject(op.responses);
       const operationPath = `${input.sourceFamily}:${method}:${normalized}`;
@@ -401,21 +411,11 @@ export function buildCompleteOperationInventory(input: {
             ? null
             : createHash("sha256").update(summary).digest("hex"),
         securitySchemeReferences: securityReferences(op, document.root),
-        requestBodyPresent: hasRequestBody(op, pathParameterValues),
-        parameterCount:
-          pathParameters +
-          (Array.isArray(op.parameters) ? op.parameters.length : 0),
+        requestBodyPresent: hasRequestBody(op, parameters),
+        parameterCount: parameters.length,
         responseStatusKeys: Object.keys(responses).sort(),
-        parameterSchemaSha256: parametersFingerprint(
-          op,
-          pathParameterValues,
-          document.root,
-        ),
-        requestSchemaSha256: requestFingerprint(
-          op,
-          pathParameterValues,
-          document.root,
-        ),
+        parameterSchemaSha256: parametersFingerprint(parameters),
+        requestSchemaSha256: requestFingerprint(op, parameters, document.root),
         responseSchemaSha256: responseFingerprint(responses, document.root),
         securityRequirementsSha256: securityFingerprint(op, document.root),
       });

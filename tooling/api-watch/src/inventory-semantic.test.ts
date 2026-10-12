@@ -334,3 +334,182 @@ describe("local references respect schema position and dialect", () => {
     expect(state(make("A"), make("B"))).toBe("CHANGED");
   });
 });
+
+describe("OpenAPI path/operation parameter overrides", () => {
+  const make = (
+    pathType: string,
+    overrideType: string,
+    pageType = "integer",
+    referenced = false,
+  ) =>
+    buildCompleteOperationInventory({
+      sourceFamily: "OZON_SELLER",
+      snapshotSha256: "c".repeat(64),
+      filename: "path-override.json",
+      bytes: Buffer.from(
+        JSON.stringify({
+          openapi: "3.0.3",
+          info: { title: "override", version: "1" },
+          ...(referenced
+            ? {
+                components: {
+                  parameters: {
+                    PathId: {
+                      name: "id",
+                      in: "path",
+                      required: true,
+                      schema: { type: pathType },
+                    },
+                    OperationId: {
+                      name: "id",
+                      in: "path",
+                      required: true,
+                      schema: { type: overrideType },
+                    },
+                  },
+                },
+              }
+            : {}),
+          paths: {
+            "/items/{id}": {
+              parameters: [
+                referenced
+                  ? { $ref: "#/components/parameters/PathId" }
+                  : {
+                      name: "id",
+                      in: "path",
+                      required: true,
+                      schema: { type: pathType },
+                    },
+                {
+                  name: "page",
+                  in: "query",
+                  schema: { type: pageType },
+                },
+              ],
+              get: {
+                operationId: "getItems",
+                parameters: [
+                  referenced
+                    ? { $ref: "#/components/parameters/OperationId" }
+                    : {
+                        name: "id",
+                        in: "path",
+                        required: true,
+                        schema: { type: overrideType },
+                      },
+                ],
+                responses: { "200": { description: "OK" } },
+              },
+            },
+          },
+        }),
+      ),
+    });
+
+  it("does not report a breaking change to a shadowed path parameter", () => {
+    const before = make("string", "integer");
+    const after = make("boolean", "integer");
+    expect(state(before, after)).toBe("UNCHANGED");
+    expect(before.operations[0]!.parameterCount).toBe(2);
+    expect(after.operations[0]!.parameterCount).toBe(2);
+    expect(after.operations[0]!.parameterSchemaSha256).toBe(
+      before.operations[0]!.parameterSchemaSha256,
+    );
+  });
+
+  it("still detects effective operation overrides and inherited parameter changes", () => {
+    expect(state(make("string", "integer"), make("string", "string"))).toBe(
+      "CHANGED",
+    );
+    expect(
+      state(make("string", "integer"), make("string", "integer", "string")),
+    ).toBe("CHANGED");
+  });
+
+  it("resolves referenced parameters before matching override identities", () => {
+    const before = make("string", "integer", "integer", true);
+    const after = make("boolean", "integer", "integer", true);
+    expect(state(before, after)).toBe("UNCHANGED");
+    expect(before.operations[0]!.parameterCount).toBe(2);
+  });
+
+  it("retains different locations with the same name as separate parameters", () => {
+    const baseline = make("string", "integer");
+    const withQueryId = buildCompleteOperationInventory({
+      sourceFamily: "OZON_SELLER",
+      snapshotSha256: "d".repeat(64),
+      filename: "different-location.json",
+      bytes: Buffer.from(
+        JSON.stringify({
+          openapi: "3.0.3",
+          info: { title: "override", version: "1" },
+          paths: {
+            "/items/{id}": {
+              parameters: [
+                {
+                  name: "id",
+                  in: "path",
+                  required: true,
+                  schema: { type: "string" },
+                },
+                { name: "page", in: "query", schema: { type: "integer" } },
+              ],
+              get: {
+                operationId: "getItems",
+                parameters: [
+                  {
+                    name: "id",
+                    in: "path",
+                    required: true,
+                    schema: { type: "integer" },
+                  },
+                  { name: "id", in: "query", schema: { type: "string" } },
+                ],
+                responses: { "200": { description: "OK" } },
+              },
+            },
+          },
+        }),
+      ),
+    });
+    expect(withQueryId.operations[0]!.parameterCount).toBe(3);
+    expect(state(baseline, withQueryId)).toBe("CHANGED");
+  });
+
+  it("recognizes a Swagger 2 referenced body parameter", () => {
+    const result = buildCompleteOperationInventory({
+      sourceFamily: "OZON_SELLER",
+      snapshotSha256: "e".repeat(64),
+      filename: "referenced-body.json",
+      bytes: Buffer.from(
+        JSON.stringify({
+          swagger: "2.0",
+          info: { title: "body", version: "1" },
+          parameters: {
+            Payload: {
+              name: "body",
+              in: "body",
+              required: true,
+              schema: {
+                type: "object",
+                properties: { id: { type: "string" } },
+              },
+            },
+          },
+          paths: {
+            "/items": {
+              post: {
+                parameters: [{ $ref: "#/parameters/Payload" }],
+                responses: { "200": { description: "OK" } },
+              },
+            },
+          },
+        }),
+      ),
+    });
+    expect(result.operations[0]!.requestBodyPresent).toBe(true);
+    expect(result.operations[0]!.requestSchemaSha256).toBeTruthy();
+    expect(result.operations[0]!.parameterCount).toBe(1);
+  });
+});
