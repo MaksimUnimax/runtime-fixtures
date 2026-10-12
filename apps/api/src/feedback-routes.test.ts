@@ -110,7 +110,7 @@ function repository(
   };
 }
 
-function adminAuth() {
+function adminAuth(allowManage = true) {
   const subject: AdminSubject = {
     adminPrincipalId: principalId,
     userId,
@@ -118,7 +118,7 @@ function adminAuth() {
     roles: ["ADMIN_SUPPORT"],
     permissions: [
       "support.case.read",
-      "support.case.manage",
+      ...(allowManage ? (["support.case.manage"] as const) : []),
       "support.aggregate.read",
     ],
     expiresAt: new Date("2030-01-01T01:00:00.000Z"),
@@ -138,12 +138,12 @@ function adminAuth() {
   return service;
 }
 
-function app(repo = repository()) {
+function app(repo = repository(), admin = adminAuth()) {
   return createApiApp({
     config,
     isInfrastructureReady: async () => true,
     authService: authService(),
-    adminAuthService: adminAuth(),
+    adminAuthService: admin,
     feedbackSupportService: new FeedbackSupportService(repo),
   });
 }
@@ -254,6 +254,58 @@ describe("B2 feedback/support API", () => {
     });
     expect(response.statusCode).toBe(400);
     await server.close();
+  });
+
+  it("B2 denies support mutations without manage permission or CSRF before repository calls", async () => {
+    const repo = repository();
+    const transition = vi.spyOn(repo, "transitionCase");
+    const addFollowup = vi.spyOn(repo, "addFollowup");
+    const list = vi.spyOn(repo, "listCases");
+    const limited = app(repo, adminAuth(false));
+    const full = app(repo);
+    const baseHeaders = {
+      cookie: `pcp_admin_session=admin-session; pcp_admin_csrf=${portalCsrf}`,
+      "x-csrf-token": portalCsrf,
+    };
+    const statusUrl = `/v1/admin/support/cases/${caseId}/status`;
+    const followupUrl = `/v1/admin/support/cases/${caseId}/followups`;
+    try {
+      const permittedRead = await limited.inject({
+        method: "GET",
+        url: "/v1/admin/support/cases?status=NEW",
+        headers: baseHeaders,
+      });
+      expect(permittedRead.statusCode).toBe(200);
+      expect(list).toHaveBeenCalledTimes(1);
+
+      for (const [url, payload] of [
+        [statusUrl, { status: "TRIAGED" }],
+        [followupUrl, { description: "synthetic denied response" }],
+      ] as const) {
+        const withoutPermission = await limited.inject({
+          method: "POST",
+          url,
+          headers: baseHeaders,
+          payload,
+        });
+        expect(withoutPermission.statusCode).toBe(403);
+        expect(withoutPermission.json().error.code).toBe("ADMIN_FORBIDDEN");
+
+        const withoutCsrf = await full.inject({
+          method: "POST",
+          url,
+          headers: { cookie: "pcp_admin_session=admin-session" },
+          payload,
+        });
+        expect(withoutCsrf.statusCode).toBe(403);
+        expect(withoutCsrf.json().error.code).toBe("ADMIN_CSRF_INVALID");
+      }
+      expect(transition).not.toHaveBeenCalled();
+      expect(addFollowup).not.toHaveBeenCalled();
+    } finally {
+      await limited.close();
+      await full.close();
+    }
   });
 
   it("B2-04/B2-07 exposes support workflow only with support permissions", async () => {
