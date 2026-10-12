@@ -106,4 +106,53 @@ describe("S1.1 beta admission domain", () => {
     expect(captured!.payloadHash).not.toContain("reviewer@example.test");
     expect(captured!.expiresAt.toISOString()).toBe("2030-01-02T00:00:00.000Z");
   });
+
+  it("rejects malformed invitation domain labels before repository mutation", async () => {
+    let invitations = 0;
+    const service = new BetaAdmissionService({
+      resolve: async () => ({ kind: "NONE" }),
+      read: async () => ({
+        mode: "CLOSED",
+        capacity: 1,
+        admitted: 0,
+        remaining: 1,
+        revision: 1,
+        updatedAt: new Date(),
+      }),
+      mutate: async () => ({ kind: "CONFLICT" }),
+      readIdentityInvitation: async () => null,
+      inviteIdentity: async () => {
+        invitations += 1;
+        return { kind: "CONFLICT" as const };
+      },
+      revokeIdentityInvitation: async () => ({ kind: "NOT_FOUND" as const }),
+    });
+    const request = {
+      actorPrincipalId: "synthetic-beta-admin",
+      requestId: "synthetic-invitation-request",
+      correlationId: "synthetic-correlation",
+      expectedRevision: 1,
+      reason: "domain validation regression",
+    };
+    for (const normalizedIdentityTarget of [
+      "reviewer@.example.test",
+      "reviewer@example..test",
+      "reviewer@example.test.",
+      "reviewer@-example.test",
+      "reviewer@example-.test",
+    ]) {
+      await expect(
+        service.createIdentityInvitation({
+          ...request,
+          normalizedIdentityTarget,
+        }),
+      ).resolves.toEqual({ kind: "CONFLICT" });
+    }
+    expect(invitations).toBe(0);
+    await service.createIdentityInvitation({
+      ...request,
+      normalizedIdentityTarget: "reviewer+tag@bücher.example",
+    });
+    expect(invitations).toBe(1);
+  });
 });

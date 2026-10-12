@@ -637,6 +637,107 @@ describe("D3S2-2A control-plane foundation", () => {
     expect(service.relayForTests().statsForTests().packets).toBe(0);
   });
 
+  it("does not roll back a committed packet when sourceSeen races the in-flight submit", async () => {
+    const repository = createMemoryTransferRepository();
+    let releaseMark!: () => void;
+    let announceMark!: () => void;
+    const gate = new Promise<void>((resolve) => (releaseMark = resolve));
+    const committed = new Promise<void>((resolve) => (announceMark = resolve));
+    const gated: TransferRepository = {
+      ...repository,
+      async markPacketAvailable(input) {
+        const committedRow = await repository.markPacketAvailable(input);
+        announceMark();
+        await gate;
+        return committedRow;
+      },
+    };
+    const service = new CredentialTransferService(
+      gated,
+      new EphemeralTransferRelay(),
+      () => new Date("2026-09-18T10:00:00.000Z"),
+    );
+    await prepare(service, id);
+    const submitting = service.submit(source, packet(id, "first-packet"));
+    await committed;
+    let sourceRetryError: unknown = null;
+    try {
+      await service.sourceSeen(source, id);
+    } catch (error) {
+      sourceRetryError = error;
+    } finally {
+      releaseMark();
+    }
+    const sent = await submitting;
+    expect(sourceRetryError).toMatchObject({ code: "TRANSFER_CONFLICT" });
+    expect(sent.request).toMatchObject({ state: "PACKET_AVAILABLE_EPHEMERAL" });
+    await expect(service.receive(recipient, id)).resolves.toMatchObject({
+      envelope: "first-packet",
+    });
+  });
+
+  it("fences submit while sourceSeen is committing without blocking a different request", async () => {
+    const repository = createMemoryTransferRepository();
+    let delayNextSourceSeen = false;
+    let enterSourceSeen!: () => void;
+    let releaseSourceSeen!: () => void;
+    const seen = new Promise<void>((resolve) => (enterSourceSeen = resolve));
+    const gate = new Promise<void>((resolve) => (releaseSourceSeen = resolve));
+    const gated: TransferRepository = {
+      ...repository,
+      async markSourceSeen(input) {
+        if (delayNextSourceSeen) {
+          enterSourceSeen();
+          await gate;
+        }
+        return repository.markSourceSeen(input);
+      },
+    };
+    const service = new CredentialTransferService(
+      gated,
+      new EphemeralTransferRelay(),
+      () => new Date("2026-09-18T10:00:00.000Z"),
+    );
+    const independent = idFor(3);
+    await prepare(service, id);
+    await prepare(service, independent);
+    delayNextSourceSeen = true;
+    const retryingSource = service.sourceSeen(source, id);
+    await seen;
+    try {
+      await expect(
+        service.submit(source, packet(id, "must-not-overlap")),
+      ).rejects.toMatchObject({ code: "TRANSFER_CONFLICT" });
+      await service.submit(source, packet(independent, "other-request"));
+      await expect(
+        service.receive(recipient, independent),
+      ).resolves.toMatchObject({
+        envelope: "other-request",
+      });
+    } finally {
+      releaseSourceSeen();
+    }
+    await retryingSource;
+    await service.submit(source, packet(id, "after-source-seen"));
+    await expect(service.receive(recipient, id)).resolves.toMatchObject({
+      envelope: "after-source-seen",
+    });
+  });
+
+  it("keeps a prepared packet available on a sequential sourceSeen retry", async () => {
+    const { service } = setup();
+    await prepare(service, id);
+    await service.submit(source, packet(id, "available-packet"));
+    const retried = await service.sourceSeen(source, id);
+    expect(retried.state).toBe("PACKET_AVAILABLE_EPHEMERAL");
+    expect((await service.read(recipient, id))?.state).toBe(
+      "PACKET_AVAILABLE_EPHEMERAL",
+    );
+    await expect(service.receive(recipient, id)).resolves.toMatchObject({
+      envelope: "available-packet",
+    });
+  });
+
   it("reserves before the durable transition and keeps reservations unreadable", async () => {
     const repository = createMemoryTransferRepository();
     let finishMark!: () => void;
@@ -663,8 +764,10 @@ describe("D3S2-2A control-plane foundation", () => {
       packets: 1,
       reserved: 1,
     });
+    // A source is actively committing this request: fail as a concurrent
+    // mutation, not as a misleading durable SOURCE_OFFLINE result.
     await expect(service.receive(recipient, id)).rejects.toThrow(
-      "SOURCE_OFFLINE",
+      "TRANSFER_CONFLICT",
     );
     finishMark();
     await submitting;

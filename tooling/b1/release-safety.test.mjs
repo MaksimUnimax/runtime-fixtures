@@ -212,6 +212,14 @@ with zipfile.ZipFile(path,"a" if mode=="zip_opaque_prefix" else "w") as z:
             info.create_system=3
             info.external_attr=(0o040755<<16)
             z.writestr(info,value)
+        elif mode=="zip_entry_comment" and name=="worker.js":
+            info=zipfile.ZipInfo(name)
+            info.comment=b"C01_NONPRIVATE_HIDDEN_ENTRY_COMMENT"
+            z.writestr(info,value)
+        elif mode=="zip_entry_extra" and name=="worker.js":
+            info=zipfile.ZipInfo(name)
+            info.extra=bytes((239,190,4,0))+b"FAKE"
+            z.writestr(info,value)
         else:
             z.writestr(name,value)
     if mode=="unix_file_for_directory":
@@ -233,6 +241,24 @@ if mode=="zip_local_crc_mismatch":
         old=struct.unpack("<I",handle.read(4))[0]
         handle.seek(14)
         handle.write(struct.pack("<I",old^1))
+if mode=="zip_local_extra_only":
+    with open(path,"rb") as handle:
+        raw=bytearray(handle.read())
+    with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+        worker_info=archive.getinfo("worker.js")
+    position=worker_info.header_offset
+    name_size,extra_size=struct.unpack_from("<HH",raw,position+26)
+    local_data_start=position+30+name_size+extra_size
+    extra=bytes((239,190,4,0))+b"FAKE"
+    raw[local_data_start:local_data_start]=extra
+    struct.pack_into("<H",raw,position+28,extra_size+len(extra))
+    eocd=raw.rfind(bytes((80,75,5,6)))
+    old_central_start=struct.unpack_from("<I",raw,eocd+16)[0]
+    struct.pack_into("<I",raw,eocd+16,old_central_start+len(extra))
+    with open(path,"wb") as handle:
+        handle.write(raw)
+    with zipfile.ZipFile(path) as archive:
+        assert archive.testzip() is None
 `;
 
 function encode(value) {
@@ -684,6 +710,18 @@ expectPrepareFailure(
 expectPrepareFailure(
   "CRC signature collision with hidden descriptor gap is rejected",
   "zip_stream_crc_collision_gap",
+);
+expectPrepareFailure(
+  "opaque ZIP per-entry comment is rejected",
+  "zip_entry_comment",
+);
+expectPrepareFailure(
+  "opaque ZIP central and local extra metadata is rejected",
+  "zip_entry_extra",
+);
+expectPrepareFailure(
+  "opaque ZIP local-only extra metadata is rejected",
+  "zip_local_extra_only",
 );
 expectPrepareFailure("symlink-like ZIP entry is rejected", "symlink");
 

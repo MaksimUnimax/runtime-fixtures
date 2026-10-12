@@ -141,6 +141,103 @@ describe.sequential(
       },
     );
 
+    it("keeps a committed packet receivable while a same-service submit is in flight", async () => {
+      const f = await fixture(true);
+      await f.service.sourceSeen(f.source, f.requestId);
+      let signalCommit!: () => void;
+      let releaseResponse!: () => void;
+      const committed = new Promise<void>(
+        (resolve) => (signalCommit = resolve),
+      );
+      const delayedResponse = new Promise<void>(
+        (resolve) => (releaseResponse = resolve),
+      );
+      const gatedRepository = {
+        ...f.repository,
+        async markPacketAvailable(
+          input: Parameters<typeof f.repository.markPacketAvailable>[0],
+        ) {
+          const committedRow = await f.repository.markPacketAvailable(input);
+          signalCommit();
+          await delayedResponse;
+          return committedRow;
+        },
+      };
+      const service = new CredentialTransferService(
+        gatedRepository,
+        new EphemeralTransferRelay(),
+        () => new Date("2026-10-08T00:00:00.000Z"),
+      );
+      const packet = {
+        requestId: f.requestId,
+        packetId: randomUUID(),
+        envelope: "SOURCE_RACE_SYNTHETIC_PACKET",
+      };
+      const submitting = service.submit(f.source, packet);
+      let pendingTimeout: ReturnType<typeof setTimeout> | undefined;
+      try {
+        await Promise.race([
+          committed,
+          new Promise<void>((_, reject) => {
+            pendingTimeout = setTimeout(
+              () => reject(new Error("durable packet commit was not observed")),
+              8_000,
+            );
+          }),
+        ]);
+        await expect(
+          service.sourceSeen(f.source, f.requestId),
+        ).rejects.toMatchObject({ code: "TRANSFER_CONFLICT" });
+        const row = await db.query<{ state: string }>(
+          "SELECT state FROM credential_transfer_requests WHERE request_id=$1",
+          [f.requestId],
+        );
+        expect(row.rows[0]?.state).toBe("PACKET_AVAILABLE_EPHEMERAL");
+      } finally {
+        if (pendingTimeout) clearTimeout(pendingTimeout);
+        releaseResponse();
+      }
+      await expect(submitting).resolves.toMatchObject({
+        request: { state: "PACKET_AVAILABLE_EPHEMERAL" },
+      });
+      await expect(service.receive(f.recipient, f.requestId)).resolves.toEqual(
+        packet,
+      );
+      await expect(
+        service.acknowledge(f.recipient, {
+          requestId: f.requestId,
+          packetId: packet.packetId,
+          importDecision: "IMPORTED",
+        }),
+      ).resolves.toMatchObject({ state: "COMPLETED" });
+    }, 20_000);
+
+    it("retains durable packet state on a sequential sourceSeen retry", async () => {
+      const f = await fixture(true);
+      await f.service.sourceSeen(f.source, f.requestId);
+      const packet = {
+        requestId: f.requestId,
+        packetId: randomUUID(),
+        envelope: "SOURCE_RETRY_SYNTHETIC_PACKET",
+      };
+      await f.service.submit(f.source, packet);
+      const prior = await f.service.read(f.recipient, f.requestId);
+      expect(prior?.state).toBe("PACKET_AVAILABLE_EPHEMERAL");
+      const retry = await f.service.sourceSeen(f.source, f.requestId);
+      expect(retry.state).toBe("PACKET_AVAILABLE_EPHEMERAL");
+      expect(retry.revision).toBe(prior?.revision);
+      const dbRow = await db.query<{ state: string; revision: number }>(
+        "SELECT state,revision FROM credential_transfer_requests WHERE request_id=$1",
+        [f.requestId],
+      );
+      expect(dbRow.rows).toEqual([
+        { state: "PACKET_AVAILABLE_EPHEMERAL", revision: prior?.revision },
+      ]);
+      await expect(
+        f.service.receive(f.recipient, f.requestId),
+      ).resolves.toEqual(packet);
+    });
+
     it("commits ACK durably when the HTTP response is lost after commit", async () => {
       const f = await fixture(true);
       await f.service.sourceSeen(f.source, f.requestId);

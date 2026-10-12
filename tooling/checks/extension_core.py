@@ -40,6 +40,7 @@ def main():
         runner.run("core-native-import-panel-entry", ["node", ROOT / "tests/regression/extension-core/native-import-panel-entry.mjs"])
         runner.run("core-content-read-block-dispatch", ["node", ROOT / "tests/regression/extension-core/content-read-block-dispatch.mjs"])
         runner.run("core-start-dispatch-progress", ["node", ROOT / "tests/regression/extension-core/start-dispatch-progress.mjs"])
+        runner.run("core-compose-optimized-python-guard", [sys.executable, "-B", ROOT / "tests/regression/extension-core/test-composed-optimized-python-guard.py"])
         original.negative_control(output)
         runner.run("core-provider-response-policy-differential", ["node", ROOT / "tests/regression/extension-core/provider-response-policy.mjs", ROOT])
         runner.run("core-provider-response-verifier-differential", ["node", ROOT / "tests/regression/extension-core/provider-response-verifier.mjs", ROOT])

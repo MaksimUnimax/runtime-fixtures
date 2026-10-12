@@ -18,6 +18,23 @@ describe("P2.2 cryptographic auth primitives", () => {
     expect(normalizeEmail(" User@Example.TEST ")).toBe("user@example.test");
     expect(generateOtp(() => 4)).toBe("000004");
   });
+  it("rejects noncanonical domain labels before using an email identity", () => {
+    for (const email of [
+      "reviewer@.example.test",
+      "reviewer@example..test",
+      "reviewer@example.test.",
+      "reviewer@-example.test",
+      "reviewer@example-.test",
+    ]) {
+      expect(normalizeEmail(email)).toBeUndefined();
+    }
+    expect(normalizeEmail(" Reviewer+tag@Example.TEST ")).toBe(
+      "reviewer+tag@example.test",
+    );
+    expect(normalizeEmail("mañana@bücher.example")).toBe(
+      "mañana@bücher.example",
+    );
+  });
   it("binds OTP verification artifacts", () => {
     const artifact = otpArtifact(
       keys,
