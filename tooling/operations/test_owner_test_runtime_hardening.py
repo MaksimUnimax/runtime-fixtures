@@ -26,7 +26,7 @@ def base_snapshot(**overrides: str) -> dict[str, str]:
         "MemoryMax": "infinity",
         "CPUQuotaPerSecUSec": "infinity",
         "TasksMax": "19045",
-        "WorkingDirectory": "/opt/octoport/ops-releases/example",
+        "WorkingDirectory": "/opt/octoport/ops-releases/" + "a" * 40 + "/apps/api",
         "MemoryCurrent": "100000000",
         "TasksCurrent": "30",
         "CPUUsageNSec": "100000000",
@@ -80,6 +80,50 @@ class HardeningAuditTest(unittest.TestCase):
         self.assertEqual(hardening._cpu_quota_usec("500ms"), 500_000)
         self.assertEqual(hardening._cpu_quota_usec("1min 30s"), 90_000_000)
         self.assertEqual(hardening._cpu_quota_usec("1h30min"), 5_400_000_000)
+
+    def test_nonroot_unit_with_unpinned_working_directory_is_not_accepted(self) -> None:
+        for working in ("/root/private/runtime", "/srv/octoport/current"):
+            with self.subTest(working=working):
+                snapshot = base_snapshot(
+                    User="octoport-owner-test",
+                    Group="octoport-owner-test",
+                    ProtectSystem="strict",
+                    ProtectHome="yes",
+                    MemoryHigh="536870912",
+                    MemoryMax="805306368",
+                    CPUQuotaPerSecUSec="2s",
+                    TasksMax="256",
+                    WorkingDirectory=working,
+                )
+                self.assertIn(
+                    "WORKING_DIRECTORY_NOT_PINNED_RELEASE",
+                    hardening.configuration_gaps(snapshot),
+                )
+                runner = FakeRunner({unit: [snapshot] for unit in hardening.UNITS})
+                result = hardening.audit_units(
+                    samples=1,
+                    interval_seconds=0,
+                    runner=runner,
+                    monotonic_ns=lambda: 1,
+                )
+                self.assertEqual(result["status"], "HARDENING_GAPS_FOUND")
+
+    def test_noncanonical_release_paths_fail_closed(self) -> None:
+        pinned = "/opt/octoport/ops-releases/" + "a" * 40
+        for suffix in (
+            "../outside",
+            "apps/../../outside",
+            "apps//api",
+            "apps/./api",
+            "",
+        ):
+            with self.subTest(suffix=suffix):
+                with self.assertRaisesRegex(
+                    hardening.HardeningAuditError, "WORKING_DIRECTORY_INVALID"
+                ):
+                    hardening.normalize_configuration(
+                        base_snapshot(WorkingDirectory=pinned + "/" + suffix)
+                    )
 
     def test_validated_configuration_output_is_sanitized(self) -> None:
         user = "octoport-owner-test"

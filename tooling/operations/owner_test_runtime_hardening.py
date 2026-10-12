@@ -193,7 +193,15 @@ def _cpu_quota_usec(value: str) -> int | None:
 def _working_directory_class(value: str) -> str:
     if not value.startswith("/") or any(ord(char) < 32 for char in value):
         raise HardeningAuditError("WORKING_DIRECTORY_INVALID")
-    if re.fullmatch(r"/opt/octoport/ops-releases/[0-9a-f]{40}(?:/.*)?", value):
+    match = re.fullmatch(
+        r"/opt/octoport/ops-releases/[0-9a-f]{40}(?:/(.*))?", value
+    )
+    if match is not None:
+        suffix = match.group(1)
+        if suffix is not None and any(
+            part in {"", ".", ".."} for part in suffix.split("/")
+        ):
+            raise HardeningAuditError("WORKING_DIRECTORY_INVALID")
         return "PINNED_OPS_RELEASE"
     if value.startswith("/root/"):
         return "ROOT_PRIVATE_PATH"
@@ -262,6 +270,8 @@ def configuration_gaps(snapshot: dict[str, str]) -> list[str]:
         gaps.append("UNIT_NOT_RUNNING")
     if config["identityClass"] == "ROOT_OR_UNSET":
         gaps.append("SERVICE_IDENTITY_ROOT_OR_UNSET")
+    if config["workingDirectoryClass"] != "PINNED_OPS_RELEASE":
+        gaps.append("WORKING_DIRECTORY_NOT_PINNED_RELEASE")
     if not config["dynamicUser"] and not config["groupConfigured"]:
         gaps.append("SERVICE_GROUP_UNSET")
     if not config["noNewPrivileges"]:
