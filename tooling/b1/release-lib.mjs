@@ -606,15 +606,26 @@ export function readZip(bytes) {
 
     const compressed = bytes.subarray(dataStart, compressedEnd);
     let data;
+    let compressedBytesConsumed = compressed.length;
     try {
-      data =
-        method === 0
-          ? compressed
-          : inflateRawSync(compressed, {
-              maxOutputLength: Math.max(1, rawSize + 1),
-            });
+      if (method === 0) {
+        data = compressed;
+      } else {
+        // inflateRawSync normally accepts a valid deflate stream followed by
+        // unchecked garbage. Require the parser to consume every declared
+        // compressed byte, not only to produce the expected raw CRC/length.
+        const decoded = inflateRawSync(compressed, {
+          maxOutputLength: Math.max(1, rawSize + 1),
+          info: true,
+        });
+        data = decoded.buffer;
+        compressedBytesConsumed = decoded.engine.bytesWritten;
+      }
     } catch {
       fail("Invalid compressed ZIP entry");
+    }
+    if (compressedBytesConsumed !== compressed.length) {
+      fail("Unconsumed compressed ZIP entry data");
     }
 
     if (data.length !== rawSize || crc32(data) !== crc) {
