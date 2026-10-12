@@ -124,6 +124,11 @@ if mode.startswith("windows_unsafe_"):
         "windows_unsafe_nonascii_composed":"content/café.js",
         "windows_unsafe_nonascii_decomposed":"content/cafe\u0301.js",
         "windows_unsafe_nonascii_kelvin":"content/Kernel.js",
+        "windows_unsafe_conin":"content/CONIN$.js",
+        "windows_unsafe_conout":"CONOUT$.txt",
+        "windows_unsafe_conout_directory":"content/CONOUT$/asset.js",
+        "windows_unsafe_com0":"content/COM0.log",
+        "windows_unsafe_lpt0":"content/LPT0.log",
     }
     rows.append((invalid_names[mode],b"non-private fixture"))
 if mode=="windows_case_alias":
@@ -135,6 +140,9 @@ if mode=="windows_portable_names":
     rows.extend([
         ("content/AUXiliary.js",b"portable"),
         ("content/COM10.js",b"portable"),
+        ("content/LPT10.js",b"portable"),
+        ("content/CONINput.js",b"portable"),
+        ("content/CONOUTland.js",b"portable"),
         ("content/.well-known.txt",b"portable"),
         ("content/module.version.js",b"portable"),
     ])
@@ -771,6 +779,14 @@ for (const [name, mode] of [
     "Windows ZIP non-ASCII compatibility case filename is rejected",
     "windows_unsafe_nonascii_kelvin",
   ],
+  ["Windows ZIP console device CONIN$ is rejected", "windows_unsafe_conin"],
+  ["Windows ZIP console device CONOUT$ is rejected", "windows_unsafe_conout"],
+  [
+    "Windows ZIP nested CONOUT$ directory is rejected",
+    "windows_unsafe_conout_directory",
+  ],
+  ["Windows ZIP COM0 device alias is rejected", "windows_unsafe_com0"],
+  ["Windows ZIP LPT0 device alias is rejected", "windows_unsafe_lpt0"],
 ]) {
   expectPrepareFailure(name, mode, /Unsafe ZIP path/);
 }

@@ -383,7 +383,11 @@ function unsafeWindowsZipSegment(segment) {
     return true;
   }
   const deviceStem = segment.split(".", 1)[0].replace(/ +$/u, "");
-  return /^(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/iu.test(deviceStem);
+  // Includes the console input/output devices and all one-digit port aliases
+  // recognized by Win32's DOS-device name predicate.
+  return /^(?:CON|PRN|AUX|NUL|CONIN\$|CONOUT\$|COM[0-9]|LPT[0-9])$/iu.test(
+    deviceStem,
+  );
 }
 
 export function readZip(bytes) {
