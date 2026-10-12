@@ -426,6 +426,7 @@ export function readZip(bytes) {
 
   const entries = new Map();
   const caseFoldedNames = new Set();
+  const localRanges = [];
   let pointer = centralStart;
   let totalUncompressed = 0;
 
@@ -519,6 +520,9 @@ export function readZip(bytes) {
 
     const localFlags = bytes.readUInt16LE(localOffset + 6);
     const localMethod = bytes.readUInt16LE(localOffset + 8);
+    const localCrc = bytes.readUInt32LE(localOffset + 14);
+    const localCompressedSize = bytes.readUInt32LE(localOffset + 18);
+    const localRawSize = bytes.readUInt32LE(localOffset + 22);
     const localNameLength = bytes.readUInt16LE(localOffset + 26);
     const localExtraLength = bytes.readUInt16LE(localOffset + 28);
     const localName = bytes.subarray(
@@ -536,7 +540,54 @@ export function readZip(bytes) {
       fail("ZIP local and central records differ");
     }
 
-    const compressed = bytes.subarray(dataStart, dataStart + compressedSize);
+    // Account for every byte in the local-record section. A ZIP with an
+    // executable prefix, unreferenced local data, overlap, or a hidden gap
+    // must not be published merely because its central directory looks valid.
+    const compressedEnd = dataStart + compressedSize;
+    let possibleLocalEnds = [compressedEnd];
+    if (flags & 0x08) {
+      // Streaming ZIP writers use either three zero placeholders or three
+      // complete local values. Mixed local metadata is not a supported form.
+      const emptyLocal =
+        localCrc === 0 && localCompressedSize === 0 && localRawSize === 0;
+      const completeLocal =
+        localCrc === crc &&
+        localCompressedSize === compressedSize &&
+        localRawSize === rawSize;
+      if (!emptyLocal && !completeLocal) {
+        fail("ZIP local and central records differ");
+      }
+      const descriptorCandidates = [compressedEnd];
+      if (
+        compressedEnd + 4 <= centralStart &&
+        bytes.readUInt32LE(compressedEnd) === 0x08074b50
+      ) {
+        descriptorCandidates.push(compressedEnd + 4);
+      }
+      possibleLocalEnds = descriptorCandidates
+        .filter(
+          (offset) =>
+            offset + 12 <= centralStart &&
+            bytes.readUInt32LE(offset) === crc &&
+            bytes.readUInt32LE(offset + 4) === compressedSize &&
+            bytes.readUInt32LE(offset + 8) === rawSize,
+        )
+        .map((offset) => offset + 12);
+      if (!possibleLocalEnds.length) {
+        fail("Invalid ZIP data descriptor");
+      }
+    } else if (
+      localCrc !== crc ||
+      localCompressedSize !== compressedSize ||
+      localRawSize !== rawSize
+    ) {
+      fail("ZIP local and central records differ");
+    }
+    // Defer signed/unsigned descriptor selection until the physical next
+    // record boundary is known; CRC may itself equal the signature magic.
+    localRanges.push({ start: localOffset, possibleEnds: possibleLocalEnds });
+
+    const compressed = bytes.subarray(dataStart, compressedEnd);
     let data;
     try {
       data =
@@ -562,6 +613,28 @@ export function readZip(bytes) {
 
   if (pointer !== centralStart + centralSize) {
     fail("Invalid ZIP directory size");
+  }
+  // The central directory can list entries in a different order from the
+  // local records, so sort byte ranges before checking exact coverage.
+  localRanges.sort((left, right) => left.start - right.start);
+  let nextLocalOffset = 0;
+  for (let index = 0; index < localRanges.length; index += 1) {
+    const range = localRanges[index];
+    const physicalEnd =
+      index + 1 < localRanges.length
+        ? localRanges[index + 1].start
+        : centralStart;
+    if (
+      range.start !== nextLocalOffset ||
+      physicalEnd <= range.start ||
+      !range.possibleEnds.includes(physicalEnd)
+    ) {
+      fail("Unaccounted ZIP local data");
+    }
+    nextLocalOffset = physicalEnd;
+  }
+  if (nextLocalOffset !== centralStart) {
+    fail("Unaccounted ZIP local data");
   }
   return entries;
 }

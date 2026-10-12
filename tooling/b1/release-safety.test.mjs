@@ -90,7 +90,7 @@ function packagedConfig(authority, overrides = {}) {
 }
 
 const ZIP_WRITER = String.raw`
-import base64,sys,zipfile
+import base64,sys,zipfile,struct,io,zlib
 path,browser,mode,manifest64,worker64=sys.argv[1:6]
 manifest=base64.b64decode(manifest64)
 worker=base64.b64decode(worker64)
@@ -123,8 +123,90 @@ if mode=="symlink":
         i.external_attr=(0o120777<<16)
         z.writestr(i,b"target")
     raise SystemExit(0)
-with zipfile.ZipFile(path,"w") as z:
-    for name,value in rows:
+def crc_suffix(prefix,target):
+    zero=zlib.crc32(prefix+bytes(4))
+    pivots={}
+    for bit in range(32):
+        value=bytearray(4)
+        value[bit//8]=1<<(bit%8)
+        delta=zlib.crc32(prefix+bytes(value))^zero
+        mask=1<<bit
+        while delta:
+            high=delta.bit_length()-1
+            if high not in pivots:
+                pivots[high]=(delta,mask)
+                break
+            stored_delta,stored_mask=pivots[high]
+            delta^=stored_delta
+            mask^=stored_mask
+    remainder=target^zero
+    solution=0
+    while remainder:
+        high=remainder.bit_length()-1
+        delta,mask=pivots[high]
+        remainder^=delta
+        solution^=mask
+    result=solution.to_bytes(4,"little")
+    assert zlib.crc32(prefix+result)==target
+    return result
+
+if mode.startswith("zip_stream_"):
+    if mode in ("zip_stream_crc_signature_collision","zip_stream_crc_collision_gap"):
+        for nonce in range(10000):
+            prefix=worker+bytes((10,))+b"//C01_SIGNATURE_CRC_"+str(nonce).encode()+b":"
+            suffix=crc_suffix(prefix,0x08074b50)
+            if all(33<=ch<=126 for ch in suffix):
+                worker=prefix+suffix
+                break
+        else:
+            raise AssertionError("No printable CRC collision suffix")
+        rows[1]=("worker.js",worker)
+    class WriteOnly:
+        def __init__(self, sink): self.sink=sink
+        def write(self, value): return self.sink.write(value)
+        def flush(self): return self.sink.flush()
+        def tell(self): return self.sink.tell()
+        def seek(self, *args): raise io.UnsupportedOperation("nonseekable")
+    with open(path,"wb") as sink:
+        with zipfile.ZipFile(WriteOnly(sink),"w",compression=zipfile.ZIP_DEFLATED) as z:
+            for name,value in rows:
+                z.writestr(name,value)
+    if mode!="zip_stream_descriptor":
+        with open(path,"rb") as source:
+            blob=bytearray(source.read())
+        with zipfile.ZipFile(io.BytesIO(blob)) as archive:
+            first=archive.infolist()[0]
+            last=archive.infolist()[-1]
+        if mode=="zip_stream_partial_local_header":
+            assert first.CRC!=0
+            struct.pack_into("<I",blob,first.header_offset+14,first.CRC)
+        else:
+            name_size,extra_size=struct.unpack_from("<HH",blob,last.header_offset+26)
+            descriptor=last.header_offset+30+name_size+extra_size+last.compress_size
+            assert blob[descriptor:descriptor+4]==bytes((80,75,7,8))
+            if mode=="zip_stream_unsigned_descriptor":
+                del blob[descriptor:descriptor+4]
+                eocd=blob.rfind(bytes((80,75,5,6)))
+                central=struct.unpack_from("<I",blob,eocd+16)[0]
+                struct.pack_into("<I",blob,eocd+16,central-4)
+            if mode=="zip_stream_crc_collision_gap":
+                assert last.CRC==0x08074b50
+                extra=b"C01_NONPRIVATE_DESCRIPTOR_LOCAL_GAP"
+                blob[descriptor+16:descriptor+16]=extra
+                eocd=blob.rfind(bytes((80,75,5,6)))
+                central=struct.unpack_from("<I",blob,eocd+16)[0]
+                struct.pack_into("<I",blob,eocd+16,central+len(extra))
+        with open(path,"wb") as target:
+            target.write(blob)
+    raise SystemExit(0)
+if mode=="zip_opaque_prefix":
+    with open(path,"wb") as sink:
+        sink.write(b"C01_NONPRIVATE_UNCHECKED_PREAMBLE")
+with zipfile.ZipFile(path,"a" if mode=="zip_opaque_prefix" else "w") as z:
+    for index,(name,value) in enumerate(rows):
+        if mode=="zip_opaque_local_gap" and index==1:
+            z.fp.write(b"C01_NONPRIVATE_UNCHECKED_LOCAL_GAP")
+            z.start_dir=z.fp.tell()
         if mode=="unix_directory_for_file" and name=="worker.js":
             info=zipfile.ZipInfo(name)
             info.create_system=3
@@ -145,6 +227,12 @@ if mode=="zip_directory_gap":
     assert raw[-22:-18]==bytes((80,75,5,6))
     with open(path,"wb") as handle:
         handle.write(raw[:-22]+b"C01_NONPRIVATE_OPAQUE_GAP"+raw[-22:])
+if mode=="zip_local_crc_mismatch":
+    with open(path,"r+b") as handle:
+        handle.seek(14)
+        old=struct.unpack("<I",handle.read(4))[0]
+        handle.seek(14)
+        handle.write(struct.pack("<I",old^1))
 `;
 
 function encode(value) {
@@ -562,6 +650,40 @@ expectPrepareFailure("opaque ZIP comment is rejected", "zip_comment");
 expectPrepareFailure(
   "unaccounted ZIP central directory gap is rejected",
   "zip_directory_gap",
+);
+expectPrepareFailure(
+  "opaque ZIP local preamble is rejected",
+  "zip_opaque_prefix",
+);
+expectPrepareFailure(
+  "opaque ZIP local gap is rejected",
+  "zip_opaque_local_gap",
+);
+expectPrepareFailure(
+  "ZIP local and central CRC mismatch is rejected",
+  "zip_local_crc_mismatch",
+);
+for (const mode of [
+  "zip_stream_descriptor",
+  "zip_stream_unsigned_descriptor",
+  "zip_stream_crc_signature_collision",
+]) {
+  test("valid ZIP streaming descriptor remains supported: " + mode, () => {
+    const value = fixture({ chromium: { mode } });
+    try {
+      assert.doesNotThrow(() => prepare(value));
+    } finally {
+      cleanup(value);
+    }
+  });
+}
+expectPrepareFailure(
+  "mixed populated and zero streaming ZIP local fields are rejected",
+  "zip_stream_partial_local_header",
+);
+expectPrepareFailure(
+  "CRC signature collision with hidden descriptor gap is rejected",
+  "zip_stream_crc_collision_gap",
 );
 expectPrepareFailure("symlink-like ZIP entry is rejected", "symlink");
 
