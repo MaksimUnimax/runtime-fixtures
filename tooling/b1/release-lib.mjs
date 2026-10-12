@@ -442,6 +442,8 @@ export function readZip(bytes) {
 
   const entries = new Map();
   const caseFoldedNames = new Set();
+  const filePaths = new Set();
+  const directoryPaths = new Set();
   const localRanges = [];
   let pointer = centralStart;
   let totalUncompressed = 0;
@@ -504,6 +506,23 @@ export function readZip(bytes) {
       fail("Duplicate ZIP entry");
     }
     caseFoldedNames.add(folded);
+
+    // Case-insensitive archive extraction must not create a file where a
+    // directory already exists (or vice versa), in either entry order.
+    const foldedParts = parts.map((part) => part.toLowerCase());
+    const foldedPath = foldedParts.join("/");
+    for (let depth = 1; depth < foldedParts.length; depth += 1) {
+      const ancestor = foldedParts.slice(0, depth).join("/");
+      if (filePaths.has(ancestor)) fail("ZIP path hierarchy collision");
+      directoryPaths.add(ancestor);
+    }
+    if (isDirectory) {
+      if (filePaths.has(foldedPath)) fail("ZIP path hierarchy collision");
+      directoryPaths.add(foldedPath);
+    } else {
+      if (directoryPaths.has(foldedPath)) fail("ZIP path hierarchy collision");
+      filePaths.add(foldedPath);
+    }
 
     const unixMode = (externalAttributes >>> 16) & 0xffff;
     const fileType = unixMode & 0xf000;

@@ -111,6 +111,20 @@ if mode=="duplicate":
     rows.append(("manifest.json",b"{}"))
 if mode=="case_duplicate":
     rows.append(("MANIFEST.JSON",b"{}"))
+if mode=="prefix_file_before_child":
+    rows.extend([("assets",b"file"),("assets/logo.svg",b"child")])
+if mode=="prefix_child_before_file":
+    rows.extend([("assets/logo.svg",b"child"),("assets",b"file")])
+if mode=="prefix_directory_then_file":
+    rows.extend([("assets/",b""),("assets",b"file")])
+if mode=="prefix_file_then_directory":
+    rows.extend([("assets",b"file"),("assets/",b"")])
+if mode=="prefix_mixed_case":
+    rows.extend([("ASSETS",b"file"),("assets/logo.svg",b"child")])
+if mode=="prefix_valid_parent_first":
+    rows.extend([("assets/",b""),("assets/logo.svg",b"child")])
+if mode=="prefix_valid_parent_last":
+    rows.extend([("assets/logo.svg",b"child"),("assets/",b"")])
 if mode.startswith("windows_unsafe_"):
     invalid_names={
         "windows_unsafe_ads":"content/worker.js:payload",
@@ -809,6 +823,47 @@ expectPrepareFailure(
   "case-folded duplicate ZIP entry is rejected",
   "case_duplicate",
 );
+for (const [name, mode] of [
+  [
+    "ZIP file ancestor before descendant is rejected",
+    "prefix_file_before_child",
+  ],
+  [
+    "ZIP descendant before file ancestor is rejected",
+    "prefix_child_before_file",
+  ],
+  [
+    "ZIP explicit directory before file is rejected",
+    "prefix_directory_then_file",
+  ],
+  [
+    "ZIP file before explicit directory is rejected",
+    "prefix_file_then_directory",
+  ],
+  ["ZIP mixed-case file ancestor is rejected", "prefix_mixed_case"],
+]) {
+  expectPrepareFailure(name, mode, /ZIP path hierarchy collision/);
+}
+for (const [name, mode] of [
+  [
+    "ZIP real directory before descendant stays valid",
+    "prefix_valid_parent_first",
+  ],
+  [
+    "ZIP real directory after descendant stays valid",
+    "prefix_valid_parent_last",
+  ],
+]) {
+  test(name, () => {
+    const value = fixture({ chromium: { mode } });
+    try {
+      const { output } = prepare(value);
+      assert.equal(preflight(value, output).status, "PASS");
+    } finally {
+      cleanup(value);
+    }
+  });
+}
 expectPrepareFailure(
   "missing declared extension runtime is rejected",
   "no_runtime",
