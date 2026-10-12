@@ -511,6 +511,15 @@ export function readZip(bytes) {
     ) {
       fail("Unsupported ZIP entry");
     }
+    // A browser ZIP installer must not assign different semantics to bytes
+    // we have accepted. Permit only streaming descriptors (bit 3), UTF-8
+    // names (bit 11), and standard deflate level hints (bits 1/2 for method 8).
+    // In particular reject strong encryption, masked headers, patch records
+    // and reserved flags even when local and central records agree.
+    const recognizedFlags = 0x0808 | (method === 8 ? 0x0006 : 0);
+    if ((flags & ~recognizedFlags) !== 0) {
+      fail("Unsupported ZIP general-purpose flags");
+    }
     totalUncompressed += rawSize;
     if (totalUncompressed > MAX_TOTAL_UNCOMPRESSED_BYTES) {
       fail("ZIP uncompressed size exceeds limit");

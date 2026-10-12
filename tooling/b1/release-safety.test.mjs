@@ -202,7 +202,8 @@ if mode.startswith("zip_stream_"):
 if mode=="zip_opaque_prefix":
     with open(path,"wb") as sink:
         sink.write(b"C01_NONPRIVATE_UNCHECKED_PREAMBLE")
-with zipfile.ZipFile(path,"a" if mode=="zip_opaque_prefix" else "w") as z:
+with zipfile.ZipFile(path,"a" if mode=="zip_opaque_prefix" else "w",
+        compression=zipfile.ZIP_DEFLATED if mode=="zip_gpbf_deflate_options" else zipfile.ZIP_STORED) as z:
     for index,(name,value) in enumerate(rows):
         if mode=="zip_opaque_local_gap" and index==1:
             z.fp.write(b"C01_NONPRIVATE_UNCHECKED_LOCAL_GAP")
@@ -229,6 +230,34 @@ with zipfile.ZipFile(path,"a" if mode=="zip_opaque_prefix" else "w") as z:
         z.writestr(info,b"")
     if mode=="zip_comment":
         z.comment=b"C01_NONPRIVATE_OPAQUE_COMMENT"
+if mode in ("zip_gpbf_reserved_bit14", "zip_gpbf_strong_encryption_bit6", "zip_gpbf_deflate_options"):
+    with open(path,"rb") as source:
+        payload=bytearray(source.read())
+    with zipfile.ZipFile(io.BytesIO(payload)) as archive:
+        target=archive.getinfo("worker.js")
+        local_offset=target.header_offset
+        assert target.compress_type==(zipfile.ZIP_DEFLATED if mode=="zip_gpbf_deflate_options" else zipfile.ZIP_STORED)
+    eocd=payload.rfind(bytes((80,75,5,6)))
+    assert eocd>=0
+    directory=struct.unpack_from("<I",payload,eocd+16)[0]
+    count=struct.unpack_from("<H",payload,eocd+10)[0]
+    target_central=None
+    for _ in range(count):
+        assert payload[directory:directory+4]==bytes((80,75,1,2))
+        n,e,c=struct.unpack_from("<HHH",payload,directory+28)
+        label=payload[directory+46:directory+46+n]
+        if label==b"worker.js":target_central=directory
+        directory+=46+n+e+c
+    assert target_central is not None and directory==eocd
+    flag={"zip_gpbf_reserved_bit14":1<<14,
+          "zip_gpbf_strong_encryption_bit6":1<<6,
+          "zip_gpbf_deflate_options":6}[mode]
+    # Deliberately alter *both* local and central records, avoiding the
+    # pre-existing mismatch check so this exercises unsupported GPBF semantics.
+    struct.pack_into("<H",payload,local_offset+6,flag)
+    struct.pack_into("<H",payload,target_central+8,flag)
+    with open(path,"wb") as sink:
+        sink.write(payload)
 if mode=="zip_directory_gap":
     with open(path,"rb") as handle:
         raw=handle.read()
@@ -672,6 +701,22 @@ expectPrepareFailure(
   "ZIP Unix regular-file mode on directory path is rejected",
   "unix_file_for_directory",
 );
+expectPrepareFailure(
+  "reserved ZIP general-purpose flag bit14 is rejected",
+  "zip_gpbf_reserved_bit14",
+);
+expectPrepareFailure(
+  "strong-encryption ZIP general-purpose flag bit6 is rejected",
+  "zip_gpbf_strong_encryption_bit6",
+);
+test("supported deflate compression-option flag bits remain readable", () => {
+  const value = fixture({ chromium: { mode: "zip_gpbf_deflate_options" } });
+  try {
+    assert.doesNotThrow(() => prepare(value));
+  } finally {
+    cleanup(value);
+  }
+});
 expectPrepareFailure("opaque ZIP comment is rejected", "zip_comment");
 expectPrepareFailure(
   "unaccounted ZIP central directory gap is rejected",
