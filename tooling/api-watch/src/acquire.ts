@@ -360,6 +360,35 @@ function isHtml(response: Response, bytes: Uint8Array): boolean {
   return prefix.startsWith("<!doctype html") || prefix.startsWith("<html");
 }
 
+// A redirect source may never settle ReadableStream.cancel(). A single
+// acquisition deadline must also bound the cleanup, not only fetch/body read.
+// Do not follow another hop after the cleanup has outlived that deadline.
+async function cancelRedirectBodyWithinDeadline(
+  response: Response,
+  signal: AbortSignal,
+): Promise<boolean> {
+  if (signal.aborted) return false;
+  if (!response.body) return true;
+  let removeAbortListener: () => void = () => undefined;
+  const deadline = new Promise<false>((resolve) => {
+    const onAbort = () => resolve(false);
+    signal.addEventListener("abort", onAbort, { once: true });
+    removeAbortListener = () => signal.removeEventListener("abort", onAbort);
+    if (signal.aborted) resolve(false);
+  });
+  try {
+    return await Promise.race([
+      response.body.cancel().then(
+        () => true as const,
+        () => true as const,
+      ),
+      deadline,
+    ]);
+  } finally {
+    removeAbortListener();
+  }
+}
+
 export async function acquireOfficialSource(input: {
   entry: SourceRegistryEntry;
   document?: SourceDocument;
@@ -467,7 +496,15 @@ export async function acquireOfficialSource(input: {
             );
       }
       redirects += 1;
-      await response.body?.cancel().catch(() => undefined);
+      const cancelled = await cancelRedirectBodyWithinDeadline(
+        response,
+        controller.signal,
+      );
+      if (!cancelled || controller.signal.aborted)
+        throw new DOMException(
+          "Redirect body cleanup exceeded deadline",
+          "AbortError",
+        );
       currentUrl = nextUrl.toString();
     }
   } catch (error) {

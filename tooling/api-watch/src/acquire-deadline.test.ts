@@ -68,6 +68,51 @@ describe("C03 acquisition deadline", () => {
     expect(listenerRemoved).toBe(true);
   });
 
+  it("does not hang past the total deadline when redirect-body cancellation never settles", async () => {
+    let requests = 0;
+    const signals: AbortSignal[] = [];
+    let watchdog: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const result = await Promise.race([
+        acquireOfficialSource({
+          entry,
+          timeoutMs: 30,
+          fetcher: async (_input, init) => {
+            if (!init?.signal) throw new Error("missing signal");
+            const signal = init.signal;
+            signals.push(signal);
+            requests += 1;
+            if (requests === 1) {
+              return new Response(
+                new ReadableStream<Uint8Array>({
+                  cancel() {
+                    return new Promise<void>(() => undefined);
+                  },
+                }),
+                { status: 307, headers: { location: "/next.json" } },
+              );
+            }
+            if (signal.aborted) throw abortError();
+            await abortAwareDelay(signal, 100);
+            return new Response(null, { status: 204 });
+          },
+        }),
+        new Promise<"WATCHDOG_EXPIRED">((resolve) => {
+          watchdog = setTimeout(() => resolve("WATCHDOG_EXPIRED"), 150);
+        }),
+      ]);
+      expect(result).not.toBe("WATCHDOG_EXPIRED");
+      if (result === "WATCHDOG_EXPIRED")
+        throw new Error("REDIRECT_CANCEL_BYPASSED_TOTAL_DEADLINE");
+      expect(result.kind).toBe("SOURCE_TEMPORARILY_UNAVAILABLE");
+      expect(requests).toBe(1);
+      expect(signals).toHaveLength(1);
+      expect(signals[0]?.aborted).toBe(true);
+    } finally {
+      if (watchdog) clearTimeout(watchdog);
+    }
+  });
+
   it("uses one abort-aware deadline across redirect hops", async () => {
     vi.useFakeTimers();
     try {
