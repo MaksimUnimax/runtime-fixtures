@@ -11,9 +11,9 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "test": "vitest run && pnpm build && node smoke-built-esm.mjs",
     "acceptance": "vitest run src/acceptance.test.ts",
-    "build": "tsup src/index.ts --format esm --target node24 --clean"
+    "build": "tsup --config tsup.config.mjs"
   },
   "dependencies": {
     "@product/monitoring-control": "workspace:*",
