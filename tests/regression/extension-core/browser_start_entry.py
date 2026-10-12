@@ -172,7 +172,7 @@ def main():
             page.locator("[data-assistant-stream-block]").last.scroll_into_view_if_needed()
             button = page.locator(".ozon-bridge-block-action").last
             button.wait_for(timeout=10000)
-            assert button.inner_text() == "Ozon"
+            assert button.inner_text() == "Октопорт"
             popup.click("#visibility")
             wait_for(lambda: page.locator(".ozon-bridge-block-action").count() == 0, "hidden command button")
             popup.click("#visibility")

@@ -825,10 +825,10 @@ await test('R3-branding-default-Ozon-Start-keeps-protocol-and-custom-text',async
   await s.start(store);
   const prompts=s.worker.messages.filter(message=>message.type==='OZ_WORK_SEND_INITIAL_PROMPT');
   assert.equal(prompts.length,1);const text=prompts[0].prompt_text;
-  assert.match(text,/НАЧАЛО РАБОТЫ С OCTOPORT/);
+  assert.match(text,/НАЧАЛО РАБОТЫ В «Октопорт»/);
   assert.doesNotMatch(text,/Ozon Bridge/i,'default Start must not request the former product name');
   for(const protocol of ['OZON_API_V1','OZON_HELP_V2','OZON_RESULT_V1'])assert.ok(text.includes(protocol),protocol);
-  assert.ok(text.includes('кнопку Ozon'));
+  assert.ok(text.includes('кнопку «Октопорт»'));
   const saved={text:'Моя сохранённая инструкция Ozon Bridge / OZON_API_V1',is_default:false,updated_at:'2026-10-01T00:00:00.000Z'};
   const normalized=await s.worker.call('normalizeGlobalAutoStartPromptRecord',saved);
   assert.equal(normalized.changed,false);assert.deepEqual(plain(normalized.record),saved);
