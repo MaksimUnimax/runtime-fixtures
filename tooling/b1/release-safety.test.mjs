@@ -125,7 +125,18 @@ if mode=="symlink":
     raise SystemExit(0)
 with zipfile.ZipFile(path,"w") as z:
     for name,value in rows:
-        z.writestr(name,value)
+        if mode=="unix_directory_for_file" and name=="worker.js":
+            info=zipfile.ZipInfo(name)
+            info.create_system=3
+            info.external_attr=(0o040755<<16)
+            z.writestr(info,value)
+        else:
+            z.writestr(name,value)
+    if mode=="unix_file_for_directory":
+        info=zipfile.ZipInfo("fakedir/")
+        info.create_system=3
+        info.external_attr=(0o100644<<16)
+        z.writestr(info,b"")
 `;
 
 function encode(value) {
@@ -531,6 +542,14 @@ expectPrepareFailure(
 );
 expectPrepareFailure("private-key material is rejected", "secret");
 expectPrepareFailure("forbidden secret file is rejected", "secretfile");
+expectPrepareFailure(
+  "ZIP Unix directory mode on regular file path is rejected",
+  "unix_directory_for_file",
+);
+expectPrepareFailure(
+  "ZIP Unix regular-file mode on directory path is rejected",
+  "unix_file_for_directory",
+);
 expectPrepareFailure("symlink-like ZIP entry is rejected", "symlink");
 
 test("oversized package input is rejected before archive allocation", () => {
