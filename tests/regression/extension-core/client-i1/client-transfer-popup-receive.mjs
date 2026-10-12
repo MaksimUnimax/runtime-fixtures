@@ -16,7 +16,7 @@ assert.deepEqual(transferReceivePresentation({ ok: false, code: "SOURCE_OFFLINE"
 assert.deepEqual(transferReceivePresentation({ ok: false, importState: "PENDING" }), { text: "Активной передачи для получения нет.", consume: false });
 assert.equal(transferReceivePresentation({ ok: false, code: "TRANSFER_REPLAY" }), null);
 assert.deepEqual(transferReceivePresentation({ ok: false, code: "TRANSFER_CREDENTIALS_MISSING", importState: "EMPTY_TRANSFER" }), { text: "В полученной передаче нет ключей. Ничего не импортировано.", consume: false });
-assert.equal(transferReceivePresentation({ ok: false, code: "TRANSFER_ACK_UNCONFIRMED", importState: "IMPORTED_PENDING_ACK", requestId: "request", result: { requestId: "request", importState: "IMPORTED" }, recovered: true, ackConfirmed: false }), null, "unconfirmed ACK must not be rendered or consumed as imported success");
+assert.deepEqual(transferReceivePresentation({ ok: false, code: "TRANSFER_ACK_UNCONFIRMED", importState: "IMPORTED_PENDING_ACK", requestId: "request", result: { requestId: "request", importState: "IMPORTED" }, recovered: true, ackConfirmed: false }), { text: "Результат импорта сохранён локально, но сервер ещё не подтвердил завершение передачи. Повторный импорт не выполнен.", consume: false }, "unconfirmed ACK must show pending status without consuming imported success");
 
 assert.match(source, /chrome\.runtime\.sendMessage\(\{ type: "SA_TRANSFER_RECEIVE_PENDING", tab_id: tabId \}\)/);
 assert.match(source, /transfer-receive[\s\S]*requestTransferReceivePending\(\)/);
