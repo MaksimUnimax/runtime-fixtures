@@ -5,6 +5,10 @@ import {
 } from "@product/credential-transfer";
 import type { ExtensionPrincipal } from "@product/extension-auth";
 import type { DatabaseQuery, DatabaseRuntime } from "./index.js";
+import type { CredentialTransferEpochFence } from "./credential-transfer-epoch-fence.js";
+
+// Every transfer query, including cleanup, belongs to the supplied transaction.
+type TransferTransactions = Pick<DatabaseRuntime, "transaction">;
 
 type Row = {
   request_id: string;
@@ -101,7 +105,7 @@ function writable(row: Row): void {
 }
 
 export function createCredentialTransferRepository(
-  runtime: DatabaseRuntime,
+  runtime: TransferTransactions,
 ): TransferRepository {
   return {
     async create({ principal, request, now }) {
@@ -291,17 +295,28 @@ export function createCredentialTransferRepository(
       );
     },
     async expireDue(now) {
-      const result = await runtime.query(
-        `UPDATE credential_transfer_requests SET state='EXPIRED',revision=revision+1 WHERE expires_at<=$1 AND state NOT IN ('COMPLETED','CANCELLED','EXPIRED') RETURNING request_id`,
-        [now],
-      );
-      return result.rows.length;
+      return runtime.transaction(async (tx) => {
+        const result = await tx.query(
+          `UPDATE credential_transfer_requests SET state='EXPIRED',revision=revision+1 WHERE expires_at<=$1 AND state NOT IN ('COMPLETED','CANCELLED','EXPIRED') RETURNING request_id`,
+          [now],
+        );
+        return result.rows.length;
+      });
     },
   };
 }
 
+/** Explicit epoch-aware wiring. Export alone does not change a live API. */
+export function createEpochFencedCredentialTransferRepository(
+  fence: Pick<CredentialTransferEpochFence, "fencedTransaction">,
+): TransferRepository {
+  return createCredentialTransferRepository({
+    transaction: (action) => fence.fencedTransaction(action),
+  });
+}
+
 async function transition(
-  runtime: DatabaseRuntime,
+  runtime: TransferTransactions,
   requestId: string,
   principal: ExtensionPrincipal,
   now: Date,

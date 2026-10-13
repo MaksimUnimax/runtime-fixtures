@@ -1,3 +1,6 @@
+import { randomUUID } from "node:crypto";
+import { createApiCleanup } from "./api-cleanup.js";
+import { createCredentialTransferApiAdmission } from "./credential-transfer-admission.js";
 import { createMaintenanceCredentialFileStore } from "./maintenance-credential-file.js";
 import {
   createAuthRepository,
@@ -29,7 +32,8 @@ import {
   createBetaAdmissionRepository,
   createSyncRepository,
   createSyncSnapshotReader,
-  createCredentialTransferRepository,
+  createEpochFencedCredentialTransferRepository,
+  createCredentialTransferEpochFence,
   createFeedbackSupportRepository,
   createHealthAdminReadRepository,
   createHealthNotificationAdminReadRepository,
@@ -84,6 +88,15 @@ const config = loadConfig(process.env);
 const commercialModeEnabled =
   sellerAgentsCommercialModeFromEnvironment(process.env) === "ENABLED";
 const database = createDatabaseRuntime(config.databaseUrl);
+const transferFence = createCredentialTransferEpochFence(
+  database,
+  randomUUID(),
+);
+const transferAdmission = createCredentialTransferApiAdmission(
+  database,
+  transferFence,
+);
+const infrastructureReady = createInfrastructureReadiness(database);
 const subscriptions = createP5SubscriptionRepository(database);
 const subscriptionAccess = createP5SubscriptionAccessResolver(subscriptions);
 const entitlements = createP4EntitlementRepository(database);
@@ -125,7 +138,8 @@ const maintenanceCredentialFile =
   process.env.OCTOPORT_MAINTENANCE_CREDENTIAL_FILE;
 const app = createApiApp({
   config,
-  isInfrastructureReady: createInfrastructureReadiness(database),
+  isInfrastructureReady: async () =>
+    transferAdmission.isReady() && (await infrastructureReady()),
   authService: new AuthService(
     createAuthRepository(database),
     deriveAuthKeys(rootSecret),
@@ -213,7 +227,7 @@ const app = createApiApp({
     createSyncSnapshotReader(database),
   ),
   credentialTransferService: new CredentialTransferService(
-    createCredentialTransferRepository(database),
+    createEpochFencedCredentialTransferRepository(transferFence),
   ),
   feedbackSupportService: new FeedbackSupportService(
     createFeedbackSupportRepository(database),
@@ -224,29 +238,43 @@ const app = createApiApp({
   healthDiagnosticsService: createHealthDiagnosticsReadRepository(database),
   healthRepairAdminService: createMonitorProfileRepairReadRepository(database),
 });
+app.addHook("onClose", async () => {
+  transferAdmission.stop();
+});
 let closing = false;
+const closeApi = createApiCleanup(
+  () => transferAdmission.stop(),
+  () => app.close(),
+  () => database.close(),
+);
 async function shutdown(signal: string): Promise<void> {
   if (closing) return;
   closing = true;
+  transferAdmission.stop();
   app.log.info({ signal }, "API shutdown requested");
-  await app.close();
-  await database.close();
+  await closeApi();
 }
-process.once("SIGINT", () => void shutdown("SIGINT"));
-process.once("SIGTERM", () => void shutdown("SIGTERM"));
+for (const signal of ["SIGINT", "SIGTERM"] as const) {
+  process.once(signal, () => {
+    void shutdown(signal).catch(() => {
+      // Observe the signal promise without exposing database diagnostics.
+      process.exitCode = 1;
+      app.log.error({ signal }, "API cleanup failed");
+    });
+  });
+}
 try {
+  await transferAdmission.start();
+  if (closing) throw new Error("API_STARTUP_STOPPED");
   await app.listen({ host: "127.0.0.1", port: config.apiPort });
 } catch (error) {
   closing = true;
+  transferAdmission.stop();
   try {
-    await app.close();
+    await closeApi();
   } catch {
-    // Preserve the original startup failure after bounded cleanup.
-  }
-  try {
-    await database.close();
-  } catch {
-    // Preserve the original startup failure after bounded cleanup.
+    // Preserve the original startup error. Concurrent signal cleanup uses the
+    // same promise and separately records unsuccessful signal termination.
   }
   throw error;
 }
