@@ -4,35 +4,41 @@ import { decryptOtpDelivery, type AuthKeys } from "@product/auth";
 import { EmailProviderError } from "@product/email";
 import type { DatabaseRuntime } from "@product/db";
 import type { JobRunner } from "./lifecycle.js";
+import { RunnerControl, type JobFailureEvent } from "./job-failure.js";
 export class OtpEmailRunner implements JobRunner {
   private timer: NodeJS.Timeout | undefined;
-  private readonly inFlightTicks = new Set<Promise<void>>();
-  private stopping = false;
+  private readonly control = new RunnerControl("otp-email");
   public constructor(
-    private readonly db: DatabaseRuntime,
+    private readonly db: Pick<DatabaseRuntime, "query">,
     private readonly keys: AuthKeys,
     private readonly provider: EmailProvider,
   ) {}
+  onFailure(listener: (event: JobFailureEvent) => void | Promise<void>) {
+    return this.control.failure.subscribe(listener);
+  }
   async start() {
-    if (this.stopping) throw new Error("WORKER_STOPPING");
-    this.timer = setInterval(() => void this.tick(), 5000);
+    this.control.ensureOpen();
+    this.timer = setInterval(() => {
+      if (this.control.quiesced) return;
+      void this.tick().catch((error) => {
+        this.quiesce();
+        this.control.scheduledFailure(error);
+      });
+    }, 5000);
     await this.tick();
   }
+  quiesce(): void {
+    this.control.quiesce(() => {
+      if (this.timer) clearInterval(this.timer);
+      this.timer = undefined;
+    });
+  }
   async stop(): Promise<void> {
-    this.stopping = true;
-    if (this.timer) clearInterval(this.timer);
-    this.timer = undefined;
-    await Promise.allSettled([...this.inFlightTicks]);
+    this.quiesce();
+    await this.control.drain();
   }
   async tick(): Promise<void> {
-    if (this.stopping) throw new Error("WORKER_STOPPING");
-    const pending = this.executeTick();
-    this.inFlightTicks.add(pending);
-    try {
-      await pending;
-    } finally {
-      this.inFlightTicks.delete(pending);
-    }
+    return this.control.admit(() => this.executeTick());
   }
   private async executeTick(): Promise<void> {
     const lease = randomUUID();

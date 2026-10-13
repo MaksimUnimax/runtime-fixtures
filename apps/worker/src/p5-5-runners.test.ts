@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { BillingReconciliationRunner } from "./billing-reconciliation-runner.js";
 import { SubscriptionLifecycleRunner } from "./subscription-lifecycle-runner.js";
+import type { JobRunner } from "./lifecycle.js";
 const claim = {
   paymentId: "11111111-1111-4111-8111-111111111111",
   provider: "simulator",
@@ -124,8 +125,11 @@ describe("P5.5 worker runners", () => {
         }),
       },
     });
-    await runner.stop();
-    await runner.stop();
+    const typedRunner: JobRunner = runner;
+    await typedRunner.stop();
+    await typedRunner.stop();
+    await expect(runner.start()).rejects.toThrow("WORKER_STOPPING");
+    await expect(runner.tick()).rejects.toThrow("WORKER_STOPPING");
   });
   it("lifecycle tick passes correlation and clock", async () => {
     let received = "";

@@ -1,8 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import {
-  createHealthNotificationRepository,
-  type DatabaseRuntime,
-} from "@product/db";
+import type { DatabaseRuntime } from "@product/db";
 import type {
   NotificationDeliveryPort,
   NotificationDeliveryReceipt,
@@ -28,7 +25,7 @@ describe("HealthNotificationRunner", () => {
       }),
       markDelivered: vi.fn().mockResolvedValue(undefined),
       failClaim: vi.fn().mockResolvedValue(undefined),
-    } as unknown as ReturnType<typeof createHealthNotificationRepository>;
+    };
 
     const runner = new HealthNotificationRunner(
       {} as DatabaseRuntime,
@@ -47,5 +44,23 @@ describe("HealthNotificationRunner", () => {
     await expect(first).resolves.toBe(true);
     expect(repository.markDelivered).toHaveBeenCalledOnce();
     expect(repository.failClaim).not.toHaveBeenCalled();
+  });
+
+  it("quiesces terminally and rejects direct ticks without another repository call", async () => {
+    const repository = {
+      claimDue: vi.fn().mockResolvedValue(undefined),
+      markDelivered: vi.fn().mockResolvedValue(undefined),
+      failClaim: vi.fn().mockResolvedValue(undefined),
+    };
+    const runner = new HealthNotificationRunner(
+      {} as DatabaseRuntime,
+      { deliver: vi.fn() },
+      60_000,
+      repository,
+    );
+    await runner.start();
+    await runner.stop();
+    await expect(runner.tick()).rejects.toThrow("WORKER_STOPPING");
+    expect(repository.claimDue).toHaveBeenCalledOnce();
   });
 });
