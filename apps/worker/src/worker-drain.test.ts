@@ -1,9 +1,19 @@
+import type { DatabaseRuntime } from "@product/db";
 import { describe, expect, it, vi } from "vitest";
 import { startWorker } from "./lifecycle.js";
 import { CompositeJobRunner } from "./composite-runner.js";
 import { OtpEmailRunner } from "./otp-runner.js";
 import { DeviceAuthorizationExpiryRunner } from "./device-authorization-expiry-runner.js";
 import { SubscriptionLifecycleRunner } from "./subscription-lifecycle-runner.js";
+import { deriveAuthKeys, encryptOtpDelivery } from "@product/auth";
+
+type DrainOperation = (...args: unknown[]) => Promise<unknown>;
+type DrainRunner = {
+  start(): Promise<void>;
+  stop(): Promise<void>;
+  tick(...args: never[]): Promise<unknown>;
+};
+const testAuthKeys = deriveAuthKeys(Buffer.alloc(32, 7));
 
 const cases = [
   {
@@ -11,17 +21,28 @@ const cases = [
     interval: 5000,
     initialQueries: 2,
     reply: { rows: [] },
-    create: (action: (...args: unknown[]) => Promise<unknown>) =>
-      new OtpEmailRunner({ query: action } as never, {} as never, {} as never),
+    create: (action: DrainOperation): DrainRunner =>
+      new OtpEmailRunner(
+        {
+          query: async <T extends Record<string, unknown>>(
+            ...args: [string, unknown[]?]
+          ) => (await action(...args)) as { rows: T[] },
+        },
+        testAuthKeys,
+        { sendLoginOtp: async () => ({}) },
+      ),
   },
   {
     name: "device-authorization expiry (15ms interval)",
     interval: 15,
     initialQueries: 1,
     reply: 0,
-    create: (action: (...args: unknown[]) => Promise<unknown>) =>
+    create: (action: DrainOperation): DrainRunner =>
       new DeviceAuthorizationExpiryRunner(
-        { expireDue: action } as never,
+        {
+          expireDue: async (batch: number, correlationId: string) =>
+            (await action(batch, correlationId)) as number,
+        },
         15,
         100,
       ),
@@ -31,8 +52,18 @@ const cases = [
     interval: 15,
     initialQueries: 1,
     reply: { scanned: 0, transitioned: 0, corrupted: 0 },
-    create: (action: (...args: unknown[]) => Promise<unknown>) =>
-      new SubscriptionLifecycleRunner({ processDue: action } as never, 15),
+    create: (action: DrainOperation): DrainRunner =>
+      new SubscriptionLifecycleRunner(
+        {
+          processDue: async (input) =>
+            (await action(input)) as {
+              scanned: number;
+              transitioned: number;
+              corrupted: number;
+            },
+        },
+        15,
+      ),
   },
 ];
 
@@ -51,7 +82,7 @@ describe("B05 exact-main periodic worker DB in-flight stop drain - candidate GRE
         count += 1;
         return count <= initialQueries ? Promise.resolve(reply) : pending;
       });
-      const runner = create(operation as never);
+      const runner = create(operation);
       try {
         await runner.start();
         expect(operation).toHaveBeenCalledTimes(initialQueries);
@@ -85,6 +116,76 @@ describe("B05 exact-main periodic worker DB in-flight stop drain - candidate GRE
       }
     },
   );
+
+  it("keeps OTP SMTP and final SQL inside the admitted tick drain", async () => {
+    vi.useFakeTimers();
+    const challengeId = "11111111-1111-4111-8111-111111111111";
+    const jobId = "22222222-2222-4222-8222-222222222222";
+    const identity = "worker@example.test";
+    const keys = deriveAuthKeys(Buffer.alloc(32, 7));
+    const envelope = encryptOtpDelivery(keys, challengeId, identity, "012345");
+    let releaseSend!: () => void;
+    const sending = new Promise<void>((resolve) => {
+      releaseSend = resolve;
+    });
+    const job = {
+      id: jobId,
+      challenge_id: challengeId,
+      ciphertext: envelope.ciphertext,
+      nonce: envelope.nonce,
+      auth_tag: envelope.authTag,
+      attempt_count: 1,
+      max_attempts: 3,
+    };
+    const database: Pick<DatabaseRuntime, "query"> = {
+      async query<T extends Record<string, unknown>>(): Promise<{ rows: T[] }> {
+        return { rows: [] };
+      },
+    };
+    const query = vi
+      .spyOn(database, "query")
+      .mockResolvedValue({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [job] })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            normalized_identity_target: identity,
+            expires_at: new Date(Date.now() + 60_000),
+            consumed_at: null,
+            invalidated_at: null,
+          },
+        ],
+      });
+    const provider = {
+      sendLoginOtp: vi.fn(async () => {
+        await sending;
+        return { providerMessageId: "synthetic" };
+      }),
+    };
+    const runner = new OtpEmailRunner(database, keys, provider);
+    try {
+      await runner.start();
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(provider.sendLoginOtp).toHaveBeenCalledOnce();
+      let stopped = false;
+      const stopping = runner.stop().then(() => {
+        stopped = true;
+      });
+      await Promise.resolve();
+      expect(stopped).toBe(false);
+      releaseSend();
+      await stopping;
+      expect(query).toHaveBeenCalledTimes(6);
+      expect(query.mock.calls[5]?.[0]).toContain("SET status='SENT'");
+    } finally {
+      releaseSend();
+      vi.useRealTimers();
+    }
+  });
+
   it("startWorker closes DB after the already-running device expiry tick completes during SIGTERM", async () => {
     vi.useFakeTimers();
     let release!: () => void;
@@ -96,18 +197,14 @@ describe("B05 exact-main periodic worker DB in-flight stop drain - candidate GRE
       count += 1;
       return count === 1 ? Promise.resolve(0) : pending;
     });
-    const runner = new DeviceAuthorizationExpiryRunner(
-      { expireDue } as never,
-      15,
-      100,
-    );
+    const runner = new DeviceAuthorizationExpiryRunner({ expireDue }, 15, 100);
     const database = {
       ready: vi.fn(async () => undefined),
       close: vi.fn(async () => undefined),
     };
     try {
       const runtime = await startWorker(
-        database as never,
+        database,
         new CompositeJobRunner([runner]),
         { info: vi.fn() },
       );

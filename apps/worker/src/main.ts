@@ -10,7 +10,7 @@ import { createLogger } from "@product/observability";
 import { loadConfig } from "@product/shared";
 import { deriveAuthKeys, loadAuthRootSecret } from "@product/auth";
 import { loadSmtpConfig, SmtpEmailProvider } from "@product/email";
-import { startWorker, type JobRunner } from "./lifecycle.js";
+import { createWorker, type JobRunner } from "./lifecycle.js";
 import { OtpEmailRunner } from "./otp-runner.js";
 import { DeviceAuthorizationExpiryRunner } from "./device-authorization-expiry-runner.js";
 import { CompositeJobRunner } from "./composite-runner.js";
@@ -22,10 +22,7 @@ import {
   adminAuditRetentionEnabled,
 } from "./audit-retention-runner.js";
 
-export class NoopJobRunner implements JobRunner {
-  async start(): Promise<void> {}
-  async stop(): Promise<void> {}
-}
+export { NoopJobRunner } from "./noop-runner.js";
 
 const config = loadConfig(process.env);
 const logger = createLogger(config.logLevel);
@@ -51,7 +48,11 @@ const runners: JobRunner[] = [
     loadFeedbackRetentionConfig(process.env),
     undefined,
     undefined,
-    (error) => logger.error({ err: error }, "Feedback retention purge failed"),
+    () =>
+      logger.error(
+        { runner: "feedback-retention", code: "PURGE_FAILED" },
+        "Feedback retention purge failed",
+      ),
   ),
   ...(adminAuditRetentionEnabled(process.env)
     ? [
@@ -59,9 +60,9 @@ const runners: JobRunner[] = [
           createAuditRetentionRepository(database),
           undefined,
           undefined,
-          (error) =>
+          () =>
             logger.error(
-              { err: error },
+              { runner: "audit-retention", code: "PURGE_FAILED" },
               "Administrative audit retention failed",
             ),
         ),
@@ -70,11 +71,24 @@ const runners: JobRunner[] = [
 ];
 if (healthNotificationRunner) runners.push(healthNotificationRunner);
 
-const runtime = await startWorker(
-  database,
-  new CompositeJobRunner(runners),
-  logger,
-);
+const runtime = createWorker(database, new CompositeJobRunner(runners), logger);
 
 process.once("SIGINT", () => void runtime.shutdown("SIGINT"));
 process.once("SIGTERM", () => void runtime.shutdown("SIGTERM"));
+void runtime.completion.then((outcome) => {
+  if (outcome.state === "FAILED" || outcome.state === "CLEANUP_INCOMPLETE") {
+    process.exitCode = 1;
+    try {
+      logger.error(
+        { state: outcome.state, runner: outcome.runner, code: outcome.code },
+        "Worker stopped after failure",
+      );
+    } catch {
+      // Reporting cannot replace the already established failure outcome.
+    }
+  }
+});
+void runtime.start().catch(() => {
+  // Startup details can contain secrets; completion reports fixed safe status.
+  process.exitCode = 1;
+});
