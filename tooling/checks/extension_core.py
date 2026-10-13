@@ -35,6 +35,7 @@ def main():
     try:
         runner.run("core-composed-version-policy", [sys.executable, "-B", ROOT / "tests/regression/extension-core/test-composed-version-policy.py"])
         runner.run("core-conversation-surface-first-start", ["node", ROOT / "tests/regression/extension-core/conversation-surface-first-start.mjs"])
+        runner.run("core-button-anchor-occlusion", ["node", ROOT / "tests/regression/extension-core/button-anchor-occlusion.mjs"])
         runner.run("core-qwen-adapter", ["node", ROOT / "tests/regression/extension-core/qwen-adapter.mjs"])
         runner.run("core-qwen-code-reader", ["node", ROOT / "tests/regression/extension-core/qwen-code-reader.mjs"])
         runner.run("core-native-import-panel-entry", ["node", ROOT / "tests/regression/extension-core/native-import-panel-entry.mjs"])
