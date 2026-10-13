@@ -274,6 +274,46 @@ class HardeningAuditTest(unittest.TestCase):
                 [0, 1_000_000_000],
             )
 
+    def test_cpu_rates_use_each_units_counter_observation_interval(self) -> None:
+        # Every synthetic service consumes one CPU-nanosecond per wall-nanosecond.
+        # Variable systemctl latency must not turn another unit's interval into
+        # this unit's denominator. No real process or systemctl is involved.
+        for delays in ((1, 9, 1, 1, 1, 1), (1, 1, 1, 9, 1, 1), (1, 1, 1, 1, 1, 1)):
+            with self.subTest(delays=delays):
+                elapsed_ns = 0
+                pending_delays = iter(delays)
+                observed_at: dict[str, list[int]] = {
+                    unit: [] for unit in hardening.UNITS
+                }
+
+                def delayed_show(
+                    args: list[str], **kwargs: object,
+                ) -> subprocess.CompletedProcess[str]:
+                    nonlocal elapsed_ns
+                    elapsed_ns += next(pending_delays) * 1_000_000_000
+                    observed_at[args[2]].append(elapsed_ns)
+                    snapshot = base_snapshot(CPUUsageNSec=str(elapsed_ns))
+                    return subprocess.CompletedProcess(args, 0, show_text(snapshot), "")
+
+                result = hardening.audit_units(
+                    samples=2, interval_seconds=0,
+                    runner=delayed_show, sleeper=lambda _: None,
+                    monotonic_ns=lambda: elapsed_ns,
+                )
+                self.assertEqual(result["capacityProof"], "NOT_PROVEN_SHORT_WINDOW")
+                self.assertFalse(result["mutationPerformed"])
+                self.assertFalse(result["secretMaterialRead"])
+                for unit in hardening.UNITS:
+                    with self.subTest(unit=unit):
+                        observed = result["units"][unit]["observed"]
+                        own_elapsed = observed_at[unit][1] - observed_at[unit][0]
+                        expected = round(
+                            (observed["cpuUsageEndNSec"] - observed["cpuUsageStartNSec"])
+                            * 100 / own_elapsed, 3,
+                        )
+                        self.assertEqual(expected, 100.0)
+                        self.assertEqual(observed["averageCpuPercent"], expected)
+
     def test_sampling_reports_only_observation_not_capacity_proof(self) -> None:
         first = base_snapshot()
         second = base_snapshot(
@@ -284,7 +324,7 @@ class HardeningAuditTest(unittest.TestCase):
         runner = FakeRunner(
             {unit: [first, second] for unit in hardening.UNITS},
         )
-        times = iter([0, 1_000_000_000])
+        times = iter([0] * len(hardening.UNITS) + [1_000_000_000] * len(hardening.UNITS))
         sleeps: list[float] = []
         result = hardening.audit_units(
             samples=2,
