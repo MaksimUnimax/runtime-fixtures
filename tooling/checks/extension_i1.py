@@ -31,6 +31,11 @@ def main():
     runner = original.Runner(output)
     try:
         original.negative_control(output)
+        runner.run("i1-cdp-worker-identity-source", [
+            os.environ.get("WB_TEST_PYTHON", "python3"), "-m", "unittest", "discover",
+            "-s", str(ROOT / "tests/regression/extension-core/client-i1"),
+            "-p", "test_browser_worker_activation.py", "-v",
+        ])
         runner.run("start-entry-lifecycle", [node, ROOT / "tests/regression/extension-core/client-i1/client-start-entry-lifecycle.mjs", ROOT])
         runner.run("i1-release-preflight-source", [node, ROOT / "tests/regression/extension-core/client-i1/client-release-preflight.mjs", ROOT])
         source, extracted, receipt = composed.build(output / "package")
