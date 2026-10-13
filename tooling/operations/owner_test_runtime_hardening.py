@@ -234,11 +234,13 @@ def normalize_configuration(snapshot: dict[str, str]) -> dict[str, Any]:
     return {
         "activeState": active,
         "subState": sub,
+        # DynamicUser may reuse an existing static account, including root.
+        # An explicit root identity therefore overrides the allocation setting.
         "identityClass": (
-            "DYNAMIC"
+            "ROOT_OR_UNSET"
+            if user == "root" or (not user and not dynamic)
+            else "DYNAMIC"
             if dynamic
-            else "ROOT_OR_UNSET"
-            if user in {"", "root"}
             else "EXPLICIT_NON_ROOT"
         ),
         "groupConfigured": bool(group),

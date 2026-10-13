@@ -81,6 +81,69 @@ class HardeningAuditTest(unittest.TestCase):
         self.assertEqual(hardening._cpu_quota_usec("1min 30s"), 90_000_000)
         self.assertEqual(hardening._cpu_quota_usec("1h30min"), 5_400_000_000)
 
+    def test_dynamic_user_does_not_override_explicit_root_identity(self) -> None:
+        for user in ("root", " root "):
+            for group in ("", "root", "octoport-owner-test"):
+                with self.subTest(user=user, group=group):
+                    snapshot = base_snapshot(
+                        User=user, Group=group, DynamicUser="yes",
+                        ProtectSystem="strict", ProtectHome="yes",
+                        MemoryHigh="536870912", MemoryMax="805306368",
+                        CPUQuotaPerSecUSec="2s", TasksMax="256",
+                    )
+                    config = hardening.normalize_configuration(snapshot)
+                    self.assertTrue(config["dynamicUser"])
+                    self.assertEqual(config["identityClass"], "ROOT_OR_UNSET")
+                    self.assertIn(
+                        "SERVICE_IDENTITY_ROOT_OR_UNSET",
+                        hardening.configuration_gaps(snapshot),
+                    )
+
+    def test_dynamic_root_cannot_produce_aggregate_baseline_pass(self) -> None:
+        snapshot = base_snapshot(
+            User="root", Group="root", DynamicUser="yes",
+            ProtectSystem="strict", ProtectHome="yes",
+            MemoryHigh="536870912", MemoryMax="805306368",
+            CPUQuotaPerSecUSec="2s", TasksMax="256",
+        )
+        result = hardening.audit_units(
+            samples=1, interval_seconds=0,
+            runner=FakeRunner({unit: [snapshot] for unit in hardening.UNITS}),
+            monotonic_ns=lambda: 1,
+        )
+        self.assertEqual(result["status"], "HARDENING_GAPS_FOUND")
+        self.assertEqual(
+            result["gaps"],
+            [{"unit": unit, "code": "SERVICE_IDENTITY_ROOT_OR_UNSET"}
+             for unit in hardening.UNITS],
+        )
+        self.assertFalse(result["mutationPerformed"])
+        self.assertFalse(result["secretMaterialRead"])
+        self.assertEqual(result["capacityProof"], "NOT_PROVEN_SHORT_WINDOW")
+
+    def test_nonroot_and_implicit_dynamic_users_keep_existing_configuration_class(self) -> None:
+        for user in ("", "octoport-owner-test"):
+            with self.subTest(user=user):
+                snapshot = base_snapshot(
+                    User=user, Group="", DynamicUser="yes",
+                    ProtectSystem="strict", ProtectHome="yes",
+                    MemoryHigh="536870912", MemoryMax="805306368",
+                    CPUQuotaPerSecUSec="2s", TasksMax="256",
+                )
+                config = hardening.normalize_configuration(snapshot)
+                self.assertEqual(config["identityClass"], "DYNAMIC")
+                self.assertEqual(hardening.configuration_gaps(snapshot), [])
+
+    def test_unset_static_identity_remains_root_and_numeric_zero_fails_closed(self) -> None:
+        self.assertEqual(
+            hardening.normalize_configuration(base_snapshot(User=""))["identityClass"],
+            "ROOT_OR_UNSET",
+        )
+        for user in ("0", "000", "0x0"):
+            with self.subTest(user=user):
+                with self.assertRaisesRegex(hardening.HardeningAuditError, "SERVICE_USER_INVALID"):
+                    hardening.normalize_configuration(base_snapshot(User=user, DynamicUser="yes"))
+
     def test_nonroot_unit_with_unpinned_working_directory_is_not_accepted(self) -> None:
         for working in ("/root/private/runtime", "/srv/octoport/current"):
             with self.subTest(working=working):
