@@ -444,8 +444,9 @@ export function readZip(bytes) {
 
   const entries = new Map();
   const caseFoldedNames = new Set();
-  const filePaths = new Set();
-  const directoryPaths = new Set();
+  // One segment node per distinct directory component; never retain O(depth²)
+  // ancestor-prefix strings for each ZIP entry.
+  const pathTree = new Map();
   const localRanges = [];
   let pointer = centralStart;
   let totalUncompressed = 0;
@@ -510,21 +511,31 @@ export function readZip(bytes) {
     }
     caseFoldedNames.add(folded);
 
-    // Case-insensitive archive extraction must not create a file where a
-    // directory already exists (or vice versa), in either entry order.
-    const foldedParts = parts.map((part) => part.toLowerCase());
-    const foldedPath = foldedParts.join("/");
-    for (let depth = 1; depth < foldedParts.length; depth += 1) {
-      const ancestor = foldedParts.slice(0, depth).join("/");
-      if (filePaths.has(ancestor)) fail("ZIP path hierarchy collision");
-      directoryPaths.add(ancestor);
-    }
-    if (isDirectory) {
-      if (filePaths.has(foldedPath)) fail("ZIP path hierarchy collision");
-      directoryPaths.add(foldedPath);
-    } else {
-      if (directoryPaths.has(foldedPath)) fail("ZIP path hierarchy collision");
-      filePaths.add(foldedPath);
+    // Enforce the case-insensitive extraction tree in either entry order.
+    // A trie shares ancestor nodes between paths and bounds memory by the
+    // archive's input segments instead of cumulative joined prefixes.
+    let children = pathTree;
+    for (let depth = 0; depth < parts.length; depth += 1) {
+      const segment = parts[depth].toLowerCase();
+      let node = children.get(segment);
+      if (!node) {
+        node = { children: new Map(), isFile: false, isDirectory: false };
+        children.set(segment, node);
+      }
+      if (depth === parts.length - 1) {
+        if (isDirectory) {
+          if (node.isFile) fail("ZIP path hierarchy collision");
+          node.isDirectory = true;
+        } else {
+          if (node.isDirectory || node.children.size > 0) {
+            fail("ZIP path hierarchy collision");
+          }
+          node.isFile = true;
+        }
+      } else {
+        if (node.isFile) fail("ZIP path hierarchy collision");
+        children = node.children;
+      }
     }
 
     const unixMode = (externalAttributes >>> 16) & 0xffff;

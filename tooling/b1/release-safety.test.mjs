@@ -11,6 +11,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import process from "node:process";
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -129,6 +130,10 @@ if mode=="prefix_depth_excess":
     rows.append(("/".join(["a"]*129)+".txt",b"too deep"))
 if mode=="prefix_depth_limit":
     rows.append(("/".join(["a"]*128)+".txt",b"within depth"))
+if mode=="prefix_deep_fanout_128":
+    for i in range(128):
+        first="u"+str(i).zfill(5)+"a"*92
+        rows.append(("/".join([first]+["b"*100]*126+["leaf.txt"]),b"x"))
 if mode.startswith("windows_unsafe_"):
     invalid_names={
         "windows_unsafe_ads":"content/worker.js:payload",
@@ -874,6 +879,34 @@ for (const [name, mode] of [
     }
   });
 }
+test("ZIP hierarchy stays within 64 MiB JS heap for 128 distinct deep paths", () => {
+  const value = fixture({ chromium: { mode: "prefix_deep_fanout_128" } });
+  try {
+    const reader = pathToFileURL(resolve("tooling/b1/release-lib.mjs")).href;
+    const script = [
+      'import { readFileSync } from "node:fs";',
+      "import { readZip } from " + JSON.stringify(reader) + ";",
+      "const entries = readZip(readFileSync(process.argv[1]));",
+      'if (entries.size !== 130) throw Error("Unexpected ZIP entry count");',
+      "console.log(entries.size);",
+    ].join("\n");
+    const result = spawnSync(
+      NODE,
+      [
+        "--max-old-space-size=64",
+        "--input-type=module",
+        "-e",
+        script,
+        join(value.candidate, "chromium.zip"),
+      ],
+      { encoding: "utf8", timeout: 15000, maxBuffer: 4096 },
+    );
+    assert.equal(result.status, 0, result.stderr || String(result.error));
+    assert.equal(result.stdout.trim(), "130");
+  } finally {
+    cleanup(value);
+  }
+});
 expectPrepareFailure(
   "missing declared extension runtime is rejected",
   "no_runtime",
