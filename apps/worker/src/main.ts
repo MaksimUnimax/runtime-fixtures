@@ -89,6 +89,7 @@ void runtime.completion.then((outcome) => {
   }
 });
 void runtime.start().catch(() => {
-  // Startup details can contain secrets; completion reports fixed safe status.
-  process.exitCode = 1;
+  // Completion owns the exit status after cleanup. An expected cancellation
+  // during startup is STOPPED, while genuine failures remain nonzero above.
+  // Do not log startup details: they may contain secrets.
 });

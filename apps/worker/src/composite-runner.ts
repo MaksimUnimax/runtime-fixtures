@@ -71,8 +71,12 @@ export class CompositeJobRunner implements JobRunner {
       if (this.failure.failed)
         throw this.hasChildFailure ? this.firstChildCause : undefined;
     } catch (cause) {
-      // Latch startup failure before cleanup can report a different failure.
-      this.failure.emit("STARTUP_FAILED", cause);
+      // Quiesce may reject a pending start as an expected cancellation.
+      // A genuine failure (including an unexpected denial before quiesce)
+      // must still be latched before cleanup can report a different cause.
+      if (!(this.terminal && cause instanceof TerminalAdmissionDenied)) {
+        this.failure.emit("STARTUP_FAILED", cause);
+      }
       this.quiesce();
       try {
         await this.stop();
