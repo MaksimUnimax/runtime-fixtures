@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -177,4 +178,193 @@ await test("explicit Start receives an immediate publication; commands and old W
  assert.equal(f.trace.fetches,before,"Ordinary command must not synchronize trees");
  assert.equal(f.trace.providerApi,0);assert.equal(f.trace.send,0);
 });
+
+// Owner requirement: a Work keeps its Start tree for all subsequent operations.
+const workSourceRoot=fileURLToPath(new URL("../../../../",import.meta.url));
+// Work and tree modules share one JSON realm in the actual worker.
+const workRealm={JSON};
+runInNewContext(readFileSync(resolve(workSourceRoot,"packages/bridge-core/src/work/session-model.js"),"utf8"),workRealm);
+const workModel=workRealm.SellerAgentsWorkSessionModel;
+function pinnedWork(pin,id="work-1",key="dialogue-1") {
+ const binding=workModel.transition(workModel.normalize(null,key),"binding",{start_intent_id:id});
+ return workModel.transition(binding,"active_visible",{prompt_tree:copy(pin)});
+}
+async function commandTree(f,work) {
+ const STOP=new Error("stop before operation reservation or provider execution");
+ let captured=null,validated=0;
+ const prepared={requestToken:"test-request",source:{}};
+ const source=readFileSync(resolve(workSourceRoot,"apps/extension/src/background/context/executeManualCommand.js"),"utf8");
+ const command=runInNewContext(source+"; executeManualCommand",{
+  OzonWorkSessionModel:workModel,
+  normalizeConversationKey:key=>key,
+  assertTabConversation:async()=>detected("chatgpt"),
+  strictBindingForIdentity:async()=>({store_context:{marketplace:"ozon"}}),
+  getSettings:async()=>({autoSend:true}),
+  workSessionFor:async()=>workModel.normalize(copy(work),"dialogue-1"),
+  getManualMode:async()=>true,getAutoRun:async()=>null,
+  discoverBatchEntries:()=>[{kind:"guidance"}],
+  saEnabled:async()=>true,saR3PrepareCommandSource:async()=>prepared,
+  saError:code=>Object.assign(new Error(code),{code}),
+  SellerAgentsControlClient:{
+   canWork:async()=>true,
+   validatePromptTreePin:async(identity,pin)=>{validated++;return f.cache.validatePinned(identity,pin);}
+  },
+  saPromptTreeForExchange:async()=>{throw new Error("Work command must not replace its pin from shared cache");},
+  captureBatchContext:async()=>{captured=copy(prepared.source.promptTree||null);throw STOP;}
+ });
+ try {await command("OZON_HELP_V2 {}", "dialogue-1",{tab:{id:7}},"test-request");}
+ catch(error) {if(error!==STOP)throw error;}
+ assert.ok(captured||Object.prototype.hasOwnProperty.call(work,"prompt_tree"));
+ return {captured,validated};
+}
+await test("Work lifetime pin survives hide/show, reload and recovery; Finish retires it",async()=>{
+ const f=fixture(),pin=await f.cache.get(detected("chatgpt"));
+ let work=pinnedWork(pin);
+ work=workModel.transition(work,"active_hidden");
+ work=workModel.normalize(copy(work),"dialogue-1");
+ work=workModel.transition(work,"recovering");
+ work=workModel.transition(work,"active_visible");
+ assert.equal(work.prompt_tree?.sha256,pin.sha256);
+ assert.equal((await f.cache.validatePinned(detected("chatgpt"),work.prompt_tree)).version,1);
+ const finished=workModel.transition(work,"finishing");
+ assert.equal(finished.prompt_tree,null);
+ const inactive=workModel.transition(finished,"inactive");
+ assert.equal(inactive.prompt_tree,null);
+});
+await test("Work lifetime commands stay on Start version when a second dialogue refreshes the same AI",async()=>{
+ const f=fixture(),first=await f.cache.get(detected("chatgpt")),alice=await f.cache.get(detected("alice"));
+ const work=pinnedWork(first),pending=copy(first);
+ f.versions.chatgpt={...f.versions.chatgpt,version:2,body:body("Published version two")};
+ const next=await f.cache.get(detected("chatgpt"),{refresh:true});
+ assert.equal(next.version,2);
+ const fetches=f.trace.fetches;
+ assert.equal((await f.cache.validatePinned(detected("chatgpt"),pending)).version,1);
+ for(let i=0;i<2;i++) {
+  const result=await commandTree(f,work);
+  assert.equal(result.captured.version,1);
+  assert.equal(result.captured.sha256,first.sha256);
+  assert.equal(result.validated,1);
+ }
+ assert.equal((await commandTree(f,pinnedWork(next,"work-2","dialogue-2"))).captured.version,2);
+ assert.equal(f.trace.fetches,fetches,"Commands cannot synchronize or replace the Work tree");
+ assert.equal((await f.cache.validatePinned(detected("alice"),alice)).version,1);
+ assert.equal(f.trace.providerApi,0);assert.equal(f.trace.send,0);
+});
+await test("Work lifetime pin is revalidated and cannot bypass changed authority or signature checks",async()=>{
+ const f=fixture(),pin=await f.cache.get(detected("chatgpt"));
+ const changed=copy(pin);changed.body.nodes[0].text="tampered";
+ await assert.rejects(commandTree(f,pinnedWork(changed)),/AI_TREE_/);
+ f.deny();
+ await assert.rejects(commandTree(f,pinnedWork(pin)),/AI_TREE_/);
+ assert.equal(f.trace.providerApi,0);assert.equal(f.trace.send,0);
+});
+await test("Work lifetime preserves a no-tree Start and rejects an unknown legacy pin without replacing it",async()=>{
+ const f=fixture();
+ const none=await commandTree(f,pinnedWork(null));
+ assert.equal(none.captured,null);assert.equal(none.validated,0);assert.equal(f.trace.fetches,0);
+ const legacy={...pinnedWork(null)};delete legacy.prompt_tree;
+ await assert.rejects(commandTree(f,legacy),{code:"WORK_PROMPT_TREE_PIN_MISSING_START_REQUIRED"});
+ const finishedLegacy=workModel.transition(legacy,"finishing");
+ assert.equal(Object.prototype.hasOwnProperty.call(finishedLegacy,"prompt_tree"),false,
+  "Finish must preserve unknown legacy absence rather than claim a known no-tree Start");
+ assert.equal(f.trace.fetches,0);assert.equal(f.trace.providerApi,0);assert.equal(f.trace.send,0);
+});
+
+
+await test("Work lifetime actual composed Start persists pending pin across reload and another dialogue Start",async()=>{
+ const worker=packaged
+  ? readFileSync(resolve(root,"service_worker.js"),"utf8")
+  : execFileSync("python3",["-c",[
+      "import pathlib,sys,tempfile",
+      "root=pathlib.Path(sys.argv[1])",
+      "sys.path.insert(0,str(root/'tooling/build'))",
+      "import extension_composed",
+      "with tempfile.TemporaryDirectory(prefix='octoport-tree-pin-source-') as d:",
+      " extension_composed.compose(pathlib.Path(d)/'runtime')",
+      " sys.stdout.write((pathlib.Path(d)/'runtime/service_worker.js').read_text())"
+    ].join("\n"),workSourceRoot],{encoding:"utf8",maxBuffer:8*1024*1024});
+ function segment(begin,end) {
+  const a=worker.indexOf(begin),b=worker.indexOf(end,a+begin.length);
+  assert.ok(a>=0&&b>a,begin+" actual composed worker boundary");
+  return worker.slice(a,b);
+ }
+ // Composition rewrites visible labels; execute the actual generated factory bytes.
+ const pendingSource=segment("async function createPendingWorkStart(","async function pendingWorkStartForMessage(");
+ const storageSource=segment("async function getWorkSessions()","async function retireWorkSession(");
+ const startCase=segment('      case "OZ_WORK_START": {','      case "OZ_WORK_START_COMMIT_REQUEST":');
+ const identityCase=segment('      case "OZ_WORK_PENDING_IDENTITY": {','      case "OZ_WORK_PENDING_TIMEOUT": {');
+ let memory={},dispatches=0,visibleAcks=0;
+ const storeContext={accountId:uuid(1),marketplace:"ozon",storeId:"test-store",credentialRevision:"test-revision"};
+ function boot() {
+  const c={crypto:globalThis.crypto,TextEncoder,TextDecoder,atob,btoa,
+   KEYS:{WORK_SESSIONS:"work",PENDING_WORK_STARTS:"pending",WORK_SESSION_RECOVERIES:"recoveries"},
+   readStoredJSON:key=>JSON.stringify({[key]:memory[key]||{}}),
+   writeStoredJSON:value=>{memory={...memory,...JSON.parse(value)};},
+   withBindingWrite:async fn=>fn(),diagnostic:async()=>{},
+   normalizeTabId:Number,normalizeIdentity:x=>x,
+   saStarts:new Map([[7,storeContext],[8,storeContext]]),
+   saAdmissionMutationGuard:async()=>{},
+   tabIdentity:async tab=>({origin:"https://chatgpt.com",ai_id:"chatgpt",conversation_id:"dialogue-"+tab}),
+   resolveConfirmedConversationKey:async live=>live.conversation_id,
+   getAutoStartPrompt:async()=>({text:"fixture prompt"}),getGlobalAutoStartPrompt:async()=>({text:"fixture prompt"}),
+   DEFAULT_AUTO_START_TEXT:"fixture prompt",
+   dispatchPendingWorkStartPrompt:async()=>{dispatches++;},
+   SellerAgentsOfflineWorkAuthority:{createProvenance:()=>null},
+   setWorkSessionCommandAcceptance:async()=>{},
+   tabMessage:async()=>{visibleAcks++;return {ok:true,applied:true};},
+   clearPendingWorkStart:async tab=>{delete memory.pending[String(tab)];return true;}
+  };
+  // A real worker has one realm; storage and message boundaries deserialize into it.
+  runInNewContext(readFileSync(resolve(workSourceRoot,"packages/control-client/src/crypto.js"),"utf8"),c);
+  runInNewContext(readFileSync(resolve(workSourceRoot,"packages/bridge-core/src/work/session-model.js"),"utf8")+
+    ";globalThis.OzonWorkSessionModel=globalThis.SellerAgentsWorkSessionModel",c);
+  c.importJSON=runInNewContext("(text=>JSON.parse(text))",c);
+  c.storageGet=runInNewContext("(async key=>JSON.parse(readStoredJSON(key)))",c);
+  c.storageSet=runInNewContext("(async value=>writeStoredJSON(JSON.stringify(value)))",c);
+  runInNewContext(storageSource+"\n"+pendingSource,c);
+  const durableMutate=c.mutateWorkSession;
+  c.mutateWorkSession=async(...args)=>{
+   try{return await durableMutate(...args);}
+   catch(error){throw new Error("SOURCE fixture Work writer: "+error.code+" / "+error.cause?.message,{cause:error});}
+  };
+  c.bindConversation=async(context,options)=>{
+   const key=context.conversation_id,current=await c.workSessionFor(key);
+   await c.mutateWorkSession(key,current.revision,"binding",{
+    ...context,ai_id:"chatgpt",start_intent_id:options.work_start_intent_id
+   });
+   return {conversation_key:key,binding_id:"binding-"+key,revision:1,store_context:storeContext};
+  };
+  c.start=runInNewContext("(async function(message,sender){switch(message?.type){\n"+startCase+"\n}})",c);
+  c.commit=runInNewContext("(async function(message,sender){switch(message?.type){\n"+identityCase+"\n}})",c);
+  return c;
+ }
+ async function startAndPersist(c,tab,pin,intent) {
+  const sender=c.importJSON(JSON.stringify({tab:{id:tab}}));
+  const result=await c.start(c.importJSON(JSON.stringify({type:"OZ_WORK_START",tab_id:tab,start_intent_id:intent,prompt_tree:pin})),sender);
+  assert.equal(result.ok,true);assert.equal(result.accepted,true);
+  const pending=memory.pending[String(tab)];
+  assert.equal(pending.prompt_tree.sha256,pin.sha256,"Start must durably preserve its exact input pin");
+  memory.pending[String(tab)]={...pending,prompt_delivered:true,send_outcome:"sent_acknowledged"};
+  const committed=await c.commit(c.importJSON(JSON.stringify({type:"OZ_WORK_PENDING_IDENTITY",tab_id:tab,
+   intent_id:pending.intent_id,revision:pending.revision,first_response_complete:true,
+   identity:{origin:"https://chatgpt.com",ai_id:"chatgpt",conversation_id:"dialogue-"+tab}})),sender);
+  assert.equal(committed.ok,true,committed.error||committed.code);
+  assert.equal(memory.work["dialogue-"+tab].prompt_tree.sha256,pin.sha256,
+   "Actual ACTIVE_VISIBLE producer must persist pending tree pin");
+ }
+ const f=fixture(),first=await f.cache.get(detected("chatgpt"));
+ let c=boot();await startAndPersist(c,7,first,"first-start");
+ c=boot(); // New worker context reads the same serialized store.
+ const restored=await c.workSessionFor("dialogue-7");
+ assert.equal(restored.prompt_tree.sha256,first.sha256);
+ f.versions.chatgpt={...f.versions.chatgpt,version:2,body:body("Second dialogue publication")};
+ const second=await f.cache.get(detected("chatgpt"),{refresh:true});
+ await startAndPersist(c,8,second,"second-start");
+ const original=await c.workSessionFor("dialogue-7");
+ assert.equal((await commandTree(f,original)).captured.version,1);
+ assert.equal((await commandTree(f,await c.workSessionFor("dialogue-8"))).captured.version,2);
+ assert.equal(dispatches,2);assert.equal(visibleAcks,2);
+ assert.equal(f.trace.providerApi,0);assert.equal(f.trace.send,0);
+});
+
 console.log(JSON.stringify({level:packaged?"PACKAGE":"SOURCE",passed,installed:"NOT_RUN",owner:"NOT_RUN",providerApiCalls:0,sendCalls:0}));
