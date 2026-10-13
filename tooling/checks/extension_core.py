@@ -49,6 +49,7 @@ def main():
         runner.run("core-provider-response-composition", ["node", ROOT / "tests/regression/extension-core/provider-response-composition.mjs", ROOT])
         runner.run("core-store-package-contract", [sys.executable, ROOT / "tests/regression/extension-core/store-package-contract.py"])
         runner.run("core-build-create-pending-extraction", ["node", ROOT / "tests/regression/extension-core/client-i1/create-pending-work-start-extraction.mjs"])
+        runner.run("core-work-start-pending-readback", ["node", "--test", ROOT / "tests/regression/extension-core/client-i1/client-a01-pending-readback.mjs"])
         source, extracted, receipt = composed.build(output / "package")
         result["composition"] = receipt
         runner.run("core-store-metadata-and-import-fences", ["node", ROOT / "tests/regression/extension-core/client-i1/client-d3s2-store-metadata-state.mjs", ROOT])
