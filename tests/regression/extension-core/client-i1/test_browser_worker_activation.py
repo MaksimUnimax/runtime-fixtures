@@ -21,7 +21,10 @@ class BrowserWorkerActivationTests(unittest.TestCase):
     def setUp(self):
         temp = tempfile.TemporaryDirectory(prefix="octo-i1-cdp-worker-")
         self.addCleanup(temp.cleanup)
-        self.root = Path(temp.name)
+        # All fixture siblings (outside-worker, manifest and symlink) must
+        # remain inside this test's own TemporaryDirectory, never /tmp itself.
+        self.root = Path(temp.name) / "runtime"
+        self.root.mkdir()
         (self.root / "service_worker_entry.js").write_text("/* local fixture */")
         (self.root / "manifest.json").write_text(json.dumps({
             "manifest_version": 3,
@@ -63,6 +66,113 @@ class BrowserWorkerActivationTests(unittest.TestCase):
                 }))
                 with self.assertRaises(RuntimeError):
                     require_manifest_worker_entry(self.root)
+
+    def test_nested_regular_manifest_worker_accepts_canonical_path(self):
+        nested = self.root / "assets" / "workers"
+        nested.mkdir(parents=True)
+        (nested / "main.js").write_text("/* harmless fixture */")
+        (self.root / "manifest.json").write_text(json.dumps({
+            "manifest_version": 3,
+            "background": {"service_worker": "assets/workers/main.js"},
+        }))
+        self.assertEqual(require_manifest_worker_entry(self.root),
+                         "assets/workers/main.js")
+
+    def test_external_worker_file_symlink_is_rejected(self):
+        outside = self.root.parent / "outside-worker.js"
+        outside.write_text("/* external fixture */")
+        worker = self.root / "service_worker_entry.js"
+        worker.unlink()
+        worker.symlink_to(outside)
+        with self.assertRaisesRegex(RuntimeError, "symlink"):
+            require_manifest_worker_entry(self.root)
+
+    def test_internal_worker_symlink_is_also_rejected(self):
+        (self.root / "internal.js").write_text("/* canonical internal file */")
+        worker = self.root / "service_worker_entry.js"
+        worker.unlink()
+        worker.symlink_to(self.root / "internal.js")
+        with self.assertRaisesRegex(RuntimeError, "symlink"):
+            require_manifest_worker_entry(self.root)
+
+    def test_intermediate_directory_symlink_is_rejected(self):
+        nested = self.root / "shared"
+        nested.mkdir()
+        (nested / "worker.js").write_text("/* nested harmless file */")
+        (self.root / "alias").symlink_to(nested, target_is_directory=True)
+        (self.root / "manifest.json").write_text(json.dumps({
+            "background": {"service_worker": "alias/worker.js"},
+        }))
+        with self.assertRaisesRegex(RuntimeError, "symlink"):
+            require_manifest_worker_entry(self.root)
+
+    def test_manifest_symlink_is_rejected(self):
+        manifest = self.root / "manifest.json"
+        outside = self.root.parent / "outside-manifest.json"
+        outside.write_text(manifest.read_text())
+        manifest.unlink()
+        manifest.symlink_to(outside)
+        with self.assertRaisesRegex(RuntimeError, "symlink"):
+            require_manifest_worker_entry(self.root)
+
+    def test_symlink_runtime_root_is_rejected(self):
+        shortcut = self.root.parent / "runtime-link"
+        shortcut.symlink_to(self.root, target_is_directory=True)
+        with self.assertRaisesRegex(RuntimeError, "root"):
+            require_manifest_worker_entry(shortcut)
+
+    def test_preflight_must_precede_chrome_and_cdp_load(self):
+        source = (HERE / "browser_verifier.py").read_text()
+        preflight = source.find("worker_entry = require_manifest_worker_entry(runtime)")
+        cdp = source.find('cdp.send("Extensions.loadUnpacked"')
+        launch = source.find("playwright.chromium.launch_persistent_context(")
+        self.assertTrue(preflight >= 0 and launch >= 0 and cdp >= 0)
+        self.assertLess(preflight, launch)
+        self.assertLess(preflight, cdp)
+        self.assertIn('"PREFLIGHT_UNPACKED_ROOT"', source)
+
+    def test_real_verifier_rejects_symlink_before_browser_launch(self):
+        """Invoke the actual verifier's preflight, not only its helper."""
+        import importlib.util
+        import sys
+        import types
+        from unittest.mock import patch
+
+        outside = self.root.parent / "external-worker.js"
+        outside.write_text("/* external test data */")
+        worker = self.root / "service_worker_entry.js"
+        worker.unlink()
+        worker.symlink_to(outside)
+
+        fake_playwright = types.ModuleType("playwright")
+        fake_playwright.__path__ = []
+        fake_sync_api = types.ModuleType("playwright.sync_api")
+        calls = []
+
+        def forbidden_browser_start():
+            calls.append("called")
+            raise AssertionError("Unsafe extension launched before preflight")
+
+        fake_sync_api.sync_playwright = forbidden_browser_start
+        fake_playwright.sync_api = fake_sync_api
+        path = HERE / "browser_verifier.py"
+        spec = importlib.util.spec_from_file_location(
+            "octo_i1_preflight_test_verifier", path
+        )
+        self.assertIsNotNone(spec)
+        module = importlib.util.module_from_spec(spec)
+        result_dir = self.root.parent / "preflight-result"
+        with patch.dict(sys.modules, {
+            "playwright": fake_playwright,
+            "playwright.sync_api": fake_sync_api,
+        }):
+            spec.loader.exec_module(module)
+            with self.assertRaisesRegex(RuntimeError, "symlink"):
+                module.run(self.root, result_dir)
+        self.assertEqual(calls, [])
+        receipt = json.loads((result_dir / "failure.json").read_text())
+        self.assertEqual(receipt["stage"], "PREFLIGHT_UNPACKED_ROOT")
+        self.assertEqual(receipt["boundary"], "before_cdp_extension_load")
 
     def test_exact_worker_selected_among_unrelated_workers(self):
         expected = Worker(self.expected)

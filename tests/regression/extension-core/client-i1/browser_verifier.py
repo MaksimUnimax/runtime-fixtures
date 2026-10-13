@@ -12,6 +12,17 @@ from browser_worker_activation import (require_loaded_extension_id, require_mani
 
 def run(runtime: Path, output: Path) -> None:
     output.mkdir(parents=True, exist_ok=False)
+    # Reject symlinks, special files and unsafe manifest entry BEFORE CDP
+    # can consume any unpacked bytes. No extension is loaded on failure.
+    try:
+        worker_entry = require_manifest_worker_entry(runtime)
+    except Exception as error:
+        (output / "failure.json").write_text(json.dumps({
+            "status": "FAIL", "stage": "PREFLIGHT_UNPACKED_ROOT",
+            "error_type": type(error).__name__,
+            "boundary": "before_cdp_extension_load",
+        }, ensure_ascii=False, indent=2))
+        raise
     with sync_playwright() as playwright, tempfile.TemporaryDirectory(prefix="seller-agents-i1-browser-") as profile:
         # Native source verifier uses the same CDP unpacked-load boundary
         # that the adjacent browser_start_entry test already accepts.
@@ -41,7 +52,6 @@ def run(runtime: Path, output: Path) -> None:
             cdp = browser.browser.new_browser_cdp_session()
             loaded = cdp.send("Extensions.loadUnpacked", {"path": str(runtime)})
             extension_id = require_loaded_extension_id(loaded)
-            worker_entry = require_manifest_worker_entry(runtime)
             stage = "EXACT_WORKER_ACTIVATION"
             worker = select_owned_worker(browser.service_workers, extension_id, worker_entry)
             if worker is None:

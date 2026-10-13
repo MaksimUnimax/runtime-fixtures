@@ -21,10 +21,29 @@ def require_loaded_extension_id(response):
 
 
 def require_manifest_worker_entry(runtime):
+    """Check the entire unpacked runtime before a browser can load its bytes.
+
+    Root, manifest, worker and all nested files must be ordinary in-tree
+    entries. A symlink to an outside file can otherwise escape manifest
+    validation before Extensions.loadUnpacked executes.
+    """
     root = Path(runtime)
+    if not root.is_absolute() or root.is_symlink() or not root.is_dir():
+        raise RuntimeError("Unsafe unpacked runtime root")
+    canonical = root.resolve(strict=True)
+    if canonical != root:
+        raise RuntimeError("Noncanonical unpacked runtime root")
+    for path in root.rglob("*"):
+        if path.is_symlink():
+            raise RuntimeError("Unpacked runtime contains a symlink")
+        resolved = path.resolve(strict=True)
+        if not resolved.is_relative_to(canonical):
+            raise RuntimeError("Unpacked runtime path escapes root")
+        if not path.is_file() and not path.is_dir():
+            raise RuntimeError("Unpacked runtime contains a special file")
     manifest = root / "manifest.json"
-    if not root.is_dir() or not manifest.is_file():
-        raise RuntimeError("Runtime manifest is missing")
+    if not manifest.is_file() or manifest.is_symlink():
+        raise RuntimeError("Runtime manifest is missing or unsafe")
     data = json.loads(manifest.read_text(encoding="utf-8"))
     background = data.get("background")
     entry = background.get("service_worker") if isinstance(background, dict) else None
@@ -33,8 +52,11 @@ def require_manifest_worker_entry(runtime):
     parts = entry.split("/")
     if any(part in ("", ".", "..") for part in parts) or entry.startswith("/"):
         raise RuntimeError("Unsafe extension service worker path")
-    if not (root / entry).is_file():
-        raise RuntimeError("Manifest service worker is missing")
+    worker = root / entry
+    if not worker.is_file() or worker.is_symlink():
+        raise RuntimeError("Manifest service worker is missing or unsafe")
+    if not worker.resolve(strict=True).is_relative_to(canonical):
+        raise RuntimeError("Manifest service worker escapes runtime root")
     return entry
 
 
