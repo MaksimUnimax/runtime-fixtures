@@ -174,6 +174,40 @@ class BrowserWorkerActivationTests(unittest.TestCase):
         self.assertEqual(receipt["stage"], "PREFLIGHT_UNPACKED_ROOT")
         self.assertEqual(receipt["boundary"], "before_cdp_extension_load")
 
+    def test_actual_cli_rejects_symlink_root_before_browser(self):
+        """Exercise __main__ argv as invoked in CI; .resolve() must not bypass preflight."""
+        import runpy
+        import sys
+        import types
+        from unittest.mock import patch
+
+        link = self.root.parent / "runtime-link"
+        link.symlink_to(self.root, target_is_directory=True)
+        output = self.root.parent / "cli-symlink-receipt"
+        verifier = HERE / "browser_verifier.py"
+        calls = []
+        fake_pkg = types.ModuleType("playwright")
+        fake_pkg.__path__ = []
+        fake_sync = types.ModuleType("playwright.sync_api")
+
+        def must_never_start_browser():
+            calls.append("started")
+            raise AssertionError("Playwright started before symlink root preflight")
+
+        fake_sync.sync_playwright = must_never_start_browser
+        fake_pkg.sync_api = fake_sync
+        with patch.dict(sys.modules, {
+            "playwright": fake_pkg, "playwright.sync_api": fake_sync,
+        }), patch.object(sys, "argv", [
+            str(verifier), "--runtime", str(link), "--output", str(output),
+        ]):
+            with self.assertRaisesRegex(RuntimeError, "root"):
+                runpy.run_path(str(verifier), run_name="__main__")
+        self.assertEqual(calls, [])
+        receipt = json.loads((output / "failure.json").read_text())
+        self.assertEqual(receipt["stage"], "PREFLIGHT_UNPACKED_ROOT")
+        self.assertEqual(receipt["boundary"], "before_cdp_extension_load")
+
     def test_exact_worker_selected_among_unrelated_workers(self):
         expected = Worker(self.expected)
         others = [Worker(f"chrome-extension://{'b'*32}/service_worker_entry.js"),
