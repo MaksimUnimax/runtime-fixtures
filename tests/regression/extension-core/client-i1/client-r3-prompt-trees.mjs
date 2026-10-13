@@ -264,6 +264,9 @@ await test("Work lifetime preserves a no-tree Start and rejects an unknown legac
  assert.equal(none.captured,null);assert.equal(none.validated,0);assert.equal(f.trace.fetches,0);
  const legacy={...pinnedWork(null)};delete legacy.prompt_tree;
  await assert.rejects(commandTree(f,legacy),{code:"WORK_PROMPT_TREE_PIN_MISSING_START_REQUIRED"});
+ const finishedLegacy=workModel.transition(legacy,"finishing");
+ assert.equal(Object.prototype.hasOwnProperty.call(finishedLegacy,"prompt_tree"),false,
+  "Finish must preserve unknown legacy absence rather than claim a known no-tree Start");
  assert.equal(f.trace.fetches,0);assert.equal(f.trace.providerApi,0);assert.equal(f.trace.send,0);
 });
 

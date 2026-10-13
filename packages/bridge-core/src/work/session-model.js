@@ -92,7 +92,7 @@
     return Object.freeze({
       ...current,
       ...patch,
-      ...(finishing || newStart ||
+      ...(newStart ||
           Object.prototype.hasOwnProperty.call(current, "prompt_tree") ||
           Object.prototype.hasOwnProperty.call(patch, "prompt_tree")
         ? { prompt_tree: finishing ? null :
