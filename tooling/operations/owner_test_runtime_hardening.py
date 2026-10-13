@@ -356,16 +356,18 @@ def audit_units(
         raise HardeningAuditError("SAMPLE_INTERVAL_INVALID")
 
     captured: dict[str, list[dict[str, str]]] = {unit: [] for unit in UNITS}
-    sample_times: list[int] = []
+    sample_times: dict[str, list[int]] = {unit: [] for unit in UNITS}
     for index in range(samples):
-        sample_times.append(monotonic_ns())
         for unit in UNITS:
             captured[unit].append(read_snapshot(unit, runner=runner))
+            # Reads are serial and may take different amounts of time. Use this
+            # unit's observation endpoint, not the start of the overall round.
+            sample_times[unit].append(monotonic_ns())
         if index + 1 < samples:
             sleeper(interval_seconds)
 
     units = {
-        unit: summarize_samples(captured[unit], sample_times)
+        unit: summarize_samples(captured[unit], sample_times[unit])
         for unit in UNITS
     }
     gaps = [
