@@ -7,21 +7,25 @@ import type { JobRunner } from "./lifecycle.js";
 export class OtpEmailRunner implements JobRunner {
   private timer: NodeJS.Timeout | undefined;
   private readonly inFlightTicks = new Set<Promise<void>>();
+  private stopping = false;
   public constructor(
     private readonly db: DatabaseRuntime,
     private readonly keys: AuthKeys,
     private readonly provider: EmailProvider,
   ) {}
   async start() {
+    if (this.stopping) throw new Error("WORKER_STOPPING");
     this.timer = setInterval(() => void this.tick(), 5000);
     await this.tick();
   }
   async stop(): Promise<void> {
+    this.stopping = true;
     if (this.timer) clearInterval(this.timer);
     this.timer = undefined;
     await Promise.allSettled([...this.inFlightTicks]);
   }
   async tick(): Promise<void> {
+    if (this.stopping) throw new Error("WORKER_STOPPING");
     const pending = this.executeTick();
     this.inFlightTicks.add(pending);
     try {

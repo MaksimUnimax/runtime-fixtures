@@ -64,9 +64,20 @@ describe("B05 exact-main periodic worker DB in-flight stop drain - candidate GRE
         await Promise.resolve();
         await Promise.resolve();
         expect(stopSettled).toBe(false); // pending SQL must finish before stop resolves
+        const lateManual = runner.tick();
+        const manualOutcome = lateManual.then(
+          () => "resolved",
+          (error: unknown) =>
+            error instanceof Error ? error.message : "rejected",
+        );
+        expect(operation).toHaveBeenCalledTimes(initialQueries + 1);
+        expect(await manualOutcome).toBe("WORKER_STOPPING");
         release();
         await stopped;
         expect(stopSettled).toBe(true);
+        const completedQueryCount = operation.mock.calls.length;
+        await expect(runner.tick()).rejects.toThrow("WORKER_STOPPING");
+        expect(operation).toHaveBeenCalledTimes(completedQueryCount);
       } finally {
         release?.();
         await Promise.resolve();
@@ -107,9 +118,18 @@ describe("B05 exact-main periodic worker DB in-flight stop drain - candidate GRE
       await Promise.resolve();
       await Promise.resolve();
       expect(database.close).not.toHaveBeenCalled();
+      const lateManual = runner.tick();
+      const manualOutcome = lateManual.then(
+        () => "resolved",
+        (error: unknown) =>
+          error instanceof Error ? error.message : "rejected",
+      );
+      expect(expireDue).toHaveBeenCalledTimes(2);
+      expect(await manualOutcome).toBe("WORKER_STOPPING");
       release();
       await shutdown;
       expect(database.close).toHaveBeenCalledOnce();
+      await expect(runner.tick()).rejects.toThrow("WORKER_STOPPING");
       await vi.advanceTimersByTimeAsync(30);
       expect(expireDue).toHaveBeenCalledTimes(2);
     } finally {
