@@ -45,21 +45,24 @@ async function load(
   now: Date,
   lock = false,
 ): Promise<Row | undefined> {
-  const result = await tx.query<Row>(
-    `SELECT request_id,account_id,recipient_device_id,source_device_id,recipient_public_key_spki,selected_store_ids,state,revision,created_at,expires_at FROM credential_transfer_requests WHERE request_id=$1${lock ? " FOR UPDATE" : ""}`,
-    [requestId],
-  );
+  const select = `SELECT request_id,account_id,recipient_device_id,source_device_id,recipient_public_key_spki,selected_store_ids,state,revision,created_at,expires_at FROM credential_transfer_requests WHERE request_id=$1${lock ? " FOR UPDATE" : ""}`;
+  const result = await tx.query<Row>(select, [requestId]);
   const row = result.rows[0];
   if (!row) return undefined;
   if (
     new Date(row.expires_at).getTime() <= now.getTime() &&
     !["EXPIRED", "COMPLETED", "CANCELLED"].includes(row.state)
   ) {
-    await tx.query(
-      `UPDATE credential_transfer_requests SET state='EXPIRED',revision=revision+1 WHERE request_id=$1 AND state NOT IN ('COMPLETED','CANCELLED','EXPIRED')`,
+    const expired = await tx.query<Row>(
+      `UPDATE credential_transfer_requests SET state='EXPIRED',revision=revision+1 WHERE request_id=$1 AND state NOT IN ('COMPLETED','CANCELLED','EXPIRED') RETURNING request_id,account_id,recipient_device_id,source_device_id,recipient_public_key_spki,selected_store_ids,state,revision,created_at,expires_at`,
       [requestId],
     );
-    return { ...row, state: "EXPIRED" };
+    if (expired.rows[0]) return expired.rows[0];
+    // A concurrent terminal transition may win after the initial read. Do not
+    // fabricate EXPIRED or return its stale revision when our UPDATE did nothing.
+    // READ COMMITTED sees that committed row; stronger isolation may reject the
+    // conflicting UPDATE with a serialization error, which is not retried here.
+    return (await tx.query<Row>(select, [requestId])).rows[0];
   }
   return row;
 }
