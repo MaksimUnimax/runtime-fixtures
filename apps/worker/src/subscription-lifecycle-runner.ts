@@ -4,6 +4,9 @@ import type { SubscriptionLifecycleProcessSummary } from "@product/db";
 import type { JobRunner } from "./lifecycle.js";
 export class SubscriptionLifecycleRunner implements JobRunner {
   private timer: NodeJS.Timeout | undefined;
+  private readonly inFlightTicks = new Set<
+    Promise<SubscriptionLifecycleProcessSummary>
+  >();
   constructor(
     private readonly repository: SubscriptionLifecycleJobRepository,
     private readonly intervalMs = 30_000,
@@ -17,14 +20,21 @@ export class SubscriptionLifecycleRunner implements JobRunner {
   async stop(): Promise<void> {
     if (this.timer) clearInterval(this.timer);
     this.timer = undefined;
+    await Promise.allSettled([...this.inFlightTicks]);
   }
   async tick(
     correlationId: string = randomUUID(),
   ): Promise<SubscriptionLifecycleProcessSummary> {
-    return this.repository.processDue({
+    const pending = this.repository.processDue({
       now: new Date(this.now().getTime()),
       batchSize: this.batchSize,
       correlationId,
     });
+    this.inFlightTicks.add(pending);
+    try {
+      return await pending;
+    } finally {
+      this.inFlightTicks.delete(pending);
+    }
   }
 }

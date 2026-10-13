@@ -5,6 +5,7 @@ import type { JobRunner } from "./lifecycle.js";
 /** Durable PostgreSQL expiry; SKIP LOCKED in the repository makes concurrent workers safe. */
 export class DeviceAuthorizationExpiryRunner implements JobRunner {
   private timer: NodeJS.Timeout | undefined;
+  private readonly inFlightTicks = new Set<Promise<number>>();
   public constructor(
     private readonly repository: DeviceAuthorizationRepository,
     private readonly intervalMs = 30_000,
@@ -17,8 +18,15 @@ export class DeviceAuthorizationExpiryRunner implements JobRunner {
   async stop(): Promise<void> {
     if (this.timer) clearInterval(this.timer);
     this.timer = undefined;
+    await Promise.allSettled([...this.inFlightTicks]);
   }
   async tick(): Promise<number> {
-    return this.repository.expireDue(this.batchSize, randomUUID());
+    const pending = this.repository.expireDue(this.batchSize, randomUUID());
+    this.inFlightTicks.add(pending);
+    try {
+      return await pending;
+    } finally {
+      this.inFlightTicks.delete(pending);
+    }
   }
 }
