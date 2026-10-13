@@ -33,6 +33,14 @@ SELECT
     AND NOT coalesce(pg_catalog.has_schema_privilege(current_user,pg_catalog.to_regnamespace('octoport_transfer_fence'),'CREATE'),true) AS private_schema_usage_only,
   coalesce(pg_catalog.has_function_privilege(current_user,pg_catalog.to_regprocedure('octoport_transfer_fence.claim_writer(uuid)'),'EXECUTE'),false)
     AND coalesce(pg_catalog.has_function_privilege(current_user,pg_catalog.to_regprocedure('octoport_transfer_fence.authorize_writer(bigint,uuid)'),'EXECUTE'),false) AS can_call_entry_functions,
+  -- Comma-separated privilege inquiries mean ANY; every repository privilege
+  -- must be present. This is validation only, never automatic provisioning.
+  coalesce(pg_catalog.has_schema_privilege(current_user,pg_catalog.to_regnamespace('public'),'USAGE'),false)
+    AND coalesce(pg_catalog.has_table_privilege(current_user,pg_catalog.to_regclass('public.credential_transfer_requests'),'SELECT'),false)
+    AND coalesce(pg_catalog.has_table_privilege(current_user,pg_catalog.to_regclass('public.credential_transfer_requests'),'INSERT'),false)
+    AND coalesce(pg_catalog.has_table_privilege(current_user,pg_catalog.to_regclass('public.credential_transfer_requests'),'UPDATE'),false)
+    AND coalesce(pg_catalog.has_table_privilege(current_user,pg_catalog.to_regclass('public.credential_transfer_requests'),'DELETE'),false)
+    AND coalesce(pg_catalog.has_table_privilege(current_user,pg_catalog.to_regclass('public.devices'),'SELECT'),false) AS required_repository_privileges,
   NOT coalesce(pg_catalog.has_table_privilege(current_user,pg_catalog.to_regclass('octoport_transfer_fence.writer_epoch'),'INSERT,UPDATE,DELETE,TRUNCATE'),true)
     AND NOT coalesce(pg_catalog.has_any_column_privilege(current_user,pg_catalog.to_regclass('octoport_transfer_fence.writer_epoch'),'INSERT,UPDATE'),true)
     AND NOT coalesce(pg_catalog.has_table_privilege(current_user,pg_catalog.to_regclass('octoport_transfer_fence.authorized_transactions'),'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'),true)
@@ -77,6 +85,7 @@ const REQUIRED = [
   "cannot_assume_owner",
   "private_schema_usage_only",
   "can_call_entry_functions",
+  "required_repository_privileges",
   "no_direct_epoch_mutation",
   "cannot_truncate_requests",
   "functions_not_public",

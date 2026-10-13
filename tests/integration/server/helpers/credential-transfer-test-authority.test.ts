@@ -49,6 +49,7 @@ function fakeAdministrator() {
         "cannot_assume_owner",
         "private_schema_usage_only",
         "can_call_entry_functions",
+        "required_repository_privileges",
         "no_direct_epoch_mutation",
         "cannot_truncate_requests",
         "functions_not_public",

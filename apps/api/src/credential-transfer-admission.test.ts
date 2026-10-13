@@ -12,6 +12,7 @@ const checks = [
   "cannot_assume_owner",
   "private_schema_usage_only",
   "can_call_entry_functions",
+  "required_repository_privileges",
   "no_direct_epoch_mutation",
   "cannot_truncate_requests",
   "functions_not_public",
@@ -164,3 +165,15 @@ describe("credential transfer API pre-listen admission", () => {
     },
   );
 });
+
+it.each([undefined, null, "true", 1])(
+  "requires a literal positive repository-grant proof, not %s",
+  async (value) => {
+    const f = fixture({ required_repository_privileges: value });
+    await expect(f.admission.start()).rejects.toThrow(
+      "UNSAFE_OR_UNPROVISIONED",
+    );
+    expect(f.claim).not.toHaveBeenCalled();
+    expect(f.admission.isReady()).toBe(false);
+  },
+);
