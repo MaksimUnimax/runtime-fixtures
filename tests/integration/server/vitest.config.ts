@@ -8,6 +8,7 @@ export default defineConfig({
     include: [
       "packages/server/db/src/**/*.integration.test.ts",
       "tests/integration/server/**/*.integration.test.ts",
+      "tests/integration/server/credential-transfer-reset-compatibility.test.ts",
     ],
   },
 });

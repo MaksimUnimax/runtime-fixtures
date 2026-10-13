@@ -373,7 +373,9 @@ async function persist(
 describe("B5 durable Standard/Work H3 evidence", () => {
   beforeAll(async () => {
     await runtime.ready();
-    await runtime.query("DROP SCHEMA IF EXISTS public CASCADE");
+    await runtime.query(
+      "DROP SCHEMA IF EXISTS octoport_transfer_fence CASCADE; DROP SCHEMA IF EXISTS public CASCADE",
+    );
     await runtime.query("DROP SCHEMA IF EXISTS drizzle CASCADE");
     await runtime.query("CREATE SCHEMA public");
     await runMigrations({ connectionString: connectionString! });
