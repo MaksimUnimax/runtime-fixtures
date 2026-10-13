@@ -136,6 +136,12 @@ await bindConfigSigningRing(bootstrapSigningMaterial, (keyId) =>
 );
 const maintenanceCredentialFile =
   process.env.OCTOPORT_MAINTENANCE_CREDENTIAL_FILE;
+const transferService = new CredentialTransferService(
+  createEpochFencedCredentialTransferRepository(transferFence),
+  undefined,
+  undefined,
+  () => transferAdmission.isReady(),
+);
 const app = createApiApp({
   config,
   isInfrastructureReady: async () =>
@@ -226,9 +232,7 @@ const app = createApiApp({
     createSyncRepository(database),
     createSyncSnapshotReader(database),
   ),
-  credentialTransferService: new CredentialTransferService(
-    createEpochFencedCredentialTransferRepository(transferFence),
-  ),
+  credentialTransferService: transferService,
   feedbackSupportService: new FeedbackSupportService(
     createFeedbackSupportRepository(database),
   ),
@@ -240,10 +244,14 @@ const app = createApiApp({
 });
 app.addHook("onClose", async () => {
   transferAdmission.stop();
+  transferService.stop();
 });
 let closing = false;
 const closeApi = createApiCleanup(
-  () => transferAdmission.stop(),
+  () => {
+    transferAdmission.stop();
+    transferService.stop();
+  },
   () => app.close(),
   () => database.close(),
 );
@@ -251,6 +259,7 @@ async function shutdown(signal: string): Promise<void> {
   if (closing) return;
   closing = true;
   transferAdmission.stop();
+  transferService.stop();
   app.log.info({ signal }, "API shutdown requested");
   await closeApi();
 }
@@ -270,6 +279,7 @@ try {
 } catch (error) {
   closing = true;
   transferAdmission.stop();
+  transferService.stop();
   try {
     await closeApi();
   } catch {

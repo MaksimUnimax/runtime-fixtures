@@ -37,6 +37,7 @@ function mainTail() {
     start: vi.fn(() => admission.promise),
     stop: vi.fn(),
   };
+  const transferService = { stop: vi.fn() };
   const process = {
     exitCode: 0,
     once: (name: string, callback: () => void) => {
@@ -49,6 +50,7 @@ function mainTail() {
       app,
       database,
       transferAdmission,
+      transferService,
       config: { apiPort: 0 },
       process,
       createApiCleanup,
@@ -63,6 +65,7 @@ function mainTail() {
     app,
     database,
     transferAdmission,
+    transferService,
     process,
     handlers,
     admission,
@@ -76,6 +79,7 @@ describe("API main startup/signal resource cleanup", () => {
     const x = mainTail();
     const stopped = new Error("ADMISSION_STOPPED");
     x.handlers.get("SIGTERM")!();
+    expect(x.transferService.stop).toHaveBeenCalled();
     x.admission.reject(stopped);
     // Both the signal and the actual startup catch have entered before close ends.
     await new Promise<void>((resolve) => setImmediate(resolve));
@@ -102,6 +106,7 @@ describe("API main startup/signal resource cleanup", () => {
     x.admission.resolve();
     expect((await x.outcome).error).toBeUndefined();
     x.handlers.get("SIGINT")!();
+    expect(x.transferService.stop).toHaveBeenCalled();
     x.handlers.get("SIGTERM")!();
     x.close.resolve();
     await vi.waitFor(() => expect(x.database.close).toHaveBeenCalledTimes(1));
