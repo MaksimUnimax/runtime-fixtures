@@ -6,19 +6,35 @@ import type { DatabaseRuntime } from "@product/db";
 import type { JobRunner } from "./lifecycle.js";
 export class OtpEmailRunner implements JobRunner {
   private timer: NodeJS.Timeout | undefined;
+  private readonly inFlightTicks = new Set<Promise<void>>();
+  private stopping = false;
   public constructor(
     private readonly db: DatabaseRuntime,
     private readonly keys: AuthKeys,
     private readonly provider: EmailProvider,
   ) {}
   async start() {
+    if (this.stopping) throw new Error("WORKER_STOPPING");
     this.timer = setInterval(() => void this.tick(), 5000);
     await this.tick();
   }
-  async stop() {
+  async stop(): Promise<void> {
+    this.stopping = true;
     if (this.timer) clearInterval(this.timer);
+    this.timer = undefined;
+    await Promise.allSettled([...this.inFlightTicks]);
   }
-  async tick() {
+  async tick(): Promise<void> {
+    if (this.stopping) throw new Error("WORKER_STOPPING");
+    const pending = this.executeTick();
+    this.inFlightTicks.add(pending);
+    try {
+      await pending;
+    } finally {
+      this.inFlightTicks.delete(pending);
+    }
+  }
+  private async executeTick(): Promise<void> {
     const lease = randomUUID();
     // An expired PROCESSING lease is an ambiguous delivery outcome: the
     // worker may have crashed before or after SMTP accepted the message.
