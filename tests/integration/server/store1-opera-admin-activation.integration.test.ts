@@ -659,7 +659,9 @@ describe.sequential("STORE-1 ordinary-admin whole-sequence rehearsal", () => {
   beforeAll(async () => {
     db = createDatabaseRuntime(connectionString!);
     await db.ready();
-    await q("DROP SCHEMA public CASCADE");
+    await q(
+      "DROP SCHEMA IF EXISTS octoport_transfer_fence CASCADE; DROP SCHEMA public CASCADE",
+    );
     await q("DROP SCHEMA IF EXISTS drizzle CASCADE");
     await q("CREATE SCHEMA public");
     await runMigrations({ connectionString: connectionString! });
