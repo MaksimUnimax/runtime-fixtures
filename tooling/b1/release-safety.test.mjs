@@ -11,6 +11,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import process from "node:process";
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -111,6 +112,28 @@ if mode=="duplicate":
     rows.append(("manifest.json",b"{}"))
 if mode=="case_duplicate":
     rows.append(("MANIFEST.JSON",b"{}"))
+if mode=="prefix_file_before_child":
+    rows.extend([("assets",b"file"),("assets/logo.svg",b"child")])
+if mode=="prefix_child_before_file":
+    rows.extend([("assets/logo.svg",b"child"),("assets",b"file")])
+if mode=="prefix_directory_then_file":
+    rows.extend([("assets/",b""),("assets",b"file")])
+if mode=="prefix_file_then_directory":
+    rows.extend([("assets",b"file"),("assets/",b"")])
+if mode=="prefix_mixed_case":
+    rows.extend([("ASSETS",b"file"),("assets/logo.svg",b"child")])
+if mode=="prefix_valid_parent_first":
+    rows.extend([("assets/",b""),("assets/logo.svg",b"child")])
+if mode=="prefix_valid_parent_last":
+    rows.extend([("assets/logo.svg",b"child"),("assets/",b"")])
+if mode=="prefix_depth_excess":
+    rows.append(("/".join(["a"]*129)+".txt",b"too deep"))
+if mode=="prefix_depth_limit":
+    rows.append(("/".join(["a"]*128)+".txt",b"within depth"))
+if mode=="prefix_deep_fanout_128":
+    for i in range(128):
+        first="u"+str(i).zfill(5)+"a"*92
+        rows.append(("/".join([first]+["b"*100]*126+["leaf.txt"]),b"x"))
 if mode.startswith("windows_unsafe_"):
     invalid_names={
         "windows_unsafe_ads":"content/worker.js:payload",
@@ -809,6 +832,81 @@ expectPrepareFailure(
   "case-folded duplicate ZIP entry is rejected",
   "case_duplicate",
 );
+for (const [name, mode] of [
+  [
+    "ZIP file ancestor before descendant is rejected",
+    "prefix_file_before_child",
+  ],
+  [
+    "ZIP descendant before file ancestor is rejected",
+    "prefix_child_before_file",
+  ],
+  [
+    "ZIP explicit directory before file is rejected",
+    "prefix_directory_then_file",
+  ],
+  [
+    "ZIP file before explicit directory is rejected",
+    "prefix_file_then_directory",
+  ],
+  ["ZIP mixed-case file ancestor is rejected", "prefix_mixed_case"],
+]) {
+  expectPrepareFailure(name, mode, /ZIP path hierarchy collision/);
+}
+expectPrepareFailure(
+  "ZIP excessive ancestor depth is rejected before hierarchy allocation",
+  "prefix_depth_excess",
+  /Unsafe ZIP path/,
+);
+for (const [name, mode] of [
+  [
+    "ZIP real directory before descendant stays valid",
+    "prefix_valid_parent_first",
+  ],
+  [
+    "ZIP real directory after descendant stays valid",
+    "prefix_valid_parent_last",
+  ],
+  ["ZIP bounded maximum path depth stays valid", "prefix_depth_limit"],
+]) {
+  test(name, () => {
+    const value = fixture({ chromium: { mode } });
+    try {
+      const { output } = prepare(value);
+      assert.equal(preflight(value, output).status, "PASS");
+    } finally {
+      cleanup(value);
+    }
+  });
+}
+test("ZIP hierarchy stays within 64 MiB JS heap for 128 distinct deep paths", () => {
+  const value = fixture({ chromium: { mode: "prefix_deep_fanout_128" } });
+  try {
+    const reader = pathToFileURL(resolve("tooling/b1/release-lib.mjs")).href;
+    const script = [
+      'import { readFileSync } from "node:fs";',
+      "import { readZip } from " + JSON.stringify(reader) + ";",
+      "const entries = readZip(readFileSync(process.argv[1]));",
+      'if (entries.size !== 130) throw Error("Unexpected ZIP entry count");',
+      "console.log(entries.size);",
+    ].join("\n");
+    const result = spawnSync(
+      NODE,
+      [
+        "--max-old-space-size=64",
+        "--input-type=module",
+        "-e",
+        script,
+        join(value.candidate, "chromium.zip"),
+      ],
+      { encoding: "utf8", timeout: 15000, maxBuffer: 4096 },
+    );
+    assert.equal(result.status, 0, result.stderr || String(result.error));
+    assert.equal(result.stdout.trim(), "130");
+  } finally {
+    cleanup(value);
+  }
+});
 expectPrepareFailure(
   "missing declared extension runtime is rejected",
   "no_runtime",
