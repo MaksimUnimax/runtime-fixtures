@@ -16,6 +16,7 @@ function composedSource(name, target) {
 }
 
 function fixture(provider = "alice") {
+  let clock = 0;
   class Node {
     constructor(parent = null, { id = "", text = "", main = false, hidden = false } = {}) {
       Object.assign(this, { parent, id, text, main, hidden, isConnected: true });
@@ -37,7 +38,7 @@ function fixture(provider = "alice") {
   const adapter = { id: provider, composerContext: () => composer.isConnected ? ({ root: composerRoot, composer }) : null,
     userMessages: () => users, assistantMessages: () => assistants,
     messageId: (node) => node.id, messageText: (node) => node.text };
-  const context = { URL, TextEncoder, crypto: webcrypto,
+  const context = { URL, TextEncoder, crypto: webcrypto, Date: class extends Date { static now() { return clock; } },
     location: { origin: provider === "qwen" ? "https://chat.qwen.ai" : "https://alice.yandex.ru", pathname: "/", search: "", hash: "" },
     document: { get body() { return body; }, querySelectorAll: selector => selector === ".desktop-layout-content-inner" ? desktopRoots : mains, querySelector: () => null } };
   vm.createContext(context);
@@ -45,6 +46,10 @@ function fixture(provider = "alice") {
     "apps/extension/src/background/compat/conversation-identity.js",
     "apps/extension/src/content/conversation-surface.js"]) vm.runInContext(source(file), context);
   return { api: context.SellerAgentsConversationSurface, adapter, context, Node,
+    get user() { return users[0]; }, get assistant() { return assistants[0]; },
+    advanceTime(ms) { clock += ms; },
+    replaceUserNode() { users[0] = new Node(users[0].parent, { id: users[0].id, text: users[0].text }); },
+    explicitIdentity(id) { desktopRoots[0].getAttribute = key => key === "data-chat-id" ? id : null; },
     addMessages(text = "Начальная инструкция") {
       if (provider === "qwen") {
         if (mains[0]) mains[0].isConnected = false;
@@ -357,6 +362,102 @@ for (const code of ["WORK_START_SEND_OUTCOME_UNKNOWN_NO_RETRY", "WORK_START_SEND
     assert.equal(f.calls.length, 1); assert.equal(f.watches.size, 0); assert.equal(f.events.at(-1).reason, code);
   }]);
 }
+
+async function qwenRenameFixture(activeBeforeGuest = false) {
+  const f = fixture("qwen"), before = await f.api.ready(f.adapter);
+  f.api.beginStart(f.adapter, "rename-intent", "Начальная инструкция");
+  f.partialRemountGap();
+  assert.equal((await f.api.ready(f.adapter)).source, "pending_route_continuity");
+  f.addMessages("");
+  f.assistant.id = "";
+  f.context.location.pathname = "/c/new-chat";
+  await f.api.ready(f.adapter);
+  f.user.text = "Начальная инструкция";
+  assert.equal((await f.api.ready(f.adapter)).status, "confirmed");
+  if (activeBeforeGuest) f.api.endStart("rename-intent", "active_visible");
+  f.context.location.pathname = "/c/guest";
+  const guest = await f.api.ready(f.adapter);
+  assert.equal(guest.status, "confirmed");
+  assert.equal(guest.surface_id, before.surface_id);
+  return { f, before };
+}
+for (const active of [false, true]) cases.push(["Qwen ID rename preserves owned node " + (active ? "after active_visible" : "while pending"), async () => {
+  const { f, before } = await qwenRenameFixture();
+  if (active) f.api.endStart("rename-intent", "active_visible");
+  f.user.id = "user-server"; f.assistant.id = "assistant-server";
+  const after = await f.api.ready(f.adapter);
+  assert.equal(after.status, "confirmed");
+  assert.equal(after.surface_id, before.surface_id);
+  assert.equal(after.conversation_id, "local:" + before.surface_id);
+  assert.deepEqual(Array.from(after.identity_evidence.message_ids), ["user-server", "assistant-server"]);
+  assert.equal((await f.api.ready(f.adapter)).status, "confirmed");
+}]);
+for (const [kind, alter] of [
+  ["replacement node with the same text", f => f.replaceUserNode()],
+  ["changed text", f => { f.user.text = "Другой запрос"; }],
+  ["hidden node", f => { f.user.hidden = true; }],
+  ["disconnected node", f => { f.user.isConnected = false; }],
+  ["replaced root", f => f.replaceDesktopRoot()],
+  ["ambiguous roots", f => f.duplicateDesktopRoot()],
+  ["changed route", f => { f.context.location.pathname = "/c/other"; }],
+  ["changed origin", f => { f.context.location.origin = "https://example.invalid"; }],
+  ["cancelled Start", f => f.api.endStart("rename-intent", "cancelled")],
+  ["timed out Start", f => f.api.endStart("rename-intent", "response_timeout")],
+  ["expired observation", f => f.advanceTime(120001)],
+  ["duplicate current ID", f => { f.assistant.id = "user-server"; }],
+  ["conflicting external identity", f => f.explicitIdentity("different-conversation")],
+]) cases.push(["Qwen ID rename refuses " + kind, async () => {
+  const { f, before } = await qwenRenameFixture();
+  f.user.id = "user-server"; f.assistant.id = "assistant-server";
+  alter(f);
+  const after = await f.api.ready(f.adapter);
+  assert(after.status !== "confirmed" || after.surface_id !== before.surface_id,
+    "unproved ID replacement cannot continue the owned Start");
+}]);
+cases.push(["Qwen ID rename is single-use even after active_visible", async () => {
+  const { f, before } = await qwenRenameFixture();
+  f.api.endStart("rename-intent", "active_visible");
+  f.user.id = "user-server"; f.assistant.id = "assistant-server";
+  assert.equal((await f.api.ready(f.adapter)).status, "confirmed");
+  f.user.id = "user-third"; f.assistant.id = "assistant-third";
+  const after = await f.api.ready(f.adapter);
+  assert(after.status !== "confirmed" || after.surface_id !== before.surface_id);
+}]);
+cases.push(["Qwen ID rename cannot revive after a witnessed text mismatch", async () => {
+  const { f, before } = await qwenRenameFixture();
+  f.user.text = "Different"; await f.api.ready(f.adapter);
+  f.user.text = "Начальная инструкция";
+  f.user.id = "user-server"; f.assistant.id = "assistant-server";
+  const after = await f.api.ready(f.adapter);
+  assert(after.status !== "confirmed" || after.surface_id !== before.surface_id);
+}]);
+
+cases.push(["Qwen ID rename survives active_visible before guest route promotion", async () => {
+  const { f, before } = await qwenRenameFixture(true);
+  f.user.id = "user-server"; f.assistant.id = "assistant-server";
+  const after = await f.api.ready(f.adapter);
+  assert.equal(after.status, "confirmed");
+  assert.equal(after.surface_id, before.surface_id);
+  assert.deepEqual(Array.from(after.identity_evidence.message_ids), ["user-server", "assistant-server"]);
+}]);
+
+cases.push(["Qwen ID rename early-active retention never permits another final route", async () => {
+  const f = fixture("qwen"), before = await f.api.ready(f.adapter);
+  f.api.beginStart(f.adapter, "rename-intent", "Начальная инструкция");
+  f.addMessages(); f.context.location.pathname = "/c/new-chat";
+  assert.equal((await f.api.ready(f.adapter)).surface_id, before.surface_id);
+  f.api.endStart("rename-intent", "active_visible");
+  f.context.location.pathname = "/c/another";
+  const after = await f.api.ready(f.adapter);
+  assert(after.status !== "confirmed" || after.surface_id !== before.surface_id);
+}]);
+cases.push(["Qwen ID rename completed guest promotion cannot authorize later navigation", async () => {
+  const { f, before } = await qwenRenameFixture(true);
+  f.context.location.pathname = "/c/another";
+  const after = await f.api.ready(f.adapter);
+  assert(after.status !== "confirmed" || after.surface_id !== before.surface_id);
+}]);
+
 const results = [];
 for (const [name, run] of cases) {
   try { await run(); results.push({ name, status: "PASS" }); }

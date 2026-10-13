@@ -92,34 +92,53 @@
       const item = active?.closest?.(".ChatListItem[id]");
       if (item?.id) explicitIds.push(item.id);
     }
-    let startWitness = null, startWitnessMessageId = null;
+    const messageIds = inSurface.map((node) => adapter.messageId(node)).filter(Boolean);
+    let startWitness = null, startWitnessMessageId = null, renamePreviousId = null;
     if (pending && roots.size <= 1 && (pending.root === root || pending.witnessId)) {
       for (const node of adapter.userMessages?.() || []) {
         // Never discover a new witness on another root, or in hidden history.
         if (!inSurface.includes(node)) continue;
         const id = adapter.messageId(node);
-        if (id && (!pending.witnessId || id === pending.witnessId) &&
-            !pending.baseline.has(id) && text(adapter.messageText(node)) === pending.text) {
+        if (!id || pending.baseline.has(id) || text(adapter.messageText(node)) !== pending.text) continue;
+        if (!pending.witnessId || id === pending.witnessId) {
+          if (pending.witnessNode && pending.witnessNode !== node) pending.renameUnavailable = true;
+          pending.witnessNode ||= node;
           pending.witnessId = id;
+          pending.witnessRoot = root; pending.witnessPath = pathname;
           startWitness = pending.intentId;
           startWitnessMessageId = id;
+          break;
+        }
+        // Primary guest trace: the same owned node receives its server UUID
+        // 571 ms after /c/guest. Never infer this continuity from text alone.
+        if (provider === "qwen" && pending.emptySurface && pending.initialPath === "/" &&
+            pending.baseline.size === 0 && !pending.renameUnavailable &&
+            node === pending.witnessNode && root === pending.witnessRoot && root === qwenRoot &&
+            pathname === "/c/guest" && pathname === pending.witnessPath &&
+            explicitIds.length === 0 && messageIds.filter(value => value === id).length === 1) {
+          renamePreviousId = pending.witnessId;
+          startWitness = pending.intentId; startWitnessMessageId = id;
           break;
         }
       }
     }
     const canonicalHref = document.querySelector('link[rel="canonical"][href]')?.href || "";
-    const messageIds = inSurface.map((node) => adapter.messageId(node)).filter(Boolean);
+    if (provider === "qwen" && pending?.witnessNode && !startWitness) pending.renameUnavailable = true;
     const surfaceConfirmed = Boolean(!qwenGapRoot && root && roots.size <= 1 &&
       (composer?.composer?.isConnected || inSurface.length));
     lastInput = { origin, provider, pathname, canonicalHref,
       explicitIds, requiresExplicitId: provider === "alice", root,
       qwenInitialMain: qwenRoot ? mainRoots[0] : null, qwenInitialComposer: qwenRoot ? composer.composer : null,
-      surfaceConfirmed, hasMessages: inSurface.length > 0, messageIds, startWitness, startWitnessMessageId,
+      surfaceConfirmed, hasMessages: inSurface.length > 0, messageIds, startWitness, startWitnessMessageId, renamePreviousId,
       conflict: roots.size > 1 ? "multiple_conversation_surfaces" : null };
     return lastInput;
   }
   function read(adapter) {
     const input = capture(adapter);
+    if (input.renamePreviousId && tracker.renameStartMessage(input, input.renamePreviousId)) {
+      pending.witnessId = input.startWitnessMessageId;
+      pending.renameUnavailable = true;
+    }
     const identity = tracker.observe(input);
     const digest = locatorDigest();
     if (!digest.digest) return { ...identity, conversation_id: null, status: "unknown", source: digest.failed ? "surface_proof_unavailable" : "surface_proof_pending" };
