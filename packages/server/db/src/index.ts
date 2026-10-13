@@ -186,19 +186,36 @@ export function createDatabaseRuntime(
       operation: (transaction: DatabaseQuery) => Promise<T>,
     ) => {
       const client = await pool.connect();
+      let result: { ok: true; value: T } | { ok: false; error: unknown };
+      let commitAttempted = false;
+      let discardClient = false;
       try {
         await client.query("BEGIN");
         const value = await operation({
           query: (text, values) => client.query(text, values),
         });
+        commitAttempted = true;
         await client.query("COMMIT");
-        return value;
+        result = { ok: true, value };
       } catch (error) {
-        await client.query("ROLLBACK");
-        throw error;
-      } finally {
-        client.release();
+        // Preserve even falsy original rejections; an uncertain COMMIT is not retried.
+        result = { ok: false, error };
+        discardClient = commitAttempted;
+        try {
+          await client.query("ROLLBACK");
+        } catch {
+          // The connection's transaction state is not confirmed reusable.
+          discardClient = true;
+        }
       }
+      try {
+        client.release(discardClient);
+      } catch (releaseError) {
+        // Cleanup cannot replace a primary failure. After success, report it.
+        if (result.ok) throw releaseError;
+      }
+      if (!result.ok) throw result.error;
+      return result.value;
     },
   };
 }
