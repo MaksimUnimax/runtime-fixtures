@@ -52,6 +52,7 @@ export function createWorker(
   let rawReady: Promise<void> | undefined;
   let rawStart: Promise<void> | undefined;
   let startupPromise: Promise<void> | undefined;
+  let terminalStartPromise: Promise<void> | undefined;
   let shutdownPromise: Promise<void> | undefined;
   let closeAttempted = false;
   let cleanupIncomplete = false;
@@ -137,8 +138,13 @@ export function createWorker(
   });
 
   const start = (): Promise<void> => {
+    if (closing) {
+      terminalStartPromise ??= beginShutdown().then(() => {
+        throw hasOriginalCause ? originalCause : new TerminalAdmissionDenied();
+      });
+      return terminalStartPromise;
+    }
     if (startupPromise) return startupPromise;
-    if (closing) return Promise.reject(new TerminalAdmissionDenied());
     rawReady = Promise.resolve().then(() => database.ready());
     startupPromise = (async () => {
       try {

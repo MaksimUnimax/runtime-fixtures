@@ -28,7 +28,7 @@ function dependencies() {
   };
   const database = {
     ready: vi.fn(async () => undefined),
-    close: vi.fn(async () => undefined),
+    close: vi.fn(async (): Promise<void> => undefined),
   };
   return { signal, runner, database, logger: { info: vi.fn() } };
 }
@@ -96,9 +96,7 @@ describe("parent-reviewed shutdown adversarial boundaries", () => {
     const { runner, database, signal, logger } = dependencies();
     signal.emit("SCHEDULED_OPERATION_FAILED", undefined);
     const runtime = createWorker(database, runner, logger);
-    await expect(runtime.start()).rejects.toBeInstanceOf(
-      TerminalAdmissionDenied,
-    );
+    await expect(runtime.start()).rejects.toBeUndefined();
     expect(await runtime.completion).toMatchObject({
       state: "FAILED",
       code: "SCHEDULED_OPERATION_FAILED",
@@ -208,5 +206,47 @@ describe("parent-reviewed shutdown adversarial boundaries", () => {
       code: "SCHEDULED_OPERATION_FAILED",
     });
     expect(database.close).toHaveBeenCalledOnce();
+  });
+  it("does not reuse successful startup after the runtime has stopped", async () => {
+    const { runner, database, logger } = dependencies();
+    const runtime = createWorker(database, runner, logger);
+    await runtime.start();
+    await runtime.shutdown("SIGTERM");
+    await expect(runtime.start()).rejects.toBeInstanceOf(
+      TerminalAdmissionDenied,
+    );
+    expect(runner.start).toHaveBeenCalledOnce();
+    expect(database.ready).toHaveBeenCalledOnce();
+    expect(database.close).toHaveBeenCalledOnce();
+  });
+  it("prelatched fatal startup rejects with the original cause only after shared close", async () => {
+    const { runner, database, signal, logger } = dependencies();
+    const enteredClose = deferred<void>();
+    const close = deferred<void>();
+    const cause = new Error("synthetic prelatched cause");
+    vi.mocked(database.close).mockImplementation(() => {
+      enteredClose.resolve();
+      return close.promise;
+    });
+    signal.emit("SCHEDULED_OPERATION_FAILED", cause);
+    const runtime = createWorker(database, runner, logger);
+    let rejected = false;
+    const starting = runtime.start().then(
+      () => undefined,
+      (error: unknown) => {
+        rejected = true;
+        return error;
+      },
+    );
+    await enteredClose.promise;
+    try {
+      expect(rejected).toBe(false);
+    } finally {
+      close.resolve();
+    }
+    expect(await starting).toBe(cause);
+    expect(await runtime.completion).toMatchObject({ state: "FAILED" });
+    expect(database.close).toHaveBeenCalledOnce();
+    expect(runner.start).not.toHaveBeenCalled();
   });
 });
