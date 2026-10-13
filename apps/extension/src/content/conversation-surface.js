@@ -53,19 +53,27 @@
     const allQwenRoots = provider === "qwen" ? [...document.querySelectorAll('.desktop-layout-content-inner')] : [];
     const qwenRoots = allQwenRoots.filter((node) => node.isConnected && node.getClientRects().length > 0 &&
         !node.closest('[aria-hidden="true"], [hidden]'));
-    const qwenRoot = qwenRoots.length === 1 && mainRoots.length === 1 && roots.size <= 1 &&
+    const qwenRoot = allMainRoots.length === 1 && qwenRoots.length === 1 && mainRoots.length === 1 && roots.size <= 1 &&
       composer?.composer?.isConnected && qwenRoots[0].contains(mainRoots[0]) &&
       qwenRoots[0].contains(composer.composer) && messages.every((node) => mainRoots[0].contains(node))
       ? qwenRoots[0] : null;
-    // The same parent also survives a brief fully empty remount frame. Keep
-    // only the already pending empty Start's reference through that frame.
-    // With no main, composer or messages surfaceConfirmed stays false: this
-    // preserves observation, never permission to send or retry. Hidden or
-    // duplicate surfaces, history, replacement parents and ended Starts fail.
+    // Qwen also keeps the SAME old main/composer briefly while that main has
+    // no client rect. Retain only an already pending empty Start, with the
+    // original nodes and exact prompt still present, on the observed route.
+    // This and the fully empty remount frame suspend confirmation; neither
+    // authorizes Send, retry, hidden history or a replacement surface.
+    const qwenPartialGap = allMainRoots.length === 1 && mainRoots.length === 0 &&
+      pending?.qwenInitialMain === allMainRoots[0] && allMainRoots[0].isConnected &&
+      pending.qwenInitialComposer === composer?.composer && composer?.composer?.isConnected &&
+      composerRoot === allMainRoots[0] && pending.root.contains(composer.composer) &&
+      !allMainRoots[0].closest('[aria-hidden="true"], [hidden]') &&
+      !composer.composer.closest('[aria-hidden="true"], [hidden]') &&
+      text(composer.composer.value) === pending.text;
     const qwenGapRoot = pending?.emptySurface && pending.initialPath === "/" && pathname === "/c/new-chat" &&
       !pending.witnessId && pending.baseline.size === 0 &&
       allQwenRoots.length === 1 && qwenRoots.length === 1 && pending.root === qwenRoots[0] &&
-      allMainRoots.length === 0 && !composer && observedMessages.length === 0 ? qwenRoots[0] : null;
+      observedMessages.length === 0 &&
+      ((allMainRoots.length === 0 && !composer) || qwenPartialGap) ? qwenRoots[0] : null;
     if (qwenGapRoot) pending.qwenRemountGap = true;
     const root = aliceNoMainRoot ? document.body : qwenRoot || qwenGapRoot || (
       roots.size === 1 ? [...roots][0] :
@@ -101,10 +109,11 @@
     }
     const canonicalHref = document.querySelector('link[rel="canonical"][href]')?.href || "";
     const messageIds = inSurface.map((node) => adapter.messageId(node)).filter(Boolean);
-    const surfaceConfirmed = Boolean(root && roots.size <= 1 &&
+    const surfaceConfirmed = Boolean(!qwenGapRoot && root && roots.size <= 1 &&
       (composer?.composer?.isConnected || inSurface.length));
     lastInput = { origin, provider, pathname, canonicalHref,
       explicitIds, requiresExplicitId: provider === "alice", root,
+      qwenInitialMain: qwenRoot ? mainRoots[0] : null, qwenInitialComposer: qwenRoot ? composer.composer : null,
       surfaceConfirmed, hasMessages: inSurface.length > 0, messageIds, startWitness, startWitnessMessageId,
       conflict: roots.size > 1 ? "multiple_conversation_surfaces" : null };
     return lastInput;
@@ -136,6 +145,7 @@
     tracker.beginStart(intentId);
     pending = { intentId: String(intentId), text: text(prompt), root: lastInput.root,
       emptySurface: lastInput.surfaceConfirmed && !lastInput.hasMessages, initialPath: lastInput.pathname,
+      qwenInitialMain: lastInput.qwenInitialMain, qwenInitialComposer: lastInput.qwenInitialComposer,
       baseline: new Set((adapter.userMessages?.() || []).map((node) => adapter.messageId(node)).filter(Boolean)) };
     return identity;
   }

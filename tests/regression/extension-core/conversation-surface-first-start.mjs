@@ -27,7 +27,7 @@ function fixture(provider = "alice") {
       }
       return null;
     }
-    getClientRects() { return this.hidden || !this.isConnected ? [] : [{}]; }
+    getClientRects() { return this.hidden || this.noRect || !this.isConnected ? [] : [{}]; }
     getAttribute() { return null; }
   }
   let body = new Node(), mains = [], users = [], assistants = [];
@@ -60,6 +60,25 @@ function fixture(provider = "alice") {
       for (const main of mains) main.isConnected = false;
       mains = []; composer.isConnected = false; users = []; assistants = [];
       context.location.pathname = "/c/new-chat";
+    },
+    partialRemountGap() {
+      mains[0].noRect = true;
+      composer.value = "Начальная инструкция";
+      context.location.pathname = "/c/new-chat";
+    },
+    alterPartialGap(kind) {
+      if (kind === "replacement main") {
+        mains[0] = new Node(desktopRoots[0], { main: true }); mains[0].noRect = true;
+        composerRoot.parent = mains[0];
+      }
+      if (kind === "replacement composer") {
+        const other = new Node(composerRoot); other.value = composer.value;
+        adapter.composerContext = () => ({ root: composerRoot, composer: other });
+      }
+      if (kind === "cleared prompt") composer.value = "";
+      if (kind === "hidden old main") mains[0].hidden = true;
+      if (kind === "hidden composer") composer.hidden = true;
+      if (kind === "extra main") mains.push(new Node(desktopRoots[0], { main: true }));
     },
     hiddenMainInGap() { mains = [new Node(desktopRoots[0], { main: true, hidden: true })]; },
     hiddenMessageInGap() { users = [new Node(desktopRoots[0], { id: "hidden-1", text: "History", hidden: true })]; },
@@ -197,6 +216,38 @@ cases.push(["Qwen remount of a nonempty conversation cannot retain first-Start c
   assert.notEqual(gap.status, "confirmed");
   assert.notEqual(gap.surface_id, before.surface_id);
 }]);
+
+// Installed 0.2.18 primary trace: the SAME main loses its client rect while
+// the SAME composer retains the pending prompt, before both are remounted.
+cases.push(["Qwen partial remount retains observation but never authorizes effects", async () => {
+  const f = fixture("qwen"), before = await f.api.ready(f.adapter);
+  f.api.beginStart(f.adapter, "intent-partial", "Начальная инструкция");
+  f.partialRemountGap();
+  for (let frame = 0; frame < 3; frame += 1) {
+    const gap = await f.api.ready(f.adapter);
+    assert.equal(gap.surface_id, before.surface_id);
+    assert.equal(gap.status, "unknown");
+    assert.equal(gap.conversation_id, null);
+  }
+  f.addMessages(); f.context.location.pathname = "/c/new-chat";
+  const witnessed = await f.api.ready(f.adapter);
+  assert.equal(witnessed.status, "confirmed");
+  assert.equal(witnessed.surface_id, before.surface_id);
+  f.context.location.pathname = "/c/guest";
+  assert.equal((await f.api.ready(f.adapter)).surface_id, before.surface_id);
+}]);
+for (const kind of ["replacement main", "replacement composer", "cleared prompt",
+  "hidden old main", "hidden composer", "extra main"]) {
+  cases.push([`Qwen partial remount rejects ${kind}`, async () => {
+    const f = fixture("qwen"), before = await f.api.ready(f.adapter);
+    f.api.beginStart(f.adapter, "intent-partial", "Начальная инструкция");
+    f.partialRemountGap(); f.alterPartialGap(kind);
+    const gap = await f.api.ready(f.adapter);
+    assert.notEqual(gap.surface_id, before.surface_id);
+    f.addMessages();
+    assert.notEqual((await f.api.ready(f.adapter)).surface_id, before.surface_id);
+  }]);
+}
 
 // Exercise the real Alice adapter against the observed author/bubble/control structure.
 class AliceElement {
