@@ -169,6 +169,9 @@ describe("S1.1 beta admission domain", () => {
       "reviewer@example.test.",
       "reviewer@-example.test",
       "reviewer@example-.test",
+      `reviewer@${"a".repeat(64)}.test`,
+      `reviewer@${"ü".repeat(64)}.test`,
+      `reviewer@${["a", "b", "c", "d"].map((letter) => letter.repeat(63)).join(".")}`,
     ]) {
       await expect(
         service.createIdentityInvitation({
@@ -178,10 +181,16 @@ describe("S1.1 beta admission domain", () => {
       ).resolves.toEqual({ kind: "CONFLICT" });
     }
     expect(invitations).toBe(0);
-    await service.createIdentityInvitation({
-      ...request,
-      normalizedIdentityTarget: "reviewer+tag@bücher.example",
-    });
-    expect(invitations).toBe(1);
+    for (const normalizedIdentityTarget of [
+      "reviewer+tag@bücher.example",
+      `reviewer@${"a".repeat(63)}.test`,
+      `reviewer@${"ü".repeat(50)}.test`,
+    ]) {
+      await service.createIdentityInvitation({
+        ...request,
+        normalizedIdentityTarget,
+      });
+    }
+    expect(invitations).toBe(3);
   });
 });
