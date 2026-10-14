@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { lstat, mkdir, open, readFile, rename } from "node:fs/promises";
+import { lstat, mkdir, open, readFile, rename, unlink } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { SwaggerSourceFamilySchema } from "@product/monitoring-control";
 import type {
@@ -94,12 +94,27 @@ export async function promoteAcceptedSnapshot(input: {
     );
     const handle = await open(temporaryPath, "wx", 0o600);
     try {
-      await handle.writeFile(bytes);
-      await handle.sync();
-    } finally {
-      await handle.close();
+      try {
+        await handle.writeFile(bytes);
+        await handle.sync();
+      } finally {
+        await handle.close();
+      }
+      await rename(temporaryPath, artifactPath);
+    } catch (error) {
+      // Only this invocation's unpublished file is eligible for cleanup.
+      // Never remove artifactPath: a concurrent publication may own it.
+      try {
+        await unlink(temporaryPath);
+      } catch (cleanupError) {
+        if ((cleanupError as NodeJS.ErrnoException).code !== "ENOENT")
+          throw new AggregateError(
+            [error, cleanupError],
+            "SNAPSHOT_TEMP_CLEANUP_FAILED",
+          );
+      }
+      throw error;
     }
-    await rename(temporaryPath, artifactPath);
   }
   const documentKey = input.documentKey ?? null;
   const snapshotId =

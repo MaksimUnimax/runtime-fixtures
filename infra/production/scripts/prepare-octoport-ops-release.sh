@@ -25,7 +25,7 @@ esac
 [[ -x "${NODE_BIN}" ]] || fail "pinned Node binary is not executable"
 [[ -x "${PNPM_BIN}" ]] || fail "pinned pnpm binary is not executable"
 
-for command_name in git tar sha256sum python3 install mkdir mv rm chmod grep find sort xargs; do
+for command_name in git tar sha256sum python3 install mkdir mv rm chmod grep find sort xargs flock; do
   command -v "${command_name}" >/dev/null 2>&1 ||
     fail "missing required command: ${command_name}"
 done
@@ -39,23 +39,30 @@ tree_sha="$(git -C "${SOURCE_DIR}" rev-parse HEAD^{tree})"
 [[ -z "$(git -C "${SOURCE_DIR}" status --porcelain)" ]] ||
   fail "source checkout must be clean"
 
+# Serialize preparation and check limits before materializing another release.
+exec 9>"${RELEASE_ROOT}/.prepare.lock"
+flock -n 9 || fail "another release preparation is active"
+helper="${SOURCE_DIR}/tooling/operations/ops_release_inputs.py"
+python3 -B "${helper}" budget "${RELEASE_ROOT}"
 target="${RELEASE_ROOT}/${head_sha}"
 [[ ! -e "${target}" ]] || fail "release already exists: ${target}"
 tmp="$(mktemp -d "${RELEASE_ROOT}/.ops-${head_sha}.XXXXXX")"
 chmod 0755 "${tmp}"
 success=0
+published=0
 cleanup() {
   if [[ "${success}" -ne 1 ]]; then
     rm -rf -- "${tmp}"
-    [[ ! -e "${target}" ]] || rm -rf -- "${target}"
+    if [[ "${published}" -eq 1 ]]; then rm -rf -- "${target}"; fi
   fi
 }
 trap cleanup EXIT
 
-git -C "${SOURCE_DIR}" archive --format=tar "${head_sha}" |
+python3 -B "${helper}" inputs "${SOURCE_DIR}" >"${tmp}/RELEASE_INPUT_PATHS"
+mapfile -t release_paths <"${tmp}/RELEASE_INPUT_PATHS"
+git -C "${SOURCE_DIR}" archive --format=tar "${head_sha}" -- "${release_paths[@]}" |
   tar -xf - -C "${tmp}"
-mkdir -p "${tmp}/.runtime"
-install -m 0555 "${NODE_BIN}" "${tmp}/.runtime/node"
+python3 -B "${helper}" stage-node "${NODE_BIN}" "${tmp}" "${RELEASE_ROOT}"
 
 export PATH="$(dirname "${NODE_BIN}"):${PATH}"
 (
@@ -127,7 +134,8 @@ fi
 if find "${tmp}" ! -user root -print -quit | grep -q .; then
   fail "release must be root-owned"
 fi
-mv "${tmp}" "${target}"
+mv -T "${tmp}" "${target}"
+published=1
 python3 "${target}/tooling/operations/verify_ops_release.py" \
   --expected-source-sha "${head_sha}" \
   --expected-source-tree "${tree_sha}" \

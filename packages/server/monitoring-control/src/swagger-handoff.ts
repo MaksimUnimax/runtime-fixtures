@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
+import { link, lstat, mkdir, open, readFile, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, extname, join } from "node:path";
 import { parse as parseYaml } from "yaml";
@@ -237,11 +237,13 @@ export class InMemorySwaggerSourceStore implements SwaggerSourceStore {
   }
 
   async saveArtifact(artifact: SwaggerArtifact) {
-    const duplicate = await this.findArtifactByDigest(
-      artifact.requestId,
-      artifact.sha256,
+    const duplicate = [...this.state.artifacts.values()].find(
+      (candidate) =>
+        candidate.requestId === artifact.requestId &&
+        candidate.sha256 === artifact.sha256,
     );
-    if (duplicate) return { inserted: false, artifact: duplicate };
+    if (duplicate)
+      return { inserted: false, artifact: cloneArtifact(duplicate) };
     this.state.artifacts.set(artifact.artifactId, cloneArtifact(artifact));
     return { inserted: true, artifact: cloneArtifact(artifact) };
   }
@@ -543,6 +545,59 @@ export function validateSwaggerBytes(
   };
 }
 
+// A request accepts one artifact. Keep one stable retry payload when a database
+// acknowledgement is uncertain; never delete bytes that a commit may reference.
+async function retainQuarantineUpload(
+  directory: string,
+  requestId: string,
+  bytes: Uint8Array,
+  sha256: string,
+): Promise<string> {
+  const filename = `request-${createHash("sha256").update(requestId).digest("hex")}.upload`;
+  const destination = join(directory, filename);
+  const verifyExisting = async () => {
+    const stat = await lstat(destination);
+    if (
+      !stat.isFile() ||
+      stat.isSymbolicLink() ||
+      stat.size !== bytes.byteLength
+    )
+      throw new Error("QUARANTINE_PENDING_UPLOAD_MISMATCH");
+    if (
+      createHash("sha256")
+        .update(await readFile(destination))
+        .digest("hex") !== sha256
+    )
+      throw new Error("QUARANTINE_PENDING_UPLOAD_MISMATCH");
+  };
+  try {
+    await verifyExisting();
+    return filename;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+  const temporary = join(directory, `.${filename}.${randomUUID()}.tmp`);
+  const handle = await open(temporary, "wx", 0o600);
+  try {
+    try {
+      await handle.writeFile(bytes);
+      await handle.sync();
+    } finally {
+      await handle.close();
+    }
+    try {
+      // A competing upload may publish first. Never overwrite its payload.
+      await link(temporary, destination);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+      await verifyExisting();
+    }
+  } finally {
+    await unlink(temporary);
+  }
+  return filename;
+}
+
 export function createSwaggerHandoffService(options: {
   store: SwaggerSourceStore;
   quarantineDir?: string;
@@ -597,7 +652,17 @@ export function createSwaggerHandoffService(options: {
       request.requestId,
       sha256,
     );
-    if (duplicate) return { kind: "DUPLICATE", artifact: duplicate };
+    if (duplicate) {
+      // A previous save may have committed before its status update failed.
+      if (!["CANCELLED", "EXPIRED"].includes(request.status))
+        await options.store.setRequestStatus(
+          request.requestId,
+          duplicate.status === "CANDIDATE_READY"
+            ? "CANDIDATE_READY"
+            : "VALIDATION_FAILED",
+        );
+      return { kind: "DUPLICATE", artifact: duplicate };
+    }
     if (["CANDIDATE_READY", "CANCELLED", "EXPIRED"].includes(request.status))
       return { kind: "REJECTED", code: "REQUEST_FINALIZED" };
     if ((await options.store.listArtifacts(request.requestId)).length > 0)
@@ -605,10 +670,12 @@ export function createSwaggerHandoffService(options: {
 
     await mkdir(quarantineDir, { recursive: true });
     const extension = extname(input.originalFilename).toLowerCase();
-    const quarantineFilename = `${randomUUID()}${extension || ".upload"}`;
-    await writeFile(join(quarantineDir, quarantineFilename), input.bytes, {
-      flag: "wx",
-    });
+    const quarantineFilename = await retainQuarantineUpload(
+      quarantineDir,
+      request.requestId,
+      input.bytes,
+      sha256,
+    );
     await options.store.setRequestStatus(request.requestId, "QUARANTINED");
 
     const originalFilename = safeOriginalFilename(input.originalFilename);
@@ -677,8 +744,27 @@ export function createSwaggerHandoffService(options: {
       validationResult,
       authorityState,
     };
-    const saved = await options.store.saveArtifact(artifact);
-    if (!saved.inserted) return { kind: "DUPLICATE", artifact: saved.artifact };
+    let saved: Awaited<ReturnType<SwaggerSourceStore["saveArtifact"]>>;
+    try {
+      saved = await options.store.saveArtifact(artifact);
+    } catch (error) {
+      // An error does not prove rollback. Reconcile against the primary store;
+      // if unavailable or absent, retain the stable bytes for the same retry.
+      const committed = await options.store
+        .findArtifactByDigest(request.requestId, sha256)
+        .catch(() => undefined);
+      if (!committed) throw error;
+      saved = { inserted: false, artifact: committed };
+    }
+    if (!saved.inserted) {
+      await options.store.setRequestStatus(
+        request.requestId,
+        saved.artifact.status === "CANDIDATE_READY"
+          ? "CANDIDATE_READY"
+          : "VALIDATION_FAILED",
+      );
+      return { kind: "DUPLICATE", artifact: saved.artifact };
+    }
     await options.store.setRequestStatus(
       request.requestId,
       status === "CANDIDATE_READY" ? "CANDIDATE_READY" : "VALIDATION_FAILED",
