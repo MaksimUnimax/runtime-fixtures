@@ -303,10 +303,19 @@ def _verified_backup_directories(
 ) -> list[tuple[str, Path]]:
     valid: list[tuple[str, Path]] = []
     for candidate in destination.glob("backup-*"):
-        if not candidate.is_dir():
+        # Only self-contained, regular backup directories may influence
+        # retention. Following symlinks can count external bytes as verified.
+        if candidate.is_symlink() or not candidate.is_dir():
             continue
         manifest_path = candidate / "manifest.json"
         archive_path = candidate / "database.dump"
+        if (
+            manifest_path.is_symlink()
+            or archive_path.is_symlink()
+            or not manifest_path.is_file()
+            or not archive_path.is_file()
+        ):
+            continue
         try:
             manifest = json.loads(manifest_path.read_text())
             if manifest.get("format") != "octoport-postgres-backup-v1":
