@@ -19,6 +19,7 @@ from backup_postgres_independent import (
     parse_database_url,
     run_backup,
     verify_independent_mounts,
+    _verified_backup_directories,
 )
 
 
@@ -215,6 +216,77 @@ class BackupPostgresIndependentTest(unittest.TestCase):
         self.assertEqual(result["retainedSuccessful"], 7)
         self.assertTrue(all(path.exists() for path in verified))
         self.assertTrue(unverified.exists())
+        self.assertFalse(list(self.dest.glob(".incomplete-*")))
+
+    def test_invalid_created_at_is_not_verified_as_successful_backup(self) -> None:
+        """Archive bytes alone cannot authenticate its ordering metadata."""
+        good = self._existing_backup(
+            40, "2026-09-15T00:00:00Z", b"valid-canonical-date",
+        )
+        invalid_dates = (
+            "zz-invalid-timestamp",
+            "2026-09-16T00:00:00+00:00",  # backup writer emits canonical Z
+            "2026-02-30T00:00:00Z",
+            "2026-9-1T00:00:00Z",
+        )
+        bad = [
+            self._existing_backup(i + 41, stamp, f"bad-{i}".encode())
+            for i, stamp in enumerate(invalid_dates)
+        ]
+
+        def runner(argv, **_kwargs):
+            args = [str(value) for value in argv]
+            self.assertEqual(args[0], "/fixture/pg_restore")
+            return subprocess.CompletedProcess(
+                args, 0, "; archive\n1; 0 0 TABLE public users fixture\n", ""
+            )
+
+        verified = _verified_backup_directories(
+            self.dest, pg_restore="/fixture/pg_restore", runner=runner
+        )
+        self.assertEqual(
+            [directory for _, directory in verified], [good]
+        )
+        self.assertTrue(all(directory.exists() for directory in bad))
+
+    def test_invalid_created_at_does_not_displace_verified_retention(self) -> None:
+        """Invalid date must not evict a good historical backup at keep=7."""
+        verified = [
+            self._existing_backup(
+                i, f"2026-09-{i + 10:02d}T00:00:00Z",
+                f"valid-{i}".encode(),
+            )
+            for i in range(7)
+        ]
+        invalid = self._existing_backup(
+            99, "zz-corrupt-date", b"archive-valid-but-metadata-invalid"
+        )
+
+        def runner(argv, **_kwargs):
+            args = [str(value) for value in argv]
+            if args[0] == "/fixture/pg_dump":
+                Path(args[args.index("--file") + 1]).write_bytes(b"new-good")
+                return subprocess.CompletedProcess(args, 0, "", "")
+            if args[0] == "/fixture/pg_restore":
+                return subprocess.CompletedProcess(
+                    args, 0, "; archive\n1; 0 0 TABLE public users fixture\n", ""
+                )
+            raise AssertionError(args)
+
+        result = run_backup(
+            self.config,
+            mount_lookup=self.mount_lookup,
+            device_id=self.device_id,
+            disk_free=lambda _path: 10**9,
+            runner=runner,
+            which=lambda name: f"/fixture/{name}",
+            now=lambda: datetime(2026, 9, 25, 12, 0, 0, tzinfo=timezone.utc),
+        )
+        self.assertEqual(result["status"], "PASS")
+        self.assertEqual(result["retainedSuccessful"], 7)
+        self.assertFalse(verified[0].exists())  # the real oldest valid one
+        self.assertTrue(all(path.exists() for path in verified[1:]))
+        self.assertTrue(invalid.exists())  # never delete unverified evidence
         self.assertFalse(list(self.dest.glob(".incomplete-*")))
 
     def test_hash_corrupted_backup_does_not_displace_verified_backups(self) -> None:

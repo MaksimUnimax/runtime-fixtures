@@ -165,6 +165,8 @@ jobs:
           python tooling/build/extension_composed.py --output build/application-browser/package
           xvfb-run -a python tests/regression/extension-core/browser_popup_sizing.py --runtime build/application-browser/package/runtime --output build/application-browser/native-popup-source
           xvfb-run -a python tests/regression/extension-core/browser_popup_sizing.py --runtime build/application-browser/package/extracted --output build/application-browser/native-popup-extracted
+          python tests/regression/extension-core/popup-auth-dom.py --runtime build/application-browser/package/runtime --output build/application-browser/popup-auth-source
+          python tests/regression/extension-core/popup-auth-dom.py --runtime build/application-browser/package/extracted --output build/application-browser/popup-auth-extracted
           python tests/regression/extension-core/browser_application.py --runtime build/application-browser/package/runtime --output build/application-browser/source --fixture-private-key "$RUNNER_TEMP/seller-agents-browser-fixture-private.der"
           python tests/regression/extension-core/browser_application.py --runtime build/application-browser/package/extracted --output build/application-browser/extracted --fixture-private-key "$RUNNER_TEMP/seller-agents-browser-fixture-private.der"
       - name: Preserve application fixture evidence

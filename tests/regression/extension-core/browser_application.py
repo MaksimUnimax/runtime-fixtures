@@ -152,6 +152,7 @@ def run(runtime,output,private_key):
             button.wait_for();assert button.inner_text()=='Октопорт';button.click()
             page.wait_for_function('sent.length===2',timeout=30000)
             assert page.evaluate("sent[1].startsWith('WB_BATCH_RESULT_V1')")
+            assert page.locator('section[data-turn="user"]').last.inner_text().strip() == page.evaluate("sent[1].trim()"), "fixture must preserve the full rendered report text"
             until(lambda:worker.evaluate("async()=>Object.values((await chrome.storage.local.get('ozmb_manual_operations')).ozmb_manual_operations||{})[0]?.status==='completed'"))
             assert worker.evaluate('fixtureFetches.length')==1
             # Hiding keeps the session active; the popup persists the bound marketplace.
@@ -248,7 +249,9 @@ def run(runtime,output,private_key):
               'blocks':[{'text':plain_command,'plain':True,'dataCodeCopy':False,'textLabel':'Копировать код'}]
             })
             until(lambda:page.locator('.ozon-bridge-block-action').count()==2)
+            page.locator('#'+plain_id).scroll_into_view_if_needed()
             plain_button=page.locator('.ozon-bridge-block-action').last
+            plain_button.wait_for(state='visible')
             plain_fetches_before=worker.evaluate('fixtureFetches.length')
             plain_sent_before=page.evaluate('sent.length')
             plain_operation_before=worker.evaluate("async()=>Object.values((await chrome.storage.local.get('ozmb_manual_operations')).ozmb_manual_operations||{})[0]?.operation_id||null")
