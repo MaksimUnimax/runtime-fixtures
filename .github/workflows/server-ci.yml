@@ -132,11 +132,44 @@ jobs:
           for entry in prefix["entries"]:
               shutil.copyfile(source / (entry["tag"] + ".sql"), target / (entry["tag"] + ".sql"))
           PY
-      - run: pnpm test:integration
+      - name: Record exact integration sources
+        run: |
+          mkdir -p "$RUNNER_TEMP/server-integration-evidence"
+          python3 - <<'PYINPUT'
+          import hashlib, json, os, subprocess
+          from pathlib import Path
+          root = Path.cwd()
+          output = Path(os.environ["RUNNER_TEMP"]) / "server-integration-evidence"
+          git = lambda *args: subprocess.check_output(["git", *args], text=True).strip()
+          head = git("rev-parse", "HEAD")
+          assert head == os.environ["GITHUB_SHA"], "INTEGRATION_CHECKOUT_SHA_MISMATCH"
+          tracked = set(git("ls-files", "tests/integration/server", "packages/server/db/src").splitlines())
+          files = set(tracked)
+          for directory in ("tests/integration/server", "packages/server/db/src"):
+              files.update(str(p.relative_to(root)) for p in (root / directory).rglob("*.ts") if "node_modules" not in p.parts)
+          records = []
+          for name in sorted(files):
+              p = root / name
+              if not p.is_file() or p.is_symlink():
+                  continue
+              records.append({"path": name, "tracked": name in tracked, "sha256": hashlib.sha256(p.read_bytes()).hexdigest()})
+          manifest = {"head": head, "tree": git("rev-parse", "HEAD^{tree}"), "run_id": os.environ["GITHUB_RUN_ID"], "run_attempt": os.environ["GITHUB_RUN_ATTEMPT"], "worktree_status": git("status", "--porcelain", "--", "tests/integration/server", "packages/server/db/src"), "files": records}
+          (output / "source-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+          PYINPUT
+      - name: Run complete integration suite
+        run: pnpm test:integration --reporter=default --reporter=json --outputFile="$RUNNER_TEMP/server-integration-evidence/vitest-results.json"
         env:
           DATABASE_URL: postgres://product_control_plane_ci:ci_development_only_password@127.0.0.1:5432/product_control_plane_test
           R3_TREE_DATABASE_URL: postgres://product_control_plane_ci:ci_development_only_password@127.0.0.1:5432/operator_r3_trees
           R3_TREE_BASELINE_MIGRATIONS: ${{ runner.temp }}/octoport-r3-baseline-0058
+      - name: Preserve exact integration inputs and results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: server-integration-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/server-integration-evidence
+          if-no-files-found: warn
+          retention-days: 14
       - run: pnpm db:migrate
         env:
           DATABASE_URL: postgres://product_control_plane_ci:ci_development_only_password@127.0.0.1:5432/product_control_plane_test
