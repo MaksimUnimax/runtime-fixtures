@@ -646,9 +646,13 @@ describe.sequential("P7.2 correction permanent PostgreSQL coverage", () => {
     const gate = new Promise<void>((resolve) => {
       release = resolve;
     });
-    let acquired!: () => void;
-    const acquiredPromise = new Promise<void>((resolve) => {
+    let acquired!: (pid: number) => void;
+    const acquiredPromise = new Promise<number>((resolve) => {
       acquired = resolve;
+    });
+    let competitorEntered!: (pid: number) => void;
+    const competitorEnteredPromise = new Promise<number>((resolve) => {
+      competitorEntered = resolve;
     });
     // Start only the designated winner first. Starting both transactions
     // before awaiting its target lock lets pool scheduling invert the order.
@@ -658,8 +662,15 @@ describe.sequential("P7.2 correction permanent PostgreSQL coverage", () => {
           await q.query("SELECT p7_2_lock_profile_revision_target($1)", [
             target.id,
           ]);
-          acquired();
+        }
+        const backend = await q.query<{ pid: number }>(
+          "SELECT pg_backend_pid() AS pid",
+        );
+        if (assignmentFirst) {
+          acquired(backend.rows[0]!.pid);
           await gate;
+        } else {
+          competitorEntered(backend.rows[0]!.pid);
         }
         const assignmentId = await insertScope(q);
         await insertAssignmentRevision(q, assignmentId, target.id);
@@ -671,8 +682,15 @@ describe.sequential("P7.2 correction permanent PostgreSQL coverage", () => {
           await q.query("SELECT p7_2_lock_profile_revision_target($1)", [
             target.id,
           ]);
-          acquired();
+        }
+        const backend = await q.query<{ pid: number }>(
+          "SELECT pg_backend_pid() AS pid",
+        );
+        if (!assignmentFirst) {
+          acquired(backend.rows[0]!.pid);
           await gate;
+        } else {
+          competitorEntered(backend.rows[0]!.pid);
         }
         await q.query(
           "UPDATE adapter_profile_revisions SET state='RETIRED' WHERE id=$1",
@@ -681,11 +699,67 @@ describe.sequential("P7.2 correction permanent PostgreSQL coverage", () => {
         return "retirement";
       });
     const first = assignmentFirst ? assignment() : retirement();
-    await acquiredPromise;
-    const second = assignmentFirst ? retirement() : assignment();
-    release();
-    const results = await Promise.allSettled([first, second]);
-    await Promise.all([runtimeAssignment.close(), runtimeRetire.close()]);
+    let second: Promise<string> | undefined;
+    let competitorEntryTimeout: ReturnType<typeof setTimeout> | undefined;
+    let results: PromiseSettledResult<string>[] = [];
+    try {
+      const winnerPid = await Promise.race([
+        acquiredPromise,
+        first.then(
+          () => {
+            throw new Error(
+              "P7.2 winner exited before acquiring the target lock",
+            );
+          },
+          (error: unknown) => {
+            throw error;
+          },
+        ),
+      ]);
+      second = assignmentFirst ? retirement() : assignment();
+      const competitorPid = await Promise.race([
+        competitorEnteredPromise,
+        second.then(
+          () => {
+            throw new Error(
+              "P7.2 competitor exited before entering its transaction",
+            );
+          },
+          (error: unknown) => {
+            throw error;
+          },
+        ),
+        new Promise<never>((_, reject) => {
+          competitorEntryTimeout = setTimeout(
+            () =>
+              reject(
+                new Error("P7.2 competitor did not enter its transaction"),
+              ),
+            4_000,
+          );
+        }),
+      ]);
+      // The other callback must actually be blocked on this PostgreSQL
+      // transaction's lock, not merely scheduled in the JS event loop.
+      const deadline = Date.now() + 5_000;
+      let observedBlock = false;
+      do {
+        const blocking = await runtime.query<{ blocked: boolean }>(
+          "SELECT $2::int = ANY(pg_blocking_pids($1::int)) AS blocked",
+          [competitorPid, winnerPid],
+        );
+        observedBlock = blocking.rows[0]?.blocked === true;
+        if (observedBlock) break;
+        await new Promise<void>((resolve) => setTimeout(resolve, 20));
+      } while (Date.now() < deadline);
+      expect(observedBlock).toBe(true);
+    } finally {
+      if (competitorEntryTimeout) clearTimeout(competitorEntryTimeout);
+      // Also release on failed BEGIN/connection acquisition or timeout.
+      release();
+      results = await Promise.allSettled(second ? [first, second] : [first]);
+      await Promise.all([runtimeAssignment.close(), runtimeRetire.close()]);
+    }
     expect(
       results.filter((result) => result.status === "fulfilled"),
     ).toHaveLength(1);
