@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import {
   TransferAckV1Schema,
   TransferCreateRequestV1Schema,
@@ -89,6 +90,7 @@ type RelayReservation = {
   sourceDeviceId: string;
   expiresAt: number;
   envelopeBytes: number;
+  envelopeSha256: string;
   packetId: string;
   reservationId: number;
 };
@@ -130,6 +132,9 @@ export class EphemeralTransferRelay {
     now = new Date(),
   ): number {
     const envelopeBytes = new TextEncoder().encode(packet.envelope).byteLength;
+    const envelopeSha256 = createHash("sha256")
+      .update(packet.envelope, "utf8")
+      .digest("hex");
     if (envelopeBytes > MAX_PACKET_ENVELOPE_BYTES)
       throw new TransferError("TRANSFER_PACKET_TOO_LARGE");
     this.prune(now);
@@ -169,6 +174,7 @@ export class EphemeralTransferRelay {
       sourceDeviceId,
       expiresAt: expiresAt.getTime(),
       envelopeBytes,
+      envelopeSha256,
       packetId: packet.packetId,
       reservationId,
     });
@@ -190,14 +196,16 @@ export class EphemeralTransferRelay {
       this.scheduleExpiry(now);
       return false;
     }
-    // A direct caller must not activate bytes or identity different from
-    // those charged during reserve(), even though the service passes the
+    // A direct caller must not activate different bytes under an unchanged
+    // byte charge or identity, even though the service passes the
     // same validated packet through both operations.
     if (
       packet.requestId !== requestId ||
       packet.packetId !== reservation.packetId ||
       new TextEncoder().encode(packet.envelope).byteLength !==
-        reservation.envelopeBytes
+        reservation.envelopeBytes ||
+      createHash("sha256").update(packet.envelope, "utf8").digest("hex") !==
+        reservation.envelopeSha256
     )
       return false;
     this.reservations.delete(requestId);

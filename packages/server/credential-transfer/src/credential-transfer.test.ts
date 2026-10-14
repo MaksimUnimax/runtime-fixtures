@@ -584,6 +584,93 @@ describe("D3S2-2A control-plane foundation", () => {
     relay.clear();
   });
 
+  it("rejects same-size ciphertext substitution after reservation and preserves quota/identity", () => {
+    const relay = new EphemeralTransferRelay({ maxEnvelopeBytes: 8 });
+    const now = new Date("2026-09-18T10:00:00.000Z");
+    const expiry = new Date(+now + 300000);
+    const prepared = packet(idFor(1), "good", idFor(7));
+    const reservationId = relay.reserve(
+      prepared,
+      accountA,
+      source.deviceId,
+      expiry,
+      now,
+    );
+    // Old code only compared UTF-8 byte length, so same-size different bytes
+    // silently became the delivered packet despite a different reserve().
+    expect(
+      relay.activate(
+        prepared.requestId,
+        reservationId,
+        { ...prepared, envelope: "evil" },
+        now,
+      ),
+    ).toBe(false);
+    expect(relay.get(prepared.requestId, now)).toBeUndefined();
+    expect(relay.statsForTests(accountA)).toMatchObject({
+      packets: 1,
+      envelopeBytes: 4,
+      reserved: 1,
+    });
+    expect(
+      relay.activate(prepared.requestId, reservationId, prepared, now),
+    ).toBe(true);
+    expect(relay.get(prepared.requestId, now)).toMatchObject(prepared);
+    expect(relay.statsForTests(accountA)).toMatchObject({
+      packets: 1,
+      envelopeBytes: 4,
+      reserved: 0,
+    });
+    relay.clear();
+  });
+
+  it("keeps a prior active packet after a same-byte-length replacement is rejected", () => {
+    const relay = new EphemeralTransferRelay({ maxEnvelopeBytes: 4 });
+    const now = new Date("2026-09-18T10:00:00.000Z");
+    const expiry = new Date(+now + 300000);
+    const oldPacket = packet(idFor(1), "old", idFor(7));
+    const originalId = relay.reserve(
+      oldPacket,
+      accountA,
+      source.deviceId,
+      expiry,
+      now,
+    );
+    expect(relay.activate(oldPacket.requestId, originalId, oldPacket, now)).toBe(true);
+
+    const replacement = packet(oldPacket.requestId, "я", idFor(8));
+    const replacementId = relay.reserve(
+      replacement,
+      accountA,
+      source.deviceId,
+      expiry,
+      now,
+    );
+    // Both replacement strings are two UTF-8 bytes, but the ciphertext differs.
+    expect(
+      relay.activate(
+        oldPacket.requestId,
+        replacementId,
+        { ...replacement, envelope: "é" },
+        now,
+      ),
+    ).toBe(false);
+    expect(relay.statsForTests(accountA)).toMatchObject({
+      packets: 1,
+      envelopeBytes: 3,
+      reserved: 1,
+    });
+    expect(relay.get(oldPacket.requestId, now)).toBeUndefined();
+    relay.release(oldPacket.requestId, replacementId, now);
+    expect(relay.get(oldPacket.requestId, now)).toMatchObject(oldPacket);
+    expect(relay.statsForTests(accountA)).toMatchObject({
+      packets: 1,
+      envelopeBytes: 3,
+      reserved: 0,
+    });
+    relay.clear();
+  });
+
   it("activates exactly reserved multibyte contents and accounts actual bytes", () => {
     const relay = new EphemeralTransferRelay({ maxEnvelopeBytes: 2 });
     const now = new Date("2026-09-18T10:00:00.000Z");
