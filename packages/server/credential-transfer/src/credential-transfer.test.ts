@@ -584,6 +584,49 @@ describe("D3S2-2A control-plane foundation", () => {
     relay.clear();
   });
 
+  it.each([
+    ["single-byte", "a", "b"],
+    ["multibyte", "é", "ß"],
+  ])(
+    "rejects direct activation of equal-size substituted envelope (%s)",
+    (_kind, original, substituted) => {
+      const relay = new EphemeralTransferRelay({ maxEnvelopeBytes: 8 });
+      const now = new Date("2026-09-18T10:00:00.000Z");
+      const expiry = new Date(+now + 300000);
+      const prepared = packet(idFor(1), original, idFor(7));
+      expect(new TextEncoder().encode(original).byteLength).toBe(
+        new TextEncoder().encode(substituted).byteLength,
+      );
+      const reservationId = relay.reserve(
+        prepared,
+        accountA,
+        source.deviceId,
+        expiry,
+        now,
+      );
+      expect(
+        relay.activate(
+          prepared.requestId,
+          reservationId,
+          { ...prepared, envelope: substituted },
+          now,
+        ),
+      ).toBe(false);
+      expect(relay.get(prepared.requestId, now)).toBeUndefined();
+      expect(relay.statsForTests(accountA)).toMatchObject({
+        packets: 1,
+        envelopeBytes: new TextEncoder().encode(original).byteLength,
+        reserved: 1,
+      });
+      // A rejected same-size substitution does not consume the valid reservation.
+      expect(
+        relay.activate(prepared.requestId, reservationId, prepared, now),
+      ).toBe(true);
+      expect(relay.get(prepared.requestId, now)).toMatchObject(prepared);
+      relay.clear();
+    },
+  );
+
   it("activates exactly reserved multibyte contents and accounts actual bytes", () => {
     const relay = new EphemeralTransferRelay({ maxEnvelopeBytes: 2 });
     const now = new Date("2026-09-18T10:00:00.000Z");

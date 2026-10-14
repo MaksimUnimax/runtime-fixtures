@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import {
   TransferAckV1Schema,
   TransferCreateRequestV1Schema,
@@ -89,6 +90,7 @@ type RelayReservation = {
   sourceDeviceId: string;
   expiresAt: number;
   envelopeBytes: number;
+  envelopeSha256: string;
   packetId: string;
   reservationId: number;
 };
@@ -108,6 +110,11 @@ const DEFAULT_RELAY_LIMITS: EphemeralTransferRelayOptions = {
 };
 
 const MAX_PACKET_ENVELOPE_BYTES = 131072;
+
+/** Bind a pending reservation to exact bytes without retaining a second envelope. */
+function envelopeSha256(envelope: string): string {
+  return createHash("sha256").update(envelope, "utf8").digest("hex");
+}
 
 /** Process-memory-only relay. It deliberately has no serialization, queue, cache, or logging hook. */
 export class EphemeralTransferRelay {
@@ -169,6 +176,7 @@ export class EphemeralTransferRelay {
       sourceDeviceId,
       expiresAt: expiresAt.getTime(),
       envelopeBytes,
+      envelopeSha256: envelopeSha256(packet.envelope),
       packetId: packet.packetId,
       reservationId,
     });
@@ -197,7 +205,8 @@ export class EphemeralTransferRelay {
       packet.requestId !== requestId ||
       packet.packetId !== reservation.packetId ||
       new TextEncoder().encode(packet.envelope).byteLength !==
-        reservation.envelopeBytes
+        reservation.envelopeBytes ||
+      envelopeSha256(packet.envelope) !== reservation.envelopeSha256
     )
       return false;
     this.reservations.delete(requestId);
