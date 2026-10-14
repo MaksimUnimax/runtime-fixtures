@@ -671,6 +671,76 @@ describe("D3S2-2A control-plane foundation", () => {
     relay.clear();
   });
 
+  it("takes one immutable snapshot of a getter-backed packet at reservation", () => {
+    const relay = new EphemeralTransferRelay({ maxEnvelopeBytes: 8 });
+    const now = new Date("2026-09-18T10:00:00.000Z");
+    const expiry = new Date(+now + 300000);
+    const expected = packet(idFor(1), "good", idFor(7));
+    const getterPacket = { ...expected };
+    let envelopeReads = 0;
+    Object.defineProperty(getterPacket, "envelope", {
+      enumerable: true,
+      get() {
+        envelopeReads += 1;
+        return envelopeReads === 1 ? "good" : "evil";
+      },
+    });
+    const reservationId = relay.reserve(
+      getterPacket,
+      accountA,
+      source.deviceId,
+      expiry,
+      now,
+    );
+    expect(envelopeReads).toBe(1);
+    expect(relay.activate(expected.requestId, reservationId, expected, now)).toBe(true);
+    expect(relay.get(expected.requestId, now)).toMatchObject(expected);
+    relay.clear();
+  });
+
+  it("stores only the verified request, packet and envelope snapshots from activation", () => {
+    const relay = new EphemeralTransferRelay({ maxEnvelopeBytes: 8 });
+    const now = new Date("2026-09-18T10:00:00.000Z");
+    const expiry = new Date(+now + 300000);
+    const expected = packet(idFor(1), "good", idFor(7));
+    const reservationId = relay.reserve(
+      expected,
+      accountA,
+      source.deviceId,
+      expiry,
+      now,
+    );
+    const getterPacket = { ...expected };
+    let requestReads = 0, packetReads = 0, envelopeReads = 0;
+    Object.defineProperties(getterPacket, {
+      requestId: {
+        enumerable: true,
+        get() {
+          requestReads += 1;
+          return requestReads === 1 ? expected.requestId : idFor(2);
+        },
+      },
+      packetId: {
+        enumerable: true,
+        get() {
+          packetReads += 1;
+          return packetReads === 1 ? expected.packetId : idFor(8);
+        },
+      },
+      envelope: {
+        enumerable: true,
+        get() {
+          envelopeReads += 1;
+          return envelopeReads <= 2 ? "good" : "evil";
+        },
+      },
+    });
+    expect(relay.activate(expected.requestId, reservationId, getterPacket, now)).toBe(true);
+    expect(relay.get(expected.requestId, now)).toMatchObject(expected);
+    expect([requestReads, packetReads, envelopeReads]).toEqual([1, 1, 1]);
+    relay.clear();
+  });
+
   it("activates exactly reserved multibyte contents and accounts actual bytes", () => {
     const relay = new EphemeralTransferRelay({ maxEnvelopeBytes: 2 });
     const now = new Date("2026-09-18T10:00:00.000Z");

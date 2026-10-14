@@ -131,17 +131,21 @@ export class EphemeralTransferRelay {
     expiresAt: Date,
     now = new Date(),
   ): number {
-    const envelopeBytes = new TextEncoder().encode(packet.envelope).byteLength;
-    const envelopeSha256 = createHash("sha256")
-      .update(packet.envelope, "utf8")
-      .digest("hex");
+    // Read caller-controlled fields once so getters cannot change the
+    // reserved identity or ciphertext during quota checks.
+    const snapshot = {
+      requestId: packet.requestId,
+      packetId: packet.packetId,
+      envelope: packet.envelope,
+    };
+    const envelopeBytes = new TextEncoder().encode(snapshot.envelope).byteLength;
     if (envelopeBytes > MAX_PACKET_ENVELOPE_BYTES)
       throw new TransferError("TRANSFER_PACKET_TOO_LARGE");
     this.prune(now);
 
-    const existing = this.packets.get(packet.requestId);
+    const existing = this.packets.get(snapshot.requestId);
     if (
-      this.reservations.has(packet.requestId) ||
+      this.reservations.has(snapshot.requestId) ||
       (existing &&
         (existing.deliveredToRecipient ||
           existing.accountId !== accountId ||
@@ -168,14 +172,17 @@ export class EphemeralTransferRelay {
     )
       throw new TransferError("TRANSFER_CONFLICT");
 
+    const envelopeSha256 = createHash("sha256")
+      .update(snapshot.envelope, "utf8")
+      .digest("hex");
     const reservationId = this.nextReservationId++;
-    this.reservations.set(packet.requestId, {
+    this.reservations.set(snapshot.requestId, {
       accountId,
       sourceDeviceId,
       expiresAt: expiresAt.getTime(),
       envelopeBytes,
       envelopeSha256,
-      packetId: packet.packetId,
+      packetId: snapshot.packetId,
       reservationId,
     });
     this.scheduleExpiry(now);
@@ -196,21 +203,25 @@ export class EphemeralTransferRelay {
       this.scheduleExpiry(now);
       return false;
     }
-    // A direct caller must not activate different bytes under an unchanged
-    // byte charge or identity, even though the service passes the
-    // same validated packet through both operations.
+    // A caller may expose mutable getters. Validate a single immutable
+    // snapshot and store that exact same snapshot, never spread the caller.
+    const snapshot = {
+      requestId: packet.requestId,
+      packetId: packet.packetId,
+      envelope: packet.envelope,
+    };
     if (
-      packet.requestId !== requestId ||
-      packet.packetId !== reservation.packetId ||
-      new TextEncoder().encode(packet.envelope).byteLength !==
+      snapshot.requestId !== requestId ||
+      snapshot.packetId !== reservation.packetId ||
+      new TextEncoder().encode(snapshot.envelope).byteLength !==
         reservation.envelopeBytes ||
-      createHash("sha256").update(packet.envelope, "utf8").digest("hex") !==
+      createHash("sha256").update(snapshot.envelope, "utf8").digest("hex") !==
         reservation.envelopeSha256
     )
       return false;
     this.reservations.delete(requestId);
     this.packets.set(requestId, {
-      ...packet,
+      ...snapshot,
       accountId: reservation.accountId,
       sourceDeviceId: reservation.sourceDeviceId,
       expiresAt: reservation.expiresAt,
