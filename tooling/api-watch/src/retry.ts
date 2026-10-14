@@ -177,6 +177,24 @@ export async function applyRetryPassDecisions(input: {
     families.set(outcome.sourceFamily, group);
   }
   for (const [sourceFamily, outcomes] of families) {
+    // A family that requires operator access cannot be automatically reacquired.
+    // Retain its failure episode/cap, but withdraw any old retry deadline.
+    if (
+      outcomes.some((outcome) => outcome.kind === "OPERATOR_SOURCE_REQUIRED")
+    ) {
+      const previous = await input.store.get(sourceFamily);
+      if (previous) {
+        const now = input.now ?? new Date();
+        await input.store.save({
+          ...previous,
+          nextRetryAt: null,
+          lastAttemptAt: now,
+          lastResult: "OPERATOR_SOURCE_REQUIRED",
+          updatedAt: now,
+        });
+      }
+      continue;
+    }
     const temporary = outcomes.filter(
       (outcome) => retryFailureClass(outcome) !== null,
     );

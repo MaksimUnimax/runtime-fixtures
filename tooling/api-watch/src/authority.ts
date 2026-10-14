@@ -371,6 +371,7 @@ export async function runAuthorityPass(input: {
   pendingStore: SwaggerSourceStore;
   fetcher?: typeof fetch;
   now?: () => Date;
+  skipOperatorBlocked?: boolean;
 }): Promise<AuthorityPassResult> {
   const pass = await runDocumentAuthorityPass(input);
   return { outcomes: pass.outcomes, records: pass.records };

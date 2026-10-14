@@ -120,6 +120,7 @@ export async function runDocumentAuthorityPass(input: {
   pendingStore: SwaggerSourceStore;
   fetcher?: typeof fetch;
   now?: () => Date;
+  skipOperatorBlocked?: boolean;
 }): Promise<{
   documents: SourceDocumentAuthority[];
   records: AuthorityRecord[];
@@ -133,6 +134,17 @@ export async function runDocumentAuthorityPass(input: {
   const documents: SourceDocumentAuthority[] = [];
   const records: AuthorityRecord[] = [];
   const outcomes: Awaited<ReturnType<typeof acquireOfficialSource>>[] = [];
+  // Scheduled wakes of another family must not refetch an operator-held family.
+  // Use only the latest exact configured document/URL evidence. An explicit
+  // operator pass or a newly configured URL may establish fresh authority.
+  const priorAuthority = input.skipOperatorBlocked
+    ? (await input.store.listAuthorityRecords()).sort(
+        (a, b) =>
+          b.validatedAt.valueOf() - a.validatedAt.valueOf() ||
+          Number(b.failureClassification === "OPERATOR_SOURCE_REQUIRED") -
+            Number(a.failureClassification === "OPERATOR_SOURCE_REQUIRED"),
+      )
+    : [];
   let wbBundleRequestCreated = false;
   for (const entry of input.registry.list()) {
     const configuredDocuments = entry.documents?.length
@@ -146,12 +158,34 @@ export async function runDocumentAuthorityPass(input: {
             },
           ]
         : [undefined];
+    const operatorHeld = configuredDocuments.some((document) => {
+      const prior = priorAuthority.find(
+        (record) =>
+          record.sourceFamily === entry.sourceFamily &&
+          record.officialUrl === (document?.officialUrl ?? entry.officialUrl) &&
+          (record.safeProvenance.documentKey ?? null) ===
+            (document?.documentKey ?? null),
+      );
+      return (
+        prior?.failureClassification === "OPERATOR_SOURCE_REQUIRED" &&
+        prior.authorityStatus === "AUTHORITY_BLOCKED"
+      );
+    });
     for (const document of configuredDocuments) {
-      const fetchedOutcome = await acquireOfficialSource({
-        entry,
-        document,
-        fetcher: input.fetcher,
-      });
+      const fetchedOutcome: Awaited<ReturnType<typeof acquireOfficialSource>> =
+        operatorHeld
+          ? {
+              kind: "OPERATOR_SOURCE_REQUIRED",
+              sourceFamily: entry.sourceFamily,
+              officialUrl: document?.officialUrl ?? entry.officialUrl,
+              blockerReason:
+                "Automatic acquisition of this family is held pending operator source authority.",
+            }
+          : await acquireOfficialSource({
+              entry,
+              document,
+              fetcher: input.fetcher,
+            });
       const outcome = document
         ? { ...fetchedOutcome, documentKey: document.documentKey }
         : fetchedOutcome;
@@ -239,6 +273,7 @@ export async function runDocumentAuthorityPass(input: {
         safeProvenance: {
           ...(document ? { documentKey: document.documentKey } : {}),
           finalUrl: accepted ? outcome.finalUrl : null,
+          ...(operatorHeld ? { operatorFamilyHeld: true } : {}),
         },
         failureClassification: accepted ? null : outcome.kind,
       });

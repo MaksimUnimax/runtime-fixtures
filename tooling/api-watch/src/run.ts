@@ -165,7 +165,10 @@ export function createApiWatchRunner(
   return async (run) => {
     const reportStore = dependencies.reportStore;
     if (!reportStore) {
-      const pass = await runAuthorityPass(dependencies);
+      const pass = await runAuthorityPass({
+        ...dependencies,
+        skipOperatorBlocked: run.source === "SCHEDULED",
+      });
       return resultFromAuthorityPass(pass);
     }
     return runApiWatchReport({
@@ -570,6 +573,7 @@ export async function runApiWatchReport(input: {
     const pass = await runAuthorityPass({
       ...dependencies,
       now: dependencies.clock,
+      skipOperatorBlocked: input.source === "SCHEDULED",
     });
     const sources: ApiWatchReportSourceOutcome[] = [];
     const crosswalkDocuments: CrosswalkDocument[] = [];

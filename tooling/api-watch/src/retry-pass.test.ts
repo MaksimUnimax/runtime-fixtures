@@ -208,7 +208,11 @@ describe("family pass aggregation preserves retry safety", () => {
       store,
       scheduleEarlier,
     });
-    expect(await store.get("WILDBERRIES")).toEqual(previous);
+    const held = await store.get("WILDBERRIES");
+    expect(held?.failureEpisodeId).toBe(previous?.failureEpisodeId);
+    expect(held?.retryCount).toBe(previous?.retryCount);
+    expect(held?.nextRetryAt).toBeNull();
+    expect(held?.lastResult).toBe("OPERATOR_SOURCE_REQUIRED");
     expect(scheduled).toHaveLength(1);
   });
 });
