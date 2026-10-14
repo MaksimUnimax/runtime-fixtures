@@ -112,7 +112,7 @@ case "${RELEASE_ROOT}" in
   /root|/root/*|/home|/home/*|/run/user|/run/user/*) fail "release root is incompatible with ProtectHome=yes" ;;
 esac
 [[ -x "${NODE_BIN}" && -x "${PNPM_BIN}" ]] || fail "pinned Node/pnpm must be executable"
-for command_name in git tar sha256sum python3 install mkdir mv rm chmod grep find sort xargs flock mktemp basename stat systemd-run systemctl; do
+for command_name in git tar sha256sum python3 install mkdir mv rm chmod grep find sort xargs flock mktemp basename dirname stat systemd-run systemctl; do
   command -v "${command_name}" >/dev/null 2>&1 || fail "missing required command: ${command_name}"
 done
 SOURCE_DIR="$(cd -- "${SOURCE_DIR}" && pwd -P)"
@@ -124,6 +124,11 @@ tree_sha="$(git -C "${SOURCE_DIR}" rev-parse HEAD^{tree})"
 exec 9>"${RELEASE_ROOT}/.prepare.lock"
 flock -n 9 || fail "another release preparation is active"
 helper="${SOURCE_DIR}/tooling/operations/ops_release_inputs.py"
+export PATH="$(dirname "${NODE_BIN}"):${PATH}"
+store_path="$(cd "${SOURCE_DIR}" && "${PNPM_BIN}" store path)"
+[[ "${store_path}" = /* ]] || fail "dependency store must be absolute"
+store_root="$(dirname "${store_path}")"
+corepack_home="${COREPACK_HOME:-${XDG_CACHE_HOME:-${HOME}/.cache}/node/corepack}"
 python3 -B "${helper}" budget "${RELEASE_ROOT}"
 target="${RELEASE_ROOT}/${head_sha}"
 [[ ! -e "${target}" ]] || fail "release already exists"
@@ -154,6 +159,7 @@ systemd-run --unit="${unit}" --quiet --wait --pipe --service-type=exec \
   --property="TemporaryFileSystem=${tmp}:rw,size=1073741824,nr_inodes=65536,mode=0755" \
   --property="ReadOnlyPaths=${SOURCE_DIR}" \
   --setenv="OCTOPORT_NODE_BIN=${NODE_BIN}" --setenv="OCTOPORT_PNPM_BIN=${PNPM_BIN}" \
+  --setenv="npm_config_store_dir=${store_root}" --setenv="COREPACK_HOME=${corepack_home}" \
   /bin/bash "${SOURCE_DIR}/infra/production/scripts/prepare-octoport-ops-release.sh" \
   --build-stage "${SOURCE_DIR}" "${tmp}" "${publish_tmp}" "${RELEASE_ROOT}" "${head_sha}" "${tree_sha}"
 mv -T "${publish_tmp}" "${target}"
