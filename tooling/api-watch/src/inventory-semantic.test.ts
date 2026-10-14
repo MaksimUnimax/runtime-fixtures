@@ -514,6 +514,135 @@ describe("OpenAPI path/operation parameter overrides", () => {
   });
 });
 
+describe("header parameter name case and operation overrides", () => {
+  const make = (
+    options: {
+      pathName?: string;
+      operationName?: string;
+      pathType?: string;
+      operationType?: string;
+      location?: "header" | "query";
+      swagger2?: boolean;
+      referenced?: boolean;
+    } = {},
+  ) => {
+    const pathName = options.pathName ?? "X-Request-ID";
+    const operationName = options.operationName ?? "x-request-id";
+    const location = options.location ?? "header";
+    const swagger2 = options.swagger2 ?? false;
+    const pathParameter = swagger2
+      ? { name: pathName, in: location, type: options.pathType ?? "string" }
+      : {
+          name: pathName,
+          in: location,
+          schema: { type: options.pathType ?? "string" },
+        };
+    const operationParameter = swagger2
+      ? {
+          name: operationName,
+          in: location,
+          type: options.operationType ?? "integer",
+        }
+      : {
+          name: operationName,
+          in: location,
+          schema: { type: options.operationType ?? "integer" },
+        };
+    const references = options.referenced
+      ? swagger2
+        ? {
+            parameters: {
+              PathHeader: pathParameter,
+              OperationHeader: operationParameter,
+            },
+          }
+        : {
+            components: {
+              parameters: {
+                PathHeader: pathParameter,
+                OperationHeader: operationParameter,
+              },
+            },
+          }
+      : {};
+    const refPrefix = swagger2 ? "#/parameters/" : "#/components/parameters/";
+    const pathArgument = options.referenced
+      ? { $ref: refPrefix + "PathHeader" }
+      : pathParameter;
+    const operationArgument = options.referenced
+      ? { $ref: refPrefix + "OperationHeader" }
+      : operationParameter;
+    return buildCompleteOperationInventory({
+      sourceFamily: "OZON_SELLER",
+      snapshotSha256: "h".repeat(64),
+      filename: "header-parameter-override.json",
+      bytes: Buffer.from(
+        JSON.stringify({
+          ...(swagger2 ? { swagger: "2.0" } : { openapi: "3.0.3" }),
+          info: { title: "header-override", version: "1" },
+          ...references,
+          paths: {
+            "/items": {
+              parameters: [pathArgument],
+              get: {
+                operationId: "listItems",
+                parameters: [operationArgument],
+                responses: { "200": { description: "OK" } },
+              },
+            },
+          },
+        }),
+      ),
+    });
+  };
+
+  it("header parameter override ignores case-different shadowed Path Item schema", () => {
+    const before = make({ pathType: "string" });
+    const after = make({ pathType: "boolean" });
+    expect(before.operations[0]!.parameterCount).toBe(1);
+    expect(after.operations[0]!.parameterCount).toBe(1);
+    expect(state(before, after)).toBe("UNCHANGED");
+  });
+
+  it("header parameter casing-only change leaves the fingerprint unchanged", () => {
+    const before = make({ operationName: "x-request-id" });
+    const after = make({ operationName: "X-REQUEST-ID" });
+    expect(state(before, after)).toBe("UNCHANGED");
+    expect(before.operations[0]!.parameterSchemaSha256).toBe(
+      after.operations[0]!.parameterSchemaSha256,
+    );
+  });
+
+  it("header parameter override resolves refs before case folding", () => {
+    const before = make({ referenced: true, pathType: "string" });
+    const after = make({ referenced: true, pathType: "boolean" });
+    expect(before.operations[0]!.parameterCount).toBe(1);
+    expect(state(before, after)).toBe("UNCHANGED");
+  });
+
+  it("Swagger 2 header parameter override also ignores case-different shadowing", () => {
+    const before = make({
+      swagger2: true,
+      referenced: true,
+      pathType: "string",
+    });
+    const after = make({
+      swagger2: true,
+      referenced: true,
+      pathType: "boolean",
+    });
+    expect(before.operations[0]!.parameterCount).toBe(1);
+    expect(state(before, after)).toBe("UNCHANGED");
+  });
+
+  it("query parameter names remain case sensitive while header names do not", () => {
+    const before = make({ location: "query", pathType: "string" });
+    const after = make({ location: "query", pathType: "boolean" });
+    expect(before.operations[0]!.parameterCount).toBe(2);
+    expect(state(before, after)).toBe("CHANGED");
+  });
+});
+
 describe("Parameter Object default-false equivalence", () => {
   const source = (options: {
     field?: string;

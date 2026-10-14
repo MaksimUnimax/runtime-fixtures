@@ -266,7 +266,12 @@ function effectiveParameters(
     const parameter = asObject(localRef(raw, root));
     const identity =
       typeof parameter.name === "string" && typeof parameter.in === "string"
-        ? JSON.stringify([parameter.name, parameter.in])
+        ? JSON.stringify([
+            parameter.in === "header"
+              ? parameter.name.toLowerCase()
+              : parameter.name,
+            parameter.in,
+          ])
         : "unresolved:" + unresolvedIndex++;
     effective.set(identity, parameter);
   };
@@ -286,6 +291,12 @@ function parametersFingerprint(
     typeof root.openapi === "string" && /^3\./u.test(root.openapi);
   const projected = parameters
     .map((parameter) => {
+      // Header field names are case-insensitive on the wire. Canonicalize both
+      // override identity and fingerprints, but not path/query/cookie names.
+      const serialized =
+        parameter.in === "header" && typeof parameter.name === "string"
+          ? { ...parameter, name: parameter.name.toLowerCase() }
+          : parameter;
       const locationStyle =
         parameter.in === "query" || parameter.in === "cookie"
           ? "form"
@@ -295,7 +306,7 @@ function parametersFingerprint(
       const effectiveStyle =
         typeof parameter.style === "string" ? parameter.style : locationStyle;
       return Object.fromEntries(
-        Object.entries(parameter)
+        Object.entries(serialized)
           .filter(([key, value]) => {
             if (
               key === "description" ||
