@@ -42,7 +42,7 @@ entry="${tmp}/apps/telegram-operator/dist/main.js"
 set +e
 startup_output="$(
   cd "${tmp}" &&
-    env -i HOME="${tmp}/.build-tmp" TMPDIR="${tmp}/.build-tmp" XDG_CACHE_HOME="${tmp}/.build-cache" PATH=/usr/bin:/bin       "${tmp}/.runtime/node" "${tsx_cli}" "${entry}" 2>&1
+    env -i HOME=/tmp TMPDIR=/tmp XDG_CACHE_HOME=/tmp/.cache PATH=/usr/bin:/bin       "${tmp}/.runtime/node" "${tsx_cli}" "${entry}" 2>&1
 )"
 startup_status=$?
 set -e
@@ -166,7 +166,7 @@ publish_identity="$(stat -c '%d:%i' "${publish_tmp}")"
 unit="octoport-ops-build-$(basename "${tmp}").service"
 build_description="Octoport ops build ${head_sha} stage ${tmp}"
 [[ "$(systemctl show "${unit}" -p LoadState --value)" == not-found ]] || fail "build unit already exists"
-printf '[octoport-ops-release] bounded build unit=%s size=1073741824 inodes=65536 private_store_metadata_size=1048576 inodes=256\n' "${unit}"
+printf '[octoport-ops-release] bounded build unit=%s size=1073741824 inodes=65536 private_store_metadata_size=1048576 inodes=256 private_runtime_tmp_size=16777216 inodes=4096\n' "${unit}"
 systemd-run --unit="${unit}" --description="${build_description}" --quiet --wait --pipe --service-type=exec \
   --property=RuntimeMaxSec=900 --property=KillMode=control-group --property=TimeoutStopSec=5s \
   --property=SendSIGKILL=yes --property=OOMPolicy=stop --property=MemoryAccounting=yes \
@@ -176,13 +176,20 @@ systemd-run --unit="${unit}" --description="${build_description}" --quiet --wait
   --property=NoNewPrivileges=yes --property=CapabilityBoundingSet= \
   --property=PrivateDevices=yes --property=ProtectKernelTunables=yes --property=ProtectControlGroups=yes \
   --property="TemporaryFileSystem=${store_path}/projects:rw,size=1048576,nr_inodes=256,mode=0755" \
-  --property="ReadWritePaths=${publish_tmp} ${store_path}/projects" \
-  --property="ReadOnlyPaths=${SOURCE_DIR} ${store_root} ${corepack_home} /tmp /var/tmp" \
+  --property=TemporaryFileSystem=/tmp:rw,size=16777216,nr_inodes=4096,mode=1777 \
+  --property="ReadWritePaths=${publish_tmp} ${store_path}/projects /tmp" \
+  --property="ReadOnlyPaths=${SOURCE_DIR} ${store_root} ${corepack_home} /var/tmp" \
   --setenv=COREPACK_ENABLE_NETWORK=0 \
   --setenv="OCTOPORT_NODE_BIN=${NODE_BIN}" --setenv="OCTOPORT_PNPM_BIN=${PNPM_BIN}" \
   --setenv="npm_config_store_dir=${store_root}" --setenv="COREPACK_HOME=${corepack_home}" \
   /bin/bash "${SOURCE_DIR}/infra/production/scripts/prepare-octoport-ops-release.sh" \
   --build-stage "${SOURCE_DIR}" "${tmp}" "${publish_tmp}" "${RELEASE_ROOT}" "${head_sha}" "${tree_sha}"
+# Read-only bind mounts can prevent same-filesystem hardlinks inside the
+# sandbox. Reuse verified Node after the bounded build exits, before publication.
+[[ -f "${publish_tmp}/.runtime/node" && ! -L "${publish_tmp}/.runtime/node" ]] ||
+  fail "exported Node payload missing"
+rm -f -- "${publish_tmp}/.runtime/node"
+python3 -B "${helper}" stage-node "${NODE_BIN}" "${publish_tmp}" "${RELEASE_ROOT}"
 mv -T -n "${publish_tmp}" "${target}"
 [[ ! -e "${publish_tmp}" ]] || fail "release target appeared during preparation"
 python3 -B "${target}/tooling/operations/verify_ops_release.py" \

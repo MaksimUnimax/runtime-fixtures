@@ -31,10 +31,11 @@ class OpsReleaseInputsTest(unittest.TestCase):
         start = script.index('target="${RELEASE_ROOT}/${head_sha}"')
         end = script.index('python3 -B "${target}/tooling/operations/verify_ops_release.py"', start)
         # Execute the actual publication/cleanup block; build/systemd alone are
-        # stubbed. The rename and delivered SIGTERM are real filesystem actions.
+        # and final Node materialization are stubbed. Rename and SIGTERM are real filesystem actions.
         header = r"""
 set -Eeuo pipefail
 SOURCE_DIR=/unused
+helper=/unused
 head_sha=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 tree_sha=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 NODE_BIN=/usr/bin/true
@@ -50,7 +51,8 @@ systemctl() {
     *) printf 'inactive\n';;
   esac
 }
-systemd-run() { printf 'owned' > "$publish_tmp/payload"; }
+systemd-run() { mkdir -p "$publish_tmp/.runtime"; printf 'owned-node' > "$publish_tmp/.runtime/node"; printf 'owned' > "$publish_tmp/payload"; }
+python3() { return 0; }
 """
         program = header + "\nmv() {\n" + move_behavior + "\n}\n" + script[start:end]
         return subprocess.run(["/bin/bash", "-c", program], env={"PATH": "/usr/bin:/bin", "RELEASE_ROOT": str(self.root)}, capture_output=True, text=True, timeout=10)
