@@ -143,12 +143,21 @@ export class EphemeralTransferRelay {
     )
       throw new TransferError("TRANSFER_CONFLICT");
 
-    const usage = this.usage(accountId, packet.requestId);
+    // A replacement keeps its old packet until the repository transition
+    // succeeds. A failed transition restores that packet, so its capacity
+    // cannot be lent to another request while the reservation is pending.
+    const usage = this.usage(accountId);
+    const additionalPackets = existing ? 0 : 1;
+    const additionalBytes = Math.max(
+      0,
+      envelopeBytes - (existing?.envelopeBytes ?? 0),
+    );
     if (
-      usage.totalPackets + 1 > this.limits.maxPackets ||
-      usage.accountPackets + 1 > this.limits.maxPacketsPerAccount ||
-      usage.totalBytes + envelopeBytes > this.limits.maxEnvelopeBytes ||
-      usage.accountBytes + envelopeBytes >
+      usage.totalPackets + additionalPackets > this.limits.maxPackets ||
+      usage.accountPackets + additionalPackets >
+        this.limits.maxPacketsPerAccount ||
+      usage.totalBytes + additionalBytes > this.limits.maxEnvelopeBytes ||
+      usage.accountBytes + additionalBytes >
         this.limits.maxEnvelopeBytesPerAccount
     )
       throw new TransferError("TRANSFER_CONFLICT");
@@ -265,23 +274,27 @@ export class EphemeralTransferRelay {
     };
   }
 
-  private usage(accountId?: string, replacingRequestId?: string) {
+  private usage(accountId?: string) {
     let totalPackets = 0;
     let accountPackets = 0;
     let totalBytes = 0;
     let accountBytes = 0;
 
     for (const [requestId, packet] of this.packets) {
-      if (requestId === replacingRequestId || this.reservations.has(requestId))
-        continue;
+      // A pending replacement and its retained original occupy one slot.
+      // Charge the larger byte count until activation or rollback settles.
+      const reservedBytes =
+        this.reservations.get(requestId)?.envelopeBytes ?? 0;
+      const chargedBytes = Math.max(packet.envelopeBytes, reservedBytes);
       totalPackets += 1;
-      totalBytes += packet.envelopeBytes;
+      totalBytes += chargedBytes;
       if (!accountId || packet.accountId === accountId) {
         accountPackets += 1;
-        accountBytes += packet.envelopeBytes;
+        accountBytes += chargedBytes;
       }
     }
-    for (const reservation of this.reservations.values()) {
+    for (const [requestId, reservation] of this.reservations) {
+      if (this.packets.has(requestId)) continue;
       totalPackets += 1;
       totalBytes += reservation.envelopeBytes;
       if (!accountId || reservation.accountId === accountId) {
