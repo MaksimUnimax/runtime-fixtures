@@ -32,11 +32,13 @@ class OpsReleaseInputsTest(unittest.TestCase):
             self.manifest("packages/contracts", "@product/contracts", {"@product/shared": "workspace:*"}),
             self.manifest("apps/admin", "@product/admin"),
             "package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", "tsconfig.base.json",
+            "tooling/server/monitor-pilot-authority.ts",
         ]
         with patch.object(module.subprocess, "check_output", return_value="\0".join(tracked)):
             result = module.runtime_inputs(self.root)
         self.assertIn("packages/contracts", result)
         self.assertIn("tooling/operations", result)
+        self.assertIn("tooling/server/monitor-pilot-authority.ts", result)
         self.assertNotIn("apps/admin", result)
         self.assertNotIn("docs", result)
 

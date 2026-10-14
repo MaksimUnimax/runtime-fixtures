@@ -48,7 +48,7 @@ def runtime_inputs(source: Path) -> list[str]:
             for name, version in manifest.get(kind, {}).items():
                 if str(version).startswith("workspace:"):
                     pending.append(name)
-    for name in ("package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", "tsconfig.base.json", ".npmrc"):
+    for name in ("package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", "tsconfig.base.json", ".npmrc", "tooling/server/monitor-pilot-authority.ts"):
         if name in tracked_set:
             paths.add(name)
     paths.add("tooling/operations")
