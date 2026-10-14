@@ -441,9 +441,9 @@ describe("quarantine retry and uncertain registration", () => {
       const original = f.store.setRequestStatus.bind(f.store);
       const update = vi
         .spyOn(f.store, "setRequestStatus")
-        .mockImplementation(async (id, next) => {
+        .mockImplementation(async (id, next, options) => {
           if (next === status) throw new Error("STATUS_FAILED");
-          await original(id, next);
+          return original(id, next, options);
         });
       for (let attempt = 0; attempt < 3; attempt++)
         await expect(f.service().upload(f.input)).rejects.toThrow(

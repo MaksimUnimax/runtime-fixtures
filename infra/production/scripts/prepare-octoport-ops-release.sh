@@ -132,27 +132,42 @@ corepack_home="${COREPACK_HOME:-${XDG_CACHE_HOME:-${HOME:-/root}/.cache}/node/co
 python3 -B "${helper}" budget "${RELEASE_ROOT}"
 target="${RELEASE_ROOT}/${head_sha}"
 [[ ! -e "${target}" ]] || fail "release already exists"
-tmp="$(mktemp -d "${RELEASE_ROOT}/.ops-${head_sha}.XXXXXX")"
-publish_tmp="$(mktemp -d "${RELEASE_ROOT}/.ops-publish-${head_sha}.XXXXXX")"
-unit="octoport-ops-build-$(basename "${tmp}").service"
+tmp=""
+publish_tmp=""
+publish_identity=""
+unit=""
+build_description=""
 success=0
-published=0
 cleanup() {
-  if [[ "$(systemctl show "${unit}" -p ActiveState --value 2>/dev/null)" == active ]]; then
-    systemctl stop "${unit}"
+  # The description binds the unit to this invocation's private stage. A
+  # colliding pre-existing unit must never be stopped by failure cleanup.
+  if [[ -n "${unit}" && "$(systemctl show "${unit}" -p Description --value 2>/dev/null)" == "${build_description}" ]]; then
+    case "$(systemctl show "${unit}" -p ActiveState --value 2>/dev/null)" in
+      active|activating|reloading|deactivating) systemctl stop "${unit}";;
+    esac
   fi
-  rm -rf -- "${tmp}"
+  if [[ -n "${tmp}" ]]; then rm -rf -- "${tmp}"; fi
   if [[ "${success}" -ne 1 ]]; then
-    rm -rf -- "${publish_tmp}"
-    if [[ "${published}" -eq 1 ]]; then rm -rf -- "${target}"; fi
+    if [[ -n "${publish_tmp}" ]]; then rm -rf -- "${publish_tmp}"; fi
+    # rename preserves device/inode identity. This also owns the target if a
+    # signal arrives immediately after mv, before the next shell command.
+    if [[ -n "${publish_identity}" && -d "${target}" && ! -L "${target}" &&
+          "$(stat -c '%d:%i' "${target}" 2>/dev/null)" == "${publish_identity}" ]]; then
+      rm -rf -- "${target}"
+    fi
   fi
 }
 trap cleanup EXIT
 trap 'exit 143' TERM
 trap 'exit 130' INT
+tmp="$(mktemp -d "${RELEASE_ROOT}/.ops-${head_sha}.XXXXXX")"
+publish_tmp="$(mktemp -d "${RELEASE_ROOT}/.ops-publish-${head_sha}.XXXXXX")"
+publish_identity="$(stat -c '%d:%i' "${publish_tmp}")"
+unit="octoport-ops-build-$(basename "${tmp}").service"
+build_description="Octoport ops build ${head_sha} stage ${tmp}"
 [[ "$(systemctl show "${unit}" -p LoadState --value)" == not-found ]] || fail "build unit already exists"
 printf '[octoport-ops-release] bounded build unit=%s size=1073741824 inodes=65536\n' "${unit}"
-systemd-run --unit="${unit}" --quiet --wait --pipe --service-type=exec \
+systemd-run --unit="${unit}" --description="${build_description}" --quiet --wait --pipe --service-type=exec \
   --property=RuntimeMaxSec=900 --property=KillMode=control-group --property=TimeoutStopSec=5s \
   --property=SendSIGKILL=yes --property=OOMPolicy=stop --property=MemoryAccounting=yes \
   --property=MemoryMax=2147483648 --property=MemorySwapMax=0 --property=TasksMax=1024 \
@@ -162,8 +177,8 @@ systemd-run --unit="${unit}" --quiet --wait --pipe --service-type=exec \
   --setenv="npm_config_store_dir=${store_root}" --setenv="COREPACK_HOME=${corepack_home}" \
   /bin/bash "${SOURCE_DIR}/infra/production/scripts/prepare-octoport-ops-release.sh" \
   --build-stage "${SOURCE_DIR}" "${tmp}" "${publish_tmp}" "${RELEASE_ROOT}" "${head_sha}" "${tree_sha}"
-mv -T "${publish_tmp}" "${target}"
-published=1
+mv -T -n "${publish_tmp}" "${target}"
+[[ ! -e "${publish_tmp}" ]] || fail "release target appeared during preparation"
 python3 -B "${target}/tooling/operations/verify_ops_release.py" \
   --expected-source-sha "${head_sha}" --expected-source-tree "${tree_sha}" "${target}" >/dev/null ||
   fail "prepared release failed self-verification"
