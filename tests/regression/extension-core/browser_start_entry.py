@@ -26,6 +26,14 @@ class FirstBootstrapServer(SyntheticHealthServer):
     """Supply the signed first AI profile; keep normal client verification."""
     bootstrap_envelope = None
 
+    def __init__(self, private_key_path):
+        super().__init__(private_key_path)
+        # ThreadingHTTPServer normally detaches daemon request-handler threads.
+        # For this isolated signer fixture, server_close() must wait until
+        # every request handler has finished using the ephemeral private key.
+        self._server.daemon_threads = False
+        self._server.block_on_close = True
+
     def _handler(self):
         parent = super()._handler()
         fixture = self
@@ -56,6 +64,7 @@ def main():
     report = {"level": "INSTALLED_SYNTHETIC", "status": "RUNNING", "cases": []}
     context = None
     server = None
+    private = None
     try:
         runtime = args.output / "runtime"
         shutil.copytree(args.runtime, runtime)
@@ -83,10 +92,16 @@ def main():
             options = dict(headless=True, ignore_default_args=["--disable-extensions"], args=[
                 "--enable-unsafe-extension-debugging", "--disable-background-networking"
             ])
+            expected_brand = os.environ.get("SA_EXPECT_BRANDED_CHROME147")
+            assert expected_brand is None or expected_brand == "1", (
+                "BRANDED_CHROME147_EXPECTATION_FLAG_INVALID"
+            )
             if os.environ.get("SA_TEST_CHROMIUM"):
                 options["executable_path"] = os.environ["SA_TEST_CHROMIUM"]
             else:
                 options["channel"] = "chromium"
+            if expected_brand == "1":
+                assert options.get("executable_path"), "BRANDED_CHROME147_BINARY_REQUIRED"
             context = pw.chromium.launch_persistent_context(profile, **options)
             context.route("https://**/*", lambda route: route.fulfill(
                 body=CHAT_FIXTURE.read_text(), content_type="text/html"
@@ -95,6 +110,24 @@ def main():
             page.goto("https://chatgpt.com/", wait_until="load")
             page.evaluate("document.querySelector('#turns').replaceChildren()")
             browser_session = context.browser.new_browser_cdp_session()
+            # A branded-Chrome-specific run must prove the actual launched
+            # binary and its CDP product, not merely the launch argument.
+            if expected_brand == "1":
+                requested_binary = options.get("executable_path")
+                assert requested_binary, "BRANDED_CHROME147_BINARY_REQUIRED"
+                binary_version = subprocess.check_output(
+                    [requested_binary, "--version"], text=True, timeout=8,
+                    stderr=subprocess.DEVNULL,
+                ).strip()
+                cdp_product = str(browser_session.send("Browser.getVersion").get("product") or "")
+                assert binary_version.startswith("Google Chrome 147."), binary_version
+                assert cdp_product.startswith("Chrome/147."), cdp_product
+                report["browser_identity"] = {
+                    "family": "google-chrome",
+                    "binary_version": binary_version,
+                    "cdp_product": cdp_product,
+                    "branded_verified": True,
+                }
             browser_session.send("Extensions.loadUnpacked", {"path": str(runtime)})
             worker = context.service_workers[0] if context.service_workers else context.wait_for_event("serviceworker")
             # Finish client initialization before writing exactly one cache
@@ -143,7 +176,12 @@ def main():
             assert popup.locator("#start").is_enabled(), "Start disabled on supported pre-existing new chat"
             assert page.url == "https://chatgpt.com/"
             report["cases"].append({"name": "start-enabled-without-conversation-id-or-content-receiver", "status": "PASS"})
-            target = "https://chatgpt.com/any-new-address/77777777-7777-4777-8777-777777777777"
+            # The production ChatGPT identity parser requires /c/<UUID>.
+            # An arbitrary path ending in UUID can display a new URL while
+            # failing to establish an actual confirmed conversation identity.
+            conversation_id = "77777777-7777-4777-8777-777777777777"
+            conversation_key = f"https://chatgpt.com|{conversation_id}"
+            target = f"https://chatgpt.com/c/{conversation_id}"
             page.evaluate("""target=>document.querySelector('[data-testid="send-button"]').addEventListener(
                 'click',()=>history.replaceState({},'',target),{once:true})""", target)
             generation_before = worker.evaluate("async()=>SellerAgentsControlClient.generation()")
@@ -163,8 +201,14 @@ def main():
             assert page.evaluate("sent.length") == 1
             assert page.url == target
             assert active["context"]["store_id"] == store["id"]
+            assert active["identity"]["status"] == "confirmed", active["identity"]
+            assert active["identity"]["conversation_id"] == conversation_id, active["identity"]
+            assert active["conversation_key"] == conversation_key, active["conversation_key"]
+            assert active["work"]["conversation_key"] == conversation_key, active["work"]
+            assert active["work"]["conversation_id"] == conversation_id, active["work"]
             assert not active["pending"]
-            report["cases"].append({"name": "one-popup-click-one-message-then-bind-after-address-appears", "status": "PASS"})
+            report["bound_conversation_id"] = conversation_id
+            report["cases"].append({"name": "one-popup-click-one-message-then-bind-exact-new-conversation-key", "status": "PASS"})
             diagnostic = worker.evaluate("async id=>saLastStartDiagnostic(id)", tab_id)
             assert diagnostic == {"stage": "active", "code": None, "outcome": "active"}, diagnostic
             report["cases"].append({"name": "successful-binding-reported-active-not-failed", "status": "PASS"})
@@ -233,15 +277,67 @@ def main():
         report["traceback"] = traceback.format_exc()
         raise
     finally:
+        # Never treat an interrupted browser/server teardown as a clean
+        # stop of the synthetic signing-key consumer.
+        shutdown_errors = []
         if context:
             try:
                 context.close()
-            except Exception:
-                pass  # Playwright context manager may already have closed it.
+                context = None
+            except Exception as exc:
+                shutdown_errors.append("browser_" + type(exc).__name__)
         if server:
-            server.stop()
-        (args.output / "result.json").write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n")
+            try:
+                server.stop()
+                # SyntheticHealthServer.stop() has a bounded thread.join(2s)
+                # without its own liveness assertion. A normal return is not
+                # proof that the test signer is no longer consuming its key.
+                assert not server.thread.is_alive(), (
+                    "SYNTHETIC_HEALTH_SERVER_THREAD_STILL_ACTIVE"
+                )
+                assert server._server.daemon_threads is False, (
+                    "SYNTHETIC_HEALTH_HANDLER_JOIN_DISABLED"
+                )
+                assert server._server.block_on_close is True, (
+                    "SYNTHETIC_HEALTH_HANDLER_CLOSE_JOIN_DISABLED"
+                )
+                assert not any(
+                    thread.is_alive()
+                    for thread in getattr(server._server, "_threads", ())
+                ), "SYNTHETIC_HEALTH_REQUEST_THREAD_STILL_ACTIVE"
+                server = None
+            except Exception as exc:
+                shutdown_errors.append("server_" + type(exc).__name__)
+        if shutdown_errors:
+            report["status"] = "FAIL"
+            report["synthetic_shutdown_errors"] = shutdown_errors
+        # The synthetic test key is disposable, but only after the
+        # browser and local signing server have *confirmed* shutdown.
+        key_cleanup_error = None
+        if not shutdown_errors and private is not None and private.exists():
+            try:
+                assert private.name == "fixture-key.pkcs8"
+                assert private.parent.resolve() == args.output.resolve()
+                assert private.is_file() and not private.is_symlink()
+                private.unlink()
+            except Exception as exc:
+                key_cleanup_error = type(exc).__name__
+                report["status"] = "FAIL"
+        report["fixture_signing_key_removed"] = bool(
+            private is not None and not private.exists()
+        )
+        if shutdown_errors and private is not None and private.exists():
+            report["fixture_signing_key_cleanup_deferred"] = "SHUTDOWN_NOT_PROVEN"
+        if key_cleanup_error:
+            report["fixture_signing_key_cleanup_error"] = key_cleanup_error
+        (args.output / "result.json").write_text(
+            json.dumps(report, ensure_ascii=False, indent=2) + "\n"
+        )
         print(json.dumps(report, ensure_ascii=False))
+        if shutdown_errors:
+            raise RuntimeError("SYNTHETIC_TEST_SHUTDOWN_NOT_PROVEN")
+        if key_cleanup_error:
+            raise RuntimeError("SYNTHETIC_FIXTURE_SIGNING_KEY_CLEANUP_FAILED")
 
 
 if __name__ == "__main__":
