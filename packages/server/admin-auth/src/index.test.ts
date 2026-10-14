@@ -370,6 +370,58 @@ describe("P6.1 admin crypto and RBAC foundation", () => {
     expect(token).not.toHaveBeenCalled();
     expect(repo.createAdminSession).not.toHaveBeenCalled();
   });
+  it("rejects Date-prototype and Proxy receivers without side effects", async () => {
+    const repo = repository();
+    const token = vi.fn(() => "A".repeat(43));
+    const admin = new AdminAuthService(
+      repo,
+      keys,
+      () => new Date("2030-01-01T00:00:00Z"),
+      token,
+    );
+    for (const malformed of [
+      Object.create(Date.prototype) as Date,
+      new Proxy(new Date("2030-01-01T00:00:00Z"), {}),
+    ]) {
+      await expect(
+        admin.createAdminSession({ ...portal, createdAt: malformed }, "corr"),
+      ).resolves.toEqual({ ok: false, code: "ADMIN_REAUTH_REQUIRED" });
+    }
+    expect(token).not.toHaveBeenCalled();
+    expect(repo.createAdminSession).not.toHaveBeenCalled();
+  });
+  it("rejects an unbranded Date clock without creating a session", async () => {
+    const repo = repository();
+    const token = vi.fn(() => "A".repeat(43));
+    for (const malformed of [
+      Object.create(Date.prototype) as Date,
+      new Proxy(new Date("2030-01-01T00:00:00Z"), {}),
+    ]) {
+      const admin = new AdminAuthService(repo, keys, () => malformed, token);
+      await expect(admin.createAdminSession(portal, "corr")).resolves.toEqual({
+        ok: false,
+        code: "ADMIN_REAUTH_REQUIRED",
+      });
+    }
+    expect(token).not.toHaveBeenCalled();
+    expect(repo.createAdminSession).not.toHaveBeenCalled();
+  });
+  it("reads genuine Date internal values without calling overridden getTime", async () => {
+    const repo = repository();
+    const validDate = new Date("2030-01-01T00:00:00Z");
+    const override = vi.fn(() => {
+      throw new Error("date getTime override must not run");
+    });
+    validDate.getTime = override;
+    const admin = service(repo, () => validDate);
+    const result = await admin.createAdminSession(
+      { ...portal, createdAt: validDate },
+      "corr",
+    );
+    expect(result.ok).toBe(true);
+    expect(override).not.toHaveBeenCalled();
+    expect(repo.createAdminSession).toHaveBeenCalledOnce();
+  });
   it("rejects session expiry overflow before issuing a token or writing", async () => {
     const repo = repository();
     const token = vi.fn(() => "A".repeat(43));

@@ -10,6 +10,17 @@ export * from "./maintenance-access.js";
 
 export const ADMIN_SESSION_TTL_MS = 30 * 60_000;
 export const ADMIN_ELEVATION_MAX_PORTAL_SESSION_AGE_MS = 15 * 60_000;
+
+// A genuine Date has an internal [[DateValue]] slot. instanceof alone also
+// accepts Date-prototype impostors and Proxies that make getTime throw.
+function dateEpochMsOrNaN(value: unknown): number {
+  try {
+    return Date.prototype.getTime.call(value as Date);
+  } catch {
+    return Number.NaN;
+  }
+}
+
 export const ADMIN_ROLES = [
   "ADMIN_OWNER",
   "ADMIN_OPS",
@@ -266,12 +277,8 @@ export class AdminAuthService {
     correlationId: string,
   ): Promise<AdminResult<{ sessionToken: string; subject: AdminSubject }>> {
     const createdAt = this.now();
-    const createdAtMs =
-      createdAt instanceof Date ? createdAt.getTime() : Number.NaN;
-    const portalCreatedAtMs =
-      portal.createdAt instanceof Date
-        ? portal.createdAt.getTime()
-        : Number.NaN;
+    const createdAtMs = dateEpochMsOrNaN(createdAt);
+    const portalCreatedAtMs = dateEpochMsOrNaN(portal.createdAt);
     const age = createdAtMs - portalCreatedAtMs;
     const expiresAt = new Date(createdAtMs + ADMIN_SESSION_TTL_MS);
     if (
