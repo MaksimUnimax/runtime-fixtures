@@ -499,6 +499,115 @@ describe("D3S2-2A control-plane foundation", () => {
     });
   }
 
+  it("rejects direct activation that exceeds the reserved UTF-8 byte charge", () => {
+    const relay = new EphemeralTransferRelay({
+      maxEnvelopeBytes: 8,
+      maxEnvelopeBytesPerAccount: 8,
+    });
+    const now = new Date("2026-09-18T10:00:00.000Z");
+    const expiry = new Date(+now + 300000);
+    const prepared = packet(idFor(1), "x", idFor(7));
+    const reservationId = relay.reserve(
+      prepared,
+      accountA,
+      source.deviceId,
+      expiry,
+      now,
+    );
+    expect(
+      relay.activate(
+        prepared.requestId,
+        reservationId,
+        {
+          ...prepared,
+          envelope: "123456789",
+        },
+        now,
+      ),
+    ).toBe(false);
+    expect(relay.statsForTests(accountA)).toMatchObject({
+      packets: 1,
+      envelopeBytes: 1,
+      reserved: 1,
+    });
+    expect(relay.get(prepared.requestId, now)).toBeUndefined();
+    relay.release(prepared.requestId, reservationId, now);
+    expect(relay.statsForTests()).toMatchObject({
+      packets: 0,
+      envelopeBytes: 0,
+      reserved: 0,
+    });
+    relay.clear();
+  });
+
+  it("rejects direct activation that changes request or packet identity", () => {
+    const relay = new EphemeralTransferRelay({ maxEnvelopeBytes: 8 });
+    const now = new Date("2026-09-18T10:00:00.000Z");
+    const expiry = new Date(+now + 300000);
+    const prepared = packet(idFor(1), "x", idFor(7));
+    const reservationId = relay.reserve(
+      prepared,
+      accountA,
+      source.deviceId,
+      expiry,
+      now,
+    );
+    expect(
+      relay.activate(
+        prepared.requestId,
+        reservationId,
+        {
+          ...prepared,
+          requestId: idFor(2),
+        },
+        now,
+      ),
+    ).toBe(false);
+    expect(
+      relay.activate(
+        prepared.requestId,
+        reservationId,
+        {
+          ...prepared,
+          packetId: idFor(8),
+        },
+        now,
+      ),
+    ).toBe(false);
+    expect(relay.statsForTests()).toMatchObject({
+      packets: 1,
+      envelopeBytes: 1,
+      reserved: 1,
+    });
+    expect(relay.get(prepared.requestId, now)).toBeUndefined();
+    relay.release(prepared.requestId, reservationId, now);
+    relay.clear();
+  });
+
+  it("activates exactly reserved multibyte contents and accounts actual bytes", () => {
+    const relay = new EphemeralTransferRelay({ maxEnvelopeBytes: 2 });
+    const now = new Date("2026-09-18T10:00:00.000Z");
+    const expiry = new Date(+now + 300000);
+    const prepared = packet(idFor(1), "я", idFor(7));
+    const reservationId = relay.reserve(
+      prepared,
+      accountA,
+      source.deviceId,
+      expiry,
+      now,
+    );
+    expect(
+      relay.activate(prepared.requestId, reservationId, prepared, now),
+    ).toBe(true);
+    expect(relay.statsForTests()).toMatchObject({
+      packets: 1,
+      envelopeBytes: 2,
+      reserved: 0,
+    });
+    expect(relay.get(prepared.requestId, now)).toMatchObject(prepared);
+    relay.clear();
+  });
+
   it("preserves the prior active packet when replacement durability fails", async () => {
     const repository = createMemoryTransferRepository();
     let markCount = 0;
