@@ -339,3 +339,24 @@ for (const control of ["UNKNOWN", "FOREIGN_ACCOUNT"]) await test(
     assert.deepEqual(f.read().manual.C1.r3_commands, before);
   });
 console.log("SOURCE final ledger controls: " + count + " scenarios passed.");
+
+await test("capacity compaction preserves transitive retry approvals independent of insertion order", async () => {
+  const f = ledgerFixture(), data = completedHistory(f, 1998);
+  data.receipts["history-1997"].items[0].state = "UNKNOWN";
+  data.receipts["history-1997"].predecessor = "history-0";
+  for (const i of [1, 0]) data.approvals["approval-" + i] = {
+    kind: "RETRY", confirmationId: "approval-" + i, predecessor: "history-" + i,
+    consumedBy: "history-" + (i + 1), blockOriginKey: data.receipts["history-" + i].blockOriginKey,
+    context: structuredClone(f.context), expiresAt: 1,
+  };
+  await f.seed(data);
+  const before = structuredClone(data);
+  f.context.workSessionId = "NEW-WORK"; f.context.workGeneration++;
+  await f.api.reserveCommand({ ...f.input, blockOriginKey: digest("transitive-new-work") });
+  const stored = f.read().manual.C1.r3_commands;
+  for (const id of ["history-0", "history-1", "history-2", "history-1997"])
+    assert.deepEqual(stored.receipts[id], before.receipts[id]);
+  assert.deepEqual(stored.approvals, before.approvals);
+  assert.equal(Object.keys(stored.receipts).length, 5);
+});
+console.log("SOURCE final dependency controls: " + count + " scenarios passed.");

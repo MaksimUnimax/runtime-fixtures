@@ -39,26 +39,21 @@
       for (const delivery of Object.values(data.deliveries)) {
         if (delivery.state !== "CONFIRMED") removable.delete(delivery.executionId);
       }
-      // Keep predecessor chains of every retained receipt and uncertain delivery.
+      // Resolve all receipt/approval dependencies together to a fixed point.
+      // A retained uncertain effect protects every linked execution, regardless
+      // of insertion order or the number of explicit retry generations.
       let changed;
       do {
         changed = false;
         for (const [id, receipt] of Object.entries(data.receipts)) {
           if (!removable.has(id) && removable.delete(receipt.predecessor)) changed = true;
         }
-      } while (changed);
-      for (const approval of Object.values(data.approvals)) {
-        const target = approval.executionId || approval.predecessor;
-        if (!(removable.has(target) && (!approval.consumedBy || removable.has(approval.consumedBy)))) {
-          removable.delete(target);
-          removable.delete(approval.consumedBy);
-        }
-      }
-      // Approval dependencies can keep an additional predecessor chain alive.
-      do {
-        changed = false;
-        for (const [id, receipt] of Object.entries(data.receipts)) {
-          if (!removable.has(id) && removable.delete(receipt.predecessor)) changed = true;
+        for (const approval of Object.values(data.approvals)) {
+          const target = approval.executionId || approval.predecessor;
+          if (!removable.has(target) || (approval.consumedBy && !removable.has(approval.consumedBy))) {
+            if (removable.delete(target)) changed = true;
+            if (removable.delete(approval.consumedBy)) changed = true;
+          }
         }
       } while (changed);
       for (const [id, approval] of Object.entries(data.approvals)) {
