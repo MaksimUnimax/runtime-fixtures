@@ -545,7 +545,7 @@ function expectPrepareFailure(name, browserMode, expectedFailure) {
 
 test("repository release facts use current contract/version/migration tag", () => {
   const facts = productFacts();
-  assert.equal(facts.productVersion, "0.2.24");
+  assert.equal(facts.productVersion, "0.2.25");
   assert.equal(facts.contractVersion, "control_plane_v2");
   assert.equal(facts.migrationLevel, 59);
 });

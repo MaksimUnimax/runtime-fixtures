@@ -655,7 +655,15 @@ async function saReadAdmissionSnapshot({ operation, tabId, store, intentId, conv
   if (conversationKey && key !== normalizeConversationKey(conversationKey)) throw saAdmissionError("CONVERSATION_MISMATCH");
   const binding = key ? await bindingForConversationKey(key) : null;
   const work = key ? await workSessionFor(key) : { state: OzonWorkSessionModel.STATES.INACTIVE, revision: 0 };
-  const bindingStore = binding?.store_context ? await saAssertStore(binding.store_context) : null;
+  // A new Start on the same inactive dialogue uses the current account grant.
+  // The old binding remains in the fence as history; it is never resumed here.
+  const newInactiveStart = operation === "start" &&
+    work?.state === OzonWorkSessionModel.STATES.INACTIVE &&
+    binding?.store_context?.storeId === store?.id;
+  const bindingContext = newInactiveStart && binding.store_context.authGeneration !== undefined
+    ? { ...binding.store_context, authGeneration: await SellerAgentsControlClient.generation() }
+    : binding?.store_context;
+  const bindingStore = bindingContext ? await saAssertStore(bindingContext) : null;
   const liveStore = store ? await saAssertStore(saStoreContext(store)) : (binding?.store_context ? await saAssertStore(binding.store_context) : null);
   if (!liveStore) throw saAdmissionError("STORE_NOT_FOUND");
   const authority = await SellerAgentsControlClient.getAuthority(identity);
@@ -1884,6 +1892,8 @@ async function saCheckStore(message) {
 }
 function saPrunePayload(owner, now = Date.now()) {
   if (!owner) return owner;
+  // No report bytes remain. Preserve the first provider/delivery replay fence.
+  if (owner.outgoing_text == null && owner.batch == null && owner.delivery == null) return owner;
   const expires = owner.payload_expires_at_ms || Date.parse(owner.created_at || "") + SA_PAYLOAD_TTL;
   if (Number.isFinite(expires) && expires > now) return { ...owner, payload_expires_at_ms: expires };
   const entries = Array.isArray(owner.batch?.entries) ? owner.batch.entries : [];
@@ -1929,6 +1939,7 @@ async function saCleanupExpiredPayloads() {
   const now = Date.now();
   let earliest = null;
   for (const [key, owner] of Object.entries(data[KEYS.MANUAL_OPERATIONS] || {})) {
+    if (!owner || (owner.outgoing_text == null && owner.batch == null && owner.delivery == null)) continue;
     const expiry = owner.payload_expires_at_ms || Date.parse(owner.created_at || "") + SA_PAYLOAD_TTL;
     if (!Number.isFinite(expiry) || expiry <= now) await mutateManualOperation(key, current => saPrunePayload(current));
     else earliest = earliest === null ? expiry : Math.min(earliest, expiry);
@@ -2052,6 +2063,16 @@ async function saR3ReserveCommand(prepared, context, entries, ingressRequestToke
   }
   return reserved;
 }
+function saR3ProviderResultJson(value) {
+  const text = JSON.stringify(value, (_key, item) => {
+    if (typeof item === "number" && !Number.isFinite(item))
+      throw saError("RESULT_RECEIPT_NON_FINITE_NUMBER");
+    return item && typeof item === "object" && !Array.isArray(item)
+      ? Object.fromEntries(Object.keys(item).sort().map(key => [key, item[key]])) : item;
+  });
+  if (typeof text !== "string") throw saError("RESULT_RECEIPT_JSON_INVALID");
+  return text;
+}
 const saR3BaseGuardedQueue = globalThis.SellerAgentsGuardedBatchQueue;
 globalThis.SellerAgentsGuardedBatchQueue = Object.freeze({ ...saR3BaseGuardedQueue,
   async run(options, { context, ports }) {
@@ -2061,7 +2082,7 @@ globalThis.SellerAgentsGuardedBatchQueue = Object.freeze({ ...saR3BaseGuardedQue
     let pending = null;
     const record = async (outcome, result = null) => {
       if (!pending || pending.recorded) return;
-      const digest = result === null ? null : await sha256Hex(SellerAgentsBootstrapVerifier.canonicalJson(result));
+      const digest = result === null ? null : await sha256Hex(saR3ProviderResultJson(result));
       for (const item of pending.items) await saR3Ledger().recordProviderOutcome({
         conversationKey: initial.conversation_key, context: initial.execution_context,
         executionId: initial.r3_execution_id, ordinal: item.ordinal,
