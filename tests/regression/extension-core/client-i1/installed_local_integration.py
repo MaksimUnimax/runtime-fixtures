@@ -5,7 +5,7 @@ generates its signing key at process start and exports only the public bundle;
 the private key remains in that API process and is never copied to the package.
 """
 from pathlib import Path
-import argparse, hashlib, json, os, re, subprocess, tempfile, time, urllib.request, uuid
+import argparse, faulthandler, hashlib, json, os, re, subprocess, tempfile, time, urllib.request, uuid
 from urllib.parse import urlparse
 from playwright.sync_api import sync_playwright
 
@@ -82,12 +82,46 @@ def file_sha256(path):
             digest.update(chunk)
     return digest.hexdigest()
 
+# CI uploads output even after cancellation: never include any tokens, keys,
+# fixture identities or provider response bodies in durable stage metadata.
+_SAFE_STAGES = frozenset({
+    "database_migrate", "api_ready_wait", "browser_config",
+    "package_compose", "portal_ready_wait", "browser_start",
+    "auth_start", "portal_login_redirect", "activation_redirect",
+    "activation_preview", "activation_approval", "bootstrap_observed",
+    "work_start", "browser_restart", "browser_context_close",
+    "subprocess_cleanup", "completed",
+})
+
+
+def _mark_stage(output, name, started):
+    if name not in _SAFE_STAGES:
+        raise ValueError("UNRECOGNIZED_INSTALLED_STAGE")
+    progress = {"schema_version": 1, "stage": name,
+                "elapsed_seconds": round(time.monotonic() - started, 3)}
+    temp = output / ".progress.json.tmp"
+    with temp.open("w", encoding="utf8") as stream:
+        stream.write(json.dumps(progress, ensure_ascii=False) + "\n")
+        stream.flush()
+        os.fsync(stream.fileno())
+    os.replace(temp, output / "progress.json")
+    print("I1_INSTALLED_STAGE " + name, flush=True)
+    return name
+
+
 def run(runtime, output):
     if os.environ.get("PRODUCT_CONTROL_PLANE_E2E") != "1":
         raise RuntimeError("PRODUCT_CONTROL_PLANE_E2E=1 is required")
     if not os.environ.get("DATABASE_URL"):
         raise RuntimeError("DATABASE_URL is required")
     output.mkdir(parents=True, exist_ok=False)
+    started = time.monotonic()
+    # CI-only traceback contains call sites, never local variables or keys.
+    # If Playwright stalls, make the underlying code boundary observable.
+    if os.environ.get("GITHUB_ACTIONS") == "true":
+        faulthandler.enable()
+        faulthandler.dump_traceback_later(180, repeat=True)
+    stage = _mark_stage(output, "database_migrate", started)
     required = [ROOT / "package.json", ROOT / "tooling/build/extension_composed.py",
                 ROOT / "tests/regression/extension-core/client-i1/api-harness.ts",
                 ROOT / "tests/regression/extension-core/client-i1/make-browser-config.mjs",
@@ -124,6 +158,7 @@ def run(runtime, output):
             # Output is not consumed; a PIPE can stall the child and must not retain raw data.
             api = subprocess.Popen([PNPM, "--filter", "@product/api", "exec", "tsx", "../../tests/regression/extension-core/client-i1/api-harness.ts"], cwd=ROOT, env=api_env, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT, text=True)
             processes.append(api)
+            stage = _mark_stage(output, "api_ready_wait", started)
             wait_for(f"http://127.0.0.1:{api_port}/health/ready")
             if not trust_path.exists():
                 raise RuntimeError("API did not export public trust bundle")
@@ -132,6 +167,7 @@ def run(runtime, output):
             evidence = json.loads(fixture_evidence_path.read_text())
             if evidence.get("fixture_emails") != [fixture_email("one", namespace), fixture_email("two", namespace)]:
                 raise RuntimeError("API and browser fixture identities do not match")
+            stage = _mark_stage(output, "browser_config", started)
             config = subprocess.check_output([NODE, str(ROOT / "tests/regression/extension-core/client-i1/make-browser-config.mjs"), str(private_placeholder), str(trust_path)], cwd=ROOT, env=env, text=True)
             packaged_config = json.loads(config)
             configured_package = os.environ.get("SA_Q1A_FINAL_PACKAGE_ROOT")
@@ -143,6 +179,7 @@ def run(runtime, output):
             else:
                 package_root = output / "candidate-package"
                 build_env = {**env, "SA_PACKAGED_CONFIG_JSON": config}
+                stage = _mark_stage(output, "package_compose", started)
                 subprocess.run(["python", "tooling/build/extension_composed.py", "--output", str(package_root)], cwd=ROOT, env=build_env, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
             package_archives = sorted(package_root.glob("*.zip"))
             if len(package_archives) != 1:
@@ -162,6 +199,7 @@ def run(runtime, output):
             # Output is not consumed; a PIPE can stall the child and must not retain raw data.
             portal = subprocess.Popen([PNPM, "--filter", "@product/portal", "exec", "next", "dev", "--hostname", "127.0.0.1", "--port", portal_port], cwd=ROOT, env=portal_env, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT, text=True)
             processes.append(portal)
+            stage = _mark_stage(output, "portal_ready_wait", started)
             wait_for(f"http://127.0.0.1:{portal_port}/login")
             fixture = (ROOT / "tests/regression/extension-core/fixtures/application-chat.html").read_text()
             # This account/restart fixture exposes a provider conversation ID.
@@ -177,7 +215,7 @@ def run(runtime, output):
                 else:
                     options["channel"] = "chromium"
                 context = playwright.chromium.launch_persistent_context(profile, **options)
-                stage = "browser_start"
+                stage = _mark_stage(output, "browser_start", started)
                 try:
                     context.route("https://**/*", lambda route: route.fulfill(body=fixture, content_type="text/html") if route.request.url == chat_url else route.abort())
                     control_responses = []
@@ -241,11 +279,11 @@ def run(runtime, output):
 
                     def activate(email):
                         nonlocal worker_sentinel, stage
-                        stage = "auth_start"
+                        stage = _mark_stage(output, "auth_start", started)
                         with context.expect_page() as page_info:
                             popup.click("#auth-start")
                         portal_page = page_info.value
-                        stage = "portal_login_redirect"
+                        stage = _mark_stage(output, "portal_login_redirect", started)
                         portal_page.wait_for_load_state()
                         portal_page.wait_for_url("**/login?returnTo=*")
                         portal_page.locator('input[type="email"]').wait_for(state="visible")
@@ -254,17 +292,17 @@ def run(runtime, output):
                         portal_page.locator('input[inputmode="numeric"]').wait_for(state="visible")
                         portal_page.locator('input[inputmode="numeric"]').fill("424242")
                         expect_portal_post(portal_page, portal_port, "/v1/auth/otp/verify", lambda: portal_page.get_by_role("button", name="Verify").click(), 200, "otp_verify")
-                        stage = "activation_redirect"
+                        stage = _mark_stage(output, "activation_redirect", started)
                         portal_page.wait_for_url("**/activate?authorizationId=*")
                         activation_id = re.search(r"[?&]authorizationId=([0-9a-f-]{36})", portal_page.url, re.I)
                         if activation_id is None:
                             raise RuntimeError("activation redirect did not contain a bounded authorization id")
                         authorization_ids.add(activation_id.group(1).lower())
-                        stage = "activation_preview"
+                        stage = _mark_stage(output, "activation_preview", started)
                         portal_page.locator("dl dd").first.wait_for(state="visible")
                         portal_page.locator('select option:not([value=""]):not([disabled])').first.wait_for(state="attached")
                         popup.locator("#auth-code").wait_for(state="visible")
-                        stage = "activation_approval"
+                        stage = _mark_stage(output, "activation_approval", started)
                         popup.wait_for_function("""() => { const text = document.querySelector('#auth-code')?.textContent || ''; return /[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{4}-[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{4}$/.test(text.trim()); }""")
                         code_text = popup.locator("#auth-code").inner_text().strip()
                         code_match = re.search(r"([ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{4}-[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{4})$", code_text)
@@ -284,7 +322,7 @@ def run(runtime, output):
                             raise RuntimeError("device approval did not reach the successful status")
                         portal_page.close()
                         popup.wait_for_function("() => document.querySelector('#account').innerText.includes('Аккаунт ·')")
-                        stage = "bootstrap_observed"
+                        stage = _mark_stage(output, "bootstrap_observed", started)
                         return worker.evaluate("""async () => { const authority = await SellerAgentsControlClient.getAuthority(); const status = await SellerAgentsControlClient.status(); return { account: authority?.payload?.account?.id || null, device: authority?.deviceId || null, session: authority?.sessionId || null, accessBasis: authority?.payload?.accessBasis || null, authenticated: status.authenticated, workAllowed: status.workAllowed }; }""")
 
                     first_identity = activate(fixture_email("one", namespace))
@@ -321,7 +359,7 @@ def run(runtime, output):
                     popup.click("#save")
                     popup.wait_for_function("() => document.querySelector('#stores').innerText.includes('Аккаунт B WB')")
 
-                    stage = "work_start"
+                    stage = _mark_stage(output, "work_start", started)
                     popup.click("#start")
                     wait_until(lambda: chat.evaluate("() => window.sent.length > 0"), "installed Work Start prompt")
                     active_surface = wait_until(
@@ -461,7 +499,7 @@ def run(runtime, output):
                     assert before_restart["conversationId"] == fixture_conversation_id
                     assert before_restart["origin"] == "https://chatgpt.com"
 
-                    stage = "browser_restart"
+                    stage = _mark_stage(output, "browser_restart", started)
                     context.close()
                     context = playwright.chromium.launch_persistent_context(profile, **options)
                     context.route("https://**/*", lambda route: route.fulfill(body=fixture, content_type="text/html") if route.request.url == chat_url else route.abort())
@@ -653,7 +691,14 @@ def run(runtime, output):
                         result["failure_diagnostic"] = {"stage": stage, "read_failed": True, "error_code": "DIAGNOSTIC_READ_FAILED"}
                     raise
                 finally:
-                    context.close()
+                    _mark_stage(output, "browser_context_close", started)
+                    try:
+                        context.close()
+                    except Exception:
+                        # Only an actual close failure becomes the error stage;
+                        # a normal cleanup must not replace the real failure.
+                        stage = "browser_context_close"
+                        raise
         except SafeStageError as error:
             result.update(status="FAIL", stage=error.stage, error=type(error).__name__, safe_failure={"stage": error.stage, "status": error.status, "error_code": error.code}, safe_counts={"control_responses": len(locals().get("control_responses", []))})
             raise
@@ -663,6 +708,7 @@ def run(runtime, output):
             result.update(status="FAIL", stage=locals().get("stage", "unknown"), error=type(error).__name__, safe_failure={"stage": locals().get("stage", "unknown"), "status": None, "error_code": "UNAVAILABLE"}, safe_counts={"control_responses": len(locals().get("control_responses", []))})
             raise
         finally:
+            _mark_stage(output, "subprocess_cleanup", started)
             for process in reversed(processes):
                 if process.poll() is None:
                     process.terminate()
@@ -672,6 +718,15 @@ def run(runtime, output):
                 except subprocess.TimeoutExpired:
                     process.kill()
             (output / "result.json").write_text(json.dumps(result, ensure_ascii=False, indent=2))
+            if os.environ.get("GITHUB_ACTIONS") == "true":
+                faulthandler.cancel_dump_traceback_later()
+            if result.get("status") == "PASS":
+                _mark_stage(output, "completed", started)
+            elif stage in _SAFE_STAGES:
+                # Restore the *origin* of a handled failure after cleanup.
+                # When a job is killed mid-cleanup the most recent cleanup
+                # stage remains, as it should.
+                _mark_stage(output, stage, started)
     print(json.dumps(result, ensure_ascii=False))
 
 if __name__ == "__main__":
