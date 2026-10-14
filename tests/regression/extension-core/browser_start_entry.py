@@ -3,6 +3,7 @@ Only the AI page, tab selection and signed loopback authority are synthetic.
 The installed receiver, popup handlers, worker, sending and binding are real.
 """
 from pathlib import Path
+from contextlib import ExitStack
 import argparse
 import base64
 import hashlib
@@ -65,6 +66,19 @@ def main():
     context = None
     server = None
     private = None
+    browser_shutdown_errors = []
+
+    def close_test_context():
+        nonlocal context
+        if context is None:
+            return
+        try:
+            context.close()
+        except Exception as exc:
+            browser_shutdown_errors.append("browser_" + type(exc).__name__)
+        else:
+            context = None
+
     try:
         runtime = args.output / "runtime"
         shutil.copytree(args.runtime, runtime)
@@ -88,7 +102,9 @@ def main():
             worker_source = worker_source.replace(before, after)
         worker_file.write_text(worker_source)
         server = FirstBootstrapServer(private).start()
-        with sync_playwright() as pw, tempfile.TemporaryDirectory(dir=args.output, prefix="p-") as profile:
+        # ExitStack closes the MV3 browser BEFORE sync_playwright() exits.
+        # Cleanup from the outer finally would use an already stopped driver.
+        with sync_playwright() as pw, tempfile.TemporaryDirectory(dir=args.output, prefix="p-") as profile, ExitStack() as browser_cleanup:
             options = dict(headless=True, ignore_default_args=["--disable-extensions"], args=[
                 "--enable-unsafe-extension-debugging", "--disable-background-networking"
             ])
@@ -103,6 +119,7 @@ def main():
             if expected_brand == "1":
                 assert options.get("executable_path"), "BRANDED_CHROME147_BINARY_REQUIRED"
             context = pw.chromium.launch_persistent_context(profile, **options)
+            browser_cleanup.callback(close_test_context)
             context.route("https://**/*", lambda route: route.fulfill(
                 body=CHAT_FIXTURE.read_text(), content_type="text/html"
             ) if route.request.url.startswith("https://chatgpt.com/") else route.abort())
@@ -180,7 +197,6 @@ def main():
             # An arbitrary path ending in UUID can display a new URL while
             # failing to establish an actual confirmed conversation identity.
             conversation_id = "77777777-7777-4777-8777-777777777777"
-            conversation_key = f"https://chatgpt.com|{conversation_id}"
             target = f"https://chatgpt.com/c/{conversation_id}"
             page.evaluate("""target=>document.querySelector('[data-testid="send-button"]').addEventListener(
                 'click',()=>history.replaceState({},'',target),{once:true})""", target)
@@ -201,14 +217,51 @@ def main():
             assert page.evaluate("sent.length") == 1
             assert page.url == target
             assert active["context"]["store_id"] == store["id"]
-            assert active["identity"]["status"] == "confirmed", active["identity"]
-            assert active["identity"]["conversation_id"] == conversation_id, active["identity"]
-            assert active["conversation_key"] == conversation_key, active["conversation_key"]
-            assert active["work"]["conversation_key"] == conversation_key, active["work"]
-            assert active["work"]["conversation_id"] == conversation_id, active["work"]
+            identity = active["identity"]
+            assert identity["status"] == "confirmed", identity
+            assert identity["origin"] == "https://chatgpt.com", identity
+            assert identity["ai_id"] == "chatgpt", identity
+            assert identity["chat_path"] == f"/c/{conversation_id}", identity
+            scoped_id = identity["conversation_id"]
+            assert isinstance(scoped_id, str) and scoped_id, identity
+            # Positive surface evidence must match this exact current route
+            # and both newly observed turns, not an arbitrary UUID-shaped
+            # locator, stale history or two unrelated message IDs.
+            proof = identity["identity_evidence"]
+            assert proof["version"] == 1, proof
+            assert proof["locator_digest"] == hashlib.sha256(target.encode("utf8")).hexdigest(), proof
+            observed_turns = page.evaluate("""() => ({
+                user: [...document.querySelectorAll('#turns section[data-turn="user"][data-turn-id]')]
+                    .map(node => node.dataset.turnId),
+                assistant: [...document.querySelectorAll('#turns section[data-turn="assistant"][data-turn-id]')]
+                    .map(node => node.dataset.turnId)
+            })""")
+            assert len(observed_turns["user"]) == 1, observed_turns
+            assert len(observed_turns["assistant"]) == 1, observed_turns
+            proof_ids = set(proof["message_ids"])
+            assert len(proof_ids) >= 2, proof
+            assert set(observed_turns["user"] + observed_turns["assistant"]) <= proof_ids, proof
+            if identity["identity_scope"] == "document":
+                # A fresh document is deliberately assigned a local binding:
+                # a URL locator is not proof that its UUID identifies the
+                # active conversation. Preserve this local Work across route
+                # promotion using the already witnessed assistant/user turns.
+                assert identity["source"] in {"local_surface", "local_surface_continuity"}, identity
+                assert scoped_id == "local:" + identity["surface_id"], identity
+            else:
+                # A promoted external ID needs positive conversation scope.
+                assert identity["identity_scope"] == "conversation", identity
+                assert scoped_id == conversation_id, identity
+            bound_key = f"https://chatgpt.com|{scoped_id}"
+            assert active["conversation_key"] == bound_key, active["conversation_key"]
+            assert active["work"]["conversation_key"] == bound_key, active["work"]
+            assert active["work"]["conversation_id"] == scoped_id, active["work"]
             assert not active["pending"]
-            report["bound_conversation_id"] = conversation_id
-            report["cases"].append({"name": "one-popup-click-one-message-then-bind-exact-new-conversation-key", "status": "PASS"})
+            report["bound_identity_scope"] = identity["identity_scope"]
+            report["bound_identity_source"] = identity["source"]
+            report["conversation_key_consistent"] = True
+            report["route_digest_and_first_two_turns_verified"] = True
+            report["cases"].append({"name": "one-popup-click-one-message-then-bind-confirmed-scoped-conversation", "status": "PASS"})
             diagnostic = worker.evaluate("async id=>saLastStartDiagnostic(id)", tab_id)
             assert diagnostic == {"stage": "active", "code": None, "outcome": "active"}, diagnostic
             report["cases"].append({"name": "successful-binding-reported-active-not-failed", "status": "PASS"})
@@ -279,13 +332,11 @@ def main():
     finally:
         # Never treat an interrupted browser/server teardown as a clean
         # stop of the synthetic signing-key consumer.
-        shutdown_errors = []
-        if context:
-            try:
-                context.close()
-                context = None
-            except Exception as exc:
-                shutdown_errors.append("browser_" + type(exc).__name__)
+        shutdown_errors = list(browser_shutdown_errors)
+        # Browser close was attempted by ExitStack before the Playwright
+        # driver stopped; do not invoke context.close() after that driver exit.
+        if context is not None:
+            shutdown_errors.append("browser_shutdown_not_proven")
         if server:
             try:
                 server.stop()
