@@ -29,8 +29,6 @@ export PATH="$(dirname "${NODE_BIN}"):${PATH}"
   CI=true "${PNPM_BIN}" install --offline --frozen-lockfile --ignore-scripts --prod
 )
 
-rm -rf -- "${tmp}/.build-tmp" "${tmp}/.build-cache"
-
 # pnpm's local content-addressable store can preserve root-only read modes from
 # the build host. The immutable release contains no secrets, so normalize the
 # payload for a dedicated non-root service while keeping it non-writable.
@@ -44,7 +42,7 @@ entry="${tmp}/apps/telegram-operator/dist/main.js"
 set +e
 startup_output="$(
   cd "${tmp}" &&
-    env -i HOME=/tmp PATH=/usr/bin:/bin       "${tmp}/.runtime/node" "${tsx_cli}" "${entry}" 2>&1
+    env -i HOME="${tmp}/.build-tmp" TMPDIR="${tmp}/.build-tmp" XDG_CACHE_HOME="${tmp}/.build-cache" PATH=/usr/bin:/bin       "${tmp}/.runtime/node" "${tsx_cli}" "${entry}" 2>&1
 )"
 startup_status=$?
 set -e
@@ -55,6 +53,8 @@ grep -q "TELEGRAM_OPERATOR_CONFIGURATION_MISSING" <<<"${startup_output}" ||
 if grep -Eq "ERR_MODULE_NOT_FOUND|ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING"   <<<"${startup_output}"; then
   fail "release dependency closure is incomplete"
 fi
+
+rm -rf -- "${tmp}/.build-tmp" "${tmp}/.build-cache"
 
 chmod -R go-w "${tmp}"
 
