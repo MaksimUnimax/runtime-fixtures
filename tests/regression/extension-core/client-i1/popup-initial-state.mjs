@@ -82,6 +82,9 @@ export async function verifyPopupInitialState(candidate) {
   assert.equal(vm.runInContext("editingId", ctx), null);
   assert.equal(vm.runInContext("confirmAction", ctx), null);
   assert.equal(node("confirmation").hidden, true);
+  assert.equal(node("r3-recovery").hidden, true);
+  assert.equal(node("r3-review").hidden, true);
+  assert.equal(vm.runInContext("r3Review", ctx), null);
   assert.throws(() => vm.runInContext("oldDeleteConfirmation()", ctx), /fixture auth required/);
   assert.equal(storeRequests.length, 0, "stale delete confirmation cannot mutate after auth loss");
   vm.runInContext('state.auth.authenticated=true; render(); $("add").onclick(); $("name").value="New fixture"; $("seller-key").value="SYNTHETIC_NEVER_REAL"; $("card").onsubmit({preventDefault(){}})', ctx);
