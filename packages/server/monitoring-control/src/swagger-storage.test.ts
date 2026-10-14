@@ -98,6 +98,23 @@ async function fixture(expiresAt?: Date) {
   return { directory, store, service, input };
 }
 describe("quarantine retry and uncertain registration", () => {
+  it.each(["CANCELLED", "EXPIRED"] as const)(
+    "rejects identical retry of an already %s request with a registered artifact",
+    async (terminal) => {
+      const f = await fixture();
+      await f.service().upload(f.input);
+      await f.store.setRequestStatus(f.input.requestId, terminal);
+      expect(await f.service().upload(f.input)).toEqual({
+        kind: "REJECTED",
+        code: "REQUEST_FINALIZED",
+      });
+      expect((await f.store.getRequest(f.input.requestId))?.status).toBe(
+        terminal,
+      );
+      expect(await f.store.listArtifacts(f.input.requestId)).toHaveLength(1);
+      expect(await readdir(f.directory)).toHaveLength(1);
+    },
+  );
   it.each(["CANDIDATE_READY", "VALIDATION_FAILED"] as const)(
     "does not expire concurrently registered %s from a stale request read",
     async (status) => {
@@ -425,7 +442,10 @@ describe("quarantine retry and uncertain registration", () => {
           return artifact;
         },
       );
-      expect((await f.service().upload(f.input)).kind).toBe("DUPLICATE");
+      expect(await f.service().upload(f.input)).toEqual({
+        kind: "REJECTED",
+        code: "REQUEST_FINALIZED",
+      });
       expect((await f.store.getRequest(f.input.requestId))?.status).toBe(
         terminal,
       );

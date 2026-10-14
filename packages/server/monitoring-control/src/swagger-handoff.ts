@@ -768,13 +768,16 @@ export function createSwaggerHandoffService(options: {
     if (duplicate) {
       // A previous save may have committed before its status update failed.
       // The store preserves cancellation/expiry committed after getRequest().
-      await options.store.setRequestStatus(
-        request.requestId,
-        duplicate.status === "CANDIDATE_READY"
-          ? "CANDIDATE_READY"
-          : "VALIDATION_FAILED",
-        { preserveTerminal: true },
-      );
+      if (
+        (await options.store.setRequestStatus(
+          request.requestId,
+          duplicate.status === "CANDIDATE_READY"
+            ? "CANDIDATE_READY"
+            : "VALIDATION_FAILED",
+          { preserveTerminal: true },
+        )) === false
+      )
+        return rejectFinalizedPayload();
       return { kind: "DUPLICATE", artifact: duplicate };
     }
     if (["CANDIDATE_READY", "CANCELLED", "EXPIRED"].includes(request.status)) {
