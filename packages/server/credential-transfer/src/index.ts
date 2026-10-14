@@ -89,6 +89,7 @@ type RelayReservation = {
   sourceDeviceId: string;
   expiresAt: number;
   envelopeBytes: number;
+  packetId: string;
   reservationId: number;
 };
 
@@ -168,6 +169,7 @@ export class EphemeralTransferRelay {
       sourceDeviceId,
       expiresAt: expiresAt.getTime(),
       envelopeBytes,
+      packetId: packet.packetId,
       reservationId,
     });
     this.scheduleExpiry(now);
@@ -188,6 +190,16 @@ export class EphemeralTransferRelay {
       this.scheduleExpiry(now);
       return false;
     }
+    // A direct caller must not activate bytes or identity different from
+    // those charged during reserve(), even though the service passes the
+    // same validated packet through both operations.
+    if (
+      packet.requestId !== requestId ||
+      packet.packetId !== reservation.packetId ||
+      new TextEncoder().encode(packet.envelope).byteLength !==
+        reservation.envelopeBytes
+    )
+      return false;
     this.reservations.delete(requestId);
     this.packets.set(requestId, {
       ...packet,
