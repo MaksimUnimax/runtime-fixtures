@@ -210,7 +210,7 @@ export function createBetaAdmissionRepository(
           `INSERT INTO beta_identity_invitations(
               normalized_identity_target,create_request_id_hash,create_payload_hash,
               created_by_admin_principal_id,expires_at
-            ) VALUES($1,$2,$3,$4,$5)
+            ) VALUES($1,$2,$3,$4,clock_timestamp()+($5::double precision * INTERVAL '1 millisecond'))
             RETURNING id,normalized_identity_target,create_request_id_hash,create_payload_hash,
                       created_at,expires_at,consumed_at,consumed_user_id,revoked_at,
                       revoke_request_id_hash,revoke_payload_hash,
@@ -220,7 +220,7 @@ export function createBetaAdmissionRepository(
             input.requestIdHash,
             input.payloadHash,
             input.actorPrincipalId,
-            input.expiresAt,
+            input.ttlMs,
           ],
         );
         const row = created.rows[0]!;
@@ -235,7 +235,7 @@ export function createBetaAdmissionRepository(
             safeInvitationAuditReason(input.reason),
             JSON.stringify({
               requestIdHash: input.requestIdHash,
-              expiresAt: input.expiresAt.toISOString(),
+              expiresAt: new Date(row.expires_at).toISOString(),
             }),
           ],
         );
