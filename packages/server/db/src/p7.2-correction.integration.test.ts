@@ -650,35 +650,41 @@ describe.sequential("P7.2 correction permanent PostgreSQL coverage", () => {
     const acquiredPromise = new Promise<void>((resolve) => {
       acquired = resolve;
     });
-    const assignment = runtimeAssignment.transaction(async (q) => {
-      if (assignmentFirst) {
-        await q.query("SELECT p7_2_lock_profile_revision_target($1)", [
-          target.id,
-        ]);
-        acquired();
-        await gate;
-      }
-      const assignmentId = await insertScope(q);
-      await insertAssignmentRevision(q, assignmentId, target.id);
-      return "assignment";
-    });
-    const retirement = runtimeRetire.transaction(async (q) => {
-      if (!assignmentFirst) {
-        await q.query("SELECT p7_2_lock_profile_revision_target($1)", [
-          target.id,
-        ]);
-        acquired();
-        await gate;
-      }
-      await q.query(
-        "UPDATE adapter_profile_revisions SET state='RETIRED' WHERE id=$1",
-        [target.id],
-      );
-      return "retirement";
-    });
+    // Start only the designated winner first. Starting both transactions
+    // before awaiting its target lock lets pool scheduling invert the order.
+    const assignment = () =>
+      runtimeAssignment.transaction(async (q) => {
+        if (assignmentFirst) {
+          await q.query("SELECT p7_2_lock_profile_revision_target($1)", [
+            target.id,
+          ]);
+          acquired();
+          await gate;
+        }
+        const assignmentId = await insertScope(q);
+        await insertAssignmentRevision(q, assignmentId, target.id);
+        return "assignment";
+      });
+    const retirement = () =>
+      runtimeRetire.transaction(async (q) => {
+        if (!assignmentFirst) {
+          await q.query("SELECT p7_2_lock_profile_revision_target($1)", [
+            target.id,
+          ]);
+          acquired();
+          await gate;
+        }
+        await q.query(
+          "UPDATE adapter_profile_revisions SET state='RETIRED' WHERE id=$1",
+          [target.id],
+        );
+        return "retirement";
+      });
+    const first = assignmentFirst ? assignment() : retirement();
     await acquiredPromise;
+    const second = assignmentFirst ? retirement() : assignment();
     release();
-    const results = await Promise.allSettled([assignment, retirement]);
+    const results = await Promise.allSettled([first, second]);
     await Promise.all([runtimeAssignment.close(), runtimeRetire.close()]);
     expect(
       results.filter((result) => result.status === "fulfilled"),
