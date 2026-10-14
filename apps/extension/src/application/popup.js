@@ -182,6 +182,8 @@ function render() {
   $("account").textContent = state.account.label;
   $("auth").hidden = authenticated;
   $("catalog").hidden = !authenticated;
+  $("add").disabled = !authenticated || busy;
+  $("edit").disabled = $("remove").disabled = !authenticated || busy;
   $("auth-status").textContent = state.auth?.lastError ? (texts[state.auth.lastError.code] || state.auth.lastError.code) : authenticated ? "Вход подтверждён подписанным bootstrap V2." : state.auth?.pending ? "Откройте портал и подтвердите устройство для своего аккаунта." : "Войдите, чтобы подключить принадлежащий вам аккаунт.";
   $("auth-code").textContent = state.auth?.pending ? `Код подтверждения: ${state.auth.pending.userCode}` : "";
   $("auth-open").hidden = !state.auth?.pending;
@@ -194,13 +196,13 @@ function render() {
   $("compatibility-note").hidden = !updateRecommended;
   $("compatibility-note").textContent = updateRecommended ? `Подписанная конфигурация рекомендует обновить расширение. Текущая версия пока разрешена.${extensionCompatibility.minimumVersion ? ` Минимально допустимая версия: ${extensionCompatibility.minimumVersion}.` : ""}` : "";
   renderOnboarding();
-  if (!authenticated) { $("r3-recovery").hidden = true; $("r3-review").hidden = true; r3Review = null; return; }
+  if (!authenticated) { closeCard(); confirmAction = null; $("confirmation").hidden = true; selectedId = ""; $("r3-recovery").hidden = true; $("r3-review").hidden = true; r3Review = null; return; }
   for (const id of ["ozon", "wildberries"]) $(id).setAttribute("aria-pressed", String(id === marketplace));
   const choices = state.stores.filter(s => s.marketplace === marketplace);
   if (!choices.some(x => x.id === selectedId)) selectedId = choices[0]?.id || "";
   $("stores").replaceChildren(...choices.map(store => { const option = document.createElement("option"); option.value = store.id; option.textContent = store.name; return option; }));
   $("stores").value = selectedId;
-  $("edit").disabled = $("remove").disabled = !selected();
+  $("edit").disabled = $("remove").disabled = busy || !selected();
   const s = selected();
   $("check-seller").hidden = $("check-performance").hidden = marketplace !== "ozon";
   $("check-token").hidden = marketplace !== "wildberries";
@@ -257,7 +259,14 @@ async function refresh(first = false) {
   await refreshFirefoxTechnicalConsent();
 }
 function closeCard() { $("card").reset(); $("card").hidden = true; editingId = null; }
+function storeControlsAllowed() {
+  if (state?.auth?.authenticated === true) return true;
+  closeCard();
+  $("status").textContent = texts.AUTH_REQUIRED;
+  return false;
+}
 function openCard(store) {
+  if (!storeControlsAllowed()) return;
   closeCard(); editingId = store?.id || null; $("card").hidden = false;
   $("name").value = store?.name || ""; $("seller-id").value = store?.sellerClientId || ""; $("performance-id").value = store?.performanceClientId || ""; $("personal").checked = store?.personalDataEnabled === true;
   $("seller").hidden = $("performance").hidden = marketplace !== "ozon"; $("wb").hidden = marketplace !== "wildberries";
@@ -266,13 +275,14 @@ function openCard(store) {
 function confirm(text, fn) { $("confirmation-text").style.whiteSpace = "pre-wrap"; $("confirmation-text").textContent = text; confirmAction = fn; $("confirmation").hidden = false; $("confirm").focus(); }
 for (const id of ["ozon", "wildberries"]) $(id).onclick = () => { marketplace = id; selectedId = ""; closeCard(); render(); };
 $("stores").onchange = () => { selectedId = $("stores").value; closeCard(); render(); };
-$("add").onclick = () => openCard(null); $("edit").onclick = () => openCard(selected()); $("cancel").onclick = closeCard;
-$("card").onsubmit = e => { e.preventDefault(); action(async () => {
+$("add").onclick = () => openCard(null); $("edit").onclick = () => { if (storeControlsAllowed()) openCard(selected()); }; $("cancel").onclick = closeCard;
+$("card").onsubmit = e => { e.preventDefault(); if (!storeControlsAllowed()) return; action(async () => {
+  if (!storeControlsAllowed()) throw new Error(texts.AUTH_REQUIRED);
   const credentials = marketplace === "wildberries" ? { token: $("token").value } : { seller: { clientId: $("seller-id").value, apiKey: $("seller-key").value }, performance: { clientId: $("performance-id").value, clientSecret: $("performance-key").value }, clearPerformance: $("clear-performance").checked };
   const response = await request("SA_STORE_SAVE", { store: { id: editingId, marketplace, name: $("name").value, personalDataEnabled: $("personal").checked, credentials } });
   selectedId = response.store.id; closeCard();
 }); };
-$("remove").onclick = () => { const id = selectedId; confirm(`Удалить магазин «${selected()?.name}» и его ключи? Все связанные с ним локальные рабочие сессии будут завершены.`, () => request("SA_STORE_DELETE", { store_id: id, confirm: true })); };
+$("remove").onclick = () => { if (!storeControlsAllowed()) return; const id = selectedId; confirm(`Удалить магазин «${selected()?.name}» и его ключи? Все связанные с ним локальные рабочие сессии будут завершены.`, () => { if (!storeControlsAllowed()) throw new Error(texts.AUTH_REQUIRED); return request("SA_STORE_DELETE", { store_id: id, confirm: true }); }); };
 $("start").onclick = () => { const id = selectedId; const run = async confirm_change => { const started = await requestStart({ store_id: id, confirm_change, start_intent_id: crypto.randomUUID() }); return { popupAction: "WORK_START_ACCEPTED", promptTreeAvailable: started.prompt_tree_available, promptTreeWarning: started.prompt_tree_warning }; };
   if (state.context.store_id && state.context.store_id !== id) confirm("В диалоге останутся данные предыдущего магазина. ИИ может смешать их в ответах. Старую работу завершим и отправим новую инструкцию для выбранного магазина.", () => run(true)); else action(() => run(false)); };
 $("confirm").onclick = () => { const fn = confirmAction; confirmAction = null; $("confirmation").hidden = true; if (fn) action(fn); };

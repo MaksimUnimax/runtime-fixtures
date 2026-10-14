@@ -52,6 +52,8 @@ def run(runtime: Path, output: Path):
         browser=pw.chromium.launch(headless=True)
         try:
             page=browser.new_page()
+            page.route("**/*", lambda route: route.fulfill(status=200, content_type="text/html", body="<html><body></body></html>"))
+            page.goto("https://fixture.invalid/")  # Secure, fully local DOM fixture for Web Crypto.
             for name,html in cases.items():
                 page.set_content(html)
                 page.evaluate(identity_source)
@@ -85,6 +87,9 @@ def run(runtime: Path, output: Path):
                 "outside_submit_rejected": ('</form>'+modern.format(attrs="")+'<form>', "unknown"),
                 "legacy_work_submit": ('<button id="composer-submit-button" data-testid="send-button" disabled>Send</button>', "work_send_disabled"),
                 "legacy_microphone": ('<button data-testid="composer-speech-button">Voice</button>', "microphone"),
+                "active_send_with_microphone": ('<button aria-label="Send message">Send</button><button data-testid="composer-speech-button">Voice</button>', "send_active"),
+                "disabled_send_with_microphone": ('<button aria-label="Send message" disabled>Send</button><button data-testid="composer-speech-button">Voice</button>', "microphone"),
+                "stop_with_microphone": ('<button aria-label="Stop generating">Stop</button><button data-testid="composer-speech-button">Voice</button>', "stop"),
             }
             for name,(buttons,expected) in composer_cases.items():
                 page.set_content('<form id="composer-form"><textarea id="composer"></textarea>'+buttons+'</form>')
