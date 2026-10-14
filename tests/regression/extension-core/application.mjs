@@ -972,5 +972,55 @@ await test('A06-popup-unconfirmed-ACK-is-truthful-and-nonconsuming', async () =>
   assert.equal(presentation({ok:true,importState:'IMPORTED',requestId:'fixture'}).consume,true);
 });
 
+await test('R3-fractional-provider-result-receipt-stays-successful-with-one-request', async () => {
+  const s = await setup({ fetch: async () => new Response(JSON.stringify({ result: { value: 0.97, ratio: 0.35714285714285715 } }), { headers: { 'content-type': 'application/json' } }) });
+  try {
+    const store = await s.save(ozon('FRACTION_CLIENT', 'FRACTION_KEY'));
+    const started = await s.start(store);
+    await s.execute(started, 'OZON_API_V1 {"operation":"roles","params":{}}', 'fractional-business-result');
+    const owner = await s.collected(started);
+    const entry = owner.batch.entries[0];
+    assert.equal(s.worker.network.length, 1);
+    assert.equal(entry.http_status, 200);
+    assert.equal(entry.external_request_executed, true);
+    assert.equal(entry.result?.error ?? null, null);
+    assert.match(owner.outgoing_text, /0\.97/);
+    const receipt = owner.r3_commands.receipts[owner.r3_execution_id];
+    assert.equal(receipt.items[0].state, 'RESULT');
+    assert.match(receipt.items[0].bufferDigest, /^[a-f0-9]{64}$/);
+    const integer = { z: 4, a: { b: true, a: [0, 'text', null] } };
+    assert.equal(await s.worker.call('saR3ProviderResultJson', integer), await s.worker.call('SellerAgentsBootstrapVerifier.canonicalJson', integer));
+    assert.throws(() => s.worker.call('SellerAgentsBootstrapVerifier.canonicalJson', { ratio: 0.97 }), /NON_CANONICAL_NUMBER/);
+    for (const value of ['NaN', 'Infinity', '-Infinity'])
+      assert.throws(() => s.worker.call(`(function(){return saR3ProviderResultJson({value:${value}})})`), /RESULT_RECEIPT_NON_FINITE_NUMBER/);
+    await s.deliver(started, owner);
+    assert.equal(s.worker.network.length, 1);
+  } finally { s.worker.close(); }
+});
+
+await test('R3-expired-buffer-cleanup-preserves-first-replay-fence', async () => {
+  const s = await setup();
+  try {
+    const store = await s.save(ozon('EXPIRY_CLIENT', 'EXPIRY_KEY'));
+    const started = await s.start(store);
+    await s.execute(started, 'OZON_API_V1 {"operation":"roles","params":{}}', 'expiry-once');
+    const owner = await s.collected(started);
+    assert.equal(s.worker.network.length, 1);
+    const before = plain(owner.batch.entries.map(entry => entry.provider_attempt).filter(Boolean));
+    assert.equal(before.length, 1, 'retain the actual provider attempt evidence');
+    s.worker.backing.local.ozmb_manual_operations[started.key].payload_expires_at_ms = Date.now() - 1;
+    await s.worker.call('saCleanupExpiredPayloads');
+    const first = plain(await s.worker.call('getManualOperation', started.key));
+    assert.equal(first.outgoing_text, null); assert.equal(first.batch, null); assert.equal(first.delivery, null);
+    assert.equal(first.recovery_fence.attempts[0].provider_attempt_id, before[0].provider_attempt_id);
+    assert.equal(first.recovery_fence.provider_replay_forbidden, true);
+    assert.equal(first.recovery_fence.delivery_replay_forbidden, true);
+    assert.deepEqual(plain(await s.worker.call('saPrunePayload', first, Date.now() + 60_000)), first);
+    await s.worker.call('saCleanupExpiredPayloads');
+    assert.deepEqual(plain(await s.worker.call('getManualOperation', started.key)), first);
+    assert.equal(s.worker.network.length, 1, 'cleanup never replays the provider call');
+  } finally { s.worker.close(); }
+});
+
 if (selectedScenario && results.length !== 1) throw new Error('Selected scenario was not executed');
 console.log(JSON.stringify({ status:'PASS', results, live_provider_calls:0, scope:'actual generated worker/popup messages and attachment port; simulated browser and provider; not installed live acceptance' },null,2));
