@@ -172,7 +172,12 @@ systemd-run --unit="${unit}" --description="${build_description}" --quiet --wait
   --property=SendSIGKILL=yes --property=OOMPolicy=stop --property=MemoryAccounting=yes \
   --property=MemoryMax=2147483648 --property=MemorySwapMax=0 --property=TasksMax=1024 \
   --property="TemporaryFileSystem=${tmp}:rw,size=1073741824,nr_inodes=65536,mode=0755" \
-  --property="ReadOnlyPaths=${SOURCE_DIR}" \
+  --property=ProtectSystem=strict --property=ProtectHome=read-only \
+  --property=NoNewPrivileges=yes --property=CapabilityBoundingSet= \
+  --property=PrivateDevices=yes --property=ProtectKernelTunables=yes --property=ProtectControlGroups=yes \
+  --property="ReadWritePaths=${publish_tmp}" \
+  --property="ReadOnlyPaths=${SOURCE_DIR} ${store_root} ${corepack_home} /tmp /var/tmp" \
+  --setenv=COREPACK_ENABLE_NETWORK=0 \
   --setenv="OCTOPORT_NODE_BIN=${NODE_BIN}" --setenv="OCTOPORT_PNPM_BIN=${PNPM_BIN}" \
   --setenv="npm_config_store_dir=${store_root}" --setenv="COREPACK_HOME=${corepack_home}" \
   /bin/bash "${SOURCE_DIR}/infra/production/scripts/prepare-octoport-ops-release.sh" \
