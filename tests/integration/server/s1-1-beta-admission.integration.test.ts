@@ -614,6 +614,54 @@ describe.sequential("S1.1 beta admission on real PostgreSQL", () => {
     expect(result.rows[0]?.active).toBe(true);
   });
 
+  it.each([48, -48])(
+    "anchors 24-hour invitation TTL to PostgreSQL with app clock skew %+i hours",
+    async (skewHours) => {
+      const actor = await admin();
+      const capacity = await service.mutate(
+        input(actor, `ttl-db-capacity-${skewHours}`, { amount: 1 }),
+      );
+      expect(capacity.kind).toBe("APPLIED");
+      if (capacity.kind !== "APPLIED") throw new Error("capacity setup failed");
+      const skewClock = new Date(Date.now() + skewHours * 60 * 60_000);
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(skewClock);
+      try {
+        const created = await service.createIdentityInvitation({
+          actorPrincipalId: actor,
+          requestId: `ttl-db-invitation-${skewHours}`,
+          correlationId: "ttl-db-proof",
+          expectedRevision: capacity.state.revision,
+          normalizedIdentityTarget: `ttl-db-${skewHours}@example.test`,
+          reason: "synthetic PG TTL",
+        });
+        expect(created.kind).toBe("APPLIED");
+        if (created.kind !== "APPLIED") throw new Error("invitation missing");
+        expect(created.invitation.status).toBe("PENDING");
+        const records = await q<{
+          remaining_seconds: string;
+          expires_at: Date | string;
+        }>(
+          `SELECT EXTRACT(EPOCH FROM (expires_at - clock_timestamp()))::text AS remaining_seconds,
+                  expires_at
+             FROM beta_identity_invitations WHERE id=$1`,
+          [created.invitation.id],
+        );
+        expect(records.rows).toHaveLength(1);
+        const row = records.rows[0];
+        if (!row) throw new Error("missing synthetic DB invitation");
+        const remaining = Number(row.remaining_seconds);
+        expect(remaining).toBeGreaterThan(86_300);
+        expect(remaining).toBeLessThanOrEqual(86_400);
+        expect(created.invitation.expiresAt.getTime()).toBe(
+          new Date(row.expires_at).getTime(),
+        );
+      } finally {
+        vi.useRealTimers();
+      }
+    },
+  );
+
   it("revoke and expiry release reserved capacity", async () => {
     const actor = await admin();
     const capacity = await service.mutate(
