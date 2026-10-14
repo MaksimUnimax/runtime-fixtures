@@ -636,7 +636,9 @@ describe("D3S2-2A control-plane foundation", () => {
       expiry,
       now,
     );
-    expect(relay.activate(oldPacket.requestId, originalId, oldPacket, now)).toBe(true);
+    expect(
+      relay.activate(oldPacket.requestId, originalId, oldPacket, now),
+    ).toBe(true);
 
     const replacement = packet(oldPacket.requestId, "я", idFor(8));
     const replacementId = relay.reserve(
@@ -693,7 +695,9 @@ describe("D3S2-2A control-plane foundation", () => {
       now,
     );
     expect(envelopeReads).toBe(1);
-    expect(relay.activate(expected.requestId, reservationId, expected, now)).toBe(true);
+    expect(
+      relay.activate(expected.requestId, reservationId, expected, now),
+    ).toBe(true);
     expect(relay.get(expected.requestId, now)).toMatchObject(expected);
     relay.clear();
   });
@@ -711,7 +715,9 @@ describe("D3S2-2A control-plane foundation", () => {
       now,
     );
     const getterPacket = { ...expected };
-    let requestReads = 0, packetReads = 0, envelopeReads = 0;
+    let requestReads = 0,
+      packetReads = 0,
+      envelopeReads = 0;
     Object.defineProperties(getterPacket, {
       requestId: {
         enumerable: true,
@@ -735,7 +741,9 @@ describe("D3S2-2A control-plane foundation", () => {
         },
       },
     });
-    expect(relay.activate(expected.requestId, reservationId, getterPacket, now)).toBe(true);
+    expect(
+      relay.activate(expected.requestId, reservationId, getterPacket, now),
+    ).toBe(true);
     expect(relay.get(expected.requestId, now)).toMatchObject(expected);
     expect([requestReads, packetReads, envelopeReads]).toEqual([1, 1, 1]);
     relay.clear();

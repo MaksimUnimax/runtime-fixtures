@@ -138,7 +138,9 @@ export class EphemeralTransferRelay {
       packetId: packet.packetId,
       envelope: packet.envelope,
     };
-    const envelopeBytes = new TextEncoder().encode(snapshot.envelope).byteLength;
+    const envelopeBytes = new TextEncoder().encode(
+      snapshot.envelope,
+    ).byteLength;
     if (envelopeBytes > MAX_PACKET_ENVELOPE_BYTES)
       throw new TransferError("TRANSFER_PACKET_TOO_LARGE");
     this.prune(now);
