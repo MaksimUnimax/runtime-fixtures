@@ -311,6 +311,79 @@ describe.sequential(
       },
     );
 
+    it("native PG preserves later verified operator authority at the same clock across a store restart", async () => {
+      await scoped.query("TRUNCATE api_watch_authority_records");
+      const now = new Date("2026-10-14T03:00:00Z");
+      let calls = 0,
+        status = 403;
+      const registry = createSourceRegistry({
+        OZON_SELLER: { officialUrl: null, documents: [] },
+        OZON_PERFORMANCE: { officialUrl: null, documents: [] },
+        WILDBERRIES: {
+          officialUrl: null,
+          acceptedHosts: ["127.0.0.1"],
+          requiredServerIdentity: undefined,
+          titlePattern: undefined,
+          documents: [
+            {
+              documentKey: "clock",
+              officialUrl: "http://127.0.0.1/clock",
+              expectedArtifactTypes: ["JSON"],
+            },
+          ],
+        },
+      });
+      const store = createPostgresApiWatchStore(scoped);
+      const dependencies = {
+        registry,
+        store,
+        pendingStore: new InMemorySwaggerSourceStore(),
+        now: () => new Date(now),
+        fetcher: (async () => {
+          calls++;
+          return new Response("synthetic", { status });
+        }) as typeof fetch,
+      };
+      await runAuthorityPass(dependencies);
+      const verified = await runAuthorityPass({
+        ...dependencies,
+        store: new InMemoryApiWatchStore(),
+        fetcher: (async () =>
+          new Response(
+            JSON.stringify({
+              openapi: "3.0.3",
+              info: { title: "Fixture", version: "1" },
+              paths: {
+                "/health": {
+                  get: { responses: { "200": { description: "ok" } } },
+                },
+              },
+            }),
+            { status: 200 },
+          )) as typeof fetch,
+      });
+      const accepted = verified.records.find(
+        (r) => r.sourceFamily === "WILDBERRIES",
+      )!;
+      expect(accepted.authorityStatus).toBe("AUTHORITY_ACCEPTED");
+      const supplied = await store.saveAuthorityRecord({
+        ...accepted,
+        acquisitionMode: "OPERATOR_SUPPLIED",
+        operatorRequestId: randomUUID(),
+      });
+      expect(supplied.validatedAt.valueOf()).toBe(now.valueOf());
+      status = 503;
+      const scheduled = await runAuthorityPass({
+        ...dependencies,
+        store: createPostgresApiWatchStore(scoped),
+        skipOperatorBlocked: true,
+      });
+      expect(calls).toBe(2);
+      expect(
+        scheduled.outcomes.find((o) => o.sourceFamily === "WILDBERRIES")?.kind,
+      ).toBe("SOURCE_TEMPORARILY_UNAVAILABLE");
+    });
+
     it("native PG writers serialize reserved provenance order and another store reads it without caller spoofing", async () => {
       await scoped.query("TRUNCATE api_watch_authority_records");
       const now = new Date("2026-10-14T03:00:00Z");

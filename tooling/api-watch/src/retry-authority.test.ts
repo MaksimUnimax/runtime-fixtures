@@ -117,6 +117,50 @@ describe("independent PR97 rework: operator authority takes precedence", () => {
     },
   );
 
+  it("a verified operator-supplied authority at the same time releases the previous exact hold", async () => {
+    const now = new Date("2026-10-14T03:00:00Z");
+    let calls = 0,
+      status = 403;
+    const registry = clockRegistry(),
+      store = new InMemoryApiWatchStore();
+    const dependencies = {
+      registry,
+      store,
+      pendingStore: new InMemorySwaggerSourceStore(),
+      now: () => new Date(now),
+      fetcher: (async () => {
+        calls++;
+        return new Response("synthetic", { status });
+      }) as typeof fetch,
+    };
+    await runAuthorityPass(dependencies);
+    const verified = await runAuthorityPass({
+      ...dependencies,
+      store: new InMemoryApiWatchStore(),
+      fetcher: (async () =>
+        new Response(acceptedBytes, { status: 200 })) as typeof fetch,
+    });
+    const accepted = verified.records.find(
+      (r) => r.sourceFamily === "WILDBERRIES",
+    )!;
+    expect(accepted.authorityStatus).toBe("AUTHORITY_ACCEPTED");
+    const supplied = await store.saveAuthorityRecord({
+      ...accepted,
+      acquisitionMode: "OPERATOR_SUPPLIED",
+      operatorRequestId: "synthetic-operator-request",
+    });
+    expect(supplied.validatedAt.valueOf()).toBe(now.valueOf());
+    status = 503;
+    const scheduled = await runAuthorityPass({
+      ...dependencies,
+      skipOperatorBlocked: true,
+    });
+    expect(calls).toBe(2);
+    expect(
+      scheduled.outcomes.find((o) => o.sourceFamily === "WILDBERRIES")?.kind,
+    ).toBe("SOURCE_TEMPORARILY_UNAVAILABLE");
+  });
+
   it("legacy equal-clock authority stays fail-closed until a new explicit observation", async () => {
     const state = createInMemoryApiWatchState();
     let calls = 0,
