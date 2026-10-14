@@ -92,10 +92,21 @@ function packagedConfig(authority, overrides = {}) {
 
 const ZIP_WRITER = String.raw`
 import base64,sys,zipfile,struct,io,zlib
-path,browser,mode,manifest64,worker64=sys.argv[1:6]
+path,browser,mode,manifest64,worker64,icon64=sys.argv[1:7]
 manifest=base64.b64decode(manifest64)
 worker=base64.b64decode(worker64)
 rows=[("manifest.json",manifest),("worker.js",worker)]
+if mode in ("valid_declared_icon","short_declared_icon"):
+    icon=base64.b64decode(icon64)
+    if mode=="short_declared_icon":
+        def chunk(kind,payload):
+            return struct.pack(">I",len(payload))+kind+payload+struct.pack(">I",zlib.crc32(kind+payload))
+        ihdr=struct.pack(">IIBBBBB",16,16,8,6,0,0,0)
+        # Claims RGBA but only one byte/pixel, the exact legacy defect class.
+        icon=(bytes((137,80,78,71,13,10,26,10))+chunk(b"IHDR",ihdr)
+              +chunk(b"IDAT",zlib.compress((b"\x00"+bytes(16))*16))
+              +chunk(b"IEND",b""))
+    rows.append(("icons/icon-16.png",icon))
 if mode=="no_runtime":
     rows=[row for row in rows if row[0]!="worker.js"]
 if mode=="secret":
@@ -412,6 +423,25 @@ function makeZip(path, browser, options = {}) {
       : {}),
   };
 
+  if (
+    [
+      "missing_declared_icon",
+      "short_declared_icon",
+      "valid_declared_icon",
+      "unsafe_declared_icon",
+    ].includes(options.mode)
+  ) {
+    manifest.icons = {
+      16:
+        options.mode === "unsafe_declared_icon"
+          ? "../outside.png"
+          : "icons/icon-16.png",
+    };
+    manifest.action = { default_icon: { 16: "icons/icon-16.png" } };
+  }
+  if (options.mode === "missing_default_icon") {
+    manifest.action = { default_icon: { 16: "icons/icon-16.png" } };
+  }
   if (options.mode === "not_extension") {
     manifest = { fake: "manifest" };
   }
@@ -484,6 +514,9 @@ function makeZip(path, browser, options = {}) {
       options.mode ?? "",
       encode(JSON.stringify(manifest)),
       encode(worker),
+      encode(
+        readFileSync(resolve("apps/extension/src/assets/octoport-16.png")),
+      ),
     ],
     { encoding: "utf8" },
   );
@@ -920,6 +953,38 @@ expectPrepareFailure(
   "missing declared extension runtime is rejected",
   "no_runtime",
 );
+expectPrepareFailure(
+  "declared icon missing from both browser ZIPs is rejected",
+  "missing_declared_icon",
+  /Declared icon resource missing/,
+);
+expectPrepareFailure(
+  "declared 16-pixel RGBA icon with truncated rows is rejected",
+  "short_declared_icon",
+  /PNG icon pixel data invalid/,
+);
+expectPrepareFailure(
+  "unsafe declared icon path is rejected before member lookup",
+  "unsafe_declared_icon",
+  /Declared icon path invalid/,
+);
+expectPrepareFailure(
+  "missing action default_icon resource is rejected",
+  "missing_default_icon",
+  /Declared icon resource missing/,
+);
+test("valid declared Chromium and Firefox icon remains accepted", () => {
+  const value = fixture({
+    chromium: { mode: "valid_declared_icon" },
+    firefox: { mode: "valid_declared_icon" },
+  });
+  try {
+    const { output } = prepare(value);
+    assert.equal(preflight(value, output).status, "PASS");
+  } finally {
+    cleanup(value);
+  }
+});
 expectPrepareFailure("private-key material is rejected", "secret");
 expectPrepareFailure("forbidden secret file is rejected", "secretfile");
 expectPrepareFailure(
