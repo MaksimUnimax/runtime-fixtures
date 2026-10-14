@@ -96,7 +96,7 @@ path,browser,mode,manifest64,worker64,icon64=sys.argv[1:7]
 manifest=base64.b64decode(manifest64)
 worker=base64.b64decode(worker64)
 rows=[("manifest.json",manifest),("worker.js",worker)]
-if mode in ("valid_declared_icon","short_declared_icon","unknown_critical_png","nonconsecutive_idat_png"):
+if mode in ("valid_declared_icon","short_declared_icon","unknown_critical_png","nonconsecutive_idat_png","png_highbit_ihdr","png_trailing_idat"):
     icon=base64.b64decode(icon64)
     def chunk(kind,payload):
         return struct.pack(">I",len(payload))+kind+payload+struct.pack(">I",zlib.crc32(kind+payload))
@@ -127,6 +127,24 @@ if mode in ("valid_declared_icon","short_declared_icon","unknown_critical_png","
             else:result+=chunk(kind,payload)
         assert split
         icon=bytes(result)
+    if mode=="png_highbit_ihdr":
+        # 0xC9 is not an ASCII letter, but Node Buffer "ascii" decodes it as I.
+        assert icon[12:16]==b"IHDR" and len(icon)>=33
+        icon=icon[:8]+chunk(bytes((201,72,68,82)),icon[16:29])+icon[33:]
+    if mode=="png_trailing_idat":
+        # CRC-correct payload with bytes after the zlib end marker.
+        parts=[];pos=8
+        while pos<len(icon):
+            length=struct.unpack_from(">I",icon,pos)[0]
+            kind=icon[pos+4:pos+8]
+            payload=icon[pos+8:pos+8+length]
+            parts.append((kind,payload))
+            pos+=length+12
+        idats=[i for i,(kind,_) in enumerate(parts) if kind==b"IDAT"]
+        assert idats and pos==len(icon)
+        last=idats[-1]
+        parts[last]=(b"IDAT",parts[last][1]+b"C01_NONPRIVATE_TRAILING_ZLIB_BYTES")
+        icon=icon[:8]+b"".join(chunk(kind,payload) for kind,payload in parts)
     rows.append(("icons/icon-16.png",icon))
 if mode=="no_runtime":
     rows=[row for row in rows if row[0]!="worker.js"]
@@ -452,6 +470,8 @@ function makeZip(path, browser, options = {}) {
       "unsafe_declared_icon",
       "unknown_critical_png",
       "nonconsecutive_idat_png",
+      "png_highbit_ihdr",
+      "png_trailing_idat",
     ].includes(options.mode)
   ) {
     manifest.icons = {
@@ -1006,6 +1026,29 @@ expectPrepareFailure(
   "nonconsecutive_idat_png",
   /PNG icon IDAT order invalid/,
 );
+for (const [mode, title, failure] of [
+  [
+    "png_highbit_ihdr",
+    "PNG non-ASCII high-bit chunk name cannot alias IHDR",
+    /PNG icon chunk type invalid/,
+  ],
+  [
+    "png_trailing_idat",
+    "PNG IDAT zlib trailing bytes cannot be ignored",
+    /PNG icon compressed stream contains trailing bytes/,
+  ],
+]) {
+  for (const browser of ["chromium", "firefox"]) {
+    test(browser + ": " + title, () => {
+      const value = fixture({ [browser]: { mode } });
+      try {
+        assert.throws(() => prepare(value), failure);
+      } finally {
+        cleanup(value);
+      }
+    });
+  }
+}
 test("valid declared Chromium and Firefox icon remains accepted", () => {
   const value = fixture({
     chromium: { mode: "valid_declared_icon" },

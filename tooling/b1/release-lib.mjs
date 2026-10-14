@@ -765,7 +765,10 @@ function validatePngIcon(data, declaredSize) {
     if (length > MAX_DECLARED_ICON_BYTES || stop > data.length) {
       fail("Declared PNG icon is invalid");
     }
-    const type = data.toString("ascii", offset + 4, offset + 8);
+    // Node's "ascii" decoder drops the high bit, accepting invalid PNG type
+    // bytes as known critical chunks. Latin-1 preserves all byte values so the
+    // alphabetic/reserved-bit check below fails closed.
+    const type = data.toString("latin1", offset + 4, offset + 8);
     // Unknown critical chunks and out-of-order IDAT are not valid PNG images.
     // Ancillary metadata after a finished IDAT run is allowed, but no more IDAT.
     if (!/^[A-Za-z]{2}[A-Z][A-Za-z]$/.test(type)) {
@@ -843,12 +846,21 @@ function validatePngIcon(data, declaredSize) {
   const stride = width * 4 + 1;
   const expectedBytes = stride * width;
   let decoded;
+  let compressedBytesConsumed;
   try {
-    decoded = inflateSync(Buffer.concat(imageChunks), {
+    const result = inflateSync(Buffer.concat(imageChunks), {
       maxOutputLength: expectedBytes + 1,
+      info: true,
     });
+    decoded = result.buffer;
+    compressedBytesConsumed = result.engine.bytesWritten;
   } catch {
     fail("PNG icon pixel data invalid");
+  }
+  // Inflating to the expected pixel count alone is not enough: malformed IDAT
+  // can carry unconsumed bytes after the zlib end marker with valid PNG CRC.
+  if (compressedBytesConsumed !== imageDataLength) {
+    fail("PNG icon compressed stream contains trailing bytes");
   }
   if (decoded.length !== expectedBytes) {
     fail("PNG icon pixel data invalid");
