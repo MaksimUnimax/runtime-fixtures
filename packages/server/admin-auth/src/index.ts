@@ -265,11 +265,15 @@ export class AdminAuthService {
     portal: PortalElevationSubject,
     correlationId: string,
   ): Promise<AdminResult<{ sessionToken: string; subject: AdminSubject }>> {
-    const age = this.now().getTime() - portal.createdAt.getTime();
-    if (age < 0 || age > ADMIN_ELEVATION_MAX_PORTAL_SESSION_AGE_MS)
+    const createdAt = this.now();
+    const age = createdAt.getTime() - portal.createdAt.getTime();
+    if (
+      !Number.isFinite(age) ||
+      age < 0 ||
+      age > ADMIN_ELEVATION_MAX_PORTAL_SESSION_AGE_MS
+    )
       return { ok: false, code: "ADMIN_REAUTH_REQUIRED" };
     const sessionToken = this.tokenGenerator();
-    const createdAt = this.now();
     const expiresAt = new Date(createdAt.getTime() + ADMIN_SESSION_TTL_MS);
     try {
       const result = await this.repository.createAdminSession({

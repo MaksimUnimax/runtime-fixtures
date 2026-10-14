@@ -295,6 +295,58 @@ describe("P6.1 admin crypto and RBAC foundation", () => {
     ).createAdminSession(portal, "corr");
     expect(result).toEqual({ ok: false, code: "ADMIN_REAUTH_REQUIRED" });
   });
+  it("rejects an invalid portal timestamp before issuing a token or writing", async () => {
+    const repo = repository();
+    const token = vi.fn(() => "A".repeat(43));
+    const admin = new AdminAuthService(
+      repo,
+      keys,
+      () => new Date("2030-01-01T00:00:00Z"),
+      token,
+    );
+    expect(
+      await admin.createAdminSession(
+        { ...portal, createdAt: new Date(Number.NaN) },
+        "corr",
+      ),
+    ).toEqual({ ok: false, code: "ADMIN_REAUTH_REQUIRED" });
+    expect(token).not.toHaveBeenCalled();
+    expect(repo.createAdminSession).not.toHaveBeenCalled();
+  });
+  it("rejects an invalid current clock before issuing a token or writing", async () => {
+    const repo = repository();
+    const token = vi.fn(() => "A".repeat(43));
+    const admin = new AdminAuthService(
+      repo,
+      keys,
+      () => new Date(Number.NaN),
+      token,
+    );
+    expect(await admin.createAdminSession(portal, "corr")).toEqual({
+      ok: false,
+      code: "ADMIN_REAUTH_REQUIRED",
+    });
+    expect(token).not.toHaveBeenCalled();
+    expect(repo.createAdminSession).not.toHaveBeenCalled();
+  });
+  it("uses one verified clock instant for the elevation age and expiry", async () => {
+    const repo = repository();
+    const initial = new Date("2030-01-01T00:15:00Z");
+    const now = vi
+      .fn()
+      .mockReturnValueOnce(initial)
+      .mockReturnValueOnce(new Date("2020-01-01T00:00:00Z"));
+    const result = await service(repo, now).createAdminSession(portal, "corr");
+    expect(result.ok).toBe(true);
+    expect(now).toHaveBeenCalledTimes(1);
+    expect(repo.createAdminSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        createdAt: initial,
+        now: initial,
+        expiresAt: new Date(initial.getTime() + ADMIN_SESSION_TTL_MS),
+      }),
+    );
+  });
   it("projects only the safe subject and calculated permissions", async () => {
     const result = await service().authenticateAdminSession("token");
     expect(result.ok).toBe(true);
