@@ -336,17 +336,32 @@ class OffsiteBackupPolicyTest(unittest.TestCase):
             bytes([0xFF, 0xFE]) + b'{"schemaVersion":"x"}',
         )
 
-    def test_recursive_nesting_is_bounded_json_error(self) -> None:
+    def test_recursive_nesting_is_bounded_policy_error(self) -> None:
+        # JSON decoder recursion thresholds vary by Python version and call
+        # depth: some reject the nesting while others parse an invalid root.
+        # Both must fail closed with structured errors, never a traceback.
         self.assert_malformed_policy_bytes_fail_closed(
             b"[" * 1500 + b"null" + b"]" * 1500,
+            accepted_codes={"POLICY_JSON_INVALID", "POLICY_SHAPE_INVALID"},
+        )
+        # This smaller document must decode on all supported Python versions.
+        # It exercises the valid-JSON / invalid-policy-shape branch explicitly.
+        self.assert_malformed_policy_bytes_fail_closed(
+            b"[" * 32 + b"null" + b"]" * 32,
+            accepted_codes={"POLICY_SHAPE_INVALID"},
         )
 
-    def assert_malformed_policy_bytes_fail_closed(self, payload: bytes) -> None:
+    def assert_malformed_policy_bytes_fail_closed(
+        self, payload: bytes, *,
+        accepted_codes: set[str] | None = None,
+    ) -> None:
+        accepted_codes = accepted_codes or {"POLICY_JSON_INVALID"}
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "invalid-policy.json"
             path.write_bytes(payload)
-            with self.assertRaisesRegex(PolicyError, "POLICY_JSON_INVALID"):
+            with self.assertRaises(PolicyError) as error:
                 load_policy(path)
+            self.assertIn(error.exception.code, accepted_codes)
             result = subprocess.run(
                 [
                     sys.executable,
@@ -361,10 +376,10 @@ class OffsiteBackupPolicyTest(unittest.TestCase):
             )
             self.assertEqual(result.returncode, 1)
             self.assertEqual(result.stdout, "")
-            self.assertEqual(
-                json.loads(result.stderr),
-                {"status": "FAIL", "code": "POLICY_JSON_INVALID"},
-            )
+            diagnostic = json.loads(result.stderr)
+            self.assertEqual(diagnostic["status"], "FAIL")
+            self.assertIn(diagnostic["code"], accepted_codes)
+            self.assertEqual(set(diagnostic), {"status", "code"})
             self.assertNotIn("Traceback", result.stderr)
 
     def test_load_policy_rejects_duplicate_keys_before_validation(self) -> None:
