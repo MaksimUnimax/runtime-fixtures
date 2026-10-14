@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createDatabaseRuntime } from "@product/db";
 import { runMigrations } from "../../../packages/server/db/src/migrations.js";
 import {
@@ -512,6 +512,114 @@ describe.sequential(
         (await restored.saveAuthorityRecord(input)).safeProvenance
           .authorityRecordSequence,
       ).toBe(4);
+    });
+
+    it("native PG preserves HTTP-date retry deadline across scheduler/store restart for all 13 WB documents", async () => {
+      await scoped.query(
+        "TRUNCATE monitoring_lane_schedules, api_watch_retry_state, api_watch_authority_records",
+      );
+      let now = new Date("2026-10-14T10:00:00Z"),
+        calls = 0,
+        passes = 0;
+      const due = now.valueOf() + 20 * 60_000;
+      const dateNow = vi
+        .spyOn(Date, "now")
+        .mockImplementation(() => now.valueOf());
+      const registry = createSourceRegistry({
+        OZON_SELLER: { officialUrl: null, documents: [] },
+        OZON_PERFORMANCE: { officialUrl: null, documents: [] },
+        WILDBERRIES: {
+          officialUrl: null,
+          acceptedHosts: ["127.0.0.1"],
+          requiredServerIdentity: undefined,
+          titlePattern: undefined,
+          documents: productionSourceRegistry
+            .get("WILDBERRIES")
+            .documents!.map((doc, i) => ({
+              ...doc,
+              officialUrl: "http://127.0.0.1/native-http-date-" + i,
+            })),
+        },
+      });
+      const reportStore = new InMemoryApiWatchReportStore();
+      const createScheduler = () => {
+        const retryStore = createPostgresApiWatchRetryStore(scoped);
+        const scheduleStore = createPostgresMonitoringScheduleStore(scoped);
+        const authorityStore = createPostgresApiWatchStore(scoped);
+        const instance = new IndependentMonitoringScheduler({
+          store: scheduleStore,
+          clock: { now: () => new Date(now) },
+          runners: {
+            LLM: async () => ({
+              status: "SUCCEEDED",
+              code: null,
+              summary: "synthetic",
+            }),
+            SWAGGER_API: async (run) => {
+              passes++;
+              return runApiWatchReport({
+                runId: run.runId,
+                source: run.source,
+                dependencies: {
+                  registry,
+                  store: authorityStore,
+                  reportStore,
+                  retryStore,
+                  pendingStore: new InMemorySwaggerSourceStore(),
+                  clock: () => new Date(now),
+                  scheduleEarlier: async (at) => {
+                    await instance.scheduleEarlier("SWAGGER_API", at);
+                  },
+                  fetcher: (async (url) => {
+                    expect(String(url)).toMatch(
+                      /^http:\/\/127\.0\.0\.1\/native-http-date-/,
+                    );
+                    calls++;
+                    return new Response("synthetic rate limit", {
+                      status: 429,
+                      headers: {
+                        "Retry-After": "Wed, 14 Oct 2026 10:20:00 GMT",
+                      },
+                    });
+                  }) as typeof fetch,
+                },
+              });
+            },
+          },
+        });
+        return { instance, scheduleStore, retryStore };
+      };
+      let current = createScheduler();
+      try {
+        await current.scheduleStore.ensureDefaults(now);
+        await current.instance.runNowAndWait("SWAGGER_API");
+        const first = await current.retryStore.get("WILDBERRIES");
+        expect(first?.nextRetryAt?.valueOf()).toBe(due);
+        expect(first?.retryCount).toBe(1);
+        expect(calls).toBe(13);
+        await current.instance.stop();
+        current = createScheduler();
+        expect(
+          (await current.retryStore.get("WILDBERRIES"))?.nextRetryAt?.valueOf(),
+        ).toBe(due);
+        now = new Date(due - 1);
+        await current.instance.tick();
+        expect(calls).toBe(13);
+        now = new Date(due);
+        await current.instance.tick();
+        expect(calls).toBe(26);
+        expect(passes).toBe(2);
+        const exhausted = await current.retryStore.get("WILDBERRIES");
+        expect(exhausted?.failureEpisodeId).toBe(first?.failureEpisodeId);
+        expect(exhausted?.retryCount).toBe(1);
+        expect(exhausted?.nextRetryAt).toBeNull();
+        now = new Date(due + 60_000);
+        await current.instance.tick();
+        expect(calls).toBe(26);
+      } finally {
+        await current.instance.stop();
+        dateNow.mockRestore();
+      }
     });
 
     it("13 WB documents retain both scheduled retry passes on real PostgreSQL schedule/retry stores", async () => {

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   IndependentMonitoringScheduler,
   InMemoryMonitoringScheduleStore,
@@ -215,4 +215,117 @@ describe("family pass aggregation preserves retry safety", () => {
     expect(held?.lastResult).toBe("OPERATOR_SOURCE_REQUIRED");
     expect(scheduled).toHaveLength(1);
   });
+});
+
+describe("current-main HTTP-date acquisition reaches the family retry scheduler", () => {
+  it.each([
+    ["IMF-fixdate", "Wed, 14 Oct 2026 10:20:00 GMT", 20],
+    ["RFC850", "Wednesday, 14-Oct-26 10:20:00 GMT", 20],
+    ["asctime", "Wed Oct 14 10:20:00 2026", 20],
+    ["expired date", "Wed, 14 Oct 2026 09:55:00 GMT", 5],
+    ["date above six-hour cap", "Wed, 14 Oct 2026 18:00:00 GMT", 360],
+    ["invalid date defaults", "not-an-http-date", 60],
+    ["numeric seconds control", "1200", 20],
+  ] as const)(
+    "%s: 13 WB documents wait until due and get only one 429 retry",
+    async (_label, retryAfter, delayMinutes) => {
+      let now = new Date("2026-10-14T10:00:00Z"),
+        calls = 0,
+        passes = 0;
+      const initialTime = now.valueOf(),
+        scheduled: Date[] = [];
+      const dateNow = vi
+        .spyOn(Date, "now")
+        .mockImplementation(() => now.valueOf());
+      const retryStore = new InMemoryApiWatchRetryStore(),
+        authorityStore = new InMemoryApiWatchStore();
+      const registry = createSourceRegistry({
+        OZON_SELLER: { officialUrl: null, documents: [] },
+        OZON_PERFORMANCE: { officialUrl: null, documents: [] },
+        WILDBERRIES: {
+          officialUrl: null,
+          acceptedHosts: ["127.0.0.1"],
+          requiredServerIdentity: undefined,
+          titlePattern: undefined,
+          documents: productionSourceRegistry
+            .get("WILDBERRIES")
+            .documents!.map((doc, i) => ({
+              ...doc,
+              officialUrl: "http://127.0.0.1/http-date-doc-" + i,
+            })),
+        },
+      });
+      expect(registry.get("WILDBERRIES").documents).toHaveLength(13);
+      const scheduleStore = new InMemoryMonitoringScheduleStore();
+      const scheduler = new IndependentMonitoringScheduler({
+        store: scheduleStore,
+        clock: { now: () => new Date(now) },
+        runners: {
+          LLM: async () => ({
+            status: "SUCCEEDED",
+            code: null,
+            summary: "synthetic",
+          }),
+          SWAGGER_API: async (run) => {
+            passes++;
+            return runApiWatchReport({
+              runId: run.runId,
+              source: run.source,
+              dependencies: {
+                registry,
+                store: authorityStore,
+                pendingStore: new InMemorySwaggerSourceStore(),
+                reportStore: new InMemoryApiWatchReportStore(),
+                retryStore,
+                clock: () => new Date(now),
+                fetcher: (async (url) => {
+                  expect(String(url)).toMatch(
+                    /^http:\/\/127\.0\.0\.1\/http-date-doc-/,
+                  );
+                  calls++;
+                  return new Response("synthetic rate limit", {
+                    status: 429,
+                    headers: { "Retry-After": retryAfter },
+                  });
+                }) as typeof fetch,
+                scheduleEarlier: async (at) => {
+                  scheduled.push(new Date(at));
+                  await scheduler.scheduleEarlier("SWAGGER_API", at);
+                },
+              },
+            });
+          },
+        },
+      });
+      try {
+        await scheduleStore.ensureDefaults(now);
+        await scheduler.runNowAndWait("SWAGGER_API");
+        const first = await retryStore.get("WILDBERRIES");
+        const due = initialTime + delayMinutes * 60_000;
+        expect(first?.failureClass).toBe("HTTP_429");
+        expect(first?.retryCount).toBe(1);
+        expect(first?.nextRetryAt?.valueOf()).toBe(due);
+        expect(scheduled.map((at) => at.valueOf())).toEqual([due]);
+        expect(calls).toBe(13);
+        now = new Date(due - 1);
+        await scheduler.tick();
+        expect(calls).toBe(13);
+        now = new Date(due);
+        await scheduler.tick();
+        expect(calls).toBe(26);
+        expect(passes).toBe(2);
+        const exhausted = await retryStore.get("WILDBERRIES");
+        expect(exhausted?.failureEpisodeId).toBe(first?.failureEpisodeId);
+        expect(exhausted?.retryCount).toBe(1);
+        expect(exhausted?.nextRetryAt).toBeNull();
+        expect(scheduled).toHaveLength(1);
+        now = new Date(due + 60_000);
+        await scheduler.tick();
+        expect(calls).toBe(26);
+      } finally {
+        await scheduler.stop();
+        dateNow.mockRestore();
+      }
+    },
+  );
 });
