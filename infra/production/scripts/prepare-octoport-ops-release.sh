@@ -92,7 +92,6 @@ fi
 if find "${tmp}" ! -user root -print -quit | grep -q .; then
   fail "release must be root-owned"
 fi
-  python3 -B "${helper}" export-stage "${tmp}" "${publish_tmp}" "${RELEASE_ROOT}" "${NODE_BIN}"
 }
 [[ "${EUID}" -eq 0 ]] || fail "run as root"
 if [[ "${1:-}" == "--build-stage" ]]; then
@@ -112,7 +111,7 @@ case "${RELEASE_ROOT}" in
   /root|/root/*|/home|/home/*|/run/user|/run/user/*) fail "release root is incompatible with ProtectHome=yes" ;;
 esac
 [[ -x "${NODE_BIN}" && -x "${PNPM_BIN}" ]] || fail "pinned Node/pnpm must be executable"
-for command_name in git tar sha256sum python3 install mkdir mv rm chmod grep find sort xargs flock mktemp basename dirname stat systemd-run systemctl; do
+for command_name in git tar sha256sum python3 install mkdir mv rm chmod grep find sort xargs flock mktemp basename dirname stat systemd-run systemctl mount umount mountpoint findmnt; do
   command -v "${command_name}" >/dev/null 2>&1 || fail "missing required command: ${command_name}"
 done
 SOURCE_DIR="$(cd -- "${SOURCE_DIR}" && pwd -P)"
@@ -133,6 +132,7 @@ python3 -B "${helper}" budget "${RELEASE_ROOT}"
 target="${RELEASE_ROOT}/${head_sha}"
 [[ ! -e "${target}" ]] || fail "release already exists"
 tmp=""
+stage_mount_source=""
 publish_tmp=""
 publish_identity=""
 unit=""
@@ -146,7 +146,16 @@ cleanup() {
       active|activating|reloading|deactivating) systemctl stop "${unit}";;
     esac
   fi
-  if [[ -n "${tmp}" ]]; then rm -rf -- "${tmp}"; fi
+  if [[ -n "${tmp}" ]]; then
+    if mountpoint -q "${tmp}"; then
+      if [[ "$(findmnt -rn -M "${tmp}" -o SOURCE)" != "${stage_mount_source}" ]]; then
+        printf '[octoport-ops-release] preserve unexpected stage mount %s\n' "${tmp}" >&2
+        return 1
+      fi
+      umount -- "${tmp}" || return 1
+    fi
+    rm -rf -- "${tmp}"
+  fi
   if [[ "${success}" -ne 1 ]]; then
     if [[ -n "${publish_tmp}" ]]; then rm -rf -- "${publish_tmp}"; fi
     # rename preserves device/inode identity. This also owns the target if a
@@ -166,24 +175,32 @@ publish_identity="$(stat -c '%d:%i' "${publish_tmp}")"
 unit="octoport-ops-build-$(basename "${tmp}").service"
 build_description="Octoport ops build ${head_sha} stage ${tmp}"
 [[ "$(systemctl show "${unit}" -p LoadState --value)" == not-found ]] || fail "build unit already exists"
+# The bounded host tmpfs survives the build namespace. Only the trusted parent
+# exports it after the entire build cgroup has stopped; the build cannot write
+# the host-backed export directory at any point.
+stage_mount_source="octoport-ops-stage-$(basename "${tmp}")"
+mount -t tmpfs -o rw,size=1073741824,nr_inodes=65536,mode=0755,nodev,nosuid "${stage_mount_source}" "${tmp}"
 printf '[octoport-ops-release] bounded build unit=%s size=1073741824 inodes=65536 private_store_metadata_size=1048576 inodes=256 private_runtime_tmp_size=16777216 inodes=4096\n' "${unit}"
 systemd-run --unit="${unit}" --description="${build_description}" --quiet --wait --pipe --service-type=exec \
   --property=RuntimeMaxSec=900 --property=KillMode=control-group --property=TimeoutStopSec=5s \
   --property=SendSIGKILL=yes --property=OOMPolicy=stop --property=MemoryAccounting=yes \
   --property=MemoryMax=2147483648 --property=MemorySwapMax=0 --property=TasksMax=1024 \
-  --property="TemporaryFileSystem=${tmp}:rw,size=1073741824,nr_inodes=65536,mode=0755" \
   --property=ProtectSystem=strict --property=ProtectHome=read-only \
   --property=NoNewPrivileges=yes --property=CapabilityBoundingSet= \
   --property=PrivateDevices=yes --property=ProtectKernelTunables=yes --property=ProtectControlGroups=yes \
   --property="TemporaryFileSystem=${store_path}/projects:rw,size=1048576,nr_inodes=256,mode=0755" \
   --property=TemporaryFileSystem=/tmp:rw,size=16777216,nr_inodes=4096,mode=1777 \
-  --property="ReadWritePaths=${publish_tmp} ${store_path}/projects /tmp" \
-  --property="ReadOnlyPaths=${SOURCE_DIR} ${store_root} ${corepack_home} /var/tmp" \
+  --property="ReadWritePaths=${tmp} ${store_path}/projects /tmp" \
+  --property="ReadOnlyPaths=${SOURCE_DIR} ${store_root} ${corepack_home} ${publish_tmp} /var/tmp" \
   --setenv=COREPACK_ENABLE_NETWORK=0 \
   --setenv="OCTOPORT_NODE_BIN=${NODE_BIN}" --setenv="OCTOPORT_PNPM_BIN=${PNPM_BIN}" \
   --setenv="npm_config_store_dir=${store_root}" --setenv="COREPACK_HOME=${corepack_home}" \
   /bin/bash "${SOURCE_DIR}/infra/production/scripts/prepare-octoport-ops-release.sh" \
   --build-stage "${SOURCE_DIR}" "${tmp}" "${publish_tmp}" "${RELEASE_ROOT}" "${head_sha}" "${tree_sha}"
+# No build/test process can write publish_tmp. Export only after systemd has
+# completed and stopped the finite cgroup; the helper enforces admission again.
+python3 -B "${helper}" export-stage "${tmp}" "${publish_tmp}" "${RELEASE_ROOT}" "${NODE_BIN}"
+umount -- "${tmp}"
 # Read-only bind mounts can prevent same-filesystem hardlinks inside the
 # sandbox. Reuse verified Node after the bounded build exits, before publication.
 [[ -f "${publish_tmp}/.runtime/node" && ! -L "${publish_tmp}/.runtime/node" ]] ||

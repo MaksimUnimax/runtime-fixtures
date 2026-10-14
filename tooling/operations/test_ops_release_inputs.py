@@ -51,11 +51,26 @@ systemctl() {
     *) printf 'inactive\n';;
   esac
 }
-systemd-run() { mkdir -p "$publish_tmp/.runtime"; printf 'owned-node' > "$publish_tmp/.runtime/node"; printf 'owned' > "$publish_tmp/payload"; }
-python3() { return 0; }
+mount() { return 0; }
+umount() { return 0; }
+mountpoint() { return 1; }
+systemd-run() { mkdir -p "$tmp/.runtime"; printf 'owned-node' > "$tmp/.runtime/node"; printf 'owned' > "$tmp/payload"; }
+python3() { if [[ "${3:-}" == export-stage ]]; then cp -a "$tmp/." "$publish_tmp/"; fi; return 0; }
 """
         program = header + "\nmv() {\n" + move_behavior + "\n}\n" + script[start:end]
         return subprocess.run(["/bin/bash", "-c", program], env={"PATH": "/usr/bin:/bin", "RELEASE_ROOT": str(self.root)}, capture_output=True, text=True, timeout=10)
+
+    def test_build_unit_does_not_expose_host_export_as_writable(self):
+        script = (Path(__file__).resolve().parents[2] / "infra/production/scripts/prepare-octoport-ops-release.sh").read_text()
+        start = script.index('systemd-run --unit="${unit}"')
+        end = script.index('\n# No build/test process', start)
+        header = "\n".join(f'{name}="/owned/{name}"' for name in ["unit", "build_description", "tmp", "publish_tmp", "store_path", "store_root", "corepack_home", "SOURCE_DIR", "RELEASE_ROOT", "NODE_BIN", "PNPM_BIN", "head_sha", "tree_sha"])
+        result = subprocess.run(["/bin/bash", "-c", header + '\nsystemd-run() { printf "%s\\n" "$@"; }\n' + script[start:end]], capture_output=True, text=True, timeout=10, check=True)
+        props = result.stdout.splitlines()
+        self.assertIn('--property=ReadWritePaths=/owned/tmp /owned/store_path/projects /tmp', props)
+        self.assertIn('--property=ReadOnlyPaths=/owned/SOURCE_DIR /owned/store_root /owned/corepack_home /owned/publish_tmp /var/tmp', props)
+        self.assertNotIn('/owned/publish_tmp', next(p for p in props if p.startswith('--property=ReadWritePaths=')))
+        self.assertGreater(script.index('python3 -B "${helper}" export-stage'), end)
 
     def test_sigterm_between_move_and_publication_flag_removes_owned_target(self):
         result = self.run_publication_boundary('/bin/mv "$@"; kill -TERM "$BASHPID"')
