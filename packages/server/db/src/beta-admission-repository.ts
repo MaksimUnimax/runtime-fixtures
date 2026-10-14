@@ -31,7 +31,9 @@ type InvitationRow = {
   revoked_at: Date | string | null;
   revoke_request_id_hash: string | null;
   revoke_payload_hash: string | null;
+  db_is_active?: boolean;
 };
+type InvitationRowWithActivity = InvitationRow & { db_is_active: boolean };
 
 function state(row: {
   mode: "CLOSED" | "OPEN" | "PAUSED";
@@ -59,13 +61,15 @@ function invitation(
   const expiresAt = new Date(row.expires_at);
   const consumedAt = row.consumed_at ? new Date(row.consumed_at) : null;
   const revokedAt = row.revoked_at ? new Date(row.revoked_at) : null;
+  // Prefer PostgreSQL's microsecond-precise result to a JS Date comparison.
+  const isActive = row.db_is_active ?? expiresAt > at;
   const status = consumedAt
     ? ("CONSUMED" as const)
     : revokedAt
       ? ("REVOKED" as const)
-      : expiresAt <= at
-        ? ("EXPIRED" as const)
-        : ("PENDING" as const);
+      : isActive
+        ? ("PENDING" as const)
+        : ("EXPIRED" as const);
   return {
     id: row.id,
     status,
@@ -91,14 +95,15 @@ async function readState(query: DatabaseQuery, forUpdate = false) {
   return state(row);
 }
 
-async function activeInvitationCount(query: DatabaseQuery, at: Date) {
+async function activeInvitationCount(query: DatabaseQuery) {
+  // New-user OTP admission evaluates invitation expiry with PostgreSQL time.
+  // Administrative capacity accounting must use the same time authority.
   const result = await query.query<{ count: number | string }>(
     `SELECT count(*)::bigint AS count
        FROM beta_identity_invitations
       WHERE consumed_at IS NULL
         AND revoked_at IS NULL
-        AND expires_at>$1`,
-    [at],
+        AND expires_at>clock_timestamp()`,
   );
   return Number(result.rows[0]?.count ?? 0);
 }
@@ -120,10 +125,11 @@ export function createBetaAdmissionRepository(
     read: () => readState(runtime),
 
     async readIdentityInvitation(invitationId) {
-      const result = await runtime.query<InvitationRow>(
+      const result = await runtime.query<InvitationRowWithActivity>(
         `SELECT id,normalized_identity_target,create_request_id_hash,create_payload_hash,
                 created_at,expires_at,consumed_at,consumed_user_id,revoked_at,
-                revoke_request_id_hash,revoke_payload_hash
+                revoke_request_id_hash,revoke_payload_hash,
+                (expires_at>clock_timestamp()) AS db_is_active
            FROM beta_identity_invitations
           WHERE id=$1`,
         [invitationId],
@@ -152,10 +158,11 @@ export function createBetaAdmissionRepository(
 
         const current = await readState(tx, true);
 
-        const prior = await tx.query<InvitationRow>(
+        const prior = await tx.query<InvitationRowWithActivity>(
           `SELECT id,normalized_identity_target,create_request_id_hash,create_payload_hash,
                   created_at,expires_at,consumed_at,consumed_user_id,revoked_at,
-                  revoke_request_id_hash,revoke_payload_hash
+                  revoke_request_id_hash,revoke_payload_hash,
+                  (expires_at>clock_timestamp()) AS db_is_active
              FROM beta_identity_invitations
             WHERE create_request_id_hash=$1
             FOR UPDATE`,
@@ -183,31 +190,31 @@ export function createBetaAdmissionRepository(
           return { kind: "STALE" as const };
         if (current.mode !== "CLOSED") return { kind: "CONFLICT" as const };
 
-        const now = new Date();
         const existing = await tx.query(
           `SELECT 1
              FROM beta_identity_invitations
             WHERE normalized_identity_target=$1
               AND consumed_at IS NULL
               AND revoked_at IS NULL
-              AND expires_at>$2
+              AND expires_at>clock_timestamp()
             LIMIT 1`,
-          [input.normalizedIdentityTarget, now],
+          [input.normalizedIdentityTarget],
         );
         if (existing.rows[0]) return { kind: "CONFLICT" as const };
 
-        const pending = await activeInvitationCount(tx, now);
+        const pending = await activeInvitationCount(tx);
         if (current.admitted + pending >= current.capacity)
           return { kind: "CAPACITY_REACHED" as const };
 
-        const created = await tx.query<InvitationRow>(
+        const created = await tx.query<InvitationRowWithActivity>(
           `INSERT INTO beta_identity_invitations(
               normalized_identity_target,create_request_id_hash,create_payload_hash,
               created_by_admin_principal_id,expires_at
             ) VALUES($1,$2,$3,$4,$5)
             RETURNING id,normalized_identity_target,create_request_id_hash,create_payload_hash,
                       created_at,expires_at,consumed_at,consumed_user_id,revoked_at,
-                      revoke_request_id_hash,revoke_payload_hash`,
+                      revoke_request_id_hash,revoke_payload_hash,
+                      (expires_at>clock_timestamp()) AS db_is_active`,
           [
             input.normalizedIdentityTarget,
             input.requestIdHash,
@@ -235,7 +242,7 @@ export function createBetaAdmissionRepository(
         return {
           kind: "APPLIED" as const,
           replay: false,
-          invitation: invitation(row, now),
+          invitation: invitation(row),
         };
       });
     },
@@ -290,10 +297,13 @@ export function createBetaAdmissionRepository(
           };
         }
 
-        const locked = await tx.query<InvitationRow>(
+        const locked = await tx.query<
+          InvitationRow & { db_is_active: boolean }
+        >(
           `SELECT id,normalized_identity_target,create_request_id_hash,create_payload_hash,
                   created_at,expires_at,consumed_at,consumed_user_id,revoked_at,
-                  revoke_request_id_hash,revoke_payload_hash
+                  revoke_request_id_hash,revoke_payload_hash,
+                  (expires_at>clock_timestamp()) AS db_is_active
              FROM beta_identity_invitations
             WHERE id=$1
             FOR UPDATE`,
@@ -302,11 +312,7 @@ export function createBetaAdmissionRepository(
         const row = locked.rows[0];
         if (!row) return { kind: "NOT_FOUND" as const };
 
-        if (
-          row.consumed_at ||
-          row.revoked_at ||
-          new Date(row.expires_at) <= new Date()
-        )
+        if (row.consumed_at || row.revoked_at || !row.db_is_active)
           return { kind: "CONFLICT" as const };
 
         const now = new Date();
@@ -410,7 +416,7 @@ export function createBetaAdmissionRepository(
           newCapacity = input.capacity ?? current.capacity;
 
         const now = new Date();
-        const pending = await activeInvitationCount(tx, now);
+        const pending = await activeInvitationCount(tx);
         if (
           !Number.isSafeInteger(newCapacity) ||
           newCapacity < current.admitted + pending ||
