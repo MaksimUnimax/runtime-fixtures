@@ -412,6 +412,202 @@ describe("D3S2-2A control-plane foundation", () => {
     });
   });
 
+  for (const quota of ["global", "per-account"] as const) {
+    it(`retains the old byte charge through a failed smaller replacement (${quota})`, async () => {
+      const backing = createMemoryTransferRepository();
+      let marked = 0;
+      let markStarted: () => void = () => {};
+      let unblockMark: () => void = () => {};
+      const started = new Promise<void>((resolve) => {
+        markStarted = resolve;
+      });
+      const release = new Promise<void>((resolve) => {
+        unblockMark = resolve;
+      });
+      const repository: TransferRepository = {
+        ...backing,
+        async markPacketAvailable(input) {
+          if (input.requestId === idFor(1) && ++marked === 2) {
+            markStarted();
+            await release;
+            throw new TransferError("TRANSFER_CONFLICT");
+          }
+          return backing.markPacketAvailable(input);
+        },
+      };
+      const relay = new EphemeralTransferRelay(
+        quota === "global"
+          ? { maxEnvelopeBytes: 8 }
+          : { maxEnvelopeBytesPerAccount: 8 },
+      );
+      const at = new Date("2026-09-18T10:00:00.000Z");
+      const service = new CredentialTransferService(
+        repository,
+        relay,
+        () => at,
+      );
+      const first = idFor(1);
+      const second = idFor(2);
+      await prepare(service, first);
+      await prepare(service, second);
+      await service.submit(source, packet(first, "123456", idFor(7)));
+      await expect(
+        service.submit(source, packet(second, "1234567", idFor(8))),
+      ).rejects.toMatchObject({ code: "TRANSFER_CONFLICT" });
+
+      const replacing = service.submit(source, packet(first, "x", idFor(9)));
+      await started;
+      const during = relay.statsForTests(accountA);
+      let competitorOutcome: "REJECTED" | "ACCEPTED";
+      try {
+        competitorOutcome = await service
+          .submit(source, packet(second, "1234567", idFor(8)))
+          .then(
+            () => "ACCEPTED" as const,
+            (error: unknown) => {
+              if (
+                error instanceof TransferError &&
+                error.code === "TRANSFER_CONFLICT"
+              )
+                return "REJECTED" as const;
+              throw error;
+            },
+          );
+      } finally {
+        unblockMark();
+      }
+      await expect(replacing).rejects.toMatchObject({
+        code: "TRANSFER_CONFLICT",
+      });
+      expect(during).toMatchObject({
+        packets: 1,
+        envelopeBytes: 6,
+        reserved: 1,
+      });
+      expect(competitorOutcome).toBe("REJECTED");
+      expect(relay.statsForTests(accountA)).toMatchObject({
+        packets: 1,
+        envelopeBytes: 6,
+        reserved: 0,
+      });
+      expect(relay.get(first, at)).toMatchObject({
+        packetId: idFor(7),
+        envelope: "123456",
+      });
+      expect(relay.get(second, at)).toBeUndefined();
+      relay.clear();
+    });
+  }
+
+  it("rejects direct activation that exceeds the reserved UTF-8 byte charge", () => {
+    const relay = new EphemeralTransferRelay({
+      maxEnvelopeBytes: 8,
+      maxEnvelopeBytesPerAccount: 8,
+    });
+    const now = new Date("2026-09-18T10:00:00.000Z");
+    const expiry = new Date(+now + 300000);
+    const prepared = packet(idFor(1), "x", idFor(7));
+    const reservationId = relay.reserve(
+      prepared,
+      accountA,
+      source.deviceId,
+      expiry,
+      now,
+    );
+    expect(
+      relay.activate(
+        prepared.requestId,
+        reservationId,
+        {
+          ...prepared,
+          envelope: "123456789",
+        },
+        now,
+      ),
+    ).toBe(false);
+    expect(relay.statsForTests(accountA)).toMatchObject({
+      packets: 1,
+      envelopeBytes: 1,
+      reserved: 1,
+    });
+    expect(relay.get(prepared.requestId, now)).toBeUndefined();
+    relay.release(prepared.requestId, reservationId, now);
+    expect(relay.statsForTests()).toMatchObject({
+      packets: 0,
+      envelopeBytes: 0,
+      reserved: 0,
+    });
+    relay.clear();
+  });
+
+  it("rejects direct activation that changes request or packet identity", () => {
+    const relay = new EphemeralTransferRelay({ maxEnvelopeBytes: 8 });
+    const now = new Date("2026-09-18T10:00:00.000Z");
+    const expiry = new Date(+now + 300000);
+    const prepared = packet(idFor(1), "x", idFor(7));
+    const reservationId = relay.reserve(
+      prepared,
+      accountA,
+      source.deviceId,
+      expiry,
+      now,
+    );
+    expect(
+      relay.activate(
+        prepared.requestId,
+        reservationId,
+        {
+          ...prepared,
+          requestId: idFor(2),
+        },
+        now,
+      ),
+    ).toBe(false);
+    expect(
+      relay.activate(
+        prepared.requestId,
+        reservationId,
+        {
+          ...prepared,
+          packetId: idFor(8),
+        },
+        now,
+      ),
+    ).toBe(false);
+    expect(relay.statsForTests()).toMatchObject({
+      packets: 1,
+      envelopeBytes: 1,
+      reserved: 1,
+    });
+    expect(relay.get(prepared.requestId, now)).toBeUndefined();
+    relay.release(prepared.requestId, reservationId, now);
+    relay.clear();
+  });
+
+  it("activates exactly reserved multibyte contents and accounts actual bytes", () => {
+    const relay = new EphemeralTransferRelay({ maxEnvelopeBytes: 2 });
+    const now = new Date("2026-09-18T10:00:00.000Z");
+    const expiry = new Date(+now + 300000);
+    const prepared = packet(idFor(1), "я", idFor(7));
+    const reservationId = relay.reserve(
+      prepared,
+      accountA,
+      source.deviceId,
+      expiry,
+      now,
+    );
+    expect(
+      relay.activate(prepared.requestId, reservationId, prepared, now),
+    ).toBe(true);
+    expect(relay.statsForTests()).toMatchObject({
+      packets: 1,
+      envelopeBytes: 2,
+      reserved: 0,
+    });
+    expect(relay.get(prepared.requestId, now)).toMatchObject(prepared);
+    relay.clear();
+  });
+
   it("preserves the prior active packet when replacement durability fails", async () => {
     const repository = createMemoryTransferRepository();
     let markCount = 0;
