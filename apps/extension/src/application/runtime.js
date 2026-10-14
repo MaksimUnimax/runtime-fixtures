@@ -1765,16 +1765,23 @@ async function saHandleMessage(message, sender) {
       await saAssertDeliveryOwner(current);
       if (message.type === "OZ_WORK_DELIVERY_ASSERT") return { ok: true };
       if (!message.actor_id) throw saError("DELIVERY_ACTOR_REQUIRED");
-      let granted = false;
+      let granted = false, committedDelivery = null;
       await mutateManualOperation(key, async owner => {
         if (owner?.operation_id !== id || owner.delivery?.delivery_id !== message.delivery_id) throw saError("DELIVERY_OWNER_MISMATCH");
         await saAssertDeliveryOwner(owner);
-        if (owner.delivery.sa_send_actor) return owner;
+        if (owner.delivery.sa_send_actor) { committedDelivery = owner.delivery; return owner; }
         if (owner.delivery.phase !== "inserted") throw saError("DELIVERY_NOT_INSERTED");
+        const baseline = message.chatgpt_user_baseline;
+        if (baseline !== undefined && (!Array.isArray(baseline) || baseline.length > 4096 ||
+          !Array.from(baseline).every(id => typeof id === "string" && id.length > 0 && id.length <= 512))) throw saError("DELIVERY_BASELINE_INVALID");
         granted = true;
-        return { ...owner, delivery: { ...owner.delivery, sa_send_actor: message.actor_id, sa_send_committed_at: Date.now() } };
+        committedDelivery = { ...owner.delivery, sa_send_actor: message.actor_id, sa_send_committed_at: Date.now(),
+          sa_chatgpt_user_baseline: Array.isArray(baseline) ? [...new Set(baseline)] : null };
+        return { ...owner, delivery: committedDelivery };
       });
-      return { ok: true, click_allowed: granted, code: granted ? "SEND_COMMITTED" : "SEND_OUTCOME_UNKNOWN_NO_RETRY" };
+      return { ok: true, click_allowed: granted, code: granted ? "SEND_COMMITTED" : "SEND_OUTCOME_UNKNOWN_NO_RETRY",
+        send_click_committed: Boolean(committedDelivery?.sa_send_actor),
+        chatgpt_user_baseline: Array.isArray(committedDelivery?.sa_chatgpt_user_baseline) ? committedDelivery.sa_chatgpt_user_baseline : null };
     }
     if (message.type === "OZ_WORK_START") throw saError("STORE_SELECTION_REQUIRED");
     if (["OZ_WORK_SHOW", "OZ_WORK_HIDE", "OZ_WORK_FINISH", "OZ_WORK_REFRESH"].includes(message.type) && !saPopupSender(sender)) throw saError("POPUP_SENDER_REQUIRED");

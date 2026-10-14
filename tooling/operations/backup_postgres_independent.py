@@ -315,7 +315,18 @@ def _verified_backup_directories(
                 continue
             expected_hash = manifest["sha256"]
             expected_bytes = int(manifest["bytes"])
-            created_at = str(manifest["createdAt"])
+            created_at = manifest["createdAt"]
+            # Retention sorts on this field. Accept only the exact canonical
+            # UTC timestamp written by run_backup(), otherwise a damaged
+            # manifest could displace a genuinely verified backup.
+            if not isinstance(created_at, str):
+                continue
+            try:
+                parsed_date = datetime.strptime(created_at, "%Y-%m-%dT%H:%M:%SZ")
+            except ValueError:
+                continue
+            if parsed_date.strftime("%Y-%m-%dT%H:%M:%SZ") != created_at:
+                continue
             if archive_path.stat().st_size != expected_bytes:
                 continue
             if _sha256(archive_path) != expected_hash:

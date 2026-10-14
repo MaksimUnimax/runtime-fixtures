@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
-import { lstat, mkdir, open, readFile, rename } from "node:fs/promises";
+import { constants } from "node:fs";
+import { link, lstat, mkdir, open, readFile, unlink } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { SwaggerSourceFamilySchema } from "@product/monitoring-control";
 import type {
@@ -25,11 +26,7 @@ async function assertDirectory(path: string): Promise<void> {
     if (stat.isSymbolicLink() || !stat.isDirectory())
       throw new Error("SNAPSHOT_PATH_NOT_DIRECTORY");
   } catch (error) {
-    if (
-      error instanceof Error &&
-      error.message === "SNAPSHOT_PATH_NOT_DIRECTORY"
-    )
-      throw error;
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     await mkdir(path, { recursive: true });
     const stat = await lstat(path);
     if (stat.isSymbolicLink() || !stat.isDirectory())
@@ -44,9 +41,29 @@ async function assertExistingFile(path: string): Promise<"missing" | "file"> {
       throw new Error("SNAPSHOT_PATH_NOT_FILE");
     return "file";
   } catch (error) {
-    if (error instanceof Error && error.message === "SNAPSHOT_PATH_NOT_FILE")
-      throw error;
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     return "missing";
+  }
+}
+
+async function verifyExistingSnapshot(
+  path: string,
+  sizeBytes: number,
+  sha256: string,
+): Promise<void> {
+  const handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+  try {
+    const stat = await handle.stat();
+    if (!stat.isFile()) throw new Error("SNAPSHOT_PATH_NOT_FILE");
+    if (
+      stat.size !== sizeBytes ||
+      createHash("sha256")
+        .update(await handle.readFile())
+        .digest("hex") !== sha256
+    )
+      throw new Error("SNAPSHOT_CONTENT_ADDRESS_COLLISION");
+  } finally {
+    await handle.close();
   }
 }
 
@@ -84,22 +101,63 @@ export async function promoteAcceptedSnapshot(input: {
     throw new Error("SNAPSHOT_PATH_TRAVERSAL");
   const existing = await assertExistingFile(artifactPath);
   if (existing === "file") {
-    const current = await readFile(artifactPath);
-    if (createHash("sha256").update(current).digest("hex") !== sha256)
-      throw new Error("SNAPSHOT_CONTENT_ADDRESS_COLLISION");
+    await verifyExistingSnapshot(artifactPath, bytes.byteLength, sha256);
   } else {
     const temporaryPath = join(
       familyDirectory,
       `.${sha256}.${randomUUID()}.tmp`,
     );
     const handle = await open(temporaryPath, "wx", 0o600);
+    let failed = false;
+    let failure: unknown;
     try {
-      await handle.writeFile(bytes);
-      await handle.sync();
-    } finally {
-      await handle.close();
+      let writingFailed = false;
+      let writeFailure: unknown;
+      try {
+        await handle.writeFile(bytes);
+        await handle.sync();
+      } catch (error) {
+        writingFailed = true;
+        writeFailure = error;
+      }
+      try {
+        await handle.close();
+      } catch (closeError) {
+        if (writingFailed)
+          throw new AggregateError(
+            [writeFailure, closeError],
+            "SNAPSHOT_WRITE_AND_CLOSE_FAILED",
+            { cause: writeFailure },
+          );
+        throw closeError;
+      }
+      if (writingFailed) throw writeFailure;
+      try {
+        // Publishing must not replace an entry created by a competing writer.
+        await link(temporaryPath, artifactPath);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+        await verifyExistingSnapshot(artifactPath, bytes.byteLength, sha256);
+      }
+    } catch (error) {
+      failed = true;
+      failure = error;
     }
-    await rename(temporaryPath, artifactPath);
+    // Remove only this invocation's temporary name, even after a successful link.
+    // The canonical snapshot may be referenced by another writer or DB record.
+    try {
+      await unlink(temporaryPath);
+    } catch (cleanupError) {
+      if ((cleanupError as NodeJS.ErrnoException).code !== "ENOENT") {
+        if (failed)
+          throw new AggregateError(
+            [failure, cleanupError],
+            "SNAPSHOT_TEMP_CLEANUP_FAILED",
+          );
+        throw cleanupError;
+      }
+    }
+    if (failed) throw failure;
   }
   const documentKey = input.documentKey ?? null;
   const snapshotId =

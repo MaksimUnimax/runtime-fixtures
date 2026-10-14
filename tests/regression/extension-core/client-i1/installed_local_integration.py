@@ -121,7 +121,8 @@ def run(runtime, output):
                 result.update(status="FAIL", stage="database_migrate", error=type(error).__name__, safe_failure={"stage": "database_migrate", "status": None, "error_code": "DATABASE_MIGRATION_FAILED"}, safe_counts={"control_responses": 0}, migration_exit_code=error.returncode)
                 raise
             api_env = {**env, "SA_I1_PUBLIC_TRUST_BUNDLE_PATH": str(trust_path), "SA_I1_FIXTURE_EVIDENCE_PATH": str(fixture_evidence_path)}
-            api = subprocess.Popen([PNPM, "--filter", "@product/api", "exec", "tsx", "../../tests/regression/extension-core/client-i1/api-harness.ts"], cwd=ROOT, env=api_env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            # Output is not consumed; a PIPE can stall the child and must not retain raw data.
+            api = subprocess.Popen([PNPM, "--filter", "@product/api", "exec", "tsx", "../../tests/regression/extension-core/client-i1/api-harness.ts"], cwd=ROOT, env=api_env, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT, text=True)
             processes.append(api)
             wait_for(f"http://127.0.0.1:{api_port}/health/ready")
             if not trust_path.exists():
@@ -158,7 +159,8 @@ def run(runtime, output):
                 "runtime_input_sha256": composition_receipt.get("inputs", {}).get("apps/extension/src/application/runtime.js", {}).get("sha256"),
             }
             portal_env = {**env, "CONTROL_PLANE_API_ORIGIN": f"http://127.0.0.1:{api_port}"}
-            portal = subprocess.Popen([PNPM, "--filter", "@product/portal", "exec", "next", "dev", "--hostname", "127.0.0.1", "--port", portal_port], cwd=ROOT, env=portal_env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            # Output is not consumed; a PIPE can stall the child and must not retain raw data.
+            portal = subprocess.Popen([PNPM, "--filter", "@product/portal", "exec", "next", "dev", "--hostname", "127.0.0.1", "--port", portal_port], cwd=ROOT, env=portal_env, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT, text=True)
             processes.append(portal)
             wait_for(f"http://127.0.0.1:{portal_port}/login")
             fixture = (ROOT / "tests/regression/extension-core/fixtures/application-chat.html").read_text()
