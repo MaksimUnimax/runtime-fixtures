@@ -319,7 +319,11 @@ function parametersFingerprint(
             // Explicit default false has the same meaning as omission.
             // Retain required:false on path parameters: OAS requires true there.
             if (key === "required" && parameter.in !== "path") return false;
-            if (!openapi3) return true;
+            if (!openapi3) {
+              if (parameter.in === "query" && key === "allowEmptyValue")
+                return false;
+              return true;
+            }
             if (key === "deprecated") return false;
             if (
               parameter.in === "query" &&

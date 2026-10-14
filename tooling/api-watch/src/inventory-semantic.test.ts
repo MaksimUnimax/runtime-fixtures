@@ -636,6 +636,32 @@ describe("Parameter Object default-false equivalence", () => {
       ),
     ).toBe("UNCHANGED");
   });
+
+  it("treats omitted versus explicit allowEmptyValue: false as equivalent for Swagger 2 query parameters", () => {
+    const before = source({ swagger2: true });
+    const after = source({
+      swagger2: true,
+      field: "allowEmptyValue",
+      value: false,
+    });
+    expect(state(before, after)).toBe("UNCHANGED");
+    expect(after.operations[0]!.parameterSchemaSha256).toBe(
+      before.operations[0]!.parameterSchemaSha256,
+    );
+  });
+
+  it("keeps Swagger 2 allowEmptyValue: true as a semantic change", () => {
+    expect(
+      state(
+        source({ swagger2: true }),
+        source({
+          swagger2: true,
+          field: "allowEmptyValue",
+          value: true,
+        }),
+      ),
+    ).toBe("CHANGED");
+  });
 });
 
 describe("Response Object header semantics", () => {
