@@ -1,3 +1,4 @@
+import { resetTransferProtectedTestFixture } from "./helpers/credential-transfer-fixture-reset.js";
 import { createHash, generateKeyPairSync, randomUUID } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createApiApp } from "../../../apps/api/src/app.js";
@@ -89,7 +90,8 @@ const request = (deviceId = principal.deviceId) => ({
 });
 
 async function clean() {
-  await db.query(
+  await resetTransferProtectedTestFixture(
+    db,
     "TRUNCATE adapter_profile_assignment_revisions,adapter_profile_assignments,adapter_profile_revisions,adapter_profiles,ai_variants,ai_surfaces,ai_adapters,audit_events,config_release_rollout_revisions,config_release_feature_rules,rollouts,feature_rule_revisions,feature_definitions,config_release_compatibility_policies,config_releases,signing_key_events,signing_keys,compatibility_policy_blocked_versions,compatibility_policy_revisions,extension_release_browsers,extension_release_contracts,extension_releases,account_entitlement_overrides,subscriptions,plan_entitlements,entitlement_definitions,plan_revisions,plans,refresh_tokens,sessions,devices,device_authorizations,portal_sessions,user_identities,account_memberships,accounts,users,auth_rate_limit_buckets RESTART IDENTITY CASCADE",
   );
   // Restore the exact unpublished seed removed by this fixture's TRUNCATE CASCADE.

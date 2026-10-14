@@ -12,6 +12,7 @@ export default defineConfig({
       "tests/regression/extension-core/client-i1/transfer-fixture-lifecycle.test.ts",
       // Keep test-fixture cleanup faults in the normal server integration run.
       "tests/integration/server/helpers/credential-transfer-test-authority.test.ts",
+      "tests/integration/server/helpers/credential-transfer-fixture-reset.test.ts",
     ],
   },
 });

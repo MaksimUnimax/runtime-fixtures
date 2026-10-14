@@ -1,3 +1,4 @@
+import { resetTransferProtectedTestFixture } from "./helpers/credential-transfer-fixture-reset.js";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
@@ -37,7 +38,8 @@ const deviceRoot = Buffer.alloc(32, 56);
 const deviceSigningKey = createEphemeralAccessTokenSigningKey("p56-device");
 
 async function truncate() {
-  await q(
+  await resetTransferProtectedTestFixture(
+    db,
     "TRUNCATE billing_reconciliation_jobs,checkout_intents,billing_events,subscription_transitions,payments,devices,device_authorizations,sessions,account_entitlement_overrides,subscriptions,price_sale_assignments,price_revisions,plan_entitlements,prices,plan_revisions,entitlement_definitions,plans,account_memberships,accounts,users,audit_events CASCADE",
   );
 }

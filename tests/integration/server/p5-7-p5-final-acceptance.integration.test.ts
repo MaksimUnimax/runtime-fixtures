@@ -1,3 +1,4 @@
+import { resetTransferProtectedTestFixture } from "./helpers/credential-transfer-fixture-reset.js";
 import { createHash, randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
@@ -58,7 +59,8 @@ type Fixture = {
 };
 
 async function clean() {
-  await q(
+  await resetTransferProtectedTestFixture(
+    db,
     "TRUNCATE billing_reconciliation_jobs,checkout_intents,billing_events,subscription_transitions,payments,devices,device_authorizations,sessions,account_entitlement_overrides,subscriptions,price_sale_assignments,price_revisions,plan_entitlements,prices,plan_revisions,entitlement_definitions,plans,account_memberships,accounts,users,audit_events CASCADE",
   );
   clock = new Date(Date.now() + 60_000);

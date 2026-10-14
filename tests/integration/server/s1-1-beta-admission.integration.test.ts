@@ -1,3 +1,4 @@
+import { resetTransferProtectedTestFixture } from "./helpers/credential-transfer-fixture-reset.js";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { BetaAdmissionService } from "../../../packages/server/beta-access/src/index.js";
@@ -26,7 +27,8 @@ async function q<T extends Record<string, unknown> = Record<string, unknown>>(
 async function reset() {
   await q("DROP TRIGGER IF EXISTS s11_fail_beta_audit ON audit_events");
   await q("DROP FUNCTION IF EXISTS s11_fail_beta_audit()");
-  await q(
+  await resetTransferProtectedTestFixture(
+    db,
     "TRUNCATE beta_identity_invitations,beta_admission_mutations,beta_admission_state,audit_events,admin_role_grants,admin_principals,users CASCADE",
   );
   await q(
