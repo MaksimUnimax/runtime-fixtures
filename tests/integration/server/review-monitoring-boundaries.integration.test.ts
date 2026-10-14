@@ -8,7 +8,7 @@ import {
   IndependentMonitoringScheduler,
   createPostgresMonitoringScheduleStore,
   InMemorySwaggerSourceStore,
-} from "@product/monitoring-control";
+} from "../../../packages/server/monitoring-control/src/index.js";
 import { createPostgresApiWatchRetryStore } from "../../../tooling/api-watch/src/retry.js";
 import { InMemoryApiWatchStore } from "../../../tooling/api-watch/src/authority.js";
 import { InMemoryApiWatchReportStore } from "../../../tooling/api-watch/src/report.js";
