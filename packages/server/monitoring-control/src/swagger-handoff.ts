@@ -123,6 +123,7 @@ export interface SwaggerSourceStore {
   setRequestStatus(
     requestId: string,
     status: SwaggerSourceRequestStatus,
+    options?: { preserveTerminal?: boolean },
   ): Promise<void>;
 }
 
@@ -251,9 +252,15 @@ export class InMemorySwaggerSourceStore implements SwaggerSourceStore {
   async setRequestStatus(
     requestId: string,
     status: SwaggerSourceRequestStatus,
+    options?: { preserveTerminal?: boolean },
   ) {
     const request = this.state.requests.get(requestId);
     if (!request) throw new Error("SWAGGER_REQUEST_NOT_FOUND");
+    if (
+      options?.preserveTerminal &&
+      ["CANCELLED", "EXPIRED"].includes(request.status)
+    )
+      return;
     request.status = status;
   }
 }
@@ -424,9 +431,13 @@ export function createPostgresSwaggerSourceStore(
       if (!result.rows[0]) throw new Error("SWAGGER_ARTIFACT_CREATE_FAILED");
       return { inserted: true, artifact: mapArtifact(result.rows[0]) };
     },
-    async setRequestStatus(requestId, status) {
+    async setRequestStatus(requestId, status, updateOptions) {
+      // Evaluate against the current row in the same atomic UPDATE.
+      const condition = updateOptions?.preserveTerminal
+        ? " AND status NOT IN ('CANCELLED','EXPIRED')"
+        : "";
       await runtime.query(
-        `UPDATE swagger_source_requests SET status=$2 WHERE request_id=$1`,
+        `UPDATE swagger_source_requests SET status=$2 WHERE request_id=$1${condition}`,
         [requestId, status],
       );
     },
@@ -661,7 +672,9 @@ export function createSwaggerHandoffService(options: {
     if (!request) return { kind: "REJECTED", code: "UNKNOWN_REQUEST" };
     const receivedAt = input.receivedAt ?? now();
     if (request.expiresAt && request.expiresAt <= receivedAt) {
-      await options.store.setRequestStatus(request.requestId, "EXPIRED");
+      await options.store.setRequestStatus(request.requestId, "EXPIRED", {
+        preserveTerminal: true,
+      });
       return { kind: "REJECTED", code: "REQUEST_EXPIRED" };
     }
     if (
@@ -685,13 +698,14 @@ export function createSwaggerHandoffService(options: {
     );
     if (duplicate) {
       // A previous save may have committed before its status update failed.
-      if (!["CANCELLED", "EXPIRED"].includes(request.status))
-        await options.store.setRequestStatus(
-          request.requestId,
-          duplicate.status === "CANDIDATE_READY"
-            ? "CANDIDATE_READY"
-            : "VALIDATION_FAILED",
-        );
+      // The store preserves cancellation/expiry committed after getRequest().
+      await options.store.setRequestStatus(
+        request.requestId,
+        duplicate.status === "CANDIDATE_READY"
+          ? "CANDIDATE_READY"
+          : "VALIDATION_FAILED",
+        { preserveTerminal: true },
+      );
       return { kind: "DUPLICATE", artifact: duplicate };
     }
     if (["CANDIDATE_READY", "CANCELLED", "EXPIRED"].includes(request.status))
@@ -707,7 +721,9 @@ export function createSwaggerHandoffService(options: {
       input.bytes,
       sha256,
     );
-    await options.store.setRequestStatus(request.requestId, "QUARANTINED");
+    await options.store.setRequestStatus(request.requestId, "QUARANTINED", {
+      preserveTerminal: true,
+    });
 
     const originalFilename = safeOriginalFilename(input.originalFilename);
     let parserResult: Record<string, unknown> = { parsed: false };
@@ -793,12 +809,14 @@ export function createSwaggerHandoffService(options: {
         saved.artifact.status === "CANDIDATE_READY"
           ? "CANDIDATE_READY"
           : "VALIDATION_FAILED",
+        { preserveTerminal: true },
       );
       return { kind: "DUPLICATE", artifact: saved.artifact };
     }
     await options.store.setRequestStatus(
       request.requestId,
       status === "CANDIDATE_READY" ? "CANDIDATE_READY" : "VALIDATION_FAILED",
+      { preserveTerminal: true },
     );
     return status === "CANDIDATE_READY"
       ? { kind: "CANDIDATE_READY", artifact: saved.artifact }

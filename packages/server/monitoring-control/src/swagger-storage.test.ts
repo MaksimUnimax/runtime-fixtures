@@ -6,6 +6,8 @@ import type * as Fs from "node:fs/promises";
 import {
   createInMemorySwaggerSourceState,
   createSwaggerHandoffService,
+  createPostgresSwaggerSourceStore,
+  type SwaggerSourceSqlRuntime,
   InMemorySwaggerSourceStore,
 } from "./swagger-handoff.js";
 
@@ -95,6 +97,93 @@ async function fixture() {
   return { directory, store, service, input };
 }
 describe("quarantine retry and uncertain registration", () => {
+  it("guards reconciliation in one database update without a stale read", async () => {
+    const statements: { sql: string; values?: unknown[] }[] = [];
+    const runtime: SwaggerSourceSqlRuntime = {
+      async query(sql, values) {
+        statements.push({ sql, values });
+        return { rows: [] };
+      },
+      async transaction(operation) {
+        return operation(runtime);
+      },
+    };
+    await createPostgresSwaggerSourceStore(runtime).setRequestStatus(
+      "storage-request",
+      "CANDIDATE_READY",
+      { preserveTerminal: true },
+    );
+    expect(statements).toHaveLength(1);
+    expect(statements[0]?.sql).toMatch(/^UPDATE swagger_source_requests SET /);
+    expect(statements[0]?.sql).toContain(
+      "WHERE request_id=$1 AND status NOT IN ('CANCELLED','EXPIRED')",
+    );
+    expect(statements[0]?.values).toEqual([
+      "storage-request",
+      "CANDIDATE_READY",
+    ]);
+  });
+
+  it.each(["CANCELLED", "EXPIRED"] as const)(
+    "preserves concurrent %s while reconciling a duplicate",
+    async (terminal) => {
+      const f = await fixture();
+      await f.service().upload(f.input);
+      await f.store.setRequestStatus(f.input.requestId, "QUARANTINED");
+      const find = f.store.findArtifactByDigest.bind(f.store);
+      vi.spyOn(f.store, "findArtifactByDigest").mockImplementationOnce(
+        async (...args) => {
+          const artifact = await find(...args);
+          await f.store.setRequestStatus(f.input.requestId, terminal);
+          return artifact;
+        },
+      );
+      expect((await f.service().upload(f.input)).kind).toBe("DUPLICATE");
+      expect((await f.store.getRequest(f.input.requestId))?.status).toBe(
+        terminal,
+      );
+      expect(await readdir(f.directory)).toHaveLength(1);
+    },
+  );
+  it.each(["CANCELLED", "EXPIRED"] as const)(
+    "preserves concurrent %s after a lost commit acknowledgement",
+    async (terminal) => {
+      const f = await fixture();
+      const save = f.store.saveArtifact.bind(f.store);
+      vi.spyOn(f.store, "saveArtifact").mockImplementationOnce(
+        async (artifact) => {
+          await save(artifact);
+          await f.store.setRequestStatus(f.input.requestId, terminal);
+          throw new Error("ACK_LOST");
+        },
+      );
+      expect((await f.service().upload(f.input)).kind).toBe("DUPLICATE");
+      expect((await f.store.getRequest(f.input.requestId))?.status).toBe(
+        terminal,
+      );
+      expect(await readdir(f.directory)).toHaveLength(1);
+    },
+  );
+  it.each(["CANCELLED", "EXPIRED"] as const)(
+    "preserves concurrent %s after an acknowledged artifact save",
+    async (terminal) => {
+      const f = await fixture();
+      const save = f.store.saveArtifact.bind(f.store);
+      vi.spyOn(f.store, "saveArtifact").mockImplementationOnce(
+        async (artifact) => {
+          const saved = await save(artifact);
+          await f.store.setRequestStatus(f.input.requestId, terminal);
+          return saved;
+        },
+      );
+      await f.service().upload(f.input);
+      expect((await f.store.getRequest(f.input.requestId))?.status).toBe(
+        terminal,
+      );
+      expect(await readdir(f.directory)).toHaveLength(1);
+    },
+  );
+
   it.each(["write", "sync"])(
     "preserves simultaneous %s and close failures",
     async (stage) => {
