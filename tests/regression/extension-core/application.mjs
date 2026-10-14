@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
+import fs from 'node:fs';
+import vm from 'node:vm';
 import { makeWorker, until, signFixtureBootstrap } from './worker-harness.mjs';
 const runtime = path.resolve(process.argv[2]);
 const results = [];
@@ -1022,5 +1024,42 @@ await test('R3-expired-buffer-cleanup-preserves-first-replay-fence', async () =>
   } finally { s.worker.close(); }
 });
 
+
+// Exercise the composed content script, retaining durable no-replay and dialogue fences.
+const deliverySource = fs.readFileSync(path.join(runtime, 'content_script.js'), 'utf8');
+const deliveryWatchStart = deliverySource.indexOf('  async function runBatchDeliveryWatch(');
+const deliveryWatchEnd = deliverySource.indexOf('\n  function stopManualComposerWait', deliveryWatchStart);
+assert.ok(deliveryWatchStart >= 0 && deliveryWatchEnd > deliveryWatchStart);
+const generatedDeliveryWatch = deliverySource.slice(deliveryWatchStart, deliveryWatchEnd);
+const deliveryWitnessCases=[
+ {name:"persistent_microphone_without_send",soleMic:true,ack:0,clicks:0},
+ {name:"disabled_after_click_no_user_turn",ack:0,clicks:1},
+ {name:"microphone_after_click_no_user_turn",ready:"microphone",ack:0,clicks:1},
+ {name:"old_matching_user_turn",oldMatch:true,ack:0,clicks:1},
+ {name:"new_wrong_report",newText:"OTHER REPORT",ack:0,clicks:1},
+ {name:"new_matching_user_turn_disabled",newText:"SYNTHETIC REPORT",ack:1,clicks:1},
+ {name:"new_matching_user_turn_microphone",ready:"microphone",newText:"SYNTHETIC REPORT",ack:1,clicks:1},
+ {name:"durable_send_commit_denied",denyCommit:true,ack:0,clicks:0},
+ {name:"conversation_changed_after_click",changeConversation:true,ack:0,clicks:1},
+ {name:"empty_expected_report",outgoing:"",newText:"SYNTHETIC REPORT",ack:0,clicks:1}
+];
+for (const s of deliveryWitnessCases) await test('R3-chatgpt-delivery-' + s.name, async () => {
+ let running=true,clicks=0,wakes=0,commits=0;const acks=[],users=s.oldMatch?[{id:"old",text:"SYNTHETIC REPORT"}]:[];
+ class Button{constructor(){this.isConnected=true;}click(){clicks++;if(s.newText)users.push({id:"new",text:s.newText});}}
+ const button=new Button(),adapter={id:"chatgpt",userMessages:()=>users,messageId:n=>n.id,messageText:n=>n.text};
+ const ctx={HTMLElement:Button,activeDeliveryWatch:null,DELIVERY_WATCH_INTERVAL_MS:1,manualEnabled:true,manualConversationKey:"chat",runtimeId:"synthetic-runtime",saContentContext:{},
+ current:()=>running,sameConversation:()=>!s.changeConversation||wakes===0,conversationKeyFromLocation:()=>"chat",currentAIAdapter:()=>adapter,userTurnIds:()=>users.map(n=>n.id),canonicalText:x=>String(x??"").trim(),
+ classifyComposerControl:()=>({kind:s.soleMic?"microphone":clicks===0?"work_send_active":s.ready??"work_send_disabled",button}),
+ recordContentDiagnostic:()=>{},diagnosticForControlKind:x=>x,toast:()=>{},setManualBridgeReady:()=>{},visible:()=>true,controlDisabled:()=>false,saCheckDelivery:async()=>{},
+ waitForDeliveryWatchWake:async()=>{if(++wakes>3)running=false;},sleep:async()=>{if(++wakes>3)running=false;},
+ sendRuntime:async(type,body)=>{if(type==="OZ_BATCH_DELIVERY_COMPLETE")acks.push(body);if(type==="OZ_WORK_SEND_COMMIT")commits++;return {ok:true,click_allowed:!s.denyCommit};},
+ stopDeliveryWatch:()=>{ctx.activeDeliveryWatch=null;running=false;}
+ };
+ vm.createContext(ctx);vm.runInContext(generatedDeliveryWatch+"\nglobalThis.testWatch=runBatchDeliveryWatch;",ctx);
+ await ctx.testWatch({delivery_mode:'batch_watch_v1',owner_kind:'manual',owner_id:'synthetic-owner',delivery_id:'synthetic-delivery',conversation_key:'chat',origin:'https://chatgpt.com',conversation_id:'synthetic',outgoing_text:s.outgoing??'SYNTHETIC REPORT'});
+ assert.equal(acks.length,s.ack,s.name); assert.equal(clicks,s.clicks,s.name);
+ assert.ok(commits<=1,'durable send commit stays one-shot');
+ if(s.ack) assert.equal(acks[0].confirmed_user_turn_id,'new');
+});
 if (selectedScenario && results.length !== 1) throw new Error('Selected scenario was not executed');
 console.log(JSON.stringify({ status:'PASS', results, live_provider_calls:0, scope:'actual generated worker/popup messages and attachment port; simulated browser and provider; not installed live acceptance' },null,2));
