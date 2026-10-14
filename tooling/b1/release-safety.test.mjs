@@ -445,6 +445,15 @@ function makeZip(path, browser, options = {}) {
       : `globalThis.__SELLER_AGENTS_PACKAGED_CONFIG__=${JSON.stringify(
           JSON.stringify(config),
         )};\n`;
+  if (options.mode === "config_only_comment") {
+    worker = "// " + worker;
+  }
+  if (options.mode === "config_only_block_comment") {
+    worker = "/*\n" + worker + "*/\n";
+  }
+  if (options.mode === "config_only_template") {
+    worker = "const note = `" + worker + "`;\n";
+  }
   if (options.mode === "development_material") {
     worker +=
       "/* LOCAL DEVELOPMENT http://127.0.0.1:43100 http://127.0.0.1:43101 config-local-development */\n";
@@ -1038,6 +1047,21 @@ test("non-regular package input is rejected before archive read", () => {
 expectPrepareFailure(
   "missing reachable packaged config is rejected",
   "missing_config",
+);
+expectPrepareFailure(
+  "commented packaged configuration cannot substitute a runtime assignment",
+  "config_only_comment",
+  /reachable packaged config/,
+);
+expectPrepareFailure(
+  "block-comment packaged configuration cannot substitute a runtime assignment",
+  "config_only_block_comment",
+  /reachable packaged config/,
+);
+expectPrepareFailure(
+  "template-literal packaged configuration cannot substitute a runtime assignment",
+  "config_only_template",
+  /reachable packaged config/,
 );
 expectPrepareFailure("stale packaged contract is rejected", "wrong_contract");
 expectPrepareFailure(

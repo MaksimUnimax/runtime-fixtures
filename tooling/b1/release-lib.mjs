@@ -914,32 +914,29 @@ function backgroundScripts(entries, manifest, browser) {
 }
 
 function parsePackagedConfigFromScript(source) {
-  const configs = [];
-  let offset = 0;
-
-  while (true) {
-    const marker = source.indexOf(PACKAGED_CONFIG_MARKER, offset);
-    if (marker < 0) break;
-
-    const literalStart = marker + PACKAGED_CONFIG_MARKER.length;
-    const tail = source.slice(literalStart);
-    const match = tail.match(/^(?:"(?:\\.|[^"\\])*")\s*;/);
-    if (!match) fail("Packaged config marker is malformed");
-
-    const literal = match[0].replace(/;\s*$/, "").trim();
-    let encoded;
-    let config;
-    try {
-      encoded = JSON.parse(literal);
-      config = JSON.parse(encoded);
-    } catch {
-      fail("Packaged config is invalid JSON");
-    }
-    configs.push(config);
-    offset = literalStart + match[0].length;
+  // The supported packager writes the config assignment as the first bytes
+  // of the script. Never accept an identical-looking marker inside a comment,
+  // string or template literal: it would not initialize the browser runtime.
+  if (!source.startsWith(PACKAGED_CONFIG_MARKER)) return [];
+  if (
+    source.indexOf(PACKAGED_CONFIG_MARKER, PACKAGED_CONFIG_MARKER.length) >= 0
+  ) {
+    fail("Release package contains duplicate config markers");
   }
 
-  return configs;
+  const tail = source.slice(PACKAGED_CONFIG_MARKER.length);
+  const match = tail.match(/^(?:"(?:\\.|[^"\\])*")\s*;/);
+  if (!match) fail("Packaged config marker is malformed");
+
+  let encoded;
+  let config;
+  try {
+    encoded = JSON.parse(match[0].replace(/;\s*$/, "").trim());
+    config = JSON.parse(encoded);
+  } catch {
+    fail("Packaged config is invalid JSON");
+  }
+  return [config];
 }
 
 function validatePackagedConfig(config, authority) {
