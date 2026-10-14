@@ -404,13 +404,27 @@ function responseFingerprint(
                 return true;
               }),
             );
-            return [name.toLowerCase(), normalized];
+            return [name.toLowerCase(), normalized] as const;
           });
+        // Two differently cased HTTP header names are one wire-level header.
+        // Do not silently discard either conflicting declaration: represent
+        // only ambiguous maps as an array, preserving prior ordinary hashes.
+        const seenHeaderNames = new Set<string>();
+        const hasCaseCollision = headers.some(([name]) => {
+          const repeated = seenHeaderNames.has(name);
+          seenHeaderNames.add(name);
+          return repeated;
+        });
         // Preserve prior fingerprints for responses without semantic headers.
         return [
           status,
           headers.length > 0
-            ? { body, headers: Object.fromEntries(headers) }
+            ? {
+                body,
+                headers: hasCaseCollision
+                  ? headers
+                  : Object.fromEntries(headers),
+              }
             : body,
         ];
       }),

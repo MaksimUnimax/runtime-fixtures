@@ -801,6 +801,7 @@ describe("Response Object header semantics", () => {
       required?: boolean;
       noHeader?: boolean;
       extraHeader?: boolean;
+      collisionHeaderType?: string;
       viaReference?: boolean;
       description?: string;
       bodyType?: string;
@@ -819,6 +820,10 @@ describe("Response Object header semantics", () => {
         : header;
     if (options.extraHeader)
       headers["X-Rate-Limit"] = { schema: { type: "integer" } };
+    if (options.collisionHeaderType)
+      headers["x-request-id"] = {
+        schema: { type: options.collisionHeaderType },
+      };
     if (options.contentTypeHeader)
       headers["Content-Type"] = { schema: { type: "integer" } };
     return buildCompleteOperationInventory({
@@ -878,6 +883,33 @@ describe("Response Object header semantics", () => {
         make({ viaReference: true, headerType: "integer" }),
       ),
     ).toBe("CHANGED");
+  });
+
+  it("response header case collision detects changes in the lowercased entry", () => {
+    const before = make({ collisionHeaderType: "integer" });
+    const after = make({ collisionHeaderType: "boolean" });
+    expect(state(before, after)).toBe("CHANGED");
+  });
+
+  it("response header case collision detects changes in the uppercased entry", () => {
+    const before = make({ collisionHeaderType: "integer" });
+    const after = make({
+      headerType: "boolean",
+      collisionHeaderType: "integer",
+    });
+    expect(state(before, after)).toBe("CHANGED");
+  });
+
+  it("response header case collision detects removal of a shadowed entry", () => {
+    const before = make({ collisionHeaderType: "integer" });
+    const after = make();
+    expect(state(before, after)).toBe("CHANGED");
+  });
+
+  it("response header case collision does not affect a valid one-header case change", () => {
+    expect(state(make(), make({ headerName: "x-request-id" }))).toBe(
+      "UNCHANGED",
+    );
   });
 
   it("does not report a change for header case or documentation only", () => {
