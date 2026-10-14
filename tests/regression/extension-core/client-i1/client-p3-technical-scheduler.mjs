@@ -102,4 +102,98 @@ assert.deepEqual(
   "future durable technical task survives update reconstruction",
 );
 
-console.log(JSON.stringify({ status: "PASS", scenarios: 8, wake_deliveries: 100, duplicate_wake_runs: 0, payload_leak: false, max_due_per_wake: 16, update_storage_preserved: true }));
+// New read-only A11/SA-DATA-01 regressions on exact-source MV3 scheduler.
+// The product's saPrunePayload derives legacy TTL from created_at + 3600000.
+function wipeFixture() { for (const key of Object.keys(persisted)) delete persisted[key]; }
+const TTL = 3600000, baseNow = Date.now(), checks = [];
+function syntheticOwner(createdAt, expiresAt, hasPayload=true) {
+  const result = { status: hasPayload ? "collected" : "failed",
+    created_at: new Date(createdAt).toISOString(),
+    outgoing_text: hasPayload ? "SYNTHETIC_ONLY_NOT_REAL_REPORT" : null,
+    batch: hasPayload ? { entries: [{ provider_attempt: { provider_attempt_id: "synthetic-attempt" } }] } : null,
+    last_error: hasPayload ? null : { code: "RESULT_BUFFER_EXPIRED" } };
+  if (expiresAt !== undefined) result.payload_expires_at_ms = expiresAt;
+  return result;
+}
+// Repeated expiry of a pruned owner should not recreate due-now work indefinitely.
+wipeFixture();
+persisted.manual = { pruned: syntheticOwner(baseNow-TTL-10000,baseNow-10000,false) };
+const pruned = makeContext();
+let expiredPrunedCalls=0;
+pruned.context.saCleanupExpiredPayloads = async()=> { expiredPrunedCalls++; };
+await pruned.context.SellerAgentsTechnicalScheduler.wake("after-prune-first");
+await pruned.context.SellerAgentsTechnicalScheduler.wake("after-prune-second");
+const oldPrunedState = await pruned.context.SellerAgentsTechnicalScheduler.state();
+checks.push({ id:"A11-P3-01", label:"pruned buffer does not cause endless retry",
+  expected:"no recurrent cleanup and no due expiry", observed:{
+    cleanupCalls:expiredPrunedCalls,
+    hasPendingExpiry:Boolean(oldPrunedState.entries["expiry:buffers"]),
+  },pass:expiredPrunedCalls===0&&!oldPrunedState.entries["expiry:buffers"] });
+// A legacy buffer lacking payload_expires_at_ms is still subject to one-hour TTL.
+wipeFixture();
+persisted.manual={ legacy:syntheticOwner(baseNow-2*TTL,undefined,true) };
+const legacy=makeContext();
+let legacyCleanup=0;
+legacy.context.saCleanupExpiredPayloads=async()=>{
+  legacyCleanup++;
+  const entry=persisted.manual.legacy;
+  entry.outgoing_text=null;entry.batch=null;entry.status="failed";
+};
+await legacy.context.SellerAgentsTechnicalScheduler.wake("legacy-expired-after-worker-wake");
+checks.push({id:"A11-P3-02",label:"legacy expired buffer cleaned after wake",
+  expected:"cleanup once", observed:{cleanupCalls:legacyCleanup,payloadRetained:Boolean(persisted.manual.legacy.outgoing_text)},
+  pass:legacyCleanup===1&&!persisted.manual.legacy.outgoing_text});
+// A legacy future buffer requires a technical alarm at the derived due time.
+wipeFixture();
+persisted.manual={ future:syntheticOwner(baseNow,undefined,true) };
+const future=makeContext();
+let futureCleanup=0;
+future.context.saCleanupExpiredPayloads=async()=>{futureCleanup++;};
+await future.context.SellerAgentsTechnicalScheduler.wake("legacy-future-start");
+const futureEntry=(await future.context.SellerAgentsTechnicalScheduler.state()).entries["expiry:buffers"];
+checks.push({id:"A11-P3-03",label:"legacy future buffer has a one-hour deadline",
+  expected:"durable scheduled expiry",observed:{scheduled:Boolean(futureEntry),cleanupCalls:futureCleanup},
+  pass:Boolean(futureEntry)&&Math.abs(futureEntry.dueAt-(baseNow+TTL))<3000&&futureCleanup===0});
+// An explicitly expired active buffer must clean exactly once, not alarm-loop.
+wipeFixture();
+persisted.manual={ explicit:syntheticOwner(baseNow-2*TTL,baseNow-10000,true) };
+const explicit=makeContext();
+let explicitCleanup=0;
+explicit.context.saCleanupExpiredPayloads=async()=>{
+  explicitCleanup++;
+  const entry=persisted.manual.explicit;
+  entry.outgoing_text=null;entry.batch=null;entry.status="failed";
+};
+await explicit.context.SellerAgentsTechnicalScheduler.wake("explicit-expired-first");
+await explicit.context.SellerAgentsTechnicalScheduler.wake("explicit-expired-after-cleanup");
+const explicitState=(await explicit.context.SellerAgentsTechnicalScheduler.state()).entries["expiry:buffers"];
+checks.push({id:"A11-P3-04",label:"explicit expired buffer cleans once without repeated alarm",
+  expected:"single cleanup then no pending expiry",
+  observed:{cleanupCalls:explicitCleanup,scheduled:Boolean(explicitState)},
+  pass:explicitCleanup===1&&!explicitState});
+// An invalid legacy creation date must fail closed, never retain report forever.
+wipeFixture();
+persisted.manual={ invalid:syntheticOwner(baseNow,undefined,true) };
+persisted.manual.invalid.created_at="not-a-valid-date";
+const invalid=makeContext();
+let invalidCleanup=0;
+invalid.context.saCleanupExpiredPayloads=async()=>{
+  invalidCleanup++;
+  persisted.manual.invalid.outgoing_text=null;
+  persisted.manual.invalid.batch=null;
+  persisted.manual.invalid.status="failed";
+};
+await invalid.context.SellerAgentsTechnicalScheduler.wake("invalid-created-at");
+const invalidState=(await invalid.context.SellerAgentsTechnicalScheduler.state()).entries["expiry:buffers"];
+checks.push({id:"A11-P3-05",label:"invalid legacy timestamp is cleaned fail-closed",
+  expected:"cleanup once and no pending alarm",
+  observed:{cleanupCalls:invalidCleanup,scheduled:Boolean(invalidState)},
+  pass:invalidCleanup===1&&!invalidState});
+const failed=checks.filter(x=>!x.pass);
+console.log(JSON.stringify({
+  status:failed.length?"FAIL":"PASS", scenarios:8, wake_deliveries:100,
+  duplicate_wake_runs:0, payload_leak:false, max_due_per_wake:16,
+  update_storage_preserved:true, expiry_regressions:checks.length, expiry_checks:checks,
+  failure_ids:failed.map(x=>x.id)
+}));
+if(failed.length)process.exitCode=1;
