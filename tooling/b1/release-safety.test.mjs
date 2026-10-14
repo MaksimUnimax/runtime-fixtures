@@ -96,16 +96,37 @@ path,browser,mode,manifest64,worker64,icon64=sys.argv[1:7]
 manifest=base64.b64decode(manifest64)
 worker=base64.b64decode(worker64)
 rows=[("manifest.json",manifest),("worker.js",worker)]
-if mode in ("valid_declared_icon","short_declared_icon"):
+if mode in ("valid_declared_icon","short_declared_icon","unknown_critical_png","nonconsecutive_idat_png"):
     icon=base64.b64decode(icon64)
+    def chunk(kind,payload):
+        return struct.pack(">I",len(payload))+kind+payload+struct.pack(">I",zlib.crc32(kind+payload))
     if mode=="short_declared_icon":
-        def chunk(kind,payload):
-            return struct.pack(">I",len(payload))+kind+payload+struct.pack(">I",zlib.crc32(kind+payload))
         ihdr=struct.pack(">IIBBBBB",16,16,8,6,0,0,0)
         # Claims RGBA but only one byte/pixel, the exact legacy defect class.
         icon=(bytes((137,80,78,71,13,10,26,10))+chunk(b"IHDR",ihdr)
               +chunk(b"IDAT",zlib.compress((b"\x00"+bytes(16))*16))
               +chunk(b"IEND",b""))
+    if mode=="unknown_critical_png":
+        # New uppercase critical chunk with valid CRC: conforming PNG readers reject it.
+        icon=icon[:33]+chunk(b"ABCD",b"")+icon[33:]
+    if mode=="nonconsecutive_idat_png":
+        # Equivalent compressed bytes, but an ancillary tEXt breaks contiguous IDAT.
+        result=bytearray(icon[:8]);pos=8;split=False
+        while pos<len(icon):
+            length=struct.unpack_from(">I",icon,pos)[0]
+            kind=icon[pos+4:pos+8]
+            payload=icon[pos+8:pos+8+length]
+            pos+=12+length
+            if kind==b"IDAT" and not split:
+                middle=len(payload)//2
+                assert middle>0
+                result+=chunk(b"IDAT",payload[:middle])
+                result+=chunk(b"tEXt",b"Comment"+bytes((0,))+b"fixture")
+                result+=chunk(b"IDAT",payload[middle:])
+                split=True
+            else:result+=chunk(kind,payload)
+        assert split
+        icon=bytes(result)
     rows.append(("icons/icon-16.png",icon))
 if mode=="no_runtime":
     rows=[row for row in rows if row[0]!="worker.js"]
@@ -429,6 +450,8 @@ function makeZip(path, browser, options = {}) {
       "short_declared_icon",
       "valid_declared_icon",
       "unsafe_declared_icon",
+      "unknown_critical_png",
+      "nonconsecutive_idat_png",
     ].includes(options.mode)
   ) {
     manifest.icons = {
@@ -972,6 +995,16 @@ expectPrepareFailure(
   "missing action default_icon resource is rejected",
   "missing_default_icon",
   /Declared icon resource missing/,
+);
+expectPrepareFailure(
+  "PNG unknown critical chunk with valid CRC is rejected",
+  "unknown_critical_png",
+  /PNG icon unsupported critical chunk/,
+);
+expectPrepareFailure(
+  "PNG nonconsecutive IDAT separated by tEXt is rejected",
+  "nonconsecutive_idat_png",
+  /PNG icon IDAT order invalid/,
 );
 test("valid declared Chromium and Firefox icon remains accepted", () => {
   const value = fixture({

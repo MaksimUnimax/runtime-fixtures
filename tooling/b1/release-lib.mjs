@@ -752,7 +752,10 @@ function validatePngIcon(data, declaredSize) {
     imageDataLength = 0,
     endFound = false;
   const imageChunks = [];
-  let chunks = 0;
+  let chunks = 0,
+    sawIdat = false,
+    finishedIdat = false,
+    sawPalette = false;
   while (offset < data.length) {
     if (++chunks > 256 || data.length - offset < 12) {
       fail("Declared PNG icon is invalid");
@@ -763,6 +766,18 @@ function validatePngIcon(data, declaredSize) {
       fail("Declared PNG icon is invalid");
     }
     const type = data.toString("ascii", offset + 4, offset + 8);
+    // Unknown critical chunks and out-of-order IDAT are not valid PNG images.
+    // Ancillary metadata after a finished IDAT run is allowed, but no more IDAT.
+    if (!/^[A-Za-z]{2}[A-Z][A-Za-z]$/.test(type)) {
+      fail("Declared PNG icon chunk type invalid");
+    }
+    if (
+      /^[A-Z]/.test(type) &&
+      !["IHDR", "PLTE", "IDAT", "IEND"].includes(type)
+    ) {
+      fail("PNG icon unsupported critical chunk");
+    }
+    if (type !== "IDAT" && sawIdat) finishedIdat = true;
     if (
       crc32(data.subarray(offset + 4, offset + 8 + length)) !==
       data.readUInt32BE(offset + 8 + length)
@@ -789,8 +804,22 @@ function validatePngIcon(data, declaredSize) {
       ) {
         fail("Declared PNG icon dimensions or format invalid");
       }
+    } else if (type === "PLTE") {
+      if (
+        width === null ||
+        sawPalette ||
+        sawIdat ||
+        length === 0 ||
+        length % 3 !== 0 ||
+        length > 768
+      ) {
+        fail("PNG icon palette order invalid");
+      }
+      sawPalette = true;
     } else if (type === "IDAT") {
       if (width === null) fail("Declared PNG icon header invalid");
+      if (finishedIdat) fail("PNG icon IDAT order invalid");
+      sawIdat = true;
       imageDataLength += length;
       if (imageDataLength > MAX_DECLARED_ICON_BYTES) {
         fail("Declared PNG icon is invalid");
