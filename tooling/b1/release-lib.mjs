@@ -19,7 +19,7 @@ import {
 import { execFileSync } from "node:child_process";
 import { basename, dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import { inflateRawSync } from "node:zlib";
+import { inflateRawSync, inflateSync } from "node:zlib";
 
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
@@ -734,6 +734,201 @@ function crc32(buffer) {
   return (crc ^ 0xffffffff) >>> 0;
 }
 
+const PNG_ICON_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+const MAX_DECLARED_ICON_BYTES = 2 * 1024 * 1024;
+const MAX_DECLARED_ICON_DIMENSION = 512;
+
+function validatePngIcon(data, declaredSize) {
+  if (
+    !Buffer.isBuffer(data) ||
+    data.length < PNG_ICON_SIGNATURE.length + 12 ||
+    data.length > MAX_DECLARED_ICON_BYTES ||
+    !data.subarray(0, 8).equals(PNG_ICON_SIGNATURE)
+  ) {
+    fail("Declared PNG icon is invalid");
+  }
+  let offset = 8,
+    width = null,
+    imageDataLength = 0,
+    endFound = false;
+  const imageChunks = [];
+  let chunks = 0,
+    sawIdat = false,
+    finishedIdat = false,
+    sawPalette = false,
+    sawBackground = false;
+  while (offset < data.length) {
+    if (++chunks > 256 || data.length - offset < 12) {
+      fail("Declared PNG icon is invalid");
+    }
+    const length = data.readUInt32BE(offset);
+    const stop = offset + length + 12;
+    if (length > MAX_DECLARED_ICON_BYTES || stop > data.length) {
+      fail("Declared PNG icon is invalid");
+    }
+    // Node's "ascii" decoder drops the high bit, accepting invalid PNG type
+    // bytes as known critical chunks. Latin-1 preserves all byte values so the
+    // alphabetic/reserved-bit check below fails closed.
+    const type = data.toString("latin1", offset + 4, offset + 8);
+    // Unknown critical chunks and out-of-order IDAT are not valid PNG images.
+    // Ancillary metadata after a finished IDAT run is allowed, but no more IDAT.
+    if (!/^[A-Za-z]{2}[A-Z][A-Za-z]$/.test(type)) {
+      fail("Declared PNG icon chunk type invalid");
+    }
+    if (
+      /^[A-Z]/.test(type) &&
+      !["IHDR", "PLTE", "IDAT", "IEND"].includes(type)
+    ) {
+      fail("PNG icon unsupported critical chunk");
+    }
+    // The Octoport STORE icon pipeline emits a deliberately constrained PNG
+    // subset. Do not silently trust tRNS, tEXt or other ancillary payloads
+    // whose format and placement are not verified by this release validator.
+    if (!["IHDR", "PLTE", "bKGD", "IDAT", "IEND"].includes(type)) {
+      fail("PNG icon unsupported chunk");
+    }
+    if (type !== "IDAT" && sawIdat) finishedIdat = true;
+    if (
+      crc32(data.subarray(offset + 4, offset + 8 + length)) !==
+      data.readUInt32BE(offset + 8 + length)
+    ) {
+      fail("Declared PNG icon CRC invalid");
+    }
+    const payload = data.subarray(offset + 8, offset + 8 + length);
+    if (type === "IHDR") {
+      if (offset !== 8 || width !== null || length !== 13) {
+        fail("Declared PNG icon header invalid");
+      }
+      width = payload.readUInt32BE(0);
+      const height = payload.readUInt32BE(4);
+      if (
+        width < 1 ||
+        width > MAX_DECLARED_ICON_DIMENSION ||
+        width !== height ||
+        (declaredSize !== null && declaredSize !== width) ||
+        payload[8] !== 8 ||
+        payload[9] !== 6 ||
+        payload[10] !== 0 ||
+        payload[11] !== 0 ||
+        payload[12] !== 0
+      ) {
+        fail("Declared PNG icon dimensions or format invalid");
+      }
+    } else if (type === "PLTE") {
+      if (
+        width === null ||
+        sawPalette ||
+        sawIdat ||
+        sawBackground ||
+        length === 0 ||
+        length % 3 !== 0 ||
+        length > 768
+      ) {
+        fail("PNG icon palette order invalid");
+      }
+      sawPalette = true;
+    } else if (type === "bKGD") {
+      // For our non-interlaced RGBA8 release icons, bKGD is an optional
+      // 6-byte truecolor RGB sample (zero high bytes), once and before IDAT.
+      if (
+        width === null ||
+        sawIdat ||
+        sawBackground ||
+        length !== 6 ||
+        payload[0] !== 0 ||
+        payload[2] !== 0 ||
+        payload[4] !== 0
+      ) {
+        fail("PNG icon background metadata invalid");
+      }
+      sawBackground = true;
+    } else if (type === "IDAT") {
+      if (width === null) fail("Declared PNG icon header invalid");
+      if (finishedIdat) fail("PNG icon IDAT order invalid");
+      sawIdat = true;
+      imageDataLength += length;
+      if (imageDataLength > MAX_DECLARED_ICON_BYTES) {
+        fail("Declared PNG icon is invalid");
+      }
+      imageChunks.push(payload);
+    } else if (type === "IEND") {
+      if (
+        width === null ||
+        imageDataLength === 0 ||
+        length !== 0 ||
+        stop !== data.length
+      ) {
+        fail("Declared PNG icon is invalid");
+      }
+      endFound = true;
+    }
+    offset = stop;
+    if (endFound) break;
+  }
+  if (!endFound || width === null) fail("Declared PNG icon is invalid");
+  const stride = width * 4 + 1;
+  const expectedBytes = stride * width;
+  let decoded;
+  let compressedBytesConsumed;
+  try {
+    const result = inflateSync(Buffer.concat(imageChunks), {
+      maxOutputLength: expectedBytes + 1,
+      info: true,
+    });
+    decoded = result.buffer;
+    compressedBytesConsumed = result.engine.bytesWritten;
+  } catch {
+    fail("PNG icon pixel data invalid");
+  }
+  // Inflating to the expected pixel count alone is not enough: malformed IDAT
+  // can carry unconsumed bytes after the zlib end marker with valid PNG CRC.
+  if (compressedBytesConsumed !== imageDataLength) {
+    fail("PNG icon compressed stream contains trailing bytes");
+  }
+  if (decoded.length !== expectedBytes) {
+    fail("PNG icon pixel data invalid");
+  }
+  for (let row = 0; row < width; row += 1) {
+    if (decoded[row * stride] > 4) fail("PNG icon filter invalid");
+  }
+}
+
+function ensureDeclaredIcons(entries, manifest) {
+  const declarations = [];
+  for (const raw of [manifest.icons, manifest.action?.default_icon]) {
+    if (raw === undefined) continue;
+    if (typeof raw === "string") {
+      declarations.push({ path: raw, size: null });
+      continue;
+    }
+    if (
+      !record(raw) ||
+      Object.keys(raw).length === 0 ||
+      Object.keys(raw).length > 16
+    ) {
+      fail("Declared icon map invalid");
+    }
+    for (const [sizeText, path] of Object.entries(raw)) {
+      if (!/^[1-9][0-9]{0,3}$/.test(sizeText)) {
+        fail("Declared icon size invalid");
+      }
+      const size = Number(sizeText);
+      if (size > MAX_DECLARED_ICON_DIMENSION) {
+        fail("Declared icon size invalid");
+      }
+      declarations.push({ path, size });
+    }
+  }
+  for (const { path, size } of declarations) {
+    if (!safeDeclaredPath(path) || !path.endsWith(".png")) {
+      fail("Declared icon path invalid");
+    }
+    const data = entries.get(path);
+    if (!data?.length) fail("Declared icon resource missing");
+    validatePngIcon(data, size);
+  }
+}
+
 const forbiddenSecretPath =
   /(^|[/])(?:\.env(?:\..*)?|[^/]*\.(?:pem|key|p8|p12|pfx)|id_(?:rsa|dsa|ecdsa|ed25519)|credentials(?:\.json)?|secrets?\.json)$/i;
 const privateKeyText = /-----BEGIN (?:[A-Z0-9]+ )*PRIVATE KEY-----/;
@@ -1035,6 +1230,9 @@ function checkPackage(file, browser, authority, expectedRoot = null) {
   ) {
     fail("Firefox package stable extension ID mismatch");
   }
+  // A manifest declaration is not evidence that its icon exists or decodes.
+  // Check the same bounded ZIP member bytes the browser would install.
+  ensureDeclaredIcons(entries, manifest);
 
   const hosts = manifest.host_permissions;
   if (
