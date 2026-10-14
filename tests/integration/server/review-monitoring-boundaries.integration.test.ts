@@ -10,7 +10,11 @@ import {
   InMemorySwaggerSourceStore,
 } from "../../../packages/server/monitoring-control/src/index.js";
 import { createPostgresApiWatchRetryStore } from "../../../tooling/api-watch/src/retry.js";
-import { InMemoryApiWatchStore } from "../../../tooling/api-watch/src/authority.js";
+import {
+  InMemoryApiWatchStore,
+  createPostgresApiWatchStore,
+  runAuthorityPass,
+} from "../../../tooling/api-watch/src/authority.js";
 import { InMemoryApiWatchReportStore } from "../../../tooling/api-watch/src/report.js";
 import {
   createSourceRegistry,
@@ -71,7 +75,11 @@ function nativeChild(baseline: boolean, runnerFailure = false) {
       "--input-type=module",
       "-e",
       `
-    import { IndependentMonitoringScheduler } from ${JSON.stringify(baseline ? baselineUrl : schedulerUrl)};
+    import * as schedulerModule from ${JSON.stringify(baseline ? baselineUrl : schedulerUrl)};
+    const IndependentMonitoringScheduler = ${baseline ? "schedulerModule.default.IndependentMonitoringScheduler" : "schedulerModule.IndependentMonitoringScheduler"};
+    if (typeof IndependentMonitoringScheduler !== "function") throw new Error("NATIVE_SCHEDULER_MODULE_UNAVAILABLE");
+    import { writeSync } from "node:fs";
+    const observe = value => writeSync(1, JSON.stringify(value) + "\\n");
     import { createPostgresMonitoringScheduleStore } from ${JSON.stringify(storeUrl)};
     import { createDatabaseRuntime } from ${JSON.stringify(databaseUrl)};
     const runtime = createDatabaseRuntime(process.env.REVIEW_FIX_DATABASE_URL);
@@ -87,16 +95,16 @@ function nativeChild(baseline: boolean, runnerFailure = false) {
     let callerCaught = false, databaseError = false;
     try {await scheduler.runNowAndWait("LLM");}
     catch (error) {callerCaught = true; databaseError = error.code === "P0001";
-      console.log(JSON.stringify({callerCaught, databaseError}));}
+      observe({callerCaught, databaseError});}
     await new Promise(resolve => setTimeout(resolve, 25));
     const other = await scheduler.runNowAndWait("SWAGGER_API");
     const llm = await store.getState("LLM");
     const next = llm.activeRun ? await scheduler.runNow("LLM") : {kind: "COMPLETED"};
     await scheduler.stop();
     await runtime.close();
-    console.log(JSON.stringify({survived: true, callerCaught, databaseError,
+    observe({survived: true, callerCaught, databaseError,
       resultAbsent: llm.lastResult === null, leaseRetained: llm.activeRun !== null,
-      llmStatus: llm.lastResult?.status ?? null, other: other.status, restartStart: next.kind}));
+      llmStatus: llm.lastResult?.status ?? null, other: other.status, restartStart: next.kind});
   `,
     ],
     {
@@ -133,6 +141,11 @@ describe.sequential(
         'CREATE TABLE "' +
           schema +
           '".api_watch_retry_state (LIKE public.api_watch_retry_state INCLUDING ALL)',
+      );
+      await admin.query(
+        'CREATE TABLE "' +
+          schema +
+          '".api_watch_authority_records (LIKE public.api_watch_authority_records INCLUDING ALL)',
       );
       await scoped.ready();
       const location = await scoped.query<{ schema: string }>(
@@ -176,8 +189,8 @@ describe.sequential(
       );
       await scoped.query("TRUNCATE monitoring_lane_schedules");
       const red = nativeChild(true);
-      expect(red.status).toBe(1);
-      expect(red.stdout).toContain('"callerCaught":true');
+      expect(red.status, red.stderr).toBe(1);
+      expect(red.stdout, red.stderr).toContain('"callerCaught":true');
       expect(red.stdout).toContain('"databaseError":true');
       expect(red.stdout).not.toContain('"survived":true');
       const before =
@@ -211,6 +224,133 @@ describe.sequential(
         other: "SUCCEEDED",
       });
     }, 30000);
+
+    it.each([503, 200])(
+      "native PG authority order permits a scheduled fetch after explicit HTTP%i at the same validation timestamp",
+      async (nextStatus) => {
+        await scoped.query("TRUNCATE api_watch_authority_records");
+        let calls = 0,
+          status = 403;
+        const now = new Date("2026-10-14T03:00:00Z");
+        const registry = createSourceRegistry({
+          OZON_SELLER: { officialUrl: null, documents: [] },
+          OZON_PERFORMANCE: { officialUrl: null, documents: [] },
+          WILDBERRIES: {
+            officialUrl: null,
+            acceptedHosts: ["127.0.0.1"],
+            requiredServerIdentity: undefined,
+            titlePattern: undefined,
+            documents: [
+              {
+                documentKey: "clock",
+                officialUrl: "http://127.0.0.1/clock",
+                expectedArtifactTypes: ["JSON"],
+              },
+            ],
+          },
+        });
+        const store = createPostgresApiWatchStore(scoped);
+        const dependencies = {
+          registry,
+          store,
+          pendingStore: new InMemorySwaggerSourceStore(),
+          now: () => new Date(now),
+          fetcher: (async () => {
+            calls++;
+            return new Response(
+              status === 200
+                ? JSON.stringify({
+                    openapi: "3.0.3",
+                    info: { title: "Fixture", version: "1" },
+                    paths: {
+                      "/health": {
+                        get: { responses: { "200": { description: "ok" } } },
+                      },
+                    },
+                  })
+                : "synthetic",
+              { status },
+            );
+          }) as typeof fetch,
+        };
+        await runAuthorityPass(dependencies);
+        status = nextStatus;
+        const explicit = await runAuthorityPass(dependencies);
+        expect(
+          explicit.outcomes.find((o) => o.sourceFamily === "WILDBERRIES")?.kind,
+        ).toBe(
+          status === 200
+            ? "ACQUIRED_OFFICIAL_SOURCE_CANDIDATE"
+            : "SOURCE_TEMPORARILY_UNAVAILABLE",
+        );
+        const scheduled = await runAuthorityPass({
+          ...dependencies,
+          store: createPostgresApiWatchStore(scoped),
+          skipOperatorBlocked: true,
+        });
+        expect(calls).toBe(3);
+        expect(
+          scheduled.outcomes.find((o) => o.sourceFamily === "WILDBERRIES")
+            ?.kind,
+        ).toBe(
+          status === 200
+            ? "ACQUIRED_OFFICIAL_SOURCE_CANDIDATE"
+            : "SOURCE_TEMPORARILY_UNAVAILABLE",
+        );
+        const rows = (
+          await createPostgresApiWatchStore(scoped).listAuthorityRecords()
+        ).filter((r) => r.sourceFamily === "WILDBERRIES");
+        expect(rows).toHaveLength(3);
+        expect(
+          rows.every((r) => r.validatedAt.valueOf() === now.valueOf()),
+        ).toBe(true);
+        expect(
+          new Set(rows.map((r) => r.safeProvenance.authorityRecordSequence))
+            .size,
+        ).toBe(3);
+      },
+    );
+
+    it("native PG writers serialize reserved provenance order and another store reads it without caller spoofing", async () => {
+      await scoped.query("TRUNCATE api_watch_authority_records");
+      const now = new Date("2026-10-14T03:00:00Z");
+      const input = {
+        sourceFamily: "WILDBERRIES" as const,
+        officialUrl: "http://127.0.0.1/clock",
+        acquisitionMode: "AUTOMATIC" as const,
+        authorityStatus: "AUTHORITY_BLOCKED" as const,
+        sha256: null,
+        sizeBytes: null,
+        specVersion: null,
+        acquiredAt: null,
+        validatedAt: now,
+        operatorRequestId: null,
+        artifactExtension: null,
+        failureClassification: "OPERATOR_SOURCE_REQUIRED",
+        safeProvenance: {
+          documentKey: "clock",
+          authorityRecordSequence: Number.MAX_SAFE_INTEGER,
+        },
+      };
+      const saved = await Promise.all(
+        [1, 2, 3].map(() =>
+          createPostgresApiWatchStore(scoped).saveAuthorityRecord(input),
+        ),
+      );
+      expect(
+        saved.map((r) => r.safeProvenance.authorityRecordSequence).sort(),
+      ).toEqual([1, 2, 3]);
+      const restored = createPostgresApiWatchStore(scoped);
+      expect(
+        (await restored.listAuthorityRecords()).map(
+          (r) => r.safeProvenance.authorityRecordSequence,
+        ),
+      ).toEqual([1, 2, 3]);
+      expect(
+        (await restored.saveAuthorityRecord(input)).safeProvenance
+          .authorityRecordSequence,
+      ).toBe(4);
+    });
 
     it("13 WB documents retain both scheduled retry passes on real PostgreSQL schedule/retry stores", async () => {
       await scoped.query(

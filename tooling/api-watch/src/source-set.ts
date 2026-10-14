@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { acquireOfficialSource } from "./acquire.js";
+import { compareAuthorityRecordOrder } from "./authority-order.js";
 import type {
   AuthorityRecord,
   FamilyManifest,
@@ -138,11 +139,8 @@ export async function runDocumentAuthorityPass(input: {
   // Use only the latest exact configured document/URL evidence. An explicit
   // operator pass or a newly configured URL may establish fresh authority.
   const priorAuthority = input.skipOperatorBlocked
-    ? (await input.store.listAuthorityRecords()).sort(
-        (a, b) =>
-          b.validatedAt.valueOf() - a.validatedAt.valueOf() ||
-          Number(b.failureClassification === "OPERATOR_SOURCE_REQUIRED") -
-            Number(a.failureClassification === "OPERATOR_SOURCE_REQUIRED"),
+    ? (await input.store.listAuthorityRecords()).sort((a, b) =>
+        compareAuthorityRecordOrder(b, a),
       )
     : [];
   let wbBundleRequestCreated = false;
