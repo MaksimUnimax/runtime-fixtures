@@ -94,12 +94,27 @@ export async function promoteAcceptedSnapshot(input: {
     );
     const handle = await open(temporaryPath, "wx", 0o600);
     try {
+      let writingFailed = false;
+      let writeFailure: unknown;
       try {
         await handle.writeFile(bytes);
         await handle.sync();
-      } finally {
-        await handle.close();
+      } catch (error) {
+        writingFailed = true;
+        writeFailure = error;
       }
+      try {
+        await handle.close();
+      } catch (closeError) {
+        if (writingFailed)
+          throw new AggregateError(
+            [writeFailure, closeError],
+            "SNAPSHOT_WRITE_AND_CLOSE_FAILED",
+            { cause: writeFailure },
+          );
+        throw closeError;
+      }
+      if (writingFailed) throw writeFailure;
       await rename(temporaryPath, artifactPath);
     } catch (error) {
       // Only this invocation's unpublished file is eligible for cleanup.

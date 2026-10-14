@@ -13,6 +13,7 @@ const storageFault = vi.hoisted(() => ({
   stage: "",
   failure: undefined as Error | undefined,
   cleanup: undefined as Error | undefined,
+  closeFailure: undefined as Error | undefined,
 }));
 vi.mock("node:fs/promises", async (importOriginal) => {
   const fs = await importOriginal<typeof Fs>();
@@ -35,6 +36,11 @@ vi.mock("node:fs/promises", async (importOriginal) => {
               if (storageFault.stage === "sync") throw storageFault.failure;
               return target.sync();
             };
+          if (key === "close")
+            return async () => {
+              await target.close();
+              if (storageFault.closeFailure) throw storageFault.closeFailure;
+            };
           const value = Reflect.get(target, key, target);
           return typeof value === "function" ? value.bind(target) : value;
         },
@@ -56,6 +62,7 @@ afterEach(async () => {
   storageFault.stage = "";
   storageFault.failure = undefined;
   storageFault.cleanup = undefined;
+  storageFault.closeFailure = undefined;
   vi.restoreAllMocks();
   for (const path of directories.splice(0))
     await rm(path, { recursive: true, force: true });
@@ -88,6 +95,29 @@ async function fixture() {
   return { directory, store, service, input };
 }
 describe("quarantine retry and uncertain registration", () => {
+  it.each(["write", "sync"])(
+    "preserves simultaneous %s and close failures",
+    async (stage) => {
+      const f = await fixture();
+      const original = Object.assign(new Error("UPLOAD_STORAGE_FAILED"), {
+        code: "ENOSPC",
+      });
+      const close = Object.assign(new Error("CLOSE_STORAGE_FAILED"), {
+        code: "EIO",
+      });
+      storageFault.stage = stage;
+      storageFault.failure = original;
+      storageFault.closeFailure = close;
+      const error: unknown = await f
+        .service()
+        .upload(f.input)
+        .catch((caught) => caught);
+      expect(error).toBeInstanceOf(AggregateError);
+      expect((error as AggregateError).errors).toEqual([original, close]);
+      expect(await readdir(f.directory)).toEqual([]);
+    },
+  );
+
   it.each(["write", "sync", "link"])(
     "preserves the %s failure when temporary cleanup also fails",
     async (stage) => {

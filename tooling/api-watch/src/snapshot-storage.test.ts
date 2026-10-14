@@ -7,7 +7,11 @@ import { InMemoryApiWatchStore } from "./authority.js";
 import { promoteAcceptedSnapshot } from "./snapshot.js";
 import type { AuthorityRecord } from "./types.js";
 
-const fault = vi.hoisted(() => ({ stage: "", cleanup: false }));
+const fault = vi.hoisted(() => ({
+  stage: "",
+  cleanup: false,
+  closeFailure: undefined as Error | undefined,
+}));
 vi.mock("node:fs/promises", async (importOriginal) => {
   const fs = await importOriginal<typeof Fs>();
   const failure = () =>
@@ -34,6 +38,7 @@ vi.mock("node:fs/promises", async (importOriginal) => {
           if (key === "close")
             return async () => {
               await target.close();
+              if (fault.closeFailure) throw fault.closeFailure;
               if (fault.stage === "close") throw failure();
             };
           const value = Reflect.get(target, key, target);
@@ -56,6 +61,7 @@ const realFs = await vi.importActual<typeof Fs>("node:fs/promises");
 const roots: string[] = [];
 afterEach(async () => {
   fault.stage = "";
+  fault.closeFailure = undefined;
   fault.cleanup = false;
   for (const root of roots.splice(0))
     await realFs.rm(root, { recursive: true, force: true });
@@ -92,6 +98,29 @@ async function fixture() {
   };
 }
 describe("snapshot filesystem failure cleanup", () => {
+  it.each(["write", "sync"])(
+    "preserves simultaneous %s and close failures",
+    async (stage) => {
+      const input = await fixture();
+      const close = Object.assign(new Error("CLOSE_STORAGE_FAILED"), {
+        code: "EIO",
+      });
+      fault.stage = stage;
+      fault.closeFailure = close;
+      const error: unknown = await promoteAcceptedSnapshot(input).catch(
+        (caught) => caught,
+      );
+      expect(error).toBeInstanceOf(AggregateError);
+      expect((error as AggregateError).errors[0]).toMatchObject({
+        code: "ENOSPC",
+      });
+      expect((error as AggregateError).errors[1]).toBe(close);
+      expect(
+        await realFs.readdir(join(input.snapshotRoot, "OZON_SELLER")),
+      ).toEqual([]);
+    },
+  );
+
   it.each(["write", "sync", "close", "rename"])(
     "cleans three failed %s attempts and preserves another writer",
     async (stage) => {

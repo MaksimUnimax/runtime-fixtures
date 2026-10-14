@@ -581,12 +581,27 @@ async function retainQuarantineUpload(
   let failed = false;
   let failure: unknown;
   try {
+    let writingFailed = false;
+    let writeFailure: unknown;
     try {
       await handle.writeFile(bytes);
       await handle.sync();
-    } finally {
-      await handle.close();
+    } catch (error) {
+      writingFailed = true;
+      writeFailure = error;
     }
+    try {
+      await handle.close();
+    } catch (closeError) {
+      if (writingFailed)
+        throw new AggregateError(
+          [writeFailure, closeError],
+          "QUARANTINE_WRITE_AND_CLOSE_FAILED",
+          { cause: writeFailure },
+        );
+      throw closeError;
+    }
+    if (writingFailed) throw writeFailure;
     try {
       // A competing upload may publish first. Never overwrite its payload.
       await link(temporary, destination);
