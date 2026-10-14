@@ -329,6 +329,74 @@ describe("P6.1 admin crypto and RBAC foundation", () => {
     expect(token).not.toHaveBeenCalled();
     expect(repo.createAdminSession).not.toHaveBeenCalled();
   });
+  it("rejects runtime portal timestamps that are not Date objects", async () => {
+    const repo = repository();
+    const token = vi.fn(() => "A".repeat(43));
+    const admin = new AdminAuthService(
+      repo,
+      keys,
+      () => new Date("2030-01-01T00:00:00Z"),
+      token,
+    );
+    for (const malformed of [
+      "2030-01-01T00:00:00Z",
+      null,
+      1_893_456_000_000,
+      { getTime: () => 1_893_456_000_000 },
+    ]) {
+      await expect(
+        admin.createAdminSession(
+          { ...portal, createdAt: malformed as unknown as Date },
+          "corr",
+        ),
+      ).resolves.toEqual({ ok: false, code: "ADMIN_REAUTH_REQUIRED" });
+    }
+    expect(token).not.toHaveBeenCalled();
+    expect(repo.createAdminSession).not.toHaveBeenCalled();
+  });
+  it("rejects a runtime clock that is not a Date before side effects", async () => {
+    const repo = repository();
+    const token = vi.fn(() => "A".repeat(43));
+    const admin = new AdminAuthService(
+      repo,
+      keys,
+      () => "2030-01-01T00:00:00Z" as unknown as Date,
+      token,
+    );
+    await expect(admin.createAdminSession(portal, "corr")).resolves.toEqual({
+      ok: false,
+      code: "ADMIN_REAUTH_REQUIRED",
+    });
+    expect(token).not.toHaveBeenCalled();
+    expect(repo.createAdminSession).not.toHaveBeenCalled();
+  });
+  it("rejects session expiry overflow before issuing a token or writing", async () => {
+    const repo = repository();
+    const token = vi.fn(() => "A".repeat(43));
+    const extreme = new Date(8_640_000_000_000_000);
+    const admin = new AdminAuthService(repo, keys, () => extreme, token);
+    await expect(
+      admin.createAdminSession({ ...portal, createdAt: extreme }, "corr"),
+    ).resolves.toEqual({ ok: false, code: "ADMIN_REAUTH_REQUIRED" });
+    expect(token).not.toHaveBeenCalled();
+    expect(repo.createAdminSession).not.toHaveBeenCalled();
+  });
+  it("accepts the last representable session expiry when within the 15-minute boundary", async () => {
+    const repo = repository();
+    const time = new Date(8_640_000_000_000_000 - ADMIN_SESSION_TTL_MS);
+    const admin = service(repo, () => time);
+    const result = await admin.createAdminSession(
+      { ...portal, createdAt: time },
+      "corr",
+    );
+    expect(result.ok).toBe(true);
+    expect(repo.createAdminSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        createdAt: time,
+        expiresAt: new Date(8_640_000_000_000_000),
+      }),
+    );
+  });
   it("uses one verified clock instant for the elevation age and expiry", async () => {
     const repo = repository();
     const initial = new Date("2030-01-01T00:15:00Z");
