@@ -713,42 +713,13 @@ export function createSwaggerHandoffService(options: {
     return options.store.listPending(now());
   }
 
-  async function cleanupFinalizedPayload(requestId: string): Promise<void> {
-    // Terminal requests cannot register new artifacts: saveArtifact locks and
-    // checks the current request row before INSERT. A commit preceding the
-    // terminal transition is visible to this subsequent primary reference read.
-    const current = await options.store.getRequest(requestId);
-    if (!current || !["CANCELLED", "EXPIRED"].includes(current.status)) return;
-    const filename = quarantineFilenameForRequest(requestId);
-    const artifacts = await options.store.listArtifacts(requestId);
-    if (artifacts.some((artifact) => artifact.quarantineFilename === filename))
-      return;
-    const path = join(quarantineDir, filename);
-    try {
-      const metadata = await lstat(path);
-      if (!metadata.isFile() || metadata.isSymbolicLink())
-        throw new Error("QUARANTINE_FINALIZED_PATH_INVALID");
-      await unlink(path);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-    }
-  }
-
-  async function rejectFinalizedPayload(
-    requestId: string,
+  function rejectFinalizedPayload(
     code = "REQUEST_FINALIZED",
-    cause: Error = new SwaggerRequestFinalizedError(),
-  ): Promise<SwaggerUploadResult> {
-    try {
-      await cleanupFinalizedPayload(requestId);
-    } catch (cleanupError) {
-      // Preserve bytes when the primary reference check is unavailable; a
-      // retry of the terminal request will reattempt only this owned cleanup.
-      throw new AggregateError(
-        [cause, cleanupError],
-        "QUARANTINE_FINALIZED_CLEANUP_FAILED",
-      );
-    }
+  ): SwaggerUploadResult {
+    // The canonical name can be shared by competing invocations. A primary DB
+    // reference read and lstat do not grant ownership of its directory entry.
+    // Preserve at most the one stable request payload for later reconciliation;
+    // only retainQuarantineUpload removes its uniquely owned unpublished temp.
     return { kind: "REJECTED", code };
   }
 
@@ -759,10 +730,21 @@ export function createSwaggerHandoffService(options: {
     if (!request) return { kind: "REJECTED", code: "UNKNOWN_REQUEST" };
     const receivedAt = input.receivedAt ?? now();
     if (request.expiresAt && request.expiresAt <= receivedAt) {
-      await options.store.setRequestStatus(request.requestId, "EXPIRED", {
-        preserveTerminal: true,
-      });
-      return rejectFinalizedPayload(request.requestId, "REQUEST_EXPIRED");
+      const expired = await options.store.setRequestStatus(
+        request.requestId,
+        "EXPIRED",
+        {
+          preserveTerminal: true,
+          expectedStatuses: [
+            "PENDING_OPERATOR_UPLOAD",
+            "UPLOAD_RECEIVED",
+            "QUARANTINED",
+          ],
+        },
+      );
+      return rejectFinalizedPayload(
+        expired === false ? "REQUEST_FINALIZED" : "REQUEST_EXPIRED",
+      );
     }
     if (
       input.declaredSourceFamily &&
@@ -797,7 +779,7 @@ export function createSwaggerHandoffService(options: {
     }
     if (["CANDIDATE_READY", "CANCELLED", "EXPIRED"].includes(request.status)) {
       if (["CANCELLED", "EXPIRED"].includes(request.status))
-        return rejectFinalizedPayload(request.requestId);
+        return rejectFinalizedPayload();
       return { kind: "REJECTED", code: "REQUEST_FINALIZED" };
     }
     if ((await options.store.listArtifacts(request.requestId)).length > 0)
@@ -831,7 +813,7 @@ export function createSwaggerHandoffService(options: {
         );
         if (committed) return { kind: "DUPLICATE", artifact: committed };
       }
-      return rejectFinalizedPayload(request.requestId);
+      return rejectFinalizedPayload();
     }
 
     const originalFilename = safeOriginalFilename(input.originalFilename);
@@ -905,11 +887,7 @@ export function createSwaggerHandoffService(options: {
       saved = await options.store.saveArtifact(artifact);
     } catch (error) {
       if (error instanceof SwaggerRequestFinalizedError)
-        return rejectFinalizedPayload(
-          request.requestId,
-          "REQUEST_FINALIZED",
-          error,
-        );
+        return rejectFinalizedPayload();
       // An error does not prove rollback. Reconcile against the primary store;
       // if unavailable or absent, retain the stable bytes for the same retry.
       const committed = await options.store
@@ -928,7 +906,7 @@ export function createSwaggerHandoffService(options: {
           { preserveTerminal: true },
         )) === false
       )
-        return rejectFinalizedPayload(request.requestId);
+        return rejectFinalizedPayload();
       return { kind: "DUPLICATE", artifact: saved.artifact };
     }
     if (
@@ -938,7 +916,7 @@ export function createSwaggerHandoffService(options: {
         { preserveTerminal: true },
       )) === false
     )
-      return rejectFinalizedPayload(request.requestId);
+      return rejectFinalizedPayload();
     return status === "CANDIDATE_READY"
       ? { kind: "CANDIDATE_READY", artifact: saved.artifact }
       : {

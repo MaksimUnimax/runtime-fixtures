@@ -9,6 +9,9 @@ import type { AuthorityRecord } from "./types.js";
 
 const fault = vi.hoisted(() => ({
   stage: "",
+  inspectCode: "",
+  racedBytes: undefined as Buffer | undefined,
+  racedInode: 0,
   cleanup: false,
   closeFailure: undefined as Error | undefined,
 }));
@@ -18,6 +21,13 @@ vi.mock("node:fs/promises", async (importOriginal) => {
     Object.assign(new Error("INJECTED_STORAGE_FAILURE"), { code: "ENOSPC" });
   return {
     ...fs,
+    lstat: async (...args: Parameters<typeof fs.lstat>) => {
+      if (fault.inspectCode && String(args[0]).endsWith(".json"))
+        throw Object.assign(new Error("INSPECTION_FAILED"), {
+          code: fault.inspectCode,
+        });
+      return fs.lstat(...args);
+    },
     open: async (...args: Parameters<typeof fs.open>) => {
       const handle = await fs.open(...args);
       return new Proxy(handle, {
@@ -46,9 +56,14 @@ vi.mock("node:fs/promises", async (importOriginal) => {
         },
       });
     },
-    rename: async (...args: Parameters<typeof fs.rename>) => {
-      if (fault.stage === "rename") throw failure();
-      return fs.rename(...args);
+    link: async (...args: Parameters<typeof fs.link>) => {
+      if (fault.stage === "publish") throw failure();
+      if (fault.racedBytes) {
+        await fs.writeFile(args[1], fault.racedBytes, { flag: "wx" });
+        fault.racedInode = Number((await fs.lstat(args[1])).ino);
+        fault.racedBytes = undefined;
+      }
+      return fs.link(...args);
     },
     unlink: async (...args: Parameters<typeof fs.unlink>) => {
       if (fault.cleanup)
@@ -61,6 +76,9 @@ const realFs = await vi.importActual<typeof Fs>("node:fs/promises");
 const roots: string[] = [];
 afterEach(async () => {
   fault.stage = "";
+  fault.inspectCode = "";
+  fault.racedBytes = undefined;
+  fault.racedInode = 0;
   fault.closeFailure = undefined;
   fault.cleanup = false;
   for (const root of roots.splice(0))
@@ -98,6 +116,48 @@ async function fixture() {
   };
 }
 describe("snapshot filesystem failure cleanup", () => {
+  it.each(["EACCES", "EIO"])(
+    "propagates %s instead of treating an unchecked destination as missing",
+    async (code) => {
+      const input = await fixture();
+      fault.inspectCode = code;
+      await expect(promoteAcceptedSnapshot(input)).rejects.toMatchObject({
+        code,
+      });
+      expect(
+        await realFs.readdir(join(input.snapshotRoot, "OZON_SELLER")),
+      ).toEqual([]);
+    },
+  );
+  it("preserves conflicting bytes published between absence check and publication", async () => {
+    const input = await fixture();
+    const foreign = Buffer.from("other writer");
+    fault.racedBytes = foreign;
+    await expect(promoteAcceptedSnapshot(input)).rejects.toThrow(
+      "SNAPSHOT_CONTENT_ADDRESS_COLLISION",
+    );
+    const path = join(
+      input.snapshotRoot,
+      "OZON_SELLER",
+      `${input.record.sha256}.json`,
+    );
+    expect(await realFs.readFile(path)).toEqual(foreign);
+    expect(
+      await realFs.readdir(join(input.snapshotRoot, "OZON_SELLER")),
+    ).toEqual([`${input.record.sha256}.json`]);
+  });
+  it("reuses an identical raced publication without replacing its inode", async () => {
+    const input = await fixture();
+    fault.racedBytes = input.bytes;
+    const saved = await promoteAcceptedSnapshot(input);
+    expect(Number((await realFs.lstat(saved.artifactPath)).ino)).toBe(
+      fault.racedInode,
+    );
+    expect(await realFs.readFile(saved.artifactPath)).toEqual(input.bytes);
+    expect(
+      await realFs.readdir(join(input.snapshotRoot, "OZON_SELLER")),
+    ).toEqual([`${input.record.sha256}.json`]);
+  });
   it.each(["write", "sync"])(
     "preserves simultaneous %s and close failures",
     async (stage) => {
@@ -121,7 +181,7 @@ describe("snapshot filesystem failure cleanup", () => {
     },
   );
 
-  it.each(["write", "sync", "close", "rename"])(
+  it.each(["write", "sync", "close", "publish"])(
     "cleans three failed %s attempts and preserves another writer",
     async (stage) => {
       const input = await fixture();

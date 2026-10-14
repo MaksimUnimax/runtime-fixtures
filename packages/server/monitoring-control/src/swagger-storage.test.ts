@@ -69,7 +69,7 @@ afterEach(async () => {
   for (const path of directories.splice(0))
     await rm(path, { recursive: true, force: true });
 });
-async function fixture() {
+async function fixture(expiresAt?: Date) {
   const directory = await mkdtemp(
     join(tmpdir(), "octoport-quarantine-storage-"),
   );
@@ -79,6 +79,7 @@ async function fixture() {
   );
   const request = await store.createRequest({
     requestId: "storage-request",
+    expiresAt,
     sourceFamily: "OZON_SELLER",
     officialUrl: "https://example.test/source.json",
     expectedArtifactType: "OPENAPI_OR_SWAGGER",
@@ -97,6 +98,43 @@ async function fixture() {
   return { directory, store, service, input };
 }
 describe("quarantine retry and uncertain registration", () => {
+  it.each(["CANDIDATE_READY", "VALIDATION_FAILED"] as const)(
+    "does not expire concurrently registered %s from a stale request read",
+    async (status) => {
+      const expiry = new Date(Date.now() + 60000);
+      const f = await fixture(expiry);
+      const input =
+        status === "CANDIDATE_READY"
+          ? f.input
+          : { ...f.input, bytes: Buffer.from("{}") };
+      const get = f.store.getRequest.bind(f.store);
+      vi.spyOn(f.store, "getRequest").mockImplementationOnce(async (id) => {
+        const stale = await get(id);
+        await f.service().upload(input);
+        return stale;
+      });
+      await f
+        .service()
+        .upload({ ...input, receivedAt: new Date(expiry.valueOf() + 1) });
+      expect((await get(input.requestId))?.status).toBe(status);
+      expect(await f.store.listArtifacts(input.requestId)).toHaveLength(1);
+    },
+  );
+  it("preserves a foreign canonical payload when terminal rejection does not own its bytes", async () => {
+    const f = await fixture();
+    const filename = `request-${(await import("node:crypto")).createHash("sha256").update(f.input.requestId).digest("hex")}.upload`;
+    const path = join(f.directory, filename);
+    await writeFile(path, "foreign canonical bytes");
+    await f.store.setRequestStatus(f.input.requestId, "CANCELLED");
+    for (let attempt = 0; attempt < 3; attempt++) {
+      expect(await f.service().upload(f.input)).toEqual({
+        kind: "REJECTED",
+        code: "REQUEST_FINALIZED",
+      });
+      expect(await readFile(path, "utf8")).toBe("foreign canonical bytes");
+      expect(await readdir(f.directory)).toEqual([filename]);
+    }
+  });
   it.each(["CANDIDATE_READY", "VALIDATION_FAILED"] as const)(
     "does not regress committed %s when a delayed identical upload crashes",
     async (registeredStatus) => {
@@ -225,7 +263,7 @@ describe("quarantine retry and uncertain registration", () => {
   });
 
   it.each(["CANCELLED", "EXPIRED"] as const)(
-    "cleans an unreferenced payload when %s wins before quarantine update",
+    "retains one stable payload when %s wins before quarantine update",
     async (terminal) => {
       const f = await fixture();
       await writeFile(join(f.directory, "unrelated.tmp"), "keep");
@@ -240,60 +278,47 @@ describe("quarantine retry and uncertain registration", () => {
         kind: "REJECTED",
         code: "REQUEST_FINALIZED",
       });
-      expect(await readdir(f.directory)).toEqual(["unrelated.tmp"]);
+      expect(await readdir(f.directory)).toHaveLength(2);
+      const payload = (await readdir(f.directory)).find((name) =>
+        name.endsWith(".upload"),
+      )!;
+      expect(await readFile(join(f.directory, payload))).toEqual(f.input.bytes);
       expect(await f.store.listArtifacts(f.input.requestId)).toHaveLength(0);
     },
   );
-  it("retains terminalized bytes when artifact reference read is unavailable, then cleans on retry", async () => {
-    const f = await fixture();
-    const lookup = new Error("PRIMARY_REFERENCE_READ_UNAVAILABLE");
-    const service = createSwaggerHandoffService({
-      store: f.store,
-      quarantineDir: f.directory,
-      validateUpload: async () => {
-        await f.store.setRequestStatus(f.input.requestId, "CANCELLED");
-        vi.spyOn(f.store, "listArtifacts").mockRejectedValueOnce(lookup);
-        return undefined;
-      },
-    });
-    const error: unknown = await service
-      .upload(f.input)
-      .catch((caught) => caught);
-    expect(error).toBeInstanceOf(AggregateError);
-    expect((error as AggregateError).errors[1]).toBe(lookup);
-    expect(await readdir(f.directory)).toHaveLength(1);
-    vi.restoreAllMocks();
-    expect(await f.service().upload(f.input)).toEqual({
-      kind: "REJECTED",
-      code: "REQUEST_FINALIZED",
-    });
-    expect(await readdir(f.directory)).toEqual([]);
-  });
-  it("preserves finalization and unlink errors, then cleans unreferenced bytes on retry", async () => {
-    const f = await fixture();
-    const cleanup = new Error("CLEANUP_DENIED");
-    const service = createSwaggerHandoffService({
-      store: f.store,
-      quarantineDir: f.directory,
-      validateUpload: async () => {
-        await f.store.setRequestStatus(f.input.requestId, "EXPIRED");
-        storageFault.cleanup = cleanup;
-        return undefined;
-      },
-    });
-    const error: unknown = await service
-      .upload(f.input)
-      .catch((caught) => caught);
-    expect(error).toBeInstanceOf(AggregateError);
-    expect((error as AggregateError).errors[1]).toBe(cleanup);
-    expect(await readdir(f.directory)).toHaveLength(1);
-    storageFault.cleanup = undefined;
-    expect(await f.service().upload(f.input)).toEqual({
-      kind: "REJECTED",
-      code: "REQUEST_FINALIZED",
-    });
-    expect(await readdir(f.directory)).toEqual([]);
-  });
+  it.each(["CANCELLED", "EXPIRED"] as const)(
+    "retains a bounded canonical payload across repeated %s retries",
+    async (terminal) => {
+      const f = await fixture();
+      const service = createSwaggerHandoffService({
+        store: f.store,
+        quarantineDir: f.directory,
+        validateUpload: async () => {
+          await f.store.setRequestStatus(f.input.requestId, terminal);
+          return undefined;
+        },
+      });
+      expect(await service.upload(f.input)).toEqual({
+        kind: "REJECTED",
+        code: "REQUEST_FINALIZED",
+      });
+      const [filename] = await readdir(f.directory);
+      expect(filename).toMatch(/^request-[a-f0-9]{64}\.upload$/);
+      const getRequest = f.store.getRequest.bind(f.store);
+      for (let attempt = 0; attempt < 3; attempt++) {
+        expect(await f.service().upload(f.input)).toEqual({
+          kind: "REJECTED",
+          code: "REQUEST_FINALIZED",
+        });
+        expect(await readdir(f.directory)).toEqual([filename]);
+        expect(await readFile(join(f.directory, filename!))).toEqual(
+          f.input.bytes,
+        );
+        expect((await getRequest(f.input.requestId))?.status).toBe(terminal);
+      }
+      expect(await f.store.listArtifacts(f.input.requestId)).toHaveLength(0);
+    },
+  );
 
   it.each(["CANCELLED", "EXPIRED"] as const)(
     "checks and locks current %s in the artifact registration transaction",
@@ -355,7 +380,7 @@ describe("quarantine retry and uncertain registration", () => {
         terminal,
       );
       expect(await f.store.listArtifacts(f.input.requestId)).toHaveLength(0);
-      expect(await readdir(f.directory)).toEqual([]);
+      expect(await readdir(f.directory)).toHaveLength(1);
     },
   );
 
