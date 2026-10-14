@@ -1,11 +1,68 @@
 import { randomUUID } from "node:crypto";
 import type { DatabaseRuntime } from "../../../../packages/server/db/src/index.js";
 
-const TABLE_NAME = "[a-z_][a-z0-9_]*(?:\\.[a-z_][a-z0-9_]*)?";
-const TRUNCATE_FIXTURE_SQL = new RegExp(
-  `^TRUNCATE ${TABLE_NAME}(?:, ?${TABLE_NAME})*(?: RESTART IDENTITY)? CASCADE$`,
-  "i",
-);
+// Exact unqualified public-table names observed in the existing C06-compatible
+// test fixture resets (17 C tests, DB maintenance and the B-owned source).
+// Deny migration journals, other schemas and every non-fixture table.
+const APPROVED_FIXTURE_TABLES = new Set([
+  "account_entitlement_overrides",
+  "account_memberships",
+  "accounts",
+  "adapter_profile_assignment_revisions",
+  "adapter_profile_assignments",
+  "adapter_profile_revisions",
+  "adapter_profiles",
+  "admin_principals",
+  "admin_role_grants",
+  "admin_sessions",
+  "ai_adapters",
+  "ai_surfaces",
+  "ai_variants",
+  "audit_events",
+  "auth_rate_limit_buckets",
+  "beta_admission_mutations",
+  "beta_admission_state",
+  "beta_admissions",
+  "beta_identity_invitations",
+  "billing_events",
+  "billing_reconciliation_jobs",
+  "checkout_intents",
+  "compatibility_policy_blocked_versions",
+  "compatibility_policy_revisions",
+  "config_release_compatibility_policies",
+  "config_release_feature_rules",
+  "config_release_rollout_revisions",
+  "config_releases",
+  "device_authorizations",
+  "devices",
+  "entitlement_definitions",
+  "extension_release_browsers",
+  "extension_release_contracts",
+  "extension_releases",
+  "feature_definitions",
+  "feature_rule_revisions",
+  "otp_challenges",
+  "otp_email_jobs",
+  "payments",
+  "plan_entitlements",
+  "plan_revisions",
+  "plans",
+  "portal_sessions",
+  "price_revisions",
+  "price_sale_assignments",
+  "prices",
+  "refresh_tokens",
+  "rollouts",
+  "sessions",
+  "signing_key_events",
+  "signing_keys",
+  "subscription_transitions",
+  "subscriptions",
+  "user_identities",
+  "users",
+]);
+const TRUNCATE_FIXTURE_SQL =
+  /^TRUNCATE ([a-z_][a-z0-9_]*(?:, ?[a-z_][a-z0-9_]*)*)(?: RESTART IDENTITY)? CASCADE$/i;
 
 function allowedTestDatabase(name: string): boolean {
   if (name === "octoport_c_test") return true;
@@ -30,7 +87,16 @@ export async function resetTransferProtectedTestFixture(
   truncateSql: string,
 ): Promise<void> {
   const statement = truncateSql.trim().replace(/\s+/g, " ");
-  if (!TRUNCATE_FIXTURE_SQL.test(statement)) {
+  const matched = TRUNCATE_FIXTURE_SQL.exec(statement);
+  const targets = matched?.[1]
+    ?.split(",")
+    .map((value) => value.trim().toLowerCase());
+  if (
+    !targets ||
+    targets.length > APPROVED_FIXTURE_TABLES.size ||
+    new Set(targets).size !== targets.length ||
+    targets.some((name) => !APPROVED_FIXTURE_TABLES.has(name))
+  ) {
     throw new Error("TRANSFER_FIXTURE_RESET_SQL_NOT_ALLOWED");
   }
   await database.transaction(async (tx) => {

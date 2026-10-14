@@ -127,7 +127,16 @@ describe("fenced integration-only fixture reset", () => {
     ).rejects.toThrow("TRANSFER_FIXTURE_RESET_CLAIM_INVALID");
     expect(f.calls).toHaveLength(3);
   });
-  it.each(["DELETE FROM users", "TRUNCATE users CASCADE; DROP TABLE users"])(
+  it.each([
+    "DELETE FROM users",
+    "TRUNCATE users CASCADE; DROP TABLE users",
+    "TRUNCATE drizzle.__drizzle_migrations CASCADE",
+    "TRUNCATE octoport_transfer_fence.writer_epoch CASCADE",
+    "TRUNCATE public.users CASCADE",
+    "TRUNCATE unauthorized_table CASCADE",
+    "TRUNCATE users,unauthorized_table CASCADE",
+    "TRUNCATE users,users CASCADE",
+  ])(
     "rejects non-TRUNCATE or multi-statement input before connecting: %s",
     async (sql) => {
       const f = fixture();
