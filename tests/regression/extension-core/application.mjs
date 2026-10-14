@@ -1025,6 +1025,32 @@ await test('R3-expired-buffer-cleanup-preserves-first-replay-fence', async () =>
 });
 
 
+await test('R3-chatgpt-send-baseline-persists-across-worker-restart-without-replay', async () => {
+ const s=await setup(); let restarted;
+ try {
+  const store=await s.save(ozon('BASELINE_CLIENT','BASELINE_KEY')), started=await s.start(store);
+  await s.execute(started, 'OZON_API_V1 {"operation":"roles","params":{}}', 'baseline-provider-once');
+  const owner=await s.collected(started);
+  const fields={owner_kind:'manual',owner_id:owner.operation_id,conversation_key:started.key,delivery_id:owner.delivery_id,actor_id:'original-content'};
+  assert.equal((await s.worker.request({type:'OZ_BATCH_DELIVERY_INSERT_COMMIT',...fields},started.sender)).insert_allowed,true);
+  assert.equal((await s.worker.request({type:'OZ_BATCH_DELIVERY_INSERTED',...fields},started.sender)).ok,true);
+  const invalid=await s.worker.request({type:'OZ_WORK_SEND_COMMIT',...fields,chatgpt_user_baseline:[null]},started.sender);
+  assert.equal(invalid.code,'DELIVERY_BASELINE_INVALID');
+  assert.equal((await s.worker.call('getManualOperation',started.key)).delivery.sa_send_actor,undefined);
+  const first=await s.worker.request({type:'OZ_WORK_SEND_COMMIT',...fields,chatgpt_user_baseline:['old-user']},started.sender);
+  assert.equal(first.click_allowed,true);assert.equal(first.send_click_committed,true);assert.deepEqual(plain(first.chatgpt_user_baseline),['old-user']);
+  const denied=await s.worker.request({type:'OZ_WORK_SEND_COMMIT',...fields,actor_id:'replacement-content',chatgpt_user_baseline:['old-user','new-report']},started.sender);
+  assert.equal(denied.click_allowed,false);assert.deepEqual(plain(denied.chatgpt_user_baseline),['old-user']);
+  assert.equal(s.worker.network.length,1);
+  const backing=s.worker.backing;s.worker.close();
+  restarted=await makeWorker(runtime,{backing,fetch:async()=>{throw new Error('recovery must not replay provider');}});
+  const stored=await restarted.call('getManualOperation',started.key);
+  const recovery=await restarted.call('manualBatchRecoveryPayload',stored,'watch_delivery');
+  assert.equal(recovery.send_click_committed,true);assert.deepEqual(plain(recovery.chatgpt_user_baseline),['old-user']);
+  assert.equal(stored.delivery.sa_send_actor,'original-content');assert.equal(restarted.network.length,0);
+ } finally {s.worker.close();restarted?.close();}
+});
+
 // Exercise the composed content script, retaining durable no-replay and dialogue fences.
 const deliverySource = fs.readFileSync(path.join(runtime, 'content_script.js'), 'utf8');
 const deliveryWatchStart = deliverySource.indexOf('  async function runBatchDeliveryWatch(');
@@ -1041,25 +1067,30 @@ const deliveryWitnessCases=[
  {name:"new_matching_user_turn_microphone",ready:"microphone",newText:"SYNTHETIC REPORT",ack:1,clicks:1},
  {name:"durable_send_commit_denied",denyCommit:true,ack:0,clicks:0},
  {name:"conversation_changed_after_click",changeConversation:true,ack:0,clicks:1},
- {name:"empty_expected_report",outgoing:"",newText:"SYNTHETIC REPORT",ack:0,clicks:1}
+ {name:"empty_expected_report",outgoing:"",newText:"SYNTHETIC REPORT",ack:0,clicks:1},
+ {name:"recovered_delivered_microphone",recovered:true,soleMic:true,initialUsers:[{id:"new",text:"SYNTHETIC REPORT"}],ack:1,clicks:0},
+ {name:"recovered_delivered_disabled",recovered:true,recoveredKind:"work_send_disabled",initialUsers:[{id:"new",text:"SYNTHETIC REPORT"}],ack:1,clicks:0},
+ {name:"recovered_old_matching_turn",recovered:true,soleMic:true,baseline:["new"],initialUsers:[{id:"new",text:"SYNTHETIC REPORT"}],ack:0,clicks:0},
+ {name:"recovered_legacy_missing_baseline",recovered:true,soleMic:true,missingBaseline:true,initialUsers:[{id:"new",text:"SYNTHETIC REPORT"}],ack:0,clicks:0},
+ {name:"recovered_unsent_draft_no_second_send",recovered:true,ack:0,clicks:0}
 ];
 for (const s of deliveryWitnessCases) await test('R3-chatgpt-delivery-' + s.name, async () => {
- let running=true,clicks=0,wakes=0,commits=0;const acks=[],users=s.oldMatch?[{id:"old",text:"SYNTHETIC REPORT"}]:[];
+ let running=true,clicks=0,wakes=0,commits=0;const acks=[],users=s.initialUsers??(s.oldMatch?[{id:"old",text:"SYNTHETIC REPORT"}]:[]);
  class Button{constructor(){this.isConnected=true;}click(){clicks++;if(s.newText)users.push({id:"new",text:s.newText});}}
  const button=new Button(),adapter={id:"chatgpt",userMessages:()=>users,messageId:n=>n.id,messageText:n=>n.text};
  const ctx={HTMLElement:Button,activeDeliveryWatch:null,DELIVERY_WATCH_INTERVAL_MS:1,manualEnabled:true,manualConversationKey:"chat",runtimeId:"synthetic-runtime",saContentContext:{},
  current:()=>running,sameConversation:()=>!s.changeConversation||wakes===0,conversationKeyFromLocation:()=>"chat",currentAIAdapter:()=>adapter,userTurnIds:()=>users.map(n=>n.id),canonicalText:x=>String(x??"").trim(),
- classifyComposerControl:()=>({kind:s.soleMic?"microphone":clicks===0?"work_send_active":s.ready??"work_send_disabled",button}),
+ classifyComposerControl:()=>({kind:s.recoveredKind??(s.soleMic?"microphone":clicks===0?"work_send_active":s.ready??"work_send_disabled"),button}),
  recordContentDiagnostic:()=>{},diagnosticForControlKind:x=>x,toast:()=>{},setManualBridgeReady:()=>{},visible:()=>true,controlDisabled:()=>false,saCheckDelivery:async()=>{},
  waitForDeliveryWatchWake:async()=>{if(++wakes>3)running=false;},sleep:async()=>{if(++wakes>3)running=false;},
- sendRuntime:async(type,body)=>{if(type==="OZ_BATCH_DELIVERY_COMPLETE")acks.push(body);if(type==="OZ_WORK_SEND_COMMIT")commits++;return {ok:true,click_allowed:!s.denyCommit};},
+ sendRuntime:async(type,body)=>{if(type==="OZ_BATCH_DELIVERY_COMPLETE")acks.push(body);if(type==="OZ_WORK_SEND_COMMIT")commits++;return {ok:true,click_allowed:!s.denyCommit,send_click_committed:!s.denyCommit,chatgpt_user_baseline:body.chatgpt_user_baseline??null};},
  stopDeliveryWatch:()=>{ctx.activeDeliveryWatch=null;running=false;}
  };
  vm.createContext(ctx);vm.runInContext(generatedDeliveryWatch+"\nglobalThis.testWatch=runBatchDeliveryWatch;",ctx);
- await ctx.testWatch({delivery_mode:'batch_watch_v1',owner_kind:'manual',owner_id:'synthetic-owner',delivery_id:'synthetic-delivery',conversation_key:'chat',origin:'https://chatgpt.com',conversation_id:'synthetic',outgoing_text:s.outgoing??'SYNTHETIC REPORT'});
+ await ctx.testWatch({delivery_mode:'batch_watch_v1',owner_kind:'manual',owner_id:'synthetic-owner',delivery_id:'synthetic-delivery',conversation_key:'chat',origin:'https://chatgpt.com',conversation_id:'synthetic',outgoing_text:s.outgoing??'SYNTHETIC REPORT',send_click_committed:s.recovered===true,chatgpt_user_baseline:s.recovered&&!s.missingBaseline?(s.baseline??[]):null});
  assert.equal(acks.length,s.ack,s.name); assert.equal(clicks,s.clicks,s.name);
  assert.ok(commits<=1,'durable send commit stays one-shot');
  if(s.ack) assert.equal(acks[0].confirmed_user_turn_id,'new');
 });
 if (selectedScenario && results.length !== 1) throw new Error('Selected scenario was not executed');
-console.log(JSON.stringify({ status:'PASS', results, live_provider_calls:0, scope:'actual generated worker/popup messages and attachment port; simulated browser and provider; not installed live acceptance' },null,2));
+console.log(JSON.stringify({ status:'PASS', results, live_provider_calls:0, scope:'actual generated worker, popup, attachment port and content delivery watcher; simulated browser and provider; not installed live acceptance' },null,2));
