@@ -1290,7 +1290,8 @@ const SA_SUPPORT_TRANSPORT_CLASSES = new Set([
   "TAB_GONE",
   "CONTEXT_INVALIDATED",
   "SYNC_SEND_EXCEPTION",
-  "OTHER_TAB_MESSAGE_ERROR"
+  "OTHER_TAB_MESSAGE_ERROR",
+  "RESPONSE_TIMEOUT"
 ]);
 function saSupportTransportClass(value) {
   const transportClass = typeof value === "string" ? value : "";
