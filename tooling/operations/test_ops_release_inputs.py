@@ -40,6 +40,7 @@ tree_sha=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 NODE_BIN=/usr/bin/true
 PNPM_BIN=/usr/bin/true
 store_root="$RELEASE_ROOT"
+store_path="$RELEASE_ROOT"
 corepack_home="$RELEASE_ROOT"
 fail() { printf '%s\n' "$*" >&2; exit 1; }
 systemctl() {

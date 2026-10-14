@@ -166,7 +166,7 @@ publish_identity="$(stat -c '%d:%i' "${publish_tmp}")"
 unit="octoport-ops-build-$(basename "${tmp}").service"
 build_description="Octoport ops build ${head_sha} stage ${tmp}"
 [[ "$(systemctl show "${unit}" -p LoadState --value)" == not-found ]] || fail "build unit already exists"
-printf '[octoport-ops-release] bounded build unit=%s size=1073741824 inodes=65536\n' "${unit}"
+printf '[octoport-ops-release] bounded build unit=%s size=1073741824 inodes=65536 private_store_metadata_size=1048576 inodes=256\n' "${unit}"
 systemd-run --unit="${unit}" --description="${build_description}" --quiet --wait --pipe --service-type=exec \
   --property=RuntimeMaxSec=900 --property=KillMode=control-group --property=TimeoutStopSec=5s \
   --property=SendSIGKILL=yes --property=OOMPolicy=stop --property=MemoryAccounting=yes \
@@ -175,7 +175,8 @@ systemd-run --unit="${unit}" --description="${build_description}" --quiet --wait
   --property=ProtectSystem=strict --property=ProtectHome=read-only \
   --property=NoNewPrivileges=yes --property=CapabilityBoundingSet= \
   --property=PrivateDevices=yes --property=ProtectKernelTunables=yes --property=ProtectControlGroups=yes \
-  --property="ReadWritePaths=${publish_tmp}" \
+  --property="TemporaryFileSystem=${store_path}/projects:rw,size=1048576,nr_inodes=256,mode=0755" \
+  --property="ReadWritePaths=${publish_tmp} ${store_path}/projects" \
   --property="ReadOnlyPaths=${SOURCE_DIR} ${store_root} ${corepack_home} /tmp /var/tmp" \
   --setenv=COREPACK_ENABLE_NETWORK=0 \
   --setenv="OCTOPORT_NODE_BIN=${NODE_BIN}" --setenv="OCTOPORT_PNPM_BIN=${PNPM_BIN}" \
