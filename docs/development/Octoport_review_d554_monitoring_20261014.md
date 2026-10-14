@@ -67,3 +67,16 @@ A подтвердил отсутствие передачи client.js: OPERATOR
 Добавлен native PG сценарий срока HTTP-date после смены экземпляров scheduler/store: 13 запросов до retry, zero early refetch и ровно 26 после единственного 429 retry. Локально выполнена только collection 12 native сценариев; фактическое PostgreSQL выполнение и CI нового exact SHA ещё нужны. Предыдущие 11 PG/1859 integration/202 E2E/five CI и installed-synthetic 0.2.24 PASS сохраняются за ed18c889. Новая база содержит опубликованную версию 0.2.25; её installed acceptance здесь пока не заявляется.
 
 A R6 является независимым scoped source/test PASS clock-fix, не полной приёмкой successor с новой acquisition семантикой. Запрошено independent review объединённого кандидата. Профиль ИИ и ledger остаются OPEN: адресная передача трёх файлов по-прежнему PENDING. Исходные пять сохраняются в checkpoint; audit/disk/Tester/R3 и прежние B/C платформенные отказы не перехватывались. Удалённые errors.json/events.jsonl не читались, не восстанавливались и не создавались.
+
+
+## Review of main 1691d7c0: all six source repairs
+
+The follow-up review at `3a774090554dcedafbd3338bf7d247ebab73b30c` expands this candidate to all six P2 findings. The three original fixes remain: monitoring rejection containment, Telegram raw-update offset progress, and one retry-budget entry per WB family pass. It also addresses the independently reported failed-start orphan timer.
+
+Automatic Swagger discovery now atomically reuses request history by family, document, URL and bundle version. It cannot overwrite a candidate or reopen a cancelled/expired request. An explicit operator request creates a new generation. PostgreSQL locks the absent-row case within the transaction; concurrent full report passes retain one generation. The tests upload a complete synthetic 13-document WB bundle and check both terminal history and pending-request idempotency.
+
+A changed signed AI profile participates in grant identity, revoking captured contexts for that AI. Refresh timestamps and config version alone retain the grant. Generated-worker tests use actual fixture signatures and check revision, content and compatibility changes, neighbor AI isolation, provider admission, late result, retry and copy guards.
+
+The existing command writer compacts completed RESULT receipts from previous Work sessions for the same account. It retains uncertain provider/delivery effects, their predecessor chains and current Work replay fences. New Work can recover capacity after 2000 completed records without deleting UNKNOWN history. Source tests cover expired and unexpired payloads, foreign-account protection, uncertain delivery preservation and restart replay fencing. Generated-worker tests exercise actual Finish, Start and worker restart with 2000 seeded completed markers and no provider requests.
+
+Local source checks and generated-worker results are separate from native PostgreSQL and installed acceptance. The previous exact `13cfa4c6` receipts are historical and do not approve these new source changes. The final candidate requires fresh exact-SHA CI and independent review. The repairs do not establish production deployment or server disk reclamation.

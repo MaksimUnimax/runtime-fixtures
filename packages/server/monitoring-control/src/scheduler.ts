@@ -40,6 +40,8 @@ export class IndependentMonitoringScheduler {
   private readonly tickMs: number;
   private readonly active = new Map<string, Promise<void>>();
   private timer: ReturnType<typeof setInterval> | undefined;
+  private starting: Promise<void> | undefined;
+  private lifecycle = 0;
 
   public constructor(
     private readonly options: IndependentMonitoringSchedulerOptions,
@@ -49,17 +51,35 @@ export class IndependentMonitoringScheduler {
     this.tickMs = options.tickMs ?? 1_000;
   }
 
-  async start(): Promise<void> {
-    await this.options.store.ensureDefaults(this.clock.now());
-    this.timer = setInterval(() => {
-      void this.tick().catch(() => this.reportBackgroundFailure());
-    }, this.tickMs);
-    await this.tick();
+  start(): Promise<void> {
+    if (this.timer) return Promise.resolve();
+    if (this.starting) return this.starting;
+    const lifecycle = ++this.lifecycle;
+    const pending = (async () => {
+      await this.options.store.ensureDefaults(this.clock.now());
+      if (lifecycle !== this.lifecycle)
+        throw new Error("MONITORING_START_STOPPED");
+      // A rejected initial tick must propagate without leaving periodic work.
+      await this.tick();
+      if (lifecycle !== this.lifecycle)
+        throw new Error("MONITORING_START_STOPPED");
+      this.timer = setInterval(() => {
+        void this.tick().catch(() => this.reportBackgroundFailure());
+      }, this.tickMs);
+    })();
+    this.starting = pending;
+    const clearStarting = () => {
+      if (this.starting === pending) this.starting = undefined;
+    };
+    void pending.then(clearStarting, clearStarting);
+    return pending;
   }
 
   async stop(): Promise<void> {
+    ++this.lifecycle;
     if (this.timer) clearInterval(this.timer);
     this.timer = undefined;
+    this.starting = undefined;
   }
 
   async status(lane: MonitoringLane): Promise<MonitoringLaneState> {

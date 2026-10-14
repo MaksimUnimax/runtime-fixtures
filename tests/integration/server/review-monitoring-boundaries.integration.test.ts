@@ -8,6 +8,8 @@ import {
   IndependentMonitoringScheduler,
   createPostgresMonitoringScheduleStore,
   InMemorySwaggerSourceStore,
+  createPostgresSwaggerSourceStore,
+  createSwaggerHandoffService,
 } from "../../../packages/server/monitoring-control/src/index.js";
 import { createPostgresApiWatchRetryStore } from "../../../tooling/api-watch/src/retry.js";
 import {
@@ -20,6 +22,15 @@ import {
   createSourceRegistry,
   productionSourceRegistry,
 } from "../../../tooling/api-watch/src/source-registry.js";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { InMemoryApiWatchRetryStore } from "../../../tooling/api-watch/src/retry.js";
+import {
+  createWbBundle,
+  validateWbBundleUpload,
+  WB_BUNDLE_DOCUMENT_KEY,
+} from "../../../tooling/api-watch/src/wb-bundle.js";
 import { runApiWatchReport } from "../../../tooling/api-watch/src/run.js";
 
 const connectionString = process.env.DATABASE_URL;
@@ -147,6 +158,20 @@ describe.sequential(
           schema +
           '".api_watch_authority_records (LIKE public.api_watch_authority_records INCLUDING ALL)',
       );
+      for (const table of [
+        "swagger_source_requests",
+        "swagger_source_artifacts",
+      ]) {
+        await admin.query(
+          'CREATE TABLE "' +
+            schema +
+            '".' +
+            table +
+            " (LIKE public." +
+            table +
+            " INCLUDING ALL)",
+        );
+      }
       await scoped.ready();
       const location = await scoped.query<{ schema: string }>(
         "SELECT current_schema() AS schema",
@@ -168,6 +193,106 @@ describe.sequential(
       if (created) await admin.query('DROP SCHEMA "' + schema + '" CASCADE');
       await admin.close();
     });
+
+    it.each(["CANDIDATE_READY", "CANCELLED", "EXPIRED"] as const)(
+      "native PostgreSQL preserves %s generation across later full reports",
+      async (terminal) => {
+        await scoped.query(
+          "TRUNCATE swagger_source_artifacts, swagger_source_requests",
+        );
+        const pendingStore = createPostgresSwaggerSourceStore(scoped);
+        const now = new Date("2026-10-14T00:00:00Z");
+        const dependencies = {
+          registry: productionSourceRegistry,
+          store: new InMemoryApiWatchStore(),
+          reportStore: new InMemoryApiWatchReportStore(),
+          retryStore: new InMemoryApiWatchRetryStore(),
+          pendingStore,
+          clock: () => now,
+          fetcher: (async () =>
+            new Response("synthetic403", { status: 403 })) as typeof fetch,
+        };
+        let index = 0;
+        const pass = () =>
+          runApiWatchReport({
+            runId: "native-lifecycle-" + terminal + index++,
+            source: "FORCED",
+            dependencies,
+          });
+        const concurrent = await Promise.all(Array.from({ length: 4 }, pass));
+        expect(concurrent.map((result) => result.status)).toEqual(
+          Array(4).fill("NOT_OBSERVABLE"),
+        );
+        const request = (await pendingStore.listPending(now)).find(
+          (row) => row.documentKey === WB_BUNDLE_DOCUMENT_KEY,
+        )!;
+        expect(request).toBeDefined();
+        const count = async () =>
+          (
+            await scoped.query<{ count: string }>(
+              "SELECT count(*)::text AS count FROM swagger_source_requests WHERE document_key=$1",
+              [WB_BUNDLE_DOCUMENT_KEY],
+            )
+          ).rows[0]!.count;
+        expect(await count()).toBe("1");
+        const root = await mkdtemp(
+          join(tmpdir(), "octoport-review-native-lifecycle-"),
+        );
+        try {
+          if (terminal === "CANDIDATE_READY") {
+            const bytes = new TextEncoder().encode(
+              createWbBundle(
+                productionSourceRegistry
+                  .get("WILDBERRIES")
+                  .documents!.map((document, i) => ({
+                    documentKey: document.documentKey,
+                    filename: document.officialUrl
+                      .split("/")
+                      .pop()!
+                      .split("?")[0]!,
+                    content: `openapi: 3.0.3\ninfo:\n  title: WB ${i}\n  version: '1'\npaths:\n  /document-${i}:\n    get:\n      responses:\n        '200':\n          description: ok\n`,
+                  })),
+                now.toISOString(),
+              ),
+            );
+            const service = createSwaggerHandoffService({
+              store: pendingStore,
+              quarantineDir: root,
+              validateUpload: validateWbBundleUpload,
+            });
+            expect(
+              (
+                await service.upload({
+                  requestId: request.requestId,
+                  operatorId: "synthetic",
+                  originalFilename: "wildberries-openapi-bundle.json",
+                  bytes,
+                  receivedAt: now,
+                })
+              ).kind,
+            ).toBe("CANDIDATE_READY");
+            expect(
+              await pendingStore.listArtifacts(request.requestId),
+            ).toHaveLength(1);
+          } else
+            await pendingStore.setRequestStatus(request.requestId, terminal);
+          expect((await pass()).status).toBe("NOT_OBSERVABLE");
+          expect((await pass()).status).toBe("NOT_OBSERVABLE");
+          expect(
+            (await pendingStore.getRequest(request.requestId))?.status,
+          ).toBe(terminal);
+          expect(await count()).toBe("1");
+          expect(
+            (await pendingStore.listPending(now)).filter(
+              (row) => row.documentKey === WB_BUNDLE_DOCUMENT_KEY,
+            ),
+          ).toHaveLength(0);
+        } finally {
+          await rm(root, { recursive: true, force: true });
+        }
+      },
+      30000,
+    );
 
     it("reproduces the frozen baseline failure then preserves the caller error, lease and other lane in the candidate", async () => {
       const frozen = (

@@ -101,7 +101,7 @@ const digest = value => createHash("sha256").update(value).digest("hex");
 const canonicalJson = value => JSON.stringify(value, (key, item) => item && typeof item === "object" && !Array.isArray(item)
   ? Object.fromEntries(Object.keys(item).sort().map(k => [k, item[k]])) : item);
 function ledgerFixture() {
-  let disk = {}, id = 0, time = 1000, allowed = true;
+  let disk = {}, id = 0, time = 1000, allowed = true, writer;
   const buffers = new Map();
   const context = { accountId: "U", principalEpoch: 1, accessEpoch: 1, grantEpoch: 1, scopeKey: "G",
     bindingRevision: 1, workGeneration: 1, workSessionId: "W", conversationBindingId: "B" };
@@ -113,6 +113,7 @@ function ledgerFixture() {
       namespace: "manual", writerKey: "manual", read: async () => structuredClone(disk),
       write: async value => { disk = structuredClone(value); }, now: () => new Date(time).toISOString(),
     });
+    writer = store;
     return realm.SellerAgentsCommandLedger.createCommandLedger({ store, canonicalJson, sha256: async value => digest(value),
       makeId: () => "id-" + (++id), now: () => time,
       assertContext: candidate => allowed && canonicalJson(candidate) === canonicalJson(context),
@@ -122,6 +123,7 @@ function ledgerFixture() {
   }
   const api = restart();
   return { api, restart, input, context, item, read: () => structuredClone(disk),
+    async seed(commands) { await writer.mutate("C1", current => ({ ...(current || {}), r3_commands: structuredClone(commands) })); },
     setTime(value) { time = value; }, deny() { allowed = false; }, allow() { allowed = true; },
     buffer(executionId, value) { buffers.set(executionId, structuredClone(value)); }, buffers };
 }
@@ -266,3 +268,74 @@ await test("PAR-34/source a fresh review cannot rebind an UNKNOWN receipt to ano
   await assert.rejects(retryPreview(f, oldId), { code: "COMMAND_CONTEXT_MISMATCH" });
 });
 console.log("SOURCE writer/receipt suite: " + count + " scenarios passed; integration, PACKAGE and INSTALLED remain NOT_RUN.");
+
+function completedHistory(f, amount, expiresAt = 1) {
+  const data = { schema: 2, origins: {}, receipts: {}, approvals: {}, deliveries: {} };
+  for (let i = 0; i < amount; i++) {
+    const executionId = "history-" + i, blockOriginKey = digest("old-origin-" + i);
+    data.origins[blockOriginKey] = { approvalRevision: 0 };
+    data.receipts[executionId] = {
+      executionId, commandKey: digest("old-command-" + i), blockOriginKey,
+      blockVersion: digest("old-block-" + i), approvalRevision: 0,
+      context: structuredClone(f.context), createdAt: 0, payloadExpiresAt: expiresAt,
+      predecessor: null, items: [{ ordinal: 0, inputHash: digest("old-input-" + i),
+        itemId: "old-item-" + i, state: "RESULT", providerAttemptId: "old-attempt-" + i,
+        bufferDigest: digest("old-result-" + i) }],
+    };
+  }
+  return data;
+}
+for (const expiresAt of [1, 3601000]) await test(
+  "review main1691 capacity: new Work recovers 2000 completed markers, expiry=" + expiresAt,
+  async () => {
+    const f = ledgerFixture(), data = completedHistory(f, 2000, expiresAt);
+    await f.seed(data);
+    await assert.rejects(f.api.reserveCommand(f.input), { code: "WORK_MARKER_CAPACITY_START_REQUIRED" });
+    f.context.workSessionId = "NEW-WORK"; f.context.workGeneration++;
+    const next = await f.api.reserveCommand({ ...f.input, blockOriginKey: digest("new-work-origin") });
+    assert.equal(next.duplicate, false); assert.equal(next.dispatch, false);
+    const record = f.read().manual.C1.r3_commands;
+    assert.equal(Object.keys(record.receipts).length, 1);
+    assert.equal(Object.keys(record.origins).length, 1);
+    const args = { ...f.input, executionId: next.executionId, ordinal: 0 };
+    assert.equal((await f.api.beginProviderAttempt(args)).dispatch, true);
+    assert.equal((await f.restart().beginProviderAttempt(args)).dispatch, false);
+  },
+);
+await test("review main1691 capacity: previous Work UNKNOWN and delivery intents remain byte-identical", async () => {
+  const f = ledgerFixture(), data = completedHistory(f, 1999);
+  const uncertain = data.receipts["history-1998"];
+  uncertain.items[0].state = "UNKNOWN";
+  data.deliveries["uncertain-delivery"] = {
+    deliveryId: "uncertain-delivery", executionId: "history-0", state: "UNKNOWN",
+    expiresAt: 1, context: structuredClone(f.context), bufferDigest: digest("old-result-0"),
+  };
+  await f.seed(data);
+  const oldUnknown = structuredClone(uncertain), oldDelivery = structuredClone(data.deliveries["uncertain-delivery"]);
+  f.context.workSessionId = "NEW-WORK"; f.context.workGeneration++;
+  const next = await f.api.reserveCommand({ ...f.input, blockOriginKey: digest("new-work-after-unknown") });
+  const stored = f.read().manual.C1.r3_commands;
+  assert.deepEqual(stored.receipts["history-1998"], oldUnknown);
+  assert.deepEqual(stored.deliveries["uncertain-delivery"], oldDelivery);
+  assert.ok(stored.receipts["history-0"]);
+  assert.equal(Object.keys(stored.receipts).length, 3);
+  await assert.rejects(f.api.beginProviderAttempt({ ...f.input, executionId: "history-1998", ordinal: 0 }), { code: "COMMAND_CONTEXT_MISMATCH" });
+  assert.equal((await f.restart().beginProviderAttempt({ ...f.input, executionId: next.executionId, ordinal: 0 })).dispatch, true);
+});
+console.log("SOURCE writer/ledger final: " + count + " scenarios passed; no provider requests executed.");
+
+for (const control of ["UNKNOWN", "FOREIGN_ACCOUNT"]) await test(
+  "capacity compaction retains fail-closed " + control + " history after a new Work", async () => {
+    const f = ledgerFixture(), data = completedHistory(f, 2000);
+    for (const receipt of Object.values(data.receipts)) {
+      if (control === "UNKNOWN") receipt.items[0].state = "UNKNOWN";
+      else receipt.context.accountId = "OTHER-ACCOUNT";
+    }
+    await f.seed(data);
+    const before = structuredClone(f.read().manual.C1.r3_commands);
+    f.context.workSessionId = "NEW-WORK"; f.context.workGeneration++;
+    await assert.rejects(f.api.reserveCommand({ ...f.input, blockOriginKey: digest("different-work") }),
+      { code: "WORK_MARKER_CAPACITY_START_REQUIRED" });
+    assert.deepEqual(f.read().manual.C1.r3_commands, before);
+  });
+console.log("SOURCE final ledger controls: " + count + " scenarios passed.");

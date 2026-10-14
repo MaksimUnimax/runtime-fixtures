@@ -104,6 +104,10 @@ export interface SwaggerSourceStore {
     expiresAt?: Date | null;
     blockerReason: string;
   }): Promise<SwaggerSourceRequest>;
+  // Automatic discovery reuses history; only createRequest explicitly renews it.
+  ensureRequest(
+    input: Parameters<SwaggerSourceStore["createRequest"]>[0],
+  ): Promise<SwaggerSourceRequest>;
   getRequest(requestId: string): Promise<SwaggerSourceRequest | undefined>;
   listPending(now: Date): Promise<SwaggerSourceRequest[]>;
   findOpenRequest(
@@ -187,6 +191,33 @@ export class InMemorySwaggerSourceStore implements SwaggerSourceStore {
       throw new Error("SWAGGER_REQUEST_ALREADY_EXISTS");
     this.state.requests.set(request.requestId, request);
     return cloneRequest(request);
+  }
+
+  async ensureRequest(
+    input: Parameters<SwaggerSourceStore["createRequest"]>[0],
+  ) {
+    const related = [...this.state.requests.values()].filter(
+      (request) =>
+        request.sourceFamily === input.sourceFamily &&
+        request.officialUrl === input.officialUrl &&
+        request.documentKey === (input.documentKey ?? null) &&
+        request.bundleVersion === (input.bundleVersion ?? null),
+    );
+    const priority = (request: SwaggerSourceRequest) =>
+      [
+        "PENDING_OPERATOR_UPLOAD",
+        "UPLOAD_RECEIVED",
+        "QUARANTINED",
+        "VALIDATION_FAILED",
+      ].includes(request.status)
+        ? 0
+        : request.status === "CANDIDATE_READY"
+          ? 1
+          : 2;
+    related.sort((a, b) => priority(a) - priority(b));
+    if (related[0]) return cloneRequest(related[0]);
+    // No await between the history check and the synchronous map insertion.
+    return this.createRequest(input);
   }
 
   async getRequest(requestId: string) {
@@ -359,34 +390,69 @@ function mapArtifact(row: ArtifactRow): SwaggerArtifact {
   };
 }
 
+async function insertSwaggerRequest(
+  query: SwaggerSourceSqlQuery,
+  input: Parameters<SwaggerSourceStore["createRequest"]>[0],
+): Promise<SwaggerSourceRequest> {
+  const requestId = input.requestId ?? randomUUID();
+  const inserted = await query.query<RequestRow>(
+    `${requestProjection} WHERE request_id=$1`,
+    [requestId],
+  );
+  if (inserted.rows[0]) throw new Error("SWAGGER_REQUEST_ALREADY_EXISTS");
+  const createdAt = input.createdAt ?? new Date();
+  const write = await query.query<RequestRow>(
+    `INSERT INTO swagger_source_requests(request_id,source_family,official_url,document_key,bundle_version,expected_artifact_type,created_at,status,expires_at,blocker_reason) VALUES($1,$2,$3,$4,$5,$6,$7,'PENDING_OPERATOR_UPLOAD',$8,$9) RETURNING request_id AS "requestId",source_family AS "sourceFamily",official_url AS "officialUrl",document_key AS "documentKey",bundle_version AS "bundleVersion",expected_artifact_type AS "expectedArtifactType",created_at AS "createdAt",status,expires_at AS "expiresAt",blocker_reason AS "blockerReason"`,
+    [
+      requestId,
+      input.sourceFamily,
+      input.officialUrl,
+      input.documentKey ?? null,
+      input.bundleVersion ?? null,
+      input.expectedArtifactType,
+      createdAt,
+      input.expiresAt ?? null,
+      input.blockerReason.slice(0, 500),
+    ],
+  );
+  if (!write.rows[0]) throw new Error("SWAGGER_REQUEST_CREATE_FAILED");
+  return mapRequest(write.rows[0]);
+}
+
 export function createPostgresSwaggerSourceStore(
   runtime: SwaggerSourceSqlRuntime,
 ): SwaggerSourceStore {
   return {
     async createRequest(input) {
-      const requestId = input.requestId ?? randomUUID();
-      const inserted = await runtime.query<RequestRow>(
-        `${requestProjection} WHERE request_id=$1`,
-        [requestId],
-      );
-      if (inserted.rows[0]) throw new Error("SWAGGER_REQUEST_ALREADY_EXISTS");
-      const createdAt = input.createdAt ?? new Date();
-      const write = await runtime.query<RequestRow>(
-        `INSERT INTO swagger_source_requests(request_id,source_family,official_url,document_key,bundle_version,expected_artifact_type,created_at,status,expires_at,blocker_reason) VALUES($1,$2,$3,$4,$5,$6,$7,'PENDING_OPERATOR_UPLOAD',$8,$9) RETURNING request_id AS "requestId",source_family AS "sourceFamily",official_url AS "officialUrl",document_key AS "documentKey",bundle_version AS "bundleVersion",expected_artifact_type AS "expectedArtifactType",created_at AS "createdAt",status,expires_at AS "expiresAt",blocker_reason AS "blockerReason"`,
-        [
-          requestId,
+      return insertSwaggerRequest(runtime, input);
+    },
+    async ensureRequest(input) {
+      return runtime.transaction(async (query) => {
+        const identity = JSON.stringify([
           input.sourceFamily,
           input.officialUrl,
           input.documentKey ?? null,
           input.bundleVersion ?? null,
-          input.expectedArtifactType,
-          createdAt,
-          input.expiresAt ?? null,
-          input.blockerReason.slice(0, 500),
-        ],
-      );
-      if (!write.rows[0]) throw new Error("SWAGGER_REQUEST_CREATE_FAILED");
-      return mapRequest(write.rows[0]);
+        ]);
+        // Lock the absent-row case too: concurrent report passes get one generation.
+        await query.query(
+          "SELECT pg_advisory_xact_lock(hashtextextended($1,0))",
+          ["octoport-swagger-auto-request-v1:" + identity],
+        );
+        const related = await query.query<RequestRow>(
+          `${requestProjection} WHERE source_family=$1 AND official_url=$2 AND document_key IS NOT DISTINCT FROM $3::text AND bundle_version IS NOT DISTINCT FROM $4::text ORDER BY CASE WHEN status IN ('PENDING_OPERATOR_UPLOAD','UPLOAD_RECEIVED','QUARANTINED','VALIDATION_FAILED') THEN 0 WHEN status='CANDIDATE_READY' THEN 1 ELSE 2 END,created_at DESC,request_id LIMIT 1`,
+          [
+            input.sourceFamily,
+            input.officialUrl,
+            input.documentKey ?? null,
+            input.bundleVersion ?? null,
+          ],
+        );
+        // Terminal history is never reopened or overwritten by automatic discovery.
+        return related.rows[0]
+          ? mapRequest(related.rows[0])
+          : insertSwaggerRequest(query, input);
+      });
     },
     async getRequest(requestId) {
       const result = await runtime.query<RequestRow>(

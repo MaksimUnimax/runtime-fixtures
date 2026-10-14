@@ -203,49 +203,31 @@ export async function runDocumentAuthorityPass(input: {
                   "CANCELLED",
                 );
             }
-            const existing = await input.pendingStore.findOpenRequest(
-              "WILDBERRIES",
-              WB_BUNDLE_OFFICIAL_URL,
-              now(),
-              WB_BUNDLE_DOCUMENT_KEY,
-            );
-            if (!existing)
-              await input.pendingStore.createRequest({
-                requestId: "WILDBERRIES:WB_OPENAPI_BUNDLE",
-                sourceFamily: "WILDBERRIES",
-                documentKey: WB_BUNDLE_DOCUMENT_KEY,
-                bundleVersion: WB_BUNDLE_VERSION,
-                officialUrl: WB_BUNDLE_OFFICIAL_URL,
-                expectedArtifactType: "JSON",
-                createdAt: now(),
-                blockerReason:
-                  "One complete official Wildberries bundle is required after individual official documents require operator access.",
-              });
+            await input.pendingStore.ensureRequest({
+              sourceFamily: "WILDBERRIES",
+              documentKey: WB_BUNDLE_DOCUMENT_KEY,
+              bundleVersion: WB_BUNDLE_VERSION,
+              officialUrl: WB_BUNDLE_OFFICIAL_URL,
+              expectedArtifactType: "JSON",
+              createdAt: now(),
+              blockerReason:
+                "One complete official Wildberries bundle is required after individual official documents require operator access.",
+            });
             wbBundleRequestCreated = true;
           }
         } else {
           const officialUrl = document?.officialUrl ?? entry.officialUrl;
           if (officialUrl) {
-            const existing = await input.pendingStore.findOpenRequest(
-              entry.sourceFamily,
+            await input.pendingStore.ensureRequest({
+              sourceFamily: entry.sourceFamily,
+              documentKey: document?.documentKey,
               officialUrl,
-              now(),
-              document?.documentKey,
-            );
-            if (!existing)
-              await input.pendingStore.createRequest({
-                requestId: document
-                  ? `${entry.sourceFamily}:${document.documentKey}`
-                  : undefined,
-                sourceFamily: entry.sourceFamily,
-                documentKey: document?.documentKey,
-                officialUrl,
-                expectedArtifactType:
-                  document?.expectedArtifactTypes.join(",") ??
-                  entry.expectedArtifactTypes.join(","),
-                createdAt: now(),
-                blockerReason: outcome.blockerReason,
-              });
+              expectedArtifactType:
+                document?.expectedArtifactTypes.join(",") ??
+                entry.expectedArtifactTypes.join(","),
+              createdAt: now(),
+              blockerReason: outcome.blockerReason,
+            });
           }
         }
       }

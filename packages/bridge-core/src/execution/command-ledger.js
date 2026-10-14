@@ -27,12 +27,59 @@
       if (Object.keys(data.receipts).length + Object.keys(data.deliveries).length + Object.keys(data.approvals).length >= MAX_MARKERS)
         throw err("WORK_MARKER_CAPACITY_START_REQUIRED");
     }
+    function compactCompletedWork(data, context) {
+      // Only a new Work may retire completed history. Uncertain effects and their
+      // ancestry remain durable fences, even when their payloads have expired.
+      if (!nonempty(context.accountId) || !nonempty(context.workSessionId)) return;
+      const removable = new Set(Object.entries(data.receipts).filter(([, receipt]) =>
+        receipt.context?.accountId === context.accountId &&
+        nonempty(receipt.context.workSessionId) && receipt.context.workSessionId !== context.workSessionId &&
+        Array.isArray(receipt.items) && receipt.items.length > 0 && receipt.items.every(item => item.state === "RESULT")
+      ).map(([id]) => id));
+      for (const delivery of Object.values(data.deliveries)) {
+        if (delivery.state !== "CONFIRMED") removable.delete(delivery.executionId);
+      }
+      // Keep predecessor chains of every retained receipt and uncertain delivery.
+      let changed;
+      do {
+        changed = false;
+        for (const [id, receipt] of Object.entries(data.receipts)) {
+          if (!removable.has(id) && removable.delete(receipt.predecessor)) changed = true;
+        }
+      } while (changed);
+      for (const approval of Object.values(data.approvals)) {
+        const target = approval.executionId || approval.predecessor;
+        if (!(removable.has(target) && (!approval.consumedBy || removable.has(approval.consumedBy)))) {
+          removable.delete(target);
+          removable.delete(approval.consumedBy);
+        }
+      }
+      // Approval dependencies can keep an additional predecessor chain alive.
+      do {
+        changed = false;
+        for (const [id, receipt] of Object.entries(data.receipts)) {
+          if (!removable.has(id) && removable.delete(receipt.predecessor)) changed = true;
+        }
+      } while (changed);
+      for (const [id, approval] of Object.entries(data.approvals)) {
+        if (removable.has(approval.executionId || approval.predecessor) &&
+            (!approval.consumedBy || removable.has(approval.consumedBy))) delete data.approvals[id];
+      }
+      for (const id of removable) delete data.receipts[id];
+      for (const [id, delivery] of Object.entries(data.deliveries)) {
+        if (delivery.state === "CONFIRMED" && removable.has(delivery.executionId)) delete data.deliveries[id];
+      }
+      const origins = new Set([...Object.values(data.receipts), ...Object.values(data.approvals)]
+        .map(record => record.blockOriginKey));
+      for (const id of Object.keys(data.origins)) if (!origins.has(id)) delete data.origins[id];
+    }
     async function mutate(conversationKey, context, fn) {
       await check(context);
       let result;
       await store.mutate(conversationKey, async current => {
         await check(context);
         const data = ledger(current);
+        compactCompletedWork(data, context);
         result = fn(data);
         if (result?.then) throw err("COMMAND_WRITER_ASYNC_EFFECT_FORBIDDEN");
         return { ...(current || {}), r3_commands: data };

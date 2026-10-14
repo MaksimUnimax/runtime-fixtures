@@ -71,6 +71,8 @@ def main():
                 ("i1-races", ROOT / "tests/regression/extension-core/client-i1/client-races.mjs"),
                 ("i1-r2", ROOT / "tests/regression/extension-core/client-i1/client-r2.mjs"),
                 ("i1-r3", ROOT / "tests/regression/extension-core/client-i1/client-r3.mjs"),
+                ("i1-profile-revocation", ROOT / "tests/regression/extension-core/client-i1/client-profile-revocation.mjs"),
+                ("i1-ledger-capacity", ROOT / "tests/regression/extension-core/client-i1/client-ledger-capacity.mjs"),
                 ("i1-r4", ROOT / "tests/regression/extension-core/client-i1/client-r4.mjs"),
                 ("i1-r5", ROOT / "tests/regression/extension-core/client-i1/client-r5.mjs"),
                 ("i1-cache-time", ROOT / "tests/regression/extension-core/client-i1/client-cache-time.mjs"),

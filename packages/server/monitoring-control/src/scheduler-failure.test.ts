@@ -1,6 +1,8 @@
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { IndependentMonitoringScheduler } from "./scheduler.js";
+import { InMemoryMonitoringScheduleStore } from "./store.js";
 
 const schedulerUrl = new URL("./scheduler.ts", import.meta.url).href;
 const storeUrl = new URL("./store.ts", import.meta.url).href;
@@ -119,4 +121,105 @@ it("contains synchronous diagnostic failures while retaining the original failed
   expect(observed.activeRunRetained).toBe(true);
   expect(observed.lastResult).toBeNull();
   expect(observed.notices).toBeGreaterThan(0);
+});
+
+describe("reviewer A startup timer ownership", () => {
+  it("rejected initial start performs one attempt and leaves no periodic timer", async () => {
+    vi.useFakeTimers();
+    const store = new InMemoryMonitoringScheduleStore();
+    const original = store.startRun.bind(store);
+    let attempts = 0;
+    store.startRun = async (input) => {
+      if (input.lane === "LLM") {
+        attempts++;
+        throw new Error("SYNTHETIC_FIRST_TICK_FAILURE");
+      }
+      return original(input);
+    };
+    const result = {
+      status: "SUCCEEDED" as const,
+      code: null,
+      summary: "synthetic",
+    };
+    const scheduler = new IndependentMonitoringScheduler({
+      store,
+      tickMs: 25,
+      runners: { LLM: async () => result, SWAGGER_API: async () => result },
+    });
+    try {
+      await expect(scheduler.start()).rejects.toThrow(
+        "SYNTHETIC_FIRST_TICK_FAILURE",
+      );
+      await vi.advanceTimersByTimeAsync(200);
+      expect(attempts).toBe(1);
+      expect(vi.getTimerCount()).toBe(0);
+      expect((await scheduler.runNowAndWait("SWAGGER_API")).status).toBe(
+        "SUCCEEDED",
+      );
+    } finally {
+      await scheduler.stop();
+      vi.useRealTimers();
+    }
+  });
+  it("concurrent and repeated successful starts own exactly one timer", async () => {
+    vi.useFakeTimers();
+    const store = new InMemoryMonitoringScheduleStore();
+    const result = {
+      status: "SUCCEEDED" as const,
+      code: null,
+      summary: "synthetic",
+    };
+    const scheduler = new IndependentMonitoringScheduler({
+      store,
+      tickMs: 25,
+      runners: { LLM: async () => result, SWAGGER_API: async () => result },
+    });
+    try {
+      await Promise.all([scheduler.start(), scheduler.start()]);
+      await scheduler.start();
+      expect(vi.getTimerCount()).toBe(1);
+      await scheduler.stop();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      await scheduler.stop();
+      vi.useRealTimers();
+    }
+  });
+  it("stop during initial store preparation prevents a late timer or scheduled work", async () => {
+    vi.useFakeTimers();
+    const store = new InMemoryMonitoringScheduleStore();
+    const original = store.ensureDefaults.bind(store);
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    store.ensureDefaults = async (now) => {
+      await gate;
+      await original(now);
+    };
+    const startRun = vi.spyOn(store, "startRun");
+    const result = {
+      status: "SUCCEEDED" as const,
+      code: null,
+      summary: "synthetic",
+    };
+    const scheduler = new IndependentMonitoringScheduler({
+      store,
+      tickMs: 25,
+      runners: { LLM: async () => result, SWAGGER_API: async () => result },
+    });
+    try {
+      const starting = scheduler.start();
+      await scheduler.stop();
+      release();
+      await expect(starting).rejects.toThrow("MONITORING_START_STOPPED");
+      await vi.advanceTimersByTimeAsync(200);
+      expect(startRun).not.toHaveBeenCalled();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      release();
+      await scheduler.stop();
+      vi.useRealTimers();
+    }
+  });
 });
