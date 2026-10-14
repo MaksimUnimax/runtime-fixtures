@@ -578,6 +578,8 @@ async function retainQuarantineUpload(
   }
   const temporary = join(directory, `.${filename}.${randomUUID()}.tmp`);
   const handle = await open(temporary, "wx", 0o600);
+  let failed = false;
+  let failure: unknown;
   try {
     try {
       await handle.writeFile(bytes);
@@ -592,9 +594,23 @@ async function retainQuarantineUpload(
       if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
       await verifyExisting();
     }
-  } finally {
-    await unlink(temporary);
+  } catch (error) {
+    failed = true;
+    failure = error;
   }
+  try {
+    await unlink(temporary);
+  } catch (cleanupError) {
+    if ((cleanupError as NodeJS.ErrnoException).code !== "ENOENT") {
+      if (failed)
+        throw new AggregateError(
+          [failure, cleanupError],
+          "QUARANTINE_TEMP_CLEANUP_FAILED",
+        );
+      throw cleanupError;
+    }
+  }
+  if (failed) throw failure;
   return filename;
 }
 

@@ -1,15 +1,61 @@
-import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type * as Fs from "node:fs/promises";
 import {
   createInMemorySwaggerSourceState,
   createSwaggerHandoffService,
   InMemorySwaggerSourceStore,
 } from "./swagger-handoff.js";
 
+const storageFault = vi.hoisted(() => ({
+  stage: "",
+  failure: undefined as Error | undefined,
+  cleanup: undefined as Error | undefined,
+}));
+vi.mock("node:fs/promises", async (importOriginal) => {
+  const fs = await importOriginal<typeof Fs>();
+  return {
+    ...fs,
+    open: async (...args: Parameters<typeof fs.open>) => {
+      const handle = await fs.open(...args);
+      return new Proxy(handle, {
+        get(target, key) {
+          if (key === "writeFile")
+            return async (...values: Parameters<typeof handle.writeFile>) => {
+              if (storageFault.stage === "write") {
+                await target.writeFile(Buffer.from("partial"));
+                throw storageFault.failure;
+              }
+              return target.writeFile(...values);
+            };
+          if (key === "sync")
+            return async () => {
+              if (storageFault.stage === "sync") throw storageFault.failure;
+              return target.sync();
+            };
+          const value = Reflect.get(target, key, target);
+          return typeof value === "function" ? value.bind(target) : value;
+        },
+      });
+    },
+    link: async (...args: Parameters<typeof fs.link>) => {
+      if (storageFault.stage === "link") throw storageFault.failure;
+      return fs.link(...args);
+    },
+    unlink: async (...args: Parameters<typeof fs.unlink>) => {
+      if (storageFault.cleanup) throw storageFault.cleanup;
+      return fs.unlink(...args);
+    },
+  };
+});
+
 const directories: string[] = [];
 afterEach(async () => {
+  storageFault.stage = "";
+  storageFault.failure = undefined;
+  storageFault.cleanup = undefined;
   vi.restoreAllMocks();
   for (const path of directories.splice(0))
     await rm(path, { recursive: true, force: true });
@@ -42,6 +88,33 @@ async function fixture() {
   return { directory, store, service, input };
 }
 describe("quarantine retry and uncertain registration", () => {
+  it.each(["write", "sync", "link"])(
+    "preserves the %s failure when temporary cleanup also fails",
+    async (stage) => {
+      const f = await fixture();
+      await writeFile(join(f.directory, "unrelated.tmp"), "keep");
+      const original = Object.assign(new Error("UPLOAD_STORAGE_FAILED"), {
+        code: "ENOSPC",
+      });
+      const cleanup = Object.assign(new Error("TEMP_CLEANUP_DENIED"), {
+        code: "EACCES",
+      });
+      storageFault.stage = stage;
+      storageFault.failure = original;
+      storageFault.cleanup = cleanup;
+      const error: unknown = await f
+        .service()
+        .upload(f.input)
+        .catch((caught) => caught);
+      expect(error).toBeInstanceOf(AggregateError);
+      expect((error as AggregateError).errors).toEqual([original, cleanup]);
+      expect(await readFile(join(f.directory, "unrelated.tmp"), "utf8")).toBe(
+        "keep",
+      );
+      expect(await f.store.listArtifacts(f.input.requestId)).toHaveLength(0);
+    },
+  );
+
   it("retains one retry payload through three rejected saves and service recreation", async () => {
     const f = await fixture();
     const save = vi

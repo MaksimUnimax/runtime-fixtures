@@ -66,6 +66,68 @@ class OpsReleaseInputsTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "FREE_SPACE_RESERVE"):
                 module.check_budget(self.root, 16, 10**10, 1024)
 
+    def test_admission_rejects_insufficient_headroom_for_one_bounded_stage(self):
+        (self.root / "existing").write_bytes(b"x" * 8192)
+        used = module.allocated_bytes(self.root)
+        with self.assertRaisesRegex(ValueError, "BYTES_LIMIT"):
+            module.check_budget(self.root, 16, used + 65536, 1)
+
+    def test_free_reserve_covers_staging_and_filesystem_metadata(self):
+        class FileSystem:
+            f_bavail = (4 * 1024**3 + 4096) // 4096
+            f_frsize = 4096
+        with patch.object(module.os, "statvfs", return_value=FileSystem()):
+            with self.assertRaisesRegex(ValueError, "FREE_SPACE_RESERVE"):
+                module.check_budget(self.root, 16, 20 * 1024**3, 3 * 1024**3)
+
+    def test_export_rejects_before_copy_and_preserves_existing_release(self):
+        stage = self.root / "stage"
+        stage.mkdir()
+        (stage / "payload").write_bytes(b"x" * 16384)
+        destination = self.root / ".ops-publish-fixture"
+        destination.mkdir()
+        existing = self.root / ("a" * 40)
+        existing.mkdir()
+        (existing / "keep").write_text("active")
+        node = self.root / "node"
+        node.write_bytes(b"node")
+        used = module.allocated_bytes(self.root)
+        with self.assertRaisesRegex(ValueError, "BYTES_LIMIT"):
+            module.export_stage(stage, destination, self.root, node, used + 8192, 1)
+        self.assertEqual(list(destination.iterdir()), [])
+        self.assertEqual((existing / "keep").read_text(), "active")
+
+    def test_export_preserves_internal_hardlinks_and_verified_node_reuse(self):
+        node = self.root / "node"
+        node.write_bytes(b"fixture-node")
+        release = self.root / ("a" * 40)
+        donor = release / ".runtime/node"
+        donor.parent.mkdir(parents=True)
+        donor.write_bytes(node.read_bytes())
+        donor.chmod(0o555)
+        (release / "RELEASE_MANIFEST.json").write_text(json.dumps({
+            "sourceSha": release.name,
+            "runtime": {"nodeSha256": hashlib.sha256(node.read_bytes()).hexdigest()},
+        }))
+        stage = self.root / "stage"
+        (stage / ".runtime").mkdir(parents=True)
+        (stage / ".runtime/node").write_bytes(node.read_bytes())
+        (stage / "a").write_bytes(b"same-inode")
+        module.os.link(stage / "a", stage / "b")
+        destination = self.root / ".ops-publish-fixture"
+        destination.mkdir()
+        result = module.export_stage(stage, destination, self.root, node)
+        self.assertEqual(result["node"], "verified_immutable_hardlink")
+        self.assertEqual((destination / "a").stat().st_ino, (destination / "b").stat().st_ino)
+        self.assertEqual((destination / ".runtime/node").stat().st_ino, donor.stat().st_ino)
+
+    def test_export_rejects_external_symlink_before_any_copy(self):
+        stage = self.root / "stage"
+        stage.mkdir()
+        (stage / "external").symlink_to("../../outside")
+        with self.assertRaisesRegex(ValueError, "EXTERNAL_SYMLINK"):
+            module.export_projection(stage, 4096)
+
     def test_node_reuses_only_verified_readonly_identical_payload(self):
         source = self.root / "node-source"
         source.write_bytes(b"fixture-node")

@@ -58,10 +58,14 @@ def runtime_inputs(source: Path) -> list[str]:
 def allocated_bytes(root: Path) -> int:
     seen = set()
     total = 0
+    device = root.stat().st_dev
     for base, dirs, files in os.walk(root, followlinks=False):
+        dirs[:] = [name for name in dirs if (Path(base) / name).lstat().st_dev == device]
         for name in [".", *dirs, *files]:
             item = Path(base) if name == "." else Path(base) / name
             info = item.lstat()
+            if info.st_dev != device:
+                continue
             key = (info.st_dev, info.st_ino)
             if key not in seen:
                 seen.add(key)
@@ -78,12 +82,14 @@ def check_budget(root: Path, max_count: int, max_bytes: int, reserve_bytes: int)
     free = filesystem.f_bavail * filesystem.f_frsize
     if len(releases) >= max_count:
         raise ValueError("OPS_RELEASE_COUNT_LIMIT: reconcile retained deployments before preparing another")
-    if used >= max_bytes:
+    growth = staging_growth_bytes(filesystem.f_frsize)
+    if used + growth > max_bytes:
         raise ValueError("OPS_RELEASE_BYTES_LIMIT: reconcile retained deployments before preparing another")
-    # Allow bounded staging growth while preserving the required free reserve.
-    if free < reserve_bytes + 1024 * 1024 * 1024:
+    # The temporary filesystem bounds the build. Admit its entire export up front.
+    if free < reserve_bytes + growth:
         raise ValueError("OPS_RELEASE_FREE_SPACE_RESERVE")
-    return {"release_count": len(releases), "allocated_bytes": used, "free_bytes": free}
+    return {"release_count": len(releases), "allocated_bytes": used, "free_bytes": free,
+            "stage_bytes": STAGE_BYTES, "stage_inodes": STAGE_INODES, "export_bound_bytes": growth}
 
 
 def sha256_file(path: Path) -> str:
@@ -122,6 +128,97 @@ def stage_node(source: Path, stage: Path, root: Path) -> str:
     return "private_copy"
 
 
+# The build filesystem has a kernel-enforced aggregate size/inode limit.
+# Reserve room for its complete export, including conservative filesystem metadata.
+STAGE_BYTES = 1024**3
+STAGE_INODES = 65536
+
+
+def staging_growth_bytes(block_size: int) -> int:
+    return STAGE_BYTES + STAGE_INODES * 2 * block_size
+
+
+def export_projection(stage: Path, block_size: int) -> int:
+    seen = set()
+    paths = set()
+    entries = 0
+    data_bytes = 0
+    for base, dirs, files in os.walk(stage, followlinks=False):
+        for name in [".", *dirs, *files]:
+            item = Path(base) if name == "." else Path(base) / name
+            info = item.lstat()
+            if item in paths:
+                continue
+            paths.add(item)
+            key = (info.st_dev, info.st_ino)
+            entries += 1
+            if stat.S_ISREG(info.st_mode) and key not in seen:
+                seen.add(key)
+                data_bytes += ((info.st_size + block_size - 1) // block_size) * block_size
+            elif stat.S_ISLNK(info.st_mode):
+                target = os.readlink(item)
+                if os.path.isabs(target) or not (item.parent / target).resolve().is_relative_to(stage.resolve()):
+                    raise ValueError("OPS_STAGE_EXTERNAL_SYMLINK")
+            elif not (stat.S_ISDIR(info.st_mode) or stat.S_ISREG(info.st_mode)):
+                raise ValueError("OPS_STAGE_UNSUPPORTED_FILE")
+    if data_bytes > STAGE_BYTES or entries > STAGE_INODES:
+        raise ValueError("OPS_STAGE_BYTES_OR_INODES_LIMIT")
+    return data_bytes + entries * 2 * block_size
+
+
+def export_stage(stage: Path, destination: Path, root: Path, node: Path,
+                 max_bytes: int = 8 * 1024**3, reserve_bytes: int = 3 * 1024**3) -> dict:
+    if destination.is_symlink() or not destination.is_dir() or any(destination.iterdir()):
+        raise ValueError("OPS_EXPORT_REQUIRES_OWN_EMPTY_DIRECTORY")
+    if destination.parent.resolve() != root.resolve():
+        raise ValueError("OPS_EXPORT_OUTSIDE_RELEASE_ROOT")
+    filesystem = os.statvfs(root)
+    projected = export_projection(stage, filesystem.f_frsize)
+    used = allocated_bytes(root)
+    free = filesystem.f_bavail * filesystem.f_frsize
+    bound = staging_growth_bytes(filesystem.f_frsize)
+    if used + bound > max_bytes:
+        raise ValueError("OPS_RELEASE_BYTES_LIMIT")
+    if free < reserve_bytes + bound:
+        raise ValueError("OPS_RELEASE_FREE_SPACE_RESERVE")
+    copied = {}
+    staged_node = stage / ".runtime/node"
+
+    def copy_file(source, target):
+        source = Path(source)
+        if source == staged_node:
+            return str(target)  # Materialize verified Node separately on the target filesystem.
+        info = source.stat()
+        key = (info.st_dev, info.st_ino)
+        if key in copied:
+            os.link(copied[key], target)
+        else:
+            shutil.copy2(source, target)
+            copied[key] = target
+        return str(target)
+
+    try:
+        shutil.copytree(stage, destination, dirs_exist_ok=True, symlinks=True, copy_function=copy_file)
+        node_mode = stage_node(node, destination, root)
+        used_after = allocated_bytes(root)
+        filesystem = os.statvfs(root)
+        free_after = filesystem.f_bavail * filesystem.f_frsize
+        if used_after > max_bytes or free_after < reserve_bytes:
+            raise ValueError("OPS_RELEASE_EXPORT_BUDGET_CHANGED")
+        return {"projected_export_bytes": projected, "admitted_export_bound_bytes": bound,
+                "allocated_bytes": used_after, "node": node_mode}
+    except Exception as error:
+        try:
+            for item in destination.iterdir():
+                if item.is_dir() and not item.is_symlink():
+                    shutil.rmtree(item)
+                else:
+                    item.unlink()
+        except Exception as cleanup:
+            raise ExceptionGroup("OPS_EXPORT_AND_CLEANUP_FAILED", [error, cleanup]) from error
+        raise
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     sub = parser.add_subparsers(dest="action", required=True)
@@ -136,13 +233,20 @@ def main() -> None:
     node.add_argument("source", type=Path)
     node.add_argument("stage", type=Path)
     node.add_argument("root", type=Path)
+    export = sub.add_parser("export-stage")
+    export.add_argument("stage", type=Path)
+    export.add_argument("destination", type=Path)
+    export.add_argument("root", type=Path)
+    export.add_argument("node", type=Path)
     args = parser.parse_args()
     if args.action == "inputs":
         print("\n".join(runtime_inputs(args.source)))
     elif args.action == "budget":
         print(json.dumps(check_budget(args.root, args.max_count, args.max_bytes, args.reserve_bytes)))
-    else:
+    elif args.action == "stage-node":
         print(stage_node(args.source, args.stage, args.root))
+    else:
+        print(json.dumps(export_stage(args.stage, args.destination, args.root, args.node)))
 
 
 if __name__ == "__main__":

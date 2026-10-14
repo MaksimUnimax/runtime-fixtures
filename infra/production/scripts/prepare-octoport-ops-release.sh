@@ -1,63 +1,19 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 umask 0022
-
-SOURCE_DIR="${1:-}"
-RELEASE_ROOT="${2:-}"
 NODE_BIN="${OCTOPORT_NODE_BIN:-/root/.nvm/versions/node/v24.20.0/bin/node}"
 PNPM_BIN="${OCTOPORT_PNPM_BIN:-/root/.nvm/versions/node/v24.20.0/bin/pnpm}"
-
-fail() {
-  printf '[octoport-ops-release] ERROR: %s\n' "$*" >&2
-  exit 1
-}
-
-[[ "${EUID}" -eq 0 ]] || fail "run as root"
-[[ -n "${SOURCE_DIR}" && -n "${RELEASE_ROOT}" ]] ||
-  fail "usage: $0 <clean-source-checkout> <release-root>"
-[[ "${SOURCE_DIR}" = /* && "${RELEASE_ROOT}" = /* ]] ||
-  fail "source and release root must be absolute paths"
-case "${RELEASE_ROOT}" in
-  /root|/root/*|/home|/home/*|/run/user|/run/user/*)
-    fail "release root is incompatible with ProtectHome=yes"
-    ;;
-esac
-[[ -x "${NODE_BIN}" ]] || fail "pinned Node binary is not executable"
-[[ -x "${PNPM_BIN}" ]] || fail "pinned pnpm binary is not executable"
-
-for command_name in git tar sha256sum python3 install mkdir mv rm chmod grep find sort xargs flock; do
-  command -v "${command_name}" >/dev/null 2>&1 ||
-    fail "missing required command: ${command_name}"
-done
-
-SOURCE_DIR="$(cd -- "${SOURCE_DIR}" && pwd -P)"
-mkdir -p "${RELEASE_ROOT}"
-RELEASE_ROOT="$(cd -- "${RELEASE_ROOT}" && pwd -P)"
-
-head_sha="$(git -C "${SOURCE_DIR}" rev-parse HEAD)"
-tree_sha="$(git -C "${SOURCE_DIR}" rev-parse HEAD^{tree})"
-[[ -z "$(git -C "${SOURCE_DIR}" status --porcelain)" ]] ||
-  fail "source checkout must be clean"
-
-# Serialize preparation and check limits before materializing another release.
-exec 9>"${RELEASE_ROOT}/.prepare.lock"
-flock -n 9 || fail "another release preparation is active"
-helper="${SOURCE_DIR}/tooling/operations/ops_release_inputs.py"
-python3 -B "${helper}" budget "${RELEASE_ROOT}"
-target="${RELEASE_ROOT}/${head_sha}"
-[[ ! -e "${target}" ]] || fail "release already exists: ${target}"
-tmp="$(mktemp -d "${RELEASE_ROOT}/.ops-${head_sha}.XXXXXX")"
-chmod 0755 "${tmp}"
-success=0
-published=0
-cleanup() {
-  if [[ "${success}" -ne 1 ]]; then
-    rm -rf -- "${tmp}"
-    if [[ "${published}" -eq 1 ]]; then rm -rf -- "${target}"; fi
-  fi
-}
-trap cleanup EXIT
-
+fail() { printf '[octoport-ops-release] ERROR: %s\n' "$*" >&2; exit 1; }
+build_stage() {
+  [[ "$(stat -f -c %T "${tmp}")" == tmpfs ]] || fail "build stage requires a bounded tmpfs"
+  python3 -B - "${tmp}" <<'BOUNDS'
+import os, sys
+fs = os.statvfs(sys.argv[1])
+if fs.f_blocks * fs.f_frsize > 1024**3 or fs.f_files > 65536:
+    raise SystemExit("OPS_STAGE_FILESYSTEM_LIMIT_MISSING")
+BOUNDS
+  mkdir -p "${tmp}/.build-tmp" "${tmp}/.build-cache"
+  export TMPDIR="${tmp}/.build-tmp" XDG_CACHE_HOME="${tmp}/.build-cache"
 python3 -B "${helper}" inputs "${SOURCE_DIR}" >"${tmp}/RELEASE_INPUT_PATHS"
 mapfile -t release_paths <"${tmp}/RELEASE_INPUT_PATHS"
 git -C "${SOURCE_DIR}" archive --format=tar "${head_sha}" -- "${release_paths[@]}" |
@@ -72,6 +28,8 @@ export PATH="$(dirname "${NODE_BIN}"):${PATH}"
   "${PNPM_BIN}" --filter @product/telegram-operator build
   CI=true "${PNPM_BIN}" install --offline --frozen-lockfile --ignore-scripts --prod
 )
+
+rm -rf -- "${tmp}/.build-tmp" "${tmp}/.build-cache"
 
 # pnpm's local content-addressable store can preserve root-only read modes from
 # the build host. The immutable release contains no secrets, so normalize the
@@ -134,13 +92,74 @@ fi
 if find "${tmp}" ! -user root -print -quit | grep -q .; then
   fail "release must be root-owned"
 fi
-mv -T "${tmp}" "${target}"
+  python3 -B "${helper}" export-stage "${tmp}" "${publish_tmp}" "${RELEASE_ROOT}" "${NODE_BIN}"
+}
+[[ "${EUID}" -eq 0 ]] || fail "run as root"
+if [[ "${1:-}" == "--build-stage" ]]; then
+  [[ "$#" -eq 7 ]] || fail "internal build stage arguments missing"
+  SOURCE_DIR="$2"; tmp="$3"; publish_tmp="$4"; RELEASE_ROOT="$5"; head_sha="$6"; tree_sha="$7"
+  [[ "$(git -C "${SOURCE_DIR}" rev-parse HEAD)" == "${head_sha}" ]] || fail "source changed before build"
+  helper="${SOURCE_DIR}/tooling/operations/ops_release_inputs.py"
+  build_stage
+  exit 0
+fi
+SOURCE_DIR="${1:-}"
+RELEASE_ROOT="${2:-}"
+[[ -n "${SOURCE_DIR}" && -n "${RELEASE_ROOT}" ]] ||
+  fail "usage: $0 <clean-source-checkout> <release-root>"
+[[ "${SOURCE_DIR}" = /* && "${RELEASE_ROOT}" = /* ]] || fail "paths must be absolute"
+case "${RELEASE_ROOT}" in
+  /root|/root/*|/home|/home/*|/run/user|/run/user/*) fail "release root is incompatible with ProtectHome=yes" ;;
+esac
+[[ -x "${NODE_BIN}" && -x "${PNPM_BIN}" ]] || fail "pinned Node/pnpm must be executable"
+for command_name in git tar sha256sum python3 install mkdir mv rm chmod grep find sort xargs flock mktemp basename stat systemd-run systemctl; do
+  command -v "${command_name}" >/dev/null 2>&1 || fail "missing required command: ${command_name}"
+done
+SOURCE_DIR="$(cd -- "${SOURCE_DIR}" && pwd -P)"
+mkdir -p "${RELEASE_ROOT}"
+RELEASE_ROOT="$(cd -- "${RELEASE_ROOT}" && pwd -P)"
+head_sha="$(git -C "${SOURCE_DIR}" rev-parse HEAD)"
+tree_sha="$(git -C "${SOURCE_DIR}" rev-parse HEAD^{tree})"
+[[ -z "$(git -C "${SOURCE_DIR}" status --porcelain)" ]] || fail "source checkout must be clean"
+exec 9>"${RELEASE_ROOT}/.prepare.lock"
+flock -n 9 || fail "another release preparation is active"
+helper="${SOURCE_DIR}/tooling/operations/ops_release_inputs.py"
+python3 -B "${helper}" budget "${RELEASE_ROOT}"
+target="${RELEASE_ROOT}/${head_sha}"
+[[ ! -e "${target}" ]] || fail "release already exists"
+tmp="$(mktemp -d "${RELEASE_ROOT}/.ops-${head_sha}.XXXXXX")"
+publish_tmp="$(mktemp -d "${RELEASE_ROOT}/.ops-publish-${head_sha}.XXXXXX")"
+unit="octoport-ops-build-$(basename "${tmp}").service"
+success=0
+published=0
+cleanup() {
+  if [[ "$(systemctl show "${unit}" -p ActiveState --value 2>/dev/null)" == active ]]; then
+    systemctl stop "${unit}"
+  fi
+  rm -rf -- "${tmp}"
+  if [[ "${success}" -ne 1 ]]; then
+    rm -rf -- "${publish_tmp}"
+    if [[ "${published}" -eq 1 ]]; then rm -rf -- "${target}"; fi
+  fi
+}
+trap cleanup EXIT
+trap 'exit 143' TERM
+trap 'exit 130' INT
+[[ "$(systemctl show "${unit}" -p LoadState --value)" == not-found ]] || fail "build unit already exists"
+printf '[octoport-ops-release] bounded build unit=%s size=1073741824 inodes=65536\n' "${unit}"
+systemd-run --unit="${unit}" --quiet --wait --pipe --service-type=exec \
+  --property=RuntimeMaxSec=900 --property=KillMode=control-group --property=TimeoutStopSec=5s \
+  --property=SendSIGKILL=yes --property=OOMPolicy=stop --property=MemoryAccounting=yes \
+  --property=MemoryMax=2147483648 --property=MemorySwapMax=0 --property=TasksMax=1024 \
+  --property="TemporaryFileSystem=${tmp}:rw,size=1073741824,nr_inodes=65536,mode=0755" \
+  --property="ReadOnlyPaths=${SOURCE_DIR}" \
+  --setenv="OCTOPORT_NODE_BIN=${NODE_BIN}" --setenv="OCTOPORT_PNPM_BIN=${PNPM_BIN}" \
+  /bin/bash "${SOURCE_DIR}/infra/production/scripts/prepare-octoport-ops-release.sh" \
+  --build-stage "${SOURCE_DIR}" "${tmp}" "${publish_tmp}" "${RELEASE_ROOT}" "${head_sha}" "${tree_sha}"
+mv -T "${publish_tmp}" "${target}"
 published=1
-python3 "${target}/tooling/operations/verify_ops_release.py" \
-  --expected-source-sha "${head_sha}" \
-  --expected-source-tree "${tree_sha}" \
-  "${target}" >/dev/null ||
+python3 -B "${target}/tooling/operations/verify_ops_release.py" \
+  --expected-source-sha "${head_sha}" --expected-source-tree "${tree_sha}" "${target}" >/dev/null ||
   fail "prepared release failed self-verification"
 success=1
-trap - EXIT
-printf '[octoport-ops-release] prepared %s source=%s tree=%s\n'   "${target}" "${head_sha}" "${tree_sha}"
+printf '[octoport-ops-release] prepared %s source=%s tree=%s\n' "${target}" "${head_sha}" "${tree_sha}"
