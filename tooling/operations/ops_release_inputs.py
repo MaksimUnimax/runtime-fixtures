@@ -6,6 +6,7 @@ must be reconciled before releasing a retained deployment.
 from __future__ import annotations
 
 import argparse
+import fcntl
 import hashlib
 import json
 import os
@@ -14,6 +15,66 @@ import re
 import shutil
 import stat
 import subprocess
+
+
+def secure_release_root(root: Path) -> Path:
+    if not root.is_absolute() or ".." in root.parts:
+        raise ValueError("OPS_RELEASE_ROOT_NOT_ABSOLUTE_CANONICAL")
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    descriptor = os.open("/", flags)
+    try:
+        for component in root.parts[1:]:
+            try:
+                child = os.open(component, flags, dir_fd=descriptor)
+            except FileNotFoundError:
+                os.mkdir(component, 0o755, dir_fd=descriptor)
+                child = os.open(component, flags, dir_fd=descriptor)
+            metadata = os.fstat(child)
+            if metadata.st_uid != 0 or metadata.st_mode & 0o022:
+                os.close(child)
+                raise ValueError("OPS_RELEASE_UNTRUSTED_ROOT")
+            os.close(descriptor)
+            descriptor = child
+        return root
+    finally:
+        os.close(descriptor)
+
+
+def open_release_lock(root: Path) -> int:
+    descriptor = os.open(root / ".prepare.lock", os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+    try:
+        metadata = os.fstat(descriptor)
+        if (not stat.S_ISREG(metadata.st_mode) or metadata.st_uid != 0
+                or metadata.st_mode & 0o022 or metadata.st_nlink != 1):
+            raise ValueError("OPS_RELEASE_UNTRUSTED_LOCK")
+        fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        return descriptor
+    except BaseException:
+        os.close(descriptor)
+        raise
+
+
+def validate_release_lock(root: Path, descriptor: int) -> None:
+    secure_release_root(root)
+    current = os.lstat(root / ".prepare.lock")
+    held = os.fstat(descriptor)
+    if (not stat.S_ISREG(current.st_mode) or current.st_uid != 0
+            or current.st_mode & 0o022 or current.st_nlink != 1
+            or (current.st_dev, current.st_ino) != (held.st_dev, held.st_ino)):
+        raise ValueError("OPS_RELEASE_LOCK_IDENTITY_CHANGED")
+    fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+
+def locked_release_exec(source: Path, root: Path) -> None:
+    secure_release_root(root)
+    descriptor = open_release_lock(root)
+    if descriptor != 9:
+        os.dup2(descriptor, 9, inheritable=True)
+        os.close(descriptor)
+    else:
+        os.set_inheritable(9, True)
+    os.execv("/bin/bash", ["/bin/bash", str(source / "infra/production/scripts/prepare-octoport-ops-release.sh"),
+                           "--locked", str(source), str(root)])
 
 
 def runtime_inputs(source: Path) -> list[str]:
@@ -222,6 +283,12 @@ def export_stage(stage: Path, destination: Path, root: Path, node: Path,
 def main() -> None:
     parser = argparse.ArgumentParser()
     sub = parser.add_subparsers(dest="action", required=True)
+    locked = sub.add_parser("locked-exec")
+    locked.add_argument("source", type=Path)
+    locked.add_argument("root", type=Path)
+    held = sub.add_parser("validate-lock")
+    held.add_argument("root", type=Path)
+    held.add_argument("descriptor", type=int)
     inputs = sub.add_parser("inputs")
     inputs.add_argument("source", type=Path)
     budget = sub.add_parser("budget")
@@ -239,7 +306,11 @@ def main() -> None:
     export.add_argument("root", type=Path)
     export.add_argument("node", type=Path)
     args = parser.parse_args()
-    if args.action == "inputs":
+    if args.action == "locked-exec":
+        locked_release_exec(args.source, args.root)
+    elif args.action == "validate-lock":
+        validate_release_lock(args.root, args.descriptor)
+    elif args.action == "inputs":
         print("\n".join(runtime_inputs(args.source)))
     elif args.action == "budget":
         print(json.dumps(check_budget(args.root, args.max_count, args.max_bytes, args.reserve_bytes)))

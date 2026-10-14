@@ -26,7 +26,7 @@ class OpsReleaseInputsTest(unittest.TestCase):
         target.write_text(json.dumps({"name": name, "dependencies": dependencies or {}}))
         return target.relative_to(self.root).as_posix()
 
-    def run_publication_boundary(self, move_behavior):
+    def run_publication_boundary(self, move_behavior, build_behavior=None):
         script = (Path(__file__).resolve().parents[2] / "infra/production/scripts/prepare-octoport-ops-release.sh").read_text()
         start = script.index('target="${RELEASE_ROOT}/${head_sha}"')
         end = script.index('python3 -B "${target}/tooling/operations/verify_ops_release.py"', start)
@@ -57,8 +57,66 @@ mountpoint() { return 1; }
 systemd-run() { mkdir -p "$tmp/.runtime"; printf 'owned-node' > "$tmp/.runtime/node"; printf 'owned' > "$tmp/payload"; }
 python3() { if [[ "${3:-}" == export-stage ]]; then cp -a "$tmp/." "$publish_tmp/"; fi; return 0; }
 """
+        if build_behavior:
+            header += "\nsystemd-run() {\n" + build_behavior + "\n}\n"
         program = header + "\nmv() {\n" + move_behavior + "\n}\n" + script[start:end]
         return subprocess.run(["/bin/bash", "-c", program], env={"PATH": "/usr/bin:/bin", "RELEASE_ROOT": str(self.root)}, capture_output=True, text=True, timeout=10)
+
+    def test_release_root_rejects_world_writable_ancestor(self):
+        with self.assertRaisesRegex(ValueError, "UNTRUSTED_ROOT"):
+            module.secure_release_root(self.root)
+
+    def test_lock_never_follows_symlink_or_truncates_its_target(self):
+        target = self.root / "owned-canary"
+        target.write_text("preserve")
+        (self.root / ".prepare.lock").symlink_to(target)
+        with self.assertRaises(OSError):
+            module.open_release_lock(self.root)
+        self.assertEqual(target.read_text(), "preserve")
+
+    def test_lock_rejects_nonregular_file(self):
+        (self.root / ".prepare.lock").mkdir()
+        with self.assertRaises((OSError, ValueError)):
+            module.open_release_lock(self.root)
+
+    @unittest.skipUnless(module.os.geteuid() == 0, "root-only trusted lock ownership proof")
+    def test_lock_preserves_content_and_excludes_another_writer(self):
+        path = self.root / ".prepare.lock"
+        path.write_text("lock-content")
+        path.chmod(0o600)
+        descriptor = module.open_release_lock(self.root)
+        try:
+            with self.assertRaises(BlockingIOError):
+                module.open_release_lock(self.root)
+            self.assertEqual(path.read_text(), "lock-content")
+        finally:
+            module.os.close(descriptor)
+
+    def test_foreign_stage_replacement_is_preserved_on_failure(self):
+        behavior = r"""
+/bin/mv "$tmp" "$RELEASE_ROOT/detached-owned-stage"
+/bin/mkdir "$tmp"
+printf 'foreign' > "$tmp/keep"
+printf '%s' "$tmp" > "$RELEASE_ROOT/foreign-stage-path"
+return 1
+"""
+        result = self.run_publication_boundary('/bin/mv "$@"', behavior)
+        self.assertNotEqual(result.returncode, 0)
+        path = Path((self.root / "foreign-stage-path").read_text())
+        self.assertEqual((path / "keep").read_text(), "foreign")
+
+    def test_foreign_export_replacement_is_preserved_on_failure(self):
+        behavior = r"""
+/bin/mv "$publish_tmp" "$RELEASE_ROOT/detached-owned-export"
+/bin/mkdir "$publish_tmp"
+printf 'foreign' > "$publish_tmp/keep"
+printf '%s' "$publish_tmp" > "$RELEASE_ROOT/foreign-export-path"
+return 1
+"""
+        result = self.run_publication_boundary('/bin/mv "$@"', behavior)
+        self.assertNotEqual(result.returncode, 0)
+        path = Path((self.root / "foreign-export-path").read_text())
+        self.assertEqual((path / "keep").read_text(), "foreign")
 
     def test_build_unit_does_not_expose_host_export_as_writable(self):
         script = (Path(__file__).resolve().parents[2] / "infra/production/scripts/prepare-octoport-ops-release.sh").read_text()

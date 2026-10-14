@@ -102,6 +102,8 @@ if [[ "${1:-}" == "--build-stage" ]]; then
   build_stage
   exit 0
 fi
+locked=0
+if [[ "${1:-}" == --locked ]]; then locked=1; shift; fi
 SOURCE_DIR="${1:-}"
 RELEASE_ROOT="${2:-}"
 [[ -n "${SOURCE_DIR}" && -n "${RELEASE_ROOT}" ]] ||
@@ -115,14 +117,17 @@ for command_name in git tar sha256sum python3 install mkdir mv rm chmod grep fin
   command -v "${command_name}" >/dev/null 2>&1 || fail "missing required command: ${command_name}"
 done
 SOURCE_DIR="$(cd -- "${SOURCE_DIR}" && pwd -P)"
-mkdir -p "${RELEASE_ROOT}"
+helper="${SOURCE_DIR}/tooling/operations/ops_release_inputs.py"
+if [[ "${locked}" -eq 0 ]]; then
+  # The helper validates every ancestor and opens O_NOFOLLOW without truncation,
+  # retaining one exclusive descriptor across exec for this finite preparation.
+  exec python3 -B "${helper}" locked-exec "${SOURCE_DIR}" "${RELEASE_ROOT}"
+fi
+python3 -B "${helper}" validate-lock "${RELEASE_ROOT}" 9
 RELEASE_ROOT="$(cd -- "${RELEASE_ROOT}" && pwd -P)"
 head_sha="$(git -C "${SOURCE_DIR}" rev-parse HEAD)"
 tree_sha="$(git -C "${SOURCE_DIR}" rev-parse HEAD^{tree})"
 [[ -z "$(git -C "${SOURCE_DIR}" status --porcelain)" ]] || fail "source checkout must be clean"
-exec 9>"${RELEASE_ROOT}/.prepare.lock"
-flock -n 9 || fail "another release preparation is active"
-helper="${SOURCE_DIR}/tooling/operations/ops_release_inputs.py"
 export PATH="$(dirname "${NODE_BIN}"):${PATH}"
 store_path="$(cd "${SOURCE_DIR}" && "${PNPM_BIN}" store path)"
 [[ "${store_path}" = /* ]] || fail "dependency store must be absolute"
@@ -132,6 +137,7 @@ python3 -B "${helper}" budget "${RELEASE_ROOT}"
 target="${RELEASE_ROOT}/${head_sha}"
 [[ ! -e "${target}" ]] || fail "release already exists"
 tmp=""
+tmp_identity=""
 stage_mount_source=""
 publish_tmp=""
 publish_identity=""
@@ -154,10 +160,16 @@ cleanup() {
       fi
       umount -- "${tmp}" || return 1
     fi
-    rm -rf -- "${tmp}"
+    if [[ -d "${tmp}" && ! -L "${tmp}" &&
+          "$(stat -c '%d:%i' "${tmp}" 2>/dev/null)" == "${tmp_identity}" ]]; then
+      rm -rf -- "${tmp}"
+    fi
   fi
   if [[ "${success}" -ne 1 ]]; then
-    if [[ -n "${publish_tmp}" ]]; then rm -rf -- "${publish_tmp}"; fi
+    if [[ -n "${publish_tmp}" && -d "${publish_tmp}" && ! -L "${publish_tmp}" &&
+          "$(stat -c '%d:%i' "${publish_tmp}" 2>/dev/null)" == "${publish_identity}" ]]; then
+      rm -rf -- "${publish_tmp}"
+    fi
     # rename preserves device/inode identity. This also owns the target if a
     # signal arrives immediately after mv, before the next shell command.
     if [[ -n "${publish_identity}" && -d "${target}" && ! -L "${target}" &&
@@ -170,6 +182,7 @@ trap cleanup EXIT
 trap 'exit 143' TERM
 trap 'exit 130' INT
 tmp="$(mktemp -d "${RELEASE_ROOT}/.ops-${head_sha}.XXXXXX")"
+tmp_identity="$(stat -c '%d:%i' "${tmp}")"
 publish_tmp="$(mktemp -d "${RELEASE_ROOT}/.ops-publish-${head_sha}.XXXXXX")"
 publish_identity="$(stat -c '%d:%i' "${publish_tmp}")"
 unit="octoport-ops-build-$(basename "${tmp}").service"
