@@ -28,6 +28,10 @@ export type IndependentMonitoringSchedulerOptions = {
   tickMs?: number;
   notifier?: MonitoringNotifier;
   notificationRetryDelaysMs?: readonly number[];
+  onError?: (event: {
+    code: "MONITORING_BACKGROUND_FAILED";
+    lane?: MonitoringLane;
+  }) => void;
 };
 
 export class IndependentMonitoringScheduler {
@@ -47,7 +51,9 @@ export class IndependentMonitoringScheduler {
 
   async start(): Promise<void> {
     await this.options.store.ensureDefaults(this.clock.now());
-    this.timer = setInterval(() => void this.tick(), this.tickMs);
+    this.timer = setInterval(() => {
+      void this.tick().catch(() => this.reportBackgroundFailure());
+    }, this.tickMs);
     await this.tick();
   }
 
@@ -123,8 +129,24 @@ export class IndependentMonitoringScheduler {
       return { kind: "ALREADY_RUNNING", lane, runId: result.runId };
     const work = this.execute(result.run);
     this.active.set(result.run.runId, work);
-    void work.finally(() => this.active.delete(result.run.runId));
+    // Handle both branches without creating an unobserved rejected finally promise.
+    // The original promise remains rejected for callers waiting on this run.
+    void work.then(
+      () => this.active.delete(result.run.runId),
+      () => {
+        this.active.delete(result.run.runId);
+        this.reportBackgroundFailure(lane);
+      },
+    );
     return { kind: "STARTED", lane, runId: result.run.runId, source };
+  }
+
+  private reportBackgroundFailure(lane?: MonitoringLane): void {
+    try {
+      this.options.onError?.({ code: "MONITORING_BACKGROUND_FAILED", lane });
+    } catch {
+      // Diagnostic callbacks must not recreate an unhandled rejection.
+    }
   }
 
   private async execute(run: MonitoringRun): Promise<void> {

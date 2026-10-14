@@ -14,7 +14,7 @@ import {
   inventoryIdentity,
   extractProductRegistry,
 } from "./product-registry.js";
-import { applyRetryDecision } from "./retry.js";
+import { applyRetryPassDecisions } from "./retry.js";
 import type {
   ApiWatchDependencies,
   ApiWatchImpact,
@@ -629,14 +629,12 @@ export async function runApiWatchReport(input: {
         now: currentTime(dependencies),
       });
     if (dependencies.retryStore)
-      for (const outcome of pass.outcomes)
-        await applyRetryDecision({
-          sourceFamily: outcome.sourceFamily,
-          outcome,
-          store: dependencies.retryStore,
-          scheduleEarlier: dependencies.scheduleEarlier,
-          now: currentTime(dependencies),
-        });
+      await applyRetryPassDecisions({
+        outcomes: pass.outcomes,
+        store: dependencies.retryStore,
+        scheduleEarlier: dependencies.scheduleEarlier,
+        now: currentTime(dependencies),
+      });
     return reportResult(state, coverageFromReportSources(sources, completedAt));
   } catch {
     await reportStore.transitionReport({
