@@ -9,6 +9,7 @@ import re
 import signal
 import subprocess
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
 
@@ -16,13 +17,107 @@ APPLY_CONFIRM = "ISOLATED_MONITOR_PILOT_RETENTION"
 RESULT_PREFIX = "MONITOR_PILOT_RETENTION_RESULT="
 DEFAULT_STATE_DIR = Path("/var/lib/octoport-monitor/retention-maintenance")
 DEFAULT_HARD_TIMEOUT_SECONDS = 60
-SAFE_CHILD_ERROR = re.compile(r"^(?:MONITOR_PILOT|HEALTH_RETENTION)_[A-Z0-9_]+$")
+# Only the exact error codes emitted by the current TS maintenance path may
+# cross the child-to-supervisor logging boundary. An uppercase "error code"
+# can otherwise encode arbitrary secrets while matching the previous regex.
+SAFE_CHILD_ERROR_CODES = frozenset(
+    {
+        "MONITOR_PILOT_DATABASE_URL_REQUIRED",
+        "MONITOR_PILOT_EXPECTED_DATABASE_ROLE_REQUIRED",
+        "MONITOR_PILOT_RETENTION_APPLY_CONFIRM_REQUIRED",
+        "MONITOR_PILOT_RETENTION_COMMAND_REQUIRED",
+        "MONITOR_PILOT_RETENTION_CURSOR_INVALID",
+        "MONITOR_PILOT_RETENTION_DEADLINE_INVALID",
+        "MONITOR_PILOT_RETENTION_FLAG_DUPLICATE",
+        "MONITOR_PILOT_RETENTION_FLAG_INVALID",
+        "MONITOR_PILOT_RETENTION_INSPECTION_FAILED",
+        "MONITOR_PILOT_RETENTION_LIMIT_INVALID",
+        "MONITOR_PILOT_RETENTION_OPERATION_FAILED",
+        "MONITOR_PILOT_RETENTION_SCHEMA_REQUIRED",
+        "MONITOR_PILOT_ADMIN_AUTHORITY_CONFLICT",
+        "MONITOR_PILOT_CATALOG_CONFLICT",
+        "MONITOR_PILOT_CATALOG_READ_FAILED",
+        "MONITOR_PILOT_COMMAND_REQUIRED",
+        "MONITOR_PILOT_DATABASE_IDENTITY_MISMATCH",
+        "MONITOR_PILOT_DATABASE_ROLE_MISMATCH",
+        "MONITOR_PILOT_OPERATION_FAILED",
+        "MONITOR_PILOT_POSTWRITE_PREFLIGHT_FAILED",
+        "MONITOR_PILOT_PROFILE_AUTHORITY_AMBIGUOUS",
+        "MONITOR_PILOT_PROFILE_REVISION_CONTENT_MISMATCH",
+        "MONITOR_PILOT_PROFILE_VARIANT_CONFLICT",
+        "MONITOR_PILOT_PROVIDER_AUTHORITY_AMBIGUOUS",
+        "MONITOR_PILOT_SOURCE_MANIFEST_DRIFT",
+        "MONITOR_PILOT_SURFACE_AUTHORITY_AMBIGUOUS",
+        "MONITOR_PILOT_TECHNICAL_AUTHORITY_CLEANUP_FAILED",
+        "HEALTH_RETENTION_CLASSIFICATION_MISMATCH",
+        "HEALTH_RETENTION_CURSOR_INVALID",
+        "HEALTH_RETENTION_LIMIT_INVALID",
+        "HEALTH_RETENTION_OBSERVATION_DELETE_FAILED",
+        "HEALTH_RETENTION_OBSERVED_AT_INVALID",
+        "HEALTH_RETENTION_RAW_PAYLOAD_CUTOFF_TOO_RECENT",
+        "HEALTH_RETENTION_RECEIPT_IDENTITY_CHANGED",
+        "HEALTH_RETENTION_RECEIPT_NOT_FOUND",
+        "HEALTH_RETENTION_RECEIPT_NOT_FOUND_FOR_INCIDENT_MARK",
+        "HEALTH_RETENTION_RECEIPT_PROJECTION_CONFLICT",
+        "HEALTH_RETENTION_RECEIPT_RETIRE_FAILED",
+        "HEALTH_RETENTION_REPLAY_RECEIPT_CUTOFF_TOO_RECENT",
+        "HEALTH_RETENTION_RUN_DELETE_FAILED",
+        "HEALTH_RETENTION_SCHEDULED_RUN_RETIRE_FAILED",
+        "HEALTH_RETENTION_SCHEDULER_DETACH_FAILED",
+        "HEALTH_RETENTION_SCHEDULE_NOT_FOUND",
+        "HEALTH_RETENTION_SCOPE_IDENTITY_CONFLICT",
+        "HEALTH_RETENTION_SCOPE_STATE_MISSING",
+        "HEALTH_RETENTION_TERMINAL_RETIRE_FAILED",
+        "HEALTH_RETENTION_WATERMARK_ADVANCE_FAILED",
+    }
+)
 SAFE_TIMESTAMP = re.compile(
     r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}Z$"
 )
 SAFE_RUN_ID = re.compile(r"^[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$")
-SAFE_REASON = re.compile(r"^[A-Z][A-Z0-9_]{0,79}$")
-SAFE_BLOCKED_REASON = re.compile(r"^(?:prune|receipt|terminal):[A-Z][A-Z0-9_]{0,79}$")
+# These codes are finite unions in health-retention-repository.ts. Shape-only
+# uppercase checks allow attacker-supplied text that resembles an enum name.
+INVENTORY_REASONS = frozenset(
+    {
+        "ELIGIBLE",
+        "ALREADY_PRUNED",
+        "PROJECTION_MISSING",
+        "INCIDENT_PROCESSING_PENDING",
+        "PAYLOAD_MISSING",
+        "SCHEDULER_MISSING",
+        "SCHEDULER_NOT_SUCCEEDED",
+        "SCHEDULER_LINK_MISMATCH",
+        "INCIDENT_PINNED",
+        "NOTIFICATION_PINNED",
+        "REPAIR_APPROVAL_PINNED",
+        "ACCEPTED_BASELINE_PINNED",
+        "RECENT_STATE_PINNED",
+    }
+)
+RECEIPT_BLOCKED_REASONS = frozenset(
+    {
+        "ALREADY_RETIRED",
+        "TOO_NEW",
+        "PAYLOAD_NOT_PRUNED",
+        "INCIDENT_PROCESSING_PENDING",
+        "SCHEDULER_NOT_SUCCEEDED",
+        "SCHEDULER_LINK_PRESENT",
+    }
+)
+TERMINAL_BLOCKED_REASONS = frozenset(
+    {
+        "ALREADY_RETIRED",
+        "TOO_NEW",
+        "NOT_TERMINAL",
+        "PERSISTED_RESULT_PRESENT",
+        "RETRY_PENDING",
+    }
+)
+BLOCKED_REASON_CODES = frozenset(
+    {f"prune:{reason}" for reason in INVENTORY_REASONS if reason != "ELIGIBLE"}
+    | {f"receipt:{reason}" for reason in RECEIPT_BLOCKED_REASONS}
+    | {f"terminal:{reason}" for reason in TERMINAL_BLOCKED_REASONS}
+)
 MAX_SAFE_COUNT = (1 << 53) - 1
 
 
@@ -142,7 +237,7 @@ def _safe_counts(
     value: Any,
     *,
     required_keys: set[str] | None = None,
-    key_pattern: re.Pattern[str] | None = None,
+    allowed_keys: frozenset[str] | None = None,
 ) -> dict[str, int]:
     if not isinstance(value, dict) or len(value) > 128:
         raise RetentionRunnerError("RETENTION_RESULT_UNSAFE_FIELDS")
@@ -151,7 +246,7 @@ def _safe_counts(
     result: dict[str, int] = {}
     for key, number in value.items():
         if not isinstance(key, str) or (
-            key_pattern is not None and not key_pattern.fullmatch(key)
+            allowed_keys is not None and key not in allowed_keys
         ):
             raise RetentionRunnerError("RETENTION_RESULT_UNSAFE_FIELDS")
         result[key] = _safe_count(number)
@@ -161,6 +256,10 @@ def _safe_counts(
 def _safe_timestamp(value: Any) -> str:
     if not isinstance(value, str) or not SAFE_TIMESTAMP.fullmatch(value):
         raise RetentionRunnerError("RETENTION_RESULT_UNSAFE_FIELDS")
+    try:
+        datetime.strptime(value, "%Y-%m-%dT%H:%M:%S.%fZ")
+    except ValueError as error:
+        raise RetentionRunnerError("RETENTION_RESULT_UNSAFE_FIELDS") from error
     return value
 
 
@@ -219,10 +318,14 @@ def _safe_snapshot(result: dict[str, Any]) -> dict[str, Any]:
         ),
         "inventory": {
             "scanned": _safe_count(inventory["scanned"]),
-            "reasons": _safe_counts(inventory["reasons"], key_pattern=SAFE_REASON),
+            "reasons": _safe_counts(
+                inventory["reasons"], allowed_keys=INVENTORY_REASONS
+            ),
             "nextCursor": cursor,
         },
-        "blocked": _safe_counts(result.get("blocked"), key_pattern=SAFE_BLOCKED_REASON),
+        "blocked": _safe_counts(
+            result.get("blocked"), allowed_keys=BLOCKED_REASON_CODES
+        ),
         "deadlineReached": reached,
     }
 
@@ -257,7 +360,7 @@ def _run_command_group(
 def _safe_child_error(stderr: str) -> str | None:
     for line in reversed(stderr.splitlines()):
         candidate = line.strip()
-        if SAFE_CHILD_ERROR.fullmatch(candidate):
+        if candidate in SAFE_CHILD_ERROR_CODES:
             return candidate
     return None
 

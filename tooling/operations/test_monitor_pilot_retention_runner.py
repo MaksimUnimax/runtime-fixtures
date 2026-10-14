@@ -264,6 +264,12 @@ class RetentionRunnerTests(unittest.TestCase):
             "HEALTH_RETENTION_LIMIT_INVALID",
         )
         self.assertIsNone(
+            runner._safe_child_error("MONITOR_PILOT_EMAIL_JANE_DOE_GMAIL_COM\n")
+        )
+        self.assertIsNone(
+            runner._safe_child_error("HEALTH_RETENTION_SECRET_SYNTHETIC_MARKER\n")
+        )
+        self.assertIsNone(
             runner._safe_child_error(
                 "password=must-not-surface\nMONITOR PILOT malformed detail\n"
             )
@@ -316,6 +322,26 @@ class RetentionRunnerTests(unittest.TestCase):
             ),
             ("actions", lambda value: value["actions"].update({"pruned": marker})),
             ("timestamp", lambda value: value.update({"startedAt": marker})),
+            (
+                "impossible_calendar_timestamp",
+                lambda value: value.update({"finishedAt": "2026-99-99T99:99:99.000Z"}),
+            ),
+            (
+                "unknown_uppercase_reason",
+                lambda value: value["inventory"]["reasons"].update(
+                    {"EMAIL_JANE_DOE_GMAIL_COM": 1}
+                ),
+            ),
+            (
+                "unknown_uppercase_prune_block",
+                lambda value: value["blocked"].update(
+                    {"prune:EMAIL_JANE_DOE_GMAIL_COM": 1}
+                ),
+            ),
+            (
+                "wrong_method_reason",
+                lambda value: value["blocked"].update({"receipt:INCIDENT_PINNED": 1}),
+            ),
             (
                 "reason_key",
                 lambda value: value["inventory"]["reasons"].update(
