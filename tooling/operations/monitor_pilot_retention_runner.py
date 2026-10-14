@@ -16,9 +16,14 @@ APPLY_CONFIRM = "ISOLATED_MONITOR_PILOT_RETENTION"
 RESULT_PREFIX = "MONITOR_PILOT_RETENTION_RESULT="
 DEFAULT_STATE_DIR = Path("/var/lib/octoport-monitor/retention-maintenance")
 DEFAULT_HARD_TIMEOUT_SECONDS = 60
-SAFE_CHILD_ERROR = re.compile(
-    r"^(?:MONITOR_PILOT|HEALTH_RETENTION)_[A-Z0-9_]+$"
+SAFE_CHILD_ERROR = re.compile(r"^(?:MONITOR_PILOT|HEALTH_RETENTION)_[A-Z0-9_]+$")
+SAFE_TIMESTAMP = re.compile(
+    r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}Z$"
 )
+SAFE_RUN_ID = re.compile(r"^[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$")
+SAFE_REASON = re.compile(r"^[A-Z][A-Z0-9_]{0,79}$")
+SAFE_BLOCKED_REASON = re.compile(r"^(?:prune|receipt|terminal):[A-Z][A-Z0-9_]{0,79}$")
+MAX_SAFE_COUNT = (1 << 53) - 1
 
 
 class RetentionRunnerError(RuntimeError):
@@ -127,23 +132,98 @@ def _write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
             tmp.unlink()
 
 
+def _safe_count(value: Any) -> int:
+    if type(value) is not int or not 0 <= value <= MAX_SAFE_COUNT:
+        raise RetentionRunnerError("RETENTION_RESULT_UNSAFE_FIELDS")
+    return value
+
+
+def _safe_counts(
+    value: Any,
+    *,
+    required_keys: set[str] | None = None,
+    key_pattern: re.Pattern[str] | None = None,
+) -> dict[str, int]:
+    if not isinstance(value, dict) or len(value) > 128:
+        raise RetentionRunnerError("RETENTION_RESULT_UNSAFE_FIELDS")
+    if required_keys is not None and set(value) != required_keys:
+        raise RetentionRunnerError("RETENTION_RESULT_UNSAFE_FIELDS")
+    result: dict[str, int] = {}
+    for key, number in value.items():
+        if not isinstance(key, str) or (
+            key_pattern is not None and not key_pattern.fullmatch(key)
+        ):
+            raise RetentionRunnerError("RETENTION_RESULT_UNSAFE_FIELDS")
+        result[key] = _safe_count(number)
+    return result
+
+
+def _safe_timestamp(value: Any) -> str:
+    if not isinstance(value, str) or not SAFE_TIMESTAMP.fullmatch(value):
+        raise RetentionRunnerError("RETENTION_RESULT_UNSAFE_FIELDS")
+    return value
+
+
+def _safe_pending_counts(value: Any) -> dict[str, int] | None:
+    if value is None:
+        return None
+    return _safe_counts(
+        value,
+        required_keys={"projection", "incident", "prunedReceipts", "terminal"},
+    )
+
+
 def _safe_snapshot(result: dict[str, Any]) -> dict[str, Any]:
-    inventory = result.get("inventory") if isinstance(result.get("inventory"), dict) else {}
+    if result.get("schemaVersion") != "monitor_pilot_retention_maintenance_v1":
+        raise RetentionRunnerError("RETENTION_RESULT_UNSAFE_FIELDS")
+    kind = result.get("kind")
+    if kind not in {"INSPECTED", "APPLIED", "PARTIAL", "MISSING_AUTHORITY"}:
+        raise RetentionRunnerError("RETENTION_RESULT_UNSAFE_FIELDS")
+    inventory = result.get("inventory")
+    if not isinstance(inventory, dict) or set(inventory) != {
+        "scanned",
+        "reasons",
+        "nextCursor",
+    }:
+        raise RetentionRunnerError("RETENTION_RESULT_UNSAFE_FIELDS")
+    cursor = inventory["nextCursor"]
+    if cursor is not None:
+        if not isinstance(cursor, dict) or set(cursor) != {"completedAt", "runId"}:
+            raise RetentionRunnerError("RETENTION_RESULT_UNSAFE_FIELDS")
+        run_id = cursor["runId"]
+        if not isinstance(run_id, str) or not SAFE_RUN_ID.fullmatch(run_id):
+            raise RetentionRunnerError("RETENTION_RESULT_UNSAFE_FIELDS")
+        cursor = {
+            "completedAt": _safe_timestamp(cursor["completedAt"]),
+            "runId": run_id,
+        }
+    reached = result.get("deadlineReached")
+    if type(reached) is not bool:
+        raise RetentionRunnerError("RETENTION_RESULT_UNSAFE_FIELDS")
     return {
         "version": 1,
-        "kind": result.get("kind"),
-        "startedAt": result.get("startedAt"),
-        "finishedAt": result.get("finishedAt"),
-        "pendingBefore": result.get("pendingBefore"),
-        "pendingAfter": result.get("pendingAfter"),
-        "actions": result.get("actions"),
+        "kind": kind,
+        "startedAt": _safe_timestamp(result.get("startedAt")),
+        "finishedAt": _safe_timestamp(result.get("finishedAt")),
+        "pendingBefore": _safe_pending_counts(result.get("pendingBefore")),
+        "pendingAfter": _safe_pending_counts(result.get("pendingAfter")),
+        "actions": _safe_counts(
+            result.get("actions"),
+            required_keys={
+                "projected",
+                "reconciled",
+                "pruned",
+                "receiptRetired",
+                "terminalRetired",
+            },
+        ),
         "inventory": {
-            "scanned": inventory.get("scanned"),
-            "reasons": inventory.get("reasons"),
-            "nextCursor": inventory.get("nextCursor"),
+            "scanned": _safe_count(inventory["scanned"]),
+            "reasons": _safe_counts(inventory["reasons"], key_pattern=SAFE_REASON),
+            "nextCursor": cursor,
         },
-        "blocked": result.get("blocked"),
-        "deadlineReached": result.get("deadlineReached"),
+        "blocked": _safe_counts(result.get("blocked"), key_pattern=SAFE_BLOCKED_REASON),
+        "deadlineReached": reached,
     }
 
 
@@ -205,9 +285,7 @@ def invoke_cli(
         if str(exc) == "RETENTION_RESULT_MISSING":
             safe_error = _safe_child_error(stderr)
             if safe_error is not None:
-                raise RetentionRunnerError(
-                    f"RETENTION_CLI_{safe_error}"
-                ) from exc
+                raise RetentionRunnerError(f"RETENTION_CLI_{safe_error}") from exc
         raise
     return return_code, result
 
@@ -217,7 +295,9 @@ def run_once(
     state_dir: Path,
     release_root: Path,
     timeout_seconds: int,
-    invoker: Callable[[Path, str, dict[str, str] | None, int], tuple[int, dict[str, Any]]] = invoke_cli,
+    invoker: Callable[
+        [Path, str, dict[str, str] | None, int], tuple[int, dict[str, Any]]
+    ] = invoke_cli,
 ) -> int:
     state_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
     lock_path = state_dir / "maintenance.lock"
@@ -247,16 +327,19 @@ def run_once(
             raise RetentionRunnerError("RETENTION_CLI_EXIT_MISMATCH")
         if kind == "MISSING_AUTHORITY":
             raise RetentionRunnerError("RETENTION_AUTHORITY_MISSING")
+        # Validate every printable/persisted child field before updating the
+        # cursor or last-result. An invalid counter must not leak to logs or disk.
+        snapshot = _safe_snapshot(result)
         if mode == "apply":
-            next_cursor = result.get("inventory", {}).get("nextCursor")
+            next_cursor = snapshot["inventory"]["nextCursor"]
             if kind == "PARTIAL" and isinstance(next_cursor, dict):
                 _write_json_atomic(cursor_path, {"version": 1, "cursor": next_cursor})
             elif cursor_path.exists():
                 cursor_path.unlink()
-            _write_json_atomic(state_dir / "last-result.json", _safe_snapshot(result))
+            _write_json_atomic(state_dir / "last-result.json", snapshot)
         print(
             "MONITOR_PILOT_RETENTION_RUNNER="
-            + json.dumps(_safe_snapshot(result), sort_keys=True, separators=(",", ":"))
+            + json.dumps(snapshot, sort_keys=True, separators=(",", ":"))
         )
         return 0
 
